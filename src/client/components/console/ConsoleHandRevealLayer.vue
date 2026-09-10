@@ -305,7 +305,7 @@ export default defineComponent({
       const n = this.cards.length;
       const reduced = consoleReducedMotionActive();
       const mid = (n - 1) / 2;
-      type Seat = {el: HTMLElement, flip: HTMLElement | null, pose: BodyPose, fresh: boolean, norm: number};
+      type Seat = {el: HTMLElement, flip: HTMLElement | null, pose: BodyPose, fresh: boolean, norm: number, name: string};
       const seats: Array<Seat> = [];
       let maxRemaining = 0;
       let maxCanonical = 0;
@@ -331,13 +331,14 @@ export default defineComponent({
           el, pose, fresh,
           flip: el.querySelector<HTMLElement>('.con-deal-proxy__flip'),
           norm: mid === 0 ? 0 : Math.abs(i - mid) / mid,
+          name: c.name,
         });
       });
       const baseMs = ride === undefined ? 340 :
         rideDurationForRemainder(ride.spec.durationMs, maxRemaining, maxCanonical);
       const durS = motionMs(baseMs) / 1000;
       const ease = ride === undefined ? 'power2.out' : ride.spec.ease;
-      seats.forEach(({el, flip, pose, fresh, norm}) => {
+      seats.forEach(({el, flip, pose, fresh, norm, name}) => {
         gsap.killTweensOf(el);
         // A DOCKED card rests in the chosen presentation («Рубашкой» /
         // «Лицом») — fresh seats state it, and re-poses self-heal any
@@ -348,8 +349,13 @@ export default defineComponent({
           if (flip !== null) {
             gsap.set(flip, {rotationY: dockFaceRotation()});
           }
-          if (fresh && animate && !reduced) {
+          if (fresh && animate && !reduced && !this.heldSet.has(name)) {
             // The arrival pop: rise out of the tray (the old con-hd-enter).
+            // NOT for a card an intake flight is delivering (`heldSet`): its
+            // reveal belongs to that flight's own touchdown, and this pop's
+            // inline y-offset + autoAlpha ran RACING the release — the body
+            // could be uncovered mid-pop, low and translucent under a proxy
+            // standing exactly on the pose.
             gsap.from(el, {y: `+=${1.15 * a.remPx}`, autoAlpha: 0, duration: motionMs(300) / 1000, ease: 'power2.out'});
           }
           return;

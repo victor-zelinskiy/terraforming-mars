@@ -247,35 +247,24 @@ export function runDeckDrawBeat(args: {
   return {kill: () => tl.kill()};
 }
 
-/**
- * The FINISH beat: the search is over. The held cards get one clean, quiet
- * confirmation (a small lift + settle, in place) before the reveal frame
- * assembles around them. This is the scene's calmest, largest moment.
+/*
+ * (The old `runDeckDrawSettle` — a staggered −6/+6 px hop across the finished
+ * row — is DELETED. A card that has arrived has arrived: re-animating a built
+ * row read as the cards trembling, and it stood between the player and the
+ * reveal for `(n−1)·50 + 320` ms while showing nothing new. The search's
+ * confirmation is already told per card — the turn at the inspect point and
+ * the mint sweep — and the batch-arrival contract states the law this now
+ * follows: «no bounce, no second hop, never a move to another position
+ * afterwards».)
  */
-export function runDeckDrawSettle(args: {
-  proxies: ReadonlyArray<HTMLElement>,
-  t: DeckDrawTimings,
-  reduced: boolean,
-  onDone: () => void,
-}): DeckDrawHandle {
-  const {proxies, t} = args;
-  const tl = gsap.timeline({onComplete: args.onDone});
-  if (args.reduced || proxies.length === 0) {
-    tl.to({}, {duration: s(t.settleMs)});
-    return {kill: () => tl.kill()};
-  }
-  proxies.forEach((proxy, i) => {
-    tl.to(proxy, {y: '-=6', duration: s(t.settleMs * 0.4), ease: 'power2.out'}, i * s(50));
-    tl.to(proxy, {y: '+=6', duration: s(t.settleMs * 0.6), ease: 'power2.inOut'}, i * s(50) + s(t.settleMs * 0.4));
-  });
-  return {kill: () => tl.kill()};
-}
 
 /**
  * The ASSEMBLE leg: the held cards fly from the hold zone into the reveal
  * modal's REAL slot rects. Landing is pixel-perfect (x/y = the slot's card
- * rect at the mapped scale), so the frame can materialize around cards that
- * already stand exactly where the modal wants them.
+ * rect at the mapped scale), and the frame materializes AROUND the arriving
+ * row (`onFrameCue`, just before the first touchdown — the rise director's
+ * grammar), so the stage is complete the moment the last card lands instead
+ * of assembling itself in phases afterwards.
  */
 export function runDeckDrawAssemble(args: {
   proxies: ReadonlyArray<HTMLElement>,
@@ -283,11 +272,17 @@ export function runDeckDrawAssemble(args: {
   naturalHs: ReadonlyArray<number>,
   t: DeckDrawTimings,
   reduced: boolean,
+  /** Fired shortly BEFORE the first touchdown — the frame's entrance cue. */
+  onFrameCue?: () => void,
   onAllLanded: () => void,
 }): DeckDrawHandle {
   const {proxies, targets, naturalHs, t} = args;
   const master = gsap.timeline({onComplete: args.onAllLanded});
   const legMs = args.reduced ? t.routeMs : t.routeMs * 1.25;
+  // Landings are the events: consecutive touchdowns keep a legible gap
+  // (the launch stagger IS the landing cadence here — every leg flies the
+  // same duration, so spacing the starts spaces the arrivals).
+  const stepMs = args.reduced ? 0 : 85;
   proxies.forEach((proxy, i) => {
     const target = targets[i];
     if (target === undefined) {
@@ -301,10 +296,16 @@ export function runDeckDrawAssemble(args: {
     master.to(proxy, {
       x: target.left, y: target.top, scale: scaleTo, rotation: 0,
       duration: s(legMs), ease: 'power2.inOut',
-    }, i * s(args.reduced ? 0 : 60));
+    }, i * s(stepMs));
   });
   if (proxies.length === 0) {
     master.to({}, {duration: s(legMs)});
+  } else if (args.onFrameCue !== undefined) {
+    // The frame enters while the first card is still on final approach, so
+    // the row lands INTO a materializing stage — never onto a void that only
+    // afterwards decides to draw itself.
+    const cue = args.onFrameCue;
+    master.call(() => cue(), undefined, Math.max(0, s(legMs) - s(70)));
   }
   return {kill: () => master.kill()};
 }

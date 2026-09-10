@@ -82,12 +82,20 @@ export class EnergyMarket extends Card implements IProjectCard {
     const availableMC = player.spendableMegacredits();
     return actionPreviews.orBranches(this, [
       {
-        // The payment for 2X M€ rides the follow-up routing after the amount pick,
-        // so the dial's `cost` hint is the ONLY place the price is stated before
-        // confirming — without it the player picks a number blind.
+        // The 2X bill CANNOT be pre-collected — its amount exists only once the
+        // dial is set — so the dial's `cost` hint states the price and the note
+        // DECLARES the payment hand-off (only for a player who can pay with
+        // something other than plain M€ — everyone else is auto-charged, exactly
+        // like the live deferred). An undeclared follow-up ends the flow on a
+        // surprise standalone band right after the workspace confirm.
         available: availableMC >= 2,
         title: 'Spend 2X M€ to gain X energy',
-        steps: [actionPreviews.amountStep('Select amount of energy to gain', 'Gain energy', 1, Math.floor(availableMC / 2), EnergyMarket.ENERGY_AMOUNT)],
+        steps: [
+          actionPreviews.amountStep('Select amount of energy to gain', 'Gain energy', 1, Math.floor(availableMC / 2), EnergyMarket.ENERGY_AMOUNT),
+          actionPreviews.paymentStep(player, 2) !== undefined ?
+            actionPreviews.noteStep('generic', 'After confirming, choose how to pay.') :
+            undefined,
+        ],
         unavailableReason: actionReason.needMoreMC(player, 2),
       },
       {

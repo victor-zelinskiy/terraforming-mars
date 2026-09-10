@@ -1,16 +1,16 @@
 import {IProjectCard} from '../IProjectCard';
-import {IActionCard, ICard} from '../ICard';
+import {IActionCard} from '../ICard';
 import {Card} from '../Card';
 import {CardName} from '../../../common/cards/CardName';
 import {CardType} from '../../../common/cards/CardType';
 import {CardResource} from '../../../common/CardResource';
 import {Tag} from '../../../common/cards/Tag';
 import {IPlayer} from '../../IPlayer';
-import {SelectCard} from '../../inputs/SelectCard';
 import {SelectOption} from '../../inputs/SelectOption';
 import {OrOptions} from '../../inputs/OrOptions';
 import {MAX_TEMPERATURE} from '../../../common/constants';
 import {LogHelper} from '../../LogHelper';
+import {AddResourcesToCard, Options as AddResourceOptions} from '../../deferredActions/AddResourcesToCard';
 import {SelectPaymentDeferred} from '../../deferredActions/SelectPaymentDeferred';
 import {cardSource, effectChoice} from '../../inputs/choiceContext';
 import {CardRenderer} from '../render/CardRenderer';
@@ -115,23 +115,27 @@ export class DirectedImpactors extends Card implements IActionCard, IProjectCard
             actionReason.ruleReason('Can\'t afford the Reds tax')),
       },
       {
-        // The asteroid TARGET still rides the follow-up routing.
         available: this.canPayForAsteroid(player),
         title: 'Pay 6 M€ to add 1 asteroid to a card',
         effects: pay !== undefined ?
           [actionPreviews.cardResourceGain(CardResource.ASTEROID, 1)] :
           [actionPreviews.stockCost(player, Resource.MEGACREDITS, ADD_COST), actionPreviews.cardResourceGain(CardResource.ASTEROID, 1)],
-        steps: [pay],
+        // Payment first, target second — the SAME order the live deferreds
+        // prompt in (SelectPaymentDeferred at DEFAULT outranks the target's
+        // GAIN_RESOURCE_OR_PRODUCTION). The target step is built from the SAME
+        // options object `addResource` defers with, so the candidate set and
+        // title cannot drift — leaving it undeclared is how this card's «выбор
+        // карты» arrived as a standalone band after the workspace confirm.
+        steps: [pay, actionPreviews.addToCardStep(player, CardResource.ASTEROID, this.asteroidTargetOptions())],
         unavailableReason: actionReason.needMoreMC(player, ADD_COST),
       },
     ]);
   }
 
   public action(player: IPlayer) {
-    const asteroidCards = player.getResourceCards(CardResource.ASTEROID);
     const opts = [];
 
-    const addResource = new SelectOption('Pay 6 M€ to add 1 asteroid to a card', 'Pay').andThen(() => this.addResource(player, asteroidCards));
+    const addResource = new SelectOption('Pay 6 M€ to add 1 asteroid to a card', 'Pay').andThen(() => this.addResource(player));
     const spendResource = new SelectOption('Remove 1 asteroid to raise temperature 1 step', 'Remove asteroid').andThen(() => this.spendResource(player));
 
     if (this.removeIsOffered(player)) {
@@ -150,20 +154,23 @@ export class DirectedImpactors extends Card implements IActionCard, IProjectCard
     return new OrOptions(...opts).markChoiceContext(effectChoice(this));
   }
 
-  private addResource(player: IPlayer, asteroidCards: ICard[]) {
+  /** ONE options object, read twice: `actionPreview` builds the pre-collected
+   *  target step from it and `addResource` defers the live prompt with it — so
+   *  the candidate set, the title and the no-autoselect rule cannot drift. */
+  private asteroidTargetOptions(): AddResourceOptions {
+    return {autoSelect: false, title: 'Select card to add 1 asteroid', cause: cardSource(this)};
+  }
+
+  private addResource(player: IPlayer) {
     player.game.defer(new SelectPaymentDeferred(player, ADD_COST, {canUseTitanium: true, title: TITLES.payForCardAction(this.name), cause: cardSource(this)}));
 
     // ALWAYS ask which card — even a single candidate (which is this card itself) —
     // so the player SEES where the asteroid goes + its current → resulting (no silent
-    // auto-add-to-self; fork-wide no-autoselect rule).
-    return new SelectCard(
-      'Select card to add 1 asteroid',
-      'Add asteroid',
-      asteroidCards)
-      .andThen(([card]) => {
-        player.addResourceTo(card, {log: true});
-        return undefined;
-      });
+    // auto-add-to-self; fork-wide no-autoselect rule). Via the SHARED deferred, so a
+    // prompt that ever does stand alone still carries its premium markers (source
+    // card + per-candidate `current → resulting` + VP).
+    player.game.defer(new AddResourcesToCard(player, CardResource.ASTEROID, this.asteroidTargetOptions()));
+    return undefined;
   }
 
   private spendResource(player: IPlayer) {

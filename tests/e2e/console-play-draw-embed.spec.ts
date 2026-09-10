@@ -372,15 +372,20 @@ test.describe('a play\'s DRAW presents inside the workspace the play was made in
       // stage while nothing else needs it — and lets go the moment the DECK
       // BEGINS DEALING, so the room is free for what is arriving. Both halves
       // are asserted: it must not overstay into the deal, and the stage must
-      // actually be freed while the deal runs.
-      if (s.dealing && log.sawLanding) {
-        if (s.landing) {
-          log.overstayFrames++;
-        } else if (!s.reveal) {
-          log.freedFrames++;
-          if (log.freedFrames === 1) {
-            await shoot(page, 'hand-stage-freed');
-          }
+      // actually be freed for the draw. Since the one-flight rework the whole
+      // deal (veiled mount → flight → handoff) fits between two of this
+      // loop's samples, so «freed» accepts EITHER shape of the free stage: a
+      // flyer still in the air with the tableau gone, or the arrived, untaken
+      // batch standing where the tableau used to be. (The reveal is allowed
+      // in the DOM during the flight — a plain batch mounts it VEILED first,
+      // because its slots are the flight's real destinations.)
+      if (s.dealing && s.landing && log.sawLanding) {
+        log.overstayFrames++;
+      }
+      if (log.sawLanding && !s.landing && (s.dealing || (s.embedded && s.untaken > 0))) {
+        log.freedFrames++;
+        if (log.freedFrames === 1) {
+          await shoot(page, 'hand-stage-freed');
         }
       }
       if (s.embedded) {

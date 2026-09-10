@@ -128,7 +128,7 @@ async function setUpSearchPrelude(page: Page): Promise<void> {
  * anything already painted then belongs to an earlier card, and inheriting it
  * would make every later reading a lie.
  */
-type RevealOrder = {samples: number, proxyAt: number, revealWithFirstProxy: boolean, staleReveal: boolean};
+type RevealOrder = {samples: number, proxyAt: number, revealWithFirstProxy: boolean, staleReveal: boolean, phases: Array<string>};
 
 /**
  * «The modal does NOT exist while the cards come off the deck» is a claim
@@ -149,6 +149,7 @@ async function armRevealOrderProbe(page: Page): Promise<void> {
       proxyAt: -1,
       revealWithFirstProxy: false,
       staleReveal: document.querySelector('.con-reveal__card') !== null,
+      phases: [] as Array<string>,
     };
     (window as unknown as Record<string, unknown>).__deckDrawOrder = state;
     const t0 = performance.now();
@@ -160,6 +161,13 @@ async function armRevealOrderProbe(page: Page): Promise<void> {
         // sample as the deal's FIRST card, not in a later round-trip. (The
         // observer fires on the insertion itself, so this is that frame.)
         state.revealWithFirstProxy = document.querySelector('.con-reveal__card') !== null;
+      }
+      // The scene's own phase ladder, deduped in visit order — the settle
+      // regression guard reads it (the bounce wave lived in a dedicated
+      // 'settle' phase; its removal must stay removed).
+      const phase = document.querySelector('.con-deckdraw')?.getAttribute('data-dd-phase');
+      if (phase !== null && phase !== undefined && state.phases[state.phases.length - 1] !== phase) {
+        state.phases.push(phase);
       }
     };
     new MutationObserver(sample).observe(document.body, {childList: true, subtree: true});
@@ -197,7 +205,13 @@ async function playSearchPrelude(page: Page): Promise<void> {
 }
 
 test.describe('console · deck-draw hero scene', () => {
-  test.use({viewport: {width: 1920, height: 1080}});
+  // Default FHD; TM_E2E_TV4K=1 re-runs the same journey at the TV profile
+  // (3840×2160) for on-demand visual acceptance — the scene geometry is
+  // rem-scaled, so the CI default stays the cheap viewport.
+  test.use({
+    viewport: process.env.TM_E2E_TV4K === '1' ?
+      {width: 3840, height: 2160} : {width: 1920, height: 1080},
+  });
 
   test('a conditional search plays off the deck, trays its discards, then assembles the reveal', async ({page, request}) => {
     test.setTimeout(240_000);
@@ -297,6 +311,17 @@ test.describe('console · deck-draw hero scene', () => {
     await expect(revealCard).toHaveCount(1, {timeout: 45_000});
     await expect(stage).toHaveCount(0, {timeout: 20_000}); // the stage tore down
     await shoot(page, '03-reveal');
+
+    // REGRESSION GUARD — the settle «bounce wave» stays removed. The old
+    // finish beat parked the scene in a dedicated 'settle' phase and hopped
+    // every held card −6/+6 px in a 50 ms stagger; the finished row now goes
+    // straight to 'assemble'. Phases are sampled continuously by the order
+    // probe over the WHOLE scene, so a re-introduced phase cannot hide
+    // between round-trips.
+    const fullOrder = await readRevealOrder(page);
+    expect(fullOrder.phases.length, 'the phase probe never saw the scene at all').toBeGreaterThan(0);
+    expect(fullOrder.phases, `the removed 'settle' phase re-appeared (saw: ${fullOrder.phases.join(' → ')})`)
+      .not.toContain('settle');
 
     // The server's own truth for this batch — the client must not disagree.
     const view = await (await request.get(`/api/player?id=${playerId}`)).json() as {

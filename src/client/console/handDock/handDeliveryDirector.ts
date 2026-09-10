@@ -250,7 +250,7 @@ const FLIP_LEAD = 0.26; // the flip starts at 26% of the arc…
 const FLIP_SPAN = 0.5; // …and turns over half of it (through the heart)
 const SETTLE_PRESS_MS = 90; // the touchdown presses into the pack…
 const SETTLE_BACK_MS = 150; // …and eases back level
-const FADE_MS = 200; // proxy fade over the materializing real card
+const FADE_MS = 200; // budget slack only — the handoff itself is next-frame
 const GATHER_MS = 340; // stack mode: the fan converges
 const PEEL_MS = 420; // stack mode: one card slips into its slot
 const PEEL_STEP_MS = 60; // stack mode: bottom-first landing cascade
@@ -685,18 +685,30 @@ async function fly(entries: ReadonlyArray<HandIntakeEntry>, snapshots: ReadonlyA
     claims.set(name, c + 1);
     return c;
   };
-  const touchdown = async (f: Live, pose: BodyPose) => {
-    // Materialize the real body under the proxy (contract 1) and press the
-    // proxy INTO the pack — the settle beat — fading it out on top. The
-    // proxy stands at the body's exact analytic pose (tilt included), so
-    // the release underneath is invisible; the press moves along the pose,
-    // never off it.
-    ctx.land(f.entryIdx);
+  const touchdown = async (f: Live, pose: BodyPose, seq: number) => {
+    // The settle press runs WHILE THE PROXY STILL OWNS THE CARD, and it aims
+    // at the LIVE pose, re-read here: the dock's pose can legitimately change
+    // during the 820 ms arc (a hover raising the fan, the intake accent
+    // expiring), and a press against the pose captured at launch parked the
+    // proxy beside the real body instead of on it. The press leg is the
+    // retarget — 240 ms of eased travel absorbs the whole drift.
+    const fresh = handBodiesOracle()?.poseForCopy(f.name as string, seq) ?? pose;
     const tl = gsap.timeline();
-    tl.to(f.el, {y: pose.y + 2.5 * ui, scale: pose.scale * 1.035, duration: s(SETTLE_PRESS_MS), ease: 'power1.out'}, 0);
-    tl.to(f.el, {y: pose.y, scale: pose.scale, duration: s(SETTLE_BACK_MS), ease: 'power2.out'}, s(SETTLE_PRESS_MS));
-    tl.to(f.el, {autoAlpha: 0, duration: s(FADE_MS), ease: 'power1.out'}, s(70));
+    tl.to(f.el, {
+      x: fresh.x, y: fresh.y + 2.5 * ui,
+      scale: fresh.scale * 1.035, rotation: fresh.rotation,
+      duration: s(SETTLE_PRESS_MS), ease: 'power1.out',
+    }, 0);
+    tl.to(f.el, {y: fresh.y, scale: fresh.scale, duration: s(SETTLE_BACK_MS), ease: 'power2.out'}, s(SETTLE_PRESS_MS));
     await awaitTimeline(tl);
+    // THE HANDOFF, in the batch family's own grammar: the real body
+    // materializes UNDER a proxy standing exactly on its pose, and the proxy
+    // leaves on the NEXT painted frame — never a long fade that keeps a
+    // second, drifting copy over an already-released card (that fade was the
+    // visible «дрожь» at every landing).
+    ctx.land(f.entryIdx);
+    await new Promise((r) => probeTick(() => r(undefined)));
+    gsap.set(f.el, {autoAlpha: 0});
   };
   const quietOut = async (f: Live) => {
     // No believable slot (the card never reached the hand / unmeasurable):
@@ -720,7 +732,7 @@ type FlightTools = {
   step?: number,
   claimSeq: (name: string) => number,
   isAborted: () => boolean,
-  touchdown: (f: LiveFlight, pose: BodyPose) => Promise<void>,
+  touchdown: (f: LiveFlight, pose: BodyPose, seq: number) => Promise<void>,
   quietOut: (f: LiveFlight) => Promise<void>,
   ctx: RunCtx,
 };
@@ -809,7 +821,7 @@ async function flyCascade(live: Array<LiveFlight>, dockR: DOMRect, t: FlightTool
     if (t.isAborted()) {
       return;
     }
-    await t.touchdown(f, pose);
+    await t.touchdown(f, pose, seq);
   }));
 }
 
@@ -917,7 +929,7 @@ async function flyStack(live: Array<LiveFlight>, dockR: DOMRect, t: FlightTools)
     if (t.isAborted()) {
       return;
     }
-    await t.touchdown(f, pose);
+    await t.touchdown(f, pose, seq);
   }));
 }
 

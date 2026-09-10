@@ -111,6 +111,23 @@ describe('consoleActionComposer', () => {
       ]);
     });
 
+    it('payment + card-target steps in ONE branch (Directed Impactors) — responses ride in steps order', () => {
+      // The live chain prompts payment FIRST (SelectPaymentDeferred at DEFAULT),
+      // then the AddResourcesToCard target — the preview declares its steps in
+      // that same order, so the positional replay meets each prompt in turn.
+      const batch = buildActionBatch({
+        performPath: [0], cardName: 'Directed Impactors' as CardName,
+        branchIndex: 1, preResponses: [], optionResponse: undefined,
+        stepResponses: [{type: 'payment', payment: {}}, {type: 'card', cards: ['Directed Impactors']}],
+      });
+      expect(batch).to.deep.eq([
+        {type: 'or', index: 0, response: {type: 'card', cards: ['Directed Impactors']}},
+        {type: 'or', index: 1, response: {type: 'option'}},
+        {type: 'payment', payment: {}},
+        {type: 'card', cards: ['Directed Impactors']},
+      ]);
+    });
+
     it('repeat-action prefix REPLACES the activate pick (Viron handoff)', () => {
       const prefix = [
         {type: 'or', index: 0, response: {type: 'card', cards: ['Viron']}},

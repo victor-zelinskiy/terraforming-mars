@@ -58,6 +58,11 @@ export class AsteroidRights extends Card implements IActionCard, IProjectCard {
     return actionReason.ruleReason('Need 1 M€ or an asteroid resource on this card');
   }
 
+  /** ONE payment options object, read twice (preview step + live deferred). */
+  private asteroidPaymentOptions() {
+    return {title: 'Select how to pay for asteroid', cause: cardSource(this)};
+  }
+
   // Branch order MUST match action(): gain-titanium, increase-M€-prod (both
   // gated on having an asteroid here), then add-asteroid (gated on M€).
   public actionPreview(player: IPlayer) {
@@ -67,6 +72,7 @@ export class AsteroidRights extends Card implements IActionCard, IProjectCard {
     // OrOptions option) — pre-collect it whenever there's a candidate (even one, this
     // card itself); never auto-add silently.
     const pickTarget = asteroidCards.length >= 1;
+    const pay = actionPreviews.paymentStep(player, 1, this.asteroidPaymentOptions());
     return actionPreviews.orBranches(this, [
       {
         available: hasAsteroids,
@@ -81,12 +87,18 @@ export class AsteroidRights extends Card implements IActionCard, IProjectCard {
         unavailableReason: actionReason.noResourcesHere(),
       },
       {
-        // Target card pre-collected via optionInput (when several candidates);
-        // the M€ payment rides the follow-up SelectPaymentDeferred after submit.
+        // Target card pre-collected via optionInput (when several candidates).
         available: player.canAfford(1),
         title: 'Add 1 asteroid to this card',
-        effects: [actionPreviews.stockCost(player, Resource.MEGACREDITS, 1), actionPreviews.cardResourceGain(CardResource.ASTEROID, 1)],
+        effects: pay !== undefined ?
+          [actionPreviews.cardResourceGain(CardResource.ASTEROID, 1)] :
+          [actionPreviews.stockCost(player, Resource.MEGACREDITS, 1), actionPreviews.cardResourceGain(CardResource.ASTEROID, 1)],
         optionInput: pickTarget ? actionPreviews.cardInput(player, 'Select card to add 1 asteroid', 'Add asteroid', asteroidCards) : undefined,
+        // The 1 M€ becomes a payment CHOICE for a heat-/titanium-as-M€ player —
+        // the live `SelectPaymentDeferred` (deferred inside the target's andThen)
+        // then asks. Pre-collect it, or it arrives as a standalone band right
+        // after the workspace confirm. Options shared with `action()`.
+        steps: [pay],
         // On a card that scores per asteroid the resource moves VICTORY POINTS —
         // usually the reason one target beats another.
         vpBox: actionPreviews.targetVictoryPoints(player, asteroidCards, 1),
@@ -122,7 +134,7 @@ export class AsteroidRights extends Card implements IActionCard, IProjectCard {
     // auto-add-to-self; fork-wide no-autoselect rule). SelectCard never auto-resolves.
     const addAsteroidOption = new SelectCard('Select card to add 1 asteroid', 'Add asteroid', asteroidCards)
       .andThen(([card]) => {
-        player.game.defer(new SelectPaymentDeferred(player, 1, {title: 'Select how to pay for asteroid', cause: cardSource(this)}));
+        player.game.defer(new SelectPaymentDeferred(player, 1, this.asteroidPaymentOptions()));
         player.addResourceTo(card, {log: true});
 
         return undefined;

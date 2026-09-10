@@ -22086,8 +22086,14 @@ html.con-scale-focus-oceans .global-numbers-oceans {
         position: relative;
         flex-shrink: 0;
         border-radius: .6rem;
-        transition: transform calc(160ms * var(--motion-scale, 1)) ease,
-            box-shadow calc(160ms * var(--motion-scale, 1)) ease,
+        /* Focus/selection travel rides the calm 240ms @con-ease-standard the
+           ws-stage rows established — at 160ms/ease the ring + lift read as a
+           KICK the instant it landed on a freshly-arrived card. `opacity`
+           deliberately keeps the short 160ms: it is the deal handoff's own
+           release fade, and stretching it would soften a seam that must stay
+           crisp (real card materializing under a proxy). */
+        transition: transform calc(240ms * var(--motion-scale, 1)) @con-ease-standard,
+            box-shadow calc(240ms * var(--motion-scale, 1)) @con-ease-standard,
             opacity calc(160ms * var(--motion-scale, 1)) ease;
         > :is(.card-container, .pcard) { margin: 0; }
 
@@ -24295,11 +24301,13 @@ body.con-start-ceremony {
         padding: 2.2rem 1.2rem 1.5rem;
         max-width: 100%;
 
-        /* The FOCUSED card leads the reveal a notch harder than the shared
-           strip default (transform-only — the zoomed row never reflows);
-           clip-safe within this strip's taller headroom. */
+        /* The FOCUSED card leads the reveal a notch over the shared strip
+           default (transform-only — the zoomed row never reflows); clip-safe
+           within this strip's taller headroom. Was 1.1 / −.4rem: on the big
+           reveal cards that amplitude read as the card JUMPING when focus
+           landed right after the arrival — the family speaks 1.045–1.06. */
         > .con-cards__slot--focused {
-            transform: translateY(-.4rem) scale(1.1);
+            transform: translateY(-.3rem) scale(1.06);
         }
         /* «A Взять» reads as part of the focused card. Its rem type already
            carries the TV rem scale AND it lives inside the slot's zoom

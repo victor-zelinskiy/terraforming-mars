@@ -3,7 +3,7 @@
 **Triggered by:** Factorum's corporation action showing a generic «◈ ПОДТВЕРЖДЕНИЕ / Потратьте 3 M€, чтобы добрать карту строительства» band in the console-native shell, *after* the action workspace had already taken the confirmation.
 
 **Status:** the in-scope classes below are FIXED and guarded by
-`tests/models/actionPromptCoverage.spec.ts` (classes 1–5) and
+`tests/models/actionPromptCoverage.spec.ts` (classes 1–5 and 7) and
 `tests/inputs/deferredInputBatch.spec.ts` (class 6). The Turmoil AVAILABILITY class (§4,
 CLASS 4) is open and recorded.
 
@@ -154,11 +154,13 @@ Not fixed here: Turmoil is outside the premium subsystem scope, and a 40-entry e
 would have buried the in-scope findings. The exact profile to re-enable is written out in the
 guard's `PROFILES` array.
 
-### Adjacent, not fixed
-`promo/DirectedImpactors`' asteroid TARGET (`SelectCard`) is still an undeclared follow-up —
-the same family as CLASS 3 but for pickers rather than payments. It arrives inside the
-console's own card-pick surface rather than a generic band, so it is a step out of the
-one-confirmation flow rather than a legacy-looking screen.
+### ~~Adjacent, not fixed~~ → became CLASS 7 and shipped as a live bug
+`promo/DirectedImpactors`' asteroid TARGET (`SelectCard`) was left an undeclared follow-up
+with this note claiming it lands "inside the console's own card-pick surface". It does not:
+the branch declares no `+N cards` gain and no `reveal`, so `branchOutcomeClaimPlan` derives
+NO claim kinds, the workspace claims nothing, and the pick arrived as a standalone
+«ЦЕЛЬ НА КАРТЕ» band right after the workspace confirm — reported by a player as «повторный
+промт» (2026-09-11). Recorded below as CLASS 7 and closed.
 
 ### CLASS 5 — the BRANCH's own follow-up (added 2026-08-28)
 
@@ -290,6 +292,36 @@ plant-attacks reached only by the Reds tax (a `payment`), and the one science-ta
 to make the batch state what each response was collected FOR (the step's declared shape), not
 to guess harder from the response alone.
 
+### CLASS 7 — the chain OUTRUNS the declared steps (added 2026-09-11)
+
+**Triggered by:** «Обстрел астероидами» (DirectedImpactors). After the workspace took the
+confirmation (payment pre-collected), the asteroid-target `SelectCard` arrived as a standalone
+«ЦЕЛЬ НА КАРТЕ» band — the player's «повторный промт». The card's own comment said the target
+"still rides the follow-up routing"; nothing enforced that it may not.
+
+Checks 3–4 each see one SLICE of a branch's follow-ups and each had a structural blind spot:
+
+- check 4 **skips any branch with `steps.length > 0`** — declaring the payment made the
+  undeclared card target invisible;
+- check 4 walks **`SelectOption` branches only** and stops at the **first** leftover;
+- check 3 probes **`SelectOption` branches only** — a payment deferred inside an
+  `optionInput`'s `andThen` (AsteroidRights) was never seen.
+
+The general statement is: **the live follow-up CHAIN of every available branch must be fully
+covered by its declared steps** — each prompt consumed by the matching hosted step in order,
+and whatever remains covered by a NAMED hand-off (`boardPlacement` / `colonyTrade` /
+`deltaAdvance` / non-warning `note`) or by the workspace's own draw/deck-check claim
+(`branchOutcomeClaimPlan` reads a `+N cards` gain chip / the `reveal` descriptor — Inventors'
+Guild's buy prompt is the reference embedded flow, not a leak).
+
+The full sweep found exactly **three**, one per follow-up kind:
+
+| card | branch | undeclared leftover | fix |
+| --- | --- | --- | --- |
+| `promo/DirectedImpactors` | «Pay 6 M€ to add 1 asteroid to a card» | the target `SelectCard` after the declared payment | PRE-COLLECTED: `addToCardStep` from ONE shared options object (`asteroidTargetOptions`), live path now defers the SAME `AddResourcesToCard` (`autoSelect: false`, `cause`) — order `[payment, target]` on both sides |
+| `promo/AsteroidRights` | «Add 1 asteroid to this card» | the 1 M€ `SelectPaymentDeferred` after the target `optionInput` | PRE-COLLECTED: `paymentStep` from the shared `asteroidPaymentOptions()`; the flat M€ chip drops when the step is present (CLASS 3 doctrine) |
+| `promo/EnergyMarket` | «Spend 2X M€ to gain X energy» | the 2X payment after the amount dial | DECLARED: the bill's amount exists only once the dial is set, so it CANNOT be pre-collected — a `noteStep('generic', 'After confirming, choose how to pay.')`, emitted only when the payment would actually prompt (`paymentStep(player, 2) !== undefined`) |
+
 ## 5. The guard
 
 `tests/models/actionPromptCoverage.spec.ts` — walks every in-scope action card across three
@@ -304,15 +336,23 @@ resolved the way the server resolves it) and asserts:
    on its own fresh game and whatever the server still holds afterwards must be covered by a
    step: hosted (`input` / `spendHeat`) or named (`boardPlacement` / `colonyTrade` /
    `deltaAdvance` / `note`). See CLASS 5.
+5. **a branch's WHOLE follow-up chain is covered** — every available branch (`SelectOption`,
+   `optionInput` and lone-auto-resolved alike) is walked to the END: each live prompt is
+   answered the way the composer's captured step response would (`answerLive` — first card,
+   min amount, plain-M€-first payment), consuming the declared hosted steps in order; a
+   prompt arriving past them must be covered by a named hand-off or the workspace's
+   draw/deck-check claim, and a KIND mismatch against the next declared step is order/shape
+   drift. See CLASS 7.
 
-Checks 3 and 4 carry `LEFTOVER_PAYMENT_WORKLIST` / `LEFTOVER_FOLLOWUP_WORKLIST`, both
-currently **empty**, and fail BOTH ways: a new leak is a regression, and an entry that no
-longer leaks must be removed — so neither list can quietly become a permanent exemption.
+Checks 3–5 carry `LEFTOVER_PAYMENT_WORKLIST` / `LEFTOVER_FOLLOWUP_WORKLIST` /
+`LEFTOVER_CHAIN_WORKLIST`, all currently **empty**, and fail BOTH ways: a new leak is a
+regression, and an entry that no longer leaks must be removed — so no list can quietly become
+a permanent exemption.
 
 Check 4's scope is stated honestly in the spec: `SelectOption` branches only (the family the
 composer answers with a bare `{type:'option'}`, and therefore the family that can silently end
-the batch), first leftover only. An `optionInput` branch would need a synthesized answer to
-walk past and its shape is already covered by check 2.
+the batch), first leftover only. Check 5 is the general form; 3 and 4 stay for their cheaper,
+more precise failure messages.
 
 ## 6. Rules of thumb for new/edited action cards
 
@@ -326,10 +366,18 @@ walk past and its shape is already covered by check 2.
   when it returns a model. Do not assume "M€-only means no prompt" — Helion and Luna decide
   that, not the card.
 - **If a branch's `andThen` returns another input, the branch owes a step.** Pre-collect it
-  (`orOptionsStep` / `selectCardStep` / `inputStep` over a side-effect-free builder the live
-  `action()` shares) when the surface can host it; DECLARE it (`boardPlacementStep` /
-  `noteStep` / `colonyTradeStep` / `deltaAdvanceStep`) when it is inherently a board / colony
-  / track interaction. Saying nothing is the only wrong answer.
+  (`orOptionsStep` / `selectCardStep` / `addToCardStep` / `inputStep` over a side-effect-free
+  builder the live `action()` shares) when the surface can host it; DECLARE it
+  (`boardPlacementStep` / `noteStep` / `colonyTradeStep` / `deltaAdvanceStep`) when it is
+  inherently a board / colony / track interaction. Saying nothing is the only wrong answer.
+- **…and the debt is the WHOLE CHAIN, not the first follow-up.** One declared step does not
+  license the rest of the chain: the batch answers exactly what the preview promised, so
+  EVERY prompt the branch produces past its steps opens standalone (CLASS 7 — the payment was
+  declared, the card target was not). Share ONE options/builder object between the preview
+  step and the live deferred (`asteroidTargetOptions()` in DirectedImpactors is the pattern),
+  so the two sides cannot drift. A bill whose amount is decided by an earlier step (Energy
+  Market's 2X) cannot be pre-collected — declare it with a `noteStep`, gated on whether it
+  would actually prompt.
 - **Order is not a promise.** A pre-collected response is matched to the prompt that is
   actually waiting, and an effect the same play triggers can be waiting first (CLASS 6). Never
   build a flow that depends on the card's own input being the very next thing the server asks;

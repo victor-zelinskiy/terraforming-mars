@@ -7,7 +7,7 @@ import {Payment} from '../../../src/common/inputs/Payment';
 import {OrOptions} from '../../../src/server/inputs/OrOptions';
 import {SelectPayment} from '../../../src/server/inputs/SelectPayment';
 import {TestPlayer} from '../../TestPlayer';
-import {setTemperature} from '../../TestingUtils';
+import {runAllActions, setTemperature} from '../../TestingUtils';
 import {SelectCard} from '../../../src/server/inputs/SelectCard';
 import {testGame} from '../../TestGame';
 import {cast} from '../../../src/common/utils/utils';
@@ -34,13 +34,18 @@ describe('DirectedImpactors', () => {
     player.titanium = 1;
     expect(card.canAct(player)).is.true;
 
-    // can add resource — the single candidate (this card) is STILL shown (no auto-self).
-    const selectCard = cast(card.action(player), SelectCard);
+    // can add resource — action() defers BOTH follow-ups: payment first, target
+    // second — the same order the preview declares its steps in (the batch
+    // replay is positional).
+    cast(card.action(player), undefined);
+    runAllActions(game);
+    const selectPayment = cast(player.popWaitingFor(), SelectPayment);
+    selectPayment.cb({...Payment.EMPTY, titanium: 1, megacredits: 3});
+    runAllActions(game);
+    // the single candidate (this card) is STILL shown (no auto-self).
+    const selectCard = cast(player.popWaitingFor(), SelectCard);
     expect(selectCard.cards).deep.eq([card]);
     selectCard.cb([card]);
-    expect(game.deferredActions).has.lengthOf(1);
-    const selectPayment = cast(game.deferredActions.peek()!.execute(), SelectPayment);
-    selectPayment.cb({...Payment.EMPTY, titanium: 1, megacredits: 3});
 
     expect(player.megaCredits).to.eq(0);
     expect(player.titanium).to.eq(0);
@@ -69,13 +74,15 @@ describe('DirectedImpactors', () => {
     expect(player.game.getTemperature()).to.eq(-28);
     expect(card.resourceCount).to.eq(0);
 
-    // can add resource to any card
-    const selectCard = cast(action.options[1].cb(), SelectCard);
-    expect(game.deferredActions).has.lengthOf(1);
-    const selectPayment = cast(game.deferredActions.peek()!.execute(), SelectPayment);
+    // can add resource to any card — payment prompts first, then the target pick.
+    cast(action.options[1].cb(), undefined);
+    runAllActions(game);
+    const selectPayment = cast(player.popWaitingFor(), SelectPayment);
     selectPayment.cb({...Payment.EMPTY, titanium: 1, megacredits: 3});
-
-    selectCard!.cb([card2]);
+    runAllActions(game);
+    const selectCard = cast(player.popWaitingFor(), SelectCard);
+    expect(selectCard.cards).deep.eq([card, card2]);
+    selectCard.cb([card2]);
     expect(card2.resourceCount).to.eq(1);
     expect(player.megaCredits).to.eq(0);
     expect(player.titanium).to.eq(0);
@@ -128,6 +135,12 @@ describe('DirectedImpactors', () => {
     expect(preview.branches.every((b) => b.index === -1)).is.true;
     const live = card.action(player);
     expect(live instanceof OrOptions, 'a one-option OrOptions would strand the batch').is.false;
-    cast(live, SelectCard); // straight to the asteroid target
+    cast(live, undefined); // the follow-ups (payment → target) ride the deferred queue
+    runAllActions(game);
+    // A plain-M€ player is auto-charged (no payment prompt); the TARGET is still
+    // shown — even a single candidate — per the fork's no-autoselect rule.
+    const target = cast(player.popWaitingFor(), SelectCard);
+    expect(target.cards).deep.eq([card]);
+    expect(player.megaCredits).to.eq(14);
   });
 });

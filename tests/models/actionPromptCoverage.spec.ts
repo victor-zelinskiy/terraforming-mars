@@ -7,7 +7,13 @@ import {IGame} from '../../src/server/IGame';
 import {PlayerInput} from '../../src/server/PlayerInput';
 import {OrOptions} from '../../src/server/inputs/OrOptions';
 import {SelectOption} from '../../src/server/inputs/SelectOption';
+import {SelectCard} from '../../src/server/inputs/SelectCard';
+import {SelectAmount} from '../../src/server/inputs/SelectAmount';
+import {SelectPlayer} from '../../src/server/inputs/SelectPlayer';
+import {SelectPayment} from '../../src/server/inputs/SelectPayment';
 import {SelectPaymentDeferred} from '../../src/server/deferredActions/SelectPaymentDeferred';
+import {Payment} from '../../src/common/inputs/Payment';
+import {ActionPreviewBranch, ActionPreviewStep} from '../../src/common/models/ActionPreviewModel';
 import {actionPreview} from '../../src/server/models/actionPreview';
 import {MAX_TEMPERATURE, MAX_VENUS_SCALE, MAX_OXYGEN_LEVEL} from '../../src/common/constants';
 import {testGame} from '../TestGame';
@@ -74,6 +80,26 @@ const LEFTOVER_PAYMENT_WORKLIST = new Set<CardName>([]);
  * someone decided a branch may keep leaking a prompt and had to say so.
  */
 const LEFTOVER_FOLLOWUP_WORKLIST = new Set<CardName>([]);
+
+/**
+ * Cards whose chosen branch's follow-up CHAIN outruns its declared steps: the
+ * batch answers everything the preview promised, and the server is STILL
+ * holding a prompt. The two follow-up checks above each see one slice — the
+ * FIRST leftover of a STEP-LESS `SelectOption` branch, and a queued payment
+ * behind a `SelectOption` branch. Neither walks past a declared step, so a
+ * branch that declares its payment and then ALSO asks for a card target leaks
+ * invisibly.
+ *
+ * That is byte-for-byte how «Обстрел астероидами» (DirectedImpactors) shipped:
+ * the add-asteroid branch declared its `paymentStep`, the follow-up check
+ * skipped the branch (`steps.length > 0`), and the asteroid-target `SelectCard`
+ * arrived as a standalone «ЦЕЛЬ НА КАРТЕ» band right after the workspace had
+ * taken the confirmation — a screen the flow promises the player never sees.
+ *
+ * EMPTY ON PURPOSE — an entry here means someone decided a branch may keep
+ * asking past its declared steps and had to say so.
+ */
+const LEFTOVER_CHAIN_WORKLIST = new Set<CardName>([]);
 
 /** Iterate every constructable in-scope action card. */
 function forEachActionCard(fn: (Factory: new () => ICard, module: GameModule) => void): void {
@@ -179,6 +205,87 @@ function setup(Factory: new () => ICard, profile: Profile): {game: IGame, player
 function pendingPaymentPrompt(game: IGame): boolean {
   const queue = (game.deferredActions as unknown as {queue: ReadonlyArray<unknown>}).queue;
   return queue.some((a) => a instanceof SelectPaymentDeferred && a.previewPaymentModel() !== undefined);
+}
+
+/** A live prompt's shape for a failure message. */
+function shapeOf(input: PlayerInput): string {
+  return input instanceof OrOptions ? `or(${input.options.length})` : input.type;
+}
+
+/**
+ * Answer a live input the way the composer's captured response would — the
+ * cheapest VALID answer of the input's own kind (the first candidate card, the
+ * minimum amount, a plain-M€-first payment) — then drain the deferred queue and
+ * return the NEXT prompt. Throws when the input can't be synthesized (the
+ * caller stops the walk without judging what it could not see).
+ */
+function answerLive(input: PlayerInput, player: TestPlayer): PlayerInput | undefined {
+  if (input instanceof SelectOption) {
+    return churn(() => input.cb(undefined), player);
+  }
+  if (input instanceof OrOptions) {
+    // Continuing down the FIRST option is enough to keep the chain's shape
+    // honest — every option of a hosted `or` step is a captured response.
+    const first = input.options[0];
+    if (first === undefined) {
+      throw new Error('empty OrOptions');
+    }
+    return answerLive(first, player);
+  }
+  if (input instanceof SelectCard) {
+    const cards = (input as SelectCard<ICard>).cards;
+    if (cards.length === 0) {
+      throw new Error('no candidate cards');
+    }
+    return churn(() => (input as SelectCard<ICard>).cb([cards[0]]), player);
+  }
+  if (input instanceof SelectAmount) {
+    return churn(() => input.cb(input.min), player);
+  }
+  if (input instanceof SelectPlayer) {
+    return churn(() => input.cb(input.players[0]), player);
+  }
+  if (input instanceof SelectPayment) {
+    // The setup player is a Helion (heat counts toward affordability), so a
+    // dial-derived bill can exceed the raw M€ stock — top up with heat.
+    const mc = Math.min(input.amount, player.megaCredits);
+    return churn(() => input.cb(Payment.of({megacredits: mc, heat: input.amount - mc})), player);
+  }
+  throw new Error(`unanswerable ${input.type}`);
+}
+
+/**
+ * The console action workspace CLAIMS a draw / deck-check / buy follow-up and
+ * hosts it as its own EMBEDDED stage («ДОБОР КАРТ» / «ПОКУПКА» — Inventors'
+ * Guild is the reference flow). The claim derives from the preview through
+ * `branchOutcomeClaimPlan` (actionPreviewStore.ts), which reads exactly two
+ * signals: a `+N cards` GAIN chip (→ 'draw'/'pick') and the branch's `reveal`
+ * descriptor (→ 'deck-check'). A `card` prompt arriving under that claim is the
+ * embedded flow, not a standalone band — mirror the SAME reading here.
+ */
+function workspaceClaims(branch: ActionPreviewBranch, live: PlayerInput): boolean {
+  if (live.type !== 'card') {
+    return false;
+  }
+  if (branch.reveal !== undefined) {
+    return true;
+  }
+  return branch.effects.some((e) => e.direction === 'gain' && e.icon === 'cards');
+}
+
+/** Does a NAMED (display-only) step honestly announce this live leftover? A
+ *  non-warning note is an explicit any-shape hand-off; a WARNING announces a
+ *  SKIP, so it covers nothing. */
+function namedCovers(step: ActionPreviewStep, live: PlayerInput): boolean {
+  switch (step.kind) {
+  case 'note': return step.noteKind !== 'warning';
+  case 'boardPlacement': return live.type === 'space';
+  case 'colonyTrade': return live.type === 'colony';
+  // The delta door consumes the branch itself — anything after belongs to the
+  // Hydronetwork workspace the player was handed to.
+  case 'deltaAdvance': return true;
+  default: return false;
+  }
 }
 
 describe('action prompt coverage (the pre-collect contract)', () => {
@@ -444,4 +551,125 @@ describe('action prompt coverage (the pre-collect contract)', () => {
     const stale = [...LEFTOVER_PAYMENT_WORKLIST].filter((n) => scanned.has(n) && !leaking.has(n));
     expect(stale, `\nFIXED — remove from LEFTOVER_PAYMENT_WORKLIST:\n${stale.join('\n')}\n`).is.empty;
   }).timeout(120_000);
+
+  /**
+   * THE WHOLE CHAIN, not the first leftover.
+   *
+   * Walks EVERY available branch of every in-scope action card: picks the
+   * branch, answers each live prompt with the response the composer's captured
+   * step would replay (`answerLive`), and consumes the branch's declared hosted
+   * steps in order. Three ways to fail, all of them the player's «повторный
+   * промт» bug:
+   *
+   *  1. a prompt arrives with the step queue EMPTY and no NAMED hand-off
+   *     covering it — the batch has ended, the band opens standalone;
+   *  2. a prompt's KIND differs from the declared step's — the positional
+   *     replay meets a question it has no answer for (order/shape drift);
+   *  3. the chain never settles (a runaway loop of prompts).
+   *
+   * A named hand-off (`boardPlacement` / `colonyTrade` / `deltaAdvance` / a
+   * non-warning `note`) legitimately ENDS the walk: the confirm announced what
+   * comes next and the commit routes to that surface. A step the walk cannot
+   * synthesize an answer for stops the walk WITHOUT judging what it could not
+   * see. `dynamic` previews are the documented escape hatch and stay exempt.
+   */
+  it('a branch\'s WHOLE follow-up chain is covered by its declared steps (worklist)', () => {
+    const leaking = new Map<CardName, string>();
+    const scanned = new Set<CardName>();
+
+    forEachActionCard((Factory, module) => {
+      for (const profile of PROFILES) {
+        const a = setup(Factory, profile);
+        scanned.add(a.card.name);
+        if (!a.card.canAct(a.player)) {
+          continue;
+        }
+        const preview = actionPreview(a.player, a.card);
+        if (preview.kind === 'dynamic') {
+          continue;
+        }
+        // `preSteps` are spend-heat only, and no profile here owns a heat-source
+        // CHOICE (no Stormcraft floaters) — a preStep prompt cannot arrive.
+        const available = preview.branches.filter((b) => b.available);
+
+        for (const branch of available) {
+          if (leaking.has(a.card.name)) {
+            break;
+          }
+          const where = `${module}/${a.card.name} [${profile.label}] "${String(branch.title) || '<lone branch>'}"`;
+          const b = setup(Factory, profile);
+          let current: PlayerInput | undefined;
+          try {
+            current = churn(b.card.action(b.player), b.player);
+          } catch {
+            continue; // a throwing action() is the other checks' business
+          }
+
+          // ── Resolve the branch's own option ──
+          try {
+            if (branch.index >= 0) {
+              if (!(current instanceof OrOptions) || current.options.length <= branch.index) {
+                continue; // index divergence — the index check's business
+              }
+              current = answerLive(current.options[branch.index], b.player);
+            } else if (available.length === 1) {
+              if (current instanceof SelectOption) {
+                // A leftover bare confirm is the auto-resolve check's finding;
+                // walk past it to see what ELSE the chain holds.
+                current = answerLive(current, b.player);
+              } else if (branch.optionInput !== undefined && current !== undefined && current.type === branch.optionInput.type) {
+                current = answerLive(current, b.player);
+              }
+              // else: the action deferred straight into its follow-ups —
+              // `current` already is the chain's first prompt.
+            } else {
+              continue; // several available branches, none picked — index check's business
+            }
+          } catch {
+            continue;
+          }
+
+          // ── Walk the rest of the chain against the declared steps ──
+          const queue = branch.steps.filter((s) => s.kind === 'input' || s.kind === 'spendHeat' || s.kind === 'tabbedTargets');
+          const named = branch.steps.filter((s) =>
+            s.kind === 'boardPlacement' || s.kind === 'colonyTrade' || s.kind === 'deltaAdvance' || s.kind === 'note');
+          let hops = 0;
+          while (current !== undefined) {
+            if (++hops > 8) {
+              leaking.set(a.card.name, `${where} :: the chain did not settle after 8 prompts`);
+              break;
+            }
+            const step = queue.shift();
+            if (step === undefined) {
+              if (named.some((s) => namedCovers(s, current!)) || workspaceClaims(branch, current)) {
+                break; // an announced hand-off / a workspace-claimed embedded stage
+              }
+              leaking.set(a.card.name, `${where} :: ${shapeOf(current)} arrives past the declared steps — nothing announced it`);
+              break;
+            }
+            const expected = step.kind === 'tabbedTargets' ? 'or' : step.input.type;
+            if (current.type !== expected) {
+              leaking.set(a.card.name, `${where} :: declared a '${expected}' step but the server asks ${shapeOf(current)} — order/shape drift`);
+              break;
+            }
+            try {
+              current = answerLive(current, b.player);
+            } catch {
+              break; // unanswerable from here — unverifiable, not a leak
+            }
+          }
+        }
+      }
+    });
+
+    const regressions = [...leaking.entries()].filter(([name]) => !LEFTOVER_CHAIN_WORKLIST.has(name));
+    expect(
+      regressions.map(([, where]) => where),
+      '\nBranches still asking PAST their declared steps (pre-collect the follow-up as a step, or announce it with boardPlacementStep / noteStep / colonyTradeStep / deltaAdvanceStep):\n' +
+        `${regressions.map(([, where]) => where).join('\n')}\n`,
+    ).is.empty;
+
+    const stale = [...LEFTOVER_CHAIN_WORKLIST].filter((n) => scanned.has(n) && !leaking.has(n));
+    expect(stale, `\nFIXED — remove from LEFTOVER_CHAIN_WORKLIST:\n${stale.join('\n')}\n`).is.empty;
+  }).timeout(240_000);
 });

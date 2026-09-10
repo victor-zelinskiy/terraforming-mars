@@ -101,6 +101,12 @@ export type BatchArrivalArgs = {
   /** The first card has visibly committed to leaving the pile. */
   onDeparted?: () => void;
   /**
+   * THIS card has visibly committed to leaving the pile (fires once per card,
+   * on its own peel). The deck-draw scene ticks its held counter here, so the
+   * number and the physical stack tell the same story card by card.
+   */
+  onCardPeeled?: (index: number) => void;
+  /**
    * Every card has TOUCHED DOWN. In the normal mode this coincides with the
    * settle; in `awaiting-data` it is the honest «the cards are here, the
    * server is not» moment a loading affordance may finally appear on.
@@ -255,16 +261,17 @@ export function runBatchArrival(args: BatchArrivalArgs): BatchArrivalHandle {
       duration: s(beat.peelMs),
       ease: 'power2.out',
     }, 0);
-    if (i === 0) {
-      tl.call(() => {
-        if (!dead) {
+    tl.call(() => {
+      if (!dead) {
+        if (i === 0) {
           if (deckEl !== null && !reduced) {
             runDeckSettleTick(deckEl, reduced);
           }
           onDeparted?.();
         }
-      }, undefined, s(beat.peelMs * 0.55));
-    }
+        args.onCardPeeled?.(i);
+      }
+    }, undefined, s(beat.peelMs * 0.55));
 
     // TRAVEL — the two-channel arc straight to THIS card's own slot. Lateral
     // and vertical ride different eases so the path bows; the scale grows over

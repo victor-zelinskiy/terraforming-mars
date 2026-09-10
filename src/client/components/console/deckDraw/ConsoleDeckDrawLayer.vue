@@ -9,7 +9,7 @@
     a match settles into the hold zone. Pointer-inert, clipped; the controller
     owns the beats, the director the GSAP.
   -->
-  <div v-if="deckDrawState.active" class="con-deckdraw" aria-hidden="true">
+  <div v-if="deckDrawState.active" class="con-deckdraw" :data-dd-phase="deckDrawState.phase" aria-hidden="true">
     <!-- The DISCARD tray — secondary by construction: compact, off to the
          side, a face-down pile + a count. Only exists when the search really
          discarded something, and only once the scene is actually playing
@@ -110,9 +110,10 @@ import {
   inspectPoint, inspectScale, planDeckDraw, reducedDeckDrawTimings,
 } from '@/client/console/deckDraw/deckDrawModel';
 import {
-  DeckDrawHandle, runDeckDrawAssemble, runDeckDrawBeat, runDeckDrawHandoff, runDeckDrawSettle,
+  DeckDrawHandle, runDeckDrawAssemble, runDeckDrawBeat, runDeckDrawHandoff,
   runDeckDrawTraySeat, runDeckSettleTick,
 } from '@/client/console/deckDraw/deckDrawDirector';
+import {BatchArrivalHandle, runBatchArrival} from '@/client/console/consoleBatchArrivalMotion';
 import {preloadPremiumCardArt} from '@/client/cards/cardArt';
 
 /** The natural (unscaled) FaceLite height — mirrors the premium card frame (320×460). */
@@ -172,6 +173,8 @@ type SceneCtx = {
   /** The discard tray's own leg to its berth — it runs BESIDE the scene
    *  handle (the frame beat), so it needs its own slot to be killable. */
   trayHandle?: DeckDrawHandle,
+  /** The plain draw's single deck→slot batch flight (the shared director). */
+  batchHandle?: BatchArrivalHandle,
   timers: Array<ReturnType<typeof setTimeout>>,
 };
 const ctx: SceneCtx = {beatHandles: [], timers: []};
@@ -188,6 +191,8 @@ function killAll(): void {
   ctx.sceneHandle = undefined;
   ctx.trayHandle?.kill();
   ctx.trayHandle = undefined;
+  ctx.batchHandle?.kill();
+  ctx.batchHandle = undefined;
   clearTimers();
 }
 
@@ -414,7 +419,7 @@ export default defineComponent({
       // (black) art body, reading as a content switch. Discards never flip
       // face-up, so only matched cards need it.
       preloadPremiumCardArt(steps.filter((st) => st.matched).map((st) => st.name));
-      void this.runScene(steps, plain);
+      void this.runScene(e, steps, plain);
     },
 
     /**
@@ -441,7 +446,7 @@ export default defineComponent({
     },
 
     /** Play the whole scene (the batch is already claimed + in the state). */
-    async runScene(steps: Array<SceneStep>, plain: boolean): Promise<void> {
+    async runScene(e: DrawnCardEntry, steps: Array<SceneStep>, plain: boolean): Promise<void> {
       const reduced = deckDrawState.reducedMotion;
       await this.waitForStage();
       if (!deckDrawState.active) {
@@ -465,6 +470,20 @@ export default defineComponent({
       this.proxyRefs = [];
       this.flipRefs = [];
       await this.$nextTick();
+
+      // A PLAIN multi-card draw has nothing to judge and nothing to discard:
+      // its cards' real destinations are the reveal's own slots, so they fly
+      // there ONCE — deck → slot, opening on the way — instead of building a
+      // hold-zone row they would only leave again. One flight, one language
+      // (the same shared batch director every embedded draw plays). The
+      // single-card HEADLESS reveal keeps the hold-zone path: the fullscreen
+      // viewer lifts the arrived proxy, and there is no slot to fly into.
+      const headlessSingle = steps.length === 1 &&
+        !workspaceClaimsDrawReveal(e.source) && !workspaceClaimsColonyReveal(e.source);
+      if (plain && !headlessSingle) {
+        void this.runPlainBatch(e);
+        return;
+      }
 
       const t = this.timings();
       const beats = planDeckDraw(steps.map((s) => ({matched: s.matched})), t, plain);
@@ -534,6 +553,73 @@ export default defineComponent({
       }
     },
 
+    /**
+     * The PLAIN batch: deck → the reveal's REAL slots, one flight. The overlay
+     * mounts VEILED from the start (the staged-entrance grammar every flown
+     * batch already uses), the shared batch director deals the cards with its
+     * landing cadence + in-flight turn, the frame materializes around the
+     * arriving row, and the handoff releases the real cards under proxies that
+     * already stand exactly on them.
+     */
+    async runPlainBatch(e: DrawnCardEntry): Promise<void> {
+      setDeckDrawPhase('assemble');
+      await this.$nextTick();
+      if (!deckDrawState.active || deckDrawState.stagedEventId !== e.id) {
+        return;
+      }
+      const keys = e.cards.map((c, i) => `${c.name}#${i}`);
+      const slotOf = (key: string) => document.querySelector<HTMLElement>(
+        `.con-reveal [data-zoom-slot="${cssEscape(key)}"] :is(.card-container, .pcard)`);
+      // One stable probe on the first slot — the veiled overlay's fit pass has
+      // settled once it answers; the director then measures RESTING rects for
+      // every slot itself.
+      await stableRect(() => slotOf(keys[0]));
+      if (!deckDrawState.active || deckDrawState.stagedEventId !== e.id) {
+        return;
+      }
+      const slots = keys.map(slotOf);
+      const pairs: Array<{proxy: HTMLElement, flip: HTMLElement}> = [];
+      const slotEls: Array<HTMLElement> = [];
+      keys.forEach((_key, i) => {
+        const proxy = this.proxyRefs[i];
+        const flip = this.flipRefs[i];
+        const slot = slots[i];
+        if (proxy !== null && proxy !== undefined && flip !== null && flip !== undefined &&
+            slot !== null) {
+          pairs.push({proxy, flip});
+          slotEls.push(slot);
+        }
+      });
+      if (pairs.length !== keys.length) {
+        // No believable stage (an unmeasurable overlay): hand over honestly —
+        // unveil where things stand, never fake a flight.
+        this.releaseAndHandoff(this.heldEls());
+        return;
+      }
+      const preDraw = deckDrawState.preDrawSize;
+      let peeled = 0;
+      const handle = runBatchArrival({
+        cards: pairs,
+        slots: slotEls,
+        mode: 'in-flight-reveal',
+        onCardPeeled: () => {
+          peeled++;
+          markDeckCardDrawn(deckCountAfter(preDraw, peeled));
+        },
+        onSettled: () => {
+          ctx.batchHandle = undefined;
+          this.releaseAndHandoff(this.heldEls());
+        },
+      });
+      ctx.batchHandle = handle;
+      // The frame enters while the first card is on final approach — the row
+      // lands into a materializing stage (the rise director's grammar).
+      const firstLand = handle.plan.beats[0]?.landAtMs ?? 0;
+      ctx.timers.push(setTimeout(
+        () => setDeckDrawPhase('frame'),
+        Math.max(0, motionMs(firstLand) - motionMs(70))));
+    },
+
     /** Resolve one beat's destinations from the scene geometry. */
     targetsFor(beat: DrawBeat, geo: {
       inspect: {x: number, y: number},
@@ -577,19 +663,17 @@ export default defineComponent({
       this.showHoldBase = true;
     },
 
-    /** Every card has landed: the settle beat, then the reveal assembles. */
+    /**
+     * Every card has landed: the reveal assembles at once. (The old «settle»
+     * beat — a staggered hop across the finished row — is gone: an arrived
+     * card never re-animates, and each find already had its own confirmation
+     * at the inspect point.)
+     */
     finishSearch(): void {
       if (!deckDrawState.active) {
         return;
       }
-      setDeckDrawPhase('settle');
-      const t = this.timings();
-      ctx.sceneHandle = runDeckDrawSettle({
-        proxies: this.heldEls(),
-        t,
-        reduced: deckDrawState.reducedMotion,
-        onDone: () => void this.assembleReveal(),
-      });
+      void this.assembleReveal();
     },
 
     /**
@@ -659,14 +743,11 @@ export default defineComponent({
         naturalHs: resolved.map((r) => r.height / Math.max(0.05, r.width / CARD_NATURAL_W)),
         t: this.timings(),
         reduced: deckDrawState.reducedMotion,
-        onAllLanded: () => {
-          // The cards stand in the exact slots — NOW the frame assembles
-          // around them (the overlay unveils via its phase-driven classes),
-          // and the discard tray travels to the berth that frame keeps for it,
-          // landing exactly as the handoff reveals it.
-          setDeckDrawPhase('frame');
-          ctx.timers.push(setTimeout(() => this.releaseAndHandoff(held), motionMs(this.timings().frameMs)));
-        },
+        // The frame materializes AROUND the arriving row (just before the
+        // first touchdown), so the last card lands onto a finished stage and
+        // the handoff owes the player nothing further.
+        onFrameCue: () => setDeckDrawPhase('frame'),
+        onAllLanded: () => this.releaseAndHandoff(held),
       });
     },
 

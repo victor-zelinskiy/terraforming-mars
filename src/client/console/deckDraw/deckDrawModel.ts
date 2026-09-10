@@ -126,7 +126,7 @@ export function deckDrawTimings(): DeckDrawTimings {
     flipPortion: 0.62,
     settleMs: 320,
     frameMs: 240,
-    handoffMs: 170,
+    handoffMs: 150,
   };
 }
 
