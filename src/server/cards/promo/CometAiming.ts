@@ -131,7 +131,9 @@ export class CometAiming extends Card implements IActionCard, IProjectCard {
     const spendAsteroidResource = () => {
       this.resourceCount--;
       LogHelper.logRemoveResource(player, this, 1, 'place an ocean');
-      player.game.defer(new PlaceOceanTile(player));
+      // `sourceCard` = the staged tail's address (deferredInputBatch) + the
+      // placement preview's key.
+      player.game.defer(new PlaceOceanTile(player, {sourceCard: this.name}));
       return undefined;
     };
 

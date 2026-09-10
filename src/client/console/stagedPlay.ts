@@ -20,6 +20,7 @@
  */
 import {reactive} from 'vue';
 import {CardName} from '@/common/cards/CardName';
+import {TileType} from '@/common/TileType';
 import {StagedPlacementModel} from '@/common/models/ActionPreviewModel';
 import {SelectProjectCardToPlayModel} from '@/common/models/PlayerInputModel';
 import {ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
@@ -136,6 +137,54 @@ export function clearStagedPlay(): void {
 type StagedSeal = {spaceId: string, specs: ReadonlyArray<ResourceTransferSpec>};
 let pendingSeal: StagedSeal | undefined;
 
+// ── THE PARKED PIN (the interleaved-prompt class) ───────────────────────────
+//
+// The commit's response can come back WITHOUT our tile: a threshold bonus
+// ocean jumped the queue ahead of the card's own placement (raising
+// temperature past 0°C — Nuclear Zone, Comet, …), and the server PARKED the
+// addressed cell behind it (`deferredInputBatch`; the self model carries the
+// fact as `stagedPlacementPending`). The flow is COMMITTED — the workspace is
+// gone for good, B restores nothing — but the presentation stays owed: the
+// card-seal wave may only fly once the pinned tile actually lands, and must
+// release honestly if the server drops the pin (the placement re-asked live).
+// The pin MIRRORS the server fact — it resolves on version moves, never on a
+// client clock.
+
+export type StagedPinInfo = {cardName: CardName, spaceId: string, tileType?: TileType};
+
+export const stagedPinState = reactive({
+  pin: undefined as StagedPinInfo | undefined,
+});
+
+/** The commit landed but the cell is parked behind an interloper prompt. */
+export function beginStagedPin(pin: StagedPinInfo): void {
+  stagedPinState.pin = pin;
+}
+
+export function stagedPinParked(): boolean {
+  return stagedPinState.pin !== undefined;
+}
+
+/** The pinned placement LANDED (the server's drain auto-placed it) — the
+ *  seal wave is free to fly from the tile. */
+export function resolveStagedPinLanded(): void {
+  stagedPinState.pin = undefined;
+}
+
+/** The server DROPPED the pin (the placement is being re-asked live): release
+ *  the held rewards honestly — counters tick in place, no flight from a tile
+ *  that never landed. The live re-ask then runs today's ordinary flow. */
+export function resolveStagedPinDropped(): void {
+  stagedPinState.pin = undefined;
+  const seal = pendingSeal;
+  pendingSeal = undefined;
+  if (seal !== undefined) {
+    for (const spec of seal.specs) {
+      releasePanelRewardHold(spec);
+    }
+  }
+}
+
 /** Called at the cell confirm, BEFORE the submit — the wave's plan. */
 export function armStagedSeal(spaceId: string): void {
   const specs = (stagedPlayState.arm?.rewards ?? []).filter((s) => s.amount > 0);
@@ -153,6 +202,12 @@ export function seedStagedPlayRewardHold(): void {
  *  tile hero's own reward beats; degrades to an honest immediate release when
  *  the hex cannot be measured (never a stuck hold). */
 export function runStagedSealWave(): Promise<void> {
+  if (stagedPinState.pin !== undefined) {
+    // The pinned placement has not landed yet (parked behind an interloper
+    // prompt) — the wave stays OWED, holds intact. It flies on the response
+    // that resolves the pin (or releases honestly on a dropped pin).
+    return Promise.resolve();
+  }
   const seal = pendingSeal;
   pendingSeal = undefined;
   if (seal === undefined) {

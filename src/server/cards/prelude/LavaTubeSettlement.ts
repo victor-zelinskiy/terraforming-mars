@@ -79,6 +79,8 @@ export class LavaTubeSettlement extends Card implements IProjectCard {
           spaces: this.getSpacesForCity(player),
           title: 'Select either Tharsis Tholus, Ascraeus Mons, Pavonis Mons or Arsia Mons',
           customReasoner: this.placementReasoner(player),
+          // The staged tail's address + the placement preview's key.
+          sourceCard: this.name,
         }));
     return undefined;
   }

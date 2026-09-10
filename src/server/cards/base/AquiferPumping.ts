@@ -74,7 +74,11 @@ export class AquiferPumping extends Card implements IActionCard, IProjectCard {
   }
   public action(player: IPlayer) {
     player.game.defer(new SelectPaymentDeferred(player, 8, {canUseSteel: true, title: TITLES.payForCardAction(this.name), cause: cardSource(this)}))
-      .andThen(() => player.game.defer(new PlaceOceanTile(player)));
+      // `sourceCard` is the STAGED tail's address (deferredInputBatch): the
+      // pre-picked cell lands only on this card's own prompt, never on a
+      // threshold bonus ocean that jumps the queue. Also feeds the placement
+      // preview (see SelectSpace.sourceCard).
+      .andThen(() => player.game.defer(new PlaceOceanTile(player, {sourceCard: this.name})));
     return undefined;
   }
 }

@@ -72,7 +72,10 @@ export class WaterImportFromEuropa extends Card implements IActionCard, IProject
   }
   public action(player: IPlayer) {
     player.game.defer(new SelectPaymentDeferred(player, ACTION_COST, {canUseTitanium: true, title: TITLES.action, cause: cardSource(this)}))
-      .andThen(() => player.game.defer(new PlaceOceanTile(player)));
+      // `sourceCard` = the staged tail's address (deferredInputBatch) + the
+      // placement preview's key — the pre-picked cell must never land on a
+      // threshold bonus ocean that jumps the queue.
+      .andThen(() => player.game.defer(new PlaceOceanTile(player, {sourceCard: this.name})));
     return undefined;
   }
 }

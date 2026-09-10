@@ -19,10 +19,19 @@ import {RegolithEaters} from '../../src/server/cards/base/RegolithEaters';
 import {DELTA_TRACK_TAGS} from '../../src/server/delta/DeltaProjectExpansion';
 import {fakeCard, setRulingParty} from '../TestingUtils';
 import {PartyName} from '../../src/common/turmoil/PartyName';
+import {NuclearZone} from '../../src/server/cards/base/NuclearZone';
+import {Comet} from '../../src/server/cards/base/Comet';
+import {GiantIceAsteroid} from '../../src/server/cards/base/GiantIceAsteroid';
+import {AquiferPumping} from '../../src/server/cards/base/AquiferPumping';
+import {SelectSpace} from '../../src/server/inputs/SelectSpace';
+import {TileType} from '../../src/common/TileType';
+import {setTemperature, runAllActions} from '../TestingUtils';
 import {
   clearBatchTail,
   drainBatchTail,
+  expireSupersededStagedTail,
   parkedBatchTailLength,
+  parkedStagedPlacement,
   replayBatch,
 } from '../../src/server/inputs/deferredInputBatch';
 
@@ -188,6 +197,168 @@ describe('deferredInputBatch', () => {
 
     expect(() => replayBatch(player, [{type: 'card', cards: [CardName.ANTS]}])).to.throw();
     expect(parkedBatchTailLength(player)).eq(0);
+  });
+
+  /**
+   * THE ADDRESSED STAGED CELL — the interleaved-placement bug class.
+   *
+   * A staged play picks the CELL before the batch submits, so the space
+   * response is the batch's tail — and the first SelectSpace the server
+   * surfaces is not always the card's own placement: `global.temperature`
+   * executes SYNCHRONOUSLY at play time and a raise past 0°C defers a bonus
+   * ocean at `PLACE_OCEAN_TILE`, strictly ahead of the card's DEFAULT-priority
+   * tile. Untyped, the tail was either CONSUMED by the bonus ocean (an
+   * ocean-placing card — same legal set) or DROPPED as a stale divergence (a
+   * land tile — «Space not available» with matching types), and the player was
+   * asked to place the SAME tile again («Ядерная зона» placed, vanished,
+   * re-asked). The address (`stagedFor` = the server's own
+   * `SelectSpace.sourceCard`) makes «not my prompt» structural.
+   */
+  describe('addressed staged cell', () => {
+    it('lands immediately when nothing interposes (Nuclear Zone, no threshold)', () => {
+      const [game, player] = testGame(2);
+      const nz = new NuclearZone();
+      player.cardsInHand = [nz];
+      player.megaCredits = 50;
+      player.takeAction();
+      const pin = game.board.getAvailableSpacesOnLand(player)[0].id;
+
+      replayBatch(player, playBatch(player, nz, [{type: 'space', spaceId: pin, stagedFor: nz.name}]));
+
+      expect(game.board.getSpaceOrThrow(pin).tile?.tileType).eq(TileType.NUCLEAR_ZONE);
+      expect(parkedBatchTailLength(player)).eq(0);
+    });
+
+    it('PARKS the cell past the 0°C bonus ocean and auto-lands it after (Nuclear Zone at −4°C)', () => {
+      const [game, player] = testGame(2);
+      setTemperature(game, -4);
+      const nz = new NuclearZone();
+      player.cardsInHand = [nz];
+      player.megaCredits = 50;
+      player.takeAction();
+      const pin = game.board.getAvailableSpacesOnLand(player)[0].id;
+
+      replayBatch(player, playBatch(player, nz, [{type: 'space', spaceId: pin, stagedFor: nz.name}]));
+
+      // The temperature raise's bonus ocean is in front — and it is NOT ours.
+      const ocean = cast(player.getWaitingFor(), SelectSpace);
+      expect(ocean.sourceCard, 'the threshold ocean carries no sourceCard').is.undefined;
+      expect(game.board.getSpaceOrThrow(pin).tile, 'nothing placed on the pin yet').is.undefined;
+      expect(parkedBatchTailLength(player)).eq(1);
+      expect(parkedStagedPlacement(player)).deep.eq({card: nz.name, spaceId: pin});
+
+      // The player answers the ocean; the pinned Nuclear Zone lands with it —
+      // no re-ask, upstream prompt order untouched.
+      player.process({type: 'space', spaceId: ocean.spaces[0].id});
+      drainBatchTail(player);
+
+      expect(game.board.getSpaceOrThrow(pin).tile?.tileType).eq(TileType.NUCLEAR_ZONE);
+      expect(parkedBatchTailLength(player)).eq(0);
+      expect(parkedStagedPlacement(player)).is.undefined;
+      const after = player.getWaitingFor();
+      expect(after instanceof SelectSpace && after.sourceCard === nz.name, 'the placement is never re-asked').is.false;
+      const zones = game.board.spaces.filter((s) => s.tile?.tileType === TileType.NUCLEAR_ZONE);
+      expect(zones, 'exactly ONE tile — no double placement').has.length(1);
+    });
+
+    it('is NOT consumed by the bonus ocean even when the cell is legal for it (Comet)', () => {
+      const [game, player, opponent] = testGame(2);
+      setTemperature(game, -2);
+      opponent.plants = 0; // keep removeAnyPlants silent
+      const comet = new Comet();
+      player.cardsInHand = [comet];
+      player.megaCredits = 50;
+      player.takeAction();
+      const oceanSpaces = game.board.getAvailableSpacesForOcean(player);
+      const pin = oceanSpaces[0].id;
+      const other = oceanSpaces[1].id;
+
+      replayBatch(player, playBatch(player, comet, [{type: 'space', spaceId: pin, stagedFor: comet.name}]));
+
+      // The bonus ocean would ACCEPT the pinned cell — the address refuses it.
+      const bonus = cast(player.getWaitingFor(), SelectSpace);
+      expect(bonus.sourceCard).is.undefined;
+      expect(game.board.getSpaceOrThrow(pin).tile, 'the pin was not eaten by the bonus prompt').is.undefined;
+      expect(parkedBatchTailLength(player)).eq(1);
+
+      player.process({type: 'space', spaceId: other});
+      drainBatchTail(player);
+
+      expect(game.board.getSpaceOrThrow(pin).tile?.tileType).eq(TileType.OCEAN);
+      expect(game.board.getOceanSpaces()).has.length(2);
+      expect(parkedBatchTailLength(player)).eq(0);
+    });
+
+    it('drops the cell honestly when the interloper OCCUPIES it (bonus ocean placed on the pin)', () => {
+      const [game, player, opponent] = testGame(2);
+      setTemperature(game, -2);
+      opponent.plants = 0;
+      const comet = new Comet();
+      player.cardsInHand = [comet];
+      player.megaCredits = 50;
+      player.takeAction();
+      const pin = game.board.getAvailableSpacesForOcean(player)[0].id;
+
+      replayBatch(player, playBatch(player, comet, [{type: 'space', spaceId: pin, stagedFor: comet.name}]));
+      expect(parkedBatchTailLength(player)).eq(1);
+
+      // The player puts the BONUS ocean on the very cell they had pinned —
+      // their own placement must now be re-asked live, not auto-guessed.
+      player.process({type: 'space', spaceId: pin});
+      drainBatchTail(player);
+
+      expect(parkedBatchTailLength(player)).eq(0);
+      const reAsk = cast(player.getWaitingFor(), SelectSpace);
+      expect(reAsk.sourceCard).eq(comet.name);
+    });
+
+    it('a manual answer to its own prompt SUPERSEDES the parked cell (never lands on the next same-card prompt)', () => {
+      const [game, player, opponent] = testGame(2);
+      setTemperature(game, -2);
+      opponent.plants = 0;
+      const gia = new GiantIceAsteroid();
+      player.cardsInHand = [gia];
+      player.megaCredits = 50;
+      player.takeAction();
+      const oceanSpaces = game.board.getAvailableSpacesForOcean(player);
+      const pin = oceanSpaces[0].id;
+
+      replayBatch(player, playBatch(player, gia, [{type: 'space', spaceId: pin, stagedFor: gia.name}]));
+      expect(parkedBatchTailLength(player)).eq(1);
+
+      // The queue advances OUTSIDE our route (an opponent's request): the
+      // bonus ocean is answered with no drain, so the card's own first ocean
+      // surfaces LIVE with the tail still parked.
+      const bonus = cast(player.getWaitingFor(), SelectSpace);
+      expect(bonus.sourceCard).is.undefined;
+      player.process({type: 'space', spaceId: oceanSpaces[1].id});
+      const own1 = cast(player.getWaitingFor(), SelectSpace);
+      expect(own1.sourceCard).eq(gia.name);
+
+      // The single-input route's order: expire → process → drain. The manual
+      // answer supersedes the pin; ocean #2 is asked live, never auto-filled.
+      expireSupersededStagedTail(player);
+      player.process({type: 'space', spaceId: own1.spaces.find((s) => s.id !== pin)!.id});
+      drainBatchTail(player);
+
+      expect(parkedBatchTailLength(player)).eq(0);
+      const own2 = cast(player.getWaitingFor(), SelectSpace);
+      expect(own2.sourceCard).eq(gia.name);
+      expect(game.board.getSpaceOrThrow(pin).tile, 'the superseded pin never landed anywhere').is.undefined;
+    });
+
+    it('an ACTION-deferred ocean carries its sourceCard (the address has a prompt to match)', () => {
+      const [game, player] = testGame(2);
+      const aquifer = new AquiferPumping();
+      player.playedCards.push(aquifer);
+      player.megaCredits = 20;
+      aquifer.action(player);
+      // The payment auto-resolves (plain M€, no alternates) and the ocean
+      // prompt surfaces in the same drain.
+      runAllActions(game);
+      const prompt = cast(player.getWaitingFor(), SelectSpace);
+      expect(prompt.sourceCard).eq(aquifer.name);
+    });
   });
 
   it('PARKS the tail behind a HIDDEN-INFORMATION prompt without even trying it', () => {

@@ -391,6 +391,76 @@ Impactors (game.first); не тронуты по дизайну: std-проек�
 submit-nothing), repeat/Viron (follow-up скопированного действия — B там
 возвращает в staged-композер копии штатно).
 
+## 9-quater. АДРЕСОВАННЫЙ ХВОСТ — класс вклинившихся промптов (2026-09-11)
+
+**Найденный фундаментальный баг (репорт владельца):** «Ядерная зона» при
+температуре −4°C — тайл «ставится», бонус «начисляется», тайл исчезает, игра
+просит бонусный океан и потом ЗАНОВО просит клетку Ядерной зоны.
+
+**Корень (два слоя):**
+1. **Сервер.** `global`/`tr` исполняются в Executor СИНХРОННО, до деферов
+   собственных размещений карты; переход температуры через 0°C деферит
+   бонусный океан с приоритетом `PLACE_OCEAN_TILE (13)` < `DEFAULT (16)` —
+   он всплывает ПЕРВЫМ. Хвост батча `{type:'space'}` был позиционным, а
+   `jumpedTheQueue` различал промпты только по ТИПУ: чужой space-промпт
+   неотличим от своего. Ocean-карты (Comet, Mohole Lake, Towing a Comet,
+   Giant Ice Asteroid) — хвост МОЛЧА СЪЕДАЛСЯ бонусным океаном; land-карты
+   (Nuclear Zone, Lava Flows, Metallic Asteroid, Deimos Down promo, Small
+   Comet + все ares-наследники) — «Space not available» при совпадающих
+   типах читалось как staleness и хвост ВЫБРАСЫВАЛСЯ → live-переспрос.
+   Каскад: oxygen 8% → синхронный +1 temp → тот же океан (Towing a Comet).
+2. **Клиент.** `placementWorldVersion` при `committing` считал ЛЮБОЙ сдвиг
+   версии полным успехом: `discardYieldedStack` + `clearStagedPlay`, реткил
+   проекции читался как «тайл исчез», а `runStagedSealWave` (fallback-ветка
+   транспорта «staged без tileHeroEvent») летел из ПУСТОГО гекса — «бонус
+   начислился» от призрака.
+
+**Фикс — адрес вместо позиции (порядок очереди НЕ тронут, правила = upstream):**
+- Wire: `SelectSpaceResponse.stagedFor?: CardName` (валидатор принимает обе
+  формы). Клиент штампует его из серверного `StagedPlacementModel.sourceCard`.
+- `deferredInputBatch`: адресованный ответ применяется ТОЛЬКО к `SelectSpace`
+  с тем же `sourceCard` (каждое собственное размещение несёт его — Executor
+  прошивает, bespoke передаёт; каждое threshold/bonus — нет: это и есть
+  дискриминатор). Несовпадение = парковка БЕЗ попытки (в replay и в drain);
+  совпадение + отказ process = честный staleness → сброс хвоста →
+  live-переспрос. `jumpedTheQueue` получил адресный терм.
+- `stagedTailStale`: на СВОЁМ промпте пин с появившимся тайлом (Ares-эрозия
+  заспавнилась на клетке за время интерлопера) сбрасывается честно —
+  авто-размещение не смеет молча платить hazard-толл, которого игрок не
+  видел. Исключения: replacement (`hiddenTiles` — KaguyaTech) и
+  marker/bonus-only (`placementEffect`).
+- `expireSupersededStagedTail` (роут одиночного инпута, ДО process): свой
+  промпт, отвеченный вручную (очередь ушла вперёд в чужом запросе),
+  экспайрит запаркованный пин — он не смеет прилететь во ВТОРОЙ
+  однотипный промпт той же карты (второй океан GIA).
+- Модель: `PlayerViewModel.stagedPlacementPending {card, spaceId}` (self,
+  transient) — серверная правда «закоммичено, клетка зарезервирована, впереди
+  ещё промпт»; F5 переживает.
+- Клиент: третий честный исход коммита — PARKED: стек всё равно discard
+  (коммит реален, B больше ничего не отменяет), но презентационные армы
+  переезжают на ПИН (`stagedPinState` в stagedPlay.ts). `runStagedSealWave`
+  ДЕРЖИТ волну пока пин запаркован; landed (drain доставил) → волна летит от
+  настоящего тайла; dropped (наш sourceCard-промпт встал live) → холды
+  отпускаются честно (тик счётчиков, без полёта). Досье интерлопера несёт
+  план-строку «Затем ещё одно размещение: <тайл>» из серверного маркера
+  (тот же конвейер, что у двух-океанных карт).
+- `sourceCard` дошит там, где его не было: PlaceOceanTile действий
+  AquiferPumping / WaterImportFromEuropa / CometAiming, bespoke
+  LavaTubeSettlement. Страж паритета теперь ТРЕБУЕТ sourceCard на live-промпте
+  каждой staged-карты (это адрес хвоста — worklist сам нашёл LavaTube).
+
+**Стражи:** `tests/inputs/deferredInputBatch.spec.ts` § addressed staged cell
+(6 спеков: no-interposer, park+auto-land NuclearZone −4°C, Comet
+не-съедение, drop-on-occupied-pin, supersede GIA, action sourceCard);
+`tests/client/console/stagedPlayPin.spec.ts` (held/dropped/landed волна);
+`stagedPlacementParity` sourceCard-ассерт; e2e фикстура `staged-interposer`
+(−4°C + Nuclear Zone) + тест «interposer: … PARKS and auto-lands».
+
+**Резидуалы класса:** hazard-СОСЕДСТВО пина, изменившееся за интерлопер
+(production-штраф оплачивается молча — редчайший кейс, отмечен);
+opponent-interleave деградирует в live-переспрос (drain живёт в нашем роуте);
+полировка: hero-сцена авто-приземлённого пина сейчас generic (flyRemote).
+
 ## 10. План реализации (этапы отдельной задачи)
 
 1. **Сервер, превью:** `previewSelectSpace` у четырёх `Place*` деферов + `placements[]` в `cardPlayPreview`; pre-play cost-контекст в `board-cell-preview`; CORS-allowlist; спеки.

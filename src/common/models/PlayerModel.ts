@@ -4,7 +4,7 @@ import {VictoryPointsBreakdown} from '../game/VictoryPointsBreakdown';
 import {PlayerInputModel} from './PlayerInputModel';
 import {TimerModel} from './TimerModel';
 import {GameModel} from './GameModel';
-import {PlayerId, ParticipantId} from '../Types';
+import {PlayerId, ParticipantId, SpaceId} from '../Types';
 import {CardName} from '../cards/CardName';
 import {Resource} from '../Resource';
 import {CardResource} from '../CardResource';
@@ -200,6 +200,14 @@ export interface PlayerViewModel extends ViewModel {
   pendingInitialActions: ReadonlyArray<CardName>;
   thisPlayer: PublicPlayerModel;
   waitingFor: PlayerInputModel | undefined;
+  // Self-only, transient: a STAGED placement whose pre-picked cell is PARKED
+  // server-side behind an interloper prompt (a threshold bonus ocean jumped
+  // the queue ahead of the card's own placement — see
+  // `server/inputs/deferredInputBatch.ts`). The client reads it to tell
+  // «committed, cell reserved, one more prompt first» from «the tail was
+  // dropped — the placement will be re-asked live», and an F5 mid-chain
+  // re-derives the same fact. Absent in the common case.
+  stagedPlacementPending?: {card: CardName, spaceId: SpaceId};
   // Batches of cards the player just drew via an in-game effect / tile bonus,
   // awaiting the player's "take" acknowledgement in the reveal modal. Empty in
   // the common case. See CardDrawRevealModel.

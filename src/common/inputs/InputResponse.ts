@@ -71,10 +71,29 @@ export function isSelectProjectCardToPlayResponse(response: InputResponse): resp
 export interface SelectSpaceResponse {
   type: 'space',
   spaceId: SpaceId;
+  /**
+   * THE STAGED-PLACEMENT ADDRESS. A staged flow (console: «клетка — последний
+   * обратимый шаг») picks the cell BEFORE the play/action batch is submitted,
+   * so its space response travels as the batch's TAIL — and the first
+   * `SelectSpace` the server surfaces is NOT always the placement the cell was
+   * picked for: a threshold bonus can jump the queue (raising temperature past
+   * 0°C defers a bonus ocean at `PLACE_OCEAN_TILE`, ahead of the card's own
+   * `DEFAULT`-priority tile). An unaddressed space answer is indistinguishable
+   * from an answer to that interloper — it was either consumed by the wrong
+   * prompt (ocean vs ocean) or dropped as a stale divergence (land vs ocean).
+   *
+   * `stagedFor` names the card whose OWN placement this cell answers; the batch
+   * replay (`server/inputs/deferredInputBatch.ts`) applies it ONLY to a
+   * `SelectSpace` carrying the same `sourceCard` and PARKS it past everything
+   * else. Absent on every non-staged response — the positional replay is
+   * unchanged for them.
+   */
+  stagedFor?: CardName;
 }
 
 export function isSelectSpaceResponse(response: InputResponse): response is SelectSpaceResponse {
-  return response.type === 'space' && matches(response, ['type', 'spaceId']);
+  return response.type === 'space' &&
+    (matches(response, ['type', 'spaceId']) || matches(response, ['type', 'spaceId', 'stagedFor']));
 }
 
 /**

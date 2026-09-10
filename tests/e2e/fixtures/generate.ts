@@ -34,6 +34,7 @@ import {MAX_OXYGEN_LEVEL, MAX_TEMPERATURE} from '../../../src/common/constants';
 import {toName} from '../../../src/common/utils/utils';
 import {CardName} from '../../../src/common/cards/CardName';
 import {AdaptedLichen} from '../../../src/server/cards/base/AdaptedLichen';
+import {NuclearZone} from '../../../src/server/cards/base/NuclearZone';
 import {RegolithEaters} from '../../../src/server/cards/base/RegolithEaters';
 import {IoMiningIndustries} from '../../../src/server/cards/base/IoMiningIndustries';
 import {Pets} from '../../../src/server/cards/base/Pets';
@@ -149,6 +150,21 @@ function write(name: string, game: IGame): void {
   player.drawCard(2);
   runAllActions(game);
   write('solo-pre-endgame', game);
+}
+
+// ── staged-interposer: the INTERLEAVED-PLACEMENT class (docs/
+//    TILE_PLAY_STAGED_COMMIT.md) — temperature at −4°C, «Nuclear Zone» in
+//    hand, money for the play. Playing it staged raises the temperature past
+//    0°C, which defers the BONUS OCEAN ahead of the card's own tile: the
+//    staged cell must PARK behind it and auto-land after, never be dropped
+//    and re-asked. For console-staged-play.spec.ts. ──
+{
+  const {game, player} = soloActionPhase();
+  setTemperature(game, -4);
+  player.megaCredits = 60;
+  player.cardsInHand.push(new NuclearZone());
+  runAllActions(game);
+  write('staged-interposer', game);
 }
 
 // ── hydro-terminal: a solo delta game on the THRESHOLD of the finish slots —

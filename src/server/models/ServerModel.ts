@@ -44,6 +44,7 @@ import {PartyName} from '../../common/turmoil/PartyName';
 import {ConvertPlants} from '../cards/base/standardActions/ConvertPlants';
 import {ConvertHeat} from '../cards/base/standardActions/ConvertHeat';
 import {potentialActions, potentialHydroAdvance} from './potentialActions';
+import {parkedStagedPlacement} from '../inputs/deferredInputBatch';
 import {KELVINISTS_POLICY_3} from '../turmoil/parties/Kelvinists';
 
 const DEFAULT_HEAT_FOR_TEMPERATURE = 8;
@@ -232,6 +233,9 @@ export class Server {
       pendingInitialActions: player.pendingInitialActions.map((c) => c.name),
       thisPlayer: thisPlayer,
       waitingFor: this.getWaitingFor(player, player.getWaitingFor()),
+      // A staged cell parked behind an interloper prompt (deferredInputBatch)
+      // — the client's honest «committed, one more prompt first» witness.
+      stagedPlacementPending: parkedStagedPlacement(player),
       players: players,
       autopass: player.autopass,
       cardDrawReveals: player.cardDrawReveals.map((r) => ({

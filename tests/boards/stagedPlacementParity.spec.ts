@@ -316,6 +316,12 @@ function assertParity(name: string, staged: StagedPlacementModel, ss: SelectSpac
   const stagedIds = [...staged.spaces].sort();
   const liveIds = ss.spaces.map(toID).sort();
   expect(liveIds, `${name}: pre-pay staged legal set ≠ post-pay live SelectSpace set`).to.deep.equal(stagedIds);
+  // The ADDRESSED batch tail (deferredInputBatch.stagedMismatch) lands the
+  // staged cell ONLY on a SelectSpace carrying the same sourceCard — a live
+  // prompt that forgets it would park the cell forever and degrade EVERY
+  // staged commit of this card to a live re-ask. This is what separates the
+  // card's own placement from a threshold bonus ocean that jumps the queue.
+  expect(ss.sourceCard, `${name}: the live prompt must carry sourceCard (the staged tail's address)`).to.eq(name);
   expect(ss.placementType, `${name}: placementType parity`).to.eq(staged.placementType);
   if (!KNOWN_TILETYPE_GAPS.has(name as CardName)) {
     expect(ss.tileType, `${name}: tileType parity`).to.eq(staged.tileType);

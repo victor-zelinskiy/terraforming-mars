@@ -1,7 +1,10 @@
 import type {IPlayer} from '../IPlayer';
-import {InputResponse, isOrOptionsResponse} from '../../common/inputs/InputResponse';
+import {InputResponse, isOrOptionsResponse, SelectSpaceResponse} from '../../common/inputs/InputResponse';
 import type {PlayerInput} from '../PlayerInput';
+import {CardName} from '../../common/cards/CardName';
+import {SpaceId} from '../../common/Types';
 import {OrOptions} from './OrOptions';
+import {SelectSpace} from './SelectSpace';
 
 /**
  * THE PRE-COLLECTED BATCH — replay, and the TAIL THAT HAS NOT LANDED YET.
@@ -113,6 +116,24 @@ export function replayBatch(player: IPlayer, responses: ReadonlyArray<InputRespo
       parkedTails.set(player, [...(parkedTails.get(player) ?? []), ...responses.slice(i)]);
       return;
     }
+    // An ADDRESSED staged cell meeting a prompt that is not its own placement
+    // is the exact same law with the exact same failure modes — Nuclear Zone's
+    // temperature raise defers a bonus ocean AHEAD of the card's own tile, and
+    // an ocean-placing card's bonus twin would silently CONSUME the cell while
+    // a land tile's would read as a stale divergence and wipe it. Park the rest
+    // untried; the drain lands it once its own `sourceCard` prompt surfaces.
+    if (i > 0 && stagedMismatch(responses[i], waitingFor)) {
+      parkedTails.set(player, [...(parkedTails.get(player) ?? []), ...responses.slice(i)]);
+      return;
+    }
+    // The MATCHED staged prompt, but the pinned cell changed under the plan
+    // (an Ares erosion spawned on it mid-chain): the pick was made about a
+    // cell that no longer exists as seen — a silent auto-place would charge a
+    // toll the player never saw. Genuine staleness: drop the rest and let the
+    // live prompt ask for real.
+    if (i > 0 && stagedTailStale(responses[i], waitingFor)) {
+      return;
+    }
     // Reshape a pre-collected OR-wrapper to the live input shape when the
     // card's action() collapsed to a bare input (Factorum &c.), so the
     // confirmed step lands instead of popping a redundant modal.
@@ -163,6 +184,19 @@ export function drainBatchTail(player: IPlayer): void {
       // never theirs (see replayBatch). It stays parked for its own prompt.
       break;
     }
+    if (stagedMismatch(rest[0], waitingFor)) {
+      // An addressed staged cell whose OWN placement has not surfaced yet —
+      // it stays parked. Trying it here is the same-type trap: the interloper
+      // ocean would either eat it or read its refusal as staleness.
+      break;
+    }
+    if (stagedTailStale(rest[0], waitingFor)) {
+      // Its own prompt IS asking, but the pinned cell changed under the plan
+      // (a hazard landed on it while the interloper resolved). The pick is
+      // about a cell the player has not seen — honest re-ask, tail dropped.
+      rest.length = 0;
+      break;
+    }
     const response = reconcileBatchResponse(rest[0], waitingFor);
     try {
       player.process(response);
@@ -196,9 +230,106 @@ export function drainBatchTail(player: IPlayer): void {
  * A response the live input rejects because it is a DIFFERENT KIND of question
  * altogether is the queue-jump this module exists for — the prompt in front is
  * somebody else's (a triggered effect), and the answer is still owed its own.
+ * ⚠ The TYPE alone cannot tell two PLACEMENTS apart — the threshold bonus
+ * ocean is a `space` prompt exactly like the card's own tile — so an ADDRESSED
+ * staged cell adds its own term: a prompt that is not the placement it names
+ * is a queue-jump whatever its type.
  */
 function jumpedTheQueue(response: InputResponse, waitingFor: PlayerInput): boolean {
-  return response.type !== waitingFor.type;
+  return response.type !== waitingFor.type || stagedMismatch(response, waitingFor);
+}
+
+/** The staged-placement address of a response, when it carries one. */
+function stagedAddress(response: InputResponse): CardName | undefined {
+  return response.type === 'space' ? (response as SelectSpaceResponse).stagedFor : undefined;
+}
+
+/**
+ * An ADDRESSED response meeting a prompt that is NOT the placement it was
+ * staged for. The address is the server's own `SelectSpace.sourceCard` —
+ * every card-owned placement carries it (the Executor threads it, bespoke
+ * paths pass it to `createMarsSelectSpace`), while every threshold/bonus
+ * placement (the 0°C ocean, a Hellas placement-bonus ocean) leaves it
+ * undefined — which is exactly what makes the two distinguishable at all.
+ * Unaddressed responses answer `false` everywhere: the positional replay is
+ * unchanged for every non-staged flow.
+ */
+function stagedMismatch(response: InputResponse, waitingFor: PlayerInput): boolean {
+  const address = stagedAddress(response);
+  if (address === undefined) {
+    return false;
+  }
+  if (!(waitingFor instanceof SelectSpace)) {
+    return true;
+  }
+  return waitingFor.sourceCard !== address;
+}
+
+/**
+ * The MATCHED prompt is asking, but the pinned cell is no longer the cell the
+ * player saw: a tile stands on it (an Ares hazard spawned by the interloper
+ * ocean's own placement — `AresHazards.testToPlaceErosionTiles` drops erosions
+ * on deterministic land cells). Placing there would silently charge the
+ * hazard toll. A REPLACEMENT placement declares its doomed cells
+ * (`hiddenTiles` — KaguyaTech's own greenery) and a marker/bonus-only pick
+ * (`placementEffect`) covers no tile at all — both legitimately target
+ * occupied cells and are exempt. Membership in `spaces` is deliberately NOT
+ * checked here: that is `process`'s own refusal, judged by `jumpedTheQueue`.
+ */
+function stagedTailStale(response: InputResponse, waitingFor: PlayerInput): boolean {
+  const address = stagedAddress(response);
+  if (address === undefined || !(waitingFor instanceof SelectSpace)) {
+    return false;
+  }
+  const spaceId = (response as SelectSpaceResponse).spaceId;
+  const space = waitingFor.spaces.find((s) => s.id === spaceId);
+  if (space === undefined) {
+    return false;
+  }
+  const placesTile = waitingFor.placementEffect === undefined || waitingFor.placementEffect === 'tile';
+  const replacement = waitingFor.hiddenTiles?.includes(spaceId) === true;
+  return placesTile && !replacement && space.tile !== undefined;
+}
+
+/**
+ * The player is about to answer a prompt MANUALLY that a parked staged cell
+ * was addressed to (an opponent's request advanced the queue past our drain
+ * window, so the placement surfaced live). Their live answer supersedes the
+ * parked plan — expire it, or the drain would land the stale cell on the SAME
+ * card's NEXT same-shaped prompt (a two-ocean card's second ocean). Called by
+ * the single-input route BEFORE processing.
+ */
+export function expireSupersededStagedTail(player: IPlayer): void {
+  const tail = parkedTails.get(player);
+  const waitingFor = player.getWaitingFor();
+  if (tail === undefined || waitingFor === undefined) {
+    return;
+  }
+  const rest = tail.filter((r) => stagedAddress(r) === undefined || stagedMismatch(r, waitingFor));
+  if (rest.length === tail.length) {
+    return;
+  }
+  if (rest.length === 0) {
+    parkedTails.delete(player);
+  } else {
+    parkedTails.set(player, rest);
+  }
+}
+
+/**
+ * The staged placement still WAITING for its own prompt — the server-side
+ * truth the self player model carries (`stagedPlacementPending`), so the
+ * client can tell «the commit landed and the cell is parked behind an
+ * interloper» from «the tail was dropped and the placement will be re-asked»,
+ * and an F5 mid-chain re-derives the same fact instead of losing it.
+ */
+export function parkedStagedPlacement(player: IPlayer): {card: CardName, spaceId: SpaceId} | undefined {
+  const entry = parkedTails.get(player)?.find((r) => stagedAddress(r) !== undefined);
+  if (entry === undefined) {
+    return undefined;
+  }
+  const space = entry as SelectSpaceResponse;
+  return {card: space.stagedFor as CardName, spaceId: space.spaceId};
 }
 
 /**

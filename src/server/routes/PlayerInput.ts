@@ -15,7 +15,7 @@ import {statusCode} from '../../common/http/statusCode';
 import {InputError} from '../inputs/InputError';
 import {isIProjectCard} from '../cards/IProjectCard';
 import {AppErrorResponse, INVALID_RUN_ID} from '../../common/app/AppErrorId';
-import {drainBatchTail} from '../inputs/deferredInputBatch';
+import {drainBatchTail, expireSupersededStagedTail} from '../inputs/deferredInputBatch';
 import {validatePromptId} from './promptStaleness';
 
 export class PlayerInput extends Handler {
@@ -108,6 +108,11 @@ export class PlayerInput extends Handler {
           if (this.isWaitingForUndo(player, entity)) {
             await this.performUndo(req, res, ctx, player);
           } else {
+            // A parked STAGED cell whose own prompt is the one standing is
+            // superseded by this manual answer (the queue advanced past our
+            // drain window inside another player's request) — expire it, or
+            // the drain below would land it on the same card's NEXT prompt.
+            expireSupersededStagedTail(player);
             player.process(entity);
             // A prompt that jumped AHEAD of a pre-collected batch response
             // (Olympus Conference on the science tag of the card being played)

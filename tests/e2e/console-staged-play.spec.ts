@@ -1,5 +1,6 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
-import {bootIntoGame, focusCard, press, placeTile, soloGameConfig, fetchPlayerModel, playCardFromHand, openCardActions, openActionFocus} from './consoleStart';
+import {bootIntoGame, bootFixture, focusCard, press, placeTile, soloGameConfig, fetchPlayerModel, playCardFromHand, openCardActions, openActionFocus} from './consoleStart';
+import {TileType} from '../../src/common/TileType';
 
 /**
  * STAGED PLAY — the cell pick as the LAST REVERSIBLE STEP of playing a
@@ -197,6 +198,78 @@ test.describe('staged play — the cell is the last reversible step', () => {
       message: 'the committed play never reached the tableau',
       timeout: 30_000,
     }).toContain(MULTI_CARD);
+  });
+
+  test('interposer: the 0°C bonus ocean jumps the queue — the staged cell PARKS and auto-lands (no re-ask, no phantom)', async ({page, request}) => {
+    test.setTimeout(420_000);
+
+    // Temperature at −4°C + «Nuclear Zone» in hand: the play raises past 0°C,
+    // the server defers the BONUS OCEAN ahead of the card's own tile. The bug
+    // class this pins: the staged cell used to be dropped (same-type prompt),
+    // the projection vanished («тайл исчез») and the placement was RE-ASKED.
+    const playerId = await bootFixture(page, request, 'staged-interposer');
+    const panel = page.locator('.con-context');
+    const planLine = page.locator('.con-context__next');
+
+    await openPlayComposer(page, 'Nuclear Zone');
+    await press(page, 'Enter', 900); // «Разыграть на поле» (AUTO payment)
+    await expect(panel).toContainText(/размещение тайла/i, {timeout: 30_000});
+
+    // The cell confirm: the play commits — but the server asks the bonus
+    // ocean FIRST, and the addressed cell PARKS behind it. ⚠ `placeTile`
+    // cannot drive this press: its resolution witness is «the placement
+    // kicker is gone», and here the kicker NEVER falls between the two
+    // placements (the board goes straight from the pin pick into the ocean
+    // pick) — its retry loop would commit the interposer too and spend the
+    // very window this spec exists to observe. Drive the two-phase commit
+    // by hand and let the SERVER's own park marker be the witness.
+    const parkMarker = async () => {
+      const model = await fetchPlayerModel(request, playerId) as unknown as
+        {stagedPlacementPending?: {card: string, spaceId: string}};
+      return model.stagedPlacementPending?.card;
+    };
+    for (let attempt = 0; attempt < 3 && await parkMarker() === undefined; attempt++) {
+      await press(page, 'Enter', 420); // lock
+      await page.keyboard.press('Enter'); // commit — past the 280 ms dwell
+      for (let waited = 0; waited < 6_000 && await parkMarker() === undefined; waited += 300) {
+        await page.waitForTimeout(300);
+      }
+    }
+    expect(await parkMarker(), 'the staged cell never PARKED server-side').toBe('Nuclear Zone');
+
+    const parked = await fetchPlayerModel(request, playerId) as unknown as {
+      stagedPlacementPending: {card: string, spaceId: string},
+      game: {spaces: Array<{id: string, tileType?: number}>},
+    };
+    const pin = parked.stagedPlacementPending.spaceId;
+    expect(parked.game.spaces.find((s) => s.id === pin)?.tileType,
+      'nothing may stand on the pinned cell while parked — the phantom IS the bug').toBeUndefined();
+
+    // The board serves the interposed ocean, and the dossier's plan line
+    // announces the reserved placement still to come.
+    await expect(panel).toContainText(/размещение тайла/i, {timeout: 30_000});
+    await expect(planLine, 'the parked pin must be announced during the interposer')
+      .toContainText(/Затем/i, {timeout: 15_000});
+
+    // Place the bonus ocean — the pinned Nuclear Zone AUTO-LANDS with it.
+    expect(await placeTile(page), 'the ocean placement never resolved').toBeTruthy();
+
+    await expect.poll(async () => {
+      const model = await fetchPlayerModel(request, playerId) as unknown as
+        {game: {spaces: Array<{id: string, tileType?: number}>}};
+      return model.game.spaces.find((s) => s.id === pin)?.tileType;
+    }, {message: 'the pinned tile never auto-landed', timeout: 30_000}).toBe(TileType.NUCLEAR_ZONE);
+
+    const after = await fetchPlayerModel(request, playerId) as unknown as {
+      stagedPlacementPending?: unknown,
+      waitingFor?: {type?: string, sourceCard?: string},
+      game: {spaces: Array<{id: string, tileType?: number}>},
+    };
+    expect(after.stagedPlacementPending, 'the park must be spent').toBeUndefined();
+    expect(after.waitingFor?.type === 'space' && after.waitingFor?.sourceCard === 'Nuclear Zone',
+      'the placement must NEVER be re-asked').toBeFalsy();
+    expect(after.game.spaces.filter((s) => s.tileType === TileType.NUCLEAR_ZONE),
+      'exactly ONE nuclear zone — no double placement, no double bonus').toHaveLength(1);
   });
 
   test('blue-card ACTION: activate → board → B → composer restored → confirm → the ocean commits', async ({page, request}) => {

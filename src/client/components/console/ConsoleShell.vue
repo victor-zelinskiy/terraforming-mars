@@ -1878,6 +1878,10 @@ import {
 } from '@/client/console/consoleForegroundWatchdog';
 import {
   stagedPlayState,
+  stagedPinState,
+  beginStagedPin,
+  resolveStagedPinLanded,
+  resolveStagedPinDropped,
   stagedPlayActive,
   armStagedPlay,
   armStagedSeal,
@@ -5167,12 +5171,24 @@ export default defineComponent({
       if (prompt === undefined) {
         return undefined;
       }
+      // A PARKED staged cell (the server's own marker) reads as one more
+      // upcoming placement of THIS chain: while the interloper prompt (the
+      // threshold bonus ocean) is being answered, the dossier's plan line
+      // says the reserved placement is still coming — the same constant
+      // line the two-ocean cards use, fed from the same pipeline.
+      const parked = this.playerView.stagedPlacementPending;
+      const pinned = parked !== undefined && prompt.sourceCard !== parked.card ?
+        [{tileType: stagedPinState.pin?.cardName === parked.card ? stagedPinState.pin?.tileType : undefined}] :
+        [];
+      const followUps = pinned.length > 0 ?
+        [...(prompt.followUpPlacements ?? []), ...pinned] :
+        prompt.followUpPlacements;
       return {
         tileType: prompt.tileType,
         placementType: prompt.placementType,
         placementEffect: prompt.placementEffect,
         sourceCard: prompt.sourceCard,
-        followUpPlacements: prompt.followUpPlacements,
+        followUpPlacements: followUps,
       };
     },
     /**
@@ -9556,15 +9572,40 @@ export default defineComponent({
      * one owner of that transition.
      */
     placementWorldVersion(): void {
-      // STAGED PLAY first — its lifecycle rides the same version signal.
+      // A PARKED PIN resolves first — it mirrors the server's own
+      // `stagedPlacementPending`. Landed (the drain auto-placed the pinned
+      // cell) → the seal wave is free to fly from the tile; dropped (our own
+      // sourceCard prompt is standing live — the cell was invalidated and the
+      // placement is being re-asked) → release the held rewards honestly.
+      const pin = stagedPinState.pin;
+      if (pin !== undefined && this.playerView.stagedPlacementPending?.card !== pin.cardName) {
+        const wf = this.playerView.waitingFor;
+        if (wf?.type === 'space' && wf.sourceCard === pin.cardName) {
+          resolveStagedPinDropped();
+        } else {
+          resolveStagedPinLanded();
+        }
+      }
+      // STAGED PLAY next — its lifecycle rides the same version signal.
       // A committed staged play landing IS the version move: the play is
       // real, the flow ends on the board (the yielded frames are dropped,
       // never resumed — D-decision), and whatever the response carries next
       // (a chained second placement, a follow-up prompt, the reveal) is
       // served by its own ordinary routing. A version move under an UNSENT
       // staged play voids its preview instead.
+      //
+      // …and «landed» has a THIRD honest shape now: the response says the
+      // cell is PARKED behind an interloper prompt (a threshold bonus ocean
+      // jumped the queue). The commit is just as real — the stack is still
+      // discarded — but the presentation arms move onto the PIN, which the
+      // block above resolves on a later version move.
       if (stagedPlayActive()) {
         if (stagedPlayState.committing) {
+          const arm = stagedPlayState.arm;
+          const parked = this.playerView.stagedPlacementPending;
+          if (arm !== undefined && parked !== undefined && parked.card === arm.cardName) {
+            beginStagedPin({cardName: arm.cardName, spaceId: parked.spaceId, tileType: arm.placement.tileType});
+          }
           discardYieldedStack();
           clearStagedPlay();
         } else {
@@ -16475,8 +16516,13 @@ export default defineComponent({
       // an action arm carries no rewards, so this is a no-op there).
       armStagedSeal(spaceResponse.spaceId);
       this.armBoardBonusIfCardCell(spaceResponse.spaceId, arm.placement.placementEffect);
+      // `stagedFor` is the tail's ADDRESS (the server's own sourceCard): the
+      // cell lands ONLY on this card's placement prompt — a threshold bonus
+      // ocean that jumps the queue parks it instead of eating or dropping it
+      // (deferredInputBatch; the parked state comes back as
+      // `stagedPlacementPending` and is handled in placementWorldVersion).
       const responses = arm.placement.fixed === true ?
-        [...arm.batch] : [...arm.batch, spaceResponse];
+        [...arm.batch] : [...arm.batch, {...spaceResponse, stagedFor: arm.placement.sourceCard}];
       this.submitBatch(responses);
     },
     /**
