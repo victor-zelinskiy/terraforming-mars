@@ -5,7 +5,7 @@
         <span class="cmres__place">{{ row.place }}</span>
         <span class="cmres__cube" :class="`player_bg_color_${row.color}`"></span>
         <span class="cmres__name">
-          {{ row.name }}
+          {{ rowName(row) }}
           <span v-if="row.tied" class="cmres__tied">{{ $t('shared place') }}</span>
         </span>
         <span class="cmres__corps">
@@ -67,6 +67,7 @@ import {TITLE_LABEL, titleArtUrl} from '@/client/console/campaign/titleArt';
 import {TitleName} from '@/common/campaign/CampaignTypes';
 import {marsBotCorpInfo} from '@/common/automa/MarsBotCorpData';
 import {MarsBotCorpId} from '@/common/automa/AutomaTypes';
+import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import {translateTextWithParams} from '@/client/directives/i18n';
 
 /**
@@ -108,6 +109,10 @@ export default defineComponent({
     titleArtUrl,
     titleLabel(title: TitleName): string {
       return TITLE_LABEL[title];
+    },
+    /** The visible participant label — the ONE name helper. */
+    rowName(row: {name: string, isBot: boolean}): string {
+      return participantDisplayName({name: row.name, isMarsBot: row.isBot});
     },
     carryCount(count: number): string {
       // «карт: N» — number-form-neutral in RU (never «2 карт»).

@@ -24,7 +24,14 @@
     box-shadow calc(280ms * var(--motion-scale, 1)) ease,
     opacity calc(280ms * var(--motion-scale, 1)) ease;
 
-  &--future { opacity: 0.68; transform: scale(0.96); }
+  /* STATE vs FOCUS are two languages that never fight: the CURRENT mission
+     wears the standing gold frame (material — it stays whoever is
+     focused), the FINALE its bronze one, and the CURSOR is the SAME cyan
+     ring the Information workspace's zones wear (`--focused`): one focus
+     family across the panel. On the current card the cursor ring rides
+     OUTSIDE the gold (both readable, neither replaced). A future mission
+     recedes a step but stays readable — its board is real information. */
+  &--future { opacity: 0.82; }
   &--done { box-shadow: inset 0 0 0 0.05rem rgba(159, 195, 164, 0.34); }
   &--current {
     transform: scale(1.04);
@@ -33,7 +40,12 @@
   &--final { box-shadow: inset 0 0 0 0.09rem rgba(214, 178, 110, 0.4); }
   &--final&--current { box-shadow: inset 0 0 0 0.1rem rgba(232, 200, 132, 0.6), 0 0.5rem 1.4rem rgba(0, 0, 0, 0.45); }
   &--cursor {
-    box-shadow: inset 0 0 0 0.09rem rgba(126, 200, 236, 0.85), 0 0 0 0.14rem rgba(126, 200, 236, 0.35), 0 0.5rem 1.4rem rgba(0, 0, 0, 0.45);
+    opacity: 1;
+    box-shadow: inset 0 0 0 0.1rem rgba(126, 200, 236, 0.85), 0 0.5rem 1.4rem rgba(0, 0, 0, 0.45);
+    background: linear-gradient(168deg, rgba(26, 38, 54, 0.94), rgba(14, 22, 33, 0.96));
+  }
+  &--current&--cursor {
+    box-shadow: inset 0 0 0 0.09rem rgba(232, 200, 132, 0.55), 0 0 0 0.12rem rgba(126, 200, 236, 0.8), 0 0.5rem 1.4rem rgba(0, 0, 0, 0.45);
   }
 
   &__final-banner {
@@ -53,9 +65,11 @@
     white-space: nowrap;
     z-index: 1;
   }
-  /* The board IS the card's visual centre: sized so the real silhouette
-     (aspect ≈ 1.11) fills the card's inner width at every profile. */
-  &__map { height: 8.1rem; }
+  /* The board IS the card's visual centre: the wrap keeps the silhouette's
+     OWN aspect (viewBox ≈ 164×148 incl. frame pad), so the real geometry
+     fills the card's full inner width at every profile — no letterbox
+     bands, the planet's surface is what the card is. */
+  &__map { width: 100%; aspect-ratio: ~"164 / 148"; }
   &__board-name {
     font-size: 0.78rem;
     font-weight: 700;
@@ -91,9 +105,11 @@
     color: #c2cfdd;
   }
   &__result-place { min-width: 0.7rem; color: #8fa1b5; font-weight: 700; }
-  &__result-cube { width: 0.55rem; height: 0.55rem; border-radius: 0.12rem; box-shadow: inset 0 0 0 0.04rem rgba(0, 0, 0, 0.45); }
-  &__result-title { width: 1rem; height: 1rem; object-fit: contain; }
-  &__result-score { margin-left: auto; font-weight: 700; color: #dfe9f5; }
+  &__result-cube { width: 0.55rem; height: 0.55rem; border-radius: 0.12rem; box-shadow: inset 0 0 0 0.04rem rgba(0, 0, 0, 0.45); flex: 0 0 auto; }
+  /* The podium names its people — compact, ellipsized, never dropped. */
+  &__result-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #d5dfec; }
+  &__result-title { width: 1rem; height: 1rem; object-fit: contain; flex: 0 0 auto; }
+  &__result-score { margin-left: 0.2rem; font-weight: 700; color: #dfe9f5; white-space: nowrap; }
   &__gens { padding-top: 0.15rem; font-size: 0.6rem; color: #7e8fa3; text-align: center; }
 }
 
@@ -242,10 +258,16 @@
   min-height: 0;
   display: flex;
 }
-.con-info__ctitles { display: inline-flex; align-items: center; gap: 0.15rem; min-height: 1.15rem; }
-.con-info__ctitle { width: 1.15rem; height: 1.15rem; object-fit: contain; }
+/* The «Кампания» summary block: the title emblems and the TP VALUE are one
+   visual statement (emblems lead, the number is the block's loudest voice),
+   and the semantics note stands DIRECTLY under that value — never under an
+   unrelated line. */
+.con-info__ctitles { display: inline-flex; align-items: center; gap: 0.2rem; }
+.con-info__ctitle { width: 1.5rem; height: 1.5rem; object-fit: contain; }
 .con-info__cmuted { color: #7e8fa3; font-weight: 600; }
-.con-info__note--tp { color: #b9a86e; }
+.con-info__cmp-tprow { display: flex; align-items: center; gap: 0.5rem; padding: 0.15rem 0 0; }
+.con-info__cmp-tp { font-size: 1.1rem; font-weight: 800; color: #ecd39a; letter-spacing: 0.03rem; }
+.con-info__note--tp { color: #b9a86e; margin-top: -0.1rem; }
 
 .con-cmpov {
   position: relative;
@@ -323,10 +345,17 @@
     padding: 0.2rem 0.2rem 0.4rem;
     overflow: hidden;
   }
+  /* ONE grid for every row: cube · identity · titles · TP · corporations ·
+     bonus start on the SAME verticals whoever sits in the row (a bot, a
+     long name, «вы», one corporation or three). A long name ellipsizes
+     INSIDE its column — the type size never shrinks; the corporation
+     column starts right after TP (left-aligned, no floating gap) and
+     WRAPS when the lineage grows. */
   &__seat {
-    display: flex;
+    display: grid;
+    grid-template-columns: auto minmax(7rem, 13rem) 3.4rem 5.2rem minmax(0, 1fr) auto;
     align-items: center;
-    gap: 0.55rem;
+    column-gap: 0.55rem;
     padding: 0.45rem 0.65rem;
     border-radius: 0.45rem;
     background: rgba(16, 25, 37, 0.72);
@@ -336,40 +365,42 @@
     &--viewed { background: rgba(22, 33, 48, 0.85); }
     &--champion { box-shadow: inset 0 0 0 0.07rem rgba(232, 200, 132, 0.5); }
   }
-  &__seat-cube { width: 0.75rem; height: 0.75rem; border-radius: 0.16rem; box-shadow: inset 0 0 0 0.04rem rgba(0, 0, 0, 0.45); flex: 0 0 auto; }
-  &__seat-name { font-size: 0.82rem; font-weight: 700; color: #e6eef8; white-space: nowrap; display: inline-flex; align-items: baseline; gap: 0.35rem; }
-  &__seat-you { font-size: 0.6rem; color: #a9d5ef; text-transform: uppercase; letter-spacing: 0.08rem; }
-  &__seat-crown { font-size: 0.6rem; color: #ecd39a; text-transform: uppercase; letter-spacing: 0.08rem; }
-  &__seat-titles { display: inline-flex; align-items: center; gap: 0.15rem; min-width: 3.4rem; }
+  &__seat-cube { width: 0.75rem; height: 0.75rem; border-radius: 0.16rem; box-shadow: inset 0 0 0 0.04rem rgba(0, 0, 0, 0.45); }
+  &__seat-name { font-size: 0.82rem; font-weight: 700; color: #e6eef8; white-space: nowrap; display: inline-flex; align-items: baseline; gap: 0.35rem; min-width: 0; }
+  &__seat-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  &__seat-you { flex: 0 0 auto; font-size: 0.6rem; color: #a9d5ef; text-transform: uppercase; letter-spacing: 0.08rem; }
+  &__seat-crown { flex: 0 0 auto; font-size: 0.6rem; color: #ecd39a; text-transform: uppercase; letter-spacing: 0.08rem; }
+  &__seat-titles { display: inline-flex; align-items: center; gap: 0.15rem; }
   &__seat-title { width: 1.35rem; height: 1.35rem; object-fit: contain; }
-  &__seat-tpwrap { display: inline-flex; flex-direction: column; min-width: 9.4rem; }
-  &__seat-tp { font-size: 0.78rem; font-weight: 800; color: #ecd39a; }
-  &__seat-tpnote { font-size: 0.56rem; color: #94886a; letter-spacing: 0.02rem; }
-  &__seat-corps { display: flex; flex-wrap: wrap; gap: 0.25rem; margin-left: auto; justify-content: flex-end; min-width: 0; }
+  &__seat-tp { font-size: 0.82rem; font-weight: 800; color: #ecd39a; white-space: nowrap; }
+  &__seat-corps { display: flex; flex-wrap: wrap; gap: 0.3rem; justify-content: flex-start; min-width: 0; }
   &__seat-corp {
     display: inline-flex;
     align-items: center;
-    gap: 0.25rem;
-    padding: 0.06rem 0.45rem;
+    gap: 0.3rem;
+    padding: 0.12rem 0.55rem;
     border-radius: 0.75rem;
     background: rgba(28, 40, 56, 0.8);
     box-shadow: inset 0 0 0 0.04rem rgba(150, 180, 215, 0.2);
-    font-size: 0.64rem;
-    color: #b9c8d9;
+    font-size: 0.74rem;
+    color: #c6d4e3;
     white-space: nowrap;
   }
   &__seat-corp-ord {
     display: inline-grid;
     place-items: center;
-    width: 0.85rem;
-    height: 0.85rem;
+    width: 1rem;
+    height: 1rem;
     border-radius: 50%;
     background: rgba(48, 66, 88, 0.9);
-    font-size: 0.52rem;
+    font-size: 0.58rem;
     font-weight: 700;
     color: #cfdcea;
   }
-  &__seat-bonus { font-size: 0.66rem; font-weight: 700; color: #9fc3a4; white-space: nowrap; }
+  &__seat-bonus { font-size: 0.66rem; font-weight: 700; color: #9fc3a4; white-space: nowrap; min-width: 0; }
+  /* The roster's ONE TP-semantics line, tied to the value by the «ОТ»
+     term — never repeated per row, never under an unrelated block. */
+  &__seats-note { padding: 0.05rem 0.65rem 0; font-size: 0.62rem; color: #94886a; letter-spacing: 0.02rem; }
 
   /* Nested read-only layers open FROM the pressed object. */
   &__layer {
@@ -390,6 +421,71 @@
   &__layer-cube { width: 0.7rem; height: 0.7rem; border-radius: 0.14rem; box-shadow: inset 0 0 0 0.04rem rgba(0, 0, 0, 0.45); }
   &__layer-kicker { font-size: 0.9rem; font-weight: 800; color: #eef4fb; }
   &__layer-board { font-size: 0.7rem; color: #a9bacd; letter-spacing: 0.06rem; text-transform: uppercase; }
+}
+
+/* mission inspect (the shared «Осмотр миссии» body): the enlarged REAL
+   board is the hero half, the detail half is honest to the state. */
+.cminsp {
+  display: flex;
+  gap: 1rem;
+  min-height: 0;
+  flex: 1 1 auto;
+
+  &__hero {
+    flex: 0 0 24rem;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    padding: 0.6rem 0.7rem;
+    border-radius: 0.5rem;
+    background: rgba(14, 22, 33, 0.6);
+    box-shadow: inset 0 0 0 0.05rem rgba(150, 180, 215, 0.14);
+  }
+  &__map { width: 100%; aspect-ratio: ~"164 / 148"; min-height: 0; }
+  &__board-line { display: flex; align-items: baseline; gap: 0.5rem; justify-content: center; }
+  &__board-name { font-size: 0.95rem; font-weight: 800; color: #eef4fb; }
+  &__final {
+    padding: 0.05rem 0.45rem;
+    border-radius: 0.3rem;
+    background: rgba(58, 43, 22, 0.9);
+    box-shadow: inset 0 0 0 0.05rem rgba(232, 196, 130, 0.5);
+    color: #ecd39a;
+    font-size: 0.58rem;
+    font-weight: 700;
+    letter-spacing: 0.12rem;
+    text-transform: uppercase;
+  }
+  &__state {
+    font-size: 0.62rem;
+    letter-spacing: 0.11rem;
+    text-transform: uppercase;
+    text-align: center;
+    color: #93a5ba;
+    &--committed { color: #9fc3a4; }
+    &--active { color: #e8c884; }
+    &--ready, &--locked { color: #a9d5ef; }
+  }
+  &__detail {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+    /* Entry: the detail surfaces from inside AFTER the layer's unfold —
+       CSS `backwards`, so a mount mid-transition is already posed. */
+    animation: cov-seat-in calc(260ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1) calc(120ms * var(--motion-scale, 1)) backwards;
+  }
+  &__facts { display: flex; flex-direction: column; gap: 0.45rem; padding: 0.55rem 0.65rem; border-radius: 0.45rem; background: rgba(14, 22, 33, 0.6); box-shadow: inset 0 0 0 0.05rem rgba(150, 180, 215, 0.14); }
+  &__fact { display: flex; align-items: baseline; gap: 0.55rem; flex-wrap: wrap; }
+  &__fact-label { min-width: 7.2rem; font-size: 0.62rem; letter-spacing: 0.1rem; text-transform: uppercase; color: #8fa1b5; }
+  &__fact-value { font-size: 0.9rem; font-weight: 800; color: #ecd39a; }
+  &__fact-note { font-size: 0.7rem; color: #c2cfdd; }
+  &__party { display: inline-flex; flex-wrap: wrap; gap: 0.5rem; }
+  &__party-chip { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.76rem; color: #d5dfec; }
+  &__party-cube { width: 0.6rem; height: 0.6rem; border-radius: 0.13rem; box-shadow: inset 0 0 0 0.04rem rgba(0, 0, 0, 0.45); }
+  &__note { font-size: 0.68rem; color: #8fa1b5; }
 }
 
 .cov-step-enter-active {

@@ -154,7 +154,12 @@
   "Awaits the deployment press": "Ожидает получения при развёртывании",
   "${0} cards · hidden": "Карт: ${0} · скрыты",
   "Title Points": "Очки титулов",
-  "Open: mission results": "Открыть: итоги миссии",
   "Open: participant legacy": "Открыть: наследие участника",
-  "cards: ${0}": "карт: ${0}"
+  "cards: ${0}": "карт: ${0}",
+  "Inspect the mission": "Осмотреть миссию",
+  "and ${0} more": "ещё ${0}",
+  "Participants": "Участники",
+  "The mission is being played right now — its results will appear here": "Миссия играется прямо сейчас — её итоги появятся здесь",
+  "The board and its printed bonuses are known ahead — the outcome is not": "Поле и его печатные бонусы известны заранее — исход ещё нет",
+  "Titles and corporations count into this mission’s VP": "Титулы и корпорации войдут в ПО этой миссии"
 }

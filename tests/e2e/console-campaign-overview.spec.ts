@@ -145,10 +145,28 @@ for (const preset of PRESETS) {
       await expect(workspace).toHaveCount(1);
       const zone = page.locator('.con-info__zone--campaign');
       await expect(zone).toBeVisible();
-      // The zone speaks: mission 2 of 4, the TP semantics note.
+      // The zone speaks: mission 2 of 4 WITH its board name, the TP value
+      // as the block's own statement, the semantics note AT the value.
       const zoneText = (await zone.innerText()).toLowerCase();
       expect(zoneText).toContain('2');
       expect(/финальн|final/.test(zoneText), `TP note in the zone: ${zoneText}`).toBeTruthy();
+      await expect(zone.locator('.con-info__cmp-tp')).toBeVisible();
+      // THE STABLE CHASSIS: the workspace HEADER starts at the ordinary
+      // frame inset — the satellite lane is a CONTENT inset only, so the
+      // crumb never moves with the seat's resource composition.
+      const headBox = (await page.locator('.con-info__head').boundingBox())!;
+      const frameBox = (await page.locator('.con-info__frame').boundingBox())!;
+      const layoutBox = (await page.locator('.con-info__layout').boundingBox())!;
+      expect(headBox.x - frameBox.x, 'the crumb hugs the frame (no satellite reserve on the header)')
+        .toBeLessThan(frameBox.width * 0.05);
+      expect(layoutBox.x - headBox.x, 'the content zones step past the satellite lane')
+        .toBeGreaterThan(40);
+      // The old «ДОП. РЕСУРСЫ» caption is gone — the chips are the label.
+      await expect(page.locator('.con-res-aux__cap')).toHaveCount(0);
+      // The corporation meta in the header NAMES the composition size:
+      // Alice carries the mission-1 lineage corp + the mission-2 pick.
+      const corpMeta = (await page.locator('.con-info__corp').innerText()).toLowerCase();
+      expect(/ещё|more/.test(corpMeta), `multi-corp header meta: ${corpMeta}`).toBeTruthy();
       await shoot(page, 'info-summary-zone');
 
       // ── Ring → the campaign zone → A opens the overview. ─────────────────
@@ -169,20 +187,55 @@ for (const preset of PRESETS) {
       // The crumb tail names the place.
       const head = (await page.locator('.con-wshead').innerText()).toLowerCase();
       expect(/кампания|campaign/.test(head), `crumb: ${head}`).toBeTruthy();
+      // THE ROW GRID: the TP values of every participant row start on ONE
+      // vertical — a bot and a human name alike (the seat row is a grid,
+      // never a flex pile of min-widths).
+      const tpLefts = await page.$$eval('.con-cmpov__seat-tp',
+        (els) => els.map((el) => Math.round(el.getBoundingClientRect().left)));
+      expect(new Set(tpLefts).size, `TP columns must align: ${tpLefts.join(', ')}`).toBe(1);
+      const corpLefts = await page.$$eval('.con-cmpov__seat-corps',
+        (els) => els.map((el) => Math.round(el.getBoundingClientRect().left)));
+      expect(new Set(corpLefts).size, `corporation columns must align: ${corpLefts.join(', ')}`).toBe(1);
+      // The ONE participant-name helper everywhere: the bot reads «Бот»,
+      // never the raw save name.
+      const seatsText = await page.locator('.con-cmpov__seats').innerText();
+      expect(seatsText.includes('MarsBot'), `no raw bot name in rows: ${seatsText}`).toBeFalsy();
+      // The TP semantics note is stated ONCE for the roster.
+      await expect(page.locator('.con-cmpov__seats-note')).toHaveCount(1);
+      // The committed card's podium NAMES its people.
+      await expect(page.locator('.ccard__result-name').first()).toBeVisible();
       await settle(page, {timeoutMs: 15_000}).catch(() => {});
       await shoot(page, 'info-overview');
 
-      // ── A on the committed mission → «Итоги миссии» inside the overview. ──
+      // ── A on the committed mission → the MISSION INSPECT: the enlarged
+      // board + the full results inside the overview. ──────────────────────
       for (let i = 0; i < 4 && await page.locator('.con-cmpov__layer').count() === 0; i++) {
         await press(page, 'ArrowLeft', 250);
         await press(page, 'Enter', 600);
       }
       await expect(page.locator('.con-cmpov__layer')).toBeVisible();
+      await expect(page.locator('.cminsp__map')).toBeVisible();
       await expect(page.locator('.cmres__rows')).toBeVisible();
       await expect(page.locator('.cmres__legacy-head')).toBeVisible();
       await shoot(page, 'info-mission-results');
       // B — exactly one level: the layer folds, the overview stands. A press
       // can land inside a closing beat — act → verify → retry.
+      await pressUntil(page, 'Escape',
+        async () => await page.locator('.con-cmpov__layer').count() === 0,
+        {tries: 4, settleMs: 500});
+      await expect(overview).toBeVisible();
+
+      // ── EVERY mission is inspectable: A on the LAST (future, finale)
+      // card opens the honest inspect — board + known features, no
+      // invented results; B folds one level back. ─────────────────────────
+      for (let i = 0; i < 4; i++) {
+        await press(page, 'ArrowRight', 250);
+      }
+      await press(page, 'Enter', 600);
+      await expect(page.locator('.con-cmpov__layer')).toBeVisible();
+      await expect(page.locator('.cminsp__map')).toBeVisible();
+      await expect(page.locator('.cmres__rows')).toHaveCount(0);
+      await shoot(page, 'info-mission-future');
       await pressUntil(page, 'Escape',
         async () => await page.locator('.con-cmpov__layer').count() === 0,
         {tries: 4, settleMs: 500});

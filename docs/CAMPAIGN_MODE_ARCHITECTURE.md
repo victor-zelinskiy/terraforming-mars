@@ -233,6 +233,22 @@
 > `tests/campaign/campaignOverviewModel.spec.ts`, the carried-in history case
 > in `CampaignManager.spec.ts`, the campaign-zone case in `infoRoute.spec.ts`.
 >
+> **Quality iteration (same day):** «Осмотр миссии» (`CampaignMissionInspect`)
+> replaced the results-only layer — A (overview) / X (map) inspect ANY
+> mission: hero board + results for committed, live facts for active, known
+> features for future (the verb never dead-ends). Participant rows became ONE
+> GRID (identity/titles/TP/corps on shared verticals, ellipsis over shrink,
+> corps chips readable and left-anchored after TP), the TP-semantics note is
+> stated ONCE per roster; every label goes through `participantDisplayName`
+> (podium rows carry raw `name`+`isBot`); the summary campaign block reads
+> «Миссия 2 из 4 · <поле>» with the TP value + note as one statement; the
+> Information header names the composition size («AstroDrill · ещё 1»). The
+> mission-card miniature fills the card (aspect-locked wrap) and draws the
+> BOLD glyph build (`SPACE_BONUS_GLYPHS_BOLD`, bigger slots, receded land
+> grid). The InfoPanel chassis is STABLE: no frame-wide satellite reserve
+> (content-only `--con-info-satellite-w` lane), no «ДОП. РЕСУРСЫ» caption,
+> per-chip focus ring with «A Открыть: <ресурс>» (`infoExtrasChips.ts`).
+>
 > Known v1 residuals (deliberate, listed in the implementation report): the map's
 > generation reveal is a CSS cascade (no connector-draw ceremony yet); «Штаб» reuses the start
 > scene's sequential corp reveals under its own label (no bespoke trio screen); the

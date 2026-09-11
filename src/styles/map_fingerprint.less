@@ -34,6 +34,15 @@
 
 .map-fp__glyphs { opacity: 0.95; }
 
+/* The compact CARD tier reads at ≈10 px per hex: the hierarchy there is
+   grid < oceans < glyphs — the land grid recedes so the bold glyph build
+   (SPACE_BONUS_GLYPHS_BOLD) owns the eye, the ocean line stays the
+   recognisable blue anchor. */
+.map-fp--card .map-fp__hex { stroke: rgba(228, 158, 116, 0.2); stroke-width: 0.45; }
+.map-fp--card .map-fp__hex--ocean { stroke: rgba(130, 196, 252, 0.66); stroke-width: 0.55; }
+.map-fp--card .map-fp__hex--cove { stroke: rgba(120, 220, 220, 0.56); stroke-width: 0.55; }
+.map-fp--card .map-fp__hex--special { stroke: rgba(214, 160, 120, 0.44); stroke-width: 0.5; }
+
 .map-fp__legend { display: flex; gap: 6px; justify-content: center; padding-top: 8px; flex: 0 0 auto; }
 .map-fp__legend-chip {
     width: 23px; height: 23px; display: grid; place-items: center; border-radius: 5px;

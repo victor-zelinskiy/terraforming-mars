@@ -241,24 +241,30 @@
     flex: 0 0 auto;
     box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22);
   }
+  /* IDENTITY is a fixed column (the row grid's whole point: name, titles,
+     TP and corporations start on the same verticals for every row — a bot
+     and a long human name alike). A long name ellipsizes INSIDE its
+     column; the font never shrinks. */
   &__seat-name {
-    min-width: 11rem;
+    flex: 0 0 13rem;
+    min-width: 0;
     color: #e8eef6;
     display: flex;
     align-items: baseline;
     gap: 0.5rem;
   }
+  &__seat-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
   &__seat-you {
+    flex: 0 0 auto;
     font-size: 0.72rem;
     letter-spacing: 0.14em;
     text-transform: uppercase;
     color: #a9d5ef;
-  }
-  &__seat-bot {
-    font-size: 0.72rem;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: #c9a2e8;
   }
   &__seat-titles {
     display: flex;
@@ -270,22 +276,12 @@
     height: 1.5rem;
     object-fit: contain;
   }
-  /* TP + its SEMANTICS note stacked: the number alone lies by omission —
-     «15 ОТ» means nothing without «учитываются только в финале» /
-     «уже включены в ПО» (the shared tpStatusLabel wording). */
-  &__seat-tpwrap {
-    min-width: 10.4rem;
-    display: flex;
-    flex-direction: column;
-    line-height: 1.2;
-  }
+  /* TP is a bare value here — its SEMANTICS is stated ONCE for the whole
+     roster (the __rail-note line under the rows), tied by the «ОТ» term. */
   &__seat-tp {
+    min-width: 6.4rem;
     color: #ecd39a;
     letter-spacing: 0.06em;
-  }
-  &__seat-tpnote {
-    font-size: 0.62rem;
-    color: #94886a;
   }
   /* The corporation LINEAGE on the row itself (the old dossier modal folded
      in): ordinal-numbered chips, one quiet line, ellipsized under pressure.
@@ -335,6 +331,14 @@
     letter-spacing: 0.2em;
     text-transform: uppercase;
     font-size: 0.8rem;
+  }
+  /* The ONE TP-semantics line of the roster («ОТ — учитываются только в
+     финальной миссии») — indented to the rows' content, quiet. */
+  &__rail-note {
+    padding: 0.15rem 0.8rem 0;
+    font-size: 0.68rem;
+    color: #94886a;
+    letter-spacing: 0.03em;
   }
   &__inline-error {
     margin-top: 0.4rem;
@@ -415,10 +419,14 @@
     min-width: 30rem;
     max-width: 44rem;
 
-    &--results { min-width: 42rem; max-width: 58rem; }
+    /* «Осмотр миссии» — the hero board + the state detail; a committed
+       mission additionally carries the full results body, so it takes the
+       wider frame. */
+    &--mission { min-width: 44rem; max-width: 62rem; }
+    &--results { min-width: 50rem; max-width: 72rem; }
     &--legacy { min-width: 46rem; max-width: 66rem; }
 
-    .cmres, .cleg { padding-top: 0.6rem; }
+    .cmres, .cleg, .cminsp { padding-top: 0.6rem; }
   }
   &__dossier-sub {
     margin-left: 0.8rem;

@@ -81,3 +81,19 @@ export const SIGNATURE_BONUSES: ReadonlySet<SpaceBonus> = new Set([
 export function spaceBonusGlyphSvg(bonus: SpaceBonus): string {
   return `<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">${SPACE_BONUS_GLYPHS[bonus] ?? ''}</svg>`;
 }
+
+/**
+ * OPTICALLY ADAPTED strokes for the smallest render (the mission-card
+ * miniature draws a glyph at ≈10 px): the same shapes, every stroke width
+ * scaled up so the silhouette survives the shrink — thickness must grow
+ * as size falls, or the icon dissolves into the hex grid.
+ */
+function boldPaths(markup: string, factor: number): string {
+  return markup.replace(/stroke-width="([\d.]+)"/g,
+    (_, w: string) => `stroke-width="${(Number(w) * factor).toFixed(2)}"`);
+}
+
+export const SPACE_BONUS_GLYPHS_BOLD: Record<SpaceBonus, string> =
+  Object.fromEntries(
+    Object.entries(SPACE_BONUS_GLYPHS).map(([k, v]) => [k, boldPaths(v, 1.4)]),
+  ) as Record<SpaceBonus, string>;

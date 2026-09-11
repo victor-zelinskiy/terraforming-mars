@@ -42,13 +42,28 @@ summary ─┬─ vp            («Победные очки» — the score exp
               └─ botBonus   («Бонусные карты»)
 ```
 
-**The «Кампания» route (2026-09-11).** Campaign missions grow one more
-zone/route pair: the summary zone (mission N of M, the inspected seat's
-titles + TP with the honest scoring-semantics note, the composition count)
-and the full in-game overview (`ConsoleCampaignOverview` — the mission
-route over the REAL board miniatures, the participant rows, and two nested
-read-only layers: «Итоги миссии» / «Наследие участника», both the same
-components the standalone Campaign Map renders). Existence is a GAME-shape
+**The «Кампания» route (2026-09-11, quality iteration same day).**
+Campaign missions grow one more zone/route pair: the summary zone
+(«Миссия 2 из 4 · Элизий» — the frame line CARRIES the board name; the
+inspected seat's title emblems + the TP VALUE as one visual statement with
+the scoring-semantics note DIRECTLY under it, never under an unrelated
+line; the composition count) and the full in-game overview
+(`ConsoleCampaignOverview` — the mission route over the REAL board
+miniatures, the participant rows, and two nested read-only layers:
+«Осмотр миссии» (`CampaignMissionInspect` — A on ANY route card, whatever
+its state: the enlarged hero board + results/outgoing legacy for a
+committed one, live facts (generation, participants) for the active one,
+the honestly-known features for a future one — the A verb never dead-ends
+on a future card) / «Наследие участника», both the same components the
+standalone Campaign Map renders — the map offers the same inspect on X).
+The participant rows are ONE GRID (cube · identity · titles · TP ·
+corporations · bonus — same verticals for every row; a long name
+ellipsizes inside its column, the type size never shrinks; corporations
+start right after TP, left-aligned, and wrap at 3+), with the TP-semantics
+note stated ONCE under the roster («ОТ — …»), tied by the term. Every
+participant label resolves through `participantDisplayName` (the podium
+carries raw `name`+`isBot` in the model; the renderer localizes — a raw
+«MarsBot» on any campaign surface is a regression). Existence is a GAME-shape
 fact, not a participant fact: `infoZonePresent`/`infoZoneFocusable`/
 `infoFocusRing`/`infoZoneNavigate` take an optional `InfoZoneContext`
 (`{campaign: boolean}`, default false — ordinary call sites untouched), and
@@ -112,16 +127,35 @@ zones sit at the same coordinates (e2e-guarded ±2px):
 | `botdoor` (col 3) | — | the bot's door to «Экран бота» (an ordinary ring stop) |
 
 **THE EXTRAS ZONE IS THE RAIL SATELLITE** (`.con-res-aux`, extras rework
-2026-09-10): the persistent ДОП.РЕСУРСЫ column beside the left rail is the
-zone's ONE physical body — the panel renders no duplicate. It is mounted
-through the whole overlay (an empty seat shows the honest «—» plate + the
-«ДОП. РЕСУРСЫ» caption — both absolutely seated, so the cells' geometry
-never moves), rides above the panel's dim on the host stacking
-(`.con-main--info .con-res-host` z11561), and is PIXEL-IDENTICAL to its
-board pose by construction (same node, same anchor — e2e-sampled per frame
-in `console-extras-explorer.spec.ts`). The bot seat fills the same cells
-from its real pools; an inspected seat's cells carry NO `data-aux-resource`
-landing anchors (resource flights must never aim at a foreign column).
+2026-09-10; STABLE-CHASSIS + per-chip ring, 2026-09-11): the persistent
+ДОП.РЕСУРСЫ column beside the left rail is the zone's ONE physical body —
+the panel renders no duplicate, and it carries NO caption (the chips are
+the label; the bar names the focused TYPE). It is mounted through the
+whole overlay (an empty seat shows the honest «—» plate, absolutely
+seated, so the cells' geometry never moves), rides above the panel's dim
+on the host stacking (`.con-main--info .con-res-host` z11561), and is
+PIXEL-IDENTICAL to its board pose by construction (same node, same anchor
+— e2e-sampled per frame in `console-extras-explorer.spec.ts`). The bot
+seat fills the same cells from its real pools; an inspected seat's cells
+carry NO `data-aux-resource` landing anchors (resource flights must never
+aim at a foreign column).
+
+**The STABLE CHASSIS (2026-09-11):** the frame itself keeps the ORDINARY
+workspace inset — `.con-info__frame` reserves nothing for the satellite,
+so the crumb/header sits where every workspace's does, whatever the seat's
+resource composition. The CONTENT zones step past the chips by one
+constant (`--con-info-satellite-w`, applied by the single
+`.con-info__frame > :not(.con-info__head)` rule) — one chip, five chips
+and zero chips are the same chassis (e2e-pinned in
+`console-campaign-overview.spec.ts`: header hugs the frame, content steps
+the lane). **The chips are INDIVIDUAL ring stops on the summary**
+(`infoModeState.extrasCursor`; up/down walk the column, the cursor is the
+same cyan chip ring the extras screen uses): A opens the extras screen ON
+the focused type (`selectExtrasType`, the same road as a cell click), the
+bar reads «A Открыть: <ресурс>» (`infoExtrasChips.ts` — the SAME
+derivation as the painted cells, `additionalResourceGroups` /
+`marsBotExtraGroups`, so ring order and column can never disagree), and B
+from the screen restores the cursor to the type the player was reading.
 
 **The old «КАРТЫ» readout zone is GONE (hand-dock integration, 2026-09):
 the HAND DOCK is the ONE physical representation of the inspected seat's

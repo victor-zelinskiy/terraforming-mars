@@ -1840,7 +1840,8 @@ import {
   findPerformActionCard,
 } from '@/client/console/turnIntents';
 import {infoModeState, openInfoMode, closeInfoMode, settleInfoModeClose, restoreConsoleSnapshot, cyclePlayer} from '@/client/console/infoModeState';
-import {resetExtrasExplorer, selectExtrasType} from '@/client/console/consoleExtrasExplorer';
+import {extrasExplorerUi, resetExtrasExplorer, selectExtrasType} from '@/client/console/consoleExtrasExplorer';
+import {infoExtrasChips} from '@/client/console/infoExtrasChips';
 import {InfoRouteId, infoRouteApplies, infoRouteBack, infoZoneForRoute, infoZoneRoute, infoZoneFocusable, infoZoneNavigate, infoFocusRing, botScreenNavigate, isVpRoute} from '@/client/console/infoRoute';
 import {resetScoreExplorer} from '@/client/console/consoleScoreExplorer';
 import {playInspectedSwitchMotion, playInspectedReturnMotion} from '@/client/console/inspectSwitchMotion';
@@ -11593,9 +11594,18 @@ export default defineComponent({
       if (!infoZoneFocusable(this.infoModeState.summaryFocus, this.infoViewedKind(), this.infoZoneCtx())) {
         this.infoModeState.summaryFocus = infoFocusRing(this.infoViewedKind(), this.infoZoneCtx())[0] ?? 'vp';
       }
+      // The satellite composition is per-seat — the chip cursor restarts.
+      this.infoModeState.extrasCursor = 0;
       if (this.infoModeState.playerColor !== before) {
         playInspectedSwitchMotion(step);
       }
+    },
+    /** The inspected seat's satellite chips (the ring's per-chip stops). */
+    infoExtrasChipList(): ReadonlyArray<{key: string, label: string}> {
+      const viewed = this.playerView.players.find((p) => p.color === this.infoModeState.playerColor) ??
+        this.playerView.thisPlayer;
+      const automa = viewed.isMarsBot === true ? this.playerView.game.automa : undefined;
+      return infoExtrasChips(viewed, automa);
     },
     /** The inspected participant's KIND — the capability table's input. */
     infoViewedKind(): 'human' | 'bot' {
@@ -11654,6 +11664,7 @@ export default defineComponent({
       if (this.infoModeState.route === 'summary') {
         selectExtrasType(press.key, press.index);
         this.infoModeState.summaryFocus = 'extras';
+        this.infoModeState.extrasCursor = press.index;
         this.infoGo('extras');
         return;
       }
@@ -11730,6 +11741,9 @@ export default defineComponent({
             return;
           }
           if (action === 'back') {
+            // The ring lands back on the chip of the TYPE the player was
+            // reading — the carried object survives B.
+            this.infoModeState.extrasCursor = Math.max(0, extrasExplorerUi.typeCursor);
             this.infoBack();
             return;
           }
@@ -11768,6 +11782,16 @@ export default defineComponent({
         // focus ring (no scroll target exists there by design). «Экран
         // бота» walks its two deep entries. Every other route scrolls.
         if (route === 'summary') {
+          // On the SATELLITE the chips are individual ring stops: up/down
+          // walk the column's own chips (an edge is an edge — the column is
+          // the ring's leftmost stop, matching the console's d-pad grammar).
+          if (this.infoModeState.summaryFocus === 'extras' && (intent.dir === 'up' || intent.dir === 'down')) {
+            const count = this.infoExtrasChipList().length;
+            const at = Math.min(this.infoModeState.extrasCursor, Math.max(0, count - 1));
+            const next = at + (intent.dir === 'down' ? 1 : -1);
+            this.infoModeState.extrasCursor = Math.min(Math.max(next, 0), Math.max(0, count - 1));
+            return;
+          }
           this.infoModeState.summaryFocus =
             infoZoneNavigate(this.infoModeState.summaryFocus, intent.dir, kind, this.infoZoneCtx());
           return;
@@ -11808,6 +11832,18 @@ export default defineComponent({
         // A opens it (the per-block dedicated buttons are gone — a new
         // section is a new ring stop, never a new physical binding).
         if (route === 'summary') {
+          // A on a satellite CHIP opens the extras screen ON that type —
+          // the same road the mouse press takes (onAuxCellPressed).
+          if (this.infoModeState.summaryFocus === 'extras') {
+            const chips = this.infoExtrasChipList();
+            const at = Math.min(this.infoModeState.extrasCursor, Math.max(0, chips.length - 1));
+            const chip = chips[at];
+            if (chip !== undefined) {
+              selectExtrasType(chip.key, at);
+            }
+            this.infoGo('extras');
+            return;
+          }
           const zoneRoute = infoZoneRoute(this.infoModeState.summaryFocus);
           if (zoneRoute !== undefined && infoZoneFocusable(this.infoModeState.summaryFocus, kind, this.infoZoneCtx())) {
             this.infoGo(zoneRoute);

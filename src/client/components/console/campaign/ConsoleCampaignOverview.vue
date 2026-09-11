@@ -29,6 +29,10 @@
           </div>
         </div>
 
+        <!-- Participant rows on ONE column grid: identity · titles · TP ·
+             corporations start on the same verticals for every row (a bot
+             and a long human name alike). The TP semantics note is stated
+             ONCE, under the list, tied to the TP column by its own term. -->
         <div class="con-cmpov__seats">
           <div
             v-for="(seat, i) in vm.seats"
@@ -39,42 +43,48 @@
             @click="onSeatClick(i)">
             <span class="con-cmpov__seat-cube" :class="`player_bg_color_${seat.color}`"></span>
             <span class="con-cmpov__seat-name">
-              {{ seat.name }}
+              <span class="con-cmpov__seat-label">{{ seatDisplayName(seat) }}</span>
               <span v-if="seat.isYou" class="con-cmpov__seat-you">{{ $t('you') }}</span>
               <span v-if="seat.isChampion" class="con-cmpov__seat-crown">{{ $t('Campaign champion') }}</span>
             </span>
             <span class="con-cmpov__seat-titles">
               <img v-for="(t, ti) in seat.titles" :key="ti" class="con-cmpov__seat-title" :src="titleArtUrl(t.title)" :alt="$t(titleLabel(t.title))">
             </span>
-            <span class="con-cmpov__seat-tpwrap">
-              <span class="con-cmpov__seat-tp">{{ tpText(seat.titlePoints) }}</span>
-              <span class="con-cmpov__seat-tpnote">{{ $t(tpNote) }}</span>
-            </span>
+            <span class="con-cmpov__seat-tp">{{ tpText(seat.titlePoints) }}</span>
             <span class="con-cmpov__seat-corps">
               <span v-for="corp in seat.corps" :key="corp.name" class="con-cmpov__seat-corp">
                 <span v-if="corp.missionSlot !== undefined" class="con-cmpov__seat-corp-ord">{{ corp.missionSlot + 1 }}</span>
                 {{ $t(corp.name) }}
               </span>
             </span>
-            <span v-if="seat.pendingBonus > 0" class="con-cmpov__seat-bonus">{{ pendingBonusText(seat.pendingBonus) }}</span>
+            <span class="con-cmpov__seat-bonus">{{ seat.pendingBonus > 0 ? pendingBonusText(seat.pendingBonus) : '' }}</span>
           </div>
+          <div class="con-cmpov__seats-note">{{ $t('TP') }} — {{ $t(tpNote) }}</div>
         </div>
       </div>
 
-      <!-- Nested read-only layers: results / legacy, one at a time, opening
-           FROM the pressed object (transform-origin carries the origin). -->
+      <!-- Nested read-only layers: mission inspect / legacy, one at a time,
+           opening FROM the pressed object (transform-origin carries the
+           origin — the enlarged board is the card's own continuation). -->
       <Transition name="cov-step">
-        <div v-if="ui.level === 'results' && resultsVm !== undefined" key="results" class="con-cmpov__layer" :style="layerOriginStyle">
+        <div v-if="ui.level === 'mission' && inspectMission !== undefined" key="mission" class="con-cmpov__layer" :style="layerOriginStyle">
           <div class="con-cmpov__layer-head">
-            <span class="con-cmpov__layer-kicker">{{ resultsKicker }}</span>
-            <span class="con-cmpov__layer-board">{{ $t(resultsBoardLabel) }}</span>
+            <span class="con-cmpov__layer-kicker">{{ missionKicker }}</span>
+            <span class="con-cmpov__layer-board">{{ $t(inspectBoardLabel) }}</span>
           </div>
-          <CampaignMissionResults :details="resultsVm" :you-seat="vm.youSeat" :bot-corporation="botCorporation" />
+          <CampaignMissionInspect
+            :mission="inspectMission"
+            :details="inspectDetails"
+            :you-seat="vm.youSeat"
+            :bot-corporation="botCorporation"
+            :live-generation="inspectLiveGeneration"
+            :party="inspectParty"
+            :mission-count="vm.missionCount" />
         </div>
         <div v-else-if="ui.level === 'legacy' && legacyVm !== undefined" key="legacy" class="con-cmpov__layer" :style="layerOriginStyle">
           <div class="con-cmpov__layer-head">
             <span class="con-cmpov__layer-cube" :class="`player_bg_color_${legacyVm.color}`"></span>
-            <span class="con-cmpov__layer-kicker">{{ legacyVm.name }}</span>
+            <span class="con-cmpov__layer-kicker">{{ legacyDisplayName }}</span>
             <span class="con-cmpov__layer-board">{{ $t('Legacy') }}</span>
           </div>
           <CampaignSeatLegacy :legacy="legacyVm" :carried-models="legacyCarriedModels" :cursor-index="legacyCards.length > 0 ? ui.legacyCursor : undefined" />
@@ -100,6 +110,7 @@ import {
   CampaignOverviewVm,
   MissionDetailsVm,
   OverviewLiveContext,
+  OverviewMissionCard,
   OverviewSeatRow,
   SeatLegacyVm,
   buildCampaignOverview,
@@ -112,10 +123,11 @@ import {TitleName} from '@/common/campaign/CampaignTypes';
 import {mapLabelKey} from '@/client/components/create/premium/createGameMeta';
 import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
 import {translateTextWithParams} from '@/client/directives/i18n';
+import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import {preloadPremiumCardArt} from '@/client/cards/cardArt';
 import type {ConsoleCommand} from '@/client/console/consoleCommandModel';
 import CampaignMissionCard from './CampaignMissionCard.vue';
-import CampaignMissionResults from './CampaignMissionResults.vue';
+import CampaignMissionInspect from './CampaignMissionInspect.vue';
 import CampaignSeatLegacy from './CampaignSeatLegacy.vue';
 
 /**
@@ -134,7 +146,7 @@ import CampaignSeatLegacy from './CampaignSeatLegacy.vue';
  */
 export default defineComponent({
   name: 'ConsoleCampaignOverview',
-  components: {CampaignMissionCard, CampaignMissionResults, CampaignSeatLegacy},
+  components: {CampaignMissionCard, CampaignMissionInspect, CampaignSeatLegacy},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     viewedColor: {type: String as PropType<Color>, required: true},
@@ -198,15 +210,42 @@ export default defineComponent({
     botCorporation(): MarsBotCorpId | undefined {
       return this.state.model?.progression.botCorporation;
     },
-    resultsVm(): MissionDetailsVm | undefined {
+    /** The mission the inspect layer stands on (any state). */
+    inspectMission(): OverviewMissionCard | undefined {
+      return this.vm?.missions[this.ui.missionSlot];
+    },
+    /** The committed results of the inspected mission (undefined elsewhere). */
+    inspectDetails(): MissionDetailsVm | undefined {
       const model = this.state.model;
-      return model === undefined ? undefined : buildMissionDetails(model, this.ui.resultsSlot);
+      return model === undefined ? undefined : buildMissionDetails(model, this.ui.missionSlot);
     },
-    resultsKicker(): string {
-      return translateTextWithParams('Mission ${0}', [String(this.ui.resultsSlot + 1)]);
+    missionKicker(): string {
+      return translateTextWithParams('Mission ${0}', [String(this.ui.missionSlot + 1)]);
     },
-    resultsBoardLabel(): string {
-      return this.resultsVm === undefined ? '' : mapLabelKey(this.resultsVm.board);
+    inspectBoardLabel(): string {
+      const mission = this.inspectMission;
+      return mission === undefined ? '' : mapLabelKey(mission.board);
+    },
+    /** The live game's generation — only honest for the OPEN mission. */
+    inspectLiveGeneration(): number | undefined {
+      return this.ui.missionSlot === this.liveContext?.missionSlot ?
+        this.playerView.game.generation : undefined;
+    },
+    /** Participant chips of the active mission (visible names, resolved). */
+    inspectParty(): ReadonlyArray<{color: string, name: string}> {
+      return (this.vm?.seats ?? []).map((seat) => ({color: seat.color, name: this.seatDisplayName(seat)}));
+    },
+    /** The inspect layer's own inspectable cards (the viewer's carried-out
+     *  of a committed mission — same ring the old results layer offered). */
+    inspectCards(): ReadonlyArray<CardModel> {
+      return (this.inspectDetails?.outgoing?.carried.yourCards ?? []).map((name) => ({name} as CardModel));
+    },
+    legacyDisplayName(): string {
+      const legacy = this.legacyVm;
+      if (legacy === undefined) {
+        return '';
+      }
+      return participantDisplayName({name: legacy.name, isMarsBot: legacy.kind === 'bot'});
     },
     legacyVm(): SeatLegacyVm | undefined {
       const model = this.state.model;
@@ -238,10 +277,6 @@ export default defineComponent({
       const carried = this.legacyCarriedModels ?? (legacy.carried.names ?? []).map((name) => ({name} as CardModel));
       return [...corps, ...carried];
     },
-    /** The results layer's inspectable cards (the viewer's own carried-out). */
-    resultsCards(): ReadonlyArray<CardModel> {
-      return (this.resultsVm?.outgoing?.carried.yourCards ?? []).map((name) => ({name} as CardModel));
-    },
     layerOriginStyle(): Record<string, string> {
       return {'--cov-ox': `${this.layerOrigin.x}%`, '--cov-oy': `${this.layerOrigin.y}%`};
     },
@@ -250,9 +285,9 @@ export default defineComponent({
       if (vm === undefined) {
         return [{control: 'back', label: 'To overview'}];
       }
-      if (this.ui.level === 'results') {
+      if (this.ui.level === 'mission') {
         const cmds: Array<ConsoleCommand> = [];
-        if (this.resultsCards.length > 0) {
+        if (this.inspectCards.length > 0) {
           cmds.push({control: 'secondary', label: 'Inspect'});
         }
         cmds.push({control: 'back', label: 'Back'});
@@ -266,11 +301,12 @@ export default defineComponent({
         cmds.push({control: 'back', label: 'Back'});
         return cmds;
       }
-      // Base layer: the verb follows the cursor.
+      // Base layer: the verb follows the cursor. EVERY mission is
+      // inspectable — the layer is honest to its state, so the verb never
+      // dead-ends on a future card.
       const cmds: Array<ConsoleCommand> = [{control: 'dpad', label: 'Navigate'}];
       if (this.ui.zone === 'route') {
-        const mission = vm.missions[this.ui.routeIndex];
-        cmds.push({control: 'confirm', label: 'Open: mission results', enabled: mission?.state === 'committed'});
+        cmds.push({control: 'confirm', label: 'Inspect the mission'});
       } else {
         cmds.push({control: 'confirm', label: 'Open: participant legacy'});
       }
@@ -334,10 +370,14 @@ export default defineComponent({
     seatRevealStyle(index: number): Record<string, string> {
       return {'--cov-i': String(index)};
     },
+    /** The visible participant label — the ONE name helper. */
+    seatDisplayName(seat: OverviewSeatRow): string {
+      return participantDisplayName({name: seat.name, isMarsBot: seat.kind === 'bot'});
+    },
     onRouteClick(slot: number): void {
       this.ui.zone = 'route';
       this.ui.routeIndex = slot;
-      this.openResults(slot);
+      this.openMissionInspect(slot);
     },
     onSeatClick(index: number): void {
       this.ui.zone = 'seats';
@@ -362,14 +402,14 @@ export default defineComponent({
         y: Math.round(((er.top + er.height / 2 - hr.top) / hr.height) * 100),
       };
     },
-    openResults(slot: number): void {
+    openMissionInspect(slot: number): void {
       const mission = this.vm?.missions[slot];
-      if (mission?.state !== 'committed') {
+      if (mission === undefined) {
         return;
       }
       this.originFromEl(`.con-cmpov__node:nth-child(${slot + 1})`);
-      this.ui.resultsSlot = slot;
-      this.ui.level = 'results';
+      this.ui.missionSlot = slot;
+      this.ui.level = 'mission';
     },
     openLegacy(index: number): void {
       const seat = this.vm?.seats[index];
@@ -401,8 +441,8 @@ export default defineComponent({
         ),
       });
     },
-    zoomResultsCards(): void {
-      const cards = this.resultsCards;
+    zoomInspectCards(): void {
+      const cards = this.inspectCards;
       if (cards.length === 0) {
         return;
       }
@@ -422,13 +462,13 @@ export default defineComponent({
       if (vm === undefined) {
         return false;
       }
-      if (this.ui.level === 'results') {
+      if (this.ui.level === 'mission') {
         if (intent.kind === 'press' && intent.button === 'back') {
           this.closeLayer();
           return true;
         }
         if (intent.kind === 'press' && intent.button === 'secondary') {
-          this.zoomResultsCards();
+          this.zoomInspectCards();
           return true;
         }
         return intent.kind === 'press' || intent.kind === 'nav';
@@ -459,7 +499,7 @@ export default defineComponent({
       }
       if (intent.kind === 'press' && intent.button === 'confirm') {
         if (this.ui.zone === 'route') {
-          this.openResults(this.ui.routeIndex);
+          this.openMissionInspect(this.ui.routeIndex);
         } else {
           this.openLegacy(this.ui.seatIndex);
         }

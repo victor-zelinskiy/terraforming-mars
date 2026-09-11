@@ -62,6 +62,10 @@ export const infoModeState = reactive({
   route: 'summary' as InfoRouteId,
   /** The summary focus ring — which zone the cursor stands on. */
   summaryFocus: 'vp' as InfoZoneId,
+  /** Which satellite CHIP the ring stands on while `summaryFocus` is
+   *  'extras' — the chips are individual ring stops (A opens the extras
+   *  screen ON that type), and a return from the screen restores it. */
+  extrasCursor: 0,
   /** The «Экран бота» focus ring — which deep reference the cursor is on. */
   botScreenFocus: 'botBoard' as BotScreenEntry,
   /**
@@ -114,6 +118,7 @@ export function openInfoMode(viewer: Color, cellFocused: boolean): void {
   infoModeState.playerColor = viewer;
   infoModeState.route = 'summary';
   infoModeState.summaryFocus = 'vp';
+  infoModeState.extrasCursor = 0;
   infoModeState.botScreenFocus = 'botBoard';
   infoModeState.vpCategoryKey = undefined;
   infoModeState.vpCardsGroup = undefined;

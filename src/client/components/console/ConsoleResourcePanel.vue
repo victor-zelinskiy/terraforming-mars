@@ -230,17 +230,16 @@
          full-screen overlay — EXCEPT the Information Workspace, whose host
          stacking (`.con-main--info .con-res-host` z11561) lifts the whole
          host, satellite included, above the panel's own dim: there the column
-         IS the workspace's «Доп. ресурсы» zone (the focus group on the
+         IS the workspace's «Доп. ресурсы» zone (per-CHIP ring stops on the
          summary, the TYPE NAVIGATION on the extras screen), pixel-identical
          to its board pose by construction (same node, same anchor — nothing
          re-mounts, nothing re-lays out). Board view keeps the old contract
-         (never floats over the hand / colonies); the caption and the empty
-         plate are info-mode chrome, absolutely positioned so the cells' Y
-         never moves. Same desktop data source (`additionalResourceGroups`) +
+         (never floats over the hand / colonies); the info-mode chrome is
+         paint only (no caption — the command bar names the focused type),
+         so the cells' Y never moves. Same desktop data source (`additionalResourceGroups`) +
          delta-chip keys, first-appearance order; the BOT seat fills the same
          cells from its real pools (`marsBotExtraGroups`). -->
     <div v-if="auxVisible" class="con-res-aux" :class="auxRootClasses" data-insp-fade>
-      <div v-if="auxInfoActive" class="con-res-aux__cap" aria-hidden="true">{{ $t('Extra resources') }}</div>
       <transition-group tag="div" class="con-res-aux__cells" name="con-extra">
         <div v-for="(c, i) in auxCells" :key="c.key" class="con-res-aux__cell"
              :class="auxCellClasses(c, i)"
@@ -683,9 +682,22 @@ export default defineComponent({
       }
       return false;
     },
-    /** The focus/selection paint of one satellite cell (extras screen). */
+    /** The focus/selection paint of one satellite cell. On the SUMMARY the
+     *  chips are individual ring stops (the workspace focus family rides
+     *  the concrete chip, never a group plate); on the extras screen the
+     *  column is the type navigation (cursor + selection). */
     auxCellClasses(c: AuxCell, index: number): Record<string, boolean> {
-      if (!this.auxInfoActive || !infoModeState.open || infoModeState.route !== 'extras') {
+      if (!this.auxInfoActive || !infoModeState.open) {
+        return {};
+      }
+      if (infoModeState.route === 'summary') {
+        const chipCount = this.auxCells.length;
+        const at = Math.min(infoModeState.extrasCursor, Math.max(0, chipCount - 1));
+        return {
+          'con-res-aux__cell--cursor': infoModeState.summaryFocus === 'extras' && index === at,
+        };
+      }
+      if (infoModeState.route !== 'extras') {
         return {};
       }
       return {

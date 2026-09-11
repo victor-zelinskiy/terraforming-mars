@@ -56,8 +56,10 @@ export type OverviewMissionCard = {
   final: boolean;
   state: MissionSlotState;
   isCurrent: boolean;
-  /** Compact place-ordered strip for a committed card. */
-  podium?: ReadonlyArray<{seat: number, place: number, color: Color, score: number, title?: TitleName}>;
+  /** Compact place-ordered strip for a committed card. `name` is the RAW
+   *  seat name — the renderer resolves the visible label through the ONE
+   *  participant-name helper (the bot never prints its raw save name). */
+  podium?: ReadonlyArray<{seat: number, place: number, color: Color, name: string, isBot: boolean, score: number, title?: TitleName}>;
   generations?: number;
 };
 
@@ -186,13 +188,18 @@ export function buildCampaignOverview(model: CampaignModel, live?: OverviewLiveC
     podium: m.result === undefined ? undefined :
       [...m.result.standings]
         .sort((a, b) => a.place - b.place)
-        .map((s) => ({
-          seat: s.seat,
-          place: s.place,
-          color: model.seats.find((seat) => seat.seat === s.seat)?.color ?? 'neutral' as Color,
-          score: s.score,
-          title: m.result?.titles.find((t) => t.seat === s.seat)?.title,
-        })),
+        .map((s) => {
+          const seatModel = model.seats.find((seat) => seat.seat === s.seat);
+          return {
+            seat: s.seat,
+            place: s.place,
+            color: seatModel?.color ?? 'neutral' as Color,
+            name: seatModel?.name ?? '',
+            isBot: seatModel?.kind === 'bot',
+            score: s.score,
+            title: m.result?.titles.find((t) => t.seat === s.seat)?.title,
+          };
+        }),
     generations: m.result?.generations,
   }));
 

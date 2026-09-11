@@ -254,4 +254,17 @@ describe('campaignOverviewModel', () => {
     expect(vm.missions[0].isCurrent).is.false;
     expect(vm.progressParams).deep.eq(['2', '4']);
   });
+
+  it('the podium names its people: raw seat names + the bot flag (the renderer resolves the label)', () => {
+    const vm = buildCampaignOverview(midCampaign());
+    const podium = vm.missions[0].podium!;
+    for (const row of podium) {
+      const seat = midCampaign().seats.find((s) => s.seat === row.seat)!;
+      expect(row.name, `podium seat ${row.seat} carries its seat name`).eq(seat.name);
+      expect(row.isBot, `podium seat ${row.seat} carries the bot flag`).eq(seat.kind === 'bot');
+    }
+    // The bot row is present and flagged — the surface must never print the
+    // raw save name for it (participantDisplayName localizes it).
+    expect(podium.some((p) => p.isBot)).is.true;
+  });
 });

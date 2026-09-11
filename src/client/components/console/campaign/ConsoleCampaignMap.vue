@@ -98,9 +98,8 @@
         >
           <span class="cmap__seat-cube" :class="`player_bg_color_${row.color}`"></span>
           <span class="cmap__seat-name">
-            {{ row.name }}
+            <span class="cmap__seat-label">{{ seatRowName(row) }}</span>
             <span v-if="row.isYou" class="cmap__seat-you" v-i18n>you</span>
-            <span v-if="row.isBot" class="cmap__seat-bot">MarsBot</span>
           </span>
           <span class="cmap__seat-titles">
             <img
@@ -111,10 +110,7 @@
               :alt="$t(titleLabel(t.title))"
             />
           </span>
-          <span class="cmap__seat-tpwrap">
-            <span class="cmap__seat-tp">{{ tpText(row.titlePoints) }}</span>
-            <span class="cmap__seat-tpnote">{{ $t(tpNote) }}</span>
-          </span>
+          <span class="cmap__seat-tp">{{ tpText(row.titlePoints) }}</span>
           <!-- The corporation LINEAGE lives on the row itself (the old
                campaign-dossier modal, folded onto the screen). -->
           <span class="cmap__seat-corps">
@@ -141,25 +137,28 @@
           </span>
           <span v-if="row.isChampion" class="cmap__seat-crown" v-i18n>Campaign champion</span>
         </div>
+        <div class="cmap__rail-note">{{ $t('TP') }} — {{ $t(tpNote) }}</div>
         <div v-if="state.error !== '' && vm !== undefined" class="cmap__inline-error">{{ $t(state.error) }}</div>
       </div>
 
-      <!-- ── Overlays (one at a time). The MISSION dossier exists only for a
-           COMMITTED mission — it is the results detail (VP, titles,
-           generations). A future mission's whole story already lives on its
-           route card (board, position, blockers), so no modal opens there. -->
-      <!-- «Итоги миссии» — the SHARED results body (CampaignMissionResults,
-           the same component the in-game overview renders): standings with
-           the HISTORIC corporations, titles + TP, and the legacy this
-           result formed (start bonus M€ / carried projects). X inspects the
-           viewer's own carried cards through the ONE zoom module. -->
-      <div v-if="overlay?.kind === 'mission' && dossierDetails !== undefined" class="cm-overlay" role="dialog" :aria-label="$t('Mission dossier')">
-        <div class="cm-overlay__card cmap__dossier cmap__dossier--results">
+      <!-- ── Overlays (one at a time). «Осмотр миссии» — X on ANY route
+           card: the SHARED inspect body (CampaignMissionInspect, the same
+           component the in-game overview renders) — the enlarged real
+           board is the hero, the detail half is honest to the state
+           (results + outgoing legacy for a committed mission, the known
+           features for a future one). X inside inspects the viewer's own
+           carried cards through the ONE zoom module. -->
+      <div v-if="overlay?.kind === 'mission' && inspectMission !== undefined" class="cm-overlay" role="dialog" :aria-label="$t('Mission dossier')">
+        <div class="cm-overlay__card cmap__dossier cmap__dossier--mission" :class="{'cmap__dossier--results': inspectMission.state === 'committed'}">
           <div class="cm-overlay__title">
-            {{ $t(boardLabel(dossierDetails.board)) }}
-            <span class="cmap__dossier-sub">{{ missionOrdinal(dossierDetails.slot) }}</span>
+            {{ missionOrdinal(inspectMission.slot) }}
           </div>
-          <CampaignMissionResults :details="dossierDetails" :you-seat="state.model?.you?.seat" :bot-corporation="state.model?.progression.botCorporation" />
+          <CampaignMissionInspect
+            :mission="inspectMission"
+            :details="dossierDetails"
+            :you-seat="state.model?.you?.seat"
+            :bot-corporation="state.model?.progression.botCorporation"
+            :mission-count="vm.missions.length" />
         </div>
       </div>
 
@@ -172,7 +171,7 @@
         <div class="cm-overlay__card cmap__dossier cmap__dossier--legacy">
           <div class="cm-overlay__title">
             <span class="cmap__legcube" :class="`player_bg_color_${legacyVm.color}`"></span>
-            {{ legacyVm.name }}
+            {{ seatRowName({name: legacyVm.name, isBot: legacyVm.kind === 'bot'}) }}
             <span class="cmap__dossier-sub" v-i18n>Legacy</span>
           </div>
           <CampaignSeatLegacy :legacy="legacyVm" :cursor-index="legacyCards.length > 0 ? legacyCursor : undefined" />
@@ -225,7 +224,6 @@ import {setDocumentTitle} from '@/client/utils/documentTitle';
 import {paths} from '@/common/app/paths';
 import {isCampaignId} from '@/common/Types';
 import {CardName} from '@/common/cards/CardName';
-import {BoardName} from '@/common/boards/BoardName';
 import {TitleName} from '@/common/campaign/CampaignTypes';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {installMenuPad} from '@/client/console/menu/consoleMenuPad';
@@ -240,9 +238,8 @@ import ConsoleCommandBar, {ConsoleCommand} from '@/client/components/console/Con
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import ConsoleCarryoverPicker from './ConsoleCarryoverPicker.vue';
 import CampaignMissionCard from './CampaignMissionCard.vue';
-import CampaignMissionResults from './CampaignMissionResults.vue';
+import CampaignMissionInspect from './CampaignMissionInspect.vue';
 import CampaignSeatLegacy from './CampaignSeatLegacy.vue';
-import {mapLabelKey} from '@/client/components/create/premium/createGameMeta';
 import {CardModel} from '@/common/models/CardModel';
 import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
 import {
@@ -268,6 +265,7 @@ import {CampaignMapVm, buildCampaignMapVm} from '@/client/console/campaign/campa
 import {campaignMapUi, resetCampaignMapUi} from '@/client/console/campaign/campaignMapUi';
 import {TITLE_LABEL, titleArtUrl} from '@/client/console/campaign/titleArt';
 import {marsBotCorpInfo} from '@/common/automa/MarsBotCorpData';
+import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import {$t, translateTextWithParams} from '@/client/directives/i18n';
 
 type MapOverlay =
@@ -279,7 +277,7 @@ const REVEAL_LATCH = 'tm_campaign_reveal';
 
 export default defineComponent({
   name: 'ConsoleCampaignMap',
-  components: {ConsoleCommandBar, GamepadGlyph, ConsoleCarryoverPicker, CampaignMissionCard, CampaignMissionResults, CampaignSeatLegacy},
+  components: {ConsoleCommandBar, GamepadGlyph, ConsoleCarryoverPicker, CampaignMissionCard, CampaignMissionInspect, CampaignSeatLegacy},
   props: {
     /** Hosted as an endgame scene: no own bg/pad/command bar; the host routes
      *  intents into `handleIntent` and reads `commands` for its own bar. */
@@ -350,7 +348,15 @@ export default defineComponent({
       }
       return tpStatusLabel(overview.seats[0].tpStatus);
     },
-    /** «Итоги миссии» of the OPEN mission overlay (shared body). */
+    /** The OPEN mission-inspect overlay's card (any state). */
+    inspectMission(): OverviewMissionCard | undefined {
+      if (this.overlay?.kind !== 'mission') {
+        return undefined;
+      }
+      return this.overviewVm?.missions[this.overlay.slot];
+    },
+    /** The committed results of the open inspect (undefined for a future
+     *  mission — the inspect body then presents the known features). */
     dossierDetails(): MissionDetailsVm | undefined {
       if (this.overlay?.kind !== 'mission' || this.state.model === undefined) {
         return undefined;
@@ -470,9 +476,10 @@ export default defineComponent({
       if (this.cursor.zone === 'rail') {
         cmds.push({control: 'confirm', label: 'Open: participant legacy'});
       }
-      // X — the results detail, offered only where results EXIST.
+      // X — inspect ANY mission under the cursor (the layer is honest to
+      // its state: results for a committed one, the known features ahead).
       if (this.dossierSlot !== undefined) {
-        cmds.push({control: 'secondary', label: 'Mission dossier'});
+        cmds.push({control: 'secondary', label: 'Inspect the mission'});
       }
       // Y — the CHANGE door: re-open the very carryover picker while the next
       // mission has not consumed the selection (a mis-pick or an accidental
@@ -529,14 +536,13 @@ export default defineComponent({
       }
       return undefined;
     },
-    /** The mission whose RESULTS X would open (committed missions only). */
+    /** The mission X would inspect — ANY route card under the cursor. */
     dossierSlot(): number | undefined {
       const vm = this.vm;
       if (vm === undefined || this.cursor.zone !== 'route') {
         return undefined;
       }
-      const m = vm.missions[this.cursor.index];
-      return m?.results !== undefined ? m.slot : undefined;
+      return vm.missions[this.cursor.index]?.slot;
     },
     /** The interlude's mandatory step is due: the viewer's own carryover door
      *  is the campaign's next move. */
@@ -712,9 +718,6 @@ export default defineComponent({
     /** Hosted mode: the host routes pad intents here. */
     handleIntent(intent: GamepadIntent): boolean {
       return this.onIntent(intent);
-    },
-    boardLabel(board: BoardName): string {
-      return mapLabelKey(board);
     },
     titleLabel(title: TitleName): string {
       return TITLE_LABEL[title];
@@ -914,10 +917,12 @@ export default defineComponent({
       // mission's story lives on its route card; results detail is X.
     },
     openMissionDossier(slot: number): void {
-      if (this.vm?.missions[slot]?.results === undefined) {
-        return;
-      }
       this.overlay = {kind: 'mission', slot};
+    },
+    /** The visible participant label — the ONE name helper (the raw seat
+     *  name says 'MarsBot'; the label localizes to «Бот»). */
+    seatRowName(row: {name: string, isBot: boolean}): string {
+      return participantDisplayName({name: row.name, isMarsBot: row.isBot});
     },
     openSeatLegacy(rowIndex: number): void {
       const row = this.vm?.rail[rowIndex];

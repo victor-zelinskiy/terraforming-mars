@@ -34,8 +34,10 @@
             <span v-if="isSelf && myTurn" class="con-info__chip con-info__chip--turn">{{ $t('Your turn') }}</span>
             <span v-if="isPassed" class="con-info__chip con-info__chip--passed">{{ $t('passed') }}</span>
             <!-- The bot with a corporation wears it as its primary identity,
-                 difficulty second: «CrediCor · Обычный». -->
-            <span v-if="corpName !== ''" class="con-info__corp" :class="{'con-info__corp--bot': viewedIsBot}">{{ $t(corpName) }}<template v-if="viewedIsBot"> · {{ $t(botDifficultyLabel) }}</template></span>
+                 difficulty second: «CrediCor · Обычный». A multi-corporation
+                 human (campaign lineage) NAMES the count — a single name must
+                 never read as the whole composition. -->
+            <span v-if="corpName !== ''" class="con-info__corp" :class="{'con-info__corp--bot': viewedIsBot}">{{ $t(corpName) }}<template v-if="corpExtraCount > 0"> · {{ corpExtraText }}</template><template v-if="viewedIsBot"> · {{ $t(botDifficultyLabel) }}</template></span>
             <span v-else-if="viewedIsBot" class="con-info__corp con-info__corp--bot">{{ $t('Automa opponent') }} · {{ $t(botDifficultyLabel) }}</span>
           </span>
         </template>
@@ -148,24 +150,27 @@
             </div>
           </section>
 
-          <!-- «КАМПАНИЯ» — campaign missions only: the mission frame, the
-               viewed seat's titles/TP with their honest scoring semantics,
-               and the composition count. The full overview is one A away. -->
+          <!-- «КАМПАНИЯ» — campaign missions only: the mission frame (with
+               its board), the viewed seat's titles + TP as ONE visual
+               statement with the scoring semantics AT the value (never
+               under an unrelated line), and the composition count. The
+               full overview is one A away. -->
           <section v-if="campaignContract !== undefined" class="con-info__zone con-info__zone--campaign"
                    :class="zoneStateClass('campaign')" data-zone="campaign">
             <h3 class="con-info__block-title">{{ $t('Campaign') }}</h3>
             <div class="con-info__stat-lines">
               <div class="con-info__stat-line"><span>{{ $t('Mission') }}</span><b class="con-info__mint">{{ campaignMissionText }}</b></div>
-              <div class="con-info__stat-line"><span>{{ $t('Titles') }}</span>
-                <span class="con-info__ctitles">
-                  <img v-for="(t, i) in campaignViewedTitles" :key="i" class="con-info__ctitle" :src="titleArtUrl(t.title)" :alt="$t(titleLabel(t.title))">
-                  <b v-if="campaignViewedTitles.length === 0" class="con-info__cmuted">—</b>
-                </span>
-              </div>
-              <div class="con-info__stat-line"><span>{{ $t('Title Points') }}</span><b>{{ campaignTpText }}</b></div>
-              <div class="con-info__stat-line"><span>{{ $t('Corporations') }}</span><b>{{ campaignCorpCount }}</b></div>
+            </div>
+            <div class="con-info__cmp-tprow">
+              <span v-if="campaignViewedTitles.length > 0" class="con-info__ctitles">
+                <img v-for="(t, i) in campaignViewedTitles" :key="i" class="con-info__ctitle" :src="titleArtUrl(t.title)" :alt="$t(titleLabel(t.title))">
+              </span>
+              <b class="con-info__cmp-tp">{{ campaignTpText }}</b>
             </div>
             <div class="con-info__note con-info__note--tp">{{ $t(campaignTpNote) }}</div>
+            <div class="con-info__stat-lines">
+              <div class="con-info__stat-line"><span>{{ $t('Corporations') }}</span><b>{{ campaignCorpCount }}</b></div>
+            </div>
           </section>
 
           <!-- The bot's door to its internals — a calm entry, not a data
@@ -340,6 +345,8 @@ import {
 import ConsoleScoreExplorer from '@/client/components/console/ConsoleScoreExplorer.vue';
 import ConsoleExtrasExplorer from '@/client/components/console/ConsoleExtrasExplorer.vue';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {mapLabelKey} from '@/client/components/create/premium/createGameMeta';
+import {InfoExtrasChip, infoExtrasChips} from '@/client/console/infoExtrasChips';
 import {preloadPremiumCardArt} from '@/client/cards/cardArt';
 import {MarsBotModel} from '@/common/models/MarsBotModel';
 import {DIFFICULTY_LABEL} from '@/client/components/marsbot/marsBotView';
@@ -458,7 +465,10 @@ export default defineComponent({
       if (contract === undefined) {
         return '';
       }
-      return translateTextWithParams('${0} of ${1}', [String(contract.missionSlot + 1), String(contract.missionCount)]);
+      const frame = translateTextWithParams('${0} of ${1}', [String(contract.missionSlot + 1), String(contract.missionCount)]);
+      // The mission's BOARD belongs in the frame line — «2 из 4 · Элизий».
+      const board = campaignState.model?.missions[contract.missionSlot]?.board;
+      return board !== undefined ? `${frame} · ${translateText(mapLabelKey(board))}` : frame;
     },
     campaignViewedTitles(): ReadonlyArray<{title: TitleName}> {
       const seat = this.campaignViewedSeat;
@@ -521,23 +531,35 @@ export default defineComponent({
     isPassed(): boolean {
       return this.playerView.game.passedPlayers.includes(this.viewed.color);
     },
-    corpName(): string {
+    /** EVERY corporation in the viewed tableau, in tableau order — a
+     *  campaign lineage routinely holds several. */
+    corpNames(): ReadonlyArray<string> {
       // The bot's tableau is empty — its corporation rides `automa.corporation`
       // (absent on legacy corpless saves) and resolves through the ONE resolver.
       if (this.viewedIsBot) {
         const corp = this.botAutoma?.corporation;
-        return corp !== undefined ? marsBotCorpDisplayName(corp.id) : '';
+        return corp !== undefined ? [marsBotCorpDisplayName(corp.id)] : [];
       }
+      const names: Array<string> = [];
       for (const c of this.viewed.tableau) {
         try {
           if (getCard(c.name)?.type === CardType.CORPORATION) {
-            return c.name;
+            names.push(c.name);
           }
         } catch (err) {
           // manifest gap — skip
         }
       }
-      return '';
+      return names;
+    },
+    corpName(): string {
+      return this.corpNames[0] ?? '';
+    },
+    corpExtraCount(): number {
+      return Math.max(0, this.corpNames.length - 1);
+    },
+    corpExtraText(): string {
+      return translateTextWithParams('and ${0} more', [String(this.corpExtraCount)]);
     },
     // ── the LIVE SCORE (shared with the endgame's category system) ────────
     /** VP visibility: self always; the bot always (its state is open
@@ -692,10 +714,14 @@ export default defineComponent({
       if (route === 'summary') {
         // ONE navigation model: the ring focuses, A opens. The hint names
         // the FOCUSED zone (the dedicated per-block buttons are gone — this
-        // is the one place the press's meaning is spelled out).
-        const target = this.summaryFocusTitle;
-        if (this.summaryFocusEnterable && target !== '') {
-          cmds.push({control: 'confirm', label: 'Open: ${0}', labelParams: [translateText(target)]});
+        // is the one place the press's meaning is spelled out). On the
+        // satellite the hint names the FOCUSED CHIP's resource type —
+        // «Открыть: астероиды», never a generic group word.
+        const focusedChip = this.focusedExtrasChip;
+        if (this.infoModeState.summaryFocus === 'extras' && focusedChip !== undefined) {
+          cmds.push({control: 'confirm', label: 'Open: ${0}', labelParams: [translateText(focusedChip.label)]});
+        } else if (this.summaryFocusEnterable && this.summaryFocusTitle !== '') {
+          cmds.push({control: 'confirm', label: 'Open: ${0}', labelParams: [translateText(this.summaryFocusTitle)]});
         } else {
           cmds.push({control: 'confirm', label: 'Open', enabled: false});
         }
@@ -727,6 +753,19 @@ export default defineComponent({
     /** May A enter the currently focused summary zone? */
     summaryFocusEnterable(): boolean {
       return infoZoneFocusable(this.infoModeState.summaryFocus, this.viewedKind, {campaign: this.campaignContract !== undefined});
+    },
+    /** The inspected seat's satellite chips (same derivation as the rail). */
+    extrasChips(): ReadonlyArray<InfoExtrasChip> {
+      return infoExtrasChips(this.viewed, this.viewedIsBot ? this.botAutoma : undefined);
+    },
+    /** The chip the summary ring stands on (clamped — the composition can
+     *  shrink under the cursor on a seat switch). */
+    focusedExtrasChip(): InfoExtrasChip | undefined {
+      const chips = this.extrasChips;
+      if (chips.length === 0) {
+        return undefined;
+      }
+      return chips[Math.min(this.infoModeState.extrasCursor, chips.length - 1)];
     },
   },
   watch: {

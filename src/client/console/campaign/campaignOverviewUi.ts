@@ -12,13 +12,16 @@ import {translateText, translateTextWithParams} from '@/client/directives/i18n';
  *
  * LEVELS — the overview is one surface with nested read-only layers:
  *   'route'   — the mission route + participant rows (the base layer);
- *   'results' — «Итоги миссии» of the committed mission `resultsSlot`;
+ *   'mission' — «Осмотр миссии» of ANY mission `missionSlot` (the hero
+ *               board + state-appropriate detail: results for a committed
+ *               one, live facts for the active one, the known features for
+ *               a future one);
  *   'legacy'  — «Наследие участника» of seat `legacySeat`.
  * B walks exactly one level; the base layer's B returns to the summary
  * (owned by the host through `infoBack`).
  */
 
-export type CampaignOverviewLevel = 'route' | 'results' | 'legacy';
+export type CampaignOverviewLevel = 'route' | 'mission' | 'legacy';
 export type CampaignOverviewZone = 'route' | 'seats';
 
 type CampaignOverviewUi = {
@@ -26,8 +29,8 @@ type CampaignOverviewUi = {
   zone: CampaignOverviewZone;
   routeIndex: number;
   seatIndex: number;
-  /** The committed mission the results layer shows. */
-  resultsSlot: number;
+  /** The mission the inspect layer shows (any state). */
+  missionSlot: number;
   /** The seat the legacy layer shows. */
   legacySeat: number;
   /** Cursor over the legacy layer's inspectable cards (corps + carried). */
@@ -41,7 +44,7 @@ export const campaignOverviewUi: CampaignOverviewUi = reactive({
   zone: 'route',
   routeIndex: 0,
   seatIndex: 0,
-  resultsSlot: 0,
+  missionSlot: 0,
   legacySeat: 0,
   legacyCursor: 0,
   barCommands: undefined,
@@ -63,8 +66,8 @@ export function resetCampaignOverview(currentSlot: number): void {
  */
 export function campaignStagePath(): ReadonlyArray<string> {
   const base = translateText('Campaign');
-  if (campaignOverviewUi.level === 'results') {
-    return [base, translateTextWithParams('Mission ${0}', [String(campaignOverviewUi.resultsSlot + 1)])];
+  if (campaignOverviewUi.level === 'mission') {
+    return [base, translateTextWithParams('Mission ${0}', [String(campaignOverviewUi.missionSlot + 1)])];
   }
   if (campaignOverviewUi.level === 'legacy') {
     return [base, translateText('Legacy')];

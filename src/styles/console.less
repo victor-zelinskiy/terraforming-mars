@@ -4422,21 +4422,9 @@ each(@players, {
     }
 
     /* ── Information-workspace chrome (additive, absolutely seated) ────
-       The caption floats ABOVE the first cell (bottom: 100%), the focus
-       backplate is an inset ::before — neither may move a cell by a pixel. */
-    &__cap {
-        position: absolute;
-        bottom: calc(100% + .35rem);
-        left: 0;
-        white-space: nowrap;
-        font-size: .62rem;
-        font-weight: 700;
-        letter-spacing: .14rem;
-        text-transform: uppercase;
-        color: fade(@con-cyan, 78%);
-        opacity: 0;
-        transition: opacity calc(180ms * var(--motion-scale, 1)) ease;
-    }
+       No caption: the column reads as the rail's own continuation (the
+       chips ARE the label — the command bar names the focused type). The
+       empty plate below may not move a cell by a pixel. */
     &__none {
         margin-top: .1rem;
         min-width: 3.2rem;
@@ -4450,37 +4438,24 @@ each(@players, {
     }
     &--info {
         pointer-events: auto;
-        .con-res-aux__cap { opacity: 1; }
-        .con-res-aux__cell { cursor: pointer; }
+        .con-res-aux__cell {
+            cursor: pointer;
+            transition: box-shadow calc(140ms * var(--motion-scale, 1)) ease,
+                background-color calc(140ms * var(--motion-scale, 1)) ease;
+        }
     }
-    /* The summary FOCUS RING — one plate around the whole group (the ring's
-       stop is the COLUMN, not a cell). box-shadow only: geometry untouched. */
-    &::before {
-        content: '';
-        position: absolute;
-        inset: -.4rem -.35rem -.35rem;
-        border-radius: .55rem;
-        pointer-events: none;
-        box-shadow: inset 0 0 0 .1rem transparent;
-        transition: box-shadow calc(160ms * var(--motion-scale, 1)) ease,
-            background-color calc(160ms * var(--motion-scale, 1)) ease;
-    }
-    &--focused::before {
-        background: rgba(18, 30, 44, 0.55);
-        box-shadow: inset 0 0 0 .1rem fade(@con-cyan, 80%),
-            0 .3rem 1.2rem rgba(0, 0, 0, 0.35);
+    /* The summary FOCUS — the ring stands on ONE CHIP (the chips are
+       individual ring stops: A opens the extras screen on that very type).
+       Same cyan ring language as every workspace focus; box-shadow only —
+       the cells' boxes never change. */
+    &--focused .con-res-aux__cell--cursor {
+        box-shadow: inset 0 0 0 .1rem fade(@con-cyan, 85%), 0 .25rem .9rem rgba(0, 0, 0, 0.5);
+        background: rgba(20, 33, 48, 0.96);
     }
     /* The extras screen: the column is the TYPE NAVIGATION. The SELECTED
        type carries the inspected player's accent plate; the CURSOR is the
        console's cyan ring; both survive on paint alone (box-shadow/colour —
        the cells' boxes never change). */
-    &--live .con-res-aux__cell {
-        transition: box-shadow calc(140ms * var(--motion-scale, 1)) ease,
-            background-color calc(140ms * var(--motion-scale, 1)) ease;
-    }
-    /* On the extras screen the crumb names the place — the column's own
-       caption recedes to a whisper instead of doubling the line above. */
-    &--live .con-res-aux__cap { opacity: .45; }
     &--live .con-res-aux__cell--active {
         background: rgba(20, 33, 48, 0.96);
         box-shadow: inset 0 0 0 .07rem var(--con-insp-accent-soft, fade(@con-cyan, 55%)),
@@ -16232,13 +16207,16 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         gap: .6rem;
         /* THE STAGE SURFACE (perimeter shell): square scene welded right;
            the right content line rides the shared safe-inset guide.
-           LEFT: the frame clears the rail's ДОП.РЕСУРСЫ satellite — the
-           column stands INSIDE this panel's span (it is the workspace's
-           extras zone, pixel-anchored to the rail), so the content line
-           starts past it. 5.8rem = the cell footprint (.5 pad + 1.75 icon
-           + .4 gap + 1.2 value + .5 pad = 4.35) + the .1 seam offset +
-           1.35 breathing (profiles restate their own sums). */
-        padding: .9rem var(--con-hud-pad-x, 1.3rem) .6rem 5.8rem;
+           LEFT: the frame itself keeps the ORDINARY workspace inset — the
+           header and the frame's own chrome sit where every workspace's
+           do, independent of the satellite. The rail's ДОП.РЕСУРСЫ chips
+           stand INSIDE this panel's span (pixel-anchored to the rail,
+           below the header line), so it is the CONTENT ZONES that step
+           past them — the constant `--con-info-satellite-w` inset on the
+           route hosts below, never a frame-wide reserve that pushes the
+           title. */
+        --con-info-satellite-w: 4.6rem;
+        padding: .9rem var(--con-hud-pad-x, 1.3rem) .6rem;
         .con-stage-surface();
         /* …plus the workspace half of the rail↔panel seam: the inspected
            player's accent on the LEFT edge (recolors via con-insp-*) — it
@@ -16250,6 +16228,15 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         transition: box-shadow calc(200ms * var(--motion-scale, 1)) ease;
         /* Entry moved to the surface-motion director (the own dim stays —
            the workspace opens OVER arbitrary surfaces, above the shade). */
+    }
+    /* THE SATELLITE LANE — one rule, every page. The ДОП.РЕСУРСЫ chips are
+       absolutely seated over the frame's left strip (pixel-anchored to the
+       rail, below the header line), so every CONTENT zone steps past them
+       by the same constant. The header does NOT — the crumb starts at the
+       ordinary workspace inset, whatever the seat's resource composition
+       (the stable-chassis contract: chips never move the title or a page). */
+    &__frame > :not(.con-info__head) {
+        margin-left: var(--con-info-satellite-w, 4.6rem);
     }
 
     /* THE WORKSPACE HEADER — ConsoleWsHead wearing `con-info__head` as its

@@ -10,6 +10,7 @@
       <div v-for="p in mission.podium" :key="p.seat" class="ccard__result-row">
         <span class="ccard__result-place">{{ p.place }}</span>
         <span class="ccard__result-cube" :class="`player_bg_color_${p.color}`"></span>
+        <span class="ccard__result-name">{{ podiumName(p) }}</span>
         <img v-if="p.title !== undefined" class="ccard__result-title" :src="titleArtUrl(p.title)" :alt="$t(titleLabel(p.title))">
         <span class="ccard__result-score">{{ p.score }} {{ $t('VP') }}</span>
       </div>
@@ -24,6 +25,7 @@ import PremiumMapFingerprint from '@/client/components/create/premium/PremiumMap
 import {OverviewMissionCard} from '@/client/console/campaign/campaignOverviewModel';
 import {mapLabelKey, mapMeta} from '@/client/components/create/premium/createGameMeta';
 import {translateTextWithParams} from '@/client/directives/i18n';
+import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import {TITLE_LABEL, titleArtUrl} from '@/client/console/campaign/titleArt';
 import {TitleName} from '@/common/campaign/CampaignTypes';
 
@@ -75,6 +77,11 @@ export default defineComponent({
     titleArtUrl,
     titleLabel(title: TitleName): string {
       return TITLE_LABEL[title];
+    },
+    /** The visible participant label — the ONE name helper (the bot never
+     *  prints its raw save name on a podium). */
+    podiumName(p: {name: string, isBot: boolean}): string {
+      return participantDisplayName({name: p.name, isMarsBot: p.isBot});
     },
   },
 });

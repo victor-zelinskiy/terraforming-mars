@@ -63,7 +63,7 @@ import {
   miniLayoutBounds,
 } from '@/common/boards/boardLayoutGeometry';
 import {clientBoardLayout} from '@/client/boards/clientBoardLayouts';
-import {SPACE_BONUS_GLYPHS, SPACE_BONUS_RGB, spaceBonusGlyphSvg} from './boardMiniatureArt';
+import {SPACE_BONUS_GLYPHS, SPACE_BONUS_GLYPHS_BOLD, SPACE_BONUS_RGB, spaceBonusGlyphSvg} from './boardMiniatureArt';
 
 /** Even margin around the surface (miniature units). */
 const FRAME_PAD = 4;
@@ -88,16 +88,18 @@ type CellRender = {
   glyphs: ReadonlyArray<CellGlyph>,
 };
 
-/** Glyph slots inside one hex (24×24 art → cell units), by count. */
+/** Glyph slots inside one hex (24×24 art → cell units), by count. Sized
+ *  for LEGIBILITY at miniature scale: a lone bonus claims most of its hex,
+ *  pairs and triples adapt — meaning survives, detail yields. */
 function glyphSlots(count: number): ReadonlyArray<{dx: number, dy: number, k: number}> {
   if (count <= 1) {
-    return [{dx: 0, dy: 0, k: 0.48}];
+    return [{dx: 0, dy: 0, k: 0.58}];
   }
   if (count === 2) {
-    return [{dx: -4.1, dy: 0, k: 0.34}, {dx: 4.1, dy: 0, k: 0.34}];
+    return [{dx: -4.3, dy: 0, k: 0.4}, {dx: 4.3, dy: 0, k: 0.4}];
   }
   // 3+ (Hollandia's triple steel): a tight row — detail adapts, meaning stays.
-  return [{dx: -4.9, dy: 0, k: 0.27}, {dx: 0, dy: 0, k: 0.27}, {dx: 4.9, dy: 0, k: 0.27}];
+  return [{dx: -5.1, dy: 0, k: 0.3}, {dx: 0, dy: 0, k: 0.3}, {dx: 5.1, dy: 0, k: 0.3}];
 }
 
 function glyphTransform(dx: number, dy: number, k: number): string {
@@ -155,16 +157,19 @@ export default defineComponent({
         }
         const glyphs: Array<CellGlyph> = [];
         if (showGlyphs) {
+          // The compact card tier draws the BOLD stroke build of the same
+          // shapes — at ≈10 px per glyph the printed weight dissolves.
+          const art = this.variant === 'card' ? SPACE_BONUS_GLYPHS_BOLD : SPACE_BONUS_GLYPHS;
           const printed = s.b.slice(0, 3);
           const slots = glyphSlots(printed.length);
           printed.forEach((bonus, i) => {
             const slot = slots[i];
-            if (slot === undefined || SPACE_BONUS_GLYPHS[bonus] === undefined) {
+            if (slot === undefined || art[bonus] === undefined) {
               return;
             }
             glyphs.push({
               transform: glyphTransform(slot.dx, slot.dy, slot.k),
-              paths: SPACE_BONUS_GLYPHS[bonus],
+              paths: art[bonus],
               color: `rgb(${SPACE_BONUS_RGB[bonus]})`,
             });
           });

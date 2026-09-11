@@ -39,9 +39,14 @@ test.describe('campaign map', () => {
     expect(await cursorIndex()).toBe(0);
     await press(page, 'ArrowRight', 300);
     expect(await cursorIndex()).toBe(1);
-    // A FUTURE mission opens NO modal — its whole story (board, position,
-    // finale, blockers) lives on the route card; X and A both stay quiet.
-    await press(page, 'KeyX', 400);
+    // X inspects ANY mission — a FUTURE one opens the honest inspect
+    // (the enlarged board + the known features, no invented results);
+    // A stays the enter/launch verb and is quiet on a future card.
+    await press(page, 'KeyX', 500);
+    await expect(page.locator('.cmap__dossier--mission')).toBeVisible();
+    await expect(page.locator('.cminsp')).toBeVisible();
+    await expect(page.locator('.cmres__rows')).toHaveCount(0);
+    await press(page, 'Escape', 400);
     await expect(page.locator('.cmap__dossier')).toHaveCount(0);
     await press(page, 'Enter', 400);
     await expect(page.locator('.cm-overlay')).toHaveCount(0);
