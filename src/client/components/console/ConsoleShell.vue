@@ -1379,7 +1379,7 @@ import {SpaceId} from '@/common/Types';
 import ConsoleBoardBinder from '@/client/components/console/ConsoleBoardBinder.vue';
 import {submitInput, submitBatch as transportSubmitBatch, cancelPlacement, waitForUpdate} from '@/client/console/transport/gameTransport';
 import {serverAheadOfView} from '@/client/components/realtime/viewFreshness';
-import {resetPresentationLedger, settlePresentationDue} from '@/client/console/presentationLedger';
+import {registerTruthWitness, resetPresentationLedger, settlePresentationDue} from '@/client/console/presentationLedger';
 import {InputResponse} from '@/common/inputs/InputResponse';
 import ConsoleBoardInput from '@/client/components/console/ConsoleBoardInput.vue';
 import {buildStandardProjectPaymentModel, hasUsableStandardProjectAlternativeResources, standardProjectPaymentTitle} from '@/client/components/payment/paymentModelUtils';
@@ -2086,6 +2086,8 @@ export default defineComponent({
       offWsPresence: undefined as (() => void) | undefined,
       /** The hydro flow-close truth witnesses' uninstaller (presentationLedger). */
       offHydroWitnesses: undefined as (() => void) | undefined,
+      /** The workspace-conclusion time-net witness' uninstaller (presentationLedger). */
+      offConclusionWitness: undefined as (() => void) | undefined,
       /** Fullscreen open/close choreography: chrome held hidden mid-flight. */
       zoomFlight: false,
       /**
@@ -6910,6 +6912,16 @@ export default defineComponent({
         this.taskBelongsToWorkspace ? 'task-ws' : '',
         this.deckPickBelongsToWorkspace ? 'pick-ws' : '',
         workspaceFrameParked(kind) ? 'parked' : '',
+        // …AND THE BOARD-BEAT PARK'S OWN STATE. A play that raised a global
+        // parameter seeds the park (`noteBoardScaleAdvance`), and the park can
+        // only DRAIN over a board the workspace is covering — so «park owed»
+        // and «workspace up» wait on each other, and NO other ingredient here
+        // moves when the park finally drains or degrades. Without this term a
+        // conclusion left owed behind the park re-fired on nothing until the
+        // park's 30 s safety (field log 2026-09-11: `board-beat-park degraded
+        // after 30s` was the sole event of a 30 s workspace hang). The park's
+        // falling edge is now a conclusion-retry trigger.
+        boardBeatParkPending() ? 'park-owed' : '',
       ].join('|');
     },
     stdpGhostParam(): 'temperature' | 'oxygen' | 'oceans' | 'venus' | undefined {
@@ -8617,21 +8629,7 @@ export default defineComponent({
      * own ending owns the conclusion now.
      */
     owedConclusionSignal(): void {
-      const owed = this.owedConclusion;
-      if (owed === undefined) {
-        return;
-      }
-      if (!workspaceFrameKnown(owed.kind)) {
-        this.owedConclusion = undefined;
-        return;
-      }
-      if (workspaceOutcomeState.host === owed.kind && workspaceOutcomeState.stage === 'awaiting') {
-        this.owedConclusion = undefined;
-        return;
-      }
-      if (this.concludeWorkspaceFlow(owed.kind, owed.servedPromptHolds)) {
-        this.owedConclusion = undefined;
-      }
+      this.retryOwedConclusion();
     },
     /**
      * THE BOARD BECAME WATCHABLE — drain the board-beat park (the held scale
@@ -15836,6 +15834,41 @@ export default defineComponent({
       return done;
     },
     /**
+     * RE-DRIVE AN OWED CONCLUSION — called both by the ingredient watcher
+     * (`owedConclusionSignal`, on any enumerated fall) and by the ledger time
+     * net (`workspace-conclusion-owed`, on a bounded cadence for a fall the
+     * enumeration missed). Idempotent and safe: it re-reconciles a play claim
+     * (releasing one that now answers for nothing — the funnel still guards a
+     * serving claim) and re-asks the ONE guarded conclusion (which holds
+     * honestly for a real nested step / owned prompt / park).
+     */
+    retryOwedConclusion(): void {
+      const owed = this.owedConclusion;
+      if (owed === undefined) {
+        return;
+      }
+      if (!workspaceFrameKnown(owed.kind)) {
+        this.owedConclusion = undefined;
+        return;
+      }
+      if (workspaceOutcomeState.host === owed.kind && workspaceOutcomeState.stage === 'awaiting') {
+        this.owedConclusion = undefined;
+        return;
+      }
+      // A PLAY CLAIM IS RELEASED ONLY BY THE RECONCILER, and the reconciler
+      // runs on RESPONSES — but the fact that makes the claim releasable (the
+      // board-beat park draining, a beat settling) can arise with no response
+      // behind it. Re-reconcile here so a claim that now answers for nothing is
+      // let go, which is what lets the conclusion below succeed on the next
+      // tick. Safe: reconcile only releases a non-serving, non-owned claim.
+      if (isPlayOutcomeHost(workspaceOutcomeState.host) && workspaceOutcomeState.host === owed.kind) {
+        this.reconcileWorkspaceOutcome();
+      }
+      if (this.concludeWorkspaceFlow(owed.kind, owed.servedPromptHolds)) {
+        this.owedConclusion = undefined;
+      }
+    },
+    /**
      * THE CARD PLAY'S ONE ENDING — every way a play can finish routes here.
      *
      * A play can end in three places and each of them used to conclude itself:
@@ -17660,6 +17693,36 @@ export default defineComponent({
       drive: () => this.driveHydroFlowStuck(),
     });
     this.offHydroWitnesses = installHydroFlowWitnesses();
+    // THE WORKSPACE-CONCLUSION TIME NET — the general close-gate safety.
+    //
+    // Every finished play/card-actions/stdp flow routes its ending through
+    // `owedConclusion`, re-driven by `owedConclusionSignal` — a watcher over an
+    // ENUMERATED set of ingredients. That set is the fragile part: a releasing
+    // condition the list forgot (the board-beat park draining, a beat settling
+    // with no response behind it) never re-fires the watcher, and the workspace
+    // stands finished-but-held until some unrelated 20–30 s safety (field logs
+    // 2026-09-10/11 — a `board-beat-park degraded after 30s` as the sole event
+    // of a 30 s hang). This witness re-drives the SAME owed conclusion on a
+    // bounded cadence, so a missed ingredient costs ≤ one grace window instead
+    // of the park's whole ceiling. It only ever RE-ASKS the existing guarded
+    // conclusion (which holds honestly for a real nested step / prompt / park),
+    // so it can never tear down a flow the player is still working — and it
+    // NAMES itself in the ledger warn when it heals.
+    this.offConclusionWitness = registerTruthWitness({
+      id: 'workspace-conclusion-owed',
+      // A conclusion owed for a NESTED step or a PARK is the player genuinely
+      // working / having set the flow aside — those are legitimately long, so
+      // the net stays out of them (the ingredient watcher already covers their
+      // own falls). It fires only for the finished-but-STUCK shape: a flow that
+      // reported done and cannot dismiss for a reason no ingredient re-surfaced.
+      lying: () => {
+        const o = this.owedConclusion;
+        return o !== undefined && workspaceFrameKnown(o.kind) &&
+          !workspaceFrameHasNested(o.kind) && !workspaceFrameParked(o.kind);
+      },
+      graceMs: 2500,
+      heal: () => this.retryOwedConclusion(),
+    });
     // THE BOARD-BEAT PARK'S «watchable» verdict (boardBeatPark) — coverage
     // facts only, shell-owned. Registered at mount, so a reload that lands
     // with a parked batch (server reveals survive the trip) re-parks or
@@ -17932,6 +17995,8 @@ export default defineComponent({
     this.offWsPresence?.();
     this.offHydroWitnesses?.();
     this.offHydroWitnesses = undefined;
+    this.offConclusionWitness?.();
+    this.offConclusionWitness = undefined;
     registerHydroFlowProbe(undefined); // a dead shell's closures must not drive the next game
     this.offPlanetFocusParams?.();
     clearGameExitTarget(); // the exit funnel must not outlive the game it points from

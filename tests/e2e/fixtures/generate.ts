@@ -40,6 +40,7 @@ import {IoMiningIndustries} from '../../../src/server/cards/base/IoMiningIndustr
 import {Pets} from '../../../src/server/cards/base/Pets';
 import {SolarPower} from '../../../src/server/cards/base/SolarPower';
 import {DeltaSurge} from '../../../src/server/cards/delta/DeltaSurge';
+import {MiningExpedition} from '../../../src/server/cards/base/MiningExpedition';
 
 const OUT_DIR = __dirname;
 
@@ -102,6 +103,21 @@ function write(name: string, game: IGame): void {
   const file = path.join(OUT_DIR, `${name}.json`);
   fs.writeFileSync(file, JSON.stringify(serialized, null, 1) + '\n');
   console.log(`${name}: phase=${serialized.phase} gen=${serialized.generation} → ${path.relative(process.cwd(), file)}`);
+}
+
+// ── play-scale-card: a solo action phase with a card in hand that RAISES A
+//    GLOBAL PARAMETER on play and has no target/placement follow-up
+//    (MiningExpedition: oxygen +1, +2 steel; its removeAnyPlants finds no
+//    opponent in solo). Playing it seeds the board-beat park (a parameter
+//    moved while the play's hand workspace covered the board), which is the
+//    exact trigger of the 2026-09-11 «workspace hung 30s, board-beat-park
+//    degraded» report — the workspace must still conclude promptly. ──
+{
+  const {game, player} = soloActionPhase();
+  player.megaCredits = 40;
+  player.cardsInHand.push(new MiningExpedition());
+  runAllActions(game);
+  write('play-scale-card', game);
 }
 
 // ── solo-actions: a plain playable board — the general workhorse (canary,

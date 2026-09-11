@@ -173,6 +173,48 @@ stalled) — the new `diagnose` names the shape on the next occurrence, and
 `expire` now ends it honestly; the notification correlation 90 s release and
 the ResizeObserver loop warnings are their own bounded/benign classes.
 
+## Iteration 4 (2026-09-11 — a played card that raised a scale hung 30s)
+
+Field report: after a played card flew to «Разыграно», the workspace hung ~30s;
+the console export's ONLY in-game event was `[presentation-ledger] story
+«board-beat-park» degraded after 30s`. Root class: a play whose response moves
+a global parameter seeds the **board-beat park** (a scale changed while the
+play's hand workspace covered the board). The park can only DRAIN over a board
+the workspace has left, so «park owed» ⟺ «workspace up». The play's conclusion
+routes through `owedConclusion`, re-driven by `owedConclusionSignal` — an
+**enumerated** ingredient watcher with **no board-beat-park term** and no
+board-park-falling-edge trigger. And the release operation that would let the
+conclusion succeed — `reconcileWorkspaceOutcome`, which drops a play-claim that
+now answers for nothing — **runs only on server responses**, while the park
+draining/degrading carries no response. So a finished play whose claim was
+refused sat until the park's 30s safety, the sole edge that moved.
+
+Three changes, all in `ConsoleShell`:
+1. **`owedConclusionSignal` gained a `park-owed` term** (`boardBeatParkPending()`)
+   — the park's falling edge (drain OR degrade) now re-fires the conclusion
+   instantly.
+2. **`retryOwedConclusion` re-reconciles a play claim off-response** — extracted
+   from the watcher; it re-runs `reconcileWorkspaceOutcome` for a play host
+   before re-asking the guarded conclusion, so a claim that became releasable
+   without a response is let go.
+3. **The general TIME NET** — a presentation-ledger truth-witness
+   `workspace-conclusion-owed`: whenever a conclusion is owed and the flow is
+   NOT a live nested step / park (the two legitimately-long holds), it re-drives
+   `retryOwedConclusion` on a bounded cadence (grace 2.5 s). So a releasing
+   condition that no enumerated ingredient re-surfaces now costs ≤ one grace
+   window instead of the park's 30 s — for EVERY future missed ingredient, not
+   just the park. It only ever re-asks the existing guarded operations (which
+   hold honestly for a real nested step / owned prompt / park), so it can never
+   tear down a flow the player is still working, and it names itself in the
+   ledger warn.
+
+This is the class generalization the previous three iterations kept
+approaching: the workspace conclusion — the ONE funnel every play/card-actions/
+stdp ending routes through — is now retried on a bounded clock, not only on an
+enumerated ingredient list. The board-home foreground watchdog (which recovers
+the analogous stall) deliberately runs ONLY on `boardHomeIdle`; this net is its
+workspace-up counterpart, scoped tightly to a finished-but-stuck flow.
+
 ## Guards
 
 `tests/client/components/console/consoleHydroFlow.spec.ts` § the flow-close
@@ -181,4 +223,6 @@ witnesses (lying/heal semantics, install/uninstall), `consoleHydroMarker.spec`
 `animationHold.spec` § the owner recovery, `consoleHydroTerminalStage.spec` —
 the three iteration-2 regressions, and the three e2e journeys in
 `console-hydro-terminal-landing.spec.ts` (plain multi-step 5→11 · the FIELD
-SHAPE Surge→9 · vs-MarsBot 0→11).
+SHAPE Surge→9 · vs-MarsBot 0→11); and `console-play-scale-conclusion.spec.ts`
+(iteration 4 — a played card that raises oxygen leaves its workspace within
+the park's old 30 s cliff, over the `play-scale-card` fixture).
