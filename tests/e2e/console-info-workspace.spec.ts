@@ -178,10 +178,12 @@ for (const preset of PRESETS) {
 
       // THE EXTRAS SATELLITE: the «Доп. ресурсы» zone IS the rail column —
       // mounted through the whole overlay (empty seats show the honest
-      // plate), captioned, and standing ABOVE the panel's dim.
+      // plate) and standing ABOVE the panel's dim. NO caption: the chips
+      // are the label, the command bar names the focused type (stable
+      // chassis iteration, 2026-09-11).
       const satellite = page.locator('.con-res-aux');
       await expect(satellite).toBeVisible();
-      await expect(satellite.locator('.con-res-aux__cap')).toBeVisible();
+      await expect(satellite.locator('.con-res-aux__cap')).toHaveCount(0);
 
       // PARITY BASELINE: capture the shared zones' boxes on the human seat.
       const zoneBox = async (zone: string) =>

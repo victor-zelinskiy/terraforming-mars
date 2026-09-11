@@ -33005,9 +33005,11 @@ html.con-profile-handheld {
 
     /* ── 7 · Y Information Workspace ─────────────────────────────── */
     .con-info {
-        /* LEFT: the satellite clearance at the handheld metrics (.5 + 1.1
-           icon + .4 + 1 + .5 = 3.5 cell + .15 seam + .95 breathing). */
-        &__frame { padding: .6rem var(--con-hud-pad-x, .8rem) .5rem 4.6rem; gap: .45rem; }
+        /* The satellite LANE at the handheld cell metrics (.5 + 1.1 icon +
+           .4 + 1 + .5 = 3.5 cell + .4 breathing) — the profile overrides
+           the TOKEN, never the frame padding (the header must keep the
+           ordinary inset; re-stating the shorthand once doubled the lane). */
+        &__frame { --con-info-satellite-w: 3.9rem; padding: .6rem var(--con-hud-pad-x, .8rem) .5rem; gap: .45rem; }
         &__head { padding-bottom: .4rem; }
         /* The Deck's tighter budget: columns share the width evenly (no cap)
            so three still fit without horizontal scroll. */
@@ -33017,7 +33019,6 @@ html.con-profile-handheld {
         &__block-title { font-size: .65rem; margin-bottom: .4rem; }
     }
     .con-res-aux {
-        &__cap { font-size: .5rem; letter-spacing: .1rem; bottom: calc(100% + .25rem); }
         &__none { font-size: .75rem; min-width: 2.6rem; padding: .2rem 0; }
     }
     /* The extras explorer on the Deck: fewer, bigger cards (3 per page —

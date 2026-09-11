@@ -597,16 +597,22 @@ describe('ConsoleResourcePanel — the extras satellite in info mode', () => {
     const w = mountPlayer(fakePlayer(), {boardVisible: false});
     expect(w.find('.con-res-aux').exists()).to.be.true;
     expect(w.find('.con-res-aux').classes()).to.include('con-res-aux--info');
-    expect(w.find('.con-res-aux__cap').exists(), 'the caption names the group').to.be.true;
+    // NO caption (stable-chassis iteration): the chips are the label and
+    // the command bar names the focused type — the column may not draw a
+    // second heading of its own.
+    expect(w.find('.con-res-aux__cap').exists(), 'the caption is retired').to.be.false;
     expect(w.find('.con-res-aux__none').exists()).to.be.true;
   });
 
-  it('the summary ring paints the whole-group focus state', () => {
+  it('the summary ring stands on ONE CHIP (per-chip ring stops)', () => {
     infoModeState.open = true;
     infoModeState.summaryFocus = 'extras';
+    infoModeState.extrasCursor = 0;
     const w = mountPlayer(fakePlayer({}, {tableau: [holder(CardName.BIRDS, 3)]}), {boardVisible: false});
     expect(w.find('.con-res-aux').classes()).to.include('con-res-aux--focused');
     expect(w.findAll('.con-res-aux__cell')).to.have.length(1);
+    // The cursor ring rides the CONCRETE chip, never a group plate.
+    expect(w.find('.con-res-aux__cell').classes()).to.include('con-res-aux__cell--cursor');
   });
 
   it('the extras route paints cursor and selection on the CELLS (one owner: extrasExplorerUi)', () => {

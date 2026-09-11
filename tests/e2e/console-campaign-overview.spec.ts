@@ -153,14 +153,26 @@ for (const preset of PRESETS) {
       await expect(zone.locator('.con-info__cmp-tp')).toBeVisible();
       // THE STABLE CHASSIS: the workspace HEADER starts at the ordinary
       // frame inset — the satellite lane is a CONTENT inset only, so the
-      // crumb never moves with the seat's resource composition.
-      const headBox = (await page.locator('.con-info__head').boundingBox())!;
-      const frameBox = (await page.locator('.con-info__frame').boundingBox())!;
-      const layoutBox = (await page.locator('.con-info__layout').boundingBox())!;
-      expect(headBox.x - frameBox.x, 'the crumb hugs the frame (no satellite reserve on the header)')
-        .toBeLessThan(frameBox.width * 0.05);
-      expect(layoutBox.x - headBox.x, 'the content zones step past the satellite lane')
-        .toBeGreaterThan(40);
+      // crumb never moves with the seat's resource composition. Measured
+      // AFTER the open motion settles (the frame materializes from the
+      // rail seam — a mid-flight box lies about the resting pose).
+      await settle(page, {timeoutMs: 15_000}).catch(() => {});
+      const chassis = await page.evaluate(() => {
+        const frame = document.querySelector<HTMLElement>('.con-info__frame')!;
+        const head = document.querySelector<HTMLElement>('.con-info__head')!;
+        const layout = document.querySelector<HTMLElement>('.con-info__layout')!;
+        return {
+          framePad: parseFloat(getComputedStyle(frame).paddingLeft),
+          headInset: head.getBoundingClientRect().left - frame.getBoundingClientRect().left,
+          lane: layout.getBoundingClientRect().left - head.getBoundingClientRect().left,
+        };
+      });
+      expect(chassis.lane, 'the content zones step past the satellite lane').toBeGreaterThan(40);
+      // The header sits at the frame's OWN inset — never inset + lane (the
+      // profile-ladder «restated shorthand» regression doubled the lane).
+      expect(Math.abs(chassis.headInset - chassis.framePad),
+        `the crumb hugs the frame (head inset ${chassis.headInset} vs frame pad ${chassis.framePad})`)
+        .toBeLessThan(3);
       // The old «ДОП. РЕСУРСЫ» caption is gone — the chips are the label.
       await expect(page.locator('.con-res-aux__cap')).toHaveCount(0);
       // The corporation meta in the header NAMES the composition size:
@@ -204,6 +216,11 @@ for (const preset of PRESETS) {
       await expect(page.locator('.con-cmpov__seats-note')).toHaveCount(1);
       // The committed card's podium NAMES its people.
       await expect(page.locator('.ccard__result-name').first()).toBeVisible();
+      // The summary block's mission line names the CURRENT mission's board —
+      // the same name the current route card carries.
+      const currentBoard = (await page.locator('.ccard--current .ccard__board-name').innerText()).trim().toLowerCase();
+      expect(zoneText.includes(currentBoard.slice(0, 12)),
+        `the zone frame line carries the current board (${currentBoard}): ${zoneText}`).toBeTruthy();
       await settle(page, {timeoutMs: 15_000}).catch(() => {});
       await shoot(page, 'info-overview');
 

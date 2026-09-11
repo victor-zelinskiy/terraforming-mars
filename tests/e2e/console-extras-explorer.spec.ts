@@ -169,12 +169,20 @@ for (const preset of PRESETS) {
       await openInfo(page);
       await settle(page, {timeoutMs: 20_000});
       // The ring starts on the score zone (the historical anchor) — the
-      // satellite is one step LEFT; the group ring lights the column.
+      // satellite is one step LEFT; the CHIPS are individual ring stops
+      // (stable-chassis iteration): the cursor ring stands on the first
+      // chip and the bottom bar's A hint names ITS resource type.
       await key(page, 'ArrowLeft', 450);
       await expect(satellite).toHaveClass(/con-res-aux--focused/);
-      // The bottom bar's A hint names the focused group (contextual — the
-      // per-block badges are gone).
-      await expect(page.locator('.con-cmdbar')).toContainText(/Открыть: Доп\. ресурсы/i);
+      await expect(satellite.locator('.con-res-aux__cell--cursor')).toHaveCount(1);
+      await expect(page.locator('.con-cmdbar')).toContainText(/Открыть: Животное/i);
+      // Down walks the column chip by chip — the hint follows the cursor.
+      await key(page, 'ArrowDown', 450);
+      await expect(page.locator('.con-cmdbar')).toContainText(/Открыть: (Бактерия|Микроб)/i);
+      await key(page, 'ArrowUp', 450);
+      await expect(page.locator('.con-cmdbar')).toContainText(/Открыть: Животное/i);
+      // No caption over the column — the chips are the label.
+      await expect(satellite.locator('.con-res-aux__cap')).toHaveCount(0);
       await expect(page.locator('.con-info__hotkey')).toHaveCount(0);
       await shoot(page, preset, '02-summary-extras-focused');
 
@@ -253,10 +261,13 @@ for (const preset of PRESETS) {
       await expect(explorer.locator('.con-exr__slot--focused')).toHaveAttribute('data-exr-card', 'Tardigrades');
       await expect(page.locator('[data-exr-type="microbe"]'), 'category survived too').toHaveClass(/con-res-aux__cell--active/);
 
-      // ── B: back to the summary with the ring ON the extras group. ─────
+      // ── B: back to the summary with the ring ON the very chip whose
+      // type the player was reading (the carried object survives B). ────
       await key(page, 'Escape', 900);
       await expect(page.locator('.con-info__layout')).toHaveCount(1);
       await expect(satellite).toHaveClass(/con-res-aux--focused/);
+      await expect(page.locator('[data-exr-type="microbe"]')).toHaveClass(/con-res-aux__cell--cursor/);
+      await expect(page.locator('.con-cmdbar')).toContainText(/Открыть: (Бактерия|Микроб)/i);
       await settle(page, {timeoutMs: 20_000});
 
       // ── Y: close — the board home, the satellite still standing. ──────
