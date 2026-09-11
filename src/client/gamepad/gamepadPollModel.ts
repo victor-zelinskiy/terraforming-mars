@@ -428,6 +428,51 @@ export function diffSnapshots(
   return {intents, state: out};
 }
 
+/**
+ * FIRST-SIGHTING policy — what a pad's very first appearance may emit.
+ *
+ * Chromium's privacy gate hides a connected pad from a fresh document until a
+ * button goes down, and every screen boundary in this shell is a full reload
+ * (navigateWithCurtain: menu ↔ campaign map ↔ game). So after a boundary the
+ * pad's first appearance and the player's first press are THE SAME EVENT. A
+ * rule that always seeds the sighting silently eats exactly one deliberate
+ * press per transition ("A works only on the second press" — the campaign
+ * mission list, the corporation pick), while a rule that always emits would
+ * auto-fire the A still held from the click that STARTED the navigation.
+ *
+ * The two cases are separated by WHEN the sighting happens: a held-over button
+ * satisfies the gate on the new document's first internal poll, so its
+ * sighting lands within moments of subsystem install; a deliberate press on a
+ * rendered screen arrives long after (curtain + render + human reaction).
+ * Inside {@link PAD_WAKE_CARRYOVER_MS} of install — or for an index this page
+ * has ALREADY seen (a pad reconnecting after sleep must not act on its wake
+ * press) — the sighting seeds silently; a LATE FIRST-EVER sighting IS the
+ * player's press and emits its edges by diffing against an empty baseline
+ * (the returned carry state keeps hold-repeat / trigger hysteresis / aim
+ * tracking coherent from that frame on). The scene-transition input gate
+ * (consoleRouter) stays an independent second net for anything dispatched
+ * while a curtain still owns the frame — which is what lets this window stay
+ * SHORT: a held-over button surfaces within moments of install (the browser's
+ * own monitor answers as soon as the listener registers), while a press the
+ * window wrongly classifies as deliberate still dies at the curtain gate.
+ * Too long a window re-creates the bug for a fast player pressing right
+ * after the curtain lifts.
+ */
+export const PAD_WAKE_CARRYOVER_MS = 1500;
+
+export function firstSightingFrame(
+  next: GamepadSnapshot,
+  now: number,
+  opts: {installedAtMs: number, resighted: boolean},
+  deadzone: number = DEFAULT_DEADZONE,
+): {intents: Array<GamepadIntent>, state: PollState} {
+  const carryOver = opts.resighted || now - opts.installedAtMs <= PAD_WAKE_CARRYOVER_MS;
+  if (carryOver) {
+    return {intents: [], state: initialPollState()};
+  }
+  return diffSnapshots(emptySnapshot(), next, initialPollState(), now, deadzone);
+}
+
 /** One pad's contribution to a poll frame. */
 export type PadFrame = {
   index: number,

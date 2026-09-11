@@ -45,6 +45,10 @@
  * The W3C privacy gesture-gate (pads are invisible to the page until a
  * button is pressed while the page is focused) is exactly our mode-entry
  * trigger — `gamepadconnected` firing IS the player picking up the pad.
+ * …and after a full-reload boundary that same gate makes a pad's first
+ * sighting the player's first PRESS — see the first-sighting rule in
+ * `pollOnce` (early / re-sighting seeds silently; a late first-ever
+ * sighting emits its edges — `firstSightingFrame`).
  */
 
 import {reactive} from 'vue';
@@ -57,6 +61,7 @@ import {
   diffSnapshots,
   electActivePad,
   emptySnapshot,
+  firstSightingFrame,
   initialElectionState,
   initialPollState,
   pollStatePending,
@@ -110,6 +115,13 @@ let driversHot = false;
 let hotUntil = 0;
 const prevSnapshots = new Map<number, GamepadSnapshot>();
 const pollStates = new Map<number, PollState>();
+/** Pad indices this PAGE has sighted at least once. Never cleared mid-session
+ *  (only on uninstall): a RE-sighting — a pad reconnecting after sleep — keeps
+ *  the silent wake-seed however late it happens; only a genuinely new pad may
+ *  take the deliberate-press synthesis path (`firstSightingFrame`). */
+const sightedIndices = new Set<number>();
+/** `performance.now()` at install — the first-sighting carry-over anchor. */
+let installedAtMs = 0;
 let election: ElectionState = initialElectionState();
 
 /**
@@ -296,10 +308,33 @@ function syncNativePadsWanted(): void {
   }
 }
 
+/**
+ * Re-seed EVERY baseline from the CURRENT view of the given pad list, silently.
+ * For the mid-session wipes (source handover, native set change): a re-seeded
+ * pad is deliberately NOT a first sighting, so the deliberate-press synthesis
+ * (`firstSightingFrame`) can never fire for state another source may already
+ * have delivered — or for a different device reusing an index.
+ */
+function reseedBaselines(pads: ReadonlyArray<PollablePad | null>): void {
+  prevSnapshots.clear();
+  pollStates.clear();
+  for (const pad of pads) {
+    if (pad !== null && pad.connected) {
+      sightedIndices.add(pad.index);
+      prevSnapshots.set(pad.index, readSnapshot(pad));
+      pollStates.set(pad.index, initialPollState());
+    }
+  }
+}
+
 function pollOnce(now: number): void {
   const pads = navigatorPads();
   const deadzone = gamepadDeadzone();
   syncNativePadsWanted();
+
+  // Declared before the handover block: a handover may CARRY the old source's
+  // final frame into it, so its in-flight press still dispatches (PASS 2).
+  const engaged: Array<PadContribution> = [];
 
   // ── SOURCE HANDOVER (matters on a platform whose Gamepad API WORKS) ────────
   // Chromium hides pads until the first button press (the privacy gate), so a
@@ -309,12 +344,34 @@ function pollOnce(now: number): void {
   // for native pad #0 would be diffed against CHROMIUM pad #0: two different
   // views of the device, with different button counts and possibly different
   // states, producing a burst of phantom press/release intents — at the worst
-  // possible moment, the very first press of the session. Dropping the
-  // baselines re-seeds them, and the first-sighting rule emits nothing.
+  // possible moment, the very first press of the session. Re-seeding the
+  // baselines in place emits nothing for the NEW source's view.
   if (padsFromNative !== sourceWasNative) {
+    // MID-PRESS HANDOVER (native → Chromium): the flip is CAUSED by a press —
+    // the first press of a page is what opens Chromium's gate — so it lands in
+    // the middle of exactly the press the player expects to act. Finish the
+    // frame on the OLD source first: its stored baselines are the memory of
+    // what was already delivered, so this emits the in-flight press exactly
+    // once whichever side sampled it first (already-delivered → empty diff).
+    if (sourceWasNative) {
+      for (const pad of nativePads()) {
+        if (pad === null || !pad.connected) {
+          continue;
+        }
+        const prev = prevSnapshots.get(pad.index);
+        if (prev === undefined) {
+          continue;
+        }
+        const oldNext = readSnapshot(pad);
+        const state = pollStates.get(pad.index) ?? initialPollState();
+        const {intents} = diffSnapshots(prev, oldNext, state, now, deadzone);
+        if (intents.length > 0) {
+          engaged.push({index: pad.index, id: pad.id, active: snapshotActivity(oldNext, deadzone), edge: decisiveEdge(intents), intents});
+        }
+      }
+    }
     sourceWasNative = padsFromNative;
-    prevSnapshots.clear();
-    pollStates.clear();
+    reseedBaselines(pads);
     election = initialElectionState();
     gamepadCoreState.activeIndex = -1;
     gamepadCoreState.activeId = '';
@@ -326,7 +383,6 @@ function pollOnce(now: number): void {
   // baseline current — a pad diffed against a stale snapshot when it later
   // becomes the driver would fire a burst of phantom edges. `engaged` collects
   // the non-idle pads so PASS 2 can elect exactly ONE driver.
-  const engaged: Array<PadContribution> = [];
   for (const pad of pads) {
     if (pad === null || !pad.connected) {
       continue;
@@ -334,22 +390,29 @@ function pollOnce(now: number): void {
     const next = readSnapshot(pad);
     const active = snapshotActivity(next, deadzone);
 
-    // FIRST sighting of this pad (fresh page after a game-boundary reload, or a
-    // just-woken pad): seed the baseline from the CURRENT state and emit NO
-    // intents this frame. A button STILL HELD when the pad first appears is the
-    // pad-wake gesture, never an action — an edge only counts once it is released
-    // and pressed again. This is load-bearing: the game boundary is a full reload
-    // (navigateWithCurtain), and the A that confirmed "exit to main menu" is
-    // typically still down when the new page mounts. Without this seed, an empty
-    // baseline reads that held A as a fresh `confirm` press on the freshly-loaded
-    // main menu and auto-activates the focused item (Continue → bounced straight
-    // back into the game — the "exit does nothing the 2nd time" bug). We still
-    // let it enter the election (below) so a fresh pad becomes responsive; only
-    // the stray press/nav intent is withheld (its intents list stays empty).
+    // FIRST sighting of this pad. Two real-world events land here and need
+    // OPPOSITE handling, told apart by WHEN the sighting happens (the pure
+    // policy: `firstSightingFrame`). EARLY, or an index this page already saw
+    // (a reconnect): the held button is the wake / carried-over gesture — the
+    // A that confirmed "exit to main menu" is typically still down when the
+    // new page mounts, and reading it as a fresh `confirm` auto-activated the
+    // focused item (Continue → bounced straight back into the game, the "exit
+    // does nothing the 2nd time" bug). Seed silently; an edge then counts only
+    // once released and pressed again. LATE and FIRST-EVER: Chromium's privacy
+    // gate hides the pad until a button goes down, so after a reload boundary
+    // the sighting IS the player's deliberate press — seeding it away ate
+    // exactly one A per screen transition (the "A works only on the second
+    // press" report: campaign mission list, corporation pick). Emit its edges.
     if (!prevSnapshots.has(pad.index)) {
+      const resighted = sightedIndices.has(pad.index);
+      sightedIndices.add(pad.index);
       prevSnapshots.set(pad.index, next);
-      pollStates.set(pad.index, initialPollState());
-      if (active) {
+      const first = firstSightingFrame(next, now, {installedAtMs, resighted}, deadzone);
+      pollStates.set(pad.index, first.state);
+      if (first.intents.length > 0) {
+        gpLog(`first sighting of ${describePad(pad)} carries live input — emitting (the privacy gate makes this press the sighting)`);
+        engaged.push({index: pad.index, id: pad.id, active: true, edge: decisiveEdge(first.intents), intents: first.intents});
+      } else if (active) {
         engaged.push({index: pad.index, id: pad.id, active: true, edge: false, intents: []});
       }
       continue;
@@ -467,11 +530,11 @@ function onNativePadsChanged(): void {
   if (!installed) {
     return;
   }
-  // Drop every baseline: indices are reused across device sets, and a snapshot
-  // diffed against another device's state would fire a burst of phantom edges.
-  // Re-seeding costs one poll and emits nothing (the first-sighting rule).
-  prevSnapshots.clear();
-  pollStates.clear();
+  // Indices are reused across device sets, and a snapshot diffed against
+  // another device's state would fire a burst of phantom edges — re-seed every
+  // baseline in place from the CURRENT view (silently, and never through the
+  // first-sighting synthesis: that path is reserved for a genuinely new pad).
+  reseedBaselines(navigatorPads());
   const before = inputModeState.padsConnected;
   syncPadPresence();
   gpLog(`native pads changed — pads=${inputModeState.padsConnected} (was ${before}) ${describeAllPads()}`);
@@ -538,6 +601,7 @@ export function installGamepadCore(): void {
     return;
   }
   installed = true;
+  installedAtMs = typeof performance !== 'undefined' ? performance.now() : 0;
   installInputModeWatchers();
   window.addEventListener('gamepadconnected', onConnected);
   window.addEventListener('gamepaddisconnected', onDisconnected);
@@ -579,6 +643,8 @@ export function uninstallGamepadCore(): void {
   document.removeEventListener('visibilitychange', onVisibilityChange);
   prevSnapshots.clear();
   pollStates.clear();
+  sightedIndices.clear();
+  installedAtMs = 0;
   election = initialElectionState();
   gamepadCoreState.activeIndex = -1;
   gamepadCoreState.activeId = '';

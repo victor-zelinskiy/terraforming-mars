@@ -11,12 +11,14 @@ import {
   HANDOVER_SILENCE_MS,
   NAV_REPEAT_DELAY_MS,
   NAV_REPEAT_INTERVAL_MS,
+  PAD_WAKE_CARRYOVER_MS,
   PollState,
   SCROLL_DEADZONE,
   TRIGGER_PRESS_AT,
   TRIGGER_RELEASE_AT,
   decisiveEdge,
   diffSnapshots,
+  firstSightingFrame,
   electActivePad,
   emptySnapshot,
   initialElectionState,
@@ -406,6 +408,62 @@ describe('gamepadPollModel', () => {
       expect(decisiveEdge([{kind: 'release', button: 'confirm'}])).to.eq(false);
       expect(decisiveEdge([{kind: 'navEnd', dir: 'up'}])).to.eq(false);
       expect(decisiveEdge([{kind: 'aimEnd'}])).to.eq(false);
+    });
+  });
+
+  describe('firstSightingFrame (the reload-boundary first press)', () => {
+    const INSTALL = 1000;
+    const EARLY = INSTALL + 400;
+    const LATE = INSTALL + PAD_WAKE_CARRYOVER_MS + 1;
+
+    it('seeds silently INSIDE the carry-over window (A held across the boundary)', () => {
+      // The A that confirmed "exit to main menu" is still down when the new
+      // page mounts — it must NOT auto-activate the freshly-focused item.
+      const held = snap({buttons: [0]});
+      const r = firstSightingFrame(held, EARLY, {installedAtMs: INSTALL, resighted: false});
+      expect(r.intents).to.be.empty;
+      // The seeded baseline means the release is an ordinary falling edge, and
+      // only a NEW press counts.
+      const release = diffSnapshots(held, snap(), r.state, EARLY + 300);
+      expect(kinds(release.intents)).to.deep.eq(['release:confirm']);
+      const press = diffSnapshots(snap(), snap({buttons: [0]}), release.state, EARLY + 600);
+      expect(kinds(press.intents)).to.deep.eq(['press:confirm']);
+    });
+
+    it('still seeds at exactly the window edge (boundary is inclusive)', () => {
+      const r = firstSightingFrame(snap({buttons: [0]}), INSTALL + PAD_WAKE_CARRYOVER_MS, {installedAtMs: INSTALL, resighted: false});
+      expect(r.intents).to.be.empty;
+    });
+
+    it('EMITS a late first-ever sighting — the privacy gate makes the press the sighting', () => {
+      // After a full-reload boundary Chromium hides the pad until a button
+      // goes down: the player's deliberate A on the rendered screen IS the
+      // pad's first appearance. Eating it is the reported "A works only on
+      // the second press".
+      const r = firstSightingFrame(snap({buttons: [0]}), LATE, {installedAtMs: INSTALL, resighted: false});
+      expect(kinds(r.intents)).to.deep.eq(['press:confirm']);
+      // …and the frame's carry state stays coherent: the release that follows
+      // is a plain falling edge, not a second press.
+      const release = diffSnapshots(snap({buttons: [0]}), snap(), r.state, LATE + 120);
+      expect(kinds(release.intents)).to.deep.eq(['release:confirm']);
+    });
+
+    it('keeps a RE-sighting silent however late (a reconnect wake press never acts)', () => {
+      const r = firstSightingFrame(snap({buttons: [0]}), LATE + 60_000, {installedAtMs: INSTALL, resighted: true});
+      expect(r.intents).to.be.empty;
+    });
+
+    it('starts navigation with proper hold-repeat when the sighting holds a stick', () => {
+      const stickLeft = snap({axes: [-1, 0, 0, 0]});
+      const r = firstSightingFrame(stickLeft, LATE, {installedAtMs: INSTALL, resighted: false});
+      expect(kinds(r.intents)).to.include('nav:left:f:s');
+      const repeat = diffSnapshots(stickLeft, stickLeft, r.state, LATE + NAV_REPEAT_DELAY_MS);
+      expect(kinds(repeat.intents)).to.include('nav:left:r:s');
+    });
+
+    it('emits nothing for an idle late sighting', () => {
+      const r = firstSightingFrame(snap(), LATE, {installedAtMs: INSTALL, resighted: false});
+      expect(r.intents).to.be.empty;
     });
   });
 });

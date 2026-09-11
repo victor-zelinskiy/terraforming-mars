@@ -597,3 +597,25 @@ Steam Big Picture), bumper surface-cycling; radial menu **rejected**
   full-game-on-controller verification (needs a physical pad), Electron
   smoke, spectator-home scope, glyph-set/deadzone settings UI. The `?gp=0`
   kill switch is live for everything shipped above.
+- **2026-09-11 — the RELOAD-BOUNDARY FIRST PRESS (field report: «A works only
+  on the second press» after every transition — campaign mission list,
+  corporation pick).** Root cause: every screen boundary is a full reload
+  (`navigateWithCurtain`), and Chromium's privacy gate hides a connected pad
+  from a fresh document until a button goes down — so the pad's FIRST
+  SIGHTING and the player's first deliberate press are the same event, and
+  the old first-sighting rule (seed silently, "pad-wake gesture") ate exactly
+  one press per transition. Fix: `firstSightingFrame` (pure, in
+  `gamepadPollModel.ts`) — a sighting within `PAD_WAKE_CARRYOVER_MS` (1.5 s)
+  of install, or a RE-sighting of an index this page already saw (reconnect
+  wake), still seeds silently (the held-over exit-click A must not
+  auto-fire); a LATE first-ever sighting IS the press and emits its edges by
+  diffing against an empty baseline. The scene-transition curtain gate
+  remains the independent second net. Mid-session baseline wipes (source
+  handover, native set change) now RE-SEED IN PLACE (`reseedBaselines`) so
+  the synthesis can never double-fire or phantom-fire; the native→Chromium
+  handover additionally finishes the frame on the OLD source first, so the
+  press that CAUSED the handover is delivered exactly once whichever side
+  sampled it first (the Steam Machine race). Guards: 6 new pure specs in
+  `gamepadPollModel.spec.ts` + e2e `console-gamepad-first-press.spec.ts`
+  (emulates the gate against the real input core on the campaign map; proven
+  red on the pre-fix bundle, 8/8 green on the fix).
