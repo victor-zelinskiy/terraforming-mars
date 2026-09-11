@@ -57,6 +57,9 @@ export type InfoRouteId =
   | 'actions'
   /** «Эффекты» — passive effects/discounts (humans only). */
   | 'effects'
+  /** «Кампания» — the full campaign overview (campaign missions only):
+   *  the route, participants, legacy and mission history, read-only. */
+  | 'campaign'
   /** «Экран бота» — the bot's internals hub (bot only): decks, piles,
    *  storage rules, conversion, difficulty; hosts the two deep references. */
   | 'botScreen'
@@ -81,6 +84,7 @@ const INFO_ROUTE_PARENT: Record<InfoRouteId, InfoRouteId | undefined> = {
   extras: 'summary',
   actions: 'summary',
   effects: 'summary',
+  campaign: 'summary',
   botScreen: 'summary',
   botBoard: 'botScreen',
   botBonus: 'botScreen',
@@ -170,6 +174,9 @@ const INFO_ROUTE_STAGE: Record<InfoRouteId, string> = {
   extras: 'Extra resources',
   actions: 'Actions',
   effects: 'Effects',
+  // Dynamic: the campaign overview supplies its own tail (its nested
+  // read-only layers name themselves — «Кампания · Миссия 2»).
+  campaign: '',
   botScreen: 'MarsBot screen',
   botBoard: 'MarsBot board',
   botBonus: 'Bonus cards',
@@ -191,7 +198,14 @@ export function infoRouteStage(route: InfoRouteId): string {
  * «botdoor» is the bot's entry into its internals screen — a ring stop
  * like every other zone (no dedicated button opens it any more).
  */
-export type InfoZoneId = 'extras' | 'vp' | 'played' | 'actions' | 'effects' | 'botdoor';
+export type InfoZoneId = 'extras' | 'vp' | 'played' | 'actions' | 'effects' | 'campaign' | 'botdoor';
+
+/**
+ * GAME-SHAPE context of the zone table — what exists in THIS game (not on
+ * this participant). Optional everywhere with the conservative default, so
+ * an ordinary game's call sites stay untouched.
+ */
+export type InfoZoneContext = {campaign?: boolean};
 
 /** The summary layout: columns of zones, read left → right, top → bottom.
  *  (The old «Карты» readout zone is GONE — the HAND DOCK is the inspected
@@ -200,7 +214,7 @@ export const INFO_SUMMARY_COLUMNS: ReadonlyArray<ReadonlyArray<InfoZoneId>> = [
   ['extras'],
   ['vp'],
   ['played'],
-  ['actions', 'effects', 'botdoor'],
+  ['actions', 'effects', 'campaign', 'botdoor'],
 ];
 
 /** The detail route a zone opens, if any. */
@@ -210,6 +224,7 @@ const ZONE_ROUTE: Record<InfoZoneId, InfoRouteId | undefined> = {
   played: 'played',
   actions: 'actions',
   effects: 'effects',
+  campaign: 'campaign',
   botdoor: 'botScreen',
 };
 
@@ -221,13 +236,18 @@ export function infoZoneRoute(zone: InfoZoneId): InfoRouteId | undefined {
  * Does this zone EXIST on the summary for this participant kind? The
  * human-only pair is HIDDEN for the bot (per the parity contract: absence
  * must not shift the shared zones — the layout reserves their area).
+ * «campaign» exists only in campaign missions (a GAME fact, so it shows for
+ * every participant kind there and for nobody elsewhere).
  */
-export function infoZonePresent(zone: InfoZoneId, kind: InfoParticipantKind): boolean {
+export function infoZonePresent(zone: InfoZoneId, kind: InfoParticipantKind, ctx: InfoZoneContext = {}): boolean {
   if (zone === 'actions' || zone === 'effects') {
     return kind === 'human';
   }
   if (zone === 'botdoor') {
     return kind === 'bot';
+  }
+  if (zone === 'campaign') {
+    return ctx.campaign === true;
   }
   return true;
 }
@@ -238,17 +258,17 @@ export function infoZonePresent(zone: InfoZoneId, kind: InfoParticipantKind): bo
  * it would advertise an A that does nothing — forbidden by the command-bar
  * honesty rule. An absent zone is not focusable by definition.
  */
-export function infoZoneFocusable(zone: InfoZoneId, kind: InfoParticipantKind): boolean {
+export function infoZoneFocusable(zone: InfoZoneId, kind: InfoParticipantKind, ctx: InfoZoneContext = {}): boolean {
   const route = ZONE_ROUTE[zone];
-  return infoZonePresent(zone, kind) && route !== undefined && infoRouteApplies(route, kind);
+  return infoZonePresent(zone, kind, ctx) && route !== undefined && infoRouteApplies(route, kind);
 }
 
 /** The focusable zones for a participant kind, in canonical order. */
-export function infoFocusRing(kind: InfoParticipantKind): ReadonlyArray<InfoZoneId> {
+export function infoFocusRing(kind: InfoParticipantKind, ctx: InfoZoneContext = {}): ReadonlyArray<InfoZoneId> {
   const ring: Array<InfoZoneId> = [];
   for (const column of INFO_SUMMARY_COLUMNS) {
     for (const zone of column) {
-      if (infoZoneFocusable(zone, kind)) {
+      if (infoZoneFocusable(zone, kind, ctx)) {
         ring.push(zone);
       }
     }
@@ -267,9 +287,10 @@ export function infoZoneNavigate(
   from: InfoZoneId,
   dir: 'up' | 'down' | 'left' | 'right',
   kind: InfoParticipantKind,
+  ctx: InfoZoneContext = {},
 ): InfoZoneId {
   const columns = INFO_SUMMARY_COLUMNS
-    .map((col) => col.filter((z) => infoZoneFocusable(z, kind)))
+    .map((col) => col.filter((z) => infoZoneFocusable(z, kind, ctx)))
     .filter((col) => col.length > 0);
   const colIdx = columns.findIndex((col) => col.includes(from));
   if (colIdx === -1) {
@@ -305,6 +326,7 @@ export function infoZoneForRoute(route: InfoRouteId): InfoZoneId | undefined {
   case 'extras': return 'extras';
   case 'actions': return 'actions';
   case 'effects': return 'effects';
+  case 'campaign': return 'campaign';
   case 'botScreen':
   case 'botBoard':
   case 'botBonus':

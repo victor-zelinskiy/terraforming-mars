@@ -37,6 +37,16 @@ export type SerializedMissionSlot = {
    * into any wire model.
    */
   finalHands?: Record<number, Array<CardName>>;
+  /**
+   * The project cards each seat carried INTO this mission, snapshotted at
+   * launch (the moment the interlude carryover is consumed — the live
+   * `carryover` window is overwritten by the next commit, so this is the
+   * durable history the campaign overview reads). Absent on mission 1
+   * (nothing can be carried into it) and on slots launched before this
+   * field existed — absent means UNKNOWN, never «0 cards». Card names stay
+   * owner-only in every wire projection; other viewers see counts.
+   */
+  carriedBySeat?: Record<number, Array<CardName>>;
   /** D12 board repairs of a blocked slot — part of the public chronicle. */
   repairs?: Array<{atMs: number, fromBoard: BoardName, toBoard: BoardName}>;
 };

@@ -168,143 +168,33 @@
     top: -2.6rem;
   }
 
+  /* The mission card is the SHARED .ccard (CampaignMissionCard — the same
+     component the in-game overview renders); this button is a bare hit +
+     cursor wrapper. The state/cursor modifiers stay as e2e/behavior markers
+     (the card paints them itself); only the waiting swell lives here. */
   &__card {
     position: relative;
     width: min(15.5rem, 100%);
-    padding: 0.9rem 0.9rem 0.8rem;
-    border-radius: 0.6rem;
-    border: 1px solid rgba(120, 140, 165, 0.35);
-    background: linear-gradient(180deg, rgba(20, 28, 40, 0.92), rgba(13, 19, 29, 0.95));
+    padding: 0;
+    border: none;
+    background: none;
     color: inherit;
     font: inherit;
-    text-align: center;
+    text-align: inherit;
     cursor: pointer;
-    transition:
-      transform calc(180ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1),
-      box-shadow calc(180ms * var(--motion-scale, 1)) ease;
+    display: block;
+    transition: transform calc(480ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
 
-    /* completed: calm material (plate text carries the state too) */
-    &--done {
-      border-color: rgba(120, 150, 128, 0.45);
-      background: linear-gradient(180deg, rgba(19, 27, 32, 0.9), rgba(12, 18, 23, 0.94));
-    }
-    /* current: elevated, brightest border material */
-    &--current {
-      transform: scale(1.05);
-      border-color: rgba(240, 208, 130, 0.8);
-      box-shadow: 0 0.6rem 1.6rem rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(240, 208, 130, 0.35);
-      z-index: 1;
-    }
-    /* future: veiled + smaller (board still named — the route is public) */
-    &--future {
-      transform: scale(0.94);
-      border-color: rgba(100, 116, 136, 0.3);
-      opacity: 0.72;
-    }
-    /* the finale reads as a destination, never a competing CTA */
-    &--final {
-      border-width: 2px;
-    }
-    &--cursor {
-      box-shadow: 0 0 0 2px rgba(120, 200, 255, 0.85), 0 0.6rem 1.6rem rgba(0, 0, 0, 0.5);
-    }
-    &--current.cmap__card--cursor {
-      box-shadow: 0 0 0 2px rgba(120, 200, 255, 0.85), 0 0 0 4px rgba(240, 208, 130, 0.3), 0 0.6rem 1.6rem rgba(0, 0, 0, 0.5);
-    }
+    > .ccard { width: 100%; }
+
     /* THE WAITING FOCUS — entering the waiting stage grows the next mission
        card into the composition's hero (a calm 480 ms swell, transform-only)
        so the transition into «ожидание» reads as an arrival at the mission,
        not as a frozen browse screen. */
     &--waitfocus {
-      transform: scale(1.09);
-      border-color: rgba(240, 208, 130, 0.95);
-      box-shadow: 0 0.9rem 2.2rem rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(240, 208, 130, 0.5);
-      transition-duration: calc(480ms * var(--motion-scale, 1));
+      transform: scale(1.05);
+      z-index: 1;
     }
-    &--waitfocus.cmap__card--cursor {
-      box-shadow: 0 0 0 2px rgba(120, 200, 255, 0.85), 0 0.9rem 2.2rem rgba(0, 0, 0, 0.55), 0 0 0 4px rgba(240, 208, 130, 0.35);
-    }
-  }
-
-  &__final-banner {
-    position: absolute;
-    top: -0.8rem;
-    left: 50%;
-    transform: translateX(-50%);
-    padding: 0.1rem 0.7rem;
-    border-radius: 0.3rem;
-    border: 1px solid rgba(216, 178, 106, 0.7);
-    background: rgba(30, 24, 14, 0.95);
-    color: #ecd39a;
-    font-size: 0.75rem;
-    letter-spacing: 0.3em;
-    text-transform: uppercase;
-  }
-
-  &__map {
-    display: flex;
-    justify-content: center;
-    pointer-events: none;
-  }
-  &__board-name {
-    margin-top: 0.4rem;
-    font-size: 1.05rem;
-    font-weight: 600;
-    letter-spacing: 0.06em;
-    color: #e8eef6;
-  }
-  &__state {
-    margin-top: 0.2rem;
-    font-size: 0.78rem;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-    color: #93a5ba;
-
-    &--committed { color: #9fc3a4; }
-    &--active { color: #e8c884; }
-    &--ready { color: #a9d5ef; }
-  }
-
-  &__results {
-    margin-top: 0.55rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.22rem;
-    text-align: left;
-  }
-  &__result-row {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    font-size: 0.82rem;
-    color: #b9c6d6;
-    min-width: 0;
-  }
-  &__result-place {
-    width: 1rem;
-    text-align: right;
-    color: #8fa2b8;
-    flex: 0 0 auto;
-  }
-  &__result-cube {
-    width: 0.6rem;
-    height: 0.6rem;
-    border-radius: 0.12rem;
-    flex: 0 0 auto;
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.2);
-  }
-  &__result-name {
-    flex: 1 1 auto;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  &__result-title {
-    width: 1.35rem;
-    height: 1.35rem;
-    object-fit: contain;
-    flex: 0 0 auto;
   }
 
   &__blocked {
@@ -380,10 +270,22 @@
     height: 1.5rem;
     object-fit: contain;
   }
+  /* TP + its SEMANTICS note stacked: the number alone lies by omission —
+     «15 ОТ» means nothing without «учитываются только в финале» /
+     «уже включены в ПО» (the shared tpStatusLabel wording). */
+  &__seat-tpwrap {
+    min-width: 10.4rem;
+    display: flex;
+    flex-direction: column;
+    line-height: 1.2;
+  }
   &__seat-tp {
-    min-width: 4.6rem;
     color: #ecd39a;
     letter-spacing: 0.06em;
+  }
+  &__seat-tpnote {
+    font-size: 0.62rem;
+    color: #94886a;
   }
   /* The corporation LINEAGE on the row itself (the old dossier modal folded
      in): ordinal-numbered chips, one quiet line, ellipsized under pressure.
@@ -505,12 +407,18 @@
     }
   }
 
-  /* ── Dossiers ───────────────────────────────────────────────────────── */
+  /* ── Dossiers — the SHARED bodies (.cmres «Итоги миссии» / .cleg
+     «Наследие») inside the cm-overlay chassis. The old bespoke dossier
+     rows and the folded-away lineage block are GONE — one markup with the
+     in-game Information overview. ───────────────────────────────────── */
   &__dossier {
     min-width: 30rem;
     max-width: 44rem;
 
-    &--wide { min-width: 38rem; }
+    &--results { min-width: 42rem; max-width: 58rem; }
+    &--legacy { min-width: 46rem; max-width: 66rem; }
+
+    .cmres, .cleg { padding-top: 0.6rem; }
   }
   &__dossier-sub {
     margin-left: 0.8rem;
@@ -519,78 +427,14 @@
     text-transform: uppercase;
     color: #8fa2b8;
   }
-  &__dossier-body {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-    padding-top: 0.6rem;
-  }
-  &__dossier-row {
-    display: flex;
-    align-items: center;
-    gap: 0.6rem;
-    font-size: 1rem;
-  }
-  &__dossier-name {
-    flex: 1 1 auto;
-    color: #e8eef6;
-    display: flex;
-    align-items: baseline;
-    gap: 0.6rem;
-  }
-  &__dossier-tied {
-    font-size: 0.75rem;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: #a9d5ef;
-  }
-  &__dossier-score { color: #b9c6d6; }
-  &__dossier-title {
-    width: 2.2rem;
-    height: 2.2rem;
-    object-fit: contain;
-  }
-  &__dossier-gens {
-    margin-top: 0.4rem;
-    font-size: 0.85rem;
-    color: #8fa2b8;
-  }
-  &__dossier-brief { color: #b9c6d6; }
-
-  &__lineage {
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-    padding: 0.4rem 0;
-    border-bottom: 1px solid rgba(120, 140, 165, 0.18);
-
-    &:last-child { border-bottom: none; }
-  }
-  &__lineage-head {
-    display: flex;
-    align-items: center;
-    gap: 0.6rem;
-  }
-  &__lineage-corps {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.4rem 1rem;
-    padding-left: 1.4rem;
-    color: #cdd8e4;
-    font-size: 0.9rem;
-  }
-  &__lineage-corp {
-    display: inline-flex;
-    align-items: baseline;
-    gap: 0.35rem;
-  }
-  &__lineage-ord {
-    font-size: 0.72rem;
-    color: #8fa2b8;
-  }
-  &__lineage-none {
-    color: #8fa2b8;
-    font-size: 0.85rem;
+  &__legcube {
+    display: inline-block;
+    width: 0.8rem;
+    height: 0.8rem;
+    margin-right: 0.45rem;
+    border-radius: 0.16rem;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25);
+    vertical-align: baseline;
   }
 
   /* ── Generation reveal (played once, CSS-only, transform/opacity) ───── */

@@ -22,6 +22,7 @@ import {CardType} from '../../common/cards/CardType';
 import {OneOrArray} from '../../common/utils/types';
 import {globalInitialize} from '../globalInitialize';
 import {buildCardInformation, writeCardInfoArtifacts} from './cardInfo/buildCardInformation';
+import {buildBoardLayouts} from '../boards/boardLayoutExport';
 
 type Mutable<T> = {
   -readonly [P in keyof T]: T[P];
@@ -253,3 +254,6 @@ fs.writeFileSync('src/genfiles/events.json', JSON.stringify(GlobalEventProcessor
 fs.writeFileSync('src/genfiles/colonies.json', JSON.stringify(ColoniesProcessor.json, null, 2));
 fs.writeFileSync('src/genfiles/milestones.json', JSON.stringify(MilestoneProcessor.json, null, 2));
 fs.writeFileSync('src/genfiles/awards.json', JSON.stringify(AwardProcessor.json, null, 2));
+// Real board layouts for the client board miniatures (campaign mission
+// cards, create-game map deck). See common/boards/BoardLayout.ts.
+fs.writeFileSync('src/genfiles/boardLayouts.json', JSON.stringify(buildBoardLayouts()));

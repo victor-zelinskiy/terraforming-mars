@@ -30,7 +30,7 @@
         </div>
         <div class="cmap__route">
           <div
-            v-for="m in vm.missions"
+            v-for="{m, ov} in routeNodes"
             :key="m.slot"
             class="cmap__node"
             :class="{'cmap__node--finalparty': m.isCurrent && m.final}"
@@ -45,6 +45,10 @@
                 :class="`player_bg_color_${row.color}`"
               ></span>
             </div>
+            <!-- The SHARED mission card (CampaignMissionCard — the same
+                 component the in-game Information overview renders): real
+                 board geometry, state dressing, the compact podium. The
+                 button is a bare hit/cursor wrapper; the card paints. -->
             <button
               type="button"
               class="cmap__card"
@@ -58,28 +62,11 @@
               }"
               @click="onRouteClick(m.slot)"
             >
-              <div v-if="m.final" class="cmap__final-banner" v-i18n>Finale</div>
-              <div class="cmap__map">
-                <PremiumMapFingerprint :map-id="m.board" variant="card" :accent="accentOf(m.board)" />
-              </div>
-              <div class="cmap__board-name">{{ $t(boardLabel(m.board)) }}</div>
-              <div class="cmap__state" :class="`cmap__state--${m.state}`">
-                <span v-i18n>{{ m.stateLabel }}</span>
-              </div>
-              <!-- Compact result strip: place-ordered cubes + earned title emblems. -->
-              <div v-if="m.results !== undefined" class="cmap__results">
-                <div v-for="row in m.results" :key="row.seat" class="cmap__result-row">
-                  <span class="cmap__result-place">{{ row.place }}</span>
-                  <span class="cmap__result-cube" :class="`player_bg_color_${row.color}`"></span>
-                  <span class="cmap__result-name">{{ row.name }}</span>
-                  <img
-                    v-if="row.title !== undefined"
-                    class="cmap__result-title"
-                    :src="titleArtUrl(row.title)"
-                    :alt="$t(titleLabel(row.title))"
-                  />
-                </div>
-              </div>
+              <CampaignMissionCard
+                :mission="ov"
+                :cursor="cursor.zone === 'route' && cursor.index === m.slot"
+                :reveal="true"
+                :reveal-delay-ms="revealPlaying ? 420 + m.slot * 300 : 80 + m.slot * 70" />
               <div v-if="m.blockedReason !== undefined" class="cmap__blocked">
                 <span v-i18n>{{ m.blockedReason }}</span>
               </div>
@@ -124,7 +111,10 @@
               :alt="$t(titleLabel(t.title))"
             />
           </span>
-          <span class="cmap__seat-tp">{{ tpText(row.titlePoints) }}</span>
+          <span class="cmap__seat-tpwrap">
+            <span class="cmap__seat-tp">{{ tpText(row.titlePoints) }}</span>
+            <span class="cmap__seat-tpnote">{{ $t(tpNote) }}</span>
+          </span>
           <!-- The corporation LINEAGE lives on the row itself (the old
                campaign-dossier modal, folded onto the screen). -->
           <span class="cmap__seat-corps">
@@ -158,22 +148,34 @@
            COMMITTED mission — it is the results detail (VP, titles,
            generations). A future mission's whole story already lives on its
            route card (board, position, blockers), so no modal opens there. -->
-      <div v-if="overlay?.kind === 'mission' && vm.missions[overlay.slot].results !== undefined" class="cm-overlay" role="dialog" :aria-label="$t('Mission dossier')">
-        <div class="cm-overlay__card cmap__dossier">
+      <!-- «Итоги миссии» — the SHARED results body (CampaignMissionResults,
+           the same component the in-game overview renders): standings with
+           the HISTORIC corporations, titles + TP, and the legacy this
+           result formed (start bonus M€ / carried projects). X inspects the
+           viewer's own carried cards through the ONE zoom module. -->
+      <div v-if="overlay?.kind === 'mission' && dossierDetails !== undefined" class="cm-overlay" role="dialog" :aria-label="$t('Mission dossier')">
+        <div class="cm-overlay__card cmap__dossier cmap__dossier--results">
           <div class="cm-overlay__title">
-            {{ $t(boardLabel(vm.missions[overlay.slot].board)) }}
-            <span class="cmap__dossier-sub">{{ missionOrdinal(overlay.slot) }}</span>
+            {{ $t(boardLabel(dossierDetails.board)) }}
+            <span class="cmap__dossier-sub">{{ missionOrdinal(dossierDetails.slot) }}</span>
           </div>
-          <div class="cmap__dossier-body">
-            <div v-for="row in vm.missions[overlay.slot].results" :key="row.seat" class="cmap__dossier-row">
-              <span class="cmap__result-place">{{ row.place }}</span>
-              <span class="cmap__result-cube" :class="`player_bg_color_${row.color}`"></span>
-              <span class="cmap__dossier-name">{{ row.name }}<span v-if="row.tied" class="cmap__dossier-tied" v-i18n>shared place</span></span>
-              <span class="cmap__dossier-score">{{ row.score }} {{ $t('VP') }}</span>
-              <img v-if="row.title !== undefined" class="cmap__dossier-title" :src="titleArtUrl(row.title)" :alt="$t(titleLabel(row.title))" />
-            </div>
-            <div class="cmap__dossier-gens">{{ generationsText(vm.missions[overlay.slot].generations ?? 0) }}</div>
+          <CampaignMissionResults :details="dossierDetails" :you-seat="state.model?.you?.seat" :bot-corporation="state.model?.progression.botCorporation" />
+        </div>
+      </div>
+
+      <!-- «Наследие участника» — the SHARED seat-legacy body (the same
+           component as the in-game overview): the composition with its
+           mission-of-origin badges, the start bonus with an honest status,
+           the carried projects (view-only faces) and the title ledger.
+           A opens it from the seat row; X inspects the focused card. -->
+      <div v-if="overlay?.kind === 'legacy' && legacyVm !== undefined" class="cm-overlay" role="dialog" :aria-label="$t('Legacy')">
+        <div class="cm-overlay__card cmap__dossier cmap__dossier--legacy">
+          <div class="cm-overlay__title">
+            <span class="cmap__legcube" :class="`player_bg_color_${legacyVm.color}`"></span>
+            {{ legacyVm.name }}
+            <span class="cmap__dossier-sub" v-i18n>Legacy</span>
           </div>
+          <CampaignSeatLegacy :legacy="legacyVm" :cursor-index="legacyCards.length > 0 ? legacyCursor : undefined" />
         </div>
       </div>
 
@@ -236,9 +238,23 @@ import {currentServerEndpoint} from '@/client/utils/runtimeConfig';
 import {pinServerEndpoint} from '@/client/utils/serverEndpoints';
 import ConsoleCommandBar, {ConsoleCommand} from '@/client/components/console/ConsoleCommandBar.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
-import PremiumMapFingerprint from '@/client/components/create/premium/PremiumMapFingerprint.vue';
 import ConsoleCarryoverPicker from './ConsoleCarryoverPicker.vue';
-import {mapMeta, mapLabelKey} from '@/client/components/create/premium/createGameMeta';
+import CampaignMissionCard from './CampaignMissionCard.vue';
+import CampaignMissionResults from './CampaignMissionResults.vue';
+import CampaignSeatLegacy from './CampaignSeatLegacy.vue';
+import {mapLabelKey} from '@/client/components/create/premium/createGameMeta';
+import {CardModel} from '@/common/models/CardModel';
+import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
+import {
+  CampaignOverviewVm,
+  MissionDetailsVm,
+  OverviewMissionCard,
+  SeatLegacyVm,
+  buildCampaignOverview,
+  buildMissionDetails,
+  buildSeatLegacy,
+  tpStatusLabel,
+} from '@/client/console/campaign/campaignOverviewModel';
 import {
   campaignState,
   launchCampaignMission,
@@ -256,13 +272,14 @@ import {$t, translateTextWithParams} from '@/client/directives/i18n';
 
 type MapOverlay =
   | {kind: 'mission', slot: number}
+  | {kind: 'legacy', seat: number}
   | {kind: 'carryover'};
 
 const REVEAL_LATCH = 'tm_campaign_reveal';
 
 export default defineComponent({
   name: 'ConsoleCampaignMap',
-  components: {ConsoleCommandBar, GamepadGlyph, PremiumMapFingerprint, ConsoleCarryoverPicker},
+  components: {ConsoleCommandBar, GamepadGlyph, ConsoleCarryoverPicker, CampaignMissionCard, CampaignMissionResults, CampaignSeatLegacy},
   props: {
     /** Hosted as an endgame scene: no own bg/pad/command bar; the host routes
      *  intents into `handleIntent` and reads `commands` for its own bar. */
@@ -300,12 +317,68 @@ export default defineComponent({
       autoJoinArmed: false,
       /** A join navigation is in flight — absorbs duplicates. */
       joining: false,
+      /** Cursor over the legacy overlay's inspectable cards. */
+      legacyCursor: 0,
       offPad: undefined as (() => void) | undefined,
     };
   },
   computed: {
     vm(): CampaignMapVm | undefined {
       return this.state.model !== undefined ? buildCampaignMapVm(this.state.model) : undefined;
+    },
+    /** The SHARED overview projection — mission cards, provenance, TP
+     *  semantics (one model with the in-game Information overview). */
+    overviewVm(): CampaignOverviewVm | undefined {
+      return this.state.model !== undefined ? buildCampaignOverview(this.state.model) : undefined;
+    },
+    /** The route nodes pair the map vm (CTA/party/blockers) with the shared
+     *  overview card (the painted mission card). Both derive from ONE model,
+     *  so the slots align by construction. */
+    routeNodes(): ReadonlyArray<{m: CampaignMapVm['missions'][number], ov: OverviewMissionCard}> {
+      const vm = this.vm;
+      const overview = this.overviewVm;
+      if (vm === undefined || overview === undefined) {
+        return [];
+      }
+      return vm.missions.map((m) => ({m, ov: overview.missions[m.slot]}));
+    },
+    /** The one TP semantics note of this campaign frame (shared wording). */
+    tpNote(): string {
+      const overview = this.overviewVm;
+      if (overview === undefined || overview.seats.length === 0) {
+        return '';
+      }
+      return tpStatusLabel(overview.seats[0].tpStatus);
+    },
+    /** «Итоги миссии» of the OPEN mission overlay (shared body). */
+    dossierDetails(): MissionDetailsVm | undefined {
+      if (this.overlay?.kind !== 'mission' || this.state.model === undefined) {
+        return undefined;
+      }
+      return buildMissionDetails(this.state.model, this.overlay.slot);
+    },
+    /** The viewer's own carried-out cards of the open dossier (X inspects). */
+    dossierCards(): ReadonlyArray<CardModel> {
+      return (this.dossierDetails?.outgoing?.carried.yourCards ?? []).map((name) => ({name} as CardModel));
+    },
+    /** «Наследие» of the OPEN seat overlay (shared body; the map's frame is
+     *  the CURRENT mission — the pointer). */
+    legacyVm(): SeatLegacyVm | undefined {
+      if (this.overlay?.kind !== 'legacy' || this.state.model === undefined) {
+        return undefined;
+      }
+      return buildSeatLegacy(this.state.model, this.overlay.seat, {contextSlot: this.state.model.pointer});
+    },
+    /** The legacy overlay's inspectable ring: corps then carried. */
+    legacyCards(): ReadonlyArray<CardModel> {
+      const legacy = this.legacyVm;
+      if (legacy === undefined) {
+        return [];
+      }
+      return [
+        ...legacy.corps.map((c) => ({name: c.name} as CardModel)),
+        ...(legacy.carried.names ?? []).map((name) => ({name} as CardModel)),
+      ];
     },
     progressText(): string {
       const vm = this.vm;
@@ -340,6 +413,9 @@ export default defineComponent({
       if (this.overlay?.kind === 'mission') {
         return 'Mission dossier';
       }
+      if (this.overlay?.kind === 'legacy') {
+        return 'Legacy';
+      }
       return 'Campaign';
     },
     commands(): ReadonlyArray<ConsoleCommand> {
@@ -362,6 +438,23 @@ export default defineComponent({
         carryCmds.push({control: 'back', label: 'Close'});
         return carryCmds;
       }
+      if (this.overlay?.kind === 'mission') {
+        const cmds: Array<ConsoleCommand> = [];
+        if (this.dossierCards.length > 0) {
+          cmds.push({control: 'secondary', label: 'Inspect'});
+        }
+        cmds.push({control: 'back', label: 'Close'});
+        return cmds;
+      }
+      if (this.overlay?.kind === 'legacy') {
+        const cmds: Array<ConsoleCommand> = [];
+        if (this.legacyCards.length > 0) {
+          cmds.push({control: 'dpad', label: 'Choose'});
+          cmds.push({control: 'secondary', label: 'Inspect'});
+        }
+        cmds.push({control: 'back', label: 'Close'});
+        return cmds;
+      }
       if (this.overlay !== undefined) {
         return [{control: 'back', label: 'Close'}];
       }
@@ -371,6 +464,11 @@ export default defineComponent({
       const verb = this.routeVerb;
       if (verb !== undefined) {
         cmds.push({control: 'confirm', label: verb.label, enabled: verb.enabled});
+      }
+      // A on a seat row — the participant's full legacy (composition with
+      // provenance, start bonus, carried projects, the title ledger).
+      if (this.cursor.zone === 'rail') {
+        cmds.push({control: 'confirm', label: 'Open: participant legacy'});
       }
       // X — the results detail, offered only where results EXIST.
       if (this.dossierSlot !== undefined) {
@@ -618,9 +716,6 @@ export default defineComponent({
     boardLabel(board: BoardName): string {
       return mapLabelKey(board);
     },
-    accentOf(board: BoardName): string {
-      return mapMeta(board).accent;
-    },
     titleLabel(title: TitleName): string {
       return TITLE_LABEL[title];
     },
@@ -629,9 +724,6 @@ export default defineComponent({
     },
     missionOrdinal(slot: number): string {
       return translateTextWithParams('Mission ${0}', [String(slot + 1)]);
-    },
-    generationsText(generations: number): string {
-      return translateTextWithParams('Generations: ${0}', [String(generations)]);
     },
     carryText(count: number): string {
       return translateTextWithParams('carrying ${0}', [String(count)]);
@@ -675,6 +767,32 @@ export default defineComponent({
       if (this.overlay?.kind === 'carryover') {
         const picker = this.$refs.carryPicker as {handleIntent?: (intent: GamepadIntent) => boolean} | undefined;
         picker?.handleIntent?.(intent);
+        return true;
+      }
+      if (this.overlay?.kind === 'mission') {
+        const action = consoleActionOf(intent, {});
+        if (action === 'inspect' && this.dossierCards.length > 0) {
+          this.zoomDossierCards();
+        } else if (action === 'back' || action === 'primary') {
+          this.closeOverlay();
+        }
+        return true;
+      }
+      if (this.overlay?.kind === 'legacy') {
+        if (intent.kind === 'nav' && (intent.dir === 'left' || intent.dir === 'right')) {
+          const n = this.legacyCards.length;
+          if (n > 0) {
+            const step = intent.dir === 'left' ? -1 : 1;
+            this.legacyCursor = Math.max(0, Math.min(n - 1, this.legacyCursor + step));
+          }
+          return true;
+        }
+        const action = consoleActionOf(intent, {});
+        if (action === 'inspect' && this.legacyCards.length > 0) {
+          this.zoomLegacyCards();
+        } else if (action === 'back') {
+          this.closeOverlay();
+        }
         return true;
       }
       if (this.overlay !== undefined) {
@@ -759,7 +877,11 @@ export default defineComponent({
         return;
       }
       if (this.cursor.zone === 'rail') {
-        return; // A rail row is a read — its whole story is on the row.
+        // A on a seat row opens the participant's full LEGACY — the
+        // composition with provenance, the start bonus and the carried
+        // projects (the row keeps the compact read).
+        this.openSeatLegacy(this.cursor.index);
+        return;
       }
       const m = vm.missions[this.cursor.index];
       if (m === undefined) {
@@ -796,6 +918,47 @@ export default defineComponent({
         return;
       }
       this.overlay = {kind: 'mission', slot};
+    },
+    openSeatLegacy(rowIndex: number): void {
+      const row = this.vm?.rail[rowIndex];
+      if (row === undefined) {
+        return;
+      }
+      this.legacyCursor = 0;
+      this.overlay = {kind: 'legacy', seat: row.seat};
+    },
+    /** Fullscreen-inspect the dossier's carried-out cards (ONE zoom module —
+     *  served by ConsoleMenuZoomHost standalone / the shell when embedded). */
+    zoomDossierCards(): void {
+      const cards = this.dossierCards;
+      if (cards.length === 0) {
+        return;
+      }
+      openConsoleCardZoom([...cards], 0, undefined, undefined, {
+        contextLabel: 'Legacy',
+        origin: slotZoomOrigin(
+          () => this.$el as HTMLElement,
+          (i) => `cmres:${cards[i]?.name ?? ''}:${i}`,
+        ),
+      });
+    },
+    /** Fullscreen-inspect the legacy overlay's ring (corps + carried). */
+    zoomLegacyCards(): void {
+      const cards = this.legacyCards;
+      if (cards.length === 0) {
+        return;
+      }
+      const index = Math.min(this.legacyCursor, cards.length - 1);
+      openConsoleCardZoom([...cards], index, undefined, undefined, {
+        contextLabel: 'Legacy',
+        origin: slotZoomOrigin(
+          () => this.$el as HTMLElement,
+          (i) => `cleg:${cards[i]?.name ?? ''}:${i}`,
+          (i) => {
+            this.legacyCursor = i;
+          },
+        ),
+      });
     },
     // ── Carryover ────────────────────────────────────────────────────────
     openCarryover(): void {

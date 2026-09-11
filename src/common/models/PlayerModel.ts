@@ -191,6 +191,11 @@ export interface PlayerViewModel extends ViewModel {
   // the first frame. Never present on shared/other-player models; undefined
   // outside campaigns (the ordinary wire shape is untouched).
   campaignCarriedCards?: ReadonlyArray<CardModel>;
+  // CAMPAIGN, self-only: whether the one-shot comeback bonus M€ of this
+  // mission has already been received (the «БОНУС КАМПАНИИ» deployment
+  // press). Lets the in-game campaign overview state «Получен» honestly
+  // instead of guessing from the setup chain. Undefined outside campaigns.
+  campaignBonusGranted?: boolean;
   preludeCardsInHand: ReadonlyArray<CardModel>;
   // Corporations whose MANDATORY first action this player still owes (server's
   // `pendingInitialActions`, projected to names). Self-only — corp identity is

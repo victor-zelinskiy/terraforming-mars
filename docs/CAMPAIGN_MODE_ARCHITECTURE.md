@@ -206,6 +206,33 @@
 > `console_endgame.less`; specs `consoleEndgameCeremony.spec.ts`, e2e
 > `tests/e2e/console-campaign-endgame.spec.ts` (a REAL played final mission).
 >
+> **Campaign overview iteration (2026-09-11):** the campaign became inspectable
+> FROM INSIDE a mission — a «Кампания» zone/route in the Information workspace
+> (`infoRoute.ts` ctx `{campaign}`, `ConsoleCampaignOverview.vue`,
+> `campaignOverviewUi.ts`) — and both surfaces now share ONE projection +
+> component family: `campaignOverviewModel.ts` (overview vm, corp provenance
+> derived from the committed result snapshots + the live tableau, TP semantics
+> `accrues-final`/`included-now`/`included-final`, mission details, seat
+> legacy with honest bonus/carried statuses) rendered by
+> `CampaignMissionCard` / `CampaignMissionResults` / `CampaignSeatLegacy`
+> (`console_campaign_overview.less`). The board miniature is REAL now:
+> `make:cards` exports `genfiles/boardLayouts.json` from the server board
+> classes (`boardLayoutExport.ts`, guard spec `tests/boards/`), and
+> `PremiumMapFingerprint` renders the actual per-hex layout (oceans/coves,
+> volcanic sites, restricted/deflection cells, printed bonuses; signature
+> glyphs at card tier, everything at hero) with a built-in reveal wave —
+> every consumer (map, creator decks, campaigns list) upgraded at once. The
+> map's dossier is the shared results body (+ outgoing legacy: start bonus,
+> carried counts/own names, X-inspect through the one zoom module), A on a
+> seat row opens the shared legacy body, the rail TP carries the semantics
+> note. DATA: `SerializedMissionSlot.carriedBySeat` (snapshotted at launch —
+> the interlude window is overwritten by the next commit; absent = UNKNOWN,
+> never zero), projected as `carriedCounts` (public) + `yourCarried`
+> (owner-only); self-only `PlayerModel.campaignBonusGranted` lets the
+> in-game overview say «Получен» honestly. Specs:
+> `tests/campaign/campaignOverviewModel.spec.ts`, the carried-in history case
+> in `CampaignManager.spec.ts`, the campaign-zone case in `infoRoute.spec.ts`.
+>
 > Known v1 residuals (deliberate, listed in the implementation report): the map's
 > generation reveal is a CSS cascade (no connector-draw ceremony yet); «Штаб» reuses the start
 > scene's sequential corp reveals under its own label (no bespoke trio screen); the

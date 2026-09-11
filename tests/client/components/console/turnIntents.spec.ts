@@ -19,6 +19,7 @@ import {cycleSection, stepIndex, stepSelectable} from '@/client/console/consoleR
 import {cyclePlayer} from '@/client/console/infoModeState';
 import type {Color} from '@/common/Color';
 import {PlayerInputModel} from '@/common/models/PlayerInputModel';
+import {PreferencesManager} from '@/client/utils/PreferencesManager';
 
 // Synthetic waitingFor trees — only the fields the walkers read.
 function or(title: string, options: Array<any>): any {
@@ -212,11 +213,17 @@ describe('promptIdentityKey — survives the in-place i18n mutation', () => {
   beforeEach(() => {
     originalTranslations = (window as any)._translations;
     (window as any)._translations = {[EN]: RU};
+    // Self-sufficient: translateText answers EN verbatim while lang==='en',
+    // so this spec must OWN the language instead of trusting whatever a
+    // bundle neighbour left behind (measured flaking under CPU load).
+    PreferencesManager.resetForTest();
+    PreferencesManager.INSTANCE.set('lang', 'ru');
   });
 
   afterEach(() => {
     // Bundle-shared: a leaked dictionary would localize every later spec.
     (window as any)._translations = originalTranslations;
+    PreferencesManager.resetForTest();
   });
 
   it('is the SAME key before and after translateMessage rewrites the title', () => {

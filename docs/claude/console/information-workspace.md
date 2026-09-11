@@ -36,10 +36,38 @@ summary ─┬─ vp            («Победные очки» — the score exp
          ├─ extras        («Доп. ресурсы»)
          ├─ actions       («Действия», human-only)
          ├─ effects       («Эффекты», human-only)
+         ├─ campaign      («Кампания», campaign missions only — a GAME fact)
          └─ botScreen     («Экран бота», bot-only)
               ├─ botBoard   («Планшет бота»)
               └─ botBonus   («Бонусные карты»)
 ```
+
+**The «Кампания» route (2026-09-11).** Campaign missions grow one more
+zone/route pair: the summary zone (mission N of M, the inspected seat's
+titles + TP with the honest scoring-semantics note, the composition count)
+and the full in-game overview (`ConsoleCampaignOverview` — the mission
+route over the REAL board miniatures, the participant rows, and two nested
+read-only layers: «Итоги миссии» / «Наследие участника», both the same
+components the standalone Campaign Map renders). Existence is a GAME-shape
+fact, not a participant fact: `infoZonePresent`/`infoZoneFocusable`/
+`infoFocusRing`/`infoZoneNavigate` take an optional `InfoZoneContext`
+(`{campaign: boolean}`, default false — ordinary call sites untouched), and
+the route applies to every inspected kind (the campaign is about the
+campaign, LB/RB on the bot keeps it). The crumb tail is DYNAMIC
+(`campaignStagePath()` in `campaignOverviewUi.ts` — «Кампания» ·
+«Миссия N» / «Наследие»); the bar contract is the overview's own
+`campaignOverviewUi.barCommands` (the consolePlayedUi mirror pattern);
+input routes through `ConsoleShell.handleInfoIntent`'s campaign branch →
+`ConsoleInfoMode.handleCampaignIntent` (unconsumed B at the base layer
+falls through to `infoBack`). The entry unfolds OUT OF the pressed
+«Кампания» zone (the rect is captured in the LEAVE hook — the enter hook
+runs after the summary detached), the exit folds back into that box; the
+overview's own choreography (mission cards surfacing, each board's real
+geometry materializing, the lane drawing, seats joining) is CSS inside the
+component, so seat switches / layer returns / data refreshes never replay
+it (they never remount the branch). The card zoom gets NO select bridge —
+read-only by construction; viewing never launches, re-grants or reveals a
+hidden hand (counts are public, names owner-only, server-enforced).
 
 The vp subtree's stage names are DYNAMIC (the selected category / family) —
 `scoreStagePath` in `scoreExplorerModel.ts` supplies the tail; the static

@@ -24,9 +24,9 @@ test.describe('campaign map', () => {
     // The route: four cards, unique boards, the last one is the finale.
     const cards = page.locator('.cmap__card');
     await expect(cards).toHaveCount(4);
-    await expect(page.locator('.cmap__final-banner')).toHaveCount(1);
+    await expect(page.locator('.ccard__final-banner')).toHaveCount(1);
     await expect(page.locator('.cmap__card--current')).toHaveCount(1);
-    const boardNames = await page.locator('.cmap__board-name').allTextContents();
+    const boardNames = await page.locator('.ccard__board-name').allTextContents();
     expect(new Set(boardNames.map((s) => s.trim())).size).toBe(4);
     // The party marker stands on the current node (both seats' cubes).
     await expect(page.locator('.cmap__party-cube')).toHaveCount(2);
@@ -73,7 +73,7 @@ test.describe('campaign map', () => {
 
     // Mission 1 committed: the result strip with title emblems (real PNGs).
     await expect(page.locator('.cmap__card--done')).toHaveCount(1);
-    await expect(page.locator('.cmap__result-title').first()).toBeVisible();
+    await expect(page.locator('.ccard__result-title').first()).toBeVisible();
     // The rail: TP accumulated (Governor 15 for the winner, seat 0 = Alice).
     const railText = await page.locator('.cmap__rail').innerText();
     expect(railText).toContain('15');
@@ -84,7 +84,7 @@ test.describe('campaign map', () => {
     await press(page, 'ArrowLeft', 300);
     await press(page, 'KeyX', 400);
     await expect(page.locator('.cmap__dossier')).toBeVisible();
-    await expect(page.locator('.cmap__dossier-score').first()).toBeVisible();
+    await expect(page.locator('.cmres__score').first()).toBeVisible();
     await press(page, 'Escape', 400);
     await expect(page.locator('.cmap__dossier')).toHaveCount(0);
 
@@ -201,7 +201,7 @@ test.describe('campaign map', () => {
     await openMapAs(page, id, 'Alice');
     // The party stands on the FINAL node now — both markers render there.
     const party = (await page.locator('.cmap__party').boundingBox())!;
-    const banner = (await page.locator('.cmap__final-banner').boundingBox())!;
+    const banner = (await page.locator('.ccard__final-banner').boundingBox())!;
     const overlap = party.x < banner.x + banner.width && banner.x < party.x + party.width &&
       party.y < banner.y + banner.height && banner.y < party.y + party.height;
     expect(overlap, `party ${JSON.stringify(party)} vs banner ${JSON.stringify(banner)}`).toBeFalsy();

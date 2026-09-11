@@ -148,6 +148,26 @@
             </div>
           </section>
 
+          <!-- «КАМПАНИЯ» — campaign missions only: the mission frame, the
+               viewed seat's titles/TP with their honest scoring semantics,
+               and the composition count. The full overview is one A away. -->
+          <section v-if="campaignContract !== undefined" class="con-info__zone con-info__zone--campaign"
+                   :class="zoneStateClass('campaign')" data-zone="campaign">
+            <h3 class="con-info__block-title">{{ $t('Campaign') }}</h3>
+            <div class="con-info__stat-lines">
+              <div class="con-info__stat-line"><span>{{ $t('Mission') }}</span><b class="con-info__mint">{{ campaignMissionText }}</b></div>
+              <div class="con-info__stat-line"><span>{{ $t('Titles') }}</span>
+                <span class="con-info__ctitles">
+                  <img v-for="(t, i) in campaignViewedTitles" :key="i" class="con-info__ctitle" :src="titleArtUrl(t.title)" :alt="$t(titleLabel(t.title))">
+                  <b v-if="campaignViewedTitles.length === 0" class="con-info__cmuted">—</b>
+                </span>
+              </div>
+              <div class="con-info__stat-line"><span>{{ $t('Title Points') }}</span><b>{{ campaignTpText }}</b></div>
+              <div class="con-info__stat-line"><span>{{ $t('Corporations') }}</span><b>{{ campaignCorpCount }}</b></div>
+            </div>
+            <div class="con-info__note con-info__note--tp">{{ $t(campaignTpNote) }}</div>
+          </section>
+
           <!-- The bot's door to its internals — a calm entry, not a data
                dump: the algorithm's own room is one A away (a ring stop
                like every other zone). -->
@@ -204,6 +224,13 @@
            (human cards / the bot's real pools). -->
       <div v-else-if="infoModeState.route === 'extras'" key="extras" class="con-info__exrhost" data-insp-slide>
         <ConsoleExtrasExplorer ref="extrasView" :playerView="playerView" />
+      </div>
+
+      <!-- ── «КАМПАНИЯ» — the full in-game campaign overview: the route
+           dominates, participants read second, results/legacy unfold as
+           nested layers of the same surface. Read-only by construction. -->
+      <div v-else-if="infoModeState.route === 'campaign'" key="campaign" class="con-info__cmphost" data-insp-slide>
+        <ConsoleCampaignOverview ref="campaignView" :playerView="playerView" :viewedColor="viewed.color" />
       </div>
 
       <!-- ── «ДЕЙСТВИЯ» (human) ─────────────────────────────────────────── -->
@@ -324,6 +351,13 @@ import EffectBlock from '@/client/components/effects/EffectBlock.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import type {ConsoleCommand} from '@/client/console/consoleCommandModel';
 import {setPanelCommands, clearPanelCommands} from '@/client/console/consolePanelUi';
+import ConsoleCampaignOverview from '@/client/components/console/campaign/ConsoleCampaignOverview.vue';
+import {campaignOverviewUi, campaignStagePath} from '@/client/console/campaign/campaignOverviewUi';
+import {campaignState, openCampaign, setCampaignViewerName} from '@/client/console/campaign/campaignState';
+import {CampaignGameContract} from '@/common/campaign/CampaignGameContract';
+import {TitleName} from '@/common/campaign/CampaignTypes';
+import {TITLE_LABEL, titleArtUrl} from '@/client/console/campaign/titleArt';
+import {tpStatusLabel} from '@/client/console/campaign/campaignOverviewModel';
 
 /** The played-summary rows follow the table's zone order + caption keys. */
 const PLAYED_SUMMARY_LABEL: ReadonlyArray<{key: string, label: string}> = [
@@ -337,7 +371,7 @@ const PLAYED_SUMMARY_LABEL: ReadonlyArray<{key: string, label: string}> = [
 
 export default defineComponent({
   name: 'ConsoleInfoMode',
-  components: {ConsoleMarsBotSections, ConsolePlayedOverlay, ConsoleScoreExplorer, ConsoleExtrasExplorer, ConsoleWsHead, EffectBlock, GamepadGlyph},
+  components: {ConsoleCampaignOverview, ConsoleMarsBotSections, ConsolePlayedOverlay, ConsoleScoreExplorer, ConsoleExtrasExplorer, ConsoleWsHead, EffectBlock, GamepadGlyph},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     myTurn: {type: Boolean, default: false},
@@ -348,6 +382,10 @@ export default defineComponent({
       /** The previous route's depth — signs the zone-swap direction
        *  (descend rises from below, B sinks back). */
       lastDepth: 0,
+      /** The «Кампания» zone's rect, captured while the summary is still
+       *  in the DOM (the out-in enter hook runs after it left) — the
+       *  campaign overview unfolds from this box. */
+      campaignZoneRect: undefined as {left: number, top: number, width: number, height: number} | undefined,
     };
   },
   computed: {
@@ -398,10 +436,74 @@ export default defineComponent({
      *  DYNAMICALLY (the selected category / family — `scoreStagePath`).
      *  Already translated (stageRaw). */
     stagePhrase(): string {
+      if (this.infoModeState.route === 'campaign') {
+        // The campaign overview names its own tail (its nested layers).
+        return campaignStagePath().join(' · ');
+      }
       const path = this.isVpRouteUp ?
         scoreStagePath(this.infoModeState.route, this.infoModeState.vpCategoryKey, this.infoModeState.vpCardsGroup) :
         infoRouteStagePath(this.infoModeState.route);
       return path.map((key) => translateText(key)).join(' · ');
+    },
+    // ── the «КАМПАНИЯ» zone (campaign missions only) ────────────────────
+    campaignContract(): CampaignGameContract | undefined {
+      return this.playerView.game.gameOptions.campaign;
+    },
+    /** The viewed participant's campaign seat (grants carry seat + color). */
+    campaignViewedSeat(): number | undefined {
+      return this.campaignContract?.grants.find((g) => g.color === this.viewed.color)?.seat;
+    },
+    campaignMissionText(): string {
+      const contract = this.campaignContract;
+      if (contract === undefined) {
+        return '';
+      }
+      return translateTextWithParams('${0} of ${1}', [String(contract.missionSlot + 1), String(contract.missionCount)]);
+    },
+    campaignViewedTitles(): ReadonlyArray<{title: TitleName}> {
+      const seat = this.campaignViewedSeat;
+      const model = campaignState.model;
+      if (seat === undefined || model === undefined) {
+        return [];
+      }
+      return model.progression.titles.filter((t) => t.seat === seat).map((t) => ({title: t.title}));
+    },
+    campaignTpText(): string {
+      const seat = this.campaignViewedSeat;
+      const model = campaignState.model;
+      if (seat === undefined || model === undefined) {
+        return '…';
+      }
+      return translateTextWithParams('${0} TP', [String(model.progression.titlePoints[seat] ?? 0)]);
+    },
+    campaignTpNote(): string {
+      return this.campaignContract?.final === true ?
+        tpStatusLabel('included-now') : tpStatusLabel('accrues-final');
+    },
+    campaignCorpCount(): string {
+      const seat = this.campaignViewedSeat;
+      const contract = this.campaignContract;
+      if (seat === undefined || contract === undefined) {
+        return '—';
+      }
+      if (this.viewedIsBot) {
+        return '1';
+      }
+      // The lineage entering this mission + the mission's own pick, read
+      // from the LIVE tableau (public) — the same derivation the overview
+      // uses.
+      let count = 0;
+      for (const c of this.viewed.tableau) {
+        try {
+          if (getCard(c.name)?.type === CardType.CORPORATION) {
+            count++;
+          }
+        } catch (err) {
+          // manifest gap — skip
+        }
+      }
+      const lineage = contract.grants.find((g) => g.seat === seat)?.corporations.length ?? 0;
+      return String(Math.max(count, lineage));
     },
     fallbackBody(): string {
       return this.viewedKind === 'bot' ?
@@ -576,6 +678,14 @@ export default defineComponent({
       if (route === 'extras' && extrasExplorerUi.barCommands !== undefined) {
         return [...extrasExplorerUi.barCommands];
       }
+      // …and the CAMPAIGN OVERVIEW (its nested layers change the verbs).
+      if (route === 'campaign' && campaignOverviewUi.barCommands !== undefined) {
+        return [
+          {control: 'bumperL', control2: 'bumperR', label: 'Players', priority: 1},
+          ...campaignOverviewUi.barCommands,
+          {control: 'inspect', label: 'Close', priority: 0},
+        ];
+      }
       const cmds: Array<ConsoleCommand> = [
         {control: 'bumperL', control2: 'bumperR', label: 'Players', priority: 1},
       ];
@@ -609,13 +719,14 @@ export default defineComponent({
       case 'played': return 'Played cards';
       case 'actions': return 'Actions';
       case 'effects': return 'Effects';
+      case 'campaign': return 'Campaign';
       case 'botdoor': return 'MarsBot screen';
       default: return '';
       }
     },
     /** May A enter the currently focused summary zone? */
     summaryFocusEnterable(): boolean {
-      return infoZoneFocusable(this.infoModeState.summaryFocus, this.viewedKind);
+      return infoZoneFocusable(this.infoModeState.summaryFocus, this.viewedKind, {campaign: this.campaignContract !== undefined});
     },
   },
   watch: {
@@ -638,6 +749,14 @@ export default defineComponent({
   },
   mounted() {
     this.warmExtrasArt();
+    // Campaign missions: prefetch the campaign document at panel open, so
+    // the «Кампания» zone fills its personal half and the full overview
+    // opens with its data already standing (no intermediate empty page).
+    const contract = this.campaignContract;
+    if (contract !== undefined) {
+      setCampaignViewerName(this.playerView.thisPlayer.name);
+      void openCampaign(contract.campaignId);
+    }
   },
   beforeUnmount() {
     clearPanelCommands('infoMode');
@@ -665,11 +784,15 @@ export default defineComponent({
     },
     /** The focus-ring state of a summary zone (ring only where A can go). */
     zoneStateClass(zone: string): Record<string, boolean> {
-      const focusable = infoZoneFocusable(zone as never, this.viewedKind);
+      const focusable = infoZoneFocusable(zone as never, this.viewedKind, {campaign: this.campaignContract !== undefined});
       return {
         'con-info__zone--focusable': focusable,
         'con-info__zone--focused': focusable && this.infoModeState.summaryFocus === zone,
       };
+    },
+    titleArtUrl,
+    titleLabel(title: TitleName): string {
+      return TITLE_LABEL[title];
     },
     /** The embedded table's own close event (B at table level). */
     closePlayedRoute(): void {
@@ -688,6 +811,12 @@ export default defineComponent({
     /** …and to the extras explorer while the extras route is up. */
     handleExtrasIntent(intent: GamepadIntent): void {
       (this.$refs.extrasView as {handleIntent?: (i: GamepadIntent) => void} | undefined)?.handleIntent?.(intent);
+    },
+    /** …and to the campaign overview while the campaign route is up.
+     *  Returns false when the overview did not consume it (B at its base
+     *  layer — the shell then walks the route tree back to the summary). */
+    handleCampaignIntent(intent: GamepadIntent): boolean {
+      return (this.$refs.campaignView as {handleIntent?: (i: GamepadIntent) => boolean} | undefined)?.handleIntent?.(intent) === true;
     },
     /** A satellite cell press routed by the shell (mouse/touch): select
      *  the type inside the live explorer. */
@@ -739,6 +868,22 @@ export default defineComponent({
         descendCascade(tl, this.extrasRows(host), motionMs(175) / 1000, motionMs(140) / 1000, 0.03);
         return;
       }
+      // THE CAMPAIGN ENTRY: the overview UNFOLDS OUT OF the «Кампания»
+      // zone the player pressed (its rect is measured while the summary is
+      // still leaving). The overview's own choreography — mission cards
+      // surfacing in place, each board's real geometry materializing, the
+      // route line drawing, the seats joining — is CSS inside the
+      // component, so the unfold only opens the room; one motion, phases
+      // overlapping, never a ceremony that replays on seat switches or
+      // level returns (those never remount this branch).
+      if (host.classList.contains('con-info__cmphost')) {
+        this.lastDepth = infoRouteDepth(this.infoModeState.route);
+        const tl = gsap.timeline({onComplete: done});
+        if (!descendUnfold(tl, host, this.campaignZoneRect, motionMs(300) / 1000, 0)) {
+          tl.fromTo(host, {autoAlpha: 0}, {autoAlpha: 1, duration: motionMs(160) / 1000, clearProps: 'opacity,visibility'}, 0);
+        }
+        return;
+      }
       const depth = infoRouteDepth(this.infoModeState.route);
       const rising = depth >= this.lastDepth;
       this.lastDepth = depth;
@@ -761,6 +906,22 @@ export default defineComponent({
       const vpToSummary = host.classList.contains('con-info__vpxhost') && to === 'summary';
       if (summaryToVp || vpToSummary) {
         armScoreHandoff(host);
+      }
+      // Capture the «Кампания» zone's box before the summary leaves — the
+      // campaign overview's enter unfolds out of it (measuring in the enter
+      // hook would read a detached node).
+      if (host.classList.contains('con-info__layout') && to === 'campaign') {
+        this.campaignZoneRect = descendRectOf(host.querySelector<HTMLElement>('[data-zone="campaign"]'));
+      }
+      // THE CAMPAIGN EXIT (B): the overview FOLDS BACK INTO the «Кампания»
+      // zone's box (the entry's reverse — the zone itself is not in the DOM
+      // yet, but its geometry is stable, so the captured rect is honest).
+      if (host.classList.contains('con-info__cmphost')) {
+        const tl = gsap.timeline({onComplete: done});
+        if (!descendFold(tl, host, this.campaignZoneRect, motionMs(240) / 1000, 0)) {
+          tl.to(host, {autoAlpha: 0, duration: motionMs(120) / 1000}, 0);
+        }
+        return;
       }
       // THE EXTRAS EXIT (B): the content FOLDS BACK INTO the satellite
       // column it grew out of — the reverse of the entry phrase, same

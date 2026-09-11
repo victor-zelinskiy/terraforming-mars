@@ -159,6 +159,35 @@ describe('infoRoute — the Information workspace route model', () => {
     expect(infoZoneRoute('vp')).to.eq('vp');
   });
 
+  // ── the «Кампания» zone — a GAME-shape fact, not a participant fact ───
+  it('the campaign zone exists only in campaign missions, for EVERY participant kind there', () => {
+    // Ordinary game (the default ctx): no zone, no ring stop, existing
+    // call sites untouched.
+    expect(infoZonePresent('campaign', 'human')).to.eq(false);
+    expect(infoFocusRing('human')).to.not.include('campaign');
+    // Campaign mission: present + focusable for humans AND for the bot
+    // seat (the overview is about the campaign, not the inspected kind).
+    expect(infoZonePresent('campaign', 'human', {campaign: true})).to.eq(true);
+    expect(infoZonePresent('campaign', 'bot', {campaign: true})).to.eq(true);
+    expect(infoFocusRing('human', {campaign: true})).to.include('campaign');
+    expect(infoFocusRing('bot', {campaign: true})).to.include('campaign');
+    // The ring keeps the canonical order: campaign follows the human pair.
+    const ring = infoFocusRing('human', {campaign: true});
+    expect(ring.indexOf('campaign')).to.be.greaterThan(ring.indexOf('effects'));
+    // The route itself applies to both kinds and walks back in one B.
+    expect(infoRouteApplies('campaign', 'human')).to.eq(true);
+    expect(infoRouteApplies('campaign', 'bot')).to.eq(true);
+    expect(infoRouteBack('campaign')).to.eq('summary');
+    expect(infoZoneForRoute('campaign')).to.eq('campaign');
+    // The crumb tail is DYNAMIC (the overview names its nested layers).
+    expect(infoRouteStagePath('campaign')).to.deep.eq([]);
+    // The d-pad reaches it inside column 3 and clamps below it (bot: the
+    // campaign zone sits between the door and the pair's absence).
+    expect(infoZoneNavigate('effects', 'down', 'human', {campaign: true})).to.eq('campaign');
+    expect(infoZoneNavigate('campaign', 'down', 'human', {campaign: true})).to.eq('campaign');
+    expect(infoZoneNavigate('campaign', 'down', 'bot', {campaign: true})).to.eq('botdoor');
+  });
+
   // ── the «Карты» zone is GONE — the hand dock represents the hand ──────
   it('no summary zone without a route exists — the hand lives in the dock (dockInspection)', () => {
     for (const column of INFO_SUMMARY_COLUMNS) {

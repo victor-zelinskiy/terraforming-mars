@@ -1,12 +1,18 @@
 /*
- * MAP FINGERPRINT (.map-fp) — the schematic board preview rendered by
- * PremiumMapFingerprint.vue.
+ * MAP FINGERPRINT (.map-fp) — the REAL board miniature rendered by
+ * PremiumMapFingerprint.vue from `genfiles/boardLayouts.json` (actual
+ * ocean/cove zones, volcanic sites, restricted cells, printed bonuses).
  *
- * Extracted from create_game_premium.less in desktop-removal wave 3: the
- * premium desktop create screen is deleted, but the fingerprint component is
- * console-load-bearing (ConsoleMapDeck / ConsoleLaunchPanel /
- * ConsoleLaunchConfirm all render it). Console profiles size it from their
- * own rules; this file is the component's base look.
+ * Console-load-bearing: ConsoleCampaignMap mission cards, the in-game
+ * campaign overview, ConsoleMapDeck / ConsoleLaunchPanel /
+ * ConsoleLaunchConfirm, ConsoleCampaignsList rows. Console profiles size it
+ * from their own rules; this file is the component's base look.
+ *
+ * Reveal choreography (`.map-fp--reveal`): the hex silhouette surfaces as
+ * ONE radial wave from the planet's center (per-hex `--d` delays computed
+ * by the component), then the signature glyphs settle in a second, shorter
+ * wave. Transform/opacity only; durations ride --motion-scale; reduced
+ * motion resolves instantly.
  */
 
 @map-fp-gold-bright: rgb(255, 199, 126);
@@ -14,22 +20,49 @@
 .map-fp { --map-accent: 240, 168, 80; position: relative; width: 100%; height: 100%; display: flex; flex-direction: column; }
 .map-fp__board-wrap { position: relative; flex: 1 1 auto; min-height: 0; }
 .map-fp__board { width: 100%; height: 100%; display: block; }
-.map-fp__hex { stroke: rgba(var(--map-accent), 0.26); stroke-width: 0.5; }
+.map-fp__hex { stroke: rgba(var(--map-accent), 0.22); stroke-width: 0.5; }
 .map-fp__hex--ocean { stroke: rgba(96, 168, 238, 0.7); }
-.map-fp__hex--feature { stroke: rgba(var(--map-accent), 0.5); }
+.map-fp__hex--feature { stroke: rgba(var(--map-accent), 0.42); }
+.map-fp__hex--special { stroke: rgba(214, 160, 120, 0.55); }
 .map-fp__icons { position: absolute; inset: 0; pointer-events: none; }
-.map-fp__icon { position: absolute; width: 12px; height: 12px; transform: translate(-50%, -50%); filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.85)); svg { width: 100%; height: 100%; display: block; } }
-.map-fp--hero .map-fp__icon { width: 15px; height: 15px; }
+.map-fp__icon { position: absolute; width: 11px; height: 11px; transform: translate(-50%, -50%); svg { width: 100%; height: 100%; display: block; } }
+.map-fp__icon--volcano { width: 10px; height: 10px; opacity: 0.9; }
+.map-fp--hero .map-fp__icon { width: 14px; height: 14px; }
 .map-fp__legend { display: flex; gap: 6px; justify-content: center; padding-top: 8px; flex: 0 0 auto; }
 .map-fp__legend-chip {
     width: 23px; height: 23px; display: grid; place-items: center; border-radius: 5px;
     background: rgba(8, 13, 20, 0.5); box-shadow: inset 0 0 0 1px currentColor;
     svg { width: 14px; height: 14px; display: block; }
 }
+
+// Reveal: the wave is grouped by real distance (--d per element), so the
+// planet materializes as one motion, never a per-hex twinkle.
+.map-fp--reveal .map-fp__hex {
+    transform-box: fill-box; transform-origin: center;
+    animation: map-fp-hex-in calc(280ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1) both;
+    animation-delay: calc(var(--d, 0ms) * var(--motion-scale, 1));
+}
+.map-fp--reveal .map-fp__icon {
+    animation: map-fp-icon-in calc(240ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1) both;
+    animation-delay: calc(var(--d, 0ms) * var(--motion-scale, 1));
+}
+@keyframes map-fp-hex-in {
+    from { opacity: 0; transform: scale(0.55); }
+    to { opacity: 1; transform: scale(1); }
+}
+@keyframes map-fp-icon-in {
+    from { opacity: 0; transform: translate(-50%, -50%) scale(0.4); }
+    to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
 // Random preview
 .map-fp__stack { position: relative; width: 100%; height: 100%; display: grid; place-items: center; }
 .map-fp__ghost { position: absolute; width: 72%; height: 72%; opacity: calc(0.2 + var(--g) * 0.08); transform: translate(calc((var(--g) - 1) * 10%), calc((var(--g) - 1) * 7%)) scale(calc(1 - var(--g) * 0.05)); }
 .map-fp__ghost-hex { fill: rgba(240, 168, 80, 0.1); stroke: rgba(240, 168, 80, 0.34); stroke-width: 0.5; }
-.map-fp__shuffle { position: relative; z-index: 1; color: @map-fp-gold-bright; width: 32%; height: 32%; filter: drop-shadow(0 0 10px rgba(240, 168, 80, 0.55)); svg { width: 100%; height: 100%; } }
+.map-fp__shuffle { position: relative; z-index: 1; color: @map-fp-gold-bright; width: 32%; height: 32%; svg { width: 100%; height: 100%; } }
 .map-fp--card .map-fp__shuffle, .map-fp--thumb .map-fp__shuffle { width: 40%; height: 40%; }
 .map-fp--random::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(circle at 50% 45%, rgba(240, 168, 80, 0.18), transparent 60%); }
+
+@media (prefers-reduced-motion: reduce) {
+    .map-fp--reveal .map-fp__hex, .map-fp--reveal .map-fp__icon { animation: none; }
+}

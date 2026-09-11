@@ -41,6 +41,14 @@ export type CampaignMissionModel = {
   /** The VIEWER's seat in that mission game — never another participant's id. */
   yourPlayerId?: PlayerId;
   result?: MissionResultModel;
+  /**
+   * seat → number of project cards carried INTO this mission, snapshotted at
+   * launch. Human seats only. ABSENT means unknown (slot launched before the
+   * history existed) — never «0 cards»; mission 1 is absent by construction.
+   */
+  carriedCounts?: Record<number, number>;
+  /** Owner-only: the viewer's own cards carried INTO this mission. */
+  yourCarried?: ReadonlyArray<CardName>;
 };
 
 export type CarryoverSeatPublic = {

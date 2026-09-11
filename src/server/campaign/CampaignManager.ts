@@ -360,11 +360,19 @@ export class CampaignManager {
           slot.playerIds[p.campaignSeat] = p.id;
         }
       }
-      // Atomically consume the carryover selections this launch applied.
+      // Atomically consume the carryover selections this launch applied,
+      // and snapshot what actually travelled into this mission — the live
+      // carryover window is overwritten by the next commit, so this is the
+      // durable per-mission legacy history.
       if (campaign.carryover !== undefined && campaign.carryover.sourceSlot === slot.slot - 1) {
-        for (const state of Object.values(campaign.carryover.bySeat)) {
+        const carried: Record<number, Array<CardName>> = {};
+        for (const [seat, state] of Object.entries(campaign.carryover.bySeat)) {
           state.consumed = true;
+          if (state.cards.length > 0) {
+            carried[Number(seat)] = [...state.cards];
+          }
         }
+        slot.carriedBySeat = carried;
       }
       campaign.phase = 'missionActive';
       // The loader learns the game BEFORE the campaign pointer publishes:
@@ -1204,6 +1212,18 @@ export class CampaignManager {
       const hasBot = campaign.settings.automa !== undefined;
       const blockedReason = (state === 'ready' && !this.boardIsAvailable(slot.board, hasBot)) ?
         'The mission board is unavailable in this build' : undefined;
+      // Carried-in legacy history (snapshotted at launch). PRIVACY: counts
+      // are public, card identities go to their owner alone. Absent =
+      // unknown (a slot launched before the field existed), never «0».
+      let carriedCounts: Record<number, number> | undefined = undefined;
+      if (slot.carriedBySeat !== undefined) {
+        carriedCounts = {};
+        for (const seat of campaign.seats) {
+          if (seat.kind === 'human') {
+            carriedCounts[seat.seat] = slot.carriedBySeat[seat.seat]?.length ?? 0;
+          }
+        }
+      }
       return {
         slot: slot.slot,
         board: slot.board,
@@ -1214,6 +1234,8 @@ export class CampaignManager {
         gameId: slot.gameId,
         yourPlayerId: viewerSeat !== undefined ? slot.playerIds?.[viewerSeat.seat] : undefined,
         result: slot.result !== undefined ? this.resultModel(slot.result) : undefined,
+        carriedCounts,
+        yourCarried: viewerSeat !== undefined ? slot.carriedBySeat?.[viewerSeat.seat] : undefined,
       };
     });
 

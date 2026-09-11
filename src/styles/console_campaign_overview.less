@@ -1,0 +1,430 @@
+/*
+ * CAMPAIGN OVERVIEW FAMILY — the shared building blocks of both campaign
+ * surfaces (the standalone map and the in-game Information overview):
+ *   .ccard      — ONE mission card of the route (CampaignMissionCard);
+ *   .cmres      — mission results («Итоги миссии», CampaignMissionResults);
+ *   .cleg       — a seat's legacy («Наследие», CampaignSeatLegacy);
+ *   .con-cmpov  — the in-game overview host (ConsoleCampaignOverview).
+ * Rem @20px logical; paint-baseline discipline (no filter/text-shadow —
+ * state rides box-shadow/color); every reveal is a transform/opacity
+ * one-shot multiplied by --motion-scale.
+ */
+
+.ccard {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 0.55rem 0.6rem 0.6rem;
+  border-radius: 0.55rem;
+  background: linear-gradient(168deg, rgba(22, 32, 46, 0.92), rgba(12, 19, 29, 0.94));
+  box-shadow: inset 0 0 0 0.05rem rgba(150, 180, 215, 0.22);
+  transition:
+    transform calc(280ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1),
+    box-shadow calc(280ms * var(--motion-scale, 1)) ease,
+    opacity calc(280ms * var(--motion-scale, 1)) ease;
+
+  &--future { opacity: 0.68; transform: scale(0.96); }
+  &--done { box-shadow: inset 0 0 0 0.05rem rgba(159, 195, 164, 0.34); }
+  &--current {
+    transform: scale(1.04);
+    box-shadow: inset 0 0 0 0.09rem rgba(232, 200, 132, 0.55), 0 0.5rem 1.4rem rgba(0, 0, 0, 0.45);
+  }
+  &--final { box-shadow: inset 0 0 0 0.09rem rgba(214, 178, 110, 0.4); }
+  &--final&--current { box-shadow: inset 0 0 0 0.1rem rgba(232, 200, 132, 0.6), 0 0.5rem 1.4rem rgba(0, 0, 0, 0.45); }
+  &--cursor {
+    box-shadow: inset 0 0 0 0.09rem rgba(126, 200, 236, 0.85), 0 0 0 0.14rem rgba(126, 200, 236, 0.35), 0 0.5rem 1.4rem rgba(0, 0, 0, 0.45);
+  }
+
+  &__final-banner {
+    position: absolute;
+    top: -0.75rem;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 0.08rem 0.55rem;
+    border-radius: 0.3rem;
+    background: linear-gradient(180deg, rgba(90, 68, 34, 0.96), rgba(58, 43, 22, 0.96));
+    box-shadow: inset 0 0 0 0.05rem rgba(232, 196, 130, 0.6);
+    color: #ecd39a;
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.14rem;
+    text-transform: uppercase;
+    white-space: nowrap;
+    z-index: 1;
+  }
+  &__map { height: 6.4rem; }
+  &__board-name {
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.05rem;
+    color: #dfe9f5;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  &__state {
+    font-size: 0.6rem;
+    letter-spacing: 0.11rem;
+    text-transform: uppercase;
+    text-align: center;
+    color: #93a5ba;
+    &--committed { color: #9fc3a4; }
+    &--active { color: #e8c884; }
+    &--ready { color: #a9d5ef; }
+  }
+  &__results {
+    display: flex;
+    flex-direction: column;
+    gap: 0.12rem;
+    padding-top: 0.25rem;
+    border-top: 0.05rem solid rgba(150, 180, 215, 0.16);
+  }
+  &__result-row {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.66rem;
+    color: #c2cfdd;
+  }
+  &__result-place { min-width: 0.7rem; color: #8fa1b5; font-weight: 700; }
+  &__result-cube { width: 0.55rem; height: 0.55rem; border-radius: 0.12rem; box-shadow: inset 0 0 0 0.04rem rgba(0, 0, 0, 0.45); }
+  &__result-title { width: 1rem; height: 1rem; object-fit: contain; }
+  &__result-score { margin-left: auto; font-weight: 700; color: #dfe9f5; }
+  &__gens { padding-top: 0.15rem; font-size: 0.6rem; color: #7e8fa3; text-align: center; }
+}
+
+/* mission results (the shared dossier body) */
+.cmres {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  min-height: 0;
+
+  &__rows { display: flex; flex-direction: column; gap: 0.3rem; }
+  &__row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.42rem 0.6rem;
+    border-radius: 0.4rem;
+    background: rgba(16, 25, 37, 0.72);
+    box-shadow: inset 0 0 0 0.05rem rgba(150, 180, 215, 0.14);
+    &--you { box-shadow: inset 0 0 0 0.05rem rgba(126, 200, 236, 0.4); }
+  }
+  &__place { min-width: 1.1rem; font-size: 0.95rem; font-weight: 800; color: #ecd39a; text-align: center; }
+  &__cube { width: 0.7rem; height: 0.7rem; border-radius: 0.14rem; box-shadow: inset 0 0 0 0.04rem rgba(0, 0, 0, 0.45); flex: 0 0 auto; }
+  &__cube--sm { width: 0.55rem; height: 0.55rem; }
+  &__name { font-size: 0.82rem; font-weight: 700; color: #e6eef8; white-space: nowrap; }
+  &__tied { margin-left: 0.3rem; font-size: 0.6rem; color: #9db0c4; text-transform: uppercase; letter-spacing: 0.08rem; }
+  &__corps { display: flex; flex-wrap: wrap; gap: 0.25rem; margin-left: 0.4rem; min-width: 0; }
+  &__corp {
+    padding: 0.06rem 0.4rem;
+    border-radius: 0.75rem;
+    background: rgba(28, 40, 56, 0.8);
+    box-shadow: inset 0 0 0 0.04rem rgba(150, 180, 215, 0.2);
+    font-size: 0.62rem;
+    color: #b9c8d9;
+    white-space: nowrap;
+  }
+  &__title-slot { display: flex; align-items: center; gap: 0.25rem; margin-left: auto; }
+  &__title { width: 1.5rem; height: 1.5rem; object-fit: contain; }
+  &__tp { font-size: 0.66rem; font-weight: 700; color: #ecd39a; white-space: nowrap; }
+  &__score { min-width: 3.4rem; text-align: right; font-size: 0.9rem; font-weight: 800; color: #dfe9f5; }
+  &__gens { font-size: 0.66rem; color: #8fa1b5; }
+
+  &__legacy-head {
+    margin-top: 0.15rem;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.12rem;
+    text-transform: uppercase;
+    color: rgba(126, 200, 236, 0.9);
+  }
+  &__legacy {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    padding: 0.5rem 0.6rem;
+    border-radius: 0.4rem;
+    background: rgba(14, 22, 33, 0.6);
+    box-shadow: inset 0 0 0 0.05rem rgba(150, 180, 215, 0.14);
+  }
+  &__legacy-line { display: flex; align-items: center; flex-wrap: wrap; gap: 0.45rem; font-size: 0.7rem; color: #c2cfdd; }
+  &__legacy-cap { min-width: 7.2rem; font-size: 0.62rem; letter-spacing: 0.1rem; text-transform: uppercase; color: #8fa1b5; }
+  &__bonus { display: inline-flex; align-items: center; gap: 0.25rem; font-weight: 700; color: #ecd39a; }
+  &__carry { display: inline-flex; align-items: center; gap: 0.25rem; font-weight: 600; }
+  &__muted { color: #7e8fa3; }
+  &__cards { display: flex; gap: 0.5rem; padding-top: 0.2rem; }
+  &__card {
+    position: relative;
+    width: 6.7rem;
+    height: 9.6rem;
+    > :is(.card-container, .pcard) { margin: 0; zoom: ~"calc(0.42 * var(--con-ui-scale, 1))"; }
+  }
+}
+
+/* seat legacy (shared) */
+.cleg {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+
+  &__grid { display: flex; gap: 0.8rem; align-items: stretch; min-height: 0; flex-wrap: wrap; }
+  &__zone {
+    flex: 1 1 15.2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    padding: 0.55rem 0.65rem;
+    border-radius: 0.45rem;
+    background: rgba(14, 22, 33, 0.6);
+    box-shadow: inset 0 0 0 0.05rem rgba(150, 180, 215, 0.14);
+    min-width: 0;
+  }
+  &__zone--facts { flex: 1 1 14rem; }
+  &__cap {
+    margin: 0;
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.12rem;
+    text-transform: uppercase;
+    color: rgba(126, 200, 236, 0.9);
+  }
+  &__cards { display: flex; flex-wrap: wrap; gap: 0.55rem 0.5rem; padding-top: 0.35rem; }
+  &__card {
+    position: relative;
+    width: 6.6rem;
+    height: 9.5rem;
+    border-radius: 0.3rem;
+    > :is(.card-container, .pcard) { margin: 0; zoom: ~"calc(0.41 * var(--con-ui-scale, 1))"; }
+    &--cursor { box-shadow: 0 0 0 0.12rem rgba(126, 200, 236, 0.85), 0 0 0 0.26rem rgba(126, 200, 236, 0.3); }
+  }
+  &__origin {
+    position: absolute;
+    top: -0.4rem;
+    left: -0.3rem;
+    padding: 0.05rem 0.35rem;
+    border-radius: 0.3rem;
+    background: rgba(20, 30, 44, 0.95);
+    box-shadow: inset 0 0 0 0.05rem rgba(232, 200, 132, 0.5);
+    color: #ecd39a;
+    font-size: 0.56rem;
+    font-weight: 700;
+    letter-spacing: 0.06rem;
+    white-space: nowrap;
+    z-index: 1;
+  }
+  &__note { font-size: 0.62rem; color: #8fa1b5; }
+  &__muted { font-size: 0.7rem; color: #7e8fa3; }
+  &__fact { display: flex; align-items: baseline; gap: 0.45rem; flex-wrap: wrap; }
+  &__fact-label { min-width: 7.6rem; font-size: 0.62rem; letter-spacing: 0.1rem; text-transform: uppercase; color: #8fa1b5; }
+  &__fact-value { font-size: 0.86rem; font-weight: 800; color: #ecd39a; }
+  &__fact-status {
+    font-size: 0.64rem;
+    color: #9db0c4;
+    &--granted, &--settled { color: #9fc3a4; }
+    &--pending { color: #e8c884; }
+  }
+  &__titles { display: flex; flex-direction: column; gap: 0.3rem; padding-top: 0.15rem; }
+  &__title { display: inline-flex; align-items: center; gap: 0.4rem; }
+  &__title-art { width: 1.6rem; height: 1.6rem; object-fit: contain; }
+  &__title-text { font-size: 0.72rem; color: #c2cfdd; }
+}
+
+/* the in-game overview host (Information route 'campaign') */
+.con-info__cmphost {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+}
+.con-info__ctitles { display: inline-flex; align-items: center; gap: 0.15rem; min-height: 1.15rem; }
+.con-info__ctitle { width: 1.15rem; height: 1.15rem; object-fit: contain; }
+.con-info__cmuted { color: #7e8fa3; font-weight: 600; }
+.con-info__note--tp { color: #b9a86e; }
+
+.con-cmpov {
+  position: relative;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+
+  &__load { margin: auto; font-size: 0.85rem; color: #8fa1b5; }
+
+  &__base { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; gap: 0.6rem; }
+
+  &__headline { display: flex; align-items: baseline; gap: 0.7rem; padding: 0.1rem 0.2rem 0; }
+  &__name { font-size: 1.05rem; font-weight: 800; letter-spacing: 0.03rem; color: #eef4fb; }
+  &__progress { font-size: 0.72rem; color: #a9bacd; }
+  &__chip {
+    padding: 0.08rem 0.5rem;
+    border-radius: 0.75rem;
+    background: rgba(28, 40, 56, 0.8);
+    box-shadow: inset 0 0 0 0.04rem rgba(150, 180, 215, 0.25);
+    font-size: 0.6rem;
+    letter-spacing: 0.1rem;
+    text-transform: uppercase;
+    color: #a9d5ef;
+  }
+
+  &__stage { position: relative; padding: 1.1rem 0.4rem 0.4rem; }
+  &__lane {
+    position: absolute;
+    left: 2.4rem;
+    right: 2.4rem;
+    top: 5.4rem;
+    height: 0.14rem;
+    border-radius: 0.1rem;
+    background: rgba(150, 180, 215, 0.16);
+  }
+  &__lane-fill {
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, rgba(232, 200, 132, 0.85), rgba(232, 200, 132, 0.45));
+    transform-origin: left center;
+    animation: cov-lane-in calc(620ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1) calc(560ms * var(--motion-scale, 1)) backwards;
+  }
+  &__route {
+    position: relative;
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+    gap: 1.1rem;
+  }
+  &__node {
+    position: relative;
+    flex: 1 1 0;
+    max-width: 13.4rem;
+    min-width: 0;
+    animation: cov-node-in calc(340ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1) calc((90ms + var(--cov-i, 0) * 110ms) * var(--motion-scale, 1)) backwards;
+  }
+  &__party {
+    position: absolute;
+    top: -0.85rem;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 0.18rem;
+    z-index: 2;
+    animation: cov-party-in calc(300ms * var(--motion-scale, 1)) ease-out calc(760ms * var(--motion-scale, 1)) backwards;
+  }
+  &__party-cube { width: 0.62rem; height: 0.62rem; border-radius: 0.14rem; box-shadow: inset 0 0 0 0.04rem rgba(0, 0, 0, 0.5), 0 0.1rem 0.3rem rgba(0, 0, 0, 0.5); }
+
+  &__seats {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    padding: 0.2rem 0.2rem 0.4rem;
+    overflow: hidden;
+  }
+  &__seat {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    padding: 0.45rem 0.65rem;
+    border-radius: 0.45rem;
+    background: rgba(16, 25, 37, 0.72);
+    box-shadow: inset 0 0 0 0.05rem rgba(150, 180, 215, 0.14);
+    animation: cov-seat-in calc(300ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1) calc((480ms + var(--cov-i, 0) * 80ms) * var(--motion-scale, 1)) backwards;
+    &--cursor { box-shadow: inset 0 0 0 0.09rem rgba(126, 200, 236, 0.85), 0 0 0 0.12rem rgba(126, 200, 236, 0.25); }
+    &--viewed { background: rgba(22, 33, 48, 0.85); }
+    &--champion { box-shadow: inset 0 0 0 0.07rem rgba(232, 200, 132, 0.5); }
+  }
+  &__seat-cube { width: 0.75rem; height: 0.75rem; border-radius: 0.16rem; box-shadow: inset 0 0 0 0.04rem rgba(0, 0, 0, 0.45); flex: 0 0 auto; }
+  &__seat-name { font-size: 0.82rem; font-weight: 700; color: #e6eef8; white-space: nowrap; display: inline-flex; align-items: baseline; gap: 0.35rem; }
+  &__seat-you { font-size: 0.6rem; color: #a9d5ef; text-transform: uppercase; letter-spacing: 0.08rem; }
+  &__seat-crown { font-size: 0.6rem; color: #ecd39a; text-transform: uppercase; letter-spacing: 0.08rem; }
+  &__seat-titles { display: inline-flex; align-items: center; gap: 0.15rem; min-width: 3.4rem; }
+  &__seat-title { width: 1.35rem; height: 1.35rem; object-fit: contain; }
+  &__seat-tpwrap { display: inline-flex; flex-direction: column; min-width: 9.4rem; }
+  &__seat-tp { font-size: 0.78rem; font-weight: 800; color: #ecd39a; }
+  &__seat-tpnote { font-size: 0.56rem; color: #94886a; letter-spacing: 0.02rem; }
+  &__seat-corps { display: flex; flex-wrap: wrap; gap: 0.25rem; margin-left: auto; justify-content: flex-end; min-width: 0; }
+  &__seat-corp {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.06rem 0.45rem;
+    border-radius: 0.75rem;
+    background: rgba(28, 40, 56, 0.8);
+    box-shadow: inset 0 0 0 0.04rem rgba(150, 180, 215, 0.2);
+    font-size: 0.64rem;
+    color: #b9c8d9;
+    white-space: nowrap;
+  }
+  &__seat-corp-ord {
+    display: inline-grid;
+    place-items: center;
+    width: 0.85rem;
+    height: 0.85rem;
+    border-radius: 50%;
+    background: rgba(48, 66, 88, 0.9);
+    font-size: 0.52rem;
+    font-weight: 700;
+    color: #cfdcea;
+  }
+  &__seat-bonus { font-size: 0.66rem; font-weight: 700; color: #9fc3a4; white-space: nowrap; }
+
+  /* Nested read-only layers open FROM the pressed object. */
+  &__layer {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+    padding: 0.5rem 0.6rem;
+    border-radius: 0.55rem;
+    background: radial-gradient(120% 90% at 24% 0%, rgba(30, 44, 62, 0.42), transparent 55%), rgba(8, 13, 21, 0.99);
+    box-shadow: inset 0 0 0 0.05rem rgba(150, 180, 215, 0.2), 0 0.8rem 2rem rgba(0, 0, 0, 0.5);
+    transform-origin: var(--cov-ox, 50%) var(--cov-oy, 40%);
+    overflow: hidden;
+    z-index: 3;
+  }
+  &__layer-head { display: flex; align-items: center; gap: 0.5rem; flex: 0 0 auto; }
+  &__layer-cube { width: 0.7rem; height: 0.7rem; border-radius: 0.14rem; box-shadow: inset 0 0 0 0.04rem rgba(0, 0, 0, 0.45); }
+  &__layer-kicker { font-size: 0.9rem; font-weight: 800; color: #eef4fb; }
+  &__layer-board { font-size: 0.7rem; color: #a9bacd; letter-spacing: 0.06rem; text-transform: uppercase; }
+}
+
+.cov-step-enter-active {
+  transition:
+    transform calc(240ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1),
+    opacity calc(240ms * var(--motion-scale, 1)) ease;
+}
+.cov-step-leave-active {
+  transition:
+    transform calc(170ms * var(--motion-scale, 1)) ease-in,
+    opacity calc(170ms * var(--motion-scale, 1)) ease-in;
+}
+.cov-step-enter-from, .cov-step-leave-to { transform: scale(0.9); opacity: 0; }
+
+@keyframes cov-node-in {
+  from { opacity: 0; transform: translateY(0.8rem) scale(0.95); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes cov-seat-in {
+  from { opacity: 0; transform: translateY(0.55rem); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes cov-lane-in {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+@keyframes cov-party-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(0.3rem); }
+  to { opacity: 1; transform: translateX(-50%); }
+}
+
+/* TV: the frame is vast — let the mission cards breathe a size up. */
+html.con-profile-tv .con-cmpov__node { max-width: 15.4rem; }
+html.con-profile-tv .con-cmpov__stage { padding-top: 1.4rem; }
+
+@media (prefers-reduced-motion: reduce) {
+  .con-cmpov__node, .con-cmpov__seat, .con-cmpov__lane-fill, .con-cmpov__party { animation: none; }
+  .ccard { transition: none; }
+  .cov-step-enter-active, .cov-step-leave-active { transition: none; }
+}

@@ -11590,8 +11590,8 @@ export default defineComponent({
       // FOCUS is normalized eagerly: a ring standing on a zone the new
       // participant does not have would leave the summary with no cursor
       // and a dead A until the first d-pad press.
-      if (!infoZoneFocusable(this.infoModeState.summaryFocus, this.infoViewedKind())) {
-        this.infoModeState.summaryFocus = infoFocusRing(this.infoViewedKind())[0] ?? 'vp';
+      if (!infoZoneFocusable(this.infoModeState.summaryFocus, this.infoViewedKind(), this.infoZoneCtx())) {
+        this.infoModeState.summaryFocus = infoFocusRing(this.infoViewedKind(), this.infoZoneCtx())[0] ?? 'vp';
       }
       if (this.infoModeState.playerColor !== before) {
         playInspectedSwitchMotion(step);
@@ -11602,6 +11602,11 @@ export default defineComponent({
       const isBot = this.playerView.players
         .find((p) => p.color === this.infoModeState.playerColor)?.isMarsBot === true;
       return isBot && this.playerView.game.automa !== undefined ? 'bot' : 'human';
+    },
+    /** The GAME-shape context of the summary zone table (what exists in
+     *  THIS game): the campaign zone shows only in campaign missions. */
+    infoZoneCtx(): {campaign: boolean} {
+      return {campaign: this.playerView.game.gameOptions.campaign !== undefined};
     },
     /**
      * Navigate to a semantic route (the ring's A, the bot hub's entries, a
@@ -11732,6 +11737,30 @@ export default defineComponent({
         (this.$refs.infoMode as InstanceType<typeof ConsoleInfoMode> | undefined)?.handleExtrasIntent(intent);
         return;
       }
+      // THE CAMPAIGN OVERVIEW: the overview owns nav, A (open results /
+      // participant legacy), X (inspect a legacy card) and B inside its
+      // nested layers; at its base layer B falls through to the route tree
+      // (back to the summary with the ring on the campaign zone). Global
+      // chords stay global: Y closes, LB/RB switch the inspected seat.
+      if (this.infoModeState.route === 'campaign') {
+        if (intent.kind === 'press') {
+          const action = consoleActionOf(intent);
+          if (action === 'fullscreen') {
+            this.toggleInfoMode();
+            return;
+          }
+          if (action === 'prevSection' || action === 'nextSection') {
+            this.cycleInspectedPlayer(action === 'prevSection' ? -1 : 1);
+            return;
+          }
+        }
+        const view = this.$refs.infoMode as InstanceType<typeof ConsoleInfoMode> | undefined;
+        if (view?.handleCampaignIntent(intent) !== true &&
+            intent.kind === 'press' && consoleActionOf(intent) === 'back') {
+          this.infoBack();
+        }
+        return;
+      }
       const route = this.infoModeState.route;
       const kind = this.infoViewedKind();
       if (intent.kind === 'nav') {
@@ -11740,7 +11769,7 @@ export default defineComponent({
         // бота» walks its two deep entries. Every other route scrolls.
         if (route === 'summary') {
           this.infoModeState.summaryFocus =
-            infoZoneNavigate(this.infoModeState.summaryFocus, intent.dir, kind);
+            infoZoneNavigate(this.infoModeState.summaryFocus, intent.dir, kind, this.infoZoneCtx());
           return;
         }
         if (route === 'botScreen' && infoRouteApplies('botScreen', kind)) {
@@ -11780,7 +11809,7 @@ export default defineComponent({
         // section is a new ring stop, never a new physical binding).
         if (route === 'summary') {
           const zoneRoute = infoZoneRoute(this.infoModeState.summaryFocus);
-          if (zoneRoute !== undefined && infoZoneFocusable(this.infoModeState.summaryFocus, kind)) {
+          if (zoneRoute !== undefined && infoZoneFocusable(this.infoModeState.summaryFocus, kind, this.infoZoneCtx())) {
             this.infoGo(zoneRoute);
           }
         } else if (route === 'botScreen' && infoRouteApplies('botScreen', kind)) {

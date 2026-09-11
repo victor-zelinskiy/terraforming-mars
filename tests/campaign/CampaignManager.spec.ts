@@ -304,6 +304,40 @@ describe('CampaignManager', () => {
     expect(grant.bonusMegaCredits).eq(5);
   });
 
+  it('carried-in history: snapshotted at launch, counts public, names owner-only', async () => {
+    const campaign = await manager.createCampaign(key(), campaignTestConfig());
+    const {gameId} = await manager.launchMission(campaign.id, 'Alice');
+    const game = (await GameLoader.getInstance().getGame(gameId))!;
+    const alice = game.players.find((p) => p.name === 'Alice')!;
+    alice.cardsInHand.push(...alice.dealtProjectCards.slice(0, 3));
+    const carriedCard = alice.cardsInHand[0].name;
+    await manager.commitMissionResult(game);
+    let loaded = (await manager.load(campaign.id))!;
+    const alicePid = loaded.missions[0].playerIds![0];
+    const brunoPid = loaded.missions[0].playerIds![1];
+    await manager.submitCarryover(campaign.id, alicePid, [carriedCard]);
+    await manager.submitCarryover(campaign.id, brunoPid, []);
+    await manager.launchMission(campaign.id, 'Alice');
+    loaded = (await manager.load(campaign.id))!;
+
+    // The durable slot history — it must survive the next commit
+    // overwriting the live carryover window.
+    expect(loaded.missions[1].carriedBySeat).deep.eq({0: [carriedCard]});
+    // Mission 1 has no carried-in history by construction.
+    expect(loaded.missions[0].carriedBySeat).is.undefined;
+
+    // Projection: counts are public (0 for a seat that carried nothing),
+    // names go to their owner alone.
+    const asAlice = manager.getModel(loaded, 'Alice');
+    expect(asAlice.missions[1].carriedCounts).deep.eq({0: 1, 1: 0});
+    expect(asAlice.missions[1].yourCarried).deep.eq([carriedCard]);
+    expect(asAlice.missions[0].carriedCounts, 'mission 1: unknown, never zero').is.undefined;
+    const asBruno = manager.getModel(loaded, 'Bruno');
+    expect(asBruno.missions[1].carriedCounts).deep.eq({0: 1, 1: 0});
+    expect(asBruno.missions[1].yourCarried, 'Bruno carried nothing').is.undefined;
+    expect(JSON.stringify(asBruno)).not.contains(carriedCard);
+  });
+
   it('BLOCKER: launchMission itself REFUSES while any human is pending — no game is created', async () => {
     // The gate must live in the launch, not only in the UI's `canLaunch`:
     // «даже если хост нажимает, партия не создаётся, пока все не выбрали».

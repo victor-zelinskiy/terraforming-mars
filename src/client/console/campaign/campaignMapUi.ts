@@ -13,7 +13,7 @@
 import {reactive} from 'vue';
 import {ConsoleCommand} from '@/client/console/consoleCommandModel';
 
-export type CampaignMapOverlayKind = 'mission' | 'carryover';
+export type CampaignMapOverlayKind = 'mission' | 'legacy' | 'carryover';
 
 export const campaignMapUi = reactive<{
   /** The overlay the map currently shows (undefined = the route stage). */

@@ -229,6 +229,8 @@ export class Server {
           return card === undefined ? [] : [card];
         })) :
         undefined,
+      campaignBonusGranted: player.game.gameOptions.campaign !== undefined ?
+        player.campaignBonusGranted === true : undefined,
       preludeCardsInHand: cardsToModel(player, player.preludeCardsInHand),
       pendingInitialActions: player.pendingInitialActions.map((c) => c.name),
       thisPlayer: thisPlayer,
