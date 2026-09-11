@@ -67,6 +67,10 @@ test.describe('campaign map', () => {
   });
 
   test('interlude (dev fast-forward): results, title emblems, TP on the rail; then the chronicle', async ({page, request}) => {
+    // The route cards render the REAL board miniatures now (61 cells each,
+    // with a reveal pass per visit) — measured 12 s solo, so the default
+    // 30 s is too tight under parallel workers.
+    test.setTimeout(60_000);
     const {id} = await createCampaign(request);
     await devCommit(request, id, [0, 1]);
     await openMapAs(page, id, 'Alice');
