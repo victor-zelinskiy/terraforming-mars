@@ -3,6 +3,7 @@ import {InputResponse, isOrOptionsResponse, SelectSpaceResponse} from '../../com
 import type {PlayerInput} from '../PlayerInput';
 import {CardName} from '../../common/cards/CardName';
 import {SpaceId} from '../../common/Types';
+import {TileType} from '../../common/TileType';
 import {OrOptions} from './OrOptions';
 import {SelectSpace} from './SelectSpace';
 
@@ -113,6 +114,7 @@ export function replayBatch(player: IPlayer, responses: ReadonlyArray<InputRespo
     // the wrong question. Park the rest (i > 0; a batch that OPENS on a
     // hidden prompt is a real divergence and falls through to process).
     if (i > 0 && hiddenInfoPrompt(waitingFor)) {
+      recordStagedParkBaselines(player, responses.slice(i));
       parkedTails.set(player, [...(parkedTails.get(player) ?? []), ...responses.slice(i)]);
       return;
     }
@@ -122,16 +124,12 @@ export function replayBatch(player: IPlayer, responses: ReadonlyArray<InputRespo
     // an ocean-placing card's bonus twin would silently CONSUME the cell while
     // a land tile's would read as a stale divergence and wipe it. Park the rest
     // untried; the drain lands it once its own `sourceCard` prompt surfaces.
+    // The park RECORDS what stands on the pinned cell right now — staging and
+    // this park are the same request, so this IS the state the player picked
+    // against, and the drain's staleness question is «did it change since?».
     if (i > 0 && stagedMismatch(responses[i], waitingFor)) {
+      recordStagedParkBaselines(player, responses.slice(i));
       parkedTails.set(player, [...(parkedTails.get(player) ?? []), ...responses.slice(i)]);
-      return;
-    }
-    // The MATCHED staged prompt, but the pinned cell changed under the plan
-    // (an Ares erosion spawned on it mid-chain): the pick was made about a
-    // cell that no longer exists as seen — a silent auto-place would charge a
-    // toll the player never saw. Genuine staleness: drop the rest and let the
-    // live prompt ask for real.
-    if (i > 0 && stagedTailStale(responses[i], waitingFor)) {
       return;
     }
     // Reshape a pre-collected OR-wrapper to the live input shape when the
@@ -148,6 +146,7 @@ export function replayBatch(player: IPlayer, responses: ReadonlyArray<InputRespo
         // APPEND, never replace: an answer parked by an earlier submit in this
         // same action is still owed its own prompt, and the queue serves them
         // in the order they were given.
+        recordStagedParkBaselines(player, responses.slice(i));
         parkedTails.set(player, [...(parkedTails.get(player) ?? []), ...responses.slice(i)]);
       }
       // A genuine divergence simply drops the rest of THIS batch — the live
@@ -190,8 +189,8 @@ export function drainBatchTail(player: IPlayer): void {
       // ocean would either eat it or read its refusal as staleness.
       break;
     }
-    if (stagedTailStale(rest[0], waitingFor)) {
-      // Its own prompt IS asking, but the pinned cell changed under the plan
+    if (stagedParkStale(player, rest[0])) {
+      // Its own prompt IS asking, but the pinned cell CHANGED since the park
       // (a hazard landed on it while the interloper resolved). The pick is
       // about a cell the player has not seen — honest re-ask, tail dropped.
       rest.length = 0;
@@ -266,29 +265,59 @@ function stagedMismatch(response: InputResponse, waitingFor: PlayerInput): boole
 }
 
 /**
- * The MATCHED prompt is asking, but the pinned cell is no longer the cell the
- * player saw: a tile stands on it (an Ares hazard spawned by the interloper
- * ocean's own placement — `AresHazards.testToPlaceErosionTiles` drops erosions
- * on deterministic land cells). Placing there would silently charge the
- * hazard toll. A REPLACEMENT placement declares its doomed cells
- * (`hiddenTiles` — KaguyaTech's own greenery) and a marker/bonus-only pick
- * (`placementEffect`) covers no tile at all — both legitimately target
- * occupied cells and are exempt. Membership in `spaces` is deliberately NOT
- * checked here: that is `process`'s own refusal, judged by `jumpedTheQueue`.
+ * WHAT STOOD ON EACH ADDRESSED CELL WHEN IT PARKED — the state the player's
+ * pick was made about (staging and the park land in the SAME request as the
+ * play, so nothing can move between them). The drain's staleness question is
+ * a COMPARISON against this, never a bare «is the cell occupied»: an Ares
+ * hazard that already stood at staging was PRICED by the dossier and CHOSEN
+ * («расчистить за 8 M€») — dropping the pin for it re-asked a placement the
+ * player had already decided, which is the exact defect this module exists
+ * to prevent. Only a cell that CHANGED during the parked window (an erosion
+ * spawned by the interloper ocean's own placement, a tile landed on it)
+ * carries a toll the player never saw.
+ *
+ * Weak and never serialized, exactly like the park itself; first park wins
+ * (later re-parks of the same entry must not refresh the reference point).
  */
-function stagedTailStale(response: InputResponse, waitingFor: PlayerInput): boolean {
+const stagedParkBaselines = new WeakMap<IPlayer, Map<SpaceId, TileType | 'empty'>>();
+
+function recordStagedParkBaselines(player: IPlayer, responses: ReadonlyArray<InputResponse>): void {
+  for (const r of responses) {
+    if (stagedAddress(r) === undefined) {
+      continue;
+    }
+    const spaceId = (r as SelectSpaceResponse).spaceId;
+    const map = stagedParkBaselines.get(player) ?? new Map<SpaceId, TileType | 'empty'>();
+    if (!map.has(spaceId)) {
+      const space = player.game.board.spaces.find((s) => s.id === spaceId);
+      if (space !== undefined) {
+        map.set(spaceId, space.tile?.tileType ?? 'empty');
+      }
+    }
+    stagedParkBaselines.set(player, map);
+  }
+}
+
+/**
+ * The pinned cell changed since its park. No recorded baseline (the tail
+ * never parked — there was no window for the world to move) means no check:
+ * `process` still validates membership and refuses an illegal cell.
+ */
+function stagedParkStale(player: IPlayer, response: InputResponse): boolean {
   const address = stagedAddress(response);
-  if (address === undefined || !(waitingFor instanceof SelectSpace)) {
+  if (address === undefined) {
     return false;
   }
   const spaceId = (response as SelectSpaceResponse).spaceId;
-  const space = waitingFor.spaces.find((s) => s.id === spaceId);
+  const baseline = stagedParkBaselines.get(player)?.get(spaceId);
+  if (baseline === undefined) {
+    return false;
+  }
+  const space = player.game.board.spaces.find((s) => s.id === spaceId);
   if (space === undefined) {
     return false;
   }
-  const placesTile = waitingFor.placementEffect === undefined || waitingFor.placementEffect === 'tile';
-  const replacement = waitingFor.hiddenTiles?.includes(spaceId) === true;
-  return placesTile && !replacement && space.tile !== undefined;
+  return (space.tile?.tileType ?? 'empty') !== baseline;
 }
 
 /**
@@ -354,6 +383,7 @@ export function parkBatchTail(player: IPlayer, responses: ReadonlyArray<InputRes
   if (responses.length === 0) {
     return;
   }
+  recordStagedParkBaselines(player, responses);
   parkedTails.set(player, [...(parkedTails.get(player) ?? []), ...responses]);
 }
 
@@ -368,6 +398,7 @@ export function parkBatchTail(player: IPlayer, responses: ReadonlyArray<InputRes
  */
 export function clearBatchTail(player: IPlayer): void {
   parkedTails.delete(player);
+  stagedParkBaselines.delete(player);
 }
 
 /** Test seam: how many pre-collected responses are still waiting for a prompt. */

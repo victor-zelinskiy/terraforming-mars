@@ -1,5 +1,5 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
-import {bootIntoGame, bootFixture, focusCard, press, placeTile, soloGameConfig, fetchPlayerModel, playCardFromHand, openCardActions, openActionFocus} from './consoleStart';
+import {bootIntoGame, bootFixture, focusCard, press, placeTile, soloGameConfig, fetchPlayerModel, playCardFromHand, openCardActions, openActionFocus, walkToSpace, commitFocusedSpace} from './consoleStart';
 import {TileType} from '../../src/common/TileType';
 
 /**
@@ -231,8 +231,10 @@ test.describe('staged play — the cell is the last reversible step', () => {
     for (let attempt = 0; attempt < 3 && await parkMarker() === undefined; attempt++) {
       await press(page, 'Enter', 420); // lock
       await page.keyboard.press('Enter'); // commit — past the 280 ms dwell
-      for (let waited = 0; waited < 6_000 && await parkMarker() === undefined; waited += 300) {
-        await page.waitForTimeout(300);
+      try {
+        await expect.poll(parkMarker, {timeout: 6_000, intervals: [250]}).toBeDefined();
+      } catch {
+        // Not parked yet — the press pair may have been swallowed; retry.
       }
     }
     expect(await parkMarker(), 'the staged cell never PARKED server-side').toBe('Nuclear Zone');
@@ -270,6 +272,46 @@ test.describe('staged play — the cell is the last reversible step', () => {
       'the placement must NEVER be re-asked').toBeFalsy();
     expect(after.game.spaces.filter((s) => s.tileType === TileType.NUCLEAR_ZONE),
       'exactly ONE nuclear zone — no double placement, no double bonus').toHaveLength(1);
+  });
+
+  test('hazard: a staged build OVER a dust storm lands on the FIRST confirm (no re-ask)', async ({page, request}) => {
+    test.setTimeout(420_000);
+
+    // The cell the player picks already carries a hazard — the dossier priced
+    // its 8 M€ cleanup and the pick IS the decision to pay it. The shipped
+    // regression: the standing hazard read as staleness, the tail was dropped
+    // and the player had to pick the same cell a second time.
+    const playerId = await bootFixture(page, request, 'staged-hazard');
+    const panel = page.locator('.con-context');
+
+    const model = await fetchPlayerModel(request, playerId) as unknown as
+      {game: {spaces: Array<{id: string, tileType?: number}>}};
+    const HAZARDS = [TileType.DUST_STORM_MILD, TileType.DUST_STORM_SEVERE,
+      TileType.EROSION_MILD, TileType.EROSION_SEVERE] as ReadonlyArray<number>;
+    const hazardCell = model.game.spaces.find((s) => s.tileType !== undefined && HAZARDS.includes(s.tileType));
+    expect(hazardCell, 'the fixture must carry exactly one hazard').toBeTruthy();
+
+    await openPlayComposer(page, 'Nuclear Zone');
+    await press(page, 'Enter', 900); // «Разыграть на поле»
+    await expect(panel).toContainText(/размещение тайла/i, {timeout: 30_000});
+
+    // Aim at the hazard cell itself and commit ONCE (two-phase pair).
+    await walkToSpace(page, hazardCell!.id);
+    expect(await commitFocusedSpace(page), 'the hazard cell must accept the staged confirm').toBeTruthy();
+
+    // ONE confirm → the tile stands over the cleared hazard; never re-asked.
+    await expect.poll(async () => {
+      const m = await fetchPlayerModel(request, playerId) as unknown as
+        {game: {spaces: Array<{id: string, tileType?: number}>}};
+      return m.game.spaces.find((s) => s.id === hazardCell!.id)?.tileType;
+    }, {message: 'the tile never landed over the hazard on the first confirm', timeout: 30_000})
+      .toBe(TileType.NUCLEAR_ZONE);
+
+    const after = await fetchPlayerModel(request, playerId) as unknown as
+      {waitingFor?: {type?: string, sourceCard?: string}, thisPlayer: {tableau: Array<{name: string}>}};
+    expect(after.waitingFor?.type === 'space' && after.waitingFor?.sourceCard === 'Nuclear Zone',
+      'the placement must NOT be re-asked').toBeFalsy();
+    expect(after.thisPlayer.tableau.map((c) => c.name)).toContain('Nuclear Zone');
   });
 
   test('blue-card ACTION: activate → board → B → composer restored → confirm → the ocean commits', async ({page, request}) => {

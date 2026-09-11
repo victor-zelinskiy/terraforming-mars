@@ -424,11 +424,18 @@ submit-nothing), repeat/Viron (follow-up скопированного дейст
   дискриминатор). Несовпадение = парковка БЕЗ попытки (в replay и в drain);
   совпадение + отказ process = честный staleness → сброс хвоста →
   live-переспрос. `jumpedTheQueue` получил адресный терм.
-- `stagedTailStale`: на СВОЁМ промпте пин с появившимся тайлом (Ares-эрозия
-  заспавнилась на клетке за время интерлопера) сбрасывается честно —
-  авто-размещение не смеет молча платить hazard-толл, которого игрок не
-  видел. Исключения: replacement (`hiddenTiles` — KaguyaTech) и
-  marker/bonus-only (`placementEffect`).
+- Staleness пина — СРАВНЕНИЕ С BASELINE ПАРКОВКИ, никогда «на клетке стоит
+  тайл» (2026-09-11, второй заход): бланкетная проверка занятости сломала
+  строительство ПОВЕРХ Ares-хазарда («опасная зона только со второго раза»)
+  — хазард, стоявший на клетке ПРИ ВЫБОРЕ, оценён досье (8/16 M€ расчистки)
+  и выбран осознанно. `stagedParkBaselines` (WeakMap, слабый как сам парк)
+  записывает `tileType|'empty'` каждой адресованной клетки В МОМЕНТ парковки
+  (staging и парковка — один запрос, окна между ними нет); drain сбрасывает
+  хвост только если клетка ИЗМЕНИЛАСЬ за окно интерлопера (эрозия
+  заспавнилась, тайл лёг). Прямой путь (без интерлопера) не проверяется
+  вовсе — окна не было, membership валидирует process. Исключения
+  hiddenTiles/placementEffect больше не нужны: равенство baseline покрывает
+  replacement (озеленение==озеленение) и маркеры естественно.
 - `expireSupersededStagedTail` (роут одиночного инпута, ДО process): свой
   промпт, отвеченный вручную (очередь ушла вперёд в чужом запросе),
   экспайрит запаркованный пин — он не смеет прилететь во ВТОРОЙ
@@ -450,8 +457,11 @@ submit-nothing), repeat/Viron (follow-up скопированного дейст
   каждой staged-карты (это адрес хвоста — worklist сам нашёл LavaTube).
 
 **Стражи:** `tests/inputs/deferredInputBatch.spec.ts` § addressed staged cell
-(6 спеков: no-interposer, park+auto-land NuclearZone −4°C, Comet
-не-съедение, drop-on-occupied-pin, supersede GIA, action sourceCard);
+(9 спеков: no-interposer, park+auto-land NuclearZone −4°C, Comet
+не-съедение, drop-on-occupied-pin, supersede GIA, hazard-при-staging
+one-shot + через парковку, hazard-появившийся-за-парковку drop, action
+sourceCard); e2e фикстура `staged-hazard` + тест «hazard: … lands on the
+FIRST confirm»;
 `tests/client/console/stagedPlayPin.spec.ts` (held/dropped/landed волна);
 `stagedPlacementParity` sourceCard-ассерт; e2e фикстура `staged-interposer`
 (−4°C + Nuclear Zone) + тест «interposer: … PARKS and auto-lands».

@@ -35,6 +35,8 @@ import {toName} from '../../../src/common/utils/utils';
 import {CardName} from '../../../src/common/cards/CardName';
 import {AdaptedLichen} from '../../../src/server/cards/base/AdaptedLichen';
 import {NuclearZone} from '../../../src/server/cards/base/NuclearZone';
+import {AresHazards} from '../../../src/server/ares/AresHazards';
+import {TileType} from '../../../src/common/TileType';
 import {RegolithEaters} from '../../../src/server/cards/base/RegolithEaters';
 import {IoMiningIndustries} from '../../../src/server/cards/base/IoMiningIndustries';
 import {Pets} from '../../../src/server/cards/base/Pets';
@@ -181,6 +183,26 @@ function write(name: string, game: IGame): void {
   player.cardsInHand.push(new NuclearZone());
   runAllActions(game);
   write('staged-interposer', game);
+}
+
+// ── staged-hazard: build OVER an Ares hazard from the staged flow — the cell
+//    the player picks already carries a dust storm (priced by the dossier:
+//    8 M€ cleanup). The regression this pins: a standing hazard on the pinned
+//    cell was read as staleness and the placement was re-asked («поверх
+//    опасной зоны только со второго раза»). Ares game, ONE hazard placed
+//    deterministically, «Nuclear Zone» in hand. ──
+{
+  const [game, player] = testGame(1, {skipInitialCardSelection: false, aresExtension: true, aresHazards: false});
+  const wf = player.getWaitingFor();
+  if (!(wf instanceof SelectInitialCards)) {
+    throw new Error(`expected SelectInitialCards, got ${wf?.constructor.name}`);
+  }
+  answerStartFlow(game, [player]);
+  AresHazards.putHazardAt(game, game.board.getAvailableSpacesOnLand(player)[0], TileType.DUST_STORM_MILD);
+  player.megaCredits = 60;
+  player.cardsInHand.push(new NuclearZone());
+  runAllActions(game);
+  write('staged-hazard', game);
 }
 
 // ── hydro-terminal: a solo delta game on the THRESHOLD of the finish slots —

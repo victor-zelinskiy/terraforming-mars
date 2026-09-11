@@ -20,6 +20,7 @@ import {DELTA_TRACK_TAGS} from '../../src/server/delta/DeltaProjectExpansion';
 import {fakeCard, setRulingParty} from '../TestingUtils';
 import {PartyName} from '../../src/common/turmoil/PartyName';
 import {NuclearZone} from '../../src/server/cards/base/NuclearZone';
+import {AresHazards} from '../../src/server/ares/AresHazards';
 import {Comet} from '../../src/server/cards/base/Comet';
 import {GiantIceAsteroid} from '../../src/server/cards/base/GiantIceAsteroid';
 import {AquiferPumping} from '../../src/server/cards/base/AquiferPumping';
@@ -345,6 +346,82 @@ describe('deferredInputBatch', () => {
       const own2 = cast(player.getWaitingFor(), SelectSpace);
       expect(own2.sourceCard).eq(gia.name);
       expect(game.board.getSpaceOrThrow(pin).tile, 'the superseded pin never landed anywhere').is.undefined;
+    });
+
+    it('a HAZARD cell chosen at staging places in ONE replay — the standing hazard is not staleness', () => {
+      // The shipped regression this pins: «размещение поверх опасной зоны
+      // получилось только со второго раза». The hazard stood on the cell WHEN
+      // THE PLAYER PICKED IT — the dossier priced the cleanup — so a tile on
+      // the pin is only staleness when it APPEARED during the parked window,
+      // never when it was the very thing the player chose to pay for.
+      const [game, player] = testGame(2, {aresExtension: true, aresHazards: false});
+      const nz = new NuclearZone();
+      player.cardsInHand = [nz];
+      player.megaCredits = 50;
+      const pin = game.board.getAvailableSpacesOnLand(player)[0];
+      AresHazards.putHazardAt(game, pin, TileType.DUST_STORM_MILD);
+      player.takeAction();
+      const before = player.megaCredits;
+
+      replayBatch(player, playBatch(player, nz, [{type: 'space', spaceId: pin.id, stagedFor: nz.name}]));
+
+      expect(game.board.getSpaceOrThrow(pin.id).tile?.tileType,
+        'the tile lands over the hazard on the FIRST confirm').eq(TileType.NUCLEAR_ZONE);
+      expect(parkedBatchTailLength(player)).eq(0);
+      expect(player.megaCredits, 'card cost + the 8 M€ hazard cleanup the player saw in the dossier')
+        .eq(before - player.getCardCost(nz) - 8);
+    });
+
+    it('a hazard standing at staging survives the PARK too (interposer answered → auto-lands over it)', () => {
+      const [game, player] = testGame(2, {aresExtension: true, aresHazards: false});
+      setTemperature(game, -4);
+      const nz = new NuclearZone();
+      player.cardsInHand = [nz];
+      player.megaCredits = 50;
+      const pin = game.board.getAvailableSpacesOnLand(player)[0];
+      AresHazards.putHazardAt(game, pin, TileType.DUST_STORM_MILD);
+      player.takeAction();
+
+      replayBatch(player, playBatch(player, nz, [{type: 'space', spaceId: pin.id, stagedFor: nz.name}]));
+
+      // Parked behind the 0°C bonus ocean, hazard still standing.
+      const ocean = cast(player.getWaitingFor(), SelectSpace);
+      expect(ocean.sourceCard).is.undefined;
+      expect(parkedBatchTailLength(player)).eq(1);
+
+      player.process({type: 'space', spaceId: ocean.spaces[0].id});
+      drainBatchTail(player);
+
+      expect(game.board.getSpaceOrThrow(pin.id).tile?.tileType,
+        'the pin auto-lands over the hazard the player chose to clear').eq(TileType.NUCLEAR_ZONE);
+      expect(parkedBatchTailLength(player)).eq(0);
+    });
+
+    it('a hazard that APPEARS on the pin during the park drops it — the toll was never seen', () => {
+      const [game, player] = testGame(2, {aresExtension: true, aresHazards: false});
+      setTemperature(game, -4);
+      const nz = new NuclearZone();
+      player.cardsInHand = [nz];
+      player.megaCredits = 50;
+      const pin = game.board.getAvailableSpacesOnLand(player)[0];
+      player.takeAction();
+
+      replayBatch(player, playBatch(player, nz, [{type: 'space', spaceId: pin.id, stagedFor: nz.name}]));
+      const ocean = cast(player.getWaitingFor(), SelectSpace);
+      expect(parkedBatchTailLength(player)).eq(1);
+
+      // The world moves while the interloper stands: an erosion spawns on the
+      // very cell the player pinned — a cost they never saw.
+      AresHazards.putHazardAt(game, game.board.getSpaceOrThrow(pin.id), TileType.EROSION_MILD);
+
+      player.process({type: 'space', spaceId: ocean.spaces[0].id});
+      drainBatchTail(player);
+
+      expect(parkedBatchTailLength(player)).eq(0);
+      expect(game.board.getSpaceOrThrow(pin.id).tile?.tileType,
+        'the pin must NOT auto-place over a hazard the player never saw').eq(TileType.EROSION_MILD);
+      const reAsk = cast(player.getWaitingFor(), SelectSpace);
+      expect(reAsk.sourceCard, 'the placement is re-asked live, with the hazard visible').eq(nz.name);
     });
 
     it('an ACTION-deferred ocean carries its sourceCard (the address has a prompt to match)', () => {

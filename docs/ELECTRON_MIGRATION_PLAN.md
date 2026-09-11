@@ -2,7 +2,7 @@
 
 **Status:** Phase 0 — feasibility audit + implementation-grade plan (analysis only; no Electron runtime added yet).
 **Target runtime:** Electron **43.0.0** · **Windows-first** · macOS signing/notarization deferred to a separate future initiative.
-> **Runtime pin has since moved — this document is a Phase-0 historical record and its `43.0.0` references are NOT the shipped version.** The live pin is `package.json` `devDependencies.electron` (**44.0.0** as of 2026-08-25 — Chromium 152, Node 24.18.1, V8 15.2). Runtime-version upgrades do not amend the Phase-0 analysis below; see the *Runtime upgrades* log at the end of this file.
+> **Runtime pin has since moved — this document is a Phase-0 historical record and its `43.0.0` references are NOT the shipped version.** The live pin is `package.json` `devDependencies.electron` (**44.3.0** as of 2026-09-11 — Chromium 152, Node 24.20.0, V8 15.2). Runtime-version upgrades do not amend the Phase-0 analysis below; see the *Runtime upgrades* log at the end of this file.
 **Baseline:** builds on the completed WebSocket realtime layer — see `WEBSOCKET_MIGRATION_PLAN.md` (§L mutation matrix + flag ladder). This document is its desktop-shell companion.
 
 This plan is grounded in a read-only audit of the actual codebase (branch `main`, Node v22.22.3 / npm 10.9.8). Every load-bearing claim cites `file:line`. It is a plan, not an implementation — the first code lands only when Phase 1 is explicitly requested.
@@ -939,16 +939,44 @@ letting the web-server lane drift: `engines.node`, `devDependencies.@types/node`
 must move all of them in the same commit.**
 
 Aligned 2026-08-31 on **Node 24 «Krypton»** (Active LTS to 2028-04; Electron 44.0.0 bundles 24.18.1,
-44.1.0 bundles 24.19.0): `engines` `>=22.22.2 <23` → `>=24.18.1 <25` (raised to `>=24.19.0 <25` with the 44.1.0 bump); `@types/node` `^25` → `^24` (both 25
+44.1.0 bundles 24.19.0, 44.2.0+ bundle 24.20.0): `engines` `>=22.22.2 <23` → `>=24.18.1 <25` (raised to `>=24.19.0 <25` with the 44.1.0 bump, to `>=24.20.0 <25` with 44.3.0); `@types/node` `^25` → `^24` (both 25
 and 26 track **non-LTS** Node lines, and types ahead of the runtime turn a missing API into a production
 crash rather than a build error); 7 CI `node-version` pins and the `Dockerfile` base `22-alpine3.21` →
 `24-alpine3.21`. `.nvmrc` already read `v24`.
 
 | Date | Pin | Chromium | Node | V8 | Notes |
 | --- | --- | --- | --- | --- | --- |
+| 2026-09-11 | **44.3.0** | 152.0.7977.78 | 24.20.0 | 15.2.124.19 | Rolls up 44.1.1 + 44.2.0 + 44.3.0 — no breaking changes; see the upgrade notes below |
 | 2026-08-31 | **44.1.0** | 152.0.7977.65 | 24.19.0 | 15.2.124.18 | Patch release - no breaking changes; see below |
 | 2026-08-25 | **44.0.0** | 152.0.7977.54 | 24.18.1 | 15.2.124.13 | See audit below |
 | (prior) | 43.4.0 | 150.0.7871.224 | 24.18.1 | 15.0.245.28 | |
+
+### 44.1.1 → 44.3.0 — upgrade notes
+
+Three stable releases land in this bump (44.1.1, 44.2.0, 44.3.0), all inside major 44, so there is **no new
+breaking change** to audit — upstream `docs/breaking-changes.md` is unchanged since `v44.0.0` and the 44.0.0
+table below still describes the whole delta from 43. What the three releases change *for this codebase*:
+
+| Upstream change | Impact here |
+| --- | --- |
+| **`webContents.on()` / `removeListener()` / `removeAllListeners()` no longer throw "Object has been destroyed" for `console-message` listeners** (44.3.0, [#53494](https://github.com/electron/electron/pull/53494)) | **Directly on our path.** `electron/consoleExport.ts` attaches a `console-message` listener as the flattened-text fallback buffer and detaches it on teardown; a detach racing window destruction was one throw away. |
+| **Crash from `objectTemplate` exhaustion after a large number of renderer IPC messages** (44.2.0, [#53417](https://github.com/electron/electron/pull/53417)) | Accumulation bug, and this app is a long-lived TV session over 26 `ipcMain` channels (`electron/main.ts`, `curtainOverlay.ts`, …) with a curtain handshake per scene transition. Robustness win, not hypothetical. |
+| **`contextBridge`: throwing property getters crash the renderer / swallow the exception** (44.1.1, [#53331](https://github.com/electron/electron/pull/53331), [#53335](https://github.com/electron/electron/pull/53335)) | Our only bridges are `electron/preload.ts` + `electron/curtainPreload.ts`; both pass plain payloads, so this is insurance rather than a fix for an observed bug. |
+| **ASAR integrity violation exits 1 instead of an intermittent access violation on Windows** (44.2.0, [#53455](https://github.com/electron/electron/pull/53455)) | We ship `asar: true` (`electron-builder.yml:65`) on the Windows-first lane — a corrupted/tampered package now fails cleanly instead of crashing. |
+| **Linux: Pango↔fontconfig startup race (44.1.1, [#53340](https://github.com/electron/electron/pull/53340)); `Tray` icons under Flatpak/Snap (44.3.0)** | The startup race is the Steam Deck lane's kind of bug — worth re-checking on hardware. `Tray` is unused. |
+| **Native addons deriving from `node::ObjectWrap` abort during GC on Node ≥ 24.19.0** (44.2.0, [#53392](https://github.com/electron/electron/pull/53392)) | **Not us — checked.** The only native code in the desktop package is velopack's `velopack_nodeffi_*.node`, which registers through **Node-API** (`napi_register_module_v1`), not `node::ObjectWrap`; `better-sqlite3` stays external and never ships in the desktop bundle (`electron-builder.yml:71`). Note that 44.1.0 — the pin we are leaving — bundles exactly the affected Node 24.19.0. |
+| **`protocol.handle` throughput for responses returned straight from `net.fetch`** (44.2.0, [#53378](https://github.com/electron/electron/pull/53378)) | **No-op for us**, recorded so the next reader doesn't assume a win: `electron/protocol.ts:163` builds its own `Response` objects for `app://` and never forwards a `net.fetch` result. |
+| **Window state persisted when a display-mode transition ends** (44.3.0, [#53576](https://github.com/electron/electron/pull/53576)) | No impact today — `desktop:setFullscreen` (`electron/main.ts:672`) is exactly such a transition, but the app persists no window placement of its own (no `setBounds`/saved geometry anywhere in `electron/`). Only matters if window-state restore is ever added. |
+| **`ELECTRON_DEBUG_DRAGGABLE_REGIONS` env var + app-region responsiveness fix** (44.3.0) | No impact — no `-webkit-app-region` anywhere in the renderer; the window is not a custom-titlebar frameless shell. |
+
+**Verified on the bump (2026-09-11, Windows):** `npx electron --version` → `v44.3.0`,
+`node_modules/electron/dist/version` → `44.3.0` (unpacked manually — see the gotcha below);
+`npm run build:desktop` green; the packaged renderer boots under `TM_ELECTRON_LOAD=app` — embedded server
+forked as a `utilityProcess` (local-filesystem DB restored, 11 ids preloaded, WS gateway on `/ws`),
+`app://bundle/` served, console-native main menu painted with saved games listed, zero errors in the boot
+log. GPU fully accelerated and unchanged from 44.0.0: `gpu_compositing: enabled`, `opengl: enabled_on`,
+`skia_graphite: enabled_on`, `webgl`/`webgpu: enabled`. Quit walks the whole
+`before-quit → will-quit → quit` chain and the embedded server gets its shutdown request.
 
 ### 44.0.0 — breaking-change audit
 
