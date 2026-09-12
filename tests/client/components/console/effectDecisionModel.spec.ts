@@ -12,6 +12,7 @@ import {
   HEADLINE_CHOOSE,
   HEADLINE_PAY,
   HEADLINE_STEEL_SOURCE,
+  HEADLINE_STEEL_SOURCE_CONFIRM,
   HEADLINE_TARGET,
   HEADLINE_USE,
   LEAD_HAND_CARDS,
@@ -388,6 +389,27 @@ describe('effectDecisionModel', () => {
       expect(vm.actions.map((a) => a.chips.length)).deep.eq([1, 1]);
       // Who charges stays inspectable, exactly as in every other decision.
       expect(vm.source?.card).eq(CardName.SPACE_ELEVATOR);
+    });
+
+    it('a LONE option is a CONFIRMATION screen, never the generic list', () => {
+      // Empty supply: the card is the only store left. The server deliberately
+      // does NOT reduce this OrOptions (a protected store leaves only on an
+      // explicit press), so the single-branch gate must not bounce it back to
+      // the legacy text block.
+      const lone = or([split()[1]], cardContext('spend-source', CardName.SPACE_ELEVATOR));
+      const vm = buildEffectDecision(lone, {handNames: HAND})!;
+      expect(vm, 'the premium screen must accept the lone split').is.not.undefined;
+      expect(vm.eyebrowKey).eq(EYEBROW_SPEND_SOURCE);
+      // «Select a source» over one row is a question with no choice — the
+      // lone form asks for a confirmation instead.
+      expect(vm.headlineKey).eq(HEADLINE_STEEL_SOURCE_CONFIRM);
+      expect(vm.actions).has.length(1);
+      expect(vm.actions[0].chips).has.length(1);
+      expect(vm.source?.card).eq(CardName.SPACE_ELEVATOR);
+
+      // …and the exception is the GENRE's, not every prompt's: a lone branch
+      // of any other mode keeps the reduce-anomaly refusal.
+      expect(buildEffectDecision(or([split()[1]], cardContext()), {handNames: HAND})).is.undefined;
     });
   });
 });

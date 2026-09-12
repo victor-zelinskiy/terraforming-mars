@@ -157,6 +157,10 @@ export const HEADLINE_USE = 'Use the effect?';
 /** mode 'spend-source': the SAME key the server titles the prompt with — the
  *  question is the source, and «Choose an effect» would misname a payment. */
 export const HEADLINE_STEEL_SOURCE = 'Select steel source';
+/** …and its LONE-OPTION form (empty supply — the card is the only store
+ *  left): a «select» headline over one row is a question with no choice, so
+ *  the screen honestly asks for a confirmation instead. */
+export const HEADLINE_STEEL_SOURCE_CONFIRM = 'Confirm the steel payment';
 export const HEADLINE_BUY_CARD = 'Buy a card?';
 export const HEADLINE_PAY = 'Pay the price?';
 /** mode 'attack': the TARGET loses, the viewer pays nothing — «Заплатить?»
@@ -311,7 +315,7 @@ export function headlineKeyOf(actions: ReadonlyArray<EffectDecisionAction>, hasD
     return hasDecline ? HEADLINE_ATTACK : HEADLINE_TARGET;
   }
   if (mode === 'spend-source') {
-    return HEADLINE_STEEL_SOURCE;
+    return actions.length === 1 ? HEADLINE_STEEL_SOURCE_CONFIRM : HEADLINE_STEEL_SOURCE;
   }
   if (!hasDecline) {
     return HEADLINE_CHOOSE;
@@ -367,8 +371,16 @@ export function buildEffectDecision(
     return undefined; // not a marked decision — the ordinary picker owns it
   }
   const model = input as OrOptionsModel;
-  if (model.options.length < 2) {
-    return undefined; // `OrOptions.reduce()` resolves a single branch server-side
+  if (model.options.length < 2 && choice.mode !== 'spend-source') {
+    // `OrOptions.reduce()` resolves a single branch server-side, so a lone
+    // option is normally an anomaly the ordinary host should keep. The ONE
+    // exception is the 'spend-source' genre: the server deliberately never
+    // reduces it — a protected store (Modular Floodgates' steel) leaves only
+    // on an explicit press — so its lone-option prompt is a legitimate
+    // CONFIRMATION screen (empty supply: the card is the only store left),
+    // and falling back to the generic list there is exactly the legacy text
+    // block this screen exists to replace.
+    return undefined;
   }
 
   // Every branch must be servable, or we hand the whole prompt back.
