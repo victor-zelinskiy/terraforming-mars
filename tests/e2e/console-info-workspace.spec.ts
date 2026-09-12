@@ -177,34 +177,86 @@ for (const preset of PRESETS) {
       await expect(workspace.locator('.con-info__hotkey')).toHaveCount(0);
 
       // THE EXTRAS SATELLITE: the «Доп. ресурсы» zone IS the rail column —
-      // mounted through the whole overlay (empty seats show the honest
-      // plate) and standing ABOVE the panel's dim. NO caption: the chips
-      // are the label, the command bar names the focused type (stable
-      // chassis iteration, 2026-09-11).
+      // it exists only WITH content (an empty seat keeps the lane calm: no
+      // ghost plate, no caption, no stray focus ring), and when present it
+      // stands at the seat-invariant anchor above the panel's dim.
       const satellite = page.locator('.con-res-aux');
-      await expect(satellite).toBeVisible();
       await expect(satellite.locator('.con-res-aux__cap')).toHaveCount(0);
+      await expect(page.locator('.con-res-aux__none'), 'the ghost plate is retired').toHaveCount(0);
 
       // PARITY BASELINE: capture the shared zones' boxes on the human seat.
       const zoneBox = async (zone: string) =>
         await workspace.locator(`[data-zone="${zone}"]`).boundingBox();
       const humanVp = await zoneBox('vp');
       const humanPlayed = await zoneBox('played');
-      const humanExtras = await satellite.boundingBox();
+      const humanExtras = (await satellite.count()) > 0 ? await satellite.boundingBox() : null;
       await expect(workspace.locator('[data-zone="actions"]')).toHaveCount(1);
       await expect(workspace.locator('[data-zone="effects"]')).toHaveCount(1);
+
+      // THE RAIL SKELETON BASELINE — the six standard rows + the МЕТКИ
+      // anchor. The bot seat must reproduce these boxes EXACTLY (the
+      // normalization's whole point: one skeleton, two fills).
+      const railRowBoxes = async () => {
+        const rows = page.locator('.con-res .con-res__row');
+        const n = await rows.count();
+        const out: Array<{x: number, y: number, width: number, height: number} | null> = [];
+        for (let i = 0; i < n; i++) {
+          out.push(await rows.nth(i).boundingBox());
+        }
+        return out;
+      };
+      const humanRows = await railRowBoxes();
+      expect(humanRows.length, 'the human rail is six rows').toBe(6);
+      const humanTags = await page.locator('.con-res .con-tagmx').boundingBox();
+      // The VALUE AXIS — the number's right edge on the M€ row. The bot's
+      // empty production track must not let the value drift right.
+      const valueAxis = async (): Promise<number> => {
+        const b = await page.locator('.con-res .con-res__row--megacredits .con-res__stockwrap').boundingBox();
+        return b === null ? -1 : b.x + b.width;
+      };
+      const humanAxis = await valueAxis();
+      expect(humanAxis).toBeGreaterThan(0);
 
       // ── 2 · RB → the MarsBot participant: ONE canonical summary ─────
       await cycleTo(page, 'bot');
       const botMc = await railMc(page).textContent();
       expect(botMc, 'rail M€ must switch to the inspected bot').not.toBe(ownMc);
-      // THE RAIL KEEPS THE HUMAN GEOMETRY: the SAME tag matrix (filled
-      // from the tracks — no progress-bar array), no production chips,
-      // and the rows zone reserves the six-row height.
-      await expect(page.locator('.con-res .con-res__prod')).toHaveCount(0);
+      // THE RAIL IS THE SAME SKELETON: the six standard rows (zeros as
+      // definite 0s — titanium reads «0», never a dash and never absent),
+      // the production track reserved but visually EMPTY (no chips, no
+      // fake «+0»), and the SAME tag matrix filled from the tracks.
+      await expect(page.locator('.con-res .con-res__row')).toHaveCount(6);
+      await expect(page.locator('.con-res .con-res__row--titanium .con-res__value')).toHaveText('0');
+      await expect(page.locator('.con-res .con-res__prod:not(.con-res__prod--void)')).toHaveCount(0);
+      await expect(page.locator('.con-res .con-res__prod--void')).toHaveCount(6);
       await expect(page.locator('.con-res .con-tagmx__grid')).toHaveCount(1);
       await expect(page.locator('.con-res .con-tagmx__trackrow')).toHaveCount(0);
       await expect(page.locator('.con-res .con-res__rows--bot')).toHaveCount(1);
+
+      // THE SKELETON PARITY: every standard row and the МЕТКИ block sit at
+      // the SAME coordinates as on the human seat (±2px) — the geometry may
+      // not depend on the seat's fill, fonts or reserved-height math.
+      const botRows = await railRowBoxes();
+      expect(botRows.length, 'the bot rail keeps the six standard rows').toBe(6);
+      for (let i = 0; i < 6; i++) {
+        const a = humanRows[i];
+        const b = botRows[i];
+        expect(a && b, `row ${i} exists on both seats`).toBeTruthy();
+        if (a && b) {
+          expect(Math.abs(a.x - b.x), `row ${i} x parity`).toBeLessThanOrEqual(2);
+          expect(Math.abs(a.y - b.y), `row ${i} y parity`).toBeLessThanOrEqual(2);
+          expect(Math.abs(a.width - b.width), `row ${i} width parity`).toBeLessThanOrEqual(2);
+          expect(Math.abs(a.height - b.height), `row ${i} height parity`).toBeLessThanOrEqual(2);
+        }
+      }
+      const botTags = await page.locator('.con-res .con-tagmx').boundingBox();
+      expect(humanTags && botTags, 'the МЕТКИ block stands on both seats').toBeTruthy();
+      if (humanTags && botTags) {
+        expect(Math.abs(humanTags.y - botTags.y), 'МЕТКИ y parity — the anchor may not drift').toBeLessThanOrEqual(2);
+        expect(Math.abs(humanTags.x - botTags.x), 'МЕТКИ x parity').toBeLessThanOrEqual(2);
+      }
+      expect(Math.abs((await valueAxis()) - humanAxis),
+        'the value AXIS is seat-invariant — the empty production track reserves its width').toBeLessThanOrEqual(2);
 
       // THE DOCK BECOMES THE INSPECTED SEAT'S HAND (hand-dock integration):
       // a read-only closed fan of sleeves + the bot's exact action-deck
@@ -250,11 +302,11 @@ for (const preset of PRESETS) {
           expect(Math.abs(a.width - b.width), `${label} width parity`).toBeLessThanOrEqual(2);
         }
       }
-      // THE SATELLITE IS SEAT-INVARIANT CHROME: same anchor on the bot seat
-      // (its CELLS re-read from the bot's real pools; the column never
-      // travels — width may differ with the content, the anchor may not).
-      const botExtras = await satellite.boundingBox();
-      expect(humanExtras && botExtras, 'the satellite stands on both seats').toBeTruthy();
+      // THE SATELLITE IS SEAT-INVARIANT CHROME: when BOTH seats have
+      // content, the column stands at the same anchor (it never travels).
+      // A seat without extra-resource sources renders no column at all —
+      // that absence must stay calm (asserted above), never a plate.
+      const botExtras = (await satellite.count()) > 0 ? await satellite.boundingBox() : null;
       if (humanExtras && botExtras) {
         expect(Math.abs(humanExtras.x - botExtras.x), 'satellite x parity').toBeLessThanOrEqual(2);
         expect(Math.abs(humanExtras.y - botExtras.y), 'satellite y parity').toBeLessThanOrEqual(2);

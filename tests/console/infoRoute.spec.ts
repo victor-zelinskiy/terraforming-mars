@@ -151,6 +151,17 @@ describe('infoRoute — the Information workspace route model', () => {
     expect(infoZoneNavigate('actions', 'down', 'bot')).to.eq('extras');
   });
 
+  it('an EMPTY satellite is no ring stop — the ring skips it, nothing else changes', () => {
+    expect(infoZoneFocusable('extras', 'human', {extras: false}), 'no chips — no stop').to.be.false;
+    expect(infoZoneFocusable('extras', 'human', {extras: true})).to.be.true;
+    expect(infoZoneFocusable('extras', 'human'), 'an unstated seat keeps the historical default').to.be.true;
+    expect(infoFocusRing('human', {extras: false})).to.not.include('extras');
+    expect(infoFocusRing('bot', {extras: false})[0], 'the ring starts at the score story instead').to.eq('vp');
+    // The stranded-focus rule composes: a seat switch away from a chip
+    // lands on the first zone that still exists.
+    expect(infoZoneNavigate('extras', 'down', 'bot', {extras: false})).to.eq('vp');
+  });
+
   it('B from a detail lands the ring on the zone it was entered from', () => {
     expect(infoZoneForRoute('vp')).to.eq('vp');
     expect(infoZoneForRoute('extras')).to.eq('extras');

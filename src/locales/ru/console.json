@@ -906,5 +906,9 @@
     "Journalism": "Журналистика",
     "Activist": "Активист",
     "Supply Chain": "Цепочка поставок",
-    "Fighters": "Истребители"
+    "Fighters": "Истребители",
+    "Stored separately: ${0}": "Отдельное хранилище: ${0}",
+    "Kept apart from the supply, spent by its own rule": "Хранится отдельно от основного запаса и тратится по своим правилам",
+    "One shared pool — 5 floaters convert into an extra action-deck card during the Research phase": "Общий запас — 5 аэростатов превращаются в дополнительную карту колоды действий в фазе исследований",
+    "Stored on the corporation card — spent by its printed rule": "Хранится на карте корпорации и тратится по её напечатанному правилу"
 }

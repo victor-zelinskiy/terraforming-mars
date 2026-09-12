@@ -46,39 +46,23 @@
         </div>
       </div>
 
-      <!-- MARSBOT SEAT (Information Workspace inspects the bot): the human
-           economy does not exist for the Automa — the rows show only what it
-           REALLY accumulates (M€ supply; its corporation's own store when
-           that store is a real resource). No production chips: a +0 column
-           would be a fake readout for this participant. The `--bot` modifier
-           RESERVES the six-row height, so the МЕТКИ block below keeps the
-           exact vertical anchor it has on a human seat — the unfilled rows
-           are deliberate empty space, not a collapsed zone. -->
-      <div v-if="botMode" class="con-res__rows con-res__rows--bot">
-        <div v-for="row in botEconomy" :key="row.key"
-             class="con-res__row con-res__row--bot"
-             :class="'con-res__row--' + row.key"
-             :data-bot-economy="row.key">
-          <i class="con-res__icon" :class="row.iconClass" aria-hidden="true"></i>
-          <span class="con-res__stockwrap">
-            <span class="con-res__value">{{ row.value }}</span>
-            <AnimatedMetricValue
-              v-if="epoch !== ''"
-              :value="row.value"
-              :metricKey="row.metricKey"
-              :scopeKey="player.color"
-              :epoch="epoch"
-              variant="resource-stock" />
-          </span>
-        </div>
-      </div>
-      <div v-else class="con-res__rows">
+      <!-- THE SIX STANDARD ROWS — ONE skeleton for EVERY seat. The bot fills
+           the SAME rows from its real pools (marsBotStandardRows: supply +
+           shipping storage + the corp card's own store, classified by the
+           RESOURCE TYPE) — six rows, canonical order, zeros included, so the
+           row geometry, the value axis and the МЕТКИ anchor below are
+           identical across an LB/RB seat switch BY CONSTRUCTION. The Automa
+           has no production: those rows keep the production track's reserved
+           width visually EMPTY (`--void`) — never a fake «+0». The `--bot`
+           modifier is a marker (probes/state), not geometry. -->
+      <div class="con-res__rows" :class="{'con-res__rows--bot': botMode}">
         <!-- data-conversion-* anchors (CTS T6): the App-level energy→heat
              transition overlay measures these rects, so the premium
              end-of-generation animation plays in console mode too. -->
         <div v-for="row in rows" :key="row.key" class="con-res__row"
              :class="[
                'con-res__row--' + row.key,
+               botMode ? 'con-res__row--bot' : '',
                conversionRole(row.key) !== '' ? 'con-res__row--conv-' + conversionRole(row.key) : '',
                convertReady(row.key) ? 'con-res__row--convertible con-res__row--convertible-' + row.key : '',
                convWatch(row.key) ? 'con-res__row--conv-watch' : '',
@@ -117,6 +101,18 @@
               :wide="row.mcBadge.rates.length > 1"
               :label="mcBadgeAria(row.mcBadge)"
               :scopeKey="player.color" />
+            <!-- SEPARATE-STORE readout (the bot's M€ row): the Luna shipping
+                 area + a corp card's own bank/till hold M€ APART from the
+                 supply — a compact cube capsule in the icon's corner layer
+                 (the physical board keeps CUBES in the storage areas),
+                 deliberately unlike the production tile and the gold rate
+                 coin. Absolute: zero layout — the main number keeps its
+                 column and its meaning (the supply); the split lives in the
+                 aria + the bot screen's storage block. Absent = empty. -->
+            <span v-if="row.store !== undefined" class="con-res__store"
+                  role="img" :aria-label="storeAria(row)" :data-store="row.key">
+              <i class="con-res__store-cube" aria-hidden="true"></i><span class="con-res__store-num">{{ row.store.total }}</span>
+            </span>
           </span>
           <!-- Delta chips (CTS T7): the SAME AnimatedMetricValue + metric keys
                as the desktop PlayerResource, so every stock/production change
@@ -129,12 +125,12 @@
             <AnimatedMetricValue
               v-if="epoch !== ''"
               :value="row.value"
-              :metricKey="row.key + '.stock'"
+              :metricKey="row.metricKey"
               :scopeKey="player.color"
               :epoch="epoch"
               variant="resource-stock" />
           </span>
-          <span class="con-res__prod" :class="{'con-res__prod--negative': row.production < 0}">
+          <span v-if="row.production !== undefined" class="con-res__prod" :class="{'con-res__prod--negative': row.production < 0}">
             {{ row.production >= 0 ? '+' + row.production : row.production }}
             <!-- The PRODUCTION half of the same fact (Lunar Security Stations,
                  Private Security). Pinned INSIDE the chip's own corner, so a
@@ -148,8 +144,12 @@
               :kind="row.productionProtection.kind"
               :label="productionProtectionAria(row)" />
           </span>
+          <!-- A seat with NO production concept (the Automa): the track keeps
+               its reserved width, visually empty — the value axis never moves
+               between seats, and no fake «+0» is invented. -->
+          <span v-else class="con-res__prod con-res__prod--void" aria-hidden="true"></span>
           <AnimatedMetricValue
-            v-if="epoch !== ''"
+            v-if="epoch !== '' && row.production !== undefined"
             :value="row.production"
             :metricKey="row.key + '.production'"
             :scopeKey="player.color"
@@ -239,8 +239,15 @@
          so the cells' Y never moves. Same desktop data source (`additionalResourceGroups`) +
          delta-chip keys, first-appearance order; the BOT seat fills the same
          cells from its real pools (`marsBotExtraGroups`). -->
+    <!-- SEAT SWITCH (LB/RB): the transition-group swaps to the `con-extra-swap`
+         mode for the switch frame — leaves are INSTANT (the new composition
+         owns the layout from its FIRST frame: no cells entering below the
+         departing ones, no post-removal rise), enters are a short in-place
+         fade, shared types keep identity by TYPE KEY and only patch their
+         number under the column's insp-fade dip. The in-game unlock keeps
+         the ordinary `con-extra` slide. -->
     <div v-if="auxVisible" class="con-res-aux" :class="auxRootClasses" data-insp-fade>
-      <transition-group tag="div" class="con-res-aux__cells" name="con-extra">
+      <transition-group tag="div" class="con-res-aux__cells" :name="auxSwapMode ? 'con-extra-swap' : 'con-extra'">
         <div v-for="(c, i) in auxCells" :key="c.key" class="con-res-aux__cell"
              :class="auxCellClasses(c, i)"
              :data-aux-resource="own && !botMode ? c.key : undefined"
@@ -284,10 +291,9 @@
             variant="misc" />
         </div>
       </transition-group>
-      <!-- Info-mode empty state: the seat has NO resource holders — the
-           group still exists (it is a ring stop that opens the honest empty
-           screen), so the column says so instead of vanishing. -->
-      <div v-if="auxInfoActive && auxCells.length === 0" class="con-res-aux__none">—</div>
+      <!-- (No empty plate: a seat with no extra-resource sources renders NO
+           column at all — the ring skips the zone (`ctx.extras`), the space
+           stays calm, and the workspace grid keeps its constant lane.) -->
     </div>
   </div>
 </template>
@@ -306,7 +312,7 @@ import {MarsBotModel} from '@/common/models/MarsBotModel';
 import {Tag as CardTag} from '@/common/cards/Tag';
 import Tag from '@/client/components/Tag.vue';
 import {consoleTagEntries, ConsoleTagCell, ConsoleTagEntry, NO_TAG_CELL} from '@/client/components/console/consoleTagMatrix';
-import {marsBotRailEconomy, marsBotTagEntries, MarsBotRailEconomyRow} from '@/client/components/console/marsBotRailModel';
+import {marsBotStandardRows, marsBotTagEntries, MarsBotExtrasContext} from '@/client/components/console/marsBotRailModel';
 import AnimatedMetricValue from '@/client/components/feedback/AnimatedMetricValue.vue';
 import ConsoleVpBadge from '@/client/components/console/ConsoleVpBadge.vue';
 import PrivateScoreMask from '@/client/components/overview/PrivateScoreMask.vue';
@@ -331,12 +337,20 @@ import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 type ResourceRow = {
   key: string,
   value: number,
-  production: number,
+  /** AnimatedMetricValue key of the stock (`<key>.stock` — one family for
+   *  every seat; the scope color separates participants). */
+  metricKey: string,
+  /** Absent = the seat has NO production concept (the Automa) — the row
+   *  keeps the production track's reserved width visually empty. */
+  production?: number,
   mcBadge?: RailMcBadge,
   /** «This stock is protected» (railProtectionModel) — absent when it is not. */
   protection?: RailProtectionMark,
   /** The same fact for this row's PRODUCTION chip. */
   productionProtection?: RailProtectionMark,
+  /** M€ held in SEPARATE stores (the bot's Luna area / corp bank) — the
+   *  compact cube capsule beside the value, never part of it. */
+  store?: {total: number, sources: ReadonlyArray<{name: string, amount: number}>},
 };
 
 /** One rendered satellite cell — ONE shape for the human seat (card
@@ -423,6 +437,41 @@ export default defineComponent({
      * Undefined = human presentation (every non-inspecting frame).
      */
     automa: {type: Object as PropType<MarsBotModel>, default: undefined},
+    /**
+     * The GAME-shape context of the bot's extras classification (Venus in
+     * play / colony tiles in play) — which zero-count sources EXIST. Only
+     * read while `automa` is set.
+     */
+    botCtx: {type: Object as PropType<MarsBotExtrasContext>, default: undefined},
+  },
+  data() {
+    return {
+      /** The LB/RB seat switch is in flight — the satellite's transition
+       *  group swaps to the in-place mode (instant leaves, fade enters).
+       *  Armed by the `player.color` watcher (pre-flush — the same patch
+       *  that swaps the cells), released on a short timer; rapid presses
+       *  re-arm it (coalesce). */
+      auxSwapMode: false,
+      auxSwapTimer: undefined as number | undefined,
+    };
+  },
+  watch: {
+    'player.color'(): void {
+      this.auxSwapMode = true;
+      if (this.auxSwapTimer !== undefined) {
+        window.clearTimeout(this.auxSwapTimer);
+      }
+      this.auxSwapTimer = window.setTimeout(() => {
+        this.auxSwapMode = false;
+        this.auxSwapTimer = undefined;
+      }, 320);
+    },
+  },
+  beforeUnmount() {
+    if (this.auxSwapTimer !== undefined) {
+      window.clearTimeout(this.auxSwapTimer);
+      this.auxSwapTimer = undefined;
+    }
   },
   computed: {
     /**
@@ -464,6 +513,20 @@ export default defineComponent({
       return this.own ? shouldMaskOwnPassiveVp(true) : this.vpHidden;
     },
     rows(): Array<ResourceRow> {
+      // THE MARSBOT SEAT — the SAME six rows, filled from the bot's real
+      // pools by the pure preparation layer (type-classified: colony
+      // storage + corp store land in their resource's row; the M€ supply
+      // keeps its meaning and the separate M€ stores ride the capsule).
+      // No badges/shields/production: those capabilities do not exist for
+      // the Automa, and their absence is paint, never geometry.
+      if (this.automa !== undefined) {
+        return marsBotStandardRows(this.player, this.automa).map((row): ResourceRow => ({
+          key: row.key,
+          value: row.value,
+          metricKey: row.metricKey,
+          store: row.store,
+        }));
+      }
       const p = this.effectivePlayer;
       // The RESOURCE-TRANSFER reward hold (consoleResourceTransfer): a metric
       // whose reward chip is still IN FLIGHT displays committed − pending, so
@@ -488,13 +551,15 @@ export default defineComponent({
         protection: shields.stock[key as keyof typeof shields.stock],
         productionProtection: shields.production[key as keyof typeof shields.production],
       });
+      const row = (key: string, value: number, production: number, mcBadge?: RailMcBadge): ResourceRow =>
+        ({key, value: stock(key, value), metricKey: `${key}.stock`, production: prod(key, production), mcBadge, ...mark(key)});
       return [
-        {key: 'megacredits', value: stock('megacredits', p.megacredits), production: prod('megacredits', p.megacreditProduction), ...mark('megacredits')},
-        {key: 'steel', value: stock('steel', p.steel), production: prod('steel', p.steelProduction), mcBadge: badges.steel, ...mark('steel')},
-        {key: 'titanium', value: stock('titanium', p.titanium), production: prod('titanium', p.titaniumProduction), mcBadge: badges.titanium, ...mark('titanium')},
-        {key: 'plants', value: stock('plants', p.plants), production: prod('plants', p.plantProduction), mcBadge: badges.plants, ...mark('plants')},
-        {key: 'energy', value: stock('energy', p.energy), production: prod('energy', p.energyProduction), ...mark('energy')},
-        {key: 'heat', value: stock('heat', p.heat), production: prod('heat', p.heatProduction), mcBadge: badges.heat, ...mark('heat')},
+        row('megacredits', p.megacredits, p.megacreditProduction),
+        row('steel', p.steel, p.steelProduction, badges.steel),
+        row('titanium', p.titanium, p.titaniumProduction, badges.titanium),
+        row('plants', p.plants, p.plantProduction, badges.plants),
+        row('energy', p.energy, p.energyProduction),
+        row('heat', p.heat, p.heatProduction, badges.heat),
       ];
     },
     /** The displayed seat's payment-value badges (pure, memoized by model). */
@@ -522,9 +587,6 @@ export default defineComponent({
     /** The dedicated MarsBot presentation is active (inspecting the bot seat). */
     botMode(): boolean {
       return this.automa !== undefined;
-    },
-    botEconomy(): Array<MarsBotRailEconomyRow> {
-      return this.automa !== undefined ? marsBotRailEconomy(this.player, this.automa) : [];
     },
     /**
      * The МЕТКИ matrix for the DISPLAYED seat — ONE cell set for every
@@ -563,19 +625,21 @@ export default defineComponent({
     auxInfoActive(): boolean {
       return infoModeState.open || infoModeState.closing;
     },
-    /** Board view keeps the historical contract (mounted only there, only
-     *  with content); the info overlay mounts it ALWAYS — an empty column
-     *  still is the focusable group with its honest empty plate. */
+    /** Mounted only WITH content (board view and the info workspace alike):
+     *  an empty seat renders NO column — no ghost plate, no stray focus
+     *  ring (`infoZoneFocusable` skips the zone via `ctx.extras`). */
     auxVisible(): boolean {
-      return (this.boardVisible && this.auxCells.length > 0) || this.auxInfoActive;
+      return this.auxCells.length > 0 && (this.boardVisible || this.auxInfoActive);
     },
     /** ONE cell list for both seats: the human's card-resource groups, the
-     *  bot's real pools (floaters + shipping storage) — same geometry, same
-     *  delta-chip language, stable order (first-appearance / board order). */
+     *  bot's real CARD-TYPE pools (floaters + microbes/animals/cards +
+     *  the corp science store — standard-typed storage lives in the main
+     *  rows now) — same geometry, same delta-chip language, one TYPE-KEY
+     *  space so the semantic focus survives a seat switch, stable order. */
     auxCells(): Array<AuxCell> {
       const automa = this.automa;
       if (automa !== undefined) {
-        return marsBotExtraGroups(automa).map((g): AuxCell => ({
+        return marsBotExtraGroups(automa, this.botCtx).map((g): AuxCell => ({
           key: g.key,
           iconClass: g.iconClass,
           value: g.total,
@@ -751,6 +815,20 @@ export default defineComponent({
         parts.push(translateTextWithParams('Sources: ${0}', [mark.sources.map((c) => translateText(c)).join(', ')]));
       }
       return parts.join(' · ');
+    },
+    /**
+     * The separate-store capsule's sentence: WHERE the M€ sits apart from
+     * the supply and that it spends by its own rule — the visible capsule
+     * carries only the cube + the number.
+     */
+    storeAria(row: ResourceRow): string {
+      const store = row.store;
+      if (store === undefined) {
+        return '';
+      }
+      const split = store.sources.map((s) => `${translateText(s.name)}: ${s.amount}`).join(' · ');
+      return translateTextWithParams('Stored separately: ${0}', [split]) +
+        ' · ' + translateText('Kept apart from the supply, spent by its own rule');
     },
     /**
      * A chip aggregates every holder, so a PARTIAL mark must name the split —

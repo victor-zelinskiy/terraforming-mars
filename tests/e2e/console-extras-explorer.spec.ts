@@ -304,23 +304,59 @@ for (const preset of PRESETS) {
         }
       }
 
-      // ── The seat ring: the bot's honest EMPTY state at the same route. ─
+      // ── The seat ring: the bot's honest state at the same route. ──────
       await openInfo(page);
       await key(page, 'ArrowLeft', 450);
       await key(page, 'Enter', 900);
       await expect(explorer).toHaveCount(1);
       await key(page, 'KeyE', 1000); // RB → the bot seat, route survives
-      // A fresh bot has no pools yet — the full empty room, never a bare
-      // frame; the satellite shows its honest plate.
+      // A fresh bot may have no card-type pools yet — the ROUTE presents
+      // the full empty room (never a bare frame), while the satellite
+      // COLUMN simply does not exist for an empty seat: no ghost plate,
+      // no leftover focus contour (the ring skips the zone).
       const emptyOrTypes = await Promise.race([
         explorer.locator('.con-exr__void-title').waitFor({state: 'visible', timeout: 8_000}).then(() => 'void' as const),
         explorer.locator('.con-exr__hero').waitFor({state: 'visible', timeout: 8_000}).then(() => 'types' as const),
       ]).catch(() => 'neither' as const);
       expect(emptyOrTypes, 'the bot seat presents SOMETHING honest at the same depth').not.toBe('neither');
+      await expect(page.locator('.con-res-aux__none'), 'the ghost plate is retired').toHaveCount(0);
       if (emptyOrTypes === 'void') {
-        await expect(page.locator('.con-res-aux__none')).toBeVisible();
+        await expect(page.locator('.con-res-aux'), 'an empty seat keeps the lane calm — no column at all').toHaveCount(0);
       }
       await shoot(page, preset, '07-bot-extras');
+
+      // ── THE SEAT-SWITCH FRAME CONTRACT: RB again returns to the human —
+      // the incoming composition must own its FINAL slots from the first
+      // painted frame («mounted below the departing cells, then rose» is
+      // the removed defect). Sample per 40ms through the whole switch and
+      // demand every painted cell sits ON the canonical slot grid captured
+      // during the earlier flow. ─────────────────────────────────────────
+      await armAuxSampler(page);
+      await key(page, 'KeyE', 1100); // RB → the ring wraps back to the human
+      const switchSamples = await takeAuxSamples(page);
+      const canonical = ['animal', 'microbe', 'science']
+        .map((k) => (byKey.get(k) ?? [])[0])
+        .filter((f): f is NonNullable<typeof f> => f !== undefined);
+      expect(canonical.length, 'the earlier flow captured the slot grid').toBe(3);
+      // The column's x and the slot band's y range: a shared type may make
+      // one small FLIP move WITHIN the column (bot slot → human slot), but
+      // nothing may ever paint below the band (the «entered under the
+      // departing cells, then rose» phase) or off the column's axis.
+      const colX = canonical[0].x;
+      const minY = Math.min(...canonical.map((f) => f.y));
+      const maxY = Math.max(...canonical.map((f) => f.y));
+      let seenCells = 0;
+      for (const s of switchSamples) {
+        for (const c of s.cells) {
+          seenCells++;
+          expect(Math.abs(c.x - colX), `«${c.key}» left the column axis at x=${Math.round(c.x)}`).toBeLessThanOrEqual(2);
+          expect(c.y, `«${c.key}» painted ABOVE the slot band at y=${Math.round(c.y)}`).toBeGreaterThanOrEqual(minY - 2);
+          expect(c.y, `«${c.key}» painted BELOW the slot band at y=${Math.round(c.y)} — ` +
+            'a seat switch must own the final layout from its first frame').toBeLessThanOrEqual(maxY + 2);
+        }
+      }
+      expect(seenCells, 'the sampler saw the human chips arrive').toBeGreaterThan(0);
+      expect(await cellKeys(), 'the human composition is back whole').toEqual(['animal', 'microbe', 'science']);
       await key(page, 'Escape', 800);
       await key(page, 'KeyY', 800);
       await expect(page.locator('.con-info')).toHaveCount(0);

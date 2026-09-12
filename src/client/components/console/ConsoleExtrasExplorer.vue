@@ -96,7 +96,11 @@
                 <b class="con-exr__botpool-amount">{{ h.amount }}</b>
               </div>
             </div>
-            <div class="con-exr__botnote">{{ $t('Shipping storage — human effects can target it by type') }}</div>
+            <!-- The rule note is per SOURCE KIND: the shipping-board law
+                 (targetable by type) holds for the storage areas only —
+                 the floater pool and a corp card's store spend by their
+                 own printed rules. -->
+            <div v-if="botNote !== ''" class="con-exr__botnote">{{ botNote }}</div>
           </div>
 
           <!-- ── THE FACT STRIP: the focused card's whole story in one fixed
@@ -183,7 +187,7 @@ import {cardResourceCSS} from '@/client/components/common/cardResources';
 import {cardHasAction} from '@/client/components/actions/actionExtraction';
 import {railMcBadges} from '@/client/console/railValueModel';
 import {railProtections} from '@/client/console/railProtectionModel';
-import {marsBotExtraGroups} from '@/client/components/console/marsBotRailModel';
+import {marsBotExtraGroups, marsBotExtrasContext} from '@/client/components/console/marsBotRailModel';
 import {MarsBotModel} from '@/common/models/MarsBotModel';
 import {infoModeState} from '@/client/console/infoModeState';
 import {extrasExplorerUi, selectExtrasType} from '@/client/console/consoleExtrasExplorer';
@@ -244,7 +248,7 @@ export default defineComponent({
     types(): ReadonlyArray<ExtrasTypeVm> {
       const automa = this.botAutoma;
       if (this.viewedIsBot && automa !== undefined) {
-        return buildBotExtrasTypes(marsBotExtraGroups(automa));
+        return buildBotExtrasTypes(marsBotExtraGroups(automa, marsBotExtrasContext(this.playerView.game)));
       }
       return buildExtrasTypes({
         groups: additionalResourceGroups(this.viewed.tableau),
@@ -325,6 +329,11 @@ export default defineComponent({
         return '';
       }
       if (this.viewedIsBot) {
+        // A CORP store's holder is the corporation card, not a shipping
+        // area — name it instead of claiming a storage-area count.
+        if (sel.botOrigin === 'corp' && sel.holders.length > 0) {
+          return translateText(sel.holders[0].name);
+        }
         return sel.holders.length > 0 ?
           translateTextWithParams('Storage areas: ${0}', [String(sel.holders.length)]) :
           translateText('Common pool');
@@ -356,6 +365,19 @@ export default defineComponent({
       const badge = this.selected?.payment;
       return badge !== undefined ?
         translateTextWithParams('Pays: 1 = ${0} M€', [badge.text]) : '';
+    },
+    /** The bot fill's rule note — honest per source kind. */
+    botNote(): string {
+      switch (this.selected?.botOrigin) {
+      case 'storage':
+        return translateText('Shipping storage — human effects can target it by type');
+      case 'pool':
+        return translateText('One shared pool — 5 floaters convert into an extra action-deck card during the Research phase');
+      case 'corp':
+        return translateText('Stored on the corporation card — spent by its printed rule');
+      default:
+        return '';
+      }
     },
     detailNowText(): string {
       const s = this.focusedCard?.scoring;

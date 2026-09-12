@@ -201,11 +201,13 @@ export function infoRouteStage(route: InfoRouteId): string {
 export type InfoZoneId = 'extras' | 'vp' | 'played' | 'actions' | 'effects' | 'campaign' | 'botdoor';
 
 /**
- * GAME-SHAPE context of the zone table — what exists in THIS game (not on
- * this participant). Optional everywhere with the conservative default, so
- * an ordinary game's call sites stay untouched.
+ * Context of the zone table: the GAME shape (`campaign` — what exists in
+ * THIS game) plus the one SEAT fact the ring needs (`extras` — the
+ * inspected seat has satellite chips; an empty column keeps no ring stop
+ * and no ghost plate). Optional everywhere with conservative defaults, so
+ * an ordinary call site stays untouched.
  */
-export type InfoZoneContext = {campaign?: boolean};
+export type InfoZoneContext = {campaign?: boolean, extras?: boolean};
 
 /** The summary layout: columns of zones, read left → right, top → bottom.
  *  (The old «Карты» readout zone is GONE — the HAND DOCK is the inspected
@@ -259,6 +261,11 @@ export function infoZonePresent(zone: InfoZoneId, kind: InfoParticipantKind, ctx
  * honesty rule. An absent zone is not focusable by definition.
  */
 export function infoZoneFocusable(zone: InfoZoneId, kind: InfoParticipantKind, ctx: InfoZoneContext = {}): boolean {
+  // An EMPTY satellite is no ring stop: there is no chip to stand on and
+  // nothing to open — the ring skips it instead of ringing a ghost plate.
+  if (zone === 'extras' && ctx.extras === false) {
+    return false;
+  }
   const route = ZONE_ROUTE[zone];
   return infoZonePresent(zone, kind, ctx) && route !== undefined && infoRouteApplies(route, kind);
 }

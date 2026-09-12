@@ -153,15 +153,17 @@ describe('extrasExplorerModel — the «Доп. ресурсы» view-model', ()
     expect(t.cards[1].isCorporation).to.be.true;
   });
 
-  it('the bot adapter keeps the same semantic shape over the real pools', () => {
+  it('the bot adapter keeps the same semantic shape over the real CARD-TYPE pools', () => {
     const groups: Array<MarsBotExtraGroup> = [
-      {key: 'floaters', iconClass: 'card-resource card-resource-floater', label: 'Floaters', total: 4, holders: [], metricKey: 'card-resource.Floater.stock'},
-      {key: 'steel', iconClass: 'resource_icon resource_icon--steel', label: 'Steel', total: 2, holders: [{name: 'Ceres', amount: 2}], metricKey: 'botstorage.steel'},
+      {key: 'floater', iconClass: 'card-resource card-resource-floater', label: 'Floaters', total: 4, holders: [], metricKey: 'card-resource.Floater.stock', origin: 'pool'},
+      {key: 'microbe', iconClass: 'card-resource card-resource-microbe', label: 'Microbes', total: 2, holders: [{name: 'Enceladus', amount: 2}], metricKey: 'card-resource.Microbe.stock', origin: 'storage'},
     ];
     const types = buildBotExtrasTypes(groups);
-    expect(types.map((t) => t.key)).to.deep.eq(['floaters', 'steel']);
+    expect(types.map((t) => t.key)).to.deep.eq(['floater', 'microbe']);
     expect(types[0].holders).to.deep.eq([]);
-    expect(types[1].holders).to.deep.eq([{name: 'Ceres', amount: 2}]);
+    expect(types[0].botOrigin).to.eq('pool');
+    expect(types[1].holders).to.deep.eq([{name: 'Enceladus', amount: 2}]);
+    expect(types[1].botOrigin).to.eq('storage');
     expect(types[1].vpFromResources, 'the bot\'s VP never comes from these pools').to.be.undefined;
     expect(types[1].cards).to.have.length(0);
   });

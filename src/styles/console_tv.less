@@ -201,6 +201,13 @@ html.con-profile-tv {
         --cr-row-py: 0.4rem;
         --cr-rgap: 0.45rem;
         --cr-score-h: 3rem;
+        /* The production track's reserved width at the couch chip type
+           (1.05rem, «+12» whole) — the value axis anchor for every seat. */
+        --cr-prod-w: 2.3rem;
+        /* Satellite: cell = .5 + 2.2 icon + .4 + 1.3 value + .5 = 4.9;
+           clearance .95 puts the cells ~.6rem past the info frame's seam. */
+        --cr-aux-off: 0.95rem;
+        --cr-aux-w: 4.9rem;
         /* Value badges: the coin digit rides the couch type floor (0.8rem). */
         --valbadge-size: 1.18rem;
         --valbadge-fs: 0.8rem;
@@ -1675,9 +1682,15 @@ html.con-profile-tv {
        tokens; the three detail columns cap a notch wider so the freed
        workspace width breathes instead of stretching rows. */
     .con-info {
-        /* LEFT: the satellite clearance at the TV metrics (.5 + 2.2 icon +
-           .4 + 1.2 + .5 = 4.8 cell + .05 seam + 1.55 breathing). */
-        &__frame { padding: 1rem 1.4rem 0.8rem 6.4rem; }
+        /* LEFT: the frame keeps the ORDINARY workspace inset — the header
+           anchors to it, independent of the satellite (the old frame-wide
+           6.4rem reserve pushed the title AND double-counted with the base
+           `--con-info-satellite-w` margin: the measured ~6rem corridor
+           before the VP block). The satellite lane is the TOKEN, calibrated
+           at the TV metrics: cells end at (aux-off .95 − main-gap .35) +
+           aux-w 4.9 = 5.5rem; content starts at hud-pad-x 1.75 + 4.8 —
+           a deliberate ~1.05rem seam. */
+        &__frame { --con-info-satellite-w: 4.8rem; padding: 1rem var(--con-hud-pad-x, 1.75rem) 0.8rem; }
         &__corp { font-size: 1.15rem; }
         &__chip { font-size: 0.9rem; }
         &__block-title { font-size: 0.95rem; }
@@ -1693,11 +1706,8 @@ html.con-profile-tv {
         &__na-title { font-size: 1.5rem; }
         &__na-body { font-size: var(--con-t-body); max-width: 30rem; }
     }
-    /* The rail satellite's info-mode chrome at couch distance. */
-    .con-res-aux {
-        &__cap { font-size: .8rem; letter-spacing: .16rem; }
-        &__none { font-size: 1.05rem; }
-    }
+    /* (The bot M€ separate-store capsule rides the shared --valbadge-*
+       tokens — its count is at the 0.8rem couch floor by construction.) */
     /* The extras explorer — 10-foot registers; the gallery keeps the same
        rem logic (the zoom knob already rides --con-ui-scale). */
     .con-exr {

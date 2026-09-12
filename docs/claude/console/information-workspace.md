@@ -127,18 +127,39 @@ zones sit at the same coordinates (e2e-guarded ±2px):
 | `botdoor` (col 3) | — | the bot's door to «Экран бота» (an ordinary ring stop) |
 
 **THE EXTRAS ZONE IS THE RAIL SATELLITE** (`.con-res-aux`, extras rework
-2026-09-10; STABLE-CHASSIS + per-chip ring, 2026-09-11): the persistent
-ДОП.РЕСУРСЫ column beside the left rail is the zone's ONE physical body —
-the panel renders no duplicate, and it carries NO caption (the chips are
-the label; the bar names the focused TYPE). It is mounted through the
-whole overlay (an empty seat shows the honest «—» plate, absolutely
-seated, so the cells' geometry never moves), rides above the panel's dim
-on the host stacking (`.con-main--info .con-res-host` z11561), and is
-PIXEL-IDENTICAL to its board pose by construction (same node, same anchor
-— e2e-sampled per frame in `console-extras-explorer.spec.ts`). The bot
-seat fills the same cells from its real pools; an inspected seat's cells
-carry NO `data-aux-resource` landing anchors (resource flights must never
-aim at a foreign column).
+2026-09-10; STABLE-CHASSIS + per-chip ring, 2026-09-11; the NORMALIZATION
+iteration, 2026-09-12): the persistent ДОП.РЕСУРСЫ column beside the left
+rail is the zone's ONE physical body — the panel renders no duplicate, and
+it carries NO caption (the chips are the label; the bar names the focused
+TYPE). It exists only WITH CONTENT: an empty seat renders NO column at all
+— no «—» ghost plate, no leftover focus contour (the ring skips the zone
+via `InfoZoneContext.extras`); the workspace lane stays constant either
+way (`--con-info-satellite-w` is a token, not content). With content it
+rides above the panel's dim on the host stacking (`.con-main--info
+.con-res-host` z11561) and is PIXEL-IDENTICAL to its board pose by
+construction (same node, same anchor — e2e-sampled per frame in
+`console-extras-explorer.spec.ts`). Its cells are the rows' own plate
+family at a compact register (fixed `--cr-aux-w` width, `--cr-aux-off`
+clearance so they stand PAST the frame's accent seam instead of clinging
+to it; the info mode adds a paint-only column WELL binding them into one
+group). The bot seat fills the same cells from its real CARD-TYPE pools
+in the HUMAN key space (`cardResourceKey` — so LB/RB preserves the
+semantic chip focus); an inspected seat's cells carry NO
+`data-aux-resource` landing anchors (resource flights must never aim at a
+foreign column).
+
+**The SEAT-SWITCH content swap (`con-extra-swap`, 2026-09-12).** LB/RB
+swaps the whole composition, and the transition-group's ordinary
+`con-extra` mode (in-flow leaves + slide-in enters) made the new set mount
+BELOW the departing cells and rise after their removal. The panel's
+`player.color` watcher (pre-flush — same patch as the cell swap) arms
+`auxSwapMode` for ~320 ms: leaves are INSTANT (`transition: none` — the
+new composition owns the final layout from its FIRST frame), enters fade
+IN PLACE (no translate), a shared type keeps its NODE by type key and only
+patches its number under the rail's `data-insp-fade` dip, and a slot
+change is one small FLIP move. The in-game type unlock keeps the ordinary
+`con-extra` slide. Delta chips are PoV-safe by scope (silent rebaseline) —
+a seat switch never rolls a counter.
 
 **The STABLE CHASSIS (2026-09-11):** the frame itself keeps the ORDINARY
 workspace inset — `.con-info__frame` reserves nothing for the satellite,
@@ -303,7 +324,11 @@ the screen; the panel hosts only the selected type's content.**
   own bucket (no double count). A hidden score (zeroed breakdown) keeps
   the PRINTED rule from the manifest and withholds every number. Payment
   grants (`railMcBadges.cardBound`) belong to the ENABLING card alone;
-  protection marks ride `railProtections.cardResources`.
+  protection marks ride `railProtections.cardResources`. The bot fill is
+  `buildBotExtrasTypes(marsBotExtraGroups(automa, ctx))` — CARD-TYPE pools
+  only, each carrying its `botOrigin` (`pool` / `storage` / `corp`) so the
+  rule note is honest per source (the shipping-board targeting law does
+  not apply to the floater pool or a corp card's store).
 - **Composition**: HERO (type icon + name + total + «Накопителей: N» +
   honest chips: VP sum / conditional / actions / «Оплата: 1 = N M€» /
   «под защитой») → GALLERY (real premium faces via CardFace lightweight,
@@ -327,8 +352,10 @@ the screen; the panel hosts only the selected type's content.**
   beats that SNAP under reduced motion (microtask `done`) and while the
   zoom viewer is open (its slot hold must not chase a transition).
 - **Empty state**: a seat with no holders gets the full honest room
-  («Нет карт, способных хранить ресурсы») and the satellite's «—» plate;
-  the route stays enterable (the ring stop exists for every seat).
+  («Нет карт, способных хранить ресурсы»); the satellite COLUMN simply
+  does not exist for such a seat (no ghost plate) and its ring stop is
+  skipped — the route stays reachable only via a seat switch, presenting
+  the room, never a bare frame.
 
 ## «Экран бота» — the internals hub (the botdoor zone)
 
@@ -344,13 +371,45 @@ stay reachable.
 
 ## The MarsBot rail — the PARTICIPANT presentation (`marsBotRailModel.ts`)
 
-Parity with the human geometry, not a technical panel:
+ONE preparation layer classifies the bot's pools by RESOURCE TYPE (the
+normalization iteration, 2026-09-12) — the rail is the SAME instrument for
+every seat, never a technical panel:
 
-- economy rows: the M€ supply always; the corporation's own store when it
-  is a REAL resource (Ecoline/Ecotec plants, Philares/Spire science, the
-  M€ bank) — floaters are «Доп. ресурсы» now, cube markers are state and
-  never rows. `.con-res__rows--bot` RESERVES the six-row height, so МЕТКИ
-  never changes its vertical anchor across a seat switch.
+- **The six standard rows exist for the bot exactly like for a human**
+  (`marsBotStandardRows` — canonical order, zeros as definite 0s, the
+  SAME `<key>.stock` metric keys scoped by the bot color). A
+  standard-typed stock is a standard row WHEREVER the Automa keeps it:
+  Ceres steel / Triton titanium / Ganymede plants / Callisto energy / Io
+  heat (shipping storage) and the corp's own plant store all land in
+  their type's row (`sources` keeps the split for the detail surfaces).
+  The bot has NO production: the rows keep the production track's
+  reserved width (`--cr-prod-w`) visually EMPTY (`.con-res__prod--void`)
+  — never a fake «+0», never a dash — so the value axis and the row
+  geometry are seat-invariant BY CONSTRUCTION. `.con-res__rows--bot` is a
+  MARKER now (no reserved-height math exists: the old `min-height` formula
+  drifted from the font-driven human rows and sat МЕТКИ ~0.3rem apart;
+  explicit `line-height: 1` on the value/prod ink keeps the row height
+  icon-token-driven on every profile).
+- **M€ is the one deliberate exception**: the row's value is the bot's
+  MAIN SUPPLY only; the INDEPENDENT M€ stores (the Luna area, a corp
+  card's bank/till — C06/C20) ride the row as the compact CUBE CAPSULE
+  (`.con-res__store` — the `.con-valbadge` corner-layer geometry in its
+  own dark-steel material, deliberately unlike the gold rate coin and the
+  brown production tile; sized by the shared `--valbadge-*` tokens). They
+  are never folded into the supply; the aria + «Экран бота»'s storage
+  block name the split and the «spent by its own rule» semantics. No
+  progress «N/5» is ever drawn over a SUM of independent stores.
+- **Card-type pools are «Доп. ресурсы»** (`marsBotExtraGroups(automa,
+  ctx)` — `MarsBotExtrasContext` = Venus in play + colony tiles in play,
+  built once via `marsBotExtrasContext(game)`): the floater pool (exists
+  while a floater mechanism exists — Venus or the Titan area — zeros
+  included), Enceladus microbes, Miranda animals, Pluto's «card»-surrogate
+  stock (the official board stores CARD tokens there, 5 → Science —
+  presented honestly as `cards`, not renamed), and a corp science store
+  (Philares/Spire). Keys are the HUMAN `cardResourceKey` space; order is
+  canonical (pool → board order → corp); a storable colony IN PLAY shows
+  its honest 0, a mechanism not in this game never appears. Cube markers
+  are state and never appear anywhere.
 - МЕТКИ: the SAME tag matrix (`consoleAvailableTags` cells), counts from
   the printed tracks — the track position IS the engine's tag count
   (`AutomaTargeting.effectiveTagCount`); one track fills every of its tag
@@ -414,11 +473,14 @@ verbatim). Y(0) and LB/RB(1) survive the Deck bar.
   (`screenshots/score-explorer/<preset>/`).
 - `tests/client/components/console/infoModeState.spec.ts` — lifecycle +
   route reset on open/close.
-- `tests/client/components/console/marsBotRailModel.spec.ts` — economy
-  honesty, the matrix parity, «not tracked», the extras adapter, the
-  no-double-count invariant.
+- `tests/client/components/console/marsBotRailModel.spec.ts` — the six
+  standard rows (type classification, the M€ supply/store split, corp
+  stores, zeros), the matrix parity, «not tracked», the card-type extras
+  (context-gated zeros, canonical order), the no-double-count invariant.
 - `tests/client/components/console/ConsoleResourcePanel.spec.ts` — the bot
-  rail markup (matrix, no production, reserved height, «—»).
+  rail markup (six rows, void production track, the M€ store capsule,
+  matrix, «—»), the satellite (type-keyed identity across a seat switch,
+  the swap mode, no ghost plate).
 - `tests/models/ServerModel.spec.ts` — the bot VP gate.
 - `tests/e2e/console-info-workspace.spec.ts` — the full contract per
   display profile (standard / tv-4k / deck): geometry, crumb, zone parity

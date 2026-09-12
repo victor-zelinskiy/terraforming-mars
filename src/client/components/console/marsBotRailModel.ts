@@ -1,89 +1,175 @@
 /*
- * marsBotRailModel — PURE, DOM-free model of the LEFT RAIL's MarsBot
- * presentation (the Information Workspace inspects the bot seat) and of the
- * bot's «Доп. ресурсы» adapter.
+ * marsBotRailModel — PURE, DOM-free preparation layer of the MarsBot seat's
+ * RESOURCE presentation (the left rail + the «Доп. ресурсы» satellite of the
+ * Information Workspace) and of the bot's tag matrix.
  *
- * THE PARITY CONTRACT (info-panel rework): the bot reads as ONE MORE
- * PARTICIPANT, not a technical panel. So the rail keeps the HUMAN geometry:
+ * THE PARITY CONTRACT (info-panel normalization): the bot reads as ONE MORE
+ * PARTICIPANT inside the SAME instrument the humans use. Visual
+ * classification follows the RESOURCE TYPE, never the storage location:
  *
- *  - the resource rows show only what the Automa REALLY accumulates — the
- *    M€ supply always, plus its corporation's own store when that store is
- *    a real resource (Ecoline/Ecotec plants, Philares/Spire science, the
- *    Mining Guild / Factorum M€ till). No fake +0 production chips, no
- *    invented stocks; the unfilled rows stay deliberate empty space so the
- *    МЕТКИ block never changes its vertical anchor between seats.
+ *  - the SIX STANDARD ROWS exist for the bot exactly like for a human
+ *    (M€ · steel · titanium · plants · energy · heat, zeros included). A
+ *    standard-typed stock is a standard row wherever the Automa keeps it —
+ *    Ceres steel, Triton titanium, Ganymede plants, Callisto energy, Io
+ *    heat (shipping storage, RB-C pp.4–5) and the corporation's own plant
+ *    store (Ecoline/Ecotec) all land in their type's row. The row model
+ *    keeps the SOURCE split (`sources`) — the detail surfaces (bot screen,
+ *    aria) name where each stock physically sits.
  *
- *  - the МЕТКИ zone is the SAME tag matrix as a human's — because the bot's
- *    track positions ARE its tag counts by the engine's own rule
- *    (`AutomaTargeting.effectiveTagCount`: per-tag effects, requirements,
- *    awards and milestones all read the track). One track can serve several
- *    tags (POWER+JOVIAN, EARTH+CITY, the bio track) — each mapped tag cell
- *    shows that shared position, which is exactly what the engine answers.
- *    A cell whose tag maps to NO track (wild, clone, no-tag) is «not
- *    tracked» — rendered as a dash, never a lying 0.
+ *  - M€ IS THE ONE DELIBERATE EXCEPTION: the bot's main M€ SUPPLY is the
+ *    row's value (its meaning — the money the Automa pays with — must
+ *    survive), while the INDEPENDENT M€ stores (the Luna shipping area, a
+ *    corporation's own bank/till — C06/C20) ride the row as a separate
+ *    compact `store` readout. They are never silently folded into the
+ *    supply and never replace it; each store keeps its own balance,
+ *    threshold and spending rule (stated on the detail surfaces).
  *
- * The old dominant «ТРЕКИ БОТА» progress-bar array moved to the bot's OWN
- * internals screen («Экран бота» → «Планшет бота») — a player who does not
- * care how the algorithm works sees the familiar participant model.
+ *  - CARD-TYPE resources are «Доп. ресурсы»: the floater pool, Enceladus
+ *    microbes, Miranda animals, Pluto's «card»-surrogate stock (the
+ *    official board stores CARD tokens there — 5 → Science track;
+ *    `ShippingBoardData.ts` / AUTOMA_DATA_AUDIT §4) and a corporation's
+ *    science store (Philares/Spire). Keys are the HUMAN satellite's own
+ *    (`cardResourceKey`), so a seat switch can preserve the semantic focus.
+ *
+ *  - a REAL SOURCE WITH ZERO stays visible: a storable colony IN PLAY is an
+ *    unlocked type at 0 (the human rule — «a card that CAN hold it shows at
+ *    0»), while a type whose mechanism is not in this game never appears.
+ *    `MarsBotExtrasContext` carries the game shape (Venus / colony tiles).
+ *
+ *  - the МЕТКИ zone is the SAME tag matrix as a human's — the track
+ *    positions ARE the engine's tag counts (`AutomaTargeting.effectiveTagCount`).
+ *    A tag no track serves is «not tracked» — a dash, never a lying 0.
  *
  * Data is public and server-authoritative (MarsBotModel mirrors the table).
+ * No rule is re-implemented here — this module only CLASSIFIES the model's
+ * own pools for display.
  */
 
 import {Tag} from '@/common/cards/Tag';
 import {CardResource} from '@/common/CardResource';
+import {ColonyName} from '@/common/colonies/ColonyName';
 import {MarsBotModel} from '@/common/models/MarsBotModel';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
-import {MarsBotCorpResource} from '@/common/automa/MarsBotCorpData';
 import {cardResourceCSS} from '@/client/components/common/cardResources';
 import {additionalResourceMetricKey} from '@/client/components/additionalResources/additionalResources';
+import {cardResourceKey} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {consoleAvailableTags, ConsoleTagCell} from '@/client/components/console/consoleTagMatrix';
 
-export type MarsBotRailEconomyRow = {
-  /** Stable row key (also the v-for key). */
-  key: string;
-  /** Ready-to-render icon classes (resource_icon / card-resource family). */
-  iconClass: string;
-  value: number;
-  /** AnimatedMetricValue key — shares the human families so the delta-chip
-   *  language stays identical (scope = the bot seat's color). */
-  metricKey: string;
+// ── the game-shape context (which sources EXIST in this game) ──────────────
+
+/**
+ * What the extras classification needs to know about the GAME (not the
+ * bot): a storage area is a real zero-count source only while its colony
+ * tile is in play, and the floater pool only while a floater mechanism
+ * exists (Venus track cells / the Titan area, RB-C p.2/p.4).
+ */
+export type MarsBotExtrasContext = {
+  venus: boolean;
+  /** Colony tiles IN PLAY (`game.colonies` names). */
+  colonies: ReadonlyArray<string>;
 };
 
-/** Which corp stores are REAL resources (a cube marker is a state flag). */
-const CORP_STORE_ICON: Partial<Record<MarsBotCorpResource, string>> = {
-  'plant': 'resource_icon resource_icon--plants',
-  'megacredits': 'resource_icon resource_icon--megacredits',
-  'science': `card-resource ${cardResourceCSS[CardResource.SCIENCE]}`,
+/** Build the context from the client game model (one derivation, every call site). */
+export function marsBotExtrasContext(game: {
+  colonies?: ReadonlyArray<{name: string}>,
+  gameOptions: {expansions: {venus?: boolean}},
+}): MarsBotExtrasContext {
+  return {
+    venus: game.gameOptions.expansions.venus === true,
+    colonies: (game.colonies ?? []).map((c) => c.name),
+  };
+}
+
+// ── the STANDARD rows (the six-row parity skeleton) ────────────────────────
+
+export type MarsBotStandardKey = 'megacredits' | 'steel' | 'titanium' | 'plants' | 'energy' | 'heat';
+
+const STANDARD_KEYS: ReadonlyArray<MarsBotStandardKey> =
+  ['megacredits', 'steel', 'titanium', 'plants', 'energy', 'heat'];
+
+/** Which shipping area accumulates which STANDARD resource (RB-C pp.4–5 /
+ *  `ShippingBoardData.ts`). Luna (M€) is handled apart — it is a separate
+ *  store, never part of the supply. */
+const STANDARD_AREA: Readonly<Partial<Record<string, Exclude<MarsBotStandardKey, 'megacredits'>>>> = {
+  [ColonyName.CERES]: 'steel',
+  [ColonyName.TRITON]: 'titanium',
+  [ColonyName.GANYMEDE]: 'plants',
+  [ColonyName.CALLISTO]: 'energy',
+  [ColonyName.IO]: 'heat',
+};
+
+export type MarsBotStandardRow = {
+  key: MarsBotStandardKey;
+  /** The row's displayed number. For M€ this is the MAIN SUPPLY only. */
+  value: number;
+  /** AnimatedMetricValue key — the HUMAN family (`<key>.stock`), scoped by
+   *  the bot's color, so the delta-chip language stays identical. */
+  metricKey: string;
+  /** WHERE `value` accumulates when it is storage (colony areas / the corp
+   *  card) — the detail split. Empty when the value is the plain supply. */
+  sources: ReadonlyArray<{name: string, amount: number}>;
+  /** M€ held in SEPARATE stores (the Luna area, the corp card's own
+   *  bank/till) — never folded into `value`, never a production. */
+  store?: {total: number, sources: ReadonlyArray<{name: string, amount: number}>};
 };
 
 /**
- * The bot's real economy rows: the M€ supply, plus its corporation's own
- * store when that store is a genuine resource with a non-zero balance.
- * (Floaters are NOT an economy row — they are the bot's «Доп. ресурсы»,
- * same as a human's card-held resources; see `marsBotExtraResources`.)
+ * The bot's six standard rows — ALWAYS six, canonical order, zeros shown
+ * (0 is a definite number here; «not applicable» does not exist for a
+ * standard stock). No production exists for the Automa — the component
+ * keeps the production track visually empty, it never invents a «+0».
  */
-export function marsBotRailEconomy(bot: PublicPlayerModel, automa: MarsBotModel): Array<MarsBotRailEconomyRow> {
-  const rows: Array<MarsBotRailEconomyRow> = [
-    {
-      key: 'megacredits',
-      iconClass: 'resource_icon resource_icon--megacredits',
-      value: bot.megacredits,
-      metricKey: 'megacredits.stock',
-    },
-  ];
+export function marsBotStandardRows(bot: PublicPlayerModel, automa: MarsBotModel): Array<MarsBotStandardRow> {
+  const storage = automa.shippingStorage ?? {};
   const corp = automa.corporation;
-  if (corp?.resource !== undefined && corp.resources > 0) {
-    const icon = CORP_STORE_ICON[corp.resource];
-    if (icon !== undefined) {
-      rows.push({
-        key: `corp-${corp.resource}`,
-        iconClass: icon,
-        value: corp.resources,
-        metricKey: `botcorp.${corp.resource}`,
-      });
+  // The bot player's OWN stock fields (normally 0 outside M€) stay part of
+  // the row — any engine path that credits them directly remains visible.
+  const ownStock: Record<MarsBotStandardKey, number> = {
+    megacredits: bot.megacredits,
+    steel: bot.steel,
+    titanium: bot.titanium,
+    plants: bot.plants,
+    energy: bot.energy,
+    heat: bot.heat,
+  };
+  return STANDARD_KEYS.map((key): MarsBotStandardRow => {
+    const sources: Array<{name: string, amount: number}> = [];
+    let value = ownStock[key] ?? 0;
+    if (key !== 'megacredits') {
+      for (const [colony, stored] of Object.entries(STANDARD_AREA)) {
+        if (stored !== key) {
+          continue;
+        }
+        const amount = storage[colony as ColonyName];
+        if (typeof amount === 'number' && amount > 0) {
+          value += amount;
+          sources.push({name: colony, amount});
+        }
+      }
+      if (corp?.resource === 'plant' && key === 'plants' && corp.resources > 0) {
+        value += corp.resources;
+        sources.push({name: corp.original, amount: corp.resources});
+      }
+      return {key, value, metricKey: `${key}.stock`, sources};
     }
-  }
-  return rows;
+    // M€ — the supply is the value; the separate stores ride the marker.
+    const storeSources: Array<{name: string, amount: number}> = [];
+    const luna = storage[ColonyName.LUNA];
+    if (typeof luna === 'number' && luna > 0) {
+      storeSources.push({name: ColonyName.LUNA, amount: luna});
+    }
+    if (corp?.resource === 'megacredits' && corp.resources > 0) {
+      storeSources.push({name: corp.original, amount: corp.resources});
+    }
+    const storeTotal = storeSources.reduce((sum, s) => sum + s.amount, 0);
+    return {
+      key,
+      value,
+      metricKey: 'megacredits.stock',
+      sources: [],
+      store: storeTotal > 0 ? {total: storeTotal, sources: storeSources} : undefined,
+    };
+  });
 }
 
 // ── the tag matrix (parity with the human МЕТКИ block) ─────────────────────
@@ -117,88 +203,118 @@ export function marsBotTagEntries(
   }));
 }
 
-// ── «Доп. ресурсы» — the bot's extra-resource adapter ──────────────────────
+// ── «Доп. ресурсы» — the bot's CARD-TYPE pools ─────────────────────────────
 
 export type MarsBotExtraGroup = {
+  /** The HUMAN satellite's own type key (`cardResourceKey`) — one key
+   *  space, so a seat switch preserves the semantic focus. The one
+   *  bot-only type is Pluto's `cards`. */
   key: string;
   /** Ready-to-render icon classes. */
   iconClass: string;
   /** i18n KEY of the resource-type name. */
   label: string;
   total: number;
-  /** WHERE it is held — the colony tiles (i18n keys: colony names are keys).
-   *  Empty for the one-pool floater stock. */
+  /** WHERE it is held — colony areas / the corp card (i18n keys: colony
+   *  and card names are keys). Empty for the one-pool floater stock. */
   holders: Array<{name: string, amount: number}>;
   metricKey: string;
+  /** What KIND of place holds it — picks the honest rule note (the
+   *  shipping-board law does not apply to the pool or the corp card). */
+  origin: 'pool' | 'storage' | 'corp';
 };
 
-/**
- * What each shipping area STORES, by the official board (rulebook A p.2 /
- * `docs/AUTOMA_DATA_AUDIT.md` §4): the type is what human steal/remove
- * effects target there, so this is rules truth, not a display invention.
- * Titan (floaters) and Europa (never stores) are deliberately absent —
- * Titan's pool is `automa.floaters` and must never be double-counted.
- */
-const STORAGE_RESOURCE: Readonly<Record<string, {key: string, iconClass: string, label: string}>> = {
-  'Ceres': {key: 'steel', iconClass: 'resource_icon resource_icon--steel', label: 'Steel'},
-  'Luna': {key: 'megacredits', iconClass: 'resource_icon resource_icon--megacredits', label: 'Megacredits'},
-  'Io': {key: 'heat', iconClass: 'resource_icon resource_icon--heat', label: 'Heat'},
-  'Enceladus': {key: 'microbes', iconClass: `card-resource ${cardResourceCSS[CardResource.MICROBE]}`, label: 'Microbes'},
-  'Ganymede': {key: 'plants', iconClass: 'resource_icon resource_icon--plants', label: 'Plants'},
-  'Callisto': {key: 'energy', iconClass: 'resource_icon resource_icon--energy', label: 'Energy'},
-  'Miranda': {key: 'animals', iconClass: `card-resource ${cardResourceCSS[CardResource.ANIMAL]}`, label: 'Animals'},
-  'Triton': {key: 'titanium', iconClass: 'resource_icon resource_icon--titanium', label: 'Titanium'},
-  'Pluto': {key: 'cards', iconClass: 'resource_icon resource_icon--cards', label: 'Cards'},
-};
+/** The card-typed shipping areas, in the official board's own order
+ *  (rulebook A p.2 / `docs/AUTOMA_DATA_AUDIT.md` §4). Pluto stores CARD
+ *  tokens («MarsBot does not gain cards; it gains resources into the
+ *  storage area», RB-C p.5) — a bot-only type, presented honestly as
+ *  cards, never renamed into a resource the board does not print. */
+const CARD_AREA: ReadonlyArray<{colony: ColonyName, key: string, iconClass: string, label: string, metricKey: string}> = [
+  {
+    colony: ColonyName.ENCELADUS,
+    key: cardResourceKey(CardResource.MICROBE),
+    iconClass: `card-resource ${cardResourceCSS[CardResource.MICROBE]}`,
+    label: 'Microbes',
+    metricKey: additionalResourceMetricKey(CardResource.MICROBE),
+  },
+  {
+    colony: ColonyName.MIRANDA,
+    key: cardResourceKey(CardResource.ANIMAL),
+    iconClass: `card-resource ${cardResourceCSS[CardResource.ANIMAL]}`,
+    label: 'Animals',
+    metricKey: additionalResourceMetricKey(CardResource.ANIMAL),
+  },
+  {
+    colony: ColonyName.PLUTO,
+    key: 'cards',
+    iconClass: 'resource_icon resource_icon--cards',
+    label: 'Cards',
+    metricKey: 'botstorage.cards',
+  },
+];
 
 /**
- * The bot's REAL extra accumulations, adapted to the shared «Доп. ресурсы»
+ * The bot's REAL card-type accumulations for the shared «Доп. ресурсы»
  * area — the same semantic shape as a human's card-held resources: groups
- * BY RESOURCE TYPE, each naming its holders (colony tiles instead of
- * cards). Disjoint pools by construction (no double count — Titan's
- * floaters live ONLY in `automa.floaters`, never in `shippingStorage`; the
- * corporation's own store is an ECONOMY row and is deliberately absent).
+ * BY RESOURCE TYPE, each naming its holders. Disjoint pools by
+ * construction: Titan's floaters live ONLY in `automa.floaters` (never in
+ * `shippingStorage`), the standard-typed areas live in the STANDARD rows,
+ * and Europa never stores. A source that EXISTS shows its honest 0; a
+ * mechanism not in this game never appears.
  */
-export function marsBotExtraGroups(automa: MarsBotModel): Array<MarsBotExtraGroup> {
+export function marsBotExtraGroups(
+  automa: MarsBotModel,
+  ctx: MarsBotExtrasContext = {venus: false, colonies: []},
+): Array<MarsBotExtraGroup> {
+  const inPlay = new Set(ctx.colonies);
+  const storage = automa.shippingStorage ?? {};
   const out: Array<MarsBotExtraGroup> = [];
-  if (automa.floaters > 0) {
+  // The one-pool floater stock — real while a floater mechanism exists.
+  if (ctx.venus || inPlay.has(ColonyName.TITAN) || automa.floaters > 0) {
     out.push({
-      key: 'floaters',
+      key: cardResourceKey(CardResource.FLOATER),
       iconClass: `card-resource ${cardResourceCSS[CardResource.FLOATER]}`,
       label: 'Floaters',
       total: automa.floaters,
       holders: [],
       metricKey: additionalResourceMetricKey(CardResource.FLOATER),
+      origin: 'pool',
     });
   }
-  const byType = new Map<string, MarsBotExtraGroup>();
-  for (const {colony, count} of shippingStorageEntries(automa)) {
-    const meta = STORAGE_RESOURCE[colony];
-    if (meta === undefined) {
-      continue; // Titan/Europa never appear; an unknown area stays silent
+  for (const area of CARD_AREA) {
+    const raw = storage[area.colony];
+    const amount = typeof raw === 'number' ? raw : 0;
+    if (!inPlay.has(area.colony) && amount <= 0) {
+      continue;
     }
-    const group = byType.get(meta.key) ?? {
-      key: meta.key,
-      iconClass: meta.iconClass,
-      label: meta.label,
-      total: 0,
-      holders: [],
-      metricKey: `botstorage.${meta.key}`,
-    };
-    group.total += count;
-    group.holders.push({name: colony, amount: count});
-    byType.set(meta.key, group);
+    out.push({
+      key: area.key,
+      iconClass: area.iconClass,
+      label: area.label,
+      total: amount,
+      holders: [{name: area.colony, amount}],
+      metricKey: area.metricKey,
+      origin: 'storage',
+    });
   }
-  // STABLE order — the official board's own area order (the STORAGE_RESOURCE
-  // table), never the current totals: the extras column keeps one geometry
-  // between the rail satellite, the summary and the detail screen, and a
-  // count change may never re-shuffle the types under the player's cursor.
-  const rank = Object.values(STORAGE_RESOURCE).map((meta) => meta.key);
-  out.push(...[...byType.values()].sort((a, b) => rank.indexOf(a.key) - rank.indexOf(b.key)));
+  // The corporation's own science store (Philares/Spire) — a card-type
+  // resource physically ON the corp card: an unlocked type, zeros shown.
+  const corp = automa.corporation;
+  if (corp?.resource === 'science') {
+    out.push({
+      key: cardResourceKey(CardResource.SCIENCE),
+      iconClass: `card-resource ${cardResourceCSS[CardResource.SCIENCE]}`,
+      label: 'Science',
+      total: corp.resources,
+      holders: [{name: corp.original, amount: corp.resources}],
+      metricKey: additionalResourceMetricKey(CardResource.SCIENCE),
+      origin: 'corp',
+    });
+  }
   return out;
 }
 
-/** The per-colony storage split (the extras detail + the bot screen). */
+/** The per-colony storage split (the bot screen's storage block). */
 export function shippingStorageEntries(automa: MarsBotModel): Array<{colony: string, count: number}> {
   const storage = automa.shippingStorage;
   if (storage === undefined) {

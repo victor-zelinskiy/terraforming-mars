@@ -197,12 +197,12 @@ describe('ConsoleResourcePanel — inspected-player VP masking', () => {
 
 /**
  * The MarsBot PARTICIPANT presentation (Information Workspace inspects the
- * bot seat, the shell passes `automa`) — the PARITY contract: the rail keeps
- * the HUMAN geometry. Economy rows show only what the bot really
- * accumulates (no production chips, floaters are «Доп. ресурсы» now, the
- * zone reserves the six-row height), and the МЕТКИ zone is the SAME tag
- * matrix, filled from the printed tracks (position = the engine's tag
- * count; an unmapped tag reads «—»).
+ * bot seat, the shell passes `automa`) — the PARITY contract: the SAME six
+ * standard rows as a human (type-classified: colony storage + the corp
+ * store land in their resource's row; the M€ supply keeps its meaning and
+ * the separate M€ stores ride the cube capsule), production visually EMPTY
+ * (reserved track, never «+0»), and the МЕТКИ zone is the SAME tag matrix,
+ * filled from the printed tracks (an unmapped tag reads «—»).
  */
 describe('ConsoleResourcePanel — the MarsBot participant rail', () => {
   const automa = {
@@ -214,25 +214,48 @@ describe('ConsoleResourcePanel — the MarsBot participant rail', () => {
     actionDeckSize: 10, bonusDeckSize: 7,
     bonusDiscard: [], recurringBonusCards: [], destroyedBonusCards: [],
     playedPile: [], floaters: 3,
+    shippingStorage: {'Ceres': 4, 'Ganymede': 4, 'Callisto': 2, 'Io': 2, 'Luna': 3, 'Enceladus': 4},
   };
 
-  function mountBot() {
+  function mountBot(extraProps: Record<string, unknown> = {}) {
     return mount(ConsoleResourcePanel, {
       global: globalConfig.global,
       props: {
         player: fakePlayer({}), gameTags: BASE_GAME_TAGS as Array<Tag>,
-        own: false, automa: automa as never,
+        own: false, automa: automa as never, ...extraProps,
       },
     });
   }
 
-  it('economy rows: the real M€ supply only — floaters left for «Доп. ресурсы», NO production chips', () => {
+  it('the SAME six standard rows as a human — storage classified by type, zeros shown', () => {
     const w = mountBot();
-    expect(w.find('[data-bot-economy="megacredits"] .con-res__value').text()).to.eq('12');
-    expect(w.find('[data-bot-economy="floaters"]').exists(), 'floaters are extra resources, not economy').to.be.false;
-    expect(w.findAll('.con-res__prod')).to.have.length(0);
-    // The rows zone reserves the human six-row height (parity geometry).
-    expect(w.find('.con-res__rows--bot').exists()).to.be.true;
+    const rows = w.findAll('.con-res__row');
+    expect(rows).to.have.length(6);
+    expect(w.find('.con-res__row--megacredits .con-res__value').text(), 'the M€ SUPPLY, never Luna folded in').to.eq('12');
+    expect(w.find('.con-res__row--steel .con-res__value').text(), 'Ceres steel is the steel row').to.eq('4');
+    expect(w.find('.con-res__row--titanium .con-res__value').text(), 'no titanium anywhere — a definite 0, never a dash').to.eq('0');
+    expect(w.find('.con-res__row--plants .con-res__value').text()).to.eq('4');
+    expect(w.find('.con-res__row--energy .con-res__value').text()).to.eq('2');
+    expect(w.find('.con-res__row--heat .con-res__value').text()).to.eq('2');
+    expect(w.find('.con-res__rows--bot').exists(), 'the bot marker stays on the rows zone').to.be.true;
+  });
+
+  it('no production concept: every row keeps the reserved EMPTY track — no chip, no «+0», no dash', () => {
+    const w = mountBot();
+    const voids = w.findAll('.con-res__prod--void');
+    expect(voids).to.have.length(6);
+    voids.forEach((v) => expect(v.text()).to.eq(''));
+  });
+
+  it('the separate M€ store (Luna) rides the cube capsule, not the value and not a production', () => {
+    const w = mountBot();
+    const store = w.find('.con-res__row--megacredits [data-store="megacredits"]');
+    expect(store.exists()).to.be.true;
+    expect(store.find('.con-res__store-num').text()).to.eq('3');
+    expect(store.attributes('aria-label')).to.contain('Luna');
+    expect(store.attributes('aria-label')).to.contain('3');
+    // Nothing stored on the other rows — no capsule anywhere else.
+    expect(w.findAll('[data-store]')).to.have.length(1);
   });
 
   it('the МЕТКИ zone is the SAME matrix — cells from game.tags, counts from the tracks', () => {
@@ -592,16 +615,24 @@ describe('ConsoleResourcePanel — the extras satellite in info mode', () => {
     expect(w.find('.con-res-aux').exists(), 'no holders — no column on the board').to.be.false;
   });
 
-  it('info mode mounts the column even for a seat with no holders (the honest empty plate)', () => {
+  it('info mode: an EMPTY seat renders NO column — no ghost plate, no caption', () => {
     infoModeState.open = true;
     const w = mountPlayer(fakePlayer(), {boardVisible: false});
+    // The zone is skipped by the focus ring (`ctx.extras === false`), so
+    // nothing may stand where a chip would be — calm emptiness.
+    expect(w.find('.con-res-aux').exists()).to.be.false;
+    expect(w.find('.con-res-aux__none').exists()).to.be.false;
+  });
+
+  it('info mode mounts the column WITH content and marks the workspace context', () => {
+    infoModeState.open = true;
+    const w = mountPlayer(fakePlayer({}, {tableau: [holder(CardName.BIRDS, 3)]}), {boardVisible: false});
     expect(w.find('.con-res-aux').exists()).to.be.true;
     expect(w.find('.con-res-aux').classes()).to.include('con-res-aux--info');
     // NO caption (stable-chassis iteration): the chips are the label and
     // the command bar names the focused type — the column may not draw a
     // second heading of its own.
     expect(w.find('.con-res-aux__cap').exists(), 'the caption is retired').to.be.false;
-    expect(w.find('.con-res-aux__none').exists()).to.be.true;
   });
 
   it('the summary ring stands on ONE CHIP (per-chip ring stops)', () => {
@@ -629,17 +660,36 @@ describe('ConsoleResourcePanel — the extras satellite in info mode', () => {
     expect(cell.find('.con-res-aux__value').text(), 'a zero holder still shows its honest 0').to.eq('0');
   });
 
-  it('the bot seat fills the SAME cells from its real pools (no landing anchors)', () => {
+  it('a seat switch keeps a shared TYPE\'s cell NODE (semantic identity) and arms the swap mode', async () => {
+    infoModeState.open = true;
+    const w = mountPlayer(fakePlayer({}, {tableau: [holder(CardName.BIRDS, 3)]}), {boardVisible: false});
+    const before = w.find('[data-exr-type="animal"]').element;
+    await w.setProps({player: fakePlayer({}, {color: 'blue', tableau: [holder(CardName.PETS, 5)]}), own: false});
+    // The `player.color` watcher armed the in-place transition mode in the
+    // SAME patch the cells swapped — leaves instant, enters fade in place,
+    // so nothing can render below the old set and rise afterwards.
+    expect((w.vm as unknown as {auxSwapMode: boolean}).auxSwapMode, 'the swap mode armed for the switch frame').to.be.true;
+    const after = w.find('[data-exr-type="animal"]');
+    expect(after.element, 'the SAME node — identity by type key, never a re-mounted subtree').to.eq(before);
+    expect(after.find('.con-res-aux__value').text(), 'the number patched under the dip').to.eq('5');
+    await new Promise((resolve) => setTimeout(resolve, 360));
+    expect((w.vm as unknown as {auxSwapMode: boolean}).auxSwapMode, 'the mode releases after the beat').to.be.false;
+  });
+
+  it('the bot seat fills the SAME cells from its CARD-TYPE pools only (standard storage lives in the rows)', () => {
     infoModeState.open = true;
     const automa = {
       difficulty: 'normal', tracks: [], actionDeckSize: 10, bonusDeckSize: 7,
       bonusDiscard: [], recurringBonusCards: [], destroyedBonusCards: [],
-      playedPile: [], floaters: 3, shippingStorage: {'Ceres': 2},
+      playedPile: [], floaters: 3, shippingStorage: {'Ceres': 2, 'Enceladus': 4},
     };
     const w = mountPlayer(fakePlayer(), {boardVisible: false, own: false, automa: automa as never});
     const cells = w.findAll('.con-res-aux__cell');
-    expect(cells.map((c) => c.attributes('data-exr-type'))).to.deep.eq(['floaters', 'steel']);
+    // Ceres steel is a STANDARD row, never an extras chip; the keys are the
+    // human type-key space (semantic focus survives a seat switch).
+    expect(cells.map((c) => c.attributes('data-exr-type'))).to.deep.eq(['floater', 'microbe']);
     expect(cells[0].attributes('data-aux-resource'), 'an inspected seat is never a flight anchor').to.be.undefined;
     expect(cells[0].find('.con-res-aux__value').text()).to.eq('3');
+    expect(w.find('.con-res__row--steel .con-res__value').text(), 'the storage steel reads in the standard row').to.eq('2');
   });
 });

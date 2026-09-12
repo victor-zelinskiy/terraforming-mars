@@ -347,6 +347,7 @@ import ConsoleExtrasExplorer from '@/client/components/console/ConsoleExtrasExpl
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {mapLabelKey} from '@/client/components/create/premium/createGameMeta';
 import {InfoExtrasChip, infoExtrasChips} from '@/client/console/infoExtrasChips';
+import {marsBotExtrasContext} from '@/client/components/console/marsBotRailModel';
 import {preloadPremiumCardArt} from '@/client/cards/cardArt';
 import {MarsBotModel} from '@/common/models/MarsBotModel';
 import {DIFFICULTY_LABEL} from '@/client/components/marsbot/marsBotView';
@@ -752,11 +753,20 @@ export default defineComponent({
     },
     /** May A enter the currently focused summary zone? */
     summaryFocusEnterable(): boolean {
-      return infoZoneFocusable(this.infoModeState.summaryFocus, this.viewedKind, {campaign: this.campaignContract !== undefined});
+      return infoZoneFocusable(this.infoModeState.summaryFocus, this.viewedKind, this.zoneCtx);
     },
     /** The inspected seat's satellite chips (same derivation as the rail). */
     extrasChips(): ReadonlyArray<InfoExtrasChip> {
-      return infoExtrasChips(this.viewed, this.viewedIsBot ? this.botAutoma : undefined);
+      return infoExtrasChips(this.viewed, this.viewedIsBot ? this.botAutoma : undefined,
+        marsBotExtrasContext(this.playerView.game));
+    },
+    /** The zone-table context: game shape + the seat's satellite presence
+     *  (an empty extras column is no ring stop — same rule as the shell). */
+    zoneCtx(): {campaign: boolean, extras: boolean} {
+      return {
+        campaign: this.campaignContract !== undefined,
+        extras: this.extrasChips.length > 0,
+      };
     },
     /** The chip the summary ring stands on (clamped — the composition can
      *  shrink under the cursor on a seat switch). */
@@ -823,7 +833,7 @@ export default defineComponent({
     },
     /** The focus-ring state of a summary zone (ring only where A can go). */
     zoneStateClass(zone: string): Record<string, boolean> {
-      const focusable = infoZoneFocusable(zone as never, this.viewedKind, {campaign: this.campaignContract !== undefined});
+      const focusable = infoZoneFocusable(zone as never, this.viewedKind, this.zoneCtx);
       return {
         'con-info__zone--focusable': focusable,
         'con-info__zone--focused': focusable && this.infoModeState.summaryFocus === zone,

@@ -113,6 +113,7 @@
                             :own="railShowsSelf"
                             :vpHidden="railVpHidden"
                             :automa="railAutoma"
+                            :botCtx="botExtrasCtx"
                             @aux-press="onAuxCellPressed" />
       <!-- v-show (NOT v-if): the board must stay in the DOM — the headless
            SelectSpace attaches placement handlers to its cells. -->
@@ -1842,6 +1843,7 @@ import {
 import {infoModeState, openInfoMode, closeInfoMode, settleInfoModeClose, restoreConsoleSnapshot, cyclePlayer} from '@/client/console/infoModeState';
 import {extrasExplorerUi, resetExtrasExplorer, selectExtrasType} from '@/client/console/consoleExtrasExplorer';
 import {infoExtrasChips} from '@/client/console/infoExtrasChips';
+import {marsBotExtrasContext, MarsBotExtrasContext} from '@/client/components/console/marsBotRailModel';
 import {InfoRouteId, infoRouteApplies, infoRouteBack, infoZoneForRoute, infoZoneRoute, infoZoneFocusable, infoZoneNavigate, infoFocusRing, botScreenNavigate, isVpRoute} from '@/client/console/infoRoute';
 import {resetScoreExplorer} from '@/client/console/consoleScoreExplorer';
 import {playInspectedSwitchMotion, playInspectedReturnMotion} from '@/client/console/inspectSwitchMotion';
@@ -6648,6 +6650,12 @@ export default defineComponent({
     railAutoma(): MarsBotModel | undefined {
       return this.infoModeState.open && this.railPlayer.isMarsBot === true ?
         this.playerView.game.automa : undefined;
+    },
+    /** The game-shape context of the bot's extras classification (which
+     *  zero-count sources EXIST: Venus / colony tiles in play) — ONE
+     *  derivation for the rail, the ring and the extras explorer. */
+    botExtrasCtx(): MarsBotExtrasContext {
+      return marsBotExtrasContext(this.playerView.game);
     },
     /** The game rule hides opponents' scores → the rail masks the VP cell
      *  while a HUMAN opponent is inspected (same gate as the panel's
@@ -11598,6 +11606,14 @@ export default defineComponent({
     cycleInspectedPlayer(step: 1 | -1): void {
       const colors = this.playerView.players.map((p) => p.color);
       const before = this.infoModeState.playerColor;
+      // The SEMANTIC chip focus: capture WHICH resource type the ring
+      // stands on BEFORE the seat flips — the keys are one space across
+      // seats (cardResourceKey), so the same type on the next owner keeps
+      // the focus; a vanished type degrades to the nearest chip index.
+      const chipsBefore = this.infoExtrasChipList();
+      const focusedChipKey = this.infoModeState.summaryFocus === 'extras' ?
+        chipsBefore[Math.min(this.infoModeState.extrasCursor, Math.max(0, chipsBefore.length - 1))]?.key :
+        undefined;
       this.infoModeState.playerColor = cyclePlayer(colors, before, step);
       // THE ROUTE SURVIVES the switch by contract (`infoRoute.ts`): a route
       // the new participant cannot serve presents the workspace FALLBACK at
@@ -11608,8 +11624,14 @@ export default defineComponent({
       if (!infoZoneFocusable(this.infoModeState.summaryFocus, this.infoViewedKind(), this.infoZoneCtx())) {
         this.infoModeState.summaryFocus = infoFocusRing(this.infoViewedKind(), this.infoZoneCtx())[0] ?? 'vp';
       }
-      // The satellite composition is per-seat — the chip cursor restarts.
-      this.infoModeState.extrasCursor = 0;
+      const chipsAfter = this.infoExtrasChipList();
+      if (focusedChipKey !== undefined && this.infoModeState.summaryFocus === 'extras') {
+        const sameType = chipsAfter.findIndex((c) => c.key === focusedChipKey);
+        this.infoModeState.extrasCursor = sameType !== -1 ? sameType :
+          Math.min(this.infoModeState.extrasCursor, Math.max(0, chipsAfter.length - 1));
+      } else {
+        this.infoModeState.extrasCursor = Math.min(this.infoModeState.extrasCursor, Math.max(0, chipsAfter.length - 1));
+      }
       if (this.infoModeState.playerColor !== before) {
         playInspectedSwitchMotion(step);
       }
@@ -11619,7 +11641,7 @@ export default defineComponent({
       const viewed = this.playerView.players.find((p) => p.color === this.infoModeState.playerColor) ??
         this.playerView.thisPlayer;
       const automa = viewed.isMarsBot === true ? this.playerView.game.automa : undefined;
-      return infoExtrasChips(viewed, automa);
+      return infoExtrasChips(viewed, automa, this.botExtrasCtx);
     },
     /** The inspected participant's KIND — the capability table's input. */
     infoViewedKind(): 'human' | 'bot' {
@@ -11627,10 +11649,14 @@ export default defineComponent({
         .find((p) => p.color === this.infoModeState.playerColor)?.isMarsBot === true;
       return isBot && this.playerView.game.automa !== undefined ? 'bot' : 'human';
     },
-    /** The GAME-shape context of the summary zone table (what exists in
-     *  THIS game): the campaign zone shows only in campaign missions. */
-    infoZoneCtx(): {campaign: boolean} {
-      return {campaign: this.playerView.game.gameOptions.campaign !== undefined};
+    /** The context of the summary zone table: the GAME shape (campaign
+     *  missions) + the inspected SEAT's satellite presence — an empty
+     *  extras column keeps no ring stop. */
+    infoZoneCtx(): {campaign: boolean, extras: boolean} {
+      return {
+        campaign: this.playerView.game.gameOptions.campaign !== undefined,
+        extras: this.infoExtrasChipList().length > 0,
+      };
     },
     /**
      * Navigate to a semantic route (the ring's A, the bot hub's entries, a
