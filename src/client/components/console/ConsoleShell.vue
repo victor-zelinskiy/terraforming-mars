@@ -1932,6 +1932,17 @@ const HYDRO_RESULT_HOLD_MS = 2400;
 const REVEAL_EXIT_BARRIER_NET_MS = 4000;
 
 /**
+ * THE WORKSPACE-STALL FORCE GRACE. A flow that reported FINISHED
+ * (`owedConclusion`) and still cannot dismiss for this long, with nothing the
+ * player could act on, is a ghost — `retryOwedConclusion` force-tears it down.
+ * Above every legitimate transient (the soft reconcile + re-ask window ≈ 5 s),
+ * well below the board-beat park's 30 s cliff and the claim's 20 s backstop,
+ * so the player never waits those out again. The universal net the four field
+ * hangs earned — see `docs/claude/console/flow-close-gates.md` § THE STALL NET.
+ */
+const OWED_CONCLUSION_FORCE_MS = 8000;
+
+/**
  * WHICH PROMPTS A CARD PLAY'S CLAIM ANSWERS FOR — the card questions its own
  * draw raises: the pick over the cards it turned over (`deckSelect` is the
  * DRAW & SELECT surface, `cardSelect` the buy/keep browser) and the payment
@@ -2180,6 +2191,9 @@ export default defineComponent({
        * a NEW claim arms for the same host (a fresh flow owns its ending).
        */
       owedConclusion: undefined as {kind: WorkspaceFrameKind, servedPromptHolds: boolean} | undefined,
+      /** Epoch ms the CURRENT owed conclusion was armed — the escalation clock
+       *  for `retryOwedConclusion`'s force phase (0 = nothing owed). */
+      owedConclusionSince: 0,
       /** The armed entry's BOUNDED WAIT (COLONY_BONUS_ENTRY_WAIT_MS) — the net
        *  under «entered, and nothing ever arrived». */
       colonyEntryWaitTimer: undefined as number | undefined,
@@ -15892,9 +15906,16 @@ export default defineComponent({
     concludeWorkspaceFlowOrOwe(kind: WorkspaceFrameKind, servedPromptHolds = true): boolean {
       const done = this.concludeWorkspaceFlow(kind, servedPromptHolds);
       if (!done) {
+        // Keep the ESCALATION CLOCK from an existing owe of the same kind — a
+        // re-owe is the same debt still unpaid, not a fresh one; a different
+        // kind (or a first owe) starts the clock now.
+        if (this.owedConclusion?.kind !== kind || this.owedConclusionSince === 0) {
+          this.owedConclusionSince = Date.now();
+        }
         this.owedConclusion = {kind, servedPromptHolds};
       } else if (this.owedConclusion?.kind === kind) {
         this.owedConclusion = undefined;
+        this.owedConclusionSince = 0;
       }
       return done;
     },
@@ -15914,24 +15935,91 @@ export default defineComponent({
       }
       if (!workspaceFrameKnown(owed.kind)) {
         this.owedConclusion = undefined;
+        this.owedConclusionSince = 0;
         return;
       }
       if (workspaceOutcomeState.host === owed.kind && workspaceOutcomeState.stage === 'awaiting') {
         this.owedConclusion = undefined;
+        this.owedConclusionSince = 0;
         return;
       }
-      // A PLAY CLAIM IS RELEASED ONLY BY THE RECONCILER, and the reconciler
-      // runs on RESPONSES — but the fact that makes the claim releasable (the
-      // board-beat park draining, a beat settling) can arise with no response
-      // behind it. Re-reconcile here so a claim that now answers for nothing is
-      // let go, which is what lets the conclusion below succeed on the next
-      // tick. Safe: reconcile only releases a non-serving, non-owned claim.
-      if (isPlayOutcomeHost(workspaceOutcomeState.host) && workspaceOutcomeState.host === owed.kind) {
+      // ── SOFT PHASE: reconcile the claim off-response, then re-ask the
+      //    guarded conclusion. A claim is released only by the reconciler,
+      //    which runs on RESPONSES — but what makes it releasable (the
+      //    board-beat park draining, a beat settling) can arise with no
+      //    response. Reconcile is HOST-AWARE (its own «ours» arms keep a
+      //    colony/hydro claim alive through a genuine resolution), so running
+      //    it for ANY host is safe — it releases only a non-serving, non-owned
+      //    claim. (Was play-host-only, which left every OTHER host's stuck
+      //    claim uncurable — the 2026-09-11 field hang.)
+      if (workspaceOutcomeState.host === owed.kind && workspaceOutcomeClaimed()) {
         this.reconcileWorkspaceOutcome();
       }
       if (this.concludeWorkspaceFlow(owed.kind, owed.servedPromptHolds)) {
         this.owedConclusion = undefined;
+        this.owedConclusionSince = 0;
+        return;
       }
+      // ── FORCE PHASE: a flow that REPORTED FINISHED and still cannot dismiss
+      //    after the escalation grace, with NOTHING the player could be acting
+      //    on, is a ghost workspace — the class the four field hangs share. No
+      //    soft re-ask can cure it (the hold is a phantom claim / a serving
+      //    echo the funnel keeps refusing), so the authority to tear it down
+      //    lives here: the workspace-scope analogue of `recoverStalledForeground`.
+      if (this.owedConclusionSince > 0 &&
+          Date.now() - this.owedConclusionSince >= OWED_CONCLUSION_FORCE_MS &&
+          this.stuckWorkspaceIsGhost(owed.kind)) {
+        this.forceRecoverStuckWorkspace(owed.kind);
+      }
+    },
+    /**
+     * IS A FINISHED-BUT-HELD WORKSPACE A GHOST — nothing the player could be
+     * acting on stands inside it? The force-teardown's airtight safety gate:
+     * every term here is «the player has something genuine to do / see», so
+     * their conjunction being FALSE means the workspace is holding on a phantom.
+     * The witness's continuous grace guarantees this held for the whole window,
+     * never a one-flush blink.
+     */
+    stuckWorkspaceIsGhost(kind: WorkspaceFrameKind): boolean {
+      return !workspaceFrameHasNested(kind) &&
+        !workspaceFrameParked(kind) &&
+        !this.workspaceOutcomeServingNow && // no live prompt/batch it serves
+        !this.followUpStepOwed && // no second effect still owed a door
+        !this.placementActive &&
+        this.consoleRevealMode === undefined &&
+        !currentRevealEvent() &&
+        !isPlayedHeroActive();
+    },
+    /**
+     * FORCE a proven-ghost workspace to board home — bypassing the guarded
+     * conclusion's holds, because those holds are exactly the phantom keeping
+     * it stuck. Releases the host's claim with force, drops the owed intent,
+     * and NAMES everything it tore down (the leak-detector discipline: a
+     * recovery that heals invisibly would have hidden this bug). This is a NET,
+     * not a mechanism — every ordinary ending still routes through
+     * `concludeWorkspaceFlow`; this only ever runs after the escalation grace.
+     */
+    forceRecoverStuckWorkspace(kind: WorkspaceFrameKind): void {
+      const diag = this.owedConclusionSignal;
+      console.warn(
+        `[workspace-stall] «${kind}» reported finished but could not dismiss for ` +
+        `${Math.round((Date.now() - this.owedConclusionSince) / 1000)}s with nothing served — ` +
+        `forcing teardown (signal: ${diag})`);
+      if (workspaceOutcomeState.host === kind) {
+        releaseWorkspaceOutcome('workspace-stall-recovery', {force: true});
+      }
+      resetConsoleActionComposerUi();
+      this.owedConclusion = undefined;
+      this.owedConclusionSince = 0;
+      if (workspaceFrameAnchor(kind)?.type === 'phase') {
+        goBoardHome();
+      } else {
+        closeWorkspaceRoot(kind);
+      }
+      closeConsoleLayers();
+      // The board is watchable again → drain any board-beat park that was
+      // waiting behind this very workspace.
+      void this.$nextTick(() => this.drainBoardBeats());
     },
     /**
      * THE CARD PLAY'S ONE ENDING — every way a play can finish routes here.

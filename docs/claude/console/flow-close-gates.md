@@ -215,6 +215,47 @@ enumerated ingredient list. The board-home foreground watchdog (which recovers
 the analogous stall) deliberately runs ONLY on `boardHomeIdle`; this net is its
 workspace-up counterpart, scoped tightly to a finished-but-stuck flow.
 
+## Iteration 5 (2026-09-11 — THE STALL NET: a finished flow that can't dismiss is FORCED down)
+
+Field report #4 (a LAN campaign game): a workspace hung ~30s again — but this
+time the log named the mechanism, because iteration 4's witness was already
+installed: `[presentation-ledger] witness «workspace-conclusion-owed» healing`
+fired ~13× over 8s and **never cured**, then `board-beat-park degraded after
+30s`. That is the diagnosis: iteration 4's heal only RE-ASKED the guarded
+conclusion (and only reconciled a *play* host), so a **non-play** host stuck on
+a phantom `live-outcome` / `owned-prompt` claim — a claim the funnel kept
+refusing to release — was re-asked forever and never let go.
+
+The architectural gap this closes: there was **no authority that could tear
+down a finished-but-stuck workspace of ANY host**. `recoverStalledForeground`
+is that authority for the board home, but it runs ONLY on `boardHomeIdle` — never
+with a workspace up, which is where every one of these hangs lives. So
+`retryOwedConclusion` became a two-phase ESCALATION (the workspace-scope
+analogue of the foreground watchdog):
+
+- **SOFT phase** (first ~5s): reconcile the claim off-response for **any** host
+  (the reconciler is host-aware — it keeps a colony/hydro claim alive through a
+  genuine resolution; the play-host-only gate was the iteration-4 hole) + re-ask
+  the guarded conclusion.
+- **FORCE phase** (`OWED_CONCLUSION_FORCE_MS` = 8s): a flow that reported
+  finished and still can't dismiss, with `stuckWorkspaceIsGhost` true (nothing
+  served, no reveal, no hero, no nested step, no owed follow-up, no placement),
+  is a proven ghost — `forceRecoverStuckWorkspace` releases its claim with
+  `{force:true}`, drops the owed intent, tears the workspace to board home, and
+  drains any board-beat park waiting behind it. It **names itself**
+  (`[workspace-stall] «<kind>» … forcing teardown (signal: …)`), printing the
+  conclusion signal so the exact hold is on record.
+
+The safety is airtight and is the whole point: `stuckWorkspaceIsGhost` is a
+conjunction of «the player has something genuine to do / see», so its being
+false for the full 8s continuous grace means the workspace holds on a phantom.
+A live colony/hydro resolution always keeps SOMETHING true (a served prompt, a
+reveal, a nested discard, the marker) — so the force can never tear one down; it
+only ever fires on a flow that finished and left a ghost behind. Hydro and
+colony keep their own subsystem nets (the hydro witnesses, `colonyResolution
+ReleaseOwed`) for their LIVE states; this is the floor under the
+`owedConclusion` family (play / card-actions / standard-projects).
+
 ## Guards
 
 `tests/client/components/console/consoleHydroFlow.spec.ts` § the flow-close
