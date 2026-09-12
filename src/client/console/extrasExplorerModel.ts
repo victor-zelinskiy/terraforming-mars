@@ -93,8 +93,9 @@ export type ExtrasTypeVm = {
   /** The bot's storage split (colony-tile names are i18n keys); [] for
    *  human seats and the bot's one-pool floater stock. */
   holders: ReadonlyArray<{name: string, amount: number}>;
-  /** The bot pool's KIND (picks the honest rule note); absent for humans. */
-  botOrigin?: 'pool' | 'storage' | 'corp';
+  /** The bot group's honest rule notes, one per source KIND (a science
+   *  group can carry Pluto's area AND a corp store); absent for humans. */
+  botNotes?: ReadonlyArray<'pool' | 'storage' | 'pluto' | 'corp'>;
   /** Σ linear resource VP over this type's cards (server rows). Undefined
    *  while the score is hidden. */
   vpFromResources: number | undefined;
@@ -269,7 +270,7 @@ export function buildBotExtrasTypes(groups: ReadonlyArray<MarsBotExtraGroup>): R
     total: g.total,
     cards: [],
     holders: g.holders,
-    botOrigin: g.origin,
+    botNotes: g.notes,
     vpFromResources: undefined,
     vpConditional: undefined,
     scoringCards: 0,

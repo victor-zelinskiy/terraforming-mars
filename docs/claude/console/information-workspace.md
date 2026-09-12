@@ -326,9 +326,11 @@ the screen; the panel hosts only the selected type's content.**
   grants (`railMcBadges.cardBound`) belong to the ENABLING card alone;
   protection marks ride `railProtections.cardResources`. The bot fill is
   `buildBotExtrasTypes(marsBotExtraGroups(automa, ctx))` — CARD-TYPE pools
-  only, each carrying its `botOrigin` (`pool` / `storage` / `corp`) so the
-  rule note is honest per source (the shipping-board targeting law does
-  not apply to the floater pool or a corp card's store).
+  only, each carrying its `botNotes` (`pool` / `storage` / `pluto` /
+  `corp` — one honest rule line per source kind: the shipping-board
+  steal/remove law covers the ordinary areas only, Pluto's science area
+  is deliberately outside it (RB-C p.5), and the floater pool / a corp
+  card's store spend by their own printed rules).
 - **Composition**: HERO (type icon + name + total + «Накопителей: N» +
   honest chips: VP sum / conditional / actions / «Оплата: 1 = N M€» /
   «под защитой») → GALLERY (real premium faces via CardFace lightweight,
@@ -403,10 +405,13 @@ every seat, never a technical panel:
   ctx)` — `MarsBotExtrasContext` = Venus in play + colony tiles in play,
   built once via `marsBotExtrasContext(game)`): the floater pool (exists
   while a floater mechanism exists — Venus or the Titan area — zeros
-  included), Enceladus microbes, Miranda animals, Pluto's «card»-surrogate
-  stock (the official board stores CARD tokens there, 5 → Science —
-  presented honestly as `cards`, not renamed), and a corp science store
-  (Philares/Spire). Keys are the HUMAN `cardResourceKey` space; order is
+  included), Enceladus microbes, Miranda animals, Pluto's SCIENCE stock
+  («MarsBot does not gain cards for Pluto. Instead it gains [science]
+  resources…», RB-C p.5; the printed area reads «5 [science] → [science
+  tag]», and Pluto is deliberately absent from the steal/remove list —
+  its note says so), and a corp science store (Philares/Spire) — the SAME
+  science type, ONE group with the split named per holder. Keys are the
+  HUMAN `cardResourceKey` space; order is
   canonical (pool → board order → corp); a storable colony IN PLAY shows
   its honest 0, a mechanism not in this game never appears. Cube markers
   are state and never appear anywhere.

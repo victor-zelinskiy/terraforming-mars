@@ -13,12 +13,17 @@ import {Tag} from '../cards/Tag';
  *   This does not apply to the Titan/Floater area."
  * - Europa: never stores resources. Build → place an ocean (+1 TR), Failed Action if
  *   impossible; trade → +1 TR (still −1 MC); colony bonus → +1 MC into MC supply.
- * - Pluto: MarsBot does not gain cards; it gains resources into the storage area.
+ * - Pluto: "MarsBot does not gain cards for Pluto. Instead it gains [science]
+ *   resources into the corresponding storage area" (RB-C p.5; the printed area
+ *   reads "5 [science] → [science tag]"). Note Pluto is deliberately ABSENT
+ *   from the steal/remove list below — its science is not targetable.
  * - Titan storage is used only when playing WITHOUT Venus Next (floaters); floaters are spent
  *   via the Research-Phase rule (5 floaters → an extra action-deck card), never via the
  *   5-resources track exchange.
- * - Human steal/remove effects may target these stored resources as the indicated type
- *   (Ceres steel, Luna M€, etc.) — except Europa (empty) and per normal targeting rules.
+ * - Human steal/remove effects may target these stored resources as the indicated type:
+ *   RB-C p.5 lists Ceres, Luna, Io, Enceladus, Ganymede, Callisto, Miranda and Triton
+ *   ("You may steal/remove from them as usual") — Europa never stores, and PLUTO is
+ *   deliberately not in that list (its science area is not a steal/remove target).
  *
  * Exchange mapping source: transcription from the official component image
  * (TM-Automa-rulebook-A, p.2 "1 Colonies shipping board", rendered at high resolution).
@@ -44,7 +49,7 @@ export const SHIPPING_BOARD_AREAS: ReadonlyArray<ShippingAreaData> = [
   {colony: ColonyName.CALLISTO, exchangeTag: Tag.POWER}, // 5 energy → Energy track
   {colony: ColonyName.MIRANDA, exchangeTag: Tag.ANIMAL}, // 5 animals → Bio track
   {colony: ColonyName.TRITON, exchangeTag: Tag.SPACE}, // 5 titanium → Space track
-  {colony: ColonyName.PLUTO, exchangeTag: Tag.SCIENCE}, // 5 "cards" → Science track
+  {colony: ColonyName.PLUTO, exchangeTag: Tag.SCIENCE}, // 5 science → Science track (not steal-targetable, RB-C p.5)
   {colony: ColonyName.TITAN, exchangeTag: undefined}, // floater area — no track exchange
   {colony: ColonyName.EUROPA, exchangeTag: undefined}, // never stores resources
 ];

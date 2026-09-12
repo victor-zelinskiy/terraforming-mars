@@ -157,7 +157,7 @@ describe('marsBotRailModel — the MarsBot participant presentation', () => {
 
   // ── «Доп. ресурсы» — the CARD-TYPE pools only ───────────────────────────
   describe('marsBotExtraGroups — card-type pools; standard storage lives in the rows', () => {
-    it('microbes/animals/cards are extras; standard-typed storage NEVER appears here', () => {
+    it('microbes/animals/science are extras; standard-typed storage NEVER appears here', () => {
       const groups = marsBotExtraGroups(fakeAutoma({
         floaters: 6,
         shippingStorage: {'Miranda': 1, 'Callisto': 4, 'Io': 4, 'Enceladus': 4, 'Triton': 2, 'Pluto': 3},
@@ -167,7 +167,13 @@ describe('marsBotRailModel — the MarsBot participant presentation', () => {
       expect(byKey.get('animal')?.total, 'Miranda stores animals').to.eq(1);
       expect(byKey.get('animal')?.holders).to.deep.eq([{name: 'Miranda', amount: 1}]);
       expect(byKey.get('microbe')?.total, 'Enceladus stores microbes').to.eq(4);
-      expect(byKey.get('cards')?.total, 'Pluto stores card tokens').to.eq(3);
+      // RB-C p.5: «MarsBot does not gain cards for Pluto. Instead it gains
+      // [science] resources» — the type is SCIENCE, never a cards-surrogate,
+      // and the area is absent from the steal/remove list (its own note).
+      expect(byKey.get('science')?.total, 'Pluto stores SCIENCE resources').to.eq(3);
+      expect(byKey.get('science')?.holders).to.deep.eq([{name: 'Pluto', amount: 3}]);
+      expect(byKey.get('science')?.notes).to.deep.eq(['pluto']);
+      expect(byKey.has('cards'), 'no cards-surrogate type exists').to.be.false;
       expect(byKey.has('energy'), 'Callisto energy is a STANDARD row').to.be.false;
       expect(byKey.has('heat'), 'Io heat is a STANDARD row').to.be.false;
       expect(byKey.has('titanium'), 'Triton titanium is a STANDARD row').to.be.false;
@@ -192,7 +198,7 @@ describe('marsBotRailModel — the MarsBot participant presentation', () => {
       const venus = marsBotExtraGroups(fakeAutoma(), {venus: true, colonies: []});
       expect(venus.map((g) => g.key)).to.deep.eq(['floater']);
       expect(venus[0].total).to.eq(0);
-      expect(venus[0].origin).to.eq('pool');
+      expect(venus[0].notes).to.deep.eq(['pool']);
       expect(marsBotExtraGroups(fakeAutoma(), {venus: false, colonies: []})).to.deep.eq([]);
     });
 
@@ -214,16 +220,32 @@ describe('marsBotRailModel — the MarsBot participant presentation', () => {
       expect(groups.map((g) => g.key)).to.deep.eq(['science']);
       expect(groups[0].total).to.eq(0);
       expect(groups[0].holders).to.deep.eq([{name: 'Philares', amount: 0}]);
-      expect(groups[0].origin).to.eq('corp');
+      expect(groups[0].notes).to.deep.eq(['corp']);
     });
 
-    it('the group order is CANONICAL (pool → board order → corp), never the totals\'', () => {
+    it('Pluto science + a corp science store MERGE into ONE type group — total with the split, stores independent', () => {
+      const groups = marsBotExtraGroups(fakeAutoma({
+        shippingStorage: {'Pluto': 3},
+        corporation: {id: 'C13', original: 'Philares', startingTags: [], resource: 'science', resources: 2, cubes: [], stats: {}},
+      } as unknown as Partial<MarsBotModel>), {venus: false, colonies: ['Pluto']});
+      expect(groups.map((g) => g.key), 'one chip per TYPE — never two science cells').to.deep.eq(['science']);
+      const science = groups[0];
+      expect(science.total).to.eq(5);
+      expect(science.holders, 'each store keeps its own balance in the split').to.deep.eq([
+        {name: 'Pluto', amount: 3},
+        {name: 'Philares', amount: 2},
+      ]);
+      expect(science.notes, 'one honest rule note per source kind').to.deep.eq(['pluto', 'corp']);
+    });
+
+    it('the group order is CANONICAL (pool → board order, corp merges into its type), never the totals\'', () => {
       const groups = marsBotExtraGroups(fakeAutoma({
         floaters: 1,
         shippingStorage: {'Pluto': 9, 'Enceladus': 1, 'Miranda': 5},
         corporation: {id: 'C13', original: 'Philares', startingTags: [], resource: 'science', resources: 7, cubes: [], stats: {}},
       } as unknown as Partial<MarsBotModel>), COLONIES_CTX);
-      expect(groups.map((g) => g.key)).to.deep.eq(['floater', 'microbe', 'animal', 'cards', 'science']);
+      expect(groups.map((g) => g.key)).to.deep.eq(['floater', 'microbe', 'animal', 'science']);
+      expect(groups[3].total, 'Pluto 9 + Philares 7').to.eq(16);
     });
 
     it('an empty bot in a game with no sources shows nothing', () => {

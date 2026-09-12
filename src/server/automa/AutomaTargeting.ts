@@ -44,7 +44,9 @@ export class AutomaTargeting {
    * WITHOUT Venus Next (with Venus the physical Titan storage area isn't used for
    * floaters at all; the counter is still the bot's floater pool). See
    * `botCardResourcePool`. A card-resource with neither (science, data, …) proxies
-   * through the M€ supply alone.
+   * through the M€ supply alone — Pluto's SCIENCE area is deliberately not here:
+   * RB-C p.5 lists only Ceres…Triton as steal/remove targets, and Pluto is not
+   * among them.
    */
   private static readonly CARD_RESOURCE_STORAGE: Partial<Record<CardResource, ColonyName>> = {
     [CardResource.MICROBE]: ColonyName.ENCELADUS,

@@ -280,9 +280,20 @@ EFFECTS» прочитана и совпадает дословно).
 | Callisto | энергия | Power (Energy) |
 | Miranda | животные | Animal (Bio) |
 | Triton | титан | Space |
-| Pluto | «карты»-суррогат | Science |
+| Pluto | **научные ресурсы** (science) | Science |
 | Titan | флоатеры | — (обмена нет; floaters по Venus-правилам) |
 | Europa | — (не хранит) | — (build→океан+TR / trade→+1 TR / colony bonus→+1 M€) |
+
+**ИСПРАВЛЕНИЕ (2026-09-12, повторная сверка с RB-C p.5 + кропом планшета RB-A p.2):**
+Pluto хранит НАУЧНЫЕ ресурсы, не «карты»-суррогат (прежняя транскрипция была ошибочной).
+Дословно RB-C p.5: «MarsBot does not gain cards for **Pluto**. Instead it gains [science]
+resources into the corresponding storage area» — в предложении напечатана иконка научного
+ресурса (атом), и сама область на планшете печатает «5 [science] → [science tag]» (карты
+печатает только Titan: «5 [floater] → +[card]»). При этом Pluto НАМЕРЕННО отсутствует в
+steal/remove-списке той же страницы («Resources on Ceres, Luna, Io, Enceladus, Ganymede,
+Callisto, Miranda, and Triton are considered to be resources of the indicated type for the
+purposes of your cards. You may steal/remove from them as usual») — науку Плутона игрок
+таргетить НЕ может; движок (`AutomaTargeting`) это уже реализует отсутствием маппинга.
 
 Нотация подтверждена: круглая тег-иконка = «advance track, соответствующий тегу» (та же
 нотация, что у Advance Another Track). Второй trade fleet: SG «space 9 of the power track» —
@@ -329,7 +340,9 @@ Extended Shipping Lines подмешивается со следующего п�
   advance трека по тегу области.
 - Трейды/колонии/Europa/Pluto/Titan — см. §4 и RB-C p.5 дословно.
 - Floater-spend действует и без Venus («assuming Hoverlord is no longer available»).
-- Human steal/remove МОЖЕТ таргетить storage-ресурсы бота как ресурсы соответствующего типа.
+- Human steal/remove МОЖЕТ таргетить storage-ресурсы бота как ресурсы соответствующего типа —
+  но ТОЛЬКО области из списка RB-C p.5 (Ceres, Luna, Io, Enceladus, Ganymede, Callisto,
+  Miranda, Triton); Pluto (science) в списке отсутствует и не таргетится.
 
 ## 8. Печатный порядок тегов (решение)
 

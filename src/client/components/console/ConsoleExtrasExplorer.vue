@@ -96,11 +96,12 @@
                 <b class="con-exr__botpool-amount">{{ h.amount }}</b>
               </div>
             </div>
-            <!-- The rule note is per SOURCE KIND: the shipping-board law
-                 (targetable by type) holds for the storage areas only —
-                 the floater pool and a corp card's store spend by their
-                 own printed rules. -->
-            <div v-if="botNote !== ''" class="con-exr__botnote">{{ botNote }}</div>
+            <!-- The rule notes are per SOURCE KIND (one line each): the
+                 shipping-board steal/remove law holds for the ordinary
+                 storage areas only — Pluto's science area is deliberately
+                 outside it (RB-C p.5), and the floater pool / a corp
+                 card's store spend by their own printed rules. -->
+            <div v-for="note in botNotes" :key="note" class="con-exr__botnote">{{ note }}</div>
           </div>
 
           <!-- ── THE FACT STRIP: the focused card's whole story in one fixed
@@ -329,14 +330,21 @@ export default defineComponent({
         return '';
       }
       if (this.viewedIsBot) {
-        // A CORP store's holder is the corporation card, not a shipping
-        // area — name it instead of claiming a storage-area count.
-        if (sel.botOrigin === 'corp' && sel.holders.length > 0) {
+        if (sel.holders.length === 0) {
+          return translateText('Common pool');
+        }
+        const notes = sel.botNotes ?? [];
+        // A CORP-only store's holder is the corporation card, not a
+        // shipping area — name it instead of claiming an area count.
+        if (notes.length === 1 && notes[0] === 'corp') {
           return translateText(sel.holders[0].name);
         }
-        return sel.holders.length > 0 ?
-          translateTextWithParams('Storage areas: ${0}', [String(sel.holders.length)]) :
-          translateText('Common pool');
+        // MIXED sources (Pluto science + a corp store): the type-agnostic
+        // holder count — «Storage areas: 2» would misname the corp card.
+        if (notes.includes('corp')) {
+          return translateTextWithParams('Holders: ${0}', [String(sel.holders.length)]);
+        }
+        return translateTextWithParams('Storage areas: ${0}', [String(sel.holders.length)]);
       }
       return translateTextWithParams('Holders: ${0}', [String(sel.cards.length)]);
     },
@@ -366,18 +374,23 @@ export default defineComponent({
       return badge !== undefined ?
         translateTextWithParams('Pays: 1 = ${0} M€', [badge.text]) : '';
     },
-    /** The bot fill's rule note — honest per source kind. */
-    botNote(): string {
-      switch (this.selected?.botOrigin) {
-      case 'storage':
-        return translateText('Shipping storage — human effects can target it by type');
-      case 'pool':
-        return translateText('One shared pool — 5 floaters convert into an extra action-deck card during the Research phase');
-      case 'corp':
-        return translateText('Stored on the corporation card — spent by its printed rule');
-      default:
-        return '';
-      }
+    /** The bot fill's rule notes — one honest line per source kind. */
+    botNotes(): Array<string> {
+      const kinds = this.selected?.botNotes ?? [];
+      return kinds.map((kind) => {
+        switch (kind) {
+        case 'storage':
+          return translateText('Shipping storage — human effects can target it by type');
+        case 'pluto':
+          return translateText('Pluto storage area — 5 resources convert into a Science track step; human effects cannot target it');
+        case 'pool':
+          return translateText('One shared pool — 5 floaters convert into an extra action-deck card during the Research phase');
+        case 'corp':
+          return translateText('Stored on the corporation card — spent by its printed rule');
+        default:
+          return '';
+        }
+      }).filter((s) => s !== '');
     },
     detailNowText(): string {
       const s = this.focusedCard?.scoring;

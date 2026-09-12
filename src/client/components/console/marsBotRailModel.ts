@@ -25,11 +25,13 @@
  *    threshold and spending rule (stated on the detail surfaces).
  *
  *  - CARD-TYPE resources are «Доп. ресурсы»: the floater pool, Enceladus
- *    microbes, Miranda animals, Pluto's «card»-surrogate stock (the
- *    official board stores CARD tokens there — 5 → Science track;
- *    `ShippingBoardData.ts` / AUTOMA_DATA_AUDIT §4) and a corporation's
- *    science store (Philares/Spire). Keys are the HUMAN satellite's own
- *    (`cardResourceKey`), so a seat switch can preserve the semantic focus.
+ *    microbes, Miranda animals, Pluto's SCIENCE stock («MarsBot does not
+ *    gain cards for Pluto. Instead it gains [science] resources into the
+ *    corresponding storage area» — RB-C p.5; the printed board's own area
+ *    reads «5 [science] → [science tag]») and a corporation's science
+ *    store (Philares/Spire) — one science TYPE, independent stores named
+ *    apart. Keys are the HUMAN satellite's own (`cardResourceKey`), so a
+ *    seat switch can preserve the semantic focus.
  *
  *  - a REAL SOURCE WITH ZERO stays visible: a storable colony IN PLAY is an
  *    unlocked type at 0 (the human rule — «a card that CAN hold it shows at
@@ -205,10 +207,21 @@ export function marsBotTagEntries(
 
 // ── «Доп. ресурсы» — the bot's CARD-TYPE pools ─────────────────────────────
 
+/**
+ * The honest per-source rule notes a group carries (the detail screen
+ * renders one line per kind, in this order):
+ *  · 'pool'    — the one floater pool (Research-Phase spend rule);
+ *  · 'storage' — an ordinary storage area: steal/remove-targetable by
+ *                type (RB-C p.5 lists Ceres…Triton);
+ *  · 'pluto'   — Pluto's science area: exchanges like any area but is
+ *                DELIBERATELY absent from that steal/remove list;
+ *  · 'corp'    — the corporation card's own store (its printed rule).
+ */
+export type MarsBotExtraNote = 'pool' | 'storage' | 'pluto' | 'corp';
+
 export type MarsBotExtraGroup = {
   /** The HUMAN satellite's own type key (`cardResourceKey`) — one key
-   *  space, so a seat switch preserves the semantic focus. The one
-   *  bot-only type is Pluto's `cards`. */
+   *  space, so a seat switch preserves the semantic focus. */
   key: string;
   /** Ready-to-render icon classes. */
   iconClass: string;
@@ -216,26 +229,30 @@ export type MarsBotExtraGroup = {
   label: string;
   total: number;
   /** WHERE it is held — colony areas / the corp card (i18n keys: colony
-   *  and card names are keys). Empty for the one-pool floater stock. */
+   *  and card names are keys). Empty for the one-pool floater stock.
+   *  One TYPE may hold several independent stores (Pluto science + a
+   *  Philares/Spire corp store) — a meaningful total with the split
+   *  named, never a mechanical merge of their balances/thresholds. */
   holders: Array<{name: string, amount: number}>;
   metricKey: string;
-  /** What KIND of place holds it — picks the honest rule note (the
-   *  shipping-board law does not apply to the pool or the corp card). */
-  origin: 'pool' | 'storage' | 'corp';
+  /** The honest rule notes, one per source KIND present (see above). */
+  notes: ReadonlyArray<MarsBotExtraNote>;
 };
 
 /** The card-typed shipping areas, in the official board's own order
- *  (rulebook A p.2 / `docs/AUTOMA_DATA_AUDIT.md` §4). Pluto stores CARD
- *  tokens («MarsBot does not gain cards; it gains resources into the
- *  storage area», RB-C p.5) — a bot-only type, presented honestly as
- *  cards, never renamed into a resource the board does not print. */
-const CARD_AREA: ReadonlyArray<{colony: ColonyName, key: string, iconClass: string, label: string, metricKey: string}> = [
+ *  (rulebook A p.2). Pluto stores SCIENCE resources — the printed area
+ *  reads «5 [science] → [science tag]», and RB-C p.5 spells it out:
+ *  «MarsBot does not gain cards for Pluto. Instead it gains [science]
+ *  resources into the corresponding storage area». Unlike the other
+ *  areas, Pluto is absent from the steal/remove list (`note: 'pluto'`). */
+const CARD_AREA: ReadonlyArray<{colony: ColonyName, key: string, iconClass: string, label: string, metricKey: string, note: MarsBotExtraNote}> = [
   {
     colony: ColonyName.ENCELADUS,
     key: cardResourceKey(CardResource.MICROBE),
     iconClass: `card-resource ${cardResourceCSS[CardResource.MICROBE]}`,
     label: 'Microbes',
     metricKey: additionalResourceMetricKey(CardResource.MICROBE),
+    note: 'storage',
   },
   {
     colony: ColonyName.MIRANDA,
@@ -243,13 +260,15 @@ const CARD_AREA: ReadonlyArray<{colony: ColonyName, key: string, iconClass: stri
     iconClass: `card-resource ${cardResourceCSS[CardResource.ANIMAL]}`,
     label: 'Animals',
     metricKey: additionalResourceMetricKey(CardResource.ANIMAL),
+    note: 'storage',
   },
   {
     colony: ColonyName.PLUTO,
-    key: 'cards',
-    iconClass: 'resource_icon resource_icon--cards',
-    label: 'Cards',
-    metricKey: 'botstorage.cards',
+    key: cardResourceKey(CardResource.SCIENCE),
+    iconClass: `card-resource ${cardResourceCSS[CardResource.SCIENCE]}`,
+    label: 'Science',
+    metricKey: additionalResourceMetricKey(CardResource.SCIENCE),
+    note: 'pluto',
   },
 ];
 
@@ -278,7 +297,7 @@ export function marsBotExtraGroups(
       total: automa.floaters,
       holders: [],
       metricKey: additionalResourceMetricKey(CardResource.FLOATER),
-      origin: 'pool',
+      notes: ['pool'],
     });
   }
   for (const area of CARD_AREA) {
@@ -294,22 +313,32 @@ export function marsBotExtraGroups(
       total: amount,
       holders: [{name: area.colony, amount}],
       metricKey: area.metricKey,
-      origin: 'storage',
+      notes: [area.note],
     });
   }
-  // The corporation's own science store (Philares/Spire) — a card-type
-  // resource physically ON the corp card: an unlocked type, zeros shown.
+  // The corporation's own science store (Philares/Spire) — the SAME science
+  // TYPE Pluto's area accumulates, so it joins that group when both exist:
+  // one chip per type, a meaningful total, the split named per holder (the
+  // stores stay independent — each keeps its own balance and rule).
   const corp = automa.corporation;
   if (corp?.resource === 'science') {
-    out.push({
-      key: cardResourceKey(CardResource.SCIENCE),
-      iconClass: `card-resource ${cardResourceCSS[CardResource.SCIENCE]}`,
-      label: 'Science',
-      total: corp.resources,
-      holders: [{name: corp.original, amount: corp.resources}],
-      metricKey: additionalResourceMetricKey(CardResource.SCIENCE),
-      origin: 'corp',
-    });
+    const scienceKey = cardResourceKey(CardResource.SCIENCE);
+    const existing = out.find((g) => g.key === scienceKey);
+    if (existing !== undefined) {
+      existing.total += corp.resources;
+      existing.holders.push({name: corp.original, amount: corp.resources});
+      existing.notes = [...existing.notes, 'corp'];
+    } else {
+      out.push({
+        key: scienceKey,
+        iconClass: `card-resource ${cardResourceCSS[CardResource.SCIENCE]}`,
+        label: 'Science',
+        total: corp.resources,
+        holders: [{name: corp.original, amount: corp.resources}],
+        metricKey: additionalResourceMetricKey(CardResource.SCIENCE),
+        notes: ['corp'],
+      });
+    }
   }
   return out;
 }
