@@ -911,5 +911,11 @@
     "Kept apart from the supply, spent by its own rule": "Хранится отдельно от основного запаса и тратится по своим правилам",
     "One shared pool — 5 floaters convert into an extra action-deck card during the Research phase": "Общий запас — 5 аэростатов превращаются в дополнительную карту колоды действий в фазе исследований",
     "Stored on the corporation card — spent by its printed rule": "Хранится на карте корпорации и тратится по её напечатанному правилу",
-    "Pluto storage area — 5 resources convert into a Science track step; human effects cannot target it": "Область Плутона — 5 ресурсов превращаются в шаг научного трека; эффекты игроков сюда не нацеливаются"
+    "Pluto storage area — 5 resources convert into a Science track step; human effects cannot target it": "Область Плутона — 5 ресурсов превращаются в шаг научного трека; эффекты игроков сюда не нацеливаются",
+    "Triggers": "Триггеры",
+    "Spending power": "Ценность оплаты",
+    "Not triggered yet": "Ещё не срабатывал",
+    "Card-level stats": "Статистика всей карты",
+    "Hidden by the active filter": "Скрыто активным фильтром",
+    "Other effects": "Другие эффекты"
 }

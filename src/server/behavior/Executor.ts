@@ -44,6 +44,7 @@ import {CardName} from '../../common/cards/CardName';
 import {asArray, inplaceRemove} from '../../common/utils/utils';
 import {SelectCard} from '../inputs/SelectCard';
 import {cardDiscard} from '../inputs/discardPrompt';
+import {steelSpendSourceOptions} from './steelSpendSource';
 
 export class Executor implements BehaviorExecutor {
   public canExecute(behavior: Behavior, player: IPlayer, card: ICard, canAffordOptions?: CanAffordOptions) {
@@ -115,7 +116,10 @@ export class Executor implements BehaviorExecutor {
       if (spend.megacredits && !player.canAfford(spend.megacredits)) {
         return false;
       }
-      if (spend.steel && player.steel < spend.steel) {
+      // Steel stored on Modular Floodgates «counts as on your player board»
+      // (DP11), so a unit-steel cost can draw on it too (`execute` asks the
+      // source split explicitly — a protected source is never auto-taken).
+      if (spend.steel && player.steel + player.getSpendable('floodgateSteel') < spend.steel) {
         return false;
       }
       if (spend.titanium && player.titanium < spend.titanium) {
@@ -369,6 +373,29 @@ export class Executor implements BehaviorExecutor {
         })).andThen(() => this.execute(remainder, player, card));
         // Exit early as the rest of handled by the deferred action.
         return;
+      }
+      // A unit-steel cost with steel stored on Modular Floodgates (DP11):
+      // «counts as on your player board» makes the card a legal source, but a
+      // PROTECTED one — never auto-taken. The split is the player's explicit
+      // choice; the action preview pre-collects the SAME prompt (one builder,
+      // `steelSpendSourceOptions`), and the rest of the behavior — including
+      // any remaining spend keys — runs in the answer's callback.
+      if (spend.steel) {
+        const restSpend = {...spend};
+        delete restSpend.steel;
+        const rest: Behavior = Object.keys(restSpend).length > 0 ? {...remainder, spend: restSpend} : remainder;
+        const sourcePrompt = steelSpendSourceOptions(player, card, spend.steel, (fromSupply, fromCard) => {
+          // One pay for both shares: the supply share feeds Sol Bank exactly
+          // as the silent path below does; the card share is deducted from
+          // Modular Floodgates itself (logged + recorded by `player.pay`).
+          player.pay(Payment.of({steel: fromSupply, floodgateSteel: fromCard}));
+          this.execute(rest, player, card);
+        });
+        if (sourcePrompt !== undefined) {
+          player.defer(sourcePrompt);
+          // Exit early as the rest is handled by the prompt's callback.
+          return;
+        }
       }
       // player.pay triggers Sol Bank.
       player.pay(Payment.of({

@@ -141,6 +141,7 @@ describe('server-derived caches are keyed by the game-state version', () => {
     // spec passes for the wrong reason. These two ARE the bug class's home.
     expect(covered).to.include(path.join('src', 'client', 'console', 'actionPreviewStore.ts'));
     expect(covered).to.include(path.join('src', 'client', 'console', 'consoleHandPlayPrewarm.ts'));
+    expect(covered).to.include(path.join('src', 'client', 'console', 'effectStatsStore.ts'));
   });
 
   it('every NOT_A_CACHE entry still exists and still fetches', () => {

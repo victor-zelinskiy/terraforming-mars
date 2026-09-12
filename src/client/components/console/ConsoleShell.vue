@@ -1842,6 +1842,8 @@ import {
 } from '@/client/console/turnIntents';
 import {infoModeState, openInfoMode, closeInfoMode, settleInfoModeClose, restoreConsoleSnapshot, cyclePlayer} from '@/client/console/infoModeState';
 import {extrasExplorerUi, resetExtrasExplorer, selectExtrasType} from '@/client/console/consoleExtrasExplorer';
+import {effectsExplorerLayer, resetEffectsExplorer} from '@/client/console/consoleEffectsExplorer';
+import {resetEffectStats} from '@/client/console/effectStatsStore';
 import {infoExtrasChips} from '@/client/console/infoExtrasChips';
 import {marsBotExtrasContext, MarsBotExtrasContext} from '@/client/components/console/marsBotRailModel';
 import {InfoRouteId, infoRouteApplies, infoRouteBack, infoZoneForRoute, infoZoneRoute, infoZoneFocusable, infoZoneNavigate, infoFocusRing, botScreenNavigate, isVpRoute} from '@/client/console/infoRoute';
@@ -11591,6 +11593,7 @@ export default defineComponent({
       }
       resetScoreExplorer(); // a fresh visit never resumes a stale VP cursor
       resetExtrasExplorer(); // …nor a stale extras type/card cursor
+      resetEffectsExplorer(); // …nor a stale effects cursor / open detail
       openInfoMode(this.thisPlayer.color, this.consoleState.inspecting);
     },
     /** after-leave of the workspace's dismiss transition — release the
@@ -11813,6 +11816,35 @@ export default defineComponent({
             intent.kind === 'press' && consoleActionOf(intent) === 'back') {
           this.infoBack();
         }
+        return;
+      }
+      // THE EFFECTS EXPLORER: the grid owns nav, A (descend into the effect
+      // dossier), X (inspect the source card), LT/RT (the family facet) and
+      // R3 (reset it). B folds an open dossier first; only then does it walk
+      // the route tree. LB/RB switch the seat at BROWSE level only — at the
+      // dossier they step the SIBLING effect (the layer-conditional bumper
+      // grammar the «Разыграно» categories set).
+      if (this.infoModeState.route === 'effects') {
+        if (intent.kind === 'press') {
+          const action = consoleActionOf(intent);
+          if (action === 'fullscreen') {
+            this.toggleInfoMode();
+            return;
+          }
+          const detailUp = effectsExplorerLayer() === 'detail';
+          if (!detailUp && (action === 'prevSection' || action === 'nextSection')) {
+            this.cycleInspectedPlayer(action === 'prevSection' ? -1 : 1);
+            return;
+          }
+          if (action === 'back') {
+            const view = this.$refs.infoMode as InstanceType<typeof ConsoleInfoMode> | undefined;
+            if (view?.consumeEffectsBack() !== true) {
+              this.infoBack();
+            }
+            return;
+          }
+        }
+        (this.$refs.infoMode as InstanceType<typeof ConsoleInfoMode> | undefined)?.handleEffectsIntent(intent);
         return;
       }
       const route = this.infoModeState.route;
@@ -18260,6 +18292,7 @@ export default defineComponent({
     resetNotifHold(); // never leak a hold timer across games/sessions
     resetSurfaceMotion(); // never leak a held handoff / shade owner across sessions
     resetActionPreviews(); // per-game preview cache dies with the shell
+    resetEffectStats(); // …and the per-seat effect-stats cache with it
     stopConsoleLeakDetector();
     resetGovScaleFocus();
     releaseZoomMotion();

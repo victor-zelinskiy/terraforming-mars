@@ -125,6 +125,34 @@ export interface EffectSummaryProvider {
 
 const UNIT_KEYS: ReadonlyArray<keyof Units> = ['megacredits', 'steel', 'titanium', 'plants', 'energy', 'heat'];
 
+/**
+ * A synthesized all-zero {@link EffectOverlayStat} for a source with no recorded
+ * events yet — callers pass it to {@link getEffectSummary} so an effect that has
+ * not fired still frames itself (thematic note, never a dead state). Mirrors the
+ * frozen desktop `EffectDetailsPanel.emptyStat` (that file keeps its local copy).
+ */
+export function emptyEffectOverlayStat(cardName: CardName | undefined, sourceKind: EventSource['kind']): EffectOverlayStat {
+  return {
+    sourceKey: `${sourceKind}:${cardName ?? ''}`,
+    kind: sourceKind,
+    card: cardName,
+    triggerCount: 0,
+    megacreditsSaved: 0,
+    cardsDrawn: 0,
+    stock: Units.EMPTY,
+    production: Units.EMPTY,
+    cardResources: {},
+    paymentResources: {},
+    paymentValueBonus: {steel: 0, titanium: 0, bonusValue: 0, count: 0},
+    colonyTrack: {steps: 0, extraReward: 0, count: 0, colonies: {}},
+    tradeDiscount: {energy: 0, titanium: 0, megacredits: 0, count: 0, colonies: {}},
+    greeneryDiscount: {plants: 0, count: 0},
+    tr: 0,
+    globalParameterSteps: {},
+    vp: 0,
+  };
+}
+
 function signed(n: number): string {
   return n > 0 ? `+${n}` : `${n}`;
 }
@@ -297,20 +325,34 @@ function emptyNoteCategory(sig: EffectSignature, ctx: EffectSummaryContext): Eff
   return 'ruleChange';
 }
 
+/**
+ * The CURATED special category of a card whose passive rule the render signature
+ * cannot see (the value / trade / greenery modifier sets above), or undefined for
+ * an ordinary card. Exported for the console effects explorer's FAMILY grouping —
+ * the same precedence `emptyCategory` applies, stated once.
+ */
+export function curatedCategoryFor(cardName: CardName): EffectCategory | undefined {
+  if (PAYMENT_VALUE_MODIFIER_CARDS.has(cardName)) {
+    return 'paymentValueBonus';
+  }
+  if (COLONY_TRADE_OFFSET_CARDS.has(cardName)) {
+    return 'colonyTrade';
+  }
+  if (TRADE_DISCOUNT_CARDS.has(cardName)) {
+    return 'tradeDiscount';
+  }
+  if (GREENERY_DISCOUNT_CARDS.has(cardName)) {
+    return 'greeneryDiscount';
+  }
+  return undefined;
+}
+
 /** The category an EMPTY effect should frame itself as (special cards → their special
  *  category; else by render signature). */
 function emptyCategory(ctx: EffectSummaryContext): EffectCategory {
-  if (PAYMENT_VALUE_MODIFIER_CARDS.has(ctx.sourceName)) {
-    return 'paymentValueBonus';
-  }
-  if (COLONY_TRADE_OFFSET_CARDS.has(ctx.sourceName)) {
-    return 'colonyTrade';
-  }
-  if (TRADE_DISCOUNT_CARDS.has(ctx.sourceName)) {
-    return 'tradeDiscount';
-  }
-  if (GREENERY_DISCOUNT_CARDS.has(ctx.sourceName)) {
-    return 'greeneryDiscount';
+  const curated = curatedCategoryFor(ctx.sourceName);
+  if (curated !== undefined) {
+    return curated;
   }
   if (ctx.signature !== undefined) {
     return emptyNoteCategory(ctx.signature, ctx);

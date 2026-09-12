@@ -12,6 +12,11 @@ import {CorporateEspionage} from '../../../src/server/cards/delta/CorporateEspio
 import {BonusDeltaAdvance} from '../../../src/server/deferredActions/BonusDeltaAdvance';
 import {AutomaDeltaProject} from '../../../src/server/automa/AutomaDeltaProject';
 import {potentialHydroAdvance} from '../../../src/server/models/potentialActions';
+import {SpaceElevator} from '../../../src/server/cards/base/SpaceElevator';
+import {HiredRaiders} from '../../../src/server/cards/base/HiredRaiders';
+import {Industrialist} from '../../../src/server/awards/Industrialist';
+import {actionPreview} from '../../../src/server/models/actionPreview';
+import {OrOptionsModel} from '../../../src/common/models/PlayerInputModel';
 import {CardName} from '../../../src/common/cards/CardName';
 import {CardType} from '../../../src/common/cards/CardType';
 import {CardResource} from '../../../src/common/CardResource';
@@ -553,6 +558,108 @@ describe('ModularFloodgates', () => {
       loner.energy = 2;
       expect(() => DeltaProjectExpansion.advance(loner, 2, undefined, {payment: {energy: 1, steel: 0, cardSteel: 1}}))
         .to.throw(/without Delta Works/);
+    });
+  });
+
+  /**
+   * «Counts as on your player board» beyond card payment: the UNIT-steel
+   * consumers (behavior `spend: {steel}` — Space Elevator, Electro Catapult,
+   * the Moon trio ride the same Executor seam), the steel COUNTS (the
+   * Industrialist award), and the deliberate boundary pinned 2026-09-12: the
+   * stored steel is a PROTECTED source — attacks (Hired Raiders / Sabotage
+   * read the stock) can never reach it, exactly as Stormcraft floaters are
+   * not stealable heat.
+   */
+  describe('«counts as on your player board» — unit-steel consumers and protections', () => {
+    let elevator: SpaceElevator;
+
+    beforeEach(() => {
+      elevator = new SpaceElevator();
+      player.playedCards.push(elevator);
+    });
+
+    it('Space Elevator can act on floodgate steel alone, and the CARD pays only by explicit choice', () => {
+      card.resourceCount = 1;
+      expect(player.steel).eq(0);
+      expect(elevator.canAct(player)).is.true;
+
+      const mc = player.megaCredits;
+      elevator.action(player);
+      runAllActions(game);
+      const source = cast(player.popWaitingFor(), OrOptions);
+      // Empty supply → the ONE legal split (all from the card); nothing is
+      // spent before the pick (protected source, never auto-taken).
+      expect(source.options).has.length(1);
+      expect(card.resourceCount).eq(1);
+      source.options[0].cb(undefined);
+      runAllActions(game);
+      expect(card.resourceCount).eq(0);
+      expect(player.steel).eq(0);
+      expect(player.megaCredits).eq(mc + 5);
+    });
+
+    it('with both sources the FIRST option spends the supply — the card is never the default', () => {
+      card.resourceCount = 1;
+      player.steel = 2;
+      elevator.action(player);
+      runAllActions(game);
+      const source = cast(player.popWaitingFor(), OrOptions);
+      expect(source.options).has.length(2);
+      source.options[0].cb(undefined);
+      runAllActions(game);
+      expect(player.steel).eq(1);
+      expect(card.resourceCount).eq(1);
+    });
+
+    it('without stored steel the supply pays silently — no prompt (the historical path)', () => {
+      player.steel = 1;
+      const mc = player.megaCredits;
+      elevator.action(player);
+      runAllActions(game);
+      expect(player.popWaitingFor()).is.undefined;
+      expect(player.steel).eq(0);
+      expect(player.megaCredits).eq(mc + 5);
+    });
+
+    it('canAct refuses only when the supply AND the card are both empty', () => {
+      expect(elevator.canAct(player)).is.false;
+      card.resourceCount = 1;
+      expect(elevator.canAct(player)).is.true;
+    });
+
+    it('the action preview pre-collects the SAME source prompt as its first step', () => {
+      card.resourceCount = 1;
+      player.steel = 1;
+      const preview = actionPreview(player, elevator);
+      expect(preview.kind).eq('declarative');
+      const step = preview.branches[0].steps[0];
+      if (step.kind !== 'input') {
+        throw new Error('Expected an input step, got ' + step.kind);
+      }
+      expect(step.input.type).eq('or');
+      expect((step.input as OrOptionsModel).options).has.length(2);
+    });
+
+    it('the Industrialist award counts floodgate steel as board steel', () => {
+      card.resourceCount = 2;
+      player.steel = 1;
+      expect(new Industrialist().getScore(player)).eq(3);
+    });
+
+    it('attacks can NOT reach the card — floodgate steel is a protected source', () => {
+      const oppFloodgates = new ModularFloodgates();
+      opponent.playedCards.push(oppFloodgates);
+      oppFloodgates.resourceCount = 2;
+      expect(opponent.steel).eq(0);
+      expect(opponent.megaCredits).eq(0);
+      expect(third.steel).eq(0);
+      expect(third.megaCredits).eq(0);
+      // Nothing anywhere to steal: the stored steel is invisible to the raid.
+      expect(new HiredRaiders().bespokePlay(player)).is.undefined;
+      // Control: one STOCK steel and the raid sees a target again.
+      opponent.steel = 1;
+      const raid = cast(new HiredRaiders().bespokePlay(player), OrOptions);
+      expect(raid.options.length).greaterThan(0);
     });
   });
 });

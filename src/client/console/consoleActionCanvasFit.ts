@@ -29,11 +29,22 @@ const SNAP = 0.995;
 
 type Pair = {graphic: HTMLElement, canvas: HTMLElement};
 
-function pairsIn(root: HTMLElement): Array<Pair> {
+/**
+ * Selector options for a SIBLING surface reusing the same engine (the effects
+ * explorer's `.con-efx` slots). Defaults are the action browser's — omitted,
+ * behaviour is byte-identical to before the options existed.
+ */
+export type CanvasFitOptions = {
+  graphicSelector?: string,
+  canvasClass?: string,
+  varName?: string,
+};
+
+function pairsIn(root: HTMLElement, graphicSelector: string, canvasClass: string): Array<Pair> {
   const out: Array<Pair> = [];
-  for (const graphic of Array.from(root.querySelectorAll<HTMLElement>('.con-cardactions__graphic'))) {
+  for (const graphic of Array.from(root.querySelectorAll<HTMLElement>(graphicSelector))) {
     const canvas = graphic.parentElement;
-    if (canvas !== null && canvas.classList.contains('con-cardactions__canvas')) {
+    if (canvas !== null && canvas.classList.contains(canvasClass)) {
       out.push({graphic, canvas});
     }
   }
@@ -45,16 +56,19 @@ function pairsIn(root: HTMLElement): Array<Pair> {
  * three passes (reset all → measure all → apply all) so the browser lays out
  * once, not once per slot.
  */
-export function fitActionCanvases(root: HTMLElement | undefined | null): void {
+export function fitActionCanvases(root: HTMLElement | undefined | null, opts?: CanvasFitOptions): void {
   if (root === undefined || root === null || typeof window === 'undefined') {
     return;
   }
-  const pairs = pairsIn(root);
+  const graphicSelector = opts?.graphicSelector ?? '.con-cardactions__graphic';
+  const canvasClass = opts?.canvasClass ?? 'con-cardactions__canvas';
+  const varName = opts?.varName ?? '--act-fit';
+  const pairs = pairsIn(root, graphicSelector, canvasClass);
   if (pairs.length === 0) {
     return;
   }
   for (const {graphic} of pairs) {
-    graphic.style.removeProperty('--act-fit');
+    graphic.style.removeProperty(varName);
   }
   const fits = pairs.map(({graphic, canvas}) => {
     const g = graphic.getBoundingClientRect();
@@ -67,9 +81,9 @@ export function fitActionCanvases(root: HTMLElement | undefined | null): void {
   pairs.forEach(({graphic}, i) => {
     const fit = Math.max(MIN_FIT, fits[i]);
     if (fit >= SNAP) {
-      graphic.style.removeProperty('--act-fit');
+      graphic.style.removeProperty(varName);
     } else {
-      graphic.style.setProperty('--act-fit', String(Math.round(fit * 1000) / 1000));
+      graphic.style.setProperty(varName, String(Math.round(fit * 1000) / 1000));
     }
   });
 }

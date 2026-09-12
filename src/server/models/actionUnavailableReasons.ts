@@ -88,8 +88,11 @@ export function collectActionBehaviorReasons(
       const deficit = Math.max(1, spend.megacredits - player.spendableMegacredits());
       out.push({type: 'megacredits', message: 'Need ${0} more M€', params: [String(deficit)]});
     }
-    if (spend.steel && player.steel < spend.steel) {
-      out.push({type: 'resource', message: 'Not enough steel', resource: Resource.STEEL, current: player.steel});
+    // Steel stored on Modular Floodgates «counts as on your player board»
+    // (DP11) — a unit-steel cost can draw on it, so both the gate and the
+    // reported `current` count it (mirrors `Executor.canExecute`).
+    if (spend.steel && player.steel + player.getSpendable('floodgateSteel') < spend.steel) {
+      out.push({type: 'resource', message: 'Not enough steel', resource: Resource.STEEL, current: player.steel + player.getSpendable('floodgateSteel')});
     }
     if (spend.titanium && player.titanium < spend.titanium) {
       out.push({type: 'resource', message: 'Not enough titanium', resource: Resource.TITANIUM, current: player.titanium});

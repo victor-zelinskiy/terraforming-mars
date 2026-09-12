@@ -4,7 +4,7 @@ import {CardResource} from '../CardResource';
 import {GlobalParameter} from '../GlobalParameter';
 import {CardName} from '../cards/CardName';
 import {ColonyName} from '../colonies/ColonyName';
-import {GameEvent, GameEventType, JournalActionCategory} from './GameEvent';
+import {EventTag, EventTrigger, GameEvent, GameEventType, JournalActionCategory} from './GameEvent';
 import {EventImpact} from './EventImpact';
 import {EventSource, sourceKey} from './EventSource';
 
@@ -563,6 +563,30 @@ export function aggregateAttacks(events: ReadonlyArray<GameEvent>): Map<Color, A
  * Small per-source projection for the EFFECTS overlay — deliberately tiny
  * (the overlay must NOT pull the raw stream). Built from {@link SourceStats}.
  */
+/**
+ * The CHANNEL a passive-effect event belongs to — which of a source card's
+ * effects (by MECHANISM) produced it. For hook-fired effects the channel is the
+ * {@link EventTrigger} of the `effect-triggered` marker the impact hangs under;
+ * the marker-less passive families (discounts, resource-as-payment, payment
+ * value bonus, the colony trade trio) are identified by their recorder tag /
+ * event type instead. `'unattributed'` = classification failed (an older
+ * serialized stream without markers, or an orphaned impact) — the client's cue
+ * to fall back to honest card-level stats.
+ */
+export type EffectStatChannel = EventTrigger
+  | 'discount' | 'resource-payment' | 'payment-bonus'
+  | 'colony-track' | 'trade-discount' | 'greenery-discount'
+  | 'unattributed';
+
+/**
+ * One channel's slice of a source's passive stats — the {@link SourceStats} body
+ * without the source identity (the parent {@link EffectOverlayStat} carries it).
+ * ⚠️ Channel `triggerCount`s are NOT a partition of the card-level total: the
+ * payment channels (`resource-payment` / `payment-bonus`) count one per payment
+ * event, which the card-level trigger count deliberately does not include.
+ */
+export type EffectChannelStat = Omit<SourceStats, 'source'>;
+
 export type EffectOverlayStat = {
   sourceKey: string;
   kind: EventSource['kind'];
@@ -590,6 +614,11 @@ export type EffectOverlayStat = {
   /** For an ACTION stat: the opponents this action made LOSE resources (attacks).
    *  Only populated by `actionOverlayStats`; absent for effects. */
   victims?: ReadonlyArray<VictimRecord>;
+  /** Per-CHANNEL split of this source's passive stats (which effect MECHANISM
+   *  produced what) — lets a multi-effect card's stats be scoped per effect on
+   *  the client. Only populated by `effectOverlayStats`; absent for actions and
+   *  on a stream with nothing to split. Additive: older payloads simply omit it. */
+  byChannel?: Partial<Record<EffectStatChannel, EffectChannelStat>>;
 };
 
 export function toEffectOverlayStat(stats: SourceStats): EffectOverlayStat {
@@ -701,6 +730,70 @@ export function actionOverlayStats(events: ReadonlyArray<GameEvent>, owner: Colo
   return result;
 }
 
+/** The {@link SourceStats} body without its source identity (per-channel slice). */
+function toEffectChannelStat(stats: SourceStats): EffectChannelStat {
+  return {
+    triggerCount: stats.triggerCount,
+    stock: stats.stock,
+    production: stats.production,
+    cardResources: stats.cardResources,
+    paymentResources: stats.paymentResources,
+    paymentValueBonus: stats.paymentValueBonus,
+    colonyTrack: stats.colonyTrack,
+    tradeDiscount: stats.tradeDiscount,
+    greeneryDiscount: stats.greeneryDiscount,
+    tr: stats.tr,
+    cardsDrawn: stats.cardsDrawn,
+    globalParameterSteps: stats.globalParameterSteps,
+    megacreditsSaved: stats.megacreditsSaved,
+    vp: stats.vp,
+    lastTrigger: stats.lastTrigger,
+  };
+}
+
+// The marker-less passive families, identified by their recorder tag (the three
+// colony-trio recorders emit `effect-triggered` WITHOUT a trigger but WITH the tag).
+const TAG_CHANNELS: ReadonlyArray<EffectStatChannel & EventTag> =
+  ['resource-payment', 'payment-bonus', 'colony-track', 'trade-discount', 'greenery-discount'];
+
+/**
+ * Classify one passive-effect event into its {@link EffectStatChannel}: the
+ * discount / tagged families first, then the `effect-triggered` marker's own
+ * trigger, then a BOUNDED `parentId` walk to the nearest marker of the SAME
+ * source (an impact recorded inside an effect scope hangs under its marker; the
+ * same-source requirement keeps a nested foreign effect's children off this
+ * card's channel). Anything else is honestly `'unattributed'`.
+ */
+function channelOfPassiveEvent(e: GameEvent, byId: Map<number, GameEvent>): EffectStatChannel {
+  if (e.type === 'discount-applied') {
+    return 'discount';
+  }
+  for (const tag of TAG_CHANNELS) {
+    if (e.tags?.includes(tag) === true) {
+      return tag;
+    }
+  }
+  if (e.type === 'effect-triggered' && e.trigger !== undefined) {
+    return e.trigger;
+  }
+  const key = sourceKey(e.source);
+  let cur: GameEvent | undefined = e;
+  for (let hops = 0; hops < 32; hops++) {
+    const pid: number | undefined = cur.parentId;
+    if (pid === undefined) {
+      break;
+    }
+    cur = byId.get(pid);
+    if (cur === undefined) {
+      break;
+    }
+    if (cur.type === 'effect-triggered' && cur.trigger !== undefined && sourceKey(cur.source) === key) {
+      return cur.trigger;
+    }
+  }
+  return 'unattributed';
+}
+
 export function effectOverlayStats(events: ReadonlyArray<GameEvent>, owner: Color): Array<EffectOverlayStat> {
   // The overlay shows ONLY what a card's PASSIVE EFFECTS did — NOT the card's
   // immediate on-play `behavior` gains (those run under an 'action' scope and are
@@ -709,11 +802,58 @@ export function effectOverlayStats(events: ReadonlyArray<GameEvent>, owner: Colo
   // them — e.g. Solar Logistics' on-play "+2 titanium" no longer leaks onto its
   // discount / card-draw effects.
   const passiveEvents = events.filter((e) => e.tags?.includes('passive-effect') === true);
+  // Per-(source, channel) slices — same grouping semantics as the card-level pass
+  // (keyed by sourceKey over the same filtered set), so the split can never
+  // disagree with the totals it splits. The id map spans the FULL stream: a
+  // parent marker is passive-tagged too, but staying stream-wide keeps the walk
+  // correct even if a future recorder parents an impact outside the filter.
+  const byId = new Map<number, GameEvent>();
+  for (const e of events) {
+    byId.set(e.id, e);
+  }
+  const channelsBySource = new Map<string, Map<EffectStatChannel, SourceStats>>();
+  for (const e of passiveEvents) {
+    if (e.source === undefined) {
+      continue;
+    }
+    const key = sourceKey(e.source);
+    const channel = channelOfPassiveEvent(e, byId);
+    let channels = channelsBySource.get(key);
+    if (channels === undefined) {
+      channels = new Map<EffectStatChannel, SourceStats>();
+      channelsBySource.set(key, channels);
+    }
+    let cs = channels.get(channel);
+    if (cs === undefined) {
+      cs = newSourceStats(e.source);
+      channels.set(channel, cs);
+    }
+    foldImpact(cs, e.impact);
+    if (hasImpact(e.impact)) {
+      cs.lastTrigger = {generation: e.generation, impact: e.impact};
+    }
+    // Channel trigger counting: the trigger-like types count as everywhere; the
+    // payment channels additionally count one per payment event (their events are
+    // `resource-changed`, which the card-level total deliberately excludes) — so
+    // channel counts are NOT a partition of the card total (documented on the type).
+    if (TRIGGER_TYPES.includes(e.type) || channel === 'resource-payment' || channel === 'payment-bonus') {
+      cs.triggerCount++;
+    }
+  }
   const result: Array<EffectOverlayStat> = [];
   for (const stats of aggregateBySource(passiveEvents).values()) {
     const s = stats.source;
     if ((s.kind === 'card' || s.kind === 'corporation') && (s.owner === undefined || s.owner === owner)) {
-      result.push(toEffectOverlayStat(stats));
+      const stat = toEffectOverlayStat(stats);
+      const channels = channelsBySource.get(stat.sourceKey);
+      if (channels !== undefined && channels.size > 0) {
+        const byChannel: Partial<Record<EffectStatChannel, EffectChannelStat>> = {};
+        for (const [channel, cs] of channels) {
+          byChannel[channel] = toEffectChannelStat(cs);
+        }
+        stat.byChannel = byChannel;
+      }
+      result.push(stat);
     }
   }
   return result;

@@ -16510,6 +16510,25 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         b { color: @con-mint; }
     }
     &__mint { color: @con-mint !important; }
+    /* The EFFECTS zone's family rows — a family DOT in the explorer tiles'
+       rail colours (triggers mint · discounts cyan · spending power amber ·
+       rules steel), so the zone and the grid speak one colour language. */
+    &__efam { display: inline-flex; align-items: center; gap: .45rem; min-width: 0; }
+    &__efam-dot {
+        flex-shrink: 0;
+        width: .55rem; height: .55rem; border-radius: .15rem;
+        background: fade(@con-mint, 85%);
+        &--discounts { background: fade(@con-cyan, 80%); }
+        &--payValue { background: fade(@con-amber, 75%); }
+        &--rules { background: rgba(120, 150, 180, 0.5); }
+    }
+    /* The zone's quiet whole-game line («Срабатываний N · Сэкономлено M»). */
+    &__efam-note {
+        margin-top: .45rem;
+        font-size: .8rem;
+        color: fade(@con-mint, 85%);
+        font-variant-numeric: tabular-nums;
+    }
     &__note {
         margin-top: .5rem;
         font-size: .8rem;
@@ -16560,6 +16579,14 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         display: flex;
         align-items: stretch;
     }
+    /* The EFFECTS EXPLORER host — same contract as __exrhost. */
+    &__efxhost {
+        position: relative;
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        align-items: stretch;
+    }
     &__acrow {
         display: flex;
         align-items: center;
@@ -16590,14 +16617,8 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         max-width: 44%;
         text-align: right;
     }
-    &__effects {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
-        gap: .6rem;
-        zoom: 1.08;
-        /* Read-only: the reused desktop effect blocks are display-only here. */
-        pointer-events: none;
-    }
+    /* (`__effects` is gone — the effects route hosts ConsoleEffectsExplorer
+       in `__efxhost`; the desktop-era EffectBlock grid left with it.) */
     /* ── CAPABILITY FALLBACK — «Не применимо»: the route survived a seat
        switch the participant cannot serve. A calm workspace statement in
        the panel's own voice — never a bare empty frame, never a layout
@@ -30225,6 +30246,500 @@ html.console-mode {
     .con-actfocus-card-enter-active, .con-actfocus-card-leave-active { transition: none; }
 }
 
+/* ═══ EFFECTS EXPLORER (ConsoleEffectsExplorer.vue — «Информация › Эффекты»)
+   — the card-actions BROWSE LANGUAGE re-hosted read-only: a dossier column +
+   a 2-column grid of per-EFFECT tiles with the fixed three-zone slot anatomy,
+   and an in-explorer DETAIL stage (hero card + the unfold surface). Lives
+   INSIDE the info panel's frame (`.con-info__efxhost`), so it draws no frame,
+   no head and no band of its own.
+   ⚠️ The `--efx-*` token VALUES MIRROR `.con-cardactions` § slot anatomy
+   (--act-*) — change BOTH or diverge deliberately (visual parity is the
+   point; a mixin extraction was rejected to keep the heavily e2e-pinned
+   actions block untouched). Profiles override the TOKENS, never a per-zone
+   constant. ═══ */
+.con-efx {
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: .55rem;
+    font-family: @con-font;
+    color: @con-text;
+
+    /* Slot anatomy tokens — value-mirror of --act-* (see the header note). */
+    --efx-head-h: .95rem;
+    --efx-canvas-h: 3rem;
+    --efx-canvas-w: 9.2rem;
+    --efx-desc-lh: 1.25;
+    --efx-desc-fs-brief: .95rem;  --efx-desc-lines-brief: 2;
+    --efx-desc-fs-reg: .82rem;    --efx-desc-lines-reg: 2;
+    --efx-desc-fs-dense: .72rem;  --efx-desc-lines-dense: 3;
+    --efx-desc-fs: var(--efx-desc-fs-dense);
+    --efx-desc-lines: var(--efx-desc-lines-dense);
+    --efx-meta-h: .95rem;
+    --efx-pad-t: .3rem;
+    --efx-gap: .22rem;
+    --efx-pair-gap: .7rem; /* no «или» seam — effects are conjunctive */
+
+    /* ── The FAMILY facet strip (LT/RT — the actions-workspace sanctioned
+       on-object exception). BROWSE chrome: it lives inside the parked layer,
+       so the descent hides it with everything else. ── */
+    &__filters { flex-shrink: 0; display: flex; align-items: center; flex-wrap: wrap; gap: .3rem .6rem; min-width: 0; margin-bottom: .35rem; }
+    &__fgroup {
+        display: inline-flex; align-items: center; gap: .25rem;
+        padding: .15rem .4rem; border-radius: .5rem;
+        background: rgba(12, 20, 32, 0.55);
+        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.16);
+    }
+    &__fgroup-keys {
+        display: inline-flex; align-items: center; gap: .1rem;
+        opacity: 0.85;
+        .gp-glyph { transform: scale(0.74); }
+    }
+    &__chip {
+        display: inline-flex; align-items: center; gap: .25rem;
+        padding: .12rem .45rem; border-radius: 49.95rem;
+        background: rgba(16, 26, 38, 0.7); box-shadow: inset 0 0 0 .05rem rgba(130, 160, 190, 0.2);
+        font-size: .7rem; color: @con-text-dim;
+        b { font-size: .68rem; font-weight: 800; color: @con-text; }
+        &--active { background: fade(@con-cyan, 16%); box-shadow: inset 0 0 0 .075rem @con-cyan; color: @con-text; b { color: @con-cyan; } }
+    }
+    &__stat { margin-left: auto; font-size: .7rem; color: @con-text-dim; white-space: nowrap; b { color: @con-text; font-weight: 800; } }
+
+    /* ── Browse layer + detail stage share ONE region (parked, never v-if). ── */
+    &__stagewrap { position: relative; flex: 1; min-height: 0; }
+    &__browse {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        &--parked { pointer-events: none; }
+    }
+
+    /* ── Body: dossier (LEFT — the browse twin of the detail stage's hero
+       column, so the thumb already stands where the hero lands) + grid. ── */
+    &__body { flex: 1; min-height: 0; display: flex; gap: .8rem; padding-top: .2rem; }
+    &__list { flex: 1; min-width: 0; }
+    &__list-body {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        grid-auto-flow: row;
+        align-items: stretch;
+        gap: .5rem .7rem;
+        padding-right: .4rem;
+    }
+
+    /* ── The CARD GROUP: plate on top (source identity), one TILE per effect. ── */
+    &__group {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        border-radius: .6rem;
+        padding: .24rem .28rem .22rem;
+        background: linear-gradient(170deg, rgba(18, 27, 40, 0.5) 0%, rgba(10, 16, 25, 0.55) 100%);
+        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.14);
+        &--wide { grid-column: span 2; }
+        &--live {
+            background: linear-gradient(170deg, rgba(23, 36, 53, 0.62) 0%, rgba(13, 21, 33, 0.66) 100%);
+            box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 38%), 0 .3rem .9rem rgba(0, 0, 0, 0.32);
+        }
+        &--disabled { opacity: 0.55; }
+    }
+    &__slots {
+        position: relative;
+        flex: 1;
+        min-width: 0;
+        display: grid;
+        grid-template-columns: 1fr;
+        align-items: stretch;
+        &--pair { grid-template-columns: 1fr 1fr; column-gap: var(--efx-pair-gap); }
+    }
+    &__plate {
+        display: flex;
+        align-items: center;
+        gap: .35rem;
+        min-width: 0;
+        margin-bottom: .24rem;
+        padding: .04rem .35rem .2rem;
+        box-shadow: 0 .05rem 0 rgba(120, 150, 185, 0.16);
+    }
+    &__plate-name {
+        flex: 0 1 auto; min-width: 0; max-width: 100%;
+        font-size: .78rem; font-weight: 700; letter-spacing: .01rem; color: fade(@con-text, 92%);
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    &__plate::after { content: ''; flex: 1; }
+    &__plate-chip {
+        flex-shrink: 0;
+        display: inline-flex; align-items: center; gap: .2rem;
+        padding: .04rem .35rem; border-radius: 49.95rem;
+        background: rgba(10, 18, 28, 0.72); box-shadow: inset 0 0 0 .05rem rgba(140, 170, 200, 0.24);
+        b { font-size: .75rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+    }
+    &__res-icon { display: inline-block; width: 1rem; height: 1rem; background-size: contain !important; background-repeat: no-repeat; background-position: center; }
+
+    /* ── The EFFECT TILE — the actions tile chassis, with the left STATUS
+       RAIL re-purposed as the FAMILY rail (triggers mint · discounts cyan ·
+       spending power amber · rules quiet steel). Always-opaque; a disabled
+       group recedes through its content. ── */
+    &__tile {
+        position: relative; display: flex; flex-direction: column; gap: var(--efx-gap);
+        min-width: 0;
+        box-sizing: border-box;
+        padding: var(--efx-pad-t) .5rem .28rem .6rem; border-radius: .55rem;
+        background:
+            linear-gradient(90deg, transparent 14%, rgba(150, 200, 240, 0.2) 50%, transparent 86%) no-repeat top center / 100% .06rem,
+            linear-gradient(168deg, rgba(24, 36, 52, 0.92) 0%, rgba(13, 20, 31, 0.95) 55%, rgba(9, 14, 22, 0.97) 100%);
+        box-shadow:
+            inset 0 .06rem 0 rgba(210, 235, 255, 0.05),
+            inset 0 0 0 .05rem rgba(120, 150, 180, 0.2),
+            0 .3rem .8rem rgba(0, 0, 0, 0.4);
+
+        &::before {
+            content: '';
+            position: absolute;
+            left: 0; top: .35rem; bottom: .35rem;
+            width: .16rem;
+            border-radius: 0 .16rem .16rem 0;
+            background: fade(@con-mint, 75%);
+        }
+        &--fam-discounts::before { background: fade(@con-cyan, 70%); }
+        &--fam-payValue::before { background: fade(@con-amber, 62%); }
+        &--fam-rules::before { background: rgba(120, 150, 180, 0.38); }
+
+        &--focused {
+            background:
+                linear-gradient(90deg, transparent 12%, fade(@con-cyan, 42%) 50%, transparent 88%) no-repeat top center / 100% .06rem,
+                linear-gradient(168deg, rgba(26, 42, 62, 0.94) 0%, rgba(15, 25, 40, 0.96) 55%, rgba(10, 17, 27, 0.97) 100%);
+            box-shadow:
+                inset 0 .06rem 0 rgba(210, 240, 255, 0.08),
+                inset 0 0 0 .1rem @con-cyan,
+                0 .45rem 1.1rem rgba(0, 0, 0, 0.5),
+                0 0 .9rem fade(@con-cyan, 26%);
+        }
+        /* The descend pulse rides the chosen slot while the layer recedes. */
+        &--descend { animation: con-efx-descend calc(260ms * var(--motion-scale, 1)) ease; }
+    }
+    /* SERVICE ROW — zone 1, always laid out at the token height: the effect
+       way-finder («Эффект N», multi-effect cards only) LEFT, the family
+       chip RIGHT. */
+    &__tile-head {
+        flex-shrink: 0;
+        height: var(--efx-head-h);
+        display: flex; align-items: center; gap: .3rem; min-width: 0;
+    }
+    &__tile-variant {
+        flex: 1;
+        min-width: 0;
+        font-size: .58rem; font-weight: 700; letter-spacing: .09rem; text-transform: uppercase;
+        color: fade(@con-text-dim, 88%);
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        font-variant-numeric: tabular-nums;
+    }
+    &__tile-fam {
+        flex-shrink: 0;
+        margin-left: auto;
+        font-size: .55rem; letter-spacing: .04rem; text-transform: uppercase; padding: .08rem .35rem; border-radius: .25rem;
+        color: @con-mint; background: fade(@con-mint, 10%);
+        &--discounts { color: fade(@con-cyan, 92%); background: fade(@con-cyan, 10%); }
+        &--payValue { color: @con-amber; background: fade(@con-amber, 10%); }
+        &--rules { color: fade(@con-text-dim, 92%); background: rgba(120, 150, 180, 0.12); }
+    }
+    /* ── EFFECT BODY — zone 2: the fixed canvas + the effect's own sentence.
+       (`__effbody`, not `__body` — the dossier+list row owns that name.) ── */
+    &__effbody {
+        flex-shrink: 0;
+        height: var(--efx-canvas-h);
+        min-height: 0;
+        min-width: 0;
+        display: flex;
+        align-items: center;
+        gap: .55rem;
+    }
+    &__canvas {
+        flex: 0 0 auto;
+        width: var(--efx-canvas-w);
+        height: var(--efx-canvas-h);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        padding: .12rem .2rem;
+        box-sizing: border-box;
+        border-radius: .4rem;
+        background: radial-gradient(120% 120% at 50% 30%, rgba(9, 15, 24, 0.28) 0%, rgba(6, 10, 17, 0.5) 100%);
+        box-shadow: inset 0 .08rem .25rem rgba(0, 0, 0, 0.35), inset 0 0 0 .05rem rgba(120, 150, 185, 0.1);
+    }
+    &__graphic {
+        margin: 0 !important; min-width: 0;
+        flex: 0 0 auto;
+        transform: scale(var(--efx-fit, 1));
+        transform-origin: 50% 50%;
+        zoom: var(--con-ui-scale, 1);
+        .card-description { display: none; }
+        /* PROSE takes the stage's width as its measure (see the actions twin). */
+        &:has(> .con-efx__graphic-text) { zoom: 1; flex: 1 1 auto; width: 100%; }
+    }
+    &__graphic-text {
+        display: block; font-size: .85rem; line-height: 1.3; color: @con-text;
+        white-space: normal; overflow-wrap: anywhere;
+        max-width: 100%;
+    }
+    &__tile &__graphic-text {
+        display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+    }
+    &__desc-slot {
+        flex: 1 1 auto;
+        min-width: 0;
+        max-height: 100%;
+        overflow: hidden;
+    }
+    &__desc {
+        margin: 0;
+        padding-right: .35rem;
+        font-size: var(--efx-desc-fs);
+        line-height: var(--efx-desc-lh);
+        color: fade(@con-text-dim, 84%);
+        overflow: hidden;
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: var(--efx-desc-lines, 1);
+        transition: color calc(140ms * var(--motion-scale, 1)) ease;
+    }
+    &__desc--brief { --efx-desc-fs: var(--efx-desc-fs-brief); --efx-desc-lines: var(--efx-desc-lines-brief); }
+    &__desc--regular { --efx-desc-fs: var(--efx-desc-fs-reg); --efx-desc-lines: var(--efx-desc-lines-reg); }
+    &__desc--dense { --efx-desc-fs: var(--efx-desc-fs-dense); --efx-desc-lines: var(--efx-desc-lines-dense); hyphens: auto; }
+    &__tile--focused &__desc { color: fade(@con-text, 92%); }
+    @media (prefers-reduced-motion: reduce) {
+        &__desc { transition: none; }
+    }
+    /* ── META — zone 3: ONE quiet line of the effect's live whole-game
+       standing (stat / idle / card-scoped), reserved at the token height so
+       the canvas can never shift. Loading claims NOTHING. ── */
+    &__tile-meta {
+        min-height: var(--efx-meta-h);
+        margin-top: auto;
+        display: flex; flex-direction: column; justify-content: flex-end; gap: .1rem;
+        min-width: 0;
+    }
+    &__meta-line {
+        display: flex; align-items: center; gap: .3rem; min-width: 0;
+        font-size: .7rem;
+        animation: con-efx-meta-in calc(160ms * var(--motion-scale, 1)) ease;
+        span { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        b { flex-shrink: 0; font-weight: 800; font-variant-numeric: tabular-nums; }
+    }
+    &__meta-line--stat { color: fade(@con-mint, 92%); b { color: @con-mint; } }
+    &__meta-line--idle { color: fade(@con-text-dim, 78%); }
+    &__meta-line--scoped { color: fade(@con-cyan, 78%); }
+    &__meta-icon { flex-shrink: 0; display: inline-block; width: .9rem; height: .9rem; background-size: contain !important; background-repeat: no-repeat; background-position: center; }
+
+    /* ── The DOSSIER column (LEFT) — the focused effect's source card +
+       rule. Fixed band; NO own scroll (the master list owns the stick);
+       fits by composing (the 2-rung ladder below), `hidden` guards the
+       outlier. ── */
+    &__detail {
+        flex: 0 0 21.5rem; min-width: 0; overflow: hidden;
+        display: flex; flex-direction: column; gap: var(--efx-det-gap, .45rem);
+        padding: .6rem .7rem; border-radius: .7rem;
+        background: rgba(8, 14, 22, 0.6); box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 22%);
+    }
+    &__detail[data-fit="1"], &__detail[data-fit="2"], &__detail[data-fit="3"],
+    &__detail[data-fit="4"], &__detail[data-fit="5"], &__detail[data-fit="6"] { --efx-det-gap: .3rem; }
+    &__detail[data-fit="2"] &__detail-card, &__detail[data-fit="3"] &__detail-card,
+    &__detail[data-fit="4"] &__detail-card, &__detail[data-fit="5"] &__detail-card,
+    &__detail[data-fit="6"] &__detail-card { zoom: calc(0.46 * var(--con-ui-scale, 1)); }
+    /* Rung 3+: the ordinal folds and the rule tightens — the rule itself is
+       never clamped (density is bought in composition, not by cutting). */
+    &__detail[data-fit="3"] &__detail-count, &__detail[data-fit="4"] &__detail-count,
+    &__detail[data-fit="5"] &__detail-count, &__detail[data-fit="6"] &__detail-count { display: none; }
+    &__detail[data-fit="3"] &__detail-rule, &__detail[data-fit="4"] &__detail-rule,
+    &__detail[data-fit="5"] &__detail-rule, &__detail[data-fit="6"] &__detail-rule { font-size: .78rem; line-height: 1.3; }
+    &__detail[data-fit="4"] &__detail-name, &__detail[data-fit="5"] &__detail-name,
+    &__detail[data-fit="6"] &__detail-name { font-size: 1rem; }
+    &__detail-name { font-size: 1.15rem; font-weight: 800; line-height: 1.1; }
+    &__detail-count { font-size: .75rem; color: @con-text-dim; }
+    &__detail-cardwrap {
+        position: relative;
+        align-self: center;
+        margin: .1rem 0;
+        pointer-events: none;
+    }
+    &__detail-card {
+        position: relative;
+        zoom: calc(0.58 * var(--con-ui-scale, 1));
+        > :is(.card-container, .pcard) { margin: 0; }
+        animation: con-efx-detailsync calc(190ms * var(--motion-scale, 1)) ease;
+    }
+    /* The focused effect's FULL rule — no clamp, ever (the ladder above
+       makes room instead). */
+    &__detail-rule {
+        margin: 0;
+        font-size: .85rem;
+        line-height: 1.35;
+        color: fade(@con-text, 94%);
+        overflow-wrap: anywhere;
+    }
+
+    /* ── Empty states ── */
+    &__empty { margin: auto; text-align: center; max-width: 23rem; padding: 1.5rem; }
+    &__empty-mark { font-size: 2.3rem; color: fade(@con-cyan, 55%); }
+    &__empty-title { margin-top: .6rem; font-size: 1.2rem; font-weight: 800; }
+    &__empty-body { margin-top: .4rem; font-size: .85rem; color: @con-text-dim; line-height: 1.4; }
+    &__empty-filters {
+        display: inline-flex; margin-top: .6rem; padding: .3rem .7rem; border-radius: 49.95rem;
+        font-size: .75rem; color: fade(@con-cyan, 90%);
+        background: fade(@con-cyan, 8%); box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 30%);
+    }
+
+    /* ── The DETAIL STAGE — the effect dossier one level deeper: hero card
+       (the FLIP destination of the browse thumb) + the unfold SURFACE
+       (rule → «За партию» → the sibling stepper). ── */
+    &__stage {
+        position: absolute; inset: 0;
+        display: flex; gap: 1rem; min-height: 0;
+    }
+    &__hero {
+        flex: 0 0 auto;
+        align-self: flex-start;
+        display: flex; flex-direction: column; align-items: center; gap: .4rem;
+        /* The hero column's children are IDENTICAL in every phase — the
+           hero-column law (geometry stable by construction). */
+    }
+    &__hero-card {
+        position: relative;
+        zoom: calc(0.72 * var(--con-ui-scale, 1));
+        > :is(.card-container, .pcard) { margin: 0; }
+    }
+    &__surface {
+        flex: 1; min-width: 0; min-height: 0;
+        display: flex; flex-direction: column; gap: .7rem;
+        padding: .8rem 1rem;
+        border-radius: .7rem;
+        background: rgba(8, 14, 22, 0.6);
+        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 22%);
+    }
+    &__rule {
+        flex-shrink: 0;
+        display: flex; flex-direction: column; gap: .45rem; min-width: 0;
+    }
+    &__rule-label { font-size: .65rem; letter-spacing: .06rem; text-transform: uppercase; color: @con-text-dim; }
+    &__rule-canvas {
+        align-self: flex-start;
+        display: flex; align-items: center;
+        max-width: 100%;
+        overflow: hidden;
+        padding: .3rem .5rem;
+        border-radius: .4rem;
+        background: radial-gradient(120% 120% at 50% 30%, rgba(9, 15, 24, 0.28) 0%, rgba(6, 10, 17, 0.5) 100%);
+        box-shadow: inset 0 .08rem .25rem rgba(0, 0, 0, 0.35), inset 0 0 0 .05rem rgba(120, 150, 185, 0.1);
+    }
+    &__rule-graphic {
+        margin: 0 !important; min-width: 0;
+        zoom: calc(1.3 * var(--con-ui-scale, 1));
+        .card-description { display: none; }
+        &:has(> .con-efx__graphic-text) { zoom: 1; }
+    }
+    &__rule-text {
+        margin: 0;
+        font-size: .9rem;
+        line-height: 1.35;
+        color: fade(@con-text, 94%);
+        overflow-wrap: anywhere;
+        max-width: 44rem;
+    }
+    &__surface-scroll { flex: 1; min-height: 0; }
+    &__surface-body { display: flex; flex-direction: column; gap: .7rem; padding-right: .3rem; }
+    &__summary { display: flex; flex-direction: column; min-width: 0; }
+    /* ── «За партию» (ConsoleEffectSummary.vue) ── */
+    &__sum { display: flex; flex-direction: column; gap: .35rem; min-width: 0; }
+    &__sum-scope { margin: 0; font-size: .7rem; color: fade(@con-cyan, 80%); }
+    &__sum-headline {
+        display: flex; align-items: center; gap: .5rem; min-width: 0;
+        font-size: .95rem; font-weight: 700; color: fade(@con-text, 94%);
+    }
+    &__sum-conf {
+        flex-shrink: 0;
+        font-size: .55rem; letter-spacing: .04rem; text-transform: uppercase;
+        padding: .08rem .35rem; border-radius: .25rem;
+        &--exact { color: @con-mint; background: fade(@con-mint, 12%); }
+        &--partial { color: @con-amber; background: fade(@con-amber, 12%); }
+        &--ruleOnly { color: fade(@con-text-dim, 92%); background: rgba(120, 150, 180, 0.12); }
+    }
+    &__sum-metric, &__sum-line {
+        display: flex; align-items: center; gap: .4rem; min-width: 0;
+        font-size: .85rem; color: @con-text-dim;
+        b { margin-left: auto; font-weight: 800; color: @con-text; font-variant-numeric: tabular-nums; }
+    }
+    &__sum-line--current b { color: @con-mint; }
+    &__sum-label { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    &__sum-icon { flex-shrink: 0; display: inline-block; width: 1rem; height: 1rem; background-size: contain !important; background-repeat: no-repeat; background-position: center; }
+    &__sum-breakdown {
+        display: flex; flex-direction: column; gap: .15rem;
+        padding: .35rem .5rem; border-radius: .4rem;
+        background: rgba(12, 20, 32, 0.55);
+        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.14);
+    }
+    &__sum-brow {
+        display: flex; align-items: center; gap: .5rem; min-width: 0;
+        font-size: .75rem; color: @con-text-dim;
+        span { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        b { margin-left: auto; font-weight: 800; color: @con-text; font-variant-numeric: tabular-nums; }
+    }
+    &__sum-note { margin: 0; font-size: .75rem; color: @con-text-dim; line-height: 1.35; font-style: italic; }
+    &__sum-last { font-size: .7rem; color: fade(@con-cyan, 80%); font-variant-numeric: tabular-nums; }
+    &__sum-skel { display: flex; flex-direction: column; gap: .35rem; }
+    &__sum-skel-bar {
+        height: .8rem; border-radius: .25rem;
+        background: rgba(120, 150, 180, 0.14);
+        &--short { width: 55%; }
+    }
+    &__stepper {
+        flex-shrink: 0;
+        display: flex; align-items: center; gap: .4rem;
+        font-size: .7rem; color: @con-text-dim;
+        font-variant-numeric: tabular-nums;
+        .gp-glyph { transform: scale(0.74); opacity: 0.85; }
+        b { color: @con-text; font-weight: 800; }
+    }
+}
+
+/* The effects descend pulse / dossier sync / late meta — the card-actions
+   phrases under the explorer's own names. */
+@keyframes con-efx-descend {
+    0% {
+        box-shadow:
+            inset 0 .06rem 0 rgba(210, 240, 255, 0.08),
+            inset 0 0 0 .1rem @con-cyan,
+            0 .45rem 1.1rem rgba(0, 0, 0, 0.5),
+            0 0 .9rem fade(@con-cyan, 26%);
+    }
+    45% {
+        box-shadow:
+            inset 0 .06rem 0 rgba(220, 245, 255, 0.14),
+            inset 0 0 0 .14rem #d9f3ff,
+            0 .45rem 1.1rem rgba(0, 0, 0, 0.5),
+            0 0 1.5rem fade(@con-cyan, 55%);
+    }
+    100% {
+        box-shadow:
+            inset 0 .06rem 0 rgba(210, 240, 255, 0.08),
+            inset 0 0 0 .1rem @con-cyan,
+            0 .45rem 1.1rem rgba(0, 0, 0, 0.5),
+            0 0 .9rem fade(@con-cyan, 26%);
+    }
+}
+@keyframes con-efx-detailsync {
+    0% { opacity: 0.35; transform: translateY(.18rem) scale(0.985); }
+    100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes con-efx-meta-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
 /* ── ACTION COMPOSER (ConsoleActionComposer.vue) — the pre-submit setup
    panel for one blue-card action: LIVE cost→reward hero + the decision rows
    (branch / amount stepper / card / player / payment / spend-heat) + its own
@@ -32742,6 +33257,32 @@ html.con-profile-handheld .con-composer--stage {
     .con-composer__rule--note .con-composer__rule-text { font-size: .78rem; }
 }
 
+/* The EFFECTS EXPLORER on the Deck — the same recomposition calls as the
+   action workspace above (one column, `span→auto`, compact chips, the
+   single-rung caption ladder), value-mirrored per the .con-efx contract. */
+html.con-profile-handheld .con-efx {
+    .con-efx__list-body { grid-template-columns: 1fr; }
+    .con-efx__group--wide { grid-column: auto; }
+    .con-efx__slots--pair { grid-template-columns: 1fr; row-gap: .3rem; }
+    .con-efx__detail { flex-basis: 16.5rem; }
+    .con-efx__detail-name { font-size: 1rem; }
+    .con-efx__detail-card { zoom: calc(0.46 * var(--con-ui-scale, 1)); }
+    .con-efx__plate-name { font-size: .72rem; }
+    .con-efx__fgroup { padding: .1rem .3rem; gap: .2rem; }
+    .con-efx__chip {
+        padding: .1rem .35rem;
+        font-size: .62rem;
+        b { font-size: .62rem; }
+    }
+    .con-efx__fgroup-keys .gp-glyph { transform: scale(0.66); }
+    .con-efx__hero-card { zoom: calc(0.52 * var(--con-ui-scale, 1)); }
+    .con-efx__desc {
+        --efx-desc-fs-brief: .68rem;  --efx-desc-lines-brief: 3;
+        --efx-desc-fs-reg: .68rem;    --efx-desc-lines-reg: 3;
+        --efx-desc-fs-dense: .68rem;  --efx-desc-lines-dense: 3;
+    }
+}
+
 /* Large / 4K — a gentle readability boost only. The workspace HEADER's own
    ladder is on `.con-wshead` (one place, every workspace). */
 html.con-profile-large .con-wshead {
@@ -32751,6 +33292,10 @@ html.con-profile-large .con-wshead {
 html.con-profile-large .con-cardactions {
     .con-cardactions__detail-name { font-size: 1.35rem; }
     .con-cardactions__plate-name { font-size: .95rem; }
+}
+html.con-profile-large .con-efx {
+    .con-efx__detail-name { font-size: 1.35rem; }
+    .con-efx__plate-name { font-size: .95rem; }
 }
 
 /* ═══════════════════════════════════════════════════════════════════

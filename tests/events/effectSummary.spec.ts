@@ -8,7 +8,8 @@ import {Pets} from '@/server/cards/base/Pets';
 import {CarbonNanosystems} from '@/server/cards/promo/CarbonNanosystems';
 import {Resource} from '@/common/Resource';
 import {effectOverlayStats, EffectOverlayStat} from '@/common/events/aggregate';
-import {getEffectSummary, classifyEffect, classifyEffectSignature} from '@/client/components/effects/effectSummary';
+import {getEffectSummary, classifyEffect, classifyEffectSignature, EffectSignature, emptyEffectOverlayStat} from '@/client/components/effects/effectSummary';
+import {cardChannelPlan, perEffectStat} from '@/client/components/effects/effectChannels';
 
 function stat(overrides: Partial<EffectOverlayStat>): EffectOverlayStat {
   return {
@@ -345,5 +346,91 @@ describe('effect summary view-model', () => {
     expect(vm.triggerCount).to.eq(3);
     expect(vm.lines).to.deep.include({icon: 'plants', label: 'Plants saved', value: '3'});
     expect(vm.confidence).to.eq('exact');
+  });
+
+  // ── Per-effect channel adapter (effectChannels + the summary, no fork) ──
+
+  describe('per-effect channel adapter', () => {
+    const sig = (overrides: Partial<EffectSignature>): EffectSignature =>
+      ({icons: [], discount: false, valueModifier: false, valueAsPayment: false, ...overrides});
+    // Carbon Nanosystems' two effects as the extraction reports them.
+    const cnEntries = [
+      {effectIndex: 0, signature: sig({icons: [CardResource.GRAPHENE]})},
+      {effectIndex: 1, signature: sig({icons: [CardResource.GRAPHENE, 'megacredits'], valueAsPayment: true})},
+    ];
+
+    it('plans disjoint channels for Carbon Nanosystems (curated + structural)', () => {
+      const plan = cardChannelPlan(CardName.CARBON_NANOSYSTEMS, cnEntries);
+      expect(plan).to.deep.eq([['card-played', 'tag-added'], ['resource-payment']]);
+    });
+
+    it('has no plan for a same-trigger collision card (honest cardScoped fallback)', () => {
+      const entries = [
+        {effectIndex: 0, signature: sig({icons: ['energy']})},
+        {effectIndex: 1, signature: sig({icons: ['plants']})},
+      ];
+      expect(cardChannelPlan(CardName.POLDERTECH_DUTCH, entries)).to.be.undefined;
+      const outcome = perEffectStat(
+        {cardName: CardName.POLDERTECH_DUTCH, ...entries[0]}, entries, stat({card: CardName.POLDERTECH_DUTCH}));
+      expect(outcome.scope).to.eq('card');
+    });
+
+    it('summarises each Carbon Nanosystems effect with ITS OWN stats over a real stream', () => {
+      const [game, player] = testGame(1);
+      const events = game.events;
+      const cn = new CarbonNanosystems();
+      events.withEffect(player, cn, 'card-played', () => {
+        events.recordCardResourceDelta(player, cn, 1);
+      });
+      events.recordResourceAsPayment(player, cn, 2, 8);
+      const cardStat = effectOverlayStats(events.events, player.color).find((s) => s.card === cn.name)!;
+
+      const accumulation = perEffectStat({cardName: cn.name, ...cnEntries[0]}, cnEntries, cardStat);
+      expect(accumulation.scope).to.eq('effect');
+      const vm0 = getEffectSummary(accumulation.stat!, {
+        sourceName: cn.name, sourceKind: 'card',
+        cardResourceType: CardResource.GRAPHENE, currentCardResource: 1,
+        effectIndex: 0, effectCount: 1, signature: cnEntries[0].signature, siblingIcons: [],
+      });
+      expect(vm0.cardScoped).to.be.undefined;
+      expect(vm0.triggerCount).to.eq(1);
+      expect(vm0.lines).to.deep.include({icon: CardResource.GRAPHENE, label: 'Added', value: '+1'});
+      expect(vm0.lines.some((l) => l.label === 'Payment value'), 'the sibling effect\'s savings stay off').to.be.false;
+
+      const payment = perEffectStat({cardName: cn.name, ...cnEntries[1]}, cnEntries, cardStat);
+      expect(payment.scope).to.eq('effect');
+      const vm1 = getEffectSummary(payment.stat!, {
+        sourceName: cn.name, sourceKind: 'card',
+        cardResourceType: CardResource.GRAPHENE, currentCardResource: 1,
+        effectIndex: 1, effectCount: 1, signature: cnEntries[1].signature, siblingIcons: [],
+      });
+      expect(vm1.category).to.eq('payment');
+      expect(vm1.lines.find((l) => l.label === 'Payment value')?.value).to.eq('8');
+      expect(vm1.lines.some((l) => l.label === 'Added'), 'the accumulation stays off').to.be.false;
+    });
+
+    it('an unattributed residue falls the whole card back to card scope', () => {
+      // An EffectOverlayStat is structurally a valid channel body (identity fields are extra).
+      const cardStat = stat({card: CardName.CARBON_NANOSYSTEMS, byChannel: {unattributed: stat({})}});
+      const outcome = perEffectStat({cardName: CardName.CARBON_NANOSYSTEMS, ...cnEntries[0]}, cnEntries, cardStat);
+      expect(outcome.scope).to.eq('card');
+    });
+
+    it('emptyEffectOverlayStat frames an unfired effect (never a dead state)', () => {
+      const vm = getEffectSummary(
+        emptyEffectOverlayStat(CardName.MEDIA_GROUP, 'card'),
+        {sourceName: CardName.MEDIA_GROUP, sourceKind: 'card'});
+      expect(vm.empty).to.be.true;
+      expect(vm.note).to.not.be.undefined;
+    });
+
+    it('a single-effect card needs no split (its stat IS the effect)', () => {
+      const outcome = perEffectStat(
+        {cardName: CardName.EARTH_CATAPULT, effectIndex: 0, signature: sig({icons: ['megacredits'], discount: true})},
+        [{effectIndex: 0, signature: sig({icons: ['megacredits'], discount: true})}],
+        stat({card: CardName.EARTH_CATAPULT, megacreditsSaved: 4}));
+      expect(outcome.scope).to.eq('effect');
+      expect(outcome.stat?.megacreditsSaved).to.eq(4);
+    });
   });
 });

@@ -359,6 +359,21 @@ the screen; the panel hosts only the selected type's content.**
   skipped — the route stays reachable only via a seat switch, presenting
   the room, never a bare frame.
 
+## THE EFFECTS EXPLORER (`ConsoleEffectsExplorer.vue`, `.con-efx`) — «Эффекты»
+
+Full rework 2026-09-12 — the route hosts a first-class explorer in the
+card-actions browse language: per-EFFECT family counts on the summary zone
+(Триггеры / Скидки / Ценность оплаты / Правила — the old per-card
+«Активные/Скидки» pair, whose discount predicate was always true, is gone),
+a dossier + per-effect tile grid with honest live metas from
+`/api/game/effect-stats` (version-keyed store, per-effect CHANNEL split for
+multi-effect cards), and an in-explorer DETAIL layer (hero card + printed
+rule + the «За партию» summary; LB/RB steps the sibling effect; a seat
+switch drops it instantly). Entry unfolds out of `[data-zone="effects"]`;
+the descend is the action-focus phrase re-pointed (`effect-*` keys). The
+stage tail is dynamic (`effectsStagePath` — the campaign pattern). Full
+contract: `docs/claude/console/effects-explorer.md`.
+
 ## «Экран бота» — the internals hub (the botdoor zone)
 
 Everything explaining HOW the algorithm works: the corporation's RULES read

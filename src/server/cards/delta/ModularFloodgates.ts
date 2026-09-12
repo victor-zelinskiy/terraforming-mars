@@ -67,6 +67,12 @@ import {buildBlockadeProjection} from '../../delta/deltaFloodgates';
  *     legal (the `autoResolveSingle` collapse then makes it the whole
  *     action); B needs a steel on the card AND a legal target, each refusal
  *     named on the branch.
+ *  5. «Counts as on your player board» reaches every steel CONSUMER — card
+ *     payment (`floodgateSteel`), unit-steel action costs (`spend: {steel}`
+ *     via `behavior/steelSpendSource.ts` — Space Elevator and friends) and
+ *     the Industrialist count — but never the ATTACKS: Hired Raiders /
+ *     Sabotage read the stock, so the stored steel is theft-protected
+ *     (deliberate, like Stormcraft floaters not being stealable heat).
  */
 export class ModularFloodgates extends Card implements IProjectCard {
   constructor() {

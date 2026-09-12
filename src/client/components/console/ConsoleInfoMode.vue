@@ -141,13 +141,23 @@
             </div>
           </section>
 
+          <!-- «ЭФФЕКТЫ» — counted PER EFFECT in the explorer's four families
+               (the tile-rail colour language), plus the seat's quiet
+               whole-game line (absent while the stats are on the wire —
+               loading must never read as «ничего не сработало»). -->
           <section v-if="!viewedIsBot" class="con-info__zone con-info__zone--effects"
                    :class="zoneStateClass('effects')" data-zone="effects">
             <h3 class="con-info__block-title">{{ $t('Effects') }}</h3>
-            <div class="con-info__stat-lines">
-              <div class="con-info__stat-line"><span>{{ $t('Active') }}</span><b class="con-info__mint">{{ effectsCount }}</b></div>
-              <div v-if="discountCount > 0" class="con-info__stat-line"><span>{{ $t('Discounts') }}</span><b>{{ discountCount }}</b></div>
-            </div>
+            <template v-if="effectsZone.total > 0">
+              <div class="con-info__stat-lines">
+                <div v-for="f in effectsZone.families" :key="f.family" class="con-info__stat-line">
+                  <span class="con-info__efam"><i class="con-info__efam-dot" :class="'con-info__efam-dot--' + f.family" aria-hidden="true"></i>{{ $t(f.label) }}</span>
+                  <b>{{ f.count }}</b>
+                </div>
+              </div>
+              <div v-if="effectsZoneNote !== ''" class="con-info__efam-note">{{ effectsZoneNote }}</div>
+            </template>
+            <div v-else class="con-info__empty">{{ $t('No passive effects') }}</div>
           </section>
 
           <!-- «КАМПАНИЯ» — campaign missions only: the mission frame (with
@@ -250,12 +260,16 @@
         <div v-if="!isSelf" class="con-info__note">{{ $t('Opponent state is read-only') }}</div>
       </div>
 
-      <!-- ── «ЭФФЕКТЫ» (human) ──────────────────────────────────────────── -->
-      <div v-else-if="infoModeState.route === 'effects'" key="effects" class="con-info__scroll con-info__detail-scroll" data-insp-slide>
-        <div v-if="effectGroups.length === 0" class="con-info__empty con-info__empty--big">{{ $t('No passive effects') }}</div>
-        <div class="con-info__effects">
-          <EffectBlock v-for="g in effectGroups" :key="g.key" :group="g" :card="tableauCard(g.cardName)" />
-        </div>
+      <!-- ── «ЭФФЕКТЫ» — the EFFECTS EXPLORER: the card-actions browse
+           language read-only (dossier column + per-effect tile grid) with
+           the in-explorer detail layer (hero card + printed rule + the
+           «За партию» stats). One component; its detail is a LAYER, so a
+           level change is the explorer's own descend phrase. -->
+      <div v-else-if="infoModeState.route === 'effects'" key="effects" class="con-info__efxhost" data-insp-slide>
+        <ConsoleEffectsExplorer ref="effectsView"
+                                :cards="viewed.tableau"
+                                :color="viewed.color"
+                                :stats="effectsStats" />
       </div>
 
       <!-- ── «ЭКРАН БОТА» и его вложенные маршруты — the bot's internals
@@ -307,7 +321,6 @@
 import {defineComponent, PropType} from 'vue';
 import {gsap} from 'gsap';
 import {PlayerViewModel, PublicPlayerModel} from '@/common/models/PlayerModel';
-import {CardModel} from '@/common/models/CardModel';
 import {CardName} from '@/common/cards/CardName';
 import {CardType} from '@/common/cards/CardType';
 import {getCard} from '@/client/cards/ClientCardManifest';
@@ -320,7 +333,11 @@ import {botTableauCards} from '@/client/components/marsbot/marsBotView';
 import {consolePlayedUi} from '@/client/console/consolePlayedUi';
 import ConsolePlayedOverlay from '@/client/components/console/played/ConsolePlayedOverlay.vue';
 import {playerActionSourceCount, cardHasAction} from '@/client/components/actions/actionExtraction';
-import {playerEffects, playerEffectGroups, EffectGroup} from '@/client/components/effects/effectExtraction';
+import {playerEffects} from '@/client/components/effects/effectExtraction';
+import {EffectsZoneCounts, effectsZoneCounts, effectsZoneStatsLine} from '@/client/console/effectsExplorerModel';
+import {effectStatsFor, effectStatsVersion, ensureEffectStats} from '@/client/console/effectStatsStore';
+import {effectsExplorerUi, effectsStagePath} from '@/client/console/consoleEffectsExplorer';
+import {EffectOverlayStat} from '@/common/events/aggregate';
 import {buildLiveScoreModel, LiveScoreModel} from '@/client/console/liveScoreModel';
 import {findPerformActionCard} from '@/client/console/turnIntents';
 import {infoModeState} from '@/client/console/infoModeState';
@@ -344,6 +361,7 @@ import {
 } from '@/client/console/surfaceMotion/workspaceDescend';
 import ConsoleScoreExplorer from '@/client/components/console/ConsoleScoreExplorer.vue';
 import ConsoleExtrasExplorer from '@/client/components/console/ConsoleExtrasExplorer.vue';
+import ConsoleEffectsExplorer from '@/client/components/console/ConsoleEffectsExplorer.vue';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {mapLabelKey} from '@/client/components/create/premium/createGameMeta';
 import {InfoExtrasChip, infoExtrasChips} from '@/client/console/infoExtrasChips';
@@ -355,7 +373,6 @@ import {MarsBotGuideContext} from '@/client/components/marsbot/marsBotGuide';
 import {marsBotCorpDisplayName, participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import ConsoleMarsBotSections from '@/client/components/console/ConsoleMarsBotSections.vue';
 import ConsoleWsHead from '@/client/components/console/foundation/ConsoleWsHead.vue';
-import EffectBlock from '@/client/components/effects/EffectBlock.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import type {ConsoleCommand} from '@/client/console/consoleCommandModel';
 import {setPanelCommands, clearPanelCommands} from '@/client/console/consolePanelUi';
@@ -379,7 +396,7 @@ const PLAYED_SUMMARY_LABEL: ReadonlyArray<{key: string, label: string}> = [
 
 export default defineComponent({
   name: 'ConsoleInfoMode',
-  components: {ConsoleCampaignOverview, ConsoleMarsBotSections, ConsolePlayedOverlay, ConsoleScoreExplorer, ConsoleExtrasExplorer, ConsoleWsHead, EffectBlock, GamepadGlyph},
+  components: {ConsoleCampaignOverview, ConsoleMarsBotSections, ConsolePlayedOverlay, ConsoleScoreExplorer, ConsoleExtrasExplorer, ConsoleEffectsExplorer, ConsoleWsHead, GamepadGlyph},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     myTurn: {type: Boolean, default: false},
@@ -394,6 +411,9 @@ export default defineComponent({
        *  in the DOM (the out-in enter hook runs after it left) — the
        *  campaign overview unfolds from this box. */
       campaignZoneRect: undefined as {left: number, top: number, width: number, height: number} | undefined,
+      /** The «Эффекты» zone's rect — same capture, the effects explorer's
+       *  entry unfolds out of the pressed zone and B folds back into it. */
+      effectsZoneRect: undefined as {left: number, top: number, width: number, height: number} | undefined,
     };
   },
   computed: {
@@ -447,6 +467,11 @@ export default defineComponent({
       if (this.infoModeState.route === 'campaign') {
         // The campaign overview names its own tail (its nested layers).
         return campaignStagePath().join(' · ');
+      }
+      if (this.infoModeState.route === 'effects') {
+        // The effects explorer names its tail dynamically (its detail layer
+        // adds the card name — «ЭФФЕКТЫ · <КАРТА>», the tail only advances).
+        return effectsStagePath().join(' · ');
       }
       const path = this.isVpRouteUp ?
         scoreStagePath(this.infoModeState.route, this.infoModeState.vpCategoryKey, this.infoModeState.vpCardsGroup) :
@@ -635,14 +660,32 @@ export default defineComponent({
     actionsTotal(): number {
       return playerActionSourceCount(this.viewed.tableau);
     },
-    effectsCount(): number {
-      return playerEffects(this.viewed.tableau).length;
+    /** The inspected seat's effect stats (undefined while on the wire — the
+     *  zone line and the explorer's metas honestly claim nothing). */
+    effectsStats(): ReadonlyArray<EffectOverlayStat> | undefined {
+      return this.viewedIsBot ? undefined : effectStatsFor(this.viewed.color);
     },
-    discountCount(): number {
-      return playerEffects(this.viewed.tableau).filter((e) => e.signature?.discount !== undefined).length;
+    /** The stats cache's OWN key — the watcher below re-ensures on it, so
+     *  the surface refetches on exactly the set the cache invalidates on. */
+    effectsStatsKey(): string {
+      return effectStatsVersion(this.playerView, this.viewed.color);
     },
-    effectGroups(): Array<EffectGroup> {
-      return playerEffectGroups(this.viewed.tableau);
+    /** Per-EFFECT family counts for the zone (the old per-card «Активные /
+     *  Скидки» pair — whose discount predicate was always true — is gone). */
+    effectsZone(): EffectsZoneCounts {
+      return effectsZoneCounts(playerEffects(this.viewed.tableau), this.viewed.tableau);
+    },
+    /** The zone's quiet whole-game line («Срабатываний: N · Сэкономлено: M»). */
+    effectsZoneNote(): string {
+      const line = effectsZoneStatsLine(this.effectsStats);
+      if (line === undefined || line.triggers === 0) {
+        return '';
+      }
+      const parts = [`${translateText('Times triggered')}: ${line.triggers}`];
+      if (line.savedMc > 0) {
+        parts.push(`${translateText('Saved')}: ${line.savedMc} ${translateText('Megacredits')}`);
+      }
+      return parts.join(' · ');
     },
     /** Actions detail rows — availability is server truth for SELF only. */
     actionRows(): Array<{name: CardName, available: boolean, reason: string}> {
@@ -700,6 +743,10 @@ export default defineComponent({
       // …and so does the EXTRAS EXPLORER (the satellite + gallery screen).
       if (route === 'extras' && extrasExplorerUi.barCommands !== undefined) {
         return [...extrasExplorerUi.barCommands];
+      }
+      // …and the EFFECTS EXPLORER (browse ⇄ detail change the verbs).
+      if (route === 'effects' && effectsExplorerUi.barCommands !== undefined) {
+        return [...effectsExplorerUi.barCommands];
       }
       // …and the CAMPAIGN OVERVIEW (its nested layers change the verbs).
       if (route === 'campaign' && campaignOverviewUi.barCommands !== undefined) {
@@ -785,6 +832,18 @@ export default defineComponent({
     'infoModeState.playerColor'(): void {
       this.warmExtrasArt();
     },
+    /** Keep the inspected seat's effect stats warm — the ONE recipe: the
+     *  store's own version stamp (gameStateVersion + seat), the same pair
+     *  the server memoizes the route on. Feeds both the zone's whole-game
+     *  line and the explorer's tile metas / «За партию» panel. */
+    effectsStatsKey: {
+      immediate: true,
+      handler(): void {
+        if (!this.viewedIsBot) {
+          ensureEffectStats(this.playerView, this.viewed.color);
+        }
+      },
+    },
     /** Publish the CONTEXTUAL command contract to the shell's ONE bottom
      *  command bar (consolePanelUi) — hints live only there, never in a
      *  panel-local footer (CONSOLE_TV_PREMIUM_PLAN §3.2). */
@@ -812,9 +871,6 @@ export default defineComponent({
     disposeScoreHandoff();
   },
   methods: {
-    tableauCard(name: CardName): CardModel | undefined {
-      return this.viewed.tableau.find((c) => c.name === name);
-    },
     /** Pre-decode the resource HOLDERS' premium art at panel open — the
      *  extras gallery then enters with its faces already warm. */
     warmExtrasArt(): void {
@@ -860,6 +916,14 @@ export default defineComponent({
     /** …and to the extras explorer while the extras route is up. */
     handleExtrasIntent(intent: GamepadIntent): void {
       (this.$refs.extrasView as {handleIntent?: (i: GamepadIntent) => void} | undefined)?.handleIntent?.(intent);
+    },
+    /** …and to the effects explorer while the effects route is up. */
+    handleEffectsIntent(intent: GamepadIntent): void {
+      (this.$refs.effectsView as {handleIntent?: (i: GamepadIntent) => void} | undefined)?.handleIntent?.(intent);
+    },
+    /** B consumes the effects explorer's open detail before walking the tree. */
+    consumeEffectsBack(): boolean {
+      return (this.$refs.effectsView as {consumeEffectsBack?: () => boolean} | undefined)?.consumeEffectsBack?.() === true;
     },
     /** …and to the campaign overview while the campaign route is up.
      *  Returns false when the overview did not consume it (B at its base
@@ -933,6 +997,19 @@ export default defineComponent({
         }
         return;
       }
+      // THE EFFECTS ENTRY: the explorer UNFOLDS OUT OF the «Эффекты» zone
+      // the player pressed (its rect captured in the leave hook, while the
+      // summary was still in the DOM), then the browse composition cascades
+      // from inside the opened room.
+      if (host.classList.contains('con-info__efxhost')) {
+        this.lastDepth = infoRouteDepth(this.infoModeState.route);
+        const tl = gsap.timeline({onComplete: done});
+        if (!descendUnfold(tl, host, this.effectsZoneRect, motionMs(280) / 1000, 0)) {
+          tl.fromTo(host, {autoAlpha: 0}, {autoAlpha: 1, duration: motionMs(160) / 1000, clearProps: 'opacity,visibility'}, 0);
+        }
+        descendCascade(tl, this.effectsRows(host), motionMs(175) / 1000, motionMs(140) / 1000, 0.03);
+        return;
+      }
       const depth = infoRouteDepth(this.infoModeState.route);
       const rising = depth >= this.lastDepth;
       this.lastDepth = depth;
@@ -962,12 +1039,28 @@ export default defineComponent({
       if (host.classList.contains('con-info__layout') && to === 'campaign') {
         this.campaignZoneRect = descendRectOf(host.querySelector<HTMLElement>('[data-zone="campaign"]'));
       }
+      // …and the «Эффекты» zone's box, for the effects explorer's entry.
+      if (host.classList.contains('con-info__layout') && to === 'effects') {
+        this.effectsZoneRect = descendRectOf(host.querySelector<HTMLElement>('[data-zone="effects"]'));
+      }
       // THE CAMPAIGN EXIT (B): the overview FOLDS BACK INTO the «Кампания»
       // zone's box (the entry's reverse — the zone itself is not in the DOM
       // yet, but its geometry is stable, so the captured rect is honest).
       if (host.classList.contains('con-info__cmphost')) {
         const tl = gsap.timeline({onComplete: done});
         if (!descendFold(tl, host, this.campaignZoneRect, motionMs(240) / 1000, 0)) {
+          tl.to(host, {autoAlpha: 0, duration: motionMs(120) / 1000}, 0);
+        }
+        return;
+      }
+      // THE EFFECTS EXIT (B): the explorer FOLDS BACK INTO the «Эффекты»
+      // zone's box (the entry's reverse — the zone is not in the DOM yet,
+      // but the summary's geometry is stable, so the captured rect is
+      // honest), its composition letting go first.
+      if (host.classList.contains('con-info__efxhost')) {
+        const tl = gsap.timeline({onComplete: done});
+        descendCascadeOut(tl, this.effectsRows(host), motionMs(90) / 1000, 0);
+        if (!descendFold(tl, host, this.effectsZoneRect, motionMs(230) / 1000, motionMs(30) / 1000)) {
           tl.to(host, {autoAlpha: 0, duration: motionMs(120) / 1000}, 0);
         }
         return;
@@ -997,6 +1090,11 @@ export default defineComponent({
     extrasRows(host: HTMLElement): Array<HTMLElement> {
       return Array.from(host.querySelectorAll<HTMLElement>(
         '.con-exr__hero, .con-exr__slot, .con-exr__detail, .con-exr__botpool, .con-exr__botnote, .con-exr__void'));
+    },
+    /** The effects explorer's cascade rows (entry/exit choreography). */
+    effectsRows(host: HTMLElement): Array<HTMLElement> {
+      return Array.from(host.querySelectorAll<HTMLElement>(
+        '.con-efx__filters, .con-efx__detail, .con-efx__group, .con-efx__empty'));
     },
   },
 });

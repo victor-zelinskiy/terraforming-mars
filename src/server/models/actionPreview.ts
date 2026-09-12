@@ -11,6 +11,7 @@ import {MAX_OXYGEN_LEVEL, MAX_TEMPERATURE, MIN_TEMPERATURE, MAX_VENUS_SCALE} fro
 import {UnplayableReason} from '../../common/cards/UnplayableReason';
 import {ActionPreview, ActionPreviewBranch, ActionPreviewStep, ActionEffect, ActionEffectBasis} from '../../common/models/ActionPreviewModel';
 import {_Countable} from '../behavior/Countable';
+import {steelSpendSourceOptions} from '../behavior/steelSpendSource';
 import {collectActionBehaviorReasons} from './actionUnavailableReasons';
 import {DecreaseAnyProduction} from '../deferredActions/DecreaseAnyProduction';
 import {RemoveAnyPlants} from '../deferredActions/RemoveAnyPlants';
@@ -562,8 +563,22 @@ export function stepsForBehavior(player: IPlayer, card: ICard, behavior: Behavio
   // them in sequence). So the steps MUST be emitted in the SAME order
   // `Executor.execute` DEFERS them (the deferred queue drains FIFO within a
   // priority). Executor defer order for these keys:
-  //   addResourcesToAnyCard → decreaseAnyProduction → removeAnyPlants →
-  //   colonies.buildColony → ocean → city → greenery → tile.
+  //   spend.steel source split → addResourcesToAnyCard → decreaseAnyProduction →
+  //   removeAnyPlants → colonies.buildColony → ocean → city → greenery → tile.
+
+  // A unit-steel cost (`spend.steel`) with steel stored on Modular Floodgates
+  // (DP11) prompts a source split FIRST — `Executor.execute` defers it before
+  // everything else (the rest of the behavior runs in its callback). SAME
+  // builder as the live path (`steelSpendSourceOptions`), so the captured
+  // option INDEX replays byte-identically; `undefined` (no stored steel) → no
+  // step, exactly matching the live silent-supply path.
+  const steelSpend = behavior.spend?.steel;
+  if (typeof steelSpend === 'number' && steelSpend > 0) {
+    const sourcePrompt = steelSpendSourceOptions(player, card, steelSpend, () => {});
+    if (sourcePrompt !== undefined) {
+      steps.push({kind: 'input', input: sourcePrompt.toModel(player)});
+    }
+  }
 
   // Add a resource to ANY card → a card-target picker PER addition (the value is
   // single-OR-ARRAY — Imported Nitrogen adds microbes AND animals), OR a WARNING when
