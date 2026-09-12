@@ -681,8 +681,8 @@ function buildCorporationInformation(card: ICard, graphics: ReadonlyArray<Graphi
         vpTextOverride = entry.text;
         return;
       }
-      if (kind === 'action-short') {
-        return; // not a block — `applyActionShorts` rides it on the action's own
+      if (kind === 'action-short' || kind === 'effect-short') {
+        return; // not a block — `apply*Shorts` rides it on the frame's own
       }
       if (kind === 'effect' || kind === 'action') {
         const match = entry.tokens !== undefined ? matchCorpFrame(graphics, entry.tokens, renderData) : {};
@@ -715,6 +715,7 @@ function buildCorporationInformation(card: ICard, graphics: ReadonlyArray<Graphi
     .filter((b) => b.graphicId === undefined)
     .map((b) => (b.kind === 'note' ? `${b.id}(note)` : b.id));
   applyActionShorts(card, groups, notes);
+  applyEffectShorts(card, groups, notes);
   return {information: {groups: orderInfoGroups(groups)}, status, unlinked};
 }
 
@@ -891,7 +892,7 @@ export function buildCardInformation(card: ICard, module: GameModule): CardInfor
   // `an augmenting infoText entry never switches the on-play derivation off`.
   const authorsOnPlayZone = authored !== undefined &&
     (authored.length === 0 ||
-      authored.some((entry) => entry.kind !== 'action-short' && entry.kind !== 'victory-points'));
+      authored.some((entry) => entry.kind !== 'action-short' && entry.kind !== 'effect-short' && entry.kind !== 'victory-points'));
   const takenRows = new Set<string>();
   if (authored !== undefined) {
     status = 'authored';
@@ -901,8 +902,8 @@ export function buildCardInformation(card: ICard, module: GameModule): CardInfor
         vpTextOverride = entry.text;
         return;
       }
-      if (kind === 'action-short') {
-        return; // not a block — `applyActionShorts` rides it on the action's own
+      if (kind === 'action-short' || kind === 'effect-short') {
+        return; // not a block — `apply*Shorts` rides it on the frame's own
       }
       let match: GraphicMatch = {};
       if (entry.tokens !== undefined) {
@@ -972,9 +973,16 @@ export function buildCardInformation(card: ICard, module: GameModule): CardInfor
         if (sentenceCount(cleaned) > 1) {
           notes.push('seeded-run-on: multi-sentence description — split into infoText');
         }
-      } else if (mechRows.length > 0) {
+      } else if (mechRows.length > 0 && !describedElsewhere) {
         status = 'needs-curation';
         notes.push('no text source for graphic rows');
+      } else if (mechRows.length > 0) {
+        // The card's rules live in DESCRIBED effect/action frames and the bare
+        // rows are their spliced causes (the Viral Enhancers shape: a raw tag
+        // row feeding an `eb.empty().startEffect` frame). Not a curation gap —
+        // but keep it visible: a genuinely undescribed on-play row beside a
+        // described frame would land here too.
+        notes.push('bare rows beside described frames (spliced causes?)');
       }
     }
   }
@@ -1003,6 +1011,7 @@ export function buildCardInformation(card: ICard, module: GameModule): CardInfor
   }
 
   applyActionShorts(card, groups, notes);
+  applyEffectShorts(card, groups, notes);
 
   audit.push({
     name: card.name,
@@ -1093,28 +1102,33 @@ function graphicOf(match: GraphicMatchPos): GraphicMatch {
 
 /**
  * Attach the CURATED SHORT CAPTIONS (`infoText` entries of kind
- * `action-short`) to the action blocks they describe.
+ * `action-short` / `effect-short`) to the action/effect blocks they describe.
  *
- * A short is not a block of its own: it rides the action's block as `short`,
- * so every consumer reads ONE record — the full rule and the caption the
- * action browser paints beside the printed formula. Targeting is by GRAPHIC
- * (`tokens`), with the unambiguous single-action card needing none; anything
- * the generator cannot place lands in the audit instead of guessing.
+ * A short is not a block of its own: it rides its block as `short`, so every
+ * consumer reads ONE record — the full rule and the caption the console
+ * browser paints beside the printed formula. Targeting is by GRAPHIC
+ * (`tokens`), with the unambiguous single-action/effect card needing none;
+ * anything the generator cannot place lands in the audit instead of guessing.
  */
-function applyActionShorts(card: ICard, groups: ReadonlyArray<CardInfoGroup>, notes: Array<string>): void {
-  const authored = card.metadata.infoText?.filter((entry) => entry.kind === 'action-short') ?? [];
+function applyShortCaptions(
+  card: ICard,
+  groups: ReadonlyArray<CardInfoGroup>,
+  notes: Array<string>,
+  infoKind: 'action-short' | 'effect-short',
+  blockKind: 'action' | 'effect'): void {
+  const authored = card.metadata.infoText?.filter((entry) => entry.kind === infoKind) ?? [];
   if (authored.length === 0) {
     return;
   }
   const blocks = groups
-    .filter((g) => g.kind === 'action')
-    .flatMap((g) => g.blocks.filter((b) => b.kind === 'action'));
+    .filter((g) => g.kind === blockKind)
+    .flatMap((g) => g.blocks.filter((b) => b.kind === blockKind));
   for (const entry of authored) {
     let target: CardInfoBlock | undefined;
     if (entry.tokens !== undefined) {
-      // An action's graphic id IS its formula's content signature
+      // A frame's graphic id IS its formula's content signature
       // (`g:action(megacredits,titanium,res-asteroid)`), so a token unique to
-      // ONE of the card's actions addresses it exactly — and ambiguity is an
+      // ONE of the card's frames addresses it exactly — and ambiguity is an
       // audit note rather than a coin flip.
       const tokens = entry.tokens;
       const hits = blocks.filter((b) => {
@@ -1126,11 +1140,20 @@ function applyActionShorts(card: ICard, groups: ReadonlyArray<CardInfoGroup>, no
       target = blocks[0];
     }
     if (target === undefined) {
-      notes.push(`action-short without an unambiguous action target: "${entry.text}"`);
+      notes.push(`${infoKind} without an unambiguous ${blockKind} target: "${entry.text}"`);
       continue;
     }
     target.short = key(entry.text);
   }
+}
+
+function applyActionShorts(card: ICard, groups: ReadonlyArray<CardInfoGroup>, notes: Array<string>): void {
+  applyShortCaptions(card, groups, notes, 'action-short', 'action');
+}
+
+/** The effects-explorer twin — captions ride the derived EFFECT blocks. */
+function applyEffectShorts(card: ICard, groups: ReadonlyArray<CardInfoGroup>, notes: Array<string>): void {
+  applyShortCaptions(card, groups, notes, 'effect-short', 'effect');
 }
 
 /**

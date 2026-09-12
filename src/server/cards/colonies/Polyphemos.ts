@@ -18,6 +18,7 @@ export class Polyphemos extends CorporationCard implements ICorporationCard {
 
       metadata: {
         cardNumber: 'R11',
+        infoText: [{kind: 'effect-short', text: 'Buying a card to hand costs 5 M€'}],
         description: 'You start with 50 M€. Increase your M€ production 5 steps. Gain 5 titanium.',
         renderData: CardRenderer.builder((b) => {
           b.br;

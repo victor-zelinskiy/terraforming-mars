@@ -974,5 +974,25 @@ function wait(ms: number): Promise<void> {
 // initialization` on every single load, printing a stack trace and counting as
 // «not holding» for that first read. Keep every registration after ALL module
 // state.
-registerAnimationHoldSupplier('nomad-move', nomadMoveHolding);
-registerAnimationHoldSupplier('nomad-move-remote', isRemoteNomadMoveActive);
+// Both carry the ceiling's OWNER RECOVERY (the remote-tile contract): the
+// ceiling must end the WEDGE, never just mask the count — and the field log
+// 2026-09-12 had «nomad-move-remote» expire bare, with no diagnose to say
+// which flag was stuck and no abort to unwedge the queue behind it.
+registerAnimationHoldSupplier('nomad-move', nomadMoveHolding, {
+  diagnose: () => ({
+    active: nomadMoveState.active,
+    phase: nomadMoveState.phase,
+    from: nomadMoveState.fromId,
+    to: nomadMoveState.toId,
+  }),
+  expire: () => abortNomadMove(),
+});
+registerAnimationHoldSupplier('nomad-move-remote', isRemoteNomadMoveActive, {
+  diagnose: () => ({
+    remoteActive: nomadMoveState.remoteActive,
+    remoteWaiting: nomadMoveState.remoteWaiting,
+    queued: remoteQueue.length,
+    draining: remoteDraining,
+  }),
+  expire: () => abortRemoteNomadMoves(),
+});

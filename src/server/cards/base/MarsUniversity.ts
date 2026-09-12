@@ -25,6 +25,7 @@ export class MarsUniversity extends Card implements IProjectCard {
 
       metadata: {
         cardNumber: '073',
+        infoText: [{kind: 'effect-short', text: 'Science tag: may swap a hand card for a new one'}],
         renderData: CardRenderer.builder((b) => {
           b.effect('When you play a science tag, including this, you may discard a card from hand to draw a card.', (eb) => {
             eb.tag(Tag.SCIENCE).startEffect.minus().cards(1).nbsp.plus().cards(1);

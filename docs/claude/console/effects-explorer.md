@@ -111,6 +111,55 @@ stepped tile). B folds one level; a seat switch drops the detail INSTANTLY
 LEAVE hook), B folds back — the campaign/extras branches' sibling in
 `detailZoneEnter/Leave`.
 
+## Captions — compact on the tile, full in the dossier (iteration 2, 2026-09-12)
+
+The tile's caption is resolved by **`effectDescription.ts`**
+(`src/client/components/effects/`, the `actionDescription.ts` twin):
+`effectRules(entry, effectCount)` → `{lines, summary, curated}` — the
+`summary` is the card's **curated short** (`infoText`,
+`kind: 'effect-short'`, attached by the generator's `applyEffectShorts` onto
+the derived EFFECT block as `CardInfoBlock.short`) when the full rule cannot
+read as a calm one/two-line caption, else the full rule itself — **never a
+truncation**. Addressing rides the action ladder verbatim: graphic token →
+text identity → same-count ordinal; multi-effect cards author `tokens`
+(unique substrings of the effect's graphic id — Carbon Nanosystems
+`['tag-science']`/`['tag-space']`, Splice `['res-microbe']`/`['megacredits)']`).
+The dossier column and the detail stage keep the FULL rule (`lines[0]`).
+
+The audit is CLOSED: 73 over-budget effects (worst of EN/RU at the shared
+`BUDGET = 52`) received 62 curated caption keys (EN in the card files, RU in
+`ru/card_info.json`); `AWAITING_CAPTION` is empty. Guard (and future
+worklist): `tests/cards/effectCaption.spec.ts` — the `actionCaption` twin
+(caption source for every effect, sentence-not-truncation, RU present,
+budget worklist, the `.effect(undefined,` fold scan with its SAFE list, the
+shrink-never-rot check). ⚠️ Generator note: an infoText of ONLY shorts must
+not flip a card's on-play derivation — the `authorsOnPlayZone` predicate
+excludes `action-short`/`effect-short`, and bare mech rows beside DESCRIBED
+frames (the Viral Enhancers spliced-cause shape) are an audit NOTE, never
+needs-curation.
+
+**Contrast floor (couch feedback, same iteration):** the tile's quiet inks
+sat at `fade(@con-text-dim, ~80%)` ≈ 55-60 % white on the near-black chassis
+— unreadable at distance. The caption is the tile's SEMANTIC voice, so quiet
+means weight/size, never sub-70 % ink: `__desc` → `fade(@con-text, 88%)`
+(focused → full), way-finder 64 %, idle meta 66 %, cardScoped cyan 92 %,
+dossier ordinal 70 %, summary labels/notes 76-80 %.
+
+**DSL ink on dark canvases (`.con-dsl-dark-ink()` in `console.less`):** the
+render-DSL graphic carries the CARD FACE's near-black ink («или», colons,
+`card-text-normal/bold` formulas, the ± PNG sprites), which vanishes in the
+`__graphic` / `__rule-graphic` dark wells — the same latent bug the journal
+popover solved in `effects_overlay.less` §`.effect-item__render`. The mixin
+is the console-corrected port of that recipe: light text `#eaf3fc` for
+`.card-text-*:not(.card-plate)` and `.card-special`, dark ink kept INSIDE
+light plates (`.card-plate`, trade-discount numeral), cancelled-arrow
+`::after` recolored — and because the console paint baseline strips `filter`
+permanently (no `invert` for the ± sprites), the `card-minus`/`card-plus`
+boxes drop their PNG and DRAW the glyph via `::after`. Applied inside
+`.con-efx__graphic`, `.con-efx__rule-graphic` AND `.con-cardactions__graphic`
+(the actions canvas had the same latent ink). State stays box-shadow/color
+only.
+
 ## Input
 
 Browse: d-pad grid (`stepActionRows` verbatim) · A descend · X inspect the

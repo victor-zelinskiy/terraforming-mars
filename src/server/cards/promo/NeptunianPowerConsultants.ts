@@ -38,6 +38,8 @@ export class NeptunianPowerConsultants extends Card implements IProjectCard {
 
           {kind: 'effect', text: 'When any ocean is placed, you may pay 5 M€ (steel may be used) to raise your energy production 1 step and add 1 hydroelectric resource to this card.', tokens: ['oceans']},
 
+          {kind: 'effect-short', text: 'Any ocean: may pay 5 M€ for +1 energy production'},
+
         ],
         cardNumber: 'X61',
         renderData: CardRenderer.builder((b) => {

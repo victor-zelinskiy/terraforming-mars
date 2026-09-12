@@ -19,6 +19,7 @@ export class Manutech extends CorporationCard implements ICorporationCard {
 
       metadata: {
         cardNumber: 'R23',
+        infoText: [{kind: 'effect-short', text: 'Production raised: gain that resource too'}],
         description: 'You start with 1 steel production, and 35 M€.',
         renderData: CardRenderer.builder((b) => {
           b.br.br;

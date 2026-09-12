@@ -38,6 +38,7 @@ describe('animationHold (the critical-animation registry)', () => {
     unregisterAnimationHoldSupplier('spec-supplier-soft');
     unregisterAnimationHoldSupplier('spec-supplier-throwing');
     unregisterAnimationHoldSupplier('spec-supplier-stuck');
+    unregisterAnimationHoldSupplier('spec-supplier-sweep');
     resetAnimationHoldsForTest();
   });
 
@@ -283,5 +284,64 @@ describe('animationHold (the critical-animation registry)', () => {
     // Largest flow safety today: the deck-draw scene (30 s) — the flow's own
     // abort must always fire first and clean up its visuals.
     expect(DEFAULT_MAX_HOLD_MS).greaterThan(30_000);
+  });
+
+  // REGRESSION (field log 2026-09-12): the ceiling lived ONLY in the
+  // per-supplier watch, which fires on REACTIVE edges — a supplier whose term
+  // is a plain module variable (the remote-placement queue) could go TRUE
+  // with no edge, so the counts held everything (the sweep sees the predicate
+  // fresh) while the ceiling that would bound it NEVER ARMED: an unbounded
+  // freeze with no owner recovery. The sweep now reconciles the ceiling too.
+  it('the sweep ARMS the ceiling for a rising edge no watcher ever saw', async () => {
+    let holding = false; // deliberately PLAIN — no reactive edge ever fires
+    let recovered = 0;
+    registerAnimationHoldSupplier('spec-supplier-sweep', () => holding, {
+      maxHoldMs: 20,
+      expire: () => {
+        recovered++;
+        holding = false; // the owner's abort drops its own state
+      },
+    });
+    holding = true;
+    refreshAnimationHolds(); // the console's 1 s tick — the only edge there is
+    expect(animationHoldCount(), 'the sweep counts the hold').eq(1);
+    await wait(45);
+    expect(recovered, 'the ceiling armed off the sweep and ran the recovery').eq(1);
+    refreshAnimationHolds();
+    expect(animationHoldCount()).eq(0);
+  });
+
+  // …and the mirror image: the queue drains through a path that touches no
+  // reactive field (the degrade branch), so the watcher never sees the
+  // FALLING edge — the stale timer then fired at 35 s over an honestly idle
+  // module («force-released… {"active":false,"queued":0}», twice in one day's
+  // log). The sweep disarms it; no warn, no phantom expiry.
+  it('the sweep DISARMS a stale ceiling after a falling edge no watcher ever saw', async () => {
+    let holding = false;
+    let recovered = 0;
+    const warns: Array<string> = [];
+    const realWarn = console.warn;
+    console.warn = (...args: Array<unknown>) => warns.push(String(args[0]));
+    try {
+      registerAnimationHoldSupplier('spec-supplier-sweep', () => holding, {
+        maxHoldMs: 20,
+        expire: () => recovered++,
+      });
+      holding = true;
+      refreshAnimationHolds(); // arms the ceiling
+      holding = false; // …drains with no reactive edge (the degrade path)
+      refreshAnimationHolds(); // the next tick must disarm the stale timer
+      await wait(45);
+      expect(recovered, 'no phantom owner recovery').eq(0);
+      expect(warns.filter((w) => w.includes('spec-supplier-sweep')),
+        'no false «force-released» alarm').deep.eq([]);
+      // …and a LATER real hold gets a fresh, working ceiling.
+      holding = true;
+      refreshAnimationHolds();
+      await wait(45);
+      expect(recovered, 'the fresh window still guards').eq(1);
+    } finally {
+      console.warn = realWarn;
+    }
   });
 });

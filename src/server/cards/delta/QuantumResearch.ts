@@ -17,6 +17,7 @@ export class QuantumResearch extends Card implements IProjectCard {
       requirements: {tag: Tag.SCIENCE, count: 3},
       metadata: {
         cardNumber: 'DP02',
+        infoText: [{kind: 'effect-short', text: 'Buying cards to hand costs 1 M€ less'}],
         renderData: CardRenderer.builder((b) => {
           b.effect('When you buy a card to hand, you pay 1 M€ less for it.', (eb) => {
             eb.cards(1).startEffect.megacredits(-1);

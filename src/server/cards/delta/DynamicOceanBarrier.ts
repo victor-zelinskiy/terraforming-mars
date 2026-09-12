@@ -21,6 +21,7 @@ export class DynamicOceanBarrier extends Card implements IProjectCard {
 
       metadata: {
         cardNumber: 'DP03',
+        infoText: [{kind: 'effect-short', text: 'Your ocean placed: a free Hydronetwork step'}],
         renderData: CardRenderer.builder((b) => {
           b.effect('Whenever you place an ocean tile, you may move 1 step on the Hydronetwork without paying energy. If you pay 1 energy for this action, you may ignore 1 required tag.', (eb) => {
             eb.oceans(1).startEffect.plate('Hydronetwork').asterix();

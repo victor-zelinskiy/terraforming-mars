@@ -15,6 +15,7 @@ export class ProtectedHabitats extends Card implements IProjectCard {
       metadata: {
 
         cardNumber: '173',
+        infoText: [{kind: 'effect-short', text: 'Your plants, animals and microbes are protected'}],
         renderData: CardRenderer.builder((b) => {
           // Pure passive effect → an EFFECT frame (renders in the ЭФФЕКТ block,
           // NOT under «при розыгрыше»); the description auto-derives the info.

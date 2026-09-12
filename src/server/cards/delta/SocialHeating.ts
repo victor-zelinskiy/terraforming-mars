@@ -83,6 +83,7 @@ export class SocialHeating extends Card implements IProjectCard {
 
       metadata: {
         cardNumber: 'DP09',
+        infoText: [{kind: 'effect-short', text: 'Any Hydronetwork step: +1 heat each'}],
         renderData: CardRenderer.builder((b) => {
           // ONE variable, stated once, exactly as the card prints it: the
           // TRIGGER is X steps of movement on the track (the plate), the

@@ -23,6 +23,7 @@ export class MorningStarInc extends CorporationCard implements ICorporationCard 
         description: 'You start with 50 M€. As your first action, reveal cards from the deck until you have revealed 3 Venus-tag cards. Take those into hand and discard the rest.',
         infoText: [
           {text: 'As your first action, reveal cards from the deck until you reveal 3 Venus-tag cards; take them into hand and discard the rest.', tokens: ['cards']},
+          {kind: 'effect-short', text: 'Your Venus requirements are ±2 steps'},
         ],
         renderData: CardRenderer.builder((b) => {
           b.megacredits(50).nbsp.cards(3, {secondaryTag: Tag.VENUS});

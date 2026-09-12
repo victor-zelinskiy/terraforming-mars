@@ -29,6 +29,10 @@ export class PharmacyUnion extends CorporationCard implements ICorporationCard {
 
       metadata: {
         cardNumber: 'R39',
+        infoText: [
+          {kind: 'effect-short', text: 'Any microbe tag: add a disease, lose 4 M€', tokens: ['tag-microbe']},
+          {kind: 'effect-short', text: 'Science tag: remove a disease for TR', tokens: ['tag-science']},
+        ],
         renderData: CardRenderer.builder((b) => {
           b.megacredits(54).cards(1, {secondaryTag: Tag.SCIENCE});
           // blank space after MC is on purpose

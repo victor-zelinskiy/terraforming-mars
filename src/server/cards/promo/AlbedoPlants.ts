@@ -19,6 +19,7 @@ export class AlbedoPlants extends PreludeCard {
 
       metadata: {
         cardNumber: 'X78',
+        infoText: [{kind: 'effect-short', text: 'Plant tag: gain 3 heat'}],
         renderData: CardRenderer.builder((b) => {
           b.effect('When you play a plant tag, including this, gain 3 heat.',
             (b) => b.tag(Tag.PLANT).startEffect.heat(3));

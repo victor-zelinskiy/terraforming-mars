@@ -17,6 +17,7 @@ export class DevelopmentManager extends Card implements IProjectCard {
 
       metadata: {
         cardNumber: 'DP05',
+        infoText: [{kind: 'effect-short', text: '2+ production or track steps at once: gain 2 M€'}],
         renderData: CardRenderer.builder((b) => {
           b.effect('Each time you increase a type of production 2 or more steps, or advance 2 or more steps on the Hydronetwork track, gain 2 M€.', (eb) => {
             eb.production((pb) => pb.text('+2').wild(1)).slash().text('+2').plate('Hydronetwork').startEffect.megacredits(2);

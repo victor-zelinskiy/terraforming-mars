@@ -34,6 +34,7 @@ export class Pets extends Card implements IProjectCard {
 
       metadata: {
         cardNumber: '172',
+        infoText: [{kind: 'effect-short', text: 'Any city placed: add an animal here', tokens: ['city']}],
         renderData: CardRenderer.builder((b) => {
           // Effect frame (city → animal) + the passive protection EFFECT frame
           // both render in the ЭФФЕКТ block; the on-play «add 1 animal» + the VP

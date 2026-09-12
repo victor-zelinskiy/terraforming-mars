@@ -16,6 +16,7 @@ export class CrediCor extends CorporationCard implements ICorporationCard {
 
       metadata: {
         cardNumber: 'R08',
+        infoText: [{kind: 'effect-short', text: 'Card or project of 20+ M€: gain 4 M€'}],
         description: 'You start with 57 M€.',
         renderData: CardRenderer.builder((b) => {
           b.br.br.br;

@@ -23,6 +23,7 @@ export class Supercapacitors extends Card implements IProjectCard {
 
       metadata: {
         cardNumber: 'X46',
+        infoText: [{kind: 'effect-short', text: 'Energy may stay instead of turning to heat'}],
         renderData: CardRenderer.builder((b) => {
           // Energy -> heat conversion with a crossed-out arrow: during production
           // you MAY skip converting each energy resource into heat.

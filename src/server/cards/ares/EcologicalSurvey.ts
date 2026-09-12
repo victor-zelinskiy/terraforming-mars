@@ -22,6 +22,7 @@ export class EcologicalSurvey extends SurveyCard {
       metadata: {
         description: 'Requires 3 greeneries on Mars.',
         cardNumber: 'A07',
+        infoText: [{kind: 'effect-short', text: 'Tile grants plants/animals/microbes: +1 extra'}],
         renderData: CardRenderer.builder((b) => {
           b.effect('When placing a tile grants you any plants, animals or microbes, you gain one additional of each of those resources that you gain.', (eb) => {
             eb.emptyTile().startEffect;

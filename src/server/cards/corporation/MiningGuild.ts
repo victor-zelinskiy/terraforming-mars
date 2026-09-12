@@ -30,6 +30,7 @@ export class MiningGuild extends CorporationCard implements ICorporationCard {
 
       metadata: {
         cardNumber: 'R24',
+        infoText: [{kind: 'effect-short', text: 'Steel/titanium bonus tile: +1 steel production'}],
         description: 'You start with 30 M€, 5 steel and 1 steel production.',
         renderData: CardRenderer.builder((b) => {
           b.br.br;

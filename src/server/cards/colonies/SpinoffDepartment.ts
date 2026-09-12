@@ -21,6 +21,7 @@ export class SpinoffDepartment extends Card implements IProjectCard {
 
       metadata: {
         cardNumber: 'C41',
+        infoText: [{kind: 'effect-short', text: 'Card of 20+ M€ played: draw a card'}],
         renderData: CardRenderer.builder((b) => {
           b.effect('WHEN PLAYING A CARD WITH A BASIC COST OF 20M€ OR MORE, draw a card.', (eb) => {
             eb.megacredits(20).asterix().startEffect.cards(1);

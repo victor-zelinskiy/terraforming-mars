@@ -21,6 +21,7 @@ export class SaturnSystems extends CorporationCard implements ICorporationCard {
 
       metadata: {
         cardNumber: 'R03',
+        infoText: [{kind: 'effect-short', text: 'Any Jovian tag: +1 M€ production'}],
         description: 'You start with 1 titanium production and 42 M€.',
         renderData: CardRenderer.builder((b) => {
           b.br;

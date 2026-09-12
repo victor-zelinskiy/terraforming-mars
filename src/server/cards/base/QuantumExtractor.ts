@@ -22,6 +22,7 @@ export class QuantumExtractor extends Card implements IProjectCard {
       cardDiscount: {tag: Tag.SPACE, amount: 2},
       metadata: {
         cardNumber: '079',
+        infoText: [{kind: 'effect-short', text: 'Space cards cost 2 M€ less'}],
         renderData: CardRenderer.builder((b) => {
           b.effect('When you play a space card, you pay 2 M€ less for it.', (eb) => {
             eb.tag(Tag.SPACE).startEffect.megacredits(-2);

@@ -40,11 +40,13 @@ export type CardInfoBlock = {
   /** English text / i18n key. */
   text: string;
   /**
-   * ACTION blocks only — the CURATED short caption the action browser shows
-   * beside the printed formula, where the full rule would not fit two calm
-   * lines. It is a complete sentence in its own right (never a truncation of
-   * `text`), authored per action in the card file (`infoText`,
-   * `kind: 'action-short'`) and translated like any other key.
+   * ACTION / EFFECT blocks only — the CURATED short caption the console
+   * browsers (the action workspace's slots, the effects explorer's tiles)
+   * show beside the printed formula, where the full rule would not fit two
+   * calm lines. It is a complete sentence in its own right (never a
+   * truncation of `text`), authored per action/effect in the card file
+   * (`infoText`, `kind: 'action-short'` / `'effect-short'`) and translated
+   * like any other key.
    *
    * Absent = the full text IS the caption: a rule that already reads short
    * and clear must not be paraphrased for the sake of uniformity.
@@ -104,13 +106,14 @@ export type CardInfoText = {
   /**
    * Defaults to 'immediate'.
    *
-   * `action-short` is NOT a block: it attaches its text as the `short`
-   * caption of the card's DERIVED action block (the printed rule stays the
-   * full text). Author it only when the full rule cannot read as a calm
-   * one/two-line caption in the action browser — a short rule is its own
-   * best caption. With several actions on one card, `tokens` says which.
+   * `action-short` / `effect-short` are NOT blocks: each attaches its text
+   * as the `short` caption of the card's DERIVED action/effect block (the
+   * printed rule stays the full text). Author one only when the full rule
+   * cannot read as a calm one/two-line caption in the console browser — a
+   * short rule is its own best caption. With several actions/effects on one
+   * card, `tokens` says which.
    */
-  kind?: 'immediate' | 'effect' | 'action' | 'action-short' | 'note' | 'victory-points';
+  kind?: 'immediate' | 'effect' | 'action' | 'action-short' | 'effect-short' | 'note' | 'victory-points';
   /** English text — the i18n key. */
   text: string;
   /** Graphic-row tokens this block describes (see cardGraphicIds.ts). */

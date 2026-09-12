@@ -22,6 +22,7 @@ export class MonsInsurance extends CorporationCard implements ICorporationCard {
         description: 'You start with 48 M€. Increase your M€ production 4 steps. ALL OPPONENTS DECREASE THEIR M€ production 2 STEPS. THIS DOES NOT TRIGGER THE EFFECT BELOW.',
         infoText: [
           {text: 'All opponents decrease their M€ production 2 steps. This does not trigger the effect below.', tokens: ['production(']},
+          {kind: 'effect-short', text: 'A player harms another: you pay the victim 3 M€'},
         ],
         renderData: CardRenderer.builder((b) => {
           b.megacredits(48).production((pb) => {

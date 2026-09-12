@@ -235,29 +235,41 @@ export function registerAnimationHoldSupplier(label: string, supplier: () => boo
   // The ceiling: a supplier stuck true past maxHoldMs is EXPIRED (excluded
   // from the counts, with a warn) until it honestly goes false again — and
   // its OWNER RECOVERY runs, so the wedge behind the hold ends too, not just
-  // the hold's own count.
+  // the hold's own count. The watch is the FAST PATH; the sweep in
+  // `refreshAnimationHolds` is the truth (see armCeiling/disarmCeiling).
   entry.stop = watch(() => safeRead(label, supplier), (holding) => {
     if (holding) {
-      if (entry.ceilingTimer === undefined) {
-        entry.heldSince = Date.now();
-        entry.ceilingTimer = setTimeout(() => {
-          entry.ceilingTimer = undefined;
-          store.expired.add(label);
-          console.warn(`[animation-hold] "${label}" held for over ${entry.maxHoldMs}ms — force-released by the safety ceiling (leaked hold?)${safeDiagnose(entry.diagnose)}`);
-          safeExpireRecovery(label, entry.expire);
-        }, entry.maxHoldMs);
-      }
+      armCeiling(label, entry);
     } else {
-      if (entry.ceilingTimer !== undefined) {
-        clearTimeout(entry.ceilingTimer);
-        entry.ceilingTimer = undefined;
-      }
-      entry.heldSince = undefined;
-      store.expired.delete(label);
+      disarmCeiling(label, entry);
     }
   }, {immediate: true});
   suppliers.set(label, entry);
   store.version++;
+}
+
+/** Arm the ceiling for a supplier's rising edge (idempotent). */
+function armCeiling(label: string, entry: SupplierEntry): void {
+  if (entry.ceilingTimer !== undefined || store.expired.has(label) || store.quarantined.has(label)) {
+    return;
+  }
+  entry.heldSince = entry.heldSince ?? Date.now();
+  entry.ceilingTimer = setTimeout(() => {
+    entry.ceilingTimer = undefined;
+    store.expired.add(label);
+    console.warn(`[animation-hold] "${label}" held for over ${entry.maxHoldMs}ms — force-released by the safety ceiling (leaked hold?)${safeDiagnose(entry.diagnose)}`);
+    safeExpireRecovery(label, entry.expire);
+  }, entry.maxHoldMs);
+}
+
+/** Disarm the ceiling on a supplier's falling edge (idempotent). */
+function disarmCeiling(label: string, entry: SupplierEntry): void {
+  if (entry.ceilingTimer !== undefined) {
+    clearTimeout(entry.ceilingTimer);
+    entry.ceilingTimer = undefined;
+  }
+  entry.heldSince = undefined;
+  store.expired.delete(label);
 }
 
 /** Remove a registered supplier (per-instance flows / test cleanup). */
@@ -356,9 +368,38 @@ export function holdForGsapAnimation(label: string, animation: GsapLikeAnimation
  * The predicate contract still stands and is still the fix at the source; this
  * is the net under it. The console's 1 s tick calls it, so the registry can
  * never be more than one second stale for ANY supplier, present or future.
+ *
+ * …AND THE CEILING GETS THE SAME NET (2026-09-12). The ceiling used to live
+ * ONLY in the per-supplier `watch`, which fires on REACTIVE edges — and both
+ * of its failure modes shipped in one field log:
+ *  · a MISSED FALLING edge (the remote-placement queue drains through its
+ *    degrade path, touching no reactive field) leaves a stale ceiling timer
+ *    that fires at 35 s over an honestly idle module — a false
+ *    «force-released» alarm, and `oldestAnimationHoldAgeMs` (the watchdog's
+ *    leak-vs-slow discriminator) lies for the whole window;
+ *  · a MISSED RISING edge is the dangerous direction — the counts (this
+ *    sweep) DO see the hold, so it blocks notifications and mandatory
+ *    surfaces, while the ceiling that would bound it NEVER ARMS: an
+ *    unbounded freeze with no safety and no owner recovery.
+ * So the same sweep that re-derives the counts now RECONCILES every
+ * supplier's ceiling against a fresh predicate read: predicate true with no
+ * timer → arm (the hold is bounded from at most one tick late); predicate
+ * false with a timer → disarm quietly (the routine case for a non-reactive
+ * term — never a warn). The watch stays as the zero-latency fast path.
  */
 export function refreshAnimationHolds(): void {
   store.version++;
+  for (const [label, entry] of suppliers) {
+    if (store.quarantined.has(label)) {
+      disarmCeiling(label, entry); // a quarantined label needs no ceiling
+      continue;
+    }
+    if (safeRead(label, entry.supplier)) {
+      armCeiling(label, entry); // no-op while expired — the mask holds until an honest false
+    } else {
+      disarmCeiling(label, entry);
+    }
+  }
 }
 
 /** Every live hold (both scopes) — blocks notification delivery. */

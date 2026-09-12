@@ -256,6 +256,63 @@ colony keep their own subsystem nets (the hydro witnesses, `colonyResolution
 ReleaseOwed`) for their LIVE states; this is the floor under the
 `owedConclusion` family (play / card-actions / standard-projects).
 
+## Iteration 6 (2026-09-12 — the class moves to BOARD HOME: leaked ceilings, a hung poll, unnamed degrades)
+
+Field report #5, a two-human LAN campaign at the endgame boundary: before the
+final greenery both clients showed «ДЕЙСТВИЕ» on their OWN chip (the truth:
+only player B, who alone had plants, was owed the greenery), player B's screen
+froze ~30 s with NO workspace open, then the greenery prompt arrived. The
+day's log named three chronic defects — none of them inside a workspace, which
+is why iterations 1–5 (all workspace-scoped) never touched them:
+
+1. **The animation-hold CEILING lived only in a per-supplier Vue `watch`,
+   which fires on REACTIVE edges — and both failure modes shipped.**
+   `tile-placement-remote` was «force-released» at 35 s twice with an
+   honestly idle diag (`{"active":false,"queued":0,"draining":false}`): the
+   remote queue is a plain array, and the DEGRADE path (unmeasurable board /
+   no stage) empties it touching no reactive field, so the falling edge was
+   never observed — a stale timer, a false alarm, and
+   `oldestAnimationHoldAgeMs` (the watchdog's leak-vs-slow discriminator)
+   lying for the window. The mirror direction is the dangerous one: a rising
+   edge with no reactive change is COUNTED by the sweep (blocking
+   notifications and mandatory surfaces) while the ceiling that would bound
+   it never arms — an unbounded freeze with no owner recovery. **Fix: the
+   1 s `refreshAnimationHolds` sweep now RECONCILES every supplier's ceiling
+   against a fresh predicate read** (true+no timer → arm; false+timer →
+   disarm quietly). The watch stays as the zero-latency fast path; the sweep
+   is the truth. Every hold — present and future — is bounded regardless of
+   its predicate's reactivity.
+2. **The poll chain had no timeout.** Its re-arm lives in onload/onerror; a
+   request that neither answers nor fails (a half-dead LAN link — the WS
+   flapping while TCP quietly hangs) froze the WHOLE chain for the OS's own
+   give-up horizon: no `playersWaitingFor` bubbles (the status chips showed a
+   stale actor on every screen at the table — the «оба видят ДЕЙСТВИЕ у себя»
+   desync), no GO (the viewer's own prompt arrived minutes late).
+   `/api/waitingfor` answers instantly (the «long poll» is the client-side
+   interval), so **`xhr.timeout = 15 s` + a quiet immediate retry** is pure
+   liveness.
+3. **`nomad-move-remote` expired bare** — no diagnose, no expire: the
+   iteration-3 owner-recovery contract had covered the tile module and missed
+   the nomad twin. Both nomad holds now carry `diagnose` + `expire` (the
+   module's own aborts).
+4. **`board-beat-park degraded after 30s` fired 8× in one day and could not
+   say why.** In a two-human game that degrade is often HONEST (the viewer
+   reads a screen for 30 s while the opponent moves a scale — the park
+   releases values without the show, by design), but the warn was
+   indistinguishable from a real wedge. Ledger stories now accept a
+   **`diagnose`** hook (the hold registry's idiom) appended to the degrade
+   warn; the park reports `watchable/pending/draining/held/claims/batch`, so
+   the next log separates «player was reading» (`watchable: false`) from «the
+   drain was refused over an open board» (`watchable: true` — a real bug to
+   chase).
+
+The honest limit: the exact 30 s chain on player B's box could not be fully
+reconstructed from the export (it names no state during the window). The two
+mechanisms fixed here — an unbounded uncovered hold and a hung poll — are the
+two that MATCH it (a board-home freeze ending near a 35 s ceiling, with both
+chips stale), and every recovery now names itself, so a recurrence carries its
+own diagnosis.
+
 ## Guards
 
 `tests/client/components/console/consoleHydroFlow.spec.ts` § the flow-close
@@ -266,4 +323,7 @@ the three iteration-2 regressions, and the three e2e journeys in
 `console-hydro-terminal-landing.spec.ts` (plain multi-step 5→11 · the FIELD
 SHAPE Surge→9 · vs-MarsBot 0→11); and `console-play-scale-conclusion.spec.ts`
 (iteration 4 — a played card that raises oxygen leaves its workspace within
-the park's old 30 s cliff, over the `play-scale-card` fixture).
+the park's old 30 s cliff, over the `play-scale-card` fixture); and
+`animationHold.spec` § the sweep (iteration 6 — the ceiling arms off a rising
+edge no watcher saw, and a stale timer after an unobserved falling edge
+disarms with no false alarm).

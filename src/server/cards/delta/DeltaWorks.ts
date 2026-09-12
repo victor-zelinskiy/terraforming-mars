@@ -16,6 +16,7 @@ export class DeltaWorks extends Card implements IProjectCard {
 
       metadata: {
         cardNumber: 'DP06',
+        infoText: [{kind: 'effect-short', text: 'Hydronetwork action or trade: steel as energy'}],
         renderData: CardRenderer.builder((b) => {
           b.effect('When doing the Hydronetwork action or when you trade with a Colony, you may use a steel as energy.', (eb) => {
             eb.plate('Hydronetwork').slash().trade().startEffect.steel(1).equals().energy(1).asterix();

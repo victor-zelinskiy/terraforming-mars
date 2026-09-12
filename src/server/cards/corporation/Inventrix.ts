@@ -22,6 +22,7 @@ export class Inventrix extends CorporationCard implements ICorporationCard {
         description: 'As your first action in the game, draw 3 cards. Start with 45 M€.',
         infoText: [
           {text: 'As your first action in the game, draw 3 cards.', tokens: ['cards']},
+          {kind: 'effect-short', text: 'Your global requirements are ±2 steps'},
         ],
         renderData: CardRenderer.builder((b) => {
           b.br;

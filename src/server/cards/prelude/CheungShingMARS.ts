@@ -18,6 +18,7 @@ export class CheungShingMARS extends CorporationCard implements ICorporationCard
       cardDiscount: {tag: Tag.BUILDING, amount: 2},
       metadata: {
         cardNumber: 'R16',
+        infoText: [{kind: 'effect-short', text: 'Building cards cost 2 M€ less'}],
         description: 'You start with 3 M€ production and 44 M€.',
         renderData: CardRenderer.builder((b) => {
           b.br.br;

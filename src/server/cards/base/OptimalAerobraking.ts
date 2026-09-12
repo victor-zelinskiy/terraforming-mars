@@ -18,6 +18,7 @@ export class OptimalAerobraking extends Card implements IProjectCard {
 
       metadata: {
         cardNumber: '031',
+        infoText: [{kind: 'effect-short', text: 'Space event played: gain 3 M€ and 3 heat'}],
         renderData: CardRenderer.builder((b) => b.effect('When you play a space event, you gain 3 M€ and 3 heat.', (be) => {
           be.tag(Tag.SPACE).tag(Tag.EVENT).startEffect.megacredits(3).heat(3);
         })),

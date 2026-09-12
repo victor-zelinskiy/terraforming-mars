@@ -21,6 +21,7 @@ export class VenusianAnimals extends Card implements IProjectCard {
       requirements: {venus: 18},
       metadata: {
         cardNumber: '259',
+        infoText: [{kind: 'effect-short', text: 'Science tag: add an animal here'}],
         renderData: CardRenderer.builder((b) => {
           b.effect('When you play a science tag, including this, add 1 animal to this card.', (eb)=> {
             eb.tag(Tag.SCIENCE).startEffect.resource(CardResource.ANIMAL);

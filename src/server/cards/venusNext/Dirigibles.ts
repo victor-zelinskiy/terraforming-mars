@@ -21,6 +21,7 @@ export class Dirigibles extends ActionCard implements IActionCard {
 
       metadata: {
         cardNumber: '222',
+        infoText: [{kind: 'effect-short', text: 'Venus tag: floaters here pay 3 M€ each'}],
         renderData: CardRenderer.builder((b) => {
           b.action('Add 1 floater to ANY card', (eb) => {
             eb.empty().startAction.resource(CardResource.FLOATER).asterix();

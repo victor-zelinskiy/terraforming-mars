@@ -23,6 +23,7 @@ export class EcologicalZoneAres extends EcologicalZone {
         infoText: [
           {text: 'Place a special tile adjacent to any greenery.', tokens: ['tile-']},
           {text: 'The tile grants an adjacency bonus of 1 animal.', tokens: ['tile-']},
+          {kind: 'effect-short', text: 'Animal or plant tag: add an animal here'},
           {kind: 'victory-points', text: '1 VP per 2 animals on this card.'},
         ],
         cardNumber: 'A08',

@@ -27,6 +27,8 @@ export class ViralEnhancers extends Card implements IProjectCard {
 
         infoText: [
 
+          {kind: 'effect-short', text: 'Each such tag: gain a plant or add a resource'},
+
         ],
         cardNumber: '074',
         renderData: CardRenderer.builder((b) => {

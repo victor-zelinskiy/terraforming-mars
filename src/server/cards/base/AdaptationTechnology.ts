@@ -17,6 +17,7 @@ export class AdaptationTechnology extends Card implements IProjectCard {
 
       metadata: {
         cardNumber: '153',
+        infoText: [{kind: 'effect-short', text: 'Your global requirements are ±2 steps'}],
         renderData: CardRenderer.builder((b) => {
           b.effect('Your global requirements are +2 or -2 steps, your choice in each case.', (eb) => {
             eb.plate('Global requirements').startEffect.text('+/- 2');

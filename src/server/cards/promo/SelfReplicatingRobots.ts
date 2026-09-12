@@ -29,6 +29,7 @@ export class SelfReplicatingRobots extends Card implements IProjectCard {
         infoText: [
           {kind: 'action-short', text: 'Place a card here with 2 resources', tokens: ['self_replicating']},
           {kind: 'effect', text: 'A card here may be played as if from hand, with its cost reduced by the number of resources on it.'},
+          {kind: 'effect-short', text: 'A card stored here plays at a discount'},
         ],
         cardNumber: '210',
         renderData: CardRenderer.builder((b) => {

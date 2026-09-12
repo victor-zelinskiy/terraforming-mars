@@ -31,6 +31,7 @@ export class EcologicalZone extends Card implements IProjectCard {
         align: 'left',
       },
       cardNumber: '128',
+      infoText: [{kind: 'effect-short', text: 'Animal or plant tag: add an animal here'}],
       renderData: CardRenderer.builder((b) => {
         b.effect('When you play an animal or plant tag INCLUDING THESE, add an animal to this card.', (eb) => {
           eb.tag(Tag.ANIMAL).slash().tag(Tag.PLANT).startEffect.resource(CardResource.ANIMAL);

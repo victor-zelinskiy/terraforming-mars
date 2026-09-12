@@ -189,6 +189,15 @@ const WGT_MARKER_HOLD_MS = 1100;
 
 const CANNOT_CONTACT_SERVER = 'Unable to reach the server. It may be restarting or down for maintenance.';
 
+/**
+ * The poll request's own give-up horizon. `/api/waitingfor` answers
+ * immediately (GO/REFRESH/WAIT — the server never holds it open), so any
+ * request older than this is a hung socket, not a slow answer. Well above
+ * every honest LAN round trip, far below the OS TCP give-up that used to be
+ * the only bound on a half-dead link.
+ */
+const POLL_XHR_TIMEOUT_MS = 15_000;
+
 // The spinning ◑◒◐◓ symbol used to indicate it's your turn.
 const TURN_SEQUENCE = '◑◒◐◓';
 
@@ -1226,6 +1235,23 @@ export function waitForUpdate(immediate = false): void {
     }
     const xhr = new XMLHttpRequest();
     xhr.open('GET', apiUrl(paths.API_WAITING_FOR) + identitySearch() + '&gameAge=' + currentView().game.gameAge + '&undoCount=' + currentView().game.undoCount);
+    // ⚠️ THE CHAIN'S LIVENESS RIDES THIS ONE REQUEST. The re-arm lives in
+    // onload/onerror — with no timeout, a request that neither answers nor
+    // fails (a half-dead LAN host: the WS flapping while TCP quietly hangs)
+    // freezes the WHOLE chain for the OS's own give-up horizon: no
+    // `playersWaitingFor` bubbles (the status chips show a stale actor on
+    // every screen at the table), no GO (the viewer's own prompt arrives
+    // minutes late). The answer itself is instant server-side (GO/REFRESH/
+    // WAIT — the «long poll» is the client-side INTERVAL), so a bounded
+    // timeout is pure liveness. Quiet retry, never an alert: a poll timeout
+    // is a network hiccup, and the next cycle is the retry.
+    xhr.timeout = POLL_XHR_TIMEOUT_MS;
+    xhr.ontimeout = () => {
+      // Immediate retry: the link just proved unhealthy, so the stretched
+      // WS-healthy interval must not add its 20 s on top of the 15 lost.
+      // One request is in flight at a time, so this can never stampede.
+      waitForUpdate(true);
+    };
     xhr.onerror = function() {
       r.showAlert('Error fetching state', CANNOT_CONTACT_SERVER, () => waitForUpdate());
     };

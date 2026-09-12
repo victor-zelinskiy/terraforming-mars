@@ -21,6 +21,7 @@ export class ValleyTrust extends CorporationCard implements ICorporationCard {
         description: 'You start with 37 M€. As your first action, draw 3 Prelude cards, and play one of them. Discard the other two.',
         infoText: [
           {text: 'As your first action, draw 3 Prelude cards and play one of them, discarding the other two.', tokens: ['prelude']},
+          {kind: 'effect-short', text: 'Science cards cost 2 M€ less'},
         ],
         renderData: CardRenderer.builder((b) => {
           b.br.br;

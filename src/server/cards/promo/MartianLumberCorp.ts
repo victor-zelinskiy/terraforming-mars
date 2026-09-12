@@ -25,6 +25,8 @@ export class MartianLumberCorp extends Card {
 
           {text: 'Increase your plant production 1 step.', tokens: ['production(']},
 
+          {kind: 'effect-short', text: 'Building tag: plants pay 3 M€ each'},
+
         ],
         cardNumber: 'X60',
         renderData: CardRenderer.builder((b) => {

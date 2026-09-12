@@ -27,6 +27,7 @@ export class Recyclon extends CorporationCard implements ICorporationCard {
 
       metadata: {
         cardNumber: 'R26',
+        infoText: [{kind: 'effect-short', text: 'Building tag: a microbe, or 2 of them for production'}],
         description: 'You start with 38 M€ and 1 steel production.',
         renderData: CardRenderer.builder((b) => {
           b.br.br;

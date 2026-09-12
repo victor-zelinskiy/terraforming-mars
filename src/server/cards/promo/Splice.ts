@@ -33,6 +33,8 @@ export class Splice extends CorporationCard implements ICorporationCard {
         description: 'You start with 44 M€. As your first action, reveal cards until you have revealed a microbe tag. Take it and discard the rest.',
         infoText: [
           {text: 'As your first action, reveal cards from the deck until you reveal a microbe tag; take that card into hand and discard the rest.', tokens: ['cards']},
+          {kind: 'effect-short', text: 'Any microbe tag: its player gains 2 M€ or a microbe', tokens: ['res-microbe']},
+          {kind: 'effect-short', text: 'You also gain 2 M€ from every microbe tag', tokens: ['megacredits)']},
         ],
         renderData: CardRenderer.builder((b) => {
           b.megacredits(44).nbsp.cards(1, {secondaryTag: Tag.MICROBE});

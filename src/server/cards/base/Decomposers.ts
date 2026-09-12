@@ -25,6 +25,7 @@ export class Decomposers extends Card implements IProjectCard {
 
       metadata: {
         cardNumber: '131',
+        infoText: [{kind: 'effect-short', text: 'Animal, plant or microbe tag: add a microbe'}],
         description: 'Requires 3% oxygen.',
         renderData: CardRenderer.builder((b) => {
           b.effect('When you play an animal, plant, or microbe tag, including this, add a microbe to this card.', (be) => {

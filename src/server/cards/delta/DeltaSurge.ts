@@ -50,6 +50,7 @@ export class DeltaSurge extends Card implements IProjectCard {
 
       metadata: {
         cardNumber: 'DP07',
+        infoText: [{kind: 'effect-short', text: 'Multi-step advance: collect every step\'s reward'}],
         renderData: CardRenderer.builder((b) => {
           // ONE variable, stated once: the TRIGGER is the Hydronetwork move
           // itself (the plate), the RESULT is «X rewards» (the asterisked

@@ -45,6 +45,7 @@ export class Philares extends CorporationCard implements ICorporationCard {
         cardNumber: 'R25',
         description: 'You start with 47 M€. As your first action, place a greenery tile and raise the oxygen 1 step.',
         infoText: [
+          {kind: 'effect-short', text: 'New adjacency to an opponent: gain a resource'},
           {text: 'As your first action, place a greenery tile and raise the oxygen level 1 step.', tokens: ['greenery']},
         ],
         renderData: CardRenderer.builder((b) => {

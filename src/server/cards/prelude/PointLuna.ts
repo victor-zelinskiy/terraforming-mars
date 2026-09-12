@@ -19,6 +19,7 @@ export class PointLuna extends CorporationCard implements ICorporationCard {
 
       metadata: {
         cardNumber: 'R10',
+        infoText: [{kind: 'effect-short', text: 'Earth tag played: draw a card'}],
         description: 'You start with 1 titanium production and 38 M€.',
         renderData: CardRenderer.builder((b) => {
           b.br;

@@ -48,6 +48,15 @@ export type OwedStory = {
   /** The honest degrade. Optional — some owners keep their own bounded
    *  safety and only want the redrive net + diagnostics. */
   degrade?: () => void,
+  /**
+   * Optional leak-diagnosis hook (the animation-hold registry's own idiom):
+   * called ONCE at the degrade, its return appended to the warn — so a story
+   * that waited out its whole dueMs says WHICH gate never opened («watchable
+   * false» = the player sat in a screen; «drain blocked» = a wedge), instead
+   * of the bare «the release edge never came» that cannot tell an honest
+   * multiplayer wait from a deadlock. Guarded; cheap (degrade path only).
+   */
+  diagnose?: () => unknown,
 };
 
 export type TruthWitness = {
@@ -86,6 +95,19 @@ export type OwedStoryHandle = {
 
 function now(): number {
   return Date.now();
+}
+
+/** Run a story's diagnose hook safely — a throwing/absent hook degrades to ''. */
+function storyDiagnose(story: OwedStory): string {
+  if (story.diagnose === undefined) {
+    return '';
+  }
+  try {
+    const info = story.diagnose();
+    return info === undefined ? '' : ` — ${typeof info === 'string' ? info : JSON.stringify(info)}`;
+  } catch (e) {
+    return ` — (diagnose threw: ${String(e)})`;
+  }
 }
 
 function ensureHeartbeat(): void {
@@ -151,7 +173,7 @@ export function settlePresentationDue(): void {
       // whole point («the safety fired» stops being invisible).
       stories.delete(story.id);
       presentationLedgerStats.degrades++;
-      console.warn(`[presentation-ledger] story «${story.id}» degraded after ${Math.round((t - story.since) / 1000)}s — the release edge never came`);
+      console.warn(`[presentation-ledger] story «${story.id}» degraded after ${Math.round((t - story.since) / 1000)}s — the release edge never came${storyDiagnose(story)}`);
       try {
         story.degrade?.();
       } catch (err) {

@@ -18,6 +18,7 @@ export class WarpDrive extends Card implements IProjectCard {
       cardDiscount: {tag: Tag.SPACE, amount: 4},
       metadata: {
         cardNumber: 'C49',
+        infoText: [{kind: 'effect-short', text: 'Space cards cost 4 M€ less'}],
         renderData: CardRenderer.builder((b) => {
           b.effect('When you play a space card, you pay 4 M€ less for it.', (eb) => {
             eb.tag(Tag.SPACE).startEffect.megacredits(-4);

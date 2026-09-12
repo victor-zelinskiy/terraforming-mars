@@ -182,6 +182,7 @@ import {ConsoleCommand} from '@/client/console/consoleCommandModel';
 import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {EffectEntry, playerEffects} from '@/client/components/effects/effectExtraction';
+import {EffectRules, effectRules} from '@/client/components/effects/effectDescription';
 import {EffectSummaryViewModel, emptyEffectOverlayStat, getEffectSummary} from '@/client/components/effects/effectSummary';
 import {perEffectStat} from '@/client/components/effects/effectChannels';
 import {
@@ -282,7 +283,7 @@ export default defineComponent({
       return this.model.groups.find((g) => g.tiles.some((t) => t.key === this.ui.focusKey));
     },
     focusedRule(): string {
-      return this.effectRuleText(this.focusedTile);
+      return this.fullRuleOf(this.focusedTile);
     },
     focusedOrdinal(): string {
       const g = this.focusedGroup;
@@ -327,7 +328,7 @@ export default defineComponent({
       return this.detailTile?.entry.renderRoot;
     },
     detailRule(): string {
-      return this.effectRuleText(this.detailTile);
+      return this.fullRuleOf(this.detailTile);
     },
     detailPos(): number {
       const i = this.model.flatKeys.indexOf(this.ui.detail?.effectKey ?? '');
@@ -448,21 +449,37 @@ export default defineComponent({
     liveCard(name: CardName | string): CardModel {
       return this.cards.find((c) => c.name === name) ?? ({name: name as CardName} as CardModel);
     },
-    effectRuleText(tile: ExplorerTile | undefined): string {
-      const d = tile?.entry.description ?? tile?.entry.text;
-      return d ?? '';
+    /** The resolved rule record of one effect (info-group short + full). */
+    rulesOf(tile: ExplorerTile | undefined): EffectRules | undefined {
+      if (tile === undefined) {
+        return undefined;
+      }
+      const entry = tile.entry;
+      const count = this.entries.filter((e) => e.cardName === entry.cardName).length;
+      return effectRules({
+        cardName: entry.cardName,
+        effectIndex: entry.effectIndex,
+        effectNode: entry.effectNode,
+        description: entry.description,
+        text: entry.text,
+      }, count);
+    },
+    /** The FULL rule — the dossier's and the detail stage's reading. */
+    fullRuleOf(tile: ExplorerTile | undefined): string {
+      return this.rulesOf(tile)?.lines[0]?.text ?? tile?.entry.description ?? tile?.entry.text ?? '';
     },
     tileOrdinal(tile: ExplorerTile): string {
       return `${translateText('Effect')} ${tile.entry.effectIndex + 1}`;
     },
     tileDesc(tile: ExplorerTile): string {
-      // The tile caption: the effect's own sentence beside the graphic (the
-      // graphic hides its baked-in description). Text-only overrides already
-      // ARE the graphic — no duplicate caption.
+      // The tile CAPTION: the card's curated short when the full rule is too
+      // long for a calm one/two-line read, else the full sentence (never a
+      // truncation — the effectDescription contract). Text-only overrides
+      // already ARE the graphic — no duplicate caption.
       if (tile.entry.effectNode === undefined && tile.entry.renderRoot === undefined) {
         return '';
       }
-      return tile.entry.description ?? '';
+      return this.rulesOf(tile)?.summary ?? tile.entry.description ?? '';
     },
     tileDescTier(tile: ExplorerTile): string {
       return actionDescTier(translateText(this.tileDesc(tile)).replace(/^(Effect|Действие|Эффект):\s*/i, ''));

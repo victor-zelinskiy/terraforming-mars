@@ -14,6 +14,7 @@ export class Teractor extends CorporationCard implements ICorporationCard {
       cardDiscount: {tag: Tag.EARTH, amount: 3},
       metadata: {
         cardNumber: 'R30',
+        infoText: [{kind: 'effect-short', text: 'Earth tags cost 3 M€ less'}],
         description: 'You start with 60 M€.',
         renderData: CardRenderer.builder((b) => {
           b.br.br;

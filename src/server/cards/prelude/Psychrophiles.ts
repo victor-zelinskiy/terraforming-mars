@@ -23,6 +23,7 @@ export class Psychrophiles extends ActionCard implements IProjectCard {
       requirements: {temperature: -20, max},
       metadata: {
         cardNumber: 'P39',
+        infoText: [{kind: 'effect-short', text: 'Plant card payment: microbes pay 2 M€ each'}],
         renderData: CardRenderer.builder((b) => {
           b.action('Add 1 microbe to this card.', (eb) => {
             eb.empty().startAction.resource(CardResource.MICROBE);

@@ -22,6 +22,7 @@ export class Arklight extends CorporationCard implements ICorporationCard {
 
       metadata: {
         cardNumber: 'R04',
+        infoText: [{kind: 'effect-short', text: 'Animal or plant tag: add an animal here'}],
         description: 'You start with 45 M€. Increase your M€ production 2 steps. 1 VP per 2 animals on this card.',
         renderData: CardRenderer.builder((b) => {
           b.megacredits(45).nbsp.production((pb) => pb.megacredits(2));

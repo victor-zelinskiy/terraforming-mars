@@ -216,6 +216,20 @@ function armSafety(): void {
     redrive: () => (redriveHook ?? drainBoardBeatsIfDue)(),
     dueMs: BOARD_BEAT_PARK_SAFETY_MS,
     degrade: () => releaseBoardBeatPark(),
+    // The degrade names WHICH gate never opened: `watchable: false` is the
+    // honest multiplayer wait (the viewer sat in a screen while an opponent
+    // moved a scale — the park released the values without the show, by
+    // design); `watchable: true` is the interesting case — the drain was
+    // re-driven for 30 s over an open board and something in its own quiet
+    // gate (scene settling / read admission) never let it run.
+    diagnose: () => ({
+      watchable: boardWatchable(),
+      pending: boardBeatParkPending(),
+      draining: boardBeatParkState.draining,
+      held: Object.keys(boardBeatParkState.heldParams ?? {}),
+      claims: boardBeatParkState.heldClaims !== undefined,
+      batch: parkedBatchPending(),
+    }),
   });
 }
 

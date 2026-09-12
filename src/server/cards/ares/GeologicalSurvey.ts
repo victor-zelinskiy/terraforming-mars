@@ -20,6 +20,7 @@ export class GeologicalSurvey extends SurveyCard {
       requirements: {greeneries: 5, all, max},
       metadata: {
         cardNumber: 'A09',
+        infoText: [{kind: 'effect-short', text: 'Tile on Mars grants steel/titanium/heat: +1 extra'}],
         renderData: CardRenderer.builder((b) => {
           b.effect('When placing a tile ON MARS grants you any steel, titanium, or heat, you gain one additional of each of those resources that you gain.', (eb) => {
             eb.emptyTile().startEffect;

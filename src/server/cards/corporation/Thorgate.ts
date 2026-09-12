@@ -20,6 +20,7 @@ export class Thorgate extends CorporationCard implements ICorporationCard {
       cardDiscount: {tag: Tag.POWER, amount: 3},
       metadata: {
         cardNumber: 'R13',
+        infoText: [{kind: 'effect-short', text: 'Power cards and Power Plant cost 3 M€ less'}],
         description: 'You start with 1 energy production and 48 M€.',
         renderData: CardRenderer.builder((b) => {
           b.br;
