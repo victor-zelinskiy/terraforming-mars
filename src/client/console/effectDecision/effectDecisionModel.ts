@@ -138,9 +138,15 @@ export const EYEBROW_BY_SOURCE: Readonly<Record<string, string>> = {
 };
 export const EYEBROW_ATTACK = 'Attack';
 export const EYEBROW_REWARD = 'Extra bonus';
+/** mode 'spend-source' — one fixed cost, several stores that can pay it
+ *  (Modular Floodgates' stored steel vs the supply). The decision is WHERE
+ *  the units leave from, so every key of this genre talks about the source. */
+export const EYEBROW_SPEND_SOURCE = 'Payment source';
 
 /** The embedded stage's tail for an ordinary triggered/optional effect. */
 export const STAGE_EFFECT = 'Effect';
+/** …and the tail of a 'spend-source' split — ONE word, never the headline. */
+export const STAGE_SOURCE = 'Source';
 /** …and the stage the flow moves ON to when the chosen branch draws cards.
  *  The same key the drawn stage names itself with (`focusKicker('draw')`), so
  *  the tail is handed over rather than re-coined. */
@@ -148,6 +154,9 @@ export const STAGE_CARD_DRAW = 'Card draw';
 
 export const HEADLINE_CHOOSE = 'Choose an effect';
 export const HEADLINE_USE = 'Use the effect?';
+/** mode 'spend-source': the SAME key the server titles the prompt with — the
+ *  question is the source, and «Choose an effect» would misname a payment. */
+export const HEADLINE_STEEL_SOURCE = 'Select steel source';
 export const HEADLINE_BUY_CARD = 'Buy a card?';
 export const HEADLINE_PAY = 'Pay the price?';
 /** mode 'attack': the TARGET loses, the viewer pays nothing — «Заплатить?»
@@ -236,6 +245,9 @@ export function eyebrowKeyOf(context: ChoiceContext): string {
   if (context.mode === 'reward') {
     return EYEBROW_REWARD;
   }
+  if (context.mode === 'spend-source') {
+    return EYEBROW_SPEND_SOURCE;
+  }
   return EYEBROW_BY_SOURCE[context.source.kind] ?? EYEBROW_BY_SOURCE.system;
 }
 
@@ -269,6 +281,9 @@ export function stageKeyOf(context: ChoiceContext): string {
   if (context.mode === 'reward') {
     return EYEBROW_REWARD;
   }
+  if (context.mode === 'spend-source') {
+    return STAGE_SOURCE;
+  }
   return STAGE_EFFECT;
 }
 
@@ -294,6 +309,9 @@ export function stageKeyOf(context: ChoiceContext): string {
 export function headlineKeyOf(actions: ReadonlyArray<EffectDecisionAction>, hasDecline: boolean, mode?: ChoiceContext['mode']): string {
   if (mode === 'attack') {
     return hasDecline ? HEADLINE_ATTACK : HEADLINE_TARGET;
+  }
+  if (mode === 'spend-source') {
+    return HEADLINE_STEEL_SOURCE;
   }
   if (!hasDecline) {
     return HEADLINE_CHOOSE;

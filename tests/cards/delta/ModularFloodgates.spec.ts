@@ -25,6 +25,7 @@ import {Payment} from '../../../src/common/inputs/Payment';
 import {IGame} from '../../../src/server/IGame';
 import {IPlayer} from '../../../src/server/IPlayer';
 import {OrOptions} from '../../../src/server/inputs/OrOptions';
+import {SelectOption} from '../../../src/server/inputs/SelectOption';
 import {cast} from '../../../src/common/utils/utils';
 import {fakeCard, runAllActions} from '../../TestingUtils';
 import {testGame} from '../../TestGame';
@@ -609,6 +610,31 @@ describe('ModularFloodgates', () => {
       runAllActions(game);
       expect(player.steel).eq(1);
       expect(card.resourceCount).eq(1);
+    });
+
+    it('the split rows speak the premium chip vocabulary — server-authored metadata', () => {
+      card.resourceCount = 2;
+      player.steel = 3;
+      elevator.action(player);
+      runAllActions(game);
+      const source = cast(player.popWaitingFor(), OrOptions);
+      // The GENRE marker: the decision screen asks about the SOURCE («Выберите
+      // источник стали»), never the generic «choose an effect».
+      expect(source.choiceContext?.mode).eq('spend-source');
+      expect(source.choiceContext?.source.card).eq(CardName.SPACE_ELEVATOR);
+      // Supply share: one cost chip with the LIVE stock before → after.
+      const supplyOpt = cast(source.options[0], SelectOption);
+      expect(supplyOpt.metadata?.card).is.undefined;
+      expect(supplyOpt.metadata?.effects).deep.eq([
+        {direction: 'cost', icon: 'steel', amount: 1, current: 3, resulting: 2},
+      ]);
+      // Card share: the card's OWN pool, the disambiguating note (load-bearing
+      // beside a same-icon supply chip), and the structural card identity.
+      const cardOpt = cast(source.options[1], SelectOption);
+      expect(cardOpt.metadata?.card).eq(CardName.MODULAR_FLOODGATES);
+      expect(cardOpt.metadata?.effects).deep.eq([
+        {direction: 'cost', icon: 'steel', amount: 1, current: 2, resulting: 1, note: 'on the card'},
+      ]);
     });
 
     it('without stored steel the supply pays silently — no prompt (the historical path)', () => {

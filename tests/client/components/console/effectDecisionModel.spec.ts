@@ -6,15 +6,18 @@ import {
   DECLINE_BUY_CARD,
   DECLINE_DEFAULT,
   EYEBROW_ATTACK,
+  EYEBROW_SPEND_SOURCE,
   HEADLINE_ATTACK,
   HEADLINE_BUY_CARD,
   HEADLINE_CHOOSE,
   HEADLINE_PAY,
+  HEADLINE_STEEL_SOURCE,
   HEADLINE_TARGET,
   HEADLINE_USE,
   LEAD_HAND_CARDS,
   STAGE_CARD_DRAW,
   STAGE_EFFECT,
+  STAGE_SOURCE,
   ACTION_DISCARD_DRAW,
   nextStageKeyOf,
   buildEffectDecision,
@@ -352,6 +355,39 @@ describe('effectDecisionModel', () => {
         or(offerThenDecline(), {source: {kind: 'colony'}, mode: 'optional-effect'}), {handNames: HAND})!;
       expect(decisionCommandKeys(colony, 0), 'no source verb without a source')
         .deep.eq(['Navigate', 'Confirm', 'Minimize']);
+    });
+  });
+
+  // ── the 'spend-source' genre — one fixed cost, several stores that can pay
+  //    it (Modular Floodgates' stored steel vs the supply). The decision is
+  //    WHERE the units leave from, so every key talks about the source and
+  //    «Choose an effect» must never appear over a payment split. ────────────
+
+  describe('spend-source', () => {
+    const split = () => [
+      leaf('Spend 1 steel from your supply', {
+        kind: 'generic', icon: 'steel', amount: 1,
+        effects: [{direction: 'cost', icon: 'steel', amount: 1, current: 3, resulting: 2}],
+      }),
+      leaf('Spend 1 steel from Modular Floodgates', {
+        kind: 'generic', icon: 'steel', amount: 1, card: CardName.MODULAR_FLOODGATES,
+        effects: [{direction: 'cost', icon: 'steel', amount: 1, current: 2, resulting: 1, note: 'on the card'}],
+      }),
+    ];
+
+    it('asks about the SOURCE — eyebrow, headline and crumb tail all talk storage', () => {
+      const vm = buildEffectDecision(
+        or(split(), cardContext('spend-source', CardName.SPACE_ELEVATOR)), {handNames: HAND})!;
+      expect(vm.eyebrowKey).eq(EYEBROW_SPEND_SOURCE);
+      expect(vm.headlineKey).eq(HEADLINE_STEEL_SOURCE);
+      expect(vm.stageKey).eq(STAGE_SOURCE);
+      // No decline: both rows are real answers, each with its own cost chip
+      // (`current → resulting` of ITS store — the card share carries the
+      // disambiguating note).
+      expect(vm.declineIndex).is.undefined;
+      expect(vm.actions.map((a) => a.chips.length)).deep.eq([1, 1]);
+      // Who charges stays inspectable, exactly as in every other decision.
+      expect(vm.source?.card).eq(CardName.SPACE_ELEVATOR);
     });
   });
 });

@@ -164,8 +164,11 @@ export type ChoiceContext = {
   trigger?: string | Message;
   /** Semantic mode — drives the kicker copy + accent. `optional-effect` =
    *  apply-or-skip (Pharmacy Union); `effect-choice` = pick between effects
-   *  (Olympus); `attack` = target an opponent; `reward` = collect a bonus. */
-  mode?: 'optional-effect' | 'effect-choice' | 'attack' | 'reward';
+   *  (Olympus); `attack` = target an opponent; `reward` = collect a bonus;
+   *  `spend-source` = pick WHICH STORE pays one fixed cost (the same resource
+   *  from the supply vs stored on a card — Modular Floodgates' steel), so the
+   *  premium screen asks about the source, never «choose an effect». */
+  mode?: 'optional-effect' | 'effect-choice' | 'attack' | 'reward' | 'spend-source';
 }
 
 /**

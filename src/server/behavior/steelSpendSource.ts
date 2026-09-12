@@ -2,6 +2,8 @@ import {IPlayer} from '../IPlayer';
 import {ICard} from '../cards/ICard';
 import {CardName} from '../../common/cards/CardName';
 import {Message} from '../../common/logs/Message';
+import {OptionMetadata} from '../../common/models/PlayerInputModel';
+import {ActionEffect} from '../../common/models/ActionPreviewModel';
 import {OrOptions} from '../inputs/OrOptions';
 import {SelectOption} from '../inputs/SelectOption';
 import {cardEffect} from '../inputs/choiceContext';
@@ -44,19 +46,53 @@ export function steelSpendSourceOptions(
     if (fromSupply > player.steel) {
       continue;
     }
-    options.push(new SelectOption(sourceTitle(fromSupply, fromCard)).andThen(() => {
-      onSpend(fromSupply, fromCard);
-      return undefined;
-    }));
+    options.push(new SelectOption(sourceTitle(fromSupply, fromCard))
+      .withMetadata(sourceMetadata(player, fromSupply, fromCard))
+      .andThen(() => {
+        onSpend(fromSupply, fromCard);
+        return undefined;
+      }));
   }
   if (options.length === 0) {
     // Unreachable past `canExecute` (supply + card cover the cost), but the
     // read-only preview must stay total.
     return undefined;
   }
-  const orOptions = new OrOptions(...options).markChoiceContext(cardEffect(card, undefined, 'effect-choice'));
+  // `spend-source` is the STRUCTURAL genre marker: the premium decision screen
+  // reads it to ask about the source («Выберите источник стали»), never the
+  // generic «choose an effect» — a title match would die on i18n's in-place
+  // mutation, so the mode is what carries the shape.
+  const orOptions = new OrOptions(...options).markChoiceContext(cardEffect(card, undefined, 'spend-source'));
   orOptions.title = 'Select steel source';
   return orOptions;
+}
+
+/**
+ * The premium reading of ONE split option, in the console's shared chip
+ * vocabulary (`ActionEffectChip` renders these on every surface — the action
+ * composer's rows, the effect-decision screen and the task-host fallback):
+ * each share is a cost chip with the live `current → resulting` of ITS OWN
+ * store, and the card share carries the `on the card` note so two chips of the
+ * same resource can never be confused (load-bearing in the mixed split, where
+ * both stand side by side). `card` is the option's structural identity — the
+ * client may hang inspection or a badge off it without parsing the label.
+ */
+function sourceMetadata(player: IPlayer, fromSupply: number, fromCard: number): OptionMetadata {
+  const effects: Array<ActionEffect> = [];
+  if (fromSupply > 0) {
+    effects.push({direction: 'cost', icon: 'steel', amount: fromSupply, current: player.steel, resulting: player.steel - fromSupply});
+  }
+  if (fromCard > 0) {
+    const onCard = player.getSpendable('floodgateSteel');
+    effects.push({direction: 'cost', icon: 'steel', amount: fromCard, current: onCard, resulting: onCard - fromCard, note: 'on the card'});
+  }
+  return {
+    kind: 'generic',
+    icon: 'steel',
+    amount: fromSupply + fromCard,
+    ...(fromCard > 0 ? {card: CardName.MODULAR_FLOODGATES} : {}),
+    effects,
+  };
 }
 
 function sourceTitle(fromSupply: number, fromCard: number): Message {
