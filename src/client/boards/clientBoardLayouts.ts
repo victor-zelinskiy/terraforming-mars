@@ -1,5 +1,6 @@
 import {BoardName} from '@/common/boards/BoardName';
 import {BoardLayoutSpace, BoardLayouts} from '@/common/boards/BoardLayout';
+// @ts-ignore boardLayouts.json doesn't exist until make:cards runs
 import boardLayoutsJson from '@/genfiles/boardLayouts.json';
 
 /**
