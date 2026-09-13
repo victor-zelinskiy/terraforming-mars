@@ -7050,10 +7050,23 @@ export default defineComponent({
     seatHolds(card: CardName): boolean {
       return this.embedSourceShown === card || this.embedSourceIncoming === card;
     },
-    /** Serialize a seat operation behind whatever flight is in the air. */
+    /**
+     * Serialize a seat operation behind whatever flight is in the air. A
+     * flight that THROWS (a detached node mid-query, a killed timeline) is a
+     * visual transition and nothing more: it is reported and the chain goes
+     * on — an exception here used to reject the async stage entry between
+     * `staging` and `standing`, which is the «stage stands, body empty» hang.
+     */
     seatQueue(op: () => Promise<void>): Promise<void> {
-      const run = this.seatChain.then(op, op);
-      this.seatChain = run.then(() => undefined, () => undefined);
+      const guardedOp = async () => {
+        try {
+          await op();
+        } catch (e) {
+          console.warn('[start-seat] a seat flight failed — the seat keeps its last consistent state', e);
+        }
+      };
+      const run = this.seatChain.then(guardedOp, guardedOp);
+      this.seatChain = run;
       return run;
     },
     /**
@@ -7907,10 +7920,15 @@ export default defineComponent({
       if (expected <= 0 && !inFirstAction) {
         return;
       }
-      // The EFFECT arms the seat for its hero landing — unless a stage owns
-      // it with this very card (the first action's own draw: the corporation
-      // is already seated, the reveal presents beside it).
-      if (this.seatHolds(name) && this.seatOwner !== undefined && this.seatOwner !== 'effect') {
+      // The EFFECT arms the seat for its hero landing — unless a STAGE owns
+      // it: with this very card (the first action's own draw — the
+      // corporation is already seated, the reveal presents beside it) the
+      // seat is simply kept; with another card (a non-drawing candidate
+      // picked while the corporation stands) the play lands on the shelf and
+      // its outcome, if any, presents with the source below — the stage's
+      // card is never overwritten in place (a face swap in the seat is a
+      // teleport twice over).
+      if (this.seatOwner !== undefined && this.seatOwner !== 'effect') {
         return;
       }
       this.seatFlight++;

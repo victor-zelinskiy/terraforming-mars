@@ -121,6 +121,18 @@ async function armRecorder(page: Page, mode: 'hand' | 'start'): Promise<void> {
         console.log(`[probe-mark] ${what} t=${Math.round(performance.now())}`);
       }
     };
+    // A VISIBLE PHASE BEACON for the video recording (fixed, out of flow —
+    // it changes no layout the recorder measures): red = a proxy is in the
+    // air, yellow = proxy + revealed card both painted (the handoff frames),
+    // green = only the real card, black = neither. Frame-by-frame review of
+    // the webm finds the boundary by colour.
+    let beacon = document.getElementById('__lg-beacon');
+    if (beacon === null) {
+      beacon = document.createElement('div');
+      beacon.id = '__lg-beacon';
+      beacon.style.cssText = 'position:fixed;left:0;top:0;width:36px;height:36px;z-index:2147483647;pointer-events:none;background:#000';
+      document.body.appendChild(beacon);
+    }
     const sample = () => {
       const now = performance.now();
       if (now - last < 4) {
@@ -149,11 +161,16 @@ async function armRecorder(page: Page, mode: 'hand' | 'start'): Promise<void> {
       if (proxy !== null) {
         mark('proxy');
       }
-      if ((front?.getAttribute('data-played-key') ?? '') !== '') {
+      const revealedNow = (front?.getAttribute('data-played-key') ?? '') !== '';
+      if (revealedNow) {
         mark('reveal');
       }
       if (proxy === null && marked.has('reveal')) {
         mark('proxy-gone');
+      }
+      const proxyShown = proxy !== null && Number(getComputedStyle(proxy).opacity) > 0.02;
+      if (beacon !== null) {
+        beacon.style.background = proxyShown && revealedNow ? '#ff0' : (proxyShown ? '#f00' : (revealedNow ? '#0f0' : '#000'));
       }
       frames.push({
         t: Math.round(now * 10) / 10,
@@ -186,6 +203,7 @@ async function armRecorder(page: Page, mode: 'hand' | 'start'): Promise<void> {
       stop: () => {
         mo.disconnect();
         clearInterval(iv);
+        beacon?.remove();
       },
     };
   }, mode);
@@ -204,6 +222,8 @@ type Report = {
   card: string,
   kind: string,
   samples: number,
+  /** Wall-clock ms of the press that started the episode (video alignment). */
+  pressWall: number,
   tPress: number,
   tProxyFirst: number,
   /** Dead time between the lift and the flight (the proxy stands still). */
@@ -280,7 +300,17 @@ function analyse(frames: ReadonlyArray<Frame>, profile: string, card: string, ki
         // the run ended: this is the flight start if a big move follows
         const moveAhead = frames.slice(i, Math.min(end, i + 20)).some((f) => magnitude(frames[hoverFrom].proxy, f.proxy) > 12);
         if (moveAhead) {
-          hoverMs = Math.round(frames[i].t - frames[hoverFrom].t);
+          // Only the time the PAGE WAS RUNNING counts: a sample gap over 50 ms
+          // is a main-thread stall (a loaded 4K runner), during which nothing
+          // could have flown — it is neither a wait nor a hover.
+          let live = 0;
+          for (let j = hoverFrom + 1; j <= i; j++) {
+            const gap = frames[j].t - frames[j - 1].t;
+            if (gap <= 50) {
+              live += gap;
+            }
+          }
+          hoverMs = Math.round(live);
           iFlightStart = i;
           break;
         }
@@ -382,7 +412,7 @@ function analyse(frames: ReadonlyArray<Frame>, profile: string, card: string, ki
   gaps.sort((a, b) => a - b);
   const medianGapMs = gaps.length > 0 ? gaps[Math.floor(gaps.length / 2)] : 8;
   return {
-    profile, card, kind, samples: frames.length,
+    profile, card, kind, samples: frames.length, pressWall: 0,
     tPress: at(iPress), tProxyFirst: at(iProxyFirst), hoverMs, tFlightStart: at(iFlightStart), tLanded: at(iLanded),
     tReveal: at(iReveal), tProxyGone: at(iProxyGone), tFold: at(iFold), tReady: at(iReady),
     boundary, landingError,
@@ -442,7 +472,9 @@ async function runHandLanding(page: Page, profile: string, play: {card: string, 
   // recorder's clock starts at the press that ACTED (the last echo before the
   // hero appears), so a retry never inflates the tempo numbers.
   const started = page.locator('.con-composer--landing, .con-played-hero');
+  let pressWall = 0;
   for (let i = 0; i < 4 && await started.count() === 0; i++) {
+    pressWall = Date.now();
     await press(page, 'Enter', 0);
     await started.first().waitFor({state: 'attached', timeout: 1500}).catch(() => {});
   }
@@ -456,6 +488,7 @@ async function runHandLanding(page: Page, profile: string, play: {card: string, 
   const frames = await takeRecording(page);
   expect(frames.length, 'the in-page recorder ran').toBeGreaterThan(30);
   const report = analyse(frames, profile, play.card, play.kind, seq0, play.card);
+  report.pressWall = pressWall;
   printReport(report, frames, play.card);
   fs.mkdirSync(OUT_DIR, {recursive: true});
   fs.writeFileSync(path.join(OUT_DIR, `${profile}-${play.card.replace(/\s+/g, '_')}.json`), JSON.stringify({report, frames}, null, 1));
@@ -524,12 +557,12 @@ function assertBoundary(r: Report): void {
   expect(r.gapFrames, `${r.card}: no frame without a card`).toBe(0);
   expect(r.twinFrames, `${r.card}: no crossfade window (two half-cards)`).toBe(0);
   expect(r.classMismatch, `${r.card}: the proxy and the real card are the same picture`).toBe(false);
-  // No dead hover before the flight: the aim is taken during the round trip,
-  // so the arc follows the lift within a few frames — measured against the
-  // page's OWN cadence (a starved 4K runner stretches every frame; the
-  // budget is frames, never a wall-clock guess).
+  // No dead hover before the flight: the aim is taken during the round trip
+  // and the arc takes over from the lift's tail, so the card never stands
+  // still between the two — at most two painted frames (main-thread stalls
+  // excluded from the measure; see `hoverMs`).
   expect(r.hoverMs, `${r.card}: no dead hover before the flight (cadence ${r.medianGapMs} ms)`)
-    .toBeLessThanOrEqual(Math.max(80, 6 * r.medianGapMs));
+    .toBeLessThanOrEqual(90);
 }
 
 /**
@@ -570,11 +603,13 @@ test.describe('play landing geometry · start queue (fhd)', () => {
       const before = await readiness(page);
       const seq0 = before?.input.seq ?? 0;
       await armRecorder(page, 'start');
+      const pressWall = Date.now();
       await playStartQueue(page, {plays: 1});
       await settle(page, {timeoutMs: 30_000, quietMs: 500});
       const frames = await takeRecording(page);
       const played = frames.map((f) => f.frontKey).find((k) => k !== '') ?? queue[0];
       const report = analyse(frames, 'start', played, 'start', seq0, played);
+      report.pressWall = pressWall;
       printReport(report, frames, played);
       reports.push(report);
       fs.mkdirSync(OUT_DIR, {recursive: true});

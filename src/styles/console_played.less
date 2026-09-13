@@ -727,6 +727,20 @@
         perspective: 45rem;
         will-change: transform, opacity;
     }
+    /* THE ART IS ALREADY THERE. `.pcard__art img` fades in on its first
+       LOAD (a 240 ms opacity ramp) — right for a card that mounts for the
+       first time, wrong for a proxy born OVER the very card the player is
+       looking at: its fresh <img> re-ran that fade and the card left its
+       slot with an empty picture for its first 2–3 frames (measured on the
+       recording — a blink at the departure, the frame + title travelling
+       ahead of the art). The art is decoded (the source slot paints the
+       same webp, and the arm warms it), so the flight shows it outright —
+       the same rule the discard proxy already states. */
+    &__proxy .pcard__art img,
+    &__ret .pcard__art img {
+        opacity: 1;
+        transition: none;
+    }
     /* The travelling ground shadow — a soft belly that widens/softens at the
        apex and snaps back to contact at touchdown (transform/opacity only). */
     &__shade {

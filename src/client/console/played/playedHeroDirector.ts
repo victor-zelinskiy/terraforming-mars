@@ -103,9 +103,19 @@ function guarded(run: (done: () => void) => void, budgetMs: number): Promise<voi
 }
 
 /**
+ * The lift HANDS OVER to the arc at this share of its duration: `power2.out`
+ * has covered ~91 % of its travel by then and its tail is sub-pixel per
+ * frame — a card that waits for the tail to finish reads as a full stop
+ * between two motions. The arc plans from the LIVE rect and kills the lift,
+ * so the two are one continuous gesture.
+ */
+const HERO_LIFT_HANDOFF = 0.7;
+
+/**
  * Phase A — the lift-off: the card separates from the composer. A soft rise,
  * the ~1.05 scale, the contact shadow turning airborne. Physical, never
- * springy (power2.out, no overshoot).
+ * springy (power2.out, no overshoot). Resolves at the HANDOFF point (see
+ * above), not at the tween's end.
  */
 export function playHeroLift(els: HeroStageEls, durationMs: number): Promise<void> {
   const g = geometry;
@@ -123,6 +133,7 @@ export function playHeroLift(els: HeroStageEls, durationMs: number): Promise<voi
     if (els.shade !== undefined) {
       tl.to(els.shade, {autoAlpha: 0.5, scaleX: 1.06, duration: durationMs / 1000, ease: 'power2.out'}, 0);
     }
+    tl.call(done, undefined, (durationMs / 1000) * HERO_LIFT_HANDOFF);
   }, durationMs);
 }
 
@@ -163,6 +174,13 @@ export function playHeroFlight(els: HeroStageEls, plan: HeroPathPlan, opts: Hero
   // The retarget correction (centre offset + scale delta), ramped over the
   // path progress past the read.
   const corr = {x: 0, y: 0, scale: 0, from: -1};
+  // The arc takes the card over from the lift's tail (see HERO_LIFT_HANDOFF):
+  // the plan started from the live rect, so the lift's remainder is already
+  // inside the path — its tween must not keep writing y/scale underneath.
+  gsap.killTweensOf(els.proxy);
+  if (els.shade !== undefined) {
+    gsap.killTweensOf(els.shade);
+  }
   return guarded((done) => {
     const prog = {q: 0};
     const tl = gsap.timeline({onComplete: done});

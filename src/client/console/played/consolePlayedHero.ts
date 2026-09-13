@@ -45,6 +45,7 @@ import {consoleReducedMotionActive} from '@/client/console/composables/useConsol
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {restingRectOf} from '@/client/console/cardFlight/landingRect';
+import {preloadPremiumCardArt} from '@/client/cards/cardArt';
 import {taskFor} from '@/client/console/consoleTaskRouter';
 import {
   HeroRect, PlayedHeroPhase, planHeroPath,
@@ -380,6 +381,12 @@ export function armPlayedHero(card: CardName, isEvent: boolean, opts: {
   // watching the stage's own entry tween. (The standalone overlay opens only
   // at `preparing`, so it keeps measuring at flight time.)
   prewarmedTarget = playedHeroState.host === 'workspace' ? prewarmTargetRect() : undefined;
+  // …and the proxy's picture is DECODED before it is ever born: the flight
+  // layer shows the art outright (no load-fade), so the bytes must be there
+  // by the time the proxy mounts — the round trip is exactly where that cost
+  // is free (the source slot paints the same webp, so this is a cache hit
+  // in practice; a cold cache is the case it exists for).
+  preloadPremiumCardArt([card]);
 }
 
 /**
@@ -559,7 +566,7 @@ async function executeFlight(): Promise<void> {
   }
   // ⚠️ THE POLL IS AN AWAIT POINT, so it needs the guard the scene's other await
   // points have (see the one before the flight below). An abort — an error path,
-  // the 12 s safety, a play the server refused — can land INSIDE this loop, and
+  // the 6 s arm safety, a play the server refused — can land INSIDE this loop, and
   // everything below then ran anyway: it published `phase = 'lifting'` ON TOP of
   // the abort's `failed`/`idle`, and the shell watches that phase to tear
   // `pendingPlayCard` down. So an aborted play went on driving the transaction it
