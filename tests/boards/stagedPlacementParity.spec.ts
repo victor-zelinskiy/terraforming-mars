@@ -519,9 +519,13 @@ describe('staged placement — plays that must NOT stage', () => {
     player.megaCredits = 60;
     const preview = cardPlayPreview(player, card);
     expect(findStaged(preview), 'a play that will skip its placement stages nothing').to.be.undefined;
-    // The placement STEP itself is still announced — only the staged payload is absent.
+    // …and the placement STEP is gone with it: the live `PlaceOceanTile` never
+    // asks, so a «Далее: клетка под океан» note would promise a prompt that
+    // never comes, and the effect forecast's tile pass would claim the table's
+    // ocean reactions for a tile that never lands. The card's own `maxoceans`
+    // warning («все океаны уже на поле») is what tells the player why.
     const step = preview.branches[0].steps.find((s) => s.kind === 'boardPlacement');
-    expect(step, 'the boardPlacement step remains in the preview').to.not.be.undefined;
+    expect(step, 'no placement is promised for an ocean that is not placed').to.be.undefined;
   });
 
   it('colony-coupled play (Ice Moon Colony) → NO staged (the colony prompt comes first at runtime)', () => {

@@ -37,9 +37,16 @@ import {Decomposers} from '../../src/server/cards/base/Decomposers';
 import {TopsoilContract} from '../../src/server/cards/promo/TopsoilContract';
 import {Splice} from '../../src/server/cards/promo/Splice';
 import {Research} from '../../src/server/cards/base/Research';
+import {ImportedHydrogen} from '../../src/server/cards/base/ImportedHydrogen';
+import {NeptunianPowerConsultants} from '../../src/server/cards/promo/NeptunianPowerConsultants';
+import {LakeMarineris} from '../../src/server/cards/base/LakeMarineris';
+import {maxOutOceans} from '../TestingUtils';
+import {MAX_OCEAN_TILES} from '../../src/common/constants';
 import {ICard} from '../../src/server/cards/ICard';
 import {IPlayer} from '../../src/server/IPlayer';
-import {chipPool, stripTouchedPools} from '../../src/server/models/effectForecast';
+import {chipPool, ownTilesOf, sharedTilesOf, stripTouchedPools} from '../../src/server/models/effectForecast';
+import {EffectForecastTile} from '../../src/server/cards/EffectForecastContext';
+import {TileType} from '../../src/common/TileType';
 import {anyPlayerTagReason, tagReason} from '../../src/server/cards/effectForecastPreviews';
 import {ActionEffect} from '../../src/common/models/ActionPreviewModel';
 import {EffectForecastFact} from '../../src/common/models/EffectForecastModel';
@@ -58,6 +65,13 @@ import {EffectForecastFact} from '../../src/common/models/EffectForecastModel';
  */
 function playForecast(player: IPlayer, card: ICard) {
   return effectForecastForPlay(player, card, cardPlayPreview(player, card));
+}
+
+function tileOfType(tileType: TileType, placementType = 'ocean'): EffectForecastTile {
+  return {
+    tileType, count: 1, placementType, offMars: false,
+    countsAsCity: tileType === TileType.CITY, countsAsOcean: tileType === TileType.OCEAN, countsAsGreenery: false,
+  };
 }
 
 describe('effectForecast (engine)', () => {
@@ -371,6 +385,104 @@ describe('effectForecast (engine)', () => {
       expect(playForecast(player, survey).facts.find((f) => f.source.name === CardName.CARBON_NANOSYSTEMS)?.reason).to.eq('You play a card with a science tag');
       expect(playForecast(player, io).facts.find((f) => f.source.name === CardName.SATURN_SYSTEMS)?.reason).to.eq('Any player plays a card with a Jovian tag');
     });
+  });
+
+  it('a tile EVERY branch places is branch-INDEPENDENT: Imported Hydrogen\'s ocean fires the opponent\'s Neptunian Power Consultants in `facts`, never inside an «ИЛИ» option', () => {
+    const [/* game */, player, opponent] = testGame(2);
+    opponent.playedCards.push(new NeptunianPowerConsultants());
+    opponent.megaCredits = 20;
+    const hydrogen = new ImportedHydrogen(); // gain 3 plants OR microbes OR animals to ANOTHER card — and an ocean, always
+    player.cardsInHand.push(hydrogen);
+    const forecast = playForecast(player, hydrogen);
+    const shared = forecast.facts.filter((f) => f.source.name === CardName.NEPTUNIAN_POWER_CONSULTANTS);
+    expect(shared, 'the ocean is placed whatever the player picks — the reaction is not tied to a branch').to.have.length(1);
+    expect(shared[0].certainty).to.eq('asks');
+    expect(shared[0].recipient).to.deep.eq({kind: 'player', color: opponent.color});
+    expect(shared[0].timing).to.eq('after-placement');
+    for (const list of Object.values(forecast.byBranch ?? {})) {
+      expect(list.some((f) => f.source.name === CardName.NEPTUNIAN_POWER_CONSULTANTS), 'no copy inside a branch').to.be.false;
+    }
+  });
+
+  describe('what will NOT happen is not forecast', () => {
+    it('oceans maxed: the ocean the card prints is never placed (the live PlaceOceanTile skips) — no ocean reaction, no placement step', () => {
+      const [/* game */, player, opponent] = testGame(2);
+      opponent.playedCards.push(new ArcticAlgae(), new NeptunianPowerConsultants());
+      opponent.megaCredits = 20;
+      maxOutOceans(player);
+      const hydrogen = new ImportedHydrogen();
+      player.cardsInHand.push(hydrogen);
+      const preview = cardPlayPreview(player, hydrogen);
+      for (const branch of preview.branches) {
+        expect(branch.steps.some((s) => s.kind === 'boardPlacement'), 'no placement is promised').to.be.false;
+      }
+      const forecast = effectForecastForPlay(player, hydrogen, preview);
+      expect(allForecastFacts(forecast).filter((f) => f.source.channel === 'tile-placed')).to.deep.eq([]);
+    });
+
+    it('one ocean left: a two-ocean card places ONE — Arctic Algae pays for one, and the step says one', () => {
+      const [/* game */, player, opponent] = testGame(2);
+      opponent.playedCards.push(new ArcticAlgae());
+      maxOutOceans(player, MAX_OCEAN_TILES - 1);
+      const lake = new LakeMarineris(); // ocean: {count: 2}
+      player.cardsInHand.push(lake);
+      const preview = cardPlayPreview(player, lake);
+      const step = preview.branches[0].steps.find((s) => s.kind === 'boardPlacement');
+      expect(step !== undefined && step.kind === 'boardPlacement' && (step.count ?? 1)).to.eq(1);
+      const algae = effectForecastForPlay(player, lake, preview).facts.find((f) => f.source.name === CardName.ARCTIC_ALGAE);
+      expect(algae?.effects[0]).to.include({icon: Resource.PLANTS, amount: 2});
+      // …and with two left, both oceans count.
+      const [/* g2 */, p2, o2] = testGame(2, undefined, '-two-left');
+      o2.playedCards.push(new ArcticAlgae());
+      maxOutOceans(p2, MAX_OCEAN_TILES - 2);
+      const lake2 = new LakeMarineris();
+      p2.cardsInHand.push(lake2);
+      expect(playForecast(p2, lake2).facts.find((f) => f.source.name === CardName.ARCTIC_ALGAE)?.effects[0]).to.include({amount: 4});
+    });
+
+    it('the engine clamps a bespoke ocean step on its own (a preview that did not): none left → no tile, one left → one', () => {
+      const [/* game */, player] = testGame(2);
+      const branch = (count: number | undefined) => ({index: -1, title: '', available: true, renderKeys: [], effects: [], steps: [
+        {kind: 'boardPlacement' as const, placementType: 'ocean', tileType: TileType.OCEAN, count},
+      ]});
+      maxOutOceans(player, MAX_OCEAN_TILES - 1);
+      expect(tilesOfBranch(player, branch(2), undefined).map((t) => t.count)).to.deep.eq([1]);
+      maxOutOceans(player);
+      expect(tilesOfBranch(player, branch(undefined), undefined)).to.deep.eq([]);
+      // A composite laid over an ocean is not a new ocean and is never clamped.
+      expect(tilesOfBranch(player, {...branch(undefined), steps: [{kind: 'boardPlacement', placementType: 'ocean', tileType: TileType.OCEAN_CITY}]}, undefined)).to.have.length(1);
+    });
+
+    it('a gain that changes NOTHING (a parameter at its cap) is no grant; a lone branch the rules refuse grants and places nothing', () => {
+      expect(grantOfEffect({direction: 'gain', icon: 'oxygen', amount: 1, current: 14, resulting: 14, unit: '%'})).to.be.undefined;
+      expect(grantOfEffect({direction: 'gain', icon: 'steel', amount: 2, current: 3, resulting: 5, note: 'production'})).to.deep.eq({kind: 'production', resource: Resource.STEEL, amount: 2});
+      const [/* game */, player, opponent] = testGame(2);
+      player.playedCards.push(new Manutech());
+      opponent.playedCards.push(new ArcticAlgae());
+      const pumping = new AquiferPumping();
+      player.playedCards.push(pumping);
+      player.megaCredits = 0; // cannot pay the 8 M€ — the action is refused
+      const preview = actionPreview(player, pumping);
+      expect(preview.branches[0].available).to.be.false;
+      expect(allForecastFacts(effectForecastForAction(player, pumping, preview))).to.deep.eq([]);
+    });
+  });
+
+  it('splits shared and own tiles as MULTISETS: what every available option places is the play\'s, the remainder stays the option\'s', () => {
+    const ocean = tileOfType(TileType.OCEAN);
+    const city = tileOfType(TileType.CITY, 'city');
+    // Three options; the third is unavailable (no steps) and cannot vote.
+    const perBranch = [[ocean, city], [ocean], []];
+    const shared = sharedTilesOf(perBranch, [true, true, false]);
+    expect(shared.map((t) => t.tileType)).to.deep.eq([TileType.OCEAN]);
+    expect(ownTilesOf(perBranch[0], shared).map((t) => t.tileType)).to.deep.eq([TileType.CITY]);
+    expect(ownTilesOf(perBranch[1], shared)).to.deep.eq([]);
+    // Two oceans in one option, one in the other → ONE is shared, one stays own.
+    const twoVsOne = sharedTilesOf([[ocean, ocean], [ocean]], [true, true]);
+    expect(twoVsOne).to.have.length(1);
+    expect(ownTilesOf([ocean, ocean], twoVsOne)).to.have.length(1);
+    // No available option → nothing is certain.
+    expect(sharedTilesOf([[ocean], [ocean]], [false, false])).to.deep.eq([]);
   });
 
   it('reports the «almost» as `no` (a space card that is not an event, for Optimal Aerobraking)', () => {

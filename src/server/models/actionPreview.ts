@@ -7,7 +7,7 @@ import {CardResource} from '../../common/CardResource';
 import {Resource} from '../../common/Resource';
 import {Units} from '../../common/Units';
 import {TileType} from '../../common/TileType';
-import {MAX_OXYGEN_LEVEL, MAX_TEMPERATURE, MIN_TEMPERATURE, MAX_VENUS_SCALE} from '../../common/constants';
+import {MAX_OXYGEN_LEVEL, MAX_TEMPERATURE, MIN_TEMPERATURE, MAX_VENUS_SCALE, MAX_OCEAN_TILES} from '../../common/constants';
 import {UnplayableReason} from '../../common/cards/UnplayableReason';
 import {ActionPreview, ActionPreviewBranch, ActionPreviewStep, ActionEffect, ActionEffectBasis} from '../../common/models/ActionPreviewModel';
 import {_Countable} from '../behavior/Countable';
@@ -713,7 +713,17 @@ export function stepsForBehavior(player: IPlayer, card: ICard, behavior: Behavio
     steps.push({kind: 'boardPlacement', placementType: 'colony'});
   }
   if (behavior.ocean !== undefined) {
-    steps.push({kind: 'boardPlacement', placementType: 'ocean', tileType: TileType.OCEAN, count: behavior.ocean.count});
+    // MIRROR THE LIVE SKIP: `PlaceOceanTile.execute` returns without a prompt
+    // once the oceans are maxed (`canAddOcean` — Whales aside), and a two-ocean
+    // card with one ocean left places ONE. A step promised here would be a
+    // placement the runtime never asks for — and the effect forecast's tile
+    // pass would claim the table's ocean reactions (Arctic Algae's plants, an
+    // opponent's Neptunian question) for a tile that never lands.
+    const remaining = Math.max(0, MAX_OCEAN_TILES - player.game.board.getOceanSpaces().length);
+    const count = Math.min(behavior.ocean.count ?? 1, remaining);
+    if (count > 0) {
+      steps.push({kind: 'boardPlacement', placementType: 'ocean', tileType: TileType.OCEAN, count: count > 1 ? count : undefined});
+    }
   }
   if (behavior.city !== undefined && behavior.city.space === undefined) {
     steps.push({kind: 'boardPlacement', placementType: behavior.city.on ?? 'city', tileType: TileType.CITY});

@@ -126,7 +126,15 @@ first-order facts' chips (Bushes → Manutech; Decomposers' microbe → Topsoil
 Contract), inheriting certainty / timing / sequence; bots are never cascaded.
 Then the TILE pass for every tile of the branch (`tilesOfBranch` reads the
 `boardPlacement` steps and `behavior.city.space`); a bot corporation with
-`onTilePlaced` is a deferred `unknown`. Discounts come from
+`onTilePlaced` is a deferred `unknown`. With SEVERAL branches the tiles EVERY
+available branch places are the PLAY's (`sharedTilesOf` — a multiset
+intersection; an unavailable branch carries no steps and cannot vote): their
+reactions stand in `facts`, and only each option's OWN remainder
+(`ownTilesOf`) is asked as a branch-tied pass into `byBranch`. Imported
+Hydrogen's ocean — the same step in the plants branch and in both «to another
+card» branches — therefore fires the opponent's Neptunian Power Consultants
+as a branch-independent fact, not inside whichever option happens to be
+available. Discounts come from
 `getCardCostBreakdown` (play of a project card only) with
 `other = max(0, base − final − Σitems)`; payment values from
 `paymentOptionsForCard` × `SPENDABLE_CARD_RESOURCES` × the card in the
@@ -134,6 +142,25 @@ tableau. A multi-branch preview fills `byBranch[pos]` per available
 branch with `certainty: 'conditional'` (an `unknown` stays `unknown`).
 `FORECAST_HOOK_PAIRS` is the engine's declared «live hook → forecast hook»
 table, and the coverage guard's law.
+
+**What will NOT happen is not forecast** (the «неприменимо» audit, 2026-09-13).
+The engine reads the operation the RUNTIME will make, never the printed one:
+
+- **an ocean that cannot land** — `PlaceOceanTile.execute` returns without a
+  prompt once the oceans are maxed (`canAddOcean`), and a two-ocean card with
+  one ocean left places ONE. The declarative walker (`stepsForBehavior`) now
+  emits the ocean `boardPlacement` step clamped to the oceans remaining (none
+  left → no step, so the composer promises no «клетка под океан» either — the
+  card's own `maxoceans` warning says why), and `tilesOfBranch` clamps a
+  BASE ocean tile the same way on its own, for a bespoke preview that did not
+  (a composite laid over an ocean is not a new ocean and is never clamped);
+- **a gain that changes nothing** — a chip with `resulting <= current` (a
+  parameter already at its cap) is no grant for the second-order hooks
+  (`grantOfEffect`); an «add to a card» with no eligible card was already no
+  chip at all (the preview suppresses it and speaks through its warning);
+- **a lone branch the rules refuse** (a blocked action's setup) grants and
+  places nothing — its reactions would describe an operation that cannot run;
+  with several branches the refused ones were already skipped.
 
 **The POOL rule** (`stripTouchedPools` over `chipPool`, after `stampHosts`):
 `current → resulting` survives only on a pool the operation does not touch
@@ -550,6 +577,22 @@ nothing`, the prompt labels, `Free` → «Бесплатно» for the FREE acce
   selector written as a descendant pair (`.con-efx__graphic .card-container`)
   matched nothing while the screenshot showed the block drawn. Assert
   `.con-efx__graphic.card-container`.
+- **A shared tile rides EVERY option's steps.** `gainOrAddResourceBranches`
+  (Imported Hydrogen, Large Convoy) and the declarative OR walker append the
+  card's own placement to each available branch's steps, so a per-branch tile
+  pass files the ocean under the option — and with two options refused for
+  lack of a target, the opponent's Neptunian question showed up INSIDE the
+  «+3 растения» card as if it depended on choosing the plants (reported
+  2026-09-13). The engine's comment promised «the tiles every available
+  branch shares»; the code passed `[]`. `sharedTilesOf` / `ownTilesOf` are
+  the rule now, spec-pinned on that very table.
+- **The preview promised a placement the runtime skips.** `stepsForBehavior`
+  pushed the ocean step unconditionally, so with the oceans maxed the composer
+  read «Далее: клетка под океан» and the forecast claimed Arctic Algae's
+  plants and an opponent's Neptunian question for a tile `PlaceOceanTile`
+  never places. The staged-parity spec had pinned that compromise («the step
+  remains, only the staged payload is absent»); the step is gone now, on both
+  layers (the walker's clamp and the engine's own).
 - **The e2e journey has a TURN BUDGET.** Blue has two actions; Geological
   Survey is the first play, so the FREE play (Insulation) is the last step of
   the journey — a second play earlier would hand the turn to red and refuse

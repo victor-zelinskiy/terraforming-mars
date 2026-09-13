@@ -8,7 +8,8 @@ import {CardType} from '../../common/cards/CardType';
 import {Resource} from '../../common/Resource';
 import {GlobalParameter} from '../../common/GlobalParameter';
 import {SpaceType} from '../../common/boards/SpaceType';
-import {CITY_TILES, GREENERY_TILES, OCEAN_TILES, TileType} from '../../common/TileType';
+import {BASE_OCEAN_TILES, CITY_TILES, GREENERY_TILES, OCEAN_TILES, TileType} from '../../common/TileType';
+import {MAX_OCEAN_TILES} from '../../common/constants';
 import {Behavior} from '../behavior/Behavior';
 import {PartyHooks} from '../turmoil/parties/PartyHooks';
 import {PartyName} from '../../common/turmoil/PartyName';
@@ -163,9 +164,14 @@ function cardResourceForIcon(icon: string): CardResource | undefined {
   return cardResourceByIcon.get(icon);
 }
 
-/** ONE chip → the grant the second-order hooks see (undefined = a cost, or nothing a hook reacts to). */
+/** ONE chip → the grant the second-order hooks see (undefined = a cost, a gain
+ *  that changes NOTHING — a parameter already at its cap reads `current ===
+ *  resulting` — or nothing a hook reacts to). */
 export function grantOfEffect(effect: ActionEffect): EffectForecastGrant | undefined {
   if (effect.direction !== 'gain' || effect.amount <= 0) {
+    return undefined;
+  }
+  if (effect.current !== undefined && effect.resulting !== undefined && effect.resulting <= effect.current) {
     return undefined;
   }
   if (effect.icon === 'tr') {
@@ -307,11 +313,24 @@ function tileOf(tileType: TileType | undefined, count: number, placementType: st
  */
 export function tilesOfBranch(player: IPlayer, branch: ActionPreviewBranch, behavior: Behavior | undefined): Array<EffectForecastTile> {
   const tiles: Array<EffectForecastTile> = [];
+  // A PLAIN ocean only lands while the oceans are not maxed (`canAddOcean` —
+  // the live `PlaceOceanTile` silently skips otherwise), and a two-ocean card
+  // with one ocean left places ONE. The declarative walker already clamps its
+  // step; this is the engine's own floor for a bespoke preview that does not.
+  let oceansLeft = Math.max(0, MAX_OCEAN_TILES - player.game.board.getOceanSpaces().length);
   for (const step of branch.steps) {
     if (step.kind !== 'boardPlacement' || step.placementType === 'colony' || step.tileType === undefined) {
       continue;
     }
-    tiles.push(tileOf(step.tileType, step.count ?? 1, step.placementType, false));
+    let count = step.count ?? 1;
+    if (BASE_OCEAN_TILES.has(step.tileType)) {
+      count = Math.min(count, oceansLeft);
+      if (count <= 0) {
+        continue;
+      }
+      oceansLeft -= count;
+    }
+    tiles.push(tileOf(step.tileType, count, step.placementType, false));
   }
   const fixed = behavior?.city?.space;
   if (fixed !== undefined) {
@@ -319,6 +338,65 @@ export function tilesOfBranch(player: IPlayer, branch: ActionPreviewBranch, beha
     tiles.push(tileOf(TileType.CITY, 1, 'city', space?.spaceType === SpaceType.COLONY));
   }
   return tiles;
+}
+
+/** A tile's identity for the shared / own split — type, count, prompt kind, off-Mars. */
+function tileKey(tile: EffectForecastTile): string {
+  return `${tile.tileType ?? ''}|${tile.count}|${tile.placementType ?? ''}|${tile.offMars}`;
+}
+
+function tileCounts(tiles: ReadonlyArray<EffectForecastTile>): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const tile of tiles) {
+    const key = tileKey(tile);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return counts;
+}
+
+/**
+ * The tiles EVERY available branch places — the card puts them down whatever
+ * the player picks, so their reactions are BRANCH-INDEPENDENT. A multiset
+ * intersection over the available branches (an unavailable branch carries no
+ * steps at all, so it cannot vote): Imported Hydrogen's ocean stands in the
+ * plants branch AND in the two «to another card» branches, and used to land
+ * INSIDE whichever option happened to be available — the opponent's Neptunian
+ * Power Consultants question drawn as if it depended on choosing the plants.
+ */
+export function sharedTilesOf(perBranch: ReadonlyArray<ReadonlyArray<EffectForecastTile>>, available: ReadonlyArray<boolean>): Array<EffectForecastTile> {
+  const lists = perBranch.filter((_, i) => available[i] === true);
+  if (lists.length === 0) {
+    return [];
+  }
+  const [first, ...rest] = lists;
+  const others = rest.map(tileCounts);
+  const taken = new Map<string, number>();
+  const shared: Array<EffectForecastTile> = [];
+  for (const tile of first) {
+    const key = tileKey(tile);
+    const nth = (taken.get(key) ?? 0) + 1;
+    if (others.every((counts) => (counts.get(key) ?? 0) >= nth)) {
+      shared.push(tile);
+      taken.set(key, nth);
+    }
+  }
+  return shared;
+}
+
+/** A branch's OWN tiles — its list minus the shared ones (multiset subtraction). */
+export function ownTilesOf(tiles: ReadonlyArray<EffectForecastTile>, shared: ReadonlyArray<EffectForecastTile>): Array<EffectForecastTile> {
+  const remaining = tileCounts(shared);
+  const own: Array<EffectForecastTile> = [];
+  for (const tile of tiles) {
+    const key = tileKey(tile);
+    const left = remaining.get(key) ?? 0;
+    if (left > 0) {
+      remaining.set(key, left - 1);
+      continue;
+    }
+    own.push(tile);
+  }
+  return own;
 }
 
 function tileFacts(player: IPlayer, card: ICard, tiles: ReadonlyArray<EffectForecastTile>, ctx: EffectForecastContext): Array<EffectForecastFact> {
@@ -509,12 +587,15 @@ function buildForecast(player: IPlayer, card: ICard, preview: ActionPreview, ope
   const single = branches.length <= 1;
   const baseCtx: EffectForecastContext = {operation, card, tiles: []};
 
-  // The branch-independent tiles: a single branch's own; with several, only
-  // the tiles EVERY available branch shares (rare — identical sub-behaviors).
+  // The branch-independent tiles: a single branch's own; with several, the
+  // tiles EVERY available branch places (a card's own placement rides every
+  // option's steps — Imported Hydrogen's ocean, Large Convoy's — so it is the
+  // play's, not the option's; a tile only one option places stays that
+  // option's).
   const perBranchTiles = branches.map((b) => tilesOfBranch(player, b, behavior));
   const sharedTiles = single ?
     (perBranchTiles[0] ?? tilesOfBranch(player, {index: -1, title: '', available: true, renderKeys: [], effects: [], steps: []}, behavior)) :
-    [];
+    sharedTilesOf(perBranchTiles, branches.map((b) => b.available));
   const ctx: EffectForecastContext = {...baseCtx, tiles: sharedTiles};
 
   // 1. The card-played fan-out (a play only — an action plays no card).
@@ -525,21 +606,28 @@ function buildForecast(player: IPlayer, card: ICard, preview: ActionPreview, ope
   const ownEffects: Array<ActionEffect> = [];
   const byBranch: Record<number, Array<EffectForecastFact>> = {};
   if (single) {
-    const effects = branches[0]?.effects ?? [];
+    // A lone branch the rules refuse (a blocked action's setup) grants and
+    // places nothing — its reactions would describe an operation that cannot run.
+    const effects = branches[0]?.available === false ? [] : (branches[0]?.effects ?? []);
     ownEffects.push(...effects);
     facts.push(...grantFacts(player, player, card, grantsOf(effects), ctx));
-    facts.push(...tileFacts(player, card, sharedTiles, ctx));
+    facts.push(...tileFacts(player, card, branches[0]?.available === false ? [] : sharedTiles, ctx));
   } else {
+    // The tiles every option places are the PLAY's: their reactions stand in
+    // `facts`, never inside an option card.
+    facts.push(...tileFacts(player, card, sharedTiles, ctx));
     for (let pos = 0; pos < branches.length; pos++) {
       const branch = branches[pos];
       if (!branch.available) {
         continue;
       }
       ownEffects.push(...branch.effects);
+      // The hooks see every tile THIS option would place (shared ones included);
+      // only the option's OWN remainder is asked as a branch-tied tile pass.
       const branchCtx: EffectForecastContext = {...baseCtx, tiles: perBranchTiles[pos], branchPos: pos};
       const branchFacts = [
         ...grantFacts(player, player, card, grantsOf(branch.effects), branchCtx),
-        ...tileFacts(player, card, perBranchTiles[pos], branchCtx),
+        ...tileFacts(player, card, ownTilesOf(perBranchTiles[pos], sharedTiles), branchCtx),
       ];
       if (branchFacts.length > 0) {
         byBranch[pos] = branchFacts.map((fact) => ({
