@@ -103,8 +103,22 @@ type Ready = {holds: Array<string>, transport?: {waitingForType?: string, reques
 const PROBE_SCRIPT = `(() => {
   const w = window;
   const samples = [];
+  // IN-PAGE MARKS for a \`--trace on\` run (the trace keeps page console
+  // messages with timestamps beside its screencast frames).
+  let lastMark = '';
+  const mark = (what) => {
+    if (what !== lastMark) {
+      lastMark = what;
+      console.log('[probe-mark] ' + what + ' t=' + Math.round(performance.now()));
+    }
+  };
   const sample = () => {
     const seat = document.querySelector('.con-start__embedsource-card');
+    const diagNow = typeof w.__conStartDiag === 'function' ? w.__conStartDiag() : undefined;
+    const fa = diagNow && diagNow.firstAct ? diagNow.firstAct : undefined;
+    mark('stage=' + (fa ? fa.stage : '?') + ' corp=' + (fa && fa.corp ? fa.corp : '-') +
+      ' seat=' + (seat !== null ? (seat.classList.contains('con-deal-hold') ? 'held' : 'up') : '-') +
+      ' proxies=' + document.querySelectorAll('.con-startdock-proxy').length);
     const start = document.querySelector('.con-start');
     const queue = document.querySelector('.con-start__queue');
     const panel = document.querySelector('.con-start__firstact');
