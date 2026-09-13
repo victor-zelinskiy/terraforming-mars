@@ -81,7 +81,7 @@
 
               <div class="cm-game__foot">
                 <span class="cm-game__meta">
-                  <span class="cm-game__age">{{ updatedAgo(r.summary) }}</span>
+                  <span class="cm-game__age">{{ createdAgo(r.summary) }}</span>
                   <span class="cm-game__dot" aria-hidden="true">·</span>
                   <span>{{ boardLabel(r.summary) }}</span>
                   <template v-if="r.summary.yourTitlePoints > 0">
@@ -141,6 +141,10 @@
  * refresh. UI state (tab / cursor / confirm) lives in the module store
  * `campaignsState`, so the menu's command bar reads it reactively and a
  * return from the map restores the exact tab + row.
+ *
+ * ORDER = the lobby's rule: strictly by creation time, newest first, and each
+ * row says how long ago its campaign was CREATED — on the lobby's ONE clock,
+ * which this screen hands its rows to (`setLobbyAgeRows`).
  */
 import {defineComponent} from 'vue';
 import {paths} from '@/common/app/paths';
@@ -152,7 +156,7 @@ import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScr
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import PremiumMapFingerprint from '@/client/components/create/premium/PremiumMapFingerprint.vue';
 import {identityState} from '@/client/components/mainMenu/identity/identityState';
-import {lobbyState, refreshLobby} from '@/client/components/mainMenu/lobbyState';
+import {lobbyState, refreshLobby, setLobbyAgeRows} from '@/client/components/mainMenu/lobbyState';
 import {lobbyAge, lobbyAgeLabel} from '@/client/components/mainMenu/lobbyAge';
 import {mapLabelKey} from '@/client/components/create/premium/createGameMeta';
 import {navigateWithCurtain} from '@/client/console/loadingScreenState';
@@ -167,6 +171,9 @@ import {
   isArchivedCampaign, CampaignSlotMark,
 } from '@/client/console/campaign/campaignListModel';
 import {$t, translateTextWithParams} from '@/client/directives/i18n';
+
+/** This screen's key among the rows the lobby's age clock ticks for. */
+const AGE_CLOCK_CONSUMER = 'campaigns';
 
 export default defineComponent({
   name: 'ConsoleCampaignsList',
@@ -226,6 +233,7 @@ export default defineComponent({
       void refreshCampaigns();
     },
     rowsKey(): void {
+      this.shareAgeRows();
       this.applyPendingFocus();
       // A refresh that removed rows must not leave the cursor past the end.
       if (this.ui.cursor > 0 && this.ui.cursor >= this.rows.length) {
@@ -241,12 +249,21 @@ export default defineComponent({
     // Entering the screen is an unconditional refresh, every time.
     void refreshCampaigns();
     startCampaignsWatch();
+    // The store may already hold rows (the menu plate's badge loaded them), in
+    // which case no rowsKey change is coming to hand them to the clock.
+    this.shareAgeRows();
     this.applyPendingFocus();
   },
   beforeUnmount() {
     stopCampaignsWatch();
+    setLobbyAgeRows(AGE_CLOCK_CONSUMER, []);
   },
   methods: {
+    /** The ages tick on the lobby's shared clock — at the cadence the freshest
+     *  row on THIS screen needs, so a campaign created seconds ago counts up. */
+    shareAgeRows(): void {
+      setLobbyAgeRows(AGE_CLOCK_CONSUMER, this.rows.map((r) => r.summary.createdTimeMs));
+    },
     /** Return-from-map restore: focus the remembered campaign once rows exist. */
     applyPendingFocus(): void {
       const id = this.ui.pendingFocusId;
@@ -386,9 +403,10 @@ export default defineComponent({
     boardLabel(c: CampaignSummaryModel): string {
       return $t(mapLabelKey(c.currentBoard));
     },
-    /** Reads the lobby's ONE shared clock, so ages tick live like game rows. */
-    updatedAgo(c: CampaignSummaryModel): string {
-      return lobbyAgeLabel(lobbyAge(c.lastActivityMs, this.lobbyState.nowMs));
+    /** How long ago the campaign was CREATED — the very key the rows are sorted
+     *  by, so the order reads off the labels. The lobby's ONE shared clock. */
+    createdAgo(c: CampaignSummaryModel): string {
+      return lobbyAgeLabel(lobbyAge(c.createdTimeMs, this.lobbyState.nowMs));
     },
     titlePointsLabel(c: CampaignSummaryModel): string {
       return translateTextWithParams('Title Points: ${0}', [String(c.yourTitlePoints)]);

@@ -151,7 +151,7 @@ describe('CampaignManager.listSummaries', () => {
     }
   });
 
-  it('the base order is deterministic: newest activity first, id as the tiebreak', async () => {
+  it('the base order is deterministic: newest CREATED first, id as the tiebreak', async () => {
     const a = await manager.createCampaign(key(), campaignTestConfig());
     const b = await manager.createCampaign(key(), campaignTestConfig());
     // Same createdTimeMs tick is possible — the id tiebreak keeps it stable.
@@ -159,5 +159,19 @@ describe('CampaignManager.listSummaries', () => {
     const twice = await manager.listSummaries('Alice');
     expect(once.map((r: CampaignSummaryModel) => r.id)).deep.eq(twice.map((r: CampaignSummaryModel) => r.id));
     expect(once.map((r) => r.id).sort()).to.have.members([a.id, b.id]);
+  });
+
+  it('a newer campaign leads even when an older one has the newer activity', async () => {
+    const older = await manager.createCampaign(key(), campaignTestConfig());
+    const newer = await manager.createCampaign(key(), campaignTestConfig());
+    // The older campaign commits a mission result — its activity is now the latest.
+    await manager.devCommit(older.id, [0, 1], {carryover: {0: [], 1: []}});
+    (await manager.load(older.id))!.createdTimeMs = 1_000;
+    (await manager.load(newer.id))!.createdTimeMs = 2_000;
+
+    const rows = await manager.listSummaries('Alice');
+    const olderRow = rows.find((r) => r.id === older.id)!;
+    expect(olderRow.lastActivityMs).greaterThan(2_000);
+    expect(rows.map((r) => r.id)).deep.eq([newer.id, older.id]);
   });
 });

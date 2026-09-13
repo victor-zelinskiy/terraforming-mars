@@ -1,6 +1,6 @@
 import {expect} from 'chai';
 import {
-  visibleCampaignRows, sortActiveCampaigns, campaignActionRequired,
+  visibleCampaignRows, sortCampaignsNewestFirst, campaignActionRequired,
   campaignStateLabelKey, campaignProgress, campaignSlotMarks,
   isArchivedCampaign, activeCampaignCount, completedCampaignCount,
   mergeCampaignSources, visibleCampaignSourceRows, CampaignSourceSlice,
@@ -49,32 +49,48 @@ describe('campaignListModel', () => {
     expect(visibleCampaignRows(rows, 'completed').every((c) => isArchivedCampaign(c))).is.true;
   });
 
-  it('active sort: action-required first, then creator launch-ready, then last activity', () => {
-    const waiting = summary({state: 'waitingLaunch', isCreator: false, lastActivityMs: 9000});
-    const yourTurn = summary({phase: 'missionActive', state: 'yourTurn', lastActivityMs: 1000});
-    const carry = summary({phase: 'interlude', state: 'chooseCarryover', lastActivityMs: 500});
-    const ready = summary({state: 'launchReady', lastActivityMs: 100});
-    const sorted = sortActiveCampaigns([waiting, ready, carry, yourTurn]);
-    // Action-required lead (newest activity first inside the band), then
-    // launch-ready, then the rest.
-    expect(sorted.map((c) => c.state)).deep.eq(['yourTurn', 'chooseCarryover', 'launchReady', 'waitingLaunch']);
-    expect(campaignActionRequired(yourTurn)).is.true;
+  it('sorts strictly by creation time, newest first — a row\'s state or activity never moves it', () => {
+    // The oldest campaign needs the viewer AND saw the latest activity: under
+    // the old priority/activity sort it led; by creation it is last.
+    const oldTurn = summary({phase: 'missionActive', state: 'yourTurn', createdTimeMs: 1_000, lastActivityMs: 99_000});
+    const carry = summary({phase: 'interlude', state: 'chooseCarryover', createdTimeMs: 2_000, lastActivityMs: 50_000});
+    const ready = summary({state: 'launchReady', createdTimeMs: 2_500});
+    const newest = summary({state: 'waitingLaunch', isCreator: false, createdTimeMs: 3_000});
+    const sorted = sortCampaignsNewestFirst([oldTurn, newest, carry, ready]);
+    expect(sorted.map((c) => c.id)).deep.eq([newest.id, ready.id, carry.id, oldTurn.id]);
+    // What needs the viewer is marked on the row, not by where it stands.
+    expect(campaignActionRequired(oldTurn)).is.true;
     expect(campaignActionRequired(carry)).is.true;
     expect(campaignActionRequired(ready)).is.false;
   });
 
-  it('the order is deterministic: equal ranks and timestamps fall back to the id', () => {
-    const a = summary({lastActivityMs: 700});
-    const b = summary({lastActivityMs: 700});
-    const once = sortActiveCampaigns([b, a]).map((c) => c.id);
-    const twice = sortActiveCampaigns([a, b]).map((c) => c.id);
+  it('a refresh that only moves turns, states or activity keeps every row where it was', () => {
+    const newer = summary({phase: 'missionActive', state: 'missionActive', createdTimeMs: 5_000, lastActivityMs: 5_000});
+    const older = summary({phase: 'missionActive', state: 'yourTurn', createdTimeMs: 4_000, lastActivityMs: 4_000});
+    const before = visibleCampaignRows([older, newer], 'active').map((c) => c.id);
+    // The turn passes between the two missions and the older one commits a
+    // result — exactly the refresh that used to swap the two rows.
+    const after = visibleCampaignRows([
+      {...older, phase: 'interlude', state: 'chooseCarryover', lastActivityMs: 60_000},
+      {...newer, state: 'yourTurn'},
+    ], 'active').map((c) => c.id);
+    expect(before).deep.eq([newer.id, older.id]);
+    expect(after).deep.eq(before);
+  });
+
+  it('the order is deterministic: equal creation times fall back to the id', () => {
+    const a = summary({createdTimeMs: 700});
+    const b = summary({createdTimeMs: 700});
+    const once = sortCampaignsNewestFirst([b, a]).map((c) => c.id);
+    const twice = sortCampaignsNewestFirst([a, b]).map((c) => c.id);
     expect(once).deep.eq(twice);
   });
 
-  it('archive sorts by ending time, newest first', () => {
-    const older = summary({phase: 'finished', state: 'finished', lastActivityMs: 100});
-    const newer = summary({phase: 'abandoned', state: 'abandoned', lastActivityMs: 900});
-    expect(visibleCampaignRows([older, newer], 'completed').map((c) => c.id)).deep.eq([newer.id, older.id]);
+  it('the archive follows the SAME rule — by creation, never by when a campaign ended', () => {
+    const olderEndedLast = summary({phase: 'finished', state: 'finished', createdTimeMs: 100, lastActivityMs: 9_000});
+    const newerEndedFirst = summary({phase: 'abandoned', state: 'abandoned', createdTimeMs: 900, lastActivityMs: 1_000});
+    expect(visibleCampaignRows([olderEndedLast, newerEndedFirst], 'completed').map((c) => c.id))
+      .deep.eq([newerEndedFirst.id, olderEndedLast.id]);
   });
 
   it('every viewer state has a label key (exhaustive)', () => {
@@ -135,14 +151,16 @@ describe('campaignListModel', () => {
     expect(rows.find((r) => r.sourceId === 'lan:live')!.stale).is.false;
   });
 
-  it('source rows sort by the SAME rules as summaries (one order, wherever a campaign lives)', () => {
-    const turn = summary({phase: 'missionActive', state: 'yourTurn', lastActivityMs: 5});
-    const calm = summary({state: 'waitingLaunch', isCreator: false, lastActivityMs: 9000});
+  it('source rows sort by the SAME rule as summaries (one order, wherever a campaign lives)', () => {
+    const localOlder = summary({phase: 'missionActive', state: 'yourTurn', createdTimeMs: 5});
+    const lanNewer = summary({state: 'waitingLaunch', isCreator: false, createdTimeMs: 9000});
     const rows = mergeCampaignSources([
-      slice({summaries: [calm]}),
-      slice({sourceId: 'local', hostLabel: '', endpoint: undefined, summaries: [turn]}),
+      slice({summaries: [lanNewer]}),
+      slice({sourceId: 'local', hostLabel: '', endpoint: undefined, summaries: [localOlder]}),
     ]);
+    // The merge puts the local source first; that decides the dedup, never the order.
+    expect(rows.map((r) => r.summary.id)).deep.eq([localOlder.id, lanNewer.id]);
     const visible = visibleCampaignSourceRows(rows, 'active');
-    expect(visible.map((r) => r.summary.state)).deep.eq(['yourTurn', 'waitingLaunch']);
+    expect(visible.map((r) => r.summary.id)).deep.eq([lanNewer.id, localOlder.id]);
   });
 });

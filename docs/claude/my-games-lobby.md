@@ -248,6 +248,11 @@ has to take on trust.
   while any row counts seconds, 15 s while they count minutes, a minute beyond that. It runs
   only while the screen is open, and a completed refresh re-arms it so a brand-new game starts
   counting immediately.
+- **Another screen may hang its rows on the same clock.** «Мои кампании» follows the same
+  order-and-age rule and reads `nowMs`, but its rows are not lobby rows — so the screen hands
+  their creation times over with `setLobbyAgeRows(consumer, times)` (on mount and on every row
+  change; `[]` on unmount), and the cadence counts them too. Pushed, never pulled: `lobbyState`
+  must not import the screens that read it.
 - **A future timestamp is ordinary input, not a bug.** A LAN row's `createdTimeMs` comes from
   the HOST's clock, and two machines on one couch are routinely seconds — sometimes minutes —
   apart, so `lobbyAge` clamps anything in the future to «только что» rather than printing
@@ -262,7 +267,9 @@ jsdom handle silently does nothing and the timer outlives its screen. Module sta
 across specs, so that leak corrupts later ones — the age-clock spec is what caught it.
 
 Guards: `tests/client/components/mainMenu/lobbyAge.spec.ts` (the unit ladder, the clamp, the
-cadence) and the `newest first` / `age clock` blocks in `lobbyState.spec.ts`.
+cadence) and the `newest first` / `age clock` blocks in `lobbyState.spec.ts`; the campaigns
+list's order + creation-age label in `tests/campaign/campaignListModel.spec.ts` and
+`tests/client/components/consoleCampaignsList.spec.ts`.
 
 ## 5. UI surface (`ConsoleMainMenu.vue`)
 

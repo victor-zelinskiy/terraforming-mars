@@ -830,8 +830,9 @@ export class CampaignManager {
    * viewer (by normalized name — the campaign identity model) holds a seat in.
    * `activeColorByGame` is optional live-turn context (the lobby index's
    * `activePlayerColor` per unfinished game) — without it «ваш ход» simply
-   * degrades to «миссия идёт». Deterministic base order: newest activity
-   * first, id as the tiebreak (the client re-sorts by action priority).
+   * degrades to «миссия идёт». Deterministic base order: newest CREATED
+   * first, id as the tiebreak — the order the list shows (the client sorts
+   * again by the same rule: LAN rows arrive from several servers).
    */
   public async listSummaries(viewerName: string, activeColorByGame?: ReadonlyMap<GameId, Color>): Promise<Array<CampaignSummaryModel>> {
     const out: Array<CampaignSummaryModel> = [];
@@ -856,7 +857,7 @@ export class CampaignManager {
         out.push(summary);
       }
     }
-    out.sort((a, b) => (b.lastActivityMs - a.lastActivityMs) || a.id.localeCompare(b.id));
+    out.sort((a, b) => (b.createdTimeMs - a.createdTimeMs) || a.id.localeCompare(b.id));
     return out;
   }
 

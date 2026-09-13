@@ -1,4 +1,4 @@
-# The Effect Forecast — «Сработает» + the R3 «Эффекты» layer (as built, 2026-09-13)
+# The Effect Forecast — «Сработает» + the R3 «Эффекты» layer (as built, 2026-09-13 · iteration 2 the same day)
 
 The play screen («КАРТЫ В РУКЕ › ‹карта› › РОЗЫГРЫШ», `ConsolePlayCardConfirm.vue`)
 and the action screen («ДЕЙСТВИЯ КАРТ › ‹карта› › НАСТРОЙКА», `ConsoleActionComposer.vue`)
@@ -71,6 +71,23 @@ because the runtime `OrOptions` index is `-1` for unavailable / auto-resolved
 branches and cannot be a key. `'rule'` is the one cardless source kind — an
 out-of-scope module (a party policy, the Pathfinders track) named honestly.
 
+Two additive markers (iteration 2):
+
+- **`ActionEffect.host`** — the CARD whose resource pool a chip moves, when it
+  is exactly one card. Stamped by the ENGINE from the builders' own vocabulary
+  (`stampHosts`: «on this card» → the reacting source, «on the played card» →
+  the card being played), never typed by a hook. It is the explicit TARGET
+  marker the pool rule reads (below); a player's stock / production pool and
+  a target chosen in a later step («to a card») carry none.
+- **`EffectForecastSource.printedEffect`** — WHICH printed effect block of the
+  source a fact belongs to, declared by the CARD FILE when its blocks share
+  one live channel and the channel plan cannot tell them apart (Pharmacy
+  Union: the microbe half is block #0, the science half #1, in the corp box's
+  render order — pinned by `effectFamilyCoverage.spec.ts`). The tile draws
+  that block's graphic. It is NEVER a statistics split: the event stream
+  records both halves under `card-played-by-any` (one live hook), so their
+  stats honestly stay card-scoped.
+
 ## The server — hooks, builders, the engine
 
 **Hooks** (`src/server/cards/ICard.ts`, all optional, all read-only, all
@@ -113,12 +130,37 @@ Then the TILE pass for every tile of the branch (`tilesOfBranch` reads the
 `getCardCostBreakdown` (play of a project card only) with
 `other = max(0, base − final − Σitems)`; payment values from
 `paymentOptionsForCard` × `SPENDABLE_CARD_RESOURCES` × the card in the
-tableau. `stripTouchedPools` removes `current/resulting` from own facts whose
-pool the operation itself moves (the client then says «сверх собственного
-эффекта карты»). A multi-branch preview fills `byBranch[pos]` per available
+tableau. A multi-branch preview fills `byBranch[pos]` per available
 branch with `certainty: 'conditional'` (an `unknown` stays `unknown`).
 `FORECAST_HOOK_PAIRS` is the engine's declared «live hook → forecast hook»
 table, and the coverage guard's law.
+
+**The POOL rule** (`stripTouchedPools` over `chipPool`, after `stampHosts`):
+`current → resulting` survives only on a pool the operation does not touch
+ITSELF; where it does, the arrow goes and the client says «сверх собственного
+эффекта карты». A pool is:
+
+- a **card resource** — `icon + host card` (`microbe|card:Decomposers`). The
+  card's own «on this card» touches the PLAYED card's pool only, so
+  Decomposers', Ecological Zone's or Carbon Nanosystems' arrow on their OWN
+  card survives a play that stores the same resource on itself; Splice's
+  microbe «on the played card» loses its arrow. A host-less chip («to a card»,
+  a target chosen later) is the wildcard: an own one touches every pool of
+  that icon, a reaction's is touched by any own chip of that icon;
+- a **player's resource** — `icon|player`: stock AND production collapse into
+  ONE pool for the arrow test. Two arrows about one resource — the card's own
+  «1 → 2 производство» and Manutech's «0 → 2» stock beside it — read as a
+  contradiction on one screen, so Manutech's energy loses its arrow when the
+  card raises energy production (the spec's third scenario); Media Group's
+  M€ beside an Asteroid keeps it. A foreign recipient's pool is never the
+  actor's own.
+
+**The reasons** are ONE i18n key per tag in the player's grammar —
+`tagReason(tag)` / `anyPlayerTagReason(tag)` in `effectForecastPreviews.ts`
+(«You play a card with a science tag» → «Вы играете карту с меткой науки»;
+the twelve premium-scope tags are named, a tag outside them keeps the
+parameterised `${0}` sentence filled from `reasonTag`). The eighteen hook
+sites call the helper; no hook types the sentence.
 
 **The routes**: `CardPlayPreview.ts` / `ActionPreview.ts` spread the preview
 and attach `forecast` (`effectForecastForPlay` / `effectForecastForAction`);
@@ -148,21 +190,35 @@ the server runner):
 
 - **The compact row** — `compactForecastChips`: membership (`factInRow`:
   exact with chips, asks, unknown; never deferred / conditional / skipped /
-  no), merging by POOL (`direction|icon|stock/production`) inside ONE degree
-  (two +2 M€ sources → «+4 M€», a production step never merges with a stock
-  gain), the order own exact → asks (first GAIN of the first outcome) → other
-  seats (per seat, per pool — different seats never merge) → ONE «⚡ ?» for
-  every unknown, the cap `FORECAST_CHIP_CAP = 4` with «+N», and the PARITY
-  counters (`represented === total`, a fact feeding two pools counted once).
-- **The variant reactions** — `variantReactionChips`: the branch-tied facts'
-  first chips, `VARIANT_REACTION_CAP = 2` + «+N».
+  no); every chip a **BARE DELTA** (`rowChip`: direction, icon, amount, the
+  unit suffix — no arrow, no note, no basis, no host; those readings live in
+  the layer) with a `production` flag for the pool; merging by the key
+  `direction | icon | stock/production` inside ONE degree and ONE recipient
+  (two +2 M€ sources → «+4 M€»; a microbe on Decomposers and a microbe on the
+  played card → «+2 🦠» — the ASSIGNMENT is not in the key; a production
+  step never merges with a stock gain; «+1 🦠» and «+1 🦠 ?» never merge —
+  degrees are separate maps; a gain and a LOSS of one pool stay two chips — a
+  net the server never computed is not a merge), the order own exact → asks
+  (first GAIN of the first outcome) → other seats (per seat, per degree, per
+  pool — different seats never merge) → ONE «⚡ ?» for every unknown, the cap
+  `FORECAST_CHIP_CAP = 4` with «+N», and the PARITY counters
+  (`represented === total`, a fact feeding two pools counted once).
+- **The variant reactions** — `variantReactionChips`: ONLY `byBranch[pos]`,
+  the same bare deltas merged by the same key (own → asked → other seats),
+  `VARIANT_REACTION_CAP = 2` + «+N», with `total` for the aria reading.
+- **The WHEN vocabulary** — `timingLabel(timing, operation)`: an immediate
+  reaction is «сразу после розыгрыша» for a play and «сразу после выполнения»
+  for an action (`'Right after the action'`); every other moment reads the
+  same on both screens. `forecastMetaLine(item, operation)` rides it.
 - **The discount tail** — `discountTail` (`base → final`, `saved`).
 - **Presence** — `forecastLayerAvailable` (any fact / discount / payment
   value), `forecastRowPresent` (at least one chip): a discount-only forecast
   keeps R3 and draws no row; an empty forecast publishes nothing.
 - **The eight groups** — `forecastGroups` in the fixed order
-  ⚡ Вы получите · ? Вас спросят · ↳ Зависит от вашего выбора (one entry per
-  AVAILABLE branch, «ничего не сработает» for an empty one) · − Скидки и
+  ⚡ Вы получите · ? Вас спросят · ⚡ Зависит от вашего выбора (one entry per
+  AVAILABLE branch, «ничего не сработает» for an empty one — it wears the SAME
+  bolt the option cards' «⚡ сработает» note carries, so the legend is learnt
+  by adjacency; the «↳» arrow told the player nothing) · − Скидки и
   оплата (items + «прочие» + payment values) · ▍ Получат другие · … Позже
   (deferred / unknown) · ⚠ Пропустится · ✕ Не сработает (ONLY explicit `no`
   facts). Non-empty only. `forecastSectionChips` / `cycleForecastSection` are
@@ -172,40 +228,92 @@ the server runner):
   selected branch's) sorted by timing rank then declared `sequence`, with the
   card-choice and cell markers interleaved; ONLY when there are two or more
   and every one declares `sequence`.
-- **Attribution** — `attributeFactToEffect(channel, entries)` through the
-  explorer's channel plan (`expectedChannelsFor`): one candidate on the fact's
-  channel, or the single effect of a one-effect card; else `undefined` and
-  the tile falls back to the honest «Эффект этой карты». `attributeItemToEffect`
-  extends it to discount / payment items.
+- **Attribution** — `attributeFactToEffect(channel, entries, printedEffect?)`:
+  the block the card FILE declared wins (`source.printedEffect`, Pharmacy
+  Union); else the explorer's channel plan (`expectedChannelsFor`): one
+  candidate on the fact's channel, or the single effect of a one-effect card;
+  else `undefined` and the tile falls back to the honest «Эффект этой карты».
+  `attributeItemToEffect` extends it to discount / payment items.
 - `TIMING_LABEL`, `CERTAINTY_LABEL`, `factBeyondOwnEffect`, `forecastMetaLine`.
 
 ## The surfaces
 
-**The row** (`ConsoleForecastRow.vue`, `.con-forecast`): ⚡ in the TRIGGERS
-family's mint · «Сработает:» · chips · `<GamepadGlyph control="stickR"/>`.
+**The row** (`ConsoleForecastRow.vue`, `.con-forecast`): the EFFECTS BOLT
+(`.con-forecast__bolt`, `@con-amber` — warm amber-orange, so it can never be
+read as the ENERGY resource, whose lightning is violet; the one glyph of this
+whole language, shared with the option cards' note and the layer's group
+headers) · «Сработает:» · chips · `<GamepadGlyph control="stickR"/>`.
 NOT a focus stop (no cursor, no selection, no A); a click opens the layer.
-Four chip forms, all the shared `ActionEffectChip` in the compact family:
-own = the ordinary mint gain chip; asks = the same chip + a round cyan «?»
-badge (text, no sprite); other = a STEEL chassis (never mint) with the seat's
-colour BAR on the leading edge and a DOT before the number (`player_bg_color_*`
-— bots included); unknown = ONE dashed steel «⚡ ?»; «+N» past the cap. On
-the play screen the row is one more UNIT of the level-2 cluster
-(`.con-composer__rescat--forecast`) — same rhythm, same type, zero added
-height where the width allows; on the action screen it is the formula's
-FOURTH SIDE (`__hero-side--forecast` with the `__hero-label` «Сработает»,
-caption-less) or ONE line under the rule when there is no formula. Absent
-from the DOM while the forecast is empty; nothing is reserved while it loads
-(it arrives with the preview).
+Every chip is a BARE DELTA («+1 ⬡», «+1 🃏 ?», «▍☣ +1», «▍−4 M€» — never
+«⬡ 0 → 1», never «на разыгранную карту»; those readings live in the layer's
+meta line, dossier and detail stage, where «было → станет» is allowed for an
+untouched pool). Four chip forms, all the shared `ActionEffectChip` in the
+compact family: own = the ordinary mint gain chip; asks = the same chip + a
+round cyan «?» badge (text, no sprite); other = a STEEL chassis (never mint)
+with the seat's colour BAR on the leading edge and a DOT before the number
+(`player_bg_color_*` — bots included), and a LOSS wears the SPEND tone
+(`--loss`: the amber rim over the warm plate the «Будет потрачено» chips
+wear) so it reads by tone, never by comparing numbers; unknown = ONE dashed
+steel «⚡ ?»; «+N» past the cap. A production step keeps its identity
+without a word through the PRODUCTION PLATE on its icon (`--production`: the
+card art's own brown box). On the play screen the row is one more UNIT of
+the level-2 cluster (`.con-composer__rescat--forecast`) — same rhythm, same
+type, ONE line at 1080 and 4K for the four-fact microbe play (e2e-pinned),
+at most a second cluster line on the Deck; on the action screen it is the
+formula's FOURTH SIDE (`__hero-side--forecast` with the `__hero-label`
+«Сработает», caption-less) or ONE line under the rule when there is no
+formula. Absent from the DOM while the forecast is empty; nothing is
+reserved while it loads (it arrives with the preview).
 
-**The «↳» reactions** ride INSIDE the option cards (`.con-forecast__vchip` in
-`__variant-chips` / `__branch-formula`): what the table adds if THIS branch
-is chosen, next to the branch's own chips — and never repeated in the row.
+**The «⚡ сработает» note** (`ConsoleForecastReactions.vue`,
+`.con-forecast__vfx`) rides INSIDE the option cards, on the SAME line as the
+option's own chips (`__variant-chips` / `__branch-formula`): a thin vertical
+seam, the bolt + the word «сработает» as a note (the zone caption in
+miniature — `$t('Will trigger')` lowercased by CSS, no second key), the
+branch's bare chips (two + «+N», merged by the row's key) with the seat dot,
+bar and «?» badge where they apply. ONE flex item that never wraps inside:
+when the line runs out the whole group takes the next line, caption and
+chips together. The option cards grew no taller for it at 1080 and 4K
+(e2e-pinned per option), and the row below never repeats these chips.
 
 **The discount tail** (`ConsolePaymentPanel` `discount` prop): «ОПЛАТА ·
 ЦЕНА 10 → 8» in the «было → станет» vocabulary + a mint «−2» pill,
 line-height-bound so the head's height never moves (the panel's layout-shift
 contract; spec-pinned). Without a discount the head is byte-identical to
 before. Sources live in the layer only.
+
+**FREE** (`ConsolePaymentPanel` `free` prop, `.con-pay--free`): when the
+server's `calculatedCost === 0` — a printed zero (Indentured Workers:
+«ЦЕНА 0 · БЕСПЛАТНО», no arrow, no pill) or discounts that ate the cost
+(Insulation under Earth Catapult: «ЦЕНА 2 → 0 · −2 · БЕСПЛАТНО») — the block
+collapses to its head plus the «БЕСПЛАТНО» accent (`__free`: tracked caps,
+mint, the crumb stage's own .8rem / 700 / .12rem voice, no glow, no motion).
+No rows, no verdict, no editor hint; the composer's `payFree` also empties
+the quick-adjust dial, refuses `openPaymentEditor`, publishes no LT and
+reports the payment ready without a press — the commit rail holds the
+cursor on open and one A plays. It is a DIFFERENT composition, not a paint
+change, static for the composer's session; only a state change that
+re-prices the card above zero unfolds the block back (the one layout shift
+the block allows). The action screen is untouched (actions are never
+discounted).
+
+**The radiogroup's AXIS** (`variantGroupNav` in `consolePlayCardComposer.ts`,
+pure; `measureVariantAxis` in the composer): the «ИЛИ» options move the way
+they look. Side by side (`row` — every option card at the same `offsetTop`),
+←→ switch the options with wrap, ↑ leaves to the previous ring stop (none
+above the first option ⇒ stay), ↓ to the next stop after the LAST option (a
+pick row, else the commit rail — bounded by the commit gate, so an unmade
+choice keeps the cursor in the group), and ↑ from just below RE-ENTERS on the
+option the cursor left (`variantReturnIdx`, kept by a `focusIdx` watcher).
+Stacked (`column` — the Deck), the group declines every press: the ordinary
+±1 walk moves ↑↓ and ←→ stay inert. The axis is MEASURED (a
+`useResizeObserver` on `.con-composer__variants`, re-armed when a preview
+lands), never a JS copy of the container query's 47rem threshold; it is
+published as `data-variant-axis` for the guards, and the bar reads
+`◄► Вариант` (`dpadH` + the existing `Option` key) while the cursor stands
+in a side-by-side group. Selection stays a PRESS — the three-state grammar
+(cursor / answer / commit) is untouched, and the action composer is not
+(its branches stand in a list and already walk ↑↓).
 
 **Skipped reactions** (Mars University with no other card) ride the existing
 `__warn` strip with the source name and the lost magnitude.
@@ -228,9 +336,15 @@ forecast tile may never show) · the attributed printed graphic + caption ·
 the META line = the forecast FOR THIS PLAY (chips, «спросит … или …»,
 «после размещения», «не рассчитано»); the dossier column = face + group chip + «ЧТО ПРОИЗОЙДЁТ»
 (the five questions in fixed order: ЧТО with «сверх собственного эффекта
-карты», ПОЧЕМУ with the tag icon, УСЛОВИЕ with its state pill and «выбрано»,
-КОМУ with the seat dot, КОГДА) + the full rule + ONE quiet «За партию» line
-once the seat's stats arrive (a bot / rule source claims nothing). A on a
+карты», ПОЧЕМУ with the tag icon bound to the sentence's LAST WORD in a
+`nowrap` pair (`__fq-tail` — «…с меткой науки ⚛» never breaks before the
+icon), УСЛОВИЕ with its state pill and «выбрано», КОМУ with the seat dot,
+КОГДА through `timingLabel(timing, operation)` — the explorer's `operation`
+prop, `'action'` from the action composer) + the full rule + ONE quiet
+«За партию» line once the seat's stats arrive (a bot / rule source claims
+nothing). On the Deck the browse plate keeps THREE lines — ЧТО · ПОЧЕМУ ·
+КОГДА; the condition and the recipient wait for the detail stage (five lines
+pushed the groups under the scroll). A on a
 tile = the explorer's own descend into the detail stage — «ЧТО ПРОИЗОЙДЁТ»
 FIRST, the printed rule, then `ConsoleEffectSummary` quietly; LB/RB step
 items across sections; X inspects the source card; B one level; R3 closes
@@ -286,14 +400,19 @@ the grid single-column; the row's chips shrink on the compact tokens.
 
 UI keys in `src/locales/ru/console.json` (`Will trigger` → «Сработает»,
 the eight group labels, `Order`, `What will happen`, `What/Why/When/To whom`,
-the timing labels, `Answer inside this play`, `Not calculated`, `Other
-discounts`, `Nothing will trigger`, `Beyond the card's own effect`, `Effect of
-this card`, `If you choose «${0}»`, …); the hooks' reasons / notes / rule
-names in the new `src/locales/ru/effect_forecast.json` (tag reasons are
-parameterised — `You play a card with a ${0} tag`, filled from `reasonTag`
-through `reasonParams`). Existing keys are reused where they existed
-(`Effects`, `You will receive`, `Later`, `Condition met`, `Do nothing`, the
-prompt labels).
+the timing labels incl. `Right after the action` → «Сразу после выполнения»,
+`Answer inside this play`, `Not calculated`, `Other discounts`, `Nothing will
+trigger`, `Beyond the card's own effect`, `Effect of this card`, `If you
+choose «${0}»`, …); the hooks' reasons / notes / rule names in
+`src/locales/ru/effect_forecast.json` — the tag reasons are ONE key per tag
+in the genitive («You play a card with a science tag» → «Вы играете карту с
+меткой науки», «Any player plays a card with a microbe tag» → «Любой игрок
+играет карту с меткой микроба»; twelve tags × two families), with the
+parameterised `You play a card with a ${0} tag` kept only as the fallback
+for a tag outside the premium scope. Existing keys are reused where they
+existed (`Effects`, `You will receive`, `Later`, `Condition met`, `Do
+nothing`, the prompt labels, `Free` → «Бесплатно» for the FREE accent,
+`Option` → «Вариант» for the radiogroup hint).
 
 ## Guards
 
@@ -313,13 +432,28 @@ prompt labels).
   recipient colour after the prompts are answered and the queue drained.
 - `tests/routes/effectForecastRoute.spec.ts` — both previews carry the
   forecast; 204 unchanged.
-- `tests/console/effectForecastModel.spec.ts` — the pure client model (28).
+- `tests/console/effectForecastModel.spec.ts` — the pure client model (36):
+  bare deltas, the merge key (assignment out, degree / recipient / direction
+  in), the production flag, the variant merge, `timingLabel` per operation,
+  the depends bolt, `printedEffect` attribution.
+- `tests/models/effectForecast.spec.ts` § the POOL rule — Decomposers +
+  Nitrite Reducing Bacteria (arrow kept, host stamped), Splice + the same
+  (the played card's pool, no arrow), Manutech + Artificial Photosynthesis
+  (the player's energy pool, no arrow), and the rule over synthetic chips;
+  § the card-declared printed block and the per-tag reasons.
 - `tests/client/components/console/consolePaymentPanel.spec.ts` — the
-  discount tail + its zero-element layout-shift claim;
-  `consolePlayCardComposer.spec.ts` / `consoleActionFlow.spec.ts` — R3 is
-  published only with a non-empty forecast, review / setup level only.
+  discount tail + its zero-element layout-shift claim; the FREE composition
+  (head + accent only, printed zero vs discounted zero, a different
+  composition rather than a paint change); `consolePlayCardComposer.spec.ts`
+  — `variantGroupNav` (row / column, wrap, bounded ↓, the memory) and the
+  `◄► Вариант` hint; `consoleActionFlow.spec.ts` — R3 is published only with
+  a non-empty forecast, review / setup level only.
+- `tests/client/components/effects/effectFamilyCoverage.spec.ts` — Pharmacy
+  Union stays on the card-scoped worklist WITH the reason (one live channel
+  for two blocks), and its printed blocks' order (#0 microbe, #1 science) is
+  pinned for the forecast's `printedEffect`.
 - `serverDerivedCacheGuard`, `glyphLiteralGuard`, `consoleTvTypeFloor`,
-  `effectFamilyCoverage`, `effectCaption` — unchanged and green.
+  `effectCaption` — unchanged and green.
 - e2e `tests/e2e/console-effect-forecast.spec.ts` over the `effect-forecast`
   fixture (2p: blue Manutech with Carbon Nanosystems, Olympus Conference at
   one science, Rover Construction, Earth Catapult, Decomposers, Viral
@@ -332,8 +466,22 @@ prompt labels).
   другие» naming the owner; the «↳» reactions + «Зависит от выбора»
   (Artificial Photosynthesis — the row keeps only the science reactions);
   the discount-only layer (Power Plant); the action screen's fourth side
-  (Livestock → Meat Industry); the fit sweep + zero `[console-overflow]` on
-  every preset. Screenshots in `screenshots/effect-forecast/<preset>/`.
+  (Livestock → Meat Industry) and its «сразу после выполнения»; the fit
+  sweep + zero `[console-overflow]` on every preset. Iteration 2 added: the
+  microbe row reads on ONE line at 1080 and 4K (`expectRowOneLine` — caption,
+  chips and the R3 key share a top edge) and the level-2 cluster takes at
+  most two lines on the Deck; no arrow / no note inside the row; red's loss
+  wears `--loss`; Pharmacy Union's tile draws its printed block; the «⚡
+  сработает» note stands on each option's OWN chip line (per-option line
+  count 1 at 1080 and 4K); the radiogroup axis (`data-variant-axis="row"` at
+  1080: → switches, A selects without moving, ↓ reaches the rail, ↑ returns to
+  the same option, the bar reads «Вариант»; `column` on the Deck: ↓ walks, →
+  inert); the FREE composition for Indentured Workers (printed zero) and
+  Insulation (2 → 0), LT changing nothing, the rail holding the cursor on
+  open, one A playing it and the SERVER's M€ unchanged — the last play of
+  the journey, because it is blue's second action of the turn. Screenshots
+  in `screenshots/effect-forecast/<preset>/` (`7b-variant-axis`,
+  `10-free-printed`, `10-free-discounted` are new).
 
 ## Gotchas paid for
 
@@ -379,3 +527,32 @@ prompt labels).
   cluster unit it shrank and wrapped its caption onto one line and its chips
   onto the next; `flex: 0 0 auto` makes it take the NEXT cluster line whole
   when the first cannot hold it.
+- **A note is a second line at 4K.** «⬡ 0→1», «+1 на разыгранную карту ?»
+  and «▍🟡 30→26» each read true and together pushed the microbe row onto a
+  second line even on the TV, and the Deck cluster onto three. The row is
+  bare by contract now; the layer is where the arrow and the note live.
+- **Pharmacy Union's two blocks ride ONE live channel.** The spec's first
+  reading («effect 1 by `card-played`, effect 2 by `card-played-by-any`») is
+  not what the recorder does: the card has only `onCardPlayedByAnyPlayer`, so
+  `Player.onCardPlayed` wraps BOTH halves in `card-played-by-any`. A curated
+  channel plan to that effect would have zeroed the science half's stats and
+  handed its TR to the microbe block — a dishonest split. The card stays on
+  the card-scoped worklist; the forecast tile gets its graphic through the
+  card-declared `printedEffect` instead, and the render order of the blocks
+  (#0 microbe, #1 science — the OPPOSITE of the spec's numbering) is pinned.
+- **Stock and production collapse for the arrow test.** The pool key names
+  the scope, but Manutech's «0 → 2 energy» beside the card's own «1 → 2
+  производство» was the spec's own «strip it» scenario: one resource, two
+  arrows, two bases, one screen. The arrow goes; the delta and «сверх
+  собственного эффекта карты» stay.
+- **A graphic's two classes sit on ONE node.** The forecast tile's printed
+  block is `<span class="con-efx__graphic card-container">` — an e2e
+  selector written as a descendant pair (`.con-efx__graphic .card-container`)
+  matched nothing while the screenshot showed the block drawn. Assert
+  `.con-efx__graphic.card-container`.
+- **The e2e journey has a TURN BUDGET.** Blue has two actions; Geological
+  Survey is the first play, so the FREE play (Insulation) is the last step of
+  the journey — a second play earlier would hand the turn to red and refuse
+  every later composer. Indentured Workers (an EVENT, `lastCardPlayed`'s −8
+  for the next card) is only inspected, never played, so no later scenario
+  inherits its discount.

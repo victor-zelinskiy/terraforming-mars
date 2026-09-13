@@ -67,47 +67,36 @@ export function isArchivedCampaign(c: CampaignSummaryModel): boolean {
 
 const ACTION_STATES: ReadonlySet<CampaignViewerState> = new Set(['yourTurn', 'chooseCarryover']);
 
-/** «От меня требуется действие» — what the active sort leads with. */
+/** «От меня требуется действие» — the row's turn accent and the bar's highlight. */
 export function campaignActionRequired(c: CampaignSummaryModel): boolean {
   return ACTION_STATES.has(c.state);
 }
 
-function activeRank(c: CampaignSummaryModel): number {
-  if (campaignActionRequired(c)) {
-    return 0;
-  }
-  if (c.state === 'launchReady') {
-    return 1;
-  }
-  return 2;
-}
-
 /**
- * Active: action-required first, then launch-ready (creator), then the rest
- * by last activity. The id tiebreak keeps the order DETERMINISTIC — rows must
- * never swap places on a refresh that changed nothing.
+ * NEWEST FIRST, strictly by creation time — on both tabs, whatever a row's
+ * state (the lobby's rule). Every row says how long ago its campaign was
+ * created, and that age is what makes the order legible: a smaller age is
+ * always higher. Nothing else may move a row — a priority band (action
+ * required → launch-ready → the rest) once led this sort, and since a
+ * mission's turn flips `yourTurn` ↔ `missionActive` on every move, a fresh
+ * campaign sat on top on one visit and at the bottom on the next. What needs
+ * the viewer is marked ON the row, never by where the row stands. The id
+ * tiebreak keeps the order DETERMINISTIC — rows must never swap places on a
+ * refresh that changed nothing.
  */
-export function sortActiveCampaigns(rows: ReadonlyArray<CampaignSummaryModel>): Array<CampaignSummaryModel> {
+export function sortCampaignsNewestFirst(rows: ReadonlyArray<CampaignSummaryModel>): Array<CampaignSummaryModel> {
   return [...rows].sort((a, b) =>
-    (activeRank(a) - activeRank(b)) ||
-    (b.lastActivityMs - a.lastActivityMs) ||
-    a.id.localeCompare(b.id));
-}
-
-/** Archive: newest ending first, id as the deterministic tiebreak. */
-export function sortCompletedCampaigns(rows: ReadonlyArray<CampaignSummaryModel>): Array<CampaignSummaryModel> {
-  return [...rows].sort((a, b) =>
-    (b.lastActivityMs - a.lastActivityMs) ||
+    (b.createdTimeMs - a.createdTimeMs) ||
     a.id.localeCompare(b.id));
 }
 
 /** The shown slice, sorted — the ONE list the cursor walks. */
 export function visibleCampaignRows(rows: ReadonlyArray<CampaignSummaryModel>, tab: CampaignsTab): Array<CampaignSummaryModel> {
-  const slice = rows.filter((c) => isArchivedCampaign(c) === (tab === 'completed'));
-  return tab === 'completed' ? sortCompletedCampaigns(slice) : sortActiveCampaigns(slice);
+  return sortCampaignsNewestFirst(rows.filter((c) => isArchivedCampaign(c) === (tab === 'completed')));
 }
 
-/** The shown SOURCE-row slice — same order rules, applied to the summaries. */
+/** The shown SOURCE-row slice — the same order, whichever server a row came
+ *  from (local rows win the dedup, never the order). */
 export function visibleCampaignSourceRows(rows: ReadonlyArray<CampaignSourceRow>, tab: CampaignsTab): Array<CampaignSourceRow> {
   const bySummary = new Map(rows.map((r) => [r.summary.id, r]));
   return visibleCampaignRows(rows.map((r) => r.summary), tab)

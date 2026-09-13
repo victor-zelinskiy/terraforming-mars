@@ -34,6 +34,15 @@
 > campaign document LAST; `CampaignManager.load()` resumes a tombstoned cascade,
 > so a crash converges on «fully deleted». Campaign mutations bump the LOBBY
 > revision (`LobbyIndex.touch()`), so the list rides the lobby push channel.
+> **Order (2026-09-13):** both tabs are sorted strictly by `createdTimeMs`,
+> newest first (id tiebreak; `sortCampaignsNewestFirst`, the server's base
+> order agrees), and the row's age label is the CREATION age — the lobby's
+> rule, so the order reads off the labels. The original active sort led with a
+> priority band (action required → launch-ready → last activity); a mission's
+> turn flips `yourTurn` ↔ `missionActive` on every move, so a fresh campaign
+> landed on top on one visit and at the bottom on the next. What needs the
+> viewer is marked ON the row (turn accent + the bar's highlight). The ages
+> tick on the lobby's one clock at this screen's cadence (`setLobbyAgeRows`).
 > Mission games are PROTECTED from lone deletion: `ApiLocalGameDelete` answers
 > 422 (and `all=1` skips them into `skippedCampaignGames`), `ApiGameDelete`
 > refuses on the serialized marker, «Мои партии»'s X on a campaign row

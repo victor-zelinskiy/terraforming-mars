@@ -3,7 +3,7 @@ import {JoinableGameSummary} from '../../../../src/common/models/JoinableGameMod
 import {
   lobbyState, lobbyRows, localLobbySource, lobbyFirstLoad, lobbyUnreachable, lobbyKnownEmpty,
   startLobbyWatch, stopLobbyWatch, openLobbyList, closeLobbyList, setLobbyIdentity, refreshLobby,
-  loadLobbyArchive, resetLobbyStateForTesting,
+  loadLobbyArchive, resetLobbyStateForTesting, setLobbyAgeRows,
 } from '../../../../src/client/components/mainMenu/lobbyState';
 import {resetLanStateForTesting} from '../../../../src/client/components/mainMenu/lanState';
 import {resetLobbyChannelsForTesting} from '../../../../src/client/components/mainMenu/lobbyChannel';
@@ -246,6 +246,28 @@ describe('client/mainMenu/lobbyState', () => {
       expect(lobbyState.nowMs, 'a closed screen must not keep a timer alive').to.eq(ticked);
       // Two real one-second ticks have to elapse for this to mean anything —
       // the whole claim is about wall-clock behaviour.
+    }).timeout(10_000);
+
+    it('ticks at the cadence of a FRESH row another screen hangs on it (the campaigns list), and lets go when it leaves', async () => {
+      // Only a week-old game: on its own the clock ticks once a minute.
+      answer = {games: [game('old', {createdTimeMs: Date.now() - 7 * 86_400_000})]};
+      startLobbyWatch('Victor');
+      await settle();
+      await openLobbyList();
+      await settle();
+
+      // A campaign created a moment ago must count its seconds live.
+      setLobbyAgeRows('campaigns', [Date.now()]);
+      const handed = lobbyState.nowMs;
+      await new Promise((resolve) => setTimeout(resolve, 1_200));
+      const ticked = lobbyState.nowMs;
+      expect(ticked, 'the fresh campaign row must set the one-second cadence').to.be.greaterThan(handed);
+
+      // The screen leaves: back to the week-old row's minute cadence.
+      setLobbyAgeRows('campaigns', []);
+      const released = lobbyState.nowMs;
+      await new Promise((resolve) => setTimeout(resolve, 1_200));
+      expect(lobbyState.nowMs, 'a departed screen\'s rows must not keep the fast tick').to.eq(released);
     }).timeout(10_000);
   });
 

@@ -785,6 +785,30 @@ function allLive(): boolean {
 let ageTimer: number | undefined;
 
 /**
+ * Creation times of rows ANOTHER screen hangs on this clock, by consumer (the
+ * campaigns list). Pushed by that screen, never pulled — this module must not
+ * import the screens that read it.
+ */
+const foreignAgeRows = new Map<string, ReadonlyArray<number>>();
+
+/**
+ * A screen that reads `nowMs` hands over its rows' creation times (an empty
+ * list when it leaves), so the tick keeps the cadence the freshest row ON
+ * SCREEN needs — a campaign created seconds ago counts up live exactly like a
+ * fresh game — and a changed row set starts counting at once.
+ */
+export function setLobbyAgeRows(consumer: string, createdTimesMs: ReadonlyArray<number>): void {
+  if (createdTimesMs.length === 0) {
+    foreignAgeRows.delete(consumer);
+  } else {
+    foreignAgeRows.set(consumer, [...createdTimesMs]);
+  }
+  if (lobbyState.open) {
+    tickAges();
+  }
+}
+
+/**
  * Advance the shared clock and re-arm at the cadence the FRESHEST row needs:
  * a game created seconds ago counts up every second, a list of week-old ones
  * costs a tick a minute. One timer, one reactive write, every label moves.
@@ -806,6 +830,9 @@ function armAgeClock(): void {
   const created = rows.length > 0 ?
     rows.map((row) => row.game.createdTimeMs) :
     lobbyState.archive.map((game) => game.createdTimeMs);
+  for (const times of foreignAgeRows.values()) {
+    created.push(...times);
+  }
   const next = created.reduce(
     (fastest, at) => Math.min(fastest, lobbyAgeTickMs(lobbyAge(at, lobbyState.nowMs))),
     60_000);
@@ -978,6 +1005,7 @@ export function setLobbyIdentity(displayName: string): void {
 export function resetLobbyStateForTesting(): void {
   stopLobbyWatch();
   stopAgeClock();
+  foreignAgeRows.clear();
   menuScopeHeld = false;
   seqs.clear();
   endpointCache.clear();

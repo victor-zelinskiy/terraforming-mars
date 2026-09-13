@@ -135,6 +135,29 @@ and the nesting depth — no viewport knows it. Below the width two readable
 options need, both cards and the separator go full-width, so «или» sits BETWEEN
 them instead of riding up next to option 1.
 
+### The AXIS grammar — the group moves the way it looks
+
+Players compared options that stand BESIDE each other and had to switch them
+with ↑↓. The layout stays (comparison works side by side; a vertical stack
+would add height to the column) — the d-pad follows the geometry instead
+(`variantGroupNav` in `consolePlayCardComposer.ts`, pure and spec'd):
+
+| axis | ←→ | ↑ | ↓ | entering from below |
+| --- | --- | --- | --- | --- |
+| `row` (options on one line) | switch options, wrapping | previous ring stop (none above the first option ⇒ stay) | the next stop after the LAST option — a pick row, else the commit rail; bounded by the commit gate, so an unmade choice keeps the cursor in the group | ↑ from the row just below re-enters on the option the cursor LEFT (`variantReturnIdx`) |
+| `column` (the container query stacked them — the Deck) | inert | the ordinary ±1 walk | the ordinary ±1 walk | the ordinary ±1 walk |
+
+The axis is **MEASURED**, never a JS copy of the container query's threshold:
+`measureVariantAxis` reads the option cards' `offsetTop` (all equal ⇒ `row`)
+under a `useResizeObserver` on `.con-composer__variants`, re-armed when a
+preview lands, and publishes it as `data-variant-axis`. The stick repeats
+the d-pad (both are `nav` intents); the mouse is unchanged. While the cursor
+stands in a side-by-side group the bar reads **`◄► Вариант`** (`dpadH` +
+the existing `Option` key). Rule 3 above is untouched: A on an option
+SELECTS and does not move the cursor, and ↓ from the group reaches the rail
+only once the gate lets it. The action composer keeps its list walk — its
+branches stand in a column by design.
+
 ### What must NOT join the options
 
 Results that apply whatever the player picks — the card's tags above all — stay
@@ -143,32 +166,46 @@ selection ring and must not read as a third option.
 
 ---
 
-## 2b · The «Сработает» unit and the «↳» reactions (the effect forecast)
+## 2b · The «Сработает» unit and the «⚡ сработает» notes (the effect forecast)
 
 Level 2 gained one more UNIT: **⚡ Сработает:** — what the TABLE answers to
 this play over and above the card's own result (`ConsoleForecastRow.vue`,
 `.con-composer__rescat--forecast`; the model and the laws live in
 `docs/claude/console/effect-forecast.md`). It obeys every rule of the cluster
 above — content-sized, same rhythm, same type, a calm mint hairline for the
-TRIGGERS family — and three of its own:
+TRIGGERS family, the amber EFFECTS BOLT as its glyph — and four of its own:
 
-* **chips only, no names, no counts to add up**: an own gain is the ordinary
-  mint chip, a question is that chip with a «?» badge, another seat's gain
-  wears a steel chassis with the seat's colour bar, every uncomputed reaction
-  folds into ONE dashed «⚡ ?», and past four chips a «+N» — the R3 layer
-  names every source;
+* **bare deltas only — no names, no arrows, no notes, no counts to add up**:
+  «+1 ⬡», never «⬡ 0 → 1» or «+1 на разыгранную карту» (those readings live
+  in the R3 layer). An own gain is the ordinary mint chip, a question is that
+  chip with a «?» badge, another seat's gain wears a steel chassis with the
+  seat's colour bar and a seat's LOSS the spend tone, a production step keeps
+  the production plate on its icon, every uncomputed reaction folds into ONE
+  dashed «⚡ ?», and past four chips a «+N» — the R3 layer names every
+  source. Same-pool chips merge inside one degree and one recipient (a
+  microbe on Decomposers + a microbe on the played card = «+2 🦠»), never
+  across degrees, never a gain with a loss;
+* **it reads on ONE line** at 1080 and 4K for the four-fact microbe play, and
+  the level-2 cluster takes at most two lines on the Deck (e2e-pinned);
 * **it is NOT a focus stop** — no cursor, no selection, no A; a click (or R3)
   opens the layer, and the row's tail carries the R3 key as its only glyph;
 * **it is absent while the forecast is empty**, and nothing is reserved while
   the preview loads (the forecast arrives inside it).
 
 A reaction tied to ONE branch is never in the row: it rides INSIDE that
-option card (`.con-forecast__vchip` in `__variant-chips`, «↳» before the chip,
-at most two + «+N»), so the player compares the options together with what
-each one triggers. A SKIPPED reaction (Mars University with no other card in
-hand) joins the existing `__warn` strip with its source and the magnitude
-lost. The payment head below gains its discount tail («ЦЕНА 10 → 8» + «−2»)
-from the same forecast — see `payment-panel.md`.
+option card as the **«⚡ сработает» note** (`ConsoleForecastReactions.vue`,
+`.con-forecast__vfx` in `__variant-chips`) — on the SAME line as the option's
+own chips, past a thin vertical seam, the bolt + the word as a note the size
+of a chip note, then the branch's bare chips (two + «+N», the row's merge
+key). The group is ONE flex item that never breaks inside: when the line
+runs out it wraps whole, caption and chips together, and the option card
+grows no taller for it at 1080 and 4K. The same note stands in the action
+composer's branch formulas, and the layer's «⚡ Зависит от вашего выбора»
+group wears the same bolt — one legend. A SKIPPED reaction (Mars University
+with no other card in hand) joins the existing `__warn` strip with its
+source and the magnitude lost. The payment head below gains its discount
+tail («ЦЕНА 10 → 8» + «−2») from the same forecast, and collapses to
+«БЕСПЛАТНО» when the price is zero — see `payment-panel.md`.
 
 ## 3 · The heading
 

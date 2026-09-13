@@ -146,7 +146,7 @@ source as is still useful», never «enough to cover the whole price alone».
 
 | Surface | Density | Entry to the editor |
 | --- | --- | --- |
-| `ConsolePlayCardConfirm` (play a card) | compact, expands in place | LT · also A on a shortfall-blocked CTA — **both only when `editorEligible`** |
+| `ConsolePlayCardConfirm` (play a card) | compact, expands in place; **`free` when the price is zero** (head + «БЕСПЛАТНО», no editor at all) | LT · also A on a shortfall-blocked CTA — **both only when `editorEligible` and not free** |
 | `ConsoleActionComposer` (blue action) | compact, expands in place | LT on the primary payment choice, **only when `editorEligible`** |
 | `ConsoleTaskHost` (standalone `SelectPayment`) | **expanded** (the screen IS the payment) | — (`hint-mode="none"`) |
 | `ConsoleColonyTradeConfirm` (trade fee) | **expanded** sub | its own sub row (no inline dial there — that row is the only door, whatever the lane count) |
@@ -197,6 +197,27 @@ the CTA relabels («Готов») instead of disappearing.
    never here — they live in the R3 «Эффекты» layer
    (`docs/claude/console/effect-forecast.md`).
 
+6. **`free` is a DIFFERENT COMPOSITION, not a state of this one.** When the
+   server's `calculatedCost === 0` (a printed zero, or discounts that ate the
+   whole cost) the host passes `free` and the block is its HEAD alone:
+   «ОПЛАТА · ЦЕНА 2 → 0 · −2 · БЕСПЛАТНО» (or «ЦЕНА 0 · БЕСПЛАТНО» for a
+   printed zero — no arrow, no pill). The accent (`__free`, `[data-pay-free]`)
+   is tracked caps in the crumb stage's own voice (.8rem / 700 / .12rem,
+   mint, no glow, no motion); below it NOTHING renders — no rows, no
+   `.con-paystatus`, no LT hint (`hint` is `undefined` while free, whatever
+   `editorEligible` says), and the composer refuses `openPaymentEditor`,
+   empties the quick-adjust dial and reports the payment ready without a
+   press, so the commit rail holds the cursor on open and one A plays. Rules
+   1–4 do not apply inside it because there is no ledger to keep stable: the
+   composition is STATIC for the composer's session, and the ONE layout shift
+   it allows is the block unfolding back when a state change re-prices the
+   card above zero (`payFree` is reactive on the live card model). Pinned by
+   `consolePaymentPanel.spec.ts` (head + accent only; printed vs discounted
+   zero; the same view without `free` renders the full block) and by the
+   forecast e2e (Indentured Workers / Insulation on three profiles, LT
+   changing nothing, the server's M€ unchanged after the play). Blue-card
+   actions never pass it — an action's cost is never discounted.
+
 Guarded by:
 - `tests/client/components/console/consolePaymentPanel.spec.ts` — both
   densities render identical rows/values; exact ⇄ overpay adds no element; the
@@ -227,6 +248,7 @@ Keys live in `src/locales/ru/console.json`: `Used`, `Tops up`, `Contribution`,
 `Exact payment`, `Overpay`, `Not enough`, `Paid automatically` (the M€ ROW's
 aria only — never a verdict), `Back to quick payment`, `of` — plus the
 pre-existing `Payment`, `Cost`,
-`Paid`, `Remaining`, `Free`, `auto`, `Configure payment`,
+`Paid`, `Remaining`, `Free` (the verdict's word AND the FREE composition's
+accent — «Бесплатно», uppercased by CSS), `auto`, `Configure payment`,
 `Not enough resources`, `reserved` and the per-unit names.
 `paymentUnitLabel()` is the ONE unit→key table (three copies used to drift).

@@ -7,6 +7,7 @@ import {
 } from '@/client/console/campaign/campaignsState';
 import {identityState} from '@/client/components/mainMenu/identity/identityState';
 import {lobbyState, stopLobbyWatch, LobbySource} from '@/client/components/mainMenu/lobbyState';
+import {lobbyAgeLabel} from '@/client/components/mainMenu/lobbyAge';
 import {pinnedServerEndpoint} from '@/client/utils/serverEndpoints';
 import {CampaignSummaryModel, CampaignViewerState} from '@/common/campaign/CampaignSummary';
 import {CampaignPhase} from '@/common/campaign/CampaignTypes';
@@ -77,6 +78,7 @@ describe('ConsoleCampaignsList', () => {
   let savedIdentity: typeof identityState.identity;
   let savedLoaded: boolean;
   let savedSources: ReadonlyArray<LobbySource>;
+  let savedNowMs: number;
 
   function resetStore(): void {
     resetCampaignsSourcesForTesting();
@@ -97,6 +99,7 @@ describe('ConsoleCampaignsList', () => {
     savedIdentity = identityState.identity;
     savedLoaded = identityState.loaded;
     savedSources = lobbyState.sources;
+    savedNowMs = lobbyState.nowMs;
     localRows = [];
     lanRows = [];
     localFails = false;
@@ -133,6 +136,7 @@ describe('ConsoleCampaignsList', () => {
     identityState.identity = savedIdentity;
     identityState.loaded = savedLoaded;
     lobbyState.sources = savedSources;
+    lobbyState.nowMs = savedNowMs;
     resetStore();
     // The delete path refreshes the lobby too — never leak its timers into
     // later specs (module state is bundle-shared under mochapack).
@@ -160,15 +164,25 @@ describe('ConsoleCampaignsList', () => {
     expect(counts).deep.eq(['2', '1']);
   });
 
-  it('sorts action-required campaigns first and marks them with the turn accent', async () => {
-    const calm = summary({state: 'waitingLaunch', isCreator: false, lastActivityMs: 99999});
-    const turn = summary({phase: 'missionActive', state: 'yourTurn', lastActivityMs: 10});
-    localRows = [calm, turn];
+  it('the newest campaign leads whatever its state; the turn accent still marks the row that needs you', async () => {
+    const turn = summary({name: 'Старая кампания', phase: 'missionActive', state: 'yourTurn', createdTimeMs: 1_000, lastActivityMs: 99_999});
+    const fresh = summary({name: 'Новая кампания', state: 'waitingLaunch', isCreator: false, createdTimeMs: 50_000, lastActivityMs: 50_000});
+    localRows = [turn, fresh];
     const wrapper = await mountList();
     const rows = wrapper.findAll('.cm-camp');
-    expect(rows[0].text()).contains(turn.name);
-    expect(rows[0].find('.cm-game__turn').exists()).is.true;
-    expect(rows[1].find('.cm-game__turn').exists()).is.false;
+    expect(rows[0].find('.cm-game__name').text()).eq(fresh.name);
+    expect(rows[0].find('.cm-game__turn').exists()).is.false;
+    expect(rows[1].find('.cm-game__name').text()).eq(turn.name);
+    expect(rows[1].find('.cm-game__turn').exists()).is.true;
+  });
+
+  it('the age on a row is how long ago the campaign was CREATED — the key the order follows', async () => {
+    const now = Date.now();
+    lobbyState.nowMs = now;
+    // Created three hours ago; a mission result was committed 20 seconds ago.
+    localRows = [summary({createdTimeMs: now - 3 * 3_600_000, lastActivityMs: now - 20_000})];
+    const wrapper = await mountList();
+    expect(wrapper.find('.cm-game__age').text()).eq(lobbyAgeLabel({unit: 'hour', amount: 3}));
   });
 
   it('L3 toggles the slice without wiping it; the cursor resets to the top row', async () => {

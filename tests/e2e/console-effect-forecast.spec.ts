@@ -355,7 +355,7 @@ for (const preset of PRESETS) {
       await expect(layer(page).locator('.con-efx__tile--fx-others .con-efx__tile-owner'), 'the foreign tile names its owner').not.toHaveCount(0);
       // Pharmacy Union's tile draws the PRINTED microbe block (the card declares
       // its block), not the «Эффект этой карты» plate.
-      await expect(layer(page).locator('.con-efx__tile--fx-others .con-efx__graphic .card-container'), 'the foreign tile draws its printed block').not.toHaveCount(0);
+      await expect(layer(page).locator('.con-efx__tile--fx-others .con-efx__graphic.card-container'), 'the foreign tile draws its printed block').not.toHaveCount(0);
       await expect(layer(page).locator('.con-efx__tile--fx-others .con-efx__graphic-text')).toHaveCount(0);
       await shoot(page, preset, '6-layer-others');
       await press(page, 'KeyV', 900);
