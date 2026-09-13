@@ -124,6 +124,21 @@ export function firstActionStageCorp(view: PlayerViewModel): CardName | undefine
 }
 
 /**
+ * EVERY owed corporation whose option is LIVE right now, in the ledger's
+ * order — the player's choice when several owe their opening move at once
+ * (a Merger). The server's `OrOptions` offers one option EACH and lets the
+ * player pick the order; the stage seats `firstActionStageCorp` first and
+ * lets LB/RB cycle through these. Empty while the prompt is not live.
+ */
+export function firstActionCandidates(view: PlayerViewModel): ReadonlyArray<CardName> {
+  const prompt = startFlowCorpPrompt(view);
+  if (prompt === undefined) {
+    return [];
+  }
+  return (view.pendingInitialActions ?? []).filter((name) => corpActionOptionIndexFor(prompt, name) !== -1);
+}
+
+/**
  * The stage is ACTIONABLE — the player's turn has genuinely arrived: the
  * marked OrOptions is live and carries this corp's option. Everything else
  * (the opponent still moving, the prompt held behind a cinematic) is the

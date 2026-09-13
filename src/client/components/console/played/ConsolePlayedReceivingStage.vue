@@ -163,6 +163,7 @@ import {getCard} from '@/client/cards/ClientCardManifest';
 import {preloadPremiumCardArt} from '@/client/cards/cardArt';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
+import {restingRectOf} from '@/client/console/cardFlight/landingRect';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import {buildPlayedZones, PlayedZones} from '@/client/components/console/consolePlayedModel';
@@ -250,6 +251,14 @@ export default defineComponent({
        * AT the contact, never before the flight.
        */
       latchedGainTotals: {} as Readonly<Record<string, number>>,
+      /**
+       * Until when the stage's own ENTRY tween (the destination's grounded
+       * rise) is shaping the front anchor's rect. A GSAP tween on an ANCESTOR
+       * is invisible to `restingRectOf`, so the synchronous peek answers
+       * «not readable» for that window instead of handing the flight a rect
+       * the slot is only passing through.
+       */
+      emergenceUntil: 0,
     };
   },
   computed: {
@@ -397,7 +406,7 @@ export default defineComponent({
   mounted() {
     this.measure();
     this.latchGainTotals();
-    this.unregisterTarget = providePlayedHeroTarget(() => this.measureFrontAnchor());
+    this.unregisterTarget = providePlayedHeroTarget(() => this.measureFrontAnchor(), () => this.peekFrontAnchor());
     this.unregisterHooks = provideReceivingEffectHooks({
       emergeTarget: (card) => this.emergeTarget(card),
       settleTarget: (card) => this.settleTarget(card),
@@ -508,6 +517,26 @@ export default defineComponent({
       }
       return last;
     },
+    /**
+     * The front anchor's REST rect, synchronously — the flight's final-approach
+     * retarget and the pre-reveal control measure. `undefined` while the
+     * stage's own entry tween is still shaping it (see `emergenceUntil`).
+     */
+    peekFrontAnchor(): HeroRect | undefined {
+      const root = this.$el as HTMLElement | undefined;
+      if (root === undefined || typeof root.querySelector !== 'function') {
+        return undefined;
+      }
+      if (typeof performance !== 'undefined' && performance.now() < this.emergenceUntil) {
+        return undefined;
+      }
+      const el = root.querySelector<HTMLElement>('[data-recv-front]');
+      if (el === null) {
+        return undefined;
+      }
+      const r = restingRectOf(el);
+      return r.width > 4 && r.height > 4 ? {x: r.left, y: r.top, w: r.width, h: r.height} : undefined;
+    },
     frame(): Promise<void> {
       return new Promise((resolve) => {
         if (typeof requestAnimationFrame === 'function') {
@@ -533,6 +562,9 @@ export default defineComponent({
       const dur = motionMs(STAGE_IN_MS) / 1000;
       const ui = conUiScale();
       const dest = this.destEl();
+      // The peek refuses to answer while the rise is shaping the anchor (the
+      // strips' stagger trails the destination by a few frames).
+      this.emergenceUntil = (typeof performance !== 'undefined' ? performance.now() : 0) + motionMs(STAGE_IN_MS) + 160;
       if (dest !== undefined) {
         gsap.fromTo(dest,
           {autoAlpha: 0, y: 16 * ui, scale: 0.955},

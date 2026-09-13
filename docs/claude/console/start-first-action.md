@@ -374,10 +374,102 @@ decided per host-guest PAIR» in `consoleWorkspaceStack.spec.ts`.
 the first-action stage is a known pre-existing stable failure (the 2026-09-03
 start cluster — «стадия стоит, тело пустое»), unrelated to this step.
 
+## THE SEAT HAS ONE OWNER — the transition model (2026-09-13)
+
+*(Written BEFORE the rework it governs; the code follows this table.)*
+
+Three state layers, never mixed:
+
+| Layer | Owner | Facts |
+| --- | --- | --- |
+| **GAME** (authoritative) | server | `pendingInitialActions` (the ledger), `waitingFor` + `promptId`, the tableau, `gameStateVersion` |
+| **INTERACTION** (derived) | client, pure | `firstActionOwed` (ledger ∪ live prompt), `firstActionCandidates` (every owed corp whose option is LIVE), `startFlowOtherPromptStands`, the claim (`workspaceOutcomeState`), the yield (placement / excursion) |
+| **PRESENTATION** | the scene | `firstAct.stage` + `corp` + `submitting` (module state), THE SEAT (`embedSource*` — one card, one owner), the room latches (`queueReleased` / `playedDockReleased`), the flights in progress |
+
+**Operation identity** = `firstAct.corp` (a corporation owes ONE opening move
+per game; a Merger's second corp is a different identity, and the campaign
+re-plays a lineage corp in a NEW game). A state re-observed (a watcher
+re-firing, a restore, a refresh mid-stage) never restarts the operation: the
+seat funnel is idempotent on `(owner, card)` — a seat that already holds the
+card, or is flying it, answers the same promise.
+
+**THE SEAT FUNNEL** (`seatTake(owner, card)` / `seatRelease(owner)` /
+`seatSwap(owner, card)` in `ConsoleStartScene`): every emerge / settle of the
+source seat goes through it, and it refuses a foreign owner. Owners:
+`'effect'` (a queue play's draw — the source card parks in the seat while the
+reveal presents), `'firstAction'` (the corporation of the stage),
+`'bonus'` (the granting card of the «Фора» window). One flight at a time:
+a request that arrives mid-flight is queued behind it (never a second proxy
+of the same card), and a request for the card already seated is a no-op.
+Every flight carries an episode token; a continuation whose token is stale
+applies NOTHING (it only disposes its own proxies).
+
+**The stage machine** (`idle → staging → standing → performing → leaving → idle`):
+
+| From | Event (initiator) | Guard | To | Presentation (seat / room) | Pad + bar owner |
+| --- | --- | --- | --- | --- | --- |
+| idle | `firstActionEntryDue` rising (scene watcher / mount) | not nested; owed; a corp is known; no other prompt; not yielded; nothing hosted | staging | `seatTake('firstAction', corp)` — the emerge flight (a RESTORE re-poses instantly, no flight); the room recedes (`stageOwnsRoom`) | scene; input locked (B swallowed) |
+| staging | the seat landed | still staging, same corp | standing | the briefing mounts (CSS enter) | scene; A iff actionable; LB/RB cycle the seated corp when ≥2 are live; B = collapse |
+| standing | A (player) | actionable, not submitting | standing + submitting | claim (optimistic), submit | locked (the latch) |
+| standing + submitting | the response (transport) | the prompt is gone → | performing | the seat STAYS with the corp (owned); the room comes back for the follow-ups | the follow-up's owner |
+| standing + submitting | the response | the prompt still names THIS corp (a refusal) | standing | — | scene |
+| standing + submitting | the response | the prompt names ANOTHER owed corp | standing → `seatSwap` | settle A, emerge B — one funnel call | scene |
+| performing | follow-ups (placement yield, embedded reveal / pick, colony…) | — | performing | the seat is UNTOUCHED by the claim's release (`runStartEffectReturn` settles only an `'effect'`-owned seat) | the follow-up |
+| performing | the ledger re-raises a corp (owed ∧ chain quiet, confirmed off-flush) | — | staging (next corp) | `seatSwap('firstAction', next)` | scene |
+| performing | owed = false ∧ chain quiet (confirmed off-flush) | — | leaving | room return, then `seatRelease('firstAction')` — the ONE settle home | scene |
+| leaving | the settle landed | — | idle | — | `deploymentSettled` → release |
+| standing / performing | collapse (B) or unmount | not staging / submitting | (module state kept) | on remount: re-pose the seat, no flight | board |
+| any | a refused submit | — | standing (CTA re-armed) | — | scene |
+
+**Reconciliation rules the table encodes:**
+1. *Animation completion ≠ action completion.* The stage leaves on the
+   INTERACTION facts (ledger drained, chain quiet) and only then plays its
+   closing motion; a flight's end never advances the game.
+2. *A state update alone never replays a shown animation.* The seat funnel's
+   idempotence + the module-state machine + the restore pose (no flight on
+   remount) cover refresh, collapse/restore and the watchers' re-fires.
+3. *A stale callback changes nothing.* Episode tokens on every flight; the
+   `staging → standing` continuation checks the stage AND the corp.
+4. *One owner per running sequence.* The stage owns the seat from `staging`
+   to the end of `leaving`; the effect flow (claim lifecycle) may settle only
+   what it seated. The reported loop («поднялась → телепорт вниз → снова
+   поднялась») was exactly two owners writing one seat: the claim's release
+   (`embedActive` falling — the reconciler drops the optimistic claim a tick
+   after the answer) settled the corporation home while the stage was
+   `performing` (measured: the settle flight ran INVISIBLY under the yielded
+   scene, so the player came back to an empty seat), and the next stand
+   re-emerged it.
+5. *A nested prompt pauses the parent with context.* A yield (placement) or
+   a hosted step keeps `stage = performing` and the seated corp; the return
+   continues at the same stage — never a re-entry from `idle`.
+6. *Availability / awaiting / chain complete / visual complete are four facts:*
+   `firstActionActionable` (the option is live) · `submitting` (the answer is
+   on the wire) · `firstActionChainQuiet` (every follow-up returned) ·
+   `seat` flight promise (the motion).
+7. *Interruption never leaves a lock.* Every flight is `guarded` (bounded),
+   an unmount disposes the proxies and keeps the machine, and the seat
+   self-heal (`firstActionSeatMissing`) goes through the funnel too.
+8. *Player choice.* With several owed corporations the server's `OrOptions`
+   offers one option EACH; the stage seats the first live one and lets the
+   player cycle (LB/RB) — never a hard order.
+
+**Server vs client guards.** The server already guards the game: one
+prompt at a time, `promptId` / `STALE_PROMPT`, the ledger drained inside
+the option's own `andThen`. The client owes only presentation
+consistency; nothing here re-submits an action on a re-render or an
+animation restart (the submit is the player's A, latched by `submitting`).
+
 ## Guards
 
 `tests/client/components/console/startFirstAction.spec.ts` (stage model + the
 sequence law at both edges),
+`console-firstact-lifecycle-probe.spec.ts` (e2e — the seat-owner law on a
+real table: a single corporation through the placement excursion, and TWO
+owed corporations through Merger in both orders (placement → draw, draw →
+placement): one rise per corporation, never two start proxies in the air,
+a standing stage never loses its seated card, never stands without its
+briefing, and the deployment releases; the in-page recorder prints the
+whole timeline — `__conStartDiag` beside the DOM facts — on any red),
 `startBoardExcursion.spec.ts` (barrier policy), `consoleCorpFirstAction.spec.ts`
 (routing fork + serving surfaces), `consoleStartState.spec.ts` (conditional
 journey stages + crumb + deferred copy), `consoleStartUi.spec.ts` (the bar's

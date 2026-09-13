@@ -107,6 +107,7 @@ import {CardName} from '@/common/cards/CardName';
 import {PlayerViewModel, PublicPlayerModel} from '@/common/models/PlayerModel';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
+import {restingRectOf} from '@/client/console/cardFlight/landingRect';
 import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import {buildPlayedZones, PlayedZones, PLAYED_CARD_NATURAL_W, PLAYED_CARD_NATURAL_H, PLAYED_PEEK_NATURAL} from '@/client/components/console/consolePlayedModel';
 import {PlayedCategoryKey, PLAYED_CATEGORY_LABEL} from '@/client/components/console/consolePlayedCategoryModel';
@@ -273,13 +274,33 @@ export default defineComponent({
     },
   },
   mounted() {
-    // The hero's landing target IS this dock's prepared top slot.
-    this.unregisterTarget = providePlayedHeroTarget(() => this.measureFrontAnchor());
+    // The hero's landing target IS this dock's prepared top slot — the looped
+    // aim before the flight, plus the synchronous rest read the flight's final
+    // approach and the pre-reveal control measure take.
+    this.unregisterTarget = providePlayedHeroTarget(() => this.measureFrontAnchor(), () => this.peekFrontAnchor());
   },
   beforeUnmount() {
     this.unregisterTarget?.();
   },
   methods: {
+    /** The ARMED top slot's REST rect, synchronously; `undefined` when there is
+     *  no armed slot or the shelf is parked (receded — see the loop below). */
+    peekFrontAnchor(): HeroRect | undefined {
+      const root = this.$el as HTMLElement | undefined;
+      if (root === undefined || typeof root.querySelector !== 'function') {
+        return undefined;
+      }
+      const el = root.querySelector<HTMLElement>('[data-start-front]');
+      if (el === null) {
+        return undefined;
+      }
+      const cs = typeof getComputedStyle === 'function' ? getComputedStyle(el) : undefined;
+      if (cs !== undefined && (cs.visibility === 'hidden' || Number(cs.opacity) < 0.05)) {
+        return undefined;
+      }
+      const r = restingRectOf(el);
+      return r.width > 4 && r.height > 4 ? {x: r.left, y: r.top, w: r.width, h: r.height} : undefined;
+    },
     /** The front anchor's settled rect — stability-looped so the arc lands on
      *  final geometry only (the expansion has finished shaping the shelf). */
     async measureFrontAnchor(): Promise<HeroRect | undefined> {

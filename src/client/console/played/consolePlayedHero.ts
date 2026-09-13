@@ -38,6 +38,7 @@
 
 import {reactive, nextTick} from 'vue';
 import {CardName} from '@/common/cards/CardName';
+import {CardModel} from '@/common/models/CardModel';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
@@ -51,7 +52,8 @@ import {
   HERO_RESULT_PAUSE_MS, HERO_REDUCED_MS, HERO_REDUCED_PAUSE_MS, HERO_SAFETY_TIMEOUT_MS,
 } from '@/client/console/played/playedHeroModel';
 import {
-  placeHeroProxy, playHeroLift, playHeroFlight, playHeroReducedHop, disposeHeroProxy, glideHeroOnto, killHeroTweens, HeroStageEls,
+  placeHeroProxy, playHeroLift, playHeroFlight, playHeroReducedHop, disposeHeroProxy, glideHeroOnto, hideHeroProxyNextFrame,
+  killHeroTweens, HeroStageEls,
 } from '@/client/console/played/playedHeroDirector';
 import {
   runResourceTransfers, abortResourceTransfers, beginPanelRewardHold, releasePanelRewardHold, clearPanelRewardHold,
@@ -74,10 +76,39 @@ const HERO_RESOLVED_BEAT_MS = 260;
 /** How long we wait for the table overlay to mount + register its measurer. */
 const TARGET_WAIT_BUDGET_MS = 1600;
 
+/**
+ * THE PICTURE the proxy paints — the premium face's two identity axes that a
+ * host may render differently from another (`ConsoleCardFaceLite`'s
+ * contract: LITE is a cost budget, never a different picture). A flight
+ * leaves wearing the SOURCE's face and lands wearing the DESTINATION's —
+ * the swap rides the apex, the card's fastest frame — so the two copies at
+ * the handoff are identical by construction.
+ */
+export type HeroFace = {
+  /** The destination grid's quality tier (`pcard--tier-thumb`) vs the
+   *  composer's stationary hero (`normal`). */
+  lightweight: boolean,
+  /** The live model the face draws its service anchors from (the
+   *  stored-resource capsule, the discount chip); `undefined` = the printed
+   *  name-only face, which is what a name-only host paints. */
+  card?: CardModel,
+};
+
+/** How the LANDING face is resolved once the server has answered. */
+export type HeroLandingFaceSpec = {
+  lightweight: boolean,
+  /** `'tableau'` — the committed tableau model of the played card (the
+   *  receiving stage's capsule-honest face); `'none'` — the destination
+   *  paints the name-only face (the start dock, the effect-source seat). */
+  model: 'tableau' | 'none',
+};
+
 export type PlayedHeroProxy = {
   card: CardName,
   isEvent: boolean,
   rect: HeroRect,
+  /** What the proxy paints RIGHT NOW (source face → landing face at the apex). */
+  face: HeroFace,
 };
 
 /**
@@ -149,14 +180,24 @@ export function registerPlayedHeroStage(handle: HeroStageHandle): () => void {
 }
 
 type HeroTargetMeasure = () => Promise<HeroRect | undefined>;
+/** A SYNCHRONOUS read of the landing rect at REST (`restingRectOf`) — the
+ *  final-approach retarget's one live look; `undefined` = not readable now. */
+type HeroTargetPeek = () => HeroRect | undefined;
 let targetMeasure: HeroTargetMeasure | undefined;
+let targetPeek: HeroTargetPeek | undefined;
 
-/** The «Разыграно» overlay registers its reserved-slot measurer here. */
-export function providePlayedHeroTarget(fn: HeroTargetMeasure): () => void {
+/**
+ * The landing place registers its reserved-slot measurer here (the
+ * stability-looped aim taken BEFORE the flight) and, optionally, a cheap
+ * synchronous peek the flight re-reads once on its final approach.
+ */
+export function providePlayedHeroTarget(fn: HeroTargetMeasure, peek?: HeroTargetPeek): () => void {
   targetMeasure = fn;
+  targetPeek = peek;
   return () => {
     if (targetMeasure === fn) {
       targetMeasure = undefined;
+      targetPeek = undefined;
     }
   };
 }
@@ -291,7 +332,19 @@ registerAnimationHoldSupplier('played-hero', playedHeroHolding);
  * the tableau. `sourceSelector` overrides WHERE the card physically lifts
  * from (default: the play composer's card slot).
  */
-export function armPlayedHero(card: CardName, isEvent: boolean, opts: {manualTableOpen: boolean, sourceSelector?: string, targetSelector?: string, rewards?: ReadonlyArray<ResourceTransferSpec>, host?: PlayedHeroHost}): void {
+export function armPlayedHero(card: CardName, isEvent: boolean, opts: {
+  manualTableOpen: boolean,
+  sourceSelector?: string,
+  targetSelector?: string,
+  rewards?: ReadonlyArray<ResourceTransferSpec>,
+  host?: PlayedHeroHost,
+  /** The picture the card wears where it LIFTS from (default: the composer's
+   *  stationary hero — `normal` tier, no live model). */
+  sourceFace?: HeroFace,
+  /** The picture it must wear where it LANDS (default: the receiving stage's
+   *  face — `thumb` tier over the committed tableau model). */
+  landingFace?: HeroLandingFaceSpec,
+}): void {
   clearTimers();
   claimed = false;
   followUpPending = false;
@@ -302,6 +355,9 @@ export function armPlayedHero(card: CardName, isEvent: boolean, opts: {manualTab
   rewardHoldSeeded = false;
   sourceSelector = opts.sourceSelector ?? COMPOSER_SOURCE_SELECTOR;
   targetSelectorOverride = opts.targetSelector;
+  sourceFace = opts.sourceFace ?? {lightweight: false};
+  landingFaceSpec = opts.landingFace ?? {lightweight: true, model: 'tableau'};
+  landingView = undefined;
   playedHeroState.active = true;
   playedHeroState.phase = 'armed';
   playedHeroState.nonce++;
@@ -315,6 +371,51 @@ export function armPlayedHero(card: CardName, isEvent: boolean, opts: {manualTab
   // A response that never detects (error path missed, network limbo) can
   // never wedge the game — the arm self-aborts.
   armSafety = window.setTimeout(() => abortPlayedHero(), HERO_SAFETY_TIMEOUT_MS);
+  // THE AIM IS TAKEN DURING THE ROUND TRIP. The workspace landing places are
+  // mounted (hidden) at the arm — the receiving stage's front anchor, the
+  // start dock's prepared top slot, the effect-source seat — so their REST
+  // geometry is measurable while the submit is on the wire. Measured here,
+  // the flight starts the instant the lift ends: the card used to hover
+  // 70–300 ms after the lift, waiting for a stability loop that was also
+  // watching the stage's own entry tween. (The standalone overlay opens only
+  // at `preparing`, so it keeps measuring at flight time.)
+  prewarmedTarget = playedHeroState.host === 'workspace' ? prewarmTargetRect() : undefined;
+}
+
+/**
+ * THE AIM, TAKEN AT REST DURING THE ROUND TRIP. The landing place mounts on
+ * the arm's own flush (the receiving stage — hidden; the dock's armed slot),
+ * so one painted frame later its rest rect is readable through the peek —
+ * no stability loop (a loop that watches a stage still laying out at 4K
+ * spends hundreds of ms on frames the flight then waits for; any residual
+ * drift is the final-approach retarget's business). The looped measurer
+ * stays the fallback for a place the peek cannot read yet.
+ */
+async function prewarmTargetRect(): Promise<HeroRect | undefined> {
+  const deadline = Date.now() + TARGET_WAIT_BUDGET_MS;
+  // The landing place mounts in the arm's own flush: after `nextTick` it is
+  // registered and laid out (the rect read forces layout), and — this is the
+  // point — the server cannot have answered yet, so the stage's ENTRY tween
+  // has not started shaping the anchor. Read a frame later and a fast local
+  // answer (~25 ms) had already flipped the scene to `presenting`: the peek
+  // refused (mid-entry) and the flight fell back to the stability loop —
+  // the hover this prewarm exists to remove.
+  await nextTick();
+  let rect = peekTargetRect();
+  if (rect !== undefined) {
+    return rect;
+  }
+  while (playedHeroState.active && targetPeek === undefined && targetSelectorOverride === undefined && Date.now() < deadline) {
+    await frame();
+  }
+  if (!playedHeroState.active) {
+    return undefined;
+  }
+  rect = peekTargetRect();
+  if (rect !== undefined) {
+    return rect;
+  }
+  return awaitTargetRect(Math.max(200, deadline - Date.now()));
 }
 
 /**
@@ -351,7 +452,10 @@ export function detectPlayedHero(view: PlayerViewModel): {card: CardName} | unde
  * promise still resolves (the commit gate can never hang).
  */
 export function runPlayedHero(view: PlayerViewModel): Promise<void> {
-  void view;
+  // The authoritative answer: the LANDING face is drawn from it (the
+  // committed tableau model of the played card), so the picture the proxy
+  // wears from the apex on is exactly what the destination will paint.
+  landingView = view;
   return new Promise<void>((resolve) => {
     runResolve = resolve;
     sceneSafety = window.setTimeout(() => {
@@ -465,7 +569,7 @@ async function executeFlight(): Promise<void> {
   }
 
   if (sourceRect !== undefined) {
-    playedHeroState.proxy = {card, isEvent: playedHeroState.isEvent, rect: sourceRect};
+    playedHeroState.proxy = {card, isEvent: playedHeroState.isEvent, rect: sourceRect, face: {...sourceFace}};
     await nextTick();
   }
   const els = playedHeroState.proxy !== undefined ? stage?.els() : undefined;
@@ -486,11 +590,18 @@ async function executeFlight(): Promise<void> {
   playedHeroState.phase = 'lifting';
 
   // Lift and target preparation run in PARALLEL — the scene forms around
-  // the moving card, never as sequential steps. Reduced motion skips the
-  // lift beat (its hop below is the whole controlled transition). With no
-  // proxy there is no flight — never stall waiting for a target it can't use.
+  // the moving card, never as sequential steps. The workspace hosts have
+  // their aim ALREADY TAKEN (the arm measured the rest geometry during the
+  // round trip), so the flight follows the lift with no hover; the standalone
+  // overlay measures now, while the lift plays. Reduced motion skips the lift
+  // beat (its hop below is the whole controlled transition). With no proxy
+  // there is no flight — never stall waiting for a target it can't use.
   const hasProxy = playedHeroState.proxy !== undefined && els !== undefined;
-  const targetPromise = hasProxy ? awaitTargetRect() : Promise.resolve(undefined);
+  const prewarmed = prewarmedTarget;
+  prewarmedTarget = undefined;
+  const targetPromise = hasProxy ?
+    (prewarmed !== undefined ? prewarmed.then((r) => r ?? awaitTargetRect()) : awaitTargetRect()) :
+    Promise.resolve(undefined);
   if (hasProxy && els !== undefined && !reduced) {
     await playHeroLift(els, motionMs(HERO_LIFT_MS));
   }
@@ -516,24 +627,48 @@ async function executeFlight(): Promise<void> {
   }
 
   playedHeroState.phase = 'flying';
-  const liveSource = currentProxyRect(els) ?? playedHeroState.proxy.rect;
+  const proxy = playedHeroState.proxy;
+  const liveSource = currentProxyRect(els) ?? proxy.rect;
   const plan = planHeroPath({
     source: liveSource,
+    // The scale ratio is measured against the box AT REST (the director's
+    // base) — `liveSource` is the LIFTED proxy (×1.05), and planning the
+    // scale against it landed every card 4.8 % short of its slot.
+    sourceRest: proxy.rect,
     target,
     viewportW: window.innerWidth,
     viewportH: window.innerHeight,
     safeTop: 54 * conUiScale(),
   });
+  // THE APEX SWAP: from the card's fastest frame on it wears the picture the
+  // destination will paint, so the handoff compares two identical faces.
+  const landing = landingFace();
+  const onApex = () => {
+    if (mine() && playedHeroState.proxy === proxy) {
+      proxy.face = landing;
+    }
+  };
   if (reduced) {
-    await playHeroReducedHop(els, target, HERO_REDUCED_MS);
+    await playHeroReducedHop(els, target, HERO_REDUCED_MS, onApex);
   } else {
     await playHeroFlight(els, plan, {
       isEvent: playedHeroState.isEvent,
       durationMs: motionMs(HERO_FLIGHT_MS + HERO_LAND_MS),
       uiScale: conUiScale(),
+      retarget: () => peekTargetRect(),
+      onApex,
     });
   }
   playedHeroState.phase = 'landing';
+}
+
+/** The LANDING picture, resolved from the answer (see `HeroLandingFaceSpec`). */
+function landingFace(): HeroFace {
+  const spec = landingFaceSpec;
+  const card = playedHeroState.card;
+  const model = spec.model === 'tableau' && card !== undefined ?
+    landingView?.thisPlayer?.tableau?.find((c) => c.name === card) : undefined;
+  return {lightweight: spec.lightweight, card: model};
 }
 
 /**
@@ -546,33 +681,58 @@ export async function endPlayedHero(): Promise<void> {
   if (!playedHeroState.active) {
     return;
   }
+  const episode = playedHeroState.nonce;
+  const mine = () => playedHeroState.active && playedHeroState.nonce === episode;
   playedHeroState.phase = 'committing';
-  playedHeroState.revealed = true;
-  await nextTick(); // the real card paints UNDER the proxy — same geometry
   const els = stage?.els();
   if (els !== undefined && playedHeroState.proxy !== undefined) {
-    // FINAL APPROACH. «Same geometry» is an aim, not a guarantee: the real
-    // slot can re-fit between the aim and the commit (the embed seat's zoom
-    // re-solves when the reveal mounts in the same zone — measured 3–5 px и
-    // ~5 px of width on «Точке Луны»-class flows). Re-read the SAME resolver
-    // the flight aimed with — it answers instantly for a painted card — and
-    // TRAVEL any remainder before the dissolve, never dissolve across it.
+    // THE CONTROL MEASURE — BEFORE the reveal, never after it. The in-flight
+    // retarget lands the card on the slot's rest geometry by construction;
+    // what this covers is a slot that moved AFTER the touchdown (a re-fit
+    // between the landing and the commit — the embed seat's zoom re-solving
+    // when a reveal mounts in the same zone was measured at 3–5 px). Any
+    // remainder is TRAVELLED while the proxy is still the only card on
+    // screen; a correction over an already painted card is a double image.
+    // The read must happen here also because a landing place may stop being
+    // addressable once it holds its card (the start dock's `[data-start-front]`
+    // is the ARMED slot only).
     if (!consoleReducedMotionActive()) {
-      // Short budget: a painted card answers on the first poll; a vanished
-      // target must degrade to the plain dissolve, never stall the commit.
-      const rest = await awaitTargetRect(180);
+      const rest = peekTargetRect() ?? await awaitTargetRect(120);
       const cur = currentProxyRect(els);
+      if (!mine()) {
+        return;
+      }
       if (rest !== undefined && cur !== undefined &&
-          (Math.abs(rest.x - cur.x) > 1 || Math.abs(rest.y - cur.y) > 1 || Math.abs(rest.w - cur.w) > 1.5)) {
-        await glideHeroOnto(els, rest, motionMs(130));
+          (Math.abs(rest.x - cur.x) > 1 || Math.abs(rest.y - cur.y) > 1 || Math.abs(rest.w - cur.w) > 1)) {
+        if (process.env.NODE_ENV !== 'production') {
+          console.warn('[played-hero] the landing slot moved after the touchdown — travelling the remainder before the reveal',
+            {dx: Math.round(rest.x - cur.x), dy: Math.round(rest.y - cur.y), dw: Math.round(rest.w - cur.w)});
+        }
+        await glideHeroOnto(els, rest, motionMs(120));
+        if (!mine()) {
+          return;
+        }
       }
     }
-    await disposeHeroProxy(els, motionMs(90));
+    // THE FRAME-EXACT HANDOFF: the real card paints UNDER the proxy with the
+    // same geometry and the same face, and the proxy is removed on the NEXT
+    // painted frame — two identical frames, never a crossfade (a crossfade is
+    // exactly the window in which every difference between the two copies
+    // becomes visible).
+    playedHeroState.revealed = true;
+    await nextTick();
+    if (!mine()) {
+      return;
+    }
+    await hideHeroProxyNextFrame(els);
+  } else {
+    playedHeroState.revealed = true;
+    await nextTick();
   }
-  playedHeroState.proxy = undefined;
-  if (!playedHeroState.active) {
+  if (!mine()) {
     return;
   }
+  playedHeroState.proxy = undefined;
   playedHeroState.phase = 'showing-result';
   if (pendingRewards.length > 0 && !consoleReducedMotionActive()) {
     // THE REWARD BEAT — the final chord of the play: the landed card is read
@@ -760,6 +920,8 @@ export function abortPlayedHero(): void {
   pendingRewards = [];
   rewardHoldSeeded = false;
   targetSelectorOverride = undefined;
+  prewarmedTarget = undefined;
+  landingView = undefined;
   playedHeroState.proxy = undefined;
   playedHeroState.revealed = false;
   playedHeroState.tableOpen = false;
@@ -787,6 +949,8 @@ function finish(): void {
   pendingRewards = [];
   rewardHoldSeeded = false;
   targetSelectorOverride = undefined;
+  prewarmedTarget = undefined;
+  landingView = undefined;
   playedHeroState.active = false;
   playedHeroState.phase = 'idle';
   playedHeroState.card = undefined;
@@ -805,6 +969,13 @@ let sourceSelector: string = COMPOSER_SOURCE_SELECTOR;
 /** An arm-scoped LANDING override (undefined → the registered tableau
  *  anchor). The start scene points a draw-effect play at its source column. */
 let targetSelectorOverride: string | undefined;
+/** The faces of the current transaction (set at arm — see `HeroFace`). */
+let sourceFace: HeroFace = {lightweight: false};
+let landingFaceSpec: HeroLandingFaceSpec = {lightweight: true, model: 'tableau'};
+/** The authoritative answer the landing face is drawn from (set at run). */
+let landingView: PlayerViewModel | undefined;
+/** The aim taken during the round trip (workspace hosts — see the arm). */
+let prewarmedTarget: Promise<HeroRect | undefined> | undefined;
 /** The shared "slot is empty" cascade rule (cardExitDirector.HOLD_CLASS). */
 const HOLD_CLASS = 'con-deal-hold';
 
@@ -873,6 +1044,35 @@ function heroRewardSourceSelectors(card: string): Array<string> {
     // emerge from the pile (the card's honest on-table location).
     '.con-played .con-played__family--event .con-played__backstack',
   ];
+}
+
+/**
+ * ONE synchronous look at the landing place's REST rect — the final-approach
+ * retarget and the pre-reveal control measure. The arm-scoped override
+ * (the effect-source seat) reads its first measurable match at rest; the
+ * registered landing place answers through its own `peek`. `undefined` =
+ * not readable right now (the caller keeps its plan / falls back to the
+ * looped measurer).
+ */
+function peekTargetRect(): HeroRect | undefined {
+  if (typeof document === 'undefined' || !playedHeroState.active) {
+    return undefined;
+  }
+  const override = targetSelectorOverride;
+  if (override !== undefined) {
+    for (const el of document.querySelectorAll<HTMLElement>(override)) {
+      const r = restingRectOf(el);
+      if (r.width >= 10 && r.height >= 10) {
+        return {x: r.left, y: r.top, w: r.width, h: r.height};
+      }
+    }
+    return undefined;
+  }
+  try {
+    return targetPeek?.();
+  } catch {
+    return undefined;
+  }
 }
 
 async function awaitTargetRect(budgetMs = TARGET_WAIT_BUDGET_MS): Promise<HeroRect | undefined> {

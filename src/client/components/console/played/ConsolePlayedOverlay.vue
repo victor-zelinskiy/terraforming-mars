@@ -219,6 +219,7 @@ import {
 } from '@/client/console/played/playedCategoryView';
 import {resetCategoryDirector} from '@/client/console/played/playedCategoryDirector';
 import {providePlayedHeroTarget} from '@/client/console/played/consolePlayedHero';
+import {restingRectOf} from '@/client/console/cardFlight/landingRect';
 import {HeroRect} from '@/client/console/played/playedHeroModel';
 import {openConsoleCardZoom, slotZoomOrigin, ConsoleZoomProvenance} from '@/client/console/consoleCardZoom';
 import {playedProvenanceByName, zoomProvenanceOver} from '@/client/components/console/played/playedProvenance';
@@ -565,7 +566,7 @@ export default defineComponent({
         this.unregisterHeroTarget?.();
         this.unregisterHeroTarget = undefined;
         if (incoming !== undefined) {
-          this.unregisterHeroTarget = providePlayedHeroTarget(() => this.measureHeroTarget());
+          this.unregisterHeroTarget = providePlayedHeroTarget(() => this.measureHeroTarget(), () => this.peekHeroTarget());
           this.focusCategory = this.familyOf(incoming.name);
         }
       },
@@ -913,6 +914,25 @@ export default defineComponent({
         last = r.width > 4 ? {x: r.left, y: r.top, w: r.width, h: r.height} : undefined;
       }
       return last;
+    },
+    /** The reserved slot's REST rect, synchronously (the flight's final
+     *  approach / the pre-reveal control measure). */
+    peekHeroTarget(): HeroRect | undefined {
+      const incoming = this.heroIncoming;
+      const root = this.$el as HTMLElement | undefined;
+      if (incoming === undefined || root === undefined || typeof root.querySelector !== 'function') {
+        return undefined;
+      }
+      const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ?
+        CSS.escape(incoming.name) : incoming.name.replace(/"/g, '\\"');
+      const el = this.heroIncomingIsEvent ?
+        root.querySelector<HTMLElement>('.con-played__family--event .con-played__backstack') :
+        root.querySelector<HTMLElement>(`[data-played-key="${esc}"] .con-played__face`);
+      if (el === null) {
+        return undefined;
+      }
+      const r = restingRectOf(el);
+      return r.width > 4 && r.height > 4 ? {x: r.left, y: r.top, w: r.width, h: r.height} : undefined;
     },
     heroFrame(): Promise<void> {
       return new Promise((resolve) => {

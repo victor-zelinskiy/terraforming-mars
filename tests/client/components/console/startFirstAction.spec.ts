@@ -1,6 +1,6 @@
 import {expect} from 'chai';
 import {
-  firstActionActionable, firstActionAsk, firstActionBranch, firstActionDrawExpected,
+  firstActionActionable, firstActionAsk, firstActionBranch, firstActionCandidates, firstActionDrawExpected,
   firstActionOwed, firstActionPreviewable, firstActionStageCorp, startFlowOtherPromptStands,
   startWaitMate,
 } from '@/client/console/startFirstAction';
@@ -110,6 +110,28 @@ describe('startFirstAction (the first-action stage model)', () => {
       corps: [{name: 'Valley Trust', label: 'Draw 3 Prelude cards, and play one of them'}],
     });
     expect(firstActionStageCorp(merged)).to.eq('Valley Trust');
+  });
+
+  it('the CANDIDATES are every owed corp with a LIVE option — the player\'s order, never a hard queue', () => {
+    expect(firstActionCandidates(view({pending: ['Valley Trust']})), 'no prompt → nobody is live').to.deep.eq([]);
+    // Merger: both owed, the server offers one option EACH.
+    const both = view({
+      pending: ['Point Luna', 'Valley Trust'],
+      prompt: true,
+      corps: [
+        {name: 'Point Luna', label: 'Draw a card'},
+        {name: 'Valley Trust', label: 'Draw 3 Prelude cards, and play one of them'},
+      ],
+    });
+    expect(firstActionCandidates(both)).to.deep.eq(['Point Luna', 'Valley Trust']);
+    expect(firstActionStageCorp(both), 'the stage seats the first live one — LB/RB cycle the rest').to.eq('Point Luna');
+    // One resolved: only the remaining corp is a candidate.
+    const one = view({
+      pending: ['Valley Trust'],
+      prompt: true,
+      corps: [{name: 'Valley Trust', label: 'Draw 3 Prelude cards, and play one of them'}],
+    });
+    expect(firstActionCandidates(one)).to.deep.eq(['Valley Trust']);
   });
 
   it('ACTIONABLE only when the marked prompt carries the seated corp\'s option', () => {

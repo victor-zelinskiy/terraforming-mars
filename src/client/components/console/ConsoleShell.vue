@@ -13720,6 +13720,12 @@ export default defineComponent({
         manualTableOpen: this.playedOpen,
         rewards: payload.rewards,
         host: workspaceFrameDescended('hand') && !this.playedOpen ? 'workspace' : 'overlay',
+        // THE PICTURE THE CARD WEARS: it lifts off the composer's stationary
+        // hero (`normal` tier over the hand model) and lands on the receiving
+        // stage's face (`thumb` tier over the committed tableau model) — the
+        // proxy swaps at the apex, so the handoff compares identical faces.
+        sourceFace: {lightweight: false, card: pending.input.cards.find((c) => c.name === pending.cardName)},
+        landingFace: {lightweight: true, model: 'tableau'},
       });
       // EVERYTHING THIS PLAY SETS OFF STAYS INSIDE THE WORKSPACE IT WAS MADE
       // IN — the cards it draws, the pick it raises. Claimed in the same press
@@ -16730,7 +16736,14 @@ export default defineComponent({
       // (backVerb 'none'), exactly like every committed beat — except this
       // one's «commit» is still ahead, on the board.
       setWorkspaceFramePhase('hand', 'executing');
-      armPlayedHero(pending.cardName, isEvent, {manualTableOpen: this.playedOpen, host: 'workspace'});
+      armPlayedHero(pending.cardName, isEvent, {
+        manualTableOpen: this.playedOpen,
+        host: 'workspace',
+        sourceFace: {lightweight: false, card: pending.input.cards.find((c) => c.name === pending.cardName)},
+        // No reveal ever happens here (the proxy IS the landed card until the
+        // board takes over) — it lands wearing the stage's own tier.
+        landingFace: {lightweight: true, model: 'none'},
+      });
       const landed = await runStagedPlayedLanding();
       if (!landed || !isPlayedHeroActive()) {
         // Aborted mid-ceremony — the abort already restored the source and

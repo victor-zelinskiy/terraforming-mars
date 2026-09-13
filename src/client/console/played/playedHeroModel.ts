@@ -52,6 +52,13 @@ export const HERO_LIFT_MS = 150;
 /** Composer close + table open overlap the lift/flight — scene, not steps. */
 export const HERO_OVERLAY_SWAP_MS = 260;
 export const HERO_FLIGHT_MS = 540;
+/**
+ * The LANDING is the calm last stretch of the SAME arc (the speed profile's
+ * V_LAND tail), never a separate settle: the card decelerates into the slot
+ * and stops there. `HERO_FLIGHT_MS + HERO_LAND_MS` is the arc's whole length.
+ * (The +3/−3 px damped bob that used to follow the arc is gone — a movement
+ * AFTER the touchdown is exactly the secondary motion the handoff forbids.)
+ */
 export const HERO_LAND_MS = 230;
 /** The quiet beat AFTER commit — the player reads the landed tableau. */
 export const HERO_RESULT_PAUSE_MS = 620;
@@ -68,8 +75,20 @@ export const HERO_SAFETY_TIMEOUT_MS = 6000;
 export const HERO_LIFT_SCALE = 1.05;
 /** Apex adds a restrained extra over the lift scale. */
 export const HERO_APEX_SCALE_BOOST = 1.06;
-/** Landing settle amplitude (px @ uiScale 1) — microscopic, damped. */
-export const HERO_SETTLE_PX = 3;
+/**
+ * FINAL-APPROACH RETARGET — the share of the flight TIME (q) at which the
+ * live landing rect is re-read once and the remainder of the path is bent
+ * onto it. The aim is taken at the flight's start; the slot may legitimately
+ * re-fit or finish its own entry under the arc, and a 20 % ramp is enough to
+ * absorb the few px that costs while staying a continuous path — the card
+ * touches down EXACTLY where the real card will paint, so nothing has to be
+ * corrected after the landing (a correction over a painted card is a jerk).
+ */
+export const HERO_RETARGET_AT = 0.78;
+/** The airborne ground shade lands at ZERO before contact: from this path
+ *  progress on it fades out, so the touchdown frame carries no extra paint
+ *  the real slot does not have. */
+export const HERO_SHADE_OUT_FROM = 0.72;
 /** The event flip occupies the MIDDLE of the arc (t-range of the flight). */
 export const HERO_FLIP_START_T = 0.32;
 export const HERO_FLIP_END_T = 0.82;
@@ -79,8 +98,20 @@ export function heroCenter(r: HeroRect): {x: number, y: number} {
 }
 
 export interface HeroPathInput {
+  /** Where the card IS when the arc starts (the proxy's live rect — after the
+   *  lift, so the path is continuous with the lift's end). */
   source: HeroRect;
   target: HeroRect;
+  /**
+   * The card's box AT REST — the un-lifted source (the director's scale
+   * base). `targetScale` is the ratio the DIRECTOR applies on top of its base
+   * scale, so it must be measured against the box that base scale describes.
+   * Measuring it against the LIFTED rect (×1.05) — which `source` is — landed
+   * every card 4.8 % smaller than its slot (and offset by half that on each
+   * axis), the exact geometry mismatch the handoff then had to correct over
+   * an already painted card. Defaults to `source` for a plan taken at rest.
+   */
+  sourceRest?: HeroRect;
   viewportW: number;
   viewportH: number;
   /** Top edge the arc must stay clear of (status strip / safe area), px. */
@@ -94,7 +125,8 @@ export interface HeroPathPlan {
   p1: {x: number, y: number};
   /** Peak roll (deg, signed by horizontal travel) — derived from the path. */
   peakTilt: number;
-  /** Scale factor of the TARGET box relative to the source box. */
+  /** Scale factor of the TARGET box relative to the source box AT REST
+   *  (`sourceRest` — the director's base). */
   targetScale: number;
   /** Scale at the arc apex (relative to the source box). */
   apexScale: number;
@@ -135,7 +167,8 @@ export function planHeroPath(input: HeroPathInput): HeroPathPlan {
     y: 2 * apexY - (s.y + t.y) / 2,
   };
 
-  const targetScale = input.source.w > 0 ? input.target.w / input.source.w : 1;
+  const restW = (input.sourceRest ?? input.source).w;
+  const targetScale = restW > 0 ? input.target.w / restW : 1;
   return {
     p0: s,
     c,

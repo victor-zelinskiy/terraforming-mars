@@ -183,6 +183,16 @@ describe('consoleStartUi (initial-setup command contract)', () => {
     expect(labelOf(cmds, 'back')).to.eq('Minimize');
   });
 
+  it('several owed corporations: the READY stage advertises the LB/RB choice, the wait does not', () => {
+    const ready = startSceneCommands(state({mode: 'ceremony', firstAction: 'ready', firstActionChoice: true}));
+    const choice = ready.find((c) => c.control === 'bumperL');
+    expect(choice?.label).to.eq('Other corporation');
+    // The CTA still leads the bar — the choice is an option beside it.
+    expect(ready[0]?.control).to.eq('confirm');
+    const waiting = startSceneCommands(state({mode: 'ceremony', firstAction: 'waiting', firstActionChoice: false}));
+    expect(waiting.some((c) => c.control === 'bumperL')).to.be.false;
+  });
+
   it('the first-action BUSY beat (rise / submit) goes honestly quiet', () => {
     expect(startSceneCommands(state({mode: 'ceremony', firstAction: 'busy'}))).to.deep.eq([]);
   });

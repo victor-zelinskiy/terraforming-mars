@@ -101,6 +101,9 @@ export type StartSceneCommandState = {
    *    the bar goes honestly quiet for the beat.
    */
   firstAction: 'off' | 'waiting' | 'ready' | 'busy',
+  /** Several corporations owe their opening move and the stage stands on
+   *  one of them: LB/RB hand the seat to another (the player's order). */
+  firstActionChoice?: boolean,
   /**
    * The BONUS-ACTION stage («Фора» — «immediately take 2 actions»):
    *  · 'off'      — no stage;
@@ -258,6 +261,11 @@ export function startSceneCommands(s: StartSceneCommandState): Array<StartComman
       hints.push(s.stageGainFocused === true ?
         {control: 'confirm', label: 'Claim now', highlight: true} :
         {control: 'confirm', label: 'Take first action', highlight: true});
+    }
+    // The player's ORDER among several owed corporations — advertised only
+    // while a press can honour it (the stage stands, nothing on the wire).
+    if (s.firstActionChoice === true) {
+      hints.push({control: 'bumperL', label: 'Other corporation'});
     }
     hints.push({control: 'secondary', label: 'Inspect'});
     hints.push(s.bonusSub === true ?

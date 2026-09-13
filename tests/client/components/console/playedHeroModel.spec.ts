@@ -56,6 +56,23 @@ describe('playedHeroModel', () => {
       expect(plan.apexScale).to.be.lessThan(1.2);
     });
 
+    it('targetScale is measured against the box AT REST, never the lifted proxy', () => {
+      // The arc starts from the LIFTED proxy (×1.05 — the director's live rect)
+      // while the director's base scale describes the rest box: a ratio taken
+      // against the lifted rect landed every card 4.8 % short of its slot.
+      const rest = rect(800, 300, 200, 288);
+      const lifted = rect(795, 282, 210, 302.4);
+      const target = rect(300, 700, 140, 200);
+      const plan = planHeroPath({source: lifted, sourceRest: rest, target, ...VIEW});
+      expect(plan.targetScale).to.be.closeTo(140 / 200, 1e-9);
+      // …and the path itself still starts where the card IS (the lifted centre).
+      expect(heroPoint(plan, 0)).to.deep.eq(heroCenter(lifted));
+      expect(heroPoint(plan, 1)).to.deep.eq(heroCenter(target));
+      // The landed scale × the natural width reproduces the target width.
+      const baseScale = rest.w / 320;
+      expect(baseScale * heroScaleAt(1, plan) * 320).to.be.closeTo(target.w, 1e-6);
+    });
+
     it('identical input → identical plan (deterministic)', () => {
       const source = rect(812, 305, 197, 285);
       const target = rect(311, 707, 143, 205);

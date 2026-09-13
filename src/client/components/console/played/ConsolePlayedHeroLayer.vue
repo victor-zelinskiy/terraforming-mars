@@ -14,8 +14,11 @@
     <div v-if="playedHeroState.proxy !== undefined" ref="proxy" class="con-played-hero__proxy">
       <div ref="shade" class="con-played-hero__shade"></div>
       <div ref="flip" class="con-deal-proxy__flip">
+        <!-- THE FACE IS THE HOST'S PICTURE: the source's at the lift, the
+             destination's from the apex on (`proxy.face` — tier + live model),
+             so the two copies at the handoff are the same picture. -->
         <div class="con-deal-proxy__face">
-          <ConsoleCardFaceLite :name="playedHeroState.proxy.card" />
+          <ConsoleCardFaceLite :name="playedHeroState.proxy.card" :card="playedHeroState.proxy.face.card" :lightweight="playedHeroState.proxy.face.lightweight" />
         </div>
         <!-- The event back — revealed by the mid-arc 3D flip (90° swap rides
              the shared backface chassis; non-events never mount it). -->

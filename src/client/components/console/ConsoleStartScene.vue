@@ -1124,7 +1124,7 @@ import {
   startFlowPreludeCopyPrompt, startFlowPreludeDrawPrompt, startFlowPreludePrompt,
 } from '@/client/components/startGameFlow/startGameFlowState';
 import {
-  firstActionActionable, firstActionAsk, firstActionBranch, firstActionDrawExpected,
+  firstActionActionable, firstActionAsk, firstActionBranch, firstActionCandidates, firstActionDrawExpected,
   firstActionOwed, firstActionPreviewable, firstActionStageCorp, startFlowOtherPromptStands,
   startWaitMate,
 } from '@/client/console/startFirstAction';
@@ -1204,6 +1204,17 @@ function textOf(v: string | Message | undefined): string {
 
 
 type Focusable = {kind: 'corp' | 'prelude' | 'candidate' | 'pay' | 'bonus' | 'legacy', name: CardName, disabled: boolean};
+
+/**
+ * WHO OWNS THE SOURCE SEAT (docs/claude/console/start-first-action.md § THE
+ * SEAT HAS ONE OWNER): the queue play's draw effect (`'effect'` — the source
+ * card parks in the seat while its reveal presents), the first-action stage
+ * (`'firstAction'` — the corporation of the briefing) or the «Фора» window
+ * (`'bonus'` — the granting card). Every emerge / settle goes through the
+ * seat funnel, which refuses a foreign owner: the claim's release may settle
+ * only what the effect seated, never a stage's card.
+ */
+type SeatOwner = 'effect' | 'firstAction' | 'bonus';
 
 /** One physical slot of the deployment queue. */
 type QueueEntry = {
@@ -1539,6 +1550,16 @@ export default defineComponent({
       roomSettling: false,
       /** Stale-guard for the stage's confirmed leave (see the watcher). */
       firstActionLeaveToken: 0,
+      /** THE SEAT'S OWNER — see `SeatOwner` and the seat funnel below. */
+      seatOwner: undefined as SeatOwner | undefined,
+      /** The seat's flight episode: every emerge / settle bumps it, and a
+       *  continuation whose token is stale applies NOTHING (it only disposes
+       *  its own proxies). A settle that finished after a newer take used to
+       *  wipe the seat the take had just filled — the reported loop. */
+      seatFlight: 0,
+      /** ONE flight at a time: seat requests are serialized on this chain,
+       *  so two writers can never fly the same card twice. */
+      seatChain: Promise.resolve() as Promise<void>,
       /** Focus INSIDE a standing stage panel: 0 = the stage's own CTA, 1.. =
        *  the claimable gain rows (Head Start's «получить до или после»). */
       // THE STAGE PANEL'S CURSOR — an index into the panel's own VISUAL
@@ -2604,6 +2625,16 @@ export default defineComponent({
      *  one at a time as the server re-raises the prompt). */
     firstActionCorpNow(): CardName | undefined {
       return firstActionStageCorp(this.playerView);
+    },
+    /** Every owed corporation whose option is LIVE right now — the player's
+     *  LB/RB choice when there is more than one. */
+    firstActionCandidates(): ReadonlyArray<CardName> {
+      return firstActionCandidates(this.playerView);
+    },
+    /** The bar advertises the choice only where a press can honour it. */
+    firstActionChoiceLive(): boolean {
+      return this.state.firstAct.stage === 'standing' && !this.state.firstAct.submitting &&
+        this.firstActionCandidates.length > 1 && this.firstActionPanelShown;
     },
     /** The player's turn has genuinely arrived — the marked OrOptions is live
      *  and carries the seated corp's option. */
@@ -3885,6 +3916,7 @@ export default defineComponent({
         ceremonyVerb: this.candidatePrompt !== undefined ? this.candidateVerb : 'Play now',
         hasFocusables: this.focusables.length > 0,
         firstAction: this.firstActionBarState,
+        firstActionChoice: this.firstActionChoiceLive,
         bonusAction: this.bonusActionBarState,
         stageGainFocused: this.stageGainFocused,
         bonusFirstPending: this.bonusOverviewVerb === 'firstAction',
@@ -4182,7 +4214,11 @@ export default defineComponent({
         // THE SOURCE STAYS IN THE STEP — and it emerges only NOW: the reveal
         // event follows the hero's commit, so the source card is physically
         // lying in the dock (at the claim's press it was still in flight).
-        void this.runEmbedSourceEmerge();
+        // Through the funnel as the EFFECT's request: a seat already holding
+        // the card (a stage's own draw) keeps its owner and nothing flies.
+        if (this.outcome.sourceCard !== '') {
+          void this.seatTake('effect', this.outcome.sourceCard as CardName);
+        }
         return;
       }
       if (now === '' && was !== '') {
@@ -4373,7 +4409,16 @@ export default defineComponent({
       }
     },
     'firstActionCorpNow'(corp: CardName | undefined) {
-      if (corp !== undefined && this.state.firstAct.stage === 'standing' && this.state.firstAct.corp !== corp) {
+      // THE NEXT CORPORATION TAKES THE SEAT ONLY WHEN THE LAST ONE'S CHAIN IS
+      // QUIET. The server re-raises the prompt for the second owed corp in
+      // the SAME response that accepts the first one's action (Inventrix's
+      // draw needs no input), while that action's outcome — the drawn cards'
+      // embedded reveal — is still presenting on the stage. Swapping here
+      // pulled the reveal's source out from under it and stood the next
+      // briefing over somebody else's cards; the quiet edge (`restandFirstAction`)
+      // performs the swap once the chain has returned.
+      if (corp !== undefined && this.state.firstAct.stage === 'standing' && this.state.firstAct.corp !== corp &&
+          this.firstActionChainQuiet) {
         void this.swapFirstActionSeat(corp);
       }
     },
@@ -4398,8 +4443,14 @@ export default defineComponent({
     'playerView'() {
       if (this.state.firstAct.submitting) {
         this.state.firstAct.submitting = false;
+        // ACCEPTED = the seated corporation's option is GONE — even when the
+        // marked prompt is still live for ANOTHER owed corporation (Merger:
+        // the server re-raises it in the same response). Reading «the prompt
+        // is gone» kept the stage `standing` on a corp whose move was already
+        // taken, so the chain's quiet edge found no `performing` stage to
+        // re-stand and the second corporation never got its seat.
         if ((this.state.firstAct.stage === 'standing' || this.state.firstAct.stage === 'staging') &&
-            startFlowCorpPrompt(this.playerView) === undefined) {
+            !firstActionActionable(this.playerView, this.state.firstAct.corp)) {
           this.state.firstAct.stage = 'performing';
         }
       }
@@ -4481,11 +4532,8 @@ export default defineComponent({
       }
       this.state.firstAct.stage = 'staging';
       void (async () => {
-        if (this.embedSourceShown !== undefined && this.embedSourceShown !== corp) {
-          await this.runEmbedSourceSettle();
-        }
-        await this.runEmbedSourceEmerge(corp);
-        if (this.state.firstAct.stage === 'staging') {
+        await this.seatTake('firstAction', corp);
+        if (this.state.firstAct.stage === 'staging' && this.state.firstAct.corp === corp) {
           this.state.firstAct.stage = 'standing';
         }
       })();
@@ -4529,9 +4577,12 @@ export default defineComponent({
       seat: {
         shown: this.embedSourceShown ?? null,
         incoming: this.embedSourceIncoming ?? null,
+        owner: this.seatOwner ?? null,
+        flight: this.seatFlight,
         presenting: this.embedPresenting,
         active: this.embedActive,
       },
+      candidates: [...this.firstActionCandidates],
       // The BLOCKERS, in the order the entry predicate reads them — the first
       // `true` here is the answer to «why is the stage not standing».
       blockers: {
@@ -4584,6 +4635,11 @@ export default defineComponent({
         this.embedSourceArriving = false;
         this.embedSourceLanded = true;
       }
+      // The stage owns the seat it came back to (a component-local fact the
+      // remount re-derives from the module-state machine).
+      if (this.embedSourceShown === this.state.firstAct.corp) {
+        this.seatOwner = 'firstAction';
+      }
       if (this.stageOwnsRoom && !this.roomPosed) {
         this.poseRoomReceded();
       }
@@ -4622,6 +4678,10 @@ export default defineComponent({
   },
   beforeUnmount() {
     delete (window as unknown as Record<string, unknown>).__conStartDiag;
+    // Every seat flight still in the air belongs to a component that is
+    // going: its continuation must apply nothing (the machine lives in module
+    // state and the remount re-poses the seat from it).
+    this.seatFlight++;
     // The hold gate is MODULE state — it must not outlive the surface that
     // armed it (a live hold with nothing on screen would complete into a
     // component that no longer exists).
@@ -6601,6 +6661,14 @@ export default defineComponent({
           void this.advanceWithCollect();
         }
         return;
+      case 'prevTab':
+      case 'nextTab':
+        // LB/RB on the standing first-action stage: the player's choice among
+        // SEVERAL owed corporations (the server offers one option each).
+        if (this.mode === 'ceremony') {
+          this.cycleFirstActionCorp(action === 'prevTab' ? -1 : 1);
+        }
+        return;
       case 'back':
         // THE SUB-STAGE'S B IS ONE LOGICAL LEVEL — back to the window's
         // overview, seat handed back to «Фора». Nothing was submitted, so
@@ -6970,22 +7038,74 @@ export default defineComponent({
         if (this.state.firstAct.stage === 'standing' || this.state.firstAct.stage === 'staging') {
           this.state.firstAct.stage = 'performing';
         }
-        void this.runEmbedSourceSettle().then(() => submit());
+        // The stage HANDS THE SEAT OVER (an explicit release by its owner);
+        // the pick's own claim then takes it as the effect's.
+        void this.seatRelease('firstAction').then(() => submit());
         return;
       }
       submit();
+    },
+    // ── THE SEAT FUNNEL — one owner, one flight at a time ─────────────────
+    /** The seat holds (or is receiving) this card. */
+    seatHolds(card: CardName): boolean {
+      return this.embedSourceShown === card || this.embedSourceIncoming === card;
+    },
+    /** Serialize a seat operation behind whatever flight is in the air. */
+    seatQueue(op: () => Promise<void>): Promise<void> {
+      const run = this.seatChain.then(op, op);
+      this.seatChain = run.then(() => undefined, () => undefined);
+      return run;
+    },
+    /**
+     * TAKE the seat for `card` under `owner`. Idempotent: a seat that already
+     * holds (or is flying) the card answers at once — an EFFECT's take never
+     * overrides a stage's ownership of its own card (the corporation's own
+     * draw asks for the seat the stage already gave it). Another card seated
+     * YIELDS first (the merger handover, a previous effect's settle lagging
+     * the quieted server): settle, then the emerge — one serialized phrase.
+     */
+    seatTake(owner: SeatOwner, card: CardName): Promise<void> {
+      return this.seatQueue(async () => {
+        if (this.seatHolds(card)) {
+          if (owner !== 'effect' || this.seatOwner === undefined) {
+            this.seatOwner = owner;
+          }
+          return;
+        }
+        if (this.embedSourceShown !== undefined || this.embedSourceIncoming !== undefined) {
+          await this.settleFlight();
+        }
+        this.seatOwner = owner;
+        await this.emergeFlight(card);
+      });
+    },
+    /**
+     * RELEASE the seat — settle its card home into «РАЗЫГРАНО». Refused for a
+     * foreign owner: the claim's release (`'effect'`) may not settle the
+     * corporation a standing stage seated, which is exactly how the card used
+     * to fly home under the player's briefing and rise again a beat later.
+     */
+    seatRelease(owner: SeatOwner): Promise<void> {
+      return this.seatQueue(async () => {
+        if (this.seatOwner !== undefined && this.seatOwner !== owner) {
+          return;
+        }
+        await this.settleFlight();
+        this.seatOwner = undefined;
+      });
     },
     /**
      * THE SOURCE EMERGE — the card that caused the draw comes physically
      * forward: its dock face steps AWAY (geometry held), a proxy carries the
      * same pixels into the step's source column, the column card reveals on
      * touchdown. The same take/carry/lay grammar as every start transfer.
+     * Funnel-internal: callers go through `seatTake`.
      */
-    async runEmbedSourceEmerge(explicitSource?: CardName): Promise<void> {
-      const source = explicitSource ?? this.outcome.sourceCard as CardName;
-      if (source === '' || this.embedSourceShown !== undefined || this.embedSourceIncoming !== undefined) {
+    async emergeFlight(source: CardName): Promise<void> {
+      if (this.embedSourceShown !== undefined || this.embedSourceIncoming !== undefined) {
         return;
       }
+      const token = ++this.seatFlight;
       const root = this.sceneRoot();
       if (root === undefined) {
         this.embedSourceShown = source;
@@ -7004,10 +7124,24 @@ export default defineComponent({
       // synchronously; and only then does `embedSourceShown` hide the face —
       // under the already-standing proxy, exactly as the discipline says.
       const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(source) : source;
-      const dockFace = root.querySelector<HTMLElement>(`.con-start__played [data-played-key="${esc}"] .con-splayed__face`);
+      const faceOf = () => root.querySelector<HTMLElement>(`.con-start__played [data-played-key="${esc}"] .con-splayed__face`);
+      let dockFace = faceOf();
       this.embedSourceIncoming = source;
       this.embedSourceArriving = true;
       await this.$nextTick();
+      if (this.seatFlight !== token) {
+        return; // superseded — a newer flight owns the seat
+      }
+      if (dockFace === null || !dockFace.isConnected) {
+        // The shelf face RE-MOUNTS on the flush right after a settle released
+        // the away card (the face is keyed by name): one more tick and the
+        // fresh node is there — a degrade here was a teleport for no reason.
+        await this.$nextTick();
+        if (this.seatFlight !== token) {
+          return;
+        }
+        dockFace = faceOf();
+      }
       const colSlot = root.querySelector<HTMLElement>('[data-embed-source-slot]');
       if (dockFace === null || !dockFace.isConnected || colSlot === null) {
         // Degraded: the column simply shows (no believable source on screen).
@@ -7026,7 +7160,9 @@ export default defineComponent({
       // the proxy stands over the live face in this very turn…
       const flight = reseatCards([{name: source, fromEl: dockFace, toEl: colSlot}],
         () => {
-          this.embedSourceArriving = false;
+          if (this.seatFlight === token) {
+            this.embedSourceArriving = false;
+          }
         });
       // …so the face's reactive hide lands in the SAME patch the proxy is
       // already covering it (an imperative class here was wiped by the dock's
@@ -7034,6 +7170,9 @@ export default defineComponent({
       this.embedSourceShown = source;
       this.embedSourceIncoming = undefined;
       await flight;
+      if (this.seatFlight !== token) {
+        return;
+      }
       this.embedSourceArriving = false;
       this.embedSourceLanded = true; // the card physically stands in the seat
     },
@@ -7167,40 +7306,60 @@ export default defineComponent({
         });
       });
     },
-    /** THE RETURN HALF of the effect flow, in order: the main scene comes
-     *  back FULLY READY (queue standing, dock untouched), and only then the
-     *  source card continues its interrupted journey into «Разыграно». */
+    /**
+     * THE RETURN HALF of the effect flow (the claim released), in order: the
+     * main scene comes back FULLY READY (queue standing, dock untouched), and
+     * only then the source card continues its interrupted journey into
+     * «Разыграно».
+     *
+     * OWNER-AWARE, both halves. The ROOM comes back only when no stage owns
+     * it (a standing briefing keeps the queue receded — returning it here
+     * stood the queue up behind the briefing). The SEAT settles only what the
+     * EFFECT seated: a corporation the first-action stage seated stays — its
+     * own leave settles it. Both halves used to run unconditionally on the
+     * claim's release, which the reconciler fires a tick after the answer
+     * for every follow-up the stage cannot host (a placement, the next corp's
+     * prompt) — and the card then flew home under the briefing (or, yielded,
+     * invisibly), which is the «телепорт вниз» of the reported loop.
+     */
     async runStartEffectReturn(): Promise<void> {
-      // BOTH halves of the deployment come back together, and BOTH are fully
-      // settled before the source card continues — the shelf is this flight's
-      // destination, so a return that raced it would aim the card at a moving
-      // target.
-      await Promise.all([this.runQueueReturn(), this.runPlayedDockReturn()]);
-      await this.runEmbedSourceSettle();
+      if (!this.stageOwnsRoom) {
+        await Promise.all([this.runQueueReturn(), this.runPlayedDockReturn()]);
+      }
+      await this.seatRelease('effect');
     },
     /** The submit died mid-flow: nothing landed anywhere — clear the held
-     *  seat with NO ghost flight, drop the orphaned claim, restore the queue. */
+     *  seat with NO ghost flight (unless a STAGE owns it — its card really is
+     *  there), drop the orphaned claim, restore the queue. */
     async abortStartEffectFlow(): Promise<void> {
-      this.embedSourceShown = undefined;
-      this.embedSourceIncoming = undefined;
-      this.embedSourceArriving = false;
-      this.embedSourceLanded = false;
-      this.embedSourceDeparting = false;
+      if (this.seatOwner === undefined || this.seatOwner === 'effect') {
+        this.seatFlight++;
+        this.embedSourceShown = undefined;
+        this.embedSourceIncoming = undefined;
+        this.embedSourceArriving = false;
+        this.embedSourceLanded = false;
+        this.embedSourceDeparting = false;
+        this.seatOwner = undefined;
+      }
       if (this.outcome.host === 'start') {
         releaseWorkspaceOutcome();
       }
-      await Promise.all([this.runQueueReturn(), this.runPlayedDockReturn()]);
+      if (!this.stageOwnsRoom) {
+        await Promise.all([this.runQueueReturn(), this.runPlayedDockReturn()]);
+      }
     },
     /** THE SOURCE SETTLE — the effect is over: the source card carries on
      *  from its seat into the dock's family slot (the second half of the
      *  play's journey); the shelf face turns real the moment the proxy
      *  touches down. A card that never PHYSICALLY reached the seat (an
-     *  aborted flow) just clears — a flight of a ghost is worse than none. */
-    async runEmbedSourceSettle(): Promise<void> {
-      const source = this.embedSourceShown;
+     *  aborted flow) just clears — a flight of a ghost is worse than none.
+     *  Funnel-internal: callers go through `seatRelease` / `seatTake`. */
+    async settleFlight(): Promise<void> {
+      const source = this.embedSourceShown ?? this.embedSourceIncoming;
       if (source === undefined) {
         return;
       }
+      const token = ++this.seatFlight;
       // The caption goes FIRST and on its own beat: «ИСТОЧНИК» names a card
       // that is about to leave, and a label outliving its subject is the
       // loudest kind of leftover state. Set before anything is measured, so
@@ -7240,9 +7399,15 @@ export default defineComponent({
         await reseatCards([{name: source, fromEl: colSlot, toEl: dockSlot}],
           () => {
             // Touchdown: release the away-state — the shelf face reappears
-            // under the settling proxy in the same frame.
-            this.embedSourceShown = undefined;
+            // under the settling proxy in the same frame. Only for THIS
+            // flight: a newer take may already own the seat.
+            if (this.seatFlight === token) {
+              this.embedSourceShown = undefined;
+            }
           });
+      }
+      if (this.seatFlight !== token) {
+        return; // superseded — the seat belongs to a newer flight now
       }
       this.embedSourceShown = undefined;
       this.embedSourceIncoming = undefined;
@@ -7291,13 +7456,10 @@ export default defineComponent({
       // quiets before the client-side settle finishes its return, so an
       // entry racing that window found the seat occupied, the emerge's guard
       // stayed silent, and when the old card DID settle home the briefing
-      // stood over an empty seat. The handover is the merger-swap's own
-      // phrase: settle the old occupant first, then the corp rises.
-      if (this.embedSourceShown !== undefined && this.embedSourceShown !== corp) {
-        await this.runEmbedSourceSettle();
-      }
-      await this.runEmbedSourceEmerge(corp);
-      if (this.state.firstAct.stage === 'staging') {
+      // stood over an empty seat. The funnel's take IS the handover: the old
+      // occupant settles first, then the corp rises — one serialized phrase.
+      await this.seatTake('firstAction', corp);
+      if (this.state.firstAct.stage === 'staging' && this.state.firstAct.corp === corp) {
         this.state.firstAct.stage = 'standing';
       }
     },
@@ -7386,8 +7548,8 @@ export default defineComponent({
       // the workspace; seated beside the card that caused it, the same plate is
       // plainly a stage OF the workspace. (The room lets go behind it through
       // `stageOwnsRoom` — one owner for both briefing stages.)
-      if (source !== undefined && this.embedSourceShown === undefined) {
-        await this.runEmbedSourceEmerge(source);
+      if (source !== undefined) {
+        await this.seatTake('bonus', source);
       }
       if (this.state.bonusAct.stage === 'staging') {
         this.state.bonusAct = {...this.state.bonusAct, stage: 'standing', source};
@@ -7412,11 +7574,10 @@ export default defineComponent({
       this.state.firstAct.corp = corp;
       this.state.firstAct.submitting = false;
       this.fetchFirstActionPreview(corp);
-      // The handover: the window's card home, the item's card up.
-      await this.runEmbedSourceSettle();
-      const emerge = this.runEmbedSourceEmerge(corp);
-      await emerge;
-      if (this.state.firstAct.stage === 'staging') {
+      // The handover: the window's card home, the item's card up — the
+      // funnel's take settles the occupant first.
+      await this.seatTake('firstAction', corp);
+      if (this.state.firstAct.stage === 'staging' && this.state.firstAct.corp === corp) {
         this.state.firstAct.stage = 'standing';
       }
     },
@@ -7430,7 +7591,7 @@ export default defineComponent({
         return;
       }
       this.state.firstAct.stage = 'staging';
-      await this.runEmbedSourceSettle();
+      await this.seatRelease('firstAction');
       this.state.firstAct.stage = 'idle';
       this.state.firstAct.corp = undefined;
       await this.ensureBonusSeat();
@@ -7439,12 +7600,12 @@ export default defineComponent({
      *  player sees — including after the sub-stage settled the corp home. */
     async ensureBonusSeat(): Promise<void> {
       const source = this.bonusActionSourceCard;
-      if (source === undefined || this.embedSourceShown !== undefined ||
+      if (source === undefined ||
           this.state.bonusAct.stage === 'idle' || this.state.bonusAct.stage === 'onboard' ||
           this.state.firstAct.stage !== 'idle') {
         return;
       }
-      await this.runEmbedSourceEmerge(source);
+      await this.seatTake('bonus', source);
     },
     /**
      * CLAIM one of the window's pending gains («Фора»: the steel / M€ whose
@@ -7609,7 +7770,10 @@ export default defineComponent({
       // and the overview that returns says 2/2 with the board CTA.
       const nested = this.state.bonusAct.stage === 'standing' || this.state.bonusAct.stage === 'staging';
       this.state.firstAct.stage = 'leaving';
-      await this.runStartEffectReturn();
+      // The ROOM breathes back first (the shelf is the settle's destination),
+      // then the stage RELEASES its seat — the one settle home of the stage.
+      await Promise.all([this.runQueueReturn(), this.runPlayedDockReturn()]);
+      await this.seatRelease('firstAction');
       this.state.firstAct.stage = 'idle';
       this.state.firstAct.corp = undefined;
       this.state.firstAct.submitting = false;
@@ -7639,60 +7803,69 @@ export default defineComponent({
       }
       this.state.firstAct.submitting = false;
       const corp = this.firstActionCorpNow;
-      // THE SEAT MAY BE EMPTY HERE — a follow-up chain settles the corp home
-      // (`runEmbedSourceSettle` before its own pick/draw), so the common
-      // re-stand arrives with nobody seated. Standing the briefing over an
-      // empty seat is the teleport class the entry grammar exists to remove:
-      // re-run the SAME two-beat phrase (staging keeps the panel down, the
-      // corp flies back into the seat, the briefing rises around it).
-      if (corp !== undefined && this.embedSourceIncoming === undefined &&
-          this.embedSourceShown !== corp) {
-        this.state.firstAct.stage = 'staging';
-        if (this.state.firstAct.corp !== corp) {
-          this.state.firstAct.corp = corp;
-          this.fetchFirstActionPreview(corp);
-        }
-        void (async () => {
-          // A stale occupant (the previous effect's card whose settle lagged
-          // the quieted server) hands the seat over first — the merger-swap
-          // phrase, so the briefing never stands over an emptying seat.
-          if (this.embedSourceShown !== undefined && this.embedSourceShown !== corp) {
-            await this.runEmbedSourceSettle();
-          }
-          await this.runEmbedSourceEmerge(corp);
-          if (this.state.firstAct.stage === 'staging') {
-            this.state.firstAct.stage = 'standing';
-          }
-        })();
+      if (corp === undefined) {
         return;
       }
-      this.state.firstAct.stage = 'standing';
-      if (corp !== undefined && this.state.firstAct.corp !== corp) {
-        void this.swapFirstActionSeat(corp);
+      // The seat holds THIS corporation (the stage owned it through the whole
+      // chain) — the briefing simply stands again. Otherwise — the next owed
+      // corporation (Merger), or a seat a hosted step took over (Valley
+      // Trust's pick) — the SAME two-beat phrase as the entry: staging keeps
+      // the panel down, the funnel settles the occupant and flies the corp
+      // into the seat, the briefing rises around it. Never a briefing over an
+      // empty or emptying seat.
+      if (this.seatHolds(corp) && this.embedSourceIncoming === undefined) {
+        this.state.firstAct.corp = corp;
+        this.seatOwner = 'firstAction';
+        this.state.firstAct.stage = 'standing';
+        return;
       }
+      void this.swapFirstActionSeat(corp);
     },
     /**
-     * MERGER — a SECOND corporation owes its action after the first resolved:
-     * the seat hands over (the first corp settles home, the next one rises)
-     * through the same two phrases, never a repaint of the seat's face.
+     * THE SEAT HANDS OVER to `next` (Merger's second corporation after the
+     * first resolved; the player's LB/RB choice between several owed) —
+     * the current card settles home, the next one rises — through the funnel's
+     * one serialized phrase, never a repaint of the seat's face.
      */
     async swapFirstActionSeat(next: CardName): Promise<void> {
-      if (this.state.firstAct.stage !== 'standing' || this.state.firstAct.corp === next) {
+      const stage = this.state.firstAct.stage;
+      if ((stage !== 'standing' && stage !== 'performing') || this.state.firstAct.submitting) {
+        return;
+      }
+      if (this.state.firstAct.corp === next && this.seatHolds(next)) {
+        this.state.firstAct.stage = 'standing';
         return;
       }
       this.state.firstAct.stage = 'staging';
-      this.state.firstAct.submitting = false;
-      // The settle flies INTO the shelf, so the shelf must be back and
-      // measurable first (the same order runStartEffectReturn keeps) — and it
-      // now STAYS for the next corp's rise: both halves of the swap have a
-      // visible place to come from and go to.
-      await this.runPlayedDockReturn();
-      await this.runEmbedSourceSettle();
       this.state.firstAct.corp = next;
       this.fetchFirstActionPreview(next);
-      await this.runEmbedSourceEmerge(next);
-      if (this.state.firstAct.stage === 'staging') {
+      // The settle flies INTO the shelf, so the shelf must be back and
+      // measurable first — and it STAYS for the next corp's rise: both halves
+      // of the swap have a visible place to come from and go to.
+      await this.runPlayedDockReturn();
+      await this.seatTake('firstAction', next);
+      if (this.state.firstAct.stage === 'staging' && this.state.firstAct.corp === next) {
         this.state.firstAct.stage = 'standing';
+      }
+    },
+    /**
+     * THE PLAYER'S CHOICE — several corporations owe their opening move at
+     * once (Merger), and the server's `OrOptions` offers one option EACH:
+     * LB/RB cycle the seated corporation among the LIVE candidates (the
+     * seat hands over through the same phrase as the Merger re-stand). Never
+     * a hard order: the stage seats the first live one and the player decides.
+     */
+    cycleFirstActionCorp(dir: 1 | -1): void {
+      const candidates = this.firstActionCandidates;
+      const current = this.state.firstAct.corp;
+      if (candidates.length < 2 || current === undefined ||
+          this.state.firstAct.stage !== 'standing' || this.state.firstAct.submitting) {
+        return;
+      }
+      const idx = candidates.indexOf(current);
+      const next = candidates[((idx < 0 ? 0 : idx) + dir + candidates.length) % candidates.length];
+      if (next !== undefined && next !== current) {
+        void this.swapFirstActionSeat(next);
       }
     },
     /**
@@ -7734,7 +7907,16 @@ export default defineComponent({
       if (expected <= 0 && !inFirstAction) {
         return;
       }
+      // The EFFECT arms the seat for its hero landing — unless a stage owns
+      // it with this very card (the first action's own draw: the corporation
+      // is already seated, the reveal presents beside it).
+      if (this.seatHolds(name) && this.seatOwner !== undefined && this.seatOwner !== 'effect') {
+        return;
+      }
+      this.seatFlight++;
+      this.seatOwner = 'effect';
       this.embedSourceShown = name;
+      this.embedSourceIncoming = undefined;
       this.embedSourceArriving = true;
       this.embedSourceLanded = false;
       this.embedSourceDeparting = false;
@@ -7843,6 +8025,11 @@ export default defineComponent({
         // settle carries it on into «Разыграно» when the effect completes.
         targetSelector: (this.drawExpected.get(name) ?? 0) > 0 ? '[data-embed-source-slot]' : undefined,
         rewards: this.playRewards.get(name),
+        // The queue slot and the dock's top slot (and the effect-source seat)
+        // all paint the `thumb`-tier name-only face — the proxy wears it from
+        // the lift to the handoff, no swap needed.
+        sourceFace: {lightweight: true},
+        landingFace: {lightweight: true, model: 'none'},
       });
     },
     /**

@@ -5,18 +5,20 @@
  * placement over the source, the lift beat, the hero arc (position + scale +
  * roll + the event flip + shade + one restrained frame sweep, all driven by
  * ONE linear progress tween mapped through the model's speed profile), the
- * landing settle, the dissolve, and the kill switch. No game state, no Vue.
+ * final-approach retarget, the frame-exact handoff, the dissolve, and the kill
+ * switch. No game state, no Vue.
  *
  * Physics discipline (the project flight rules): transform/opacity only, all
- * rects measured BEFORE the timeline, one gsap.set per frame on two elements,
- * `will-change` scoped to the proxy's own CSS class, every entry point
- * resolves (guarded budgets) and `killHeroTweens` reverts everything.
+ * rects measured BEFORE the timeline (plus ONE live re-read on the final
+ * approach), one gsap.set per frame on two elements, `will-change` scoped to
+ * the proxy's own CSS class, every entry point resolves (guarded budgets) and
+ * `killHeroTweens` reverts everything.
  */
 
 import {gsap} from 'gsap';
 import {
   HeroRect, HeroPathPlan, heroPoint, heroProgressAt, heroScaleAt, heroTiltAt, heroFlipAt,
-  HERO_LIFT_SCALE, HERO_SETTLE_PX,
+  HERO_LIFT_SCALE, HERO_RETARGET_AT, HERO_SHADE_OUT_FROM,
 } from '@/client/console/played/playedHeroModel';
 
 export type HeroStageEls = {
@@ -34,9 +36,17 @@ type ProxyGeometry = {
   baseScale: number,
   /** Natural (unscaled) proxy height derived from the REAL source rect. */
   naturalH: number,
+  /** The source box AT REST (what `baseScale` describes) — the plan's scale
+   *  ratio is measured against THIS, never against the lifted proxy. */
+  restRect: HeroRect,
 };
 
 let geometry: ProxyGeometry | undefined;
+
+/** The rest box the proxy was born over (undefined before placement). */
+export function heroProxyRestRect(): HeroRect | undefined {
+  return geometry?.restRect;
+}
 
 /**
  * Position the proxy pixel-perfect over the captured source rect (natural
@@ -49,7 +59,7 @@ export function placeHeroProxy(els: HeroStageEls, rect: HeroRect): boolean {
     return false;
   }
   const baseScale = rect.w / CARD_NATURAL_W;
-  geometry = {baseScale, naturalH: rect.h / baseScale};
+  geometry = {baseScale, naturalH: rect.h / baseScale, restRect: {...rect}};
   // CENTER origin: the roll pivots around the card's middle (a corner pivot
   // reads as a swing, not a banking card), and the position math collapses
   // to "translate the natural box so its centre sits at the path point" —
@@ -120,6 +130,17 @@ export type HeroFlightOpts = {
   isEvent: boolean,
   durationMs: number,
   uiScale: number,
+  /**
+   * THE FINAL-APPROACH RETARGET — a ONE-SHOT live read of the landing rect
+   * (its RESTING geometry) taken at `HERO_RETARGET_AT` of the flight time.
+   * The remainder of the path bends onto it with a 0 → 1 ramp: continuous
+   * (no jump at the read), exact at the touchdown even when the slot re-fit
+   * or finished its own entry under the arc. `undefined` keeps the plan.
+   */
+  retarget?: () => HeroRect | undefined,
+  /** Fired ONCE as the card passes the apex (p = 0.5, its fastest frame) —
+   *  where the host swaps the proxy's face to the destination's picture. */
+  onApex?: () => void,
 };
 
 /**
@@ -128,16 +149,20 @@ export type HeroFlightOpts = {
  * decisive exit → calm final 20%) maps it to path progress, and position,
  * scale, roll, the event flip, the shade and the one frame sweep are all
  * derived per frame from that single value — the whole card behaves as one
- * physical object on one curve. Ends with a microscopic damped settle.
+ * physical object on one curve. The arc IS the landing: its calm tail brings
+ * the card to rest in the slot, and nothing moves after that.
  */
 export function playHeroFlight(els: HeroStageEls, plan: HeroPathPlan, opts: HeroFlightOpts): Promise<void> {
   const g = geometry;
   if (g === undefined) {
     return Promise.resolve();
   }
-  const flightSec = (opts.durationMs / 1000) * 0.92;
-  const settlePx = Math.max(2, Math.round(HERO_SETTLE_PX * opts.uiScale));
+  const flightSec = opts.durationMs / 1000;
   let sweepFired = false;
+  let apexFired = false;
+  // The retarget correction (centre offset + scale delta), ramped over the
+  // path progress past the read.
+  const corr = {x: 0, y: 0, scale: 0, from: -1};
   return guarded((done) => {
     const prog = {q: 0};
     const tl = gsap.timeline({onComplete: done});
@@ -147,21 +172,39 @@ export function playHeroFlight(els: HeroStageEls, plan: HeroPathPlan, opts: Hero
       ease: 'none',
       onUpdate: () => {
         const p = heroProgressAt(prog.q);
-        const sc = g.baseScale * heroScaleAt(p, plan);
+        if (corr.from < 0 && prog.q >= HERO_RETARGET_AT && opts.retarget !== undefined) {
+          corr.from = p;
+          const live = opts.retarget();
+          if (live !== undefined && live.w > 4 && live.h > 4) {
+            corr.x = live.x + live.w / 2 - plan.p1.x;
+            corr.y = live.y + live.h / 2 - plan.p1.y;
+            corr.scale = live.w / Math.max(1, g.restRect.w) - plan.targetScale;
+          }
+        }
+        const cw = corr.from < 0 || corr.from >= 1 ? 0 : Math.min(1, Math.max(0, (p - corr.from) / (1 - corr.from)));
+        const sc = g.baseScale * (heroScaleAt(p, plan) + corr.scale * cw);
         const at = heroPoint(plan, p);
         gsap.set(els.proxy, {
-          x: at.x - CARD_NATURAL_W / 2,
-          y: at.y - g.naturalH / 2,
+          x: at.x + corr.x * cw - CARD_NATURAL_W / 2,
+          y: at.y + corr.y * cw - g.naturalH / 2,
           scale: sc,
           rotation: heroTiltAt(p, plan.peakTilt),
         });
+        if (!apexFired && p >= 0.5) {
+          apexFired = true;
+          opts.onApex?.();
+        }
         if (opts.isEvent && els.flip !== undefined) {
           gsap.set(els.flip, {rotationY: heroFlipAt(p)});
         }
         if (els.shade !== undefined) {
-          // Airborne belly: widest + softest at the apex, contact at both ends.
+          // Airborne belly: widest + softest at the apex; it LANDS at zero
+          // before contact, so the touchdown frame paints nothing the real
+          // slot does not.
           const airborne = Math.sin(Math.PI * Math.min(1, Math.max(0, p)));
-          gsap.set(els.shade, {autoAlpha: 0.5 - 0.22 * airborne, scaleX: 1 + 0.14 * airborne});
+          const landing = p <= HERO_SHADE_OUT_FROM ? 1 :
+            Math.max(0, 1 - (p - HERO_SHADE_OUT_FROM) / (1 - HERO_SHADE_OUT_FROM));
+          gsap.set(els.shade, {autoAlpha: (0.5 - 0.22 * airborne) * landing, scaleX: 1 + 0.14 * airborne});
         }
         // ONE restrained light sweep over the frame, fired at the apex
         // (a background-position glide inside the sweep's own clip box —
@@ -176,13 +219,7 @@ export function playHeroFlight(els: HeroStageEls, plan: HeroPathPlan, opts: Hero
         }
       },
     }, 0);
-    // The settle: 2–4 px of damped weight — felt, not seen.
-    tl.to(els.proxy, {y: `+=${settlePx}`, duration: 0.09, ease: 'power1.out'});
-    tl.to(els.proxy, {y: `-=${settlePx}`, duration: 0.14, ease: 'power2.out'});
-    if (els.shade !== undefined) {
-      tl.to(els.shade, {autoAlpha: 0.55, scaleX: 1, duration: 0.16, ease: 'power1.out'}, '<');
-    }
-  }, opts.durationMs + 400);
+  }, opts.durationMs);
 }
 
 /**
@@ -190,7 +227,7 @@ export function playHeroFlight(els: HeroStageEls, plan: HeroPathPlan, opts: Hero
  * no arc, no roll, an event crossfades to its back at the midpoint (no 3D).
  * Same commit semantics as the full scene.
  */
-export function playHeroReducedHop(els: HeroStageEls, target: HeroRect, durationMs: number): Promise<void> {
+export function playHeroReducedHop(els: HeroStageEls, target: HeroRect, durationMs: number, onApex?: () => void): Promise<void> {
   const g = geometry;
   if (g === undefined) {
     return Promise.resolve();
@@ -206,21 +243,24 @@ export function playHeroReducedHop(els: HeroStageEls, target: HeroRect, duration
       duration: durationMs / 1000,
       ease: 'power2.inOut',
     }, 0);
+    if (els.shade !== undefined) {
+      tl.to(els.shade, {autoAlpha: 0, duration: durationMs / 1000}, 0);
+    }
+    // The gentle non-3D turn / the face swap: both ride the midpoint.
+    tl.call(() => onApex?.(), undefined, durationMs / 2000);
     if (els.flip !== undefined) {
-      // The gentle non-3D turn: the back fades over the face mid-hop.
       tl.set(els.flip, {rotationY: 180}, durationMs / 2000);
     }
   }, durationMs);
 }
 
 /**
- * FINAL APPROACH — glide the landed proxy onto the re-measured REST box.
- * The real slot's geometry can legitimately move between the aim and the
- * commit (the embed seat's fit engine re-solves its zoom when the reveal
- * mounts inside the same zone — measured 3–5 px + ~5 px of width), and a
- * dissolve over that mismatch is a visible snap. The remainder is TRAVELLED
- * instead — the `settleBatchProxiesOnto` discipline, applied to the hero.
- * Same positioning convention as the flight/hop (centre-anchored scale).
+ * FINAL APPROACH (the rare pre-reveal correction) — glide the landed proxy
+ * onto the re-measured REST box. With the in-flight retarget the landing is
+ * exact by construction; this covers a slot that moved AFTER the touchdown
+ * (a re-fit between the landing and the commit) and runs BEFORE the real
+ * card is revealed, so the correction is never a double image. Same
+ * positioning convention as the flight/hop (centre-anchored scale).
  */
 export function glideHeroOnto(els: HeroStageEls, target: HeroRect, durationMs: number): Promise<void> {
   const g = geometry;
@@ -241,8 +281,38 @@ export function glideHeroOnto(els: HeroStageEls, target: HeroRect, durationMs: n
   }, durationMs);
 }
 
-/** The frame-perfect handoff: the real slot is already painted underneath
- *  with identical geometry — a short dissolve hides sub-pixel rounding. */
+/**
+ * THE FRAME-EXACT HANDOFF. The real card is already painted UNDER the proxy
+ * with identical geometry (the caller revealed it and let Vue flush); the
+ * proxy is removed on the NEXT painted frame — never faded. Why not a
+ * crossfade: a fade makes the two copies visible AS TWO for its whole
+ * duration, and everything that differs between them (shadow, rounding,
+ * text hinting under `transform` vs `zoom`) shows up during it. Why not
+ * hide-then-reveal: that is a blank frame. Two frames of pixel-identical
+ * double is the only combination with neither artefact.
+ */
+export function hideHeroProxyNextFrame(els: HeroStageEls): Promise<void> {
+  return new Promise<void>((resolve) => {
+    const hide = () => {
+      gsap.set(els.proxy, {autoAlpha: 0});
+      resolve();
+    };
+    if (typeof requestAnimationFrame !== 'function') {
+      hide();
+      return;
+    }
+    // Bounded: a starved compositor (a 4K capture, a suspended TV) must not
+    // hold the transaction — the hide then lands with the next real frame.
+    const safety = window.setTimeout(hide, 120);
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      window.clearTimeout(safety);
+      hide();
+    }));
+  });
+}
+
+/** The proxy dissolves in place (the no-target fallback / the staged
+ *  landing's exit WITH its workspace) — a short fade, nothing underneath. */
 export function disposeHeroProxy(els: HeroStageEls, durationMs: number): Promise<void> {
   return guarded((done) => {
     gsap.to(els.proxy, {autoAlpha: 0, duration: durationMs / 1000, ease: 'power1.out', onComplete: done});
