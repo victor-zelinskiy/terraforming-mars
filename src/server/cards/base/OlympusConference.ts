@@ -71,7 +71,7 @@ export class OlympusConference extends Card implements IProjectCard {
       if (stored === 0) {
         facts.push(forecast.exact(source,
           [{...actionPreviews.cardGain(this, 1), current: stored, resulting: stored + 1}],
-          'You play a card with a ${0} tag',
+          forecast.tagReason(Tag.SCIENCE),
           {id: `science-${i}`, reasonTag: Tag.SCIENCE, sequence: Priority.OLYMPUS_CONFERENCE, timing: 'before-card-choices'}));
         stored++;
         continue;
@@ -79,7 +79,7 @@ export class OlympusConference extends Card implements IProjectCard {
       facts.push(forecast.asks(source,
         [{...actionPreviews.cardCost(this, 1), current: stored, resulting: stored - 1}, actionPreviews.drawGain(1)],
         [{label: 'Add a science resource to this card', effects: [{...actionPreviews.cardGain(this, 1), current: stored, resulting: stored + 1}]}],
-        'You play a card with a ${0} tag',
+        forecast.tagReason(Tag.SCIENCE),
         {id: `science-${i}`, reasonTag: Tag.SCIENCE, sequence: Priority.OLYMPUS_CONFERENCE}));
     }
     return facts;

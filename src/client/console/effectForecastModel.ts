@@ -38,14 +38,24 @@ export const FORECAST_CHIP_CAP = 4;
  * player will be ASKED about («?» badge), another seat's gain / loss (the
  * colour bar), and ONE «⚡ ?» for every uncomputed reaction — plus the «+N»
  * fold past the cap. `facts` is the number of DISTINCT facts the chip stands
- * for (the parity guard's unit).
+ * for (the parity guard's unit). `production` names the pool the bare chip
+ * moves (a production step wears the production plate on its icon — the
+ * one distinction a note-less chip must keep).
  */
 export type ForecastChip =
-  | {kind: 'own', key: string, effect: ActionEffect, facts: number}
-  | {kind: 'asks', key: string, effect: ActionEffect, facts: number}
-  | {kind: 'other', key: string, effect: ActionEffect, color: Color, bot: boolean, facts: number}
+  | {kind: 'own', key: string, effect: ActionEffect, production: boolean, facts: number}
+  | {kind: 'asks', key: string, effect: ActionEffect, production: boolean, facts: number}
+  | {kind: 'other', key: string, effect: ActionEffect, production: boolean, color: Color, bot: boolean, facts: number}
   | {kind: 'unknown', key: string, facts: number}
   | {kind: 'more', key: string, count: number, facts: number};
+
+/** Which operation the forecast describes — the WHEN vocabulary differs. */
+export type ForecastOperation = 'play' | 'action';
+
+/** A production-step chip (the builders' `note: 'production'`). */
+export function isProductionChip(effect: ActionEffect): boolean {
+  return effect.note === 'production';
+}
 
 export type ForecastRow = {
   chips: ReadonlyArray<ForecastChip>;
@@ -57,23 +67,24 @@ export type ForecastRow = {
   total: number;
 };
 
-/** The pool a chip moves: resource + stock/production, so two sources of
- *  «+2 M€» merge and a production step never merges with a stock gain. */
+/**
+ * THE MERGE KEY of the row — `direction | icon | stock/production`. Two
+ * sources of «+2 M€» become «+4 M€»; a production step never merges with a
+ * stock gain of the same resource. The ASSIGNMENT of a card resource («on
+ * this card» / «on the played card» / «to a card») is deliberately NOT in
+ * the key: a microbe on Decomposers and a microbe on the card being played
+ * add up to «+2 🦠» here — the layer lays them out per host card. Direction
+ * stays in the key: a gain and a loss of one pool are two facts the row must
+ * state, never a net the server never computed. Degrees (exact / asks) and
+ * recipients are separate maps, so they can never merge by construction.
+ */
 function poolKey(effect: ActionEffect): string {
-  return `${effect.direction}|${effect.icon}|${effect.note === 'production' ? 'production' : 'stock'}`;
+  return `${effect.direction}|${effect.icon}|${isProductionChip(effect) ? 'production' : 'stock'}`;
 }
 
-/** Merge two same-pool chips: amounts add, the arrow (if both have one) spans. */
+/** Merge two same-pool chips: the amounts add, the chip stays bare. */
 function mergeEffect(into: ActionEffect, add: ActionEffect): ActionEffect {
-  const merged: ActionEffect = {...into, amount: into.amount + add.amount};
-  if (into.current !== undefined && into.resulting !== undefined && add.resulting !== undefined) {
-    merged.resulting = into.resulting + add.amount;
-  } else {
-    delete merged.current;
-    delete merged.resulting;
-  }
-  delete merged.basis;
-  return merged;
+  return {...into, amount: into.amount + add.amount};
 }
 
 /** Which of a fact's chips the row shows for an ASKS fact — the first GAIN of
@@ -95,28 +106,29 @@ export function factInRow(fact: EffectForecastFact): boolean {
   return false;
 }
 
-type ChipSlot = {effect: ActionEffect, facts: Set<string>};
+type ChipSlot = {effect: ActionEffect, production: boolean, facts: Set<string>};
 
 /**
- * A chip as the ROW shows it. A card-resource chip built against the reacting
- * card carries the note «on this card» — right beside that card's name in
- * the layer, but a lie in a row that names no card (there «this card» reads
- * as the card being played). The row drops that one note; every other note
- * («on the played card», «production») stays.
+ * A chip as the ROW (and a variant card) shows it — the BARE DELTA: direction,
+ * icon, amount and the unit suffix, nothing else. No «было → станет», no note,
+ * no basis, no host: a «⬡ 0 → 1» or a «+1 на разыгранную карту ?» pushed the
+ * row onto a second line already at 4K, and the layer is where every one of
+ * those readings lives (the meta line, the dossier, the detail stage). The
+ * production / stock distinction survives as the chip's `production` flag,
+ * not as a word.
  */
 export function rowChip(effect: ActionEffect): ActionEffect {
-  if (effect.note !== 'on this card') {
-    return {...effect};
+  const bare: ActionEffect = {direction: effect.direction, icon: effect.icon, amount: effect.amount};
+  if (effect.unit !== undefined) {
+    bare.unit = effect.unit;
   }
-  const copy = {...effect};
-  delete copy.note;
-  return copy;
+  return bare;
 }
 
 function mergeInto(map: Map<string, ChipSlot>, key: string, effect: ActionEffect, factId: string): void {
   const slot = map.get(key);
   if (slot === undefined) {
-    map.set(key, {effect: rowChip(effect), facts: new Set([factId])});
+    map.set(key, {effect: rowChip(effect), production: isProductionChip(effect), facts: new Set([factId])});
   } else {
     slot.effect = mergeEffect(slot.effect, effect);
     slot.facts.add(factId);
@@ -163,10 +175,12 @@ export function compactForecastChips(forecast: EffectForecast | undefined): Fore
     const bot = fact.recipient.kind === 'bot';
     const effects = fact.certainty === 'exact' ? fact.effects : [askedChip(fact)].filter((e): e is ActionEffect => e !== undefined);
     for (const effect of effects) {
-      const key = `${color}|${poolKey(effect)}`;
+      // Per seat, per degree, per pool — two seats never merge, and an asked
+      // foreign gain never merges with a guaranteed one.
+      const key = `${color}|${fact.certainty}|${poolKey(effect)}`;
       const slot = other.get(key);
       if (slot === undefined) {
-        other.set(key, {effect: rowChip(effect), color, bot, facts: new Set([fact.id])});
+        other.set(key, {effect: rowChip(effect), production: isProductionChip(effect), color, bot, facts: new Set([fact.id])});
       } else {
         slot.effect = mergeEffect(slot.effect, effect);
         slot.facts.add(fact.id);
@@ -175,13 +189,13 @@ export function compactForecastChips(forecast: EffectForecast | undefined): Fore
   }
   const ordered: Array<{chip: ForecastChip, ids: Set<string>}> = [];
   for (const [key, slot] of own) {
-    ordered.push({chip: {kind: 'own', key: `own:${key}`, effect: slot.effect, facts: slot.facts.size}, ids: slot.facts});
+    ordered.push({chip: {kind: 'own', key: `own:${key}`, effect: slot.effect, production: slot.production, facts: slot.facts.size}, ids: slot.facts});
   }
   for (const [key, slot] of asks) {
-    ordered.push({chip: {kind: 'asks', key: `asks:${key}`, effect: slot.effect, facts: slot.facts.size}, ids: slot.facts});
+    ordered.push({chip: {kind: 'asks', key: `asks:${key}`, effect: slot.effect, production: slot.production, facts: slot.facts.size}, ids: slot.facts});
   }
   for (const [key, slot] of other) {
-    ordered.push({chip: {kind: 'other', key: `other:${key}`, effect: slot.effect, color: slot.color, bot: slot.bot, facts: slot.facts.size}, ids: slot.facts});
+    ordered.push({chip: {kind: 'other', key: `other:${key}`, effect: slot.effect, production: slot.production, color: slot.color, bot: slot.bot, facts: slot.facts.size}, ids: slot.facts});
   }
   if (unknown.size > 0) {
     ordered.push({chip: {kind: 'unknown', key: 'unknown', facts: unknown.size}, ids: unknown});
@@ -208,18 +222,38 @@ export function compactForecastChips(forecast: EffectForecast | undefined): Fore
 
 export const VARIANT_REACTION_CAP = 2;
 
-export type VariantReactionChip = {key: string, effect: ActionEffect, color?: Color, bot?: boolean, asks: boolean};
+export type VariantReactionChip = {
+  key: string,
+  /** The BARE delta (the row's `rowChip`). */
+  effect: ActionEffect,
+  production: boolean,
+  color?: Color,
+  bot?: boolean,
+  asks: boolean,
+  /** The DISTINCT facts this chip stands for (merged by the row's key). */
+  facts: number,
+};
 
 export type VariantReaction = {
   chips: ReadonlyArray<VariantReactionChip>;
+  /** Chips folded past the cap. */
   more: number;
+  /** Every fact of the branch the chips + the fold represent. */
+  total: number;
 };
 
-/** The «↳» chips drawn INSIDE a variant card: the branch-tied facts' first
- *  chips (per fact), capped at two + «+N». */
+/**
+ * The «⚡ сработает» chips drawn INSIDE a variant card: ONLY the branch-tied
+ * facts (`byBranch[pos]`), as bare deltas merged by the row's own key inside
+ * one degree and one recipient (own guaranteed → asked → other seats), capped
+ * at two + «+N». The row never repeats them.
+ */
 export function variantReactionChips(forecast: EffectForecast | undefined, branchPos: number): VariantReaction {
   const facts = forecast?.byBranch?.[branchPos] ?? [];
-  const chips: Array<VariantReactionChip> = [];
+  const own = new Map<string, ChipSlot>();
+  const asks = new Map<string, ChipSlot>();
+  const other = new Map<string, ChipSlot & {color: Color, bot: boolean, asks: boolean}>();
+  let total = 0;
   for (const fact of facts) {
     if (fact.certainty === 'unknown' || fact.certainty === 'no' || fact.certainty === 'skipped') {
       continue;
@@ -228,18 +262,36 @@ export function variantReactionChips(forecast: EffectForecast | undefined, branc
     if (effect === undefined) {
       continue;
     }
-    chips.push({
-      key: fact.id,
-      effect: rowChip(effect),
-      color: fact.recipient.kind === 'you' ? undefined : fact.recipient.color,
-      bot: fact.recipient.kind === 'bot' ? true : undefined,
-      asks: fact.certainty === 'asks',
-    });
+    total++;
+    const asked = fact.certainty === 'asks';
+    if (fact.recipient.kind === 'you') {
+      mergeInto(asked ? asks : own, poolKey(effect), effect, fact.id);
+      continue;
+    }
+    const color = fact.recipient.color;
+    const key = `${color}|${fact.certainty}|${poolKey(effect)}`;
+    const slot = other.get(key);
+    if (slot === undefined) {
+      other.set(key, {effect: rowChip(effect), production: isProductionChip(effect), color, bot: fact.recipient.kind === 'bot', asks: asked, facts: new Set([fact.id])});
+    } else {
+      slot.effect = mergeEffect(slot.effect, effect);
+      slot.facts.add(fact.id);
+    }
+  }
+  const chips: Array<VariantReactionChip> = [];
+  for (const [key, slot] of own) {
+    chips.push({key: `own:${key}`, effect: slot.effect, production: slot.production, asks: false, facts: slot.facts.size});
+  }
+  for (const [key, slot] of asks) {
+    chips.push({key: `asks:${key}`, effect: slot.effect, production: slot.production, asks: true, facts: slot.facts.size});
+  }
+  for (const [key, slot] of other) {
+    chips.push({key: `other:${key}`, effect: slot.effect, production: slot.production, color: slot.color, bot: slot.bot ? true : undefined, asks: slot.asks, facts: slot.facts.size});
   }
   if (chips.length <= VARIANT_REACTION_CAP) {
-    return {chips, more: 0};
+    return {chips, more: 0, total};
   }
-  return {chips: chips.slice(0, VARIANT_REACTION_CAP), more: chips.length - VARIANT_REACTION_CAP};
+  return {chips: chips.slice(0, VARIANT_REACTION_CAP), more: chips.length - VARIANT_REACTION_CAP, total};
 }
 
 // ── The payment head's discount tail (§5.4) ─────────────────────────────────
@@ -283,7 +335,10 @@ export const FORECAST_GROUP_ORDER: ReadonlyArray<ForecastGroupId> = ['receive', 
 export const FORECAST_GROUP_META: Readonly<Record<ForecastGroupId, {glyph: string, label: string}>> = {
   receive: {glyph: '⚡', label: 'You will receive'},
   asked: {glyph: '?', label: 'You will be asked'},
-  depends: {glyph: '↳', label: 'Depends on your choice'},
+  // The SAME bolt the variant cards' «⚡ сработает» caption carries — the
+  // legend is learnt by adjacency, so the group that explains those chips
+  // wears their glyph (the «↳» arrow told the player nothing).
+  depends: {glyph: '⚡', label: 'Depends on your choice'},
   discounts: {glyph: '−', label: 'Discounts and payment'},
   others: {glyph: '▍', label: 'Others receive'},
   later: {glyph: '…', label: 'Later'},
@@ -555,7 +610,15 @@ export type AttributableEffect = {key: string, cardName: CardName, effectIndex: 
  * and the tile falls back to the honest «an effect of this card» without
  * pointing at a block it cannot vouch for.
  */
-export function attributeFactToEffect<E extends AttributableEffect>(channel: EventTrigger, entries: ReadonlyArray<E>): E | undefined {
+export function attributeFactToEffect<E extends AttributableEffect>(channel: EventTrigger, entries: ReadonlyArray<E>, printedEffect?: number): E | undefined {
+  // The card FILE declared the block (its halves share one live channel —
+  // Pharmacy Union): the declaration wins over the plan.
+  if (printedEffect !== undefined) {
+    const declared = entries.find((e) => e.effectIndex === printedEffect);
+    if (declared !== undefined) {
+      return declared;
+    }
+  }
   if (entries.length === 1) {
     return entries[0];
   }
@@ -568,7 +631,7 @@ export function attributeFactToEffect<E extends AttributableEffect>(channel: Eve
 export function attributeItemToEffect<E extends AttributableEffect>(item: ForecastItem, entries: ReadonlyArray<E>): E | undefined {
   switch (item.kind) {
   case 'fact':
-    return attributeFactToEffect(item.fact.source.channel, entries);
+    return attributeFactToEffect(item.fact.source.channel, entries, item.fact.source.printedEffect);
   case 'discount': {
     const discounts = entries.filter((e) => e.signature.discount);
     return discounts.length === 1 ? discounts[0] : (entries.length === 1 ? entries[0] : undefined);
@@ -593,6 +656,19 @@ export const TIMING_LABEL: Readonly<Record<EffectForecastTiming, string>> = {
   'on-draw': 'When the cards are drawn',
   'unknown': 'Timing unknown',
 };
+
+/**
+ * The WHEN answer for THIS operation: an immediate reaction to a card PLAY
+ * lands «сразу после розыгрыша», the same reaction to a card ACTION «сразу
+ * после выполнения» (Meat Industry paying for Livestock's animal). Every other
+ * timing names its own moment and reads the same on both screens.
+ */
+export function timingLabel(timing: EffectForecastTiming, operation: ForecastOperation = 'play'): string {
+  if (timing === 'immediate' && operation === 'action') {
+    return 'Right after the action';
+  }
+  return TIMING_LABEL[timing];
+}
 
 /** English i18n keys for the certainty pill. */
 export const CERTAINTY_LABEL: Readonly<Record<EffectForecastCertainty, string>> = {
@@ -627,7 +703,7 @@ export type ForecastMetaLine = {
   recipient: EffectForecastRecipient;
 };
 
-export function forecastMetaLine(item: ForecastItem): ForecastMetaLine {
+export function forecastMetaLine(item: ForecastItem, operation: ForecastOperation = 'play'): ForecastMetaLine {
   if (item.kind !== 'fact') {
     return {chips: [], label: undefined, recipient: {kind: 'you'}};
   }
@@ -648,7 +724,7 @@ export function forecastMetaLine(item: ForecastItem): ForecastMetaLine {
     line.label = CERTAINTY_LABEL.conditional;
     break;
   case 'deferred':
-    line.label = TIMING_LABEL[fact.timing];
+    line.label = timingLabel(fact.timing, operation);
     break;
   default:
     line.label = CERTAINTY_LABEL[fact.certainty];

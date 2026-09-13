@@ -51,7 +51,7 @@ export class SaturnSystems extends CorporationCard implements ICorporationCard {
     }
     return [forecast.exact(forecast.sourceOf(this, cardOwner, 'card-played-by-any'),
       [actionPreviews.productionChange(cardOwner, Resource.MEGACREDITS, count)],
-      'Any player plays a card with a ${0} tag',
+      forecast.anyPlayerTagReason(Tag.JOVIAN),
       {reasonTag: Tag.JOVIAN, recipient: forecast.recipientOf(activePlayer, cardOwner)})];
   }
 

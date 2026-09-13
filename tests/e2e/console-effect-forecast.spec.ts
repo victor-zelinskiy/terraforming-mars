@@ -10,22 +10,26 @@ import {
  * THE EFFECT FORECAST — what the TABLE answers to a card play / a card action
  * (docs/claude/console/effect-forecast.md):
  *
- *   the compact «Сработает» row inside the composer's result cluster (chips
- *   only — own mint gains, the «?» of a question, an opponent's colour bar,
- *   «+N» past the cap) · the discount tail in the payment head («ЦЕНА 8 → 6»
- *   + «−2») · the R3 «Эффекты» LAYER re-hosting the effects explorer over
- *   the parked composer (eight groups, the five-question dossier, A → the
- *   detail stage, B / R3 back with the payment and the cursor untouched) ·
- *   the «↳» reactions drawn INSIDE the «ИЛИ» option cards · the action
- *   screen's fourth formula side · and the NO-NEW-SCROLL guard on all three
- *   profiles.
+ *   the compact «Сработает» row inside the composer's result cluster (BARE
+ *   deltas only — own mint gains, the «?» of a question, an opponent's
+ *   colour bar with a loss in the spend tone, «+N» past the cap — on ONE
+ *   line at 1080 and 4K) · the discount tail in the payment head («ЦЕНА
+ *   8 → 6» + «−2») and the FREE composition when the price is zero · the R3
+ *   «Эффекты» LAYER re-hosting the effects explorer over the parked composer
+ *   (eight groups, the five-question dossier, A → the detail stage, B / R3
+ *   back with the payment and the cursor untouched) · the «⚡ сработает»
+ *   notes drawn INSIDE the «ИЛИ» option cards on their own chip line · the
+ *   radiogroup moving by its geometry (←→ side by side, ↑↓ in a column) ·
+ *   the action screen's fourth formula side · and the NO-NEW-SCROLL guard on
+ *   all three profiles.
  *
  * STATE IS DECLARED (the `effect-forecast` fixture): a 2p table where the
  * first seat (blue, Manutech) holds Carbon Nanosystems, Olympus Conference
  * with one science, Rover Construction, Earth Catapult, Decomposers, Viral
  * Enhancers, Meat Industry and Livestock, and red holds Pharmacy Union — the
- * FOREIGN reactor. Every scenario below is one press away from the board
- * home.
+ * FOREIGN reactor. Blue's hand also holds Insulation (2 → 0 with the
+ * catapult) and Indentured Workers (printed 0) for the FREE composition.
+ * Every scenario below is one press away from the board home.
  *
  * Also the screenshot source (screenshots/effect-forecast/<preset>/).
  */
@@ -57,6 +61,10 @@ const OR_CARD = 'Artificial Photosynthesis';
 const PLAIN_CARD = 'Security Fleet';
 /** The action whose animal Meat Industry pays for. */
 const ACTION_CARD = 'Livestock';
+/** Printed 2, Earth Catapult −2 → 0: the FREE composition with a discount tail. */
+const FREE_DISCOUNTED_CARD = 'Insulation';
+/** Printed 0: the FREE composition with no tail at all. */
+const FREE_PRINTED_CARD = 'Indentured Workers';
 
 async function shoot(page: Page, preset: Preset, name: string): Promise<void> {
   const dir = path.join(OUT_ROOT, preset.id);
@@ -69,6 +77,32 @@ const forecastRow = (page: Page) => page.locator('.con-composer--play [data-fore
 const layer = (page: Page) => page.locator('.con-composer__fxlayer');
 const detailStage = (page: Page) => page.locator('.con-composer__fxlayer .con-efx__stage');
 const crumbStage = (page: Page) => page.locator('.con-hand .con-wshead__step');
+
+/** The number of distinct LINES a set of elements occupies (their rounded
+ *  top edges, within half a chip's height of each other = one line). */
+async function lineCount(page: Page, selector: string): Promise<number> {
+  return page.locator(selector).evaluateAll((els) => {
+    const tops = els.map((e) => e.getBoundingClientRect()).filter((r) => r.height > 0);
+    if (tops.length === 0) {
+      return 0;
+    }
+    const tolerance = Math.min(...tops.map((r) => r.height)) / 2;
+    const lines: Array<number> = [];
+    for (const r of tops) {
+      if (!lines.some((t) => Math.abs(t - r.top) <= tolerance)) {
+        lines.push(r.top);
+      }
+    }
+    return lines.length;
+  });
+}
+
+/** The «Сработает» unit reads on ONE line: its caption, every chip and the
+ *  R3 key share a top edge. */
+async function expectRowOneLine(page: Page, label: string): Promise<void> {
+  const lines = await lineCount(page, '.con-composer--play [data-forecast-row] > .con-forecast__label, .con-composer--play [data-forecast-row] [data-forecast-chip], .con-composer--play [data-forecast-row] .con-forecast__key');
+  expect(lines, `${label}: the «Сработает» unit must read on ONE line (saw ${lines})`).toBe(1);
+}
 
 /** A container proves «no scroll»: its content fits its own box. */
 async function expectFits(page: Page, selector: string, label: string): Promise<void> {
@@ -110,6 +144,33 @@ async function grapheneOnCarbonNanosystems(request: APIRequestContext, playerId:
   const model = await fetchPlayerModel(request, playerId);
   const me = model.thisPlayer as {tableau?: Array<{name: string, resources?: number}>} | undefined;
   return me?.tableau?.find((c) => c.name === 'Carbon Nanosystems')?.resources ?? -1;
+}
+
+/** The viewer's M€ — SERVER truth. */
+async function megaCreditsOf(request: APIRequestContext, playerId: string): Promise<number> {
+  const model = await fetchPlayerModel(request, playerId);
+  return (model.thisPlayer as {megaCredits?: number} | undefined)?.megaCredits ?? -1;
+}
+
+/** The index of the FOCUSED option card in the «ИЛИ» group (−1 = none). */
+async function focusedVariant(page: Page): Promise<number> {
+  return page.locator('.con-composer--play .con-composer__variant').evaluateAll((els) =>
+    els.findIndex((e) => e.classList.contains('con-composer__variant--focused')));
+}
+
+/** The FREE payment composition: the head, «БЕСПЛАТНО», and nothing below. */
+async function expectFreePayment(page: Page, label: string): Promise<void> {
+  const pay = page.locator('.con-composer--play .con-pay');
+  await expect(pay, `${label}: the payment block is the FREE composition`).toHaveClass(/con-pay--free/);
+  await expect(pay.locator('[data-pay-free]')).toHaveText(/бесплатно/i);
+  await expect(pay.locator('.con-payrow'), `${label}: no payment rows`).toHaveCount(0);
+  await expect(pay.locator('.con-paystatus'), `${label}: no verdict`).toHaveCount(0);
+  await expect(pay.locator('.con-pay__hint'), `${label}: no editor hint`).toHaveCount(0);
+  await expect(page.locator('.con-cmdbar'), `${label}: the bar offers no payment editor`).not.toContainText(/настроить оплату/i);
+  // LT changes nothing — there is no editor to open.
+  await press(page, 'Comma', 700);
+  await expect(pay).not.toHaveClass(/con-pay--expanded/);
+  await expect(pay.locator('[data-pay-free]')).toHaveCount(1);
 }
 
 /** Answer the effect decisions a play raises (Olympus Conference's question)
@@ -192,9 +253,46 @@ for (const preset of PRESETS) {
         await press(page, 'KeyV', 900);
         await expect(layer(page)).toHaveCount(0, {timeout: 10_000});
         await closeToBoard(page);
-        for (const card of [MICROBE_CARD, OR_CARD, PLAIN_CARD]) {
+        for (const card of [MICROBE_CARD, OR_CARD, PLAIN_CARD, FREE_DISCOUNTED_CARD, FREE_PRINTED_CARD]) {
           await openPlayComposer(page, card);
           await expectFits(page, '.con-composer--play .con-scroll-area__viewport', `the work column (${card})`);
+          if (card === MICROBE_CARD) {
+            // ONE line at 4K — the bare deltas' whole point; on the Deck the
+            // level-2 cluster may take a second line, never a third.
+            if (preset.id === 'tv-4k') {
+              await expectRowOneLine(page, `${preset.id} · ${card}`);
+            } else {
+              const clusterLines = await lineCount(page, '.con-composer--play .con-composer__rescats > .con-composer__rescat');
+              expect(clusterLines, `${preset.id}: the level-2 cluster takes at most two lines (saw ${clusterLines})`).toBeLessThanOrEqual(2);
+            }
+          }
+          if (card === OR_CARD) {
+            await expect(page.locator('.con-composer__variant [data-forecast-vfx]'), 'both options carry their «сработает» note').toHaveCount(2);
+            if (preset.id === 'tv-4k') {
+              // The note stands on the option's OWN chip line — the card grew no taller for it.
+              for (const i of [0, 1]) {
+                const variant = page.locator('.con-composer--play .con-composer__variant').nth(i);
+                const lines = await variant.locator('.con-composer__variant-chips > .action-effect-chip, .con-composer__variant-chips > [data-forecast-vfx]').evaluateAll((els) => {
+                  const tops = els.map((e) => Math.round(e.getBoundingClientRect().top));
+                  return new Set(tops).size;
+                });
+                expect(lines, `option ${i + 1}: its chips and its «сработает» note share one line`).toBe(1);
+              }
+            } else {
+              // The Deck stacks the options — the d-pad walks them ↑↓ and ←→ are inert.
+              await expect(page.locator('.con-composer--play .con-composer__variants')).toHaveAttribute('data-variant-axis', 'column');
+              expect(await focusedVariant(page)).toBe(0);
+              await press(page, 'ArrowDown', 500);
+              expect(await focusedVariant(page), '↓ walks to the second option').toBe(1);
+              await press(page, 'ArrowRight', 500);
+              expect(await focusedVariant(page), '→ changes nothing in a column').toBe(1);
+              await press(page, 'ArrowUp', 500);
+              expect(await focusedVariant(page)).toBe(0);
+            }
+          }
+          if (card === FREE_DISCOUNTED_CARD || card === FREE_PRINTED_CARD) {
+            await expectFreePayment(page, `${preset.id} · ${card}`);
+          }
           await shoot(page, preset, `3-fit-${card.toLowerCase().replace(/\s+/g, '-')}`);
           await closeToBoard(page);
         }
@@ -244,11 +342,21 @@ for (const preset of PRESETS) {
       await expect(microbeRow.locator('[data-forecast-chip="more"]'), 'nothing folds at exactly four').toHaveCount(0);
       const kinds = await microbeRow.locator('[data-forecast-chip]').evaluateAll((els) => els.map((e) => e.getAttribute('data-forecast-chip')));
       expect(kinds, 'own → asks → others').toEqual(['own', 'asks', 'other', 'other']);
+      // BARE deltas: no «было → станет», no note — and therefore ONE line.
+      await expect(microbeRow.locator('.action-effect-chip__arrow'), 'no arrow in the row').toHaveCount(0);
+      await expect(microbeRow.locator('.action-effect-chip__note'), 'no note in the row').toHaveCount(0);
+      await expectRowOneLine(page, 'standard-1080 · the microbe play');
+      // Red's LOSS reads by tone — the spend chassis, never a number pair.
+      await expect(microbeRow.locator('[data-forecast-chip="other"].con-forecast__chip--loss')).toHaveCount(1);
       await expectFits(page, '.con-composer--play .con-scroll-area__viewport', 'the work column (microbe play)');
       await shoot(page, preset, '5-opponent-chip');
       expect(await pressUntil(page, 'KeyV', async () => await layer(page).count() > 0, {tries: 3, settleMs: 1100})).toBeTruthy();
       await expect(layer(page).locator('[data-forecast-group="others"]')).toHaveCount(1);
       await expect(layer(page).locator('.con-efx__tile--fx-others .con-efx__tile-owner'), 'the foreign tile names its owner').not.toHaveCount(0);
+      // Pharmacy Union's tile draws the PRINTED microbe block (the card declares
+      // its block), not the «Эффект этой карты» plate.
+      await expect(layer(page).locator('.con-efx__tile--fx-others .con-efx__graphic .card-container'), 'the foreign tile draws its printed block').not.toHaveCount(0);
+      await expect(layer(page).locator('.con-efx__tile--fx-others .con-efx__graphic-text')).toHaveCount(0);
       await shoot(page, preset, '6-layer-others');
       await press(page, 'KeyV', 900);
       await expect(layer(page)).toHaveCount(0, {timeout: 10_000});
@@ -258,14 +366,46 @@ for (const preset of PRESETS) {
       // cards («↳»), never the row; the layer's «Зависит от вашего выбора». ──
       await openPlayComposer(page, OR_CARD);
       await expect(page.locator('.con-composer__variant [data-forecast-vchip]'), 'each branch carries its reaction').toHaveCount(2);
+      // …in the zone's own language: the bolt + «сработает», on the option's
+      // own chip line (the card grew no taller for it).
+      const notes = page.locator('.con-composer__variant [data-forecast-vfx]');
+      await expect(notes).toHaveCount(2);
+      await expect(notes.first().locator('.con-forecast__vfx-label')).toHaveText(/сработает/i);
+      for (const i of [0, 1]) {
+        const variant = page.locator('.con-composer--play .con-composer__variant').nth(i);
+        const lines = await variant.locator('.con-composer__variant-chips > .action-effect-chip, .con-composer__variant-chips > [data-forecast-vfx]').evaluateAll((els) =>
+          new Set(els.map((e) => Math.round(e.getBoundingClientRect().top))).size);
+        expect(lines, `option ${i + 1}: its chips and its «сработает» note share one line`).toBe(1);
+      }
       // The card's science tag still fires Carbon Nanosystems + Olympus
       // Conference — the row holds exactly those two; Manutech's branch-tied
       // reactions never reach it.
       await expect(forecastRow(page).locator('[data-forecast-chip]'), 'branch-tied reactions never reach the row').toHaveCount(2);
       await expectFits(page, '.con-composer--play .con-scroll-area__viewport', 'the work column («ИЛИ» play)');
       await shoot(page, preset, '7-or-reactions');
+
+      // ── 6b. THE RADIOGROUP MOVES BY ITS GEOMETRY: side by side, → switches
+      // the option, A selects it, ↓ leaves to the commit rail, ↑ returns to
+      // the SAME option; the bar says «◄► Вариант» while the cursor is in. ──
+      await expect(page.locator('.con-composer--play .con-composer__variants')).toHaveAttribute('data-variant-axis', 'row');
+      expect(await focusedVariant(page), 'the cursor opens on the first option').toBe(0);
+      await expect(page.locator('.con-cmdbar')).toContainText(/вариант/i);
+      await press(page, 'ArrowRight', 500);
+      expect(await focusedVariant(page), '→ switches to the second option').toBe(1);
+      await expect(page.locator('.con-composer__variant--selected'), 'moving the cursor selects nothing').toHaveCount(0);
+      await press(page, 'Enter', 700);
+      await expect(page.locator('.con-composer--play .con-composer__variant').nth(1)).toHaveClass(/con-composer__variant--selected/);
+      expect(await focusedVariant(page), 'A selects and does not move the cursor').toBe(1);
+      await press(page, 'ArrowDown', 500);
+      await expect(page.locator('.con-composer__cta--focused'), '↓ leaves the group for the commit rail').toHaveCount(1);
+      expect(await focusedVariant(page)).toBe(-1);
+      await expect(page.locator('.con-cmdbar')).not.toContainText(/вариант/i);
+      await press(page, 'ArrowUp', 500);
+      expect(await focusedVariant(page), '↑ returns to the option the cursor left').toBe(1);
+      await shoot(page, preset, '7b-variant-axis');
       expect(await pressUntil(page, 'KeyV', async () => await layer(page).count() > 0, {tries: 3, settleMs: 1100})).toBeTruthy();
       await expect(layer(page).locator('[data-forecast-group="depends"]')).toHaveCount(1);
+      await expect(layer(page).locator('[data-forecast-group="depends"] .con-efx__fsection-glyph'), 'the group wears the bolt the note wears').toHaveText('⚡');
       await press(page, 'KeyV', 900);
       await expect(layer(page)).toHaveCount(0, {timeout: 10_000});
       await closeToBoard(page);
@@ -303,6 +443,41 @@ for (const preset of PRESETS) {
       await expect(stage.locator('.con-composer__fxlayer'), 'B at the browse level closes the layer').toHaveCount(0, {timeout: 10_000});
       await expect(stage, 'the setup stage survived the layer').toHaveCount(1);
       await expect(page.locator('.con-cardactions .con-wshead__step')).not.toContainText(/эффекты/i);
+      // The action screen's WHEN speaks of the action, not of a play.
+      expect(await pressUntil(page, 'KeyV', async () => await stage.locator('.con-composer__fxlayer').count() > 0, {tries: 3, settleMs: 1100})).toBeTruthy();
+      await expect(stage.locator('.con-efx__detail .con-efx__fq-row--when')).toContainText(/после выполнения/i);
+      await press(page, 'KeyV', 900);
+      await expect(stage.locator('.con-composer__fxlayer')).toHaveCount(0, {timeout: 10_000});
+      expect(await pressUntil(page, 'Escape', async () => await page.locator('.con-cardactions').count() === 0, {tries: 5, settleMs: 900}),
+        'B leaves the card actions').toBeTruthy();
+      await settle(page);
+
+      // ── 9. FREE: a printed zero («ЦЕНА 0 · БЕСПЛАТНО», no tail) and a price
+      // discounted to zero («ЦЕНА 2 → 0 · −2 · БЕСПЛАТНО»); one A plays it,
+      // and the SERVER's M€ did not move. The last play of the turn, so it
+      // comes last. ──
+      await openPlayComposer(page, FREE_PRINTED_CARD);
+      await expectFreePayment(page, 'the printed zero');
+      await expect(page.locator('.con-composer--play .con-pay__head [data-pay-base]'), 'a printed zero has no «was»').toHaveCount(0);
+      await expect(page.locator('.con-composer--play .con-pay__head [data-pay-saved]')).toHaveCount(0);
+      await expect(page.locator('.con-composer--play .con-pay__price-value')).toHaveText('0');
+      await expectFits(page, '.con-composer--play .con-scroll-area__viewport', 'the work column (printed zero)');
+      await shoot(page, preset, '10-free-printed');
+      await closeToBoard(page);
+      await openPlayComposer(page, FREE_DISCOUNTED_CARD);
+      await expectFreePayment(page, 'the discounted zero');
+      const freeHead = page.locator('.con-composer--play .con-pay__head');
+      await expect(freeHead.locator('[data-pay-base]')).toHaveText('2');
+      await expect(freeHead.locator('.con-pay__price-value')).toHaveText('0');
+      await expect(freeHead.locator('[data-pay-saved]')).toHaveText('−2');
+      await expect(page.locator('.con-composer__cta--focused'), 'the commit rail holds the cursor without a single payment press').toHaveCount(1);
+      await expect(page.locator('.con-composer__cta--ready')).toHaveCount(1);
+      await expectFits(page, '.con-composer--play .con-scroll-area__viewport', 'the work column (discounted to zero)');
+      await shoot(page, preset, '10-free-discounted');
+      const mcBefore = await megaCreditsOf(request, playerId);
+      await press(page, 'Enter', 1500);
+      await finishPlay(page);
+      expect(await megaCreditsOf(request, playerId), 'a free play costs nothing on the server').toBe(mcBefore);
 
       expect(overflowWarns, `no [console-overflow] warn; saw: ${overflowWarns.join(' | ')}`).toEqual([]);
       expect(pageErrors, `no page errors; saw: ${pageErrors.join(' | ')}`).toEqual([]);

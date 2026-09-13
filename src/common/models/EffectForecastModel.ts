@@ -79,6 +79,17 @@ export type EffectForecastSource = {
    *  matched one-to-one (the parity guard) and attributed to the printed effect
    *  block through the effects explorer's channel plan. */
   channel: EventTrigger;
+  /**
+   * WHICH printed effect block of the source this fact belongs to (the index
+   * in the card's rendered effect list), declared by the CARD FILE when its
+   * blocks share one live channel and the channel plan cannot tell them apart
+   * (Pharmacy Union: the microbe half and the science half both fire on
+   * `card-played-by-any`). The tile draws that block's graphic; absent, the
+   * client attributes through the channel plan or falls back to the honest
+   * «эффект этой карты». Never a statistics split — the event stream cannot
+   * separate the two halves, so their stats stay card-scoped.
+   */
+  printedEffect?: number;
 };
 
 export type EffectForecastCondition = {

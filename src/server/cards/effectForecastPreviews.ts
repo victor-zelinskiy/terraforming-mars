@@ -260,3 +260,50 @@ export function triggerSequence(cardOwner: IPlayer, activePlayer: IPlayer, own: 
 /** A gain deferred through `GainResourcesDeferred` — it lands after the card's
  *  own choices AND after every `Priority.DEFAULT` prompt of the same play. */
 export const AFTER_CARD_GAIN: Pick<FactOptions, 'sequence' | 'timing'> = {sequence: Priority.GAIN_RESOURCE_OR_PRODUCTION, timing: 'after-card'};
+
+/**
+ * THE REASON A TAG HOOK GIVES — one i18n key PER TAG, in the player's own
+ * grammar («Вы играете карту с меткой науки»), never the machine-built
+ * «с меткой Наука» a `${0}` parameter produced. The twelve tags of the
+ * premium scope are named; a tag outside it (wild, clone, the Moon / Mars /
+ * crime families) keeps the parameterised sentence, filled from `reasonTag`
+ * on the client, so nothing ever renders blank.
+ */
+const OWN_TAG_REASON: Partial<Record<Tag, string>> = {
+  [Tag.BUILDING]: 'You play a card with a building tag',
+  [Tag.SPACE]: 'You play a card with a space tag',
+  [Tag.SCIENCE]: 'You play a card with a science tag',
+  [Tag.POWER]: 'You play a card with a power tag',
+  [Tag.EARTH]: 'You play a card with an Earth tag',
+  [Tag.JOVIAN]: 'You play a card with a Jovian tag',
+  [Tag.VENUS]: 'You play a card with a Venus tag',
+  [Tag.PLANT]: 'You play a card with a plant tag',
+  [Tag.MICROBE]: 'You play a card with a microbe tag',
+  [Tag.ANIMAL]: 'You play a card with an animal tag',
+  [Tag.CITY]: 'You play a card with a city tag',
+  [Tag.EVENT]: 'You play a card with an event tag',
+};
+const ANY_TAG_REASON: Partial<Record<Tag, string>> = {
+  [Tag.BUILDING]: 'Any player plays a card with a building tag',
+  [Tag.SPACE]: 'Any player plays a card with a space tag',
+  [Tag.SCIENCE]: 'Any player plays a card with a science tag',
+  [Tag.POWER]: 'Any player plays a card with a power tag',
+  [Tag.EARTH]: 'Any player plays a card with an Earth tag',
+  [Tag.JOVIAN]: 'Any player plays a card with a Jovian tag',
+  [Tag.VENUS]: 'Any player plays a card with a Venus tag',
+  [Tag.PLANT]: 'Any player plays a card with a plant tag',
+  [Tag.MICROBE]: 'Any player plays a card with a microbe tag',
+  [Tag.ANIMAL]: 'Any player plays a card with an animal tag',
+  [Tag.CITY]: 'Any player plays a card with a city tag',
+  [Tag.EVENT]: 'Any player plays a card with an event tag',
+};
+
+/** «You play a card with a <tag> tag» — the OWNER's own play. */
+export function tagReason(tag: Tag): string {
+  return OWN_TAG_REASON[tag] ?? 'You play a card with a ${0} tag';
+}
+
+/** «Any player plays a card with a <tag> tag» — a `card-played-by-any` hook. */
+export function anyPlayerTagReason(tag: Tag): string {
+  return ANY_TAG_REASON[tag] ?? 'Any player plays a card with a ${0} tag';
+}

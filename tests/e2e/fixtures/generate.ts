@@ -55,6 +55,9 @@ import {GeologicalSurvey} from '../../../src/server/cards/ares/GeologicalSurvey'
 import {ArtificialPhotosynthesis} from '../../../src/server/cards/base/ArtificialPhotosynthesis';
 import {NitriteReducingBacteria} from '../../../src/server/cards/base/NitriteReducingBacteria';
 import {SecurityFleet} from '../../../src/server/cards/base/SecurityFleet';
+import {Insulation} from '../../../src/server/cards/base/Insulation';
+import {IndenturedWorkers} from '../../../src/server/cards/base/IndenturedWorkers';
+import {Resource} from '../../../src/common/Resource';
 
 const OUT_DIR = __dirname;
 
@@ -281,7 +284,11 @@ function write(name: string, game: IGame): void {
 //        drawn INSIDE the option cards;
 //      · Security Fleet → no reaction at all (a space tag nobody answers, no
 //        production for Manutech), only the discount (R3 without a row);
-//      · Livestock's ACTION → Meat Industry's +2 M€ on the action screen.
+//      · Livestock's ACTION → Meat Industry's +2 M€ on the action screen;
+//      · Insulation (printed 2, Earth Catapult −2 → 0) and Indentured Workers
+//        (printed 0) → the FREE payment composition («ЦЕНА 2 → 0 · −2 ·
+//        БЕСПЛАТНО» / «ЦЕНА 0 · БЕСПЛАТНО»); blue has 1 heat production so
+//        Insulation is playable.
 //    Ares for Geological Survey; promo / Venus for the corporations. ──
 {
   // The corporations are the scenario's reactors — dealt DETERMINISTICALLY:
@@ -308,9 +315,13 @@ function write(name: string, game: IGame): void {
   olympus.resourceCount = 1;
   p1.playedCards.push(new CarbonNanosystems(), olympus, new RoverConstruction(), new EarthCatapult(),
     new Decomposers(), new ViralEnhancers(), new MeatIndustry(), new Livestock());
-  p1.cardsInHand.push(new GeologicalSurvey(), new ArtificialPhotosynthesis(), new NitriteReducingBacteria(), new SecurityFleet());
+  p1.cardsInHand.push(new GeologicalSurvey(), new ArtificialPhotosynthesis(), new NitriteReducingBacteria(), new SecurityFleet(),
+    new Insulation(), new IndenturedWorkers());
   p1.megaCredits = 60;
   p2.megaCredits = 30;
+  // Insulation's own gate: it decreases heat production, so blue needs one
+  // step of it (Manutech answers the raise with 1 heat — a real table state).
+  p1.production.add(Resource.HEAT, 1);
   runAllActions(game);
   write('effect-forecast', game);
 }

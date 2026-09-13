@@ -394,19 +394,98 @@ function paymentValuesOf(player: IPlayer, card: ICard, operation: 'play' | 'acti
 // ── assembly ────────────────────────────────────────────────────────────────
 
 /**
+ * THE HOST of a reaction chip — the explicit target marker (`ActionEffect.host`),
+ * stamped from the builders' own vocabulary so no hook has to type it:
+ * «on this card» is the reacting SOURCE's own pool (every `cardGain(this, …)`
+ * in a hook), «on the played card» is the card being played (Splice's / Viral
+ * Enhancers' microbe on the new card). Anything else (`to a card` — a target
+ * chosen in a later step) stays host-less. Only a card-resource icon has a
+ * host; a player's stock / production pool never does.
+ */
+function stampHosts(fact: EffectForecastFact, played: ICard): EffectForecastFact {
+  if (fact.source.kind === 'rule') {
+    return fact;
+  }
+  const stamp = (e: ActionEffect): ActionEffect => {
+    if (e.host !== undefined || cardResourceForIcon(e.icon) === undefined) {
+      return e;
+    }
+    if (e.note === 'on this card') {
+      return {...e, host: fact.source.name};
+    }
+    if (e.note === 'on the played card') {
+      return {...e, host: played.name};
+    }
+    return e;
+  };
+  return {
+    ...fact,
+    effects: fact.effects.map(stamp),
+    alternatives: fact.alternatives?.map((a) => ({...a, effects: a.effects.map(stamp)})),
+  };
+}
+
+/**
+ * The POOL a chip moves, as the arrow rule needs it:
+ *  · a player's resource — `icon|player` (stock AND production collapse into
+ *    ONE pool for the arrow test: two arrows about one resource, one from the
+ *    card's own production step and one from a reaction's stock gain, read as
+ *    a contradiction on one screen — Manutech's energy beside the card's
+ *    energy production);
+ *  · a card resource — `icon|card:<host>`, or `icon|card:*` when the host is
+ *    not known yet (a target chosen in a step): an own chip with no host
+ *    touches EVERY pool of that icon, a reaction with no host is touched by
+ *    any own chip of that icon.
+ */
+export function chipPool(effect: ActionEffect, playedHost?: string): string {
+  if (cardResourceForIcon(effect.icon) === undefined) {
+    return `${effect.icon}|player`;
+  }
+  const host = effect.host ?? (effect.note === 'on this card' ? playedHost : undefined);
+  return `${effect.icon}|card:${host ?? '*'}`;
+}
+
+function poolTouched(pool: string, touched: ReadonlySet<string>): boolean {
+  if (touched.has(pool)) {
+    return true;
+  }
+  const bar = pool.indexOf('|card:');
+  if (bar < 0) {
+    return false;
+  }
+  const icon = pool.slice(0, bar);
+  if (pool.endsWith(':*')) {
+    for (const t of touched) {
+      if (t.startsWith(`${icon}|card:`)) {
+        return true;
+      }
+    }
+    return false;
+  }
+  return touched.has(`${icon}|card:*`);
+}
+
+/**
  * `current → resulting` is only honest for a pool the card being played does
  * not touch ITSELF: its own chip already moves that pool, so a reaction's
  * arrow would start from a number the play has already changed. Strip the
  * arrow (keep the delta) wherever the operation's own chips name the same
  * pool — the UI then says «сверх собственного эффекта карты».
+ *
+ * A pool is `icon + host` for a card resource (`chipPool`): the card's own
+ * «on this card» touches the PLAYED card's pool only, so Decomposers' or
+ * Carbon Nanosystems' microbe / graphene arrow on their OWN card survives a
+ * play that puts the same resource on itself, while Splice's microbe «on the
+ * played card» loses its arrow. A foreign recipient's pool is never touched
+ * by the actor's own chips.
  */
-function stripTouchedPools(facts: ReadonlyArray<EffectForecastFact>, own: ReadonlyArray<ActionEffect>): Array<EffectForecastFact> {
-  const touched = new Set(own.map((e) => `${e.icon}|${e.note === 'production' ? 'production' : 'stock'}`));
+export function stripTouchedPools(facts: ReadonlyArray<EffectForecastFact>, own: ReadonlyArray<ActionEffect>, played: ICard): Array<EffectForecastFact> {
+  const touched = new Set(own.map((e) => chipPool(e, played.name)));
   if (touched.size === 0) {
     return [...facts];
   }
   const strip = (effects: ReadonlyArray<ActionEffect>): Array<ActionEffect> => effects.map((e) => {
-    if (e.current === undefined || !touched.has(`${e.icon}|${e.note === 'production' ? 'production' : 'stock'}`)) {
+    if (e.current === undefined || !poolTouched(chipPool(e), touched)) {
       return e;
     }
     const {current: _c, resulting: _r, ...rest} = e;
@@ -483,10 +562,11 @@ function buildForecast(player: IPlayer, card: ICard, preview: ActionPreview, ope
     })));
   }
 
-  const stripped = stripTouchedPools(facts, ownEffects);
+  // The explicit target marker first (`host`), then the arrow rule over it.
+  const stripped = stripTouchedPools(facts.map((f) => stampHosts(f, card)), ownEffects, card);
   const strippedByBranch: Record<number, ReadonlyArray<EffectForecastFact>> = {};
   for (const pos of Object.keys(byBranch)) {
-    strippedByBranch[Number(pos)] = stripTouchedPools(byBranch[Number(pos)], ownEffects);
+    strippedByBranch[Number(pos)] = stripTouchedPools(byBranch[Number(pos)].map((f) => stampHosts(f, card)), ownEffects, card);
   }
   const all = [...stripped, ...Object.values(strippedByBranch).flat()];
   return {

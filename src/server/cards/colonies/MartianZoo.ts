@@ -57,7 +57,7 @@ export class MartianZoo extends Card implements IProjectCard {
     }
     return [forecast.exact(forecast.sourceOf(this, cardOwner, 'card-played'),
       [actionPreviews.cardGain(this, count)],
-      'You play a card with a ${0} tag', {reasonTag: Tag.EARTH})];
+      forecast.tagReason(Tag.EARTH), {reasonTag: Tag.EARTH})];
   }
 
   public canAct(): boolean {

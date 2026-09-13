@@ -108,8 +108,8 @@
                       <span v-if="alt.chips.length === 0" class="con-efx__fq-text">{{ alt.label }}</span>
                     </template>
                     <span v-if="q.state !== undefined" class="con-efx__fq-state" :class="'con-efx__fq-state--' + q.state" v-i18n>{{ stateLabel(q.state) }}</span>
-                    <span v-if="q.text !== undefined && q.text !== ''" class="con-efx__fq-text">{{ q.text }}</span>
-                    <span v-if="q.tag !== undefined" class="resource-tag con-efx__fq-tag" :class="'tag-' + q.tag" aria-hidden="true"></span>
+                    <span v-if="(q.text !== undefined && q.text !== '') || q.textTail !== undefined" class="con-efx__fq-text">{{ q.text }}<template v-if="q.textTail !== undefined"> <span class="con-efx__fq-tail">{{ q.textTail }}<span v-if="q.tag !== undefined" class="resource-tag con-efx__fq-tag" :class="'tag-' + q.tag" aria-hidden="true"></span></span></template></span>
+                    <span v-if="q.tag !== undefined && q.textTail === undefined" class="resource-tag con-efx__fq-tag" :class="'tag-' + q.tag" aria-hidden="true"></span>
                     <span v-if="q.note !== undefined" class="con-efx__fq-note">{{ q.note }}</span>
                   </span>
                 </div>
@@ -339,8 +339,8 @@
                       <span v-if="alt.chips.length === 0" class="con-efx__fq-text">{{ alt.label }}</span>
                     </template>
                     <span v-if="q.state !== undefined" class="con-efx__fq-state" :class="'con-efx__fq-state--' + q.state" v-i18n>{{ stateLabel(q.state) }}</span>
-                    <span v-if="q.text !== undefined && q.text !== ''" class="con-efx__fq-text">{{ q.text }}</span>
-                    <span v-if="q.tag !== undefined" class="resource-tag con-efx__fq-tag" :class="'tag-' + q.tag" aria-hidden="true"></span>
+                    <span v-if="(q.text !== undefined && q.text !== '') || q.textTail !== undefined" class="con-efx__fq-text">{{ q.text }}<template v-if="q.textTail !== undefined"> <span class="con-efx__fq-tail">{{ q.textTail }}<span v-if="q.tag !== undefined" class="resource-tag con-efx__fq-tag" :class="'tag-' + q.tag" aria-hidden="true"></span></span></template></span>
+                    <span v-if="q.tag !== undefined && q.textTail === undefined" class="resource-tag con-efx__fq-tag" :class="'tag-' + q.tag" aria-hidden="true"></span>
                     <span v-if="q.note !== undefined" class="con-efx__fq-note">{{ q.note }}</span>
                   </span>
                 </div>
@@ -408,9 +408,10 @@ import {
   ForecastBrowseModel,
   ForecastGroupId,
   ForecastMetaLine,
+  ForecastOperation,
   ForecastTileVm,
   OrderStep,
-  TIMING_LABEL,
+  timingLabel,
   attributeItemToEffect,
   buildForecastBrowseModel,
   cycleForecastSection,
@@ -475,6 +476,10 @@ type ForecastQuestion = {
   alternatives?: ReadonlyArray<{label: string, chips: ReadonlyArray<ActionEffect>}>,
   /** Already translated. */
   text?: string,
+  /** The text's LAST WORD, split off so it can be bound to the tag icon in
+   *  one unbreakable pair («…с меткой науки ⚛» — the icon never falls onto a
+   *  line of its own). Present only when `tag` is. */
+  textTail?: string,
   tag?: Tag,
   state?: 'met' | 'depends' | 'unmet',
   recipient?: EffectForecastRecipient,
@@ -519,6 +524,10 @@ export default defineComponent({
     statsByColor: {type: Object as PropType<Partial<Record<string, ReadonlyArray<EffectOverlayStat> | undefined>>>, default: () => ({})},
     /** Forecast mode: the play's own steps the «ПОРЯДОК» band interleaves. */
     orderFlags: {type: Object as PropType<{cardChoices: boolean, placesTile: boolean}>, default: () => ({cardChoices: false, placesTile: false})},
+    /** Forecast mode: the OPERATION the forecast is about — the WHEN answer
+     *  of an immediate reaction is «сразу после розыгрыша» for a card play
+     *  and «сразу после выполнения» for a card action. */
+    operation: {type: String as PropType<ForecastOperation>, default: 'play'},
   },
   data() {
     return {
@@ -1047,7 +1056,19 @@ export default defineComponent({
       return this.rulesOfEntry(entry, count)?.lines[0]?.text ?? entry.description ?? entry.text ?? '';
     },
     ftileMeta(tile: ForecastTileVm): ForecastMetaLine {
-      return forecastMetaLine(tile.item);
+      return forecastMetaLine(tile.item, this.operation);
+    },
+    /** The WHY sentence with its last word split off, so the tag icon can
+     *  ride that word in a `nowrap` pair (no tag → the whole sentence). */
+    whyText(text: string, tag: Tag | undefined): {text: string, textTail?: string} {
+      if (tag === undefined) {
+        return {text};
+      }
+      const at = text.trimEnd().lastIndexOf(' ');
+      if (at <= 0) {
+        return {text: '', textTail: text.trimEnd()};
+      }
+      return {text: text.slice(0, at), textTail: text.slice(at + 1).trimEnd()};
     },
     /** The meta line's value signature — its re-mount key. */
     ftileMetaKey(tile: ForecastTileVm): string {
@@ -1112,7 +1133,7 @@ export default defineComponent({
           what.note = (what.note === undefined ? '' : what.note + ' · ') + this.textOf(fact.note);
         }
         out.push(what);
-        out.push({id: 'why', label: 'Why', text: this.textOf(fact.reason, fact.reasonTag), tag: fact.reasonTag});
+        out.push({id: 'why', label: 'Why', ...this.whyText(this.textOf(fact.reason, fact.reasonTag), fact.reasonTag), tag: fact.reasonTag});
         if (fact.condition !== undefined) {
           const cond: ForecastQuestion = {id: 'condition', label: 'Condition', state: fact.condition.state};
           if (fact.condition.state === 'depends' && fact.condition.branchPos !== undefined) {
@@ -1126,7 +1147,7 @@ export default defineComponent({
           out.push(cond);
         }
         out.push({id: 'whom', label: 'To whom', text: this.recipientText(fact.recipient), recipient: fact.recipient});
-        out.push({id: 'when', label: 'When', text: translateText(TIMING_LABEL[fact.timing])});
+        out.push({id: 'when', label: 'When', text: translateText(timingLabel(fact.timing, this.operation))});
         return out;
       }
       if (item.kind === 'discount' || item.kind === 'other-discount') {

@@ -70,7 +70,7 @@ export class MarsUniversity extends Card implements IProjectCard {
       facts.push(forecast.asks(source,
         [{direction: 'cost', icon: 'cards', amount: 1}, actionPreviews.drawGain(1)],
         [{label: 'Do nothing', effects: []}],
-        'You play a card with a ${0} tag',
+        forecast.tagReason(Tag.SCIENCE),
         {id: `science-${i}`, reasonTag: Tag.SCIENCE, sequence: Priority.DISCARD_AND_DRAW, timing: 'after-card'}));
     }
     return facts;

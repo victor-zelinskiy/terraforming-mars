@@ -149,6 +149,38 @@ describe('ConsolePaymentPanel — one panel, two densities', () => {
     expect(shape(discounted)).to.deep.equal(shape(plain));
   });
 
+  /** ── FREE — the price is zero: the block is its head and «БЕСПЛАТНО» ── */
+  it('free: the head + the «Free» accent and NOTHING below — no rows, no verdict, no editor hint', () => {
+    const w = mountPanel(view({cost: 0, lanes: [STEEL, TITANIUM], counts: {}, mcAvailable: 30}), {free: true});
+    expect(w.find('.con-pay--free').exists()).to.be.true;
+    expect(w.find('[data-pay-free]').text()).to.equal('Free');
+    expect(w.findAll('.con-pay__head')).to.have.length(1);
+    expect(w.findAll('.con-payrow'), 'no source rows').to.have.length(0);
+    expect(w.findAll('.con-paystatus'), 'no verdict').to.have.length(0);
+    expect(w.find('.con-pay__hint').exists(), 'no LT hint even with two alternative lanes').to.be.false;
+    expect(w.find('.con-pay').attributes('aria-label')).to.contain('Free');
+    expect(w.find('.con-pay__price-value').text()).to.equal('0');
+  });
+
+  it('free: a printed zero reads «ЦЕНА 0» with no arrow and no pill; a discounted-to-zero price keeps the tail «12 → 0» + «−12»', () => {
+    const printed = mountPanel(view({cost: 0, lanes: [], counts: {}}), {free: true});
+    expect(printed.find('[data-pay-base]').exists()).to.be.false;
+    expect(printed.find('[data-pay-saved]').exists()).to.be.false;
+    const discounted = mountPanel(view({cost: 0, lanes: [], counts: {}}), {free: true, discount: {base: 12, final: 0}});
+    expect(discounted.find('[data-pay-base]').text()).to.equal('12');
+    expect(discounted.find('.con-pay__price-value').text()).to.equal('0');
+    expect(discounted.find('[data-pay-saved]').text()).to.equal('−12');
+    expect(discounted.find('[data-pay-free]').exists()).to.be.true;
+  });
+
+  it('free is a DIFFERENT composition, not a paint change: the same view without `free` renders the full block', () => {
+    const full = mountPanel(view({cost: 0, lanes: [STEEL], counts: {}}));
+    expect(full.find('.con-pay--free').exists()).to.be.false;
+    expect(full.find('[data-pay-free]').exists()).to.be.false;
+    expect(full.findAll('.con-payrow').length).to.be.greaterThan(0);
+    expect(full.findAll('.con-paystatus')).to.have.length(1);
+  });
+
   /** ── The layout-shift contract ─────────────────────────────────────── */
   it('the verdict element is UNCONDITIONAL — exact, overpay and shortfall all render one', () => {
     const exact = mountPanel(view());

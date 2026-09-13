@@ -7,9 +7,11 @@ import {EffectForecast, EffectForecastFact, emptyEffectForecast} from '@/common/
 import {EffectSignature} from '@/client/components/effects/effectSummary';
 import {
   FORECAST_CHIP_CAP,
+  FORECAST_GROUP_META,
   FORECAST_GROUP_ORDER,
   VARIANT_REACTION_CAP,
   attributeFactToEffect,
+  timingLabel,
   attributeItemToEffect,
   buildForecastBrowseModel,
   compactForecastChips,
@@ -63,8 +65,8 @@ function gain(icon: string, amount: number, extra: Partial<ActionEffect> = {}): 
   return {direction: 'gain', icon, amount, ...extra};
 }
 
-function cost(icon: string, amount: number): ActionEffect {
-  return {direction: 'cost', icon, amount};
+function cost(icon: string, amount: number, extra: Partial<ActionEffect> = {}): ActionEffect {
+  return {direction: 'cost', icon, amount, ...extra};
 }
 
 function forecast(facts: Array<EffectForecastFact>, over: Partial<EffectForecast> = {}): EffectForecast {
@@ -125,27 +127,35 @@ describe('effectForecastModel', () => {
       expect(row.chips[0].facts).to.eq(2);
     });
 
-    it('a production step never merges with a stock gain of the same resource', () => {
+    it('a production step never merges with a stock gain of the same resource — and keeps its production flag', () => {
       const f = forecast([
         fact({effects: [gain('megacredits', 1, {note: 'production'})]}),
         fact({effects: [gain('megacredits', 3)]}),
       ]);
-      expect(compactForecastChips(f).chips).to.have.length(2);
+      const chips = compactForecastChips(f).chips;
+      expect(chips).to.have.length(2);
+      expect(chips.map((c) => c.kind === 'own' && c.production)).to.deep.eq([true, false]);
     });
 
-    it('a merged pair keeps «was → becomes» only when both sides carry it', () => {
+    it('every chip is a BARE delta: no arrow, no note, no basis, no host — whatever the fact carried', () => {
       const f = forecast([
-        fact({effects: [gain('megacredits', 2, {current: 10, resulting: 12})]}),
+        fact({effects: [gain('megacredits', 2, {current: 10, resulting: 12, basis: [{count: 2, label: 'Cities on Mars'}]})]}),
         fact({effects: [gain('megacredits', 3, {current: 10, resulting: 13})]}),
+        fact({certainty: 'asks', effects: [gain('microbe', 1, {note: 'on the played card', host: CardName.NITRITE_REDUCING_BACTERIA})], alternatives: []}),
+        fact({recipient: RED, effects: [cost('megacredits', 4, {current: 30, resulting: 26})]}),
       ]);
-      const chip = compactForecastChips(f).chips[0];
-      expect(chip.kind === 'own' && chip.effect).to.deep.include({amount: 5, current: 10, resulting: 15});
-      const stripped = forecast([
-        fact({effects: [gain('megacredits', 2, {current: 10, resulting: 12})]}),
-        fact({effects: [gain('megacredits', 3)]}),
-      ]);
-      const bare = compactForecastChips(stripped).chips[0];
-      expect(bare.kind === 'own' && bare.effect.current).to.be.undefined;
+      const chips = compactForecastChips(f).chips;
+      expect(chips.map((c) => c.kind)).to.deep.eq(['own', 'asks', 'other']);
+      for (const chip of chips) {
+        expect(chip.kind === 'own' || chip.kind === 'asks' || chip.kind === 'other').to.be.true;
+        if (chip.kind === 'own' || chip.kind === 'asks' || chip.kind === 'other') {
+          expect(Object.keys(chip.effect).sort()).to.deep.eq(['amount', 'direction', 'icon']);
+        }
+      }
+      expect(chips[0].kind === 'own' && chips[0].effect.amount).to.eq(5);
+      // A unit suffix (a global parameter's °C / %) is part of the delta and stays.
+      const unit = compactForecastChips(forecast([fact({effects: [gain('temperature', 2, {unit: '°C', current: -30, resulting: -26})]})])).chips[0];
+      expect(unit.kind === 'own' && unit.effect).to.deep.eq({direction: 'gain', icon: 'temperature', amount: 2, unit: '°C'});
     });
 
     it('other seats merge per seat per pool; different seats never merge; bots keep their flag', () => {
@@ -209,18 +219,40 @@ describe('effectForecastModel', () => {
       expect(row.represented).to.eq(1);
     });
 
-    it('drops the «on this card» note in the row (no card is named there) and keeps every other note', () => {
+    it('merges by `icon + stock/production + degree + recipient` — the ASSIGNMENT is not in the key (a microbe on Decomposers + a microbe on the played card = «+2 🦠»)', () => {
+      const f = forecast([
+        fact({id: 'decomposers', effects: [gain('microbe', 1, {note: 'on this card', host: CardName.DECOMPOSERS, current: 0, resulting: 1})]}),
+        fact({id: 'splice-own', effects: [gain('microbe', 1, {note: 'on the played card', host: CardName.NITRITE_REDUCING_BACTERIA})]}),
+        fact({id: 'to-any', effects: [gain('microbe', 1, {note: 'to a card'})]}),
+      ]);
+      const row = compactForecastChips(f);
+      expect(row.chips).to.have.length(1);
+      expect(row.chips[0].kind === 'own' && row.chips[0].effect).to.deep.eq({direction: 'gain', icon: 'microbe', amount: 3});
+      expect(row.chips[0].facts).to.eq(3);
+      expect(row.represented).to.eq(row.total);
+    });
+
+    it('never merges ACROSS a degree: «+1 🦠» and «+1 🦠 ?» stay two chips, and a foreign asked gain never joins a foreign guaranteed one', () => {
       const f = forecast([
         fact({effects: [gain('microbe', 1, {note: 'on this card'})]}),
         fact({certainty: 'asks', effects: [gain('microbe', 1, {note: 'on the played card'})], alternatives: []}),
-        fact({recipient: RED, effects: [gain('disease', 1, {note: 'on this card'})]}),
+        fact({recipient: RED, effects: [gain('megacredits', 2)]}),
+        fact({recipient: RED, certainty: 'asks', effects: [gain('megacredits', 2)], alternatives: []}),
       ]);
       const row = compactForecastChips(f);
-      expect(row.chips[0].kind === 'own' && row.chips[0].effect.note).to.be.undefined;
-      expect(row.chips[1].kind === 'asks' && row.chips[1].effect.note).to.eq('on the played card');
-      expect(row.chips[2].kind === 'other' && row.chips[2].effect.note).to.be.undefined;
-      const v = variantReactionChips(forecast([], {byBranch: {0: [fact({certainty: 'conditional', effects: [gain('microbe', 1, {note: 'on this card'})]})]}}), 0);
-      expect(v.chips[0].effect.note).to.be.undefined;
+      expect(row.chips.map((c) => c.kind)).to.deep.eq(['own', 'asks', 'other', 'other']);
+      expect(row.chips.map((c) => (c.kind === 'own' || c.kind === 'asks' || c.kind === 'other') ? c.effect.amount : 0)).to.deep.eq([1, 1, 2, 2]);
+      expect(row.total).to.eq(4);
+      expect(row.represented).to.eq(4);
+    });
+
+    it('keeps a gain and a LOSS of one pool as two chips — a net the server never stated is not a merge', () => {
+      const f = forecast([
+        fact({recipient: RED, effects: [gain('megacredits', 2)]}),
+        fact({recipient: RED, effects: [cost('megacredits', 4)]}),
+      ]);
+      const row = compactForecastChips(f);
+      expect(row.chips.map((c) => c.kind === 'other' && c.effect.direction)).to.deep.eq(['gain', 'cost']);
     });
 
     it('branch-tied facts never reach the row (they live in their variant)', () => {
@@ -231,22 +263,61 @@ describe('effectForecastModel', () => {
     });
   });
 
-  describe('the variant reaction chips («↳»)', () => {
-    it(`draws the branch-tied facts' first chips, capped at ${VARIANT_REACTION_CAP} + «+N», with the seat colour and the ask flag`, () => {
-      const f = forecast([], {byBranch: {
+  describe('the variant reaction chips («⚡ сработает»)', () => {
+    it(`draws ONLY the branch's facts as bare deltas — own → asked → other seats — capped at ${VARIANT_REACTION_CAP} + «+N», with the seat colour and the ask flag`, () => {
+      const f = forecast([fact({effects: [gain('graphene', 1)]})], {byBranch: {
         1: [
-          fact({certainty: 'conditional', effects: [gain('energy', 1)]}),
+          fact({certainty: 'conditional', effects: [gain('energy', 1, {current: 0, resulting: 1})]}),
           fact({certainty: 'asks', recipient: RED, effects: [gain('megacredits', 2)], alternatives: []}),
-          fact({certainty: 'conditional', effects: [gain('plants', 2)]}),
+          fact({certainty: 'conditional', effects: [gain('plants', 2, {note: 'production'})]}),
           fact({certainty: 'unknown', effects: []}),
         ],
       }});
       const v = variantReactionChips(f, 1);
-      expect(v.chips.map((c) => c.effect.icon)).to.deep.eq(['energy', 'megacredits']);
-      expect(v.chips[1].color).to.eq(('red' as Color));
-      expect(v.chips[1].asks).to.be.true;
+      // Own first, then the foreign asked gain — folded past the cap.
+      expect(v.chips.map((c) => c.effect.icon)).to.deep.eq(['energy', 'plants']);
+      expect(v.chips[0].effect).to.deep.eq({direction: 'gain', icon: 'energy', amount: 1});
+      expect(v.chips[1].production).to.be.true;
       expect(v.more).to.eq(1);
+      expect(v.total, 'the unknown is not a chip').to.eq(3);
       expect(variantReactionChips(f, 0).chips).to.have.length(0);
+      const two = variantReactionChips(forecast([], {byBranch: {0: [
+        fact({certainty: 'conditional', effects: [gain('energy', 1)]}),
+        fact({certainty: 'asks', recipient: RED, effects: [gain('megacredits', 2)], alternatives: []}),
+      ]}}), 0);
+      expect(two.chips[1].color).to.eq(('red' as Color));
+      expect(two.chips[1].asks).to.be.true;
+      expect(two.more).to.eq(0);
+    });
+
+    it('merges inside a variant by the row\'s own key, never across a degree', () => {
+      const f = forecast([], {byBranch: {0: [
+        fact({id: 'a', certainty: 'conditional', effects: [gain('microbe', 1, {note: 'on this card'})]}),
+        fact({id: 'b', certainty: 'conditional', effects: [gain('microbe', 1, {note: 'on the played card'})]}),
+        fact({id: 'c', certainty: 'asks', effects: [gain('microbe', 1, {note: 'on the played card'})], alternatives: []}),
+      ]}});
+      const v = variantReactionChips(f, 0);
+      expect(v.chips.map((c) => [c.effect.amount, c.asks, c.facts])).to.deep.eq([[2, false, 2], [1, true, 1]]);
+      expect(v.more).to.eq(0);
+      expect(v.total).to.eq(3);
+    });
+  });
+
+  describe('the WHEN vocabulary per operation', () => {
+    it('an immediate reaction lands «right after the play» on the play screen and «right after the action» on the action screen', () => {
+      expect(timingLabel('immediate')).to.eq('Right after the play');
+      expect(timingLabel('immediate', 'play')).to.eq('Right after the play');
+      expect(timingLabel('immediate', 'action')).to.eq('Right after the action');
+      // Every other moment names itself the same on both screens.
+      expect(timingLabel('after-placement', 'action')).to.eq('After the tile is placed');
+      expect(timingLabel('before-card-choices', 'action')).to.eq('Before the card\'s own choices');
+      const meta = forecastMetaLine({kind: 'fact', key: 'a', group: 'later', fact: fact({certainty: 'deferred', timing: 'after-placement'})}, 'action');
+      expect(meta.label).to.eq('After the tile is placed');
+    });
+
+    it('«Зависит от вашего выбора» wears the effects bolt — the same glyph the variant cards\' «сработает» note carries', () => {
+      expect(FORECAST_GROUP_META.depends.glyph).to.eq('⚡');
+      expect(FORECAST_GROUP_META.receive.glyph).to.eq('⚡');
     });
   });
 
@@ -399,6 +470,20 @@ describe('effectForecastModel', () => {
       expect(attributeFactToEffect('card-played', [cn0, cn1])).to.eq(cn0);
       // A channel no block claims → honest «an effect of this card».
       expect(attributeFactToEffect('tile-placed', [cn0, cn1])).to.be.undefined;
+    });
+
+    it('a block the CARD FILE declared (`printedEffect`) wins over the plan — Pharmacy Union\'s two halves share one channel', () => {
+      const pu0 = {key: 'PU#0', cardName: CardName.PHARMACY_UNION, effectIndex: 0, signature: sig()};
+      const pu1 = {key: 'PU#1', cardName: CardName.PHARMACY_UNION, effectIndex: 1, signature: sig()};
+      // No plan and two blocks → nothing to vouch for…
+      expect(attributeFactToEffect('card-played-by-any', [pu0, pu1])).to.be.undefined;
+      // …unless the fact names its block.
+      expect(attributeFactToEffect('card-played-by-any', [pu0, pu1], 0)).to.eq(pu0);
+      expect(attributeFactToEffect('card-played-by-any', [pu0, pu1], 1)).to.eq(pu1);
+      // A declared index the card does not have falls back to the plan (honestly undefined here).
+      expect(attributeFactToEffect('card-played-by-any', [pu0, pu1], 7)).to.be.undefined;
+      const microbe = fact({source: {kind: 'corporation', name: CardName.PHARMACY_UNION, owner: ('red' as Color), channel: 'card-played-by-any', printedEffect: 0}, recipient: RED});
+      expect(attributeItemToEffect({kind: 'fact', key: 'm', fact: microbe, group: 'others'}, [pu0, pu1])).to.eq(pu0);
     });
 
     it('a discount item points at the discount block, a payment value at the spending-power block', () => {

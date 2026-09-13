@@ -35,8 +35,14 @@ import {Asteroid} from '../../src/server/cards/base/Asteroid';
 import {OptimalAerobraking} from '../../src/server/cards/base/OptimalAerobraking';
 import {Decomposers} from '../../src/server/cards/base/Decomposers';
 import {TopsoilContract} from '../../src/server/cards/promo/TopsoilContract';
+import {Splice} from '../../src/server/cards/promo/Splice';
+import {Research} from '../../src/server/cards/base/Research';
 import {ICard} from '../../src/server/cards/ICard';
 import {IPlayer} from '../../src/server/IPlayer';
+import {chipPool, stripTouchedPools} from '../../src/server/models/effectForecast';
+import {anyPlayerTagReason, tagReason} from '../../src/server/cards/effectForecastPreviews';
+import {ActionEffect} from '../../src/common/models/ActionPreviewModel';
+import {EffectForecastFact} from '../../src/common/models/EffectForecastModel';
 
 /**
  * THE EFFECT FORECAST ENGINE — a MIRROR of the live fan-out, never a
@@ -270,6 +276,101 @@ describe('effectForecast (engine)', () => {
     p2.cardsInHand.push(asteroid);
     const media = playForecast(p2, asteroid).facts.find((f) => f.source.name === CardName.MEDIA_GROUP);
     expect(media?.effects[0]).to.include({icon: Resource.MEGACREDITS, amount: 3, current: 20, resulting: 23});
+  });
+
+  describe('the POOL rule — a card resource pool is `icon + host card`', () => {
+    it('Decomposers + a microbe card that stores microbes on ITSELF: the reaction lands on Decomposers\' own pool, so its «0 → 1» survives (and the host is stamped)', () => {
+      const [/* game */, player] = testGame(2);
+      player.playedCards.push(new Decomposers());
+      const bacteria = new NitriteReducingBacteria(); // its OWN chips put 3 microbes on itself
+      player.cardsInHand.push(bacteria);
+      const fact = playForecast(player, bacteria).facts.find((f) => f.source.name === CardName.DECOMPOSERS);
+      expect(fact?.effects[0]).to.include({icon: 'microbe', amount: 1, current: 0, resulting: 1, host: CardName.DECOMPOSERS});
+    });
+
+    it('Splice + the same card: the microbe «on the played card» is the PLAYED card\'s pool, which the play touches — no arrow, the host is the played card', () => {
+      const [/* game */, player] = testGame(2);
+      player.playedCards.push(new Splice());
+      const bacteria = new NitriteReducingBacteria();
+      player.cardsInHand.push(bacteria);
+      const asks = playForecast(player, bacteria).facts.find((f) => f.source.name === CardName.SPLICE && f.certainty === 'asks');
+      expect(asks, 'Splice asks the card player').to.not.be.undefined;
+      const microbe = asks?.effects.find((e) => e.icon === 'microbe');
+      expect(microbe).to.include({host: CardName.NITRITE_REDUCING_BACTERIA});
+      expect(microbe?.current, 'the played card\'s pool is the play\'s own').to.be.undefined;
+    });
+
+    it('Manutech + a card raising energy production: the energy pool is the player\'s own — the arrow is stripped, the delta stays', () => {
+      const [/* game */, player] = testGame(2);
+      player.playedCards.push(new Manutech());
+      const photosynthesis = new ArtificialPhotosynthesis(); // branch 0: +2 energy production
+      player.cardsInHand.push(photosynthesis);
+      const manutech = (playForecast(player, photosynthesis).byBranch ?? {})[0]?.find((f) => f.source.name === CardName.MANUTECH);
+      expect(manutech?.effects[0]).to.include({icon: Resource.ENERGY, amount: 2});
+      expect(manutech?.effects[0].current, 'stock and production of one resource read as ONE pool for the arrow').to.be.undefined;
+    });
+
+    it('the rule itself, over synthetic chips: the host decides, a host-less card chip is touched by any own chip of that icon', () => {
+      const played = new NitriteReducingBacteria();
+      const own: Array<ActionEffect> = [{direction: 'gain', icon: 'microbe', amount: 3, note: 'on this card'}];
+      expect(chipPool(own[0], played.name)).to.eq(`microbe|card:${played.name}`);
+      expect(chipPool({direction: 'gain', icon: 'microbe', amount: 1, host: CardName.DECOMPOSERS})).to.eq(`microbe|card:${CardName.DECOMPOSERS}`);
+      expect(chipPool({direction: 'gain', icon: 'microbe', amount: 1, note: 'to a card'})).to.eq('microbe|card:*');
+      expect(chipPool({direction: 'gain', icon: 'energy', amount: 1, note: 'production'})).to.eq('energy|player');
+      expect(chipPool({direction: 'gain', icon: 'energy', amount: 1})).to.eq('energy|player');
+      const source = {kind: 'card' as const, name: CardName.DECOMPOSERS, owner: 'blue' as never, channel: 'card-played' as const};
+      const base: Omit<EffectForecastFact, 'id' | 'effects'> = {source, certainty: 'exact', recipient: {kind: 'you'}, timing: 'immediate', reason: 'r'};
+      const facts: Array<EffectForecastFact> = [
+        {...base, id: 'source-pool', effects: [{direction: 'gain', icon: 'microbe', amount: 1, host: CardName.DECOMPOSERS, current: 0, resulting: 1}]},
+        {...base, id: 'played-pool', effects: [{direction: 'gain', icon: 'microbe', amount: 1, host: played.name, current: 3, resulting: 4}]},
+        {...base, id: 'unknown-host', effects: [{direction: 'gain', icon: 'microbe', amount: 1, current: 0, resulting: 1}]},
+        {...base, id: 'foreign', recipient: {kind: 'player', color: 'red' as never}, effects: [{direction: 'gain', icon: 'microbe', amount: 1, host: played.name, current: 3, resulting: 4}]},
+      ];
+      const stripped = stripTouchedPools(facts, own, played);
+      expect(stripped[0].effects[0].current, 'the source\'s own pool is untouched').to.eq(0);
+      expect(stripped[1].effects[0].current, 'the played card\'s pool is touched').to.be.undefined;
+      expect(stripped[2].effects[0].current, 'an unknown host is conservatively touched').to.be.undefined;
+      expect(stripped[3].effects[0].current, 'a foreign pool is never the actor\'s own').to.eq(3);
+    });
+  });
+
+  describe('the card-declared printed block and the per-tag reasons', () => {
+    it('Pharmacy Union declares its blocks: the microbe half is #0, the science half #1, the order question neither', () => {
+      const [/* game */, player, opponent] = testGame(2);
+      opponent.playedCards.push(new PharmacyUnion());
+      const bacteria = new NitriteReducingBacteria();
+      player.cardsInHand.push(bacteria);
+      const microbe = playForecast(player, bacteria).facts.find((f) => f.source.name === CardName.PHARMACY_UNION);
+      expect(microbe?.source.printedEffect).to.eq(0);
+      expect(microbe?.reason).to.eq('Any player plays a card with a microbe tag');
+
+      const [/* g2 */, owner] = testGame(2, undefined, '-pu-science');
+      const union = new PharmacyUnion();
+      union.resourceCount = 1;
+      owner.playedCards.push(union);
+      const research = new Research(); // two science tags
+      owner.cardsInHand.push(research);
+      const science = playForecast(owner, research).facts.filter((f) => f.source.name === CardName.PHARMACY_UNION);
+      expect(science.length).to.be.greaterThan(0);
+      for (const fact of science) {
+        expect(fact.source.printedEffect, `${fact.id}`).to.eq(1);
+        expect(fact.reason).to.eq('You play a card with a science tag');
+      }
+    });
+
+    it('a tag reason is ONE key per tag in the player\'s grammar, never a `${0}` sentence — the twelve scope tags are named, the rest keep the parameterised fallback', () => {
+      expect(tagReason(Tag.SCIENCE)).to.eq('You play a card with a science tag');
+      expect(tagReason(Tag.EARTH)).to.eq('You play a card with an Earth tag');
+      expect(anyPlayerTagReason(Tag.JOVIAN)).to.eq('Any player plays a card with a Jovian tag');
+      expect(tagReason(Tag.WILD)).to.eq('You play a card with a ${0} tag');
+      const [/* game */, player] = testGame(2);
+      player.playedCards.push(new CarbonNanosystems(), new SaturnSystems());
+      const io = new IoMiningIndustries(); // space + Jovian
+      const survey = new GeologicalSurvey(); // science
+      player.cardsInHand.push(io, survey);
+      expect(playForecast(player, survey).facts.find((f) => f.source.name === CardName.CARBON_NANOSYSTEMS)?.reason).to.eq('You play a card with a science tag');
+      expect(playForecast(player, io).facts.find((f) => f.source.name === CardName.SATURN_SYSTEMS)?.reason).to.eq('Any player plays a card with a Jovian tag');
+    });
   });
 
   it('reports the «almost» as `no` (a space card that is not an event, for Optimal Aerobraking)', () => {

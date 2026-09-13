@@ -365,21 +365,11 @@
                     <b>{{ rangeText(vc) }}</b><em>{{ $t('your choice') }}</em>
                   </span>
                   <span v-if="branchView(item.pos).empty" class="con-composer__branch-title">{{ branchTitle(branchAt(item.pos)) }}</span>
-                  <!-- ↳ REACTIONS tied to THIS branch (the forecast's `byBranch`) —
-                       compared beside the option's own formula, never repeated
-                       in the «Сработает» row. -->
-                  <span v-for="rc in variantReactions(item.pos).chips" :key="'fx' + rc.key"
-                        class="con-forecast__vchip"
-                        :class="{'con-forecast__vchip--other': rc.color !== undefined, 'con-forecast__vchip--asks': rc.asks}"
-                        data-forecast-vchip>
-                    <span class="con-forecast__vchip-glyph" aria-hidden="true">↳</span>
-                    <span v-if="rc.color !== undefined" class="con-forecast__owner-dot" :class="'player_bg_color_' + rc.color" aria-hidden="true"></span>
-                    <ActionEffectChip :effect="rc.effect" />
-                    <span v-if="rc.asks" class="con-forecast__ask" aria-hidden="true">?</span>
-                  </span>
-                  <span v-if="variantReactions(item.pos).more > 0" class="con-forecast__vchip con-forecast__vchip--more" data-forecast-vchip>
-                    <span class="con-forecast__vchip-glyph" aria-hidden="true">↳</span>+{{ variantReactions(item.pos).more }}
-                  </span>
+                  <!-- «⚡ сработает» — the reactions tied to THIS branch (the
+                       forecast's `byBranch`), on the formula's own line past a
+                       thin seam, in the «Сработает» zone's language; never
+                       repeated in the row. -->
+                  <ConsoleForecastReactions :reaction="variantReactions(item.pos)" />
                 </div>
                 <div v-if="branchView(item.pos).needs !== ''" class="con-composer__branch-needs">◈ {{ branchView(item.pos).needs }}</div>
                 <div v-if="!branchAt(item.pos).available" class="con-composer__branch-reason">✕ {{ branchReason(branchAt(item.pos)) }}</div>
@@ -686,6 +676,7 @@
           <div class="con-composer__fxpanel" data-forecast-surface>
             <ConsoleEffectsExplorer ref="forecastExplorer"
                                     mode="forecast"
+                                    operation="action"
                                     :explorerUi="forecastUi"
                                     :forecast="forecast"
                                     :cards="thisPlayer.tableau"
@@ -811,6 +802,7 @@ import CardRenderData from '@/client/components/card/CardRenderData.vue';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 import ConsolePaymentPanel from '@/client/components/console/ConsolePaymentPanel.vue';
 import ConsoleForecastRow from '@/client/components/console/ConsoleForecastRow.vue';
+import ConsoleForecastReactions from '@/client/components/console/ConsoleForecastReactions.vue';
 import ConsoleEffectsExplorer from '@/client/components/console/ConsoleEffectsExplorer.vue';
 import {EffectForecast} from '@/common/models/EffectForecastModel';
 import {EffectOverlayStat} from '@/common/events/aggregate';
@@ -1034,7 +1026,7 @@ export type ComposerOutcome =
 
 export default defineComponent({
   name: 'ConsoleActionComposer',
-  components: {ActionEffectChip, CardRenderEffectBoxComponent, CardRenderData, ConsoleScrollArea, ConsolePaymentPanel, ConsoleForecastRow, ConsoleEffectsExplorer, ConsoleCardFaceLite, ConsoleWsStageHead, ConsoleRevealVerdict, ConsoleHydroGains, GamepadGlyph, ConsolePlayedTargetStep, ConsolePlayedTargetLink, ConsoleAmountOperation},
+  components: {ActionEffectChip, CardRenderEffectBoxComponent, CardRenderData, ConsoleScrollArea, ConsolePaymentPanel, ConsoleForecastRow, ConsoleForecastReactions, ConsoleEffectsExplorer, ConsoleCardFaceLite, ConsoleWsStageHead, ConsoleRevealVerdict, ConsoleHydroGains, GamepadGlyph, ConsolePlayedTargetStep, ConsolePlayedTargetLink, ConsoleAmountOperation},
   directives: {stripActionPrefix},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},

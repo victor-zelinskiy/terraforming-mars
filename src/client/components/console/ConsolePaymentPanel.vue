@@ -13,7 +13,7 @@
        mutates and NEVER emits — so no payment surface can drift from the
        pure `buildPaymentView` rules. -->
   <div class="con-pay"
-       :class="['con-pay--' + mode, {'con-pay--configurable': view.configurable, 'con-pay--blocked': !view.status.ok}]"
+       :class="['con-pay--' + mode, {'con-pay--configurable': view.configurable && !free, 'con-pay--blocked': !view.status.ok && !free, 'con-pay--free': free}]"
        role="group"
        :aria-label="panelLabel">
     <div class="con-pay__head">
@@ -36,6 +36,12 @@
         <span v-if="discount !== undefined" class="con-pay__price-saved" data-pay-saved>−{{ discount.base - discount.final }}</span>
       </span>
 
+      <!-- FREE — the price came to ZERO (the printed cost, or discounts that
+           ate all of it): the block is ONE line, the head, and this is its
+           verdict. A tracked-caps mint accent in the crumb stage's own voice;
+           no rows, no ledger, no editor — there is nothing to pay with. -->
+      <span v-if="free" class="con-pay__free" data-pay-free>{{ $t('Free') }}</span>
+
       <!-- The mode switch as a SECONDARY action OF THIS BLOCK (never a
            free-floating command): LT opens the editor, B folds it back. It is
            absent when the editor would show the same block a second time (a
@@ -45,28 +51,35 @@
       </span>
     </div>
 
-    <div class="con-pay__rows">
-      <ConsolePaymentSourceRow v-for="row in view.rows" :key="row.unit"
-                               :row="row"
-                               :mode="mode"
-                               :cost-unit="costUnit"
-                               :focused="mode === 'expanded' && row.unit === focusUnit"
-                               :flash-nonce="flashNonce" />
-    </div>
+    <!-- The FREE composition ends with the head: a free play has no sources
+         to list and no verdict to state — rendering the M€ row and «ОПЛАЧЕНО
+         0 / 0 · ТОЧНАЯ ОПЛАТА» would be a ledger about nothing. The whole
+         block below is absent, not hidden (`payment-panel.md`: `free` is a
+         DIFFERENT composition, static for the composer's session). -->
+    <template v-if="!free">
+      <div class="con-pay__rows">
+        <ConsolePaymentSourceRow v-for="row in view.rows" :key="row.unit"
+                                 :row="row"
+                                 :mode="mode"
+                                 :cost-unit="costUnit"
+                                 :focused="mode === 'expanded' && row.unit === focusUnit"
+                                 :flash-nonce="flashNonce" />
+      </div>
 
-    <!-- The payment MODIFIER's source — a secondary badge naming the card that
-         widened this price's sources («Delta Works · 1 steel = 1 energy»),
-         never a term of the arithmetic rows above. Rendered only when a host
-         passes one, and constant for the flow's whole life (no layout shift). -->
-    <div v-if="sourceCard !== undefined" class="con-pay__source" :aria-label="sourceLabel">
-      <span class="con-pay__source-card">{{ $t(sourceCard) }}</span>
-      <span class="con-pay__source-rule" aria-hidden="true">
-        · 1<i class="resource_icon resource_icon--steel con-pay__source-icon"></i>
-        = 1<i class="resource_icon resource_icon--energy con-pay__source-icon"></i>
-      </span>
-    </div>
+      <!-- The payment MODIFIER's source — a secondary badge naming the card that
+           widened this price's sources («Delta Works · 1 steel = 1 energy»),
+           never a term of the arithmetic rows above. Rendered only when a host
+           passes one, and constant for the flow's whole life (no layout shift). -->
+      <div v-if="sourceCard !== undefined" class="con-pay__source" :aria-label="sourceLabel">
+        <span class="con-pay__source-card">{{ $t(sourceCard) }}</span>
+        <span class="con-pay__source-rule" aria-hidden="true">
+          · 1<i class="resource_icon resource_icon--steel con-pay__source-icon"></i>
+          = 1<i class="resource_icon resource_icon--energy con-pay__source-icon"></i>
+        </span>
+      </div>
 
-    <ConsolePaymentStatus :status="view.status" :mode="mode" />
+      <ConsolePaymentStatus :status="view.status" :mode="mode" />
+    </template>
   </div>
 </template>
 
@@ -130,6 +143,15 @@ export default defineComponent({
      * always did; the pill never changes the head's height.
      */
     discount: {type: Object as PropType<{base: number, final: number} | undefined>, default: undefined},
+    /**
+     * The price is ZERO (the server's `calculatedCost === 0` — a printed zero,
+     * or discounts that ate the whole cost): the block collapses to its head
+     * plus the «БЕСПЛАТНО» accent. No rows, no verdict, no editor hint — the
+     * ONE composition change this panel allows, and it is static for the
+     * composer's session (it flips back only when a state change re-prices
+     * the card above zero).
+     */
+    free: {type: Boolean, default: false},
   },
   computed: {
     /** The price's denomination — every icon/aria in the panel follows it. */
@@ -137,7 +159,7 @@ export default defineComponent({
       return this.view.costUnit ?? 'megacredits';
     },
     hint(): PanelHint | undefined {
-      if (this.hintMode === 'none') {
+      if (this.hintMode === 'none' || this.free) {
         return undefined;
       }
       if (this.mode === 'expanded') {
@@ -151,7 +173,8 @@ export default defineComponent({
     panelLabel(): string {
       const unit = this.view.costUnit !== undefined ? translateText(paymentUnitLabel(this.view.costUnit)) : 'M€';
       const price = this.discount === undefined ? `${this.view.cost}` : `${this.discount.base} → ${this.view.cost}`;
-      return `${translateText(this.titleKey)}: ${translateText('Cost')} ${price} ${unit}`;
+      const tail = this.free ? ` · ${translateText('Free')}` : '';
+      return `${translateText(this.titleKey)}: ${translateText('Cost')} ${price} ${unit}${tail}`;
     },
     sourceLabel(): string {
       return this.sourceCard === undefined ?

@@ -32,8 +32,13 @@ const CARD_SCOPED_MULTI_EFFECT: ReadonlyArray<CardName> = [
   // Both effects tally into the ONE payment-value-bonus dimension — a split
   // by channel cannot separate steel from titanium honestly.
   CardName.ADVANCED_ALLOYS,
-  // The corp's disease intake and its TR/M€ reaction share the same
-  // card-played trigger — a genuine collision.
+  // The corp's disease intake (any player's microbe tag) and its science-tag
+  // TR reaction are BOTH fired by the one live `onCardPlayedByAnyPlayer`
+  // hook, so the event stream records both under 'card-played-by-any' — a
+  // genuine collision the channel split cannot resolve honestly (a plan
+  // pretending the science half rides 'card-played' would zero its stats
+  // and hand its TR to the microbe block). The FORECAST tells the halves
+  // apart through the card's declared `printedEffect` instead (see below).
   CardName.PHARMACY_UNION,
   // Both effects fire on 'tile-placed' (ocean→energy / greenery→plant) —
   // the documented collision this fallback exists for.
@@ -104,6 +109,19 @@ describe('effect family coverage (corpus guard)', () => {
       }
     }
     expect(offenders, 'override cards falling to «Правила» need a FAMILY_OVERRIDES entry or an allow-list row').to.deep.eq([]);
+  });
+
+  /**
+   * The forecast's `printedEffect` indices in `PharmacyUnion.cardPlayedForecast`
+   * (#0 the microbe half, #1 the science half) are the RENDER order of the
+   * corp box — pin it here, where the extraction runs, so a re-ordered card
+   * face cannot silently swap the two graphics under the forecast tiles.
+   */
+  it('Pharmacy Union\'s printed blocks stand in the order the forecast declares: #0 microbe, #1 science', () => {
+    const entries = playerEffects([model(CardName.PHARMACY_UNION)]);
+    expect(entries.map((e) => e.effectIndex)).to.deep.eq([0, 1]);
+    expect(entries[0].description ?? '', 'block #0 is the microbe half').to.match(/microbe/i);
+    expect(entries[1].description ?? '', 'block #1 is the science half').to.match(/science/i);
   });
 
   it('the channel-split worklist is exactly the pinned set (a new multi-effect card must decide)', () => {

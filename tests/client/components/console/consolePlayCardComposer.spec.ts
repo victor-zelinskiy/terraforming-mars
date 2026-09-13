@@ -2,7 +2,7 @@ import {expect} from 'chai';
 import {
   buildPlayCardBatch, playComposerFootHints, FootHint, PlayFootContext,
   computePrimaryAction, buildPaymentView, playChoiceMode, foldCopiedProductionEffects,
-  playPrimaryVerb, initialVariantSelection, samePreviewShape,
+  playPrimaryVerb, initialVariantSelection, samePreviewShape, variantGroupNav,
 } from '@/client/console/consolePlayCardComposer';
 import {
   computeCommitGate, commitAllowed, commitAcceptsCursor, commitRedirectTarget,
@@ -277,6 +277,18 @@ describe('consolePlayCardComposer.playComposerFootHints', () => {
     expect(playComposerFootHints(ctx({focusedKind: 'variant', primaryLabel: 'Next'})).find((h) => h.control === 'confirm')?.label).to.equal('Next');
   });
 
+  it('«◄► Вариант» is published ONLY while the cursor stands in a side-by-side group', () => {
+    const inRow = playComposerFootHints(ctx({focusedKind: 'variant', variantAxis: 'row'}));
+    const option = inRow.find((h) => h.control === 'dpadH');
+    expect(option?.label).to.equal('Option');
+    // Right after the d-pad «Navigate» hint, before A.
+    expect(controls(inRow).indexOf('dpadH')).to.equal(controls(inRow).indexOf('dpad') + 1);
+    expect(controls(inRow).indexOf('dpadH')).to.be.lessThan(controls(inRow).indexOf('confirm'));
+    expect(controls(playComposerFootHints(ctx({focusedKind: 'variant', variantAxis: 'column'})))).to.not.include('dpadH');
+    expect(controls(playComposerFootHints(ctx({focusedKind: 'variant'})))).to.not.include('dpadH');
+    expect(controls(playComposerFootHints(ctx({focusedKind: 'none', variantAxis: 'row'})))).to.not.include('dpadH');
+  });
+
   it('NEVER emits a Y (inspect) control — Y is globally reserved for the info panel', () => {
     const scenarios = [
       ctx({}), ctx({sub: 'list', subIsCardList: true}), ctx({sub: 'payment'}),
@@ -304,6 +316,52 @@ describe('consolePlayCardComposer.playComposerFootHints', () => {
     // Inside a pick / the payment editor the layer is not offered.
     expect(controls(playComposerFootHints(ctx({sub: 'payment', forecast: true})))).to.not.include('stickR');
     expect(controls(playComposerFootHints(ctx({sub: 'list', forecast: true})))).to.not.include('stickR');
+  });
+});
+
+/**
+ * THE «ИЛИ» RADIOGROUP MOVES BY ITS GEOMETRY: side by side, ←→ switch the
+ * options and ↑↓ leave the group; stacked (the Deck), the ordinary ±1 walk
+ * applies and ←→ are inert. The axis is MEASURED by the component and passed
+ * in — the rule itself is pure.
+ */
+describe('consolePlayCardComposer.variantGroupNav', () => {
+  // Rows: [variant#0, variant#1, step, cta] — the commit rail is reachable.
+  const row = {axis: 'row' as const, variantIdx: [0, 1], returnIdx: 0, navMaxIndex: 3};
+
+  it('row: ←→ switch the options with wrap; nothing is selected by it', () => {
+    expect(variantGroupNav({...row, dir: 'right', focusIdx: 0})).to.equal(1);
+    expect(variantGroupNav({...row, dir: 'right', focusIdx: 1})).to.equal(0);
+    expect(variantGroupNav({...row, dir: 'left', focusIdx: 0})).to.equal(1);
+    expect(variantGroupNav({...row, dir: 'left', focusIdx: 1})).to.equal(0);
+  });
+
+  it('row: ↓ leaves to the next stop after the group, ↑ stays when nothing stands above the first option', () => {
+    expect(variantGroupNav({...row, dir: 'down', focusIdx: 1})).to.equal(2);
+    expect(variantGroupNav({...row, dir: 'down', focusIdx: 0}), 'from ANY option — the group is one stop vertically').to.equal(2);
+    expect(variantGroupNav({...row, dir: 'up', focusIdx: 1})).to.equal(1);
+  });
+
+  it('row: ↓ is bounded by the commit gate — an unmade choice keeps the cursor in the group', () => {
+    // Only the two options exist and the rail refuses the cursor (navMaxIndex = 1).
+    expect(variantGroupNav({...row, variantIdx: [0, 1], navMaxIndex: 1, dir: 'down', focusIdx: 1})).to.equal(1);
+    expect(variantGroupNav({...row, variantIdx: [0, 1], navMaxIndex: 1, dir: 'down', focusIdx: 0})).to.equal(0);
+  });
+
+  it('row: ↑ from just below re-enters on the option the cursor LEFT (the group\'s memory), else the last one', () => {
+    expect(variantGroupNav({...row, returnIdx: 1, dir: 'up', focusIdx: 2})).to.equal(1);
+    expect(variantGroupNav({...row, returnIdx: 0, dir: 'up', focusIdx: 2})).to.equal(0);
+    expect(variantGroupNav({...row, returnIdx: 9, dir: 'up', focusIdx: 2}), 'a stale memory falls back to the last option').to.equal(1);
+    // From further down the group has no say — the ordinary walk moves ±1.
+    expect(variantGroupNav({...row, dir: 'up', focusIdx: 3})).to.be.undefined;
+    expect(variantGroupNav({...row, dir: 'left', focusIdx: 2})).to.be.undefined;
+  });
+
+  it('column: the group declines every press — the ordinary walk moves ↑↓ and ←→ stay inert', () => {
+    for (const dir of ['up', 'down', 'left', 'right'] as const) {
+      expect(variantGroupNav({...row, axis: 'column', dir, focusIdx: 0})).to.be.undefined;
+    }
+    expect(variantGroupNav({...row, variantIdx: [], dir: 'right', focusIdx: 0}), 'no options → no group').to.be.undefined;
   });
 });
 

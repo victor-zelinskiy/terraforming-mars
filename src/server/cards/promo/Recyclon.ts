@@ -84,7 +84,7 @@ export class Recyclon extends CorporationCard implements ICorporationCard {
       return [];
     }
     const source = forecast.sourceOf(this, cardOwner, 'card-played');
-    const reason = 'You play a card with a ${0} tag';
+    const reason = forecast.tagReason(Tag.BUILDING);
     if (this.resourceCount < 2) {
       return [forecast.exact(source, [actionPreviews.cardGain(this, 1)], reason, {reasonTag: Tag.BUILDING})];
     }

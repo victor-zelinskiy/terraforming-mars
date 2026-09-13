@@ -46,7 +46,7 @@ export class AlbedoPlants extends PreludeCard {
     }
     return [forecast.exact(forecast.sourceOf(this, cardOwner, 'card-played'),
       [actionPreviews.stockGain(cardOwner, Resource.HEAT, qty * 3)],
-      'You play a card with a ${0} tag', {reasonTag: Tag.PLANT})];
+      forecast.tagReason(Tag.PLANT), {reasonTag: Tag.PLANT})];
   }
 
   public onNonCardTagAdded(player: IPlayer, tag: Tag) {

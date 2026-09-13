@@ -174,6 +174,13 @@ export class PharmacyUnion extends CorporationCard implements ICorporationCard {
       return [];
     }
     const source = forecast.sourceOf(this, cardOwner, 'card-played-by-any');
+    // The two printed blocks share ONE live channel, so the channel plan
+    // cannot tell them apart: the card DECLARES which block each fact belongs
+    // to (#0 the microbe half, #1 the science half — the render order of the
+    // corp box); the order question is both halves at once and stays
+    // undeclared (the honest «эффект этой карты»).
+    const microbeSource = {...source, printedEffect: 0};
+    const scienceSource = {...source, printedEffect: 1};
     const recipient = forecast.recipientOf(activePlayer, cardOwner);
     const own = cardOwner.id === activePlayer.id;
     const hasScienceTag = cardOwner.tags.cardHasTag(card, Tag.SCIENCE);
@@ -201,26 +208,26 @@ export class PharmacyUnion extends CorporationCard implements ICorporationCard {
         for (let i = 0; i < scienceTags; i++) {
           if (stored > 0) {
             if (cardOwner.canAfford({cost: 0, tr: {tr: 1}})) {
-              facts.push(forecast.exact(source,
+              facts.push(forecast.exact(scienceSource,
                 [{...actionPreviews.cardCost(this, 1), current: stored, resulting: stored - 1}, actionPreviews.trGain(cardOwner, 1)],
-                'You play a card with a ${0} tag',
+                forecast.tagReason(Tag.SCIENCE),
                 {id: `science-${i}`, reasonTag: Tag.SCIENCE, sequence: Priority.SUPERPOWER, timing: 'before-card-choices'}));
               stored--;
             } else {
-              facts.push(forecast.skipped(source, [actionPreviews.trGain(cardOwner, 1)],
+              facts.push(forecast.skipped(scienceSource, [actionPreviews.trGain(cardOwner, 1)],
                 'The Reds ruling party makes the TR step unaffordable', {id: `science-${i}`, reasonTag: Tag.SCIENCE}));
             }
             continue;
           }
           if (!cardOwner.canAfford({cost: 0, tr: {tr: 3}})) {
-            facts.push(forecast.skipped(source, [actionPreviews.trGain(cardOwner, 3)],
+            facts.push(forecast.skipped(scienceSource, [actionPreviews.trGain(cardOwner, 3)],
               'The Reds ruling party makes the TR step unaffordable', {id: `science-${i}`, reasonTag: Tag.SCIENCE}));
             continue;
           }
-          facts.push(forecast.asks(source,
+          facts.push(forecast.asks(scienceSource,
             [actionPreviews.trGain(cardOwner, 3)],
             [{label: 'Do nothing', effects: []}],
-            'You play a card with a ${0} tag',
+            forecast.tagReason(Tag.SCIENCE),
             {id: `science-${i}`, reasonTag: Tag.SCIENCE, sequence: Priority.SUPERPOWER}));
         }
       }
@@ -229,12 +236,12 @@ export class PharmacyUnion extends CorporationCard implements ICorporationCard {
     if (hasMicrobesTag && !orderChoiceAsked) {
       const microbeTagCount = card.tags.filter((cardTag) => cardTag === Tag.MICROBE).length;
       const loss = Math.min(cardOwner.megaCredits, microbeTagCount * 4);
-      facts.push(forecast.exact(source,
+      facts.push(forecast.exact(microbeSource,
         [actionPreviews.cardGain(this, microbeTagCount), actionPreviews.stockCost(cardOwner, Resource.MEGACREDITS, loss)],
-        'Any player plays a card with a ${0} tag',
+        forecast.anyPlayerTagReason(Tag.MICROBE),
         {id: 'microbe', reasonTag: Tag.MICROBE, recipient, sequence: Priority.PHARMACY_UNION, timing: 'before-card-choices'}));
       if (own && !hasScienceTag) {
-        facts.push(forecast.no(source, 'The card has no science tag', {id: 'science-no', reasonTag: Tag.SCIENCE}));
+        facts.push(forecast.no(scienceSource, 'The card has no science tag', {id: 'science-no', reasonTag: Tag.SCIENCE}));
       }
     }
     return facts;

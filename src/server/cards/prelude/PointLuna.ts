@@ -51,6 +51,6 @@ export class PointLuna extends CorporationCard implements ICorporationCard {
     }
     return [forecast.exact(forecast.sourceOf(this, cardOwner, 'card-played'),
       [actionPreviews.drawGain(tagCount)],
-      'You play a card with a ${0} tag', {reasonTag: Tag.EARTH})];
+      forecast.tagReason(Tag.EARTH), {reasonTag: Tag.EARTH})];
   }
 }

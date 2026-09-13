@@ -7,14 +7,18 @@
     screen); it is NOT a focus stop — no cursor, no selection, no A — and a
     click opens the layer the way R3 does.
 
-    Four chip forms (§5.2 of the spec), all the shared `ActionEffectChip`:
+    Four chip forms (§5.2 of the spec), all the shared `ActionEffectChip` as
+    BARE DELTAS («+1 ⬡», never «⬡ 0 → 1», never a note — those readings live
+    in the layer):
       · own guaranteed gain      — the ordinary mint gain chip;
       · a gain you will be ASKED — the same chip + a «?» badge (cyan);
       · another seat's gain/loss — steel chassis + that player's colour bar
                                     and dot (never mint: mint means «mine»);
+                                    a LOSS wears the spend tone («▍−4 M€»);
       · «⚡ ?»                    — ONE dashed steel chip for every reaction
                                     that fires but was not calculated;
-    plus «+N» past the cap. Membership + merging + the cap are the pure
+    plus «+N» past the cap. A production step keeps its identity through the
+    production plate on its icon. Membership + merging + the cap are the pure
     model's (`compactForecastChips`).
   -->
   <div class="con-forecast"
@@ -23,7 +27,7 @@
        :aria-label="ariaLabel"
        data-forecast-row
        @click="$emit('open')">
-    <span class="con-forecast__glyph" aria-hidden="true">⚡</span>
+    <span class="con-forecast__glyph con-forecast__bolt" aria-hidden="true">⚡</span>
     <span v-if="caption" class="con-forecast__label">{{ $t('Will trigger') }}:</span>
     <span class="con-forecast__chips">
       <!-- Keyed on the chip's VALUE too: a refreshed forecast that moved a
@@ -85,7 +89,8 @@ export default defineComponent({
     },
   },
   methods: {
-    /** Identity + value: a changed number re-mounts the chip (the flick). */
+    /** Identity + value: a changed number re-mounts the chip (the flick). The
+     *  chip is a BARE delta, so the amount is its whole value. */
     chipKey(chip: ForecastChip): string {
       switch (chip.kind) {
       case 'unknown':
@@ -93,13 +98,19 @@ export default defineComponent({
       case 'more':
         return `${chip.key}|${chip.count}`;
       default:
-        return `${chip.key}|${chip.effect.amount}|${chip.effect.current ?? ''}|${chip.effect.resulting ?? ''}`;
+        return `${chip.key}|${chip.effect.amount}`;
       }
     },
+    /** Whose (own / other seat), the degree («?»), the pool (a production
+     *  step wears the production plate on its icon — the one distinction a
+     *  note-less chip keeps) and the tone (another seat's LOSS reads in the
+     *  spend tone, never as a number to compare). */
     chipClasses(chip: ForecastChip): Record<string, boolean> {
       return {
         ['con-forecast__chip--' + chip.kind]: true,
         'con-forecast__chip--bot': chip.kind === 'other' && chip.bot,
+        'con-forecast__chip--loss': chip.kind === 'other' && chip.effect.direction === 'cost',
+        'con-forecast__chip--production': (chip.kind === 'own' || chip.kind === 'asks' || chip.kind === 'other') && chip.production,
       };
     },
   },

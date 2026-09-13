@@ -629,7 +629,7 @@
   ],
   "discardPile": []
  },
- "createdTimeMs": 1789269845522,
+ "createdTimeMs": 1789297624708,
  "currentSeed": 688668745688,
  "deferredActions": [],
  "donePlayers": [],
@@ -649,7 +649,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1789269845522
+   "timestamp": 1789297624708
   },
   {
    "message": "Good luck ${0}!",
@@ -659,7 +659,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1789269845523,
+   "timestamp": 1789297624708,
    "playerId": "p-player1-id"
   },
   {
@@ -670,7 +670,7 @@
      "value": "red"
     }
    ],
-   "timestamp": 1789269845523,
+   "timestamp": 1789297624708,
    "playerId": "p-player2-id"
   },
   {
@@ -681,7 +681,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1789269845523,
+   "timestamp": 1789297624708,
    "type": 1
   },
   {
@@ -696,7 +696,7 @@
      "value": "Manutech"
     }
    ],
-   "timestamp": 1789269845523,
+   "timestamp": 1789297624709,
    "correlationId": 1,
    "parentId": 1,
    "role": "root-action",
@@ -718,7 +718,7 @@
      "value": "steel"
     }
    ],
-   "timestamp": 1789269845523,
+   "timestamp": 1789297624709,
    "correlationId": 1,
    "parentId": 1,
    "role": "detail"
@@ -735,7 +735,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1789269845523,
+   "timestamp": 1789297624709,
    "correlationId": 1,
    "parentId": 1,
    "role": "detail"
@@ -752,7 +752,7 @@
      "value": "Pharmacy Union"
     }
    ],
-   "timestamp": 1789269845523,
+   "timestamp": 1789297624709,
    "correlationId": 5,
    "parentId": 5,
    "role": "root-action",
@@ -779,7 +779,7 @@
      }
     }
    ],
-   "timestamp": 1789269845524,
+   "timestamp": 1789297624709,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -798,7 +798,7 @@
      ]
     }
    ],
-   "timestamp": 1789269845524,
+   "timestamp": 1789297624710,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -815,7 +815,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1789269845524,
+   "timestamp": 1789297624710,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -840,7 +840,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1789269845524,
+   "timestamp": 1789297624711,
    "correlationId": 5,
    "parentId": 7,
    "role": "effect-result"
@@ -1109,9 +1109,57 @@
    },
    "player": "red",
    "parentId": 5
+  },
+  {
+   "id": 12,
+   "generation": 1,
+   "phase": "action",
+   "type": "effect-triggered",
+   "impact": {},
+   "correlationId": 12,
+   "visibility": "analytics",
+   "source": {
+    "kind": "corporation",
+    "card": "Manutech",
+    "owner": "blue"
+   },
+   "player": "blue",
+   "trigger": "production-gain",
+   "tags": [
+    "passive-effect"
+   ]
+  },
+  {
+   "id": 13,
+   "generation": 1,
+   "phase": "action",
+   "type": "resource-changed",
+   "impact": {
+    "stock": {
+     "heat": 1
+    },
+    "snapshot": {
+     "resource": "heat",
+     "scope": "stock",
+     "before": 0,
+     "after": 1
+    }
+   },
+   "correlationId": 12,
+   "visibility": "analytics",
+   "source": {
+    "kind": "corporation",
+    "card": "Manutech",
+    "owner": "blue"
+   },
+   "player": "blue",
+   "tags": [
+    "passive-effect"
+   ],
+   "parentId": 12
   }
  ],
- "eventSeq": 11,
+ "eventSeq": 13,
  "gameOptions": {
   "altVenusBoard": false,
   "aresExtension": true,
@@ -1201,7 +1249,7 @@
   "Planner",
   "Hoverlord"
  ],
- "name": "Latent Vector Loop",
+ "name": "Binary Inertia Fragment",
  "oxygenLevel": 0,
  "passedPlayers": [],
  "phase": "action",
@@ -1224,8 +1272,8 @@
    "plantProduction": 0,
    "energy": 0,
    "energyProduction": 0,
-   "heat": 0,
-   "heatProduction": 0,
+   "heat": 1,
+   "heatProduction": 1,
    "titaniumValue": 3,
    "steelValue": 2,
    "canUseHeatAsMegaCredits": false,
@@ -1263,7 +1311,9 @@
     "Geological Survey",
     "Artificial Photosynthesis",
     "Nitrite Reducing Bacteria",
-    "Security Fleet"
+    "Security Fleet",
+    "Insulation",
+    "Indentured Workers"
    ],
    "pendingCardIntakes": [],
    "preludeCardsInHand": [],
@@ -1333,11 +1383,11 @@
    "beginner": false,
    "handicap": 0,
    "timer": {
-    "sumElapsed": 1,
-    "startedAt": 1789269845525,
+    "sumElapsed": 2,
+    "startedAt": 1789297624711,
     "running": true,
     "afterFirstAction": true,
-    "lastStoppedAt": 1789269845525
+    "lastStoppedAt": 1789297624711
    },
    "actionsTakenThisGame": 1,
    "victoryPointsByGeneration": [],
@@ -1451,10 +1501,10 @@
    "handicap": 0,
    "timer": {
     "sumElapsed": 2,
-    "startedAt": 1789269845523,
+    "startedAt": 1789297624709,
     "running": false,
     "afterFirstAction": true,
-    "lastStoppedAt": 1789269845525
+    "lastStoppedAt": 1789297624711
    },
    "actionsTakenThisGame": 0,
    "victoryPointsByGeneration": [],

@@ -51,7 +51,7 @@ export class CarbonNanosystems extends Card implements IProjectCard {
     }
     return [forecast.exact(forecast.sourceOf(this, cardOwner, 'card-played'),
       [actionPreviews.cardGain(this, qty)],
-      'You play a card with a ${0} tag', {reasonTag: Tag.SCIENCE})];
+      forecast.tagReason(Tag.SCIENCE), {reasonTag: Tag.SCIENCE})];
   }
   public onNonCardTagAdded(player: IPlayer, tag: Tag) {
     if (tag === Tag.SCIENCE) {

@@ -181,7 +181,11 @@
                    the CURSOR (cyan ring, no mark), the CHOICE (green plate +
                    ✓, and it stays while the cursor walks away) and the COMMIT
                    (the rail below, unreachable until the choice is made). -->
-              <div v-if="hasVariants" class="con-composer__variants" role="radiogroup" :aria-label="$t(resultHeading)">
+              <!-- `variantsEl` is MEASURED (the options' offsetTop) to learn the
+                   group's live AXIS — side by side (←→ switch, ↑↓ leave) or a
+                   column (↑↓ walk, ←→ inert) — never a JS copy of the
+                   container query's threshold; re-measured on resize. -->
+              <div v-if="hasVariants" ref="variantsEl" class="con-composer__variants" role="radiogroup" :aria-label="$t(resultHeading)" :data-variant-axis="variantAxis">
                 <template v-for="(row, k) in variantRows" :key="row.id">
                   <!-- The exclusion, said once between the options: two results
                        that both look possible are otherwise indistinguishable
@@ -208,22 +212,12 @@
                     </div>
                     <div class="con-composer__variant-chips">
                       <ActionEffectChip v-for="(eff, k2) in branches[row.pos].effects" :key="k2" :effect="eff" />
-                      <!-- ↳ REACTIONS tied to THIS branch (the forecast's `byBranch`):
-                           what the TABLE adds if the player picks this option, drawn
-                           beside the option's own chips so the two are compared as
-                           one. Never repeated in the «Сработает» row below. -->
-                      <span v-for="rc in variantReactions(row.pos).chips" :key="'fx' + rc.key"
-                            class="con-forecast__vchip"
-                            :class="{'con-forecast__vchip--other': rc.color !== undefined, 'con-forecast__vchip--asks': rc.asks}"
-                            data-forecast-vchip>
-                        <span class="con-forecast__vchip-glyph" aria-hidden="true">↳</span>
-                        <span v-if="rc.color !== undefined" class="con-forecast__owner-dot" :class="'player_bg_color_' + rc.color" aria-hidden="true"></span>
-                        <ActionEffectChip :effect="rc.effect" />
-                        <span v-if="rc.asks" class="con-forecast__ask" aria-hidden="true">?</span>
-                      </span>
-                      <span v-if="variantReactions(row.pos).more > 0" class="con-forecast__vchip con-forecast__vchip--more" data-forecast-vchip>
-                        <span class="con-forecast__vchip-glyph" aria-hidden="true">↳</span>+{{ variantReactions(row.pos).more }}
-                      </span>
+                      <!-- «⚡ сработает» — the reactions tied to THIS branch (the
+                           forecast's `byBranch`): what the TABLE adds if the player
+                           picks this option, on the SAME line as the option's own
+                           chips past a thin seam, in the «Сработает» zone's own
+                           language. Never repeated in the row below. -->
+                      <ConsoleForecastReactions :reaction="variantReactions(row.pos)" />
                     </div>
                     <div v-if="!branches[row.pos].available" class="con-composer__variant-reason">
                       ✕ {{ branchReasonText(branches[row.pos]) }}
@@ -475,6 +469,7 @@
                                    :focus-unit="payFocusUnit"
                                    :flash-nonce="payFlashNonce"
                                    :discount="forecastDiscount"
+                                   :free="payFree"
                                    data-unfold-item />
 
               <!-- The explicit «Разыграть» CTA — a FOCUSABLE row that draws the Ⓐ
@@ -607,6 +602,7 @@ import CardRenderData from '@/client/components/card/CardRenderData.vue';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 import ConsolePaymentPanel from '@/client/components/console/ConsolePaymentPanel.vue';
 import ConsoleForecastRow from '@/client/components/console/ConsoleForecastRow.vue';
+import ConsoleForecastReactions from '@/client/components/console/ConsoleForecastReactions.vue';
 import ConsoleEffectsExplorer from '@/client/components/console/ConsoleEffectsExplorer.vue';
 import {EffectForecast} from '@/common/models/EffectForecastModel';
 import {EffectOverlayStat} from '@/common/events/aggregate';
@@ -675,7 +671,9 @@ import {
   computePrimaryAction, PrimaryActionState, initialVariantSelection,
   playPrimaryVerb, PlayFocusTarget,
   playChoiceMode, PlayChoiceMode, foldCopiedProductionEffects, samePreviewShape,
+  variantGroupNav, VariantAxis,
 } from '@/client/console/consolePlayCardComposer';
+import {useResizeObserver} from '@vueuse/core';
 import {gameStateVersion} from '@/client/console/gameStateVersion';
 import {
   buildPaymentView, PaymentView, PaymentSourceRow, editableRows, quickAdjustRow,
@@ -838,7 +836,7 @@ function espOwnerOptionTitle(o: {resource: string, amount: number, production?: 
 
 export default defineComponent({
   name: 'ConsolePlayCardConfirm',
-  components: {Card, ConsoleScrollArea, GamepadGlyph, ActionEffectChip, ConsolePaymentPanel, ConsoleForecastRow, ConsoleEffectsExplorer, CardRenderEffectBoxComponent, CardRenderData, ConsolePlayedTargetStep, ConsolePlayedTargetLink, ConsolePlayedReceivingStage, ConsoleAmountOperation, HydroReward},
+  components: {Card, ConsoleScrollArea, GamepadGlyph, ActionEffectChip, ConsolePaymentPanel, ConsoleForecastRow, ConsoleForecastReactions, ConsoleEffectsExplorer, CardRenderEffectBoxComponent, CardRenderData, ConsolePlayedTargetStep, ConsolePlayedTargetLink, ConsolePlayedReceivingStage, ConsoleAmountOperation, HydroReward},
   directives: {stripActionPrefix},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
@@ -906,6 +904,18 @@ export default defineComponent({
       forecastPulse: false,
       /** The forecast explorer's own cursors (never the Information workspace's). */
       forecastUi: forecastExplorerUi('play'),
+      /**
+       * The «ИЛИ» radiogroup's LIVE axis — measured off the option cards'
+       * `offsetTop` (all equal ⇒ one row), re-measured on resize. `row`: ←→
+       * switch options with wrap, ↑↓ leave the group; `column` (the Deck):
+       * ↑↓ walk the options, ←→ are inert. Never a JS copy of the CSS
+       * container-query threshold.
+       */
+      variantAxis: 'row' as VariantAxis,
+      /** The last option the cursor stood on — where ↑ from the payment /
+       *  rail re-enters the group. */
+      variantReturnIdx: 0,
+      stopVariantObs: undefined as (() => void) | undefined,
     };
   },
   computed: {
@@ -999,8 +1009,19 @@ export default defineComponent({
     megacreditsOnHand(): number {
       return megacreditsAvailable(this.thisPlayer);
     },
+    /**
+     * FREE — the server's price is ZERO (a printed zero, or discounts that ate
+     * the whole cost): the payment block collapses to its head + «БЕСПЛАТНО»,
+     * nothing is dialed, no editor opens, and the commit is ready without a
+     * single press. Reactive on the live card model, so a state change that
+     * re-prices the card above zero unfolds the block again — the ONE
+     * layout shift this block allows.
+     */
+    payFree(): boolean {
+      return this.cost === 0;
+    },
     paymentReady(): boolean {
-      return paymentCovers(this.cost, this.payLanes, this.payCounts, this.megacreditsOnHand);
+      return this.payFree || paymentCovers(this.cost, this.payLanes, this.payCounts, this.megacreditsOnHand);
     },
     /** The full payment view-model — source rows + verdict + editability. The
      *  UI renders + calls actions; ALL rules stay in `buildPaymentView`. */
@@ -1014,7 +1035,8 @@ export default defineComponent({
     },
     /** The single row LB/RB (and RT МАКС.) drive on the COMPACT screen. */
     quickAdjustChip(): PaymentSourceRow | undefined {
-      return quickAdjustRow(this.paymentView);
+      // A free play has nothing to dial — the bumpers stay silent.
+      return this.payFree ? undefined : quickAdjustRow(this.paymentView);
     },
     /**
      * Is the EXPANDED editor a place worth going? Only with two or more
@@ -1025,7 +1047,8 @@ export default defineComponent({
      * in the CTA's shortfall fallback and in the footer.
      */
     payEditorAvailable(): boolean {
-      return this.paymentView.editorEligible;
+      // …and never for a FREE play: there is no mix to shape.
+      return !this.payFree && this.paymentView.editorEligible;
     },
     /** The EXPANDED payment editor is open — the SAME screen with the payment
      *  block promoted (result dimmed, cursor inside the panel), never a
@@ -1848,6 +1871,9 @@ export default defineComponent({
         primaryEnabled: this.primaryFooter.enabled,
         quickAdjust,
         forecast: this.forecastCanOpen,
+        // The radiogroup's live axis — «◄► Вариант» while the cursor stands in
+        // a side-by-side group.
+        variantAxis: this.focusedKind === 'variant' ? this.variantAxis : undefined,
       });
     },
     // ── sub-state derived views ─────────────────────────────────────────
@@ -2045,6 +2071,14 @@ export default defineComponent({
         closeEffectForecastLayer('play');
       }
     },
+    /** The radiogroup's memory: the option the cursor last stood on, so ↑
+     *  from the payment / rail re-enters the group there (whatever moved
+     *  the cursor — the pad, a click, the opening focus). */
+    focusIdx(idx: number): void {
+      if (this.rows[idx]?.kind === 'variant') {
+        this.variantReturnIdx = idx;
+      }
+    },
     /**
      * THE SETUP RELEASE of the commit: the WHOLE setup layer — the work
      * column AND the anchored card column (its card is already blanked under
@@ -2095,6 +2129,8 @@ export default defineComponent({
   beforeUnmount() {
     resetConsolePlayCardUi();
     closeEffectForecastLayer('play');
+    this.stopVariantObs?.();
+    this.stopVariantObs = undefined;
   },
   methods: {
     // The composer ⇄ «Эффекты» layer transition hooks (the descend phrase) —
@@ -2103,9 +2139,42 @@ export default defineComponent({
     forecastFocusLeaveHook,
     forecastFocusEnterCancelledHook,
     forecastFocusLeaveCancelledHook,
-    /** The «↳» reaction chips drawn INSIDE a variant card (the pure model). */
+    /** The «⚡ сработает» chips drawn INSIDE a variant card (the pure model). */
     variantReactions(pos: number): VariantReaction {
       return variantReactionChips(this.forecast, pos);
+    },
+    /**
+     * The radiogroup's AXIS, read off the rendered geometry: every option card
+     * at the same `offsetTop` ⇒ one row (←→ switch), else the container query
+     * has stacked them ⇒ a column (↑↓ walk). Measured, never a duplicated
+     * breakpoint — the cluster's width depends on the profile, the hand dock
+     * and the nesting depth, which no JS constant knows.
+     */
+    measureVariantAxis(): void {
+      const el = this.$refs.variantsEl as HTMLElement | undefined | null;
+      if (el === undefined || el === null) {
+        this.variantAxis = 'row';
+        return;
+      }
+      const tops = new Set<number>();
+      for (const card of Array.from(el.querySelectorAll<HTMLElement>('.con-composer__variant'))) {
+        tops.add(Math.round(card.offsetTop));
+      }
+      this.variantAxis = tops.size <= 1 ? 'row' : 'column';
+    },
+    /** Re-measure on every resize of the group's box (a profile switch, the
+     *  rail lifting, a font settling) — the responsive path, never a window
+     *  listener. Re-armed whenever a preview lands (the group may mount). */
+    armVariantObserver(): void {
+      this.stopVariantObs?.();
+      this.stopVariantObs = undefined;
+      const el = this.$refs.variantsEl as HTMLElement | undefined | null;
+      if (el === undefined || el === null) {
+        this.variantAxis = 'row';
+        return;
+      }
+      this.stopVariantObs = useResizeObserver(el, () => this.measureVariantAxis()).stop;
+      this.measureVariantAxis();
     },
     /**
      * R3 / a click on the «Сработает» row — the WORKSPACE DESCEND into the
@@ -2277,6 +2346,8 @@ export default defineComponent({
       this.selectedPos = initialVariantSelection(this.branches);
       this.seedChoiceDefaults();
       this.focusIdx = this.firstActionableIndex();
+      // The radiogroup (if any) renders in the next patch — learn its axis then.
+      void this.$nextTick(() => this.armVariantObserver());
       // STAGED PLAY return (B from the board): the player's own captures beat
       // the fresh seeding — the round trip must land them exactly where they
       // left. One-shot by contract; nothing was submitted in between, so the
@@ -2730,6 +2801,25 @@ export default defineComponent({
         return;
       }
       if (this.rows.length === 0) {
+        return;
+      }
+      // THE «ИЛИ» RADIOGROUP MOVES BY ITS GEOMETRY. Side by side, ←→ switch
+      // the options (with wrap) and ↑↓ leave the group — up to the previous
+      // stop of the ring, down to the next (a pick row, else the commit
+      // rail); ↑ from just below re-enters on the option the cursor left.
+      // In a column (the Deck) the pure model declines and the ordinary walk
+      // below applies. Selection stays a PRESS — none of this chooses.
+      const grouped = variantGroupNav({
+        dir,
+        axis: this.variantAxis,
+        focusIdx: this.focusIdx,
+        variantIdx: this.variantRows.map((r) => r.i),
+        returnIdx: this.variantReturnIdx,
+        navMaxIndex: this.navMaxIndex,
+      });
+      if (grouped !== undefined) {
+        this.focusIdx = grouped;
+        this.scrollFocused();
         return;
       }
       if (dir === 'up' || dir === 'down') {

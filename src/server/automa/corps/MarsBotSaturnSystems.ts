@@ -72,7 +72,7 @@ export const MarsBotSaturnSystems: MarsBotCorp = {
     return [forecast.exact(
       {kind: 'automa-corporation', name: INFO.original, owner: bot.color, channel: 'automa-corporation'},
       [{direction: 'gain', icon: 'track', amount: 1, note: 'event track'}],
-      'You play a card with a ${0} tag',
+      forecast.tagReason(TRIGGER_TAG),
       {reasonTag: TRIGGER_TAG, recipient: {kind: 'bot', color: bot.color}})];
   },
 };

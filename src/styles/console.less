@@ -30817,7 +30817,14 @@ html.console-mode {
     display: flex; align-items: center; flex-wrap: wrap; gap: .35rem;
     min-width: 0;
     cursor: pointer;
-    &__glyph { flex-shrink: 0; width: 1rem; text-align: center; font-size: .8rem; color: @con-mint; }
+    &__glyph { flex-shrink: 0; width: 1rem; text-align: center; font-size: .8rem; }
+    /* THE EFFECTS BOLT — the one glyph of this whole language (the zone's
+       caption, the «⚡ сработает» note inside an option card, the layer's
+       «Вы получите» / «Зависит от вашего выбора» headers): a warm
+       amber-orange, so it can never be read as the ENERGY resource, whose
+       lightning is violet. Colour is the legend; the word beside it repeats
+       it. */
+    &__bolt { color: @con-amber; }
     &__label { flex-shrink: 0; font-weight: 600; color: fade(@con-text, 92%); }
     &__chips { display: inline-flex; align-items: center; flex-wrap: wrap; gap: .3rem; min-width: 0; }
     /* The R3 key rides the row's tail — the ONE on-object glyph this unit
@@ -30909,30 +30916,56 @@ html.console-mode {
        the unit, the same phrase every pressed object in the console speaks. */
     &--descend { animation: con-forecast-descend calc(260ms * var(--motion-scale, 1)) ease; }
 
-    /* ── «↳» — a reaction drawn INSIDE a variant / branch option card. ── */
-    &__vchip {
-        position: relative;
-        display: inline-flex; align-items: center; gap: .15rem;
-        padding-left: .1rem;
-        border-radius: var(--con-chip-c-radius, .5rem);
-        background: rgba(88, 214, 166, 0.06);
-        box-shadow: inset 0 0 0 .05rem fade(@con-mint, 22%);
-        .action-effect-chip.action-effect-chip { background: none; box-shadow: none; padding-left: .12rem; }
-        &--other {
-            background: rgba(120, 140, 165, 0.12);
-            box-shadow: inset 0 0 0 .05rem rgba(150, 175, 205, 0.34);
-            .action-effect-chip--gain.action-effect-chip--gain .action-effect-chip__amount { color: #dbe8f4; }
-        }
-        &--more {
-            padding: .1rem .4rem .1rem .25rem;
-            font-size: .72rem; font-weight: 800; font-variant-numeric: tabular-nums;
-            color: fade(@con-text, 84%);
-            background: rgba(20, 30, 42, 0.62);
-            box-shadow: inset 0 0 0 .05rem rgba(150, 175, 205, 0.3);
-        }
+    /* ANOTHER SEAT'S LOSS reads by TONE, never by comparing numbers: the
+       chassis takes the spend tone the «Будет потрачено» chips wear (amber
+       rim over a warm dark plate), the colour bar and the dot still say
+       WHOSE. The inner chip keeps its own cost accent. */
+    &__chip--other&__chip--loss {
+        background: rgba(58, 42, 22, 0.5);
+        box-shadow: inset 0 0 0 .05rem rgba(255, 196, 120, 0.5);
     }
-    &__vchip-glyph { flex-shrink: 0; padding-left: .2rem; font-size: .8rem; font-weight: 800; color: fade(@con-mint, 88%); }
-    &__vchip--other &__vchip-glyph { color: fade(@con-text, 70%); }
+    /* A PRODUCTION step, note-less: the icon rides the PRODUCTION PLATE — the
+       card art's own brown box — so «+1 M€» and «+1 M€ production» stay two
+       different chips without a word between them. */
+    &__chip--production .action-effect-chip__icon.action-effect-chip__icon {
+        padding: .1rem;
+        box-sizing: content-box;
+        background-origin: content-box;
+        background-color: rgba(122, 78, 40, 0.92);
+        border-radius: .2rem;
+        box-shadow: inset 0 0 0 .05rem rgba(232, 196, 150, 0.55);
+    }
+
+    /* ── «⚡ сработает» — the reactions INSIDE an «ИЛИ» option card, on the
+       line of its own chips: a thin seam, the bolt + the word as a NOTE, the
+       bare chips. ONE flex item that never wraps inside — when the line runs
+       out the whole group takes the next line, caption and chips together. */
+    &__vfx {
+        display: inline-flex; align-items: center; gap: .3rem;
+        flex-wrap: nowrap; flex-shrink: 0;
+        min-width: 0; max-width: 100%;
+    }
+    &__vfx-sep {
+        flex-shrink: 0;
+        width: .05rem; height: 1.15rem; margin: 0 .1rem;
+        border-radius: .05rem;
+        background: rgba(150, 175, 205, 0.34);
+    }
+    &__vfx-head { display: inline-flex; align-items: center; gap: .2rem; white-space: nowrap; flex-shrink: 0; }
+    &__vfx-head &__bolt { font-size: .78rem; }
+    &__vfx-label {
+        font-size: var(--con-chip-c-note, .62rem);
+        letter-spacing: .02rem; text-transform: lowercase;
+        color: fade(@con-text, 74%);
+    }
+    /* The chips are the COMPACT family here too (the option's own chips are). */
+    &__vfx .action-effect-chip.action-effect-chip {
+        font-size: var(--con-chip-c-fs, .82rem);
+        padding: var(--con-chip-c-pad, .14rem .42rem .14rem .26rem);
+        gap: var(--con-chip-c-gap, .22rem);
+        border-radius: var(--con-chip-c-radius, .5rem);
+    }
+    &__vfx .action-effect-chip__icon.action-effect-chip__icon { width: var(--con-chip-c-icon, 1.05rem); height: var(--con-chip-c-icon, 1.05rem); }
 }
 @keyframes con-forecast-descend {
     0% { box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.16); }
@@ -31085,6 +31118,14 @@ html.console-mode {
     .con-efx__fq-text { overflow-wrap: anywhere; }
     .con-efx__fq-note { flex-basis: 100%; font-size: .66rem; color: fade(@con-cyan, 88%); }
     .con-efx__fq-tag { width: 1.15rem; height: 1.15rem; margin: 0; line-height: 1.15rem; background-size: contain; background-position: center; background-repeat: no-repeat; flex-shrink: 0; }
+    /* The WHY sentence's last word + the tag icon are ONE unbreakable pair
+       («…с меткой науки ⚛»): the icon never falls onto a line of its own. */
+    .con-efx__fq-tail { display: inline-flex; align-items: center; gap: .25rem; white-space: nowrap; vertical-align: middle; }
+    /* The group headers' bolt (receive / depends) speaks the row's colour. */
+    .con-efx__fsection--receive .con-efx__fsection-glyph,
+    .con-efx__fsection--depends .con-efx__fsection-glyph,
+    .con-efx__chip-glyph--receive,
+    .con-efx__chip-glyph--depends { color: @con-amber; }
     .con-efx__fq-state {
         display: inline-flex; align-items: center;
         padding: .05rem .4rem; border-radius: 49.95rem;
@@ -33555,6 +33596,12 @@ html.con-profile-handheld .con-composer--embed {
     .con-forecast .action-effect-chip__icon.action-effect-chip__icon { width: .85rem; height: .85rem; }
     .con-forecast__unknown, .con-forecast__more { font-size: .68rem; padding: .1rem .32rem; }
     .con-forecast__key .gp-glyph { transform: scale(0.6); }
+    /* …and the «⚡ сработает» note inside an option card shrinks with them. */
+    .con-forecast__vfx { gap: .22rem; }
+    .con-forecast__vfx-label { font-size: .56rem; }
+    .con-forecast__vfx-head .con-forecast__bolt { font-size: .68rem; }
+    .con-forecast__vfx .action-effect-chip.action-effect-chip { font-size: .68rem; padding: .1rem .32rem .1rem .2rem; }
+    .con-forecast__vfx .action-effect-chip__icon.action-effect-chip__icon { width: .85rem; height: .85rem; }
     .con-composer__fxpanel { padding: .4rem .45rem; }
 }
 
@@ -33726,6 +33773,12 @@ html.con-profile-handheld .con-efx {
         .con-efx__detail { flex: 0 0 auto; max-height: none; padding: .4rem .5rem; gap: .25rem; }
         .con-efx__detail-cardwrap { display: none; }
         .con-efx__detail-rule, .con-efx__detail-count { display: none; }
+        /* Three lines on the plate — ЧТО · ПОЧЕМУ · КОГДА; the condition and
+           the recipient wait for the detail stage (five lines pushed the
+           groups under the scroll on the Deck). The plate's height is
+           content-sized, so the browse grid gets the room back. */
+        .con-efx__detail .con-efx__fq-row--condition,
+        .con-efx__detail .con-efx__fq-row--whom { display: none; }
         .con-efx__fq { padding: .3rem .4rem; gap: .2rem; }
         .con-efx__fq-row { grid-template-columns: 3.6rem minmax(0, 1fr); }
         .con-efx__fq-value { font-size: .68rem; }

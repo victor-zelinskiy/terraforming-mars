@@ -36,6 +36,7 @@ import type {Units} from '@/common/Units';
 import type {ComposerChoice, RepeatComposed} from '@/client/console/consoleActionComposer';
 import {repeatActionResponses} from '@/client/console/consoleActionComposer';
 import type {GlyphControl} from '@/client/gamepad/glyphSets';
+import type {NavDirection} from '@/client/gamepad/gamepadPollModel';
 
 // The premium payment PRESENTATION model lives in the SHARED `paymentPlan`
 // module so EVERY payment surface (card play, blue action, standalone
@@ -346,6 +347,74 @@ export function computePrimaryAction(ctx: {
  */
 export {initialVariantSelection} from '@/client/console/consoleActionComposer';
 
+// ── The «ИЛИ» radiogroup moves by its GEOMETRY ──────────────────────────────
+
+/**
+ * The live axis of the option cards: `row` — they stand side by side (the
+ * same `offsetTop`), `column` — the container query has stacked them (the
+ * Deck). MEASURED by the component, never derived from a duplicated
+ * breakpoint; passed in here so the rule stays pure.
+ */
+export type VariantAxis = 'row' | 'column';
+
+/**
+ * THE D-PAD OVER THE «ИЛИ» GROUP. Players compared options that stand BESIDE
+ * each other and had to switch them with ↑↓ — the group now moves the way it
+ * looks:
+ *  · `row`   — ←→ switch options (wrapping); ↑ leaves to the previous stop of
+ *              the ring (none above the first option ⇒ stay); ↓ leaves to the
+ *              next stop after the LAST option (a pick row, else the commit
+ *              rail — bounded by `navMaxIndex`, so an unmade choice keeps the
+ *              cursor in the group); ↑ from the row just below RE-ENTERS on
+ *              `returnIdx`, the option the cursor left (↓ from just above
+ *              likewise); everything else is not the group's business;
+ *  · `column`— the group declines every press: the ordinary ±1 walk already
+ *              moves ↑↓ through the stacked options, and ←→ stay inert.
+ * Returns the new cursor index, or `undefined` when the caller's ordinary
+ * walk applies. Selection is never touched — a choice is a PRESS.
+ */
+export function variantGroupNav(args: {
+  dir: NavDirection,
+  axis: VariantAxis,
+  focusIdx: number,
+  /** The nav-row indices of the option cards, in order. */
+  variantIdx: ReadonlyArray<number>,
+  /** The option the cursor last stood on (the group's memory). */
+  returnIdx: number,
+  /** The last cursor stop the commit gate allows right now. */
+  navMaxIndex: number,
+}): number | undefined {
+  const {dir, axis, focusIdx, variantIdx, returnIdx, navMaxIndex} = args;
+  if (axis !== 'row' || variantIdx.length === 0) {
+    return undefined;
+  }
+  const first = variantIdx[0];
+  const last = variantIdx[variantIdx.length - 1];
+  const at = variantIdx.indexOf(focusIdx);
+  if (at >= 0) {
+    switch (dir) {
+    case 'left':
+      return variantIdx[(at - 1 + variantIdx.length) % variantIdx.length];
+    case 'right':
+      return variantIdx[(at + 1) % variantIdx.length];
+    case 'up':
+      return first - 1 >= 0 ? first - 1 : focusIdx;
+    case 'down':
+      return last + 1 <= navMaxIndex ? last + 1 : focusIdx;
+    default:
+      return undefined;
+    }
+  }
+  const remembered = variantIdx.includes(returnIdx) ? returnIdx : undefined;
+  if (dir === 'up' && focusIdx === last + 1) {
+    return remembered ?? last;
+  }
+  if (dir === 'down' && focusIdx === first - 1) {
+    return remembered ?? first;
+  }
+  return undefined;
+}
+
 /** Which kind of row the cursor is on, as far as A is concerned. */
 export type PlayFocusTarget = 'cta' | 'picker' | 'variant' | 'other' | 'none';
 
@@ -481,6 +550,13 @@ export type PlayFootContext = {
    * offered).
    */
   forecast?: boolean;
+  /**
+   * The «ИЛИ» radiogroup's live axis while the cursor stands IN it
+   * (`focusedKind === 'variant'`): `row` publishes «◄► Вариант» — the options
+   * stand side by side and switch sideways. Absent / `column` publishes
+   * nothing extra (the ordinary d-pad walk).
+   */
+  variantAxis?: VariantAxis;
 };
 
 /**
@@ -539,6 +615,12 @@ export function playComposerFootHints(ctx: PlayFootContext): Array<FootHint> {
   const hints: Array<FootHint> = [];
   if (ctx.hasRows) {
     hints.push({control: 'dpad', label: 'Navigate'});
+  }
+  // The side-by-side «ИЛИ» group: ←→ are the option switch — said in the bar
+  // while the cursor stands in the group (the player who complained «they
+  // stand beside each other but switch up and down» reads it here).
+  if (ctx.focusedKind === 'variant' && ctx.variantAxis === 'row') {
+    hints.push({control: 'dpadH', label: 'Option'});
   }
   if (ctx.focusedKind === 'amount') {
     hints.push({control: 'bumperL', control2: 'bumperR', label: '−1 / +1'}, {control: 'triggerR', label: 'MAX'});

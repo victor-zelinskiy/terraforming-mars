@@ -120,7 +120,7 @@ export class Splice extends CorporationCard implements ICorporationCard {
     }
     const gain = microbeTags * 2;
     const source = forecast.sourceOf(this, cardOwner, 'card-played-by-any');
-    const reason = 'Any player plays a card with a ${0} tag';
+    const reason = forecast.anyPlayerTagReason(Tag.MICROBE);
     const facts: Array<EffectForecastFact> = [
       // The owner's half rides `GainResourcesDeferred` — behind every DEFAULT
       // prompt of the play (the card player's own choice below included).

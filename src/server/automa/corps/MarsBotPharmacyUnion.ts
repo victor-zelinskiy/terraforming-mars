@@ -137,7 +137,7 @@ export const MarsBotPharmacyUnion: MarsBotCorp = {
         'MarsBot has no M€ to lose', {reasonTag: Tag.MICROBE, recipient: {kind: 'bot', color: bot.color}})];
     }
     return [forecast.exact(source, [actionPreviews.stockCost(bot, Resource.MEGACREDITS, lost)],
-      'You play a card with a ${0} tag', {reasonTag: Tag.MICROBE, recipient: {kind: 'bot', color: bot.color}})];
+      forecast.tagReason(Tag.MICROBE), {reasonTag: Tag.MICROBE, recipient: {kind: 'bot', color: bot.color}})];
   },
 
   onProjectCardResolving(game: IGame, card: IProjectCard): void {

@@ -113,6 +113,16 @@ export type ActionEffect = {
   /** Optional i18n note under the value (e.g. `'on this card'`, `'to a card'`). */
   note?: string;
   /**
+   * The CARD whose resource pool this chip moves, when it is exactly one card
+   * — the effect forecast's explicit target marker. Stamped by the forecast
+   * ENGINE from the builders' own vocabulary («on this card» → the reacting
+   * source, «on the played card» → the card being played), never typed by a
+   * hook: a card-resource pool is `icon + host`, so Decomposers' own microbe
+   * pool and the played card's are two pools even under one icon. Absent for
+   * a player's stock / production pool and for a target chosen later.
+   */
+  host?: string;
+  /**
    * For a VARIABLE amount computed from game state ("1 M€ per city on Mars"),
    * the live BASIS of that computation — so the player sees WHY the amount is
    * what it is (e.g. `[{count: 3, label: 'Cities on Mars'}]` → "+3 M€ · Cities
