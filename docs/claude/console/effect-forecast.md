@@ -342,8 +342,22 @@ in a side-by-side group. Selection stays a PRESS — the three-state grammar
 (cursor / answer / commit) is untouched, and the action composer is not
 (its branches stand in a list and already walk ↑↓).
 
-**Skipped reactions** (Mars University with no other card) ride the existing
-`__warn` strip with the source name and the lost magnitude.
+**Skipped reactions** speak the row's own language, never the composer's
+amber `__warn` strip (that strip names the CARD's own lost effects — an
+opponent's Neptunian «cannot afford 5 M€» once stood there as a big brown
+block, a different surface's voice for something that was not even the
+viewer's loss). YOUR OWN reaction with nowhere to apply (Mars University with
+no other card in hand, Pharmacy Union's TR under an unaffordable Reds tax) is
+a fifth chip form of the row: the lost GAIN as a struck, muted chip (the
+shared chip's `skipped` face) with a «⚠» badge — the glyph of the layer's
+«Пропустится» group — placed after the other seats' chips and before «⚡ ?»,
+merged by pool, counted in the parity. A FOREIGN seat's skipped reaction never
+reaches the row: it is not the viewer's loss, and the layer's «Пропустится»
+names it under its owner with the reason. Inside an «ИЛИ» option a tied
+reaction keeps a degree that already says «will not run» (`asBranchFact`:
+skipped stays skipped, no stays no, unknown stays unknown; only the firing
+degrees read `conditional`), so the option's «⚡ сработает» note never
+promises a question whose owner cannot pay.
 
 **The layer** (`.con-composer__fxlayer` → `.con-composer__fxpanel[data-forecast-surface]`
 hosting `ConsoleEffectsExplorer mode="forecast"`): an ABSOLUTE overlay of the

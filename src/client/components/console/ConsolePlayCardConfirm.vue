@@ -1648,24 +1648,13 @@ export default defineComponent({
           out.push({title: '', reason: textOf(emptyWarning), icon: ''});
         }
       }
-      // A SKIPPED reaction of the table (the forecast's `skipped` facts —
-      // Mars University with no other card in hand): the same silent-loss
-      // strip, naming the source and the magnitude lost, never a hidden chip.
-      const f = this.forecast;
-      if (f !== undefined) {
-        const tied = this.selectedPos !== undefined ? (f.byBranch?.[this.selectedPos] ?? []) : [];
-        for (const fact of [...f.facts, ...tied]) {
-          if (fact.certainty !== 'skipped') {
-            continue;
-          }
-          out.push({
-            title: translateText(fact.source.name),
-            reason: textOf(fact.reason),
-            effect: fact.effects[0],
-            icon: '',
-          });
-        }
-      }
+      // (The TABLE's skipped reactions are NOT this strip's business: this
+      // strip names the CARD's own lost effects. A reaction of yours that has
+      // nowhere to apply stands in the «Сработает» row as a struck chip with
+      // a «⚠» badge; a foreign seat's non-event is only the layer's
+      // «Пропустится». The amber block here once carried an opponent's
+      // Neptunian «cannot afford 5 M€» — a different surface's language for
+      // something that was not even the viewer's loss.)
       return out;
     },
     followUpNotes(): Array<NextStepRow> {

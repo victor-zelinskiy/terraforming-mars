@@ -15,6 +15,9 @@
       · another seat's gain/loss — steel chassis + that player's colour bar
                                     and dot (never mint: mint means «mine»);
                                     a LOSS wears the spend tone («▍−4 M€»);
+      · your own SKIPPED gain     — the lost magnitude, struck and muted, with
+                                    a «⚠» badge (a foreign seat's skipped
+                                    reaction never reaches the row);
       · «⚡ ?»                    — ONE dashed steel chip for every reaction
                                     that fires but was not calculated;
     plus «+N» past the cap. A production step keeps its identity through the
@@ -36,14 +39,19 @@
       <span v-for="chip in row.chips" :key="chipKey(chip)"
             class="con-forecast__chip" :class="chipClasses(chip)"
             :data-forecast-chip="chip.kind">
-        <template v-if="chip.kind === 'own' || chip.kind === 'asks' || chip.kind === 'other'">
+        <template v-if="chip.kind === 'own' || chip.kind === 'asks' || chip.kind === 'other' || chip.kind === 'skipped'">
           <!-- WHOSE gain this is: the seat's colour as a leading BAR plus a dot
                before the number — the `player_bg_color_*` palette the option
                dots speak, never a second colour table. -->
           <span v-if="chip.kind === 'other'" class="con-forecast__owner-bar" :class="'player_bg_color_' + chip.color" aria-hidden="true"></span>
           <span v-if="chip.kind === 'other'" class="con-forecast__owner-dot" :class="'player_bg_color_' + chip.color" aria-hidden="true"></span>
-          <ActionEffectChip :effect="chip.effect" />
+          <!-- Your OWN reaction that has nowhere to apply: the lost magnitude,
+               STRUCK and muted (the shared chip's own skipped face), with the
+               «⚠» of the layer's «Пропустится» group as its badge — the row's
+               language, never the amber warning strip. -->
+          <ActionEffectChip :effect="chip.effect" :skipped="chip.kind === 'skipped'" />
           <span v-if="chip.kind === 'asks'" class="con-forecast__ask" aria-hidden="true">?</span>
+          <span v-if="chip.kind === 'skipped'" class="con-forecast__skip" aria-hidden="true">⚠</span>
         </template>
         <template v-else-if="chip.kind === 'unknown'">
           <span class="con-forecast__unknown" aria-hidden="true">⚡ ?</span>
@@ -110,7 +118,7 @@ export default defineComponent({
         ['con-forecast__chip--' + chip.kind]: true,
         'con-forecast__chip--bot': chip.kind === 'other' && chip.bot,
         'con-forecast__chip--loss': chip.kind === 'other' && chip.effect.direction === 'cost',
-        'con-forecast__chip--production': (chip.kind === 'own' || chip.kind === 'asks' || chip.kind === 'other') && chip.production,
+        'con-forecast__chip--production': (chip.kind === 'own' || chip.kind === 'asks' || chip.kind === 'other' || chip.kind === 'skipped') && chip.production,
       };
     },
   },

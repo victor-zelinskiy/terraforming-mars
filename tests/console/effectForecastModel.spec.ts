@@ -102,16 +102,42 @@ describe('effectForecastModel', () => {
   });
 
   describe('the compact «Сработает» row', () => {
-    it('membership: exact / asks / unknown are in; deferred / conditional / skipped / no are not', () => {
+    it('membership: exact / asks / unknown and YOUR OWN skipped gain are in; deferred / conditional / no and a foreign skipped one are not', () => {
       expect(factInRow(fact({certainty: 'exact'}))).to.be.true;
       expect(factInRow(fact({certainty: 'asks', effects: []}))).to.be.true;
       expect(factInRow(fact({certainty: 'unknown', effects: []}))).to.be.true;
       expect(factInRow(fact({certainty: 'deferred'}))).to.be.false;
       expect(factInRow(fact({certainty: 'conditional'}))).to.be.false;
-      expect(factInRow(fact({certainty: 'skipped'}))).to.be.false;
+      expect(factInRow(fact({certainty: 'skipped'})), 'your own lost gain is worth a glance').to.be.true;
+      expect(factInRow(fact({certainty: 'skipped', recipient: RED})), 'somebody else\'s non-event is not').to.be.false;
+      expect(factInRow(fact({certainty: 'skipped', effects: []}))).to.be.false;
       expect(factInRow(fact({certainty: 'no', effects: []}))).to.be.false;
       // An exact fact with NO chips (a chip-less deferred-style reading) draws nothing.
       expect(factInRow(fact({certainty: 'exact', effects: []}))).to.be.false;
+    });
+
+    it('your own SKIPPED gain is a struck chip after the other seats and before «⚡ ?» — the lost magnitude, merged by pool, counted in the parity', () => {
+      const f = forecast([
+        fact({certainty: 'skipped', effects: [cost('cards', 1), gain('cards', 1)], reason: 'No other card in hand to discard'}),
+        fact({certainty: 'skipped', effects: [gain('tr', 1)], reason: 'The Reds ruling party makes the TR step unaffordable'}),
+        fact({certainty: 'skipped', effects: [gain('tr', 3)], reason: 'The Reds ruling party makes the TR step unaffordable'}),
+        fact({recipient: RED, certainty: 'skipped', effects: [cost('megacredits', 5)], reason: 'The owner cannot afford the 5 M€'}),
+        fact({recipient: RED, effects: [gain('megacredits', 2)]}),
+        fact({effects: [gain('graphene', 1)]}),
+      ]);
+      const row = compactForecastChips(f);
+      expect(row.chips.map((c) => c.kind)).to.deep.eq(['own', 'other', 'skipped', 'skipped']);
+      const [, , cards, tr] = row.chips;
+      // The lost GAIN, bare: the draw (never the discard), the merged TR.
+      expect(cards.kind === 'skipped' && cards.effect).to.deep.eq({direction: 'gain', icon: 'cards', amount: 1});
+      expect(tr.kind === 'skipped' && tr.effect).to.deep.eq({direction: 'gain', icon: 'tr', amount: 4});
+      expect(tr.facts).to.eq(2);
+      // The foreign skipped fact is neither a chip nor a member of the row.
+      expect(row.total).to.eq(5);
+      expect(row.represented).to.eq(5);
+      // …and a skipped gain stands BEFORE the uncomputed «⚡ ?».
+      const tail = compactForecastChips(forecast([fact({certainty: 'unknown', effects: []}), fact({certainty: 'skipped', effects: [gain('tr', 1)]})]));
+      expect(tail.chips.map((c) => c.kind)).to.deep.eq(['skipped', 'unknown']);
     });
 
     it('merges the SAME pool inside one degree (two +2 M€ sources → one +4 M€) and never across degrees', () => {

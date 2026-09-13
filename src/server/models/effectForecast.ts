@@ -472,6 +472,23 @@ function paymentValuesOf(player: IPlayer, card: ICard, operation: 'play' | 'acti
 // ── assembly ────────────────────────────────────────────────────────────────
 
 /**
+ * A fact TIED to one branch: its condition becomes «depends» on that option.
+ * An `exact` / `asks` / `deferred` fact reads `conditional` (it fires if the
+ * option is picked); a degree that already says the effect will NOT run stays
+ * what it is — an `unknown` stays uncomputed, a `skipped` stays skipped, a
+ * `no` stays no. Relabelling a skipped reaction «conditional» once promised
+ * Neptunian's 5 M€ question inside an option whose owner could not pay.
+ */
+export function asBranchFact(fact: EffectForecastFact, pos: number): EffectForecastFact {
+  const keep = fact.certainty === 'unknown' || fact.certainty === 'skipped' || fact.certainty === 'no';
+  return {
+    ...fact,
+    certainty: keep ? fact.certainty : 'conditional',
+    condition: {text: fact.condition?.text ?? fact.reason, state: 'depends', branchPos: pos},
+  };
+}
+
+/**
  * THE HOST of a reaction chip — the explicit target marker (`ActionEffect.host`),
  * stamped from the builders' own vocabulary so no hook has to type it:
  * «on this card» is the reacting SOURCE's own pool (every `cardGain(this, …)`
@@ -630,11 +647,7 @@ function buildForecast(player: IPlayer, card: ICard, preview: ActionPreview, ope
         ...tileFacts(player, card, ownTilesOf(perBranchTiles[pos], sharedTiles), branchCtx),
       ];
       if (branchFacts.length > 0) {
-        byBranch[pos] = branchFacts.map((fact) => ({
-          ...fact,
-          certainty: fact.certainty === 'unknown' ? 'unknown' : 'conditional',
-          condition: {text: fact.condition?.text ?? fact.reason, state: 'depends', branchPos: pos},
-        }));
+        byBranch[pos] = branchFacts.map((fact) => asBranchFact(fact, pos));
       }
     }
   }
@@ -643,11 +656,7 @@ function buildForecast(player: IPlayer, card: ICard, preview: ActionPreview, ope
   facts.push(...cascadeFacts(player, card, facts, ctx));
   for (const pos of Object.keys(byBranch)) {
     const list = byBranch[Number(pos)];
-    list.push(...cascadeFacts(player, card, list, {...baseCtx, branchPos: Number(pos)}).map((fact) => ({
-      ...fact,
-      certainty: fact.certainty === 'unknown' ? 'unknown' as const : 'conditional' as const,
-      condition: {text: fact.condition?.text ?? fact.reason, state: 'depends' as const, branchPos: Number(pos)},
-    })));
+    list.push(...cascadeFacts(player, card, list, {...baseCtx, branchPos: Number(pos)}).map((fact) => asBranchFact(fact, Number(pos))));
   }
 
   // The explicit target marker first (`host`), then the arrow rule over it.

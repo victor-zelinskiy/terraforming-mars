@@ -30864,6 +30864,20 @@ html.console-mode {
         box-shadow: 0 0 0 .08rem rgba(8, 14, 22, 0.85);
         pointer-events: none;
     }
+    /* «⚠» — your OWN reaction with nowhere to apply: the same round badge as
+       the «?», in the amber of the layer's «Пропустится» group, on a chip the
+       shared `--skipped` face already strikes and mutes. A note-sized mark,
+       never the warning strip's block. */
+    &__skip {
+        position: absolute; top: -.32rem; right: -.32rem;
+        width: .85rem; height: .85rem; border-radius: 50%;
+        display: inline-flex; align-items: center; justify-content: center;
+        font-size: .55rem; font-weight: 800; line-height: 1;
+        color: #1a1408; background: @con-amber;
+        box-shadow: 0 0 0 .08rem rgba(8, 14, 22, 0.85);
+        pointer-events: none;
+    }
+    &__chip--skipped { opacity: 0.82; }
     /* ANOTHER SEAT'S gain / loss: the shared chip on a STEEL chassis (never
        mint — mint means «mine») with the owner's colour BAR on the leading
        edge and a DOT before the number. Both ride `player_bg_color_*`. */

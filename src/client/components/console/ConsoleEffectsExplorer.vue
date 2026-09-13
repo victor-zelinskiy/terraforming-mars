@@ -108,7 +108,7 @@
                       <span v-if="alt.chips.length === 0" class="con-efx__fq-text">{{ alt.label }}</span>
                     </template>
                     <span v-if="q.state !== undefined" class="con-efx__fq-state" :class="'con-efx__fq-state--' + q.state" v-i18n>{{ stateLabel(q.state) }}</span>
-                    <span v-if="(q.text !== undefined && q.text !== '') || q.textTail !== undefined" class="con-efx__fq-text">{{ q.text }}<template v-if="q.textTail !== undefined"> <span class="con-efx__fq-tail">{{ q.textTail }}<span v-if="q.tag !== undefined" class="resource-tag con-efx__fq-tag" :class="'tag-' + q.tag" aria-hidden="true"></span></span></template></span>
+                    <span v-if="(q.text !== undefined && q.text !== '') || q.textTail !== undefined" class="con-efx__fq-text">{{ q.text }}<span v-if="q.textTail !== undefined" class="con-efx__fq-tail">{{ q.textTail }}<span v-if="q.tag !== undefined" class="resource-tag con-efx__fq-tag" :class="'tag-' + q.tag" aria-hidden="true"></span></span></span>
                     <span v-if="q.tag !== undefined && q.textTail === undefined" class="resource-tag con-efx__fq-tag" :class="'tag-' + q.tag" aria-hidden="true"></span>
                     <span v-if="q.note !== undefined" class="con-efx__fq-note">{{ q.note }}</span>
                   </span>
@@ -339,7 +339,7 @@
                       <span v-if="alt.chips.length === 0" class="con-efx__fq-text">{{ alt.label }}</span>
                     </template>
                     <span v-if="q.state !== undefined" class="con-efx__fq-state" :class="'con-efx__fq-state--' + q.state" v-i18n>{{ stateLabel(q.state) }}</span>
-                    <span v-if="(q.text !== undefined && q.text !== '') || q.textTail !== undefined" class="con-efx__fq-text">{{ q.text }}<template v-if="q.textTail !== undefined"> <span class="con-efx__fq-tail">{{ q.textTail }}<span v-if="q.tag !== undefined" class="resource-tag con-efx__fq-tag" :class="'tag-' + q.tag" aria-hidden="true"></span></span></template></span>
+                    <span v-if="(q.text !== undefined && q.text !== '') || q.textTail !== undefined" class="con-efx__fq-text">{{ q.text }}<span v-if="q.textTail !== undefined" class="con-efx__fq-tail">{{ q.textTail }}<span v-if="q.tag !== undefined" class="resource-tag con-efx__fq-tag" :class="'tag-' + q.tag" aria-hidden="true"></span></span></span>
                     <span v-if="q.tag !== undefined && q.textTail === undefined" class="resource-tag con-efx__fq-tag" :class="'tag-' + q.tag" aria-hidden="true"></span>
                     <span v-if="q.note !== undefined" class="con-efx__fq-note">{{ q.note }}</span>
                   </span>
@@ -1059,16 +1059,22 @@ export default defineComponent({
       return forecastMetaLine(tile.item, this.operation);
     },
     /** The WHY sentence with its last word split off, so the tag icon can
-     *  ride that word in a `nowrap` pair (no tag → the whole sentence). */
+     *  ride that word in a `nowrap` pair (no tag → the whole sentence). The
+     *  separating space stays at the END of `text`: a whitespace-only node
+     *  between two template elements is condensed away by the compiler
+     *  («с меткойнауки» shipped that way), while a space inside the
+     *  interpolated text survives and is the one break opportunity before
+     *  the unbreakable tail. */
     whyText(text: string, tag: Tag | undefined): {text: string, textTail?: string} {
       if (tag === undefined) {
         return {text};
       }
-      const at = text.trimEnd().lastIndexOf(' ');
+      const trimmed = text.trimEnd();
+      const at = trimmed.lastIndexOf(' ');
       if (at <= 0) {
-        return {text: '', textTail: text.trimEnd()};
+        return {text: '', textTail: trimmed};
       }
-      return {text: text.slice(0, at), textTail: text.slice(at + 1).trimEnd()};
+      return {text: trimmed.slice(0, at + 1), textTail: trimmed.slice(at + 1)};
     },
     /** The meta line's value signature — its re-mount key. */
     ftileMetaKey(tile: ForecastTileVm): string {

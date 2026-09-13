@@ -46,6 +46,16 @@ export type ForecastChip =
   | {kind: 'own', key: string, effect: ActionEffect, production: boolean, facts: number}
   | {kind: 'asks', key: string, effect: ActionEffect, production: boolean, facts: number}
   | {kind: 'other', key: string, effect: ActionEffect, production: boolean, color: Color, bot: boolean, facts: number}
+  /**
+   * YOUR OWN reaction that fires but has nowhere to apply (Mars University
+   * with no other card in hand, Pharmacy Union's TR under an unaffordable Reds
+   * tax): the lost magnitude as a STRUCK, muted chip with a «⚠» badge — the
+   * row's own language, never the amber warning strip (that strip is for the
+   * CARD's own skipped effects). A foreign seat's skipped reaction is not the
+   * viewer's loss and never reaches the row — the layer's «Пропустится» names
+   * it under its owner.
+   */
+  | {kind: 'skipped', key: string, effect: ActionEffect, production: boolean, facts: number}
   | {kind: 'unknown', key: string, facts: number}
   | {kind: 'more', key: string, count: number, facts: number};
 
@@ -94,7 +104,7 @@ export function askedChip(fact: EffectForecastFact): ActionEffect | undefined {
 }
 
 /** Does this fact belong in the row at all (§5.2 — never a deferred /
- *  conditional / skipped / no fact; those live in the layer, the warning strip
+ *  conditional / no fact, never a FOREIGN skipped one; those live in the layer
  *  or the variant cards)? */
 export function factInRow(fact: EffectForecastFact): boolean {
   if (fact.certainty === 'unknown') {
@@ -102,6 +112,10 @@ export function factInRow(fact: EffectForecastFact): boolean {
   }
   if (fact.certainty === 'exact' || fact.certainty === 'asks') {
     return fact.effects.length > 0 || fact.certainty === 'asks';
+  }
+  if (fact.certainty === 'skipped') {
+    // Your own lost gain is worth a glance; somebody else's non-event is not.
+    return fact.recipient.kind === 'you' && fact.effects.length > 0;
   }
   return false;
 }
@@ -136,9 +150,10 @@ function mergeInto(map: Map<string, ChipSlot>, key: string, effect: ActionEffect
 }
 
 /**
- * The row: own exact → asks → other seats (per seat, per pool) → «⚡ ?», merged
- * by pool inside a degree, capped at {@link FORECAST_CHIP_CAP} with «+N».
- * Only `forecast.facts` — a branch-tied fact is drawn INSIDE its variant.
+ * The row: own exact → asks → other seats (per seat, per pool) → your own
+ * SKIPPED gains → «⚡ ?», merged by pool inside a degree, capped at
+ * {@link FORECAST_CHIP_CAP} with «+N». Only `forecast.facts` — a branch-tied
+ * fact is drawn INSIDE its variant.
  */
 export function compactForecastChips(forecast: EffectForecast | undefined): ForecastRow {
   if (forecast === undefined) {
@@ -147,6 +162,7 @@ export function compactForecastChips(forecast: EffectForecast | undefined): Fore
   const own = new Map<string, ChipSlot>();
   const asks = new Map<string, ChipSlot>();
   const other = new Map<string, ChipSlot & {color: Color, bot: boolean}>();
+  const skipped = new Map<string, ChipSlot>();
   const unknown = new Set<string>();
   let total = 0;
   for (const fact of forecast.facts) {
@@ -156,6 +172,14 @@ export function compactForecastChips(forecast: EffectForecast | undefined): Fore
     total++;
     if (fact.certainty === 'unknown') {
       unknown.add(fact.id);
+      continue;
+    }
+    if (fact.certainty === 'skipped') {
+      // Own only (`factInRow`): the lost gain — the first GAIN of the fact.
+      const lost = askedChip(fact);
+      if (lost !== undefined) {
+        mergeInto(skipped, poolKey(lost), lost, fact.id);
+      }
       continue;
     }
     if (fact.recipient.kind === 'you') {
@@ -196,6 +220,9 @@ export function compactForecastChips(forecast: EffectForecast | undefined): Fore
   }
   for (const [key, slot] of other) {
     ordered.push({chip: {kind: 'other', key: `other:${key}`, effect: slot.effect, production: slot.production, color: slot.color, bot: slot.bot, facts: slot.facts.size}, ids: slot.facts});
+  }
+  for (const [key, slot] of skipped) {
+    ordered.push({chip: {kind: 'skipped', key: `skipped:${key}`, effect: slot.effect, production: slot.production, facts: slot.facts.size}, ids: slot.facts});
   }
   if (unknown.size > 0) {
     ordered.push({chip: {kind: 'unknown', key: 'unknown', facts: unknown.size}, ids: unknown});

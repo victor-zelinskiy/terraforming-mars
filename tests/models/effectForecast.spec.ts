@@ -44,7 +44,7 @@ import {maxOutOceans} from '../TestingUtils';
 import {MAX_OCEAN_TILES} from '../../src/common/constants';
 import {ICard} from '../../src/server/cards/ICard';
 import {IPlayer} from '../../src/server/IPlayer';
-import {chipPool, ownTilesOf, sharedTilesOf, stripTouchedPools} from '../../src/server/models/effectForecast';
+import {asBranchFact, chipPool, ownTilesOf, sharedTilesOf, stripTouchedPools} from '../../src/server/models/effectForecast';
 import {EffectForecastTile} from '../../src/server/cards/EffectForecastContext';
 import {TileType} from '../../src/common/TileType';
 import {anyPlayerTagReason, tagReason} from '../../src/server/cards/effectForecastPreviews';
@@ -466,6 +466,17 @@ describe('effectForecast (engine)', () => {
       expect(preview.branches[0].available).to.be.false;
       expect(allForecastFacts(effectForecastForAction(player, pumping, preview))).to.deep.eq([]);
     });
+  });
+
+  it('a fact tied to an option keeps a degree that already says «will not run»: skipped stays skipped, no stays no, unknown stays unknown; the rest read conditional', () => {
+    const source = {kind: 'card' as const, name: CardName.NEPTUNIAN_POWER_CONSULTANTS, owner: 'red' as never, channel: 'tile-placed' as const};
+    const base = {id: 'x', source, recipient: {kind: 'player' as const, color: 'red' as never}, timing: 'after-placement' as const, effects: [], reason: 'An ocean tile is placed'};
+    expect(asBranchFact({...base, certainty: 'skipped'}, 1)).to.include({certainty: 'skipped'});
+    expect(asBranchFact({...base, certainty: 'no'}, 1)).to.include({certainty: 'no'});
+    expect(asBranchFact({...base, certainty: 'unknown'}, 1)).to.include({certainty: 'unknown'});
+    expect(asBranchFact({...base, certainty: 'exact'}, 1)).to.include({certainty: 'conditional'});
+    expect(asBranchFact({...base, certainty: 'asks'}, 1)).to.include({certainty: 'conditional'});
+    expect(asBranchFact({...base, certainty: 'deferred'}, 1).condition).to.deep.eq({text: 'An ocean tile is placed', state: 'depends', branchPos: 1});
   });
 
   it('splits shared and own tiles as MULTISETS: what every available option places is the play\'s, the remainder stays the option\'s', () => {

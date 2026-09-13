@@ -201,10 +201,12 @@ key). The group is ONE flex item that never breaks inside: when the line
 runs out it wraps whole, caption and chips together, and the option card
 grows no taller for it at 1080 and 4K. The same note stands in the action
 composer's branch formulas, and the layer's «⚡ Зависит от вашего выбора»
-group wears the same bolt — one legend. A SKIPPED reaction (Mars University
-with no other card in hand) joins the existing `__warn` strip with its
-source and the magnitude lost. The payment head below gains its discount
-tail («ЦЕНА 10 → 8» + «−2») from the same forecast, and collapses to
+group wears the same bolt — one legend. YOUR OWN reaction with nowhere to
+apply (Mars University with no other card in hand) is a struck, muted chip
+with a «⚠» badge in the «Сработает» row itself — never the `__warn` strip,
+which names the CARD's own lost effects; a foreign seat's skipped reaction
+shows only in the R3 layer's «Пропустится». The payment head below gains its
+discount tail («ЦЕНА 10 → 8» + «−2») from the same forecast, and collapses to
 «БЕСПЛАТНО» when the price is zero — see `payment-panel.md`.
 
 ## 3 · The heading
