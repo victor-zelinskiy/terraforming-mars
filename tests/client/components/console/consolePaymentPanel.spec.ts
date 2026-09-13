@@ -120,6 +120,35 @@ describe('ConsolePaymentPanel — one panel, two densities', () => {
     expect(w.find('.con-payrow--focused').attributes('data-pay-unit')).to.equal('titanium');
   });
 
+  /** ── The DISCOUNT TAIL (the effect forecast's `discounts`) ───────────── */
+  it('a discounted price reads «ЦЕНА base → final» plus a «−saved» pill; no discount → the head is untouched', () => {
+    const plain = mountPanel(view({cost: 8}));
+    expect(plain.find('[data-pay-base]').exists()).to.be.false;
+    expect(plain.find('[data-pay-saved]').exists()).to.be.false;
+    expect(plain.find('.con-pay__price-value').text()).to.equal('8');
+
+    const discounted = mountPanel(view({cost: 8}), {discount: {base: 10, final: 8}});
+    expect(discounted.find('[data-pay-base]').text()).to.equal('10');
+    expect(discounted.find('.con-pay__price-value').text()).to.equal('8');
+    expect(discounted.find('[data-pay-saved]').text()).to.equal('−2');
+    expect(discounted.find('.con-pay__price').classes()).to.include('con-pay__price--discounted');
+    // The aria reading carries the same «was → becomes» (the root is read
+    // through `.con-pay` — the template's leading comment makes the wrapper
+    // a fragment in a dev build).
+    expect(discounted.find('.con-pay').attributes('aria-label')).to.contain('10 → 8');
+  });
+
+  it('the discount tail adds NO row, NO status box and NO second head — the layout-shift contract', () => {
+    const plain = mountPanel(view({cost: 8}));
+    const discounted = mountPanel(view({cost: 8}), {discount: {base: 10, final: 8}});
+    const shape = (w: ReturnType<typeof mountPanel>) => ({
+      heads: w.findAll('.con-pay__head').length,
+      rows: w.findAll('.con-payrow').length,
+      status: w.findAll('.con-paystatus').length,
+    });
+    expect(shape(discounted)).to.deep.equal(shape(plain));
+  });
+
   /** ── The layout-shift contract ─────────────────────────────────────── */
   it('the verdict element is UNCONDITIONAL — exact, overpay and shortfall all render one', () => {
     const exact = mountPanel(view());

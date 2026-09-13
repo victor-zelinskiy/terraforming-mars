@@ -5,6 +5,10 @@ import {Resource} from '../../../common/Resource';
 import {CardName} from '../../../common/cards/CardName';
 import {CardRenderer} from '../render/CardRenderer';
 import {ICorporationCard} from '../corporation/ICorporationCard';
+import {EffectForecastFact} from '../../../common/models/EffectForecastModel';
+import {EffectForecastGrant} from '../EffectForecastContext';
+import * as actionPreviews from '../actionPreviews';
+import * as forecast from '../effectForecastPreviews';
 
 export class Manutech extends CorporationCard implements ICorporationCard {
   constructor() {
@@ -38,5 +42,14 @@ export class Manutech extends CorporationCard implements ICorporationCard {
     if (amount > 0) {
       player.stock.add(resource, amount);
     }
+  }
+  /** Mirrors `onProductionGain`: every production step gained pays one of that resource, at once. */
+  public grantForecast(cardOwner: IPlayer, _activePlayer: IPlayer, grant: EffectForecastGrant): ReadonlyArray<EffectForecastFact> {
+    if (grant.kind !== 'production' || grant.amount <= 0) {
+      return [];
+    }
+    return [forecast.exact(forecast.sourceOf(this, cardOwner, 'production-gain'),
+      [actionPreviews.stockGain(cardOwner, grant.resource, grant.amount)],
+      'You raise the production of a resource')];
   }
 }

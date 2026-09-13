@@ -7,6 +7,9 @@ import {CardName} from '../../../common/cards/CardName';
 import {CardRenderer} from '../render/CardRenderer';
 import {all} from '../Options';
 import {ICard} from '../ICard';
+import {EffectForecastFact} from '../../../common/models/EffectForecastModel';
+import * as actionPreviews from '../actionPreviews';
+import * as forecast from '../effectForecastPreviews';
 
 export class SaturnSystems extends CorporationCard implements ICorporationCard {
   constructor() {
@@ -39,6 +42,17 @@ export class SaturnSystems extends CorporationCard implements ICorporationCard {
   public onCardPlayedByAnyPlayer(thisCardOwner: IPlayer, card: ICard) {
     const count = thisCardOwner.tags.cardTagCount(card, Tag.JOVIAN);
     thisCardOwner.production.add(Resource.MEGACREDITS, count, {log: true, from: {card: this}});
+  }
+  /** Mirrors `onCardPlayedByAnyPlayer`: +1 M€ production per Jovian tag, for the OWNER, whoever plays it. */
+  public cardPlayedForecast(cardOwner: IPlayer, activePlayer: IPlayer, card: ICard): ReadonlyArray<EffectForecastFact> {
+    const count = cardOwner.tags.cardTagCount(card, Tag.JOVIAN);
+    if (count === 0) {
+      return [];
+    }
+    return [forecast.exact(forecast.sourceOf(this, cardOwner, 'card-played-by-any'),
+      [actionPreviews.productionChange(cardOwner, Resource.MEGACREDITS, count)],
+      'Any player plays a card with a ${0} tag',
+      {reasonTag: Tag.JOVIAN, recipient: forecast.recipientOf(activePlayer, cardOwner)})];
   }
 
   public onNonCardTagAddedByAnyPlayer(cardOwner: IPlayer, tag: Tag) {

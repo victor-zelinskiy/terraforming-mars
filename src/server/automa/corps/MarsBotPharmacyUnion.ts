@@ -11,6 +11,9 @@ import {AutomaTurnLog} from '../AutomaTurnLog';
 import {bumpCorpStat, marsBotOf} from '../AutomaUtil';
 import {destroyBonusCard, seedBonusDeckFromProjectDeck} from './MarsBotBonusDeckOps';
 import {MarsBotCorp} from './MarsBotCorp';
+import {EffectForecastFact} from '../../../common/models/EffectForecastModel';
+import * as actionPreviews from '../../cards/actionPreviews';
+import * as forecast from '../../cards/effectForecastPreviews';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.C21_PHARMACY_UNION);
 /** The printed seeding: reveal until ONE card carries a science tag. */
@@ -117,6 +120,24 @@ export const MarsBotPharmacyUnion: MarsBotCorp = {
     }
     bumpCorpStat(game, 'pharmacyMicrobeTags');
     bumpCorpStat(game, 'pharmacyMcLost', lost);
+  },
+
+  /** The forecast mirror of `onHumanCardPlayed`: ONE toll per microbe CARD,
+   *  partial («as much as it is able to lose») — a bot with nothing to lose
+   *  is the honest `skipped`. */
+  humanCardPlayedForecast(game: IGame, _player: IPlayer, card: ICard): ReadonlyArray<EffectForecastFact> {
+    if (!card.tags.includes(Tag.MICROBE)) {
+      return [];
+    }
+    const bot = marsBotOf(game);
+    const source = {kind: 'automa-corporation' as const, name: INFO.original, owner: bot.color, channel: 'automa-corporation' as const};
+    const lost = Math.min(bot.megaCredits, MICROBE_TOLL);
+    if (lost === 0) {
+      return [forecast.skipped(source, [{direction: 'cost', icon: Resource.MEGACREDITS, amount: MICROBE_TOLL}],
+        'MarsBot has no M€ to lose', {reasonTag: Tag.MICROBE, recipient: {kind: 'bot', color: bot.color}})];
+    }
+    return [forecast.exact(source, [actionPreviews.stockCost(bot, Resource.MEGACREDITS, lost)],
+      'You play a card with a ${0} tag', {reasonTag: Tag.MICROBE, recipient: {kind: 'bot', color: bot.color}})];
   },
 
   onProjectCardResolving(game: IGame, card: IProjectCard): void {

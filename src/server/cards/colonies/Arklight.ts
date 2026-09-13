@@ -6,6 +6,9 @@ import {ICorporationCard} from '../corporation/ICorporationCard';
 import {ICard} from '../ICard';
 import {CardName} from '../../../common/cards/CardName';
 import {CardRenderer} from '../render/CardRenderer';
+import {EffectForecastFact} from '../../../common/models/EffectForecastModel';
+import * as actionPreviews from '../actionPreviews';
+import * as forecast from '../effectForecastPreviews';
 
 export class Arklight extends CorporationCard implements ICorporationCard {
   constructor() {
@@ -47,5 +50,15 @@ export class Arklight extends CorporationCard implements ICorporationCard {
     if (qty > 0) {
       player.addResourceTo(this, {qty: qty, log: true});
     }
+  }
+  /** Mirrors `onCardPlayed`: one animal per PRINTED animal / plant tag, at once. */
+  public cardPlayedForecast(cardOwner: IPlayer, _activePlayer: IPlayer, card: ICard): ReadonlyArray<EffectForecastFact> {
+    const qty = card.tags.filter((cardTag) => cardTag === Tag.ANIMAL || cardTag === Tag.PLANT).length;
+    if (qty === 0) {
+      return [];
+    }
+    return [forecast.exact(forecast.sourceOf(this, cardOwner, 'card-played'),
+      [actionPreviews.cardGain(this, qty)],
+      'You play a card with an animal or plant tag')];
   }
 }

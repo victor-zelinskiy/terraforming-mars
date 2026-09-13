@@ -7,6 +7,8 @@ import {AutomaResolver} from '../AutomaResolver';
 import {AutomaTurnLog} from '../AutomaTurnLog';
 import {bumpCorpStat, marsBotOf} from '../AutomaUtil';
 import {MarsBotCorp} from './MarsBotCorp';
+import {EffectForecastFact} from '../../../common/models/EffectForecastModel';
+import * as forecast from '../../cards/effectForecastPreviews';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.C08_SATURN_SYSTEMS);
 /** The tag the effect watches, and the track it pays into. */
@@ -55,6 +57,23 @@ export const MarsBotSaturnSystems: MarsBotCorp = {
     }
     advanceEventTrack(game, 'saturnFromHuman',
       '${1} advances the event track of ${0}: a Jovian card was played');
+  },
+
+  /** The forecast mirror of `onHumanCardPlayed`: ONE event-track advance per
+   *  Jovian CARD (never per tag), for the bot — when the board has that track. */
+  humanCardPlayedForecast(game: IGame, player: IPlayer, card: ICard): ReadonlyArray<EffectForecastFact> {
+    if (player.tags.cardTagCount(card, TRIGGER_TAG) === 0) {
+      return [];
+    }
+    if (game.automa?.board.getTrackIndexForTag(REWARD_TRACK) === undefined) {
+      return [];
+    }
+    const bot = marsBotOf(game);
+    return [forecast.exact(
+      {kind: 'automa-corporation', name: INFO.original, owner: bot.color, channel: 'automa-corporation'},
+      [{direction: 'gain', icon: 'track', amount: 1, note: 'event track'}],
+      'You play a card with a ${0} tag',
+      {reasonTag: TRIGGER_TAG, recipient: {kind: 'bot', color: bot.color}})];
   },
 };
 

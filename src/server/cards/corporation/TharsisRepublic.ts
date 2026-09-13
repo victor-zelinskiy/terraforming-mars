@@ -16,6 +16,10 @@ import {ICorporationCard} from './ICorporationCard';
 import {BoardFact} from '../../../common/boards/BoardInformationFacts';
 import {PlacementPreviewContext} from '../../boards/PlacementPreviewContext';
 import * as placementPreviews from '../placementPreviews';
+import * as actionPreviews from '../actionPreviews';
+import * as forecast from '../effectForecastPreviews';
+import {EffectForecastFact} from '../../../common/models/EffectForecastModel';
+import {EffectForecastTile} from '../EffectForecastContext';
 
 export class TharsisRepublic extends CorporationCard implements ICorporationCard {
   constructor() {
@@ -64,6 +68,32 @@ export class TharsisRepublic extends CorporationCard implements ICorporationCard
       }
     }
     return;
+  }
+
+  /**
+   * The forecast mirror of `onTilePlaced` — the same two independent effects:
+   * 3 M€ for the OWNER's own city, and +1 M€ production for any city ON MARS
+   * (an off-Mars reserved slot pays no production — `space.spaceType`).
+   */
+  public tilePlacedForecast(cardOwner: IPlayer, activePlayer: IPlayer, tile: EffectForecastTile): ReadonlyArray<EffectForecastFact> {
+    if (!tile.countsAsCity) {
+      return [];
+    }
+    const source = forecast.sourceOf(this, cardOwner, 'tile-placed');
+    const recipient = forecast.recipientOf(activePlayer, cardOwner);
+    const sequence = forecast.triggerSequence(cardOwner, activePlayer);
+    const facts: Array<EffectForecastFact> = [];
+    if (cardOwner.id === activePlayer.id) {
+      facts.push(forecast.deferred(source,
+        [actionPreviews.stockGain(cardOwner, Resource.MEGACREDITS, 3 * tile.count)],
+        'You place a city tile', {id: 'cash', recipient, sequence}));
+    }
+    if (!tile.offMars) {
+      facts.push(forecast.deferred(source,
+        [actionPreviews.productionChange(cardOwner, Resource.MEGACREDITS, tile.count)],
+        'A city tile is placed on Mars', {id: 'prod', recipient, sequence}));
+    }
+    return facts;
   }
 
   /**

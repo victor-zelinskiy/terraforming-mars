@@ -181,6 +181,11 @@ export type FocusCommandCtx =
        * (`PaymentView.editorEligible`).
        */
       paymentEditor?: boolean,
+      /**
+       * The EFFECT FORECAST has something to show — R3 opens the «Эффекты»
+       * layer over the setup. Never published on an empty forecast.
+       */
+      forecast?: boolean,
     };
 
 /**
@@ -305,6 +310,11 @@ export function focusCommandRun(ctx: FocusCommandCtx): Array<ConsoleCommand> {
       run.push({control: 'triggerL', label: 'Configure payment'});
     }
     run.push({control: 'secondary', label: 'Inspect'});
+    // R3 — the «Эффекты» layer (the table's answer to this action), only when
+    // the forecast has something to show.
+    if (ctx.forecast === true) {
+      run.push({control: 'stickR', label: 'Effects'});
+    }
     run.push({control: 'back', label: 'Cancel'});
     return run;
   }

@@ -30,6 +30,8 @@ import {BoardFact} from '../../common/boards/BoardInformationFacts';
 import {PlacementPreviewContext} from '../boards/PlacementPreviewContext';
 import {DeltaMovement, DeltaMovementBonus} from '../delta/deltaMovement';
 import {AdjacencyBonus} from '../ares/AdjacencyBonus';
+import {EffectForecastFact} from '../../common/models/EffectForecastModel';
+import {EffectForecastContext, EffectForecastGrant, EffectForecastTile} from './EffectForecastContext';
 
 /*
  * Represents a card which has an action that itself allows a player
@@ -133,6 +135,42 @@ export interface ICard {
    * mutate game state.
    */
   tilePlacedPreview?(cardOwner: IPlayer, activePlayer: IPlayer, space: Space, ctx: PlacementPreviewContext): ReadonlyArray<BoardFact>;
+  /**
+   * Optional READ-ONLY mirror of {@link onCardPlayed} / {@link onCardPlayedByAnyPlayer}
+   * — what THIS card will do when `activePlayer` plays `playedCard`. Asked for
+   * the acting player's own tableau AND for every other seat's (the same walk
+   * `Player.onCardPlayed` makes), so a fact may be addressed to an opponent
+   * (`effectForecastPreviews.recipientOf`). The played card is already «in
+   * play» for the live hook («including this»), so a card forecasts its own
+   * play too.
+   *
+   * It answers HONESTLY on «almost»: a matching tag whose condition fails
+   * (an event / not an event, a threshold, a resource on the card) returns a
+   * `no` fact with the reason. It decides what the live hook decides — Olympus
+   * Conference at zero science adds silently, at one or more it ASKS — by
+   * reading the same predicates in the same file. MUST NOT mutate game state.
+   * Builders live in `src/server/cards/effectForecastPreviews.ts`; the engine
+   * (`src/server/models/effectForecast.ts`) reports a card with a live hook
+   * but no forecast as `unknown` — never as silence.
+   */
+  cardPlayedForecast?(cardOwner: IPlayer, activePlayer: IPlayer, playedCard: ICard, ctx: EffectForecastContext): ReadonlyArray<EffectForecastFact>;
+  /**
+   * Optional READ-ONLY mirror of the SECOND-ORDER hooks ({@link onProductionGain},
+   * {@link onResourceAdded}): what this card does when the operation GRANTS
+   * `grant` to its actor. The grant is built by the engine from the preview's
+   * own `ActionEffect` chips and from the exact first-order facts — a hook never
+   * re-reads the card's behavior. MUST NOT mutate game state.
+   */
+  grantForecast?(cardOwner: IPlayer, activePlayer: IPlayer, grant: EffectForecastGrant, ctx: EffectForecastContext): ReadonlyArray<EffectForecastFact>;
+  /**
+   * Optional READ-ONLY mirror of {@link onTilePlaced} for a tile the operation
+   * will place LATER (its cell is not chosen yet): a `deferred` fact with exact
+   * numbers where they do not depend on the cell (Rover Construction's 2 M€
+   * for any city), else a chip-less fact whose note points at the cell
+   * dossier (Mining Guild, Philares, the surveys). Asked for every seat's
+   * tableau, like the live fan-out in `Game.addTile`. MUST NOT mutate game state.
+   */
+  tilePlacedForecast?(cardOwner: IPlayer, activePlayer: IPlayer, tile: EffectForecastTile, ctx: EffectForecastContext): ReadonlyArray<EffectForecastFact>;
   play(player: IPlayer): PlayerInput | undefined;
   /**
    * Describes the M€ discount `player` could apply to playing `card`.

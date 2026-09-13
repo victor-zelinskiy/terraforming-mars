@@ -15,11 +15,15 @@ import {ICard} from '../ICard';
 import {all} from '../Options';
 import {Size} from '../../../common/cards/render/Size';
 import {ActionPreviewStep} from '../../../common/models/ActionPreviewModel';
+import {Priority} from '../../deferredActions/Priority';
 import {BoardFact} from '../../../common/boards/BoardInformationFacts';
 import {PlacementPreviewContext} from '../../boards/PlacementPreviewContext';
 import * as actionReason from '../actionReasons';
 import * as actionPreviews from '../actionPreviews';
 import * as placementPreviews from '../placementPreviews';
+import * as forecast from '../effectForecastPreviews';
+import {EffectForecastFact} from '../../../common/models/EffectForecastModel';
+import {EffectForecastTile} from '../EffectForecastContext';
 
 export class Hospitals extends Card implements IProjectCard, IActionCard {
   constructor() {
@@ -63,6 +67,16 @@ export class Hospitals extends Card implements IProjectCard, IActionCard {
     if (Board.isCitySpace(space)) {
       cardowner.addResourceTo(this, {qty: 1, log: true});
     }
+  }
+
+  /** The forecast mirror of `onTilePlaced`: a disease per city ANYONE places (synchronous in the live hook). */
+  public tilePlacedForecast(cardOwner: IPlayer, activePlayer: IPlayer, tile: EffectForecastTile): ReadonlyArray<EffectForecastFact> {
+    if (!tile.countsAsCity) {
+      return [];
+    }
+    return [forecast.deferred(forecast.sourceOf(this, cardOwner, 'tile-placed'),
+      [actionPreviews.cardGain(this, tile.count)],
+      'A city tile is placed', {recipient: forecast.recipientOf(activePlayer, cardOwner), sequence: Priority.DEFAULT})];
   }
 
   // Read-only mirror of `onTilePlaced`. The trigger is ANY city, placed by

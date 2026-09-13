@@ -14,6 +14,10 @@ import {Board} from '../../boards/Board';
 import {BoardFact} from '../../../common/boards/BoardInformationFacts';
 import {PlacementPreviewContext} from '../../boards/PlacementPreviewContext';
 import * as placementPreviews from '../placementPreviews';
+import * as actionPreviews from '../actionPreviews';
+import * as forecast from '../effectForecastPreviews';
+import {EffectForecastFact} from '../../../common/models/EffectForecastModel';
+import {EffectForecastTile} from '../EffectForecastContext';
 
 export class Herbivores extends Card implements IProjectCard {
   constructor() {
@@ -55,6 +59,16 @@ export class Herbivores extends Card implements IProjectCard {
     if (cardOwner.id === activePlayer.id && Board.isGreenerySpace(space)) {
       cardOwner.game.defer(new AddResourcesToCard(cardOwner, CardResource.ANIMAL, {filter: (c) => c.name === this.name}));
     }
+  }
+
+  /** The forecast mirror of `onTilePlaced`: an animal per greenery the OWNER places. */
+  public tilePlacedForecast(cardOwner: IPlayer, activePlayer: IPlayer, tile: EffectForecastTile): ReadonlyArray<EffectForecastFact> {
+    if (cardOwner.id !== activePlayer.id || !tile.countsAsGreenery) {
+      return [];
+    }
+    return [forecast.deferred(forecast.sourceOf(this, cardOwner, 'tile-placed'),
+      [actionPreviews.cardGain(this, tile.count)],
+      'You place a greenery tile', {sequence: forecast.triggerSequence(cardOwner, activePlayer)})];
   }
 
   /** Mirrors `onTilePlaced`: only the OWNER's own greenery feeds the herd. */

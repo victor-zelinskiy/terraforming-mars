@@ -43,6 +43,18 @@ import {Pets} from '../../../src/server/cards/base/Pets';
 import {SolarPower} from '../../../src/server/cards/base/SolarPower';
 import {DeltaSurge} from '../../../src/server/cards/delta/DeltaSurge';
 import {MiningExpedition} from '../../../src/server/cards/base/MiningExpedition';
+import {CarbonNanosystems} from '../../../src/server/cards/promo/CarbonNanosystems';
+import {OlympusConference} from '../../../src/server/cards/base/OlympusConference';
+import {RoverConstruction} from '../../../src/server/cards/base/RoverConstruction';
+import {EarthCatapult} from '../../../src/server/cards/base/EarthCatapult';
+import {Decomposers} from '../../../src/server/cards/base/Decomposers';
+import {ViralEnhancers} from '../../../src/server/cards/base/ViralEnhancers';
+import {MeatIndustry} from '../../../src/server/cards/promo/MeatIndustry';
+import {Livestock} from '../../../src/server/cards/base/Livestock';
+import {GeologicalSurvey} from '../../../src/server/cards/ares/GeologicalSurvey';
+import {ArtificialPhotosynthesis} from '../../../src/server/cards/base/ArtificialPhotosynthesis';
+import {NitriteReducingBacteria} from '../../../src/server/cards/base/NitriteReducingBacteria';
+import {SecurityFleet} from '../../../src/server/cards/base/SecurityFleet';
 
 const OUT_DIR = __dirname;
 
@@ -253,4 +265,52 @@ function write(name: string, game: IGame): void {
   player.drawCard(2);
   runAllActions(game);
   write('hydro-terminal-surge', game);
+}
+
+// ── effect-forecast: a 2p table arranged so every reading of the EFFECT
+//    FORECAST (docs/claude/console/effect-forecast.md) is on screen from one
+//    hand — the first seat (blue) is Manutech with a table of triggers, the
+//    second (red) holds Pharmacy Union as the FOREIGN reactor.
+//      · Geological Survey (science) → Carbon Nanosystems +1 graphene (exact),
+//        Olympus Conference with ONE science stored → the question, Earth
+//        Catapult's −2 in the payment head;
+//      · Nitrite Reducing Bacteria (microbe) → Decomposers' microbe, Viral
+//        Enhancers' question, and RED's Pharmacy Union taking a disease and
+//        losing 4 M€ — four chips, the opponent's two in red;
+//      · Artificial Photosynthesis («ИЛИ») → Manutech's branch-tied reactions
+//        drawn INSIDE the option cards;
+//      · Security Fleet → no reaction at all (a space tag nobody answers, no
+//        production for Manutech), only the discount (R3 without a row);
+//      · Livestock's ACTION → Meat Industry's +2 M€ on the action screen.
+//    Ares for Geological Survey; promo / Venus for the corporations. ──
+{
+  // The corporations are the scenario's reactors — dealt DETERMINISTICALLY:
+  // the custom list goes on top of the corporation deck and each seat draws
+  // ONE, so blue takes Manutech and red Pharmacy Union (the start flow answers
+  // with the first dealt corporation of each seat).
+  const [game, p1, p2] = testGame(2, {
+    skipInitialCardSelection: false, aresExtension: true, aresHazards: false,
+    promoCardsOption: true, venusNextExtension: true,
+    customCorporationsList: [CardName.MANUTECH, CardName.PHARMACY_UNION],
+    startingCorporations: 1,
+  });
+  const wf = p1.getWaitingFor();
+  if (!(wf instanceof SelectInitialCards)) {
+    throw new Error(`expected SelectInitialCards, got ${wf?.constructor.name}`);
+  }
+  answerStartFlow(game, [p1, p2]);
+  const corpsOf = (p: TestPlayer) => p.playedCards.corporations().map(toName);
+  if (!corpsOf(p1).includes(CardName.MANUTECH) || !corpsOf(p2).includes(CardName.PHARMACY_UNION)) {
+    throw new Error(`the forecast fixture's corporations were not dealt as intended: ` +
+      `${p1.playedCards.corporations().map(toName).join(',')} / ${p2.playedCards.corporations().map(toName).join(',')}`);
+  }
+  const olympus = new OlympusConference();
+  olympus.resourceCount = 1;
+  p1.playedCards.push(new CarbonNanosystems(), olympus, new RoverConstruction(), new EarthCatapult(),
+    new Decomposers(), new ViralEnhancers(), new MeatIndustry(), new Livestock());
+  p1.cardsInHand.push(new GeologicalSurvey(), new ArtificialPhotosynthesis(), new NitriteReducingBacteria(), new SecurityFleet());
+  p1.megaCredits = 60;
+  p2.megaCredits = 30;
+  runAllActions(game);
+  write('effect-forecast', game);
 }

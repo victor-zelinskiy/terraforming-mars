@@ -533,6 +533,7 @@ import {resolveDetailFit} from '@/client/console/consoleDetailFit';
 import {buildActionBatch, repeatActionResponses} from '@/client/console/consoleActionComposer';
 import {consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 import {browseCommandRun, focusKicker, ActionFlowDraft} from '@/client/console/consoleActionFlow';
+import {effectForecastOpen, forecastStageText} from '@/client/console/consoleEffectForecast';
 import {armDescendOrigin, armDescendRect} from '@/client/console/surfaceMotion/workspaceDescend';
 import {
   actionFocusEnterHook,
@@ -957,7 +958,11 @@ export default defineComponent({
         return focusKicker('reveal');
       }
       if (kind === undefined) {
-        return focusKicker('setup');
+        // The composer's R3 «Эффекты» layer is a level INSIDE the setup: the
+        // tail gains «· ЭФФЕКТЫ» (+ the source card at its detail) and gives
+        // it back on B / R3 — a composed, pre-translated string (`focusKickerRaw`).
+        const setup = focusKicker('setup');
+        return forecastStageText('action', setup) ?? setup;
       }
       // The re-homed surface NAMES ITSELF here, in the workspace's own
       // breadcrumb — «ДЕЙСТВИЯ КАРТ › ПОКУПКА · Коммерческая сеть». One line,
@@ -1036,7 +1041,7 @@ export default defineComponent({
      * missing; the raw flag is the same escape hatch `subjectRaw` already is.
      */
     focusKickerRaw(): boolean {
-      return this.colonyStepHosted;
+      return this.colonyStepHosted || (this.outcomeFlow === undefined && effectForecastOpen('action'));
     },
     /** Total variants of the focused card (the header's «Вариант N/M» chip);
      *  1 hides the chip (single-action card / a Viron repeat with no node). */

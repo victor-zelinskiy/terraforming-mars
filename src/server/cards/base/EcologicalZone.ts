@@ -17,8 +17,10 @@ import {ICard} from '../ICard';
 import {UnplayableReason} from '../../../common/cards/UnplayableReason';
 import {PlacementIllegalReason} from '../../../common/inputs/PlacementIllegalReason';
 import {ActionPreview} from '../../../common/models/ActionPreviewModel';
+import {EffectForecastFact} from '../../../common/models/EffectForecastModel';
 import * as reason from '../actionReasons';
 import * as actionPreviews from '../actionPreviews';
+import * as forecast from '../effectForecastPreviews';
 
 export class EcologicalZone extends Card implements IProjectCard {
   constructor(
@@ -73,6 +75,16 @@ export class EcologicalZone extends Card implements IProjectCard {
   public onCardPlayed(player: IPlayer, card: ICard): void {
     const qty = player.tags.cardTagCount(card, [Tag.ANIMAL, Tag.PLANT]);
     player.addResourceTo(this, {qty, log: true});
+  }
+  /** Mirrors `onCardPlayed`: one animal per animal / plant tag, synchronously. */
+  public cardPlayedForecast(cardOwner: IPlayer, _activePlayer: IPlayer, card: ICard): ReadonlyArray<EffectForecastFact> {
+    const qty = cardOwner.tags.cardTagCount(card, [Tag.ANIMAL, Tag.PLANT]);
+    if (qty === 0) {
+      return [];
+    }
+    return [forecast.exact(forecast.sourceOf(this, cardOwner, 'card-played'),
+      [actionPreviews.cardGain(this, qty)],
+      'You play a card with an animal or plant tag')];
   }
   public onNonCardTagAdded(player: IPlayer, tag: Tag): void {
     if (tag === Tag.PLANT) {

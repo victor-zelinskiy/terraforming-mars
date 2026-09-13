@@ -186,6 +186,17 @@ permanent) never an element either. That is what makes LT a zero-pixel
 transition. The result hero dims (`--muted`) instead of unmounting;
 the CTA relabels («Готов») instead of disappearing.
 
+5. **The DISCOUNT TAIL keeps the head's height.** With the effect forecast's
+   `discounts` (`discount` prop: `{base, final}`) the head reads «ОПЛАТА ·
+   ЦЕНА 10 → 8» in the «было → станет» vocabulary — the printed cost quiet
+   and struck, the paid one keeping the anchor's weight — plus a mint «−2»
+   pill (`__price-saved`) that is LINE-HEIGHT bound and centred on the
+   baseline row, so it never exceeds the price value's box. It adds no row,
+   no status box, no second head (spec-pinned by element counts); without a
+   discount the head is byte-identical to before. The discount's SOURCES are
+   never here — they live in the R3 «Эффекты» layer
+   (`docs/claude/console/effect-forecast.md`).
+
 Guarded by:
 - `tests/client/components/console/consolePaymentPanel.spec.ts` — both
   densities render identical rows/values; exact ⇄ overpay adds no element; the

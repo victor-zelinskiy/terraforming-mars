@@ -11,6 +11,8 @@ import {all} from '../Options';
 import {ICard} from '../ICard';
 import * as actionReason from '../actionReasons';
 import * as actionPreviews from '../actionPreviews';
+import * as forecast from '../effectForecastPreviews';
+import {EffectForecastFact} from '../../../common/models/EffectForecastModel';
 
 export class MartianZoo extends Card implements IProjectCard {
   constructor() {
@@ -46,6 +48,16 @@ export class MartianZoo extends Card implements IProjectCard {
     if (count > 0) {
       player.addResourceTo(this, count);
     }
+  }
+  /** Mirrors `onCardPlayed`: one animal per Earth tag, at once. */
+  public cardPlayedForecast(cardOwner: IPlayer, _activePlayer: IPlayer, card: ICard): ReadonlyArray<EffectForecastFact> {
+    const count = cardOwner.tags.cardTagCount(card, Tag.EARTH);
+    if (count === 0) {
+      return [];
+    }
+    return [forecast.exact(forecast.sourceOf(this, cardOwner, 'card-played'),
+      [actionPreviews.cardGain(this, count)],
+      'You play a card with a ${0} tag', {reasonTag: Tag.EARTH})];
   }
 
   public canAct(): boolean {

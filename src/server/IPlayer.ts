@@ -4,6 +4,7 @@ import {CardName} from '../common/cards/CardName';
 import {ICorporationCard} from './cards/corporation/ICorporationCard';
 import {IGame, isIGame} from './IGame';
 import {Payment, PaymentOptions} from '../common/inputs/Payment';
+import {EventSource} from '../common/events/EventSource';
 import {SpendableCardResource} from '../common/inputs/Spendable';
 import {ICard, IActionCard} from './cards/ICard';
 import {TRSource} from '../common/cards/TRSource';
@@ -524,6 +525,9 @@ export interface IPlayer {
 
   runResearchPhase(): void;
   getCardCost(card: IProjectCard): number;
+  /** `getCardCost` itemized: the printed cost, the final cost and every
+   *  card / corporation / party discount by source (read-only). */
+  getCardCostBreakdown(card: IProjectCard): {base: number; final: number; discounts: Array<{source: EventSource; amount: number}>};
 
   /** The number of resources on this card for this player, or 0 if the player does not have this card. */
   resourcesOnCard(name: CardName): number;
@@ -579,6 +583,8 @@ export interface IPlayer {
   canPlay(card: IProjectCard, playability?: PlayabilityOptions): boolean;
   canSpend(payment: Payment, reserveUnits?: Units): boolean;
   payingAmount(payment: Payment, options?: Partial<PaymentOptions>): number;
+  /** Which alternative payment sources `card` accepts (the play prompt's own rule — read-only). */
+  paymentOptionsForCard(card: IProjectCard): PaymentOptions;
   /**
    * Returns a summary of how much a player would have to spend to play a card,
    * any associated costs, and ways the player can pay.

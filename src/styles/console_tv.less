@@ -1412,6 +1412,17 @@ html.con-profile-tv {
         .con-composer__cta { padding: .72rem 1.3rem; }
         .con-composer__cta-label { font-size: 1.25rem; }
         .con-composer__cta-block { font-size: 1.2rem; width: 1.5rem; }
+        /* The «Сработает» unit: couch-size caption, the chips on the shared
+           compact tokens (raised once for the whole inline family). */
+        .con-forecast__label { font-size: var(--con-t-secondary); }
+        .con-forecast__glyph { font-size: var(--con-t-secondary); }
+        .con-forecast__unknown, .con-forecast__more { font-size: var(--con-chip-c-fs, 1rem); }
+        .con-forecast__ask { width: 1.05rem; height: 1.05rem; font-size: var(--con-t-floor); top: -.4rem; right: -.4rem; }
+        .con-forecast__owner-bar { width: .34rem; height: 1.4rem; }
+        .con-forecast__owner-dot { width: .7rem; height: .7rem; }
+        .con-forecast__vchip-glyph { font-size: var(--con-t-secondary); }
+        .con-forecast__vchip--more { font-size: var(--con-t-caption); }
+        .con-composer__fxpanel { padding: .8rem .9rem; }
     }
 
     /* ═══ 18b · EFFECTS EXPLORER (Информация › Эффекты) ═══════════
@@ -1467,6 +1478,32 @@ html.con-profile-tv {
         &__empty-title { font-size: var(--con-t-read); }
         &__empty-body { font-size: var(--con-t-body); }
         &__empty-filters { font-size: var(--con-t-secondary); }
+        /* FORECAST mode (the composers' R3 layer) — the same ladder EXTENDED,
+           never duplicated: section heads, the «ПОРЯДОК» band, the tile's
+           source line / owner plate / meta, the five-question block. Type
+           stays ≥ the floor — hierarchy by weight and colour. */
+        &__chip-glyph { font-size: var(--con-t-floor); }
+        &__fsection-label { font-size: var(--con-t-floor); }
+        &__fsection-count { font-size: var(--con-t-floor); }
+        &__fsection-glyph { font-size: var(--con-t-secondary); }
+        &__order-label { font-size: var(--con-t-floor); }
+        &__order-step { font-size: var(--con-t-caption); b { font-size: var(--con-t-floor); } }
+        &__tile-src { font-size: var(--con-t-caption); }
+        &__tile-owner { font-size: var(--con-t-floor); }
+        &__owner-dot { width: .7rem; height: .7rem; }
+        &__meta-text { font-size: var(--con-t-caption); }
+        &__meta-num { font-size: var(--con-t-secondary); }
+        &__fq-or { font-size: var(--con-t-floor); }
+        &__fq-title { font-size: var(--con-t-floor); }
+        &__fq-label { font-size: var(--con-t-floor); }
+        &__fq-value { font-size: var(--con-t-secondary); }
+        &__fq-note { font-size: var(--con-t-caption); }
+        &__fq-state { font-size: var(--con-t-floor); }
+        &__fq-row { grid-template-columns: 5.6rem minmax(0, 1fr); }
+        &__fq--stage &__fq-row { grid-template-columns: 6.6rem minmax(0, 1fr); }
+        &__fq--stage &__fq-value { font-size: var(--con-t-body); }
+        &__detail-owner { font-size: var(--con-t-caption); }
+        &__hero-rule { width: 9rem; height: 12.3rem; font-size: 3.2rem; }
     }
 
     /* ═══ 19 · ACTION WORKSPACE + COMPOSERS ═══════════════════════ */
@@ -1626,6 +1663,15 @@ html.con-profile-tv {
         &__hero-label,
         &__sub-title { font-size: var(--con-t-secondary); }
         &__hero-arrow { font-size: 1.7rem; }
+        &__hero-forecast--line { font-size: var(--con-t-secondary); }
+        &__hero-side--forecast { padding-left: 1rem; }
+        .con-forecast__glyph { font-size: var(--con-t-secondary); }
+        .con-forecast__unknown, .con-forecast__more { font-size: var(--con-chip-c-fs, 1rem); }
+        .con-forecast__ask { width: 1.05rem; height: 1.05rem; font-size: var(--con-t-floor); top: -.4rem; right: -.4rem; }
+        .con-forecast__owner-bar { width: .34rem; height: 1.4rem; }
+        .con-forecast__owner-dot { width: .7rem; height: .7rem; }
+        .con-forecast__vchip-glyph { font-size: var(--con-t-secondary); }
+        .con-forecast__vchip--more { font-size: var(--con-t-caption); }
         &__varchip { font-size: var(--con-t-secondary); }
         &__varchip-icon { width: 1.5rem; height: 1.5rem; }
         &__opt-name { font-size: 1.1rem; }

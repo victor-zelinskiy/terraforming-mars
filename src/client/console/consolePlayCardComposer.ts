@@ -393,6 +393,41 @@ export function playPrimaryVerb(ctx: {
   return {label: 'Next', enabled: true};
 }
 
+// ── A state-version refresh of an OPEN composer's preview ───────────────────
+
+/**
+ * May a freshly fetched preview replace the one an OPEN composer stands on
+ * WITHOUT resetting the player's captures? Only when the two have the SAME
+ * SHAPE — the same branches (count, index, availability), the same steps
+ * (count and kind per branch), the same pre-steps: every capture is keyed by
+ * a branch position / a step index, so a re-shaped preview would land the
+ * old answers on the wrong questions. A same-shape refresh is how the effect
+ * forecast (and every `current → resulting` number) stays true while an
+ * opponent's move changes the table under an open composer; a re-shaped one
+ * keeps the standing preview (the honest choice — the player's answers stand).
+ */
+export function samePreviewShape(
+  a: {branches: ReadonlyArray<ActionPreviewBranch>, preSteps?: ReadonlyArray<{kind: string}>} | undefined,
+  b: {branches: ReadonlyArray<ActionPreviewBranch>, preSteps?: ReadonlyArray<{kind: string}>} | undefined,
+): boolean {
+  if (a === undefined || b === undefined) {
+    return false;
+  }
+  const pa = a.preSteps ?? [];
+  const pb = b.preSteps ?? [];
+  if (pa.length !== pb.length || pa.some((s, i) => s.kind !== pb[i].kind)) {
+    return false;
+  }
+  if (a.branches.length !== b.branches.length) {
+    return false;
+  }
+  return a.branches.every((x, i) => {
+    const y = b.branches[i];
+    return x.index === y.index && x.available === y.available &&
+      x.steps.length === y.steps.length && x.steps.every((s, j) => s.kind === y.steps[j].kind);
+  });
+}
+
 // ── Contextual footer command bar (the ONE bottom action bar) ───────────────
 
 export type FootHint = {control: GlyphControl, control2?: GlyphControl, label: string, enabled?: boolean, spread?: boolean, badge?: number, highlight?: boolean};
@@ -439,6 +474,13 @@ export type PlayFootContext = {
    * there's no quick-adjust (complex / auto payment).
    */
   quickAdjust?: {canDecrease: boolean, canIncrease: boolean};
+  /**
+   * The EFFECT FORECAST has something to show (a reaction, a discount, a
+   * payment value) — R3 opens the «Эффекты» layer. Absent / false on an
+   * empty forecast: R3 is then published nowhere (an empty layer is never
+   * offered).
+   */
+  forecast?: boolean;
 };
 
 /**
@@ -518,6 +560,12 @@ export function playComposerFootHints(ctx: PlayFootContext): Array<FootHint> {
     hints.push({control: 'triggerL', label: 'Configure payment'});
   }
   hints.push({control: 'secondary', label: 'Inspect'});
+  // R3 — the «Эффекты» layer (what the TABLE answers to this play), only when
+  // the forecast has something to show. The review level is the ONE place it
+  // is offered: inside a pick / the payment editor R3 stays silent.
+  if (ctx.forecast === true) {
+    hints.push({control: 'stickR', label: 'Effects'});
+  }
   hints.push({control: 'back', label: 'Cancel'});
   return hints;
 }

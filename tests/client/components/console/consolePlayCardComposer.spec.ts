@@ -2,7 +2,7 @@ import {expect} from 'chai';
 import {
   buildPlayCardBatch, playComposerFootHints, FootHint, PlayFootContext,
   computePrimaryAction, buildPaymentView, playChoiceMode, foldCopiedProductionEffects,
-  playPrimaryVerb, initialVariantSelection,
+  playPrimaryVerb, initialVariantSelection, samePreviewShape,
 } from '@/client/console/consolePlayCardComposer';
 import {
   computeCommitGate, commitAllowed, commitAcceptsCursor, commitRedirectTarget,
@@ -286,6 +286,51 @@ describe('consolePlayCardComposer.playComposerFootHints', () => {
     for (const s of scenarios) {
       expect(controls(playComposerFootHints(s)), 'no Y control').to.not.include('inspect');
     }
+  });
+
+  /**
+   * THE EFFECT FORECAST's R3 «Эффекты»: published at the REVIEW level only,
+   * and only when the forecast has something to show — an empty forecast
+   * publishes no R3 anywhere (an empty layer is never offered).
+   */
+  it('R3 «Effects» appears in review ONLY when the forecast has something to show', () => {
+    const on = playComposerFootHints(ctx({forecast: true}));
+    expect(on.find((h) => h.control === 'stickR')?.label).to.equal('Effects');
+    // Before B — the layer is a secondary verb, never ahead of A.
+    expect(on.map((h) => h.control).indexOf('stickR')).to.be.greaterThan(on.map((h) => h.control).indexOf('confirm'));
+    expect(on[on.length - 1].control).to.equal('back');
+    expect(controls(playComposerFootHints(ctx({forecast: false})))).to.not.include('stickR');
+    expect(controls(playComposerFootHints(ctx({})))).to.not.include('stickR');
+    // Inside a pick / the payment editor the layer is not offered.
+    expect(controls(playComposerFootHints(ctx({sub: 'payment', forecast: true})))).to.not.include('stickR');
+    expect(controls(playComposerFootHints(ctx({sub: 'list', forecast: true})))).to.not.include('stickR');
+  });
+});
+
+/**
+ * A STATE-VERSION refresh of an OPEN composer's preview replaces it in place
+ * ONLY when the shape is the same — the captures are keyed by branch position
+ * and step index, so a re-shaped answer would land them on the wrong questions.
+ */
+describe('consolePlayCardComposer.samePreviewShape', () => {
+  const branch = (over: Partial<ActionPreviewBranch> = {}): ActionPreviewBranch =>
+    ({index: 0, title: 'a', available: true, renderKeys: [], effects: [], steps: [], ...over});
+  const step = (kind: string) => ({kind} as unknown as ActionPreviewBranch['steps'][number]);
+
+  it('the same branches, steps and pre-steps → same shape (values may differ)', () => {
+    const a = {branches: [branch({effects: [{direction: 'gain', icon: 'megacredits', amount: 2}]}), branch({index: 1, steps: [step('input')]})], preSteps: [{kind: 'input'}]};
+    const b = {branches: [branch({effects: [{direction: 'gain', icon: 'megacredits', amount: 5}]}), branch({index: 1, steps: [step('input')]})], preSteps: [{kind: 'input'}]};
+    expect(samePreviewShape(a, b)).to.be.true;
+  });
+
+  it('a different branch count, index, availability, step kind or pre-step → NOT the same shape', () => {
+    const base = {branches: [branch(), branch({index: 1, steps: [step('input')]})]};
+    expect(samePreviewShape(base, {branches: [branch()]})).to.be.false;
+    expect(samePreviewShape(base, {branches: [branch(), branch({index: -1, steps: [step('input')]})]})).to.be.false;
+    expect(samePreviewShape(base, {branches: [branch(), branch({index: 1, available: false, steps: [step('input')]})]})).to.be.false;
+    expect(samePreviewShape(base, {branches: [branch(), branch({index: 1, steps: [step('note')]})]})).to.be.false;
+    expect(samePreviewShape(base, {branches: base.branches, preSteps: [{kind: 'input'}]})).to.be.false;
+    expect(samePreviewShape(undefined, base)).to.be.false;
   });
 });
 

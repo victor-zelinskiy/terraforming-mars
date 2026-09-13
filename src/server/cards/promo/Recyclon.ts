@@ -12,6 +12,9 @@ import {cardEffect} from '../../inputs/choiceContext';
 import {CardName} from '../../../common/cards/CardName';
 import {CardRenderer} from '../render/CardRenderer';
 import {digit} from '../Options';
+import {EffectForecastFact} from '../../../common/models/EffectForecastModel';
+import * as actionPreviews from '../actionPreviews';
+import * as forecast from '../effectForecastPreviews';
 
 export class Recyclon extends CorporationCard implements ICorporationCard {
   constructor() {
@@ -68,5 +71,26 @@ export class Recyclon extends CorporationCard implements ICorporationCard {
       });
     return new OrOptions(spendResource, addResource)
       .markChoiceContext(cardEffect(this, 'You played a building tag.', 'effect-choice'));
+  }
+
+  /**
+   * Mirrors `onCardPlayed`: under two microbes the card simply gains one; at
+   * two or more the player is ASKED — spend two for a plant production step,
+   * or add one — the returned prompt is deferred at `Priority.DEFAULT` after
+   * the card's own action.
+   */
+  public cardPlayedForecast(cardOwner: IPlayer, _activePlayer: IPlayer, card: ICard): ReadonlyArray<EffectForecastFact> {
+    if (!card.tags.includes(Tag.BUILDING)) {
+      return [];
+    }
+    const source = forecast.sourceOf(this, cardOwner, 'card-played');
+    const reason = 'You play a card with a ${0} tag';
+    if (this.resourceCount < 2) {
+      return [forecast.exact(source, [actionPreviews.cardGain(this, 1)], reason, {reasonTag: Tag.BUILDING})];
+    }
+    return [forecast.asks(source,
+      [actionPreviews.cardCost(this, 2), actionPreviews.productionChange(cardOwner, Resource.PLANTS, 1)],
+      [{label: 'Add a microbe resource to this card', effects: [actionPreviews.cardGain(this, 1)]}],
+      reason, {reasonTag: Tag.BUILDING, ...forecast.AFTER_CARD})];
   }
 }

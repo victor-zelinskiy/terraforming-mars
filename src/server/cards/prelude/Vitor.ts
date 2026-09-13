@@ -9,7 +9,9 @@ import {CardName} from '../../../common/cards/CardName';
 import {CardRenderer} from '../render/CardRenderer';
 import {Resource} from '../../../common/Resource';
 import {ICorporationCard} from '../corporation/ICorporationCard';
+import {EffectForecastFact} from '../../../common/models/EffectForecastModel';
 import * as actionPreviews from '../actionPreviews';
+import * as forecast from '../effectForecastPreviews';
 
 export class Vitor extends CorporationCard implements ICorporationCard {
   constructor() {
@@ -97,5 +99,22 @@ export class Vitor extends CorporationCard implements ICorporationCard {
     }
 
     player.stock.add(Resource.MEGACREDITS, 3, {log: true, from: {card: this}});
+  }
+
+  /** Mirrors `onCardPlayed`: a card whose printed VP icon is positive pays 3 M€
+   *  at once; a VP icon that is not positive is the «almost» (a `no` fact). */
+  public cardPlayedForecast(cardOwner: IPlayer, _activePlayer: IPlayer, card: ICard): ReadonlyArray<EffectForecastFact> {
+    const victoryPoints = card.metadata.victoryPoints;
+    if (victoryPoints === undefined) {
+      return [];
+    }
+    const points = typeof(victoryPoints) === 'number' ? victoryPoints : victoryPoints.points;
+    const source = forecast.sourceOf(this, cardOwner, 'card-played');
+    if (points <= 0) {
+      return [forecast.no(source, 'The VP icon is not positive')];
+    }
+    return [forecast.exact(source,
+      [actionPreviews.stockGain(cardOwner, Resource.MEGACREDITS, 3)],
+      'You play a card with a positive VP icon')];
   }
 }

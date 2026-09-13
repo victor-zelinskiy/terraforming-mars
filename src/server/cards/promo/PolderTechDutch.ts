@@ -12,10 +12,14 @@ import {createMarsSelectSpace} from '../../boards/marsSelectSpaceHelper';
 import {Size} from '../../../common/cards/render/Size';
 import {Tag} from '../../../common/cards/Tag';
 import {Phase} from '../../../common/Phase';
+import {Priority} from '../../deferredActions/Priority';
 import {BoardFact} from '../../../common/boards/BoardInformationFacts';
 import {PlacementPreviewContext} from '../../boards/PlacementPreviewContext';
 import * as actionPreviews from '../actionPreviews';
 import * as placementPreviews from '../placementPreviews';
+import * as forecast from '../effectForecastPreviews';
+import {EffectForecastFact} from '../../../common/models/EffectForecastModel';
+import {EffectForecastTile} from '../EffectForecastContext';
 
 // TODO(kberg): PolderTech is not yet compatible with Ares or Red City.
 export class PolderTechDutch extends CorporationCard implements ICorporationCard {
@@ -129,6 +133,27 @@ export class PolderTechDutch extends CorporationCard implements ICorporationCard
     if (space.tile?.tileType === TileType.GREENERY) {
       cardOwner.stock.add(Resource.PLANTS, 1, {log: true, from: {card: this}});
     }
+  }
+
+  /**
+   * The forecast mirror of `onTilePlaced`: the owner's own EXACT ocean pays an
+   * energy, their own exact greenery a plant (composites count for nothing —
+   * `tile.tileType`, never `countsAs*`), never in the solar phase.
+   */
+  public tilePlacedForecast(cardOwner: IPlayer, activePlayer: IPlayer, tile: EffectForecastTile): ReadonlyArray<EffectForecastFact> {
+    if (cardOwner !== activePlayer || cardOwner.game.phase === Phase.SOLAR) {
+      return [];
+    }
+    const source = forecast.sourceOf(this, cardOwner, 'tile-placed');
+    if (tile.tileType === TileType.OCEAN) {
+      return [forecast.deferred(source, [actionPreviews.stockGain(cardOwner, Resource.ENERGY, tile.count)],
+        'You place an ocean tile', {sequence: Priority.DEFAULT})];
+    }
+    if (tile.tileType === TileType.GREENERY) {
+      return [forecast.deferred(source, [actionPreviews.stockGain(cardOwner, Resource.PLANTS, tile.count)],
+        'You place a greenery tile', {sequence: Priority.DEFAULT})];
+    }
+    return [];
   }
 
   /**

@@ -92,7 +92,10 @@
                structural: a fixed strip at the top of the column pinned the
                whole scene to the ceiling, so a short card left a well of empty
                band under the CTA while the hero card sat centred beside it.) -->
-          <ConsoleScrollArea class="con-composer__scroll" content-class="con-composer__scroll-body" ref="scroll">
+          <!-- data-forecast-browse: the WORK COLUMN the R3 «Эффекты» layer
+               parks in place (consoleForecastFocusMotion) — every capture,
+               the payment and the cursor survive underneath by construction. -->
+          <ConsoleScrollArea class="con-composer__scroll" content-class="con-composer__scroll-body" ref="scroll" data-forecast-browse>
             <div v-if="loading" class="con-composer__loading" data-unfold-item>{{ $t('Loading') }}…</div>
 
             <!-- ── THE EMBEDDED PLAYED-TARGET STEP — a LEVEL of this
@@ -205,6 +208,22 @@
                     </div>
                     <div class="con-composer__variant-chips">
                       <ActionEffectChip v-for="(eff, k2) in branches[row.pos].effects" :key="k2" :effect="eff" />
+                      <!-- ↳ REACTIONS tied to THIS branch (the forecast's `byBranch`):
+                           what the TABLE adds if the player picks this option, drawn
+                           beside the option's own chips so the two are compared as
+                           one. Never repeated in the «Сработает» row below. -->
+                      <span v-for="rc in variantReactions(row.pos).chips" :key="'fx' + rc.key"
+                            class="con-forecast__vchip"
+                            :class="{'con-forecast__vchip--other': rc.color !== undefined, 'con-forecast__vchip--asks': rc.asks}"
+                            data-forecast-vchip>
+                        <span class="con-forecast__vchip-glyph" aria-hidden="true">↳</span>
+                        <span v-if="rc.color !== undefined" class="con-forecast__owner-dot" :class="'player_bg_color_' + rc.color" aria-hidden="true"></span>
+                        <ActionEffectChip :effect="rc.effect" />
+                        <span v-if="rc.asks" class="con-forecast__ask" aria-hidden="true">?</span>
+                      </span>
+                      <span v-if="variantReactions(row.pos).more > 0" class="con-forecast__vchip con-forecast__vchip--more" data-forecast-vchip>
+                        <span class="con-forecast__vchip-glyph" aria-hidden="true">↳</span>+{{ variantReactions(row.pos).more }}
+                      </span>
                     </div>
                     <div v-if="!branches[row.pos].available" class="con-composer__variant-reason">
                       ✕ {{ branchReasonText(branches[row.pos]) }}
@@ -224,12 +243,22 @@
                    several columns where there is width, a natural wrap where
                    there is not. Membership is data-driven — no card and no
                    count is named here. -->
-              <div v-if="repeatChoice !== undefined || resultSections.length > 0" class="con-composer__rescats">
+              <div v-if="repeatChoice !== undefined || resultSections.length > 0 || forecastRowShown" class="con-composer__rescats">
                 <!-- ProjectInspection: the result IS repeating a played action. -->
                 <div v-if="repeatChoice !== undefined" class="con-composer__rescat con-composer__rescat--action">
                   <span class="con-composer__rescat-glyph" aria-hidden="true">⟳</span>
                   <span class="con-composer__rescat-text">{{ $t('Repeats a played card action') }}</span>
                 </div>
+
+                <!-- ⚡ «СРАБОТАЕТ» — what the TABLE answers to this play, over
+                     and above the card's own result: one more unit of this
+                     cluster, chips only (the R3 layer names the sources). Absent
+                     while the forecast is empty; not a focus stop. -->
+                <ConsoleForecastRow v-if="forecastRowShown"
+                                    class="con-composer__rescat con-composer__rescat--forecast"
+                                    :class="{'con-forecast--descend': forecastPulse}"
+                                    :forecast="forecast"
+                                    @open="openForecastLayer()" />
 
                 <!-- Derived result categories — the block is NEVER empty. A tag
                      row is "label: [inline chips]"; a VP row is "label: +N". -->
@@ -445,6 +474,7 @@
                                    :mode="payMode"
                                    :focus-unit="payFocusUnit"
                                    :flash-nonce="payFlashNonce"
+                                   :discount="forecastDiscount"
                                    data-unfold-item />
 
               <!-- The explicit «Разыграть» CTA — a FOCUSABLE row that draws the Ⓐ
@@ -479,6 +509,34 @@
               </div>
             </template>
           </ConsoleScrollArea>
+
+          <!-- ── THE «ЭФФЕКТЫ» LAYER (R3) — a LEVEL of this composer, never a
+               surface of its own: the work column above PARKS in place, the
+               effects explorer (forecast mode) UNFOLDS out of the «Сработает»
+               row (consoleForecastFocusMotion — the descend phrase), and B /
+               R3 fold it back with the payment, the chosen branch and the
+               cursor exactly as they were. The crumb gains «· ЭФФЕКТЫ». ── -->
+          <transition :css="false"
+                      @enter="forecastFocusEnterHook"
+                      @leave="forecastFocusLeaveHook"
+                      @enter-cancelled="forecastFocusEnterCancelledHook"
+                      @leave-cancelled="forecastFocusLeaveCancelledHook">
+            <div v-if="fxOpen" key="fx" class="con-composer__fxlayer" data-forecast-layer>
+              <div class="con-composer__fxpanel" data-forecast-surface>
+                <ConsoleEffectsExplorer ref="forecastExplorer"
+                                        mode="forecast"
+                                        :explorerUi="forecastUi"
+                                        :forecast="forecast"
+                                        :cards="thisPlayer.tableau"
+                                        :color="thisPlayer.color"
+                                        :players="playerView.players"
+                                        :branches="forecastBranches"
+                                        :selectedBranchPos="selectedPos"
+                                        :statsByColor="forecastStatsByColor"
+                                        :orderFlags="forecastOrderFlags" />
+              </div>
+            </div>
+          </transition>
           <!-- No inline footer: the CONTEXTUAL controls are published to the
                shell's ONE bottom command bar (consolePlayCardUi) — hints live
                only there. -->
@@ -548,6 +606,23 @@ import CardRenderEffectBoxComponent from '@/client/components/card/CardRenderEff
 import CardRenderData from '@/client/components/card/CardRenderData.vue';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 import ConsolePaymentPanel from '@/client/components/console/ConsolePaymentPanel.vue';
+import ConsoleForecastRow from '@/client/components/console/ConsoleForecastRow.vue';
+import ConsoleEffectsExplorer from '@/client/components/console/ConsoleEffectsExplorer.vue';
+import {EffectForecast} from '@/common/models/EffectForecastModel';
+import {EffectOverlayStat} from '@/common/events/aggregate';
+import {
+  DiscountTail, ForecastBranchInfo, VariantReaction,
+  discountTail, forecastLayerAvailable, forecastRowPresent, variantReactionChips,
+} from '@/client/console/effectForecastModel';
+import {
+  closeEffectForecastLayer, effectForecastOpen, forecastExplorerUi, openEffectForecastLayer,
+} from '@/client/console/consoleEffectForecast';
+import {
+  armForecastRow, armForecastInstantFold,
+  forecastFocusEnterHook, forecastFocusLeaveHook, forecastFocusEnterCancelledHook, forecastFocusLeaveCancelledHook,
+} from '@/client/console/consoleForecastFocusMotion';
+import {effectStatsFor, ensureEffectStats} from '@/client/console/effectStatsStore';
+import {descendRectOf} from '@/client/console/surfaceMotion/workspaceDescend';
 import {stripActionPrefix} from '@/client/directives/stripActionPrefix';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {CardModel} from '@/common/models/CardModel';
@@ -599,8 +674,9 @@ import {
   playComposerFootHints, FootHint, PlayFocusKind,
   computePrimaryAction, PrimaryActionState, initialVariantSelection,
   playPrimaryVerb, PlayFocusTarget,
-  playChoiceMode, PlayChoiceMode, foldCopiedProductionEffects,
+  playChoiceMode, PlayChoiceMode, foldCopiedProductionEffects, samePreviewShape,
 } from '@/client/console/consolePlayCardComposer';
+import {gameStateVersion} from '@/client/console/gameStateVersion';
 import {
   buildPaymentView, PaymentView, PaymentSourceRow, editableRows, quickAdjustRow,
   initialCounts, dialLaneCount, megacreditsAvailable,
@@ -762,7 +838,7 @@ function espOwnerOptionTitle(o: {resource: string, amount: number, production?: 
 
 export default defineComponent({
   name: 'ConsolePlayCardConfirm',
-  components: {Card, ConsoleScrollArea, GamepadGlyph, ActionEffectChip, ConsolePaymentPanel, CardRenderEffectBoxComponent, CardRenderData, ConsolePlayedTargetStep, ConsolePlayedTargetLink, ConsolePlayedReceivingStage, ConsoleAmountOperation, HydroReward},
+  components: {Card, ConsoleScrollArea, GamepadGlyph, ActionEffectChip, ConsolePaymentPanel, ConsoleForecastRow, ConsoleEffectsExplorer, CardRenderEffectBoxComponent, CardRenderData, ConsolePlayedTargetStep, ConsolePlayedTargetLink, ConsolePlayedReceivingStage, ConsoleAmountOperation, HydroReward},
   directives: {stripActionPrefix},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
@@ -826,9 +902,75 @@ export default defineComponent({
       submitting: false,
       /** Bumped on each quick-adjust to re-trigger the one-shot chip pulse. */
       payFlashNonce: 0,
+      /** The «Сработает» row's one-shot COMMIT pulse (the descend's first beat). */
+      forecastPulse: false,
+      /** The forecast explorer's own cursors (never the Information workspace's). */
+      forecastUi: forecastExplorerUi('play'),
     };
   },
   computed: {
+    // ── THE EFFECT FORECAST (rides inside the preview) ──────────────────
+    forecast(): EffectForecast | undefined {
+      return this.preview?.forecast;
+    },
+    /** The server's own change counter — the ONE key a preview is fresh by. */
+    stateVersion(): string {
+      return gameStateVersion(this.playerView);
+    },
+    /** The compact «Сработает» row exists iff it has a chip. */
+    forecastRowShown(): boolean {
+      return !this.loading && forecastRowPresent(this.forecast);
+    },
+    /** The R3 layer exists iff the forecast has anything to show (a
+     *  discount-only forecast keeps the layer, draws no row). */
+    forecastAvailable(): boolean {
+      return !this.loading && forecastLayerAvailable(this.forecast);
+    },
+    /** R3 is the REVIEW level's verb: silent inside a pick, the payment
+     *  editor, a submit in flight or the landing scene. */
+    forecastCanOpen(): boolean {
+      return this.forecastAvailable && this.sub === undefined && !this.submitting && !this.landingUp;
+    },
+    fxOpen(): boolean {
+      return effectForecastOpen('play');
+    },
+    forecastDiscount(): DiscountTail | undefined {
+      return discountTail(this.forecast);
+    },
+    forecastBranches(): ReadonlyArray<ForecastBranchInfo> {
+      return this.hasVariants ?
+        this.branches.map((b, pos) => ({pos, title: b.title, available: b.available})) : [];
+    },
+    /** The play's OWN steps the «ПОРЯДОК» band interleaves with the reactions. */
+    forecastOrderFlags(): {cardChoices: boolean, placesTile: boolean} {
+      return {
+        cardChoices: this.hasVariants || this.stepChoices.length > 0,
+        placesTile: this.selectedBranch?.steps.some((s) => s.kind === 'boardPlacement') === true,
+      };
+    },
+    /** Every fact owner's stats (undefined per seat until they arrive; a bot
+     *  seat has none) — the layer's quiet «За партию» line. */
+    forecastStatsByColor(): Partial<Record<string, ReadonlyArray<EffectOverlayStat> | undefined>> {
+      const out: Partial<Record<string, ReadonlyArray<EffectOverlayStat> | undefined>> = {};
+      for (const color of this.forecastOwnerColors) {
+        out[color] = effectStatsFor(color as Color);
+      }
+      return out;
+    },
+    forecastOwnerColors(): ReadonlyArray<string> {
+      const f = this.forecast;
+      if (f === undefined) {
+        return [];
+      }
+      const bots = new Set(this.playerView.players.filter((p) => p.isMarsBot === true).map((p) => p.color));
+      const colors = new Set<string>();
+      for (const fact of [...f.facts, ...Object.values(f.byBranch ?? {}).flat()]) {
+        if (fact.source.kind !== 'rule' && fact.source.kind !== 'automa-corporation' && !bots.has(fact.source.owner)) {
+          colors.add(fact.source.owner);
+        }
+      }
+      return [...colors];
+    },
     thisPlayer() {
       return this.playerView.thisPlayer;
     },
@@ -1483,6 +1625,24 @@ export default defineComponent({
           out.push({title: '', reason: textOf(emptyWarning), icon: ''});
         }
       }
+      // A SKIPPED reaction of the table (the forecast's `skipped` facts —
+      // Mars University with no other card in hand): the same silent-loss
+      // strip, naming the source and the magnitude lost, never a hidden chip.
+      const f = this.forecast;
+      if (f !== undefined) {
+        const tied = this.selectedPos !== undefined ? (f.byBranch?.[this.selectedPos] ?? []) : [];
+        for (const fact of [...f.facts, ...tied]) {
+          if (fact.certainty !== 'skipped') {
+            continue;
+          }
+          out.push({
+            title: translateText(fact.source.name),
+            reason: textOf(fact.reason),
+            effect: fact.effects[0],
+            icon: '',
+          });
+        }
+      }
       return out;
     },
     followUpNotes(): Array<NextStepRow> {
@@ -1652,6 +1812,14 @@ export default defineComponent({
         (row.choice.kind === 'card' || row.choice.kind === 'player' || row.choice.kind === 'or');
     },
     footHints(): Array<FootHint> {
+      // The R3 «Эффекты» LAYER owns the bar while it is open — the explorer's
+      // own contract, verbatim (the same way the Information workspace
+      // republishes it). Nothing of the review's verbs applies underneath.
+      if (this.fxOpen) {
+        return (this.forecastUi.barCommands ?? []).map((c) => ({
+          control: c.control, control2: c.control2, label: c.label, enabled: c.enabled, spread: c.spread,
+        }));
+      }
       // A focused amount/spend-heat stepper OWNS LB/RB; otherwise the inline
       // payment quick-adjust does (when eligible).
       const focusedStepper = this.focusedKind === 'amount' || this.focusedKind === 'spendHeat';
@@ -1679,6 +1847,7 @@ export default defineComponent({
         primaryLabel: this.primaryFooter.label,
         primaryEnabled: this.primaryFooter.enabled,
         quickAdjust,
+        forecast: this.forecastCanOpen,
       });
     },
     // ── sub-state derived views ─────────────────────────────────────────
@@ -1794,6 +1963,12 @@ export default defineComponent({
     cardName: {
       immediate: true,
       handler() {
+        // A card change folds the R3 «Эффекты» layer instantly (the surface
+        // underneath is being replaced — no fold plays).
+        if (this.fxOpen) {
+          armForecastInstantFold();
+          closeEffectForecastLayer('play');
+        }
         this.resetCaptures();
         this.payCounts = initialCounts(this.cost, this.payLanes, this.megacreditsOnHand);
         this.focusIdx = 0;
@@ -1841,6 +2016,34 @@ export default defineComponent({
           setWorkspaceFrameStage('hand', key);
         }
       },
+    },
+    /**
+     * THE TABLE MOVED UNDER AN OPEN COMPOSER (an opponent's move, a WS push):
+     * re-ask the preview — the forecast's «30 → 26», an opponent's M€, a
+     * discount are the server's verdicts about a state that just changed.
+     * The old preview keeps painting while the new one is on the wire, and
+     * the answer replaces it IN PLACE only when it has the same shape
+     * (`samePreviewShape`) — captures, the chosen branch, the cursor and an
+     * open «Эффекты» layer all survive; a re-shaped answer is left alone.
+     * Never while the play is being submitted / landing (the response that
+     * moves the version there is this play's own).
+     */
+    stateVersion(now: string, was: string): void {
+      if (was === undefined || now === was || this.loading || this.submitting || this.landingUp) {
+        return;
+      }
+      this.refreshPreview();
+    },
+    /**
+     * The «Эффекты» layer lives ONLY on the review level: a pick, the payment
+     * editor, a submit in flight, the landing scene or a card change fold it
+     * instantly (the surface underneath is leaving, so no fold plays).
+     */
+    forecastCanOpen(can: boolean): void {
+      if (!can && this.fxOpen) {
+        armForecastInstantFold();
+        closeEffectForecastLayer('play');
+      }
     },
     /**
      * THE SETUP RELEASE of the commit: the WHOLE setup layer — the work
@@ -1891,8 +2094,62 @@ export default defineComponent({
   },
   beforeUnmount() {
     resetConsolePlayCardUi();
+    closeEffectForecastLayer('play');
   },
   methods: {
+    // The composer ⇄ «Эффекты» layer transition hooks (the descend phrase) —
+    // exposed as methods so the template's <transition> can bind them.
+    forecastFocusEnterHook,
+    forecastFocusLeaveHook,
+    forecastFocusEnterCancelledHook,
+    forecastFocusLeaveCancelledHook,
+    /** The «↳» reaction chips drawn INSIDE a variant card (the pure model). */
+    variantReactions(pos: number): VariantReaction {
+      return variantReactionChips(this.forecast, pos);
+    },
+    /**
+     * R3 / a click on the «Сработает» row — the WORKSPACE DESCEND into the
+     * layer. The row's rect is armed SYNCHRONOUSLY here (armed rects expire in
+     * 1 s), the row pulses its commit, and the seats' stats are asked for the
+     * layer's quiet «За партию» line (version-keyed — a repeat costs nothing).
+     */
+    openForecastLayer(): void {
+      if (!this.forecastCanOpen || this.fxOpen) {
+        return;
+      }
+      const root = this.$refs.rootEl as HTMLElement | undefined;
+      armForecastRow(descendRectOf(root?.querySelector<HTMLElement>('[data-forecast-row]')));
+      this.forecastPulse = true;
+      window.setTimeout(() => {
+        this.forecastPulse = false;
+      }, 320);
+      for (const color of this.forecastOwnerColors) {
+        ensureEffectStats(this.playerView, color as Color);
+      }
+      openEffectForecastLayer('play');
+    },
+    closeForecastLayer(): void {
+      if (this.fxOpen) {
+        closeEffectForecastLayer('play');
+      }
+    },
+    /** Input while the layer is open: B folds one level (the explorer's own
+     *  dossier first), R3 closes the whole layer, everything else is the
+     *  explorer's (d-pad, LT/RT sections, A, X, LB/RB, RS). */
+    onForecastIntent(intent: GamepadIntent): void {
+      const explorer = this.$refs.forecastExplorer as InstanceType<typeof ConsoleEffectsExplorer> | undefined;
+      if (intent.kind === 'press' && intent.button === 'stickR') {
+        this.closeForecastLayer();
+        return;
+      }
+      if (intent.kind === 'press' && consoleActionOf(intent) === 'back') {
+        if (explorer?.consumeEffectsBack() !== true) {
+          this.closeForecastLayer();
+        }
+        return;
+      }
+      explorer?.handleIntent(intent);
+    },
     /**
      * Re-arm the confirm CTA after a REFUSED submit (the played-card hero
      * transaction keeps this composer open through the server round-trip;
@@ -1955,6 +2212,25 @@ export default defineComponent({
         return `${sec.detail ?? ''} ${translateText('VP')}`;
       }
       return sec.detail ?? '';
+    },
+    /** The version-change re-ask (see the `stateVersion` watcher): same URL,
+     *  same cache feed, but the answer lands WITHOUT `applyPreview` — nothing
+     *  the player has done is reset — and only when its shape matches. */
+    refreshPreview(): void {
+      const cardName = this.cardName;
+      fetch(playPreviewUrl(this.playerView.id, cardName))
+        .then((r) => (r.ok ? r.json() : undefined))
+        .then((p) => {
+          const next = p as ActionPreview | undefined;
+          if (next === undefined || this.cardName !== cardName || this.submitting) {
+            return;
+          }
+          storeHandPlayPreview(this.playerView, cardName, next);
+          if (samePreviewShape(this.preview, next)) {
+            this.preview = next;
+          }
+        })
+        .catch(() => { /* the standing preview stays — nothing to roll back */ });
     },
     fetchPreview(): void {
       const cardName = this.cardName;
@@ -2404,6 +2680,17 @@ export default defineComponent({
     },
     // ── input routing (foundation: SEMANTIC actions, no raw button names) ──
     handleIntent(intent: GamepadIntent): void {
+      // THE «ЭФФЕКТЫ» LAYER owns the pad while it is open («the player drives
+      // the surface they see»); R3 at the review level opens it. Both are
+      // resolved BEFORE the semantic map, which has no default verb for R3.
+      if (this.fxOpen) {
+        this.onForecastIntent(intent);
+        return;
+      }
+      if (intent.kind === 'press' && intent.button === 'stickR') {
+        this.openForecastLayer();
+        return;
+      }
       if (intent.kind === 'scroll') {
         (this.$refs.scroll as {scrollByPx?: (d: number) => void} | undefined)?.scrollByPx?.(Math.sign(intent.dy) * 40);
         return;

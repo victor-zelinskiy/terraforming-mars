@@ -17,7 +17,10 @@ import {AresHandler} from '../../ares/AresHandler';
 import {BoardFact} from '../../../common/boards/BoardInformationFacts';
 import {PlacementPreviewContext} from '../../boards/PlacementPreviewContext';
 import * as placementPreviews from '../placementPreviews';
+import * as forecast from '../effectForecastPreviews';
 import {cardSource} from '../../inputs/choiceContext';
+import {EffectForecastFact} from '../../../common/models/EffectForecastModel';
+import {EffectForecastTile} from '../EffectForecastContext';
 
 /**
  * ONE (resource, printed bonus) pair a survey card watches, declared so the
@@ -103,6 +106,25 @@ export abstract class SurveyCard extends Card implements IProjectCard {
         placementPreviews.cardResourceGain(this, entry.resource, 1, title, options));
     }
     return facts;
+  }
+
+  /**
+   * The FORECAST mirror of {@link onTilePlaced}, asked BEFORE the cell is
+   * chosen: the same two early returns (the solar phase, someone else's
+   * placement), and then an honest cell-dependent `deferred` — whether the
+   * extra resource comes depends on the area's printed / adjacent bonuses,
+   * which the cell dossier states once the player points at a cell.
+   */
+  public tilePlacedForecast(cardOwner: IPlayer, activePlayer: IPlayer, _tile: EffectForecastTile): ReadonlyArray<EffectForecastFact> {
+    if (cardOwner.game.phase === Phase.SOLAR || cardOwner.id !== activePlayer.id) {
+      return [];
+    }
+    return [forecast.deferred(forecast.sourceOf(this, cardOwner, 'tile-placed'), [],
+      'You place a tile on Mars', {
+        recipient: forecast.recipientOf(activePlayer, cardOwner),
+        sequence: forecast.triggerSequence(cardOwner, activePlayer),
+        note: 'Depends on the cell — the cell dossier will show the details',
+      })];
   }
 
   /**

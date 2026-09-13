@@ -1,0 +1,1892 @@
+{
+ "activePlayer": "p-player1-id",
+ "awards": [
+  "Landlord",
+  "Scientist",
+  "Banker",
+  "Thermalist",
+  "Miner",
+  "Venuphile"
+ ],
+ "beholdTheEmperor": false,
+ "board": {
+  "spaces": [
+   {
+    "id": "01",
+    "spaceType": "colony",
+    "bonus": [],
+    "x": -1,
+    "y": -1
+   },
+   {
+    "id": "02",
+    "spaceType": "colony",
+    "bonus": [],
+    "x": -1,
+    "y": -1
+   },
+   {
+    "id": "03",
+    "spaceType": "land",
+    "bonus": [
+     1,
+     1
+    ],
+    "x": 4,
+    "y": 0
+   },
+   {
+    "id": "04",
+    "spaceType": "ocean",
+    "bonus": [
+     1,
+     1
+    ],
+    "x": 5,
+    "y": 0
+   },
+   {
+    "id": "05",
+    "spaceType": "land",
+    "bonus": [],
+    "x": 6,
+    "y": 0
+   },
+   {
+    "id": "06",
+    "spaceType": "ocean",
+    "bonus": [
+     3
+    ],
+    "x": 7,
+    "y": 0
+   },
+   {
+    "id": "07",
+    "spaceType": "ocean",
+    "bonus": [],
+    "x": 8,
+    "y": 0
+   },
+   {
+    "id": "08",
+    "spaceType": "land",
+    "bonus": [],
+    "x": 3,
+    "y": 1
+   },
+   {
+    "id": "09",
+    "spaceType": "land",
+    "bonus": [
+     1
+    ],
+    "x": 4,
+    "y": 1,
+    "volcanic": true
+   },
+   {
+    "id": "10",
+    "spaceType": "land",
+    "bonus": [],
+    "x": 5,
+    "y": 1
+   },
+   {
+    "id": "11",
+    "spaceType": "land",
+    "bonus": [],
+    "x": 6,
+    "y": 1
+   },
+   {
+    "id": "12",
+    "spaceType": "land",
+    "bonus": [],
+    "x": 7,
+    "y": 1
+   },
+   {
+    "id": "13",
+    "spaceType": "ocean",
+    "bonus": [
+     3,
+     3
+    ],
+    "x": 8,
+    "y": 1
+   },
+   {
+    "id": "14",
+    "spaceType": "land",
+    "bonus": [
+     3
+    ],
+    "x": 2,
+    "y": 2,
+    "volcanic": true
+   },
+   {
+    "id": "15",
+    "spaceType": "land",
+    "bonus": [],
+    "x": 3,
+    "y": 2
+   },
+   {
+    "id": "16",
+    "spaceType": "land",
+    "bonus": [],
+    "x": 4,
+    "y": 2
+   },
+   {
+    "id": "17",
+    "spaceType": "land",
+    "bonus": [],
+    "x": 5,
+    "y": 2
+   },
+   {
+    "id": "18",
+    "spaceType": "land",
+    "bonus": [],
+    "x": 6,
+    "y": 2
+   },
+   {
+    "id": "19",
+    "spaceType": "land",
+    "bonus": [],
+    "x": 7,
+    "y": 2
+   },
+   {
+    "id": "20",
+    "spaceType": "land",
+    "bonus": [
+     1
+    ],
+    "x": 8,
+    "y": 2
+   },
+   {
+    "id": "21",
+    "spaceType": "land",
+    "bonus": [
+     2,
+     0
+    ],
+    "x": 1,
+    "y": 3,
+    "volcanic": true
+   },
+   {
+    "id": "22",
+    "spaceType": "land",
+    "bonus": [
+     2
+    ],
+    "x": 2,
+    "y": 3
+   },
+   {
+    "id": "23",
+    "spaceType": "land",
+    "bonus": [
+     2
+    ],
+    "x": 3,
+    "y": 3
+   },
+   {
+    "id": "24",
+    "spaceType": "land",
+    "bonus": [
+     2
+    ],
+    "x": 4,
+    "y": 3
+   },
+   {
+    "id": "25",
+    "spaceType": "land",
+    "bonus": [
+     2,
+     2
+    ],
+    "x": 5,
+    "y": 3
+   },
+   {
+    "id": "26",
+    "spaceType": "land",
+    "bonus": [
+     2
+    ],
+    "x": 6,
+    "y": 3
+   },
+   {
+    "id": "27",
+    "spaceType": "land",
+    "bonus": [
+     2
+    ],
+    "x": 7,
+    "y": 3
+   },
+   {
+    "id": "28",
+    "spaceType": "ocean",
+    "bonus": [
+     2,
+     2
+    ],
+    "x": 8,
+    "y": 3
+   },
+   {
+    "id": "29",
+    "spaceType": "land",
+    "bonus": [
+     2,
+     2
+    ],
+    "x": 0,
+    "y": 4,
+    "volcanic": true
+   },
+   {
+    "id": "30",
+    "spaceType": "land",
+    "bonus": [
+     2,
+     2
+    ],
+    "x": 1,
+    "y": 4
+   },
+   {
+    "id": "31",
+    "spaceType": "land",
+    "bonus": [
+     2,
+     2
+    ],
+    "x": 2,
+    "y": 4
+   },
+   {
+    "id": "32",
+    "spaceType": "ocean",
+    "bonus": [
+     2,
+     2
+    ],
+    "x": 3,
+    "y": 4
+   },
+   {
+    "id": "33",
+    "spaceType": "ocean",
+    "bonus": [
+     2,
+     2
+    ],
+    "x": 4,
+    "y": 4
+   },
+   {
+    "id": "34",
+    "spaceType": "ocean",
+    "bonus": [
+     2,
+     2
+    ],
+    "x": 5,
+    "y": 4
+   },
+   {
+    "id": "35",
+    "spaceType": "land",
+    "bonus": [
+     2,
+     2
+    ],
+    "x": 6,
+    "y": 4
+   },
+   {
+    "id": "36",
+    "spaceType": "land",
+    "bonus": [
+     2,
+     2
+    ],
+    "x": 7,
+    "y": 4
+   },
+   {
+    "id": "37",
+    "spaceType": "land",
+    "bonus": [
+     2,
+     2
+    ],
+    "x": 8,
+    "y": 4
+   },
+   {
+    "id": "38",
+    "spaceType": "land",
+    "bonus": [
+     2
+    ],
+    "x": 1,
+    "y": 5
+   },
+   {
+    "id": "39",
+    "spaceType": "land",
+    "bonus": [
+     2,
+     2
+    ],
+    "x": 2,
+    "y": 5
+   },
+   {
+    "id": "40",
+    "spaceType": "land",
+    "bonus": [
+     2
+    ],
+    "x": 3,
+    "y": 5
+   },
+   {
+    "id": "41",
+    "spaceType": "land",
+    "bonus": [
+     2
+    ],
+    "x": 4,
+    "y": 5
+   },
+   {
+    "id": "42",
+    "spaceType": "land",
+    "bonus": [
+     2
+    ],
+    "x": 5,
+    "y": 5
+   },
+   {
+    "id": "43",
+    "spaceType": "ocean",
+    "bonus": [
+     2
+    ],
+    "x": 6,
+    "y": 5
+   },
+   {
+    "id": "44",
+    "spaceType": "ocean",
+    "bonus": [
+     2
+    ],
+    "x": 7,
+    "y": 5
+   },
+   {
+    "id": "45",
+    "spaceType": "ocean",
+    "bonus": [
+     2
+    ],
+    "x": 8,
+    "y": 5
+   },
+   {
+    "id": "46",
+    "spaceType": "land",
+    "bonus": [],
+    "x": 2,
+    "y": 6
+   },
+   {
+    "id": "47",
+    "spaceType": "land",
+    "bonus": [],
+    "x": 3,
+    "y": 6
+   },
+   {
+    "id": "48",
+    "spaceType": "land",
+    "bonus": [],
+    "x": 4,
+    "y": 6
+   },
+   {
+    "id": "49",
+    "spaceType": "land",
+    "bonus": [],
+    "x": 5,
+    "y": 6
+   },
+   {
+    "id": "50",
+    "spaceType": "land",
+    "bonus": [],
+    "x": 6,
+    "y": 6
+   },
+   {
+    "id": "51",
+    "spaceType": "land",
+    "bonus": [
+     2
+    ],
+    "x": 7,
+    "y": 6
+   },
+   {
+    "id": "52",
+    "spaceType": "land",
+    "bonus": [],
+    "x": 8,
+    "y": 6
+   },
+   {
+    "id": "53",
+    "spaceType": "land",
+    "bonus": [
+     1,
+     1
+    ],
+    "x": 3,
+    "y": 7
+   },
+   {
+    "id": "54",
+    "spaceType": "land",
+    "bonus": [],
+    "x": 4,
+    "y": 7
+   },
+   {
+    "id": "55",
+    "spaceType": "land",
+    "bonus": [
+     3
+    ],
+    "x": 5,
+    "y": 7
+   },
+   {
+    "id": "56",
+    "spaceType": "land",
+    "bonus": [
+     3
+    ],
+    "x": 6,
+    "y": 7
+   },
+   {
+    "id": "57",
+    "spaceType": "land",
+    "bonus": [],
+    "x": 7,
+    "y": 7
+   },
+   {
+    "id": "58",
+    "spaceType": "land",
+    "bonus": [
+     0
+    ],
+    "x": 8,
+    "y": 7
+   },
+   {
+    "id": "59",
+    "spaceType": "land",
+    "bonus": [
+     1
+    ],
+    "x": 4,
+    "y": 8
+   },
+   {
+    "id": "60",
+    "spaceType": "land",
+    "bonus": [
+     1,
+     1
+    ],
+    "x": 5,
+    "y": 8
+   },
+   {
+    "id": "61",
+    "spaceType": "land",
+    "bonus": [],
+    "x": 6,
+    "y": 8
+   },
+   {
+    "id": "62",
+    "spaceType": "land",
+    "bonus": [],
+    "x": 7,
+    "y": 8
+   },
+   {
+    "id": "63",
+    "spaceType": "ocean",
+    "bonus": [
+     0,
+     0
+    ],
+    "x": 8,
+    "y": 8
+   },
+   {
+    "id": "69",
+    "spaceType": "colony",
+    "bonus": [],
+    "x": -1,
+    "y": -1
+   },
+   {
+    "id": "71",
+    "spaceType": "colony",
+    "bonus": [],
+    "x": -1,
+    "y": -1
+   },
+   {
+    "id": "70",
+    "spaceType": "colony",
+    "bonus": [],
+    "x": -1,
+    "y": -1
+   },
+   {
+    "id": "73",
+    "spaceType": "colony",
+    "bonus": [],
+    "x": -1,
+    "y": -1
+   },
+   {
+    "id": "72",
+    "spaceType": "colony",
+    "bonus": [],
+    "x": -1,
+    "y": -1
+   }
+  ]
+ },
+ "claimedMilestones": [],
+ "ceoDeck": {
+  "drawPile": [],
+  "discardPile": []
+ },
+ "colonies": [],
+ "corporationDeck": {
+  "drawPile": [
+   "Viron",
+   "PhoboLog",
+   "PolderTECH Dutch",
+   "Mining Guild",
+   "Recyclon",
+   "Saturn Systems",
+   "United Nations Mars Initiative",
+   "Ecoline",
+   "Philares",
+   "Inventrix",
+   "Aphrodite",
+   "Factorum",
+   "Splice",
+   "Helion",
+   "AstroDrill",
+   "Tharsis Republic",
+   "Interplanetary Cinematics",
+   "CrediCor",
+   "Celestic",
+   "Tycho Magnetics",
+   "Morning Star Inc.",
+   "Mons Insurance",
+   "Arcadian Communities",
+   "ThorGate",
+   "Teractor",
+   "Kuiper Cooperative"
+  ],
+  "discardPile": []
+ },
+ "createdTimeMs": 1789269845522,
+ "currentSeed": 688668745688,
+ "deferredActions": [],
+ "donePlayers": [],
+ "draftRound": 1,
+ "exploitationOfVenusInEffect": false,
+ "first": "p-player1-id",
+ "fundedAwards": [],
+ "gagarinBase": [],
+ "stJosephCathedrals": [],
+ "gameAge": 13,
+ "gameLog": [
+  {
+   "message": "First player this generation is ${0}",
+   "data": [
+    {
+     "type": 2,
+     "value": "blue"
+    }
+   ],
+   "timestamp": 1789269845522
+  },
+  {
+   "message": "Good luck ${0}!",
+   "data": [
+    {
+     "type": 2,
+     "value": "blue"
+    }
+   ],
+   "timestamp": 1789269845523,
+   "playerId": "p-player1-id"
+  },
+  {
+   "message": "Good luck ${0}!",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    }
+   ],
+   "timestamp": 1789269845523,
+   "playerId": "p-player2-id"
+  },
+  {
+   "message": "Generation ${0}",
+   "data": [
+    {
+     "type": 1,
+     "value": "1"
+    }
+   ],
+   "timestamp": 1789269845523,
+   "type": 1
+  },
+  {
+   "message": "${0} played ${1}",
+   "data": [
+    {
+     "type": 2,
+     "value": "blue"
+    },
+    {
+     "type": 3,
+     "value": "Manutech"
+    }
+   ],
+   "timestamp": 1789269845523,
+   "correlationId": 1,
+   "parentId": 1,
+   "role": "root-action",
+   "category": "card-play"
+  },
+  {
+   "message": "${0} gained ${1} ${2} production",
+   "data": [
+    {
+     "type": 2,
+     "value": "blue"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    },
+    {
+     "type": 15,
+     "value": "steel"
+    }
+   ],
+   "timestamp": 1789269845523,
+   "correlationId": 1,
+   "parentId": 1,
+   "role": "detail"
+  },
+  {
+   "message": "${0} kept ${1} project cards",
+   "data": [
+    {
+     "type": 2,
+     "value": "blue"
+    },
+    {
+     "type": 1,
+     "value": "2"
+    }
+   ],
+   "timestamp": 1789269845523,
+   "correlationId": 1,
+   "parentId": 1,
+   "role": "detail"
+  },
+  {
+   "message": "${0} played ${1}",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 3,
+     "value": "Pharmacy Union"
+    }
+   ],
+   "timestamp": 1789269845523,
+   "correlationId": 5,
+   "parentId": 5,
+   "role": "root-action",
+   "category": "card-play"
+  },
+  {
+   "message": "Discarded ${0} cards ${1}",
+   "data": [
+    {
+     "type": 1,
+     "value": "5"
+    },
+    {
+     "type": 14,
+     "value": [
+      "Moss",
+      "Mining Rights:ares",
+      "Shuttles",
+      "Deep Well Heating",
+      "Desperate Measures"
+     ],
+     "attrs": {
+      "ellipsis": true
+     }
+    }
+   ],
+   "timestamp": 1789269845524,
+   "correlationId": 5,
+   "parentId": 5,
+   "role": "detail"
+  },
+  {
+   "message": "${0} drew ${1}",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 14,
+     "value": [
+      "Cutting Edge Technology"
+     ]
+    }
+   ],
+   "timestamp": 1789269845524,
+   "correlationId": 5,
+   "parentId": 5,
+   "role": "detail"
+  },
+  {
+   "message": "${0} kept ${1} project cards",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 1,
+     "value": "2"
+    }
+   ],
+   "timestamp": 1789269845524,
+   "correlationId": 5,
+   "parentId": 5,
+   "role": "detail"
+  },
+  {
+   "message": "${0} added ${3} diseases to ${1} and lost ${2} M€",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 3,
+     "value": "Pharmacy Union"
+    },
+    {
+     "type": 1,
+     "value": "8"
+    },
+    {
+     "type": 1,
+     "value": "2"
+    }
+   ],
+   "timestamp": 1789269845524,
+   "correlationId": 5,
+   "parentId": 7,
+   "role": "effect-result"
+  }
+ ],
+ "gameEvents": [
+  {
+   "id": 1,
+   "generation": 1,
+   "phase": "research",
+   "type": "action",
+   "impact": {},
+   "correlationId": 1,
+   "visibility": "journal",
+   "source": {
+    "kind": "corporation",
+    "card": "Manutech",
+    "owner": "blue"
+   },
+   "player": "blue",
+   "tags": [
+    "corporation"
+   ],
+   "category": "card-play"
+  },
+  {
+   "id": 2,
+   "generation": 1,
+   "phase": "research",
+   "type": "production-changed",
+   "impact": {
+    "production": {
+     "steel": 1
+    },
+    "snapshot": {
+     "resource": "steel",
+     "scope": "production",
+     "before": 0,
+     "after": 1
+    }
+   },
+   "correlationId": 1,
+   "visibility": "analytics",
+   "source": {
+    "kind": "corporation",
+    "card": "Manutech",
+    "owner": "blue"
+   },
+   "player": "blue",
+   "tags": [
+    "production"
+   ],
+   "parentId": 1
+  },
+  {
+   "id": 3,
+   "generation": 1,
+   "phase": "research",
+   "type": "effect-triggered",
+   "impact": {},
+   "correlationId": 1,
+   "visibility": "analytics",
+   "source": {
+    "kind": "corporation",
+    "card": "Manutech",
+    "owner": "blue"
+   },
+   "player": "blue",
+   "trigger": "production-gain",
+   "tags": [
+    "passive-effect"
+   ],
+   "parentId": 1
+  },
+  {
+   "id": 4,
+   "generation": 1,
+   "phase": "research",
+   "type": "resource-changed",
+   "impact": {
+    "stock": {
+     "steel": 1
+    },
+    "snapshot": {
+     "resource": "steel",
+     "scope": "stock",
+     "before": 0,
+     "after": 1
+    }
+   },
+   "correlationId": 1,
+   "visibility": "analytics",
+   "source": {
+    "kind": "corporation",
+    "card": "Manutech",
+    "owner": "blue"
+   },
+   "player": "blue",
+   "tags": [
+    "passive-effect"
+   ],
+   "parentId": 3
+  },
+  {
+   "id": 5,
+   "generation": 1,
+   "phase": "research",
+   "type": "action",
+   "impact": {},
+   "correlationId": 5,
+   "visibility": "journal",
+   "source": {
+    "kind": "corporation",
+    "card": "Pharmacy Union",
+    "owner": "red"
+   },
+   "player": "red",
+   "tags": [
+    "corporation"
+   ],
+   "category": "card-play"
+  },
+  {
+   "id": 6,
+   "generation": 1,
+   "phase": "research",
+   "type": "cards-drawn",
+   "impact": {
+    "cardsDrawn": 1
+   },
+   "correlationId": 5,
+   "visibility": "analytics",
+   "source": {
+    "kind": "corporation",
+    "card": "Pharmacy Union",
+    "owner": "red"
+   },
+   "player": "red",
+   "parentId": 5
+  },
+  {
+   "id": 7,
+   "generation": 1,
+   "phase": "research",
+   "type": "effect-triggered",
+   "impact": {},
+   "correlationId": 5,
+   "visibility": "analytics",
+   "source": {
+    "kind": "corporation",
+    "card": "Pharmacy Union",
+    "owner": "red"
+   },
+   "player": "red",
+   "trigger": "card-played-by-any",
+   "tags": [
+    "passive-effect"
+   ],
+   "parentId": 5
+  },
+  {
+   "id": 8,
+   "generation": 1,
+   "phase": "research",
+   "type": "card-resource-changed",
+   "impact": {
+    "cardResources": [
+     {
+      "cardResource": "Disease",
+      "target": "Pharmacy Union",
+      "amount": 2
+     }
+    ]
+   },
+   "correlationId": 5,
+   "visibility": "analytics",
+   "source": {
+    "kind": "corporation",
+    "card": "Pharmacy Union",
+    "owner": "red"
+   },
+   "player": "red",
+   "tags": [
+    "card-impact",
+    "passive-effect"
+   ],
+   "parentId": 7
+  },
+  {
+   "id": 9,
+   "generation": 1,
+   "phase": "research",
+   "type": "resource-changed",
+   "impact": {
+    "stock": {
+     "megacredits": -8
+    },
+    "snapshot": {
+     "resource": "megacredits",
+     "scope": "stock",
+     "before": 54,
+     "after": 46
+    }
+   },
+   "correlationId": 5,
+   "visibility": "analytics",
+   "source": {
+    "kind": "corporation",
+    "card": "Pharmacy Union",
+    "owner": "red"
+   },
+   "player": "red",
+   "tags": [
+    "passive-effect"
+   ],
+   "parentId": 7
+  },
+  {
+   "id": 10,
+   "generation": 1,
+   "phase": "research",
+   "type": "resource-changed",
+   "impact": {
+    "stock": {
+     "megacredits": -6
+    },
+    "snapshot": {
+     "resource": "megacredits",
+     "scope": "stock",
+     "before": 35,
+     "after": 29
+    }
+   },
+   "correlationId": 1,
+   "visibility": "analytics",
+   "source": {
+    "kind": "corporation",
+    "card": "Manutech",
+    "owner": "blue"
+   },
+   "player": "blue",
+   "parentId": 1
+  },
+  {
+   "id": 11,
+   "generation": 1,
+   "phase": "research",
+   "type": "resource-changed",
+   "impact": {
+    "stock": {
+     "megacredits": -6
+    },
+    "snapshot": {
+     "resource": "megacredits",
+     "scope": "stock",
+     "before": 46,
+     "after": 40
+    }
+   },
+   "correlationId": 5,
+   "visibility": "analytics",
+   "source": {
+    "kind": "corporation",
+    "card": "Pharmacy Union",
+    "owner": "red"
+   },
+   "player": "red",
+   "parentId": 5
+  }
+ ],
+ "eventSeq": 11,
+ "gameOptions": {
+  "altVenusBoard": false,
+  "aresExtension": true,
+  "aresHazards": false,
+  "aresExtremeVariant": false,
+  "boardName": "tharsis",
+  "randomFirstPlayer": false,
+  "bannedCards": [],
+  "includedCards": [],
+  "ceoExtension": false,
+  "coloniesExtension": false,
+  "communityCardsOption": false,
+  "corporateEra": true,
+  "customCeos": [],
+  "customColoniesList": [],
+  "customCorporationsList": [
+   "Manutech",
+   "Pharmacy Union"
+  ],
+  "customPreludes": [],
+  "customProjectCards": [],
+  "customBonusCards": [],
+  "draftVariant": false,
+  "expansions": {
+   "corpera": false,
+   "venus": true,
+   "colonies": false,
+   "prelude": false,
+   "prelude2": false,
+   "turmoil": false,
+   "promo": true,
+   "community": false,
+   "ares": true,
+   "moon": false,
+   "pathfinders": false,
+   "ceo": false,
+   "starwars": false,
+   "underworld": false,
+   "deltaProject": false
+  },
+  "fastModeOption": false,
+  "includeFanMA": false,
+  "initialDraftVariant": false,
+  "modularMA": false,
+  "moonExpansion": false,
+  "moonStandardProjectVariant": false,
+  "moonStandardProjectVariant1": false,
+  "pathfindersExpansion": false,
+  "politicalAgendasExtension": "Standard",
+  "preludeDraftVariant": false,
+  "ceosDraftVariant": false,
+  "preludeExtension": false,
+  "prelude2Expansion": false,
+  "promoCardsOption": true,
+  "randomMA": "No randomization",
+  "requiresMoonTrackCompletion": false,
+  "removeNegativeGlobalEventsOption": false,
+  "requiresVenusTrackCompletion": false,
+  "showOtherPlayersVP": false,
+  "showTimers": true,
+  "testMode": false,
+  "shuffleMapOption": false,
+  "solarPhaseOption": false,
+  "soloTR": false,
+  "startingCeos": 3,
+  "startingCorporations": 1,
+  "startingPreludes": 4,
+  "starWarsExpansion": false,
+  "turmoilExtension": false,
+  "underworldExpansion": false,
+  "deltaProjectExpansion": false,
+  "undoOption": false,
+  "venusNextExtension": true,
+  "twoCorpsVariant": false,
+  "skipInitialCardSelection": false
+ },
+ "generation": 1,
+ "globalsPerGeneration": [],
+ "id": "game-id",
+ "initialDraftIteration": 1,
+ "lastSaveId": 0,
+ "milestones": [
+  "Terraformer29",
+  "Mayor",
+  "Gardener",
+  "Builder",
+  "Planner",
+  "Hoverlord"
+ ],
+ "name": "Latent Vector Loop",
+ "oxygenLevel": 0,
+ "passedPlayers": [],
+ "phase": "action",
+ "players": [
+  {
+   "id": "p-player1-id",
+   "pickedCorporationCard": "Manutech",
+   "initialCardSelectionDone": true,
+   "terraformRating": 20,
+   "hasIncreasedTerraformRatingThisGeneration": false,
+   "terraformRatingFromCards": 0,
+   "terraformRatingSources": [],
+   "megaCredits": 60,
+   "megaCreditProduction": 0,
+   "steel": 1,
+   "steelProduction": 1,
+   "titanium": 0,
+   "titaniumProduction": 0,
+   "plants": 0,
+   "plantProduction": 0,
+   "energy": 0,
+   "energyProduction": 0,
+   "heat": 0,
+   "heatProduction": 0,
+   "titaniumValue": 3,
+   "steelValue": 2,
+   "canUseHeatAsMegaCredits": false,
+   "canUsePlantsAsMegaCredits": false,
+   "canUseTitaniumAsMegacredits": false,
+   "preservationProgram": false,
+   "trThisGeneration": 0,
+   "actionsTakenThisRound": 0,
+   "availableActionsThisRound": 2,
+   "bonusActions": 0,
+   "bonusActionsGranted": 0,
+   "pendingBonusGains": [],
+   "actionsThisGeneration": [],
+   "pendingInitialActions": [],
+   "dealtCorporationCards": [
+    "Manutech"
+   ],
+   "dealtPreludeCards": [],
+   "dealtCeoCards": [],
+   "dealtProjectCards": [
+    "Phobos Space Haven",
+    "Adaptation Technology",
+    "Micro-Mills",
+    "Heather",
+    "Lagrange Observatory",
+    "Sponsors",
+    "Extremophiles",
+    "Luna Metropolis",
+    "Indentured Workers",
+    "Viral Enhancers"
+   ],
+   "cardsInHand": [
+    "Phobos Space Haven",
+    "Adaptation Technology",
+    "Geological Survey",
+    "Artificial Photosynthesis",
+    "Nitrite Reducing Bacteria",
+    "Security Fleet"
+   ],
+   "pendingCardIntakes": [],
+   "preludeCardsInHand": [],
+   "ceoCardsInHand": [],
+   "playedCards": [
+    {
+     "name": "Manutech",
+     "resourceCount": 0,
+     "isDisabled": false
+    },
+    {
+     "name": "Carbon Nanosystems",
+     "resourceCount": 0
+    },
+    {
+     "name": "Olympus Conference",
+     "resourceCount": 1
+    },
+    {
+     "name": "Rover Construction",
+     "resourceCount": 0
+    },
+    {
+     "name": "Earth Catapult",
+     "resourceCount": 0
+    },
+    {
+     "name": "Decomposers",
+     "resourceCount": 0
+    },
+    {
+     "name": "Viral Enhancers",
+     "resourceCount": 0
+    },
+    {
+     "name": "Meat Industry",
+     "resourceCount": 0
+    },
+    {
+     "name": "Livestock",
+     "resourceCount": 0
+    }
+   ],
+   "draftedCards": [],
+   "cardCost": 3,
+   "cardDiscount": 0,
+   "fleetSize": 1,
+   "tradesThisGeneration": 0,
+   "colonyTradeOffset": 0,
+   "colonyTradeDiscount": 0,
+   "colonyVictoryPoints": 0,
+   "turmoilPolicyActionUsed": false,
+   "politicalAgendasActionUsedCount": 0,
+   "hasTurmoilScienceTagBonus": false,
+   "oceanBonus": 2,
+   "scienceTagCount": 0,
+   "plantTagCount": 0,
+   "jovianTagCount": 0,
+   "plantsNeededForGreenery": 8,
+   "removingPlayers": [],
+   "warmongerCards": 0,
+   "removedFromPlayCards": [],
+   "standardProjectsThisGeneration": [],
+   "withinDeflectionZone": false,
+   "name": "player1",
+   "color": "blue",
+   "beginner": false,
+   "handicap": 0,
+   "timer": {
+    "sumElapsed": 1,
+    "startedAt": 1789269845525,
+    "running": true,
+    "afterFirstAction": true,
+    "lastStoppedAt": 1789269845525
+   },
+   "actionsTakenThisGame": 1,
+   "victoryPointsByGeneration": [],
+   "totalDelegatesPlaced": 0,
+   "underworldData": {
+    "corruption": 0,
+    "tokens": []
+   },
+   "draftHand": [],
+   "autoPass": false,
+   "globalParameterSteps": {
+    "oceans": 0,
+    "oxygen": 0,
+    "temperature": 0,
+    "venus": 0,
+    "moon-habitat": 0,
+    "moon-mining": 0,
+    "moon-logistic": 0
+   }
+  },
+  {
+   "id": "p-player2-id",
+   "pickedCorporationCard": "Pharmacy Union",
+   "initialCardSelectionDone": true,
+   "terraformRating": 20,
+   "hasIncreasedTerraformRatingThisGeneration": false,
+   "terraformRatingFromCards": 0,
+   "terraformRatingSources": [],
+   "megaCredits": 30,
+   "megaCreditProduction": 0,
+   "steel": 0,
+   "steelProduction": 0,
+   "titanium": 0,
+   "titaniumProduction": 0,
+   "plants": 0,
+   "plantProduction": 0,
+   "energy": 0,
+   "energyProduction": 0,
+   "heat": 0,
+   "heatProduction": 0,
+   "titaniumValue": 3,
+   "steelValue": 2,
+   "canUseHeatAsMegaCredits": false,
+   "canUsePlantsAsMegaCredits": false,
+   "canUseTitaniumAsMegacredits": false,
+   "preservationProgram": false,
+   "trThisGeneration": 0,
+   "actionsTakenThisRound": 0,
+   "availableActionsThisRound": 2,
+   "bonusActions": 0,
+   "bonusActionsGranted": 0,
+   "pendingBonusGains": [],
+   "actionsThisGeneration": [],
+   "pendingInitialActions": [],
+   "dealtCorporationCards": [
+    "Pharmacy Union"
+   ],
+   "dealtPreludeCards": [],
+   "dealtCeoCards": [],
+   "dealtProjectCards": [
+    "Noctis City",
+    "Eos Chasma National Park",
+    "Imported Nutrients",
+    "Building Industries",
+    "Venus Magnetizer",
+    "Ishtar Mining",
+    "Mohole Area:ares",
+    "Deuterium Export",
+    "Standard Technology",
+    "Food Factory"
+   ],
+   "cardsInHand": [
+    "Noctis City",
+    "Eos Chasma National Park",
+    "Cutting Edge Technology"
+   ],
+   "pendingCardIntakes": [],
+   "preludeCardsInHand": [],
+   "ceoCardsInHand": [],
+   "playedCards": [
+    {
+     "name": "Pharmacy Union",
+     "resourceCount": 2,
+     "isDisabled": false
+    }
+   ],
+   "draftedCards": [],
+   "cardCost": 3,
+   "cardDiscount": 0,
+   "fleetSize": 1,
+   "tradesThisGeneration": 0,
+   "colonyTradeOffset": 0,
+   "colonyTradeDiscount": 0,
+   "colonyVictoryPoints": 0,
+   "turmoilPolicyActionUsed": false,
+   "politicalAgendasActionUsedCount": 0,
+   "hasTurmoilScienceTagBonus": false,
+   "oceanBonus": 2,
+   "scienceTagCount": 0,
+   "plantTagCount": 0,
+   "jovianTagCount": 0,
+   "plantsNeededForGreenery": 8,
+   "removingPlayers": [],
+   "warmongerCards": 0,
+   "removedFromPlayCards": [],
+   "standardProjectsThisGeneration": [],
+   "withinDeflectionZone": false,
+   "name": "player2",
+   "color": "red",
+   "beginner": false,
+   "handicap": 0,
+   "timer": {
+    "sumElapsed": 2,
+    "startedAt": 1789269845523,
+    "running": false,
+    "afterFirstAction": true,
+    "lastStoppedAt": 1789269845525
+   },
+   "actionsTakenThisGame": 0,
+   "victoryPointsByGeneration": [],
+   "totalDelegatesPlaced": 0,
+   "underworldData": {
+    "corruption": 0,
+    "tokens": []
+   },
+   "draftHand": [],
+   "autoPass": false,
+   "globalParameterSteps": {
+    "oceans": 0,
+    "oxygen": 0,
+    "temperature": 0,
+    "venus": 0,
+    "moon-habitat": 0,
+    "moon-mining": 0,
+    "moon-logistic": 0
+   }
+  }
+ ],
+ "preludeDeck": {
+  "drawPile": [
+   "Albedo Plants",
+   "Boom Town",
+   "Established Methods",
+   "Corporate Archives",
+   "New Partner",
+   "Merger",
+   "Anti-desertification Techniques",
+   "Giant Solar Collector"
+  ],
+  "discardPile": []
+ },
+ "projectDeck": {
+  "drawPile": [
+   "Ants",
+   "Security Fleet",
+   "Release of Inert Gases",
+   "Stanford Torus",
+   "Black Polar Dust",
+   "Harvest",
+   "Arctic Algae",
+   "Soil Enrichment",
+   "Colonizer Training Camp",
+   "Corroder Suits",
+   "Gyropolis",
+   "Corporate Stronghold",
+   "Fueled Generators",
+   "Methane From Titan",
+   "Orbital Reflectors",
+   "Research",
+   "Ecological Zone:ares",
+   "Bactoviral Research",
+   "Investment Loan",
+   "Field-Capped City",
+   "Ocean Farm",
+   "Satellites",
+   "Sulphur Exports",
+   "Advanced Ecosystems",
+   "Vermin",
+   "ArchaeBacteria",
+   "Atalanta Planitia Lab",
+   "Miranda Resort",
+   "Ecological Survey",
+   "Lava Flows:ares",
+   "Commercial District:ares",
+   "Law Suit",
+   "Forced Precipitation",
+   "Ocean City",
+   "Venus Soils",
+   "Water Import From Europa",
+   "Crash Site Cleanup",
+   "Saturn Surfing",
+   "Bio Printing Facility",
+   "Research Outpost",
+   "Self-replicating Robots",
+   "Zeppelins",
+   "Magnetic Shield",
+   "Floyd Continuum",
+   "Media Group",
+   "Sterling Vents",
+   "Space Elevator",
+   "Aquifer Pumping",
+   "Ocean Sanctuary",
+   "Bioengineering Enclosure",
+   "Topsoil Contract",
+   "Permafrost Extraction",
+   "Virus",
+   "Meltworks",
+   "Flooding",
+   "16 Psyche",
+   "Small Animals",
+   "Gene Repair",
+   "GHG Import From Venus",
+   "Noctis Farming",
+   "Lunar Beam",
+   "Maxwell Base",
+   "Venus Waystation",
+   "Luxury Foods",
+   "Outdoor Sports",
+   "Bushes",
+   "Geological Survey",
+   "Protected Growth",
+   "Caretaker Contract",
+   "Advertising",
+   "Comet Aiming",
+   "Open City",
+   "Large Convoy",
+   "Worms",
+   "Tectonic Stress Power",
+   "Big Asteroid",
+   "Windmills",
+   "Homeostasis Bureau",
+   "Dawn City",
+   "Olympus Conference",
+   "GHG Factories",
+   "Public Baths",
+   "Floating Habs",
+   "Mars Nomads",
+   "Land Claim",
+   "Rad-Chem Factory",
+   "Asteroid Mining Consortium",
+   "Venusian Animals",
+   "Asteroid",
+   "Soil Factory",
+   "Plantation",
+   "Static Harvesting",
+   "Local Heat Trapping",
+   "Directed Heat Usage",
+   "Teslaract",
+   "Tardigrades",
+   "Ganymede Colony",
+   "Giant Space Mirror",
+   "Ore Processor",
+   "Restricted Area:ares",
+   "Solar Logistics",
+   "Hermetic Order of Mars",
+   "Space Mirrors",
+   "Water Splitting Plant",
+   "Martian Rails",
+   "Metallic Asteroid",
+   "Kaguya Tech",
+   "Mercurian Alloys",
+   "Anti-Gravity Technology",
+   "Wave Power",
+   "Orbital Cleanup",
+   "Electro Catapult",
+   "New Holland",
+   "Domed Crater",
+   "Solar Farm",
+   "GHG Producing Bacteria",
+   "Directed Impactors",
+   "Natural Preserve:ares",
+   "Immigrant City",
+   "Aerial Mappers",
+   "Sabotage",
+   "Martian Lumber Corp",
+   "Heat Trappers",
+   "Carbon Nanosystems",
+   "Great Escarpment Consortium",
+   "Energy Market",
+   "Penguins",
+   "Towing A Comet",
+   "Magnetic Field Dome",
+   "Physics Complex",
+   "Air-Scrapping Expedition",
+   "Fish",
+   "Nitrophilic Moss",
+   "Jovian Embassy",
+   "Power Supply Consortium",
+   "Symbiotic Fungus",
+   "Asteroid Deflection System",
+   "Extreme-Cold Fungus",
+   "Urbanized Area",
+   "Power Grid",
+   "Convoy From Europa",
+   "Rotator Impacts",
+   "Small Asteroid",
+   "Immigration Shuttles",
+   "Capital:ares",
+   "Io Sulphur Research",
+   "Optimal Aerobraking",
+   "Predators",
+   "Neutralizer Factory",
+   "Comet",
+   "Steelworks",
+   "Imported Hydrogen",
+   "Toll Station",
+   "Red Ships",
+   "Cyberia Systems",
+   "Neptunian Power Consultants",
+   "Lichen",
+   "Birds",
+   "Business Network",
+   "Thermophiles",
+   "Stratospheric Birds",
+   "Potatoes",
+   "Energy Saving",
+   "Nuclear Power",
+   "Import of Advanced GHG",
+   "Marketing Experts",
+   "Medical Lab",
+   "Snow Algae",
+   "Industrial Center:ares",
+   "Rad-Suits",
+   "Mangrove",
+   "Designed Microorganisms",
+   "Meat Industry",
+   "Regolith Eaters",
+   "Great Dam:ares",
+   "Casinos",
+   "Asteroid Hollowing",
+   "Callisto Penal Mines",
+   "CEO's Favorite Project",
+   "Peroxide Power",
+   "Mine",
+   "Diversity Support",
+   "Spin-Inducing Asteroid",
+   "Supercapacitors",
+   "Vesta Shipyard",
+   "Stratopolis",
+   "Mining Area:ares",
+   "Mining Quota",
+   "City Parks",
+   "Artificial Photosynthesis",
+   "Venusian Insects",
+   "Extractor Balloons",
+   "Acquired Company",
+   "Solar Power",
+   "Mineral Deposit",
+   "Freyja Biodomes",
+   "Terraforming Ganymede",
+   "Sister Planet Support",
+   "Giant Ice Asteroid",
+   "Hydrogen to Venus",
+   "Pets",
+   "Hospitals",
+   "St. Joseph of Cupertino Mission",
+   "Mohole Lake",
+   "Biomass Combustors",
+   "Lake Marineris",
+   "Imported GHG",
+   "Power Infrastructure",
+   "Robot Pollinators",
+   "Soletta",
+   "Terraforming Contract",
+   "Greenhouses",
+   "Business Contacts",
+   "Atmoscoop",
+   "Equatorial Magnetizer",
+   "Robotic Workforce",
+   "Mass Converter",
+   "Protected Habitats",
+   "Comet for Venus",
+   "Lightning Harvest",
+   "Decomposers",
+   "Magnetic Field Generators:ares",
+   "Asteroid Mining",
+   "Tropical Resort",
+   "Farming",
+   "Omnicourt",
+   "Breathing Filters",
+   "Hired Raiders",
+   "Astra Mechanica",
+   "Aerobraked Ammonia Asteroid",
+   "Underground Detonations",
+   "Space Station",
+   "Rego Plastics",
+   "Insects",
+   "Development Center",
+   "Sub-Crust Measurements",
+   "Nuclear Zone:ares",
+   "Special Design",
+   "Supermarkets",
+   "Bribed Committee",
+   "Inventors' Guild",
+   "Trans-Neptune Probe",
+   "Geothermal Power",
+   "Earth Office",
+   "Venus Governor",
+   "Kelp Farming",
+   "Ice Asteroid",
+   "Deimos Down:ares",
+   "Invention Contest",
+   "Public Plans",
+   "Hi-Tech Lab",
+   "Tundra Farming",
+   "Mars University",
+   "Nitrite Reducing Bacteria",
+   "Herbivores",
+   "Technology Demonstration",
+   "Hackers",
+   "Beam From A Thorium Asteroid",
+   "Sulphur-Eating Bacteria",
+   "Energy Tapping",
+   "Dirigibles",
+   "Jet Stream Microscrappers",
+   "Artificial Lake",
+   "Protected Valley",
+   "Underground City",
+   "Imported Nitrogen",
+   "Cupola City",
+   "Project Inspection",
+   "Solarnet",
+   "Aerosport Tournament",
+   "Livestock",
+   "Carbonate Processing",
+   "Water to Venus",
+   "Advanced Alloys",
+   "Bio-Fertilizer Facility",
+   "Dusk Laser Mining",
+   "Insulation",
+   "Power Plant",
+   "Giant Solar Shade",
+   "Weather Balloons",
+   "Grass",
+   "Adapted Lichen",
+   "Cloud Seeding",
+   "Cartel",
+   "Icy Impactors",
+   "Interplanetary Trade",
+   "Aqueduct Systems",
+   "Algae",
+   "Titanium Mine",
+   "Industrial Microbes",
+   "Trees",
+   "Subterranean Reservoir",
+   "Io Mining Industries",
+   "Interstellar Colony Ship",
+   "Asteroid Rights",
+   "Sponsored Academies",
+   "Local Shading",
+   "Earth Catapult",
+   "AI Central",
+   "Butterfly Effect",
+   "Search For Life",
+   "Ice Cap Melting",
+   "Nitrogen-Rich Asteroid",
+   "Solar Wind Power",
+   "Mining Expedition",
+   "Rover Construction",
+   "Fusion Power",
+   "Ironworks",
+   "Media Archives",
+   "Venusian Plants",
+   "Dust Seals",
+   "Strip Mine",
+   "Fuel Factory",
+   "Quantum Extractor"
+  ],
+  "discardPile": [
+   "Micro-Mills",
+   "Heather",
+   "Lagrange Observatory",
+   "Sponsors",
+   "Extremophiles",
+   "Luna Metropolis",
+   "Indentured Workers",
+   "Viral Enhancers",
+   "Imported Nutrients",
+   "Building Industries",
+   "Venus Magnetizer",
+   "Ishtar Mining",
+   "Mohole Area:ares",
+   "Deuterium Export",
+   "Standard Technology",
+   "Food Factory",
+   "Moss",
+   "Mining Rights:ares",
+   "Shuttles",
+   "Deep Well Heating",
+   "Desperate Measures"
+  ]
+ },
+ "researchedPlayers": [],
+ "seed": 0,
+ "someoneHasRemovedOtherPlayersPlants": false,
+ "spectatorId": "spectator-id",
+ "tags": [
+  "microbe",
+  "space",
+  "city",
+  "plant",
+  "jovian",
+  "building",
+  "venus",
+  "power",
+  "science",
+  "animal",
+  "earth"
+ ],
+ "scaleBonusClaims": [],
+ "temperature": -30,
+ "tradeEmbargo": false,
+ "underworldData": {
+  "tokens": []
+ },
+ "undoCount": 0,
+ "venusScaleLevel": 0,
+ "verminInEffect": false,
+ "aresData": {
+  "includeHazards": false,
+  "hazardData": {
+   "erosionOceanCount": {
+    "threshold": 3,
+    "available": true
+   },
+   "removeDustStormsOceanCount": {
+    "threshold": 6,
+    "available": true
+   },
+   "severeErosionTemperature": {
+    "threshold": -4,
+    "available": true
+   },
+   "severeDustStormOxygen": {
+    "threshold": 5,
+    "available": true
+   }
+  },
+  "milestoneResults": [
+   {
+    "id": "p-player1-id",
+    "networkerCount": 0,
+    "purifierCount": 0
+   },
+   {
+    "id": "p-player2-id",
+    "networkerCount": 0,
+    "purifierCount": 0
+   }
+  ]
+ }
+}

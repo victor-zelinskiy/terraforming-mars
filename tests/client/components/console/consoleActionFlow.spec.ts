@@ -176,6 +176,16 @@ describe('consoleActionFlow', () => {
       expect(bare[bare.length - 1].label).to.eq('Cancel');
     });
 
+    /** The effect forecast's R3 «Эффекты» — setup-level only, forecast-gated. */
+    it('main: R3 «Effects» is published only when the forecast has something to show', () => {
+      const on = focusCommandRun({state: 'main', focused: 'cta', canConfirm: true, forecast: true});
+      expect(on.map((c) => c.label)).to.deep.eq(['Confirm', 'Inspect', 'Effects', 'Cancel']);
+      expect(on.find((c) => c.label === 'Effects')?.control).to.eq('stickR');
+      const off = focusCommandRun({state: 'main', focused: 'cta', canConfirm: true, forecast: false});
+      expect(off.some((c) => c.control === 'stickR')).to.eq(false);
+      expect(focusCommandRun({state: 'sub-payment', covers: true}).some((c) => c.control === 'stickR')).to.eq(false);
+    });
+
     it('X is NEVER a confirm — the quick-confirm X is retired for grammar consistency', () => {
       const states = [
         focusCommandRun({state: 'main', focused: 'amount', canConfirm: true}),

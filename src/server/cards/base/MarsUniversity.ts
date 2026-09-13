@@ -13,6 +13,10 @@ import {CardName} from '../../../common/cards/CardName';
 import {Priority} from '../../deferredActions/Priority';
 import {CardRenderer} from '../render/CardRenderer';
 import {ICard} from '../ICard';
+import {EffectForecastFact} from '../../../common/models/EffectForecastModel';
+import {EffectForecastContext} from '../EffectForecastContext';
+import * as actionPreviews from '../actionPreviews';
+import * as forecast from '../effectForecastPreviews';
 
 export class MarsUniversity extends Card implements IProjectCard {
   constructor() {
@@ -38,6 +42,38 @@ export class MarsUniversity extends Card implements IProjectCard {
   public onCardPlayed(player: IPlayer, card: ICard) {
     const scienceTags = player.tags.cardTagCount(card, Tag.SCIENCE);
     this.onScienceTagAdded(player, scienceTags);
+  }
+  /**
+   * Mirrors `onCardPlayed` + `onScienceTagAdded`: one QUESTION per science tag
+   * (discard a card to draw one, or do nothing), asked at
+   * `Priority.DISCARD_AND_DRAW` — after the card's own choices. The live
+   * prompt is skipped with an empty hand; at forecast time the played card is
+   * still in that hand, so the hand AFTER the play is what decides.
+   */
+  public cardPlayedForecast(cardOwner: IPlayer, _activePlayer: IPlayer, card: ICard, ctx: EffectForecastContext): ReadonlyArray<EffectForecastFact> {
+    const scienceTags = cardOwner.tags.cardTagCount(card, Tag.SCIENCE);
+    if (scienceTags === 0) {
+      return [];
+    }
+    const source = forecast.sourceOf(this, cardOwner, 'card-played');
+    const fromHand = ctx.operation === 'play' && cardOwner.cardsInHand.some((c) => c.name === card.name);
+    const handAfter = cardOwner.cardsInHand.length - (fromHand ? 1 : 0);
+    const facts: Array<EffectForecastFact> = [];
+    for (let i = 0; i < scienceTags; i++) {
+      if (handAfter === 0) {
+        facts.push(forecast.skipped(source,
+          [{direction: 'cost', icon: 'cards', amount: 1}, actionPreviews.drawGain(1)],
+          'No other card in hand to discard',
+          {id: `science-${i}`, reasonTag: Tag.SCIENCE}));
+        continue;
+      }
+      facts.push(forecast.asks(source,
+        [{direction: 'cost', icon: 'cards', amount: 1}, actionPreviews.drawGain(1)],
+        [{label: 'Do nothing', effects: []}],
+        'You play a card with a ${0} tag',
+        {id: `science-${i}`, reasonTag: Tag.SCIENCE, sequence: Priority.DISCARD_AND_DRAW, timing: 'after-card'}));
+    }
+    return facts;
   }
   public onNonCardTagAdded(player: IPlayer, tag: Tag) {
     if (tag === Tag.SCIENCE) {

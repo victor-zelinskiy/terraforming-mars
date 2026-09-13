@@ -14,6 +14,10 @@ import {Board} from '../../boards/Board';
 import {BoardFact} from '../../../common/boards/BoardInformationFacts';
 import {PlacementPreviewContext} from '../../boards/PlacementPreviewContext';
 import * as placementPreviews from '../placementPreviews';
+import * as actionPreviews from '../actionPreviews';
+import * as forecast from '../effectForecastPreviews';
+import {EffectForecastFact} from '../../../common/models/EffectForecastModel';
+import {EffectForecastTile} from '../EffectForecastContext';
 
 export class ArcticAlgae extends Card implements IProjectCard {
   constructor() {
@@ -48,6 +52,19 @@ export class ArcticAlgae extends Card implements IProjectCard {
           (b) => b.player(cardOwner).string(Resource.PLANTS).cardName(this.name))),
         cardOwner.id !== activePlayer.id ? Priority.OPPONENT_TRIGGER : undefined);
     }
+  }
+
+  /** The forecast mirror of `onTilePlaced`: 2 plants per PLAIN ocean the operation places, whoever places it. */
+  public tilePlacedForecast(cardOwner: IPlayer, activePlayer: IPlayer, tile: EffectForecastTile): ReadonlyArray<EffectForecastFact> {
+    if (!forecast.placesUncoveredOcean(tile)) {
+      return [];
+    }
+    return [forecast.deferred(forecast.sourceOf(this, cardOwner, 'tile-placed'),
+      [actionPreviews.stockGain(cardOwner, Resource.PLANTS, 2 * tile.count)],
+      'An ocean tile is placed', {
+        recipient: forecast.recipientOf(activePlayer, cardOwner),
+        sequence: forecast.triggerSequence(cardOwner, activePlayer),
+      })];
   }
 
   public tilePlacedPreview(cardOwner: IPlayer, activePlayer: IPlayer, _space: Space, ctx: PlacementPreviewContext): ReadonlyArray<BoardFact> {

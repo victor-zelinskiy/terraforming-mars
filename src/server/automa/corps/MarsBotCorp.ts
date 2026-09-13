@@ -9,6 +9,8 @@ import {ICard} from '../../cards/ICard';
 import {Space} from '../../boards/Space';
 import {IProjectCard} from '../../cards/IProjectCard';
 import type {BonusCardOutcome} from '../AutomaBonusCards';
+import {EffectForecastFact} from '../../../common/models/EffectForecastModel';
+import {EffectForecastContext} from '../../cards/EffectForecastContext';
 
 /**
  * One MarsBot corporation's SERVER behavior — the printed rule boxes of the
@@ -143,6 +145,16 @@ export type MarsBotCorp = {
    * table — C08's Jovian clause is written for both seats.
    */
   onHumanCardPlayed?(game: IGame, player: IPlayer, card: ICard): void;
+
+  /**
+   * READ-ONLY mirror of {@link onHumanCardPlayed} — what this corporation will
+   * do when the human plays `card` (the effect forecast's «Получат другие» /
+   * «Вас спросят» rows for the bot seat). Asked by the forecast engine in the
+   * same position `Player.onCardPlayed` dispatches the live hook; a
+   * corporation with the live hook but no forecast is reported as `unknown`,
+   * never as silence. MUST NOT mutate game state or the automa record.
+   */
+  humanCardPlayedForecast?(game: IGame, player: IPlayer, card: ICard, ctx: EffectForecastContext): ReadonlyArray<EffectForecastFact>;
 
   /**
    * A COLONY was just built by `builder` — either seat. Dispatched from BOTH

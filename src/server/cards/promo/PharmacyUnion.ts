@@ -15,6 +15,9 @@ import {Size} from '../../../common/cards/render/Size';
 import {Resource} from '../../../common/Resource';
 import {all, digit} from '../Options';
 import {SerializedCard} from '../../SerializedCard';
+import {EffectForecastFact} from '../../../common/models/EffectForecastModel';
+import * as actionPreviews from '../actionPreviews';
+import * as forecast from '../effectForecastPreviews';
 
 export class PharmacyUnion extends CorporationCard implements ICorporationCard {
   constructor() {
@@ -149,6 +152,92 @@ export class PharmacyUnion extends CorporationCard implements ICorporationCard {
     if (tag === Tag.SCIENCE) {
       this.onScienceTagAdded(player, 1);
     }
+  }
+
+  /**
+   * Mirrors `onCardPlayedByAnyPlayer` branch for branch, reading the same
+   * predicates in the same order:
+   *  - the OWNER's own science tag (never a foreign play): a stored disease is
+   *    removed for 1 TR (or refused by an unaffordable Reds tax — `skipped`);
+   *    with none stored the player is ASKED to turn the card face down for
+   *    3 TR (or do nothing);
+   *  - a microbe + science card with NO disease stored asks the ORDER question
+   *    first (both outcomes carry the 4 M€ loss), and then nothing else;
+   *  - ANY player's microbe tag adds one disease per PRINTED microbe tag and
+   *    takes up to 4 M€ each — at `Priority.PHARMACY_UNION`, before the card's
+   *    own choices;
+   *  - the science half that stays silent under a firing microbe half is the
+   *    honest «no» (the tag half of the card that will not fire).
+   */
+  public cardPlayedForecast(cardOwner: IPlayer, activePlayer: IPlayer, card: ICard): ReadonlyArray<EffectForecastFact> {
+    if (this.isDisabled) {
+      return [];
+    }
+    const source = forecast.sourceOf(this, cardOwner, 'card-played-by-any');
+    const recipient = forecast.recipientOf(activePlayer, cardOwner);
+    const own = cardOwner.id === activePlayer.id;
+    const hasScienceTag = cardOwner.tags.cardHasTag(card, Tag.SCIENCE);
+    const hasMicrobesTag = card.tags.includes(Tag.MICROBE);
+    const facts: Array<EffectForecastFact> = [];
+    const mcLoss = (): number => Math.min(cardOwner.megaCredits, 4);
+
+    let orderChoiceAsked = false;
+    if (own && hasScienceTag) {
+      if (hasMicrobesTag && this.resourceCount === 0) {
+        if (cardOwner.canAfford({cost: 0, tr: {tr: 3}})) {
+          orderChoiceAsked = true;
+          facts.push(forecast.asks(source,
+            [actionPreviews.trGain(cardOwner, 3), actionPreviews.stockCost(cardOwner, Resource.MEGACREDITS, mcLoss())],
+            [{
+              label: 'Add a disease to it and lose up to 4 M€, then remove a disease to gain 1 TR',
+              effects: [actionPreviews.trGain(cardOwner, 1), actionPreviews.stockCost(cardOwner, Resource.MEGACREDITS, mcLoss())],
+            }],
+            'You play a card with both a microbe and a science tag',
+            {id: 'order', sequence: Priority.PHARMACY_UNION, reasonTag: Tag.SCIENCE}));
+        }
+      } else {
+        const scienceTags = cardOwner.tags.cardTagCount(card, Tag.SCIENCE);
+        let stored = this.resourceCount;
+        for (let i = 0; i < scienceTags; i++) {
+          if (stored > 0) {
+            if (cardOwner.canAfford({cost: 0, tr: {tr: 1}})) {
+              facts.push(forecast.exact(source,
+                [{...actionPreviews.cardCost(this, 1), current: stored, resulting: stored - 1}, actionPreviews.trGain(cardOwner, 1)],
+                'You play a card with a ${0} tag',
+                {id: `science-${i}`, reasonTag: Tag.SCIENCE, sequence: Priority.SUPERPOWER, timing: 'before-card-choices'}));
+              stored--;
+            } else {
+              facts.push(forecast.skipped(source, [actionPreviews.trGain(cardOwner, 1)],
+                'The Reds ruling party makes the TR step unaffordable', {id: `science-${i}`, reasonTag: Tag.SCIENCE}));
+            }
+            continue;
+          }
+          if (!cardOwner.canAfford({cost: 0, tr: {tr: 3}})) {
+            facts.push(forecast.skipped(source, [actionPreviews.trGain(cardOwner, 3)],
+              'The Reds ruling party makes the TR step unaffordable', {id: `science-${i}`, reasonTag: Tag.SCIENCE}));
+            continue;
+          }
+          facts.push(forecast.asks(source,
+            [actionPreviews.trGain(cardOwner, 3)],
+            [{label: 'Do nothing', effects: []}],
+            'You play a card with a ${0} tag',
+            {id: `science-${i}`, reasonTag: Tag.SCIENCE, sequence: Priority.SUPERPOWER}));
+        }
+      }
+    }
+
+    if (hasMicrobesTag && !orderChoiceAsked) {
+      const microbeTagCount = card.tags.filter((cardTag) => cardTag === Tag.MICROBE).length;
+      const loss = Math.min(cardOwner.megaCredits, microbeTagCount * 4);
+      facts.push(forecast.exact(source,
+        [actionPreviews.cardGain(this, microbeTagCount), actionPreviews.stockCost(cardOwner, Resource.MEGACREDITS, loss)],
+        'Any player plays a card with a ${0} tag',
+        {id: 'microbe', reasonTag: Tag.MICROBE, recipient, sequence: Priority.PHARMACY_UNION, timing: 'before-card-choices'}));
+      if (own && !hasScienceTag) {
+        facts.push(forecast.no(source, 'The card has no science tag', {id: 'science-no', reasonTag: Tag.SCIENCE}));
+      }
+    }
+    return facts;
   }
 
   /**

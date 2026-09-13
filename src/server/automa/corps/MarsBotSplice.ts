@@ -11,6 +11,8 @@ import {AutomaTurnLog} from '../AutomaTurnLog';
 import {bumpCorpStat, marsBotOf} from '../AutomaUtil';
 import {destroyBonusCard, seedBonusDeckFromProjectDeck} from './MarsBotBonusDeckOps';
 import {MarsBotCorp} from './MarsBotCorp';
+import {EffectForecastFact} from '../../../common/models/EffectForecastModel';
+import {EffectForecastContext} from '../../cards/EffectForecastContext';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.C24_SPLICE);
 /** The printed seeding: reveal until ONE card carries a microbe tag. */
@@ -116,6 +118,31 @@ export const MarsBotSplice: MarsBotCorp = {
     // here — a second line would duplicate what those gains already say.
     game.events.withEffect(bot, splice, 'card-played-by-any',
       () => splice.onCardPlayedByAnyPlayer?.(bot, card, player));
+  },
+
+  /**
+   * The forecast mirror of `onHumanCardPlayed` — and, like it, the HUMAN
+   * card's own line: Splice's co-located `cardPlayedForecast` asked with the
+   * bot as the owner, re-sourced as this corporation (one rule, one reading,
+   * one forecast). The bot's 2 M€ half lands on the bot seat; the human's
+   * choice / gain half on the player.
+   */
+  humanCardPlayedForecast(game: IGame, player: IPlayer, card: ICard, ctx: EffectForecastContext): ReadonlyArray<EffectForecastFact> {
+    if (player.tags.cardTagCount(card, Tag.MICROBE) === 0) {
+      return [];
+    }
+    const splice = newCorporationCard(CardName.SPLICE);
+    if (splice?.cardPlayedForecast === undefined) {
+      return [];
+    }
+    const bot = marsBotOf(game);
+    // The CHANNEL stays the human card's (`card-played-by-any`): that is the
+    // scope `onHumanCardPlayed` records the live payout under, and the
+    // forecast ↔ execution parity guard matches facts to events by it.
+    return splice.cardPlayedForecast(bot, player, card, ctx).map((fact) => ({
+      ...fact,
+      source: {...fact.source, kind: 'automa-corporation', name: INFO.original},
+    }));
   },
 
   onTagResolved(game: IGame, tag: Tag): void {

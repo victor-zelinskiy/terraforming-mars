@@ -9,7 +9,9 @@ import {CardRenderer} from '../render/CardRenderer';
 import {ColoniesHandler} from '../../colonies/ColoniesHandler';
 import {SerializedCard} from '../../SerializedCard';
 import {ICard} from '../ICard';
+import {EffectForecastFact} from '../../../common/models/EffectForecastModel';
 import * as actionPreviews from '../actionPreviews';
+import * as forecast from '../effectForecastPreviews';
 
 export class Aridor extends CorporationCard implements ICorporationCard {
   constructor() {
@@ -89,6 +91,29 @@ export class Aridor extends CorporationCard implements ICorporationCard {
 
   public onCardPlayed(player: IPlayer, card: ICard) {
     this.processTags(player, this.tagsForCard(card));
+  }
+  /**
+   * Mirrors `onCardPlayed` + `processTags`: +1 M€ production for every tag
+   * TYPE the card brings that the tableau has never held (events count for
+   * nothing; a wild tag never does). One fact per new type, so the row and
+   * the layer name each tag.
+   */
+  public cardPlayedForecast(cardOwner: IPlayer, _activePlayer: IPlayer, card: ICard): ReadonlyArray<EffectForecastFact> {
+    const seen = new Set<Tag>(this.allTags);
+    const facts: Array<EffectForecastFact> = [];
+    let step = 0;
+    for (const tag of this.tagsForCard(card)) {
+      if (seen.has(tag)) {
+        continue;
+      }
+      seen.add(tag);
+      facts.push(forecast.exact(forecast.sourceOf(this, cardOwner, 'card-played'),
+        [{...actionPreviews.productionChange(cardOwner, Resource.MEGACREDITS, 1),
+          current: cardOwner.production.megacredits + step, resulting: cardOwner.production.megacredits + step + 1}],
+        'You play a new type of tag', {id: `tag-${tag}`, reasonTag: tag}));
+      step++;
+    }
+    return facts;
   }
 
   public serialize(serialized: SerializedCard) {

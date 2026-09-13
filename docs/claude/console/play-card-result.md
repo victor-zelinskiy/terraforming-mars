@@ -143,6 +143,33 @@ selection ring and must not read as a third option.
 
 ---
 
+## 2b · The «Сработает» unit and the «↳» reactions (the effect forecast)
+
+Level 2 gained one more UNIT: **⚡ Сработает:** — what the TABLE answers to
+this play over and above the card's own result (`ConsoleForecastRow.vue`,
+`.con-composer__rescat--forecast`; the model and the laws live in
+`docs/claude/console/effect-forecast.md`). It obeys every rule of the cluster
+above — content-sized, same rhythm, same type, a calm mint hairline for the
+TRIGGERS family — and three of its own:
+
+* **chips only, no names, no counts to add up**: an own gain is the ordinary
+  mint chip, a question is that chip with a «?» badge, another seat's gain
+  wears a steel chassis with the seat's colour bar, every uncomputed reaction
+  folds into ONE dashed «⚡ ?», and past four chips a «+N» — the R3 layer
+  names every source;
+* **it is NOT a focus stop** — no cursor, no selection, no A; a click (or R3)
+  opens the layer, and the row's tail carries the R3 key as its only glyph;
+* **it is absent while the forecast is empty**, and nothing is reserved while
+  the preview loads (the forecast arrives inside it).
+
+A reaction tied to ONE branch is never in the row: it rides INSIDE that
+option card (`.con-forecast__vchip` in `__variant-chips`, «↳» before the chip,
+at most two + «+N»), so the player compares the options together with what
+each one triggers. A SKIPPED reaction (Mars University with no other card in
+hand) joins the existing `__warn` strip with its source and the magnitude
+lost. The payment head below gains its discount tail («ЦЕНА 10 → 8» + «−2»)
+from the same forecast — see `payment-panel.md`.
+
 ## 3 · The heading
 
 `Result` → **`Choose the result`** when the card asks a real question

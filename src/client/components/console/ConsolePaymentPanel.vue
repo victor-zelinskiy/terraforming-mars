@@ -19,11 +19,21 @@
     <div class="con-pay__head">
       <span class="con-pay__title">{{ $t(titleKey) }}</span>
 
-      <!-- The PRICE leads the block — everything below explains how it is met. -->
-      <span class="con-pay__price">
+      <!-- The PRICE leads the block — everything below explains how it is met.
+           A DISCOUNTED price reads «ЦЕНА 10 → 8» in the console's «was →
+           becomes» vocabulary plus a mint «−2» pill — the printed cost, what
+           is actually paid, and the saving, at the SAME head height (the
+           layout-shift contract: the pill is line-height bound). The sources
+           of the discount live in the R3 «Эффекты» layer, never here. -->
+      <span class="con-pay__price" :class="{'con-pay__price--discounted': discount !== undefined}">
         <span class="con-pay__price-label">{{ $t('Cost') }}</span>
+        <template v-if="discount !== undefined">
+          <span class="con-pay__price-base" data-pay-base>{{ discount.base }}</span>
+          <span class="con-pay__price-arrow" aria-hidden="true">→</span>
+        </template>
         <b class="con-pay__price-value">{{ view.cost }}</b>
         <i class="resource_icon con-pay__price-icon" :class="'resource_icon--' + costUnit" aria-hidden="true"></i>
+        <span v-if="discount !== undefined" class="con-pay__price-saved" data-pay-saved>−{{ discount.base - discount.final }}</span>
       </span>
 
       <!-- The mode switch as a SECONDARY action OF THIS BLOCK (never a
@@ -113,6 +123,13 @@ export default defineComponent({
      * rows. The English card name IS its i18n key.
      */
     sourceCard: {type: String, default: undefined},
+    /**
+     * The DISCOUNT this price carries (the effect forecast's
+     * `discounts.base/final`): the head reads «ЦЕНА base → final» plus a
+     * «−saved» pill. Undefined (no discount) renders the head exactly as it
+     * always did; the pill never changes the head's height.
+     */
+    discount: {type: Object as PropType<{base: number, final: number} | undefined>, default: undefined},
   },
   computed: {
     /** The price's denomination — every icon/aria in the panel follows it. */
@@ -133,7 +150,8 @@ export default defineComponent({
     },
     panelLabel(): string {
       const unit = this.view.costUnit !== undefined ? translateText(paymentUnitLabel(this.view.costUnit)) : 'M€';
-      return `${translateText(this.titleKey)}: ${translateText('Cost')} ${this.view.cost} ${unit}`;
+      const price = this.discount === undefined ? `${this.view.cost}` : `${this.discount.base} → ${this.view.cost}`;
+      return `${translateText(this.titleKey)}: ${translateText('Cost')} ${price} ${unit}`;
     },
     sourceLabel(): string {
       return this.sourceCard === undefined ?

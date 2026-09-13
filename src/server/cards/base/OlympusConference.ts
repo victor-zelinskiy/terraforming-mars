@@ -12,6 +12,9 @@ import {CardRenderer} from '../render/CardRenderer';
 import {ICard} from '../ICard';
 import {addResourceToCard, removeResourceFromCard, chip} from '../../inputs/optionMetadata';
 import {cardEffect} from '../../inputs/choiceContext';
+import {EffectForecastFact} from '../../../common/models/EffectForecastModel';
+import * as actionPreviews from '../actionPreviews';
+import * as forecast from '../effectForecastPreviews';
 
 export class OlympusConference extends Card implements IProjectCard {
   constructor() {
@@ -47,6 +50,39 @@ export class OlympusConference extends Card implements IProjectCard {
   public onCardPlayed(player: IPlayer, card: ICard) {
     const scienceTags = player.tags.cardTagCount(card, Tag.SCIENCE);
     this.onScienceTagAdded(player, scienceTags);
+  }
+  /**
+   * Mirrors `onCardPlayed` + `onScienceTagAdded`: per science tag, the SAME
+   * test the deferred callback makes — at ZERO science the resource is added
+   * without a question, at one or more the player is ASKED (remove one to
+   * draw, or add one), at `Priority.OLYMPUS_CONFERENCE` — before the card's
+   * own choices. Two tags are walked in order: the first may add silently and
+   * the second then asks, exactly as the two lazy callbacks resolve.
+   */
+  public cardPlayedForecast(cardOwner: IPlayer, _activePlayer: IPlayer, card: ICard): ReadonlyArray<EffectForecastFact> {
+    const scienceTags = cardOwner.tags.cardTagCount(card, Tag.SCIENCE);
+    if (scienceTags === 0) {
+      return [];
+    }
+    const source = forecast.sourceOf(this, cardOwner, 'card-played');
+    const facts: Array<EffectForecastFact> = [];
+    let stored = this.resourceCount;
+    for (let i = 0; i < scienceTags; i++) {
+      if (stored === 0) {
+        facts.push(forecast.exact(source,
+          [{...actionPreviews.cardGain(this, 1), current: stored, resulting: stored + 1}],
+          'You play a card with a ${0} tag',
+          {id: `science-${i}`, reasonTag: Tag.SCIENCE, sequence: Priority.OLYMPUS_CONFERENCE, timing: 'before-card-choices'}));
+        stored++;
+        continue;
+      }
+      facts.push(forecast.asks(source,
+        [{...actionPreviews.cardCost(this, 1), current: stored, resulting: stored - 1}, actionPreviews.drawGain(1)],
+        [{label: 'Add a science resource to this card', effects: [{...actionPreviews.cardGain(this, 1), current: stored, resulting: stored + 1}]}],
+        'You play a card with a ${0} tag',
+        {id: `science-${i}`, reasonTag: Tag.SCIENCE, sequence: Priority.OLYMPUS_CONFERENCE}));
+    }
+    return facts;
   }
   public onNonCardTagAdded(player: IPlayer, tag: Tag) {
     if (tag === Tag.SCIENCE) {

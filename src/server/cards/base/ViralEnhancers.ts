@@ -14,6 +14,9 @@ import {addResourceToCard, chip} from '../../inputs/optionMetadata';
 import {cardEffect} from '../../inputs/choiceContext';
 import {ICard} from '../ICard';
 import {Resource} from '../../../common/Resource';
+import {EffectForecastFact} from '../../../common/models/EffectForecastModel';
+import * as actionPreviews from '../actionPreviews';
+import * as forecast from '../effectForecastPreviews';
 
 export class ViralEnhancers extends Card implements IProjectCard {
   constructor() {
@@ -82,5 +85,31 @@ export class ViralEnhancers extends Card implements IProjectCard {
     if (tag === Tag.PLANT) {
       this.addPlant(player, 1);
     }
+  }
+
+  /**
+   * Mirrors `onCardPlayed`: a card that cannot hold animals / microbes pays
+   * plants outright (one per tag, synchronously); a card that can hold them
+   * ASKS per tag — a resource on THAT card, or a plant — deferred at
+   * `Priority.DEFAULT` after the card's own action.
+   */
+  public cardPlayedForecast(cardOwner: IPlayer, _activePlayer: IPlayer, card: ICard): ReadonlyArray<EffectForecastFact> {
+    const resourceCount = cardOwner.tags.cardTagCount(card, [Tag.ANIMAL, Tag.PLANT, Tag.MICROBE]);
+    if (resourceCount === 0) {
+      return [];
+    }
+    const source = forecast.sourceOf(this, cardOwner, 'card-played');
+    const reason = 'You play a card with an animal, plant or microbe tag';
+    if (card.resourceType !== CardResource.ANIMAL && card.resourceType !== CardResource.MICROBE) {
+      return [forecast.exact(source, [actionPreviews.stockGain(cardOwner, Resource.PLANTS, resourceCount)], reason)];
+    }
+    const facts: Array<EffectForecastFact> = [];
+    for (let i = 0; i < resourceCount; i++) {
+      facts.push(forecast.asks(source,
+        [{...actionPreviews.cardResourceGain(card.resourceType, 1), note: 'on the played card'}],
+        [{label: 'Gain plant', effects: [actionPreviews.stockGain(cardOwner, Resource.PLANTS, 1)]}],
+        reason, {id: `tag-${i}`, ...forecast.AFTER_CARD}));
+    }
+    return facts;
   }
 }

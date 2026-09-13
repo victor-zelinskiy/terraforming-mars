@@ -30797,6 +30797,347 @@ html.console-mode {
     to { opacity: 1; }
 }
 
+/* ═══ THE EFFECT FORECAST — «Сработает» + the R3 «Эффекты» layer
+   (docs/claude/console/effect-forecast.md). Three pieces, one language:
+     · `.con-forecast`            — the compact row (a unit of the composer's
+                                    result cluster / the action formula's
+                                    fourth side): chips only, not a focus stop;
+     · `.con-composer__fxlayer`   — the layer's overlay INSIDE the composer's
+                                    work column (the column parks underneath —
+                                    nothing unmounts, nothing re-flows);
+     · `.con-efx--forecast`       — the effects explorer's forecast mode: the
+                                    eight groups as sections, the «ПОРЯДОК»
+                                    band, the five-question dossier.
+   Every state is colour / box-shadow (the paint baseline strips filters). ═══ */
+
+/* ── The compact row. Inherits the unit chassis it stands in (`__rescat` on
+   the play screen, `__hero-side` on the action screen) and only adds its
+   own reading: mint glyph · caption · chips · the R3 key. ── */
+.con-forecast {
+    display: flex; align-items: center; flex-wrap: wrap; gap: .35rem;
+    min-width: 0;
+    cursor: pointer;
+    &__glyph { flex-shrink: 0; width: 1rem; text-align: center; font-size: .8rem; color: @con-mint; }
+    &__label { flex-shrink: 0; font-weight: 600; color: fade(@con-text, 92%); }
+    &__chips { display: inline-flex; align-items: center; flex-wrap: wrap; gap: .3rem; min-width: 0; }
+    /* The R3 key rides the row's tail — the ONE on-object glyph this unit
+       carries (the bar names the verb). */
+    &__key { flex-shrink: 0; margin-left: .1rem; display: inline-flex; align-items: center; .gp-glyph { transform: scale(0.72); opacity: 0.85; } }
+    /* The chips are the COMPACT family — the same tokens the result strip
+       and the branch formulas ride (doubled classes: the chip-system rule). */
+    .action-effect-chip.action-effect-chip {
+        font-size: var(--con-chip-c-fs, .82rem);
+        padding: var(--con-chip-c-pad, .14rem .42rem .14rem .26rem);
+        gap: var(--con-chip-c-gap, .22rem);
+        border-radius: var(--con-chip-c-radius, .5rem);
+    }
+    .action-effect-chip__icon.action-effect-chip__icon { width: var(--con-chip-c-icon, 1.05rem); height: var(--con-chip-c-icon, 1.05rem); }
+    .action-effect-chip__note.action-effect-chip__note { font-size: var(--con-chip-c-note, .62rem); }
+    /* One chip = the shared chip + its forecast BADGE, positioned by the wrap.
+       Keyed on its value, so a refreshed number re-mounts the chip and plays
+       the 100 ms flick the cell dossier plays on a changed value (opacity
+       only — the paint baseline). */
+    &__chip {
+        position: relative;
+        display: inline-flex; align-items: center; gap: .2rem;
+        flex-shrink: 0;
+        animation: con-forecast-flick calc(100ms * var(--motion-scale, 1)) ease-out;
+    }
+    @media (prefers-reduced-motion: reduce) {
+        &__chip { animation: none; }
+    }
+    /* «?» — you will be ASKED: a round cyan badge on the chip's top-right
+       corner; the glyph is TEXT (no sprite exists for a question). */
+    &__ask {
+        position: absolute; top: -.32rem; right: -.32rem;
+        width: .85rem; height: .85rem; border-radius: 50%;
+        display: inline-flex; align-items: center; justify-content: center;
+        font-size: .58rem; font-weight: 800; line-height: 1;
+        color: #0b1620; background: @con-cyan;
+        box-shadow: 0 0 0 .08rem rgba(8, 14, 22, 0.85);
+        pointer-events: none;
+    }
+    /* ANOTHER SEAT'S gain / loss: the shared chip on a STEEL chassis (never
+       mint — mint means «mine») with the owner's colour BAR on the leading
+       edge and a DOT before the number. Both ride `player_bg_color_*`. */
+    &__chip--other {
+        padding-left: .2rem;
+        border-radius: var(--con-chip-c-radius, .5rem);
+        background: rgba(120, 140, 165, 0.14);
+        box-shadow: inset 0 0 0 .05rem rgba(150, 175, 205, 0.34);
+        .action-effect-chip.action-effect-chip {
+            background: none; box-shadow: none; padding-left: .1rem;
+        }
+        .action-effect-chip--gain.action-effect-chip--gain .action-effect-chip__amount,
+        .action-effect-chip--gain.action-effect-chip--gain .action-effect-chip__res { color: #dbe8f4; }
+    }
+    &__owner-bar {
+        flex-shrink: 0;
+        width: .3rem; height: 1.15rem; border-radius: .15rem;
+        box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.28);
+    }
+    &__owner-dot {
+        flex-shrink: 0;
+        width: .55rem; height: .55rem; border-radius: 50%;
+        box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.35), 0 0 .3rem rgba(0, 0, 0, 0.5);
+    }
+    /* «⚡ ?» — a reaction that fires but was NOT calculated: one dashed steel
+       chip for all of them (the layer's «Позже» group names each). */
+    &__unknown {
+        display: inline-flex; align-items: center;
+        padding: var(--con-chip-c-pad, .14rem .42rem .14rem .26rem);
+        border-radius: var(--con-chip-c-radius, .5rem);
+        font-size: var(--con-chip-c-fs, .82rem); font-weight: 800; letter-spacing: .05rem;
+        color: fade(@con-text, 78%);
+        background: rgba(120, 140, 165, 0.1);
+        box-shadow: inset 0 0 0 .05rem rgba(150, 175, 205, 0.34);
+        outline: .05rem dashed rgba(170, 195, 220, 0.55); outline-offset: -.25rem;
+    }
+    /* «+N» — the fold past the cap. */
+    &__more {
+        display: inline-flex; align-items: center;
+        padding: .14rem .4rem; border-radius: var(--con-chip-c-radius, .5rem);
+        font-size: var(--con-chip-c-fs, .82rem); font-weight: 800; font-variant-numeric: tabular-nums;
+        color: fade(@con-text, 84%);
+        background: rgba(20, 30, 42, 0.62);
+        box-shadow: inset 0 0 0 .05rem rgba(150, 175, 205, 0.3);
+    }
+    /* The action screen's fourth side carries its own `__hero-label` — no
+       caption of its own, only the glyph and the chips. */
+    &--bare &__glyph { font-size: .9rem; }
+    /* The COMMIT pulse (the descend's first beat) — a one-shot ring flare on
+       the unit, the same phrase every pressed object in the console speaks. */
+    &--descend { animation: con-forecast-descend calc(260ms * var(--motion-scale, 1)) ease; }
+
+    /* ── «↳» — a reaction drawn INSIDE a variant / branch option card. ── */
+    &__vchip {
+        position: relative;
+        display: inline-flex; align-items: center; gap: .15rem;
+        padding-left: .1rem;
+        border-radius: var(--con-chip-c-radius, .5rem);
+        background: rgba(88, 214, 166, 0.06);
+        box-shadow: inset 0 0 0 .05rem fade(@con-mint, 22%);
+        .action-effect-chip.action-effect-chip { background: none; box-shadow: none; padding-left: .12rem; }
+        &--other {
+            background: rgba(120, 140, 165, 0.12);
+            box-shadow: inset 0 0 0 .05rem rgba(150, 175, 205, 0.34);
+            .action-effect-chip--gain.action-effect-chip--gain .action-effect-chip__amount { color: #dbe8f4; }
+        }
+        &--more {
+            padding: .1rem .4rem .1rem .25rem;
+            font-size: .72rem; font-weight: 800; font-variant-numeric: tabular-nums;
+            color: fade(@con-text, 84%);
+            background: rgba(20, 30, 42, 0.62);
+            box-shadow: inset 0 0 0 .05rem rgba(150, 175, 205, 0.3);
+        }
+    }
+    &__vchip-glyph { flex-shrink: 0; padding-left: .2rem; font-size: .8rem; font-weight: 800; color: fade(@con-mint, 88%); }
+    &__vchip--other &__vchip-glyph { color: fade(@con-text, 70%); }
+}
+@keyframes con-forecast-descend {
+    0% { box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.16); }
+    45% { box-shadow: inset 0 0 0 .12rem fade(@con-mint, 92%), 0 0 1.2rem fade(@con-mint, 40%); }
+    100% { box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.16); }
+}
+@keyframes con-forecast-flick {
+    from { opacity: 0.35; }
+    to { opacity: 1; }
+}
+
+/* ── The effects explorer in FORECAST MODE — additions only; the chassis
+   (`.con-efx` tiles, dossier, stage, motion, fit) is untouched. ── */
+.con-efx--forecast {
+    /* ONE tile per row (the model packs the rows the same way): the layer
+       stands in half a band beside the dossier, and two abreast left the
+       source name and the caption two characters wide at 4K. */
+    .con-efx__list-body { grid-template-columns: 1fr; }
+    /* The facet strip's group glyphs — the SAME glyphs the row's chips carry
+       (⚡ ? ↳ − ▍ … ⚠ ✕): the legend is learnt by adjacency. */
+    .con-efx__chip-glyph { font-weight: 800; color: fade(@con-text, 80%); }
+    .con-efx__chip-glyph--receive { color: @con-mint; }
+    .con-efx__chip-glyph--asked, .con-efx__chip-glyph--depends { color: @con-cyan; }
+    .con-efx__chip-glyph--discounts { color: @con-amber; }
+    .con-efx__chip-glyph--skipped { color: @con-amber; }
+    .con-efx__chip-glyph--no { color: fade(@con-red, 85%); }
+
+    /* ── «ПОРЯДОК» — one quiet line above the grid: numbered steps, the
+       play's own moments (the card's choice, the cell) among them. ── */
+    .con-efx__order {
+        flex-shrink: 0;
+        display: flex; align-items: baseline; gap: .5rem; flex-wrap: wrap;
+        margin: 0 0 .35rem;
+        padding: .28rem .6rem; border-radius: .5rem;
+        background: rgba(12, 20, 32, 0.55);
+        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.16);
+        min-width: 0;
+    }
+    .con-efx__order-label { flex-shrink: 0; font-size: .62rem; letter-spacing: .1rem; text-transform: uppercase; color: fade(@con-cyan, 90%); }
+    .con-efx__order-steps { display: flex; align-items: baseline; flex-wrap: wrap; gap: .25rem .4rem; margin: 0; padding: 0; list-style: none; min-width: 0; }
+    .con-efx__order-step {
+        display: inline-flex; align-items: baseline; gap: .3rem;
+        font-size: .74rem; color: fade(@con-text, 90%);
+        b { font-size: .7rem; font-weight: 800; color: @con-cyan; font-variant-numeric: tabular-nums; }
+        &--card-choice, &--cell { color: fade(@con-text, 72%); font-style: italic; }
+    }
+    .con-efx__order-arrow { color: fade(@con-text, 45%); }
+
+    /* ── A SECTION header spans the grid; its tiles restart at column 1. ── */
+    .con-efx__fsection {
+        grid-column: 1 / -1;
+        display: flex; align-items: center; gap: .4rem;
+        min-width: 0; margin-top: .15rem;
+        padding: .1rem .2rem .18rem;
+        box-shadow: 0 .05rem 0 rgba(120, 150, 185, 0.18);
+        &:first-child { margin-top: 0; }
+    }
+    .con-efx__fsection-glyph { width: 1rem; text-align: center; font-size: .85rem; font-weight: 800; color: fade(@con-text, 80%); }
+    .con-efx__fsection-label { font-size: .68rem; font-weight: 800; letter-spacing: .1rem; text-transform: uppercase; color: fade(@con-text, 88%); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .con-efx__fsection-count { font-size: .7rem; font-weight: 800; color: fade(@con-text, 60%); font-variant-numeric: tabular-nums; }
+    .con-efx__fsection--receive .con-efx__fsection-glyph { color: @con-mint; }
+    .con-efx__fsection--asked .con-efx__fsection-glyph, .con-efx__fsection--depends .con-efx__fsection-glyph { color: @con-cyan; }
+    .con-efx__fsection--discounts .con-efx__fsection-glyph, .con-efx__fsection--skipped .con-efx__fsection-glyph { color: @con-amber; }
+    .con-efx__fsection--no .con-efx__fsection-glyph { color: fade(@con-red, 85%); }
+
+    /* ── The tile's rail takes the GROUP's tone (mint mine · cyan asked /
+       depends · amber discounts / skipped · steel others / later · red no). ── */
+    .con-efx__tile--fx-receive::before { background: fade(@con-mint, 75%); }
+    .con-efx__tile--fx-asked::before, .con-efx__tile--fx-depends::before { background: fade(@con-cyan, 70%); }
+    .con-efx__tile--fx-discounts::before, .con-efx__tile--fx-skipped::before { background: fade(@con-amber, 62%); }
+    .con-efx__tile--fx-others::before, .con-efx__tile--fx-later::before { background: rgba(150, 175, 205, 0.42); }
+    .con-efx__tile--fx-no::before { background: fade(@con-red, 45%); }
+    .con-efx__tile--fx-no, .con-efx__tile--fx-skipped { .con-efx__graphic, .con-efx__desc { opacity: 0.72; } }
+    /* The head: the SOURCE (card / rule) leads, the owner plate follows for a
+       foreign seat, the WHEN chip closes the line. */
+    .con-efx__tile-src {
+        flex: 0 1 auto; min-width: 0;
+        font-size: .74rem; font-weight: 800; letter-spacing: .01rem; color: fade(@con-text, 94%);
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .con-efx__tile-owner {
+        flex: 0 1 auto; min-width: 0;
+        display: inline-flex; align-items: center; gap: .25rem;
+        font-size: .62rem; color: fade(@con-text, 74%);
+        span:last-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    }
+    .con-efx__owner-dot {
+        flex-shrink: 0; width: .55rem; height: .55rem; border-radius: 50%;
+        box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.35), 0 0 .3rem rgba(0, 0, 0, 0.5);
+    }
+    .con-efx__tile-fam--fx-receive { color: @con-mint; background: fade(@con-mint, 10%); }
+    .con-efx__tile-fam--fx-asked, .con-efx__tile-fam--fx-depends { color: fade(@con-cyan, 92%); background: fade(@con-cyan, 10%); }
+    .con-efx__tile-fam--fx-discounts, .con-efx__tile-fam--fx-skipped { color: @con-amber; background: fade(@con-amber, 10%); }
+    .con-efx__tile-fam--fx-others, .con-efx__tile-fam--fx-later { color: fade(@con-text, 78%); background: rgba(120, 150, 180, 0.12); }
+    .con-efx__tile-fam--fx-no { color: #ffb0a6; background: fade(@con-red, 10%); }
+    /* The META line = the forecast for THIS play: chips + one word. The chips
+       are the compact family; the line may wrap to a second row on a long
+       question («жетон или карта»), so it is bounded by the slot's flex. */
+    .con-efx__meta-line--fx {
+        flex-wrap: wrap; gap: .25rem .3rem;
+        white-space: normal;
+        span { white-space: normal; overflow: visible; }
+        .action-effect-chip.action-effect-chip {
+            font-size: var(--con-chip-c-fs, .82rem);
+            padding: var(--con-chip-c-pad, .14rem .42rem .14rem .26rem);
+            gap: var(--con-chip-c-gap, .22rem);
+            border-radius: var(--con-chip-c-radius, .5rem);
+        }
+        .action-effect-chip__icon.action-effect-chip__icon { width: var(--con-chip-c-icon, 1.05rem); height: var(--con-chip-c-icon, 1.05rem); }
+        .action-effect-chip__note.action-effect-chip__note { font-size: var(--con-chip-c-note, .62rem); }
+    }
+    .con-efx__meta-text { font-size: .7rem; color: fade(@con-text, 80%); }
+    .con-efx__meta-num { font-size: .82rem; font-weight: 800; color: @con-mint; font-variant-numeric: tabular-nums; }
+    .con-efx__meta-line--fx-no .con-efx__meta-text { color: #ffb0a6; }
+    .con-efx__meta-line--fx-skipped .con-efx__meta-text { color: fade(@con-amber, 90%); }
+    .con-efx__meta-line--fx-later .con-efx__meta-text { color: fade(@con-text, 70%); }
+    .con-efx__meta-line--fx-asked .con-efx__meta-text, .con-efx__meta-line--fx-depends .con-efx__meta-text { color: fade(@con-cyan, 92%); }
+    .con-efx__meta-line .con-efx__meta-icon { width: .95rem; height: .95rem; }
+    .con-efx__fq-or { font-size: .62rem; font-weight: 800; letter-spacing: .08rem; text-transform: uppercase; color: rgba(150, 180, 210, 0.6); padding: 0 .1rem; }
+
+    /* ── The dossier's owner line (a foreign source). ── */
+    .con-efx__detail-owner { display: flex; align-items: center; gap: .3rem; font-size: .72rem; color: fade(@con-text, 78%); }
+
+    /* ── «ЧТО ПРОИЗОЙДЁТ» — the five questions in a fixed order: a label
+       column and the answer beside it; chips are the compact family. ── */
+    .con-efx__fq {
+        display: flex; flex-direction: column; gap: .3rem; min-width: 0;
+        padding: .45rem .55rem; border-radius: .5rem;
+        background: rgba(10, 18, 28, 0.55);
+        box-shadow: inset 0 0 0 .05rem fade(@con-mint, 18%);
+    }
+    .con-efx__fq-title {
+        display: flex; align-items: center; justify-content: space-between; gap: .5rem;
+        font-size: .62rem; font-weight: 800; letter-spacing: .1rem; text-transform: uppercase; color: @con-mint;
+        .con-efx__tile-fam { margin-left: 0; }
+    }
+    .con-efx__fq-row { display: grid; grid-template-columns: 4.4rem minmax(0, 1fr); gap: .35rem; align-items: baseline; min-width: 0; }
+    .con-efx__fq-label { font-size: .6rem; letter-spacing: .06rem; text-transform: uppercase; color: fade(@con-text, 62%); padding-top: .12rem; }
+    .con-efx__fq-value {
+        display: flex; align-items: center; flex-wrap: wrap; gap: .25rem .3rem; min-width: 0;
+        font-size: .78rem; color: fade(@con-text, 94%); line-height: 1.3;
+        .action-effect-chip.action-effect-chip {
+            font-size: var(--con-chip-c-fs, .82rem);
+            padding: var(--con-chip-c-pad, .14rem .42rem .14rem .26rem);
+            gap: var(--con-chip-c-gap, .22rem);
+            border-radius: var(--con-chip-c-radius, .5rem);
+        }
+        .action-effect-chip__icon.action-effect-chip__icon { width: var(--con-chip-c-icon, 1.05rem); height: var(--con-chip-c-icon, 1.05rem); }
+    }
+    .con-efx__fq-text { overflow-wrap: anywhere; }
+    .con-efx__fq-note { flex-basis: 100%; font-size: .66rem; color: fade(@con-cyan, 88%); }
+    .con-efx__fq-tag { width: 1.15rem; height: 1.15rem; margin: 0; line-height: 1.15rem; background-size: contain; background-position: center; background-repeat: no-repeat; flex-shrink: 0; }
+    .con-efx__fq-state {
+        display: inline-flex; align-items: center;
+        padding: .05rem .4rem; border-radius: 49.95rem;
+        font-size: .58rem; font-weight: 800; letter-spacing: .06rem; text-transform: uppercase;
+        &--met { color: @con-mint; background: fade(@con-mint, 10%); box-shadow: inset 0 0 0 .05rem fade(@con-mint, 40%); }
+        &--depends { color: @con-cyan; background: fade(@con-cyan, 10%); box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 40%); }
+        &--unmet { color: #ffb0a6; background: fade(@con-red, 10%); box-shadow: inset 0 0 0 .05rem fade(@con-red, 40%); }
+    }
+    /* At the DETAIL stage the block is the surface's LEAD: larger chips, a
+       wider label column, the group chip on its title line. */
+    .con-efx__fq--stage {
+        padding: .6rem .8rem;
+        gap: .4rem;
+        .con-efx__fq-row { grid-template-columns: 5.4rem minmax(0, 1fr); }
+        .con-efx__fq-value { font-size: .9rem; }
+        .con-efx__fq-value .action-effect-chip.action-effect-chip { font-size: .95rem; padding: .2rem .55rem .2rem .35rem; }
+        .con-efx__fq-value .action-effect-chip__icon.action-effect-chip__icon { width: 1.25rem; height: 1.25rem; }
+        .con-efx__fq-label { font-size: .64rem; }
+    }
+    /* A cardless source keeps the hero column's geometry with its glyph. */
+    .con-efx__hero-rule {
+        width: 7.5rem; height: 10.2rem; border-radius: .7rem;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 2.6rem; color: fade(@con-cyan, 60%);
+        background: rgba(8, 14, 22, 0.6); box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 22%);
+    }
+    /* «За партию» is SECONDARY here — it recedes under the forecast block. */
+    .con-efx__summary--quiet { opacity: 0.82; }
+}
+
+/* ── The layer's overlay INSIDE the composer's work column: the column
+   parks underneath (autoAlpha — layout intact), the panel unfolds from the
+   row's rect. Absolute by design, so opening it can never re-flow the
+   frame: the two states are stacked layers of ONE zone. ── */
+.con-composer__playright,
+.con-composer__actright { position: relative; }
+.con-composer__fxlayer {
+    position: absolute; inset: 0;
+    z-index: 3;
+    display: flex; flex-direction: column;
+    min-height: 0; min-width: 0;
+}
+.con-composer__fxpanel {
+    flex: 1; min-height: 0; min-width: 0;
+    display: flex; flex-direction: column;
+    padding: .6rem .7rem;
+    border-radius: .7rem;
+    background: rgba(8, 14, 22, 0.78);
+    box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 22%), 0 .5rem 1.4rem rgba(0, 0, 0, 0.4);
+    /* The explorer takes the panel's whole height (its own body scrolls). */
+    .con-efx { flex: 1; min-height: 0; }
+}
+
 /* ── ACTION COMPOSER (ConsoleActionComposer.vue) — the pre-submit setup
    panel for one blue-card action: LIVE cost→reward hero + the decision rows
    (branch / amount stepper / card / player / payment / spend-heat) + its own
@@ -30887,6 +31228,17 @@ html.console-mode {
     &__hero-label { font-size: .6rem; letter-spacing: .07rem; text-transform: uppercase; color: @con-text-dim; }
     &__hero-chips { display: flex; align-items: center; flex-wrap: wrap; gap: .4rem; }
     &__hero-arrow { font-size: 1.3rem; font-weight: 800; color: fade(@con-cyan, 90%); align-self: center; }
+    /* The formula's FOURTH side — «Сработает» — is set apart from the
+       cost → reward pair by a quiet mint hairline on its leading edge; the
+       row itself is the shared unit (no caption: the side's label names it). */
+    &__hero-side--forecast {
+        padding-left: .7rem;
+        box-shadow: inset .05rem 0 0 fade(@con-mint, 34%);
+    }
+    &__hero-forecast { gap: .3rem; }
+    /* …and with NO formula, one line under the rule (never a new section). */
+    &__hero-forecast--line { margin-left: auto; font-size: .8rem; color: @con-text; }
+    &__hero--plain { display: flex; align-items: center; flex-wrap: wrap; gap: .6rem; }
     /* Hero «списано → получите» is RESULT METADATA beside its label, so it
        takes the COMPACT variant — it used to take the system size plus a notch,
        which made the consequence chip the loudest object on the screen and read
@@ -31424,6 +31776,12 @@ html.console-mode {
         background: rgba(14, 24, 36, 0.5);
         box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.11);
     }
+    /* The «Сработает» unit is the one unit whose CONTENT is a chip row: it
+       takes the cluster's whole width when the line cannot hold it beside
+       its neighbours (never the 30rem reading cap — its chips are not prose)
+       and never shrinks in place (a caption on one line and its chips on the
+       next is the wrong reading). */
+    .con-composer__rescat--forecast { flex: 0 0 auto; max-width: 100%; }
     /* (The tag icons stay ONE object without help: `__rescat-tags` is an
        `inline-flex`, i.e. `nowrap` by construction. What it must NOT be is a
        band of its own — hence no `--tags` rule here any more.) */
@@ -32361,6 +32719,18 @@ body.con-zoom-open .con-ptlink { opacity: 0; }
         font-size: .625rem; font-weight: 500; line-height: 1.25;
         color: fade(@con-amber, 74%);
     }
+    /* The «Сработает» unit — the same chassis as its neighbours, a mint
+       hairline for the TRIGGERS family it belongs to, and it may grow past
+       the reading measure: its chips are the content. */
+    &__rescat--forecast {
+        box-shadow: inset 0 0 0 .05rem fade(@con-mint, 30%);
+        /* NEVER SHRINK beside its neighbours: when the line cannot hold the
+           whole row, the row takes the NEXT line of the cluster whole — one
+           reading, never a caption on one line and its chips on the next. */
+        flex: 0 0 auto;
+        max-width: 100%;
+        gap: .35rem;
+    }
 
     /* (The old inline `__pay*` chip panel is gone — the play composer now
        mounts the shared `.con-pay` panel, which carries BOTH densities. Only
@@ -33178,6 +33548,14 @@ html.con-profile-handheld .con-composer--embed {
     .con-composer__rescat-tag { width: 1.05rem; height: 1.05rem; line-height: 1.05rem; }
     .con-composer__cta { margin-top: .45rem; padding: .55rem .8rem; }
     .con-composer__cta-label { font-size: .9rem; }
+    /* The «Сработает» unit may take ONE extra line on the Deck (the spec's
+       allowance) — its chips shrink with the compact tokens. */
+    .con-forecast { gap: .25rem; }
+    .con-forecast .action-effect-chip.action-effect-chip { font-size: .68rem; padding: .1rem .32rem .1rem .2rem; }
+    .con-forecast .action-effect-chip__icon.action-effect-chip__icon { width: .85rem; height: .85rem; }
+    .con-forecast__unknown, .con-forecast__more { font-size: .68rem; padding: .1rem .32rem; }
+    .con-forecast__key .gp-glyph { transform: scale(0.6); }
+    .con-composer__fxpanel { padding: .4rem .45rem; }
 }
 
 /* Large / 4K — a gentle readability boost only. */
@@ -33337,6 +33715,22 @@ html.con-profile-handheld .con-efx {
         --efx-desc-fs-brief: .68rem;  --efx-desc-lines-brief: 3;
         --efx-desc-fs-reg: .68rem;    --efx-desc-lines-reg: 3;
         --efx-desc-fs-dense: .68rem;  --efx-desc-lines-dense: 3;
+    }
+    /* FORECAST mode on the Deck: the dossier column folds into a top PLATE
+       (name + group + the five questions, no card face) so the tile grid
+       keeps the room; the panel itself never scrolls past the band. */
+    &.con-efx--forecast {
+        .con-efx__body { flex-direction: column; gap: .4rem; }
+        /* Natural height for the five questions (the list below scrolls);
+           a cap here cut «КОГДА» off the plate at the Deck's smaller rem. */
+        .con-efx__detail { flex: 0 0 auto; max-height: none; padding: .4rem .5rem; gap: .25rem; }
+        .con-efx__detail-cardwrap { display: none; }
+        .con-efx__detail-rule, .con-efx__detail-count { display: none; }
+        .con-efx__fq { padding: .3rem .4rem; gap: .2rem; }
+        .con-efx__fq-row { grid-template-columns: 3.6rem minmax(0, 1fr); }
+        .con-efx__fq-value { font-size: .68rem; }
+        .con-efx__order-step { font-size: .66rem; }
+        .con-efx__tile-src { font-size: .68rem; }
     }
 }
 

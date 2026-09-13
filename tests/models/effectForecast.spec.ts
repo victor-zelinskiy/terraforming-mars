@@ -1,0 +1,342 @@
+import {expect} from 'chai';
+import {testGame} from '../TestGame';
+import {testAutomaGame} from '../automa/AutomaTestGame';
+import {Resource} from '../../src/common/Resource';
+import {CardName} from '../../src/common/cards/CardName';
+import {Tag} from '../../src/common/cards/Tag';
+import {Priority} from '../../src/server/deferredActions/Priority';
+import {MarsBotCorpId} from '../../src/common/automa/AutomaTypes';
+import {cardPlayPreview} from '../../src/server/models/cardPlayPreview';
+import {actionPreview} from '../../src/server/models/actionPreview';
+import {effectForecastForAction, effectForecastForPlay, grantOfEffect, tilesOfBranch} from '../../src/server/models/effectForecast';
+import {allForecastFacts, forecastIsEmpty} from '../../src/common/models/EffectForecastModel';
+import {CarbonNanosystems} from '../../src/server/cards/promo/CarbonNanosystems';
+import {OlympusConference} from '../../src/server/cards/base/OlympusConference';
+import {PharmacyUnion} from '../../src/server/cards/promo/PharmacyUnion';
+import {RoverConstruction} from '../../src/server/cards/base/RoverConstruction';
+import {Pets} from '../../src/server/cards/base/Pets';
+import {EarthCatapult} from '../../src/server/cards/base/EarthCatapult';
+import {GeologicalSurvey} from '../../src/server/cards/ares/GeologicalSurvey';
+import {ImmigrantCity} from '../../src/server/cards/base/ImmigrantCity';
+import {Manutech} from '../../src/server/cards/venusNext/Manutech';
+import {ArtificialPhotosynthesis} from '../../src/server/cards/base/ArtificialPhotosynthesis';
+import {Bushes} from '../../src/server/cards/base/Bushes';
+import {ViralEnhancers} from '../../src/server/cards/base/ViralEnhancers';
+import {NitriteReducingBacteria} from '../../src/server/cards/base/NitriteReducingBacteria';
+import {SoilBacteria} from '../../src/server/cards/prelude2/SoilBacteria';
+import {SaturnSystems} from '../../src/server/cards/corporation/SaturnSystems';
+import {IoMiningIndustries} from '../../src/server/cards/base/IoMiningIndustries';
+import {MediaGroup} from '../../src/server/cards/base/MediaGroup';
+import {MeatIndustry} from '../../src/server/cards/promo/MeatIndustry';
+import {Livestock} from '../../src/server/cards/base/Livestock';
+import {AquiferPumping} from '../../src/server/cards/base/AquiferPumping';
+import {ArcticAlgae} from '../../src/server/cards/base/ArcticAlgae';
+import {Asteroid} from '../../src/server/cards/base/Asteroid';
+import {OptimalAerobraking} from '../../src/server/cards/base/OptimalAerobraking';
+import {Decomposers} from '../../src/server/cards/base/Decomposers';
+import {TopsoilContract} from '../../src/server/cards/promo/TopsoilContract';
+import {ICard} from '../../src/server/cards/ICard';
+import {IPlayer} from '../../src/server/IPlayer';
+
+/**
+ * THE EFFECT FORECAST ENGINE — a MIRROR of the live fan-out, never a
+ * simulation. Each spec pins one law of `effectForecast.ts`:
+ *  · read-only (the game serializes identically before and after);
+ *  · the same walk `Player.onCardPlayed` makes, including the played card
+ *    itself («including this») and every other seat's reactors, addressed to
+ *    their recipient;
+ *  · the certainty ladder (exact / asks / conditional / deferred / unknown /
+ *    skipped / no) decided by the SAME predicates the live hooks read;
+ *  · the second-order and tile passes, the discounts and the payment values;
+ *  · the «current → resulting» arrow stripped off a pool the card touches.
+ */
+function playForecast(player: IPlayer, card: ICard) {
+  return effectForecastForPlay(player, card, cardPlayPreview(player, card));
+}
+
+describe('effectForecast (engine)', () => {
+  it('is read-only: a full table of triggers, forecast, and the game is byte-identical', () => {
+    const [game, player, opponent] = testGame(2);
+    player.playedCards.push(new CarbonNanosystems(), new OlympusConference(), new RoverConstruction(), new EarthCatapult(), new Manutech(), new MeatIndustry(), new Pets());
+    opponent.playedCards.push(new PharmacyUnion(), new SaturnSystems(), new ArcticAlgae());
+    player.cardsInHand.push(new ImmigrantCity(), new GeologicalSurvey(), new IoMiningIndustries(), new Livestock());
+    player.megaCredits = 60;
+    player.production.override({energy: 2});
+    const before = JSON.stringify(game.serialize());
+    const eventsBefore = game.events.events.length;
+    const deferredBefore = game.deferredActions.length;
+    for (const card of player.cardsInHand) {
+      playForecast(player, card);
+    }
+    expect(JSON.stringify(game.serialize())).to.eq(before);
+    expect(game.events.events.length, 'no event recorded').to.eq(eventsBefore);
+    expect(game.deferredActions.length, 'nothing deferred').to.eq(deferredBefore);
+    expect(player.getWaitingFor(), 'no prompt raised').to.be.undefined;
+  });
+
+  it('answers an empty table honestly: no facts, no discount, coverage complete', () => {
+    const [/* game */, player] = testGame(2);
+    const survey = new GeologicalSurvey();
+    player.cardsInHand.push(survey);
+    const forecast = playForecast(player, survey);
+    expect(forecast.facts).to.deep.eq([]);
+    expect(forecast.coverage).to.eq('complete');
+    expect(forecast.discounts).to.deep.eq({base: 8, final: 8, items: [], other: 0});
+    expect(forecast.paymentValues).to.deep.eq([]);
+    expect(forecastIsEmpty(forecast)).to.be.true;
+  });
+
+  it('mirrors the own-table walk: Carbon Nanosystems gains a graphene, Olympus Conference adds its first science silently', () => {
+    const [/* game */, player] = testGame(2);
+    const nano = new CarbonNanosystems();
+    const olympus = new OlympusConference();
+    player.playedCards.push(nano, olympus);
+    const survey = new GeologicalSurvey();
+    player.cardsInHand.push(survey);
+    const forecast = playForecast(player, survey);
+    const nanoFact = forecast.facts.find((f) => f.source.name === CardName.CARBON_NANOSYSTEMS);
+    expect(nanoFact?.certainty).to.eq('exact');
+    expect(nanoFact?.source.channel).to.eq('card-played');
+    expect(nanoFact?.recipient).to.deep.eq({kind: 'you'});
+    expect(nanoFact?.timing).to.eq('immediate');
+    expect(nanoFact?.effects[0]).to.include({direction: 'gain', icon: 'graphene', amount: 1, current: 0, resulting: 1});
+    expect(nanoFact?.reasonTag).to.eq(Tag.SCIENCE);
+    // Zero science stored: the live callback ADDS without asking.
+    const olympusFact = forecast.facts.find((f) => f.source.name === CardName.OLYMPUS_CONFERENCE);
+    expect(olympusFact?.certainty).to.eq('exact');
+    expect(olympusFact?.sequence).to.eq(Priority.OLYMPUS_CONFERENCE);
+    expect(olympusFact?.timing).to.eq('before-card-choices');
+    expect(forecast.coverage).to.eq('complete');
+  });
+
+  it('Olympus Conference with a science stored ASKS — the same test the deferred callback makes', () => {
+    const [/* game */, player] = testGame(2);
+    const olympus = new OlympusConference();
+    olympus.resourceCount = 1;
+    player.playedCards.push(olympus);
+    const survey = new GeologicalSurvey();
+    player.cardsInHand.push(survey);
+    const fact = playForecast(player, survey).facts.find((f) => f.source.name === CardName.OLYMPUS_CONFERENCE);
+    expect(fact?.certainty).to.eq('asks');
+    expect(fact?.effects.map((e) => e.icon)).to.deep.eq(['science', 'cards']);
+    expect(fact?.alternatives?.[0].label).to.eq('Add a science resource to this card');
+    expect(fact?.note).to.eq('Answer inside this play');
+  });
+
+  it('«including this»: the played card is a reactor of its own play', () => {
+    const [/* game */, player] = testGame(2);
+    const nano = new CarbonNanosystems();
+    player.cardsInHand.push(nano);
+    const facts = playForecast(player, nano).facts;
+    expect(facts.map((f) => f.source.name)).to.include(CardName.CARBON_NANOSYSTEMS);
+  });
+
+  it('addresses another seat\'s reaction to THAT seat: an opponent\'s Pharmacy Union takes a disease and loses 4 M€', () => {
+    const [/* game */, player, opponent] = testGame(2);
+    const union = new PharmacyUnion();
+    opponent.playedCards.push(union);
+    opponent.megaCredits = 10;
+    const bacteria = new NitriteReducingBacteria();
+    player.cardsInHand.push(bacteria);
+    const facts = playForecast(player, bacteria).facts;
+    const fact = facts.find((f) => f.source.name === CardName.PHARMACY_UNION);
+    expect(fact?.certainty).to.eq('exact');
+    expect(fact?.source.channel).to.eq('card-played-by-any');
+    expect(fact?.recipient).to.deep.eq({kind: 'player', color: opponent.color});
+    expect(fact?.sequence).to.eq(Priority.PHARMACY_UNION);
+    // Chips are written from the RECIPIENT's point of view (their pool).
+    const loss = fact?.effects.find((e) => e.icon === Resource.MEGACREDITS);
+    expect(loss).to.include({direction: 'cost', amount: 4, current: 10, resulting: 6});
+    expect(fact?.effects.find((e) => e.icon === 'disease')).to.include({direction: 'gain', amount: 1});
+  });
+
+  it('reports a live hook with NO forecast as `unknown` and marks the coverage partial — never silence', () => {
+    const [/* game */, player] = testGame(2);
+    player.playedCards.push(new SoilBacteria()); // prelude2 — out of scope, no forecast hook
+    const bushes = new Bushes();
+    player.cardsInHand.push(bushes);
+    const forecast = playForecast(player, bushes);
+    const fact = forecast.facts.find((f) => f.source.name === CardName.SOIL_BACTERIA);
+    expect(fact?.certainty).to.eq('unknown');
+    expect(fact?.note).to.eq('Not calculated');
+    expect(forecast.coverage).to.eq('partial');
+  });
+
+  it('itemizes the discounts through getCardCostBreakdown', () => {
+    const [/* game */, player] = testGame(2);
+    player.playedCards.push(new EarthCatapult());
+    const io = new IoMiningIndustries();
+    player.cardsInHand.push(io);
+    const {discounts} = playForecast(player, io);
+    expect(discounts.base).to.eq(41);
+    expect(discounts.final).to.eq(39);
+    expect(discounts.items).to.deep.eq([{source: {kind: 'card', card: CardName.EARTH_CATAPULT, owner: player.color}, amount: 2}]);
+    expect(discounts.other).to.eq(0);
+  });
+
+  it('lists the payment values the play accepts (graphene on a space card) with the live count', () => {
+    const [/* game */, player] = testGame(2);
+    const nano = new CarbonNanosystems();
+    nano.resourceCount = 2;
+    player.playedCards.push(nano);
+    const io = new IoMiningIndustries(); // space tag
+    player.cardsInHand.push(io);
+    const {paymentValues} = playForecast(player, io);
+    expect(paymentValues).to.deep.eq([{
+      source: {kind: 'card', card: CardName.CARBON_NANOSYSTEMS, owner: player.color},
+      resource: 'Graphene', value: 4, count: 2,
+    }]);
+    // A plant card accepts no graphene — the value is a fact about THIS play.
+    const bushes = new Bushes();
+    player.cardsInHand.push(bushes);
+    expect(playForecast(player, bushes).paymentValues).to.deep.eq([]);
+  });
+
+  it('runs the tile pass for a city the play will place — every seat\'s trigger, the played card included, as `deferred`', () => {
+    const [/* game */, player, opponent] = testGame(2);
+    player.playedCards.push(new RoverConstruction());
+    opponent.playedCards.push(new Pets());
+    player.production.override({energy: 1});
+    const city = new ImmigrantCity();
+    player.cardsInHand.push(city);
+    const forecast = playForecast(player, city);
+    const rover = forecast.facts.find((f) => f.source.name === CardName.ROVER_CONSTRUCTION);
+    expect(rover?.certainty).to.eq('deferred');
+    expect(rover?.timing).to.eq('after-placement');
+    expect(rover?.effects[0]).to.include({icon: Resource.MEGACREDITS, amount: 2});
+    const pets = forecast.facts.find((f) => f.source.name === CardName.PETS);
+    expect(pets?.recipient).to.deep.eq({kind: 'player', color: opponent.color});
+    expect(pets?.sequence).to.eq(Priority.OPPONENT_TRIGGER);
+    // «including this» — Immigrant City reacts to its own city.
+    const self = forecast.facts.find((f) => f.source.name === CardName.IMMIGRANT_CITY);
+    expect(self?.certainty).to.eq('deferred');
+    expect(self?.effects[0]).to.include({icon: Resource.MEGACREDITS, amount: 1, note: 'production'});
+  });
+
+  it('ties branch-dependent reactions to the branch POSITION (`byBranch`), never to `facts`', () => {
+    const [/* game */, player] = testGame(2);
+    player.playedCards.push(new Manutech());
+    const photosynthesis = new ArtificialPhotosynthesis(); // «ИЛИ»: plant production or energy production
+    player.cardsInHand.push(photosynthesis);
+    const forecast = playForecast(player, photosynthesis);
+    expect(forecast.facts.filter((f) => f.source.name === CardName.MANUTECH)).to.deep.eq([]);
+    expect(forecast.byBranch).to.not.be.undefined;
+    const byBranch = forecast.byBranch ?? {};
+    expect(Object.keys(byBranch).map(Number)).to.deep.eq([0, 1]);
+    for (const pos of [0, 1]) {
+      const fact = byBranch[pos][0];
+      expect(fact.certainty).to.eq('conditional');
+      expect(fact.condition).to.include({state: 'depends', branchPos: pos});
+      expect(fact.source.channel).to.eq('production-gain');
+    }
+    expect(byBranch[0][0].effects[0].icon).to.eq(Resource.ENERGY);
+    expect(byBranch[1][0].effects[0].icon).to.eq(Resource.PLANTS);
+  });
+
+  it('runs the second-order pass on the play\'s own grants and CASCADES the first-order facts', () => {
+    const [/* game */, player] = testGame(2);
+    player.playedCards.push(new Manutech(), new MeatIndustry(), new TopsoilContract(), new Decomposers());
+    const bushes = new Bushes(); // plant production +2, plants +2 → Manutech; plant tag → Decomposers' microbe → Topsoil
+    player.cardsInHand.push(bushes);
+    const forecast = playForecast(player, bushes);
+    const manutech = forecast.facts.find((f) => f.source.name === CardName.MANUTECH);
+    expect(manutech?.certainty).to.eq('exact');
+    expect(manutech?.effects[0]).to.include({icon: Resource.PLANTS, amount: 2});
+    const topsoil = forecast.facts.find((f) => f.source.name === CardName.TOPSOIL_CONTRACT);
+    expect(topsoil, 'Decomposers\' microbe cascades into Topsoil Contract').to.not.be.undefined;
+    expect(topsoil?.effects[0]).to.include({icon: Resource.MEGACREDITS, amount: 1});
+    expect(forecast.facts.find((f) => f.source.name === CardName.MEAT_INDUSTRY), 'no animal moved').to.be.undefined;
+
+    const pets = new Pets(); // adds an animal to itself on play
+    player.cardsInHand.push(pets);
+    const meat = playForecast(player, pets).facts.find((f) => f.source.name === CardName.MEAT_INDUSTRY);
+    expect(meat?.effects[0]).to.include({icon: Resource.MEGACREDITS, amount: 2});
+  });
+
+  it('strips the «current → resulting» arrow off a pool the card touches itself, and keeps it elsewhere', () => {
+    const [/* game */, player] = testGame(2);
+    player.playedCards.push(new ViralEnhancers(), new MediaGroup());
+    player.plants = 5;
+    const bushes = new Bushes(); // its OWN chips move plants
+    player.cardsInHand.push(bushes);
+    const viral = playForecast(player, bushes).facts.find((f) => f.source.name === CardName.VIRAL_ENHANCERS);
+    expect(viral?.effects[0]).to.include({icon: Resource.PLANTS, amount: 1});
+    expect(viral?.effects[0].current, 'the play already moves plants — no arrow').to.be.undefined;
+    // An untouched pool keeps its arrow.
+    const [/* g2 */, p2] = testGame(2, undefined, '-media');
+    p2.playedCards.push(new MediaGroup());
+    p2.megaCredits = 20;
+    const asteroid = new Asteroid();
+    p2.cardsInHand.push(asteroid);
+    const media = playForecast(p2, asteroid).facts.find((f) => f.source.name === CardName.MEDIA_GROUP);
+    expect(media?.effects[0]).to.include({icon: Resource.MEGACREDITS, amount: 3, current: 20, resulting: 23});
+  });
+
+  it('reports the «almost» as `no` (a space card that is not an event, for Optimal Aerobraking)', () => {
+    const [/* game */, player] = testGame(2);
+    player.playedCards.push(new OptimalAerobraking());
+    const io = new IoMiningIndustries(); // space, not an event
+    player.cardsInHand.push(io);
+    const fact = playForecast(player, io).facts.find((f) => f.source.name === CardName.OPTIMAL_AEROBRAKING);
+    expect(fact?.certainty).to.eq('no');
+    expect(fact?.reason).to.eq('The card is not an event');
+    expect(fact?.condition?.state).to.eq('unmet');
+  });
+
+  it('forecasts an ACTION: the tile pass for an ocean-placing action, no card-played pass, no discount', () => {
+    const [/* game */, player, opponent] = testGame(2);
+    const pumping = new AquiferPumping();
+    player.playedCards.push(pumping);
+    opponent.playedCards.push(new ArcticAlgae());
+    player.megaCredits = 20;
+    const preview = actionPreview(player, pumping);
+    const forecast = effectForecastForAction(player, pumping, preview);
+    const algae = forecast.facts.find((f) => f.source.name === CardName.ARCTIC_ALGAE);
+    expect(algae?.certainty).to.eq('deferred');
+    expect(algae?.recipient).to.deep.eq({kind: 'player', color: opponent.color});
+    expect(algae?.effects[0]).to.include({icon: Resource.PLANTS, amount: 2});
+    expect(forecast.discounts.items).to.deep.eq([]);
+    expect(forecast.paymentValues).to.deep.eq([]);
+  });
+
+  it('mirrors the MarsBot corporation: Saturn Systems advances the event track for the bot on a Jovian card', () => {
+    const [game, human] = testAutomaGame({corporation: MarsBotCorpId.C08_SATURN_SYSTEMS}, '-fc-saturn');
+    game.playerIsFinishedWithResearchPhase(human); // seats the corporation
+    const io = new IoMiningIndustries();
+    human.cardsInHand.push(io);
+    const forecast = playForecast(human, io);
+    const fact = forecast.facts.find((f) => f.source.kind === 'automa-corporation');
+    expect(fact?.source.name).to.eq(CardName.SATURN_SYSTEMS);
+    expect(fact?.certainty).to.eq('exact');
+    expect(fact?.recipient.kind).to.eq('bot');
+    expect(fact?.effects[0]).to.include({icon: 'track', amount: 1});
+    expect(forecast.coverage).to.eq('complete');
+  });
+
+  it('derives grants from chips the way the second-order hooks see them', () => {
+    expect(grantOfEffect({direction: 'gain', icon: 'steel', amount: 2, note: 'production'})).to.deep.eq({kind: 'production', resource: Resource.STEEL, amount: 2});
+    expect(grantOfEffect({direction: 'gain', icon: 'animal', amount: 1, note: 'on this card'})).to.deep.eq({kind: 'cardResource', resource: 'Animal', amount: 1, target: 'self'});
+    expect(grantOfEffect({direction: 'gain', icon: 'microbe', amount: 3, note: 'to a card'})).to.deep.eq({kind: 'cardResource', resource: 'Microbe', amount: 3, target: 'any'});
+    expect(grantOfEffect({direction: 'cost', icon: 'steel', amount: 2, note: 'production'})).to.be.undefined;
+    expect(grantOfEffect({direction: 'gain', icon: 'tr', amount: 1})).to.deep.eq({kind: 'tr', amount: 1});
+  });
+
+  it('reads the tiles a branch will place off its board placement steps (markers place nothing)', () => {
+    const [/* game */, player] = testGame(2);
+    const city = new ImmigrantCity();
+    player.production.override({energy: 1});
+    const preview = cardPlayPreview(player, city);
+    const tiles = tilesOfBranch(player, preview.branches[0], city.behavior);
+    expect(tiles).to.have.length(1);
+    expect(tiles[0]).to.include({countsAsCity: true, countsAsOcean: false, count: 1, offMars: false});
+  });
+
+  it('collects every fact, branch-tied ones included', () => {
+    const [/* game */, player] = testGame(2);
+    player.playedCards.push(new Manutech());
+    const photosynthesis = new ArtificialPhotosynthesis();
+    player.cardsInHand.push(photosynthesis);
+    const forecast = playForecast(player, photosynthesis);
+    expect(allForecastFacts(forecast)).to.have.length(2);
+  });
+});

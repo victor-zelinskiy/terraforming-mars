@@ -6,6 +6,7 @@ import {Request} from '../Request';
 import {Response} from '../Response';
 import {CardName} from '../../common/cards/CardName';
 import {cardPlayPreview, previewableCard} from '../models/cardPlayPreview';
+import {effectForecastForPlay} from '../models/effectForecast';
 
 /**
  * READ-ONLY preview of PLAYING a project card, fetched by the client when the
@@ -71,7 +72,11 @@ export class CardPlayPreview extends Handler {
         responses.noPreview(res, 'playable card not found');
         return;
       }
-      responses.writeJson(res, ctx, cardPlayPreview(player, card));
+      // THE EFFECT FORECAST rides INSIDE the preview (same route, same cache,
+      // same version key — zero new requests): what the rest of the table does
+      // in answer to this play, computed by the same code the live hooks read.
+      const preview = cardPlayPreview(player, card);
+      responses.writeJson(res, ctx, {...preview, forecast: effectForecastForPlay(player, card, preview)});
     } catch (err) {
       console.warn(`unable to build card play preview for ${playerId}`, err);
       responses.notFound(req, res, 'player not found');

@@ -9,7 +9,9 @@ import {CardRenderer} from '../render/CardRenderer';
 import {Phase} from '../../../common/Phase';
 import {ICard} from '../ICard';
 import {ActionPreview} from '../../../common/models/ActionPreviewModel';
+import {EffectForecastFact} from '../../../common/models/EffectForecastModel';
 import * as actionPreviews from '../actionPreviews';
+import * as forecast from '../effectForecastPreviews';
 
 export class Decomposers extends Card implements IProjectCard {
   constructor() {
@@ -42,6 +44,16 @@ export class Decomposers extends Card implements IProjectCard {
   public onCardPlayed(player: IPlayer, card: ICard): void {
     const qty = player.tags.cardTagCount(card, [Tag.ANIMAL, Tag.PLANT, Tag.MICROBE]);
     player.addResourceTo(this, {qty, log: true});
+  }
+  /** Mirrors `onCardPlayed`: one microbe per matching tag, synchronously. */
+  public cardPlayedForecast(cardOwner: IPlayer, _activePlayer: IPlayer, card: ICard): ReadonlyArray<EffectForecastFact> {
+    const qty = cardOwner.tags.cardTagCount(card, [Tag.ANIMAL, Tag.PLANT, Tag.MICROBE]);
+    if (qty === 0) {
+      return [];
+    }
+    return [forecast.exact(forecast.sourceOf(this, cardOwner, 'card-played'),
+      [actionPreviews.cardGain(this, qty)],
+      'You play a card with an animal, plant or microbe tag')];
   }
   public onNonCardTagAdded(player: IPlayer, tag: Tag): void {
     if (tag === Tag.PLANT) {

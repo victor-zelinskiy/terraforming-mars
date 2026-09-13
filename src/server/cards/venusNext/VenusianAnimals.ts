@@ -7,6 +7,9 @@ import {CardName} from '../../../common/cards/CardName';
 import {CardRenderer} from '../render/CardRenderer';
 import {Card} from '../Card';
 import {ICard} from '../ICard';
+import {EffectForecastFact} from '../../../common/models/EffectForecastModel';
+import * as actionPreviews from '../actionPreviews';
+import * as forecast from '../effectForecastPreviews';
 
 export class VenusianAnimals extends Card implements IProjectCard {
   constructor() {
@@ -35,6 +38,16 @@ export class VenusianAnimals extends Card implements IProjectCard {
   public onCardPlayed(player: IPlayer, card: ICard): void {
     const qty = player.tags.cardTagCount(card, Tag.SCIENCE);
     player.addResourceTo(this, {qty, log: true});
+  }
+  /** Mirrors `onCardPlayed`: one animal per science tag, at once. */
+  public cardPlayedForecast(cardOwner: IPlayer, _activePlayer: IPlayer, card: ICard): ReadonlyArray<EffectForecastFact> {
+    const qty = cardOwner.tags.cardTagCount(card, Tag.SCIENCE);
+    if (qty === 0) {
+      return [];
+    }
+    return [forecast.exact(forecast.sourceOf(this, cardOwner, 'card-played'),
+      [actionPreviews.cardGain(this, qty)],
+      'You play a card with a ${0} tag', {reasonTag: Tag.SCIENCE})];
   }
   public onNonCardTagAdded(player: IPlayer, tag: Tag) {
     if (tag === Tag.SCIENCE) {

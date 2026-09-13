@@ -8,6 +8,9 @@ import {CardRenderer} from '../render/CardRenderer';
 import {digit} from '../Options';
 import {Resource} from '../../../common/Resource';
 import {ICorporationCard} from './ICorporationCard';
+import {EffectForecastFact} from '../../../common/models/EffectForecastModel';
+import * as actionPreviews from '../actionPreviews';
+import * as forecast from '../effectForecastPreviews';
 
 export class InterplanetaryCinematics extends CorporationCard implements ICorporationCard {
   constructor() {
@@ -39,5 +42,14 @@ export class InterplanetaryCinematics extends CorporationCard implements ICorpor
     if (card.type === CardType.EVENT) {
       player.stock.add(Resource.MEGACREDITS, 2, {log: true, from: {card: this}});
     }
+  }
+  /** Mirrors `onCardPlayed`: an event pays 2 M€ at once. */
+  public cardPlayedForecast(cardOwner: IPlayer, _activePlayer: IPlayer, card: ICard): ReadonlyArray<EffectForecastFact> {
+    if (card.type !== CardType.EVENT) {
+      return [];
+    }
+    return [forecast.exact(forecast.sourceOf(this, cardOwner, 'card-played'),
+      [actionPreviews.stockGain(cardOwner, Resource.MEGACREDITS, 2)],
+      'You play an event card')];
   }
 }

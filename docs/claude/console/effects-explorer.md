@@ -174,13 +174,36 @@ explorer's own (`effectsExplorerUi.barCommands`, returned verbatim by
 MUTUALLY EXCLUSIVELY on the layer — two slots with one key land the zoom's
 close flight in the invisible parked thumb.
 
-## Reuse contract (future hosts)
+## Reuse contract (hosts)
 
 The explorer is host-agnostic: `cards` (ANY card set), `color`, `stats`
-props; module cursors reset via `resetEffectsExplorer()`; the host owns the
-frame, the crumb (via `effectsStagePath`) and the stats fetch. A future
-«effects this play would trigger» surface feeds a filtered card set + its
-own stats resolution and reuses everything (model, tiles, families, motion).
+props; the cursors live in an `EffectsExplorerUi` instance the host passes
+(`explorerUi` — the Information workspace passes nothing and gets the
+module-level instance, reset via `resetEffectsExplorer()`); the host owns the
+frame, the crumb (via `effectsStagePath`) and the stats fetch.
+
+**The FORECAST mode is the first second host** (`mode="forecast"`,
+`docs/claude/console/effect-forecast.md`): the composers' R3 «Эффекты» layer
+feeds the server's `EffectForecast` + `players` (every seat's name / colour /
+live tableau) + `branches` / `selectedBranchPos` + `statsByColor` +
+`orderFlags`, and reuses EVERYTHING — the tile chassis, the dossier column,
+the detail stage, the motion (`effect-*` keys — they run INSIDE the
+composer's own `forecast-*` descent), the fit ladders, the handheld layout.
+What the mode changes: the facet strip cycles the eight forecast GROUPS
+(`ui.sectionFilter`) instead of the four families; the grid is sections
+(`__fsection` spanning the grid) of one tile per FACT / discount / payment
+value, keyed by the fact id; the tile's head names the SOURCE (+ the owner
+plate for a foreign seat) and its WHEN; the meta line is the forecast for
+THIS play, never a statistic; the dossier and the detail stage lead with the
+five-question «ЧТО ПРОИЗОЙДЁТ» block and demote «За партию» to one quiet
+line / block, shown only once the source seat's stats arrive; the «ПОРЯДОК»
+band appears above the grid when the queue order is honest; R3 is NOT
+«reset» there (the host's close verb); X inspects the source card across the
+visible items. A tile's printed graphic is ATTRIBUTED through the channel
+plan (`attributeFactToEffect`) and falls back to «Эффект этой карты» when no
+block can be vouched for. Each host owns its OWN `EffectsExplorerUi`
+(`createEffectsExplorerUi` / `forecastExplorerUi(host)`), so two explorers on
+screen never share a cursor.
 
 ## Guards
 

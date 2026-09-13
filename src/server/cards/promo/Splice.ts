@@ -15,6 +15,9 @@ import {addResourceToCard, chip} from '../../inputs/optionMetadata';
 import {cardEffect} from '../../inputs/choiceContext';
 import {ICard} from '../ICard';
 import {GainResourcesDeferred} from '../../deferredActions/GainResourcesDeferred';
+import {EffectForecastFact} from '../../../common/models/EffectForecastModel';
+import * as actionPreviews from '../actionPreviews';
+import * as forecast from '../effectForecastPreviews';
 
 export class Splice extends CorporationCard implements ICorporationCard {
   constructor() {
@@ -101,6 +104,43 @@ export class Splice extends CorporationCard implements ICorporationCard {
     } else {
       gainMC.cb(undefined);
     }
+  }
+
+  /**
+   * Mirrors `onCardPlayedByAnyPlayer`, both halves: the OWNER's 2 M€ per
+   * microbe tag (deferred at `Priority.DEFAULT`), and the CARD PLAYER's half —
+   * a QUESTION (a microbe on the played card, or the M€) when the played card
+   * can hold microbes, the M€ outright otherwise. When the owner plays the
+   * tag both halves are theirs, exactly as the live hook pays them.
+   */
+  public cardPlayedForecast(cardOwner: IPlayer, activePlayer: IPlayer, card: ICard): ReadonlyArray<EffectForecastFact> {
+    const microbeTags = activePlayer.tags.cardTagCount(card, Tag.MICROBE);
+    if (microbeTags === 0) {
+      return [];
+    }
+    const gain = microbeTags * 2;
+    const source = forecast.sourceOf(this, cardOwner, 'card-played-by-any');
+    const reason = 'Any player plays a card with a ${0} tag';
+    const facts: Array<EffectForecastFact> = [
+      // The owner's half rides `GainResourcesDeferred` — behind every DEFAULT
+      // prompt of the play (the card player's own choice below included).
+      forecast.exact(source, [actionPreviews.stockGain(cardOwner, Resource.MEGACREDITS, gain)], reason, {
+        id: 'owner',
+        reasonTag: Tag.MICROBE,
+        recipient: forecast.recipientOf(activePlayer, cardOwner),
+        ...forecast.AFTER_CARD_GAIN,
+      }),
+    ];
+    const mc = actionPreviews.stockGain(activePlayer, Resource.MEGACREDITS, gain);
+    if (card.resourceType === CardResource.MICROBE) {
+      facts.push(forecast.asks(source,
+        [{...actionPreviews.cardResourceGain(CardResource.MICROBE, 1), note: 'on the played card'}],
+        [{label: message('Gain ${0} M€', (b) => b.number(gain)), effects: [mc]}],
+        reason, {id: 'player', reasonTag: Tag.MICROBE, ...forecast.AFTER_CARD}));
+    } else {
+      facts.push(forecast.exact(source, [mc], reason, {id: 'player', reasonTag: Tag.MICROBE, ...forecast.AFTER_CARD_GAIN}));
+    }
+    return facts;
   }
 
   /**

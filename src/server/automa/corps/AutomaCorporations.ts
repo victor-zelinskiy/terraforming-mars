@@ -17,6 +17,8 @@ import {AutomaResolver} from '../AutomaResolver';
 import {bumpCorpStat, humansOf, marsBotOf} from '../AutomaUtil';
 import type {BonusCardOutcome} from '../AutomaBonusCards';
 import {MarsBotCorp} from './MarsBotCorp';
+import {EffectForecastFact} from '../../../common/models/EffectForecastModel';
+import {EffectForecastContext} from '../../cards/EffectForecastContext';
 import {MarsBotCredicor} from './MarsBotCredicor';
 import {MarsBotHelion} from './MarsBotHelion';
 import {MarsBotInterplanetaryCinematics} from './MarsBotInterplanetaryCinematics';
@@ -566,6 +568,31 @@ export class AutomaCorporations {
       return;
     }
     AutomaCorporations.activeCorp(game)?.onHumanCardPlayed?.(game, player, card);
+  }
+
+  /**
+   * The READ-ONLY twin of {@link onHumanCardPlayed} for the effect forecast:
+   * the active corporation's own forecast facts, or — when it reacts to human
+   * plays without describing itself — `undefined`, which the engine reports
+   * as an honest `unknown`. `null` = no corporation / no reaction at all.
+   */
+  public static humanCardPlayedForecast(game: IGame, player: IPlayer, card: ICard, ctx: EffectForecastContext): ReadonlyArray<EffectForecastFact> | undefined | null {
+    if (player.isMarsBot) {
+      return null;
+    }
+    const corp = AutomaCorporations.activeCorp(game);
+    if (corp === undefined || corp.onHumanCardPlayed === undefined) {
+      return null;
+    }
+    return corp.humanCardPlayedForecast?.(game, player, card, ctx);
+  }
+
+  /** Does the active corporation react to TILE placements at all (the
+   *  forecast reports it honestly as a deferred `unknown` for a tile-placing
+   *  operation)? */
+  public static reactsToTilePlacement(game: IGame): MarsBotCorp | undefined {
+    const corp = AutomaCorporations.activeCorp(game);
+    return corp?.onTilePlaced !== undefined ? corp : undefined;
   }
 
   /**

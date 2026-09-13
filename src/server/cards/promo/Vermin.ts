@@ -14,6 +14,11 @@ import {vermin} from '../render/DynamicVictoryPoints';
 import {BoardFact} from '../../../common/boards/BoardInformationFacts';
 import {PlacementPreviewContext} from '../../boards/PlacementPreviewContext';
 import * as placementPreviews from '../placementPreviews';
+import * as actionPreviews from '../actionPreviews';
+import * as forecast from '../effectForecastPreviews';
+import {EffectForecastFact} from '../../../common/models/EffectForecastModel';
+import {EffectForecastTile} from '../EffectForecastContext';
+import {Priority} from '../../deferredActions/Priority';
 
 export class Vermin extends ActionCard implements IProjectCard, IActionCard {
   constructor() {
@@ -87,6 +92,16 @@ export class Vermin extends ActionCard implements IProjectCard, IActionCard {
     if (Board.isCitySpace(space)) {
       cardOwner.addResourceTo(this, {qty: 1, log: true});
     }
+  }
+
+  /** The forecast mirror of `onTilePlaced`: an animal per city ANYONE places (synchronous in the live hook). */
+  public tilePlacedForecast(cardOwner: IPlayer, activePlayer: IPlayer, tile: EffectForecastTile): ReadonlyArray<EffectForecastFact> {
+    if (!tile.countsAsCity) {
+      return [];
+    }
+    return [forecast.deferred(forecast.sourceOf(this, cardOwner, 'tile-placed'),
+      [actionPreviews.cardGain(this, tile.count)],
+      'A city tile is placed', {recipient: forecast.recipientOf(activePlayer, cardOwner), sequence: Priority.DEFAULT})];
   }
 
   // Read-only mirror of `onTilePlaced`. Same shape as Hospitals: ANY city placed

@@ -21,6 +21,10 @@ import {Priority} from '../../deferredActions/Priority';
 import {BoardFact} from '../../../common/boards/BoardInformationFacts';
 import {PlacementPreviewContext} from '../../boards/PlacementPreviewContext';
 import * as placementPreviews from '../placementPreviews';
+import * as actionPreviews from '../actionPreviews';
+import * as forecast from '../effectForecastPreviews';
+import {EffectForecastFact} from '../../../common/models/EffectForecastModel';
+import {EffectForecastTile} from '../EffectForecastContext';
 
 export class NeptunianPowerConsultants extends Card implements IProjectCard {
   constructor() {
@@ -96,6 +100,29 @@ export class NeptunianPowerConsultants extends Card implements IProjectCard {
         game.log('${0} cannot afford to use the ${1} effect', (b) => b.player(cardOwner).card(this));
       }
     }
+  }
+
+  /**
+   * The forecast mirror of `onTilePlaced`: a plain ocean the owner can afford
+   * 5 M€ for (steel allowed) opens the OPTIONAL question after the tile lands
+   * (`Priority.OPPONENT_TRIGGER`); an owner who cannot pay is `skipped`, as
+   * the live path only logs.
+   */
+  public tilePlacedForecast(cardOwner: IPlayer, activePlayer: IPlayer, tile: EffectForecastTile): ReadonlyArray<EffectForecastFact> {
+    if (!forecast.placesUncoveredOcean(tile)) {
+      return [];
+    }
+    const source = forecast.sourceOf(this, cardOwner, 'tile-placed');
+    const recipient = forecast.recipientOf(activePlayer, cardOwner);
+    if (!cardOwner.canAfford({cost: 5, steel: true})) {
+      return [forecast.skipped(source,
+        [actionPreviews.productionChange(cardOwner, Resource.ENERGY, 1), actionPreviews.cardGain(this, 1)],
+        'The owner cannot afford the 5 M€', {recipient})];
+    }
+    return [forecast.asks(source,
+      [actionPreviews.stockCost(cardOwner, Resource.MEGACREDITS, 5), actionPreviews.productionChange(cardOwner, Resource.ENERGY, 1), actionPreviews.cardGain(this, 1)],
+      [{label: 'Do not use card effect', effects: []}],
+      'An ocean tile is placed', {recipient, sequence: Priority.OPPONENT_TRIGGER, timing: 'after-placement', note: 'Asked once the tile is down'})];
   }
 
   /**

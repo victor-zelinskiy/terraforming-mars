@@ -38,8 +38,12 @@ const GLOBAL_PARAMETER_ALIASES: Readonly<Record<string, string>> = {oceans: 'oce
  * resolve to `card-resource-vp`, a class no stylesheet defines, and every
  * consumer would reserve a 22px hole with nothing in it. Returning '' routes
  * them through the callers' existing "no honest sprite" path instead.
+ *
+ * A MarsBot TRACK step (`track` — the effect forecast's «MarsBot advances its
+ * event track» chip) has no sprite either: the mat's tracks are drawn by the
+ * bot board, never as an inline icon, so the chip carries its note instead.
  */
-const NO_SPRITE_ICONS: ReadonlySet<string> = new Set(['vp']);
+const NO_SPRITE_ICONS: ReadonlySet<string> = new Set(['vp', 'track']);
 
 export function iconClassFor(icon: string | undefined): string {
   if (icon === undefined || icon === '' || NO_SPRITE_ICONS.has(icon)) {

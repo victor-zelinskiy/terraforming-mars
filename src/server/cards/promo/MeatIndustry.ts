@@ -8,6 +8,10 @@ import {IPlayer} from '../../IPlayer';
 import {ICard} from '../ICard';
 import {CardResource} from '../../../common/CardResource';
 import {Resource} from '../../../common/Resource';
+import {EffectForecastFact} from '../../../common/models/EffectForecastModel';
+import {EffectForecastGrant} from '../EffectForecastContext';
+import * as actionPreviews from '../actionPreviews';
+import * as forecast from '../effectForecastPreviews';
 
 export class MeatIndustry extends Card implements IProjectCard {
   constructor() {
@@ -32,5 +36,14 @@ export class MeatIndustry extends Card implements IProjectCard {
     if (card.resourceType === CardResource.ANIMAL) {
       player.stock.add(Resource.MEGACREDITS, count * 2, {log: true});
     }
+  }
+  /** Mirrors `onResourceAdded`: 2 M€ per animal gained on any of the owner's cards, at once. */
+  public grantForecast(cardOwner: IPlayer, _activePlayer: IPlayer, grant: EffectForecastGrant): ReadonlyArray<EffectForecastFact> {
+    if (grant.kind !== 'cardResource' || grant.resource !== CardResource.ANIMAL || grant.amount <= 0) {
+      return [];
+    }
+    return [forecast.exact(forecast.sourceOf(this, cardOwner, 'resource-added'),
+      [actionPreviews.stockGain(cardOwner, Resource.MEGACREDITS, grant.amount * 2)],
+      'You gain an animal on a card')];
   }
 }

@@ -7,6 +7,7 @@ import {Response} from '../Response';
 import {CardName} from '../../common/cards/CardName';
 import {isIActionCard} from '../cards/ICard';
 import {actionPreview} from '../models/actionPreview';
+import {effectForecastForAction} from '../models/effectForecast';
 
 /**
  * READ-ONLY preview of a played action card's activation, fetched by the client
@@ -50,7 +51,11 @@ export class ActionPreview extends Handler {
         responses.noPreview(res, 'action card not found');
         return;
       }
-      responses.writeJson(res, ctx, actionPreview(player, card));
+      // THE EFFECT FORECAST rides INSIDE the preview (same cache, same
+      // version key): the second-order and tile reactions the activation
+      // sets off — see `src/server/models/effectForecast.ts`.
+      const preview = actionPreview(player, card);
+      responses.writeJson(res, ctx, {...preview, forecast: effectForecastForAction(player, card, preview)});
     } catch (err) {
       console.warn(`unable to build action preview for ${playerId}`, err);
       responses.notFound(req, res, 'player not found');

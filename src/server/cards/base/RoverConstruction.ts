@@ -15,6 +15,10 @@ import {all} from '../Options';
 import {BoardFact} from '../../../common/boards/BoardInformationFacts';
 import {PlacementPreviewContext} from '../../boards/PlacementPreviewContext';
 import * as placementPreviews from '../placementPreviews';
+import * as actionPreviews from '../actionPreviews';
+import * as forecast from '../effectForecastPreviews';
+import {EffectForecastFact} from '../../../common/models/EffectForecastModel';
+import {EffectForecastTile} from '../EffectForecastContext';
 
 export class RoverConstruction extends Card implements IProjectCard {
   constructor() {
@@ -43,6 +47,19 @@ export class RoverConstruction extends Card implements IProjectCard {
         cardOwner.id !== activePlayer.id ? Priority.OPPONENT_TRIGGER : undefined,
       );
     }
+  }
+
+  /** The forecast mirror of `onTilePlaced`: 2 M€ per city ANYONE places. */
+  public tilePlacedForecast(cardOwner: IPlayer, activePlayer: IPlayer, tile: EffectForecastTile): ReadonlyArray<EffectForecastFact> {
+    if (!tile.countsAsCity) {
+      return [];
+    }
+    return [forecast.deferred(forecast.sourceOf(this, cardOwner, 'tile-placed'),
+      [actionPreviews.stockGain(cardOwner, Resource.MEGACREDITS, 2 * tile.count)],
+      'A city tile is placed', {
+        recipient: forecast.recipientOf(activePlayer, cardOwner),
+        sequence: forecast.triggerSequence(cardOwner, activePlayer),
+      })];
   }
 
   /** Mirrors `onTilePlaced`: ANY city, placed by anyone, pays the owner 2 M€. */

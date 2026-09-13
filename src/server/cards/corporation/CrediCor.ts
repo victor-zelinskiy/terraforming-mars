@@ -7,6 +7,9 @@ import {IStandardProjectCard} from '../IStandardProjectCard';
 import {Resource} from '../../../common/Resource';
 import {ICorporationCard} from './ICorporationCard';
 import {ICard} from '../ICard';
+import {EffectForecastFact} from '../../../common/models/EffectForecastModel';
+import * as actionPreviews from '../actionPreviews';
+import * as forecast from '../effectForecastPreviews';
 
 export class CrediCor extends CorporationCard implements ICorporationCard {
   constructor() {
@@ -39,6 +42,15 @@ export class CrediCor extends CorporationCard implements ICorporationCard {
     if (isIProjectCard(card)) {
       this.effect(player, card);
     }
+  }
+  /** Mirrors `onCardPlayed` + `effect`: the PRINTED cost (never the discounted one) at 20+ pays 4 M€ at once. */
+  public cardPlayedForecast(cardOwner: IPlayer, _activePlayer: IPlayer, card: ICard): ReadonlyArray<EffectForecastFact> {
+    if (!isIProjectCard(card) || card.cost < 20) {
+      return [];
+    }
+    return [forecast.exact(forecast.sourceOf(this, cardOwner, 'card-played'),
+      [actionPreviews.stockGain(cardOwner, Resource.MEGACREDITS, 4)],
+      'You play a card with a basic cost of 20 M€ or more')];
   }
 
   public onStandardProject(player: IPlayer, project: IStandardProjectCard) {

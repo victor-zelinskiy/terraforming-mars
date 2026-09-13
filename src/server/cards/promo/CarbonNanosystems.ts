@@ -8,6 +8,9 @@ import {CardRenderer} from '../render/CardRenderer';
 import {CardResource} from '../../../common/CardResource';
 import {Size} from '../../../common/cards/render/Size';
 import {ICard} from '../ICard';
+import {EffectForecastFact} from '../../../common/models/EffectForecastModel';
+import * as actionPreviews from '../actionPreviews';
+import * as forecast from '../effectForecastPreviews';
 
 export class CarbonNanosystems extends Card implements IProjectCard {
   constructor() {
@@ -37,6 +40,18 @@ export class CarbonNanosystems extends Card implements IProjectCard {
     const qty = player.tags.cardTagCount(card, Tag.SCIENCE);
     player.addResourceTo(this, {qty: qty, log: true});
     return undefined;
+  }
+  /** Mirrors `onCardPlayed`: one graphene per science tag, at once. (The
+   *  graphene-as-4-M€ rule is a PAYMENT value — the forecast engine reports it
+   *  off the player's own payment options, never from here.) */
+  public cardPlayedForecast(cardOwner: IPlayer, _activePlayer: IPlayer, card: ICard): ReadonlyArray<EffectForecastFact> {
+    const qty = cardOwner.tags.cardTagCount(card, Tag.SCIENCE);
+    if (qty === 0) {
+      return [];
+    }
+    return [forecast.exact(forecast.sourceOf(this, cardOwner, 'card-played'),
+      [actionPreviews.cardGain(this, qty)],
+      'You play a card with a ${0} tag', {reasonTag: Tag.SCIENCE})];
   }
   public onNonCardTagAdded(player: IPlayer, tag: Tag) {
     if (tag === Tag.SCIENCE) {

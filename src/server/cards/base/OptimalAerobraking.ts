@@ -7,6 +7,9 @@ import {CardName} from '../../../common/cards/CardName';
 import {CardRenderer} from '../render/CardRenderer';
 import {Resource} from '../../../common/Resource';
 import {ICard} from '../ICard';
+import {EffectForecastFact} from '../../../common/models/EffectForecastModel';
+import * as actionPreviews from '../actionPreviews';
+import * as forecast from '../effectForecastPreviews';
 
 export class OptimalAerobraking extends Card implements IProjectCard {
   constructor() {
@@ -31,5 +34,27 @@ export class OptimalAerobraking extends Card implements IProjectCard {
       player.stock.add(Resource.MEGACREDITS, 3, {log: true, from: {card: this}});
       player.stock.add(Resource.HEAT, 3, {log: true, from: {card: this}});
     }
+  }
+  /**
+   * Mirrors `onCardPlayed`: a SPACE EVENT pays 3 M€ + 3 heat at once. The two
+   * «almost» cases (a space card that is not an event, an event without a
+   * space tag) are stated as `no` facts — the tag matched, the condition did not.
+   */
+  public cardPlayedForecast(cardOwner: IPlayer, _activePlayer: IPlayer, card: ICard): ReadonlyArray<EffectForecastFact> {
+    const source = forecast.sourceOf(this, cardOwner, 'card-played');
+    const isEvent = card.type === CardType.EVENT;
+    const hasSpace = card.tags.includes(Tag.SPACE);
+    if (isEvent && hasSpace) {
+      return [forecast.exact(source,
+        [actionPreviews.stockGain(cardOwner, Resource.MEGACREDITS, 3), actionPreviews.stockGain(cardOwner, Resource.HEAT, 3)],
+        'You play a space event', {reasonTag: Tag.SPACE})];
+    }
+    if (hasSpace) {
+      return [forecast.no(source, 'The card is not an event', {reasonTag: Tag.SPACE})];
+    }
+    if (isEvent) {
+      return [forecast.no(source, 'The event has no space tag', {reasonTag: Tag.SPACE})];
+    }
+    return [];
   }
 }

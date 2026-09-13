@@ -15,6 +15,9 @@ import {ICorporationCard} from './ICorporationCard';
 import {BoardFact} from '../../../common/boards/BoardInformationFacts';
 import {PlacementPreviewContext} from '../../boards/PlacementPreviewContext';
 import * as placementPreviews from '../placementPreviews';
+import * as forecast from '../effectForecastPreviews';
+import {EffectForecastFact} from '../../../common/models/EffectForecastModel';
+import {EffectForecastTile} from '../EffectForecastContext';
 
 export class MiningGuild extends CorporationCard implements ICorporationCard {
   constructor() {
@@ -69,6 +72,23 @@ export class MiningGuild extends CorporationCard implements ICorporationCard {
     if (grant) {
       cardOwner.game.defer(new GainProduction(cardOwner, Resource.STEEL));
     }
+  }
+
+  /**
+   * The forecast mirror of `onTilePlaced`, before a cell exists: the same
+   * owner / solar-phase gates, then an honest cell-dependent `deferred` — the
+   * steel production comes only off a steel / titanium bonus area, which the
+   * cell dossier states once the player points at one.
+   */
+  public tilePlacedForecast(cardOwner: IPlayer, activePlayer: IPlayer, _tile: EffectForecastTile): ReadonlyArray<EffectForecastFact> {
+    if (cardOwner.id !== activePlayer.id || cardOwner.game.phase === Phase.SOLAR) {
+      return [];
+    }
+    return [forecast.deferred(forecast.sourceOf(this, cardOwner, 'tile-placed'), [],
+      'You place a tile on Mars', {
+        sequence: forecast.triggerSequence(cardOwner, activePlayer),
+        note: 'Depends on the cell — the cell dossier will show the details',
+      })];
   }
 
   /**

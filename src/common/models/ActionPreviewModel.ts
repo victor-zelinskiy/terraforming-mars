@@ -7,6 +7,7 @@ import {TileType} from '../TileType';
 import {Units} from '../Units';
 import {PlayerInputModel, SelectCardModel} from './PlayerInputModel';
 import {DeltaAdvanceOffer} from './DeltaBonusPromptModel';
+import {EffectForecast} from './EffectForecastModel';
 
 /**
  * What a resource move does to ONE candidate card's victory points.
@@ -71,6 +72,17 @@ export type ActionPreview = {
    * order. Empty/absent when there's no such pre-prompt (no Stormcraft).
    */
   preSteps?: ReadonlyArray<ActionPreviewStep>;
+  /**
+   * THE EFFECT FORECAST — what the rest of the table does in answer to this
+   * play / activation (the reacting cards of every seat, the second-order
+   * hooks, the tile triggers, the discounts and the payment values). Built by
+   * `src/server/models/effectForecast.ts` and attached by the two preview
+   * ROUTES, so it rides the same cache and the same version key as the
+   * preview it belongs to. Absent on a preview built outside those routes
+   * (a corp first action, a nested repeat pick) — the client then simply has
+   * no «Сработает» row.
+   */
+  forecast?: EffectForecast;
 };
 
 /**

@@ -16,6 +16,9 @@ import {TileType} from '../../../common/TileType';
 import {BoardFact} from '../../../common/boards/BoardInformationFacts';
 import {PlacementPreviewContext} from '../../boards/PlacementPreviewContext';
 import * as placementPreviews from '../placementPreviews';
+import * as forecast from '../effectForecastPreviews';
+import {EffectForecastFact} from '../../../common/models/EffectForecastModel';
+import {EffectForecastTile} from '../EffectForecastContext';
 
 /**
  * The tile types `Game.simpleAddTile` leaves UNOWNED (`space.player = undefined`).
@@ -101,6 +104,24 @@ export class Philares extends CorporationCard implements ICorporationCard {
       cardOwner.id !== activePlayer.id ? Priority.OPPONENT_TRIGGER : Priority.GAIN_RESOURCE_OR_PRODUCTION,
       );
     }
+  }
+
+  /**
+   * The forecast mirror of `onTilePlaced` before a cell exists: an OWNED tile
+   * may create new adjacencies with another player's tiles — entirely a
+   * function of the cell, so an honest chip-less `deferred` pointing at the
+   * cell dossier (an unowned tile — an ocean — can never fire it).
+   */
+  public tilePlacedForecast(cardOwner: IPlayer, activePlayer: IPlayer, tile: EffectForecastTile): ReadonlyArray<EffectForecastFact> {
+    if (tile.tileType === undefined || UNOWNED_TILE_TYPES.has(tile.tileType) || tile.offMars) {
+      return [];
+    }
+    return [forecast.deferred(forecast.sourceOf(this, cardOwner, 'tile-placed'), [],
+      cardOwner.id === activePlayer.id ? 'Your tile lands next to another player\'s tile' : 'A tile lands next to your tile', {
+        recipient: forecast.recipientOf(activePlayer, cardOwner),
+        sequence: cardOwner.id !== activePlayer.id ? Priority.OPPONENT_TRIGGER : Priority.GAIN_RESOURCE_OR_PRODUCTION,
+        note: 'Depends on the cell — the cell dossier will show the details',
+      })];
   }
 
   /**

@@ -6,6 +6,9 @@ import {CardName} from '../../../common/cards/CardName';
 import {CardRenderer} from '../render/CardRenderer';
 import {Card} from '../Card';
 import {ICard} from '../ICard';
+import {EffectForecastFact} from '../../../common/models/EffectForecastModel';
+import * as actionPreviews from '../actionPreviews';
+import * as forecast from '../effectForecastPreviews';
 
 export class SpinoffDepartment extends Card implements IProjectCard {
   constructor() {
@@ -37,5 +40,14 @@ export class SpinoffDepartment extends Card implements IProjectCard {
     if (isIProjectCard(card) && card.cost >= 20) {
       player.drawCard();
     }
+  }
+  /** Mirrors `onCardPlayed`: the PRINTED cost at 20+ draws a card at once. */
+  public cardPlayedForecast(cardOwner: IPlayer, _activePlayer: IPlayer, card: ICard): ReadonlyArray<EffectForecastFact> {
+    if (!isIProjectCard(card) || card.cost < 20) {
+      return [];
+    }
+    return [forecast.exact(forecast.sourceOf(this, cardOwner, 'card-played'),
+      [actionPreviews.drawGain(1)],
+      'You play a card with a basic cost of 20 M€ or more')];
   }
 }

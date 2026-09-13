@@ -10,6 +10,9 @@ import {Board} from '../../boards/Board';
 import {BoardType} from '../../boards/BoardType';
 import {Phase} from '../../../common/Phase';
 import {BonusDeltaAdvance} from '../../deferredActions/BonusDeltaAdvance';
+import * as forecast from '../effectForecastPreviews';
+import {EffectForecastFact} from '../../../common/models/EffectForecastModel';
+import {EffectForecastTile} from '../EffectForecastContext';
 
 export class DynamicOceanBarrier extends Card implements IProjectCard {
   constructor() {
@@ -63,5 +66,25 @@ export class DynamicOceanBarrier extends Card implements IProjectCard {
       return;
     }
     cardOwner.game.defer(new BonusDeltaAdvance(cardOwner, this));
+  }
+
+  /**
+   * The forecast mirror of `onTilePlaced`: the same four gates (the Mars
+   * board is the only one previewed), then a `deferred` OFFER — the free
+   * Hydronetwork step is a question the queued action asks once the ocean
+   * is down, so there is no chip to promise here.
+   */
+  public tilePlacedForecast(cardOwner: IPlayer, activePlayer: IPlayer, tile: EffectForecastTile): ReadonlyArray<EffectForecastFact> {
+    if (cardOwner !== activePlayer || !forecast.placesUncoveredOcean(tile) || cardOwner.game.phase === Phase.SOLAR) {
+      return [];
+    }
+    if (cardOwner.deltaProjectData === undefined) {
+      return [];
+    }
+    return [forecast.deferred(forecast.sourceOf(this, cardOwner, 'tile-placed'), [],
+      'You place an ocean tile', {
+        sequence: forecast.triggerSequence(cardOwner, activePlayer),
+        note: 'You may take a free Hydronetwork step',
+      })];
   }
 }

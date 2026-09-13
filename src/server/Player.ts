@@ -1096,7 +1096,12 @@ export class Player implements IPlayer {
     return {base: card.cost, final: Math.max(cost, 0), discounts};
   }
 
-  private paymentOptionsForCard(card: IProjectCard): PaymentOptions {
+  /**
+   * WHICH alternative payment sources THIS card accepts — the one rule the
+   * play prompt, the payment check and the effect forecast's «Скидки и
+   * оплата» group all read (public so the forecast never re-derives it).
+   */
+  public paymentOptionsForCard(card: IProjectCard): PaymentOptions {
     return {
       heat: this.canUseHeatAsMegaCredits,
       steel: this.lastCardPlayed === CardName.LAST_RESORT_INGENUITY || card.tags.includes(Tag.BUILDING),

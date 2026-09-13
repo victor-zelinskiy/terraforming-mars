@@ -46,6 +46,7 @@
                  emblem: 'cards',
                  subject: stage !== undefined ? stage.subject : '',
                  stage: stage !== undefined ? stage.name : '',
+                 stageRaw: stage !== undefined && stage.raw === true,
                  committed: stage !== undefined && stage.committed,
                }">
       <div class="con-hand__head-left">
@@ -542,6 +543,12 @@ export type ConsoleHandStage = {
   name: string,
   /** Past the commit boundary — the stage marker goes amber. */
   committed: boolean,
+  /**
+   * `name` is ALREADY in the player's language — a COMPOSED tail («РОЗЫГРЫШ ·
+   * ЭФФЕКТЫ», the play composer's R3 layer joining two translated parts), the
+   * same escape hatch `ConsoleWsHead.stageRaw` is for the hosted colony step.
+   */
+  raw?: boolean,
 };
 
 /** One rendered cell: the entry + its flat hand index. */

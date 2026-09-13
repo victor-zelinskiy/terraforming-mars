@@ -8,6 +8,9 @@ import {all} from '../Options';
 import {IProjectCard} from '../IProjectCard';
 import {ICard} from '../ICard';
 import {ExternalDrawIntake} from '../../deferredActions/ExternalDrawIntake';
+import {EffectForecastFact} from '../../../common/models/EffectForecastModel';
+import * as actionPreviews from '../actionPreviews';
+import * as forecast from '../effectForecastPreviews';
 
 export class SolarLogistics extends Card implements IProjectCard {
   constructor() {
@@ -58,6 +61,33 @@ export class SolarLogistics extends Card implements IProjectCard {
       }
     }
     return undefined;
+  }
+
+  /**
+   * Mirrors `onCardPlayedByAnyPlayer`: a SPACE EVENT draws the OWNER one card
+   * at once — through the mandatory intake when somebody else played it. The
+   * two «almost» cases are stated as `no` facts. (The Earth-tag discount is a
+   * DISCOUNT — the forecast engine reports it off `getCardCostBreakdown`.)
+   */
+  public cardPlayedForecast(cardOwner: IPlayer, activePlayer: IPlayer, card: ICard): ReadonlyArray<EffectForecastFact> {
+    const source = forecast.sourceOf(this, cardOwner, 'card-played-by-any');
+    const recipient = forecast.recipientOf(activePlayer, cardOwner);
+    const isEvent = card.type === CardType.EVENT;
+    const hasSpace = card.tags.includes(Tag.SPACE);
+    if (isEvent && hasSpace) {
+      return [forecast.exact(source, [actionPreviews.drawGain(1)], 'Any player plays a space event', {
+        reasonTag: Tag.SPACE,
+        recipient,
+        note: activePlayer.id === cardOwner.id ? undefined : 'Delivered through the card intake prompt',
+      })];
+    }
+    if (hasSpace) {
+      return [forecast.no(source, 'The card is not an event', {reasonTag: Tag.SPACE, recipient})];
+    }
+    if (isEvent) {
+      return [forecast.no(source, 'The event has no space tag', {reasonTag: Tag.SPACE, recipient})];
+    }
+    return [];
   }
 }
 

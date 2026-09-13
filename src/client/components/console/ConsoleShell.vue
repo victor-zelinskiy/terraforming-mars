@@ -1657,6 +1657,7 @@ import {isResourceTransferActive} from '@/client/console/resourceTransfer/consol
 import {panelCommands} from '@/client/console/consolePanelUi';
 import {consoleActionComposerUi, resetConsoleActionComposerUi, resetConsoleActionRevealClaim} from '@/client/console/consoleActionComposerUi';
 import {focusKicker} from '@/client/console/consoleActionFlow';
+import {forecastStageText} from '@/client/console/consoleEffectForecast';
 import {buildTradeBatch, colonyBuildAsksCardTarget, colonyBuildDrawsCards, colonyOwnerBonusDrawsCards, colonyTradeAsksCardTargets, colonyTradeMayDrawCards, freeTradeFleets, stepResponse, TradeStep} from '@/client/components/colonies/colonyTradePlan';
 import {getColony} from '@/client/colonies/ClientColonyManifest';
 import {colonyTradeReason} from '@/client/console/colonyTradeReason';
@@ -5512,10 +5513,16 @@ export default defineComponent({
         (workspaceStackCrumb()?.stage ?? '') : '';
       const stage = nestedStage !== '' ? nestedStage :
         (outcomeStage !== '' ? outcomeStage : workspaceFrameStage('hand'));
+      const name = stage === '' ? 'Playing' : stage;
+      // The play composer's R3 «Эффекты» LAYER is a level INSIDE the stage —
+      // the tail gains «· ЭФФЕКТЫ» (and the source card's name at its detail)
+      // and gives it back on B / R3; the composed string is pre-translated.
+      const forecastTail = nestedStage === '' && outcomeStage === '' ? forecastStageText('play', name) : undefined;
       return {
         subject: workspaceFrameSubject('hand'),
-        name: stage === '' ? 'Playing' : stage,
+        name: forecastTail ?? name,
         committed: isCommitted(phase),
+        raw: forecastTail !== undefined,
       };
     },
     /**
@@ -7292,7 +7299,10 @@ export default defineComponent({
         // …unless a SECTION-projecting workspace is standing INSIDE it (a
         // hosted colony step): the bar belongs to the surface the player is
         // driving, which is the same rule input routing uses.
-        return focusKicker(consoleActionComposerUi.revealClaim !== '' ? 'reveal' : 'setup');
+        const phase = focusKicker(consoleActionComposerUi.revealClaim !== '' ? 'reveal' : 'setup');
+        // The composer's R3 «Эффекты» layer — one voice with the crumb's
+        // composed tail (pre-translated; `$t` passes an unknown key through).
+        return forecastStageText('action', phase) ?? phase;
       }
       if (this.consoleState.sheet !== undefined && workspaceStackTopAxis() !== 'section') {
         return this.sheetTitle;

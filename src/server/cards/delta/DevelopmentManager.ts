@@ -6,6 +6,10 @@ import {CardName} from '../../../common/cards/CardName';
 import {CardRenderer} from '../render/CardRenderer';
 import {IPlayer} from '../../IPlayer';
 import {Resource} from '../../../common/Resource';
+import {EffectForecastFact} from '../../../common/models/EffectForecastModel';
+import {EffectForecastGrant} from '../EffectForecastContext';
+import * as actionPreviews from '../actionPreviews';
+import * as forecast from '../effectForecastPreviews';
 
 export class DevelopmentManager extends Card implements IProjectCard {
   constructor() {
@@ -64,6 +68,16 @@ export class DevelopmentManager extends Card implements IProjectCard {
     if (amount >= 2) {
       this.grantBonus(player);
     }
+  }
+  /** Mirrors `onProductionGain`: ONE production type raised 2+ steps in one
+   *  change pays 2 M€ at once (the threshold is a gate, never a multiplier). */
+  public grantForecast(cardOwner: IPlayer, _activePlayer: IPlayer, grant: EffectForecastGrant): ReadonlyArray<EffectForecastFact> {
+    if (grant.kind !== 'production' || grant.amount < 2) {
+      return [];
+    }
+    return [forecast.exact(forecast.sourceOf(this, cardOwner, 'production-gain'),
+      [actionPreviews.stockGain(cardOwner, Resource.MEGACREDITS, 2)],
+      'You raise one production by 2 or more steps')];
   }
 
   public onDeltaTrackAdvance(player: IPlayer, steps: number): void {
