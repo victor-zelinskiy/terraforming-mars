@@ -29,6 +29,9 @@ const SOURCE_KEYS: Record<string, string> = {
   corporation: 'Corporation effect',
   colony: 'Colony',
   standardProject: 'Standard project',
+  // Turmoil Redux: a party's action asks (the Reds' recycle) — the header
+  // names the party through `partyName`.
+  party: 'Party action',
   system: 'Game rule',
 };
 
@@ -63,6 +66,8 @@ export type DiscardIntent = {
    *  with its planet mini, so the source is a PLACE, not just the word
    *  «Колония». */
   colonyName?: string,
+  /** The PARTY whose action demands it (Turmoil Redux) — an i18n key (the party name). */
+  partyName?: string,
   /** How many cards are picked right now (0 for a single-press pick). */
   picked: number,
   /** min === max === 1 → A answers in one press (no toggle-then-confirm). */
@@ -95,27 +100,41 @@ export function discardHeadline(meta: DiscardPromptMeta): {key: string, amount?:
   return {key: 'Discard ${0} cards', amount: meta.min};
 }
 
-/** Resolve the payout for a concrete number of discarded cards. */
-export function discardExchangeFor(meta: DiscardPromptMeta, picked: number): DiscardExchange | undefined {
+/**
+ * Resolve the payout for a concrete selection: per card, per matching TAG on
+ * the picked cards (`pickedTags` — the Reds' recycle), or flat.
+ */
+export function discardExchangeFor(meta: DiscardPromptMeta, picked: number, pickedTags = 0): DiscardExchange | undefined {
   const exchange = meta.exchange;
   if (exchange === undefined) {
     return undefined;
   }
   const perCard = exchange.perCard === true;
+  const perTag = exchange.perTag !== undefined;
   return {
     icon: exchange.icon,
-    amount: perCard ? exchange.amount * picked : exchange.amount,
-    perCard,
+    amount: perTag ? exchange.amount * pickedTags : perCard ? exchange.amount * picked : exchange.amount,
+    perCard: perCard || perTag,
   };
+}
+
+/** How many of the exchange's TAGS the picked cards carry (0 for a per-card / flat exchange). */
+export function discardPickedTags(meta: DiscardPromptMeta, pickedTags: ReadonlyArray<ReadonlyArray<string>>): number {
+  const wanted = meta.exchange?.perTag;
+  if (wanted === undefined) {
+    return 0;
+  }
+  return pickedTags.reduce((sum, tags) => sum + tags.filter((tag) => (wanted as ReadonlyArray<string>).includes(tag)).length, 0);
 }
 
 /**
  * Derive the full presentation from the marker + the live selection.
  *
- * @param meta   the server marker (from a top-level prompt OR a nested branch).
- * @param picked how many cards the player has selected so far.
+ * @param meta       the server marker (from a top-level prompt OR a nested branch).
+ * @param picked     how many cards the player has selected so far.
+ * @param pickedTags how many of the exchange's tags those cards carry (a per-tag payout).
  */
-export function deriveDiscardIntent(meta: DiscardPromptMeta, picked: number): DiscardIntent {
+export function deriveDiscardIntent(meta: DiscardPromptMeta, picked: number, pickedTags = 0): DiscardIntent {
   const source = meta.source;
   return {
     min: meta.min,
@@ -124,11 +143,12 @@ export function deriveDiscardIntent(meta: DiscardPromptMeta, picked: number): Di
     kicker: DISCARD_VERB,
     sourceKey: SOURCE_KEYS[source?.kind ?? 'system'] ?? SOURCE_KEYS.system,
     card: source?.card,
-    exchange: discardExchangeFor(meta, picked),
+    exchange: discardExchangeFor(meta, picked, pickedTags),
     sequence: meta.colonyBonus === undefined ?
       undefined :
       {index: meta.colonyBonus.index, total: meta.colonyBonus.total},
     colonyName: meta.colonyBonus?.colonyName,
+    partyName: source?.kind === 'party' ? source.party : undefined,
     picked,
     single: meta.min === 1 && meta.max === 1,
   };

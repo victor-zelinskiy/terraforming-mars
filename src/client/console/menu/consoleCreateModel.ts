@@ -59,6 +59,7 @@ import {
 } from '@/client/components/create/premium/createGameState';
 import {
   BOT_DIFFICULTIES,
+  EXPANSION_REQUIRES,
   PREMIUM_EXPANSIONS,
   PREMIUM_MAPS,
   PremiumExpansionMeta,
@@ -500,7 +501,28 @@ export function launchIssues(): ReadonlyArray<LaunchIssue> {
   for (const conflict of stateAutomaConflicts()) {
     issues.push({id: `automa:${conflict.key}`, textKey: automaBlockerText(conflict.key), target: automaConflictTarget(conflict.key)});
   }
+  // An expansion that depends on another (Turmoil Redux needs Colonies) — the
+  // same rule the server enforces in Game.newInstance, named before launch.
+  const selected = createGameState.config.selectedExpansions;
+  for (const [id, requires] of Object.entries(EXPANSION_REQUIRES) as Array<[Expansion, ReadonlyArray<Expansion>]>) {
+    if (selected[id] !== true) {
+      continue;
+    }
+    for (const required of requires) {
+      if (selected[required] !== true) {
+        const row = PREMIUM_EXPANSIONS.findIndex((e) => e.id === required);
+        issues.push({id: `requires:${id}:${required}`, textKey: expansionRequirementText(id, required), target: {deck: 'expansions', row: row >= 0 ? row : 0}});
+      }
+    }
+  }
   return issues;
+}
+
+function expansionRequirementText(id: Expansion, required: Expansion): string {
+  if (id === 'turmoilRedux' && required === 'colonies') {
+    return 'Turmoil Redux requires Colonies';
+  }
+  return 'An enabled expansion requires another one';
 }
 
 function automaConflictTarget(key: string): LaunchIssueTarget {

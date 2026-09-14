@@ -65,7 +65,19 @@ export type EffectForecastTiming =
  * out-of-scope module the engine names honestly instead of staying silent (a
  * ruling party's policy, the Pathfinders track); its `name` is an i18n key.
  */
-export type EffectForecastSourceKind = 'card' | 'corporation' | 'automa-corporation' | 'rule';
+export type EffectForecastSourceKind = 'card' | 'corporation' | 'automa-corporation' | 'rule'
+  /** A Turmoil Redux PARTY EFFECT the seat holds (`name` is the PartyName; cardless, like a rule). */
+  | 'party';
+
+/**
+ * A source with NO card behind it — a rule, a party effect. Every reader that
+ * used to ask `kind === 'rule'` to mean «no card to show / no card name to
+ * resolve» asks this instead, so a new cardless kind cannot be cast to a
+ * CardName by omission.
+ */
+export function forecastSourceIsCardless(source: {kind: EffectForecastSourceKind}): boolean {
+  return source.kind === 'rule' || source.kind === 'party';
+}
 
 export type EffectForecastSource = {
   kind: EffectForecastSourceKind;

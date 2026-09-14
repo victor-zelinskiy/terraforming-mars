@@ -58,6 +58,8 @@ function categoryTypeLabel(category: JournalActionCategory | undefined): string 
   case 'colony': return 'Colony';
   case 'copied-action': return 'Copied action';
   case 'solar-phase': return 'Solar phase';
+  case 'parliament': return 'Parliament';
+  case 'political-phase': return 'Mars Parliament';
   default: return 'Event';
   }
 }

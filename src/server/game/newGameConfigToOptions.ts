@@ -71,6 +71,7 @@ export function gameOptionsFromNewGameConfig(gameReq: NewGameConfig, requestedBo
     startingPreludes: gameReq.startingPreludes,
     starWarsExpansion: gameReq.expansions.starwars,
     turmoilExtension: gameReq.expansions.turmoil,
+    turmoilReduxExpansion: gameReq.expansions.turmoilRedux ?? false,
     twoCorpsVariant: gameReq.twoCorpsVariant,
     underworldExpansion: gameReq.expansions.underworld,
     deltaProjectExpansion: gameReq.expansions.deltaProject,

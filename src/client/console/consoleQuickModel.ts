@@ -84,8 +84,10 @@ export type RtQuickContext = {
   hydroAvailable: number,
   /** The game has colony tiles in play (Trading is a view too). */
   hasColonies: boolean,
-  /** Turmoil is part of this game (the reserved Voting slot's honesty). */
-  hasTurmoil: boolean,
+  /** The Mars Parliament (Turmoil Redux) is part of this game — the Parliament is a view too. */
+  hasParliament: boolean,
+  /** 0 or 1 — a vote the viewer could cast right now (the free lobby delegate or a paid one). */
+  votesAvailable: number,
   /** The Delta-Project (Hydronetwork) expansion is on. */
   hasHydro: boolean,
   /**
@@ -125,9 +127,12 @@ export function buildRtQuickEntries(ctx: RtQuickContext): Array<QuickEntry> {
       available: ctx.hasColonies, reason: 'No colonies in this game',
     },
     {
-      id: 'voting', slot: 'down', label: 'Voting', glyph: '⚖',
-      available: false,
-      reason: ctx.hasTurmoil ? 'Voting arrives with a future update' : 'Not in this game',
+      // «ПАРЛАМЕНТ» — the Mars Parliament (Turmoil Redux): the vote, the
+      // party effects and actions, the Agenda. A VIEW too (like Trading), so
+      // it stays open post-game; the badge is whether a vote can be cast now.
+      id: 'parliament', slot: 'down', label: 'Parliament', barIcon: 'parliament',
+      badge: ctx.votesAvailable,
+      available: ctx.hasParliament, reason: 'Not in this game',
     },
     {
       // At most 1 — the track may be advanced once per generation.

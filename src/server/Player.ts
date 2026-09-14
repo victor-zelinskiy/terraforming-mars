@@ -68,6 +68,7 @@ import {message} from './logs/MessageBuilder';
 import {AutomaTargeting} from './automa/AutomaTargeting';
 import {calculateVictoryPoints} from './game/calculateVictoryPoints';
 import {TRSourceEntry, TRSourceType, VictoryPointsBreakdown} from '../common/game/VictoryPointsBreakdown';
+import {ParliamentHandler} from './parliament/ParliamentHandler';
 import {fromToEventSource} from './events/fromToEventSource';
 import {Supercapacitors} from './cards/promo/Supercapacitors';
 import {CanAffordOptions, CardAction, CardDrawReveal, IPlayer, PendingCardIntake, PlayabilityOptions, RevealedCard} from './IPlayer';
@@ -555,6 +556,8 @@ export class Player implements IPlayer {
         }
       }
       this.game?.events?.recordTrDelta(this, steps, opts.from);
+      // Turmoil Redux: the Greens' passive (+2 M€ per step) and the chairman quest.
+      ParliamentHandler.onTerraformRatingGained(this, steps);
       for (const cardOwner of this.game.playersInGenerationOrder) {
         for (const card of cardOwner.tableau) {
           if (card.onIncreaseTerraformRatingByAnyPlayer === undefined) {
@@ -828,6 +831,8 @@ export class Player implements IPlayer {
     }
 
     this.game?.events?.recordCardResourceDelta(this, card, count, typeof(options) !== 'number' ? options.from : undefined);
+    // Turmoil Redux: the chairman quest (resources added to cards).
+    ParliamentHandler.onCardResourceAdded(this, card, count);
 
     if (count > 0) {
       const events = this.game?.events;
@@ -1427,6 +1432,8 @@ export class Player implements IPlayer {
     }
 
     TurmoilHandler.applyOnCardPlayedEffect(this, card);
+    // Turmoil Redux: the chairman quest (tags played, card types played).
+    ParliamentHandler.onCardPlayed(this, card);
 
     /* A player responding to any other player's card played. */
     for (const somePlayer of this.game.playersInGenerationOrder) {
@@ -2773,6 +2780,14 @@ export class Player implements IPlayer {
         action.options.push(input);
       }
     });
+
+    // Turmoil Redux: the vote and the party actions (Unity's free trade
+    // rides the colony trade action above). PRESENCE is availability.
+    const vote = ParliamentHandler.voteOption(this);
+    if (vote !== undefined) {
+      action.options.push(vote);
+    }
+    action.options.push(...ParliamentHandler.partyActionOptions(this));
 
     // End turn — never on a bonus action (there is no turn slot to give up).
     if (!bonusAction &&

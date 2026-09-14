@@ -39,7 +39,25 @@ export type EventSource =
   | {kind: 'award'; name: AwardName}
   | {kind: 'colony'; name: ColonyName; benefit?: ColonyBenefitRole}
   | {kind: 'globalEvent'; name: GlobalEventName}
-  | {kind: 'party'; name: PartyName}
+  /**
+   * A political PARTY's effect. `owner` names the player WHOSE access produced
+   * the payout (Turmoil Redux grants one party's effect to several players at
+   * once, each through their own delegates) so per-player effect statistics can
+   * group a party effect exactly like a card in that player's tableau.
+   */
+  | {kind: 'party'; name: PartyName; owner?: Color}
+  /**
+   * An enacted RESOLUTION (Turmoil Redux). `id` is the catalog id (stable
+   * across saves — see `common/parliament/ParliamentTypes.ts`); `owner` is the
+   * player the effect paid, when it paid one player in particular.
+   */
+  | {kind: 'resolution'; id: string; owner?: Color}
+  /**
+   * The Mars Parliament itself as a RULE source (Turmoil Redux): the greenery
+   * TR revision, an Agenda step bonus, the chairman's seat. Nothing a card or a
+   * party did — the political rulebook did.
+   */
+  | {kind: 'parliament'}
   | {kind: 'globalParameter'; parameter: GlobalParameter}
   /**
    * A MarsBot BONUS CARD (Automa). Recorded at the moment the card RESOLVES,
@@ -73,6 +91,8 @@ export function sourceKey(source: EventSource | undefined): string {
   case 'globalEvent':
   case 'party':
     return `${source.kind}:${source.name}`;
+  case 'resolution':
+    return `${source.kind}:${source.id}`;
   case 'globalParameter':
     return `${source.kind}:${source.parameter}`;
   case 'bonusCard':
@@ -84,4 +104,14 @@ export function sourceKey(source: EventSource | undefined): string {
 
 export function isCorporationSource(source: EventSource | undefined): source is {kind: 'corporation'; card: CardName; owner?: Color} {
   return source?.kind === 'corporation';
+}
+
+/**
+ * A source that is NOT a card in anybody's tableau yet still acts as an
+ * effect engine of its own: a party effect, an enacted resolution, the
+ * parliament's rules. Every surface that used to equate «no card name» with
+ * «a bare rule» asks this instead of `kind === 'rule'`.
+ */
+export function isPoliticalSource(source: EventSource | undefined): source is {kind: 'party'; name: PartyName; owner?: Color} | {kind: 'resolution'; id: string; owner?: Color} | {kind: 'parliament'} {
+  return source !== undefined && (source.kind === 'party' || source.kind === 'resolution' || source.kind === 'parliament');
 }

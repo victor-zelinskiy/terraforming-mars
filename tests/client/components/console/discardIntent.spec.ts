@@ -1,15 +1,18 @@
 import {expect} from 'chai';
 import {CardName} from '@/common/cards/CardName';
 import {ColonyName} from '@/common/colonies/ColonyName';
+import {PartyName} from '@/common/turmoil/PartyName';
 import {DiscardPromptMeta, PlayerInputModel} from '@/common/models/PlayerInputModel';
 import {
   deriveDiscardIntent,
   discardExchangeFor,
   discardHeadline,
   discardMetaOf,
+  discardPickedTags,
   isDiscardPrompt,
   nestedDiscardBranch,
 } from '@/client/console/cardDiscard/discardIntent';
+import {Tag} from '@/common/cards/Tag';
 
 /*
  * The ONE derivation behind every console discard. Its whole point is that a
@@ -46,6 +49,20 @@ describe('discardIntent', () => {
     expect(discardExchangeFor(meta(), 1)).is.undefined;
   });
 
+  it('resolves a per-TAG payout against the tags of the picked cards (the Reds recycle), never per card', () => {
+    const perTag = meta({min: 2, max: 2, exchange: {icon: 'megacredits', amount: 2, perTag: [Tag.PLANT, Tag.MICROBE, Tag.ANIMAL]}});
+    // Two cards picked, three matching tags between them (a space tag does not count).
+    const tags = discardPickedTags(perTag, [[Tag.PLANT, Tag.SPACE], [Tag.MICROBE, Tag.ANIMAL]]);
+    expect(tags).eq(3);
+    expect(discardExchangeFor(perTag, 2, tags)?.amount).eq(6);
+    expect(discardExchangeFor(perTag, 2, 0)?.amount, 'tagless picks buy nothing').eq(0);
+    expect(deriveDiscardIntent(perTag, 2, tags).exchange?.amount).eq(6);
+    // A per-card exchange ignores the tag count.
+    const perCard = meta({min: 0, max: 5, exchange: {icon: 'megacredits', amount: 2, perCard: true}});
+    expect(discardPickedTags(perCard, [[Tag.PLANT]])).eq(0);
+    expect(discardExchangeFor(perCard, 3, 5)?.amount).eq(6);
+  });
+
   it('names the source per kind, and previews the card when there is one', () => {
     const card = deriveDiscardIntent(meta(), 0);
     expect(card.sourceKey).eq('Card effect');
@@ -60,6 +77,12 @@ describe('discardIntent', () => {
     const bare = deriveDiscardIntent({min: 2, max: 2}, 0);
     expect(bare.sourceKey).eq('Game rule');
     expect(bare.single).is.false;
+
+    // Turmoil Redux: a PARTY's action asks — the header names the party, never «a game rule».
+    const party = deriveDiscardIntent(meta({min: 2, max: 2, source: {kind: 'party', party: PartyName.REDS}}), 0);
+    expect(party.sourceKey).eq('Party action');
+    expect(party.partyName).eq(PartyName.REDS);
+    expect(party.card).is.undefined;
   });
 
   it('carries the colony-bonus position (Pluto resolves one cube at a time)', () => {

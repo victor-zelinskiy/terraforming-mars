@@ -19,6 +19,7 @@ import {InputError} from '../inputs/InputError';
 import {cardEffect} from '../inputs/choiceContext';
 import {DeltaWorks} from '../cards/delta/DeltaWorks';
 import {TradeWithDarksideSmugglersUnion} from '../cards/moon/DarksideSmugglersUnion';
+import {TradeWithUnity} from '../parliament/TradeWithUnity';
 import {Payment} from '../../common/inputs/Payment';
 import {TradeWithHectateSpeditions} from '../cards/underworld/HecateSpeditions';
 import {ColonyName} from '../../../src/common/colonies/ColonyName';
@@ -97,6 +98,8 @@ export class Colonies {
   private tradeHandlers(): Array<IColonyTrader> {
     const player = this.player;
     return [
+      // Turmoil Redux: the Unity party action — a free trade, once per generation.
+      new TradeWithUnity(player),
       new TradeWithDarksideSmugglersUnion(player),
       new TradeWithTitanFloatingLaunchPad(player),
       new TradeWithCollegiumCopernicus(player),

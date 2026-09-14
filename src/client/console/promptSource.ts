@@ -94,6 +94,9 @@ export function choiceSourceView(source: ChoiceContextSource | undefined): Promp
     return {kindKey: 'Colony', name: source.name, inspectable: false};
   case 'standardProject':
     return {kindKey: 'Standard project', name: source.name, inspectable: false};
+  // Turmoil Redux: a PARTY's action or effect asks (the Reds' recycle discard).
+  case 'party':
+    return {kindKey: 'Party action', name: source.party ?? source.name, inspectable: false};
   case 'card':
   case 'corporation':
     // Marked as a card source but WITHOUT a name — the server knows a card

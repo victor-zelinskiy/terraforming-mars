@@ -793,6 +793,9 @@ export default defineComponent({
       if (intent.colonyName !== undefined) {
         return translateText(intent.colonyName);
       }
+      if (intent.partyName !== undefined) {
+        return translateTextWithParams('Party action of ${0}', [translateText(intent.partyName)]);
+      }
       return translateText(intent.sourceKey);
     },
     /** The demanding colony's planet art ('' = not a colony discard). */

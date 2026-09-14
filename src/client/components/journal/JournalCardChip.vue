@@ -90,6 +90,7 @@ const cardTypeModifier: Record<CardType, string | undefined> = {
   standard_project: 'journal-chip--standard',
   standard_action: 'journal-chip--standard',
   proxy: undefined,
+  resolution: 'journal-chip--resolution',
 };
 
 // Small delay so a preview doesn't flash while the cursor merely sweeps

@@ -21,6 +21,7 @@ import {GlobalParameter} from '../common/GlobalParameter';
 import {MilestoneName} from '../common/ma/MilestoneName';
 import {Tag} from '../common/cards/Tag';
 import {SerializedAutomaState} from './automa/AutomaState';
+import {SerializedParliament} from './parliament/SerializedParliament';
 
 export type SerializedGame = {
     activePlayer: PlayerId;
@@ -81,6 +82,8 @@ export type SerializedGame = {
     temperature: number;
     tradeEmbargo?: boolean;
     turmoil?: SerializedTurmoil;
+    /** Turmoil Redux — the Mars Parliament. Absent in every other game. */
+    parliament?: SerializedParliament;
     undoCount: number;
     underworldData: UnderworldData;
     venusScaleLevel: number;

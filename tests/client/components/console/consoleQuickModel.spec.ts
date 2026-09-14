@@ -15,16 +15,16 @@ import {CardName} from '@/common/cards/CardName';
  */
 describe('consoleQuickModel (P27)', () => {
   describe('RT — action categories', () => {
-    it('maps the spec slots: Cards center, Card actions up, Trading right, Voting down, Hydro left', () => {
+    it('maps the spec slots: Cards center, Card actions up, Trading right, Parliament down, Hydro left', () => {
       const entries = buildRtQuickEntries({
         cardsPlayable: 3, cardsTotal: 5, actionsAvailable: 2, tradesAvailable: 2, hydroAvailable: 1,
-        hasColonies: true, hasTurmoil: false, hasHydro: true,
+        hasColonies: true, hasParliament: false, votesAvailable: 0, hasHydro: true,
       });
       const bySlot = new Map(entries.map((e) => [e.slot, e]));
       expect(bySlot.get('center')?.id).to.eq('cards');
       expect(bySlot.get('up')?.id).to.eq('cardActions');
       expect(bySlot.get('right')?.id).to.eq('trading');
-      expect(bySlot.get('down')?.id).to.eq('voting');
+      expect(bySlot.get('down')?.id).to.eq('parliament');
       expect(bySlot.get('left')?.id).to.eq('hydro');
       expect(bySlot.get('center')?.badge).to.eq(3);
       expect(bySlot.get('up')?.badge).to.eq(2);
@@ -43,7 +43,7 @@ describe('consoleQuickModel (P27)', () => {
     it('all four action categories carry a potential count', () => {
       const bySlot = new Map(buildRtQuickEntries({
         cardsPlayable: 4, cardsTotal: 7, actionsAvailable: 3, tradesAvailable: 2, hydroAvailable: 1,
-        hasColonies: true, hasTurmoil: false, hasHydro: true,
+        hasColonies: true, hasParliament: false, votesAvailable: 0, hasHydro: true,
       }).map((e) => [e.slot, e]));
       expect(bySlot.get('center')?.badge, 'cards').to.eq(4);
       expect(bySlot.get('up')?.badge, 'card actions').to.eq(3);
@@ -56,7 +56,7 @@ describe('consoleQuickModel (P27)', () => {
       // degrades to the plain tile — never a «0» chip screaming at the player.
       const bySlot = new Map(buildRtQuickEntries({
         cardsPlayable: 0, cardsTotal: 7, actionsAvailable: 0, tradesAvailable: 0, hydroAvailable: 0,
-        hasColonies: true, hasTurmoil: false, hasHydro: true,
+        hasColonies: true, hasParliament: false, votesAvailable: 0, hasHydro: true,
       }).map((e) => [e.slot, e]));
       expect(bySlot.get('right')?.badge).to.eq(0);
       expect(bySlot.get('left')?.badge).to.eq(0);
@@ -68,24 +68,26 @@ describe('consoleQuickModel (P27)', () => {
     it('keeps unavailable categories VISIBLE with honest reasons', () => {
       const entries = buildRtQuickEntries({
         cardsPlayable: 0, cardsTotal: 0, actionsAvailable: 0, tradesAvailable: 0, hydroAvailable: 0,
-        hasColonies: false, hasTurmoil: false, hasHydro: false,
+        hasColonies: false, hasParliament: false, votesAvailable: 0, hasHydro: false,
       });
       const bySlot = new Map(entries.map((e) => [e.slot, e]));
       expect(bySlot.get('right')?.available).to.eq(false);
       expect(bySlot.get('right')?.reason).to.eq('No colonies in this game');
       expect(bySlot.get('left')?.available).to.eq(false);
-      // Voting stays a reserved (disabled) slot in every game.
+      // The Parliament is absent without Turmoil Redux — blocked WITH the reason.
       expect(bySlot.get('down')?.available).to.eq(false);
       expect(bySlot.get('down')?.reason).to.eq('Not in this game');
     });
 
-    it('names the Turmoil-reserved reason when the expansion is on', () => {
+    it('the Parliament opens with Turmoil Redux and carries the castable-vote badge', () => {
       const entries = buildRtQuickEntries({
         cardsPlayable: 0, cardsTotal: 0, actionsAvailable: 0, tradesAvailable: 0, hydroAvailable: 0,
-        hasColonies: true, hasTurmoil: true, hasHydro: false,
+        hasColonies: true, hasParliament: true, votesAvailable: 1, hasHydro: false,
       });
-      const voting = entries.find((e) => e.id === 'voting');
-      expect(voting?.reason).to.eq('Voting arrives with a future update');
+      const parliament = entries.find((e) => e.id === 'parliament');
+      expect(parliament?.available).to.eq(true);
+      expect(parliament?.badge).to.eq(1);
+      expect(parliament?.label).to.eq('Parliament');
     });
 
     /*
@@ -101,7 +103,7 @@ describe('consoleQuickModel (P27)', () => {
     it('post-game: the personal categories are blocked with a reason, the screens stay open', () => {
       const bySlot = new Map(buildRtQuickEntries({
         cardsPlayable: 0, cardsTotal: 4, actionsAvailable: 0, tradesAvailable: 0, hydroAvailable: 0,
-        hasColonies: true, hasTurmoil: false, hasHydro: true, postGame: true,
+        hasColonies: true, hasParliament: false, votesAvailable: 0, hasHydro: true, postGame: true,
       }).map((e) => [e.slot, e]));
       expect(bySlot.get('center')?.available, 'cards').to.eq(false);
       expect(bySlot.get('center')?.reason, 'cards reason').to.eq('The game is over');
@@ -114,7 +116,7 @@ describe('consoleQuickModel (P27)', () => {
     it('a LIVE game is untouched by the post-game flag being absent', () => {
       const bySlot = new Map(buildRtQuickEntries({
         cardsPlayable: 2, cardsTotal: 4, actionsAvailable: 1, tradesAvailable: 0, hydroAvailable: 0,
-        hasColonies: true, hasTurmoil: false, hasHydro: true,
+        hasColonies: true, hasParliament: false, votesAvailable: 0, hasHydro: true,
       }).map((e) => [e.slot, e]));
       expect(bySlot.get('center')?.available, 'cards').to.eq(true);
       expect(bySlot.get('center')?.reason, 'cards reason').to.eq('');
@@ -122,7 +124,7 @@ describe('consoleQuickModel (P27)', () => {
     });
 
     it('every slot has a glyph mapping', () => {
-      for (const e of buildRtQuickEntries({cardsPlayable: 0, cardsTotal: 0, actionsAvailable: 0, tradesAvailable: 0, hydroAvailable: 0, hasColonies: true, hasTurmoil: false, hasHydro: true})) {
+      for (const e of buildRtQuickEntries({cardsPlayable: 0, cardsTotal: 0, actionsAvailable: 0, tradesAvailable: 0, hydroAvailable: 0, hasColonies: true, hasParliament: false, votesAvailable: 0, hasHydro: true})) {
         expect(QUICK_SLOT_GLYPH[e.slot]).to.not.eq(undefined);
       }
     });
@@ -286,7 +288,7 @@ describe('consoleQuickModel (P27)', () => {
       }
       const rt = buildRtQuickEntries({
         cardsPlayable: 0, cardsTotal: 0, actionsAvailable: 0, tradesAvailable: 0, hydroAvailable: 0,
-        hasColonies: false, hasTurmoil: false, hasHydro: false,
+        hasColonies: false, hasParliament: false, votesAvailable: 0, hasHydro: false,
       });
       for (const e of rt.filter((x) => !x.available)) {
         expect(e.soft, `'${e.id}' is a structural absence`).to.eq(undefined);

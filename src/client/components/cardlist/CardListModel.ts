@@ -40,6 +40,7 @@ const MODULE_ABBREVIATIONS = {
   starwars: 'w',
   underworld: 'u',
   deltaProject: 'd',
+  turmoilRedux: 'R',
 } satisfies Record<GameModule, string>;
 
 const TYPE_ABBREVIATIONS = {
@@ -52,6 +53,7 @@ const TYPE_ABBREVIATIONS = {
   [CardType.STANDARD_PROJECT]: 's',
   [CardType.STANDARD_ACTION]: 'S',
   [CardType.PROXY]: '*',
+  [CardType.RESOLUTION]: 'R',
   colonyTiles: 'C',
   globalEvents: 'e',
   milestones: 'm',
@@ -100,6 +102,7 @@ export function hashToModel(windowLocationHash: string): CardListModel {
       starwars: true,
       underworld: true,
       deltaProject: true,
+      turmoilRedux: true,
     },
     types: {
       event: true,
@@ -110,6 +113,7 @@ export function hashToModel(windowLocationHash: string): CardListModel {
       standard_project: true,
       standard_action: false,
       proxy: false,
+      resolution: false,
       globalEvents: true,
       colonyTiles: true,
       milestones: true,

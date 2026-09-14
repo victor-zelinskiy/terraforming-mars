@@ -29,10 +29,13 @@ export function fromToEventSource(from: From | undefined, owner?: Color): EventS
     return {kind: 'globalEvent', name};
   }
   if ('party' in from) {
-    return {kind: 'party', name: from.party.name};
+    return {kind: 'party', name: from.party.name, owner};
   }
   if ('partyName' in from) {
-    return {kind: 'party', name: from.partyName};
+    return {kind: 'party', name: from.partyName, owner};
+  }
+  if ('resolution' in from) {
+    return {kind: 'resolution', id: from.resolution, owner};
   }
   return undefined;
 }

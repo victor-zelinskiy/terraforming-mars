@@ -67,6 +67,11 @@ type Types = {
   // (a Resource / CardResource / GlobalParameter value, or 'tr' / 'cards').
   type: LogMessageDataType.RESOURCE;
   value: string;
+} | {
+  // A Turmoil Redux resolution — the catalog id (`ResolutionId`); the client
+  // names it through its resolution manifest.
+  type: LogMessageDataType.RESOLUTION;
+  value: string;
 };
 
 export type LogMessageData = Types & {

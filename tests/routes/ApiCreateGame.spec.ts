@@ -92,6 +92,7 @@ describe('ApiCreateGame', () => {
           starwars: false,
           underworld: false,
           deltaProject: false,
+          turmoilRedux: false,
         },
         board: RandomBoardOption.OFFICIAL,
         seed: 0,
@@ -158,7 +159,7 @@ describe('ApiCreateGame', () => {
         expansions: {
           corpera: true, promo: true, venus: false, colonies: false, prelude: false,
           prelude2: false, turmoil: false, community: false, ares: false, moon: false,
-          pathfinders: false, ceo: false, starwars: false, underworld: false, deltaProject: false,
+          pathfinders: false, ceo: false, starwars: false, underworld: false, deltaProject: false, turmoilRedux: false,
         },
         board: BoardName.THARSIS,
         seed: 0,
@@ -226,7 +227,7 @@ describe('ApiCreateGame', () => {
         expansions: {
           corpera: true, promo: false, venus: false, colonies: false, prelude: false,
           prelude2: false, turmoil: false, community: false, ares: false, moon: false,
-          pathfinders: false, ceo: false, starwars: false, underworld: false, deltaProject: false,
+          pathfinders: false, ceo: false, starwars: false, underworld: false, deltaProject: false, turmoilRedux: false,
         },
         board: RandomBoardOption.ALL,
         seed: 0,
@@ -310,7 +311,7 @@ describe('ApiCreateGame', () => {
             corpera: true, promo: false, venus: false, colonies: false,
             prelude: false, prelude2: false, turmoil: false, community: false,
             ares: false, moon: false, pathfinders: false, ceo: false,
-            starwars: false, underworld: false, deltaProject: false,
+            starwars: false, underworld: false, deltaProject: false, turmoilRedux: false,
           },
           // The board must be PINNED: a random board option rolls with
           // Math.random in the route itself, outside the seeded rng.

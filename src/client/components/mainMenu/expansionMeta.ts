@@ -21,6 +21,8 @@ const ICON_STEM: Record<Expansion, string> = {
   starwars: 'starwars',
   underworld: 'underworld',
   deltaProject: 'deltaProject',
+  // Turmoil Redux reuses the Turmoil emblem — it is the same political theme.
+  turmoilRedux: 'turmoil',
 };
 
 export function expansionIconUrl(e: Expansion): string {

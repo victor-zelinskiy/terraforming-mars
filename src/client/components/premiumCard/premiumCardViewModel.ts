@@ -143,6 +143,22 @@ export type PremiumCardVM = {
    * this face can never say less than the legacy one it replaces.
    */
   prose?: string;
+  /**
+   * The MARS PARLIAMENT family (Turmoil Redux) — a resolution or a party's
+   * printed effect. The party emblem sits in the header; a resolution prints
+   * its chairman quest in the lower corner; a dummy says it has no effect of
+   * its own. Built by `resolutionPremiumVm.ts`, never from the card manifest.
+   */
+  parliament?: {
+    party: PartyName;
+    emblemUrl: string;
+    /** English i18n key of the printed chairman quest (resolutions only). */
+    quest?: string;
+    /** A dummy resolution: real party, real quest, no effect of its own. */
+    dummy?: boolean;
+    /** The face is a PARTY EFFECT banner, not a resolution. */
+    partyEffect?: boolean;
+  };
 };
 
 /**

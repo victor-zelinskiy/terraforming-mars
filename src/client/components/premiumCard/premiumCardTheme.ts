@@ -22,7 +22,7 @@ import {CardType} from '@/common/cards/CardType';
  * inner rim, glow, mechanics panel tint) via `pcard--theme-<t>` CSS classes
  * in premium_card.less — gold frame / cost / VP elements stay shared.
  */
-export type PremiumTheme = 'emerald' | 'azure' | 'crimson' | 'prelude' | 'corporation' | 'standard' | 'ceo';
+export type PremiumTheme = 'emerald' | 'azure' | 'crimson' | 'prelude' | 'corporation' | 'standard' | 'ceo' | 'resolution';
 
 const THEME_BY_TYPE: Partial<Record<CardType, PremiumTheme>> = {
   [CardType.AUTOMATED]: 'emerald',
@@ -35,6 +35,10 @@ const THEME_BY_TYPE: Partial<Record<CardType, PremiumTheme>> = {
   [CardType.STANDARD_PROJECT]: 'standard',
   [CardType.STANDARD_ACTION]: 'standard',
   [CardType.CEO]: 'ceo',
+  // Turmoil Redux resolutions — the parliament's purple family (silver
+  // mechanics panel). Faces are built by `resolutionPremiumVm.ts`, never
+  // from the card manifest.
+  [CardType.RESOLUTION]: 'resolution',
 };
 
 export function premiumThemeFor(type: CardType): PremiumTheme | undefined {

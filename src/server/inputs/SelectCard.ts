@@ -141,6 +141,12 @@ export class SelectCard<T extends ICard> extends BasePlayerInput<ReadonlyArray<T
     if (this.resourceGainPrompt !== undefined) {
       model.resourceGainPrompt = this.resourceGainPrompt;
     }
+    // Same for a Turmoil Redux PARTY ACTION beat (the Scientists' target pick,
+    // the Reds' mandatory discard) — nested in the menu or deferred, the
+    // console reads which party's action this is from the marker alone.
+    if (this.partyActionPrompt !== undefined) {
+      model.partyActionPrompt = this.partyActionPrompt;
+    }
     // THE ORDER-AWARE PRELUDE VERDICT rides this input's own toModel, and is
     // recomputed on EVERY serialization on purpose.
     //

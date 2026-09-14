@@ -18,7 +18,7 @@ export function campaignTestConfig(overrides: Partial<NewGameConfig> = {}): NewG
     expansions: {
       corpera: true, promo: false, venus: false, colonies: false, prelude: false,
       prelude2: false, turmoil: false, community: false, ares: false, moon: false,
-      pathfinders: false, ceo: false, starwars: false, underworld: false, deltaProject: false,
+      pathfinders: false, ceo: false, starwars: false, underworld: false, deltaProject: false, turmoilRedux: false,
     },
     board: RandomBoardOption.ALL,
     seed: 0,

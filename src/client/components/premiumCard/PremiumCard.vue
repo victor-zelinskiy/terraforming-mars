@@ -29,6 +29,11 @@ Before changing it, check the console consumers in docs/DESKTOP_DEPRECATION_AUDI
         </div>
         <PremiumCostBadge v-if="vm.cost !== undefined" :cost="vm.cost" />
         <PremiumTagRail v-if="vm.tags.length > 0" :tags="vm.tags" :plan="vm.tagCluster" />
+        <!-- The Mars Parliament family: the PARTY EMBLEM takes the tag rail's
+             place (a resolution has no tags — its party IS its identity). -->
+        <span v-if="vm.parliament !== undefined" class="pcard__party" aria-hidden="true">
+          <img class="pcard__party-emblem" :src="vm.parliament.emblemUrl" alt="" />
+        </span>
       </div>
 
       <!-- requirements rail (secondary to the plate); collapses to a thin
@@ -68,6 +73,13 @@ Before changing it, check the console consumers in docs/DESKTOP_DEPRECATION_AUDI
         <div v-if="proseText !== ''"
              class="pcard__prose"
              :class="'pcard__prose--t' + proseTier">{{ proseText }}</div>
+        <!-- A RESOLUTION's chairman quest — the lower corner of the parliament
+             family (rulebook p.9: the quest printed on the enacted card). A
+             dummy states honestly that it has no effect of its own. -->
+        <div v-if="vm.parliament?.quest !== undefined" class="pcard__quest">
+          <span class="pcard__quest-kicker">{{ $t('Chairman quest') }}</span>
+          <span class="pcard__quest-text">{{ $t(vm.parliament.quest) }}</span>
+        </div>
         <div class="pcard__exp" aria-hidden="true">
           <span class="pcard__exp-medallion"
                 :class="{'pcard__exp-medallion--base': expansionIcon === undefined}"
@@ -355,6 +367,9 @@ export default defineComponent({
         ['pcard--tier-' + this.effectiveTier]: true,
         ['pcard--' + this.vm.slug]: true,
         'pcard--interactive': this.interactive,
+        // A PARTY banner (Turmoil Redux): the art window carries the party's
+        // emblem as a badge, never a cover-scaled picture.
+        'pcard--party-banner': this.vm.parliament?.partyEffect === true,
         'pcard--unavailable': this.isUnavailable,
         'pcard--selected': this.selected,
         'pcard--cost-mod': this.vm.cost !== undefined && this.vm.cost.delta !== 0,

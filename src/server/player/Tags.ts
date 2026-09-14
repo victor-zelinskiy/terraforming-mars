@@ -7,6 +7,7 @@ import {ICard} from '../cards/ICard';
 import {IPlayer} from '../IPlayer';
 import {OneOrArray} from '../../common/utils/types';
 import {intersection} from '../../common/utils/utils';
+import {ParliamentHandler} from '../parliament/ParliamentHandler';
 
 export type CountingMode =
   'raw' | // Count face-up tags literally, including Leavitt Station.
@@ -100,6 +101,9 @@ export class Tags {
 
       if (tag !== Tag.WILD) {
         tagCount += this.rawCount(Tag.WILD, includeEvents);
+        // Turmoil Redux: the Scientists' extra wild tag — like a printed wild
+        // tag, it counts when playing cards and actions, never for awards.
+        tagCount += ParliamentHandler.wildTags(this.player);
       }
     }
 
@@ -194,6 +198,7 @@ export class Tags {
 
     if (mode !== 'award') {
       tagCount += this.rawCount(Tag.WILD, includeEvents);
+      tagCount += ParliamentHandler.wildTags(this.player);
       // Chimera has 2 wild tags but should only count as one for milestones.
       if (this.player.tableau.has(CardName.CHIMERA) && mode === 'milestone') {
         tagCount--;
@@ -286,6 +291,8 @@ export class Tags {
     if (mode === 'milestone' && this.player.tableau.has(CardName.CHIMERA)) {
       wildTagCount--;
     }
+    // Turmoil Redux: the Scientists' wild tag applies in the action phase like a printed one.
+    wildTagCount += ParliamentHandler.wildTags(this.player);
 
     let maximum = this.tagsInGame();
     if (playerIsOdyssey) {

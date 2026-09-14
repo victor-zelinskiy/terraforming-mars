@@ -469,6 +469,17 @@ export function consoleTaskSummary(
     // «Выберите вариант», and there aren't always literal "options".
     return {kickerKey: 'First corporation action', ask: 'Take your corporation action', returnKey: 'Return to the decision'};
 
+  case 'party':
+    // The Mars Parliament's chairman seat (Turmoil Redux): the quest is done
+    // and every delegate stands on a resolution — one of them gives a delegate
+    // up. Served inside the Parliament workspace.
+    return {
+      kickerKey: 'Parliament',
+      ask: ask(wf, 'Choose which of your resolutions gives up a delegate for the chairman seat'),
+      returnKey: 'Return to the Parliament',
+      openKey: 'Open the Parliament',
+    };
+
   case 'aresGlobal':
     // DIEGETIC, like the rest of the shell: the player moves the thresholds at
     // which planetary events fire — «Арес» is an expansion's name, not a thing

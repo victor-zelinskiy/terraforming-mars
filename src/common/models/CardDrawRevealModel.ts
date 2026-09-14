@@ -3,6 +3,7 @@ import {CardName} from '../cards/CardName';
 import {ColonyName} from '../colonies/ColonyName';
 import {GlobalParameter} from '../GlobalParameter';
 import {SpaceId} from '../Types';
+import {PartyName} from '../turmoil/PartyName';
 
 /**
  * Which colony-trade mechanic produced a trade-tagged draw: the trade INCOME
@@ -67,6 +68,8 @@ export type CardDrawRevealSource =
    *  granted FREE with the base corporation play. No workspace claim matches
    *  it, so it presents as its own reveal — clearly carried, never bought. */
   | {type: 'campaign'}
+  /** Turmoil Redux: a PARTY ACTION drew them (the Reds' «draw 2, discard 2»). */
+  | {type: 'party', party: PartyName}
   | {type: 'other'};
 
 /**

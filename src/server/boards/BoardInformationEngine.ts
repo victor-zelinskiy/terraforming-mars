@@ -807,7 +807,9 @@ function existingTileScoringFacts(player: IPlayer, space: Space): Array<BoardFac
   // «+1 VP» is false, and the client rendered its recipient as a raw «NEUTRAL».
   // (MarsBot's bronze IS a scoring participant and stays.)
   const ownerColor = rawOwner === 'neutral' ? undefined : rawOwner;
-  if (Board.isGreenerySpace(space) && ownerColor !== undefined) {
+  // Turmoil Redux (the greenery revision): a greenery is worth 1 TR when
+  // placed and NO endgame VP — the same rule `calculateVictoryPoints` reads.
+  if (Board.isGreenerySpace(space) && ownerColor !== undefined && player.game.parliament === undefined) {
     out.push(vpFact('score-greenery', 'city-greenery-scoring', 'Greenery scores at game end', recipientFor(player, ownerColor), 0, 1, '+1 VP at game end for its owner.'));
   }
   if (Board.isCitySpace(space) && ownerColor !== undefined) {
@@ -937,8 +939,11 @@ function placementScoringFacts(player: IPlayer, space: Space, ctx: PlacementPrev
   if (countsAsGreenery) {
     // The greenery itself scores +1 VP for the placing player. NO description:
     // the title, the `+1 VP` badge and the "At game end" section heading already
-    // said it three times over.
-    out.push(vpFact('place-greenery-self', 'city-greenery-scoring', 'Greenery scores at game end', {kind: 'current-player'}, 0, 1));
+    // said it three times over. Under Turmoil Redux the greenery revision
+    // trades that VP for +1 TR at placement — no endgame fact to promise.
+    if (player.game.parliament === undefined) {
+      out.push(vpFact('place-greenery-self', 'city-greenery-scoring', 'Greenery scores at game end', {kind: 'current-player'}, 0, 1));
+    }
     // Each adjacent city scores +1 more for ITS owner — possibly an opponent.
     // The recipient GROUP names the owner, so a description repeating "for its
     // owner" adds nothing the layout doesn't carry. A NEUTRAL city (a solo

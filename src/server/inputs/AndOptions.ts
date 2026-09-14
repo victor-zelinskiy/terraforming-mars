@@ -11,12 +11,18 @@ export class AndOptions extends OptionsInput<undefined> {
   }
 
   public toModel(player: IPlayer): AndOptionsModel {
-    return {
+    const model: AndOptionsModel = {
       title: this.title,
       buttonLabel: this.buttonLabel,
       type: 'and',
       options: this.options.map((option) => option.toModel(player)),
     };
+    // A Turmoil Redux PARTY ACTION (the Industrialists' two-part shift) is one
+    // branch of the action menu — nesting-safe marker on the input itself.
+    if (this.partyActionPrompt !== undefined) {
+      model.partyActionPrompt = this.partyActionPrompt;
+    }
+    return model;
   }
 
   public process(input: InputResponse, player: IPlayer) {

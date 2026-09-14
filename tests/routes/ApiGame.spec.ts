@@ -76,6 +76,7 @@ describe('ApiGame', () => {
             'promo': false,
             'starwars': false,
             'turmoil': false,
+            'turmoilRedux': false,
             'underworld': false,
             'venus': false,
           },

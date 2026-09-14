@@ -22,6 +22,7 @@ import {
   EffectForecastRecipient,
   EffectForecastTiming,
   allForecastFacts,
+  forecastSourceIsCardless,
 } from '@/common/models/EffectForecastModel';
 import {EventSource} from '@/common/events/EventSource';
 import {EventTrigger} from '@/common/events/GameEvent';
@@ -541,7 +542,7 @@ export function buildForecastBrowseModel(input: {
 export function forecastItemCard(item: ForecastItem): CardName | undefined {
   switch (item.kind) {
   case 'fact':
-    return item.fact.source.kind === 'rule' ? undefined : item.fact.source.name as CardName;
+    return forecastSourceIsCardless(item.fact.source) ? undefined : item.fact.source.name as CardName;
   case 'discount':
   case 'payment': {
     const source = item.kind === 'discount' ? item.source : item.value.source;

@@ -1,16 +1,20 @@
 import {PartyName} from '../../../common/turmoil/PartyName';
 import {IPlayer} from '../../IPlayer';
-import {Turmoil} from '../../turmoil/Turmoil';
 import {CardRequirement} from './CardRequirement';
 import {RequirementType} from '../../../common/cards/RequirementType';
 
 
 /**
- * Evaluate whether a player can satisfy a Turmoil party requirement.
+ * Evaluate whether a player can satisfy a party requirement — through the
+ * political facade, so ONE predicate serves both engines:
  *
- * A player satisfies a party requirement if the party is currently ruling, or if
- * contains two of the player's delegates, or if the player has Mars Frontier Alliance
- * in play and the party's policy tile on it
+ * - classic Turmoil: the party rules, or the player is allied to it (Mars
+ *   Frontier Alliance), or it holds two of the player's delegates;
+ * - Turmoil Redux: the party rules, or the player has two delegates on its
+ *   resolution in the voting area. A card-GRANTED party effect never counts
+ *   (rulebook FAQ p.19).
+ *
+ * Without a political engine no party requirement is ever met.
  */
 export class PartyRequirement extends CardRequirement {
   public readonly type = RequirementType.PARTY;
@@ -19,12 +23,6 @@ export class PartyRequirement extends CardRequirement {
   }
 
   public satisfies(player: IPlayer): boolean {
-    const turmoil = Turmoil.getTurmoil(player.game);
-    if (turmoil.rulingParty.name === this.party || player.alliedParty?.partyName === this.party ) {
-      return true;
-    }
-
-    const party = turmoil.getPartyByName(this.party);
-    return party.delegates.count(player) >= 2;
+    return player.game.politics?.satisfiesPartyRequirement(player, this.party) === true;
   }
 }

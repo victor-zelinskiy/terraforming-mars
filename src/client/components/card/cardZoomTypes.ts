@@ -14,6 +14,7 @@ import {CardModel} from '@/common/models/CardModel';
 import {BonusCardId, MarsBotCorpId} from '@/common/automa/AutomaTypes';
 import {BonusCardContext} from '@/common/automa/BonusCardData';
 import {MarsBotCorpResource} from '@/common/automa/MarsBotCorpData';
+import {ReduxParty, ResolutionId} from '@/common/parliament/ParliamentTypes';
 
 export type BonusZoomEntry = {bonus: BonusCardId, ctx: BonusCardContext, name: string};
 
@@ -24,7 +25,17 @@ export type BonusZoomEntry = {bonus: BonusCardId, ctx: BonusCardContext, name: s
  */
 export type MarsBotCorpZoomEntry = {marsBotCorp: MarsBotCorpId, resources: number, resource?: MarsBotCorpResource, name: string};
 
-export type ZoomCard = CardModel | BonusZoomEntry | MarsBotCorpZoomEntry;
+/**
+ * A Turmoil Redux RESOLUTION as a browser entry: renders the premium
+ * `resolution` face built from the parliament catalog (never a manifest card).
+ * `name` is the catalog id (a ResolutionId never collides with a CardName).
+ */
+export type ResolutionZoomEntry = {resolution: ResolutionId, name: string};
+
+/** A Turmoil Redux PARTY EFFECT as a browser entry (the board banner as a card). */
+export type PartyEffectZoomEntry = {partyEffect: ReduxParty, name: string};
+
+export type ZoomCard = CardModel | BonusZoomEntry | MarsBotCorpZoomEntry | ResolutionZoomEntry | PartyEffectZoomEntry;
 
 export function isBonusZoom(card: ZoomCard): card is BonusZoomEntry {
   return (card as Partial<BonusZoomEntry>).bonus !== undefined;
@@ -32,6 +43,22 @@ export function isBonusZoom(card: ZoomCard): card is BonusZoomEntry {
 
 export function isMarsBotCorpZoom(card: ZoomCard): card is MarsBotCorpZoomEntry {
   return (card as Partial<MarsBotCorpZoomEntry>).marsBotCorp !== undefined;
+}
+
+export function isResolutionZoom(card: ZoomCard): card is ResolutionZoomEntry {
+  return (card as Partial<ResolutionZoomEntry>).resolution !== undefined;
+}
+
+export function isPartyEffectZoom(card: ZoomCard): card is PartyEffectZoomEntry {
+  return (card as Partial<PartyEffectZoomEntry>).partyEffect !== undefined;
+}
+
+export function resolutionZoomEntry(resolution: ResolutionId): ResolutionZoomEntry {
+  return {resolution, name: resolution};
+}
+
+export function partyEffectZoomEntry(party: ReduxParty): PartyEffectZoomEntry {
+  return {partyEffect: party, name: `PARTY_${party}`};
 }
 
 /** Build a bonus entry (name = the id, for the modal's key/cache). */

@@ -178,6 +178,8 @@
                       <span v-else-if="ftileRenderRoot(tile) !== undefined" class="con-efx__graphic card-container" v-i18n v-strip-effect-prefix>
                         <CardRenderData :renderData="ftileRenderRootOf(tile)" />
                       </span>
+                      <!-- A PARTY source (Turmoil Redux) has no printed block: its emblem stands where the card's graphic would. -->
+                      <span v-else-if="ftilePartyEmblem(tile) !== undefined" class="con-efx__graphic con-efx__graphic--party"><img class="con-efx__party-emblem" :src="ftilePartyEmblem(tile)" alt="" /></span>
                       <span v-else class="con-efx__graphic"><span class="con-efx__graphic-text">{{ ftileCanvasText(tile) }}</span></span>
                     </span>
                     <span v-if="ftileDesc(tile) !== ''" class="con-efx__desc-slot">
@@ -312,6 +314,7 @@
             </div>
             <!-- A cardless source (a party policy, the cardless discount
                  remainder) keeps the hero column's geometry with its glyph. -->
+            <div v-else-if="detailPartyEmblem() !== undefined" class="con-efx__hero-rule con-efx__hero-rule--party" aria-hidden="true"><img class="con-efx__party-emblem" :src="detailPartyEmblem()" alt="" /></div>
             <div v-else class="con-efx__hero-rule" aria-hidden="true">{{ detailFTile?.glyph ?? '⚡' }}</div>
           </div>
           <div class="con-efx__surface" data-unfold-surface>
@@ -383,7 +386,9 @@ import {Message} from '@/common/logs/Message';
 import {CardModel} from '@/common/models/CardModel';
 import {ActionEffect} from '@/common/models/ActionPreviewModel';
 import type {ICardRenderEffect, ICardRenderRoot} from '@/common/cards/render/Types';
-import {EffectForecast, EffectForecastRecipient} from '@/common/models/EffectForecastModel';
+import {EffectForecast, EffectForecastRecipient, forecastSourceIsCardless} from '@/common/models/EffectForecastModel';
+import {REDUX_PARTIES, ReduxParty} from '@/common/parliament/ParliamentTypes';
+import {partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
 import {EffectOverlayStat} from '@/common/events/aggregate';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
@@ -966,6 +971,19 @@ export default defineComponent({
     ftileCard(tile: ForecastTileVm): CardName | undefined {
       return forecastItemCard(tile.item);
     },
+    /** A PARTY-sourced fact's emblem (Turmoil Redux) — the cardless source's own face. */
+    ftilePartyEmblem(tile: ForecastTileVm): string | undefined {
+      const item = tile.item;
+      if (item.kind !== 'fact' || item.fact.source.kind !== 'party') {
+        return undefined;
+      }
+      const party = item.fact.source.name;
+      return (REDUX_PARTIES as ReadonlyArray<string>).includes(party) ? partyEmblemUrl(party as ReduxParty) : undefined;
+    },
+    detailPartyEmblem(): string | undefined {
+      const tile = this.detailFTile;
+      return tile === undefined ? undefined : this.ftilePartyEmblem(tile);
+    },
     ftileOwner(tile: ForecastTileVm): Color | undefined {
       return forecastItemOwner(tile.item, this.color as Color);
     },
@@ -1023,7 +1041,7 @@ export default defineComponent({
      *  «an effect of this card» (never a guess at WHICH block). */
     ftileCanvasText(tile: ForecastTileVm): string {
       const item = tile.item;
-      if (item.kind === 'fact' && item.fact.source.kind === 'rule') {
+      if (item.kind === 'fact' && forecastSourceIsCardless(item.fact.source)) {
         return translateText(item.fact.source.name);
       }
       if (item.kind === 'other-discount') {

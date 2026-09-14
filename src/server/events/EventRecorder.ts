@@ -266,12 +266,43 @@ export class EventRecorder {
   /** Run `fn` wrapped in a passive-effect scope. */
   public withEffect<T>(player: IPlayer, sourceCard: ICard, trigger: EventTrigger, fn: () => T): T {
     const kind = sourceCard.type === CardType.CORPORATION ? 'corporation' : 'card';
-    this.beginEffect(player, {kind, card: sourceCard.name, owner: player.color}, trigger);
+    return this.withEffectSource(player, {kind, card: sourceCard.name, owner: player.color}, trigger, fn);
+  }
+
+  /**
+   * `withEffect` for a passive effect whose source is NOT a card in a tableau
+   * — a Turmoil Redux party effect, an enacted resolution's passive. Same
+   * scope, same lazy `effect-triggered` marker, same attribution: the effect
+   * framework (stats, journal, notifications, forecast) reads the source kind
+   * and never needs a card name.
+   */
+  public withEffectSource<T>(player: IPlayer, source: EventSource, trigger: EventTrigger, fn: () => T): T {
+    this.beginEffect(player, source, trigger);
     try {
       return fn();
     } finally {
       this.endScope();
     }
+  }
+
+  /**
+   * THE ROOT of the live chain: the outermost action / copied-action scope —
+   * who is acting and under which journal category. `undefined` outside any
+   * action (setup, a phase driver running scope-less). The Turmoil Redux quest
+   * tracker asks this to decide whether a mutation was the player's OWN action.
+   */
+  public currentRoot(): {player: Color | undefined; category: JournalActionCategory | undefined} | undefined {
+    for (const ctx of this.stack) {
+      if (ctx.kind === 'action' || ctx.kind === 'copied') {
+        return {player: ctx.playerColor, category: ctx.category};
+      }
+    }
+    return undefined;
+  }
+
+  /** True while ANY scope on the live stack carries a source of `kind`. */
+  public hasSourceOnStack(kind: EventSource['kind']): boolean {
+    return this.stack.some((ctx) => ctx.source?.kind === kind);
   }
 
   /**

@@ -90,6 +90,8 @@ export type WorkspaceFrameKind =
   | 'colonies'
   /** «ГИДРОСЕТЬ» — the Delta Project track. */
   | 'hydro'
+  /** «ПАРЛАМЕНТ» — the Mars Parliament (Turmoil Redux): the vote, the party effects and actions. */
+  | 'parliament'
   /** The GAME START WORKSPACE — the whole opening. */
   | 'start'
   /** «ДРАФТ» — the between-generations draft + research buy, one flow. */
@@ -320,6 +322,23 @@ const WORKSPACE_KINDS: Record<WorkspaceFrameKind, WorkspaceKindSpec> = {
     frameSteps: 'scene',
     emblem: 'hydronetwork',
     wheelAnchor: 'hydro',
+  },
+  'parliament': {
+    root: 'Parliament', rootSelector: '.con-parl', section: 'parliament',
+    // The chairman's seat pick is the one STAND-ALONE parliament prompt (the
+    // vote and the party actions are branches of the action menu, served
+    // from inside the workspace's own stages).
+    serves: ['party'],
+    // A party action's own follow-up (the Reds' discard runs on the real
+    // hand) is a STEP of this flow. `inFlow`: at the browse layer there is
+    // no flow for a follow-up to belong to.
+    hosts: 'inFlow',
+    // The Unity trade is the COLONY WORKSPACE standing inside this one: a
+    // full-height instrument takes the scene (the hydro row's reasoning),
+    // and the header says whose flow it is («ПАРЛАМЕНТ › СОЮЗ › ТОРГОВЛЯ»).
+    frameSteps: {colonies: 'scene', hand: 'embed'},
+    emblem: 'parliament',
+    wheelAnchor: 'parliament',
   },
   // The start workspace is a full-bleed scene: it owns the screen outright and
   // projects onto neither axis.

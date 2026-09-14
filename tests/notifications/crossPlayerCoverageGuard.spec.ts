@@ -278,6 +278,8 @@ describe('cross-player coverage guard (every in-scope effect source is classifie
       'planetary-event': {crossPlayer: 'none', proof: 'hazard appearance mutates the BOARD; player costs occur inside the acting player\'s own later actions'},
       'solar-phase': {crossPlayer: 'possible', proof: 'S5 — WGT branch scoped, Ares owner benefit delivered'},
       'automa-turn': {crossPlayer: 'possible', proof: 'S10 (deferred payout reaches the script) + bonusCardAttackEvents.spec (attack steps)'},
+      'parliament': {crossPlayer: 'possible', proof: 'Turmoil Redux in-turn political action (vote / party action): scoped by ParliamentHandler.voteOption + PartyEffects.runPartyAction; a Mars First tile draw or an Industrialists shift can trigger reactive owners exactly like a card action (tests/parliament/PartyEffects.spec)'},
+      'political-phase': {crossPlayer: 'possible', proof: 'Turmoil Redux end-of-generation resolution: every effect step runs under a per-player scope with a resolution source (ParliamentPhase.stepEffects); the Agenda bonus under the winner\'s parliament scope (tests/parliament/ParliamentPhase.spec)'},
     };
     for (const [door, cls] of Object.entries(DOORS)) {
       expect(cls.proof, `door ${door} names its proof`).to.not.be.empty;

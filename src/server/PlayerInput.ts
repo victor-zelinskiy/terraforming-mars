@@ -3,7 +3,7 @@ import {Message} from '../common/logs/Message';
 import {PlayerInputType} from '../common/input/PlayerInputType';
 import {InputResponse} from '../common/inputs/InputResponse';
 import {IPlayer} from './IPlayer';
-import {PlayerInputModel, StartGamePromptMeta, BonusActionPromptMeta, AwardFundingPromptMeta, ChoiceContext, ColonyBonusCollectMeta, DeckPickPromptMeta, DiscardPromptMeta, DraftPromptMeta, FinalGreeneryPromptMeta, PlacementContext, ResourceGainPromptMeta, VenusBonusPromptMeta, SpendHeatPromptMeta} from '../common/models/PlayerInputModel';
+import {PlayerInputModel, StartGamePromptMeta, BonusActionPromptMeta, AwardFundingPromptMeta, ChoiceContext, ColonyBonusCollectMeta, DeckPickPromptMeta, DiscardPromptMeta, DraftPromptMeta, FinalGreeneryPromptMeta, PlacementContext, ResourceGainPromptMeta, VenusBonusPromptMeta, SpendHeatPromptMeta, VotePromptMeta, PartyActionPromptMeta} from '../common/models/PlayerInputModel';
 import {BotAttackPromptMeta} from '../common/models/BotAttackPromptModel';
 import {ExternalDrawTakeMeta} from '../common/models/ExternalDrawPromptModel';
 import {DeltaBonusPromptMeta} from '../common/models/DeltaBonusPromptModel';
@@ -146,6 +146,8 @@ export abstract class BasePlayerInput<T> implements PlayerInput {
   public externalDrawPrompt: ExternalDrawTakeMeta | undefined;
   public deltaBonusPrompt: DeltaBonusPromptMeta | undefined;
   public resourceGainPrompt: ResourceGainPromptMeta | undefined;
+  public votePrompt: VotePromptMeta | undefined;
+  public partyActionPrompt: PartyActionPromptMeta | undefined;
 
   public abstract toModel(player: IPlayer): PlayerInputModel;
   public abstract process(response: InputResponse, player: IPlayer): PlayerInput | undefined;
@@ -321,6 +323,24 @@ export abstract class BasePlayerInput<T> implements PlayerInput {
    *  See {@link DeltaBonusPromptMeta}. */
   public markDeltaBonusPrompt(meta: DeltaBonusPromptMeta): this {
     this.deltaBonusPrompt = meta;
+    return this;
+  }
+
+  /** Mark this `SelectParty` as the Turmoil Redux VOTE (chainable): where the
+   *  delegate comes from and what it costs. Built by
+   *  `parliament/ParliamentHandler.voteOption` — the one producer. See
+   *  {@link VotePromptMeta}. */
+  public markVotePrompt(meta: VotePromptMeta): this {
+    this.votePrompt = meta;
+    return this;
+  }
+
+  /** Mark this prompt as a Turmoil Redux PARTY ACTION beat (chainable): which
+   *  party, which action, which stage of it. Built by
+   *  `parliament/parties/PartyEffects.ts` — every party action goes through
+   *  it. See {@link PartyActionPromptMeta}. */
+  public markPartyActionPrompt(meta: PartyActionPromptMeta): this {
+    this.partyActionPrompt = meta;
     return this;
   }
 }

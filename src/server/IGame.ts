@@ -38,6 +38,8 @@ import {UnderworldData} from './underworld/UnderworldData';
 import {OrOptions} from './inputs/OrOptions';
 import {IStandardProjectCard} from './cards/IStandardProjectCard';
 import {AutomaState} from './automa/AutomaState';
+import {Parliament} from './parliament/Parliament';
+import {PoliticalOps} from './politics/PoliticalOps';
 
 export interface Score {
   corporation: String;
@@ -101,6 +103,10 @@ export interface IGame extends Logger {
   turmoil: Turmoil | undefined;
   // True when resolving Turmoil phase. Does not need to be serialized since the turmoil phase isn't saved in between.
   inTurmoil: boolean;
+  /** Turmoil Redux — the Mars Parliament. Undefined unless `turmoilReduxExpansion` is on. Never set together with `turmoil`. */
+  parliament: Parliament | undefined;
+  /** The political facade CONTENT calls (Redux over the parliament, classic over Turmoil); undefined without a political engine. */
+  readonly politics: PoliticalOps | undefined;
   aresData: AresData | undefined;
   /**
    * Bounded ring of the latest Ares adjacency payouts (presentation manifest

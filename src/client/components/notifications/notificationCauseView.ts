@@ -4,6 +4,7 @@ import {EventTrigger, JournalActionCategory} from '@/common/events/GameEvent';
 import {bonusCardInfo} from '@/common/automa/BonusCardData';
 import {JournalImpactChip} from '@/client/components/journal/journalEventChild';
 import {ViewerImpactCause, ViewerImpactMeta} from './notificationSemantics';
+import {resolutionName} from '@/client/parliament/ClientParliamentManifest';
 
 /**
  * The PURE presentation mapping of the «почему»-layer: `ViewerImpactCause`
@@ -63,6 +64,8 @@ const ACTION_CATEGORY_LABEL: Partial<Record<JournalActionCategory, string>> = {
   'award': 'Award',
   'delta-project': 'Hydronetwork',
   'vp-pressure': 'VP loss',
+  'parliament': 'Parliament',
+  'political-phase': 'Mars Parliament',
 };
 
 /** The trigger tail templates — exhaustive over `EventTrigger`, so a new
@@ -165,6 +168,12 @@ export function causeLineOf(cause: ViewerImpactCause): NotificationCauseLine | u
     return line('Source', 'Ocean bonus');
   case 'payment':
     return line('Source', 'Payment');
+  // Turmoil Redux: an enacted resolution names itself (the catalog's name
+  // key); the parliament's own rules read as the institution.
+  case 'resolution':
+    return line('Source', resolutionName(origin.id));
+  case 'parliament':
+    return line('Source', 'Mars Parliament');
   case 'system':
     // 'system' is folded into the action fallback by the semantics layer —
     // reaching here means an unattributed delta slipped through. No line;

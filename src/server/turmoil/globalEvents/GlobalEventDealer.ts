@@ -64,6 +64,7 @@ export class GlobalEventDealer {
       venus: gameOptions.venusNextExtension,
       colonies: gameOptions.coloniesExtension,
       turmoil: gameOptions.turmoilExtension,
+      turmoilRedux: gameOptions.turmoilReduxExpansion,
       ares: gameOptions.aresExtension,
       promo: gameOptions.promoCardsOption,
       community: gameOptions.communityCardsOption,

@@ -48,6 +48,8 @@
     <JournalMaChip v-else-if="token.type === LogMessageDataType.AWARD" kind="award" :name="token.value" />
     <JournalMaChip v-else-if="token.type === LogMessageDataType.MILESTONE" kind="milestone" :name="token.value" />
     <span v-else-if="token.type === LogMessageDataType.PARTY" class="journal-token journal-token--party" v-i18n>{{ token.value }}</span>
+    <!-- A Turmoil Redux resolution — named through the parliament catalog. -->
+    <span v-else-if="token.type === LogMessageDataType.RESOLUTION" class="journal-token journal-token--resolution" v-i18n>{{ resolutionLabel(token.value) }}</span>
     <span v-else-if="token.type === LogMessageDataType.UNDERGROUND_TOKEN" class="journal-token journal-token--underground" v-i18n>{{ undergroundDescription[token.value] }}</span>
     <span v-else-if="token.type === LogMessageDataType.TILE_TYPE" class="journal-em" v-i18n>{{ tileTypeToString[token.value] }}</span>
 
@@ -87,6 +89,7 @@ import JournalMaChip from '@/client/components/journal/JournalMaChip.vue';
 import {highlightBoardSpace} from '@/client/components/journal/boardCellHighlight';
 import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import {logResourceIconClass, logResourceLabelKey} from '@/client/components/journal/logResourceToken';
+import {resolutionName} from '@/client/parliament/ClientParliamentManifest';
 
 type CardPart = {kind: 'card', name: CardName} | {kind: 'text', text: string};
 
@@ -145,6 +148,10 @@ export default defineComponent({
     },
   },
   methods: {
+    /** A Turmoil Redux resolution's printed name (the catalog's English key) — never a bare id. */
+    resolutionLabel(id: string): string {
+      return resolutionName(id);
+    },
     playerName(color: Color): string {
       // The Automa seat renders through the localized display name («ИИ» in
       // the Russian UI) — the canonical server name never shows raw.

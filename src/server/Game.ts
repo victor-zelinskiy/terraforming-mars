@@ -56,6 +56,10 @@ import {SerializedGame} from './SerializedGame';
 import {SpaceBonus} from '../common/boards/SpaceBonus';
 import {TileType} from '../common/TileType';
 import {Turmoil} from './turmoil/Turmoil';
+import {Parliament} from './parliament/Parliament';
+import {ParliamentHandler} from './parliament/ParliamentHandler';
+import {ParliamentPhase} from './parliament/ParliamentPhase';
+import {PoliticalOps, politicalOpsOf} from './politics/PoliticalOps';
 import {RandomMAOptionType} from '../common/ma/RandomMAOptionType';
 import {AresHandler} from './ares/AresHandler';
 import {AresData} from '../common/ares/AresData';
@@ -185,6 +189,12 @@ export class Game implements IGame, Logger {
   public pathfindersData: PathfindersData | undefined;
   public underworldData: UnderworldData = UnderworldExpansion.initializeGameWithoutUnderworld();
   public inTurmoil: boolean = false;
+  /** Turmoil Redux — the Mars Parliament (see IGame.parliament). */
+  public parliament: Parliament | undefined;
+  /** The political facade for content: Redux over the parliament, classic over Turmoil, none otherwise. */
+  public get politics(): PoliticalOps | undefined {
+    return politicalOpsOf(this);
+  }
   /** MarsBot (official Automa) runtime state. Undefined ⇒ ordinary game. */
   public automa: AutomaState | undefined;
 
@@ -310,6 +320,7 @@ export class Game implements IGame, Logger {
         starwars: partialOptions.starWarsExpansion ?? false,
         underworld: partialOptions.underworldExpansion ?? false,
         deltaProject: partialOptions.deltaProjectExpansion ?? false,
+        turmoilRedux: partialOptions.turmoilReduxExpansion ?? false,
       };
     }
     const gameOptions = {...DEFAULT_GAME_OPTIONS, ...partialOptions};
@@ -326,6 +337,16 @@ export class Game implements IGame, Logger {
     }
     if (gameOptions.bannedCards !== undefined && gameOptions.bannedCards.includes(CardName.DELTA_PROJECT)) {
       throw new Error('Delta Project cannot be banned. It is a global subsystem available to all players, not a prelude card.');
+    }
+    // Turmoil Redux replaces classic Turmoil's political engine and needs the
+    // colony tiles its rules and content lean on (rulebook p.12).
+    if (gameOptions.turmoilReduxExpansion) {
+      if (gameOptions.turmoilExtension) {
+        throw new Error('Turmoil Redux and classic Turmoil are mutually exclusive.');
+      }
+      if (!gameOptions.coloniesExtension) {
+        throw new Error('Turmoil Redux requires the Colonies expansion.');
+      }
     }
 
     // Solo vs MarsBot (official Automa): reject unsupported modules loudly and
@@ -438,6 +459,11 @@ export class Game implements IGame, Logger {
     // Add Turmoil stuff
     if (gameOptions.turmoilExtension) {
       game.turmoil = Turmoil.newInstance(game, gameOptions.politicalAgendasExtension);
+    }
+
+    // Turmoil Redux — the Mars Parliament (after the colonies: its setup reads the RNG in sequence).
+    if (gameOptions.turmoilReduxExpansion) {
+      game.parliament = Parliament.newInstance(game);
     }
 
     // Must configure this before solo placement.
@@ -655,6 +681,9 @@ export class Game implements IGame, Logger {
     }
     if (this.turmoil !== undefined) {
       result.turmoil = this.turmoil.serialize();
+    }
+    if (this.parliament !== undefined) {
+      result.parliament = this.parliament.serialize();
     }
     return result;
   }
@@ -1075,8 +1104,15 @@ export class Game implements IGame, Logger {
       return;
     }
     if (this.gameIsOver()) {
-      this.log('Final greenery placement', (b) => b.announcement());
-      this.takeNextFinalGreeneryAction();
+      // Turmoil Redux (project decision Q1): the last generation still
+      // resolves its vote — the winner is enacted and its effect applied,
+      // the Agenda advances — before the final greeneries. The voting area
+      // is not refreshed and the lobby not refilled.
+      if (this.parliament !== undefined) {
+        ParliamentPhase.start(this, this.parliament, true, (final) => this.continueAfterParliamentPhase(final));
+        return;
+      }
+      this.gotoFinalGreeneryPlacement();
       return;
     } else {
       this.players.forEach((player) => {
@@ -1103,7 +1139,46 @@ export class Game implements IGame, Logger {
       }
     }
 
+    // Turmoil Redux (project decision Q9): the colonies grow, then the
+    // parliament resolves, then the World Government terraforms (rulebook
+    // p.10 — WGT comes LAST). `gotoEndGeneration` skips the colonies then.
+    if (this.parliament !== undefined) {
+      this.endGenerationForColonies();
+      ParliamentPhase.start(this, this.parliament, false, (final) => this.continueAfterParliamentPhase(final));
+      return;
+    }
+
     if (this.gameOptions.solarPhaseOption && ! this.marsIsTerraformed()) {
+      this.gotoWorldGovernmentTerraforming();
+      return;
+    }
+    this.gotoEndGeneration();
+  }
+
+  /** The final greenery placement (the last generation's tail, `Phase.PRODUCTION`). */
+  private gotoFinalGreeneryPlacement(): void {
+    this.phase = Phase.PRODUCTION;
+    this.log('Final greenery placement', (b) => b.announcement());
+    this.takeNextFinalGreeneryAction();
+  }
+
+  /**
+   * Where the game goes once the Mars Parliament has resolved (also the
+   * continuation of a phase resumed from a save): the final greeneries after
+   * the last generation, otherwise the World Government and the next
+   * generation.
+   */
+  public continueAfterParliamentPhase(final: boolean): void {
+    if (this.deferredActions.length > 0) {
+      this.deferredActions.runAll(() => this.continueAfterParliamentPhase(final));
+      return;
+    }
+    if (final) {
+      this.gotoFinalGreeneryPlacement();
+      return;
+    }
+    this.phase = Phase.SOLAR;
+    if (this.gameOptions.solarPhaseOption && !this.marsIsTerraformed()) {
       this.gotoWorldGovernmentTerraforming();
       return;
     }
@@ -1128,7 +1203,11 @@ export class Game implements IGame, Logger {
       return;
     }
 
-    this.endGenerationForColonies();
+    // Under Turmoil Redux the colonies already grew BEFORE the parliament
+    // resolved (postProductionPhase, decision Q9).
+    if (this.parliament === undefined) {
+      this.endGenerationForColonies();
+    }
     UnderworldExpansion.endGeneration(this);
 
     Turmoil.ifTurmoil(this, (turmoil) => {
@@ -1922,6 +2001,8 @@ export class Game implements IGame, Logger {
 
     // Part 4. Place the tile
     this.simpleAddTile(player, space, tile);
+    // Turmoil Redux: the chairman quest sees the placement (eligibility is the tracker's).
+    ParliamentHandler.onTileAdded(player, space, tile);
 
     // Part 5. Collect the bonuses
     if (this.phase !== Phase.SOLAR) {
@@ -2060,6 +2141,8 @@ export class Game implements IGame, Logger {
       });
 
       TurmoilHandler.resolveTilePlacementBonuses(player, space.spaceType);
+      // Turmoil Redux party passives on a placed tile (Mars First's steel + card).
+      ParliamentHandler.onTilePlaced(player, space);
 
       if (arcadianCommunityBonus) {
         this.defer(new GainResourcesDeferred(player, Resource.MEGACREDITS, {count: 3}));
@@ -2173,6 +2256,9 @@ export class Game implements IGame, Logger {
     });
     // Turmoil Greens ruling policy
     PartyHooks.applyGreensRulingPolicy(player, space);
+    // Turmoil Redux: a greenery is worth 1 TR of its own (rulebook p.3), in
+    // the action phase and in the final placement alike, for every seat.
+    ParliamentHandler.onGreeneryPlaced(player);
 
     if (shouldRaiseOxygen) {
       this.increaseOxygenLevel(player, 1);
@@ -2397,6 +2483,13 @@ export class Game implements IGame, Logger {
       game.turmoil = Turmoil.deserialize(d.turmoil, players);
     }
 
+    // Turmoil Redux — an unknown resolution or a newer save version throws
+    // (IncompatibleParliamentSaveError): a game whose politics cannot be
+    // reconstructed is never played on with an empty slot.
+    if (d.parliament !== undefined && gameOptions.turmoilReduxExpansion) {
+      game.parliament = Parliament.deserialize(d.parliament);
+    }
+
     // Reload moon elements if needed
     if (d.moonData !== undefined && gameOptions.moonExpansion === true) {
       game.moonData = MoonData.deserialize(d.moonData, players);
@@ -2456,6 +2549,9 @@ export class Game implements IGame, Logger {
     // (off-turn included) before the phase dispatch below drives the queue.
     // The cards already left the deck, so nothing is lost or double-drawn.
     ExternalDrawIntake.rebuildPrompts(game);
+    // Likewise a COMMITTED political step still owing its input (the Reds'
+    // discard after the draw, a chairman seat still to be chosen).
+    ParliamentHandler.rebuildPendingPrompts(game);
 
     // Still in Draft or Research of generation 1 — i.e. some player has not yet
     // played their corporation. MarsBot is EXCLUDED: it never picks/plays a
@@ -2464,7 +2560,12 @@ export class Game implements IGame, Logger {
     // already-started game back to gotoInitialResearchPhase() on reload, which
     // prompts nobody (the human already picked) — a RESEARCH-phase deadlock with
     // no waitingFor (both chips read «ГОТОВ»). Guard on human corp-pickers only.
-    if (game.generation === 1 && players.some((p) => p.isMarsBot !== true &&
+    if (game.phase === Phase.PARLIAMENT && game.parliament?.phase !== undefined) {
+      // The Mars Parliament was mid-resolution when the game was saved (a
+      // resolution asked a player something): pick the phase up at its
+      // persisted step — nothing is paid twice, nothing is re-randomized.
+      ParliamentHandler.resumePhase(game, (final) => game.continueAfterParliamentPhase(final));
+    } else if (game.generation === 1 && players.some((p) => p.isMarsBot !== true &&
         (p.playedCards.filter(isICorporationCard).length < expectedCorporationCount(p) ||
          campaignSetupExtrasOwed(p)))) {
       if (game.phase === Phase.INITIALDRAFTING) {

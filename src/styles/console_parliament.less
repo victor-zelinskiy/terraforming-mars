@@ -1,0 +1,546 @@
+/* ══════════════════════════════════════════════════════════════════════════
+   «ПАРЛАМЕНТ» — the Mars Parliament workspace (Turmoil Redux).
+
+   Authored in rem (1rem = 20px logical at 1080p; `--con-ui-scale` maps it).
+   Premium card faces are px-designed, so they integrate through `zoom:`
+   multiplied by `var(--con-ui-scale, 1)`. Motion is transform / opacity
+   only; state (focus, winning, target) is colour / box-shadow — never a
+   filter (the console paint baseline strips filters permanently).
+   ══════════════════════════════════════════════════════════════════════════ */
+
+@con-parl-violet: #8b6ad8;
+@con-parl-silver: #c9c6d6;
+@con-parl-gold: #e6c34a;
+@con-parl-mint: #5fe3b4;
+
+.con-parl {
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: .45rem;
+    position: relative;
+    padding: var(--con-parl-pad-t, .1rem) var(--con-stage-x, .55rem) 0 var(--con-parl-pad-l, .55rem);
+    font-family: @con-font;
+    color: @con-text;
+    --con-parl-card-zoom: calc(0.62 * var(--con-ui-scale, 1));
+    --parl-accent: @con-parl-violet;
+
+    /* A nested full screen (the Unity trade's colony workspace) owns the band. */
+    &--handed-over {
+        visibility: hidden;
+        pointer-events: none;
+    }
+
+    &__head { flex-shrink: 0; }
+
+    &__chip {
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+        padding: .3rem .65rem;
+        border-radius: 49.95rem;
+        background: rgba(18, 14, 30, 0.62);
+        box-shadow: inset 0 0 0 .05rem rgba(160, 140, 210, 0.26);
+        font-size: .8rem;
+        white-space: nowrap;
+        b { font-size: .95rem; }
+    }
+    &__chip-dim { opacity: .62; letter-spacing: .04em; text-transform: uppercase; font-size: .68rem; }
+    &__chip-emblem { width: 1.1rem; height: 1.1rem; object-fit: contain; }
+
+    &__body {
+        flex: 1;
+        min-height: 0;
+        display: grid;
+        grid-template-rows: minmax(0, 1.55fr) minmax(0, 1fr);
+        gap: .45rem;
+    }
+
+    /* ── UPPER TIER ──────────────────────────────────────────────────── */
+    &__upper {
+        display: grid;
+        grid-template-columns: minmax(16rem, 22rem) minmax(0, 1fr);
+        gap: .6rem;
+        min-height: 0;
+    }
+    &__kicker {
+        display: block;
+        font-size: .66rem;
+        letter-spacing: .12em;
+        text-transform: uppercase;
+        opacity: .68;
+    }
+    &__enacted {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
+        grid-template-rows: auto minmax(0, 1fr) auto auto;
+        gap: .35rem .6rem;
+        padding: .5rem .6rem;
+        border-radius: .6rem;
+        background: linear-gradient(160deg, rgba(40, 26, 70, 0.55), rgba(14, 10, 24, 0.7));
+        box-shadow: inset 0 0 0 .05rem rgba(139, 106, 216, 0.3);
+        transition: box-shadow calc(160ms * var(--motion-scale, 1)) @con-ease-standard;
+        &--focus { box-shadow: inset 0 0 0 .12rem @con-cyan, 0 0 1.2rem rgba(63, 214, 241, 0.25); }
+        .con-parl__slot-label { grid-column: 1 / -1; }
+        .con-parl__card--enacted { grid-row: 2 / span 3; align-self: start; zoom: var(--con-parl-enacted-zoom, var(--con-parl-card-zoom)); }
+    }
+    &__card {
+        zoom: var(--con-parl-card-zoom);
+        display: flex;
+        align-items: flex-start;
+        justify-content: center;
+        min-height: 0;
+    }
+    &__empty-slot {
+        zoom: calc(1 / var(--con-parl-enacted-zoom, var(--con-parl-card-zoom)));
+        width: 9.6rem;
+        min-height: 12rem;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        gap: .4rem;
+        padding: .8rem;
+        border-radius: .55rem;
+        border: .08rem dashed rgba(201, 198, 214, 0.35);
+        font-size: .8rem;
+        text-align: center;
+        opacity: .8;
+    }
+    &__empty-kicker { font-size: .66rem; letter-spacing: .12em; text-transform: uppercase; opacity: .7; }
+    &__ruling {
+        display: flex;
+        align-items: center;
+        gap: .55rem;
+        padding: .4rem .5rem;
+        border-radius: .5rem;
+        background: rgba(255, 255, 255, 0.04);
+        box-shadow: inset .18rem 0 0 var(--parl-accent);
+    }
+    &__emblem { width: 2.4rem; height: 2.4rem; object-fit: contain; flex-shrink: 0; }
+    &__ruling-text { display: flex; flex-direction: column; gap: .12rem; min-width: 0; b { font-size: 1rem; } }
+    /* A SUMMARY of the ruling party's rule (the inspector holds the full text):
+       capped so the quest and the chair below it always keep their rows. */
+    &__ruling-rule {
+        font-size: .74rem;
+        line-height: 1.25;
+        opacity: .82;
+        max-height: 7rem;
+        overflow: hidden;
+        mask-image: linear-gradient(180deg, #000 calc(100% - 1.2rem), transparent 100%);
+        -webkit-mask-image: linear-gradient(180deg, #000 calc(100% - 1.2rem), transparent 100%);
+    }
+    &__quest {
+        display: flex;
+        flex-direction: column;
+        gap: .25rem;
+        padding: .4rem .5rem;
+        border-radius: .5rem;
+        background: rgba(230, 195, 74, 0.08);
+        box-shadow: inset 0 0 0 .05rem rgba(230, 195, 74, 0.3);
+        &--done { background: rgba(95, 227, 180, 0.08); box-shadow: inset 0 0 0 .05rem rgba(95, 227, 180, 0.35); }
+    }
+    &__quest-text { font-size: .86rem; font-weight: 600; }
+    &__quest-progress { display: flex; flex-wrap: wrap; gap: .5rem; }
+    &__quest-row { display: inline-flex; align-items: center; gap: .3rem; font-size: .8rem; b { font-size: .95rem; } &--winner { color: @con-parl-mint; } }
+    &__quest-of { opacity: .6; }
+    &__quest-done { font-size: .7rem; letter-spacing: .08em; text-transform: uppercase; color: @con-parl-mint; }
+    &__chair { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem .5rem; font-size: .8rem; }
+    &__chair-empty { opacity: .6; white-space: nowrap; }
+
+    &__voting {
+        display: flex;
+        flex-direction: column;
+        gap: .35rem;
+        min-height: 0;
+        padding: .5rem .6rem;
+        border-radius: .6rem;
+        background: rgba(12, 16, 28, 0.55);
+        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.2);
+    }
+    &__voting-head { display: flex; align-items: baseline; gap: .8rem; }
+    &__voting-note { font-size: .72rem; opacity: .6; }
+    &__slots {
+        flex: 1;
+        min-height: 0;
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: .6rem;
+    }
+    &__slot {
+        display: grid;
+        grid-template-rows: auto minmax(0, 1fr) auto auto;
+        gap: .3rem;
+        padding: .4rem .45rem;
+        border-radius: .55rem;
+        background: rgba(255, 255, 255, 0.025);
+        box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.08);
+        transition: box-shadow calc(160ms * var(--motion-scale, 1)) @con-ease-standard, transform calc(200ms * var(--motion-scale, 1)) @con-ease-standard;
+        min-height: 0;
+        &--winning { box-shadow: inset 0 0 0 .07rem fade(@con-parl-gold, 60%); }
+        &--focus { box-shadow: inset 0 0 0 .12rem @con-cyan, 0 0 1.2rem rgba(63, 214, 241, 0.25); }
+        &--target { box-shadow: inset 0 0 0 .12rem @con-parl-mint, 0 0 1.4rem rgba(95, 227, 180, 0.3); transform: translateY(-.15rem); }
+    }
+    &__slot-label { display: flex; align-items: center; gap: .5rem; font-size: .72rem; min-height: 1.1rem; }
+    &__slot-no { font-weight: 700; letter-spacing: .1em; }
+    &__slot-prio { opacity: .6; font-size: .66rem; }
+    &__slot-win { margin-left: auto; color: @con-parl-gold; font-size: .66rem; letter-spacing: .1em; text-transform: uppercase; }
+    &__ribbon {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: .2rem;
+        min-height: 1.3rem;
+        padding: .2rem .35rem;
+        border-radius: .4rem;
+        background: rgba(0, 0, 0, 0.35);
+    }
+    &__vote { display: inline-flex; width: 1rem; height: 1rem; align-items: center; justify-content: center; &--ghost { opacity: .55; animation: con-parl-ghost calc(900ms * var(--motion-scale, 1)) @con-ease-standard infinite alternate; } }
+    &__neutral { width: .7rem; height: .7rem; border-radius: .12rem; background: #9a9a9a; box-shadow: inset 0 0 0 .05rem rgba(0,0,0,.5); }
+    &__ribbon-empty { font-size: .68rem; opacity: .5; }
+    &__slot-meta { display: flex; flex-wrap: wrap; gap: .5rem; font-size: .74rem; }
+    &__meta { display: inline-flex; align-items: center; gap: .3rem; }
+
+    /* ── LOWER TIER ──────────────────────────────────────────────────── */
+    &__lower {
+        display: grid;
+        grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, .9fr);
+        gap: .6rem;
+        min-height: 0;
+    }
+    &__parties {
+        display: grid;
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+        gap: .35rem;
+        min-height: 0;
+    }
+    &__party {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: .25rem;
+        min-height: 0;
+        overflow: hidden;
+        padding: .4rem .3rem;
+        border-radius: .5rem;
+        background: rgba(255, 255, 255, 0.03);
+        box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.08);
+        text-align: center;
+        transition: box-shadow calc(160ms * var(--motion-scale, 1)) @con-ease-standard;
+        &--ruling { background: rgba(230, 195, 74, 0.08); }
+        &--access { box-shadow: inset 0 -.16rem 0 var(--parl-accent), inset 0 0 0 .05rem rgba(255, 255, 255, 0.1); }
+        &--focus { box-shadow: inset 0 0 0 .12rem @con-cyan, 0 0 1rem rgba(63, 214, 241, 0.25); }
+    }
+    &__party-emblem { width: 2rem; height: 2rem; object-fit: contain; }
+    &__party-name { font-size: .7rem; font-weight: 600; line-height: 1.1; }
+    &__support { display: inline-flex; gap: .15rem; }
+    &__support-dot { width: .5rem; height: .5rem; border-radius: 50%; background: rgba(255,255,255,.12); &--on { background: #b8b8b8; box-shadow: 0 0 .3rem rgba(255,255,255,.3); } }
+    &__party-state { font-size: .62rem; opacity: .75; line-height: 1.15; }
+    /* The rule is a SUMMARY (the inspector holds the full text): it takes the
+       tile's remaining height and its last visible line fades where it is cut. */
+    &__party-rule {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow: hidden;
+        margin-top: .2rem;
+        font-size: .64rem;
+        line-height: 1.25;
+        opacity: .72;
+        mask-image: linear-gradient(180deg, #000 calc(100% - 1.2rem), transparent 100%);
+        -webkit-mask-image: linear-gradient(180deg, #000 calc(100% - 1.2rem), transparent 100%);
+    }
+
+    &__agenda {
+        display: flex;
+        flex-direction: column;
+        gap: .3rem;
+        padding: .4rem .5rem;
+        border-radius: .5rem;
+        background: rgba(255, 255, 255, 0.03);
+        box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.08);
+        min-width: 0;
+        &--focus { box-shadow: inset 0 0 0 .12rem @con-cyan; }
+    }
+    &__track { display: grid; grid-template-columns: repeat(13, minmax(0, 1fr)); gap: .15rem; flex: 1; min-height: 0; }
+    &__agenda-legend { flex-shrink: 0; font-size: .64rem; letter-spacing: .04em; opacity: .62; }
+    &__step {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: flex-start;
+        gap: .2rem;
+        padding: .25rem .1rem;
+        border-radius: .35rem;
+        background: rgba(0, 0, 0, 0.3);
+        font-size: .66rem;
+        &--start { background: rgba(255, 255, 255, 0.06); }
+        &--influence .con-parl__step-icon { color: @con-parl-gold; }
+        &--tr .con-parl__step-icon { color: @con-parl-mint; }
+        &--card .con-parl__step-icon { color: @con-cyan; }
+    }
+    &__step-icon { font-weight: 700; }
+    &__step-cubes { display: flex; flex-wrap: wrap; gap: .1rem; justify-content: center; min-height: .8rem; }
+
+    &__tiles { display: grid; grid-auto-rows: minmax(0, 1fr); gap: .35rem; min-height: 0; }
+    &__tile {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
+        grid-template-rows: auto auto;
+        column-gap: .5rem;
+        align-items: center;
+        padding: .35rem .5rem;
+        border-radius: .5rem;
+        background: rgba(255, 255, 255, 0.035);
+        box-shadow: inset .16rem 0 0 var(--parl-accent, @con-parl-violet), inset 0 0 0 .05rem rgba(255, 255, 255, 0.08);
+        transition: box-shadow calc(160ms * var(--motion-scale, 1)) @con-ease-standard;
+        &--off { opacity: .55; }
+        &--focus { box-shadow: inset .16rem 0 0 var(--parl-accent, @con-parl-violet), inset 0 0 0 .12rem @con-cyan, 0 0 1rem rgba(63, 214, 241, 0.25); }
+    }
+    &__tile-emblem, &__tile-glyph { grid-row: 1 / span 2; width: 1.7rem; height: 1.7rem; object-fit: contain; font-size: 1.3rem; text-align: center; }
+    &__tile-label { font-weight: 600; font-size: .82rem; }
+    &__tile-sub { font-size: .68rem; opacity: .7; }
+    &__tile-reason { grid-column: 2; font-size: .66rem; color: @con-amber; }
+
+    /* ── THE STAGE ZONE ─────────────────────────────────────────────── */
+    &__stage {
+        position: absolute;
+        top: 3.4rem;
+        right: var(--con-stage-x, .55rem);
+        bottom: .4rem;
+        width: min(22rem, 40%);
+        display: flex;
+        flex-direction: column;
+        gap: .6rem;
+        padding: .7rem .8rem;
+        border-radius: .7rem;
+        background: linear-gradient(170deg, rgba(30, 20, 52, 0.985), rgba(12, 10, 22, 0.99));
+        box-shadow: 0 0 0 .06rem rgba(201, 198, 214, 0.3), 0 1.2rem 2.4rem rgba(0, 0, 0, 0.55);
+        z-index: 3;
+        overflow: hidden;
+    }
+    &__stage-head { display: flex; gap: .6rem; align-items: flex-start; & > div { display: flex; flex-direction: column; gap: .15rem; min-width: 0; } }
+    /* The embed zone: nothing while empty; the room when a step stands in it. */
+    &__embed { display: flex; flex: 1 1 auto; min-height: 0; &:empty { display: none; } }
+    &__stage-title { font-size: 1.05rem; line-height: 1.15; }
+    &__stage-sub { font-size: .76rem; opacity: .8; line-height: 1.25; }
+    &__txn { display: flex; flex-direction: column; gap: .3rem; padding: .5rem .6rem; border-radius: .5rem; background: rgba(0,0,0,.35); }
+    &__txn-row { display: flex; justify-content: space-between; align-items: center; gap: .6rem; font-size: .82rem; b { font-size: .9rem; } }
+    &__consequences { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .25rem; font-size: .78rem; li { padding-left: 1rem; position: relative; &::before { content: '●'; position: absolute; left: 0; font-size: .6rem; top: .2rem; } } }
+    &__consequence--gain { color: @con-parl-mint; }
+    &__consequence--note { opacity: .85; }
+    &__consequence--warn { color: @con-amber; }
+    &__stage-hint { margin: auto 0 0; font-size: .7rem; opacity: .7; line-height: 1.3; &--warn { color: @con-amber; opacity: .95; } }
+    &__chips { display: flex; flex-wrap: wrap; gap: .4rem; }
+    &__rows { display: flex; flex-direction: column; gap: .6rem; }
+    &__row { display: flex; flex-direction: column; gap: .3rem; padding: .4rem .5rem; border-radius: .5rem; background: rgba(0,0,0,.28); box-shadow: inset 0 0 0 .05rem transparent; &--focus { box-shadow: inset 0 0 0 .08rem rgba(63, 214, 241, 0.5); } }
+    &__opts { display: flex; flex-wrap: wrap; gap: .35rem; &--cards { flex-direction: column; } }
+    &__opt {
+        display: inline-flex;
+        align-items: center;
+        gap: .4rem;
+        padding: .3rem .5rem;
+        border-radius: .4rem;
+        border: 0;
+        background: rgba(255,255,255,.05);
+        color: inherit;
+        font: inherit;
+        font-size: .8rem;
+        box-shadow: inset 0 0 0 .05rem rgba(255,255,255,.1);
+        cursor: pointer;
+        &--cursor { box-shadow: inset 0 0 0 .1rem @con-cyan; }
+        &--picked { background: rgba(95, 227, 180, 0.16); box-shadow: inset 0 0 0 .08rem @con-parl-mint; }
+        &--picked.con-parl__opt--cursor { box-shadow: inset 0 0 0 .08rem @con-parl-mint, 0 0 0 .1rem @con-cyan; }
+        &--card { justify-content: space-between; }
+    }
+    &__opt-icon { width: 1.2rem; height: 1.2rem; display: inline-block; background-size: contain; background-repeat: no-repeat; background-position: center; }
+    &__opt-val { font-weight: 600; }
+    &__opt-none { font-size: .74rem; opacity: .6; }
+}
+
+@keyframes con-parl-ghost {
+    from { transform: translateY(0); }
+    to { transform: translateY(-.12rem); }
+}
+
+/* THE LANDING BEAT: the delegate that just arrived drops onto the ribbon and
+   the card it landed on flashes once (transform / opacity + box-shadow only). */
+.con-parl__vote--landed {
+    animation: con-parl-land calc(520ms * var(--motion-scale, 1)) @con-ease-standard both;
+}
+.con-parl__slot--landed {
+    animation: con-parl-land-flash calc(620ms * var(--motion-scale, 1)) @con-ease-standard both;
+}
+@keyframes con-parl-land {
+    from { transform: translateY(-1.2rem) scale(2.1); opacity: 0; }
+    55% { transform: translateY(.08rem) scale(1.15); opacity: 1; }
+    to { transform: translateY(0) scale(1); opacity: 1; }
+}
+@keyframes con-parl-land-flash {
+    from { box-shadow: inset 0 0 0 .12rem @con-parl-mint, 0 0 1.6rem rgba(95, 227, 180, 0.55); }
+    to { box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.08), 0 0 0 rgba(95, 227, 180, 0); }
+}
+
+/* THE RESULTS SCENE: each beat lights the object its sentence names (gold —
+   the phase's own colour), and the lines land one under another. */
+.con-parl__enacted--recap,
+.con-parl__slot--recap,
+.con-parl__party--recap,
+.con-parl__step--recap {
+    animation: con-parl-recap-pulse calc(900ms * var(--motion-scale, 1)) @con-ease-standard both;
+}
+@keyframes con-parl-recap-pulse {
+    from { box-shadow: inset 0 0 0 .14rem @con-parl-gold, 0 0 1.6rem rgba(230, 195, 74, 0.5); }
+    to { box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.08), 0 0 0 rgba(230, 195, 74, 0); }
+}
+.con-parl__recap-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: .4rem;
+}
+.con-parl__recap-item {
+    padding: .4rem .55rem;
+    border-radius: .4rem;
+    background: rgba(0, 0, 0, 0.28);
+    font-size: .84rem;
+    line-height: 1.3;
+    opacity: 0;
+    transform: translateX(.6rem);
+    transition: opacity calc(260ms * var(--motion-scale, 1)) @con-ease-standard, transform calc(320ms * var(--motion-scale, 1)) @con-ease-standard, box-shadow calc(200ms * var(--motion-scale, 1)) @con-ease-standard;
+    &--shown { opacity: 1; transform: none; }
+    &--now { box-shadow: inset .18rem 0 0 @con-parl-gold; }
+}
+
+.con-parl-stage-enter-active, .con-parl-stage-leave-active {
+    transition: opacity calc(220ms * var(--motion-scale, 1)) @con-ease-standard, transform calc(260ms * var(--motion-scale, 1)) @con-ease-standard;
+}
+.con-parl-stage-enter-from, .con-parl-stage-leave-to {
+    opacity: 0;
+    transform: translateX(1.2rem);
+}
+
+/* The parliament family on the premium face: the party emblem in the header
+   (where a project card's tags stand) and the chairman quest in the lower
+   corner. */
+.pcard__party {
+    position: absolute;
+    right: 8px;
+    top: 6px;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: radial-gradient(circle at 40% 35%, rgba(255,255,255,.18), rgba(0,0,0,.35));
+    box-shadow: 0 0 0 2px var(--pcard-rim-soft), 0 2px 6px rgba(0,0,0,.5);
+    z-index: 3;
+}
+.pcard__party-emblem { width: 32px; height: 32px; object-fit: contain; }
+/* A party BANNER's art window: the emblem as a centred badge over a quiet
+   radial field (a cover-scaled 154px emblem was a blur at the inspector's size). */
+.pcard--party-banner .pcard__art {
+    background:
+        radial-gradient(circle at 50% 46%, rgba(178, 140, 235, 0.32), rgba(24, 16, 40, 0.0) 58%),
+        linear-gradient(180deg, #120c1e, #0a0812);
+}
+.pcard--party-banner .pcard__art img {
+    object-fit: contain;
+    object-position: center 46%;
+    padding: 22%;
+    box-sizing: border-box;
+}
+.pcard--party-banner .pcard__party { display: none; }
+.pcard__quest {
+    position: absolute;
+    left: 10px;
+    right: 10px;
+    bottom: 26px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 6px 8px;
+    border-radius: 6px;
+    background: rgba(230, 195, 74, 0.1);
+    box-shadow: inset 0 0 0 1px rgba(230, 195, 74, 0.35);
+    font-size: 11px;
+    line-height: 1.2;
+}
+.pcard__quest-kicker { font-size: 8px; letter-spacing: .12em; text-transform: uppercase; opacity: .75; }
+.pcard__quest-text { font-weight: 600; }
+
+/* ── the handheld / TV ladders (rem-based: only densities move) ─────── */
+html.con-profile-handheld .con-parl {
+    gap: .3rem;
+    &__body { grid-template-rows: minmax(0, 1.5fr) minmax(0, 1fr); gap: .3rem; }
+    &__upper { grid-template-columns: minmax(15rem, 16.5rem) minmax(0, 1fr); gap: .4rem; }
+    /* The enacted zone STACKS: the card beside the ruling block only, the
+       quest and the chair full-width under them (the fit reads this layout
+       off the DOM — no second flag). */
+    &__enacted .con-parl__card--enacted { grid-row: 2; }
+    &__quest, &__chair { grid-column: 1 / -1; }
+    &__empty-slot { width: 7.4rem; min-height: 9rem; padding: .5rem; font-size: .7rem; }
+    &__ruling-rule, &__voting-note, &__party-rule, &__agenda-legend, &__slot-prio { display: none; }
+    &__lower { grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr) minmax(0, .85fr); gap: .4rem; }
+    &__parties { grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); gap: .3rem; }
+    &__party { padding: .3rem .25rem; gap: .18rem; }
+    &__party-emblem { width: 1.6rem; height: 1.6rem; }
+    &__tile { padding: .22rem .4rem; }
+    &__tile-label { font-size: .74rem; }
+    &__tile-sub, &__tile-reason { font-size: .6rem; }
+    &__step { font-size: .56rem; letter-spacing: -.02em; padding: .2rem .05rem; overflow: hidden; }
+    &__slot-meta { flex-wrap: nowrap; overflow: hidden; gap: .3rem; font-size: .64rem; }
+    &__meta .con-parl__chip-dim { font-size: .58rem; }
+    &__stage { width: min(20rem, 46%); top: 3rem; }
+}
+
+/* ── The Information workspace's «ЭФФЕКТЫ» zone: the party effects strip ── */
+.con-pfx {
+    display: flex;
+    flex-direction: column;
+    gap: .35rem;
+    padding: .45rem .6rem .55rem;
+    margin-bottom: .5rem;
+    border-radius: .6rem;
+    background: linear-gradient(160deg, rgba(40, 26, 70, 0.5), rgba(14, 10, 24, 0.6));
+    box-shadow: inset 0 0 0 .05rem rgba(139, 106, 216, 0.3);
+    --con-pfx-zoom: calc(0.42 * var(--con-ui-scale, 1));
+
+    &__head { display: flex; align-items: baseline; gap: .8rem; }
+    &__kicker { font-size: .66rem; letter-spacing: .12em; text-transform: uppercase; opacity: .72; }
+    &__sub { font-size: .7rem; opacity: .6; }
+    &__row { display: flex; flex-wrap: wrap; gap: .8rem; }
+    &__item { display: flex; align-items: flex-start; gap: .5rem; }
+    &__face { zoom: var(--con-pfx-zoom); }
+    &__why { display: flex; flex-direction: column; gap: .15rem; font-size: .74rem; max-width: 14rem; b { font-size: .86rem; } }
+    &__reason { opacity: .82; }
+    &__uses { font-size: .66rem; letter-spacing: .06em; text-transform: uppercase; opacity: .65; }
+}
+
+/* ── the previous generation's results (the server's summary as sentences) ── */
+.con-parl__recap {
+    flex-shrink: 0;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: .25rem .9rem;
+    padding: .3rem .6rem;
+    border-radius: .5rem;
+    background: rgba(230, 195, 74, 0.07);
+    box-shadow: inset 0 0 0 .05rem rgba(230, 195, 74, 0.25);
+    font-size: .74rem;
+    line-height: 1.25;
+    .con-parl__kicker { display: inline; color: #e6c34a; opacity: .9; }
+}
+.con-parl__recap-line { opacity: .88; }
+
+/* ── The effects explorer: a PARTY-sourced forecast fact draws the party's
+   emblem where a card source draws its printed block (a cardless source,
+   shown honestly as what it is). ── */
+.con-efx__graphic--party { display: flex; align-items: center; justify-content: center; min-height: 3.6rem; }
+.con-efx__party-emblem { width: 3.2rem; height: 3.2rem; object-fit: contain; }
+.con-efx__hero-rule--party { display: flex; align-items: center; justify-content: center; }
+.con-efx__hero-rule--party .con-efx__party-emblem { width: 62%; height: auto; max-height: 62%; }

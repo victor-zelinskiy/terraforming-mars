@@ -43,6 +43,8 @@ export type GameOptions = {
   preludeExtension: boolean;
   prelude2Expansion: boolean;
   turmoilExtension: boolean;
+  /** Turmoil Redux — the Mars Parliament. Mutually exclusive with `turmoilExtension`; requires `coloniesExtension`. */
+  turmoilReduxExpansion: boolean;
   promoCardsOption: boolean;
   communityCardsOption: boolean;
   aresExtension: boolean;
@@ -154,6 +156,7 @@ export const DEFAULT_GAME_OPTIONS: GameOptions = {
     starwars: false,
     underworld: false,
     deltaProject: false,
+    turmoilRedux: false,
   },
   fastModeOption: false,
   includeFanMA: false,
@@ -184,6 +187,7 @@ export const DEFAULT_GAME_OPTIONS: GameOptions = {
   startingPreludes: constants.PRELUDE_CARDS_DEALT_PER_PLAYER,
   starWarsExpansion: false,
   turmoilExtension: false,
+  turmoilReduxExpansion: false,
   underworldExpansion: false,
   deltaProjectExpansion: false,
   undoOption: false,

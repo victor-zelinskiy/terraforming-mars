@@ -91,6 +91,14 @@ export type ConsoleTask =
    */
   | {kind: 'colonyBonus'}
   /**
+   * A STAND-ALONE PARTY PICK of the Mars Parliament (Turmoil Redux) — the new
+   * chairman choosing which own resolution gives up a delegate for the seat.
+   * (The VOTE and the party actions are never top-level: they are branches of
+   * the action menu, found by the Parliament workspace through their markers.)
+   * Served by the PARLIAMENT workspace, off the server's `votePrompt` marker.
+   */
+  | {kind: 'party'}
+  /**
    * TAKE THE CARDS AN EXTERNAL EFFECT DREW FOR YOU — another player's action
    * (MarsBot included) fired an effect that granted the viewer cards (Solar
    * Logistics on a foreign space event, Sponsored Academies' «all opponents
@@ -156,6 +164,8 @@ export const NATIVE_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>([
   'cardSelect', 'deckSelect', 'handSelect', 'payment', 'draftWait',
   'projectCard', 'colony', 'colonyBonus', 'externalDraw', 'awardFunding',
   'initialDraft', 'startSequence', 'corpFirstAction',
+  // The Mars Parliament's stand-alone party pick (Turmoil Redux).
+  'party',
   // The three that used to fall through to the DESKTOP modal inside the
   // console shell — each now has its own console-native surface.
   'venusBonus', 'spendHeat', 'aresGlobal',
@@ -176,7 +186,7 @@ export const SHELL_NATIVE_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>(['act
  * screen in free-sponsorship mode. The shell auto-opens the surface;
  * navigating away DEFERS the task (amber chip).
  */
-export const SHELL_SECTION_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>(['projectCard', 'handSelect', 'colony', 'colonyBonus', 'externalDraw', 'awardFunding', 'corpFirstAction']);
+export const SHELL_SECTION_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>(['projectCard', 'handSelect', 'colony', 'colonyBonus', 'externalDraw', 'awardFunding', 'corpFirstAction', 'party']);
 
 /**
  * …of those, the kinds whose console surface ALWAYS exists — the answer to
@@ -198,7 +208,7 @@ export const SHELL_SECTION_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>(['pr
  * ConsoleTaskHost's card browser + payment stage), so the legacy modal has
  * no remaining role and was deleted with the radio stack.
  */
-export const SECTION_SERVED_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>(['projectCard', 'handSelect', 'colony', 'colonyBonus', 'externalDraw', 'awardFunding', 'corpFirstAction']);
+export const SECTION_SERVED_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>(['projectCard', 'handSelect', 'colony', 'colonyBonus', 'externalDraw', 'awardFunding', 'corpFirstAction', 'party']);
 
 /** Where the player is standing right now, as the surface map sees it. */
 export type ShellSurfaceContext = {
@@ -261,6 +271,8 @@ export function shellTaskOnSurface(task: ConsoleTask | undefined, ctx: ShellSurf
     return ctx.corpFirstActionOpen;
   case 'externalDraw':
     return ctx.externalDrawOpen;
+  case 'party':
+    return ctx.section === 'parliament';
   default:
     // Not a shell-section kind — it has no surface of this family at all.
     return false;
@@ -392,6 +404,7 @@ export function taskMinimizable(kind: TaskKind): boolean {
   case 'aresGlobal':
   case 'deckSelect':
   case 'botAttack':
+  case 'party': // the Parliament's chairman-seat pick — a section kind, restored through the Parliament workspace
     return true;
   // The external-draw take is LOCKED once its workspace is open (the take is
   // the only way out); before opening, the announce plate stands and the
@@ -639,10 +652,18 @@ export function taskFor(view: PlayerViewModel): ConsoleTask | undefined {
   case 'aresGlobalParameters':
     return {kind: 'aresGlobal'};
 
+  case 'party':
+    // The Mars Parliament's stand-alone party pick (the chairman seat) is
+    // served by the Parliament workspace — off its STRUCTURAL marker. A
+    // classic-Turmoil party prompt (no marker) stays the honest guard.
+    if (wf.votePrompt !== undefined) {
+      return {kind: 'party'};
+    }
+    return {kind: 'unknown', inputType: wf.type};
+
   // Out-of-module-scope prompt families (Turmoil / Underworld / global
   // events) — the honest guard, never a silent dead end.
   case 'delegate':
-  case 'party':
   case 'globalEvent':
   case 'claimedUndergroundToken':
   default:

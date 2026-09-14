@@ -32,7 +32,14 @@ export const PREMIUM_EXPANSIONS: ReadonlyArray<PremiumExpansionMeta> = [
   {id: 'ares', labelKey: 'Ares', descKey: 'Adds hazard tiles and adjacency effects that reshape the board.'},
   // Delta Project is surfaced under its in-game name, "Hydronetworks" → «Гидросети».
   {id: 'deltaProject', labelKey: 'Hydronetworks', descKey: 'A competitive module with a shared progress track: spend energy and meet tag requirements to advance, earn bonuses and race for victory points.'},
+  // Turmoil Redux — the Mars Parliament. Requires Colonies (the creator says so before launch).
+  {id: 'turmoilRedux', labelKey: 'Turmoil Redux', descKey: 'The Mars Parliament: vote with delegates on resolutions, gain party effects, complete chairman quests and advance your Agenda. Requires Colonies.'},
 ];
+
+/** Expansions another expansion depends on (the creator blocks the launch and names the missing one). */
+export const EXPANSION_REQUIRES: Partial<Record<Expansion, ReadonlyArray<Expansion>>> = {
+  turmoilRedux: ['colonies'],
+};
 
 export function expansionIcon(id: Expansion): string {
   return expansionIconUrl(id);

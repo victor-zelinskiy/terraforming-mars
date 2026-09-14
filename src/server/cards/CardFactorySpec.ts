@@ -16,6 +16,15 @@ export type CardFactorySpec<T> = {
   instantiate?: boolean;
   // Used for Turmoil's global events. When true, classifeid as a "negative" global event.
   negative?: boolean;
+  /**
+   * For an entry that needs a POLITICAL ENGINE (`compatibility: 'turmoil'`):
+   * which engines it has been adapted to. Absent = `'classic'` (the upstream
+   * implementation reads `Turmoil` directly and is NOT ready for Turmoil
+   * Redux). Adapting a card = implementing it through `game.politics` and
+   * marking it `'redux'` / `'both'` — never widening the Redux pool by API
+   * presence, never flipping the classic option on.
+   */
+  politics?: 'classic' | 'redux' | 'both';
 }
 
 export function isCompatibleWith(cf: CardFactorySpec<any>, gameOptions: GameOptions): boolean {
@@ -30,7 +39,14 @@ export function isCompatibleWith(cf: CardFactorySpec<any>, gameOptions: GameOpti
     case 'colonies':
       return gameOptions.coloniesExtension;
     case 'turmoil':
-      return gameOptions.turmoilExtension;
+      if (gameOptions.turmoilExtension) {
+        return true;
+      }
+      // Turmoil Redux provides a political engine, but a card joins its pool
+      // only once adapted (see `politics`).
+      return gameOptions.turmoilReduxExpansion === true && (cf.politics === 'redux' || cf.politics === 'both');
+    case 'turmoilRedux':
+      return gameOptions.turmoilReduxExpansion;
     case 'prelude':
       return gameOptions.preludeExtension;
     case 'prelude2':

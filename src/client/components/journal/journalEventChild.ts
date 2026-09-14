@@ -7,6 +7,7 @@ import {tileTypeToString} from '@/common/TileType';
 import {GameEvent} from '@/common/events/GameEvent';
 import {EventImpact} from '@/common/events/EventImpact';
 import {EventSource, sourceKey} from '@/common/events/EventSource';
+import {resolutionName} from '@/client/parliament/ClientParliamentManifest';
 
 /**
  * PURE formatter that turns the structured {@link GameEvent}s of ONE correlation
@@ -165,6 +166,12 @@ function sourceToChild(source: EventSource | undefined): JournalChildSource {
   case 'globalEvent':
   case 'party':
     return {kind: 'label', label: source.name};
+  // Turmoil Redux: an enacted resolution names itself; the parliament's own
+  // rules (the greenery TR, an Agenda bonus) read as the institution.
+  case 'resolution':
+    return {kind: 'label', label: resolutionName(source.id)};
+  case 'parliament':
+    return {kind: 'label', label: 'Mars Parliament'};
   default:
     return {kind: 'none'};
   }

@@ -266,6 +266,12 @@
            «За партию» stats). One component; its detail is a LAYER, so a
            level change is the explorer's own descend phrase. -->
       <div v-else-if="infoModeState.route === 'effects'" key="effects" class="con-info__efxhost" data-insp-slide>
+        <!-- Turmoil Redux: the PARTY EFFECTS this seat holds stand beside the
+             card effects — the same premium rendering the Parliament uses,
+             each with WHY the seat holds it. Absent without the module. -->
+        <ConsolePartyEffectsStrip v-if="playerView.game.parliament !== undefined"
+                                  :parliament="playerView.game.parliament"
+                                  :color="viewed.color" />
         <ConsoleEffectsExplorer ref="effectsView"
                                 :cards="viewed.tableau"
                                 :color="viewed.color"
@@ -362,6 +368,7 @@ import {
 import ConsoleScoreExplorer from '@/client/components/console/ConsoleScoreExplorer.vue';
 import ConsoleExtrasExplorer from '@/client/components/console/ConsoleExtrasExplorer.vue';
 import ConsoleEffectsExplorer from '@/client/components/console/ConsoleEffectsExplorer.vue';
+import ConsolePartyEffectsStrip from '@/client/components/console/ConsolePartyEffectsStrip.vue';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {mapLabelKey} from '@/client/components/create/premium/createGameMeta';
 import {InfoExtrasChip, infoExtrasChips} from '@/client/console/infoExtrasChips';
@@ -396,7 +403,7 @@ const PLAYED_SUMMARY_LABEL: ReadonlyArray<{key: string, label: string}> = [
 
 export default defineComponent({
   name: 'ConsoleInfoMode',
-  components: {ConsoleCampaignOverview, ConsoleMarsBotSections, ConsolePlayedOverlay, ConsoleScoreExplorer, ConsoleExtrasExplorer, ConsoleEffectsExplorer, ConsoleWsHead, GamepadGlyph},
+  components: {ConsoleCampaignOverview, ConsoleMarsBotSections, ConsolePlayedOverlay, ConsoleScoreExplorer, ConsoleExtrasExplorer, ConsoleEffectsExplorer, ConsolePartyEffectsStrip, ConsoleWsHead, GamepadGlyph},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     myTurn: {type: Boolean, default: false},

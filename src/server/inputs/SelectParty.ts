@@ -4,7 +4,6 @@ import {PartyName} from '../../common/turmoil/PartyName';
 import {InputResponse, isSelectPartyResponse} from '../../common/inputs/InputResponse';
 import {IPlayer} from '../IPlayer';
 import {SelectPartyModel} from '../../common/models/PlayerInputModel';
-import {getTurmoilModel} from '../models/TurmoilModel';
 import {InputError} from './InputError';
 
 export class SelectParty extends BasePlayerInput<PartyName> {
@@ -17,16 +16,24 @@ export class SelectParty extends BasePlayerInput<PartyName> {
   }
 
   public override toModel(player: IPlayer): SelectPartyModel {
-    const turmoil = getTurmoilModel(player.game);
-    if (turmoil === undefined) {
+    // A party prompt needs A political engine — classic Turmoil or the Mars
+    // Parliament (Turmoil Redux). Neither → the prompt is a programming error.
+    if (player.game.turmoil === undefined && player.game.parliament === undefined) {
       throw new InputError('This game is not set up for Turmoil.');
     }
-    return {
+    const model: SelectPartyModel = {
       title: this.title,
       buttonLabel: this.buttonLabel,
       type: 'party',
       parties: this.parties,
     };
+    // The VOTE marker rides HERE, not in `ServerModel.getWaitingFor`: the vote
+    // is one branch of the action menu, and central decoration only ever sees
+    // the top-level prompt.
+    if (this.votePrompt !== undefined) {
+      model.votePrompt = this.votePrompt;
+    }
+    return model;
   }
 
   public process(input: InputResponse) {

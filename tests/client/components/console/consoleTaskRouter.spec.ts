@@ -85,7 +85,8 @@ const FIXTURES: Array<{row: string, wf: any, hand?: Array<string>, srr?: Array<s
   {row: '24d MarsBot attack (remove a card resource)', wf: {type: 'card', title: 'Remove 1 resource from one of your cards', buttonLabel: 'Remove resource', cards: [{name: 'Birds'}], botAttackPrompt: {attacker: 'neutral', victim: 'red', source: {kind: 'bonusCard', bonusCard: 'B02'}, effect: 'removeCardResource', cardResource: 'Animal', amount: 1, targets: []}}, expect: {kind: 'botAttack'}},
   {row: 'native placement', wf: {type: 'space', title: 'Select space', spaces: []}, expect: {kind: 'space'}},
   {row: '30 out-of-scope: delegate', wf: {type: 'delegate', title: 'Select delegate'}, expect: {kind: 'unknown', inputType: 'delegate'}},
-  {row: '30b out-of-scope: party', wf: {type: 'party', title: 'Select party'}, expect: {kind: 'unknown', inputType: 'party'}},
+  {row: '30b out-of-scope: classic party (no marker)', wf: {type: 'party', title: 'Select party'}, expect: {kind: 'unknown', inputType: 'party'}},
+  {row: '30b2 parliament seat pick (marker)', wf: {type: 'party', title: 'Select party', votePrompt: {source: 'chairman-seat', cost: 0}}, expect: {kind: 'party'}},
   {row: '30c out-of-scope: globalEvent', wf: {type: 'globalEvent', title: 'Select event'}, expect: {kind: 'unknown', inputType: 'globalEvent'}},
   {row: '30d out-of-scope: underworld token', wf: {type: 'claimedUndergroundToken', title: 'Select token'}, expect: {kind: 'unknown', inputType: 'claimedUndergroundToken'}},
 ];
@@ -103,7 +104,7 @@ const ALL_TASK_KINDS: ReadonlyArray<TaskKind> = [
   'actionMenu', 'space', 'choice', 'awardFunding', 'player', 'amount', 'resource',
   'distribute', 'payment', 'draftWait', 'cardSelect', 'deckSelect', 'handSelect',
   'projectCard', 'colony', 'colonyBonus', 'venusBonus', 'spendHeat', 'botAttack',
-  'composite', 'initialDraft', 'startSequence', 'corpFirstAction', 'aresGlobal', 'unknown',
+  'composite', 'initialDraft', 'startSequence', 'corpFirstAction', 'aresGlobal', 'party', 'unknown',
 ];
 
 /** The CURRENT red list — shrink it phase by phase (CTS-6). */
@@ -201,7 +202,7 @@ describe('consoleTaskRouter (CTS-2 coverage)', () => {
     for (const kind of SHELL_SECTION_KINDS) {
       expect(NATIVE_KINDS.has(kind), `section kind "${kind}" must be native`).to.eq(true);
       // …but never claimed by the task host (the shell owns the surface).
-      expect(kind === 'projectCard' || kind === 'handSelect' || kind === 'colony' ||
+      expect(kind === 'projectCard' || kind === 'handSelect' || kind === 'colony' || kind === 'party' ||
         kind === 'colonyBonus' || kind === 'externalDraw' || kind === 'awardFunding' ||
         kind === 'corpFirstAction').to.eq(true);
     }

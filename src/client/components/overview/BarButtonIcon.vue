@@ -54,6 +54,14 @@
       <path d="M3.6 12q2.1-2.4 4.2 0t4.2 0t4.2 0t3.6-.6" />
       <path d="M3.6 16.5q2.1-2.4 4.2 0t4.2 0t4.2 0t3.6-.6" />
     </template>
+    <!-- Parliament (Turmoil Redux): the scales of the vote. -->
+    <template v-else-if="name === 'parliament'">
+      <path d="M12 4.2v15.6" />
+      <path d="M8.4 19.8h7.2" />
+      <path d="M5.2 7.6h13.6" />
+      <path d="M5.2 7.6 3 13.2h4.4z" />
+      <path d="M18.8 7.6 16.6 13.2H21z" />
+    </template>
     <template v-else-if="name === 'log'">
       <path d="M4.6 6.6h14.8" />
       <path d="M4.6 12h14.8" />

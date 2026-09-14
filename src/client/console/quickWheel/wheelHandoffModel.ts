@@ -39,6 +39,8 @@ export const WHEEL_HANDOFFS: Readonly<Record<string, WheelHandoffSpec>> = {
   cardActions: {echo: 'card-actions'},
   standardProjects: {echo: 'std-projects'},
   hydro: {echo: 'hydro'},
+  // The Parliament (Turmoil Redux): the workspace header's emblem echoes the tile.
+  parliament: {echo: 'parliament'},
   // Pass (and max-temp heat) land in the shared confirm card — its emblem
   // echoes the tile's symbol as the card forms.
   pass: {echo: 'confirm'},

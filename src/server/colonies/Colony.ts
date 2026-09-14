@@ -38,6 +38,7 @@ import {ErodeSpacesDeferred} from '../underworld/ErodeSpacesDeferred';
 import {CardName} from '../../common/cards/CardName';
 import {GlobalParameter} from '@/common/GlobalParameter';
 import {colonySource} from '../inputs/choiceContext';
+import {ParliamentHandler} from '../parliament/ParliamentHandler';
 
 export abstract class Colony implements IColony {
   // Players can't build colonies on Miranda until someone has played an Animal card.
@@ -126,6 +127,8 @@ export abstract class Colony implements IColony {
     // Poseidon prints the same «when you or MarsBot build a colony» sentence
     // the loop above serves for the human Poseidon).
     AutomaCorporations.onColonyBuilt(player.game, player);
+    // Turmoil Redux: the chairman quest (colonies built).
+    ParliamentHandler.onColonyBuilt(player);
 
     if (this.name === ColonyName.LEAVITT) {
       player.triggerOnNonCardTagAdded(Tag.SCIENCE);

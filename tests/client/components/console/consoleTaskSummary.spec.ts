@@ -65,6 +65,8 @@ const ROWS: Array<{row: string, wf: any, hand?: Array<string>, srr?: Array<strin
   {row: 'ares global', wf: {type: 'aresGlobalParameters', title: 'Shift'}, kicker: 'Planetary events'},
   {row: 'venus bonus', wf: {type: 'and', title: 'Gain 2', options: [], venusBonusPrompt: {kind: 'standard', baseCount: 2}}, kicker: 'Venus bonus'},
   {row: 'spend heat', wf: {type: 'and', title: 'Spend 6 heat', options: [], spendHeatPrompt: {amount: 6}}, kicker: 'Spend heat'},
+  // The Parliament's chairman-seat pick (Turmoil Redux) — routed on the vote marker, never the title.
+  {row: 'parliament seat pick', wf: {type: 'party', title: 'Select party', votePrompt: {source: 'chairman-seat', cost: 0}}, kicker: 'Parliament'},
 ];
 
 describe('consoleTaskSummary (no prompt is ever a bare «awaiting decision»)', () => {
@@ -243,7 +245,7 @@ describe('consoleTaskSummary (no prompt is ever a bare «awaiting decision»)', 
       'actionMenu', 'space', 'choice', 'awardFunding', 'player', 'amount', 'resource',
       'distribute', 'payment', 'draftWait', 'cardSelect', 'deckSelect', 'handSelect', 'projectCard',
       'colony', 'colonyBonus', 'composite', 'initialDraft', 'startSequence', 'corpFirstAction',
-      'aresGlobal', 'unknown',
+      'aresGlobal', 'party', 'unknown',
     ];
     const covered = new Set<TaskKind>();
     for (const r of ROWS) {

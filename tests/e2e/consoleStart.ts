@@ -2207,18 +2207,37 @@ export type BootOptions = {
  * resumed prompt. Costs one request + one page load — a spec whose subject
  * lives in the late game stops replaying the game to reach it.
  */
+export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'hydro-terminal' | 'hydro-terminal-surge' | 'staged-interposer' | 'staged-hazard' |
+  'play-scale-card' | 'effect-forecast' | 'parliament' | 'parliament-actions' | 'parliament-recap';
+
 export async function bootFixture(
   page: Page,
   request: APIRequestContext,
-  fixture: 'solo-actions' | 'solo-pre-endgame' | 'hydro-terminal' | 'hydro-terminal-surge' | 'staged-interposer' | 'staged-hazard' | 'play-scale-card' | 'effect-forecast',
+  fixture: FixtureName,
   opts: {query?: string, waitRounds?: number} = {},
 ): Promise<string> {
+  const {playerId} = await bootFixtureSeats(page, request, fixture, opts);
+  return playerId;
+}
+
+/**
+ * `bootFixture` that also hands back EVERY seat's id (in the fixture's player
+ * order) — a multi-seat spec drives the other seats over the API (an
+ * opponent's pass between the viewer's turns) without a second browser.
+ */
+export async function bootFixtureSeats(
+  page: Page,
+  request: APIRequestContext,
+  fixture: FixtureName,
+  opts: {query?: string, waitRounds?: number} = {},
+): Promise<{playerId: string, seats: Array<string>}> {
   const file = path.resolve(__dirname, 'fixtures', `${fixture}.json`);
   const serialized = JSON.parse(fs.readFileSync(file, 'utf8')) as Record<string, unknown>;
   const res = await request.post('/api/dev/load-game', {data: serialized});
   expect(res.ok(), `the dev load-game door accepted ${fixture} (status ${res.status()})`).toBeTruthy();
   const model = await res.json() as {players: Array<{id: string}>};
-  const playerId = model.players[0].id;
+  const seats = model.players.map((p) => p.id);
+  const playerId = seats[0];
   try {
     test.info().annotations.push({type: 'game', description: `fixture=${fixture} player=${playerId}`});
   } catch {
@@ -2226,7 +2245,7 @@ export async function bootFixture(
   }
   await openConsole(page, playerId, opts.query ?? '');
   await waitForBoardHome(page, opts.waitRounds ?? 25);
-  return playerId;
+  return {playerId, seats};
 }
 
 export async function bootIntoGame(

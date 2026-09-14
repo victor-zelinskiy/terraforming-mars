@@ -804,7 +804,7 @@ import ConsolePaymentPanel from '@/client/components/console/ConsolePaymentPanel
 import ConsoleForecastRow from '@/client/components/console/ConsoleForecastRow.vue';
 import ConsoleForecastReactions from '@/client/components/console/ConsoleForecastReactions.vue';
 import ConsoleEffectsExplorer from '@/client/components/console/ConsoleEffectsExplorer.vue';
-import {EffectForecast} from '@/common/models/EffectForecastModel';
+import {EffectForecast, forecastSourceIsCardless} from '@/common/models/EffectForecastModel';
 import {EffectOverlayStat} from '@/common/events/aggregate';
 import {
   ForecastBranchInfo, VariantReaction, forecastLayerAvailable, forecastRowPresent, variantReactionChips,
@@ -1234,7 +1234,7 @@ export default defineComponent({
       const bots = new Set(this.playerView.players.filter((p) => p.isMarsBot === true).map((p) => p.color));
       const colors = new Set<string>();
       for (const fact of [...f.facts, ...Object.values(f.byBranch ?? {}).flat()]) {
-        if (fact.source.kind !== 'rule' && fact.source.kind !== 'automa-corporation' && !bots.has(fact.source.owner)) {
+        if (!forecastSourceIsCardless(fact.source) && fact.source.kind !== 'automa-corporation' && !bots.has(fact.source.owner)) {
           colors.add(fact.source.owner);
         }
       }

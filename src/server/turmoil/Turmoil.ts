@@ -1,4 +1,4 @@
-import {PartyName} from '../../common/turmoil/PartyName';
+import {ClassicPartyName, PartyName} from '../../common/turmoil/PartyName';
 import {IParty} from './parties/IParty';
 import {MarsFirst} from './parties/MarsFirst';
 import {Scientists} from './parties/Scientists';
@@ -35,7 +35,7 @@ export const ALL_PARTIES = {
   [PartyName.GREENS]: Greens,
   [PartyName.REDS]: Reds,
   [PartyName.KELVINISTS]: Kelvinists,
-} satisfies Record<PartyName, PartyFactory>;
+} satisfies Record<ClassicPartyName, PartyFactory>;
 
 function createParties(): ReadonlyArray<IParty> {
   return [new MarsFirst(), new Scientists(), new Unity(), new Greens(), new Reds(), new Kelvinists()];

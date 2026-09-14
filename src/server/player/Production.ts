@@ -4,6 +4,7 @@ import {From, isFromPlayer} from '../logs/From';
 import {BaseStock} from './StockBase';
 import {IPlayer} from '../IPlayer';
 import {AutomaTargeting} from '../automa/AutomaTargeting';
+import {ParliamentHandler} from '../parliament/ParliamentHandler';
 
 export class Production extends BaseStock {
   constructor(player: IPlayer) {
@@ -67,5 +68,9 @@ export class Production extends BaseStock {
         card.onProductionGain(this.player, resource, amount);
       }
     }
+
+    // Turmoil Redux: the Greens' passive (plant / heat production → M€
+    // production) and the chairman quest, on the ACTUAL delta applied.
+    ParliamentHandler.onProductionChanged(this.player, resource, delta);
   }
 }

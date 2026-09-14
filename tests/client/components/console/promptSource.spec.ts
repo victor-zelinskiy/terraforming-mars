@@ -1,5 +1,6 @@
 import {expect} from 'chai';
 import {CardName} from '@/common/cards/CardName';
+import {PartyName} from '@/common/turmoil/PartyName';
 import {PlayerInputModel} from '@/common/models/PlayerInputModel';
 import {choiceSourceView, productionLossSourceView, promptSourceCard, promptSourceView} from '@/client/console/promptSource';
 
@@ -37,6 +38,13 @@ describe('promptSource (who asked for this decision?)', () => {
     it('a STANDARD PROJECT and a SYSTEM rule each name themselves', () => {
       expect(choiceSourceView({kind: 'standardProject'})?.kindKey).to.eq('Standard project');
       expect(choiceSourceView({kind: 'system'})?.kindKey).to.eq('Game rule');
+    });
+
+    it('a PARTY source (Turmoil Redux) names the party as a party action, never a game rule', () => {
+      const view = choiceSourceView({kind: 'party', party: PartyName.REDS});
+      expect(view?.kindKey).to.eq('Party action');
+      expect(view?.name).to.eq(PartyName.REDS);
+      expect(view?.inspectable).to.eq(false);
     });
 
     it('a card-kind source with NO card name says so honestly (never a blank frame)', () => {

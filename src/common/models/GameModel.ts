@@ -4,6 +4,7 @@ import {MarsBotModel} from './MarsBotModel';
 import {ColonyModel} from './ColonyModel';
 import {Color} from '../Color';
 import {TurmoilModel} from './TurmoilModel';
+import {ParliamentModel} from './ParliamentModel';
 import {ClaimedMilestoneModel} from './ClaimedMilestoneModel';
 import {FundedAwardModel} from './FundedAwardModel';
 import {Phase} from '../Phase';
@@ -76,6 +77,8 @@ export type GameModel = {
   temperature: number;
   isTerraformed: boolean;
   turmoil: TurmoilModel | undefined;
+  /** Turmoil Redux — the Mars Parliament. Undefined in every other game. Viewer projections ride the viewer's own model. */
+  parliament: ParliamentModel | undefined;
   undoCount: number;
   venusScaleLevel: number;
   // Who claimed each global-parameter SCALE bonus (the premium reward zones on

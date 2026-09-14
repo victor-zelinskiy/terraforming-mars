@@ -467,7 +467,7 @@ import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {CardModel} from '@/common/models/CardModel';
 import {RevealResultModel} from '@/common/models/RevealResultModel';
 import {CardDrawRevealSource} from '@/common/models/CardDrawRevealModel';
-import {translateText} from '@/client/directives/i18n';
+import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf, ConsoleAction} from '@/client/console/composables/consoleActionModel';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
@@ -828,6 +828,10 @@ export default defineComponent({
         // «Наследие проектов» — carried, never bought; the price of PLAYING
         // them stays normal (the chip must not imply otherwise).
         return {name: translateText('Carried from the previous mission'), inspectable: false};
+      }
+      if (s.type === 'party') {
+        // Turmoil Redux: the party action that drew them (the Reds' recycle).
+        return {name: translateTextWithParams('Party action of ${0}', [translateText(s.party)]), inspectable: false};
       }
       return undefined;
     },

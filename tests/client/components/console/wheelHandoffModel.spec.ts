@@ -7,10 +7,10 @@ describe('wheelHandoffModel', () => {
     // Entries whose commit opens a surface with a header emblem. Direct
     // actions (conversions, skip) and the reserved voting slot are exempt:
     // their reveal is the placement mode / the status flip / a HUD pulse.
-    const surfaceOpening = new Set(['trading', 'cardActions', 'standardProjects', 'hydro', 'pass']);
+    const surfaceOpening = new Set(['trading', 'cardActions', 'standardProjects', 'hydro', 'parliament', 'pass']);
     const rt = buildRtQuickEntries({
       cardsPlayable: 1, cardsTotal: 2, actionsAvailable: 1, tradesAvailable: 1, hydroAvailable: 1,
-      hasColonies: true, hasTurmoil: true, hasHydro: true,
+      hasColonies: true, hasParliament: true, votesAvailable: 1, hasHydro: true,
     });
     const lt = buildLtQuickEntries({
       myTurn: true, awaitingInput: true, stdAvailable: true, endTurnAvailable: true,

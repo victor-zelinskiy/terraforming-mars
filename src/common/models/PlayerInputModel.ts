@@ -8,8 +8,10 @@ import type {DeltaBlockadeProjectionModel} from './DeltaBlockadeModel';
 import type {DeltaEspionageProjectionModel} from './DeltaEspionageModel';
 import type {TargetImpact, TargetImpactChange} from './TargetImpactModel';
 import {CardName} from '../cards/CardName';
+import {Tag} from '../cards/Tag';
 import {ColonyName} from '../colonies/ColonyName';
 import {Color, ColorWithNeutral} from '../Color';
+import type {PartyActionId} from '../parliament/ParliamentTypes';
 import {PayProductionModel} from './PayProductionUnitsModel';
 import {ProductionLossSource} from './ProductionLossSource';
 import {AresData} from '../ares/AresData';
@@ -136,8 +138,12 @@ export type AwardFundingPromptMeta = {
  *  asks the player to decide. Drives the premium modal's source-card preview +
  *  kicker chip. `card` is the source card's name (undefined for system choices). */
 export type ChoiceContextSource = {
-  kind: 'card' | 'corporation' | 'standardProject' | 'colony' | 'system';
+  kind: 'card' | 'corporation' | 'standardProject' | 'colony' | 'system' | 'party' | 'resolution';
   card?: CardName;
+  /** `kind: 'party'` — WHICH political party's effect asks (Turmoil Redux). */
+  party?: PartyName;
+  /** `kind: 'resolution'` — WHICH enacted resolution asks (catalog id). */
+  resolution?: string;
   /**
    * The concrete NAME of a non-card source (which colony, which standard
    * project, which rule). Without it the console can only say «Колония», which
@@ -309,7 +315,17 @@ export type DiscardPromptMeta = {
    * marks a payout that scales with the number of cards thrown. Rendered as the
    * "→" side of the flow header and as the closing beat of the animation.
    */
-  exchange?: {icon: string, amount: number, perCard?: boolean};
+  exchange?: {
+    icon: string,
+    amount: number,
+    perCard?: boolean,
+    /**
+     * A payout that scales with the TAGS on the thrown cards (the Reds'
+     * recycle: 2 M€ per plant / microbe / animal tag) — `amount` per matching
+     * tag; the live header counts the picked cards' tags.
+     */
+    perTag?: ReadonlyArray<Tag>,
+  };
   /**
    * Pluto's "draw 1, then discard 1" sequencing. Present ONLY on a colony-bonus
    * discard; `index`/`total` are the recipient's position in the per-cube
@@ -417,6 +433,39 @@ export type FinalGreeneryPromptMeta = {
   spaces: number;
 }
 
+/**
+ * EXPLICIT marker that a `SelectParty` is the Turmoil Redux VOTE — the player
+ * places one delegate on the resolution of the chosen party. `source` names
+ * where the delegate comes from (the free lobby delegate or a paid one from
+ * the reserve) and `cost` the M€ the reserve delegate costs (0 for the lobby).
+ * The per-slot projections ride `ParliamentModel.viewer.vote`, keyed by party.
+ * Serialized on `SelectParty.toModel` (nesting-safe — the vote is one branch
+ * of the action menu), never detected from the title.
+ */
+export type VotePromptMeta = {
+  /** `chairman-seat`: not a vote — the new chairman picks which OWN resolution gives up a delegate for the seat (cost 0). */
+  source: 'lobby' | 'reserve' | 'chairman-seat';
+  cost: number;
+}
+
+/**
+ * EXPLICIT marker that a prompt IS (or belongs to) a Turmoil Redux PARTY
+ * ACTION — the Industrialists' production shift, the Scientists' resource
+ * gift, the Reds' recycle. `stage` tells the console which beat of the
+ * action this prompt is: `choose` — the single pre-commit choice hosted in the
+ * Parliament workspace (nothing has changed yet); `confirm` — the option whose
+ * submit COMMITS an action with a random result (the Reds draw); `discard` —
+ * the mandatory follow-up after that commit. Serialized on the input's own
+ * `toModel` (nesting-safe), never centrally.
+ */
+export type PartyActionPromptMeta = {
+  party: PartyName;
+  actionId: PartyActionId;
+  stage: 'choose' | 'confirm' | 'discard';
+  usesLeft: number;
+  usesPerGeneration: number;
+}
+
 export type BaseInputModel = {
   title: string | Message;
   warning?: string | Message;
@@ -485,6 +534,12 @@ export type BaseInputModel = {
    *  identity. Serialized on `SelectCard.toModel` (nesting-safe), not
    *  centrally. */
   externalDrawPrompt?: ExternalDrawTakeMeta;
+  /** Explicit "this SelectParty is the Turmoil Redux VOTE" marker (see
+   *  {@link VotePromptMeta}). Serialized on `SelectParty.toModel`. */
+  votePrompt?: VotePromptMeta;
+  /** Explicit "this prompt is a Turmoil Redux PARTY ACTION" marker (see
+   *  {@link PartyActionPromptMeta}). Serialized on the input's own `toModel`. */
+  partyActionPrompt?: PartyActionPromptMeta;
 }
 
 export type AndOptionsModel = BaseInputModel & {

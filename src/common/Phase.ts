@@ -35,6 +35,15 @@ export enum Phase {
   PRODUCTION = 'production',
   /** Standard rulebook Solar phase, triggers WGT, and final greeneries, but not Turmoil. */
   SOLAR = 'solar',
+  /**
+   * Turmoil Redux: the parliament's end-of-generation steps (winner agenda,
+   * popular support, enactment + its effects, voting-area refresh). A phase of
+   * its OWN because `SOLAR` is a suppression flag in this engine (tiles lose
+   * their owner and bonuses, parameter steps give no TR — `Game.addTile`,
+   * `Game.increase*`) and an enacted resolution's effects must pay the
+   * ordinary way. Card hooks keyed on `ACTION` stay silent here on purpose.
+   */
+  PARLIAMENT = 'parliament',
   /** Does some cleanup and also executes the rulebook's turn order phase. */
   INTERGENERATION = 'intergeneration',
 

@@ -57,6 +57,16 @@ export class Cloner {
         } else if (typeof val === 'object') {
           Cloner.replacePlayerIds(val, oldPlayerIds, newPlayerIds);
         }
+        // A RECORD KEYED BY PLAYER ID (the Turmoil Redux parliament's Agenda,
+        // grants, action uses and quest progress): the KEY is the id — a walk
+        // over values alone leaves it pointing at a seat that no longer exists.
+        if (!Array.isArray(obj) && isPlayerId(key)) {
+          const idx = oldPlayerIds.indexOf(key);
+          if (idx > -1 && newPlayerIds[idx] !== key) {
+            obj[newPlayerIds[idx]] = obj[key];
+            delete obj[key];
+          }
+        }
       }
     });
   }

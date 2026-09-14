@@ -27,7 +27,12 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {testGame} from '../../TestGame';
 import {TestPlayer} from '../../TestPlayer';
-import {maxOutOceans, runAllActions, setOxygenLevel, setTemperature} from '../../TestingUtils';
+import {finishGeneration, maxOutOceans, runAllActions, setOxygenLevel, setTemperature} from '../../TestingUtils';
+import {SelectCard} from '../../../src/server/inputs/SelectCard';
+import {PartyName} from '../../../src/common/turmoil/PartyName';
+import {Tardigrades} from '../../../src/server/cards/base/Tardigrades';
+import {Trees} from '../../../src/server/cards/base/Trees';
+import {Fish} from '../../../src/server/cards/base/Fish';
 import {IGame} from '../../../src/server/IGame';
 import {SelectInitialCards} from '../../../src/server/inputs/SelectInitialCards';
 import {MAX_OXYGEN_LEVEL, MAX_TEMPERATURE} from '../../../src/common/constants';
@@ -324,4 +329,113 @@ function write(name: string, game: IGame): void {
   p1.production.add(Resource.HEAT, 1);
   runAllActions(game);
   write('effect-forecast', game);
+}
+
+// ── parliament: a 2p Turmoil Redux table in its first action phase, the
+//    Parliament workspace's whole browse layer on screen from one wheel press
+//    (docs/TURMOIL_REDUX_ITERATION0_PLAN.md):
+//      · three dummy resolutions of distinct parties in the voting area, the
+//        Greens ruling (the ENACTED slot empty), the starter chairman quest;
+//      · red already placed its free delegate on the FIRST slot — a vote
+//        blue can contest (a leader to read, a tie to break);
+//      · blue holds the free lobby delegate AND enough M€ for a second, paid
+//        vote; a plant-production card in hand (the Greens' passive fires on
+//        the raise);
+//      · blue also holds two delegates on the second slot — a party effect
+//        held BY DELEGATES, so the parties row and the inspector have a real
+//        «your effect» to show.
+//    Colonies on (a Redux requirement). ──
+{
+  const [game, p1, p2] = testGame(2, {
+    skipInitialCardSelection: false, coloniesExtension: true, turmoilReduxExpansion: true,
+    startingCorporations: 1,
+  });
+  const wf = p1.getWaitingFor();
+  if (!(wf instanceof SelectInitialCards)) {
+    throw new Error(`expected SelectInitialCards, got ${wf?.constructor.name}`);
+  }
+  answerStartFlow(game, [p1, p2]);
+  const parliament = game.parliament;
+  if (parliament === undefined || parliament.slots.length !== 3) {
+    throw new Error('the parliament fixture has no voting area');
+  }
+  parliament.placeVote(p2, parliament.slots[0], 'lobby');
+  parliament.placeVote(p1, parliament.slots[1], 'reserve');
+  parliament.placeVote(p1, parliament.slots[1], 'reserve');
+  p1.megaCredits = 40;
+  p2.megaCredits = 30;
+  p1.cardsInHand.push(new ArtificialPhotosynthesis());
+  runAllActions(game);
+  write('parliament', game);
+}
+
+// ── parliament-actions: the four PARTY ACTIONS on one seat, each with a real
+//    target — blue holds every action party's effect by CARD GRANT (the
+//    workspace's action tiles are all live), an energy production to shift
+//    (Industrialists), Tardigrades in the tableau to feed (Scientists), a
+//    tagged hand to recycle (Reds) and a trade fleet for the Unity trade. ──
+{
+  const [game, p1, p2] = testGame(2, {
+    skipInitialCardSelection: false, coloniesExtension: true, turmoilReduxExpansion: true,
+    startingCorporations: 1,
+  });
+  const wf = p1.getWaitingFor();
+  if (!(wf instanceof SelectInitialCards)) {
+    throw new Error(`expected SelectInitialCards, got ${wf?.constructor.name}`);
+  }
+  answerStartFlow(game, [p1, p2]);
+  const parliament = game.parliament;
+  if (parliament === undefined) {
+    throw new Error('the parliament-actions fixture has no parliament');
+  }
+  for (const party of [PartyName.UNITY, PartyName.SCIENTISTS, PartyName.INDUSTRIALISTS, PartyName.REDS] as const) {
+    parliament.grantPartyEffect(p1, party, 'Fixture');
+  }
+  p1.production.add(Resource.ENERGY, 1);
+  p1.playedCards.push(new Tardigrades());
+  p1.cardsInHand.push(new Trees(), new Fish(), new AdaptedLichen());
+  p1.megaCredits = 40;
+  p2.megaCredits = 30;
+  runAllActions(game);
+  write('parliament-actions', game);
+}
+
+// ── parliament-recap: generation 2 has just begun — the FIRST political phase
+//    ran at the end of generation 1 (blue's two delegates carried the second
+//    slot, the winner is enacted, blue stepped onto the Agenda, the losers'
+//    parties gained popular support, three fresh resolutions stand in the
+//    area) and the server's summary of it waits in `lastPhase` for the
+//    workspace's results scene. Both seats answered the research phase. ──
+{
+  const [game, p1, p2] = testGame(2, {
+    skipInitialCardSelection: false, coloniesExtension: true, turmoilReduxExpansion: true,
+    startingCorporations: 1,
+  });
+  const wf = p1.getWaitingFor();
+  if (!(wf instanceof SelectInitialCards)) {
+    throw new Error(`expected SelectInitialCards, got ${wf?.constructor.name}`);
+  }
+  answerStartFlow(game, [p1, p2]);
+  const parliament = game.parliament;
+  if (parliament === undefined || parliament.slots.length !== 3) {
+    throw new Error('the parliament-recap fixture has no voting area');
+  }
+  parliament.placeVote(p2, parliament.slots[0], 'lobby');
+  parliament.placeVote(p1, parliament.slots[1], 'reserve');
+  parliament.placeVote(p1, parliament.slots[1], 'reserve');
+  p1.megaCredits = 40;
+  p2.megaCredits = 30;
+  runAllActions(game);
+  finishGeneration(game);
+  for (const player of [p1, p2]) {
+    const research = player.getWaitingFor();
+    if (research instanceof SelectCard) {
+      player.process({type: 'card', cards: []});
+    }
+  }
+  runAllActions(game);
+  if (parliament.lastPhase === undefined || parliament.enacted === undefined) {
+    throw new Error('the parliament-recap fixture has no completed political phase');
+  }
+  write('parliament-recap', game);
 }

@@ -302,6 +302,7 @@ const EXPANSION_ICON_FILE: Partial<Record<GameModule, string>> = {
   starwars: 'starwars',
   underworld: 'underworld',
   deltaProject: 'deltaProject',
+  turmoilRedux: 'turmoil',
 };
 
 /** Expansion medallion icon; undefined for the base game (plain engraved medallion). */

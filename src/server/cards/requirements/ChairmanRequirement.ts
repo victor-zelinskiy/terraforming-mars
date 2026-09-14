@@ -1,10 +1,10 @@
 import {IPlayer} from '../../IPlayer';
-import {Turmoil} from '../../turmoil/Turmoil';
 import {CardRequirement} from './CardRequirement';
 import {RequirementType} from '../../../common/cards/RequirementType';
 
 /**
- * Evaluates whether a player is the chairman.
+ * Evaluates whether a player is the chairman (through the political facade —
+ * the classic chairman or the Turmoil Redux chairman's seat).
  */
 export class ChairmanRequirement extends CardRequirement {
   public readonly type = RequirementType.CHAIRMAN;
@@ -12,6 +12,6 @@ export class ChairmanRequirement extends CardRequirement {
     super({count: 1});
   }
   public satisfies(player: IPlayer) : boolean {
-    return Turmoil.getTurmoil(player.game).chairman === player;
+    return player.game.politics?.isChairman(player) === true;
   }
 }

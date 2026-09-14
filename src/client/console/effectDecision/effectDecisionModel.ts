@@ -223,11 +223,17 @@ export function chipsFromDiscard(meta: DiscardPromptMeta | undefined): Array<Act
   const exchange = meta.exchange;
   if (exchange !== undefined) {
     const perCard = exchange.perCard === true;
-    out.push({
-      direction: 'gain',
-      icon: exchange.icon,
-      amount: perCard ? exchange.amount * Math.max(1, meta.min) : exchange.amount,
-    });
+    if (exchange.perTag !== undefined) {
+      // A per-TAG payout has no fixed magnitude before the cards are picked —
+      // the chip states the rate, honestly, never a guessed total.
+      out.push({direction: 'gain', icon: exchange.icon, amount: exchange.amount, note: 'per tag'});
+    } else {
+      out.push({
+        direction: 'gain',
+        icon: exchange.icon,
+        amount: perCard ? exchange.amount * Math.max(1, meta.min) : exchange.amount,
+      });
+    }
   }
   return out;
 }

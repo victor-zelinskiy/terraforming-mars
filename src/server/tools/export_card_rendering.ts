@@ -23,6 +23,11 @@ import {OneOrArray} from '../../common/utils/types';
 import {globalInitialize} from '../globalInitialize';
 import {buildCardInformation, writeCardInfoArtifacts} from './cardInfo/buildCardInformation';
 import {buildBoardLayouts} from '../boards/boardLayoutExport';
+import {REDUX_RESOLUTION_CATALOG} from '../parliament/resolutions/ResolutionCatalog';
+import {ResolutionDefinition} from '../parliament/resolutions/IResolution';
+import {PARTY_EFFECTS, toClientPartyEffect} from '../parliament/parties/PartyEffects';
+import {REDUX_PARTIES} from '../../common/parliament/ParliamentTypes';
+import {IClientResolution, ParliamentCatalog} from '../../common/parliament/IClientResolution';
 
 type Mutable<T> = {
   -readonly [P in keyof T]: T[P];
@@ -174,6 +179,39 @@ class GlobalEventProcessor {
   }
 }
 
+/**
+ * The Mars Parliament catalog (Turmoil Redux): every resolution's printed face
+ * and every party's printed effect — the global-event pipeline's twin. Read by
+ * `client/parliament/ClientParliamentManifest.ts`.
+ */
+class ParliamentProcessor {
+  public static json: ParliamentCatalog = {parties: [], resolutions: []};
+  public static makeJson() {
+    ParliamentProcessor.json = {
+      parties: REDUX_PARTIES.map((party) => toClientPartyEffect(PARTY_EFFECTS[party])),
+      resolutions: REDUX_RESOLUTION_CATALOG.all().map(ParliamentProcessor.processResolution),
+    };
+  }
+
+  private static processResolution(definition: ResolutionDefinition): IClientResolution {
+    return {
+      id: definition.id,
+      module: definition.module,
+      party: definition.party,
+      copies: definition.copies,
+      compatibility: [...(definition.compatibility ?? [])],
+      renderData: definition.renderData,
+      text: definition.text,
+      quest: definition.quest,
+      dummy: definition.dummy === true,
+      hasImmediate: (definition.immediateSteps?.length ?? 0) > 0,
+      hasWinnerEffect: (definition.winnerSteps?.length ?? 0) > 0,
+      hasPassive: definition.passive !== undefined,
+      hasAction: definition.action !== undefined,
+    };
+  }
+}
+
 class ColoniesProcessor {
   public static json: Array<ColonyMetadata> = [];
   public static makeJson() {
@@ -244,6 +282,7 @@ if (!fs.existsSync('src/genfiles')) {
 globalInitialize();
 CardProcessor.makeJson();
 GlobalEventProcessor.makeJson();
+ParliamentProcessor.makeJson();
 ColoniesProcessor.makeJson();
 MilestoneProcessor.makeJson();
 AwardProcessor.makeJson();
@@ -251,6 +290,7 @@ AwardProcessor.makeJson();
 fs.writeFileSync('src/genfiles/cards.json', JSON.stringify(CardProcessor.json, null, 2));
 writeCardInfoArtifacts();
 fs.writeFileSync('src/genfiles/events.json', JSON.stringify(GlobalEventProcessor.json, null, 2));
+fs.writeFileSync('src/genfiles/parliament.json', JSON.stringify(ParliamentProcessor.json, null, 2));
 fs.writeFileSync('src/genfiles/colonies.json', JSON.stringify(ColoniesProcessor.json, null, 2));
 fs.writeFileSync('src/genfiles/milestones.json', JSON.stringify(MilestoneProcessor.json, null, 2));
 fs.writeFileSync('src/genfiles/awards.json', JSON.stringify(AwardProcessor.json, null, 2));

@@ -42,6 +42,10 @@ export class SelectOption extends BasePlayerInput<undefined> {
     if (this.colonyBonusPrompt !== undefined) {
       model.colonyBonusPrompt = this.colonyBonusPrompt;
     }
+    // Same for a Turmoil Redux PARTY ACTION confirm (the Reds' recycle).
+    if (this.partyActionPrompt !== undefined) {
+      model.partyActionPrompt = this.partyActionPrompt;
+    }
     return model;
   }
   public process(response: InputResponse): PlayerInput | undefined {

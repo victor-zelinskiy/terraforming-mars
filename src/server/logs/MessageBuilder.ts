@@ -21,6 +21,7 @@ import {toName} from '../../common/utils/utils';
 import {Resource, StandardResource} from '../../common/Resource';
 import {CardResource} from '../../common/CardResource';
 import {GlobalParameter} from '../../common/GlobalParameter';
+import {ResolutionId} from '../../common/parliament/ParliamentTypes';
 
 export class MessageBuilder {
   protected message: Message;
@@ -102,6 +103,12 @@ export class MessageBuilder {
 
   public partyName(value: PartyName): this {
     this.message.data.push({type: LogMessageDataType.PARTY, value});
+    return this;
+  }
+
+  /** A Turmoil Redux resolution, by catalog id (rendered as a named chip). */
+  public resolution(value: ResolutionId): this {
+    this.message.data.push({type: LogMessageDataType.RESOLUTION, value});
     return this;
   }
 

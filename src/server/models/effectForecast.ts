@@ -27,8 +27,9 @@ import {
   EffectForecastSource,
 } from '../../common/models/EffectForecastModel';
 import {EffectForecastContext, EffectForecastGrant, EffectForecastTile} from '../cards/EffectForecastContext';
-import {cardResourceIcon} from '../cards/actionPreviews';
+import {cardResourceIcon, drawGain, productionChange, stockGain} from '../cards/actionPreviews';
 import * as forecast from '../cards/effectForecastPreviews';
+import {GREENS_MEGACREDITS_PER_TR} from '../parliament/parties/PartyEffects';
 import {CARD_FOR_SPENDABLE_RESOURCE, SPENDABLE_CARD_RESOURCES, SpendableCardResource} from '../../common/inputs/Spendable';
 import {DEFAULT_PAYMENT_VALUES} from '../../common/inputs/Payment';
 
@@ -195,6 +196,57 @@ export function grantOfEffect(effect: ActionEffect): EffectForecastGrant | undef
     return undefined;
   }
   return {kind: 'cardResource', resource: cardResource, amount: effect.amount, target: effect.note === 'on this card' ? 'self' : 'any'};
+}
+
+/**
+ * TURMOIL REDUX — the PARTY EFFECTS the acting seat holds react to its own
+ * operation exactly like a card in its tableau would: the Greens to the TR it
+ * gains and to its plant / heat production steps, Mars First to the tiles it
+ * places on Mars. Read from the SAME predicates the live hooks read
+ * (`Parliament.hasPartyEffect`, `PARTY_EFFECTS`); the source is the party
+ * (cardless — the client never resolves it to a card). Honest limits of
+ * iteration 0: the TR a global-parameter raise pays and the greenery
+ * revision's own TR are not forecast here yet (the live Greens hook still
+ * pays them); the explicit `tr` grants are.
+ */
+function partyFacts(player: IPlayer, grants: ReadonlyArray<EffectForecastGrant>, tiles: ReadonlyArray<EffectForecastTile>): Array<EffectForecastFact> {
+  const parliament = player.game.parliament;
+  if (parliament === undefined || !parliament.participates(player)) {
+    return [];
+  }
+  const facts: Array<EffectForecastFact> = [];
+  const partySource = (party: PartyName, channel: EffectForecastSource['channel']): EffectForecastSource =>
+    ({kind: 'party', name: party, owner: player.color, channel});
+  if (parliament.hasPartyEffect(player, PartyName.GREENS)) {
+    const tr = grants.filter((g) => g.kind === 'tr').reduce((sum, g) => sum + (g.kind === 'tr' ? g.amount : 0), 0);
+    if (tr > 0) {
+      facts.push(forecast.exact(partySource(PartyName.GREENS, 'tr-increase'),
+        [stockGain(player, Resource.MEGACREDITS, GREENS_MEGACREDITS_PER_TR * tr)],
+        'The Greens pay 2 M€ per TR step you gain', {id: 'greens-tr'}));
+    }
+    const steps = grants.reduce((sum, g) => sum + (g.kind === 'production' && (g.resource === Resource.PLANTS || g.resource === Resource.HEAT) ? g.amount : 0), 0);
+    if (steps > 0) {
+      facts.push(forecast.exact(partySource(PartyName.GREENS, 'production-gain'),
+        [productionChange(player, Resource.MEGACREDITS, steps)],
+        'The Greens raise your M€ production with your plant or heat production', {id: 'greens-production'}));
+    }
+  }
+  if (parliament.hasPartyEffect(player, PartyName.MARS)) {
+    const marsTiles = tiles.filter((tile) => !tile.offMars);
+    const count = marsTiles.reduce((sum, tile) => sum + tile.count, 0);
+    if (count > 0) {
+      facts.push(forecast.deferred(partySource(PartyName.MARS, 'tile-placed'),
+        [stockGain(player, Resource.STEEL, count)],
+        'Mars First pays 1 steel per tile you place on Mars', {id: 'mars-steel'}));
+      const cities = marsTiles.filter((tile) => tile.countsAsCity).reduce((sum, tile) => sum + tile.count, 0);
+      if (cities > 0) {
+        facts.push(forecast.deferred(partySource(PartyName.MARS, 'tile-placed'),
+          [drawGain(cities)],
+          'Mars First draws a card for a city you place on Mars', {id: 'mars-card'}));
+      }
+    }
+  }
+  return facts;
 }
 
 /** The second-order reactors of ONE seat (+ the acting seat's own played card, «including this»). */
@@ -657,6 +709,22 @@ function buildForecast(player: IPlayer, card: ICard, preview: ActionPreview, ope
   for (const pos of Object.keys(byBranch)) {
     const list = byBranch[Number(pos)];
     list.push(...cascadeFacts(player, card, list, {...baseCtx, branchPos: Number(pos)}).map((fact) => asBranchFact(fact, Number(pos))));
+  }
+  // Turmoil Redux: the acting seat's PARTY EFFECTS answer its own grants and
+  // tiles — the branch-independent ones in `facts`, an option's own inside it.
+  facts.push(...partyFacts(player, single ? grantsOf(ownEffects) : [], sharedTiles));
+  if (!single) {
+    for (let pos = 0; pos < branches.length; pos++) {
+      const branch = branches[pos];
+      if (!branch.available) {
+        continue;
+      }
+      const own = partyFacts(player, grantsOf(branch.effects), ownTilesOf(perBranchTiles[pos], sharedTiles));
+      if (own.length > 0) {
+        const list = byBranch[pos] ?? (byBranch[pos] = []);
+        list.push(...own.map((fact) => asBranchFact(fact, pos)));
+      }
+    }
   }
 
   // The explicit target marker first (`host`), then the arrow rule over it.

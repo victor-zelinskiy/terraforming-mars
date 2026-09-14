@@ -21,6 +21,13 @@
                      :resource="corpEntry.resource" large />
   </div>
 
+  <!-- A Turmoil Redux RESOLUTION or PARTY EFFECT — the parliament family's
+       premium face, built from the parliament catalog (never a manifest card)
+       and handed over as an externally-built view-model. -->
+  <div v-else-if="parliamentVm !== undefined" class="card-zoom-card card-zoom-card--premium">
+    <premium-card-face :vmOverride="parliamentVm" tier="full" :inert="true" />
+  </div>
+
   <!-- PREMIUM face — every real card type (tier `full`, inert: the modal
        owns interaction). `premium-card-face` is registered GLOBALLY in
        main.ts — a static import here would close the PremiumCard ->
@@ -37,7 +44,9 @@
 import {defineComponent} from 'vue';
 import {CardModel} from '@/common/models/CardModel';
 import {ClientCard} from '@/common/cards/ClientCard';
-import {ZoomCard, BonusZoomEntry, MarsBotCorpZoomEntry, isBonusZoom, isMarsBotCorpZoom} from './cardZoomTypes';
+import {ZoomCard, BonusZoomEntry, MarsBotCorpZoomEntry, isBonusZoom, isMarsBotCorpZoom, isPartyEffectZoom, isResolutionZoom} from './cardZoomTypes';
+import {PremiumCardVM} from '@/client/components/premiumCard/premiumCardViewModel';
+import {partyEffectPremiumVmOf, resolutionPremiumVmById} from '@/client/components/premiumCard/resolutionPremiumVm';
 import BonusCardFace from '@/client/components/marsbot/BonusCardFace.vue';
 import MarsBotCorpFace from '@/client/components/marsbot/MarsBotCorpFace.vue';
 import {isPremiumFaceType} from '@/client/components/premiumCard/premiumCardTheme';
@@ -73,6 +82,16 @@ export default defineComponent({
     /** A MarsBot corporation entry, or undefined otherwise. */
     corpEntry(): MarsBotCorpZoomEntry | undefined {
       return isMarsBotCorpZoom(this.card) ? this.card : undefined;
+    },
+    /** A parliament entry (resolution / party effect) as a premium view-model, or undefined otherwise. */
+    parliamentVm(): PremiumCardVM | undefined {
+      if (isResolutionZoom(this.card)) {
+        return resolutionPremiumVmById(this.card.resolution);
+      }
+      if (isPartyEffectZoom(this.card)) {
+        return partyEffectPremiumVmOf(this.card.partyEffect);
+      }
+      return undefined;
     },
     /** The project card (only the premium branch of the template reads this). */
     cardModel(): CardModel {

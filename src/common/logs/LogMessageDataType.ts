@@ -23,4 +23,7 @@ export enum LogMessageDataType {
   // Icon-only by design — any amount stays a separate RAW_STRING number token,
   // so migrating a log site is a data swap that keeps its i18n template.
   RESOURCE, // 15
+  // A Turmoil Redux RESOLUTION, by catalog id (`value` is the ResolutionId);
+  // the client names it through its resolution manifest and renders a chip.
+  RESOLUTION, // 16
 }

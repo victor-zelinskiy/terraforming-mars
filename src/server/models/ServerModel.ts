@@ -24,9 +24,9 @@ import {AutomaMAEvaluation} from '../automa/AutomaMAEvaluation';
 import {milestoneThreshold} from '../milestones/IMilestone';
 import {FundedAwardModel, AwardScore} from '../../common/models/FundedAwardModel';
 import {getTurmoilModel} from '../models/TurmoilModel';
+import {getParliamentModel} from '../parliament/ParliamentModel';
 import {GameModel} from '../../common/models/GameModel';
 import {MarsBotModel} from '../../common/models/MarsBotModel';
-import {Turmoil} from '../turmoil/Turmoil';
 import {createPathfindersModel} from './PathfindersModel';
 import {MoonModel} from '../../common/models/MoonModel';
 import {CardName} from '../../common/cards/CardName';
@@ -109,6 +109,14 @@ function detectWaitingForKind(input: PlayerInput | undefined): 'globalsupport' |
     if (depth > 3) {
       return false;
     }
+    // Turmoil Redux: a STANDALONE delegate prompt (the chairman seat, a
+    // reserve vote's own party pick) carries a structural marker — read it
+    // first. Only at the TOP: the action menu nests the vote option, and the
+    // menu is a whole turn, not a delegate pick.
+    if (depth === 0 && (node as unknown as {votePrompt?: unknown}).votePrompt !== undefined) {
+      result = 'delegate';
+      return true;
+    }
     const title = titleText(node.title);
     if (WGT_TITLE_PATTERNS.some((p) => title.includes(p))) {
       result = 'globalsupport';
@@ -152,7 +160,7 @@ export class Server {
     };
   }
 
-  public static getGameModel(game: IGame): GameModel {
+  public static getGameModel(game: IGame, viewer?: IPlayer): GameModel {
     const turmoil = getTurmoilModel(game);
 
     return {
@@ -179,6 +187,7 @@ export class Server {
       oxygenLevel: game.getOxygenLevel(),
       passedPlayers: game.getPassedPlayers(),
       pathfinders: createPathfindersModel(game),
+      parliament: getParliamentModel(game, viewer),
       automa: this.getAutomaModel(game),
       phase: game.phase,
       spaces: this.getSpaces(game.board, game.gagarinBase, game.stJosephCathedrals, game.nomadSpace),
@@ -214,7 +223,7 @@ export class Server {
       // wait popover browse it in the draft voice) — same options as the
       // packet the pick prompt serializes, so the two can never disagree.
       draftedCards: cardsToModel(player, player.draftedCards, {showCalculatedCost: true, unplayableReasons: true}),
-      game: this.getGameModel(player.game),
+      game: this.getGameModel(player.game, player),
       id: player.id,
       runId: runId,
       pickedCorporationCard: player.pickedCorporationCard ? cardsToModel(player, [player.pickedCorporationCard]) : [],
@@ -593,7 +602,7 @@ export class Server {
       heat: player.heat,
       heatProduction: player.production.heat,
       id: game.phase === Phase.END ? player.id : undefined,
-      influence: Turmoil.ifTurmoilElse(game, (turmoil) => turmoil.getInfluence(player), () => 0),
+      influence: game.politics?.influence(player) ?? 0,
       isActive: player.id === game.activePlayer.id,
       isMarsBot: player.isMarsBot === true ? true : undefined,
       isWaitingForInput: player.getWaitingFor() !== undefined,
@@ -860,6 +869,7 @@ export class Server {
         starwars: options.starWarsExpansion,
         underworld: options.underworldExpansion,
         deltaProject: options.deltaProjectExpansion,
+        turmoilRedux: options.turmoilReduxExpansion,
       },
       fastModeOption: options.fastModeOption,
       includedCards: options.includedCards,

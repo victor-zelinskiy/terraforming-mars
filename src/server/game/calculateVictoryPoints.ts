@@ -233,8 +233,10 @@ export function calculateVictoryPoints(player: IPlayer) {
   // Victory points from board
   const cityEntries: Array<CityVpDetail> = [];
   player.game.board.spaces.forEach((space) => {
-    // Victory points for greenery tiles
-    if (Board.isGreenerySpace(space) && Board.spaceOwnedBy(space, player)) {
+    // Victory points for greenery tiles. Turmoil Redux revises greeneries:
+    // the tile pays 1 TR when placed and NO victory point of its own at the
+    // end (rulebook p.3, project decision Q3). City adjacency still scores.
+    if (player.game.parliament === undefined && Board.isGreenerySpace(space) && Board.spaceOwnedBy(space, player)) {
       builder.setVictoryPoints('greenery', 1);
     }
 

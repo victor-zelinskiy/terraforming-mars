@@ -35,6 +35,11 @@ export class OrOptions extends OptionsInput<undefined> {
     if (this.disabledOptions.length > 0) {
       model.disabledOptions = this.disabledOptions;
     }
+    // A Turmoil Redux PARTY ACTION is one branch of the action menu — its
+    // marker must survive nesting, so it rides the input's own toModel.
+    if (this.partyActionPrompt !== undefined) {
+      model.partyActionPrompt = this.partyActionPrompt;
+    }
     return model;
   }
 

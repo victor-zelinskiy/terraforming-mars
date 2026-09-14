@@ -305,6 +305,27 @@
                              @blockade-picked="onHydroBlockadePicked($event)"
                              @close="onHydroClose()" />
       </transition>
+      <!-- The console-native PARLIAMENT screen (Turmoil Redux): the vote, the
+           party effects and actions, the Agenda. Presence is the stack's
+           (`workspaceFrameRenders`); the section publishes its command
+           contract into `consoleParliamentUi` and submits byte-identical
+           responses through the ONE transport funnel. -->
+      <transition :css="false" appear
+                  @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
+                  @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
+        <ConsoleParliamentSection v-if="workspaceFrameRenders('parliament')"
+                                  data-motion-surface="section"
+                                  ref="parliamentSection"
+                                  :playerView="playerView"
+                                  :myTurn="myTurn"
+                                  :awaitingInput="awaitingInput"
+                                  @submit="submitParliament($event)"
+                                  @notice="showNotice($event)"
+                                  @inspect="inspectParliament($event)"
+                                  @open-trading="openParliamentTrading()"
+                                  @flow-complete="onParliamentFlowComplete($event)"
+                                  @close="leaveWorkspace()" />
+      </transition>
 
       <!-- THE ACTION WORKSPACE («Действия карт») — the console-native
            blue-card action center as an ABSOLUTE child of .con-main filling
@@ -951,6 +972,13 @@
                                  :annotationsOverride="zoomBotCorpAnnotations"
                                  :nonce="side.nonce"
                                  :closing="side.closing" />
+          <!-- A parliament face (Turmoil Redux): resolution effect · party
+               effect · chairman quest, told apart as three blocks. -->
+          <ConsoleCardRulesPanel v-else-if="zoomParliamentAnnotations !== undefined"
+                                 ref="zoomRulesPanel"
+                                 :annotationsOverride="zoomParliamentAnnotations"
+                                 :nonce="side.nonce"
+                                 :closing="side.closing" />
           <ConsoleCardRulesPanel v-else-if="zoomRulesCardName !== undefined && zoomHasRules"
                                  ref="zoomRulesPanel"
                                  :cardName="zoomRulesCardName"
@@ -1460,6 +1488,9 @@ import {unplayableReasonLine} from '@/client/components/handCards/unplayableReas
 import {buildConsoleTagFilters, filterHandByTag, cycleTagFilter, ConsoleTagFilterOption} from '@/client/components/console/consoleHandFilter';
 import ConsoleResourcePanel from '@/client/components/console/ConsoleResourcePanel.vue';
 import ConsoleColoniesSection, {ConsoleColonyPick} from '@/client/components/console/ConsoleColoniesSection.vue';
+import ConsoleParliamentSection, {ParliamentInspectRequest} from '@/client/components/console/ConsoleParliamentSection.vue';
+import {consoleParliamentUi} from '@/client/console/consoleParliamentState';
+import {partyAnnotations, resolutionAnnotations} from '@/client/console/parliament/parliamentAnnotations';
 import ConsoleInfoMode from '@/client/components/console/ConsoleInfoMode.vue';
 import ConsoleStrandedPrompt from '@/client/components/console/ConsoleStrandedPrompt.vue';
 import ConsoleSystemAlert from '@/client/components/console/ConsoleSystemAlert.vue';
@@ -1584,7 +1615,7 @@ import {
 import {cardColonyTradeCard} from '@/client/console/colonyTrade/colonyTradeEntry';
 import {discardPhaseInOverlay} from '@/client/console/cardDiscard/discardModel';
 import {
-  DiscardIntent, deriveDiscardIntent, discardMetaOf,
+  DiscardIntent, deriveDiscardIntent, discardMetaOf, discardPickedTags,
 } from '@/client/console/cardDiscard/discardIntent';
 import ConsoleHandRevealLayer from '@/client/components/console/ConsoleHandRevealLayer.vue';
 import ConsoleHandDeliveryLayer from '@/client/components/console/ConsoleHandDeliveryLayer.vue';
@@ -1670,7 +1701,7 @@ import ConsoleInspectSide from '@/client/components/console/ConsoleInspectSide.v
 import ConsoleCardAvailabilityPanel from '@/client/components/console/ConsoleCardAvailabilityPanel.vue';
 import {availabilityContextFor, buildZoomAvailability, CardAvailabilityView} from '@/client/console/cardAvailability';
 import Card from '@/client/components/card/CardFace.vue';
-import {ZoomCard, bonusZoomEntry, isMarsBotCorpZoom} from '@/client/components/card/cardZoomTypes';
+import {ZoomCard, bonusZoomEntry, isMarsBotCorpZoom, isPartyEffectZoom, isResolutionZoom, partyEffectZoomEntry, resolutionZoomEntry} from '@/client/components/card/cardZoomTypes';
 import {CardAnnotation} from '@/client/components/cardAnnotations/annotationModel';
 import {marsBotCorpAnnotations} from '@/client/components/marsbot/marsBotCorpRules';
 import {consoleCardZoom, openConsoleCardZoom, navigateConsoleCardZoom, closeConsoleCardZoom, setConsoleZoomInspectTab, slotZoomOrigin, ZoomOrigin, ConsoleZoomProvenance} from '@/client/console/consoleCardZoom';
@@ -1988,6 +2019,7 @@ export default defineComponent({
     ConsoleHandSection,
     ConsoleResourcePanel,
     ConsoleColoniesSection,
+    ConsoleParliamentSection,
     ConsoleInfoMode,
     ConsoleCardRulesPanel,
     ConsoleInspectSide,
@@ -2643,7 +2675,7 @@ export default defineComponent({
       // principle as the `dockParkedUnderScene` carve-out below, one nesting
       // level further out: the bar every surface publishes its hints to may
       // never be the thing that gets covered.
-      if (workspaceFrameHost('colonies') !== undefined || workspaceFrameHost('hydro') !== undefined) {
+      if (workspaceFrameHost('colonies') !== undefined || workspaceFrameHost('hydro') !== undefined || workspaceFrameHost('parliament') !== undefined) {
         return false;
       }
       // The bare colonies / hydro section grid. ⚠ ONLY the bare grid — while a
@@ -2653,7 +2685,7 @@ export default defineComponent({
       // trade confirm — "не понятно какую кнопку нажать"). Those states are
       // exactly `dockParkedUnderScene` (where the dock is hidden anyway, so
       // nothing needs to tuck behind) + the hydro confirm.
-      return (this.consoleState.section === 'colonies' || this.consoleState.section === 'hydro') &&
+      return (this.consoleState.section === 'colonies' || this.consoleState.section === 'hydro' || this.consoleState.section === 'parliament') &&
         !this.dockParkedUnderScene;
     },
     /**
@@ -5908,7 +5940,12 @@ export default defineComponent({
     /** The presentation of the active discard (undefined = not a discard). */
     discardIntent(): DiscardIntent | undefined {
       const meta = this.discardMeta;
-      return meta === undefined ? undefined : deriveDiscardIntent(meta, this.handSelectPicked.length);
+      if (meta === undefined) {
+        return undefined;
+      }
+      // A per-TAG payout (the Reds' recycle) counts the picked cards' tags — the card manifest knows them.
+      const pickedTags = this.handSelectPicked.map((name) => getCard(name as CardName)?.tags ?? []);
+      return deriveDiscardIntent(meta, this.handSelectPicked.length, discardPickedTags(meta, pickedTags));
     },
     /** The bundled select-mode state handed to the hand section (undefined when
      *  not in a hand-select). */
@@ -6815,7 +6852,8 @@ export default defineComponent({
           tradesAvailable: this.wheelCounts.trade,
           hydroAvailable: this.wheelCounts.hydro,
           hasColonies: this.game.colonies.length > 0,
-          hasTurmoil: this.game.gameOptions.expansions.turmoil === true,
+          hasParliament: this.game.parliament !== undefined,
+          votesAvailable: this.game.parliament?.viewer?.vote.available === true ? 1 : 0,
           hasHydro: this.game.gameOptions.expansions.deltaProject === true,
           postGame: this.postGame,
         });
@@ -7322,7 +7360,8 @@ export default defineComponent({
       // carries the full path; the bar carries only where the player IS.)
       const sectionHost = this.consoleState.section === 'colonies' ? workspaceFrameHost('colonies') :
         this.consoleState.section === 'hand' ? workspaceFrameHost('hand') :
-          this.consoleState.section === 'hydro' ? workspaceFrameHost('hydro') : undefined;
+          this.consoleState.section === 'hydro' ? workspaceFrameHost('hydro') :
+            this.consoleState.section === 'parliament' ? workspaceFrameHost('parliament') : undefined;
       if (sectionHost !== undefined) {
         return workspaceFrameRoot(sectionHost);
       }
@@ -7330,6 +7369,7 @@ export default defineComponent({
       case 'hand': return 'Hand';
       case 'colonies': return 'Trading';
       case 'hydro': return 'Mars Hydronetwork';
+      case 'parliament': return 'Parliament';
       default:
         if (this.consoleState.scaleInspecting) {
           return 'Scale inspection';
@@ -8049,6 +8089,12 @@ export default defineComponent({
           [...consoleHydroUi.commands] :
           [{control: 'back', label: 'To the board'}];
       }
+      if (this.consoleState.section === 'parliament') {
+        // Same contract for the Parliament workspace (Turmoil Redux).
+        return consoleParliamentUi.commands.length > 0 ?
+          [...consoleParliamentUi.commands] :
+          [{control: 'back', label: 'To the board'}];
+      }
       // P27b: SCALE INSPECTION MODE — the bonus ring, B/R3 exit.
       if (this.consoleState.scaleInspecting) {
         return [
@@ -8126,8 +8172,22 @@ export default defineComponent({
      *  card had no rules) OR when the availability panel has something to say.
      *  Gates the panel AND the viewer's width reservation. */
     zoomSideVisible(): boolean {
-      return this.zoomHasRules || this.zoomBotCorpAnnotations !== undefined ||
+      return this.zoomHasRules || this.zoomBotCorpAnnotations !== undefined || this.zoomParliamentAnnotations !== undefined ||
         this.consoleCardZoom.inspect !== undefined || this.zoomAvailabilityView !== undefined;
+    },
+    /** A parliament face's rules (Turmoil Redux) — only when the viewer is on a resolution / party entry. */
+    zoomParliamentAnnotations(): ReadonlyArray<CardAnnotation> | undefined {
+      const card = this.consoleCardZoom.card;
+      if (card === undefined) {
+        return undefined;
+      }
+      if (isResolutionZoom(card)) {
+        return resolutionAnnotations(card.resolution, this.game.parliament);
+      }
+      if (isPartyEffectZoom(card)) {
+        return partyAnnotations(card.partyEffect, this.game.parliament, this.thisPlayer.color);
+      }
+      return undefined;
     },
     /** The MarsBot corporation's printed rule boxes for the rules panel —
      *  only when the viewer is on a bot-corporation entry. */
@@ -12264,6 +12324,12 @@ export default defineComponent({
         // draft re-seats; a stale one resets) — never a blanket reset here.
         this.enterOrRestoreWorkspace('hydro');
         break;
+      case 'parliament':
+        // The Parliament (Turmoil Redux) — a VIEW as much as an action screen:
+        // it opens whenever the module is on, and the vote's availability is
+        // read inside from the server's own menu.
+        this.enterOrRestoreWorkspace('parliament');
+        break;
       default:
         break;
       }
@@ -12478,6 +12544,12 @@ export default defineComponent({
       if (this.consoleState.section === 'hydro') {
         const hydro = this.$refs.hydroSection as InstanceType<typeof ConsoleHydroSection> | undefined;
         hydro?.handleIntent(intent);
+        return true;
+      }
+      // The Parliament owns its whole grammar too (zones / stages / submits).
+      if (this.consoleState.section === 'parliament') {
+        const parliament = this.$refs.parliamentSection as InstanceType<typeof ConsoleParliamentSection> | undefined;
+        parliament?.handleIntent(intent);
         return true;
       }
       if (intent.kind === 'nav') {
@@ -12795,6 +12867,46 @@ export default defineComponent({
       this.deferShellTask();
       enterWorkspace(kind);
       return true;
+    },
+    // ── the Parliament workspace (Turmoil Redux) ─────────────────────────
+    /** A vote / party action / seat pick — the section built the byte-identical response. */
+    submitParliament(response: InputResponse): void {
+      submitInput(response);
+    },
+    /** X in the Parliament: the fullscreen inspector over a resolution or a party's effect. */
+    inspectParliament(request: ParliamentInspectRequest): void {
+      const entry = request.kind === 'resolution' ? resolutionZoomEntry(request.id) : partyEffectZoomEntry(request.party);
+      openConsoleCardZoom([entry], 0, undefined, undefined, {origin: {kind: 'textual'}});
+    },
+    /**
+     * The Unity trade: the colony workspace stands INSIDE the Parliament for
+     * its span (`frameSteps: {colonies: 'scene'}` — the header reads «ПАРЛАМЕНТ
+     * › СОЮЗ › ТОРГОВЛЯ»), and the trade's own payment list offers the free
+     * Unity path first. Its conclusion pops one level back to the Parliament.
+     */
+    openParliamentTrading(): void {
+      if (this.colonyTradeBlockReason !== undefined && this.colonyTradeBlockReason !== '') {
+        this.showNotice(this.colonyTradeBlockReason);
+        return;
+      }
+      this.deferShellTask();
+      pushWorkspaceFrame({
+        kind: 'colonies',
+        subject: '',
+        stage: 'Trade',
+        phase: 'browse',
+        serves: ['colony'],
+        anchor: {type: 'always'},
+        nest: true,
+      });
+      this.consoleState.colonyIndex = stepIndex(this.consoleState.colonyIndex, 0, this.coloniesForRail.length);
+    },
+    /** A Parliament flow ended (the server answered): a finished flow LEAVES, never folds back to browse. */
+    onParliamentFlowComplete(kind: string): void {
+      if (kind === 'seat') {
+        return;
+      }
+      this.concludeWorkspaceFlowOrOwe('parliament');
     },
     /** B: one calm step toward the console home (never destructive). */
     handleSectionBack(): void {
@@ -15671,6 +15783,15 @@ export default defineComponent({
         const collect = colonyBonusCollectOf(this.playerView.waitingFor);
         if (collect !== undefined) {
           this.openColonyBonusCollect(collect);
+        }
+        return;
+      }
+      if (task.kind === 'party') {
+        // The chairman's seat pick (Turmoil Redux) — the PROMPT brought the
+        // player to the Parliament; the frame hands the screen back on its own
+        // once the seat is filled.
+        if (!workspaceFrameKnown('parliament')) {
+          enterWorkspace('parliament', {anchor: {type: 'prompt', promptType: 'party'}});
         }
         return;
       }

@@ -9,4 +9,11 @@ export enum CardType {
     STANDARD_ACTION = 'standard_action',
     // Proxy cards are not real cards, but for operations that need a card-like behavior.
     PROXY = 'proxy',
+    /**
+     * A Turmoil Redux RESOLUTION — the Mars Parliament's own card family. Never
+     * a project card: it lives in the parliament's deck (`server/parliament`),
+     * is never in a hand or a tableau, and the premium face renders it through
+     * its own theme (`resolutionPremiumVm.ts`).
+     */
+    RESOLUTION = 'resolution',
 }
