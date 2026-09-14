@@ -46,6 +46,9 @@ import {branchPositionForNode, branchPositionsForNode, branchTitleText, nodeAvai
 import {ActionRules, actionRules} from '@/client/components/actions/actionDescription';
 import {ActionBranchScope, branchMetricTokens} from '@/client/components/actions/actionUsageSummary';
 import {resourceScoring, accumulatedVp} from '@/client/components/additionalResources/additionalResources';
+import {AVAILABILITY_BLOCKERS, turnGateBlocker} from '@/common/availability/AvailabilityBlocker';
+import {ICardRenderRoot} from '@/common/cards/render/Types';
+import {PartyActionId, ReduxParty} from '@/common/parliament/ParliamentTypes';
 
 type GroupNode = ActionGroup['nodes'][number];
 
@@ -125,6 +128,15 @@ export type ConsoleActionTile = {
   /** THIS action's rule text (i18n keys) — the card's own printed / curated
    *  wording for exactly this variant, never the whole card's. */
   rules: ActionRules | undefined;
+  /**
+   * A PARTY ACTION (Turmoil Redux): the source is a political party, not a
+   * card.  then carries the party's tile KEY () — a
+   * focus id and a DOM address only, never a manifest lookup — and every
+   * card-shaped reader (previews, the tableau model, the dossier history)
+   * answers nothing for it by construction.
+   */
+  party?: ReduxParty;
+  partyAction?: PartyActionId;
 };
 
 /**
@@ -140,11 +152,13 @@ export type ConsoleActionFlatTile = ConsoleActionTile & {
   joinLeft: boolean;
 };
 
-/** One action SOURCE (card / corporation) and its variant tiles. */
+/** One action SOURCE (card / corporation / a political party) and its variant tiles. */
 export type ConsoleActionGroup = {
   key: string;
   cardName: CardName;
   isCorporation: boolean;
+  /** The source is a PARTY (Turmoil Redux) — the plate draws its emblem, never a card name. */
+  party?: ReduxParty;
   /** Card-level status (the best of its variants — drives the group badge). */
   status: ActionStatus;
   /** The SERVER-side card status (`entry.state.status`) — the SORT key.
@@ -901,6 +915,104 @@ export function branchScopeForNode(
   return {mineTokens, siblingTokens};
 }
 
+// ── PARTY ACTIONS AS ACTION SOURCES (Turmoil Redux) ─────────────────────────
+
+/**
+ * A party's action as an action SOURCE for the browse grid. Built by the
+ * component from the SERVER's own projection (`ParliamentModel.viewer.partyActions`
+ * — access, uses, availability + reason) and the manifest's printed action
+ * rows; the execution gate is the option's PRESENCE in the live action menu
+ * (the same law every card action obeys). Only parties whose effect the
+ * player HOLDS are ever listed — the menu is a list of the player's actions,
+ * never a catalog of every party's.
+ */
+export type PartyActionSource = {
+  party: ReduxParty;
+  actionId: PartyActionId;
+  /** The action's printed graphic — the manifest's action rows (the same nodes the face draws). */
+  renderRoot: ICardRenderRoot | undefined;
+  /** English i18n key — the action's own sentence. */
+  rule: string;
+  usesLeft: number;
+  usesPerGeneration: number;
+  /** The server's verdict: access ∧ uses left ∧ the action's own gate. */
+  available: boolean;
+  /** The server's reason when not available ('' otherwise). */
+  reason: string | Message;
+  /** The option is PRESENT in the live action menu right now (the execution gate). */
+  offered: boolean;
+  /** The viewer is being asked at all — tells «finish your action» from «not your turn». */
+  awaitingInput: boolean;
+  /** The server's result chips. */
+  preview: ReadonlyArray<ActionEffect>;
+};
+
+/** The tile / group KEY of a party source (a DOM address + focus id; never a CardName lookup). */
+export function partyTileKey(party: ReduxParty): string {
+  return 'PARTY_' + party;
+}
+
+/** The party behind a tile key, or undefined for a card's. */
+export function partyOfTileKey(key: string): ReduxParty | undefined {
+  return key.startsWith('PARTY_') ? key.substring('PARTY_'.length) as ReduxParty : undefined;
+}
+
+/** The pre-submit choices a party action asks (the composer's rows) — structural, per action. */
+function partyChoiceKinds(actionId: PartyActionId): ReadonlyArray<'card' | 'or'> {
+  switch (actionId) {
+  case 'industrialists-shift': return ['or'];
+  case 'scientists-lab': return ['card'];
+  default: return [];
+  }
+}
+
+function buildPartyTile(source: PartyActionSource): ConsoleActionTile {
+  let status: ActionStatus;
+  let reason: ConsoleActionReason | undefined;
+  let blocker: AvailabilityBlocker | undefined;
+  if (source.usesLeft <= 0) {
+    status = 'activated';
+    reason = reasonFrom('This party action was already used this generation', []);
+    blocker = AVAILABILITY_BLOCKERS.DOMAIN;
+  } else if (!source.available) {
+    status = 'rules';
+    reason = reasonFrom(source.reason === '' ? 'Unavailable right now' : source.reason, []);
+    blocker = AVAILABILITY_BLOCKERS.DOMAIN;
+  } else if (!source.offered) {
+    // Potentially performable — blocked by the WINDOW only (the calm register).
+    status = 'soft';
+    reason = reasonFrom(source.awaitingInput ? 'Finish your current action first' : 'Not your turn', []);
+    blocker = turnGateBlocker(source.awaitingInput);
+  } else {
+    status = 'available';
+  }
+  const key = partyTileKey(source.party);
+  return {
+    key: key + '#0',
+    cardName: key as CardName,
+    nodeIndex: 0,
+    node: {key: key + '#0', actionNode: undefined, renderRoot: source.renderRoot, text: source.renderRoot === undefined ? source.rule : undefined},
+    status,
+    usedThisGen: source.usesLeft <= 0,
+    branch: undefined,
+    costEffects: source.preview.filter((e) => e.direction === 'cost'),
+    gainEffects: source.preview.filter((e) => e.direction === 'gain'),
+    variableCost: [],
+    variableGain: [],
+    variableChoice: [],
+    hasChoices: partyChoiceKinds(source.actionId).length > 0,
+    choiceKinds: partyChoiceKinds(source.actionId),
+    reason,
+    blocker,
+    variantTotal: 1,
+    cardResource: undefined,
+    isCorporation: false,
+    rules: {lines: [{kind: 'rule', text: source.rule}], summary: source.rule, curated: false},
+    party: source.party,
+    partyAction: source.actionId,
+  };
+}
+
 /**
  * Build the whole console action-center model from the SHARED desktop entries
  * (already annotated with availability state), the per-card previews (lazily
@@ -916,6 +1028,8 @@ export function buildConsoleActionsModel(
   /** The browse grid's column count (handheld collapses to 1) — the packed
    *  focus rows MUST mirror the CSS profile or the d-pad drifts off-screen. */
   layoutColumns: 1 | 2 = 2,
+  /** The PARTY actions the player holds (Turmoil Redux) — sources beside the cards; never in repeat mode. */
+  partyActions: ReadonlyArray<PartyActionSource> = [],
 ): ConsoleActionsModel {
   const repeatMode = repeat !== undefined;
   // Build every group + its variant tiles (unfiltered), then status-sort.
@@ -944,6 +1058,26 @@ export function buildConsoleActionsModel(
       tiles,
     };
   });
+  // The PARTY sources follow the cards (a party is an action source of the
+  // same grid — same status bands, same filters, same facets), never in the
+  // repeat pick: a party action is not a card action anyone can copy.
+  if (!repeatMode) {
+    for (const source of partyActions) {
+      const tile = buildPartyTile(source);
+      groups.push({
+        key: partyTileKey(source.party),
+        cardName: tile.cardName,
+        isCorporation: false,
+        party: source.party,
+        status: tile.status,
+        sortStatus: tile.status,
+        usedThisGen: tile.usedThisGen,
+        cardResource: undefined,
+        vp: undefined,
+        tiles: [tile],
+      });
+    }
+  }
   // Stable sort by the SERVER card status (available → blocked → activated);
   // the corp-first tableau order the entries arrive in is preserved within a
   // band, and the order NEVER changes when previews land.

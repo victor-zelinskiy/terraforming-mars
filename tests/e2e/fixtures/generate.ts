@@ -63,6 +63,7 @@ import {SecurityFleet} from '../../../src/server/cards/base/SecurityFleet';
 import {Insulation} from '../../../src/server/cards/base/Insulation';
 import {IndenturedWorkers} from '../../../src/server/cards/base/IndenturedWorkers';
 import {Resource} from '../../../src/common/Resource';
+import {ChairmanSeat} from '../../../src/server/parliament/quests/ChairmanSeat';
 
 const OUT_DIR = __dirname;
 
@@ -438,4 +439,151 @@ function write(name: string, game: IGame): void {
     throw new Error('the parliament-recap fixture has no completed political phase');
   }
   write('parliament-recap', game);
+}
+
+// ── parliament-dense: a crowded FIVE-seat Parliament in generation 2 (the
+//    first political phase already ran, so a resolution is ENACTED and its own
+//    chairman quest is open) — the composition's stress case. The VIEWER is the
+//    first seat in GENERATION order (the dev loader opens that seat), so every
+//    viewer-specific fact is arranged on that seat, not on «p1»:
+//      · V1 and V2 hold the SAME number of delegates (a tie between
+//        resolutions: V1 wins it, being closer to the government), both past
+//        the ribbon's dense threshold;
+//      · on V1 the viewer and a rival hold the same count (a tie between
+//        players: the viewer's earlier first delegate leads);
+//      · on V2 the NEUTRAL delegates are the majority while a player still
+//        leads it (a neutral never wins a card a player stands on);
+//      · the viewer spent the lobby delegate and cannot afford a paid one (no
+//        vote — the reason is named), holds several party effects at once
+//        (the ruling party · two delegates · card grants, one of them ON the
+//        ruling party — two bases, one effect), one party action USED this
+//        generation, one BLOCKED by its own rule and one available;
+//      · Agenda markers spread across the track, a chairman seated, quest
+//        progress for several seats. ──
+{
+  const players = testGame(5, {
+    skipInitialCardSelection: false, coloniesExtension: true, turmoilReduxExpansion: true,
+    startingCorporations: 1,
+  });
+  const game = players[0];
+  const seats = players.slice(1) as Array<TestPlayer>;
+  if (!(seats[0].getWaitingFor() instanceof SelectInitialCards)) {
+    throw new Error('parliament-dense: expected SelectInitialCards');
+  }
+  answerStartFlow(game, seats);
+  const parliament = game.parliament;
+  if (parliament === undefined || parliament.slots.length !== 3) {
+    throw new Error('the parliament-dense fixture has no voting area');
+  }
+  // Generation 1: one delegate so the phase has a winner to enact.
+  parliament.placeVote(seats[1], parliament.slots[1], 'lobby');
+  runAllActions(game);
+  finishGeneration(game);
+  for (const player of seats) {
+    if (player.getWaitingFor() instanceof SelectCard) {
+      player.process({type: 'card', cards: []});
+    }
+  }
+  runAllActions(game);
+  if (parliament.enacted === undefined || parliament.slots.length !== 3) {
+    throw new Error('parliament-dense: the first political phase did not enact a resolution');
+  }
+  const [viewer, rival, lead2, minor, far] = game.playersInGenerationOrder as Array<TestPlayer>;
+  const [v1, v2, v3] = parliament.slots;
+  // V1: the viewer first (the player tie-breaker), then the rival — five each.
+  parliament.placeVote(viewer, v1, 'lobby');
+  parliament.placeVote(rival, v1, 'lobby');
+  for (let i = 0; i < 4; i++) {
+    parliament.placeVote(viewer, v1, 'reserve');
+    parliament.placeVote(rival, v1, 'reserve');
+  }
+  // V2: one player leads a card the neutral delegates will hold the majority of.
+  parliament.placeVote(lead2, v2, 'lobby');
+  parliament.placeVote(minor, v2, 'lobby');
+  for (let i = 0; i < 3; i++) {
+    parliament.placeVote(lead2, v2, 'reserve');
+  }
+  // V3: a clear leader.
+  parliament.placeVote(far, v3, 'lobby');
+  for (let i = 0; i < 3; i++) {
+    parliament.placeVote(far, v3, 'reserve');
+  }
+  parliament.placeVote(minor, v3, 'reserve');
+  // Neutrals: V1 and V2 to ONE common total the supply can pay for.
+  const supply = parliament.neutralSupply();
+  const target = Math.floor((supply + v1.votes.length + v2.votes.length) / 2);
+  if (target <= Math.max(v1.votes.length, v2.votes.length) || target <= 12) {
+    throw new Error(`parliament-dense: the neutral supply (${supply}) cannot tie V1 (${v1.votes.length}) and V2 (${v2.votes.length}) past the dense threshold`);
+  }
+  for (const slot of [v1, v2]) {
+    while (slot.votes.length < target) {
+      if (parliament.addNeutralVote(slot) === undefined) {
+        throw new Error('parliament-dense: the neutral supply ran out');
+      }
+    }
+  }
+  // The viewer's party effects: grants beside the ruling party and the V1 party
+  // (one of them ON the ruling party — two bases, one effect).
+  parliament.grantPartyEffect(viewer, PartyName.REDS, 'Council Seat');
+  parliament.grantPartyEffect(viewer, PartyName.SCIENTISTS, 'Council Seat');
+  parliament.grantPartyEffect(viewer, PartyName.INDUSTRIALISTS, 'Council Seat');
+  parliament.grantPartyEffect(viewer, parliament.rulingParty(), 'Septem Tribus');
+  parliament.recordPartyActionUse(viewer, PartyName.REDS);
+  // Agenda, chairman, quest progress.
+  parliament.agenda.set(viewer.id, 4);
+  parliament.agenda.set(rival.id, 7);
+  parliament.agenda.set(lead2.id, 1);
+  parliament.agenda.set(far.id, 11);
+  parliament.chairman = lead2.id;
+  const quest = parliament.quest;
+  if (quest !== undefined) {
+    quest.progress.set(viewer.id, Math.max(0, quest.definition.count - 1));
+    quest.progress.set(rival.id, 1);
+  }
+  // No free delegate and no money for a paid one.
+  for (const player of seats) {
+    player.megaCredits = 3;
+  }
+  parliament.assertLedger(game);
+  runAllActions(game);
+  write('parliament-dense', game);
+}
+
+// ── parliament-seat: the viewer COMPLETED the chairman quest while every one
+//    of their seven delegates stands on a resolution — the seat must be taken
+//    from one of them (the mandatory `chairman-seat` pick). The quest reads as
+//    finished, with its winner, while the pick stands. ──
+{
+  const [game, p1, p2] = testGame(2, {
+    skipInitialCardSelection: false, coloniesExtension: true, turmoilReduxExpansion: true,
+    startingCorporations: 1,
+  });
+  if (!(p1.getWaitingFor() instanceof SelectInitialCards)) {
+    throw new Error('parliament-seat: expected SelectInitialCards');
+  }
+  answerStartFlow(game, [p1, p2]);
+  const parliament = game.parliament;
+  if (parliament === undefined || parliament.slots.length !== 3) {
+    throw new Error('the parliament-seat fixture has no voting area');
+  }
+  const [v1, v2, v3] = parliament.slots;
+  parliament.placeVote(p1, v1, 'lobby');
+  parliament.placeVote(p1, v1, 'reserve');
+  parliament.placeVote(p1, v2, 'reserve');
+  parliament.placeVote(p1, v2, 'reserve');
+  parliament.placeVote(p1, v2, 'reserve');
+  parliament.placeVote(p1, v3, 'reserve');
+  parliament.placeVote(p1, v3, 'reserve');
+  parliament.placeVote(p2, v3, 'lobby');
+  const quest = parliament.quest;
+  if (quest === undefined || parliament.addQuestProgress(p1, quest.definition.count) !== 'completed') {
+    throw new Error('parliament-seat: the quest did not complete');
+  }
+  ChairmanSeat.onQuestCompleted(p1);
+  p1.megaCredits = 40;
+  runAllActions(game);
+  if (!parliament.pendingActions.some((action) => action.kind === 'chairman-seat')) {
+    throw new Error('parliament-seat: no pending chairman seat');
+  }
+  write('parliament-seat', game);
 }

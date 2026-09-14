@@ -49,7 +49,7 @@
                      :wheelAnchor="repeat ? repeatCrumbEmblem.wheelAnchor : 'card-actions'"
                      :context="repeat ? repeatCrumbContext : ''"
                      :subject="repeatStepCrumb !== undefined ? repeatStepCrumb.subject :
-                       (composer !== undefined ? composer.cardName : '')"
+                       (composer !== undefined ? (composer.party ?? composer.cardName) : '')"
                      :stage="repeatStepCrumb !== undefined ? repeatStepCrumb.stage :
                        (yieldedToStep ? steppedStage : (composer !== undefined ? focusKickerKey : ''))"
                      :stageRaw="repeatStepCrumb !== undefined ? false : (yieldedToStep ? false : focusKickerRaw)"
@@ -161,7 +161,8 @@
              `data-fit` is that step; everything below it is pure CSS. -->
         <aside class="con-cardactions__detail" v-if="focusedTile !== undefined"
                ref="detailEl" :data-fit="detailFit">
-          <div class="con-cardactions__detail-name">{{ $t(focusedTile.cardName) }}</div>
+          <div class="con-cardactions__detail-name">{{ $t(focusedTile.party ?? focusedTile.cardName) }}</div>
+          <div v-if="focusedTile.party !== undefined" class="con-cardactions__detail-variant">{{ $t('Party action') }}</div>
           <div v-if="focusedGroup !== undefined && focusedGroup.tiles.length > 1" class="con-cardactions__detail-variant">
             {{ $t('Option') }} {{ focusedTile.nodeIndex + 1 }} / {{ focusedGroup.tiles.length }}
           </div>
@@ -184,10 +185,17 @@
                  face and replays the one-shot SYNC PULSE — the dossier
                  visibly answers the cursor on the right (the browse ⇄ detail
                  link the descend phrase later deepens). -->
-            <div class="con-cardactions__detail-card" :key="focusedTile.cardName">
+            <div v-if="focusedTile.party === undefined" class="con-cardactions__detail-card" :key="focusedTile.cardName">
               <!-- The LIVE model, so the face's own capsule states the stored
                    count instead of a printed 0 (see ConsoleCardFaceLite). -->
               <ConsoleCardFaceLite :name="focusedTile.cardName" :card="focusedCardModel" />
+            </div>
+            <!-- A PARTY source (Turmoil Redux): its emblem and the SAME printed
+                 formula the party's banner, the Parliament and the inspector draw. -->
+            <div v-else class="con-cardactions__detail-party" :key="focusedTile.cardName" :style="{'--parl-accent': partyAccentOf(focusedTile.party)}">
+              <img class="con-cardactions__detail-emblem" :src="partyEmblemOf(focusedTile.party)" alt="" />
+              <ConsolePartyFormula class="con-cardactions__detail-formula" :party="focusedTile.party" size="wide" />
+              <span class="con-cardactions__detail-uses">{{ partyUsesText(focusedTile) }}</span>
             </div>
           </div>
 
@@ -298,8 +306,13 @@
             <!-- The CARD PLATE — the group's identity header: reading order
                  is source first, action second. For an «или» card it spans
                  BOTH slots, visibly uniting the alternatives. -->
-            <div class="con-cardactions__plate">
-              <span class="con-cardactions__plate-name">{{ $t(group.cardName) }}</span>
+            <div class="con-cardactions__plate" :class="{'con-cardactions__plate--party': group.party !== undefined}">
+              <img v-if="group.party !== undefined" class="con-cardactions__plate-emblem" :src="partyEmblemOf(group.party)" alt="" />
+              <span v-if="group.party !== undefined" class="con-cardactions__plate-kicker">{{ $t('Party action') }}</span>
+              <span class="con-cardactions__plate-name">{{ $t(group.party ?? group.cardName) }}</span>
+              <span v-if="group.party !== undefined && group.tiles[0] !== undefined" class="con-cardactions__plate-chip con-cardactions__plate-chip--uses">
+                <b>{{ partyUsesText(group.tiles[0]) }}</b>
+              </span>
               <span v-if="group.cardResource !== undefined" class="con-cardactions__plate-chip">
                 <i class="con-cardactions__res-icon" :class="resIconClass(group.cardResource.type)" aria-hidden="true"></i>
                 <b>{{ group.cardResource.count }}</b>
@@ -318,13 +331,15 @@
                    :class="[
                      'con-cardactions__tile--' + tile.status,
                      {
+                       'con-cardactions__tile--party': tile.party !== undefined,
                        'con-cardactions__tile--focused': focusKey === tile.key,
                        'con-cardactions__tile--shake': shakeKey === tile.key,
                        'con-cardactions__tile--descend': descendKey === tile.key,
                      },
                    ]"
                    :ref="focusKey === tile.key ? 'focused' : undefined"
-                   :data-action-card="tile.cardName">
+                   :data-action-card="tile.cardName"
+                   :data-action-party="tile.party">
                 <!-- The «или» joint rides the shared edge with the sibling
                      button to the left, anchored to the CANVAS centre. -->
                 <div v-if="tile.joinLeft" class="con-cardactions__or con-cardactions__or--joint" aria-hidden="true">{{ $t('or') }}</div>
@@ -361,7 +376,10 @@
                        different natural widths are fitted INTO the stage
                        (useActionCanvasFit → `--act-fit`). -->
                   <div class="con-cardactions__canvas">
-                    <div class="con-cardactions__graphic card-container" v-i18n v-strip-action-prefix>
+                    <div v-if="tile.party !== undefined" class="con-cardactions__graphic con-cardactions__graphic--party">
+                      <ConsolePartyFormula :party="tile.party" :renderRoot="tile.node.renderRoot" size="compact" />
+                    </div>
+                    <div v-else class="con-cardactions__graphic card-container" v-i18n v-strip-action-prefix>
                       <CardRenderEffectBoxComponent v-if="tile.node.actionNode !== undefined" :effectData="tile.node.actionNode" />
                       <CardRenderData v-else-if="tile.node.renderRoot !== undefined" :renderData="tile.node.renderRoot" />
                       <span v-else class="con-cardactions__graphic-text">{{ tile.node.text }}</span>
@@ -447,6 +465,19 @@
                                @inspect-source="onInspectSource"
                                @commands="onComposerCommands"
                                @reveal-ack="onRevealAck" />
+        <!-- A PARTY ACTION (Turmoil Redux): the shared party composer stands
+             in the same stage — same descend phrase, same command bar, and its
+             confirm is the server's own nested response. -->
+        <ConsolePartyActionComposer v-else-if="composer !== undefined && composer.party !== undefined"
+                                    ref="partyComposerRef"
+                                    class="con-cardactions__pact"
+                                    :playerView="playerView"
+                                    :party="composer.party"
+                                    :submitting="partySubmitting"
+                                    @confirm="onPartyConfirm"
+                                    @cancel="onComposerCancel"
+                                    @inspect="onInspectSource"
+                                    @commands="onPartyComposerCommands" />
       </transition>
       </div><!-- /__stagewrap -->
     </div>
@@ -512,6 +543,7 @@ import {
   actionDescTier,
   actionWorkspaceRestorePlan,
   buildConsoleActionsModel,
+  PartyActionSource,
   branchScopeForNode,
   consoleCardActionsUi,
   cycleAvailability,
@@ -547,7 +579,7 @@ import {
 import {setConsoleActionRevealClaim, resetConsoleActionRevealClaim} from '@/client/console/consoleActionComposerUi';
 import {addShadeOwner, captureSurfaceDeparture, removeShadeOwner, surfaceMotionState} from '@/client/console/surfaceMotion/surfaceMotionState';
 import {carryAnchorsHome} from '@/client/console/surfaceMotion/surfaceMotionDirector';
-import {closeWorkspaceRoot, pushWorkspaceFrame, setWorkspaceFrameSubject, workspaceFrameEmblem, workspaceFrameHost, workspaceFrameIsOverlay, workspaceFrameKnown, workspaceFrameMounted, workspaceFramePhase, workspaceFrameStage, workspaceFrameSubject, workspaceStackCrumb, workspaceStackRootKind} from '@/client/console/consoleWorkspaceStack';
+import {closeWorkspaceRoot, pushWorkspaceFrame, setWorkspaceFrameSlot, setWorkspaceFrameSubject, workspaceFrameEmblem, workspaceFrameHost, workspaceFrameIsOverlay, workspaceFrameKnown, workspaceFrameMounted, workspaceFramePhase, workspaceFrameStage, workspaceFrameSubject, workspaceStackCrumb, workspaceStackRootKind} from '@/client/console/consoleWorkspaceStack';
 import {beginCardColonyTrade, clearCardColonyTrade, colonyStepCrumbParts} from '@/client/console/colonyTrade/colonyTradeEntry';
 import {beginCardDeltaAdvance} from '@/client/console/hydroFlow/deltaAdvanceEntry';
 import {reasonParams} from '@/client/cards/tagLabel';
@@ -569,6 +601,16 @@ import {
 import {DeltaRewardDraft, deltaRewardClaimPlan} from '@/client/console/hydroFlow/deltaRewardEntry';
 import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState';
 import ConsoleActionComposer, {ComposerOutcome} from '@/client/components/console/ConsoleActionComposer.vue';
+import ConsolePartyActionComposer from '@/client/components/console/parliament/ConsolePartyActionComposer.vue';
+import ConsolePartyFormula from '@/client/components/console/parliament/ConsolePartyFormula.vue';
+import {PartyName} from '@/common/turmoil/PartyName';
+import {ReduxParty} from '@/common/parliament/ParliamentTypes';
+import {InputResponse} from '@/common/inputs/InputResponse';
+import {partyEffectZoomEntry} from '@/client/components/card/cardZoomTypes';
+import {partyAccent, partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
+import {getPartyEffect} from '@/client/parliament/ClientParliamentManifest';
+import {parliamentPromptBridge} from '@/client/console/parliament/consoleParliamentModel';
+import {beginPartyColonyTrade} from '@/client/console/colonyTrade/colonyTradeEntry';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 import ConsoleWsHead from '@/client/components/console/foundation/ConsoleWsHead.vue';
@@ -580,7 +622,7 @@ import {stripActionPrefix} from '@/client/directives/stripActionPrefix';
 import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
-import {findPerformActionCard} from '@/client/console/turnIntents';
+import {findPerformActionCard, findTradeColonyContext} from '@/client/console/turnIntents';
 import {consoleRepeatPickState, resolveConsoleRepeatPick, ConsoleRepeatPickResult} from '@/client/console/consoleRepeatPick';
 import {consoleRepeatPickUi, setConsoleRepeatPickCommands} from '@/client/console/consoleRepeatPickUi';
 import {translateText, translateMessage, translateTextWithParams} from '@/client/directives/i18n';
@@ -614,11 +656,15 @@ const SCROLL_STEP_PX = 40;
 /** The focus stage's draft identity — the ONE flow-draft type
  *  (consoleActionFlow.ActionFlowDraft): card + variant (+ the Viron repeat
  *  prefix / outer restore context). */
-type ComposerContext = ActionFlowDraft;
+/** The open stage: a card's action (`cardName` + variant) or a PARTY's (`party` set; `cardName` is then the party's tile key). */
+type ComposerContext = ActionFlowDraft & {party?: ReduxParty};
+
+/** How long a party submit may stay unanswered before the stage gives the player back their hands. */
+const PARTY_SUBMIT_SAFETY_MS = 6000;
 
 export default defineComponent({
   name: 'ConsoleCardActions',
-  components: {ConsoleActionComposer, ConsoleCardFaceLite, ConsoleScrollArea, ConsoleWsHead, ActionEffectChip, CardRenderEffectBoxComponent, CardRenderData, GamepadGlyph},
+  components: {ConsoleActionComposer, ConsolePartyActionComposer, ConsolePartyFormula, ConsoleCardFaceLite, ConsoleScrollArea, ConsoleWsHead, ActionEffectChip, CardRenderEffectBoxComponent, CardRenderData, GamepadGlyph},
   directives: {stripActionPrefix},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
@@ -649,7 +695,7 @@ export default defineComponent({
      *  answer, so this surface never invents a second one. */
     blockedReason: {type: String, default: ''},
   },
-  emits: ['close', 'submit-batch', 'staged-placement', 'reveal-ack', 'collapse', 'blocked', 'colony-step', 'delta-step', 'flow-complete'],
+  emits: ['close', 'submit-batch', 'submit-party', 'staged-placement', 'reveal-ack', 'collapse', 'blocked', 'colony-step', 'delta-step', 'flow-complete'],
   data() {
     return {
       consoleCardActionsUi,
@@ -666,6 +712,12 @@ export default defineComponent({
       stats: [] as ReadonlyArray<EffectOverlayStat>,
       /** The open ACTION COMPOSER context (undefined = the grid owns input). */
       composer: undefined as ComposerContext | undefined,
+      /** A PARTY action was submitted — the stage is the executing beat until the answer lands. */
+      partySubmitting: false,
+      partySubmittedAge: -1,
+      partySubmitTimer: undefined as number | undefined,
+      /** The party composer's live command contract (it hands its bar UP). */
+      partyCommands: [] as Array<ConsoleCommand>,
       /**
        * THE IN-FRAME OUTCOME STAGE of a confirmed action (undefined = the
        * configuration surface owns the column). What the action PRODUCED:
@@ -862,12 +914,54 @@ export default defineComponent({
         used: new Set(this.thisPlayer.actionsThisGeneration ?? []),
       };
     },
+    /**
+     * THE PARTY ACTIONS the player HOLDS (Turmoil Redux) — sources beside the
+     * cards. Availability and its reason are the SERVER's own
+     * (`ParliamentModel.viewer.partyActions`); the execution gate is the
+     * option's PRESENCE in the live action menu (the parliament bridge), the
+     * printed graphic is the manifest's action rows. A party whose effect the
+     * player lacks is not an action of theirs and is not listed.
+     */
+    partyActionSources(): Array<PartyActionSource> {
+      const viewer = this.playerView.game.parliament?.viewer;
+      if (viewer === undefined || this.repeat) {
+        return [];
+      }
+      const bridge = parliamentPromptBridge(this.playerView.waitingFor);
+      // The Unity trade rides the colony TRADE action, never a menu branch of
+      // its own: it is offered exactly when the live trade prompt carries the
+      // payment path marked with the Unity party (`metadata.party`).
+      const trade = findTradeColonyContext(this.playerView.waitingFor);
+      const unityOffered = trade !== undefined && trade.paymentOptions.some((o) => o.metadata?.party === PartyName.UNITY);
+      const out: Array<PartyActionSource> = [];
+      for (const action of viewer.partyActions) {
+        if (!action.hasAccess) {
+          continue;
+        }
+        const effect = getPartyEffect(action.party);
+        const offered = action.id === 'unity-trade' ? unityOffered : bridge.actions[action.id] !== undefined;
+        out.push({
+          party: action.party,
+          actionId: action.id,
+          renderRoot: effect?.actionRenderData ?? effect?.passiveRenderData,
+          rule: effect?.text.action ?? effect?.text.rule ?? '',
+          usesLeft: action.usesLeft,
+          usesPerGeneration: action.usesPerGeneration,
+          available: action.available,
+          reason: action.reason,
+          offered,
+          awaitingInput: this.playerView.waitingFor !== undefined,
+          preview: action.preview,
+        });
+      }
+      return out;
+    },
     model(): ConsoleActionsModel {
       // The packed focus rows must mirror the CSS grid's live column count
       // (handheld collapses to one group per row) — reactive via the layout
       // profile store.
       const columns = consoleLayoutState.profile === 'handheld' ? 1 : 2;
-      return buildConsoleActionsModel(this.entries, this.previewMap, this.cardResources, this.activeFilter, this.repeatAvailability, columns);
+      return buildConsoleActionsModel(this.entries, this.previewMap, this.cardResources, this.activeFilter, this.repeatAvailability, columns, this.partyActionSources);
     },
     /** Re-fetch previews when anything availability-relevant changes. */
     /**
@@ -1017,6 +1111,10 @@ export default defineComponent({
     colonyStepHosted(): boolean {
       return workspaceFrameHost('colonies') === 'card-actions';
     },
+    /** …hosted by the UNITY party door specifically (the party composer's zone). */
+    unityStepHosted(): boolean {
+      return this.colonyStepHosted && this.composer?.party === PartyName.UNITY;
+    },
     /**
      * The stage marker goes AMBER only past the commit boundary. A hosted
      * colony step is reversible until the trade itself is confirmed — B walks
@@ -1138,7 +1236,7 @@ export default defineComponent({
     workspacePhase(): WorkspacePhase {
       return workspacePhaseOf({
         open: this.composer !== undefined,
-        committed: this.outcomeFlow !== undefined,
+        committed: this.outcomeFlow !== undefined || this.partySubmitting,
         // The outcome is INTERACTIVE once something is actually on stage; the
         // «pending» beat before that is machine time, not a destination.
         resultUp: workspaceOutcomeState.stage === 'presenting' || this.revealVerdictUp,
@@ -1286,10 +1384,41 @@ export default defineComponent({
       },
     },
     // The composer's card left the action set (prompt moved on) → close it.
+    // (A PARTY stage has no card entry by construction — its own composer
+    // folds when the server stops offering the action.)
     composerEntry(entry: ActionEntry | undefined) {
-      if (this.composer !== undefined && entry === undefined) {
+      if (this.composer !== undefined && this.composer.party === undefined && entry === undefined) {
         this.closeComposer();
       }
+    },
+    /**
+     * THE PARTY SUBMIT'S ANSWER — the server moved: the action is done (or
+     * refused, in which case the menu simply offers it again and the flow's
+     * honest ending is the same). A finished flow LEAVES (concludeFlow), never
+     * folds back to the grid.
+     */
+    'playerView.game.gameAge'(age: number): void {
+      if (this.partySubmitting && age !== this.partySubmittedAge) {
+        this.clearPartySubmit();
+        void this.$nextTick(() => this.concludeFlow());
+      }
+    },
+    /**
+     * THE UNITY DOOR — the colony workspace stands as a step of THIS one
+     * (`card-actions ⊃ colonies`) with the party composer rendering its zone.
+     * Publish the zone post-flush (embed rule 4), retract it — and fold the
+     * empty stage — the moment the step leaves.
+     */
+    'unityStepHosted': {
+      flush: 'post' as const,
+      handler(on: boolean, was: boolean): void {
+        if (on) {
+          setWorkspaceFrameSlot('card-actions', '[data-embed-slot="action-colonies"]');
+        } else if (was && this.composer?.party === PartyName.UNITY) {
+          setWorkspaceFrameSlot('card-actions', '');
+          this.closeComposer();
+        }
+      },
     },
     // The server's answer to a CLAIMED deck-check confirm: pipe the reveal
     // payload into the stage's reveal phase (the shell suppresses the standalone
@@ -1376,6 +1505,15 @@ export default defineComponent({
       if (!this.repeat) {
         consoleCardActionsUi.confirmOpen = value !== undefined;
       }
+    },
+    /** The party composer's bar — published under this workspace's own key while its stage stands. */
+    'partyCommands': {
+      deep: true,
+      handler(cmds: ReadonlyArray<ConsoleCommand>): void {
+        if (this.composer?.party !== undefined && !this.repeat) {
+          setPanelCommands('cardActions', cmds);
+        }
+      },
     },
     'footCommands': {
       immediate: true,
@@ -1662,6 +1800,11 @@ export default defineComponent({
         }
       }
       if (this.composer !== undefined) {
+        if (this.composer.party !== undefined) {
+          const party = this.$refs.partyComposerRef as InstanceType<typeof ConsolePartyActionComposer> | undefined;
+          party?.handleIntent(intent);
+          return;
+        }
         const ref = this.$refs.composerRef as InstanceType<typeof ConsoleActionComposer> | undefined;
         ref?.handleIntent(intent);
         return;
@@ -1764,6 +1907,10 @@ export default defineComponent({
         this.shake(tile.key);
         return;
       }
+      if (tile.party !== undefined) {
+        this.openPartyAction(tile);
+        return;
+      }
       // The WORKSPACE DESCEND phrase (workspaceDescend.ts) is armed HERE, at
       // the press, with the press-time truth: the pressed SLOT's rect (the
       // surface that will unfold into the configuration panel), the press
@@ -1854,6 +2001,8 @@ export default defineComponent({
     closeComposer(): void {
       this.composer = undefined;
       this.descendKey = '';
+      this.clearPartySubmit();
+      this.partyCommands = [];
       // The frozen preview belongs to the stage that is going away.
       this.committedPreview = undefined;
       // A genuine fold ends the descent: the suspended-instance record goes
@@ -1953,6 +2102,15 @@ export default defineComponent({
       if (tile === undefined) {
         return;
       }
+      if (tile.party !== undefined) {
+        // The party's BANNER — the same fullscreen face the Parliament's X opens,
+        // lifted from the dossier's emblem plate and returned there on close.
+        openConsoleCardZoom([partyEffectZoomEntry(tile.party)], 0, undefined, undefined, {
+          contextLabel: 'Card actions',
+          origin: slotZoomOrigin(() => this.$refs.browseEl as HTMLElement | undefined, () => tile.cardName),
+        });
+        return;
+      }
       const card = this.thisPlayer.tableau.find((c) => c.name === tile.cardName);
       if (card === undefined) {
         return;
@@ -1988,6 +2146,15 @@ export default defineComponent({
     onInspectSource(): void {
       const comp = this.composer;
       if (comp === undefined) {
+        return;
+      }
+      if (comp.party !== undefined) {
+        openConsoleCardZoom([partyEffectZoomEntry(comp.party)], 0, undefined, undefined, {
+          contextLabel: 'Card actions',
+          origin: slotZoomOrigin(
+            () => (this.$refs.rootEl as HTMLElement | undefined)?.querySelector<HTMLElement>('.con-cardactions__pact'),
+            () => comp.cardName),
+        });
         return;
       }
       const card = this.thisPlayer.tableau.find((c) => c.name === comp.cardName);
@@ -2323,6 +2490,82 @@ export default defineComponent({
       // B in the composer → back to the browse grid (the repeat pick, when it
       // was used, resolves/cancels on its OWN surface — no outer restore here).
       this.closeComposer();
+    },
+    // ── PARTY ACTIONS (Turmoil Redux) ────────────────────────────────────
+    partyEmblemOf(party: ReduxParty): string {
+      return partyEmblemUrl(party);
+    },
+    partyAccentOf(party: ReduxParty): string {
+      return partyAccent(party);
+    },
+    partyUsesText(tile: ConsoleActionTile): string {
+      const source = this.partyActionSources.find((s) => s.party === tile.party);
+      if (source === undefined) {
+        return '';
+      }
+      return translateTextWithParams('${0} of ${1} this generation', [String(source.usesLeft), String(source.usesPerGeneration)]);
+    },
+    /**
+     * A PARTY ACTION opens as this workspace's stage: the shared party composer
+     * (the same one the Parliament's contextual launch hosts), reached by the
+     * same descend phrase a card action plays. The UNITY action is the colony
+     * trade with a free payment path — its «stage» is the colony workspace
+     * standing as a step of this one, the trade's own confirm the single commit.
+     */
+    openPartyAction(tile: ConsoleActionTile): void {
+      const party = tile.party;
+      if (party === undefined) {
+        return;
+      }
+      const slot = this.focusedSlotEl();
+      const slotRect = slot?.getBoundingClientRect?.();
+      if (slotRect !== undefined) {
+        armDescendOrigin('action-browse', {x: slotRect.left + slotRect.width / 2, y: slotRect.top + slotRect.height / 2});
+      }
+      armDescendRect('action-slot', slotRect);
+      this.descendKey = tile.key;
+      this.flowState = 'entering';
+      this.committedPreview = undefined;
+      if (party === PartyName.UNITY) {
+        if (workspaceFrameMounted('colonies')) {
+          return;
+        }
+        beginPartyColonyTrade(PartyName.UNITY);
+        this.composer = {cardName: tile.cardName, nodeIndex: 0, party};
+        pushWorkspaceFrame({
+          kind: 'colonies', subject: '', stage: 'Colony selection', phase: 'browse',
+          serves: ['colony'], anchor: {type: 'always'},
+        });
+        this.$emit('colony-step');
+        return;
+      }
+      this.composer = {cardName: tile.cardName, nodeIndex: 0, party};
+    },
+    onPartyComposerCommands(cmds: ReadonlyArray<ConsoleCommand>): void {
+      this.partyCommands = [...cmds];
+    },
+    /** The party composer's confirm: the server's own nested response, submitted by the shell. */
+    onPartyConfirm(response: InputResponse): void {
+      if (this.composer?.party === undefined || this.partySubmitting) {
+        return;
+      }
+      this.partySubmitting = true;
+      this.partySubmittedAge = this.playerView.game.gameAge;
+      this.partySubmitTimer = window.setTimeout(() => this.resetPartySubmit(), PARTY_SUBMIT_SAFETY_MS);
+      this.$emit('submit-party', response);
+    },
+    /** A REFUSED / lost party submit gives the stage back (the shell calls it on a transport error too). */
+    resetPartySubmit(): void {
+      if (this.partySubmitting) {
+        this.clearPartySubmit();
+      }
+    },
+    clearPartySubmit(): void {
+      if (this.partySubmitTimer !== undefined) {
+        window.clearTimeout(this.partySubmitTimer);
+        this.partySubmitTimer = undefined;
+      }
+      this.partySubmitting = false;
     },
     /** Repeat instance: the nested composer reports its contract UP (it doesn't
      *  touch the shared `consoleActionComposerUi` the outer Viron composer owns). */

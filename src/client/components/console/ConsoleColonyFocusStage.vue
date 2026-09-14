@@ -892,7 +892,7 @@ import {playColonyTargetStepEnter, playColonyTargetStepLeave} from '@/client/con
 import {cardResourceLandings, resourceTransferState} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {colonyBonusEntry, colonyResolutionUi, revealIsOwnerBonus} from '@/client/console/colonyTrade/colonyResolution';
-import {cardColonyTradeCard, lockedTradePaymentIndex} from '@/client/console/colonyTrade/colonyTradeEntry';
+import {cardColonyTradeCard, lockedTradePaymentIndex, partyColonyTradeParty} from '@/client/console/colonyTrade/colonyTradeEntry';
 import {cardDiscardColonyBonus} from '@/client/console/cardDiscard/consoleCardDiscard';
 import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState';
 import {tradeFleetState} from '@/client/console/colonyFleet/consoleTradeFleet';
@@ -1572,10 +1572,11 @@ export default defineComponent({
      * its payment path is the entry, not a decision. `-1` = the ordinary
      * «Колонии» entry, where every path is the player's to pick.
      *
-     * Resolved from the option's `metadata.card`, never its label.
+     * Resolved from the option's `metadata.card` (a card's door) or
+     * `metadata.party` (the Unity party action's door), never its label.
      */
     lockedPayIdx(): number {
-      return lockedTradePaymentIndex(this.presentedOptions, cardColonyTradeCard());
+      return lockedTradePaymentIndex(this.presentedOptions, cardColonyTradeCard(), partyColonyTradeParty());
     },
     isMcSelected(): boolean {
       return this.presentedOptions[this.payIdx]?.metadata?.icon === 'megacredits';

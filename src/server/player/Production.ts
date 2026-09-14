@@ -5,6 +5,7 @@ import {BaseStock} from './StockBase';
 import {IPlayer} from '../IPlayer';
 import {AutomaTargeting} from '../automa/AutomaTargeting';
 import {ParliamentHandler} from '../parliament/ParliamentHandler';
+import {productionFloor} from './productionFloor';
 
 export class Production extends BaseStock {
   constructor(player: IPlayer) {
@@ -37,7 +38,7 @@ export class Production extends BaseStock {
     if (this.player.isMarsBot && amount > 0) {
       throw new Error(`Positive production (${resource} +${amount}) to MarsBot is unsupported — needs an explicit Automa rule`);
     }
-    const adj = resource === Resource.MEGACREDITS ? -5 : 0;
+    const adj = productionFloor(resource);
     const delta = (amount >= 0) ? amount : Math.max(amount, -(this[resource] - adj));
     this[resource] += delta;
 

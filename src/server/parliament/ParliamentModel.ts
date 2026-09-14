@@ -194,6 +194,15 @@ function projectVote(game: IGame, parliament: Parliament, viewer: IPlayer, slot:
   return projection;
 }
 
+/** How many party actions the player could take right now (the action menu's own verdict, turn-independent). */
+export function availablePartyActionCount(player: IPlayer): number {
+  const parliament = player.game?.parliament;
+  if (parliament === undefined) {
+    return 0;
+  }
+  return partyActionModels(parliament, player).filter((action) => action.available).length;
+}
+
 function partyActionModels(parliament: Parliament, viewer: IPlayer): Array<PartyActionModel> {
   const models: Array<PartyActionModel> = [];
   for (const party of REDUX_PARTIES) {

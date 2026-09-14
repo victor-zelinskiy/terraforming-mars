@@ -1,22 +1,22 @@
 <template>
   <!-- THE PARTY EFFECTS a seat holds (Turmoil Redux) — the Information
-       workspace's «ЭФФЕКТЫ» zone shows them beside the card effects, in the
-       same premium rendering the Parliament and the inspector use (the party
-       banner as a face), each with WHY the seat holds it. Read-only: the
-       inspector for a party is one X away in the Parliament. -->
+       workspace's «ЭФФЕКТЫ» zone shows them beside the card effects: the same
+       printed formula the Parliament's party detail and the inspector draw
+       (one render-DSL drawing per party), each with WHY the seat holds it by
+       the CURRENT game state, and its action's use this generation. Read-only:
+       the inspector for a party is one X away in the Parliament. -->
   <section v-if="rows.length > 0" class="con-pfx" :aria-label="$t('Party effects')">
     <header class="con-pfx__head">
       <span class="con-pfx__kicker">{{ $t('Party effects') }}</span>
       <span class="con-pfx__sub">{{ $t('Held through the Mars Parliament — the ruling party and every party with two of this player\'s delegates') }}</span>
     </header>
     <div class="con-pfx__row">
-      <div v-for="row in rows" :key="row.party" class="con-pfx__item" :data-party="row.party">
-        <div class="con-pfx__face">
-          <premium-card-face v-if="row.vm !== undefined" :vmOverride="row.vm" :lightweight="true" :inert="true" />
-        </div>
+      <div v-for="row in rows" :key="row.party" class="con-pfx__item" :data-party="row.party" :style="{'--parl-accent': row.accent}">
+        <img class="con-pfx__emblem" :src="row.emblem" alt="" />
         <div class="con-pfx__why">
           <b>{{ $t(row.party) }}</b>
-          <span v-for="(reason, i) in row.reasons" :key="i" class="con-pfx__reason">{{ $t(reason) }}</span>
+          <ConsolePartyFormula class="con-pfx__formula" :party="row.party" size="wide" />
+          <span v-for="(reason, i) in row.reasons" :key="i" class="con-pfx__reason" :class="'con-pfx__reason--' + reason.tone">{{ reasonText(reason) }}</span>
           <span v-if="row.action !== undefined" class="con-pfx__uses">{{ $t(row.action) }}</span>
         </div>
       </div>
@@ -28,14 +28,18 @@
 import {defineComponent, PropType} from 'vue';
 import {Color} from '@/common/Color';
 import {ParliamentModel} from '@/common/models/ParliamentModel';
-import {REDUX_PARTIES, ReduxParty} from '@/common/parliament/ParliamentTypes';
-import {PremiumCardVM} from '@/client/components/premiumCard/premiumCardViewModel';
-import {partyEffectPremiumVmOf} from '@/client/components/premiumCard/resolutionPremiumVm';
+import {REDUX_PARTIES, ReduxParty, partyActionOf} from '@/common/parliament/ParliamentTypes';
+import {partyAccent, partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
+import {accessReasonRows, AccessReasonRow} from '@/client/console/parliament/consoleParliamentModel';
+import {getResolution} from '@/client/parliament/ClientParliamentManifest';
+import {translateText, translateTextWithParams} from '@/client/directives/i18n';
+import ConsolePartyFormula from '@/client/components/console/parliament/ConsolePartyFormula.vue';
 
-type Row = {party: ReduxParty, vm: PremiumCardVM | undefined, reasons: Array<string>, action: string | undefined};
+type Row = {party: ReduxParty, emblem: string, accent: string, reasons: Array<AccessReasonRow>, action: string | undefined};
 
 export default defineComponent({
   name: 'ConsolePartyEffectsStrip',
+  components: {ConsolePartyFormula},
   props: {
     parliament: {type: Object as PropType<ParliamentModel | undefined>, default: undefined},
     /** The seat whose effects are shown. */
@@ -51,33 +55,33 @@ export default defineComponent({
       if (seat === undefined || !seat.participates) {
         return [];
       }
+      const enactedName = model.enacted === undefined ? undefined : translateText(getResolution(model.enacted.resolution)?.text.name ?? model.enacted.resolution);
+      const inArea = new Set(model.slots.map((slot) => slot.party));
       const out: Array<Row> = [];
       for (const party of REDUX_PARTIES) {
         const access = seat.access.find((a) => a.party === party);
         if (access === undefined || !access.hasEffect) {
           continue;
         }
-        const reasons: Array<string> = [];
-        if (access.ruling) {
-          reasons.push('Ruling party — every player has this effect');
-        }
-        if (access.byDelegates) {
-          reasons.push('Two delegates on its resolution');
-        }
-        if (access.granted.length > 0) {
-          reasons.push('Granted by a card');
-        }
+        // Only the HOLDS reasons + the requirement footnote (the effect IS held here).
+        const reasons = accessReasonRows(access, {party, enactedEmpty: model.enacted === undefined, enactedName, inArea: inArea.has(party)})
+          .filter((row) => row.tone !== 'lacks');
         const uses = seat.partyActionUses[party] ?? 0;
-        const vm = partyEffectPremiumVmOf(party);
-        const hasAction = ['Unity', 'Scientists', 'Industrialists', 'Reds'].includes(party);
+        const hasAction = partyActionOf(party) !== undefined;
         out.push({
           party,
-          vm,
+          emblem: partyEmblemUrl(party),
+          accent: partyAccent(party),
           reasons,
           action: hasAction ? (uses > 0 ? 'Action used this generation' : 'Action available this generation') : undefined,
         });
       }
       return out;
+    },
+  },
+  methods: {
+    reasonText(row: AccessReasonRow): string {
+      return row.params.length > 0 ? translateTextWithParams(row.key, [...row.params]) : translateText(row.key);
     },
   },
 });

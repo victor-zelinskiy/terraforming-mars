@@ -617,6 +617,13 @@ export type OptionMetadata = {
    * option, where the icon already identifies the path.
    */
   card?: CardName;
+  /**
+   * The POLITICAL PARTY this option is powered by (Turmoil Redux) — the
+   * Unity party action's free trade path. The same structural identity a
+   * card-powered path carries in `card`: the console walks a party action
+   * into the trade and must find its path without reading the label.
+   */
+  party?: PartyName;
   /** Premium RESULT/COST chips for this option (icon + amount + optional
    *  current → resulting), reusing the `ActionEffect` shape so the contextual
    *  modal renders them with the same `ActionEffectChip` the action-confirm modal

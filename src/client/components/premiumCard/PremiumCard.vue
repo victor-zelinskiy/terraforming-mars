@@ -77,8 +77,15 @@ Before changing it, check the console consumers in docs/DESKTOP_DEPRECATION_AUDI
              family (rulebook p.9: the quest printed on the enacted card). A
              dummy states honestly that it has no effect of its own. -->
         <div v-if="vm.parliament?.quest !== undefined" class="pcard__quest">
-          <span class="pcard__quest-kicker">{{ $t('Chairman quest') }}</span>
-          <span class="pcard__quest-text">{{ $t(vm.parliament.quest) }}</span>
+          <!-- The GOAL as a graphic — the same render-DSL nodes the Parliament
+               workspace and the inspector draw for this quest. -->
+          <span v-if="questNodes.length > 0" class="pcard__quest-graphic" aria-hidden="true">
+            <PremiumMechNode v-for="(node, i) in questNodes" :key="i" :node="node" />
+          </span>
+          <span class="pcard__quest-body">
+            <span class="pcard__quest-kicker">{{ $t('Chairman quest') }}</span>
+            <span class="pcard__quest-text">{{ $t(vm.parliament.quest) }}</span>
+          </span>
         </div>
         <div class="pcard__exp" aria-hidden="true">
           <span class="pcard__exp-medallion"
@@ -136,7 +143,10 @@ import PremiumRequirementsBar from './PremiumRequirementsBar.vue';
 import PremiumCardArt from './PremiumCardArt.vue';
 import PremiumCorpIdentity from './PremiumCorpIdentity.vue';
 import PremiumMechanicsPanel from './PremiumMechanicsPanel.vue';
+import PremiumMechNode from './PremiumMechNode.vue';
 import PremiumVpBadge from './PremiumVpBadge.vue';
+import {ItemType} from '@/common/cards/render/Types';
+import {renderableNodes} from './mechanicsModel';
 
 export type PremiumCardTier = 'thumb' | 'normal' | 'full';
 
@@ -148,6 +158,8 @@ export type PremiumCardTier = 'thumb' | 'normal' | 'full';
 const TITLE_SAFE_BASE = 14;
 const TITLE_SAFE_COST = 50;
 const TITLE_SAFE_COST_MOD = 84;
+/** The parliament family's party emblem (40px at an 8px inset) + its breathing room. */
+const TITLE_SAFE_PARTY = 52;
 const TITLE_SAFE_TAG_GAP = 18;
 
 /**
@@ -190,6 +202,7 @@ export default defineComponent({
     PremiumCardArt,
     PremiumCorpIdentity,
     PremiumMechanicsPanel,
+    PremiumMechNode,
     PremiumVpBadge,
   },
   props: {
@@ -292,6 +305,11 @@ export default defineComponent({
     };
   },
   computed: {
+    /** The chairman quest's goal nodes (a resolution face) — the first row of its render root. */
+    questNodes(): ReadonlyArray<ItemType> {
+      const root = this.vm.parliament?.questRenderData;
+      return root === undefined ? [] : renderableNodes(root.rows[0] ?? []);
+    },
     cardName(): CardName {
       const name = this.card?.name ?? this.name;
       if (name === undefined) {
@@ -370,6 +388,8 @@ export default defineComponent({
         // A PARTY banner (Turmoil Redux): the art window carries the party's
         // emblem as a badge, never a cover-scaled picture.
         'pcard--party-banner': this.vm.parliament?.partyEffect === true,
+        // An art-less RESOLUTION: the art window carries the party's seal.
+        'pcard--resolution-seal': this.vm.parliament?.sealArt === true,
         'pcard--unavailable': this.isUnavailable,
         'pcard--selected': this.selected,
         'pcard--cost-mod': this.vm.cost !== undefined && this.vm.cost.delta !== 0,
@@ -395,8 +415,10 @@ export default defineComponent({
       const safeL = this.vm.cost === undefined ?
         TITLE_SAFE_BASE :
         (this.vm.cost.delta !== 0 ? TITLE_SAFE_COST_MOD : TITLE_SAFE_COST);
-      const safeR = plan.count === 0 ? TITLE_SAFE_BASE : plan.width + TITLE_SAFE_TAG_GAP;
-      return {
+      // A parliament face carries the party emblem where tags stand (40px + an 8px inset).
+      const safeR = this.vm.parliament !== undefined && this.vm.parliament.partyEffect !== true ? TITLE_SAFE_PARTY :
+        (plan.count === 0 ? TITLE_SAFE_BASE : plan.width + TITLE_SAFE_TAG_GAP);
+      const vars: Record<string, string> = {
         '--pcard-title-safe-l': `${safeL}px`,
         '--pcard-title-safe-r': `${safeR}px`,
         // Longest unbreakable run — the CSS shrinks the type until IT fits the
@@ -406,6 +428,10 @@ export default defineComponent({
         '--pcard-tag-overlap': `${plan.overlap}px`,
         '--pcard-tag-cluster-w': `${plan.width}px`,
       };
+      if (this.vm.parliament?.accent !== undefined) {
+        vars['--pcard-party-accent'] = this.vm.parliament.accent;
+      }
+      return vars;
     },
     expansionIcon(): string | undefined {
       return expansionIconUrl(this.vm.expansion);

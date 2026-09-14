@@ -1,6 +1,7 @@
 import {IPlayer} from '../IPlayer';
 import {PotentialActionsModel} from '../../common/models/PotentialActionsModel';
 import {DeltaProjectExpansion} from '../delta/DeltaProjectExpansion';
+import {availablePartyActionCount} from '../parliament/ParliamentModel';
 
 /**
  * The TURN-INDEPENDENT availability projection of one player (see
@@ -19,12 +20,18 @@ import {DeltaProjectExpansion} from '../delta/DeltaProjectExpansion';
  * effect, and the serializer re-runs them afterwards anyway.
  */
 export function potentialActions(player: IPlayer): PotentialActionsModel {
-  return {
+  const model: PotentialActionsModel = {
     playableCards: player.getPlayableCards().length,
     cardActions: player.getPlayableActionCards().length,
     hydroAdvance: potentialHydroAdvance(player) ? 1 : 0,
     colonyTrades: player.colonies.potentialTradeCount(),
   };
+  // The Mars Parliament's party actions (Turmoil Redux) — the parliament's own
+  // verdict per action, the very one the action menu lists them by.
+  if (player.game.parliament !== undefined) {
+    model.partyActions = availablePartyActionCount(player);
+  }
+  return model;
 }
 
 /**

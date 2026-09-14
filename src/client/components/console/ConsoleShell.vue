@@ -324,6 +324,7 @@
                                   @inspect="inspectParliament($event)"
                                   @open-trading="openParliamentTrading()"
                                   @flow-complete="onParliamentFlowComplete($event)"
+                                  @collapse="collapseWorkspace()"
                                   @close="leaveWorkspace()" />
       </transition>
 
@@ -373,6 +374,7 @@
                             :blockedReason="actionBlockedReason"
                             @blocked="showNotice"
                             @submit-batch="onCardActionsSubmitBatch"
+                            @submit-party="onCardActionsSubmitParty"
                             @staged-placement="onCardActionsStagedPlacement"
                             @reveal-ack="onCardActionsRevealAck"
                             @flow-complete="onCardActionsFlowComplete"
@@ -1393,6 +1395,7 @@ import {Color} from '@/common/Color';
 import {GameModel} from '@/common/models/GameModel';
 import {CardModel} from '@/common/models/CardModel';
 import {CardName} from '@/common/cards/CardName';
+import {PartyName} from '@/common/turmoil/PartyName';
 import {Message} from '@/common/logs/Message';
 import {Payment} from '@/common/inputs/Payment';
 import {ColonyBonusCollectMeta, ColonyBonusDiscardMeta, DiscardPromptMeta, PlacementEffect, SelectCardModel, SelectColonyModel, SelectPaymentModel, SelectProjectCardToPlayModel, SelectSpaceModel} from '@/common/models/PlayerInputModel';
@@ -1612,7 +1615,7 @@ import {
   resetColonyResolutionUi,
   setColonyDiscardStage,
 } from '@/client/console/colonyTrade/colonyResolution';
-import {cardColonyTradeCard} from '@/client/console/colonyTrade/colonyTradeEntry';
+import {beginPartyColonyTrade, colonyTradeEntryLocked} from '@/client/console/colonyTrade/colonyTradeEntry';
 import {discardPhaseInOverlay} from '@/client/console/cardDiscard/discardModel';
 import {
   DiscardIntent, deriveDiscardIntent, discardMetaOf, discardPickedTags,
@@ -8078,7 +8081,7 @@ export default defineComponent({
           // the variant that opened it. Promising «свернуть» there would name
           // a park that does not happen.
           {control: 'back',
-            label: cardColonyTradeCard() !== '' ? 'Back' :
+            label: colonyTradeEntryLocked() ? 'Back' :
               (this.colonyEmbedActive ? 'Minimize' : 'To the board')},
         ];
       }
@@ -8182,7 +8185,7 @@ export default defineComponent({
         return undefined;
       }
       if (isResolutionZoom(card)) {
-        return resolutionAnnotations(card.resolution, this.game.parliament);
+        return resolutionAnnotations(card.resolution, this.game.parliament, this.thisPlayer.color, this.playerView.players);
       }
       if (isPartyEffectZoom(card)) {
         return partyAnnotations(card.partyEffect, this.game.parliament, this.thisPlayer.color);
@@ -12879,17 +12882,22 @@ export default defineComponent({
       openConsoleCardZoom([entry], 0, undefined, undefined, {origin: {kind: 'textual'}});
     },
     /**
-     * The Unity trade: the colony workspace stands INSIDE the Parliament for
-     * its span (`frameSteps: {colonies: 'scene'}` — the header reads «ПАРЛАМЕНТ
-     * › СОЮЗ › ТОРГОВЛЯ»), and the trade's own payment list offers the free
-     * Unity path first. Its conclusion pops one level back to the Parliament.
+     * The Unity trade from the Parliament's party detail (the contextual
+     * launch; the canonical door is the action menu): the colony workspace
+     * stands INSIDE the Parliament for its span (`frameSteps: {colonies:
+     * 'scene'}` — the header reads «ПАРЛАМЕНТ › СОЮЗ › ТОРГОВЛЯ») and the
+     * trade is LOCKED to the Unity payment path — the same entry context the
+     * action menu's door sets, found by the option's `metadata.party`. The
+     * trade's own confirm is the single commit; a finished trade leaves.
      */
     openParliamentTrading(): void {
-      if (this.colonyTradeBlockReason !== undefined && this.colonyTradeBlockReason !== '') {
-        this.showNotice(this.colonyTradeBlockReason);
+      const trade = this.tradeColonyContext;
+      if (trade === undefined || !trade.paymentOptions.some((o) => o.metadata?.party === PartyName.UNITY)) {
+        this.showNotice(translateText('This option is no longer offered'));
         return;
       }
       this.deferShellTask();
+      beginPartyColonyTrade(PartyName.UNITY);
       pushWorkspaceFrame({
         kind: 'colonies',
         subject: '',
@@ -12899,7 +12907,8 @@ export default defineComponent({
         anchor: {type: 'always'},
         nest: true,
       });
-      this.consoleState.colonyIndex = stepIndex(this.consoleState.colonyIndex, 0, this.coloniesForRail.length);
+      const first = this.coloniesForRail.findIndex((c) => this.tradeableColonyNames.includes(c.name));
+      this.consoleState.colonyIndex = first !== -1 ? first : 0;
     },
     /** A Parliament flow ended (the server answered): a finished flow LEAVES, never folds back to browse. */
     onParliamentFlowComplete(kind: string): void {
@@ -13528,6 +13537,16 @@ export default defineComponent({
     // ── the console-native card-action center (ConsoleCardActions.vue) ────
     // It owns the whole flow (list · inspector · composer) and builds the
     // byte-identical activation batch itself; the shell only POSTs + closes.
+    /**
+     * A PARTY ACTION composed in the action menu (Turmoil Redux): the server's
+     * own nested response, through the ONE transport funnel. The workspace
+     * keeps its stage as the executing beat and concludes on the answer — no
+     * awaiting handoff, no claim: a party action never draws into its stage
+     * (the Reds' draw presents as the ordinary reveal once the flow has left).
+     */
+    onCardActionsSubmitParty(response: InputResponse): void {
+      submitInput(response);
+    },
     onCardActionsSubmitBatch(responses: ReadonlyArray<unknown>): void {
       // A DEPLOY (Modular Floodgates variant B) in the batch: remember whom,
       // so the flow's completion opens the Hydronetwork execution surface
@@ -14466,8 +14485,10 @@ export default defineComponent({
       // no continuation: the card action was never submitted, the trade IS the
       // whole move. Its host is a browse list of actions, and one of them has
       // just been used, so returning there would land the player on a screen
-      // that no longer offers what they came from.
-      if ((this.colonyEmbedActive && cardColonyTradeCard() === '') || this.shellTaskActive) {
+      // that no longer offers what they came from. A PARTY-sourced trade (the
+      // Unity door — from the action menu or from the Parliament) is the same
+      // case: the trade IS the whole move, so a finished one leaves.
+      if ((this.colonyEmbedActive && !colonyTradeEntryLocked()) || this.shellTaskActive) {
         return;
       }
       if (this.consoleState.section === 'colonies') {

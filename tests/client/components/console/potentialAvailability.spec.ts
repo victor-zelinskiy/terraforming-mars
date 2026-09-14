@@ -192,6 +192,15 @@ describe('wheel potential counts', () => {
     expect(counts.cards).to.eq(2);
   });
 
+  it('the action menu badge counts the PARTY actions the player holds beside the cards (Turmoil Redux)', () => {
+    const counts = wheelPotentialCounts({
+      potential: projection({cardActions: 1, partyActions: 2}), handTotal: 7, hasColonies: true, hasHydro: true,
+    });
+    expect(counts.cardActions).to.eq(3);
+    // An older server / no parliament: the field is absent and adds nothing.
+    expect(wheelPotentialCounts({potential: projection({cardActions: 1}), handTotal: 7, hasColonies: true, hasHydro: true}).cardActions).to.eq(1);
+  });
+
   it('a category absent from this game shows nothing', () => {
     const counts = wheelPotentialCounts({
       potential: projection(), handTotal: 7, hasColonies: false, hasHydro: false,

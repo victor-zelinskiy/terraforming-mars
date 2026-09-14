@@ -38,7 +38,7 @@ import {getCard} from '@/client/cards/ClientCardManifest';
 import {nodeGraphicToken} from '@/common/cards/render/cardGraphicIds';
 import {ActionGroup, actionNodeDescription} from '@/client/components/actions/actionExtraction';
 import {stripKindPrefix} from '@/client/components/cardAnnotations/annotationModel';
-import {translateText} from '@/client/directives/i18n';
+import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 
 type GroupNode = ActionGroup['nodes'][number];
 
@@ -74,8 +74,9 @@ export const ACTION_RULE_LABEL: Readonly<Record<ActionRuleLine['kind'], string>>
  * carries its kind as a chip) + read as a sentence. The one formatter for
  * every host of card rule text.
  */
-export function actionRuleText(key: string): string {
-  const text = stripKindPrefix(translateText(key));
+export function actionRuleText(key: string, params?: Array<string>): string {
+  const translated = params !== undefined && params.length > 0 ? translateTextWithParams(key, params) : translateText(key);
+  const text = stripKindPrefix(translated);
   return text.length > 0 ? text[0].toLocaleUpperCase() + text.slice(1) : text;
 }
 

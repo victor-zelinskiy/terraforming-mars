@@ -31,7 +31,10 @@ export class TradeWithUnity implements IColonyTrader {
   }
 
   public optionMetadata() {
-    return {kind: 'generic' as const, icon: 'megacredits', amount: 0, description: 'Free trade — the Unity party action, once per generation. You may advance the colony track 1 step first.'};
+    // `party` is the path's STRUCTURAL identity (the card-powered paths carry
+    // `card` for the same reason): the console's Unity door locks the trade to
+    // this very option without reading its translated label.
+    return {kind: 'generic' as const, icon: 'megacredits', amount: 0, party: PartyName.UNITY, description: 'Free trade — the Unity party action, once per generation. You may advance the colony track 1 step first.'};
   }
 
   /** `undefined` (hidden) without access — there is no option to explain; a used action is shown greyed with its reason. */

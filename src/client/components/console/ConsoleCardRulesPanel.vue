@@ -17,7 +17,7 @@
               <span v-if="group.special" class="con-zoom-rules__spark" aria-hidden="true">✱</span>
               {{ $t(group.labelKey) }}
             </span>
-            <p v-for="row in group.rows" :key="row.id" class="con-zoom-rules__text">{{ rowText(row.text) }}</p>
+            <p v-for="row in group.rows" :key="row.id" class="con-zoom-rules__text">{{ rowText(row) }}</p>
           </section>
         </div>
       </ConsoleScrollArea>
@@ -174,8 +174,14 @@ export default defineComponent({
      *  kind prefix → read as a sentence). The action workspace shows the
      *  same texts, so the wording lives in ONE place — see
      *  components/actions/actionDescription.ts. */
-    rowText(key: CardAnnotationRow['text']): string {
-      return actionRuleText(key);
+    rowText(row: CardAnnotationRow): string {
+      // A parameterised row (the parliament panels name a resolution, a
+      // player, a count) interpolates its display strings first — the key is
+      // then read as a sentence exactly like every other row.
+      if (row.params !== undefined && row.params.length > 0) {
+        return actionRuleText(row.text, [...row.params]);
+      }
+      return actionRuleText(row.text);
     },
     /**
      * Right-stick paging of the rules BODY, routed by the shell's zoom intent

@@ -20,6 +20,7 @@
 
 import {reactive} from 'vue';
 import {CardName} from '@/common/cards/CardName';
+import {PartyName} from '@/common/turmoil/PartyName';
 import {DisabledOptionModel, SelectOptionModel} from '@/common/models/PlayerInputModel';
 import {Message} from '@/common/logs/Message';
 
@@ -29,18 +30,32 @@ export type ColonyTradeEntryState = {
    * «Колонии», where every payment path is theirs to choose.
    */
   card: CardName | '';
+  /**
+   * The POLITICAL PARTY whose action opened this trade (the Unity party
+   * action, Turmoil Redux) — the third door into the same move. `''` = none.
+   * Exactly one of `card` / `party` is set for a locked entry.
+   */
+  party: PartyName | '';
 };
 
-export const colonyTradeEntryState: ColonyTradeEntryState = reactive({card: ''});
+export const colonyTradeEntryState: ColonyTradeEntryState = reactive({card: '', party: ''});
 
 /** The player pressed «Выбрать колонию» on a card's trade branch. */
 export function beginCardColonyTrade(card: CardName): void {
   colonyTradeEntryState.card = card;
+  colonyTradeEntryState.party = '';
+}
+
+/** The player took a PARTY's trade action («Бесплатная торговля» — the Unity door). */
+export function beginPartyColonyTrade(party: PartyName): void {
+  colonyTradeEntryState.card = '';
+  colonyTradeEntryState.party = party;
 }
 
 /** The entry is over — B walked out, or the trade committed and concluded. */
 export function clearCardColonyTrade(): void {
   colonyTradeEntryState.card = '';
+  colonyTradeEntryState.party = '';
 }
 
 /** The card this trade was entered from, `''` for the ordinary Colonies entry. */
@@ -48,21 +63,36 @@ export function cardColonyTradeCard(): CardName | '' {
   return colonyTradeEntryState.card;
 }
 
+/** The party whose action this trade was entered from, `''` otherwise. */
+export function partyColonyTradeParty(): PartyName | '' {
+  return colonyTradeEntryState.party;
+}
+
+/** The entry is LOCKED to one payment path (a card's or a party's). */
+export function colonyTradeEntryLocked(): boolean {
+  return colonyTradeEntryState.card !== '' || colonyTradeEntryState.party !== '';
+}
+
 /**
  * The payment path the entry LOCKS to, or `-1`.
  *
- * Matched on the option's own `metadata.card` — never on its label. The label
- * is translated in place on render, so a text match stops matching after the
- * first paint; and it would not say WHICH card powers the path anyway.
+ * Matched on the option's own `metadata.card` / `metadata.party` — never on
+ * its label. The label is translated in place on render, so a text match
+ * stops matching after the first paint; and it would not say WHICH card (or
+ * party) powers the path anyway.
  */
 export function lockedTradePaymentIndex(
   options: ReadonlyArray<SelectOptionModel>,
   card: CardName | '',
+  party: PartyName | '' = '',
 ): number {
-  if (card === '') {
-    return -1;
+  if (card !== '') {
+    return options.findIndex((o) => o.metadata?.card === card);
   }
-  return options.findIndex((o) => o.metadata?.card === card);
+  if (party !== '') {
+    return options.findIndex((o) => o.metadata?.party === party);
+  }
+  return -1;
 }
 
 /**
@@ -74,11 +104,15 @@ export function lockedTradePaymentIndex(
 export function lockedTradePaymentReason(
   disabled: ReadonlyArray<DisabledOptionModel>,
   card: CardName | '',
+  party: PartyName | '' = '',
 ): string | Message | undefined {
-  if (card === '') {
-    return undefined;
+  if (card !== '') {
+    return disabled.find((d) => d.metadata?.card === card)?.reason;
   }
-  return disabled.find((d) => d.metadata?.card === card)?.reason;
+  if (party !== '') {
+    return disabled.find((d) => d.metadata?.party === party)?.reason;
+  }
+  return undefined;
 }
 
 /**

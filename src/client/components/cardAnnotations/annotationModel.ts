@@ -46,6 +46,8 @@ export type CardAnnotationRow = {
   id: string;
   /** The rule text — an EN i18n key (translate, then stripKindPrefix). */
   text: string;
+  /** Interpolation params for a `${0}`-parameterised key (already display strings). */
+  params?: ReadonlyArray<string>;
   /** This row's linked graphic row (data-graphic-id address). */
   graphicId?: string;
   /** EXACT node inside the row (data-graphic-node address). */

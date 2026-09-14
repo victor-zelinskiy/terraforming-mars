@@ -1,13 +1,17 @@
 import {expect} from 'chai';
 import {CardName} from '../../../../src/common/cards/CardName';
 import {DisabledOptionModel, SelectOptionModel} from '../../../../src/common/models/PlayerInputModel';
+import {PartyName} from '../../../../src/common/turmoil/PartyName';
 import {
   beginCardColonyTrade,
+  beginPartyColonyTrade,
   cardColonyTradeCard,
   clearCardColonyTrade,
   colonyStepCrumbParts,
+  colonyTradeEntryLocked,
   lockedTradePaymentIndex,
   lockedTradePaymentReason,
+  partyColonyTradeParty,
 } from '../../../../src/client/console/colonyTrade/colonyTradeEntry';
 
 /**
@@ -41,8 +45,37 @@ describe('colonyTradeEntry — the card-sourced colony trade', () => {
   it('arms and clears', () => {
     beginCardColonyTrade(CardName.TITAN_FLOATING_LAUNCHPAD);
     expect(cardColonyTradeCard()).to.eq(CardName.TITAN_FLOATING_LAUNCHPAD);
+    expect(colonyTradeEntryLocked()).to.eq(true);
     clearCardColonyTrade();
     expect(cardColonyTradeCard()).to.eq('');
+    expect(colonyTradeEntryLocked()).to.eq(false);
+  });
+
+  /**
+   * THE THIRD DOOR — a PARTY's action (the Unity free trade, Turmoil Redux).
+   * Exactly one lock at a time: arming the party clears a card lock and vice
+   * versa, and the locked path is found by the option's own `metadata.party`.
+   */
+  it('a party door locks to the option carrying that party marker', () => {
+    beginCardColonyTrade(CardName.TITAN_FLOATING_LAUNCHPAD);
+    beginPartyColonyTrade(PartyName.UNITY);
+    expect(cardColonyTradeCard()).to.eq('');
+    expect(partyColonyTradeParty()).to.eq(PartyName.UNITY);
+    expect(colonyTradeEntryLocked()).to.eq(true);
+    const unity = {
+      type: 'option', title: 'Trade for free (${0} action)', buttonLabel: '',
+      metadata: {kind: 'generic', icon: 'megacredits', amount: 0, party: PartyName.UNITY},
+    } as unknown as SelectOptionModel;
+    const options = [option('Pay 1 energy'), unity, option('Pay 9 M€')];
+    expect(lockedTradePaymentIndex(options, '', PartyName.UNITY)).to.eq(1);
+    expect(lockedTradePaymentIndex(options, '', PartyName.GREENS)).to.eq(-1);
+    const disabled: ReadonlyArray<DisabledOptionModel> = [{
+      title: 'Trade for free (${0} action)',
+      reason: 'The Unity action was already used this generation',
+      metadata: {kind: 'generic', icon: 'megacredits', amount: 0, party: PartyName.UNITY},
+    }];
+    expect(lockedTradePaymentReason(disabled, '', PartyName.UNITY)).to.eq('The Unity action was already used this generation');
+    expect(lockedTradePaymentReason(disabled, '', '')).to.eq(undefined);
   });
 
   /**

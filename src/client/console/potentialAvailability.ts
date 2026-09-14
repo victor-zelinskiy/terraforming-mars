@@ -59,7 +59,10 @@ export function wheelPotentialCounts(input: WheelCountsInput): WheelCounts {
     // Never ahead of the intake-aware total — a card still flying into the dock
     // is not in hand yet, however playable the rules say it is.
     cards: Math.max(0, Math.min(p.playableCards, input.handTotal)),
-    cardActions: Math.max(0, p.cardActions),
+    // The action menu lists the PARTY actions the player holds beside the
+    // cards (Turmoil Redux), so its badge counts both — each number the
+    // server's own verdict.
+    cardActions: Math.max(0, p.cardActions) + Math.max(0, p.partyActions ?? 0),
     // A category absent from this game shows nothing at all rather than a 0.
     hydro: input.hasHydro ? Math.max(0, p.hydroAdvance) : 0,
     trade: input.hasColonies ? Math.max(0, p.colonyTrades) : 0,

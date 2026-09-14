@@ -21,9 +21,8 @@ import {ReduxParty, ResolutionId} from '@/common/parliament/ParliamentTypes';
 import {PremiumCardVM} from './premiumCardViewModel';
 import {buildMechanics} from './mechanicsModel';
 import {tagClusterPlan} from './tagLayout';
-import {CARD_ART_FALLBACK_URL} from '@/client/cards/cardArt';
 import {getPartyEffect, getResolution} from '@/client/parliament/ClientParliamentManifest';
-import {partyEmblemUrl} from './partyEmblems';
+import {partyAccent, partyEmblemUrl} from './partyEmblems';
 
 /** The face's key for a resolution — the catalog id doubles as the slug. */
 export function resolutionSlug(id: ResolutionId): string {
@@ -46,9 +45,12 @@ export function resolutionPremiumVm(resolution: IClientResolution): PremiumCardV
     tags: [],
     tagCluster: tagClusterPlan(0),
     requirements: [],
-    // The art window is a STABLE placeholder (the shared fallback) until the
-    // resolution art pack exists — never an empty frame, never a shifted layout.
-    art: {url: CARD_ART_FALLBACK_URL, fallback: true},
+    // No resolution art pack exists yet: the art window carries the PARTY'S SEAL
+    // (its emblem over an accent-tinted field — `pcard--resolution-seal`), so the
+    // cards of the voting area are told apart at a glance and none of them reads
+    // as a dead placeholder. The window's geometry is the shared face's; real
+    // art later swaps the url and drops `sealArt`, nothing moves.
+    art: {url: partyEmblemUrl(resolution.party), fallback: false},
     mechanics: buildMechanics(resolution.renderData),
     expansion: 'turmoilRedux',
     compatibility: ['turmoilRedux', ...resolution.compatibility],
@@ -56,7 +58,10 @@ export function resolutionPremiumVm(resolution: IClientResolution): PremiumCardV
       party: resolution.party,
       emblemUrl: partyEmblemUrl(resolution.party),
       quest: resolution.text.quest,
+      questRenderData: resolution.questRenderData,
       dummy: resolution.dummy,
+      accent: partyAccent(resolution.party),
+      sealArt: true,
     },
   };
 }

@@ -115,10 +115,14 @@ export default defineComponent({
     // An unaffordable cost (you have fewer than the amount required) — shown as
     // "have / need" in an insufficient (red) style. Only ever true on a branch
     // the server already marked unavailable.
+    // A pool that may legally go NEGATIVE (M€ production) carries its unclamped
+    // `resulting` — the builder's own statement that the move is legal — so
+    // «0 → −1» is not a shortfall; a clamped `resulting` (or none) still is.
     shortfall(): boolean {
       return this.effect.direction === 'cost' &&
         this.effect.current !== undefined &&
-        this.effect.current < this.effect.amount;
+        this.effect.current < this.effect.amount &&
+        this.effect.resulting !== this.effect.current - this.effect.amount;
     },
     // A gain that changes nothing — because the pool is already capped (raising a
     // maxed global parameter) or because the amount itself counted to zero (a

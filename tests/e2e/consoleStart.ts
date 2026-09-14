@@ -2208,13 +2208,14 @@ export type BootOptions = {
  * lives in the late game stops replaying the game to reach it.
  */
 export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'hydro-terminal' | 'hydro-terminal-surge' | 'staged-interposer' | 'staged-hazard' |
-  'play-scale-card' | 'effect-forecast' | 'parliament' | 'parliament-actions' | 'parliament-recap';
+  'play-scale-card' | 'effect-forecast' | 'parliament' | 'parliament-actions' | 'parliament-recap' |
+  'parliament-dense' | 'parliament-seat';
 
 export async function bootFixture(
   page: Page,
   request: APIRequestContext,
   fixture: FixtureName,
-  opts: {query?: string, waitRounds?: number} = {},
+  opts: {query?: string, waitRounds?: number, landing?: 'board' | 'prompt'} = {},
 ): Promise<string> {
   const {playerId} = await bootFixtureSeats(page, request, fixture, opts);
   return playerId;
@@ -2229,7 +2230,7 @@ export async function bootFixtureSeats(
   page: Page,
   request: APIRequestContext,
   fixture: FixtureName,
-  opts: {query?: string, waitRounds?: number} = {},
+  opts: {query?: string, waitRounds?: number, landing?: 'board' | 'prompt'} = {},
 ): Promise<{playerId: string, seats: Array<string>}> {
   const file = path.resolve(__dirname, 'fixtures', `${fixture}.json`);
   const serialized = JSON.parse(fs.readFileSync(file, 'utf8')) as Record<string, unknown>;
@@ -2244,7 +2245,15 @@ export async function bootFixtureSeats(
     // outside a running test — nothing to annotate
   }
   await openConsole(page, playerId, opts.query ?? '');
-  await waitForBoardHome(page, opts.waitRounds ?? 25);
+  if (opts.landing === 'prompt') {
+    // The fixture resumes on a prompt that OWNS the screen (a mandatory pick the
+    // shell opens on the viewer's own turn): the board home is not where the
+    // player lands, so the driver waits for quiet instead of walking there —
+    // its self-heal would answer the very prompt the spec is about.
+    await settle(page, {timeoutMs: 20_000});
+  } else {
+    await waitForBoardHome(page, opts.waitRounds ?? 25);
+  }
   return {playerId, seats};
 }
 

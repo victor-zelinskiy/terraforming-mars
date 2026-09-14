@@ -2,27 +2,30 @@ import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {
-  bootFixture, closeZoomViewer, crumbText, fetchPlayerModel, focusCard, openQuickWheel, openZoomViewer, press, pressUntil, settle,
-  visibleSurfaces,
+  bootFixture, closeZoomViewer, crumbText, fetchPlayerModel, focusCard, openCardActions, openQuickWheel, openZoomViewer, press,
+  pressUntil, reloadConsole, settle, visibleSurfaces, walkFocusUntil,
 } from './consoleStart';
 
 /**
- * THE MARS PARLIAMENT (Turmoil Redux, iteration 0) — the EARLY WORKING PATH
- * the iteration was built around (docs/TURMOIL_REDUX_ITERATION0_PLAN.md):
+ * THE MARS PARLIAMENT (Turmoil Redux) — the reworked workspace
+ * (docs/TURMOIL_REDUX_PARLIAMENT_UI_REWORK.md), on three compositions
+ * (1080 · TV 4K · Steam Deck):
  *
- *   the wheel's «ПАРЛАМЕНТ» slot opens the workspace · the browse layer
- *   shows the three dummy resolutions with their delegates, the ruling party,
- *   the chairman quest, the parties row and the Agenda · A on a resolution
- *   opens the VOTE stage with the transaction and the consequences · A
- *   commits the vote (the server's own menu option, byte-identical) and the
- *   delegate lands on the card · X opens the fullscreen inspector over the
- *   resolution's premium face with the three rule blocks (resolution effect ·
- *   party effect · chairman quest).
+ *   the wheel's «ПАРЛАМЕНТ» slot opens the workspace · the GOVERNMENT reads
+ *   who rules and why (the starting rule / the enacted resolution), the ruling
+ *   formula, the chairman quest race and its reward · the VOTING AREA puts a
+ *   TALLY beside every card (delegates, the leader and why, yours, the tie
+ *   rule) and a FOCUS RAIL under them (what the next delegate changes) · the
+ *   PARTIES 3 × 2 with one DETAIL zone · the AGENDA as LEVELS · A on a
+ *   resolution opens the VOTE stage · A commits (the server's own menu
+ *   option, byte-identical) and the delegate lands · X inspects.
  *
- * STATE IS DECLARED (the `parliament` fixture): a 2p Redux table in the
- * first action phase — red's free delegate on slot 1, blue's two delegates
- * on slot 2 (a party effect held by delegates), blue with the lobby delegate
- * and 40 M€. Also the screenshot source (screenshots/parliament/<preset>/).
+ * Every composition asserts that nothing READ is cut and no block spills out
+ * of its tier (`expectFits`) — on the start table, a crowded five-seat table
+ * (ties between resolutions and players, a neutral majority, several effects,
+ * a used and a blocked party action), the chairman seat's mandatory pick
+ * (collapse → restore → take) and the results of a political phase.
+ * Also the screenshot source (screenshots/parliament/<preset>/).
  */
 
 const OUT_ROOT = path.resolve('screenshots', 'parliament');
@@ -61,9 +64,14 @@ async function openParliament(page: Page): Promise<void> {
   await settle(page, {timeoutMs: 15_000});
 }
 
-/** Nothing of the workspace may stick out of the viewport (no scroll, no crop). */
+/**
+ * Nothing of the workspace may stick out of the viewport (no scroll, no crop),
+ * no block may spill out of its own tier, and no READING text may be cut: the
+ * party states, the tally, the focus rail's consequences, the quest reward,
+ * the party detail — each is laid out whole on every profile.
+ */
 async function expectFits(page: Page, preset: Preset): Promise<void> {
-  const overflow = await page.evaluate(() => {
+  const problems = await page.evaluate(() => {
     const root = document.querySelector('.con-parl');
     if (root === null) {
       return ['no root'];
@@ -71,18 +79,56 @@ async function expectFits(page: Page, preset: Preset): Promise<void> {
     const vw = window.innerWidth;
     const vh = window.innerHeight;
     const out: Array<string> = [];
-    for (const el of Array.from(root.querySelectorAll<HTMLElement>('.con-parl__slot, .con-parl__party, .con-parl__tile, .con-parl__enacted, .con-parl__agenda'))) {
+    const name = (el: Element) => el.className.toString().split(' ')[0];
+    const visible = (el: HTMLElement) => {
       const r = el.getBoundingClientRect();
-      if (r.width === 0 || r.height === 0) {
+      return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden';
+    };
+    const blocks = '.con-parl__gov, .con-parl__slot, .con-parl__tally, .con-parl__rail, .con-parl__party, .con-parl__pdetail, .con-parl__agenda, .con-parl__stage';
+    for (const el of Array.from(root.querySelectorAll<HTMLElement>(blocks))) {
+      if (!visible(el)) {
         continue;
       }
+      const r = el.getBoundingClientRect();
       if (r.right > vw + 1 || r.bottom > vh + 1 || r.left < -1 || r.top < -1) {
-        out.push(`${el.className.split(' ')[0]} ${Math.round(r.left)},${Math.round(r.top)} ${Math.round(r.right)},${Math.round(r.bottom)}`);
+        out.push(`off-screen ${name(el)} ${Math.round(r.left)},${Math.round(r.top)} ${Math.round(r.right)},${Math.round(r.bottom)}`);
+      }
+      // A block's own content stays inside it (a tally taller than its cell
+      // once spilled over the header).
+      if (el.scrollHeight > el.clientHeight + 2 && !el.classList.contains('con-parl__stage')) {
+        out.push(`spills ${name(el)} ${el.scrollHeight}>${el.clientHeight}`);
+      }
+      for (const child of Array.from(el.children) as Array<HTMLElement>) {
+        const c = child.getBoundingClientRect();
+        if (c.height > 0 && (c.top < r.top - 2 || c.bottom > r.bottom + 2) && getComputedStyle(child).position !== 'absolute') {
+          out.push(`outside ${name(el)} › ${name(child)} ${Math.round(c.top)}..${Math.round(c.bottom)} vs ${Math.round(r.top)}..${Math.round(r.bottom)}`);
+        }
+      }
+    }
+    const reading = '.con-parl__party-state, .con-parl__party-name, .con-parl__tally-row, .con-parl__tally-note, .con-parl__rail-row, ' +
+      '.con-parl__quest-reward, .con-parl__quest-text, .con-parl__pdetail-reason, .con-parl__pdetail-rule, .con-parl__slot-win, .con-parl__kicker, ' +
+      '.con-parl__recap-item, .con-parl__txn-row, .con-parl__consequences li';
+    for (const el of Array.from(root.querySelectorAll<HTMLElement>(reading))) {
+      if (!visible(el)) {
+        continue;
+      }
+      if (el.scrollWidth > el.clientWidth + 1) {
+        out.push(`cut ${name(el)}: ${(el.textContent ?? '').trim().slice(0, 48)}`);
+      }
+      // Clipped by an ancestor tier (the tier's overflow hides it) — vertically,
+      // and along the one-line focus rail, horizontally too.
+      const tier = el.closest<HTMLElement>('.con-parl__pdetail, .con-parl__gov, .con-parl__stage, .con-parl__party, .con-parl__slot, .con-parl__rail');
+      if (tier !== null) {
+        const t = tier.getBoundingClientRect();
+        const e = el.getBoundingClientRect();
+        if (e.bottom > t.bottom + 2 || e.top < t.top - 2 || e.right > t.right + 1) {
+          out.push(`clipped ${name(el)} in ${name(tier)}: ${(el.textContent ?? '').trim().slice(0, 48)}`);
+        }
       }
     }
     return out;
   });
-  expect(overflow, `${preset.id}: every parliament block inside the viewport`).toEqual([]);
+  expect(problems, `${preset.id}: every parliament block fits, nothing read is cut`).toEqual([]);
 }
 
 /** The «ИЛИ» play whose plant branch the ruling Greens answer (+1 M€ production). */
@@ -165,17 +211,40 @@ for (const preset of PRESETS) {
       expect(before.game.parliament.slots.length).toBe(3);
       expect(before.game.parliament.rulingParty).toBe('Greens');
       await expectFits(page, preset);
+      // WHO RULES AND WHAT IT GIVES: the Greens by the STARTING RULE (not by a
+      // resolution nobody enacted), their printed formula as a GRAPHIC, the
+      // quest with its reward, and a tally beside every card.
+      const gov = page.locator('[data-parl-gov]');
+      await expect(gov).toContainText(/Стартовое правило/i);
+      await expect(gov.locator('.con-parl__gov-formula .pcard__mech')).toHaveCount(1);
+      await expect(page.locator('[data-parl-quest] .con-parl__quest-reward')).toContainText(/Кресло/);
+      await expect(page.locator('[data-parl-tally]')).toHaveCount(3);
+      await expect(page.locator('.con-parl__party')).toHaveCount(6);
       await shoot(page, preset, '01-browse');
 
       if (!preset.journey) {
-        // Composition only: the vote stage's geometry, then the inspector.
+        // Composition: the focus rail's forecast, the vote stage, the party
+        // detail (the Greens' reason is the starting rule), the inspector.
+        await press(page, 'ArrowRight', 500);
+        await expect(page.locator('[data-parl-rail] .con-parl__rail-row')).not.toHaveCount(0);
+        await expectFits(page, preset);
+        await shoot(page, preset, '02-focus-forecast');
         await press(page, 'Enter', 900);
         await expect(stage(page)).toHaveCount(1);
         await expectFits(page, preset);
-        await shoot(page, preset, '02-vote-stage');
-        await press(page, 'Escape', 600);
+        await shoot(page, preset, '03-vote-stage');
+        expect(await pressUntil(page, 'Escape', async () => await stage(page).count() === 0, {tries: 3, settleMs: 700})).toBeTruthy();
+        const zone = () => parliament(page).getAttribute('data-zone');
+        expect(await pressUntil(page, 'ArrowLeft', async () => await zone() === 'government', {tries: 3, settleMs: 300})).toBeTruthy();
+        await press(page, 'ArrowDown', 500); // → the parties, on the ruling party
+        await expect(page.locator('.con-parl__pdetail[data-party="Greens"]'), 'the detail explains the ruling Greens').toContainText(/стартовому правилу/i);
+        await expectFits(page, preset);
+        await shoot(page, preset, '04-party-detail');
+        await settle(page, {timeoutMs: 10_000});
         await openZoomViewer(page);
-        await shoot(page, preset, '03-inspect');
+        await expect(page.locator('.con-zoom-rules').first()).toBeVisible({timeout: 10_000});
+        await expect(page.locator('body'), 'no lore placeholder over a party face').not.toContainText(/Архивная запись отсутствует/);
+        await shoot(page, preset, '05-inspect-party');
         await closeZoomViewer(page);
         return;
       }
@@ -204,9 +273,13 @@ for (const preset of PRESETS) {
       // ── THE INSPECTOR. Back in the Parliament, X over the focused resolution
       //    opens the fullscreen face with the three rule blocks.
       await openParliament(page);
+      // The landed delegate is part of the card's composition: the ribbon and
+      // the tally read the new count, and the viewer's lead on slot 1.
+      await expect(slots(page).nth(0)).toHaveAttribute('data-votes', String(target.totalVotes + 1));
       await openZoomViewer(page);
       const panel = page.locator('.con-zoom-rules').first();
       await expect(panel).toBeVisible({timeout: 10_000});
+      await expect(page.locator('body'), 'no lore placeholder over a resolution face').not.toContainText(/Архивная запись отсутствует/);
       await shoot(page, preset, '04-inspect-resolution');
       await closeZoomViewer(page);
 
@@ -261,6 +334,102 @@ for (const preset of PRESETS) {
       await press(page, 'Escape', 800);
     });
 
+    test(`a crowded Parliament reads at a glance: ties, a neutral majority, several effects, used and blocked actions (${preset.id})`, async ({page, request}) => {
+      test.setTimeout(240_000);
+      const playerId = await bootFixture(page, request, 'parliament-dense', {query: preset.profileQuery});
+      await openParliament(page);
+      // Generation 2: the results of the first political phase play first.
+      await expect(stage(page)).toHaveAttribute('data-parl-stage', 'recap');
+      const items = page.locator('.con-parl__recap-item');
+      await expect.poll(async () => await page.locator('.con-parl__recap-item--shown').count(), {timeout: 15_000, message: 'every beat landed'})
+        .toBe(await items.count());
+      await expectFits(page, preset);
+      await shoot(page, preset, '20-dense-recap');
+      expect(await pressUntil(page, 'Enter', async () => await stage(page).count() === 0, {tries: 3, settleMs: 800}),
+        'A lets the player through').toBeTruthy();
+      await settle(page, {timeoutMs: 10_000});
+
+      const model = await fetchPlayerModel(request, playerId) as unknown as {game: {parliament: {slots: Array<{totalVotes: number, isWinning: boolean}>}}};
+      const [s1, s2] = model.game.parliament.slots;
+      expect(s1.totalVotes, 'V1 and V2 hold as many delegates').toBe(s2.totalVotes);
+      expect(s1.isWinning, 'the tie goes to the slot closest to the government').toBe(true);
+      // WHICH RESOLUTION WINS NOW, AND WHY — on the card itself.
+      const v1 = slots(page).nth(0);
+      await expect(v1).toHaveClass(/con-parl__slot--winning/);
+      await expect(v1.locator('.con-parl__tally-note--win')).toHaveCount(1);
+      // WHO PERSONALLY WINS IT — the leader, and why on a tie between players.
+      await expect(v1.locator('[data-parl-leader] .con-parl__tally-note')).toHaveCount(1);
+      // A crowded ribbon folds into per-owner stacks.
+      await expect(v1.locator('.con-parl__vote-stack')).not.toHaveCount(0);
+      // No vote is possible — and the rail names why.
+      await expect(page.locator('[data-parl-rail]')).toHaveClass(/con-parl__rail--off/);
+      await expect(page.locator('[data-parl-rail] .con-parl__rail-reason')).not.toHaveText('');
+      // The enacted resolution, the ruling party, the quest race and the
+      // chairman in ONE area.
+      await expect(page.locator('[data-parl-gov] .con-parl__gov-card .pcard')).toHaveCount(1);
+      await expect(page.locator('[data-parl-quest-progress] .con-parl__quest-row')).toHaveCount(5);
+      await expect(page.locator('[data-parl-chair]')).toHaveCount(1);
+      await expectFits(page, preset);
+      await shoot(page, preset, '21-dense-browse');
+
+      // The parties: several effects held at once, the action used this generation.
+      await press(page, 'ArrowDown', 500);
+      expect(await page.locator('.con-parl__party--held').count(), 'several party effects at once').toBeGreaterThanOrEqual(3);
+      await expect(page.locator('.con-parl__party[data-action-state="used"]')).toHaveCount(1);
+      await expectFits(page, preset);
+      await shoot(page, preset, '22-dense-parties');
+      // Every party's detail fits, whatever its formula's width: walk all six.
+      const partyFocused = () => page.evaluate(() => document.querySelector('.con-parl__party--focus')?.getAttribute('data-party') ?? '');
+      const seen = new Set<string>();
+      for (const key of ['ArrowLeft', 'ArrowLeft', 'ArrowLeft', 'ArrowLeft', 'ArrowLeft', 'ArrowRight', 'ArrowRight', 'ArrowRight', 'ArrowRight', 'ArrowRight']) {
+        await press(page, key, 300);
+        seen.add(await partyFocused());
+        await expectFits(page, preset);
+      }
+      expect([...seen].filter((p) => p !== ''), 'the walk visited every party').toHaveLength(6);
+
+      // The action menu lists the viewer's party actions with the menu's own
+      // states — and never a tile for a party the viewer has no access to.
+      expect(await pressUntil(page, 'Escape', async () => await parliament(page).count() === 0, {tries: 4, settleMs: 900})).toBeTruthy();
+      await settle(page);
+      await openCardActions(page);
+      await expect(page.locator('.con-cardactions__tile[data-action-party="Unity"]'), 'no tile for a party action without access').toHaveCount(0);
+      await expect(page.locator('.con-cardactions__tile--rules[data-action-party]'), 'a blocked party action carries its reason').not.toHaveCount(0);
+      const focusedTile = () => page.evaluate(() => document.querySelector('.con-cardactions__tile--focused')?.getAttribute('data-action-party') ?? '');
+      await walkFocusUntil(page, async () => await focusedTile() === 'Industrialists', focusedTile, 12);
+      await shoot(page, preset, '23-dense-action-menu');
+    });
+
+    test(`the chairman seat: a mandatory pick that collapses to the board and comes back (${preset.id})`, async ({page, request}) => {
+      test.setTimeout(180_000);
+      const playerId = await bootFixture(page, request, 'parliament-seat', {query: preset.profileQuery, landing: 'prompt'});
+      // On the viewer's own turn the pick takes the screen: the Parliament on its seat stage.
+      await expect(stage(page)).toHaveAttribute('data-parl-stage', 'seat', {timeout: 20_000});
+      expect((await crumbText(page)).toUpperCase()).toContain('КРЕСЛО');
+      // The quest reads as finished, with its winner, while the pick stands.
+      await expect(page.locator('[data-parl-quest]')).toHaveClass(/con-parl__quest--done/);
+      await expect(page.locator('.con-parl__slot--candidate, .con-parl__slot--target')).not.toHaveCount(0);
+      await expectFits(page, preset);
+      await shoot(page, preset, '30-seat-stage');
+      // B cannot unmake a mandatory pick: it COLLAPSES to the board, the pick stays owed.
+      expect(await pressUntil(page, 'Escape', async () => !await parliament(page).isVisible(), {tries: 3, settleMs: 1000}),
+        'B collapses the Parliament').toBeTruthy();
+      await settle(page, {timeoutMs: 10_000});
+      await shoot(page, preset, '31-seat-collapsed');
+      // A on the board brings the same stage back.
+      expect(await pressUntil(page, 'Enter', async () => await parliament(page).isVisible() && await stage(page).getAttribute('data-parl-stage', {timeout: 1_000}) === 'seat',
+        {tries: 3, settleMs: 1500}), 'A restores the seat stage').toBeTruthy();
+      await settle(page, {timeoutMs: 10_000});
+      // Take the delegate from the focused candidate.
+      await press(page, 'Enter', 1500);
+      await expect.poll(async () => {
+        const m = await fetchPlayerModel(request, playerId) as unknown as {game: {parliament: {chairman?: string}}, thisPlayer: {color: string}};
+        return m.game.parliament.chairman === m.thisPlayer.color;
+      }, {timeout: 20_000, message: 'the viewer holds the chairman seat'}).toBe(true);
+      await settle(page, {timeoutMs: 15_000});
+      await shoot(page, preset, '32-seat-taken');
+    });
+
     if (preset.journey) {
       test(`the previous generation's results play as beats when the Parliament opens (${preset.id})`, async ({page, request}) => {
         test.setTimeout(180_000);
@@ -277,15 +446,24 @@ for (const preset of PRESETS) {
           .toBe(await items.count());
         await settle(page, {timeoutMs: 10_000});
         await shoot(page, preset, '10-recap');
-        // The objects the beats named: an ENACTED card now stands, blue's
-        // marker is on Agenda step 1, three resolutions are in the area.
-        await expect(page.locator('.con-parl__enacted .pcard')).toHaveCount(1);
+        await expectFits(page, preset);
+        // The objects the beats named: an ENACTED card now stands in the
+        // government, blue's marker is on Agenda step 1, three resolutions are
+        // in the area.
+        await expect(page.locator('[data-parl-gov] .con-parl__gov-card .pcard')).toHaveCount(1);
         await expect(page.locator('.con-parl__step[data-step="1"] .player-cube')).not.toHaveCount(0);
         await expect(slots(page)).toHaveCount(3);
         expect(await pressUntil(page, 'Enter', async () => await stage(page).count() === 0, {tries: 3, settleMs: 700}),
           'A lets the player through to the browse layer').toBeTruthy();
-        await expect(page.locator('[data-parl-recap]'), 'the compact strip keeps the results').toHaveCount(1);
+        // The results stay readable where they landed: the enacted resolution
+        // is the government's basis now (said once, in one place).
+        await expect(page.locator('[data-parl-gov]')).toContainText(/Принятая резолюция/i);
+        await expectFits(page, preset);
         await shoot(page, preset, '11-after-recap');
+        // A reload does not replay history: the scene played once.
+        await reloadConsole(page);
+        await openParliament(page);
+        await expect(stage(page), 'the results never replay after a reload').toHaveCount(0);
         // The scene plays ONCE: leaving and coming back lands on the browse layer.
         expect(await pressUntil(page, 'Escape', async () => await parliament(page).count() === 0, {tries: 4, settleMs: 900})).toBeTruthy();
         await openParliament(page);

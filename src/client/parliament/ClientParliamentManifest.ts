@@ -5,7 +5,7 @@
  * manifest's twin. Static, never game state: the live parliament rides
  * `GameModel.parliament` and names cards by id.
  */
-import {IClientPartyEffect, IClientResolution, ParliamentCatalog} from '@/common/parliament/IClientResolution';
+import {IClientPartyEffect, IClientResolution, IClientStarterQuest, ParliamentCatalog} from '@/common/parliament/IClientResolution';
 import {ReduxParty, ResolutionId} from '@/common/parliament/ParliamentTypes';
 // @ts-ignore parliament.json doesn't exist during npm run build
 import parliamentJson from '@/genfiles/parliament.json';
@@ -47,4 +47,9 @@ export function getPartyEffect(party: ReduxParty): IClientPartyEffect | undefine
 
 export function allPartyEffects(): ReadonlyArray<IClientPartyEffect> {
   return Array.from(parties.values());
+}
+
+/** The printed generation-1 quest (its text and its graphic), when the catalog carries it. */
+export function getStarterQuest(): IClientStarterQuest | undefined {
+  return catalog.starterQuest;
 }

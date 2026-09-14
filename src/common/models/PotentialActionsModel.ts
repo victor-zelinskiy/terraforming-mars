@@ -40,6 +40,13 @@ export type PotentialActionsModel = {
    * payment path is usable at all (or the game embargoes trade).
    */
   colonyTrades: number;
+  /**
+   * PARTY actions (Turmoil Redux) the player holds and could take right now —
+   * the Parliament's own verdict (access ∧ uses left ∧ the action's gate),
+   * the same `PartyActionModel.available` the action menu lists them by.
+   * Absent without the module (an older server too — the client defaults to 0).
+   */
+  partyActions?: number;
 };
 
 /** An all-zero projection — the shape a client can safely default to. */
@@ -48,4 +55,5 @@ export const NO_POTENTIAL_ACTIONS: PotentialActionsModel = {
   cardActions: 0,
   hydroAdvance: 0,
   colonyTrades: 0,
+  partyActions: 0,
 };

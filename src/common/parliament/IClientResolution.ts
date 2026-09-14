@@ -24,6 +24,12 @@ export type IClientResolution = {
     quest: string;
   };
   quest: QuestDefinition;
+  /**
+   * The quest's GOAL as a graphic (the same render DSL the faces draw): the
+   * card's quest corner, the workspace's quest block and the inspector all
+   * read this ONE description, so the three can never drift apart.
+   */
+  questRenderData: ICardRenderRoot;
   /** A DUMMY carries a party, votes and a quest — and no effect of its own. */
   dummy: boolean;
   hasImmediate: boolean;
@@ -49,7 +55,17 @@ export type IClientPartyEffect = {
   usesPerGeneration?: number;
 };
 
+/** The printed generation-1 quest of the empty ENACTED slot (rulebook p.9). */
+export type IClientStarterQuest = {
+  quest: QuestDefinition;
+  /** English i18n key. */
+  text: string;
+  questRenderData: ICardRenderRoot;
+};
+
 export type ParliamentCatalog = {
   parties: Array<IClientPartyEffect>;
   resolutions: Array<IClientResolution>;
+  /** Optional for a catalog generated before the quest graphics existed. */
+  starterQuest?: IClientStarterQuest;
 };

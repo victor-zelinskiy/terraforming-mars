@@ -19,7 +19,7 @@ import {PartyName} from '@/common/turmoil/PartyName';
 import {CardRequirementDescriptor, requirementType} from '@/common/cards/CardRequirementDescriptor';
 import {RequirementType} from '@/common/cards/RequirementType';
 import {CardRenderDynamicVictoryPoints} from '@/common/cards/render/CardRenderDynamicVictoryPoints';
-import {ICardRenderItem} from '@/common/cards/render/Types';
+import {ICardRenderItem, ICardRenderRoot} from '@/common/cards/render/Types';
 import {premiumCardArt, PremiumCardArt} from '@/client/cards/cardArt';
 import {PremiumTheme, premiumThemeFor} from './premiumCardTheme';
 import {buildMechanics, collectDroppedProse, MechanicsVM} from './mechanicsModel';
@@ -154,10 +154,20 @@ export type PremiumCardVM = {
     emblemUrl: string;
     /** English i18n key of the printed chairman quest (resolutions only). */
     quest?: string;
+    /** The quest's goal as a graphic (the same nodes the workspace draws) — resolutions only. */
+    questRenderData?: ICardRenderRoot;
     /** A dummy resolution: real party, real quest, no effect of its own. */
     dummy?: boolean;
     /** The face is a PARTY EFFECT banner, not a resolution. */
     partyEffect?: boolean;
+    /** The party's accent colour — tints the seal composition of an art-less resolution. */
+    accent?: string;
+    /**
+     * The art window carries the party's SEAL (emblem over an accent field)
+     * because the resolution has no art of its own yet. Real art later drops the
+     * flag and replaces the image; the window's geometry never changes.
+     */
+    sealArt?: boolean;
   };
 };
 

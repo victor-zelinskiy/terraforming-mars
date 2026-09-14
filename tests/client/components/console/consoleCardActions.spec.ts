@@ -22,7 +22,11 @@ import {
   arrangeGroupsForGrid,
   stepActionRows,
   ConsoleActionGroup,
+  PartyActionSource,
+  partyOfTileKey,
+  partyTileKey,
 } from '@/client/console/consoleCardActions';
+import {PartyName} from '@/common/turmoil/PartyName';
 import {consoleRepeatPickUi} from '@/client/console/consoleRepeatPickUi';
 
 function effect(direction: 'cost' | 'gain', icon: string, amount: number): ActionEffect {
@@ -585,6 +589,60 @@ describe('consoleCardActions model', () => {
         entries, previews, NO_RESOURCES, {availability: 'all', activation: 'all'}).tiles;
       expect(after.map((t) => t.key)).to.deep.eq(before);
       expect(after.find((t) => t.key === 'Fine#1')?.status).to.eq('rules');
+    });
+  });
+
+  describe('party actions as sources (Turmoil Redux)', () => {
+    const party = (over: Partial<PartyActionSource> = {}): PartyActionSource => ({
+      party: PartyName.REDS, actionId: 'reds-recycle', renderRoot: undefined, rule: 'Draw 2, discard 2', usesLeft: 1, usesPerGeneration: 1,
+      available: true, reason: '', offered: true, awaitingInput: true, preview: [effect('gain', 'cards', 2), effect('cost', 'cards', 2)], ...over,
+    });
+    const FILTER = {availability: 'all', activation: 'all'} as const;
+
+    it('a held party action stands beside the cards as its own group, keyed on the party', () => {
+      const model = buildConsoleActionsModel([entry('A', 'available', ['use'])], NO_PREVIEWS, NO_RESOURCES, FILTER, undefined, 2, [party()]);
+      expect(model.groups.map((g) => g.key)).to.deep.eq(['A', partyTileKey(PartyName.REDS)]);
+      const tile = model.tiles.find((t) => t.party === PartyName.REDS);
+      expect(tile?.status).to.eq('available');
+      expect(tile?.gainEffects.length).to.eq(1);
+      expect(tile?.costEffects.length).to.eq(1);
+      expect(tile?.rules?.summary).to.eq('Draw 2, discard 2');
+      expect(model.availableTiles).to.eq(2);
+    });
+
+    it('a used action is ACTIVATED (hidden under the default filter, shown under «activated»), a blocked one names the server reason', () => {
+      const used = party({usesLeft: 0});
+      const blocked = party({party: PartyName.SCIENTISTS, actionId: 'scientists-lab', available: false, reason: 'No card of yours can hold data or microbes'});
+      const dormant = buildConsoleActionsModel([], NO_PREVIEWS, NO_RESOURCES, {availability: 'all', activation: 'dormant'}, undefined, 2, [used, blocked]);
+      expect(dormant.tiles.map((t) => t.party)).to.deep.eq([PartyName.SCIENTISTS]);
+      expect(dormant.tiles[0].status).to.eq('rules');
+      expect(dormant.tiles[0].reason?.message).to.eq('No card of yours can hold data or microbes');
+      const activated = buildConsoleActionsModel([], NO_PREVIEWS, NO_RESOURCES, {availability: 'all', activation: 'activated'}, undefined, 2, [used, blocked]);
+      expect(activated.tiles.map((t) => t.party)).to.deep.eq([PartyName.REDS]);
+      expect(activated.tiles[0].status).to.eq('activated');
+    });
+
+    it('an action the menu does not offer right now is NOT NOW — potentially performable, the calm register', () => {
+      const model = buildConsoleActionsModel([], NO_PREVIEWS, NO_RESOURCES, FILTER, undefined, 2, [party({offered: false, awaitingInput: false})]);
+      expect(model.tiles[0].status).to.eq('soft');
+      expect(model.tiles[0].blocker?.tone).to.eq('warning');
+      expect(model.tiles[0].blocker?.affectsPotentialCount).to.eq(false);
+      expect(model.availableTiles).to.eq(1);
+    });
+
+    it('never lists a party in REPEAT mode (a party action is not a card action anyone can copy)', () => {
+      const model = buildConsoleActionsModel([entry('A', 'available', ['use'])], NO_PREVIEWS, NO_RESOURCES, FILTER, {candidates: new Set(), used: new Set()}, 2, [party()]);
+      expect(model.groups.map((g) => g.key)).to.deep.eq(['A']);
+    });
+
+    it('names the pre-submit choice a party action asks', () => {
+      const model = buildConsoleActionsModel([], NO_PREVIEWS, NO_RESOURCES, FILTER, undefined, 2, [
+        party({party: PartyName.INDUSTRIALISTS, actionId: 'industrialists-shift'}),
+        party({party: PartyName.SCIENTISTS, actionId: 'scientists-lab'}),
+      ]);
+      expect(model.tiles.map((t) => t.choiceKinds)).to.deep.eq([['or'], ['card']]);
+      expect(partyOfTileKey(model.tiles[0].cardName)).to.eq(PartyName.INDUSTRIALISTS);
+      expect(partyOfTileKey('Fine')).to.eq(undefined);
     });
   });
 

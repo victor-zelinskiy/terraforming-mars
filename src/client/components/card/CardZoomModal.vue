@@ -210,7 +210,7 @@ import {motionMs} from '@/client/components/motion/motionTokens';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {cssLengthPx} from '@/client/console/cssUnits';
 import {CardName} from '@/common/cards/CardName';
-import {ZoomCard, isBonusZoom, isMarsBotCorpZoom} from './cardZoomTypes';
+import {ZoomCard, isBonusZoom, isMarsBotCorpZoom, isPartyEffectZoom, isResolutionZoom} from './cardZoomTypes';
 import {marsBotCorpInfo} from '@/common/automa/MarsBotCorpData';
 import CardZoomCard from './CardZoomCard.vue';
 import CardLoreAside from './CardLoreAside.vue';
@@ -451,7 +451,10 @@ export default defineComponent({
      *  ORIGINAL human corporation's archive entry (the official identity/art/
      *  lore link of RB-B). */
     loreVisible(): boolean {
-      return this.lore && !isBonusZoom(this.activeCard);
+      // A parliament face (a resolution, a party's banner — Turmoil Redux) has
+      // no archive entry: the gutter stays empty rather than printing «Архивная
+      // запись отсутствует» beside every one of them.
+      return this.lore && !isBonusZoom(this.activeCard) && !isResolutionZoom(this.activeCard) && !isPartyEffectZoom(this.activeCard);
     },
     /** The archive-entry card: the entry's own name, or the bot corporation's
      *  ORIGINAL card (behind `loreVisible`, never a bonus id). */

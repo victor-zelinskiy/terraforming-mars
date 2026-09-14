@@ -10,6 +10,7 @@ import {CardResource} from '../../common/CardResource';
 import {CardType} from '../../common/cards/CardType';
 import {Tag} from '../../common/cards/Tag';
 import {Resource} from '../../common/Resource';
+import {productionFloor} from '../player/productionFloor';
 import {Message} from '../../common/logs/Message';
 import {message} from '../logs/MessageBuilder';
 import {TileType} from '../../common/TileType';
@@ -73,10 +74,17 @@ export function stockGain(player: IPlayer, resource: Resource, amount: number): 
   const cur = player.stock.get(resource);
   return {direction: 'gain', icon: resource, amount, current: cur, resulting: cur + amount};
 }
-/** Lose/gain N of a standard production. */
+/**
+ * Lose/gain N of a standard production. A decrease stops at the production's
+ * FLOOR exactly as the write does (M€ production may go negative, the others
+ * stop at 0) — so «0 → −1 M€ production» reads as the legal move it is, while
+ * a decrease past the floor keeps the clamped `resulting` the chip reads as a
+ * shortfall.
+ */
 export function productionChange(player: IPlayer, resource: Resource, amount: number): ActionEffect {
   const cur = player.production.get(resource);
-  return {direction: amount >= 0 ? 'gain' : 'cost', icon: resource, amount: Math.abs(amount), current: cur, resulting: cur + amount, note: 'production'};
+  const resulting = amount >= 0 ? cur + amount : Math.max(cur + amount, productionFloor(resource));
+  return {direction: amount >= 0 ? 'gain' : 'cost', icon: resource, amount: Math.abs(amount), current: cur, resulting, note: 'production'};
 }
 /** Raise terraform rating by N. */
 export function trGain(player: IPlayer, amount: number): ActionEffect {

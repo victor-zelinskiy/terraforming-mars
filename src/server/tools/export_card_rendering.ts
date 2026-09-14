@@ -26,8 +26,9 @@ import {buildBoardLayouts} from '../boards/boardLayoutExport';
 import {REDUX_RESOLUTION_CATALOG} from '../parliament/resolutions/ResolutionCatalog';
 import {ResolutionDefinition} from '../parliament/resolutions/IResolution';
 import {PARTY_EFFECTS, toClientPartyEffect} from '../parliament/parties/PartyEffects';
-import {REDUX_PARTIES} from '../../common/parliament/ParliamentTypes';
+import {REDUX_PARTIES, STARTER_QUEST} from '../../common/parliament/ParliamentTypes';
 import {IClientResolution, ParliamentCatalog} from '../../common/parliament/IClientResolution';
+import {questRenderData, starterQuestRenderData, STARTER_QUEST_TEXT} from '../parliament/quests/questRender';
 
 type Mutable<T> = {
   -readonly [P in keyof T]: T[P];
@@ -190,6 +191,7 @@ class ParliamentProcessor {
     ParliamentProcessor.json = {
       parties: REDUX_PARTIES.map((party) => toClientPartyEffect(PARTY_EFFECTS[party])),
       resolutions: REDUX_RESOLUTION_CATALOG.all().map(ParliamentProcessor.processResolution),
+      starterQuest: {quest: STARTER_QUEST, text: STARTER_QUEST_TEXT, questRenderData: starterQuestRenderData()},
     };
   }
 
@@ -203,6 +205,7 @@ class ParliamentProcessor {
       renderData: definition.renderData,
       text: definition.text,
       quest: definition.quest,
+      questRenderData: questRenderData(definition.quest),
       dummy: definition.dummy === true,
       hasImmediate: (definition.immediateSteps?.length ?? 0) > 0,
       hasWinnerEffect: (definition.winnerSteps?.length ?? 0) > 0,
