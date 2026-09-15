@@ -20,20 +20,33 @@ import type {AgendaAdvance, Parliament} from '../Parliament';
 
 export class ChairmanSeat {
   /** Advance the Agenda marker and pay the step's bonus, attributed to the parliament. Returns what happened. */
-  public static advanceAgenda(player: IPlayer, parliament: Parliament): AgendaAdvance | undefined {
+  public static advanceAgenda(player: IPlayer, parliament: Parliament, reason: 'quest' | 'phase' = 'quest'): AgendaAdvance | undefined {
     const game = player.game;
     const advance = parliament.advanceAgenda(player);
     if (advance === undefined) {
       game.log('${0} is already at the end of the Agenda track', (b) => b.player(player));
       return undefined;
     }
+    // The move is RECORDED for the client's presentation (the marker's glide
+    // and the step's reward, played once by its sequence number) — the
+    // political phase's summary carries its own copy for the results scene.
+    parliament.lastAdvance = {
+      seq: (parliament.lastAdvance?.seq ?? 0) + 1,
+      player: player.id,
+      from: advance.from,
+      to: advance.to,
+      bonus: advance.bonus,
+      reason,
+      generation: game.generation,
+    };
     game.events.withSource({kind: 'parliament'}, () => {
       game.log('${0} advances on the Agenda track to step ${1}', (b) => b.player(player).number(advance.to));
       if (advance.bonus === 'tr') {
         player.increaseTerraformRating(1, {trAttribution: {sourceType: 'other', sourceName: 'Agenda track'}});
         game.log('${0} gained ${1} ${2} from the Agenda track', (b) => b.player(player).number(1).tr());
       } else if (advance.bonus === 'card') {
-        player.drawCard(1);
+        // The Agenda's own source: the console lifts the card off the track step.
+        player.drawCard(1, {source: {type: 'agenda'}});
       }
     });
     return advance;

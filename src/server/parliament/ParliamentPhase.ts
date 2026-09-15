@@ -191,7 +191,7 @@ export class ParliamentPhase {
     const events = this.game.events;
     events.beginAction(player, {kind: 'parliament'}, {category: 'political-phase'});
     try {
-      const advance = ChairmanSeat.advanceAgenda(player, this.parliament);
+      const advance = ChairmanSeat.advanceAgenda(player, this.parliament, 'phase');
       if (advance !== undefined) {
         this.summary.agenda = {player: player.id, from: advance.from, to: advance.to, bonus: advance.bonus};
       }

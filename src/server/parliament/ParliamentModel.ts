@@ -103,6 +103,18 @@ export function getParliamentModel(game: IGame, viewer?: IPlayer): ParliamentMod
   if (parliament.lastPhase !== undefined) {
     model.lastPhase = summaryModel(game, parliament, parliament.lastPhase);
   }
+  if (parliament.lastAdvance !== undefined) {
+    const advance = parliament.lastAdvance;
+    model.lastAdvance = {
+      seq: advance.seq,
+      player: game.getPlayerById(advance.player).color,
+      from: advance.from,
+      to: advance.to,
+      bonus: advance.bonus,
+      reason: advance.reason,
+      generation: advance.generation,
+    };
+  }
   if (viewer !== undefined) {
     model.viewer = {
       vote: voteModel(game, parliament, viewer),

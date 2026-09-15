@@ -12,6 +12,8 @@ import {
   STARTER_QUEST,
 } from '../../src/common/parliament/ParliamentTypes';
 import {SelectParty} from '../../src/server/inputs/SelectParty';
+import {SelectPayment} from '../../src/server/inputs/SelectPayment';
+import {Payment} from '../../src/common/inputs/Payment';
 import {Phase} from '../../src/common/Phase';
 import {runAllActions} from '../TestingUtils';
 import {cast} from '../../src/common/utils/utils';
@@ -100,6 +102,30 @@ describe('Parliament', () => {
       const availability = parliament.canVote(p1);
       expect(availability.ok).is.false;
       expect(availability.source).eq('reserve');
+      parliament.assertLedger(game);
+    });
+
+    it('a reserve vote with an alternative way to pay raises a REAL bill carrying the vote-payment marker — the delegate follows the payment', () => {
+      const [game, p1, , parliament] = reduxGame();
+      const party = parliament.partiesInVotingArea()[0];
+      const slot = parliament.slotOf(party)!;
+      parliament.placeVote(p1, slot, 'lobby');
+      p1.megaCredits = 20;
+      p1.heat = 6;
+      p1.canUseHeatAsMegaCredits = true;
+      const option = voteOption(p1);
+      expect(option?.votePrompt).deep.eq({source: 'reserve', cost: PARLIAMENT_VOTE_COST});
+      option?.cb(party);
+      runAllActions(game);
+      // The bill is a prompt (heat could pay), and it NAMES the vote it settles.
+      const bill = cast(p1.popWaitingFor(), SelectPayment);
+      expect(bill.toModel(p1).votePayment).deep.eq({party, cost: PARLIAMENT_VOTE_COST});
+      expect(slot.votes, 'nothing moves before the bill is settled').has.length(1);
+      bill.process({type: 'payment', payment: Payment.of({megacredits: PARLIAMENT_VOTE_COST})}, p1);
+      runAllActions(game);
+      expect(slot.votes.map((v) => v.owner)).deep.eq([p1.id, p1.id]);
+      expect(p1.megaCredits).eq(15);
+      expect(parliament.reserve(p1)).eq(PARLIAMENT_DELEGATES_PER_PLAYER - 2);
       parliament.assertLedger(game);
     });
 

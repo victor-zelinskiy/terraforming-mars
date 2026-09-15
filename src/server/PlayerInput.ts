@@ -3,7 +3,7 @@ import {Message} from '../common/logs/Message';
 import {PlayerInputType} from '../common/input/PlayerInputType';
 import {InputResponse} from '../common/inputs/InputResponse';
 import {IPlayer} from './IPlayer';
-import {PlayerInputModel, StartGamePromptMeta, BonusActionPromptMeta, AwardFundingPromptMeta, ChoiceContext, ColonyBonusCollectMeta, DeckPickPromptMeta, DiscardPromptMeta, DraftPromptMeta, FinalGreeneryPromptMeta, PlacementContext, ResourceGainPromptMeta, VenusBonusPromptMeta, SpendHeatPromptMeta, VotePromptMeta, PartyActionPromptMeta} from '../common/models/PlayerInputModel';
+import {PlayerInputModel, StartGamePromptMeta, BonusActionPromptMeta, AwardFundingPromptMeta, ChoiceContext, ColonyBonusCollectMeta, DeckPickPromptMeta, DiscardPromptMeta, DraftPromptMeta, FinalGreeneryPromptMeta, PlacementContext, ResourceGainPromptMeta, VenusBonusPromptMeta, SpendHeatPromptMeta, VotePromptMeta, VotePaymentMeta, PartyActionPromptMeta} from '../common/models/PlayerInputModel';
 import {BotAttackPromptMeta} from '../common/models/BotAttackPromptModel';
 import {ExternalDrawTakeMeta} from '../common/models/ExternalDrawPromptModel';
 import {DeltaBonusPromptMeta} from '../common/models/DeltaBonusPromptModel';
@@ -147,6 +147,7 @@ export abstract class BasePlayerInput<T> implements PlayerInput {
   public deltaBonusPrompt: DeltaBonusPromptMeta | undefined;
   public resourceGainPrompt: ResourceGainPromptMeta | undefined;
   public votePrompt: VotePromptMeta | undefined;
+  public votePayment: VotePaymentMeta | undefined;
   public partyActionPrompt: PartyActionPromptMeta | undefined;
 
   public abstract toModel(player: IPlayer): PlayerInputModel;
@@ -332,6 +333,14 @@ export abstract class BasePlayerInput<T> implements PlayerInput {
    *  {@link VotePromptMeta}. */
   public markVotePrompt(meta: VotePromptMeta): this {
     this.votePrompt = meta;
+    return this;
+  }
+
+  /** Mark this `SelectPayment` as the bill of a Turmoil Redux VOTE from the
+   *  reserve (chainable). Built by `SelectPaymentDeferred` for
+   *  `ParliamentHandler.voteOption` — the one producer. See {@link VotePaymentMeta}. */
+  public markVotePayment(meta: VotePaymentMeta): this {
+    this.votePayment = meta;
     return this;
   }
 

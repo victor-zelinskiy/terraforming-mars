@@ -67,7 +67,9 @@ export type EffectForecastTiming =
  */
 export type EffectForecastSourceKind = 'card' | 'corporation' | 'automa-corporation' | 'rule'
   /** A Turmoil Redux PARTY EFFECT the seat holds (`name` is the PartyName; cardless, like a rule). */
-  | 'party';
+  | 'party'
+  /** The ENACTED Turmoil Redux RESOLUTION's passive effect (`name` is the ResolutionId; cardless — the client resolves it through the parliament manifest). */
+  | 'resolution';
 
 /**
  * A source with NO card behind it — a rule, a party effect. Every reader that
@@ -76,7 +78,7 @@ export type EffectForecastSourceKind = 'card' | 'corporation' | 'automa-corporat
  * CardName by omission.
  */
 export function forecastSourceIsCardless(source: {kind: EffectForecastSourceKind}): boolean {
-  return source.kind === 'rule' || source.kind === 'party';
+  return source.kind === 'rule' || source.kind === 'party' || source.kind === 'resolution';
 }
 
 export type EffectForecastSource = {

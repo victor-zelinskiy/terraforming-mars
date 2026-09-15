@@ -24,7 +24,7 @@ import {
 import {ResolutionDefinition} from './resolutions/IResolution';
 import {REDUX_RESOLUTION_CATALOG, ResolutionCatalog} from './resolutions/ResolutionCatalog';
 import {
-  PARLIAMENT_SAVE_VERSION, SerializedParliament, SerializedPendingAction, SerializedPhaseProgress,
+  PARLIAMENT_SAVE_VERSION, SerializedAdvance, SerializedParliament, SerializedPendingAction, SerializedPhaseProgress,
   SerializedPhaseSummary, SerializedQuest, SerializedSlot,
 } from './SerializedParliament';
 import {IncompatibleParliamentSaveError} from './ParliamentErrors';
@@ -98,6 +98,8 @@ export class Parliament {
   public discard: Array<ResolutionInstanceId> = [];
   public phase: SerializedPhaseProgress | undefined = undefined;
   public lastPhase: SerializedPhaseSummary | undefined = undefined;
+  /** The last Agenda advance (mid-generation quest or the phase) — the client presents it once by `seq`. */
+  public lastAdvance: SerializedAdvance | undefined = undefined;
   public pendingActions: Array<SerializedPendingAction> = [];
 
   constructor(botMode: BotParliamentMode = 'none', catalog: ResolutionCatalog = REDUX_RESOLUTION_CATALOG) {
@@ -628,6 +630,7 @@ export class Parliament {
       discard: [...this.discard],
       phase: this.phase === undefined ? undefined : JSON.parse(JSON.stringify(this.phase)),
       lastPhase: this.lastPhase === undefined ? undefined : JSON.parse(JSON.stringify(this.lastPhase)),
+      lastAdvance: this.lastAdvance === undefined ? undefined : {...this.lastAdvance},
       pendingActions: this.pendingActions.length > 0 ? this.pendingActions.map((action) => ({...action})) : undefined,
       botMode: this.botMode,
     };
@@ -683,6 +686,7 @@ export class Parliament {
     parliament.discard = (d.discard ?? []).map(known);
     parliament.phase = d.phase;
     parliament.lastPhase = d.lastPhase;
+    parliament.lastAdvance = d.lastAdvance;
     parliament.pendingActions = [...(d.pendingActions ?? [])];
     return parliament;
   }

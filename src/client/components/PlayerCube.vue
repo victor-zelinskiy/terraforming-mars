@@ -114,6 +114,9 @@ const BASE_RGB: Record<Color, RGB> = {
   neutral: [176, 121, 71],
 };
 
+/** The neutral delegate's steel: a cool light alloy — lit top, mid-grey sides. */
+const STEEL_RGB: RGB = [178, 186, 200];
+
 // Colour-blind overlay glyphs (carried over from the legacy sprite overlay).
 const SYMBOL: Record<Color, string> = {
   red: '▲',
@@ -192,6 +195,16 @@ export default defineComponent({
       type: Boolean as unknown as PropType<boolean | undefined>,
       default: undefined,
     },
+    /**
+     * A NEUTRAL DELEGATE (the Mars Parliament's neutral player): the same
+     * physical cube in a cool steel material. One visual system for every
+     * delegate on the board — a player's cube and a neutral one differ by
+     * colour and the colour-blind glyph, never by geometry or finish.
+     */
+    steel: {
+      type: Boolean,
+      default: false,
+    },
   },
   data() {
     return {uid: ++pcUid};
@@ -201,7 +214,7 @@ export default defineComponent({
       return this.color ?? 'neutral';
     },
     base(): RGB {
-      return BASE_RGB[this.resolvedColor] ?? BASE_RGB.neutral;
+      return this.steel ? STEEL_RGB : (BASE_RGB[this.resolvedColor] ?? BASE_RGB.neutral);
     },
     styleVars(): Record<string, string> {
       const base = this.base;
@@ -231,6 +244,7 @@ export default defineComponent({
     rootClass(): Record<string, boolean> {
       return {
         ['player-cube--' + this.resolvedColor]: true,
+        'player-cube--steel': this.steel,
         'player-cube--animate-in': this.animateIn === true,
       };
     },
@@ -253,7 +267,7 @@ export default defineComponent({
       return this.overlaySymbol === true;
     },
     symbolGlyph(): string {
-      return SYMBOL[this.resolvedColor] ?? SYMBOL.neutral;
+      return this.steel ? '○' : (SYMBOL[this.resolvedColor] ?? SYMBOL.neutral);
     },
   },
   methods: {

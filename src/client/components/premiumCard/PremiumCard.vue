@@ -76,15 +76,25 @@ Before changing it, check the console consumers in docs/DESKTOP_DEPRECATION_AUDI
         <!-- A RESOLUTION's chairman quest — the lower corner of the parliament
              family (rulebook p.9: the quest printed on the enacted card). A
              dummy states honestly that it has no effect of its own. -->
-        <div v-if="vm.parliament?.quest !== undefined" class="pcard__quest">
+        <!-- A DUMMY prints no effect row: it says so once, quietly, where the
+             mechanics would stand — never as the face's centrepiece. -->
+        <div v-if="vm.parliament?.dummy === true && vm.mechanics.textOnly" class="pcard__dummy" aria-hidden="true">{{ $t('No effect of its own') }}</div>
+        <div v-if="vm.parliament?.quest !== undefined" class="pcard__quest" :class="{'pcard__quest--words': questNodes.length === 0}">
           <span class="pcard__quest-kicker">{{ $t('Chairman quest') }}</span>
           <span class="pcard__quest-cond">
-            <!-- The GOAL as a graphic — the same render-DSL nodes the Parliament
-                 workspace and the inspector draw for this quest. -->
+            <!-- The GOAL as a GRAPHIC (the same render-DSL nodes the Parliament
+                 workspace and the inspector draw): the counts and limits are in
+                 the icons; the sentence lives in the inspector's rules panel. -->
             <span v-if="questNodes.length > 0" class="pcard__quest-graphic" aria-hidden="true">
               <PremiumMechNode v-for="(node, i) in questNodes" :key="i" :node="node" />
             </span>
-            <span class="pcard__quest-text">{{ $t(vm.parliament.quest) }}</span>
+            <span v-else class="pcard__quest-text">{{ $t(vm.parliament.quest) }}</span>
+          </span>
+          <!-- THE REWARD — the chairman's seat and ONE Agenda step, as marks. -->
+          <span class="pcard__quest-reward" aria-hidden="true">
+            <span class="pcard__quest-seat">{{ $t('Seat') }}</span>
+            <span class="pcard__quest-plus">+</span>
+            <span class="pcard__quest-step"><i class="pcard__quest-chev"></i>1</span>
           </span>
         </div>
         <div class="pcard__exp" aria-hidden="true">

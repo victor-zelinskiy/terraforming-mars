@@ -121,7 +121,14 @@ function soloActionPhase(): {game: IGame, player: TestPlayer} {
   return {game, player};
 }
 
+/** `FIXTURES=a,b npm run e2e:fixtures` regenerates ONLY the named fixtures (the rest stay as checked in). */
+const ONLY = (process.env.FIXTURES ?? '').split(',').map((s) => s.trim()).filter((s) => s !== '');
+
 function write(name: string, game: IGame): void {
+  if (ONLY.length > 0 && !ONLY.includes(name)) {
+    console.log(`${name}: skipped (FIXTURES=${ONLY.join(',')})`);
+    return;
+  }
   const serialized = game.serialize();
   const file = path.join(OUT_DIR, `${name}.json`);
   fs.writeFileSync(file, JSON.stringify(serialized, null, 1) + '\n');
@@ -368,6 +375,40 @@ function write(name: string, game: IGame): void {
   p1.cardsInHand.push(new ArtificialPhotosynthesis());
   runAllActions(game);
   write('parliament', game);
+}
+
+// ── parliament-paid: the PAID vote with a real BILL. Blue's free delegate
+//    already stands on the FIRST slot beside red's (one of the two the party
+//    effect needs — the next delegate there unlocks it and takes the lead),
+//    so blue's next vote comes from the RESERVE; blue can pay heat as M€
+//    (the Helion rule), so the bill is a real payment PROMPT the vote step
+//    hosts (a plain M€ bill auto-settles server-side). Blue also holds two
+//    delegates on the second slot (an effect held by delegates), so both the
+//    «1 of 2» and the «yours» plaque states are on screen. ──
+{
+  const [game, p1, p2] = testGame(2, {
+    skipInitialCardSelection: false, coloniesExtension: true, turmoilReduxExpansion: true,
+    startingCorporations: 1,
+  });
+  const wf = p1.getWaitingFor();
+  if (!(wf instanceof SelectInitialCards)) {
+    throw new Error(`expected SelectInitialCards, got ${wf?.constructor.name}`);
+  }
+  answerStartFlow(game, [p1, p2]);
+  const parliament = game.parliament;
+  if (parliament === undefined || parliament.slots.length !== 3) {
+    throw new Error('the parliament-paid fixture has no voting area');
+  }
+  parliament.placeVote(p2, parliament.slots[0], 'lobby');
+  parliament.placeVote(p1, parliament.slots[0], 'lobby');
+  parliament.placeVote(p1, parliament.slots[1], 'reserve');
+  parliament.placeVote(p1, parliament.slots[1], 'reserve');
+  p1.megaCredits = 40;
+  p1.heat = 9;
+  p1.canUseHeatAsMegaCredits = true;
+  p2.megaCredits = 30;
+  runAllActions(game);
+  write('parliament-paid', game);
 }
 
 // ── parliament-actions: the four PARTY ACTIONS on one seat, each with a real

@@ -389,6 +389,7 @@ import type {ICardRenderEffect, ICardRenderRoot} from '@/common/cards/render/Typ
 import {EffectForecast, EffectForecastRecipient, forecastSourceIsCardless} from '@/common/models/EffectForecastModel';
 import {REDUX_PARTIES, ReduxParty} from '@/common/parliament/ParliamentTypes';
 import {partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
+import {getResolution} from '@/client/parliament/ClientParliamentManifest';
 import {EffectOverlayStat} from '@/common/events/aggregate';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
@@ -971,14 +972,26 @@ export default defineComponent({
     ftileCard(tile: ForecastTileVm): CardName | undefined {
       return forecastItemCard(tile.item);
     },
-    /** A PARTY-sourced fact's emblem (Turmoil Redux) — the cardless source's own face. */
+    /** A PARTY- or RESOLUTION-sourced fact's emblem (Turmoil Redux) — the cardless source's own face. */
     ftilePartyEmblem(tile: ForecastTileVm): string | undefined {
       const item = tile.item;
-      if (item.kind !== 'fact' || item.fact.source.kind !== 'party') {
+      if (item.kind !== 'fact') {
         return undefined;
       }
-      const party = item.fact.source.name;
+      const source = item.fact.source;
+      if (source.kind === 'resolution') {
+        const party = getResolution(source.name)?.party;
+        return party === undefined ? undefined : partyEmblemUrl(party);
+      }
+      if (source.kind !== 'party') {
+        return undefined;
+      }
+      const party = source.name;
       return (REDUX_PARTIES as ReadonlyArray<string>).includes(party) ? partyEmblemUrl(party as ReduxParty) : undefined;
+    },
+    /** A cardless source's NAME key: a resolution resolves to its printed name through the parliament manifest. */
+    fsourceName(source: {kind: string, name: string}): string {
+      return source.kind === 'resolution' ? (getResolution(source.name)?.text.name ?? source.name) : source.name;
     },
     detailPartyEmblem(): string | undefined {
       const tile = this.detailFTile;
@@ -1021,7 +1034,7 @@ export default defineComponent({
       const item = tile.item;
       switch (item.kind) {
       case 'fact':
-        return translateText(item.fact.source.name);
+        return translateText(this.fsourceName(item.fact.source));
       case 'other-discount':
         return translateText('Other discounts');
       case 'branch-empty':
@@ -1042,7 +1055,7 @@ export default defineComponent({
     ftileCanvasText(tile: ForecastTileVm): string {
       const item = tile.item;
       if (item.kind === 'fact' && forecastSourceIsCardless(item.fact.source)) {
-        return translateText(item.fact.source.name);
+        return translateText(this.fsourceName(item.fact.source));
       }
       if (item.kind === 'other-discount') {
         return translateText('A discount with no card source');
@@ -1206,7 +1219,7 @@ export default defineComponent({
         return translateText('The cell for the tile');
       default: {
         const fact = step.fact;
-        const source = translateText(fact.source.name);
+        const source = translateText(this.fsourceName(fact.source));
         if (fact.certainty === 'asks') {
           return `${source} — ${translateText('asks')}`;
         }

@@ -19,7 +19,7 @@ export class SelectPayment extends BasePlayerInput<Payment> {
   }
 
   public toModel(player: IPlayer): SelectPaymentModel {
-    return {
+    const model: SelectPaymentModel = {
       title: this.title,
       buttonLabel: this.buttonLabel,
       type: 'payment',
@@ -41,6 +41,12 @@ export class SelectPayment extends BasePlayerInput<Payment> {
       graphene: player.getSpendable('graphene'),
       floodgateSteel: player.getSpendable('floodgateSteel'),
     };
+    // The VOTE-BILL marker rides HERE (the payment is a deferred follow-up of a
+    // menu branch; central decoration only ever sees the top-level prompt).
+    if (this.votePayment !== undefined) {
+      model.votePayment = this.votePayment;
+    }
+    return model;
   }
 
   public process(input: InputResponse, player: IPlayer) {

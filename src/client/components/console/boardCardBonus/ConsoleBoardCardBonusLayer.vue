@@ -40,7 +40,7 @@ import {motionMs} from '@/client/components/motion/motionTokens';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {currentRevealEvent, DrawnCardEntry} from '@/client/components/drawnCards/drawnCardsState';
 import {
-  abortBoardCardBonus, armBoardCardBonus, boardCardBonusState, endBoardCardBonus, isVenusScaleReveal,
+  abortBoardCardBonus, armBoardCardBonus, boardCardBonusState, endBoardCardBonus, isAgendaReveal, isVenusScaleReveal,
   markBonusZoomEntryReady, registerBoardCardBonusHandle, registerBonusZoomOrigin, revealMatchesSource,
   setBoardCardBonusPhase, stageBoardCardBonusReveal, BoardCardBonusAbortMode,
 } from '@/client/console/boardCardBonus/consoleBoardCardBonus';
@@ -55,6 +55,7 @@ import {concurrentResourcePayout, waitRewardPayoutQuiet} from '@/client/console/
 import {consoleCardZoom} from '@/client/console/consoleCardZoom';
 import {boardBeatParksReveal} from '@/client/console/boardBeatPark';
 import {probeTick} from '@/client/console/probeTick';
+import {consoleParliamentUi} from '@/client/console/consoleParliamentState';
 import {
   runBonusAbortVisual, runBonusCoverLift, runBonusFanOut, runBonusHandoff,
   runBonusSingleFlight, BonusCoverHandle, BonusSceneHandle,
@@ -182,6 +183,14 @@ export default defineComponent({
       if (e.id === s.stagedEventId) {
         return undefined;
       }
+      // An AGENDA card reward (Turmoil Redux) lifts its cover off the step
+      // the marker reached — only while the Parliament's track is ON SCREEN
+      // (the workspace open, not handed over to a nested scene). Anywhere
+      // else the standard draw presents it: the deck answers, the card
+      // reaches the hand.
+      if (isAgendaReveal(e.source)) {
+        return document.querySelector('.con-parl:not(.con-parl--handed-over) [data-parl-agenda]') !== null ? e : undefined;
+      }
       if (isVenusScaleReveal(e.source)) {
         // …and NEVER against a board the player cannot see. While the batch
         // is parked behind the board-beat drain (a workspace covered the
@@ -243,6 +252,8 @@ export default defineComponent({
           const sp = this.playerView.game.spaces.find((s) => s.id === spaceId);
           armBoardCardBonus(sp?.tileType === undefined ?
             {kind: 'board-cell', spaceId} : {kind: 'board-tile', spaceId});
+        } else if (isAgendaReveal(e.source)) {
+          armBoardCardBonus({kind: 'agenda-step', step: this.playerView.game.parliament?.lastAdvance?.to ?? 0});
         } else {
           armBoardCardBonus({kind: 'venus-scale'});
         }
@@ -256,7 +267,7 @@ export default defineComponent({
       // `board-tile` self-arm FROM their reveal, so those scenes always have
       // their batch — this path never applies to them.)
       const source = boardCardBonusState.source;
-      if (!boardCardBonusState.active || source.kind === 'venus-scale' || source.kind === 'board-tile') {
+      if (!boardCardBonusState.active || source.kind === 'venus-scale' || source.kind === 'board-tile' || source.kind === 'agenda-step') {
         return;
       }
       if (boardCardBonusState.stagedEventId !== undefined) {
@@ -331,6 +342,9 @@ export default defineComponent({
           return staged;
         }
         sel = `[data-colony-build-slot="${key}"] .benefit-glyph__card`;
+      } else if (source.kind === 'agenda-step') {
+        // The Agenda step's printed card glyph (the Parliament's track).
+        sel = `.con-parl [data-parl-agenda] .con-parl__step[data-step="${source.step}"] .con-parl__step-res`;
       } else {
         sel = VENUS_MARKER_SEL;
       }
@@ -345,6 +359,14 @@ export default defineComponent({
       registerBoardCardBonusHandle({abort: (mode) => this.onAbort(mode)});
       registerBonusZoomOrigin(() => this.proxyCardEl());
       const source = boardCardBonusState.source;
+      if (source.kind === 'agenda-step') {
+        // The reward FOLLOWS the marker: the cover lifts once the marker has
+        // settled on the step (bounded — a stalled glide never holds the scene).
+        await this.waitAgendaSettled();
+        if (!boardCardBonusState.active) {
+          return;
+        }
+      }
       const icons = this.resolveSourceIcons();
       if (icons.length === 0 && source.kind !== 'board-tile') {
         abortBoardCardBonus('instant');
@@ -410,6 +432,20 @@ export default defineComponent({
         ctx.noRevealTimer = undefined;
       }
       void this.startTransfer(e);
+    },
+    /** The Parliament's marker glide has settled (or its bounded window passed). */
+    waitAgendaSettled(): Promise<void> {
+      const started = Date.now();
+      return new Promise((done) => {
+        const poll = () => {
+          if (!consoleParliamentUi.agendaSettling || Date.now() - started >= 3000 || !boardCardBonusState.active) {
+            done();
+            return;
+          }
+          probeTick(poll);
+        };
+        poll();
+      });
     },
     /** The lift must finish its rise before the transfer takes over. */
     waitForHover(): Promise<void> {

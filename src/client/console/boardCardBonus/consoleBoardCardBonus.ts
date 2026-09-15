@@ -42,7 +42,14 @@ export type BonusCoverSource =
   | {kind: 'board-cell', spaceId: string}
   | {kind: 'board-tile', spaceId: string}
   | {kind: 'venus-scale'}
-  | {kind: 'colony-cell', colonyName: string, slotIndex: number};
+  | {kind: 'colony-cell', colonyName: string, slotIndex: number}
+  /** The Parliament's Agenda track (Turmoil Redux): a card step the viewer's marker reached — the cover lifts off the step's card glyph. */
+  | {kind: 'agenda-step', step: number};
+
+/** The reveal source an `agenda-step` scene claims (the Agenda track's card reward). */
+export function isAgendaReveal(source: CardDrawRevealSource | undefined): boolean {
+  return source?.type === 'agenda';
+}
 
 /** The reveal source a `venus-scale` scene claims (the Venus 8% draw). */
 export function isVenusScaleReveal(source: CardDrawRevealSource | undefined): boolean {
@@ -66,6 +73,9 @@ export function revealMatchesSource(
   }
   if (sceneSource.kind === 'colony-cell') {
     return revealSource?.type === 'colony' && revealSource.colonyName === sceneSource.colonyName;
+  }
+  if (sceneSource.kind === 'agenda-step') {
+    return isAgendaReveal(revealSource);
   }
   return isVenusScaleReveal(revealSource);
 }

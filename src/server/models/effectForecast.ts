@@ -249,6 +249,34 @@ function partyFacts(player: IPlayer, grants: ReadonlyArray<EffectForecastGrant>,
   return facts;
 }
 
+/**
+ * TURMOIL REDUX — the ENACTED RESOLUTION's passive effect answers the acting
+ * seat's operation through its own forecast twin (`ResolutionPassive.forecast`),
+ * fed the same grants and tiles the party facts read; the source is the
+ * resolution (cardless — the client resolves it through the parliament
+ * manifest). Nothing while no resolution with a passive stands enacted.
+ */
+function resolutionFacts(player: IPlayer, grants: ReadonlyArray<EffectForecastGrant>, tiles: ReadonlyArray<EffectForecastTile>): Array<EffectForecastFact> {
+  const parliament = player.game.parliament;
+  const enacted = parliament?.enactedDefinition();
+  const passive = enacted?.passive;
+  if (parliament === undefined || enacted === undefined || passive === undefined || !parliament.participates(player)) {
+    return [];
+  }
+  const id = enacted.id;
+  return passive.forecast({
+    player,
+    grants,
+    tiles,
+    source: (channel) => ({kind: 'resolution', name: id, owner: player.color, channel}),
+    exact: (source, effects, title, opts) => forecast.exact(source, effects, title, opts),
+    deferred: (source, effects, title, opts) => forecast.deferred(source, effects, title, opts),
+    stockGain: (resource, amount) => stockGain(player, resource, amount),
+    productionChange: (resource, delta) => productionChange(player, resource, delta),
+    drawGain: (count) => drawGain(count),
+  });
+}
+
 /** The second-order reactors of ONE seat (+ the acting seat's own played card, «including this»). */
 function grantReactorsOf(owner: IPlayer, active: IPlayer, card: ICard): Array<ICard> {
   return reactorsOf(owner, active, card).filter((c) => c.onProductionGain !== undefined || c.onResourceAdded !== undefined);
@@ -712,14 +740,19 @@ function buildForecast(player: IPlayer, card: ICard, preview: ActionPreview, ope
   }
   // Turmoil Redux: the acting seat's PARTY EFFECTS answer its own grants and
   // tiles — the branch-independent ones in `facts`, an option's own inside it.
-  facts.push(...partyFacts(player, single ? grantsOf(ownEffects) : [], sharedTiles));
+  facts.push(
+    ...partyFacts(player, single ? grantsOf(ownEffects) : [], sharedTiles),
+    ...resolutionFacts(player, single ? grantsOf(ownEffects) : [], sharedTiles));
   if (!single) {
     for (let pos = 0; pos < branches.length; pos++) {
       const branch = branches[pos];
       if (!branch.available) {
         continue;
       }
-      const own = partyFacts(player, grantsOf(branch.effects), ownTilesOf(perBranchTiles[pos], sharedTiles));
+      const own = [
+        ...partyFacts(player, grantsOf(branch.effects), ownTilesOf(perBranchTiles[pos], sharedTiles)),
+        ...resolutionFacts(player, grantsOf(branch.effects), ownTilesOf(perBranchTiles[pos], sharedTiles)),
+      ];
       if (own.length > 0) {
         const list = byBranch[pos] ?? (byBranch[pos] = []);
         list.push(...own.map((fact) => asBranchFact(fact, pos)));

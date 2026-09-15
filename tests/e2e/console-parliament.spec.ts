@@ -55,6 +55,7 @@ async function shoot(page: Page, preset: Preset, name: string): Promise<void> {
 const parliament = (page: Page) => page.locator('.con-parl');
 const slots = (page: Page) => page.locator('.con-parl__slot');
 const stage = (page: Page) => page.locator('.con-parl__stage');
+const voteStep = (page: Page) => page.locator('.con-parl__vote');
 
 /** Open the Parliament from the wheel (RT → down). */
 async function openParliament(page: Page): Promise<void> {
@@ -86,7 +87,8 @@ async function expectFits(page: Page, preset: Preset): Promise<void> {
       const r = el.getBoundingClientRect();
       return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden';
     };
-    const blocks = '.con-parl__gov, .con-parl__slot, .con-parl__tally, .con-parl__rail, .con-parl__party, .con-parl__pline, .con-parl__quest, .con-parl__agenda, .con-parl__stage';
+    const blocks = '.con-parl__gov, .con-parl__slot, .con-parl__tally, .con-parl__seats, .con-parl__party, .con-parl__pline, .con-parl__quest, .con-parl__agenda, .con-parl__stage, ' +
+      '.con-parl__vote-surface, .con-parl__vote-hero';
     for (const el of Array.from(root.querySelectorAll<HTMLElement>(blocks))) {
       if (!visible(el)) {
         continue;
@@ -107,9 +109,9 @@ async function expectFits(page: Page, preset: Preset): Promise<void> {
         }
       }
     }
-    const reading = '.con-pseal__name, .con-pseal__state, .con-parl__tally-row, .con-parl__tally-note, .con-parl__rail-row, ' +
-      '.con-parl__quest-reward, .con-parl__quest-text, .con-parl__pline-text, .con-parl__slot-win, .con-parl__kicker, ' +
-      '.con-parl__recap-item, .con-parl__txn-row, .con-parl__consequences li';
+    const reading = '.con-pseal__name, .con-pseal__state-text, .con-parl__tally-row, .con-parl__tally-note, .con-parl__vote-fact-key, .con-parl__vote-fact-val, ' +
+      '.con-parl__quest-reward, .con-parl__quest-text, .con-parl__pline-text, .con-parl__slot-win, .con-parl__kicker, .con-parl__seat, .con-parl__ruler-name, ' +
+      '.con-parl__recap-item, .con-parl__txn-row, .con-parl__vote-source-text';
     for (const el of Array.from(root.querySelectorAll<HTMLElement>(reading))) {
       if (!visible(el)) {
         continue;
@@ -119,7 +121,7 @@ async function expectFits(page: Page, preset: Preset): Promise<void> {
       }
       // Clipped by an ancestor tier (the tier's overflow hides it) — vertically,
       // and along the one-line focus rail, horizontally too.
-      const tier = el.closest<HTMLElement>('.con-parl__pline, .con-parl__gov, .con-parl__stage, .con-parl__party, .con-parl__slot, .con-parl__rail');
+      const tier = el.closest<HTMLElement>('.con-parl__pline, .con-parl__gov, .con-parl__stage, .con-parl__party, .con-parl__slot, .con-parl__seats, .con-parl__vote-surface');
       if (tier !== null) {
         const t = tier.getBoundingClientRect();
         const e = el.getBoundingClientRect();
@@ -218,24 +220,28 @@ for (const preset of PRESETS) {
       // GRAPHIC, the quest with its reward, and a tally under every card.
       const gov = page.locator('[data-parl-gov]');
       await expect(gov).toContainText(/Стартовое правило/i);
-      await expect(gov.locator('.con-parl__gov-plaque .con-pformula__mech')).toHaveCount(1);
+      await expect(gov.locator('.con-parl__ruler .con-pformula__mech')).toHaveCount(1);
+      await expect(gov.locator('[data-parl-gov-empty]'), 'no resolution enacted yet: an honest empty seat').toHaveCount(1);
+      await expect(page.locator('[data-parl-seats] .con-parl__seat'), 'the seats ledger').toHaveCount(2);
       await expect(page.locator('[data-parl-quest] .con-parl__quest-reward')).toContainText(/Кресло/);
       await expect(page.locator('[data-parl-tally]')).toHaveCount(3);
       await expect(page.locator('.con-parl__party')).toHaveCount(6);
       await shoot(page, preset, '01-browse');
 
       if (!preset.journey) {
-        // Composition: the focus rail's forecast, the vote stage, the party
-        // detail (the Greens' reason is the starting rule), the inspector.
+        // Composition: the vote step (the card carried, the forecast beside
+        // it), the party plaque (the Greens' reason is the starting rule), the inspector.
         await press(page, 'ArrowRight', 500);
-        await expect(page.locator('[data-parl-rail] .con-parl__rail-row')).not.toHaveCount(0);
         await expectFits(page, preset);
-        await shoot(page, preset, '02-focus-forecast');
-        await press(page, 'Enter', 900);
-        await expect(stage(page)).toHaveCount(1);
+        await shoot(page, preset, '02-focus');
+        await press(page, 'Enter', 1200);
+        await expect(voteStep(page)).toHaveCount(1);
+        await settle(page, {timeoutMs: 8_000});
+        await expect(page.locator('[data-parl-vote-forecast] .con-parl__vote-fact')).not.toHaveCount(0);
         await expectFits(page, preset);
-        await shoot(page, preset, '03-vote-stage');
-        expect(await pressUntil(page, 'Escape', async () => await stage(page).count() === 0, {tries: 3, settleMs: 700})).toBeTruthy();
+        await shoot(page, preset, '03-vote-step');
+        expect(await pressUntil(page, 'Escape', async () => await voteStep(page).count() === 0, {tries: 3, settleMs: 900})).toBeTruthy();
+        await settle(page, {timeoutMs: 8_000});
         const zone = () => parliament(page).getAttribute('data-zone');
         expect(await pressUntil(page, 'ArrowLeft', async () => await zone() === 'government', {tries: 3, settleMs: 300})).toBeTruthy();
         await press(page, 'ArrowDown', 500); // → the parties, on the ruling party
@@ -258,11 +264,12 @@ for (const preset of PRESETS) {
       const me = before.thisPlayer.color;
       const meBefore = before.game.parliament.players.find((p) => p.color === me);
       expect(meBefore?.lobby, 'the free delegate waits in the lobby').toBe(true);
-      await press(page, 'Enter', 900);
-      await expect(stage(page)).toHaveCount(1);
+      await press(page, 'Enter', 1200);
+      await expect(voteStep(page)).toHaveCount(1);
+      await settle(page, {timeoutMs: 8_000});
       expect((await crumbText(page)).toUpperCase()).toContain('ГОЛОС');
-      await expect(page.locator('.con-parl__consequences li')).not.toHaveCount(0);
-      await shoot(page, preset, '02-vote-stage');
+      await expect(page.locator('[data-parl-vote-forecast] .con-parl__vote-fact')).not.toHaveCount(0);
+      await shoot(page, preset, '02-vote-step');
       await press(page, 'Enter', 900);
       await expect.poll(async () => (await parliamentModel(request, playerId)).game.parliament.slots[0].viewerVotes,
         {timeout: 20_000, message: 'the delegate landed on slot 1'}).toBe(target.viewerVotes + 1);
@@ -363,9 +370,10 @@ for (const preset of PRESETS) {
       await expect(v1.locator('[data-parl-leader] .con-parl__tally-note')).toHaveCount(1);
       // A crowded ribbon folds into per-owner stacks.
       await expect(v1.locator('.con-parl__vote-stack')).not.toHaveCount(0);
-      // No vote is possible — and the rail names why.
-      await expect(page.locator('[data-parl-rail]')).toHaveClass(/con-parl__rail--off/);
-      await expect(page.locator('[data-parl-rail] .con-parl__rail-reason')).not.toHaveText('');
+      // No vote is possible — A names why, once, and opens nothing.
+      await press(page, 'Enter', 800);
+      await expect(voteStep(page)).toHaveCount(0);
+      await expect(page.locator('.con-notice')).toBeVisible();
       // The enacted resolution, the ruling party, the quest race and the
       // chairman in ONE area.
       await expect(page.locator('[data-parl-gov] .con-parl__gov-card .pcard')).toHaveCount(1);
@@ -422,6 +430,12 @@ for (const preset of PRESETS) {
       expect(await pressUntil(page, 'Enter', async () => await parliament(page).isVisible() && await stage(page).getAttribute('data-parl-stage', {timeout: 1_000}) === 'seat',
         {tries: 3, settleMs: 1500}), 'A restores the seat stage').toBeTruthy();
       await settle(page, {timeoutMs: 10_000});
+      // RELOAD mid-pick: the server still owes the seat; the stage comes back around it.
+      await reloadConsole(page);
+      // On the viewer's own turn the mandatory pick is never gated: the Parliament stands back up on its seat stage by itself.
+      await expect(stage(page)).toHaveAttribute('data-parl-stage', 'seat', {timeout: 30_000});
+      await settle(page, {timeoutMs: 10_000});
+      await shoot(page, preset, '31b-seat-after-reload');
       // Take the delegate from the focused candidate.
       await press(page, 'Enter', 1500);
       await expect.poll(async () => {

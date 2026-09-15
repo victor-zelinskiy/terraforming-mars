@@ -138,6 +138,21 @@ export type ParliamentPhaseSummaryModel = {
   lobbyRefilled: ReadonlyArray<Color>;
 };
 
+/**
+ * The LAST move of an Agenda marker — a mid-generation quest completion or the
+ * political phase's winner step. The client plays it ONCE (`seq` is the key):
+ * the marker glides from `from` to `to`, the step's reward follows.
+ */
+export type ParliamentAdvanceModel = {
+  seq: number;
+  player: Color;
+  from: number;
+  to: number;
+  bonus?: 'tr' | 'card';
+  reason: 'quest' | 'phase';
+  generation: number;
+};
+
 export type ParliamentModel = {
   slots: ReadonlyArray<ParliamentSlotModel>;
   enacted?: ParliamentEnactedModel;
@@ -151,6 +166,7 @@ export type ParliamentModel = {
   neutralSupply: number;
   phase?: ParliamentPhaseModel;
   lastPhase?: ParliamentPhaseSummaryModel;
+  lastAdvance?: ParliamentAdvanceModel;
   botMode: BotParliamentMode;
   /** Present on the viewer's own model only. */
   viewer?: {

@@ -67,6 +67,17 @@ describe('consoleBoardCardBonus', () => {
     expect(revealMatchesSource({type: 'colony', colonyName: 'Pluto'} as any, CELL)).to.be.false;
   });
 
+  it('matches an agenda-step scene to the Agenda card reward only (Turmoil Redux)', () => {
+    const step = {kind: 'agenda-step', step: 7} as const;
+    expect(revealMatchesSource({type: 'agenda'} as any, step)).to.be.true;
+    // Neither a tile, a venus nor a colony reveal claims the Agenda step; an agenda reveal claims no other scene.
+    expect(revealMatchesSource({type: 'tile'}, step)).to.be.false;
+    expect(revealMatchesSource({type: 'globalParameter', parameter: 'venus'} as any, step)).to.be.false;
+    expect(revealMatchesSource({type: 'colony', colonyName: 'Pluto'} as any, step)).to.be.false;
+    expect(revealMatchesSource({type: 'agenda'} as any, CELL)).to.be.false;
+    expect(revealMatchesSource({type: 'agenda'} as any, VENUS)).to.be.false;
+  });
+
   it('boardCardBonusClaimsReveal — the deck-draw defers to an active colony-cell scene', () => {
     const plutoReveal = {type: 'colony', colonyName: 'Pluto'} as any;
     // No scene → the deck-draw owns a colony reveal (e.g. a Pluto TRADE bonus).

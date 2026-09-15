@@ -449,6 +449,19 @@ export type VotePromptMeta = {
 }
 
 /**
+ * EXPLICIT marker that a `SelectPayment` is the BILL of a Turmoil Redux vote
+ * from the reserve (the delegate moves only once it is settled). The console
+ * hosts the payment INSIDE the vote step it belongs to — and rebuilds that
+ * step around it after a reload / a restore — by this marker, never by the
+ * prompt's title. Serialized on `SelectPayment.toModel` (nesting-safe).
+ */
+export type VotePaymentMeta = {
+  /** The party whose resolution the delegate is bound for. */
+  party: PartyName;
+  cost: number;
+}
+
+/**
  * EXPLICIT marker that a prompt IS (or belongs to) a Turmoil Redux PARTY
  * ACTION — the Industrialists' production shift, the Scientists' resource
  * gift, the Reds' recycle. `stage` tells the console which beat of the
@@ -537,6 +550,9 @@ export type BaseInputModel = {
   /** Explicit "this SelectParty is the Turmoil Redux VOTE" marker (see
    *  {@link VotePromptMeta}). Serialized on `SelectParty.toModel`. */
   votePrompt?: VotePromptMeta;
+  /** Explicit "this SelectPayment settles a Turmoil Redux VOTE from the
+   *  reserve" marker (see {@link VotePaymentMeta}). Serialized on `SelectPayment.toModel`. */
+  votePayment?: VotePaymentMeta;
   /** Explicit "this prompt is a Turmoil Redux PARTY ACTION" marker (see
    *  {@link PartyActionPromptMeta}). Serialized on the input's own `toModel`. */
   partyActionPrompt?: PartyActionPromptMeta;

@@ -27,6 +27,7 @@ import {PARTY_EFFECTS, partySource, redsDiscardPrompt} from './parties/PartyEffe
 import {QuestTracker} from './quests/QuestTracker';
 import {ChairmanSeat} from './quests/ChairmanSeat';
 import {ParliamentPhase} from './ParliamentPhase';
+import {ResolutionPassive} from './resolutions/IResolution';
 
 export class ParliamentHandler {
   // ───────────────────────── the action menu ─────────────────────────
@@ -61,6 +62,9 @@ export class ParliamentHandler {
             player.game.defer(new SelectPaymentDeferred(player, cost, {
               title: message('Select how to pay ${0} M€ for the delegate', (b) => b.number(cost)),
               cause: {kind: 'system', name: 'Mars Parliament'},
+              // The console rebuilds the vote step around this bill (a reload,
+              // a restore) by the marker — never by the title.
+              votePayment: {party, cost},
             })).andThen(() => ParliamentHandler.castVote(player, parliament, slot, 'reserve'));
           } else {
             ParliamentHandler.castVote(player, parliament, slot, 'lobby');
@@ -127,6 +131,24 @@ export class ParliamentHandler {
     QuestTracker.report(player, {kind: 'tile', space, tileType: tile.tileType});
   }
 
+  /**
+   * The ENACTED resolution's passive effect — every participant holds it while
+   * the resolution stands; the mutation carries the resolution's own source.
+   */
+  private static enactedPassive(
+    player: IPlayer,
+    parliament: Parliament,
+    channel: 'tile-placed' | 'tr-increase' | 'production-gain',
+    run: (passive: ResolutionPassive) => void,
+  ): void {
+    const enacted = parliament.enactedDefinition();
+    const passive = enacted?.passive;
+    if (enacted === undefined || passive === undefined || !parliament.participates(player)) {
+      return;
+    }
+    player.game.events.withEffectSource(player, {kind: 'resolution', id: enacted.id, owner: player.color}, channel, () => run(passive));
+  }
+
   /** Placement BONUSES for a tile (the engine calls this outside the World Government). */
   public static onTilePlaced(player: IPlayer, space: Space): void {
     const parliament = player.game?.parliament;
@@ -138,6 +160,7 @@ export class ParliamentHandler {
         player.game.events.withEffectSource(player, partySource(party, player), 'tile-placed', () => effect.onTilePlaced?.(player, space));
       }
     });
+    ParliamentHandler.enactedPassive(player, parliament, 'tile-placed', (passive) => passive.onTilePlaced?.(player, space));
   }
 
   public static onTerraformRatingGained(player: IPlayer, steps: number): void {
@@ -150,6 +173,7 @@ export class ParliamentHandler {
         player.game.events.withEffectSource(player, partySource(party, player), 'tr-increase', () => effect.onTerraformRatingGained?.(player, steps));
       }
     });
+    ParliamentHandler.enactedPassive(player, parliament, 'tr-increase', (passive) => passive.onTerraformRatingGained?.(player, steps));
     QuestTracker.report(player, {kind: 'tr', steps});
   }
 
@@ -164,6 +188,7 @@ export class ParliamentHandler {
           player.game.events.withEffectSource(player, partySource(party, player), 'production-gain', () => effect.onProductionChanged?.(player, resource, delta));
         }
       });
+      ParliamentHandler.enactedPassive(player, parliament, 'production-gain', (passive) => passive.onProductionChanged?.(player, resource, delta));
     }
     QuestTracker.report(player, {kind: 'production', resource, amount: delta});
   }

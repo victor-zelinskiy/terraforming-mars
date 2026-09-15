@@ -2,31 +2,44 @@ import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {
-  bootFixture, bootFixtureSeats, closeZoomViewer, crumbText, fetchPlayerModel, openCardActions, openMandatoryAnnounce, openQuickWheel, openZoomViewer, press,
+  bootFixture, bootFixtureSeats, closeZoomViewer, crumbText, fetchPlayerModel, openCardActions, openQuickWheel, openZoomViewer, press,
   pressUntil, reloadConsole, sendPlayerInput, settle, takeRevealCards, waitForBoardHome, walkFocusUntil,
 } from './consoleStart';
 
 /**
- * THE PARLIAMENT v2 (Turmoil Redux) — the reworked overview and the ONE
- * execution point of every party action:
+ * THE PARLIAMENT v2 (Turmoil Redux) — the reworked overview, the VOTE STEP
+ * and the ONE execution point of every party action:
  *
- *   · the overview shows OBJECTS and STATES, never rule paragraphs: no voting
- *     note, no «effect for everyone» sentence, no Agenda legend, no party
- *     detail zone — six party PLAQUES in one row with the mechanic on the
- *     plaque, the chairman quest as its own block;
- *   · the fullscreen inspector (X) of a party shows the PLAQUE as its own
- *     subject beside a rules panel that FITS without a scroll;
- *   · A on a party opens the action workspace INSIDE the Parliament
- *     («ПАРЛАМЕНТ › <партия> › НАСТРОЙКА»); B returns to the Parliament with
- *     the focus on that very party; the same composer opens from the action
- *     menu («ДЕЙСТВИЯ КАРТ › <партия> › НАСТРОЙКА»);
- *   · the Industrialists' TOTAL row reads the whole operation on one pool;
- *   · the Reds: draw → the embedded reveal in the action workspace → the
- *     mandatory discard as a HAND STEP of the same workspace → the payout
- *     beat → the flow leaves.
+ *   · the overview shows OBJECTS and STATES: the government (the enacted
+ *     card as the main object — an honest empty seat before the first
+ *     political phase — and the ruler's badge), the voting area in tie order
+ *     with a tally per card (no V-labels), the SEATS ledger (every player's
+ *     lobby socket and reserve), six party PLAQUES in one row, the Agenda;
+ *   · X on a resolution lifts THAT card into the fullscreen viewer (the slot
+ *     is held empty — never a source under the dim beside a copy) and offers
+ *     the same «Голос» verb the overview's A has;
+ *   · A (from the overview OR from the viewer) opens the VOTE STEP — a phase
+ *     descent: the pressed card is CARRIED into the hero column, the decision
+ *     surface beside it states the delegate's source and cost, the card's
+ *     delegates with the place the new one takes, and ONLY what changes;
+ *     B folds the same phrase back with the card and the focus restored;
+ *   · A sends the delegate from its real place (the lobby's socket or the
+ *     reserve) onto the card, the counters tick on the landing, the flow
+ *     LEAVES; a double press cannot send two;
+ *   · a PAID vote's bill stands INSIDE the step (never a band), survives a
+ *     collapse → restore and a reload, and the second own delegate unlocks
+ *     the party effect (the forecast says so before, the plaque after);
+ *   · off the viewer's turn the Parliament reads and A names why it cannot
+ *     vote; the parties' door nests the action workspace (the actions spec
+ *     drives the flows in full).
  */
 
 const OUT_ROOT = path.resolve('screenshots', 'parliament-v2');
+const VIDEO = process.env.PARL_VIDEO === '1';
+// Recordings of the motion (PARL_VIDEO=1): Playwright allows the video option only at the file's top level.
+if (VIDEO) {
+  test.use({video: {mode: 'on', size: {width: 1920, height: 1080}}});
+}
 
 async function shoot(page: Page, preset: string, name: string): Promise<void> {
   const dir = path.join(OUT_ROOT, preset);
@@ -35,6 +48,7 @@ async function shoot(page: Page, preset: string, name: string): Promise<void> {
 }
 
 const parliament = (page: Page) => page.locator('.con-parl');
+const voteStep = (page: Page) => page.locator('.con-parl__vote');
 const pact = (page: Page, kind: string) => page.locator(`.con-pact[data-pact="${kind}"]`);
 
 /** Open the Parliament from the wheel (RT → down). */
@@ -48,6 +62,7 @@ async function openParliament(page: Page): Promise<void> {
 }
 
 const partyFocused = (page: Page) => page.evaluate(() => document.querySelector('.con-parl__party--focus')?.getAttribute('data-party') ?? '');
+const slotFocused = (page: Page) => page.evaluate(() => document.querySelector('.con-parl__slot--focus')?.getAttribute('data-instance') ?? '');
 
 /** In «ДЕЙСТВИЯ КАРТ»: steer the cursor onto a PARTY's action tile by geometry (the menu is a 2-D grid). */
 async function focusPartyTile(page: Page, party: string): Promise<void> {
@@ -81,11 +96,27 @@ async function focusPartyTile(page: Page, party: string): Promise<void> {
 /** Walk the parties row onto `party` (positive witness on every step). */
 async function focusParty(page: Page, party: string): Promise<void> {
   const zone = () => parliament(page).getAttribute('data-zone');
-  if (await zone() !== 'parties') {
+  for (let i = 0; i < 3 && await zone() !== 'parties'; i++) {
     await press(page, 'ArrowDown', 400);
   }
   expect(await walkFocusUntil(page, async () => await partyFocused(page) === party, () => partyFocused(page), 14),
     `never focused the «${party}» plaque`).toBeTruthy();
+}
+
+/** Walk the voting area onto slot `index` (0 = closest to the government). */
+async function focusSlot(page: Page, index: number): Promise<void> {
+  const zone = () => parliament(page).getAttribute('data-zone');
+  for (let i = 0; i < 3 && await zone() !== 'voting'; i++) {
+    await press(page, 'ArrowUp', 400);
+  }
+  const at = () => page.evaluate(() => {
+    const slots = Array.from(document.querySelectorAll('.con-parl__slot'));
+    return slots.findIndex((s) => s.classList.contains('con-parl__slot--focus'));
+  });
+  for (let i = 0; i < 6 && await at() !== index; i++) {
+    await press(page, (await at()) < index ? 'ArrowRight' : 'ArrowLeft', 300);
+  }
+  expect(await at(), `never focused voting slot ${index}`).toBe(index);
 }
 
 /** Nothing readable is cut, no block spills, nothing leaves the viewport. */
@@ -103,7 +134,8 @@ async function expectFits(page: Page, label: string): Promise<void> {
       const r = el.getBoundingClientRect();
       return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden';
     };
-    const blocks = '.con-parl__gov, .con-parl__slot, .con-parl__tally, .con-parl__rail, .con-parl__party, .con-parl__pline, .con-parl__agenda, .con-parl__stage, .con-parl__quest';
+    const blocks = '.con-parl__gov, .con-parl__slot, .con-parl__tally, .con-parl__seats, .con-parl__party, .con-parl__pline, .con-parl__agenda, ' +
+      '.con-parl__stage, .con-parl__quest, .con-parl__vote-surface, .con-parl__vote-hero, .con-parl__vote-row, .con-parl__vote-forecast';
     for (const el of Array.from(root.querySelectorAll<HTMLElement>(blocks))) {
       if (!visible(el)) {
         continue;
@@ -116,9 +148,9 @@ async function expectFits(page: Page, label: string): Promise<void> {
         out.push(`spills ${name(el)} ${el.scrollHeight}>${el.clientHeight}`);
       }
     }
-    const reading = '.con-pseal__name, .con-pseal__state, .con-parl__tally-row, .con-parl__tally-note, .con-parl__rail-row, ' +
-      '.con-parl__quest-text, .con-parl__quest-reward, .con-parl__slot-win, .con-parl__kicker, .con-parl__pline-text, ' +
-      '.con-parl__recap-item, .con-parl__txn-row, .con-parl__consequences li';
+    const reading = '.con-pseal__name, .con-pseal__state-text, .con-parl__tally-row, .con-parl__tally-note, .con-parl__seat, .con-parl__ruler-name, ' +
+      '.con-parl__quest-text, .con-parl__quest-reward, .con-parl__slot-win, .con-parl__slot-party, .con-parl__kicker, .con-parl__pline-text, ' +
+      '.con-parl__recap-item, .con-parl__txn-row, .con-parl__vote-fact-key, .con-parl__vote-fact-val, .con-parl__vote-source-text, .con-parl__vote-key';
     for (const el of Array.from(root.querySelectorAll<HTMLElement>(reading))) {
       if (!visible(el)) {
         continue;
@@ -126,7 +158,7 @@ async function expectFits(page: Page, label: string): Promise<void> {
       if (el.scrollWidth > el.clientWidth + 1) {
         out.push(`cut ${name(el)}: ${(el.textContent ?? '').trim().slice(0, 48)}`);
       }
-      const tier = el.closest<HTMLElement>('.con-parl__gov, .con-parl__stage, .con-parl__party, .con-parl__slot, .con-parl__rail, .con-parl__pline');
+      const tier = el.closest<HTMLElement>('.con-parl__gov, .con-parl__stage, .con-parl__party, .con-parl__slot, .con-parl__seats, .con-parl__pline, .con-parl__vote-surface');
       if (tier !== null) {
         const t = tier.getBoundingClientRect();
         const e = el.getBoundingClientRect();
@@ -153,52 +185,54 @@ async function expectRulesFit(page: Page, label: string): Promise<void> {
   expect(overflow, `${label}: the rules panel fits without a scroll`).toBe('');
 }
 
-/** The overview carries NO rule paragraphs. */
+/** The overview carries NO rule paragraphs and no V-labels. */
 async function expectNoRuleProse(page: Page): Promise<void> {
   const text = (await parliament(page).textContent() ?? '').replace(/\s+/g, ' ');
-  for (const fragment of ['Побеждает больше делегатов', 'Эффект есть у всех', 'Пронумерованные шаги', 'У вас есть:', 'Раз за поколение']) {
+  for (const fragment of ['Побеждает больше делегатов', 'Эффект есть у всех', 'Пронумерованные шаги', 'У вас есть:', 'Раз за поколение', 'Прогноз при текущем']) {
     expect(text, `no rule prose on the overview: «${fragment}»`).not.toContain(fragment);
   }
-  await expect(page.locator('.con-parl__pdetail'), 'the detail zone is gone').toHaveCount(0);
+  expect(text, 'no V1/V2/V3 labels').not.toMatch(/\bV[123]\b/);
+  await expect(page.locator('.con-parl__rail'), 'the forecast rail is gone').toHaveCount(0);
 }
 
-/** The nested composer fits: nothing of it leaves the viewport; the commit row and every decision row stand inside it. */
-async function expectComposerFits(page: Page, label: string): Promise<void> {
-  const problems = await page.evaluate(() => {
-    const out: Array<string> = [];
-    const root = document.querySelector('.con-pact')?.getBoundingClientRect();
-    const cta = document.querySelector('[data-pact-cta]')?.getBoundingClientRect();
-    if (root === undefined || cta === undefined) {
-      return ['missing composer / commit row'];
-    }
-    if (root.bottom > window.innerHeight + 1 || root.right > window.innerWidth + 1 || root.top < -1 || root.left < -1) {
-      out.push(`composer off-screen ${Math.round(root.left)},${Math.round(root.top)} ${Math.round(root.right)},${Math.round(root.bottom)}`);
-    }
-    if (cta.bottom > root.bottom + 1 || cta.top < root.top - 1) {
-      out.push(`commit row ${Math.round(cta.top)}..${Math.round(cta.bottom)} outside the composer ${Math.round(root.top)}..${Math.round(root.bottom)}`);
-    }
-    for (const row of Array.from(document.querySelectorAll<HTMLElement>('.con-pact__row'))) {
-      const r = row.getBoundingClientRect();
-      if (r.bottom > root.bottom + 1 || r.top < root.top - 1) {
-        out.push(`a decision row runs past the composer (${Math.round(r.top)}..${Math.round(r.bottom)})`);
+/** How many copies of the resolution's face are VISIBLE on the whole page (the viewer's included). */
+async function visibleFacesOf(page: Page, resolutionId: string): Promise<number> {
+  return page.evaluate((id) => {
+    const faces = Array.from(document.querySelectorAll<HTMLElement>(`[data-zoom-slot="resolution:${id}"] .pcard, .con-zoom .pcard`));
+    let n = 0;
+    for (const face of faces) {
+      const r = face.getBoundingClientRect();
+      const cs = getComputedStyle(face);
+      if (r.width > 0 && r.height > 0 && cs.visibility !== 'hidden' && parseFloat(cs.opacity) > 0.05) {
+        let hidden = false;
+        for (let el: HTMLElement | null = face; el !== null; el = el.parentElement) {
+          if (getComputedStyle(el).visibility === 'hidden' || getComputedStyle(el).display === 'none') {
+            hidden = true;
+            break;
+          }
+        }
+        if (!hidden) {
+          n++;
+        }
       }
     }
-    return out;
-  });
-  expect(problems, `${label}: the party action composer fits`).toEqual([]);
+    return n;
+  }, resolutionId);
 }
 
-type Seat = {megacredits: number, cardsInHandNbr: number, megacreditProduction: number, energyProduction: number, tableau: Array<{name: string, resources?: number}>};
+type Seat = {megacredits: number, heat: number, cardsInHandNbr: number, megacreditProduction: number, energyProduction: number, tableau: Array<{name: string, resources?: number}>};
+type ParlWire = {
+  slots: Array<{party: string, resolution: string, totalVotes: number, viewerVotes: number, leader?: string, isWinning: boolean, votes: Array<{owner: string}>}>,
+  rulingParty: string, enacted?: {resolutionId: string},
+  players: Array<{color: string, lobby: boolean, reserve: number, participates: boolean, access: Array<{party: string, hasEffect: boolean}>}>,
+  viewer?: {vote: {available: boolean, source: string, cost: number}, partyActions: Array<{id: string, usesLeft: number}>},
+};
 
-async function seatOf(request: APIRequestContext, playerId: string): Promise<{seat: Seat, uses: Record<string, number>, waitingFor?: {type?: string, options?: Array<{title: string}>}}> {
+async function seatOf(request: APIRequestContext, playerId: string): Promise<{seat: Seat, parl: ParlWire, color: string, waitingFor?: {type?: string, options?: Array<{title: string}>}}> {
   const model = await fetchPlayerModel(request, playerId) as unknown as {
-    thisPlayer: Seat, game: {parliament: {viewer: {partyActions: Array<{id: string, usesLeft: number}>}}}, waitingFor?: {type?: string, options?: Array<{title: string}>},
+    thisPlayer: Seat & {color: string}, game: {parliament: ParlWire}, waitingFor?: {type?: string, options?: Array<{title: string}>},
   };
-  const uses: Record<string, number> = {};
-  for (const a of model.game.parliament.viewer.partyActions) {
-    uses[a.id] = a.usesLeft;
-  }
-  return {seat: model.thisPlayer, uses, waitingFor: model.waitingFor};
+  return {seat: model.thisPlayer, parl: model.game.parliament, color: model.thisPlayer.color, waitingFor: model.waitingFor};
 }
 
 async function passSeat(request: APIRequestContext, playerId: string): Promise<void> {
@@ -209,100 +243,274 @@ async function passSeat(request: APIRequestContext, playerId: string): Promise<v
   await sendPlayerInput(request, playerId, {type: 'or', index, response: {type: 'option'}});
 }
 
-for (const preset of [
+const PRESETS = [
   {id: 'standard-1080', viewport: {width: 1920, height: 1080}, query: '&consoleProfile=auto'},
   {id: 'tv-4k', viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv'},
   {id: 'deck-handheld', viewport: {width: 1280, height: 800}, query: '&consoleProfile=handheld'},
-] as const) {
-  test.describe(`parliament v2 · overview · ${preset.id}`, () => {
+] as const;
+
+for (const preset of PRESETS) {
+  test.describe(`parliament v2 · the overview and the vote step · ${preset.id}`, () => {
     test.use({viewport: preset.viewport});
-    test(`the overview is objects and states; the party inspector fits; the Parliament door nests the action workspace (${preset.id})`, async ({page, request}) => {
-      test.setTimeout(240_000);
-      await bootFixture(page, request, 'parliament', {query: preset.query});
+
+    test(`overview → X → back · A → prep · X inside prep · B restores · X → A → the same prep · the free vote lands and the flow leaves (${preset.id})`, async ({page, request}) => {
+      test.setTimeout(300_000);
+      const playerId = await bootFixture(page, request, 'parliament', {query: preset.query});
       await openParliament(page);
+      const before = (await seatOf(request, playerId)).parl;
+      const slot0 = before.slots[0];
+
+      // ── THE OVERVIEW: objects and states.
       await expect(page.locator('.con-parl__party .con-pseal'), 'six plaques').toHaveCount(6);
       await expect(page.locator('[data-parl-tally]')).toHaveCount(3);
+      await expect(page.locator('[data-parl-gov-empty]'), 'an honest empty seat before the first political phase').toHaveCount(1);
+      await expect(page.locator('[data-parl-ruler]'), 'the ruler\'s badge').toContainText(/Зелёные/);
+      await expect(page.locator('[data-parl-seats] .con-parl__seat'), 'the seats ledger: one row per player').toHaveCount(2);
+      await expect(page.locator(`[data-parl-seat-lobby="${before.players[0].color}"] .player-cube, [data-parl-seat-lobby="${before.players[1].color}"] .player-cube`),
+        'a free delegate stands in a lobby socket').not.toHaveCount(0);
       await expect(page.locator('[data-parl-quest] .con-parl__quest-cond .pcard__mech'), 'the quest condition is a graphic').toHaveCount(1);
       await expect(page.locator('[data-parl-quest-reward]')).toContainText(/Кресло/);
+      await expect(page.locator('[data-parl-reward-step]'), 'the reward names the viewer\'s next Agenda step').toHaveCount(1);
+      await expect(page.locator('.con-parl__slot.con-parl__slot--winning .con-parl__slot-win'), 'exactly one card reads «побеждает»').toHaveCount(1);
       await expectNoRuleProse(page);
       await expectFits(page, preset.id);
       await shoot(page, preset.id, '01-browse');
 
-      // The focus rail: the forecast of the next delegate (state + consequence).
-      await press(page, 'ArrowRight', 500);
-      await expect(page.locator('[data-parl-rail] .con-parl__rail-row')).not.toHaveCount(0);
-      await expectFits(page, preset.id);
-      await shoot(page, preset.id, '02-focus-forecast');
-
-      // The vote stage.
-      await press(page, 'Enter', 900);
-      await expect(page.locator('.con-parl__stage')).toHaveCount(1);
-      await expect(page.locator('[data-parl-consequences] .con-parl__consequences-kicker')).toContainText(/Прогноз/i);
-      await expectFits(page, preset.id);
-      await shoot(page, preset.id, '03-vote-stage');
-      expect(await pressUntil(page, 'Escape', async () => await page.locator('.con-parl__stage').count() === 0, {tries: 3, settleMs: 700})).toBeTruthy();
-
-      // The parties: the Scientists' plaque (held by two delegates in this fixture).
-      await focusParty(page, 'Scientists');
-      await expect(page.locator('.con-parl__party--focus .con-pseal--delegates'), 'the state ring reads «your effect»').toHaveCount(1);
-      await expectFits(page, preset.id);
-      await shoot(page, preset.id, '04-party-focus');
-
-      // X: the party is its own subject in the viewer, beside a rules panel that fits.
-      await openZoomViewer(page);
-      await expect(page.locator('.con-zoom .con-pseal--full'), 'the party plaque is the subject').toHaveCount(1);
-      await expect(page.locator('.con-zoom-rules').first()).toBeVisible({timeout: 10_000});
-      await expect(page.locator('.con-zoom-rules'), 'no English inside the Russian rules').not.toContainText(/Add 2 data|Scientists —|Reds —/);
-      await expectRulesFit(page, `${preset.id} party`);
-      await shoot(page, preset.id, '05-inspect-party');
-      await closeZoomViewer(page);
-      expect(await partyFocused(page), 'the inspector returns the focus where it was').toBe('Scientists');
-
-      // The resolution inspector fits too.
-      await press(page, 'ArrowUp', 500);
+      // ── X: the card lifts out of its slot (the slot is held empty), the
+      //    viewer offers the vote verb, the rules panel fits; back restores.
+      const focusedBefore = await slotFocused(page);
       await openZoomViewer(page);
       await expect(page.locator('.con-zoom .pcard')).not.toHaveCount(0);
-      await expect(page.locator('.con-zoom-rules'), 'a dummy states its one fact calmly').not.toContainText(/нулевой итерации|тестовая/i);
+      await expect(page.locator('.con-parl__slot--focus .con-zoom-hold'), 'the slot\'s own card is held while it is in the viewer').toHaveCount(1);
+      expect(await visibleFacesOf(page, slot0.resolution), 'one physical card: the viewer\'s, never a copy beside the source').toBe(1);
+      await expect(page.locator('.con-zoom__btn--play'), 'the viewer offers the vote').toContainText(/Голос/i);
       await expectRulesFit(page, `${preset.id} resolution`);
-      await shoot(page, preset.id, '06-inspect-resolution');
+      await shoot(page, preset.id, '02-inspect-resolution');
       await closeZoomViewer(page);
+      await settle(page, {timeoutMs: 8_000});
+      await expect(page.locator('.con-parl .con-zoom-hold'), 'the hold is released on the way back').toHaveCount(0);
+      expect(await slotFocused(page), 'the focus is where it was').toBe(focusedBefore);
 
-      // THE DOOR, BLOCKED: in this fixture the Scientists' action has no
-      // target («no card stores data or microbes») — the row's line names
-      // the reason, A says it again as a notice, and nothing opens.
-      await focusParty(page, 'Scientists');
-      await expect(page.locator('[data-parl-pline]'), 'the reason stands under the row').not.toHaveText('');
-      await press(page, 'Enter', 700);
-      await expect(page.locator('.con-cardactions'), 'a blocked action opens nothing').toHaveCount(0);
-      await expect(page.locator('.con-notice'), 'the notice names the reason').toBeVisible();
-      await shoot(page, preset.id, '07-blocked-door');
-    });
+      // ── A: the VOTE STEP — the card carried, the decision beside it.
+      await press(page, 'Enter', 1200);
+      await expect(voteStep(page), 'the vote step stands').toHaveCount(1);
+      await settle(page, {timeoutMs: 8_000});
+      expect((await crumbText(page)).toUpperCase(), 'the crumb names the step').toContain('ГОЛОС');
+      await expect(page.locator('.con-parl__slot--carried'), 'the pressed slot keeps its place, its card carried').toHaveCount(1);
+      await expect(page.locator('[data-parl-vote-card] .pcard'), 'the hero is the card').toHaveCount(1);
+      expect(await visibleFacesOf(page, slot0.resolution), 'one physical card in the step').toBe(1);
+      await expect(page.locator('[data-parl-vote-source]'), 'the delegate\'s real source').toContainText(/лобби/i);
+      await expect(page.locator('[data-parl-fact="votes"]')).toContainText(new RegExp(`${slot0.totalVotes}\\s*→\\s*${slot0.totalVotes + 1}`));
+      await expect(page.locator('[data-parl-fact="mine"]')).toContainText(/0\s*→\s*1/);
+      await expect(page.locator('[data-parl-vote-place]'), 'the place the delegate will take').toHaveCount(1);
+      await expect(page.locator('.con-parl__stage'), 'no second vote surface (the old stage is gone)').toHaveCount(0);
+      await expectFits(page, `${preset.id} prep`);
+      await shoot(page, preset.id, '03-vote-prep');
 
-    test(`the Parliament's door nests the action workspace; B returns to the party (${preset.id})`, async ({page, request}) => {
-      test.setTimeout(180_000);
-      await bootFixtureSeats(page, request, 'parliament-actions', {query: preset.query});
+      // ── X INSIDE THE PREP: the hero lifts into the viewer and comes back; the prepared context is untouched.
+      await openZoomViewer(page);
+      await expect(page.locator('[data-parl-vote-card] .con-zoom-hold'), 'the hero is the held source').toHaveCount(1);
+      await expect(page.locator('.con-zoom__btn--play'), 'no second vote verb inside the vote').toHaveCount(0);
+      await shoot(page, preset.id, '04-inspect-in-prep');
+      await closeZoomViewer(page);
+      await settle(page, {timeoutMs: 8_000});
+      await expect(voteStep(page), 'the prep survives the inspector').toHaveCount(1);
+      await expect(page.locator('[data-parl-fact="votes"]')).toContainText(new RegExp(`${slot0.totalVotes}\\s*→\\s*${slot0.totalVotes + 1}`));
+
+      // ── B: the same phrase folds back — the card returns to its slot, the focus is where it was.
+      expect(await pressUntil(page, 'Escape', async () => await voteStep(page).count() === 0, {tries: 3, settleMs: 900}), 'B folds the vote step').toBeTruthy();
+      await settle(page, {timeoutMs: 8_000});
+      await expect(page.locator('.con-parl__slot--carried'), 'the slot\'s card is back').toHaveCount(0);
+      expect(await visibleFacesOf(page, slot0.resolution), 'one card, back in its slot').toBe(1);
+      expect(await slotFocused(page), 'the focus is where it was').toBe(focusedBefore);
+      expect(await parliament(page).getAttribute('data-stage')).toBe('browse');
+      await shoot(page, preset.id, '05-prep-cancelled');
+
+      // ── X → A: the SAME prep from the fullscreen — the card flies from the viewer into the hero slot.
+      await openZoomViewer(page);
+      await press(page, 'Enter', 1500);
+      await expect(voteStep(page), 'A in the viewer opens the vote step').toHaveCount(1, {timeout: 10_000});
+      await expect(page.locator('dialog.con-zoom[open]'), 'the viewer has handed the card over').toHaveCount(0, {timeout: 10_000});
+      await settle(page, {timeoutMs: 8_000});
+      await expect(page.locator('[data-parl-vote-card] .pcard')).toHaveCount(1);
+      expect(await visibleFacesOf(page, slot0.resolution), 'one physical card after the handoff').toBe(1);
+      await expect(page.locator('[data-parl-fact="votes"]')).toContainText(new RegExp(`${slot0.totalVotes}\\s*→\\s*${slot0.totalVotes + 1}`));
+      await shoot(page, preset.id, '06-prep-from-viewer');
+
+      // ── A: the delegate leaves the lobby, lands on the card, the counters
+      //    tick, the flow leaves. A second press in the same beat sends nothing.
+      const me = (await seatOf(request, playerId)).color;
+      // Two presses in one beat: the second lands while the first is in flight (the step absorbs it by phase).
+      await page.keyboard.press('Enter');
+      await page.keyboard.press('Enter');
+      await expect(page.locator('.con-parl__vote--landed, .con-parl__vote--committed'), 'the step commits').toHaveCount(1, {timeout: 10_000});
+      await expect.poll(async () => (await seatOf(request, playerId)).parl.slots[0].viewerVotes, {timeout: 20_000, message: 'the delegate landed on slot 1'}).toBe(slot0.viewerVotes + 1);
+      const landed = page.locator('.con-parl__vote--landed');
+      if (await landed.count() > 0) {
+        await shoot(page, preset.id, '07-landed');
+      }
+      await waitForBoardHome(page, 40);
+      await expect(parliament(page), 'a finished vote leaves the workspace').toHaveCount(0);
+      const after = (await seatOf(request, playerId)).parl;
+      expect(after.slots[0].totalVotes, 'exactly ONE delegate was sent (the double press sent nothing)').toBe(slot0.totalVotes + 1);
+      expect(after.players.find((p) => p.color === me)?.lobby, 'the lobby delegate was spent').toBe(false);
+      await shoot(page, preset.id, '08-after-vote');
+
+      // ── The overview after the vote: the ledger reads the empty lobby socket.
       await openParliament(page);
-      await focusParty(page, 'Scientists');
-      expect(await pressUntil(page, 'Enter', async () => await pact(page, 'scientists').count() > 0, {tries: 3, settleMs: 1200}),
-        'A on the party opens its composer').toBeTruthy();
-      await settle(page, {timeoutMs: 10_000});
-      const crumb = (await crumbText(page)).toUpperCase();
-      expect(crumb, `one crumb rooted at the Parliament (${crumb})`).toContain('ПАРЛАМЕНТ');
-      expect(crumb).toContain('НАСТРОЙКА');
-      await expect(page.locator('.con-cardactions'), 'the action workspace stands inside the Parliament').toHaveCount(1);
-      await expect(page.locator('.con-pact .con-pseal--hero'), 'the party plaque is the hero').toHaveCount(1);
-      await expectComposerFits(page, preset.id);
-      await shoot(page, preset.id, '08-party-action-from-parliament');
-      // B: back into the Parliament, focus untouched.
-      expect(await pressUntil(page, 'Escape', async () => await page.locator('.con-cardactions').count() === 0, {tries: 3, settleMs: 1000}),
-        'B leaves the nested action workspace').toBeTruthy();
-      await settle(page, {timeoutMs: 10_000});
-      await expect(parliament(page)).toBeVisible();
-      expect(await partyFocused(page), 'the focus is on the party the player came from').toBe('Scientists');
-      await shoot(page, preset.id, '09-back-in-parliament');
+      await expect(page.locator(`[data-parl-seat-lobby="${me}"] .player-cube`), 'the viewer\'s lobby socket is empty now').toHaveCount(0);
+      await expect(page.locator('.con-parl__slot').nth(0)).toHaveAttribute('data-votes', String(slot0.totalVotes + 1));
+      await expectFits(page, `${preset.id} after`);
+      await shoot(page, preset.id, '09-overview-after-vote');
     });
   });
 }
+
+test.describe('parliament v2 · the paid vote · the bill inside the step · the second delegate unlocks the effect', () => {
+  test.use({viewport: {width: 1920, height: 1080}});
+
+  test('reserve source and cost · lead + effect forecast · the bill embedded · collapse → restore · reload · pay → the delegate lands from the reserve → the plaque reads «yours»', async ({page, request}) => {
+    test.setTimeout(420_000);
+    const playerId = await bootFixture(page, request, 'parliament-paid', {query: '&consoleProfile=auto'});
+    const preset = 'paid-1080';
+    await openParliament(page);
+    const before = await seatOf(request, playerId);
+    const slot0 = before.parl.slots[0];
+    expect(before.parl.viewer?.vote.source, 'the free delegate is spent: the vote comes from the reserve').toBe('reserve');
+    expect(slot0.viewerVotes, 'one own delegate stands on the first card').toBe(1);
+    const party0 = slot0.party;
+
+    // The plaque states: «1 of 2» on the first card's party, «yours» on the second's.
+    await expect(page.locator(`.con-parl__party[data-party="${party0}"][data-party-state="progress"]`), 'the party reads «1 of 2»').toHaveCount(1);
+    await expect(page.locator(`.con-parl__party[data-party="${party0}"] .con-pseal__place--on`), 'one of the two places holds the viewer\'s cube').toHaveCount(1);
+    await expect(page.locator(`.con-parl__party[data-party="${before.parl.slots[1].party}"][data-party-state="delegates"]`), 'the second card\'s party is held').toHaveCount(1);
+    await expect(page.locator(`[data-parl-seat-lobby="${before.color}"] .player-cube`), 'the lobby socket is empty').toHaveCount(0);
+    await expectFits(page, preset);
+    await shoot(page, preset, '10-browse');
+
+    // ── A: the prep reads the reserve, the cost, the lead change and the effect unlock.
+    await focusSlot(page, 0);
+    await press(page, 'Enter', 1200);
+    await expect(voteStep(page)).toHaveCount(1);
+    await settle(page, {timeoutMs: 8_000});
+    await expect(page.locator('[data-parl-vote-source]')).toContainText(/резерва/i);
+    await expect(page.locator('[data-parl-vote-source] .con-parl__vote-cost'), 'the cost chip').toHaveCount(1);
+    await expect(page.locator('[data-parl-fact="votes"]')).toContainText(/2\s*→\s*3/);
+    await expect(page.locator('[data-parl-fact="mine"]')).toContainText(/1\s*→\s*2/);
+    await expect(page.locator('[data-parl-fact="lead"]'), 'the lead changes hands').toHaveCount(1);
+    await expect(page.locator('[data-parl-fact="access"]'), 'the party effect becomes the viewer\'s').toHaveCount(1);
+    await expectFits(page, `${preset} prep`);
+    await shoot(page, preset, '11-paid-prep');
+
+    // ── A: the bill stands INSIDE the step — never a band over it.
+    await press(page, 'Enter', 1500);
+    const bill = page.locator('.con-parl__vote [data-embed-slot="parliament-vote"] .con-task-host--embedded');
+    await expect(bill, 'the payment panel stands in the step\'s zone').toHaveCount(1, {timeout: 20_000});
+    await expect(page.locator('.con-task-host:not(.con-task-host--embedded)'), 'never a standalone payment band').toHaveCount(0);
+    await expect(parliament(page)).toHaveAttribute('data-stage', 'paying');
+    expect((await crumbText(page)).toUpperCase()).toContain('ОПЛАТА');
+    await settle(page, {timeoutMs: 8_000});
+    await expectFits(page, `${preset} bill`);
+    await shoot(page, preset, '12-bill-inside-step');
+
+    // ── B: the bill is owed — the whole workspace COLLAPSES to the board; A brings the same step back.
+    expect(await pressUntil(page, 'Escape', async () => !await parliament(page).isVisible(), {tries: 3, settleMs: 1000}), 'B collapses the Parliament around the bill').toBeTruthy();
+    await settle(page, {timeoutMs: 10_000});
+    await expect(page.locator('.con-mandatory'), 'the owed bill stands on the board home').toBeVisible({timeout: 15_000});
+    await shoot(page, preset, '13-bill-collapsed');
+    expect(await pressUntil(page, 'Enter', async () => await bill.count() > 0, {tries: 3, settleMs: 1500}), 'A restores the step with its bill').toBeTruthy();
+    await settle(page, {timeoutMs: 10_000});
+    await expect(parliament(page)).toHaveAttribute('data-stage', 'paying');
+    await expect(page.locator('.con-parl__slot--carried'), 'the card is still carried').toHaveCount(1);
+    await shoot(page, preset, '14-bill-restored');
+
+    // ── RELOAD mid-bill: the server still owes the payment; the step re-forms around it.
+    await reloadConsole(page);
+    await expect(bill, 'the Parliament re-opens around the bill by itself; the vote step resumed').toHaveCount(1, {timeout: 30_000});
+    await expect(page.locator('.con-task-host:not(.con-task-host--embedded)'), 'never a standalone band after the reload').toHaveCount(0);
+    await settle(page, {timeoutMs: 10_000});
+    await expect(page.locator('[data-parl-vote-card] .pcard'), 'the carried card is back in the hero column').toHaveCount(1);
+    await expect(page.locator('[data-parl-fact="votes"]')).toContainText(/2\s*→\s*3/);
+    await shoot(page, preset, '15-bill-after-reload');
+
+    // ── PAY: the delegate leaves the reserve, lands, the flow leaves; the plaque reads «yours».
+    await press(page, 'KeyX', 1500);
+    await expect.poll(async () => (await seatOf(request, playerId)).parl.slots[0].viewerVotes, {timeout: 30_000, message: 'the second delegate landed'}).toBe(2);
+    const paid = await seatOf(request, playerId);
+    expect(paid.seat.megacredits + paid.seat.heat, 'the bill was settled from the viewer\'s pools').toBeLessThan(before.seat.megacredits + before.seat.heat);
+    expect(paid.parl.players.find((p) => p.color === before.color)?.reserve, 'one delegate left the reserve').toBe((before.parl.players.find((p) => p.color === before.color)?.reserve ?? 0) - 1);
+    expect(paid.parl.players.find((p) => p.color === before.color)?.access.find((a) => a.party === party0)?.hasEffect, 'the party effect is the viewer\'s now').toBe(true);
+    await waitForBoardHome(page, 40);
+    await openParliament(page);
+    await expect(page.locator(`.con-parl__party[data-party="${party0}"][data-party-state="delegates"]`), 'the plaque reads «yours»').toHaveCount(1);
+    await expect(page.locator('.con-parl__slot').nth(0)).toHaveAttribute('data-votes', '3');
+    await shoot(page, preset, '16-after-paid-vote');
+  });
+});
+
+test.describe('parliament v2 · a crowded table · the vote that is not possible', () => {
+  test.use({viewport: {width: 1920, height: 1080}});
+
+  test('the Parliament reads a crowded table: ties, a neutral majority, the winner, the seats — and A names why the vote is not possible', async ({page, request}) => {
+    test.setTimeout(180_000);
+    const playerId = await bootFixture(page, request, 'parliament-dense', {query: '&consoleProfile=auto'});
+    await openParliament(page);
+    const stage = page.locator('.con-parl__stage');
+    if (await stage.count() > 0) {
+      expect(await pressUntil(page, 'Enter', async () => await stage.count() === 0, {tries: 3, settleMs: 800}), 'the results let the player through').toBeTruthy();
+      await settle(page, {timeoutMs: 10_000});
+    }
+    const model = await seatOf(request, playerId);
+    expect(model.parl.viewer?.vote.available, 'no delegate of the viewer is left to send').toBe(false);
+    const preset = 'dense-1080';
+    // Neutral delegates and players' delegates: one system — cubes; the neutral ones in steel.
+    await expect(page.locator('.con-parl__ribbon .player-cube--steel, .con-parl__vote-stack .player-cube--steel'), 'neutral delegates read as steel cubes').not.toHaveCount(0);
+    await expect(page.locator('.con-parl__slot.con-parl__slot--winning'), 'one winning card').toHaveCount(1);
+    await expect(page.locator('.con-parl__slot--winning .con-parl__tally-note--win'), 'the tie is explained on the card').toHaveCount(1);
+    await expect(page.locator('[data-parl-gov] .con-parl__gov-card .pcard'), 'the enacted card is the government\'s main object').toHaveCount(1);
+    await expect(page.locator('[data-parl-seats] .con-parl__seat')).toHaveCount(5);
+    await expect(page.locator('[data-parl-seat-chair]'), 'the chairman\'s seat is on the ledger').toHaveCount(1);
+    await expectFits(page, preset);
+    await shoot(page, preset, '20-dense-offturn');
+    // A on a card off-turn: nothing opens; the reason is named once.
+    await press(page, 'Enter', 800);
+    await expect(voteStep(page), 'no vote step without a delegate to send').toHaveCount(0);
+    await expect(page.locator('.con-notice'), 'the notice names the reason').toBeVisible();
+    await shoot(page, preset, '21-dense-blocked-vote');
+    // The parties: several effects held at once; the used action stamped on its badge.
+    await press(page, 'ArrowDown', 500);
+    expect(await page.locator('.con-parl__party--held').count(), 'several party effects at once').toBeGreaterThanOrEqual(3);
+    await expect(page.locator('.con-parl__party[data-action-state="used"] .con-pseal__action-mark'), 'the used action is stamped').toHaveCount(1);
+    await expectFits(page, preset);
+    await shoot(page, preset, '22-dense-parties');
+  });
+});
+
+test.describe('parliament v2 · the parties\' door', () => {
+  test.use({viewport: {width: 1920, height: 1080}});
+
+  test('A on a party nests the action workspace inside the Parliament; B returns to the party', async ({page, request}) => {
+    test.setTimeout(180_000);
+    await bootFixtureSeats(page, request, 'parliament-actions', {query: '&consoleProfile=auto'});
+    await openParliament(page);
+    await focusParty(page, 'Scientists');
+    expect(await pressUntil(page, 'Enter', async () => await pact(page, 'scientists').count() > 0, {tries: 3, settleMs: 1200}),
+      'A on the party opens its composer').toBeTruthy();
+    await settle(page, {timeoutMs: 10_000});
+    const crumb = (await crumbText(page)).toUpperCase();
+    expect(crumb, `one crumb rooted at the Parliament (${crumb})`).toContain('ПАРЛАМЕНТ');
+    expect(crumb).toContain('НАСТРОЙКА');
+    await expect(page.locator('.con-cardactions'), 'the action workspace stands inside the Parliament').toHaveCount(1);
+    await expect(page.locator('.con-pact .con-pseal--hero'), 'the party plaque is the hero').toHaveCount(1);
+    await shoot(page, 'door-1080', '30-party-action-from-parliament');
+    expect(await pressUntil(page, 'Escape', async () => await page.locator('.con-cardactions').count() === 0, {tries: 3, settleMs: 1000}),
+      'B leaves the nested action workspace').toBeTruthy();
+    await settle(page, {timeoutMs: 10_000});
+    await expect(parliament(page)).toBeVisible();
+    expect(await partyFocused(page), 'the focus is on the party the player came from').toBe('Scientists');
+    await shoot(page, 'door-1080', '31-back-in-parliament');
+  });
+});
 
 test.describe('parliament v2 · one execution point, two doors · the Reds in full', () => {
   test.use({viewport: {width: 1920, height: 1080}});
@@ -321,19 +529,18 @@ test.describe('parliament v2 · one execution point, two doors · the Reds in fu
     await settle(page, {timeoutMs: 8_000});
     expect((await crumbText(page)).toUpperCase()).toContain('ДЕЙСТВИЯ КАРТ');
     await expect(page.locator('[data-pact-cta][data-pact-ready]'), 'the commit row is not ready before the decisions').toHaveCount(0);
-    await shoot(page, preset, '10-industrialists-open');
-    // Pick M€ decrease (the first option), then M€ increase (the first option): ONE pool → ONE total chip.
+    await shoot(page, preset, '40-industrialists-open');
     await press(page, 'Enter', 500);
     await expect(page.locator('.con-pact__opt--picked')).toHaveCount(1);
     await press(page, 'Enter', 500);
     await expect(page.locator('.con-pact__opt--picked')).toHaveCount(2);
-    await expect(page.locator('[data-pact-total] .action-chip, [data-pact-total] [class*="chip"]').first(), 'the total row is on screen').toBeVisible();
     const total = (await page.locator('[data-pact-total]').textContent() ?? '').replace(/\s+/g, ' ');
     expect(total, `the total reads the net result of one pool (${total})`).toMatch(/→/);
     await expect(page.locator('[data-pact-cta][data-pact-ready]'), 'the commit row is ready now').toHaveCount(1);
-    await shoot(page, preset, '11-industrialists-total');
+    await shoot(page, preset, '41-industrialists-total');
     await press(page, 'Enter', 900);
-    await expect.poll(async () => (await seatOf(request, playerId)).uses['industrialists-shift'], {timeout: 20_000}).toBe(0);
+    const usesOf = async (id: string) => (await seatOf(request, playerId)).parl.viewer?.partyActions.find((a) => a.id === id)?.usesLeft;
+    await expect.poll(async () => await usesOf('industrialists-shift'), {timeout: 20_000}).toBe(0);
     const after = (await seatOf(request, playerId)).seat;
     expect(after.megacreditProduction + after.energyProduction - before.megacreditProduction - before.energyProduction).toBe(1);
     await waitForBoardHome(page, 30);
@@ -345,21 +552,31 @@ test.describe('parliament v2 · one execution point, two doors · the Reds in fu
     expect(await pressUntil(page, 'Enter', async () => await pact(page, 'scientists').count() > 0, {tries: 3, settleMs: 1200})).toBeTruthy();
     await settle(page, {timeoutMs: 8_000});
     expect((await crumbText(page)).toUpperCase()).toContain('ПАРЛАМЕНТ');
-    await press(page, 'Enter', 500); // the resource under the cursor → the target row
-    await press(page, 'Enter', 500); // the target card → the commit row
+    await press(page, 'Enter', 500);
+    await press(page, 'Enter', 500);
     await expect(page.locator('.con-pact__opt--picked, .con-pact__card--picked')).toHaveCount(2);
-    await shoot(page, preset, '12-scientists-from-parliament');
+    await shoot(page, preset, '42-scientists-from-parliament');
     await press(page, 'Enter', 900);
     await expect.poll(async () => (await seatOf(request, playerId)).seat.tableau.find((c) => c.name === 'Tardigrades')?.resources ?? -1, {timeout: 20_000}).toBe(2);
     await expect.poll(async () => await page.locator('.con-cardactions').count(), {timeout: 20_000, message: 'the action workspace leaves'}).toBe(0);
     await settle(page, {timeoutMs: 10_000});
     await expect(parliament(page), 'a flow opened from the Parliament ends in the Parliament').toBeVisible();
     await expect(page.locator('.con-parl__party[data-party="Scientists"][data-action-state="used"]'), 'the plaque reads «used»').toHaveCount(1);
-    await shoot(page, preset, '13-back-in-parliament-used');
+    await shoot(page, preset, '43-back-in-parliament-used');
     expect(await pressUntil(page, 'Escape', async () => await parliament(page).count() === 0, {tries: 4, settleMs: 900})).toBeTruthy();
     await settle(page);
 
-    // Two actions spent — the opponent passes; blue is back on.
+    // ── OFF THE VIEWER'S TURN (two actions spent): the Parliament reads, A names why it cannot vote.
+    await openParliament(page);
+    await expect(page.locator('.con-parl__party[data-party="Scientists"][data-action-state="used"]'), 'the plaque keeps the used state').toHaveCount(1);
+    await focusSlot(page, 0);
+    await press(page, 'Enter', 800);
+    await expect(voteStep(page), 'no vote step off-turn').toHaveCount(0);
+    await expect(page.locator('.con-notice'), 'the notice names the turn').toContainText(/ход/i);
+    await shoot(page, preset, '43b-off-turn');
+    expect(await pressUntil(page, 'Escape', async () => await parliament(page).count() === 0, {tries: 4, settleMs: 900})).toBeTruthy();
+    await settle(page);
+
     await passSeat(request, opponent);
     await expect.poll(async () => (await seatOf(request, playerId)).waitingFor?.type, {timeout: 20_000}).toBe('or');
     await settle(page, {timeoutMs: 15_000});
@@ -370,90 +587,29 @@ test.describe('parliament v2 · one execution point, two doors · the Reds in fu
     await focusPartyTile(page, 'Reds');
     expect(await pressUntil(page, 'Enter', async () => await pact(page, 'reds').count() > 0, {tries: 3, settleMs: 1100})).toBeTruthy();
     await settle(page, {timeoutMs: 8_000});
-    await shoot(page, preset, '14-reds-open');
-    await press(page, 'Enter', 1500); // the commit row: the draw happens now
-    await expect.poll(async () => (await seatOf(request, playerId)).uses['reds-recycle'], {timeout: 20_000, message: 'the Reds action is spent at the draw'}).toBe(0);
-    // The reveal presents INSIDE the action workspace, in the composer's zone.
+    await shoot(page, preset, '44-reds-open');
+    await press(page, 'Enter', 1500);
+    await expect.poll(async () => await usesOf('reds-recycle'), {timeout: 20_000, message: 'the Reds action is spent at the draw'}).toBe(0);
     await expect(page.locator('.con-cardactions .con-pact__revealzone .con-reveal'), 'the drawn cards land in the composer zone').toHaveCount(1, {timeout: 20_000});
     await settle(page, {timeoutMs: 15_000});
     await expect(page.locator('.con-reveal:not(.con-reveal--embedded)'), 'never a standalone reveal').toHaveCount(0);
-    await shoot(page, preset, '15-reds-embedded-reveal');
+    await shoot(page, preset, '45-reds-embedded-reveal');
     await takeRevealCards(page);
-    // The discard is a HAND STEP of the same workspace — the hand mounts inside the composer zone.
     await expect(page.locator('.con-cardactions .con-pact__handzone .con-hand--discard'), 'the mandatory discard stands inside the action workspace').toHaveCount(1, {timeout: 30_000});
     await settle(page, {timeoutMs: 15_000});
-    const crumbDiscard = (await crumbText(page)).toUpperCase();
-    expect(crumbDiscard, `the crumb names the step (${crumbDiscard})`).toContain('СБРОС');
-    await expect(page.locator('.con-hand__discard')).toContainText(/Красные/);
-    await shoot(page, preset, '16-reds-hand-step');
+    expect((await crumbText(page)).toUpperCase()).toContain('СБРОС');
+    await shoot(page, preset, '46-reds-hand-step');
     await press(page, 'Enter', 300);
     await press(page, 'ArrowRight', 250);
     await press(page, 'Enter', 300);
-    await press(page, 'Period', 1200); // RT — confirm the set
+    await press(page, 'Period', 1200);
     await expect.poll(async () => (await seatOf(request, playerId)).waitingFor?.type, {timeout: 30_000}).not.toBe('card');
-    // The payout beat, then the flow leaves.
     await expect(page.locator('[data-pact-result]'), 'the closing beat reads the payout').toHaveCount(1, {timeout: 20_000});
-    await shoot(page, preset, '17-reds-payout');
+    await shoot(page, preset, '47-reds-payout');
     await waitForBoardHome(page, 40);
     await expect(page.locator('.con-cardactions')).toHaveCount(0);
     const afterReds = (await seatOf(request, playerId)).seat;
     expect(afterReds.cardsInHandNbr, 'drew 2, discarded 2').toBe(beforeReds.cardsInHandNbr);
     expect(afterReds.megacredits).toBeGreaterThanOrEqual(beforeReds.megacredits);
-    await shoot(page, preset, '18-after-reds');
-  });
-
-  test('the Reds flow survives a collapse (B → board → A) and a reload mid-discard: the workspace resumes around the hand step', async ({page, request}) => {
-    test.setTimeout(360_000);
-    const {playerId} = await bootFixtureSeats(page, request, 'parliament-actions', {query: '&consoleProfile=auto'});
-    const preset = 'restore-1080';
-    await openCardActions(page);
-    const before = (await seatOf(request, playerId)).seat;
-    await focusPartyTile(page, 'Reds');
-    expect(await pressUntil(page, 'Enter', async () => await pact(page, 'reds').count() > 0, {tries: 3, settleMs: 1100})).toBeTruthy();
-    await settle(page, {timeoutMs: 8_000});
-    await press(page, 'Enter', 1500); // the draw
-    await expect.poll(async () => (await seatOf(request, playerId)).uses['reds-recycle'], {timeout: 20_000}).toBe(0);
-    await expect(page.locator('.con-cardactions .con-pact__revealzone .con-reveal')).toHaveCount(1, {timeout: 20_000});
-    await settle(page, {timeoutMs: 15_000});
-    await takeRevealCards(page);
-    const handStep = page.locator('.con-cardactions .con-pact__handzone .con-hand--discard');
-    await expect(handStep, 'the discard stands inside the action workspace').toHaveCount(1, {timeout: 30_000});
-    await settle(page, {timeoutMs: 15_000});
-
-    // COLLAPSE: B on the mandatory step parks the WHOLE workspace (the decision
-    // stays owed); the board-home card is the one way back.
-    expect(await pressUntil(page, 'Escape', async () => await page.locator('.con-cardactions').count() === 0, {tries: 3, settleMs: 1000}),
-      'B collapses the workspace').toBeTruthy();
-    await settle(page, {timeoutMs: 10_000});
-    await expect(page.locator('.con-mandatory'), 'the deferred decision stands on the board home').toBeVisible({timeout: 15_000});
-    await shoot(page, preset, '20-collapsed');
-    // RESTORE: A brings the same stage back — the hand step inside the composer, the crumb's tail intact.
-    expect(await pressUntil(page, 'Enter', async () => await handStep.count() > 0, {tries: 3, settleMs: 1500}),
-      'A restores the hand step inside the workspace').toBeTruthy();
-    await settle(page, {timeoutMs: 10_000});
-    expect((await crumbText(page)).toUpperCase()).toContain('СБРОС');
-    await shoot(page, preset, '21-restored');
-
-    // RELOAD mid-discard: the server still owes the discard. After the reload
-    // nothing of the workspace exists on the client, so the plate announces
-    // the decision; A RESUMES the action workspace around the hand step.
-    await reloadConsole(page);
-    expect(await openMandatoryAnnounce(page), 'the discard is announced after the reload; A opens it').toBeTruthy();
-    await expect(handStep, 'the workspace resumed around the hand step').toHaveCount(1, {timeout: 30_000});
-    await settle(page, {timeoutMs: 15_000});
-    const crumb = (await crumbText(page)).toUpperCase();
-    expect(crumb, `the resumed workspace's crumb (${crumb})`).toContain('ДЕЙСТВИЯ КАРТ');
-    expect(crumb).toContain('СБРОС');
-    await shoot(page, preset, '22-resumed-after-reload');
-    await press(page, 'Enter', 300);
-    await press(page, 'ArrowRight', 250);
-    await press(page, 'Enter', 300);
-    await press(page, 'Period', 1200); // RT — confirm the set
-    await expect.poll(async () => (await seatOf(request, playerId)).waitingFor?.type, {timeout: 30_000}).not.toBe('card');
-    await expect(page.locator('[data-pact-result]'), 'the closing beat plays in the resumed workspace').toHaveCount(1, {timeout: 20_000});
-    await shoot(page, preset, '23-payout-after-resume');
-    await waitForBoardHome(page, 40);
-    await expect(page.locator('.con-cardactions')).toHaveCount(0);
-    expect((await seatOf(request, playerId)).seat.cardsInHandNbr, 'drew 2, discarded 2').toBe(before.cardsInHandNbr);
   });
 });

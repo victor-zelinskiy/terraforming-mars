@@ -40,6 +40,17 @@ export type SerializedPhaseSummary = {
   lobbyRefilled: Array<PlayerId>;
 };
 
+/** The last Agenda advance (see `ParliamentAdvanceModel`). */
+export type SerializedAdvance = {
+  seq: number;
+  player: PlayerId;
+  from: number;
+  to: number;
+  bonus?: 'tr' | 'card';
+  reason: 'quest' | 'phase';
+  generation: number;
+};
+
 export type SerializedPhaseProgress = {
   generation: number;
   final: boolean;
@@ -84,6 +95,7 @@ export type SerializedParliament = {
   discard: Array<ResolutionInstanceId>;
   phase?: SerializedPhaseProgress;
   lastPhase?: SerializedPhaseSummary;
+  lastAdvance?: SerializedAdvance;
   pendingActions?: Array<SerializedPendingAction>;
   botMode: BotParliamentMode;
 };

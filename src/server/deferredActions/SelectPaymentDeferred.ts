@@ -7,7 +7,7 @@ import {CardName} from '../../common/cards/CardName';
 import {Message} from '../../common/logs/Message';
 import {message} from '../logs/MessageBuilder';
 import {Units} from '../../common/Units';
-import {ChoiceContextSource, SelectPaymentModel} from '../../common/models/PlayerInputModel';
+import {ChoiceContextSource, SelectPaymentModel, VotePaymentMeta} from '../../common/models/PlayerInputModel';
 
 export type Options = {
   canUseSteel?: boolean;
@@ -41,6 +41,8 @@ export type Options = {
    * must keep throwing, because silently charging less breaks the rule instead.
    */
   atMost?: boolean;
+  /** This bill settles a Turmoil Redux VOTE from the reserve (see {@link VotePaymentMeta}). */
+  votePayment?: VotePaymentMeta;
 }
 
 export class SelectPaymentDeferred extends DeferredAction<Payment> {
@@ -114,6 +116,9 @@ export class SelectPaymentDeferred extends DeferredAction<Payment> {
         graphene: this.options.canUseGraphene || false,
         floodgateSteel: this.options.canUseSteel || false,
       }, this.options.reserveUnits);
+    if (this.options.votePayment !== undefined) {
+      select.markVotePayment(this.options.votePayment);
+    }
     return this.options.cause === undefined ?
       select :
       select.markChoiceContext({source: this.options.cause, mode: 'effect-choice'});

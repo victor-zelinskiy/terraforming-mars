@@ -64,8 +64,6 @@ function partyActionNotes(party: ReduxParty): ReadonlyArray<string> {
     return ['You may decrease the very production you increase'];
   case PartyName.REDS:
     return ['The draw cannot be undone; the discard that follows is mandatory'];
-  case PartyName.UNITY:
-    return ['Trading with a colony track, you may advance it 1 step first'];
   default:
     return [];
   }
@@ -96,10 +94,14 @@ export function resolutionAnnotations(
       out.push(block('group:action', 'action', 'Resolution action', [resolution.text.action], 2));
     }
   }
-  // 2. THE PARTY — what enacting this resolution gives everyone.
+  // 2. THE PARTY — what enacting this resolution gives everyone. Said as a
+  //    CONDITION while the card is up for the vote; once enacted the STATUS
+  //    block below states it, and this block keeps only the effect.
+  const enactedNow = model?.enacted?.resolution === id;
   const party = getPartyEffect(resolution.party);
   if (party !== undefined) {
-    const rows: Array<string | RowText> = [{text: 'Enacted — ${0} rule, and every player has their effect', params: [translateText(resolution.party)]}];
+    const rows: Array<string | RowText> = enactedNow ? [] :
+      [{text: 'If enacted: ${0} rule, and every player has their effect', params: [translateText(resolution.party)]}];
     // The effect, said ONCE: the passive effect where the party has one,
     // else its action — the party's own inspector (X on its plaque) carries
     // the action's full reading, and this panel must fit the viewer's band.
@@ -124,8 +126,8 @@ export function resolutionAnnotations(
       const rows: Array<string | RowText> = [];
       const leader = slot.leader === undefined ? translateText('no leader yet') : nameOfColor(slot.leader, players);
       rows.push({
-        text: 'V${0} · ${1} delegate(s) · leader: ${2} · ${3}',
-        params: [String(slot.tiePriority), String(slot.totalVotes), leader, translateText(slot.isWinning ? 'winning now' : 'not winning')],
+        text: 'On the card: ${0} delegates · leader: ${1} · ${2}',
+        params: [String(slot.totalVotes), leader, translateText(slot.isWinning ? 'winning now' : 'not winning')],
       });
       if (viewer !== undefined) {
         const mine = slot.viewerVotes;

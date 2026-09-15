@@ -11,11 +11,17 @@ export const consoleParliamentUi = reactive({
   commands: [] as Array<ConsoleCommand>,
   /** The results scene already played for this `<viewer>:<generation>` — it plays ONCE per generation. */
   recapSeen: '' as string,
+  /** The VOTE STEP stands (its payment zone `[data-embed-slot="parliament-vote"]` is in the DOM — published post-flush by the section). */
+  voteStanding: false,
+  /** The Agenda marker is gliding along the track — an Agenda card reward's cover waits for it to settle. */
+  agendaSettling: false,
 });
 
 export function resetConsoleParliamentUi(): void {
   consoleParliamentUi.commands = [];
   consoleParliamentUi.recapSeen = '';
+  consoleParliamentUi.voteStanding = false;
+  consoleParliamentUi.agendaSettling = false;
 }
 
 /*

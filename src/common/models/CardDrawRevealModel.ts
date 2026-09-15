@@ -70,6 +70,8 @@ export type CardDrawRevealSource =
   | {type: 'campaign'}
   /** Turmoil Redux: a PARTY ACTION drew them (the Reds' «draw 2, discard 2»). */
   | {type: 'party', party: PartyName}
+  /** Turmoil Redux: the Agenda track's card step (the chairman quest / the political phase advanced a marker). */
+  | {type: 'agenda'}
   | {type: 'other'};
 
 /**

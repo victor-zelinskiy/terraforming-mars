@@ -20,14 +20,14 @@ import {CardResource} from '../../../common/CardResource';
 import {QuestDefinition, ReduxParty, ResolutionId, resolutionInstanceId, ResolutionInstanceId, resolutionIdOf} from '../../../common/parliament/ParliamentTypes';
 import {EnactStep, ResolutionDefinition} from './IResolution';
 import {SelectOption} from '../../inputs/SelectOption';
+import {SpaceType} from '../../../common/boards/SpaceType';
+import {Board} from '../../boards/Board';
 import {OrOptions} from '../../inputs/OrOptions';
 
-/** A DUMMY states its one honest fact on the face — calmly, in the game's own
- *  words: it has no effect. Nothing about iterations or tests belongs on a
- *  card the player reads. */
-const DUMMY_RENDER = CardRenderer.builder((b) => {
-  b.text('No effect of its own', Size.SMALL, true);
-});
+/** A DUMMY prints NO effect row: the face states «no effect of its own» as a
+ *  quiet caption from the `dummy` flag, never as the card's centrepiece.
+ *  Nothing about iterations or tests belongs on a card the player reads. */
+const DUMMY_RENDER = CardRenderer.builder(() => {});
 
 type DummySpec = {
   party: ReduxParty;
@@ -207,8 +207,108 @@ export class ResolutionCatalog {
   }
 }
 
-/** The shipped catalog: the 12 dummies + the never-dealt test resolution. */
+/**
+ * THE TEMPLATE'S DEVELOPMENT EXAMPLES (never dealt: `copies: 0`). One real
+ * IMMEDIATE effect, one PASSIVE and one ACTION, built from the existing
+ * primitives, so the resolution face, the inspector and the workspace can be
+ * proven against a card with content before the real catalog exists. A dummy
+ * with an empty effect zone proves nothing about the template.
+ */
+export const DEV_IMMEDIATE_RESOLUTION_ID: ResolutionId = 'RDX_DEV_IMMEDIATE';
+export const DEV_PASSIVE_RESOLUTION_ID: ResolutionId = 'RDX_DEV_PASSIVE';
+export const DEV_ACTION_RESOLUTION_ID: ResolutionId = 'RDX_DEV_ACTION';
+
+const DEV_IMMEDIATE: ResolutionDefinition = {
+  id: DEV_IMMEDIATE_RESOLUTION_ID,
+  module: 'turmoilRedux',
+  party: PartyName.GREENS,
+  copies: 0,
+  renderData: CardRenderer.builder((b) => {
+    b.megacredits(3).nbsp.plants(1).asterix();
+  }),
+  text: {
+    name: 'Reforestation Fund',
+    effect: 'When enacted: every player gains 3 M€ and 1 plant.',
+    quest: 'Raise your plant production 2 steps',
+  },
+  quest: {goal: {kind: 'production', resource: Resource.PLANTS}, count: 2},
+  immediateSteps: [{
+    key: 'grant',
+    run: (ctx) => {
+      const from = {resolution: DEV_IMMEDIATE_RESOLUTION_ID};
+      ctx.player.stock.add(Resource.MEGACREDITS, 3, {log: true, from});
+      ctx.player.stock.add(Resource.PLANTS, 1, {log: true, from});
+      return undefined;
+    },
+  }],
+};
+
+const DEV_PASSIVE: ResolutionDefinition = {
+  id: DEV_PASSIVE_RESOLUTION_ID,
+  module: 'turmoilRedux',
+  party: PartyName.MARS,
+  copies: 0,
+  renderData: CardRenderer.builder((b) => {
+    b.effect(undefined, (eb) => eb.city({size: Size.SMALL}).asterix().startEffect.megacredits(2));
+  }),
+  text: {
+    name: 'Urban Charter',
+    passive: 'Effect: whenever you place a city tile on Mars, gain 2 M€.',
+    quest: 'Place 1 city tile on Mars',
+  },
+  quest: {goal: {kind: 'tile', tile: 'city'}, count: 1},
+  passive: {
+    onTilePlaced(player, space) {
+      if (space.spaceType === SpaceType.COLONY || !Board.isCitySpace(space)) {
+        return;
+      }
+      player.stock.add(Resource.MEGACREDITS, 2, {log: true, from: {resolution: DEV_PASSIVE_RESOLUTION_ID}});
+    },
+    forecast(ctx) {
+      const cities = ctx.tiles.filter((tile) => !tile.offMars && tile.countsAsCity).reduce((sum, tile) => sum + tile.count, 0);
+      if (cities === 0) {
+        return [];
+      }
+      return [ctx.deferred(ctx.source('tile-placed'), [ctx.stockGain(Resource.MEGACREDITS, 2 * cities)],
+        'Urban Charter pays 2 M€ per city you place on Mars', {id: 'urban-charter'})];
+    },
+  },
+};
+
+const DEV_ACTION: ResolutionDefinition = {
+  id: DEV_ACTION_RESOLUTION_ID,
+  module: 'turmoilRedux',
+  party: PartyName.INDUSTRIALISTS,
+  copies: 0,
+  renderData: CardRenderer.builder((b) => {
+    b.action(undefined, (ab) => ab.megacredits(2).startAction.heat(1));
+  }),
+  text: {
+    name: 'Foundry Subsidy',
+    action: 'Action: spend 2 M€ to gain 1 heat, once per generation.',
+    quest: 'Play 2 building tags',
+  },
+  quest: {goal: {kind: 'tag', tag: Tag.BUILDING}, count: 2},
+  action: {
+    usesPerGeneration: () => 1,
+    canAct: (player) => player.canAfford(2) ? {available: true} : {available: false, reason: 'Not enough M€'},
+    execute: (player) => {
+      player.stock.deduct(Resource.MEGACREDITS, 2);
+      player.stock.add(Resource.HEAT, 1, {log: true, from: {resolution: DEV_ACTION_RESOLUTION_ID}});
+      return undefined;
+    },
+    preview: () => [
+      {direction: 'cost', icon: 'megacredits', amount: 2},
+      {direction: 'gain', icon: 'heat', amount: 1},
+    ],
+  },
+};
+
+/** The shipped catalog: the 12 dummies + the never-dealt test and development resolutions. */
 export const REDUX_RESOLUTION_CATALOG = new ResolutionCatalog([
   ...DUMMIES.map(dummy),
   TEST_CHOICE,
+  DEV_IMMEDIATE,
+  DEV_PASSIVE,
+  DEV_ACTION,
 ]);

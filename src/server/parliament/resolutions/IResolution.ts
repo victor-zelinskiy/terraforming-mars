@@ -8,6 +8,10 @@ import {IPlayer} from '../../IPlayer';
 import {IGame} from '../../IGame';
 import {PlayerInput} from '../../PlayerInput';
 import type {Parliament} from '../Parliament';
+import type {Space} from '../../boards/Space';
+import type {Resource} from '../../../common/Resource';
+import type {EffectForecastFact, EffectForecastSource} from '../../../common/models/EffectForecastModel';
+import type {EffectForecastGrant, EffectForecastTile} from '../../cards/EffectForecastContext';
 
 /**
  * The context an enacted resolution's effect step runs in. `influence` is
@@ -53,6 +57,39 @@ export type ResolutionAction = {
   preview(player: IPlayer): ReadonlyArray<ActionEffect>;
 };
 
+/**
+ * What a passive effect's FORECAST reads — the same grants and tiles the live
+ * hooks will see, and the builders every table reactor uses (the effects
+ * framework's own vocabulary, handed in so a resolution file imports no engine
+ * module). `source(channel)` is this resolution on the channel the live hook
+ * fires on — a fact and its `effect-triggered` event match one-to-one.
+ */
+export type ResolutionForecastContext = {
+  player: IPlayer;
+  grants: ReadonlyArray<EffectForecastGrant>;
+  tiles: ReadonlyArray<EffectForecastTile>;
+  source(channel: EffectForecastSource['channel']): EffectForecastSource;
+  exact(source: EffectForecastSource, effects: ReadonlyArray<ActionEffect>, title: string, opts?: {id?: string}): EffectForecastFact;
+  deferred(source: EffectForecastSource, effects: ReadonlyArray<ActionEffect>, title: string, opts?: {id?: string}): EffectForecastFact;
+  stockGain(resource: Resource, amount: number): ActionEffect;
+  productionChange(resource: Resource, delta: number): ActionEffect;
+  drawGain(count: number): ActionEffect;
+};
+
+/**
+ * A PASSIVE effect while the resolution stands enacted — the SAME hook set
+ * the party effects use, run for EVERY participant (an enacted resolution is
+ * everyone's law), every mutation under the resolution's own event source.
+ * `forecast` is MANDATORY: the effects framework's honesty law — a live hook
+ * with no forecast twin is a silent lie in the play / action forecast.
+ */
+export type ResolutionPassive = {
+  onTilePlaced?(player: IPlayer, space: Space): void;
+  onTerraformRatingGained?(player: IPlayer, steps: number): void;
+  onProductionChanged?(player: IPlayer, resource: Resource, delta: number): void;
+  forecast(ctx: ResolutionForecastContext): Array<EffectForecastFact>;
+};
+
 export interface ResolutionDefinition {
   id: ResolutionId;
   module: GameModule;
@@ -75,7 +112,7 @@ export interface ResolutionDefinition {
   immediateSteps?: ReadonlyArray<EnactStep>;
   /** Winner-only effect (skipped for a neutral winner — rulebook FAQ p.18). */
   winnerSteps?: ReadonlyArray<EnactStep>;
-  /** Passive effect while enacted (iteration 0 ships none; the seam is the party-effect hook set). */
-  passive?: undefined;
+  /** Passive effect while enacted (see {@link ResolutionPassive}) — the DEV passive example proves the seam. */
+  passive?: ResolutionPassive;
   action?: ResolutionAction;
 }

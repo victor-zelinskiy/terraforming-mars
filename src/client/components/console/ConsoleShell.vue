@@ -1708,7 +1708,7 @@ import Card from '@/client/components/card/CardFace.vue';
 import {ZoomCard, bonusZoomEntry, isMarsBotCorpZoom, isPartyEffectZoom, isResolutionZoom, partyEffectZoomEntry, resolutionZoomEntry} from '@/client/components/card/cardZoomTypes';
 import {CardAnnotation} from '@/client/components/cardAnnotations/annotationModel';
 import {marsBotCorpAnnotations} from '@/client/components/marsbot/marsBotCorpRules';
-import {consoleCardZoom, openConsoleCardZoom, navigateConsoleCardZoom, closeConsoleCardZoom, setConsoleZoomInspectTab, slotZoomOrigin, ZoomOrigin, ConsoleZoomProvenance} from '@/client/console/consoleCardZoom';
+import {consoleCardZoom, openConsoleCardZoom, navigateConsoleCardZoom, closeConsoleCardZoom, setConsoleZoomInspectTab, slotZoomOrigin, ZoomOrigin, ConsoleZoomAction, ConsoleZoomProvenance} from '@/client/console/consoleCardZoom';
 import {beginZoomOpen, cancelZoomOpen, playZoomOpenFlight, zoomOpenSourceRect, playZoomClose, playZoomDepart, playZoomHandoff, playZoomSwap, retargetZoomHold, releaseZoomMotion} from '@/client/console/consoleZoomMotion';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {currentRevealEvent, drawnCardsState, markRevealPresented, revealPresented, serverRevealConsumed, untakenNameMultiset} from '@/client/components/drawnCards/drawnCardsState';
@@ -4239,6 +4239,12 @@ export default defineComponent({
      *    the action physically happen. The beat is held, not faked.
      */
     taskHeldForWorkspace(): boolean {
+      // A Turmoil Redux vote's BILL belongs inside the vote step: while the
+      // Parliament is opening around it (a reload) the host renders NOWHERE —
+      // a standalone band that then teleports away leaves its shade behind.
+      if (this.parliamentBillStanding && !consoleParliamentUi.voteStanding && !this.consoleState.task.deferred) {
+        return true;
+      }
       return this.taskBelongsToWorkspace &&
         (workspaceOutcomeState.embedSlot === '' || workspaceOutcomeBeatPending());
     },
@@ -4246,6 +4252,11 @@ export default defineComponent({
      *  deferred-dismiss gate — see `pendingCommitDismiss`). */
     commitHolding(): boolean {
       return actionCommitHolding();
+    },
+    /** A Turmoil Redux vote's BILL is the live prompt (the server's marker, never a title). */
+    parliamentBillStanding(): boolean {
+      return this.hostTask?.kind === 'payment' &&
+        (this.playerView.waitingFor as SelectPaymentModel | undefined)?.votePayment !== undefined;
     },
     taskEmbedTarget(): string | undefined {
       // HELD means "renders nowhere yet" — so it is NOT embedded, and saying
@@ -4278,6 +4289,16 @@ export default defineComponent({
       // step zone («› ОПЛАТА») instead of replacing the screen it belongs to.
       if (this.pendingClientPayment !== undefined && workspaceFrameMounted('standard-projects')) {
         return '.con-stdp [data-embed-slot="stdp-step"]';
+      }
+      // A PAID VOTE's bill (Turmoil Redux — the delegate from the reserve):
+      // the vote step hosts it in its own zone, so paying is one more row of
+      // the decision the player is already inside, never a band over it. The
+      // section publishes the zone post-flush (`voteStanding`) and rebuilds
+      // the step around the bill after a reload / a restore by the server's
+      // own marker (`votePayment`) — the shell never reads a title.
+      if (this.hostTask?.kind === 'payment' && workspaceFrameMounted('parliament') && consoleParliamentUi.voteStanding &&
+          (this.playerView.waitingFor as SelectPaymentModel | undefined)?.votePayment !== undefined) {
+        return '.con-parl [data-embed-slot="parliament-vote"]';
       }
       if (!workspaceClaimsPick()) {
         return undefined;
@@ -8523,6 +8544,22 @@ export default defineComponent({
     // Start-of-game setup reveal: while the ceremony is DEFERRED (B → inspect the
     // board), suspend the panel override so the left rail shows the REAL applied
     // state (not a mid-reveal staged snapshot). Restored on return.
+    /**
+     * A PAID VOTE's bill with no Parliament on screen (a reload, a resumed
+     * session): the bill belongs INSIDE the vote step, so the Parliament
+     * opens around it — the section re-forms the step from the server's own
+     * marker and the bill teleports into the step's zone. A PARKED Parliament
+     * (B on the bill) is known and stays parked: the board-home card is its
+     * one way back.
+     */
+    parliamentBillStanding: {
+      immediate: true,
+      handler(on: boolean): void {
+        if (on && !workspaceFrameKnown('parliament') && !this.consoleState.task.deferred) {
+          enterWorkspace('parliament');
+        }
+      },
+    },
     'consoleState.task.deferred'(deferred: boolean) {
       setStartSetupRevealSuspended(deferred);
       // Mirror into the leak detector: a deferred task is deliberately set aside
@@ -12933,10 +12970,29 @@ export default defineComponent({
     submitParliament(response: InputResponse): void {
       submitInput(response);
     },
-    /** X in the Parliament: the fullscreen inspector over a resolution or a party's effect. */
+    /**
+     * X in the Parliament: the fullscreen inspector over a resolution or a
+     * party's effect. The request names the PHYSICAL element the subject
+     * stands in (the card lifts out of it and returns into it — one object,
+     * never a source under the dim beside an enlarged copy), and — for a
+     * resolution the viewer may vote on — the A verb the fullscreen offers:
+     * the SAME vote step the overview's A opens, the card flying from the
+     * viewer into the step's hero slot (the play-from-hand handoff).
+     */
     inspectParliament(request: ParliamentInspectRequest): void {
       const entry = request.kind === 'resolution' ? resolutionZoomEntry(request.id) : partyEffectZoomEntry(request.party);
-      openConsoleCardZoom([entry], 0, undefined, undefined, {origin: {kind: 'textual'}});
+      const resolveOrigin = request.origin;
+      const origin: ZoomOrigin = resolveOrigin === undefined ?
+        {kind: 'textual'} :
+        {kind: 'physical', resolve: () => resolveOrigin() ?? null};
+      const vote = request.kind === 'resolution' ? request.vote : undefined;
+      const action: ConsoleZoomAction | undefined = vote === undefined ? undefined : {
+        labelFor: () => (vote.label === '' ? undefined : vote.label),
+        reasonsFor: () => vote.reasons,
+        execute: () => vote.execute(),
+        handoffTarget: () => '.con-parl__vote [data-zoom-handoff="parliament-vote"]',
+      };
+      openConsoleCardZoom([entry], 0, undefined, action, {origin});
     },
     /**
      * A PARTY ACTION FROM THE PARLIAMENT (Turmoil Redux) — the second door

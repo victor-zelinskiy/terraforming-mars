@@ -82,7 +82,10 @@ describe('parliamentAnnotations — the fullscreen inspector\'s rules blocks', (
     // delegates · leader · winning, and the viewer's line.
     expect(blocks[2].rows.length).to.eq(1);
     expect(blocks[3].rows.length).to.eq(2);
-    expect(blocks[3].rows[0].params).to.deep.eq(['1', '2', 'Ann', 'winning now']);
+    expect(blocks[3].rows[0].text).to.eq('On the card: ${0} delegates · leader: ${1} · ${2}');
+    expect(blocks[3].rows[0].params).to.deep.eq(['2', 'Ann', 'winning now']);
+    // Up for the vote, the party block says what ENACTING would give (a condition, never «enacted»).
+    expect(blocks[1].rows[0].text).to.eq('If enacted: ${0} rule, and every player has their effect');
     expect(blocks[3].rows[1].params).to.deep.eq(['1', '2']);
   });
 
@@ -92,5 +95,8 @@ describe('parliamentAnnotations — the fullscreen inspector\'s rules blocks', (
     const status = blocks.find((b) => b.labelKey === 'Status');
     expect(status?.rows.length).to.eq(1);
     expect(status?.rows[0].text).to.eq('Enacted — ${0} rule');
+    // …and the party block no longer repeats it: the effect alone.
+    const party = blocks.find((b) => b.labelKey === 'Party effect');
+    expect(party?.rows.map((r) => r.text).some((t) => t.startsWith('If enacted') || t.startsWith('Enacted'))).to.be.false;
   });
 });

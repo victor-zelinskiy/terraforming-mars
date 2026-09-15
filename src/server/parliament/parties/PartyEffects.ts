@@ -100,10 +100,11 @@ const UNITY: PartyEffectDefinition = {
   actionId: 'unity-trade',
   text: {
     rule: 'Action: trade for free once per generation. If you trade with a colony track this way, you may advance it 1 step before the trade.',
-    // The ACTION text states what the action DOES; its per-generation limit is
-    // structural (`usesPerGeneration`) and every surface prints it beside the
-    // live uses — a limit baked into the sentence reads twice.
-    action: 'Trade for free; you may advance the colony track 1 step first.',
+    // The ACTION text states what the action DOES — ONCE, including the
+    // track advance (no separate note restates it); its per-generation limit
+    // is structural (`usesPerGeneration`) and every surface prints it beside
+    // the live uses — a limit baked into the sentence reads twice.
+    action: 'Trade for free; if you trade with a colony track, you may advance it 1 step first.',
   },
   // An ACTION-ONLY party: the passive graphic is empty by design (the face and
   // the compact formula merge both roots), and the printed row is the
@@ -145,15 +146,20 @@ const SCIENTISTS: PartyEffectDefinition = {
   party: PartyName.SCIENTISTS,
   actionId: 'scientists-lab',
   text: {
-    rule: 'Effect: you have 1 extra wild tag (it counts as any tag when playing cards and actions). Action: add 2 data or 2 microbes to any card once per generation.',
-    passive: 'You have 1 extra wild tag when playing cards and actions.',
-    action: 'Add 2 data or 2 microbes to any card.',
+    // The passive is stated as a RULE (what the effect grants), never as a
+    // claim about the reader («you have…») — the inspector's «for you» block
+    // is where access is read, and the two must not contradict each other.
+    rule: 'Effect: 1 extra wild tag when playing cards and actions. Action: add 2 data or 2 microbes to one of your cards that holds that resource, once per generation.',
+    passive: '+1 wild tag when playing cards and actions.',
+    action: 'Add 2 data or 2 microbes to one of your cards that holds that resource.',
   },
+  // The wild tag is a TAG (the face's round tag holder) in the effect frame —
+  // the game's own language for a permanent grant, not a «?» resource tile.
   passiveRenderData: CardRenderer.builder((b) => {
-    b.wild(1).asterix().br;
+    b.effect(undefined, (eb) => eb.empty().startEffect.tag(Tag.WILD)).br;
   }),
   actionRenderData: CardRenderer.builder((b) => {
-    b.action('Add 2 data or 2 microbes to any card.', (ab) => ab.empty().startAction.resource(CardResource.DATA, 2).asterix().slash().resource(CardResource.MICROBE, 2).asterix());
+    b.action('Add 2 data or 2 microbes to one of your cards that holds that resource.', (ab) => ab.empty().startAction.resource(CardResource.DATA, 2).asterix().slash().resource(CardResource.MICROBE, 2).asterix());
   }),
   wildTags() {
     return 1;
@@ -206,8 +212,8 @@ const SCIENTISTS: PartyEffectDefinition = {
 const MARS_FIRST: PartyEffectDefinition = {
   party: PartyName.MARS,
   text: {
-    rule: 'Effect: when you place a tile on Mars, gain 1 steel. If it is a city tile, also draw a card.',
-    passive: 'Gain 1 steel per tile you place on Mars; a city tile also draws a card.',
+    rule: 'Effect: whenever you place a tile on Mars, gain 1 steel. If it is a city tile, also draw a card.',
+    passive: 'Whenever you place a tile on Mars, gain 1 steel; a city tile also draws a card.',
   },
   passiveRenderData: CardRenderer.builder((b) => {
     b.effect(undefined, (eb) => eb.emptyTile('normal', {size: Size.SMALL}).asterix().startEffect.steel(1)).br;

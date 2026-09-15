@@ -4,24 +4,27 @@
     three sizes. A party is not a project card: it has no cost, no art window
     and no play; what identifies it is its SEAL (the emblem), and what matters
     about it is its printed MECHANIC and its STATE for the viewer. So the
-    plaque is a dark alloy plate carrying exactly those: the seal with a
-    STATE RING (gold = the party rules · mint = the viewer holds its effect ·
-    cyan dashes = in the vote, the viewer's delegates as filled dots · none =
-    absent), the name in tracked caps, the mechanic module (the same
-    render-DSL nodes the inspector and the action menu draw — never a second
-    drawing), the popular support as three neutral places, and the action's
-    state as a glyph.
+    plaque is a dark alloy plate with ONE anatomy in every size:
 
-    Colour discipline: the party's ACCENT is a material (the plate's seam and
-    the seal's rim); the STATE colours are the console's (gold / mint / cyan);
-    a PLAYER's colour appears only as a PlayerCube — the three never share a
-    meaning.
+      ┌──────────────────────────────────┐
+      │ (seal)  NAME              [act]  │   the seal with its STATE RING, the
+      │         state chip               │   name in bright tracked caps, the
+      │ [ mechanic module ]  [support]   │   action's state, then the printed
+      └──────────────────────────────────┘   mechanic and the popular support.
 
-      · `tile` — the Parliament's parties row (six plaques, one line);
-      · `hero` — the action composer's source column and the government's
-        ruling party (the carried object of the descent);
+    Three facts about the viewer are three DIFFERENT objects, never a row of
+    look-alike dots: ACCESS BY DELEGATES is the mint ring + the viewer's own
+    cubes in the two places of the threshold; POPULAR SUPPORT is the steel
+    neutral cubes in the party's three places; a USED ACTION is the action
+    badge itself, stamped. Colour discipline: the party's ACCENT is a
+    material (the plate's seam, the seal's rim); the STATE colours are the
+    console's (gold / mint / cyan); a PLAYER's colour appears only as a cube.
+
+      · `tile` — the Parliament's parties row;
+      · `hero` — the action composer's source column / the government badge;
       · `full` — the fullscreen inspector's subject (px-authored, zoomed by
-        the viewer exactly like a card face).
+        the viewer exactly like a card face; the same anatomy, so the tile
+        morphs into it as ONE object).
   -->
   <div class="con-pseal"
        :class="[
@@ -32,52 +35,66 @@
            'con-pseal--held': state?.held === true,
            'con-pseal--focus': focused,
            'con-pseal--dim': state !== undefined && !state.held && state.kind === 'absent',
+           'con-pseal--used': actionState?.kind === 'used',
          },
        ]"
        :style="{'--parl-accent': accent}"
        :data-party="party">
-    <div class="con-pseal__seal" :data-zoom-slot="zoomSlot">
+    <div class="con-pseal__seal">
       <span class="con-pseal__ring" aria-hidden="true"></span>
       <img class="con-pseal__emblem" :src="emblemUrl" alt="" />
-      <!-- THE VIEWER'S DELEGATES on the party's resolution, as dots on the
-           ring: filled = placed, hollow = still needed for the effect. Read
-           by SHAPE (a hollow place is a place), never by colour alone. -->
-      <span v-if="progressDots > 0" class="con-pseal__dots" aria-hidden="true">
-        <i v-for="n in progressDots" :key="n" class="con-pseal__dot" :class="{'con-pseal__dot--on': n <= (state?.delegates ?? 0)}"></i>
+    </div>
+    <div class="con-pseal__head">
+      <span class="con-pseal__name">{{ $t(party) }}</span>
+      <!-- THE ACTION BADGE — one object for one fact: available now (lit),
+           used this generation (stamped ✓), not now / blocked (outlined). -->
+      <span v-if="actionState !== undefined && actionState.kind !== 'none'"
+            class="con-pseal__action"
+            :class="'con-pseal__action--' + actionState.kind"
+            :data-action-state="actionState.kind"
+            aria-hidden="true">
+        <span class="con-pseal__action-bolt">⚡</span>
+        <span v-if="actionState.kind === 'used'" class="con-pseal__action-mark">✓</span>
       </span>
     </div>
-    <div class="con-pseal__body">
-      <span class="con-pseal__name">{{ $t(party) }}</span>
-      <span v-if="state !== undefined && size !== 'full'" class="con-pseal__state" :class="'con-pseal__state--' + state.tone">{{ stateText }}</span>
-      <ConsolePartyFormula v-if="formula" class="con-pseal__formula" :party="party" :size="size === 'tile' ? 'compact' : 'wide'" :dim="state !== undefined && !state.held" />
+    <!-- THE STATE CHIP — the viewer's relation to the party in one line; the
+         delegate places are the viewer's OWN cubes (filled = placed, hollow =
+         still needed for the effect). -->
+    <div v-if="state !== undefined && size !== 'full'" class="con-pseal__state" :class="'con-pseal__state--' + state.tone">
+      <span class="con-pseal__state-text">{{ stateText }}</span>
+      <span v-if="showPlaces && viewerColor !== undefined" class="con-pseal__places" aria-hidden="true">
+        <span v-for="n in placesCount" :key="n" class="con-pseal__place" :class="{'con-pseal__place--on': n <= (state?.delegates ?? 0)}">
+          <PlayerCube v-if="n <= (state?.delegates ?? 0)" :color="viewerColor" :size="placeCubePx" :glow="false" />
+        </span>
+      </span>
     </div>
+    <ConsolePartyFormula v-if="formula" class="con-pseal__formula" :party="party" :size="size === 'tile' ? 'compact' : 'wide'" :dim="state !== undefined && !state.held" />
     <!-- POPULAR SUPPORT — the neutral delegates waiting for the party's next
-         resolution: three places, filled per supporting delegate. -->
-    <span v-if="support !== undefined" class="con-pseal__support" :data-support="support" aria-hidden="true">
-      <i v-for="n in 3" :key="n" class="con-pseal__support-cube" :class="{'con-pseal__support-cube--on': n <= support}"></i>
-    </span>
-    <!-- THE ACTION'S STATE — one glyph: ◈ available now · ⟳ used this
-         generation · ◇ the party has an action the viewer cannot take now. -->
-    <span v-if="actionState !== undefined && actionState.kind !== 'none'" class="con-pseal__action" :class="'con-pseal__action--' + actionState.kind" aria-hidden="true">
-      {{ actionState.kind === 'used' ? '⟳' : (actionState.kind === 'available' ? '◈' : '◇') }}
+         resolution: three places, a steel cube per supporting delegate. -->
+    <span v-if="support !== undefined && size !== 'full'" class="con-pseal__support" :class="{'con-pseal__support--none': support === 0}" :data-support="support" :title="undefined" aria-hidden="true">
+      <span v-for="n in 3" :key="n" class="con-pseal__support-place" :class="{'con-pseal__support-place--on': n <= support}" :data-support-place="n">
+        <PlayerCube v-if="n <= support" color="neutral" steel :size="supportCubePx" :glow="false" />
+      </span>
     </span>
   </div>
 </template>
 
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
+import {Color} from '@/common/Color';
 import {ReduxParty, PARTY_EFFECT_DELEGATES} from '@/common/parliament/ParliamentTypes';
 import ConsolePartyFormula from '@/client/components/console/parliament/ConsolePartyFormula.vue';
+import PlayerCube from '@/client/components/PlayerCube.vue';
 import {partyAccent, partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
 import {PartyActionStateVm, PartyStateVm} from '@/client/console/parliament/consoleParliamentModel';
-import {partyTileKey} from '@/client/console/parliament/partyActionKey';
+import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 
 export type PartyPlaqueSize = 'tile' | 'hero' | 'full';
 
 export default defineComponent({
   name: 'ConsolePartyPlaque',
-  components: {ConsolePartyFormula},
+  components: {ConsolePartyFormula, PlayerCube},
   props: {
     party: {type: String as PropType<ReduxParty>, required: true},
     size: {type: String as PropType<PartyPlaqueSize>, default: 'tile'},
@@ -87,6 +104,8 @@ export default defineComponent({
     actionState: {type: Object as PropType<PartyActionStateVm | undefined>, default: undefined},
     /** Popular support (0–3); undefined hides the places. */
     support: {type: Number as PropType<number | undefined>, default: undefined},
+    /** The viewer's colour — their own delegate cubes in the threshold places. */
+    viewerColor: {type: String as PropType<Color | undefined>, default: undefined},
     /** Draw the printed mechanic module. */
     formula: {type: Boolean, default: true},
     focused: {type: Boolean, default: false},
@@ -98,23 +117,34 @@ export default defineComponent({
     emblemUrl(): string {
       return partyEmblemUrl(this.party);
     },
-    zoomSlot(): string {
-      return partyTileKey(this.party);
-    },
-    /** The ring carries delegate dots only while the party is IN the vote and the effect is not yet the viewer's by delegates. */
-    progressDots(): number {
+    /** The threshold places show while the party is IN the vote and the effect is not yet the viewer's by other means. */
+    showPlaces(): boolean {
       const state = this.state;
-      if (state === undefined) {
-        return 0;
-      }
-      return state.kind === 'progress' || state.kind === 'in-area' || state.kind === 'delegates' ? PARTY_EFFECT_DELEGATES : 0;
+      return state !== undefined && (state.kind === 'progress' || state.kind === 'in-area' || state.kind === 'delegates');
+    },
+    placesCount(): number {
+      return PARTY_EFFECT_DELEGATES;
+    },
+    placeCubePx(): number {
+      return Math.round((this.size === 'tile' ? 9 : 11) * conUiScale());
+    },
+    supportCubePx(): number {
+      return Math.round((this.size === 'tile' ? 9 : 11) * conUiScale());
     },
     stateText(): string {
       const state = this.state;
       if (state === undefined) {
         return '';
       }
-      return state.params.length > 0 ? translateTextWithParams(state.label, [...state.params]) : translateText(state.label);
+      switch (state.kind) {
+      case 'ruling-default': return translateText('Rules by the starting rule');
+      case 'ruling': return translateText('Ruling');
+      case 'delegates': return translateText('Your effect · 2 delegates');
+      case 'granted': return translateText('Your effect · granted by a card');
+      case 'progress': return translateTextWithParams('In the vote · ${0} of ${1} delegates', [String(state.delegates), String(PARTY_EFFECT_DELEGATES)]);
+      case 'in-area': return translateText('In the vote');
+      default: return translateText('Not in the vote');
+      }
     },
   },
 });
