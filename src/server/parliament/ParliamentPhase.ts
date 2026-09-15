@@ -27,7 +27,7 @@ import {PartyName} from '../../common/turmoil/PartyName';
 import {PARLIAMENT_MAX_POPULAR_SUPPORT, PARLIAMENT_VOTING_SLOTS, ReduxParty, REDUX_PARTIES} from '../../common/parliament/ParliamentTypes';
 import {Parliament, Slot} from './Parliament';
 import {EnactContext, EnactStep} from './resolutions/IResolution';
-import {SerializedPhaseProgress, SerializedPhaseSummary} from './SerializedParliament';
+import {SerializedDelegateOwner, SerializedPhaseProgress, SerializedPhaseSummary} from './SerializedParliament';
 import {ChairmanSeat} from './quests/ChairmanSeat';
 
 export class ParliamentPhase {
@@ -261,7 +261,19 @@ export class ParliamentPhase {
       throw new Error(`Winning resolution ${instance} is not in the voting area`);
     }
     // Delegates leave the card (players' → their reserve, neutral → the
-    // supply): both are DERIVED, so emptying the list is the whole move.
+    // supply): both are DERIVED, so emptying the list is the whole move. The
+    // summary keeps WHO went home (per owner) so the client can play the
+    // return from the card to each reserve as a physical move.
+    const returned: Array<{owner: SerializedDelegateOwner; count: number}> = [];
+    for (const vote of slot.votes) {
+      const entry = returned.find((r) => r.owner === vote.owner);
+      if (entry === undefined) {
+        returned.push({owner: vote.owner, count: 1});
+      } else {
+        entry.count++;
+      }
+    }
+    this.summary.returned = returned;
     slot.votes = [];
     const previous = parliament.enacted;
     if (previous !== undefined) {

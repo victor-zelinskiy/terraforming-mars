@@ -35460,6 +35460,11 @@ html.con-profile-large {
 /* The Deck's viewer: the party inspector's four blocks need the taller cap
    (the type floor forbids shrinking them; 76vh cut the reference line). */
 html.con-profile-handheld .con-zoom-rules { max-height: 88vh; }
+/* …and on the Deck the DENSE tier already gives up its chrome (the packed
+   rung's gaps and chip padding) — the type stays at the reading floor. */
+html.con-profile-handheld .con-zoom-rules--dense .con-zoom-rules__body { gap: .6rem; padding: .7rem 1.1rem .8rem; }
+html.con-profile-handheld .con-zoom-rules--dense .con-zoom-rules__group { gap: .2rem; }
+html.con-profile-handheld .con-zoom-rules--dense .con-zoom-rules__kind { padding: .06rem .5rem; }
 
 .con-zoom-rules-host--embedded {
     width: 100%;

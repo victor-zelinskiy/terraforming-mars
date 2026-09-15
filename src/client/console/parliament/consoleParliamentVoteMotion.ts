@@ -1,125 +1,238 @@
 /*
- * THE VOTE STEP'S MOTION — the Parliament's browse ⇄ vote choreography,
+ * THE VOTE MODE'S MOTION — the Parliament's browse ⇄ vote choreography,
  * spoken in the WORKSPACE DESCEND grammar (surfaceMotion/workspaceDescend.ts)
- * exactly as the Action Browser's browse ⇄ focus phrase
- * (consoleActionFocusMotion.ts). One physical object travels: the resolution
- * card the player pressed.
+ * exactly as the Action Browser's browse ⇄ focus phrase and the colony
+ * workspace's browse ⇄ focus phrase.
  *
- *  · COMMIT — the pressed voting slot answers where it stands;
- *  · RECEDE — the whole overview (government · voting area · seats · parties ·
- *    Agenda) steps back INTO the press point; the slot's card goes dark on the
- *    first frame — the flying hero IS that card now (never a double image);
- *  · UNFOLD — the vote's decision surface opens FROM the slot's rect while
- *    the card FLIPs from the slot's card rect into the hero column;
- *  · REVEAL — the decision rows (source, forecast, confirm) surface from
- *    inside the opened panel with a short stagger;
- *  · B reverses the same phrase: the rows let go, the panel folds back into
- *    the slot's rect, the card FLIPs home, the overview breathes back from
- *    the same point — and the slot's card lights up only when the hero has
- *    landed on it.
+ * THE THREE RESOLUTION CARDS ARE THE CONTINUITY. They are not copied into the
+ * vote mode: the overview's slot elements are TELEPORTED into the vote row
+ * (one DOM instance each — a second copy can never exist), and this module
+ * animates that layout change as a FLIP of every carried object from the rect
+ * it had a frame ago:
  *
- * Entered FROM THE FULLSCREEN VIEWER the phrase is INSTANT: the card is
- * already in flight from the viewer into the hero slot (the zoom handoff),
- * so the overview parks receded and the surface stands ready under the
- * veil — the one moving object is the viewer's card.
+ *  · COMMIT — the pressed voting block answers where it stands;
+ *  · RECEDE — the rest of the overview (government · seats · parties · Agenda
+ *    · the voting head) steps back INTO the press point; the voting plate's
+ *    own chrome dissolves in place (the info surface takes its rect over);
+ *  · CARRY — each card face FLIPs from its overview rect into its vote rect,
+ *    each delegate cube from its old ribbon place into its new one, each
+ *    label and tally with them (the same elements — the eye never loses an
+ *    object); the viewer's lobby socket and reserve stack FLIP from their
+ *    places on the seats ledger into the BENCH above the cards;
+ *  · SURFACE — the info surface rises into its FINAL geometry under the
+ *    settling cards with its structure already inside it, then its fine
+ *    print (objects, then words — the colony workspace's two waves). It is
+ *    never an empty container stretching open: the cards are the event;
+ *  · B reverses the same phrase: the surface sinks with its content, the
+ *    bench flies back onto the ledger, the cards and cubes FLIP HOME from
+ *    wherever they are, and the overview breathes back from the same press
+ *    point. Since the cards are the very same elements, the animated end
+ *    state IS the static state — no swap, no twin frame, no skip.
+ *
+ * Entered FROM THE FULLSCREEN VIEWER the phrase is the same, minus the FLIP
+ * of the SELECTED card: that one is arriving on its own flight out of the
+ * viewer (the zoom handoff holds its slot empty until touchdown).
  *
  * Transform / opacity / clip only (perf-lite safe), guarded episodes (`done()`
- * can never be dropped), durations through `motionMs`, FLIP deltas
- * compensated for CSS-`zoom` contexts, reduced motion = short functional
- * fades with unchanged semantics.
+ * can never be dropped), durations through `motionMs`, FLIP deltas compensated
+ * for CSS-`zoom` contexts, reduced motion = short functional fades with
+ * unchanged semantics.
  */
 
 import {gsap} from 'gsap';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {
-  armDescendOrigin,
-  armDescendRect,
-  takeDescendOrigin,
-  takeDescendRect,
   guardedDescend,
   killDescendEpisode,
   descendFlipFrom,
   descendRecede,
   descendReturn,
   descendParkLayer,
-  descendUnfold,
-  descendFold,
   descendCascade,
-  descendCascadeOut,
   descendRadiusOf,
+  descendRectOf,
   descendPx,
 } from '@/client/console/surfaceMotion/workspaceDescend';
 
-type Rect = {left: number, top: number, width: number, height: number};
+export type Rect = {left: number, top: number, width: number, height: number};
 
 // ── timings (1080-logical ms; motionMs folds the speed preset) ──────────────
 
 /** The overview receding into the press point. */
-const BODY_OUT_MS = 190;
+const BODY_OUT_MS = 200;
 /** …and breathing back on B. */
-const BODY_IN_MS = 200;
-/** The decision surface opening from the slot's rect. */
-const UNFOLD_MS = 300;
-const FOLD_MS = 210;
-/** The decision rows surfacing from inside the opened panel. */
-const CASCADE_MS = 180;
-const CASCADE_OUT_MS = 90;
-/** The card FLIP (slot ⇄ hero) — the carried subject; the eye follows it. */
-const CARD_FLIP_MS = 320;
-const CARD_FLIP_BACK_MS = 260;
-/** The unfold's start offset — the commit reads first. */
-const UNFOLD_AT_MS = 60;
-
-// ── the armed origins ───────────────────────────────────────────────────────
-
-const CARD_KEY = 'parliament-vote-card';
-const SLOT_KEY = 'parliament-vote-slot';
-const PRESS_KEY = 'parliament-vote';
-
-/** The entrance's shape — armed by the section right before the layer mounts. */
-let armedInstant = false;
-/** The rect the surface unfolded from — the fold on the way back. */
-let unfoldedFrom: {rect: Rect, radius: number | undefined} | undefined;
-
+const BODY_IN_MS = 220;
 /**
- * Arm the vote step's origins: the pressed slot's rect (the surface unfolds
- * from it), its card's rect (the hero FLIPs from it) and the press point (the
- * overview recedes into it). `instant` = the fullscreen viewer is handing the
- * card over: no FLIP, no unfold — the layer stands ready under the veil.
+ * The info surface SURFACES in its final geometry, its content already inside
+ * it — a soft rise under the settling cards. Never an empty container
+ * stretching open: the cards are the event, the surface is what they land
+ * over.
  */
-export function armParliamentVote(origin: {card?: Rect, slot?: Rect, press?: {x: number, y: number}, instant?: boolean}): void {
-  armDescendRect(CARD_KEY, origin.card);
-  armDescendRect(SLOT_KEY, origin.slot);
-  armDescendOrigin(PRESS_KEY, origin.press);
-  armedInstant = origin.instant === true;
+const SURFACE_IN_MS = 260;
+const SURFACE_OUT_MS = 170;
+/** Wave 1 — the surface's structure, a beat behind the surface itself. */
+const REVEAL_MS = 220;
+const REVEAL_STAGGER_S = 0.035;
+/** Wave 2 — the fine print, later and softer. */
+const LATE_MS = 240;
+const LATE_STAGGER_S = 0.02;
+const LATE_SPREAD_S = 0.18;
+/** The card FLIP (overview ⇄ vote row) — the carried subjects. */
+const CARD_FLIP_MS = 380;
+const CARD_FLIP_BACK_MS = 320;
+/** The cubes travel with their card; slightly lighter. */
+const CUBE_FLIP_MS = 340;
+const CUBE_FLIP_BACK_MS = 280;
+/** The bench's sockets from the ledger. */
+const BENCH_FLIP_MS = 360;
+const BENCH_FLIP_BACK_MS = 280;
+/** When each beat starts (base ms from the press). */
+const CARRY_AT_MS = 40;
+const SURFACE_AT_MS = 180;
+const REVEAL_AT_MS = 240;
+const LATE_AT_MS = 360;
+/** On B: the overview breathes back once the surface has let go and the cards are on their way home. */
+const BODY_IN_AT_MS = 130;
+/** On B: the cards leave the row a beat after the surface starts sinking (the surface yields FIRST). */
+const CARRY_BACK_AT_MS = 40;
+/** The pressed block's own answer, before anything moves. */
+const COMMIT_MS = 120;
+/** The delegate's glide: the fraction of the path past which the cube has visibly LEFT its source … */
+const DEPARTED_AT = 0.1;
+/** … and the fraction at which it has visibly ARRIVED (the eased tail past it is snapped). */
+const TOUCHDOWN_AT = 0.985;
+
+// ── the measured snapshot ───────────────────────────────────────────────────
+
+/** Every carried object's rect, keyed by identity — measured in ONE layout, before it changes. */
+export type VoteRectSnapshot = {
+  /** The voting block's plate (the unfold / fold rect). */
+  plate: Rect | undefined;
+  plateRadius: number | undefined;
+  /** The press point (the recede origin). */
+  press: {x: number, y: number} | undefined;
+  faces: Map<string, Rect>;
+  labels: Map<string, Rect>;
+  tallies: Map<string, Rect>;
+  /** `<instance>#<seq>` → rect. */
+  cubes: Map<string, Rect>;
+  /** The viewer's two places on the ledger / the bench. */
+  lobby: Rect | undefined;
+  reserve: Rect | undefined;
+};
+
+function rectOf(el: Element | null | undefined): Rect | undefined {
+  return descendRectOf(el);
 }
 
-export function resetParliamentVoteMotion(): void {
-  unfoldedFrom = undefined;
-  armedInstant = false;
+function slotsOf(root: HTMLElement): Array<HTMLElement> {
+  return Array.from(root.querySelectorAll<HTMLElement>('.con-parl__slot[data-instance]'));
+}
+
+function instanceOf(slot: HTMLElement): string {
+  return slot.getAttribute('data-instance') ?? '';
+}
+
+/**
+ * Measure every carried object where it stands RIGHT NOW. Called by the
+ * section immediately before the teleport that changes the layout (both
+ * directions), so the deltas the FLIPs animate from are exact.
+ */
+export function measureVoteRects(root: HTMLElement, opts: {press?: {x: number, y: number}, viewer?: string, mode: 'browse' | 'vote'}): VoteRectSnapshot {
+  const plate = root.querySelector<HTMLElement>('.con-parl__voting');
+  const snap: VoteRectSnapshot = {
+    plate: rectOf(plate),
+    plateRadius: descendRadiusOf(plate),
+    press: opts.press,
+    faces: new Map(),
+    labels: new Map(),
+    tallies: new Map(),
+    cubes: new Map(),
+    lobby: undefined,
+    reserve: undefined,
+  };
+  for (const slot of slotsOf(root)) {
+    const id = instanceOf(slot);
+    const face = slot.querySelector<HTMLElement>('.con-parl__card .pcard') ?? slot.querySelector<HTMLElement>('.con-parl__card');
+    const faceRect = rectOf(face);
+    if (faceRect !== undefined) {
+      snap.faces.set(id, faceRect);
+    }
+    const label = rectOf(slot.querySelector('.con-parl__slot-label'));
+    if (label !== undefined) {
+      snap.labels.set(id, label);
+    }
+    const tally = rectOf(slot.querySelector('.con-parl__tally'));
+    if (tally !== undefined) {
+      snap.tallies.set(id, tally);
+    }
+    for (const cube of Array.from(slot.querySelectorAll<HTMLElement>('.con-parl__ribbon [data-seq]'))) {
+      const r = rectOf(cube);
+      if (r !== undefined) {
+        snap.cubes.set(`${id}#${cube.getAttribute('data-seq')}`, r);
+      }
+    }
+  }
+  if (opts.mode === 'browse') {
+    if (opts.viewer !== undefined) {
+      snap.lobby = rectOf(root.querySelector(`[data-parl-seat-lobby="${opts.viewer}"]`));
+      snap.reserve = rectOf(root.querySelector(`[data-parl-seat-reserve="${opts.viewer}"]`));
+    }
+  } else {
+    snap.lobby = rectOf(root.querySelector('[data-parl-lobby-cube]'));
+    snap.reserve = rectOf(root.querySelector('[data-parl-reserve-cube]'));
+  }
+  return snap;
 }
 
 // ── element resolution ──────────────────────────────────────────────────────
 
-function rootOf(el: Element): HTMLElement | null {
-  return el.closest<HTMLElement>('.con-parl');
+/** The overview's parts that RECEDE (everything but the voting plate and the carried slots). */
+function recedersOf(root: HTMLElement): Array<HTMLElement> {
+  return Array.from(root.querySelectorAll<HTMLElement>('[data-parl-recede]'));
 }
 
-function bodyOf(el: Element): HTMLElement | null {
-  return rootOf(el)?.querySelector<HTMLElement>('.con-parl__body') ?? null;
+function plateOf(root: HTMLElement): HTMLElement | null {
+  return root.querySelector<HTMLElement>('.con-parl__voting');
 }
 
-function heroCardOf(el: Element): HTMLElement | null {
-  return el.querySelector<HTMLElement>('[data-parl-vote-card]');
+function layerOf(root: HTMLElement): HTMLElement | null {
+  return root.querySelector<HTMLElement>('.con-parl__vote');
 }
 
-function surfaceOf(el: Element): HTMLElement | null {
-  return el.querySelector<HTMLElement>('[data-parl-vote-surface]');
+function surfaceOf(root: HTMLElement): HTMLElement | null {
+  return root.querySelector<HTMLElement>('[data-parl-vote-surface]');
 }
 
-function cascadeItemsOf(el: Element): Array<HTMLElement> {
-  return Array.from(el.querySelectorAll<HTMLElement>('[data-parl-vote-item]'));
+function benchOf(root: HTMLElement): HTMLElement | null {
+  return root.querySelector<HTMLElement>('[data-parl-bench]');
+}
+
+function benchLobbyOf(root: HTMLElement): HTMLElement | null {
+  return root.querySelector<HTMLElement>('[data-parl-lobby-cube]');
+}
+
+function benchReserveOf(root: HTMLElement): HTMLElement | null {
+  return root.querySelector<HTMLElement>('[data-parl-reserve-cube]');
+}
+
+function ledgerLobbyOf(root: HTMLElement, viewer: string | undefined): HTMLElement | null {
+  return viewer === undefined ? null : root.querySelector<HTMLElement>(`[data-parl-seat-lobby="${viewer}"]`);
+}
+
+function ledgerReserveOf(root: HTMLElement, viewer: string | undefined): HTMLElement | null {
+  return viewer === undefined ? null : root.querySelector<HTMLElement>(`[data-parl-seat-reserve="${viewer}"]`);
+}
+
+/** WAVE 1 — the surface's structural groups. */
+function revealItemsOf(root: HTMLElement): Array<HTMLElement> {
+  return Array.from(root.querySelectorAll<HTMLElement>('.con-parl__vote [data-parl-vote-item]'));
+}
+
+/** WAVE 2 — the fine print. */
+function lateItemsOf(root: HTMLElement): Array<HTMLElement> {
+  return Array.from(root.querySelectorAll<HTMLElement>('.con-parl__vote [data-parl-vote-late]'));
 }
 
 function hiddenByHost(el: Element): boolean {
@@ -130,159 +243,396 @@ function s(ms: number): number {
   return motionMs(ms) / 1000;
 }
 
-// ── the enter hook (browse → vote) ──────────────────────────────────────────
+/** A FLIP of `target` from `from` (its rect a layout ago) into its CURRENT box. */
+function carry(tl: gsap.core.Timeline, target: HTMLElement | null, from: Rect | undefined, atS: number, durMs: number, ease: string): void {
+  if (target === null) {
+    return;
+  }
+  const delta = from !== undefined ? descendFlipFrom(target, from) : undefined;
+  if (delta !== undefined) {
+    // Pinned to the departure rect on the FIRST frame (a `set` before the
+    // tween's own first tick), so the object is never painted at its new
+    // place before it starts moving.
+    gsap.set(target, {x: delta.x, y: delta.y, scale: delta.scale, transformOrigin: 'top left'});
+    tl.to(target, {x: 0, y: 0, scale: 1, duration: s(durMs), ease, clearProps: 'transform', overwrite: 'auto'}, atS);
+  } else {
+    tl.fromTo(target,
+      {autoAlpha: 0, scale: 0.96, transformOrigin: '50% 50%'},
+      {autoAlpha: 1, scale: 1, duration: s(REVEAL_MS), ease: 'expo.out', clearProps: 'transform,opacity,visibility', overwrite: 'auto'}, atS);
+  }
+}
 
-export function parliamentVoteEnterHook(el: Element, done: () => void): void {
-  if (typeof window === 'undefined' || hiddenByHost(el)) {
-    killDescendEpisode(el);
+/** The reverse: `target` travels from its CURRENT box to `to` (the rect it will occupy once the layout changes). */
+function carryTo(tl: gsap.core.Timeline, target: HTMLElement | null, to: Rect | undefined, atS: number, durMs: number, ease: string): void {
+  if (target === null) {
+    return;
+  }
+  const delta = to !== undefined ? descendFlipFrom(target, to) : undefined;
+  if (delta !== undefined) {
+    tl.to(target, {x: delta.x, y: delta.y, scale: delta.scale, transformOrigin: 'top left', duration: s(durMs), ease, overwrite: 'auto'}, atS);
+  } else {
+    tl.to(target, {autoAlpha: 0, duration: s(120), ease: 'power2.in', overwrite: 'auto'}, atS);
+  }
+}
+
+// ── the enter phrase (browse → vote) ────────────────────────────────────────
+
+export type VoteEnterArgs = {
+  root: HTMLElement;
+  /** Everything's rect in the OVERVIEW layout, measured before the teleport. */
+  before: VoteRectSnapshot;
+  /** The slot the vote mode opens on. */
+  selected: string;
+  /** The selected card arrives out of the fullscreen viewer on its own flight: no FLIP for it. */
+  fromViewer: boolean;
+  /** The vote mode is being REBUILT (a reload around a bill): no motion, just the pose. */
+  instant: boolean;
+  done: () => void;
+};
+
+/**
+ * Play the entrance. Called AFTER the teleport + the new fit have laid the
+ * vote row out (the section awaits a tick first), in the same task — before
+ * the browser paints — so every FLIP's first frame is the departure rect.
+ */
+export function playParliamentVoteEnter(args: VoteEnterArgs): void {
+  const {root, before, done} = args;
+  const layer = layerOf(root);
+  if (layer === null || typeof window === 'undefined' || hiddenByHost(root)) {
+    killDescendEpisode(root);
+    for (const el of recedersOf(root)) {
+      descendParkLayer(el);
+    }
     done();
     return;
   }
-  const body = bodyOf(el);
-  const heroCard = heroCardOf(el);
-  const surface = surfaceOf(el);
-  const items = cascadeItemsOf(el);
-  const slotRect = takeDescendRect(SLOT_KEY);
-  const cardRect = takeDescendRect(CARD_KEY);
-  const pressPoint = takeDescendOrigin(PRESS_KEY);
-  const instant = armedInstant;
-  armedInstant = false;
-  unfoldedFrom = slotRect === undefined ? undefined : {rect: slotRect, radius: undefined};
+  const receders = recedersOf(root);
+  const plate = plateOf(root);
+  const surface = surfaceOf(root);
+  const bench = benchOf(root);
+  const items = revealItemsOf(root);
+  const late = lateItemsOf(root);
 
-  // FROM THE VIEWER: the card is arriving on its own flight; everything else
-  // is simply in place under the veil.
-  if (instant || consoleReducedMotionActive()) {
-    guardedDescend(el, 140, done, (finish) => {
-      if (body !== null) {
-        descendParkLayer(body);
+  if (args.instant || consoleReducedMotionActive()) {
+    guardedDescend(root, 160, done, (finish) => {
+      for (const el of receders) {
+        descendParkLayer(el);
       }
-      return gsap.fromTo(el, {autoAlpha: instant ? 1 : 0}, {autoAlpha: 1, duration: instant ? 0.01 : 0.1, ease: 'power1.out', clearProps: 'opacity,visibility', onComplete: finish});
+      gsap.set([...items, ...late], {clearProps: 'transform,opacity,visibility'});
+      return gsap.fromTo(layer, {autoAlpha: args.instant ? 1 : 0}, {autoAlpha: 1, duration: args.instant ? 0.01 : 0.1, ease: 'power1.out', clearProps: 'opacity,visibility', onComplete: finish});
     });
     return;
   }
 
-  guardedDescend(el, UNFOLD_AT_MS + CARD_FLIP_MS + 160, done, (finish) => {
+  // Nothing secondary is painted before its beat (the hooks run before the
+  // first paint of the new layout): the surface and its words wait for the
+  // cards to be under way.
+  if (surface !== null) {
+    gsap.set(surface, {autoAlpha: 0, y: descendPx(14)});
+  }
+  if (items.length > 0) {
+    gsap.set(items, {autoAlpha: 0});
+  }
+  if (late.length > 0) {
+    gsap.set(late, {autoAlpha: 0});
+  }
+  const lateStagger = Math.min(LATE_STAGGER_S, LATE_SPREAD_S / Math.max(1, late.length));
+  const totalMs = Math.max(LATE_AT_MS + LATE_MS + Math.round(late.length * lateStagger * 1000), CARRY_AT_MS + CARD_FLIP_MS) + 120;
+
+  guardedDescend(root, totalMs, done, (finish) => {
     const tl = gsap.timeline({onComplete: finish});
-    // 1. The overview RECEDES INTO the press point.
-    if (body !== null) {
-      descendRecede(tl, body, pressPoint, s(BODY_OUT_MS), s(30));
-    }
-    // 2. UNFOLD — the decision surface opens FROM the slot's rect.
-    const unfolded = surface !== null &&
-      descendUnfold(tl, surface, slotRect, s(UNFOLD_MS), s(UNFOLD_AT_MS), descendRadiusOf(surface));
-    if (surface !== null && !unfolded) {
-      tl.fromTo(surface,
-        {autoAlpha: 0, y: descendPx(10)},
-        {autoAlpha: 1, y: 0, duration: s(CASCADE_MS), ease: 'expo.out', clearProps: 'transform,opacity,visibility'}, s(UNFOLD_AT_MS));
-    }
-    // 3. CARRY — the card FLIPs from its slot into the hero column (one
-    //    object: the slot's copy went dark before this frame).
-    if (heroCard !== null) {
-      const from = cardRect !== undefined ? descendFlipFrom(heroCard, cardRect) : undefined;
-      if (from !== undefined) {
-        tl.fromTo(heroCard,
-          {x: from.x, y: from.y, scale: from.scale, transformOrigin: 'top left'},
-          {x: 0, y: 0, scale: 1, duration: s(CARD_FLIP_MS), ease: 'power3.inOut', clearProps: 'transform', overwrite: 'auto'}, 0);
-      } else {
-        tl.fromTo(heroCard,
-          {autoAlpha: 0, scale: 0.97, transformOrigin: '50% 50%'},
-          {autoAlpha: 1, scale: 1, duration: s(CASCADE_MS), ease: 'expo.out', clearProps: 'transform,opacity,visibility', overwrite: 'auto'}, 0);
+    if (args.fromViewer) {
+      // Entered FROM THE VIEWER the overview was never on screen (the viewer's
+      // veil covered it): it is PARKED before the first paint, so the veil
+      // lifts onto the vote scene and the card flies into it — never onto a
+      // flash of the overview receding.
+      for (const el of receders) {
+        descendParkLayer(el);
+      }
+    } else {
+      // 0. COMMIT — the pressed plate answers; its chrome lets go in place (the
+      //    class the section sets fades its background — CSS, one shot).
+      if (plate !== null) {
+        tl.fromTo(plate, {scale: 1, transformOrigin: '50% 50%'}, {scale: 1.006, duration: s(COMMIT_MS), ease: 'power2.out', clearProps: 'transform'}, 0);
+      }
+      // 1. RECEDE — the rest of the overview steps back into the press point.
+      for (const el of receders) {
+        descendRecede(tl, el, before.press, s(BODY_OUT_MS), s(30));
       }
     }
-    // 4. REVEAL — the decision rows surface from inside the opening panel.
-    descendCascade(tl, items, s(CASCADE_MS), s(UNFOLD_AT_MS + 100));
+    // 2. CARRY — every card, cube, label and tally FLIPs from its overview
+    //    rect into its vote rect. The pressed (selected) card is the heaviest
+    //    object and settles last; its neighbours are a touch quicker.
+    for (const slot of slotsOf(root)) {
+      const id = instanceOf(slot);
+      const isSelected = id === args.selected;
+      const face = slot.querySelector<HTMLElement>('.con-parl__card .pcard') ?? slot.querySelector<HTMLElement>('.con-parl__card');
+      if (!(isSelected && args.fromViewer)) {
+        carry(tl, face, before.faces.get(id), s(CARRY_AT_MS), isSelected ? CARD_FLIP_MS : CARD_FLIP_MS - 40, 'power3.inOut');
+      }
+      carry(tl, slot.querySelector<HTMLElement>('.con-parl__slot-label'), before.labels.get(id), s(CARRY_AT_MS), CARD_FLIP_MS - 60, 'power2.inOut');
+      carry(tl, slot.querySelector<HTMLElement>('.con-parl__tally'), before.tallies.get(id), s(CARRY_AT_MS), CARD_FLIP_MS - 60, 'power2.inOut');
+      for (const cube of Array.from(slot.querySelectorAll<HTMLElement>('.con-parl__ribbon [data-seq]'))) {
+        carry(tl, cube, before.cubes.get(`${id}#${cube.getAttribute('data-seq')}`), s(CARRY_AT_MS + 20), CUBE_FLIP_MS, 'power2.inOut');
+      }
+    }
+    // 3. THE BENCH — the viewer's lobby socket and reserve stack come up from
+    //    their places on the ledger: the SOURCES of the vote, physically.
+    if (bench !== null) {
+      tl.fromTo(bench, {autoAlpha: 0}, {autoAlpha: 1, duration: s(REVEAL_MS), ease: 'expo.out', clearProps: 'opacity,visibility'}, s(CARRY_AT_MS));
+    }
+    carry(tl, benchLobbyOf(root), before.lobby, s(CARRY_AT_MS), BENCH_FLIP_MS, 'power2.inOut');
+    carry(tl, benchReserveOf(root), before.reserve, s(CARRY_AT_MS + 30), BENCH_FLIP_MS, 'power2.inOut');
+    // 4. THE INFO SURFACE surfaces in its final geometry under the settling
+    //    cards — a soft rise with its structure already in it; the fine print
+    //    arrives a beat later. Nothing stretches open empty.
+    if (surface !== null) {
+      tl.to(surface, {autoAlpha: 1, y: 0, duration: s(SURFACE_IN_MS), ease: 'expo.out', clearProps: 'transform,opacity,visibility'}, s(SURFACE_AT_MS));
+    }
+    // 5. REVEAL — the surface's structure, then its fine print.
+    descendCascade(tl, items, s(REVEAL_MS), s(REVEAL_AT_MS), REVEAL_STAGGER_S);
+    descendCascade(tl, late, s(LATE_MS), s(LATE_AT_MS), lateStagger);
     return tl;
   });
 }
 
-// ── the leave hook (vote → browse: a CANCEL — the committed path leaves with
-//    the whole workspace, whose own surface-motion leave carries the layer) ──
+// ── the leave phrase (vote → browse: a CANCEL) ──────────────────────────────
 
-export function parliamentVoteLeaveHook(el: Element, done: () => void, homeCardRect: () => Rect | undefined): void {
-  if (typeof window === 'undefined' || hiddenByHost(el)) {
-    killDescendEpisode(el);
-    unfoldedFrom = undefined;
+export type VoteLeaveArgs = {
+  root: HTMLElement;
+  /** The viewer's colour — the bench flies home onto their ledger row. */
+  viewer: string | undefined;
+  /** Snapshot of the VOTE layout, measured before the teleport home. */
+  before: VoteRectSnapshot;
+  done: () => void;
+};
+
+/**
+ * Play the return. Called AFTER the teleport home (the cards are in their
+ * overview cells at rest) in the same task, before the paint: every card
+ * is pinned back to its vote rect on the first frame and travels home.
+ */
+export function playParliamentVoteLeave(args: VoteLeaveArgs): void {
+  const {root, before, done} = args;
+  const layer = layerOf(root);
+  if (layer === null || typeof window === 'undefined' || hiddenByHost(root)) {
+    killDescendEpisode(root);
+    restoreParliamentBody(root);
     done();
     return;
   }
-  const body = bodyOf(el);
-  const heroCard = heroCardOf(el);
-  const surface = surfaceOf(el);
-  const items = cascadeItemsOf(el);
-  const home = unfoldedFrom;
-  unfoldedFrom = undefined;
+  const receders = recedersOf(root);
+  const surface = surfaceOf(root);
+  const bench = benchOf(root);
 
   if (consoleReducedMotionActive()) {
-    guardedDescend(el, 140, done, (finish) => {
-      if (body !== null) {
-        gsap.set(body, {autoAlpha: 1, clearProps: 'transform,opacity,visibility'});
+    guardedDescend(root, 160, done, (finish) => {
+      for (const el of receders) {
+        gsap.set(el, {autoAlpha: 1, clearProps: 'transform,opacity,visibility'});
       }
-      return gsap.to(el, {autoAlpha: 0, duration: 0.1, ease: 'power1.in', onComplete: finish});
+      return gsap.to(layer, {autoAlpha: 0, duration: 0.1, ease: 'power1.in', clearProps: 'opacity,visibility', onComplete: finish});
     });
     return;
   }
 
-  // The overview returns FIRST in the DOM (it is behind the layer): its card
-  // slot is measured at rest, so the hero flies onto the real place.
-  if (body !== null) {
-    gsap.set(body, {autoAlpha: 1, scale: 1, clearProps: 'transform,opacity,visibility'});
+  // The ledger's sockets are the bench's landing rects: measured at REST
+  // (the receders are parked scaled; a rect read under that transform is
+  // 1.5 % off), then parked again for the return tween to breathe from.
+  for (const el of receders) {
+    gsap.set(el, {scale: 1, clearProps: 'transform'});
   }
-  const target = homeCardRect();
-  if (body !== null) {
-    descendParkLayer(body);
+  const lobbyHome = rectOf(ledgerLobbyOf(root, args.viewer));
+  const reserveHome = rectOf(ledgerReserveOf(root, args.viewer));
+  for (const el of receders) {
+    descendParkLayer(el);
   }
-  guardedDescend(el, CARD_FLIP_BACK_MS + 160, done, (finish) => {
-    const tl = gsap.timeline({onComplete: finish});
-    // 1. The rows let go in place.
-    descendCascadeOut(tl, items, s(CASCADE_OUT_MS), 0);
-    // 2. FOLD — the panel collapses back into the slot it opened from.
-    const folded = surface !== null && descendFold(tl, surface, home?.rect, s(FOLD_MS), s(40), home?.radius);
-    if (surface !== null && !folded) {
-      tl.to(surface, {autoAlpha: 0, duration: s(110), ease: 'power2.in'}, s(20));
-    }
-    // 3. The overview BREATHES BACK from the same press point.
-    if (body !== null) {
-      descendReturn(tl, body, s(BODY_IN_MS), s(30));
-    }
-    // 4. The card FLIPs HOME into its slot — the last thing to land; the
-    //    slot's copy lights up when this layer is gone (the host's `done`).
-    if (heroCard !== null && target !== undefined && target.width >= 10) {
-      const to = descendFlipFrom(heroCard, target);
-      if (to !== undefined) {
-        tl.to(heroCard, {x: to.x, y: to.y, scale: to.scale, transformOrigin: 'top left', duration: s(CARD_FLIP_BACK_MS), ease: 'power3.inOut', overwrite: 'auto'}, s(10));
+
+  // The cards are ALREADY home in the DOM: pin each carried object to the
+  // rect it had in the vote row, so the first painted frame is where the
+  // player last saw it.
+  const flips: Array<{el: HTMLElement, durMs: number, ease: string, at: number}> = [];
+  for (const slot of slotsOf(root)) {
+    const id = instanceOf(slot);
+    const pin = (el: HTMLElement | null, from: Rect | undefined, durMs: number, ease: string, at: number) => {
+      if (el === null) {
+        return;
       }
-    } else if (heroCard !== null) {
-      tl.to(heroCard, {autoAlpha: 0, duration: s(120), ease: 'power2.in'}, s(20));
+      const delta = from !== undefined ? descendFlipFrom(el, from) : undefined;
+      if (delta === undefined) {
+        return;
+      }
+      gsap.set(el, {x: delta.x, y: delta.y, scale: delta.scale, transformOrigin: 'top left'});
+      flips.push({el, durMs, ease, at});
+    };
+    pin(slot.querySelector<HTMLElement>('.con-parl__card .pcard') ?? slot.querySelector<HTMLElement>('.con-parl__card'), before.faces.get(id), CARD_FLIP_BACK_MS, 'power3.inOut', CARRY_BACK_AT_MS);
+    pin(slot.querySelector<HTMLElement>('.con-parl__slot-label'), before.labels.get(id), CARD_FLIP_BACK_MS - 40, 'power2.inOut', CARRY_BACK_AT_MS);
+    pin(slot.querySelector<HTMLElement>('.con-parl__tally'), before.tallies.get(id), CARD_FLIP_BACK_MS - 40, 'power2.inOut', CARRY_BACK_AT_MS);
+    for (const cube of Array.from(slot.querySelectorAll<HTMLElement>('.con-parl__ribbon [data-seq]'))) {
+      pin(cube, before.cubes.get(`${id}#${cube.getAttribute('data-seq')}`), CUBE_FLIP_BACK_MS, 'power2.inOut', CARRY_BACK_AT_MS + 10);
     }
+  }
+
+  guardedDescend(root, CARRY_BACK_AT_MS + CARD_FLIP_BACK_MS + 240, done, (finish) => {
+    const tl = gsap.timeline({onComplete: finish});
+    // 1. The info surface YIELDS first — it lets go WITH its content, a short
+    //    sink under the cards (the reverse of its arrival).
+    if (surface !== null) {
+      tl.to(surface, {autoAlpha: 0, y: descendPx(10), duration: s(SURFACE_OUT_MS), ease: 'power2.in', overwrite: 'auto'}, 0);
+    }
+    // 2. THE BENCH flies home onto the ledger (its row breathes back under it).
+    carryTo(tl, benchLobbyOf(root), lobbyHome, s(CARRY_BACK_AT_MS), BENCH_FLIP_BACK_MS, 'power2.inOut');
+    carryTo(tl, benchReserveOf(root), reserveHome, s(CARRY_BACK_AT_MS), BENCH_FLIP_BACK_MS, 'power2.inOut');
+    if (bench !== null) {
+      tl.to(bench, {autoAlpha: 0, duration: s(120), ease: 'power1.in'}, s(CARRY_BACK_AT_MS + BENCH_FLIP_BACK_MS - 100));
+    }
+    // 3. The cards, cubes, labels and tallies travel HOME — they are in the
+    //    air while the overview comes back under them, and when they land
+    //    they are simply at rest in it.
+    for (const flip of flips) {
+      tl.to(flip.el, {x: 0, y: 0, scale: 1, duration: s(flip.durMs), ease: flip.ease, clearProps: 'transform', overwrite: 'auto'}, s(flip.at));
+    }
+    // 4. The overview BREATHES BACK from the same press point — a beat after
+    //    the surface has let go, so the return reads surface → cards → scene.
+    for (const el of receders) {
+      descendReturn(tl, el, s(BODY_IN_MS), s(BODY_IN_AT_MS));
+    }
+    // 5. The layer itself lets go (its plate fades under the returning cards).
+    tl.to(layer, {autoAlpha: 0, duration: s(140), ease: 'power1.in', clearProps: 'opacity,visibility'}, s(CARRY_BACK_AT_MS + CARD_FLIP_BACK_MS - 80));
     return tl;
   });
 }
 
-/** Cancelled-pair hooks: drop the dead tween and re-pose the layers to the direction the element is ACTUALLY taking. */
-export function parliamentVoteEnterCancelledHook(el: Element): void {
-  killDescendEpisode(el);
+/** Kill any running phrase and re-pose every carried object at rest (an interrupted pair, an unmount). */
+export function killParliamentVoteMotion(root: HTMLElement | null | undefined): void {
+  if (root === null || root === undefined) {
+    return;
+  }
+  killDescendEpisode(root);
+  const carried = root.querySelectorAll<HTMLElement>(
+    '.con-parl__slot .pcard, .con-parl__card, .con-parl__slot-label, .con-parl__tally, .con-parl__ribbon [data-seq], [data-parl-lobby-cube], [data-parl-reserve-cube], [data-parl-bench], [data-parl-vote-item], [data-parl-vote-late], [data-parl-vote-surface], .con-parl__vote, .con-parl__voting');
+  gsap.set(carried, {clearProps: 'transform,opacity,visibility,clipPath,webkitClipPath'});
 }
 
-export function parliamentVoteLeaveCancelledHook(el: Element): void {
-  killDescendEpisode(el);
-  const body = bodyOf(el);
-  if (body !== null) {
-    descendParkLayer(body);
-  }
-  const heroCard = heroCardOf(el);
-  if (heroCard !== null) {
-    gsap.set(heroCard, {clearProps: 'transform,opacity,visibility'});
-  }
-  const surface = surfaceOf(el);
-  if (surface !== null) {
-    gsap.set(surface, {clearProps: 'clipPath,webkitClipPath,opacity,visibility'});
-  }
-}
-
-/** The overview's layer comes back to rest (the workspace is leaving with the vote landed — nothing to fold). */
+/** The overview's receders come back to rest (the workspace is leaving with the vote landed — nothing to fold). */
 export function restoreParliamentBody(root: Element | null | undefined): void {
-  const body = root?.querySelector<HTMLElement>('.con-parl__body') ?? null;
-  if (body !== null) {
-    gsap.set(body, {clearProps: 'transform,opacity,visibility'});
+  if (root === null || root === undefined) {
+    return;
   }
+  const receders = Array.from(root.querySelectorAll<HTMLElement>('[data-parl-recede]'));
+  if (receders.length > 0) {
+    gsap.set(receders, {clearProps: 'transform,opacity,visibility'});
+  }
+}
+
+/** Park the overview's receders (the vote mode is standing without an entrance to play — a rebuild). */
+export function parkParliamentBody(root: Element | null | undefined): void {
+  if (root === null || root === undefined) {
+    return;
+  }
+  for (const el of Array.from(root.querySelectorAll<HTMLElement>('[data-parl-recede]'))) {
+    descendParkLayer(el);
+  }
+}
+
+// ── the delegate's flight (a cube from its bench place onto the card) ───────
+
+export type CubeFlightHandle = {
+  /** Abort: the proxy vanishes, the callbacks never fire. */
+  kill: () => void;
+  tween: gsap.core.Timeline;
+};
+
+export type CubeFlightArgs = {
+  /** The proxy element (a PlayerCube host, body-level fixed). */
+  proxy: HTMLElement;
+  /** The SOURCE cube's rect — the proxy is born exactly over it. */
+  from: Rect;
+  /** The DESTINATION place's rect — the proxy lands exactly on it. */
+  to: Rect;
+  /** Called on the frame the proxy is standing over the source (the real source cube may vanish now). */
+  onLifted?: () => void;
+  /** Called once the proxy has visibly LEFT its source (the source's own words — a note, a count — may change now). */
+  onDeparted?: () => void;
+  /** Called at touchdown (the real cube materializes under the proxy; the proxy is removed a frame later by the caller). */
+  onLanded: () => void;
+  durationMs?: number;
+  /** A small arc off the surface (0 = a straight glide). */
+  arcPx?: number;
+};
+
+/**
+ * ONE delegate cube travels from a real place to a real place. The proxy
+ * matches the source's box on its first frame (same size, same material —
+ * the caller renders the same PlayerCube at the source's logical size),
+ * glides with a slight lift, and settles onto the destination's box —
+ * scaling only by the ratio of the two rects, which is 1 wherever the
+ * source and destination cubes are drawn at one size.
+ */
+export function runDelegateCubeFlight(args: CubeFlightArgs): CubeFlightHandle {
+  const {proxy, from, to} = args;
+  const reduced = consoleReducedMotionActive();
+  const size = proxy.offsetWidth || from.width;
+  const startScale = from.width / size;
+  const endScale = to.width / size;
+  const start = {x: from.left + from.width / 2 - size / 2, y: from.top + from.height / 2 - size / 2};
+  const end = {x: to.left + to.width / 2 - size / 2, y: to.top + to.height / 2 - size / 2};
+  gsap.set(proxy, {x: start.x, y: start.y, scale: startScale, transformOrigin: '50% 50%', autoAlpha: 1});
+  const dur = s(args.durationMs ?? 520);
+  const arc = reduced ? 0 : (args.arcPx ?? descendPx(14));
+  let landed = false;
+  let departed = false;
+  // TOUCHDOWN is called on the frame the cube reaches its place — the eased
+  // tail of the glide (its last 1.5 %, a couple of pixels) is snapped, so the
+  // counters tick when the cube visibly stops, never a beat after.
+  const land = () => {
+    if (landed) {
+      return;
+    }
+    landed = true;
+    gsap.set(proxy, {x: end.x, y: end.y, scale: endScale});
+    args.onLanded();
+  };
+  const prog = {p: 0};
+  const tl = gsap.timeline();
+  tl.call(() => args.onLifted?.(), undefined, 0.001);
+  tl.to(prog, {
+    p: 1,
+    duration: reduced ? dur * 0.5 : dur,
+    ease: reduced ? 'power1.inOut' : 'power2.inOut',
+    onUpdate: () => {
+      const p = prog.p;
+      if (!departed && p >= DEPARTED_AT) {
+        departed = true;
+        args.onDeparted?.();
+      }
+      if (landed) {
+        return;
+      }
+      if (p >= TOUCHDOWN_AT) {
+        land();
+        return;
+      }
+      const x = start.x + (end.x - start.x) * p;
+      const y = start.y + (end.y - start.y) * p - Math.sin(p * Math.PI) * arc;
+      const scale = startScale + (endScale - startScale) * p + (reduced ? 0 : Math.sin(p * Math.PI) * 0.12);
+      gsap.set(proxy, {x, y, scale});
+    },
+    onComplete: () => {
+      if (!departed) {
+        departed = true;
+        args.onDeparted?.();
+      }
+      land();
+    },
+  }, 0.02);
+  return {
+    tween: tl,
+    kill: () => {
+      tl.kill();
+      gsap.set(proxy, {autoAlpha: 0});
+      if (!landed) {
+        landed = true;
+      }
+    },
+  };
 }

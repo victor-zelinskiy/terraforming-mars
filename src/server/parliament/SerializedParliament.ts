@@ -36,6 +36,8 @@ export type SerializedPhaseSummary = {
   support: Array<{party: PartyName; gained: number; total: number; reason: 'absent' | 'lost' | 'lost-with-player-vote'}>;
   enacted: ResolutionInstanceId;
   discardedEnacted?: ResolutionInstanceId;
+  /** The delegates that LEFT the enacted card at the enactment, per owner (absent on a save from before this field). */
+  returned?: Array<{owner: SerializedDelegateOwner; count: number}>;
   refreshed: Array<{instance: ResolutionInstanceId; neutralVotes: number}>;
   lobbyRefilled: Array<PlayerId>;
 };

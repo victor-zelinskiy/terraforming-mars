@@ -59,7 +59,9 @@
     </div>
     <!-- THE STATE CHIP — the viewer's relation to the party in one line; the
          delegate places are the viewer's OWN cubes (filled = placed, hollow =
-         still needed for the effect). -->
+         still needed for the effect). POPULAR SUPPORT closes the line: three
+         places, a steel cube per neutral delegate waiting for the party's
+         next resolution — so the printed mechanic below owns the plate's width. -->
     <div v-if="state !== undefined && size !== 'full'" class="con-pseal__state" :class="'con-pseal__state--' + state.tone">
       <span class="con-pseal__state-text">{{ stateText }}</span>
       <span v-if="showPlaces && viewerColor !== undefined" class="con-pseal__places" aria-hidden="true">
@@ -67,15 +69,13 @@
           <PlayerCube v-if="n <= (state?.delegates ?? 0)" :color="viewerColor" :size="placeCubePx" :glow="false" />
         </span>
       </span>
+      <span v-if="support !== undefined" class="con-pseal__support" :class="{'con-pseal__support--none': support === 0}" :data-support="support" aria-hidden="true">
+        <span v-for="n in 3" :key="n" class="con-pseal__support-place" :class="{'con-pseal__support-place--on': n <= support}" :data-support-place="n">
+          <PlayerCube v-if="n <= support" color="neutral" steel :size="supportCubePx" :glow="false" />
+        </span>
+      </span>
     </div>
     <ConsolePartyFormula v-if="formula" class="con-pseal__formula" :party="party" :size="size === 'tile' ? 'compact' : 'wide'" :dim="state !== undefined && !state.held" />
-    <!-- POPULAR SUPPORT — the neutral delegates waiting for the party's next
-         resolution: three places, a steel cube per supporting delegate. -->
-    <span v-if="support !== undefined && size !== 'full'" class="con-pseal__support" :class="{'con-pseal__support--none': support === 0}" :data-support="support" :title="undefined" aria-hidden="true">
-      <span v-for="n in 3" :key="n" class="con-pseal__support-place" :class="{'con-pseal__support-place--on': n <= support}" :data-support-place="n">
-        <PlayerCube v-if="n <= support" color="neutral" steel :size="supportCubePx" :glow="false" />
-      </span>
-    </span>
   </div>
 </template>
 

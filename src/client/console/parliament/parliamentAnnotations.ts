@@ -80,8 +80,13 @@ export function resolutionAnnotations(
     return [];
   }
   const out: Array<CardAnnotation> = [];
-  // 1. THE RESOLUTION'S OWN EFFECT — a dummy says so, calmly and once.
-  if (resolution.dummy || (resolution.text.effect === undefined && resolution.text.passive === undefined && resolution.text.action === undefined)) {
+  // 1. THE RESOLUTION'S OWN EFFECT. A dummy has none, and the FACE beside
+  //    this panel already says so («no effect of its own» in its mechanics
+  //    zone) — the panel spends no block on it: the Deck's reading band holds
+  //    exactly the blocks a real resolution needs (party · quest · status).
+  if (resolution.dummy) {
+    // nothing to read here
+  } else if (resolution.text.effect === undefined && resolution.text.passive === undefined && resolution.text.action === undefined) {
     out.push(block('group:immediate', 'immediate', 'Resolution effect', ['No effect of its own'], 0));
   } else {
     if (resolution.text.effect !== undefined) {
@@ -129,6 +134,24 @@ export function resolutionAnnotations(
         text: 'On the card: ${0} delegates · leader: ${1} · ${2}',
         params: [String(slot.totalVotes), leader, translateText(slot.isWinning ? 'winning now' : 'not winning')],
       });
+      // THE TIE RULES — said here, where the player asks, never on the
+      // overview: only when a tie is what decides this card's standing.
+      const tiedSlots = model.slots.filter((s) => s !== slot && s.totalVotes === slot.totalVotes);
+      if (tiedSlots.length > 0) {
+        rows.push(slot.isWinning ?
+          'Tied on delegates: the resolution closest to the government wins' :
+          'Tied on delegates: the resolution closest to the government wins the tie');
+      }
+      const counts = new Map<string, number>();
+      for (const vote of slot.votes) {
+        if (vote.owner !== 'neutral') {
+          counts.set(vote.owner, (counts.get(vote.owner) ?? 0) + 1);
+        }
+      }
+      const sorted = [...counts.values()].sort((a, b) => b - a);
+      if (sorted.length > 1 && sorted[0] === sorted[1]) {
+        rows.push('Tied players: the one whose delegate came earlier leads');
+      }
       if (viewer !== undefined) {
         const mine = slot.viewerVotes;
         rows.push(mine >= PARTY_EFFECT_DELEGATES ?
@@ -173,7 +196,9 @@ export function partyAnnotations(party: ReduxParty, model: ParliamentModel | und
   if (effect.text.passive === undefined && effect.text.action === undefined) {
     out.push(block('group:effect', 'effect', 'Party effect', [effect.text.rule], 0));
   }
-  // 3. FOR YOU — the live basis of the viewer's access (by the CURRENT state).
+  // 3. FOR YOU — the viewer's STATE in one short line (held / not held, and
+  //    the one live basis), never the rule restated: the reference block
+  //    below carries the rule once.
   if (model !== undefined && viewer !== undefined) {
     const me = model.players.find((p) => p.color === viewer);
     const access = me?.access.find((a) => a.party === party);
@@ -193,9 +218,9 @@ export function partyAnnotations(party: ReduxParty, model: ParliamentModel | und
       out.push(block('group:you', 'note', 'For you', rows, 2));
     }
   }
-  // 4. THE REFERENCE — how a party effect is held, in one line.
+  // 4. THE REFERENCE — how a party effect is held: the whole rule, once.
   out.push(block('group:access', 'note', 'Access', [
-    'Rule: the ruling party — everyone; two of your delegates on its resolution — you',
+    'The ruling party\'s effect belongs to every player; a party with two of your delegates on its resolution gives its effect to you as well',
   ], 3));
   return out;
 }

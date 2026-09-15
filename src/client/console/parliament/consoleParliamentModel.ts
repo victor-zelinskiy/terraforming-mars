@@ -501,6 +501,41 @@ export function voteForecastOf(slot: ParliamentSlotVm, viewer: Color | undefined
   };
 }
 
+export type VoteAccessVm = {
+  threshold: number;
+  /** The viewer's own delegates on the card now. */
+  before: number;
+  /** …and after this vote. */
+  after: number;
+  /** The effect is ALREADY the viewer's for another reason (the party rules / a card grant) — a delegate changes nothing about it. */
+  heldByOther: boolean;
+  /** English i18n key naming that other reason (undefined when none). */
+  reason: string | undefined;
+};
+
+/**
+ * THE VIEWER'S ACCESS to the card's party effect, before and after ONE more
+ * own delegate — the fact the vote mode states beside the vote, apart from
+ * «if enacted, everyone gets it». Held through the ruling party or a card
+ * grant, the effect is the viewer's already and the delegate adds nothing to
+ * it (the card REQUIREMENT still counts delegates — the inspector's note).
+ */
+export function voteAccessOf(slot: ParliamentSlotVm | undefined, party: ParliamentPartyVm | undefined, afterMine: number | undefined, beforeMine?: number): VoteAccessVm {
+  const threshold = PARTY_EFFECT_DELEGATES;
+  // `beforeMine` is the count the vote mode SHOWS as «before» (a snapshot taken
+  // at the submit — the live model has already moved on once the answer is in).
+  const before = beforeMine ?? slot?.viewerVotes ?? 0;
+  const after = Math.max(before, afterMine ?? before + 1);
+  const access = party?.access;
+  if (access !== undefined && access.hasEffect && !access.byDelegates) {
+    return {
+      threshold, before, after, heldByOther: true,
+      reason: access.ruling ? 'already yours: the party rules' : 'already yours: granted by a card',
+    };
+  }
+  return {threshold, before, after, heldByOther: false, reason: undefined};
+}
+
 /**
  * Chip reading of a forecast — the consequence rows the vote stage lists
  * (English keys). `compact` is the ONE-LINE focus rail's vocabulary: the same

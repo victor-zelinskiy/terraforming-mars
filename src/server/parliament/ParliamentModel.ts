@@ -278,5 +278,8 @@ function summaryModel(game: IGame, parliament: Parliament, summary: SerializedPh
   if (summary.discardedEnacted !== undefined) {
     model.discardedEnacted = enactedModel(parliament, summary.discardedEnacted);
   }
+  if (summary.returned !== undefined) {
+    model.returned = summary.returned.map((entry) => ({owner: colorOf(game, entry.owner), count: entry.count}));
+  }
   return model;
 }

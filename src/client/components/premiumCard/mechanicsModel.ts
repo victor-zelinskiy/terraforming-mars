@@ -179,12 +179,16 @@ export function effectParts(node: ICardRenderEffect): EffectParts {
   const rows = node.rows;
   const delimiterRow = rows.length > 1 ? rows[1] : [];
   const delimiter = delimiterRow.find(isICardRenderSymbol);
+  // A LEADING OR opening the cause is a CONNECTOR to the PREVIOUS action row
+  // («ИЛИ <floater> → …» — Rotator Impacts, Weather Balloons, Icy Impactors):
+  // nothing stands to its left, so it can only join boxes. Drawn as the «ИЛИ»
+  // divider; left inline it printed a SECOND «или» right under the divider.
+  const cause = dropLeadingOr(renderableNodes(rows[0] ?? []));
   return {
-    // A LEADING OR opening the cause is a CONNECTOR to the PREVIOUS action row
-    // («ИЛИ <floater> → …» — Rotator Impacts, Weather Balloons, Icy Impactors):
-    // nothing stands to its left, so it can only join boxes. Drawn as the «ИЛИ»
-    // divider; left inline it printed a SECOND «или» right under the divider.
-    cause: dropLeadingOr(renderableNodes(rows[0] ?? [])),
+    // A cause made only of SPACERS (the DSL's `empty().startEffect…` — a
+    // standing modifier: a discount, an extra tag) is NO cause: the frame then
+    // prints its result alone, never a colon after nothing.
+    cause: cause.some((n) => !isSpacerNode(n)) ? cause : [],
     delimiter,
     // A trailing OR inside the result is a CONNECTOR to the next action row
     // (drawn as the «ИЛИ» divider), never an inline glyph.

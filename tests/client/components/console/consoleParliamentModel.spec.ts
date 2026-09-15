@@ -4,8 +4,8 @@ import {PartyName} from '@/common/turmoil/PartyName';
 import {ParliamentModel, PartyAccessModel, PartyActionModel, VoteOptionModel} from '@/common/models/ParliamentModel';
 import {ReduxParty} from '@/common/parliament/ParliamentTypes';
 import {
-  accessReasonRows, agendaViewOf, buildParliamentView, offeredPartyActions, ParliamentPartyVm, parliamentPromptBridge,
-  partyActionStateOf, partyFormulaRender, partyStateOf, voteForecastOf, voteForecastRows,
+  accessReasonRows, agendaViewOf, buildParliamentView, offeredPartyActions, ParliamentPartyVm, ParliamentSlotVm, parliamentPromptBridge,
+  partyActionStateOf, partyFormulaRender, partyStateOf, voteAccessOf, voteForecastOf, voteForecastRows,
 } from '@/client/console/parliament/consoleParliamentModel';
 import {getPartyEffect} from '@/client/parliament/ClientParliamentManifest';
 import {PlayerInputModel} from '@/common/models/PlayerInputModel';
@@ -146,6 +146,47 @@ describe('consoleParliamentModel — the vote forecast', () => {
     }
     const tie = voteForecastRows(voteForecastOf(slot(), me, vote), true).map((r) => r.key);
     expect(tie).to.deep.eq(['wins on the tie', 'another player leads']);
+  });
+});
+
+describe('consoleParliamentModel — the viewer\'s access beside the vote', () => {
+  const slotWith = (viewerVotes: number): ParliamentSlotVm => ({
+    instance: 'RDX_REDS_1#0', resolutionId: 'RDX_REDS_1', resolution: undefined, party: PartyName.REDS,
+    votes: [], totalVotes: viewerVotes, leader: undefined, leaderVotes: 0, isWinning: false, tiePriority: 1, viewerVotes, projection: undefined,
+  });
+
+  it('counts the viewer\'s own delegates toward the threshold: 1 of 2 → 2 of 2 unlocks', () => {
+    const a = voteAccessOf(slotWith(1), party({party: PartyName.REDS, inArea: true, access: access({party: PartyName.REDS, delegates: 1})}), 2);
+    expect(a).to.deep.include({threshold: 2, before: 1, after: 2, heldByOther: false, reason: undefined});
+    const b = voteAccessOf(slotWith(0), party({party: PartyName.REDS, inArea: true, access: access({party: PartyName.REDS})}), 1);
+    expect(b.before).to.eq(0);
+    expect(b.after).to.eq(1);
+  });
+
+  it('an effect held through the RULING party or a CARD GRANT is already the viewer\'s — the delegate changes nothing about it', () => {
+    const ruling = voteAccessOf(slotWith(0), party({party: PartyName.REDS, ruling: true, access: access({party: PartyName.REDS, ruling: true, hasEffect: true})}), 1);
+    expect(ruling.heldByOther).to.eq(true);
+    expect(ruling.reason).to.contain('the party rules');
+    const granted = voteAccessOf(slotWith(0), party({party: PartyName.REDS, access: access({party: PartyName.REDS, granted: ['Septem Tribus'], hasEffect: true})}), 1);
+    expect(granted.heldByOther).to.eq(true);
+    expect(granted.reason).to.contain('granted by a card');
+    // …but an effect held BY DELEGATES is exactly what the vote is about.
+    const byDelegates = voteAccessOf(slotWith(2), party({party: PartyName.REDS, inArea: true, access: access({party: PartyName.REDS, delegates: 2, byDelegates: true, hasEffect: true})}), 3);
+    expect(byDelegates.heldByOther).to.eq(false);
+    expect(byDelegates.before).to.eq(2);
+  });
+
+  it('never counts backwards: the after side is at least the before side', () => {
+    const a = voteAccessOf(slotWith(2), party({party: PartyName.REDS, inArea: true}), 1);
+    expect(a.after).to.eq(2);
+    expect(voteAccessOf(undefined, undefined, undefined)).to.deep.include({before: 0, after: 1, heldByOther: false});
+  });
+
+  it('reads «before» from the vote mode\'s snapshot once the answer is in — the live model has already moved on', () => {
+    // The live slot already counts the landed delegate (1); the snapshot taken at the submit says 0.
+    expect(voteAccessOf(slotWith(1), party({party: PartyName.REDS, inArea: true}), 1, 0)).to.deep.include({before: 0, after: 1});
+    // Without a snapshot the live count is the before side.
+    expect(voteAccessOf(slotWith(1), party({party: PartyName.REDS, inArea: true}), 2).before).to.eq(1);
   });
 });
 

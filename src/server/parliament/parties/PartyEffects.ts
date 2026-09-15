@@ -155,8 +155,11 @@ const SCIENTISTS: PartyEffectDefinition = {
   },
   // The wild tag is a TAG (the face's round tag holder) in the effect frame —
   // the game's own language for a permanent grant, not a «?» resource tile.
+  // A STANDING MODIFIER: no cause, so the frame prints no colon (the premium
+  // face draws an empty-cause effect as the modifier itself — «+ wild tag»),
+  // never «: tag», which reads as a formula missing its condition.
   passiveRenderData: CardRenderer.builder((b) => {
-    b.effect(undefined, (eb) => eb.empty().startEffect.tag(Tag.WILD)).br;
+    b.effect(undefined, (eb) => eb.empty().startEffect.plus().tag(Tag.WILD)).br;
   }),
   actionRenderData: CardRenderer.builder((b) => {
     b.action('Add 2 data or 2 microbes to one of your cards that holds that resource.', (ab) => ab.empty().startAction.resource(CardResource.DATA, 2).asterix().slash().resource(CardResource.MICROBE, 2).asterix());
@@ -215,9 +218,12 @@ const MARS_FIRST: PartyEffectDefinition = {
     rule: 'Effect: whenever you place a tile on Mars, gain 1 steel. If it is a city tile, also draw a card.',
     passive: 'Whenever you place a tile on Mars, gain 1 steel; a city tile also draws a card.',
   },
+  // ONE trigger, ONE extra: any tile on Mars pays the steel; a city ADDS a
+  // card on top of it («+ card»). The second row must never restate the steel,
+  // or the face reads as two triggers paying two steel for a city.
   passiveRenderData: CardRenderer.builder((b) => {
     b.effect(undefined, (eb) => eb.emptyTile('normal', {size: Size.SMALL}).asterix().startEffect.steel(1)).br;
-    b.effect(undefined, (eb) => eb.city({size: Size.SMALL}).asterix().startEffect.steel(1).cards(1));
+    b.effect(undefined, (eb) => eb.city({size: Size.SMALL}).asterix().startEffect.plus().cards(1));
   }),
   onTilePlaced(player, space) {
     if (space.spaceType === SpaceType.COLONY) {

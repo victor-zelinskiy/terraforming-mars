@@ -134,6 +134,8 @@ export type ParliamentPhaseSummaryModel = {
   support: ReadonlyArray<{party: ReduxParty; gained: number; total: number; reason: 'absent' | 'lost' | 'lost-with-player-vote'}>;
   enacted: ParliamentEnactedModel;
   discardedEnacted?: ParliamentEnactedModel;
+  /** The delegates that left the enacted card at the enactment, per owner — the client's return flights (absent on older saves). */
+  returned?: ReadonlyArray<{owner: Color | 'neutral'; count: number}>;
   refreshed: ReadonlyArray<{instance: ResolutionInstanceId; resolution: ResolutionId; party: ReduxParty; neutralVotes: number}>;
   lobbyRefilled: ReadonlyArray<Color>;
 };

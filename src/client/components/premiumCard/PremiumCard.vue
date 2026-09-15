@@ -79,6 +79,10 @@ Before changing it, check the console consumers in docs/DESKTOP_DEPRECATION_AUDI
         <!-- A DUMMY prints no effect row: it says so once, quietly, where the
              mechanics would stand — never as the face's centrepiece. -->
         <div v-if="vm.parliament?.dummy === true && vm.mechanics.textOnly" class="pcard__dummy" aria-hidden="true">{{ $t('No effect of its own') }}</div>
+        <!-- THE CHAIRMAN QUEST — the printed CONDITION alone, centred: the
+             reward (the seat + one Agenda step) is the same for every
+             resolution and lives in the inspector and the government block,
+             never repeated on every face. -->
         <div v-if="vm.parliament?.quest !== undefined" class="pcard__quest" :class="{'pcard__quest--words': questNodes.length === 0}">
           <span class="pcard__quest-kicker">{{ $t('Chairman quest') }}</span>
           <span class="pcard__quest-cond">
@@ -89,12 +93,6 @@ Before changing it, check the console consumers in docs/DESKTOP_DEPRECATION_AUDI
               <PremiumMechNode v-for="(node, i) in questNodes" :key="i" :node="node" />
             </span>
             <span v-else class="pcard__quest-text">{{ $t(vm.parliament.quest) }}</span>
-          </span>
-          <!-- THE REWARD — the chairman's seat and ONE Agenda step, as marks. -->
-          <span class="pcard__quest-reward" aria-hidden="true">
-            <span class="pcard__quest-seat">{{ $t('Seat') }}</span>
-            <span class="pcard__quest-plus">+</span>
-            <span class="pcard__quest-step"><i class="pcard__quest-chev"></i>1</span>
           </span>
         </div>
         <div class="pcard__exp" aria-hidden="true">
@@ -406,8 +404,10 @@ export default defineComponent({
         'pcard--has-res': this.resourceInfo !== undefined,
         // No lower rules block at all (a requirement/VP-only card): the art
         // runs down to the bottom inner border and the corner anchors overlay
-        // it — see `.pcard--no-mech` in premium_card.less.
-        'pcard--no-mech': this.vm.mechanics.textOnly,
+        // it — see `.pcard--no-mech` in premium_card.less. A RESOLUTION always
+        // has a lower block (its dummy caption and its quest plate), so its
+        // art window must yield the room instead of running under them.
+        'pcard--no-mech': this.vm.mechanics.textOnly && this.vm.parliament?.quest === undefined,
       };
       if (this.vm.vp !== undefined) {
         classes['pcard--vp-' + vpVariantOf(this.vm.vp)] = true;

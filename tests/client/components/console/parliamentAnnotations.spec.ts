@@ -67,26 +67,39 @@ describe('parliamentAnnotations — the fullscreen inspector\'s rules blocks', (
     expect(blocks[0].rows.length).to.eq(1);
   });
 
-  it('a dummy resolution: «no effect of its own» — calm, and never a word about iterations or tests', () => {
+  it('a dummy resolution: no effect block (the face says «no effect of its own» beside the panel), and never a word about iterations or tests', () => {
     const blocks = resolutionAnnotations(DUMMY, model(), 'blue', [{color: 'red', name: 'Ann'}, {color: 'blue', name: 'Bob'}]);
-    expect(blocks.map((b) => b.labelKey)).to.deep.eq(['Resolution effect', 'Party effect', 'Chairman quest', 'Status']);
-    expect(blocks[0].rows.map((r) => r.text)).to.deep.eq(['No effect of its own']);
+    expect(blocks.map((b) => b.labelKey)).to.deep.eq(['Party effect', 'Chairman quest', 'Status']);
     for (const text of texts(blocks)) {
-      expect(text.toLowerCase(), text).to.not.match(/dummy|iteration|test/);
+      expect(text.toLowerCase(), text).to.not.match(/dummy|iteration|test|no effect/);
     }
     // The party NAME reaches the row as a display string — translated, never a raw enum.
-    const partyRow = blocks[1].rows[0];
+    const partyRow = blocks[0].rows[0];
     expect(partyRow.text).to.include('${0}');
     expect(partyRow.params?.[0]).to.be.a('string');
-    // The quest is ONE row (condition · reward); the status is two: slot ·
-    // delegates · leader · winning, and the viewer's line.
-    expect(blocks[2].rows.length).to.eq(1);
-    expect(blocks[3].rows.length).to.eq(2);
-    expect(blocks[3].rows[0].text).to.eq('On the card: ${0} delegates · leader: ${1} · ${2}');
-    expect(blocks[3].rows[0].params).to.deep.eq(['2', 'Ann', 'winning now']);
+    // The quest is ONE row (condition · reward); the status is three here: slot ·
+    // delegates · leader · winning, the TIE between the two players on the card
+    // (red and blue hold one delegate each — said where the player asks, never
+    // on the overview), and the viewer's line.
+    expect(blocks[1].rows.length).to.eq(1);
+    expect(blocks[2].rows.length).to.eq(3);
+    expect(blocks[2].rows[0].text).to.eq('On the card: ${0} delegates · leader: ${1} · ${2}');
+    expect(blocks[2].rows[0].params).to.deep.eq(['2', 'Ann', 'winning now']);
+    expect(blocks[2].rows[1].text, 'the tie between the players is explained in the inspector').to.eq('Tied players: the one whose delegate came earlier leads');
     // Up for the vote, the party block says what ENACTING would give (a condition, never «enacted»).
-    expect(blocks[1].rows[0].text).to.eq('If enacted: ${0} rule, and every player has their effect');
-    expect(blocks[3].rows[1].params).to.deep.eq(['1', '2']);
+    expect(blocks[0].rows[0].text).to.eq('If enacted: ${0} rule, and every player has their effect');
+    expect(blocks[2].rows[2].params).to.deep.eq(['1', '2']);
+  });
+
+  it('a resolution tied with another on delegates explains the slot-order tie — for the winner and for the loser', () => {
+    const other = 'RDX_DUMMY_REDS_1';
+    const m = model();
+    (m.slots as Array<ParliamentModel['slots'][number]>).push({instance: `${other}#0`, resolution: other, party: PartyName.REDS, votes: [{owner: 'red', seq: 3}, {owner: 'red', seq: 4}], totalVotes: 2, leader: 'red', isWinning: false, tiePriority: 2, viewerVotes: 0});
+    const winner = resolutionAnnotations(DUMMY, m, 'blue');
+    const status = winner.find((b) => b.labelKey === 'Status');
+    expect(status?.rows.map((r) => r.text)).to.include('Tied on delegates: the resolution closest to the government wins');
+    const loser = resolutionAnnotations(other, m, 'blue');
+    expect(loser.find((b) => b.labelKey === 'Status')?.rows.map((r) => r.text)).to.include('Tied on delegates: the resolution closest to the government wins the tie');
   });
 
   it('an ENACTED resolution reads its one status line', () => {

@@ -12980,19 +12980,30 @@ export default defineComponent({
      * viewer into the step's hero slot (the play-from-hand handoff).
      */
     inspectParliament(request: ParliamentInspectRequest): void {
-      const entry = request.kind === 'resolution' ? resolutionZoomEntry(request.id) : partyEffectZoomEntry(request.party);
-      const resolveOrigin = request.origin;
-      const origin: ZoomOrigin = resolveOrigin === undefined ?
+      if (request.kind === 'party') {
+        const resolveOrigin = request.origin;
+        const origin: ZoomOrigin = resolveOrigin === undefined ?
+          {kind: 'textual'} :
+          {kind: 'physical', resolve: () => resolveOrigin() ?? null};
+        openConsoleCardZoom([partyEffectZoomEntry(request.party)], 0, undefined, undefined, {origin});
+        return;
+      }
+      // The voting area: every card of it in one viewer (LB/RB browse them, the
+      // section's cursor follows), and the A verb opens the vote MODE on the
+      // card shown — the card flies from the viewer into its place in the row.
+      const entries = request.ids.map((id) => resolutionZoomEntry(id));
+      const resolveAt = request.origin;
+      const origin: ZoomOrigin = resolveAt === undefined ?
         {kind: 'textual'} :
-        {kind: 'physical', resolve: () => resolveOrigin() ?? null};
-      const vote = request.kind === 'resolution' ? request.vote : undefined;
+        {kind: 'physical', resolve: (index) => resolveAt(index) ?? null, onBrowse: request.onBrowse};
+      const vote = request.vote;
       const action: ConsoleZoomAction | undefined = vote === undefined ? undefined : {
-        labelFor: () => (vote.label === '' ? undefined : vote.label),
-        reasonsFor: () => vote.reasons,
-        execute: () => vote.execute(),
+        labelFor: (name) => vote.labelFor(String(name)),
+        reasonsFor: (name) => vote.reasonsFor(String(name)),
+        execute: (name) => vote.execute(String(name)),
         handoffTarget: () => '.con-parl__vote [data-zoom-handoff="parliament-vote"]',
       };
-      openConsoleCardZoom([entry], 0, undefined, action, {origin});
+      openConsoleCardZoom(entries, Math.max(0, Math.min(entries.length - 1, request.index)), undefined, action, {origin});
     },
     /**
      * A PARTY ACTION FROM THE PARLIAMENT (Turmoil Redux) — the second door

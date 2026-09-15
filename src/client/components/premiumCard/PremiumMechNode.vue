@@ -63,11 +63,16 @@
   </span>
 
   <!-- EFFECT / ACTION frame -->
-  <span v-else-if="effectNode !== undefined" class="pcard-effect" :class="{'pcard-effect--action': effectKind === 'action'}">
+  <span v-else-if="effectNode !== undefined" class="pcard-effect" :class="{'pcard-effect--action': effectKind === 'action', 'pcard-effect--standing': effectKind !== 'action' && effect.cause.length === 0}">
     <span v-if="effect.cause.length > 0" class="pcard-effect__part">
       <PremiumMechNode v-for="(child, ci) in effect.cause" :key="'c' + ci" :node="child" />
     </span>
-    <PremiumMechNode v-if="effect.delimiter !== undefined" :node="effect.delimiter" />
+    <!-- A STANDING MODIFIER (an EFFECT with no cause — a discount, an extra
+         tag, an influence bonus) prints its result alone inside the effect
+         frame: the frame already says «effect», and a lone colon before the
+         result reads as a trigger whose condition went missing. An ACTION
+         keeps its arrow whatever it costs — «→ result» IS a free action. -->
+    <PremiumMechNode v-if="effect.delimiter !== undefined && (effectKind === 'action' || effect.cause.length > 0)" :node="effect.delimiter" />
     <span class="pcard-effect__part">
       <PremiumMechNode v-for="(child, ci) in effect.result" :key="'r' + ci" :node="child" />
     </span>
