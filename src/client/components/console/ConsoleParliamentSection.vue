@@ -1,18 +1,27 @@
 <template>
   <!-- «ПАРЛАМЕНТ» — the Mars Parliament workspace (Turmoil Redux).
 
-       ONE FLOW, one screen: the GOVERNMENT (who rules, what that gives, the
-       chairman quest, the seat) beside the VOTING AREA (three resolutions, the
-       delegates on each, who leads them, which one wins now — and, under the
-       cursor, what the viewer's next delegate changes); the six PARTIES with
-       their access states and ONE detail zone that unfolds the focused
-       party's printed formula; the AGENDA track. A stage — the VOTE, the
-       chairman SEAT, a party ACTION, the RESULTS of the last political phase —
-       UNFOLDS IN PLACE of the parties tier (the cards, the frame, the rail do
-       not move) and the header's crumb grows a tail («ПАРЛАМЕНТ › <резолюция> ›
-       ГОЛОС»). Nothing here re-derives a rule: availability is the PRESENCE of
-       the server's own option in the action menu (found by its structural
-       marker), the numbers are the server's projections, and a submit is the
+       ONE FLOW, one screen, and a GAME SCREEN — not a rulebook. It shows
+       objects and states: the GOVERNMENT (the ruling party's plaque, the
+       enacted resolution, the chairman quest with its printed condition, the
+       race for it and its reward as glyphs) beside the VOTING AREA (three
+       resolution cards, the delegates on each, who leads, which one wins now
+       — and, under the cursor, the forecast of the viewer's next delegate);
+       the six PARTIES as one row of plaques (seal · state ring · mechanic ·
+       support · action glyph); the AGENDA track. Nothing here explains a
+       general rule — the fullscreen inspector (X) does, on the object asked.
+
+       A stage — the VOTE, the chairman SEAT, the RESULTS of the last political
+       phase — UNFOLDS IN PLACE of the parties tier (the cards, the frame, the
+       rail do not move) and the header's crumb grows a tail. A PARTY ACTION is
+       not a stage of this screen: A on a party nests the action workspace
+       (`parliament ⊃ card-actions`) — the ONE execution point every party
+       action has, whichever door opened it — and this screen yields the scene
+       and takes it back with its focus exactly where it was.
+
+       Nothing here re-derives a rule: availability is the PRESENCE of the
+       server's own option in the action menu (found by its structural marker),
+       the numbers are the server's projections, and a submit is the
        byte-identical response the live prompt expects. -->
   <section class="con-parl con-ws"
            :class="{
@@ -60,10 +69,8 @@
     <div class="con-parl__body">
       <!-- ══ TOP TIER: the GOVERNMENT · the VOTING AREA ══ -->
       <div class="con-parl__top">
-        <!-- ── THE GOVERNMENT — one connected reading: the enacted resolution
-             (or the starting rule), the ruling party and its effect, the
-             chairman quest with its reward, the seat. Nothing here is repeated
-             elsewhere on the screen. ── -->
+        <!-- ── THE GOVERNMENT — who rules and on what basis, the ruling
+             party's plaque, the chairman quest as its own block. ── -->
         <div class="con-parl__gov"
              :class="{
                'con-parl__gov--focus': zone === 'government',
@@ -79,32 +86,24 @@
             </span>
           </div>
 
-          <!-- WHO RULES AND WHAT IT GIVES — one row: the object the rule comes
-               from (the ENACTED CARD; before the first enactment the ruling
-               party's own emblem), and beside it the party, its basis and its
-               printed EFFECT. Said once: the basis names the source, the note
-               under the formula says who holds it. -->
+          <!-- WHO RULES — the enacted card (the basis) beside the ruling
+               party's plaque: seal, name, state and printed effect in one
+               object. Said once: nothing below repeats it. -->
           <div class="con-parl__ruling">
             <div v-if="enactedVm !== undefined" class="con-parl__gov-card" :data-zoom-slot="'resolution:' + view.enacted?.resolutionId">
               <premium-card-face :vmOverride="enactedVm" :lightweight="true" :inert="true" />
             </div>
-            <img v-else class="con-parl__gov-emblem" :src="emblemUrl(view.rulingParty)" alt="" />
-            <div class="con-parl__ruling-text">
-              <span class="con-parl__kicker">{{ $t('Ruling party') }}</span>
-              <span class="con-parl__ruling-line">
-                <img v-if="view.enacted !== undefined" class="con-parl__ruling-emblem" :src="emblemUrl(view.rulingParty)" alt="" />
-                <b class="con-parl__ruling-name">{{ $t(view.rulingParty) }}</b>
-              </span>
-              <span v-if="view.enacted === undefined" class="con-parl__ruling-note">{{ $t('The Greens rule until the first resolution is enacted') }}</span>
-              <span v-else class="con-parl__ruling-res">{{ $t(resolutionTitle(view.enacted.resolutionId)) }}</span>
-              <ConsolePartyFormula class="con-parl__gov-formula" :party="view.rulingParty" size="wide" />
-              <span class="con-parl__gov-effect-note">{{ $t('Every player has this effect while the party rules') }}</span>
-            </div>
+            <ConsolePartyPlaque class="con-parl__gov-plaque"
+                                :party="view.rulingParty"
+                                size="hero"
+                                :state="rulingState"
+                                :formula="true" />
           </div>
 
-          <!-- THE CHAIRMAN QUEST: the goal as a graphic, the progress per seat,
-               the reward (the seat + the concrete Agenda step), the CURRENT
-               chairman — and, once done, a compact finished state naming who. -->
+          <!-- THE CHAIRMAN QUEST: the printed condition (a graphic + its
+               words), the progress per seat as a separate state layer, the
+               reward as glyphs (the seat + the Agenda step and what it pays
+               the viewer), the chairman — and, once done, who won it. -->
           <div v-if="view.quest !== undefined" class="con-parl__quest"
                :class="{'con-parl__quest--done': view.quest.completedBy !== undefined, 'con-parl__quest--pulse': questPulse}"
                data-parl-quest>
@@ -112,7 +111,7 @@
               <span class="con-parl__kicker">{{ $t('Chairman quest') }}</span>
               <span v-if="view.quest.completedBy !== undefined" class="con-parl__quest-state">✓ {{ $t('Completed') }}</span>
             </div>
-            <div class="con-parl__quest-goal">
+            <div class="con-parl__quest-cond">
               <PremiumMechanicsPanel v-if="questMechanics !== undefined && !questMechanics.textOnly" class="con-parl__quest-graphic" :mechanics="questMechanics" />
               <span class="con-parl__quest-text">{{ $t(view.quest.text) }}</span>
             </div>
@@ -123,29 +122,36 @@
                 <b :key="row.value" class="con-parl__tick">{{ row.value }}</b><span class="con-parl__quest-of">/{{ view.quest.definition.count }}</span>
               </span>
             </div>
-            <div class="con-parl__quest-reward">
-              <span class="con-parl__quest-reward-kicker">{{ $t(view.quest.completedBy !== undefined ? 'Won by' : 'Reward') }}</span>
-              <template v-if="view.quest.completedBy !== undefined">
-                <span class="con-parl__quest-who">
+            <div class="con-parl__quest-foot">
+              <span class="con-parl__quest-reward" data-parl-quest-reward>
+                <span class="con-parl__quest-reward-kicker">{{ $t(view.quest.completedBy !== undefined ? 'Won by' : 'Reward') }}</span>
+                <template v-if="view.quest.completedBy !== undefined">
                   <PlayerCube :color="view.quest.completedBy" :size="14" />
                   <b>{{ nameOf(view.quest.completedBy) }}</b>
-                </span>
-                <span class="con-parl__quest-reward-note">{{ $t('the chairman seat and an Agenda step') }}</span>
-                <span v-if="view.quest.completedBy === view.chairman" class="con-parl__quest-reward-seat">{{ $t('now the chairman') }}</span>
-              </template>
-              <template v-else>
-                <span class="con-parl__quest-reward-text">{{ $t('The chairman seat and one Agenda step') }}</span>
-                <span class="con-parl__quest-reward-short">{{ $t('Chairman seat + Agenda step') }}</span>
-                <span v-if="agendaNextText !== ''" class="con-parl__quest-reward-next">→ {{ translateParams('for you: ${0}', [agendaNextText]) }}</span>
-              </template>
-            </div>
-            <div v-if="!(view.quest.completedBy !== undefined && view.quest.completedBy === view.chairman)" class="con-parl__chair" data-parl-chair>
-              <span class="con-parl__quest-reward-kicker">{{ $t('Chairman') }}</span>
-              <template v-if="view.chairman !== undefined">
-                <PlayerCube :color="view.chairman" :size="14" />
-                <b>{{ nameOf(view.chairman) }}</b>
-              </template>
-              <span v-else class="con-parl__chair-empty">{{ $t('Seat empty') }}</span>
+                </template>
+                <template v-else>
+                  <span class="con-parl__reward-seat">{{ $t('Seat') }}</span>
+                  <span class="con-parl__reward-plus" aria-hidden="true">+</span>
+                  <span class="con-parl__reward-step" :class="'con-parl__reward-step--' + (agendaVm.nextStep?.kind ?? 'end')" data-parl-reward-step>
+                    <template v-if="agendaVm.nextStep === undefined"><span class="con-parl__step-level">•</span></template>
+                    <template v-else-if="agendaVm.nextStep.kind === 'influence'"><span class="con-parl__step-level">{{ agendaVm.nextStep.influence }}</span></template>
+                    <template v-else-if="agendaVm.nextStep.kind === 'tr'"><i class="con-parl__step-res resource_icon resource_icon--rating" aria-hidden="true"></i></template>
+                    <template v-else><i class="con-parl__step-res resource_icon resource_icon--cards" aria-hidden="true"></i></template>
+                  </span>
+                </template>
+              </span>
+              <span v-if="!(view.quest.completedBy !== undefined && view.quest.completedBy === view.chairman)" class="con-parl__chair" data-parl-chair>
+                <span class="con-parl__quest-reward-kicker">{{ $t('Chairman') }}</span>
+                <template v-if="view.chairman !== undefined">
+                  <PlayerCube :color="view.chairman" :size="14" />
+                  <b>{{ nameOf(view.chairman) }}</b>
+                </template>
+                <span v-else class="con-parl__chair-empty">{{ $t('Seat empty') }}</span>
+              </span>
+              <span v-else class="con-parl__chair con-parl__chair--won" data-parl-chair>
+                <span class="con-parl__quest-reward-kicker">{{ $t('Chairman') }}</span>
+                <span class="con-parl__quest-reward-seat">{{ $t('now the chairman') }}</span>
+              </span>
             </div>
           </div>
           <div v-else class="con-parl__chair con-parl__chair--alone" data-parl-chair>
@@ -162,10 +168,6 @@
              delegates on each (in placement order — the order breaks ties),
              the leader, the winning card. ── -->
         <div class="con-parl__voting" data-parl-voting>
-          <div class="con-parl__voting-head">
-            <span class="con-parl__kicker">{{ $t('Voting area') }}</span>
-            <span class="con-parl__voting-note">{{ $t('Most delegates wins; a tie goes to the slot closest to the government') }}</span>
-          </div>
           <div class="con-parl__slots">
             <div v-for="(slot, i) in view.slots" :key="slot.instance"
                  class="con-parl__slot"
@@ -184,7 +186,6 @@
                  :data-votes="slot.totalVotes">
               <div class="con-parl__slot-label">
                 <span class="con-parl__slot-no">V{{ slot.tiePriority }}</span>
-                <span v-if="slot.tiePriority === 1" class="con-parl__slot-prio" :data-hint="$t('Closest to the government — wins a tie between resolutions')">★</span>
                 <img class="con-parl__slot-emblem" :src="emblemUrl(slot.party)" alt="" />
                 <span class="con-parl__slot-party">{{ $t(slot.party) }}</span>
                 <span v-if="slot.isWinning" class="con-parl__slot-win">{{ $t('Winning') }}</span>
@@ -192,10 +193,10 @@
               <div class="con-parl__card" :data-zoom-slot="'resolution:' + slot.resolutionId">
                 <premium-card-face v-if="slotVms[i] !== undefined" :vmOverride="slotVms[i]" :lightweight="true" :inert="true" />
               </div>
-              <!-- THE TALLY — the vote read at a glance, beside the card: how many
+              <!-- THE TALLY — the vote at a glance, beside the card: how many
                    delegates, who LEADS (the player who would win it — never the
-                   winning card, never the chairman), what is YOURS and how close
-                   it is to the party's effect. -->
+                   winning card, never the chairman), what is YOURS and the two
+                   places of the party-effect threshold. -->
               <div class="con-parl__tally" data-parl-tally>
                 <div class="con-parl__tally-total">
                   <b :key="'t' + slot.totalVotes" class="con-parl__tally-num con-parl__tick">{{ slot.totalVotes }}</b>
@@ -218,13 +219,17 @@
                     <PlayerCube :color="viewerColor" :size="16" />
                     <b :key="'m' + slot.viewerVotes" class="con-parl__tick">{{ slot.viewerVotes }}</b>
                   </span>
-                  <span class="con-parl__tally-access">{{ slot.viewerVotes >= PARTY_EFFECT_THRESHOLD ? $t('effect is yours') : translateParams('${0} of ${1} for the effect', [String(slot.viewerVotes), String(PARTY_EFFECT_THRESHOLD)]) }}</span>
+                  <!-- The party-effect threshold as PLACES: filled = your
+                       delegate, hollow = still needed. Shape, never a sentence. -->
+                  <span class="con-parl__tally-dots" aria-hidden="true">
+                    <i v-for="n in PARTY_EFFECT_THRESHOLD" :key="n" class="con-parl__tally-dot" :class="{'con-parl__tally-dot--on': n <= slot.viewerVotes}"></i>
+                  </span>
+                  <span v-if="slot.viewerVotes >= PARTY_EFFECT_THRESHOLD" class="con-parl__tally-access">{{ $t('effect is yours') }}</span>
                 </div>
                 <div v-if="slot.isWinning && slotWinsTie(i)" class="con-parl__tally-note con-parl__tally-note--win">★ {{ $t('tie · closer to the government') }}</div>
               </div>
               <!-- THE DELEGATE RIBBON — every delegate on the card, in placement
-                   order (the order the player tie reads); a crowded card folds
-                   into one stack per owner, still in first-arrival order. -->
+                   order; a crowded card folds into one stack per owner. -->
               <div class="con-parl__ribbon" :class="{'con-parl__ribbon--dense': slot.votes.length > DENSE_RIBBON}" :data-votes="slot.totalVotes">
                 <template v-if="slot.votes.length <= DENSE_RIBBON">
                   <span v-for="vote in slot.votes" :key="vote.seq" class="con-parl__vote"
@@ -253,7 +258,8 @@
           </div>
           <!-- THE FOCUS RAIL — one line, fixed height: what the viewer's next
                delegate on the focused card changes (the server's projection),
-               or why no delegate can be sent. -->
+               or why no delegate can be sent. State and consequence — never a
+               rule. -->
           <div class="con-parl__rail" :class="{'con-parl__rail--live': railForecast !== undefined && canVoteNow, 'con-parl__rail--off': !canVoteNow}" data-parl-rail>
             <template v-if="railForecast !== undefined && canVoteNow">
               <span class="con-parl__rail-source">
@@ -276,76 +282,41 @@
            never move. ══ -->
       <div class="con-parl__mid" ref="midEl" data-parl-mid>
         <div class="con-parl__parties-tier" ref="partiesTierEl" :class="{'con-parl__parties-tier--parked': stageUp}" v-show="!stageUp || stageLeaving">
+          <!-- SIX PLAQUES, one family: the seal carries the STATE RING, the
+               plate carries the mechanic. A party reads as gold (rules), mint
+               (your effect), cyan (in the vote, your delegates as dots on the
+               ring) or quiet (absent) — and its action as one glyph. -->
           <div class="con-parl__parties" data-parl-parties>
             <div v-for="(p, i) in view.parties" :key="p.party"
                  class="con-parl__party"
                  :class="[
                    'con-parl__party--' + partyStates[i].kind,
-                   'con-parl__party--tone-' + partyStates[i].tone,
                    {
                      'con-parl__party--focus': zone === 'parties' && partyIndex === i,
                      'con-parl__party--held': partyStates[i].held,
                      'con-parl__party--recap': stage === 'recap' && recapHighlight === 'support' && (recapCurrent?.parties ?? []).includes(p.party),
-                     'con-parl__party--pulse': accessPulse === p.party,
+                     'con-parl__party--pulse': accessPulse === p.party || usedPulse === p.party,
                      'con-parl__party--lost': accessLost === p.party,
                    },
                  ]"
-                 :style="{'--parl-accent': partyAccent(p.party)}"
                  :data-party="p.party"
                  :data-party-state="partyStates[i].kind"
                  :data-action-state="partyActionStates[i].kind">
-              <img class="con-parl__party-emblem" :src="emblemUrl(p.party)" alt="" />
-              <span class="con-parl__party-body">
-                <span class="con-parl__party-top">
-                  <span class="con-parl__party-name">{{ $t(p.party) }}</span>
-                  <!-- POPULAR SUPPORT — neutral delegates waiting for the party's
-                       next resolution: grey cubes (the neutral player's own
-                       colour), the count beside them, never a bare dot. -->
-                  <span class="con-parl__support" :data-support="p.support"
-                        :data-hint="$t('Popular support: neutral delegates that will vote for this party\'s next resolution')">
-                    <span v-for="n in 3" :key="n" class="con-parl__support-cube" :class="{'con-parl__support-cube--on': n <= p.support}"></span>
-                  </span>
-                </span>
-                <span class="con-parl__party-state">{{ partyStateText(partyStates[i]) }}</span>
-              </span>
-              <span v-if="partyActionStates[i].kind !== 'none'" class="con-parl__party-action" :class="'con-parl__party-action--' + partyActionStates[i].kind" aria-hidden="true">
-                {{ partyActionStates[i].kind === 'used' ? '⟳' : (partyActionStates[i].kind === 'available' ? '◈' : '◇') }}
-              </span>
+              <ConsolePartyPlaque :party="p.party"
+                                  size="tile"
+                                  :state="partyStates[i]"
+                                  :actionState="partyActionStates[i]"
+                                  :support="p.support"
+                                  :formula="partyFormulaOnTile"
+                                  :focused="zone === 'parties' && partyIndex === i" />
             </div>
           </div>
-          <!-- THE PARTY DETAIL — the ONE zone that unfolds the party under the
-               cursor: its printed formula (the same drawing the face and the
-               inspector use), why the viewer holds it (by the current game
-               state), and its action's state. -->
-          <div class="con-parl__pdetail" v-if="detailParty !== undefined" :style="{'--parl-accent': partyAccent(detailParty.party)}" :data-party="detailParty.party">
-            <div class="con-parl__pdetail-head">
-              <img class="con-parl__pdetail-emblem" :src="emblemUrl(detailParty.party)" alt="" />
-              <div class="con-parl__pdetail-title">
-                <b>{{ $t(detailParty.party) }}</b>
-                <span class="con-parl__pdetail-state" :class="'con-parl__pdetail-state--' + detailState.tone">{{ partyStateText(detailState) }}</span>
-              </div>
-              <span v-if="detailActionState.kind !== 'none'" class="con-parl__pdetail-action" :class="'con-parl__pdetail-action--' + detailActionState.kind">
-                <span class="con-parl__chip-dim">{{ $t('Action') }}</span>
-                <b>{{ $t(detailActionState.label) }}</b>
-                <span v-if="detailActionState.kind === 'available' || detailActionState.kind === 'used'" class="con-parl__pdetail-uses">{{ detailActionState.usesLeft }}/{{ detailActionState.usesPerGeneration }}</span>
-              </span>
-            </div>
-            <div class="con-parl__pdetail-body">
-              <ConsolePartyFormula class="con-parl__pdetail-formula" :party="detailParty.party" size="wide" :dim="!detailState.held" />
-              <!-- The LIVE reading first (why the viewer holds it, what blocks
-                   its action). The effect and the action in their SHORT printed
-                   words follow only while the live reading is short — a zone of
-                   fixed height never cuts a reason to make room for a sentence
-                   the formula beside it and the inspector (X) already carry. -->
-              <div class="con-parl__pdetail-text">
-                <span v-for="(row, k) in detailReasons" :key="k" class="con-parl__pdetail-reason" :class="'con-parl__pdetail-reason--' + row.tone">{{ reasonRowText(row) }}</span>
-                <span v-if="detailActionState.reason !== undefined" class="con-parl__pdetail-reason con-parl__pdetail-reason--lacks">{{ reasonText(detailActionState.reason) }}</span>
-                <template v-if="detailWords">
-                  <span v-if="detailParty.effect?.text.passive !== undefined" class="con-parl__pdetail-rule">{{ translateParams('Effect: ${0}', [$t(detailParty.effect.text.passive)]) }}</span>
-                  <span v-if="detailParty.effect?.text.action !== undefined" class="con-parl__pdetail-rule">{{ translateParams('Action (once per generation): ${0}', [$t(detailParty.effect.text.action)]) }}</span>
-                </template>
-              </div>
-            </div>
+          <!-- THE PARTY LINE — one fixed-height line under the row: the ONE
+               short reason the focused party's action cannot be taken right
+               now (used · blocked · not your window). Empty when it can, or
+               when the party has no action — the plaque already says so. -->
+          <div class="con-parl__pline" :class="{'con-parl__pline--off': partyLine === '', ['con-parl__pline--' + partyLineTone]: partyLine !== ''}" data-parl-pline>
+            <span v-if="partyLine !== ''" class="con-parl__pline-text">{{ partyLine }}</span>
           </div>
         </div>
 
@@ -399,10 +370,15 @@
                     </span>
                   </div>
                 </div>
-                <ul class="con-parl__consequences" data-parl-consequences>
-                  <li v-for="(c, i) in voteConsequenceRows" :key="i" :class="'con-parl__consequence--' + c.tone">{{ $t(c.key) }}</li>
-                  <li class="con-parl__consequence--note con-parl__consequence--fine">{{ $t('A forecast at the current distribution — other players still vote.') }}</li>
-                </ul>
+                <!-- The consequences — a FORECAST at the current distribution
+                     (the kicker says so in one word; the generation's end is
+                     never promised). -->
+                <div class="con-parl__consequences" data-parl-consequences>
+                  <span class="con-parl__kicker con-parl__consequences-kicker">{{ $t('Forecast') }}</span>
+                  <ul class="con-parl__consequences-list">
+                    <li v-for="(c, k) in voteConsequenceRows" :key="k" :class="'con-parl__consequence--' + c.tone">{{ $t(c.key) }}</li>
+                  </ul>
+                </div>
               </div>
               <div class="con-parl__cta" :class="{'con-parl__cta--ready': canVoteNow && stage === 'vote', 'con-parl__cta--busy': stage === 'submitting'}" data-parl-cta @click="submitVote()">
                 <GamepadGlyph control="confirm" class="con-parl__cta-glyph" />
@@ -442,25 +418,9 @@
               </div>
             </template>
 
-            <!-- A PARTY ACTION — the shared composer, hosted here as a stage
-                 (the canonical door is the action menu; this is the contextual launch). -->
-            <ConsolePartyActionComposer v-else-if="stageKind === 'action' && actionParty !== undefined"
-                                        ref="partyComposer"
-                                        class="con-parl__composer"
-                                        :playerView="playerView"
-                                        :party="actionParty"
-                                        :submitting="stage === 'submitting'"
-                                        @confirm="onPartyConfirm"
-                                        @cancel="closeStage()"
-                                        @inspect="inspectParty($event)"
-                                        @commands="onComposerCommands" />
-
             <!-- RESULTS — the previous generation's political phase, one beat per
                  line; each line lights the object it changed. -->
             <template v-else-if="stage === 'recap'">
-              <!-- The head carries the commit plate on its own row, so the beat
-                   list owns every remaining line of the tier (a list that ran
-                   under the plate once hid its own last beats). -->
               <div class="con-parl__stage-head con-parl__stage-head--recap">
                 <div>
                   <b class="con-parl__stage-title">{{ recapKicker }}</b>
@@ -487,16 +447,15 @@
                 </div>
               </div>
             </template>
-            <!-- THE EMBED ZONE — a step teleported into this stage (a resolution's
-                 own choice) takes the room here; the zone contract's «children get
-                 the room» rule is scoped to this element, never to the stage's own rows. -->
+            <!-- THE EMBED ZONE — a step teleported into this stage (a paid
+                 vote's payment, a resolution's own choice) takes the room here. -->
             <div class="con-parl__embed" data-embed-slot="parliament"></div>
           </div>
         </transition>
       </div>
 
       <!-- ══ THE AGENDA — a compact graphic track: the markers, the influence
-           LEVELS (never «+2»), the TR and card rewards, the viewer's next step. ══ -->
+           LEVELS, the TR and card rewards, the viewer's next step. ══ -->
       <div class="con-parl__agenda" data-parl-agenda :class="{'con-parl__agenda--focus': zone === 'agenda'}">
         <div class="con-parl__agenda-head">
           <span class="con-parl__kicker">{{ $t('Agenda') }}</span>
@@ -504,10 +463,15 @@
             <PlayerCube :color="view.viewer.color" :size="14" />
             <span class="con-parl__chip-dim">{{ $t('Influence') }}</span>
             <b :key="'ai' + agendaVm.viewerInfluence" class="con-parl__tick">{{ agendaVm.viewerInfluence }}</b>
-            <span v-if="agendaNextText !== ''" class="con-parl__agenda-next">{{ $t('next step') }}: <b>{{ agendaNextText }}</b></span>
-            <span v-else class="con-parl__agenda-next">{{ $t('end of the track') }}</span>
+            <span class="con-parl__agenda-next">
+              <span class="con-parl__chip-dim">{{ $t(agendaVm.nextStep === undefined ? 'end of the track' : 'next step') }}</span>
+              <span v-if="agendaVm.nextStep !== undefined" class="con-parl__reward-step" :class="'con-parl__reward-step--' + agendaVm.nextStep.kind">
+                <template v-if="agendaVm.nextStep.kind === 'influence'"><span class="con-parl__step-level">{{ agendaVm.nextStep.influence }}</span></template>
+                <template v-else-if="agendaVm.nextStep.kind === 'tr'"><i class="con-parl__step-res resource_icon resource_icon--rating" aria-hidden="true"></i></template>
+                <template v-else><i class="con-parl__step-res resource_icon resource_icon--cards" aria-hidden="true"></i></template>
+              </span>
+            </span>
           </span>
-          <span class="con-parl__agenda-legend">{{ $t('Numbered steps set the influence LEVEL; a step with the rating icon gives +1 TR, one with the card icon draws a card') }}</span>
         </div>
         <div class="con-parl__track">
           <div class="con-parl__step con-parl__step--start" :class="{'con-parl__step--here': viewerParticipates && agendaVm.viewerPosition === 0}" data-step="0">
@@ -564,14 +528,13 @@ import PlayerCube from '@/client/components/PlayerCube.vue';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import PremiumMechanicsPanel from '@/client/components/premiumCard/PremiumMechanicsPanel.vue';
-import ConsolePartyFormula from '@/client/components/console/parliament/ConsolePartyFormula.vue';
-import ConsolePartyActionComposer from '@/client/components/console/parliament/ConsolePartyActionComposer.vue';
+import ConsolePartyPlaque from '@/client/components/console/parliament/ConsolePartyPlaque.vue';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {ConsoleCommand} from '@/client/console/consoleCommandModel';
 import {consoleParliamentUi, markParliamentRecapSeen, parliamentRecapSeen} from '@/client/console/consoleParliamentState';
 import {
-  accessReasonRows, AccessReasonRow, agendaViewOf, AgendaVm, buildParliamentView, ParliamentPartyVm, ParliamentPromptBridge,
+  agendaViewOf, AgendaVm, buildParliamentView, ParliamentPartyVm, ParliamentPromptBridge,
   ParliamentSlotVm, ParliamentTileVm, ParliamentViewVm, parliamentPromptBridge, partyActionStateOf, PartyActionStateVm,
   partyStateOf, PartyStateVm, seatResponse, voteForecastOf, VoteForecastVm, voteForecastRows, voteResponse,
 } from '@/client/console/parliament/consoleParliamentModel';
@@ -579,16 +542,16 @@ import {PremiumCardVM} from '@/client/components/premiumCard/premiumCardViewMode
 import {buildMechanics, MechanicsVM} from '@/client/components/premiumCard/mechanicsModel';
 import {resolutionPremiumVmById} from '@/client/components/premiumCard/resolutionPremiumVm';
 import {partyAccent, partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
-import {setWorkspaceFramePhase, setWorkspaceFrameStage, setWorkspaceFrameSubject, workspaceFrameHasNested, workspaceFrameKnown} from '@/client/console/consoleWorkspaceStack';
-import {clearCardColonyTrade, partyColonyTradeParty} from '@/client/console/colonyTrade/colonyTradeEntry';
+import {setWorkspaceFramePhase, setWorkspaceFrameStage, setWorkspaceFrameSubject, workspaceFrameHasNested} from '@/client/console/consoleWorkspaceStack';
 import {translateMessage, translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {getResolution} from '@/client/parliament/ClientParliamentManifest';
 import {useResizeObserver} from '@vueuse/core';
-import {conUiScale} from '@/client/console/consoleLayoutProfile';
+import {consoleLayoutState, conUiScale} from '@/client/console/consoleLayoutProfile';
 import {AnimationHold, beginAnimationHold, holdForGsapAnimation} from '@/client/components/presentation/animationHold';
 import {consoleMotionMs} from '@/client/console/composables/useConsoleReducedMotion';
 import {motionMs} from '@/client/components/motion/motionTokens';
-import {descendSurfaceInset, guardedDescend} from '@/client/console/surfaceMotion/workspaceDescend';
+import {armDescendOrigin, armDescendRect, descendSurfaceInset, guardedDescend} from '@/client/console/surfaceMotion/workspaceDescend';
+import {armActionFocusOrigin} from '@/client/console/consoleActionFocusMotion';
 
 type Zone = 'voting' | 'government' | 'parties' | 'agenda';
 /**
@@ -596,11 +559,9 @@ type Zone = 'voting' | 'government' | 'parties' | 'agenda';
  * before the flow leaves. `recap` — the RESULTS scene: the previous
  * generation's political phase, read from the server's summary and played
  * beat by beat on the objects it changed (once per generation, on the
- * workspace's first open). `action` — a party action composed here (the
- * contextual launch from the party's detail; the canonical door is the action
- * menu, same composer).
+ * workspace's first open).
  */
-type Stage = 'browse' | 'vote' | 'seat' | 'action' | 'submitting' | 'landed' | 'recap';
+type Stage = 'browse' | 'vote' | 'seat' | 'submitting' | 'landed' | 'recap';
 
 /** The delegate's landing beat (the cube settles on the ribbon, the slot flashes). */
 const VOTE_LANDING_MS = 620;
@@ -613,10 +574,6 @@ const STAGE_UNFOLD_MS = 300;
 const STAGE_FOLD_MS = 220;
 /** A ribbon past this many delegates collapses into per-owner stacks. */
 const DENSE_RIBBON = 12;
-/** The parties tier's columns (the grid is 3 × 2 on every profile). */
-const PARTY_COLUMNS = 3;
-/** Past this many live reasons the party detail drops its printed words (the zone's height is fixed). */
-const DETAIL_WORDS_MAX_REASONS = 2;
 
 /** A results beat: what the sentence says, and which object on the board it points at. */
 type RecapItem = {
@@ -633,14 +590,14 @@ const SUBMIT_SAFETY_MS = 6000;
 /* THE CARD FIT. The premium face is px-designed (`--pcard-w/h`) and integrates
    through `zoom`; the zones it stands in are sized by the FRAME (the body's
    grid rows), never by the cards — so the fit budgets from the zone minus its
-   MEASURED chrome (label / ribbon / meta / rail are text, independent of the
-   zoom) and never reads its own output. */
+   MEASURED chrome (label / ribbon / tally are text, independent of the zoom)
+   and never reads its own output. */
 const PCARD_W = 320;
 const PCARD_H = 460;
 /** Per unit of `--con-ui-scale`: a card never grows past this, whatever the room. */
 const MAX_CARD_ZOOM = 0.95;
 const MIN_CARD_ZOOM = 0.3;
-/** The enacted face in the government column — a small object beside the ruling text. */
+/** The enacted face in the government column — a small object beside the ruling plaque. */
 const MAX_GOV_ZOOM = 0.42;
 const MIN_GOV_ZOOM = 0.16;
 
@@ -650,13 +607,13 @@ type RibbonGroup = {owner: Color | 'neutral', count: number, seqs: ReadonlyArray
 
 export default defineComponent({
   name: 'ConsoleParliamentSection',
-  components: {ConsoleWsHead, PlayerCube, ActionEffectChip, GamepadGlyph, PremiumMechanicsPanel, ConsolePartyFormula, ConsolePartyActionComposer},
+  components: {ConsoleWsHead, PlayerCube, ActionEffectChip, GamepadGlyph, PremiumMechanicsPanel, ConsolePartyPlaque},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     myTurn: {type: Boolean, default: false},
     awaitingInput: {type: Boolean, default: false},
   },
-  emits: ['close', 'submit', 'notice', 'inspect', 'open-trading', 'flow-complete', 'collapse'],
+  emits: ['close', 'submit', 'notice', 'inspect', 'open-action', 'flow-complete', 'collapse'],
   data() {
     return {
       DENSE_RIBBON,
@@ -667,10 +624,6 @@ export default defineComponent({
       stageLeaving: false,
       slotIndex: 0,
       partyIndex: 0,
-      /** The party whose action is composed in the `action` stage. */
-      actionParty: undefined as ReduxParty | undefined,
-      /** The composer's live command contract (it hands its bar UP). */
-      composerCommands: [] as Array<ConsoleCommand>,
       /** The stage the submit left — restored if the server refuses. */
       stageBeforeSubmit: 'browse' as Stage,
       submitTimer: undefined as number | undefined,
@@ -688,10 +641,13 @@ export default defineComponent({
       /** The results scene's current beat (−1 = not playing). */
       recapBeat: -1,
       recapTimers: [] as Array<number>,
-      /** A party whose effect the viewer just GAINED / LOST — the tile pulses once. */
+      /** A party whose effect the viewer just GAINED / LOST — the plaque pulses once. */
       accessPulse: undefined as ReduxParty | undefined,
       accessLost: undefined as ReduxParty | undefined,
       accessTimer: undefined as number | undefined,
+      /** A party whose action was just USED (the action workspace came back) — the plaque answers once. */
+      usedPulse: undefined as ReduxParty | undefined,
+      usedTimer: undefined as number | undefined,
       /** The Agenda step the viewer's marker just reached — flashes once. */
       agendaPulseStep: undefined as number | undefined,
       agendaTimer: undefined as number | undefined,
@@ -726,6 +682,7 @@ export default defineComponent({
     bridge(): ParliamentPromptBridge {
       return parliamentPromptBridge(this.playerView.waitingFor);
     },
+    /** A nested frame (the action workspace) took the scene — this screen yields and waits. */
     sceneHandedOver(): boolean {
       return workspaceFrameHasNested('parliament');
     },
@@ -775,44 +732,43 @@ export default defineComponent({
     partyActionStates(): Array<PartyActionStateVm> {
       return this.view.parties.map((p) => partyActionStateOf(p, this.canActNow));
     },
+    /** The ruling party's state for its own plaque (gold ring, «правит»). */
+    rulingState(): PartyStateVm | undefined {
+      const idx = this.view.parties.findIndex((p) => p.party === this.view.rulingParty);
+      return idx >= 0 ? this.partyStates[idx] : undefined;
+    },
+    /** The parties row's column count — one row on the couch profiles, 3 × 2 on the Deck (its own composition). */
+    partyColumns(): number {
+      return consoleLayoutState.profile === 'handheld' ? 3 : 6;
+    },
+    /** The tile plaque carries the mechanic module where the row has the room for it. */
+    partyFormulaOnTile(): boolean {
+      return consoleLayoutState.profile !== 'handheld';
+    },
     /**
-     * THE PARTY UNDER THE LENS: the focused party tile, or — while the cursor
-     * stands in the voting area / the government — the party of the object
-     * under it, so the detail zone always explains the party the player is
-     * looking at.
+     * THE PARTY LINE — the one short reason the focused party's action cannot
+     * be taken right now. Empty while it can (the plaque's glyph and the bar's
+     * verb say so) and for a party with no action or no access (the plaque's
+     * state already reads that).
      */
-    detailPartyIndex(): number {
-      if (this.zone === 'parties') {
-        return this.partyIndex;
+    partyLine(): string {
+      if (this.zone !== 'parties') {
+        return '';
       }
-      const party = this.zone === 'government' ? this.view.rulingParty : this.focusedSlot?.party;
-      const idx = this.view.parties.findIndex((p) => p.party === party);
-      return idx >= 0 ? idx : this.partyIndex;
-    },
-    detailParty(): ParliamentPartyVm | undefined {
-      return this.view.parties[this.detailPartyIndex];
-    },
-    detailState(): PartyStateVm {
-      return this.partyStates[this.detailPartyIndex] ?? partyStateOf(this.detailParty as ParliamentPartyVm, this.view.enacted === undefined);
-    },
-    detailActionState(): PartyActionStateVm {
-      return this.partyActionStates[this.detailPartyIndex] ?? {kind: 'none', label: '', reason: undefined, usesLeft: 0, usesPerGeneration: 0};
-    },
-    detailReasons(): Array<AccessReasonRow> {
-      const p = this.detailParty;
-      if (p === undefined) {
-        return [];
+      const state = this.partyActionStates[this.partyIndex];
+      if (state === undefined) {
+        return '';
       }
-      return accessReasonRows(p.access, {
-        party: p.party,
-        enactedEmpty: this.view.enacted === undefined,
-        enactedName: this.view.enacted === undefined ? undefined : translateText(this.resolutionTitle(this.view.enacted.resolutionId)),
-        inArea: p.inArea,
-      });
+      switch (state.kind) {
+      case 'used': return translateText('Action used this generation');
+      case 'blocked': return state.reason !== undefined ? this.reasonText(state.reason) : translateText('Unavailable right now');
+      case 'not-now': return translateText(this.awaitingInput ? 'Finish your current action first' : 'Not your turn — you can read the Parliament');
+      default: return '';
+      }
     },
-    /** The detail zone's short words stand only beside a short live reading (see the template). */
-    detailWords(): boolean {
-      return this.detailReasons.length + (this.detailActionState.reason !== undefined ? 1 : 0) <= DETAIL_WORDS_MAX_REASONS;
+    partyLineTone(): 'dim' | 'warn' {
+      const state = this.partyActionStates[this.partyIndex];
+      return state?.kind === 'blocked' ? 'warn' : 'dim';
     },
     questMechanics(): MechanicsVM | undefined {
       const root = this.view.quest?.renderData;
@@ -823,18 +779,6 @@ export default defineComponent({
     },
     agendaVm(): AgendaVm {
       return agendaViewOf(this.view);
-    },
-    /** The viewer's NEXT Agenda step, as a reward sentence («influence level 2» / «+1 TR» / «draw a card»). */
-    agendaNextText(): string {
-      const next = this.agendaVm.nextStep;
-      if (next === undefined) {
-        return '';
-      }
-      switch (next.kind) {
-      case 'influence': return translateTextWithParams('influence level ${0}', [String(next.influence)]);
-      case 'tr': return translateText('+1 TR');
-      case 'card': return translateText('draw a card');
-      }
     },
     voteForecast(): VoteForecastVm | undefined {
       const slot = this.focusedSlot;
@@ -917,14 +861,11 @@ export default defineComponent({
       case 'vote':
       case 'seat':
       case 'landed':
+      case 'submitting':
         return this.resolutionTitle(this.focusedSlot?.resolutionId ?? '');
       // The results scene is a DESCENT into the generation (the crumb's
       // subject); it has no stage of its own.
       case 'recap': return this.recapKicker;
-      case 'action': return this.actionParty ?? '';
-      case 'submitting':
-        return this.stageBeforeSubmit === 'vote' || this.stageBeforeSubmit === 'seat' ?
-          this.resolutionTitle(this.focusedSlot?.resolutionId ?? '') : (this.actionParty ?? '');
       default: return '';
       }
     },
@@ -938,7 +879,6 @@ export default defineComponent({
       case 'landed':
         return 'Vote';
       case 'seat': return 'Chairman seat';
-      case 'action': return 'Action';
       case 'submitting': return 'Sending';
       default: return '';
       }
@@ -956,8 +896,6 @@ export default defineComponent({
         return [{control: 'confirm', label: 'Vote', enabled: this.canVoteNow, highlight: this.canVoteNow}, {control: 'secondary', label: 'Inspect'}, back];
       case 'seat':
         return [{control: 'confirm', label: 'Take the delegate', highlight: true}, {control: 'secondary', label: 'Inspect'}, {control: 'back', label: 'Minimize'}];
-      case 'action':
-        return this.composerCommands.length > 0 ? this.composerCommands : [back];
       case 'recap':
         return [{control: 'confirm', label: 'Continue', highlight: true}];
       case 'submitting':
@@ -966,9 +904,13 @@ export default defineComponent({
         return [];
       }
     },
-    /** A change-key for the viewer's ACCESS set — a gained / lost effect pulses its tile. */
+    /** A change-key for the viewer's ACCESS set — a gained / lost effect pulses its plaque. */
     accessKey(): string {
       return (this.view.viewer?.access ?? []).filter((a) => a.hasEffect).map((a) => a.party).join('|');
+    },
+    /** A change-key for the viewer's USED party actions — a spent action pulses its plaque on the way back. */
+    usedKey(): string {
+      return this.view.parties.filter((_, i) => this.partyActionStates[i]?.kind === 'used').map((p) => p.party).join('|');
     },
     /** The viewer's Agenda position — a move flashes the step reached. */
     agendaPosition(): number {
@@ -998,20 +940,16 @@ export default defineComponent({
       },
     },
     /**
-     * THE UNITY DOOR ENDS WITH ITS STEP. The colony workspace stood over this
-     * one locked to the Unity payment path; once it is gone (B walked out, or the
-     * trade concluded) the lock has no subject. A PARKED step keeps it (the frame
-     * is still known) — «свернуть» keeps the decision live.
+     * THE ACTION WORKSPACE HANDED THE SCENE BACK. The crumb the guest wrote
+     * belongs to the guest; this screen's own reading is restored — and its
+     * focus never moved (the section stayed mounted, only hidden).
      */
     sceneHandedOver(on: boolean): void {
-      if (!on && !workspaceFrameKnown('colonies') && partyColonyTradeParty() === PartyName.UNITY) {
-        clearCardColonyTrade();
-      }
       if (!on && this.stage === 'browse') {
-        // The crumb the door wrote («СОЮЗ › ТОРГОВЛЯ») belongs to the step.
         setWorkspaceFrameSubject('parliament', this.crumbSubject);
         setWorkspaceFrameStage('parliament', this.crumbStage);
         setWorkspaceFramePhase('parliament', 'browse');
+        void this.$nextTick(() => this.fitCards());
       }
     },
     /** A new projection can wrap a slot's meta line — the chrome changed, the frame did not. */
@@ -1043,7 +981,7 @@ export default defineComponent({
         }
       },
     },
-    /** The viewer GAINED or LOST a party effect: the tile answers once (never replayed on a reload — the watcher only sees live changes). */
+    /** The viewer GAINED or LOST a party effect: the plaque answers once (never replayed on a reload — the watcher only sees live changes). */
     accessKey(now: string, was: string): void {
       const before = new Set(was.split('|').filter((s) => s !== ''));
       const after = new Set(now.split('|').filter((s) => s !== ''));
@@ -1058,6 +996,22 @@ export default defineComponent({
         this.accessPulse = undefined;
         this.accessLost = undefined;
         this.accessTimer = undefined;
+      }, consoleMotionMs(1400));
+    },
+    /** A party action was just SPENT (the action workspace came back): its plaque answers once. */
+    usedKey(now: string, was: string): void {
+      const before = new Set(was.split('|').filter((s) => s !== ''));
+      const used = now.split('|').find((p) => p !== '' && !before.has(p)) as ReduxParty | undefined;
+      if (used === undefined) {
+        return;
+      }
+      this.usedPulse = used;
+      if (this.usedTimer !== undefined) {
+        window.clearTimeout(this.usedTimer);
+      }
+      this.usedTimer = window.setTimeout(() => {
+        this.usedPulse = undefined;
+        this.usedTimer = undefined;
       }, consoleMotionMs(1400));
     },
     agendaPosition(now: number, was: number): void {
@@ -1100,7 +1054,7 @@ export default defineComponent({
     this.clearSubmitTimer();
     this.clearLanding();
     this.clearRecapTimers();
-    for (const timer of [this.accessTimer, this.agendaTimer, this.questTimer]) {
+    for (const timer of [this.accessTimer, this.agendaTimer, this.questTimer, this.usedTimer]) {
       if (timer !== undefined) {
         window.clearTimeout(timer);
       }
@@ -1108,9 +1062,6 @@ export default defineComponent({
     consoleParliamentUi.commands = [];
     setWorkspaceFrameSubject('parliament', '');
     setWorkspaceFrameStage('parliament', '');
-    if (!workspaceFrameKnown('colonies') && partyColonyTradeParty() === PartyName.UNITY) {
-      clearCardColonyTrade();
-    }
   },
   methods: {
     /** Solve the two card zooms (voting slots · the government's enacted face) from the measured frame. */
@@ -1149,11 +1100,10 @@ export default defineComponent({
       root.style.setProperty('--con-parl-card-zoom', String(zoom));
 
       // THE ENACTED FACE budgets from the government column's FREE height —
-      // the column minus every other block in it (head, quest, chair: text,
+      // the column minus every other block in it (head, quest: text,
       // independent of the card) — never from the ruling row, whose height IS
-      // the card: reading it back fed the zoom its own output and let the face
-      // run over the quest below. Its width stays a minority of the row, so
-      // the party, its basis and its formula keep the reading side.
+      // the card: reading it back fed the zoom its own output. Its width stays
+      // a minority of the row, so the plaque keeps the reading side.
       const gov = root.querySelector<HTMLElement>('.con-parl__gov');
       const govCard = root.querySelector<HTMLElement>('.con-parl__gov-card');
       const ruling = root.querySelector<HTMLElement>('.con-parl__ruling');
@@ -1165,7 +1115,7 @@ export default defineComponent({
         const taken = blocks.reduce((sum, child) => sum + child.getBoundingClientRect().height, 0) + px(gcs.rowGap) * blocks.length;
         const rcs = getComputedStyle(ruling);
         const innerW = ruling.clientWidth - px(rcs.paddingLeft) - px(rcs.paddingRight);
-        govZoom = Math.min(govZoom, (innerH - taken) / PCARD_H, (innerW * 0.4) / PCARD_W);
+        govZoom = Math.min(govZoom, (innerH - taken) / PCARD_H, (innerW * 0.38) / PCARD_W);
       }
       root.style.setProperty('--con-parl-gov-zoom', String(Math.max(MIN_GOV_ZOOM * scale, Math.floor(govZoom * 1000) / 1000)));
     },
@@ -1210,20 +1160,11 @@ export default defineComponent({
     reasonText(reason: string | Message): string {
       return typeof reason === 'string' ? translateText(reason) : translateMessage(reason);
     },
-    reasonRowText(row: AccessReasonRow): string {
-      return row.params.length > 0 ? translateTextWithParams(row.key, [...row.params]) : translateText(row.key);
-    },
-    partyStateText(state: PartyStateVm): string {
-      return state.params.length > 0 ? translateTextWithParams(state.label, [...state.params]) : translateText(state.label);
-    },
     /** A resolution's printed name (English key), or its id for an unknown one — never a blank. */
     resolutionTitle(id: string): string {
       return this.view.slots.find((s) => s.resolutionId === id)?.resolution?.text.name ??
         (this.view.enacted?.resolutionId === id ? this.view.enacted.resolution?.text.name : undefined) ??
         getResolution(id)?.text.name ?? id;
-    },
-    translateParams(key: string, params: Array<string>): string {
-      return translateTextWithParams(key, params);
     },
     /**
      * A TIE among PLAYERS on this card — read off the server's own vote list
@@ -1274,11 +1215,6 @@ export default defineComponent({
         }
         return;
       }
-      if (this.stage === 'action') {
-        const composer = this.$refs.partyComposer as InstanceType<typeof ConsolePartyActionComposer> | undefined;
-        composer?.handleIntent(intent);
-        return;
-      }
       if (this.stage === 'browse') {
         this.handleBrowseIntent(intent);
         return;
@@ -1305,6 +1241,7 @@ export default defineComponent({
       }
     },
     navigate(dir: 'up' | 'down' | 'left' | 'right'): void {
+      const columns = this.partyColumns;
       switch (this.zone) {
       case 'voting':
         if (dir === 'left') {
@@ -1332,21 +1269,22 @@ export default defineComponent({
         }
         return;
       case 'parties':
-        // The tiles stand in a 3 × 2 grid: ←→ walk the six in reading order,
-        // ↑↓ move between the two rows and leave the grid at its edges.
+        // The plaques stand in a row (couch profiles) or a 3 × 2 grid (the
+        // Deck): ←→ walk them in reading order, ↑↓ move between rows and leave
+        // the grid at its edges.
         if (dir === 'left') {
           this.partyIndex = Math.max(0, this.partyIndex - 1);
         } else if (dir === 'right') {
           this.partyIndex = Math.min(this.view.parties.length - 1, this.partyIndex + 1);
         } else if (dir === 'up') {
-          if (this.partyIndex >= PARTY_COLUMNS) {
-            this.partyIndex -= PARTY_COLUMNS;
+          if (this.partyIndex >= columns) {
+            this.partyIndex -= columns;
           } else {
             this.zone = 'voting';
           }
         } else if (dir === 'down') {
-          if (this.partyIndex + PARTY_COLUMNS < this.view.parties.length) {
-            this.partyIndex += PARTY_COLUMNS;
+          if (this.partyIndex + columns < this.view.parties.length) {
+            this.partyIndex += columns;
           } else {
             this.zone = 'agenda';
           }
@@ -1356,8 +1294,8 @@ export default defineComponent({
         if (dir === 'up') {
           // Back onto the row the track touches — the parties' LOWER row.
           this.zone = 'parties';
-          if (this.partyIndex < PARTY_COLUMNS) {
-            this.partyIndex = Math.min(this.view.parties.length - 1, this.partyIndex + PARTY_COLUMNS);
+          if (this.partyIndex + columns < this.view.parties.length) {
+            this.partyIndex = Math.min(this.view.parties.length - 1, this.partyIndex + columns);
           }
         }
         return;
@@ -1375,7 +1313,7 @@ export default defineComponent({
           this.$emit('notice', translateText('This party has no action'));
           return;
         }
-        this.openAction(party.actionId, state);
+        this.openAction(party.party, party.actionId, state);
         return;
       }
       case 'government':
@@ -1401,12 +1339,13 @@ export default defineComponent({
       this.openStage('vote');
     },
     /**
-     * A PARTY ACTION from the party's detail — the contextual launch. Same
-     * composer, same server prompt, same limits as the action menu's door.
-     * The Unity trade IS the colony trade with a free payment path: the
-     * colony workspace stands inside this one for its span.
+     * A PARTY ACTION from its plaque — the Parliament's door into the ONE
+     * execution point (the action workspace, nested inside this screen). The
+     * pressed plaque is the descent's origin: the action workspace's composer
+     * unfolds from its rect and the party's plaque is the carried object
+     * (the hero of the composer's source column).
      */
-    openAction(id: PartyActionId, state: PartyActionStateVm): void {
+    openAction(party: ReduxParty, id: PartyActionId, state: PartyActionStateVm): void {
       if (state.kind !== 'available') {
         const reason = state.reason !== undefined ? this.reasonText(state.reason) :
           translateText(state.kind === 'used' ? 'This party action was already used this generation' :
@@ -1414,19 +1353,19 @@ export default defineComponent({
         this.$emit('notice', reason);
         return;
       }
-      if (id === 'unity-trade') {
-        setWorkspaceFrameSubject('parliament', PartyName.UNITY);
-        setWorkspaceFrameStage('parliament', 'Trade');
-        setWorkspaceFramePhase('parliament', 'configure');
-        this.$emit('open-trading');
-        return;
-      }
-      if (this.bridge.actions[id] === undefined) {
+      if (id !== 'unity-trade' && this.bridge.actions[id] === undefined) {
         this.$emit('notice', translateText('This option is no longer offered'));
         return;
       }
-      this.actionParty = this.focusedParty?.party;
-      this.openStage('action');
+      const root = this.$refs.rootEl as HTMLElement | undefined;
+      const plaque = root?.querySelector<HTMLElement>(`.con-parl__party[data-party="${party}"] .con-pseal`);
+      const rect = plaque?.getBoundingClientRect();
+      if (rect !== undefined && rect.width > 0) {
+        armDescendOrigin('action-browse', {x: rect.left + rect.width / 2, y: rect.top + rect.height / 2});
+        armDescendRect('action-slot', rect);
+        armActionFocusOrigin(rect);
+      }
+      this.$emit('open-action', party);
     },
     inspect(): void {
       if (this.zone === 'voting' || this.stage === 'vote') {
@@ -1447,9 +1386,6 @@ export default defineComponent({
       if (this.zone === 'parties' && this.focusedParty !== undefined) {
         this.$emit('inspect', {kind: 'party', party: this.focusedParty.party} as ParliamentInspectRequest);
       }
-    },
-    inspectParty(party: ReduxParty): void {
-      this.$emit('inspect', {kind: 'party', party} as ParliamentInspectRequest);
     },
     handleStageIntent(intent: GamepadIntent): void {
       const action = consoleActionOf(intent);
@@ -1509,10 +1445,6 @@ export default defineComponent({
       setWorkspaceFramePhase('parliament', 'configure');
     },
     closeStage(): void {
-      if (this.stage === 'action') {
-        this.actionParty = undefined;
-        this.composerCommands = [];
-      }
       this.stage = 'browse';
       setWorkspaceFramePhase('parliament', 'browse');
     },
@@ -1543,12 +1475,6 @@ export default defineComponent({
     },
     onStageLeaveCancelled(): void {
       this.stageLeaving = false;
-    },
-    onComposerCommands(cmds: ReadonlyArray<ConsoleCommand>): void {
-      this.composerCommands = [...cmds];
-    },
-    onPartyConfirm(response: InputResponse): void {
-      this.send(response, 'action');
     },
     // ── submits (byte-identical to the live prompt) ─────────────────────
     submitVote(): void {

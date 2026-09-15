@@ -49,6 +49,7 @@ import {resourceScoring, accumulatedVp} from '@/client/components/additionalReso
 import {AVAILABILITY_BLOCKERS, turnGateBlocker} from '@/common/availability/AvailabilityBlocker';
 import {ICardRenderRoot} from '@/common/cards/render/Types';
 import {PartyActionId, ReduxParty} from '@/common/parliament/ParliamentTypes';
+import {partyOfTileKey, partyTileKey} from '@/client/console/parliament/partyActionKey';
 
 type GroupNode = ActionGroup['nodes'][number];
 
@@ -441,7 +442,35 @@ export const consoleCardActionsUi = reactive({
    * drift). ONE-SHOT: the mount that seats it clears it.
    */
   stagedReturn: undefined as {cardName: CardName, nodeIndex: number, composer: unknown} | undefined,
+  /**
+   * ONE-SHOT: the next Action Center mount opens DIRECTLY on this party's
+   * action — the Parliament's door (Turmoil Redux). Both doors (the wheel's
+   * menu and the Parliament's party) land in the SAME workspace, the SAME
+   * composer and the SAME server prompt; the Parliament's simply skips the
+   * browse layer, which it never showed. Consumed by the mount that seats it.
+   */
+  openWith: undefined as {party: ReduxParty, resume?: boolean} | undefined,
+  /**
+   * THE PARTY FLOW this workspace owns (Turmoil Redux) — set when a party's
+   * composer opens, advanced at its commit, cleared when the flow ends.
+   * Module state because the shell reads it: the Reds' mandatory discard is a
+   * prompt the server raises AFTER the draw, and «this workspace still owes a
+   * step» has to be answerable by the conclusion policy while the composer
+   * that started it is still standing (or parked).
+   */
+  partyFlow: undefined as ConsolePartyFlow | undefined,
 });
+
+/** The stage a party action's flow is in — see `consoleCardActionsUi.partyFlow`. */
+export type ConsolePartyFlow = {
+  party: ReduxParty;
+  actionId: PartyActionId;
+  /** `setup` — composing; `committed` — sent (the Reds' draw is out, the discard owed); `result` — the closing beat. */
+  stage: 'setup' | 'committed' | 'result';
+  /** The viewer's M€ at the commit (or at a resume) — the payout beat reads the difference. Module state, so a
+   *  park / a reload-resume (which remount the workspace) do not lose it. */
+  mcBefore?: number;
+};
 
 /** The composer's half of the staged return — taken exactly once, and only by
  *  the composer the return names. */
@@ -485,6 +514,10 @@ export type ActionRestoreInput = {
   /** The colonies frame is hosted by this workspace (the trade's second door
    *  mid-flow — the LIVE stack, so a parked chain never answers true). */
   hostedColonies: boolean;
+  /** The HAND frame is hosted by this workspace — the Reds' mandatory discard
+   *  standing as a step of the party flow (Turmoil Redux). Same seat as the
+   *  colonies step: the host must be re-seated before anything else. */
+  hostedHand?: boolean;
   /** The surviving descent draft, if any. */
   draft: ActionWorkspaceDraft | undefined;
   /** The draft's card still has an action entry (server truth at mount). */
@@ -547,7 +580,7 @@ export function actionWorkspaceRestorePlan(input: ActionRestoreInput): ActionRes
   if (input.stagedReturn !== undefined && input.stagedEntryExists === true) {
     return {kind: 'seat-step', composer: input.stagedReturn};
   }
-  if (input.hostedColonies) {
+  if (input.hostedColonies || input.hostedHand === true) {
     if (input.draft !== undefined && input.draftEntryExists) {
       return {kind: 'seat-step', composer: input.draft};
     }
@@ -947,15 +980,9 @@ export type PartyActionSource = {
   preview: ReadonlyArray<ActionEffect>;
 };
 
-/** The tile / group KEY of a party source (a DOM address + focus id; never a CardName lookup). */
-export function partyTileKey(party: ReduxParty): string {
-  return 'PARTY_' + party;
-}
-
-/** The party behind a tile key, or undefined for a card's. */
-export function partyOfTileKey(key: string): ReduxParty | undefined {
-  return key.startsWith('PARTY_') ? key.substring('PARTY_'.length) as ReduxParty : undefined;
-}
+/** The party KEY helpers live in `parliament/partyActionKey.ts` (the claim
+ *  predicate reads them too); re-exported here for the action-centre callers. */
+export {partyOfTileKey, partyTileKey};
 
 /** The pre-submit choices a party action asks (the composer's rows) — structural, per action. */
 function partyChoiceKinds(actionId: PartyActionId): ReadonlyArray<'card' | 'or'> {
@@ -966,7 +993,7 @@ function partyChoiceKinds(actionId: PartyActionId): ReadonlyArray<'card' | 'or'>
   }
 }
 
-function buildPartyTile(source: PartyActionSource): ConsoleActionTile {
+export function buildPartyTile(source: PartyActionSource): ConsoleActionTile {
   let status: ActionStatus;
   let reason: ConsoleActionReason | undefined;
   let blocker: AvailabilityBlocker | undefined;

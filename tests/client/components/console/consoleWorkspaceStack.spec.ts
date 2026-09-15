@@ -839,6 +839,44 @@ describe('consoleWorkspaceStack — the ONE depth model of a workspace', () => {
   });
 
   /*
+   * THE PARLIAMENT'S DOOR (Turmoil Redux): a party action opens the action
+   * workspace INSIDE the Parliament — the ONE execution point every party
+   * action has — as a scene the host hands over, with the header rooted at the
+   * Parliament. The action's own follow-ups (the Reds' discard) nest one level
+   * deeper, embedded in the action workspace.
+   */
+  it('the Parliament hands the scene to a nested action workspace, whose crumb roots at the Parliament', () => {
+    pushWorkspaceFrame({
+      kind: 'parliament', subject: '', stage: '', phase: 'browse',
+      serves: ['party'], anchor: ALWAYS,
+    });
+    pushWorkspaceFrame({
+      kind: 'card-actions', subject: 'Industrialists', stage: 'Setup', phase: 'configure',
+      serves: [], anchor: ALWAYS,
+    });
+    expect(workspaceFrameIsOverlay('card-actions'), 'the action workspace stands OVER the Parliament').to.eq(true);
+    expect(workspaceFrameRenders('card-actions'), 'and renders at once').to.eq(true);
+    expect(workspaceHostYieldsScene('parliament'), 'the Parliament yields the scene').to.eq(true);
+    expect(workspaceFrameHost('card-actions'), 'hosted by the Parliament').to.eq('parliament');
+    const crumb = workspaceStackCrumb();
+    expect(crumb?.root, 'the header states the flow the player entered').to.eq('Parliament');
+    expect(crumb?.subject?.text).to.eq('Industrialists');
+    expect(crumb?.stage).to.eq('Setup');
+    // The Reds' discard: the hand EMBEDS in the action workspace (its default pair).
+    pushWorkspaceFrame({
+      kind: 'hand', subject: '', stage: 'Card discard', phase: 'browse',
+      serves: ['handSelect'], anchor: ALWAYS,
+    });
+    expect(workspaceFrameHost('hand'), 'the hand is the action workspace step').to.eq('card-actions');
+    expect(workspaceFrameIsOverlay('hand'), 'embedded, waiting for the composer zone').to.eq(false);
+    expect(workspaceStackCrumb()?.stage, 'the crumb tail is the step own').to.eq('Card discard');
+    leaveWorkspace();
+    leaveWorkspace();
+    expect(workspaceHostYieldsScene('parliament'), 'the Parliament owns the scene again').to.eq(false);
+    expect(workspaceFrameMounted('parliament'), 'untouched underneath the whole flow').to.eq(true);
+  });
+
+  /*
    * THE CONTINUATION RULE, stated once. Inside the start's play-from-hand
    * prelude a played card's SelectColony belongs to the CARD-PLAY step, not to
    * the start - so the colonies land one level deeper in the SAME chain.

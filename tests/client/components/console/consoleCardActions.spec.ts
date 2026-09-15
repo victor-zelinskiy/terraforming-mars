@@ -668,6 +668,18 @@ describe('consoleCardActions model', () => {
         {kind: 'seat-step', composer: DRAFT});
     });
 
+    it('re-seats a hosted HAND step (the Reds mandatory discard — Turmoil Redux) from the party draft, and folds honestly without one', () => {
+      const partyDraft = {cardName: partyTileKey(PartyName.REDS) as CardName, nodeIndex: 0};
+      expect(actionWorkspaceRestorePlan({
+        ...RESTORED_STEP, hostedColonies: false, hostedHand: true, draft: partyDraft, draftEntryExists: true,
+        claimHost: undefined, claimCard: '', claimNodeIndex: 0,
+      })).to.deep.eq({kind: 'seat-step', composer: partyDraft});
+      expect(actionWorkspaceRestorePlan({
+        ...RESTORED_STEP, hostedColonies: false, hostedHand: true, draft: undefined, draftEntryExists: false,
+        claimHost: undefined, claimCard: '', claimNodeIndex: 0,
+      })).to.deep.eq({kind: 'fold-step'});
+    });
+
     it('NEVER adopts a foreign host’s claim as a composer (the half-restored screen)', () => {
       // No hosted step, no draft — but the parked colony resolution's claim is
       // still live. The old bare «is anything claimed» check seated a composer

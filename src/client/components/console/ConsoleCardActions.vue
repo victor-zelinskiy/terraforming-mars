@@ -43,17 +43,17 @@
            card source (Viron / Проверка проекта) keeps the classic
            «ПОВТОР ДЕЙСТВИЯ › <карта>» form. -->
       <ConsoleWsHead class="con-cardactions__head"
-                     :root="repeat ? repeatCrumbRoot : 'Card actions'"
+                     :root="repeat ? repeatCrumbRoot : hostCrumb.root"
                      :mark="repeat ? '⟳' : ''"
-                     :emblem="repeat ? repeatCrumbEmblem.emblem : 'actions'"
-                     :wheelAnchor="repeat ? repeatCrumbEmblem.wheelAnchor : 'card-actions'"
+                     :emblem="repeat ? repeatCrumbEmblem.emblem : hostCrumb.emblem"
+                     :wheelAnchor="repeat ? repeatCrumbEmblem.wheelAnchor : hostCrumb.wheelAnchor"
                      :context="repeat ? repeatCrumbContext : ''"
                      :subject="repeatStepCrumb !== undefined ? repeatStepCrumb.subject :
                        (composer !== undefined ? (composer.party ?? composer.cardName) : '')"
                      :stage="repeatStepCrumb !== undefined ? repeatStepCrumb.stage :
                        (yieldedToStep ? steppedStage : (composer !== undefined ? focusKickerKey : ''))"
                      :stageRaw="repeatStepCrumb !== undefined ? false : (yieldedToStep ? false : focusKickerRaw)"
-                     :committed="steppedCommitted || outcomeFlow !== undefined || colonyStepCommitted">
+                     :committed="steppedCommitted || outcomeFlow !== undefined || colonyStepCommitted || partyCommitted">
         <!-- ── Filters: two labeled groups with their OWN trigger chips
              (the sanctioned exception to the one-bottom-bar rule). They
              live in the header line and yield to the focus stage. ── -->
@@ -474,9 +474,12 @@
                                     :playerView="playerView"
                                     :party="composer.party"
                                     :submitting="partySubmitting"
+                                    :handStep="handStepHosted"
+                                    :result="partyResult"
                                     @confirm="onPartyConfirm"
                                     @cancel="onComposerCancel"
                                     @inspect="onInspectSource"
+                                    @result-done="finishPartyResult"
                                     @commands="onPartyComposerCommands" />
       </transition>
       </div><!-- /__stagewrap -->
@@ -543,7 +546,9 @@ import {
   actionDescTier,
   actionWorkspaceRestorePlan,
   buildConsoleActionsModel,
+  buildPartyTile,
   PartyActionSource,
+  partyOfTileKey,
   branchScopeForNode,
   consoleCardActionsUi,
   cycleAvailability,
@@ -579,7 +584,7 @@ import {
 import {setConsoleActionRevealClaim, resetConsoleActionRevealClaim} from '@/client/console/consoleActionComposerUi';
 import {addShadeOwner, captureSurfaceDeparture, removeShadeOwner, surfaceMotionState} from '@/client/console/surfaceMotion/surfaceMotionState';
 import {carryAnchorsHome} from '@/client/console/surfaceMotion/surfaceMotionDirector';
-import {closeWorkspaceRoot, pushWorkspaceFrame, setWorkspaceFrameSlot, setWorkspaceFrameSubject, workspaceFrameEmblem, workspaceFrameHost, workspaceFrameIsOverlay, workspaceFrameKnown, workspaceFrameMounted, workspaceFramePhase, workspaceFrameStage, workspaceFrameSubject, workspaceStackCrumb, workspaceStackRootKind} from '@/client/console/consoleWorkspaceStack';
+import {closeWorkspaceRoot, leaveWorkspace, pushWorkspaceFrame, setWorkspaceFrameSlot, setWorkspaceFrameSubject, workspaceFrameEmblem, workspaceFrameHost, workspaceFrameIndex, workspaceFrameIsOverlay, workspaceFrameKnown, workspaceFrameMounted, workspaceFramePhase, workspaceFrameRoot, workspaceFrameStage, workspaceFrameSubject, workspaceHostYieldsScene, workspaceKindSpec, workspaceStackCrumb, workspaceStackRootKind, workspaceStackTop} from '@/client/console/consoleWorkspaceStack';
 import {beginCardColonyTrade, clearCardColonyTrade, colonyStepCrumbParts} from '@/client/console/colonyTrade/colonyTradeEntry';
 import {beginCardDeltaAdvance} from '@/client/console/hydroFlow/deltaAdvanceEntry';
 import {reasonParams} from '@/client/cards/tagLabel';
@@ -601,10 +606,10 @@ import {
 import {DeltaRewardDraft, deltaRewardClaimPlan} from '@/client/console/hydroFlow/deltaRewardEntry';
 import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState';
 import ConsoleActionComposer, {ComposerOutcome} from '@/client/components/console/ConsoleActionComposer.vue';
-import ConsolePartyActionComposer from '@/client/components/console/parliament/ConsolePartyActionComposer.vue';
+import ConsolePartyActionComposer, {PartyActionResult} from '@/client/components/console/parliament/ConsolePartyActionComposer.vue';
 import ConsolePartyFormula from '@/client/components/console/parliament/ConsolePartyFormula.vue';
 import {PartyName} from '@/common/turmoil/PartyName';
-import {ReduxParty} from '@/common/parliament/ParliamentTypes';
+import {partyActionOf, ReduxParty} from '@/common/parliament/ParliamentTypes';
 import {InputResponse} from '@/common/inputs/InputResponse';
 import {partyEffectZoomEntry} from '@/client/components/card/cardZoomTypes';
 import {partyAccent, partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
@@ -661,6 +666,10 @@ type ComposerContext = ActionFlowDraft & {party?: ReduxParty};
 
 /** How long a party submit may stay unanswered before the stage gives the player back their hands. */
 const PARTY_SUBMIT_SAFETY_MS = 6000;
+/** The party flow's closing beat (the Reds' payout read) before the flow leaves on its own. */
+const PARTY_RESULT_BEAT_MS = 1800;
+/** The net on the discard answer's arrival before the closing beat reads the rail anyway. */
+const PARTY_RESULT_AWAIT_MS = 4000;
 
 export default defineComponent({
   name: 'ConsoleCardActions',
@@ -718,6 +727,23 @@ export default defineComponent({
       partySubmitTimer: undefined as number | undefined,
       /** The party composer's live command contract (it hands its bar UP). */
       partyCommands: [] as Array<ConsoleCommand>,
+      /**
+       * OPENED ON AN ACTION (the Parliament's door — Turmoil Redux): the browse
+       * layer was never shown, so a reversible cancel has nowhere to fold back
+       * to and LEAVES instead — the Parliament the player came from un-yields
+       * the scene with its focus exactly where they left it.
+       */
+      preselected: false,
+      /** The Reds' closing beat: what the discard paid (undefined = no beat). */
+      partyResult: undefined as PartyActionResult | undefined,
+      partyResultTimer: undefined as number | undefined,
+      /** The viewer's M€ at the party commit — the payout is the difference. */
+      partyMcBefore: 0,
+      /** The discard prompt's own count / rate, read while the hand step stood. */
+      partyDiscard: {count: 2, perTag: 2},
+      /** The view's age while the discard step stood — its ANSWER is the next age (see `awaitPartyResult`). */
+      partyDiscardAge: undefined as number | undefined,
+      partyResultAwaitTimer: undefined as number | undefined,
       /**
        * THE IN-FRAME OUTCOME STAGE of a confirmed action (undefined = the
        * configuration surface owns the column). What the action PRODUCED:
@@ -1038,6 +1064,15 @@ export default defineComponent({
      * command bar reads, so breadcrumb and bar can never disagree.
      */
     focusKickerKey(): string {
+      // The party flow's hosted DISCARD step (the Reds): the hand's own stage
+      // name, handed up; the closing PAYOUT beat names itself «Результат».
+      if (this.handStepHosted) {
+        const stage = workspaceFrameStage('hand');
+        return stage !== '' ? stage : 'Card discard';
+      }
+      if (this.partyResult !== undefined) {
+        return 'Result';
+      }
       // A colony step HOSTED here: the crumb's tail is the STEP'S OWN, handed
       // up by the section (the embedded surface never titles itself — rule 5).
       // The subject slot is already spent on the card, so the colony folds into
@@ -1236,13 +1271,52 @@ export default defineComponent({
     workspacePhase(): WorkspacePhase {
       return workspacePhaseOf({
         open: this.composer !== undefined,
-        committed: this.outcomeFlow !== undefined || this.partySubmitting,
+        committed: this.outcomeFlow !== undefined || this.partySubmitting || this.partyCommitted,
         // The outcome is INTERACTIVE once something is actually on stage; the
         // «pending» beat before that is machine time, not a destination.
-        resultUp: workspaceOutcomeState.stage === 'presenting' || this.revealVerdictUp,
+        // A hosted hand step (the Reds' discard) is the party flow's own
+        // interactive result: B there means «свернуть», never «отмена».
+        resultUp: workspaceOutcomeState.stage === 'presenting' || this.revealVerdictUp || this.handStepHosted,
         terminal: this.revealVerdictUp,
-        finishing: false,
+        // The party flow's closing beat (the payout read): a beat, never a
+        // destination — B is swallowed, A lets the flow leave early.
+        finishing: this.partyResult !== undefined,
       });
+    },
+    /**
+     * THE CRUMB'S ROOT IS THE FLOW'S ROOT. Opened from the Parliament (Turmoil
+     * Redux) this workspace stands INSIDE it (`parliament ⊃ card-actions`, the
+     * host handing the scene over), and the header says so — «⚖ ПАРЛАМЕНТ ›
+     * ИНДУСТРИАЛИСТЫ › НАСТРОЙКА», with the host's own emblem: the player never
+     * left the Parliament, they went one level deeper in it. From the wheel
+     * (or standing laterally over a phase root) it is its own root.
+     */
+    hostCrumb(): {root: string, emblem: string | undefined, wheelAnchor: string | undefined} {
+      const host = this.repeat ? undefined : workspaceFrameHost('card-actions');
+      if (host === undefined || !workspaceHostYieldsScene(host)) {
+        return {root: 'Card actions', emblem: 'actions', wheelAnchor: 'card-actions'};
+      }
+      const spec = workspaceKindSpec(host);
+      return {root: workspaceFrameRoot(host), emblem: spec.emblem, wheelAnchor: spec.wheelAnchor};
+    },
+    /** The HAND stands as a step of this workspace — the Reds' mandatory discard (Turmoil Redux). */
+    handStepHosted(): boolean {
+      return !this.repeat && workspaceFrameHost('hand') === 'card-actions';
+    },
+    /** The party flow this workspace owns (module state — the shell's conclusion reads it). */
+    partyFlow() {
+      return consoleCardActionsUi.partyFlow;
+    },
+    /** Past the party action's commit: sent, or its outcome / discard / payout still on stage. */
+    partyCommitted(): boolean {
+      const flow = this.partyFlow;
+      return this.composer?.party !== undefined && flow !== undefined && flow.party === this.composer.party &&
+        (this.partySubmitting || flow.stage !== 'setup');
+    },
+    /** THIS workspace claimed the party action's drawn batch (the Reds' draw). */
+    partyOutcomeOn(): boolean {
+      return this.composer?.party !== undefined && workspaceOutcomeState.host === 'card-actions' &&
+        workspaceOutcomeState.sourceCard === this.composer.cardName;
     },
     revealSignal(): string {
       if (this.outcomeFlow?.kind !== 'deck-check' || this.outcomeFlow.payload !== undefined) {
@@ -1398,10 +1472,50 @@ export default defineComponent({
      * folds back to the grid.
      */
     'playerView.game.gameAge'(age: number): void {
+      // The discard's ANSWER landed (the payout is on the rail now) — the
+      // closing beat may read it (see `awaitPartyResult`).
+      if (this.partyResultAwaitTimer !== undefined && age !== this.partyDiscardAge) {
+        this.beginPartyResult();
+      }
       if (this.partySubmitting && age !== this.partySubmittedAge) {
         this.clearPartySubmit();
+        // The Reds' draw is answered by the CARDS: the claim raised at the
+        // submit hosts them in this very stage, and the flow goes on (the
+        // mandatory discard, the payout). Every other party action is done
+        // with this answer.
+        if (this.partyOutcomeOn) {
+          return;
+        }
         void this.$nextTick(() => this.concludeFlow());
       }
+    },
+    /**
+     * THE HAND STEP (the Reds' mandatory discard — Turmoil Redux) stands as a
+     * step of THIS workspace, in the party composer's own zone: the same
+     * discipline as the Unity colonies step (embed rule 4 — `flush: 'post'`,
+     * retract on the way out). Its LEAVING is the discard answered: the party
+     * flow's closing beat (what the discard paid) plays, then the flow leaves.
+     */
+    'handStepHosted': {
+      flush: 'post' as const,
+      handler(on: boolean, was: boolean): void {
+        if (this.repeat) {
+          return;
+        }
+        if (on) {
+          setWorkspaceFrameSlot('card-actions', '[data-embed-slot="action-hand"]');
+          const wf = this.playerView.waitingFor;
+          if (wf !== undefined && wf.type === 'card') {
+            this.partyDiscard = {count: wf.min ?? 2, perTag: wf.discardPrompt?.exchange?.amount ?? 2};
+          }
+          this.partyDiscardAge = this.playerView.game.gameAge;
+        } else if (was) {
+          setWorkspaceFrameSlot('card-actions', this.unityStepHosted ? '[data-embed-slot="action-colonies"]' : '');
+          if (this.composer?.party !== undefined && this.partyFlow?.stage === 'committed') {
+            this.awaitPartyResult();
+          }
+        }
+      },
     },
     /**
      * THE UNITY DOOR — the colony workspace stands as a step of THIS one
@@ -1451,7 +1565,14 @@ export default defineComponent({
     'drawSignal': {
       immediate: true,
       handler(id: number) {
-        if (id !== 0 && this.composer !== undefined &&
+        // A PARTY action's batch (the Reds — Turmoil Redux) is the party
+        // composer's own stage: it marks the presenting beat itself, and the
+        // flow it belongs to ends through the party record — never through
+        // this outcome flow's claim-fell conclusion, which cleared the record
+        // the shell holds the workspace on one tick before the mandatory
+        // discard was handed in (the workspace left, the discard was
+        // announced over the board).
+        if (id !== 0 && this.composer !== undefined && this.composer.party === undefined &&
             (this.outcomeFlow === undefined || this.outcomeFlow.kind === 'pending')) {
           this.outcomeFlow = {kind: 'draw'};
           // The EXECUTION BEAT owes its minimum time from the CONFIRM.
@@ -1552,15 +1673,65 @@ export default defineComponent({
     // …and ONLY on a genuine restore (`!collapsed`). Opening the list by hand
     // while a flow is still minimized is a different intent: the player wants
     // to LOOK, not to be dropped back into the decision.
+    // THE PARLIAMENT'S DOOR (Turmoil Redux): this mount opens DIRECTLY on the
+    // party's action — the same composer, the same server prompt and the same
+    // commit the wheel's menu reaches through its browse grid. One-shot: a
+    // later unrelated mount must never re-open it.
+    const openWith = this.repeat ? undefined : consoleCardActionsUi.openWith;
+    if (openWith !== undefined) {
+      consoleCardActionsUi.openWith = undefined;
+      this.preselected = true;
+      // A RESUME (the Reds' discard reached from outside its workspace — a
+      // reload mid-flow, the board-home plate) re-seats the COMMITTED stage
+      // around an action the menu already lists as used — looked up in the
+      // SOURCES, since the grid's own view filters a used action out; a fresh
+      // door needs the action offered.
+      const resumeSource = openWith.resume === true ? this.partyActionSources.find((s) => s.party === openWith.party) : undefined;
+      const tile = resumeSource !== undefined ? buildPartyTile(resumeSource) : this.model.tiles.find((t) => t.party === openWith.party);
+      if (tile === undefined || (tile.status !== 'available' && openWith.resume !== true)) {
+        // The action is no longer offered (or the window closed between the
+        // press and this mount) — the honest degrade is the way back with the
+        // reason said, never an empty grid the player never asked for. THIS
+        // frame goes (a hosted step may already stand above it).
+        this.$emit('blocked', tile === undefined ? 'This option is no longer offered' : this.tileReason(tile));
+        if (workspaceStackTop()?.kind === 'card-actions') {
+          leaveWorkspace();
+        } else {
+          closeWorkspaceRoot('card-actions');
+        }
+      } else {
+        this.focusKey = tile.key;
+        this.openPartyAction(tile, {preselected: true});
+        if (openWith.resume === true) {
+          const flow = consoleCardActionsUi.partyFlow;
+          this.partyMcBefore = this.thisPlayer.megacredits;
+          if (flow !== undefined) {
+            flow.stage = 'committed';
+            flow.mcBefore = this.partyMcBefore;
+          }
+          // The payout beat reads the delta from here: the discard's reward
+          // is still to come — and the discard's own numbers (the hosted-step
+          // watcher cannot fire for a step that stood before this mount).
+          const wf = this.playerView.waitingFor;
+          if (wf !== undefined && wf.type === 'card') {
+            this.partyDiscard = {count: wf.min ?? 2, perTag: wf.discardPrompt?.exchange?.amount ?? 2};
+          }
+        }
+      }
+    }
     if (this.composer === undefined) {
       const draft = consoleCardActionsUi.draft;
       const stagedReturn = consoleCardActionsUi.stagedReturn;
+      const draftParty = draft === undefined ? undefined : partyOfTileKey(draft.cardName);
       const plan = actionWorkspaceRestorePlan({
         repeat: this.repeat,
         collapsed: this.collapsed,
         hostedColonies: workspaceFrameHost('colonies') === 'card-actions',
+        hostedHand: workspaceFrameHost('hand') === 'card-actions',
         draft,
-        draftEntryExists: draft !== undefined && this.entries.some((e) => e.cardName === draft.cardName),
+        draftEntryExists: draft !== undefined && (draftParty !== undefined ?
+          this.partyActionSources.some((source) => source.party === draftParty) :
+          this.entries.some((e) => e.cardName === draft.cardName)),
         stagedReturn,
         stagedEntryExists: stagedReturn !== undefined && this.entries.some((e) => e.cardName === stagedReturn.cardName),
         claimHost: workspaceOutcomeState.host,
@@ -1581,13 +1752,20 @@ export default defineComponent({
         // variant — the hosted colonies frame gets its host again, the entry
         // lock (colonyTradeEntry) is still module state, and the trade's own
         // confirm remains the single commit. Nothing is re-submitted.
-        this.composer = {cardName: plan.composer.cardName, nodeIndex: plan.composer.nodeIndex};
+        // A PARTY draft re-seats the party composer (the Reds' discard step
+        // coming back from a park) — its key names the party.
+        this.composer = {cardName: plan.composer.cardName, nodeIndex: plan.composer.nodeIndex, party: partyOfTileKey(plan.composer.cardName)};
       } else if (plan.kind === 'seat-outcome') {
         // The committed stage re-opens as before: same card, same variant,
         // same phase; the prompt is still routed here and the execution beat
         // is not owed again (`stage === 'presenting'` already).
-        this.composer = {cardName: plan.composer.cardName, nodeIndex: plan.composer.nodeIndex};
-        this.outcomeFlow = {kind: plan.outcome};
+        const party = partyOfTileKey(plan.composer.cardName);
+        this.composer = {cardName: plan.composer.cardName, nodeIndex: plan.composer.nodeIndex, party};
+        // A party's drawn batch presents in the PARTY composer's own zone —
+        // the card composer's outcome record stays undefined for it.
+        if (party === undefined) {
+          this.outcomeFlow = {kind: plan.outcome};
+        }
       } else if (plan.kind === 'fold-step') {
         // A colonies step is hosted but its descent cannot be rebuilt (a
         // reload dropped the draft / the card left the entries). Folding the
@@ -1598,6 +1776,18 @@ export default defineComponent({
         clearCardColonyTrade();
         consoleCardActionsUi.draft = undefined;
       }
+    }
+    // A HAND STEP hosted BEFORE this mount (a restore mid-discard): the
+    // change-watcher cannot fire true→true, so the zone is republished here —
+    // and the step's age is noted, or the payout beat would read the rail
+    // before the discard's answer applied (see `awaitPartyResult`).
+    if (this.handStepHosted) {
+      this.partyDiscardAge = this.playerView.game.gameAge;
+      void this.$nextTick(() => {
+        if (this.handStepHosted) {
+          setWorkspaceFrameSlot('card-actions', '[data-embed-slot="action-hand"]');
+        }
+      });
     }
     this.scheduleCanvasFit();
     this.scheduleDetailFit();
@@ -1638,6 +1828,13 @@ export default defineComponent({
     // genuinely closed. Same lifetime rule as the trade-entry lock above.
     if (!this.repeat && !workspaceFrameKnown('card-actions')) {
       consoleCardActionsUi.draft = undefined;
+      consoleCardActionsUi.partyFlow = undefined;
+    }
+    if (this.partyResultTimer !== undefined) {
+      window.clearTimeout(this.partyResultTimer);
+    }
+    if (this.partyResultAwaitTimer !== undefined) {
+      window.clearTimeout(this.partyResultAwaitTimer);
     }
     window.removeEventListener('resize', this.onViewportResize);
     if (typeof window.cancelAnimationFrame === 'function') {
@@ -1801,6 +1998,12 @@ export default defineComponent({
       }
       if (this.composer !== undefined) {
         if (this.composer.party !== undefined) {
+          if (this.partyResult !== undefined) {
+            if (intent.kind === 'press' && consoleActionOf(intent) === 'primary') {
+              this.finishPartyResult();
+            }
+            return;
+          }
           const party = this.$refs.partyComposerRef as InstanceType<typeof ConsolePartyActionComposer> | undefined;
           party?.handleIntent(intent);
           return;
@@ -2003,6 +2206,10 @@ export default defineComponent({
       this.descendKey = '';
       this.clearPartySubmit();
       this.partyCommands = [];
+      this.partyResult = undefined;
+      if (!this.repeat) {
+        consoleCardActionsUi.partyFlow = undefined;
+      }
       // The frozen preview belongs to the stage that is going away.
       this.committedPreview = undefined;
       // A genuine fold ends the descent: the suspended-instance record goes
@@ -2050,6 +2257,11 @@ export default defineComponent({
         this.closeComposer();
         return;
       }
+      // A finished PARTY flow owes nothing more: the record the shell's
+      // conclusion policy holds on goes first, so the ending it asks for next
+      // is not refused by the flow's own leftover.
+      consoleCardActionsUi.partyFlow = undefined;
+      this.partyResult = undefined;
       this.$emit('flow-complete');
       // …and NOTHING else, either way.
       //
@@ -2487,6 +2699,15 @@ export default defineComponent({
       });
     },
     onComposerCancel(): void {
+      // OPENED ON THE ACTION (the Parliament's door): there is no browse grid
+      // to fold back to — the reversible cancel LEAVES, and the stage departs
+      // with the workspace in one motion. The Parliament un-yields the scene
+      // with its focus on the very party the player came from.
+      if (this.preselected && !this.repeat && workspaceFrameIndex('card-actions') !== -1) {
+        consoleCardActionsUi.partyFlow = undefined;
+        leaveWorkspace();
+        return;
+      }
       // B in the composer → back to the browse grid (the repeat pick, when it
       // was used, resolves/cancels on its OWN surface — no outer restore here).
       this.closeComposer();
@@ -2512,20 +2733,36 @@ export default defineComponent({
      * trade with a free payment path — its «stage» is the colony workspace
      * standing as a step of this one, the trade's own confirm the single commit.
      */
-    openPartyAction(tile: ConsoleActionTile): void {
+    openPartyAction(tile: ConsoleActionTile, opts?: {preselected?: boolean}): void {
       const party = tile.party;
       if (party === undefined) {
         return;
       }
-      const slot = this.focusedSlotEl();
-      const slotRect = slot?.getBoundingClientRect?.();
-      if (slotRect !== undefined) {
-        armDescendOrigin('action-browse', {x: slotRect.left + slotRect.width / 2, y: slotRect.top + slotRect.height / 2});
+      // From the browse grid the pressed slot is the unfold's origin; from the
+      // Parliament's door the PARTY PLAQUE the player pressed already armed the
+      // rects (the plaque → the composer's hero seal is the carried object).
+      if (opts?.preselected !== true) {
+        const slot = this.focusedSlotEl();
+        const slotRect = slot?.getBoundingClientRect?.();
+        if (slotRect !== undefined) {
+          armDescendOrigin('action-browse', {x: slotRect.left + slotRect.width / 2, y: slotRect.top + slotRect.height / 2});
+        }
+        armDescendRect('action-slot', slotRect);
       }
-      armDescendRect('action-slot', slotRect);
       this.descendKey = tile.key;
       this.flowState = 'entering';
       this.committedPreview = undefined;
+      // The DESCENT is recorded where it survives the surface (a park unmounts
+      // this component): the module draft re-seats the composer on restore,
+      // the frame subject is the navigation truth, and the party flow record
+      // is what the shell's conclusion policy reads («this workspace still
+      // owes the Reds' discard»).
+      const actionId = partyActionOf(party);
+      if (!this.repeat && actionId !== undefined) {
+        consoleCardActionsUi.draft = {cardName: tile.cardName, nodeIndex: 0};
+        consoleCardActionsUi.partyFlow = {party, actionId, stage: 'setup'};
+        setWorkspaceFrameSubject('card-actions', party);
+      }
       if (party === PartyName.UNITY) {
         if (workspaceFrameMounted('colonies')) {
           return;
@@ -2546,19 +2783,97 @@ export default defineComponent({
     },
     /** The party composer's confirm: the server's own nested response, submitted by the shell. */
     onPartyConfirm(response: InputResponse): void {
-      if (this.composer?.party === undefined || this.partySubmitting) {
+      const comp = this.composer;
+      if (comp?.party === undefined || this.partySubmitting) {
         return;
       }
       this.partySubmitting = true;
       this.partySubmittedAge = this.playerView.game.gameAge;
       this.partySubmitTimer = window.setTimeout(() => this.resetPartySubmit(), PARTY_SUBMIT_SAFETY_MS);
+      this.partyMcBefore = this.thisPlayer.megacredits;
+      const flow = consoleCardActionsUi.partyFlow;
+      if (flow !== undefined && flow.party === comp.party) {
+        flow.stage = 'committed';
+        flow.mcBefore = this.partyMcBefore;
+      }
+      // THE REDS DRAW INTO THIS STAGE. The claim is raised SYNCHRONOUSLY, before
+      // the response can land, keyed on the party's own key — the server
+      // attributes the batch to the party (`{type: 'party'}`), so no standalone
+      // presenter can take it for even a frame. The count is the action's own
+      // printed draw (the server's preview chip), never a guess.
+      if (comp.party === PartyName.REDS) {
+        const source = this.partyActionSources.find((s) => s.party === comp.party);
+        const draw = source?.preview.find((e) => e.direction === 'gain' && e.icon === 'cards')?.amount ?? 2;
+        claimWorkspaceOutcome('card-actions', comp.cardName, ['draw'], 0, draw);
+      }
       this.$emit('submit-party', response);
     },
     /** A REFUSED / lost party submit gives the stage back (the shell calls it on a transport error too). */
     resetPartySubmit(): void {
       if (this.partySubmitting) {
         this.clearPartySubmit();
+        const flow = consoleCardActionsUi.partyFlow;
+        if (flow !== undefined) {
+          flow.stage = 'setup';
+        }
+        // A claim raised for a draw that never came is an orphan: it would
+        // suppress the standalone presenter for nothing.
+        if (this.partyOutcomeOn && workspaceOutcomeState.stage === 'awaiting') {
+          releaseWorkspaceOutcome('party-submit-refused');
+        }
       }
+    },
+    /**
+     * THE PARTY FLOW'S CLOSING BEAT (the Reds): the discard was answered — the
+     * hand step left — and the payout is on the rail. The stage reads it for
+     * one beat («сброшено 2 · +4 М€»), honestly including a payout of nothing,
+     * then the flow leaves through its ONE guarded ending. A press skips ahead.
+     */
+    /**
+     * THE HAND STEP LEFT — but the discard's ANSWER (the payout) rides the
+     * NEXT response, and the discard cinematic holds the view's apply until
+     * it has finished: read at the step's departure, the rail still showed the
+     * pre-answer number and the beat printed «0 M€» over a +2 landing beside
+     * it. So the beat waits for the age to move past the one the step stood
+     * at (or begins at once when it already has), on a short net.
+     */
+    awaitPartyResult(): void {
+      if (this.partyResult !== undefined || this.partyResultAwaitTimer !== undefined) {
+        return;
+      }
+      if (this.partyDiscardAge === undefined || this.playerView.game.gameAge !== this.partyDiscardAge) {
+        this.beginPartyResult();
+        return;
+      }
+      this.partyResultAwaitTimer = window.setTimeout(() => this.beginPartyResult(), PARTY_RESULT_AWAIT_MS);
+    },
+    beginPartyResult(): void {
+      if (this.partyResultAwaitTimer !== undefined) {
+        window.clearTimeout(this.partyResultAwaitTimer);
+        this.partyResultAwaitTimer = undefined;
+      }
+      const flow = consoleCardActionsUi.partyFlow;
+      if (flow === undefined || this.partyResult !== undefined) {
+        return;
+      }
+      flow.stage = 'result';
+      const payout = Math.max(0, this.thisPlayer.megacredits - (flow.mcBefore ?? this.partyMcBefore));
+      this.partyResult = {
+        discarded: this.partyDiscard.count,
+        payout,
+        tags: this.partyDiscard.perTag > 0 ? Math.round(payout / this.partyDiscard.perTag) : 0,
+      };
+      this.partyResultTimer = window.setTimeout(() => this.finishPartyResult(), PARTY_RESULT_BEAT_MS);
+    },
+    finishPartyResult(): void {
+      if (this.partyResultTimer !== undefined) {
+        window.clearTimeout(this.partyResultTimer);
+        this.partyResultTimer = undefined;
+      }
+      if (this.partyResult === undefined) {
+        return;
+      }
+      this.concludeFlow();
     },
     clearPartySubmit(): void {
       if (this.partySubmitTimer !== undefined) {

@@ -1411,8 +1411,12 @@ export async function workspaceOpen(page: Page): Promise<boolean> {
  *  on screen). One reader for «where does the player stand». */
 export async function crumbText(page: Page): Promise<string> {
   return await page.evaluate(() => {
-    const head = Array.from(document.querySelectorAll('.con-wshead'))
-      .find((el) => (el as HTMLElement).offsetParent !== null);
+    // The DEEPEST visible head: a host that handed its scene to a nested
+    // workspace keeps its own head in the DOM under `visibility: hidden`
+    // (offsetParent still answers), and the guest renders later.
+    const heads = Array.from(document.querySelectorAll('.con-wshead'))
+      .filter((el) => (el as HTMLElement).offsetParent !== null && getComputedStyle(el).visibility !== 'hidden');
+    const head = heads[heads.length - 1];
     return head === undefined ? '' : (head.textContent ?? '').replace(/\s+/g, ' ').trim();
   });
 }

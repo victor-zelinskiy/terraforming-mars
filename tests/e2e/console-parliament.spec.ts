@@ -8,17 +8,19 @@ import {
 
 /**
  * THE MARS PARLIAMENT (Turmoil Redux) — the reworked workspace
- * (docs/TURMOIL_REDUX_PARLIAMENT_UI_REWORK.md), on three compositions
+ * (docs/TURMOIL_REDUX_PARLIAMENT_V2.md), on three compositions
  * (1080 · TV 4K · Steam Deck):
  *
  *   the wheel's «ПАРЛАМЕНТ» slot opens the workspace · the GOVERNMENT reads
- *   who rules and why (the starting rule / the enacted resolution), the ruling
- *   formula, the chairman quest race and its reward · the VOTING AREA puts a
- *   TALLY beside every card (delegates, the leader and why, yours, the tie
- *   rule) and a FOCUS RAIL under them (what the next delegate changes) · the
- *   PARTIES 3 × 2 with one DETAIL zone · the AGENDA as LEVELS · A on a
- *   resolution opens the VOTE stage · A commits (the server's own menu
- *   option, byte-identical) and the delegate lands · X inspects.
+ *   who rules and why (the starting rule / the enacted resolution) as the
+ *   ruling party's PLAQUE (seal, state, printed formula), the chairman quest
+ *   as its own block (condition · progress · reward) · the VOTING AREA puts a
+ *   TALLY under every card (delegates, the leader, yours, the tie rule) and a
+ *   FOCUS RAIL under them (what the next delegate changes) · the PARTIES as
+ *   six plaques in one row (3 × 2 on the Deck), one LINE under the row for
+ *   a used / blocked action · the AGENDA as LEVELS · A on a resolution opens
+ *   the VOTE stage · A commits (the server's own menu option, byte-identical)
+ *   and the delegate lands · X inspects. Rule prose lives in the inspector.
  *
  * Every composition asserts that nothing READ is cut and no block spills out
  * of its tier (`expectFits`) — on the start table, a crowded five-seat table
@@ -84,7 +86,7 @@ async function expectFits(page: Page, preset: Preset): Promise<void> {
       const r = el.getBoundingClientRect();
       return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden';
     };
-    const blocks = '.con-parl__gov, .con-parl__slot, .con-parl__tally, .con-parl__rail, .con-parl__party, .con-parl__pdetail, .con-parl__agenda, .con-parl__stage';
+    const blocks = '.con-parl__gov, .con-parl__slot, .con-parl__tally, .con-parl__rail, .con-parl__party, .con-parl__pline, .con-parl__quest, .con-parl__agenda, .con-parl__stage';
     for (const el of Array.from(root.querySelectorAll<HTMLElement>(blocks))) {
       if (!visible(el)) {
         continue;
@@ -105,8 +107,8 @@ async function expectFits(page: Page, preset: Preset): Promise<void> {
         }
       }
     }
-    const reading = '.con-parl__party-state, .con-parl__party-name, .con-parl__tally-row, .con-parl__tally-note, .con-parl__rail-row, ' +
-      '.con-parl__quest-reward, .con-parl__quest-text, .con-parl__pdetail-reason, .con-parl__pdetail-rule, .con-parl__slot-win, .con-parl__kicker, ' +
+    const reading = '.con-pseal__name, .con-pseal__state, .con-parl__tally-row, .con-parl__tally-note, .con-parl__rail-row, ' +
+      '.con-parl__quest-reward, .con-parl__quest-text, .con-parl__pline-text, .con-parl__slot-win, .con-parl__kicker, ' +
       '.con-parl__recap-item, .con-parl__txn-row, .con-parl__consequences li';
     for (const el of Array.from(root.querySelectorAll<HTMLElement>(reading))) {
       if (!visible(el)) {
@@ -117,7 +119,7 @@ async function expectFits(page: Page, preset: Preset): Promise<void> {
       }
       // Clipped by an ancestor tier (the tier's overflow hides it) — vertically,
       // and along the one-line focus rail, horizontally too.
-      const tier = el.closest<HTMLElement>('.con-parl__pdetail, .con-parl__gov, .con-parl__stage, .con-parl__party, .con-parl__slot, .con-parl__rail');
+      const tier = el.closest<HTMLElement>('.con-parl__pline, .con-parl__gov, .con-parl__stage, .con-parl__party, .con-parl__slot, .con-parl__rail');
       if (tier !== null) {
         const t = tier.getBoundingClientRect();
         const e = el.getBoundingClientRect();
@@ -212,11 +214,11 @@ for (const preset of PRESETS) {
       expect(before.game.parliament.rulingParty).toBe('Greens');
       await expectFits(page, preset);
       // WHO RULES AND WHAT IT GIVES: the Greens by the STARTING RULE (not by a
-      // resolution nobody enacted), their printed formula as a GRAPHIC, the
-      // quest with its reward, and a tally beside every card.
+      // resolution nobody enacted) on their PLAQUE, their printed formula as a
+      // GRAPHIC, the quest with its reward, and a tally under every card.
       const gov = page.locator('[data-parl-gov]');
       await expect(gov).toContainText(/Стартовое правило/i);
-      await expect(gov.locator('.con-parl__gov-formula .pcard__mech')).toHaveCount(1);
+      await expect(gov.locator('.con-parl__gov-plaque .con-pformula__mech')).toHaveCount(1);
       await expect(page.locator('[data-parl-quest] .con-parl__quest-reward')).toContainText(/Кресло/);
       await expect(page.locator('[data-parl-tally]')).toHaveCount(3);
       await expect(page.locator('.con-parl__party')).toHaveCount(6);
@@ -237,9 +239,9 @@ for (const preset of PRESETS) {
         const zone = () => parliament(page).getAttribute('data-zone');
         expect(await pressUntil(page, 'ArrowLeft', async () => await zone() === 'government', {tries: 3, settleMs: 300})).toBeTruthy();
         await press(page, 'ArrowDown', 500); // → the parties, on the ruling party
-        await expect(page.locator('.con-parl__pdetail[data-party="Greens"]'), 'the detail explains the ruling Greens').toContainText(/стартовому правилу/i);
+        await expect(page.locator('.con-parl__party[data-party="Greens"] .con-pseal__state'), 'the plaque states why the Greens rule').toContainText(/стартовому правилу/i);
         await expectFits(page, preset);
-        await shoot(page, preset, '04-party-detail');
+        await shoot(page, preset, '04-party-focus');
         await settle(page, {timeoutMs: 10_000});
         await openZoomViewer(page);
         await expect(page.locator('.con-zoom-rules').first()).toBeVisible({timeout: 10_000});

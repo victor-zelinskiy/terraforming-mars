@@ -2,27 +2,32 @@ import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {
-  bootFixtureSeats, closeZoomViewer, crumbText, fetchPlayerModel, openCardActions, openMandatoryAnnounce, openQuickWheel, openZoomViewer, press, pressUntil,
+  bootFixtureSeats, closeZoomViewer, crumbText, fetchPlayerModel, openCardActions, openQuickWheel, openZoomViewer, press, pressUntil,
   sendPlayerInput, settle, takeRevealCards, waitForBoardHome, walkFocusUntil,
 } from './consoleStart';
 
 /**
  * THE PARTY ACTIONS ARE ACTIONS (Turmoil Redux) — they live in the standard
  * action menu («ДЕЙСТВИЯ КАРТ») as sources of their own, beside the cards,
- * and the Parliament keeps only a CONTEXTUAL door from a party's detail. Both
- * doors open the SAME composer over the SAME server prompt, so limits and
- * availability can never disagree:
+ * and the Parliament's party plaque is a SECOND DOOR into the SAME action
+ * workspace (nested: «ПАРЛАМЕНТ › <партия> › НАСТРОЙКА»). One execution
+ * point, one composer, one server prompt — limits and availability can never
+ * disagree (docs/TURMOIL_REDUX_PARLIAMENT_V2.md):
  *
  *   INDUSTRIALISTS — from the ACTION MENU: two picks (decrease / increase),
- *     one commit; the production moved on the server; the flow leaves.
- *   SCIENTISTS — from the PARLIAMENT's party detail (the contextual door): a
- *     resource, a target card, a commit; Tardigrades holds 2 microbes.
+ *     the TOTAL row reads the whole operation, one commit; the production
+ *     moved on the server; the flow leaves.
+ *   SCIENTISTS — from the PARLIAMENT's plaque (the second door): a resource,
+ *     a target card, a commit; Tardigrades holds 2 microbes; the flow ends
+ *     back in the Parliament, the plaque reads «used».
  *   UNITY — from the ACTION MENU: the colony workspace stands inside the
  *     action menu (one crumb) with the trade fee LOCKED to the free Unity
  *     path; B walks back out and nothing was spent.
- *   REDS — from the ACTION MENU: one confirm draws at once (the action is spent
- *     at that press — leaving and coming back cannot draw again), the
- *     mandatory discard follows, the hand size is back where it was.
+ *   REDS — from the ACTION MENU, ONE workspace from the draw to the payout:
+ *     one confirm draws at once (the action is spent at that press), the
+ *     drawn cards present INSIDE the workspace, the mandatory discard is a
+ *     HAND STEP of it («… › КРАСНЫЕ › СБРОС КАРТ»), the payout beat closes
+ *     it, the hand size is back where it was.
  *
  * STATE IS DECLARED (the `parliament-actions` fixture): blue holds every
  * action party's effect by grant; a party action is a full ACTION, so the
@@ -137,31 +142,39 @@ async function passSeat(request: APIRequestContext, playerId: string): Promise<v
   await sendPlayerInput(request, playerId, {type: 'or', index, response: {type: 'option'}});
 }
 
-/** The Parliament's action stage grows over the Agenda, never past it, and its commit row is whole. */
-async function expectActionStageFits(page: Page, label: string): Promise<void> {
+/** The party composer fits: nothing of it leaves the viewport; the commit row and every decision row stand inside it. */
+async function expectComposerFits(page: Page, label: string): Promise<void> {
   const problems = await page.evaluate(() => {
     const out: Array<string> = [];
-    const stage = document.querySelector('.con-parl__stage')?.getBoundingClientRect();
-    const agenda = document.querySelector('.con-parl__agenda')?.getBoundingClientRect();
-    const cta = document.querySelector('.con-parl__stage [data-pact-cta]')?.getBoundingClientRect();
-    if (stage === undefined || agenda === undefined || cta === undefined) {
-      return ['missing stage / agenda / commit row'];
+    const root = document.querySelector('.con-pact')?.getBoundingClientRect();
+    const cta = document.querySelector('[data-pact-cta]')?.getBoundingClientRect();
+    if (root === undefined || cta === undefined) {
+      return ['missing composer / commit row'];
     }
-    if (stage.bottom > agenda.bottom + 1) {
-      out.push(`stage bottom ${Math.round(stage.bottom)} past the Agenda ${Math.round(agenda.bottom)}`);
+    if (root.bottom > window.innerHeight + 1 || root.right > window.innerWidth + 1 || root.top < -1 || root.left < -1) {
+      out.push(`composer off-screen ${Math.round(root.left)},${Math.round(root.top)} ${Math.round(root.right)},${Math.round(root.bottom)}`);
     }
-    if (cta.bottom > stage.bottom + 1 || cta.top < stage.top) {
-      out.push(`commit row ${Math.round(cta.top)}..${Math.round(cta.bottom)} outside the stage ${Math.round(stage.top)}..${Math.round(stage.bottom)}`);
+    if (cta.bottom > root.bottom + 1 || cta.top < root.top - 1) {
+      out.push(`commit row ${Math.round(cta.top)}..${Math.round(cta.bottom)} outside the composer ${Math.round(root.top)}..${Math.round(root.bottom)}`);
     }
-    for (const row of Array.from(document.querySelectorAll<HTMLElement>('.con-parl__stage .con-pact__row'))) {
+    for (const row of Array.from(document.querySelectorAll<HTMLElement>('.con-pact__row'))) {
       const r = row.getBoundingClientRect();
-      if (r.bottom > stage.bottom + 1) {
-        out.push(`a decision row runs under the stage edge (${Math.round(r.bottom)} > ${Math.round(stage.bottom)})`);
+      if (r.bottom > root.bottom + 1 || r.top < root.top - 1) {
+        out.push(`a decision row runs past the composer (${Math.round(r.top)}..${Math.round(r.bottom)})`);
       }
     }
     return out;
   });
-  expect(problems, `${label}: the party action stage fits`).toEqual([]);
+  expect(problems, `${label}: the party action composer fits`).toEqual([]);
+}
+
+/** Walk the Parliament's parties row onto `party` (positive witness on every step). */
+async function focusParty(page: Page, party: string): Promise<void> {
+  const partyFocused = () => page.evaluate(() => document.querySelector('.con-parl__party--focus')?.getAttribute('data-party') ?? '');
+  if (await parliament(page).getAttribute('data-zone') !== 'parties') {
+    await press(page, 'ArrowDown', 400);
+  }
+  expect(await walkFocusUntil(page, async () => await partyFocused() === party, partyFocused, 14), `never focused the «${party}» plaque`).toBeTruthy();
 }
 
 for (const preset of [
@@ -170,21 +183,26 @@ for (const preset of [
 ] as const) {
   test.describe(`parliament · party action stage · ${preset.id}`, () => {
     test.use({viewport: preset.viewport});
-    test(`the Parliament's contextual door composes inside the workspace (${preset.id})`, async ({page, request}) => {
+    test(`the Parliament's door nests the action workspace (${preset.id})`, async ({page, request}) => {
       test.setTimeout(180_000);
       await bootFixtureSeats(page, request, 'parliament-actions', {query: preset.query});
       await openParliament(page);
-      await press(page, 'ArrowDown', 400);
-      const partyFocused = () => page.evaluate(() => document.querySelector('.con-parl__party--focus')?.getAttribute('data-party') ?? '');
-      expect(await walkFocusUntil(page, async () => await partyFocused() === 'Scientists', partyFocused, 12), 'never focused the Scientists tile').toBeTruthy();
+      await focusParty(page, 'Scientists');
       expect(await pressUntil(page, 'Enter', async () => await pact(page, 'scientists').count() > 0, {tries: 3, settleMs: 1100})).toBeTruthy();
       await settle(page, {timeoutMs: 10_000});
-      await expectActionStageFits(page, preset.id);
+      // ONE crumb, rooted where the player came from; the same composer.
+      expect((await crumbText(page)).toUpperCase()).toContain('ПАРЛАМЕНТ');
+      await expect(page.locator('.con-cardactions'), 'the action workspace stands inside the Parliament').toHaveCount(1);
+      await expectComposerFits(page, preset.id);
       const dir = path.resolve('screenshots', 'parliament-actions', preset.id);
       fs.mkdirSync(dir, {recursive: true});
       await page.screenshot({path: path.join(dir, '01-scientists-stage.png')});
-      expect(await pressUntil(page, 'Escape', async () => await pact(page, 'scientists').count() === 0, {tries: 3, settleMs: 900}),
-        'B folds the stage back to the parties').toBeTruthy();
+      // B: back into the Parliament, on the very party.
+      expect(await pressUntil(page, 'Escape', async () => await page.locator('.con-cardactions').count() === 0, {tries: 3, settleMs: 900}),
+        'B leaves the nested workspace').toBeTruthy();
+      await settle(page, {timeoutMs: 10_000});
+      await expect(parliament(page)).toBeVisible();
+      await expect(page.locator('.con-parl__party--focus[data-party="Scientists"]'), 'the focus is on the party the player came from').toHaveCount(1);
     });
   });
 }
@@ -234,18 +252,17 @@ test.describe('parliament · party actions', () => {
     await waitForBoardHome(page, 30);
     await expect(page.locator('.con-cardactions'), 'a finished flow leaves the workspace').toHaveCount(0);
 
-    // ── SCIENTISTS from the Parliament's party detail ──
+    // ── SCIENTISTS from the Parliament's plaque — the SECOND DOOR into the same workspace ──
     await openParliament(page);
-    await press(page, 'ArrowDown', 400); // voting → parties
-    const partyFocused = () => page.evaluate(() => document.querySelector('.con-parl__party--focus')?.getAttribute('data-party') ?? '');
-    expect(await walkFocusUntil(page, async () => await partyFocused() === 'Scientists', partyFocused, 12), 'never focused the Scientists tile').toBeTruthy();
-    await expect(page.locator('.con-parl__pdetail[data-party="Scientists"]'), 'the detail zone explains the focused party').toHaveCount(1);
-    await shoot(page, '04-parliament-party-detail');
+    await focusParty(page, 'Scientists');
+    await expect(page.locator('.con-parl__party--focus[data-party="Scientists"] .con-pseal'), 'the focused plaque').toHaveCount(1);
+    await shoot(page, '04-parliament-party-focus');
     expect(await pressUntil(page, 'Enter', async () => await pact(page, 'scientists').count() > 0, {tries: 3, settleMs: 1100}),
-      'A on the party opens its action as a Parliament stage').toBeTruthy();
-    await expect(page.locator('.con-parl__stage[data-parl-stage="action"]')).toHaveCount(1);
+      'A on the party opens its action workspace inside the Parliament').toBeTruthy();
+    await expect(page.locator('.con-cardactions')).toHaveCount(1);
+    expect((await crumbText(page)).toUpperCase(), 'one crumb rooted at the Parliament').toContain('ПАРЛАМЕНТ');
     await settle(page, {timeoutMs: 8_000});
-    await expectActionStageFits(page, 'standard-1080');
+    await expectComposerFits(page, 'standard-1080');
     await shoot(page, '05-scientists-stage');
     await press(page, 'Enter', 500); // the resource under the cursor → the target row
     await press(page, 'Enter', 500); // the target card → the commit row
@@ -254,7 +271,14 @@ test.describe('parliament · party actions', () => {
     await expect.poll(async () => (await seatOf(request, playerId)).seat.tableau.find((c) => c.name === 'Tardigrades')?.resources ?? -1,
       {timeout: 20_000, message: 'Tardigrades received 2 microbes'}).toBe(2);
     expect(await usesLeft(request, playerId, 'scientists-lab')).toBe(0);
-    await waitForBoardHome(page, 30);
+    // A flow opened from the Parliament ENDS in the Parliament — the plaque reads «used».
+    await expect.poll(async () => await page.locator('.con-cardactions').count(), {timeout: 20_000, message: 'the action workspace leaves'}).toBe(0);
+    await settle(page, {timeoutMs: 10_000});
+    await expect(parliament(page)).toBeVisible();
+    await expect(page.locator('.con-parl__party[data-party="Scientists"][data-action-state="used"]')).toHaveCount(1);
+    await shoot(page, '05a-back-in-parliament-used');
+    expect(await pressUntil(page, 'Escape', async () => await parliament(page).count() === 0, {tries: 4, settleMs: 900})).toBeTruthy();
+    await settle(page);
 
     // Two actions spent — the opponent's turn. It passes; blue is back on.
     await passSeat(request, opponent);
@@ -292,7 +316,7 @@ test.describe('parliament · party actions', () => {
     expect(await usesLeft(request, playerId, 'unity-trade'), 'nothing was spent — the trade was not committed').toBe(1);
     await settle(page, {timeoutMs: 10_000});
 
-    // ── REDS: confirm → draw 2 at once → the mandatory discard ──
+    // ── REDS: ONE workspace from the draw to the payout ──
     if (await page.locator('.con-cardactions').count() === 0) {
       await openCardActions(page);
     }
@@ -304,14 +328,18 @@ test.describe('parliament · party actions', () => {
     await expect.poll(async () => (await seatOf(request, playerId)).waitingFor?.type, {timeout: 20_000, message: 'the discard prompt stands'}).toBe('card');
     // The action is spent AT THE DRAW — no way back to a second free draw.
     expect(await usesLeft(request, playerId, 'reds-recycle'), 'the Reds action is spent at the draw').toBe(0);
-    await expect(page.locator('.con-reveal'), 'the drawn cards are presented').toHaveCount(1, {timeout: 20_000});
+    // The drawn cards present INSIDE the workspace, in the composer's zone — never a standalone reveal.
+    await expect(page.locator('.con-cardactions .con-pact__revealzone .con-reveal'), 'the drawn cards land in the composer zone').toHaveCount(1, {timeout: 20_000});
+    await settle(page, {timeoutMs: 15_000});
+    await expect(page.locator('.con-reveal:not(.con-reveal--embedded)')).toHaveCount(0);
     await shoot(page, '09-reds-drawn');
     await takeRevealCards(page);
-    if (await page.locator('.con-hand--discard').count() === 0) {
-      expect(await openMandatoryAnnounce(page), 'the mandatory discard is announced; A opens the hand').toBeTruthy();
-    }
-    await expect(page.locator('.con-hand--discard'), 'the hand in discard mode').toHaveCount(1, {timeout: 20_000});
+    // The mandatory discard is a HAND STEP of the same workspace: no announce
+    // over the board, the hand mounts in the composer's zone, the crumb's
+    // tail names the step.
+    await expect(page.locator('.con-cardactions .con-pact__handzone .con-hand--discard'), 'the discard stands inside the action workspace').toHaveCount(1, {timeout: 30_000});
     await settle(page, {timeoutMs: 15_000});
+    expect((await crumbText(page)).toUpperCase()).toContain('СБРОС');
     await expect(page.locator('.con-hand__discard')).toContainText(/Красные/);
     await shoot(page, '10-reds-discard');
     await press(page, 'Enter', 300); // pick the focused card
@@ -319,7 +347,11 @@ test.describe('parliament · party actions', () => {
     await press(page, 'Enter', 300); // pick a second one
     await press(page, 'Period', 1200); // RT — confirm the set
     await expect.poll(async () => (await seatOf(request, playerId)).waitingFor?.type, {timeout: 30_000, message: 'the discard was answered'}).not.toBe('card');
+    // The payout beat closes the flow; then it leaves.
+    await expect(page.locator('[data-pact-result]'), 'the closing beat reads the payout').toHaveCount(1, {timeout: 20_000});
+    await shoot(page, '10a-reds-payout');
     await waitForBoardHome(page, 40);
+    await expect(page.locator('.con-cardactions')).toHaveCount(0);
     const afterReds = (await seatOf(request, playerId)).seat;
     expect(afterReds.cardsInHandNbr, 'drew 2, discarded 2').toBe(beforeReds.cardsInHandNbr);
     expect(afterReds.megacredits, 'the payout never takes money').toBeGreaterThanOrEqual(beforeReds.megacredits);

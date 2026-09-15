@@ -146,12 +146,24 @@ export default defineComponent({
      *  roomier, the longest RU rules step down to the reading floor and
      *  gain hyphenation. Measured on what actually renders (post-i18n),
      *  because RU runs ~15–20% longer than the English keys. */
-    lengthTier(): 'brief' | 'regular' | 'dense' {
+    lengthTier(): 'brief' | 'regular' | 'dense' | 'packed' {
       let total = 0;
       for (const group of this.annotations) {
         for (const row of group.rows) {
           total += actionRuleText(row.text).length;
         }
+      }
+      // PACKED is the fourth rung: the type stays at the dense tier (the
+      // reading floor is a floor), and the panel gives up CHROME — group gaps,
+      // row gaps, the chips' padding — so a four-block reading (a Parliament
+      // party or resolution, the longest RU rules) fits the viewer's band
+      // without a scroll on the couch and on the Deck.
+      //
+      // A FOUR-BLOCK reading packs earlier: its chrome (four chips, four
+      // group gaps) is what overflows the Deck's card band, not its type —
+      // the Scientists' party panel sat 22 px past the band at 294 chars.
+      if (total > 300 || (this.annotations.length >= 4 && total > 220)) {
+        return 'packed';
       }
       return total <= 90 ? 'brief' : total <= 240 ? 'regular' : 'dense';
     },

@@ -54,6 +54,14 @@ describe('consoleWorkspaceOutcome — the EMBEDDED claim', () => {
     expect(workspaceClaimsDrawReveal(cardSource(RESTRICTED))).to.eq(false);
   });
 
+  it('a PARTY-sourced batch (Turmoil Redux — the Reds draw) is claimed under the party key, and only that party', () => {
+    claimWorkspaceOutcome('card-actions', 'PARTY_Reds', ['draw'], 0, 2);
+    expect(workspaceClaimsDrawReveal({type: 'party', party: 'Reds'} as CardDrawRevealSource), 'the Reds own draw').to.eq(true);
+    expect(workspaceClaimsRevealSource({type: 'party', party: 'Reds'} as CardDrawRevealSource), 'the one join agrees').to.eq(true);
+    expect(workspaceClaimsDrawReveal({type: 'party', party: 'Greens'} as CardDrawRevealSource), 'another party draw is not ours').to.eq(false);
+    expect(workspaceClaimsDrawReveal(cardSource(AI_CENTRAL)), 'a card draw is not the party draw').to.eq(false);
+  });
+
   it('a NON-card source is never claimed — a tile / colony / global bonus keeps its own scene', () => {
     claimWorkspaceOutcome('card-actions', AI_CENTRAL, ['draw', 'pick']);
     expect(workspaceClaimsDrawReveal({type: 'tile'})).to.eq(false);

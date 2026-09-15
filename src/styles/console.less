@@ -35048,12 +35048,19 @@ html.con-profile-large {
         font-size: calc(var(--con-t-read-lg) * var(--con-read-scale, 1));
         line-height: calc(var(--con-read-lh, 1.5) - 0.06);
     }
-    &--dense &__text {
+    &--dense &__text,
+    &--packed &__text {
         font-size: calc(var(--con-t-read-sm) * var(--con-read-scale, 1));
         line-height: calc(var(--con-read-lh, 1.5) + 0.03);
         hyphens: auto;
         hyphenate-limit-chars: 7 4 3;
     }
+    /* PACKED — the chrome yields, never the type: tighter group and row
+       gaps, slimmer kind chips, less body padding. */
+    &--packed &__body { gap: .6rem; padding: .7rem 1.1rem .8rem; }
+    &--packed &__group { gap: .2rem; }
+    &--packed &__kind { padding: .06rem .5rem; }
+    &--packed &__text { line-height: calc(var(--con-read-lh, 1.5) - 0.04); }
 }
 
 /* ═══ CARD AVAILABILITY (ConsoleCardAvailabilityPanel) ═══════════════════
@@ -35450,6 +35457,10 @@ html.con-profile-large {
 
 /* The rules panel EMBEDDED in the dossier: drop its own glass box + head +
    the vh cap (the dossier box owns them) so the two tabs sit in one frame. */
+/* The Deck's viewer: the party inspector's four blocks need the taller cap
+   (the type floor forbids shrinking them; 76vh cut the reference line). */
+html.con-profile-handheld .con-zoom-rules { max-height: 88vh; }
+
 .con-zoom-rules-host--embedded {
     width: 100%;
     .con-zoom-rules {

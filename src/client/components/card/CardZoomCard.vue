@@ -21,9 +21,17 @@
                      :resource="corpEntry.resource" large />
   </div>
 
-  <!-- A Turmoil Redux RESOLUTION or PARTY EFFECT — the parliament family's
-       premium face, built from the parliament catalog (never a manifest card)
-       and handed over as an externally-built view-model. -->
+  <!-- A Turmoil Redux PARTY — its own subject in the viewer: the party
+       PLAQUE (seal · name · printed mechanic), px-authored and zoomed by the
+       viewer exactly like a card face, never a card silhouette stretched
+       around an emblem. The rules panel beside it is the shared one. -->
+  <div v-else-if="partyEntry !== undefined" class="card-zoom-card card-zoom-card--party">
+    <ConsolePartyPlaque :party="partyEntry.partyEffect" size="full" :formula="true" />
+  </div>
+
+  <!-- A Turmoil Redux RESOLUTION — the parliament family's premium face,
+       built from the parliament catalog (never a manifest card) and handed
+       over as an externally-built view-model. -->
   <div v-else-if="parliamentVm !== undefined" class="card-zoom-card card-zoom-card--premium">
     <premium-card-face :vmOverride="parliamentVm" tier="full" :inert="true" />
   </div>
@@ -44,9 +52,10 @@
 import {defineComponent} from 'vue';
 import {CardModel} from '@/common/models/CardModel';
 import {ClientCard} from '@/common/cards/ClientCard';
-import {ZoomCard, BonusZoomEntry, MarsBotCorpZoomEntry, isBonusZoom, isMarsBotCorpZoom, isPartyEffectZoom, isResolutionZoom} from './cardZoomTypes';
+import {ZoomCard, BonusZoomEntry, MarsBotCorpZoomEntry, PartyEffectZoomEntry, isBonusZoom, isMarsBotCorpZoom, isPartyEffectZoom, isResolutionZoom} from './cardZoomTypes';
 import {PremiumCardVM} from '@/client/components/premiumCard/premiumCardViewModel';
-import {partyEffectPremiumVmOf, resolutionPremiumVmById} from '@/client/components/premiumCard/resolutionPremiumVm';
+import {resolutionPremiumVmById} from '@/client/components/premiumCard/resolutionPremiumVm';
+import ConsolePartyPlaque from '@/client/components/console/parliament/ConsolePartyPlaque.vue';
 import BonusCardFace from '@/client/components/marsbot/BonusCardFace.vue';
 import MarsBotCorpFace from '@/client/components/marsbot/MarsBotCorpFace.vue';
 import {isPremiumFaceType} from '@/client/components/premiumCard/premiumCardTheme';
@@ -58,6 +67,7 @@ export default defineComponent({
   components: {
     BonusCardFace,
     MarsBotCorpFace,
+    ConsolePartyPlaque,
   },
   props: {
     card: {
@@ -83,13 +93,14 @@ export default defineComponent({
     corpEntry(): MarsBotCorpZoomEntry | undefined {
       return isMarsBotCorpZoom(this.card) ? this.card : undefined;
     },
-    /** A parliament entry (resolution / party effect) as a premium view-model, or undefined otherwise. */
+    /** A Turmoil Redux PARTY entry, or undefined otherwise. */
+    partyEntry(): PartyEffectZoomEntry | undefined {
+      return isPartyEffectZoom(this.card) ? this.card : undefined;
+    },
+    /** A resolution entry as a premium view-model, or undefined otherwise. */
     parliamentVm(): PremiumCardVM | undefined {
       if (isResolutionZoom(this.card)) {
         return resolutionPremiumVmById(this.card.resolution);
-      }
-      if (isPartyEffectZoom(this.card)) {
-        return partyEffectPremiumVmOf(this.card.partyEffect);
       }
       return undefined;
     },

@@ -22,9 +22,11 @@ import {EnactStep, ResolutionDefinition} from './IResolution';
 import {SelectOption} from '../../inputs/SelectOption';
 import {OrOptions} from '../../inputs/OrOptions';
 
+/** A DUMMY states its one honest fact on the face — calmly, in the game's own
+ *  words: it has no effect. Nothing about iterations or tests belongs on a
+ *  card the player reads. */
 const DUMMY_RENDER = CardRenderer.builder((b) => {
-  b.text('No effect yet', Size.SMALL, true).br;
-  b.text('(Dummy resolution)', Size.TINY, false, false);
+  b.text('No effect of its own', Size.SMALL, true);
 });
 
 type DummySpec = {

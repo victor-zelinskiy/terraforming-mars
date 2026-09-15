@@ -612,13 +612,17 @@ html.con-profile-tv {
         /* Width + text sizes ride the READING tokens now (--con-rules-w /
            --con-t-read*, set in the token block above) — no per-surface
            font-size here, or the tier system in console.less is defeated. */
-        max-height: 82vh;
+        max-height: 88vh;
 
         &__head { padding: .9rem 1.3rem .7rem; }
         /* Symmetric vertical padding: the old bottom overhang (1.35rem) cost
            the body half a line for nothing — sizes and leading are untouched. */
         &__body { gap: 1.15rem; padding: 1.1rem 1.3rem 1.1rem; }
         &__kind { font-size: var(--con-t-caption); padding: .18rem .7rem; }
+        /* PACKED at couch size: the same trade — chrome, never type. */
+        &--packed &__body { gap: .65rem; padding: .8rem 1.3rem .8rem; }
+        &--packed &__group { gap: .22rem; }
+        &--packed &__kind { padding: .08rem .6rem; }
     }
     .con-inspect-side__box {
         max-height: 82vh;

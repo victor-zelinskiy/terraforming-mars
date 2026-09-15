@@ -77,13 +77,13 @@ Before changing it, check the console consumers in docs/DESKTOP_DEPRECATION_AUDI
              family (rulebook p.9: the quest printed on the enacted card). A
              dummy states honestly that it has no effect of its own. -->
         <div v-if="vm.parliament?.quest !== undefined" class="pcard__quest">
-          <!-- The GOAL as a graphic — the same render-DSL nodes the Parliament
-               workspace and the inspector draw for this quest. -->
-          <span v-if="questNodes.length > 0" class="pcard__quest-graphic" aria-hidden="true">
-            <PremiumMechNode v-for="(node, i) in questNodes" :key="i" :node="node" />
-          </span>
-          <span class="pcard__quest-body">
-            <span class="pcard__quest-kicker">{{ $t('Chairman quest') }}</span>
+          <span class="pcard__quest-kicker">{{ $t('Chairman quest') }}</span>
+          <span class="pcard__quest-cond">
+            <!-- The GOAL as a graphic — the same render-DSL nodes the Parliament
+                 workspace and the inspector draw for this quest. -->
+            <span v-if="questNodes.length > 0" class="pcard__quest-graphic" aria-hidden="true">
+              <PremiumMechNode v-for="(node, i) in questNodes" :key="i" :node="node" />
+            </span>
             <span class="pcard__quest-text">{{ $t(vm.parliament.quest) }}</span>
           </span>
         </div>

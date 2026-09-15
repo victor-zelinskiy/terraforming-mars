@@ -329,14 +329,19 @@ const WORKSPACE_KINDS: Record<WorkspaceFrameKind, WorkspaceKindSpec> = {
     // vote and the party actions are branches of the action menu, served
     // from inside the workspace's own stages).
     serves: ['party'],
-    // A party action's own follow-up (the Reds' discard runs on the real
-    // hand) is a STEP of this flow. `inFlow`: at the browse layer there is
-    // no flow for a follow-up to belong to.
+    // The Parliament's own stages (the vote, the seat) host their follow-up
+    // (a paid vote's payment) in the stage zone. `inFlow`: at the browse
+    // layer there is no flow for a follow-up to belong to.
     hosts: 'inFlow',
-    // The Unity trade is the COLONY WORKSPACE standing inside this one: a
-    // full-height instrument takes the scene (the hydro row's reasoning),
-    // and the header says whose flow it is («ПАРЛАМЕНТ › СОЮЗ › ТОРГОВЛЯ»).
-    frameSteps: {colonies: 'scene', hand: 'embed'},
+    // A PARTY ACTION taken from the Parliament is the ACTION WORKSPACE standing
+    // inside this one (`parliament ⊃ card-actions`): the ONE execution point
+    // every party action has, whichever door opened it. A full-height
+    // instrument takes the scene (the hydro row's reasoning) and the header
+    // says whose flow it is («ПАРЛАМЕНТ › ИНДУСТРИАЛИСТЫ › НАСТРОЙКА»); the
+    // action's own follow-ups (the Unity trade's colonies, the Reds' discard)
+    // nest one level deeper, inside the action workspace, exactly as they do
+    // from the action menu.
+    frameSteps: {'card-actions': 'scene', 'colonies': 'scene', 'hand': 'embed'},
     emblem: 'parliament',
     wheelAnchor: 'parliament',
   },

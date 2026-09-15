@@ -36,6 +36,7 @@ import {CardDrawRevealSource} from '@/common/models/CardDrawRevealModel';
 import type {ZoomOrigin} from '@/client/console/consoleCardZoom';
 import type {WorkspaceFrameKind} from '@/client/console/consoleWorkspaceStack';
 import {workspaceFrameKnown} from '@/client/console/consoleWorkspaceStack';
+import {partyTileKey} from '@/client/console/parliament/partyActionKey';
 
 /**
  * Which workspace holds the claim. A closed union on purpose: every host needs
@@ -693,6 +694,13 @@ export function workspaceClaimsDrawReveal(source: CardDrawRevealSource | undefin
   // is the only reading available.
   if (source === undefined) {
     return true;
+  }
+  // A PARTY ACTION'S draw (Turmoil Redux — the Reds' «draw 2, discard 2»):
+  // the server names the party whose action drew, and the action centre's
+  // party stage claims under the party's own key. Same law as a card: the
+  // server's attribution and the claim's key are one name.
+  if (source.type === 'party') {
+    return partyTileKey(source.party) === workspaceOutcomeState.sourceCard;
   }
   if (source.type !== 'card') {
     return false;

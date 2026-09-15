@@ -322,7 +322,7 @@
                                   @submit="submitParliament($event)"
                                   @notice="showNotice($event)"
                                   @inspect="inspectParliament($event)"
-                                  @open-trading="openParliamentTrading()"
+                                  @open-action="openParliamentPartyAction($event)"
                                   @flow-complete="onParliamentFlowComplete($event)"
                                   @collapse="collapseWorkspace()"
                                   @close="leaveWorkspace()" />
@@ -1396,6 +1396,7 @@ import {GameModel} from '@/common/models/GameModel';
 import {CardModel} from '@/common/models/CardModel';
 import {CardName} from '@/common/cards/CardName';
 import {PartyName} from '@/common/turmoil/PartyName';
+import {isReduxParty, ReduxParty} from '@/common/parliament/ParliamentTypes';
 import {Message} from '@/common/logs/Message';
 import {Payment} from '@/common/inputs/Payment';
 import {ColonyBonusCollectMeta, ColonyBonusDiscardMeta, DiscardPromptMeta, PlacementEffect, SelectCardModel, SelectColonyModel, SelectPaymentModel, SelectProjectCardToPlayModel, SelectSpaceModel} from '@/common/models/PlayerInputModel';
@@ -1615,7 +1616,7 @@ import {
   resetColonyResolutionUi,
   setColonyDiscardStage,
 } from '@/client/console/colonyTrade/colonyResolution';
-import {beginPartyColonyTrade, colonyTradeEntryLocked} from '@/client/console/colonyTrade/colonyTradeEntry';
+import {colonyTradeEntryLocked} from '@/client/console/colonyTrade/colonyTradeEntry';
 import {discardPhaseInOverlay} from '@/client/console/cardDiscard/discardModel';
 import {
   DiscardIntent, deriveDiscardIntent, discardMetaOf, discardPickedTags,
@@ -2993,7 +2994,14 @@ export default defineComponent({
      *  under that flag, so the awards step would POP IN instead of playing
      *  its entrance. */
     sceneHandedOver(): boolean {
-      return WORKSPACE_FRAME_KINDS.some((kind) => kind !== 'start' && workspaceHostYieldsScene(kind));
+      // …EXCEPT the Parliament (Turmoil Redux): it yields its scene to the
+      // ACTION WORKSPACE, and hides ITSELF by class (`.con-parl--handed-over`,
+      // a crossfade — never a `v-show` the director could mistake for a
+      // leave). Counting it here flipped the bridge fact ON for the very
+      // surface it handed the scene TO: `ConsoleCardActions`' own v-show read
+      // «a bridge is out» and blanked the composer the player had just
+      // opened («ПАРЛАМЕНТ › УЧЁНЫЕ › НАСТРОЙКА» over an empty band).
+      return WORKSPACE_FRAME_KINDS.some((kind) => kind !== 'start' && kind !== 'parliament' && workspaceHostYieldsScene(kind));
     },
     /**
      * A HYDRO frame stands OVER the hand (the espionage target pick / the
@@ -6546,6 +6554,39 @@ export default defineComponent({
         !this.consoleState.task.deferred && frameServing(task.kind) === undefined &&
         !this.admits('followUp');
     },
+    /**
+     * THE ACTION WORKSPACE'S PARTY FLOW STILL OWES SOMETHING (Turmoil Redux):
+     * the Reds' mandatory discard — the server's own `partyActionPrompt`
+     * marker at stage `discard`, for the party this workspace committed —
+     * is standing (before the hand step opens, or while it stands), or the
+     * flow's closing payout beat is playing. Structural: the marker and the
+     * module flow record, never a title.
+     */
+    partyFlowOwed(): boolean {
+      const flow = consoleCardActionsUi.partyFlow;
+      if (flow === undefined) {
+        return false;
+      }
+      if (flow.stage === 'result') {
+        return true;
+      }
+      const marker = this.playerView.waitingFor?.partyActionPrompt;
+      return flow.stage === 'committed' && marker !== undefined && marker.stage === 'discard' && marker.party === flow.party;
+    },
+    /**
+     * THE REDS' DISCARD IS OWED TO THIS LIVE ACTION WORKSPACE (Turmoil Redux):
+     * the party record is past its commit, the server's marker names the
+     * discard for that party, and the frame is on screen (a parked one comes
+     * back through the restore). What `armPartyDiscardStep` and
+     * `openPartyDiscardStep` act on.
+     */
+    partyDiscardStepOwed(): boolean {
+      const flow = consoleCardActionsUi.partyFlow;
+      const marker = this.playerView.waitingFor?.partyActionPrompt;
+      return flow !== undefined && flow.stage === 'committed' && marker !== undefined &&
+        marker.stage === 'discard' && marker.party === flow.party &&
+        workspaceFrameMounted('card-actions') && taskFor(this.playerView)?.kind === 'handSelect';
+    },
     /** The crumb tail an OWED step already carries (see `followUpStepOwed`). */
     followUpStepStageKey(): string {
       return (this.followUpStepOwed ? followUpStepStage(taskFor(this.playerView)?.kind) : undefined) ?? '';
@@ -6984,6 +7025,7 @@ export default defineComponent({
         task?.kind ?? '',
         this.taskBelongsToWorkspace ? 'task-ws' : '',
         this.deckPickBelongsToWorkspace ? 'pick-ws' : '',
+        kind === 'card-actions' && this.partyFlowOwed ? 'party-owed' : '',
         workspaceFrameParked(kind) ? 'parked' : '',
         // …AND THE BOARD-BEAT PARK'S OWN STATE. A play that raised a global
         // parameter seeds the park (`noteBoardScaleAdvance`), and the park can
@@ -7345,6 +7387,13 @@ export default defineComponent({
         // composed tail (pre-translated; `$t` passes an unknown key through).
         return forecastStageText('action', phase) ?? phase;
       }
+      // A SHEET standing INSIDE a section that yielded its scene (the
+      // Parliament's door into the action workspace — Turmoil Redux): the bar
+      // is one voice with the crumb's ROOT, the screen the player entered.
+      const sheetHost = this.consoleState.sheet === 'cardActions' ? workspaceFrameHost('card-actions') : undefined;
+      if (sheetHost !== undefined && workspaceHostYieldsScene(sheetHost) && workspaceStackTopAxis() !== 'section') {
+        return workspaceFrameRoot(sheetHost);
+      }
       if (this.consoleState.sheet !== undefined && workspaceStackTopAxis() !== 'section') {
         return this.sheetTitle;
       }
@@ -7366,6 +7415,13 @@ export default defineComponent({
           this.consoleState.section === 'hydro' ? workspaceFrameHost('hydro') :
             this.consoleState.section === 'parliament' ? workspaceFrameHost('parliament') : undefined;
       if (sectionHost !== undefined) {
+        // …and a step hosted by a workspace that is itself a scene guest (the
+        // Reds' discard inside the action workspace inside the Parliament)
+        // reads the same root as the crumb: the outermost screen.
+        const grandHost = workspaceFrameHost(sectionHost);
+        if (grandHost !== undefined && workspaceHostYieldsScene(grandHost)) {
+          return workspaceFrameRoot(grandHost);
+        }
         return workspaceFrameRoot(sectionHost);
       }
       switch (this.consoleState.section) {
@@ -10526,7 +10582,8 @@ export default defineComponent({
           if (workspaceFrameMounted('card-actions') &&
               taskFor(this.playerView)?.kind !== 'actionMenu' &&
               !workspaceOutcomeClaimed() &&
-              !workspaceFrameHasNested('card-actions')) {
+              !workspaceFrameHasNested('card-actions') &&
+              !this.partyFlowOwed) {
             leaveWorkspace();
             this.consoleState.sheetIndex = 0;
           }
@@ -12882,33 +12939,30 @@ export default defineComponent({
       openConsoleCardZoom([entry], 0, undefined, undefined, {origin: {kind: 'textual'}});
     },
     /**
-     * The Unity trade from the Parliament's party detail (the contextual
-     * launch; the canonical door is the action menu): the colony workspace
-     * stands INSIDE the Parliament for its span (`frameSteps: {colonies:
-     * 'scene'}` — the header reads «ПАРЛАМЕНТ › СОЮЗ › ТОРГОВЛЯ») and the
-     * trade is LOCKED to the Unity payment path — the same entry context the
-     * action menu's door sets, found by the option's `metadata.party`. The
-     * trade's own confirm is the single commit; a finished trade leaves.
+     * A PARTY ACTION FROM THE PARLIAMENT (Turmoil Redux) — the second door
+     * into the ONE execution point every party action has: the action
+     * workspace stands INSIDE the Parliament for its span (`parliament ⊃
+     * card-actions`, the host handing the scene over — the header reads
+     * «⚖ ПАРЛАМЕНТ › ИНДУСТРИАЛИСТЫ › НАСТРОЙКА») and opens DIRECTLY on the
+     * party's composer: same rows, same validation, same preview, same commit
+     * beat, same result as the wheel's «ДЕЙСТВИЯ КАРТ» door. Only the origin
+     * and the return differ: a cancel and a finished flow both pop back into
+     * the Parliament, whose focus is exactly where the player left it. The
+     * action's own follow-ups (the Unity trade's colonies, the Reds' discard)
+     * nest inside the action workspace as they do from the menu.
      */
-    openParliamentTrading(): void {
-      const trade = this.tradeColonyContext;
-      if (trade === undefined || !trade.paymentOptions.some((o) => o.metadata?.party === PartyName.UNITY)) {
-        this.showNotice(translateText('This option is no longer offered'));
-        return;
-      }
+    openParliamentPartyAction(party: ReduxParty): void {
       this.deferShellTask();
-      beginPartyColonyTrade(PartyName.UNITY);
+      resetCardActionsFilter();
+      consoleCardActionsUi.openWith = {party};
       pushWorkspaceFrame({
-        kind: 'colonies',
-        subject: '',
-        stage: 'Trade',
-        phase: 'browse',
-        serves: ['colony'],
+        kind: 'card-actions',
+        subject: party,
+        stage: focusKicker('setup'),
+        phase: 'configure',
+        serves: [],
         anchor: {type: 'always'},
-        nest: true,
       });
-      const first = this.coloniesForRail.findIndex((c) => this.tradeableColonyNames.includes(c.name));
-      this.consoleState.colonyIndex = first !== -1 ? first : 0;
     },
     /** A Parliament flow ended (the server answered): a finished flow LEAVES, never folds back to browse. */
     onParliamentFlowComplete(kind: string): void {
@@ -13546,6 +13600,23 @@ export default defineComponent({
      */
     onCardActionsSubmitParty(response: InputResponse): void {
       submitInput(response);
+      // AWAITING HANDOFF — the same resolution a card action's batch rides: the
+      // server's answer decides the next scene. A claimed draw (the Reds) stays
+      // IN-FRAME as the workspace's own next stage; a plain reward (the
+      // Industrialists' production shift, the Scientists' resources) resolves as
+      // the ordinary dismiss — the commit beat's reward wave flies OUT of the
+      // party's printed formula into the rail, and the workspace folds under it
+      // (into the Parliament it was opened from, or to the board).
+      beginAwaitingHandoff('action-composer', {
+        gameAge: this.playerView.game.gameAge,
+        undoCount: this.playerView.game.undoCount,
+      });
+      const startedAt = surfaceMotionState.awaiting?.startedAt;
+      window.setTimeout(() => {
+        if (surfaceMotionState.awaiting !== undefined && surfaceMotionState.awaiting.startedAt === startedAt) {
+          clearAwaitingHandoff();
+        }
+      }, AWAITING_SAFETY_MS + 500);
     },
     onCardActionsSubmitBatch(responses: ReadonlyArray<unknown>): void {
       // A DEPLOY (Modular Floodgates variant B) in the batch: remember whom,
@@ -15745,6 +15816,13 @@ export default defineComponent({
         this.consoleState.colonyIndex = first !== -1 ? first : 0;
         return;
       }
+      // THE REDS' DISCARD IS A STEP OF THE LIVE ACTION WORKSPACE that drew the
+      // cards (Turmoil Redux): it opens INSIDE that frame — closing the sheet
+      // layers here would pop the very host the step teleports into.
+      if (task.kind === 'handSelect' && this.partyDiscardStepOwed) {
+        this.openPartyDiscardStep();
+        return;
+      }
       closeConsoleLayers();
       if (task.kind === 'awardFunding') {
         // THE FIRST ACTION'S OWN FUNDING STAGE. Raised while the START
@@ -15837,7 +15915,23 @@ export default defineComponent({
         // MANDATORY pick from hand (discard / reveal / place): open the hand
         // carousel in select mode + land on the first PICKABLE card so A means
         // something at once. Picks/filter are reset by the prompt-change watcher.
+        // A PARTY ACTION'S discard (the Reds — Turmoil Redux) REACHED FROM
+        // OUTSIDE its workspace — a reload mid-flow, the board-home plate: the
+        // action workspace stands back up around it (the same composer past
+        // its commit, the hand as its STEP), so the flow ends where it began,
+        // with its payout beat. Inside a live workspace the take opens the
+        // step itself (`partyDiscardStepOwed`, above).
+        const marker = this.playerView.waitingFor?.partyActionPrompt;
+        if (marker !== undefined && marker.stage === 'discard' && isReduxParty(marker.party) &&
+            !workspaceFrameKnown('card-actions') && !workspaceFrameKnown('hand')) {
+          this.resumePartyActionWorkspace(marker.party);
+        }
         this.openHandWorkspace();
+        // …and the step's stage name is the crumb's tail («… › КРАСНЫЕ ›
+        // СБРОС КАРТ»), handed up like every hosted step's.
+        if (marker !== undefined && marker.stage === 'discard' && workspaceFrameHost('hand') === 'card-actions') {
+          setWorkspaceFrameStage('hand', 'Card discard');
+        }
         this.focusFirstSelectableHandCard();
         return;
       }
@@ -15884,6 +15978,61 @@ export default defineComponent({
      * suppression clears, and a shell-section task (hand discard / colony /
      * play-from-hand) is opened onto its surface.
      */
+    /**
+     * THE REDS' DISCARD IS THE NEXT STEP OF THE ACTION THAT DREW THE CARDS
+     * (Turmoil Redux), never an interruption to announce: the press that drew
+     * them is the acknowledgement (the reveal's own `openDiscardPick` law), so
+     * the beat is acknowledged at the take and the hand opens as a STEP of the
+     * action workspace — in the composer's own zone, under one crumb
+     * («… › КРАСНЫЕ › СБРОС КАРТ») — once the intake has landed every card
+     * (`consoleForegroundBusy`'s falling edge; now, if it already has). No
+     * overlapping animations: the album lifts the cards out of a dock they
+     * have finished arriving in.
+     */
+    armPartyDiscardStep(): void {
+      const beat = this.mandatoryBeat;
+      if (beat !== undefined && beat.taskKind === 'handSelect') {
+        acknowledgeMandatoryBeat(beat.key);
+      }
+      this.consoleState.task.deferred = false;
+      if (!this.consoleForegroundBusy) {
+        this.openPartyDiscardStep();
+      }
+    },
+    /** The hand as a STEP of the live action workspace (idempotent). */
+    openPartyDiscardStep(): void {
+      if (!this.partyDiscardStepOwed) {
+        return;
+      }
+      if (workspaceFrameKnown('hand')) {
+        this.focusFirstSelectableHandCard();
+        return;
+      }
+      this.openHandWorkspace();
+      if (workspaceFrameHost('hand') === 'card-actions') {
+        setWorkspaceFrameStage('hand', 'Card discard');
+      }
+      this.focusFirstSelectableHandCard();
+    },
+    /**
+     * Stand the action workspace back up around a party flow the server is
+     * mid-way through (the Reds' discard after a reload / from the board-home
+     * plate): the same composer, past its commit, with the party record the
+     * conclusion holds on — the door's RESUME shape (`openWith.resume`).
+     */
+    resumePartyActionWorkspace(party: ReduxParty): void {
+      resetCardActionsFilter();
+      consoleCardActionsUi.openWith = {party, resume: true};
+      pushWorkspaceFrame({
+        kind: 'card-actions',
+        subject: party,
+        stage: focusKicker('setup'),
+        phase: 'committed',
+        serves: [],
+        anchor: {type: 'always'},
+        overlay: workspaceStackState.frames.length > 0,
+      });
+    },
     openMandatoryAnnounce(): void {
       const beat = this.mandatoryBeat;
       if (beat === undefined) {
@@ -15969,6 +16118,13 @@ export default defineComponent({
       if (next !== undefined ||
           (host === 'hydro' && hydroTraversalPending())) {
         retainWorkspaceOutcomeForNextBatch(next?.cards.length ?? 0);
+        return;
+      }
+      // The Reds' batch (see `onWorkspaceResultDetached`): the claim ends
+      // with the take; the flow's next step is armed, idempotently.
+      if (this.partyDiscardStepOwed) {
+        releaseWorkspaceOutcome('drawn-complete', {force: true});
+        this.armPartyDiscardStep();
         return;
       }
       // FORCED: the last card's take IS the answer — the artifact being
@@ -16083,7 +16239,13 @@ export default defineComponent({
         // flow around a PARKED browse layer — the picker the prompt needs,
         // invisible behind a finished stage.
         ownsPrompt: (mine && (this.taskBelongsToWorkspace || this.deckPickBelongsToWorkspace)) ||
-          (servedPromptHolds && task !== undefined && frameServing(task.kind)?.kind === kind),
+          (servedPromptHolds && task !== undefined && frameServing(task.kind)?.kind === kind) ||
+          // A PARTY FLOW still owes a step (Turmoil Redux): the Reds' mandatory
+          // discard is a prompt the server raises AFTER the draw — a step of
+          // the action the player committed in this workspace — and the
+          // payout's closing beat is the flow's own last word. Neither is a
+          // prompt this frame «serves» by registry, so they are named here.
+          (kind === 'card-actions' && this.partyFlowOwed),
         parked: workspaceFrameParked(kind),
       });
       if (conclusion.verdict === 'hold') {
@@ -16314,6 +16476,15 @@ export default defineComponent({
       // the take must hold, or the first one folds the workspace under it).
       if (this.playEffectOwed) {
         this.handEffectStageOn();
+        return;
+      }
+      // A PARTY ACTION'S DRAW (the Reds — Turmoil Redux): the take consumes
+      // the batch, and the flow goes on INSIDE this workspace — its next step
+      // is the mandatory discard (`armPartyDiscardStep`), so the workspace is
+      // not folded and nothing is owed to the conclusion yet.
+      if (this.partyDiscardStepOwed) {
+        releaseWorkspaceOutcome('result-detached', {force: true});
+        this.armPartyDiscardStep();
         return;
       }
       // FORCED — same licence as `drawn-complete`: the result's detach is the

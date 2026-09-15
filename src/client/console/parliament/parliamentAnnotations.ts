@@ -1,17 +1,25 @@
 /*
- * The RULES PANEL of a parliament face in the fullscreen inspector (Turmoil
- * Redux): the right column beside a resolution or a party banner, in the
- * same `CardAnnotation` shape the card rules panel renders — structured
- * blocks, clearly told apart and never padded with an empty section: the
- * RESOLUTION's own effect (a dummy says honestly that it has none), the PARTY
- * effect and its action, the CHAIRMAN QUEST, the live STATUS (delegates,
- * leader, whether it wins now); for a party banner, the effect, the action's
- * state this generation, and — by the CURRENT game state, through the same
- * `accessReasonRows` the workspace's party detail and the Information strip
- * read — who holds it and why.
+ * The RULES PANEL of a parliament subject in the fullscreen inspector (Turmoil
+ * Redux): the right column beside a resolution card or a party plaque, in the
+ * same `CardAnnotation` shape the card rules panel renders.
+ *
+ * THREE KINDS OF INFORMATION, NEVER MIXED. The subject's OWN rule (what the
+ * resolution / the party does — one sentence each), the LIVE reading (what it
+ * means for the viewer right now, what state it is in), and ONE line of
+ * general reference (how access works) — each its own block, each said once.
+ * The overview screen carries none of the reference: the inspector is where
+ * the player asks for it.
+ *
+ * Everything the panel prints is an English i18n key; a name that reaches a
+ * row as a PARAM is a display string and is translated HERE (a party name is
+ * an i18n key of its own — «Партия: Reds» was the mixed-language row this
+ * module used to print). The six current parties and the dummy resolutions
+ * fit the panel without a scroll on TV and Deck; a future resolution with a
+ * genuinely longer rule adds rows to ITS block, never a general paragraph.
  */
 import {CardAnnotation} from '@/client/components/cardAnnotations/annotationModel';
 import {ParliamentModel} from '@/common/models/ParliamentModel';
+import {PartyName} from '@/common/turmoil/PartyName';
 import {PARTY_EFFECT_DELEGATES, ReduxParty, ResolutionId} from '@/common/parliament/ParliamentTypes';
 import {getPartyEffect, getResolution} from '@/client/parliament/ClientParliamentManifest';
 import {Color} from '@/common/Color';
@@ -21,10 +29,9 @@ import {accessReasonRows} from './consoleParliamentModel';
 type RowText = {text: string, params?: ReadonlyArray<string>};
 
 /**
- * A block's place in the panel: the SUBJECT's own rules first (a resolution's
- * effect, a party's effect and action), then what surrounds it (the party of
- * a resolution, the quest, the status, who holds it) — a reading order, never
- * the card panel's kind order.
+ * A block's place in the panel: the SUBJECT's own rules first, then what
+ * surrounds it (the party of a resolution, the quest, the live status, the
+ * reference) — a reading order, never the card panel's kind order.
  */
 function block(id: string, kind: CardAnnotation['kind'], labelKey: string, rows: ReadonlyArray<string | RowText>, order: number): CardAnnotation {
   return {
@@ -50,6 +57,20 @@ function nameOfColor(color: Color | 'neutral' | undefined, players: ReadonlyArra
   return players?.find((p) => p.color === color)?.name ?? color;
 }
 
+/** The nuance a party's action carries beyond its one sentence (rulebook footnotes), if any. */
+function partyActionNotes(party: ReduxParty): ReadonlyArray<string> {
+  switch (party) {
+  case PartyName.INDUSTRIALISTS:
+    return ['You may decrease the very production you increase'];
+  case PartyName.REDS:
+    return ['The draw cannot be undone; the discard that follows is mandatory'];
+  case PartyName.UNITY:
+    return ['Trading with a colony track, you may advance it 1 step first'];
+  default:
+    return [];
+  }
+}
+
 export function resolutionAnnotations(
   id: ResolutionId,
   model: ParliamentModel | undefined,
@@ -61,8 +82,9 @@ export function resolutionAnnotations(
     return [];
   }
   const out: Array<CardAnnotation> = [];
+  // 1. THE RESOLUTION'S OWN EFFECT — a dummy says so, calmly and once.
   if (resolution.dummy || (resolution.text.effect === undefined && resolution.text.passive === undefined && resolution.text.action === undefined)) {
-    out.push(block('group:immediate', 'immediate', 'Resolution effect', ['No effect of its own (a dummy resolution of iteration 0)'], 0));
+    out.push(block('group:immediate', 'immediate', 'Resolution effect', ['No effect of its own'], 0));
   } else {
     if (resolution.text.effect !== undefined) {
       out.push(block('group:immediate', 'immediate', 'Resolution effect', [resolution.text.effect], 0));
@@ -74,43 +96,42 @@ export function resolutionAnnotations(
       out.push(block('group:action', 'action', 'Resolution action', [resolution.text.action], 2));
     }
   }
+  // 2. THE PARTY — what enacting this resolution gives everyone.
   const party = getPartyEffect(resolution.party);
   if (party !== undefined) {
-    const rows: Array<string | RowText> = [{text: 'Party: ${0} — every player holds its effect while this resolution is enacted', params: [resolution.party]}];
+    const rows: Array<string | RowText> = [{text: 'Enacted — ${0} rule, and every player has their effect', params: [translateText(resolution.party)]}];
+    // The effect, said ONCE: the passive effect where the party has one,
+    // else its action — the party's own inspector (X on its plaque) carries
+    // the action's full reading, and this panel must fit the viewer's band.
     if (party.text.passive !== undefined) {
       rows.push(party.text.passive);
-    }
-    if (party.text.action !== undefined) {
-      rows.push({text: 'Action (once per generation): ${0}', params: [party.text.action]});
-    }
-    if (party.text.passive === undefined && party.text.action === undefined) {
+    } else if (party.text.action !== undefined) {
+      rows.push({text: 'Action, once per generation: ${0}', params: [translateText(party.text.action)]});
+    } else {
       rows.push(party.text.rule);
     }
     out.push(block('group:party', 'effect', 'Party effect', rows, 3));
   }
-  out.push(block('group:quest', 'note', 'Chairman quest', [resolution.text.quest, 'Completing it takes the chairman seat and advances your Agenda one step'], 4));
+  // 3. THE CHAIRMAN QUEST — the printed condition and its reward, one line each.
+  out.push(block('group:quest', 'note', 'Chairman quest', [{text: '${0} · reward: the chairman seat and one Agenda step', params: [translateText(resolution.text.quest)]}], 4));
+  // 4. THE LIVE STATUS — where the card stands right now.
   if (model !== undefined) {
     const enacted = model.enacted?.resolution === id;
     const slot = model.slots.find((s) => s.resolution === id);
     if (enacted) {
-      out.push(block('group:state', 'note', 'Status', ['Enacted — its party rules and every player has the party effect'], 5));
+      out.push(block('group:state', 'note', 'Status', [{text: 'Enacted — ${0} rule', params: [translateText(resolution.party)]}], 5));
     } else if (slot !== undefined) {
       const rows: Array<string | RowText> = [];
-      rows.push({text: 'In the voting area, slot V${0}: ${1} delegate(s)', params: [String(slot.tiePriority), String(slot.totalVotes)]});
-      if (slot.leader !== undefined) {
-        rows.push({text: 'Leader: ${0}', params: [nameOfColor(slot.leader, players)]});
-      }
-      rows.push(slot.isWinning ? 'Winning at the current distribution — enacted if the generation ended now' : 'Not the winning resolution at the current distribution');
-      if (slot.tiePriority === 1) {
-        rows.push('Closest to the government: wins a tie between resolutions');
-      }
+      const leader = slot.leader === undefined ? translateText('no leader yet') : nameOfColor(slot.leader, players);
+      rows.push({
+        text: 'V${0} · ${1} delegate(s) · leader: ${2} · ${3}',
+        params: [String(slot.tiePriority), String(slot.totalVotes), leader, translateText(slot.isWinning ? 'winning now' : 'not winning')],
+      });
       if (viewer !== undefined) {
         const mine = slot.viewerVotes;
-        if (mine >= PARTY_EFFECT_DELEGATES) {
-          rows.push({text: 'Your delegates here: ${0} — the party effect is yours', params: [String(mine)]});
-        } else {
-          rows.push({text: 'Your delegates here: ${0} — ${1} grant(s) you the party effect', params: [String(mine), String(PARTY_EFFECT_DELEGATES)]});
-        }
+        rows.push(mine >= PARTY_EFFECT_DELEGATES ?
+          {text: 'Your delegates: ${0} — the party effect is yours', params: [String(mine)]} :
+          {text: 'Your delegates: ${0} of ${1} for the party effect', params: [String(mine), String(PARTY_EFFECT_DELEGATES)]});
       }
       out.push(block('group:state', 'note', 'Status', rows, 5));
     }
@@ -124,44 +145,55 @@ export function partyAnnotations(party: ReduxParty, model: ParliamentModel | und
     return [];
   }
   const out: Array<CardAnnotation> = [];
+  // 1. THE EFFECT — one sentence.
   if (effect.text.passive !== undefined) {
     out.push(block('group:effect', 'effect', 'Party effect', [effect.text.passive], 0));
   }
+  // 2. THE ACTION — its sentence, its limit, its nuance, and its LIVE state.
   if (effect.text.action !== undefined) {
-    const rows: Array<string | RowText> = [effect.text.action, 'Once per generation'];
+    const rows: Array<string | RowText> = [effect.text.action, ...partyActionNotes(party)];
+    let state: string | RowText = 'Once per generation';
     if (model !== undefined && viewer !== undefined) {
       const me = model.players.find((p) => p.color === viewer);
       const uses = me?.partyActionUses[party] ?? 0;
       const action = model.viewer?.partyActions.find((a) => a.party === party);
       if (uses > 0) {
-        rows.push('Used this generation');
+        state = 'Once per generation · used this generation';
       } else if (action !== undefined && action.hasAccess && !action.available && action.reason !== '') {
-        rows.push(typeof action.reason === 'string' ? action.reason : action.reason.message);
+        state = {text: 'Once per generation · ${0}', params: [typeof action.reason === 'string' ? translateText(action.reason) : action.reason.message]};
+      } else if (action !== undefined && action.hasAccess) {
+        state = 'Once per generation · available';
       }
     }
+    rows.push(state);
     out.push(block('group:action', 'action', 'Party action', rows, 1));
   }
   if (effect.text.passive === undefined && effect.text.action === undefined) {
     out.push(block('group:effect', 'effect', 'Party effect', [effect.text.rule], 0));
   }
-  out.push(block('group:access', 'note', 'Who has it', [
-    'Every player while the party rules (its resolution is enacted; the Greens rule while nothing is)',
-    'A player with two own delegates on the party\'s resolution in the voting area',
-    'A card may grant the effect — the effect only, never the card requirement',
-  ], 2));
+  // 3. FOR YOU — the live basis of the viewer's access (by the CURRENT state).
   if (model !== undefined && viewer !== undefined) {
     const me = model.players.find((p) => p.color === viewer);
     const access = me?.access.find((a) => a.party === party);
     if (access !== undefined) {
-      const enactedName = model.enacted === undefined ? undefined : (getResolution(model.enacted.resolution)?.text.name ?? model.enacted.resolution);
+      const enactedName = model.enacted === undefined ? undefined : translateText(getResolution(model.enacted.resolution)?.text.name ?? model.enacted.resolution);
       const rows = accessReasonRows(access, {
         party,
         enactedEmpty: model.enacted === undefined,
         enactedName,
         inArea: model.slots.some((slot) => slot.party === party),
-      }).map((row): RowText => ({text: row.key, params: row.params}));
-      out.push(block('group:you', 'note', 'For you', rows, 3));
+      })
+        // The card-requirement note earns its line only where it SURPRISES —
+        // a granted effect that does not count. «Met» is the ordinary case of
+        // holding the effect, and the panel must fit the Deck's viewer.
+        .filter((row) => row.key !== 'Card requirement of this party: met')
+        .map((row): RowText => ({text: row.key, params: row.params}));
+      out.push(block('group:you', 'note', 'For you', rows, 2));
     }
   }
+  // 4. THE REFERENCE — how a party effect is held, in one line.
+  out.push(block('group:access', 'note', 'Access', [
+    'Rule: the ruling party — everyone; two of your delegates on its resolution — you',
+  ], 3));
   return out;
 }
