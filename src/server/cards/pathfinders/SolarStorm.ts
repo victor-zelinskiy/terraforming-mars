@@ -36,32 +36,39 @@ export class SolarStorm extends Card implements IProjectCard {
     });
   }
 
-  public override bespokePlay(player: IPlayer) {
-    if (player.game.isSoloMode()) {
-      player.game.someoneHasRemovedOtherPlayersPlants = true;
+  private removePlants(player: IPlayer, target: IPlayer) {
+    // Asked about the PERPETRATOR: `bespokePlayBefore` covers EVERY player, the
+    // caster included, and a protection worded «other players may not remove»
+    // never shields its owner from their own card.
+    if (target.isProtectedFrom(Resource.PLANTS, player)) {
+      return;
     }
-    for (const target of player.game.players) {
-      // The loop covers EVERY player, the caster included — and a protection
-      // worded «other players may not remove» never shields its owner from
-      // their own card, so both questions are asked about the PERPETRATOR.
-      if (!target.isProtectedFrom(Resource.PLANTS, player)) {
-        // Botanical Experience reduces the impact in half (opponents only).
-        const qty = target.losesHalfFrom(player) ? 1 : 2;
-        const realAmount = Math.min(qty, target.plants);
-        if (realAmount > 0) {
-          const msg = message('${0} plants', (b) => b.number(realAmount));
-          target.maybeBlockAttack(player, msg, (proceed: boolean) => {
-            if (proceed) {
-              target.stock.deduct(Resource.PLANTS, realAmount, {log: true, from: {player}});
-            }
-            return undefined;
-          });
+    // Botanical Experience reduces the impact in half (opponents only).
+    const qty = target.losesHalfFrom(player) ? 1 : 2;
+    const realAmount = Math.min(qty, target.plants);
+    if (realAmount > 0) {
+      const msg = message('${0} plants', (b) => b.number(realAmount));
+      target.maybeBlockAttack(player, msg, (proceed: boolean) => {
+        if (proceed) {
+          target.stock.deduct(Resource.PLANTS, realAmount, {log: true, from: {player}});
         }
-      }
+        return undefined;
+      });
     }
-    player.game.defer(new RemoveResourcesFromCard(
-      player, CardResource.DATA, 3, {mandatory: false}));
-    return undefined;
+  }
+
+  /**
+   * This is run before behavior because if player has Underworld's "gain plants
+   * when raising the temperature" they should get those plants after removing all of these.
+   */
+  public override bespokePlayBefore(player: IPlayer) {
+    const game = player.game;
+    if (game.isSoloMode()) {
+      game.someoneHasRemovedOtherPlayersPlants = true;
+    }
+    game.players.forEach((target) => this.removePlants(player, target));
+
+    game.defer(new RemoveResourcesFromCard(player, CardResource.DATA, 3, {mandatory: false}));
   }
 }
 
