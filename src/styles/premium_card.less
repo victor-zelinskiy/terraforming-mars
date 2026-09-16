@@ -1262,6 +1262,47 @@
   box-shadow: 0 0 2px rgba(0, 0, 0, 0.7);
   pointer-events: none;
 }
+/* A CARD OF A TYPE — the cover wears the type's HEADER BAND (the physical
+   game's «blue card» / «green card» icon): a solid band across the cover's
+   top edge and a faint tint of the same colour over the art. The cover art
+   (card.webp) is a portrait card centred in the square icon box, so the band
+   is inset to the drawn card's own edges. Drawn, never a second asset. */
+.pcard-ic--type-blue,
+.pcard-ic--type-green {
+  position: relative;
+  --pcard-card-type: #3f8fe0;
+  --pcard-card-type-deep: #1f5da3;
+}
+.pcard-ic--type-green {
+  --pcard-card-type: #4fc26e;
+  --pcard-card-type-deep: #23843d;
+}
+.pcard-ic--type-blue::before,
+.pcard-ic--type-green::before {
+  content: '';
+  position: absolute;
+  left: 18%;
+  right: 18%;
+  top: 3%;
+  bottom: 3%;
+  border-radius: 8%;
+  background: var(--pcard-card-type);
+  opacity: 0.16;
+  pointer-events: none;
+}
+.pcard-ic--type-blue::after,
+.pcard-ic--type-green::after {
+  content: '';
+  position: absolute;
+  left: 20%;
+  right: 20%;
+  top: 5.5%;
+  height: 19%;
+  border-radius: 7% 7% 2% 2% / 30% 30% 10% 10%;
+  background: linear-gradient(180deg, var(--pcard-card-type), var(--pcard-card-type-deep));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 1px 1px rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+}
 /* secondary tag bubble (top-right) */
 .pcard-mi__bubble {
   position: absolute;
@@ -1433,6 +1474,19 @@
   letter-spacing: 0.06em;
   color: #e7dfc9;
   padding: 0 2px;
+}
+/* a VERTICAL SPACE inside a wrapping row is an authored LINE BREAK (the
+   legacy renderer drew it as a block-level spacer): the row folds exactly
+   there — the Reds' payout stands under their draw-and-discard on every
+   surface, never a lone tag wrapped by chance. */
+.pcard-sym--vspace {
+  flex-basis: 100%;
+  width: 100%;
+  height: 0;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  font-size: 0;
 }
 /* footnote marker — the physical cards' «*»: THIS icon has a special rule
    in the card's fine print (kept semantically — dropping it would make the

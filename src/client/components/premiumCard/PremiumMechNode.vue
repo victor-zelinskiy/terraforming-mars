@@ -364,6 +364,10 @@ export default defineComponent({
         'pcard-sym--arrow': this.isArrowSymbol,
         'pcard-sym--or': s?.type === CardRenderSymbolType.OR,
         'pcard-sym--asterix': s?.type === CardRenderSymbolType.ASTERIX,
+        // A vertical space is a LINE BREAK inside a wrapping row (the legacy
+        // renderer drew it as a block-level spacer): the authored break point
+        // of a long formula — the Reds' payout under their draw-and-discard.
+        'pcard-sym--vspace': s?.type === CardRenderSymbolType.VSPACE,
         'pcard-sym--cancelled': s?.cancelled === true,
       };
     },

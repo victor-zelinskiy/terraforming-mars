@@ -162,7 +162,7 @@ async function expectFits(page: Page, label: string): Promise<void> {
         out.push(`spills-x ${name(el)} ${el.scrollWidth}>${el.clientWidth}`);
       }
     }
-    const reading = '.con-pseal__name, .con-pseal__state-text, .con-parl__tally-row, .con-parl__seat, .con-parl__ruler-name, .con-parl__ruler-rule, ' +
+    const reading = '.con-pseal__name, .con-pseal__state-text, .con-parl__tally-row, .con-parl__seat, .con-parl__ruler-name, .con-parl__ruler-scope, .con-parl__info-scope, .con-parl__cta-cost, ' +
       '.con-parl__quest-text, .con-parl__quest-reward, .con-parl__slot-win, .con-parl__slot-party, .con-parl__kicker, .con-parl__pline-text, ' +
       '.con-parl__recap-item, .con-parl__txn-row, .con-parl__fact-key, .con-parl__fact-val, .con-parl__info-name, .con-parl__info-kicker, ' +
       '.con-parl__seat-name, .con-parl__seat-key, .con-parl__info-src-text, .con-parl__cta-label';
@@ -400,7 +400,10 @@ for (const preset of PRESETS) {
       await expect(page.locator('[data-parl-tally]')).toHaveCount(3);
       await expect(page.locator('[data-parl-gov-empty]'), 'an honest empty seat before the first political phase').toHaveCount(1);
       await expect(page.locator('[data-parl-ruler]'), 'the ruler\'s identity').toContainText(/Зелёные/);
-      await expect(page.locator('[data-parl-ruler] .con-parl__ruler-rule'), 'the ruling effect is READABLE here').not.toHaveCount(0);
+      await expect(page.locator('[data-parl-ruler] .con-pformula__mech'), 'the ruling effect is a GRAPHIC here').toHaveCount(1);
+      await expect(page.locator('[data-parl-ruler] .con-parl__ruler-rule'), 'no rule paragraph in the government — the inspector has the sentences').toHaveCount(0);
+      await expect(page.locator('.con-parl__voting-lead'), 'the winner is named ONCE — on its slot, never a second line over the voting area').toHaveCount(0);
+      expect((await crumbText(page)).toUpperCase(), 'the overview names itself on the head line').toContain('ОСМОТР');
       await expect(page.locator('[data-parl-seats] .con-parl__seat[data-parl-seat]'), 'the delegates zone: one group per player').toHaveCount(2);
       await expect(page.locator(`[data-parl-seat-lobby="${before.players[0].color}"] .player-cube, [data-parl-seat-lobby="${before.players[1].color}"] .player-cube`),
         'a free delegate stands in a lobby socket').not.toHaveCount(0);
@@ -429,6 +432,19 @@ for (const preset of PRESETS) {
       //    reserve stack, the neutral supply at its edge — and NO ledger row
       //    of its own between the voting area and the parties any more.
       await expect(page.locator('.con-wshead [data-parl-zone]'), 'the zone lives on the head line in the overview').toHaveCount(1);
+      // THE FIXED HEAD LINE: the crumb's reserve and the zone's coordinates are measured here and compared inside the mode.
+      const headGeometry = () => page.evaluate(() => {
+        const box = (el: Element | null) => {
+          const r = el?.getBoundingClientRect();
+          return r === undefined ? 'none' : `${Math.round(r.left)},${Math.round(r.top)},${Math.round(r.width)},${Math.round(r.height)}`;
+        };
+        return {
+          aux: box(document.querySelector('.con-parl__head .con-wshead__aux')),
+          zone: box(document.querySelector('[data-parl-zone]')),
+          seats: Array.from(document.querySelectorAll('[data-parl-zone] .con-parl__seat')).map(box),
+        };
+      });
+      const headBefore = await headGeometry();
       await expect(page.locator('[data-parl-zone] .con-parl__seat[data-parl-seat]'), 'one group per player').toHaveCount(before.players.filter((p) => p.participates).length);
       await expect(page.locator('[data-parl-zone] [data-parl-neutral-cube]'), 'the neutral supply is a group of the zone').toHaveCount(1);
       await expect(page.locator('.con-parl__body [data-parl-seats], .con-parl__body .con-parl__seat'), 'no ledger row in the body').toHaveCount(0);
@@ -464,11 +480,14 @@ for (const preset of PRESETS) {
       await expect(page.locator('.con-parl__slot-home .con-parl__slot'), 'no slot is left in the overview').toHaveCount(0);
       await expect(page.locator('[data-parl-vote-card] .pcard'), 'the selected card').toHaveCount(1);
       await expectOneOfEach(page, before, `${preset.id} mode`);
-      await expect(page.locator('.con-parl__vote [data-parl-zone]'), 'the SAME zone element stands at the top of the mode').toHaveCount(1);
-      await expect(page.locator('.con-wshead [data-parl-zone]'), '…and left the head line (one instance)').toHaveCount(0);
+      await expect(page.locator('.con-wshead [data-parl-zone]'), 'the zone stays on the head line inside the mode (one instance)').toHaveCount(1);
+      await expect(page.locator('.con-parl__vote [data-parl-zone]'), '…and never travels into the layer').toHaveCount(0);
+      expect(await headGeometry(), 'the crumb reserve, the zone and every seat group keep their exact screen coordinates in the mode').toEqual(headBefore);
       await expect(page.locator('.con-parl__seat--me [data-parl-seat-lobby] .player-cube'), 'the viewer\'s free delegate stands in their lobby socket on the zone').toHaveCount(1);
       await expect(page.locator('.con-parl__seat--me [data-parl-seat-place="lobby"].con-parl__seat-place--source'), 'the viewer\'s lobby is marked as the source').toHaveCount(1);
       await expect(page.locator('[data-parl-vote-source]'), 'the delegate\'s real source').toContainText(/лобби/i);
+      await expect(page.locator('[data-parl-cta-cost][data-cost-kind="free"]'), 'the confirm says the lobby delegate is free').toContainText(/бесплатно/i);
+      await expect(page.locator('.con-parl__vote .con-parl__cta'), 'no «a full action» filler on the confirm').not.toContainText(/Полное действие/i);
       await expect(page.locator('[data-parl-fact="votes"]')).toContainText(new RegExp(`${slot0.totalVotes}\\s*→\\s*${slot0.totalVotes + 1}`));
       await expect(page.locator('[data-parl-fact="mine"]')).toContainText(/0\s*→\s*1/);
       await expect(page.locator('[data-parl-fact="access"]'), 'the party-effect access stands beside the vote, not promised by the card').toContainText(/1\s*из\s*2/);
@@ -476,6 +495,12 @@ for (const preset of PRESETS) {
       await expect(page.locator('[data-parl-info="own"]'), 'the resolution\'s own effect block').toHaveCount(1);
       await expect(page.locator('[data-parl-info="own"]'), 'a dummy says so calmly').toContainText(/Собственного эффекта нет/);
       await expect(page.locator('[data-parl-info="party"] .con-pformula__mech'), 'the party effect as a graphic').toHaveCount(1);
+      await expect(page.locator('[data-parl-info="party"]'), 'one caption — whose the party effect becomes').toContainText(/всем игрокам/i);
+      await expect(page.locator('[data-parl-info="party"]'), 'no party sentence on the surface (the inspector has it)').not.toContainText(/раз за поколение/i);
+      await expect(page.locator('[data-parl-info="quest"]'), 'the quest block states the condition only — the reward lives in the government').not.toContainText(/награда/i);
+      const ownBox = await page.locator('[data-parl-info="own"]').boundingBox();
+      const partyBox = await page.locator('[data-parl-info="party"]').boundingBox();
+      expect((ownBox?.width ?? 0) > (partyBox?.width ?? 0) * 1.3, 'the resolution\'s own effect is the MAIN block of the surface').toBeTruthy();
       await expect(page.locator('[data-parl-info="quest"] .pcard__mech'), 'the quest as a graphic').toHaveCount(1);
       await expect(page.locator('.con-parl__stage'), 'no second surface').toHaveCount(0);
       await expectFits(page, `${preset.id} mode`);
@@ -561,12 +586,14 @@ for (const preset of PRESETS) {
 
       // ── RE-ENTRY: A again opens the same mode the same way — the zone
       //    travels again, the cards grow again, the selection is where it was.
-      await expect(page.locator('.con-wshead [data-parl-zone]'), 'the zone is back on the head line').toHaveCount(1);
+      await expect(page.locator('.con-wshead [data-parl-zone]'), 'the zone is on the head line').toHaveCount(1);
+      expect(await headGeometry(), 'the head line is exactly where it was after B').toEqual(headBefore);
       await press(page, 'Enter', 1400);
       await expect(voteMode(page), 'the mode stands again').toHaveCount(1);
       await settle(page, {timeoutMs: 8_000});
       expect(await selectedInstance(page), 'the selection survives the round trip').toBe(slot0.instance);
-      await expect(page.locator('.con-parl__vote [data-parl-zone]'), 'the zone travelled again').toHaveCount(1);
+      await expect(page.locator('.con-wshead [data-parl-zone]'), 'the zone still stands on the head line').toHaveCount(1);
+      expect(await headGeometry(), 'the head line does not move on re-entry either').toEqual(headBefore);
       await expectOneOfEach(page, before, `${preset.id} re-entry`);
       await expectUniformGrid(page, `${preset.id} re-entry`);
       await shoot(page, preset.id, '07-mode-reentered');
@@ -639,11 +666,11 @@ test.describe('parliament v4 · the paid vote · the bill inside the mode · the
     await expect(voteMode(page)).toHaveCount(1);
     await settle(page, {timeoutMs: 8_000});
     expect(await selectedInstance(page)).toBe(slot0.instance);
-    await expect(page.locator(`.con-parl__vote [data-parl-seat-lobby="${before.color}"] .player-cube`), 'the viewer\'s lobby socket on the zone is empty').toHaveCount(0);
-    await expect(page.locator(`.con-parl__vote [data-parl-seat-reserve="${before.color}"] .con-parl__stack-cube`), 'the reserve stack shows its cubes').not.toHaveCount(0);
+    await expect(page.locator(`.con-wshead [data-parl-seat-lobby="${before.color}"] .player-cube`), 'the viewer\'s lobby socket on the head line is empty').toHaveCount(0);
+    await expect(page.locator(`.con-wshead [data-parl-seat-reserve="${before.color}"] .con-parl__stack-cube`), 'the reserve stack on the head line shows its cubes').not.toHaveCount(0);
     await expect(page.locator('.con-parl__seat--me [data-parl-seat-place="reserve"].con-parl__seat-place--source'), 'the reserve is marked as the source').toHaveCount(1);
     await expect(page.locator('[data-parl-vote-source]')).toContainText(/резерва/i);
-    await expect(page.locator('[data-parl-vote-source] .con-parl__vote-cost'), 'the cost chip').toHaveCount(1);
+    await expect(page.locator('[data-parl-cta-cost][data-cost-kind="cost"] .con-parl__cta-cost-num'), 'the price stands on the confirm — the server\'s own').toHaveText(String(before.parl.viewer?.vote.cost ?? -1));
     await expect(page.locator('[data-parl-fact="votes"]')).toContainText(/2\s*→\s*3/);
     await expect(page.locator('[data-parl-fact="mine"]')).toContainText(/1\s*→\s*2/);
     await expect(page.locator('[data-parl-fact="lead"].con-parl__fact--gain'), 'the lead changes hands').toHaveCount(1);

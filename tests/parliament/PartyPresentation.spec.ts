@@ -51,8 +51,13 @@ describe('party presentation (Turmoil Redux UI)', () => {
     expect(JSON.stringify(questRenderData({goal: {kind: 'tr'}, count: 3}))).to.contain(`"type":"${CardRenderItemType.TR}"`);
     expect(JSON.stringify(questRenderData({goal: {kind: 'cardResource', resource: CardResource.MICROBE}, count: 1}))).to.contain(CardResource.MICROBE);
     expect(JSON.stringify(questRenderData({goal: {kind: 'colony'}, count: 1}))).to.contain(`"type":"${CardRenderItemType.COLONIES}"`);
-    // A card-type quest names the type in words (the DSL has no «blue card» glyph).
-    expect(JSON.stringify(questRenderData({goal: {kind: 'cardsPlayed', cardType: 'active'}, count: 2}))).to.contain('blue cards');
+    // A card-type quest draws CARD glyphs wearing the type (the premium face's header band), one per card — never a text plate.
+    const blue = JSON.stringify(questRenderData({goal: {kind: 'cardsPlayed', cardType: 'active'}, count: 2}));
+    expect(blue).to.contain(`"type":"${CardRenderItemType.CARDS}"`);
+    expect(blue).to.contain('"secondaryTag":"blue"');
+    expect(blue).to.contain('"amount":2');
+    expect(blue).to.not.contain('blue cards');
+    expect(JSON.stringify(questRenderData({goal: {kind: 'cardsPlayed', cardType: 'automated'}, count: 2}))).to.contain('"secondaryTag":"green"');
   });
 
   it('the Unity trade path carries its PARTY marker — the structural identity the console locks the trade to', () => {

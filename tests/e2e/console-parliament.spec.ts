@@ -246,7 +246,7 @@ for (const preset of PRESETS) {
         const zone = () => parliament(page).getAttribute('data-zone');
         expect(await pressUntil(page, 'ArrowLeft', async () => await zone() === 'government', {tries: 3, settleMs: 300})).toBeTruthy();
         await press(page, 'ArrowDown', 500); // → the parties, on the ruling party
-        await expect(page.locator('.con-parl__party[data-party="Greens"] .con-pseal__state'), 'the plaque states why the Greens rule').toContainText(/стартовому правилу/i);
+        await expect(page.locator('.con-parl__party[data-party="Greens"] .con-pseal__state'), 'the plaque states why the Greens rule').toContainText(/стартовое правило/i);
         await expectFits(page, preset);
         await shoot(page, preset, '04-party-focus');
         await settle(page, {timeoutMs: 10_000});

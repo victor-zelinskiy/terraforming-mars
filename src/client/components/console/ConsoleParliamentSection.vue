@@ -2,29 +2,33 @@
   <!-- «ПАРЛАМЕНТ» — the Mars Parliament workspace (Turmoil Redux).
 
        ONE FLOW, one screen, and a GAME SCREEN — not a rulebook. The overview
-       shows OBJECTS and STATES in three focus zones: the GOVERNMENT (the
-       enacted resolution as the main object, the ruling party's effect
-       readable beside it, the chairman quest), the VOTING AREA (ONE zone:
-       three resolution cards in the order that breaks ties — the closest to
-       the government first — with the delegates on each, who leads, which one
-       wins now) and the six PARTIES as one row of plaques. The SEATS ledger
-       (every player's lobby place and reserve — the ONE place the delegates
-       are counted) and the AGENDA track are read-only instruments. Nothing
-       here explains a general rule — the fullscreen inspector (X) does, on
-       the object asked.
+       is THREE INSTRUMENTS under one fixed head line: the GOVERNMENT (the
+       enacted resolution as the main object, the ruling party's printed
+       effect readable beside it, the chairman quest), the VOTING AREA (ONE
+       zone: three resolution cards in the order that breaks ties — the
+       closest to the government first — with the delegates on each, who
+       leads, which one wins now) and the six PARTIES as one row of plaques
+       whose centre is their printed mechanic. The HEAD LINE carries the
+       crumb («Парламент › Осмотр» / «› Голосование») in a reserved width and,
+       at fixed coordinates in EVERY mode, the DELEGATES ZONE — every
+       player's lobby place and reserve (the ONE place the delegates are
+       counted), the neutral supply and the deck. The AGENDA track is a
+       read-only instrument. Nothing here explains a general rule — the
+       fullscreen inspector (X) does, on the object asked.
 
        THE VOTE MODE is a PHASE DESCENT of this frame: A on the voting area
        opens it INSIDE the same screen. The three cards are the continuity —
        the very same slot elements are TELEPORTED into the vote row and FLIP
        there from their overview rects (one DOM instance each, so a second
-       copy cannot exist), the viewer's lobby socket and reserve stack come up
-       from the ledger into the BENCH above them (the physical sources of the
-       delegate), and an info surface unfolds under the row explaining the
-       SELECTED card: what it does, what enacting it changes, its quest, and —
-       kept apart — what THIS VOTE changes right now. ◀ ▶ switch the card, X
-       inspects it, A sends the delegate (its cube leaves the bench and lands
-       on the card's ribbon; the counters tick on the touchdown), B folds the
-       same phrase back with every object returning home.
+       copy cannot exist); the head line and the delegates zone do not move;
+       an info surface unfolds under the row explaining the SELECTED card —
+       its OWN effect as the main block, its party's effect and the quest it
+       sets beside it — and, kept apart, what THIS VOTE changes right now
+       with the delegate's source and price on the confirm. ◀ ▶ switch the
+       card, X inspects it, A sends the delegate (its cube leaves the zone's
+       real place and lands on the card's ribbon; the counters tick on the
+       touchdown), B folds the same phrase back with every object returning
+       home.
 
        A PARTY ACTION is not a stage of this screen: A on a party nests the
        action workspace (`parliament ⊃ card-actions`) — the ONE execution
@@ -60,13 +64,14 @@
       <!-- THE DELEGATES ZONE — the ONE ledger of every player's places: the
            lobby's single socket (the free delegate waits there, or it is
            spent) and the reserve as a stack with its count; the NEUTRAL supply
-           at the zone's edge (no lobby of its own). In the overview it shares
-           the head line; in the vote mode the SAME element (teleported) stands
-           at the top of the scene — every group keeps its identity, order and
-           cube geometry, so the delegates' flights leave from these very places
-           in both modes. -->
-      <Teleport defer to="[data-parl-zone-slot]" :disabled="!slotsCarried">
-        <div class="con-parl__seats" :class="{'con-parl__seats--carried': slotsCarried}" data-parl-seats data-parl-zone>
+           beside them (no lobby of its own); the deck last. It lives in the
+           head's TRAILING region, whose left edge is the crumb's RESERVED
+           width — so the groups stand at the same screen coordinates in the
+           overview and in the vote mode, left-aligned, and never re-centre
+           when a count or a word changes. Every delegate's flight leaves from
+           these very places in both modes. -->
+      <template #trailing>
+        <div class="con-parl__seats" data-parl-seats data-parl-zone>
           <div v-for="seat in seats" :key="seat.color" class="con-parl__seat"
                :class="{'con-parl__seat--me': seat.color === viewerColor}"
                :data-parl-seat="seat.color">
@@ -122,7 +127,7 @@
             </span>
           </div>
         </div>
-      </Teleport>
+      </template>
     </ConsoleWsHead>
 
     <!-- THE FIELD — the overview's body and, over it, the vote mode's layer. -->
@@ -130,9 +135,11 @@
     <div class="con-parl__body" ref="bodyEl">
       <!-- ══ TOP TIER: the GOVERNMENT · the VOTING AREA ══ -->
       <div class="con-parl__top">
-        <!-- ── THE GOVERNMENT — the enacted resolution is the MAIN OBJECT; the
-             ruling party is identified compactly and its EFFECT is printed
-             large enough to be read here. ── -->
+        <!-- ── THE GOVERNMENT — the enacted resolution is the MAIN OBJECT;
+             beside it the RULING PARTY with its printed effect LARGE (one
+             caption: it is every player's), and — apart from it — the enacted
+             resolution's OWN standing effect when it has one; under both, the
+             chairman quest. ── -->
         <div class="con-parl__gov"
              :class="{
                'con-parl__gov--focus': zone === 'government' && stage === 'browse',
@@ -158,9 +165,10 @@
               <span class="con-parl__gov-empty-mark" aria-hidden="true">◇</span>
               <span class="con-parl__gov-empty-text">{{ $t('No resolution enacted yet') }}</span>
             </div>
-            <!-- THE RULER — a compact identity line, then the effect everyone
-                 holds while the party rules: its printed formula at a readable
-                 size and its one-sentence reading. -->
+            <!-- THE RULER — the identity line, then the effect everyone holds
+                 while the party rules: its printed formula LARGE, one caption.
+                 The resolution's OWN standing effect (when it has one) is a
+                 separate row under its own mark — two sources, told apart. -->
             <div class="con-parl__ruler" :data-zoom-slot="partyKeyOf(view.rulingParty)" data-parl-ruler ref="rulerEl">
               <div class="con-parl__ruler-ident">
                 <img class="con-parl__ruler-emblem" :src="emblemUrl(view.rulingParty)" alt="" />
@@ -170,7 +178,11 @@
                 </div>
               </div>
               <ConsolePartyFormula class="con-parl__ruler-formula" :party="view.rulingParty" size="wide" />
-              <span v-if="rulingEffectText !== undefined" class="con-parl__ruler-rule">{{ $t(rulingEffectText) }}</span>
+              <span class="con-parl__ruler-scope">{{ $t('Held by every player') }}</span>
+              <div v-if="enactedOwnMechanics !== undefined" class="con-parl__ruler-own" data-parl-enacted-effect>
+                <span class="con-parl__ruler-own-kicker"><i class="con-parl__card-mark resource_icon resource_icon--cards" aria-hidden="true"></i>{{ $t('Resolution effect') }}</span>
+                <PremiumMechanicsPanel class="con-parl__ruler-own-mech" :mechanics="enactedOwnMechanics" />
+              </div>
             </div>
           </div>
 
@@ -242,7 +254,8 @@
 
         <!-- ── THE VOTING AREA — ONE focus zone: three resolutions in the order
              that breaks ties (the first stands closest to the government), the
-             delegates on each in placement order, the leader, the winning card.
+             delegates on each in placement order, the leader, the winning card
+             (ONE accent: its badge and its gold seam — never a second line).
              Its slots are the vote mode's cards too: each is one DOM instance,
              teleported into the vote row while the mode stands. ── -->
         <div class="con-parl__voting"
@@ -254,11 +267,6 @@
              data-parl-voting>
           <div class="con-parl__voting-head" data-parl-recede>
             <span class="con-parl__kicker">{{ $t('Voting') }}</span>
-            <span v-if="winningSlot !== undefined" class="con-parl__voting-lead">
-              <span class="con-parl__chip-dim">{{ $t('Winning') }}</span>
-              <img class="con-parl__slot-emblem" :src="emblemUrl(winningSlot.party)" alt="" />
-              <b>{{ $t(resolutionTitle(winningSlot.resolutionId)) }}</b>
-            </span>
           </div>
           <div class="con-parl__slots">
             <div v-for="(slot, i) in view.slots" :key="slot.instance" class="con-parl__slot-home" :data-home="slot.instance">
@@ -291,7 +299,8 @@
                   <!-- THE DELEGATE RIBBON — every delegate on the card, in placement
                        order (the order that breaks a tie among players), and — in
                        the vote mode, on the selected card — the PLACE the next
-                       delegate takes (hollow until it lands). -->
+                       delegate takes (hollow until it lands: a forecast, never a
+                       placement). -->
                   <div class="con-parl__ribbon" :class="{'con-parl__ribbon--dense': slot.votes.length > DENSE_RIBBON}" :data-votes="slot.totalVotes" :data-parl-vote-ribbon="slotsCarried && slotIndex === i ? '' : undefined">
                     <template v-if="slot.votes.length <= DENSE_RIBBON">
                       <span v-for="vote in slot.votes" :key="vote.seq" class="con-parl__vote-cube"
@@ -314,13 +323,12 @@
                     <span v-if="placeShownOn(i)" class="con-parl__vote-cube con-parl__vote-cube--place" data-parl-vote-place aria-hidden="true"></span>
                     <span v-if="slot.votes.length === 0 && !placeShownOn(i)" class="con-parl__ribbon-empty">{{ $t('No delegates yet') }}</span>
                   </div>
-                  <!-- THE TALLY — one line: how many delegates, who LEADS, what is
-                       YOURS with the two places of the party-effect threshold. In
-                       flight, the selected card's numbers wait for the touchdown. -->
-                  <!-- TWO FIXED LINES for every slot: «N delegates · leader», then
-                       «yours ○○ n» — the same rows at the same heights whatever
-                       the count, the word's case or the leader's absence, so no
-                       card ever moves because its neighbour's line wrapped. -->
+                  <!-- THE TALLY — TWO FIXED LINES for every slot: «N delegates ·
+                       leader», then «yours ○○ n» with the two places of the
+                       party-effect threshold — the same rows at the same heights
+                       whatever the count, so no card ever moves because its
+                       neighbour's line wrapped. In flight, the selected card's
+                       numbers wait for the touchdown. -->
                   <div class="con-parl__tally" data-parl-tally>
                     <span class="con-parl__tally-line">
                       <span class="con-parl__tally-total">
@@ -519,7 +527,8 @@
 
     <!-- ══ THE VOTE MODE — the frame's PHASE DESCENT, as a layer over the body.
          Always mounted (it is the teleport target of the three slots — a target
-         that exists before the slots do); visible while the mode stands. ══ -->
+         that exists before the slots do); visible while the mode stands. The
+         head line above (crumb + delegates zone) does not move. ══ -->
     <div class="con-parl__vote"
          :class="{
            'con-parl__vote--up': voteUp || voteLeaving,
@@ -532,13 +541,9 @@
          }"
          :style="{'--parl-accent': voteSlot !== undefined ? partyAccent(voteSlot.party) : undefined}"
          :aria-hidden="voteUp ? undefined : 'true'"
+         :data-parl-vote-source-kind="voteSource"
          data-parl-vote
          ref="voteEl">
-      <!-- THE DELEGATES ZONE's place while the mode stands: the SAME ledger
-           element the head line carries in the overview lands here (the
-           teleport above) — the viewer's source place is marked on it. -->
-      <div class="con-parl__zone-row" data-parl-zone-slot :data-parl-bench-source="voteSource"></div>
-
       <!-- THE CARD ROW — the three slots stand here while the mode is up. -->
       <div class="con-parl__vrow" data-parl-vrow ref="vrowEl"></div>
 
@@ -553,50 +558,49 @@
             <div v-if="voteInfo !== undefined" :key="voteInfo.instance" class="con-parl__info-body" data-parl-vote-body>
               <div class="con-parl__info-head" data-parl-vote-item>
                 <img class="con-parl__info-emblem" :src="emblemUrl(voteInfo.party)" alt="" />
-                <span class="con-parl__info-title">
-                  <b class="con-parl__info-name">{{ $t(voteInfo.name) }}</b>
-                  <span class="con-parl__info-party">{{ $t(voteInfo.party) }}</span>
-                </span>
+                <b class="con-parl__info-name">{{ $t(voteInfo.name) }}</b>
                 <span v-if="voteInfo.winning" class="con-parl__slot-win">{{ $t('Winning') }}</span>
               </div>
-              <!-- THREE COLUMNS side by side — one reading each, so the surface
-                   stays SHALLOW and the cards above keep their size: the
-                   resolution's OWN effect (the main block — its printed graphic
-                   and its sentence; a dummy says calmly that it has none, in
-                   the very same frame a real effect will fill), what ENACTING
-                   it changes for everyone, and the chairman quest it sets. -->
-              <div class="con-parl__info-cols">
-                <div class="con-parl__info-block con-parl__info-block--own" data-parl-vote-item data-parl-info="own">
+              <!-- ONE MAIN BLOCK and a side: the resolution's OWN effect owns
+                   the reading (its printed graphic LARGE, its parts labelled by
+                   WHEN they apply — a dummy says calmly, in the very same
+                   frame a real effect will fill, that it has none); beside it,
+                   compact, the PARTY it brings to power (its formula and one
+                   caption) and the chairman quest it sets (the condition
+                   only — the reward is the same for every resolution and
+                   lives in the government). -->
+              <div class="con-parl__info-grid">
+                <div class="con-parl__info-own" :class="{'con-parl__info-own--none': voteInfo.ownMechanics === undefined && voteInfo.ownParts.length === 0}" data-parl-vote-item data-parl-info="own">
                   <span class="con-parl__info-kicker" data-parl-vote-late>{{ $t('Resolution effect') }}</span>
-                  <div class="con-parl__info-row">
+                  <div class="con-parl__info-own-body">
                     <PremiumMechanicsPanel v-if="voteInfo.ownMechanics !== undefined" class="con-parl__info-mech" :mechanics="voteInfo.ownMechanics" />
-                    <span v-if="voteInfo.ownText !== undefined" class="con-parl__info-text" data-parl-vote-late>{{ $t(voteInfo.ownText) }}<template v-if="voteInfo.ownWinner !== undefined"> {{ $t('For the winner of the vote') }}: {{ $t(voteInfo.ownWinner) }}</template></span>
+                    <div v-if="voteInfo.ownParts.length > 0" class="con-parl__info-parts" data-parl-vote-late>
+                      <div v-for="part in voteInfo.ownParts" :key="part.key" class="con-parl__info-part" :class="'con-parl__info-part--' + part.key">
+                        <span class="con-parl__info-part-label">{{ $t(part.label) }}</span>
+                        <span class="con-parl__info-part-text">{{ $t(part.text) }}</span>
+                      </div>
+                    </div>
                     <span v-else-if="voteInfo.ownMechanics === undefined" class="con-parl__info-none" data-parl-vote-late>{{ $t('No effect of its own') }}</span>
                   </div>
                 </div>
-                <!-- IF ENACTED — the party rules and everyone gets its effect. The
-                     viewer's OWN access to it is a separate fact (two delegates),
-                     stated on the right beside the vote. -->
-                <div class="con-parl__info-block con-parl__info-block--party" data-parl-vote-item data-parl-info="party">
-                  <span class="con-parl__info-kicker" data-parl-vote-late>{{ $t('If the resolution is enacted') }}</span>
-                  <span class="con-parl__info-rule" data-parl-vote-late>{{ enactedRuleText(voteInfo.party) }}</span>
-                  <div class="con-parl__info-row">
-                    <ConsolePartyFormula class="con-parl__info-pformula" :party="voteInfo.party" size="wide" />
-                    <span class="con-parl__info-text con-parl__info-text--party" data-parl-vote-late>
-                      <span v-if="voteInfo.partyPassive !== undefined">{{ $t(voteInfo.partyPassive) }}</span>
-                      <span v-else-if="voteInfo.partyAction !== undefined">{{ $t('Action') }}: {{ $t(voteInfo.partyAction) }} · {{ $t('once per generation') }}</span>
-                    </span>
+                <div class="con-parl__info-side">
+                  <div class="con-parl__info-block con-parl__info-block--party" data-parl-vote-item data-parl-info="party">
+                    <span class="con-parl__info-kicker" data-parl-vote-late>{{ $t('Party of the resolution') }}</span>
+                    <div class="con-parl__info-party-row">
+                      <span class="con-parl__info-party-ident">
+                        <img class="con-parl__info-party-emblem" :src="emblemUrl(voteInfo.party)" alt="" />
+                        <b class="con-parl__info-party-name">{{ $t(voteInfo.party) }}</b>
+                      </span>
+                      <ConsolePartyFormula class="con-parl__info-pformula" :party="voteInfo.party" size="wide" />
+                    </div>
+                    <span class="con-parl__info-scope" data-parl-vote-late>{{ $t('When enacted — for every player') }}</span>
                   </div>
-                  <!-- A party with BOTH a standing effect and an action: the action on its own quiet line under the row. -->
-                  <span v-if="voteInfo.partyPassive !== undefined && voteInfo.partyAction !== undefined" class="con-parl__info-action" data-parl-vote-late>⚡ {{ $t('Action') }}: {{ $t(voteInfo.partyAction) }} · {{ $t('once per generation') }}</span>
-                </div>
-                <!-- THE CHAIRMAN QUEST it would set — the condition and what
-                     completing it pays. -->
-                <div class="con-parl__info-block con-parl__info-block--quest" data-parl-vote-item data-parl-info="quest">
-                  <span class="con-parl__info-kicker" data-parl-vote-late>{{ $t('Chairman quest') }}</span>
-                  <div class="con-parl__info-row">
-                    <PremiumMechanicsPanel v-if="voteInfo.questMechanics !== undefined" class="con-parl__info-quest" :mechanics="voteInfo.questMechanics" />
-                    <span class="con-parl__info-text" data-parl-vote-late>{{ $t(voteInfo.questText) }} · {{ $t('reward: the chairman seat and one Agenda step') }}</span>
+                  <div class="con-parl__info-block con-parl__info-block--quest" data-parl-vote-item data-parl-info="quest">
+                    <span class="con-parl__info-kicker" data-parl-vote-late>{{ $t('Chairman quest') }}</span>
+                    <div class="con-parl__info-row">
+                      <PremiumMechanicsPanel v-if="voteInfo.questMechanics !== undefined" class="con-parl__info-quest" :mechanics="voteInfo.questMechanics" />
+                      <span class="con-parl__info-text" data-parl-vote-late>{{ $t(voteInfo.questText) }}</span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -607,20 +611,22 @@
           <div class="con-parl__info-vote-main" v-show="stage !== 'paying'">
             <transition name="con-parl-xfade">
               <div v-if="voteInfo !== undefined" :key="voteInfo.instance" class="con-parl__info-body con-parl__info-body--vote">
-                <!-- YOUR VOTE — ONE block: the delegate at its place and its
-                     price, then this vote's own consequences, each as current
-                     → projected (the projected side is marked as a forecast
-                     until the delegate has landed; a fact that does not change
-                     stays, quiet, so the whole outcome can be read). -->
+                <!-- YOUR VOTE — ONE block: the delegate at its place (only
+                     when there is one to send — a missing delegate is the
+                     confirm's one reason, never said twice), then this vote's
+                     own consequences, each as current → projected (the
+                     projected side is marked as a forecast until the delegate
+                     has landed; a fact that does not change is ONE value, so
+                     the whole outcome can still be read). -->
                 <div class="con-parl__info-block con-parl__info-block--after" :class="{'con-parl__info-block--done': stage === 'landed'}" data-parl-vote-item data-parl-vote-forecast>
-                  <div class="con-parl__info-src" data-parl-vote-source>
+                  <div class="con-parl__info-src" :class="{'con-parl__info-src--none': benchSource === 'none'}" data-parl-vote-source>
                     <span class="con-parl__info-kicker con-parl__info-kicker--inline" data-parl-vote-late>{{ $t('Your vote') }}</span>
-                    <span class="con-parl__socket con-parl__socket--small" :class="{'con-parl__socket--empty': benchSource === 'none'}">
-                      <PlayerCube v-if="benchSource !== 'none' && viewerColor !== undefined" :color="viewerColor" :size="cubePx(12)" :glow="false" />
-                    </span>
-                    <b class="con-parl__info-src-text">{{ sourceText }}</b>
-                    <ActionEffectChip v-if="voteSource === 'reserve' && benchSource !== 'none'" class="con-parl__vote-cost" :effect="voteCostChip" />
-                    <span v-else-if="benchSource === 'lobby'" class="con-parl__info-free">{{ $t('free') }}</span>
+                    <template v-if="benchSource !== 'none'">
+                      <span class="con-parl__socket con-parl__socket--small">
+                        <PlayerCube v-if="viewerColor !== undefined" :color="viewerColor" :size="cubePx(12)" :glow="false" />
+                      </span>
+                      <b class="con-parl__info-src-text">{{ sourceText }}</b>
+                    </template>
                   </div>
                   <span class="con-parl__info-subkicker" data-parl-vote-late>{{ $t(stage === 'landed' ? 'Result' : 'After your vote') }}</span>
                   <div class="con-parl__facts">
@@ -667,6 +673,10 @@
           </div>
           <!-- A paid vote's PAYMENT stands here, inside the mode. -->
           <div class="con-parl__embed" data-embed-slot="parliament-vote"></div>
+          <!-- THE CONFIRM — the verb and, beside it, the delegate's SOURCE and
+               PRICE (the lobby's is free; the reserve's costs the server's own
+               M€), read from the same vote option the submit answers. Blocked,
+               the plate carries the ONE reason. -->
           <div class="con-parl__cta"
                :class="{
                  'con-parl__cta--ready': canVoteNow && stage === 'vote',
@@ -677,7 +687,15 @@
                data-parl-vote-item data-parl-cta @click="submitVote()">
             <GamepadGlyph v-if="stage === 'vote' && canVoteNow" control="confirm" class="con-parl__cta-glyph" />
             <span class="con-parl__cta-label">{{ ctaText }}</span>
-            <span v-if="stage === 'vote' && canVoteNow" class="con-parl__cta-sub">{{ $t('A full action') }}</span>
+            <span v-if="stage === 'vote' && canVoteNow && ctaCost.kind !== 'none'" class="con-parl__cta-cost" :class="'con-parl__cta-cost--' + ctaCost.kind" data-parl-cta-cost :data-cost-kind="ctaCost.kind">
+              <template v-if="ctaCost.kind === 'free'">{{ $t('from the lobby · free') }}</template>
+              <template v-else>
+                <span class="con-parl__cta-cost-src">{{ $t('from the reserve') }}</span>
+                <span class="con-parl__cta-cost-sep" aria-hidden="true">·</span>
+                <b class="con-parl__cta-cost-num">{{ ctaCost.amount }}</b>
+                <i class="con-parl__cta-cost-mc resource_icon resource_icon--megacredits" aria-hidden="true"></i>
+              </template>
+            </span>
           </div>
         </div>
       </div>
@@ -701,7 +719,6 @@
     </Teleport>
   </section>
 </template>
-
 <script lang="ts">
 import {defineComponent, markRaw, PropType} from 'vue';
 import {gsap} from 'gsap';
@@ -711,12 +728,10 @@ import {PartyName} from '@/common/turmoil/PartyName';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {PlayerInputModel, SelectPaymentModel, VotePaymentMeta} from '@/common/models/PlayerInputModel';
 import {InputResponse} from '@/common/inputs/InputResponse';
-import {ActionEffect} from '@/common/models/ActionPreviewModel';
 import {ParliamentModel} from '@/common/models/ParliamentModel';
 import {PARLIAMENT_VOTE_COST, PARTY_EFFECT_DELEGATES as PARTY_EFFECT_THRESHOLD, PartyActionId, ReduxParty} from '@/common/parliament/ParliamentTypes';
 import ConsoleWsHead from '@/client/components/console/foundation/ConsoleWsHead.vue';
 import PlayerCube from '@/client/components/PlayerCube.vue';
-import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import PremiumMechanicsPanel from '@/client/components/premiumCard/PremiumMechanicsPanel.vue';
 import ConsolePartyPlaque from '@/client/components/console/parliament/ConsolePartyPlaque.vue';
@@ -740,7 +755,7 @@ import {
 } from '@/client/console/consoleWorkspaceStack';
 import {translateMessage, translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {promptIdentityKey} from '@/client/console/turnIntents';
-import {getPartyEffect, getResolution} from '@/client/parliament/ClientParliamentManifest';
+import {getResolution} from '@/client/parliament/ClientParliamentManifest';
 import {useResizeObserver} from '@vueuse/core';
 import {consoleLayoutState, conUiScale} from '@/client/console/consoleLayoutProfile';
 import {AnimationHold, beginAnimationHold} from '@/client/components/presentation/animationHold';
@@ -808,12 +823,12 @@ const SUBMIT_SAFETY_MS = 6000;
 const PCARD_W = 320;
 const PCARD_H = 460;
 /** The overview's cards stop here so the vote mode can GROW them (never shrink the object the player picked up). */
-const MAX_CARD_ZOOM = 0.72;
+const MAX_CARD_ZOOM = 0.8;
 /** …and a step lower on the couch: the 4K mode's card is HEIGHT-bound (its band and tally rows are taller in rem), so the size step the mode owes is bought on the overview's side. */
-const MAX_CARD_ZOOM_TV = 0.67;
+const MAX_CARD_ZOOM_TV = 0.75;
 const MIN_CARD_ZOOM = 0.3;
 /** The enacted face — the government's MAIN object. */
-const MAX_GOV_ZOOM = 0.62;
+const MAX_GOV_ZOOM = 0.72;
 const MIN_GOV_ZOOM = 0.2;
 /** The vote row's cards. */
 const MAX_VOTE_ZOOM = 1.05;
@@ -856,21 +871,24 @@ type VoteFactsVm = {
   access: {before: string, after: string, note: string | undefined, change: 'unlock' | 'held' | 'progress' | 'none', unchanged: boolean};
 };
 
-/** What the SELECTED card is — the info surface's left half. */
+/** One part of a resolution's OWN effect, labelled by WHEN it applies (the label is a key; the text is the catalog's sentence). */
+type OwnEffectPart = {key: 'effect' | 'winner' | 'passive' | 'action', label: string, text: string};
+
+/** What the SELECTED card is — the info surface's reading. */
 type VoteInfo = {
   instance: string;
   name: string;
   party: ReduxParty;
   winning: boolean;
   ownMechanics: MechanicsVM | undefined;
-  ownText: string | undefined;
-  /** The winner-only part of the own effect (the vote's winner alone gets it). */
-  ownWinner: string | undefined;
-  partyPassive: string | undefined;
-  partyAction: string | undefined;
+  /** The own effect's parts in the order they apply: enacted → winner → standing effect → action (empty for a dummy). */
+  ownParts: ReadonlyArray<OwnEffectPart>;
   questMechanics: MechanicsVM | undefined;
   questText: string;
 };
+
+/** The confirm's price line: the lobby's delegate is free, the reserve's costs the server's own M€. */
+type CtaCost = {kind: 'free' | 'cost' | 'none', amount: number};
 
 /** The results scene's DISPLAY HOLDS — what the ledger, the plaques, the ribbons and the supply still show until each cube has physically moved. */
 type RecapPending = {
@@ -890,7 +908,7 @@ function emptyRecapPending(): RecapPending {
 
 export default defineComponent({
   name: 'ConsoleParliamentSection',
-  components: {ConsoleWsHead, PlayerCube, ActionEffectChip, GamepadGlyph, PremiumMechanicsPanel, ConsolePartyPlaque, ConsolePartyFormula},
+  components: {ConsoleWsHead, PlayerCube, GamepadGlyph, PremiumMechanicsPanel, ConsolePartyPlaque, ConsolePartyFormula},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     myTurn: {type: Boolean, default: false},
@@ -1022,10 +1040,19 @@ export default defineComponent({
     enactedVm(): PremiumCardVM | undefined {
       return this.view.enacted === undefined ? undefined : resolutionPremiumVmById(this.view.enacted.resolutionId);
     },
-    /** The ruling party's effect in one sentence (its passive, else its action). */
-    rulingEffectText(): string | undefined {
-      const effect = this.view.rulingEffect;
-      return effect?.text.passive ?? effect?.text.action ?? effect?.text.rule;
+    /**
+     * The ENACTED resolution's OWN standing effect / action (its printed
+     * graphic) — a second source beside the ruling party's, told apart in
+     * the government. Undefined for a dummy and for a resolution whose only
+     * effect was the enactment itself (already paid, nothing stands).
+     */
+    enactedOwnMechanics(): MechanicsVM | undefined {
+      const resolution = this.view.enacted?.resolution;
+      if (resolution === undefined || !(resolution.hasPassive || resolution.hasAction)) {
+        return undefined;
+      }
+      const mechanics = buildMechanics(resolution.renderData);
+      return mechanics.textOnly ? undefined : mechanics;
     },
     winningSlot(): ParliamentSlotVm | undefined {
       return this.view.slots.find((s) => s.isWinning);
@@ -1187,20 +1214,34 @@ export default defineComponent({
         return undefined;
       }
       const resolution = slot.resolution ?? getResolution(slot.resolutionId);
-      const effect = getPartyEffect(slot.party);
       const own = resolution === undefined ? undefined : buildMechanics(resolution.renderData);
       const questRoot = resolution?.questRenderData;
       const quest = questRoot === undefined ? undefined : buildMechanics(questRoot);
+      // The own effect's PARTS, each under the label of WHEN it applies —
+      // the same labels the fullscreen inspector prints (one vocabulary).
+      const parts: Array<OwnEffectPart> = [];
+      if (resolution !== undefined && !resolution.dummy) {
+        const text = resolution.text;
+        if (text.effect !== undefined) {
+          parts.push({key: 'effect', label: 'When enacted', text: text.effect});
+        }
+        if (text.winner !== undefined) {
+          parts.push({key: 'winner', label: 'For the winner of the vote', text: text.winner});
+        }
+        if (text.passive !== undefined) {
+          parts.push({key: 'passive', label: 'Resolution effect', text: text.passive});
+        }
+        if (text.action !== undefined) {
+          parts.push({key: 'action', label: 'Resolution action', text: text.action});
+        }
+      }
       return {
         instance: slot.instance,
         name: this.resolutionTitle(slot.resolutionId),
         party: slot.party,
         winning: this.winningShownOf(slot),
         ownMechanics: own === undefined || own.textOnly ? undefined : own,
-        ownText: resolution === undefined ? undefined : (resolution.dummy ? undefined : (resolution.text.effect ?? resolution.text.passive ?? resolution.text.action)),
-        ownWinner: resolution === undefined || resolution.dummy ? undefined : resolution.text.winner,
-        partyPassive: effect?.text.passive,
-        partyAction: effect?.text.action,
+        ownParts: parts,
         questMechanics: quest === undefined || quest.textOnly ? undefined : quest,
         questText: resolution?.text.quest ?? '',
       };
@@ -1281,10 +1322,21 @@ export default defineComponent({
       }
       return translateText(this.awaitingInput ? 'Finish your current action first' : 'Not your turn — you can read the Parliament');
     },
-    voteCostChip(): ActionEffect {
-      const cost = this.votePayment?.cost ?? this.voteTile?.cost ?? 0;
-      const current = this.playerView.thisPlayer?.megacredits ?? 0;
-      return {direction: 'cost', icon: 'megacredits', amount: cost, current, resulting: Math.max(0, current - cost)};
+    /**
+     * THE PRICE ON THE CONFIRM — from the SAME vote option the submit answers
+     * (the server's source and cost; a standing bill's own cost outranks the
+     * tile's): the lobby's delegate is free, the reserve's costs M€. Nothing
+     * to send → no price line (the confirm carries the one reason).
+     */
+    ctaCost(): CtaCost {
+      const source = this.benchSource;
+      if (source === 'none') {
+        return {kind: 'none', amount: 0};
+      }
+      if (source === 'lobby') {
+        return {kind: 'free', amount: 0};
+      }
+      return {kind: 'cost', amount: this.votePayment?.cost ?? this.voteTile?.cost ?? PARLIAMENT_VOTE_COST};
     },
     seatCandidates(): Array<number> {
       const parties = (this.bridge.seat as {parties?: Array<PartyName>} | undefined)?.parties ?? [];
@@ -1330,24 +1382,25 @@ export default defineComponent({
       return this.recapCurrent?.focus ?? '';
     },
     crumbSubject(): string {
-      // The vote MODE has one stable name — «Parliament › Voting». The
-      // selected resolution is named in its own description; a crumb that
-      // re-set itself on every ◀ ▶ read as arriving somewhere else.
+      // ONE fixed line, two names: «Парламент › Осмотр» on the overview,
+      // «Парламент › Голосование» in the vote mode — the MODE is the subject,
+      // never a card (a crumb that re-set itself on every ◀ ▶ read as
+      // arriving somewhere else; a card name of any length would move the
+      // zone beside it). The seat pick and the results are stages of the
+      // overview and of the phase: short, fixed words.
       switch (this.stage) {
       case 'vote':
       case 'paying':
       case 'landed':
         return 'Voting';
-      case 'seat':
-        return this.resolutionTitle(this.focusedSlot?.resolutionId ?? '');
       case 'submitting':
-        return this.stageBeforeSubmit === 'vote' ? 'Voting' : this.resolutionTitle(this.focusedSlot?.resolutionId ?? '');
-      case 'recap': return this.recapKicker;
-      default: return '';
+        return this.stageBeforeSubmit === 'vote' ? 'Voting' : 'Parliament overview';
+      case 'recap': return 'Results';
+      default: return 'Parliament overview';
       }
     },
     crumbSubjectRaw(): boolean {
-      return this.stage === 'recap';
+      return false;
     },
     crumbStage(): string {
       // A submit is a transient beat, never a stage of its own: the tail keeps
@@ -1728,13 +1781,9 @@ export default defineComponent({
     crumbStageOf(stage: Stage): string {
       switch (stage) {
       case 'paying': return 'Payment';
-      case 'seat': return 'Chairman seat';
+      case 'seat': return 'Seat';
       default: return '';
       }
-    },
-    /** «The <party> rule — every player has their effect». */
-    enactedRuleText(party: ReduxParty): string {
-      return translateTextWithParams('${0} rule — every player has their effect', [translateText(party)]);
     },
     /** Solve the card zooms (voting slots · the enacted face · the vote row) from the measured frame. */
     fitCards(): void {
@@ -1799,7 +1848,7 @@ export default defineComponent({
       case 'voting': {
         const cmds: Array<ConsoleCommand> = [];
         if (this.view.slots.length > 0) {
-          cmds.push({control: 'confirm', label: 'Vote', enabled: true, highlight: this.canVoteNow});
+          cmds.push({control: 'confirm', label: 'Open the vote', enabled: true, highlight: this.canVoteNow});
         }
         // No X here: the voting area is ONE zone with no card of its own
         // selected — the inspector belongs to the mode's selected card.
@@ -2236,11 +2285,8 @@ export default defineComponent({
     },
     /** Select the vote mode's card (the d-pad inside the mode, the viewer's paging). */
     selectVoteSlot(index: number): void {
-      const next = Math.max(0, Math.min(this.view.slots.length - 1, index));
-      this.slotIndex = next;
-      if (this.voteSlot !== undefined) {
-        setWorkspaceFrameSubject('parliament', this.resolutionTitle(this.voteSlot.resolutionId));
-      }
+      // The crumb stays «Голосование»: the selection is named by the surface, never by the head line.
+      this.slotIndex = Math.max(0, Math.min(this.view.slots.length - 1, index));
     },
     /**
      * «Send the delegate» for the card at `index`, as THIS mode reads it — the

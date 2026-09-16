@@ -11,22 +11,23 @@
  * it had a frame ago:
  *
  *  · COMMIT — the pressed voting block answers where it stands;
- *  · RECEDE — the rest of the overview (government · seats · parties · Agenda
- *    · the voting head) steps back INTO the press point; the voting plate's
- *    own chrome dissolves in place (the info surface takes its rect over);
+ *  · RECEDE — the rest of the overview (government · parties · Agenda · the
+ *    voting head) steps back INTO the press point; the voting plate's own
+ *    chrome dissolves in place (the info surface takes its rect over). The
+ *    HEAD LINE — the crumb and the delegates zone — is outside the field
+ *    and does not move: the delegates' places keep their coordinates in
+ *    both modes, so the eye never has to find them again;
  *  · CARRY — each card face FLIPs from its overview rect into its vote rect,
  *    each delegate cube from its old ribbon place into its new one, each
  *    label and tally with them (the same elements — the eye never loses an
- *    object); the viewer's lobby socket and reserve stack FLIP from their
- *    places on the seats ledger into the BENCH above the cards;
+ *    object);
  *  · SURFACE — the info surface rises into its FINAL geometry under the
  *    settling cards with its structure already inside it, then its fine
  *    print (objects, then words — the colony workspace's two waves). It is
  *    never an empty container stretching open: the cards are the event;
  *  · B reverses the same phrase: the surface sinks with its content, the
- *    bench flies back onto the ledger, the cards and cubes FLIP HOME from
- *    wherever they are, and the overview breathes back from the same press
- *    point. Since the cards are the very same elements, the animated end
+ *    cards and cubes FLIP HOME from wherever they are, and the overview
+ *    breathes back from the same press point. Since the cards are the very same elements, the animated end
  *    state IS the static state — no swap, no twin frame, no skip.
  *
  * Entered FROM THE FULLSCREEN VIEWER the phrase is the same, minus the FLIP
@@ -84,9 +85,6 @@ const CARD_FLIP_BACK_MS = 320;
 /** The cubes travel with their card; slightly lighter. */
 const CUBE_FLIP_MS = 340;
 const CUBE_FLIP_BACK_MS = 280;
-/** The bench's sockets from the ledger. */
-const BENCH_FLIP_MS = 360;
-const BENCH_FLIP_BACK_MS = 280;
 /** When each beat starts (base ms from the press). */
 const CARRY_AT_MS = 40;
 const SURFACE_AT_MS = 180;
@@ -119,8 +117,6 @@ export type VoteRectSnapshot = {
   tallies: Map<string, Rect>;
   /** `<instance>#<seq>` → rect. */
   cubes: Map<string, Rect>;
-  /** The delegates zone's groups (`data-parl-seat` colour, or `neutral`) → rect: the ledger travels as its groups. */
-  seats: Map<string, Rect>;
   /** The vote layer's info SURFACE (the band) — its top edge travels with a re-fit. */
   surface: Rect | undefined;
 };
@@ -152,7 +148,6 @@ export function measureVoteRects(root: HTMLElement, opts: {press?: {x: number, y
     labels: new Map(),
     tallies: new Map(),
     cubes: new Map(),
-    seats: new Map(),
     surface: rectOf(root.querySelector('[data-parl-vote-surface]')),
   };
   for (const slot of slotsOf(root)) {
@@ -177,27 +172,12 @@ export function measureVoteRects(root: HTMLElement, opts: {press?: {x: number, y
       }
     }
   }
-  for (const seat of seatsOf(root)) {
-    const r = rectOf(seat);
-    if (r !== undefined) {
-      snap.seats.set(seatKeyOf(seat), r);
-    }
-  }
   return snap;
-}
-
-/** The delegates zone's groups — one per player, plus the neutral supply. */
-function seatsOf(root: HTMLElement): Array<HTMLElement> {
-  return Array.from(root.querySelectorAll<HTMLElement>('[data-parl-zone] .con-parl__seat'));
-}
-
-function seatKeyOf(seat: HTMLElement): string {
-  return seat.getAttribute('data-parl-seat') ?? 'neutral';
 }
 
 // ── element resolution ──────────────────────────────────────────────────────
 
-/** The overview's parts that RECEDE (everything but the voting plate and the carried slots). */
+/** The overview's parts that RECEDE (everything but the voting plate and the carried slots — the head line is outside the field and never recedes). */
 function recedersOf(root: HTMLElement): Array<HTMLElement> {
   return Array.from(root.querySelectorAll<HTMLElement>('[data-parl-recede]'));
 }
@@ -212,11 +192,6 @@ function layerOf(root: HTMLElement): HTMLElement | null {
 
 function surfaceOf(root: HTMLElement): HTMLElement | null {
   return root.querySelector<HTMLElement>('[data-parl-vote-surface]');
-}
-
-/** The delegates zone itself (its plate crossfades between its two poses; its groups FLIP). */
-function zoneOf(root: HTMLElement): HTMLElement | null {
-  return root.querySelector<HTMLElement>('[data-parl-zone]');
 }
 
 /** WAVE 1 — the surface's structural groups. */
@@ -290,7 +265,6 @@ export function playParliamentVoteEnter(args: VoteEnterArgs): void {
   const receders = recedersOf(root);
   const plate = plateOf(root);
   const surface = surfaceOf(root);
-  const zone = zoneOf(root);
   const items = revealItemsOf(root);
   const late = lateItemsOf(root);
 
@@ -357,22 +331,13 @@ export function playParliamentVoteEnter(args: VoteEnterArgs): void {
         carry(tl, cube, before.cubes.get(`${id}#${cube.getAttribute('data-seq')}`), s(CARRY_AT_MS + 20), CUBE_FLIP_MS, 'power2.inOut');
       }
     }
-    // 3. THE DELEGATES ZONE — the same ledger the head line carried settles
-    //    a line lower, group by group (each FLIPs from its own rect: the
-    //    players keep their order, their cubes their geometry); its plate is
-    //    a CSS crossfade on the carried class.
-    if (zone !== null) {
-      for (const seat of seatsOf(root)) {
-        carry(tl, seat, before.seats.get(seatKeyOf(seat)), s(CARRY_AT_MS), BENCH_FLIP_MS, 'power2.inOut');
-      }
-    }
-    // 4. THE INFO SURFACE surfaces in its final geometry under the settling
+    // 3. THE INFO SURFACE surfaces in its final geometry under the settling
     //    cards — a soft rise with its structure already in it; the fine print
     //    arrives a beat later. Nothing stretches open empty.
     if (surface !== null) {
       tl.to(surface, {autoAlpha: 1, y: 0, duration: s(SURFACE_IN_MS), ease: 'expo.out', clearProps: 'transform,opacity,visibility'}, s(SURFACE_AT_MS));
     }
-    // 5. REVEAL — the surface's structure, then its fine print.
+    // 4. REVEAL — the surface's structure, then its fine print.
     descendCascade(tl, items, s(REVEAL_MS), s(REVEAL_AT_MS), REVEAL_STAGGER_S);
     descendCascade(tl, late, s(LATE_MS), s(LATE_AT_MS), lateStagger);
     return tl;
@@ -440,7 +405,7 @@ function shift(tl: gsap.core.Timeline, target: HTMLElement | null, from: Rect | 
 
 export type VoteLeaveArgs = {
   root: HTMLElement;
-  /** The viewer's colour — the bench flies home onto their ledger row. */
+  /** The viewer's colour (kept for the callers' symmetry — nothing of the zone travels any more). */
   viewer: string | undefined;
   /** Snapshot of the VOTE layout, measured before the teleport home. */
   before: VoteRectSnapshot;
@@ -474,18 +439,10 @@ export function playParliamentVoteLeave(args: VoteLeaveArgs): void {
     return;
   }
 
-  // The cards and the zone are ALREADY home in the DOM: pin each carried
-  // object to the rect it had in the vote row, so the first painted frame is
-  // where the player last saw it.
+  // The cards are ALREADY home in the DOM: pin each carried object to the
+  // rect it had in the vote row, so the first painted frame is where the
+  // player last saw it.
   const flips: Array<{el: HTMLElement, durMs: number, ease: string, at: number}> = [];
-  for (const seat of seatsOf(root)) {
-    const from = before.seats.get(seatKeyOf(seat));
-    const delta = from !== undefined ? descendFlipFrom(seat, from) : undefined;
-    if (delta !== undefined) {
-      gsap.set(seat, {x: delta.x, y: delta.y, scale: delta.scale, transformOrigin: 'top left'});
-      flips.push({el: seat, durMs: BENCH_FLIP_BACK_MS, ease: 'power2.inOut', at: CARRY_BACK_AT_MS});
-    }
-  }
   for (const slot of slotsOf(root)) {
     const id = instanceOf(slot);
     const pin = (el: HTMLElement | null, from: Rect | undefined, durMs: number, ease: string, at: number) => {
@@ -514,9 +471,9 @@ export function playParliamentVoteLeave(args: VoteLeaveArgs): void {
     if (surface !== null) {
       tl.to(surface, {autoAlpha: 0, y: descendPx(10), duration: s(SURFACE_OUT_MS), ease: 'power2.in', overwrite: 'auto'}, 0);
     }
-    // 2. The cards, cubes, labels, tallies and the zone's groups travel HOME —
-    //    they are in the air while the overview comes back under them, and
-    //    when they land they are simply at rest in it.
+    // 2. The cards, cubes, labels and tallies travel HOME — they are in the
+    //    air while the overview comes back under them, and when they land
+    //    they are simply at rest in it.
     for (const flip of flips) {
       tl.to(flip.el, {x: 0, y: 0, scale: 1, duration: s(flip.durMs), ease: flip.ease, clearProps: 'transform', overwrite: 'auto'}, s(flip.at));
     }
@@ -538,7 +495,7 @@ export function killParliamentVoteMotion(root: HTMLElement | null | undefined): 
   }
   killDescendEpisode(root);
   const carried = root.querySelectorAll<HTMLElement>(
-    '.con-parl__slot .pcard, .con-parl__card, .con-parl__slot-label, .con-parl__tally, .con-parl__ribbon [data-seq], [data-parl-zone], [data-parl-zone] .con-parl__seat, [data-parl-vote-item], [data-parl-vote-late], [data-parl-vote-surface], .con-parl__vote, .con-parl__voting');
+    '.con-parl__slot .pcard, .con-parl__card, .con-parl__slot-label, .con-parl__tally, .con-parl__ribbon [data-seq], [data-parl-vote-item], [data-parl-vote-late], [data-parl-vote-surface], .con-parl__vote, .con-parl__voting');
   gsap.set(carried, {clearProps: 'transform,opacity,visibility,clipPath,webkitClipPath'});
 }
 
@@ -563,7 +520,7 @@ export function parkParliamentBody(root: Element | null | undefined): void {
   }
 }
 
-// ── the delegate's flight (a cube from its bench place onto the card) ───────
+// ── the delegate's flight (a cube from its place on the zone onto the card) ──
 
 export type CubeFlightHandle = {
   /** Abort: the proxy vanishes, the callbacks never fire. */

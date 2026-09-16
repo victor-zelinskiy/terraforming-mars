@@ -1,16 +1,18 @@
 <template>
   <!--
     THE PARTY PLAQUE (Turmoil Redux) — the ONE visual family of a party, in
-    three sizes. A party is not a project card: it has no cost, no art window
+    four sizes. A party is not a project card: it has no cost, no art window
     and no play; what identifies it is its SEAL (the emblem), and what matters
     about it is its printed MECHANIC and its STATE for the viewer. So the
     plaque is a dark alloy plate with ONE anatomy in every size:
 
       ┌──────────────────────────────────┐
       │ (seal)  NAME              [act]  │   the seal with its STATE RING, the
-      │         state chip               │   name in bright tracked caps, the
-      │ [ mechanic module ]  [support]   │   action's state, then the printed
-      └──────────────────────────────────┘   mechanic and the popular support.
+      │                                  │   name in bright tracked caps, the
+      │       [ mechanic module ]        │   action's badge; the MECHANIC owns
+      │                                  │   the plate's centre at reading
+      │ ○○ 1/2 · state       [support]   │   size; the foot is the viewer's
+      └──────────────────────────────────┘   compact state + popular support.
 
     Three facts about the viewer are three DIFFERENT objects, never a row of
     look-alike dots: ACCESS BY DELEGATES is the mint ring + the viewer's own
@@ -19,9 +21,11 @@
     badge itself, stamped. Colour discipline: the party's ACCENT is a
     material (the plate's seam, the seal's rim); the STATE colours are the
     console's (gold / mint / cyan); a PLAYER's colour appears only as a cube.
+    A party the viewer does NOT hold keeps its mechanic READABLE — the state
+    is what dims (ring, foot), never the formula.
 
-      · `tile` — the Parliament's parties row;
-      · `hero` — the action composer's source column / the government badge;
+      · `tile` — the Parliament's parties row (the mechanic in the centre);
+      · `hero` — the action composer's source column;
       · `full` — the fullscreen inspector's subject (px-authored, zoomed by
         the viewer exactly like a card face; the same anatomy, so the tile
         morphs into it as ONE object);
@@ -62,29 +66,33 @@
         <span v-if="actionState.kind === 'used'" class="con-pseal__action-mark">✓</span>
       </span>
     </div>
-    <!-- THE STATE CHIP — the viewer's relation to the party in one line; the
-         delegate places are the viewer's OWN cubes (filled = placed, hollow =
-         still needed for the effect). POPULAR SUPPORT closes the line: three
-         places, a steel cube per neutral delegate waiting for the party's
-         next resolution — so the printed mechanic below owns the plate's width. -->
     <!-- THE CONTEXT LINE (the `aside` size): what the party's effect means
          for the resolution on the stage — a condition or a standing fact,
          translated by the host. -->
     <div v-if="note !== undefined" class="con-pseal__note">{{ note }}</div>
-    <div v-if="state !== undefined && size !== 'full'" class="con-pseal__state" :class="'con-pseal__state--' + state.tone">
-      <span class="con-pseal__state-text">{{ stateText }}</span>
+    <!-- THE MECHANIC — the plate's centre, the readable object. -->
+    <ConsolePartyFormula v-if="formula" class="con-pseal__formula" :party="party" :size="size === 'tile' ? 'compact' : 'wide'" :dim="state !== undefined && !state.held" />
+    <!-- THE FOOT — the viewer's relation to the party in the fewest marks:
+         the delegate places (the viewer's OWN cubes; hollow = still needed)
+         with the count, ONE short word only where a word says more than the
+         places (ruling / held), and POPULAR SUPPORT closing the line: three
+         places, a steel cube per neutral delegate waiting for the party's
+         next resolution. A party outside the vote states nothing — the dim
+         ring is its state. -->
+    <div v-if="state !== undefined && size !== 'full'" class="con-pseal__state" :class="'con-pseal__state--' + state.tone" :data-state-kind="state.kind">
       <span v-if="showPlaces && viewerColor !== undefined" class="con-pseal__places" aria-hidden="true">
         <span v-for="n in placesCount" :key="n" class="con-pseal__place" :class="{'con-pseal__place--on': n <= (state?.delegates ?? 0)}">
           <PlayerCube v-if="n <= (state?.delegates ?? 0)" :color="viewerColor" :size="placeCubePx" :glow="false" />
         </span>
+        <span class="con-pseal__places-count">{{ Math.min(state?.delegates ?? 0, placesCount) }}/{{ placesCount }}</span>
       </span>
-      <span v-if="support !== undefined" class="con-pseal__support" :class="{'con-pseal__support--none': support === 0}" :data-support="support" aria-hidden="true">
+      <span v-if="stateText !== ''" class="con-pseal__state-text">{{ stateText }}</span>
+      <span v-if="support !== undefined && support > 0" class="con-pseal__support" :data-support="support" aria-hidden="true">
         <span v-for="n in 3" :key="n" class="con-pseal__support-place" :class="{'con-pseal__support-place--on': n <= support}" :data-support-place="n">
           <PlayerCube v-if="n <= support" color="neutral" steel :size="supportCubePx" :glow="false" />
         </span>
       </span>
     </div>
-    <ConsolePartyFormula v-if="formula" class="con-pseal__formula" :party="party" :size="size === 'tile' ? 'compact' : 'wide'" :dim="state !== undefined && !state.held" />
   </div>
 </template>
 
@@ -97,7 +105,7 @@ import PlayerCube from '@/client/components/PlayerCube.vue';
 import {partyAccent, partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
 import {PartyActionStateVm, PartyStateVm} from '@/client/console/parliament/consoleParliamentModel';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
-import {translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {translateText} from '@/client/directives/i18n';
 
 export type PartyPlaqueSize = 'tile' | 'hero' | 'full' | 'aside';
 
@@ -142,19 +150,23 @@ export default defineComponent({
     supportCubePx(): number {
       return Math.round((this.size === 'tile' ? 9 : 11) * conUiScale());
     },
+    /**
+     * ONE short word where a word says more than the places: the ruling
+     * party, a held effect. A party in the vote is said by its places and
+     * their count alone; a party outside the vote says nothing (its dim ring
+     * is the state) — the fewest marks a glance can read.
+     */
     stateText(): string {
       const state = this.state;
       if (state === undefined) {
         return '';
       }
       switch (state.kind) {
-      case 'ruling-default': return translateText('Rules by the starting rule');
+      case 'ruling-default': return translateText('Ruling · starting rule');
       case 'ruling': return translateText('Ruling');
-      case 'delegates': return translateText('Your effect · 2 delegates');
+      case 'delegates': return translateText('Your effect');
       case 'granted': return translateText('Your effect · granted by a card');
-      case 'progress': return translateTextWithParams('In the vote · ${0} of ${1} delegates', [String(state.delegates), String(PARTY_EFFECT_DELEGATES)]);
-      case 'in-area': return translateText('In the vote');
-      default: return translateText('Not in the vote');
+      default: return '';
       }
     },
   },

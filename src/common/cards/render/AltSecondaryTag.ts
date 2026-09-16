@@ -8,6 +8,10 @@ export enum AltSecondaryTag {
   TURMOIL = 'turmoil',
   FLOATER = 'floater',
   BLUE = 'blue',
+  // Fork: «a green (automated) card» — the chairman quests of the Mars
+  // Parliament count card TYPES; the premium face draws the type as the
+  // card cover with the type's header band (see premiumCardIcons).
+  GREEN = 'green',
   NO_TAGS = 'no_tags',
 
   MOON_MINING_RATE = 'moon-mine',

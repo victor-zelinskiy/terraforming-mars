@@ -318,8 +318,11 @@ const REDS: PartyEffectDefinition = {
   },
   passiveRenderData: CardRenderer.builder(() => {}),
   actionRenderData: CardRenderer.builder((b) => {
+    // The payout stands on its OWN line under the draw-and-discard (the
+    // vertical space is the authored break): a row this long wraps on every
+    // surface, and left to chance it split the M€ from its tags.
     b.action('Draw 2 cards, then discard 2 cards. Gain 2 M€ per plant, microbe or animal tag discarded.', (ab) =>
-      ab.empty().startAction.cards(2).nbsp.minus().cards(2).nbsp.megacredits(2).slash().tag(Tag.PLANT).tag(Tag.MICROBE).tag(Tag.ANIMAL));
+      ab.empty().startAction.cards(2).nbsp.minus().cards(2).vSpace(Size.SMALL).megacredits(2).slash().tag(Tag.PLANT).tag(Tag.MICROBE).tag(Tag.ANIMAL));
   }),
   canAct() {
     return {available: true};

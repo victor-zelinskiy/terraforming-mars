@@ -324,7 +324,10 @@ export function mechItemIcon(item: ICardRenderItem): MechIconSpec | undefined {
   switch (item.type) {
   case CardRenderItemType.TAG:
     if (item.tag !== undefined) {
-      return {kind: 'img', url: tagIconUrl(item.tag)};
+      // A TAG in a mechanics row — marked (`pcard-ic--tag`) so a host outside
+      // a card face (the Parliament's party formulas) can seat it as the
+      // medallion the card header wears; the face itself keeps the bare art.
+      return {kind: 'img', url: tagIconUrl(item.tag), mod: 'tag'};
     }
     break;
   case CardRenderItemType.EMPTY_TAG:
@@ -356,6 +359,19 @@ export function mechItemIcon(item: ICardRenderItem): MechIconSpec | undefined {
     // which console-native strips — state reads by dim + strike instead
     // (.pcard-ic--off), colour never being the only carrier.
     return {kind: 'img', url: 'assets/parties/reds.png', mod: 'off'};
+  case CardRenderItemType.CARDS:
+    // A card OF A TYPE (the Mars Parliament's chairman quests, Project
+    // Workshop, Solarnet Shutdown): the card cover with the TYPE's header
+    // band drawn over it (.pcard-ic--type-*) — the physical game's own
+    // «blue card» / «green card» glyph, never a text plate and never a
+    // bubble. A plain draw keeps the bare cover.
+    if (item.secondaryTag === AltSecondaryTag.BLUE) {
+      return {kind: 'img', url: `${RES}/card.webp`, mod: 'type-blue'};
+    }
+    if (item.secondaryTag === AltSecondaryTag.GREEN) {
+      return {kind: 'img', url: `${RES}/card.webp`, mod: 'type-green'};
+    }
+    return {kind: 'img', url: `${RES}/card.webp`};
   case CardRenderItemType.TRADE_FLEET:
     // Same trade canvas as TRADE, inverted — the fork's fleet marker (mirrors
     // the legacy `filter: invert(1)` on card-resource-trade-fleet).

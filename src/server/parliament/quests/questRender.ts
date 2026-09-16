@@ -11,6 +11,7 @@
 import {CardRenderer} from '../../cards/render/CardRenderer';
 import {ICardRenderRoot} from '../../../common/cards/render/Types';
 import {Size} from '../../../common/cards/render/Size';
+import {AltSecondaryTag} from '../../../common/cards/render/AltSecondaryTag';
 import {Resource} from '../../../common/Resource';
 import {QuestDefinition, STARTER_QUEST} from '../../../common/parliament/ParliamentTypes';
 
@@ -74,10 +75,12 @@ export function questRenderData(quest: QuestDefinition): ICardRenderRoot {
       b.delegates(count);
       return;
     case 'cardsPlayed':
-      // The DSL has no «a blue card» glyph: the count leads and the card type
-      // is named in words — an honest label, never a draw-card icon that
-      // would read as «take 2 cards».
-      b.text(String(count), Size.MEDIUM, false, true).nbsp.text(goal.cardType === 'active' ? 'blue cards' : 'green cards', Size.SMALL, true);
+      // A card OF A TYPE: the card glyph with the type's header band (the
+      // physical game's own «blue card» / «green card» icon — the premium
+      // face draws the band from the secondary tag), one per card to play.
+      // Never a draw-card icon alone (it would read as «take 2 cards») and
+      // never a text plate inside a graphic zone.
+      b.cards(count, {secondaryTag: goal.cardType === 'active' ? AltSecondaryTag.BLUE : AltSecondaryTag.GREEN});
       return;
     }
   });

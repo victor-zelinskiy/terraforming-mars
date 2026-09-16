@@ -407,5 +407,13 @@
     "For the winner of the vote": "Победителю голосования",
     "from the lobby": "из лобби",
     "Action available on your turn": "Действие доступно в ваш ход",
-    "Action unavailable: ${0}": "Действие недоступно: ${0}"
+    "Action unavailable: ${0}": "Действие недоступно: ${0}",
+    "Parliament overview": "Осмотр",
+    "Open the vote": "Открыть голосование",
+    "When enacted — for every player": "При принятии — всем игрокам",
+    "Results": "Итоги",
+    "Your effect": "Ваш эффект",
+    "Ruling · starting rule": "Правит · стартовое правило",
+    "Held by every player": "У всех игроков",
+    "Delegate on the way": "Делегат в пути"
 }
