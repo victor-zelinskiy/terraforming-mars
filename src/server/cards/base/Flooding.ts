@@ -10,6 +10,7 @@ import {Resource} from '../../../common/Resource';
 import {PlaceOceanTile} from '../../deferredActions/PlaceOceanTile';
 import {CardRenderer} from '../render/CardRenderer';
 import {all} from '../Options';
+<<<<<<< HEAD
 import {disabledPlayerTarget, removeResourceFromPlayer, skip} from '../../inputs/optionMetadata';
 import {attackEffect} from '../../inputs/choiceContext';
 import {AutomaTargeting} from '../../automa/AutomaTargeting';
@@ -19,6 +20,9 @@ import {Space} from '../../boards/Space';
 import {BoardFact} from '../../../common/boards/BoardInformationFacts';
 import * as actionPreviews from '../actionPreviews';
 import * as placementPreviews from '../placementPreviews';
+=======
+import {Priority} from '../../deferredActions/Priority';
+>>>>>>> 55ef86d537 (Make Neptunian Power Consultants compatible with Flooding)
 
 export class Flooding extends Card implements IProjectCard {
   constructor() {
@@ -139,9 +143,31 @@ export class Flooding extends Card implements IProjectCard {
       if (!space) {
         return;
       }
+<<<<<<< HEAD
       const adjacentPlayers = this.adjacentOpponents(player, space);
       if (adjacentPlayers.length === 0) {
         return undefined;
+=======
+      const adjacentPlayers: Set<IPlayer> = new Set();
+      game.board.getAdjacentSpaces(space).forEach((space) => {
+        if (space.player && space.player !== player && space.tile) {
+          adjacentPlayers.add(space.player);
+        }
+      });
+
+      if (adjacentPlayers.size > 0) {
+        player.defer(new OrOptions(
+          new SelectPlayer(
+            Array.from(adjacentPlayers),
+            'Select adjacent player to remove 4 M€ from',
+            'Remove credits',
+          ).andThen((target) => {
+            target.attack(player, Resource.MEGACREDITS, 4, {log: true});
+            return undefined;
+          }),
+          new SelectOption('Don\'t remove M€ from adjacent player')),
+        Priority.BEFORE_OPPONENT_TRIGGER);
+>>>>>>> 55ef86d537 (Make Neptunian Power Consultants compatible with Flooding)
       }
       // The premium attack shape (the StealResources / RemoveAnyPlants
       // standard): one FLAT leaf option per victim with the target's
