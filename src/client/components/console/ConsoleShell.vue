@@ -930,6 +930,8 @@
                    :closing="zoomClosing"
                    :consoleMotion="true"
                    :annotationsSuppressed="zoomSideVisible"
+                   :navCounter="!consoleCardZoom.counterInFooter"
+                   :flankMotion="zoomResolutionId !== undefined"
                    :lore="true"
                    @navigate="onCardZoomNavigate"
                    @close="onCardZoomClosed">
@@ -948,6 +950,7 @@
                                   :viewer="thisPlayer.color"
                                   :canActNow="myTurn && awaitingInput"
                                   :contextKey="zoomResolutionContextKey"
+                                  :tier="zoomResolutionTier"
                                   :nonce="aside.nonce"
                                   :closing="aside.closing" />
         </div>
@@ -994,12 +997,13 @@
                                  :nonce="side.nonce"
                                  :closing="side.closing" />
           <!-- A parliament face (Turmoil Redux): a resolution's OWN rules
-               (the printed effect with its graphic, then the chairman quest's
-               condition) or a party's reading — in the order they are given,
-               which is the order the face prints them. -->
+               (its effect in words, then the chairman quest's condition) or a
+               party's reading — in the order they are given, which is the
+               order the face prints them. The graphic stays on the card. -->
           <ConsoleCardRulesPanel v-else-if="zoomParliamentAnnotations !== undefined"
                                  ref="zoomRulesPanel"
                                  keepOrder
+                                 :tier="zoomResolutionTier"
                                  :annotationsOverride="zoomParliamentAnnotations"
                                  :nonce="side.nonce"
                                  :closing="side.closing" />
@@ -1028,12 +1032,13 @@
             <span v-for="(r, i) in zoomReasons" :key="i" class="con-zoom__reason">{{ r }}</span>
           </div>
         </div>
-        <div class="con-zoom__bar">
+        <div class="con-zoom__bar" :class="{'con-zoom__bar--scene': zoomResolutionId !== undefined}">
           <!-- A RESOLUTION's STANDING (Turmoil Redux): up for the vote or
                enacted, and the viewer's access to its PARTY's effect — the
                two facts the footer exists to answer, read-only, before the
                verbs. Absent outside a live parliament (no invented votes). -->
           <ConsoleResolutionStatus v-if="zoomResolutionStatus !== undefined"
+                                   class="con-zoom__bar-info"
                                    :status="zoomResolutionStatus"
                                    :viewerColor="thisPlayer.color" />
           <!-- THE PROVENANCE PLATE (opened from «Разыграно»): the hero card
@@ -1071,6 +1076,37 @@
             <b class="con-zoom__count-num">{{ zoomReceivedCount }}</b>
           </span>
           <span v-if="zoomSelected" class="con-zoom__state">✓ {{ $t('Card selected') }}</span>
+          <!-- THE VOTE VERB (Turmoil Redux — the viewer opened from the vote
+               mode): A sends a delegate to the card on screen through the vote
+               mode's own submit. Under the verb, the SAME reading the mode's
+               confirm uses: where the delegate leaves from and what it costs,
+               or why it cannot go now. A blocked verb stays in place, calm,
+               and A on it only nudges the reason — the viewer never closes on
+               a vote that cannot be sent. -->
+          <button v-if="zoomVoteVerb !== undefined"
+                  class="con-zoom__btn con-zoom__vote"
+                  :class="{'con-zoom__vote--blocked': !zoomVoteVerb.available}"
+                  :aria-disabled="!zoomVoteVerb.available"
+                  :data-vote-available="zoomVoteVerb.available ? 'yes' : 'no'"
+                  :data-vote-source="zoomVoteVerb.source"
+                  @click="zoomSendVote">
+            <GamepadGlyph control="confirm" />
+            <span class="con-zoom__vote-text">
+              <span class="con-zoom__vote-label">{{ $t('Send the delegate') }}</span>
+              <span :key="'vote-detail-' + zoomVoteNudge" class="con-zoom__vote-detail" :class="{'con-zoom__vote-detail--nudge': zoomVoteNudge > 0}">
+                <template v-if="zoomVoteVerb.source !== 'none' && zoomVoteVerb.gate !== 'rule'">
+                  <span class="con-zoom__vote-src">{{ $t(zoomVoteVerb.source === 'reserve' ? 'from the reserve' : 'from the lobby') }}</span>
+                  <span class="con-zoom__vote-sep" aria-hidden="true">·</span>
+                  <span v-if="zoomVoteVerb.cost > 0" class="con-zoom__vote-cost"><b>{{ zoomVoteVerb.cost }}</b><i class="resource_icon resource_icon--megacredits con-zoom__vote-mc" aria-hidden="true"></i></span>
+                  <span v-else class="con-zoom__vote-free">{{ $t('free') }}</span>
+                </template>
+                <template v-if="!zoomVoteVerb.available">
+                  <span v-if="zoomVoteVerb.source !== 'none' && zoomVoteVerb.gate !== 'rule'" class="con-zoom__vote-sep" aria-hidden="true">·</span>
+                  <span class="con-zoom__vote-reason">{{ zoomVoteVerb.reason }}</span>
+                </template>
+              </span>
+            </span>
+          </button>
           <!-- The RECEIVE bridge (drawn-cards reveal) — A takes the on-screen
                card. Single-card departs from fullscreen; multi-card closes to
                the strip first. Absent on the read-only source view. -->
@@ -1117,7 +1153,13 @@
           <span v-if="consoleCardZoom.cards.length > 1" class="con-zoom__cmd con-zoom__cmd--flip">
             <GamepadGlyph control="bumperL" />
             <span class="con-zoom__flip-arrow" aria-hidden="true">◀</span>
-            <span>{{ $t('Browse') }}</span>
+            <!-- The position rides HERE when the viewer shows no counter plate
+                 above the card (the Parliament's three proposals): the paging
+                 hint and where the player stands in the list, one element. -->
+            <span v-if="consoleCardZoom.counterInFooter" class="con-zoom__flip-pos" data-zoom-position>
+              <b>{{ consoleCardZoom.index + 1 }}</b><span aria-hidden="true">/</span>{{ consoleCardZoom.cards.length }}
+            </span>
+            <span v-else>{{ $t('Browse') }}</span>
             <span class="con-zoom__flip-arrow" aria-hidden="true">▶</span>
             <GamepadGlyph control="bumperR" />
           </span>
@@ -1523,7 +1565,7 @@ import ConsoleResourcePanel from '@/client/components/console/ConsoleResourcePan
 import ConsoleColoniesSection, {ConsoleColonyPick} from '@/client/components/console/ConsoleColoniesSection.vue';
 import ConsoleParliamentSection, {ParliamentInspectRequest} from '@/client/components/console/ConsoleParliamentSection.vue';
 import {consoleParliamentUi} from '@/client/console/consoleParliamentState';
-import {partyAnnotations, resolutionAnnotations} from '@/client/console/parliament/parliamentAnnotations';
+import {partyAnnotations, resolutionAnnotations, resolutionPartyAnnotations} from '@/client/console/parliament/parliamentAnnotations';
 import {resolutionPartyContextKey, resolutionStatusOf, ResolutionStatusVm} from '@/client/console/parliament/resolutionInspectModel';
 import {getResolution} from '@/client/parliament/ClientParliamentManifest';
 import ConsoleResolutionAside from '@/client/components/console/parliament/ConsoleResolutionAside.vue';
@@ -1733,7 +1775,7 @@ import {buildPlayCardBatch} from '@/client/console/consolePlayCardComposer';
 import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
 import CardZoomCard from '@/client/components/card/CardZoomCard.vue';
 import ConsoleCardRulesPanel from '@/client/components/console/ConsoleCardRulesPanel.vue';
-import {cardHasRules} from '@/client/components/console/consoleCardRules';
+import {cardHasRules, denserRulesTier, RulesLengthTier, rulesLengthTier} from '@/client/components/console/consoleCardRules';
 import ConsoleInspectSide from '@/client/components/console/ConsoleInspectSide.vue';
 import ConsoleCardAvailabilityPanel from '@/client/components/console/ConsoleCardAvailabilityPanel.vue';
 import {availabilityContextFor, buildZoomAvailability, CardAvailabilityView} from '@/client/console/cardAvailability';
@@ -1741,7 +1783,7 @@ import Card from '@/client/components/card/CardFace.vue';
 import {ZoomCard, bonusZoomEntry, isMarsBotCorpZoom, isPartyEffectZoom, isResolutionZoom, partyEffectZoomEntry, resolutionZoomEntry} from '@/client/components/card/cardZoomTypes';
 import {CardAnnotation} from '@/client/components/cardAnnotations/annotationModel';
 import {marsBotCorpAnnotations} from '@/client/components/marsbot/marsBotCorpRules';
-import {consoleCardZoom, openConsoleCardZoom, navigateConsoleCardZoom, closeConsoleCardZoom, setConsoleZoomInspectTab, slotZoomOrigin, ZoomOrigin, ConsoleZoomAction, ConsoleZoomProvenance} from '@/client/console/consoleCardZoom';
+import {consoleCardZoom, openConsoleCardZoom, navigateConsoleCardZoom, closeConsoleCardZoom, setConsoleZoomInspectTab, slotZoomOrigin, ZoomOrigin, ConsoleZoomProvenance, ConsoleZoomVoteVerb} from '@/client/console/consoleCardZoom';
 import {beginZoomOpen, cancelZoomOpen, playZoomOpenFlight, zoomOpenSourceRect, playZoomClose, playZoomDepart, playZoomHandoff, playZoomSwap, retargetZoomHold, releaseZoomMotion} from '@/client/console/consoleZoomMotion';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {currentRevealEvent, drawnCardsState, markRevealPresented, revealPresented, serverRevealConsumed, untakenNameMultiset} from '@/client/components/drawnCards/drawnCardsState';
@@ -2199,6 +2241,12 @@ export default defineComponent({
       zoomOpening: false,
       /** The open-flight proxy (rendered on `.con-zoom-flight-layer`). */
       zoomOpenProxy: undefined as {card: ZoomCard, zoom: number} | undefined,
+      /**
+       * A on a vote verb that cannot be sent (Turmoil Redux): each press bumps
+       * this, which re-keys the verb's reason line and replays its nudge — the
+       * viewer answers «not now» where the player is looking, never closes.
+       */
+      zoomVoteNudge: 0,
       /** Stale-callback fence for the async open sequence (measure/flight). */
       zoomOpenToken: 0,
       /** Deferred proxy removal after the top layer has covered it. */
@@ -8328,6 +8376,28 @@ export default defineComponent({
     zoomResolutionContextKey(): string | undefined {
       return resolutionPartyContextKey(this.zoomResolutionStatus);
     },
+    /**
+     * ONE type size for the resolution scene: the denser of the party
+     * column's and the rules column's own reading tiers — two panels beside
+     * one card read as one composition, never as two sizes of text.
+     */
+    zoomResolutionTier(): RulesLengthTier | undefined {
+      const id = this.zoomResolutionId;
+      const party = this.zoomResolutionParty;
+      if (id === undefined || party === undefined) {
+        return undefined;
+      }
+      return denserRulesTier(rulesLengthTier(resolutionAnnotations(id)), rulesLengthTier(resolutionPartyAnnotations(party)));
+    },
+    /**
+     * «Send the delegate» for the card ON SCREEN — the vote mode's own
+     * reading (source, price, refusal), re-read per browsed card and per
+     * server change, so the verb can never belong to the previous card.
+     */
+    zoomVoteVerb(): ConsoleZoomVoteVerb | undefined {
+      const z = this.consoleCardZoom;
+      return z.card === undefined ? undefined : z.vote?.verbAt(z.index);
+    },
     /** The MarsBot corporation's printed rule boxes for the rules panel —
      *  only when the viewer is on a bot-corporation entry. */
     zoomBotCorpAnnotations(): ReadonlyArray<CardAnnotation> | undefined {
@@ -13047,22 +13117,20 @@ export default defineComponent({
         openConsoleCardZoom([partyEffectZoomEntry(request.party)], 0, undefined, undefined, {origin});
         return;
       }
-      // The voting area: every card of it in one viewer (LB/RB browse them, the
-      // section's cursor follows), and the A verb opens the vote MODE on the
-      // card shown — the card flies from the viewer into its place in the row.
+      // The vote mode's three proposals in one viewer, in the order they
+      // stand (LB/RB page them, the mode's selection follows), with the vote
+      // mode's own A — or a single enacted card, read-only. The position rides
+      // the footer: the card keeps the size it has on its own.
       const entries = request.ids.map((id) => resolutionZoomEntry(id));
       const resolveAt = request.origin;
       const origin: ZoomOrigin = resolveAt === undefined ?
         {kind: 'textual'} :
         {kind: 'physical', resolve: (index) => resolveAt(index) ?? null, onBrowse: request.onBrowse};
-      const vote = request.vote;
-      const action: ConsoleZoomAction | undefined = vote === undefined ? undefined : {
-        labelFor: (name) => vote.labelFor(String(name)),
-        reasonsFor: (name) => vote.reasonsFor(String(name)),
-        execute: (name) => vote.execute(String(name)),
-        handoffTarget: () => '.con-parl__vote [data-zoom-handoff="parliament-vote"]',
-      };
-      openConsoleCardZoom(entries, Math.max(0, Math.min(entries.length - 1, request.index)), undefined, action, {origin});
+      openConsoleCardZoom(entries, Math.max(0, Math.min(entries.length - 1, request.index)), undefined, undefined, {
+        origin,
+        vote: request.vote,
+        counterInFooter: entries.length > 1,
+      });
     },
     /**
      * A PARTY ACTION FROM THE PARLIAMENT (Turmoil Redux) — the second door
@@ -17401,6 +17469,7 @@ export default defineComponent({
     // ── P13/P15: the fullscreen card viewer (module-state driven) ───────
     onCardZoomNavigate(card: ZoomCard, pos: number): void {
       navigateConsoleCardZoom(card, pos);
+      this.zoomVoteNudge = 0;
       // The card "in hand" changed: the table hold moves to ITS slot, and
       // the host keeps the underlying focus in lockstep (so closing lands
       // the cursor on the card the player looked at LAST).
@@ -17486,6 +17555,7 @@ export default defineComponent({
       this.zoomClosing = false;
       this.zoomSwapping = false;
       this.zoomOpening = false;
+      this.zoomVoteNudge = 0;
       this.clearZoomOpenFlight();
       document.body.classList.remove('con-zoom-open');
       closeConsoleCardZoom();
@@ -17582,7 +17652,11 @@ export default defineComponent({
         // A = take the on-screen card (RECEIVE bridge) OR toggle the pick
         // (selection contexts) OR fire the context ACTION (play-from-hand
         // parity, P17) — read-only contexts (source viewer) no-op.
-        if (this.consoleCardZoom.receive !== undefined) {
+        if (this.consoleCardZoom.vote !== undefined) {
+          // The Parliament's vote verb (Turmoil Redux) — the viewer opened
+          // from the vote mode sends a delegate to the card on screen.
+          this.zoomSendVote();
+        } else if (this.consoleCardZoom.receive !== undefined) {
           this.zoomTakeReceived();
         } else if (this.consoleCardZoom.select !== undefined) {
           this.zoomToggleSelect();
@@ -17708,6 +17782,30 @@ export default defineComponent({
         return;
       }
       void this.closeZoomViewer().then(() => action.execute(card.name as CardName));
+    },
+    /**
+     * A = SEND THE DELEGATE (Turmoil Redux) — one vote operation, two doors.
+     * The index of the card ON SCREEN is taken at the press (after any paging),
+     * the viewer flies the card home into its slot, and only then does the vote
+     * mode's own submit run (the same snapshot, answer handling and delegate
+     * flight as its confirm). A press that cannot send stays in the viewer and
+     * nudges the reason; a second press while the card flies is swallowed by
+     * the close (`zoomClosing`), and the mode's submit refuses outside its
+     * vote stage — a held or doubled A can never send twice.
+     */
+    zoomSendVote(): void {
+      const z = this.consoleCardZoom;
+      const vote = z.vote;
+      const verb = this.zoomVoteVerb;
+      if (vote === undefined || verb === undefined || this.zoomClosing || this.zoomOpening) {
+        return;
+      }
+      if (!verb.available) {
+        this.zoomVoteNudge++;
+        return;
+      }
+      const index = z.index;
+      void this.closeZoomViewer().then(() => vote.execute(index));
     },
     /**
      * Choreographed close: the chrome hides, the card flies back into the

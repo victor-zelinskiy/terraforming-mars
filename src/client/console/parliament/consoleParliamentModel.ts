@@ -586,6 +586,72 @@ export function voteForecastRows(forecast: VoteForecastVm | undefined, compact =
   return out;
 }
 
+// ── THE VOTE VERB — one card's «send the delegate», for every door ─────────────
+
+export type VoteVerbVm = {
+  /** The delegate can be sent to this card right now. */
+  available: boolean;
+  /**
+   * WHY it cannot go now, by kind: `rule` — the server's own refusal (no
+   * delegate left, no M€ for the reserve, a card the prompt dropped); `turn` —
+   * only the viewer's action window is closed (the vote itself stands: its
+   * source and price still read). Undefined when available.
+   */
+  gate: 'rule' | 'turn' | undefined;
+  /** Where it leaves from — the server's own answer ('none': nothing left to send). */
+  source: 'lobby' | 'reserve' | 'none';
+  /** Its price in M€ — the server's own (0 from the lobby). */
+  cost: number;
+  /** The translated reason it cannot be sent now (undefined when available). */
+  reason: string | undefined;
+};
+
+/**
+ * THE VOTE VERB for ONE card of the voting area — the reading the vote mode's
+ * confirm and the fullscreen inspector's A share, so the two doors can never
+ * disagree about the source, the price or the reason. Nothing here is a rule:
+ * the source, the cost and the refusal are the server's vote option
+ * (`VoteOptionModel`); «offered» is the option's PRESENCE in the live menu;
+ * the turn is an execution gate (the shared `offTurnReason` text), never a
+ * reason of its own, and it never masks a real refusal. Undefined for a
+ * viewer with no vote reading at all (a spectator, MarsBot).
+ */
+export function voteVerbOf(input: {
+  participates: boolean;
+  /** The server's vote option, as the workspace's vote tile projects it. */
+  tile: Pick<ParliamentTileVm, 'available' | 'source' | 'cost'> | undefined;
+  /** The server's refusal, translated (read only when the option is unavailable). */
+  refusalText: string;
+  /** The vote option stands in the live action menu. */
+  offered: boolean;
+  /** The viewer's own action window is open. */
+  canActNow: boolean;
+  /** The parties the live vote prompt accepts (undefined = no prompt to ask). */
+  offeredParties: ReadonlyArray<string> | undefined;
+  party: ReduxParty;
+  /** The shared off-turn text (`offTurnReason`), translated. */
+  turnText: string;
+  /** The translated «no longer offered» line (a card the live prompt dropped). */
+  notOfferedText: string;
+}): VoteVerbVm | undefined {
+  const tile = input.tile;
+  if (!input.participates || tile === undefined) {
+    return undefined;
+  }
+  const source = tile.source === 'lobby' || tile.source === 'reserve' ? tile.source : 'none';
+  const cost = source === 'reserve' ? (tile.cost ?? 0) : 0;
+  if (!tile.available) {
+    return {available: false, gate: 'rule', source, cost, reason: input.refusalText};
+  }
+  if (!input.canActNow || !input.offered) {
+    return {available: false, gate: 'turn', source, cost, reason: input.turnText};
+  }
+  if (input.offeredParties !== undefined && !input.offeredParties.includes(input.party)) {
+    return {available: false, gate: 'rule', source, cost, reason: input.notOfferedText};
+  }
+  return {available: true, gate: undefined, source, cost, reason: undefined};
+}
+
 // ── THE AGENDA READING ─────────────────────────────────────────────────────
 
 export type AgendaVm = {

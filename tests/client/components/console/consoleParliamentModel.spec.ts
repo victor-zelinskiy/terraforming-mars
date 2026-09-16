@@ -5,7 +5,7 @@ import {ParliamentModel, PartyAccessModel, PartyActionModel, VoteOptionModel} fr
 import {ReduxParty} from '@/common/parliament/ParliamentTypes';
 import {
   accessReasonRows, agendaViewOf, buildParliamentView, offeredPartyActions, ParliamentPartyVm, ParliamentSlotVm, parliamentPromptBridge,
-  partyActionStateOf, partyFormulaRender, partyStateOf, voteAccessOf, voteForecastOf, voteForecastRows,
+  partyActionStateOf, partyFormulaRender, partyStateOf, voteAccessOf, voteForecastOf, voteForecastRows, voteVerbOf,
 } from '@/client/console/parliament/consoleParliamentModel';
 import {getPartyEffect} from '@/client/parliament/ClientParliamentManifest';
 import {PlayerInputModel} from '@/common/models/PlayerInputModel';
@@ -254,5 +254,47 @@ describe('consoleParliamentModel — the Agenda reading and the view', () => {
     expect(offeredPartyActions(parliamentPromptBridge(undefined)).size).to.eq(0);
     const reds: ReduxParty = PartyName.REDS;
     expect(reds).to.eq('Reds');
+  });
+});
+
+describe('consoleParliamentModel — «send the delegate» from the fullscreen inspector', () => {
+  const base: Parameters<typeof voteVerbOf>[0] = {
+    participates: true,
+    tile: {available: true, source: 'lobby', cost: 0},
+    refusalText: '',
+    offered: true,
+    canActNow: true,
+    offeredParties: [PartyName.REDS, PartyName.GREENS],
+    party: PartyName.REDS,
+    turnText: 'TURN',
+    notOfferedText: 'NOT OFFERED',
+  };
+
+  it('a legal vote: available, from the source the server names, at the server\'s price (free from the lobby)', () => {
+    expect(voteVerbOf(base)).to.deep.eq({available: true, gate: undefined, source: 'lobby', cost: 0, reason: undefined});
+  });
+
+  it('a reserve delegate carries the server\'s cost — never a hardcoded price', () => {
+    expect(voteVerbOf({...base, tile: {available: true, source: 'reserve', cost: 7}})).to.deep.include({available: true, source: 'reserve', cost: 7});
+    expect(voteVerbOf({...base, tile: {available: true, source: 'lobby', cost: 7}})?.cost, 'the lobby is free whatever the tile says').to.eq(0);
+  });
+
+  it('a RULE refusal (no delegates, not enough M€) outranks the turn and speaks the server\'s own reason', () => {
+    const refused = voteVerbOf({...base, canActNow: false, offered: false, tile: {available: false, source: 'none', cost: 0}, refusalText: 'No delegates left'});
+    expect(refused).to.deep.eq({available: false, gate: 'rule', source: 'none', cost: 0, reason: 'No delegates left'});
+  });
+
+  it('off-turn (or the option not in the live menu) is the calm TURN gate, keeping the source and price readable', () => {
+    expect(voteVerbOf({...base, canActNow: false, tile: {available: true, source: 'reserve', cost: 5}})).to.deep.eq({available: false, gate: 'turn', source: 'reserve', cost: 5, reason: 'TURN'});
+    expect(voteVerbOf({...base, offered: false})).to.deep.include({available: false, gate: 'turn'});
+  });
+
+  it('a card the live prompt no longer offers is refused by name, never sent', () => {
+    expect(voteVerbOf({...base, offeredParties: [PartyName.GREENS]})).to.deep.include({available: false, gate: 'rule', reason: 'NOT OFFERED'});
+  });
+
+  it('no verb at all for a seat outside the parliament or without a vote option', () => {
+    expect(voteVerbOf({...base, participates: false})).to.eq(undefined);
+    expect(voteVerbOf({...base, tile: undefined})).to.eq(undefined);
   });
 });

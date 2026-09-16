@@ -100,7 +100,10 @@ export interface ResolutionDefinition {
   renderData: ICardRenderRoot;
   text: {
     name: string;
+    /** The immediate effect every participant receives at the enactment. */
     effect?: string;
+    /** The WINNER-ONLY part of the enactment (`winnerSteps`) — its own block in the inspector. */
+    winner?: string;
     passive?: string;
     action?: string;
     quest: string;

@@ -30,7 +30,7 @@
 import {ClientCard} from '@/common/cards/ClientCard';
 import {deriveGraphicIds} from '@/common/cards/render/cardGraphicIds';
 import {CardRenderSymbolType} from '@/common/cards/render/CardRenderSymbolType';
-import {ICardRenderRoot, ItemType, isICardRenderRoot, isICardRenderSymbol} from '@/common/cards/render/Types';
+import {ItemType, isICardRenderRoot, isICardRenderSymbol} from '@/common/cards/render/Types';
 
 /** The semantic TYPE of a grouped rule block (action cost/result folded). */
 export type CardAnnotationKind =
@@ -76,15 +76,6 @@ export type CardAnnotation = {
   graphicId?: string;
   graphicNode?: string;
   order: number;
-  /**
-   * A PRINTED GRAPHIC drawn beside the block's sentences (the console rules
-   * panel renders it through the premium mechanics panel — the same render
-   * DSL the faces draw). Set by the readings whose subject prints a graphic
-   * the stage card does not already show at reading size (a parliament
-   * resolution's own effect, its chairman quest); a manifest card's blocks
-   * carry none — their graphic is the card itself, tethered by `graphicId`.
-   */
-  graphic?: ICardRenderRoot;
 };
 
 const LABEL_BY_KIND: Readonly<Record<CardAnnotationKind, string>> = {

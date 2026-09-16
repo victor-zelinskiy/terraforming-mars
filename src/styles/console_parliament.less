@@ -836,6 +836,12 @@
     &__info-quest { --pcard-band: rgba(230, 195, 74, 0.22); }
     &__info-pformula { --con-pformula-zoom: var(--con-parl-info-formula-zoom); flex-shrink: 0; max-width: 56%; padding: .1rem .3rem; border-radius: .4rem; background: rgba(0, 0, 0, 0.3); }
     &__info-text { font-family: @con-font-read; font-size: .72rem; line-height: 1.25; color: fade(@con-text, 86%); min-width: 0; display: flex; flex-direction: column; gap: .12rem; }
+    /* The party's sentence keeps a READING MEASURE: beside a narrow formula it
+       stands to its right; a wide one (the Reds' draw-and-discard) sends it
+       under the formula at the block's full width, instead of a finger-wide
+       column that runs out of the block. Content-sized — no party is named. */
+    &__info-block--party &__info-row { flex-wrap: wrap; row-gap: .2rem; }
+    &__info-block--party &__info-text { flex: 1 1 10.5rem; }
     &__info-action { display: block; font-family: @con-font-read; font-size: .66rem; line-height: 1.2; color: fade(@con-text, 72%); }
     &__info-none { font-size: .7rem; letter-spacing: .06em; text-transform: uppercase; color: fade(@con-text, 55%); }
     /* THE SOURCE line. */
@@ -1683,68 +1689,24 @@
 .con-efx__hero-rule--party .con-efx__party-emblem { width: 62%; height: auto; max-height: 62%; }
 
 /* ══ THE RESOLUTION INSPECTOR (the fullscreen viewer over a resolution) ═════
-   One scene: the party column (left) · the card (centre) · the resolution's
-   own rules (right) · the standing + the viewer's access (the bar). The two
-   columns are the rules panel's own material and width; what is new here is
-   the party PLAQUE's `aside` size, the printed GRAPHIC a reading block may
-   carry, and the bar's status chip. ══ */
-
-/* The premium mechanics plate hosted OUTSIDE a card face: the face's own
-   tokens, restated once for every host that draws a `.pcard__mech` without a
-   `.pcard` around it (the party formula, the vote surface, the inspector's
-   reading blocks). */
-.con-mech-host-vars() {
-    --pcard-mech-icon: 28px;
-    --pcard-mech-font: 17px;
-    --pcard-band: rgba(120, 92, 170, 0.28);
-    --pcard-gold: #d9b878;
-    --pcard-gold-hi: #f2d795;
-    --pcard-gold-deep: #8a6a35;
-    --pcard-text: #e9eef4;
-    --pcard-onplay-hi: #7ff0c4;
-    --pcard-onplay-deep: #2f7d5c;
-    --pcard-effect-rim: rgba(90, 169, 230, 0.5);
-    --pcard-action-rim: rgba(242, 215, 149, 0.45);
-    --pcard-any-rgb: 207, 122, 99;
-    --pcard-req-copper-hi: #b87f42;
-    --pcard-req-copper-deep: #8a5730;
-    --pcard-req-rim-deep: #5d3b1e;
-    --pcard-vp-safe: 0px;
-    --pcard-res-safe: 0px;
-    --pcard-plate-h: 46px;
-    --pcard-art-min: 0px;
-}
+   One scene in the project card's language: the party column (left) · the
+   card (centre) · the resolution's own rules (right) · the footer (standing,
+   access, the vote verb, the paging). Both columns are the rules panel's own
+   material, width and vertical centring on the card; the words explain the
+   graphic the card prints and never draw it again. The ONE graphic a column
+   carries is the party plaque's formula — the card does not print it. ══ */
 
 dialog.con-zoom {
-    /* The inspector's graphic scales — ONE symbol size for the resolution's
-       own effect, its quest and the party's formula (two tokens, one value
-       per profile: the formula rides the plaque, the graphic rides a block). */
-    --con-rinspect-mech-zoom: calc(0.92 * var(--con-ui-scale, 1));
+    /* The party formula's symbol scale on the plaque (the card face's scale). */
     --con-rinspect-formula-zoom: calc(0.92 * var(--con-ui-scale, 1));
 }
 
-/* A reading block's PRINTED GRAPHIC (ConsoleCardRulesPanel, `group.graphic`):
-   the plate on the column's axis, read before its sentence. The graphic is
-   px-designed and integrates through `zoom`. */
-.con-zoom-rules__graphic {
-    display: flex;
-    justify-content: center;
-    align-self: center;
-    max-width: 100%;
-    min-width: 0;
-    margin: .05rem 0 .1rem;
-    zoom: var(--con-rinspect-mech-zoom, calc(0.92 * var(--con-ui-scale, 1)));
-    .con-mech-host-vars();
-    .pcard__mech { padding: 5px 9px; gap: 4px; }
-    .pcard-mech-group { justify-content: center; }
-}
-.con-zoom-rules__group--note .con-zoom-rules__graphic { --pcard-band: rgba(230, 195, 74, 0.22); }
-
 /* ── THE PARTY COLUMN — the party plaque at reading size over the mechanics'
-   sentences. The plaque keeps the tile's anatomy (seal · name · badge, the
-   context line where the tile shows the viewer's state, the printed mechanic
-   across the plate), so the party is recognised from the Parliament at a
-   glance; the sentences under it are the shared rules panel, embedded. ── */
+   sentences, ONE composition: the plaque sits in the text's own column (its
+   edges are the body's padding) and stands where the first block of a rules
+   panel would, one block-gap above the first chip. The plaque keeps the
+   tile's anatomy (seal · name · badge, the context line, the printed
+   mechanic), so the party is recognised from the Parliament at a glance. ── */
 .con-rinspect-aside {
     &__box {
         display: flex;
@@ -1753,7 +1715,7 @@ dialog.con-zoom {
     }
     &__plaque {
         flex: 0 0 auto;
-        margin: .7rem .9rem 0;
+        margin: .95rem 1.1rem 0;
     }
     /* The text block takes what is left and scrolls only as the last resort. */
     &__rules {
@@ -1761,8 +1723,10 @@ dialog.con-zoom {
         min-height: 0;
         width: 100%;
         .con-zoom-rules { width: 100%; max-height: 100%; }
-        /* The embedded panel's body starts closer to the plaque than a head would. */
-        .con-zoom-rules__body { padding-top: .75rem; }
+        /* The plaque is the column's first block: the body opens with the
+           block gap of its own tier, never a second head's padding. */
+        .con-zoom-rules__body { padding-top: 1rem; }
+        .con-zoom-rules--packed .con-zoom-rules__body { padding-top: .6rem; }
     }
 }
 .con-pseal--aside {
@@ -1791,7 +1755,7 @@ dialog.con-zoom {
     }
     /* The printed mechanic across the plate — every row on the plate's axis. */
     .con-pseal__formula {
-        --con-pformula-zoom: var(--con-rinspect-formula-zoom, calc(0.84 * var(--con-ui-scale, 1)));
+        --con-pformula-zoom: var(--con-rinspect-formula-zoom, calc(0.92 * var(--con-ui-scale, 1)));
         justify-self: center;
         align-self: start;
         margin-top: .3rem;
@@ -1803,17 +1767,132 @@ dialog.con-zoom {
     }
 }
 
+/* ── THE SCENE'S FOOTER — one command plate as wide as the scene (the two
+   columns and the card between them), in TWO fixed anchors: the INFO (the
+   card's standing and the viewer's access) holds the left edge, the VERBS
+   (send the delegate · page · close) hold the right edge. So a card switch
+   or a change of the vote's availability moves nothing but the text that
+   changed: the close and the paging never jump, the chip never re-centres. */
+dialog.con-zoom.con-zoom--parliament {
+    --con-rinspect-scene-w: calc(2 * (var(--con-rules-w, 21rem) + 1.1rem) + 320px * var(--card-zoom-fit, 1));
+    .card-zoom-actions__panel {
+        box-sizing: border-box;
+        width: min(100vw, calc(var(--con-rinspect-scene-w) + 4.4rem));
+    }
+}
+.con-zoom__bar--scene {
+    flex-wrap: nowrap;
+    justify-content: flex-end;
+    width: 100%;
+    > .con-zoom__bar-info { margin-right: auto; }
+}
+
+/* THE VOTE VERB — the mint confirm of the console's verbs, with its reading
+   under the label: the source and the price, or the reason it cannot go now.
+   Blocked, the verb stays in place in the calm register (the glyph and label
+   muted, the reason amber — a closed window or a spent reserve is not an
+   error). A press on a blocked verb nudges the reason where the eye is. */
+.con-zoom__vote {
+    display: inline-flex;
+    align-items: center;
+    gap: .45rem;
+    text-align: left;
+    color: @con-mint;
+
+    &-text {
+        display: inline-flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: .1rem;
+        line-height: 1.1;
+    }
+    &-label {
+        font-size: .85rem;
+        font-weight: 800;
+        letter-spacing: .09rem;
+        text-transform: uppercase;
+    }
+    /* ONE fixed line: the price (a figure + the M€ icon) and a refusal's
+       words take the same height, so a change of availability never
+       resizes the plate. The height is the icon's own. */
+    &-detail {
+        display: inline-flex;
+        align-items: center;
+        gap: .3rem;
+        height: .95rem;
+        line-height: 1;
+        font-size: .7rem;
+        font-weight: 700;
+        letter-spacing: .03rem;
+        text-transform: none;
+        white-space: nowrap;
+        color: fade(@con-text, 80%);
+        &--nudge { animation: con-zoom-vote-nudge calc(380ms * var(--motion-scale, 1)) @con-ease-standard; }
+    }
+    &-sep { opacity: .5; }
+    &-cost {
+        display: inline-flex;
+        align-items: center;
+        gap: .15rem;
+        color: #f4e7c2;
+        b { font-size: .82rem; font-variant-numeric: tabular-nums; }
+    }
+    &-mc {
+        display: inline-block;
+        width: .95rem;
+        height: .95rem;
+        background-size: contain;
+        background-repeat: no-repeat;
+    }
+    &-free { color: @con-mint; }
+    &-reason { color: fade(@con-amber, 92%); }
+    &--blocked {
+        color: fade(@con-text, 58%);
+        cursor: default;
+    }
+    &--blocked:hover { color: fade(@con-text, 58%); }
+}
+@keyframes con-zoom-vote-nudge {
+    0% { transform: translateX(0); }
+    22% { transform: translateX(-.28rem); }
+    48% { transform: translateX(.22rem); }
+    74% { transform: translateX(-.1rem); }
+    100% { transform: translateX(0); }
+}
+html.con-reduced-motion .con-zoom__vote-detail--nudge { animation: none; }
+@media (prefers-reduced-motion: reduce) {
+    .con-zoom__vote-detail--nudge { animation: none; }
+}
+
+/* The paging hint's POSITION (the counter the scene does not draw above the
+   card): the current index carried by weight, the total quieter. */
+.con-zoom__flip-pos {
+    display: inline-flex;
+    align-items: baseline;
+    gap: .14rem;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: .04rem;
+    /* The console face has no tabular digits: «1» is narrower than «2», so the
+       index gets ONE advance box — paging never nudges the verbs beside it. */
+    b { display: inline-block; min-width: 1ch; text-align: center; font-size: .95rem; color: #cfeaff; }
+}
+
 /* ── THE BAR's STATUS CHIP — where the card stands, and the viewer's access
-   to its party's effect. Two facts in one chip, told apart by a keyline; the
+   to its party's effect. Two facts in one chip, told apart by LINES: the
+   standing over the access, a two-line block beside the vote verb's own
+   two-line block (side by side, the pair ran past the bar's edge beside a
+   refusal sentence on every profile — 614 + 307 px in the Deck's 1192). The
    lifecycle carries the parliament's own colours (cyan for a vote in
    progress, the gold of «Принята» for an enacted card), the access carries
    the console's state colours (mint held / calm dim not held / gold for
    everyone's). Read-only: no focus stop, no hover. ── */
 .con-rstatus {
     display: inline-flex;
-    align-items: center;
-    gap: .55rem;
-    padding: .28rem .85rem .28rem .7rem;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    gap: .08rem;
+    padding: .24rem .85rem .24rem .7rem;
     border-radius: .4rem;
     background: linear-gradient(90deg, fade(#0b1420, 92%), fade(#0b1420, 72%));
     box-shadow:
@@ -1846,12 +1925,6 @@ dialog.con-zoom {
         font-weight: 700;
         letter-spacing: .06rem;
         color: @con-parl-gold;
-    }
-    /* Hairline separator — the same keyline language as the provenance plate. */
-    &__sep {
-        width: .05rem;
-        height: 1rem;
-        background: linear-gradient(180deg, transparent, fade(@con-cyan, 35%), transparent);
     }
     &__access {
         display: inline-flex;
@@ -2036,6 +2109,7 @@ html.con-profile-handheld .con-parl {
        full width (a formula beside a sentence left the Reds' action ten lines
        tall in a finger-wide column). One composition for all three. */
     &__info-row { flex-direction: column; align-items: flex-start; gap: .12rem; }
+    &__info-block--party .con-parl__info-text { flex: 0 1 auto; }
     &__info-mech, &__info-quest, &__info-pformula { max-width: 100%; }
     &__info-cols { grid-template-columns: minmax(0, 1fr) minmax(0, 1.9fr) minmax(0, .9fr); gap: .35rem; }
     &__info-src-text { font-size: .66rem; }
@@ -2180,24 +2254,18 @@ html.con-profile-tv .con-pfx {
 }
 
 /* ── THE RESOLUTION INSPECTOR on the two other profiles ──────────────────
-   Handheld: the columns are 24rem wide (the shared rules token) and the
-   card band ~610 px tall — the graphics step down with the Parliament's own
-   handheld scales, the plaque compacts, the type keeps the reading floor.
-   TV: the couch scales (symbols at the Parliament's TV size), the chip and
-   the plaque at the .8rem type floor. ── */
+   Handheld: the scene's columns take the base width (two 24rem columns do
+   not stand beside a 320 px card on a 1280 px screen — and the viewer's fit
+   reserves the html-level token), the plaque compacts, the type keeps the
+   reading floor. TV: the couch scales, every label at the .8rem type floor. ── */
 html.con-profile-handheld dialog.con-zoom {
-    --con-rinspect-mech-zoom: calc(0.66 * var(--con-ui-scale, 1));
     --con-rinspect-formula-zoom: calc(0.66 * var(--con-ui-scale, 1));
 }
-/* TWO columns beside a 320 px card on a 1280 px screen: the Deck's widened
-   rules column (24rem, for a single four-block reading) leaves no room for
-   the pair — the scene's columns take the base width, which is also the
-   width the viewer's fit engine reserves for them (it reads the html-level
-   token), so the card keeps every pixel the reservation promised it. */
 html.con-profile-handheld dialog.con-zoom.con-zoom--parliament { --con-rules-w: 21rem; }
 html.con-profile-handheld .con-rinspect-aside {
-    &__plaque { margin: .5rem .7rem 0; }
-    &__rules .con-zoom-rules__body { padding-top: .55rem; }
+    &__plaque { margin: .7rem 1.1rem 0; }
+    &__rules .con-zoom-rules__body,
+    &__rules .con-zoom-rules--dense .con-zoom-rules__body { padding-top: .6rem; }
 }
 html.con-profile-handheld .con-pseal--aside {
     column-gap: .45rem;
@@ -2209,8 +2277,8 @@ html.con-profile-handheld .con-pseal--aside {
     .con-pseal__formula { margin-top: .2rem; padding: .15rem .3rem; }
 }
 html.con-profile-handheld .con-rstatus {
-    gap: .45rem;
-    padding: .22rem .65rem .22rem .55rem;
+    gap: .06rem;
+    padding: .2rem .65rem .2rem .55rem;
     &__life { font-size: .72rem; letter-spacing: .08rem; }
     &__life-tail { font-size: .62rem; }
     &__access { font-size: .7rem; gap: .35rem; }
@@ -2219,13 +2287,20 @@ html.con-profile-handheld .con-rstatus {
     &__place { width: .85rem; height: .85rem; }
     &__count { font-size: .64rem; }
 }
+html.con-profile-handheld .con-zoom__bar--scene { gap: .9rem; }
+html.con-profile-handheld .con-zoom__vote {
+    &-label { font-size: .76rem; letter-spacing: .06rem; }
+    &-detail { height: .85rem; font-size: .64rem; }
+    &-cost b { font-size: .74rem; }
+    &-mc { width: .85rem; height: .85rem; }
+}
 html.con-profile-tv dialog.con-zoom {
-    --con-rinspect-mech-zoom: calc(0.9 * var(--con-ui-scale, 1));
     --con-rinspect-formula-zoom: calc(0.9 * var(--con-ui-scale, 1));
 }
 html.con-profile-tv .con-rinspect-aside {
-    &__plaque { margin: .8rem 1.1rem 0; }
-    &__rules .con-zoom-rules__body { padding-top: .85rem; }
+    &__plaque { margin: 1.1rem 1.3rem 0; }
+    &__rules .con-zoom-rules__body { padding-top: 1.15rem; }
+    &__rules .con-zoom-rules--packed .con-zoom-rules__body { padding-top: .65rem; }
 }
 html.con-profile-tv .con-pseal--aside {
     padding: .6rem .8rem .65rem .75rem;
@@ -2235,8 +2310,8 @@ html.con-profile-tv .con-pseal--aside {
     .con-pseal__action { width: 1.5rem; height: 1.5rem; font-size: .9rem; }
 }
 html.con-profile-tv .con-rstatus {
-    gap: .65rem;
-    padding: .35rem 1rem .35rem .85rem;
+    gap: .1rem;
+    padding: .3rem 1rem .3rem .85rem;
     &__life { font-size: .95rem; }
     &__life-tail { font-size: .8rem; }
     &__access { font-size: .9rem; }
@@ -2245,3 +2320,10 @@ html.con-profile-tv .con-rstatus {
     &__place { width: 1.1rem; height: 1.1rem; }
     &__count { font-size: .85rem; }
 }
+html.con-profile-tv .con-zoom__vote {
+    &-label { font-size: 1.05rem; }
+    &-detail { height: 1.05rem; font-size: .85rem; }
+    &-cost b { font-size: .95rem; }
+    &-mc { width: 1.05rem; height: 1.05rem; }
+}
+html.con-profile-tv .con-zoom__flip-pos b { font-size: 1.1rem; }

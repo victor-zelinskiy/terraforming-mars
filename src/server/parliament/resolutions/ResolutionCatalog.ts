@@ -67,7 +67,7 @@ const DUMMIES: ReadonlyArray<DummySpec> = [
   {party: PartyName.MARS, n: 2, name: 'Mars First Motion II', quest: {goal: {kind: 'tile', tile: 'city'}, count: 1}, questText: 'Place 1 city tile on Mars'},
   {party: PartyName.INDUSTRIALISTS, n: 1, name: 'Industrialists Motion I', quest: {goal: {kind: 'production', resource: Resource.STEEL}, count: 1}, questText: 'Raise your steel production 1 step'},
   {party: PartyName.INDUSTRIALISTS, n: 2, name: 'Industrialists Motion II', quest: {goal: {kind: 'cardsPlayed', cardType: 'automated'}, count: 2}, questText: 'Play 2 green cards'},
-  {party: PartyName.REDS, n: 1, name: 'Reds Motion I', quest: {goal: {kind: 'delegates'}, count: 4}, questText: 'Place 4 delegates'},
+  {party: PartyName.REDS, n: 1, name: 'Reds Motion I', quest: {goal: {kind: 'delegates'}, count: 4}, questText: 'Send 4 delegates to resolutions'},
   {party: PartyName.REDS, n: 2, name: 'Reds Motion II', quest: {goal: {kind: 'tr'}, count: 3}, questText: 'Raise your terraform rating 3 steps'},
 ];
 
@@ -228,7 +228,9 @@ const DEV_IMMEDIATE: ResolutionDefinition = {
   }),
   text: {
     name: 'Reforestation Fund',
-    effect: 'When enacted: every player gains 3 M€ and 1 plant.',
+    // The timing is the inspector's block label («При принятии»), never a
+    // prefix of the sentence — the label and the text must not say it twice.
+    effect: 'Every player gains 3 M€ and 1 plant.',
     quest: 'Raise your plant production 2 steps',
   },
   quest: {goal: {kind: 'production', resource: Resource.PLANTS}, count: 2},
@@ -285,7 +287,9 @@ const DEV_ACTION: ResolutionDefinition = {
   }),
   text: {
     name: 'Foundry Subsidy',
-    action: 'Action: spend 2 M€ to gain 1 heat, once per generation.',
+    // The per-generation limit is structural (`usesPerGeneration`), never a
+    // clause of the sentence.
+    action: 'Action: spend 2 M€ to gain 1 heat.',
     quest: 'Play 2 building tags',
   },
   quest: {goal: {kind: 'tag', tag: Tag.BUILDING}, count: 2},
@@ -326,8 +330,9 @@ const DEV_COMPOUND: ResolutionDefinition = {
   }),
   text: {
     name: 'Interplanetary Reconstruction Accord',
-    effect: 'When enacted: every player gains 2 M€ per plant, microbe or animal tag they have (max 10 M€) and draws 1 card. The winning player also gains 1 TR.',
-    quest: 'Place 4 delegates',
+    effect: 'Every player gains 2 M€ for each plant, microbe and animal tag they have, up to 10 M€, and draws 1 card.',
+    winner: 'Gain 1 TR.',
+    quest: 'Send 4 delegates to resolutions',
   },
   quest: {goal: {kind: 'delegates'}, count: 4},
   immediateSteps: [{
@@ -362,7 +367,7 @@ const DEV_SCIENCE: ResolutionDefinition = {
   }),
   text: {
     name: 'Open Research Charter',
-    effect: 'When enacted: every player draws 1 card per 2 science tags they have (max 3 cards).',
+    effect: 'Every player draws 1 card for every 2 science tags they have, up to 3 cards.',
     quest: 'Play 2 science tags',
   },
   quest: {goal: {kind: 'tag', tag: Tag.SCIENCE}, count: 2},

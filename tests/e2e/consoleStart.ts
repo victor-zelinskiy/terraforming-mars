@@ -2509,11 +2509,24 @@ export async function playCardFromHand(page: Page, card: string, attempts = 3): 
  * failed there while fhd and deck passed, which is the machine speaking, not
  * the product. Nudge while waiting, and give the caller ONE place to fix when
  * the viewer's entry changes again.
+ *
+ * …but never nudge an open that is already IN FLIGHT. The shell marks
+ * `body.con-zoom-open` the instant the viewer's state opens, and the card flies
+ * for a beat before the dialog shows; a second press in that beat ABORTS the
+ * open (the product's X/B-mid-flight contract). On a loaded 4K runner the
+ * flight outlasts the 1.2 s settle, so blind nudges ping-pong open → abort →
+ * open and the loop can end on an abort (`console-parliament-v2 · tv-4k`).
  */
 export async function openZoomViewer(page: Page, key = 'KeyX', maxMs = 20_000): Promise<void> {
   const zoom = page.locator('dialog.con-zoom[open]');
   const started = Date.now();
   while (Date.now() - started < maxMs && await zoom.count() === 0) {
+    const inFlight = await page.evaluate(() => document.body.classList.contains('con-zoom-open'));
+    if (inFlight) {
+      await page.waitForFunction(() => document.querySelector('dialog.con-zoom[open]') !== null || !document.body.classList.contains('con-zoom-open'),
+        undefined, {polling: 100, timeout: 8_000}).catch(() => undefined);
+      continue;
+    }
     await press(page, key, 1200);
   }
   await expect(zoom).toHaveCount(1, {timeout: 8_000});

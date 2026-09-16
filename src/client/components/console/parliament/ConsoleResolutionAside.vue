@@ -4,10 +4,11 @@
        archive entry. A resolution has no lore; what it has is a PARTY, and
        the party is what the vote is about: one glass column in the rules
        panel's own chrome, with the party's PLAQUE (seal · name · the action's
-       badge · one context line · the printed mechanic) and, under it, the
-       mechanics' SENTENCES through the shared rules panel (the effect, the
-       action with its rulebook nuance and its live state). The personal
-       access is the footer's and is never repeated here. -->
+       badge · one context line · the printed mechanic — the one graphic of
+       the scene the resolution card does not print) and, under it, the
+       mechanics' SENTENCES through the shared rules panel. The words explain
+       the plaque's graphic; the action's state is the plaque's badge; the
+       personal access is the footer's — neither is repeated in the text. -->
   <div class="con-zoom-rules-host con-rinspect-aside" :class="{'con-zoom-rules-host--closing': closing}">
     <aside class="con-zoom-rules con-rinspect-aside__box" :aria-label="$t('Party of the resolution')" :data-party="party">
       <div class="con-zoom-rules__head">
@@ -15,6 +16,7 @@
         <span class="con-zoom-rules__title">{{ $t('Party of the resolution') }}</span>
       </div>
       <ConsolePartyPlaque class="con-rinspect-aside__plaque"
+                          data-zoom-flank-content
                           :party="party"
                           size="aside"
                           :actionState="actionState"
@@ -24,6 +26,7 @@
                              class="con-rinspect-aside__rules"
                              embedded
                              keepOrder
+                             :tier="tier"
                              :annotationsOverride="annotations"
                              :nonce="nonce"
                              :closing="closing" />
@@ -38,6 +41,7 @@ import {ParliamentModel} from '@/common/models/ParliamentModel';
 import {partyActionOf, ReduxParty} from '@/common/parliament/ParliamentTypes';
 import {CardAnnotation} from '@/client/components/cardAnnotations/annotationModel';
 import ConsoleCardRulesPanel from '@/client/components/console/ConsoleCardRulesPanel.vue';
+import {RulesLengthTier} from '@/client/components/console/consoleCardRules';
 import ConsolePartyPlaque from '@/client/components/console/parliament/ConsolePartyPlaque.vue';
 import {resolutionPartyAnnotations} from '@/client/console/parliament/parliamentAnnotations';
 import {PartyActionStateVm, partyActionStateOf, ParliamentPartyVm} from '@/client/console/parliament/consoleParliamentModel';
@@ -57,6 +61,8 @@ export default defineComponent({
     canActNow: {type: Boolean, default: false},
     /** The context line's i18n key (from `resolutionPartyContextKey`), undefined without a table. */
     contextKey: {type: String as PropType<string | undefined>, default: undefined},
+    /** The scene's ONE reading tier (the denser of this column and the rules column). */
+    tier: {type: String as PropType<RulesLengthTier | undefined>, default: undefined},
     /** The viewer's settle signal (forwarded to the rules panel's measure). */
     nonce: {type: Number, default: 0},
     /** The close flight began — hide instantly (never lag the card). */
@@ -64,7 +70,7 @@ export default defineComponent({
   },
   computed: {
     annotations(): ReadonlyArray<CardAnnotation> {
-      return resolutionPartyAnnotations(this.party, this.parliament, this.viewer, this.canActNow);
+      return resolutionPartyAnnotations(this.party);
     },
     contextText(): string | undefined {
       return this.contextKey === undefined ? undefined : translateText(this.contextKey);

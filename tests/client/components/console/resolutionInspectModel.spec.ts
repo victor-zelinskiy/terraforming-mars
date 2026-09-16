@@ -90,7 +90,7 @@ describe('resolutionInspectModel — the footer\'s standing and access', () => {
     expect(status?.lifecycle).to.eq('enacted');
     expect(status?.winning).to.eq(false);
     expect(status?.access).to.deep.include({kind: 'everyone', places: false});
-    expect(resolutionPartyContextKey(status)).to.eq('Rules — every player has its effect');
+    expect(resolutionPartyContextKey(status)).to.eq('Ruling party');
   });
 
   it('the viewer is the player the inspector is opened AS — a seat with no parliament role (a spectator) gets the standing and no access', () => {

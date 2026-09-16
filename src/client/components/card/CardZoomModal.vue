@@ -46,7 +46,7 @@
         layers, cleanly separated: counter ABOVE the card, "ВЫБРАНА" ON the
         card, actions BELOW the card.
       -->
-      <div v-if="navEnabled" class="card-zoom-topbar">
+      <div v-if="navEnabled && navCounter" class="card-zoom-topbar">
         <div class="card-zoom-counter" aria-hidden="true">
           <span class="card-zoom-counter__corner card-zoom-counter__corner--l" aria-hidden="true"></span>
           <span class="card-zoom-counter__current">{{ currentIndex + 1 }}</span>
@@ -374,6 +374,26 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    /*
+     * The position COUNTER above the card in nav mode (default on). A host
+     * that states the position elsewhere (the console footer's browse hint,
+     * for a short list read as one scene) turns it off: no top band is drawn
+     * and none is reserved, so the card keeps its single-card size.
+     */
+    navCounter: {
+      type: Boolean,
+      default: true,
+    },
+    /*
+     * The FLANK columns (lore / aside / side) take part in the browse slide:
+     * their new content surfaces in the same frame the new card starts its
+     * turn, so no frame ever pairs the new card with the previous card's
+     * columns and the swap never reads as a cut. Console hosts opt in.
+     */
+    flankMotion: {
+      type: Boolean,
+      default: false,
+    },
   },
   emits: ['close', 'navigate', 'update:index'],
   data() {
@@ -388,6 +408,8 @@ export default defineComponent({
       // The in-flight WAAPI slide (consoleMotion: cancelled on interrupt so
       // rapid LB/RB restarts cleanly instead of piling up).
       slideAnim: undefined as Animation | undefined,
+      // The flank columns' in-flight browse animations (`flankMotion`).
+      flankAnims: [] as Array<Animation>,
       // Names of the cards rendered off-screen for preload (neighbours).
       preloadNames: [] as ReadonlyArray<string>,
       // The annotation layer's SETTLE signal — bumped (debounced) when the
@@ -831,6 +853,7 @@ export default defineComponent({
       const to = {opacity: '1', transform: 'translateX(0) rotate(0deg) scale(1)'};
       const anim = host.animate([from, to], {duration, easing});
       this.slideAnim = anim;
+      this.runFlankSlide(dir, reduced);
       anim.onfinish = () => {
         if (this.slideAnim === anim) {
           this.slideAnim = undefined;
@@ -843,6 +866,40 @@ export default defineComponent({
         // reveal to the card the player actually lands on.)
         this.scheduleSettle(60);
       };
+    },
+    /*
+     * The flank columns' part of a browse step (opt-in, `flankMotion`): the
+     * CONTENT that changed with the card (marked `data-zoom-flank-content` by
+     * its host) eases up from a dim state in the frame the card starts its
+     * turn — the previous card's columns were already replaced in this very
+     * flush, so nothing old stands beside the new card. The plates and their
+     * headers never fade: the card itself turns in from 10 %, and a column
+     * dipping with it read as a blank frame. Opacity only — a transform inside
+     * a scroll area is scrollable overflow and would flash its rail.
+     */
+    runFlankSlide(dir: SlideDir, reduced: boolean) {
+      for (const anim of this.flankAnims) {
+        anim.cancel();
+      }
+      this.flankAnims = [];
+      if (!this.flankMotion || dir === '' || dir === 'consume') {
+        return;
+      }
+      const dialog = this.typedRefs.dialog;
+      if (dialog === undefined || typeof dialog.querySelectorAll !== 'function') {
+        return;
+      }
+      const cells = dialog.querySelectorAll<HTMLElement>('.card-zoom-aside [data-zoom-flank-content], .card-zoom-side [data-zoom-flank-content]');
+      cells.forEach((cell) => {
+        if (typeof cell.animate !== 'function') {
+          return;
+        }
+        this.flankAnims.push(cell.animate([{opacity: reduced ? '0.6' : '0.35'}, {opacity: '1'}], {
+          duration: reduced ? 120 : motionMs(180),
+          easing: 'cubic-bezier(0.22, 0.61, 0.36, 1)',
+          fill: 'backwards',
+        }));
+      });
     },
     refreshPreload() {
       if (!this.navEnabled) {
@@ -1018,7 +1075,7 @@ export default defineComponent({
       const loreReserve = this.loreVisible && rootVars !== undefined ?
         cssLengthPx(rootVars.getPropertyValue('--con-lore-w'), 520 * s) + 3.9 * remPx : 0;
       const flankReserve = 2 * Math.max(sideReserve, loreReserve);
-      const chromeVertical = (48 + 20 + 96 + 8 + (this.navEnabled ? 64 : 0)) * s;
+      const chromeVertical = (48 + 20 + 96 + 8 + (this.navEnabled && this.navCounter ? 64 : 0)) * s;
       // The 200 is the two TOUCH CHEVRONS' gutters. The console instance hides
       // them outright (`dialog.con-zoom .card-zoom-nav-slot {display: none}` —
       // LB/RB browse instead), so reserving their width there was reserving

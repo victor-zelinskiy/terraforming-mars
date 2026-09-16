@@ -13,6 +13,7 @@
 import {CardName} from '@/common/cards/CardName';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {buildCardAnnotations, CardAnnotation} from '@/client/components/cardAnnotations/annotationModel';
+import {actionRuleText} from '@/client/components/actions/actionDescription';
 
 /**
  * Drop the rows an availability panel already restates, and any group left
@@ -54,4 +55,38 @@ export function cardHasRules(cardName: string | undefined, suppressIds: Readonly
     return false;
   }
   return cardRuleAnnotations(cardName as CardName, suppressIds).length > 0;
+}
+
+export type RulesLengthTier = 'brief' | 'regular' | 'dense' | 'packed';
+
+const TIER_RANK: Readonly<Record<RulesLengthTier, number>> = {brief: 0, regular: 1, dense: 2, packed: 3};
+
+/**
+ * THE READING TIER of a rules reading, from its LOCALIZED text volume (the
+ * couch-typography length modes — console.less § READING SURFACE): a
+ * one-liner reads roomier, the longest RU rules step down to the reading
+ * floor. Measured on what actually renders (post-i18n), because RU runs
+ * ~15–20% longer than the English keys.
+ *
+ * PACKED is the fourth rung: the type stays at the dense tier (the reading
+ * floor is a floor), and the panel gives up CHROME — group gaps, row gaps,
+ * the chips' padding. A FOUR-BLOCK reading packs earlier: its chrome is what
+ * overflows the Deck's card band, not its type.
+ */
+export function rulesLengthTier(annotations: ReadonlyArray<CardAnnotation>): RulesLengthTier {
+  let total = 0;
+  for (const group of annotations) {
+    for (const row of group.rows) {
+      total += actionRuleText(row.text, row.params === undefined ? undefined : [...row.params]).length;
+    }
+  }
+  if (total > 300 || (annotations.length >= 4 && total > 220)) {
+    return 'packed';
+  }
+  return total <= 90 ? 'brief' : total <= 240 ? 'regular' : 'dense';
+}
+
+/** The denser of several panels' tiers — ONE type size for a scene read as one composition. */
+export function denserRulesTier(...tiers: ReadonlyArray<RulesLengthTier>): RulesLengthTier {
+  return tiers.reduce((a, b) => (TIER_RANK[b] > TIER_RANK[a] ? b : a), 'brief' as RulesLengthTier);
 }

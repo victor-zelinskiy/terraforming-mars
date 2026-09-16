@@ -227,6 +227,66 @@ async function expectRulesFit(page: Page, label: string): Promise<void> {
   expect(overflow, `${label}: every reading panel fits without a scroll and inside the viewport`).toBe('');
 }
 
+/** A resolution id as its face's class slug. */
+const slug = (resolution: string) => resolution.toLowerCase().replaceAll('_', '-');
+
+/**
+ * THE RESOLUTION SCENE in the viewer: every reading body fits; both side
+ * columns stand CENTRED on the card (the project card's composition — or
+ * fill the band when they are that long); and no reading block draws a
+ * graphic (the card prints it; only the party plaque carries its formula).
+ */
+async function expectInspectorScene(page: Page, label: string): Promise<void> {
+  // A RESTING property: a browse step slides the card (translate + rotate +
+  // scale) and lifts the columns in, so the read is polled until it holds.
+  const read = () => page.evaluate(() => {
+    const out: Array<string> = [];
+    const card = document.querySelector('dialog.con-zoom[open] .card-zoom-stage .pcard')?.getBoundingClientRect();
+    if (card === undefined || card.height < 2) {
+      return 'no card on the stage';
+    }
+    const mid = card.top + card.height / 2;
+    for (const sel of ['.con-zoom-asidecol', '.con-zoom-sidecol']) {
+      const col = document.querySelector<HTMLElement>(`dialog.con-zoom[open] ${sel}`);
+      if (col === null) {
+        out.push(`no ${sel}`);
+        continue;
+      }
+      const kids = Array.from(col.children).map((k) => k.getBoundingClientRect()).filter((r) => r.height > 0);
+      if (kids.length === 0) {
+        out.push(`${sel} is empty`);
+        continue;
+      }
+      const top = Math.min(...kids.map((r) => r.top));
+      const bottom = Math.max(...kids.map((r) => r.bottom));
+      const fills = bottom - top >= col.getBoundingClientRect().height - 2;
+      const off = Math.abs((top + bottom) / 2 - mid);
+      if (!fills && off > Math.max(4, card.height * 0.02)) {
+        out.push(`${sel} centre is ${Math.round(off)} px off the card's (content ${Math.round(top)}..${Math.round(bottom)}, card ${Math.round(card.top)}..${Math.round(card.bottom)})`);
+      }
+    }
+    // The footer holds every item INSIDE its bar: a right-anchored row pushes
+    // an overflow past the LEFT edge, where `scrollWidth` never sees it.
+    const bar = document.querySelector('dialog.con-zoom[open] .con-zoom__bar');
+    if (bar !== null) {
+      const box = bar.getBoundingClientRect();
+      for (const kid of Array.from(bar.children)) {
+        const k = kid.getBoundingClientRect();
+        if (k.width > 0 && (k.left < box.left - 1 || k.right > box.right + 1)) {
+          out.push(`footer item ${kid.className.toString().split(' ')[0]} outside the bar (${Math.round(k.left)}..${Math.round(k.right)} of ${Math.round(box.left)}..${Math.round(box.right)})`);
+        }
+      }
+    }
+    const graphics = document.querySelectorAll('dialog.con-zoom[open] .card-zoom-side .pcard__mech, dialog.con-zoom[open] .con-rinspect-aside__rules .pcard__mech');
+    if (graphics.length > 0) {
+      out.push(`${graphics.length} graphic(s) redrawn in the reading blocks`);
+    }
+    return out.join('; ');
+  });
+  await expect.poll(read, {timeout: 8_000, message: `${label}: the scene is centred and draws nothing twice`}).toBe('');
+  await expectRulesFit(page, label);
+}
+
 /** The overview carries NO rule paragraphs, no V-labels, no second ledger of the viewer's delegates. */
 async function expectNoRuleProse(page: Page): Promise<void> {
   const text = (await parliament(page).textContent() ?? '').replace(/\s+/g, ' ');
@@ -418,18 +478,51 @@ for (const preset of PRESETS) {
       expect(await selectedInstance(page)).toBe(slot0.instance);
 
       // ── X INSIDE THE MODE: the selected card lifts into the viewer (one
-      //    physical card, its slot held) and comes back; nothing else moves.
+      //    physical card, its slot held). Opened from the mode, the viewer is
+      //    the vote's SECOND DOOR: one vote verb reading the delegate's source
+      //    and price, the position in the footer (no counter plate over the card).
       await openZoomViewer(page);
       await expect(page.locator('[data-parl-vote-card] .con-zoom-hold'), 'the selected card is the held source').toHaveCount(1);
-      await expect.poll(() => viewerCard(page), {timeout: 6_000, message: 'the viewer shows the SELECTED card'}).toContain(slot0.resolution.toLowerCase().replaceAll('_', '-'));
+      await expect.poll(() => viewerCard(page), {timeout: 6_000, message: 'the viewer shows the SELECTED card'}).toContain(slug(slot0.resolution));
       expect(await visibleFacesOf(page, slot0.resolution), 'one physical card: the viewer\'s, never a copy beside the source').toBe(1);
-      await expect(page.locator('.con-zoom__btn--play'), 'no second vote verb inside the mode').toHaveCount(0);
-      await expectRulesFit(page, `${preset.id} resolution`);
+      const verb = page.locator('dialog.con-zoom[open] .con-zoom__vote');
+      await expect(verb, 'ONE vote verb in the viewer').toHaveCount(1);
+      await expect(verb).toHaveAttribute('data-vote-available', 'yes');
+      await expect(verb, 'the free delegate leaves the lobby').toHaveAttribute('data-vote-source', 'lobby');
+      await expect(verb.locator('.con-zoom__vote-detail')).toContainText(/лобби/i);
+      await expect(page.locator('dialog.con-zoom[open] .con-zoom__btn--play'), 'no other primary verb').toHaveCount(0);
+      await expect(page.locator('[data-zoom-position]'), 'the position rides the footer').toHaveText(/1\s*\/\s*3/);
+      await expect(page.locator('dialog.con-zoom[open] .card-zoom-topbar'), 'no counter plate above the card').toHaveCount(0);
+      await expectInspectorScene(page, `${preset.id} resolution`);
       await shoot(page, preset.id, '05-inspect-in-mode');
+
+      // ── RB / LB page the THREE proposals in their physical order: the card,
+      //    both columns, the footer and the mode's selection move together.
+      const plaque = () => page.evaluate(() => (document.querySelector('dialog.con-zoom[open] .con-rinspect-aside .con-pseal__name')?.textContent ?? '').trim());
+      const plaque0 = await plaque();
+      await press(page, 'KeyE', 900);
+      await expect.poll(() => viewerCard(page), {timeout: 6_000, message: 'RB shows the second proposal'}).toContain(slug(slot1.resolution));
+      await expect(page.locator('[data-zoom-position]')).toHaveText(/2\s*\/\s*3/);
+      await expect.poll(plaque, {timeout: 10_000, message: 'the party column follows the card'}).not.toBe(plaque0);
+      expect(await selectedInstance(page), 'the mode\'s selection follows the viewer').toBe(slot1.instance);
+      await expect(page.locator('[data-parl-vote-card] .con-zoom-hold'), 'the held slot follows the shown card').toHaveCount(1);
+      expect(await visibleFacesOf(page, slot1.resolution), 'one physical card after paging').toBe(1);
+      await expectInspectorScene(page, `${preset.id} resolution 2`);
+      await shoot(page, preset.id, '05b-inspect-paged');
+      await press(page, 'KeyQ', 900);
+      await expect.poll(() => viewerCard(page), {timeout: 6_000, message: 'LB pages back'}).toContain(slug(slot0.resolution));
+      await expect(page.locator('[data-zoom-position]')).toHaveText(/1\s*\/\s*3/);
+      await expect.poll(plaque, {timeout: 10_000, message: 'the first card\'s party again'}).toBe(plaque0);
+      // ── B after paging: the card flies home into the LAST viewed slot, which stays selected.
+      await press(page, 'KeyE', 900);
+      await expect.poll(() => viewerCard(page), {timeout: 6_000}).toContain(slug(slot1.resolution));
       await closeZoomViewer(page);
       await settle(page, {timeoutMs: 8_000});
       await expect(voteMode(page), 'the mode survives the inspector').toHaveCount(1);
-      expect(await selectedInstance(page), 'the selection survives the inspector').toBe(slot0.instance);
+      expect(await selectedInstance(page), 'B returns to the LAST viewed card').toBe(slot1.instance);
+      await expectOneOfEach(page, before, `${preset.id} after the inspector`);
+      await press(page, 'ArrowLeft', 700);
+      expect(await selectedInstance(page)).toBe(slot0.instance);
       await expect(page.locator('[data-parl-fact="votes"]')).toContainText(new RegExp(`${slot0.totalVotes}\\s*→\\s*${slot0.totalVotes + 1}`));
 
       // ── B: the same phrase folds back — every card home, the focus where it was.
@@ -592,11 +685,109 @@ test.describe('parliament v4 · the paid vote · the bill inside the mode · the
   });
 });
 
+test.describe('parliament · the fullscreen inspector is the vote\'s second door', () => {
+  test.use({viewport: {width: 1920, height: 1080}});
+
+  test('X in the mode → RB → A: the delegate goes to the VIEWED card — the viewer flies home first, then the cube flies; a doubled A sends one', async ({page, request}) => {
+    test.setTimeout(240_000);
+    const playerId = await bootFixture(page, request, 'parliament', {query: '&consoleProfile=auto'});
+    const preset = 'door-inspect-1080';
+    await openParliament(page);
+    const before = (await seatOf(request, playerId)).parl;
+    const [slot0, slot1] = before.slots;
+    await focusVoting(page);
+    await press(page, 'Enter', 1400);
+    await expect(voteMode(page)).toHaveCount(1);
+    await settle(page, {timeoutMs: 8_000});
+    await openZoomViewer(page);
+    await press(page, 'KeyE', 900);
+    await expect.poll(() => viewerCard(page), {timeout: 6_000, message: 'RB shows the second proposal'}).toContain(slug(slot1.resolution));
+    await expect(page.locator('dialog.con-zoom[open] .con-zoom__vote')).toHaveAttribute('data-vote-available', 'yes');
+    await shoot(page, preset, '40-inspect-second-card');
+    // The ORDER of the two motions, sampled in the page (an interval and a
+    // mutation observer — never rAF): no sample holds an open viewer AND a
+    // flying cube.
+    await page.evaluate(() => {
+      const state = {samples: 0, overlap: 0, viewerGoneAt: -1, flightAt: -1};
+      (window as unknown as {__voteDoor: typeof state}).__voteDoor = state;
+      const t0 = performance.now();
+      const sample = () => {
+        state.samples++;
+        const open = document.querySelector('dialog.con-zoom[open]') !== null;
+        const flight = document.querySelector('.con-parl__flight') !== null;
+        const now = Math.round(performance.now() - t0);
+        if (!open && state.viewerGoneAt < 0) {
+          state.viewerGoneAt = now;
+        }
+        if (flight && state.flightAt < 0) {
+          state.flightAt = now;
+        }
+        if (open && flight) {
+          state.overlap++;
+        }
+      };
+      const timer = window.setInterval(sample, 16);
+      const observer = new MutationObserver(sample);
+      observer.observe(document.body, {subtree: true, childList: true, attributes: true, attributeFilter: ['open', 'class']});
+      window.setTimeout(() => {
+        window.clearInterval(timer);
+        observer.disconnect();
+      }, 20_000);
+    });
+    await page.keyboard.press('Enter');
+    await page.keyboard.press('Enter');
+    await expect.poll(async () => (await seatOf(request, playerId)).parl.slots[1].viewerVotes, {timeout: 20_000, message: 'the delegate landed on the VIEWED card'}).toBe(slot1.viewerVotes + 1);
+    await waitForBoardHome(page, 40);
+    const probe = await page.evaluate(() => (window as unknown as {__voteDoor: {samples: number, overlap: number, viewerGoneAt: number, flightAt: number}}).__voteDoor);
+    expect(probe.samples, `the sampler ran (${JSON.stringify(probe)})`).toBeGreaterThan(5);
+    expect(probe.flightAt, `the cube physically flew (${JSON.stringify(probe)})`).toBeGreaterThanOrEqual(0);
+    expect(probe.overlap, `the viewer was home before the cube flew (${JSON.stringify(probe)})`).toBe(0);
+    const after = (await seatOf(request, playerId)).parl;
+    expect(after.slots[1].totalVotes, 'exactly ONE delegate (the doubled A sent nothing)').toBe(slot1.totalVotes + 1);
+    expect(after.slots[0].totalVotes, 'the first card is untouched').toBe(slot0.totalVotes);
+    await expect(parliament(page), 'a finished vote leaves the workspace').toHaveCount(0);
+    await shoot(page, preset, '41-after-inspector-vote');
+  });
+
+  test('a RESERVE delegate from the viewer: the verb reads the server\'s source and price; A closes into the mode\'s own bill; paying lands the cube', async ({page, request}) => {
+    test.setTimeout(240_000);
+    const playerId = await bootFixture(page, request, 'parliament-paid', {query: '&consoleProfile=auto'});
+    const preset = 'door-inspect-paid-1080';
+    await openParliament(page);
+    const before = await seatOf(request, playerId);
+    expect(before.parl.viewer?.vote.source, 'the vote comes from the reserve').toBe('reserve');
+    const cost = before.parl.viewer?.vote.cost ?? -1;
+    await focusVoting(page);
+    await press(page, 'Enter', 1400);
+    await expect(voteMode(page)).toHaveCount(1);
+    await settle(page, {timeoutMs: 8_000});
+    await openZoomViewer(page);
+    const verb = page.locator('dialog.con-zoom[open] .con-zoom__vote');
+    await expect(verb).toHaveAttribute('data-vote-available', 'yes');
+    await expect(verb).toHaveAttribute('data-vote-source', 'reserve');
+    await expect(verb.locator('.con-zoom__vote-detail')).toContainText(/резерв/i);
+    await expect(verb.locator('.con-zoom__vote-cost b'), 'the price is the server\'s own').toHaveText(String(cost));
+    await expectInspectorScene(page, `${preset} verb`);
+    await shoot(page, preset, '42-inspect-paid-verb');
+    await page.keyboard.press('Enter');
+    await expect(page.locator('dialog.con-zoom[open]'), 'the viewer flew home').toHaveCount(0, {timeout: 8_000});
+    const bill = page.locator('.con-parl__vote [data-embed-slot="parliament-vote"] .con-task-host--embedded');
+    await expect(bill, 'the mode\'s own bill stands inside the mode').toHaveCount(1, {timeout: 20_000});
+    await expect(page.locator('.con-task-host:not(.con-task-host--embedded)'), 'never a standalone payment band').toHaveCount(0);
+    await settle(page, {timeoutMs: 8_000});
+    await shoot(page, preset, '43-inspect-paid-bill');
+    await press(page, 'KeyX', 1500);
+    await expect.poll(async () => (await seatOf(request, playerId)).parl.slots[0].viewerVotes, {timeout: 30_000, message: 'the reserve delegate landed'}).toBe(before.parl.slots[0].viewerVotes + 1);
+    await waitForBoardHome(page, 40);
+    await shoot(page, preset, '44-after-paid-inspector-vote');
+  });
+});
+
 test.describe('parliament v4 · a crowded table · the vote that is not possible', () => {
   test.use({viewport: {width: 1920, height: 1080}});
 
   test('the Parliament reads a crowded table: ties, a neutral majority, the winner, the seats — the mode opens for READING and names why the vote is not possible; the tie is explained in the inspector', async ({page, request}) => {
-    test.setTimeout(240_000);
+    test.setTimeout(360_000);
     const playerId = await bootFixture(page, request, 'parliament-dense', {query: '&consoleProfile=auto'});
     await openParliament(page);
     const stage = page.locator('.con-parl__stage');
@@ -644,12 +835,40 @@ test.describe('parliament v4 · a crowded table · the vote that is not possible
     await openZoomViewer(page);
     await expect(page.locator('.con-rstatus[data-lifecycle="vote"]')).toContainText(/побеждает/i);
     await expect(page.locator('.card-zoom-aside .con-rinspect-aside')).toHaveCount(1);
-    await expectRulesFit(page, `${preset} tie`);
+    await expectInspectorScene(page, `${preset} tie`);
+    // No vote possible: the verb stays in place, calm, with the server's
+    // reason; A nudges that reason — the viewer neither closes nor sends.
+    const blocked = page.locator('dialog.con-zoom[open] .con-zoom__vote');
+    await expect(blocked, 'the vote verb stands, blocked').toHaveAttribute('data-vote-available', 'no');
+    await expect(blocked.locator('.con-zoom__vote-reason'), 'with its reason').toHaveText(/\S/);
+    const votesBefore = (await seatOf(request, playerId)).parl.slots.map((s) => s.totalVotes);
+    await page.keyboard.press('Enter');
+    await expect(page.locator('dialog.con-zoom[open] .con-zoom__vote-detail--nudge'), 'A on the blocked verb nudges the reason').toHaveCount(1);
+    await page.keyboard.press('Enter');
+    await settle(page, {timeoutMs: 6_000});
+    await expect(page.locator('dialog.con-zoom[open]'), 'a blocked A never closes the viewer').toHaveCount(1);
+    expect((await seatOf(request, playerId)).parl.slots.map((s) => s.totalVotes), 'no delegate was sent').toEqual(votesBefore);
     await shoot(page, preset, '22-dense-winner-in-inspector');
+    // Browsing stays open while voting is not.
+    await press(page, 'KeyE', 900);
+    await expect(page.locator('[data-zoom-position]')).toHaveText(/2\s*\/\s*3/);
     await closeZoomViewer(page);
     await settle(page, {timeoutMs: 8_000});
     expect(await pressUntil(page, 'Escape', async () => await voteMode(page).count() === 0, {tries: 3, settleMs: 1100})).toBeTruthy();
     await settle(page, {timeoutMs: 8_000});
+    // THE ENACTED CARD (the government): its own context — «enacted», the
+    // party effect every player's, no vote verb and no paging.
+    expect(await pressUntil(page, 'ArrowLeft', async () => await parliament(page).getAttribute('data-zone') === 'government', {tries: 3, settleMs: 400}), 'the government zone').toBeTruthy();
+    await openZoomViewer(page);
+    await expect(page.locator('.con-rstatus[data-lifecycle="enacted"]'), 'the enacted standing').toHaveCount(1);
+    await expect(page.locator('.con-rstatus[data-access="everyone"]'), 'the party effect is every player\'s').toHaveCount(1);
+    await expect(page.locator('dialog.con-zoom[open] .con-zoom__vote'), 'no vote verb over the enacted card').toHaveCount(0);
+    await expect(page.locator('[data-zoom-position]'), 'one card, no paging').toHaveCount(0);
+    await expectInspectorScene(page, `${preset} enacted`);
+    await shoot(page, preset, '22b-dense-enacted-in-inspector');
+    await closeZoomViewer(page);
+    await settle(page, {timeoutMs: 8_000});
+    await focusVoting(page);
     // The parties: several effects held at once; the used action stamped on its badge.
     await press(page, 'ArrowDown', 500);
     expect(await page.locator('.con-parl__party--held').count(), 'several party effects at once').toBeGreaterThanOrEqual(3);

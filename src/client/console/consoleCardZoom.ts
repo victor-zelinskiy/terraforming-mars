@@ -60,6 +60,34 @@ export type ConsoleZoomAction = {
 };
 
 /**
+ * THE VOTE VERB of a Parliament resolution (Turmoil Redux) — the fullscreen
+ * viewer opened from the vote mode offers A «Отправить делегата» on the card
+ * it shows. The viewer owns NO rule: the bridge answers with the vote mode's
+ * own reading (the server's vote option — its source, its cost, its reason)
+ * and hands the send to the vote mode's own submit, AFTER the viewer has
+ * closed back into the card's slot. One operation, two doors.
+ */
+export type ConsoleZoomVoteVerb = {
+  /** The delegate can be sent to this card right now. */
+  available: boolean;
+  /** Why not: the server's refusal (`rule`) or only the viewer's closed action window (`turn`). */
+  gate: 'rule' | 'turn' | undefined;
+  /** Where the delegate leaves from (the server's own answer; 'none' = nothing to send). */
+  source: 'lobby' | 'reserve' | 'none';
+  /** The M€ the delegate costs (0 from the lobby). */
+  cost: number;
+  /** The translated reason the send is not possible now (undefined when available). */
+  reason: string | undefined;
+};
+
+export type ConsoleZoomVote = {
+  /** The verb for the card at viewer `index` — undefined hides it (no vote can concern this card). */
+  verbAt: (index: number) => ConsoleZoomVoteVerb | undefined;
+  /** Send the delegate to the card at `index` (the viewer is already closed). */
+  execute: (index: number) => void;
+};
+
+/**
  * A card-RECEIVE bridge (the «Получены карты» reveal). The opener lets A take
  * the card at the viewer's CURRENT index and RT take everything, WITHOUT
  * leaving the viewer for a non-final take. Taking mutates the SHARED
@@ -279,6 +307,14 @@ export type ConsoleZoomExtra = {
   availability?: ConsoleZoomAvailabilityContext,
   /** Present ⇔ the viewer is an INSPECT DOSSIER (ПРАВИЛА / СТАТИСТИКА tabs). */
   inspect?: ConsoleZoomInspect,
+  /** Present ⇔ A sends a delegate to the resolution on screen (the Parliament's vote mode). */
+  vote?: ConsoleZoomVote,
+  /**
+   * The viewer's position `n / N` rides the FOOTER's browse hint instead of
+   * the counter plate above the card (a short list of objects read as one
+   * scene — the three proposals — whose card must keep its full size).
+   */
+  counterInFooter?: boolean,
   /**
    * Present ⇔ the fullscreen was opened from the PLAYED TABLE. Static for
    * the seat, but the CATEGORY/ORDINAL follow the browsed card — pass a
@@ -327,6 +363,10 @@ export const consoleCardZoom = reactive({
   inspectTab: 'rules' as ConsoleZoomInspectTab,
   /** The PLAYED-TABLE provenance resolver (index → plate), if any. */
   provenanceAt: undefined as ((index: number) => ConsoleZoomProvenance | undefined) | undefined,
+  /** Present ⇔ A sends a delegate to the resolution on screen. */
+  vote: undefined as ConsoleZoomVote | undefined,
+  /** The position rides the footer, not a counter above the card. */
+  counterInFooter: false,
 });
 
 /** The provenance plate for the card currently on screen (undefined = the
@@ -361,6 +401,8 @@ export function openConsoleCardZoom(cards: ReadonlyArray<ZoomCard>, index: numbe
   const provenance = extra?.provenance;
   consoleCardZoom.provenanceAt = provenance === undefined ? undefined :
     typeof provenance === 'function' ? provenance : () => provenance;
+  consoleCardZoom.vote = extra?.vote;
+  consoleCardZoom.counterInFooter = extra?.counterInFooter === true;
 }
 
 /** Switch the inspect dossier tab (LB/RB). No-op outside an inspect context. */
@@ -421,4 +463,6 @@ export function closeConsoleCardZoom(): void {
   consoleCardZoom.inspect = undefined;
   consoleCardZoom.inspectTab = 'rules';
   consoleCardZoom.provenanceAt = undefined;
+  consoleCardZoom.vote = undefined;
+  consoleCardZoom.counterInFooter = false;
 }

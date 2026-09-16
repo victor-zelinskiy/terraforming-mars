@@ -17,8 +17,10 @@ export type IClientResolution = {
   /** English i18n keys. */
   text: {
     name: string;
-    /** The immediate effect («When enacted: …»); absent on a dummy. */
+    /** The immediate effect every participant receives at the enactment; absent on a dummy. */
     effect?: string;
+    /** The winner-only part of the enactment (the player who won the vote). */
+    winner?: string;
     passive?: string;
     action?: string;
     quest: string;

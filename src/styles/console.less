@@ -35395,37 +35395,6 @@ html.con-profile-large {
         min-height: 0;
     }
 }
-/* ── THE RESOLUTION SCENE (Turmoil Redux) — three objects of ONE height.
-   With a party column on the left and the rules on the right, both columns
-   stand inside a frame the exact height of the CARD on the stage (the face's
-   460 px × the fit the viewer applied — the same `--card-zoom-fit` the
-   archive entry's frame rides), centred on the same band the card centres
-   in. So every column's head lines up with the card's top edge for every
-   resolution, a shorter reading hugs its content under that line, and no
-   column can reach past the card's foot — stable positions whatever the
-   party's mechanics or the effect's length (the rules body is what yields,
-   never the head). keep-px: card pixels, not UI-scale pixels. */
-dialog.con-zoom.con-zoom--parliament {
-    .con-zoom-sidecol,
-    .con-zoom-asidecol {
-        height: calc(460px * var(--card-zoom-fit, 1));
-        align-self: center;
-        justify-content: flex-start;
-    }
-}
-/* …except on the handheld, where the card stands at its floor zoom (a 460 px
-   face on an 800 px screen) and the band above and below it is the only
-   room the columns have: there they take the whole band, centred on the
-   card, and the frame is stood down. */
-html.con-profile-handheld dialog.con-zoom.con-zoom--parliament {
-    .con-zoom-sidecol,
-    .con-zoom-asidecol {
-        height: 100%;
-        align-self: stretch;
-        justify-content: center;
-    }
-}
-
 /* ── INSPECT DOSSIER (ConsoleInspectSide) — the two-tab right panel of the
    Action Browser's X-inspect: ONE stable glass box, a ПРАВИЛА/ИСТОРИЯ tab bar,
    and a body that crossfades between the embedded rules panel and the history

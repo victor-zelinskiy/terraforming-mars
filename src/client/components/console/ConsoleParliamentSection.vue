@@ -570,7 +570,7 @@
                   <span class="con-parl__info-kicker" data-parl-vote-late>{{ $t('Resolution effect') }}</span>
                   <div class="con-parl__info-row">
                     <PremiumMechanicsPanel v-if="voteInfo.ownMechanics !== undefined" class="con-parl__info-mech" :mechanics="voteInfo.ownMechanics" />
-                    <span v-if="voteInfo.ownText !== undefined" class="con-parl__info-text" data-parl-vote-late>{{ $t(voteInfo.ownText) }}</span>
+                    <span v-if="voteInfo.ownText !== undefined" class="con-parl__info-text" data-parl-vote-late>{{ $t(voteInfo.ownText) }}<template v-if="voteInfo.ownWinner !== undefined"> {{ $t('For the winner of the vote') }}: {{ $t(voteInfo.ownWinner) }}</template></span>
                     <span v-else-if="voteInfo.ownMechanics === undefined" class="con-parl__info-none" data-parl-vote-late>{{ $t('No effect of its own') }}</span>
                   </div>
                 </div>
@@ -728,7 +728,7 @@ import {consoleParliamentUi, markParliamentRecapSeen, parliamentRecapSeen} from 
 import {
   agendaViewOf, AgendaVm, buildParliamentView, ParliamentPartyVm, ParliamentPromptBridge,
   ParliamentSlotVm, ParliamentTileVm, ParliamentViewVm, parliamentPromptBridge, partyActionStateOf, PartyActionStateVm,
-  partyStateOf, PartyStateVm, seatResponse, voteAccessOf, voteForecastOf, VoteForecastVm, voteResponse,
+  partyStateOf, PartyStateVm, seatResponse, voteAccessOf, voteForecastOf, VoteForecastVm, voteResponse, voteVerbOf, VoteVerbVm,
 } from '@/client/console/parliament/consoleParliamentModel';
 import {partyTileKey} from '@/client/console/parliament/partyActionKey';
 import {PremiumCardVM} from '@/client/components/premiumCard/premiumCardViewModel';
@@ -746,6 +746,7 @@ import {consoleLayoutState, conUiScale} from '@/client/console/consoleLayoutProf
 import {AnimationHold, beginAnimationHold} from '@/client/components/presentation/animationHold';
 import {consoleMotionMs} from '@/client/console/composables/useConsoleReducedMotion';
 import {probeTick} from '@/client/console/probeTick';
+import {offTurnReason} from '@/client/console/offTurnReason';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {armDescendOrigin, armDescendRect, descendSurfaceInset, guardedDescend} from '@/client/console/surfaceMotion/workspaceDescend';
 import {armActionFocusOrigin} from '@/client/console/consoleActionFocusMotion';
@@ -819,11 +820,12 @@ const MAX_VOTE_ZOOM = 1.05;
 const MIN_VOTE_ZOOM = 0.35;
 
 /**
- * The inspector's request: WHAT to open, WHERE it physically stands (the
- * card lifts out of that element and returns into it) and — for the voting
- * area — the A verb the fullscreen offers, which opens the SAME vote mode on
- * the card the viewer is showing (the card flies from the viewer into its
- * place in the vote row).
+ * The inspector's request: WHAT to open (a list the viewer pages through, in
+ * the order the cards physically stand), WHERE each card physically stands
+ * (it lifts out of that element and returns into it), who follows the paging
+ * (`onBrowse` — the vote mode's selection), and — from the vote mode — the A
+ * verb: the vote mode's OWN reading of «send the delegate» for the card on
+ * screen and the vote mode's own submit (one operation, two doors).
  */
 export type ParliamentInspectRequest =
   | {
@@ -832,7 +834,7 @@ export type ParliamentInspectRequest =
     index: number,
     origin?: (index: number) => HTMLElement | null,
     onBrowse?: (index: number) => void,
-    vote?: {labelFor: (id: string) => string | undefined, reasonsFor: (id: string) => ReadonlyArray<string>, execute: (id: string) => void},
+    vote?: {verbAt: (index: number) => VoteVerbVm | undefined, execute: (index: number) => void},
   }
   | {kind: 'party', party: ReduxParty, origin?: () => HTMLElement | null};
 
@@ -862,6 +864,8 @@ type VoteInfo = {
   winning: boolean;
   ownMechanics: MechanicsVM | undefined;
   ownText: string | undefined;
+  /** The winner-only part of the own effect (the vote's winner alone gets it). */
+  ownWinner: string | undefined;
   partyPassive: string | undefined;
   partyAction: string | undefined;
   questMechanics: MechanicsVM | undefined;
@@ -1194,6 +1198,7 @@ export default defineComponent({
         winning: this.winningShownOf(slot),
         ownMechanics: own === undefined || own.textOnly ? undefined : own,
         ownText: resolution === undefined ? undefined : (resolution.dummy ? undefined : (resolution.text.effect ?? resolution.text.passive ?? resolution.text.action)),
+        ownWinner: resolution === undefined || resolution.dummy ? undefined : resolution.text.winner,
         partyPassive: effect?.text.passive,
         partyAction: effect?.text.action,
         questMechanics: quest === undefined || quest.textOnly ? undefined : quest,
@@ -2055,12 +2060,9 @@ export default defineComponent({
       case 'vote':
         if (intent.kind === 'nav') {
           if (intent.dir === 'left') {
-            this.slotIndex = Math.max(0, this.slotIndex - 1);
+            this.selectVoteSlot(this.slotIndex - 1);
           } else if (intent.dir === 'right') {
-            this.slotIndex = Math.min(this.view.slots.length - 1, this.slotIndex + 1);
-          }
-          if (this.voteSlot !== undefined) {
-            setWorkspaceFrameSubject('parliament', this.resolutionTitle(this.voteSlot.resolutionId));
+            this.selectVoteSlot(this.slotIndex + 1);
           }
           return;
         }
@@ -2106,10 +2108,37 @@ export default defineComponent({
       const slotFace = (instance: string) => root?.querySelector<HTMLElement>(`.con-parl__slot[data-instance="${instance}"] .con-parl__card .pcard`) ??
         root?.querySelector<HTMLElement>(`.con-parl__slot[data-instance="${instance}"] .con-parl__card`) ?? null;
       if (this.voteUp) {
-        const slot = this.voteSlot;
-        if (slot !== undefined) {
-          this.$emit('inspect', {kind: 'resolution', ids: [slot.resolutionId], index: 0, origin: () => slotFace(slot.instance)} as ParliamentInspectRequest);
+        const slots = this.view.slots;
+        const selected = this.voteSlot;
+        if (selected === undefined) {
+          return;
         }
+        if (this.stage !== 'vote') {
+          // A bill standing or a delegate in flight belongs to ONE card: the
+          // viewer reads that card alone, and nothing in it can move the
+          // selection the transaction is bound to.
+          this.$emit('inspect', {kind: 'resolution', ids: [selected.resolutionId], index: 0, origin: () => slotFace(selected.instance)} as ParliamentInspectRequest);
+          return;
+        }
+        // THE THREE PROPOSALS, in the order they stand in the row: LB/RB page
+        // them inside the viewer and the mode's selection follows (B lands on
+        // the last card looked at); A sends the delegate to the card on screen
+        // through this mode's own submit.
+        const request: ParliamentInspectRequest = {
+          kind: 'resolution',
+          ids: slots.map((slot) => slot.resolutionId),
+          index: this.slotIndex,
+          origin: (index) => {
+            const slot = slots[index];
+            return slot === undefined ? null : slotFace(slot.instance);
+          },
+          onBrowse: (index) => this.selectVoteSlot(index),
+          vote: {
+            verbAt: (index) => this.voteVerbAt(index),
+            execute: (index) => this.sendVoteFromInspector(index),
+          },
+        };
+        this.$emit('inspect', request);
         return;
       }
       if (this.stage === 'seat') {
@@ -2204,6 +2233,49 @@ export default defineComponent({
     },
     onStageLeaveCancelled(): void {
       this.stageLeaving = false;
+    },
+    /** Select the vote mode's card (the d-pad inside the mode, the viewer's paging). */
+    selectVoteSlot(index: number): void {
+      const next = Math.max(0, Math.min(this.view.slots.length - 1, index));
+      this.slotIndex = next;
+      if (this.voteSlot !== undefined) {
+        setWorkspaceFrameSubject('parliament', this.resolutionTitle(this.voteSlot.resolutionId));
+      }
+    },
+    /**
+     * «Send the delegate» for the card at `index`, as THIS mode reads it — the
+     * same option, source, price and blocked text its own confirm uses.
+     */
+    voteVerbAt(index: number): VoteVerbVm | undefined {
+      const slot = this.view.slots[index];
+      if (slot === undefined || this.stage !== 'vote') {
+        return undefined;
+      }
+      const tile = this.voteTile;
+      return voteVerbOf({
+        participates: this.viewerParticipates,
+        tile,
+        refusalText: tile === undefined || tile.available ? '' : this.reasonText(tile.reason),
+        offered: this.bridge.vote !== undefined,
+        canActNow: this.canActNow,
+        offeredParties: this.bridge.vote?.model.parties,
+        party: slot.party,
+        turnText: translateText(offTurnReason(this.awaitingInput)),
+        notOfferedText: translateText('This option is no longer offered'),
+      });
+    },
+    /**
+     * The inspector's A, after the viewer has flown back into the card's slot:
+     * the card it showed becomes the mode's selection and the mode's own
+     * submit runs — the same snapshot, the same answer handling, the same
+     * delegate flight. A refusal speaks through the same notice.
+     */
+    sendVoteFromInspector(index: number): void {
+      if (this.stage !== 'vote') {
+        return;
+      }
+      this.selectVoteSlot(index);
+      this.submitVote();
     },
     // ── submits (byte-identical to the live prompt) ─────────────────────
     submitVote(): void {

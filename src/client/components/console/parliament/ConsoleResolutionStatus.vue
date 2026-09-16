@@ -1,6 +1,6 @@
 <template>
   <!-- THE RESOLUTION'S STANDING in the fullscreen viewer's command bar
-       (Turmoil Redux) — two facts, told apart on purpose:
+       (Turmoil Redux) — two facts, told apart on purpose (one line each):
          · WHERE THE CARD STANDS: up for the vote (and whether it is winning
            right now) or enacted;
          · THE VIEWER'S ACCESS TO ITS PARTY'S EFFECT: a compact indicator of
@@ -13,10 +13,9 @@
     <span class="con-rstatus__life" :class="'con-rstatus__life--' + status.lifecycle">
       <span class="con-rstatus__life-mark" aria-hidden="true"></span>
       <span class="con-rstatus__life-text">{{ $t(status.lifecycle === 'enacted' ? 'Enacted' : 'Up for the vote') }}</span>
-      <span v-if="status.winning" class="con-rstatus__life-tail">· {{ $t('winning now') }}</span>
+      <span v-if="status.winning" class="con-rstatus__life-tail">· {{ $t('Winning') }}</span>
     </span>
     <template v-if="status.access !== undefined">
-      <span class="con-rstatus__sep" aria-hidden="true"></span>
       <span class="con-rstatus__access" :class="'con-rstatus__access--' + accessKind">
         <span class="con-rstatus__access-key">{{ $t('Party effect') }}</span>
         <!-- The threshold indicator: two places, the viewer's own cubes in the

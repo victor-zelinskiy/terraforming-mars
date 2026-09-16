@@ -126,14 +126,16 @@ export function resolutionStatusOf(id: ResolutionId, model: ParliamentModel | un
 }
 
 /**
- * The party aside's one CONTEXT line under the party's name: what the party's
- * effect means for the card on the stage — a condition while it is up for the
- * vote, the standing fact once it is enacted. Undefined without a model (the
- * viewer outside a live game states nothing about the table).
+ * The party aside's one CONTEXT line under the party's name: what the party
+ * is for the card on the stage — the condition its vote decides while the
+ * card is up, the plain fact once it is enacted. Never the access itself: the
+ * footer says who holds the effect («доступен всем»), and one line may not
+ * say it twice. Undefined without a model (the viewer outside a live game
+ * states nothing about the table).
  */
 export function resolutionPartyContextKey(status: ResolutionStatusVm | undefined): string | undefined {
   if (status === undefined) {
     return undefined;
   }
-  return status.lifecycle === 'enacted' ? 'Rules — every player has its effect' : 'If enacted — every player gets its effect';
+  return status.lifecycle === 'enacted' ? 'Ruling party' : 'If enacted — every player gets its effect';
 }

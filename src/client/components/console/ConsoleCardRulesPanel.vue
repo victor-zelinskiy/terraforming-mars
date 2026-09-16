@@ -9,7 +9,7 @@
       </div>
       <ConsoleScrollArea ref="scroll" class="con-zoom-rules__scroll" axis="y"
                          @overflow-change="overflowing = $event">
-        <div class="con-zoom-rules__body">
+        <div class="con-zoom-rules__body" data-zoom-flank-content>
           <section v-for="group in orderedAnnotations" :key="group.id"
                    class="con-zoom-rules__group"
                    :class="'con-zoom-rules__group--' + group.kind">
@@ -17,13 +17,6 @@
               <span v-if="group.special" class="con-zoom-rules__spark" aria-hidden="true">✱</span>
               {{ $t(group.labelKey) }}
             </span>
-            <!-- THE PRINTED GRAPHIC of a block (a parliament resolution's own
-                 effect, its chairman quest): the same render-DSL drawing the
-                 face prints, at reading size, centred on the column's axis —
-                 read before its sentence, exactly like the card. -->
-            <div v-if="graphicOf(group) !== undefined" class="con-zoom-rules__graphic" aria-hidden="true">
-              <PremiumMechanicsPanel :mechanics="graphicOf(group)!" />
-            </div>
             <p v-for="row in group.rows" :key="row.id" class="con-zoom-rules__text">{{ rowText(row) }}</p>
           </section>
         </div>
@@ -56,11 +49,9 @@
 import {defineComponent, PropType} from 'vue';
 import {CardName} from '@/common/cards/CardName';
 import {CardAnnotation, CardAnnotationRow} from '@/client/components/cardAnnotations/annotationModel';
-import {cardRuleAnnotations} from '@/client/components/console/consoleCardRules';
+import {cardRuleAnnotations, RulesLengthTier, rulesLengthTier} from '@/client/components/console/consoleCardRules';
 import {actionRuleText} from '@/client/components/actions/actionDescription';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
-import PremiumMechanicsPanel from '@/client/components/premiumCard/PremiumMechanicsPanel.vue';
-import {buildMechanics, MechanicsVM} from '@/client/components/premiumCard/mechanicsModel';
 
 // The visibility logic (which blocks the availability panel already covers)
 // is PURE and lives in `consoleCardRules.ts`; `cardHasRules` is re-exported
@@ -82,7 +73,7 @@ function cssEscapeId(value: string): string {
 
 export default defineComponent({
   name: 'ConsoleCardRulesPanel',
-  components: {ConsoleScrollArea, PremiumMechanicsPanel},
+  components: {ConsoleScrollArea},
   props: {
     /** The manifest card whose Card-Information blocks feed the panel.
      *  Optional when `annotationsOverride` supplies the groups directly. */
@@ -119,6 +110,12 @@ export default defineComponent({
      * panel's card-order reading.
      */
     keepOrder: {type: Boolean, default: false},
+    /**
+     * The reading TIER, decided by the host for a scene of SEVERAL panels (the
+     * resolution inspector's party column and rules column read at ONE type
+     * size — the denser of the two). Undefined: the panel's own tier.
+     */
+    tier: {type: String as PropType<RulesLengthTier | undefined>, default: undefined},
   },
   data() {
     return {
@@ -142,24 +139,6 @@ export default defineComponent({
         return [];
       }
       return cardRuleAnnotations(this.cardName, this.suppressIds);
-    },
-    /**
-     * The blocks' printed graphics as mechanics view-models, built once per
-     * annotation set (the walk keeps the DSL nodes as references — cheap, but
-     * not free on every render). A graphic that draws nothing (a text-only
-     * root) is dropped here, so the template never mounts an empty plate.
-     */
-    graphics(): Map<string, MechanicsVM> {
-      const out = new Map<string, MechanicsVM>();
-      for (const group of this.annotations) {
-        if (group.graphic !== undefined) {
-          const vm = buildMechanics(group.graphic);
-          if (!vm.textOnly) {
-            out.set(group.id, vm);
-          }
-        }
-      }
-      return out;
     },
     /** Physical-order fallback (stable within a kind: model order). */
     fallbackOrdered(): Array<CardAnnotation> {
@@ -185,26 +164,8 @@ export default defineComponent({
      *  roomier, the longest RU rules step down to the reading floor and
      *  gain hyphenation. Measured on what actually renders (post-i18n),
      *  because RU runs ~15–20% longer than the English keys. */
-    lengthTier(): 'brief' | 'regular' | 'dense' | 'packed' {
-      let total = 0;
-      for (const group of this.annotations) {
-        for (const row of group.rows) {
-          total += actionRuleText(row.text).length;
-        }
-      }
-      // PACKED is the fourth rung: the type stays at the dense tier (the
-      // reading floor is a floor), and the panel gives up CHROME — group gaps,
-      // row gaps, the chips' padding — so a four-block reading (a Parliament
-      // party or resolution, the longest RU rules) fits the viewer's band
-      // without a scroll on the couch and on the Deck.
-      //
-      // A FOUR-BLOCK reading packs earlier: its chrome (four chips, four
-      // group gaps) is what overflows the Deck's card band, not its type —
-      // the Scientists' party panel sat 22 px past the band at 294 chars.
-      if (total > 300 || (this.annotations.length >= 4 && total > 220)) {
-        return 'packed';
-      }
-      return total <= 90 ? 'brief' : total <= 240 ? 'regular' : 'dense';
+    lengthTier(): RulesLengthTier {
+      return this.tier ?? rulesLengthTier(this.annotations);
     },
   },
   watch: {
@@ -221,10 +182,6 @@ export default defineComponent({
     this.scheduleMeasure();
   },
   methods: {
-    /** The block's printed graphic, when it draws something. */
-    graphicOf(group: CardAnnotation): MechanicsVM | undefined {
-      return this.graphics.get(group.id);
-    },
     /** The SHARED rule-text formatter (translate → strip the co-located
      *  kind prefix → read as a sentence). The action workspace shows the
      *  same texts, so the wording lives in ONE place — see
