@@ -4,6 +4,7 @@ import {IGame} from '../../../src/server/IGame';
 import {TestPlayer} from '../../TestPlayer';
 import {SpaceBonus} from '../../../src/common/boards/SpaceBonus';
 import {LunarObservationPost} from '../../../src/server/cards/moon/LunarObservationPost';
+import {ResearchOutpost} from '../../../src/server/cards/base/ResearchOutpost';
 import {maxOutOceans, runAllActions} from '../../TestingUtils';
 import {TileType} from '../../../src/common/TileType';
 import {SelectSpace} from '../../../src/server/inputs/SelectSpace';
@@ -47,5 +48,27 @@ describe('MartianNatureWonders', () => {
     const selectCard = cast(player.popWaitingFor(), SelectCard);
     selectCard.cb([dataCard]);
     expect(dataCard.resourceCount).eq(2);
+  });
+
+  it('Neutral cube does not block Research Outpost', () => {
+    const researchOutpost = new ResearchOutpost();
+    const board = game.board;
+
+    const cubeSpace = board.getSpaceOrThrow('15');
+    const adjacentSpace = board.getSpaceOrThrow('08');
+    expect(board.getAdjacentSpaces(cubeSpace)).includes(adjacentSpace);
+
+    cast(card.play(player), SelectSpace).cb(cubeSpace);
+    runAllActions(game);
+    expect(cubeSpace.tile?.tileType).eq(TileType.MARTIAN_NATURE_WONDERS);
+
+    cast(researchOutpost.play(player), undefined);
+    runAllActions(game);
+    const selectSpace = cast(player.popWaitingFor(), SelectSpace);
+
+    // The cube is not a tile, so the space next to it is still next to no other tile.
+    expect(selectSpace.spaces).contains(adjacentSpace);
+    // But nothing may be placed on the cube's own space.
+    expect(selectSpace.spaces).does.not.contain(cubeSpace);
   });
 });
