@@ -24,7 +24,12 @@
       · `hero` — the action composer's source column / the government badge;
       · `full` — the fullscreen inspector's subject (px-authored, zoomed by
         the viewer exactly like a card face; the same anatomy, so the tile
-        morphs into it as ONE object).
+        morphs into it as ONE object);
+      · `aside` — the party BESIDE a resolution in the fullscreen inspector:
+        the tile's anatomy at reading size (rem-authored like the tile), the
+        viewer's state replaced by ONE context line the host hands in
+        (`note` — «if enacted, every player gets its effect»): the personal
+        access is the footer's, never repeated on the plate.
   -->
   <div class="con-pseal"
        :class="[
@@ -62,6 +67,10 @@
          still needed for the effect). POPULAR SUPPORT closes the line: three
          places, a steel cube per neutral delegate waiting for the party's
          next resolution — so the printed mechanic below owns the plate's width. -->
+    <!-- THE CONTEXT LINE (the `aside` size): what the party's effect means
+         for the resolution on the stage — a condition or a standing fact,
+         translated by the host. -->
+    <div v-if="note !== undefined" class="con-pseal__note">{{ note }}</div>
     <div v-if="state !== undefined && size !== 'full'" class="con-pseal__state" :class="'con-pseal__state--' + state.tone">
       <span class="con-pseal__state-text">{{ stateText }}</span>
       <span v-if="showPlaces && viewerColor !== undefined" class="con-pseal__places" aria-hidden="true">
@@ -90,7 +99,7 @@ import {PartyActionStateVm, PartyStateVm} from '@/client/console/parliament/cons
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 
-export type PartyPlaqueSize = 'tile' | 'hero' | 'full';
+export type PartyPlaqueSize = 'tile' | 'hero' | 'full' | 'aside';
 
 export default defineComponent({
   name: 'ConsolePartyPlaque',
@@ -109,6 +118,8 @@ export default defineComponent({
     /** Draw the printed mechanic module. */
     formula: {type: Boolean, default: true},
     focused: {type: Boolean, default: false},
+    /** ONE translated context line under the name (the `aside` size) — undefined draws none. */
+    note: {type: String as PropType<string | undefined>, default: undefined},
   },
   computed: {
     accent(): string {

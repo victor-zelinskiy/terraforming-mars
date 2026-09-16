@@ -575,12 +575,43 @@ dialog.con-zoom {
     .card-zoom-actions {
         transition: opacity calc(180ms * var(--motion-scale, 1)) ease;
     }
+    /* The two READING COLUMNS (the rules on the right, a resolution's party
+       on the left) surface FROM UNDER THE LANDED CARD: held out of sight and
+       a step toward the card while it flies, they glide outward and fade in
+       the moment the flight lands (the same beat the chrome fades in on) —
+       content unfolding from the object, never a dark rectangle stretching
+       open. On the close they fold back toward the card under its return
+       flight. transform + opacity only, on the grid cells (never the stage). */
+    .card-zoom-side,
+    .card-zoom-aside {
+        transition:
+            opacity calc(220ms * var(--motion-scale, 1)) ease-out,
+            transform calc(300ms * var(--motion-scale, 1)) @con-ease-enter;
+    }
     &.con-zoom--flight {
         .card-zoom-topbar,
         .card-zoom-actions {
             opacity: 0;
             pointer-events: none;
         }
+        .card-zoom-side,
+        .card-zoom-aside {
+            opacity: 0;
+            pointer-events: none;
+            transition:
+                opacity calc(160ms * var(--motion-scale, 1)) ease-in,
+                transform calc(220ms * var(--motion-scale, 1)) ease-in;
+        }
+        .card-zoom-side { transform: translateX(-1.2rem); }
+        .card-zoom-aside { transform: translateX(1.2rem); }
+    }
+    /* On the close the columns' own fast «closing» fade is the panels'
+       ordinary exit; inside the resolution scene the cell's fold is the
+       exit, so the host's hide is stood down there (it would end the fold
+       in its first frames). */
+    &.con-zoom--parliament .con-zoom-rules-host--closing {
+        opacity: 1;
+        transition: none;
     }
 
     /* Backdrop: paints NOTHING — the `.con-zoom-veil` (a normal layer under

@@ -304,6 +304,80 @@ const DEV_ACTION: ResolutionDefinition = {
   },
 };
 
+/**
+ * TWO LAYOUT EXAMPLES for the resolution INSPECTOR (never dealt: `copies: 0`).
+ * A real catalog resolution will carry several rows, conditions, recipients
+ * and a long name; the three technical examples above are single-row, so the
+ * inspector's composition could not be judged against them. Both are built
+ * from the existing primitives only (stock / draw / TR, the render DSL) —
+ * no new game mechanic — and neither reaches a deck.
+ */
+export const DEV_COMPOUND_RESOLUTION_ID: ResolutionId = 'RDX_DEV_COMPOUND';
+export const DEV_SCIENCE_RESOLUTION_ID: ResolutionId = 'RDX_DEV_SCIENCE';
+
+const DEV_COMPOUND: ResolutionDefinition = {
+  id: DEV_COMPOUND_RESOLUTION_ID,
+  module: 'turmoilRedux',
+  party: PartyName.REDS,
+  copies: 0,
+  renderData: CardRenderer.builder((b) => {
+    b.megacredits(2).slash().tag(Tag.PLANT).tag(Tag.MICROBE).tag(Tag.ANIMAL).asterix().nbsp.cards(1).br;
+    b.tr(1).asterix();
+  }),
+  text: {
+    name: 'Interplanetary Reconstruction Accord',
+    effect: 'When enacted: every player gains 2 M€ per plant, microbe or animal tag they have (max 10 M€) and draws 1 card. The winning player also gains 1 TR.',
+    quest: 'Place 4 delegates',
+  },
+  quest: {goal: {kind: 'delegates'}, count: 4},
+  immediateSteps: [{
+    key: 'grant',
+    run: (ctx) => {
+      const from = {resolution: DEV_COMPOUND_RESOLUTION_ID};
+      const tags = ctx.player.tags.count(Tag.PLANT, 'raw') + ctx.player.tags.count(Tag.MICROBE, 'raw') + ctx.player.tags.count(Tag.ANIMAL, 'raw');
+      const megacredits = Math.min(10, 2 * tags);
+      if (megacredits > 0) {
+        ctx.player.stock.add(Resource.MEGACREDITS, megacredits, {log: true, from});
+      }
+      ctx.player.drawCard(1);
+      return undefined;
+    },
+  }],
+  winnerSteps: [{
+    key: 'winner-tr',
+    run: (ctx) => {
+      ctx.player.increaseTerraformRating(1, {log: true, from: {resolution: DEV_COMPOUND_RESOLUTION_ID}});
+      return undefined;
+    },
+  }],
+};
+
+const DEV_SCIENCE: ResolutionDefinition = {
+  id: DEV_SCIENCE_RESOLUTION_ID,
+  module: 'turmoilRedux',
+  party: PartyName.SCIENTISTS,
+  copies: 0,
+  renderData: CardRenderer.builder((b) => {
+    b.cards(1).slash().tag(Tag.SCIENCE, 2).asterix();
+  }),
+  text: {
+    name: 'Open Research Charter',
+    effect: 'When enacted: every player draws 1 card per 2 science tags they have (max 3 cards).',
+    quest: 'Play 2 science tags',
+  },
+  quest: {goal: {kind: 'tag', tag: Tag.SCIENCE}, count: 2},
+  immediateSteps: [{
+    key: 'draw',
+    run: (ctx) => {
+      const cards = Math.min(3, Math.floor(ctx.player.tags.count(Tag.SCIENCE, 'raw') / 2));
+      if (cards > 0) {
+        ctx.player.drawCard(cards);
+      }
+      return undefined;
+    },
+  }],
+};
+
 /** The shipped catalog: the 12 dummies + the never-dealt test and development resolutions. */
 export const REDUX_RESOLUTION_CATALOG = new ResolutionCatalog([
   ...DUMMIES.map(dummy),
@@ -311,4 +385,6 @@ export const REDUX_RESOLUTION_CATALOG = new ResolutionCatalog([
   DEV_IMMEDIATE,
   DEV_PASSIVE,
   DEV_ACTION,
+  DEV_COMPOUND,
+  DEV_SCIENCE,
 ]);

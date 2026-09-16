@@ -17,6 +17,13 @@
               <span v-if="group.special" class="con-zoom-rules__spark" aria-hidden="true">✱</span>
               {{ $t(group.labelKey) }}
             </span>
+            <!-- THE PRINTED GRAPHIC of a block (a parliament resolution's own
+                 effect, its chairman quest): the same render-DSL drawing the
+                 face prints, at reading size, centred on the column's axis —
+                 read before its sentence, exactly like the card. -->
+            <div v-if="graphicOf(group) !== undefined" class="con-zoom-rules__graphic" aria-hidden="true">
+              <PremiumMechanicsPanel :mechanics="graphicOf(group)!" />
+            </div>
             <p v-for="row in group.rows" :key="row.id" class="con-zoom-rules__text">{{ rowText(row) }}</p>
           </section>
         </div>
@@ -52,6 +59,8 @@ import {CardAnnotation, CardAnnotationRow} from '@/client/components/cardAnnotat
 import {cardRuleAnnotations} from '@/client/components/console/consoleCardRules';
 import {actionRuleText} from '@/client/components/actions/actionDescription';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
+import PremiumMechanicsPanel from '@/client/components/premiumCard/PremiumMechanicsPanel.vue';
+import {buildMechanics, MechanicsVM} from '@/client/components/premiumCard/mechanicsModel';
 
 // The visibility logic (which blocks the availability panel already covers)
 // is PURE and lives in `consoleCardRules.ts`; `cardHasRules` is re-exported
@@ -73,7 +82,7 @@ function cssEscapeId(value: string): string {
 
 export default defineComponent({
   name: 'ConsoleCardRulesPanel',
-  components: {ConsoleScrollArea},
+  components: {ConsoleScrollArea, PremiumMechanicsPanel},
   props: {
     /** The manifest card whose Card-Information blocks feed the panel.
      *  Optional when `annotationsOverride` supplies the groups directly. */
@@ -101,6 +110,15 @@ export default defineComponent({
      * (journal, dossier, draft) shows the complete rules.
      */
     suppressIds: {type: Array as PropType<ReadonlyArray<string>>, default: () => []},
+    /**
+     * Read the blocks in the ORDER THEY WERE GIVEN (`CardAnnotation.order`),
+     * never re-sorted by kind or by a measured anchor. For an externally built
+     * reading whose order IS its meaning — a party's standing effect before
+     * its action, exactly as the printed formula above draws them; a
+     * resolution's own effect before its quest. Default false keeps the card
+     * panel's card-order reading.
+     */
+    keepOrder: {type: Boolean, default: false},
   },
   data() {
     return {
@@ -125,6 +143,24 @@ export default defineComponent({
       }
       return cardRuleAnnotations(this.cardName, this.suppressIds);
     },
+    /**
+     * The blocks' printed graphics as mechanics view-models, built once per
+     * annotation set (the walk keeps the DSL nodes as references — cheap, but
+     * not free on every render). A graphic that draws nothing (a text-only
+     * root) is dropped here, so the template never mounts an empty plate.
+     */
+    graphics(): Map<string, MechanicsVM> {
+      const out = new Map<string, MechanicsVM>();
+      for (const group of this.annotations) {
+        if (group.graphic !== undefined) {
+          const vm = buildMechanics(group.graphic);
+          if (!vm.textOnly) {
+            out.set(group.id, vm);
+          }
+        }
+      }
+      return out;
+    },
     /** Physical-order fallback (stable within a kind: model order). */
     fallbackOrdered(): Array<CardAnnotation> {
       return [...this.annotations].sort((a, b) => {
@@ -134,6 +170,9 @@ export default defineComponent({
       });
     },
     orderedAnnotations(): Array<CardAnnotation> {
+      if (this.keepOrder) {
+        return [...this.annotations].sort((a, b) => a.order - b.order);
+      }
       if (this.measuredOrder === undefined) {
         return this.fallbackOrdered;
       }
@@ -182,6 +221,10 @@ export default defineComponent({
     this.scheduleMeasure();
   },
   methods: {
+    /** The block's printed graphic, when it draws something. */
+    graphicOf(group: CardAnnotation): MechanicsVM | undefined {
+      return this.graphics.get(group.id);
+    },
     /** The SHARED rule-text formatter (translate → strip the co-located
      *  kind prefix → read as a sentence). The action workspace shows the
      *  same texts, so the wording lives in ONE place — see

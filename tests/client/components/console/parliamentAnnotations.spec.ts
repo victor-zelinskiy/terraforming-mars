@@ -1,14 +1,17 @@
 import {expect} from 'chai';
 import {PartyName} from '@/common/turmoil/PartyName';
 import {ParliamentModel} from '@/common/models/ParliamentModel';
-import {partyAnnotations, resolutionAnnotations} from '@/client/console/parliament/parliamentAnnotations';
+import {partyAnnotations, resolutionAnnotations, resolutionPartyAnnotations} from '@/client/console/parliament/parliamentAnnotations';
 
 /**
- * THE INSPECTOR'S RULES PANEL for a parliament subject (Turmoil Redux): the
- * subject's own rule, the live reading and ONE line of reference — each its
- * own block, none repeated, nothing about iterations or tests on a face the
- * player reads. Guarded so the panel stays short enough to fit the viewer
- * without a scroll for the six parties and the dummy resolutions.
+ * THE INSPECTOR'S READING BLOCKS for a parliament subject (Turmoil Redux).
+ * A resolution reads as one scene: its OWN rules on the right (the printed
+ * effect with its graphic, the quest's condition), its PARTY's mechanics on
+ * the left (the plaque draws the graphic, these blocks say the sentences),
+ * and the footer states the standing — so no block here restates the
+ * table, the general rules, or the viewer's access. A party opened on its
+ * own keeps its fuller reading (the mechanics, «for you», one reference
+ * line). Guarded so the columns stay short enough for the viewer's band.
  */
 
 const DUMMY = 'RDX_DUMMY_INDUSTRIALISTS_1';
@@ -38,9 +41,9 @@ function model(over: Partial<ParliamentModel> = {}): ParliamentModel {
 const texts = (blocks: ReadonlyArray<{rows: ReadonlyArray<{text: string, params?: ReadonlyArray<string>}>}>) =>
   blocks.flatMap((b) => b.rows.map((r) => r.text));
 
-describe('parliamentAnnotations — the fullscreen inspector\'s rules blocks', () => {
+describe('parliamentAnnotations — the fullscreen inspector\'s reading blocks', () => {
   it('a party: the effect, the action with its limit and LIVE state, «for you», and ONE reference line — each once', () => {
-    const blocks = partyAnnotations(PartyName.INDUSTRIALISTS, model(), 'blue');
+    const blocks = partyAnnotations(PartyName.INDUSTRIALISTS, model(), 'blue', true);
     expect(blocks.map((b) => b.labelKey)).to.deep.eq(['Party action', 'For you', 'Access']);
     const action = blocks[0];
     expect(action.rows.map((r) => r.text)).to.include('Decrease one production 1 step to increase your M€ or energy production 2 steps.');
@@ -56,9 +59,15 @@ describe('parliamentAnnotations — the fullscreen inspector\'s rules blocks', (
   it('a party whose action was USED says so in the action block, never in a paragraph of its own', () => {
     const m = model();
     (m.players[0].partyActionUses as Record<string, number>)[PartyName.INDUSTRIALISTS] = 1;
-    const blocks = partyAnnotations(PartyName.INDUSTRIALISTS, m, 'blue');
+    const blocks = partyAnnotations(PartyName.INDUSTRIALISTS, m, 'blue', true);
     const action = blocks.find((b) => b.labelKey === 'Party action');
     expect(action?.rows[action.rows.length - 1].text).to.eq('Once per generation · used this generation');
+  });
+
+  it('an available action OFF the viewer\'s turn stays available — the turn is an execution gate, named as such', () => {
+    const blocks = partyAnnotations(PartyName.INDUSTRIALISTS, model(), 'blue', false);
+    const action = blocks.find((b) => b.labelKey === 'Party action');
+    expect(action?.rows[action.rows.length - 1].text).to.eq('Once per generation · available on your turn');
   });
 
   it('a passive party (the Greens) prints its effect once and no action block', () => {
@@ -67,50 +76,60 @@ describe('parliamentAnnotations — the fullscreen inspector\'s rules blocks', (
     expect(blocks[0].rows.length).to.eq(1);
   });
 
-  it('a dummy resolution: «no effect of its own» — the main block stands where a real effect will, calmly, and never a word about iterations or tests', () => {
-    const blocks = resolutionAnnotations(DUMMY, model(), 'blue', [{color: 'red', name: 'Ann'}, {color: 'blue', name: 'Bob'}]);
-    expect(blocks.map((b) => b.labelKey)).to.deep.eq(['Resolution effect', 'Party effect', 'Chairman quest', 'Status']);
+  it('a dummy resolution: «no effect of its own» stands where a real effect will, then the quest\'s CONDITION with its graphic — no party, no status, no rules of politics', () => {
+    const blocks = resolutionAnnotations(DUMMY);
+    expect(blocks.map((b) => b.labelKey)).to.deep.eq(['Resolution effect', 'Chairman quest']);
     expect(blocks[0].rows.map((r) => r.text)).to.deep.eq(['No effect of its own']);
+    expect(blocks[0].graphic, 'a dummy prints no graphic').to.eq(undefined);
+    expect(blocks[1].rows.map((r) => r.text), 'the condition alone — the reward is the same for every resolution and lives in the government block').to.deep.eq(['Raise your steel production 1 step']);
+    expect(blocks[1].graphic, 'the quest goal as the face\'s own drawing').to.not.eq(undefined);
     for (const text of texts(blocks)) {
-      expect(text.toLowerCase(), text).to.not.match(/dummy|iteration|test/);
+      expect(text.toLowerCase(), text).to.not.match(/dummy|iteration|test|delegates|tied/);
     }
-    // The party NAME reaches the row as a display string — translated, never a raw enum.
-    const partyRow = blocks[1].rows[0];
-    expect(partyRow.text).to.include('${0}');
-    expect(partyRow.params?.[0]).to.be.a('string');
-    // The quest is ONE row (condition · reward); the status is three here: slot ·
-    // delegates · leader · winning, the TIE between the two players on the card
-    // (red and blue hold one delegate each — said where the player asks, never
-    // on the overview), and the viewer's line.
-    expect(blocks[2].rows.length).to.eq(1);
-    expect(blocks[3].rows.length).to.eq(3);
-    expect(blocks[3].rows[0].text).to.eq('On the card: ${0} delegates · leader: ${1} · ${2}');
-    expect(blocks[3].rows[0].params).to.deep.eq(['2', 'Ann', 'winning now']);
-    expect(blocks[3].rows[1].text, 'the tie between the players is explained in the inspector').to.eq('Tied players: the one whose delegate came earlier leads');
-    // Up for the vote, the party block says what ENACTING would give (a condition, never «enacted»).
-    expect(blocks[1].rows[0].text).to.eq('If enacted: ${0} rule, and every player has their effect');
-    expect(blocks[3].rows[2].params).to.deep.eq(['1', '2']);
   });
 
-  it('a resolution tied with another on delegates explains the slot-order tie — for the winner and for the loser', () => {
-    const other = 'RDX_DUMMY_REDS_1';
-    const m = model();
-    (m.slots as Array<ParliamentModel['slots'][number]>).push({instance: `${other}#0`, resolution: other, party: PartyName.REDS, votes: [{owner: 'red', seq: 3}, {owner: 'red', seq: 4}], totalVotes: 2, leader: 'red', isWinning: false, tiePriority: 2, viewerVotes: 0});
-    const winner = resolutionAnnotations(DUMMY, m, 'blue');
-    const status = winner.find((b) => b.labelKey === 'Status');
-    expect(status?.rows.map((r) => r.text)).to.include('Tied on delegates: the resolution closest to the government wins');
-    const loser = resolutionAnnotations(other, m, 'blue');
-    expect(loser.find((b) => b.labelKey === 'Status')?.rows.map((r) => r.text)).to.include('Tied on delegates: the resolution closest to the government wins the tie');
+  it('a resolution with a REAL effect: the printed graphic rides the first block, the framework\'s own facts follow the sentence', () => {
+    const immediate = resolutionAnnotations('RDX_DEV_IMMEDIATE');
+    expect(immediate.map((b) => b.labelKey)).to.deep.eq(['Resolution effect', 'Chairman quest']);
+    expect(immediate[0].kind).to.eq('immediate');
+    expect(immediate[0].graphic, 'the own effect\'s graphic').to.not.eq(undefined);
+    expect(immediate[0].rows.map((r) => r.text)).to.deep.eq(['When enacted: every player gains 3 M€ and 1 plant.']);
+    const compound = resolutionAnnotations('RDX_DEV_COMPOUND');
+    expect(compound[0].rows.map((r) => r.text)[1], 'a winner-only part is named as the framework knows it').to.match(/winner/);
+    const passive = resolutionAnnotations('RDX_DEV_PASSIVE');
+    expect(passive[0].kind).to.eq('effect');
+    expect(passive[0].rows.map((r) => r.text)).to.include('While enacted, every player has this effect');
+    const action = resolutionAnnotations('RDX_DEV_ACTION');
+    expect(action[0].kind).to.eq('action');
+    expect(action[0].labelKey).to.eq('Resolution action');
   });
 
-  it('an ENACTED resolution reads its one status line', () => {
-    const m = model({enacted: {instance: `${DUMMY}#0`, resolution: DUMMY, party: PartyName.INDUSTRIALISTS}, rulingParty: PartyName.INDUSTRIALISTS, slots: []});
-    const blocks = resolutionAnnotations(DUMMY, m, 'blue');
-    const status = blocks.find((b) => b.labelKey === 'Status');
-    expect(status?.rows.length).to.eq(1);
-    expect(status?.rows[0].text).to.eq('Enacted — ${0} rule');
-    // …and the party block no longer repeats it: the effect alone.
-    const party = blocks.find((b) => b.labelKey === 'Party effect');
-    expect(party?.rows.map((r) => r.text).some((t) => t.startsWith('If enacted') || t.startsWith('Enacted'))).to.be.false;
+  it('an unknown resolution reads nothing (never a blank chip)', () => {
+    expect(resolutionAnnotations('RDX_NOT_A_CARD')).to.deep.eq([]);
+  });
+
+  it('the party column beside a resolution: the mechanics\' sentences only — no «for you», no reference (the footer and the party\'s own inspector carry those)', () => {
+    const scientists = resolutionPartyAnnotations(PartyName.SCIENTISTS, model(), 'blue', true);
+    expect(scientists.map((b) => b.labelKey), 'the effect and the action told apart').to.deep.eq(['Party effect', 'Party action']);
+    expect(scientists[0].rows[0].text).to.eq('+1 wild tag when playing cards and actions.');
+    expect(scientists[1].rows[0].text).to.eq('Add 2 data or 2 microbes to one of your cards that holds that resource.');
+    expect(scientists[1].rows[scientists[1].rows.length - 1].text, 'no access to the action → the limit alone, no claim').to.eq('Once per generation');
+    const reds = resolutionPartyAnnotations(PartyName.REDS, model(), 'blue', true);
+    expect(reds.map((b) => b.labelKey)).to.deep.eq(['Party action']);
+    expect(reds[0].rows.map((r) => r.text)).to.include('The draw cannot be undone; the discard that follows is mandatory');
+    const greens = resolutionPartyAnnotations(PartyName.GREENS, undefined, undefined);
+    expect(greens.map((b) => b.labelKey), 'outside a live table the mechanics still read').to.deep.eq(['Party effect']);
+    for (const block of [...scientists, ...reds, ...greens]) {
+      expect(block.labelKey).to.not.be.oneOf(['For you', 'Access', 'Status']);
+    }
+  });
+
+  it('the party column\'s action state is the SAME derivation the party inspector uses (used · available · on your turn)', () => {
+    const used = model();
+    (used.players[0].partyActionUses as Record<string, number>)[PartyName.INDUSTRIALISTS] = 1;
+    const column = resolutionPartyAnnotations(PartyName.INDUSTRIALISTS, used, 'blue', true);
+    const own = partyAnnotations(PartyName.INDUSTRIALISTS, used, 'blue', true);
+    expect(column[0].rows.map((r) => r.text)).to.deep.eq(own[0].rows.map((r) => r.text));
+    expect(column[0].rows[column[0].rows.length - 1].text).to.eq('Once per generation · used this generation');
   });
 });

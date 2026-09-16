@@ -385,9 +385,16 @@ for (const preset of PRESETS) {
       await expect(page.locator('.con-parl__cta--blocked')).toHaveCount(1);
       await press(page, 'Enter', 800);
       await expect(page.locator('.con-notice')).toBeVisible();
-      // The tie is explained where the player asks: X on the winning card.
+      // X on the selected card: the resolution scene — its party on the left,
+      // its own rules on the right, and the FOOTER states where the card
+      // stands (up for the vote) and the viewer's access to the party effect.
+      // No paragraph of political rules in the inspector any more.
       await openZoomViewer(page);
-      await expect(page.locator('.con-zoom-rules').first()).toContainText(/ближайш/i);
+      await expect(page.locator('.con-rstatus[data-lifecycle="vote"]'), 'the standing chip: up for the vote').toHaveCount(1);
+      await expect(page.locator('.con-rstatus')).toContainText(/НА ГОЛОСОВАНИИ/i);
+      await expect(page.locator('.card-zoom-aside .con-rinspect-aside'), 'the party column stands beside the card').toHaveCount(1);
+      await expect(page.locator('.card-zoom-side .con-zoom-rules'), 'the resolution\'s own rules stand on the right').toHaveCount(1);
+      await expect(page.locator('dialog.con-zoom'), 'no tie prose in the inspector').not.toContainText(/ближайш/i);
       await closeZoomViewer(page);
       await settle(page, {timeoutMs: 8_000});
       expect(await pressUntil(page, 'Escape', async () => await voteStep(page).count() === 0, {tries: 3, settleMs: 1100}), 'B folds the mode').toBeTruthy();

@@ -921,7 +921,7 @@
     <CardZoomModal v-if="consoleCardZoom.card !== undefined"
                    ref="cardZoom"
                    class="con-zoom"
-                   :class="{'con-zoom--flight': zoomFlight, 'con-zoom--closing': zoomClosing}"
+                   :class="{'con-zoom--flight': zoomFlight, 'con-zoom--closing': zoomClosing, 'con-zoom--parliament': zoomResolutionId !== undefined}"
                    :card="consoleCardZoom.card"
                    :cards="consoleCardZoom.cards.length > 1 ? consoleCardZoom.cards : undefined"
                    :index="consoleCardZoom.index"
@@ -933,6 +933,25 @@
                    :lore="true"
                    @navigate="onCardZoomNavigate"
                    @close="onCardZoomClosed">
+      <!-- A RESOLUTION's PARTY (Turmoil Redux) in the left gutter — the
+           column a project card lends to its archive entry. One scene reads
+           the resolution whole: its party (here), the card (centre), its own
+           rules (right), where it stands and the viewer's access (the bar).
+           Every column follows `consoleCardZoom.card`, so browsing LB/RB
+           re-points all of them in the same flush — never a frame of the new
+           card beside the previous party. -->
+      <template v-if="zoomResolutionParty !== undefined" #aside="aside">
+        <div class="con-zoom-asidecol">
+          <ConsoleResolutionAside ref="zoomAsidePanel"
+                                  :party="zoomResolutionParty"
+                                  :parliament="game.parliament"
+                                  :viewer="thisPlayer.color"
+                                  :canActNow="myTurn && awaitingInput"
+                                  :contextKey="zoomResolutionContextKey"
+                                  :nonce="aside.nonce"
+                                  :closing="aside.closing" />
+        </div>
+      </template>
       <!-- TV rules panel (Этап 1-R2): the stable right-hand rules surface —
            the structured Card Information blocks beside the hero card. The
            floating callouts are suppressed while it shows (one place for
@@ -974,10 +993,13 @@
                                  :annotationsOverride="zoomBotCorpAnnotations"
                                  :nonce="side.nonce"
                                  :closing="side.closing" />
-          <!-- A parliament face (Turmoil Redux): resolution effect · party
-               effect · chairman quest, told apart as three blocks. -->
+          <!-- A parliament face (Turmoil Redux): a resolution's OWN rules
+               (the printed effect with its graphic, then the chairman quest's
+               condition) or a party's reading — in the order they are given,
+               which is the order the face prints them. -->
           <ConsoleCardRulesPanel v-else-if="zoomParliamentAnnotations !== undefined"
                                  ref="zoomRulesPanel"
+                                 keepOrder
                                  :annotationsOverride="zoomParliamentAnnotations"
                                  :nonce="side.nonce"
                                  :closing="side.closing" />
@@ -1007,6 +1029,13 @@
           </div>
         </div>
         <div class="con-zoom__bar">
+          <!-- A RESOLUTION's STANDING (Turmoil Redux): up for the vote or
+               enacted, and the viewer's access to its PARTY's effect — the
+               two facts the footer exists to answer, read-only, before the
+               verbs. Absent outside a live parliament (no invented votes). -->
+          <ConsoleResolutionStatus v-if="zoomResolutionStatus !== undefined"
+                                   :status="zoomResolutionStatus"
+                                   :viewerColor="thisPlayer.color" />
           <!-- THE PROVENANCE PLATE (opened from «Разыграно»): the hero card
                would otherwise read like any other inspected card. The plate
                leads the bar and states WHOSE table it lies on, in WHICH
@@ -1495,6 +1524,10 @@ import ConsoleColoniesSection, {ConsoleColonyPick} from '@/client/components/con
 import ConsoleParliamentSection, {ParliamentInspectRequest} from '@/client/components/console/ConsoleParliamentSection.vue';
 import {consoleParliamentUi} from '@/client/console/consoleParliamentState';
 import {partyAnnotations, resolutionAnnotations} from '@/client/console/parliament/parliamentAnnotations';
+import {resolutionPartyContextKey, resolutionStatusOf, ResolutionStatusVm} from '@/client/console/parliament/resolutionInspectModel';
+import {getResolution} from '@/client/parliament/ClientParliamentManifest';
+import ConsoleResolutionAside from '@/client/components/console/parliament/ConsoleResolutionAside.vue';
+import ConsoleResolutionStatus from '@/client/components/console/parliament/ConsoleResolutionStatus.vue';
 import ConsoleInfoMode from '@/client/components/console/ConsoleInfoMode.vue';
 import ConsoleStrandedPrompt from '@/client/components/console/ConsoleStrandedPrompt.vue';
 import ConsoleSystemAlert from '@/client/components/console/ConsoleSystemAlert.vue';
@@ -2024,6 +2057,8 @@ export default defineComponent({
     ConsoleResourcePanel,
     ConsoleColoniesSection,
     ConsoleParliamentSection,
+    ConsoleResolutionAside,
+    ConsoleResolutionStatus,
     ConsoleInfoMode,
     ConsoleCardRulesPanel,
     ConsoleInspectSide,
@@ -8262,12 +8297,36 @@ export default defineComponent({
         return undefined;
       }
       if (isResolutionZoom(card)) {
-        return resolutionAnnotations(card.resolution, this.game.parliament, this.thisPlayer.color, this.playerView.players);
+        return resolutionAnnotations(card.resolution);
       }
       if (isPartyEffectZoom(card)) {
-        return partyAnnotations(card.partyEffect, this.game.parliament, this.thisPlayer.color);
+        return partyAnnotations(card.partyEffect, this.game.parliament, this.thisPlayer.color, this.myTurn && this.awaitingInput);
       }
       return undefined;
+    },
+    /** The RESOLUTION on the viewer's stage (Turmoil Redux), or undefined for any other subject. */
+    zoomResolutionId(): string | undefined {
+      const card = this.consoleCardZoom.card;
+      return card !== undefined && isResolutionZoom(card) ? card.resolution : undefined;
+    },
+    /** Its party — the left column's subject (the CATALOG's party, so it shows outside a live table too). */
+    zoomResolutionParty(): ReduxParty | undefined {
+      const id = this.zoomResolutionId;
+      return id === undefined ? undefined : getResolution(id)?.party;
+    },
+    /**
+     * WHERE THE CARD STANDS and the viewer's access to its party's effect —
+     * the footer's reading, from the VIEWER's own parliament model (never the
+     * player whose turn it is). Undefined without a live table or for a card
+     * that is neither in the vote nor enacted: the bar then states nothing.
+     */
+    zoomResolutionStatus(): ResolutionStatusVm | undefined {
+      const id = this.zoomResolutionId;
+      return id === undefined ? undefined : resolutionStatusOf(id, this.game.parliament, this.thisPlayer.color);
+    },
+    /** The party column's one context line (a condition in the vote, a fact once enacted). */
+    zoomResolutionContextKey(): string | undefined {
+      return resolutionPartyContextKey(this.zoomResolutionStatus);
     },
     /** The MarsBot corporation's printed rule boxes for the rules panel —
      *  only when the viewer is on a bot-corporation entry. */
@@ -17476,7 +17535,13 @@ export default defineComponent({
         // underneath. No new binding, no advertised verb for a journey the
         // player cannot make.
         const rules = this.$refs.zoomRulesPanel as {scrollBody?: (dy: number) => boolean} | undefined;
-        rules?.scrollBody?.(intent.dy);
+        if (rules?.scrollBody?.(intent.dy) !== true) {
+          // The resolution inspector's PARTY column (left) is the second
+          // reading surface of the viewer — it takes the stick when the
+          // rules on the right have nothing to scroll.
+          const aside = this.$refs.zoomAsidePanel as {scrollBody?: (dy: number) => boolean} | undefined;
+          aside?.scrollBody?.(intent.dy);
+        }
         return true;
       }
       if (intent.kind !== 'press') {

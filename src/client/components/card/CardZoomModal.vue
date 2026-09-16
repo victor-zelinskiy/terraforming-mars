@@ -79,6 +79,17 @@
                        :nonce="settleNonce"
                        :closing="closing" />
         <!--
+          OPT-IN left-gutter panel (the console resolution inspector's PARTY
+          column — Turmoil Redux). The same grid cell the archive entry takes
+          for a project card; a subject with no lore lends the gutter to what
+          the card is ABOUT. The fit engine reserves its width like the rules
+          panel's (the two columns share one width token, so the reservation —
+          symmetric by construction — is unchanged by the second panel).
+        -->
+        <div v-if="hasAside" class="card-zoom-aside">
+          <slot name="aside" :nonce="settleNonce" :closing="closing" />
+        </div>
+        <!--
           Prev / next navigation controls. Premium side controls that live in
           the viewer's gutters, never on the card. Bounded: at the first / last
           card the control is DISABLED (dimmed but still visible) so the edge of
@@ -411,6 +422,11 @@ export default defineComponent({
     hasSide(): boolean {
       return this.$slots.side !== undefined;
     },
+    /** A host-provided LEFT-gutter panel (the resolution inspector's party
+     *  column) — render its cell and reserve its width in the fit. */
+    hasAside(): boolean {
+      return this.$slots.aside !== undefined;
+    },
     navCount(): number {
       return this.navList.length;
     },
@@ -474,7 +490,7 @@ export default defineComponent({
      * The fit engine reserves the gutters symmetrically to match.
      */
     hasFlank(): boolean {
-      return this.hasSide || this.loreVisible;
+      return this.hasSide || this.hasAside || this.loreVisible;
     },
   },
   watch: {
@@ -986,9 +1002,12 @@ export default defineComponent({
       // the card. The root font-size already carries the TV scale, so the
       // resolved values are DEVICE px — never multiplied by `s` again.
       // (Desktop instances render no flanks: both stay 0, byte-identical.)
-      const rootVars = (this.hasSide || this.loreVisible) ? getComputedStyle(document.documentElement) : undefined;
+      const rootVars = (this.hasSide || this.hasAside || this.loreVisible) ? getComputedStyle(document.documentElement) : undefined;
       const remPx = cssLengthPx('1rem', 20);
-      const sideReserve = this.hasSide && rootVars !== undefined ?
+      // The rules panel on the right and the party column on the left ride
+      // the SAME width token, so the symmetric reservation is one number for
+      // either or both of them.
+      const sideReserve = (this.hasSide || this.hasAside) && rootVars !== undefined ?
         cssLengthPx(rootVars.getPropertyValue('--con-rules-w'), 420 * s) + 1.6 * remPx : 0;
       // Column + its 3rem breathing margin + 0.9rem, which is the archive
       // entry's OUTER safe inset: the entry is the wider flank, so whatever is

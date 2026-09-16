@@ -199,17 +199,32 @@ async function expectUniformGrid(page: Page, label: string): Promise<void> {
   }
 }
 
-/** The inspector's rules body needs no scroll (the panel's whole point). */
+/** The inspector's reading bodies need no scroll (the panels' whole point) — the party column's text block included. */
 async function expectRulesFit(page: Page, label: string): Promise<void> {
   const overflow = await page.evaluate(() => {
-    const scroll = document.querySelector<HTMLElement>('.con-zoom-rules__scroll');
-    if (scroll === null) {
+    const scrolls = Array.from(document.querySelectorAll<HTMLElement>('dialog.con-zoom[open] .con-zoom-rules__scroll'));
+    if (scrolls.length === 0) {
       return 'no rules panel';
     }
-    const inner = scroll.querySelector<HTMLElement>('.con-zoom-rules__body') ?? scroll;
-    return inner.scrollHeight > scroll.clientHeight + 2 ? `${inner.scrollHeight} > ${scroll.clientHeight}` : '';
+    const out: Array<string> = [];
+    for (const scroll of scrolls) {
+      const inner = scroll.querySelector<HTMLElement>('.con-zoom-rules__body') ?? scroll;
+      if (inner.scrollHeight > scroll.clientHeight + 2) {
+        out.push(`${inner.scrollHeight} > ${scroll.clientHeight}`);
+      }
+    }
+    // …and every column stands INSIDE the viewport: two columns beside the
+    // card once overran the Deck's edges by 30 px each (the fit engine and the
+    // stylesheet disagreed about the column width there).
+    for (const column of Array.from(document.querySelectorAll<HTMLElement>('dialog.con-zoom[open] .card-zoom-aside, dialog.con-zoom[open] .card-zoom-side'))) {
+      const r = column.getBoundingClientRect();
+      if (r.left < -1 || r.right > window.innerWidth + 1) {
+        out.push(`off-screen ${column.className}: ${Math.round(r.left)}..${Math.round(r.right)} of ${window.innerWidth}`);
+      }
+    }
+    return out.join('; ');
   });
-  expect(overflow, `${label}: the rules panel fits without a scroll`).toBe('');
+  expect(overflow, `${label}: every reading panel fits without a scroll and inside the viewport`).toBe('');
 }
 
 /** The overview carries NO rule paragraphs, no V-labels, no second ledger of the viewer's delegates. */
@@ -624,10 +639,13 @@ test.describe('parliament v4 · a crowded table · the vote that is not possible
       await press(page, at < winner ? 'ArrowRight' : 'ArrowLeft', 500);
     }
     expect(await selectedInstance(page), 'the winning card is selected').toBe(model.parl.slots[winner].instance);
+    // The inspector of the winning card: the footer says it stands in the vote
+    // AND wins right now; the party column and the own-rules column both fit.
     await openZoomViewer(page);
-    await expect(page.locator('.con-zoom-rules').first()).toContainText(/ближайш/i);
+    await expect(page.locator('.con-rstatus[data-lifecycle="vote"]')).toContainText(/побеждает/i);
+    await expect(page.locator('.card-zoom-aside .con-rinspect-aside')).toHaveCount(1);
     await expectRulesFit(page, `${preset} tie`);
-    await shoot(page, preset, '22-dense-tie-in-inspector');
+    await shoot(page, preset, '22-dense-winner-in-inspector');
     await closeZoomViewer(page);
     await settle(page, {timeoutMs: 8_000});
     expect(await pressUntil(page, 'Escape', async () => await voteMode(page).count() === 0, {tries: 3, settleMs: 1100})).toBeTruthy();

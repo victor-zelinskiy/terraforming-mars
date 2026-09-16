@@ -395,5 +395,22 @@
     "Tied players: the one whose delegate came earlier leads": "Равенство между игроками: лидирует тот, чей делегат встал раньше",
     "The ruling party's effect belongs to every player; a party with two of your delegates on its resolution gives its effect to you as well": "Эффект правящей партии есть у всех игроков; партия, на резолюции которой стоят два ваших делегата, даёт свой эффект и вам",
     "${0} is enacted — ${1} now rule; its delegates return to their reserves": "${0} принята — теперь правит партия ${1}; её делегаты возвращаются в резервы",
-    "${0} new resolutions entered the voting area; popular support votes for them": "Новых резолюций на голосовании: ${0}; народная поддержка голосует за них"
+    "${0} new resolutions entered the voting area; popular support votes for them": "Новых резолюций на голосовании: ${0}; народная поддержка голосует за них",
+    "Party of the resolution": "Партия резолюции",
+    "If enacted — every player gets its effect": "При принятии — эффект партии всем игрокам",
+    "Rules — every player has its effect": "Правит — эффект партии у всех игроков",
+    "Up for the vote": "На голосовании",
+    "for every player": "доступен всем",
+    "available to you": "доступен",
+    "not available to you": "недоступен",
+    "the party rules": "партия правит",
+    "granted by a card": "выдан картой",
+    "Once per generation · available on your turn": "Раз за поколение · доступно в ваш ход",
+    "Its winner's part goes to the player who won the vote — never to the neutral player": "Часть для победителя достаётся игроку, выигравшему голосование; нейтральному игроку — никогда",
+    "While enacted, every player has this effect": "Пока резолюция принята, этот эффект есть у всех игроков",
+    "While enacted, every player may use it": "Пока резолюция принята, его может использовать каждый игрок",
+    "Interplanetary Reconstruction Accord": "Соглашение о межпланетной реконструкции",
+    "When enacted: every player gains 2 M€ per plant, microbe or animal tag they have (max 10 M€) and draws 1 card. The winning player also gains 1 TR.": "При принятии: каждый игрок получает 2 М€ за каждую свою метку растений, микробов или животных (не более 10 М€) и берёт 1 карту. Победивший игрок также получает 1 РТ.",
+    "Open Research Charter": "Хартия открытых исследований",
+    "When enacted: every player draws 1 card per 2 science tags they have (max 3 cards).": "При принятии: каждый игрок берёт по 1 карте за каждые 2 свои метки науки (не более 3 карт)."
 }
