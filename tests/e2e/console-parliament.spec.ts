@@ -87,8 +87,8 @@ async function expectFits(page: Page, preset: Preset): Promise<void> {
       const r = el.getBoundingClientRect();
       return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden';
     };
-    const blocks = '.con-parl__gov, .con-parl__slot, .con-parl__tally, .con-parl__seats, .con-parl__party, .con-parl__pline, .con-parl__quest, .con-parl__agenda, .con-parl__stage, ' +
-      '.con-parl__info, .con-parl__bench, .con-parl__info-block, .con-parl__fact';
+    const blocks = '.con-parl__gov, .con-parl__slot, .con-parl__tally, .con-parl__seats, .con-parl__seat, .con-parl__party, .con-parl__pline, .con-parl__quest, .con-parl__agenda, .con-parl__stage, ' +
+      '.con-parl__info, .con-parl__info-block, .con-parl__fact';
     for (const el of Array.from(root.querySelectorAll<HTMLElement>(blocks))) {
       if (!visible(el)) {
         continue;
@@ -110,8 +110,8 @@ async function expectFits(page: Page, preset: Preset): Promise<void> {
       }
     }
     const reading = '.con-pseal__name, .con-pseal__state-text, .con-parl__tally-row, .con-parl__fact-key, .con-parl__fact-val, ' +
-      '.con-parl__quest-reward, .con-parl__quest-text, .con-parl__pline-text, .con-parl__slot-win, .con-parl__kicker, .con-parl__seat, .con-parl__ruler-name, ' +
-      '.con-parl__recap-item, .con-parl__txn-row, .con-parl__info-src-text, .con-parl__info-name, .con-parl__bench-note';
+      '.con-parl__quest-reward, .con-parl__quest-text, .con-parl__pline-text, .con-parl__slot-win, .con-parl__kicker, .con-parl__seat-name, .con-parl__seat-key, .con-parl__ruler-name, ' +
+      '.con-parl__recap-item, .con-parl__txn-row, .con-parl__info-src-text, .con-parl__info-name';
     for (const el of Array.from(root.querySelectorAll<HTMLElement>(reading))) {
       if (!visible(el)) {
         continue;
@@ -121,7 +121,7 @@ async function expectFits(page: Page, preset: Preset): Promise<void> {
       }
       // Clipped by an ancestor tier (the tier's overflow hides it) — vertically,
       // and along the one-line focus rail, horizontally too.
-      const tier = el.closest<HTMLElement>('.con-parl__pline, .con-parl__gov, .con-parl__stage, .con-parl__party, .con-parl__slot, .con-parl__seats, .con-parl__info, .con-parl__bench');
+      const tier = el.closest<HTMLElement>('.con-parl__pline, .con-parl__gov, .con-parl__stage, .con-parl__party, .con-parl__slot, .con-parl__seats, .con-parl__info');
       if (tier !== null) {
         const t = tier.getBoundingClientRect();
         const e = el.getBoundingClientRect();
@@ -222,7 +222,8 @@ for (const preset of PRESETS) {
       await expect(gov).toContainText(/Стартовое правило/i);
       await expect(gov.locator('.con-parl__ruler .con-pformula__mech')).toHaveCount(1);
       await expect(gov.locator('[data-parl-gov-empty]'), 'no resolution enacted yet: an honest empty seat').toHaveCount(1);
-      await expect(page.locator('[data-parl-seats] .con-parl__seat'), 'the seats ledger').toHaveCount(2);
+      await expect(page.locator('.con-wshead [data-parl-seats] .con-parl__seat[data-parl-seat]'), 'the delegates zone on the head line — one group per player').toHaveCount(2);
+      await expect(page.locator('.con-parl__body [data-parl-seats]'), 'no ledger row in the body').toHaveCount(0);
       await expect(page.locator('[data-parl-quest] .con-parl__quest-reward')).toContainText(/Кресло/);
       await expect(page.locator('[data-parl-tally]')).toHaveCount(3);
       await expect(page.locator('.con-parl__party')).toHaveCount(6);
@@ -285,12 +286,20 @@ for (const preset of PRESETS) {
       // The landed delegate is part of the card's composition: the ribbon and
       // the tally read the new count, and the viewer's lead on slot 1.
       await expect(slots(page).nth(0)).toHaveAttribute('data-votes', String(target.totalVotes + 1));
+      // The inspector of a resolution lives INSIDE the mode (X on the selected
+      // card); the voting area itself offers no X.
+      await press(page, 'Enter', 1400);
+      await expect(voteStep(page), 'the mode opens for reading').toHaveCount(1);
+      await settle(page, {timeoutMs: 8_000});
       await openZoomViewer(page);
       const panel = page.locator('.con-zoom-rules').first();
       await expect(panel).toBeVisible({timeout: 10_000});
       await expect(page.locator('body'), 'no lore placeholder over a resolution face').not.toContainText(/Архивная запись отсутствует/);
       await shoot(page, preset, '04-inspect-resolution');
       await closeZoomViewer(page);
+      await settle(page, {timeoutMs: 8_000});
+      expect(await pressUntil(page, 'Escape', async () => await voteStep(page).count() === 0, {tries: 3, settleMs: 1100}), 'B folds the mode').toBeTruthy();
+      await settle(page, {timeoutMs: 8_000});
 
       // ── THE PARTY DOSSIER: down to the parties row, X over a party.
       await press(page, 'ArrowDown', 500);

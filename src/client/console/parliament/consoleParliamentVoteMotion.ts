@@ -96,6 +96,8 @@ const LATE_AT_MS = 360;
 const BODY_IN_AT_MS = 130;
 /** On B: the cards leave the row a beat after the surface starts sinking (the surface yields FIRST). */
 const CARRY_BACK_AT_MS = 40;
+/** The RE-FIT — the cards settle a size smaller (or larger) while the band takes its bill height. */
+const REFIT_MS = 300;
 /** The pressed block's own answer, before anything moves. */
 const COMMIT_MS = 120;
 /** The delegate's glide: the fraction of the path past which the cube has visibly LEFT its source … */
@@ -117,9 +119,10 @@ export type VoteRectSnapshot = {
   tallies: Map<string, Rect>;
   /** `<instance>#<seq>` → rect. */
   cubes: Map<string, Rect>;
-  /** The viewer's two places on the ledger / the bench. */
-  lobby: Rect | undefined;
-  reserve: Rect | undefined;
+  /** The delegates zone's groups (`data-parl-seat` colour, or `neutral`) → rect: the ledger travels as its groups. */
+  seats: Map<string, Rect>;
+  /** The vote layer's info SURFACE (the band) — its top edge travels with a re-fit. */
+  surface: Rect | undefined;
 };
 
 function rectOf(el: Element | null | undefined): Rect | undefined {
@@ -149,8 +152,8 @@ export function measureVoteRects(root: HTMLElement, opts: {press?: {x: number, y
     labels: new Map(),
     tallies: new Map(),
     cubes: new Map(),
-    lobby: undefined,
-    reserve: undefined,
+    seats: new Map(),
+    surface: rectOf(root.querySelector('[data-parl-vote-surface]')),
   };
   for (const slot of slotsOf(root)) {
     const id = instanceOf(slot);
@@ -174,16 +177,22 @@ export function measureVoteRects(root: HTMLElement, opts: {press?: {x: number, y
       }
     }
   }
-  if (opts.mode === 'browse') {
-    if (opts.viewer !== undefined) {
-      snap.lobby = rectOf(root.querySelector(`[data-parl-seat-lobby="${opts.viewer}"]`));
-      snap.reserve = rectOf(root.querySelector(`[data-parl-seat-reserve="${opts.viewer}"]`));
+  for (const seat of seatsOf(root)) {
+    const r = rectOf(seat);
+    if (r !== undefined) {
+      snap.seats.set(seatKeyOf(seat), r);
     }
-  } else {
-    snap.lobby = rectOf(root.querySelector('[data-parl-lobby-cube]'));
-    snap.reserve = rectOf(root.querySelector('[data-parl-reserve-cube]'));
   }
   return snap;
+}
+
+/** The delegates zone's groups — one per player, plus the neutral supply. */
+function seatsOf(root: HTMLElement): Array<HTMLElement> {
+  return Array.from(root.querySelectorAll<HTMLElement>('[data-parl-zone] .con-parl__seat'));
+}
+
+function seatKeyOf(seat: HTMLElement): string {
+  return seat.getAttribute('data-parl-seat') ?? 'neutral';
 }
 
 // ── element resolution ──────────────────────────────────────────────────────
@@ -205,24 +214,9 @@ function surfaceOf(root: HTMLElement): HTMLElement | null {
   return root.querySelector<HTMLElement>('[data-parl-vote-surface]');
 }
 
-function benchOf(root: HTMLElement): HTMLElement | null {
-  return root.querySelector<HTMLElement>('[data-parl-bench]');
-}
-
-function benchLobbyOf(root: HTMLElement): HTMLElement | null {
-  return root.querySelector<HTMLElement>('[data-parl-lobby-cube]');
-}
-
-function benchReserveOf(root: HTMLElement): HTMLElement | null {
-  return root.querySelector<HTMLElement>('[data-parl-reserve-cube]');
-}
-
-function ledgerLobbyOf(root: HTMLElement, viewer: string | undefined): HTMLElement | null {
-  return viewer === undefined ? null : root.querySelector<HTMLElement>(`[data-parl-seat-lobby="${viewer}"]`);
-}
-
-function ledgerReserveOf(root: HTMLElement, viewer: string | undefined): HTMLElement | null {
-  return viewer === undefined ? null : root.querySelector<HTMLElement>(`[data-parl-seat-reserve="${viewer}"]`);
+/** The delegates zone itself (its plate crossfades between its two poses; its groups FLIP). */
+function zoneOf(root: HTMLElement): HTMLElement | null {
+  return root.querySelector<HTMLElement>('[data-parl-zone]');
 }
 
 /** WAVE 1 — the surface's structural groups. */
@@ -262,19 +256,6 @@ function carry(tl: gsap.core.Timeline, target: HTMLElement | null, from: Rect | 
   }
 }
 
-/** The reverse: `target` travels from its CURRENT box to `to` (the rect it will occupy once the layout changes). */
-function carryTo(tl: gsap.core.Timeline, target: HTMLElement | null, to: Rect | undefined, atS: number, durMs: number, ease: string): void {
-  if (target === null) {
-    return;
-  }
-  const delta = to !== undefined ? descendFlipFrom(target, to) : undefined;
-  if (delta !== undefined) {
-    tl.to(target, {x: delta.x, y: delta.y, scale: delta.scale, transformOrigin: 'top left', duration: s(durMs), ease, overwrite: 'auto'}, atS);
-  } else {
-    tl.to(target, {autoAlpha: 0, duration: s(120), ease: 'power2.in', overwrite: 'auto'}, atS);
-  }
-}
-
 // ── the enter phrase (browse → vote) ────────────────────────────────────────
 
 export type VoteEnterArgs = {
@@ -309,7 +290,7 @@ export function playParliamentVoteEnter(args: VoteEnterArgs): void {
   const receders = recedersOf(root);
   const plate = plateOf(root);
   const surface = surfaceOf(root);
-  const bench = benchOf(root);
+  const zone = zoneOf(root);
   const items = revealItemsOf(root);
   const late = lateItemsOf(root);
 
@@ -376,13 +357,15 @@ export function playParliamentVoteEnter(args: VoteEnterArgs): void {
         carry(tl, cube, before.cubes.get(`${id}#${cube.getAttribute('data-seq')}`), s(CARRY_AT_MS + 20), CUBE_FLIP_MS, 'power2.inOut');
       }
     }
-    // 3. THE BENCH — the viewer's lobby socket and reserve stack come up from
-    //    their places on the ledger: the SOURCES of the vote, physically.
-    if (bench !== null) {
-      tl.fromTo(bench, {autoAlpha: 0}, {autoAlpha: 1, duration: s(REVEAL_MS), ease: 'expo.out', clearProps: 'opacity,visibility'}, s(CARRY_AT_MS));
+    // 3. THE DELEGATES ZONE — the same ledger the head line carried settles
+    //    a line lower, group by group (each FLIPs from its own rect: the
+    //    players keep their order, their cubes their geometry); its plate is
+    //    a CSS crossfade on the carried class.
+    if (zone !== null) {
+      for (const seat of seatsOf(root)) {
+        carry(tl, seat, before.seats.get(seatKeyOf(seat)), s(CARRY_AT_MS), BENCH_FLIP_MS, 'power2.inOut');
+      }
     }
-    carry(tl, benchLobbyOf(root), before.lobby, s(CARRY_AT_MS), BENCH_FLIP_MS, 'power2.inOut');
-    carry(tl, benchReserveOf(root), before.reserve, s(CARRY_AT_MS + 30), BENCH_FLIP_MS, 'power2.inOut');
     // 4. THE INFO SURFACE surfaces in its final geometry under the settling
     //    cards — a soft rise with its structure already in it; the fine print
     //    arrives a beat later. Nothing stretches open empty.
@@ -394,6 +377,63 @@ export function playParliamentVoteEnter(args: VoteEnterArgs): void {
     descendCascade(tl, late, s(LATE_MS), s(LATE_AT_MS), lateStagger);
     return tl;
   });
+}
+
+// ── the re-fit phrase (the mode's geometry changes under a standing scene) ──
+
+export type VoteRefitArgs = {
+  root: HTMLElement;
+  /** Everything's rect in the mode's PREVIOUS geometry, measured before the layout change. */
+  before: VoteRectSnapshot;
+};
+
+/**
+ * THE RE-FIT: the vote column takes the shared payment panel's width and the
+ * band its height (the bill), so the card row above re-fits a size smaller —
+ * every carried object FLIPs from its rect a layout ago, and the band UNFOLDS
+ * upward from where its top edge stood (a clip, never a translate: nothing
+ * leaves the layer). An object that did not move is left alone. The geometry
+ * the answer produced is the geometry that animates; nothing jumps under the
+ * bill, and the paid delegate's flight later measures the settled scene.
+ */
+export function playParliamentVoteRefit(args: VoteRefitArgs): void {
+  const {root, before} = args;
+  if (typeof window === 'undefined' || hiddenByHost(root) || consoleReducedMotionActive()) {
+    return;
+  }
+  const tl = gsap.timeline();
+  for (const slot of slotsOf(root)) {
+    const id = instanceOf(slot);
+    const face = slot.querySelector<HTMLElement>('.con-parl__card .pcard') ?? slot.querySelector<HTMLElement>('.con-parl__card');
+    shift(tl, face, before.faces.get(id), REFIT_MS, 'power3.inOut');
+    shift(tl, slot.querySelector<HTMLElement>('.con-parl__slot-label'), before.labels.get(id), REFIT_MS - 40, 'power2.inOut');
+    shift(tl, slot.querySelector<HTMLElement>('.con-parl__tally'), before.tallies.get(id), REFIT_MS - 40, 'power2.inOut');
+    for (const cube of Array.from(slot.querySelectorAll<HTMLElement>('.con-parl__ribbon [data-seq]'))) {
+      shift(tl, cube, before.cubes.get(`${id}#${cube.getAttribute('data-seq')}`), REFIT_MS, 'power2.inOut');
+    }
+  }
+  const surface = surfaceOf(root);
+  const after = rectOf(surface);
+  if (surface !== null && before.surface !== undefined && after !== undefined) {
+    const dy = before.surface.top - after.top;
+    if (Math.abs(dy) > 0.5) {
+      gsap.set(surface, {clipPath: `inset(${Math.max(0, dy)}px 0 0 0)`});
+      tl.to(surface, {clipPath: 'inset(0px 0 0 0)', duration: s(REFIT_MS), ease: 'power3.inOut', clearProps: 'clipPath,webkitClipPath', overwrite: 'auto'}, 0);
+    }
+  }
+}
+
+/** A FLIP of `target` from `from` into its current box — only when it actually moved. */
+function shift(tl: gsap.core.Timeline, target: HTMLElement | null, from: Rect | undefined, durMs: number, ease: string): void {
+  if (target === null || from === undefined) {
+    return;
+  }
+  const delta = descendFlipFrom(target, from);
+  if (delta === undefined || (Math.abs(delta.x) < 0.5 && Math.abs(delta.y) < 0.5 && Math.abs(delta.scale - 1) < 0.002)) {
+    return;
+  }
+  gsap.set(target, {x: delta.x, y: delta.y, scale: delta.scale, transformOrigin: 'top left'});
+  tl.to(target, {x: 0, y: 0, scale: 1, duration: s(durMs), ease, clearProps: 'transform', overwrite: 'auto'}, 0);
 }
 
 // ── the leave phrase (vote → browse: a CANCEL) ──────────────────────────────
@@ -423,7 +463,6 @@ export function playParliamentVoteLeave(args: VoteLeaveArgs): void {
   }
   const receders = recedersOf(root);
   const surface = surfaceOf(root);
-  const bench = benchOf(root);
 
   if (consoleReducedMotionActive()) {
     guardedDescend(root, 160, done, (finish) => {
@@ -435,22 +474,18 @@ export function playParliamentVoteLeave(args: VoteLeaveArgs): void {
     return;
   }
 
-  // The ledger's sockets are the bench's landing rects: measured at REST
-  // (the receders are parked scaled; a rect read under that transform is
-  // 1.5 % off), then parked again for the return tween to breathe from.
-  for (const el of receders) {
-    gsap.set(el, {scale: 1, clearProps: 'transform'});
-  }
-  const lobbyHome = rectOf(ledgerLobbyOf(root, args.viewer));
-  const reserveHome = rectOf(ledgerReserveOf(root, args.viewer));
-  for (const el of receders) {
-    descendParkLayer(el);
-  }
-
-  // The cards are ALREADY home in the DOM: pin each carried object to the
-  // rect it had in the vote row, so the first painted frame is where the
-  // player last saw it.
+  // The cards and the zone are ALREADY home in the DOM: pin each carried
+  // object to the rect it had in the vote row, so the first painted frame is
+  // where the player last saw it.
   const flips: Array<{el: HTMLElement, durMs: number, ease: string, at: number}> = [];
+  for (const seat of seatsOf(root)) {
+    const from = before.seats.get(seatKeyOf(seat));
+    const delta = from !== undefined ? descendFlipFrom(seat, from) : undefined;
+    if (delta !== undefined) {
+      gsap.set(seat, {x: delta.x, y: delta.y, scale: delta.scale, transformOrigin: 'top left'});
+      flips.push({el: seat, durMs: BENCH_FLIP_BACK_MS, ease: 'power2.inOut', at: CARRY_BACK_AT_MS});
+    }
+  }
   for (const slot of slotsOf(root)) {
     const id = instanceOf(slot);
     const pin = (el: HTMLElement | null, from: Rect | undefined, durMs: number, ease: string, at: number) => {
@@ -479,15 +514,9 @@ export function playParliamentVoteLeave(args: VoteLeaveArgs): void {
     if (surface !== null) {
       tl.to(surface, {autoAlpha: 0, y: descendPx(10), duration: s(SURFACE_OUT_MS), ease: 'power2.in', overwrite: 'auto'}, 0);
     }
-    // 2. THE BENCH flies home onto the ledger (its row breathes back under it).
-    carryTo(tl, benchLobbyOf(root), lobbyHome, s(CARRY_BACK_AT_MS), BENCH_FLIP_BACK_MS, 'power2.inOut');
-    carryTo(tl, benchReserveOf(root), reserveHome, s(CARRY_BACK_AT_MS), BENCH_FLIP_BACK_MS, 'power2.inOut');
-    if (bench !== null) {
-      tl.to(bench, {autoAlpha: 0, duration: s(120), ease: 'power1.in'}, s(CARRY_BACK_AT_MS + BENCH_FLIP_BACK_MS - 100));
-    }
-    // 3. The cards, cubes, labels and tallies travel HOME — they are in the
-    //    air while the overview comes back under them, and when they land
-    //    they are simply at rest in it.
+    // 2. The cards, cubes, labels, tallies and the zone's groups travel HOME —
+    //    they are in the air while the overview comes back under them, and
+    //    when they land they are simply at rest in it.
     for (const flip of flips) {
       tl.to(flip.el, {x: 0, y: 0, scale: 1, duration: s(flip.durMs), ease: flip.ease, clearProps: 'transform', overwrite: 'auto'}, s(flip.at));
     }
@@ -509,7 +538,7 @@ export function killParliamentVoteMotion(root: HTMLElement | null | undefined): 
   }
   killDescendEpisode(root);
   const carried = root.querySelectorAll<HTMLElement>(
-    '.con-parl__slot .pcard, .con-parl__card, .con-parl__slot-label, .con-parl__tally, .con-parl__ribbon [data-seq], [data-parl-lobby-cube], [data-parl-reserve-cube], [data-parl-bench], [data-parl-vote-item], [data-parl-vote-late], [data-parl-vote-surface], .con-parl__vote, .con-parl__voting');
+    '.con-parl__slot .pcard, .con-parl__card, .con-parl__slot-label, .con-parl__tally, .con-parl__ribbon [data-seq], [data-parl-zone], [data-parl-zone] .con-parl__seat, [data-parl-vote-item], [data-parl-vote-late], [data-parl-vote-surface], .con-parl__vote, .con-parl__voting');
   gsap.set(carried, {clearProps: 'transform,opacity,visibility,clipPath,webkitClipPath'});
 }
 

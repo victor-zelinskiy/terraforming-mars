@@ -80,13 +80,10 @@ export function resolutionAnnotations(
     return [];
   }
   const out: Array<CardAnnotation> = [];
-  // 1. THE RESOLUTION'S OWN EFFECT. A dummy has none, and the FACE beside
-  //    this panel already says so («no effect of its own» in its mechanics
-  //    zone) — the panel spends no block on it: the Deck's reading band holds
-  //    exactly the blocks a real resolution needs (party · quest · status).
-  if (resolution.dummy) {
-    // nothing to read here
-  } else if (resolution.text.effect === undefined && resolution.text.passive === undefined && resolution.text.action === undefined) {
+  // 1. THE RESOLUTION'S OWN EFFECT — the main block of a resolution's
+  //    reading. A dummy says calmly, and once, that it has none: the block
+  //    stands in the same place a real effect will fill.
+  if (resolution.dummy || (resolution.text.effect === undefined && resolution.text.passive === undefined && resolution.text.action === undefined)) {
     out.push(block('group:immediate', 'immediate', 'Resolution effect', ['No effect of its own'], 0));
   } else {
     if (resolution.text.effect !== undefined) {

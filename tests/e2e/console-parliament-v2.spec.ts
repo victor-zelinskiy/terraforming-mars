@@ -37,7 +37,7 @@ import {
  *     the vote is not possible; the parties' door nests the action workspace.
  */
 
-const OUT_ROOT = path.resolve('screenshots', 'parliament-v4');
+const OUT_ROOT = path.resolve('screenshots', 'parliament-v5');
 const VIDEO = process.env.PARL_VIDEO === '1';
 // Recordings of the motion (PARL_VIDEO=1): Playwright allows the video option only at the file's top level.
 if (VIDEO) {
@@ -138,8 +138,10 @@ async function expectFits(page: Page, label: string): Promise<void> {
       const r = el.getBoundingClientRect();
       return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden';
     };
-    const blocks = '.con-parl__gov, .con-parl__slot, .con-parl__tally, .con-parl__seats, .con-parl__party, .con-parl__pline, .con-parl__agenda, ' +
-      '.con-parl__stage, .con-parl__quest, .con-parl__bench, .con-parl__info, .con-parl__info-block, .con-parl__fact, .con-parl__cta';
+    const blocks = '.con-parl__gov, .con-parl__slot, .con-parl__tally, .con-parl__seats, .con-parl__seat, .con-parl__party, .con-parl__pline, .con-parl__agenda, ' +
+      '.con-parl__stage, .con-parl__quest, .con-parl__info, .con-parl__info-block, .con-parl__fact, .con-parl__cta, ' +
+      // The bill inside the mode: the shared payment panel must stand whole in the vote column (it once ran past it on the right).
+      '.con-parl__vote .con-task-host--embedded .con-pay';
     for (const el of Array.from(root.querySelectorAll<HTMLElement>(blocks))) {
       if (!visible(el)) {
         continue;
@@ -151,11 +153,14 @@ async function expectFits(page: Page, label: string): Promise<void> {
       if (el.scrollHeight > el.clientHeight + 2 && !el.classList.contains('con-parl__stage') && !el.classList.contains('con-parl__info-body')) {
         out.push(`spills ${name(el)} ${el.scrollHeight}>${el.clientHeight}`);
       }
+      if (el.classList.contains('con-pay') && el.scrollWidth > el.clientWidth + 2) {
+        out.push(`spills-x ${name(el)} ${el.scrollWidth}>${el.clientWidth}`);
+      }
     }
     const reading = '.con-pseal__name, .con-pseal__state-text, .con-parl__tally-row, .con-parl__seat, .con-parl__ruler-name, .con-parl__ruler-rule, ' +
       '.con-parl__quest-text, .con-parl__quest-reward, .con-parl__slot-win, .con-parl__slot-party, .con-parl__kicker, .con-parl__pline-text, ' +
       '.con-parl__recap-item, .con-parl__txn-row, .con-parl__fact-key, .con-parl__fact-val, .con-parl__info-name, .con-parl__info-kicker, ' +
-      '.con-parl__bench-key, .con-parl__bench-note, .con-parl__bench-hint, .con-parl__info-src-text, .con-parl__cta-label';
+      '.con-parl__seat-name, .con-parl__seat-key, .con-parl__info-src-text, .con-parl__cta-label';
     for (const el of Array.from(root.querySelectorAll<HTMLElement>(reading))) {
       if (!visible(el)) {
         continue;
@@ -163,7 +168,7 @@ async function expectFits(page: Page, label: string): Promise<void> {
       if (el.scrollWidth > el.clientWidth + 1) {
         out.push(`cut ${name(el)}: ${(el.textContent ?? '').trim().slice(0, 48)}`);
       }
-      const tier = el.closest<HTMLElement>('.con-parl__gov, .con-parl__stage, .con-parl__party, .con-parl__slot, .con-parl__seats, .con-parl__pline, .con-parl__info, .con-parl__bench');
+      const tier = el.closest<HTMLElement>('.con-parl__gov, .con-parl__stage, .con-parl__party, .con-parl__slot, .con-parl__seats, .con-parl__pline, .con-parl__info');
       if (tier !== null) {
         const t = tier.getBoundingClientRect();
         const e = el.getBoundingClientRect();
@@ -175,6 +180,23 @@ async function expectFits(page: Page, label: string): Promise<void> {
     return out;
   });
   expect(problems, `${label}: every parliament block fits, nothing read is cut`).toEqual([]);
+}
+
+/**
+ * The three slots share ONE grid: every row (label · card · ribbon · tally)
+ * starts at the same y in every slot, whatever the count or the words — a
+ * card never moves because its neighbour's line wrapped.
+ */
+async function expectUniformGrid(page: Page, label: string): Promise<void> {
+  const rows = await page.evaluate(() => {
+    const slots = Array.from(document.querySelectorAll<HTMLElement>('.con-parl__slot'));
+    const tops = (sel: string) => slots.map((s) => Math.round(s.querySelector(sel)?.getBoundingClientRect().top ?? -1));
+    const heights = (sel: string) => slots.map((s) => Math.round(s.querySelector(sel)?.getBoundingClientRect().height ?? -1));
+    return {label: tops('.con-parl__slot-label'), card: tops('.con-parl__card .pcard'), ribbon: tops('.con-parl__ribbon'), tally: tops('.con-parl__tally'), cardH: heights('.con-parl__card .pcard')};
+  });
+  for (const [row, tops] of Object.entries(rows)) {
+    expect(new Set(tops).size, `${label}: the ${row} row stands at one y in every slot (${tops.join(', ')})`).toBe(1);
+  }
 }
 
 /** The inspector's rules body needs no scroll (the panel's whole point). */
@@ -283,7 +305,7 @@ for (const preset of PRESETS) {
       await expect(page.locator('[data-parl-gov-empty]'), 'an honest empty seat before the first political phase').toHaveCount(1);
       await expect(page.locator('[data-parl-ruler]'), 'the ruler\'s identity').toContainText(/Зелёные/);
       await expect(page.locator('[data-parl-ruler] .con-parl__ruler-rule'), 'the ruling effect is READABLE here').not.toHaveCount(0);
-      await expect(page.locator('[data-parl-seats] .con-parl__seat'), 'the seats ledger: one row per player').toHaveCount(2);
+      await expect(page.locator('[data-parl-seats] .con-parl__seat[data-parl-seat]'), 'the delegates zone: one group per player').toHaveCount(2);
       await expect(page.locator(`[data-parl-seat-lobby="${before.players[0].color}"] .player-cube, [data-parl-seat-lobby="${before.players[1].color}"] .player-cube`),
         'a free delegate stands in a lobby socket').not.toHaveCount(0);
       await expect(page.locator('[data-parl-quest] .con-parl__quest-cond .pcard__mech'), 'the quest condition is a graphic').toHaveCount(1);
@@ -307,41 +329,49 @@ for (const preset of PRESETS) {
       expect(await parliament(page).getAttribute('data-zone'), 'the Agenda is never a focus stop').toBe('parties');
       await focusVoting(page);
 
-      // ── X: the whole voting area in the viewer — the shown card lifts out of
-      //    its slot (held empty), the viewer offers the vote verb, the rules
-      //    panel fits; RB browses to the next card; back restores.
-      await openZoomViewer(page);
-      await expect(page.locator('.con-zoom .pcard')).not.toHaveCount(0);
-      await expect(page.locator('.con-parl__slot .con-zoom-hold'), 'the shown card\'s own slot is held while it is in the viewer').toHaveCount(1);
-      expect(await visibleFacesOf(page, slot0.resolution), 'one physical card: the viewer\'s, never a copy beside the source').toBe(1);
-      await expect(page.locator('.con-zoom__btn--play'), 'the viewer offers the vote').toContainText(/Голос/i);
-      await expectRulesFit(page, `${preset.id} resolution`);
-      await shoot(page, preset.id, '02-inspect-resolution');
-      const shownBefore = await viewerCard(page);
-      await press(page, 'KeyE', 1300);
-      await expect.poll(() => viewerCard(page), {timeout: 6_000, message: 'RB browses to the next resolution'}).not.toBe(shownBefore);
-      await closeZoomViewer(page);
-      await settle(page, {timeoutMs: 8_000});
-      await expect(page.locator('.con-parl .con-zoom-hold'), 'the hold is released on the way back').toHaveCount(0);
+      // ── THE DELEGATES ZONE on the head line: every player's lobby socket and
+      //    reserve stack, the neutral supply at its edge — and NO ledger row
+      //    of its own between the voting area and the parties any more.
+      await expect(page.locator('.con-wshead [data-parl-zone]'), 'the zone lives on the head line in the overview').toHaveCount(1);
+      await expect(page.locator('[data-parl-zone] .con-parl__seat[data-parl-seat]'), 'one group per player').toHaveCount(before.players.filter((p) => p.participates).length);
+      await expect(page.locator('[data-parl-zone] [data-parl-neutral-cube]'), 'the neutral supply is a group of the zone').toHaveCount(1);
+      await expect(page.locator('.con-parl__body [data-parl-seats], .con-parl__body .con-parl__seat'), 'no ledger row in the body').toHaveCount(0);
+      const overviewCard = await page.locator('.con-parl__slot .pcard').first().boundingBox();
+      expect(overviewCard, 'the overview card is measurable').not.toBeNull();
+
+      // ── X on the voting AREA does nothing: it is ONE zone with no card of its
+      //    own selected (the inspector belongs to the mode's selected card) —
+      //    the bar offers no X here and the press opens no viewer.
+      await expect(page.locator('.con-cmdbar'), 'no X verb on the voting area').not.toContainText(/ОСМОТРЕТЬ/i);
+      await page.keyboard.press('KeyX');
+      await settle(page, {timeoutMs: 4_000});
+      await expect(page.locator('dialog.con-zoom[open]'), 'X on the area opens no viewer').toHaveCount(0);
       expect(await parliament(page).getAttribute('data-zone'), 'the focus is where it was').toBe('voting');
 
-      // ── A: the VOTE MODE — three cards in a row, the bench above, the info below.
-      //    It opens on the card the viewer showed LAST (the cursor follows the browse).
+      // ── A: the VOTE MODE — three cards in a row, the zone above, the info below.
+      //    It opens on the FIRST card (the tie order's head); the crumb is the
+      //    mode's one stable name.
       await press(page, 'Enter', 1400);
       await expect(voteMode(page), 'the vote mode stands').toHaveCount(1);
       await settle(page, {timeoutMs: 8_000});
-      expect(await selectedInstance(page), 'the mode opens on the card the viewer showed last').toBe(slot1.instance);
-      await press(page, 'ArrowLeft', 700);
-      expect(await selectedInstance(page)).toBe(slot0.instance);
-      expect((await crumbText(page)).toUpperCase(), 'the crumb names the mode').toContain('ГОЛОС');
+      expect(await selectedInstance(page), 'the mode opens on the first card').toBe(slot0.instance);
+      const crumbInMode = (await crumbText(page)).toUpperCase();
+      expect(crumbInMode, 'the crumb names the mode, not the card').toContain('ГОЛОСОВАНИЕ');
+      expect(crumbInMode, 'the resolution\'s name is in its description, never in the crumb').not.toContain(slot0.resolution.toUpperCase());
+      // The SAME card reads a size up inside the mode — the cards are the event.
+      const modeCard = await page.locator('.con-parl__slot--selected .pcard').boundingBox();
+      expect(modeCard, 'the selected card is measurable').not.toBeNull();
+      expect((modeCard?.height ?? 0) / (overviewCard?.height ?? 1), `the mode's card is visibly larger than the overview's (${Math.round(overviewCard?.height ?? 0)} → ${Math.round(modeCard?.height ?? 0)})`).toBeGreaterThan(1.15);
+      await expectUniformGrid(page, `${preset.id} mode`);
       await expect(rowSlots(page), 'the three slots stand in the row — the same instances').toHaveCount(3);
       expect(await rowOrder(page), 'the tie order is kept').toEqual(before.slots.map((s) => s.instance));
       await expect(page.locator('.con-parl__slot-home .con-parl__slot'), 'no slot is left in the overview').toHaveCount(0);
       await expect(page.locator('[data-parl-vote-card] .pcard'), 'the selected card').toHaveCount(1);
       await expectOneOfEach(page, before, `${preset.id} mode`);
-      await expect(page.locator('[data-parl-bench]'), 'the bench').toBeVisible();
-      await expect(page.locator('[data-parl-lobby-cube] .player-cube'), 'the free delegate stands in the bench\'s lobby socket').toHaveCount(1);
-      await expect(page.locator('[data-parl-bench-lobby].con-parl__bench-group--source'), 'the lobby is marked as the source').toHaveCount(1);
+      await expect(page.locator('.con-parl__vote [data-parl-zone]'), 'the SAME zone element stands at the top of the mode').toHaveCount(1);
+      await expect(page.locator('.con-wshead [data-parl-zone]'), '…and left the head line (one instance)').toHaveCount(0);
+      await expect(page.locator('.con-parl__seat--me [data-parl-seat-lobby] .player-cube'), 'the viewer\'s free delegate stands in their lobby socket on the zone').toHaveCount(1);
+      await expect(page.locator('.con-parl__seat--me [data-parl-seat-place="lobby"].con-parl__seat-place--source'), 'the viewer\'s lobby is marked as the source').toHaveCount(1);
       await expect(page.locator('[data-parl-vote-source]'), 'the delegate\'s real source').toContainText(/лобби/i);
       await expect(page.locator('[data-parl-fact="votes"]')).toContainText(new RegExp(`${slot0.totalVotes}\\s*→\\s*${slot0.totalVotes + 1}`));
       await expect(page.locator('[data-parl-fact="mine"]')).toContainText(/0\s*→\s*1/);
@@ -365,16 +395,21 @@ for (const preset of PRESETS) {
       await expect(page.locator('[data-parl-vote-place]')).toHaveCount(1);
       const surfaceBox2 = await page.locator('[data-parl-vote-surface]').boundingBox();
       expect(surfaceBox2, 'the info surface keeps its geometry').toEqual(surfaceBox);
-      expect((await crumbText(page)).toUpperCase(), 'the crumb follows the selection').toContain('ГОЛОС');
+      expect((await crumbText(page)).toUpperCase(), 'the crumb does not move with the selection').toBe(crumbInMode);
+      await expectUniformGrid(page, `${preset.id} mode 2`);
       await expectFits(page, `${preset.id} mode 2`);
       await shoot(page, preset.id, '04-vote-mode-second');
       await press(page, 'ArrowLeft', 700);
       expect(await selectedInstance(page)).toBe(slot0.instance);
 
-      // ── X INSIDE THE MODE: the selected card lifts into the viewer and comes back; nothing else moves.
+      // ── X INSIDE THE MODE: the selected card lifts into the viewer (one
+      //    physical card, its slot held) and comes back; nothing else moves.
       await openZoomViewer(page);
       await expect(page.locator('[data-parl-vote-card] .con-zoom-hold'), 'the selected card is the held source').toHaveCount(1);
+      await expect.poll(() => viewerCard(page), {timeout: 6_000, message: 'the viewer shows the SELECTED card'}).toContain(slot0.resolution.toLowerCase().replaceAll('_', '-'));
+      expect(await visibleFacesOf(page, slot0.resolution), 'one physical card: the viewer\'s, never a copy beside the source').toBe(1);
       await expect(page.locator('.con-zoom__btn--play'), 'no second vote verb inside the mode').toHaveCount(0);
+      await expectRulesFit(page, `${preset.id} resolution`);
       await shoot(page, preset.id, '05-inspect-in-mode');
       await closeZoomViewer(page);
       await settle(page, {timeoutMs: 8_000});
@@ -393,19 +428,17 @@ for (const preset of PRESETS) {
       await expectFits(page, `${preset.id} after B`);
       await shoot(page, preset.id, '06-mode-cancelled');
 
-      // ── X → RB → A: the SAME mode from the fullscreen, opened on the card the viewer SHOWS.
-      await openZoomViewer(page);
-      await press(page, 'KeyE', 1300);
-      await expect.poll(() => viewerCard(page), {timeout: 6_000}).toContain(slot1.resolution.toLowerCase().replaceAll('_', '-'));
-      await press(page, 'Enter', 1500);
-      await expect(voteMode(page), 'A in the viewer opens the vote mode').toHaveCount(1, {timeout: 10_000});
-      await expect(page.locator('dialog.con-zoom[open]'), 'the viewer has handed the card over').toHaveCount(0, {timeout: 10_000});
+      // ── RE-ENTRY: A again opens the same mode the same way — the zone
+      //    travels again, the cards grow again, the selection is where it was.
+      await expect(page.locator('.con-wshead [data-parl-zone]'), 'the zone is back on the head line').toHaveCount(1);
+      await press(page, 'Enter', 1400);
+      await expect(voteMode(page), 'the mode stands again').toHaveCount(1);
       await settle(page, {timeoutMs: 8_000});
-      expect(await selectedInstance(page), 'the mode opened on the card the viewer showed').toBe(slot1.instance);
-      await expectOneOfEach(page, before, `${preset.id} from viewer`);
-      await shoot(page, preset.id, '07-mode-from-viewer');
-      await press(page, 'ArrowLeft', 700);
-      expect(await selectedInstance(page)).toBe(slot0.instance);
+      expect(await selectedInstance(page), 'the selection survives the round trip').toBe(slot0.instance);
+      await expect(page.locator('.con-parl__vote [data-parl-zone]'), 'the zone travelled again').toHaveCount(1);
+      await expectOneOfEach(page, before, `${preset.id} re-entry`);
+      await expectUniformGrid(page, `${preset.id} re-entry`);
+      await shoot(page, preset.id, '07-mode-reentered');
 
       // ── A: the delegate leaves the bench's lobby socket, lands on the card, the counters
       //    tick, the flow leaves. A second press in the same beat sends nothing.
@@ -475,9 +508,9 @@ test.describe('parliament v4 · the paid vote · the bill inside the mode · the
     await expect(voteMode(page)).toHaveCount(1);
     await settle(page, {timeoutMs: 8_000});
     expect(await selectedInstance(page)).toBe(slot0.instance);
-    await expect(page.locator('[data-parl-lobby-cube] .player-cube'), 'the bench\'s lobby socket is empty').toHaveCount(0);
-    await expect(page.locator('[data-parl-reserve-cube] .con-parl__stack-cube'), 'the reserve stack shows its cubes').not.toHaveCount(0);
-    await expect(page.locator('[data-parl-bench-reserve].con-parl__bench-group--source'), 'the reserve is marked as the source').toHaveCount(1);
+    await expect(page.locator(`.con-parl__vote [data-parl-seat-lobby="${before.color}"] .player-cube`), 'the viewer\'s lobby socket on the zone is empty').toHaveCount(0);
+    await expect(page.locator(`.con-parl__vote [data-parl-seat-reserve="${before.color}"] .con-parl__stack-cube`), 'the reserve stack shows its cubes').not.toHaveCount(0);
+    await expect(page.locator('.con-parl__seat--me [data-parl-seat-place="reserve"].con-parl__seat-place--source'), 'the reserve is marked as the source').toHaveCount(1);
     await expect(page.locator('[data-parl-vote-source]')).toContainText(/резерва/i);
     await expect(page.locator('[data-parl-vote-source] .con-parl__vote-cost'), 'the cost chip').toHaveCount(1);
     await expect(page.locator('[data-parl-fact="votes"]')).toContainText(/2\s*→\s*3/);
@@ -563,8 +596,9 @@ test.describe('parliament v4 · a crowded table · the vote that is not possible
     await expect(page.locator('.con-parl__ribbon .player-cube--steel, .con-parl__vote-stack .player-cube--steel'), 'neutral delegates read as steel cubes').not.toHaveCount(0);
     await expect(page.locator('.con-parl__slot.con-parl__slot--winning'), 'one winning card').toHaveCount(1);
     await expect(page.locator('[data-parl-gov] .con-parl__gov-card .pcard'), 'the enacted card is the government\'s main object').toHaveCount(1);
-    await expect(page.locator('[data-parl-seats] .con-parl__seat')).toHaveCount(5);
-    await expect(page.locator('[data-parl-seat-chair]'), 'the chairman\'s seat is on the ledger').toHaveCount(1);
+    await expect(page.locator('[data-parl-seats] .con-parl__seat[data-parl-seat]'), 'five groups on the zone — one per seat').toHaveCount(5);
+    await expect(page.locator('[data-parl-seat-chair]'), 'the chairman\'s seat is in the government').toHaveCount(1);
+    await expectFits(page, `${preset} zone`);
     await expectFits(page, preset);
     await shoot(page, preset, '20-dense-offturn');
     // A off-turn: the mode OPENS for reading; the confirm names the reason; the bench says no delegate is left.
@@ -573,7 +607,7 @@ test.describe('parliament v4 · a crowded table · the vote that is not possible
     await expect(voteMode(page), 'the mode opens for reading even when no vote is possible').toHaveCount(1);
     await settle(page, {timeoutMs: 8_000});
     await expect(page.locator('.con-parl__cta--blocked'), 'the confirm carries the reason').toHaveCount(1);
-    await expect(page.locator('[data-parl-bench-hint].con-parl__bench-hint--warn'), 'the bench says no delegate is left').toHaveCount(1);
+    await expect(page.locator('.con-parl__seat-place--source'), 'no place on the zone is marked as a source when nothing can be sent').toHaveCount(0);
     await expect(page.locator('[data-parl-vote-place]'), 'no place is promised without a delegate').toHaveCount(0);
     await expectFits(page, `${preset} reading`);
     await shoot(page, preset, '21-dense-mode-reading');

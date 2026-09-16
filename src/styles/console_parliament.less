@@ -57,20 +57,34 @@
     --con-parl-vote-zoom: calc(0.86 * var(--con-ui-scale, 1));
     /* The printed formulas (px-designed mechanics): the ruler's effect, the
        six tiles' modules, the quest goal, the info surface's graphics. */
-    --con-parl-tile-formula-zoom: calc(0.6 * var(--con-ui-scale, 1));
-    --con-parl-ruler-formula-zoom: calc(0.7 * var(--con-ui-scale, 1));
+    /* The printed mechanics at READABLE sizes — the same symbol scale for a
+       short formula and a long one (Unity's one-row action is not smaller
+       than the Reds' long row; the plate around it is what differs). */
+    --con-parl-tile-formula-zoom: calc(0.76 * var(--con-ui-scale, 1));
+    --con-parl-ruler-formula-zoom: calc(0.9 * var(--con-ui-scale, 1));
     --con-parl-quest-zoom: calc(0.8 * var(--con-ui-scale, 1));
-    --con-parl-info-mech-zoom: calc(0.82 * var(--con-ui-scale, 1));
-    --con-parl-info-formula-zoom: calc(0.8 * var(--con-ui-scale, 1));
+    --con-parl-info-mech-zoom: calc(0.92 * var(--con-ui-scale, 1));
+    --con-parl-info-formula-zoom: calc(0.9 * var(--con-ui-scale, 1));
     /* The tiers' FIXED heights — browse and every stage share them, so a
-       descent moves nothing above or below. */
-    --con-parl-seats-h: 1.75rem;
-    --con-parl-mid-h: 9.4rem;
+       descent moves nothing above or below. (The seats ledger has no row of
+       its own any more: it lives on the head line.) */
+    --con-parl-mid-h: 10.2rem;
     --con-parl-agenda-h: 4.3rem;
     --con-parl-pline-h: 1.3rem;
-    /* The vote mode's fixed rows: the bench, the info surface. */
-    --con-parl-bench-h: 3.1rem;
-    --con-parl-info-h: 17.4rem;
+    /* A SLOT's fixed chrome — label · ribbon · two tally lines — the SAME
+       in every slot, so the card row is the only thing that flexes and no
+       card ever moves because its neighbour's count wrapped. */
+    --con-parl-slot-label-h: 1.25rem;
+    --con-parl-slot-ribbon-h: 1.8rem;
+    --con-parl-slot-tally-h: 2.5rem;
+    /* The vote mode's fixed rows: the delegates zone, the info surface. The
+       surface is SHALLOW on purpose (three readings side by side): the
+       cards are what the mode is for, and they must read larger than the
+       overview's. */
+    --con-parl-zone-h: 2.5rem;
+    --con-parl-bill-w: 29.5rem;
+    --con-parl-bill-h: 13rem;
+    --con-parl-info-h: 13rem;
     --parl-accent: @con-parl-violet;
 
     /* A nested scene (the action workspace opened on a party) owns the band:
@@ -113,7 +127,8 @@
         transition: box-shadow calc(160ms * var(--motion-scale, 1)) @con-ease-standard;
         &--empty { box-shadow: inset 0 0 0 .06rem rgba(255, 255, 255, 0.1); background: rgba(0, 0, 0, 0.28); }
         &--small { width: 1.05rem; height: 1.05rem; border-radius: .24rem; }
-        &--bench { width: 1.6rem; height: 1.6rem; border-radius: .34rem; }
+        /* The zone's lobby socket — the ledger's cube (the ribbon's size) in a snug frame. */
+        &--seat { width: 1.15rem; height: 1.15rem; border-radius: .28rem; }
     }
     /* A number that just CHANGED ticks once (keyed on its value). */
     &__tick { display: inline-block; animation: con-parl-tick calc(420ms * var(--motion-scale, 1)) @con-ease-standard both; }
@@ -124,8 +139,8 @@
         flex: 1;
         min-height: 0;
         display: grid;
-        grid-template-rows: minmax(0, 1fr) var(--con-parl-seats-h) var(--con-parl-mid-h) var(--con-parl-agenda-h);
-        gap: .4rem;
+        grid-template-rows: minmax(0, 1fr) var(--con-parl-mid-h) var(--con-parl-agenda-h);
+        gap: .45rem;
     }
     &__kicker {
         display: block;
@@ -218,7 +233,8 @@
         background: rgba(0, 0, 0, 0.3);
         box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.06);
     }
-    &__ruler-rule { font-family: @con-font-read; font-size: .7rem; line-height: 1.25; color: fade(@con-text, 86%); text-align: center; }
+    /* The one-sentence reading under the formula — the formula is the object; the words are its quiet caption (the inspector has the full text). */
+    &__ruler-rule { font-family: @con-font-read; font-size: .66rem; line-height: 1.22; color: fade(@con-text, 74%); text-align: center; }
     &__gov--enacted &__ruler { box-shadow: inset 0 0 0 .05rem fade(@con-parl-gold, 55%); }
 
     /* THE CHAIRMAN QUEST — its own plate at the column's foot. */
@@ -339,7 +355,8 @@
     &__slot {
         display: grid;
         grid-template-columns: minmax(0, 1fr);
-        grid-template-rows: auto minmax(0, 1fr) auto auto;
+        /* FIXED chrome rows: the card row is the only one that flexes. */
+        grid-template-rows: var(--con-parl-slot-label-h) minmax(0, 1fr) var(--con-parl-slot-ribbon-h) var(--con-parl-slot-tally-h);
         grid-template-areas: "label" "card" "ribbon" "tally";
         row-gap: .25rem;
         padding: .4rem .45rem .35rem;
@@ -356,7 +373,7 @@
         &--candidate:not(&--target) { box-shadow: inset 0 0 0 .07rem fade(@con-parl-mint, 45%); }
         &--landed { animation: con-parl-land-flash calc(900ms * var(--motion-scale, 1)) @con-ease-standard both; }
     }
-    &__slot-label { grid-area: label; display: flex; align-items: center; gap: .4rem; font-size: .72rem; min-height: 1.1rem; min-width: 0; }
+    &__slot-label { grid-area: label; display: flex; align-items: center; gap: .4rem; font-size: .72rem; height: 100%; min-width: 0; overflow: hidden; }
     &__slot-emblem { width: 1.1rem; height: 1.1rem; object-fit: contain; flex-shrink: 0; }
     &__slot-party { font-weight: 700; letter-spacing: .04em; text-transform: uppercase; font-size: .68rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #f3f0e8; }
     &__slot-win {
@@ -390,8 +407,8 @@
         align-items: center;
         justify-content: center;
         gap: .2rem;
-        min-height: 1.7rem;
-        max-height: 3.3rem;
+        height: 100%;
+        box-sizing: border-box;
         overflow: hidden;
         padding: .18rem .35rem;
         border-radius: .4rem;
@@ -422,18 +439,23 @@
     &__tally {
         grid-area: tally;
         display: flex;
-        /* A narrow slot (Deck, the TV's larger type) folds the third group onto a second line — never past the slot's edge. */
-        flex-wrap: wrap;
+        flex-direction: column;
         align-items: center;
         justify-content: center;
-        gap: .12rem .7rem;
+        gap: .06rem;
         min-width: 0;
-        padding: .16rem .5rem;
+        height: 100%;
+        box-sizing: border-box;
+        padding: .1rem .5rem;
         border-radius: .45rem;
         background: rgba(0, 0, 0, 0.26);
         box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.05);
         overflow: hidden;
     }
+    /* TWO lines of fixed height: «N delegates · leader ●» / «yours ○○ n». */
+    &__tally-line { display: inline-flex; align-items: center; justify-content: center; gap: .7rem; min-width: 0; height: 1.2rem; white-space: nowrap; }
+    &__tally-line--mine { height: 1rem; }
+    &__tally-held { font-size: .54rem; letter-spacing: .08em; text-transform: uppercase; color: @con-parl-mint; margin-left: .15rem; }
     &__tally-total { display: inline-flex; flex-wrap: nowrap; align-items: baseline; gap: 0 .3rem; }
     &__tally-num { font-size: 1.25rem; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
     &__tally-unit { font-size: .6rem; letter-spacing: .06em; text-transform: uppercase; opacity: .7; white-space: nowrap; }
@@ -460,36 +482,66 @@
     }
     &__slot--mine &__tally-row--leader b { color: @con-parl-mint; }
 
-    /* ══ THE SEATS — every player's places on one ledger line ═══════════ */
+    /* ══ THE DELEGATES ZONE — every player's places on ONE ledger: the head
+       line of the overview, and (the same element, teleported) a line lower
+       in the vote mode. A group = the name, the lobby's socket under its
+       micro-key, the reserve's stack with its count; the neutral supply at
+       the zone's edge. Nothing here needs a focus or a hint to be read. ══ */
     &__seats {
-        height: var(--con-parl-seats-h);
-        box-sizing: border-box;
-        display: flex;
+        display: inline-flex;
         align-items: center;
-        gap: .4rem 1.1rem;
-        padding: 0 .6rem;
-        border-radius: .45rem;
-        background: rgba(0, 0, 0, 0.26);
-        box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.05);
-        overflow: hidden;
+        gap: 0 .6rem;
+        min-width: 0;
+        max-width: 100%;
+        padding: .06rem .25rem;
+        border-radius: .5rem;
+        background: rgba(0, 0, 0, 0);
+        box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0);
         white-space: nowrap;
+        transition: background-color calc(220ms * var(--motion-scale, 1)) @con-ease-standard, box-shadow calc(220ms * var(--motion-scale, 1)) @con-ease-standard;
+        /* In the vote mode the zone owns its line: a plate, the groups spread. */
+        &--carried {
+            width: 100%;
+            box-sizing: border-box;
+            justify-content: center;
+            gap: 0 1.5rem;
+            padding: .18rem .8rem;
+            background: rgba(0, 0, 0, 0.3);
+            box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.06);
+        }
     }
     &__seat {
         display: inline-flex;
         align-items: center;
-        gap: .3rem;
-        font-size: .7rem;
+        gap: .4rem;
         min-width: 0;
-        &--me { .con-parl__seat-name { color: #f3f0e8; } }
+        padding: .05rem .28rem;
+        border-radius: .4rem;
+        &--me { background: rgba(255, 255, 255, 0.05); box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.12); .con-parl__seat-name { color: #f3f0e8; } }
+        &--neutral { opacity: .88; }
+        &--deck { opacity: .72; }
     }
-    &__seat-name { max-width: 7rem; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
-    &__seat-key { font-size: .54rem; letter-spacing: .08em; text-transform: uppercase; opacity: .55; margin-left: .15rem; }
-    &__seat-count { font-size: .76rem; font-variant-numeric: tabular-nums; }
-    &__seat-chair {
-        display: inline-flex; align-items: center; margin-left: .2rem; padding: .02rem .35rem; border-radius: .3rem; font-size: .54rem; letter-spacing: .08em; text-transform: uppercase;
-        color: @con-parl-gold; background: fade(@con-parl-gold, 14%); box-shadow: inset 0 0 0 .05rem fade(@con-parl-gold, 45%);
-        &--pulse { animation: con-parl-land-flash calc(900ms * var(--motion-scale, 1)) @con-ease-standard both; }
+    &__seat-deck-icon { width: 1rem; height: 1rem; }
+    &__seat-ident { display: inline-flex; align-items: center; gap: .3rem; min-width: 0; font-size: .7rem; font-weight: 600; }
+    &__seat-name { max-width: 5rem; overflow: hidden; text-overflow: ellipsis; }
+    /* The cap is for free PLAYER names; the neutral supply's word is fixed and never cut
+       (host class doubled: it must outrank the profile ladders' own caps). */
+    & &__seat--neutral .con-parl__seat-name { max-width: none; }
+    /* A PLACE — its micro-key over the object it names: «lobby» over the socket, «reserve» over the stack. */
+    &__seat-place {
+        display: inline-flex;
+        flex-direction: column;
+        align-items: center;
+        gap: .05rem;
+        padding: .04rem .2rem .05rem;
+        border-radius: .35rem;
+        transition: box-shadow calc(180ms * var(--motion-scale, 1)) @con-ease-standard, background-color calc(180ms * var(--motion-scale, 1)) @con-ease-standard;
+        /* The viewer's SOURCE for the next vote — marked while the mode stands. */
+        &--source { background: fade(@con-parl-mint, 10%); box-shadow: inset 0 0 0 .07rem fade(@con-parl-mint, 70%), 0 0 .7rem fade(@con-parl-mint, 18%); }
     }
+    &__seat-key { font-size: .44rem; line-height: 1; letter-spacing: .1em; text-transform: uppercase; opacity: .55; }
+    &__seat-obj { display: inline-flex; align-items: center; gap: .18rem; }
+    &__seat-count { font-size: .7rem; line-height: 1; font-variant-numeric: tabular-nums; }
 
     /* ══ MIDDLE TIER — the parties (browse) OR a stage ══════════════════ */
     &__mid { position: relative; min-height: 0; }
@@ -593,42 +645,19 @@
         inset: 0;
         z-index: 5;
         display: grid;
-        grid-template-rows: var(--con-parl-bench-h) minmax(0, 1fr) var(--con-parl-info-h);
+        grid-template-rows: var(--con-parl-zone-h) minmax(0, 1fr) var(--con-parl-info-h);
         gap: .5rem;
         padding: .1rem .1rem .2rem;
         min-height: 0;
         visibility: hidden;
         pointer-events: none;
         &--up { visibility: visible; pointer-events: auto; }
+        /* THE CONCLUSION — the landed scene (cards, zone, band) lets go as one picture before the workspace leaves. */
+        transition: opacity calc(220ms * var(--motion-scale, 1)) @con-ease-standard;
+        &--concluded { opacity: 0; }
     }
-    /* ── THE BENCH — the viewer's two places, and which one the delegate leaves. ── */
-    &__bench {
-        display: flex;
-        align-items: center;
-        gap: .9rem;
-        min-width: 0;
-        padding: .25rem .7rem;
-        border-radius: .5rem;
-        background: rgba(0, 0, 0, 0.3);
-        box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.06);
-    }
-    &__bench-kicker { display: inline-flex; align-items: center; gap: .35rem; font-size: .62rem; letter-spacing: .12em; text-transform: uppercase; opacity: .7; white-space: nowrap; }
-    &__bench-group {
-        display: inline-flex;
-        align-items: center;
-        gap: .45rem;
-        padding: .18rem .55rem;
-        border-radius: .45rem;
-        background: rgba(255, 255, 255, 0.03);
-        box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.08);
-        transition: box-shadow calc(180ms * var(--motion-scale, 1)) @con-ease-standard, background-color calc(180ms * var(--motion-scale, 1)) @con-ease-standard;
-        &--source { background: fade(@con-parl-mint, 8%); box-shadow: inset 0 0 0 .07rem fade(@con-parl-mint, 70%), 0 0 .8rem fade(@con-parl-mint, 16%); }
-        &--empty .con-parl__bench-note { color: fade(@con-text, 55%); }
-    }
-    &__bench-key { font-size: .6rem; letter-spacing: .12em; text-transform: uppercase; opacity: .7; }
-    &__bench-note { font-size: .68rem; white-space: nowrap; color: fade(@con-text, 85%); }
-    &__bench-count { font-size: .9rem; font-variant-numeric: tabular-nums; }
-    &__bench-hint { margin-left: auto; font-size: .7rem; color: @con-parl-mint; white-space: nowrap; letter-spacing: .02em; &--warn { color: @con-amber; } }
+    /* THE ZONE's row in the mode — the ledger lands here from the head line. */
+    &__zone-row { display: flex; align-items: center; justify-content: center; min-width: 0; min-height: 0; }
     /* THE RESERVE STACK — up to three cubes, offset like a pile; the top one is the source. */
     &__stack {
         position: relative;
@@ -649,6 +678,15 @@
         &[data-stack="2"] { transform: translate(.34rem, -.14rem); }
         &[data-stack="3"] { transform: translate(.68rem, -.28rem); }
     }
+    /* The zone's stack — the same pile at the ledger's size. */
+    &__stack--seat {
+        width: 1.9rem;
+        height: 1.15rem;
+        border-radius: .28rem;
+        .con-parl__stack-cube { left: .2rem; bottom: .12rem; }
+        .con-parl__stack-cube[data-stack="2"] { transform: translate(.3rem, -.1rem); }
+        .con-parl__stack-cube[data-stack="3"] { transform: translate(.6rem, -.2rem); }
+    }
     /* ── THE CARD ROW — the three slots, larger. ── */
     &__vrow {
         display: grid;
@@ -657,15 +695,20 @@
         min-height: 0;
         padding: 0 .3rem;
         > .con-parl__slot {
+            /* The mode's slot chrome — a size up, still FIXED for all three. */
+            --con-parl-slot-label-h: 1.45rem;
+            --con-parl-slot-ribbon-h: 2.05rem;
+            --con-parl-slot-tally-h: 2.9rem;
             row-gap: .3rem;
             padding: .45rem .55rem .4rem;
             background: rgba(255, 255, 255, 0.03);
             .con-parl__card { zoom: var(--con-parl-vote-zoom); }
-            .con-parl__slot-label { font-size: .8rem; min-height: 1.25rem; }
+            .con-parl__slot-label { font-size: .8rem; }
             .con-parl__slot-party { font-size: .78rem; }
             .con-parl__slot-emblem { width: 1.25rem; height: 1.25rem; }
-            .con-parl__ribbon { min-height: 1.9rem; }
-            .con-parl__tally { padding: .22rem .6rem; }
+            .con-parl__tally { padding: .16rem .6rem; }
+            .con-parl__tally-line { height: 1.4rem; }
+            .con-parl__tally-line--mine { height: 1.1rem; }
             .con-parl__tally-num { font-size: 1.4rem; }
         }
     }
@@ -681,8 +724,31 @@
         background: linear-gradient(170deg, rgba(30, 20, 52, 0.985), rgba(12, 10, 22, 0.99));
         box-shadow: 0 0 0 .06rem rgba(201, 198, 214, 0.3), 0 .9rem 2rem rgba(0, 0, 0, 0.5);
         overflow: hidden;
-        transition: box-shadow calc(200ms * var(--motion-scale, 1)) @con-ease-standard;
+        transition: box-shadow calc(200ms * var(--motion-scale, 1)) @con-ease-standard, grid-template-columns calc(220ms * var(--motion-scale, 1)) @con-ease-standard;
     }
+    /* THE BILL — a paid vote's payment stands in the vote column: the column
+       widens to the shared panel's own width and the band takes the panel's
+       height (per-profile tokens — the cards above re-fit a size smaller, a
+       FLIP in the section), the readings re-flow beside it, and the hosted
+       step's frame yields — the crumb already says ОПЛАТА and the panel names
+       its price, so a second title would only be cut. Written with the host
+       class doubled (0,3,0): it must outrank the profile ladders' own
+       `&__info` rules (0,2,1). */
+    & &__vote--bill { grid-template-rows: var(--con-parl-zone-h) minmax(0, 1fr) var(--con-parl-bill-h); }
+    & &__vote--bill &__info { grid-template-columns: minmax(0, 1fr) var(--con-parl-bill-w); padding-top: .35rem; padding-bottom: .35rem; }
+    /* Beside the bill the readings keep the resolution's own effect and the party's;
+       the quest (printed on the face, read before the press) folds away — its
+       column collapses with the same transition, never a cut heading. */
+    & &__vote--bill &__info-cols { grid-template-columns: minmax(0, 1fr) minmax(0, 1.75fr) minmax(0, 0fr); }
+    & &__vote--bill &__info-block--quest {
+        opacity: 0;
+        visibility: hidden;
+        padding: 0;
+        min-width: 0;
+        transition: opacity calc(180ms * var(--motion-scale, 1)) @con-ease-standard, visibility 0s linear calc(180ms * var(--motion-scale, 1));
+    }
+    & &__vote .con-task-host--embedded .con-task { padding: 0; }
+    & &__vote .con-task-host--embedded .con-task__head { display: none; }
     &__vote--committed &__info { box-shadow: 0 0 0 .06rem fade(@con-amber, 55%), 0 .9rem 2rem rgba(0, 0, 0, 0.5); }
     &__info-res { position: relative; min-height: 0; min-width: 0; }
     &__info-vote { display: flex; flex-direction: column; gap: .4rem; min-height: 0; min-width: 0; }
@@ -703,6 +769,19 @@
     &__info-title { display: flex; flex-direction: column; min-width: 0; gap: .02rem; }
     &__info-name { font-size: 1rem; line-height: 1.1; letter-spacing: .04em; text-transform: uppercase; color: #f6f3ec; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     &__info-party { font-size: .62rem; letter-spacing: .1em; text-transform: uppercase; opacity: .7; }
+    /* THE THREE READINGS side by side — the resolution's OWN effect is the
+       main block (its own accent, the first column); the party's reading is
+       the widest (a formula and a sentence); the quest closes the line. */
+    &__info-cols {
+        flex: 1 1 auto;
+        min-height: 0;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1.75fr) minmax(0, 1fr);
+        gap: .5rem;
+        transition: grid-template-columns calc(220ms * var(--motion-scale, 1)) @con-ease-standard;
+        > .con-parl__info-block { min-height: 0; overflow: hidden; }
+    }
+    &__info-kicker--inline { margin-right: .2rem; flex-shrink: 0; }
     &__info-block {
         display: flex;
         flex-direction: column;
@@ -713,17 +792,19 @@
         background: rgba(0, 0, 0, 0.3);
         box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.05);
         flex-shrink: 0;
+        transition: opacity calc(180ms * var(--motion-scale, 1)) @con-ease-standard;
+        &--own { background: rgba(63, 214, 241, 0.045); box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 32%); }
         &--party { box-shadow: inset 0 0 0 .05rem fade(@con-parl-gold, 30%); }
         &--quest { box-shadow: inset 0 0 0 .05rem rgba(230, 195, 74, 0.18); }
-        /* A dummy's «no effect of its own» is ONE calm line — the kicker and the note side by side. */
-        &--none { flex-direction: row; align-items: center; gap: .7rem; padding-top: .26rem; padding-bottom: .28rem; }
-        &--source { box-shadow: inset 0 0 0 .05rem fade(@con-parl-mint, 30%); }
         &--after { flex: 1 1 auto; min-height: 0; }
         &--done { box-shadow: inset 0 0 0 .05rem fade(@con-parl-mint, 45%); }
     }
+    &__info-block--own &__info-kicker { color: @con-cyan; opacity: .9; }
+    /* The vote block's second heading — «after your vote» over the facts, under the source line. */
+    &__info-subkicker { font-size: .54rem; letter-spacing: .12em; text-transform: uppercase; color: @con-parl-mint; opacity: .9; margin-top: .12rem; white-space: nowrap; }
     &__info-kicker { font-size: .58rem; letter-spacing: .12em; text-transform: uppercase; opacity: .7; white-space: nowrap; }
     &__info-block--party &__info-kicker { color: @con-parl-gold; opacity: .9; }
-    &__info-block--source &__info-kicker, &__info-block--after &__info-kicker { color: @con-parl-mint; opacity: .9; }
+    &__info-block--after &__info-kicker { color: @con-parl-mint; opacity: .9; }
     &__info-rule { font-family: @con-font-read; font-size: .74rem; line-height: 1.25; color: fade(@con-text, 92%); }
     &__info-row { display: flex; align-items: center; gap: .6rem; min-width: 0; }
     /* The graphics inside the surface: the same panels the faces draw, at a readable zoom. */
@@ -750,26 +831,27 @@
         --pcard-plate-h: 46px;
         --pcard-art-min: 0px;
         padding: 4px 8px;
-        max-width: 60%;
+        max-width: 56%;
     }
     &__info-quest { --pcard-band: rgba(230, 195, 74, 0.22); }
-    &__info-pformula { --con-pformula-zoom: var(--con-parl-info-formula-zoom); flex-shrink: 0; max-width: 62%; padding: .1rem .3rem; border-radius: .4rem; background: rgba(0, 0, 0, 0.3); }
+    &__info-pformula { --con-pformula-zoom: var(--con-parl-info-formula-zoom); flex-shrink: 0; max-width: 56%; padding: .1rem .3rem; border-radius: .4rem; background: rgba(0, 0, 0, 0.3); }
     &__info-text { font-family: @con-font-read; font-size: .72rem; line-height: 1.25; color: fade(@con-text, 86%); min-width: 0; display: flex; flex-direction: column; gap: .12rem; }
-    &__info-action { color: fade(@con-text, 72%); }
+    &__info-action { display: block; font-family: @con-font-read; font-size: .66rem; line-height: 1.2; color: fade(@con-text, 72%); }
     &__info-none { font-size: .7rem; letter-spacing: .06em; text-transform: uppercase; color: fade(@con-text, 55%); }
     /* THE SOURCE line. */
     &__info-src { display: flex; align-items: center; gap: .5rem; min-width: 0; flex-wrap: nowrap; }
-    &__info-src-text { font-size: .84rem; flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    /* The source's words may take two lines on a narrow column — never an ellipsis on the place a delegate leaves from. */
+    &__info-src-text { font-size: .84rem; line-height: 1.1; flex: 1 1 auto; min-width: 0; white-space: normal; }
     &__info-free { font-size: .62rem; letter-spacing: .1em; text-transform: uppercase; color: @con-parl-mint; padding: .04rem .4rem; border-radius: .3rem; background: fade(@con-parl-mint, 12%); }
     &__vote-cost { zoom: .9; }
     /* THE FACTS — one line each: key left, current → projected right. */
-    &__facts { display: flex; flex-direction: column; gap: .14rem; min-height: 0; }
+    &__facts { display: flex; flex-direction: column; gap: .1rem; min-height: 0; }
     &__fact {
         display: grid;
         grid-template-columns: minmax(0, 1fr) auto;
         align-items: center;
         column-gap: .5rem;
-        padding: .08rem .45rem;
+        padding: .04rem .45rem;
         border-radius: .35rem;
         background: rgba(255, 255, 255, 0.035);
         box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.06);
@@ -779,7 +861,7 @@
     }
     /* The key may take TWO lines beside a wide value (TV: «2 из 2 → эффект ваш») — never an ellipsis on a decision fact. */
     &__fact-key { font-size: .58rem; letter-spacing: .1em; text-transform: uppercase; opacity: .78; white-space: normal; overflow: hidden; line-height: 1.2; }
-    &__fact-val { display: inline-flex; align-items: center; gap: .3rem; font-size: .8rem; line-height: 1.15; white-space: nowrap; b { font-size: .96rem; line-height: 1.1; font-variant-numeric: tabular-nums; } }
+    &__fact-val { display: inline-flex; align-items: center; gap: .3rem; font-size: .8rem; line-height: 1.05; white-space: nowrap; b { font-size: .96rem; line-height: 1.1; font-variant-numeric: tabular-nums; } }
     &__fact-arrow { opacity: .55; }
     &__fact-after { color: @con-cyan; border-bottom: .08rem dashed fade(@con-cyan, 55%); }
     &__info-block--done &__fact-after { color: @con-parl-mint; border-bottom-color: transparent; }
@@ -1607,17 +1689,19 @@
    are shallower so the three cards keep their height. ── */
 html.con-profile-handheld .con-parl {
     gap: .3rem;
-    --con-parl-seats-h: 1.5rem;
-    --con-parl-mid-h: 6.4rem;
-    --con-parl-agenda-h: 3.5rem;
+    --con-parl-mid-h: 8.6rem;
+    --con-parl-agenda-h: 3.8rem;
     --con-parl-pline-h: 1.15rem;
-    --con-parl-bench-h: 2.6rem;
-    --con-parl-info-h: 14.4rem;
-    --con-parl-tile-formula-zoom: calc(0.4 * var(--con-ui-scale, 1));
-    --con-parl-ruler-formula-zoom: calc(0.5 * var(--con-ui-scale, 1));
+    --con-parl-slot-label-h: 1.05rem;
+    --con-parl-slot-ribbon-h: 1.4rem;
+    --con-parl-slot-tally-h: 2.1rem;
+    --con-parl-zone-h: 2rem;
+    --con-parl-info-h: 10.1rem;
+    --con-parl-tile-formula-zoom: calc(0.5 * var(--con-ui-scale, 1));
+    --con-parl-ruler-formula-zoom: calc(0.62 * var(--con-ui-scale, 1));
     --con-parl-quest-zoom: calc(0.58 * var(--con-ui-scale, 1));
-    --con-parl-info-mech-zoom: calc(0.58 * var(--con-ui-scale, 1));
-    --con-parl-info-formula-zoom: calc(0.52 * var(--con-ui-scale, 1));
+    --con-parl-info-mech-zoom: calc(0.62 * var(--con-ui-scale, 1));
+    --con-parl-info-formula-zoom: calc(0.62 * var(--con-ui-scale, 1));
     &__body { gap: .3rem; }
     &__top { grid-template-columns: minmax(15.5rem, 17rem) minmax(0, 1fr); gap: .4rem; }
     &__gov { gap: .28rem; padding: .4rem .5rem; }
@@ -1650,15 +1734,22 @@ html.con-profile-handheld .con-parl {
     &__tally-key { font-size: .48rem; }
     &__tally-row { font-size: .62rem; gap: .15rem; b { font-size: .78rem; } }
     &__place { width: .7rem; height: .7rem; }
-    &__ribbon { min-height: 1.35rem; max-height: 2.4rem; padding: .1rem .25rem; gap: .12rem; }
+    &__ribbon { padding: .1rem .25rem; gap: .12rem; }
     &__vote-cube { width: 1.05rem; height: 1.05rem; }
-    &__seats { gap: .3rem .7rem; padding: 0 .45rem; }
-    &__seat { font-size: .6rem; gap: .22rem; }
-    &__seat-name { max-width: 5rem; }
-    &__seat-key { font-size: .46rem; }
-    &__seat-count { font-size: .64rem; }
-    &__seat-chair { font-size: .46rem; }
-    &__socket { width: 1.05rem; height: 1.05rem; &--small { width: .85rem; height: .85rem; } &--bench { width: 1.3rem; height: 1.3rem; } }
+    &__tally-line { height: 1rem; gap: .5rem; }
+    &__tally-line--mine { height: .85rem; }
+    &__tally-held { font-size: .46rem; }
+    /* The zone on the Deck's head line: five groups + the neutral supply
+       still fit beside the title (the head absorbs a narrow band by
+       wrapping its aux zone — the Deck's two-tier header). */
+    &__seats { flex-wrap: wrap; justify-content: flex-start; gap: .1rem .4rem; padding: .04rem .2rem; &--carried { flex-wrap: nowrap; justify-content: center; gap: 0 .8rem; padding: .1rem .5rem; } }
+    &__seat { flex-shrink: 0; gap: .3rem; padding: .03rem .22rem; }
+    &__seat-ident { font-size: .58rem; gap: .22rem; }
+    &__seat-name { max-width: 3.6rem; }
+    &__seat-key { font-size: .38rem; }
+    &__seat-count { font-size: .6rem; }
+    &__socket { width: 1.05rem; height: 1.05rem; &--small { width: .85rem; height: .85rem; } &--seat { width: 1rem; height: 1rem; } }
+    &__stack--seat { width: 1.6rem; height: 1rem; .con-parl__stack-cube { left: .14rem; bottom: .1rem; } .con-parl__stack-cube[data-stack="2"] { transform: translate(.24rem, -.08rem); } .con-parl__stack-cube[data-stack="3"] { transform: translate(.48rem, -.16rem); } }
     &__parties-tier { gap: .2rem; }
     &__parties { gap: .25rem; }
     &__party > .con-pseal {
@@ -1684,36 +1775,62 @@ html.con-profile-handheld .con-parl {
     &__cta--inline { padding: .22rem .6rem; }
     &__cta-label { font-size: .82rem; }
     &__vote { gap: .35rem; }
-    &__bench { gap: .6rem; padding: .18rem .5rem; }
-    &__bench-kicker { font-size: .54rem; }
-    &__bench-group { gap: .35rem; padding: .12rem .4rem; }
-    &__bench-key { font-size: .52rem; }
-    &__bench-note { font-size: .58rem; }
-    &__bench-count { font-size: .78rem; }
-    &__bench-hint { font-size: .6rem; }
     &__stack { width: 1.7rem; height: 1.3rem; }
-    &__vrow { gap: .5rem; padding: 0 .1rem; > .con-parl__slot { padding: .32rem .4rem .3rem; row-gap: .2rem; .con-parl__slot-label { font-size: .66rem; min-height: 1.05rem; } .con-parl__slot-party { font-size: .64rem; } .con-parl__slot-emblem { width: 1rem; height: 1rem; } .con-parl__ribbon { min-height: 1.4rem; } .con-parl__tally { padding: .12rem .4rem; } .con-parl__tally-num { font-size: 1.1rem; } } }
+    &__vrow {
+        gap: .5rem; padding: 0 .1rem;
+        > .con-parl__slot {
+            --con-parl-slot-label-h: 1rem;
+            --con-parl-slot-ribbon-h: 1.35rem;
+            --con-parl-slot-tally-h: 2.3rem;
+            padding: .26rem .4rem .24rem; row-gap: .15rem;
+            .con-parl__slot-label { font-size: .66rem; }
+            .con-parl__slot-party { font-size: .64rem; }
+            .con-parl__slot-emblem { width: 1rem; height: 1rem; }
+            .con-parl__tally { padding: .1rem .4rem; }
+            .con-parl__tally-line { height: 1.1rem; }
+            .con-parl__tally-line--mine { height: .9rem; }
+            .con-parl__tally-num { font-size: 1.1rem; }
+        }
+    }
     &__info { grid-template-columns: minmax(0, 1fr) 16.5rem; column-gap: .6rem; padding: .4rem .6rem .4rem; }
+    --con-parl-bill-w: 25rem;
+    --con-parl-bill-h: 12.4rem;
     &__info-body { gap: .25rem; }
     &__info-emblem { width: 1.25rem; height: 1.25rem; }
     &__info-name { font-size: .82rem; }
     &__info-party { font-size: .52rem; }
-    &__info-block { gap: .14rem; padding: .22rem .4rem .26rem; }
+    &__info-block { gap: .12rem; padding: .18rem .4rem .2rem; }
     &__info-kicker { font-size: .5rem; }
     &__info-rule { font-size: .62rem; }
     &__info-text { font-size: .6rem; }
     &__info-none { font-size: .58rem; }
-    &__info-src-text { font-size: .64rem; }
     &__info-free { font-size: .54rem; padding: .03rem .3rem; }
     &__facts { gap: .1rem; }
     &__fact { padding: .05rem .35rem; }
+    &__fact { padding: .02rem .35rem; }
     &__fact-key { font-size: .5rem; }
     &__fact-val { font-size: .68rem; b { font-size: .82rem; } }
     &__fact-note { font-size: .48rem; }
     &__fact-tail { font-size: .54rem; b { font-size: .72rem; } }
-    /* The confirm keeps ONE line: no «a full action» tail on the Deck. */
+    &__info-subkicker { font-size: .46rem; margin-top: .06rem; }
+    /* The Deck's band cannot hold a party's action sentence beside its effect, nor
+       the generic «the party rules — its effect is everyone's» line under the
+       kicker that already says it: the graphic keeps the action row, the words
+       live in the inspector. The quest stacks its graphic over its words. */
+    &__info-action { display: none; }
+    &__info-block--party .con-parl__info-rule { display: none; }
+    /* EVERY reading stacks on the Deck — graphic over sentence, at the block's
+       full width (a formula beside a sentence left the Reds' action ten lines
+       tall in a finger-wide column). One composition for all three. */
+    &__info-row { flex-direction: column; align-items: flex-start; gap: .12rem; }
+    &__info-mech, &__info-quest, &__info-pformula { max-width: 100%; }
+    &__info-cols { grid-template-columns: minmax(0, 1fr) minmax(0, 1.9fr) minmax(0, .9fr); gap: .35rem; }
+    &__info-src-text { font-size: .66rem; }
+    /* The vote mode's zone keeps ONE line on the Deck: the deck counter yields there. */
+    &__seats--carried .con-parl__seat--deck { display: none; }
+    /* The confirm: no «a full action» tail on the Deck; a long refusal wraps rather than runs past the plate. */
     &__vote .con-parl__cta-sub { display: none; }
-    &__vote .con-parl__cta-label { white-space: nowrap; }
+    &__vote .con-parl__cta-label { white-space: normal; line-height: 1.1; font-size: .76rem; }
     .con-pseal__support--none { display: none; }
     &__agenda { padding: .22rem .45rem; gap: .12rem; }
     &__agenda-me { font-size: .64rem; b { font-size: .78rem; } }
@@ -1743,18 +1860,25 @@ html.con-profile-handheld .con-pact {
 /* ── the TV ladder (10-foot): the same composition, couch type — nothing
    readable below the .8rem floor, focus rings stronger. ── */
 html.con-profile-tv .con-parl {
-    --con-parl-seats-h: 1.95rem;
-    --con-parl-mid-h: 10.2rem;
+    --con-parl-mid-h: 12rem;
     --con-parl-agenda-h: 4.8rem;
     --con-parl-pline-h: 1.6rem;
-    --con-parl-bench-h: 3.4rem;
-    --con-parl-info-h: 18.4rem;
-    --con-parl-tile-formula-zoom: calc(0.58 * var(--con-ui-scale, 1));
-    --con-parl-ruler-formula-zoom: calc(0.7 * var(--con-ui-scale, 1));
+    --con-parl-slot-label-h: 1.4rem;
+    --con-parl-slot-ribbon-h: 1.95rem;
+    --con-parl-slot-tally-h: 3rem;
+    --con-parl-zone-h: 2.5rem;
+    --con-parl-info-h: 13.9rem;
+    --con-parl-bill-w: 36rem;
+    --con-parl-bill-h: 15.2rem;
+    --con-parl-tile-formula-zoom: calc(0.72 * var(--con-ui-scale, 1));
+    --con-parl-ruler-formula-zoom: calc(0.88 * var(--con-ui-scale, 1));
     --con-parl-quest-zoom: calc(0.84 * var(--con-ui-scale, 1));
-    --con-parl-info-mech-zoom: calc(0.78 * var(--con-ui-scale, 1));
-    --con-parl-info-formula-zoom: calc(0.7 * var(--con-ui-scale, 1));
-    &__top { grid-template-columns: minmax(23rem, 26.5rem) minmax(0, 1fr); }
+    --con-parl-info-mech-zoom: calc(0.88 * var(--con-ui-scale, 1));
+    --con-parl-info-formula-zoom: calc(0.86 * var(--con-ui-scale, 1));
+    /* A wider government column on the couch: its formula and words breathe,
+       and the voting slots are WIDTH-bound there — the overview card stays a
+       size below the mode's. */
+    &__top { grid-template-columns: minmax(26rem, 30rem) minmax(0, 1fr); }
     &__kicker { font-size: .8rem; }
     &__chip { font-size: .9rem; b { font-size: 1.05rem; } }
     &__chip-dim { font-size: .8rem; }
@@ -1776,25 +1900,37 @@ html.con-profile-tv .con-parl {
     &__tally-row { font-size: .9rem; b { font-size: 1.1rem; } }
     &__ribbon-empty { font-size: .8rem; }
     &__vote-stack { font-size: .8rem; }
-    &__seat { font-size: .85rem; }
-    &__seat-key, &__seat-chair { font-size: .8rem; }
-    &__seat-count { font-size: .9rem; }
+    /* The zone at five seats: compact groups; the head line wraps them to a
+       second tier when the crumb is long (the recap's), never cuts a name. */
+    &__seats:not(.con-parl__seats--carried) { flex-wrap: wrap; justify-content: flex-start; gap: .05rem .4rem; }
+    &__seats--carried { gap: 0 1.1rem; }
+    &__seat { gap: .3rem; padding: .04rem .22rem; }
+    &__seat-ident { font-size: .8rem; }
+    &__seat-name { max-width: 4.6rem; }
+    &__seat-key { font-size: .56rem; }
+    &__seat-count { font-size: .85rem; }
+    &__tally-line { height: 1.35rem; }
+    &__tally-line--mine { height: 1.15rem; }
+    &__tally-held { font-size: .8rem; }
+    &__vrow > .con-parl__slot { --con-parl-slot-label-h: 1.6rem; --con-parl-slot-ribbon-h: 2.2rem; --con-parl-slot-tally-h: 3.2rem; .con-parl__tally-line { height: 1.55rem; } .con-parl__tally-line--mine { height: 1.25rem; } }
     &__pline { font-size: .86rem; }
     &__stage-title { font-size: 1.25rem; }
     &__stage-sub { font-size: .9rem; }
     &__txn-row { font-size: .92rem; b { font-size: 1rem; } }
     &__cta-label { font-size: 1.05rem; }
     &__cta-sub { font-size: .8rem; }
-    &__bench-kicker, &__bench-key, &__bench-note, &__bench-hint { font-size: .8rem; }
-    &__bench-count { font-size: 1rem; }
+    &__info-subkicker { font-size: .8rem; }
     &__info { grid-template-columns: minmax(0, 1fr) 23.5rem; }
     &__info-name { font-size: 1.1rem; }
     &__info-party, &__info-kicker, &__info-none, &__info-free { font-size: .8rem; }
     &__info-rule, &__info-text { font-size: .84rem; }
     &__info-src-text { font-size: .95rem; }
-    &__fact { padding: .06rem .45rem; }
+    &__facts { gap: .08rem; }
+    &__fact { padding: .03rem .45rem; }
     &__fact-key { font-size: .8rem; }
     &__fact-val { font-size: .9rem; b { font-size: 1.05rem; } }
+    &__info-subkicker { margin-top: .04rem; }
+    &__info-action { font-size: .8rem; }
     &__fact-note { font-size: .8rem; }
     &__fact-tail { font-size: .8rem; b { font-size: .95rem; } }
     &__agenda-me { font-size: .9rem; b { font-size: 1.05rem; } }

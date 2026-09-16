@@ -57,22 +57,72 @@
                    :subjectRaw="crumbSubjectRaw"
                    :stage="crumbStage"
                    :committed="crumbCommitted">
-      <!-- THE GLOBAL COUNTERS — the neutral supply (where popular support and
-           neutral votes come from), the viewer's influence, the deck. The
-           viewer's own delegates are counted ONCE, on the seats ledger. -->
-      <span class="con-parl__chip con-parl__chip--neutral" data-parl-neutral-pool>
-        <span class="con-parl__chip-dim">{{ $t('Neutral') }}</span>
-        <span class="con-parl__socket" :class="{'con-parl__socket--empty': neutralSupplyShown === 0}" data-parl-neutral-cube>
-          <PlayerCube v-if="neutralSupplyShown > 0" color="neutral" steel :size="cubePx(14)" />
-        </span>
-        <b :key="'n' + neutralSupplyShown" class="con-parl__tick">×{{ neutralSupplyShown }}</b>
-      </span>
-      <span v-if="view.viewer !== undefined" class="con-parl__chip">
-        <span class="con-parl__chip-dim">{{ $t('Influence') }}</span><b :key="'i' + view.viewer.influence" class="con-parl__tick">{{ view.viewer.influence }}</b>
-      </span>
-      <span class="con-parl__chip con-parl__chip--deck">
-        <span class="con-parl__chip-dim">{{ $t('Resolution deck') }}</span><b>{{ view.deckSize }}</b>
-      </span>
+      <!-- THE DELEGATES ZONE — the ONE ledger of every player's places: the
+           lobby's single socket (the free delegate waits there, or it is
+           spent) and the reserve as a stack with its count; the NEUTRAL supply
+           at the zone's edge (no lobby of its own). In the overview it shares
+           the head line; in the vote mode the SAME element (teleported) stands
+           at the top of the scene — every group keeps its identity, order and
+           cube geometry, so the delegates' flights leave from these very places
+           in both modes. -->
+      <Teleport defer to="[data-parl-zone-slot]" :disabled="!slotsCarried">
+        <div class="con-parl__seats" :class="{'con-parl__seats--carried': slotsCarried}" data-parl-seats data-parl-zone>
+          <div v-for="seat in seats" :key="seat.color" class="con-parl__seat"
+               :class="{'con-parl__seat--me': seat.color === viewerColor}"
+               :data-parl-seat="seat.color">
+            <span class="con-parl__seat-ident">
+              <PlayerCube :color="seat.color" :size="cubePx(11)" :glow="false" />
+              <span class="con-parl__seat-name">{{ seat.name }}</span>
+            </span>
+            <span class="con-parl__seat-place" :class="{'con-parl__seat-place--source': seatSourceOf(seat) === 'lobby'}" data-parl-seat-place="lobby">
+              <span class="con-parl__seat-key">{{ $t('Lobby') }}</span>
+              <span class="con-parl__seat-obj">
+                <span class="con-parl__socket con-parl__socket--seat" :class="{'con-parl__socket--empty': !seat.lobby}" :data-parl-seat-lobby="seat.color">
+                  <PlayerCube v-if="seat.lobby" :color="seat.color" :size="cubePx(RIBBON_CUBE)" :glow="false" />
+                </span>
+              </span>
+            </span>
+            <span class="con-parl__seat-place" :class="{'con-parl__seat-place--source': seatSourceOf(seat) === 'reserve'}" data-parl-seat-place="reserve">
+              <span class="con-parl__seat-key">{{ $t('Reserve') }}</span>
+              <span class="con-parl__seat-obj">
+                <span class="con-parl__stack con-parl__stack--seat" :class="{'con-parl__stack--empty': seat.reserveCubes === 0}" :data-parl-seat-reserve="seat.color" :data-count="seat.reserveCubes">
+                  <span v-for="n in Math.min(seat.reserveCubes, 3)" :key="n" class="con-parl__stack-cube" :data-stack="n">
+                    <PlayerCube :color="seat.color" :size="cubePx(RIBBON_CUBE)" :glow="false" />
+                  </span>
+                </span>
+                <b :key="'sr' + seat.reserve" class="con-parl__seat-count con-parl__tick">×{{ seat.reserve }}</b>
+              </span>
+            </span>
+          </div>
+          <div class="con-parl__seat con-parl__seat--neutral" data-parl-neutral-pool>
+            <span class="con-parl__seat-ident">
+              <PlayerCube color="neutral" steel :size="cubePx(11)" :glow="false" />
+              <span class="con-parl__seat-name">{{ $t('Neutral') }}</span>
+            </span>
+            <span class="con-parl__seat-place" data-parl-seat-place="neutral">
+              <span class="con-parl__seat-key">{{ $t('Reserve') }}</span>
+              <span class="con-parl__seat-obj">
+                <span class="con-parl__stack con-parl__stack--seat" :class="{'con-parl__stack--empty': neutralSupplyShown === 0}" data-parl-neutral-cube :data-count="neutralSupplyShown">
+                  <span v-for="n in Math.min(neutralSupplyShown, 3)" :key="n" class="con-parl__stack-cube" :data-stack="n">
+                    <PlayerCube color="neutral" steel :size="cubePx(RIBBON_CUBE)" :glow="false" />
+                  </span>
+                </span>
+                <b :key="'n' + neutralSupplyShown" class="con-parl__seat-count con-parl__tick">×{{ neutralSupplyShown }}</b>
+              </span>
+            </span>
+          </div>
+          <!-- The deck — a quiet counter at the zone's end (the influence lives on the Agenda). -->
+          <div class="con-parl__seat con-parl__seat--deck" data-parl-deck>
+            <span class="con-parl__seat-place">
+              <span class="con-parl__seat-key">{{ $t('Resolution deck') }}</span>
+              <span class="con-parl__seat-obj">
+                <i class="con-parl__seat-deck-icon resource_icon resource_icon--cards" aria-hidden="true"></i>
+                <b class="con-parl__seat-count">×{{ view.deckSize }}</b>
+              </span>
+            </span>
+          </div>
+        </div>
+      </Teleport>
     </ConsoleWsHead>
 
     <!-- THE FIELD — the overview's body and, over it, the vote mode's layer. -->
@@ -172,7 +222,8 @@
               <span class="con-parl__chair" :class="{'con-parl__chair--won': view.quest.completedBy !== undefined && view.quest.completedBy === view.chairman, 'con-parl__chair--pulse': chairPulse}" data-parl-chair>
                 <span class="con-parl__quest-reward-kicker">{{ $t('Chairman') }}</span>
                 <template v-if="view.chairman !== undefined">
-                  <PlayerCube :color="view.chairman" :size="cubePx(12)" />
+                  <!-- The SEAT's cube — the place the chairman's delegate flies to. -->
+                  <span class="con-parl__chair-cube" :data-parl-seat-chair="view.chairman"><PlayerCube :color="view.chairman" :size="cubePx(12)" /></span>
                   <b>{{ nameOf(view.chairman) }}</b>
                 </template>
                 <span v-else class="con-parl__chair-empty">{{ $t('Seat empty') }}</span>
@@ -182,7 +233,7 @@
           <div v-else class="con-parl__chair con-parl__chair--alone" :class="{'con-parl__chair--pulse': chairPulse}" data-parl-chair>
             <span class="con-parl__quest-reward-kicker">{{ $t('Chairman') }}</span>
             <template v-if="view.chairman !== undefined">
-              <PlayerCube :color="view.chairman" :size="cubePx(12)" />
+              <span class="con-parl__chair-cube" :data-parl-seat-chair="view.chairman"><PlayerCube :color="view.chairman" :size="cubePx(12)" /></span>
               <b>{{ nameOf(view.chairman) }}</b>
             </template>
             <span v-else class="con-parl__chair-empty">{{ $t('Seat empty') }}</span>
@@ -266,53 +317,41 @@
                   <!-- THE TALLY — one line: how many delegates, who LEADS, what is
                        YOURS with the two places of the party-effect threshold. In
                        flight, the selected card's numbers wait for the touchdown. -->
+                  <!-- TWO FIXED LINES for every slot: «N delegates · leader», then
+                       «yours ○○ n» — the same rows at the same heights whatever
+                       the count, the word's case or the leader's absence, so no
+                       card ever moves because its neighbour's line wrapped. -->
                   <div class="con-parl__tally" data-parl-tally>
-                    <span class="con-parl__tally-total">
-                      <b :key="'t' + tallyOf(slot, i).votes" class="con-parl__tally-num con-parl__tick">{{ tallyOf(slot, i).votes }}</b>
-                      <span class="con-parl__tally-unit">{{ delegatesWord(tallyOf(slot, i).votes) }}</span>
-                    </span>
-                    <span v-if="tallyOf(slot, i).leader !== undefined" class="con-parl__tally-row con-parl__tally-row--leader" data-parl-leader>
-                      <span class="con-parl__tally-key">{{ $t('Leader') }}</span>
-                      <PlayerCube v-if="tallyOf(slot, i).leader !== 'neutral'" :color="tallyOf(slot, i).leader" :size="cubePx(12)" :glow="false" />
-                      <PlayerCube v-else color="neutral" steel :size="cubePx(12)" :glow="false" />
-                    </span>
-                    <span v-else class="con-parl__tally-row con-parl__tally-row--none">{{ $t('No leader yet') }}</span>
-                    <span v-if="viewerParticipates && viewerColor !== undefined" class="con-parl__tally-row con-parl__tally-row--mine"
-                          :class="{'con-parl__tally-row--held': tallyOf(slot, i).mine >= PARTY_EFFECT_THRESHOLD}" data-parl-mine>
-                      <span class="con-parl__tally-key">{{ $t('Yours') }}</span>
-                      <span class="con-parl__places" aria-hidden="true">
-                        <span v-for="n in PARTY_EFFECT_THRESHOLD" :key="n" class="con-parl__place" :class="{'con-parl__place--on': n <= tallyOf(slot, i).mine}">
-                          <PlayerCube v-if="n <= tallyOf(slot, i).mine" :color="viewerColor" :size="cubePx(10)" :glow="false" />
-                        </span>
+                    <span class="con-parl__tally-line">
+                      <span class="con-parl__tally-total">
+                        <b :key="'t' + tallyOf(slot, i).votes" class="con-parl__tally-num con-parl__tick">{{ tallyOf(slot, i).votes }}</b>
+                        <span class="con-parl__tally-unit">{{ delegatesWord(tallyOf(slot, i).votes) }}</span>
                       </span>
-                      <b :key="'m' + tallyOf(slot, i).mine" class="con-parl__tick">{{ tallyOf(slot, i).mine }}</b>
+                      <span v-if="tallyOf(slot, i).leader !== undefined" class="con-parl__tally-row con-parl__tally-row--leader" data-parl-leader>
+                        <span class="con-parl__tally-key">{{ $t('Leader') }}</span>
+                        <PlayerCube v-if="tallyOf(slot, i).leader !== 'neutral'" :color="tallyOf(slot, i).leader" :size="cubePx(12)" :glow="false" />
+                        <PlayerCube v-else color="neutral" steel :size="cubePx(12)" :glow="false" />
+                      </span>
+                      <span v-else class="con-parl__tally-row con-parl__tally-row--none">{{ $t('No leader yet') }}</span>
+                    </span>
+                    <span class="con-parl__tally-line con-parl__tally-line--mine">
+                      <span v-if="viewerParticipates && viewerColor !== undefined" class="con-parl__tally-row con-parl__tally-row--mine"
+                            :class="{'con-parl__tally-row--held': tallyOf(slot, i).mine >= PARTY_EFFECT_THRESHOLD}" data-parl-mine>
+                        <span class="con-parl__tally-key">{{ $t('Yours') }}</span>
+                        <span class="con-parl__places" aria-hidden="true">
+                          <span v-for="n in PARTY_EFFECT_THRESHOLD" :key="n" class="con-parl__place" :class="{'con-parl__place--on': n <= tallyOf(slot, i).mine}">
+                            <PlayerCube v-if="n <= tallyOf(slot, i).mine" :color="viewerColor" :size="cubePx(10)" :glow="false" />
+                          </span>
+                        </span>
+                        <b :key="'m' + tallyOf(slot, i).mine" class="con-parl__tick">{{ tallyOf(slot, i).mine }}</b>
+                        <span v-if="tallyOf(slot, i).mine >= PARTY_EFFECT_THRESHOLD" class="con-parl__tally-held">{{ $t('effect is yours') }}</span>
+                      </span>
                     </span>
                   </div>
                 </div>
               </Teleport>
             </div>
           </div>
-        </div>
-      </div>
-
-      <!-- ══ THE SEATS — every player's delegates by PLACE: the lobby's one
-           socket, the reserve, the chairman's seat. THE one ledger of the
-           delegates — the physical sources and destinations of a delegate's
-           every move (a vote, a return, the lobby's refill, the seat). ══ -->
-      <div class="con-parl__seats" data-parl-seats data-parl-recede>
-        <div v-for="seat in seats" :key="seat.color" class="con-parl__seat" :class="{'con-parl__seat--me': seat.color === viewerColor}" :data-parl-seat="seat.color">
-          <PlayerCube :color="seat.color" :size="cubePx(12)" :glow="false" />
-          <span class="con-parl__seat-name">{{ seat.name }}</span>
-          <span class="con-parl__seat-key">{{ $t('Lobby') }}</span>
-          <span class="con-parl__socket con-parl__socket--small" :class="{'con-parl__socket--empty': !seat.lobby}" :data-parl-seat-lobby="seat.color">
-            <PlayerCube v-if="seat.lobby" :color="seat.color" :size="cubePx(12)" :glow="false" />
-          </span>
-          <span class="con-parl__seat-key">{{ $t('Reserve') }}</span>
-          <span class="con-parl__socket con-parl__socket--small" :class="{'con-parl__socket--empty': seat.reserve === 0}" :data-parl-seat-reserve="seat.color">
-            <PlayerCube v-if="seat.reserve > 0" :color="seat.color" :size="cubePx(12)" :glow="false" />
-          </span>
-          <b :key="'sr' + seat.reserve" class="con-parl__seat-count con-parl__tick">×{{ seat.reserve }}</b>
-          <span v-if="seat.chairman" class="con-parl__seat-chair" :class="{'con-parl__seat-chair--pulse': chairPulse && seat.color === view.chairman}" :data-parl-seat-chair="seat.color"><span class="con-parl__seat-glyph" aria-hidden="true"></span>{{ $t('Chairman') }}</span>
         </div>
       </div>
 
@@ -487,41 +526,18 @@
            'con-parl__vote--committed': voteCommitted,
            'con-parl__vote--landed': stage === 'landed',
            'con-parl__vote--paying': stage === 'paying',
+           'con-parl__vote--bill': billGeometry,
+           'con-parl__vote--concluded': concluded,
            'con-parl__vote--entering': voteEntering,
          }"
          :style="{'--parl-accent': voteSlot !== undefined ? partyAccent(voteSlot.party) : undefined}"
          :aria-hidden="voteUp ? undefined : 'true'"
          data-parl-vote
          ref="voteEl">
-      <!-- THE BENCH — the viewer's two places: the lobby's ONE socket (the free
-           delegate waits there, or it is spent) and the reserve as a stack with
-           its count. The delegate LEAVES one of these; the one that will is
-           marked. -->
-      <div class="con-parl__bench" data-parl-bench :data-parl-bench-source="voteSource">
-        <span class="con-parl__bench-kicker">
-          <PlayerCube v-if="viewerColor !== undefined" :color="viewerColor" :size="cubePx(12)" :glow="false" />
-          <span>{{ $t('Your delegates') }}</span>
-        </span>
-        <div class="con-parl__bench-group con-parl__bench-group--lobby" :class="{'con-parl__bench-group--source': benchSource === 'lobby', 'con-parl__bench-group--empty': !lobbyCubeShown}" data-parl-bench-lobby>
-          <span class="con-parl__bench-key">{{ $t('Lobby') }}</span>
-          <span class="con-parl__socket con-parl__socket--bench" :class="{'con-parl__socket--empty': !lobbyCubeShown}" data-parl-lobby-cube>
-            <PlayerCube v-if="lobbyCubeShown && viewerColor !== undefined" :color="viewerColor" :size="cubePx(RIBBON_CUBE)" />
-          </span>
-          <span class="con-parl__bench-note">{{ $t(lobbyNoteFree ? 'free delegate' : 'spent this generation') }}</span>
-        </div>
-        <div class="con-parl__bench-group con-parl__bench-group--reserve" :class="{'con-parl__bench-group--source': benchSource === 'reserve' && !benchWarn, 'con-parl__bench-group--empty': reserveCubesShown === 0}" data-parl-bench-reserve>
-          <span class="con-parl__bench-key">{{ $t('Reserve') }}</span>
-          <span class="con-parl__stack" :class="{'con-parl__stack--empty': reserveCubesShown === 0}" data-parl-reserve-cube :data-count="reserveCubesShown">
-            <span v-for="n in Math.min(reserveCubesShown, 3)" :key="n" class="con-parl__stack-cube" :data-stack="n">
-              <PlayerCube v-if="viewerColor !== undefined" :color="viewerColor" :size="cubePx(RIBBON_CUBE)" :glow="n === Math.min(reserveCubesShown, 3)" />
-            </span>
-          </span>
-          <b :key="'rc' + reserveCountShown" class="con-parl__bench-count con-parl__tick">×{{ reserveCountShown }}</b>
-          <span class="con-parl__bench-note">{{ reserveCostText }}</span>
-        </div>
-        <!-- The source is MARKED on its own group; only «nothing to send» needs words here. -->
-        <span v-if="benchWarn" class="con-parl__bench-hint con-parl__bench-hint--warn" data-parl-bench-hint>{{ benchHint }}</span>
-      </div>
+      <!-- THE DELEGATES ZONE's place while the mode stands: the SAME ledger
+           element the head line carries in the overview lands here (the
+           teleport above) — the viewer's source place is marked on it. -->
+      <div class="con-parl__zone-row" data-parl-zone-slot :data-parl-bench-source="voteSource"></div>
 
       <!-- THE CARD ROW — the three slots stand here while the mode is up. -->
       <div class="con-parl__vrow" data-parl-vrow ref="vrowEl"></div>
@@ -543,37 +559,45 @@
                 </span>
                 <span v-if="voteInfo.winning" class="con-parl__slot-win">{{ $t('Winning') }}</span>
               </div>
-              <!-- THE RESOLUTION'S OWN EFFECT — its printed graphic and its
-                   one sentence; a dummy says calmly that it has none. -->
-              <div class="con-parl__info-block con-parl__info-block--own" :class="{'con-parl__info-block--none': voteInfo.ownMechanics === undefined && voteInfo.ownText === undefined}" data-parl-vote-item data-parl-info="own">
-                <span class="con-parl__info-kicker" data-parl-vote-late>{{ $t('Resolution effect') }}</span>
-                <div class="con-parl__info-row">
-                  <PremiumMechanicsPanel v-if="voteInfo.ownMechanics !== undefined" class="con-parl__info-mech" :mechanics="voteInfo.ownMechanics" />
-                  <span v-else class="con-parl__info-none">{{ $t('No effect of its own') }}</span>
-                  <span v-if="voteInfo.ownText !== undefined" class="con-parl__info-text" data-parl-vote-late>{{ $t(voteInfo.ownText) }}</span>
+              <!-- THREE COLUMNS side by side — one reading each, so the surface
+                   stays SHALLOW and the cards above keep their size: the
+                   resolution's OWN effect (the main block — its printed graphic
+                   and its sentence; a dummy says calmly that it has none, in
+                   the very same frame a real effect will fill), what ENACTING
+                   it changes for everyone, and the chairman quest it sets. -->
+              <div class="con-parl__info-cols">
+                <div class="con-parl__info-block con-parl__info-block--own" data-parl-vote-item data-parl-info="own">
+                  <span class="con-parl__info-kicker" data-parl-vote-late>{{ $t('Resolution effect') }}</span>
+                  <div class="con-parl__info-row">
+                    <PremiumMechanicsPanel v-if="voteInfo.ownMechanics !== undefined" class="con-parl__info-mech" :mechanics="voteInfo.ownMechanics" />
+                    <span v-if="voteInfo.ownText !== undefined" class="con-parl__info-text" data-parl-vote-late>{{ $t(voteInfo.ownText) }}</span>
+                    <span v-else-if="voteInfo.ownMechanics === undefined" class="con-parl__info-none" data-parl-vote-late>{{ $t('No effect of its own') }}</span>
+                  </div>
                 </div>
-              </div>
-              <!-- IF ENACTED — the party rules and everyone gets its effect. The
-                   viewer's OWN access to it is a separate fact (two delegates),
-                   stated on the right beside the vote. -->
-              <div class="con-parl__info-block con-parl__info-block--party" data-parl-vote-item data-parl-info="party">
-                <span class="con-parl__info-kicker" data-parl-vote-late>{{ $t('If the resolution is enacted') }}</span>
-                <span class="con-parl__info-rule" data-parl-vote-late>{{ enactedRuleText(voteInfo.party) }}</span>
-                <div class="con-parl__info-row">
-                  <ConsolePartyFormula class="con-parl__info-pformula" :party="voteInfo.party" size="wide" />
-                  <span class="con-parl__info-text con-parl__info-text--party" data-parl-vote-late>
-                    <span v-if="voteInfo.partyPassive !== undefined">{{ $t(voteInfo.partyPassive) }}</span>
-                    <span v-if="voteInfo.partyAction !== undefined" class="con-parl__info-action">{{ $t('Action') }}: {{ $t(voteInfo.partyAction) }} · {{ $t('once per generation') }}</span>
-                  </span>
+                <!-- IF ENACTED — the party rules and everyone gets its effect. The
+                     viewer's OWN access to it is a separate fact (two delegates),
+                     stated on the right beside the vote. -->
+                <div class="con-parl__info-block con-parl__info-block--party" data-parl-vote-item data-parl-info="party">
+                  <span class="con-parl__info-kicker" data-parl-vote-late>{{ $t('If the resolution is enacted') }}</span>
+                  <span class="con-parl__info-rule" data-parl-vote-late>{{ enactedRuleText(voteInfo.party) }}</span>
+                  <div class="con-parl__info-row">
+                    <ConsolePartyFormula class="con-parl__info-pformula" :party="voteInfo.party" size="wide" />
+                    <span class="con-parl__info-text con-parl__info-text--party" data-parl-vote-late>
+                      <span v-if="voteInfo.partyPassive !== undefined">{{ $t(voteInfo.partyPassive) }}</span>
+                      <span v-else-if="voteInfo.partyAction !== undefined">{{ $t('Action') }}: {{ $t(voteInfo.partyAction) }} · {{ $t('once per generation') }}</span>
+                    </span>
+                  </div>
+                  <!-- A party with BOTH a standing effect and an action: the action on its own quiet line under the row. -->
+                  <span v-if="voteInfo.partyPassive !== undefined && voteInfo.partyAction !== undefined" class="con-parl__info-action" data-parl-vote-late>⚡ {{ $t('Action') }}: {{ $t(voteInfo.partyAction) }} · {{ $t('once per generation') }}</span>
                 </div>
-              </div>
-              <!-- THE CHAIRMAN QUEST it would set — the condition and what
-                   completing it pays. -->
-              <div class="con-parl__info-block con-parl__info-block--quest" data-parl-vote-item data-parl-info="quest">
-                <span class="con-parl__info-kicker" data-parl-vote-late>{{ $t('Chairman quest') }}</span>
-                <div class="con-parl__info-row">
-                  <PremiumMechanicsPanel v-if="voteInfo.questMechanics !== undefined" class="con-parl__info-quest" :mechanics="voteInfo.questMechanics" />
-                  <span class="con-parl__info-text" data-parl-vote-late>{{ $t(voteInfo.questText) }} · {{ $t('reward: the chairman seat and one Agenda step') }}</span>
+                <!-- THE CHAIRMAN QUEST it would set — the condition and what
+                     completing it pays. -->
+                <div class="con-parl__info-block con-parl__info-block--quest" data-parl-vote-item data-parl-info="quest">
+                  <span class="con-parl__info-kicker" data-parl-vote-late>{{ $t('Chairman quest') }}</span>
+                  <div class="con-parl__info-row">
+                    <PremiumMechanicsPanel v-if="voteInfo.questMechanics !== undefined" class="con-parl__info-quest" :mechanics="voteInfo.questMechanics" />
+                    <span class="con-parl__info-text" data-parl-vote-late>{{ $t(voteInfo.questText) }} · {{ $t('reward: the chairman seat and one Agenda step') }}</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -583,10 +607,14 @@
           <div class="con-parl__info-vote-main" v-show="stage !== 'paying'">
             <transition name="con-parl-xfade">
               <div v-if="voteInfo !== undefined" :key="voteInfo.instance" class="con-parl__info-body con-parl__info-body--vote">
-                <!-- THE SOURCE — the delegate at its place, and its price. -->
-                <div class="con-parl__info-block con-parl__info-block--source" data-parl-vote-item data-parl-vote-source>
-                  <span class="con-parl__info-kicker" data-parl-vote-late>{{ $t('Your vote') }}</span>
-                  <div class="con-parl__info-src">
+                <!-- YOUR VOTE — ONE block: the delegate at its place and its
+                     price, then this vote's own consequences, each as current
+                     → projected (the projected side is marked as a forecast
+                     until the delegate has landed; a fact that does not change
+                     stays, quiet, so the whole outcome can be read). -->
+                <div class="con-parl__info-block con-parl__info-block--after" :class="{'con-parl__info-block--done': stage === 'landed'}" data-parl-vote-item data-parl-vote-forecast>
+                  <div class="con-parl__info-src" data-parl-vote-source>
+                    <span class="con-parl__info-kicker con-parl__info-kicker--inline" data-parl-vote-late>{{ $t('Your vote') }}</span>
                     <span class="con-parl__socket con-parl__socket--small" :class="{'con-parl__socket--empty': benchSource === 'none'}">
                       <PlayerCube v-if="benchSource !== 'none' && viewerColor !== undefined" :color="viewerColor" :size="cubePx(12)" :glow="false" />
                     </span>
@@ -594,12 +622,7 @@
                     <ActionEffectChip v-if="voteSource === 'reserve' && benchSource !== 'none'" class="con-parl__vote-cost" :effect="voteCostChip" />
                     <span v-else-if="benchSource === 'lobby'" class="con-parl__info-free">{{ $t('free') }}</span>
                   </div>
-                </div>
-                <!-- AFTER YOUR VOTE — only this vote's own consequences, each
-                     as current → projected; the projected side is marked as a
-                     forecast until the delegate has landed. -->
-                <div class="con-parl__info-block con-parl__info-block--after" :class="{'con-parl__info-block--done': stage === 'landed'}" data-parl-vote-item data-parl-vote-forecast>
-                  <span class="con-parl__info-kicker" data-parl-vote-late>{{ $t(stage === 'landed' ? 'Result' : 'After your vote') }}</span>
+                  <span class="con-parl__info-subkicker" data-parl-vote-late>{{ $t(stage === 'landed' ? 'Result' : 'After your vote') }}</span>
                   <div class="con-parl__facts">
                     <!-- ONE row for the count — the card's total, and of them the viewer's own. -->
                     <div class="con-parl__fact" data-parl-fact="votes" data-parl-vote-late>
@@ -611,28 +634,31 @@
                     </div>
                     <div class="con-parl__fact" :class="{'con-parl__fact--gain': voteFacts.lead.change === 'take', 'con-parl__fact--dim': voteFacts.lead.change === 'none'}" data-parl-fact="lead" data-parl-vote-late>
                       <span class="con-parl__fact-key">{{ $t('Leader') }}</span>
+                      <!-- A fact that does not change is ONE value — an arrow to the same reading is noise on a decision line. -->
                       <span class="con-parl__fact-val">
-                        <template v-if="voteFacts.lead.before !== undefined">
-                          <PlayerCube v-if="voteFacts.lead.before !== 'neutral'" :color="voteFacts.lead.before" :size="cubePx(11)" :glow="false" />
-                          <PlayerCube v-else color="neutral" steel :size="cubePx(11)" :glow="false" />
+                        <template v-if="!voteFacts.lead.unchanged">
+                          <template v-if="voteFacts.lead.before !== undefined">
+                            <PlayerCube v-if="voteFacts.lead.before !== 'neutral'" :color="voteFacts.lead.before" :size="cubePx(11)" :glow="false" />
+                            <PlayerCube v-else color="neutral" steel :size="cubePx(11)" :glow="false" />
+                          </template>
+                          <span v-else class="con-parl__fact-none">—</span>
+                          <span class="con-parl__fact-arrow" aria-hidden="true">→</span>
                         </template>
-                        <span v-else class="con-parl__fact-none">—</span>
-                        <span class="con-parl__fact-arrow" aria-hidden="true">→</span>
                         <template v-if="voteFacts.lead.after !== undefined">
                           <PlayerCube v-if="voteFacts.lead.after !== 'neutral'" :color="voteFacts.lead.after" :size="cubePx(11)" :glow="false" />
                           <PlayerCube v-else color="neutral" steel :size="cubePx(11)" :glow="false" />
                         </template>
-                        <b class="con-parl__fact-after">{{ $t(voteFacts.lead.label) }}</b>
+                        <b :class="{'con-parl__fact-after': !voteFacts.lead.unchanged}">{{ $t(voteFacts.lead.label) }}</b>
                       </span>
                     </div>
                     <div class="con-parl__fact" :class="{'con-parl__fact--gain': voteFacts.win.change === 'become', 'con-parl__fact--dim': voteFacts.win.change === 'none'}" data-parl-fact="win" data-parl-vote-late>
                       <!-- A row's NOTE stands under its key (never beside the value — it squeezed the key into an ellipsis). -->
                       <span class="con-parl__fact-key">{{ $t('Winning') }}<span v-if="voteFacts.win.note !== undefined" class="con-parl__fact-note">{{ $t(voteFacts.win.note) }}</span></span>
-                      <span class="con-parl__fact-val"><b>{{ $t(voteFacts.win.before) }}</b><span class="con-parl__fact-arrow" aria-hidden="true">→</span><b class="con-parl__fact-after">{{ $t(voteFacts.win.after) }}</b></span>
+                      <span class="con-parl__fact-val"><template v-if="!voteFacts.win.unchanged"><b>{{ $t(voteFacts.win.before) }}</b><span class="con-parl__fact-arrow" aria-hidden="true">→</span></template><b :class="{'con-parl__fact-after': !voteFacts.win.unchanged}">{{ $t(voteFacts.win.after) }}</b></span>
                     </div>
                     <div class="con-parl__fact" :class="{'con-parl__fact--gain': voteFacts.access.change === 'unlock', 'con-parl__fact--dim': voteFacts.access.change === 'none'}" data-parl-fact="access" data-parl-vote-late>
                       <span class="con-parl__fact-key">{{ $t('Party effect for you') }}<span v-if="voteFacts.access.note !== undefined" class="con-parl__fact-note">{{ $t(voteFacts.access.note) }}</span></span>
-                      <span class="con-parl__fact-val"><b>{{ voteFacts.access.before }}</b><span class="con-parl__fact-arrow" aria-hidden="true">→</span><b class="con-parl__fact-after">{{ voteFacts.access.after }}</b></span>
+                      <span class="con-parl__fact-val"><template v-if="!voteFacts.access.unchanged"><b>{{ voteFacts.access.before }}</b><span class="con-parl__fact-arrow" aria-hidden="true">→</span></template><b :class="{'con-parl__fact-after': !voteFacts.access.unchanged}">{{ voteFacts.access.after }}</b></span>
                     </div>
                   </div>
                 </div>
@@ -724,7 +750,7 @@ import {motionMs} from '@/client/components/motion/motionTokens';
 import {armDescendOrigin, armDescendRect, descendSurfaceInset, guardedDescend} from '@/client/console/surfaceMotion/workspaceDescend';
 import {armActionFocusOrigin} from '@/client/console/consoleActionFocusMotion';
 import {
-  CubeFlightHandle, killParliamentVoteMotion, measureVoteRects, parkParliamentBody, playParliamentVoteEnter, playParliamentVoteLeave,
+  CubeFlightHandle, killParliamentVoteMotion, measureVoteRects, parkParliamentBody, playParliamentVoteEnter, playParliamentVoteLeave, playParliamentVoteRefit,
   Rect, restoreParliamentBody, runDelegateCubeFlight,
 } from '@/client/console/parliament/consoleParliamentVoteMotion';
 import {HydroMarkerDirectorHandle, runHydroMarkerGlide} from '@/client/console/hydroMarker/hydroMarkerDirector';
@@ -741,6 +767,8 @@ type Stage = 'browse' | 'vote' | 'seat' | 'submitting' | 'paying' | 'landed' | '
 
 /** The delegate's landing beat (the cube settles, the counters tick). */
 const VOTE_LANDING_MS = 700;
+/** THE CONCLUSION — the landed scene lets go as one picture (a class fade) before the workspace leaves. */
+const VOTE_CONCLUDE_MS = 220;
 /** The delegate's flight from its bench place to the card. */
 const VOTE_FLIGHT_MS = 540;
 /** A results-scene cube's flight. */
@@ -780,6 +808,8 @@ const PCARD_W = 320;
 const PCARD_H = 460;
 /** The overview's cards stop here so the vote mode can GROW them (never shrink the object the player picked up). */
 const MAX_CARD_ZOOM = 0.72;
+/** …and a step lower on the couch: the 4K mode's card is HEIGHT-bound (its band and tally rows are taller in rem), so the size step the mode owes is bought on the overview's side. */
+const MAX_CARD_ZOOM_TV = 0.67;
 const MIN_CARD_ZOOM = 0.3;
 /** The enacted face — the government's MAIN object. */
 const MAX_GOV_ZOOM = 0.62;
@@ -808,7 +838,8 @@ export type ParliamentInspectRequest =
 
 type RibbonGroup = {owner: Color | 'neutral', count: number, seqs: ReadonlyArray<number>, hasSeq: (seq: number | undefined) => boolean};
 
-type SeatRow = {color: Color, name: string, lobby: boolean, reserve: number, chairman: boolean};
+/** A player's group on the delegates zone: the lobby socket, the reserve's cubes (shown) and its count (said). */
+type SeatRow = {color: Color, name: string, lobby: boolean, reserve: number, reserveCubes: number, chairman: boolean};
 
 /** The vote's numbers at the SUBMIT — the mode reads these until the delegate has landed (and the source the delegate leaves from). */
 type VoteSnapshot = {votes: number, mine: number, leader: Color | 'neutral' | undefined, winning: boolean, winner: string | undefined, source: 'lobby' | 'reserve'};
@@ -816,10 +847,11 @@ type VoteSnapshot = {votes: number, mine: number, leader: Color | 'neutral' | un
 type FlightSpec = {id: string, color: Color | 'neutral', size: number};
 
 /** THIS VOTE's consequences, each as current → projected. */
+/** `unchanged` — the reading is the same before and after: the row shows ONE value (an arrow to the same reading is noise). */
 type VoteFactsVm = {
-  lead: {before: Color | 'neutral' | undefined, after: Color | 'neutral' | undefined, label: string, change: 'take' | 'keep' | 'none'};
-  win: {before: string, after: string, note: string | undefined, change: 'become' | 'stay' | 'none'};
-  access: {before: string, after: string, note: string | undefined, change: 'unlock' | 'held' | 'progress' | 'none'};
+  lead: {before: Color | 'neutral' | undefined, after: Color | 'neutral' | undefined, label: string, change: 'take' | 'keep' | 'none', unchanged: boolean};
+  win: {before: string, after: string, note: string | undefined, change: 'become' | 'stay' | 'none', unchanged: boolean};
+  access: {before: string, after: string, note: string | undefined, change: 'unlock' | 'held' | 'progress' | 'none', unchanged: boolean};
 };
 
 /** What the SELECTED card is — the info surface's left half. */
@@ -898,6 +930,9 @@ export default defineComponent({
       flightHandles: {} as Record<string, CubeFlightHandle>,
       flightSerial: 0,
       landingTimer: undefined as number | undefined,
+      concludeTimer: undefined as number | undefined,
+      /** The landed scene is dissolving — the flow's last beat before the workspace leaves. */
+      concluded: false,
       landingHold: undefined as AnimationHold | undefined,
       flightHold: undefined as AnimationHold | undefined,
       /** The chairman-seat pick: the cube's rect on the card at the submit (the flight's source). */
@@ -1032,20 +1067,6 @@ export default defineComponent({
       }
       return viewer.reserve > 0 ? 'reserve' : 'none';
     },
-    lobbyCubeShown(): boolean {
-      return this.sourceHold === 'lobby' || (this.view.viewer?.lobby === true);
-    },
-    /** The lobby's note stays «free delegate» until the cube has visibly left the socket. */
-    lobbyNoteFree(): boolean {
-      return this.sourceLeaving === 'lobby' || this.lobbyCubeShown;
-    },
-    reserveCubesShown(): number {
-      return (this.view.viewer?.reserve ?? 0) + (this.sourceHold === 'reserve' ? 1 : 0);
-    },
-    /** The reserve's COUNT ticks when the cube has visibly left the stack (the stack's top cube goes the frame the proxy stands over it). */
-    reserveCountShown(): number {
-      return (this.view.viewer?.reserve ?? 0) + (this.sourceLeaving === 'reserve' ? 1 : 0);
-    },
     /**
      * THE VOTE IS IN THE AIR: from the submit to the cube's touchdown every
      * consequence the server already answered (the tally, the leader, the
@@ -1055,12 +1076,6 @@ export default defineComponent({
     voteInFlight(): boolean {
       return this.voteSnapshot !== undefined &&
         (this.stage === 'submitting' || this.stage === 'paying' || (this.stage === 'landed' && this.landedSeq === undefined));
-    },
-    /** The reserve's price per delegate — the rule's constant (the live tile's cost only while the reserve IS the source). */
-    reserveCostText(): string {
-      const tile = this.voteTile;
-      const cost = tile !== undefined && tile.source === 'reserve' && tile.cost !== undefined && tile.cost > 0 ? tile.cost : PARLIAMENT_VOTE_COST;
-      return translateTextWithParams('${0} M€ per delegate', [String(cost)]);
     },
     /**
      * THE BENCH'S WARNING — the sources cannot deliver a delegate: nothing is
@@ -1077,13 +1092,6 @@ export default defineComponent({
         return tile !== undefined && !tile.available && (this.playerView.thisPlayer?.megacredits ?? 0) < (tile.cost ?? PARLIAMENT_VOTE_COST);
       }
       return false;
-    },
-    benchHint(): string {
-      switch (this.benchSource) {
-      case 'lobby': return translateText('The free delegate goes');
-      case 'reserve': return translateText(this.benchWarn ? 'Not enough M€ for a reserve delegate' : 'A reserve delegate goes');
-      default: return translateText('No delegate left to send');
-      }
     },
     sourceText(): string {
       switch (this.benchSource) {
@@ -1111,13 +1119,20 @@ export default defineComponent({
     },
     /** THE SEATS — every participating player's places, with the results scene's display holds applied. */
     seats(): Array<SeatRow> {
+      const me = this.viewerColor;
       return this.view.players.filter((p) => p.participates).map((p) => {
         const pendingLobby = this.recapPending.lobby.has(p.color);
         const pendingReturns = this.recapPending.returns.get(p.color) ?? 0;
+        const base = Math.max(0, p.reserve - pendingReturns + (pendingLobby ? 1 : 0));
+        // The viewer's places keep PAINTING the delegate that is leaving until
+        // its proxy stands over it (`sourceHold`), and keep SAYING its count
+        // until it has visibly left (`sourceLeaving`).
+        const mine = p.color === me;
         return {
           color: p.color, name: p.name,
-          lobby: p.lobby && !pendingLobby,
-          reserve: Math.max(0, p.reserve - pendingReturns + (pendingLobby ? 1 : 0)),
+          lobby: (p.lobby && !pendingLobby) || (mine && this.sourceHold === 'lobby'),
+          reserve: base + (mine && this.sourceLeaving === 'reserve' ? 1 : 0),
+          reserveCubes: base + (mine && this.sourceHold === 'reserve' ? 1 : 0),
           chairman: p.chairman,
         };
       });
@@ -1224,18 +1239,20 @@ export default defineComponent({
       const access = voteAccessOf(slot, this.view.parties.find((p) => p.party === slot?.party),
         this.stage === 'landed' ? slot?.viewerVotes : this.voteNumbers.mineAfter, this.voteNumbers.mineBefore);
       return {
-        lead: {before: leaderBefore, after: leaderAfter, label: leadLabel, change: leadChange},
+        lead: {before: leaderBefore, after: leaderAfter, label: leadLabel, change: leadChange, unchanged: leaderBefore === leaderAfter},
         win: {
           before: winningBefore ? 'yes' : 'no',
           after: winningAfter ? 'yes' : 'no',
           note: winChange === 'become' && f?.tieNote === 'slot-priority' ? 'wins the tie: closer to the government' : (winChange === 'none' && !winningAfter ? 'another resolution leads' : undefined),
           change: winChange,
+          unchanged: winningBefore === winningAfter,
         },
         access: {
           before: access.heldByOther ? translateText('effect is yours') : translateTextWithParams('${0} of ${1}', [String(access.before), String(access.threshold)]),
           after: access.heldByOther ? translateText('effect is yours') : (access.after >= access.threshold ? translateText('effect is yours') : translateTextWithParams('${0} of ${1}', [String(access.after), String(access.threshold)])),
           note: access.heldByOther ? access.reason : (access.after >= access.threshold && access.before < access.threshold ? 'two of your delegates' : undefined),
           change: access.heldByOther ? 'held' : (access.after >= access.threshold ? (access.before >= access.threshold ? 'held' : 'unlock') : (access.after > access.before ? 'progress' : 'none')),
+          unchanged: access.heldByOther || access.before === access.after || (access.before >= access.threshold && access.after >= access.threshold),
         },
       };
     },
@@ -1308,15 +1325,18 @@ export default defineComponent({
       return this.recapCurrent?.focus ?? '';
     },
     crumbSubject(): string {
+      // The vote MODE has one stable name — «Parliament › Voting». The
+      // selected resolution is named in its own description; a crumb that
+      // re-set itself on every ◀ ▶ read as arriving somewhere else.
       switch (this.stage) {
       case 'vote':
       case 'paying':
       case 'landed':
-        return this.resolutionTitle(this.voteSlot?.resolutionId ?? '');
+        return 'Voting';
       case 'seat':
         return this.resolutionTitle(this.focusedSlot?.resolutionId ?? '');
       case 'submitting':
-        return this.resolutionTitle((this.stageBeforeSubmit === 'vote' ? this.voteSlot : this.focusedSlot)?.resolutionId ?? '');
+        return this.stageBeforeSubmit === 'vote' ? 'Voting' : this.resolutionTitle(this.focusedSlot?.resolutionId ?? '');
       case 'recap': return this.recapKicker;
       default: return '';
       }
@@ -1382,6 +1402,14 @@ export default defineComponent({
       const wf = this.playerView.waitingFor;
       return wf?.type === 'payment' ? (wf as SelectPaymentModel).votePayment : undefined;
     },
+    /**
+     * THE BILL GEOMETRY — the vote column at the shared payment panel's width
+     * and the band at its height, from the payment through the paid delegate's
+     * landing (a re-fit under a flight would jump the scene it measures).
+     */
+    billGeometry(): boolean {
+      return this.stage === 'paying' || (this.stage === 'landed' && this.voteSnapshot?.source === 'reserve');
+    },
     paymentStands(): boolean {
       return this.votePayment !== undefined;
     },
@@ -1435,7 +1463,7 @@ export default defineComponent({
         this.voteSnapshot = {votes: slot.totalVotes, mine: slot.viewerVotes, leader: slot.leader, winning: slot.isWinning, winner: this.winningSlot?.instance, source: 'reserve'};
         this.stageBeforeSubmit = 'vote';
         this.stage = 'paying';
-        descendWorkspaceFrame('parliament', this.resolutionTitle(slot.resolutionId), 'Payment');
+        descendWorkspaceFrame('parliament', 'Voting', 'Payment');
         setWorkspaceFramePhase('parliament', 'committed');
         void this.$nextTick(() => {
           this.fitCards();
@@ -1445,6 +1473,24 @@ export default defineComponent({
           }
         });
       },
+    },
+    /**
+     * The bill geometry changes under a STANDING mode: measure before the
+     * layout moves (pre-flush), re-fit the cards after it, and FLIP every
+     * carried object from where it stood — never a jump under the bill. A mode
+     * that opens straight into the payment (a reload) has nothing to carry.
+     */
+    billGeometry(): void {
+      const root = this.$refs.rootEl as HTMLElement | undefined;
+      const up = root?.querySelector<HTMLElement>('.con-parl__vote--up') ?? null;
+      if (root === undefined || up === null || this.voteEntering || this.voteLeaving) {
+        return;
+      }
+      const before = measureVoteRects(root, {mode: 'vote'});
+      void this.$nextTick(() => {
+        this.fitCards();
+        playParliamentVoteRefit({root, before});
+      });
     },
     sceneHandedOver(on: boolean): void {
       if (!on && this.stage === 'browse') {
@@ -1589,6 +1635,7 @@ export default defineComponent({
     this.stopFitObs?.();
     this.clearSubmitTimer();
     this.clearLanding();
+    this.clearConclude();
     this.clearRecapTimers();
     this.killFlights();
     for (const timer of [this.accessTimer, this.agendaTimer, this.questTimer, this.usedTimer, this.chairTimer]) {
@@ -1634,6 +1681,36 @@ export default defineComponent({
       }
       return {votes: slot.totalVotes, mine: slot.viewerVotes, leader: slot.leader};
     },
+    /** WHICH of the viewer's places the next delegate leaves — marked on the zone while the mode stands, never on another player's group. */
+    seatSourceOf(seat: SeatRow): 'lobby' | 'reserve' | undefined {
+      if (!this.slotsCarried || seat.color !== this.viewerColor || this.benchWarn) {
+        return undefined;
+      }
+      const source = this.benchSource;
+      return source === 'none' ? undefined : source;
+    },
+    /**
+     * A cube-sized rect ON a place of the delegates zone: the top cube of a
+     * stack when one stands there, else the place's centre at the zone's cube
+     * size — so a landing proxy is always the size of the cube that will
+     * materialize under it, never the size of the socket around it.
+     */
+    placeCubeRect(root: HTMLElement, selector: string): Rect | undefined {
+      const place = root.querySelector<HTMLElement>(selector);
+      if (place === null) {
+        return undefined;
+      }
+      const cube = place.querySelector<HTMLElement>('.con-parl__stack-cube:last-child .player-cube') ?? place.querySelector<HTMLElement>('.player-cube');
+      const r = (cube ?? place).getBoundingClientRect();
+      if (r.width < 2) {
+        return undefined;
+      }
+      if (cube !== null) {
+        return {left: r.left, top: r.top, width: r.width, height: r.height};
+      }
+      const size = this.cubePx(RIBBON_CUBE);
+      return {left: r.left + r.width / 2 - size / 2, top: r.top + r.height / 2 - size / 2, width: size, height: size};
+    },
     /** Whether a card reads «winning» as SHOWN: while the cube is in the air every card keeps the pre-vote verdict (the badge moves on the touchdown). */
     winningShownOf(slot: ParliamentSlotVm): boolean {
       const snap = this.voteSnapshot;
@@ -1645,9 +1722,6 @@ export default defineComponent({
     /** The crumb's tail for a stage (the name of the place the player is in — never of a beat). */
     crumbStageOf(stage: Stage): string {
       switch (stage) {
-      case 'vote':
-      case 'landed':
-        return 'Vote';
       case 'paying': return 'Payment';
       case 'seat': return 'Chairman seat';
       default: return '';
@@ -1665,7 +1739,9 @@ export default defineComponent({
       }
       const scale = conUiScale();
       const px = (v: string): number => parseFloat(v) || 0;
-      const heightOf = (host: Element, sel: string): number => host.querySelector<HTMLElement>(sel)?.getBoundingClientRect().height ?? 0;
+      // Layout heights (`offsetHeight`), never painted boxes: a FLIP in flight
+      // scales these very elements, and a rect read then under-fits the card.
+      const heightOf = (host: Element, sel: string): number => host.querySelector<HTMLElement>(sel)?.offsetHeight ?? 0;
       const snap = (zoom: number, min: number): number => Math.max(min * scale, Math.floor(zoom * 1000) / 1000);
       const slots = Array.from(root.querySelectorAll<HTMLElement>('.con-parl__slot'));
       const chromeOf = (slot: HTMLElement): number =>
@@ -1690,7 +1766,8 @@ export default defineComponent({
         const chrome = Math.max(...slots.map(chromeOf));
         const availH = slot.clientHeight - px(cs.paddingTop) - px(cs.paddingBottom) - chrome - px(cs.rowGap) * 3;
         const availW = slot.clientWidth - px(cs.paddingLeft) - px(cs.paddingRight);
-        const zoom = Math.min(availH / PCARD_H, availW / PCARD_W, MAX_CARD_ZOOM * scale);
+        const cap = consoleLayoutState.profile === 'tv' ? MAX_CARD_ZOOM_TV : MAX_CARD_ZOOM;
+        const zoom = Math.min(availH / PCARD_H, availW / PCARD_W, cap * scale);
         root.style.setProperty('--con-parl-card-zoom', String(snap(zoom, MIN_CARD_ZOOM)));
       }
 
@@ -1719,7 +1796,9 @@ export default defineComponent({
         if (this.view.slots.length > 0) {
           cmds.push({control: 'confirm', label: 'Vote', enabled: true, highlight: this.canVoteNow});
         }
-        cmds.push({control: 'secondary', label: 'Inspect'}, back);
+        // No X here: the voting area is ONE zone with no card of its own
+        // selected — the inspector belongs to the mode's selected card.
+        cmds.push(back);
         return cmds;
       }
       case 'government':
@@ -1878,6 +1957,7 @@ export default defineComponent({
      * the three proposals is its job too; the confirm carries the reason.
      */
     openVote(opts?: {fromViewer?: boolean, index?: number}): void {
+      this.clearConclude();
       const root = this.$refs.rootEl as HTMLElement | undefined;
       if (this.view.slots.length === 0 || root === undefined) {
         this.$emit('notice', translateText('Not in this game'));
@@ -1903,7 +1983,7 @@ export default defineComponent({
       this.zone = 'voting';
       this.stage = 'vote';
       this.voteEntering = true;
-      descendWorkspaceFrame('parliament', this.resolutionTitle(selected.resolutionId), 'Vote');
+      descendWorkspaceFrame('parliament', 'Voting', '');
       void this.$nextTick(() => {
         // The slots are in the vote row now: fit them, then play from the old rects.
         this.fitCards();
@@ -1919,20 +1999,13 @@ export default defineComponent({
         });
       });
     },
-    /** The SAME mode, entered from the fullscreen viewer on the card it is showing (the card flies from the viewer into its place). */
-    openVoteFromViewer(resolutionId: string): void {
-      const idx = this.view.slots.findIndex((s) => s.resolutionId === resolutionId);
-      if (idx === -1) {
-        return;
-      }
-      this.openVote({fromViewer: true, index: idx});
-    },
     /** B before the commit: the same phrase folded back — every object returns home, the focus is where it was. */
     closeVote(): void {
       if (!this.voteUp) {
         return;
       }
       const root = this.$refs.rootEl as HTMLElement | undefined;
+      this.clearConclude();
       this.clearLanding();
       this.voteSnapshot = undefined;
       this.sourceHold = undefined;
@@ -2039,38 +2112,16 @@ export default defineComponent({
         }
         return;
       }
-      if (this.zone === 'voting' || this.stage === 'seat') {
-        const slots = this.view.slots;
-        if (slots.length === 0) {
-          return;
+      if (this.stage === 'seat') {
+        const slot = this.focusedSlot;
+        if (slot !== undefined) {
+          this.$emit('inspect', {kind: 'resolution', ids: [slot.resolutionId], index: 0, origin: () => slotFace(slot.instance)} as ParliamentInspectRequest);
         }
-        if (this.stage === 'seat') {
-          const slot = this.focusedSlot;
-          if (slot !== undefined) {
-            this.$emit('inspect', {kind: 'resolution', ids: [slot.resolutionId], index: 0, origin: () => slotFace(slot.instance)} as ParliamentInspectRequest);
-          }
-          return;
-        }
-        const request: ParliamentInspectRequest = {
-          kind: 'resolution',
-          ids: slots.map((s) => s.resolutionId),
-          index: Math.max(0, Math.min(slots.length - 1, this.slotIndex)),
-          origin: (i) => {
-            const s = slots[i];
-            return s === undefined ? null : slotFace(s.instance);
-          },
-          onBrowse: (i) => {
-            if (i >= 0 && i < slots.length) {
-              this.slotIndex = i;
-            }
-          },
-          vote: {
-            labelFor: () => 'Vote',
-            reasonsFor: () => (this.canVoteNow ? [] : [this.voteBlockedText]),
-            execute: (id) => this.openVoteFromViewer(id),
-          },
-        };
-        this.$emit('inspect', request);
+        return;
+      }
+      if (this.zone === 'voting') {
+        // ONE zone, no card of its own selected: nothing to inspect from the
+        // overview — the vote mode's X inspects the card it stands on.
         return;
       }
       if (this.zone === 'government') {
@@ -2288,9 +2339,7 @@ export default defineComponent({
         const from = rect(root.querySelector('.con-parl__gov-card .pcard') ?? root.querySelector('.con-parl__gov-card'));
         let i = 0;
         for (const [owner, count] of Array.from(this.recapPending.returns.entries())) {
-          const to = owner === 'neutral' ?
-            rect(root.querySelector('[data-parl-neutral-cube]')) :
-            rect(root.querySelector(`[data-parl-seat-reserve="${owner}"]`));
+          const to = this.placeCubeRect(root, owner === 'neutral' ? '[data-parl-neutral-cube]' : `[data-parl-seat-reserve="${owner}"]`);
           for (let n = 0; n < count; n++) {
             const delay = i * 70;
             i++;
@@ -2346,8 +2395,8 @@ export default defineComponent({
         // Every free delegate returns from the reserve to the lobby's socket.
         let i = 0;
         for (const color of Array.from(this.recapPending.lobby)) {
-          const from = rect(root.querySelector(`[data-parl-seat-reserve="${color}"]`));
-          const to = rect(root.querySelector(`[data-parl-seat-lobby="${color}"]`));
+          const from = this.placeCubeRect(root, `[data-parl-seat-reserve="${color}"]`);
+          const to = this.placeCubeRect(root, `[data-parl-seat-lobby="${color}"]`);
           const delay = i * 90;
           i++;
           this.flyCube(color, from, to, delay, () => {
@@ -2490,10 +2539,13 @@ export default defineComponent({
       if (root === undefined || typeof window === 'undefined' || consoleReducedMotionActive()) {
         return false;
       }
+      // The REAL places on the delegates zone, measured where they stand right
+      // now (the zone has moved with the mode; nothing here remembers the
+      // overview's coordinates).
       const fromLobby = this.voteSource === 'lobby';
       const sourceCube = fromLobby ?
-        root.querySelector<HTMLElement>('[data-parl-lobby-cube] .player-cube') :
-        root.querySelector<HTMLElement>('[data-parl-reserve-cube] .con-parl__stack-cube:last-child .player-cube');
+        root.querySelector<HTMLElement>(`[data-parl-seat-lobby="${color}"] .player-cube`) :
+        root.querySelector<HTMLElement>(`[data-parl-seat-reserve="${color}"] .con-parl__stack-cube:last-child .player-cube`);
       const place = root.querySelector<HTMLElement>(`.con-parl__slot[data-instance] [data-seq="${seq}"]`);
       // The proxy lands on the CUBE's own box — the ribbon's place is a wider socket drawn around it.
       const target = place?.querySelector<HTMLElement>('.player-cube') ?? place;
@@ -2554,12 +2606,36 @@ export default defineComponent({
       this.landingTimer = window.setTimeout(() => this.finishLanding(), consoleMotionMs(VOTE_LANDING_MS));
     },
     finishLanding(): void {
-      this.clearLanding();
-      if (this.stage === 'landed') {
-        // The flow is over: the shell's ONE guarded conclusion decides whether
-        // the workspace leaves (a vote is a full action — it does).
-        this.$emit('flow-complete', 'vote');
+      if (this.landingTimer !== undefined) {
+        window.clearTimeout(this.landingTimer);
+        this.landingTimer = undefined;
       }
+      if (this.stage !== 'landed') {
+        this.clearLanding();
+        return;
+      }
+      // The flow is over: the landed scene lets go as ONE picture — cards, zone
+      // and band together (a leaving Teleport would drop the cards a frame
+      // before the fading layer) — while its counters keep the landed reading
+      // (`landedSeq` stands until the fade is out); then the shell's ONE
+      // guarded conclusion decides whether the workspace leaves (a vote is a
+      // full action — it does). A CLASS fade, not a tween: the unmount's
+      // prop reset would have popped a tweened layer back to full.
+      this.concluded = true;
+      this.concludeTimer = window.setTimeout(() => {
+        this.concludeTimer = undefined;
+        this.clearLanding();
+        if (this.stage === 'landed') {
+          this.$emit('flow-complete', 'vote');
+        }
+      }, consoleMotionMs(VOTE_CONCLUDE_MS) + 40);
+    },
+    clearConclude(): void {
+      if (this.concludeTimer !== undefined) {
+        window.clearTimeout(this.concludeTimer);
+        this.concludeTimer = undefined;
+      }
+      this.concluded = false;
     },
     clearLanding(): void {
       if (this.landingTimer !== undefined) {
