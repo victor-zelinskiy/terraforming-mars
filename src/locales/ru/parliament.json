@@ -415,5 +415,12 @@
     "Your effect": "Ваш эффект",
     "Ruling · starting rule": "Правит · стартовое правило",
     "Held by every player": "У всех игроков",
-    "Delegate on the way": "Делегат в пути"
+    "Delegate on the way": "Делегат в пути",
+    "Trade with a colony for free. Before the trade, you may advance its track 1 step.": "Торгуйте с колонией бесплатно. Перед торговлей можно продвинуть её трек на 1 шаг.",
+    "2 M€ for each TR step you gain. Raising your plant or heat production raises your M€ production by as many steps.": "2 М€ за каждый полученный шаг РТ. Повышая производство растений или тепла, повышаете и производство М€ на столько же шагов.",
+    "+1 wild tag (not for awards or VP). Action: 2 data or 2 microbes onto one of your cards.": "+1 универсальная метка (кроме наград и ПО). Действие: 2 данных или 2 микроба на одну свою карту.",
+    "1 steel for each tile you place on Mars; a city also draws 1 card.": "1 сталь за каждый свой тайл на Марсе; за город — ещё и 1 карта.",
+    "Action: lower any of your productions 1 step to raise your M€ or energy production 2 steps.": "Действие: понизьте любое своё производство на 1 шаг и повысьте производство М€ или энергии на 2 шага.",
+    "Action: draw 2 cards, then discard 2. 2 M€ for each plant, microbe or animal tag on the discarded cards.": "Действие: возьмите 2 карты, затем сбросьте 2. По 2 М€ за каждую метку растений, микробов или животных на сброшенных.",
+    "Available to every player": "Доступно всем"
 }

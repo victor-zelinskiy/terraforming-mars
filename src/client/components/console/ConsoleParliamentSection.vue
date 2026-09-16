@@ -44,7 +44,7 @@
              'con-parl--stage': stageUp,
              'con-parl--vote': voteUp,
              'con-parl--vote-leaving': voteLeaving,
-             'con-parl--flying': flights.length > 0,
+             'con-parl--flying': flights.length > 0 || cardFlights.length > 0,
              ['con-parl--zone-' + zone]: true,
              ['con-parl--recap-' + recapHighlight]: stage === 'recap' && recapHighlight !== '',
            }"
@@ -116,13 +116,22 @@
               </span>
             </span>
           </div>
-          <!-- The deck — a quiet counter at the zone's end (the influence lives on the Agenda). -->
+          <!-- THE DECK — a PHYSICAL pile at the zone's end: the top back (the
+               card.webp every console back wears), slim edges of the cards
+               beneath (tiered by the count — one card shows no edge, an empty
+               deck a ghost) and the count beside it. The results scene deals
+               the fresh resolutions FROM this top card, so the pile and its
+               count keep the pre-deal reading until each card has left. -->
           <div class="con-parl__seat con-parl__seat--deck" data-parl-deck>
             <span class="con-parl__seat-place">
               <span class="con-parl__seat-key">{{ $t('Resolution deck') }}</span>
               <span class="con-parl__seat-obj">
-                <i class="con-parl__seat-deck-icon resource_icon resource_icon--cards" aria-hidden="true"></i>
-                <b class="con-parl__seat-count">×{{ view.deckSize }}</b>
+                <span class="con-parl__deck" :class="{'con-parl__deck--empty': deckShown === 0}" :data-count="deckShown" data-parl-deck-pile aria-hidden="true">
+                  <span v-if="deckLayers >= 2" class="con-parl__deck-layer con-parl__deck-layer--2"></span>
+                  <span v-if="deckLayers >= 1" class="con-parl__deck-layer con-parl__deck-layer--1"></span>
+                  <span class="con-parl__deck-top" data-parl-deck-top></span>
+                </span>
+                <b :key="'d' + deckShown" class="con-parl__seat-count con-parl__tick">×{{ deckShown }}</b>
               </span>
             </span>
           </div>
@@ -174,11 +183,20 @@
                 <img class="con-parl__ruler-emblem" :src="emblemUrl(view.rulingParty)" alt="" />
                 <div class="con-parl__ruler-text">
                   <span class="con-parl__ruler-kicker">{{ $t('Ruling party') }}</span>
-                  <b class="con-parl__ruler-name">{{ $t(view.rulingParty) }}</b>
+                  <span class="con-parl__ruler-title">
+                    <b class="con-parl__ruler-name">{{ $t(view.rulingParty) }}</b>
+                    <!-- Whose the effect is — beside the name, never a caption a panel away. -->
+                    <span class="con-parl__ruler-scope">{{ $t('Available to every player') }}</span>
+                  </span>
                 </div>
               </div>
-              <ConsolePartyFormula class="con-parl__ruler-formula" :party="view.rulingParty" size="wide" />
-              <span class="con-parl__ruler-scope">{{ $t('Held by every player') }}</span>
+              <!-- The mechanic: its printed graphic, and under it the ONE short
+                   reading the catalog carries for it (the full sentences are
+                   the inspector's). Centred together in the plate's height. -->
+              <div class="con-parl__ruler-body">
+                <ConsolePartyFormula class="con-parl__ruler-formula" :party="view.rulingParty" size="wide" />
+                <p v-if="rulingSummary !== undefined" class="con-parl__ruler-summary" data-parl-ruler-summary>{{ $t(rulingSummary) }}</p>
+              </div>
               <div v-if="enactedOwnMechanics !== undefined" class="con-parl__ruler-own" data-parl-enacted-effect>
                 <span class="con-parl__ruler-own-kicker"><i class="con-parl__card-mark resource_icon resource_icon--cards" aria-hidden="true"></i>{{ $t('Resolution effect') }}</span>
                 <PremiumMechanicsPanel class="con-parl__ruler-own-mech" :mechanics="enactedOwnMechanics" />
@@ -291,6 +309,7 @@
                     <span v-if="winningShownOf(slot)" class="con-parl__slot-win">{{ $t('Winning') }}</span>
                   </div>
                   <div class="con-parl__card"
+                       :class="{'con-parl__card--dealing': dealingFaces.has(slot.instance)}"
                        :data-zoom-slot="'resolution:' + slot.resolutionId"
                        :data-zoom-handoff="slotsCarried && slotIndex === i ? 'parliament-vote' : undefined"
                        :data-parl-vote-card="slotsCarried && slotIndex === i ? '' : undefined">
@@ -390,14 +409,10 @@
                                   :support="supportShown(p)"
                                   :viewerColor="viewerColor"
                                   :formula="true"
-                                  :focused="zone === 'parties' && partyIndex === i && stage === 'browse'" />
+                                  :focused="zone === 'parties' && partyIndex === i && stage === 'browse'"
+                                  :reason="zone === 'parties' && partyIndex === i && stage === 'browse' ? partyLine : ''"
+                                  :reasonTone="partyLineTone" />
             </div>
-          </div>
-          <!-- THE PARTY LINE — one fixed-height line under the row: the ONE
-               short reason the focused party's action cannot be taken right
-               now. Empty when it can, or when the party has no action. -->
-          <div class="con-parl__pline" :class="{'con-parl__pline--off': partyLine === '', ['con-parl__pline--' + partyLineTone]: partyLine !== ''}" data-parl-pline>
-            <span v-if="partyLine !== ''" class="con-parl__pline-text">{{ partyLine }}</span>
           </div>
         </div>
 
@@ -489,9 +504,16 @@
             </span>
           </span>
         </div>
+        <!-- THE SCALE — every step is TWO fixed rows: the NODE (the symbol,
+             optically centred on the rail) and the MARKER row beneath it
+             (reserved whether or not a cube stands there, so a marker's
+             arrival moves no symbol). The rail is drawn by the steps' own
+             half-segments, so the viewer's PASSED part is tinted exactly up to
+             their node; the CURRENT node reads by its marker and its reached
+             fill, the NEXT one wears a light gold ring — never a focus ring. -->
         <div class="con-parl__track">
-          <div class="con-parl__step con-parl__step--start" :class="{'con-parl__step--here': viewerParticipates && agendaVm.viewerPosition === 0}" data-step="0">
-            <span class="con-parl__step-icon">{{ $t('Agenda start') }}</span>
+          <div class="con-parl__step con-parl__step--start" :class="{'con-parl__step--here': viewerParticipates && agendaVm.viewerPosition === 0, 'con-parl__step--passed': viewerParticipates && agendaVm.viewerPosition > 0}" data-step="0">
+            <span class="con-parl__step-node"><span class="con-parl__step-label">{{ $t('Agenda start') }}</span></span>
             <span class="con-parl__step-cubes" data-agenda-markers="0">
               <span v-for="color in agendaVm.start" :key="color" class="con-parl__agenda-cube"
                     :class="{'con-parl__agenda-cube--hidden': agendaHidden !== undefined && agendaHidden.step === 0 && agendaHidden.color === color}"
@@ -505,13 +527,14 @@
                  'con-parl__step--recap': stage === 'recap' && recapHighlight === 'agenda' && recapCurrent?.step === step.index,
                  'con-parl__step--next': step.viewerNext,
                  'con-parl__step--here': step.viewerHere,
+                 'con-parl__step--passed': viewerParticipates && step.index < agendaVm.viewerPosition,
                  'con-parl__step--pulse': agendaPulseStep === step.index,
                }]"
                :data-step="step.index">
-              <span class="con-parl__step-icon">
+              <span class="con-parl__step-node">
                 <template v-if="step.step.kind === 'influence'"><span class="con-parl__step-level">{{ step.step.influence }}</span></template>
-                <template v-else-if="step.step.kind === 'tr'"><i class="con-parl__step-res resource_icon resource_icon--rating" aria-hidden="true"></i></template>
-                <template v-else><i class="con-parl__step-res resource_icon resource_icon--cards" aria-hidden="true"></i></template>
+                <template v-else-if="step.step.kind === 'tr'"><i class="con-parl__step-res con-parl__step-res--tr resource_icon resource_icon--rating" aria-hidden="true"></i></template>
+                <template v-else><i class="con-parl__step-res con-parl__step-res--card resource_icon resource_icon--cards" aria-hidden="true"></i></template>
               </span>
               <span class="con-parl__step-cubes" :data-agenda-markers="step.index">
                 <span v-for="color in step.cubes" :key="color" class="con-parl__agenda-cube"
@@ -709,6 +732,11 @@
         <PlayerCube v-if="f.color !== 'neutral'" :color="f.color" :size="f.size" />
         <PlayerCube v-else color="neutral" steel :size="f.size" />
       </div>
+      <!-- A RESOLUTION being dealt: the deck's back, born on the pile's top
+           card and grown into its slot (the face reveals on the touchdown). -->
+      <div v-for="f in cardFlights" :key="f.id" class="con-parl__flight con-parl__flight--card" :style="{width: f.width + 'px', height: f.height + 'px'}" :ref="(el) => setFlightEl(f.id, el as HTMLElement | null)" :data-parl-flight="f.id" aria-hidden="true">
+        <span class="con-parl__cardback"></span>
+      </div>
     </Teleport>
     <!-- THE AGENDA MARKER in motion — the Hydronetwork's marker director on the
          Parliament's track: from the step it left to the step it reached. -->
@@ -767,7 +795,7 @@ import {armDescendOrigin, armDescendRect, descendSurfaceInset, guardedDescend} f
 import {armActionFocusOrigin} from '@/client/console/consoleActionFocusMotion';
 import {
   CubeFlightHandle, killParliamentVoteMotion, measureVoteRects, parkParliamentBody, playParliamentVoteEnter, playParliamentVoteLeave, playParliamentVoteRefit,
-  Rect, restoreParliamentBody, runDelegateCubeFlight,
+  Rect, restoreParliamentBody, runCardDealFlight, runDelegateCubeFlight,
 } from '@/client/console/parliament/consoleParliamentVoteMotion';
 import {HydroMarkerDirectorHandle, runHydroMarkerGlide} from '@/client/console/hydroMarker/hydroMarkerDirector';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
@@ -862,6 +890,11 @@ type SeatRow = {color: Color, name: string, lobby: boolean, reserve: number, res
 type VoteSnapshot = {votes: number, mine: number, leader: Color | 'neutral' | undefined, winning: boolean, winner: string | undefined, source: 'lobby' | 'reserve'};
 
 type FlightSpec = {id: string, color: Color | 'neutral', size: number};
+/** A card back on its way from the deck to a slot — sized to the slot's face (the proxy scales up into it). */
+type CardFlightSpec = {id: string, width: number, height: number};
+/** One dealt card's flight (the deck's top → its slot). */
+const DEAL_FLIGHT_MS = 560;
+const DEAL_STAGGER_MS = 150;
 
 /** THIS VOTE's consequences, each as current → projected. */
 /** `unchanged` — the reading is the same before and after: the row shows ONE value (an arrow to the same reading is noise). */
@@ -900,10 +933,14 @@ type RecapPending = {
   hiddenCubes: Set<string>;
   /** Players whose free delegate has not reached the lobby yet. */
   lobby: Set<Color>;
+  /** Fresh resolutions whose card has not been dealt from the deck yet (their faces stay hidden). */
+  freshFaces: Set<string>;
+  /** Cards the deck still SHOWS on its pile (dealt in the model, not yet flown). */
+  deckPending: number;
 };
 
 function emptyRecapPending(): RecapPending {
-  return {returns: new Map(), support: new Map(), hiddenCubes: new Set(), lobby: new Set()};
+  return {returns: new Map(), support: new Map(), hiddenCubes: new Set(), lobby: new Set(), freshFaces: new Set(), deckPending: 0};
 }
 
 export default defineComponent({
@@ -948,6 +985,7 @@ export default defineComponent({
       /** The vote whose cube is IN FLIGHT (hidden on the ribbon until the handoff). */
       flightSeq: undefined as number | undefined,
       flights: [] as Array<FlightSpec>,
+      cardFlights: [] as Array<CardFlightSpec>,
       flightEls: {} as Record<string, HTMLElement | null>,
       flightHandles: {} as Record<string, CubeFlightHandle>,
       flightSerial: 0,
@@ -1171,6 +1209,24 @@ export default defineComponent({
     neutralSupplyShown(): number {
       return Math.max(0, this.view.neutralSupply - (this.recapPending.returns.get('neutral') ?? 0));
     },
+    /** The deck as SHOWN — the results scene keeps the dealt cards on the pile until each has visibly left it. */
+    deckShown(): number {
+      return this.view.deckSize + this.recapPending.deckPending;
+    },
+    /** The pile's edges beneath the top back: none for one card, one for a few, two for a stack. */
+    deckLayers(): number {
+      const n = this.deckShown;
+      return n <= 1 ? 0 : (n <= 3 ? 1 : 2);
+    },
+    /** Slots whose card is still on its way from the deck (the face waits under its proxy). */
+    dealingFaces(): Set<string> {
+      return this.recapPending.freshFaces;
+    },
+    /** The ruling party's ONE short reading (the catalog's summary; its sentence when a party carries none). */
+    rulingSummary(): string | undefined {
+      const text = this.view.rulingEffect?.text;
+      return text?.summary ?? text?.passive ?? text?.action ?? text?.rule;
+    },
     recapHiddenCubes(): Set<string> {
       return this.recapPending.hiddenCubes;
     },
@@ -1186,6 +1242,9 @@ export default defineComponent({
       case 'used': return translateText('Action used this generation');
       case 'blocked': return state.reason !== undefined ? this.reasonText(state.reason) : translateText('Unavailable right now');
       case 'not-now': return translateText(this.awaitingInput ? 'Finish your current action first' : 'Not your turn — you can read the Parliament');
+      // No access: a party IN the vote says it by its places (0/2) — a party
+      // outside the vote has no places, so its foot says the server's reason.
+      case 'no-access': return this.partyStates[this.partyIndex]?.kind === 'absent' && state.reason !== undefined ? this.reasonText(state.reason) : '';
       default: return '';
       }
     },
@@ -2420,6 +2479,11 @@ export default defineComponent({
       for (const color of last.lobbyRefilled) {
         pending.lobby.add(color);
       }
+      // The fresh resolutions are still ON the deck: their faces wait, the pile keeps them.
+      for (const fresh of last.refreshed) {
+        pending.freshFaces.add(fresh.instance);
+      }
+      pending.deckPending = last.refreshed.length;
       return pending;
     },
     finishRecap(): void {
@@ -2477,7 +2541,36 @@ export default defineComponent({
         return;
       }
       case 'refresh': {
-        // Popular support becomes votes: each party's steel cubes leave their places for the fresh card.
+        // THE DEAL first: each fresh resolution leaves the deck's TOP card
+        // (the head line's pile), grows into its slot and shows its face on
+        // the touchdown; the pile's count ticks per card. Then popular
+        // support becomes votes: each party's steel cubes leave their places
+        // for the fresh card.
+        const deckTop = rect(root.querySelector('[data-parl-deck-top]'));
+        let dealt = 0;
+        for (const fresh of last.refreshed) {
+          if (!this.recapPending.freshFaces.has(fresh.instance)) {
+            continue;
+          }
+          const face = root.querySelector<HTMLElement>(`.con-parl__slot[data-instance="${fresh.instance}"] .con-parl__card .pcard`) ??
+            root.querySelector<HTMLElement>(`.con-parl__slot[data-instance="${fresh.instance}"] .con-parl__card`);
+          // The pile is one card thinner the moment the card SEPARATES from
+          // it (the count ticks at the launch — the project deck's language);
+          // the face beneath the proxy shows on the touchdown.
+          const launched = () => {
+            this.recapPending.deckPending = Math.max(0, this.recapPending.deckPending - 1);
+          };
+          const landed = () => {
+            this.recapPending.freshFaces.delete(fresh.instance);
+          };
+          if (!this.flyCard(deckTop, rect(face), dealt * DEAL_STAGGER_MS, landed, launched)) {
+            launched();
+            landed();
+          } else {
+            dealt++;
+          }
+        }
+        const cubesAt = dealt > 0 ? DEAL_FLIGHT_MS + (dealt - 1) * DEAL_STAGGER_MS - 120 : 0;
         let i = 0;
         for (const fresh of last.refreshed) {
           const slot = this.view.slots.find((s) => s.instance === fresh.instance);
@@ -2487,10 +2580,14 @@ export default defineComponent({
           const places = Array.from(root.querySelectorAll<HTMLElement>(`.con-parl__party[data-party="${fresh.party}"] .con-pseal__support-place`));
           const hidden = Array.from(this.recapPending.hiddenCubes).filter((key) => key.startsWith(`${slot.instance}#`));
           hidden.forEach((key, n) => {
-            const seq = key.substring(key.indexOf('#') + 1);
-            const from = rect(places[Math.min(n, places.length - 1)]);
+            // The key is `<instance>#<seq>` and an instance id itself carries a '#' (`RDX_…#0`) — split on the LAST one.
+            const seq = key.substring(key.lastIndexOf('#') + 1);
+            // The plaque's own place when it is on screen; the results scene
+            // stands where the parties tier does, so there the cubes leave
+            // the neutral supply's stack in the head line — a real, measured place.
+            const from = rect(places[Math.min(n, places.length - 1)]) ?? this.placeCubeRect(root, '[data-parl-neutral-cube]');
             const to = rect(root.querySelector(`.con-parl__slot[data-instance="${slot.instance}"] [data-seq="${seq}"]`));
-            const delay = i * 80;
+            const delay = cubesAt + i * 80;
             i++;
             this.flyCube('neutral', from, to, delay, () => {
               this.recapPending.hiddenCubes.delete(key);
@@ -2603,6 +2700,7 @@ export default defineComponent({
       delete this.flightHandles[id];
       delete this.flightEls[id];
       this.flights = this.flights.filter((f) => f.id !== id);
+      this.cardFlights = this.cardFlights.filter((f) => f.id !== id);
     },
     killFlights(): void {
       for (const id of Object.keys(this.flightHandles)) {
@@ -2611,6 +2709,50 @@ export default defineComponent({
       this.flightHandles = {};
       this.flightEls = {};
       this.flights = [];
+      this.cardFlights = [];
+    },
+    /**
+     * ONE card dealt from the deck: a back-faced proxy the size of the slot's
+     * face is born over the pile's top card (scaled down to it) and grows
+     * into the slot; the face beneath reveals on the touchdown and the
+     * proxy leaves the next frame. Returns false when nothing is measurable —
+     * the caller settles the display holds itself.
+     */
+    flyCard(from: Rect | undefined, to: Rect | undefined, delayMs: number, onLanded: () => void, onLaunch?: () => void): boolean {
+      if (from === undefined || to === undefined || to.width < 4 || typeof window === 'undefined' || consoleReducedMotionActive()) {
+        onLanded();
+        return false;
+      }
+      const id = `deal${++this.flightSerial}`;
+      this.cardFlights.push({id, width: Math.round(to.width), height: Math.round(to.height)});
+      void this.$nextTick(() => {
+        const proxy = this.flightEls[id];
+        if (proxy === null || proxy === undefined) {
+          this.dropFlight(id);
+          onLaunch?.();
+          onLanded();
+          return;
+        }
+        gsap.set(proxy, {autoAlpha: 0});
+        window.setTimeout(() => {
+          if (this.flightEls[id] === undefined) {
+            return;
+          }
+          onLaunch?.();
+          const handle = runCardDealFlight({
+            proxy,
+            from,
+            to,
+            durationMs: DEAL_FLIGHT_MS,
+            onLanded: () => {
+              onLanded();
+              probeTick(() => this.dropFlight(id));
+            },
+          });
+          this.flightHandles[id] = markRaw(handle);
+        }, consoleMotionMs(delayMs));
+      });
+      return true;
     },
     /**
      * THE DELEGATE FLIGHT + LANDING. The vote's answer is in the model: the
@@ -2798,9 +2940,16 @@ export default defineComponent({
       await this.$nextTick();
       const proxy = this.$refs.agendaFlightEl as HTMLElement | undefined;
       const toEl = root.querySelector<HTMLElement>(`[data-agenda-markers="${move.to}"] [data-agenda-cube="${move.player}"]`);
-      const from = fromEl?.getBoundingClientRect();
+      // The cube the marker LEFT is no longer drawn (the model already stands
+      // on the new step), so its rect is rebuilt from the old step's marker
+      // ROW: the row's centre, at the destination cube's own size and on its
+      // own line — the director scales the proxy by the two rects' widths,
+      // and the row spans the whole cell.
+      const fromRow = fromEl?.getBoundingClientRect();
       const to = toEl?.getBoundingClientRect();
-      if (proxy === undefined || from === undefined || to === undefined || to.width < 2 || from.width < 2) {
+      const from = fromRow === undefined || to === undefined ? undefined :
+        new DOMRect(fromRow.left + fromRow.width / 2 - to.width / 2, to.top, to.width, to.height);
+      if (proxy === undefined || from === undefined || to === undefined || to.width < 2 || (fromRow?.width ?? 0) < 2) {
         this.finishAgendaGlide(move.to);
         return;
       }

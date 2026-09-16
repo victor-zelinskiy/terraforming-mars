@@ -555,13 +555,34 @@ export type CubeFlightArgs = {
  * source and destination cubes are drawn at one size.
  */
 export function runDelegateCubeFlight(args: CubeFlightArgs): CubeFlightHandle {
+  return runProxyFlight(args);
+}
+
+/**
+ * ONE resolution dealt from the deck: the proxy is the slot's face-sized
+ * card back, born SCALED DOWN onto the pile's top card and grown into its
+ * slot along a higher arc than a cube's — the same flight, a taller object.
+ */
+export function runCardDealFlight(args: CubeFlightArgs): CubeFlightHandle {
+  return runProxyFlight({...args, arcPx: args.arcPx ?? descendPx(44)});
+}
+
+/**
+ * THE PROXY FLIGHT shared by the cubes and the dealt cards. The proxy keeps
+ * its own box (width AND height — a card is not square) and is centred on
+ * the source's centre at the source's scale, then on the destination's at
+ * the destination's; the scale follows the WIDTH ratio (the source and the
+ * destination share the object's aspect).
+ */
+function runProxyFlight(args: CubeFlightArgs): CubeFlightHandle {
   const {proxy, from, to} = args;
   const reduced = consoleReducedMotionActive();
   const size = proxy.offsetWidth || from.width;
+  const tall = proxy.offsetHeight || from.height;
   const startScale = from.width / size;
   const endScale = to.width / size;
-  const start = {x: from.left + from.width / 2 - size / 2, y: from.top + from.height / 2 - size / 2};
-  const end = {x: to.left + to.width / 2 - size / 2, y: to.top + to.height / 2 - size / 2};
+  const start = {x: from.left + from.width / 2 - size / 2, y: from.top + from.height / 2 - tall / 2};
+  const end = {x: to.left + to.width / 2 - size / 2, y: to.top + to.height / 2 - tall / 2};
   gsap.set(proxy, {x: start.x, y: start.y, scale: startScale, transformOrigin: '50% 50%', autoAlpha: 1});
   const dur = s(args.durationMs ?? 520);
   const arc = reduced ? 0 : (args.arcPx ?? descendPx(14));

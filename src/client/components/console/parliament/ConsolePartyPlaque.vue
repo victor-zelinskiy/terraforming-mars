@@ -79,14 +79,19 @@
          places, a steel cube per neutral delegate waiting for the party's
          next resolution. A party outside the vote states nothing — the dim
          ring is its state. -->
-    <div v-if="state !== undefined && size !== 'full'" class="con-pseal__state" :class="'con-pseal__state--' + state.tone" :data-state-kind="state.kind">
-      <span v-if="showPlaces && viewerColor !== undefined" class="con-pseal__places" aria-hidden="true">
+    <!-- While the plaque is FOCUSED and its action cannot be taken, the foot
+         says the ONE reason instead of the state (the ring and the badge keep
+         saying the state) — the reason stands where the eye already is, and
+         the row never reserves an empty line for it. -->
+    <div v-if="state !== undefined && size !== 'full'" class="con-pseal__state" :class="['con-pseal__state--' + state.tone, {'con-pseal__state--reason': reason !== ''}]" :data-state-kind="state.kind">
+      <span v-if="reason !== ''" class="con-pseal__reason" :class="'con-pseal__reason--' + reasonTone" data-pseal-reason>{{ reason }}</span>
+      <span v-if="reason === '' && showPlaces && viewerColor !== undefined" class="con-pseal__places" aria-hidden="true">
         <span v-for="n in placesCount" :key="n" class="con-pseal__place" :class="{'con-pseal__place--on': n <= (state?.delegates ?? 0)}">
           <PlayerCube v-if="n <= (state?.delegates ?? 0)" :color="viewerColor" :size="placeCubePx" :glow="false" />
         </span>
         <span class="con-pseal__places-count">{{ Math.min(state?.delegates ?? 0, placesCount) }}/{{ placesCount }}</span>
       </span>
-      <span v-if="stateText !== ''" class="con-pseal__state-text">{{ stateText }}</span>
+      <span v-if="reason === '' && stateText !== ''" class="con-pseal__state-text">{{ stateText }}</span>
       <span v-if="support !== undefined && support > 0" class="con-pseal__support" :data-support="support" aria-hidden="true">
         <span v-for="n in 3" :key="n" class="con-pseal__support-place" :class="{'con-pseal__support-place--on': n <= support}" :data-support-place="n">
           <PlayerCube v-if="n <= support" color="neutral" steel :size="supportCubePx" :glow="false" />
@@ -128,6 +133,9 @@ export default defineComponent({
     focused: {type: Boolean, default: false},
     /** ONE translated context line under the name (the `aside` size) — undefined draws none. */
     note: {type: String as PropType<string | undefined>, default: undefined},
+    /** The ONE translated reason the party's action cannot be taken right now (the focused tile's foot); '' draws the state. */
+    reason: {type: String, default: ''},
+    reasonTone: {type: String as PropType<'dim' | 'warn'>, default: 'dim'},
   },
   computed: {
     accent(): string {

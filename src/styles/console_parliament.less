@@ -88,7 +88,7 @@
        short formula and a long one (Unity's one-row action is not smaller
        than the Reds' long row; the plate around it is what differs). */
     --con-parl-tile-formula-zoom: calc(0.9 * var(--con-ui-scale, 1));
-    --con-parl-ruler-formula-zoom: calc(0.92 * var(--con-ui-scale, 1));
+    --con-parl-ruler-formula-zoom: calc(1.05 * var(--con-ui-scale, 1));
     --con-parl-ruler-own-zoom: calc(0.8 * var(--con-ui-scale, 1));
     --con-parl-quest-zoom: calc(0.92 * var(--con-ui-scale, 1));
     --con-parl-info-mech-zoom: calc(1.15 * var(--con-ui-scale, 1));
@@ -101,9 +101,14 @@
     --con-parl-crumb-w: 15.5rem;
     /* The tiers' FIXED heights — browse and every stage share them, so a
        descent moves nothing above or below. */
-    --con-parl-mid-h: 11rem;
-    --con-parl-agenda-h: 4.1rem;
-    --con-parl-pline-h: 1.25rem;
+    --con-parl-mid-h: 10.4rem;
+    --con-parl-agenda-h: 4.7rem;
+    /* The Agenda's cell grid: the node row (the symbol on the rail) and the
+       marker row beneath it — reserved always, so an arriving marker moves
+       no symbol; the node's own diameter. */
+    --con-parl-node-row: 1.7rem;
+    --con-parl-cube-row: .95rem;
+    --con-parl-node: 1.5rem;
     /* A SLOT's fixed chrome — label · ribbon · two tally lines — the SAME
        in every slot, so the card row is the only thing that flexes and no
        card ever moves because its neighbour's count wrapped. */
@@ -261,22 +266,54 @@
     }
     &__ruler-ident { display: flex; align-items: center; gap: .45rem; min-width: 0; flex-shrink: 0; }
     &__ruler-emblem { width: 2.4rem; height: 2.4rem; object-fit: contain; flex-shrink: 0; }
-    &__ruler-text { display: flex; flex-direction: column; gap: .02rem; min-width: 0; }
+    &__ruler-text { display: flex; flex-direction: column; gap: .06rem; min-width: 0; }
     &__ruler-kicker { font-size: .56rem; letter-spacing: .12em; text-transform: uppercase; color: @con-parl-gold; }
+    /* The name with its scope chip BESIDE it — whose the effect is, read in the same glance as the party. */
+    &__ruler-title { display: flex; flex-wrap: wrap; align-items: center; gap: .15rem .4rem; min-width: 0; }
     &__ruler-name { font-size: 1rem; line-height: 1.1; letter-spacing: .04em; text-transform: uppercase; color: #f3f0e8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    /* The effect's graphic — the readable object of the block, centred on the plate's axis and in its free height. */
+    &__ruler-scope {
+        flex-shrink: 0;
+        display: inline-flex;
+        align-items: center;
+        padding: .08rem .42rem;
+        border-radius: 49.95rem;
+        background: fade(@con-parl-gold, 14%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-parl-gold, 55%);
+        color: @con-parl-gold;
+        font-size: .5rem;
+        letter-spacing: .1em;
+        text-transform: uppercase;
+        white-space: nowrap;
+    }
+    /* THE MECHANIC — its graphic LARGE and, under it, the one short reading:
+       one group centred in the plate's free height. */
+    &__ruler-body {
+        flex: 1 1 auto;
+        min-height: 0;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: .5rem;
+    }
     &__ruler-formula {
         --con-pformula-zoom: var(--con-parl-ruler-formula-zoom);
-        align-self: center;
-        margin: auto 0;
         max-width: 100%;
-        padding: .15rem .3rem;
+        padding: .2rem .4rem;
         border-radius: .45rem;
         background: rgba(0, 0, 0, 0.3);
         box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.06);
     }
-    /* ONE caption under the formula: whose the effect is (the inspector has the sentences). */
-    &__ruler-scope { flex-shrink: 0; font-size: .56rem; letter-spacing: .1em; text-transform: uppercase; color: fade(@con-parl-gold, 85%); text-align: center; }
+    &__ruler-summary {
+        margin: 0;
+        max-width: 100%;
+        font-family: @con-font-read;
+        font-size: .74rem;
+        line-height: 1.3;
+        text-align: center;
+        color: fade(@con-text, 88%);
+    }
     /* THE RESOLUTION'S OWN standing effect — a second source, under its own mark, apart from the party's. */
     &__ruler-own {
         flex-shrink: 0;
@@ -573,7 +610,26 @@
         &--neutral { opacity: .92; }
         &--deck { opacity: .72; background: none; box-shadow: none; padding-left: 0; }
     }
-    &__seat-deck-icon { width: 1rem; height: 1rem; }
+    /* THE DECK — a physical pile in the HUD deck's own language: the card back
+       on top, slim dark edges beneath (tiered by the count), a ghost when
+       empty. The offset edges need their own room: the pile's margins. */
+    &__deck {
+        position: relative;
+        width: 1.05rem;
+        height: 1.5rem;
+        flex-shrink: 0;
+        margin: .08rem .2rem .1rem .04rem;
+        &--empty .con-parl__deck-top { opacity: .16; box-shadow: none; }
+        &--empty::after { content: ''; position: absolute; inset: 0; border-radius: .14rem; border: .05rem dashed fade(@con-cyan, 32%); }
+    }
+    &__deck-layer, &__deck-top { position: absolute; inset: 0; border-radius: .14rem; }
+    &__deck-layer { background: linear-gradient(180deg, #2b3947 0%, #16202c 100%); box-shadow: inset 0 0 0 .04rem rgba(140, 170, 200, 0.26); }
+    &__deck-layer--1 { transform: translate(.08rem, .09rem) rotate(0.6deg); }
+    &__deck-layer--2 { transform: translate(.16rem, .18rem) rotate(-0.5deg); background: linear-gradient(180deg, #223040 0%, #111925 100%); }
+    /* The top card IS the approved back texture — never a CSS redraw. */
+    &__deck-top { background: url('./assets/resources/card.webp') center / cover no-repeat; box-shadow: inset 0 0 0 .04rem rgba(165, 195, 225, 0.32), 0 .05rem .16rem rgba(0, 0, 0, 0.45); }
+    /* A slot whose card is still on its way from the deck: the face waits under its proxy. */
+    &__card--dealing .pcard { visibility: hidden; }
     &__seat-ident { display: inline-flex; align-items: center; gap: .3rem; min-width: 0; font-size: .7rem; font-weight: 600; }
     &__seat-name { max-width: 4.4rem; overflow: hidden; text-overflow: ellipsis; }
     /* The cap is for free PLAYER names; the neutral supply's word is fixed and never cut
@@ -601,8 +657,7 @@
         position: absolute;
         inset: 0;
         display: grid;
-        grid-template-rows: minmax(0, 1fr) var(--con-parl-pline-h);
-        gap: .3rem;
+        grid-template-rows: minmax(0, 1fr);
         transition: opacity calc(200ms * var(--motion-scale, 1)) @con-ease-standard;
         &--parked { opacity: 0; pointer-events: none; }
     }
@@ -621,27 +676,6 @@
         &--lost > .con-pseal { animation: con-parl-access-lost calc(1400ms * var(--motion-scale, 1)) @con-ease-standard both; }
         &--recap > .con-pseal { animation: con-parl-recap-pulse calc(900ms * var(--motion-scale, 1)) @con-ease-standard both; }
     }
-    /* THE PARTY LINE — one fixed line under the row: the one reason the
-       focused action cannot be taken. Empty otherwise, and it keeps its box. */
-    &__pline {
-        height: var(--con-parl-pline-h);
-        box-sizing: border-box;
-        display: flex;
-        align-items: center;
-        padding: 0 .6rem;
-        border-radius: .4rem;
-        background: rgba(0, 0, 0, 0.26);
-        box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.05);
-        font-size: .72rem;
-        white-space: nowrap;
-        overflow: hidden;
-        transition: opacity calc(160ms * var(--motion-scale, 1)) @con-ease-standard;
-        &--off { opacity: .35; }
-        &--warn { color: @con-amber; }
-        &--dim { color: fade(@con-text, 78%); }
-    }
-    &__pline-text { overflow: hidden; text-overflow: ellipsis; }
-
     /* ── THE STAGE ZONE — the seat pick / the results ────────────────── */
     &__stage {
         position: absolute;
@@ -957,14 +991,19 @@
     &__vote--paying .con-parl__cta { display: none; }
     &__vote .con-parl__cta { margin-top: auto; }
 
-    /* ══ THE AGENDA — read-only, compact ══════════════════════════════ */
+    /* ══ THE AGENDA — a read-only SCALE, never a row of buttons ═════════
+       One rail across the plate, the steps as NODES on it, the players'
+       markers in a reserved row beneath. The viewer's passed segment is
+       tinted up to their node; the current node reads by its marker and its
+       reached fill; the next step wears a light gold ring; a reached step
+       blooms once. No focus ring anywhere: the scale takes no focus. ══ */
     &__agenda {
         display: flex;
         flex-direction: column;
-        gap: .2rem;
-        padding: .3rem .6rem;
-        border-radius: .5rem;
-        background: rgba(10, 13, 24, 0.55);
+        gap: .12rem;
+        padding: .28rem .6rem .24rem;
+        border-radius: .55rem;
+        background: rgba(10, 13, 24, 0.6);
         box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.07);
         min-width: 0;
         overflow: hidden;
@@ -972,47 +1011,69 @@
     &__agenda-head { display: flex; align-items: center; gap: .8rem; flex-shrink: 0; min-width: 0; .con-parl__kicker { white-space: nowrap; } }
     &__agenda-me { display: inline-flex; align-items: center; gap: .35rem; font-size: .74rem; white-space: nowrap; b { font-size: .9rem; font-variant-numeric: tabular-nums; } }
     &__agenda-next { display: inline-flex; align-items: center; gap: .3rem; &::before { content: '·'; margin: 0 .1rem; opacity: .6; } }
-    &__track { display: grid; grid-template-columns: 1.5fr repeat(12, minmax(0, 1fr)); gap: .18rem; flex: 1; min-height: 0; }
+    &__track { display: grid; grid-template-columns: 2.2fr repeat(12, minmax(0, 1fr)); gap: 0; flex: 1; min-height: 0; }
+    /* A STEP — two FIXED rows: the node on the rail, the marker row beneath. */
     &__step {
         position: relative;
-        display: flex;
-        flex-direction: column;
+        display: grid;
+        grid-template-rows: var(--con-parl-node-row) var(--con-parl-cube-row);
+        align-items: center;
+        justify-items: center;
+        min-width: 0;
+        min-height: 0;
+        /* THE RAIL — two half-segments meeting under the node (left · right),
+           so the viewer's passed part can be tinted exactly up to their node. */
+        &::before, &::after {
+            content: '';
+            position: absolute;
+            top: calc(var(--con-parl-node-row) / 2 - .06rem);
+            height: .12rem;
+            background: rgba(255, 255, 255, 0.1);
+            z-index: 0;
+        }
+        &::before { left: 0; right: 50%; }
+        &::after { left: 50%; right: 0; }
+        &--start::before { display: none; }
+        &:last-child::after { display: none; }
+        &--passed::before, &--passed::after, &--here::before { background: fade(@con-parl-mint, 55%); }
+    }
+    /* THE NODE — the symbol's disc, optically centred on the rail. */
+    &__step-node {
+        position: relative;
+        z-index: 1;
+        display: inline-flex;
         align-items: center;
         justify-content: center;
-        gap: .12rem;
-        padding: .15rem .1rem;
-        border-radius: .35rem;
-        background: rgba(0, 0, 0, 0.3);
-        font-size: .66rem;
-        min-height: 0;
-        transition: box-shadow calc(160ms * var(--motion-scale, 1)) @con-ease-standard;
-        &--start { background: rgba(255, 255, 255, 0.06); font-size: .6rem; letter-spacing: .06em; text-transform: uppercase; }
-        &--influence { background: rgba(230, 195, 74, 0.08); }
-        &--tr { background: rgba(95, 227, 180, 0.07); }
-        &--card { background: rgba(106, 176, 230, 0.08); }
-        &--here { box-shadow: inset 0 0 0 .1rem rgba(255, 255, 255, 0.55); }
-        &--next { box-shadow: inset 0 0 0 .08rem fade(@con-parl-gold, 80%); }
-        &--next::before {
-            content: '▸';
-            position: absolute;
-            left: .2rem;
-            top: .05rem;
-            font-size: .6rem;
-            color: @con-parl-gold;
-        }
-        &--pulse { animation: con-parl-land-flash calc(900ms * var(--motion-scale, 1)) @con-ease-standard both; }
+        width: var(--con-parl-node);
+        height: var(--con-parl-node);
+        border-radius: 50%;
+        background: rgba(12, 16, 28, 0.96);
+        box-shadow: inset 0 0 0 .06rem rgba(255, 255, 255, 0.16);
+        transition: box-shadow calc(160ms * var(--motion-scale, 1)) @con-ease-standard, background-color calc(160ms * var(--motion-scale, 1)) @con-ease-standard;
     }
-    &__step-icon { display: inline-flex; align-items: center; justify-content: center; min-height: 1.3rem; }
-    &__step-level {
-        display: inline-flex; align-items: center; justify-content: center;
-        width: 1.3rem; height: 1.3rem; border-radius: 50%;
-        background: fade(@con-parl-gold, 18%); box-shadow: inset 0 0 0 .07rem fade(@con-parl-gold, 70%);
-        color: @con-parl-gold; font-weight: 800; font-size: .78rem;
+    &__step--start &__step-node { width: auto; min-width: var(--con-parl-node); padding: 0 .55rem; border-radius: 49.95rem; }
+    &__step-label { font-size: .58rem; letter-spacing: .1em; text-transform: uppercase; color: fade(@con-text, 85%); white-space: nowrap; }
+    &__step--influence &__step-node { background: rgba(38, 31, 16, 0.96); box-shadow: inset 0 0 0 .07rem fade(@con-parl-gold, 60%); }
+    /* Passed by the viewer — reached, quiet; the current node — its marker below and a reached fill. */
+    &__step--passed &__step-node { box-shadow: inset 0 0 0 .07rem fade(@con-parl-mint, 45%); }
+    &__step--here &__step-node { background: rgba(28, 58, 50, 0.96); box-shadow: inset 0 0 0 .08rem fade(@con-parl-mint, 80%), 0 0 .8rem fade(@con-parl-mint, 22%); }
+    /* The NEXT step — a light gold ring, an invitation to read, never a focus. */
+    &__step--next &__step-node::after { content: ''; position: absolute; inset: -.24rem; border-radius: inherit; border: .07rem dashed fade(@con-parl-gold, 62%); pointer-events: none; }
+    &__step--pulse &__step-node, &__step--recap &__step-node { animation: con-parl-node-bloom calc(900ms * var(--motion-scale, 1)) @con-ease-standard both; }
+    &__step-level { font-weight: 800; font-size: .82rem; line-height: 1; color: @con-parl-gold; }
+    /* The reward icons keep their own proportions (the TR plate is wide, the card is tall) inside the disc. */
+    &__step-res {
+        background-size: contain;
+        background-repeat: no-repeat;
+        background-position: center;
+        &--tr { width: 1.02rem; height: .76rem; }
+        &--card { width: .8rem; height: 1.14rem; border-radius: .08rem; box-shadow: 0 0 0 .05rem rgba(255, 255, 255, 0.3); }
     }
-    &__step-res { width: 1.3rem; height: 1.3rem; background-size: contain; background-repeat: no-repeat; background-position: center; }
-    &__step-cubes { display: flex; flex-wrap: wrap; gap: .1rem; justify-content: center; min-height: .8rem; }
+    &__step-cubes { display: flex; align-items: flex-start; justify-content: center; gap: .08rem; width: 100%; height: 100%; padding-top: .06rem; box-sizing: border-box; }
     &__agenda-cube { display: inline-flex; &--hidden { visibility: hidden; } }
-    &__reward-step &__step-level, &__reward-step &__step-res { width: 1.15rem; height: 1.15rem; font-size: .7rem; }
+    /* The head's «next step» chip draws the same symbols at chip size. */
+    &__reward-step &__step-level { display: inline-flex; align-items: center; justify-content: center; width: 1.15rem; height: 1.15rem; border-radius: 50%; font-size: .7rem; background: fade(@con-parl-gold, 18%); box-shadow: inset 0 0 0 .07rem fade(@con-parl-gold, 70%); }
+    &__reward-step &__step-res { width: 1.15rem; height: 1.15rem; }
 }
 
 /* THE DELEGATE FLIGHT — a cube on its way from its place to its place (a
@@ -1029,6 +1090,14 @@
     justify-content: center;
     will-change: transform;
 }
+/* A DEALT RESOLUTION on its way: the deck's back at the slot's size (the
+   proxy is scaled down onto the pile and grows), a card's own shadow. */
+.con-parl__flight--card {
+    border-radius: .4rem;
+    overflow: hidden;
+    box-shadow: 0 .5rem 1.4rem rgba(0, 0, 0, 0.55), inset 0 0 0 .06rem rgba(165, 195, 225, 0.32);
+    .con-parl__cardback { position: absolute; inset: 0; background: url('./assets/resources/card.webp') center / cover no-repeat; }
+}
 
 /* THE INFO SURFACE'S CROSSFADE — a body enters over the one leaving, both absolute. */
 .con-parl-xfade-enter-active { transition: opacity calc(200ms * var(--motion-scale, 1)) @con-ease-standard, transform calc(240ms * var(--motion-scale, 1)) @con-ease-standard; }
@@ -1036,6 +1105,12 @@
 .con-parl-xfade-enter-from { opacity: 0; transform: translateY(.25rem); }
 .con-parl-xfade-leave-to { opacity: 0; }
 
+/* A REACHED STEP blooms once — the node, never the plate. */
+@keyframes con-parl-node-bloom {
+    0% { box-shadow: inset 0 0 0 .08rem fade(@con-parl-gold, 90%), 0 0 0 rgba(230, 195, 74, 0); }
+    35% { box-shadow: inset 0 0 0 .1rem @con-parl-gold, 0 0 1.1rem fade(@con-parl-gold, 60%); }
+    100% { box-shadow: inset 0 0 0 .07rem fade(@con-parl-mint, 45%), 0 0 0 rgba(230, 195, 74, 0); }
+}
 @keyframes con-parl-ghost {
     from { opacity: .35; }
     to { opacity: 1; }
@@ -1245,6 +1320,9 @@
         &--on { box-shadow: inset 0 0 0 .06rem fade(@con-parl-mint, 55%); }
     }
     &__places-count { margin-left: .12rem; font-size: .62rem; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: .02em; }
+    /* THE REASON (the focused tile whose action cannot be taken): one short
+       amber line in the foot — the state's ring and badge stay. */
+    &__reason { flex: 1 1 auto; min-width: 0; font-size: .56rem; line-height: 1.15; letter-spacing: .03em; text-transform: uppercase; white-space: normal; color: @con-amber; &--dim { color: fade(@con-text, 80%); } }
     /* POPULAR SUPPORT — three places closing the foot; a steel cube per supporter. */
     &__support {
         display: inline-flex;
@@ -1264,9 +1342,11 @@
     &--ruling &__ring, &--ruling-default &__ring { border-color: @con-parl-gold; box-shadow: 0 0 .5rem fade(@con-parl-gold, 45%); }
     &--delegates &__ring, &--granted &__ring { border-color: @con-parl-mint; box-shadow: 0 0 .5rem fade(@con-parl-mint, 40%); }
     &--progress &__ring, &--in-area &__ring { border-color: fade(@con-cyan, 75%); border-style: dashed; }
-    /* A party outside the vote: its IDENTITY recedes, its mechanic stays readable. */
-    &--absent &__emblem { opacity: .6; }
-    &--absent &__name { opacity: .72; }
+    /* A party outside the vote: its ring is dark and its foot silent — the
+       identity and the mechanic stay confidently readable (a player needs
+       the party's information whether or not its effect is theirs). */
+    &--absent &__emblem { opacity: .82; }
+    &--absent &__name { opacity: .9; }
     &--ruling, &--ruling-default { background: linear-gradient(160deg, rgba(58, 48, 30, 0.92), rgba(16, 13, 10, 0.96)); }
     &--delegates, &--granted { background: linear-gradient(160deg, rgba(22, 44, 40, 0.92), rgba(10, 16, 15, 0.96)); }
     &--used &__emblem { opacity: .85; }
@@ -1431,7 +1511,7 @@
     &__mech .pcard-effect__part { min-width: 0; }
     &--compact &__mech { zoom: var(--con-pformula-zoom, calc(0.46 * var(--con-ui-scale, 1))); }
     /* Not held: the mechanic RECEDES a step, never below reading contrast — the state carries the difference. */
-    &--dim .pcard__mech { opacity: .82; }
+    &--dim .pcard__mech { opacity: .9; }
 }
 
 /* A TAG in a Parliament formula (the Scientists' wild tag, a quest's tags)
@@ -2114,9 +2194,11 @@ html.con-reduced-motion .con-zoom__vote-detail--nudge { animation: none; }
 html.con-profile-handheld .con-parl {
     gap: .3rem;
     --con-parl-crumb-w: 14.5rem;
-    --con-parl-mid-h: 9.2rem;
-    --con-parl-agenda-h: 3.6rem;
-    --con-parl-pline-h: 1.1rem;
+    --con-parl-mid-h: 8.4rem;
+    --con-parl-agenda-h: 3.9rem;
+    --con-parl-node-row: 1.35rem;
+    --con-parl-cube-row: .8rem;
+    --con-parl-node: 1.2rem;
     --con-parl-slot-label-h: 1.05rem;
     --con-parl-slot-ribbon-h: 1.4rem;
     --con-parl-slot-tally-h: 2.1rem;
@@ -2124,7 +2206,7 @@ html.con-profile-handheld .con-parl {
     --con-parl-bill-w: 25rem;
     --con-parl-bill-h: 12.8rem;
     --con-parl-tile-formula-zoom: calc(0.58 * var(--con-ui-scale, 1));
-    --con-parl-ruler-formula-zoom: calc(0.66 * var(--con-ui-scale, 1));
+    --con-parl-ruler-formula-zoom: calc(0.64 * var(--con-ui-scale, 1));
     --con-parl-ruler-own-zoom: calc(0.55 * var(--con-ui-scale, 1));
     --con-parl-quest-zoom: calc(0.62 * var(--con-ui-scale, 1));
     --con-parl-info-mech-zoom: calc(0.74 * var(--con-ui-scale, 1));
@@ -2136,11 +2218,15 @@ html.con-profile-handheld .con-parl {
     &__head { flex-wrap: wrap; row-gap: .15rem; }
     &__top { grid-template-columns: minmax(16rem, 18rem) minmax(0, 1fr); gap: .4rem; }
     &__gov { gap: .28rem; padding: .4rem .5rem; }
-    &__ruling { gap: .4rem; }
-    &__ruler { gap: .2rem; padding: .3rem .4rem .32rem; }
+    &__ruling { gap: .32rem; }
+    &__ruler { gap: .15rem; padding: .26rem .32rem .28rem; }
+    &__ruler-kicker { font-size: .5rem; }
     &__ruler-emblem { width: 1.7rem; height: 1.7rem; }
     &__ruler-name { font-size: .62rem; letter-spacing: .02em; }
-    &__ruler-scope { font-size: .48rem; }
+    &__ruler-scope { font-size: .42rem; padding: .05rem .3rem; }
+    &__ruler-body { gap: .2rem; }
+    &__ruler-summary { font-size: .54rem; line-height: 1.2; }
+    &__deck { width: .9rem; height: 1.3rem; }
     &__ruler-own-kicker { font-size: .46rem; }
     &__gov-empty-mark { font-size: 1.2rem; }
     &__quest { gap: .2rem; padding: .3rem .4rem .32rem; }
@@ -2182,7 +2268,6 @@ html.con-profile-handheld .con-parl {
     &__seat-count { font-size: .6rem; }
     &__socket { width: 1.05rem; height: 1.05rem; &--small { width: .85rem; height: .85rem; } &--seat { width: 1rem; height: 1rem; } }
     &__stack--seat { width: 1.6rem; height: 1rem; .con-parl__stack-cube { left: .14rem; bottom: .1rem; } .con-parl__stack-cube[data-stack="2"] { transform: translate(.24rem, -.08rem); } .con-parl__stack-cube[data-stack="3"] { transform: translate(.48rem, -.16rem); } }
-    &__parties-tier { gap: .2rem; }
     &__parties { gap: .25rem; }
     &__party > .con-pseal {
         padding: .22rem .32rem .24rem .3rem;
@@ -2198,7 +2283,6 @@ html.con-profile-handheld .con-parl {
         .con-pseal__places-count { font-size: .52rem; }
         .con-pseal__support-place { width: .54rem; height: .54rem; }
     }
-    &__pline { font-size: .62rem; padding: 0 .45rem; }
     &__stage { padding: .4rem .55rem; gap: .3rem; }
     &__stage-title { font-size: .92rem; }
     &__stage-sub { font-size: .66rem; }
@@ -2258,13 +2342,14 @@ html.con-profile-handheld .con-parl {
     &__info-src-text { font-size: .66rem; }
     /* The confirm: a long refusal wraps rather than runs past the plate. */
     &__vote .con-parl__cta-label { white-space: normal; line-height: 1.1; font-size: .76rem; }
-    &__agenda { padding: .22rem .45rem; gap: .12rem; }
+    &__agenda { padding: .2rem .45rem .18rem; gap: .08rem; }
     &__agenda-me { font-size: .64rem; b { font-size: .78rem; } }
-    &__step { font-size: .56rem; padding: .08rem .05rem; gap: .06rem; }
-    &__step-icon { min-height: 1rem; }
-    &__step-level, &__step-res { width: 1rem; height: 1rem; }
-    &__step-level { font-size: .62rem; }
-    &__step--next::before { font-size: .5rem; left: .1rem; top: .02rem; }
+    &__step-label { font-size: .48rem; }
+    &__step-level { font-size: .66rem; }
+    &__step-res { &--tr { width: .84rem; height: .62rem; } &--card { width: .66rem; height: .94rem; } }
+    &__step--next .con-parl__step-node::after { inset: -.18rem; }
+    &__reward-step .con-parl__step-level, &__reward-step .con-parl__step-res { width: 1rem; height: 1rem; font-size: .62rem; }
+    .con-pseal__reason { font-size: .46rem; }
     &__recap-list { gap: .18rem .35rem; }
     &__recap-item { font-size: .6rem; padding: .16rem .38rem; line-height: 1.18; }
 }
@@ -2286,9 +2371,11 @@ html.con-profile-handheld .con-pact {
    readable below the .8rem floor, focus rings stronger. ── */
 html.con-profile-tv .con-parl {
     --con-parl-crumb-w: 19rem;
-    --con-parl-mid-h: 12.6rem;
-    --con-parl-agenda-h: 4.6rem;
-    --con-parl-pline-h: 1.5rem;
+    --con-parl-mid-h: 12rem;
+    --con-parl-agenda-h: 5.3rem;
+    --con-parl-node-row: 2rem;
+    --con-parl-cube-row: 1.05rem;
+    --con-parl-node: 1.75rem;
     --con-parl-slot-label-h: 1.45rem;
     --con-parl-slot-ribbon-h: 1.95rem;
     --con-parl-slot-tally-h: 3rem;
@@ -2296,7 +2383,7 @@ html.con-profile-tv .con-parl {
     --con-parl-bill-w: 36rem;
     --con-parl-bill-h: 16rem;
     --con-parl-tile-formula-zoom: calc(0.84 * var(--con-ui-scale, 1));
-    --con-parl-ruler-formula-zoom: calc(0.9 * var(--con-ui-scale, 1));
+    --con-parl-ruler-formula-zoom: calc(1 * var(--con-ui-scale, 1));
     --con-parl-ruler-own-zoom: calc(0.78 * var(--con-ui-scale, 1));
     --con-parl-quest-zoom: calc(0.9 * var(--con-ui-scale, 1));
     --con-parl-info-mech-zoom: calc(1.08 * var(--con-ui-scale, 1));
@@ -2313,7 +2400,9 @@ html.con-profile-tv .con-parl {
     &__ruler-kicker { font-size: .8rem; }
     &__ruler-name { font-size: 1.1rem; }
     &__ruler-emblem { width: 2.8rem; height: 2.8rem; }
-    &__ruler-scope { font-size: .8rem; }
+    &__ruler-scope { font-size: .8rem; padding: .1rem .55rem; }
+    &__ruler-summary { font-size: .86rem; line-height: 1.3; }
+    &__deck { width: 1.12rem; height: 1.6rem; }
     &__ruler-own-kicker { font-size: .8rem; }
     &__card-mark { width: .9rem; height: 1.15rem; }
     &__quest-text { font-size: .88rem; line-height: 1.15; }
@@ -2342,7 +2431,6 @@ html.con-profile-tv .con-parl {
     &__tally-line--mine { height: 1.15rem; }
     &__tally-held { font-size: .8rem; }
     &__vrow > .con-parl__slot { --con-parl-slot-label-h: 1.6rem; --con-parl-slot-ribbon-h: 2.2rem; --con-parl-slot-tally-h: 3.2rem; .con-parl__tally-line { height: 1.55rem; } .con-parl__tally-line--mine { height: 1.25rem; } }
-    &__pline { font-size: .86rem; }
     &__stage-title { font-size: 1.25rem; }
     &__stage-sub { font-size: .9rem; }
     &__txn-row { font-size: .92rem; b { font-size: 1rem; } }
@@ -2367,13 +2455,11 @@ html.con-profile-tv .con-parl {
     &__fact-note { font-size: .8rem; }
     &__fact-tail { font-size: .8rem; b { font-size: .95rem; } }
     &__agenda-me { font-size: .9rem; b { font-size: 1.05rem; } }
-    &__step { font-size: .8rem; }
-    &__step--start { font-size: .8rem; }
-    &__step--next::before { font-size: .8rem; }
-    &__step-icon { min-height: 1.45rem; }
-    &__step-level { width: 1.45rem; height: 1.45rem; font-size: .88rem; }
-    &__step-res { width: 1.45rem; height: 1.45rem; }
-    &__reward-step &__step-level, &__reward-step &__step-res { width: 1.35rem; height: 1.35rem; font-size: .82rem; }
+    &__step-label { font-size: .8rem; }
+    &__step-level { font-size: .95rem; }
+    &__step-res { &--tr { width: 1.22rem; height: .9rem; } &--card { width: .94rem; height: 1.34rem; } }
+    &__reward-step .con-parl__step-level, &__reward-step .con-parl__step-res { width: 1.35rem; height: 1.35rem; font-size: .82rem; }
+    .con-pseal__reason { font-size: .8rem; }
     &__recap-item { font-size: .82rem; }
     /* Couch type at the .8rem floor: the name tighter, the foot may take a second line — nothing is cut. */
     &__party > .con-pseal { padding-left: .4rem; padding-right: .4rem; column-gap: .35rem; }

@@ -52,6 +52,8 @@ export type IClientPartyEffect = {
     rule: string;
     passive?: string;
     action?: string;
+    /** The ONE short reading under the ruling party's graphic (the government block). */
+    summary?: string;
   };
   actionId?: PartyActionId;
   usesPerGeneration?: number;
