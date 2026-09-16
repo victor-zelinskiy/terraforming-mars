@@ -1767,24 +1767,28 @@ dialog.con-zoom {
     }
 }
 
-/* ── THE SCENE'S FOOTER — one command plate as wide as the scene (the two
-   columns and the card between them), in TWO fixed anchors: the INFO (the
-   card's standing and the viewer's access) holds the left edge, the VERBS
-   (send the delegate · page · close) hold the right edge. So a card switch
-   or a change of the vote's availability moves nothing but the text that
-   changed: the close and the paging never jump, the chip never re-centres. */
-dialog.con-zoom.con-zoom--parliament {
-    --con-rinspect-scene-w: calc(2 * (var(--con-rules-w, 21rem) + 1.1rem) + 320px * var(--card-zoom-fit, 1));
-    .card-zoom-actions__panel {
-        box-sizing: border-box;
-        width: min(100vw, calc(var(--con-rinspect-scene-w) + 4.4rem));
-    }
+/* ── THE SCENE'S FOOTER — the fullscreen family's command plate, as wide as
+   what it carries. Four groups in ONE centred row: the card's standing and
+   the viewer's access · send the delegate (source · price, or the reason) ·
+   page the proposals (the position) · close. The plate is content-sized and
+   centred by `.card-zoom-actions`, exactly like an ordinary card's footer;
+   the safe area bounds it and never fills it (a plate stretched to the
+   scene's width left half a screen of empty glass between the chip and the
+   verbs). Stability is not bought with empty room either: the status chip
+   and the vote's reading reserve the widest REAL variant of the cards being
+   paged (invisible grid siblings), so a page turn changes text, never the
+   plate or a control's place. A viewer with no vote (an enacted card) simply
+   carries fewer groups — no room is kept for an absent verb. ── */
+dialog.con-zoom.con-zoom--parliament .card-zoom-actions__panel {
+    box-sizing: border-box;
+    max-width: calc(100vw - 2 * var(--con-hud-pad-x, 2rem));
 }
-.con-zoom__bar--scene {
+/* Between groups a clear, moderate step; inside a group the glyph and its
+   words keep their own tight gaps. (The class is doubled to outrank the
+   profile ladders' `.con-zoom__bar` gap, which sit later in the cascade.) */
+.con-zoom__bar.con-zoom__bar--scene {
     flex-wrap: nowrap;
-    justify-content: flex-end;
-    width: 100%;
-    > .con-zoom__bar-info { margin-right: auto; }
+    gap: 1.5rem;
 }
 
 /* THE VOTE VERB — the mint confirm of the console's verbs, with its reading
@@ -1812,10 +1816,18 @@ dialog.con-zoom.con-zoom--parliament {
         letter-spacing: .09rem;
         text-transform: uppercase;
     }
+    /* The reading's CELL: the live line and, invisible under it, the other
+       cards' lines — the verb is as wide as the widest real reading here. */
+    &-cell {
+        display: grid;
+        justify-items: start;
+        align-items: center;
+        > * { grid-area: 1 / 1; }
+    }
     /* ONE fixed line: the price (a figure + the M€ icon) and a refusal's
        words take the same height, so a change of availability never
        resizes the plate. The height is the icon's own. */
-    &-detail {
+    &-line {
         display: inline-flex;
         align-items: center;
         gap: .3rem;
@@ -1827,8 +1839,9 @@ dialog.con-zoom.con-zoom--parliament {
         text-transform: none;
         white-space: nowrap;
         color: fade(@con-text, 80%);
-        &--nudge { animation: con-zoom-vote-nudge calc(380ms * var(--motion-scale, 1)) @con-ease-standard; }
+        &--sizer { visibility: hidden; }
     }
+    &-detail--nudge { animation: con-zoom-vote-nudge calc(380ms * var(--motion-scale, 1)) @con-ease-standard; }
     &-sep { opacity: .5; }
     &-cost {
         display: inline-flex;
@@ -1874,7 +1887,7 @@ html.con-reduced-motion .con-zoom__vote-detail--nudge { animation: none; }
     letter-spacing: .04rem;
     /* The console face has no tabular digits: «1» is narrower than «2», so the
        index gets ONE advance box — paging never nudges the verbs beside it. */
-    b { display: inline-block; min-width: 1ch; text-align: center; font-size: .95rem; color: #cfeaff; }
+    b { display: inline-block; min-width: 1.1ch; text-align: right; font-size: .95rem; color: #cfeaff; }
 }
 
 /* ── THE BAR's STATUS CHIP — where the card stands, and the viewer's access
@@ -1902,6 +1915,21 @@ html.con-reduced-motion .con-zoom__vote-detail--nudge { animation: none; }
     white-space: nowrap;
     &[data-lifecycle="enacted"] { --con-rstatus-accent: fade(@con-parl-gold, 80%); }
 
+    /* A line is ONE grid cell: the live line over its invisible reserve (the
+       same line of the other cards being paged) — the chip keeps one width
+       for the whole context. */
+    &__cell {
+        display: grid;
+        justify-items: start;
+        align-items: center;
+        > * { grid-area: 1 / 1; }
+    }
+    &__sizer { visibility: hidden; }
+    /* Both lines keep the vote verb's own leading, so the two-line chip is
+       never taller than the two-line verb beside it (the verb sets the
+       plate's height, as a verb does in every fullscreen footer). */
+    &__life,
+    &__access { line-height: 1.1; }
     &__life {
         display: inline-flex;
         align-items: center;
@@ -2287,10 +2315,10 @@ html.con-profile-handheld .con-rstatus {
     &__place { width: .85rem; height: .85rem; }
     &__count { font-size: .64rem; }
 }
-html.con-profile-handheld .con-zoom__bar--scene { gap: .9rem; }
+html.con-profile-handheld .con-zoom__bar.con-zoom__bar--scene { gap: 1rem; }
 html.con-profile-handheld .con-zoom__vote {
-    &-label { font-size: .76rem; letter-spacing: .06rem; }
-    &-detail { height: .85rem; font-size: .64rem; }
+    &-label { font-size: .7rem; letter-spacing: .06rem; }
+    &-line { height: .85rem; font-size: .64rem; }
     &-cost b { font-size: .74rem; }
     &-mc { width: .85rem; height: .85rem; }
 }
@@ -2317,12 +2345,13 @@ html.con-profile-tv .con-rstatus {
     &__access { font-size: .9rem; }
     &__access-key { font-size: .8rem; }
     &__access-basis { font-size: .8rem; }
-    &__place { width: 1.1rem; height: 1.1rem; }
+    &__place { width: 1rem; height: 1rem; }
     &__count { font-size: .85rem; }
 }
+html.con-profile-tv .con-zoom__bar.con-zoom__bar--scene { gap: 1.6rem; }
 html.con-profile-tv .con-zoom__vote {
     &-label { font-size: 1.05rem; }
-    &-detail { height: 1.05rem; font-size: .85rem; }
+    &-line { height: 1.05rem; font-size: .85rem; }
     &-cost b { font-size: .95rem; }
     &-mc { width: 1.05rem; height: 1.05rem; }
 }

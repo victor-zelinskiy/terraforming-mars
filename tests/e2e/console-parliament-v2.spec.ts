@@ -69,6 +69,11 @@ const partyFocused = (page: Page) => page.evaluate(() => document.querySelector(
 const selectedInstance = (page: Page) => page.evaluate(() => document.querySelector('.con-parl__slot--selected')?.getAttribute('data-instance') ?? '');
 const rowOrder = (page: Page) => page.evaluate(() => Array.from(document.querySelectorAll('.con-parl__vrow .con-parl__slot')).map((s) => s.getAttribute('data-instance')));
 const infoName = (page: Page) => page.evaluate(() => (document.querySelector('.con-parl__info-res [data-parl-vote-body] .con-parl__info-name')?.textContent ?? '').trim());
+/** The footer at rest: the plate and each group's box (left + width) — a page turn may change their text, never these. */
+const footerGeometry = (page: Page) => page.evaluate(() => ['.card-zoom-actions__panel', '.con-rstatus', '.con-zoom__vote', '.con-zoom__cmd--flip', '.con-zoom__bar > .con-zoom__btn:last-child'].map((sel) => {
+  const r = document.querySelector(`dialog.con-zoom[open] ${sel}`)?.getBoundingClientRect();
+  return r === undefined ? `${sel}: none` : `${sel}: ${Math.round(r.left)}+${Math.round(r.width)}`;
+}));
 /** The card the fullscreen viewer is showing (its face's resolution slug). */
 const viewerCard = (page: Page) => page.evaluate(() => {
   const face = document.querySelector('dialog.con-zoom[open] .card-zoom-stage .pcard');
@@ -265,16 +270,32 @@ async function expectInspectorScene(page: Page, label: string): Promise<void> {
         out.push(`${sel} centre is ${Math.round(off)} px off the card's (content ${Math.round(top)}..${Math.round(bottom)}, card ${Math.round(card.top)}..${Math.round(card.bottom)})`);
       }
     }
-    // The footer holds every item INSIDE its bar: a right-anchored row pushes
-    // an overflow past the LEFT edge, where `scrollWidth` never sees it.
+    // THE FOOTER: every item INSIDE its bar (an overflow of a centred or
+    // right-anchored row goes past an edge `scrollWidth` never reports), the
+    // bar as wide as its items plus the gaps between them (no empty stretch),
+    // the plate centred on the screen and clear of the card above it.
     const bar = document.querySelector('dialog.con-zoom[open] .con-zoom__bar');
-    if (bar !== null) {
+    const panel = document.querySelector('dialog.con-zoom[open] .card-zoom-actions__panel');
+    if (bar !== null && panel !== null) {
       const box = bar.getBoundingClientRect();
-      for (const kid of Array.from(bar.children)) {
-        const k = kid.getBoundingClientRect();
-        if (k.width > 0 && (k.left < box.left - 1 || k.right > box.right + 1)) {
-          out.push(`footer item ${kid.className.toString().split(' ')[0]} outside the bar (${Math.round(k.left)}..${Math.round(k.right)} of ${Math.round(box.left)}..${Math.round(box.right)})`);
+      const kids = Array.from(bar.children).map((kid) => ({kid, r: kid.getBoundingClientRect()})).filter((k) => k.r.width > 0);
+      for (const {kid, r} of kids) {
+        if (r.left < box.left - 1 || r.right > box.right + 1) {
+          out.push(`footer item ${kid.className.toString().split(' ')[0]} outside the bar (${Math.round(r.left)}..${Math.round(r.right)} of ${Math.round(box.left)}..${Math.round(box.right)})`);
         }
+      }
+      const gap = parseFloat(getComputedStyle(bar).columnGap) || 0;
+      const content = kids.reduce((sum, k) => sum + k.r.width, 0) + Math.max(0, kids.length - 1) * gap;
+      if (box.width > content + 2) {
+        out.push(`footer bar ${Math.round(box.width)} px wide for ${Math.round(content)} px of items and gaps`);
+      }
+      const plate = panel.getBoundingClientRect();
+      const offCentre = Math.abs((plate.left + plate.right) / 2 - window.innerWidth / 2);
+      if (offCentre > 2) {
+        out.push(`footer plate ${Math.round(offCentre)} px off the screen centre`);
+      }
+      if (plate.top < card.bottom - 1) {
+        out.push(`footer plate (top ${Math.round(plate.top)}) overlaps the card (bottom ${Math.round(card.bottom)})`);
       }
     }
     const graphics = document.querySelectorAll('dialog.con-zoom[open] .card-zoom-side .pcard__mech, dialog.con-zoom[open] .con-rinspect-aside__rules .pcard__mech');
@@ -500,6 +521,7 @@ for (const preset of PRESETS) {
       //    both columns, the footer and the mode's selection move together.
       const plaque = () => page.evaluate(() => (document.querySelector('dialog.con-zoom[open] .con-rinspect-aside .con-pseal__name')?.textContent ?? '').trim());
       const plaque0 = await plaque();
+      const footer0 = await footerGeometry(page);
       await press(page, 'KeyE', 900);
       await expect.poll(() => viewerCard(page), {timeout: 6_000, message: 'RB shows the second proposal'}).toContain(slug(slot1.resolution));
       await expect(page.locator('[data-zoom-position]')).toHaveText(/2\s*\/\s*3/);
@@ -508,6 +530,7 @@ for (const preset of PRESETS) {
       await expect(page.locator('[data-parl-vote-card] .con-zoom-hold'), 'the held slot follows the shown card').toHaveCount(1);
       expect(await visibleFacesOf(page, slot1.resolution), 'one physical card after paging').toBe(1);
       await expectInspectorScene(page, `${preset.id} resolution 2`);
+      expect(await footerGeometry(page), 'a page turn moves no footer control and resizes no group').toEqual(footer0);
       await shoot(page, preset.id, '05b-inspect-paged');
       await press(page, 'KeyQ', 900);
       await expect.poll(() => viewerCard(page), {timeout: 6_000, message: 'LB pages back'}).toContain(slug(slot0.resolution));
@@ -766,7 +789,7 @@ test.describe('parliament · the fullscreen inspector is the vote\'s second door
     await expect(verb).toHaveAttribute('data-vote-available', 'yes');
     await expect(verb).toHaveAttribute('data-vote-source', 'reserve');
     await expect(verb.locator('.con-zoom__vote-detail')).toContainText(/резерв/i);
-    await expect(verb.locator('.con-zoom__vote-cost b'), 'the price is the server\'s own').toHaveText(String(cost));
+    await expect(verb.locator('.con-zoom__vote-detail .con-zoom__vote-cost b'), 'the price is the server\'s own').toHaveText(String(cost));
     await expectInspectorScene(page, `${preset} verb`);
     await shoot(page, preset, '42-inspect-paid-verb');
     await page.keyboard.press('Enter');
@@ -840,7 +863,7 @@ test.describe('parliament v4 · a crowded table · the vote that is not possible
     // reason; A nudges that reason — the viewer neither closes nor sends.
     const blocked = page.locator('dialog.con-zoom[open] .con-zoom__vote');
     await expect(blocked, 'the vote verb stands, blocked').toHaveAttribute('data-vote-available', 'no');
-    await expect(blocked.locator('.con-zoom__vote-reason'), 'with its reason').toHaveText(/\S/);
+    await expect(blocked.locator('.con-zoom__vote-detail .con-zoom__vote-reason'), 'with its reason').toHaveText(/\S/);
     const votesBefore = (await seatOf(request, playerId)).parl.slots.map((s) => s.totalVotes);
     await page.keyboard.press('Enter');
     await expect(page.locator('dialog.con-zoom[open] .con-zoom__vote-detail--nudge'), 'A on the blocked verb nudges the reason').toHaveCount(1);

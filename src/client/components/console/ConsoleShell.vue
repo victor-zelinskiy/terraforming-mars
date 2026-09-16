@@ -1040,6 +1040,7 @@
           <ConsoleResolutionStatus v-if="zoomResolutionStatus !== undefined"
                                    class="con-zoom__bar-info"
                                    :status="zoomResolutionStatus"
+                                   :reserve="zoomResolutionStatusReserve"
                                    :viewerColor="thisPlayer.color" />
           <!-- THE PROVENANCE PLATE (opened from «Разыграно»): the hero card
                would otherwise read like any other inspected card. The plate
@@ -1093,17 +1094,26 @@
             <GamepadGlyph control="confirm" />
             <span class="con-zoom__vote-text">
               <span class="con-zoom__vote-label">{{ $t('Send the delegate') }}</span>
-              <span :key="'vote-detail-' + zoomVoteNudge" class="con-zoom__vote-detail" :class="{'con-zoom__vote-detail--nudge': zoomVoteNudge > 0}">
-                <template v-if="zoomVoteVerb.source !== 'none' && zoomVoteVerb.gate !== 'rule'">
-                  <span class="con-zoom__vote-src">{{ $t(zoomVoteVerb.source === 'reserve' ? 'from the reserve' : 'from the lobby') }}</span>
-                  <span class="con-zoom__vote-sep" aria-hidden="true">·</span>
-                  <span v-if="zoomVoteVerb.cost > 0" class="con-zoom__vote-cost"><b>{{ zoomVoteVerb.cost }}</b><i class="resource_icon resource_icon--megacredits con-zoom__vote-mc" aria-hidden="true"></i></span>
-                  <span v-else class="con-zoom__vote-free">{{ $t('free') }}</span>
-                </template>
-                <template v-if="!zoomVoteVerb.available">
-                  <span v-if="zoomVoteVerb.source !== 'none' && zoomVoteVerb.gate !== 'rule'" class="con-zoom__vote-sep" aria-hidden="true">·</span>
-                  <span class="con-zoom__vote-reason">{{ zoomVoteVerb.reason }}</span>
-                </template>
+              <!-- ONE cell: the live reading and, invisible under it, the
+                   reading of every other card the viewer pages through — the
+                   verb is sized once for the whole context, so paging never
+                   moves it or the controls beside it. -->
+              <span class="con-zoom__vote-cell">
+                <span v-for="line in zoomVoteDetailLines" :key="line.key"
+                      class="con-zoom__vote-line"
+                      :class="line.live ? ['con-zoom__vote-detail', {'con-zoom__vote-detail--nudge': zoomVoteNudge > 0}] : 'con-zoom__vote-line--sizer'"
+                      :aria-hidden="line.live ? undefined : 'true'">
+                  <template v-if="line.verb.source !== 'none' && line.verb.gate !== 'rule'">
+                    <span class="con-zoom__vote-src">{{ $t(line.verb.source === 'reserve' ? 'from the reserve' : 'from the lobby') }}</span>
+                    <span class="con-zoom__vote-sep" aria-hidden="true">·</span>
+                    <span v-if="line.verb.cost > 0" class="con-zoom__vote-cost"><b>{{ line.verb.cost }}</b><i class="resource_icon resource_icon--megacredits con-zoom__vote-mc" aria-hidden="true"></i></span>
+                    <span v-else class="con-zoom__vote-free">{{ $t('free') }}</span>
+                  </template>
+                  <template v-if="!line.verb.available">
+                    <span v-if="line.verb.source !== 'none' && line.verb.gate !== 'rule'" class="con-zoom__vote-sep" aria-hidden="true">·</span>
+                    <span class="con-zoom__vote-reason">{{ line.verb.reason }}</span>
+                  </template>
+                </span>
               </span>
             </span>
           </button>
@@ -8397,6 +8407,49 @@ export default defineComponent({
     zoomVoteVerb(): ConsoleZoomVoteVerb | undefined {
       const z = this.consoleCardZoom;
       return z.card === undefined ? undefined : z.vote?.verbAt(z.index);
+    },
+    /**
+     * THE FOOTER'S RESERVE — the standing of every OTHER card the viewer pages
+     * through. The status chip lays it out invisibly under its live lines, so
+     * the chip is as wide as the widest REAL variant of this context and a
+     * page turn never resizes the plate or moves a control beside it.
+     */
+    zoomResolutionStatusReserve(): Array<ResolutionStatusVm> {
+      const z = this.consoleCardZoom;
+      if (z.cards.length < 2 || this.zoomResolutionId === undefined) {
+        return [];
+      }
+      const out: Array<ResolutionStatusVm> = [];
+      z.cards.forEach((card, i) => {
+        if (i === z.index || !isResolutionZoom(card)) {
+          return;
+        }
+        const status = resolutionStatusOf(card.resolution, this.game.parliament, this.thisPlayer.color);
+        if (status !== undefined) {
+          out.push(status);
+        }
+      });
+      return out;
+    },
+    /**
+     * The vote verb's reading lines: the live one (keyed on the nudge, so a
+     * blocked press replays its shake), then the other cards' readings as the
+     * verb's invisible reserve — the same law as the status chip's.
+     */
+    zoomVoteDetailLines(): Array<{key: string, verb: ConsoleZoomVoteVerb, live: boolean}> {
+      const z = this.consoleCardZoom;
+      const live = this.zoomVoteVerb;
+      if (live === undefined || z.vote === undefined) {
+        return [];
+      }
+      const lines = [{key: 'vote-detail-' + this.zoomVoteNudge, verb: live, live: true}];
+      for (let i = 0; i < z.cards.length; i++) {
+        const verb = i === z.index ? undefined : z.vote.verbAt(i);
+        if (verb !== undefined) {
+          lines.push({key: 'vote-sizer-' + i, verb, live: false});
+        }
+      }
+      return lines;
     },
     /** The MarsBot corporation's printed rule boxes for the rules panel —
      *  only when the viewer is on a bot-corporation entry. */
