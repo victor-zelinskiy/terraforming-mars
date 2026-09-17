@@ -34,14 +34,15 @@ mkdir -p "$APPS" "$ART"
 
 echo "==> [1/4] Resolving + downloading the latest AppImage…"
 # Resolve the AppImage URL via the GitHub API instead of the fixed
-# releases/latest/download/… path. WHY: a release is built by TWO sequential CI
-# jobs (windows CREATES the release with only win assets, then linux MERGES its
-# channel + uploads the AppImage). In the window between them, releases/latest
-# already points at the new tag that has NO AppImage yet → the fixed URL 404s
-# and `set -e` aborts the whole install. Walking releases newest-first for the
-# first one that ACTUALLY HAS an AppImage falls back to the previous complete
-# release during that window, and also survives a future asset rename (accepts
-# the fixed-name alias OR any *.AppImage). python3 is already a hard dependency.
+# releases/latest/download/… path. WHY: the release for a tag is pre-created
+# EMPTY and then filled by two packager jobs running in PARALLEL, so in the
+# window between creation and the linux job's upload, releases/latest already
+# points at a tag that has NO AppImage yet → the fixed URL 404s and `set -e`
+# aborts the whole install. Walking releases newest-first for the first one that
+# ACTUALLY HAS an AppImage falls back to the previous complete release during
+# that window, and also survives an asset rename — ANY *.AppImage is accepted,
+# which is why the release workflow no longer wastes ~400 MB per release on a
+# fixed-name alias copy. python3 is already a hard dependency.
 APPIMAGE_URL="$(curl -fsSL "https://api.github.com/repos/$REPO/releases?per_page=10" | python3 -c '
 import sys, json
 try:
@@ -51,16 +52,13 @@ except Exception:
 for rel in data:                                  # API returns newest-first
     if rel.get("draft") or rel.get("prerelease"):
         continue
-    names = {a["name"]: a["browser_download_url"] for a in rel.get("assets", [])}
-    if "TerraformingMars-x86_64.AppImage" in names:      # prefer the fixed alias
-        print(names["TerraformingMars-x86_64.AppImage"]); break
-    alt = [u for n, u in names.items() if n.endswith(".AppImage")]  # else any AppImage
-    if alt:
-        print(alt[0]); break
+    urls = [a["browser_download_url"] for a in rel.get("assets", []) if a["name"].endswith(".AppImage")]
+    if urls:
+        print(urls[0]); break
 ')" || APPIMAGE_URL=""
 if [ -z "$APPIMAGE_URL" ]; then
   echo "!! No .AppImage asset found in the latest releases of $REPO." >&2
-  echo "   A release build may still be publishing (the Linux job runs after the Windows one)." >&2
+  echo "   A release build may still be publishing (the Linux packager uploads it last)." >&2
   echo "   Wait ~5 minutes and re-run this installer." >&2
   exit 1
 fi

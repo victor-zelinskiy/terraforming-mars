@@ -32,8 +32,20 @@
 #
 # Delivery: `vpk download github` fetches the previous release so `vpk pack` can build a DELTA
 # (users download only the diff); `vpk upload github --publish` writes the release + the
-# releases.<channel>.json feed the client's UpdateManager reads. A fixed-URL AppImage alias keeps
-# the Steam Deck bootstrap (scripts/steamdeck/install-steamdeck.sh) working unchanged.
+# releases.<channel>.json feed the client's UpdateManager reads. The Steam Deck bootstrap
+# (scripts/steamdeck/install-steamdeck.sh) resolves the AppImage through the releases API and
+# accepts ANY *.AppImage asset, so it needs no fixed-name alias copy.
+#
+# UPLOAD VOLUME is the binding constraint. GitHub throttles release-asset uploads, and a throttled
+# upload surfaces as a 502 `{"message":"Error saving asset"}` from uploads.github.com — which is
+# what killed releases v1.2.774 and v1.2.775 (2026-09-17). A release on EVERY commit is the point
+# of this workflow, so the answer is to keep each release small and to survive a throttle window.
+# Both mitigations below are load-bearing — do not "simplify" them away:
+#   1. Nothing redundant is uploaded: no duplicate fixed-name AppImage alias (~400 MB/release) and
+#      no portable zip (~434 MB/release — dropped from the upload set in the win job).
+#   2. The upload steps retry with a MINUTES-long backoff. vpk's own retry cannot help: it is
+#      hardcoded to 3 attempts 1 second apart (Velopack 1.2.0, _Repository.cs RetryAsync), so it
+#      expires ~100 s in, long before a throttle window closes.
 #
 # NOTE: vpk is a .NET global tool → setup-dotnet + `dotnet tool install -g vpk` on each runner.
 # Code signing is out of scope for now (unsigned; Windows SmartScreen warns — accepted).
@@ -192,18 +204,75 @@ jobs:
           --mainExe "Terraforming Mars.exe"
           --icon electron/build-resources/icon.ico
 
+      # The portable zip is ~434 MB of pure upload volume nobody installs from (see the UPLOAD
+      # VOLUME note in the header). vpk 1.2.0 has no CLI switch for it — `NoPortable` exists on
+      # WindowsPackOptions but is never wired to an AddOption — so drop it from the upload set
+      # instead: `vpk upload` uploads exactly what Releases/assets.win.json lists, and only the
+      # Full/Delta entries of that manifest feed releases.win.json, so removing the Portable entry
+      # cannot affect the update feed. Warn rather than fail: if a future vpk stops emitting the
+      # zip, a missing entry is not a reason to block the release.
+      - name: Drop the portable zip from the upload set (win)
+        shell: bash
+        run: |
+          node -e '
+            const fs = require("fs");
+            const manifest = "Releases/assets.win.json";
+            const all = JSON.parse(fs.readFileSync(manifest, "utf8"));
+            // vpk 1.2.0 serialises with Newtonsoft and no contract resolver, so the key is verbatim
+            // PascalCase; tolerate a casing change rather than crashing the release on a vpk bump.
+            const nameOf = (a) => a.RelativeFileName || a.relativeFileName || "";
+            const keep = all.filter((a) => !nameOf(a).endsWith("-Portable.zip"));
+            if (keep.length === all.length) {
+              console.log("::warning::no -Portable.zip entry in " + manifest + " — nothing dropped");
+            } else {
+              fs.writeFileSync(manifest, JSON.stringify(keep));
+              console.log("upload set: " + all.length + " -> " + keep.length + " assets");
+            }
+          '
+          rm -f Releases/*-Portable.zip
+
       # --merge into the release the `build` job pre-created for this tag. The linux job merges its
       # own channel into the SAME tag in parallel; the two channels are distinct feed files + assets.
+      #
+      # Retry with backoff (see the UPLOAD VOLUME note in the header). Two things rule out a naive
+      # re-run, so each attempt has to clear the slate first:
+      #   * vpk uploads EVERY file listed in Releases/assets.<channel>.json, not just the missing
+      #     ones, so a half-finished upload makes the next attempt die on 422 already_exists;
+      #   * `--merge` hard-refuses once releases.<channel>.json is on the release (UserInfoException).
+      # The delete list is derived FROM THAT MANIFEST, so it can only ever name this channel's own
+      # assets — the other OS job is merging into the same release concurrently and must not be
+      # touched. `RELEASES` (the legacy feed) is win-only and is cleared here, never by linux.
       - name: Upload to GitHub Release (win channel)
-        run: >
-          vpk upload github
-          --repoUrl "${{ env.VELO_REPO_URL }}"
-          --publish
-          --merge
-          --releaseName "${{ env.VELO_PACK_TITLE }} ${{ env.VELO_TAG }}"
-          --tag "${{ env.VELO_TAG }}"
+        shell: bash
         env:
           VPK_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -u
+          repo="${{ github.repository }}"
+          attempt=0
+          for wait in 0 60 180 420 900; do
+            if [ "$wait" -gt 0 ]; then
+              echo "::warning::win upload attempt $attempt failed — clearing partials, retrying in ${wait}s"
+              sleep "$wait"
+            fi
+            attempt=$((attempt + 1))
+            packed=$(node -e 'const a = JSON.parse(require("fs").readFileSync("Releases/assets.win.json", "utf8")); console.log(a.map((x) => x.RelativeFileName || x.relativeFileName || "").filter(Boolean).join(" "))')
+            have=$(gh release view "$VELO_TAG" --repo "$repo" --json assets --jq '.assets[].name' 2>/dev/null || true)
+            for name in releases.win.json RELEASES $packed; do
+              printf '%s\n' "$have" | grep -Fxq "$name" || continue
+              echo "clearing stale asset $name"
+              gh release delete-asset "$VELO_TAG" "$name" --repo "$repo" --yes || true
+            done
+            vpk upload github \
+              --repoUrl "${{ env.VELO_REPO_URL }}" \
+              --publish \
+              --merge \
+              --releaseName "${{ env.VELO_PACK_TITLE }} $VELO_TAG" \
+              --tag "$VELO_TAG" && exit 0
+          done
+          echo "::error::win upload failed after $attempt attempts"
+          exit 1
 
   linux:
     needs: build
@@ -267,36 +336,56 @@ jobs:
           --icon electron/build-resources/linuxIcon.png
 
       # --merge the linux channel into the SAME pre-created release (in parallel with the win job).
+      # Retry + slate-clearing work exactly as in the win job above — read that comment for why a
+      # naive re-run cannot work. The only difference: `RELEASES` is the win channel's legacy feed
+      # and is deliberately NOT cleared here, or linux would delete the win job's asset mid-flight.
+      #
+      # There is no fixed-name AppImage alias step any more. It uploaded a byte-identical ~400 MB
+      # copy of TerraformingMars.AppImage purely for a stable URL, and install-steamdeck.sh stopped
+      # depending on that URL long ago — it walks the releases API and takes any *.AppImage.
       - name: Upload to GitHub Release (linux channel)
-        run: >
-          vpk upload github
-          --repoUrl "${{ env.VELO_REPO_URL }}"
-          --publish
-          --merge
-          --releaseName "${{ env.VELO_PACK_TITLE }} ${{ env.VELO_TAG }}"
-          --tag "${{ env.VELO_TAG }}"
+        shell: bash
         env:
           VPK_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      # Steam Deck bootstrap: a stable, UNVERSIONED copy of the Velopack AppImage at a FIXED url
-      # (releases/latest/download/TerraformingMars-x86_64.AppImage) so install-steamdeck.sh keeps
-      # working UNCHANGED. It's the real Velopack AppImage (self-updates via the feed) — just a
-      # renamed copy; the filename is irrelevant to the in-place update logic.
-      - name: Steam Deck fixed-URL AppImage alias
-        run: |
-          appimage=$(ls Releases/*.AppImage 2>/dev/null | head -1)
-          if [ -z "$appimage" ]; then echo "No AppImage produced by vpk pack" >&2; exit 1; fi
-          cp -f "$appimage" TerraformingMars-x86_64.AppImage
-          gh release upload "${{ env.VELO_TAG }}" TerraformingMars-x86_64.AppImage --repo "${{ github.repository }}" --clobber
-          echo "alias: TerraformingMars-x86_64.AppImage -> $appimage"
-        env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -u
+          repo="${{ github.repository }}"
+          attempt=0
+          for wait in 0 60 180 420 900; do
+            if [ "$wait" -gt 0 ]; then
+              echo "::warning::linux upload attempt $attempt failed — clearing partials, retrying in ${wait}s"
+              sleep "$wait"
+            fi
+            attempt=$((attempt + 1))
+            packed=$(node -e 'const a = JSON.parse(require("fs").readFileSync("Releases/assets.linux.json", "utf8")); console.log(a.map((x) => x.RelativeFileName || x.relativeFileName || "").filter(Boolean).join(" "))')
+            have=$(gh release view "$VELO_TAG" --repo "$repo" --json assets --jq '.assets[].name' 2>/dev/null || true)
+            for name in releases.linux.json $packed; do
+              printf '%s\n' "$have" | grep -Fxq "$name" || continue
+              echo "clearing stale asset $name"
+              gh release delete-asset "$VELO_TAG" "$name" --repo "$repo" --yes || true
+            done
+            vpk upload github \
+              --repoUrl "${{ env.VELO_REPO_URL }}" \
+              --publish \
+              --merge \
+              --releaseName "${{ env.VELO_PACK_TITLE }} $VELO_TAG" \
+              --tag "$VELO_TAG" && exit 0
+          done
+          echo "::error::linux upload failed after $attempt attempts"
+          exit 1
 
   # Keep only the newest 5 releases (delete older releases AND their tags). ≥5 so a delta chain
   # (vpk searches back a few releases) always finds a base; a user many versions behind just falls
   # back to a full download.
+  #
+  # Runs even when a packager FAILED: a failed release is exactly when stale releases pile up, and
+  # letting them accumulate grows the very asset volume that gets uploads throttled. `!cancelled()`
+  # rather than `always()` so a push burst (concurrency cancels the in-flight run) doesn't spend a
+  # runner on a prune nobody asked for.
   prune:
     needs: [windows, linux]
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     steps:
       - name: Prune old releases (keep newest 5)

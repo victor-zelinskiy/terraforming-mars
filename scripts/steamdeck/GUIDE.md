@@ -90,7 +90,7 @@ Nothing to do. The game **updates itself** on launch through the built-in update
 - The AppImage lives at `~/Applications/TerraformingMars.AppImage`, launched through the wrapper `~/Applications/run-terraforming-mars.sh` (the `--no-sandbox` flags gamescope needs + a restart-loop for in-session updates).
 - The shortcut is written directly to `shortcuts.vdf` with a deterministic appid; artwork is dropped into `userdata/<id>/config/grid/`.
 - Launch logs: `~/Applications/terraforming-mars-steam.log`.
-- Manual launch without the script: `chmod +x` the AppImage and run `./TerraformingMars-x86_64.AppImage` (or `--appimage-extract-and-run` if FUSE is unavailable).
+- Manual launch without the script: `chmod +x` the AppImage and run `./TerraformingMars.AppImage` (or `--appimage-extract-and-run` if FUSE is unavailable).
 - If the GPU path misbehaves (black screen), uncomment `export TM_ELECTRON_SOFTWARE=1` in the wrapper to force software rendering.
 
 Have fun! 🔴
