@@ -15,6 +15,8 @@ export class PrivateInvestigator extends Card implements IProjectCard {
       type: CardType.EVENT,
       cost: 4,
       victoryPoints: 'special',
+      // The bespoke icon's sign (common/cards/victoryPointsIcon.ts): -1 VP for the player whose tableau it lies in.
+      victoryPointsSign: 'negative',
 
       behavior: {
         tr: 1,

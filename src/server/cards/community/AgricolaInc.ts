@@ -16,6 +16,8 @@ export class AgricolaInc extends CorporationCard implements ICorporationCard {
       startingMegaCredits: 40,
 
       victoryPoints: 'special',
+      // The bespoke icon's sign (common/cards/victoryPointsIcon.ts): -2 / 0 / 1 / 2 VP per tag type — the icon can score both signs.
+      victoryPointsSign: 'either',
       behavior: {
         production: {megacredits: 1, plants: 1, heat: 1},
       },

@@ -28,6 +28,8 @@ export class RedCity extends Card implements IProjectCard {
 
       requirements: {party: PartyName.REDS},
       victoryPoints: 'special',
+      // The bespoke icon's sign (common/cards/victoryPointsIcon.ts): 1 VP per empty space next to the tile — never a penalty.
+      victoryPointsSign: 'nonNegative',
 
       metadata: {
         cardNumber: 'PFT2',

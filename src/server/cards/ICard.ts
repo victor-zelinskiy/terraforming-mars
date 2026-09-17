@@ -11,6 +11,7 @@ import {GlobalParameter} from '../../common/GlobalParameter';
 import {BoardType} from '../boards/BoardType';
 import {CardDiscount} from '../../common/cards/Types';
 import {CountableVictoryPoints} from '../../common/cards/CountableVictoryPoints';
+import {VictoryPointsSign} from '../../common/cards/victoryPointsIcon';
 import {TileType} from '../../common/TileType';
 import {Behavior} from '../behavior/Behavior';
 import {TRSource} from '../../common/cards/TRSource';
@@ -213,6 +214,8 @@ export interface ICard {
    */
   getGlobalParameterRequirementBonus(player: IPlayer, parameter: GlobalParameter): number;
   victoryPoints?: number | 'special' | CountableVictoryPoints,
+  /** What a bespoke ('special') VP icon can ever score (see `common/cards/victoryPointsIcon.ts`). */
+  victoryPointsSign?: VictoryPointsSign,
   getVictoryPoints(player: IPlayer, context?: GetVictoryPointsContext): number;
   /** Returns any dynamic influence value */
   getInfluenceBonus?: (player: IPlayer) => number;

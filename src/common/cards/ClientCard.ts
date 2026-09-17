@@ -6,6 +6,7 @@ import {Expansion, GameModule} from './GameModule';
 import {CardMetadata} from './CardMetadata';
 import {CardRequirementDescriptor} from './CardRequirementDescriptor';
 import {CountableVictoryPoints} from './CountableVictoryPoints';
+import {VictoryPointsSign} from './victoryPointsIcon';
 import {Tag} from './Tag';
 import {CardDiscount} from './Types';
 import {OneOrArray} from '../utils/types';
@@ -16,6 +17,8 @@ export type ClientCard = Readonly<{
   tags: ReadonlyArray<Tag>;
   cardDiscount?: OneOrArray<CardDiscount>;
   victoryPoints?: number | 'special' | CountableVictoryPoints,
+  /** What a bespoke ('special') VP icon can ever score — see `victoryPointsIcon.ts`. */
+  victoryPointsSign?: VictoryPointsSign,
   cost?: number;
   type: CardType;
   requirements?: ReadonlyArray<CardRequirementDescriptor>;

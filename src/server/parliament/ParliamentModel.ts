@@ -17,6 +17,7 @@ import {PARTY_EFFECT_DELEGATES, REDUX_PARTIES, ReduxParty, ResolutionInstanceId}
 import {Delegate, Parliament, PARTY_ACTION_USES_PER_GENERATION, Slot} from './Parliament';
 import {PARTY_EFFECTS} from './parties/PartyEffects';
 import {SerializedEnactOutcome, SerializedPhaseSummary} from './SerializedParliament';
+import {declaredCountIds, resolutionCount} from './resolutions/ResolutionCounts';
 
 function colorOf(game: IGame, delegate: Delegate): Color | 'neutral' {
   return delegate === 'NEUTRAL' ? 'neutral' : game.getPlayerById(delegate).color;
@@ -162,7 +163,7 @@ function playerModel(parliament: Parliament, player: IPlayer): ParliamentPlayerM
       partyActionUses[party] = uses;
     }
   }
-  return {
+  const model: ParliamentPlayerModel = {
     color: player.color,
     participates,
     lobby: parliament.lobby.has(player.id),
@@ -175,6 +176,14 @@ function playerModel(parliament: Parliament, player: IPlayer): ParliamentPlayerM
     partyActionUses,
     resolutionActionUses: parliament.resolutionActionUsesOf(player),
   };
+  // The counted terms of the catalog's effects, read from the seat's tableau
+  // by the ONE shared predicate — every surface computes the seat's number
+  // from these (never from a tag count of its own).
+  const countIds = participates ? declaredCountIds(parliament.catalog) : [];
+  if (countIds.length > 0) {
+    model.counts = countIds.map((id) => resolutionCount(player, id));
+  }
+  return model;
 }
 
 /** What ONE more delegate of the viewer would do on each slot — a pure re-run of the leader / winner rules on a copy. */
@@ -280,6 +289,7 @@ function summaryModel(game: IGame, parliament: Parliament, summary: SerializedPh
       votes: summary.winner.votes,
       player: summary.winner.player === undefined ? undefined : colorOf(game, summary.winner.player),
       tieBreak: summary.winner.tieBreak,
+      ...(summary.winner.slot === undefined ? {} : {slot: summary.winner.slot}),
     },
     support: summary.support.map((entry) => ({party: entry.party as ReduxParty, gained: entry.gained, total: entry.total, reason: entry.reason})),
     enacted: enactedModel(parliament, summary.enacted),

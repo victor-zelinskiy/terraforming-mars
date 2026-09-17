@@ -633,6 +633,8 @@
     &__deck-top { background: url('./assets/resources/card.webp') center / cover no-repeat; box-shadow: inset 0 0 0 .04rem rgba(165, 195, 225, 0.32), 0 .05rem .16rem rgba(0, 0, 0, 0.45); }
     /* A slot whose card is still on its way from the deck: the face waits under its proxy. */
     &__card--dealing .pcard { visibility: hidden; }
+    /* The enacted face waits until the card has moved in from its voting slot (the results scene). */
+    &__gov-card--awaiting .pcard { visibility: hidden; }
     &__seat-ident { display: inline-flex; align-items: center; gap: .3rem; min-width: 0; font-size: .7rem; font-weight: 600; }
     &__seat-name { max-width: 4.4rem; overflow: hidden; text-overflow: ellipsis; }
     /* The cap is for free PLAYER names; the neutral supply's word is fixed and never cut
@@ -1100,6 +1102,21 @@
     overflow: hidden;
     box-shadow: 0 .5rem 1.4rem rgba(0, 0, 0, 0.55), inset 0 0 0 .06rem rgba(165, 195, 225, 0.32);
     .con-parl__cardback { position: absolute; inset: 0; background: url('./assets/resources/card.webp') center / cover no-repeat; }
+}
+/* THE ENACTED CARD moving from its voting slot to the government: its own
+   face (px-designed, zoomed to the proxy's box), the card's own frame and
+   shadow — no second rim. */
+.con-parl__flight--face {
+    overflow: visible;
+    border-radius: 0;
+    box-shadow: none;
+    .con-parl__flight-face {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 320px;
+        height: 460px;
+    }
 }
 
 /* THE INFO SURFACE'S CROSSFADE — a body enters over the one leaving, both absolute. */
@@ -2641,9 +2658,39 @@ html.con-profile-tv .con-zoom__flip-pos b { font-size: 1.1rem; }
         background-position: center;
     }
     &__inf { background-image: url(./assets/misc/influence.png); }
-    &__unit--prod { box-shadow: inset 0 0 0 .08rem #8a6a35; border-radius: .16rem; background-color: rgba(120, 90, 40, 0.35); }
+    /* PRODUCTION — the resource sprite SEATED in the printed brown production
+       plate (the transfer chip's own language), so «+4 production» never reads
+       as «+4 M€». */
+    &__unit--prod {
+        border-radius: .2rem;
+        background-color: #6f4725;
+        background-size: 70% 70%;
+        box-shadow:
+            inset 0 0 0 .07rem rgba(214, 158, 96, 0.78),
+            inset 0 .12rem .2rem rgba(255, 224, 180, 0.22),
+            0 .05rem .14rem rgba(0, 0, 0, 0.5);
+    }
     &__slash { font-size: 1rem; font-weight: 700; color: fade(@con-text, 70%); margin: 0 .05rem; }
     &__cap { font-size: .66rem; color: fade(@con-text, 72%); margin-left: .15rem; }
+    /* A COUNTED term's object — the face's own glyph (a card with a tag and a VP plate), sized like the icons beside it. */
+    &__glyph { --pvpcard-size: 1.12rem; margin-right: .06rem; }
+    &__plus { font-size: .92rem; font-weight: 700; color: fade(@con-text, 70%); margin: 0 .06rem; line-height: 1; }
+    /* The cap BIT: «+5 · макс.» — part of the number, gold like the limit it names. */
+    &__max {
+        align-self: center;
+        margin-left: .22rem;
+        padding: .12rem .3rem .1rem;
+        border-radius: .3rem;
+        font-style: normal;
+        font-size: .5rem;
+        font-weight: 700;
+        letter-spacing: .1em;
+        text-transform: uppercase;
+        line-height: 1;
+        color: fade(@con-parl-gold, 98%);
+        background: fade(@con-parl-gold, 16%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-parl-gold, 55%);
+    }
     &__who {
         display: inline-flex;
         align-items: center;
@@ -2693,6 +2740,8 @@ html.con-profile-tv .con-zoom__flip-pos b { font-size: 1.1rem; }
     &__out b { font-size: 1.36rem; font-weight: 700; color: @con-parl-mint; }
     &__reading--forecast &__out b { color: fade(@con-parl-gold, 96%); }
     &__in &__inf, &__out &__unit { width: 1.3rem; height: 1.3rem; }
+    &__in &__glyph { --pvpcard-size: 1.3rem; }
+    &__in &__plus { font-size: 1.05rem; margin: 0 .12rem; }
     &__arrow { font-size: 1.1rem; color: fade(@con-text, 62%); line-height: 1; }
     &__caption {
         grid-column: 1 / -1;
@@ -2721,6 +2770,8 @@ html.con-profile-tv .con-zoom__flip-pos b { font-size: 1.1rem; }
         .con-iyield__in b { font-size: 1.05rem; }
         .con-iyield__out b { font-size: 1.12rem; }
         .con-iyield__in .con-iyield__inf, .con-iyield__out .con-iyield__unit { width: 1.08rem; height: 1.08rem; }
+        .con-iyield__glyph { --pvpcard-size: .95rem; }
+        .con-iyield__in .con-iyield__glyph { --pvpcard-size: 1.08rem; }
         .con-iyield__caption { font-size: .5rem; }
         .con-iyield__who { font-size: .5rem; }
     }
@@ -2733,6 +2784,9 @@ html.con-profile-tv .con-zoom__flip-pos b { font-size: 1.1rem; }
         .con-iyield__in b { font-size: 1.9rem; }
         .con-iyield__out b { font-size: 2.05rem; }
         .con-iyield__in .con-iyield__inf, .con-iyield__out .con-iyield__unit { width: 1.9rem; height: 1.9rem; }
+        .con-iyield__glyph { --pvpcard-size: 1.45rem; }
+        .con-iyield__in .con-iyield__glyph { --pvpcard-size: 1.9rem; }
+        .con-iyield__max { font-size: .62rem; }
         .con-iyield__arrow { font-size: 1.5rem; }
         .con-iyield__caption { font-size: .64rem; }
         .con-iyield__who { font-size: .62rem; }
@@ -2740,6 +2794,28 @@ html.con-profile-tv .con-zoom__flip-pos b { font-size: 1.1rem; }
 }
 /* The dock's yield sits under the source face, as wide as the face. */
 .con-task__source-yield { margin-top: .1rem; }
+
+/* HANDHELD — a vote block that carries the viewer's own readings gives them
+   the room: the formula graphic steps aside (the selected card right above
+   prints the very same graphic at reading size), the words take the block's
+   width, and the estimate and the «if you win» forecast stand SIDE BY SIDE
+   in tighter plates. Stacked under a narrow text column they overflowed the
+   Deck's info height and cut the forecast's caption off (measured: 172 px of
+   content in a 149 px body, Aquifer and Architecture Award alike). */
+html.con-profile-handheld .con-parl__info-own--yields {
+    .con-parl__info-mech { display: none; }
+    .con-iyield__readings { flex-wrap: nowrap; gap: .3rem; }
+    .con-iyield__reading { padding: .14rem .28rem .12rem; column-gap: .1rem; }
+    .con-iyield__in, .con-iyield__out { gap: .1rem; }
+    .con-iyield__in b { font-size: .9rem; }
+    .con-iyield__out b { font-size: .95rem; }
+    .con-iyield__in .con-iyield__inf, .con-iyield__out .con-iyield__unit { width: .9rem; height: .9rem; }
+    .con-iyield__in .con-iyield__glyph { --pvpcard-size: .9rem; }
+    .con-iyield__plus { margin: 0; }
+    .con-iyield__arrow { font-size: .85rem; }
+    .con-iyield__max { font-size: .42rem; padding: .1rem .2rem .08rem; margin-left: .1rem; }
+    .con-iyield__caption { font-size: .46rem; max-width: 8.2rem; }
+}
 
 /* ── The INFLUENCE badge in the Parliament's own chrome (the Agenda readout)
    and the yield blocks the workspace hosts. ── */
@@ -2930,6 +3006,32 @@ html.con-profile-handheld .con-parl__enact-hero { gap: .5rem; padding: 0 .2rem; 
     }
     &__texts { display: flex; flex-direction: column; gap: .3rem; max-width: 34rem; p { margin: 0; font-size: .8rem; line-height: 1.3; } }
     &__texts--winner { color: fade(@con-parl-gold, 96%); }
+    /* the counted term: every seat's tableau of real cards, each with its verdict */
+    &__tableaus { display: flex; flex-direction: column; align-items: stretch; gap: .45rem; min-width: 0; align-self: stretch; }
+    &__tableau {
+        display: flex; flex-direction: column; gap: .35rem;
+        padding: .35rem .6rem .45rem .45rem; border-radius: .6rem;
+        background: rgba(255, 255, 255, 0.03);
+        box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.07);
+        &--viewer { background: rgba(24, 38, 54, 0.7); box-shadow: inset 0 0 0 .07rem fade(@con-cyan, 55%); }
+    }
+    &__tableau-who { display: inline-flex; align-items: center; gap: .4rem; b { font-size: 1.05rem; } }
+    &__tableau-glyph { --pvpcard-size: 1.15rem; }
+    &__tableau-cards { display: flex; flex-wrap: wrap; gap: .45rem .55rem; }
+    &__tcard {
+        display: flex; flex-direction: column; align-items: center; gap: .2rem;
+        padding: .2rem .25rem .25rem; border-radius: .45rem;
+        box-shadow: inset 0 0 0 .05rem fade(@con-amber, 40%);
+        &--counted { box-shadow: inset 0 0 0 .08rem fade(@con-parl-mint, 70%); }
+    }
+    &__tcard-face .pcard { zoom: calc(0.3 * var(--con-ui-scale, 1)); }
+    &__tcard-verdict {
+        max-width: 6.2rem; text-align: center;
+        font-size: .54rem; line-height: 1.15; letter-spacing: .04em;
+        color: fade(@con-amber, 92%);
+    }
+    &__tcard--counted &__tcard-verdict { color: fade(@con-parl-mint, 96%); }
+    &__quest { align-self: stretch; max-width: 34rem; }
 
     /* 4. the shared picker */
     &__picker { display: flex; align-items: flex-start; gap: 1.2rem; }

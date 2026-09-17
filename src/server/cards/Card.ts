@@ -12,6 +12,7 @@ import {GetVictoryPointsContext, ICard} from './ICard';
 import * as DynamicVictoryPoints from './render/DynamicVictoryPoints';
 import {CardRenderItemType} from '../../common/cards/render/CardRenderItemType';
 import {CountableVictoryPoints} from '../../common/cards/CountableVictoryPoints';
+import {VictoryPointsSign} from '../../common/cards/victoryPointsIcon';
 import {IProjectCard} from './IProjectCard';
 import {MoonExpansion} from '../moon/MoonExpansion';
 import {PlayerInput} from '../PlayerInput';
@@ -70,6 +71,13 @@ type SharedProperties = {
 
   tr?: TRSource,
   victoryPoints?: number | 'special' | CountableVictoryPoints,
+  /**
+   * What a BESPOKE ('special') VP icon can ever score — declared here, beside
+   * the `getVictoryPoints` override that decides it, because nothing else in
+   * the declaration says it (see `common/cards/victoryPointsIcon.ts`). Only
+   * valid with `victoryPoints: 'special'`.
+   */
+  victoryPointsSign?: VictoryPointsSign,
 }
 
 /* Internal representation of card properties. */
@@ -242,6 +250,9 @@ export abstract class Card implements ICard {
   public get victoryPoints(): number | 'special' | CountableVictoryPoints | undefined {
     return this.properties.victoryPoints;
   }
+  public get victoryPointsSign(): VictoryPointsSign | undefined {
+    return this.properties.victoryPointsSign;
+  }
   public get tilesBuilt(): ReadonlyArray<TileType> {
     return this.properties.tilesBuilt;
   }
@@ -350,6 +361,9 @@ export abstract class Card implements ICard {
 
   private static autopopulateMetadataVictoryPoints(properties: StaticCardProperties) {
     const vps = properties.victoryPoints;
+    if (properties.victoryPointsSign !== undefined && vps !== 'special') {
+      throw new Error('victoryPointsSign is only declared by a card whose victoryPoints is "special"');
+    }
     if (vps === undefined) {
       return;
     }

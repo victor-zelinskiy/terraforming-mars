@@ -26,6 +26,7 @@ import {SpaceType} from '../../../common/boards/SpaceType';
 import {Board} from '../../boards/Board';
 import {OrOptions} from '../../inputs/OrOptions';
 import {AQUIFER_CONTEST} from './greens/AquiferContest';
+import {ARCHITECTURE_AWARD} from './marsFirst/ArchitectureAward';
 
 /** A DUMMY prints NO effect row: the face states «no effect of its own» as a
  *  quiet caption from the `dummy` flag, never as the card's centrepiece.
@@ -74,7 +75,8 @@ const DUMMIES: ReadonlyArray<DummySpec> = [
   {party: PartyName.GREENS, n: 2, name: 'Greens Motion II', quest: {goal: {kind: 'tag', tag: Tag.PLANT}, count: 2}, questText: 'Play 2 plant tags', copies: 0},
   {party: PartyName.SCIENTISTS, n: 1, name: 'Scientists Motion I', quest: {goal: {kind: 'tag', tag: Tag.SCIENCE}, count: 2}, questText: 'Play 2 science tags'},
   {party: PartyName.SCIENTISTS, n: 2, name: 'Scientists Motion II', quest: {goal: {kind: 'cardsPlayed', cardType: 'active'}, count: 2}, questText: 'Play 2 blue cards'},
-  {party: PartyName.MARS, n: 1, name: 'Mars First Motion I', quest: {goal: {kind: 'tag', tag: Tag.BUILDING}, count: 2}, questText: 'Play 2 building tags'},
+  // Replaced in the deck by Architecture Award (RX02) — kept for older saves only.
+  {party: PartyName.MARS, n: 1, name: 'Mars First Motion I', quest: {goal: {kind: 'tag', tag: Tag.BUILDING}, count: 2}, questText: 'Play 2 building tags', copies: 0},
   {party: PartyName.MARS, n: 2, name: 'Mars First Motion II', quest: {goal: {kind: 'tile', tile: 'city'}, count: 1}, questText: 'Place 1 city tile on Mars'},
   {party: PartyName.INDUSTRIALISTS, n: 1, name: 'Industrialists Motion I', quest: {goal: {kind: 'production', resource: Resource.STEEL}, count: 1}, questText: 'Raise your steel production 1 step'},
   {party: PartyName.INDUSTRIALISTS, n: 2, name: 'Industrialists Motion II', quest: {goal: {kind: 'cardsPlayed', cardType: 'automated'}, count: 2}, questText: 'Play 2 green cards'},
@@ -419,6 +421,7 @@ const DEV_SCIENCE: ResolutionDefinition = {
  */
 export const REDUX_RESOLUTION_CATALOG = new ResolutionCatalog([
   AQUIFER_CONTEST,
+  ARCHITECTURE_AWARD,
   ...DUMMIES.map(dummy),
   TEST_CHOICE,
   DEV_IMMEDIATE,

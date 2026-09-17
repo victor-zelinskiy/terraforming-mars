@@ -2,6 +2,8 @@ import {Color} from '../Color';
 import {SpaceId} from '../Types';
 import {CardName} from '../cards/CardName';
 import {CardResource} from '../CardResource';
+import {Resource} from '../Resource';
+import {ResolutionCountModel} from '../parliament/resolutionCounts';
 import {PartyName} from '../turmoil/PartyName';
 import {Message} from '../logs/Message';
 import {PlayerInputType} from '../input/PlayerInputType';
@@ -71,6 +73,12 @@ export type ParliamentPlayerModel = {
   chairman: boolean;
   agenda: number;
   influence: number;
+  /**
+   * The seat's COUNTS for every counted term a resolution of the catalog
+   * declares (`resolutionCounts.ts`) — the number and the cards, read from
+   * the tableau by the server. Absent for a seat outside the parliament.
+   */
+  counts?: ReadonlyArray<ResolutionCountModel>;
   access: ReadonlyArray<PartyAccessModel>;
   partyActionUses: Partial<Record<PartyName, number>>;
   resolutionActionUses: number;
@@ -135,13 +143,23 @@ export type ParliamentEnactOutcomeModel = {
   step: string;
   /** The scaled effect's id (`InfluenceScaledEffect.id`) when the amount came from influence. */
   effect?: string;
-  kind: 'cardResource' | 'ocean' | 'skipped';
+  kind: 'cardResource' | 'production' | 'ocean' | 'skipped';
   resource?: CardResource;
+  /** `production` (and its skip): the standard resource whose production the effect raises. */
+  production?: Resource;
   amount?: number;
   card?: CardName;
   space?: SpaceId;
   reason?: string;
   influence?: number;
+  /** A counted term (B) at the enactment, and the cards it counted — frozen, never re-read from a later tableau. */
+  count?: number;
+  counted?: ReadonlyArray<CardName>;
+  /** The formula's sum before the cap (above `amount` exactly when the cap bit). */
+  uncapped?: number;
+  /** `production`: the value before and after. */
+  before?: number;
+  after?: number;
 };
 
 export type ParliamentPhaseModel = {
@@ -161,7 +179,8 @@ export type ParliamentPhaseModel = {
 export type ParliamentPhaseSummaryModel = {
   generation: number;
   final: boolean;
-  winner: {instance: ResolutionInstanceId; resolution: ResolutionId; party: ReduxParty; votes: number; player?: Color | 'neutral'; tieBreak?: 'slot-priority' | 'earlier-delegate'};
+  /** `slot` — the voting slot the winner stood in (0 = closest to ENACTED); absent on older saves. */
+  winner: {instance: ResolutionInstanceId; resolution: ResolutionId; party: ReduxParty; votes: number; player?: Color | 'neutral'; tieBreak?: 'slot-priority' | 'earlier-delegate'; slot?: number};
   agenda?: {player: Color; from: number; to: number; bonus?: 'tr' | 'card'};
   /** The enacted resolution's effect as it was ACTUALLY applied, step by step (absent on older saves / no effect). */
   outcomes?: ReadonlyArray<ParliamentEnactOutcomeModel>;

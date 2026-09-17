@@ -33,6 +33,8 @@ export class StJosephOfCupertinoMission extends Card implements IActionCard {
       name: CardName.ST_JOSEPH_OF_CUPERTINO_MISSION,
       cost: 7,
       victoryPoints: 'special',
+      // The bespoke icon's sign (common/cards/victoryPointsIcon.ts): 1 VP per cathedral — never a penalty.
+      victoryPointsSign: 'nonNegative',
 
       metadata: {
 

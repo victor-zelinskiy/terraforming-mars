@@ -2,6 +2,7 @@ import {PlayerId, SpaceId} from '../../common/Types';
 import {PartyName} from '../../common/turmoil/PartyName';
 import {CardName} from '../../common/cards/CardName';
 import {CardResource} from '../../common/CardResource';
+import {Resource} from '../../common/Resource';
 import {BotParliamentMode, ParliamentPhaseStep, QuestDefinition, ResolutionInstanceId} from '../../common/parliament/ParliamentTypes';
 
 /** Bump when the shape changes incompatibly; older saves are refused explicitly. */
@@ -44,8 +45,10 @@ export type SerializedEnactOutcome = {
   step: string;
   /** The scaled effect's id (`InfluenceScaledEffect.id`) when the amount came from influence. */
   effect?: string;
-  kind: 'cardResource' | 'ocean' | 'skipped';
+  kind: 'cardResource' | 'production' | 'ocean' | 'skipped';
   resource?: CardResource;
+  /** `production` (and its skip): the standard resource whose production the effect raises. */
+  production?: Resource;
   amount?: number;
   card?: CardName;
   space?: SpaceId;
@@ -53,12 +56,22 @@ export type SerializedEnactOutcome = {
   reason?: string;
   /** The influence the amount was computed from (a scaled effect). */
   influence?: number;
+  /** A scaled effect with a COUNT term: the counted items at the enactment (B)… */
+  count?: number;
+  /** …and which cards they were — frozen here, never re-read from a later tableau. */
+  counted?: Array<CardName>;
+  /** The formula's sum before the cap (above `amount` exactly when the cap bit). */
+  uncapped?: number;
+  /** `production`: the production value before and after the change. */
+  before?: number;
+  after?: number;
 };
 
 export type SerializedPhaseSummary = {
   generation: number;
   final: boolean;
-  winner: {instance: ResolutionInstanceId; votes: number; player?: SerializedDelegateOwner; tieBreak?: 'slot-priority' | 'earlier-delegate'};
+  /** `slot` — the voting slot (0 = closest to ENACTED) the winner stood in; absent on older saves. */
+  winner: {instance: ResolutionInstanceId; votes: number; player?: SerializedDelegateOwner; tieBreak?: 'slot-priority' | 'earlier-delegate'; slot?: number};
   agenda?: {player: PlayerId; from: number; to: number; bonus?: 'tr' | 'card'};
   /** The enacted resolution's effect, step by step, as it was ACTUALLY applied (absent on older saves and on a resolution with no effect). */
   outcomes?: Array<SerializedEnactOutcome>;

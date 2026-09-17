@@ -5,9 +5,12 @@ import {CardResource} from '@/common/CardResource';
 import {PartyName} from '@/common/turmoil/PartyName';
 import {ParliamentModel, ParliamentPlayerModel} from '@/common/models/ParliamentModel';
 import {IClientResolution} from '@/common/parliament/IClientResolution';
-import {InfluenceScaledEffect, scaledAmount, winnerForecastYield} from '@/common/parliament/influenceScaling';
+import {InfluenceScaledEffect, scaledAmount, uncappedAmount, winnerForecastYield, yieldAtCap, yieldCapped} from '@/common/parliament/influenceScaling';
+import {Resource} from '@/common/Resource';
+import {Tag} from '@/common/cards/Tag';
 import {
-  cardResourcePluralKey, enactedYieldsOf, noRecipientNoteOf, resolvingYieldOf, scaledEffectForCardResource, voteYieldsOf, yieldCaptionOf, yieldIconOf,
+  cardResourcePluralKey, enactedYieldsOf, noRecipientNoteOf, productionResourceLabelKey, resolvingYieldOf, scaledEffectForCardResource, voteYieldsOf,
+  yieldCaptionOf, yieldCountPresentation, yieldIconOf,
 } from '@/client/console/parliament/influenceYieldModel';
 import {getResolution} from '@/client/parliament/ClientParliamentManifest';
 
@@ -115,6 +118,71 @@ describe('influenceYieldModel', () => {
     expect(noRecipientNoteOf(ANIMALS, [{name: CardName.ADVANCED_ECOSYSTEMS}, {name: CardName.TARDIGRADES}])).eq('no eligible card — the animals would be forfeited');
     expect(noRecipientNoteOf({...ANIMALS, unit: {kind: 'stock', resource: 'megacredits' as never}}, []), 'a stock yield always lands').is.undefined;
     expect(cardResourcePluralKey(CardResource.ANIMAL)).eq('animal resource(s)');
+  });
+
+  // ── A COUNTED TERM (Architecture Award: min(5, B + I)) ──
+  const PRODUCTION: InfluenceScaledEffect = {
+    id: 'production', unit: {kind: 'production', resource: Resource.MEGACREDITS}, perInfluence: 1,
+    count: {id: 'buildingCardsWithNonNegativeVp', per: 1}, cap: 5, recipient: 'each',
+  };
+  const counted = {...resolution, id: 'RDX_COUNTED', scaled: [PRODUCTION]};
+  const withCounts = (s: ParliamentPlayerModel, count: number, cards: Array<CardName>): ParliamentPlayerModel =>
+    ({...s, counts: [{id: 'buildingCardsWithNonNegativeVp', count, cards}]});
+
+  it('the shipped catalog declares Architecture Award as a counted term + influence, capped at 5, for every player', () => {
+    const award = getResolution('RDX_MARS_ARCHITECTURE_AWARD');
+    expect(award?.code).eq('RX02');
+    expect(award?.scaled).deep.eq([PRODUCTION]);
+    expect(yieldCountPresentation('buildingCardsWithNonNegativeVp').glyph).deep.eq({kind: 'vp-card', tag: Tag.BUILDING});
+    expect(yieldIconOf(PRODUCTION)).deep.eq({family: 'resource', resource: Resource.MEGACREDITS, production: true});
+    expect(productionResourceLabelKey(Resource.MEGACREDITS)).eq('M€');
+  });
+
+  it('a counted vote reading: the SERVER\'s count + influence, the sum, the cap — and «if enacted now», never a promise', () => {
+    const blue = withCounts(seat('blue' as Color, 4, 2), 2, [CardName.ARTIFICIAL_LAKE, CardName.PHYSICS_COMPLEX]);
+    const yields = voteYieldsOf(counted, model([blue]), 'blue' as Color);
+    expect(yields.map((y) => y.context)).deep.eq(['estimate', 'forecast']);
+    expect(yields[0]).deep.include({influence: 2, count: 2, amount: 4, uncapped: 4});
+    expect(yields[0].counted).deep.eq([CardName.ARTIFICIAL_LAKE, CardName.PHYSICS_COMPLEX]);
+    expect(yieldCaptionOf(yields[0])).deep.eq({key: 'If enacted now'});
+    // Winning: step 5 = influence 3 → 2 + 3 = 5, exactly the maximum.
+    expect(yields[1]).deep.include({influence: 3, count: 2, amount: 5, uncapped: 5, agendaStep: 5});
+    expect(yieldAtCap(yields[0])).is.false;
+    expect(yieldAtCap(yields[1]), 'the forecast reaches the cap').is.true;
+    expect(yieldCapped(yields[1]), '…without passing it').is.false;
+  });
+
+  it('the cap bounds the SUM: 4 cards + 3 influence → +5 (the reading keeps the sum 7); a same-amount forecast is not repeated', () => {
+    const red = withCounts(seat('red' as Color, 5, 3), 4, []);
+    const yields = voteYieldsOf(counted, model([red]), 'red' as Color);
+    expect(yields).has.length(1);
+    expect(yields[0]).deep.include({count: 4, influence: 3, amount: 5, uncapped: 7});
+    expect(yieldCapped(yields[0])).is.true;
+    expect(scaledAmount(PRODUCTION, 3, 4)).eq(5);
+    expect(uncappedAmount(PRODUCTION, 3, 4)).eq(7);
+  });
+
+  it('a counted effect without the seat\'s count reads the formula alone — never an invented zero', () => {
+    const yields = voteYieldsOf(counted, model([seat('blue' as Color, 4, 2)]), 'blue' as Color);
+    expect(yields).deep.eq([{effect: PRODUCTION, context: 'reference'}]);
+  });
+
+  it('an enacted counted effect reads the RECORDED inputs (B, the cards, the sum), never today\'s tableau', () => {
+    const blue = withCounts(seat('blue' as Color, 12, 5), 9, []);
+    const m = model([blue], {
+      lastPhase: {
+        generation: 3, final: false, winner: {instance: 'RDX_COUNTED#0', resolution: 'RDX_COUNTED', party: PartyName.MARS, votes: 1},
+        outcomes: [{
+          player: 'blue' as Color, step: 'production', effect: 'production', kind: 'production', production: Resource.MEGACREDITS,
+          amount: 5, influence: 3, count: 4, counted: [CardName.ARTIFICIAL_LAKE], uncapped: 7, before: 10, after: 15,
+        }],
+        support: [], enacted: {instance: 'RDX_COUNTED#0', resolution: 'RDX_COUNTED', party: PartyName.MARS}, refreshed: [], lobbyRefilled: [],
+      },
+    });
+    const [y] = enactedYieldsOf(counted, m, 'blue' as Color);
+    expect(y).deep.include({context: 'applied', amount: 5, influence: 3, count: 4, uncapped: 7});
+    expect(y.counted).deep.eq([CardName.ARTIFICIAL_LAKE]);
+    expect(yieldCaptionOf(y)).deep.eq({key: 'Received'});
   });
 
   it('a live payout reads the server\'s own amount', () => {

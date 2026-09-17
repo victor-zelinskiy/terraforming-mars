@@ -22,6 +22,8 @@ import {
   fixedYield, InfluenceScaledEffect, InfluenceYield, influenceYield, InfluenceYieldContext, referenceYield, winnerForecastYield,
 } from '@/common/parliament/influenceScaling';
 import {influenceAtAgenda} from '@/common/parliament/ParliamentTypes';
+import {countOf, ResolutionCountId} from '@/common/parliament/resolutionCounts';
+import {Tag} from '@/common/cards/Tag';
 
 /** The icon of the yield's unit — the same CSS families the chips use. */
 export type YieldIcon =
@@ -38,10 +40,38 @@ export function yieldIconOf(effect: InfluenceScaledEffect): YieldIcon {
   }
 }
 
+/**
+ * HOW A COUNTED TERM IS DRAWN AND NAMED — one entry per count id: the glyph of
+ * the counted object (the same render item the card face prints, so the
+ * yield block and the card can never draw two different things) and the i18n
+ * key of its counted name («2 building cards with a VP icon»).
+ */
+export type YieldCountPresentation = {
+  /** The printed object: a card that prints `tag` and a VP icon. */
+  glyph: {kind: 'vp-card', tag: Tag};
+  /** English i18n key `${0} …` with a plural group, resolved against the count. */
+  pluralKey: string;
+  /** English i18n key of the qualification rule (the detailed inspection's sentence). */
+  ruleKey: string;
+};
+
+export function yieldCountPresentation(id: ResolutionCountId): YieldCountPresentation {
+  switch (id) {
+  case 'buildingCardsWithNonNegativeVp':
+    return {
+      glyph: {kind: 'vp-card', tag: Tag.BUILDING},
+      pluralKey: '${0} building card(s) with a VP icon',
+      ruleKey: 'A variable VP icon counts even at 0 VP; a card without a VP icon does not count.',
+    };
+  }
+}
+
 /** The caption under a reading — WHICH question the number answers (English keys; `params` for the step). */
 export function yieldCaptionOf(y: InfluenceYield): {key: string, params?: ReadonlyArray<string>} | undefined {
   switch (y.context) {
-  case 'estimate': return {key: 'By your current influence'};
+  // An effect that COUNTS the tableau is a preliminary reading of two things
+  // that can still change before the enactment: it says so, conditionally.
+  case 'estimate': return y.effect.count !== undefined ? {key: 'If enacted now'} : {key: 'By your current influence'};
   case 'forecast': return y.agendaStep === undefined ? {key: 'If you win the vote'} : {key: 'If you win — Agenda step ${0}', params: [String(y.agendaStep)]};
   case 'resolving': return y.skipped !== undefined ? {key: y.skipped} : {key: 'This payout'};
   case 'applied': return y.skipped !== undefined ? {key: y.skipped} : {key: 'Received'};
@@ -74,12 +104,21 @@ export function voteYieldsOf(resolution: IClientResolution, model: ParliamentMod
       out.push(referenceYield(effect));
       continue;
     }
-    const estimate = influenceYield(effect, 'estimate', seat.influence);
+    // A counted term is the SERVER's count for this seat (number + cards). A
+    // model that does not carry it gives no personal number — never an
+    // invented zero.
+    const count = effect.count === undefined ? undefined : countOf(seat.counts, effect.count.id);
+    if (effect.count !== undefined && count === undefined) {
+      out.push(referenceYield(effect));
+      continue;
+    }
+    const counted = count === undefined ? undefined : {count: count.count, cards: count.cards};
+    const estimate = influenceYield(effect, 'estimate', seat.influence, counted);
     out.push(estimate);
     if (effect.recipient === 'each' || effect.recipient === 'winner') {
       // Every influence beyond the track (cards, colonies) rides along unchanged.
       const bonus = seat.influence - influenceAtAgenda(seat.agenda);
-      const forecast = winnerForecastYield(effect, seat.agenda, bonus);
+      const forecast = winnerForecastYield(effect, seat.agenda, bonus, counted);
       if (forecast.amount !== estimate.amount) {
         out.push(forecast);
       }
@@ -99,10 +138,13 @@ export function enactedYieldsOf(resolution: IClientResolution, model: Parliament
   const outcomes = model?.phase?.outcomes ?? model?.lastPhase?.outcomes ?? [];
   for (const effect of resolution.scaled ?? []) {
     const applied = viewer === undefined ? undefined : outcomes.find((o) => o.player === viewer && o.effect === effect.id);
+    // The RECORDED inputs travel as recorded (B, the counted cards, the sum
+    // before the cap) — the past is never recomputed from today's tableau.
+    const recorded = applied === undefined ? undefined : {count: applied.count, counted: applied.counted, uncapped: applied.uncapped};
     if (applied !== undefined && applied.kind === 'skipped') {
-      out.push({...fixedYield(effect, 'applied', applied.amount ?? 0, applied.influence), skipped: applied.reason ?? 'Skipped'});
+      out.push({...fixedYield(effect, 'applied', applied.amount ?? 0, applied.influence, recorded), skipped: applied.reason ?? 'Skipped'});
     } else if (applied !== undefined && applied.amount !== undefined) {
-      out.push(fixedYield(effect, 'applied', applied.amount, applied.influence));
+      out.push(fixedYield(effect, 'applied', applied.amount, applied.influence, recorded));
     } else {
       out.push(referenceYield(effect));
     }
@@ -118,6 +160,19 @@ export function enactedYieldsOf(resolution: IClientResolution, model: Parliament
 export function resolvingYieldOf(effect: InfluenceScaledEffect, amount: number, model: ParliamentModel | undefined, viewer: Color | undefined): InfluenceYield {
   const seat = seatOf(model, viewer);
   return fixedYield(effect, 'resolving', amount, seat?.influence);
+}
+
+/** The short name of a standard resource's production in a results line («M€ production +4»). */
+export function productionResourceLabelKey(resource: Resource | undefined): string {
+  switch (resource) {
+  case Resource.MEGACREDITS: return 'M€';
+  case Resource.STEEL: return 'Steel';
+  case Resource.TITANIUM: return 'Titanium';
+  case Resource.PLANTS: return 'Plants';
+  case Resource.ENERGY: return 'Energy';
+  case Resource.HEAT: return 'Heat';
+  default: return resource === undefined ? '' : String(resource);
+  }
 }
 
 /** The recorded outcome of `effect` for `player` in a summary, if any. */

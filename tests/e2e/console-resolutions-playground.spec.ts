@@ -35,6 +35,32 @@ const readingsIn = (page: Page, scope: string) => page.evaluate((sel) => {
 }, scope) as Promise<Array<Reading>>;
 
 const heroReadings = (page: Page) => readingsIn(page, '[data-rxpg-yield]');
+
+/** A COUNTED reading: every input the number stands on (the count, the influence, the sum before the cap, the MAX mark). */
+type Counted = {context: string | null, count: string | null, influence: string | null, amount: string | null, uncapped: string | null, max: string | null, skipped: string | null};
+
+const countedIn = (page: Page, scope: string) => page.evaluate((sel) => {
+  return Array.from(document.querySelectorAll<HTMLElement>(`${sel} [data-yield-context]`)).map((el) => ({
+    context: el.getAttribute('data-yield-context'),
+    count: el.getAttribute('data-yield-count'),
+    influence: el.getAttribute('data-yield-influence'),
+    amount: el.getAttribute('data-yield-amount'),
+    uncapped: el.getAttribute('data-yield-uncapped'),
+    max: el.getAttribute('data-yield-max'),
+    skipped: el.getAttribute('data-yield-skipped'),
+  }));
+}, scope) as Promise<Array<Counted>>;
+
+const counted = (context: string, count: number, influence: number, amount: number, uncapped: number, skipped: string | null = null): Counted => ({
+  context, count: String(count), influence: String(influence), amount: String(amount), uncapped: String(uncapped),
+  max: amount >= 5 && skipped === null ? 'true' : null, skipped,
+});
+
+/** Each card of a seat's synthetic tableau with the shared predicate's verdict. */
+const tableauOf = (page: Page, color: string) => page.evaluate((c) => {
+  return Array.from(document.querySelectorAll<HTMLElement>(`[data-rxpg-tableau="${c}"] [data-rxpg-card]`))
+    .map((el) => `${el.getAttribute('data-rxpg-card')}:${el.getAttribute('data-rxpg-counts')}`);
+}, color);
 const seatReadings = (page: Page, color: string) => readingsIn(page, `[data-rxpg-seat="${color}"]`);
 
 const reading = (context: string, influence: number, amount: number, skipped: string | null = null): Reading =>
@@ -189,9 +215,11 @@ for (const preset of PRESETS) {
       await expect(zoom).toHaveCount(0, {timeout: 10_000});
       await expect(page.locator('.cm-stand')).toHaveCount(1);
 
-      // ── ▶: the next catalog entry (a dummy — no scaled part, the instrument says so).
+      // ── ▶ ▶: past the second real resolution (RX02), the next catalog entry is a dummy — no scaled part, the instrument says so.
       await press(page, 'ArrowRight', 400);
-      await expect(page.locator('[data-rxpg-catalog] .con-rxpg__slot').nth(1)).toHaveClass(/con-rxpg__slot--cursor/);
+      await expect(page.locator('[data-rxpg-catalog] .con-rxpg__slot').nth(1)).toHaveAttribute('data-rxpg-code', 'RX02');
+      await press(page, 'ArrowRight', 400);
+      await expect(page.locator('[data-rxpg-catalog] .con-rxpg__slot').nth(2)).toHaveClass(/con-rxpg__slot--cursor/);
       await expect(page.locator('[data-rxpg-yield-none]')).toHaveCount(1);
 
       // No native scrollbar anywhere on the stand (the console rule).
@@ -206,6 +234,114 @@ for (const preset of PRESETS) {
         return out;
       });
       expect(overflow, 'only the stand\'s own scroll area scrolls').toEqual([]);
+    });
+
+    test(`Architecture Award: the counted family — real cards through the shared predicate, the cap on the sum, every seat, the quest (${preset.id})`, async ({page}) => {
+      test.setTimeout(240_000);
+      await page.goto(`/?resolutionsPlayground${preset.query}`);
+      await expect(page.locator('[data-resolutions-playground]')).toHaveCount(1, {timeout: 30_000});
+      // ▶: RX02 — its own art, the counted object drawn as a CARD with a VP plate on the face.
+      await press(page, 'ArrowRight', 500);
+      const slot = page.locator('[data-rxpg-catalog] .con-rxpg__slot').nth(1);
+      await expect(slot).toHaveAttribute('data-rxpg-code', 'RX02');
+      await expect(slot).toHaveClass(/con-rxpg__slot--cursor/);
+      await expect(slot.locator('.pcard')).toHaveClass(/pcard--resolution-art/);
+      await expect(slot.locator('.pcard__mech .pvpcard[data-vp-card-tag="building"]')).toHaveCount(1);
+      await press(page, 'BracketRight', 700);
+      // The inspector's columns name the counted cards for the test player (the rules panel).
+      await expect(page.locator('[data-rxpg-inspect] .con-rxpg__rules')).toContainText(/Учтены сейчас|Counted right now/);
+      await shoot(page, preset.id, '10-award-sizes');
+      await press(page, 'BracketRight', 700);
+
+      // ── The family's opening scenario: below the maximum — A counts Artificial Lake + Domed Crater
+      //    (Biomass Combustors prints a NEGATIVE icon) at influence 2 → «2 + 2 → +4».
+      await expectScenario(page, 'counted-below-cap');
+      expect(await countedIn(page, '[data-rxpg-yield]')).toEqual([counted('estimate', 2, 2, 4, 4)]);
+      expect(await tableauOf(page, 'blue')).toEqual(['Artificial Lake:true', 'Domed Crater:true', 'Biomass Combustors:false']);
+      await expect(page.locator('[data-rxpg-tableau="blue"] [data-rxpg-count]')).toHaveText('2');
+      await expect(page.locator('[data-rxpg-tableau="blue"] [data-rxpg-card="Biomass Combustors"]')).toContainText(/Отрицательный значок ПО|Negative VP icon/);
+      await shoot(page, preset.id, '11-award-below-cap');
+
+      // ── RT: exactly +5 — three counted (Tundra Farming prints VP but no building tag).
+      await press(page, 'Period', 400);
+      await expectScenario(page, 'counted-exact-cap');
+      expect(await countedIn(page, '[data-rxpg-yield]')).toEqual([counted('estimate', 3, 2, 5, 5)]);
+      await expect(page.locator('[data-rxpg-tableau="blue"] [data-rxpg-card="Tundra Farming"]')).toContainText(/Нет метки строительства|No building tag/);
+
+      // ── RT: over the maximum — 4 counted (Physics Complex counts at 0 VP) + influence 3 = 7 → +5, MAX.
+      await press(page, 'Period', 400);
+      await expectScenario(page, 'counted-over-cap');
+      expect(await countedIn(page, '[data-rxpg-yield]')).toEqual([counted('estimate', 4, 3, 5, 7)]);
+      await expect(page.locator('[data-rxpg-yield] .con-iyield__max')).toHaveCount(1);
+      expect(await tableauOf(page, 'blue')).toContain('Physics Complex:true');
+      await shoot(page, preset.id, '12-award-over-cap');
+
+      // ── RT: every seat its own result (recorded): A 1 + 1 → +2 (the winner's step 1 → 2 is a TR step), B 3 + 4 → +5 of 7.
+      await press(page, 'Period', 400);
+      await expectScenario(page, 'counted-seats');
+      expect(await countedIn(page, '[data-rxpg-seat="blue"]')).toEqual([counted('applied', 1, 1, 2, 2)]);
+      expect(await countedIn(page, '[data-rxpg-seat="red"]')).toEqual([counted('applied', 3, 4, 5, 7)]);
+      expect(await tableauOf(page, 'red')).toEqual(['Domed Crater:true', 'Space Elevator:true', 'Capital:true', 'Biomass Combustors:false']);
+      await shoot(page, preset.id, '13-award-seats');
+
+      // ── RT: the winner's Agenda step first — now 2 + 2 → +4; winning (step 5 = influence 3) → 2 + 3 → +5, the maximum.
+      await press(page, 'Period', 400);
+      await expectScenario(page, 'counted-winner-agenda');
+      expect(await countedIn(page, '[data-rxpg-yield]')).toEqual([counted('estimate', 2, 2, 4, 4), counted('forecast', 2, 3, 5, 5)]);
+
+      // ── RT: the recorded result — A received +4; B (the winner, step 1 = influence 1, no counted card) +1.
+      await press(page, 'Period', 400);
+      await expectScenario(page, 'counted-applied');
+      expect(await countedIn(page, '[data-rxpg-yield]')).toEqual([counted('applied', 2, 2, 4, 4)]);
+      expect(await countedIn(page, '[data-rxpg-seat="red"]')).toEqual([counted('applied', 0, 1, 1, 1)]);
+
+      // ── RT ×3: the chairman quest at 0/2, 1/2 and completed (the seat taken).
+      await press(page, 'Period', 400);
+      await expectScenario(page, 'counted-quest-0');
+      await expect(page.locator('[data-rxpg-quest-row="blue"] .con-parl__tick')).toHaveText('0');
+      await press(page, 'Period', 400);
+      await expectScenario(page, 'counted-quest-1');
+      await expect(page.locator('[data-rxpg-quest-row="blue"] .con-parl__tick')).toHaveText('1');
+      await shoot(page, preset.id, '14-award-quest-1');
+      await press(page, 'Period', 400);
+      await expectScenario(page, 'counted-quest-done');
+      await expect(page.locator('[data-rxpg-quest-done]')).toHaveCount(1);
+      await expect(page.locator('[data-rxpg-quest-progress]')).toHaveCount(0);
+
+      // ── RT wraps inside the family: nothing counted, no influence — a NAMED zero, no gain.
+      await press(page, 'Period', 400);
+      await expectScenario(page, 'counted-zero');
+      expect(await countedIn(page, '[data-rxpg-yield]')).toEqual([counted('applied', 0, 0, 0, 0, 'No qualifying cards and no influence')]);
+      await expect(page.locator('[data-rxpg-tableau="blue"] [data-rxpg-card="Mine"]')).toContainText(/Нет значка ПО|No VP icon/);
+      await shoot(page, preset.id, '15-award-zero');
+      // RT: influence alone (a building card without an icon and a negative one count nothing) / cards alone.
+      await press(page, 'Period', 400);
+      await expectScenario(page, 'counted-influence-only');
+      expect(await countedIn(page, '[data-rxpg-yield]')).toEqual([counted('estimate', 0, 2, 2, 2)]);
+      await press(page, 'Period', 400);
+      await expectScenario(page, 'counted-cards-only');
+      expect(await countedIn(page, '[data-rxpg-yield]')).toEqual([counted('estimate', 2, 0, 2, 2), counted('forecast', 2, 1, 3, 3)]);
+
+      // ── View: test player B — ITS own tableau and influence; A (the pad) moves B's influence and the reading follows.
+      await press(page, 'KeyR', 400);
+      await expect(page.locator('[data-rxpg-player="red"]')).toHaveCount(1);
+      expect(await countedIn(page, '[data-rxpg-yield]')).toEqual([counted('estimate', 0, 1, 1, 1)]);
+      await press(page, 'Enter', 400);
+      expect(await countedIn(page, '[data-rxpg-yield]')).toEqual([counted('estimate', 0, 2, 2, 2)]);
+      await expect(page.locator('[data-rxpg-tableau="red"]')).toHaveCount(1);
+
+      // ── X: the REAL fullscreen on RX02 — the footer reads the test player's numbers.
+      await press(page, 'BracketLeft', 500);
+      await press(page, 'BracketLeft', 700);
+      await openZoomViewer(page, 'KeyX');
+      const zoom = page.locator('dialog.con-zoom.con-zoom--parliament');
+      await expect(zoom).toHaveCount(1, {timeout: 10_000});
+      await expect(zoom.locator('.card-zoom-stage .pcard').first()).toHaveClass(/rdx-mars-architecture-award/);
+      await expect.poll(() => countedIn(page, 'dialog.con-zoom [data-zoom-yield]'), {timeout: 10_000}).toEqual([counted('estimate', 0, 2, 2, 2)]);
+      await expect(page.locator('dialog.con-zoom.con-zoom--parliament[open]:not(.con-zoom--flight)')).toHaveCount(1, {timeout: 10_000});
+      await shoot(page, preset.id, '16-award-fullscreen');
+      await press(page, 'Escape', 900);
+      await expect(zoom).toHaveCount(0, {timeout: 10_000});
     });
   });
 }

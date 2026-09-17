@@ -221,13 +221,13 @@ export default defineComponent({
     },
     zoomResolutionAnnotations(): ReadonlyArray<CardAnnotation> {
       const id = this.zoomResolutionId;
-      return id === undefined ? [] : resolutionAnnotations(id);
+      return id === undefined ? [] : resolutionAnnotations(id, this.zoomResolutionYields);
     },
     zoomResolutionTier(): RulesLengthTier | undefined {
       const id = this.zoomResolutionId;
       const party = this.zoomResolutionParty;
       return id === undefined || party === undefined ? undefined :
-        denserRulesTier(rulesLengthTier(resolutionAnnotations(id)), rulesLengthTier(resolutionPartyAnnotations(party)));
+        denserRulesTier(rulesLengthTier(resolutionAnnotations(id, this.zoomResolutionYields)), rulesLengthTier(resolutionPartyAnnotations(party)));
     },
     zoomRulesCardName(): CardName | undefined {
       const name = this.consoleCardZoom.card?.name;

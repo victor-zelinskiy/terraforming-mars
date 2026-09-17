@@ -37,6 +37,7 @@ describe('consoleJournalModel (P28)', () => {
   const milestone = (value: string): LogMessageData => ({type: LogMessageDataType.MILESTONE, value} as unknown as LogMessageData);
   const award = (value: string): LogMessageData => ({type: LogMessageDataType.AWARD, value} as unknown as LogMessageData);
   const colony = (value: string): LogMessageData => ({type: LogMessageDataType.COLONY, value} as unknown as LogMessageData);
+  const resolution = (value: string): LogMessageData => ({type: LogMessageDataType.RESOLUTION, value} as unknown as LogMessageData);
 
   /** The manifest classifier stand-in for the inspect tests. */
   const classify = (name: CardName): JournalInspectKind => {
@@ -106,6 +107,17 @@ describe('consoleJournalModel (P28)', () => {
       ];
       const out = journalInspectTargets(messages, classify);
       expect(out.colonies).to.deep.eq(['Luna', 'Pluto']);
+      expect(out.cards).to.deep.eq([]);
+      expect(hasInspectTarget(out)).to.eq(true);
+    });
+
+    it('collects RESOLUTION tokens (deduped) — an enactment payout line opens its resolution', () => {
+      const messages = [
+        msg([player('red'), resolution('RDX_MARS_ARCHITECTURE_AWARD')]),
+        msg([resolution('RDX_MARS_ARCHITECTURE_AWARD')]),
+      ];
+      const out = journalInspectTargets(messages, classify);
+      expect(out.resolutions).to.deep.eq(['RDX_MARS_ARCHITECTURE_AWARD']);
       expect(out.cards).to.deep.eq([]);
       expect(hasInspectTarget(out)).to.eq(true);
     });

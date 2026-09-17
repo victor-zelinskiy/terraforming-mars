@@ -71,11 +71,21 @@ export class Tags {
     return counts;
   }
 
+  /**
+   * THE TAG-ACTIVITY RULE for played events: an event is face down once
+   * played, so its tags are out of play — except under Odyssey (Pathfinders),
+   * which leaves events face up. Every «is this played card's tag in play?»
+   * question (tag counts, the resolution counts of Turmoil Redux) asks here.
+   */
+  public eventTagsInPlay(): boolean {
+    return this.player.tableau.has(CardName.ODYSSEY);
+  }
+
   /*
    * Get the number of tags this player has.
    */
   public count(tag: Tag, mode: CountingMode = 'default') {
-    const includeEvents = mode === 'raw-underworld' || this.player.tableau.has(CardName.ODYSSEY);
+    const includeEvents = mode === 'raw-underworld' || this.eventTagsInPlay();
     const includeTagSubstitutions = (mode === 'default' || mode === 'milestone');
 
     let tagCount = this.rawCount(tag, includeEvents);
@@ -184,7 +194,7 @@ export class Tags {
    * Tag substitutions are included, and not counted repeatedly.
    */
   public multipleCount(tags: Array<Tag>, mode: MultipleCountMode = 'default'): number {
-    const includeEvents = this.player.tableau.has(CardName.ODYSSEY);
+    const includeEvents = this.eventTagsInPlay();
 
     let tagCount = 0;
     for (const tag of tags) {
@@ -247,7 +257,7 @@ export class Tags {
    */
   public distinctCount(mode: DistinctCountMode, extraTag?: Tag): number {
     const uniqueTags = new Set<Tag>();
-    const playerIsOdyssey = this.player.tableau.has(CardName.ODYSSEY);
+    const playerIsOdyssey = this.eventTagsInPlay();
     let wildTagCount = 0;
 
     for (const card of this.player.tableau) {

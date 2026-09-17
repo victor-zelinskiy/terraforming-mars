@@ -28,6 +28,8 @@ export class SearchForLife extends Card implements IActionCard, IProjectCard {
 
       resourceType: CardResource.SCIENCE,
       victoryPoints: 'special',
+      // The bespoke icon's sign (common/cards/victoryPointsIcon.ts): 3 VP with at least one science resource here, else 0 — never a penalty.
+      victoryPointsSign: 'nonNegative',
 
       requirements: {oxygen: 6, max},
       metadata: {

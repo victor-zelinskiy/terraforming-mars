@@ -26,8 +26,14 @@
         <b class="con-iyield__num">{{ group.effect.perInfluence }}</b>
         <i class="con-iyield__unit" :class="unitClassOf(group.effect)"></i>
         <span class="con-iyield__slash">/</span>
+        <!-- A COUNTED term shares the rate («1 [unit] / [counted card] + [influence]»):
+             the counted object is the card glyph the face prints, never a bare tag. -->
+        <template v-if="countGlyphOf(group.effect) !== undefined && group.effect.count?.per === group.effect.perInfluence">
+          <PremiumVpCardGlyph class="con-iyield__glyph" :tag="countGlyphOf(group.effect)?.tag" />
+          <span class="con-iyield__plus">+</span>
+        </template>
         <i class="con-iyield__inf"></i>
-        <span v-if="group.effect.cap !== undefined" class="con-iyield__cap">≤ {{ group.effect.cap }}</span>
+        <span v-if="group.effect.cap !== undefined" class="con-iyield__cap">{{ capText(group.effect) }}</span>
         <span class="con-iyield__who" :class="{'con-iyield__who--winner': group.effect.recipient === 'winner'}">
           {{ $t(group.effect.recipient === 'winner' ? 'Winner of the vote' : 'For every player') }}
         </span>
@@ -35,15 +41,27 @@
       <div v-if="group.readings.length > 0" class="con-iyield__readings">
         <div v-for="y in group.readings" :key="y.context"
              class="con-iyield__reading"
-             :class="['con-iyield__reading--' + y.context, {'con-iyield__reading--skipped': y.skipped !== undefined}]"
+             :class="['con-iyield__reading--' + y.context, {'con-iyield__reading--skipped': y.skipped !== undefined, 'con-iyield__reading--max': atCap(y)}]"
              :data-yield-context="y.context"
              :data-yield-influence="y.influence"
+             :data-yield-count="y.count"
+             :data-yield-uncapped="y.uncapped"
+             :data-yield-max="atCap(y) ? 'true' : undefined"
              :data-yield-amount="y.amount"
              :data-yield-skipped="y.skipped">
-          <span v-if="y.influence !== undefined" class="con-iyield__in"><i class="con-iyield__inf"></i><b>{{ y.influence }}</b></span>
-          <span v-if="y.influence !== undefined" class="con-iyield__arrow" aria-hidden="true">→</span>
-          <!-- A forfeited payout keeps its SIZE and says it did not land (✕ + struck amount); the caption names why. -->
-          <span class="con-iyield__out" :class="{'con-iyield__out--lost': y.skipped !== undefined && (y.amount ?? 0) > 0}"><b>{{ outText(y) }}</b><i class="con-iyield__unit" :class="unitClassOf(group.effect)"></i></span>
+          <!-- THE INPUTS as one cluster: «[counted card] 2 + [influence] 2» — the number of
+               counted cards is the player's own (the server's count), then the influence. -->
+          <span v-if="y.influence !== undefined || y.count !== undefined" class="con-iyield__in">
+            <template v-if="y.count !== undefined">
+              <PremiumVpCardGlyph class="con-iyield__glyph" :tag="countGlyphOf(group.effect)?.tag" /><b data-yield-in="count">{{ y.count }}</b>
+              <span class="con-iyield__plus" aria-hidden="true">+</span>
+            </template>
+            <template v-if="y.influence !== undefined"><i class="con-iyield__inf"></i><b data-yield-in="influence">{{ y.influence }}</b></template>
+          </span>
+          <span v-if="y.influence !== undefined || y.count !== undefined" class="con-iyield__arrow" aria-hidden="true">→</span>
+          <!-- A forfeited payout keeps its SIZE and says it did not land (✕ + struck amount); the caption names why.
+               A capped sum says MAX beside the amount — the limit is part of the number, never a footnote. -->
+          <span class="con-iyield__out" :class="{'con-iyield__out--lost': y.skipped !== undefined && (y.amount ?? 0) > 0}"><b>{{ outText(y) }}</b><i class="con-iyield__unit" :class="unitClassOf(group.effect)"></i><em v-if="atCap(y)" class="con-iyield__max">{{ $t('Max.') }}</em></span>
           <span v-if="captionOf(y) !== ''" class="con-iyield__caption">{{ captionOf(y) }}</span>
         </div>
       </div>
@@ -54,8 +72,9 @@
 
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
-import {InfluenceScaledEffect, InfluenceYield} from '@/common/parliament/influenceScaling';
-import {yieldCaptionOf, yieldIconOf} from '@/client/console/parliament/influenceYieldModel';
+import {InfluenceScaledEffect, InfluenceYield, yieldAtCap} from '@/common/parliament/influenceScaling';
+import {yieldCaptionOf, yieldCountPresentation, yieldIconOf, YieldCountPresentation} from '@/client/console/parliament/influenceYieldModel';
+import PremiumVpCardGlyph from '@/client/components/premiumCard/PremiumVpCardGlyph.vue';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 
@@ -63,6 +82,7 @@ type Group = {effect: InfluenceScaledEffect, readings: Array<InfluenceYield>};
 
 export default defineComponent({
   name: 'ConsoleInfluenceYield',
+  components: {PremiumVpCardGlyph},
   props: {
     /** The readings to draw — one or more per scaled effect (the model groups them by effect). */
     yields: {type: Array as PropType<ReadonlyArray<InfluenceYield>>, required: true},
@@ -95,6 +115,17 @@ export default defineComponent({
     },
   },
   methods: {
+    /** The counted object's glyph (a card with a tag and a VP icon), undefined for an effect without a count term. */
+    countGlyphOf(effect: InfluenceScaledEffect): YieldCountPresentation['glyph'] | undefined {
+      return effect.count === undefined ? undefined : yieldCountPresentation(effect.count.id).glyph;
+    },
+    /** The reading stands at the effect's maximum — the MAX mark (reached or passed; the uncapped sum rides the data attribute). */
+    atCap(y: InfluenceYield): boolean {
+      return yieldAtCap(y);
+    },
+    capText(effect: InfluenceScaledEffect): string {
+      return effect.cap === undefined ? '' : translateTextWithParams('max ${0}', [String(effect.cap)]);
+    },
     unitClassOf(effect: InfluenceScaledEffect): string {
       const icon = yieldIconOf(effect);
       switch (icon.family) {

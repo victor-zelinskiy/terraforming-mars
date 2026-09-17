@@ -17,6 +17,8 @@ export class UndergroundShelters extends Card implements IProjectCard, IActionCa
       cost: 14,
       tags: [Tag.BUILDING],
       victoryPoints: 'special',
+      // The bespoke icon's sign (common/cards/victoryPointsIcon.ts): 1 VP per sheltered underground token — never a penalty.
+      victoryPointsSign: 'nonNegative',
 
       behavior: {
         underworld: {excavate: 1},

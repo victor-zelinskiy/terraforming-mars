@@ -154,6 +154,8 @@ export class ParliamentPhase {
         votes: verdict.votes,
         player: verdict.player,
         tieBreak: verdict.tieBreak ?? verdict.playerTieBreak,
+        // Where the card physically stood — the results scene moves it from there.
+        slot: verdict.slotIndex,
       },
       support: [],
       enacted: verdict.instance,

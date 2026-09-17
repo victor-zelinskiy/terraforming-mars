@@ -66,6 +66,17 @@ import {Resource} from '../../../src/common/Resource';
 import {ChairmanSeat} from '../../../src/server/parliament/quests/ChairmanSeat';
 import {Birds} from '../../../src/server/cards/base/Birds';
 import {AQUIFER_CONTEST_ID} from '../../../src/server/parliament/resolutions/greens/AquiferContest';
+import {ARCHITECTURE_AWARD_ID} from '../../../src/server/parliament/resolutions/marsFirst/ArchitectureAward';
+import {Parliament} from '../../../src/server/parliament/Parliament';
+import {ArtificialLake} from '../../../src/server/cards/base/ArtificialLake';
+import {DomedCrater} from '../../../src/server/cards/base/DomedCrater';
+import {SpaceElevator} from '../../../src/server/cards/base/SpaceElevator';
+import {SoilFactory} from '../../../src/server/cards/base/SoilFactory';
+import {TropicalResort} from '../../../src/server/cards/base/TropicalResort';
+import {NoctisFarming} from '../../../src/server/cards/base/NoctisFarming';
+import {PhysicsComplex} from '../../../src/server/cards/base/PhysicsComplex';
+import {Mine} from '../../../src/server/cards/base/Mine';
+import {BiomassCombustors} from '../../../src/server/cards/base/BiomassCombustors';
 import {resolutionInstanceId} from '../../../src/common/parliament/ParliamentTypes';
 
 const OUT_DIR = __dirname;
@@ -573,6 +584,114 @@ function write(name: string, game: IGame): void {
     throw new Error('the parliament-recap fixture has no completed political phase');
   }
   write('parliament-recap', game);
+}
+
+/** Seat `id`'s copy #0 in voting slot 0 (it leaves the deck and any other slot). */
+function seatResolutionFirst(parliament: Parliament, id: string): string {
+  const instance = resolutionInstanceId(id, 0);
+  parliament.deck = parliament.deck.filter((i) => i !== instance);
+  parliament.discard = parliament.discard.filter((i) => i !== instance);
+  for (const slot of parliament.slots) {
+    if (slot.instance === instance) {
+      slot.instance = parliament.deck.shift() ?? slot.instance;
+    }
+  }
+  parliament.slots[0].instance = instance;
+  return instance;
+}
+
+// ── parliament-architecture-vote: ARCHITECTURE AWARD (RX02 — a counted term +
+//    influence, max 5) stands in the FIRST voting slot with blue's free
+//    delegate on it. Blue: Agenda step 4 (influence 2; winning → step 5 = 3),
+//    M€ production 3, and a tableau that makes the filter READ — Artificial
+//    Lake counts (building + a positive VP icon), Physics Complex counts too
+//    (a variable icon at 0 VP right now), Mine does not (a building card with
+//    NO VP icon), Biomass Combustors does not (a negative icon): B = 2 →
+//    «2 + 2 → +4» now and «2 + 3 → +5 · max» if blue wins (the forecast
+//    reaches the cap). Red: Agenda step 5 (influence 3), four counted cards
+//    (B 4 + I 3 = 7 → +5 max). ──
+{
+  const [game, p1, p2] = testGame(2, {
+    skipInitialCardSelection: false, coloniesExtension: true, turmoilReduxExpansion: true,
+    startingCorporations: 1,
+  });
+  const wf = p1.getWaitingFor();
+  if (!(wf instanceof SelectInitialCards)) {
+    throw new Error(`expected SelectInitialCards, got ${wf?.constructor.name}`);
+  }
+  answerStartFlow(game, [p1, p2]);
+  const parliament = game.parliament;
+  if (parliament === undefined || parliament.slots.length !== 3) {
+    throw new Error('the parliament-architecture-vote fixture has no voting area');
+  }
+  seatResolutionFirst(parliament, ARCHITECTURE_AWARD_ID);
+  parliament.placeVote(p1, parliament.slots[0], 'lobby');
+  parliament.agenda.set(p1.id, 4);
+  parliament.agenda.set(p2.id, 5);
+  p1.playedCards.push(new ArtificialLake(), new Mine(), new BiomassCombustors(), new PhysicsComplex());
+  p2.playedCards.push(new SpaceElevator(), new SoilFactory(), new TropicalResort(), new NoctisFarming(), new DomedCrater());
+  p1.production.override({megacredits: 3});
+  p2.production.override({megacredits: 1});
+  p1.megaCredits = 40;
+  p2.megaCredits = 30;
+  runAllActions(game);
+  write('parliament-architecture-vote', game);
+}
+
+// ── parliament-architecture-recap: generation 2 has just begun — the political
+//    phase at the end of generation 1 ENACTED Architecture Award (red's
+//    delegate won it: Agenda 4 → 5 = influence 3) and paid every seat by its
+//    own tableau and influence: red B 3 + I 3 = 6 → +5 M€ production, capped
+//    (production 3 → 8); blue B 1 + I 0 → +1 (1 → 2). Red is the VIEWER (the
+//    first seat in generation 2's order — the dev loader opens that seat). The
+//    results scene moves the card from its voting slot into the government and
+//    flies red's production gain from the card to the rail. Both seats answered
+//    research. ──
+{
+  const [game, p1, p2] = testGame(2, {
+    skipInitialCardSelection: false, coloniesExtension: true, turmoilReduxExpansion: true,
+    startingCorporations: 1,
+  });
+  const wf = p1.getWaitingFor();
+  if (!(wf instanceof SelectInitialCards)) {
+    throw new Error(`expected SelectInitialCards, got ${wf?.constructor.name}`);
+  }
+  answerStartFlow(game, [p1, p2]);
+  const parliament = game.parliament;
+  if (parliament === undefined || parliament.slots.length !== 3) {
+    throw new Error('the parliament-architecture-recap fixture has no voting area');
+  }
+  // The card stands in the MIDDLE slot, so its move to the government is a real journey.
+  const award = seatResolutionFirst(parliament, ARCHITECTURE_AWARD_ID);
+  const middle = parliament.slots[1].instance;
+  parliament.slots[1].instance = award;
+  parliament.slots[0].instance = middle;
+  parliament.placeVote(p2, parliament.slots[1], 'lobby');
+  parliament.agenda.set(p2.id, 4);
+  p2.playedCards.push(new ArtificialLake(), new DomedCrater(), new SpaceElevator(), new Mine());
+  p1.playedCards.push(new SoilFactory(), new BiomassCombustors());
+  p2.production.override({megacredits: 3});
+  p1.production.override({megacredits: 1});
+  p1.megaCredits = 40;
+  p2.megaCredits = 30;
+  runAllActions(game);
+  finishGeneration(game);
+  for (const player of [p1, p2]) {
+    const research = player.getWaitingFor();
+    if (research instanceof SelectCard) {
+      player.process({type: 'card', cards: []});
+    }
+  }
+  runAllActions(game);
+  const outcomes = parliament.lastPhase?.outcomes ?? [];
+  const red = outcomes.find((o) => o.player === p2.id);
+  if (parliament.enacted !== award || red?.kind !== 'production' || red.amount !== 5 || red.uncapped !== 6) {
+    throw new Error(`the parliament-architecture-recap fixture expected red's capped +5, got ${JSON.stringify(outcomes)}`);
+  }
+  if (game.playersInGenerationOrder[0].id !== p2.id) {
+    throw new Error('the parliament-architecture-recap fixture expected red to open generation 2 (the viewer seat)');
+  }
+  write('parliament-architecture-recap', game);
 }
 
 // ── parliament-dense: a crowded FIVE-seat Parliament in generation 2 (the

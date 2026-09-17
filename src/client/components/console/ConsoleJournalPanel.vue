@@ -182,6 +182,7 @@ import {createJournalDataSource, JournalDataSource} from '@/client/components/jo
 import {consoleJournalUi, resetConsoleJournalUi} from '@/client/console/consoleJournalState';
 import {consoleFilterOptions, ConsoleFilterOption, hasInspectTarget, JournalInspectKind, JournalInspectTargets, journalInspectTargets, journalNodeMode, stepJournalGeneration} from '@/client/components/console/consoleJournalModel';
 import {openConsoleCardZoom} from '@/client/console/consoleCardZoom';
+import {resolutionZoomEntry} from '@/client/components/card/cardZoomTypes';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {LogMessageType} from '@/common/logs/LogMessageType';
@@ -336,7 +337,7 @@ export default defineComponent({
     focusedTargets(): JournalInspectTargets {
       const node = this.focusedNode;
       if (node === undefined) {
-        return {cards: [], standard: [], hydro: false, milestones: [], awards: [], colonies: [], spaces: []};
+        return {cards: [], standard: [], hydro: false, milestones: [], awards: [], colonies: [], resolutions: [], spaces: []};
       }
       const messages = node.kind === 'group' ? [node.group.header, ...node.group.children] : [node.message];
       return journalInspectTargets(messages, this.classifyToken);
@@ -704,6 +705,14 @@ export default defineComponent({
         // screen) → the inspector rise-from-depth entrance, never a fake
         // lift out of a nonexistent slot.
         openConsoleCardZoom(t.cards.map((name) => ({name} as CardModel)), 0, undefined, undefined, {origin: {kind: 'textual'}});
+        return;
+      }
+      if (t.resolutions.length > 0) {
+        // A Turmoil Redux RESOLUTION named by the entry (an enactment, its
+        // payout): the shared resolution inspector — its face with the code,
+        // its rules, the viewer's own recorded or current reading — rising
+        // from depth (a textual origin, like a card name chip).
+        openConsoleCardZoom(t.resolutions.map((id) => resolutionZoomEntry(id)), 0, undefined, undefined, {origin: {kind: 'textual'}});
         return;
       }
       if (t.standard.length > 0) {

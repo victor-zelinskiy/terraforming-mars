@@ -1,3 +1,4 @@
+import {hasNonNegativeVictoryPointsIcon} from '../../common/cards/victoryPointsIcon';
 import {getAutomaMaxGeneration} from '../../common/automa/AutomaTypes';
 import {AutomaVictoryPoints} from '../../common/game/VictoryPointsBreakdown';
 import {AutomaCorporations} from './corps/AutomaCorporations';
@@ -32,21 +33,14 @@ export class AutomaScoring {
     return Math.max(1, 8 - (normalized - 12));
   }
 
-  /** "Non-negative VP icon": the card prints a VP icon and it is not negative. */
+  /**
+   * "Non-negative VP icon": the card prints a VP icon and it is not negative.
+   * THE shared rule (`common/cards/victoryPointsIcon.ts`) — the same predicate
+   * Turmoil Redux's Architecture Award counts with, so a bespoke penalty icon
+   * (Vermin's «-1 per city») reads as negative on every side.
+   */
   public static hasNonNegativeVpIcon(card: IProjectCard): boolean {
-    const vp = card.victoryPoints;
-    if (vp === undefined) {
-      return false;
-    }
-    if (typeof vp === 'number') {
-      return vp >= 0;
-    }
-    if (vp === 'special') {
-      // Every in-scope 'special' scorer prints a non-negative icon.
-      return true;
-    }
-    // Countable ("1 per 2 microbes", "-1 per city"…): the sign of `each`.
-    return (vp.each ?? 1) >= 0;
+    return hasNonNegativeVictoryPointsIcon(card);
   }
 
   public static automaVictoryPoints(game: IGame): AutomaVictoryPoints {

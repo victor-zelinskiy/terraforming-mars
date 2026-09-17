@@ -174,7 +174,9 @@
                  there and back) — never a copy beside the government. -->
             <Teleport v-if="enactedVm !== undefined" defer to="[data-parl-enact-hero]" :disabled="!enactCarried">
               <div class="con-parl__gov-carry" data-parl-gov-carry>
-                <div class="con-parl__gov-card" :data-zoom-slot="'resolution:' + view.enacted?.resolutionId">
+                <div class="con-parl__gov-card"
+                     :class="{'con-parl__gov-card--awaiting': recapPending.govAwaits !== undefined && recapPending.govAwaits === view.enacted?.instance}"
+                     :data-zoom-slot="'resolution:' + view.enacted?.resolutionId">
                   <premium-card-face :vmOverride="enactedVm" :lightweight="!enactCarried" :inert="true" />
                 </div>
               </div>
@@ -607,7 +609,7 @@
                    only — the reward is the same for every resolution and
                    lives in the government). -->
               <div class="con-parl__info-grid">
-                <div class="con-parl__info-own" :class="{'con-parl__info-own--none': voteInfo.ownMechanics === undefined && voteInfo.ownParts.length === 0}" data-parl-vote-item data-parl-info="own">
+                <div class="con-parl__info-own" :class="{'con-parl__info-own--none': voteInfo.ownMechanics === undefined && voteInfo.ownParts.length === 0, 'con-parl__info-own--yields': voteInfo.yields.length > 0}" data-parl-vote-item data-parl-info="own">
                   <span class="con-parl__info-kicker" data-parl-vote-late>{{ $t('Resolution effect') }}</span>
                   <div class="con-parl__info-own-body">
                     <PremiumMechanicsPanel v-if="voteInfo.ownMechanics !== undefined" class="con-parl__info-mech" :mechanics="voteInfo.ownMechanics" />
@@ -786,8 +788,14 @@
       </div>
       <!-- A RESOLUTION being dealt: the deck's back, born on the pile's top
            card and grown into its slot (the face reveals on the touchdown). -->
-      <div v-for="f in cardFlights" :key="f.id" class="con-parl__flight con-parl__flight--card" :style="{width: f.width + 'px', height: f.height + 'px'}" :ref="(el) => setFlightEl(f.id, el as HTMLElement | null)" :data-parl-flight="f.id" aria-hidden="true">
-        <span class="con-parl__cardback"></span>
+      <div v-for="f in cardFlights" :key="f.id" class="con-parl__flight con-parl__flight--card" :class="{'con-parl__flight--face': f.face !== undefined}" :style="{width: f.width + 'px', height: f.height + 'px'}" :ref="(el) => setFlightEl(f.id, el as HTMLElement | null)" :data-parl-flight="f.id" :data-parl-flight-face="f.face?.name" aria-hidden="true">
+        <span v-if="f.face === undefined" class="con-parl__cardback"></span>
+        <!-- THE ENACTED CARD on its way from the voting area to the government:
+             the ONE visible instance while it moves (its slot is empty, the
+             government's face waits hidden until the touchdown). -->
+        <div v-else class="con-parl__flight-face" :style="{zoom: f.width / 320}">
+          <premium-card-face :vmOverride="f.face" :lightweight="true" :inert="true" />
+        </div>
       </div>
     </Teleport>
     <!-- THE AGENDA MARKER in motion — the Hydronetwork's marker director on the
@@ -813,8 +821,10 @@ import {PARLIAMENT_VOTE_COST, PARTY_EFFECT_DELEGATES as PARTY_EFFECT_THRESHOLD, 
 import {IClientResolution} from '@/common/parliament/IClientResolution';
 import {InfluenceYield} from '@/common/parliament/influenceScaling';
 import {
-  cardResourcePluralKey, noRecipientNoteOf, resolvingYieldOf, scaledEffectForCardResource, voteYieldsOf,
+  cardResourcePluralKey, noRecipientNoteOf, productionResourceLabelKey, resolvingYieldOf, scaledEffectForCardResource, scaledEffectOf, voteYieldsOf,
+  yieldCountPresentation,
 } from '@/client/console/parliament/influenceYieldModel';
+import {runResourceTransfers} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import ConsoleInfluenceYield from '@/client/components/console/parliament/ConsoleInfluenceYield.vue';
 import ConsoleWsHead from '@/client/components/console/foundation/ConsoleWsHead.vue';
 import PlayerCube from '@/client/components/PlayerCube.vue';
@@ -902,6 +912,8 @@ type RecapItem = {
   parties?: ReadonlyArray<ReduxParty>;
   /** The Agenda beat PLAYS the winner's marker along the track. */
   move?: AgendaMove;
+  /** An effect beat: the server's record it reads (a production / stock gain of the viewer flies). */
+  outcome?: ParliamentEnactOutcomeModel;
 };
 
 /** How long a submit may stay unanswered before the stage gives the player back their hands. */
@@ -958,7 +970,7 @@ type VoteSnapshot = {votes: number, mine: number, leader: Color | 'neutral' | un
 
 type FlightSpec = {id: string, color: Color | 'neutral', size: number};
 /** A card back on its way from the deck to a slot — sized to the slot's face (the proxy scales up into it). */
-type CardFlightSpec = {id: string, width: number, height: number};
+type CardFlightSpec = {id: string, width: number, height: number, face?: PremiumCardVM};
 /** One dealt card's flight (the deck's top → its slot). */
 const DEAL_FLIGHT_MS = 560;
 const DEAL_STAGGER_MS = 150;
@@ -1013,11 +1025,18 @@ type RecapPending = {
   freshFaces: Set<string>;
   /** Cards the deck still SHOWS on its pile (dealt in the model, not yet flown). */
   deckPending: number;
+  /** The ENACTED card whose government face waits until it has moved in from its voting slot (its instance). */
+  govAwaits: string | undefined;
+  /** The proxy (flight id) of that card, parked over its former voting slot until the enactment beat. */
+  parked: string | undefined;
 };
 
 function emptyRecapPending(): RecapPending {
-  return {returns: new Map(), support: new Map(), hiddenCubes: new Set(), lobby: new Set(), freshFaces: new Set(), deckPending: 0};
+  return {returns: new Map(), support: new Map(), hiddenCubes: new Set(), lobby: new Set(), freshFaces: new Set(), deckPending: 0, govAwaits: undefined, parked: undefined};
 }
+
+/** The enacted card's move from its voting slot to the government. */
+const ENACT_MOVE_MS = 620;
 
 export default defineComponent({
   name: 'ConsoleParliamentSection',
@@ -1564,7 +1583,7 @@ export default defineComponent({
       // the viewer's own first.
       const outcomes = [...(last.outcomes ?? [])].sort((a, b) => Number(b.player === this.viewerColor) - Number(a.player === this.viewerColor));
       for (const outcome of outcomes) {
-        items.push({key: `outcome:${outcome.player}:${outcome.step}`, focus: 'enacted', text: this.outcomeText(outcome)});
+        items.push({key: `outcome:${outcome.player}:${outcome.step}`, focus: 'enacted', text: this.outcomeText(outcome), outcome});
       }
       const gained = last.support.filter((s) => s.gained > 0);
       if (gained.length > 0) {
@@ -2634,6 +2653,29 @@ export default defineComponent({
         return translateTextWithParams('${0} received ${1} ${2} on ${3}', [
           who, String(outcome.amount ?? 0), translateText(cardResourcePluralKey(outcome.resource)), outcome.card === undefined ? '' : translateText(outcome.card),
         ]).trim();
+      case 'production': {
+        // «player1: M€ production +4 (10 → 14) — 2 building cards with a VP
+        // icon + influence 2»: the result first, then what it was computed
+        // from — the recorded inputs, never today's tableau.
+        const amount = String(outcome.amount ?? 0);
+        const before = String(outcome.before ?? '');
+        const after = String(outcome.after ?? '');
+        const unit = translateText(productionResourceLabelKey(outcome.production));
+        const capped = outcome.uncapped !== undefined && outcome.amount !== undefined && outcome.uncapped > outcome.amount;
+        const main = capped ?
+          translateTextWithParams('${0}: ${1} production +${2}, the maximum (${3} → ${4})', [who, unit, amount, before, after]) :
+          translateTextWithParams('${0}: ${1} production +${2} (${3} → ${4})', [who, unit, amount, before, after]);
+        const inputs: Array<string> = [];
+        const last = this.model?.lastPhase;
+        const effect = last === undefined || outcome.effect === undefined ? undefined : scaledEffectOf(getResolution(last.enacted.resolution), outcome.effect);
+        if (effect?.count !== undefined && outcome.count !== undefined) {
+          inputs.push(translateTextWithParams(yieldCountPresentation(effect.count.id).pluralKey, [String(outcome.count)]));
+        }
+        if (outcome.influence !== undefined) {
+          inputs.push(translateTextWithParams('influence ${0}', [String(outcome.influence)]));
+        }
+        return inputs.length === 0 ? main : `${main} — ${inputs.join(' + ')}`;
+      }
       case 'ocean':
         return translateTextWithParams('${0} placed an ocean as the winner of the vote', [who]);
       case 'skipped':
@@ -2716,6 +2758,9 @@ export default defineComponent({
       void this.$nextTick(() => {
         this.recapBeat = 0;
       });
+      if (this.recapPending.govAwaits !== undefined) {
+        this.recapTimers.push(window.setTimeout(() => this.parkEnactedCard(), consoleMotionMs(STAGE_UNFOLD_MS)));
+      }
       for (let i = 1; i < items.length; i++) {
         this.recapTimers.push(window.setTimeout(() => {
           this.recapBeat = i;
@@ -2754,6 +2799,11 @@ export default defineComponent({
         pending.freshFaces.add(fresh.instance);
       }
       pending.deckPending = last.refreshed.length;
+      // THE ENACTED CARD moves in from the slot it won in: its government face
+      // waits until the touchdown (an older save without the slot keeps it in place).
+      if (last.winner.slot !== undefined && this.view.enacted?.instance === last.enacted.instance) {
+        pending.govAwaits = last.enacted.instance;
+      }
       return pending;
     },
     finishRecap(): void {
@@ -2785,13 +2835,28 @@ export default defineComponent({
         const r = el?.getBoundingClientRect();
         return r === undefined || r.width < 2 ? undefined : {left: r.left, top: r.top, width: r.width, height: r.height};
       };
+      if (item.outcome !== undefined) {
+        this.playOutcomeFlight(item.outcome);
+        return;
+      }
+      if (item.focus === 'enacted' && this.recapPending.govAwaits !== undefined) {
+        // THE CARD MOVES FIRST: from the voting slot it won in to the
+        // government; its delegates leave it once it has landed there.
+        this.moveEnactedCard(root, () => this.playRecapFlights(item));
+        return;
+      }
       switch (item.focus) {
       case 'enacted': {
         // The enacted card's delegates go home: players' to their reserves, neutral to the supply.
-        const from = rect(root.querySelector('.con-parl__gov-card .pcard') ?? root.querySelector('.con-parl__gov-card'));
+        // Each leaves the card as the CUBE it is — born over the card's centre at the size of the
+        // cube it lands as. The flight scales by the ratio of its two rects, so the card's own rect
+        // as the source drew a card-sized block shrinking all the way home.
+        const card = rect(root.querySelector('.con-parl__gov-card .pcard') ?? root.querySelector('.con-parl__gov-card'));
         let i = 0;
         for (const [owner, count] of Array.from(this.recapPending.returns.entries())) {
           const to = this.placeCubeRect(root, owner === 'neutral' ? '[data-parl-neutral-cube]' : `[data-parl-seat-reserve="${owner}"]`);
+          const from = card === undefined || to === undefined ? undefined :
+            {left: card.left + card.width / 2 - to.width / 2, top: card.top + card.height / 2 - to.height / 2, width: to.width, height: to.height};
           for (let n = 0; n < count; n++) {
             const delay = i * 70;
             i++;
@@ -2896,6 +2961,110 @@ export default defineComponent({
       default:
         return;
       }
+    },
+    /** Where the enacted card physically stood: its former voting slot's face (the voting area when the slot is gone). */
+    formerSlotRect(root: HTMLElement): Rect | undefined {
+      const last = this.model?.lastPhase;
+      const index = last?.winner.slot;
+      const rect = (el: Element | null | undefined): Rect | undefined => {
+        const r = el?.getBoundingClientRect();
+        return r === undefined || r.width < 2 ? undefined : {left: r.left, top: r.top, width: r.width, height: r.height};
+      };
+      const homes = root.querySelectorAll<HTMLElement>('.con-parl__slots .con-parl__slot-home');
+      const home = index === undefined ? undefined : homes[index];
+      return rect(home?.querySelector('.con-parl__card .pcard') ?? home?.querySelector('.con-parl__card')) ??
+        rect(root.querySelector('[data-parl-voting] .con-parl__slots'));
+    },
+    /**
+     * The results scene opens with the ENACTED card still where it won: a
+     * face-up proxy parked over its former voting slot (the government's face
+     * waits hidden), so the enactment beat can MOVE it — one visible card,
+     * never a copy in the government and another in the vote.
+     */
+    parkEnactedCard(): void {
+      const root = this.$refs.rootEl as HTMLElement | undefined;
+      const last = this.model?.lastPhase;
+      if (root === undefined || last === undefined || this.stage !== 'recap' || this.recapPending.govAwaits === undefined || this.recapPending.parked !== undefined) {
+        return;
+      }
+      const from = this.formerSlotRect(root);
+      const face = resolutionPremiumVmById(last.enacted.resolution);
+      if (from === undefined || face === undefined || consoleReducedMotionActive()) {
+        this.recapPending.govAwaits = undefined;
+        return;
+      }
+      const id = `enact${++this.flightSerial}`;
+      this.cardFlights.push({id, width: Math.round(from.width), height: Math.round(from.height), face});
+      this.recapPending.parked = id;
+      void this.$nextTick(() => {
+        const proxy = this.flightEls[id];
+        if (proxy === null || proxy === undefined || this.recapPending.parked !== id) {
+          this.dropFlight(id);
+          this.recapPending.parked = undefined;
+          this.recapPending.govAwaits = undefined;
+          return;
+        }
+        gsap.set(proxy, {x: from.left, y: from.top, scale: 1, transformOrigin: '50% 50%', autoAlpha: 0});
+        gsap.to(proxy, {autoAlpha: 1, duration: motionMs(180) / 1000, ease: 'power1.out'});
+      });
+    },
+    /** The enactment beat: the parked card flies into the government; the face shows on the touchdown, then `then` runs. */
+    moveEnactedCard(root: HTMLElement, then: () => void): void {
+      const id = this.recapPending.parked;
+      const settle = () => {
+        if (id !== undefined) {
+          this.dropFlight(id);
+        }
+        this.recapPending.parked = undefined;
+        this.recapPending.govAwaits = undefined;
+      };
+      const proxy = id === undefined ? undefined : this.flightEls[id];
+      const rect = (el: Element | null | undefined): Rect | undefined => {
+        const r = el?.getBoundingClientRect();
+        return r === undefined || r.width < 2 ? undefined : {left: r.left, top: r.top, width: r.width, height: r.height};
+      };
+      const to = rect(root.querySelector('[data-parl-gov] .con-parl__gov-card .pcard') ?? root.querySelector('[data-parl-gov] .con-parl__gov-card'));
+      const from = this.formerSlotRect(root);
+      if (id === undefined || proxy === null || proxy === undefined || to === undefined || from === undefined || consoleReducedMotionActive()) {
+        settle();
+        then();
+        return;
+      }
+      gsap.killTweensOf(proxy);
+      const handle = runCardDealFlight({
+        proxy,
+        from,
+        to,
+        durationMs: ENACT_MOVE_MS,
+        onLanded: () => {
+          // The face shows under the proxy on the touchdown; the proxy leaves the next frame.
+          this.recapPending.govAwaits = undefined;
+          probeTick(() => {
+            settle();
+            then();
+          });
+        },
+      });
+      this.flightHandles[id] = markRaw(handle);
+    },
+    /**
+     * An effect beat's GAIN for the viewer, in the shared transfer language: a
+     * production (or stock) chip leaves the enacted card's own effect block
+     * and lands on the viewer's resource rail — one chip carrying the whole
+     * amount, the production sprite in its production plate. A skip, a zero,
+     * another seat's gain and a card resource (paid live in its own picker)
+     * fly nothing.
+     */
+    playOutcomeFlight(outcome: ParliamentEnactOutcomeModel): void {
+      const amount = outcome.amount ?? 0;
+      if (outcome.player !== this.viewerColor || amount <= 0 || outcome.kind !== 'production' || outcome.production === undefined) {
+        return;
+      }
+      void runResourceTransfers({
+        specs: [{channel: 'production', resource: outcome.production, amount}],
+        source: {selectors: ['[data-parl-gov] .con-parl__gov-card .pcard__mech', '[data-parl-gov] .con-parl__gov-card']},
+        arrival: 'auto',
+      });
     },
     /** The chairman's delegate leaves the card it was taken from and settles on the seat mark of the ledger. */
     flySeatDelegate(): void {

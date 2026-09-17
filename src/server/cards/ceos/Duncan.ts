@@ -13,6 +13,8 @@ export class Duncan extends CeoCard {
       name: CardName.DUNCAN,
 
       victoryPoints: 'special',
+      // The bespoke icon's sign (common/cards/victoryPointsIcon.ts): 7 - X VP (X = the generation it was used): negative after generation 7.
+      victoryPointsSign: 'either',
 
       metadata: {
         cardNumber: 'L04',

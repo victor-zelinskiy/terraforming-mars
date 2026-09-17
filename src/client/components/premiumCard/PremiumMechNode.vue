@@ -28,6 +28,8 @@
     <span v-else-if="isNomadMarker" class="pcard-cube pcard-cube--nomad">
       <nomad-token :shadow="false" :glow="true" />
     </span>
+    <!-- a card with a tag and a VP icon (Turmoil Redux) — the shared composed glyph -->
+    <PremiumVpCardGlyph v-else-if="isVpCard" class="pcard-ic pcard-ic--vp-card" :tag="vpCardTag" />
     <!-- image icons -->
     <template v-else-if="iconUrl !== undefined">
       <span v-if="digitText !== undefined" class="pcard-mi__digit">{{ digitText }}</span>
@@ -116,6 +118,7 @@ import {translateText} from '@/client/directives/i18n';
 import {Color} from '@/common/Color';
 import PlayerCube from '@/client/components/PlayerCube.vue';
 import NomadToken from '@/client/components/NomadToken.vue';
+import PremiumVpCardGlyph from './PremiumVpCardGlyph.vue';
 
 type CorpBoxLike = {rows: Array<Array<ItemType>>};
 
@@ -126,7 +129,7 @@ type CorpBoxLike = {rows: Array<Array<ItemType>>};
  */
 export default defineComponent({
   name: 'PremiumMechNode',
-  components: {PlayerCube, NomadToken},
+  components: {PlayerCube, NomadToken, PremiumVpCardGlyph},
   props: {
     node: {
       type: [Object, String] as unknown as () => ItemType,
@@ -234,6 +237,12 @@ export default defineComponent({
     /** The Mars Nomads camp marker — the board's own NomadToken. */
     isNomadMarker(): boolean {
       return this.mechIcon?.kind === 'nomad';
+    },
+    isVpCard(): boolean {
+      return this.mechIcon?.kind === 'vpCard';
+    },
+    vpCardTag(): Tag | undefined {
+      return this.mechIcon?.kind === 'vpCard' ? this.mechIcon.tag : undefined;
     },
     isMegacredits(): boolean {
       return this.itemNode?.type === CardRenderItemType.MEGACREDITS;

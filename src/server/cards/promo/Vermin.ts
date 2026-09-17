@@ -30,6 +30,8 @@ export class Vermin extends ActionCard implements IProjectCard, IActionCard {
 
       resourceType: CardResource.ANIMAL,
       victoryPoints: 'special',
+      // The bespoke icon's sign (common/cards/victoryPointsIcon.ts): A PENALTY icon: -1 VP per city once 10 animals are here (0 before that is still a penalty icon).
+      victoryPointsSign: 'negative',
 
       action: {
         or: {

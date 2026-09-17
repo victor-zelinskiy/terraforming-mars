@@ -39,6 +39,8 @@ export type JournalInspectTargets = {
   awards: Array<AwardName>;
   /** Colony references (COLONY tokens) — «Осмотреть» opens the read-only dossier. */
   colonies: Array<ColonyName>;
+  /** Turmoil Redux resolutions (RESOLUTION tokens) — «Осмотреть» opens the resolution's inspector (its code, rules, the viewer's reading). */
+  resolutions: Array<string>;
   /** Board cell references (SPACE tokens) — «Показать» highlights them. */
   spaces: Array<string>;
 };
@@ -53,8 +55,9 @@ export function journalInspectTargets(
   messages: ReadonlyArray<LogMessage>,
   classify: (name: CardName) => JournalInspectKind,
 ): JournalInspectTargets {
-  const out: JournalInspectTargets = {cards: [], standard: [], hydro: false, milestones: [], awards: [], colonies: [], spaces: []};
+  const out: JournalInspectTargets = {cards: [], standard: [], hydro: false, milestones: [], awards: [], colonies: [], resolutions: [], spaces: []};
   const seen = new Set<CardName>();
+  const seenResolutions = new Set<string>();
   const seenMa = new Set<string>();
   const seenColonies = new Set<string>();
   const seenSpaces = new Set<string>();
@@ -100,6 +103,11 @@ export function journalInspectTargets(
           seenColonies.add(datum.value);
           out.colonies.push(datum.value as ColonyName);
         }
+      } else if (datum.type === LogMessageDataType.RESOLUTION) {
+        if (!seenResolutions.has(datum.value)) {
+          seenResolutions.add(datum.value);
+          out.resolutions.push(datum.value);
+        }
       } else if (datum.type === LogMessageDataType.SPACE) {
         if (!seenSpaces.has(datum.value)) {
           seenSpaces.add(datum.value);
@@ -114,7 +122,7 @@ export function journalInspectTargets(
 /** True when «X = Осмотреть» has anything to open for these targets. */
 export function hasInspectTarget(t: JournalInspectTargets): boolean {
   return t.cards.length > 0 || t.standard.length > 0 || t.hydro ||
-    t.milestones.length > 0 || t.awards.length > 0 || t.colonies.length > 0 || t.spaces.length > 0;
+    t.milestones.length > 0 || t.awards.length > 0 || t.colonies.length > 0 || t.resolutions.length > 0 || t.spaces.length > 0;
 }
 
 /** LT/RT generation stepping — clamped to [1, current], never wraps. */

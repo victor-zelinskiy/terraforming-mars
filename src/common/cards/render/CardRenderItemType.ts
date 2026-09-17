@@ -25,6 +25,13 @@ export enum CardRenderItemType {
   INFLUENCE = 'influence',
   /** Turmoil Redux: the WINNER-ONLY part of a resolution's enactment (the star beside the effect). */
   VOTE_WINNER = 'vote-winner',
+  /**
+   * A CARD THAT PRINTS A VP ICON (and, through `secondaryTag`, the tag it
+   * prints): the card cover with the tag's bubble and the VP plate in its
+   * corner — Turmoil Redux's «Building card with a VP icon» (Architecture
+   * Award). Never a bare tag: a tag alone would read as «any tag you have».
+   */
+  VP_CARD = 'vp-card',
   NO_TAGS = 'no_tags',
   EMPTY_TAG = 'empty_tag',
   WILD = 'wild',

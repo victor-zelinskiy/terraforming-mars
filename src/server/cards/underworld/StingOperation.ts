@@ -16,6 +16,8 @@ export class StingOperation extends Card implements IProjectCard {
       tags: [Tag.EARTH],
       cost: 14,
       victoryPoints: 'special',
+      // The bespoke icon's sign (common/cards/victoryPointsIcon.ts): -2 VP for the player whose tableau it lies in.
+      victoryPointsSign: 'negative',
 
       behavior: {
         drawCard: 2,

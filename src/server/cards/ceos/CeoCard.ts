@@ -4,7 +4,7 @@ import {ICeoCard} from './ICeoCard';
 import {IPlayer} from '../../IPlayer';
 import {SerializedCard} from '../../SerializedCard';
 
-type StaticCeoProperties = Pick<StaticCardProperties, 'name' | 'tags' | 'victoryPoints' | 'metadata'>;
+type StaticCeoProperties = Pick<StaticCardProperties, 'name' | 'tags' | 'victoryPoints' | 'victoryPointsSign' | 'metadata'>;
 
 export abstract class CeoCard extends Card implements ICeoCard {
   public isDisabled = false;

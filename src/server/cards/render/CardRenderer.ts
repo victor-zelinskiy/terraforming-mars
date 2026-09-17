@@ -245,6 +245,16 @@ abstract class Builder<T> {
     return this._appendToRow(new CardRenderItem(CardRenderItemType.VOTE_WINNER, -1, {superscript: true, ...options}));
   }
 
+  /**
+   * A card that prints a VP icon — and, when `tag` is given, that tag: the
+   * counted object of «for every Building card with a VP icon you have»
+   * (Turmoil Redux). The glyph is the card cover with the tag's bubble and a
+   * VP plate; which icons qualify (non-negative, variable…) is the rule text's.
+   */
+  public vpCard(tag?: Tag, options?: ItemOptions): this {
+    return this._appendToRow(new CardRenderItem(CardRenderItemType.VP_CARD, 1, {...options, ...(tag === undefined ? {} : {secondaryTag: tag})}));
+  }
+
   public city(options?: ItemOptions) {
     const item = new CardRenderItem(CardRenderItemType.CITY, -1, options);
     item.size = options?.size ?? Size.MEDIUM;

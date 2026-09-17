@@ -8416,7 +8416,8 @@ export default defineComponent({
         return undefined;
       }
       if (isResolutionZoom(card)) {
-        return resolutionAnnotations(card.resolution);
+        // The viewer's own readings ride along: the rules name the counted cards behind their number.
+        return resolutionAnnotations(card.resolution, this.zoomResolutionYields);
       }
       if (isPartyEffectZoom(card)) {
         return partyAnnotations(card.partyEffect, this.game.parliament, this.thisPlayer.color, this.myTurn && this.awaitingInput);
@@ -8473,7 +8474,7 @@ export default defineComponent({
       if (id === undefined || party === undefined) {
         return undefined;
       }
-      return denserRulesTier(rulesLengthTier(resolutionAnnotations(id)), rulesLengthTier(resolutionPartyAnnotations(party)));
+      return denserRulesTier(rulesLengthTier(resolutionAnnotations(id, this.zoomResolutionYields)), rulesLengthTier(resolutionPartyAnnotations(party)));
     },
     /**
      * «Send the delegate» for the card ON SCREEN — the vote mode's own

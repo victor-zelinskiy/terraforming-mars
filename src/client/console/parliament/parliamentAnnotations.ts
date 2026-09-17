@@ -37,6 +37,8 @@ import {getPartyEffect, getResolution} from '@/client/parliament/ClientParliamen
 import {Color} from '@/common/Color';
 import {translateText} from '@/client/directives/i18n';
 import {accessReasonRows} from './consoleParliamentModel';
+import {InfluenceYield} from '@/common/parliament/influenceScaling';
+import {yieldCountPresentation} from './influenceYieldModel';
 
 type RowText = {text: string, params?: ReadonlyArray<string>};
 
@@ -116,7 +118,7 @@ function partyActionStateRow(party: ReduxParty, model: ParliamentModel, viewer: 
  * for every resolution and lives in the government block; the card's
  * standing and the viewer's access live in the footer — neither is here.
  */
-export function resolutionAnnotations(id: ResolutionId): ReadonlyArray<CardAnnotation> {
+export function resolutionAnnotations(id: ResolutionId, yields?: ReadonlyArray<InfluenceYield>): ReadonlyArray<CardAnnotation> {
   const resolution = getResolution(id);
   if (resolution === undefined) {
     return [];
@@ -130,7 +132,16 @@ export function resolutionAnnotations(id: ResolutionId): ReadonlyArray<CardAnnot
     out.push(block('group:immediate', 'immediate', 'Resolution effect', ['No effect of its own'], 0));
   } else {
     if (text.effect !== undefined) {
-      out.push(block('group:immediate', 'immediate', 'When enacted', [text.effect], 0));
+      // A COUNTED term's qualification is the detailed reading of the face's
+      // card glyph (which cards count, and which do not) — one sentence
+      // under the effect, never a rules primer.
+      const rows: Array<string | RowText> = [text.effect];
+      for (const effect of resolution.scaled ?? []) {
+        if (effect.count !== undefined) {
+          rows.push(yieldCountPresentation(effect.count.id).ruleKey);
+        }
+      }
+      out.push(block('group:immediate', 'immediate', 'When enacted', rows, 0));
     }
     if (text.winner !== undefined) {
       out.push(block('group:winner', 'immediate', 'For the winner of the vote', [text.winner], 1));
@@ -141,6 +152,19 @@ export function resolutionAnnotations(id: ResolutionId): ReadonlyArray<CardAnnot
     if (text.action !== undefined) {
       out.push(block('group:action', 'action', 'Resolution action', [text.action], 3));
     }
+  }
+  // FOR YOU — WHERE THE VIEWER'S NUMBER COMES FROM: the counted cards behind
+  // their reading (the footer shows «2 + 2 → +4»; this names the 2). The
+  // cards of the enactment once it is recorded (frozen), today's cards while
+  // the card is up for the vote — each labelled by which one it is.
+  const counted = (yields ?? []).find((y) => y.counted !== undefined && (y.context === 'estimate' || y.context === 'applied'));
+  if (counted?.counted !== undefined) {
+    const names = counted.counted.map((name) => translateText(name));
+    const applied = counted.context === 'applied';
+    const row: RowText = names.length === 0 ?
+      {text: applied ? 'No card was counted at the enactment' : 'No card counts right now'} :
+      {text: applied ? 'Counted at the enactment: ${0}' : 'Counted right now: ${0}', params: [names.join(' · ')]};
+    out.push(block('group:you', 'note', 'For you', [row], 3.5));
   }
   // THE CHAIRMAN QUEST — the printed condition, in words (the card draws it).
   out.push(block('group:quest', 'note', 'Chairman quest', [text.quest], 4));

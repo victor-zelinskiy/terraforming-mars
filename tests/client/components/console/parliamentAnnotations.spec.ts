@@ -3,6 +3,9 @@ import {PartyName} from '@/common/turmoil/PartyName';
 import {ParliamentModel} from '@/common/models/ParliamentModel';
 import {REDUX_PARTIES} from '@/common/parliament/ParliamentTypes';
 import {partyAnnotations, resolutionAnnotations, resolutionPartyAnnotations} from '@/client/console/parliament/parliamentAnnotations';
+import {CardName} from '@/common/cards/CardName';
+import {getResolution} from '@/client/parliament/ClientParliamentManifest';
+import {InfluenceYield} from '@/common/parliament/influenceScaling';
 
 /**
  * THE INSPECTOR'S READING BLOCKS for a parliament subject (Turmoil Redux).
@@ -152,6 +155,28 @@ describe('parliamentAnnotations — the fullscreen inspector\'s reading blocks',
     for (const text of texts([...immediate, ...compound, ...passive, ...action])) {
       expect(text, 'no timing label and no per-generation sentence inside the text').to.not.match(/^When enacted|once per generation/i);
     }
+  });
+
+  it('a COUNTED effect (Architecture Award): the effect, one sentence on which cards count, then — for a viewer — WHICH cards were counted', () => {
+    const id = 'RDX_MARS_ARCHITECTURE_AWARD';
+    const effect = getResolution(id)?.scaled?.[0];
+    if (effect === undefined) {
+      throw new Error('Architecture Award declares no scaled effect');
+    }
+    const bare = resolutionAnnotations(id);
+    expect(bare.map((b) => b.labelKey), 'no viewer → no «for you»').to.deep.eq(['When enacted', 'Chairman quest']);
+    expect(texts([bare[0]])).to.deep.eq([
+      'Every player raises their M€ production by the number of their cards in play with a building tag and a non-negative VP icon, plus their influence. At most +5.',
+      'A variable VP icon counts even at 0 VP; a card without a VP icon does not count.',
+    ]);
+    expect(texts([bare[1]])).to.deep.eq(['Play 2 building tags']);
+    const now: InfluenceYield = {effect, context: 'estimate', influence: 2, amount: 4, count: 2, counted: [CardName.ARTIFICIAL_LAKE, CardName.MINE]};
+    const live = resolutionAnnotations(id, [now, {...now, context: 'forecast'}]);
+    expect(live.map((b) => b.labelKey)).to.deep.eq(['When enacted', 'For you', 'Chairman quest']);
+    expect(live[1].rows[0].text).to.eq('Counted right now: ${0}');
+    expect(live[1].rows[0].params?.[0]).to.contain(' · ');
+    const recorded = resolutionAnnotations(id, [{...now, context: 'applied', counted: []}]);
+    expect(texts([recorded[1]])).to.deep.eq(['No card was counted at the enactment']);
   });
 
   it('an unknown resolution reads nothing (never a blank chip)', () => {

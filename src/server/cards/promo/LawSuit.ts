@@ -24,6 +24,8 @@ export class LawSuit extends Card implements IProjectCard {
       tags: [Tag.EARTH],
       cost: 2,
       victoryPoints: 'special',
+      // The bespoke icon's sign (common/cards/victoryPointsIcon.ts): -1 VP for the player whose tableau it lies in.
+      victoryPointsSign: 'negative',
 
       metadata: {
         // The on-play rule is TWO steps (steal, then the card changes hands) —

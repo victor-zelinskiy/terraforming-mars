@@ -21,6 +21,8 @@ export class TheGrandLunaCapitalGroup extends CorporationCard implements ICorpor
       tags: [Tag.CITY, Tag.MOON],
       startingMegaCredits: 32,
       victoryPoints: 'special',
+      // The bespoke icon's sign (common/cards/victoryPointsIcon.ts): 1 VP per habitat next to your habitats — never a penalty.
+      victoryPointsSign: 'nonNegative',
 
       behavior: {
         stock: {titanium: 1},

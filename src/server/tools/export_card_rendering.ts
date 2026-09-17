@@ -117,6 +117,7 @@ class CardProcessor {
       tags: card.tags,
       cardDiscount: card.cardDiscount,
       victoryPoints: card.victoryPoints,
+      ...(card.victoryPointsSign === undefined ? {} : {victoryPointsSign: card.victoryPointsSign}),
       cost: card.cost,
       type: card.type,
       metadata: metadata,

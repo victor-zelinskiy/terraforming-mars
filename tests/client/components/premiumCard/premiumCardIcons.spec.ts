@@ -60,6 +60,11 @@ describe('premiumCardIcons.mechItemIcon', () => {
     expect(mechItemIcon(itemNode(CardRenderItemType.TRADE_DISCOUNT))).to.deep.equal({kind: 'token'});
   });
 
+  it('a card WITH a VP icon (Turmoil Redux) is the composed glyph carrying the tag it prints — never a bare tag', () => {
+    expect(mechItemIcon({...itemNode(CardRenderItemType.VP_CARD, 1), secondaryTag: 'building'} as ICardRenderItem)).to.deep.equal({kind: 'vpCard', tag: 'building'});
+    expect(mechItemIcon(itemNode(CardRenderItemType.VP_CARD, 1))).to.deep.equal({kind: 'vpCard'});
+  });
+
   it('community reuses the premium player cube (representative colour)', () => {
     expect(mechItemIcon(itemNode(CardRenderItemType.COMMUNITY))).to.deep.equal({kind: 'cube', color: 'orange'});
   });

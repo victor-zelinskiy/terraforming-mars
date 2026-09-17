@@ -41,6 +41,8 @@ export type MechIconSpec =
    *  legacy red «OPG» PNG with a premium-native, language-neutral glyph;
    *  the prose zone states the «once per game» rule in words. */
   | {kind: 'opg'}
+  /** A card that prints `tag` and a VP icon (Turmoil Redux) — `PremiumVpCardGlyph`. */
+  | {kind: 'vpCard', tag?: Tag}
   | {kind: 'glyph', glyph: string};
 
 const RES = 'assets/resources';
@@ -374,6 +376,13 @@ export function mechItemIcon(item: ICardRenderItem): MechIconSpec | undefined {
       return {kind: 'img', url: `${RES}/card.webp`, mod: 'type-green'};
     }
     return {kind: 'img', url: `${RES}/card.webp`};
+  case CardRenderItemType.VP_CARD: {
+    // «A card with a VP icon» (and the tag it prints): the composed glyph —
+    // cover, tag medallion, VP plate — never a bare tag.
+    const secondary = item.secondaryTag;
+    const tag = secondary !== undefined && (Object.values(Tag) as Array<string>).includes(secondary) ? secondary as Tag : undefined;
+    return tag === undefined ? {kind: 'vpCard'} : {kind: 'vpCard', tag};
+  }
   case CardRenderItemType.TRADE_FLEET:
     // Same trade canvas as TRADE, inverted — the fork's fleet marker (mirrors
     // the legacy `filter: invert(1)` on card-resource-trade-fleet).
