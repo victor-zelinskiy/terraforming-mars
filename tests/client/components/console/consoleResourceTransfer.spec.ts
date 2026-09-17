@@ -5,7 +5,7 @@ import {
   runResourceTransfers, abortResourceTransfers, resourceTransferState,
   beginPanelRewardHold, releasePanelRewardHold, clearPanelRewardHold, panelRewardHold,
   heldStock, heldProduction, heldCardResource, settleResourceTransfers,
-  isResourceTransferActive,
+  isResourceTransferActive, isInSurfaceResourceTransferActive,
 } from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
 
@@ -136,7 +136,7 @@ describe('consoleResourceTransfer (run lifecycle + the panel reward hold)', () =
 
         // A wave starts: runActive true (this is the term that short-circuits).
         resourceTransferState.runActive = true;
-        resourceTransferState.flights = [{id: 1, spec: {channel: 'stock', resource: 'megacredits', amount: 1}, fromBoard: false}];
+        resourceTransferState.flights = [{id: 1, spec: {channel: 'stock', resource: 'megacredits', amount: 1}, fromBoard: false, inSurface: false}];
         await nextTick();
         expect(observed[observed.length - 1]).to.be.true;
 
@@ -152,6 +152,20 @@ describe('consoleResourceTransfer (run lifecycle + the panel reward hold)', () =
       } finally {
         stop();
       }
+    });
+
+    // A wave landing INSIDE a standing decision surface (a resolution payout
+    // onto the shared picker) must not raise the BLOCKING hold — that hold
+    // retracts every mandatory surface, the picker under its own chips included.
+    it('an IN-SURFACE wave holds the feed only: blocking stays false, the notification-only predicate carries it', () => {
+      resourceTransferState.surfaceRuns = 1;
+      resourceTransferState.flights = [{id: 7, spec: {channel: 'card-resource', resource: 'animal', amount: 2, targetCard: CardName.FISH}, fromBoard: false, inSurface: true}];
+      expect(isResourceTransferActive(), 'no blocking hold').to.be.false;
+      expect(isInSurfaceResourceTransferActive()).to.be.true;
+      resourceTransferState.surfaceRuns = 0;
+      expect(isInSurfaceResourceTransferActive(), 'the chip still on stage keeps it').to.be.true;
+      resourceTransferState.flights = [];
+      expect(isInSurfaceResourceTransferActive()).to.be.false;
     });
   });
 });

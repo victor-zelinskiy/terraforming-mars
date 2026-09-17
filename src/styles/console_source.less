@@ -72,8 +72,12 @@
        visual vocabulary. */
     &--chip {
         align-self: stretch;
-        .con-src__plate { max-width: 100%; }
-        .con-src__plate-name { font-size: .82rem; }
+        /* The NAME is decision context and is never clamped (the dossier's
+           law): in a narrow panel (the Deck) it wraps under the kind instead
+           of collapsing to «Ко…» — the chip is constant for the whole prompt,
+           so a second line never moves anything while the player points. */
+        .con-src__plate { max-width: 100%; flex-wrap: wrap; row-gap: .12rem; }
+        .con-src__plate-name { font-size: .82rem; white-space: normal; overflow: visible; text-overflow: clip; line-height: 1.2; min-width: 0; }
     }
 
     /* A NON-card source: the same slot, a named plate. */
@@ -103,6 +107,23 @@
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
+    }
+    /* The printed CATALOG CODE («RX01») — the same engraved micro-stamp the
+       face wears in its corner, pressed into the plate after the name. It
+       never shrinks: the name ellipsizes before the code is cut. */
+    &__plate-code {
+        flex-shrink: 0;
+        padding: .06rem .28rem;
+        border-radius: .22rem;
+        background: rgba(0, 0, 0, 0.3);
+        box-shadow: inset 0 0 0 .05rem rgba(217, 184, 120, 0.35);
+        font-family: Ubuntu, sans-serif;
+        font-size: .6rem;
+        font-weight: 500;
+        letter-spacing: .08em;
+        line-height: 1.1;
+        color: rgba(217, 184, 120, 0.85);
+        white-space: nowrap;
     }
 
     /* An Ares hazard is a PENALTY, not a card effect — the plate carries the

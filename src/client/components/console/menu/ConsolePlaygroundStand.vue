@@ -36,7 +36,7 @@
 </template>
 
 <script lang="ts">
-import {defineComponent} from 'vue';
+import {defineComponent, PropType} from 'vue';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {installMenuPad} from '@/client/console/menu/consoleMenuPad';
@@ -69,6 +69,17 @@ export default defineComponent({
       type: String,
       required: false,
       default: 'h2',
+    },
+    /**
+     * An INTERACTIVE showcase (one with a cursor of its own — the resolutions
+     * stand) gets the pad FIRST: the host resolves the slotted component and
+     * the stand forwards every intent to its `handleIntent`; what it declines
+     * (returns false) falls through to the stand's own scroll / sections / B.
+     */
+    padTarget: {
+      type: Function as PropType<(() => {handleIntent?: (intent: GamepadIntent) => boolean} | undefined) | undefined>,
+      required: false,
+      default: undefined,
     },
   },
   emits: ['close'],
@@ -121,6 +132,13 @@ export default defineComponent({
     },
     handleIntent(intent: GamepadIntent): boolean {
       const action = consoleActionOf(intent);
+      // An interactive showcase answers first; B always stays the stand's.
+      if (action !== 'back') {
+        const target = this.padTarget?.();
+        if (target?.handleIntent?.(intent) === true) {
+          return true;
+        }
+      }
       if (action === 'back') {
         this.$emit('close');
         return true;

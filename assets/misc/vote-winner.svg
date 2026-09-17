@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Turmoil Redux — the WINNER-OF-THE-VOTE marker: the physical resolution's
+       red-rimmed gold star, redrawn in the premium face's lacquer language
+       (deep-red rim, gold body, one specular sweep). Same silhouette at 12 px
+       (the card's superscript) and at 48 px (the yield block). -->
+  <defs>
+    <linearGradient id="vw-body" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff2a8"/>
+      <stop offset="0.55" stop-color="#f2c54a"/>
+      <stop offset="1" stop-color="#b8821a"/>
+    </linearGradient>
+    <linearGradient id="vw-rim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#d43b2a"/>
+      <stop offset="1" stop-color="#7a1a10"/>
+    </linearGradient>
+    <linearGradient id="vw-sweep" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0.3" stop-color="#ffffff" stop-opacity="0"/>
+      <stop offset="0.5" stop-color="#ffffff" stop-opacity="0.55"/>
+      <stop offset="0.7" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <polygon points="32,3 40.4,22.2 61,24.3 45.6,38.3 50.2,59 32,48.4 13.8,59 18.4,38.3 3,24.3 23.6,22.2"
+           fill="url(#vw-rim)" stroke="#3a0c06" stroke-width="1.5" stroke-linejoin="round"/>
+  <polygon points="32,10 38.2,24.6 54,26.2 42.2,37 45.7,52.6 32,44.6 18.3,52.6 21.8,37 10,26.2 25.8,24.6"
+           fill="url(#vw-body)" stroke="#8a5a12" stroke-width="0.8" stroke-linejoin="round"/>
+  <polygon points="32,10 38.2,24.6 54,26.2 42.2,37 45.7,52.6 32,44.6 18.3,52.6 21.8,37 10,26.2 25.8,24.6"
+           fill="url(#vw-sweep)"/>
+</svg>

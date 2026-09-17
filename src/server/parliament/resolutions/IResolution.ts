@@ -1,6 +1,8 @@
 import {Expansion, GameModule} from '../../../common/cards/GameModule';
 import {ICardRenderRoot} from '../../../common/cards/render/Types';
-import {QuestDefinition, ReduxParty, ResolutionId} from '../../../common/parliament/ParliamentTypes';
+import {QuestDefinition, ReduxParty, ResolutionCode, ResolutionId} from '../../../common/parliament/ParliamentTypes';
+import {InfluenceScaledEffect} from '../../../common/parliament/influenceScaling';
+import type {SerializedEnactOutcome} from '../SerializedParliament';
 import {ActionEffect} from '../../../common/models/ActionPreviewModel';
 import {Message} from '../../../common/logs/Message';
 import {EventSource} from '../../../common/events/EventSource';
@@ -33,7 +35,18 @@ export type EnactContext = {
    * what an earlier step decided. Keys are the effect's own.
    */
   state: Record<string, unknown>;
+  /**
+   * RECORD what the step actually did (or why it did nothing) — at the moment
+   * of the mutation, from inside the prompt's answer when the step asked. The
+   * driver stamps the player and the step key; the record lands in the phase
+   * summary the client presents (the enactment stage, the results scene) and
+   * is never recomputed from a later state.
+   */
+  report(outcome: EnactOutcome): void;
 };
+
+/** A step's outcome as the step reports it (the driver adds `player` and `step`). */
+export type EnactOutcome = Omit<SerializedEnactOutcome, 'player' | 'step'>;
 
 /**
  * ONE resumable step of an enactment effect. THE CONTRACT: a step either
@@ -92,6 +105,12 @@ export type ResolutionPassive = {
 
 export interface ResolutionDefinition {
   id: ResolutionId;
+  /**
+   * The printed catalog code (`RX##` — see `ResolutionCode`): the face's
+   * corner stamp, the art key and the search key. A REAL resolution declares
+   * one by hand; a dummy / dev example has none. Unique across the catalog.
+   */
+  code?: ResolutionCode;
   module: GameModule;
   party: ReduxParty;
   /** Physical copies in the deck (0 = catalogued but never dealt — test-only). */
@@ -109,6 +128,13 @@ export interface ResolutionDefinition {
     quest: string;
   };
   quest: QuestDefinition;
+  /**
+   * The parts of the enactment that SCALE WITH INFLUENCE. The step that pays
+   * one reads its amount through `scaledAmount(effect, ctx.influence)` — the
+   * same declaration the client estimates from (exported to the manifest),
+   * so a face, a vote surface, a picker and the payout can never disagree.
+   */
+  scaled?: ReadonlyArray<InfluenceScaledEffect>;
   /** A dummy: real party, real votes, real quest — no effect of its own. */
   dummy?: boolean;
   /** Per-player immediate effect (every participating player, generation order). */

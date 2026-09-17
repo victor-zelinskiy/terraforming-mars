@@ -10,16 +10,24 @@ import {Color} from '../../common/Color';
 import {PlayerId} from '../../common/Types';
 import {
   ParliamentModel, ParliamentPhaseModel, ParliamentPhaseSummaryModel, ParliamentPlayerModel, ParliamentSlotModel, PartyAccessModel,
-  PartyActionModel, VoteOptionModel, VoteProjectionModel, ParliamentEnactedModel,
+  PartyActionModel, VoteOptionModel, VoteProjectionModel, ParliamentEnactedModel, ParliamentEnactOutcomeModel,
 } from '../../common/models/ParliamentModel';
 import {PartyName} from '../../common/turmoil/PartyName';
 import {PARTY_EFFECT_DELEGATES, REDUX_PARTIES, ReduxParty, ResolutionInstanceId} from '../../common/parliament/ParliamentTypes';
 import {Delegate, Parliament, PARTY_ACTION_USES_PER_GENERATION, Slot} from './Parliament';
 import {PARTY_EFFECTS} from './parties/PartyEffects';
-import {SerializedPhaseSummary} from './SerializedParliament';
+import {SerializedEnactOutcome, SerializedPhaseSummary} from './SerializedParliament';
 
 function colorOf(game: IGame, delegate: Delegate): Color | 'neutral' {
   return delegate === 'NEUTRAL' ? 'neutral' : game.getPlayerById(delegate).color;
+}
+
+/** The effect's recorded outcomes, players named by colour (the wire never carries a PlayerId). */
+function outcomeModels(game: IGame, outcomes: ReadonlyArray<SerializedEnactOutcome> | undefined): Array<ParliamentEnactOutcomeModel> | undefined {
+  if (outcomes === undefined || outcomes.length === 0) {
+    return undefined;
+  }
+  return outcomes.map((o) => ({...o, player: game.getPlayerById(o.player).color}));
 }
 
 function enactedModel(parliament: Parliament, instance: ResolutionInstanceId): ParliamentEnactedModel {
@@ -96,7 +104,16 @@ export function getParliamentModel(game: IGame, viewer?: IPlayer): ParliamentMod
       phase.winner = {instance: p.summary.winner.instance, player: p.summary.winner.player === undefined ? undefined : colorOf(game, p.summary.winner.player)};
     }
     if (p.effects?.pending !== undefined) {
-      phase.pending = {player: game.getPlayerById(p.effects.pending.player).color, key: p.effects.pending.key};
+      const asked = game.getPlayerById(p.effects.pending.player);
+      phase.pending = {player: asked.color, key: p.effects.pending.key};
+      const input = asked.getWaitingFor()?.type;
+      if (input !== undefined) {
+        phase.pending.input = input;
+      }
+    }
+    const outcomes = outcomeModels(game, p.summary?.outcomes);
+    if (outcomes !== undefined) {
+      phase.outcomes = outcomes;
     }
     model.phase = phase;
   }
@@ -274,6 +291,10 @@ function summaryModel(game: IGame, parliament: Parliament, summary: SerializedPh
   };
   if (summary.agenda !== undefined) {
     model.agenda = {player: game.getPlayerById(summary.agenda.player).color, from: summary.agenda.from, to: summary.agenda.to, bonus: summary.agenda.bonus};
+  }
+  const outcomes = outcomeModels(game, summary.outcomes);
+  if (outcomes !== undefined) {
+    model.outcomes = outcomes;
   }
   if (summary.discardedEnacted !== undefined) {
     model.discardedEnacted = enactedModel(parliament, summary.discardedEnacted);

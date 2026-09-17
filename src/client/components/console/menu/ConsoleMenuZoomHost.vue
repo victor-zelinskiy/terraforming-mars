@@ -39,7 +39,7 @@
     <CardZoomModal v-if="consoleCardZoom.card !== undefined"
                    ref="cardZoom"
                    class="con-zoom"
-                   :class="{'con-zoom--flight': zoomFlight, 'con-zoom--closing': zoomClosing}"
+                   :class="{'con-zoom--flight': zoomFlight, 'con-zoom--closing': zoomClosing, 'con-zoom--parliament': zoomResolutionId !== undefined}"
                    :card="consoleCardZoom.card"
                    :cards="consoleCardZoom.cards.length > 1 ? consoleCardZoom.cards : undefined"
                    :index="consoleCardZoom.index"
@@ -47,13 +47,37 @@
                    :dismissable="!consoleCardZoom.mandatory"
                    :closing="zoomClosing"
                    :consoleMotion="true"
-                   :annotationsSuppressed="zoomHasRules"
+                   :annotationsSuppressed="zoomHasRules || zoomResolutionId !== undefined"
+                   :flankMotion="zoomResolutionId !== undefined"
                    :lore="true"
                    @navigate="onCardZoomNavigate"
                    @close="onCardZoomClosed">
-      <template v-if="zoomHasRules" #side="side">
+      <!-- A RESOLUTION (Turmoil Redux) reads as the in-game scene does: its
+           PARTY left, its own rules right, its standing and the viewer's
+           influence readings in the bar — the same panels, fed the table the
+           opener passed (`consoleCardZoom.parliament`; none → the catalog
+           reading: the formula, no invented number). -->
+      <template v-if="zoomResolutionParty !== undefined" #aside="aside">
+        <div class="con-zoom-asidecol">
+          <ConsoleResolutionAside :party="zoomResolutionParty"
+                                  :parliament="zoomParliament"
+                                  :viewer="zoomViewer"
+                                  :contextKey="zoomResolutionContextKey"
+                                  :tier="zoomResolutionTier"
+                                  :nonce="aside.nonce"
+                                  :closing="aside.closing" />
+        </div>
+      </template>
+      <template v-if="zoomHasRules || zoomResolutionId !== undefined" #side="side">
         <div class="con-zoom-sidecol">
-          <ConsoleCardRulesPanel v-if="zoomRulesCardName !== undefined"
+          <ConsoleCardRulesPanel v-if="zoomResolutionId !== undefined"
+                                 ref="zoomRulesPanel"
+                                 keepOrder
+                                 :tier="zoomResolutionTier"
+                                 :annotationsOverride="zoomResolutionAnnotations"
+                                 :nonce="side.nonce"
+                                 :closing="side.closing" />
+          <ConsoleCardRulesPanel v-else-if="zoomRulesCardName !== undefined"
                                  ref="zoomRulesPanel"
                                  :cardName="zoomRulesCardName"
                                  :nonce="side.nonce"
@@ -65,7 +89,17 @@
           <span class="con-zoom__context-mark" aria-hidden="true">◈</span>
           <span>{{ $t(consoleCardZoom.contextLabel) }}</span>
         </div>
-        <div class="con-zoom__bar">
+        <div class="con-zoom__bar" :class="{'con-zoom__bar--scene': zoomResolutionId !== undefined}">
+          <ConsoleResolutionStatus v-if="zoomResolutionStatus !== undefined"
+                                   class="con-zoom__bar-info"
+                                   :status="zoomResolutionStatus"
+                                   :viewerColor="zoomViewer" />
+          <ConsoleInfluenceYield v-if="zoomResolutionYields.length > 0"
+                                 class="con-zoom__bar-yield"
+                                 :yields="zoomResolutionYields"
+                                 :formula="false"
+                                 size="compact"
+                                 data-zoom-yield />
           <span v-if="zoomSelected" class="con-zoom__state">✓ {{ $t('Card selected') }}</span>
           <button v-if="zoomSelectable" type="button" class="con-zoom__btn con-zoom__btn--select" @click="zoomToggleSelect">
             <GamepadGlyph control="confirm" />
@@ -95,7 +129,19 @@ import CardZoomCard from '@/client/components/card/CardZoomCard.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import ConsoleCardRulesPanel from '@/client/components/console/ConsoleCardRulesPanel.vue';
 import {CardName} from '@/common/cards/CardName';
-import {ZoomCard} from '@/client/components/card/cardZoomTypes';
+import {isResolutionZoom, ZoomCard} from '@/client/components/card/cardZoomTypes';
+import {Color} from '@/common/Color';
+import {ParliamentModel} from '@/common/models/ParliamentModel';
+import {ReduxParty} from '@/common/parliament/ParliamentTypes';
+import {InfluenceYield} from '@/common/parliament/influenceScaling';
+import {getResolution} from '@/client/parliament/ClientParliamentManifest';
+import ConsoleResolutionAside from '@/client/components/console/parliament/ConsoleResolutionAside.vue';
+import ConsoleResolutionStatus from '@/client/components/console/parliament/ConsoleResolutionStatus.vue';
+import ConsoleInfluenceYield from '@/client/components/console/parliament/ConsoleInfluenceYield.vue';
+import {CardAnnotation} from '@/client/components/cardAnnotations/annotationModel';
+import {resolutionAnnotations, resolutionPartyAnnotations} from '@/client/console/parliament/parliamentAnnotations';
+import {resolutionPartyContextKey, resolutionStatusOf, ResolutionStatusVm} from '@/client/console/parliament/resolutionInspectModel';
+import {enactedYieldsOf, voteYieldsOf} from '@/client/console/parliament/influenceYieldModel';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {consoleState} from '@/client/console/consoleRouter';
@@ -103,12 +149,12 @@ import {closeConsoleCardZoom, consoleCardZoom, navigateConsoleCardZoom, ZoomOrig
 import {beginZoomOpen, cancelZoomOpen, playZoomClose, playZoomOpenFlight, releaseZoomMotion, retargetZoomHold, zoomOpenSourceRect} from '@/client/console/consoleZoomMotion';
 import {setMenuZoomIntentHandler} from '@/client/console/menu/consoleMenuZoomBridge';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
-import {cardHasRules} from '@/client/components/console/consoleCardRules';
+import {cardHasRules, denserRulesTier, RulesLengthTier, rulesLengthTier} from '@/client/components/console/consoleCardRules';
 import {motionMs} from '@/client/components/motion/motionTokens';
 
 export default defineComponent({
   name: 'ConsoleMenuZoomHost',
-  components: {CardZoomModal, CardZoomCard, GamepadGlyph, ConsoleCardRulesPanel},
+  components: {CardZoomModal, CardZoomCard, GamepadGlyph, ConsoleCardRulesPanel, ConsoleResolutionAside, ConsoleResolutionStatus, ConsoleInfluenceYield},
   data() {
     return {
       consoleState,
@@ -139,7 +185,49 @@ export default defineComponent({
     },
     zoomHasRules(): boolean {
       const name = this.zoomRulesCardName;
-      return name !== undefined && cardHasRules(name);
+      return name !== undefined && this.zoomResolutionId === undefined && cardHasRules(name);
+    },
+    // ── A RESOLUTION on the stage (Turmoil Redux) — the shell's scene readers,
+    //    over the table the opener passed instead of a live game. ──────────
+    zoomResolutionId(): string | undefined {
+      const card = this.consoleCardZoom.card;
+      return card !== undefined && isResolutionZoom(card) ? card.resolution : undefined;
+    },
+    zoomResolutionParty(): ReduxParty | undefined {
+      const id = this.zoomResolutionId;
+      return id === undefined ? undefined : getResolution(id)?.party;
+    },
+    zoomParliament(): ParliamentModel | undefined {
+      return this.consoleCardZoom.parliament?.model();
+    },
+    zoomViewer(): Color | undefined {
+      return this.consoleCardZoom.parliament?.viewer();
+    },
+    zoomResolutionStatus(): ResolutionStatusVm | undefined {
+      const id = this.zoomResolutionId;
+      return id === undefined ? undefined : resolutionStatusOf(id, this.zoomParliament, this.zoomViewer);
+    },
+    zoomResolutionContextKey(): string | undefined {
+      return resolutionPartyContextKey(this.zoomResolutionStatus);
+    },
+    zoomResolutionYields(): ReadonlyArray<InfluenceYield> {
+      const id = this.zoomResolutionId;
+      const resolution = id === undefined ? undefined : getResolution(id);
+      if (resolution === undefined || (resolution.scaled ?? []).length === 0) {
+        return [];
+      }
+      const model = this.zoomParliament;
+      return model?.enacted?.resolution === id ? enactedYieldsOf(resolution, model, this.zoomViewer) : voteYieldsOf(resolution, model, this.zoomViewer);
+    },
+    zoomResolutionAnnotations(): ReadonlyArray<CardAnnotation> {
+      const id = this.zoomResolutionId;
+      return id === undefined ? [] : resolutionAnnotations(id);
+    },
+    zoomResolutionTier(): RulesLengthTier | undefined {
+      const id = this.zoomResolutionId;
+      const party = this.zoomResolutionParty;
+      return id === undefined || party === undefined ? undefined :
+        denserRulesTier(rulesLengthTier(resolutionAnnotations(id)), rulesLengthTier(resolutionPartyAnnotations(party)));
     },
     zoomRulesCardName(): CardName | undefined {
       const name = this.consoleCardZoom.card?.name;

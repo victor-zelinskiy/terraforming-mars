@@ -67,6 +67,18 @@
       >
         <CardLorePlayground embedded />
       </ConsolePlaygroundStand>
+      <!-- The Turmoil Redux resolutions stand is INTERACTIVE (a catalog cursor,
+           the influence / context / winner controls): it gets the pad first
+           through the stand's `padTarget`, and hands scroll / sections / B back. -->
+      <ConsolePlaygroundStand
+        v-else-if="open === 'redux-resolutions'"
+        ref="stand"
+        titleKey="Redux resolutions showcase"
+        :padTarget="reduxStandTarget"
+        @close="open = undefined"
+      >
+        <ConsoleResolutionsPlayground ref="reduxPg" embedded />
+      </ConsolePlaygroundStand>
     </Teleport>
   </div>
 </template>
@@ -84,13 +96,14 @@ import ConsolePlaygroundStand from '@/client/components/console/menu/ConsolePlay
 const PremiumCardsPlayground = defineAsyncComponent(() => import('@/client/components/premiumCard/PremiumCardsPlayground.vue'));
 const PlayerCubePlayground = defineAsyncComponent(() => import('@/client/components/PlayerCubePlayground.vue'));
 const CardLorePlayground = defineAsyncComponent(() => import('@/client/components/card/CardLorePlayground.vue'));
+const ConsoleResolutionsPlayground = defineAsyncComponent(() => import('@/client/components/console/parliament/ConsoleResolutionsPlayground.vue'));
 
-type StandId = 'premium-cards' | 'player-cubes' | 'card-lore';
+type StandId = 'premium-cards' | 'player-cubes' | 'card-lore' | 'redux-resolutions';
 type StandRow = {id: StandId, labelKey: string, subKey: string, glyph: string};
 
 export default defineComponent({
   name: 'ConsolePlaygroundHub',
-  components: {GamepadGlyph, ConsolePlaygroundStand, PremiumCardsPlayground, PlayerCubePlayground, CardLorePlayground},
+  components: {GamepadGlyph, ConsolePlaygroundStand, PremiumCardsPlayground, PlayerCubePlayground, CardLorePlayground, ConsoleResolutionsPlayground},
   emits: ['close'],
   data() {
     return {
@@ -119,10 +132,20 @@ export default defineComponent({
           subKey: 'Archive-entry text states of the fullscreen viewer',
           glyph: '✎',
         },
+        {
+          id: 'redux-resolutions',
+          labelKey: 'Redux resolutions showcase',
+          subKey: 'Every catalogued resolution: the face, the inspector, the influence-scaled payout and the shared recipient picker',
+          glyph: '⚖',
+        },
       ];
     },
   },
   methods: {
+    /** The resolutions stand's pad target — the slotted showcase (resolved late: it mounts async). */
+    reduxStandTarget(): {handleIntent?: (intent: GamepadIntent) => boolean} | undefined {
+      return this.$refs.reduxPg as {handleIntent?: (intent: GamepadIntent) => boolean} | undefined;
+    },
     openAt(i: number): void {
       this.cursor = i;
       const stand = this.stands[i];

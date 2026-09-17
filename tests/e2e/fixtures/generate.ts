@@ -64,6 +64,9 @@ import {Insulation} from '../../../src/server/cards/base/Insulation';
 import {IndenturedWorkers} from '../../../src/server/cards/base/IndenturedWorkers';
 import {Resource} from '../../../src/common/Resource';
 import {ChairmanSeat} from '../../../src/server/parliament/quests/ChairmanSeat';
+import {Birds} from '../../../src/server/cards/base/Birds';
+import {AQUIFER_CONTEST_ID} from '../../../src/server/parliament/resolutions/greens/AquiferContest';
+import {resolutionInstanceId} from '../../../src/common/parliament/ParliamentTypes';
 
 const OUT_DIR = __dirname;
 
@@ -440,6 +443,96 @@ function write(name: string, game: IGame): void {
   p2.megaCredits = 30;
   runAllActions(game);
   write('parliament-actions', game);
+}
+
+// ── parliament-aquifer-vote: AQUIFER CONTEST (RX01, the first real resolution)
+//    stands in the FIRST voting slot with blue's free delegate already on it
+//    (blue leads → blue would win: the «if you win» forecast has a real step
+//    to name), blue at Agenda step 2 (influence 1; winning → step 3 = 2) and
+//    holding Fish + Pets (two animal holders, so the payout has a real choice
+//    and the VP readings differ per card), red at step 5 (influence 3) holding
+//    Birds. The overview, the vote mode and the fullscreen inspector all read
+//    the influence-scaled payout from this table. ──
+{
+  const [game, p1, p2] = testGame(2, {
+    skipInitialCardSelection: false, coloniesExtension: true, turmoilReduxExpansion: true,
+    startingCorporations: 1,
+  });
+  const wf = p1.getWaitingFor();
+  if (!(wf instanceof SelectInitialCards)) {
+    throw new Error(`expected SelectInitialCards, got ${wf?.constructor.name}`);
+  }
+  answerStartFlow(game, [p1, p2]);
+  const parliament = game.parliament;
+  if (parliament === undefined || parliament.slots.length !== 3) {
+    throw new Error('the parliament-aquifer-vote fixture has no voting area');
+  }
+  const aquifer = resolutionInstanceId(AQUIFER_CONTEST_ID, 0);
+  // Seat Aquifer Contest in slot 0 (its own copy leaves the deck / the other slots).
+  parliament.deck = parliament.deck.filter((i) => i !== aquifer);
+  for (const slot of parliament.slots) {
+    if (slot.instance === aquifer) {
+      slot.instance = parliament.deck.shift() ?? slot.instance;
+    }
+  }
+  parliament.slots[0].instance = aquifer;
+  parliament.placeVote(p1, parliament.slots[0], 'lobby');
+  parliament.agenda.set(p1.id, 2);
+  parliament.agenda.set(p2.id, 5);
+  p1.playedCards.push(new Fish(), new Pets());
+  p2.playedCards.push(new Birds());
+  p1.megaCredits = 40;
+  p2.megaCredits = 30;
+  runAllActions(game);
+  write('parliament-aquifer-vote', game);
+}
+
+// ── parliament-aquifer-enact: the political phase STOPPED INSIDE the payout —
+//    Aquifer Contest won with blue's delegate, blue's Agenda advanced to step 3
+//    (influence 2) and the phase asks BLUE where its 2 animals go (Fish or
+//    Pets); the winner's ocean and red's payout (step 5 = 3 animals onto Birds)
+//    follow. The Parliament's enactment stage, the shared picker with the
+//    resolution source and the standard ocean placement all boot from here. ──
+{
+  const [game, p1, p2] = testGame(2, {
+    skipInitialCardSelection: false, coloniesExtension: true, turmoilReduxExpansion: true,
+    startingCorporations: 1,
+  });
+  const wf = p1.getWaitingFor();
+  if (!(wf instanceof SelectInitialCards)) {
+    throw new Error(`expected SelectInitialCards, got ${wf?.constructor.name}`);
+  }
+  answerStartFlow(game, [p1, p2]);
+  const parliament = game.parliament;
+  if (parliament === undefined || parliament.slots.length !== 3) {
+    throw new Error('the parliament-aquifer-enact fixture has no voting area');
+  }
+  const aquifer = resolutionInstanceId(AQUIFER_CONTEST_ID, 0);
+  parliament.deck = parliament.deck.filter((i) => i !== aquifer);
+  for (const slot of parliament.slots) {
+    if (slot.instance === aquifer) {
+      slot.instance = parliament.deck.shift() ?? slot.instance;
+    }
+  }
+  parliament.slots[0].instance = aquifer;
+  parliament.placeVote(p1, parliament.slots[0], 'lobby');
+  parliament.agenda.set(p1.id, 2);
+  parliament.agenda.set(p2.id, 5);
+  p1.playedCards.push(new Fish(), new Pets());
+  p2.playedCards.push(new Birds());
+  p1.megaCredits = 40;
+  p2.megaCredits = 30;
+  runAllActions(game);
+  // End the generation: production → the political phase → blue's pick stands.
+  for (const player of [p1, p2]) {
+    game.playerHasPassed(player);
+    game.playerIsFinishedTakingActions();
+  }
+  const pick = p1.getWaitingFor();
+  if (!(pick instanceof SelectCard) || pick.resourceGainPrompt?.amount !== 2) {
+    throw new Error(`the parliament-aquifer-enact fixture expected blue's 2-animal pick, got ${pick?.constructor.name}`);
+  }
+  write('parliament-aquifer-enact', game);
 }
 
 // ── parliament-recap: generation 2 has just begun — the FIRST political phase

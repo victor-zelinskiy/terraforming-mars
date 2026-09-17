@@ -16,6 +16,10 @@
     <ConsolePlaygroundStand v-if="showLorePlayground" standalone titleKey="Card lore showcase" sectionSelector=".lore-playground__caption" @close="closePlaygroundDeepLink">
       <CardLorePlayground embedded />
     </ConsolePlaygroundStand>
+    <!-- The Turmoil Redux resolutions stand (?resolutionsPlayground) — interactive, so it takes the pad first (`padTarget`). -->
+    <ConsolePlaygroundStand v-if="showResolutionsPlayground" standalone titleKey="Redux resolutions showcase" :padTarget="resolutionsPlaygroundTarget" @close="closePlaygroundDeepLink">
+      <ConsoleResolutionsPlayground ref="resolutionsPg" embedded />
+    </ConsolePlaygroundStand>
     <!--
       Game-screen atmosphere backdrop. Mounted ONLY on the in-game screen
       (player-home) — start / create / load / the-end
@@ -306,6 +310,7 @@ import {
 // so its charts / tabs only download once a game actually ends.
 const EndgameExperience = defineAsyncComponent(() => import(/* webpackChunkName: "endgame" */ '@/client/components/endgame/EndgameExperience.vue'));
 const PlayerCubePlayground = defineAsyncComponent(() => import(/* webpackChunkName: "player-cube-playground" */ '@/client/components/PlayerCubePlayground.vue'));
+const ConsoleResolutionsPlayground = defineAsyncComponent(() => import(/* webpackChunkName: "resolutions-playground" */ '@/client/components/console/parliament/ConsoleResolutionsPlayground.vue'));
 const PremiumCardsPlayground = defineAsyncComponent(() => import(/* webpackChunkName: "premium-cards-playground" */ '@/client/components/premiumCard/PremiumCardsPlayground.vue'));
 const CardLorePlayground = defineAsyncComponent(() => import(/* webpackChunkName: "card-lore-playground" */ '@/client/components/card/CardLorePlayground.vue'));
 // The console-native stand chassis the deep-linked showcases render inside.
@@ -313,6 +318,7 @@ const CardLorePlayground = defineAsyncComponent(() => import(/* webpackChunkName
 const ConsolePlaygroundStand = defineAsyncComponent(() => import(/* webpackChunkName: "playground-stand" */ '@/client/components/console/menu/ConsolePlaygroundStand.vue'));
 import NotificationLayer from '@/client/components/notifications/NotificationLayer.vue';
 import GamepadLayer from '@/client/components/gamepad/GamepadLayer.vue';
+import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {consoleModeState, requestConsoleFullscreen} from '@/client/console/consoleModeState';
 import {showConsoleAlert} from '@/client/console/consoleSystemAlertState';
 import ConsoleLoadingScreen from '@/client/components/console/ConsoleLoadingScreen.vue';
@@ -452,6 +458,7 @@ export default defineComponent({
     GameExitButton,
     EndgameExperience,
     PlayerCubePlayground,
+    ConsoleResolutionsPlayground,
     PremiumCardsPlayground,
     CardLorePlayground,
     ConsolePlaygroundStand,
@@ -539,10 +546,14 @@ export default defineComponent({
     showLorePlayground(): boolean {
       return window.location.search.includes('lorePlayground');
     },
+    // Dev-only: the Turmoil Redux resolutions showcase (`?resolutionsPlayground`).
+    showResolutionsPlayground(): boolean {
+      return window.location.search.includes('resolutionsPlayground');
+    },
     /** Any deep-linked dev stand is up — the main menu must not mount under it
      *  (single console-intent slot; see the template note). */
     playgroundDeepLinkActive(): boolean {
-      return this.showCubePlayground || this.showPremiumCardsPlayground || this.showLorePlayground;
+      return this.showCubePlayground || this.showPremiumCardsPlayground || this.showLorePlayground || this.showResolutionsPlayground;
     },
     // The active player view ONLY when its game has ended —
     // drives the App-level EndgameExperience mount. Undefined mid-game.
@@ -568,6 +579,10 @@ export default defineComponent({
     /** B on a deep-linked dev stand: drop the ?…Playground query → main menu. */
     closePlaygroundDeepLink(): void {
       window.location.assign('/');
+    },
+    /** The resolutions stand's pad target — the slotted showcase (resolved late: it mounts async). */
+    resolutionsPlaygroundTarget(): {handleIntent?: (intent: GamepadIntent) => boolean} | undefined {
+      return this.$refs.resolutionsPg as {handleIntent?: (intent: GamepadIntent) => boolean} | undefined;
     },
     showAlert(title: string, message: string, cb: () => void = () => {}): void {
       // Console mode: the native <dialog> OK button is unreachable by the pad,

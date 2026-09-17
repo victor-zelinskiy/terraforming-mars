@@ -100,6 +100,19 @@ export type PremiumCardArt = {
   fallback: boolean;
 };
 
+/**
+ * Art for a printed KEY that is NOT a manifest card — a Turmoil Redux
+ * resolution's catalog code (`RX01`). The same manifest gate and the same
+ * file law as a card's art (`assets/card-images/<key>.webp` + thumb), so a
+ * resolution's illustration enters through the ONE pipeline (`make:cards`)
+ * and never a second registry. Undefined when no file is indexed — the
+ * caller keeps its own identity zone (the party seal), never the generic
+ * project fallback.
+ */
+export function premiumCardArtForKey(key: string | undefined): PremiumCardArt | undefined {
+  return key !== undefined && available.has(key) ? {url: `assets/card-images/${key}.webp`, fallback: false} : undefined;
+}
+
 /** Art for the premium card face — always resolves (fallback baked in). */
 export function premiumCardArt(name: CardName): PremiumCardArt {
   const url = cardArtUrl(name);

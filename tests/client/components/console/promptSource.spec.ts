@@ -35,6 +35,19 @@ describe('promptSource (who asked for this decision?)', () => {
       expect(v?.inspectable).to.be.false;
     });
 
+    it('a RESOLUTION source (Turmoil Redux) names the resolution by its localized title and opens its own inspector', () => {
+      const v = choiceSourceView({kind: 'resolution', resolution: 'RDX_GREENS_AQUIFER_CONTEST'});
+      expect(v?.card, 'never a project card standing in for a resolution').is.undefined;
+      expect(v?.kindKey).to.eq('Resolution');
+      expect(v?.name).to.eq('Aquifer Contest');
+      expect(v?.resolution).to.eq('RDX_GREENS_AQUIFER_CONTEST');
+      expect(v?.code, 'the printed code rides the plate').to.eq('RX01');
+      expect(v?.inspectable).to.be.true;
+      // An unknown id still names itself (the raw id) rather than staying silent.
+      expect(choiceSourceView({kind: 'resolution', resolution: 'RDX_NOPE'})?.name).to.eq('RDX_NOPE');
+      expect(choiceSourceView({kind: 'resolution'})?.inspectable).to.be.false;
+    });
+
     it('a STANDARD PROJECT and a SYSTEM rule each name themselves', () => {
       expect(choiceSourceView({kind: 'standardProject'})?.kindKey).to.eq('Standard project');
       expect(choiceSourceView({kind: 'system'})?.kindKey).to.eq('Game rule');

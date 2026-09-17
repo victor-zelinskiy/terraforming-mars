@@ -1,5 +1,7 @@
-import {PlayerId} from '../../common/Types';
+import {PlayerId, SpaceId} from '../../common/Types';
 import {PartyName} from '../../common/turmoil/PartyName';
+import {CardName} from '../../common/cards/CardName';
+import {CardResource} from '../../common/CardResource';
 import {BotParliamentMode, ParliamentPhaseStep, QuestDefinition, ResolutionInstanceId} from '../../common/parliament/ParliamentTypes';
 
 /** Bump when the shape changes incompatibly; older saves are refused explicitly. */
@@ -28,11 +30,38 @@ export type SerializedQuest = {
   completedBy?: PlayerId;
 };
 
+/**
+ * WHAT ONE STEP of the enacted resolution's effect ACTUALLY DID for one
+ * player — recorded by the step itself at the moment it mutates (or decides
+ * to skip), never recomputed later: the amount is the amount paid, not the
+ * amount a later influence would give. The client's results scene and the
+ * enactment stage read these; a `skipped` outcome names itself (no silent
+ * loss — the reason is an English i18n key).
+ */
+export type SerializedEnactOutcome = {
+  player: PlayerId;
+  /** The step key that produced it. */
+  step: string;
+  /** The scaled effect's id (`InfluenceScaledEffect.id`) when the amount came from influence. */
+  effect?: string;
+  kind: 'cardResource' | 'ocean' | 'skipped';
+  resource?: CardResource;
+  amount?: number;
+  card?: CardName;
+  space?: SpaceId;
+  /** `skipped`: why nothing happened (English i18n key). */
+  reason?: string;
+  /** The influence the amount was computed from (a scaled effect). */
+  influence?: number;
+};
+
 export type SerializedPhaseSummary = {
   generation: number;
   final: boolean;
   winner: {instance: ResolutionInstanceId; votes: number; player?: SerializedDelegateOwner; tieBreak?: 'slot-priority' | 'earlier-delegate'};
   agenda?: {player: PlayerId; from: number; to: number; bonus?: 'tr' | 'card'};
+  /** The enacted resolution's effect, step by step, as it was ACTUALLY applied (absent on older saves and on a resolution with no effect). */
+  outcomes?: Array<SerializedEnactOutcome>;
   support: Array<{party: PartyName; gained: number; total: number; reason: 'absent' | 'lost' | 'lost-with-player-vote'}>;
   enacted: ResolutionInstanceId;
   discardedEnacted?: ResolutionInstanceId;

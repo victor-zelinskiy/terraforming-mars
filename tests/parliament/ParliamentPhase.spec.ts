@@ -10,6 +10,8 @@ import {PARLIAMENT_VOTING_SLOTS, REDUX_PARTIES, resolutionInstanceId} from '../.
 import {Phase} from '../../src/common/Phase';
 import {OrOptions} from '../../src/server/inputs/OrOptions';
 import {SelectOption} from '../../src/server/inputs/SelectOption';
+import {SelectSpace} from '../../src/server/inputs/SelectSpace';
+import {SelectCard} from '../../src/server/inputs/SelectCard';
 import {cast} from '../../src/common/utils/utils';
 import {finishGeneration, maxOutOceans, runAllActions, setOxygenLevel, setTemperature} from '../TestingUtils';
 import {testAutomaGame} from '../automa/AutomaTestGame';
@@ -262,6 +264,20 @@ describe('ParliamentPhase', () => {
         }
         game.playerHasPassed(human);
         game.playerIsFinishedTakingActions();
+        // A REAL resolution may ask the HUMAN inside the phase (Aquifer
+        // Contest's winner places an ocean; a payout picks a card) — the bot
+        // is never asked, and the human's answers move the phase on.
+        for (let guard = 0; guard < 4 && game.phase === Phase.PARLIAMENT; guard++) {
+          const wf = human.getWaitingFor();
+          if (wf instanceof SelectSpace) {
+            human.process({type: 'space', spaceId: wf.spaces[0].id});
+          } else if (wf instanceof SelectCard) {
+            human.process({type: 'card', cards: [wf.cards[0].name]});
+          } else {
+            break;
+          }
+          runAllActions(game);
+        }
         expect(bot.getWaitingFor(), `bot prompt in generation ${generation}`).is.undefined;
         expect(game.generation).eq(generation + 1);
         expect(game.phase).eq(Phase.RESEARCH);

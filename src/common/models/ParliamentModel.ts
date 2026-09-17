@@ -1,6 +1,10 @@
 import {Color} from '../Color';
+import {SpaceId} from '../Types';
+import {CardName} from '../cards/CardName';
+import {CardResource} from '../CardResource';
 import {PartyName} from '../turmoil/PartyName';
 import {Message} from '../logs/Message';
+import {PlayerInputType} from '../input/PlayerInputType';
 import {ActionEffect} from './ActionPreviewModel';
 import {
   BotParliamentMode, ParliamentPhaseStep, PartyActionId, QuestDefinition, ReduxParty,
@@ -112,6 +116,32 @@ export type PartyActionModel = {
 export type ParliamentPhasePendingModel = {
   player: Color;
   key: string;
+  /**
+   * WHAT the asked seat is answering — its live prompt's input type ('card' a
+   * card pick, 'space' a placement, 'or' a choice, …). Lets every OTHER seat
+   * read an honest «waiting for X to choose a card» without knowing the step.
+   */
+  input?: PlayerInputType;
+};
+
+/**
+ * What ONE STEP of the enacted resolution's effect ACTUALLY did for one
+ * player — the server's own record (`SerializedEnactOutcome`), never a
+ * recomputation: the amount is the amount paid. A `skipped` outcome names
+ * its reason (an English i18n key) — no silent loss.
+ */
+export type ParliamentEnactOutcomeModel = {
+  player: Color;
+  step: string;
+  /** The scaled effect's id (`InfluenceScaledEffect.id`) when the amount came from influence. */
+  effect?: string;
+  kind: 'cardResource' | 'ocean' | 'skipped';
+  resource?: CardResource;
+  amount?: number;
+  card?: CardName;
+  space?: SpaceId;
+  reason?: string;
+  influence?: number;
 };
 
 export type ParliamentPhaseModel = {
@@ -120,6 +150,8 @@ export type ParliamentPhaseModel = {
   step: ParliamentPhaseStep;
   winner?: {instance: ResolutionInstanceId; player?: Color | 'neutral'};
   pending?: ParliamentPhasePendingModel;
+  /** The effect's outcomes recorded SO FAR (the enactment stage reads them live). */
+  outcomes?: ReadonlyArray<ParliamentEnactOutcomeModel>;
 };
 
 /**
@@ -131,6 +163,8 @@ export type ParliamentPhaseSummaryModel = {
   final: boolean;
   winner: {instance: ResolutionInstanceId; resolution: ResolutionId; party: ReduxParty; votes: number; player?: Color | 'neutral'; tieBreak?: 'slot-priority' | 'earlier-delegate'};
   agenda?: {player: Color; from: number; to: number; bonus?: 'tr' | 'card'};
+  /** The enacted resolution's effect as it was ACTUALLY applied, step by step (absent on older saves / no effect). */
+  outcomes?: ReadonlyArray<ParliamentEnactOutcomeModel>;
   support: ReadonlyArray<{party: ReduxParty; gained: number; total: number; reason: 'absent' | 'lost' | 'lost-with-player-vote'}>;
   enacted: ParliamentEnactedModel;
   discardedEnacted?: ParliamentEnactedModel;

@@ -198,6 +198,10 @@ class ParliamentProcessor {
   private static processResolution(definition: ResolutionDefinition): IClientResolution {
     return {
       id: definition.id,
+      // The printed code and the influence-scaled parts travel as declared:
+      // the client computes nothing about a resolution it cannot read here.
+      ...(definition.code === undefined ? {} : {code: definition.code}),
+      ...(definition.scaled === undefined ? {} : {scaled: [...definition.scaled]}),
       module: definition.module,
       party: definition.party,
       copies: definition.copies,

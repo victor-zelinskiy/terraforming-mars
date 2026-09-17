@@ -31,6 +31,7 @@ import {Message} from '@/common/logs/Message';
 import {BotAttackSource} from '@/common/models/BotAttackPromptModel';
 import {ChoiceContextSource, PlayerInputModel, SelectProductionToLoseModel} from '@/common/models/PlayerInputModel';
 import {ProductionLossSource} from '@/common/models/ProductionLossSource';
+import {getResolution, resolutionName} from '@/client/parliament/ClientParliamentManifest';
 
 export interface PromptSourceView {
   /** The premium card face to render — set exactly when the source IS a card. */
@@ -57,6 +58,19 @@ export interface PromptSourceView {
   ruleKey?: string;
   /** A PENALTY reads in the board's own hazard accent, not the calm card one. */
   tone?: 'hazard';
+  /**
+   * A Turmoil Redux RESOLUTION asked (its catalog id): the dock draws the
+   * resolution's own premium face (never a project card standing in for it)
+   * and the inspect verb opens the resolution inspector. Mutually exclusive
+   * with `card` / `bonusCard`.
+   */
+  resolution?: string;
+  /**
+   * The PRINTED CATALOG CODE of the source («RX01») — stamped on the plate
+   * beside the name wherever the dock draws no face (the placement dossier's
+   * chip), so the code the face engraves is never lost on a plate.
+   */
+  code?: string;
 }
 
 /**
@@ -97,6 +111,13 @@ export function choiceSourceView(source: ChoiceContextSource | undefined): Promp
   // Turmoil Redux: a PARTY's action or effect asks (the Reds' recycle discard).
   case 'party':
     return {kindKey: 'Party action', name: source.party ?? source.name, inspectable: false};
+  // Turmoil Redux: an ENACTED RESOLUTION asks (its payout's recipient, the
+  // winner's ocean). The face is the resolution's own; the name is its
+  // localized title (the manifest's key), never the catalog id.
+  case 'resolution':
+    return source.resolution === undefined ?
+      {kindKey: 'Resolution', name: source.name, inspectable: false} :
+      {kindKey: 'Resolution', name: resolutionName(source.resolution), inspectable: true, resolution: source.resolution, code: getResolution(source.resolution)?.code};
   case 'card':
   case 'corporation':
     // Marked as a card source but WITHOUT a name — the server knows a card

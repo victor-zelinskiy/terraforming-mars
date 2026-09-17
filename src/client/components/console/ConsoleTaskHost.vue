@@ -105,7 +105,13 @@
                keeps the full dock and its X — there the card IS what is being
                decided about. -->
           <console-source-dock v-if="dockedSource !== undefined" :view="dockedSource"
-                               :compact="sourceCompact" ref="sourceCard" />
+                               :compact="sourceCompact" ref="sourceCard">
+            <!-- A resolution's payout reads under its face: influence → the
+                 amount THIS pick adds (the server's own number). -->
+            <template v-if="sourceYield !== undefined" #under>
+              <ConsoleInfluenceYield class="con-task__source-yield" :yields="[sourceYield]" size="compact" />
+            </template>
+          </console-source-dock>
 
           <div class="con-task__body con-info__scroll" ref="body">
             <!-- Warnings carry over (parity). -->
@@ -326,7 +332,7 @@
                          'con-deal-hold': deal.isHeld(entry.card.name + '#' + i),
                        }"
                        :ref="focusIdx === i ? 'focusedCardSlot' : undefined">
-                    <Card :card="entry.card" :key="entry.card.name" lightweight />
+                    <Card :card="landedCardOf(entry.card)" :key="entry.card.name" lightweight />
                     <span v-if="isPicked(entry.card.name) && !trayPickBeat" class="con-cards__pickband" aria-hidden="true">✓ {{ $t('Card selected') }}</span>
                     <!-- P18: disabled candidates wear the state badge + the
                          concrete reason line (glance + detail). -->
@@ -650,6 +656,12 @@ import {
   projectCardPaymentPrompt,
 } from '@/client/console/paymentPlan';
 import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
+import {resolutionZoomEntry} from '@/client/components/card/cardZoomTypes';
+import {getResolution} from '@/client/parliament/ClientParliamentManifest';
+import {resolvingYieldOf, scaledEffectForCardResource} from '@/client/console/parliament/influenceYieldModel';
+import {payoutPickLandsInPlace, pickPayoutLandedOn} from '@/client/console/parliament/consoleResolutionPayout';
+import {InfluenceYield} from '@/common/parliament/influenceScaling';
+import ConsoleInfluenceYield from '@/client/components/console/parliament/ConsoleInfluenceYield.vue';
 import {availabilityContextFor} from '@/client/console/cardAvailability';
 import {applyDiscardExit, ExitSource, runHeroPick} from '@/client/console/cardDeal/cardExitDirector';
 import {discardOpenCards} from '@/client/console/cardDiscard/discardOpenCard';
@@ -732,7 +744,7 @@ const RESOURCE_FIELD: Record<string, {stock: string, production: string}> = {
 
 export default defineComponent({
   name: 'ConsoleTaskHost',
-  components: {Card, GamepadGlyph, ActionEffectChip, Tag: TagComponent, ConsoleCardDealLayer, ConsolePaymentPanel, ConsoleWsStageHead, ConsoleAmountOperation},
+  components: {Card, GamepadGlyph, ActionEffectChip, Tag: TagComponent, ConsoleCardDealLayer, ConsolePaymentPanel, ConsoleWsStageHead, ConsoleAmountOperation, ConsoleInfluenceYield},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     task: {type: Object as PropType<ConsoleTask>, required: true},
@@ -923,6 +935,32 @@ export default defineComponent({
     sourceCardName(): CardName | undefined {
       return this.sourceView?.inspectable === true ? this.sourceView.card : undefined;
     },
+    /** The docked source RESOLUTION (Turmoil Redux), when the source is one — X / L3 open its own inspector. */
+    sourceResolutionId(): string | undefined {
+      return this.sourceView?.inspectable === true ? this.sourceView.resolution : undefined;
+    },
+    /** SOMETHING to open fullscreen stands in the dock — a card or a resolution (never a bare rule plate). */
+    sourceInspectable(): boolean {
+      return this.sourceCardName !== undefined || this.sourceResolutionId !== undefined;
+    },
+    /**
+     * WHAT A RESOLUTION-SOURCED PICK PAYS — the influence → result reading
+     * under the source face (Turmoil Redux, an enacted resolution's payout):
+     * the SERVER's amount (the prompt's own `resourceGainPrompt`), the rule
+     * it came from (the manifest's scaled declaration) and the viewer's
+     * influence it was computed at. Only for a pick whose source is a
+     * resolution with a matching scaled part; every other pick keeps its
+     * dock untouched.
+     */
+    sourceYield(): InfluenceYield | undefined {
+      const id = this.sourceView?.resolution;
+      const meta = this.cardModel?.resourceGainPrompt;
+      if (id === undefined || meta === undefined || this.activeTask.kind !== 'cardSelect') {
+        return undefined;
+      }
+      const effect = scaledEffectForCardResource(getResolution(id), meta.cardResource);
+      return effect === undefined ? undefined : resolvingYieldOf(effect, meta.amount, this.playerView.game.parliament, this.playerView.thisPlayer.color);
+    },
     /**
      * The STANDALONE host's inspectable source — the card that PRODUCED this
      * prompt, offered on L3.
@@ -950,9 +988,19 @@ export default defineComponent({
      *  has a source to inspect. Discoverable nowhere else → outlives the
      *  self-evident stick/dpad hints when the bar drops for fit. */
     sourceHint(): Array<ConsoleCommand> {
-      return this.standaloneSourceCard === undefined ?
+      return this.standaloneSourceCard === undefined && this.stageSourceResolution === undefined ?
         [] :
         [{control: 'stickL' as GlyphControl, label: 'Source', priority: 1}];
+    },
+    /**
+     * An EMBEDDED prompt whose source is a RESOLUTION (Turmoil Redux — the
+     * Parliament's enactment stage): the host that teleported this pick
+     * carries that very face on its stage, so L3 lifts it (the one resolver,
+     * `workspaceSourceZoomOrigin`) instead of a docked copy. A workspace
+     * claim's source card, when there is one, keeps L3.
+     */
+    stageSourceResolution(): string | undefined {
+      return this.embedded && this.workspaceSourceCard === undefined ? this.sourceResolutionId : undefined;
     },
     /**
      * The workspace claim's SOURCE card — the action whose activation produced
@@ -1727,7 +1775,7 @@ export default defineComponent({
           {control: 'dpad', label: 'Navigate'},
           {control: 'confirm', label: this.choiceCommandLabel, enabled: this.confirmReady},
         ];
-        if (this.sourceCardName !== undefined) {
+        if (this.sourceInspectable) {
           cmds.push({control: 'secondary', label: 'Inspect'});
         }
         cmds.push(defer);
@@ -2110,6 +2158,10 @@ export default defineComponent({
           this.zoomSourceCard();
           return;
         }
+        if (this.stageSourceResolution !== undefined) {
+          this.zoomStageResolution();
+          return;
+        }
       }
       const action = consoleActionOf(intent);
       if (action !== undefined) {
@@ -2293,12 +2345,27 @@ export default defineComponent({
      * everywhere else (there it is the source that produced the prompt); the
      * viewer NAMES that role, mirroring the drawn reveal's «ИСТОЧНИК ДОБОРА».
      */
+    /**
+     * A candidate a PAYOUT is flying into (an enacted resolution's animals onto
+     * the card just chosen) shows what has LANDED on it — its stored-resource
+     * capsule ticks at the chip's contact, before the pick leaves the screen.
+     * Every other candidate is the server's model, untouched.
+     */
+    landedCardOf(card: CardModel): CardModel {
+      const landed = pickPayoutLandedOn(card.name);
+      return landed === 0 ? card : {...card, resources: (card.resources ?? 0) + landed};
+    },
     zoomSourceCard(): void {
       const name = this.sourceCardName;
-      if (name === undefined) {
+      const resolution = this.sourceResolutionId;
+      if (name === undefined && resolution === undefined) {
         return;
       }
-      openConsoleCardZoom([{name}], 0, undefined, undefined, {
+      // A RESOLUTION source (Turmoil Redux) opens the resolution inspector —
+      // its party column, its own rules, its standing — over the same
+      // physical face the dock draws; a card source opens the card viewer.
+      const entries = resolution !== undefined ? [resolutionZoomEntry(resolution)] : [{name: name as CardName}];
+      openConsoleCardZoom(entries, 0, undefined, undefined, {
         statusLabel: 'Source',
         origin: {
           kind: 'physical',
@@ -2308,6 +2375,21 @@ export default defineComponent({
             return dock?.$el?.querySelector<HTMLElement>(':is(.card-container, .pcard)') ?? null;
           },
         },
+      });
+    },
+    /**
+     * L3 (embedded, a resolution source): the resolution inspector, lifted out
+     * of the host stage's own face; the pick under it never unmounts, so the
+     * focused candidate survives the round trip.
+     */
+    zoomStageResolution(): void {
+      const id = this.stageSourceResolution;
+      if (id === undefined) {
+        return;
+      }
+      openConsoleCardZoom([resolutionZoomEntry(id)], 0, undefined, undefined, {
+        statusLabel: 'Source',
+        origin: workspaceSourceZoomOrigin('resolution:' + id),
       });
     },
     /**
@@ -2703,6 +2785,14 @@ export default defineComponent({
         commit(); // onConfirm self-guards
         return;
       }
+      // A PAYOUT the console flies ONTO the chosen card (an enacted
+      // resolution's resources — `consoleResolutionPayout`): the recipient
+      // stays where it is, picked, while the chip lands on its capsule; the
+      // hero departure below would carry it away before its payout arrives.
+      if (payoutPickLandsInPlace(this.wf)) {
+        commit();
+        return;
+      }
       const slot = this.exitSlotFor(name);
       if (slot === null) {
         commit();
@@ -2969,7 +3059,7 @@ export default defineComponent({
         // INSPECT verb — the docked SOURCE card fullscreen (the card that caused
         // this choice). Without a source card X stays a harmless confirm alias,
         // and a GENERIC OrOptions keeps X as its real commit.
-        if (this.choiceOnePress && this.sourceCardName !== undefined) {
+        if (this.choiceOnePress && this.sourceInspectable) {
           this.zoomSourceCard();
           return;
         }

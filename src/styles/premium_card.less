@@ -1871,6 +1871,25 @@
   background-position: center;
   opacity: 0.5;
 }
+/* The printed CATALOG CODE — engraved beside the stamp in the same pressed-in
+   language (no elevation, muted, tracked micro-caps): «X31», «DP07», «RX01».
+   The key the art, the lore and the catalog search resolve by, so what the
+   player reads is what the tools name. Hidden on the thumb tier — unreadable
+   at that size, and the corner is busy enough. */
+.pcard__code {
+  margin-left: 3px;
+  font-family: Ubuntu, sans-serif;
+  font-size: 8px;
+  font-weight: 500;
+  letter-spacing: 0.09em;
+  line-height: 1;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: rgba(217, 184, 120, 0.55);
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.65);
+  user-select: none;
+}
+.pcard--tier-thumb .pcard__code { display: none; }
 
 /* ── resource slot: a capsule CARVED INTO the panel (bottom-left) ─────
    Fully inside the panel, sunken (inset shadows + a light lip below) so it

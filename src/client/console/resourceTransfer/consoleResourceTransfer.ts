@@ -54,6 +54,8 @@ export type TransferFlight = {
    *  (`ResourceTransferRun.fromBoard`) — the layer reads it to recede with
    *  the board under an open workspace. */
   fromBoard: boolean,
+  /** The run plays INSIDE a standing decision surface (`ResourceTransferRun.inSurface`); absent = a blocking wave. */
+  inSurface?: boolean,
 };
 
 export const resourceTransferState = reactive({
@@ -70,6 +72,8 @@ export const resourceTransferState = reactive({
    * watcher re-evaluates on every transition of BOTH terms.
    */
   runActive: false,
+  /** How many IN-SURFACE waves are mid-flight (`ResourceTransferRun.inSurface`) — the same reactivity contract as `runActive`. */
+  surfaceRuns: 0,
 });
 
 // ── leak diagnostics ────────────────────────────────────────────────────────
@@ -282,14 +286,31 @@ export type ResourceTransferRun = {
    * this unset and keeps flying on top — its source is the lit panel.
    */
   fromBoard?: boolean;
+  /**
+   * The wave plays INSIDE a decision surface that is still standing and is
+   * the chips' own destination (an enacted resolution's payout landing on the
+   * candidate the player just chose in the shared picker). Its chips hold the
+   * NOTIFICATION feed only (`notification-only` — the animation-hold contract
+   * for a cinematic inside a mandatory surface): a blocking hold retracts
+   * every mandatory surface, and the picker the chips are landing on would
+   * unmount under its own payout. The caller's transport gate still withholds
+   * the next prompt until the touchdown.
+   */
+  inSurface?: boolean;
 };
 
 let flightSeq = 0;
 /** Landed hold-mode chips awaiting settle (id → its landing point). */
 let heldChips: Array<{id: number, at: TransferPoint}> = [];
 
+/** A wave OUTSIDE any standing surface is live — the BLOCKING hold (the default for every wave). */
 export function isResourceTransferActive(): boolean {
-  return resourceTransferState.runActive || resourceTransferState.flights.length > 0;
+  return resourceTransferState.runActive || resourceTransferState.flights.some((f) => f.inSurface !== true);
+}
+
+/** An IN-SURFACE wave is live — the notification-only hold. */
+export function isInSurfaceResourceTransferActive(): boolean {
+  return resourceTransferState.surfaceRuns > 0 || resourceTransferState.flights.some((f) => f.inSurface === true);
 }
 
 /** A BOARD-sourced chip is on stage (flying or absorbing) — the layer carries
@@ -308,6 +329,12 @@ registerAnimationHoldSupplier('resource-transfer', isResourceTransferActive, {
   // Owner recovery on the ceiling: by then every run's own wave-budget
   // safety has long freed its caller gates — the abort only clears the
   // wedged stage/flight bookkeeping the "released" hold used to mask.
+  expire: () => abortResourceTransfers(),
+});
+// …and a wave INSIDE a standing surface holds the feed only (see `inSurface`).
+registerAnimationHoldSupplier('resource-transfer-in-surface', isInSurfaceResourceTransferActive, {
+  scope: 'notification-only',
+  diagnose: resourceTransferDiagnostics,
   expire: () => abortResourceTransfers(),
 });
 
@@ -363,7 +390,16 @@ export async function runResourceTransfers(run: ResourceTransferRun): Promise<vo
     return;
   }
 
-  resourceTransferState.runActive = true;
+  // The run's own liveness flag: a surface wave counts apart (its hold is notification-only).
+  const inSurface = run.inSurface === true;
+  const markRun = (on: boolean) => {
+    if (inSurface) {
+      resourceTransferState.surfaceRuns = Math.max(0, resourceTransferState.surfaceRuns + (on ? 1 : -1));
+    } else {
+      resourceTransferState.runActive = on;
+    }
+  };
+  markRun(true);
   resourceTransferState.nonce++;
   const pace = clampTransferPace(run.pace);
   const entries = flights.map((f, i) => ({
@@ -376,7 +412,7 @@ export async function runResourceTransfers(run: ResourceTransferRun): Promise<vo
     index: i,
   }));
   resourceTransferState.flights = [...resourceTransferState.flights,
-    ...entries.map((e) => ({id: e.id, spec: e.spec, fromBoard: run.fromBoard === true}))];
+    ...entries.map((e) => ({id: e.id, spec: e.spec, fromBoard: run.fromBoard === true, inSurface}))];
   trail(runId, 'run:flights', {arrival: run.arrival, ids: entries.map((e) => e.id)});
   try {
     await nextTick(); // the layer mounts the chips
@@ -440,7 +476,7 @@ export async function runResourceTransfers(run: ResourceTransferRun): Promise<vo
     });
     await Promise.all(touchdowns);
     window.clearTimeout(safety);
-    resourceTransferState.runActive = false;
+    markRun(false);
     trail(runId, 'run:end', {arrival: run.arrival});
   } catch (e) {
     // Documented contract: this function NEVER rejects. A throw here (e.g. a
@@ -453,7 +489,7 @@ export async function runResourceTransfers(run: ResourceTransferRun): Promise<vo
       run.onArrive?.(entry.spec);
       removeFlight(entry.id);
     });
-    resourceTransferState.runActive = false;
+    markRun(false);
   }
 }
 
@@ -492,6 +528,7 @@ export function abortResourceTransfers(): void {
   resourceTransferState.flights = [];
   heldChips = [];
   resourceTransferState.runActive = false;
+  resourceTransferState.surfaceRuns = 0;
 }
 
 function removeFlight(id: number): void {
@@ -562,7 +599,7 @@ function targetPointFor(spec: ResourceTransferSpec): TransferPoint | undefined {
   // target) first, then the COLONY FOCUS STAGE's presented target (a trade
   // reward's chosen host card, standing in the resolution scene — the chip
   // aims at the card's own stored-resource capsule, so the touchdown IS the
-  // counter that ticks), then the «Разыграно» table — else the
+  // counter that ticks), the shared recipient picker's candidate, then the «Разыграно» table — else the
   // additional-resources satellite cell, else no flight.
   if (spec.targetCard !== undefined) {
     const esc = escapeName(spec.targetCard);
@@ -572,6 +609,11 @@ function targetPointFor(spec: ResourceTransferSpec): TransferPoint | undefined {
       measureRestingRect(`.con-colfocus [data-played-key="${esc}"]`) ??
       measureRestingRect(`.con-hydro [data-played-key="${esc}"] .pcard__res`) ??
       measureRestingRect(`.con-hydro [data-played-key="${esc}"]`) ??
+      // …the SHARED recipient picker's candidate (an enacted resolution's
+      // payout lands on the card the player just chose, while the pick is
+      // still the standing view — the capsule is the counter that ticks):
+      measureRestingRect(`.con-cards__slot[data-zoom-slot="${esc}"] .pcard__res`) ??
+      measureRestingRect(`.con-cards__slot[data-zoom-slot="${esc}"]`) ??
       measureRestingRect(`.con-start__played [data-played-key="${esc}"]`) ??
       measureRestingRect(`.con-played [data-played-key="${esc}"]`);
     if (r !== undefined) {

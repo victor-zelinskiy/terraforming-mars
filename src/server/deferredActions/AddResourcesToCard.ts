@@ -8,6 +8,7 @@ import {DeferredAction} from './DeferredAction';
 import {Priority} from './Priority';
 import {Message} from '../../common/logs/Message';
 import {message} from '../logs/MessageBuilder';
+import {From} from '../logs/From';
 // Runtime-only calls (safe circular import: actionPreviews imports this class
 // at top level, these two are late-bound function reads at prompt-build time).
 import {cardResourceIcon, targetVictoryPoints} from '../cards/actionPreviews';
@@ -51,9 +52,20 @@ export type Options = {
    * Named `cause` across every shared helper — see `inputs/choiceContext.ts`.
    */
   cause?: ChoiceContextSource;
+  /**
+   * The SOURCE the journal names for the addition («added 3 animals to Fish
+   * from Aquifer Contest») — a cardless origin (a party, an enacted
+   * resolution) has no card of its own to log through, so it says so here.
+   */
+  from?: From;
 }
 
-export class AddResourcesToCard extends DeferredAction {
+/**
+ * `andThen` receives the card the resources landed on — a caller that
+ * records WHERE its payout went (the parliament's outcome log) reads it;
+ * every existing caller ignores the argument.
+ */
+export class AddResourcesToCard extends DeferredAction<ICard> {
   constructor(
     player: IPlayer,
     /** The card type to add to. Undefined means any resource. */
@@ -179,7 +191,7 @@ export class AddResourcesToCard extends DeferredAction {
 
   private addResource(card: ICard, qty: number) {
     const autoLog = this.options.log !== false;
-    this.player.addResourceTo(card, {qty, log: autoLog});
-    this.cb(undefined);
+    this.player.addResourceTo(card, {qty, log: autoLog, from: this.options.from});
+    this.cb(card);
   }
 }

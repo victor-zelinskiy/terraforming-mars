@@ -23,6 +23,8 @@ export enum CardRenderItemType {
   PARTY_LEADERS = 'party_leaders',
   DELEGATES = 'delegates',
   INFLUENCE = 'influence',
+  /** Turmoil Redux: the WINNER-ONLY part of a resolution's enactment (the star beside the effect). */
+  VOTE_WINNER = 'vote-winner',
   NO_TAGS = 'no_tags',
   EMPTY_TAG = 'empty_tag',
   WILD = 'wild',

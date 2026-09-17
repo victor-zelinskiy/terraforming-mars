@@ -135,6 +135,8 @@ const ITEM_ICON_URL: Partial<Record<CardRenderItemType, string>> = {
   [CardRenderItemType.CHAIRMAN]: `${MISC}/chairman.png`,
   [CardRenderItemType.INFLUENCE]: `${MISC}/influence.png`,
   [CardRenderItemType.FIRST_PLAYER]: `${MISC}/first-player.png`,
+  // Turmoil Redux: the winner-of-the-vote star beside a resolution's winner-only part.
+  [CardRenderItemType.VOTE_WINNER]: `${MISC}/vote-winner.svg`,
 
   // CEO vocabulary (the L-deck renders premium since desktop-removal wave 4).
   // The Reds party emblem (Zan) + the Ares adjacency-bonus tile (Gaia) reuse

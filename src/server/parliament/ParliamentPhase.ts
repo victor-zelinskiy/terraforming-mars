@@ -26,7 +26,7 @@ import {Phase} from '../../common/Phase';
 import {PartyName} from '../../common/turmoil/PartyName';
 import {PARLIAMENT_MAX_POPULAR_SUPPORT, PARLIAMENT_VOTING_SLOTS, ReduxParty, REDUX_PARTIES} from '../../common/parliament/ParliamentTypes';
 import {Parliament, Slot} from './Parliament';
-import {EnactContext, EnactStep} from './resolutions/IResolution';
+import {EnactContext, EnactOutcome, EnactStep} from './resolutions/IResolution';
 import {SerializedDelegateOwner, SerializedPhaseProgress, SerializedPhaseSummary} from './SerializedParliament';
 import {ChairmanSeat} from './quests/ChairmanSeat';
 
@@ -333,6 +333,7 @@ export class ParliamentPhase {
           influence: parliament.influence(player),
           source: {kind: 'resolution', id: definition.id, owner: player.color},
           state,
+          report: (outcome) => this.recordOutcome(player, step.key, outcome),
         };
         const events = this.game.events;
         events.beginAction(player, ctx.source, {category: 'political-phase'});
@@ -360,6 +361,23 @@ export class ParliamentPhase {
       }
     }
     return 'done';
+  }
+
+  /**
+   * A step's RECORD of what it did, stamped with the player and the step. One
+   * record per (player, step): a step that reports twice (a defensive
+   * re-run) keeps the first — the outcome is what happened, not a counter.
+   */
+  private recordOutcome(player: IPlayer, stepKey: string, outcome: EnactOutcome): void {
+    const summary = this.parliament.phase?.summary;
+    if (summary === undefined) {
+      return;
+    }
+    const outcomes = (summary.outcomes ??= []);
+    if (outcomes.some((o) => o.player === player.id && o.step === stepKey)) {
+      return;
+    }
+    outcomes.push({player: player.id, step: stepKey, ...outcome});
   }
 
   // ───────────────────────── step 5: refresh the voting area ─────────────────────────

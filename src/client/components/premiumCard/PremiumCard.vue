@@ -103,6 +103,10 @@ Before changing it, check the console consumers in docs/DESKTOP_DEPRECATION_AUDI
                 :key="module.module"
                 class="pcard__exp-compat"
                 :style="{backgroundImage: `url(${module.url})`}"></span>
+          <!-- THE PRINTED CATALOG CODE («X31», «DP07», a resolution's «RX01»):
+               engraved beside the stamp in the same pressed-in language — the
+               key the art, the lore and the catalog search resolve by. -->
+          <span v-if="vm.code !== undefined" class="pcard__code" :data-card-code="vm.code">{{ vm.code }}</span>
         </div>
         <div v-if="resourceInfo !== undefined" class="pcard__res">
           <span class="pcard__res-icon" :style="{backgroundImage: `url(${resourceIconUrl})`}"></span>
@@ -398,6 +402,10 @@ export default defineComponent({
         'pcard--party-banner': this.vm.parliament?.partyEffect === true,
         // An art-less RESOLUTION: the art window carries the party's seal.
         'pcard--resolution-seal': this.vm.parliament?.sealArt === true,
+        // A RESOLUTION WITH ITS OWN ART: the window keeps the illustration's
+        // full 3:2 frame (the pack is authored at 1536×1024), never the
+        // project face's cover-cropped band.
+        'pcard--resolution-art': this.vm.parliament !== undefined && this.vm.parliament.partyEffect !== true && this.vm.parliament.sealArt !== true,
         'pcard--unavailable': this.isUnavailable,
         'pcard--selected': this.selected,
         'pcard--cost-mod': this.vm.cost !== undefined && this.vm.cost.delta !== 0,

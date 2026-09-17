@@ -114,6 +114,11 @@ import {
   runPatentSale,
 } from '@/client/console/patentSale/consolePatentSale';
 import {
+  detectResolutionPayout,
+  endResolutionPayout,
+  runResolutionPayout,
+} from '@/client/console/parliament/consoleResolutionPayout';
+import {
   abortStdProjectCommit,
   detectStdProjectCommit,
   runStdProjectCommit,
@@ -244,6 +249,7 @@ export const transportHolds = reactive({
   tilePlacementHero: false,
   colonyBuild: false,
   nomadMove: false,
+  resolutionPayout: false,
 });
 
 /** Every transport cinematic gate — the disjunction the board binder (and any
@@ -255,7 +261,7 @@ export function transportHolding(): boolean {
   return h.marker || h.tilePlacement || h.conversion || h.hazardCleanup ||
     h.tradeFleet || h.hydroMarker || h.playedHero || h.patentSale ||
     h.stdProject || h.cardDiscard || h.tilePlacementHero || h.colonyBuild ||
-    h.nomadMove;
+    h.nomadMove || h.resolutionPayout;
 }
 
 /**
@@ -615,6 +621,23 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
          * resource rail — the new counter value + the standard delta chip
          * appear exactly at the touchdown.
          */
+        /*
+         * Console RESOLUTION-PAYOUT gate (Turmoil Redux). The viewer answered an
+         * enacted resolution's card-resource pick and the server RECORDED the
+         * payout: HOLD the commit while the chip flies from the stage's payout
+         * reading onto the chosen candidate (still on screen — the pick is the
+         * standing view), so the stage leaves on a card that has visibly
+         * received it. Detected from the authoritative outcome record only.
+         */
+        const resolutionPayoutEvent = detectResolutionPayout(currentView(), newView);
+        if (resolutionPayoutEvent !== undefined) {
+          transportHolds.resolutionPayout = true;
+          try {
+            await runResolutionPayout(resolutionPayoutEvent);
+          } finally {
+            transportHolds.resolutionPayout = false;
+          }
+        }
         const patentSaleEvent = detectPatentSale(newView);
         if (patentSaleEvent !== undefined) {
           transportHolds.patentSale = true;
@@ -779,6 +802,9 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
             void nextTick(() => {
               void endPatentSale();
             });
+          }
+          if (resolutionPayoutEvent !== undefined) {
+            void nextTick(() => endResolutionPayout());
           }
           if (discardEvent !== undefined) {
             void nextTick(() => {
@@ -979,6 +1005,11 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
         }
         seedRewardHolds(newView);
         applyPlayerView(newView);
+        if (resolutionPayoutEvent !== undefined) {
+          // Post-commit: the committed view carries the paid count (and has
+          // taken the picker away) — the landing tick's scope may close now.
+          void nextTick(() => endResolutionPayout());
+        }
         if (hazardCleanups.length > 0) {
           transportHolds.hazardCleanup = false;
           void nextTick(() => endHazardCleanup());
@@ -1148,6 +1179,9 @@ function abortAllConsoleTransactions(): void {
   // its CTA re-arms via the shell's 'failed' watcher).
   transportHolds.playedHero = false;
   abortPlayedHero();
+  // …and the resolution payout: nothing was recorded, nothing flies.
+  transportHolds.resolutionPayout = false;
+  endResolutionPayout();
   // …and the patent sale: the terminal swallows nothing — the cards return
   // to the hand (un-blanked) and no chip is ever dispensed.
   transportHolds.patentSale = false;

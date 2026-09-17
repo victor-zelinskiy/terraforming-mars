@@ -17,12 +17,15 @@ import {PartyName} from '../../../common/turmoil/PartyName';
 import {Resource} from '../../../common/Resource';
 import {Tag} from '../../../common/cards/Tag';
 import {CardResource} from '../../../common/CardResource';
-import {QuestDefinition, ReduxParty, ResolutionId, resolutionInstanceId, ResolutionInstanceId, resolutionIdOf} from '../../../common/parliament/ParliamentTypes';
+import {
+  isResolutionCode, QuestDefinition, ReduxParty, ResolutionCode, ResolutionId, resolutionInstanceId, ResolutionInstanceId, resolutionIdOf,
+} from '../../../common/parliament/ParliamentTypes';
 import {EnactStep, ResolutionDefinition} from './IResolution';
 import {SelectOption} from '../../inputs/SelectOption';
 import {SpaceType} from '../../../common/boards/SpaceType';
 import {Board} from '../../boards/Board';
 import {OrOptions} from '../../inputs/OrOptions';
+import {AQUIFER_CONTEST} from './greens/AquiferContest';
 
 /** A DUMMY prints NO effect row: the face states «no effect of its own» as a
  *  quiet caption from the `dummy` flag, never as the card's centrepiece.
@@ -35,6 +38,13 @@ type DummySpec = {
   name: string;
   quest: QuestDefinition;
   questText: string;
+  /**
+   * A dummy a REAL resolution has replaced in the deck stays catalogued with
+   * `copies: 0`: an older save that still carries it loads and reads it as
+   * it was (its id is never re-pointed at the new card — a dummy enacted
+   * yesterday must not wake up with an effect today); a new game never deals it.
+   */
+  copies?: 0;
 };
 
 const PARTY_KEY: Readonly<Record<ReduxParty, string>> = {
@@ -60,7 +70,8 @@ const DUMMIES: ReadonlyArray<DummySpec> = [
   {party: PartyName.UNITY, n: 1, name: 'Unity Motion I', quest: {goal: {kind: 'tag', tag: Tag.EARTH}, count: 2}, questText: 'Play 2 Earth tags'},
   {party: PartyName.UNITY, n: 2, name: 'Unity Motion II', quest: {goal: {kind: 'colony'}, count: 1}, questText: 'Build 1 colony'},
   {party: PartyName.GREENS, n: 1, name: 'Greens Motion I', quest: {goal: {kind: 'tile', tile: 'greenery'}, count: 2}, questText: 'Place 2 greenery tiles'},
-  {party: PartyName.GREENS, n: 2, name: 'Greens Motion II', quest: {goal: {kind: 'tag', tag: Tag.PLANT}, count: 2}, questText: 'Play 2 plant tags'},
+  // Replaced in the deck by Aquifer Contest (RX01) — kept for older saves only.
+  {party: PartyName.GREENS, n: 2, name: 'Greens Motion II', quest: {goal: {kind: 'tag', tag: Tag.PLANT}, count: 2}, questText: 'Play 2 plant tags', copies: 0},
   {party: PartyName.SCIENTISTS, n: 1, name: 'Scientists Motion I', quest: {goal: {kind: 'tag', tag: Tag.SCIENCE}, count: 2}, questText: 'Play 2 science tags'},
   {party: PartyName.SCIENTISTS, n: 2, name: 'Scientists Motion II', quest: {goal: {kind: 'cardsPlayed', cardType: 'active'}, count: 2}, questText: 'Play 2 blue cards'},
   {party: PartyName.MARS, n: 1, name: 'Mars First Motion I', quest: {goal: {kind: 'tag', tag: Tag.BUILDING}, count: 2}, questText: 'Play 2 building tags'},
@@ -76,7 +87,7 @@ function dummy(spec: DummySpec): ResolutionDefinition {
     id: dummyResolutionId(spec.party, spec.n),
     module: 'turmoilRedux',
     party: spec.party,
-    copies: 1,
+    copies: spec.copies ?? 1,
     renderData: DUMMY_RENDER,
     text: {name: spec.name, quest: spec.questText},
     quest: spec.quest,
@@ -162,11 +173,22 @@ const TEST_CHOICE: ResolutionDefinition = {
 
 export class ResolutionCatalog {
   private readonly byId = new Map<ResolutionId, ResolutionDefinition>();
+  private readonly byCode = new Map<ResolutionCode, ResolutionDefinition>();
 
   constructor(definitions: ReadonlyArray<ResolutionDefinition>) {
     for (const definition of definitions) {
       if (this.byId.has(definition.id)) {
         throw new Error(`Duplicate resolution id ${definition.id}`);
+      }
+      const code = definition.code;
+      if (code !== undefined) {
+        if (!isResolutionCode(code)) {
+          throw new Error(`Resolution ${definition.id} has a malformed code ${code} (expected RX##)`);
+        }
+        if (this.byCode.has(code)) {
+          throw new Error(`Duplicate resolution code ${code} (${this.byCode.get(code)?.id} and ${definition.id})`);
+        }
+        this.byCode.set(code, definition);
       }
       this.byId.set(definition.id, definition);
     }
@@ -174,6 +196,11 @@ export class ResolutionCatalog {
 
   public get(id: ResolutionId): ResolutionDefinition | undefined {
     return this.byId.get(id);
+  }
+
+  /** The resolution wearing a printed code — the search / debug entry (`RX01`). */
+  public byPrintedCode(code: ResolutionCode): ResolutionDefinition | undefined {
+    return this.byCode.get(code);
   }
 
   public getOrThrow(id: ResolutionId): ResolutionDefinition {
@@ -383,8 +410,15 @@ const DEV_SCIENCE: ResolutionDefinition = {
   }],
 };
 
-/** The shipped catalog: the 12 dummies + the never-dealt test and development resolutions. */
+/**
+ * The shipped catalog: the REAL resolutions (each in its own file under the
+ * party's directory — `greens/AquiferContest.ts` is the template), the
+ * dummies still standing in for the rest of the 48 (a replaced dummy stays
+ * with `copies: 0` for older saves), and the never-dealt test / development
+ * resolutions. The deck keeps 12 dealt cards, two per party.
+ */
 export const REDUX_RESOLUTION_CATALOG = new ResolutionCatalog([
+  AQUIFER_CONTEST,
   ...DUMMIES.map(dummy),
   TEST_CHOICE,
   DEV_IMMEDIATE,

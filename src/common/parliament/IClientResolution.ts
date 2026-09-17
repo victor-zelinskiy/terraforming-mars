@@ -1,6 +1,7 @@
 import {Expansion, GameModule} from '../cards/GameModule';
 import {ICardRenderRoot} from '../cards/render/Types';
-import {PartyActionId, QuestDefinition, ReduxParty, ResolutionId} from './ParliamentTypes';
+import {PartyActionId, QuestDefinition, ReduxParty, ResolutionCode, ResolutionId} from './ParliamentTypes';
+import {InfluenceScaledEffect} from './influenceScaling';
 
 /**
  * The printed face of a resolution card, as shipped to the client through
@@ -9,6 +10,8 @@ import {PartyActionId, QuestDefinition, ReduxParty, ResolutionId} from './Parlia
  */
 export type IClientResolution = {
   id: ResolutionId;
+  /** The printed catalog code (`RX##`) — the face's corner stamp, the art key, the search key. Absent on a dummy / dev example. */
+  code?: ResolutionCode;
   module: GameModule;
   party: ReduxParty;
   copies: number;
@@ -32,6 +35,12 @@ export type IClientResolution = {
    * read this ONE description, so the three can never drift apart.
    */
   questRenderData: ICardRenderRoot;
+  /**
+   * The parts of the enactment that SCALE WITH INFLUENCE — the same
+   * declarations the server pays by (`influenceScaling.ts`), so every surface
+   * computes the viewer's number from the one formula. Absent = nothing scales.
+   */
+  scaled?: ReadonlyArray<InfluenceScaledEffect>;
   /** A DUMMY carries a party, votes and a quest — and no effect of its own. */
   dummy: boolean;
   hasImmediate: boolean;

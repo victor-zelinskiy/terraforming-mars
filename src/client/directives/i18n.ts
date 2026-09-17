@@ -7,6 +7,7 @@ import {Log} from '@/common/logs/Log';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {tileTypeToString} from '@/common/TileType';
 import {Color} from '@/common/Color';
+import {resolutionName} from '@/client/parliament/ClientParliamentManifest';
 
 type Context = {
   playerView: PlayerViewModel | undefined;
@@ -88,6 +89,11 @@ export function translateMessage(message: Message): string {
       // Fixes prompts like "Select space for Deimos Down:promo tile".
       return translateCardName(String(datum.value));
     }
+    case LogMessageDataType.RESOLUTION:
+      // A Turmoil Redux resolution travels as its catalog ID; the reader gets
+      // its localized NAME (a prompt title «Add 3 animals from Aquifer
+      // Contest» must never print `RDX_GREENS_AQUIFER_CONTEST`).
+      return translateText(resolutionName(String(datum.value)));
     case LogMessageDataType.RAW_STRING:
       // RAW means RAW (LogMessageDataType: "Raw strings are untranslated") —
       // it is the type for a value that is already final: a glyph label, a

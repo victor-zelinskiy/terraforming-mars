@@ -235,6 +235,16 @@ abstract class Builder<T> {
     return this._appendToRow(new CardRenderItem(CardRenderItemType.INFLUENCE, 1, options));
   }
 
+  /**
+   * Turmoil Redux: marks the part of a resolution's enactment that only the
+   * WINNER of the vote receives (the printed star). Drawn as a small marker
+   * beside the effect it qualifies — superscript by default, the physical
+   * card's own placement.
+   */
+  public voteWinner(options?: ItemOptions): this {
+    return this._appendToRow(new CardRenderItem(CardRenderItemType.VOTE_WINNER, -1, {superscript: true, ...options}));
+  }
+
   public city(options?: ItemOptions) {
     const item = new CardRenderItem(CardRenderItemType.CITY, -1, options);
     item.size = options?.size ?? Size.MEDIUM;

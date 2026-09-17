@@ -23,6 +23,7 @@ import {buildMechanics} from './mechanicsModel';
 import {tagClusterPlan} from './tagLayout';
 import {getPartyEffect, getResolution} from '@/client/parliament/ClientParliamentManifest';
 import {partyAccent, partyEmblemUrl} from './partyEmblems';
+import {premiumCardArtForKey} from '@/client/cards/cardArt';
 
 /** The face's key for a resolution — the catalog id doubles as the slug. */
 export function resolutionSlug(id: ResolutionId): string {
@@ -36,21 +37,24 @@ export function resolutionSlug(id: ResolutionId): string {
  * rule (no cost badge) and the medallion all fall out of the shared face.
  */
 export function resolutionPremiumVm(resolution: IClientResolution): PremiumCardVM {
+  // THE ART is keyed by the printed CODE through the one card-art pipeline
+  // (`assets/card-images/RX01.webp`, indexed by `make:cards`): a resolution
+  // with an illustration shows it in the 3:2 window (`pcard--resolution-art`);
+  // one without (a dummy, a dev example) carries the PARTY'S SEAL in the
+  // window instead (`pcard--resolution-seal`) — never the project fallback,
+  // so a card of the voting area is told apart at a glance either way.
+  const art = premiumCardArtForKey(resolution.code);
   return {
     name: resolution.id as CardName,
     slug: resolutionSlug(resolution.id),
     type: CardType.RESOLUTION,
     theme: 'resolution',
     title: resolution.text.name,
+    code: resolution.code,
     tags: [],
     tagCluster: tagClusterPlan(0),
     requirements: [],
-    // No resolution art pack exists yet: the art window carries the PARTY'S SEAL
-    // (its emblem over an accent-tinted field — `pcard--resolution-seal`), so the
-    // cards of the voting area are told apart at a glance and none of them reads
-    // as a dead placeholder. The window's geometry is the shared face's; real
-    // art later swaps the url and drops `sealArt`, nothing moves.
-    art: {url: partyEmblemUrl(resolution.party), fallback: false},
+    art: art ?? {url: partyEmblemUrl(resolution.party), fallback: false},
     mechanics: buildMechanics(resolution.renderData),
     expansion: 'turmoilRedux',
     compatibility: ['turmoilRedux', ...resolution.compatibility],
@@ -61,7 +65,7 @@ export function resolutionPremiumVm(resolution: IClientResolution): PremiumCardV
       questRenderData: resolution.questRenderData,
       dummy: resolution.dummy,
       accent: partyAccent(resolution.party),
-      sealArt: true,
+      sealArt: art === undefined,
     },
   };
 }

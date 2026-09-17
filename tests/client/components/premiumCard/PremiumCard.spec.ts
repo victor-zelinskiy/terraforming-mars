@@ -194,8 +194,14 @@ describe('PremiumCard', () => {
     // icon uses the builder default amount (-1). The digit shows ONLY on an
     // explicit showDigit (legacy semantics); negativity rides MINUS symbols.
     const wrapper = mount(PremiumCard, {props: {card: model(CardName.HERBIVORES)}});
-    expect(wrapper.text()).to.not.contain('−1');
-    expect(wrapper.text()).to.not.contain('-1');
+    // Read the MECHANICS panel, where the icons live: the whole face's text
+    // also carries the printed catalog code (`.pcard__code` «147»), and a
+    // minus symbol right before it concatenates into a false «−147».
+    const mech = wrapper.find('.pcard__mech');
+    expect(mech.exists()).to.eq(true);
+    expect(mech.text()).to.not.contain('−1');
+    expect(mech.text()).to.not.contain('-1');
+    expect(wrapper.find('.pcard__code').text(), 'the code stamp stands apart from the graphic').to.eq('147');
   });
 
   it('peek face: corpus + header + requirements rail only — no art <img>, no lower section', () => {

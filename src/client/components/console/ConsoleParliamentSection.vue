@@ -160,14 +160,25 @@
              data-parl-recede>
           <div class="con-parl__gov-head">
             <span class="con-parl__kicker">{{ $t('Government') }}</span>
-            <span class="con-parl__gov-basis" :class="{'con-parl__gov-basis--default': view.enacted === undefined}">
+            <!-- While the enactment's effect waits on ANOTHER seat, the basis
+                 line says who and what for (the asked seat's own input kind —
+                 a card pick, a placement, a decision); otherwise the basis. -->
+            <span v-if="phaseWaitText !== ''" class="con-parl__gov-basis con-parl__gov-basis--waiting" data-parl-phase-wait>{{ phaseWaitText }}</span>
+            <span v-else class="con-parl__gov-basis" :class="{'con-parl__gov-basis--default': view.enacted === undefined}">
               {{ $t(view.enacted === undefined ? 'Starting rule' : 'Enacted resolution') }}
             </span>
           </div>
           <div class="con-parl__ruling">
-            <div v-if="enactedVm !== undefined" class="con-parl__gov-card" :data-zoom-slot="'resolution:' + view.enacted?.resolutionId" ref="govCardEl">
-              <premium-card-face :vmOverride="enactedVm" :lightweight="true" :inert="true" />
-            </div>
+            <!-- The enacted card is ONE instance: while the resolution pays out it
+                 is TELEPORTED onto the enactment stage's hero slot (and FLIPs
+                 there and back) — never a copy beside the government. -->
+            <Teleport v-if="enactedVm !== undefined" defer to="[data-parl-enact-hero]" :disabled="!enactCarried">
+              <div class="con-parl__gov-carry" data-parl-gov-carry>
+                <div class="con-parl__gov-card" :data-zoom-slot="'resolution:' + view.enacted?.resolutionId">
+                  <premium-card-face :vmOverride="enactedVm" :lightweight="!enactCarried" :inert="true" />
+                </div>
+              </div>
+            </Teleport>
             <!-- The ENACTED slot stands empty until the first political phase:
                  an honest empty seat, never a placeholder card. -->
             <div v-else class="con-parl__gov-empty" data-parl-gov-empty>
@@ -493,6 +504,9 @@
           <span v-if="view.viewer !== undefined" class="con-parl__agenda-me">
             <PlayerCube :color="view.viewer.color" :size="cubePx(12)" :glow="false" />
             <span class="con-parl__chip-dim">{{ $t('Influence') }}</span>
+            <!-- The influence BADGE — the same asset the resolution faces print
+                 in their formulas, so «влияние» reads as one symbol everywhere. -->
+            <i class="con-parl__inf-icon" aria-hidden="true"></i>
             <b :key="'ai' + agendaVm.viewerInfluence" class="con-parl__tick">{{ agendaVm.viewerInfluence }}</b>
             <span class="con-parl__agenda-next">
               <span class="con-parl__chip-dim">{{ $t(agendaVm.nextStep === undefined ? 'end of the track' : 'next step') }}</span>
@@ -597,11 +611,24 @@
                   <span class="con-parl__info-kicker" data-parl-vote-late>{{ $t('Resolution effect') }}</span>
                   <div class="con-parl__info-own-body">
                     <PremiumMechanicsPanel v-if="voteInfo.ownMechanics !== undefined" class="con-parl__info-mech" :mechanics="voteInfo.ownMechanics" />
-                    <div v-if="voteInfo.ownParts.length > 0" class="con-parl__info-parts" data-parl-vote-late>
+                    <div v-if="voteInfo.ownParts.length > 0 || voteInfo.yields.length > 0" class="con-parl__info-parts" data-parl-vote-late>
                       <div v-for="part in voteInfo.ownParts" :key="part.key" class="con-parl__info-part" :class="'con-parl__info-part--' + part.key">
                         <span class="con-parl__info-part-label">{{ $t(part.label) }}</span>
                         <span class="con-parl__info-part-text">{{ $t(part.text) }}</span>
                       </div>
+                      <!-- THE VIEWER'S OWN NUMBER for an influence-scaled part:
+                           the estimate by the current influence and, apart from
+                           it, the «if you win» forecast — the last line of the
+                           reading, under the words it puts a number to. The
+                           card's graphic beside it already prints the formula,
+                           so the block draws the readings alone. -->
+                      <ConsoleInfluenceYield v-if="voteInfo.yields.length > 0"
+                                             class="con-parl__info-yield"
+                                             :yields="voteInfo.yields"
+                                             :formula="false"
+                                             :note="voteInfo.yieldNote"
+                                             size="compact"
+                                             data-parl-vote-yield />
                     </div>
                     <span v-else-if="voteInfo.ownMechanics === undefined" class="con-parl__info-none" data-parl-vote-late>{{ $t('No effect of its own') }}</span>
                   </div>
@@ -723,6 +750,31 @@
         </div>
       </div>
     </div>
+
+    <!-- ══ THE ENACTMENT (Turmoil Redux) — the political phase pays the enacted
+         resolution's effect and asks THIS seat where its share goes. ALWAYS
+         MOUNTED (the vote layer's law): the press builds nothing, and the
+         teleport targets exist from the first frame. One scene over the field:
+         the ENACTED CARD itself (carried from the government) with the payout
+         reading under it — influence → the server's own amount — and the
+         SHARED recipient picker in its own zone (the very `ConsoleTaskHost`
+         every add-resource prompt uses, teleported by the shell). The crumb
+         names the stage; nothing here titles itself. B minimizes the whole
+         workspace (the hosted picker's own verb). ══ -->
+    <div class="con-parl__enact"
+         :class="{'con-parl__enact--up': enactUp}"
+         :style="{'--parl-accent': view.enacted !== undefined ? partyAccent(view.enacted.party) : undefined}"
+         :aria-hidden="enactUp ? undefined : 'true'"
+         data-parl-enact
+         ref="enactEl">
+      <div class="con-parl__enact-hero">
+        <div class="con-parl__enact-card" data-parl-enact-hero></div>
+        <ConsoleInfluenceYield v-if="enactYields.length > 0" class="con-parl__enact-yield" :yields="enactYields" size="hero" data-parl-enact-yield data-parl-enact-item />
+      </div>
+      <div class="con-parl__enact-zone" data-parl-enact-item>
+        <div class="con-parl__embed con-parl__embed--enact" data-embed-slot="parliament-enact"></div>
+      </div>
+    </div>
     </div>
 
     <!-- THE DELEGATE FLIGHTS — cubes on their way from a real place to a real
@@ -754,10 +806,16 @@ import {Color} from '@/common/Color';
 import {Message} from '@/common/logs/Message';
 import {PartyName} from '@/common/turmoil/PartyName';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
-import {PlayerInputModel, SelectPaymentModel, VotePaymentMeta} from '@/common/models/PlayerInputModel';
+import {PlayerInputModel, SelectCardModel, SelectPaymentModel, VotePaymentMeta} from '@/common/models/PlayerInputModel';
 import {InputResponse} from '@/common/inputs/InputResponse';
-import {ParliamentModel} from '@/common/models/ParliamentModel';
+import {ParliamentEnactOutcomeModel, ParliamentModel} from '@/common/models/ParliamentModel';
 import {PARLIAMENT_VOTE_COST, PARTY_EFFECT_DELEGATES as PARTY_EFFECT_THRESHOLD, PartyActionId, ReduxParty} from '@/common/parliament/ParliamentTypes';
+import {IClientResolution} from '@/common/parliament/IClientResolution';
+import {InfluenceYield} from '@/common/parliament/influenceScaling';
+import {
+  cardResourcePluralKey, noRecipientNoteOf, resolvingYieldOf, scaledEffectForCardResource, voteYieldsOf,
+} from '@/client/console/parliament/influenceYieldModel';
+import ConsoleInfluenceYield from '@/client/components/console/parliament/ConsoleInfluenceYield.vue';
 import ConsoleWsHead from '@/client/components/console/foundation/ConsoleWsHead.vue';
 import PlayerCube from '@/client/components/PlayerCube.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
@@ -780,6 +838,7 @@ import {resolutionPremiumVmById} from '@/client/components/premiumCard/resolutio
 import {partyAccent, partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
 import {
   descendWorkspaceFrame, foldWorkspaceFrame, setWorkspaceFramePhase, setWorkspaceFrameStage, setWorkspaceFrameSubject, workspaceFrameHasNested,
+  workspaceFrameKnown,
 } from '@/client/console/consoleWorkspaceStack';
 import {translateMessage, translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {promptIdentityKey} from '@/client/console/turnIntents';
@@ -798,6 +857,9 @@ import {
   Rect, restoreParliamentBody, runCardDealFlight, runDelegateCubeFlight,
 } from '@/client/console/parliament/consoleParliamentVoteMotion';
 import {HydroMarkerDirectorHandle, runHydroMarkerGlide} from '@/client/console/hydroMarker/hydroMarkerDirector';
+import {
+  enactCarryRect, killParliamentEnactMotion, parkParliamentForEnact, playParliamentEnactEnter, playParliamentEnactFold,
+} from '@/client/console/parliament/consoleParliamentEnactMotion';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 
 type Zone = 'voting' | 'government' | 'parties';
@@ -807,7 +869,7 @@ type Zone = 'voting' | 'government' | 'parties';
  * answer arrived: the delegate settles on the card before the flow leaves.
  * `seat` — the chairman's mandatory pick; `recap` — the RESULTS scene.
  */
-type Stage = 'browse' | 'vote' | 'seat' | 'submitting' | 'paying' | 'landed' | 'recap';
+type Stage = 'browse' | 'vote' | 'seat' | 'submitting' | 'paying' | 'landed' | 'recap' | 'enact';
 
 /** The delegate's landing beat (the cube settles, the counters tick). */
 const VOTE_LANDING_MS = 700;
@@ -858,6 +920,10 @@ const MIN_CARD_ZOOM = 0.3;
 /** The enacted face — the government's MAIN object. */
 const MAX_GOV_ZOOM = 0.72;
 const MIN_GOV_ZOOM = 0.2;
+/** The payout stage's carried card — the scene's hero, beside the recipient zone. */
+const MAX_ENACT_ZOOM = 1.05;
+/** …and at most this share of the layer's width (the recipient zone is the decision). */
+const ENACT_HERO_SHARE = 0.3;
 /** The vote row's cards. */
 const MAX_VOTE_ZOOM = 1.05;
 const MIN_VOTE_ZOOM = 0.35;
@@ -916,6 +982,15 @@ type VoteInfo = {
   ownMechanics: MechanicsVM | undefined;
   /** The own effect's parts in the order they apply: enacted → winner → standing effect → action (empty for a dummy). */
   ownParts: ReadonlyArray<OwnEffectPart>;
+  /**
+   * The viewer's OWN NUMBERS for the parts that scale with influence: the
+   * estimate by the current influence and, apart from it, the «if you win»
+   * forecast (the one shared reading — `influenceYieldModel`). Empty when
+   * nothing scales; the formula alone for a viewer without a seat.
+   */
+  yields: ReadonlyArray<InfluenceYield>;
+  /** The honest note when the viewer has no card that could take the yield (English key). */
+  yieldNote: string | undefined;
   questMechanics: MechanicsVM | undefined;
   questText: string;
 };
@@ -945,7 +1020,7 @@ function emptyRecapPending(): RecapPending {
 
 export default defineComponent({
   name: 'ConsoleParliamentSection',
-  components: {ConsoleWsHead, PlayerCube, GamepadGlyph, PremiumMechanicsPanel, ConsolePartyPlaque, ConsolePartyFormula},
+  components: {ConsoleWsHead, PlayerCube, GamepadGlyph, PremiumMechanicsPanel, ConsolePartyPlaque, ConsolePartyFormula, ConsoleInfluenceYield},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     myTurn: {type: Boolean, default: false},
@@ -1055,6 +1130,59 @@ export default defineComponent({
     /** The seat / recap stage stands in the middle tier. */
     stageUp(): boolean {
       return this.stage === 'seat' || this.stage === 'recap' || (this.stage === 'submitting' && this.stageBeforeSubmit === 'seat');
+    },
+    /** The ENACTMENT layer stands over the field (the payout). */
+    enactUp(): boolean {
+      return this.stage === 'enact';
+    },
+    /** The enacted card is on the payout stage (the one instance, teleported). */
+    enactCarried(): boolean {
+      return this.enactUp && this.view.enacted !== undefined;
+    },
+    /**
+     * THE ENACTED RESOLUTION'S LIVE ASK for this seat — its payout's recipient
+     * pick, by the server's own markers (a `resolution` source on a card
+     * pick while the political phase pays its effects), never a title.
+     */
+    enactPrompt(): PlayerInputModel | undefined {
+      const wf = this.playerView.waitingFor;
+      if (wf === undefined || wf.type !== 'card' || this.model?.phase?.step !== 'effects') {
+        return undefined;
+      }
+      return wf.choiceContext?.source?.kind === 'resolution' ? wf : undefined;
+    },
+    enactStanding(): boolean {
+      return this.enactPrompt !== undefined;
+    },
+    /**
+     * THE HONEST WAIT of every OTHER seat while the enacted resolution's effect
+     * asks someone: who, and what kind of answer (the asked seat's live input
+     * type, read by the server) — never a step name, never a resolution name
+     * check. Empty when nothing waits or the viewer is the one asked.
+     */
+    phaseWaitText(): string {
+      const phase = this.model?.phase;
+      const pending = phase?.pending;
+      if (phase?.step !== 'effects' || pending === undefined || pending.player === this.viewerColor) {
+        return '';
+      }
+      const who = this.nameOf(pending.player);
+      switch (pending.input) {
+      case 'card': return translateTextWithParams('Waiting for ${0} to choose a card', [who]);
+      case 'space': return translateTextWithParams('Waiting for ${0} to place a tile', [who]);
+      default: return translateTextWithParams('Waiting for ${0} to decide', [who]);
+      }
+    },
+    /** The payout being made: the SERVER's amount (the pick's own marker) read through the resolution's scaled rule. */
+    enactYields(): Array<InfluenceYield> {
+      const wf = this.enactPrompt as SelectCardModel | undefined;
+      const id = wf?.choiceContext?.source?.resolution;
+      const meta = wf?.resourceGainPrompt;
+      if (id === undefined || meta === undefined) {
+        return [];
+      }
+      const effect = scaledEffectForCardResource(getResolution(id), meta.cardResource);
+      return effect === undefined ? [] : [resolvingYieldOf(effect, meta.amount, this.model, this.viewerColor)];
     },
     /** The vote mode stands over the overview. */
     voteUp(): boolean {
@@ -1301,6 +1429,8 @@ export default defineComponent({
         winning: this.winningShownOf(slot),
         ownMechanics: own === undefined || own.textOnly ? undefined : own,
         ownParts: parts,
+        yields: resolution === undefined ? [] : voteYieldsOf(resolution, this.model, this.viewerColor),
+        yieldNote: resolution === undefined ? undefined : this.yieldNoteFor(resolution),
         questMechanics: quest === undefined || quest.textOnly ? undefined : quest,
         questText: resolution?.text.quest ?? '',
       };
@@ -1421,6 +1551,13 @@ export default defineComponent({
           text: translateTextWithParams('${0} advanced on the Agenda track to step ${1} ${2}', [this.nameOf(last.agenda.player), String(last.agenda.to), bonus]).trim()});
       }
       items.push({key: 'enacted', focus: 'enacted', text: translateTextWithParams('${0} is enacted — ${1} now rule; its delegates return to their reserves', [resolutionName(last.enacted.resolution), translateText(last.enacted.party)])});
+      // THE EFFECT AS IT WAS APPLIED — the server's own record per player and
+      // step (amounts as paid, skips with their reason): one beat per outcome,
+      // the viewer's own first.
+      const outcomes = [...(last.outcomes ?? [])].sort((a, b) => Number(b.player === this.viewerColor) - Number(a.player === this.viewerColor));
+      for (const outcome of outcomes) {
+        items.push({key: `outcome:${outcome.player}:${outcome.step}`, focus: 'enacted', text: this.outcomeText(outcome)});
+      }
       const gained = last.support.filter((s) => s.gained > 0);
       if (gained.length > 0) {
         items.push({key: 'support', focus: 'support', parties: gained.map((s) => s.party),
@@ -1455,6 +1592,7 @@ export default defineComponent({
       case 'submitting':
         return this.stageBeforeSubmit === 'vote' ? 'Voting' : 'Parliament overview';
       case 'recap': return 'Results';
+      case 'enact': return 'Enactment';
       default: return 'Parliament overview';
       }
     },
@@ -1482,6 +1620,9 @@ export default defineComponent({
         return [{control: 'confirm', label: 'Take the delegate', highlight: true}, {control: 'secondary', label: 'Inspect'}, {control: 'back', label: 'Minimize'}];
       case 'recap':
         return [{control: 'confirm', label: 'Continue', highlight: true}];
+      case 'enact':
+        // The hosted picker owns the bar while it stands in the stage's zone.
+        return [];
       case 'submitting':
         return [{control: 'confirm', label: 'Performing…', enabled: false}];
       case 'paying':
@@ -1556,6 +1697,31 @@ export default defineComponent({
       flush: 'post',
       handler(on: boolean): void {
         consoleParliamentUi.voteStanding = on;
+      },
+    },
+    /** The ENACTMENT stage's zone — published on the same terms (the picker teleports into it only once it is in the DOM). */
+    'stage': {
+      immediate: true,
+      flush: 'post',
+      handler(stage: Stage): void {
+        consoleParliamentUi.enactStanding = stage === 'enact';
+      },
+    },
+    /**
+     * THE ENACTMENT: the enacted resolution asks this seat where its payout
+     * goes — the stage unfolds around the shared picker; the answer (the
+     * prompt moves on) ends the flow, which LEAVES: the winner's ocean, if
+     * any, is the board's own scene, and the rest of the phase is the
+     * others' business.
+     */
+    'enactStanding': {
+      immediate: true,
+      handler(on: boolean): void {
+        if (on && this.stage === 'browse') {
+          this.openEnact();
+        } else if (!on && this.stage === 'enact') {
+          this.concludeEnact();
+        }
       },
     },
     /**
@@ -1741,6 +1907,9 @@ export default defineComponent({
     },
   },
   mounted() {
+    if (this.stage === 'enact') {
+      parkParliamentForEnact(this.$refs.rootEl as HTMLElement | undefined);
+    }
     this.fitCards();
     const field = (this.$refs.rootEl as HTMLElement | undefined)?.querySelector<HTMLElement>('.con-parl__field');
     if (field !== null && field !== undefined) {
@@ -1762,6 +1931,7 @@ export default defineComponent({
     }
     this.stopAgendaGlide();
     killParliamentVoteMotion(this.$refs.rootEl as HTMLElement | undefined);
+    killParliamentEnactMotion(this.$refs.rootEl as HTMLElement | undefined);
     consoleParliamentUi.commands = [];
     consoleParliamentUi.voteStanding = false;
     setWorkspaceFrameSubject('parliament', '');
@@ -1841,6 +2011,7 @@ export default defineComponent({
       switch (stage) {
       case 'paying': return 'Payment';
       case 'seat': return 'Seat';
+      case 'enact': return 'Payout';
       default: return '';
       }
     },
@@ -1900,6 +2071,22 @@ export default defineComponent({
         govZoom = Math.min(govZoom, (innerH - taken - px(rcs.paddingTop) - px(rcs.paddingBottom)) / PCARD_H, (innerW * 0.52) / PCARD_W);
       }
       root.style.setProperty('--con-parl-gov-zoom', String(snap(govZoom, MIN_GOV_ZOOM)));
+
+      // THE PAYOUT STAGE'S HERO — the carried enacted card takes the hero
+      // column's height minus the payout reading under it, and at most a
+      // share of the layer's width (the recipient zone is the decision).
+      if (this.enactUp) {
+        const layer = root.querySelector<HTMLElement>('.con-parl__enact');
+        const hero = root.querySelector<HTMLElement>('.con-parl__enact-hero');
+        if (layer !== null && hero !== null) {
+          const hcs = getComputedStyle(hero);
+          const readingH = heightOf(hero, '.con-parl__enact-yield');
+          const availH = hero.clientHeight - px(hcs.paddingTop) - px(hcs.paddingBottom) - readingH - (readingH > 0 ? px(hcs.rowGap) : 0);
+          const availW = layer.clientWidth * ENACT_HERO_SHARE;
+          const zoom = Math.min(availH / PCARD_H, availW / PCARD_W, MAX_ENACT_ZOOM * scale);
+          root.style.setProperty('--con-parl-enact-zoom', String(snap(zoom, MIN_GOV_ZOOM)));
+        }
+      }
     },
     /** The browse layer's verbs depend on the focused ZONE (one bar, one contract). */
     browseCommands(back: ConsoleCommand): Array<ConsoleCommand> {
@@ -1961,7 +2148,8 @@ export default defineComponent({
     },
     // ── input ──────────────────────────────────────────────────────────
     handleIntent(intent: GamepadIntent): void {
-      if (this.stage === 'submitting' || this.stage === 'landed' || this.stage === 'paying') {
+      // The hosted picker owns the pad in the enactment stage (the shell routes to it first).
+      if (this.stage === 'submitting' || this.stage === 'landed' || this.stage === 'paying' || this.stage === 'enact') {
         return;
       }
       if (this.stage === 'recap') {
@@ -2310,6 +2498,50 @@ export default defineComponent({
       this.stage = stage;
       setWorkspaceFramePhase('parliament', 'configure');
     },
+    /**
+     * OPEN THE PAYOUT — the enacted resolution asks this seat where its share
+     * goes. The card's government rect is read BEFORE the teleport moves it
+     * (the FLIP's origin); at setup time (a reload, a restore) there is no DOM
+     * yet and `mounted()` parks the overview instead — no entrance to play.
+     */
+    openEnact(): void {
+      const root = this.$refs.rootEl as HTMLElement | undefined;
+      const cardFrom = enactCarryRect(root);
+      this.zone = 'government';
+      this.stage = 'enact';
+      setWorkspaceFramePhase('parliament', 'committed');
+      if (root === undefined) {
+        return;
+      }
+      void this.$nextTick(() => {
+        this.fitCards();
+        playParliamentEnactEnter({root, cardFrom});
+      });
+    },
+    /**
+     * THE ANSWER IS IN. A finished payout LEAVES with its stage standing (one
+     * motion with the workspace); only a flow that could not conclude — the
+     * Parliament frame still known a tick later — folds back to the overview,
+     * the card FLIPping home from the hero slot.
+     */
+    concludeEnact(): void {
+      this.$emit('flow-complete', 'enact');
+      void this.$nextTick(() => {
+        if (this.stage !== 'enact' || this.enactStanding || !workspaceFrameKnown('parliament')) {
+          return;
+        }
+        const root = this.$refs.rootEl as HTMLElement | undefined;
+        const cardFrom = enactCarryRect(root);
+        this.closeStage();
+        if (root === undefined) {
+          return;
+        }
+        void this.$nextTick(() => {
+          this.fitCards();
+          playParliamentEnactFold({root, cardFrom});
+        });
+      });
+    },
     closeStage(): void {
       this.stage = 'browse';
       setWorkspaceFramePhase('parliament', 'browse');
@@ -2381,6 +2613,36 @@ export default defineComponent({
       }
       this.selectVoteSlot(index);
       this.submitVote();
+    },
+    /**
+     * ONE results line for a recorded outcome: a payout names the amount, the
+     * resource and the card it landed on; a skip names its reason; an ocean
+     * names the winner. Sentences from i18n keys, the card by its own name.
+     */
+    outcomeText(outcome: ParliamentEnactOutcomeModel): string {
+      const who = this.nameOf(outcome.player);
+      switch (outcome.kind) {
+      case 'cardResource':
+        return translateTextWithParams('${0} received ${1} ${2} on ${3}', [
+          who, String(outcome.amount ?? 0), translateText(cardResourcePluralKey(outcome.resource)), outcome.card === undefined ? '' : translateText(outcome.card),
+        ]).trim();
+      case 'ocean':
+        return translateTextWithParams('${0} placed an ocean as the winner of the vote', [who]);
+      case 'skipped':
+      default:
+        return translateTextWithParams('${0}: ${1} — skipped: ${2}', [who, translateText(outcome.step === 'ocean' ? 'Winner of the vote' : 'Resolution effect'), translateText(outcome.reason ?? '')]);
+      }
+    },
+    /** The honest recipient note for the vote surface: the viewer has no card that could hold the yield. */
+    yieldNoteFor(resolution: IClientResolution): string | undefined {
+      const tableau = this.playerView.thisPlayer.tableau;
+      for (const effect of resolution.scaled ?? []) {
+        const note = noRecipientNoteOf(effect, tableau);
+        if (note !== undefined) {
+          return note;
+        }
+      }
+      return undefined;
     },
     // ── submits (byte-identical to the live prompt) ─────────────────────
     submitVote(): void {

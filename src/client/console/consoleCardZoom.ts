@@ -21,6 +21,8 @@ import {reactive} from 'vue';
 import {CardName} from '@/common/cards/CardName';
 import {ZoomCard} from '@/client/components/card/cardZoomTypes';
 import {ActionInspectHistory} from '@/client/components/actions/actionInspectHistory';
+import {Color} from '@/common/Color';
+import {ParliamentModel} from '@/common/models/ParliamentModel';
 
 /** A SAFE selection bridge from the opening context (P15). */
 export type ConsoleZoomSelect = {
@@ -322,6 +324,22 @@ export type ConsoleZoomExtra = {
    * provenance). A plain object is accepted for a single-card viewer.
    */
   provenance?: ConsoleZoomProvenance | ((index: number) => ConsoleZoomProvenance | undefined),
+  /**
+   * The PARLIAMENT a resolution scene reads, for a viewer served OUTSIDE a
+   * game (the pre-game host has no live table — the resolutions stand passes
+   * its synthetic one). The in-game shell reads its own live table.
+   */
+  parliament?: ConsoleZoomParliament,
+};
+
+/**
+ * A parliament READING context: the table + the seat a resolution's standing,
+ * access and influence readings are computed for. Getters, so a reading
+ * follows the opener's state while the viewer stays open.
+ */
+export type ConsoleZoomParliament = {
+  model: () => ParliamentModel | undefined,
+  viewer: () => Color | undefined,
 };
 
 export const consoleCardZoom = reactive({
@@ -367,6 +385,8 @@ export const consoleCardZoom = reactive({
   vote: undefined as ConsoleZoomVote | undefined,
   /** The position rides the footer, not a counter above the card. */
   counterInFooter: false,
+  /** The parliament a resolution scene reads outside a game (see ConsoleZoomExtra). */
+  parliament: undefined as ConsoleZoomParliament | undefined,
 });
 
 /** The provenance plate for the card currently on screen (undefined = the
@@ -403,6 +423,7 @@ export function openConsoleCardZoom(cards: ReadonlyArray<ZoomCard>, index: numbe
     typeof provenance === 'function' ? provenance : () => provenance;
   consoleCardZoom.vote = extra?.vote;
   consoleCardZoom.counterInFooter = extra?.counterInFooter === true;
+  consoleCardZoom.parliament = extra?.parliament;
 }
 
 /** Switch the inspect dossier tab (LB/RB). No-op outside an inspect context. */
@@ -465,4 +486,5 @@ export function closeConsoleCardZoom(): void {
   consoleCardZoom.provenanceAt = undefined;
   consoleCardZoom.vote = undefined;
   consoleCardZoom.counterInFooter = false;
+  consoleCardZoom.parliament = undefined;
 }

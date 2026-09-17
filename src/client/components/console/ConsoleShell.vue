@@ -1042,6 +1042,17 @@
                                    :status="zoomResolutionStatus"
                                    :reserve="zoomResolutionStatusReserve"
                                    :viewerColor="thisPlayer.color" />
+          <!-- THE VIEWER'S OWN NUMBER for an influence-scaled part of the
+               resolution on the stage: the estimate (and the «if you win»
+               forecast) while it is up for the vote, what was recorded once
+               it is enacted. The card beside it prints the formula, so the
+               chip draws the readings alone. -->
+          <ConsoleInfluenceYield v-if="zoomResolutionYields.length > 0"
+                                 class="con-zoom__bar-yield"
+                                 :yields="zoomResolutionYields"
+                                 :formula="false"
+                                 size="compact"
+                                 data-zoom-yield />
           <!-- THE PROVENANCE PLATE (opened from «Разыграно»): the hero card
                would otherwise read like any other inspected card. The plate
                leads the bar and states WHOSE table it lies on, in WHICH
@@ -1476,7 +1487,6 @@ import {Color} from '@/common/Color';
 import {GameModel} from '@/common/models/GameModel';
 import {CardModel} from '@/common/models/CardModel';
 import {CardName} from '@/common/cards/CardName';
-import {PartyName} from '@/common/turmoil/PartyName';
 import {isReduxParty, ReduxParty} from '@/common/parliament/ParliamentTypes';
 import {Message} from '@/common/logs/Message';
 import {Payment} from '@/common/inputs/Payment';
@@ -1580,6 +1590,9 @@ import {resolutionPartyContextKey, resolutionStatusOf, ResolutionStatusVm} from 
 import {getResolution} from '@/client/parliament/ClientParliamentManifest';
 import ConsoleResolutionAside from '@/client/components/console/parliament/ConsoleResolutionAside.vue';
 import ConsoleResolutionStatus from '@/client/components/console/parliament/ConsoleResolutionStatus.vue';
+import ConsoleInfluenceYield from '@/client/components/console/parliament/ConsoleInfluenceYield.vue';
+import {enactedYieldsOf, voteYieldsOf} from '@/client/console/parliament/influenceYieldModel';
+import {InfluenceYield} from '@/common/parliament/influenceScaling';
 import ConsoleInfoMode from '@/client/components/console/ConsoleInfoMode.vue';
 import ConsoleStrandedPrompt from '@/client/components/console/ConsoleStrandedPrompt.vue';
 import ConsoleSystemAlert from '@/client/components/console/ConsoleSystemAlert.vue';
@@ -2111,6 +2124,7 @@ export default defineComponent({
     ConsoleParliamentSection,
     ConsoleResolutionAside,
     ConsoleResolutionStatus,
+    ConsoleInfluenceYield,
     ConsoleInfoMode,
     ConsoleCardRulesPanel,
     ConsoleInspectSide,
@@ -4338,6 +4352,11 @@ export default defineComponent({
       if (this.parliamentBillStanding && !consoleParliamentUi.voteStanding && !this.consoleState.task.deferred) {
         return true;
       }
+      // …and the enacted resolution's payout pick belongs inside the
+      // Parliament's enactment stage on the same terms.
+      if (this.parliamentEnactStanding && !consoleParliamentUi.enactStanding && !this.consoleState.task.deferred) {
+        return true;
+      }
       return this.taskBelongsToWorkspace &&
         (workspaceOutcomeState.embedSlot === '' || workspaceOutcomeBeatPending());
     },
@@ -4350,6 +4369,18 @@ export default defineComponent({
     parliamentBillStanding(): boolean {
       return this.hostTask?.kind === 'payment' &&
         (this.playerView.waitingFor as SelectPaymentModel | undefined)?.votePayment !== undefined;
+    },
+    /**
+     * THE ENACTED RESOLUTION'S PAYOUT PICK is the live prompt (Turmoil Redux):
+     * a card pick whose source is a resolution while the political phase pays
+     * its effects — the server's own markers, never a title. It belongs
+     * INSIDE the Parliament's enactment stage, like the vote's bill belongs
+     * inside the vote step.
+     */
+    parliamentEnactStanding(): boolean {
+      const wf = this.playerView.waitingFor;
+      return this.hostTask?.kind === 'cardSelect' && wf?.type === 'card' &&
+        wf.choiceContext?.source?.kind === 'resolution' && this.game.parliament?.phase?.step === 'effects';
     },
     taskEmbedTarget(): string | undefined {
       // HELD means "renders nowhere yet" — so it is NOT embedded, and saying
@@ -4392,6 +4423,12 @@ export default defineComponent({
       if (this.hostTask?.kind === 'payment' && workspaceFrameMounted('parliament') && consoleParliamentUi.voteStanding &&
           (this.playerView.waitingFor as SelectPaymentModel | undefined)?.votePayment !== undefined) {
         return '.con-parl [data-embed-slot="parliament-vote"]';
+      }
+      // THE ENACTED RESOLUTION'S PAYOUT (Turmoil Redux): the shared recipient
+      // picker stands in the Parliament's enactment stage — the resolution is
+      // on stage above it, the stage names the amount, the picker asks where.
+      if (this.parliamentEnactStanding && workspaceFrameMounted('parliament') && consoleParliamentUi.enactStanding) {
+        return '.con-parl [data-embed-slot="parliament-enact"]';
       }
       if (!workspaceClaimsPick()) {
         return undefined;
@@ -5268,6 +5305,15 @@ export default defineComponent({
     placementSourceCard(): CardName | undefined {
       const view = this.placementSourceView;
       return view?.inspectable === true ? view.card : undefined;
+    },
+    /** The placement source RESOLUTION (Turmoil Redux — the winner's ocean of an enacted resolution), when there is one. */
+    placementSourceResolution(): string | undefined {
+      const view = this.placementSourceView;
+      return view?.inspectable === true ? view.resolution : undefined;
+    },
+    /** SOMETHING to open fullscreen placed this tile — a card or a resolution (L3 «Источник»). */
+    placementSourceInspectable(): boolean {
+      return this.placementSourceCard !== undefined || this.placementSourceResolution !== undefined;
     },
     /**
      * The active space prompt, narrowed to the SelectSpace model — the ONE
@@ -8131,7 +8177,7 @@ export default defineComponent({
           return [
             {control: 'confirm', label: 'Confirm placement', enabled: true, highlight: true},
             {control: 'back', label: 'Change cell'},
-            ...(this.placementSourceCard !== undefined ?
+            ...(this.placementSourceInspectable ?
               [{control: 'stickL' as GlyphControl, label: 'Source', priority: 1}] : []),
           ];
         }
@@ -8145,7 +8191,7 @@ export default defineComponent({
           // other surface in the shell. It replaced «next available cell», a
           // jump that duplicated what the d-pad already does over a board whose
           // legal cells are highlighted.
-          ...(this.placementSourceCard !== undefined ?
+          ...(this.placementSourceInspectable ?
             [{control: 'stickL' as GlyphControl, label: 'Source', priority: 1}] : []),
           {control: 'stickR', label: this.consoleState.freeRoam ? 'Available only' : 'All cells', priority: 2},
         ];
@@ -8385,6 +8431,21 @@ export default defineComponent({
     /** The party column's one context line (a condition in the vote, a fact once enacted). */
     zoomResolutionContextKey(): string | undefined {
       return resolutionPartyContextKey(this.zoomResolutionStatus);
+    },
+    /**
+     * The viewer's readings of the resolution on the stage — the vote's
+     * estimate + forecast, or the enacted card's recorded payout — from the
+     * ONE influence-yield model. Empty when nothing scales with influence.
+     */
+    zoomResolutionYields(): ReadonlyArray<InfluenceYield> {
+      const id = this.zoomResolutionId;
+      const resolution = id === undefined ? undefined : getResolution(id);
+      if (resolution === undefined || (resolution.scaled ?? []).length === 0) {
+        return [];
+      }
+      const model = this.game.parliament;
+      const viewer = this.thisPlayer.color;
+      return model?.enacted?.resolution === id ? enactedYieldsOf(resolution, model, viewer) : voteYieldsOf(resolution, model, viewer);
     },
     /**
      * ONE type size for the resolution scene: the denser of the party
@@ -8735,6 +8796,21 @@ export default defineComponent({
      * one way back.
      */
     parliamentBillStanding: {
+      immediate: true,
+      handler(on: boolean): void {
+        if (on && !workspaceFrameKnown('parliament') && !this.consoleState.task.deferred) {
+          enterWorkspace('parliament');
+        }
+      },
+    },
+    /**
+     * THE ENACTED RESOLUTION'S PAYOUT PICK arrives at the end of the
+     * generation with no Parliament on screen: the Parliament opens around
+     * it (the enacted card in the government, the enactment stage naming the
+     * payout) and the picker teleports into the stage's zone. Same law as
+     * the vote's bill; a parked Parliament stays parked.
+     */
+    parliamentEnactStanding: {
       immediate: true,
       handler(on: boolean): void {
         if (on && !workspaceFrameKnown('parliament') && !this.consoleState.task.deferred) {
@@ -18376,10 +18452,14 @@ export default defineComponent({
      */
     inspectPlacementSource(): void {
       const name = this.placementSourceCard;
-      if (name === undefined) {
+      const resolution = this.placementSourceResolution;
+      if (name === undefined && resolution === undefined) {
         return;
       }
-      openConsoleCardZoom([{name}], 0, undefined, undefined, {
+      // A RESOLUTION placed this tile: its own inspector (party column, own
+      // rules, standing), lifted out of the dossier's source plate.
+      const entries = resolution !== undefined ? [resolutionZoomEntry(resolution)] : [{name: name as CardName}];
+      openConsoleCardZoom(entries, 0, undefined, undefined, {
         statusLabel: 'Source',
         origin: {
           kind: 'physical',

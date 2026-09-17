@@ -40,6 +40,15 @@
       <Card :card="{name: cardName}" :key="cardName" />
     </div>
 
+    <!-- A TURMOIL REDUX RESOLUTION is not a project card and must never be
+         drawn as one: its own premium face (the parliament family — party
+         emblem, code, chairman quest) stands in the very same card slot, so
+         the grammar and the position never move; the inspect verb opens the
+         resolution inspector, never a card viewer. -->
+    <div v-else-if="resolutionVm !== undefined && !chip" class="con-src__card con-src__card--resolution" :data-motion-anchor="motionAnchor">
+      <PremiumCard :name="resolutionVm.name" :vmOverride="resolutionVm" :key="resolutionVm.name" inert />
+    </div>
+
     <!-- A MARSBOT BONUS CARD is not a project card and must never be drawn as
          one: it has its own printed identity, and the SHARED `BonusCardFace` is
          the one that already draws it (bot board, turn theater, fullscreen
@@ -60,9 +69,15 @@
       <span class="con-src__plate-kind">{{ $t(chip ? 'Source' : view.kindKey) }}</span>
       <span v-if="nameText !== ''" class="con-src__plate-sep" aria-hidden="true">·</span>
       <span v-if="nameText !== ''" class="con-src__plate-name">{{ nameText }}</span>
+      <span v-if="view.code !== undefined" class="con-src__plate-code" :data-source-code="view.code">{{ view.code }}</span>
     </div>
 
     <div v-if="view.ruleKey !== undefined && !chip" class="con-src__rule">{{ $t(view.ruleKey) }}</div>
+
+    <!-- WHAT THIS SOURCE PAYS — an optional reading the host hangs under the
+         source (a resolution's influence-scaled yield). It belongs to the
+         source, not to the decision beside it, so it stands in the dock. -->
+    <slot name="under" />
   </div>
 </template>
 
@@ -82,10 +97,13 @@ import {CardName} from '@/common/cards/CardName';
 import {Message} from '@/common/logs/Message';
 import {translateMessage, translateText} from '@/client/directives/i18n';
 import {PromptSourceView} from '@/client/console/promptSource';
+import PremiumCard from '@/client/components/premiumCard/PremiumCard.vue';
+import {PremiumCardVM} from '@/client/components/premiumCard/premiumCardViewModel';
+import {resolutionPremiumVmById} from '@/client/components/premiumCard/resolutionPremiumVm';
 
 export default defineComponent({
   name: 'ConsoleSourceDock',
-  components: {Card, BonusCardFace},
+  components: {Card, BonusCardFace, PremiumCard},
   props: {
     view: {type: Object as PropType<PromptSourceView>, required: true},
     /** The card is CONTEXT, not the subject (a dial / a list / a distribution). */
@@ -108,7 +126,11 @@ export default defineComponent({
   computed: {
     /** The plate is the CHIP's only body, and a non-card source's always. */
     plateOnly(): boolean {
-      return this.cardName === undefined && this.bonusCard === undefined;
+      return this.cardName === undefined && this.bonusCard === undefined && (this.chip || this.resolutionVm === undefined);
+    },
+    /** The resolution face to draw (Turmoil Redux) — built from the parliament manifest, never a card. */
+    resolutionVm(): PremiumCardVM | undefined {
+      return this.view.resolution === undefined ? undefined : resolutionPremiumVmById(this.view.resolution);
     },
     /** The card face to draw — none in chip mode (it names, never draws). */
     cardName(): CardName | undefined {

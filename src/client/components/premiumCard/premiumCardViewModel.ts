@@ -117,6 +117,14 @@ export type PremiumCardVM = {
   theme: PremiumTheme;
   /** English name — the render layer translates (and derives the title tier). */
   title: string;
+  /**
+   * The PRINTED CATALOG CODE — a project card's `metadata.cardNumber`
+   * («X31», «DP07»), a Turmoil Redux resolution's `code` («RX01»). Engraved
+   * beside the expansion stamp on every face that has one; the same key the
+   * art and the lore resolve by, so what the player reads is what the
+   * catalog searches by. Absent = no stamp (a bot card, a dummy resolution).
+   */
+  code?: string;
   cost?: PremiumCostVM;
   tags: ReadonlyArray<Tag>;
   tagCluster: TagClusterPlan;
@@ -382,6 +390,7 @@ export function buildPremiumCardViewModel(clientCard: ClientCard, model?: CardMo
     type: clientCard.type,
     theme,
     title: clientCard.name,
+    code: clientCard.metadata.cardNumber,
     cost: buildCost(clientCard, model),
     tags,
     tagCluster: tagClusterPlan(tags.length),

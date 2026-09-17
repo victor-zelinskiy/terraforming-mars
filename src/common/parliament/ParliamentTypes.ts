@@ -120,6 +120,28 @@ export type ResolutionId = string;
 /** One physical card of a resolution: `<id>#<copy>`, copies numbered from 0. */
 export type ResolutionInstanceId = string;
 
+/**
+ * THE CATALOG CODE of a resolution — the printed identifier the face wears
+ * in its corner stamp, the ART key (`assets/card-images/<code>.webp`) and the
+ * search / debug key: the project cards' `metadata.cardNumber` twin, kept
+ * apart from the internal id (a save key) and from the localized name.
+ *
+ * THE FAMILY: `RX##` — «RX» for the Redux resolutions (no project module
+ * uses it: base `###`, promo `X##`, corporations `R##`, colonies `C##`,
+ * prelude `P##`, turmoil `T##`, delta `DP##`, …), two digits = the
+ * resolution's ORDINAL in the alphabetical list of the 48 official Turmoil
+ * Redux resolutions (docs/TURMOIL_REDUX_SPEC.md §4 — Aquifer Contest is 01,
+ * Architecture Award 02, Biodome Contest 03, … Water Export 48). Assigned by
+ * hand in the definition, never derived from a deck or an array position;
+ * the catalog refuses a duplicate. Dummies and dev examples carry none.
+ */
+export type ResolutionCode = string;
+export const RESOLUTION_CODE_PATTERN = /^RX\d{2}$/;
+
+export function isResolutionCode(code: string | undefined): code is ResolutionCode {
+  return code !== undefined && RESOLUTION_CODE_PATTERN.test(code);
+}
+
 export function resolutionInstanceId(id: ResolutionId, copy: number): ResolutionInstanceId {
   return `${id}#${copy}`;
 }
