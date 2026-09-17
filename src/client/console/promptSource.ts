@@ -230,3 +230,14 @@ export function promptSourceView(
 export function promptSourceCard(wf: PlayerInputModel | undefined): CardName | undefined {
   return promptSourceView(wf)?.card;
 }
+
+/**
+ * The ENACTED RESOLUTION that asked (Turmoil Redux — its catalog id), when one
+ * did: read off the server's own source markers (`choiceContext.source` /
+ * `placementContext.source` of kind `resolution`), never a title. What makes
+ * every resolution ask an ANNOUNCED mandatory prompt with the resolution on
+ * its plate (`consoleMandatoryGate`, `consoleTaskSummary`).
+ */
+export function promptSourceResolution(wf: PlayerInputModel | undefined): string | undefined {
+  return promptSourceView(wf)?.resolution;
+}

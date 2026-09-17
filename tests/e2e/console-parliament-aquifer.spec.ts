@@ -2,8 +2,8 @@ import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {
-  bootFixture, bootFixtureSeats, closeZoomViewer, crumbText, fetchPlayerModel, openQuickWheel, openZoomViewer, placeTile, placementState, press,
-  pressUntil, sendPlayerInput, settle, waitForBoardHome,
+  bootFixture, bootFixtureSeats, closeZoomViewer, crumbText, fetchPlayerModel, openMandatoryAnnounce, openQuickWheel, openZoomViewer, placeTile,
+  placementState, press, pressUntil, sendPlayerInput, settle, waitForBoardHome,
 } from './consoleStart';
 
 /**
@@ -17,12 +17,14 @@ import {
  *     (the Agenda step of the phase counts first); the fullscreen inspector's
  *     footer reads the same numbers beside the standing chip;
  *   · the ENACTMENT: the political phase asks the viewer where its animals
- *     go — the Parliament opens around the SHARED recipient picker (its stage
+ *     go — first as an HONEST MANDATORY PROMPT (the board-home plate names
+ *     the ask and the resolution as its source; nothing opens by itself), A
+ *     opens the Parliament around the SHARED recipient picker (its stage
  *     names the amount, the picker shows Fish and Pets with their own
  *     `current → resulting` and VP readings), the answer pays exactly that,
- *     the winner's ocean is the STANDARD board placement whose dossier names
- *     the resolution as its source, the other seat is paid by ITS influence,
- *     and the generation moves on.
+ *     the winner's ocean is announced the same way and A starts the STANDARD
+ *     board placement whose dossier names the resolution as its source, the
+ *     other seat is paid by ITS influence, and the generation moves on.
  *
  * Fixtures: `parliament-aquifer-vote` (blue's delegate on the card, blue at
  * Agenda step 2 with Fish + Pets, red at step 5 with Birds) and
@@ -104,6 +106,32 @@ async function expectFits(page: Page, label: string): Promise<void> {
   expect(problems, `${label}: layout problems`).toEqual([]);
 }
 
+/**
+ * The mandatory plate reads WHOLE: no ellipsized line, and the plate stays
+ * inside the viewport. (An absolute `left: 50%` box shrink-to-fits into half
+ * the root, which cut the Deck's ocean ask to «Выберите место для размещения …».)
+ */
+async function expectPlateReadsWhole(page: Page, label: string): Promise<void> {
+  const problems = await page.evaluate(() => {
+    const plate = document.querySelector<HTMLElement>('.con-mandatory');
+    if (plate === null) {
+      return ['no plate'];
+    }
+    const out: Array<string> = [];
+    const r = plate.getBoundingClientRect();
+    if (r.left < -1 || r.right > window.innerWidth + 1) {
+      out.push(`off-screen plate ${Math.round(r.left)}..${Math.round(r.right)}`);
+    }
+    for (const el of Array.from(plate.querySelectorAll<HTMLElement>('.con-mandatory__kicker, .con-mandatory__ask, .con-mandatory__src-name'))) {
+      if (el.scrollWidth > el.clientWidth + 1) {
+        out.push(`cut ${el.className} ${el.scrollWidth}>${el.clientWidth} «${el.textContent?.trim()}»`);
+      }
+    }
+    return out;
+  });
+  expect(problems, `${label}: the plate does not read whole`).toEqual([]);
+}
+
 const PRESETS = [
   {id: 'standard-1080', viewport: {width: 1920, height: 1080}, query: '&consoleProfile=auto'},
   {id: 'tv-4k', viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv'},
@@ -164,6 +192,20 @@ for (const preset of PRESETS) {
       const before = await wireOf(request, playerId);
       expect(before.game.phase, 'the political phase stands').toBe('parliament');
       expect(before.waitingFor?.cards?.map((c) => c.name).sort()).toEqual(['Fish', 'Pets']);
+
+      // ── AN HONEST MANDATORY PROMPT FIRST: the plate on the board home names the ask and the resolution as its
+      //    source; nothing has opened by itself — no Parliament, no picker — until the player presses A.
+      const plate = page.locator('.con-mandatory');
+      await expect(plate, 'the resolution\'s ask is announced on the board home').toHaveCount(1, {timeout: 30_000});
+      await expect(plate.locator('[data-source-resolution="RDX_GREENS_AQUIFER_CONTEST"]'), 'the plate names the resolution as the source').toHaveCount(1);
+      await expect(plate.locator('.con-mandatory__src-name')).toHaveText(/Конкурс водоносных пластов|Aquifer Contest/);
+      await expect(plate.locator('.con-mandatory__kicker')).toHaveText(/Эффект резолюции|Resolution effect/i);
+      await expect(plate.locator('.con-mandatory__ask')).toHaveText(/2/);
+      await expect(page.locator('.con-parl'), 'the Parliament does not open by itself').toHaveCount(0);
+      await expect(page.locator('.con-cards__slot'), 'no picker before the press').toHaveCount(0);
+      await expectPlateReadsWhole(page, `${preset.id} payout plate`);
+      await shoot(page, preset.id, '04a-enact-announce');
+      expect(await openMandatoryAnnounce(page), 'A on the plate opens the choice').toBe(true);
 
       // ── THE PARLIAMENT OPENS AROUND THE PICK: the enactment stage names the payout, the picker stands in its zone.
       await expect(page.locator('.con-parl__enact--up'), 'the enactment layer').toHaveCount(1, {timeout: 30_000});
@@ -236,12 +278,21 @@ for (const preset of PRESETS) {
       expect(probe.samples, 'the probe ran').toBeGreaterThan(10);
       expect(probe.chips, `one payout chip flew (${JSON.stringify(probe)})`).toBe(1);
       expect(probe.chipText).toContain('+2');
-      await expect.poll(async () => await placementState(page), {timeout: 60_000, message: 'the winner\'s ocean placement stands'}).not.toBe('none');
-      await settle(page, {timeoutMs: 20_000});
+      // ── THE WINNER'S OCEAN is announced the same way: the plate names the resolution, the board stays calm
+      //    (no placement mode) until A — then the standard placement comes alive.
+      await expect(plate, 'the ocean ask is announced on the board home').toHaveCount(1, {timeout: 60_000});
+      await expect(plate.locator('[data-source-resolution="RDX_GREENS_AQUIFER_CONTEST"]'), 'the ocean\'s source is the resolution').toHaveCount(1);
+      await expect(plate.locator('.con-mandatory__kicker')).toHaveText(/Размещение тайла|Tile placement/i);
       const mid = await wireOf(request, playerId);
       const holder = mid.thisPlayer.tableau.find((c) => c.name === focusedName);
       expect(holder?.resources, `the animals landed on ${focusedName}`).toBe(2);
       expect(mid.waitingFor?.type).toBe('space');
+      expect(await placementState(page), 'no placement before the press').toBe('none');
+      await expectPlateReadsWhole(page, `${preset.id} ocean plate`);
+      await shoot(page, preset.id, '05a-ocean-announce');
+      expect(await openMandatoryAnnounce(page), 'A on the plate starts the placement').toBe(true);
+      await expect.poll(async () => await placementState(page), {timeout: 30_000, message: 'the winner\'s ocean placement stands'}).not.toBe('none');
+      await settle(page, {timeoutMs: 20_000});
       // The dossier names the resolution as the placement's source (the shared source plate).
       const dossier = page.locator('.con-context');
       await expect(dossier.locator('.con-src__plate-name, .con-src__card'), 'the placement\'s source is the resolution').toHaveCount(1);

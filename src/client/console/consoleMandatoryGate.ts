@@ -61,10 +61,16 @@
  * real decision boundary, not a mid-animation split.
  *
  * SCOPE (Option A — "all interruptive / triggered"): the corporation first
- * action, a forced hand pick (discard / keep / place), and any triggered
+ * action, a forced hand pick (discard / keep / place), any triggered
  * sub-prompt (pick a player / amount / target) that arrives OUTSIDE the viewer's
- * own active turn. The viewer's OWN turn — the action menu, a tile placement
- * after their own play, the steps of a composer they opened — is NEVER gated.
+ * own active turn, and EVERY ask of an ENACTED RESOLUTION (Turmoil Redux — its
+ * payout's recipient card, the winner's ocean, whatever the widget): the
+ * political phase is nobody's action turn, so the player first SEES that the
+ * resolution asks (the plate names it as the source), presses A on the board
+ * home, and only then makes the choice — the between-generations draft's
+ * pattern, one prompt at a time. The viewer's OWN turn — the action menu, a
+ * tile placement after their own play, the steps of a composer they opened —
+ * is NEVER gated.
  * And no task announcement can appear mid-animation (the shell's visibility gate
  * requires `!isAnimationHoldActive()`), so a decision never interrupts a scene.
  *
@@ -199,20 +205,40 @@ const FORCED_REACTION_INTERRUPTIVE: ReadonlySet<TaskKind> = new Set<TaskKind>([
 // Deliberately NEVER gated (open immediately): 'actionMenu' (the turn UI is not
 // a modal), 'space' (a placement — a continuation of the player's own play, and
 // it has its own banner flow), 'cardSelect' (draft / buy / target inside the
-// player's own action), 'draftWait' / 'initialDraft' / 'startSequence' (their
+// player's own action) — both of the last two UNLESS an enacted resolution asks
+// (RESOLUTION_ASK_KINDS), 'draftWait' / 'initialDraft' / 'startSequence' (their
 // own full-screen flows), 'awardFunding' (the player's own award screen),
 // 'aresGlobal', and 'unknown' (the honest guard owns it).
+
+/**
+ * The DECISION kinds an ENACTED RESOLUTION can ask through — each ALWAYS
+ * announced when a resolution is its source (`resolutionPrompt`), `space`
+ * included: the winner's ocean is not a continuation of anything the player
+ * did, it is the resolution's own demand, so it waits on the plate like the
+ * payout pick before it. An explicit inclusion list, so a future kind is gated
+ * only once somebody decides it is a decision (the turn menu, the honest
+ * `unknown` guard and the start flows can never carry a resolution source).
+ */
+const RESOLUTION_ASK_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>([
+  'space', 'cardSelect', 'deckSelect', 'handSelect', 'choice', 'player', 'amount', 'resource',
+  'distribute', 'payment', 'projectCard', 'colony', 'composite',
+]);
 
 /**
  * Is this task an INTERRUPTIVE mandatory prompt (→ announce, don't auto-open)?
  * `forcedReaction` = the viewer's status is an off-turn forced reaction
  * (`actionLabelForPlayer(...) === 'forcedaction'`), computed by the shell.
+ * `resolutionPrompt` = an enacted resolution raised it (the server's own
+ * source marker — `promptSourceResolution`).
  */
-export function isInterruptiveMandatoryTask(task: ConsoleTask | undefined, forcedReaction: boolean): boolean {
+export function isInterruptiveMandatoryTask(task: ConsoleTask | undefined, forcedReaction: boolean, resolutionPrompt = false): boolean {
   if (task === undefined) {
     return false;
   }
   if (ALWAYS_INTERRUPTIVE.has(task.kind)) {
+    return true;
+  }
+  if (resolutionPrompt && RESOLUTION_ASK_KINDS.has(task.kind)) {
     return true;
   }
   if (FORCED_REACTION_INTERRUPTIVE.has(task.kind)) {
@@ -229,6 +255,8 @@ export type MandatoryBeatInput = {
   taskKey: string;
   /** The viewer's status is an off-turn forced reaction (see above). */
   forcedReaction: boolean;
+  /** An ENACTED RESOLUTION raised the prompt (Turmoil Redux — see RESOLUTION_ASK_KINDS). */
+  resolutionPrompt?: boolean;
   /**
    * Pending FLOW-scoped mandatory actions, in the shell's deterministic order.
    * At most one is ever CURRENT: a task beat (the server's immediate demand,
@@ -245,7 +273,7 @@ export type MandatoryBeatInput = {
  * from its draw cinematic. PURE.
  */
 export function mandatoryBeatFor(input: MandatoryBeatInput): MandatoryBeat | undefined {
-  if (isInterruptiveMandatoryTask(input.task, input.forcedReaction) && input.task !== undefined) {
+  if (isInterruptiveMandatoryTask(input.task, input.forcedReaction, input.resolutionPrompt === true) && input.task !== undefined) {
     return {key: 'task:' + input.taskKey, taskKind: input.task.kind};
   }
   const flow = input.flows?.[0];

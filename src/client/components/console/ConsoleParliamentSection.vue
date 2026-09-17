@@ -826,6 +826,7 @@ import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {ConsoleCommand} from '@/client/console/consoleCommandModel';
 import {consoleParliamentUi, markParliamentRecapSeen, parliamentRecapSeen} from '@/client/console/consoleParliamentState';
+import {isMandatoryGateHeld} from '@/client/console/consoleMandatoryGate';
 import {
   agendaViewOf, AgendaVm, buildParliamentView, ParliamentPartyVm, ParliamentPromptBridge,
   ParliamentSlotVm, ParliamentTileVm, ParliamentViewVm, parliamentPromptBridge, partyActionStateOf, PartyActionStateVm,
@@ -1147,6 +1148,13 @@ export default defineComponent({
     enactPrompt(): PlayerInputModel | undefined {
       const wf = this.playerView.waitingFor;
       if (wf === undefined || wf.type !== 'card' || this.model?.phase?.step !== 'effects') {
+        return undefined;
+      }
+      // An ANNOUNCED prompt: while its plate still waits for the player's A
+      // (the mandatory gate holds it), the stage stays down — a Parliament the
+      // player walked into on their own shows its overview, never a payout
+      // stage whose picker is not allowed to stand yet.
+      if (isMandatoryGateHeld()) {
         return undefined;
       }
       return wf.choiceContext?.source?.kind === 'resolution' ? wf : undefined;

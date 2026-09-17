@@ -2532,10 +2532,25 @@ export async function openZoomViewer(page: Page, key = 'KeyX', maxMs = 20_000): 
   await expect(zoom).toHaveCount(1, {timeout: 8_000});
 }
 
+/**
+ * …and never nudge a CLOSE that is already in flight either. B starts the fly-
+ * home (`dialog.con-zoom--closing`, every press swallowed until it lands), and
+ * the dialog loses `[open]` only as the flight ends. On a loaded 4K runner that
+ * outlasts the 1.2 s settle, so a blind nudge could be pressed in the very
+ * instant the flight landed and reach the surface BEHIND the viewer — where B
+ * means «свернуть» (`console-parliament-aquifer · tv-4k`: the payout stage
+ * collapsed right after its L3 inspection).
+ */
 export async function closeZoomViewer(page: Page, maxMs = 15_000): Promise<void> {
   const zoom = page.locator('dialog.con-zoom[open]');
   const started = Date.now();
   while (Date.now() - started < maxMs && await zoom.count() > 0) {
+    const inFlight = await page.evaluate(() => document.querySelector('dialog.con-zoom--closing[open]') !== null);
+    if (inFlight) {
+      await page.waitForFunction(() => document.querySelector('dialog.con-zoom--closing[open]') === null,
+        undefined, {polling: 100, timeout: 8_000}).catch(() => undefined);
+      continue;
+    }
     await press(page, 'Escape', 1200);
   }
   await expect(zoom).toHaveCount(0, {timeout: 8_000});

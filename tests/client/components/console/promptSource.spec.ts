@@ -2,7 +2,7 @@ import {expect} from 'chai';
 import {CardName} from '@/common/cards/CardName';
 import {PartyName} from '@/common/turmoil/PartyName';
 import {PlayerInputModel} from '@/common/models/PlayerInputModel';
-import {choiceSourceView, productionLossSourceView, promptSourceCard, promptSourceView} from '@/client/console/promptSource';
+import {choiceSourceView, productionLossSourceView, promptSourceCard, promptSourceResolution, promptSourceView} from '@/client/console/promptSource';
 
 /*
  * The ONE normalizer behind «почему этот промт пришёл ко мне?».
@@ -46,6 +46,14 @@ describe('promptSource (who asked for this decision?)', () => {
       // An unknown id still names itself (the raw id) rather than staying silent.
       expect(choiceSourceView({kind: 'resolution', resolution: 'RDX_NOPE'})?.name).to.eq('RDX_NOPE');
       expect(choiceSourceView({kind: 'resolution'})?.inspectable).to.be.false;
+    });
+
+    it('promptSourceResolution reads the resolution off either marker — the payout pick and the winner\'s placement', () => {
+      const source = {kind: 'resolution' as const, resolution: 'RDX_GREENS_AQUIFER_CONTEST'};
+      expect(promptSourceResolution({type: 'card', choiceContext: {source}} as unknown as PlayerInputModel)).to.eq('RDX_GREENS_AQUIFER_CONTEST');
+      expect(promptSourceResolution({type: 'space', placementContext: {cancellable: false, source}} as unknown as PlayerInputModel)).to.eq('RDX_GREENS_AQUIFER_CONTEST');
+      expect(promptSourceResolution({type: 'space', placementContext: {cancellable: false, source: {kind: 'card', card: CardName.FISH}}} as unknown as PlayerInputModel)).is.undefined;
+      expect(promptSourceResolution(undefined)).is.undefined;
     });
 
     it('a STANDARD PROJECT and a SYSTEM rule each name themselves', () => {

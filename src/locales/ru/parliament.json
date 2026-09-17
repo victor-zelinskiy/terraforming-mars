@@ -462,6 +462,7 @@
     "The enacted resolution pays out": "Принятая резолюция выплачивает",
     "Waiting for ${0} to choose a card": "Ожидание: ${0} выбирает карту",
     "Waiting for ${0} to place a tile": "Ожидание: ${0} размещает тайл",
+    "Choose the recipient card": "Выбрать карту",
     "Redux resolutions showcase": "Витрина резолюций Redux",
     "Every catalogued resolution: the face, the inspector, the influence-scaled payout and the shared recipient picker": "Все резолюции каталога: грань, осмотр, выплата по влиянию и общий пикер получателя",
     "Real resolutions": "Настоящие резолюции",

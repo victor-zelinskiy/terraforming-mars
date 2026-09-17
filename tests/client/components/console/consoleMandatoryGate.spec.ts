@@ -56,6 +56,34 @@ describe('consoleMandatoryGate (the mandatory announcement gate)', () => {
       }
     });
 
+    it('an ENACTED RESOLUTION\'s ask is ALWAYS interruptive, whatever its widget (Turmoil Redux)', () => {
+      // The payout pick and the winner's ocean — neither a continuation of the
+      // player's own turn: the plate announces them, A opens the choice.
+      expect(isInterruptiveMandatoryTask({kind: 'cardSelect', mode: 'target'}, false, true)).to.be.true;
+      expect(isInterruptiveMandatoryTask({kind: 'space'}, false, true)).to.be.true;
+      for (const kind of ['choice', 'player', 'amount', 'resource', 'payment', 'colony', 'composite'] as const) {
+        expect(isInterruptiveMandatoryTask({kind} as ConsoleTask, false, true), kind).to.be.true;
+      }
+      // The same widgets WITHOUT a resolution source keep their old scope.
+      expect(isInterruptiveMandatoryTask({kind: 'space'}, false, false)).to.be.false;
+      expect(isInterruptiveMandatoryTask({kind: 'cardSelect', mode: 'target'}, false)).to.be.false;
+      // A resolution source never gates what is not a decision.
+      expect(isInterruptiveMandatoryTask({kind: 'actionMenu'}, false, true)).to.be.false;
+      expect(isInterruptiveMandatoryTask({kind: 'unknown', inputType: 'mystery'}, false, true)).to.be.false;
+    });
+
+    it('a resolution ask is its OWN beat per prompt — the pick, then the ocean, each announced', () => {
+      const pick = mandatoryBeatFor({task: {kind: 'cardSelect', mode: 'target'}, taskKey: 'card|pick', forcedReaction: false, resolutionPrompt: true});
+      expect(pick).to.deep.eq({key: 'task:card|pick', taskKind: 'cardSelect'});
+      acknowledgeMandatoryBeat(pick!.key);
+      expect(isMandatoryBeatHeld(pick)).to.be.false;
+      // The answer brings the next ask: a fresh key, held again until its own A.
+      const ocean = mandatoryBeatFor({task: {kind: 'space'}, taskKey: 'space|ocean', forcedReaction: false, resolutionPrompt: true});
+      noteMandatoryBeatIdentity(ocean?.key);
+      expect(ocean).to.deep.eq({key: 'task:space|ocean', taskKind: 'space'});
+      expect(isMandatoryBeatHeld(ocean)).to.be.true;
+    });
+
     it('the player\'s OWN turn surfaces are NEVER gated', () => {
       for (const kind of ['actionMenu', 'space', 'draftWait', 'initialDraft', 'awardFunding', 'aresGlobal'] as const) {
         expect(isInterruptiveMandatoryTask({kind} as ConsoleTask, true), kind).to.be.false;

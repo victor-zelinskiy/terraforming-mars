@@ -48,6 +48,7 @@
                                 :kicker="mandatoryAnnounceView.kicker"
                                 :ask="mandatoryAnnounceView.ask"
                                 :sourceCard="mandatoryAnnounceView.sourceCard"
+                                :sourceResolution="mandatoryAnnounceView.sourceResolution"
                                 :openLabel="mandatoryAnnounceView.openLabel" />
     </transition>
 
@@ -1820,7 +1821,7 @@ import {BonusCardContext} from '@/common/automa/BonusCardData';
 import {buildBotAttackView, BotAttackViewModel} from '@/client/console/botAttack/botAttackModel';
 import ConsoleAresGlobals from '@/client/components/console/ConsoleAresGlobals.vue';
 
-import {promptSourceView, PromptSourceView} from '@/client/console/promptSource';
+import {promptSourceResolution, promptSourceView, PromptSourceView} from '@/client/console/promptSource';
 import {PlacementConversion, PlacementShape} from '@/client/console/placementDossier';
 
 import {ConsoleTaskSummary, consoleTaskSummary, placementKicker} from '@/client/console/consoleTaskSummary';
@@ -4378,9 +4379,17 @@ export default defineComponent({
      * inside the vote step.
      */
     parliamentEnactStanding(): boolean {
+      return this.hostTask?.kind === 'cardSelect' && this.parliamentEnactPrompt;
+    },
+    /**
+     * The same pick by the RAW prompt — not admission-gated: the mandatory
+     * plate's A (`openMandatoryAnnounce`) must know where the press goes in the
+     * very tick it releases the gate, before `hostTask` has re-derived.
+     */
+    parliamentEnactPrompt(): boolean {
       const wf = this.playerView.waitingFor;
-      return this.hostTask?.kind === 'cardSelect' && wf?.type === 'card' &&
-        wf.choiceContext?.source?.kind === 'resolution' && this.game.parliament?.phase?.step === 'effects';
+      return wf?.type === 'card' && wf.choiceContext?.source?.kind === 'resolution' &&
+        this.game.parliament?.phase?.step === 'effects';
     },
     taskEmbedTarget(): string | undefined {
       // HELD means "renders nowhere yet" — so it is NOT embedded, and saying
@@ -4846,6 +4855,10 @@ export default defineComponent({
         task,
         taskKey,
         forcedReaction: this.viewerForcedReaction,
+        // An ENACTED RESOLUTION's ask (Turmoil Redux) is always announced: the
+        // plate names the resolution, A opens the choice (the payout pick in
+        // the Parliament, the winner's ocean on the board).
+        resolutionPrompt: promptSourceResolution(wf) !== undefined,
         flows: this.mandatoryFlowBeats,
       });
     },
@@ -5065,11 +5078,13 @@ export default defineComponent({
     /** The prompt card's copy (one consoleTaskSummary source, so nothing can
      *  diverge). The A-verb relabels by STATE: «Открыть» for a fresh held
      *  decision, «Вернуться к решению» for a deferred one. */
-    mandatoryAnnounceView(): {kicker: string, ask: string, sourceCard: CardName | undefined, openLabel: string} {
+    mandatoryAnnounceView(): {kicker: string, ask: string, sourceCard: CardName | undefined, sourceResolution: string | undefined, openLabel: string} {
       return {
         kicker: this.deferKicker,
         ask: this.deferAsk,
         sourceCard: this.deferSourceCard,
+        // An enacted RESOLUTION asked (Turmoil Redux): the plate names it as the source.
+        sourceResolution: this.activeTaskSummary?.sourceResolution,
         // A kind may NAME its own press when «Открыть» undersells it (a colony
         // bonus delivery: «Забрать карту» — the press answers the prompt AND
         // takes the player to the colony that paid).
@@ -8803,21 +8818,10 @@ export default defineComponent({
         }
       },
     },
-    /**
-     * THE ENACTED RESOLUTION'S PAYOUT PICK arrives at the end of the
-     * generation with no Parliament on screen: the Parliament opens around
-     * it (the enacted card in the government, the enactment stage naming the
-     * payout) and the picker teleports into the stage's zone. Same law as
-     * the vote's bill; a parked Parliament stays parked.
-     */
-    parliamentEnactStanding: {
-      immediate: true,
-      handler(on: boolean): void {
-        if (on && !workspaceFrameKnown('parliament') && !this.consoleState.task.deferred) {
-          enterWorkspace('parliament');
-        }
-      },
-    },
+    // (THE ENACTED RESOLUTION'S PAYOUT PICK used to auto-enter the Parliament
+    // here on its arrival. It is an ANNOUNCED mandatory prompt now: the plate
+    // names the resolution, and `openMandatoryAnnounce` — the player's A — is
+    // the one door into the enactment stage, exactly like the draft.)
     'consoleState.task.deferred'(deferred: boolean) {
       setStartSetupRevealSuspended(deferred);
       // Mirror into the leak detector: a deferred task is deliberately set aside
@@ -16370,6 +16374,19 @@ export default defineComponent({
       if (beat.flow === 'draft') {
         if (!workspaceFrameKnown('draft')) {
           enterWorkspace('draft', {anchor: {type: 'phase', phase: 'draft'}});
+        }
+        return;
+      }
+      // AN ENACTED RESOLUTION'S PAYOUT PICK (Turmoil Redux): the press walks the
+      // player INTO the Parliament — its enactment stage serves the pick (the
+      // carried card, the payout reading, the shared picker in its zone). The
+      // ONE door: nothing auto-enters on the prompt's arrival any more, exactly
+      // like the draft. The winner's OCEAN needs no branch — its placement is
+      // admission-held behind this very gate and comes alive on the board the
+      // moment the acknowledge above releases it.
+      if (this.parliamentEnactPrompt) {
+        if (!workspaceFrameKnown('parliament')) {
+          enterWorkspace('parliament');
         }
         return;
       }

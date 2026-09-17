@@ -197,6 +197,27 @@ describe('consoleTaskSummary (no prompt is ever a bare «awaiting decision»)', 
     expect(s.sourceCard).to.eq('Lunar Beam');
   });
 
+  it('an ENACTED RESOLUTION\'s asks carry the resolution as their source, name the event and the press (Turmoil Redux)', () => {
+    const source = {kind: 'resolution', resolution: 'RDX_GREENS_AQUIFER_CONTEST'};
+    // The payout pick: the kicker names the EVENT, the ask stays the server's own sentence.
+    const pick = summaryOf({
+      type: 'card', title: {message: 'Add ${0} animal(s) to one of your cards', data: [{type: 1, value: '2'}]}, buttonLabel: 'Add',
+      cards: [{name: 'Fish'}, {name: 'Pets'}], choiceContext: {source, mode: 'reward'}, resourceGainPrompt: {amount: 2, cardResource: 'animal'},
+    });
+    expect(pick.kickerKey).to.eq('Resolution effect');
+    expect(pick.sourceResolution).to.eq('RDX_GREENS_AQUIFER_CONTEST');
+    expect(pick.sourceCard, 'never a project card standing in for a resolution').is.undefined;
+    expect(textOf(pick.ask)).to.eq('Add ${0} animal(s) to one of your cards');
+    expect(pick.openKey).to.eq('Choose the recipient card');
+    // The winner's ocean: a placement keeps its own kicker (it already says what the press starts).
+    const ocean = summaryOf({type: 'space', title: 'Select space for ocean tile', spaces: [], placementContext: {cancellable: false, source}});
+    expect(ocean.kickerKey).to.eq('Tile placement');
+    expect(ocean.sourceResolution).to.eq('RDX_GREENS_AQUIFER_CONTEST');
+    expect(ocean.openKey).to.eq('Place a tile');
+    // Anything else keeps its copy untouched.
+    expect(summaryOf({type: 'space', title: 'Select space', spaces: []}).sourceResolution).is.undefined;
+  });
+
   it('a cell pick that places NO tile is a marker placement, not a tile one', () => {
     // Land Claim / an Arcadian community (`'marker'`) and Mars Nomads moving
     // its camp (`'bonus-only'`) both put a MARKER down — the kicker must not

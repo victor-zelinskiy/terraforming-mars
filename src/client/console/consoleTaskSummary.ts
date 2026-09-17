@@ -47,7 +47,7 @@ import {PlacementEffect, PlayerInputModel, SelectAmountModel} from '@/common/mod
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {ConsoleTask} from '@/client/console/consoleTaskRouter';
 import {nestedDiscardBranch} from '@/client/console/cardDiscard/discardIntent';
-import {promptSourceCard} from '@/client/console/promptSource';
+import {promptSourceCard, promptSourceResolution} from '@/client/console/promptSource';
 
 export interface ConsoleTaskSummary {
   /** The decision TYPE — a short English i18n KEY, rendered as the chip. */
@@ -60,6 +60,11 @@ export interface ConsoleTaskSummary {
   ask: string | Message;
   /** The card that CAUSED this decision (choiceContext / placementContext). */
   sourceCard?: CardName;
+  /**
+   * The ENACTED RESOLUTION that asked (Turmoil Redux — its catalog id), when
+   * one did: the mandatory plate names it as the prompt's source.
+   */
+  sourceResolution?: string;
   /** The context-aware B verb ("Вернуться к драфту") — an English i18n key. */
   returnKey: string;
   /**
@@ -215,8 +220,42 @@ export interface ConsoleTaskSummaryOverride {
 /**
  * Turn a classified task + the live view into the console's copy for it.
  * Exhaustive over the closed union — a new `TaskKind` breaks the build here.
+ *
+ * AN ENACTED RESOLUTION'S ASK (Turmoil Redux) keeps its kind's own copy and
+ * gains the resolution as its SOURCE: the mandatory plate announces it
+ * («ЭФФЕКТ РЕЗОЛЮЦИИ · Добавьте 2 животных… · Резолюция: Конкурс
+ * водоносных пластов»). The kicker names the EVENT, except for a placement,
+ * whose own kicker («Размещение тайла») already says what the press starts —
+ * and the A-verb names what opening it does.
  */
 export function consoleTaskSummary(
+  task: ConsoleTask,
+  view: PlayerViewModel,
+  override?: ConsoleTaskSummaryOverride,
+): ConsoleTaskSummary {
+  const summary = kindSummary(task, view, override);
+  const resolution = promptSourceResolution(override?.prompt ?? view.waitingFor);
+  if (resolution === undefined) {
+    return summary;
+  }
+  return {
+    ...summary,
+    kickerKey: task.kind === 'space' ? summary.kickerKey : 'Resolution effect',
+    sourceResolution: resolution,
+    openKey: summary.openKey ?? resolutionOpenKey(task),
+  };
+}
+
+/** What pressing A on a resolution's plate starts, when «Открыть» undersells it. */
+function resolutionOpenKey(task: ConsoleTask): string | undefined {
+  switch (task.kind) {
+  case 'space': return 'Place a tile';
+  case 'cardSelect': return 'Choose the recipient card';
+  default: return undefined;
+  }
+}
+
+function kindSummary(
   task: ConsoleTask,
   view: PlayerViewModel,
   override?: ConsoleTaskSummaryOverride,

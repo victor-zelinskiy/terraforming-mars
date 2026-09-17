@@ -28490,7 +28490,14 @@ body.con-start-barshold .con-status {
     display: inline-flex;
     align-items: center;
     gap: .75rem;
-    max-width: ~"min(60rem, 82vw)"; /* LESS owns min() — escape to keep the CSS one. */
+    /* The plate sizes to its CONTENT, capped inside the central opening. An
+       absolute box at `left: 50%` shrink-to-fits into the HALF of the root to
+       the right of its own left edge, so without `max-content` the Deck
+       (640 px of room) ellipsized an ordinary ask — «Выберите место для
+       размещения …» — beside a half-empty band. `100%` is the root's width
+       (fixed, inset 0); the opening is symmetric by token (--con-ws-left). */
+    width: max-content;
+    max-width: ~"min(60rem, calc(100% - 2 * var(--con-ws-left)))"; /* LESS owns min() — escape to keep the CSS one. */
     padding: .55rem 1rem .55rem .85rem;
     border-radius: .7rem;
     background: @con-glass;
@@ -28555,6 +28562,46 @@ body.con-start-barshold .con-status {
         color: fade(#ffffff, 82%);
         font-size: .78rem;
         letter-spacing: .02rem;
+    }
+    /* An ENACTED RESOLUTION asks (Turmoil Redux): its party's emblem, the kind,
+       the name — one chip, the same pill as a card source. */
+    &__src--resolution {
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+        max-width: 30rem;
+        padding-left: .25rem;
+    }
+    &__src-emblem {
+        flex: 0 0 auto;
+        width: 1.05rem;
+        height: 1.05rem;
+        object-fit: contain;
+    }
+    &__src-kind {
+        flex: 0 0 auto;
+        color: fade(@con-cyan, 92%);
+        font-size: .66rem;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+    }
+    &__src-name {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        color: fade(#ffffff, 92%);
+    }
+    &__src-code {
+        flex: 0 0 auto;
+        padding: .02rem .26rem;
+        border-radius: .22rem;
+        background: rgba(0, 0, 0, 0.3);
+        box-shadow: inset 0 0 0 .05rem rgba(217, 184, 120, 0.35);
+        font-family: Ubuntu, sans-serif;
+        font-size: .58rem;
+        letter-spacing: .08em;
+        color: rgba(217, 184, 120, 0.85);
     }
     /* The B affordance — the ONE thing the player does with this card. */
     &__open {
