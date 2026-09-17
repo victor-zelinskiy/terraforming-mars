@@ -64,6 +64,7 @@ import {reduceMotionOverrideState, setReduceMotionOverride} from '@/client/utils
 import {READING_SCALE_CHOICES, readingScaleState, setConsoleReadingScale} from '@/client/console/consoleReadingScale';
 import {ALBUM_LAYOUT_CHOICES, ALBUM_LAYOUT_LABELS, albumLayoutState, setConsoleAlbumLayout} from '@/client/console/consoleAlbumLayout';
 import {handDockPresentation, setHandDockFaceUp} from '@/client/console/handDock/handDockPresentation';
+import {cardNumberDisplayState, setCardNumberDisplay} from '@/client/components/premiumCard/cardNumberDisplay';
 import {
   FEED_MODE_CHOICES,
   FEED_MODE_LABELS,
@@ -83,7 +84,7 @@ export type ConsoleSettingsCategoryId =
   'interface' | 'controls' | 'graphics' | 'game' | 'network' | 'diagnostics';
 
 export type ConsoleSettingId =
-  'shell' | 'display' | 'textScale' | 'albumLayout' | 'dockCards' | 'notifications' | 'controller' | 'buttons' | 'wheelControl' |
+  'shell' | 'display' | 'textScale' | 'albumLayout' | 'dockCards' | 'cardNumbers' | 'notifications' | 'controller' | 'buttons' | 'wheelControl' |
   'placeConfirm' |
   'motionSpeed' | 'motionRate' | 'fxLite' | 'reduceMotion' | 'privateScore' | 'gameServer' | 'lanVisible';
 
@@ -280,6 +281,14 @@ function interfaceCategory(): ConsoleSettingsCategory {
     [false, true], handDockPresentation.faceUp,
     (v) => translateText(v ? 'Face up' : 'Face down'),
     (v) => setHandDockFaceUp(v),
+  ));
+  // The printed CATALOG NUMBER on card faces («147», «RX01») and on the
+  // source plate — technical information (the art / search / debugging key),
+  // so an opt-in, OFF by default. Applied live (cardNumberDisplay.ts).
+  rows.push(toggleRow(
+    'cardNumbers', 'Card numbers', 'Show the catalog number on card faces',
+    cardNumberDisplayState.enabled, ['Off', 'On'],
+    (v) => setCardNumberDisplay(v),
   ));
   // Which top-right quick toasts present: everything (the default — identical
   // to the pre-setting behaviour) or only events that directly involve the

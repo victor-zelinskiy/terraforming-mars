@@ -1,6 +1,8 @@
 import {mount} from '@vue/test-utils';
 import {expect} from 'chai';
+import {nextTick} from 'vue';
 import {CardName} from '@/common/cards/CardName';
+import {setCardNumberDisplay} from '@/client/components/premiumCard/cardNumberDisplay';
 import {CardModel} from '@/common/models/CardModel';
 import PremiumCard from '@/client/components/premiumCard/PremiumCard.vue';
 import PremiumCardArt from '@/client/components/premiumCard/PremiumCardArt.vue';
@@ -194,14 +196,28 @@ describe('PremiumCard', () => {
     // icon uses the builder default amount (-1). The digit shows ONLY on an
     // explicit showDigit (legacy semantics); negativity rides MINUS symbols.
     const wrapper = mount(PremiumCard, {props: {card: model(CardName.HERBIVORES)}});
-    // Read the MECHANICS panel, where the icons live: the whole face's text
-    // also carries the printed catalog code (`.pcard__code` «147»), and a
-    // minus symbol right before it concatenates into a false «−147».
+    // Read the MECHANICS panel, where the icons live: with card numbers on,
+    // the face's text also carries the printed catalog code (`.pcard__code`
+    // «147»), and a minus symbol right before it concatenates into «−147».
     const mech = wrapper.find('.pcard__mech');
     expect(mech.exists()).to.eq(true);
     expect(mech.text()).to.not.contain('−1');
     expect(mech.text()).to.not.contain('-1');
-    expect(wrapper.find('.pcard__code').text(), 'the code stamp stands apart from the graphic').to.eq('147');
+  });
+
+  it('the printed CATALOG NUMBER is an opt-in: hidden by default, stamped beside the expansion mark when enabled, live', async () => {
+    const wrapper = mount(PremiumCard, {props: {card: model(CardName.HERBIVORES)}});
+    try {
+      expect(wrapper.find('.pcard__code').exists(), 'technical information — off by default').to.eq(false);
+      setCardNumberDisplay(true);
+      await nextTick();
+      expect(wrapper.find('.pcard__exp .pcard__code').text(), 'the same mounted face re-renders in place').to.eq('147');
+      setCardNumberDisplay(false);
+      await nextTick();
+      expect(wrapper.find('.pcard__code').exists()).to.eq(false);
+    } finally {
+      setCardNumberDisplay(false);
+    }
   });
 
   it('peek face: corpus + header + requirements rail only — no art <img>, no lower section', () => {

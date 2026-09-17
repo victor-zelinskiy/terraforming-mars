@@ -6,6 +6,7 @@ import {privateScoreState, setPrivateScore} from '@/client/components/overview/p
 import {readingScaleState, setConsoleReadingScale} from '@/client/console/consoleReadingScale';
 import {DesktopAppModeInfo, DesktopLanState} from '@/client/components/desktop/desktopUpdateState';
 import {placementFlowState, setPlacementTwoStep} from '@/client/console/tilePlacement/placementFlow';
+import {cardNumberDisplayState, setCardNumberDisplay} from '@/client/components/premiumCard/cardNumberDisplay';
 
 /**
  * The settings MODEL — the grouping + the option rings the settings console
@@ -20,6 +21,7 @@ describe('consoleSettingsModel', () => {
     setPrivateScore(false);
     setConsoleProfileOverride('auto');
     setConsoleReadingScale(100);
+    setCardNumberDisplay(false);
   });
 
   function ids(context: 'menu' | 'game'): Array<string> {
@@ -99,6 +101,21 @@ describe('consoleSettingsModel', () => {
     expect(currentProfileOverride()).to.eq(PROFILE_CHOICES[PROFILE_CHOICES.length - 1]);
     row()?.step(1);
     expect(currentProfileOverride()).to.eq('auto');
+  });
+
+  it('card numbers are an interface OPT-IN: off by default, a two-option ring that flips the shared face flag', () => {
+    const cat = () => buildConsoleSettings({context: 'menu'}).find((c) => c.id === 'interface');
+    const row = () => cat()?.rows.find((r) => r.id === 'cardNumbers');
+    expect(row(), 'offered in the main menu').to.not.eq(undefined);
+    expect(buildConsoleSettings({context: 'game'}).flatMap((c) => c.rows).some((r) => r.id === 'cardNumbers'), '…and in-game').to.eq(true);
+    expect(cardNumberDisplayState.enabled, 'technical information — hidden by default').to.eq(false);
+    expect(row()?.count).to.eq(2);
+    expect(row()?.index).to.eq(0);
+    row()?.step(1);
+    expect(cardNumberDisplayState.enabled).to.eq(true);
+    expect(row()?.index).to.eq(1);
+    row()?.step(-1);
+    expect(cardNumberDisplayState.enabled).to.eq(false);
   });
 
   it('a toggle is a two-option ring — stepping either way flips it', () => {

@@ -105,8 +105,10 @@ Before changing it, check the console consumers in docs/DESKTOP_DEPRECATION_AUDI
                 :style="{backgroundImage: `url(${module.url})`}"></span>
           <!-- THE PRINTED CATALOG CODE («X31», «DP07», a resolution's «RX01»):
                engraved beside the stamp in the same pressed-in language — the
-               key the art, the lore and the catalog search resolve by. -->
-          <span v-if="vm.code !== undefined" class="pcard__code" :data-card-code="vm.code">{{ vm.code }}</span>
+               key the art, the lore and the catalog search resolve by.
+               Technical information, so it is an OPT-IN («Настройки» →
+               «Номера карт», off by default — `cardNumberDisplay.ts`). -->
+          <span v-if="vm.code !== undefined && showCardNumber" class="pcard__code" :data-card-code="vm.code">{{ vm.code }}</span>
         </div>
         <div v-if="resourceInfo !== undefined" class="pcard__res">
           <span class="pcard__res-icon" :style="{backgroundImage: `url(${resourceIconUrl})`}"></span>
@@ -159,6 +161,7 @@ import PremiumMechNode from './PremiumMechNode.vue';
 import PremiumVpBadge from './PremiumVpBadge.vue';
 import {ItemType} from '@/common/cards/render/Types';
 import {renderableNodes} from './mechanicsModel';
+import {cardNumberDisplayState} from './cardNumberDisplay';
 
 export type PremiumCardTier = 'thumb' | 'normal' | 'full';
 
@@ -317,6 +320,10 @@ export default defineComponent({
     };
   },
   computed: {
+    /** The player opted into printed card numbers (default off — technical information). */
+    showCardNumber(): boolean {
+      return cardNumberDisplayState.enabled;
+    },
     /** The chairman quest's goal nodes (a resolution face) — the first row of its render root. */
     questNodes(): ReadonlyArray<ItemType> {
       const root = this.vm.parliament?.questRenderData;

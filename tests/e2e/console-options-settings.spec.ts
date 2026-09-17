@@ -69,6 +69,14 @@ test.describe('the settings console — categories, stepper, detail strip', () =
     // Every category fits WITHOUT scrolling — the whole point of the strip (the
     // flat list had outgrown the screen). No overflow ⇒ no progress rail.
     await expect(page.locator('.con-set__scroll .con-scroll-area__rail')).toHaveCount(0);
+    // The printed card number is technical information: an interface OPT-IN, off by default.
+    const numbersRow = page.locator('.con-set__row', {hasText: 'Номера карт'});
+    await expect(numbersRow).toHaveCount(1);
+    await expect(numbersRow.locator('.con-set__value')).toHaveText('выкл.');
+    // The tallest category (six rows) ends inside its fixed pane — nothing is clipped below the last row.
+    const paneBottom = await page.locator('.con-set__scroll').evaluate((el) => el.getBoundingClientRect().bottom);
+    const lastRowBottom = await page.locator('.con-set__row').last().evaluate((el) => el.getBoundingClientRect().bottom);
+    expect(lastRowBottom, 'the last interface row stands inside the pane').toBeLessThanOrEqual(paneBottom + 0.5);
 
     // Switching category swaps the pane; the row this spec was written around
     // (Раскладка кнопок) lives under «Управление».
@@ -129,6 +137,9 @@ test.describe('the settings console — categories, stepper, detail strip', () =
     await page.waitForSelector('.con-sys--settings', {timeout: 10_000});
     await page.waitForTimeout(600);
     await shoot(page, '05-tv-interface');
+    // The TALLEST category (Interface: six rows since «Номера карт») needs no scroll at the couch calibration either.
+    await expect(page.locator('.con-set__row', {hasText: 'Номера карт'})).toHaveCount(1);
+    await expect(page.locator('.con-set__scroll .con-scroll-area__rail')).toHaveCount(0);
 
     const card = page.locator('.con-sys__card');
     const box = await card.boundingBox();

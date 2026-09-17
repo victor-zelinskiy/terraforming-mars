@@ -69,7 +69,7 @@
       <span class="con-src__plate-kind">{{ $t(chip ? 'Source' : view.kindKey) }}</span>
       <span v-if="nameText !== ''" class="con-src__plate-sep" aria-hidden="true">·</span>
       <span v-if="nameText !== ''" class="con-src__plate-name">{{ nameText }}</span>
-      <span v-if="view.code !== undefined" class="con-src__plate-code" :data-source-code="view.code">{{ view.code }}</span>
+      <span v-if="view.code !== undefined && showCardNumber" class="con-src__plate-code" :data-source-code="view.code">{{ view.code }}</span>
     </div>
 
     <div v-if="view.ruleKey !== undefined && !chip" class="con-src__rule">{{ $t(view.ruleKey) }}</div>
@@ -100,6 +100,7 @@ import {PromptSourceView} from '@/client/console/promptSource';
 import PremiumCard from '@/client/components/premiumCard/PremiumCard.vue';
 import {PremiumCardVM} from '@/client/components/premiumCard/premiumCardViewModel';
 import {resolutionPremiumVmById} from '@/client/components/premiumCard/resolutionPremiumVm';
+import {cardNumberDisplayState} from '@/client/components/premiumCard/cardNumberDisplay';
 
 export default defineComponent({
   name: 'ConsoleSourceDock',
@@ -124,6 +125,10 @@ export default defineComponent({
     motionAnchor: {type: String, default: undefined},
   },
   computed: {
+    /** The printed catalog number is an opt-in (`cardNumberDisplay.ts`) — the face's stamp and this plate follow one flag. */
+    showCardNumber(): boolean {
+      return cardNumberDisplayState.enabled;
+    },
     /** The plate is the CHIP's only body, and a non-card source's always. */
     plateOnly(): boolean {
       return this.cardName === undefined && this.bonusCard === undefined && (this.chip || this.resolutionVm === undefined);

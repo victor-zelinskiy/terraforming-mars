@@ -43,9 +43,9 @@ categories that have content in this context.
 
 | id | label | rows | notes |
 | --- | --- | --- | --- |
-| `interface` | ИНТЕРФЕЙС | Оболочка*, Дисплей | *main menu only — swapping shells mid-game is jarring and the desktop UI is frozen |
-| `controls` | УПРАВЛЕНИЕ | Контроллер, Раскладка кнопок, Управление колесом | |
-| `graphics` | ГРАФИКА | Скорость анимаций, Плавность анимаций, Производительность | |
+| `interface` | ИНТЕРФЕЙС | Дисплей, Размер текста чтения, Компоновка альбома, Карты в доке, Номера карт, Быстрые уведомления | the TALLEST category (six rows) — `.con-set`'s fixed height is calibrated for it (23.2rem, TV 28.9rem). «Номера карт» is an opt-in, **off by default** (a card's printed number is technical information): one reactive flag, `premiumCard/cardNumberDisplay.ts`, read by the face's `.pcard__code` stamp and the source chip's `.con-src__plate-code`. (The shell switch is gone — desktop-removal wave 1.) |
+| `controls` | УПРАВЛЕНИЕ | Контроллер, Раскладка кнопок, Управление колесом, Размещение тайла | |
+| `graphics` | ГРАФИКА | Скорость анимаций, Плавность анимаций, Упрощённые графические эффекты, Меньше движения | |
 | `game` | ПАРТИЯ | Приватный счёт | **in-game only** — a per-game pref keyed by participant id |
 | `network` | СЕТЬ | Сервер партий, Видимость в сети | `minor`, main menu only, desktop shell only (launch-time properties) |
 | `diagnostics` | ДИАГНОСТИКА | — (a read-only READOUT) | `minor` |

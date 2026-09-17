@@ -60,11 +60,13 @@ for (const preset of PRESETS) {
       await expect(page.locator('.cm-stand')).toHaveCount(1, {timeout: 30_000});
       await expect(page.locator('[data-resolutions-playground]')).toHaveCount(1, {timeout: 30_000});
 
-      // ── The catalog: the real resolution leads, its code printed on the face and under it.
+      // ── The catalog: the real resolution leads, its code printed UNDER the face (the stand's own catalog key) —
+      //    the face itself follows «Настройки» → «Номера карт», OFF by default.
       const first = page.locator('[data-rxpg-catalog] .con-rxpg__slot').first();
       await expect(first).toHaveAttribute('data-rxpg-code', 'RX01');
+      await expect(first.locator('.con-rxpg__code')).toHaveText('RX01');
       await expect(first).toHaveClass(/con-rxpg__slot--cursor/);
-      await expect(first.locator('.pcard__code')).toHaveText('RX01');
+      await expect(page.locator('[data-resolutions-playground] .pcard__code'), 'no face stamps its number by default').toHaveCount(0);
       await expect(first.locator('.pcard')).toHaveClass(/pcard--resolution-art/);
       await expect.poll(() => first.locator('.pcard__art img').evaluate((img) => (img as HTMLImageElement).complete && (img as HTMLImageElement).naturalWidth > 0), {timeout: 15_000}).toBe(true);
       await shoot(page, preset.id, '00-catalog');
@@ -81,9 +83,9 @@ for (const preset of PRESETS) {
       expect(await seatReadings(page, 'red')).toEqual([reading('resolving', 1, 1)]);
       await expect(page.locator('[data-rxpg-seat="red"] [data-rxpg-seat-advance]')).toHaveCount(1);
       await expect(page.locator('[data-rxpg-seat="red"] [data-rxpg-seat-winner-part]')).toHaveCount(1);
-      // The shared picker with the resolution source: four holders, the dock naming the resolution with its code.
+      // The shared picker with the resolution source: four holders, the dock drawing the resolution's face.
       await expect(page.locator('[data-rxpg-picker] .con-ptsel')).toHaveCount(1);
-      await expect(page.locator('[data-rxpg-picker] .con-src__card--resolution .pcard__code')).toHaveText('RX01');
+      await expect(page.locator('[data-rxpg-picker] .con-src__card--resolution .pcard')).toHaveCount(1);
       await shoot(page, preset.id, '01-influence-3');
 
       // ── RT: «the winner advances on the Agenda first» — Agenda 4 (influence 2) → step 5 (influence 3) BEFORE the payout.
@@ -178,7 +180,7 @@ for (const preset of PRESETS) {
       await expect(zoom).toHaveCount(1, {timeout: 10_000});
       await expect(zoom.locator('.con-zoom-asidecol')).toHaveCount(1, {timeout: 10_000});
       await expect(zoom.locator('.con-zoom-sidecol')).toHaveCount(1);
-      await expect(zoom.locator('.pcard__code').first()).toHaveText('RX01');
+      await expect(zoom.locator('.card-zoom-stage .pcard').first(), 'the resolution on the stage').toHaveClass(/rdx-greens-aquifer-contest/);
       await expect.poll(() => readingsIn(page, 'dialog.con-zoom [data-zoom-yield]'), {timeout: 10_000}).toEqual([reading('estimate', 4, 4)]);
       // The open flight has landed (the viewer drops its flight class at touchdown).
       await expect(page.locator('dialog.con-zoom.con-zoom--parliament[open]:not(.con-zoom--flight)')).toHaveCount(1, {timeout: 10_000});

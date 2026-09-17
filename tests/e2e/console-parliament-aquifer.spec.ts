@@ -116,14 +116,17 @@ for (const preset of PRESETS) {
 
     test(`the face (art, code, formula), the vote's own reading and the inspector's footer (${preset.id})`, async ({page, request}) => {
       test.setTimeout(240_000);
+      // The printed card number is technical information — an opt-in («Настройки» → «Номера карт»).
+      // THIS test opts in (the stamp's own rendering is its subject); the enactment test keeps the default.
+      await page.addInitScript(() => window.localStorage.setItem('tm_console_card_numbers', '1'));
       await bootFixture(page, request, 'parliament-aquifer-vote', {query: preset.query});
       await openParliament(page);
 
-      // ── THE FACE in the voting area: its own art, its printed code, both rows of its formula.
+      // ── THE FACE in the voting area: its own art, its printed code (opted in), both rows of its formula.
       const face = page.locator(`.con-parl__slot[data-instance="${AQUIFER_INSTANCE}"] .pcard`);
       await expect(face, 'Aquifer Contest stands in the voting area').toHaveCount(1);
       await expect(face).toHaveClass(/pcard--resolution-art/);
-      await expect(face.locator('.pcard__code')).toHaveText('RX01');
+      await expect(face.locator('.pcard__code'), 'with «card numbers» enabled the code is stamped').toHaveText('RX01');
       const art = await face.locator('.pcard__art img').getAttribute('src');
       expect(art, 'the 3:2 art is keyed by the printed code').toContain('RX01');
       await expect(face.locator('.pcard__party-emblem'), 'the Greens\' emblem').toHaveCount(1);
@@ -173,7 +176,8 @@ for (const preset of PRESETS) {
       const enactedFace = page.locator('.con-parl__gov-card .pcard');
       await expect(enactedFace, 'exactly one enacted card on screen').toHaveCount(1);
       await expect(page.locator('[data-parl-enact-hero] .con-parl__gov-card .pcard'), 'carried onto the payout stage').toHaveClass(/rdx-greens-aquifer-contest/);
-      await expect(page.locator('[data-parl-enact-hero] .pcard__code'), 'its printed code').toHaveText('RX01');
+      await expect(page.locator('[data-parl-enact-hero] .pcard__art img'), 'its own art (keyed by the code)').toHaveAttribute('src', /RX01/);
+      await expect(page.locator('.pcard__code, .con-src__plate-code'), 'card numbers are OFF by default — technical information').toHaveCount(0);
       expect(await crumbText(page), 'the crumb names the enactment').toMatch(/ПРИНЯТИЕ|ENACTMENT/i);
       // The focused candidate's own reading: current → resulting + VP.
       const impacts = await page.locator('.con-parl [data-embed-slot="parliament-enact"] .con-cards__verdict--impact').allTextContents();
@@ -184,7 +188,8 @@ for (const preset of PRESETS) {
       // ── L3 = THE SOURCE: the resolution inspector lifts the stage's own face; closing it leaves the pick standing.
       await openZoomViewer(page, 'KeyC');
       await expect(page.locator('dialog.con-zoom.con-zoom--parliament[open]'), 'L3 opens the RESOLUTION inspector').toHaveCount(1);
-      await expect(page.locator('dialog.con-zoom[open] .card-zoom-stage .pcard .pcard__code')).toHaveText('RX01');
+      await expect(page.locator('dialog.con-zoom[open] .card-zoom-stage .pcard'), 'the resolution face on the stage').toHaveClass(/rdx-greens-aquifer-contest/);
+      await expect(page.locator('dialog.con-zoom[open] .pcard__code'), 'no number in the inspector either (default off)').toHaveCount(0);
       await shoot(page, preset.id, '04b-enact-source');
       await closeZoomViewer(page);
       await expect(page.locator('.con-parl__enact--up'), 'inspection does not cancel the payout').toHaveCount(1);

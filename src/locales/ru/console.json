@@ -578,6 +578,8 @@
     "Face up": "Лицом",
     "Cards rest face down in the tray, arrivals turn over on landing": "Веер лежит в доке рубашкой вверх; прилетающие карты переворачиваются при посадке.",
     "Cards rest face up in the tray, arrivals land showing their face": "Веер лежит в доке лицом вверх; прилетающие карты садятся, не переворачиваясь.",
+    "Card numbers": "Номера карт",
+    "Show the catalog number on card faces": "Показывать каталожный номер на лицевой стороне карт (техническая информация)",
     "Quick notifications": "Быстрые уведомления",
     "All events": "Все события",
     "Only involving me": "Только связанные со мной",
