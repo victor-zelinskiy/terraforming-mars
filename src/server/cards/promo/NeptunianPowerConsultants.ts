@@ -100,7 +100,7 @@ export class NeptunianPowerConsultants extends Card implements IProjectCard {
         }));
         orOptions.markChoiceContext(cardEffect(this, 'An ocean tile was placed.', 'optional-effect'));
         return orOptions;
-      }, cardOwner.id !== activePlayer.id ? Priority.OPPONENT_TRIGGER : Priority.OPTIONAL_SPEND);
+      }, cardOwner.id !== activePlayer.id ? Priority.OPPONENT_TRIGGER : Priority.LOSE_RESOURCE_OR_PRODUCTION);
     }
   }
 
