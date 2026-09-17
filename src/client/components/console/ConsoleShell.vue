@@ -1054,6 +1054,17 @@
                                  :formula="false"
                                  size="compact"
                                  data-zoom-yield />
+          <!-- THE WINNER'S TILE of that resolution — «if you win» while it is up
+               for the vote, the fixed recipient while it resolves, the record
+               once it has (its own block, apart from everyone's numbers). -->
+          <ConsoleWinnerReward v-if="zoomResolutionWinner !== undefined && zoomResolutionWinner.context !== 'reference'"
+                               class="con-zoom__bar-winner"
+                               :reading="zoomResolutionWinner"
+                               :viewerColor="thisPlayer.color"
+                               :nameOf="parliamentSeatName"
+                               size="compact"
+                               variant="chip"
+                               data-zoom-winner />
           <!-- THE PROVENANCE PLATE (opened from «Разыграно»): the hero card
                would otherwise read like any other inspected card. The plate
                leads the bar and states WHOSE table it lies on, in WHICH
@@ -1592,6 +1603,8 @@ import {getResolution} from '@/client/parliament/ClientParliamentManifest';
 import ConsoleResolutionAside from '@/client/components/console/parliament/ConsoleResolutionAside.vue';
 import ConsoleResolutionStatus from '@/client/components/console/parliament/ConsoleResolutionStatus.vue';
 import ConsoleInfluenceYield from '@/client/components/console/parliament/ConsoleInfluenceYield.vue';
+import ConsoleWinnerReward from '@/client/components/console/parliament/ConsoleWinnerReward.vue';
+import {WinnerRewardReading, winnerRewardReadingOf, winnerRewardTableOf} from '@/client/console/parliament/winnerRewardModel';
 import {enactedYieldsOf, voteYieldsOf} from '@/client/console/parliament/influenceYieldModel';
 import {InfluenceYield} from '@/common/parliament/influenceScaling';
 import ConsoleInfoMode from '@/client/components/console/ConsoleInfoMode.vue';
@@ -2126,6 +2139,7 @@ export default defineComponent({
     ConsoleResolutionAside,
     ConsoleResolutionStatus,
     ConsoleInfluenceYield,
+    ConsoleWinnerReward,
     ConsoleInfoMode,
     ConsoleCardRulesPanel,
     ConsoleInspectSide,
@@ -8417,7 +8431,7 @@ export default defineComponent({
       }
       if (isResolutionZoom(card)) {
         // The viewer's own readings ride along: the rules name the counted cards behind their number.
-        return resolutionAnnotations(card.resolution, this.zoomResolutionYields);
+        return resolutionAnnotations(card.resolution, this.zoomResolutionYields, this.zoomResolutionWinnerWords);
       }
       if (isPartyEffectZoom(card)) {
         return partyAnnotations(card.partyEffect, this.game.parliament, this.thisPlayer.color, this.myTurn && this.awaitingInput);
@@ -8463,6 +8477,19 @@ export default defineComponent({
       const viewer = this.thisPlayer.color;
       return model?.enacted?.resolution === id ? enactedYieldsOf(resolution, model, viewer) : voteYieldsOf(resolution, model, viewer);
     },
+    /** A seat's display name for a parliament caption (the winner's recipient). */
+    parliamentSeatName(): (color: Color) => string {
+      return (color: Color) => this.playerView.players.find((p) => p.color === color)?.name ?? color;
+    },
+    /** The same reading for the rules column's «for you» row (the words beside — or, on the Deck, instead of — the chip). */
+    zoomResolutionWinnerWords(): {reading: WinnerRewardReading | undefined, viewer: Color | undefined, nameOf: (color: Color) => string} {
+      return {reading: this.zoomResolutionWinner, viewer: this.thisPlayer.color, nameOf: this.parliamentSeatName};
+    },
+    /** The WINNER's tile of the resolution on the stage, read over the live table (`winnerRewardModel`). */
+    zoomResolutionWinner(): WinnerRewardReading | undefined {
+      const id = this.zoomResolutionId;
+      return id === undefined ? undefined : winnerRewardReadingOf(getResolution(id), this.game.parliament, winnerRewardTableOf(this.game));
+    },
     /**
      * ONE type size for the resolution scene: the denser of the party
      * column's and the rules column's own reading tiers — two panels beside
@@ -8474,7 +8501,7 @@ export default defineComponent({
       if (id === undefined || party === undefined) {
         return undefined;
       }
-      return denserRulesTier(rulesLengthTier(resolutionAnnotations(id, this.zoomResolutionYields)), rulesLengthTier(resolutionPartyAnnotations(party)));
+      return denserRulesTier(rulesLengthTier(resolutionAnnotations(id, this.zoomResolutionYields, this.zoomResolutionWinnerWords)), rulesLengthTier(resolutionPartyAnnotations(party)));
     },
     /**
      * «Send the delegate» for the card ON SCREEN — the vote mode's own

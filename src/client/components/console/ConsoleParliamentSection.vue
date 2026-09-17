@@ -615,7 +615,20 @@
                     <PremiumMechanicsPanel v-if="voteInfo.ownMechanics !== undefined" class="con-parl__info-mech" :mechanics="voteInfo.ownMechanics" />
                     <div v-if="voteInfo.ownParts.length > 0 || voteInfo.yields.length > 0" class="con-parl__info-parts" data-parl-vote-late>
                       <div v-for="part in voteInfo.ownParts" :key="part.key" class="con-parl__info-part" :class="'con-parl__info-part--' + part.key">
-                        <span class="con-parl__info-part-label">{{ $t(part.label) }}</span>
+                        <span class="con-parl__info-part-head">
+                          <span class="con-parl__info-part-label">{{ $t(part.label) }}</span>
+                          <!-- THE WINNER'S TILE, read for this moment, on its own label's line —
+                               apart from everyone's numbers below: «if you win» · the tile ·
+                               what its own placement does to the table now · the TR it is worth. -->
+                          <ConsoleWinnerReward v-if="part.key === 'winner' && voteInfo.winnerReward !== undefined"
+                                               class="con-parl__info-winner"
+                                               :reading="voteInfo.winnerReward"
+                                               :viewerColor="viewerColor"
+                                               :nameOf="nameOf"
+                                               size="compact"
+                                               variant="inline"
+                                               data-parl-vote-winner />
+                        </span>
                         <span class="con-parl__info-part-text">{{ $t(part.text) }}</span>
                       </div>
                       <!-- THE VIEWER'S OWN NUMBER for an influence-scaled part:
@@ -826,6 +839,8 @@ import {
 } from '@/client/console/parliament/influenceYieldModel';
 import {runResourceTransfers} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import ConsoleInfluenceYield from '@/client/components/console/parliament/ConsoleInfluenceYield.vue';
+import ConsoleWinnerReward from '@/client/components/console/parliament/ConsoleWinnerReward.vue';
+import {WinnerRewardReading, winnerRewardReadingOf, winnerRewardTableOf} from '@/client/console/parliament/winnerRewardModel';
 import ConsoleWsHead from '@/client/components/console/foundation/ConsoleWsHead.vue';
 import PlayerCube from '@/client/components/PlayerCube.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
@@ -1004,6 +1019,8 @@ type VoteInfo = {
   yields: ReadonlyArray<InfluenceYield>;
   /** The honest note when the viewer has no card that could take the yield (English key). */
   yieldNote: string | undefined;
+  /** The WINNER's tile, read for this moment (`winnerRewardModel`) — absent for a resolution without one. */
+  winnerReward: WinnerRewardReading | undefined;
   questMechanics: MechanicsVM | undefined;
   questText: string;
 };
@@ -1040,7 +1057,7 @@ const ENACT_MOVE_MS = 620;
 
 export default defineComponent({
   name: 'ConsoleParliamentSection',
-  components: {ConsoleWsHead, PlayerCube, GamepadGlyph, PremiumMechanicsPanel, ConsolePartyPlaque, ConsolePartyFormula, ConsoleInfluenceYield},
+  components: {ConsoleWsHead, PlayerCube, GamepadGlyph, PremiumMechanicsPanel, ConsolePartyPlaque, ConsolePartyFormula, ConsoleInfluenceYield, ConsoleWinnerReward},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     myTurn: {type: Boolean, default: false},
@@ -1458,6 +1475,7 @@ export default defineComponent({
         ownParts: parts,
         yields: resolution === undefined ? [] : voteYieldsOf(resolution, this.model, this.viewerColor),
         yieldNote: resolution === undefined ? undefined : this.yieldNoteFor(resolution),
+        winnerReward: winnerRewardReadingOf(resolution, this.model, winnerRewardTableOf(this.playerView.game)),
         questMechanics: quest === undefined || quest.textOnly ? undefined : quest,
         questText: resolution?.text.quest ?? '',
       };
@@ -2676,11 +2694,33 @@ export default defineComponent({
         }
         return inputs.length === 0 ? main : `${main} — ${inputs.join(' + ')}`;
       }
+      case 'stock': {
+        // «player1: +6 plants (2 → 8) — influence 3»: the result, the supply
+        // before and after, then what it was computed from (as recorded).
+        const unit = translateText(productionResourceLabelKey(outcome.stock));
+        const main = translateTextWithParams('${0}: ${1} +${2} (${3} → ${4})', [
+          who, unit, String(outcome.amount ?? 0), String(outcome.before ?? ''), String(outcome.after ?? ''),
+        ]);
+        return outcome.influence === undefined ? main : `${main} — ${translateTextWithParams('influence ${0}', [String(outcome.influence)])}`;
+      }
       case 'ocean':
         return translateTextWithParams('${0} placed an ocean as the winner of the vote', [who]);
+      case 'greenery': {
+        // The tile's own oxygen step as the server read it: a step, or «at the maximum» (the tile still landed).
+        const parameter = outcome.parameter;
+        if (parameter === undefined) {
+          return translateTextWithParams('${0} placed a greenery as the winner of the vote', [who]);
+        }
+        return parameter.after > parameter.before ?
+          translateTextWithParams('${0} placed a greenery as the winner of the vote — oxygen ${1} → ${2} %', [who, String(parameter.before), String(parameter.after)]) :
+          translateTextWithParams('${0} placed a greenery as the winner of the vote — oxygen was already at its maximum', [who]);
+      }
       case 'skipped':
-      default:
-        return translateTextWithParams('${0}: ${1} — skipped: ${2}', [who, translateText(outcome.step === 'ocean' ? 'Winner of the vote' : 'Resolution effect'), translateText(outcome.reason ?? '')]);
+      default: {
+        // WHICH part was skipped is the driver's own stamp (older records: the ocean step's key).
+        const winnerPart = outcome.part === 'winner' || (outcome.part === undefined && outcome.step === 'ocean');
+        return translateTextWithParams('${0}: ${1} — skipped: ${2}', [who, translateText(winnerPart ? 'Winner of the vote' : 'Resolution effect'), translateText(outcome.reason ?? '')]);
+      }
       }
     },
     /** The honest recipient note for the vote surface: the viewer has no card that could hold the yield. */
@@ -3057,11 +3097,19 @@ export default defineComponent({
      */
     playOutcomeFlight(outcome: ParliamentEnactOutcomeModel): void {
       const amount = outcome.amount ?? 0;
-      if (outcome.player !== this.viewerColor || amount <= 0 || outcome.kind !== 'production' || outcome.production === undefined) {
+      if (outcome.player !== this.viewerColor || amount <= 0) {
+        return;
+      }
+      const spec = outcome.kind === 'production' && outcome.production !== undefined ?
+        {channel: 'production' as const, resource: outcome.production, amount} :
+        outcome.kind === 'stock' && outcome.stock !== undefined ?
+          {channel: 'stock' as const, resource: outcome.stock, amount} :
+          undefined;
+      if (spec === undefined) {
         return;
       }
       void runResourceTransfers({
-        specs: [{channel: 'production', resource: outcome.production, amount}],
+        specs: [spec],
         source: {selectors: ['[data-parl-gov] .con-parl__gov-card .pcard__mech', '[data-parl-gov] .con-parl__gov-card']},
         arrival: 'auto',
       });

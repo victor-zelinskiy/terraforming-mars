@@ -100,6 +100,14 @@
                                  :formula="false"
                                  size="compact"
                                  data-zoom-yield />
+          <ConsoleWinnerReward v-if="zoomResolutionWinner !== undefined && zoomResolutionWinner.context !== 'reference'"
+                               class="con-zoom__bar-winner"
+                               :reading="zoomResolutionWinner"
+                               :viewerColor="zoomViewer"
+                               :nameOf="zoomNameOf"
+                               size="compact"
+                               variant="chip"
+                               data-zoom-winner />
           <span v-if="zoomSelected" class="con-zoom__state">✓ {{ $t('Card selected') }}</span>
           <button v-if="zoomSelectable" type="button" class="con-zoom__btn con-zoom__btn--select" @click="zoomToggleSelect">
             <GamepadGlyph control="confirm" />
@@ -138,6 +146,9 @@ import {getResolution} from '@/client/parliament/ClientParliamentManifest';
 import ConsoleResolutionAside from '@/client/components/console/parliament/ConsoleResolutionAside.vue';
 import ConsoleResolutionStatus from '@/client/components/console/parliament/ConsoleResolutionStatus.vue';
 import ConsoleInfluenceYield from '@/client/components/console/parliament/ConsoleInfluenceYield.vue';
+import ConsoleWinnerReward from '@/client/components/console/parliament/ConsoleWinnerReward.vue';
+import {translateText} from '@/client/directives/i18n';
+import {WinnerRewardReading, winnerRewardReadingOf} from '@/client/console/parliament/winnerRewardModel';
 import {CardAnnotation} from '@/client/components/cardAnnotations/annotationModel';
 import {resolutionAnnotations, resolutionPartyAnnotations} from '@/client/console/parliament/parliamentAnnotations';
 import {resolutionPartyContextKey, resolutionStatusOf, ResolutionStatusVm} from '@/client/console/parliament/resolutionInspectModel';
@@ -154,7 +165,7 @@ import {motionMs} from '@/client/components/motion/motionTokens';
 
 export default defineComponent({
   name: 'ConsoleMenuZoomHost',
-  components: {CardZoomModal, CardZoomCard, GamepadGlyph, ConsoleCardRulesPanel, ConsoleResolutionAside, ConsoleResolutionStatus, ConsoleInfluenceYield},
+  components: {CardZoomModal, CardZoomCard, GamepadGlyph, ConsoleCardRulesPanel, ConsoleResolutionAside, ConsoleResolutionStatus, ConsoleInfluenceYield, ConsoleWinnerReward},
   data() {
     return {
       consoleState,
@@ -219,15 +230,24 @@ export default defineComponent({
       const model = this.zoomParliament;
       return model?.enacted?.resolution === id ? enactedYieldsOf(resolution, model, this.zoomViewer) : voteYieldsOf(resolution, model, this.zoomViewer);
     },
+    /** The WINNER's tile of the resolution on the stage, read over the opener's table (none outside a table). */
+    zoomResolutionWinner(): WinnerRewardReading | undefined {
+      const id = this.zoomResolutionId;
+      return id === undefined ? undefined : winnerRewardReadingOf(getResolution(id), this.zoomParliament, this.consoleCardZoom.parliament?.table?.());
+    },
+    zoomNameOf(): (color: Color) => string {
+      return this.consoleCardZoom.parliament?.nameOf ?? ((color: Color) => translateText(color));
+    },
     zoomResolutionAnnotations(): ReadonlyArray<CardAnnotation> {
       const id = this.zoomResolutionId;
-      return id === undefined ? [] : resolutionAnnotations(id, this.zoomResolutionYields);
+      return id === undefined ? [] : resolutionAnnotations(id, this.zoomResolutionYields, {reading: this.zoomResolutionWinner, viewer: this.zoomViewer, nameOf: this.zoomNameOf});
     },
     zoomResolutionTier(): RulesLengthTier | undefined {
       const id = this.zoomResolutionId;
       const party = this.zoomResolutionParty;
       return id === undefined || party === undefined ? undefined :
-        denserRulesTier(rulesLengthTier(resolutionAnnotations(id, this.zoomResolutionYields)), rulesLengthTier(resolutionPartyAnnotations(party)));
+        denserRulesTier(rulesLengthTier(resolutionAnnotations(id, this.zoomResolutionYields, {reading: this.zoomResolutionWinner, viewer: this.zoomViewer, nameOf: this.zoomNameOf})),
+          rulesLengthTier(resolutionPartyAnnotations(party)));
     },
     zoomRulesCardName(): CardName | undefined {
       const name = this.consoleCardZoom.card?.name;

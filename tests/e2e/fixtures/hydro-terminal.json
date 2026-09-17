@@ -595,7 +595,7 @@
    "Mining Guild"
   ]
  },
- "createdTimeMs": 1789070552432,
+ "createdTimeMs": 1789671568533,
  "currentSeed": 483533374632,
  "deferredActions": [],
  "donePlayers": [],
@@ -622,7 +622,7 @@
      "value": 2
     }
    ],
-   "timestamp": 1789070552433
+   "timestamp": 1789671568533
   },
   {
    "message": "Drew and discarded ${0} to place a ${1}",
@@ -639,7 +639,7 @@
      "value": 0
     }
    ],
-   "timestamp": 1789070552433
+   "timestamp": 1789671568533
   },
   {
    "message": "Drew and discarded ${0} to place a ${1}",
@@ -656,7 +656,7 @@
      "value": 2
     }
    ],
-   "timestamp": 1789070552433
+   "timestamp": 1789671568533
   },
   {
    "message": "Drew and discarded ${0} to place a ${1}",
@@ -673,7 +673,7 @@
      "value": 0
     }
    ],
-   "timestamp": 1789070552433
+   "timestamp": 1789671568533
   },
   {
    "message": "The id of this game is ${0}",
@@ -683,7 +683,7 @@
      "value": "game-id"
     }
    ],
-   "timestamp": 1789070552433
+   "timestamp": 1789671568533
   },
   {
    "message": "Good luck ${0}!",
@@ -693,7 +693,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1789070552433,
+   "timestamp": 1789671568533,
    "playerId": "p-player1-id"
   },
   {
@@ -704,7 +704,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1789070552433,
+   "timestamp": 1789671568533,
    "type": 1
   },
   {
@@ -719,7 +719,7 @@
      "value": "Inventrix"
     }
    ],
-   "timestamp": 1789070552433,
+   "timestamp": 1789671568533,
    "correlationId": 5,
    "parentId": 5,
    "role": "root-action",
@@ -737,7 +737,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1789070552433,
+   "timestamp": 1789671568533,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -758,7 +758,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1789070552434
+   "timestamp": 1789671568534
   },
   {
    "message": "${0} drew ${1}",
@@ -775,7 +775,7 @@
      ]
     }
    ],
-   "timestamp": 1789070552434,
+   "timestamp": 1789671568534,
    "playerId": "p-player1-id"
   }
  ],
@@ -930,7 +930,8 @@
    "ceo": false,
    "starwars": false,
    "underworld": false,
-   "deltaProject": true
+   "deltaProject": true,
+   "turmoilRedux": false
   },
   "fastModeOption": false,
   "includeFanMA": false,
@@ -961,6 +962,7 @@
   "startingPreludes": 4,
   "starWarsExpansion": false,
   "turmoilExtension": false,
+  "turmoilReduxExpansion": false,
   "underworldExpansion": false,
   "deltaProjectExpansion": true,
   "undoOption": false,
@@ -980,7 +982,7 @@
   "Builder",
   "Planner"
  ],
- "name": "Solar Optics Pulse",
+ "name": "Solar Proton Mass",
  "oxygenLevel": 0,
  "passedPlayers": [],
  "phase": "action",
@@ -1102,10 +1104,10 @@
    "handicap": 0,
    "timer": {
     "sumElapsed": 0,
-    "startedAt": 1789070552433,
+    "startedAt": 1789671568533,
     "running": true,
     "afterFirstAction": true,
-    "lastStoppedAt": 1789070552433
+    "lastStoppedAt": 1789671568533
    },
    "actionsTakenThisGame": 1,
    "victoryPointsByGeneration": [],

@@ -9,8 +9,8 @@ import {InfluenceScaledEffect, scaledAmount, uncappedAmount, winnerForecastYield
 import {Resource} from '@/common/Resource';
 import {Tag} from '@/common/cards/Tag';
 import {
-  cardResourcePluralKey, enactedYieldsOf, noRecipientNoteOf, productionResourceLabelKey, resolvingYieldOf, scaledEffectForCardResource, voteYieldsOf,
-  yieldCaptionOf, yieldCountPresentation, yieldIconOf,
+  cardResourcePluralKey, countedContributions, enactedYieldsOf, noRecipientNoteOf, productionResourceLabelKey, resolvingYieldOf,
+  scaledEffectForCardResource, voteYieldsOf, yieldCaptionOf, yieldCountPresentation, yieldIconOf,
 } from '@/client/console/parliament/influenceYieldModel';
 import {getResolution} from '@/client/parliament/ClientParliamentManifest';
 
@@ -190,5 +190,72 @@ describe('influenceYieldModel', () => {
     expect(y).deep.include({context: 'resolving', amount: 3, influence: 3});
     expect(yieldCaptionOf(y)).deep.eq({key: 'This payout'});
     expect(yieldIconOf(ANIMALS)).deep.eq({family: 'card-resource', resource: CardResource.ANIMAL});
+  });
+
+  // ── A TAG-COUNTED TERM (Central Power Grid: min(5, P + I)) ──
+  const GRID_PRODUCTION: InfluenceScaledEffect = {
+    id: 'production', unit: {kind: 'production', resource: Resource.MEGACREDITS}, perInfluence: 1,
+    count: {id: 'powerTags', per: 1}, cap: 5, recipient: 'each',
+  };
+  const grid = {...resolution, id: 'RDX_GRID', scaled: [GRID_PRODUCTION]};
+
+  it('the shipped catalog declares Central Power Grid as a TAG count + influence, capped at 5, for every player', () => {
+    const cpg = getResolution('RDX_INDUSTRIALISTS_CENTRAL_POWER_GRID');
+    expect(cpg?.code).eq('RX04');
+    expect(cpg?.party).eq(PartyName.INDUSTRIALISTS);
+    expect(cpg?.scaled).deep.eq([GRID_PRODUCTION]);
+    expect(cpg?.hasWinnerEffect, 'no winner-only part').is.false;
+    // The counted object is the printed TAG — the card glyph would say «per card».
+    expect(yieldCountPresentation('powerTags').glyph).deep.eq({kind: 'tag', tag: Tag.POWER});
+    expect(yieldCountPresentation('powerTags').pluralKey).eq('${0} power tag(s)');
+    expect(yieldCountPresentation('buildingCardsWithNonNegativeVp').glyph, 'Architecture Award still draws a card').deep.eq({kind: 'vp-card', tag: Tag.BUILDING});
+  });
+
+  it('a tag-counted vote reading: the SERVER\'s tag count + influence, with the per-card contribution carried', () => {
+    const blue: ParliamentPlayerModel = {
+      ...seat('blue' as Color, 4, 2),
+      // ONE card, TWO tags: P = 2 while the tableau holds a single card.
+      counts: [{id: 'powerTags', count: 2, cards: [CardName.HE3_FUSION_PLANT], units: [2]}],
+    };
+    const yields = voteYieldsOf(grid, model([blue]), 'blue' as Color);
+    expect(yields.map((y) => y.context)).deep.eq(['estimate', 'forecast']);
+    expect(yields[0]).deep.include({influence: 2, count: 2, amount: 4, uncapped: 4});
+    expect(yields[0].counted).deep.eq([CardName.HE3_FUSION_PLANT]);
+    expect(yields[0].countedUnits, 'the contribution rides along').deep.eq([2]);
+    expect(yieldAtCap(yields[0])).is.false;
+    // Winning: step 5 = influence 3 → 2 + 3 = 5, exactly the maximum.
+    expect(yields[1]).deep.include({influence: 3, count: 2, amount: 5, agendaStep: 5});
+    expect(yieldAtCap(yields[1])).is.true;
+    // The detailed inspection names what each card gave.
+    expect(countedContributions(yields[0], (c) => String(c))).deep.eq(['HE3 Fusion Plant ×2']);
+  });
+
+  it('an enacted tag count reads the RECORDED contributions, never today\'s tableau', () => {
+    const blue: ParliamentPlayerModel = {
+      ...seat('blue' as Color, 12, 5),
+      counts: [{id: 'powerTags', count: 9, cards: [], units: []}],
+    };
+    const m = model([blue], {
+      lastPhase: {
+        generation: 3, final: false, winner: {instance: 'RDX_GRID#0', resolution: 'RDX_GRID', party: PartyName.INDUSTRIALISTS, votes: 1},
+        outcomes: [{
+          player: 'blue' as Color, step: 'production', effect: 'production', kind: 'production', production: Resource.MEGACREDITS,
+          amount: 5, influence: 3, count: 4, counted: [CardName.HE3_FUSION_PLANT, CardName.POWER_PLANT, CardName.SOLAR_POWER],
+          countedUnits: [2, 1, 1], uncapped: 7, before: 8, after: 13,
+        }],
+        support: [], enacted: {instance: 'RDX_GRID#0', resolution: 'RDX_GRID', party: PartyName.INDUSTRIALISTS}, refreshed: [], lobbyRefilled: [],
+      },
+    });
+    const [y] = enactedYieldsOf(grid, m, 'blue' as Color);
+    expect(y).deep.include({context: 'applied', amount: 5, influence: 3, count: 4, uncapped: 7});
+    expect(y.countedUnits).deep.eq([2, 1, 1]);
+    expect(countedContributions(y, (c) => String(c))).deep.eq(['HE3 Fusion Plant ×2', 'Power Plant', 'Solar Power']);
+    expect(yieldCapped(y), 'the cap bit: 7 owed, 5 paid').is.true;
+  });
+
+  it('a card count reads as a plain list — no ×1 anywhere', () => {
+    const y = {effect: PRODUCTION, context: 'estimate' as const, influence: 1, amount: 3, count: 2,
+      counted: [CardName.ARTIFICIAL_LAKE, CardName.PHYSICS_COMPLEX]};
+    expect(countedContributions(y, (c) => String(c))).deep.eq(['Artificial Lake', 'Physics Complex']);
   });
 });

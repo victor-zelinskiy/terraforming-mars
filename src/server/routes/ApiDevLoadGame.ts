@@ -1,17 +1,12 @@
 import * as responses from '../server/responses';
 import {Handler} from './Handler';
 import {Context} from './IHandler';
-import {Game} from '../Game';
-import {GameSetup} from '../GameSetup';
-import {Cloner} from '../database/Cloner';
 import {Server} from '../models/ServerModel';
 import {SerializedGame} from '../SerializedGame';
 import {Request} from '../Request';
 import {Response} from '../Response';
 import {rollbackAuthorized} from '../models/adminRollback';
-import {safeCast, isGameId, isPlayerId, isSpectatorId, PlayerId} from '../../common/Types';
-import {generateRandomId} from '../utils/server-ids';
-import {toID} from '../../common/utils/utils';
+import {bootFixtureGame, FixtureShapeError} from './devFixtureBoot';
 
 /**
  * POST /api/dev/load-game — boot a game from a SerializedGame FIXTURE.
@@ -23,16 +18,13 @@ import {toID} from '../../common/utils/utils';
  * serialized by `game.serialize()`) and open the console already standing in
  * the state.
  *
- * Architecturally honest by construction:
- *  - the body goes through `Game.deserialize` — the SAME path every real
- *    save rides on load, so a fixture that drifted from the schema fails
- *    HERE with the deserializer's own error (surfaced in the 400), never as
- *    a mystery mid-spec;
- *  - ids are REMAPPED (fresh game/player/spectator ids via the Cloner's
- *    structural walk), so one fixture can boot any number of concurrent
- *    games without colliding;
- *  - gated by the same loopback/ADMIN_NAME door as the rollback tools — a
- *    remote client cannot inject states.
+ * Architecturally honest by construction (`bootFixtureGame`): the body goes
+ * through `Game.deserialize` — the SAME path every real save rides on load,
+ * so a fixture that drifted from the schema fails HERE with the
+ * deserializer's own error (surfaced in the 400) — and ids are REMAPPED, so
+ * one fixture can boot any number of concurrent games without colliding.
+ * Gated by the same loopback/ADMIN_NAME door as the rollback tools — a remote
+ * client cannot inject states.
  */
 export class ApiDevLoadGame extends Handler {
   public static readonly INSTANCE = new ApiDevLoadGame();
@@ -52,39 +44,23 @@ export class ApiDevLoadGame extends Handler {
         body += data.toString();
       });
       req.once('end', () => {
+        let serialized: SerializedGame;
         try {
-          const serialized = JSON.parse(body) as SerializedGame;
-          if (typeof serialized.id !== 'string' || !Array.isArray(serialized.players) || serialized.players.length === 0) {
-            responses.badRequest(req, res, 'not a SerializedGame (id/players missing)');
-            resolve();
-            return;
-          }
-          const oldGameId = serialized.id;
-          const oldPlayerIds: Array<PlayerId> = serialized.players.map(toID);
-          const newGameId = safeCast(generateRandomId('g'), isGameId);
-          const newPlayerIds = oldPlayerIds.map(() => safeCast(generateRandomId('p'), isPlayerId));
-          Cloner.replacePlayerIds(serialized, oldPlayerIds, newPlayerIds);
-          if (oldPlayerIds.length === 1) {
-            // The solo neutral player's id derives from the game id and is not
-            // serialized — same special case the Cloner carries.
-            Cloner.replacePlayerIds(
-              serialized,
-              [GameSetup.neutralPlayerFor(oldGameId).id],
-              [GameSetup.neutralPlayerFor(newGameId).id]);
-          }
-          serialized.id = newGameId;
-          serialized.spectatorId = safeCast(generateRandomId('s'), isSpectatorId);
-          serialized.createdTimeMs = new Date().getTime();
-          const game = Game.deserialize(serialized);
-          ctx.gameLoader.add(game);
-          responses.writeJson(res, ctx, Server.getSimpleGameModel(game));
+          serialized = JSON.parse(body) as SerializedGame;
         } catch (error) {
+          responses.badRequest(req, res, `fixture rejected: ${error instanceof Error ? error.message : String(error)}`);
+          resolve();
+          return;
+        }
+        bootFixtureGame(serialized, ctx.gameLoader).then((game) => {
+          responses.writeJson(res, ctx, Server.getSimpleGameModel(game));
+        }, (error) => {
           // The deserializer's own message IS the diagnosis (schema drift in a
           // fixture must fail loudly and namefully).
-          responses.badRequest(req, res,
+          responses.badRequest(req, res, error instanceof FixtureShapeError ?
+            error.message :
             `fixture rejected: ${error instanceof Error ? error.message : String(error)}`);
-        }
-        resolve();
+        }).finally(resolve);
       });
     });
   }

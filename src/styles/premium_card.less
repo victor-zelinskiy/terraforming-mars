@@ -1377,6 +1377,32 @@
   white-space: nowrap;
 }
 
+/* A PRINTED TAG as a counted object (PremiumCountGlyph — Turmoil Redux's «for
+   each Power tag you have»). The medallion the face's tag cluster wears, alone
+   and optically centred in the SAME square the card glyph uses
+   (--pvpcard-size), so «per card» and «per tag» rows keep one rhythm. */
+.pcglyph {
+  position: relative;
+  display: inline-block;
+  flex-shrink: 0;
+  width: var(--pvpcard-size, var(--pcard-mech-icon, 24px));
+  height: var(--pvpcard-size, var(--pcard-mech-icon, 24px));
+  vertical-align: middle;
+}
+.pcglyph.pcard-ic { background: none; filter: none; }
+.pcglyph__tag {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 88%;
+  height: 88%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background-size: cover;
+  background-position: center;
+  box-shadow: 0 0 0 1px var(--pcard-gold-deep, #8a6a35), 0 1px 2px rgba(0, 0, 0, 0.7);
+}
+
 /* secondary tag bubble (top-right) */
 .pcard-mi__bubble {
   position: absolute;

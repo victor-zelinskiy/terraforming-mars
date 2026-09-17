@@ -258,7 +258,7 @@ describe('AquiferContest', () => {
       expect(p1.actionsTakenThisGame).eq(actions);
       expect(parliament.rulingParty()).eq(PartyName.GREENS);
       const outcome = parliament.lastPhase?.outcomes?.find((o) => o.player === p1.id && o.step === 'ocean');
-      expect(outcome).deep.include({kind: 'ocean', space: space.id});
+      expect(outcome).deep.include({kind: 'ocean', part: 'winner', space: space.id, parameter: {id: 'oceans', before: 0, after: 1}});
       expect(parliament.phase).is.undefined;
       expect(game.generation).eq(2);
     });
@@ -312,7 +312,7 @@ describe('AquiferContest', () => {
       phase = getParliamentModel(game, p2)?.phase;
       expect(phase?.pending).deep.eq({player: p1.color, key: 'ocean', input: 'space'});
       expect(phase?.outcomes).deep.eq([
-        {player: p1.color, step: 'animals', effect: 'animals', kind: 'cardResource', resource: 'Animal', amount: 1, card: CardName.FISH, influence: 1},
+        {player: p1.color, step: 'animals', part: 'effect', effect: 'animals', kind: 'cardResource', resource: 'Animal', amount: 1, card: CardName.FISH, influence: 1},
       ]);
       const ocean = cast(p1.getWaitingFor(), SelectSpace);
       p1.process({type: 'space', spaceId: ocean.spaces[0].id});

@@ -118,6 +118,14 @@ export type BoardFact = {
   params?: ReadonlyArray<string>;
   source?: BoardFactSource;
   /**
+   * WHY this member of a shared pool moves it (an i18n key — «Oxygen»,
+   * «Greenery tile»): a POOL fact is titled by its pool, so when several of
+   * them merge into one change-vector (the oxygen step's TR, the chained
+   * temperature step's TR, a Redux greenery's own TR) the breakdown would
+   * otherwise read «TR +1 · TR +1». Never a second label on a lone row.
+   */
+  reason?: string;
+  /**
    * The BOARD CELLS that make this fact true — the adjacent oceans paying the
    * M€, the greeneries a city will score, the hazards behind a production
    * penalty, the tiles a planetary event rewrites. Filled ONLY where a fact is

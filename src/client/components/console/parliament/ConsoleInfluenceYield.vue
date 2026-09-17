@@ -26,10 +26,11 @@
         <b class="con-iyield__num">{{ group.effect.perInfluence }}</b>
         <i class="con-iyield__unit" :class="unitClassOf(group.effect)"></i>
         <span class="con-iyield__slash">/</span>
-        <!-- A COUNTED term shares the rate («1 [unit] / [counted card] + [influence]»):
-             the counted object is the card glyph the face prints, never a bare tag. -->
+        <!-- A COUNTED term shares the rate («1 [unit] / [counted object] + [influence]»):
+             the counted object is exactly what the face prints — the card glyph
+             for a card count, the printed tag medallion for a tag count. -->
         <template v-if="countGlyphOf(group.effect) !== undefined && group.effect.count?.per === group.effect.perInfluence">
-          <PremiumVpCardGlyph class="con-iyield__glyph" :tag="countGlyphOf(group.effect)?.tag" />
+          <PremiumCountGlyph class="con-iyield__glyph" :glyph="countGlyphOf(group.effect)!" />
           <span class="con-iyield__plus">+</span>
         </template>
         <i class="con-iyield__inf"></i>
@@ -49,11 +50,11 @@
              :data-yield-max="atCap(y) ? 'true' : undefined"
              :data-yield-amount="y.amount"
              :data-yield-skipped="y.skipped">
-          <!-- THE INPUTS as one cluster: «[counted card] 2 + [influence] 2» — the number of
-               counted cards is the player's own (the server's count), then the influence. -->
+          <!-- THE INPUTS as one cluster: «[counted object] 2 + [influence] 2» — the
+               count is the player's own (the server's), then the influence. -->
           <span v-if="y.influence !== undefined || y.count !== undefined" class="con-iyield__in">
-            <template v-if="y.count !== undefined">
-              <PremiumVpCardGlyph class="con-iyield__glyph" :tag="countGlyphOf(group.effect)?.tag" /><b data-yield-in="count">{{ y.count }}</b>
+            <template v-if="y.count !== undefined && countGlyphOf(group.effect) !== undefined">
+              <PremiumCountGlyph class="con-iyield__glyph" :glyph="countGlyphOf(group.effect)!" /><b data-yield-in="count">{{ y.count }}</b>
               <span class="con-iyield__plus" aria-hidden="true">+</span>
             </template>
             <template v-if="y.influence !== undefined"><i class="con-iyield__inf"></i><b data-yield-in="influence">{{ y.influence }}</b></template>
@@ -73,8 +74,8 @@
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
 import {InfluenceScaledEffect, InfluenceYield, yieldAtCap} from '@/common/parliament/influenceScaling';
-import {yieldCaptionOf, yieldCountPresentation, yieldIconOf, YieldCountPresentation} from '@/client/console/parliament/influenceYieldModel';
-import PremiumVpCardGlyph from '@/client/components/premiumCard/PremiumVpCardGlyph.vue';
+import {yieldCaptionOf, yieldCountPresentation, yieldIconOf, YieldCountGlyph} from '@/client/console/parliament/influenceYieldModel';
+import PremiumCountGlyph from '@/client/components/premiumCard/PremiumCountGlyph.vue';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 
@@ -82,7 +83,7 @@ type Group = {effect: InfluenceScaledEffect, readings: Array<InfluenceYield>};
 
 export default defineComponent({
   name: 'ConsoleInfluenceYield',
-  components: {PremiumVpCardGlyph},
+  components: {PremiumCountGlyph},
   props: {
     /** The readings to draw — one or more per scaled effect (the model groups them by effect). */
     yields: {type: Array as PropType<ReadonlyArray<InfluenceYield>>, required: true},
@@ -115,8 +116,8 @@ export default defineComponent({
     },
   },
   methods: {
-    /** The counted object's glyph (a card with a tag and a VP icon), undefined for an effect without a count term. */
-    countGlyphOf(effect: InfluenceScaledEffect): YieldCountPresentation['glyph'] | undefined {
+    /** The counted object's glyph (a card with a VP icon, or a printed tag), undefined for an effect without a count term. */
+    countGlyphOf(effect: InfluenceScaledEffect): YieldCountGlyph | undefined {
       return effect.count === undefined ? undefined : yieldCountPresentation(effect.count.id).glyph;
     },
     /** The reading stands at the effect's maximum — the MAX mark (reached or passed; the uncapped sum rides the data attribute). */

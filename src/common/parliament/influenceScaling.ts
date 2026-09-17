@@ -89,6 +89,8 @@ export type InfluenceYield = {
   count?: number;
   /** …and WHICH cards they are — so the number can be explained (absent when unknown). */
   counted?: ReadonlyArray<CardName>;
+  /** …and what EACH of them contributed (a tag count: a two-power-tag card is 2). */
+  countedUnits?: ReadonlyArray<number>;
   /** The formula's sum before the cap — above `amount` exactly when the cap bit. */
   uncapped?: number;
   /** `forecast` only: the Agenda step the scenario's influence is read at. */
@@ -101,14 +103,17 @@ export type InfluenceYield = {
   skipped?: string;
 };
 
-/** The counted part of a reading: how many items, and which (both absent for an effect without a count term). */
-export type YieldCount = {count: number, cards?: ReadonlyArray<CardName>};
+/** The counted part of a reading: how many items, which cards, and what each contributed. */
+export type YieldCount = {count: number, cards?: ReadonlyArray<CardName>, units?: ReadonlyArray<number>};
 
 function withCount(y: InfluenceYield, effect: InfluenceScaledEffect, count: YieldCount | undefined): InfluenceYield {
   if (effect.count !== undefined && count !== undefined) {
     y.count = count.count;
     if (count.cards !== undefined) {
       y.counted = count.cards;
+    }
+    if (count.units !== undefined) {
+      y.countedUnits = count.units;
     }
   }
   if (effect.cap !== undefined && y.influence !== undefined) {
@@ -154,7 +159,7 @@ export function fixedYield(
   context: 'resolving' | 'applied',
   amount: number,
   influence?: number,
-  recorded?: {count?: number, counted?: ReadonlyArray<CardName>, uncapped?: number},
+  recorded?: {count?: number, counted?: ReadonlyArray<CardName>, countedUnits?: ReadonlyArray<number>, uncapped?: number},
 ): InfluenceYield {
   const y: InfluenceYield = {effect, context, amount, influence};
   if (recorded?.count !== undefined) {
@@ -162,6 +167,9 @@ export function fixedYield(
   }
   if (recorded?.counted !== undefined) {
     y.counted = recorded.counted;
+  }
+  if (recorded?.countedUnits !== undefined) {
+    y.countedUnits = recorded.countedUnits;
   }
   if (recorded?.uncapped !== undefined) {
     y.uncapped = recorded.uncapped;

@@ -4,7 +4,7 @@ import {TestPlayer} from '../TestPlayer';
 import {IGame} from '../../src/server/IGame';
 import {Game} from '../../src/server/Game';
 import {Parliament} from '../../src/server/parliament/Parliament';
-import {TEST_CHOICE_RESOLUTION_ID} from '../../src/server/parliament/resolutions/ResolutionCatalog';
+import {dummyResolutionId, TEST_CHOICE_RESOLUTION_ID} from '../../src/server/parliament/resolutions/ResolutionCatalog';
 import {PartyName} from '../../src/common/turmoil/PartyName';
 import {PARLIAMENT_VOTING_SLOTS, REDUX_PARTIES, resolutionInstanceId} from '../../src/common/parliament/ParliamentTypes';
 import {Phase} from '../../src/common/Phase';
@@ -34,6 +34,11 @@ describe('ParliamentPhase', () => {
   it('resolves the vote at the end of the generation: winner, Agenda, popular support, enactment, refresh, lobby', () => {
     const [game, p1, p2, parliament] = reduxGame();
     const slot = parliament.slots[1];
+    // THE GENERIC PHASE: the voted card is one whose effect never asks — a
+    // real resolution dealt here (a winner's tile) would hold the phase for
+    // its answer. The dummy of the dealt card's OWN party keeps every party
+    // reading below as it was.
+    slot.instance = resolutionInstanceId(dummyResolutionId(parliament.resolutionOf(slot.instance).party, 1), 0);
     const winnerParty = parliament.resolutionOf(slot.instance).party;
     const loserParties = parliament.partiesInVotingArea().filter((party) => party !== winnerParty);
     const loserWithVote = parliament.slots[2];

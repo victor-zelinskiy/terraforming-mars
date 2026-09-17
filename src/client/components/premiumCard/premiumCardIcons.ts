@@ -68,6 +68,17 @@ export function tagIconUrl(tag: Tag): string {
   return `${TAGS}/${tag}.png`;
 }
 
+/**
+ * THE COUNTED OBJECT of a «for every X you have» rule, as a DRAWING
+ * (`PremiumCountGlyph.vue`). It lives with the face's icon vocabulary because
+ * the face prints the same objects: a CARD that carries a tag and a VP icon
+ * («per Building card with a VP icon»), or ONE printed TAG («per Power tag»).
+ * The rules that USE it are the parliament's (`influenceYieldModel`).
+ */
+export type CountedObjectGlyph =
+  | {kind: 'vp-card', tag: Tag}
+  | {kind: 'tag', tag: Tag};
+
 /** Standard-resource icon (production requirements, reserve units). */
 const STANDARD_RESOURCE_URL: Readonly<Record<Resource, string>> = {
   [Resource.MEGACREDITS]: `${RES}/megacredit.png`,

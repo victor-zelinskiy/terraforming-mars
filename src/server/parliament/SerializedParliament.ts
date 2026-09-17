@@ -4,6 +4,7 @@ import {CardName} from '../../common/cards/CardName';
 import {CardResource} from '../../common/CardResource';
 import {Resource} from '../../common/Resource';
 import {BotParliamentMode, ParliamentPhaseStep, QuestDefinition, ResolutionInstanceId} from '../../common/parliament/ParliamentTypes';
+import {WinnerRewardParameter} from '../../common/parliament/winnerReward';
 
 /** Bump when the shape changes incompatibly; older saves are refused explicitly. */
 export const PARLIAMENT_SAVE_VERSION = 1;
@@ -43,12 +44,25 @@ export type SerializedEnactOutcome = {
   player: PlayerId;
   /** The step key that produced it. */
   step: string;
+  /**
+   * WHICH PART of the resolution produced it — the effect every participant
+   * receives, or the winner's own part — stamped by the driver from the list
+   * the step belongs to (absent on older saves).
+   */
+  part?: EnactOutcomePart;
   /** The scaled effect's id (`InfluenceScaledEffect.id`) when the amount came from influence. */
   effect?: string;
-  kind: 'cardResource' | 'production' | 'ocean' | 'skipped';
+  /**
+   * `cardResource` resources onto a card · `production` a production increase ·
+   * `stock` standard resources into the player's supply · `ocean` / `greenery`
+   * the winner's tile · `skipped` nothing happened (see `reason`).
+   */
+  kind: 'cardResource' | 'production' | 'stock' | 'ocean' | 'greenery' | 'skipped';
   resource?: CardResource;
   /** `production` (and its skip): the standard resource whose production the effect raises. */
   production?: Resource;
+  /** `stock` (and its skip): the standard resource the effect adds to the supply. */
+  stock?: Resource;
   amount?: number;
   card?: CardName;
   space?: SpaceId;
@@ -60,12 +74,27 @@ export type SerializedEnactOutcome = {
   count?: number;
   /** …and which cards they were — frozen here, never re-read from a later tableau. */
   counted?: Array<CardName>;
+  /**
+   * …and what each of them contributed (aligned with `counted`) — a TAG count
+   * only, where one card can be worth several (a two-power-tag card is 2).
+   * Absent on a count where every card is worth exactly 1, and on older saves.
+   */
+  countedUnits?: Array<number>;
   /** The formula's sum before the cap (above `amount` exactly when the cap bit). */
   uncapped?: number;
-  /** `production`: the production value before and after the change. */
+  /** `production` / `stock`: the value before and after the change. */
   before?: number;
   after?: number;
+  /**
+   * A winner TILE (`ocean` / `greenery`): the global parameter its own
+   * placement moved, read before and after — equal when the parameter was
+   * already at its maximum (a greenery still lands and pays its own TR).
+   */
+  parameter?: {id: WinnerRewardParameter; before: number; after: number};
 };
+
+/** `effect` — everyone's part (`immediateSteps`); `winner` — the winner's (`winnerSteps`). */
+export type EnactOutcomePart = 'effect' | 'winner';
 
 export type SerializedPhaseSummary = {
   generation: number;
@@ -99,8 +128,17 @@ export type SerializedPhaseProgress = {
   generation: number;
   final: boolean;
   step: ParliamentPhaseStep;
-  /** Idempotency keys of every operation already applied in this phase. */
+  /** Idempotency keys of every PHASE-WIDE operation already applied (support, enactment, refresh, lobby). */
   applied: Array<string>;
+  /**
+   * …and of every PER-SEAT operation (a winner's Agenda step, one step of one
+   * player's effect), KEYED BY THE PLAYER. A record keyed by player id is
+   * remapped structurally when a save is cloned or a fixture booted with fresh
+   * ids (`Cloner.replacePlayerIds`); a key STRING embedding the id was not —
+   * a game cloned mid-phase re-paid every seat's applied effect. Absent on
+   * older saves, whose per-seat keys still read from `applied`.
+   */
+  appliedBySeat?: Record<PlayerId, Array<string>>;
   /** The effects step's cursor: which player (generation-order index of the participants) and which step key is pending. */
   effects?: {playerIndex: number; pending?: {player: PlayerId; key: string}};
   /** Free-form resumable state a resolution's multi-step effect keeps between its steps, per player. */

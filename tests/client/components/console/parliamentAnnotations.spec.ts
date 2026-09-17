@@ -175,7 +175,35 @@ describe('parliamentAnnotations — the fullscreen inspector\'s reading blocks',
     expect(live.map((b) => b.labelKey)).to.deep.eq(['When enacted', 'For you', 'Chairman quest']);
     expect(live[1].rows[0].text).to.eq('Counted right now: ${0}');
     expect(live[1].rows[0].params?.[0]).to.contain(' · ');
-    const recorded = resolutionAnnotations(id, [{...now, context: 'applied', counted: []}]);
+    // Nothing counted AT the enactment — the record is B = 0 with an empty list.
+    const recorded = resolutionAnnotations(id, [{...now, context: 'applied', count: 0, counted: []}]);
+    expect(texts([recorded[1]])).to.deep.eq(['No card was counted at the enactment']);
+  });
+
+  it('a TAG-COUNTED effect (Central Power Grid): its own qualification sentence, and each card with what IT contributed', () => {
+    const id = 'RDX_INDUSTRIALISTS_CENTRAL_POWER_GRID';
+    const effect = getResolution(id)?.scaled?.[0];
+    if (effect === undefined) {
+      throw new Error('Central Power Grid declares no scaled effect');
+    }
+    const bare = resolutionAnnotations(id);
+    expect(bare.map((b) => b.labelKey), 'no winner block — this card has no winner part').to.deep.eq(['When enacted', 'Chairman quest']);
+    expect(texts([bare[0]])).to.deep.eq([
+      'Every player raises their M€ production by the number of their power tags in play, plus their influence. At most +5.',
+      'Every power tag counts, whatever the card scores: one card with two of them counts twice. A wild tag is not a power tag at an enactment, and energy production is not a tag.',
+    ]);
+    expect(texts([bare[1]])).to.deep.eq(['Play 2 power tags']);
+    const now: InfluenceYield = {
+      effect, context: 'estimate', influence: 2, amount: 5, count: 3,
+      counted: [CardName.HE3_FUSION_PLANT, CardName.POWER_PLANT], countedUnits: [2, 1],
+    };
+    const live = resolutionAnnotations(id, [now]);
+    expect(live.map((b) => b.labelKey)).to.deep.eq(['When enacted', 'For you', 'Chairman quest']);
+    expect(live[1].rows[0].text).to.eq('Counted right now: ${0}');
+    // The card worth two says so; the card worth one does not carry a ×1.
+    expect(live[1].rows[0].params?.[0]).to.contain('×2');
+    expect(live[1].rows[0].params?.[0]).to.not.contain('×1');
+    const recorded = resolutionAnnotations(id, [{...now, context: 'applied', count: 0, counted: [], countedUnits: []}]);
     expect(texts([recorded[1]])).to.deep.eq(['No card was counted at the enactment']);
   });
 

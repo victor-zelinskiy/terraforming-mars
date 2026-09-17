@@ -2,6 +2,7 @@ import {Expansion, GameModule} from '../cards/GameModule';
 import {ICardRenderRoot} from '../cards/render/Types';
 import {PartyActionId, QuestDefinition, ReduxParty, ResolutionCode, ResolutionId} from './ParliamentTypes';
 import {InfluenceScaledEffect} from './influenceScaling';
+import {WinnerRewardDeclaration} from './winnerReward';
 
 /**
  * The printed face of a resolution card, as shipped to the client through
@@ -41,6 +42,11 @@ export type IClientResolution = {
    * computes the viewer's number from the one formula. Absent = nothing scales.
    */
   scaled?: ReadonlyArray<InfluenceScaledEffect>;
+  /**
+   * The WINNER's tile as data (`winnerReward.ts`) — the same declaration the
+   * winner's step places. Absent = no winner part, or one not declared as data.
+   */
+  winnerReward?: WinnerRewardDeclaration;
   /** A DUMMY carries a party, votes and a quest — and no effect of its own. */
   dummy: boolean;
   hasImmediate: boolean;

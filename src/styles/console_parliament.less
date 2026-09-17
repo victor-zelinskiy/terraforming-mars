@@ -912,6 +912,8 @@
     }
     &__info-parts { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: .32rem; }
     &__info-part { display: flex; flex-direction: column; gap: .06rem; min-width: 0; }
+    /* A part's label line — the winner's reading rides it (no extra line in a fixed-height block). */
+    &__info-part-head { display: flex; align-items: center; flex-wrap: wrap; gap: .12rem .45rem; min-width: 0; }
     &__info-part-label { font-size: .54rem; letter-spacing: .12em; text-transform: uppercase; color: fade(@con-cyan, 85%); }
     &__info-part--winner .con-parl__info-part-label { color: fade(@con-parl-gold, 90%); }
     &__info-part-text { font-family: @con-font-read; font-size: .78rem; line-height: 1.28; color: fade(@con-text, 92%); }
@@ -2792,6 +2794,154 @@ html.con-profile-tv .con-zoom__flip-pos b { font-size: 1.1rem; }
         .con-iyield__who { font-size: .62rem; }
     }
 }
+/* THE WINNER'S PART — the winner star, its own label and caption, the tile and
+   what its placement does to its parameter, the TR it is worth. A block of its
+   own (gold, not violet): everyone's influence readings are not this. */
+.con-wreward {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: .22rem;
+    min-width: 0;
+    max-width: 100%;
+    padding: .3rem .6rem .32rem .5rem;
+    border-radius: .55rem;
+    font-family: @con-font-read;
+    color: fade(@con-text, 92%);
+    background: linear-gradient(160deg, rgba(52, 42, 18, 0.62), rgba(18, 14, 8, 0.74));
+    box-shadow: inset 0 0 0 .05rem fade(@con-parl-gold, 42%), 0 .1rem .4rem rgba(0, 0, 0, 0.35);
+
+    &__head { display: inline-flex; align-items: center; gap: .3rem; flex-wrap: wrap; min-width: 0; line-height: 1.1; }
+    &__star {
+        display: inline-block;
+        width: .82rem;
+        height: .82rem;
+        flex-shrink: 0;
+        background: url(./assets/misc/vote-winner.svg) center / contain no-repeat;
+    }
+    &__label { font-size: .54rem; letter-spacing: .12em; text-transform: uppercase; color: fade(@con-parl-gold, 94%); font-weight: 700; }
+    &__caption {
+        font-size: .54rem;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+        color: fade(@con-text, 70%);
+        padding-left: .3rem;
+        border-left: .05rem solid rgba(255, 255, 255, 0.16);
+    }
+    &__body { display: inline-flex; align-items: center; gap: .32rem; flex-wrap: wrap; min-width: 0; line-height: 1; }
+    &__tile {
+        display: inline-block;
+        width: 1.35rem;
+        height: 1.35rem;
+        flex-shrink: 0;
+        background-size: contain;
+        background-repeat: no-repeat;
+        background-position: center;
+        &--greenery { background-image: url(./assets/tiles/greenery.png); }
+        &--ocean { background-image: url(./assets/tiles/ocean.png); }
+    }
+    &__name { font-size: .86rem; font-weight: 700; color: @con-text; white-space: nowrap; }
+    &__param {
+        display: inline-flex;
+        align-items: center;
+        gap: .16rem;
+        padding-left: .34rem;
+        border-left: .05rem solid rgba(255, 255, 255, 0.14);
+        white-space: nowrap;
+    }
+    &__pico {
+        display: inline-block;
+        width: .95rem;
+        height: .95rem;
+        flex-shrink: 0;
+        background-size: contain;
+        background-repeat: no-repeat;
+        background-position: center;
+        &--oxygen { background-image: url(./assets/global-parameters/oxygen.png); }
+        &--oceans { background-image: url(./assets/tiles/ocean.png); }
+    }
+    &__from { font-size: .8rem; color: fade(@con-text, 76%); }
+    &__arrow { font-size: .78rem; color: fade(@con-text, 58%); }
+    &__to { font-size: .92rem; font-weight: 700; color: @con-parl-mint; }
+    &__max {
+        font-style: normal;
+        font-size: .46rem;
+        font-weight: 700;
+        letter-spacing: .1em;
+        text-transform: uppercase;
+        padding: .1rem .26rem .08rem;
+        border-radius: .28rem;
+        color: fade(@con-parl-gold, 98%);
+        background: fade(@con-parl-gold, 16%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-parl-gold, 55%);
+    }
+    &__param--max &__to { color: fade(@con-text, 86%); }
+    &__tr {
+        display: inline-flex;
+        align-items: center;
+        gap: .12rem;
+        padding-left: .34rem;
+        border-left: .05rem solid rgba(255, 255, 255, 0.14);
+        b { font-size: .92rem; font-weight: 700; color: @con-parl-mint; }
+    }
+    &__tr-ico {
+        display: inline-block;
+        width: .95rem;
+        height: .95rem;
+        background: url(./assets/resources/tr.png) center / contain no-repeat;
+    }
+    &__note { font-size: .54rem; line-height: 1.25; color: fade(@con-text, 66%); max-width: 18rem; }
+    &__note--hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+    /* INLINE — one line on a host label's row: the body and the caption, a slimmer plate. */
+    &--inline {
+        position: relative;
+        flex-direction: row;
+        padding: .08rem .42rem .08rem .3rem;
+        border-radius: .4rem;
+    }
+    &__caption--inline { padding-left: .3rem; }
+    /* CHIP — the footer plate: two lines, never taller than the verbs beside it. */
+    &--chip { position: relative; line-height: 1.1; }
+
+    /* The reading's MOMENT speaks through the plate's edge. */
+    &--conditional { box-shadow: inset 0 0 0 .05rem fade(@con-parl-gold, 42%), 0 .1rem .4rem rgba(0, 0, 0, 0.35); }
+    &--pending { box-shadow: inset 0 0 0 .05rem fade(@con-parl-mint, 58%), 0 0 .6rem fade(@con-parl-mint, 18%); }
+    &--applied { box-shadow: inset 0 0 0 .05rem fade(@con-parl-mint, 38%); }
+    &--mine &__caption { color: fade(@con-parl-mint, 92%); }
+    /* NOBODY places it (a neutral winner) / it did NOT happen (a named skip): the body steps back. */
+    &--neutral &__body, &--skipped &__body { opacity: .55; }
+    &--skipped { box-shadow: inset 0 0 0 .05rem fade(@con-amber, 50%); }
+    &--skipped &__caption { color: fade(@con-amber, 92%); }
+    &--skipped &__name { text-decoration: line-through; text-decoration-thickness: .06rem; }
+
+    /* SIZES. */
+    &--compact {
+        padding: .2rem .45rem .22rem .38rem;
+        gap: .16rem;
+        .con-wreward__label, .con-wreward__caption { font-size: .48rem; }
+        .con-wreward__star { width: .7rem; height: .7rem; }
+        .con-wreward__tile { width: 1.1rem; height: 1.1rem; }
+        .con-wreward__name { font-size: .74rem; }
+        .con-wreward__pico, .con-wreward__tr-ico { width: .82rem; height: .82rem; }
+        .con-wreward__from { font-size: .68rem; }
+        .con-wreward__to, .con-wreward__tr b { font-size: .8rem; }
+        .con-wreward__note { font-size: .48rem; }
+    }
+    &--hero {
+        padding: .5rem .9rem .5rem .75rem;
+        gap: .34rem;
+        .con-wreward__label, .con-wreward__caption { font-size: .64rem; }
+        .con-wreward__star { width: 1rem; height: 1rem; }
+        .con-wreward__tile { width: 1.9rem; height: 1.9rem; }
+        .con-wreward__name { font-size: 1.1rem; }
+        .con-wreward__pico, .con-wreward__tr-ico { width: 1.25rem; height: 1.25rem; }
+        .con-wreward__from { font-size: 1.02rem; }
+        .con-wreward__to, .con-wreward__tr b { font-size: 1.22rem; }
+        .con-wreward__max { font-size: .56rem; }
+        .con-wreward__note { font-size: .62rem; }
+    }
+}
+
 /* The dock's yield sits under the source face, as wide as the face. */
 .con-task__source-yield { margin-top: .1rem; }
 
@@ -2815,6 +2965,17 @@ html.con-profile-handheld .con-parl__info-own--yields {
     .con-iyield__arrow { font-size: .85rem; }
     .con-iyield__max { font-size: .42rem; padding: .1rem .2rem .08rem; margin-left: .1rem; }
     .con-iyield__caption { font-size: .46rem; max-width: 8.2rem; }
+    /* The winner's reading stays ON its label's line: the tile's icon names the
+       tile (the sentence under it says «greenery» in words), so the name steps
+       aside and the plate tightens — a wrapped chip cost the block a line and cut
+       the forecast's caption (measured 181 px of content in a 178 px block). */
+    .con-parl__info-part-head { column-gap: .3rem; }
+    .con-wreward--inline { padding: .04rem .3rem .04rem .22rem; }
+    .con-wreward--inline .con-wreward__name { display: none; }
+    .con-wreward--inline .con-wreward__body { gap: .22rem; }
+    .con-wreward--inline .con-wreward__param,
+    .con-wreward--inline .con-wreward__tr { padding-left: .22rem; }
+    .con-wreward--inline .con-wreward__caption--inline { padding-left: .22rem; font-size: .44rem; }
 }
 
 /* ── The INFLUENCE badge in the Parliament's own chrome (the Agenda readout)
@@ -2908,6 +3069,13 @@ html.con-profile-handheld .con-parl__enact { gap: .6rem; }
 html.con-profile-handheld .con-parl__enact-hero { gap: .5rem; padding: 0 .2rem; }
 /* The fullscreen inspector's footer: the viewer's own reading beside the standing chip. */
 .con-zoom__bar-yield { margin: 0 .6rem; align-self: center; }
+/* …and the winner's tile beside it: a content-sized chip that never wraps (a
+   chip squeezed by the footer's flex row broke into a column). */
+.con-zoom__bar-winner { margin: 0 .4rem 0 0; align-self: center; flex-shrink: 0; white-space: nowrap; }
+/* HANDHELD: the Deck's footer has no width for a third reading — the chip stood ON
+   the influence plates. The rules column's «for you» row carries the same reading
+   in words on every profile, so the footer drops the chip here. */
+html.con-profile-handheld .con-zoom__bar-winner { display: none; }
 
 /* ══ THE REDUX RESOLUTIONS PLAYGROUND (`ConsoleResolutionsPlayground`, the
    «Полигон» stand). A reference sheet in the stand's own scroll: the
@@ -2977,11 +3145,31 @@ html.con-profile-handheld .con-parl__enact-hero { gap: .5rem; padding: 0 .2rem; 
         font-size: .6rem; background: rgba(0, 0, 0, 0.35); color: fade(@con-parl-gold, 92%);
     }
     &__scenario-mod { font-style: normal; font-size: .56rem; letter-spacing: .08em; text-transform: uppercase; color: fade(@con-amber, 90%); }
+    /* a LIVE scenario — this chip boots a real game, not a reading */
+    &__scenario-live {
+        font-style: normal; font-size: .52rem; letter-spacing: .1em; text-transform: uppercase;
+        padding: .06rem .28rem; border-radius: .28rem;
+        color: fade(@con-parl-mint, 96%); background: rgba(0, 0, 0, 0.32);
+        box-shadow: inset 0 0 0 .05rem fade(@con-parl-mint, 55%);
+    }
     &__agenda { font-size: .66rem; color: fade(@con-text, 66%); margin-left: .2rem; }
     &__agenda--advanced { color: fade(@con-parl-gold, 95%); }
     &__controls { display: flex; flex-wrap: wrap; gap: .5rem 1.4rem; margin-bottom: .8rem; }
     &__control { display: inline-flex; align-items: center; gap: .35rem; font-size: .8rem; b { font-size: .92rem; } }
     &__ckey { font-size: .58rem; letter-spacing: .1em; text-transform: uppercase; color: fade(@con-text, 65%); }
+    /* the live-scenario plate: what the real game stands on, and A to open it */
+    &__live {
+        display: flex; flex-wrap: wrap; align-items: baseline; gap: .3rem .9rem;
+        padding: .45rem .8rem .5rem; margin-bottom: .8rem; border-radius: .6rem;
+        background: rgba(12, 30, 26, 0.72);
+        box-shadow: inset 0 0 0 .07rem fade(@con-parl-mint, 50%);
+        &--starting { box-shadow: inset 0 0 0 .07rem fade(@con-cyan, 75%); }
+        &--error { background: rgba(38, 16, 16, 0.72); box-shadow: inset 0 0 0 .07rem fade(@con-amber, 60%); }
+    }
+    &__live-kicker { font-size: .56rem; letter-spacing: .12em; text-transform: uppercase; color: fade(@con-parl-mint, 92%); }
+    &__live-what { font-size: .78rem; line-height: 1.25; flex: 1 1 18rem; min-width: 0; color: fade(@con-text, 88%); }
+    &__live-verb { display: inline-flex; align-items: center; gap: .3rem; font-size: .66rem; letter-spacing: .08em; text-transform: uppercase; color: fade(@con-text, 82%); }
+    &__live-error { font-size: .72rem; color: fade(@con-amber, 95%); }
     &__yieldrow { display: flex; align-items: flex-start; gap: 1.4rem; flex-wrap: wrap; }
     &__yieldcard .pcard { zoom: calc(0.72 * var(--con-ui-scale, 1)); }
     &__yieldcol { display: flex; flex-direction: column; align-items: flex-start; gap: .8rem; min-width: 0; flex: 1 1 24rem; }

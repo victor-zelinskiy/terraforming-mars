@@ -35,10 +35,11 @@ import {ReduxParty, ResolutionId} from '@/common/parliament/ParliamentTypes';
 import {IClientPartyEffect} from '@/common/parliament/IClientResolution';
 import {getPartyEffect, getResolution} from '@/client/parliament/ClientParliamentManifest';
 import {Color} from '@/common/Color';
-import {translateText} from '@/client/directives/i18n';
+import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {accessReasonRows} from './consoleParliamentModel';
 import {InfluenceYield} from '@/common/parliament/influenceScaling';
-import {yieldCountPresentation} from './influenceYieldModel';
+import {countedContributions, yieldCountPresentation} from './influenceYieldModel';
+import {WinnerRewardReading, winnerRewardRuleKey, winnerRewardSentenceOf} from './winnerRewardModel';
 
 type RowText = {text: string, params?: ReadonlyArray<string>};
 
@@ -118,7 +119,12 @@ function partyActionStateRow(party: ReduxParty, model: ParliamentModel, viewer: 
  * for every resolution and lives in the government block; the card's
  * standing and the viewer's access live in the footer — neither is here.
  */
-export function resolutionAnnotations(id: ResolutionId, yields?: ReadonlyArray<InfluenceYield>): ReadonlyArray<CardAnnotation> {
+export function resolutionAnnotations(
+  id: ResolutionId,
+  yields?: ReadonlyArray<InfluenceYield>,
+  /** The viewer's reading of the resolution's WINNER tile, when there is a table to read it over. */
+  winner?: {reading: WinnerRewardReading | undefined, viewer: Color | undefined, nameOf: (color: Color) => string},
+): ReadonlyArray<CardAnnotation> {
   const resolution = getResolution(id);
   if (resolution === undefined) {
     return [];
@@ -144,7 +150,14 @@ export function resolutionAnnotations(id: ResolutionId, yields?: ReadonlyArray<I
       out.push(block('group:immediate', 'immediate', 'When enacted', rows, 0));
     }
     if (text.winner !== undefined) {
-      out.push(block('group:winner', 'immediate', 'For the winner of the vote', [text.winner], 1));
+      // A winner TILE's qualification — the detailed reading of the face's
+      // symbol (the Redux greenery's TR rule) — one sentence under it.
+      const rows: Array<string | RowText> = [text.winner];
+      const rule = resolution.winnerReward === undefined ? undefined : winnerRewardRuleKey(resolution.winnerReward);
+      if (rule !== undefined) {
+        rows.push(rule);
+      }
+      out.push(block('group:winner', 'immediate', 'For the winner of the vote', rows, 1));
     }
     if (text.passive !== undefined) {
       out.push(block('group:effect', 'effect', 'Resolution effect', [text.passive], 2));
@@ -157,14 +170,37 @@ export function resolutionAnnotations(id: ResolutionId, yields?: ReadonlyArray<I
   // their reading (the footer shows «2 + 2 → +4»; this names the 2). The
   // cards of the enactment once it is recorded (frozen), today's cards while
   // the card is up for the vote — each labelled by which one it is.
+  const forYou: Array<RowText> = [];
   const counted = (yields ?? []).find((y) => y.counted !== undefined && (y.context === 'estimate' || y.context === 'applied'));
   if (counted?.counted !== undefined) {
-    const names = counted.counted.map((name) => translateText(name));
+    // Each card with what IT contributed («Fusion Power ×2») — a TAG count can
+    // owe several units to one card, and a list of bare names would leave the
+    // number unexplained. A card count is worth 1 apiece and reads as a list.
+    const names = countedContributions(counted, (name) => translateText(name));
     const applied = counted.context === 'applied';
-    const row: RowText = names.length === 0 ?
-      {text: applied ? 'No card was counted at the enactment' : 'No card counts right now'} :
-      {text: applied ? 'Counted at the enactment: ${0}' : 'Counted right now: ${0}', params: [names.join(' · ')]};
-    out.push(block('group:you', 'note', 'For you', [row], 3.5));
+    if (names.length > 0) {
+      forYou.push({text: applied ? 'Counted at the enactment: ${0}' : 'Counted right now: ${0}', params: [names.join(' · ')]});
+    } else if ((counted.count ?? 0) === 0) {
+      // Nothing counted — said plainly. A count standing on something that is
+      // not a card at all (a permanent modifier) is never called «no card».
+      forYou.push({text: applied ? 'No card was counted at the enactment' : 'No card counts right now'});
+    }
+  }
+  // …AND WHAT THE WINNER'S TILE DOES for the viewer at this moment, in words —
+  // the footer's chip read out (where the footer has no room for the chip, this
+  // row IS the reading): «if you win: oxygen 5 → 6 %; TR +2 (tile +1, oxygen +1)».
+  const reading = winner?.reading;
+  if (winner !== undefined && reading !== undefined && reading.context !== 'reference') {
+    const sentence = winnerRewardSentenceOf(reading, winner.viewer, winner.nameOf,
+      {text: translateText, params: translateTextWithParams});
+    if (sentence !== undefined) {
+      forYou.push(sentence.detail === '' ?
+        {text: '${0}', params: [sentence.caption]} :
+        {text: '${0}: ${1}', params: [sentence.caption, sentence.detail]});
+    }
+  }
+  if (forYou.length > 0) {
+    out.push(block('group:you', 'note', 'For you', forYou, 3.5));
   }
   // THE CHAIRMAN QUEST — the printed condition, in words (the card draws it).
   out.push(block('group:quest', 'note', 'Chairman quest', [text.quest], 4));

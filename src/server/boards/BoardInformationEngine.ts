@@ -17,6 +17,9 @@ import {newCard} from '../createCard';
 import {Phase} from '../../common/Phase';
 import {Resource} from '../../common/Resource';
 import * as constants from '../../common/constants';
+import {PartyName} from '../../common/turmoil/PartyName';
+import {REDUX_GREENERY_TILE_TR} from '../../common/parliament/winnerReward';
+import {GREENS_MEGACREDITS_PER_TR} from '../parliament/parties/PartyEffects';
 import {
   BoardCellInfo,
   BoardCellStatus,
@@ -158,6 +161,7 @@ export function boardCellPreview(
     facts.push(...printedBonusFacts(space, ctx.bonusesCovered));
   }
   facts.push(...placementEffectFacts(player, ctx));
+  facts.push(...greeneryRevisionFacts(player, ctx));
   // Adjacency-dependent facts (ocean M€ + city-greenery scoring) apply ONLY on
   // the Mars hex grid — an off-grid reserved slot scores 0 for adjacency.
   if (onMarsGrid(board, space)) {
@@ -180,6 +184,10 @@ export function boardCellPreview(
   facts.push(...sourceCardFacts(player, space, options?.sourceCard, ctx));
   facts.push(...tileTriggerFacts(player, space, ctx));
   facts.push(...arcadianCommunityFact(player, space, covering, ctx));
+  // The parliament's party effects react to what the facts above already
+  // say this placement pays (its TR, its production steps) — so they come
+  // after every fact that could move those pools.
+  facts.push(...partyReactionFacts(player, space, ctx, facts));
   facts.push(...milestoneAwardFacts(player, space, ctx));
   // Deflection-zone protection is a function of the player's OWNED TILES
   // (`Board.spaceOwnedBy`) — a camp/claim marker neither activates nor breaks
@@ -564,10 +572,90 @@ function placementEffectFacts(player: IPlayer, ctx: PlacementPreviewContext): Ar
       const current = game.board.getOceanSpaces().length;
       out.push(gainFact('effect-ocean', 'placement-effect', 'Raises the ocean parameter',
         {icon: 'ocean', amount: 1, direction: 'gain', current, resulting: current + 1}));
-      out.push(...terraformRatingFact(player, 'effect-tr-ocean', 1));
+      out.push(...terraformRatingFact(player, 'effect-tr-ocean', 1, 'Oceans'));
       // `onOceanPlaced` tests the count AFTER the tile is down, so the preview
       // asks about the resulting count.
       out.push(...oceanPlanetaryEventFacts(player, current + 1));
+    }
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// Turmoil Redux — the greenery revision and the party effects' reactions
+// ---------------------------------------------------------------------------
+
+/**
+ * THE GREENERY REVISION (Turmoil Redux, rulebook p.3): a greenery is worth
+ * `REDUX_GREENERY_TILE_TR` for the TILE itself, on top of the oxygen it
+ * raises — the constant `ParliamentHandler.onGreeneryPlaced` pays, in every
+ * phase. Without it the preview said +1 TR where the commit paid +2, and a
+ * greenery with oxygen maxed read as «nothing happens» while it still pays 1.
+ */
+function greeneryRevisionFacts(player: IPlayer, ctx: PlacementPreviewContext): Array<BoardFact> {
+  if (player.game.parliament === undefined || ctx.tileType !== TileType.GREENERY) {
+    return [];
+  }
+  const current = player.terraformRating;
+  return [{
+    ...gainFact('redux-greenery-tile-tr', 'placement-effect', 'Terraform rating',
+      {icon: 'tr', amount: REDUX_GREENERY_TILE_TR, direction: 'gain', current, resulting: current + REDUX_GREENERY_TILE_TR}),
+    reason: 'Greenery tile',
+  }];
+}
+
+/**
+ * THE PARTY EFFECTS the placing seat HOLDS right now (Turmoil Redux) — read
+ * through the predicate the live hooks read (`Parliament.hasPartyEffect`),
+ * paid by the rules `PartyEffects.ts` declares:
+ *   · the Greens: 2 M€ per TR step and +1 M€ production per plant / heat
+ *     production step — both summed from the facts this preview ALREADY
+ *     states (the oxygen step, the chained temperature step, a revision
+ *     greenery's own TR, a heat-production bonus step), so the payout can
+ *     never disagree with the TR row above it;
+ *   · Mars First: 1 steel for a tile placed on Mars, and a card for a city
+ *     (`onTilePlaced`, which the engine runs for a placed tile outside the
+ *     World Government's phase).
+ * Nothing for a seat outside the parliament, nothing without the effect.
+ */
+function partyReactionFacts(player: IPlayer, space: Space, ctx: PlacementPreviewContext, facts: ReadonlyArray<BoardFact>): Array<BoardFact> {
+  const parliament = player.game.parliament;
+  if (parliament === undefined || !parliament.participates(player)) {
+    return [];
+  }
+  const out: Array<BoardFact> = [];
+  const mine = facts.filter((f) => f.recipient.kind === 'current-player' && f.delta !== undefined && f.delta.direction === 'gain' &&
+    (f.timing === 'immediate' || f.timing === 'on-confirm'));
+  if (parliament.hasPartyEffect(player, PartyName.GREENS)) {
+    const tr = mine.filter((f) => f.delta?.icon === 'tr').reduce((sum, f) => sum + (f.delta?.amount ?? 0), 0);
+    if (tr > 0) {
+      out.push({
+        ...gainFact('redux-greens-tr', 'placement-effect', 'Greens',
+          {icon: 'megacredits', amount: GREENS_MEGACREDITS_PER_TR * tr, direction: 'gain'}),
+        description: 'Party effect: 2 M€ for each TR step you gain',
+      });
+    }
+    const steps = mine.filter((f) => f.delta?.production === true && (f.delta.icon === 'plants' || f.delta.icon === 'heat'))
+      .reduce((sum, f) => sum + (f.delta?.amount ?? 0), 0);
+    if (steps > 0) {
+      out.push({
+        ...gainFact('redux-greens-production', 'placement-effect', 'Greens',
+          {icon: 'megacredits', amount: steps, direction: 'gain', production: true}),
+        description: 'Party effect: your M€ production rises with your plant or heat production',
+      });
+    }
+  }
+  if (parliament.hasPartyEffect(player, PartyName.MARS) && ctx.placesTile && ctx.grantsPlacementBonus &&
+      player.game.phase !== Phase.SOLAR && space.spaceType !== SpaceType.COLONY) {
+    out.push({
+      ...gainFact('redux-mars-first-steel', 'placement-effect', 'Mars First', {icon: 'steel', amount: 1, direction: 'gain'}),
+      description: 'Party effect: 1 steel for each tile you place on Mars',
+    });
+    if (ctx.countsAsCity) {
+      out.push({
+        ...gainFact('redux-mars-first-card', 'placement-effect', 'Mars First', {icon: 'cards', amount: 1, direction: 'gain'}),
+        description: 'Party effect: draw a card for each city you place on Mars',
+      });
     }
   }
   return out;
@@ -622,7 +710,7 @@ function oceanPlanetaryEventFacts(player: IPlayer, resultingOceans: number): Arr
       ...(cleared.length > 0 ? {spaces: cleared.map((s) => s.id)} : {}),
     });
     // Reuses the solar-phase waiver: WGT crosses thresholds without paying TR.
-    out.push(...terraformRatingFact(player, 'ares-event-dust-storms-tr', 1));
+    out.push(...terraformRatingFact(player, 'ares-event-dust-storms-tr', 1, 'Planetary event'));
   }
 
   // Ordered as `onOceanPlaced` runs them: erosions appear, then storms recede.
@@ -687,13 +775,15 @@ function intensifyEventFact(
  * Showing a TR gain that the commit won't grant is exactly the surprise this
  * preview exists to prevent.
  */
-function terraformRatingFact(player: IPlayer, id: string, steps: number): Array<BoardFact> {
+function terraformRatingFact(player: IPlayer, id: string, steps: number, reason: string): Array<BoardFact> {
   if (player.game.phase === Phase.SOLAR) {
     return [];
   }
   const current = player.terraformRating;
-  return [gainFact(id, 'placement-effect', 'Terraform rating',
-    {icon: 'tr', amount: steps, direction: 'gain', current, resulting: current + steps})];
+  // `reason` names what moved the TR pool — several of these merge into ONE
+  // «TR 20 → 22» row, and the breakdown must say «Oxygen +1 · Greenery tile +1».
+  return [{...gainFact(id, 'placement-effect', 'Terraform rating',
+    {icon: 'tr', amount: steps, direction: 'gain', current, resulting: current + steps}), reason}];
 }
 
 /**
@@ -714,7 +804,7 @@ function oxygenRaiseFacts(player: IPlayer, idPrefix: string, steps = 1): Array<B
   const out: Array<BoardFact> = [
     gainFact(`${idPrefix}-oxygen`, 'placement-effect', 'Raises oxygen',
       {icon: 'oxygen', amount: applied, direction: 'gain', unit: '%', current, resulting}),
-    ...terraformRatingFact(player, `${idPrefix}-tr-oxygen`, applied),
+    ...terraformRatingFact(player, `${idPrefix}-tr-oxygen`, applied, 'Oxygen'),
   ];
   // The 8% bonus step. NOT gated on the solar phase — `increaseOxygenLevel`
   // raises the temperature outside its `phase !== SOLAR` block.
@@ -750,7 +840,7 @@ function temperatureRaiseFacts(player: IPlayer, idPrefix: string, steps = 1): Ar
   const out: Array<BoardFact> = [
     gainFact(`${idPrefix}-temperature`, 'placement-effect', 'Raises temperature',
       {icon: 'temperature', amount: applied * 2, direction: 'gain', unit: '°C', current, resulting}),
-    ...terraformRatingFact(player, `${idPrefix}-tr-temperature`, applied),
+    ...terraformRatingFact(player, `${idPrefix}-tr-temperature`, applied, 'Temperature'),
   ];
   // Heat production steps are inside the `phase !== SOLAR` block upstream.
   if (game.phase !== Phase.SOLAR) {

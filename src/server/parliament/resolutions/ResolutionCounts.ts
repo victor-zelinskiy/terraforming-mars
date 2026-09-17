@@ -8,9 +8,21 @@
  * same exception the tag counts make); the hand, the discard and cards hosted
  * elsewhere (Self-Replicating Robots) are not in the tableau at all. Whether a
  * played event's tags are in play is `Tags.eventTagsInPlay`.
+ *
+ * A TAG count takes its NUMBER from the project's canonical tag counter
+ * (`Tags.count(tag, RESOLUTION_TAG_COUNTING_MODE)`) — one mechanism for every
+ * source of a tag, including the permanent modifiers no card prints (Leavitt
+ * Station's science, Underworld's plants, the Delta Project's jovian) — while
+ * the shared predicate supplies the BREAKDOWN that explains it, card by card
+ * with its own contribution. `tests/parliament/CentralPowerGrid.spec.ts` pins
+ * the two against each other over the corpus, so the explanation can never
+ * drift from the number.
  */
 import {CardName} from '../../../common/cards/CardName';
-import {countCardsToward, ResolutionCountId, ResolutionCountModel, RESOLUTION_COUNT_IDS} from '../../../common/parliament/resolutionCounts';
+import {
+  cardCountUnits, countCardsToward, ResolutionCountId, ResolutionCountModel, resolutionCountKind,
+  RESOLUTION_COUNT_IDS, RESOLUTION_TAG_COUNTING_MODE,
+} from '../../../common/parliament/resolutionCounts';
 import {IPlayer} from '../../IPlayer';
 import {ICard} from '../../cards/ICard';
 import type {ResolutionCatalog} from './ResolutionCatalog';
@@ -21,7 +33,20 @@ function inPlay(card: ICard): boolean {
 
 /** `player`'s count for `id`, with the cards that made it (in play order). */
 export function resolutionCount(player: IPlayer, id: ResolutionCountId): ResolutionCountModel {
-  return countCardsToward(id, player.tableau.filter(inPlay), {eventTagsInPlay: player.tags.eventTagsInPlay()});
+  const tableau = player.tableau.filter(inPlay);
+  const breakdown = countCardsToward(id, tableau, {eventTagsInPlay: player.tags.eventTagsInPlay()});
+  const kind = resolutionCountKind(id);
+  if (kind.kind === 'cards') {
+    return breakdown;
+  }
+  // THE CANONICAL NUMBER. The breakdown above is the same rule expressed per
+  // card; the counter is the one that also sees a permanent modifier.
+  return {...breakdown, count: player.tags.count(kind.tag, RESOLUTION_TAG_COUNTING_MODE)};
+}
+
+/** What ONE card of `player`'s tableau contributes to `id` (0 = it does not count). */
+export function resolutionCountUnitsOf(player: IPlayer, id: ResolutionCountId, card: ICard): number {
+  return inPlay(card) ? cardCountUnits(id, card, {eventTagsInPlay: player.tags.eventTagsInPlay()}) : 0;
 }
 
 /** Every count id some resolution of `catalog` declares — what a player's model carries. */

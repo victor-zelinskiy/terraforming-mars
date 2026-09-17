@@ -1921,7 +1921,14 @@ export class Game implements IGame, Logger {
         // (rulebook p.9). No prompt is ever created for the bot.
         AutomaTilePlacer.placeOcean(this);
       } else {
-        this.defer(new PlaceOceanTile(player, {title: 'Select space for ocean from temperature increase'}));
+        // The ocean's IMMEDIATE source is the scale's own bonus step — named on
+        // the prompt, so its placement says why it is here (a card, a standard
+        // project or a resolution that raised the temperature stays reachable
+        // through the event chain the deferred action carries).
+        this.defer(new PlaceOceanTile(player, {
+          title: 'Select space for ocean from temperature increase',
+          placementContext: {cancellable: false, source: {kind: 'system', name: 'Temperature bonus step'}},
+        }));
       }
     }
 

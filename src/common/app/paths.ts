@@ -47,6 +47,9 @@ export const paths = {
   // fixture (docs/E2E_ARCHITECTURE_REWORK.md phase 4 — state is declared,
   // not clicked). Rides the same deserialize path real saves use.
   API_DEV_LOAD_GAME: 'api/dev/load-game',
+  // The same gate: a «Полигон» stand's LIVE scenario — an engine-generated
+  // fixture booted by name as a real game the stand then opens.
+  API_DEV_PLAYGROUND_SCENARIO: 'api/dev/playground-scenario',
   // Premium main-menu join flow: list a player's unfinished games by name, and
   // reconcile a seat's cube colour with the player's chosen identity colour.
   API_GAMES_JOINABLE: 'api/games/joinable',

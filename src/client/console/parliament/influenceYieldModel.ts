@@ -24,6 +24,7 @@ import {
 import {influenceAtAgenda} from '@/common/parliament/ParliamentTypes';
 import {countOf, ResolutionCountId} from '@/common/parliament/resolutionCounts';
 import {Tag} from '@/common/cards/Tag';
+import {CountedObjectGlyph} from '@/client/components/premiumCard/premiumCardIcons';
 
 /** The icon of the yield's unit — the same CSS families the chips use. */
 export type YieldIcon =
@@ -45,14 +46,22 @@ export function yieldIconOf(effect: InfluenceScaledEffect): YieldIcon {
  * the counted object (the same render item the card face prints, so the
  * yield block and the card can never draw two different things) and the i18n
  * key of its counted name («2 building cards with a VP icon»).
+ *
+ * THE GLYPH FOLLOWS WHAT IS COUNTED. A card count draws the CARD (cover, tag
+ * bubble, VP plate); a tag count draws the printed TAG medallion alone —
+ * drawing a card for «each power tag you have» would state a different rule,
+ * and the energy RESOURCE cube would state a third one.
  */
+export type YieldCountGlyph = CountedObjectGlyph;
+
 export type YieldCountPresentation = {
-  /** The printed object: a card that prints `tag` and a VP icon. */
-  glyph: {kind: 'vp-card', tag: Tag};
+  glyph: YieldCountGlyph;
   /** English i18n key `${0} …` with a plural group, resolved against the count. */
   pluralKey: string;
   /** English i18n key of the qualification rule (the detailed inspection's sentence). */
   ruleKey: string;
+  /** English i18n key of the SERVER's own skip reason when the whole formula comes to nothing. */
+  skipReasonKey: string;
 };
 
 export function yieldCountPresentation(id: ResolutionCountId): YieldCountPresentation {
@@ -62,8 +71,30 @@ export function yieldCountPresentation(id: ResolutionCountId): YieldCountPresent
       glyph: {kind: 'vp-card', tag: Tag.BUILDING},
       pluralKey: '${0} building card(s) with a VP icon',
       ruleKey: 'A variable VP icon counts even at 0 VP; a card without a VP icon does not count.',
+      skipReasonKey: 'No qualifying cards and no influence',
+    };
+  case 'powerTags':
+    return {
+      glyph: {kind: 'tag', tag: Tag.POWER},
+      pluralKey: '${0} power tag(s)',
+      ruleKey: 'Every power tag counts, whatever the card scores: one card with two of them counts twice. A wild tag is not a power tag at an enactment, and energy production is not a tag.',
+      skipReasonKey: 'No power tags and no influence',
     };
   }
+}
+
+/**
+ * The counted cards of a reading, each with what IT contributed («Fusion
+ * Power ×2») — the detailed inspection's list. Names arrive translated; the
+ * «×n» is added only where a card is worth more than one, so a card count
+ * reads as a plain list.
+ */
+export function countedContributions(y: InfluenceYield, nameOf: (card: CardName) => string): Array<string> {
+  const counted = y.counted ?? [];
+  return counted.map((card, i) => {
+    const units = y.countedUnits?.[i] ?? 1;
+    return units > 1 ? `${nameOf(card)} ×${units}` : nameOf(card);
+  });
 }
 
 /** The caption under a reading — WHICH question the number answers (English keys; `params` for the step). */
@@ -112,7 +143,7 @@ export function voteYieldsOf(resolution: IClientResolution, model: ParliamentMod
       out.push(referenceYield(effect));
       continue;
     }
-    const counted = count === undefined ? undefined : {count: count.count, cards: count.cards};
+    const counted = count === undefined ? undefined : {count: count.count, cards: count.cards, units: count.units};
     const estimate = influenceYield(effect, 'estimate', seat.influence, counted);
     out.push(estimate);
     if (effect.recipient === 'each' || effect.recipient === 'winner') {
@@ -140,7 +171,8 @@ export function enactedYieldsOf(resolution: IClientResolution, model: Parliament
     const applied = viewer === undefined ? undefined : outcomes.find((o) => o.player === viewer && o.effect === effect.id);
     // The RECORDED inputs travel as recorded (B, the counted cards, the sum
     // before the cap) — the past is never recomputed from today's tableau.
-    const recorded = applied === undefined ? undefined : {count: applied.count, counted: applied.counted, uncapped: applied.uncapped};
+    const recorded = applied === undefined ? undefined :
+      {count: applied.count, counted: applied.counted, countedUnits: applied.countedUnits, uncapped: applied.uncapped};
     if (applied !== undefined && applied.kind === 'skipped') {
       out.push({...fixedYield(effect, 'applied', applied.amount ?? 0, applied.influence, recorded), skipped: applied.reason ?? 'Skipped'});
     } else if (applied !== undefined && applied.amount !== undefined) {

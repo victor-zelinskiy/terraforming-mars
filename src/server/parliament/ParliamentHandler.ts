@@ -22,6 +22,7 @@ import {Space} from '../boards/Space';
 import {ICard} from '../cards/ICard';
 import {PartyActionPromptMeta} from '../../common/models/PlayerInputModel';
 import {REDUX_PARTIES, ReduxParty} from '../../common/parliament/ParliamentTypes';
+import {REDUX_GREENERY_TILE_TR} from '../../common/parliament/winnerReward';
 import {Parliament, PARTY_ACTION_USES_PER_GENERATION, Slot} from './Parliament';
 import {PARTY_EFFECTS, partySource, redsDiscardPrompt} from './parties/PartyEffects';
 import {QuestTracker} from './quests/QuestTracker';
@@ -239,8 +240,8 @@ export class ParliamentHandler {
       return;
     }
     game.events.withSource({kind: 'parliament'}, () => {
-      player.increaseTerraformRating(1, {trAttribution: {sourceType: 'other', sourceName: 'Greenery tile'}});
-      game.log('${0} gained ${1} ${2} for placing a greenery', (b) => b.player(player).number(1).tr());
+      player.increaseTerraformRating(REDUX_GREENERY_TILE_TR, {trAttribution: {sourceType: 'other', sourceName: 'Greenery tile'}});
+      game.log('${0} gained ${1} ${2} for placing a greenery', (b) => b.player(player).number(REDUX_GREENERY_TILE_TR).tr());
     });
   }
 

@@ -23,6 +23,7 @@ import {ZoomCard} from '@/client/components/card/cardZoomTypes';
 import {ActionInspectHistory} from '@/client/components/actions/actionInspectHistory';
 import {Color} from '@/common/Color';
 import {ParliamentModel} from '@/common/models/ParliamentModel';
+import {WinnerRewardTable} from '@/common/parliament/winnerReward';
 
 /** A SAFE selection bridge from the opening context (P15). */
 export type ConsoleZoomSelect = {
@@ -340,6 +341,10 @@ export type ConsoleZoomExtra = {
 export type ConsoleZoomParliament = {
   model: () => ParliamentModel | undefined,
   viewer: () => Color | undefined,
+  /** The table's global parameters (a winner tile's reading — `winnerRewardModel`); absent = none known. */
+  table?: () => WinnerRewardTable | undefined,
+  /** A seat's display name (the winner's recipient caption). */
+  nameOf?: (color: Color) => string,
 };
 
 export const consoleCardZoom = reactive({

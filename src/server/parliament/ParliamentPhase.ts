@@ -3,7 +3,8 @@
  * pp.10–12), as a RESUMABLE driver.
  *
  * Steps: winner → agenda → support → enact → effects → refresh → lobby → done.
- * Every operation has an idempotency key recorded in `phase.applied`, the
+ * Every operation has an idempotency key recorded in `phase.applied` (a
+ * per-seat one under its player in `phase.appliedBySeat`), the
  * effects step keeps a per-player cursor and the pending step key, and the
  * whole progress is game state (`Parliament.phase`) — so a game saved while a
  * resolution asks a player something reloads INTO that question: no reward
@@ -22,12 +23,13 @@
  */
 import {IGame} from '../IGame';
 import {IPlayer} from '../IPlayer';
+import {PlayerId} from '../../common/Types';
 import {Phase} from '../../common/Phase';
 import {PartyName} from '../../common/turmoil/PartyName';
 import {PARLIAMENT_MAX_POPULAR_SUPPORT, PARLIAMENT_VOTING_SLOTS, ReduxParty, REDUX_PARTIES} from '../../common/parliament/ParliamentTypes';
 import {Parliament, Slot} from './Parliament';
 import {EnactContext, EnactOutcome, EnactStep} from './resolutions/IResolution';
-import {SerializedDelegateOwner, SerializedPhaseProgress, SerializedPhaseSummary} from './SerializedParliament';
+import {EnactOutcomePart, SerializedDelegateOwner, SerializedPhaseProgress, SerializedPhaseSummary} from './SerializedParliament';
 import {ChairmanSeat} from './quests/ChairmanSeat';
 
 export class ParliamentPhase {
@@ -72,6 +74,23 @@ export class ParliamentPhase {
   private markApplied(key: string): void {
     if (!this.applied(key)) {
       this.progress.applied.push(key);
+    }
+  }
+
+  /**
+   * A PER-SEAT key: stored under the player (a structural record the cloner
+   * remaps), never as a string embedding the id. `legacy` is the same key as
+   * an older save wrote it into `applied`, still honoured.
+   */
+  private seatApplied(player: PlayerId, key: string, legacy: string): boolean {
+    return (this.progress.appliedBySeat?.[player] ?? []).includes(key) || this.applied(legacy);
+  }
+
+  private markSeatApplied(player: PlayerId, key: string): void {
+    const bySeat = (this.progress.appliedBySeat ??= {});
+    const keys = (bySeat[player] ??= []);
+    if (!keys.includes(key)) {
+      keys.push(key);
     }
   }
 
@@ -185,8 +204,8 @@ export class ParliamentPhase {
     if (winner === undefined || winner === 'NEUTRAL') {
       return;
     }
-    const key = `agenda:${p.generation}:${winner}`;
-    if (this.applied(key)) {
+    const key = `agenda:${p.generation}`;
+    if (this.seatApplied(winner, key, `agenda:${p.generation}:${winner}`)) {
       return;
     }
     const player = this.game.getPlayerById(winner);
@@ -200,7 +219,7 @@ export class ParliamentPhase {
     } finally {
       events.endScope();
     }
-    this.markApplied(key);
+    this.markSeatApplied(winner, key);
   }
 
   // ───────────────────────── step 2: popular support ─────────────────────────
@@ -318,12 +337,23 @@ export class ParliamentPhase {
       }
       return 'done';
     }
-    for (; cursor.playerIndex < players.length; cursor.playerIndex++) {
-      const player = players[cursor.playerIndex];
-      const plan: Array<EnactStep> = [...immediate, ...(winner !== undefined && winner.id === player.id ? winnerSteps : [])];
-      for (const step of plan) {
-        const key = `effect:${p.generation}:${instance}:${player.id}:${step.key}`;
-        if (this.applied(key)) {
+    // EVERY seat is walked from the first on each entry: the per-seat keys make
+    // a finished seat a no-op, and a resumed save whose seat order moved (a
+    // clone with another first player) can never skip one. The index stays a
+    // progress marker only.
+    for (let index = 0; index < players.length; index++) {
+      cursor.playerIndex = index;
+      const player = players[index];
+      // WHICH PART each step belongs to rides every record it makes: the
+      // client tells «everyone's effect» from «the winner's part» by it,
+      // never by a step key.
+      const plan: Array<{step: EnactStep, part: EnactOutcomePart}> = [
+        ...immediate.map((step) => ({step, part: 'effect' as const})),
+        ...(winner !== undefined && winner.id === player.id ? winnerSteps.map((step) => ({step, part: 'winner' as const})) : []),
+      ];
+      for (const {step, part} of plan) {
+        const key = `effect:${p.generation}:${instance}:${step.key}`;
+        if (this.seatApplied(player.id, key, `effect:${p.generation}:${instance}:${player.id}:${step.key}`)) {
           continue;
         }
         const state = (p.effectState ??= {})[player.id] ??= {};
@@ -335,14 +365,14 @@ export class ParliamentPhase {
           influence: parliament.influence(player),
           source: {kind: 'resolution', id: definition.id, owner: player.color},
           state,
-          report: (outcome) => this.recordOutcome(player, step.key, outcome),
+          report: (outcome) => this.recordOutcome(player, step.key, part, outcome),
         };
         const events = this.game.events;
         events.beginAction(player, ctx.source, {category: 'political-phase'});
         try {
           const prompt = step.run(ctx);
           if (prompt === undefined) {
-            this.markApplied(key);
+            this.markSeatApplied(player.id, key);
             continue;
           }
           // AN ASK: the step changed nothing; its prompt's answer will. The
@@ -351,7 +381,7 @@ export class ParliamentPhase {
           // exactly this question.
           cursor.pending = {player: player.id, key: step.key};
           player.setWaitingFor(prompt, () => {
-            this.markApplied(key);
+            this.markSeatApplied(player.id, key);
             cursor.pending = undefined;
             this.continue();
           });
@@ -370,7 +400,7 @@ export class ParliamentPhase {
    * record per (player, step): a step that reports twice (a defensive
    * re-run) keeps the first — the outcome is what happened, not a counter.
    */
-  private recordOutcome(player: IPlayer, stepKey: string, outcome: EnactOutcome): void {
+  private recordOutcome(player: IPlayer, stepKey: string, part: EnactOutcomePart, outcome: EnactOutcome): void {
     const summary = this.parliament.phase?.summary;
     if (summary === undefined) {
       return;
@@ -379,7 +409,7 @@ export class ParliamentPhase {
     if (outcomes.some((o) => o.player === player.id && o.step === stepKey)) {
       return;
     }
-    outcomes.push({player: player.id, step: stepKey, ...outcome});
+    outcomes.push({player: player.id, step: stepKey, part, ...outcome});
   }
 
   // ───────────────────────── step 5: refresh the voting area ─────────────────────────

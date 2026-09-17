@@ -134,7 +134,11 @@ const OCEAN_STEP: EnactStep = {
       placementContext: committedPlacement('The winner of the vote places this ocean — the resolution is already enacted', SOURCE),
     }).andThen((space) => {
       if (space !== undefined) {
-        ctx.report({kind: 'ocean', space: space.id});
+        // The ocean IS its parameter's step: the count after the placement
+        // is the one before plus this tile (the count moves by nothing else
+        // inside the answer).
+        const after = game.board.getOceanSpaces().length;
+        ctx.report({kind: 'ocean', space: space.id, parameter: {id: 'oceans', before: after - 1, after}});
       }
     }).execute();
   },
@@ -161,6 +165,7 @@ export const AQUIFER_CONTEST: ResolutionDefinition = {
   },
   quest: {goal: {kind: 'tag', tag: Tag.ANIMAL}, count: 1},
   scaled: [AQUIFER_CONTEST_ANIMALS],
+  winnerReward: {kind: 'tile', tile: 'ocean'},
   immediateSteps: [ANIMALS_STEP],
   winnerSteps: [OCEAN_STEP],
 };

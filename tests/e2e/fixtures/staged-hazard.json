@@ -599,7 +599,7 @@
    "Teractor"
   ]
  },
- "createdTimeMs": 1789091243421,
+ "createdTimeMs": 1789671568523,
  "currentSeed": 489028072071,
  "deferredActions": [],
  "donePlayers": [],
@@ -626,7 +626,7 @@
      "value": 2
     }
    ],
-   "timestamp": 1789091243422
+   "timestamp": 1789671568523
   },
   {
    "message": "Drew and discarded ${0} to place a ${1}",
@@ -643,7 +643,7 @@
      "value": 0
     }
    ],
-   "timestamp": 1789091243422
+   "timestamp": 1789671568524
   },
   {
    "message": "Drew and discarded ${0} to place a ${1}",
@@ -660,7 +660,7 @@
      "value": 2
     }
    ],
-   "timestamp": 1789091243422
+   "timestamp": 1789671568524
   },
   {
    "message": "Drew and discarded ${0} to place a ${1}",
@@ -677,7 +677,7 @@
      "value": 0
     }
    ],
-   "timestamp": 1789091243422
+   "timestamp": 1789671568524
   },
   {
    "message": "The id of this game is ${0}",
@@ -687,7 +687,7 @@
      "value": "game-id"
     }
    ],
-   "timestamp": 1789091243422
+   "timestamp": 1789671568524
   },
   {
    "message": "Good luck ${0}!",
@@ -697,7 +697,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1789091243422,
+   "timestamp": 1789671568524,
    "playerId": "p-player1-id"
   },
   {
@@ -708,7 +708,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1789091243422,
+   "timestamp": 1789671568524,
    "type": 1
   },
   {
@@ -723,7 +723,7 @@
      "value": "Mining Guild"
     }
    ],
-   "timestamp": 1789091243423,
+   "timestamp": 1789671568524,
    "correlationId": 5,
    "parentId": 5,
    "role": "root-action",
@@ -745,7 +745,7 @@
      "value": "steel"
     }
    ],
-   "timestamp": 1789091243423,
+   "timestamp": 1789671568524,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -766,7 +766,7 @@
      "value": "steel"
     }
    ],
-   "timestamp": 1789091243423,
+   "timestamp": 1789671568524,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -783,7 +783,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1789091243423,
+   "timestamp": 1789671568524,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -995,7 +995,8 @@
    "ceo": false,
    "starwars": false,
    "underworld": false,
-   "deltaProject": false
+   "deltaProject": false,
+   "turmoilRedux": false
   },
   "fastModeOption": false,
   "includeFanMA": false,
@@ -1026,6 +1027,7 @@
   "startingPreludes": 4,
   "starWarsExpansion": false,
   "turmoilExtension": false,
+  "turmoilReduxExpansion": false,
   "underworldExpansion": false,
   "deltaProjectExpansion": false,
   "undoOption": false,
@@ -1045,7 +1047,7 @@
   "Builder",
   "Planner"
  ],
- "name": "Residual Isotope Burst",
+ "name": "Solar Neutron Zone",
  "oxygenLevel": 0,
  "passedPlayers": [],
  "phase": "action",
@@ -1143,11 +1145,11 @@
    "beginner": false,
    "handicap": 0,
    "timer": {
-    "sumElapsed": 1,
-    "startedAt": 1789091243424,
+    "sumElapsed": 0,
+    "startedAt": 1789671568524,
     "running": true,
     "afterFirstAction": true,
-    "lastStoppedAt": 1789091243424
+    "lastStoppedAt": 1789671568524
    },
    "actionsTakenThisGame": 1,
    "victoryPointsByGeneration": [],

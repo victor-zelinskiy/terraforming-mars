@@ -84,6 +84,11 @@ const CORS_PATHS: ReadonlySet<string> = new Set<string>([
   paths.API_ADMIN_ROLLBACK_GAMES,
   paths.API_ADMIN_ROLLBACK_HISTORY,
   paths.API_ADMIN_ROLLBACK,
+  // The «Полигон» live scenarios: the stands run in the console main menu
+  // (desktop shell) and boot an engine-generated fixture — the same trust model
+  // as the rollback tool (loopback / ADMIN_NAME), and a build without the
+  // fixtures answers 404.
+  paths.API_DEV_PLAYGROUND_SCENARIO,
   // Campaign mode: the campaign map + creation run in the console shell
   // (desktop app://bundle origin), same trust model as create/joinable. The
   // dev fast-forward rides the ADMIN_NAME gate like the rollback tool.

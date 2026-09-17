@@ -27,6 +27,8 @@ import {Board} from '../../boards/Board';
 import {OrOptions} from '../../inputs/OrOptions';
 import {AQUIFER_CONTEST} from './greens/AquiferContest';
 import {ARCHITECTURE_AWARD} from './marsFirst/ArchitectureAward';
+import {BIODOME_CONTEST} from './greens/BiodomeContest';
+import {CENTRAL_POWER_GRID} from './industrialists/CentralPowerGrid';
 
 /** A DUMMY prints NO effect row: the face states «no effect of its own» as a
  *  quiet caption from the `dummy` flag, never as the card's centrepiece.
@@ -70,7 +72,8 @@ export function dummyResolutionId(party: ReduxParty, n: number): ResolutionId {
 const DUMMIES: ReadonlyArray<DummySpec> = [
   {party: PartyName.UNITY, n: 1, name: 'Unity Motion I', quest: {goal: {kind: 'tag', tag: Tag.EARTH}, count: 2}, questText: 'Play 2 Earth tags'},
   {party: PartyName.UNITY, n: 2, name: 'Unity Motion II', quest: {goal: {kind: 'colony'}, count: 1}, questText: 'Build 1 colony'},
-  {party: PartyName.GREENS, n: 1, name: 'Greens Motion I', quest: {goal: {kind: 'tile', tile: 'greenery'}, count: 2}, questText: 'Place 2 greenery tiles'},
+  // Replaced in the deck by Biodome Contest (RX03) — kept for older saves only.
+  {party: PartyName.GREENS, n: 1, name: 'Greens Motion I', quest: {goal: {kind: 'tile', tile: 'greenery'}, count: 2}, questText: 'Place 2 greenery tiles', copies: 0},
   // Replaced in the deck by Aquifer Contest (RX01) — kept for older saves only.
   {party: PartyName.GREENS, n: 2, name: 'Greens Motion II', quest: {goal: {kind: 'tag', tag: Tag.PLANT}, count: 2}, questText: 'Play 2 plant tags', copies: 0},
   {party: PartyName.SCIENTISTS, n: 1, name: 'Scientists Motion I', quest: {goal: {kind: 'tag', tag: Tag.SCIENCE}, count: 2}, questText: 'Play 2 science tags'},
@@ -78,7 +81,8 @@ const DUMMIES: ReadonlyArray<DummySpec> = [
   // Replaced in the deck by Architecture Award (RX02) — kept for older saves only.
   {party: PartyName.MARS, n: 1, name: 'Mars First Motion I', quest: {goal: {kind: 'tag', tag: Tag.BUILDING}, count: 2}, questText: 'Play 2 building tags', copies: 0},
   {party: PartyName.MARS, n: 2, name: 'Mars First Motion II', quest: {goal: {kind: 'tile', tile: 'city'}, count: 1}, questText: 'Place 1 city tile on Mars'},
-  {party: PartyName.INDUSTRIALISTS, n: 1, name: 'Industrialists Motion I', quest: {goal: {kind: 'production', resource: Resource.STEEL}, count: 1}, questText: 'Raise your steel production 1 step'},
+  // Replaced in the deck by Central Power Grid (RX04) — kept for older saves only.
+  {party: PartyName.INDUSTRIALISTS, n: 1, name: 'Industrialists Motion I', quest: {goal: {kind: 'production', resource: Resource.STEEL}, count: 1}, questText: 'Raise your steel production 1 step', copies: 0},
   {party: PartyName.INDUSTRIALISTS, n: 2, name: 'Industrialists Motion II', quest: {goal: {kind: 'cardsPlayed', cardType: 'automated'}, count: 2}, questText: 'Play 2 green cards'},
   {party: PartyName.REDS, n: 1, name: 'Reds Motion I', quest: {goal: {kind: 'delegates'}, count: 4}, questText: 'Send 4 delegates to resolutions'},
   {party: PartyName.REDS, n: 2, name: 'Reds Motion II', quest: {goal: {kind: 'tr'}, count: 3}, questText: 'Raise your terraform rating 3 steps'},
@@ -422,6 +426,8 @@ const DEV_SCIENCE: ResolutionDefinition = {
 export const REDUX_RESOLUTION_CATALOG = new ResolutionCatalog([
   AQUIFER_CONTEST,
   ARCHITECTURE_AWARD,
+  BIODOME_CONTEST,
+  CENTRAL_POWER_GRID,
   ...DUMMIES.map(dummy),
   TEST_CHOICE,
   DEV_IMMEDIATE,

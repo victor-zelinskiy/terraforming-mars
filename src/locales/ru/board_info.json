@@ -202,5 +202,9 @@
   "No opponent tile is adjacent": "Рядом нет тайлов соперников",
   "No adjacent tile belongs to another player, so no M€ can be removed.": "Ни один соседний тайл не принадлежит другому игроку — забрать M€ не у кого.",
   "Adjacent opponents have no M€": "У соседних соперников нет M€",
-  "The owners of the adjacent tiles have no M€, so nothing can be removed.": "У владельцев соседних тайлов нет M€ — забирать нечего."
+  "The owners of the adjacent tiles have no M€, so nothing can be removed.": "У владельцев соседних тайлов нет M€ — забирать нечего.",
+  "Party effect: 2 M€ for each TR step you gain": "Эффект партии: 2 M€ за каждый полученный шаг РТ",
+  "Party effect: your M€ production rises with your plant or heat production": "Эффект партии: производство M€ растёт вместе с производством растений или тепла",
+  "Party effect: 1 steel for each tile you place on Mars": "Эффект партии: 1 сталь за каждый тайл на Марсе",
+  "Party effect: draw a card for each city you place on Mars": "Эффект партии: 1 карта за каждый город на Марсе"
 }

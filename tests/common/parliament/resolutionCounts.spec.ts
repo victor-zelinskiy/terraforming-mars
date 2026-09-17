@@ -4,7 +4,9 @@ import {CardName} from '../../../src/common/cards/CardName';
 import {CardType} from '../../../src/common/cards/CardType';
 import {Tag} from '../../../src/common/cards/Tag';
 import {ClientCard} from '../../../src/common/cards/ClientCard';
-import {cardCountVerdict, countCardsToward, CountedCardFacts} from '../../../src/common/parliament/resolutionCounts';
+import {
+  cardCountUnits, cardCountVerdict, countCardsToward, CountedCardFacts, resolutionCountKind, RESOLUTION_COUNT_IDS,
+} from '../../../src/common/parliament/resolutionCounts';
 import {ALL_MODULE_MANIFESTS} from '../../../src/server/cards/AllManifests';
 import {CardManifest} from '../../../src/server/cards/ModuleManifest';
 import {ICard} from '../../../src/server/cards/ICard';
@@ -15,6 +17,12 @@ import {BiomassCombustors} from '../../../src/server/cards/base/BiomassCombustor
 import {TundraFarming} from '../../../src/server/cards/base/TundraFarming';
 import {PhysicsComplex} from '../../../src/server/cards/base/PhysicsComplex';
 import {UndergroundShelters} from '../../../src/server/cards/underworld/UndergroundShelters';
+import {PowerPlant} from '../../../src/server/cards/base/PowerPlant';
+import {SolarPower} from '../../../src/server/cards/base/SolarPower';
+import {EnergyTapping} from '../../../src/server/cards/base/EnergyTapping';
+import {ArtificialPhotosynthesis} from '../../../src/server/cards/base/ArtificialPhotosynthesis';
+import {HE3FusionPlant} from '../../../src/server/cards/moon/HE3FusionPlant';
+import {NobelPrize} from '../../../src/server/cards/prelude2/NobelPrize';
 
 /**
  * THE COUNTED TERM's predicate — shared by the server's payout and the
@@ -24,6 +32,8 @@ import {UndergroundShelters} from '../../../src/server/cards/underworld/Undergro
  * of the corpus — the export carries every fact the rule reads.
  */
 const ID = 'buildingCardsWithNonNegativeVp' as const;
+/** Central Power Grid's term: the printed POWER TAGS, where one card can be worth several. */
+const TAGS = 'powerTags' as const;
 
 /** Every server card class of the corpus by name (projects, corporations, preludes, CEOs, standard projects and actions). */
 function serverCards(): Map<CardName, ICard> {
@@ -87,5 +97,68 @@ describe('resolutionCounts', () => {
     }
     expect(mismatches).deep.eq([]);
     expect(counted, 'the corpus has Building cards with a non-negative VP icon').greaterThan(20);
+  });
+
+  describe('a TAG count (powerTags)', () => {
+    it('counts every printed occurrence: one card with two power tags is two units', () => {
+      expect(resolutionCountKind(TAGS)).deep.eq({kind: 'tags', tag: Tag.POWER});
+      expect(cardCountUnits(TAGS, new PowerPlant(), FACE_DOWN)).eq(1);
+      expect(cardCountUnits(TAGS, new HE3FusionPlant(), FACE_DOWN), 'two printed power tags').eq(2);
+      // …while a CARD count is one unit whatever the card prints.
+      expect(resolutionCountKind(ID)).deep.eq({kind: 'cards'});
+      expect(cardCountUnits(ID, new ArtificialLake(), FACE_DOWN)).eq(1);
+    });
+
+    it('the VP icon, the energy resource and energy production play no part; a wild tag is not a power tag', () => {
+      expect(cardCountVerdict(TAGS, new PowerPlant(), FACE_DOWN), 'no VP icon at all').deep.eq({counts: true});
+      expect(cardCountVerdict(TAGS, new EnergyTapping(), FACE_DOWN), 'a negative VP icon').deep.eq({counts: true});
+      expect(cardCountVerdict(TAGS, new SolarPower(), FACE_DOWN)).deep.eq({counts: true});
+      // Raises energy production 2 steps, prints a science tag.
+      expect(cardCountVerdict(TAGS, new ArtificialPhotosynthesis(), FACE_DOWN)).deep.eq({counts: false, reason: 'No power tag'});
+      expect(cardCountVerdict(TAGS, new NobelPrize(), FACE_DOWN), 'a wild tag').deep.eq({counts: false, reason: 'No power tag'});
+      const event = fakeCard({name: 'Grid Surge' as CardName, type: CardType.EVENT, tags: [Tag.POWER, Tag.EVENT]});
+      expect(cardCountVerdict(TAGS, event, FACE_DOWN)).deep.eq({counts: false, reason: 'A played event is face down'});
+      expect(cardCountVerdict(TAGS, event, {eventTagsInPlay: true})).deep.eq({counts: true});
+    });
+
+    it('the model carries the per-card contribution so the number can be explained', () => {
+      const cards: Array<CountedCardFacts> = [new ArtificialPhotosynthesis(), new HE3FusionPlant(), new PowerPlant()];
+      expect(countCardsToward(TAGS, cards, FACE_DOWN)).deep.eq({
+        id: TAGS, count: 3, cards: [CardName.HE3_FUSION_PLANT, CardName.POWER_PLANT], units: [2, 1],
+      });
+      // The card count carries no such column — every entry there is worth 1.
+      expect(countCardsToward(ID, cards, FACE_DOWN).units).is.undefined;
+    });
+
+    it('PARITY over the corpus: the client manifest and the server classes agree on every count id', () => {
+      const clientCards = JSON.parse(fs.readFileSync('src/genfiles/cards.json', 'utf8')) as Array<ClientCard>;
+      const servers = serverCards();
+      const mismatches: Array<string> = [];
+      let tagUnits = 0;
+      let multiTagCards = 0;
+      for (const client of clientCards) {
+        const server = servers.get(client.name);
+        if (client.type === CardType.PROXY || server === undefined) {
+          continue;
+        }
+        for (const id of RESOLUTION_COUNT_IDS) {
+          for (const ctx of [FACE_DOWN, {eventTagsInPlay: true}]) {
+            const a = cardCountUnits(id, client, ctx);
+            const b = cardCountUnits(id, server, ctx);
+            if (a !== b) {
+              mismatches.push(`${client.name} (${id}): client ${a} ≠ server ${b}`);
+            }
+          }
+        }
+        const units = cardCountUnits(TAGS, server, {eventTagsInPlay: true});
+        tagUnits += units;
+        if (units > 1) {
+          multiTagCards++;
+        }
+      }
+      expect(mismatches).deep.eq([]);
+      expect(tagUnits, 'the corpus prints power tags').greaterThan(50);
+      expect(multiTagCards, 'and at least one card prints two of them').greaterThan(0);
+    });
   });
 });

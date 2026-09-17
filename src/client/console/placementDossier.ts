@@ -466,6 +466,11 @@ function aggregationKey(fact: BoardFact, labelKey: string): string | undefined {
 
 /** A reason's own name: the SOURCE card when there is one, else its label. */
 function reasonLabel(fact: BoardFact): string | Message {
+  // A pool member names what moved the pool (the oxygen step, the greenery
+  // tile) — its title IS the pool, so without this every member reads «TR».
+  if (fact.reason !== undefined) {
+    return fact.reason;
+  }
   const label = fact.source?.label;
   if (label !== undefined && fact.source?.type !== 'board-cell' && fact.source?.type !== 'map-rule') {
     return label;

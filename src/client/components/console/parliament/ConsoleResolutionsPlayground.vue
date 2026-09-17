@@ -26,13 +26,30 @@
     with different results / the winner's Agenda step / the recorded result /
     the chairman quest at 0, 1 and 2 of 2.
 
-    Test data only: a synthetic parliament model for two seats, synthetic
-    candidate cards for the picker. Nothing here touches a game.
+    A resolution that pays EVERYONE a supply resource by influence and gives
+    the WINNER a tile (Biodome Contest: 2 plants per influence + a greenery
+    that raises oxygen) gets the winner-tile family: influence 0 / 1 / 3 /
+    beyond the track, every seat's own plants, the winner's and another
+    seat's view of the same placement, a neutral winner, the Agenda step
+    counted first, oxygen below / at its maximum / at the 8 % step, no legal
+    cell, the chairman quest at 0, 1 and 2 of 2, the recorded result — the
+    winner's part read through the SAME `winnerRewardModel` the vote surface,
+    the fullscreen and the results use.
+
+    LIVE SCENARIOS (the same ring, marked «live»): an ENGINE-GENERATED fixture
+    booted as a real game (`/api/dev/playground-scenario`) — A opens it, and
+    the player goes through the real political phase: the announced
+    placement, the dossier, the cell choice, the cascade, the other seat's
+    payout, the results scene. A build without the fixtures names why.
+
+    Test data only (the live scenarios aside): a synthetic parliament model
+    for two seats, synthetic candidate cards for the picker.
 
     Pad: ◀ ▶ the catalog cursor · X the fullscreen viewer · RT the next
-    scenario · View the test player · A influence +1 (wraps) · Y the context ·
-    L3 the winner · LT the picker's cursor · LB/RB the stand's sections ·
-    B back. Keyboard through the same semantic map.
+    scenario · View the test player · A influence +1 (wraps) — or, on a live
+    scenario, open the real game · Y the context · L3 the winner · LT the
+    picker's cursor · LB/RB the stand's sections · B back. Keyboard through
+    the same semantic map.
   -->
   <div class="con-rxpg" :class="{'con-rxpg--embedded': embedded}" data-resolutions-playground>
     <header class="con-rxpg__head">
@@ -41,7 +58,7 @@
         <span class="con-rxpg__hint"><GamepadGlyph control="secondary" />{{ $t('Inspect') }}</span>
         <span class="con-rxpg__hint"><GamepadGlyph control="triggerR" />{{ $t('Scenario') }}</span>
         <span class="con-rxpg__hint"><GamepadGlyph control="view" />{{ $t('Test player') }}</span>
-        <span class="con-rxpg__hint"><GamepadGlyph control="confirm" />{{ $t('Influence') }}</span>
+        <span class="con-rxpg__hint"><GamepadGlyph control="confirm" />{{ $t(liveScenario !== undefined ? 'Play live' : 'Influence') }}</span>
         <span class="con-rxpg__hint"><GamepadGlyph control="inspect" />{{ $t('Context') }}</span>
         <span class="con-rxpg__hint"><GamepadGlyph control="stickL" />{{ $t('Winner of the vote') }}</span>
         <span class="con-rxpg__hint"><GamepadGlyph control="triggerL" />{{ $t('Recipient picker') }}</span>
@@ -94,7 +111,7 @@
 
     <!-- ── 3. SCENARIO × CONTEXT × PLAYER — the influence-scaled payout. ── -->
     <section class="con-rxpg__section" v-if="selected !== undefined">
-      <h2>{{ $t(family === 'counted' ? 'Result by cards and influence' : 'Influence-scaled payout') }}</h2>
+      <h2>{{ $t(resultHeading) }}</h2>
       <div class="con-rxpg__scenarios" data-rxpg-scenarios>
         <span v-for="(entry, n) in scenarioList" :key="entry.s.key"
               class="con-rxpg__scenario"
@@ -102,6 +119,7 @@
               :data-rxpg-scenario="entry.s.key"
               @click="applyScenario(entry.i)">
           <b class="con-rxpg__scenario-n">{{ n + 1 }}</b>
+          <i v-if="entry.s.live !== undefined" class="con-rxpg__scenario-live" data-rxpg-live-mark>{{ $t('Live run') }}</i>
           <span>{{ $t(entry.s.label) }}</span>
           <i v-if="entry.i === scenario && modified" class="con-rxpg__scenario-mod" data-rxpg-modified>{{ $t('modified') }}</i>
         </span>
@@ -125,6 +143,22 @@
           <b :data-rxpg-winner="winnerColor ?? 'neutral'">{{ winnerLabel }}</b>
         </span>
         <span v-if="pickerEffect !== undefined" class="con-rxpg__control"><span class="con-rxpg__ckey">{{ $t('No eligible card') }}</span><b data-rxpg-norecipient>{{ noRecipient ? '✓' : '—' }}</b></span>
+        <template v-if="selected.winnerReward !== undefined">
+          <span class="con-rxpg__control">
+            <span class="con-rxpg__ckey">{{ $t(selected.winnerReward.tile === 'greenery' ? 'Oxygen' : 'Oceans') }}</span>
+            <b data-rxpg-table>{{ selected.winnerReward.tile === 'greenery' ? table.oxygen + '%' : table.oceans + '/9' }}</b>
+            <span v-if="selected.winnerReward.tile === 'greenery'" class="con-rxpg__dim" data-rxpg-temperature>{{ table.temperature }}°C</span>
+          </span>
+          <span v-if="family === 'winner-tile'" class="con-rxpg__control"><span class="con-rxpg__ckey">{{ $t('No legal cell') }}</span><b data-rxpg-nocell>{{ noCell ? '✓' : '—' }}</b></span>
+        </template>
+      </div>
+      <!-- A LIVE SCENARIO: the real game this scenario boots (an engine-generated
+           fixture), what it stops on, and A to open it — or why it cannot. -->
+      <div v-if="liveScenario !== undefined" class="con-rxpg__live" :class="'con-rxpg__live--' + liveState" data-rxpg-live :data-rxpg-live-state="liveState">
+        <span class="con-rxpg__live-kicker">{{ $t('Live scenario — a real game') }}</span>
+        <span class="con-rxpg__live-what">{{ $t(liveScenario.liveNote ?? liveScenario.label) }}</span>
+        <span class="con-rxpg__live-verb" v-if="liveState !== 'error'"><GamepadGlyph control="confirm" />{{ $t(liveState === 'starting' ? 'Starting the game…' : 'Play live') }}</span>
+        <span class="con-rxpg__live-error" v-else data-rxpg-live-error>✕ {{ $t(liveError) }}</span>
       </div>
       <div class="con-rxpg__yieldrow">
         <div class="con-rxpg__yieldcard">
@@ -133,6 +167,15 @@
         <div class="con-rxpg__yieldcol">
           <ConsoleInfluenceYield v-if="yields.length > 0" :yields="yields" size="hero" :note="yieldNote" :kicker="contextLabel" data-rxpg-yield />
           <p v-else class="con-rxpg__none" data-rxpg-yield-none>{{ $t('Not scaled by influence') }}</p>
+          <!-- THE WINNER'S TILE — its own block, apart from everyone's numbers,
+               read by the SAME model the vote surface and the fullscreen read. -->
+          <ConsoleWinnerReward v-if="winnerReading !== undefined"
+                               :reading="winnerReading"
+                               :viewerColor="viewerColor"
+                               :nameOf="seatName"
+                               size="normal"
+                               variant="block"
+                               data-rxpg-winner-block />
           <ConsoleResolutionStatus v-if="status !== undefined" class="con-rxpg__status" :status="status" :viewerColor="viewerColor" />
           <!-- EVERY SEAT by its OWN influence — the rule «each player gets
                their own number», read through the same model per seat; the
@@ -193,7 +236,7 @@
               <span class="con-rxpg__tableau-who">
                 <PlayerCube :color="row.color" :size="12" :glow="false" />
                 <span class="con-rxpg__seat-name">{{ $t(row.label) }}</span>
-                <PremiumVpCardGlyph class="con-rxpg__tableau-glyph" :tag="countGlyphTag" />
+                <PremiumCountGlyph v-if="countGlyph !== undefined" class="con-rxpg__tableau-glyph" :glyph="countGlyph" />
                 <b data-rxpg-count>{{ row.count }}</b>
               </span>
               <div class="con-rxpg__tableau-cards">
@@ -203,7 +246,8 @@
                      :data-rxpg-card="card.name"
                      :data-rxpg-counts="card.counts ? 'true' : 'false'">
                   <div class="con-rxpg__tcard-face"><PremiumCard :name="card.name" inert lightweight /></div>
-                  <span class="con-rxpg__tcard-verdict">{{ card.counts ? '✓ ' + $t('Counted') : '✕ ' + $t(card.reason) }}</span>
+                  <!-- A TAG count can owe SEVERAL units to one card: the verdict says how many. -->
+                  <span class="con-rxpg__tcard-verdict" :data-rxpg-units="card.counts ? card.units : undefined">{{ verdictOf(card) }}</span>
                 </div>
                 <span v-if="row.cards.length === 0" class="con-rxpg__dim">{{ $t('No cards in play') }}</span>
               </div>
@@ -255,10 +299,11 @@ import {SelectCardModel} from '@/common/models/PlayerInputModel';
 import {ParliamentEnactOutcomeModel, ParliamentModel, ParliamentPlayerModel} from '@/common/models/ParliamentModel';
 import {IClientResolution} from '@/common/parliament/IClientResolution';
 import {fixedYield, InfluenceScaledEffect, InfluenceYield, referenceYield, scaledAmount, uncappedAmount} from '@/common/parliament/influenceScaling';
-import {cardCountVerdict, CardCountContext, countCardsToward, ResolutionCountModel} from '@/common/parliament/resolutionCounts';
-import {Tag} from '@/common/cards/Tag';
+import {
+  cardCountUnits, cardCountVerdict, CardCountContext, countCardsToward, ResolutionCountModel, resolutionCountKind,
+} from '@/common/parliament/resolutionCounts';
 import PremiumMechanicsPanel from '@/client/components/premiumCard/PremiumMechanicsPanel.vue';
-import PremiumVpCardGlyph from '@/client/components/premiumCard/PremiumVpCardGlyph.vue';
+import PremiumCountGlyph from '@/client/components/premiumCard/PremiumCountGlyph.vue';
 import {buildMechanics, MechanicsVM} from '@/client/components/premiumCard/mechanicsModel';
 import {AGENDA_TRACK, influenceAtAgenda, ReduxParty, resolutionInstanceId} from '@/common/parliament/ParliamentTypes';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
@@ -272,6 +317,14 @@ import {partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import PlayerCube from '@/client/components/PlayerCube.vue';
 import ConsoleInfluenceYield from '@/client/components/console/parliament/ConsoleInfluenceYield.vue';
+import ConsoleWinnerReward from '@/client/components/console/parliament/ConsoleWinnerReward.vue';
+import {WinnerRewardReading, winnerRewardReadingOf} from '@/client/console/parliament/winnerRewardModel';
+import {WinnerRewardTable} from '@/common/parliament/winnerReward';
+import {Resource} from '@/common/Resource';
+import {apiUrl} from '@/client/utils/runtimeConfig';
+import {paths} from '@/common/app/paths';
+import {PlaygroundScenarioBoot} from '@/common/models/PlaygroundScenarioModel';
+import {navigateWithCurtain} from '@/client/console/loadingScreenState';
 import ConsoleResolutionStatus from '@/client/components/console/parliament/ConsoleResolutionStatus.vue';
 import ConsoleResolutionAside from '@/client/components/console/parliament/ConsoleResolutionAside.vue';
 import ConsoleCardRulesPanel from '@/client/components/console/ConsoleCardRulesPanel.vue';
@@ -282,7 +335,7 @@ import {resolutionZoomEntry} from '@/client/components/card/cardZoomTypes';
 import {resolutionAnnotations} from '@/client/console/parliament/parliamentAnnotations';
 import {resolutionStatusOf, ResolutionStatusVm} from '@/client/console/parliament/resolutionInspectModel';
 import {
-  enactedYieldsOf, noRecipientForecastKey, noRecipientReasonKey, resolvingYieldOf, voteYieldsOf, yieldCountPresentation,
+  enactedYieldsOf, noRecipientForecastKey, noRecipientReasonKey, resolvingYieldOf, voteYieldsOf, yieldCountPresentation, YieldCountGlyph,
 } from '@/client/console/parliament/influenceYieldModel';
 import {choiceSourceView, PromptSourceView} from '@/client/console/promptSource';
 import {
@@ -318,8 +371,17 @@ const SPECTATOR: ViewerIndex = 2;
  */
 type PgSeat = {agenda: number, bonus: number, cards?: ReadonlyArray<CardName>, production?: number};
 type PgWinner = SeatIndex | 'neutral';
-/** Which family of scenarios a resolution reads: influence alone, or a counted term + influence. */
-type PgFamily = 'influence' | 'counted';
+/**
+ * Which family of scenarios a resolution reads: influence alone (a payout onto
+ * a card), a counted term + influence — told apart by WHAT is counted, because
+ * the tableaus that make the rule read are different objects (cards with a VP
+ * icon vs. cards that print the tag) — or a supply resource by influence + the
+ * WINNER's tile.
+ */
+type PgFamily = 'influence' | 'counted' | 'counted-tags' | 'winner-tile';
+/** The table's global parameters a winner tile reads (oxygen %, temperature °C, oceans placed). */
+type PgTable = {oxygen: number, temperature: number, oceans: number};
+const DEFAULT_TABLE: PgTable = {oxygen: 5, temperature: -14, oceans: 3};
 
 /** A reproducible reading: the whole instrument at once. */
 type PgScenario = {
@@ -333,6 +395,14 @@ type PgScenario = {
   noRecipient: boolean,
   /** The chairman quest's race: each seat's progress and who completed it. */
   quest?: {progress: readonly [number, number], completedBy?: SeatIndex},
+  /** The winner-tile family: the table's parameters (absent = the default table). */
+  table?: PgTable,
+  /** The winner-tile family: the general validator leaves the winner no legal cell. */
+  noCell?: boolean,
+  /** A LIVE scenario: the engine-generated fixture the A press boots as a real game. */
+  live?: string,
+  /** …and what that game stops on (an English key), when the label is not enough. */
+  liveNote?: string,
 };
 
 /*
@@ -350,6 +420,24 @@ const MINE = CardName.MINE; // building, no VP icon
 const COMBUSTORS = CardName.BIOMASS_COMBUSTORS; // power + building, −1 VP
 const STRONGHOLD = CardName.CORPORATE_STRONGHOLD; // city + building, −2 VP
 const TUNDRA = CardName.TUNDRA_FARMING; // plant, +2 VP — no building tag
+
+/*
+ * THE TAG-COUNTED FAMILY's tableaus — real cards chosen for what a TAG count
+ * must tell apart from a card count: a card with TWO power tags, power tags on
+ * sources of different kinds (a corporation, a prelude, a project), the VP
+ * icon playing NO part at all (a power card without one and one with a
+ * negative one both count), a card that raises energy PRODUCTION without
+ * printing the tag, and a wild tag that is not a power tag at an enactment.
+ */
+const PLANT_P = CardName.POWER_PLANT; // power + building, no VP icon
+const SOLAR_P = CardName.SOLAR_POWER; // power + building, +1 VP
+const FUSION_P = CardName.FUSION_POWER; // science + power + building, no VP icon
+const TAPPING = CardName.ENERGY_TAPPING; // power, −1 VP — counts all the same
+const HE3 = CardName.HE3_FUSION_PLANT; // power + power + moon — ONE card, TWO tags
+const THORGATE = CardName.THORGATE; // corporation with a power tag
+const POWERGEN = CardName.POWER_GENERATION; // prelude with a power tag
+const PHOTOSYNTHESIS = CardName.ARTIFICIAL_PHOTOSYNTHESIS; // science, +2 energy PRODUCTION, no power tag
+const NOBEL = CardName.NOBEL_PRIZE; // a WILD tag — never a power tag at an enactment
 
 const SCENARIOS: ReadonlyArray<PgScenario> = [
   // Step 0 of the Agenda: influence 0 — the step asks nothing and names the skip.
@@ -388,11 +476,94 @@ const SCENARIOS: ReadonlyArray<PgScenario> = [
     seats: [{agenda: 3, bonus: 0, cards: [LAKE], production: 2}, {agenda: 1, bonus: 0, cards: [MINE], production: 0}], winner: 0, context: 'applied', noRecipient: false, quest: {progress: [1, 0]}},
   {key: 'counted-quest-done', family: 'counted', label: 'Chairman quest completed', viewer: 0,
     seats: [{agenda: 3, bonus: 0, cards: [LAKE], production: 2}, {agenda: 1, bonus: 0, cards: [MINE], production: 0}], winner: 0, context: 'applied', noRecipient: false, quest: {progress: [2, 1], completedBy: 0}},
+  // ── THE TAG-COUNTED FAMILY (min(cap, P + I), P = the player's power TAGS) ──
+  {key: 'grid-zero', family: 'counted-tags', label: 'No power tags and no influence', viewer: 0,
+    seats: [{agenda: 0, bonus: 0, cards: [PHOTOSYNTHESIS, NOBEL], production: 2}, {agenda: 3, bonus: 0, cards: [PLANT_P], production: 1}], winner: 1, context: 'applied', noRecipient: false},
+  {key: 'grid-influence-only', family: 'counted-tags', label: 'Influence alone', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, cards: [PHOTOSYNTHESIS], production: 3}, {agenda: 1, bonus: 0, cards: [PLANT_P], production: 0}], winner: 1, context: 'proposal', noRecipient: false},
+  {key: 'grid-tags-only', family: 'counted-tags', label: 'Power tags alone', viewer: 0,
+    seats: [{agenda: 0, bonus: 0, cards: [PLANT_P, SOLAR_P], production: 1}, {agenda: 1, bonus: 0, cards: [], production: 0}], winner: 1, context: 'proposal', noRecipient: false},
+  // Agenda 2 = influence 1; winning takes the marker to step 3 (influence 2): 2 + 1 → +3 becomes 2 + 2 → +4, both below the cap.
+  {key: 'grid-below-cap', family: 'counted-tags', label: 'Below the maximum', viewer: 0,
+    seats: [{agenda: 2, bonus: 0, cards: [PLANT_P, SOLAR_P, PHOTOSYNTHESIS], production: 4}, {agenda: 1, bonus: 0, cards: [], production: 0}], winner: 1, context: 'proposal', noRecipient: false},
+  {key: 'grid-exact-cap', family: 'counted-tags', label: 'Exactly +5', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, cards: [PLANT_P, SOLAR_P, FUSION_P], production: 6}, {agenda: 1, bonus: 0, cards: [], production: 0}], winner: 1, context: 'proposal', noRecipient: false},
+  {key: 'grid-over-cap', family: 'counted-tags', label: 'Over the maximum', viewer: 0,
+    seats: [{agenda: 5, bonus: 0, cards: [PLANT_P, SOLAR_P, FUSION_P, TAPPING], production: 10}, {agenda: 1, bonus: 0, cards: [], production: 0}], winner: 1, context: 'proposal', noRecipient: false},
+  // ONE card, TWO tags: the whole difference from Architecture Award, on the stand.
+  {key: 'grid-multi-tag', family: 'counted-tags', label: 'One card with two power tags', viewer: 0,
+    seats: [{agenda: 0, bonus: 0, cards: [HE3, PLANT_P], production: 2}, {agenda: 1, bonus: 0, cards: [], production: 0}], winner: 1, context: 'proposal', noRecipient: false},
+  {key: 'grid-sources', family: 'counted-tags', label: 'Tags on a corporation, a prelude and a project', viewer: 0,
+    seats: [{agenda: 0, bonus: 0, cards: [THORGATE, POWERGEN, PLANT_P], production: 1}, {agenda: 1, bonus: 0, cards: [], production: 0}], winner: 1, context: 'proposal', noRecipient: false},
+  {key: 'grid-no-vp', family: 'counted-tags', label: 'A power card without a VP icon counts', viewer: 0,
+    seats: [{agenda: 0, bonus: 0, cards: [PLANT_P, FUSION_P, PHOTOSYNTHESIS], production: 3}, {agenda: 1, bonus: 0, cards: [], production: 0}], winner: 1, context: 'proposal', noRecipient: false},
+  {key: 'grid-negative-vp', family: 'counted-tags', label: 'A power card with a negative VP icon counts', viewer: 0,
+    seats: [{agenda: 0, bonus: 0, cards: [TAPPING, SOLAR_P], production: 3}, {agenda: 1, bonus: 0, cards: [], production: 0}], winner: 1, context: 'proposal', noRecipient: false},
+  {key: 'grid-wild', family: 'counted-tags', label: 'A wild tag is not a power tag', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, cards: [NOBEL, PLANT_P], production: 2}, {agenda: 1, bonus: 0, cards: [], production: 0}], winner: 1, context: 'proposal', noRecipient: false},
+  // The SAME tableau read at the enactment: a wild tag counts for the player's
+  // own actions, never for this — the number the proposal showed is the number paid.
+  {key: 'grid-own-turn', family: 'counted-tags', label: 'Looked at on your own turn — the enactment counts the same', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, cards: [NOBEL, PLANT_P], production: 2}, {agenda: 1, bonus: 0, cards: [], production: 0}], winner: 1, context: 'resolving', noRecipient: false},
+  {key: 'grid-seats', family: 'counted-tags', label: 'Every player gets their own result', viewer: 0,
+    seats: [{agenda: 1, bonus: 0, cards: [PLANT_P, PHOTOSYNTHESIS], production: 3}, {agenda: 8, bonus: 0, cards: [HE3, SOLAR_P, FUSION_P, TAPPING], production: -2}], winner: 0, context: 'applied', noRecipient: false},
+  // Agenda 4 = influence 2; winning takes the marker to step 5 (influence 3) BEFORE the effect: 2 + 2 -> 4 becomes 2 + 3 -> 5.
+  {key: 'grid-winner-agenda', family: 'counted-tags', label: 'The winner advances on the Agenda first', viewer: 0,
+    seats: [{agenda: 4, bonus: 0, cards: [PLANT_P, SOLAR_P], production: 5}, {agenda: 3, bonus: 0, cards: [], production: 0}], winner: 0, context: 'proposal', noRecipient: false},
+  {key: 'grid-negative-production', family: 'counted-tags', label: 'Negative production rises the ordinary way', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, cards: [PLANT_P, SOLAR_P], production: -3}, {agenda: 1, bonus: 0, cards: [], production: 0}], winner: 1, context: 'applied', noRecipient: false},
+  {key: 'grid-high-production', family: 'counted-tags', label: 'Production 8 becomes 13 — the cap bounds the increase', viewer: 0,
+    seats: [{agenda: 5, bonus: 0, cards: [HE3, SOLAR_P, FUSION_P], production: 8}, {agenda: 1, bonus: 0, cards: [], production: 0}], winner: 1, context: 'applied', noRecipient: false},
+  {key: 'grid-applied', family: 'counted-tags', label: 'Recorded result', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, cards: [HE3, PLANT_P, PHOTOSYNTHESIS], production: 8}, {agenda: 0, bonus: 0, cards: [TAPPING], production: 1}], winner: 1, context: 'applied', noRecipient: false},
+  {key: 'grid-quest-0', family: 'counted-tags', label: 'Chairman quest 0/2', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, cards: [PLANT_P], production: 2}, {agenda: 1, bonus: 0, cards: [], production: 0}], winner: 0, context: 'applied', noRecipient: false, quest: {progress: [0, 0]}},
+  {key: 'grid-quest-1', family: 'counted-tags', label: 'Chairman quest 1/2', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, cards: [PLANT_P], production: 2}, {agenda: 1, bonus: 0, cards: [], production: 0}], winner: 0, context: 'applied', noRecipient: false, quest: {progress: [1, 0]}},
+  {key: 'grid-quest-done', family: 'counted-tags', label: 'Chairman quest completed', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, cards: [PLANT_P], production: 2}, {agenda: 1, bonus: 0, cards: [], production: 0}], winner: 0, context: 'applied', noRecipient: false, quest: {progress: [2, 1], completedBy: 0}},
+  // ── THE WINNER-TILE FAMILY (everyone's supply resource by influence + the winner's tile) ──
+  // Test player A is the viewer; B wins unless the scenario says otherwise (a winner's Agenda step would move A's influence).
+  {key: 'tile-influence-0', family: 'winner-tile', label: 'Influence 0 — nothing is paid', viewer: 0, seats: [{agenda: 0, bonus: 0}, {agenda: 5, bonus: 0}], winner: 1, context: 'applied', noRecipient: false},
+  {key: 'tile-influence-1', family: 'winner-tile', label: 'Influence 1', viewer: 0, seats: [{agenda: 1, bonus: 0}, {agenda: 5, bonus: 0}], winner: 1, context: 'proposal', noRecipient: false},
+  {key: 'tile-influence-3', family: 'winner-tile', label: 'Influence 3', viewer: 0, seats: [{agenda: 5, bonus: 0}, {agenda: 1, bonus: 0}], winner: 1, context: 'proposal', noRecipient: false},
+  // Agenda 12 (influence 5) + 2 from cards = 7 → 14 plants: no cap.
+  {key: 'tile-beyond-track', family: 'winner-tile', label: 'Influence beyond the track — no maximum', viewer: 0, seats: [{agenda: 12, bonus: 2}, {agenda: 3, bonus: 0}], winner: 1, context: 'proposal', noRecipient: false},
+  {key: 'tile-seats', family: 'winner-tile', label: 'Every player gets their own result', viewer: 0, seats: [{agenda: 1, bonus: 0}, {agenda: 8, bonus: 0}], winner: 0, context: 'applied', noRecipient: false},
+  // Agenda 4 = influence 2; winning → step 5 = influence 3 BEFORE the plants: +4 now, +6 if A wins.
+  {key: 'tile-winner-agenda', family: 'winner-tile', label: 'The winner advances on the Agenda first', viewer: 0, seats: [{agenda: 4, bonus: 0}, {agenda: 3, bonus: 0}], winner: 0, context: 'proposal', noRecipient: false},
+  {key: 'tile-winner-view', family: 'winner-tile', label: 'The winner\'s view of the placement', viewer: 0, seats: [{agenda: 4, bonus: 0}, {agenda: 3, bonus: 0}], winner: 0, context: 'resolving', noRecipient: false},
+  {key: 'tile-other-view', family: 'winner-tile', label: 'Another player\'s view of the placement', viewer: 1, seats: [{agenda: 4, bonus: 0}, {agenda: 3, bonus: 0}], winner: 0, context: 'resolving', noRecipient: false},
+  {key: 'tile-neutral', family: 'winner-tile', label: 'Neutral winner — the plants still reach everyone', viewer: 0, seats: [{agenda: 3, bonus: 0}, {agenda: 5, bonus: 0}], winner: 'neutral', context: 'applied', noRecipient: false},
+  {key: 'tile-oxygen-low', family: 'winner-tile', label: 'Oxygen below the maximum', viewer: 0, seats: [{agenda: 3, bonus: 0}, {agenda: 1, bonus: 0}], winner: 0, context: 'proposal', noRecipient: false, table: {oxygen: 5, temperature: -14, oceans: 3}},
+  {key: 'tile-oxygen-max', family: 'winner-tile', label: 'Oxygen at its maximum — the tile still pays its TR', viewer: 0, seats: [{agenda: 3, bonus: 0}, {agenda: 1, bonus: 0}], winner: 0, context: 'proposal', noRecipient: false, table: {oxygen: 14, temperature: -4, oceans: 5}},
+  {key: 'tile-threshold', family: 'winner-tile', label: 'The 8 % step raises the temperature too', viewer: 0, seats: [{agenda: 3, bonus: 0}, {agenda: 1, bonus: 0}], winner: 0, context: 'proposal', noRecipient: false, table: {oxygen: 7, temperature: -10, oceans: 3}},
+  {key: 'tile-no-cell', family: 'winner-tile', label: 'No legal cell — the greenery is named and skipped', viewer: 0, seats: [{agenda: 3, bonus: 0}, {agenda: 1, bonus: 0}], winner: 0, context: 'applied', noRecipient: false, noCell: true},
+  {key: 'tile-recorded', family: 'winner-tile', label: 'Recorded result', viewer: 0, seats: [{agenda: 3, bonus: 0}, {agenda: 5, bonus: 0}], winner: 0, context: 'applied', noRecipient: false, table: {oxygen: 7, temperature: -10, oceans: 3}},
+  {key: 'tile-quest-0', family: 'winner-tile', label: 'Chairman quest 0/2', viewer: 0, seats: [{agenda: 3, bonus: 0}, {agenda: 1, bonus: 0}], winner: 0, context: 'applied', noRecipient: false, quest: {progress: [0, 0]}},
+  {key: 'tile-quest-1', family: 'winner-tile', label: 'Chairman quest 1/2', viewer: 0, seats: [{agenda: 3, bonus: 0}, {agenda: 1, bonus: 0}], winner: 0, context: 'applied', noRecipient: false, quest: {progress: [1, 0]}},
+  {key: 'tile-quest-done', family: 'winner-tile', label: 'Chairman quest completed', viewer: 0, seats: [{agenda: 3, bonus: 0}, {agenda: 1, bonus: 0}], winner: 0, context: 'applied', noRecipient: false, quest: {progress: [2, 1], completedBy: 0}},
+  // ── LIVE: real games from the engine-generated fixtures (the readings above mirror each table).
+  {key: 'live-vote', family: 'winner-tile', label: 'Live: the vote', viewer: 0, seats: [{agenda: 2, bonus: 0}, {agenda: 5, bonus: 0}], winner: 0, context: 'proposal', noRecipient: false,
+    live: 'parliament-biodome-vote', liveNote: 'Biodome Contest up for the vote: your plants now and if you win, the winner\'s greenery at 5 % oxygen'},
+  {key: 'live-enact', family: 'winner-tile', label: 'Live: the winner places the greenery', viewer: 0, seats: [{agenda: 2, bonus: 0}, {agenda: 5, bonus: 0}], winner: 0, context: 'resolving', noRecipient: false,
+    table: {oxygen: 7, temperature: -2, oceans: 0}, live: 'parliament-biodome-enact',
+    liveNote: 'Your placement stands: 7 % → 8 % raises the temperature to 0 °C and grants a free ocean; a cell with a card bonus is legal'},
+  {key: 'live-maxed', family: 'winner-tile', label: 'Live: oxygen at its maximum', viewer: 0, seats: [{agenda: 2, bonus: 0}, {agenda: 5, bonus: 0}], winner: 0, context: 'resolving', noRecipient: false,
+    table: {oxygen: 14, temperature: -10, oceans: 0}, live: 'parliament-biodome-maxed', liveNote: 'Your placement stands with oxygen at 14 %: the tile pays its own TR only'},
+  {key: 'live-nocell', family: 'winner-tile', label: 'Live: no legal cell', viewer: 0, seats: [{agenda: 2, bonus: 0}, {agenda: 5, bonus: 0}], winner: 0, context: 'proposal', noRecipient: false, noCell: true,
+    live: 'parliament-biodome-nocell', liveNote: 'Pass to end the generation: every land cell is taken, the greenery is named and skipped, the plants still land'},
+  {key: 'live-neutral', family: 'winner-tile', label: 'Live: neutral winner', viewer: 0, seats: [{agenda: 2, bonus: 0}, {agenda: 5, bonus: 0}], winner: 'neutral', context: 'proposal', noRecipient: false,
+    live: 'parliament-biodome-neutral', liveNote: 'Pass to end the generation: neutral delegates carry the card, nobody places the greenery'},
+  {key: 'live-recap', family: 'winner-tile', label: 'Live: the results of the generation', viewer: 1, seats: [{agenda: 1, bonus: 0}, {agenda: 4, bonus: 0}], winner: 1, context: 'applied', noRecipient: false,
+    live: 'parliament-biodome-recap', liveNote: 'Generation 2: open the Parliament — the card moves into the government, your plants fly, the greenery is named'},
 ];
 /** Each family's opening scenario. */
 const DEFAULT_SCENARIO_OF: Readonly<Record<PgFamily, number>> = {
-  influence: SCENARIOS.findIndex((s) => s.key === 'influence-3'),
-  counted: SCENARIOS.findIndex((s) => s.key === 'counted-below-cap'),
+  'influence': SCENARIOS.findIndex((s) => s.key === 'influence-3'),
+  'counted': SCENARIOS.findIndex((s) => s.key === 'counted-below-cap'),
+  'counted-tags': SCENARIOS.findIndex((s) => s.key === 'grid-below-cap'),
+  'winner-tile': SCENARIOS.findIndex((s) => s.key === 'tile-influence-3'),
 };
 const DEFAULT_SCENARIO = DEFAULT_SCENARIO_OF.influence;
 
@@ -417,8 +588,8 @@ const SIZES = [
 /** One seat's payout at the enactment: what it is owed, at which influence (and count), and why it does not land (if it does not). */
 type SeatPayout = {amount: number, influence: number, skipped?: string, count?: ResolutionCountModel, uncapped?: number};
 
-/** One card of a seat's synthetic tableau, with the shared predicate's verdict. */
-type TableauCardRow = {name: CardName, counts: boolean, reason: string};
+/** One card of a seat's synthetic tableau, with the shared predicate's verdict and what it contributed. */
+type TableauCardRow = {name: CardName, counts: boolean, reason: string, units: number};
 type TableauRow = {color: Color, label: string, viewer: boolean, count: number, cards: ReadonlyArray<TableauCardRow>};
 
 type SeatRow = {
@@ -442,6 +613,8 @@ function scenarioState(index: number) {
     winner: s.winner,
     context: s.context,
     noRecipient: s.noRecipient,
+    table: {...(s.table ?? DEFAULT_TABLE)},
+    noCell: s.noCell === true,
   };
 }
 
@@ -449,7 +622,7 @@ export default defineComponent({
   name: 'ConsoleResolutionsPlayground',
   components: {
     PremiumCard, GamepadGlyph, PlayerCube, ConsoleInfluenceYield, ConsoleResolutionStatus, ConsoleResolutionAside, ConsoleCardRulesPanel,
-    ConsoleSourceDock, ConsolePlayedTargetStep, PremiumMechanicsPanel, PremiumVpCardGlyph,
+    ConsoleSourceDock, ConsolePlayedTargetStep, PremiumMechanicsPanel, PremiumCountGlyph, ConsoleWinnerReward,
   },
   props: {
     /** Inside the playground stand (the stand owns the chrome and the scroll). */
@@ -463,6 +636,8 @@ export default defineComponent({
       ...scenarioState(DEFAULT_SCENARIO),
       pickerIndex: 0,
       lockedCard: '',
+      liveState: 'idle' as 'idle' | 'starting' | 'error',
+      liveError: '',
     };
   },
   computed: {
@@ -486,11 +661,34 @@ export default defineComponent({
       return this.selected === undefined ? undefined : resolutionPremiumVm(this.selected);
     },
     annotations(): ReadonlyArray<CardAnnotation> {
-      return this.selected === undefined ? [] : resolutionAnnotations(this.selected.id, this.yields);
+      return this.selected === undefined ? [] :
+        resolutionAnnotations(this.selected.id, this.yields, {reading: this.winnerReading, viewer: this.viewerColor, nameOf: this.seatName});
     },
-    /** The scenario family the selected resolution reads (a counted term → the counted family). */
+    /** The scenario family the selected resolution reads (a counted term → the family of what it counts). */
     family(): PgFamily {
-      return this.countEffect !== undefined ? 'counted' : 'influence';
+      const count = this.countEffect?.count;
+      if (count !== undefined) {
+        return resolutionCountKind(count.id).kind === 'tags' ? 'counted-tags' : 'counted';
+      }
+      // A winner's TILE with no card to pick for everyone's part: the winner-tile family.
+      return this.selected?.winnerReward !== undefined && this.pickerEffect === undefined ? 'winner-tile' : 'influence';
+    },
+    /** The table the winner's tile reads (the scenario's parameters). */
+    winnerTable(): WinnerRewardTable {
+      return {oxygenLevel: this.table.oxygen, temperature: this.table.temperature, oceans: this.table.oceans};
+    },
+    /** The winner's part of the selected resolution, read for this context by the ONE model. */
+    winnerReading(): WinnerRewardReading | undefined {
+      const r = this.selected;
+      if (r?.winnerReward === undefined) {
+        return undefined;
+      }
+      return winnerRewardReadingOf(r, this.model, this.context === 'reference' ? undefined : this.winnerTable);
+    },
+    /** The ACTIVE scenario when it boots a real game. */
+    liveScenario(): PgScenario | undefined {
+      const s = SCENARIOS[this.scenario];
+      return s !== undefined && s.live !== undefined && s.family === this.family ? s : undefined;
     },
     /** The ACTIVE family's scenarios, with their global index. */
     scenarioList(): Array<{s: PgScenario, i: number}> {
@@ -500,9 +698,18 @@ export default defineComponent({
     countEffect(): InfluenceScaledEffect | undefined {
       return this.selected?.scaled?.find((e) => e.count !== undefined);
     },
-    countGlyphTag(): Tag | undefined {
+    /** The counted object's glyph — the card silhouette or the printed tag, as the count's kind decides. */
+    countGlyph(): YieldCountGlyph | undefined {
       const count = this.countEffect?.count;
-      return count === undefined ? undefined : yieldCountPresentation(count.id).glyph.tag;
+      return count === undefined ? undefined : yieldCountPresentation(count.id).glyph;
+    },
+    /** The section's heading names WHAT the result is built from. */
+    resultHeading(): string {
+      switch (this.family) {
+      case 'counted': return 'Result by cards and influence';
+      case 'counted-tags': return 'Result by tags and influence';
+      default: return 'Influence-scaled payout';
+      }
     },
     /** Every seat's tableau with each card's verdict (the SHARED predicate over the client card manifest). */
     tableauRows(): Array<TableauRow> {
@@ -517,16 +724,20 @@ export default defineComponent({
         const cards: Array<TableauCardRow> = names.map((name) => {
           const card = getCard(name);
           if (card === undefined) {
-            return {name, counts: false, reason: 'Unknown card'};
+            return {name, counts: false, reason: 'Unknown card', units: 0};
           }
           const verdict = cardCountVerdict(id, card, ctx);
-          return verdict.counts ? {name, counts: true, reason: ''} : {name, counts: false, reason: verdict.reason};
+          // The units are the SHARED rule's too: one per card for a card
+          // count, every printed occurrence for a tag count.
+          return verdict.counts ?
+            {name, counts: true, reason: '', units: cardCountUnits(id, card, ctx)} :
+            {name, counts: false, reason: verdict.reason, units: 0};
         });
         return {
           color: TEST_PLAYERS[i].color,
           label: TEST_PLAYERS[i].label,
           viewer: this.viewerSeatIndex === i,
-          count: cards.filter((c) => c.counts).length,
+          count: cards.reduce((sum, c) => sum + c.units, 0),
           cards,
         };
       });
@@ -642,6 +853,18 @@ export default defineComponent({
       }
       if (this.context === 'resolving') {
         const asked = this.viewerColor;
+        if (this.family === 'winner-tile') {
+          // THE WINNER'S PLACEMENT STANDS: every seat up to the winner (generation order) already has its plants.
+          const winnerSeat = this.winner === 'neutral' ? undefined : this.winner;
+          return {
+            ...base, rulingParty: r.party, enacted,
+            phase: {
+              generation: 3, final: false, step: 'effects', winner: {instance, player: owner},
+              pending: winnerSeat === undefined ? undefined : {player: TEST_PLAYERS[winnerSeat].color, key: 'greenery', input: 'space'},
+              outcomes: this.supplyOutcomes.filter((o) => winnerSeat === undefined || SEATS.findIndex((i) => TEST_PLAYERS[i].color === o.player) <= winnerSeat),
+            },
+          };
+        }
         return {
           ...base, rulingParty: r.party, enacted,
           phase: {
@@ -662,12 +885,58 @@ export default defineComponent({
         },
       };
     },
+    /** The SUPPLY payouts (a `stock` unit) the server records — every seat's amount with the supply before and after, or its named skip. */
+    supplyOutcomes(): Array<ParliamentEnactOutcomeModel> {
+      const out: Array<ParliamentEnactOutcomeModel> = [];
+      for (const effect of this.selected?.scaled ?? []) {
+        if (effect.unit.kind !== 'stock') {
+          continue;
+        }
+        const resource: Resource = effect.unit.resource;
+        for (const i of SEATS) {
+          const payout = this.payoutAt(effect, i);
+          if (payout === undefined) {
+            continue;
+          }
+          const before = 3 * (i + 1);
+          const common = {player: TEST_PLAYERS[i].color, step: effect.id, part: 'effect' as const, effect: effect.id, stock: resource, amount: payout.amount, influence: payout.influence};
+          out.push(payout.skipped === undefined ?
+            {...common, kind: 'stock', before, after: before + payout.amount} :
+            {...common, kind: 'skipped', reason: payout.skipped});
+        }
+      }
+      return out;
+    },
+    /** The winner's TILE as the server records it: placed (its parameter before → after), or the named skip; nothing for a neutral winner. */
+    winnerOutcome(): ParliamentEnactOutcomeModel | undefined {
+      const reward = this.selected?.winnerReward;
+      if (reward === undefined || this.winner === 'neutral') {
+        return undefined;
+      }
+      const player = TEST_PLAYERS[this.winner].color;
+      if (this.noCell) {
+        return {player, step: reward.tile, part: 'winner', kind: 'skipped', reason: reward.tile === 'greenery' ? 'No space can take a greenery' : 'No space can take an ocean'};
+      }
+      if (reward.tile === 'greenery') {
+        const before = this.table.oxygen;
+        return {player, step: 'greenery', part: 'winner', kind: 'greenery', space: '35', parameter: {id: 'oxygen', before, after: Math.min(14, before + 1)}};
+      }
+      const before = this.table.oceans;
+      return before >= 9 ?
+        {player, step: 'ocean', part: 'winner', kind: 'skipped', reason: 'No ocean tile is left'} :
+        {player, step: 'ocean', part: 'winner', kind: 'ocean', space: '35', parameter: {id: 'oceans', before, after: before + 1}};
+    },
     /** The record the server would keep for this enactment's scaled part — every seat's payout, or its named skip. */
     appliedOutcomes(): Array<ParliamentEnactOutcomeModel> {
       const r = this.selected;
       const out: Array<ParliamentEnactOutcomeModel> = [];
       if (r === undefined) {
         return out;
+      }
+      out.push(...this.supplyOutcomes);
+      const tile = this.winnerOutcome;
+      if (tile !== undefined) {
+        out.push(tile);
       }
       for (const effect of r.scaled ?? []) {
         if (effect.unit.kind === 'production') {
@@ -682,7 +951,7 @@ export default defineComponent({
             const before = this.seats[i].production ?? 0;
             const common = {
               player: TEST_PLAYERS[i].color, step: effect.id, effect: effect.id, production: resource, amount: payout.amount, influence: payout.influence,
-              count: payout.count?.count, counted: payout.count?.cards, uncapped: payout.uncapped,
+              count: payout.count?.count, counted: payout.count?.cards, countedUnits: payout.count?.units, uncapped: payout.uncapped,
             };
             out.push(payout.skipped === undefined ?
               {...common, kind: 'production', before, after: before + payout.amount} :
@@ -849,8 +1118,48 @@ export default defineComponent({
     cardNameOf(entry: IClientResolution): CardName {
       return entry.id as CardName;
     },
+    /** A card's verdict: counted (with its own contribution where it is more than one), or why not. */
+    verdictOf(card: TableauCardRow): string {
+      if (!card.counts) {
+        return '✕ ' + translateText(card.reason);
+      }
+      return card.units > 1 ?
+        '✓ ' + translateTextWithParams('Counted ×${0}', [String(card.units)]) :
+        '✓ ' + translateText('Counted');
+    },
     emblemUrl(party: ReduxParty): string {
       return partyEmblemUrl(party);
+    },
+    /** A test seat's display name (the winner's recipient caption). */
+    seatName(color: Color): string {
+      const i = SEATS.find((k) => TEST_PLAYERS[k].color === color);
+      return translateText(i === undefined ? color : TEST_PLAYERS[i].label);
+    },
+    /**
+     * A LIVE scenario: boot its engine-generated fixture as a real game and
+     * open the seat it arranges as the viewer. A build without the fixtures
+     * (or a refused door) names why and stays on the stand.
+     */
+    async startLive(): Promise<void> {
+      const live = this.liveScenario;
+      if (live?.live === undefined || this.liveState === 'starting') {
+        return;
+      }
+      this.liveState = 'starting';
+      this.liveError = '';
+      try {
+        const resp = await fetch(apiUrl(paths.API_DEV_PLAYGROUND_SCENARIO + '?scenario=' + encodeURIComponent(live.live)), {method: 'POST'});
+        if (!resp.ok) {
+          this.liveState = 'error';
+          this.liveError = resp.status === 404 ? 'This scenario is not available in this build' : resp.status === 403 ? 'Live scenarios need a local server' : 'The scenario could not be started';
+          return;
+        }
+        const boot = await resp.json() as PlaygroundScenarioBoot;
+        navigateWithCurtain(paths.PLAYER + '?id=' + encodeURIComponent(boot.playerId), 'sync');
+      } catch {
+        this.liveState = 'error';
+        this.liveError = 'The scenario could not be started';
+      }
     },
     // ── the seats ──────────────────────────────────────────────────────
     /** Did this seat's marker take the winner's step in this context? */
@@ -910,8 +1219,10 @@ export default defineComponent({
         const counted = count?.count ?? 0;
         const amount = scaledAmount(effect, influence, counted);
         const uncapped = uncappedAmount(effect, influence, counted);
+        // The skip reason is the SERVER's own for this count id — the stand
+        // never invents a sentence the game would not record.
         return amount <= 0 ?
-          {amount: 0, influence, count, uncapped, skipped: 'No qualifying cards and no influence'} :
+          {amount: 0, influence, count, uncapped, skipped: yieldCountPresentation(effect.count.id).skipReasonKey} :
           {amount, influence, count, uncapped};
       }
       const amount = scaledAmount(effect, influence);
@@ -930,7 +1241,8 @@ export default defineComponent({
         return referenceYield(effect);
       }
       const reading = payout.count !== undefined ?
-        fixedYield(effect, 'resolving', payout.amount, payout.influence, {count: payout.count.count, counted: payout.count.cards, uncapped: payout.uncapped}) :
+        fixedYield(effect, 'resolving', payout.amount, payout.influence,
+          {count: payout.count.count, counted: payout.count.cards, countedUnits: payout.count.units, uncapped: payout.uncapped}) :
         resolvingYieldOf(effect, payout.amount, this.model, TEST_PLAYERS[i].color);
       return payout.skipped === undefined ? reading : {...reading, skipped: payout.skipped};
     },
@@ -939,6 +1251,8 @@ export default defineComponent({
       Object.assign(this, scenarioState(index));
       this.pickerIndex = 0;
       this.lockedCard = '';
+      this.liveState = 'idle';
+      this.liveError = '';
     },
     /** A: the test player's influence +1 (wraps), set by the Agenda position that reads as it. */
     bumpInfluence(): void {
@@ -964,7 +1278,7 @@ export default defineComponent({
           (index) => {
             this.cursor = index;
           }),
-        parliament: {model: () => this.model, viewer: () => this.viewerColor},
+        parliament: {model: () => this.model, viewer: () => this.viewerColor, table: () => this.winnerTable, nameOf: (color: Color) => this.seatName(color)},
       });
     },
     /** The stand forwards every intent here first; `false` hands it back (scroll, sections, B). */
@@ -1000,6 +1314,10 @@ export default defineComponent({
         this.modified = true;
         return true;
       case 'primary':
+        if (this.liveScenario !== undefined) {
+          void this.startLive();
+          return true;
+        }
         this.bumpInfluence();
         return true;
       case 'fullscreen':

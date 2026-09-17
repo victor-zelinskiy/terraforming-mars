@@ -4,6 +4,7 @@ import {CardName} from '../cards/CardName';
 import {CardResource} from '../CardResource';
 import {Resource} from '../Resource';
 import {ResolutionCountModel} from '../parliament/resolutionCounts';
+import {WinnerRewardParameter} from '../parliament/winnerReward';
 import {PartyName} from '../turmoil/PartyName';
 import {Message} from '../logs/Message';
 import {PlayerInputType} from '../input/PlayerInputType';
@@ -141,12 +142,17 @@ export type ParliamentPhasePendingModel = {
 export type ParliamentEnactOutcomeModel = {
   player: Color;
   step: string;
+  /** `effect` — everyone's part · `winner` — the winner's own part (absent on older saves). */
+  part?: 'effect' | 'winner';
   /** The scaled effect's id (`InfluenceScaledEffect.id`) when the amount came from influence. */
   effect?: string;
-  kind: 'cardResource' | 'production' | 'ocean' | 'skipped';
+  /** `cardResource` onto a card · `production` · `stock` into the supply · `ocean` / `greenery` the winner's tile · `skipped`. */
+  kind: 'cardResource' | 'production' | 'stock' | 'ocean' | 'greenery' | 'skipped';
   resource?: CardResource;
   /** `production` (and its skip): the standard resource whose production the effect raises. */
   production?: Resource;
+  /** `stock` (and its skip): the standard resource the effect adds to the supply. */
+  stock?: Resource;
   amount?: number;
   card?: CardName;
   space?: SpaceId;
@@ -155,11 +161,15 @@ export type ParliamentEnactOutcomeModel = {
   /** A counted term (B) at the enactment, and the cards it counted — frozen, never re-read from a later tableau. */
   count?: number;
   counted?: ReadonlyArray<CardName>;
+  /** …and what each of those cards contributed (a TAG count: a two-power-tag card is 2). */
+  countedUnits?: ReadonlyArray<number>;
   /** The formula's sum before the cap (above `amount` exactly when the cap bit). */
   uncapped?: number;
-  /** `production`: the value before and after. */
+  /** `production` / `stock`: the value before and after. */
   before?: number;
   after?: number;
+  /** A winner tile: the global parameter its own placement moved, before and after (equal at the maximum). */
+  parameter?: {id: WinnerRewardParameter; before: number; after: number};
 };
 
 export type ParliamentPhaseModel = {

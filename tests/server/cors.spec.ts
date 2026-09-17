@@ -144,6 +144,7 @@ describe('server/cors', () => {
     for (const p of [paths.API_PLAYER, paths.PLAYER_INPUT, paths.API_WAITING_FOR, paths.API_CREATEGAME, paths.API_GAMES_JOINABLE, paths.API_GAME_REMATCH,
       paths.API_GAME_BOT_TURN_ACK, paths.API_GAME_COLONY_TRADE_PREVIEW, paths.API_CORP_FIRST_ACTION_PREVIEW,
       paths.LOAD_GAME, paths.API_LOCAL_GAME_DELETE, paths.API_ADMIN_ROLLBACK_GAMES, paths.API_ADMIN_ROLLBACK_HISTORY, paths.API_ADMIN_ROLLBACK,
+      paths.API_DEV_PLAYGROUND_SCENARIO,
       paths.API_CAMPAIGN, paths.API_CAMPAIGN_CREATE, paths.API_CAMPAIGN_LAUNCH, paths.API_CAMPAIGN_CARRYOVER, paths.API_CAMPAIGN_DEV,
       paths.API_CAMPAIGNS, paths.API_CAMPAIGN_DELETE]) {
       expect(isCorsEligiblePath(p), p).to.be.true;

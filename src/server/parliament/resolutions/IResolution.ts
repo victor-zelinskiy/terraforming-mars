@@ -2,6 +2,7 @@ import {Expansion, GameModule} from '../../../common/cards/GameModule';
 import {ICardRenderRoot} from '../../../common/cards/render/Types';
 import {QuestDefinition, ReduxParty, ResolutionCode, ResolutionId} from '../../../common/parliament/ParliamentTypes';
 import {InfluenceScaledEffect} from '../../../common/parliament/influenceScaling';
+import {WinnerRewardDeclaration} from '../../../common/parliament/winnerReward';
 import type {SerializedEnactOutcome} from '../SerializedParliament';
 import {ActionEffect} from '../../../common/models/ActionPreviewModel';
 import {Message} from '../../../common/logs/Message';
@@ -45,8 +46,8 @@ export type EnactContext = {
   report(outcome: EnactOutcome): void;
 };
 
-/** A step's outcome as the step reports it (the driver adds `player` and `step`). */
-export type EnactOutcome = Omit<SerializedEnactOutcome, 'player' | 'step'>;
+/** A step's outcome as the step reports it (the driver adds `player`, `step` and `part`). */
+export type EnactOutcome = Omit<SerializedEnactOutcome, 'player' | 'step' | 'part'>;
 
 /**
  * ONE resumable step of an enactment effect. THE CONTRACT: a step either
@@ -135,6 +136,13 @@ export interface ResolutionDefinition {
    * so a face, a vote surface, a picker and the payout can never disagree.
    */
   scaled?: ReadonlyArray<InfluenceScaledEffect>;
+  /**
+   * The WINNER's part as data (`winnerReward.ts`) — the tile `winnerSteps`
+   * places. Exported to the manifest, so the vote surface, the inspector, the
+   * results and the playground read the same declaration the step pays by
+   * (what the tile is, which parameter its own placement moves).
+   */
+  winnerReward?: WinnerRewardDeclaration;
   /** A dummy: real party, real votes, real quest — no effect of its own. */
   dummy?: boolean;
   /** Per-player immediate effect (every participating player, generation order). */

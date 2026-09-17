@@ -629,7 +629,7 @@
   ],
   "discardPile": []
  },
- "createdTimeMs": 1789297624708,
+ "createdTimeMs": 1789671568586,
  "currentSeed": 688668745688,
  "deferredActions": [],
  "donePlayers": [],
@@ -649,7 +649,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1789297624708
+   "timestamp": 1789671568586
   },
   {
    "message": "Good luck ${0}!",
@@ -659,7 +659,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1789297624708,
+   "timestamp": 1789671568586,
    "playerId": "p-player1-id"
   },
   {
@@ -670,7 +670,7 @@
      "value": "red"
     }
    ],
-   "timestamp": 1789297624708,
+   "timestamp": 1789671568586,
    "playerId": "p-player2-id"
   },
   {
@@ -681,7 +681,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1789297624708,
+   "timestamp": 1789671568586,
    "type": 1
   },
   {
@@ -696,7 +696,7 @@
      "value": "Manutech"
     }
    ],
-   "timestamp": 1789297624709,
+   "timestamp": 1789671568587,
    "correlationId": 1,
    "parentId": 1,
    "role": "root-action",
@@ -718,7 +718,7 @@
      "value": "steel"
     }
    ],
-   "timestamp": 1789297624709,
+   "timestamp": 1789671568587,
    "correlationId": 1,
    "parentId": 1,
    "role": "detail"
@@ -735,7 +735,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1789297624709,
+   "timestamp": 1789671568587,
    "correlationId": 1,
    "parentId": 1,
    "role": "detail"
@@ -752,7 +752,7 @@
      "value": "Pharmacy Union"
     }
    ],
-   "timestamp": 1789297624709,
+   "timestamp": 1789671568587,
    "correlationId": 5,
    "parentId": 5,
    "role": "root-action",
@@ -779,7 +779,7 @@
      }
     }
    ],
-   "timestamp": 1789297624709,
+   "timestamp": 1789671568587,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -798,7 +798,7 @@
      ]
     }
    ],
-   "timestamp": 1789297624710,
+   "timestamp": 1789671568587,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -815,7 +815,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1789297624710,
+   "timestamp": 1789671568588,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -840,7 +840,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1789297624711,
+   "timestamp": 1789671568588,
    "correlationId": 5,
    "parentId": 7,
    "role": "effect-result"
@@ -1198,7 +1198,8 @@
    "ceo": false,
    "starwars": false,
    "underworld": false,
-   "deltaProject": false
+   "deltaProject": false,
+   "turmoilRedux": false
   },
   "fastModeOption": false,
   "includeFanMA": false,
@@ -1229,6 +1230,7 @@
   "startingPreludes": 4,
   "starWarsExpansion": false,
   "turmoilExtension": false,
+  "turmoilReduxExpansion": false,
   "underworldExpansion": false,
   "deltaProjectExpansion": false,
   "undoOption": false,
@@ -1249,7 +1251,7 @@
   "Planner",
   "Hoverlord"
  ],
- "name": "Binary Inertia Fragment",
+ "name": "Kinetic Gamma Cloud",
  "oxygenLevel": 0,
  "passedPlayers": [],
  "phase": "action",
@@ -1384,10 +1386,10 @@
    "handicap": 0,
    "timer": {
     "sumElapsed": 2,
-    "startedAt": 1789297624711,
+    "startedAt": 1789671568588,
     "running": true,
     "afterFirstAction": true,
-    "lastStoppedAt": 1789297624711
+    "lastStoppedAt": 1789671568588
    },
    "actionsTakenThisGame": 1,
    "victoryPointsByGeneration": [],
@@ -1501,10 +1503,10 @@
    "handicap": 0,
    "timer": {
     "sumElapsed": 2,
-    "startedAt": 1789297624709,
+    "startedAt": 1789671568587,
     "running": false,
     "afterFirstAction": true,
-    "lastStoppedAt": 1789297624711
+    "lastStoppedAt": 1789671568588
    },
    "actionsTakenThisGame": 0,
    "victoryPointsByGeneration": [],

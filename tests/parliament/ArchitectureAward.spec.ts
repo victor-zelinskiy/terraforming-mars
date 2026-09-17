@@ -368,9 +368,9 @@ describe('ArchitectureAward', () => {
       expect(() => endGeneration(game)).to.throw('interrupted');
       expect(parliament.phase?.step).eq('effects');
       expect(p1.production.megacredits, 'p1 was paid before the interruption').eq(1 + 3);
-      const applied = parliament.phase?.applied ?? [];
-      expect(applied.filter((key) => key.endsWith(`${p1.id}:production`))).has.length(1);
-      expect(applied.some((key) => key.endsWith(`${p2.id}:production`))).is.false;
+      const bySeat = parliament.phase?.appliedBySeat ?? {};
+      expect((bySeat[p1.id] ?? []).filter((key) => key.endsWith(':production'))).has.length(1);
+      expect((bySeat[p2.id] ?? []).some((key) => key.endsWith(':production'))).is.false;
 
       // A reload of that state resumes the phase: p2 once, p1 not again.
       const live = reload(game);
@@ -527,10 +527,13 @@ describe('ArchitectureAward', () => {
       const [game, p1, p2, parliament] = stage();
       p1.playedCards.push(new ArtificialLake(), new Mine(), new PhysicsComplex());
       const model = getParliamentModel(game, p2);
-      expect(model?.players.find((p) => p.color === p1.color)?.counts).deep.eq([
-        {id: 'buildingCardsWithNonNegativeVp', count: 2, cards: [CardName.ARTIFICIAL_LAKE, CardName.PHYSICS_COMPLEX]},
-      ]);
-      expect(model?.players.find((p) => p.color === p2.color)?.counts).deep.eq([{id: 'buildingCardsWithNonNegativeVp', count: 0, cards: []}]);
+      // The model carries EVERY counted term the catalog declares; this one is
+      // the card count — one unit per qualifying card, no per-card column.
+      const countOfSeat = (color: typeof p1.color) =>
+        model?.players.find((p) => p.color === color)?.counts?.find((c) => c.id === 'buildingCardsWithNonNegativeVp');
+      expect(countOfSeat(p1.color)).deep.eq(
+        {id: 'buildingCardsWithNonNegativeVp', count: 2, cards: [CardName.ARTIFICIAL_LAKE, CardName.PHYSICS_COMPLEX]});
+      expect(countOfSeat(p2.color)).deep.eq({id: 'buildingCardsWithNonNegativeVp', count: 0, cards: []});
       endGeneration(game);
       runAllActions(game);
       const last = getParliamentModel(game, p2)?.lastPhase;
