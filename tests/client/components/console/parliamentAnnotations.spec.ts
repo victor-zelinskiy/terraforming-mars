@@ -4,7 +4,7 @@ import {ParliamentModel} from '@/common/models/ParliamentModel';
 import {REDUX_PARTIES} from '@/common/parliament/ParliamentTypes';
 import {partyAnnotations, resolutionAnnotations, resolutionPartyAnnotations} from '@/client/console/parliament/parliamentAnnotations';
 import {CardName} from '@/common/cards/CardName';
-import {getResolution} from '@/client/parliament/ClientParliamentManifest';
+import {allResolutions, getResolution} from '@/client/parliament/ClientParliamentManifest';
 import {InfluenceYield} from '@/common/parliament/influenceScaling';
 
 /**
@@ -20,11 +20,11 @@ import {InfluenceYield} from '@/common/parliament/influenceScaling';
  * state, one reference line).
  */
 
-const DUMMY = 'RDX_DUMMY_INDUSTRIALISTS_1';
+const GRID = 'RDX_INDUSTRIALISTS_CENTRAL_POWER_GRID';
 
 function model(over: Partial<ParliamentModel> = {}): ParliamentModel {
   return {
-    slots: [{instance: `${DUMMY}#0`, resolution: DUMMY, party: PartyName.INDUSTRIALISTS, votes: [{owner: 'red', seq: 1}, {owner: 'blue', seq: 2}], totalVotes: 2, leader: 'red', isWinning: true, tiePriority: 1, viewerVotes: 1}],
+    slots: [{instance: `${GRID}#0`, resolution: GRID, party: PartyName.INDUSTRIALISTS, votes: [{owner: 'red', seq: 1}, {owner: 'blue', seq: 2}], totalVotes: 2, leader: 'red', isWinning: true, tiePriority: 1, viewerVotes: 1}],
     rulingParty: PartyName.GREENS,
     popularSupport: {},
     players: [{
@@ -52,7 +52,7 @@ const STATE_OR_LIMIT = /once per generation|available|used this generation|canno
 describe('parliamentAnnotations — the fullscreen inspector\'s reading blocks', () => {
   it('no block carries a graphic — the card and the plaque draw, the blocks explain', () => {
     const all = [
-      ...resolutionAnnotations(DUMMY), ...resolutionAnnotations('RDX_DEV_COMPOUND'), ...resolutionAnnotations('RDX_DEV_ACTION'),
+      ...resolutionAnnotations(GRID), ...resolutionAnnotations('RDX_DEV_COMPOUND'), ...resolutionAnnotations('RDX_DEV_ACTION'),
       ...REDUX_PARTIES.flatMap((party) => [...resolutionPartyAnnotations(party), ...partyAnnotations(party, model(), 'blue', true)]),
     ];
     for (const block of all) {
@@ -123,18 +123,25 @@ describe('parliamentAnnotations — the fullscreen inspector\'s reading blocks',
     expect(blocks[0].rows.length).to.eq(1);
   });
 
-  it('a dummy resolution: «no effect of its own» stands where a real effect will, then the quest\'s CONDITION in words', () => {
-    const blocks = resolutionAnnotations(DUMMY);
-    expect(blocks.map((b) => b.labelKey)).to.deep.eq(['Resolution effect', 'Chairman quest']);
-    expect(texts([blocks[0]])).to.deep.eq(['No effect of its own']);
-    expect(texts([blocks[1]]), 'the condition alone — the reward is the same for every resolution').to.deep.eq(['Raise your steel production 1 step']);
-    for (const text of texts(blocks)) {
-      expect(text.toLowerCase(), text).to.not.match(/dummy|iteration|test|tied/);
+  it('every SHIPPED resolution reads its own effect first and the quest\'s CONDITION last — the deck holds no card without an effect', () => {
+    const shipped = allResolutions().filter((resolution) => resolution.copies > 0);
+    expect(shipped, 'the deck is not empty').to.not.be.empty;
+    const effectLabels = ['When enacted', 'For the winner of the vote', 'Resolution effect', 'Resolution action'];
+    for (const resolution of shipped) {
+      const blocks = resolutionAnnotations(resolution.id);
+      expect(blocks.length, resolution.id).to.be.greaterThan(1);
+      expect(blocks[0].labelKey, `${resolution.id}: its effect first`).to.be.oneOf(effectLabels);
+      const quest = blocks[blocks.length - 1];
+      expect(quest.labelKey, resolution.id).to.eq('Chairman quest');
+      expect(texts([quest]), `${resolution.id}: the condition alone — the reward is the same for every resolution`).to.deep.eq([resolution.text.quest]);
+      for (const text of texts(blocks)) {
+        expect(text.toLowerCase(), `${resolution.id}: ${text}`).to.not.match(/\b(dummy|iteration|test|tied)\b/);
+      }
     }
   });
 
-  it('the Reds\' delegate quest names what the player does', () => {
-    const quest = resolutionAnnotations('RDX_DUMMY_REDS_1').find((b) => b.labelKey === 'Chairman quest');
+  it('a delegate quest names what the player does (the Reds\' dev example)', () => {
+    const quest = resolutionAnnotations('RDX_DEV_COMPOUND').find((b) => b.labelKey === 'Chairman quest');
     expect(quest === undefined ? [] : texts([quest])).to.deep.eq(['Send 4 delegates to resolutions']);
   });
 

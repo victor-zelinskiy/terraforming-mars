@@ -319,7 +319,7 @@
                   <div class="con-parl__slot-label">
                     <img class="con-parl__slot-emblem" :src="emblemUrl(slot.party)" alt="" />
                     <span class="con-parl__slot-party">{{ $t(slot.party) }}</span>
-                    <span v-if="winningShownOf(slot)" class="con-parl__slot-win">{{ $t('Winning') }}</span>
+                    <span v-if="winningShownOf(slot)" class="con-parl__slot-win" :class="{'con-parl__slot-win--glyph': partyNameLong(slot.party)}"><span class="con-parl__slot-win-text">{{ $t('Winning') }}</span></span>
                   </div>
                   <div class="con-parl__card"
                        :class="{'con-parl__card--dealing': dealingFaces.has(slot.instance)}"
@@ -390,6 +390,21 @@
                   </div>
                 </div>
               </Teleport>
+            </div>
+            <!-- AN EMPTY SLOT NAMES ITSELF. While few parties have real
+                 resolutions the refresh finds nothing for a slot (distinct
+                 parties, never the ruling one's) and leaves it EMPTY: the same
+                 anatomy as a slot, a card-shaped outline where a card would
+                 stand and one line that says why — never an unexplained hole.
+                 A card enacted from this position still leaves from HERE. -->
+            <div v-for="n in emptySlotCount" :key="'empty-' + n" class="con-parl__slot-home con-parl__slot-home--empty" data-parl-slot-empty>
+              <div class="con-parl__slot-empty">
+                <div class="con-parl__slot-label">
+                  <span class="con-parl__slot-party">{{ $t('Empty slot') }}</span>
+                </div>
+                <div class="con-parl__slot-empty-card" data-parl-slot-empty-card aria-hidden="true"></div>
+                <span class="con-parl__slot-empty-reason">{{ $t(emptySlotReason) }}</span>
+              </div>
             </div>
           </div>
         </div>
@@ -583,8 +598,9 @@
          :data-parl-vote-source-kind="voteSource"
          data-parl-vote
          ref="voteEl">
-      <!-- THE CARD ROW — the three slots stand here while the mode is up. -->
-      <div class="con-parl__vrow" data-parl-vrow ref="vrowEl"></div>
+      <!-- THE CARD ROW — the slots stand here while the mode is up (fewer
+           than three stand centred at their usual size). -->
+      <div class="con-parl__vrow" data-parl-vrow ref="vrowEl" :style="{'--con-parl-slot-count': String(Math.max(1, view.slots.length))}"></div>
 
       <!-- THE INFO SURFACE — what the SELECTED card is (left) and what THIS
            VOTE changes (right). Fixed geometry: the bodies crossfade in place
@@ -602,14 +618,13 @@
               </div>
               <!-- ONE MAIN BLOCK and a side: the resolution's OWN effect owns
                    the reading (its printed graphic LARGE, its parts labelled by
-                   WHEN they apply — a dummy says calmly, in the very same
-                   frame a real effect will fill, that it has none); beside it,
+                   WHEN they apply); beside it,
                    compact, the PARTY it brings to power (its formula and one
                    caption) and the chairman quest it sets (the condition
                    only — the reward is the same for every resolution and
                    lives in the government). -->
               <div class="con-parl__info-grid">
-                <div class="con-parl__info-own" :class="{'con-parl__info-own--none': voteInfo.ownMechanics === undefined && voteInfo.ownParts.length === 0, 'con-parl__info-own--yields': voteInfo.yields.length > 0}" data-parl-vote-item data-parl-info="own">
+                <div class="con-parl__info-own" :class="{'con-parl__info-own--yields': voteInfo.yields.length > 0}" data-parl-vote-item data-parl-info="own">
                   <span class="con-parl__info-kicker" data-parl-vote-late>{{ $t('Resolution effect') }}</span>
                   <div class="con-parl__info-own-body">
                     <PremiumMechanicsPanel v-if="voteInfo.ownMechanics !== undefined" class="con-parl__info-mech" :mechanics="voteInfo.ownMechanics" />
@@ -657,7 +672,6 @@
                                               data-parl-vote-reaction />
                       </div>
                     </div>
-                    <span v-else-if="voteInfo.ownMechanics === undefined" class="con-parl__info-none" data-parl-vote-late>{{ $t('No effect of its own') }}</span>
                   </div>
                 </div>
                 <div class="con-parl__info-side">
@@ -849,7 +863,7 @@ import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {PlayerInputModel, SelectCardModel, SelectPaymentModel, VotePaymentMeta} from '@/common/models/PlayerInputModel';
 import {InputResponse} from '@/common/inputs/InputResponse';
 import {ParliamentEnactOutcomeModel, ParliamentModel} from '@/common/models/ParliamentModel';
-import {PARLIAMENT_VOTE_COST, PARTY_EFFECT_DELEGATES as PARTY_EFFECT_THRESHOLD, PartyActionId, ReduxParty} from '@/common/parliament/ParliamentTypes';
+import {PARLIAMENT_VOTE_COST, PARLIAMENT_VOTING_SLOTS, PARTY_EFFECT_DELEGATES as PARTY_EFFECT_THRESHOLD, PartyActionId, ReduxParty} from '@/common/parliament/ParliamentTypes';
 import {IClientResolution} from '@/common/parliament/IClientResolution';
 import {InfluenceYield} from '@/common/parliament/influenceScaling';
 import {
@@ -1030,7 +1044,7 @@ type VoteInfo = {
   party: ReduxParty;
   winning: boolean;
   ownMechanics: MechanicsVM | undefined;
-  /** The own effect's parts in the order they apply: enacted → winner → standing effect → action (empty for a dummy). */
+  /** The own effect's parts in the order they apply: enacted → winner → standing effect → action. */
   ownParts: ReadonlyArray<OwnEffectPart>;
   /**
    * The viewer's OWN NUMBERS for the parts that scale with influence: the
@@ -1293,6 +1307,16 @@ export default defineComponent({
     slotsCarried(): boolean {
       return this.voteUp;
     },
+    /** Voting slots the refresh could not fill (distinct parties, never the ruling one's) — each shown as an EMPTY slot. */
+    emptySlotCount(): number {
+      return Math.max(0, PARLIAMENT_VOTING_SLOTS - this.view.slots.length);
+    },
+    /** WHY a slot stands empty: the final vote deals nothing after it; otherwise nothing of another party was left to deal. */
+    emptySlotReason(): string {
+      return this.model?.phase === undefined && this.model?.lastPhase?.final === true ?
+        'No new resolution after the final vote' :
+        'The deck has no resolution of another party';
+    },
     voteCommitted(): boolean {
       return this.voteUp && this.stage !== 'vote';
     },
@@ -1309,8 +1333,8 @@ export default defineComponent({
     /**
      * The ENACTED resolution's OWN standing effect / action (its printed
      * graphic) — a second source beside the ruling party's, told apart in
-     * the government. Undefined for a dummy and for a resolution whose only
-     * effect was the enactment itself (already paid, nothing stands).
+     * the government. Undefined for a resolution whose only effect was the
+     * enactment itself (already paid, nothing stands).
      */
     enactedOwnMechanics(): MechanicsVM | undefined {
       const resolution = this.view.enacted?.resolution;
@@ -1507,7 +1531,7 @@ export default defineComponent({
       // The own effect's PARTS, each under the label of WHEN it applies —
       // the same labels the fullscreen inspector prints (one vocabulary).
       const parts: Array<OwnEffectPart> = [];
-      if (resolution !== undefined && !resolution.dummy) {
+      if (resolution !== undefined) {
         const text = resolution.text;
         if (text.effect !== undefined) {
           parts.push({key: 'effect', label: 'When enacted', text: text.effect});
@@ -1655,10 +1679,27 @@ export default defineComponent({
       items.push({key: 'enacted', focus: 'enacted', text: translateTextWithParams('${0} is enacted — ${1} now rule; its delegates return to their reserves', [resolutionName(last.enacted.resolution), translateText(last.enacted.party)])});
       // THE EFFECT AS IT WAS APPLIED — the server's own record per player and
       // step (amounts as paid, skips with their reason): one beat per outcome,
-      // the viewer's own first.
+      // the viewer's own first. The SAME skip for several seats (the same part,
+      // the same reason — a table with nothing to count) is ONE beat that names
+      // every one of them: nothing goes silent, and a crowded table's results
+      // still fit on one screen.
       const outcomes = [...(last.outcomes ?? [])].sort((a, b) => Number(b.player === this.viewerColor) - Number(a.player === this.viewerColor));
+      const skips = new Map<string, {item: RecapItem, players: Array<ParliamentEnactOutcomeModel['player']>}>();
       for (const outcome of outcomes) {
-        items.push({key: `outcome:${outcome.player}:${outcome.step}`, focus: 'enacted', text: this.outcomeText(outcome), outcome});
+        const item: RecapItem = {key: `outcome:${outcome.player}:${outcome.step}`, focus: 'enacted', text: this.outcomeText(outcome), outcome};
+        if (outcome.kind === 'skipped') {
+          const signature = `${this.skippedPartOf(outcome)}|${outcome.reason ?? ''}`;
+          const group = skips.get(signature);
+          if (group !== undefined) {
+            if (!group.players.includes(outcome.player)) {
+              group.players.push(outcome.player);
+              group.item.text = this.outcomeText(outcome, group.players.map((player) => this.nameOf(player)).join(', '));
+            }
+            continue;
+          }
+          skips.set(signature, {item, players: [outcome.player]});
+        }
+        items.push(item);
       }
       const gained = last.support.filter((s) => s.gained > 0);
       if (gained.length > 0) {
@@ -2099,6 +2140,15 @@ export default defineComponent({
       }
       const size = this.cubePx(RIBBON_CUBE);
       return {left: r.left + r.width / 2 - size / 2, top: r.top + r.height / 2 - size / 2, width: size, height: size};
+    },
+    /**
+     * A party name too long to share the slot's label row with the «winning»
+     * WORD on a narrow slot (calibrated on the Deck: «МАРС ВПЕРЕД», 11, fits
+     * beside it; «ИНДУСТРИАЛИСТЫ», 14, does not) — its badge says it with the
+     * vote's winner glyph instead, never by cutting the name.
+     */
+    partyNameLong(party: PartyName): boolean {
+      return translateText(party).length > 12;
     },
     /** Whether a card reads «winning» as SHOWN: while the cube is in the air every card keeps the pre-vote verdict (the badge moves on the touchdown). */
     winningShownOf(slot: ParliamentSlotVm): boolean {
@@ -2725,8 +2775,9 @@ export default defineComponent({
      * resource and the card it landed on; a skip names its reason; an ocean
      * names the winner. Sentences from i18n keys, the card by its own name.
      */
-    outcomeText(outcome: ParliamentEnactOutcomeModel): string {
-      const who = this.nameOf(outcome.player);
+    /** One recap line for a recorded outcome; `names` overrides its seat (a shared skip names several). */
+    outcomeText(outcome: ParliamentEnactOutcomeModel, names?: string): string {
+      const who = names ?? this.nameOf(outcome.player);
       switch (outcome.kind) {
       case 'cardResource':
         return translateTextWithParams('${0} received ${1} ${2} on ${3}', [
@@ -2791,12 +2842,14 @@ export default defineComponent({
           translateTextWithParams('${0} placed a greenery as the winner of the vote — oxygen was already at its maximum', [who]);
       }
       case 'skipped':
-      default: {
-        // WHICH part was skipped is the driver's own stamp (older records: the ocean step's key).
-        const winnerPart = outcome.part === 'winner' || (outcome.part === undefined && outcome.step === 'ocean');
-        return translateTextWithParams('${0}: ${1} — skipped: ${2}', [who, translateText(winnerPart ? 'Winner of the vote' : 'Resolution effect'), translateText(outcome.reason ?? '')]);
+      default:
+        return translateTextWithParams('${0}: ${1} — skipped: ${2}', [
+          who, translateText(this.skippedPartOf(outcome) === 'winner' ? 'Winner of the vote' : 'Resolution effect'), translateText(outcome.reason ?? '')]);
       }
-      }
+    },
+    /** WHICH part a skip belongs to — the driver's own stamp (older records: the ocean step's key). */
+    skippedPartOf(outcome: ParliamentEnactOutcomeModel): 'winner' | 'effect' {
+      return outcome.part === 'winner' || (outcome.part === undefined && outcome.step === 'ocean') ? 'winner' : 'effect';
     },
     /**
      * The ruling party's answer to a resolution's readings — only for a seat
@@ -3085,7 +3138,7 @@ export default defineComponent({
         return;
       }
     },
-    /** Where the enacted card physically stood: its former voting slot's face (the voting area when the slot is gone). */
+    /** Where the enacted card physically stood: its former voting slot's face — or that slot's EMPTY outline when the refresh dealt nothing there (the voting area when the slot is gone). */
     formerSlotRect(root: HTMLElement): Rect | undefined {
       const last = this.model?.lastPhase;
       const index = last?.winner.slot;
@@ -3095,7 +3148,7 @@ export default defineComponent({
       };
       const homes = root.querySelectorAll<HTMLElement>('.con-parl__slots .con-parl__slot-home');
       const home = index === undefined ? undefined : homes[index];
-      return rect(home?.querySelector('.con-parl__card .pcard') ?? home?.querySelector('.con-parl__card')) ??
+      return rect(home?.querySelector('.con-parl__card .pcard') ?? home?.querySelector('.con-parl__card') ?? home?.querySelector('[data-parl-slot-empty-card]')) ??
         rect(root.querySelector('[data-parl-voting] .con-parl__slots'));
     },
     /**

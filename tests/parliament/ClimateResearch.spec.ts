@@ -11,7 +11,8 @@ import {
 import {AQUIFER_CONTEST_ID} from '../../src/server/parliament/resolutions/greens/AquiferContest';
 import {BIODOME_CONTEST_ID} from '../../src/server/parliament/resolutions/greens/BiodomeContest';
 import {ARCHITECTURE_AWARD_ID} from '../../src/server/parliament/resolutions/marsFirst/ArchitectureAward';
-import {dummyResolutionId, REDUX_RESOLUTION_CATALOG} from '../../src/server/parliament/resolutions/ResolutionCatalog';
+import {REDUX_RESOLUTION_CATALOG} from '../../src/server/parliament/resolutions/ResolutionCatalog';
+import {seatEnacted, seatResolution} from './parliamentArrange';
 import {PartyName} from '../../src/common/turmoil/PartyName';
 import {Phase} from '../../src/common/Phase';
 import {Resource} from '../../src/common/Resource';
@@ -56,7 +57,7 @@ function reduxGame(): [IGame, TestPlayer, TestPlayer, Parliament] {
 /** Seat Climate Research in slot 0 with p1's delegate on it, so p1 wins it at the end of the generation. */
 function stage(): [IGame, TestPlayer, TestPlayer, Parliament] {
   const [game, p1, p2, parliament] = reduxGame();
-  parliament.slots[0].instance = CLIMATE;
+  seatResolution(parliament, 0, CLIMATE);
   parliament.placeVote(p1, parliament.slots[0], 'lobby');
   p1.megaCredits = 20;
   p2.megaCredits = 20;
@@ -123,7 +124,7 @@ function stockEventsFrom(game: IGame, player: IPlayer, kind: string) {
 
 describe('ClimateResearch', () => {
   describe('the catalog entry', () => {
-    it('is RX05 of the Greens — their THIRD real resolution, so the pool GROWS instead of evicting one', () => {
+    it('is RX05 of the Greens — their THIRD real resolution, dealt as ONE card', () => {
       expect(REDUX_RESOLUTION_CATALOG.get(CLIMATE_RESEARCH_ID)).eq(CLIMATE_RESEARCH);
       expect(CLIMATE_RESEARCH_CODE).eq('RX05');
       expect(CLIMATE_RESEARCH_CODE).matches(RESOLUTION_CODE_PATTERN);
@@ -134,22 +135,12 @@ describe('ClimateResearch', () => {
       expect(CLIMATE_RESEARCH.party).eq(PartyName.GREENS);
       expect(CLIMATE_RESEARCH.winnerSteps, 'no winner-only part').is.undefined;
       expect(CLIMATE_RESEARCH.winnerReward, 'no winner tile either').is.undefined;
+      // The deck is the sum of what is shipped: all three Greens resolutions ride in it.
       const dealt = REDUX_RESOLUTION_CATALOG.dealtInstances(() => true);
-      expect(dealt).includes(CLIMATE);
-      // Both Greens dummies were already spent on RX01 and RX03, so nothing is
-      // evicted for this one: the deck is the sum of what is shipped.
-      for (const n of [1, 2]) {
-        const dummy = REDUX_RESOLUTION_CATALOG.get(dummyResolutionId(PartyName.GREENS, n));
-        expect(dummy?.copies, `Greens dummy ${n} stays loadable but undealt`).eq(0);
-        expect(dummy?.dummy).is.true;
-      }
       const greens = dealt.filter((instance) => REDUX_RESOLUTION_CATALOG.ofInstance(instance).party === PartyName.GREENS);
       expect(greens.sort()).deep.eq([
         resolutionInstanceId(AQUIFER_CONTEST_ID, 0), resolutionInstanceId(BIODOME_CONTEST_ID, 0), CLIMATE,
       ].sort());
-      // …and no OTHER party lost a card to make room.
-      expect(dealt).includes(resolutionInstanceId(ARCHITECTURE_AWARD_ID, 0));
-      expect(dealt.filter((i) => REDUX_RESOLUTION_CATALOG.ofInstance(i).party === PartyName.REDS)).has.length(2);
       expect(dealt.filter((i) => i === CLIMATE), 'one physical copy').has.length(1);
     });
 
@@ -259,7 +250,7 @@ describe('ClimateResearch', () => {
 
     it('a neutral winner cancels nothing: every participant is still paid', () => {
       const [game, p1, p2, parliament] = reduxGame();
-      parliament.slots[0].instance = CLIMATE;
+      seatResolution(parliament, 0, CLIMATE);
       parliament.addNeutralVote(parliament.slots[0]);
       parliament.agenda.set(p1.id, agendaForInfluence(1));
       p1.production.override({heat: 2});
@@ -321,10 +312,10 @@ describe('ClimateResearch', () => {
     it('pays a player who did NOT hold the Greens before — the enactment makes them the ruling party first', () => {
       const [game, p1, p2, parliament] = reduxGame();
       // Another party rules going in (Architecture Award is the Mars First card).
-      parliament.enacted = resolutionInstanceId(ARCHITECTURE_AWARD_ID, 0);
+      seatEnacted(parliament, ARCHITECTURE_AWARD_ID);
       expect(parliament.rulingParty()).eq(PartyName.MARS);
       expect(parliament.hasPartyEffect(p2, PartyName.GREENS), 'no access before').is.false;
-      parliament.slots[0].instance = CLIMATE;
+      seatResolution(parliament, 0, CLIMATE);
       parliament.placeVote(p1, parliament.slots[0], 'lobby');
       parliament.agenda.set(p2.id, agendaForInfluence(2));
       p2.production.override({heat: 0, megacredits: 0});
@@ -532,8 +523,7 @@ describe('ClimateResearch', () => {
 
       // Generation 2: the card comes back up and wins again.
       game.phase = Phase.ACTION;
-      parliament.slots[0].instance = CLIMATE;
-      parliament.enacted = undefined;
+      seatResolution(parliament, 0, CLIMATE);
       parliament.placeVote(p1, parliament.slots[0], 'lobby');
       endGeneration(game);
       expect(p1.production.heat, 'a fresh raise by the influence of the day').is.greaterThan(3);
@@ -570,7 +560,7 @@ describe('ClimateResearch', () => {
     it('before the raise: the whole effect runs once on the reloaded game', () => {
       const [game, p1, , parliament] = stage();
       p1.production.override({heat: 5});
-      parliament.slots[0].instance = CLIMATE;
+      seatResolution(parliament, 0, CLIMATE);
       // Serialize the game BEFORE the generation ends and run the phase there.
       const copy = reload(game);
       const c1 = copy.playersInGenerationOrder[0] as TestPlayer;
@@ -767,7 +757,7 @@ describe('ClimateResearch', () => {
       game.playerIsFinishedWithResearchPhase(human);
       game.phase = Phase.ACTION;
       const parliament = game.parliament!;
-      parliament.slots[0].instance = CLIMATE;
+      seatResolution(parliament, 0, CLIMATE);
       parliament.placeVote(human, parliament.slots[0], 'lobby');
       human.production.override({heat: 5});
       bot.production.override({heat: 9});

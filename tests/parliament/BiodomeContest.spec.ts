@@ -10,7 +10,8 @@ import {
 } from '../../src/server/parliament/resolutions/greens/BiodomeContest';
 import {AQUIFER_CONTEST, AQUIFER_CONTEST_ID} from '../../src/server/parliament/resolutions/greens/AquiferContest';
 import {ARCHITECTURE_AWARD, ARCHITECTURE_AWARD_ID} from '../../src/server/parliament/resolutions/marsFirst/ArchitectureAward';
-import {dummyResolutionId, REDUX_RESOLUTION_CATALOG} from '../../src/server/parliament/resolutions/ResolutionCatalog';
+import {REDUX_RESOLUTION_CATALOG} from '../../src/server/parliament/resolutions/ResolutionCatalog';
+import {seatEnacted, seatResolution} from './parliamentArrange';
 import {getParliamentModel} from '../../src/server/parliament/ParliamentModel';
 import {QuestTracker} from '../../src/server/parliament/quests/QuestTracker';
 import {PartyName} from '../../src/common/turmoil/PartyName';
@@ -48,7 +49,6 @@ import {PlayerId} from '../../src/common/Types';
  * own ones do, and no reload / repeated answer / re-entry pays anything twice.
  */
 const BIODOME = resolutionInstanceId(BIODOME_CONTEST_ID, 0);
-const MARS_DUMMY = resolutionInstanceId(dummyResolutionId(PartyName.MARS, 2), 0);
 
 function reduxGame(): [IGame, TestPlayer, TestPlayer, Parliament] {
   const [game, p1, p2] = testGame(2, {turmoilReduxExpansion: true, coloniesExtension: true});
@@ -58,16 +58,14 @@ function reduxGame(): [IGame, TestPlayer, TestPlayer, Parliament] {
 
 /**
  * Seat Biodome Contest in slot 0 with p1's delegate on it (p1 wins it), the
- * other two slots on parties that cannot collide with it, and Mars First
- * ruling BEFORE the enactment — so the Greens' presence at the effect is the
- * enactment's own doing.
+ * rest of the area on other parties (the seating keeps it distinct), and Mars
+ * First ruling BEFORE the enactment — so the Greens' presence at the effect is
+ * the enactment's own doing.
  */
 function stage(): [IGame, TestPlayer, TestPlayer, Parliament] {
   const [game, p1, p2, parliament] = reduxGame();
-  parliament.slots[0].instance = BIODOME;
-  parliament.slots[1].instance = resolutionInstanceId(dummyResolutionId(PartyName.REDS, 1), 0);
-  parliament.slots[2].instance = resolutionInstanceId(dummyResolutionId(PartyName.UNITY, 1), 0);
-  parliament.enacted = MARS_DUMMY;
+  seatResolution(parliament, 0, BIODOME);
+  seatEnacted(parliament, ARCHITECTURE_AWARD_ID);
   parliament.placeVote(p1, parliament.slots[0], 'lobby');
   p1.megaCredits = 20;
   p2.megaCredits = 20;
@@ -111,7 +109,7 @@ function greeneries(game: IGame): number {
 
 describe('BiodomeContest', () => {
   describe('the catalog entry', () => {
-    it('is RX03 of the Greens, replaces the Greens dummy with the same quest in the deck and keeps the pool at 12', () => {
+    it('is RX03 of the Greens, dealt as ONE card', () => {
       expect(REDUX_RESOLUTION_CATALOG.get(BIODOME_CONTEST_ID)).eq(BIODOME_CONTEST);
       expect(BIODOME_CONTEST_CODE).eq('RX03');
       expect(BIODOME_CONTEST_CODE).matches(RESOLUTION_CODE_PATTERN);
@@ -123,15 +121,8 @@ describe('BiodomeContest', () => {
       expect(BIODOME_CONTEST.scaled).deep.eq([BIODOME_CONTEST_PLANTS]);
       expect(BIODOME_CONTEST.winnerReward).deep.eq({kind: 'tile', tile: 'greenery'});
       expect(BIODOME_CONTEST.winnerSteps).has.length(1);
-      // The dummy it replaces stays loadable — never re-pointed at the new card.
-      const oldDummy = REDUX_RESOLUTION_CATALOG.get(dummyResolutionId(PartyName.GREENS, 1));
-      expect(oldDummy?.copies).eq(0);
-      expect(oldDummy?.dummy).is.true;
-      expect(oldDummy?.immediateSteps).is.undefined;
-      expect(oldDummy?.winnerSteps).is.undefined;
       const dealt = REDUX_RESOLUTION_CATALOG.dealtInstances(() => true);
       expect(dealt).includes(BIODOME);
-      expect(dealt).not.includes(resolutionInstanceId(dummyResolutionId(PartyName.GREENS, 1), 0));
       // The Greens' share of the deck is however many of THEIR resolutions are
       // implemented — the prototype's «two per party» was never a rule.
       expect(dealt.filter((instance) => REDUX_RESOLUTION_CATALOG.ofInstance(instance).party === PartyName.GREENS).sort())
@@ -395,9 +386,8 @@ describe('BiodomeContest', () => {
 
     it('a party effect held by delegates on a LOSING card still reacts: Mars First pays its steel for the greenery (the delegates stay until the refresh)', () => {
       const [game, p1, p2, parliament] = reduxGame();
-      parliament.slots[0].instance = BIODOME;
-      parliament.slots[1].instance = resolutionInstanceId(ARCHITECTURE_AWARD_ID, 0);
-      parliament.slots[2].instance = resolutionInstanceId(dummyResolutionId(PartyName.REDS, 1), 0);
+      seatResolution(parliament, 0, BIODOME);
+      seatResolution(parliament, 1, ARCHITECTURE_AWARD_ID);
       parliament.placeVote(p1, parliament.slots[0], 'lobby');
       parliament.addNeutralVote(parliament.slots[0]);
       parliament.addNeutralVote(parliament.slots[0]);
@@ -418,7 +408,7 @@ describe('BiodomeContest', () => {
 
     it('a neutral winner places no greenery; the plants still reach every participant', () => {
       const [game, p1, p2, parliament] = reduxGame();
-      parliament.slots[0].instance = BIODOME;
+      seatResolution(parliament, 0, BIODOME);
       parliament.addNeutralVote(parliament.slots[0]);
       parliament.agenda.set(p1.id, 1);
       parliament.agenda.set(p2.id, 3);
@@ -628,7 +618,7 @@ describe('BiodomeContest', () => {
     it('an enactment interrupted between two players\' plants resumes with the second only (reload AND in-memory re-entry)', () => {
       const [game, p1, p2, parliament] = reduxGame();
       // p2 wins, so p1 (first in generation order) is paid and then p2's payout crashes once.
-      parliament.slots[0].instance = BIODOME;
+      seatResolution(parliament, 0, BIODOME);
       parliament.placeVote(p2, parliament.slots[0], 'lobby');
       parliament.agenda.set(p1.id, 3);
       const realAdd = p2.stock.add.bind(p2.stock);
@@ -671,8 +661,8 @@ describe('BiodomeContest', () => {
       expect(p1.plants).eq(2);
       // Generation 2: the card leaves ENACTED, returns to the vote and wins again.
       game.phase = Phase.ACTION;
-      parliament.slots[0].instance = BIODOME;
-      parliament.enacted = MARS_DUMMY;
+      seatResolution(parliament, 0, BIODOME);
+      seatEnacted(parliament, ARCHITECTURE_AWARD_ID);
       parliament.placeVote(p1, parliament.slots[0], 'lobby');
       endGeneration(game);
       // step 1 → 2 is a TR step: influence stays 1 → 2 plants more; a second greenery is asked.
@@ -682,24 +672,6 @@ describe('BiodomeContest', () => {
       runAllActions(game);
       expect(greeneries(game)).eq(2);
     });
-
-    it('an older save whose slot still holds the replaced Greens dummy loads it as the dummy: no plants, no greenery', () => {
-      const [game, p1, p2, parliament] = reduxGame();
-      const dummy = resolutionInstanceId(dummyResolutionId(PartyName.GREENS, 1), 0);
-      parliament.slots[0].instance = dummy;
-      parliament.placeVote(p1, parliament.slots[0], 'lobby');
-      const live = reload(game);
-      expect(live.parliament!.slots[0].instance).eq(dummy);
-      endGeneration(live);
-      runAllActions(live);
-      const one = live.getPlayerById(p1.id);
-      const two = live.getPlayerById(p2.id);
-      expect(live.parliament!.lastPhase?.enacted).eq(dummy);
-      expect(one.plants).eq(0);
-      expect(two.plants).eq(0);
-      expect(greeneries(live)).eq(0);
-      expect(live.gameLog.some((entry) => entry.message === 'Resolution ${0} has no effect of its own')).is.true;
-    });
   });
 
   describe('MarsBot and the end of the game', () => {
@@ -707,7 +679,7 @@ describe('BiodomeContest', () => {
       const [game, human, bot] = testAutomaGame({coloniesExtension: true, turmoilReduxExpansion: true});
       const parliament = game.parliament!;
       game.playerIsFinishedWithResearchPhase(human);
-      parliament.slots[0].instance = BIODOME;
+      seatResolution(parliament, 0, BIODOME);
       parliament.placeVote(human, parliament.slots[0], 'lobby');
       human.popWaitingFor();
       game.playerHasPassed(human);

@@ -198,7 +198,7 @@ for (const preset of PRESETS) {
       await expect(rules, 'a card that only raises energy production is not counted').not.toContainText(/Искусственный фотосинтез|Artificial Photosynthesis/);
       await expect(page.locator('dialog.con-zoom.con-zoom--parliament[open]:not(.con-zoom--flight)')).toHaveCount(1, {timeout: 10_000});
       await shoot(page, preset.id, '03-fullscreen');
-      // Paging to another resolution re-reads at once (it scales nothing), and back again.
+      // Paging to another resolution and back re-reads the grid's own numbers at once.
       await press(page, 'BracketRight', 900);
       await expect(zoom.locator('.card-zoom-stage .pcard').first()).not.toHaveClass(GRID_CLASS, {timeout: 10_000});
       await press(page, 'BracketLeft', 900);

@@ -330,11 +330,7 @@ export class ParliamentPhase {
     const immediate = definition.immediateSteps ?? [];
     const winnerSteps = definition.winnerSteps ?? [];
     if (immediate.length === 0 && winnerSteps.length === 0) {
-      const key = `effect:${p.generation}:${instance}:none`;
-      if (!this.applied(key)) {
-        this.game.log('Resolution ${0} has no effect of its own', (b) => b.resolution(definition.id));
-        this.markApplied(key);
-      }
+      // Nothing to walk: a passive or an action works from the ENACTED slot.
       return 'done';
     }
     // EVERY seat is walked from the first on each entry: the per-seat keys make

@@ -220,14 +220,14 @@ for (const preset of PRESETS) {
       await expect(page.locator('.cm-stand')).toHaveCount(1);
 
       // ── ▶ …: past the REAL resolutions (each stamped with its own RX## code) the catalog ends in the
-      //    dummies — no scaled part, and the instrument says so. The real ones grow with every iteration,
-      //    so the walk asks the CURSOR what it stands on instead of counting slots.
+      //    never-dealt development examples — no scaled part, and the instrument says so. The real ones
+      //    grow with every iteration, so the walk asks the CURSOR what it stands on instead of counting slots.
       await press(page, 'ArrowRight', 400);
       await expect(page.locator('[data-rxpg-catalog] .con-rxpg__slot').nth(1)).toHaveAttribute('data-rxpg-code', 'RX02');
-      const onDummy = await pressUntil(page, 'ArrowRight',
+      const onExample = await pressUntil(page, 'ArrowRight',
         async () => await page.locator('[data-rxpg-catalog] .con-rxpg__slot--cursor[data-rxpg-code=""]').count() > 0,
         {tries: 14, settleMs: 300});
-      expect(onDummy, 'the cursor reaches a catalog entry without a code (a dummy)').toBe(true);
+      expect(onExample, 'the cursor reaches a catalog entry without a code (a development example)').toBe(true);
       await expect(page.locator('[data-rxpg-yield-none]')).toHaveCount(1);
 
       // No native scrollbar anywhere on the stand (the console rule).

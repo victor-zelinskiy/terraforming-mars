@@ -613,8 +613,8 @@
   ],
   "discardPile": []
  },
- "createdTimeMs": 1789692994493,
- "currentSeed": 608079849916,
+ "createdTimeMs": 1789741548749,
+ "currentSeed": 593427323412,
  "deferredActions": [],
  "donePlayers": [],
  "draftRound": 1,
@@ -633,7 +633,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1789692994493
+   "timestamp": 1789741548749
   },
   {
    "message": "Good luck ${0}!",
@@ -643,7 +643,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1789692994493,
+   "timestamp": 1789741548749,
    "playerId": "p-player1-id"
   },
   {
@@ -654,7 +654,7 @@
      "value": "red"
     }
    ],
-   "timestamp": 1789692994493,
+   "timestamp": 1789741548749,
    "playerId": "p-player2-id"
   },
   {
@@ -665,7 +665,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1789692994493,
+   "timestamp": 1789741548749,
    "type": 1
   },
   {
@@ -680,7 +680,7 @@
      "value": "Teractor"
     }
    ],
-   "timestamp": 1789692994494,
+   "timestamp": 1789741548749,
    "correlationId": 1,
    "parentId": 1,
    "role": "root-action",
@@ -698,7 +698,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1789692994494,
+   "timestamp": 1789741548749,
    "correlationId": 1,
    "parentId": 1,
    "role": "detail"
@@ -715,7 +715,7 @@
      "value": "Aridor"
     }
    ],
-   "timestamp": 1789692994494,
+   "timestamp": 1789741548749,
    "correlationId": 2,
    "parentId": 2,
    "role": "root-action",
@@ -733,7 +733,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1789692994494,
+   "timestamp": 1789741548749,
    "correlationId": 2,
    "parentId": 2,
    "role": "detail"
@@ -919,7 +919,7 @@
   "Builder",
   "Planner"
  ],
- "name": "Synthetic Vacuum Cloud",
+ "name": "Isolated Hydrogen Burst",
  "oxygenLevel": 0,
  "passedPlayers": [],
  "phase": "action",
@@ -1028,10 +1028,10 @@
    "handicap": 0,
    "timer": {
     "sumElapsed": 0,
-    "startedAt": 1789692994494,
+    "startedAt": 1789741548749,
     "running": true,
     "afterFirstAction": true,
-    "lastStoppedAt": 1789692994494
+    "lastStoppedAt": 1789741548749
    },
    "actionsTakenThisGame": 1,
    "victoryPointsByGeneration": [],
@@ -1159,10 +1159,10 @@
    "handicap": 0,
    "timer": {
     "sumElapsed": 0,
-    "startedAt": 1789692994494,
+    "startedAt": 1789741548749,
     "running": false,
     "afterFirstAction": true,
-    "lastStoppedAt": 1789692994494
+    "lastStoppedAt": 1789741548749
    },
    "actionsTakenThisGame": 0,
    "victoryPointsByGeneration": [],
@@ -1522,11 +1522,11 @@
     ]
    },
    {
-    "instance": "RDX_DUMMY_SCIENTISTS_1#0",
+    "instance": "RDX_MARS_ARCHITECTURE_AWARD#0",
     "votes": []
    },
    {
-    "instance": "RDX_DUMMY_UNITY_2#0",
+    "instance": "RDX_GREENS_AQUIFER_CONTEST#0",
     "votes": []
    }
   ],
@@ -1555,18 +1555,11 @@
   "grantedEffects": {},
   "partyActionUses": {},
   "resolutionActionUses": {},
-  "deck": [
+  "deck": [],
+  "discard": [
    "RDX_GREENS_BIODOME_CONTEST#0",
-   "RDX_GREENS_CLIMATE_RESEARCH#0",
-   "RDX_MARS_ARCHITECTURE_AWARD#0",
-   "RDX_GREENS_AQUIFER_CONTEST#0",
-   "RDX_DUMMY_REDS_2#0",
-   "RDX_DUMMY_UNITY_1#0",
-   "RDX_DUMMY_SCIENTISTS_2#0",
-   "RDX_DUMMY_MARS_2#0",
-   "RDX_DUMMY_INDUSTRIALISTS_2#0"
+   "RDX_GREENS_CLIMATE_RESEARCH#0"
   ],
-  "discard": [],
   "botMode": "none"
  }
 }

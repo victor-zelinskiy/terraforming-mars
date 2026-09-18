@@ -5,7 +5,8 @@ import {IGame} from '../../src/server/IGame';
 import {Game} from '../../src/server/Game';
 import {Parliament} from '../../src/server/parliament/Parliament';
 import {AQUIFER_CONTEST, AQUIFER_CONTEST_ANIMALS, AQUIFER_CONTEST_CODE, AQUIFER_CONTEST_ID} from '../../src/server/parliament/resolutions/greens/AquiferContest';
-import {dummyResolutionId, REDUX_RESOLUTION_CATALOG, ResolutionCatalog} from '../../src/server/parliament/resolutions/ResolutionCatalog';
+import {REDUX_RESOLUTION_CATALOG, ResolutionCatalog} from '../../src/server/parliament/resolutions/ResolutionCatalog';
+import {seatResolution} from './parliamentArrange';
 import {PartyName} from '../../src/common/turmoil/PartyName';
 import {Phase} from '../../src/common/Phase';
 import {CardName} from '../../src/common/cards/CardName';
@@ -49,7 +50,7 @@ function reduxGame(): [IGame, TestPlayer, TestPlayer, Parliament] {
 /** Seat Aquifer Contest in slot 0 with p1's delegate on it, so p1 wins it at the end of the generation. */
 function stage(): [IGame, TestPlayer, TestPlayer, Parliament] {
   const [game, p1, p2, parliament] = reduxGame();
-  parliament.slots[0].instance = AQUIFER;
+  seatResolution(parliament, 0, AQUIFER);
   parliament.placeVote(p1, parliament.slots[0], 'lobby');
   p1.megaCredits = 20;
   p2.megaCredits = 20;
@@ -84,7 +85,7 @@ function animalsOn(player: TestPlayer, name: CardName): number {
 
 describe('AquiferContest', () => {
   describe('the catalog entry', () => {
-    it('is catalogued with its printed code, replaces the second Greens dummy in the deck and keeps the pool at 12', () => {
+    it('is catalogued with its printed code and dealt as ONE card of the Greens', () => {
       expect(REDUX_RESOLUTION_CATALOG.get(AQUIFER_CONTEST_ID)).eq(AQUIFER_CONTEST);
       expect(AQUIFER_CONTEST.code).eq(AQUIFER_CONTEST_CODE);
       expect(AQUIFER_CONTEST_CODE).matches(RESOLUTION_CODE_PATTERN);
@@ -92,17 +93,8 @@ describe('AquiferContest', () => {
       expect(AQUIFER_CONTEST.party).eq(PartyName.GREENS);
       expect(AQUIFER_CONTEST.quest).deep.eq({goal: {kind: 'tag', tag: Tag.ANIMAL}, count: 1});
       expect(AQUIFER_CONTEST.scaled).deep.eq([AQUIFER_CONTEST_ANIMALS]);
-      // The old dummy stays loadable (an older save may carry it) but is never dealt again.
-      const oldDummy = REDUX_RESOLUTION_CATALOG.get(dummyResolutionId(PartyName.GREENS, 2));
-      expect(oldDummy?.copies).eq(0);
-      expect(oldDummy?.dummy).is.true;
       const dealt = REDUX_RESOLUTION_CATALOG.dealtInstances(() => true);
-      expect(dealt).includes(AQUIFER);
-      expect(dealt).not.includes(resolutionInstanceId(dummyResolutionId(PartyName.GREENS, 2), 0));
-      // The deck is the sum of what is shipped — never a fixed total and never
-      // a quota per party (the Greens outgrew their two prototype slots).
-      expect(dealt.filter((instance) => REDUX_RESOLUTION_CATALOG.ofInstance(instance).party === PartyName.GREENS).length)
-        .eq(REDUX_RESOLUTION_CATALOG.all().filter((r) => r.party === PartyName.GREENS && r.copies > 0).length);
+      expect(dealt.filter((instance) => instance === AQUIFER)).has.length(1);
     });
 
     it('every printed code is unique and well-formed; a duplicate or a malformed one is refused', () => {
@@ -267,7 +259,7 @@ describe('AquiferContest', () => {
 
     it('a neutral winner places no ocean; the animals still reach every participant', () => {
       const [game, p1, p2, parliament] = reduxGame();
-      parliament.slots[0].instance = AQUIFER;
+      seatResolution(parliament, 0, AQUIFER);
       parliament.addNeutralVote(parliament.slots[0]);
       parliament.agenda.set(p1.id, 1);
       parliament.agenda.set(p2.id, 3);
@@ -417,8 +409,7 @@ describe('AquiferContest', () => {
       expect(animalsOn(p1, CardName.FISH)).eq(1);
       // Generation 2: the card leaves ENACTED for the discard, then returns to the vote and wins again.
       game.phase = Phase.ACTION;
-      parliament.slots[0].instance = AQUIFER;
-      parliament.enacted = undefined;
+      seatResolution(parliament, 0, AQUIFER);
       parliament.placeVote(p1, parliament.slots[0], 'lobby');
       endGeneration(game);
       expect(cast(p1.getWaitingFor(), SelectCard).resourceGainPrompt?.amount, 'step 2 = influence 1 still').eq(1);
@@ -430,7 +421,7 @@ describe('AquiferContest', () => {
       const [game, human, bot] = testAutomaGame({coloniesExtension: true, turmoilReduxExpansion: true});
       const parliament = game.parliament!;
       game.playerIsFinishedWithResearchPhase(human);
-      parliament.slots[0].instance = AQUIFER;
+      seatResolution(parliament, 0, AQUIFER);
       parliament.placeVote(human, parliament.slots[0], 'lobby');
       human.playedCards.push(new Fish());
       bot.playedCards.push(new Fish());

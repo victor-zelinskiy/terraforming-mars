@@ -4,7 +4,8 @@ import {TestPlayer} from '../TestPlayer';
 import {IGame} from '../../src/server/IGame';
 import {Game} from '../../src/server/Game';
 import {Parliament} from '../../src/server/parliament/Parliament';
-import {dummyResolutionId, TEST_CHOICE_RESOLUTION_ID} from '../../src/server/parliament/resolutions/ResolutionCatalog';
+import {TEST_CHOICE_RESOLUTION_ID} from '../../src/server/parliament/resolutions/ResolutionCatalog';
+import {seatQuiet, seatResolution} from './parliamentArrange';
 import {PartyName} from '../../src/common/turmoil/PartyName';
 import {PARLIAMENT_VOTING_SLOTS, REDUX_PARTIES, resolutionInstanceId} from '../../src/common/parliament/ParliamentTypes';
 import {Phase} from '../../src/common/Phase';
@@ -23,16 +24,15 @@ function reduxGame(): [IGame, TestPlayer, TestPlayer, Parliament] {
 }
 
 /**
- * Replace the card in `index` with its own party's DUMMY — a resolution with
- * no effect of its own, so the phase never stops to ask. Every spec whose
- * subject is the PHASE (not a card) uses it: the voting area is dealt at
- * random from a pool that grows with each implemented resolution, so «the
- * card that happened to land here asks nothing» is not something a spec may
- * assume. The party reading stays exactly as dealt.
+ * Replace the card in `index` with a real resolution of its own party whose
+ * enactment asks nothing (`seatQuiet`). Every spec whose subject is the PHASE
+ * (not a card) uses it: the voting area is dealt at random from a pool that
+ * grows with each implemented resolution, so «the card that happened to land
+ * here asks nothing» is not something a spec may assume. The party reading
+ * stays exactly as dealt.
  */
 function quiet(parliament: Parliament, index: number): void {
-  const slot = parliament.slots[index];
-  slot.instance = resolutionInstanceId(dummyResolutionId(parliament.resolutionOf(slot.instance).party, 1), 0);
+  seatQuiet(parliament, index);
 }
 
 /** Every player passes; the engine runs production → the parliament → the next generation. */
@@ -49,9 +49,9 @@ describe('ParliamentPhase', () => {
     const slot = parliament.slots[1];
     // THE GENERIC PHASE: the voted card is one whose effect never asks — a
     // real resolution dealt here (a winner's tile) would hold the phase for
-    // its answer. The dummy of the dealt card's OWN party keeps every party
-    // reading below as it was.
-    slot.instance = resolutionInstanceId(dummyResolutionId(parliament.resolutionOf(slot.instance).party, 1), 0);
+    // its answer. A quiet card of the dealt card's OWN party keeps every
+    // party reading below as it was.
+    quiet(parliament, 1);
     const winnerParty = parliament.resolutionOf(slot.instance).party;
     const loserParties = parliament.partiesInVotingArea().filter((party) => party !== winnerParty);
     const loserWithVote = parliament.slots[2];
@@ -62,6 +62,9 @@ describe('ParliamentPhase', () => {
     parliament.recordPartyActionUse(p1, PartyName.GREENS);
     const winnerInstance = slot.instance;
     const trBefore = p1.terraformRating;
+    const poolOf = () => [...parliament.deck, ...parliament.discard, ...parliament.slots.map((s) => s.instance),
+      ...(parliament.enacted === undefined ? [] : [parliament.enacted])];
+    const poolBefore = new Set(poolOf());
 
     finishGeneration(game);
 
@@ -93,12 +96,25 @@ describe('ParliamentPhase', () => {
     expect(parliament.quest?.source).eq(parliament.resolutionOf(winnerInstance).id);
     expect(parliament.quest?.generation).eq(2);
     expect(parliament.quest?.completedBy).is.undefined;
-    // 5. three fresh resolutions of distinct parties, none of the enacted party; the two losers were discarded
-    expect(parliament.slots).has.length(PARLIAMENT_VOTING_SLOTS);
+    // 5. fresh resolutions of distinct parties, none of the enacted party; the two losers were discarded.
+    //    The refresh deals one card per party, never the enacted card's
+    //    party: as many slots as the pool has OTHER parties, at most three (a
+    //    slot nothing fits stays empty — the deck is real resolutions only).
+    const otherParties = new Set(parliament.catalog.dealtInstances(() => true)
+      .map((instance) => parliament.resolutionOf(instance).party)
+      .filter((party) => party !== winnerParty));
+    const expectedSlots = Math.min(PARLIAMENT_VOTING_SLOTS, otherParties.size);
+    expect(parliament.slots).has.length(expectedSlots);
     const parties = parliament.partiesInVotingArea();
-    expect(new Set(parties).size).eq(PARLIAMENT_VOTING_SLOTS);
+    expect(new Set(parties).size).eq(expectedSlots);
     expect(parties).not.includes(winnerParty);
-    expect(parliament.discard).includes(loserWithVote.instance);
+    // The losers went back through the discard — with a small real pool the
+    // refresh reshuffles it and may deal one straight back. What must hold is
+    // the POOL: the same cards as before, each in exactly one place.
+    expect(parliament.slots.map((s) => s.instance)).not.includes(winnerInstance);
+    const poolAfter = poolOf();
+    expect(new Set(poolAfter).size, 'no card in two places').eq(poolAfter.length);
+    expect(new Set(poolAfter)).deep.eq(poolBefore);
     // the lobby is refilled, the uses reset, the ledger intact
     expect(parliament.lobby.has(p1.id)).is.true;
     expect(parliament.lobby.has(p2.id)).is.true;
@@ -111,7 +127,7 @@ describe('ParliamentPhase', () => {
     expect(summary.winner.player).eq(p1.id);
     expect(summary.agenda).deep.eq({player: p1.id, from: 0, to: 1, bonus: undefined});
     expect(summary.enacted).eq(winnerInstance);
-    expect(summary.refreshed).has.length(3);
+    expect(summary.refreshed).has.length(expectedSlots);
     expect(summary.lobbyRefilled).has.members([p1.id, p2.id]);
   });
 
@@ -120,7 +136,7 @@ describe('ParliamentPhase', () => {
     // THE GENERIC PHASE again: the subject is the Agenda, so the card that
     // wins must be one whose effect never asks. The deal is random and the
     // pool grows with every implemented resolution — pinning the winning slot
-    // to its OWN party's dummy is what keeps this spec about the Agenda.
+    // to a quiet card of its OWN party is what keeps this spec about the Agenda.
     quiet(parliament, 0);
     parliament.addNeutralVote(parliament.slots[0]);
     finishGeneration(game);
@@ -142,7 +158,7 @@ describe('ParliamentPhase', () => {
     /** Seat the test resolution in slot 0 with p1's delegate on it, so p1 wins. */
     function stage(): [IGame, TestPlayer, TestPlayer, Parliament] {
       const [game, p1, p2, parliament] = reduxGame();
-      parliament.slots[0].instance = resolutionInstanceId(TEST_CHOICE_RESOLUTION_ID, 0);
+      seatResolution(parliament, 0, TEST_CHOICE_RESOLUTION_ID);
       parliament.placeVote(p1, parliament.slots[0], 'lobby');
       p1.megaCredits = 10;
       p2.megaCredits = 10;
@@ -221,7 +237,7 @@ describe('ParliamentPhase', () => {
       const [game, human, bot] = testAutomaGame({coloniesExtension: true, turmoilReduxExpansion: true});
       const parliament = game.parliament!;
       game.playerIsFinishedWithResearchPhase(human);
-      parliament.slots[0].instance = resolutionInstanceId(TEST_CHOICE_RESOLUTION_ID, 0);
+      seatResolution(parliament, 0, TEST_CHOICE_RESOLUTION_ID);
       parliament.placeVote(human, parliament.slots[0], 'lobby');
       human.popWaitingFor();
       game.playerHasPassed(human);

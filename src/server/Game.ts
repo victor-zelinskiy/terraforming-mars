@@ -2494,7 +2494,7 @@ export class Game implements IGame, Logger {
     // (IncompatibleParliamentSaveError): a game whose politics cannot be
     // reconstructed is never played on with an empty slot.
     if (d.parliament !== undefined && gameOptions.turmoilReduxExpansion) {
-      game.parliament = Parliament.deserialize(d.parliament);
+      game.parliament = Parliament.deserialize(d.parliament, {expansions: gameOptions.expansions, rng: game.rng});
     }
 
     // Reload moon elements if needed

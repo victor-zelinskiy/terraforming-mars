@@ -143,7 +143,7 @@ async function expectFits(page: Page, label: string): Promise<void> {
       const r = el.getBoundingClientRect();
       return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden';
     };
-    const blocks = '.con-parl__gov, .con-parl__slot, .con-parl__tally, .con-parl__seats, .con-parl__seat, .con-parl__party, .con-parl__pline, .con-parl__agenda, ' +
+    const blocks = '.con-parl__gov, .con-parl__slot, .con-parl__slot-empty, .con-parl__tally, .con-parl__seats, .con-parl__seat, .con-parl__party, .con-parl__pline, .con-parl__agenda, ' +
       '.con-parl__stage, .con-parl__quest, .con-parl__info, .con-parl__info-block, .con-parl__fact, .con-parl__cta, ' +
       // The bill inside the mode: the shared payment panel must stand whole in the vote column (it once ran past it on the right).
       '.con-parl__vote .con-task-host--embedded .con-pay';
@@ -165,7 +165,7 @@ async function expectFits(page: Page, label: string): Promise<void> {
     const reading = '.con-pseal__name, .con-pseal__state-text, .con-parl__tally-row, .con-parl__seat, .con-parl__ruler-name, .con-parl__ruler-scope, .con-parl__info-scope, .con-parl__cta-cost, ' +
       '.con-parl__quest-text, .con-parl__quest-reward, .con-parl__slot-win, .con-parl__slot-party, .con-parl__kicker, .con-parl__pline-text, ' +
       '.con-parl__recap-item, .con-parl__txn-row, .con-parl__fact-key, .con-parl__fact-val, .con-parl__info-name, .con-parl__info-kicker, ' +
-      '.con-parl__seat-name, .con-parl__seat-key, .con-parl__info-src-text, .con-parl__cta-label';
+      '.con-parl__seat-name, .con-parl__seat-key, .con-parl__info-src-text, .con-parl__cta-label, .con-parl__slot-empty-reason';
     for (const el of Array.from(root.querySelectorAll<HTMLElement>(reading))) {
       if (!visible(el)) {
         continue;
@@ -173,7 +173,7 @@ async function expectFits(page: Page, label: string): Promise<void> {
       if (el.scrollWidth > el.clientWidth + 1) {
         out.push(`cut ${name(el)}: ${(el.textContent ?? '').trim().slice(0, 48)}`);
       }
-      const tier = el.closest<HTMLElement>('.con-parl__gov, .con-parl__stage, .con-parl__party, .con-parl__slot, .con-parl__seats, .con-parl__pline, .con-parl__info');
+      const tier = el.closest<HTMLElement>('.con-parl__gov, .con-parl__stage, .con-parl__party, .con-parl__slot, .con-parl__slot-empty, .con-parl__seats, .con-parl__pline, .con-parl__info');
       if (tier !== null) {
         const t = tier.getBoundingClientRect();
         const e = el.getBoundingClientRect();
@@ -279,6 +279,25 @@ async function expectInspectorScene(page: Page, label: string): Promise<void> {
     if (bar !== null && panel !== null) {
       const box = bar.getBoundingClientRect();
       const kids = Array.from(bar.children).map((kid) => ({kid, r: kid.getBoundingClientRect()})).filter((k) => k.r.width > 0);
+      // …and nothing spills out of a reading plate the row squeezed (a caption
+      // that overflows paints over its neighbour — the bar's own rect never shows it).
+      const plates = Array.from(bar.querySelectorAll<HTMLElement>('.con-iyield__reading'));
+      for (const plate of plates) {
+        if (plate.scrollWidth > plate.clientWidth + 1) {
+          out.push(`a footer reading spills (${plate.scrollWidth} > ${plate.clientWidth}): ${(plate.textContent ?? '').trim().slice(0, 40)}`);
+        }
+      }
+      // …and no two plates overlap (a squeezed column lets its plates run into the next one).
+      const rects = plates.map((plate) => plate.getBoundingClientRect());
+      for (let i = 0; i < rects.length; i++) {
+        for (let j = i + 1; j < rects.length; j++) {
+          const a = rects[i];
+          const b = rects[j];
+          if (Math.min(a.right, b.right) - Math.max(a.left, b.left) > 1 && Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 1) {
+            out.push(`footer readings ${i} and ${j} overlap`);
+          }
+        }
+      }
       for (const {kid, r} of kids) {
         if (r.left < box.left - 1 || r.right > box.right + 1) {
           out.push(`footer item ${kid.className.toString().split(' ')[0]} outside the bar (${Math.round(r.left)}..${Math.round(r.right)} of ${Math.round(box.left)}..${Math.round(box.right)})`);
@@ -493,7 +512,7 @@ for (const preset of PRESETS) {
       await expect(page.locator('[data-parl-fact="access"]'), 'the party-effect access stands beside the vote, not promised by the card').toContainText(/1\s*из\s*2/);
       await expect(page.locator('.con-parl__slot--selected [data-parl-vote-place]'), 'the place the delegate will take, on the selected card').toHaveCount(1);
       await expect(page.locator('[data-parl-info="own"]'), 'the resolution\'s own effect block').toHaveCount(1);
-      await expect(page.locator('[data-parl-info="own"]'), 'a dummy says so calmly').toContainText(/Собственного эффекта нет/);
+      await expect(page.locator('[data-parl-info="own"] .con-parl__info-part'), 'a real resolution reads its own effect, under WHEN it applies').not.toHaveCount(0);
       await expect(page.locator('[data-parl-info="party"] .con-pformula__mech'), 'the party effect as a graphic').toHaveCount(1);
       await expect(page.locator('[data-parl-info="party"]'), 'one caption — whose the party effect becomes').toContainText(/всем игрокам/i);
       await expect(page.locator('[data-parl-info="party"]'), 'no party sentence on the surface (the inspector has it)').not.toContainText(/раз за поколение/i);
@@ -899,9 +918,9 @@ test.describe('parliament v4 · a crowded table · the vote that is not possible
     await expect(page.locator('dialog.con-zoom[open]'), 'a blocked A never closes the viewer').toHaveCount(1);
     expect((await seatOf(request, playerId)).parl.slots.map((s) => s.totalVotes), 'no delegate was sent').toEqual(votesBefore);
     await shoot(page, preset, '22-dense-winner-in-inspector');
-    // Browsing stays open while voting is not.
+    // Browsing stays open while voting is not — across as many cards as the area holds.
     await press(page, 'KeyE', 900);
-    await expect(page.locator('[data-zoom-position]')).toHaveText(/2\s*\/\s*3/);
+    await expect(page.locator('[data-zoom-position]')).toHaveText(new RegExp(`2\\s*/\\s*${model.parl.slots.length}`));
     await closeZoomViewer(page);
     await settle(page, {timeoutMs: 8_000});
     expect(await pressUntil(page, 'Escape', async () => await voteMode(page).count() === 0, {tries: 3, settleMs: 1100})).toBeTruthy();

@@ -212,7 +212,6 @@ class ParliamentProcessor {
       text: definition.text,
       quest: definition.quest,
       questRenderData: questRenderData(definition.quest),
-      dummy: definition.dummy === true,
       hasImmediate: (definition.immediateSteps?.length ?? 0) > 0,
       hasWinnerEffect: (definition.winnerSteps?.length ?? 0) > 0,
       hasPassive: definition.passive !== undefined,

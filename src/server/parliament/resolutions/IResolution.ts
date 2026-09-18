@@ -109,7 +109,7 @@ export interface ResolutionDefinition {
   /**
    * The printed catalog code (`RX##` — see `ResolutionCode`): the face's
    * corner stamp, the art key and the search key. A REAL resolution declares
-   * one by hand; a dummy / dev example has none. Unique across the catalog.
+   * one by hand; a never-dealt test / dev example has none. Unique across the catalog.
    */
   code?: ResolutionCode;
   module: GameModule;
@@ -143,8 +143,6 @@ export interface ResolutionDefinition {
    * (what the tile is, which parameter its own placement moves).
    */
   winnerReward?: WinnerRewardDeclaration;
-  /** A dummy: real party, real votes, real quest — no effect of its own. */
-  dummy?: boolean;
   /** Per-player immediate effect (every participating player, generation order). */
   immediateSteps?: ReadonlyArray<EnactStep>;
   /** Winner-only effect (skipped for a neutral winner — rulebook FAQ p.18). */

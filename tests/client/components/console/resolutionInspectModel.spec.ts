@@ -12,18 +12,19 @@ import {resolutionPartyContextKey, resolutionStatusOf} from '@/client/console/pa
  * everyone's and asks nobody for delegates; no table → no status.
  */
 
-const REDS = 'RDX_DUMMY_REDS_1';
-const GREENS = 'RDX_DUMMY_GREENS_1';
+/** Cards of the real deck — the footer reads the MODEL, so the ids are only names here. */
+const GRID = 'RDX_INDUSTRIALISTS_CENTRAL_POWER_GRID';
+const AQUIFER = 'RDX_GREENS_AQUIFER_CONTEST';
 
 function slot(over: Partial<ParliamentSlotModel> = {}): ParliamentSlotModel {
-  return {instance: `${REDS}#0`, resolution: REDS, party: PartyName.REDS, votes: [], totalVotes: 0, leader: undefined, isWinning: false, tiePriority: 1, viewerVotes: 0, ...over};
+  return {instance: `${GRID}#0`, resolution: GRID, party: PartyName.INDUSTRIALISTS, votes: [], totalVotes: 0, leader: undefined, isWinning: false, tiePriority: 1, viewerVotes: 0, ...over};
 }
 
 function access(over: Partial<PartyAccessModel> = {}): PartyAccessModel {
-  return {party: PartyName.REDS, ruling: false, delegates: 0, byDelegates: false, granted: [], hasEffect: false, satisfiesRequirement: false, ...over};
+  return {party: PartyName.INDUSTRIALISTS, ruling: false, delegates: 0, byDelegates: false, granted: [], hasEffect: false, satisfiesRequirement: false, ...over};
 }
 
-function model(slots: ReadonlyArray<ParliamentSlotModel>, redsAccess: PartyAccessModel, over: Partial<ParliamentModel> = {}): ParliamentModel {
+function model(slots: ReadonlyArray<ParliamentSlotModel>, gridAccess: PartyAccessModel, over: Partial<ParliamentModel> = {}): ParliamentModel {
   return {
     slots,
     rulingParty: PartyName.GREENS,
@@ -33,7 +34,7 @@ function model(slots: ReadonlyArray<ParliamentSlotModel>, redsAccess: PartyAcces
         color: 'blue', participates: true, lobby: true, reserve: 5, onResolutions: 0, chairman: false, agenda: 0, influence: 0,
         access: [
           {party: PartyName.GREENS, ruling: true, delegates: 0, byDelegates: false, granted: [], hasEffect: true, satisfiesRequirement: true},
-          redsAccess,
+          gridAccess,
         ],
         partyActionUses: {}, resolutionActionUses: 0,
       },
@@ -49,14 +50,14 @@ function model(slots: ReadonlyArray<ParliamentSlotModel>, redsAccess: PartyAcces
 
 describe('resolutionInspectModel — the footer\'s standing and access', () => {
   it('no parliament, or a card that is neither in the vote nor enacted → no status (nothing invented)', () => {
-    expect(resolutionStatusOf(REDS, undefined, 'blue')).to.eq(undefined);
-    expect(resolutionStatusOf('RDX_DUMMY_UNITY_2', model([slot()], access()), 'blue')).to.eq(undefined);
+    expect(resolutionStatusOf(GRID, undefined, 'blue')).to.eq(undefined);
+    expect(resolutionStatusOf('RDX_MARS_ARCHITECTURE_AWARD', model([slot()], access()), 'blue')).to.eq(undefined);
     expect(resolutionPartyContextKey(undefined)).to.eq(undefined);
   });
 
   it('a proposal with 0 · 1 · 2 · 3 OWN delegates: not held below the threshold, held by delegates from two on (the pair stays a pair)', () => {
     const votesOf = (mine: number) => Array.from({length: mine}, (_, i) => ({owner: 'blue' as const, seq: i + 1}));
-    const at = (mine: number, held: boolean) => resolutionStatusOf(REDS,
+    const at = (mine: number, held: boolean) => resolutionStatusOf(GRID,
       model([slot({votes: votesOf(mine), totalVotes: mine, viewerVotes: mine})], access({delegates: mine, byDelegates: held, hasEffect: held})), 'blue');
     const zero = at(0, false);
     expect(zero?.lifecycle).to.eq('vote');
@@ -71,22 +72,22 @@ describe('resolutionInspectModel — the footer\'s standing and access', () => {
 
   it('neutral and other players\' delegates never fill the viewer\'s places', () => {
     const votes = [{owner: 'neutral' as const, seq: 1}, {owner: 'red' as const, seq: 2}, {owner: 'red' as const, seq: 3}, {owner: 'blue' as const, seq: 4}];
-    const status = resolutionStatusOf(REDS, model([slot({votes, totalVotes: 4, leader: 'red', isWinning: true, viewerVotes: 1})], access({delegates: 1})), 'blue');
+    const status = resolutionStatusOf(GRID, model([slot({votes, totalVotes: 4, leader: 'red', isWinning: true, viewerVotes: 1})], access({delegates: 1})), 'blue');
     expect(status?.access).to.deep.include({kind: 'progress', mine: 1});
     expect(status?.winning, 'the card\'s standing is read off the slot').to.eq(true);
   });
 
   it('the effect held on ANOTHER basis (the party rules · a card grant) reads as held, names the basis, and shows no places', () => {
-    const ruling = resolutionStatusOf(GREENS,
-      model([slot({instance: `${GREENS}#0`, resolution: GREENS, party: PartyName.GREENS})], access()), 'blue');
+    const ruling = resolutionStatusOf(AQUIFER,
+      model([slot({instance: `${AQUIFER}#0`, resolution: AQUIFER, party: PartyName.GREENS})], access()), 'blue');
     expect(ruling?.access).to.deep.include({kind: 'held', basis: 'ruling', mine: 0, places: false});
-    const granted = resolutionStatusOf(REDS, model([slot()], access({granted: ['Council Seat'], hasEffect: true})), 'blue');
+    const granted = resolutionStatusOf(GRID, model([slot()], access({granted: ['Council Seat'], hasEffect: true})), 'blue');
     expect(granted?.access).to.deep.include({kind: 'held', basis: 'granted', mine: 0, places: false});
   });
 
   it('an ENACTED resolution: everyone\'s — no delegates asked of anybody, and the party line states the fact', () => {
-    const status = resolutionStatusOf(REDS,
-      model([], access({ruling: true, hasEffect: true}), {enacted: {instance: `${REDS}#0`, resolution: REDS, party: PartyName.REDS}, rulingParty: PartyName.REDS}), 'blue');
+    const status = resolutionStatusOf(GRID,
+      model([], access({ruling: true, hasEffect: true}), {enacted: {instance: `${GRID}#0`, resolution: GRID, party: PartyName.INDUSTRIALISTS}, rulingParty: PartyName.INDUSTRIALISTS}), 'blue');
     expect(status?.lifecycle).to.eq('enacted');
     expect(status?.winning).to.eq(false);
     expect(status?.access).to.deep.include({kind: 'everyone', places: false});
@@ -94,7 +95,7 @@ describe('resolutionInspectModel — the footer\'s standing and access', () => {
   });
 
   it('the viewer is the player the inspector is opened AS — a seat with no parliament role (a spectator) gets the standing and no access', () => {
-    const status = resolutionStatusOf(REDS, model([slot({isWinning: true})], access()), 'yellow');
+    const status = resolutionStatusOf(GRID, model([slot({isWinning: true})], access()), 'yellow');
     expect(status?.lifecycle).to.eq('vote');
     expect(status?.winning).to.eq(true);
     expect(status?.access).to.eq(undefined);

@@ -7,9 +7,10 @@ import {Parliament} from '../../src/server/parliament/Parliament';
 import {
   CENTRAL_POWER_GRID, CENTRAL_POWER_GRID_CAP, CENTRAL_POWER_GRID_CODE, CENTRAL_POWER_GRID_ID, CENTRAL_POWER_GRID_PRODUCTION,
 } from '../../src/server/parliament/resolutions/industrialists/CentralPowerGrid';
-import {ARCHITECTURE_AWARD, ARCHITECTURE_AWARD_PRODUCTION} from '../../src/server/parliament/resolutions/marsFirst/ArchitectureAward';
+import {ARCHITECTURE_AWARD, ARCHITECTURE_AWARD_ID, ARCHITECTURE_AWARD_PRODUCTION} from '../../src/server/parliament/resolutions/marsFirst/ArchitectureAward';
 import {BIODOME_CONTEST} from '../../src/server/parliament/resolutions/greens/BiodomeContest';
-import {dummyResolutionId, REDUX_RESOLUTION_CATALOG} from '../../src/server/parliament/resolutions/ResolutionCatalog';
+import {REDUX_RESOLUTION_CATALOG} from '../../src/server/parliament/resolutions/ResolutionCatalog';
+import {seatEnacted, seatResolution} from './parliamentArrange';
 import {resolutionCount} from '../../src/server/parliament/resolutions/ResolutionCounts';
 import {PartyName} from '../../src/common/turmoil/PartyName';
 import {Phase} from '../../src/common/Phase';
@@ -74,7 +75,7 @@ function reduxGame(): [IGame, TestPlayer, TestPlayer, Parliament] {
 /** Seat Central Power Grid in slot 0 with p1's delegate on it, so p1 wins it at the end of the generation. */
 function stage(): [IGame, TestPlayer, TestPlayer, Parliament] {
   const [game, p1, p2, parliament] = reduxGame();
-  parliament.slots[0].instance = GRID;
+  seatResolution(parliament, 0, GRID);
   parliament.placeVote(p1, parliament.slots[0], 'lobby');
   p1.megaCredits = 20;
   p2.megaCredits = 20;
@@ -114,7 +115,7 @@ function powerCards(n: number): Array<ICard> {
 
 describe('CentralPowerGrid', () => {
   describe('the catalog entry', () => {
-    it('is RX04 of the Industrialists and replaces their first dummy in the deck', () => {
+    it('is RX04 of the Industrialists, dealt as ONE card', () => {
       expect(REDUX_RESOLUTION_CATALOG.get(CENTRAL_POWER_GRID_ID)).eq(CENTRAL_POWER_GRID);
       expect(CENTRAL_POWER_GRID_CODE).eq('RX04');
       expect(CENTRAL_POWER_GRID_CODE).matches(RESOLUTION_CODE_PATTERN);
@@ -127,15 +128,8 @@ describe('CentralPowerGrid', () => {
       expect(CENTRAL_POWER_GRID.scaled).deep.eq([CENTRAL_POWER_GRID_PRODUCTION]);
       expect(CENTRAL_POWER_GRID.winnerSteps, 'no winner-only part').is.undefined;
       expect(CENTRAL_POWER_GRID.winnerReward, 'no winner tile either').is.undefined;
-      // The old dummy stays loadable — it is NOT re-pointed at the new card.
-      const oldDummy = REDUX_RESOLUTION_CATALOG.get(dummyResolutionId(PartyName.INDUSTRIALISTS, 1));
-      expect(oldDummy?.copies).eq(0);
-      expect(oldDummy?.dummy).is.true;
-      expect(oldDummy?.immediateSteps).is.undefined;
       const dealt = REDUX_RESOLUTION_CATALOG.dealtInstances(() => true);
-      expect(dealt).includes(GRID);
-      expect(dealt).not.includes(resolutionInstanceId(dummyResolutionId(PartyName.INDUSTRIALISTS, 1), 0));
-      expect(dealt.filter((instance) => REDUX_RESOLUTION_CATALOG.ofInstance(instance).party === PartyName.INDUSTRIALISTS)).has.length(2);
+      expect(dealt.filter((instance) => instance === GRID)).has.length(1);
     });
 
     it('the shared formula: min(5, P + I) — every example of the brief, the cap on the SUM', () => {
@@ -353,7 +347,7 @@ describe('CentralPowerGrid', () => {
 
     it('a neutral winner cancels nothing: every participant is still paid, and nobody gets a winner-only part', () => {
       const [game, p1, p2, parliament] = reduxGame();
-      parliament.slots[0].instance = GRID;
+      seatResolution(parliament, 0, GRID);
       parliament.addNeutralVote(parliament.slots[0]);
       p1.playedCards.push(...powerCards(1));
       parliament.agenda.set(p2.id, agendaForInfluence(1));
@@ -439,8 +433,8 @@ describe('CentralPowerGrid', () => {
       expect(outcomeOf(parliament, p1)).deep.eq(outcome);
       // Losing the tags again takes nothing away, and a new government keeps the production.
       p1.playedCards.remove(p1.playedCards.get(CardName.HE3_FUSION_PLANT)!);
-      parliament.enacted = resolutionInstanceId(dummyResolutionId(PartyName.REDS, 1), 0);
-      expect(parliament.rulingParty()).eq(PartyName.REDS);
+      seatEnacted(parliament, ARCHITECTURE_AWARD_ID);
+      expect(parliament.rulingParty()).eq(PartyName.MARS);
       expect(p1.production.megacredits).eq(paid);
     });
 
@@ -510,8 +504,7 @@ describe('CentralPowerGrid', () => {
       expect(p1.production.megacredits).eq(2);
       game.phase = Phase.ACTION;
       p1.playedCards.push(new HE3FusionPlant());
-      parliament.slots[0].instance = GRID;
-      parliament.enacted = undefined;
+      seatResolution(parliament, 0, GRID);
       parliament.placeVote(p1, parliament.slots[0], 'lobby');
       endGeneration(game);
       runAllActions(game);
@@ -519,18 +512,6 @@ describe('CentralPowerGrid', () => {
       expect(parliament.lastPhase?.generation).eq(2);
       expect(outcomeOf(parliament, p1)).deep.include({count: 3, influence: 1, amount: 4});
       expect(p1.production.megacredits).eq(2 + 4);
-    });
-
-    it('an old save\'s Industrialists dummy stays a dummy: enacting it pays nothing', () => {
-      const [game, p1, , parliament] = reduxGame();
-      parliament.slots[0].instance = resolutionInstanceId(dummyResolutionId(PartyName.INDUSTRIALISTS, 1), 0);
-      parliament.placeVote(p1, parliament.slots[0], 'lobby');
-      p1.playedCards.push(...powerCards(3));
-      endGeneration(game);
-      runAllActions(game);
-      expect(parliament.lastPhase?.winner.instance).eq(resolutionInstanceId(dummyResolutionId(PartyName.INDUSTRIALISTS, 1), 0));
-      expect(p1.production.megacredits).eq(0);
-      expect(parliament.lastPhase?.outcomes).is.undefined;
     });
   });
 
@@ -632,7 +613,7 @@ describe('CentralPowerGrid', () => {
       const [game, human, bot] = testAutomaGame({coloniesExtension: true, turmoilReduxExpansion: true});
       const parliament = game.parliament!;
       game.playerIsFinishedWithResearchPhase(human);
-      parliament.slots[0].instance = GRID;
+      seatResolution(parliament, 0, GRID);
       parliament.placeVote(human, parliament.slots[0], 'lobby');
       human.playedCards.push(...powerCards(2));
       bot.playedCards.push(...powerCards(2));

@@ -74,11 +74,7 @@ Before changing it, check the console consumers in docs/DESKTOP_DEPRECATION_AUDI
              class="pcard__prose"
              :class="'pcard__prose--t' + proseTier">{{ proseText }}</div>
         <!-- A RESOLUTION's chairman quest — the lower corner of the parliament
-             family (rulebook p.9: the quest printed on the enacted card). A
-             dummy states honestly that it has no effect of its own. -->
-        <!-- A DUMMY prints no effect row: it says so once, quietly, where the
-             mechanics would stand — never as the face's centrepiece. -->
-        <div v-if="vm.parliament?.dummy === true && vm.mechanics.textOnly" class="pcard__dummy" aria-hidden="true">{{ $t('No effect of its own') }}</div>
+             family (rulebook p.9: the quest printed on the enacted card). -->
         <!-- THE CHAIRMAN QUEST — the printed CONDITION alone, centred: the
              reward (the seat + one Agenda step) is the same for every
              resolution and lives in the inspector and the government block,
@@ -420,8 +416,8 @@ export default defineComponent({
         // No lower rules block at all (a requirement/VP-only card): the art
         // runs down to the bottom inner border and the corner anchors overlay
         // it — see `.pcard--no-mech` in premium_card.less. A RESOLUTION always
-        // has a lower block (its dummy caption and its quest plate), so its
-        // art window must yield the room instead of running under them.
+        // has a lower block (its quest plate), so its art window must yield
+        // the room instead of running under it.
         'pcard--no-mech': this.vm.mechanics.textOnly && this.vm.parliament?.quest === undefined,
       };
       if (this.vm.vp !== undefined) {

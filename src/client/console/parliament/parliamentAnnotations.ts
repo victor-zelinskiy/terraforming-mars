@@ -131,40 +131,33 @@ export function resolutionAnnotations(
   }
   const out: Array<CardAnnotation> = [];
   const text = resolution.text;
-  const parts = [text.effect, text.winner, text.passive, text.action].filter((part) => part !== undefined);
-  if (resolution.dummy || parts.length === 0) {
-    // A dummy says calmly, and once, that it has none: the block stands in
-    // the place a real effect will fill — never demoted for it.
-    out.push(block('group:immediate', 'immediate', 'Resolution effect', ['No effect of its own'], 0));
-  } else {
-    if (text.effect !== undefined) {
-      // A COUNTED term's qualification is the detailed reading of the face's
-      // card glyph (which cards count, and which do not) — one sentence
-      // under the effect, never a rules primer.
-      const rows: Array<string | RowText> = [text.effect];
-      for (const effect of resolution.scaled ?? []) {
-        if (effect.count !== undefined) {
-          rows.push(yieldCountPresentation(effect.count.id).ruleKey);
-        }
+  if (text.effect !== undefined) {
+    // A COUNTED term's qualification is the detailed reading of the face's
+    // card glyph (which cards count, and which do not) — one sentence
+    // under the effect, never a rules primer.
+    const rows: Array<string | RowText> = [text.effect];
+    for (const effect of resolution.scaled ?? []) {
+      if (effect.count !== undefined) {
+        rows.push(yieldCountPresentation(effect.count.id).ruleKey);
       }
-      out.push(block('group:immediate', 'immediate', 'When enacted', rows, 0));
     }
-    if (text.winner !== undefined) {
-      // A winner TILE's qualification — the detailed reading of the face's
-      // symbol (the Redux greenery's TR rule) — one sentence under it.
-      const rows: Array<string | RowText> = [text.winner];
-      const rule = resolution.winnerReward === undefined ? undefined : winnerRewardRuleKey(resolution.winnerReward);
-      if (rule !== undefined) {
-        rows.push(rule);
-      }
-      out.push(block('group:winner', 'immediate', 'For the winner of the vote', rows, 1));
+    out.push(block('group:immediate', 'immediate', 'When enacted', rows, 0));
+  }
+  if (text.winner !== undefined) {
+    // A winner TILE's qualification — the detailed reading of the face's
+    // symbol (the Redux greenery's TR rule) — one sentence under it.
+    const rows: Array<string | RowText> = [text.winner];
+    const rule = resolution.winnerReward === undefined ? undefined : winnerRewardRuleKey(resolution.winnerReward);
+    if (rule !== undefined) {
+      rows.push(rule);
     }
-    if (text.passive !== undefined) {
-      out.push(block('group:effect', 'effect', 'Resolution effect', [text.passive], 2));
-    }
-    if (text.action !== undefined) {
-      out.push(block('group:action', 'action', 'Resolution action', [text.action], 3));
-    }
+    out.push(block('group:winner', 'immediate', 'For the winner of the vote', rows, 1));
+  }
+  if (text.passive !== undefined) {
+    out.push(block('group:effect', 'effect', 'Resolution effect', [text.passive], 2));
+  }
+  if (text.action !== undefined) {
+    out.push(block('group:action', 'action', 'Resolution action', [text.action], 3));
   }
   // FOR YOU — WHERE THE VIEWER'S NUMBER COMES FROM: the counted cards behind
   // their reading (the footer shows «2 + 2 → +4»; this names the 2). The

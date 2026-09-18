@@ -22,7 +22,7 @@ import {
   PARTY_EFFECT_DELEGATES, PartyActionId, QuestDefinition, ReduxParty, REDUX_PARTIES, ResolutionId, ResolutionInstanceId, STARTER_QUEST,
 } from '../../common/parliament/ParliamentTypes';
 import {ResolutionDefinition} from './resolutions/IResolution';
-import {REDUX_RESOLUTION_CATALOG, ResolutionCatalog} from './resolutions/ResolutionCatalog';
+import {REDUX_RESOLUTION_CATALOG, RETIRED_RESOLUTION_IDS, ResolutionCatalog} from './resolutions/ResolutionCatalog';
 import {
   PARLIAMENT_SAVE_VERSION, SerializedAdvance, SerializedParliament, SerializedPendingAction, SerializedPhaseProgress,
   SerializedPhaseSummary, SerializedQuest, SerializedSlot,
@@ -30,10 +30,21 @@ import {
 import {IncompatibleParliamentSaveError} from './ParliamentErrors';
 import {BotParliamentPolicy, botParliamentPolicy} from './BotParliamentPolicy';
 import {Random} from '../../common/utils/Random';
+import {Expansion} from '../../common/cards/GameModule';
 
 export type Delegate = PlayerId | 'NEUTRAL';
 export type Vote = {owner: Delegate; seq: number};
 export type Slot = {instance: ResolutionInstanceId; votes: Array<Vote>};
+
+/**
+ * What a load needs from the game it loads into. Only an OLDER save that
+ * carried retired resolutions uses it (`rebuildAfterRetirement`): the deal's
+ * expansion filter and the game's seeded RNG.
+ */
+export type ParliamentLoadTable = {
+  expansions: Readonly<Record<Expansion, boolean>>;
+  rng: Random;
+};
 
 export type QuestState = {
   definition: QuestDefinition;
@@ -115,9 +126,7 @@ export class Parliament {
 
   public static newInstance(game: IGame): Parliament {
     const parliament = new Parliament('none');
-    const compatible = (definition: ResolutionDefinition) =>
-      (definition.compatibility ?? []).every((expansion) => game.gameOptions.expansions[expansion] === true);
-    parliament.deck = shuffle(parliament.catalog.dealtInstances(compatible), game.rng);
+    parliament.deck = shuffle(parliament.catalog.dealtInstances(compatibleWith(game.gameOptions.expansions)), game.rng);
     // Setup: three resolutions of DIFFERENT parties in the voting area (the
     // Greens are allowed at setup — rulebook FAQ p.17).
     for (let i = 0; i < PARLIAMENT_VOTING_SLOTS; i++) {
@@ -637,7 +646,7 @@ export class Parliament {
     return result;
   }
 
-  public static deserialize(d: SerializedParliament, catalog: ResolutionCatalog = REDUX_RESOLUTION_CATALOG): Parliament {
+  public static deserialize(d: SerializedParliament, table: ParliamentLoadTable, catalog: ResolutionCatalog = REDUX_RESOLUTION_CATALOG): Parliament {
     if (d.version > PARLIAMENT_SAVE_VERSION) {
       throw new IncompatibleParliamentSaveError(`save version ${d.version} is newer than the supported ${PARLIAMENT_SAVE_VERSION}`);
     }
@@ -648,9 +657,29 @@ export class Parliament {
       }
       return instance;
     };
-    parliament.slots = d.slots.map((slot) => ({instance: known(slot.instance), votes: slot.votes.map((vote) => ({owner: vote.owner, seq: vote.seq}))}));
-    parliament.enacted = d.enacted === undefined ? undefined : known(d.enacted);
-    if (d.quest !== undefined) {
+    // THE RETIRED IDS ARE STRIPPED, NEVER REJECTED (`RETIRED_RESOLUTION_IDS` —
+    // iteration 0's dummies). An older save loads without them: they leave
+    // the deck and the discard, a voting slot holding one is gone (its
+    // delegates are simply home again — the reserve is derived), an enacted
+    // one leaves the ENACTED slot empty (the Greens rule, as at the start),
+    // the chairman quest it posted ends with it, and a recap that names one is
+    // not shown — then the table is dealt back to full
+    // (`rebuildAfterRetirement`). The one thing that cannot be rebuilt is a
+    // political phase caught IN PROGRESS around such a card — that save fails
+    // explicitly.
+    const retired = (instance: ResolutionInstanceId | undefined): boolean =>
+      instance !== undefined && RETIRED_RESOLUTION_IDS.has(resolutionIdOfInstance(instance));
+    const carriedRetired = retired(d.enacted) || d.slots.some((slot) => retired(slot.instance)) ||
+      (d.deck ?? []).some((instance) => retired(instance)) || (d.discard ?? []).some((instance) => retired(instance));
+    if (d.phase !== undefined &&
+        (retired(d.enacted) || d.slots.some((slot) => retired(slot.instance)) || summaryNamesAny(d.phase.summary, retired))) {
+      throw new IncompatibleParliamentSaveError('a political phase in progress around a retired resolution');
+    }
+    parliament.slots = d.slots
+      .filter((slot) => !retired(slot.instance))
+      .map((slot) => ({instance: known(slot.instance), votes: slot.votes.map((vote) => ({owner: vote.owner, seq: vote.seq}))}));
+    parliament.enacted = d.enacted === undefined || retired(d.enacted) ? undefined : known(d.enacted);
+    if (d.quest !== undefined && !(d.quest.source !== 'starter' && RETIRED_RESOLUTION_IDS.has(d.quest.source))) {
       parliament.quest = {
         definition: d.quest.definition,
         source: d.quest.source,
@@ -682,14 +711,57 @@ export class Parliament {
       parliament.partyActionUses.set(player, map);
     }
     parliament.resolutionActionUses = playerMap(d.resolutionActionUses);
-    parliament.deck = (d.deck ?? []).map(known);
-    parliament.discard = (d.discard ?? []).map(known);
+    parliament.deck = (d.deck ?? []).filter((instance) => !retired(instance)).map(known);
+    parliament.discard = (d.discard ?? []).filter((instance) => !retired(instance)).map(known);
     parliament.phase = d.phase;
-    parliament.lastPhase = d.lastPhase;
+    parliament.lastPhase = summaryNamesAny(d.lastPhase, retired) ? undefined : d.lastPhase;
     parliament.lastAdvance = d.lastAdvance;
     parliament.pendingActions = [...(d.pendingActions ?? [])];
+    if (carriedRetired) {
+      parliament.rebuildAfterRetirement(table);
+    }
     return parliament;
   }
+
+  /**
+   * AN OLDER SAVE, STRIPPED OF RETIRED IDS, IS DEALT BACK TO A FULL TABLE. Its
+   * pool is what its own deal made — mostly retired cards, and none of the
+   * resolutions shipped since — so every dealt resolution it holds nowhere is
+   * shuffled into the deck, and a voting area the strip thinned is dealt back
+   * up by the refresh's own rule (distinct parties, never the enacted one's).
+   * Without it a save whose three slots were all retired would reach the
+   * political phase with an EMPTY area. A phase in progress keeps its area —
+   * its own refresh deals.
+   */
+  private rebuildAfterRetirement(table: ParliamentLoadTable): void {
+    const held = new Set<ResolutionInstanceId>([...this.deck, ...this.discard, ...this.slots.map((slot) => slot.instance)]);
+    if (this.enacted !== undefined) {
+      held.add(this.enacted);
+    }
+    const missing = this.catalog.dealtInstances(compatibleWith(table.expansions)).filter((instance) => !held.has(instance));
+    if (missing.length > 0) {
+      this.deck = shuffle([...this.deck, ...missing], table.rng);
+    }
+    if (this.phase !== undefined) {
+      return;
+    }
+    while (this.slots.length < PARLIAMENT_VOTING_SLOTS) {
+      const excluded = this.slots.map((slot) => this.resolutionOf(slot.instance).party);
+      if (this.enacted !== undefined) {
+        excluded.push(this.resolutionOf(this.enacted).party);
+      }
+      const instance = this.drawDistinct(table.rng, excluded);
+      if (instance === undefined) {
+        break;
+      }
+      this.slots.push({instance, votes: []});
+    }
+  }
+}
+
+/** The deal's filter: a resolution that needs an expansion is dealt only in a game that has it. */
+function compatibleWith(expansions: Readonly<Record<Expansion, boolean>>): (definition: ResolutionDefinition) => boolean {
+  return (definition) => (definition.compatibility ?? []).every((expansion) => expansions[expansion] === true);
 }
 
 /** Every party action is once per generation in iteration 0 (rulebook p.3–5). */
@@ -706,6 +778,16 @@ function playerEntries<T>(record: Record<PlayerId, T> | undefined): Array<[Playe
 
 function playerMap<T>(record: Record<PlayerId, T> | undefined): Map<PlayerId, T> {
   return new Map(playerEntries(record));
+}
+
+/** Does a phase summary name any resolution instance `matches` accepts? */
+function summaryNamesAny(summary: SerializedPhaseSummary | undefined, matches: (instance: ResolutionInstanceId) => boolean): boolean {
+  if (summary === undefined) {
+    return false;
+  }
+  return matches(summary.winner.instance) || matches(summary.enacted) ||
+    (summary.discardedEnacted !== undefined && matches(summary.discardedEnacted)) ||
+    summary.refreshed.some((entry) => matches(entry.instance));
 }
 
 function resolutionIdOfInstance(instance: ResolutionInstanceId): ResolutionId {

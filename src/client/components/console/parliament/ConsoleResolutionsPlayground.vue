@@ -67,11 +67,11 @@
 
     <!-- ── 1. THE CATALOG — every resolution the client manifest carries. ── -->
     <section class="con-rxpg__section">
-      <h2>{{ $t('Real resolutions') }} · {{ real.length }} <span class="con-rxpg__dim">/ {{ $t('Dummies and dev examples') }} · {{ others.length }}</span></h2>
+      <h2>{{ $t('Real resolutions') }} · {{ real.length }} <span class="con-rxpg__dim">/ {{ $t('Development examples (never dealt)') }} · {{ others.length }}</span></h2>
       <div class="con-rxpg__catalog" data-rxpg-catalog>
         <div v-for="(entry, i) in catalog" :key="entry.id"
              class="con-rxpg__slot"
-             :class="{'con-rxpg__slot--cursor': i === cursor, 'con-rxpg__slot--dummy': entry.code === undefined}"
+             :class="{'con-rxpg__slot--cursor': i === cursor, 'con-rxpg__slot--uncoded': entry.code === undefined}"
              :data-rxpg-id="entry.id"
              :data-rxpg-code="entry.code ?? ''"
              @click="cursor = i">
@@ -715,7 +715,7 @@ export default defineComponent({
     others(): ReadonlyArray<IClientResolution> {
       return this.all.filter((r) => r.code === undefined);
     },
-    /** The real ones first (by code), then the dummies and the dev examples. */
+    /** The real ones first (by code), then the never-dealt development examples. */
     catalog(): ReadonlyArray<IClientResolution> {
       return [...[...this.real].sort((a, b) => (a.code ?? '').localeCompare(b.code ?? '')), ...this.others];
     },

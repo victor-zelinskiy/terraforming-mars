@@ -122,7 +122,7 @@ export type PremiumCardVM = {
    * («X31», «DP07»), a Turmoil Redux resolution's `code` («RX01»). Engraved
    * beside the expansion stamp on every face that has one; the same key the
    * art and the lore resolve by, so what the player reads is what the
-   * catalog searches by. Absent = no stamp (a bot card, a dummy resolution).
+   * catalog searches by. Absent = no stamp (a bot card, a dev-example resolution).
    */
   code?: string;
   cost?: PremiumCostVM;
@@ -154,8 +154,8 @@ export type PremiumCardVM = {
   /**
    * The MARS PARLIAMENT family (Turmoil Redux) — a resolution or a party's
    * printed effect. The party emblem sits in the header; a resolution prints
-   * its chairman quest in the lower corner; a dummy says it has no effect of
-   * its own. Built by `resolutionPremiumVm.ts`, never from the card manifest.
+   * its chairman quest in the lower corner. Built by `resolutionPremiumVm.ts`,
+   * never from the card manifest.
    */
   parliament?: {
     party: PartyName;
@@ -164,8 +164,6 @@ export type PremiumCardVM = {
     quest?: string;
     /** The quest's goal as a graphic (the same nodes the workspace draws) — resolutions only. */
     questRenderData?: ICardRenderRoot;
-    /** A dummy resolution: real party, real quest, no effect of its own. */
-    dummy?: boolean;
     /** The face is a PARTY EFFECT banner, not a resolution. */
     partyEffect?: boolean;
     /** The party's accent colour — tints the seal composition of an art-less resolution. */

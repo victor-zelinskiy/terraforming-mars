@@ -14,6 +14,8 @@ import {SelectParty} from '../../src/server/inputs/SelectParty';
 import {cast} from '../../src/common/utils/utils';
 import {fakeCard, runAllActions} from '../TestingUtils';
 import {EventSource} from '../../src/common/events/EventSource';
+import {CLIMATE_RESEARCH_ID} from '../../src/server/parliament/resolutions/greens/ClimateResearch';
+import {ARCHITECTURE_AWARD_ID} from '../../src/server/parliament/resolutions/marsFirst/ArchitectureAward';
 
 function reduxGame(): [IGame, TestPlayer, TestPlayer, Parliament] {
   const [game, p1, p2] = testGame(2, {turmoilReduxExpansion: true, coloniesExtension: true});
@@ -46,8 +48,9 @@ describe('QuestTracker (the chairman quest)', () => {
     asOwnAction(p1, () => p1.production.add(Resource.HEAT, 1));
     expect(parliament.questProgressOf(p1)).eq(0);
     game.phase = Phase.ACTION;
-    // Under an enacted resolution's effect: nothing (decision Q5).
-    asOwnAction(p1, () => p1.production.add(Resource.HEAT, 1), {kind: 'resolution', id: 'RDX_DUMMY_REDS_1', owner: p1.color});
+    // Under an enacted resolution's effect: nothing (decision Q5) — Climate
+    // Research raises heat production exactly this way.
+    asOwnAction(p1, () => p1.production.add(Resource.HEAT, 1), {kind: 'resolution', id: CLIMATE_RESEARCH_ID, owner: p1.color});
     expect(parliament.questProgressOf(p1)).eq(0);
     // The player's own card play: counts the ACTUAL delta.
     asOwnAction(p1, () => p1.production.add(Resource.HEAT, 2));
@@ -77,8 +80,9 @@ describe('QuestTracker (the chairman quest)', () => {
     asOwnAction(p1, () => p1.production.add(Resource.HEAT, 3));
     expect(parliament.chairman).eq(p1.id);
     expect(parliament.reserve(p2)).eq(6);
-    // Next generation's quest: the chairman completes it again.
-    parliament.quest = {definition: {goal: {kind: 'tag', tag: Tag.EARTH}, count: 1}, source: 'RDX_DUMMY_UNITY_1', generation: 2, progress: new Map()};
+    // Next generation's quest (the spec's own definition — the tracker reads
+    // the definition, the source only names it): the chairman completes it again.
+    parliament.quest = {definition: {goal: {kind: 'tag', tag: Tag.EARTH}, count: 1}, source: ARCHITECTURE_AWARD_ID, generation: 2, progress: new Map()};
     const reserve = parliament.reserve(p1);
     asOwnAction(p1, () => p1.onCardPlayed(fakeCard({tags: [Tag.EARTH]})));
     expect(parliament.chairman).eq(p1.id);
@@ -130,7 +134,7 @@ describe('QuestTracker (the chairman quest)', () => {
     check({kind: 'cardsPlayed', cardType: 'automated'}, {kind: 'cardsPlayed', cardType: CardType.AUTOMATED}, 1);
     check({kind: 'production', resource: Resource.STEEL}, {kind: 'production', resource: Resource.STEEL, amount: -1}, 0);
     // Votes count toward the delegates quest through the handler.
-    parliament.quest = {definition: {goal: {kind: 'delegates'}, count: 2}, source: 'RDX_DUMMY_REDS_1', generation: 1, progress: new Map()};
+    parliament.quest = {definition: {goal: {kind: 'delegates'}, count: 2}, source: ARCHITECTURE_AWARD_ID, generation: 1, progress: new Map()};
     const vote = p1.getActions().options.find((o) => (o as SelectParty).votePrompt !== undefined) as SelectParty;
     vote.cb(parliament.resolutionOf(parliament.slots[0].instance).party);
     expect(parliament.questProgressOf(p1)).eq(1);

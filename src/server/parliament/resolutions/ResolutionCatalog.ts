@@ -1,15 +1,17 @@
 /*
  * THE RESOLUTION CATALOG — every resolution this build knows, by stable id.
  *
- * Iteration 0 ships DUMMY resolutions: two per party, each with a real party,
- * a real chairman quest and no effect of its own (the face says so), plus one
- * TEST resolution (never dealt) that exercises the resumable multi-step
- * effect contract. Adding a REAL resolution is adding a definition here (or
- * in a module file registered here) — the deck, the vote, the enactment, the
- * face and the client catalog all read this table.
+ * The deck is made of REAL resolutions only (each in its own file under the
+ * party's directory — `greens/AquiferContest.ts` is the template). Beside them
+ * the catalog keeps a few NEVER-DEALT (`copies: 0`) test / development
+ * resolutions: engine fixtures for the mechanisms no real card covers yet (a
+ * passive, a resolution action, a resumable multi-step ask). Adding a real
+ * resolution is adding a definition here — the deck, the vote, the enactment,
+ * the face and the client catalog all read this table.
  *
  * Ids are permanent. A save that names an id this table no longer has fails
- * to load explicitly (`Parliament.deserialize`).
+ * to load explicitly (`Parliament.deserialize`) — except the RETIRED ids
+ * below, which a load strips instead.
  */
 import {CardRenderer} from '../../cards/render/CardRenderer';
 import {Size} from '../../../common/cards/render/Size';
@@ -18,7 +20,7 @@ import {Resource} from '../../../common/Resource';
 import {Tag} from '../../../common/cards/Tag';
 import {CardResource} from '../../../common/CardResource';
 import {
-  isResolutionCode, QuestDefinition, ReduxParty, ResolutionCode, ResolutionId, resolutionInstanceId, ResolutionInstanceId, resolutionIdOf,
+  isResolutionCode, ResolutionCode, ResolutionId, resolutionInstanceId, ResolutionInstanceId, resolutionIdOf,
 } from '../../../common/parliament/ParliamentTypes';
 import {EnactStep, ResolutionDefinition} from './IResolution';
 import {SelectOption} from '../../inputs/SelectOption';
@@ -31,76 +33,23 @@ import {BIODOME_CONTEST} from './greens/BiodomeContest';
 import {CENTRAL_POWER_GRID} from './industrialists/CentralPowerGrid';
 import {CLIMATE_RESEARCH} from './greens/ClimateResearch';
 
-/** A DUMMY prints NO effect row: the face states «no effect of its own» as a
- *  quiet caption from the `dummy` flag, never as the card's centrepiece.
- *  Nothing about iterations or tests belongs on a card the player reads. */
-const DUMMY_RENDER = CardRenderer.builder(() => {});
-
-type DummySpec = {
-  party: ReduxParty;
-  n: 1 | 2;
-  name: string;
-  quest: QuestDefinition;
-  questText: string;
-  /**
-   * A dummy a REAL resolution has replaced in the deck stays catalogued with
-   * `copies: 0`: an older save that still carries it loads and reads it as
-   * it was (its id is never re-pointed at the new card — a dummy enacted
-   * yesterday must not wake up with an effect today); a new game never deals it.
-   */
-  copies?: 0;
-};
-
-const PARTY_KEY: Readonly<Record<ReduxParty, string>> = {
-  [PartyName.UNITY]: 'UNITY',
-  [PartyName.GREENS]: 'GREENS',
-  [PartyName.SCIENTISTS]: 'SCIENTISTS',
-  [PartyName.MARS]: 'MARS',
-  [PartyName.INDUSTRIALISTS]: 'INDUSTRIALISTS',
-  [PartyName.REDS]: 'REDS',
-};
-
-export function dummyResolutionId(party: ReduxParty, n: number): ResolutionId {
-  return `RDX_DUMMY_${PARTY_KEY[party]}_${n}`;
-}
-
 /**
- * The dummy set. Quests are drawn from the goal kinds the tracker implements
- * (production steps, tags, tiles, colonies, TR, card resources, delegates,
- * card types) so the chairman mechanism is exercised for real from the first
- * generation on.
+ * THE RETIRED IDS — iteration 0's DUMMY resolutions (a party, a quest, no
+ * effect of their own), removed once real resolutions carried the deck. They
+ * are no longer catalogued, dealt or drawn anywhere; this list exists only so
+ * an OLDER save that still carries one loads with it STRIPPED (the deck, the
+ * discard, the voting area, the enacted slot, the last phase's recap — see
+ * `Parliament.deserialize`) instead of failing. Never re-point one of these
+ * ids at a real card: an old save would wake up with an effect it never had.
  */
-const DUMMIES: ReadonlyArray<DummySpec> = [
-  {party: PartyName.UNITY, n: 1, name: 'Unity Motion I', quest: {goal: {kind: 'tag', tag: Tag.EARTH}, count: 2}, questText: 'Play 2 Earth tags'},
-  {party: PartyName.UNITY, n: 2, name: 'Unity Motion II', quest: {goal: {kind: 'colony'}, count: 1}, questText: 'Build 1 colony'},
-  // Replaced in the deck by Biodome Contest (RX03) — kept for older saves only.
-  {party: PartyName.GREENS, n: 1, name: 'Greens Motion I', quest: {goal: {kind: 'tile', tile: 'greenery'}, count: 2}, questText: 'Place 2 greenery tiles', copies: 0},
-  // Replaced in the deck by Aquifer Contest (RX01) — kept for older saves only.
-  {party: PartyName.GREENS, n: 2, name: 'Greens Motion II', quest: {goal: {kind: 'tag', tag: Tag.PLANT}, count: 2}, questText: 'Play 2 plant tags', copies: 0},
-  {party: PartyName.SCIENTISTS, n: 1, name: 'Scientists Motion I', quest: {goal: {kind: 'tag', tag: Tag.SCIENCE}, count: 2}, questText: 'Play 2 science tags'},
-  {party: PartyName.SCIENTISTS, n: 2, name: 'Scientists Motion II', quest: {goal: {kind: 'cardsPlayed', cardType: 'active'}, count: 2}, questText: 'Play 2 blue cards'},
-  // Replaced in the deck by Architecture Award (RX02) — kept for older saves only.
-  {party: PartyName.MARS, n: 1, name: 'Mars First Motion I', quest: {goal: {kind: 'tag', tag: Tag.BUILDING}, count: 2}, questText: 'Play 2 building tags', copies: 0},
-  {party: PartyName.MARS, n: 2, name: 'Mars First Motion II', quest: {goal: {kind: 'tile', tile: 'city'}, count: 1}, questText: 'Place 1 city tile on Mars'},
-  // Replaced in the deck by Central Power Grid (RX04) — kept for older saves only.
-  {party: PartyName.INDUSTRIALISTS, n: 1, name: 'Industrialists Motion I', quest: {goal: {kind: 'production', resource: Resource.STEEL}, count: 1}, questText: 'Raise your steel production 1 step', copies: 0},
-  {party: PartyName.INDUSTRIALISTS, n: 2, name: 'Industrialists Motion II', quest: {goal: {kind: 'cardsPlayed', cardType: 'automated'}, count: 2}, questText: 'Play 2 green cards'},
-  {party: PartyName.REDS, n: 1, name: 'Reds Motion I', quest: {goal: {kind: 'delegates'}, count: 4}, questText: 'Send 4 delegates to resolutions'},
-  {party: PartyName.REDS, n: 2, name: 'Reds Motion II', quest: {goal: {kind: 'tr'}, count: 3}, questText: 'Raise your terraform rating 3 steps'},
-];
-
-function dummy(spec: DummySpec): ResolutionDefinition {
-  return {
-    id: dummyResolutionId(spec.party, spec.n),
-    module: 'turmoilRedux',
-    party: spec.party,
-    copies: spec.copies ?? 1,
-    renderData: DUMMY_RENDER,
-    text: {name: spec.name, quest: spec.questText},
-    quest: spec.quest,
-    dummy: true,
-  };
-}
+export const RETIRED_RESOLUTION_IDS: ReadonlySet<ResolutionId> = new Set([
+  'RDX_DUMMY_UNITY_1', 'RDX_DUMMY_UNITY_2',
+  'RDX_DUMMY_GREENS_1', 'RDX_DUMMY_GREENS_2',
+  'RDX_DUMMY_SCIENTISTS_1', 'RDX_DUMMY_SCIENTISTS_2',
+  'RDX_DUMMY_MARS_1', 'RDX_DUMMY_MARS_2',
+  'RDX_DUMMY_INDUSTRIALISTS_1', 'RDX_DUMMY_INDUSTRIALISTS_2',
+  'RDX_DUMMY_REDS_1', 'RDX_DUMMY_REDS_2',
+]);
 
 /**
  * THE RESUMABLE-EFFECT PROOF (never in a real deck: `copies: 0`). Four steps:
@@ -242,11 +191,12 @@ export class ResolutionCatalog {
 }
 
 /**
- * THE TEMPLATE'S DEVELOPMENT EXAMPLES (never dealt: `copies: 0`). One real
+ * THE TEMPLATE'S DEVELOPMENT EXAMPLES (never dealt: `copies: 0`). One
  * IMMEDIATE effect, one PASSIVE and one ACTION, built from the existing
- * primitives, so the resolution face, the inspector and the workspace can be
- * proven against a card with content before the real catalog exists. A dummy
- * with an empty effect zone proves nothing about the template.
+ * primitives. They were how the face, the inspector and the workspace were
+ * proven before the real catalog existed; today the passive and the action
+ * are still the ONLY cards that exercise those two mechanisms, until a real
+ * resolution does.
  */
 export const DEV_IMMEDIATE_RESOLUTION_ID: ResolutionId = 'RDX_DEV_IMMEDIATE';
 export const DEV_PASSIVE_RESOLUTION_ID: ResolutionId = 'RDX_DEV_PASSIVE';
@@ -418,22 +368,15 @@ const DEV_SCIENCE: ResolutionDefinition = {
 };
 
 /**
- * The shipped catalog: the REAL resolutions (each in its own file under the
- * party's directory — `greens/AquiferContest.ts` is the template), the
- * dummies still standing in for the rest of the 48 (a replaced dummy stays
- * with `copies: 0` for older saves), and the never-dealt test / development
- * resolutions.
+ * The shipped catalog: the REAL resolutions and the never-dealt test /
+ * development resolutions.
  *
  * THE DECK IS THE SUM OF WHAT IS SHIPPED, never a fixed size and never a
- * quota per party. Iteration 0's prototype happened to deal two dummies per
- * party; as real resolutions arrive they replace a dummy WHERE ONE IS LEFT
- * (Aquifer Contest and Biodome Contest took both Greens slots) and simply ADD
- * a card where none is (Climate Research is the Greens' third, so the pool
- * grows to 13). Nothing may be evicted to preserve an old total: a party's
- * share of the deck is how many of its resolutions are implemented, and the
- * voting area's own rule — one resolution per party among the three offered
- * (`dealForVotingArea`) — is what keeps the offer legal, not the deck's
- * composition.
+ * quota per party: a party's share of the deck is how many of its resolutions
+ * are implemented. The voting area's own rule — one resolution per party
+ * among the three offered, never the enacted card's party
+ * (`dealForVotingArea`) — is what keeps the offer legal; while few parties
+ * have real cards, a slot that nothing fits simply stays empty.
  */
 export const REDUX_RESOLUTION_CATALOG = new ResolutionCatalog([
   AQUIFER_CONTEST,
@@ -441,7 +384,6 @@ export const REDUX_RESOLUTION_CATALOG = new ResolutionCatalog([
   BIODOME_CONTEST,
   CENTRAL_POWER_GRID,
   CLIMATE_RESEARCH,
-  ...DUMMIES.map(dummy),
   TEST_CHOICE,
   DEV_IMMEDIATE,
   DEV_PASSIVE,

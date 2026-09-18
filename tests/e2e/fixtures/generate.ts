@@ -75,7 +75,7 @@ import {OrOptions} from '../../../src/server/inputs/OrOptions';
 import {CLIMATE_RESEARCH_ID} from '../../../src/server/parliament/resolutions/greens/ClimateResearch';
 import {BIODOME_CONTEST_ID} from '../../../src/server/parliament/resolutions/greens/BiodomeContest';
 import {Parliament} from '../../../src/server/parliament/Parliament';
-import {dummyResolutionId} from '../../../src/server/parliament/resolutions/ResolutionCatalog';
+import {seatResolution} from '../../parliament/parliamentArrange';
 import {ArtificialLake} from '../../../src/server/cards/base/ArtificialLake';
 import {DomedCrater} from '../../../src/server/cards/base/DomedCrater';
 import {SpaceElevator} from '../../../src/server/cards/base/SpaceElevator';
@@ -89,7 +89,6 @@ import {PowerPlant} from '../../../src/server/cards/base/PowerPlant';
 import {FusionPower} from '../../../src/server/cards/base/FusionPower';
 import {GeothermalPower} from '../../../src/server/cards/base/GeothermalPower';
 import {HE3FusionPlant} from '../../../src/server/cards/moon/HE3FusionPlant';
-import {resolutionInstanceId} from '../../../src/common/parliament/ParliamentTypes';
 
 const OUT_DIR = __dirname;
 
@@ -368,7 +367,8 @@ function write(name: string, game: IGame): void {
 // ── parliament: a 2p Turmoil Redux table in its first action phase, the
 //    Parliament workspace's whole browse layer on screen from one wheel press
 //    (docs/TURMOIL_REDUX_ITERATION0_PLAN.md):
-//      · three dummy resolutions of distinct parties in the voting area, the
+//      · three real resolutions of distinct parties in the voting area — the
+//        Industrialists' and Mars First's first, the Greens' third — the
 //        Greens ruling (the ENACTED slot empty), the starter chairman quest;
 //      · red already placed its free delegate on the FIRST slot — a vote
 //        blue can contest (a leader to read, a tie to break);
@@ -393,6 +393,11 @@ function write(name: string, game: IGame): void {
   if (parliament === undefined || parliament.slots.length !== 3) {
     throw new Error('the parliament fixture has no voting area');
   }
+  // Slots 0 and 1 hold parties that do NOT rule (the Greens rule by the
+  // starting rule), so the vote's «1 of 2» access and the effect held by
+  // delegates both read a real threshold; the Greens card stands third.
+  seatResolution(parliament, 0, CENTRAL_POWER_GRID_ID);
+  seatResolution(parliament, 1, ARCHITECTURE_AWARD_ID);
   parliament.placeVote(p2, parliament.slots[0], 'lobby');
   parliament.placeVote(p1, parliament.slots[1], 'reserve');
   parliament.placeVote(p1, parliament.slots[1], 'reserve');
@@ -425,6 +430,11 @@ function write(name: string, game: IGame): void {
   if (parliament === undefined || parliament.slots.length !== 3) {
     throw new Error('the parliament-paid fixture has no voting area');
   }
+  // Slots 0 and 1 hold parties that do NOT rule (the Greens rule by the
+  // starting rule), so the vote's «1 of 2» access and the effect held by
+  // delegates both read a real threshold; the Greens card stands third.
+  seatResolution(parliament, 0, CENTRAL_POWER_GRID_ID);
+  seatResolution(parliament, 1, ARCHITECTURE_AWARD_ID);
   parliament.placeVote(p2, parliament.slots[0], 'lobby');
   parliament.placeVote(p1, parliament.slots[0], 'lobby');
   parliament.placeVote(p1, parliament.slots[1], 'reserve');
@@ -490,15 +500,7 @@ function write(name: string, game: IGame): void {
   if (parliament === undefined || parliament.slots.length !== 3) {
     throw new Error('the parliament-aquifer-vote fixture has no voting area');
   }
-  const aquifer = resolutionInstanceId(AQUIFER_CONTEST_ID, 0);
-  // Seat Aquifer Contest in slot 0 (its own copy leaves the deck / the other slots).
-  parliament.deck = parliament.deck.filter((i) => i !== aquifer);
-  for (const slot of parliament.slots) {
-    if (slot.instance === aquifer) {
-      slot.instance = parliament.deck.shift() ?? slot.instance;
-    }
-  }
-  parliament.slots[0].instance = aquifer;
+  seatResolution(parliament, 0, AQUIFER_CONTEST_ID);
   parliament.placeVote(p1, parliament.slots[0], 'lobby');
   parliament.agenda.set(p1.id, 2);
   parliament.agenda.set(p2.id, 5);
@@ -530,14 +532,7 @@ function write(name: string, game: IGame): void {
   if (parliament === undefined || parliament.slots.length !== 3) {
     throw new Error('the parliament-aquifer-enact fixture has no voting area');
   }
-  const aquifer = resolutionInstanceId(AQUIFER_CONTEST_ID, 0);
-  parliament.deck = parliament.deck.filter((i) => i !== aquifer);
-  for (const slot of parliament.slots) {
-    if (slot.instance === aquifer) {
-      slot.instance = parliament.deck.shift() ?? slot.instance;
-    }
-  }
-  parliament.slots[0].instance = aquifer;
+  seatResolution(parliament, 0, AQUIFER_CONTEST_ID);
   parliament.placeVote(p1, parliament.slots[0], 'lobby');
   parliament.agenda.set(p1.id, 2);
   parliament.agenda.set(p2.id, 5);
@@ -561,8 +556,7 @@ function write(name: string, game: IGame): void {
 // ── parliament-recap: generation 2 has just begun — the FIRST political phase
 //    ran at the end of generation 1 (blue's two delegates carried the second
 //    slot, the winner is enacted, blue stepped onto the Agenda, the losers'
-//    parties gained popular support, three fresh resolutions stand in the
-//    area) and the server's summary of it waits in `lastPhase` for the
+//    parties gained popular support, the refresh dealt the fresh area) and the server's summary of it waits in `lastPhase` for the
 //    workspace's results scene. Both seats answered the research phase. ──
 {
   const [game, p1, p2] = testGame(2, {
@@ -599,37 +593,16 @@ function write(name: string, game: IGame): void {
   write('parliament-recap', game);
 }
 
-/** Seat `id`'s copy #0 in voting slot 0 (it leaves the deck and any other slot). */
 /**
  * A fixture that only needs the political phase to RUN (not a resolution's own
- * effect) seats the party's DUMMY where the deal put a real resolution: a real
- * one may ask its winner something (a tile), which holds the phase — and the
- * deal is a shuffle of a catalog that grows, so «which card lands where» is
- * not a fixture's to depend on.
+ * effect) seats a resolution that asks NOTHING at any table — Architecture
+ * Award (M€ production by a count, never a choice) — where the winning
+ * delegates go: a card that asks its winner something (a tile, a card, a
+ * target) holds the phase, and the deal is a shuffle of a catalog that grows,
+ * so «which card lands where» is not a fixture's to depend on.
  */
 function seatQuietResolution(parliament: Parliament, index: number): void {
-  const slot = parliament.slots[index];
-  const definition = parliament.resolutionOf(slot.instance);
-  if (definition.dummy === true) {
-    return;
-  }
-  const quiet = resolutionInstanceId(dummyResolutionId(definition.party, 1), 0);
-  parliament.deck = parliament.deck.filter((i) => i !== quiet);
-  parliament.discard = parliament.discard.filter((i) => i !== quiet);
-  slot.instance = quiet;
-}
-
-function seatResolutionFirst(parliament: Parliament, id: string): string {
-  const instance = resolutionInstanceId(id, 0);
-  parliament.deck = parliament.deck.filter((i) => i !== instance);
-  parliament.discard = parliament.discard.filter((i) => i !== instance);
-  for (const slot of parliament.slots) {
-    if (slot.instance === instance) {
-      slot.instance = parliament.deck.shift() ?? slot.instance;
-    }
-  }
-  parliament.slots[0].instance = instance;
-  return instance;
+  seatResolution(parliament, index, ARCHITECTURE_AWARD_ID);
 }
 
 // ── parliament-architecture-vote: ARCHITECTURE AWARD (RX02 — a counted term +
@@ -656,7 +629,7 @@ function seatResolutionFirst(parliament: Parliament, id: string): string {
   if (parliament === undefined || parliament.slots.length !== 3) {
     throw new Error('the parliament-architecture-vote fixture has no voting area');
   }
-  seatResolutionFirst(parliament, ARCHITECTURE_AWARD_ID);
+  seatResolution(parliament, 0, ARCHITECTURE_AWARD_ID);
   parliament.placeVote(p1, parliament.slots[0], 'lobby');
   parliament.agenda.set(p1.id, 4);
   parliament.agenda.set(p2.id, 5);
@@ -694,10 +667,7 @@ function seatResolutionFirst(parliament: Parliament, id: string): string {
     throw new Error('the parliament-architecture-recap fixture has no voting area');
   }
   // The card stands in the MIDDLE slot, so its move to the government is a real journey.
-  const award = seatResolutionFirst(parliament, ARCHITECTURE_AWARD_ID);
-  const middle = parliament.slots[1].instance;
-  parliament.slots[1].instance = award;
-  parliament.slots[0].instance = middle;
+  const award = seatResolution(parliament, 1, ARCHITECTURE_AWARD_ID);
   parliament.placeVote(p2, parliament.slots[1], 'lobby');
   parliament.agenda.set(p2.id, 4);
   p2.playedCards.push(new ArtificialLake(), new DomedCrater(), new SpaceElevator(), new Mine());
@@ -749,7 +719,7 @@ function seatResolutionFirst(parliament: Parliament, id: string): string {
   if (parliament === undefined || parliament.slots.length !== 3) {
     throw new Error('the parliament-powergrid-vote fixture has no voting area');
   }
-  seatResolutionFirst(parliament, CENTRAL_POWER_GRID_ID);
+  seatResolution(parliament, 0, CENTRAL_POWER_GRID_ID);
   parliament.placeVote(p1, parliament.slots[0], 'lobby');
   parliament.agenda.set(p1.id, 2);
   parliament.agenda.set(p2.id, 5);
@@ -788,10 +758,7 @@ function seatResolutionFirst(parliament: Parliament, id: string): string {
     throw new Error('the parliament-powergrid-recap fixture has no voting area');
   }
   // The card stands in the MIDDLE slot, so its move to the government is a real journey.
-  const grid = seatResolutionFirst(parliament, CENTRAL_POWER_GRID_ID);
-  const middle = parliament.slots[1].instance;
-  parliament.slots[1].instance = grid;
-  parliament.slots[0].instance = middle;
+  const grid = seatResolution(parliament, 1, CENTRAL_POWER_GRID_ID);
   parliament.placeVote(p2, parliament.slots[1], 'lobby');
   parliament.agenda.set(p2.id, 4);
   p2.playedCards.push(new HE3FusionPlant(), new PowerPlant(), new GeothermalPower(), new Mine());
@@ -821,31 +788,6 @@ function seatResolutionFirst(parliament: Parliament, id: string): string {
     throw new Error('the parliament-powergrid-recap fixture expected red to open generation 2 (the viewer seat)');
   }
   write('parliament-powergrid-recap', game);
-}
-
-/**
- * Seat `id` ALONE for its party: slot 0 (the slot the tests read first), and
- * any OTHER slot holding a card of the same party re-dealt from the deck with
- * a party the area does not have yet — the voting area is never two cards of
- * one party, as the refresh rule guarantees in play.
- */
-function seatResolutionAlone(parliament: Parliament, id: string): string {
-  const instance = seatResolutionFirst(parliament, id);
-  const party = parliament.resolutionOf(instance).party;
-  for (let i = 1; i < parliament.slots.length; i++) {
-    if (parliament.resolutionOf(parliament.slots[i].instance).party !== party) {
-      continue;
-    }
-    const present = new Set(parliament.slots.map((slot) => parliament.resolutionOf(slot.instance).party));
-    const replacement = parliament.deck.find((candidate) => !present.has(parliament.resolutionOf(candidate).party));
-    if (replacement === undefined) {
-      throw new Error(`no card of another party to replace slot ${i}`);
-    }
-    parliament.deck = parliament.deck.filter((candidate) => candidate !== replacement);
-    parliament.deck.push(parliament.slots[i].instance);
-    parliament.slots[i].instance = replacement;
-  }
-  return instance;
 }
 
 /** Every seat passes and the engine runs production → the parliament; the harness's stale action menus are cleared. */
@@ -882,7 +824,7 @@ function biodomeTable(oxygen: number, temperature: number): {game: IGame, p1: Te
   if (parliament === undefined || parliament.slots.length !== 3) {
     throw new Error('the Biodome Contest fixture has no voting area');
   }
-  seatResolutionAlone(parliament, BIODOME_CONTEST_ID);
+  seatResolution(parliament, 0, BIODOME_CONTEST_ID);
   parliament.placeVote(p1, parliament.slots[0], 'lobby');
   parliament.agenda.set(p1.id, 2);
   parliament.agenda.set(p2.id, 5);
@@ -1030,7 +972,7 @@ function climateTable(blueHeat: number, redHeat: number): {game: IGame, p1: Test
   if (parliament === undefined || parliament.slots.length !== 3) {
     throw new Error('the Climate Research fixture has no voting area');
   }
-  seatResolutionAlone(parliament, CLIMATE_RESEARCH_ID);
+  seatResolution(parliament, 0, CLIMATE_RESEARCH_ID);
   parliament.placeVote(p1, parliament.slots[0], 'lobby');
   parliament.agenda.set(p1.id, 3);
   parliament.agenda.set(p2.id, 1);
@@ -1171,8 +1113,8 @@ function climateTable(blueHeat: number, redHeat: number): {game: IGame, p1: Test
     }
   }
   runAllActions(game);
-  if (parliament.enacted === undefined || parliament.slots.length !== 3) {
-    throw new Error('parliament-dense: the first political phase did not enact a resolution');
+  if (parliament.enacted === undefined || parliament.slots.length < 2) {
+    throw new Error('parliament-dense: the first political phase did not enact a resolution and deal two fresh ones');
   }
   const [viewer, rival, lead2, minor, far] = game.playersInGenerationOrder as Array<TestPlayer>;
   const [v1, v2, v3] = parliament.slots;
@@ -1189,12 +1131,14 @@ function climateTable(blueHeat: number, redHeat: number): {game: IGame, p1: Test
   for (let i = 0; i < 3; i++) {
     parliament.placeVote(lead2, v2, 'reserve');
   }
-  // V3: a clear leader.
-  parliament.placeVote(far, v3, 'lobby');
-  for (let i = 0; i < 3; i++) {
-    parliament.placeVote(far, v3, 'reserve');
+  // V3 — when the deck holds a third party beside the ruling one's: a clear leader.
+  if (v3 !== undefined) {
+    parliament.placeVote(far, v3, 'lobby');
+    for (let i = 0; i < 3; i++) {
+      parliament.placeVote(far, v3, 'reserve');
+    }
+    parliament.placeVote(minor, v3, 'reserve');
   }
-  parliament.placeVote(minor, v3, 'reserve');
   // Neutrals: V1 and V2 to ONE common total the supply can pay for.
   const supply = parliament.neutralSupply();
   const target = Math.floor((supply + v1.votes.length + v2.votes.length) / 2);

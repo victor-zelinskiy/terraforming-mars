@@ -191,10 +191,14 @@ for (const preset of PRESETS) {
       await expect(rules, 'Mine (no VP icon) is not counted').not.toContainText(/Шахта|\bMine\b/);
       await expect(page.locator('dialog.con-zoom.con-zoom--parliament[open]:not(.con-zoom--flight)')).toHaveCount(1, {timeout: 10_000});
       await shoot(page, preset.id, '03-fullscreen');
-      // Paging to another resolution re-reads at once (it scales nothing), and back again.
+      // Paging to another resolution re-reads at once — the neighbour is a REAL card with its own
+      // reading, so the award's numbers must simply be gone — and back again.
       await press(page, 'BracketRight', 900);
       await expect(zoom.locator('.card-zoom-stage .pcard').first()).not.toHaveClass(AWARD_CLASS, {timeout: 10_000});
-      await expect.poll(() => readingsIn(page, 'dialog.con-zoom[open] [data-zoom-yield]'), {timeout: 10_000}).toEqual([]);
+      await expect.poll(() => readingsIn(page, 'dialog.con-zoom[open] [data-zoom-yield]'), {timeout: 10_000}).not.toEqual([
+        reading('estimate', 2, 2, 4, 4),
+        reading('forecast', 2, 3, 5, 5),
+      ]);
       await press(page, 'BracketLeft', 900);
       await expect(zoom.locator('.card-zoom-stage .pcard').first()).toHaveClass(AWARD_CLASS, {timeout: 10_000});
       await expect.poll(() => readingsIn(page, 'dialog.con-zoom[open] [data-zoom-yield]'), {timeout: 10_000}).toEqual([

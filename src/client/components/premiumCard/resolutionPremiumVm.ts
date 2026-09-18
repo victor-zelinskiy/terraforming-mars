@@ -40,7 +40,7 @@ export function resolutionPremiumVm(resolution: IClientResolution): PremiumCardV
   // THE ART is keyed by the printed CODE through the one card-art pipeline
   // (`assets/card-images/RX01.webp`, indexed by `make:cards`): a resolution
   // with an illustration shows it in the 3:2 window (`pcard--resolution-art`);
-  // one without (a dummy, a dev example) carries the PARTY'S SEAL in the
+  // one without (a never-dealt dev example) carries the PARTY'S SEAL in the
   // window instead (`pcard--resolution-seal`) — never the project fallback,
   // so a card of the voting area is told apart at a glance either way.
   const art = premiumCardArtForKey(resolution.code);
@@ -63,7 +63,6 @@ export function resolutionPremiumVm(resolution: IClientResolution): PremiumCardV
       emblemUrl: partyEmblemUrl(resolution.party),
       quest: resolution.text.quest,
       questRenderData: resolution.questRenderData,
-      dummy: resolution.dummy,
       accent: partyAccent(resolution.party),
       sealArt: art === undefined,
     },

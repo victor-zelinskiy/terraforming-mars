@@ -9,9 +9,8 @@ import {Phase} from '../../src/common/Phase';
 import {PartyName} from '../../src/common/turmoil/PartyName';
 import {TileType} from '../../src/common/TileType';
 import {MAX_OXYGEN_LEVEL} from '../../src/common/constants';
-import {resolutionInstanceId} from '../../src/common/parliament/ParliamentTypes';
 import {ARCHITECTURE_AWARD_ID} from '../../src/server/parliament/resolutions/marsFirst/ArchitectureAward';
-import {dummyResolutionId} from '../../src/server/parliament/resolutions/ResolutionCatalog';
+import {seatEnacted, seatResolution} from '../parliament/parliamentArrange';
 import {Space} from '../../src/server/boards/Space';
 import {buildDossierRows} from '../../src/client/console/placementDossier';
 
@@ -118,7 +117,7 @@ describe('Turmoil Redux placement preview ↔ commit', () => {
 
   it('no Greens effect, no Greens payout: a Mars First government pays its steel per tile instead (a city draws a card too)', () => {
     const parliament = game.parliament!;
-    parliament.enacted = resolutionInstanceId(dummyResolutionId(PartyName.MARS, 2), 0);
+    seatEnacted(parliament, ARCHITECTURE_AWARD_ID);
     setOxygenLevel(game, 3);
     const space = quietCell();
     const preview = boardCellPreview(player, space, 'greenery');
@@ -137,7 +136,7 @@ describe('Turmoil Redux placement preview ↔ commit', () => {
 
   it('a party effect held by two delegates counts like the ruling one (Mars First on a card in the vote)', () => {
     const parliament = game.parliament!;
-    parliament.slots[1].instance = resolutionInstanceId(ARCHITECTURE_AWARD_ID, 0);
+    seatResolution(parliament, 1, ARCHITECTURE_AWARD_ID);
     parliament.placeVote(player, parliament.slots[1], 'lobby');
     parliament.placeVote(player, parliament.slots[1], 'reserve');
     expect(parliament.access(player, PartyName.MARS).byDelegates).is.true;

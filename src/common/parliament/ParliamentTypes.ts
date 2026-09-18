@@ -133,7 +133,7 @@ export type ResolutionInstanceId = string;
  * Redux resolutions (docs/TURMOIL_REDUX_SPEC.md §4 — Aquifer Contest is 01,
  * Architecture Award 02, Biodome Contest 03, … Water Export 48). Assigned by
  * hand in the definition, never derived from a deck or an array position;
- * the catalog refuses a duplicate. Dummies and dev examples carry none.
+ * the catalog refuses a duplicate. The never-dealt dev examples carry none.
  */
 export type ResolutionCode = string;
 export const RESOLUTION_CODE_PATTERN = /^RX\d{2}$/;

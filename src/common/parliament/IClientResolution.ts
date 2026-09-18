@@ -12,7 +12,7 @@ import {WinnerRewardDeclaration} from './winnerReward';
  */
 export type IClientResolution = {
   id: ResolutionId;
-  /** The printed catalog code (`RX##`) — the face's corner stamp, the art key, the search key. Absent on a dummy / dev example. */
+  /** The printed catalog code (`RX##`) — the face's corner stamp, the art key, the search key. Absent on a never-dealt test / dev example. */
   code?: ResolutionCode;
   module: GameModule;
   party: ReduxParty;
@@ -22,7 +22,7 @@ export type IClientResolution = {
   /** English i18n keys. */
   text: {
     name: string;
-    /** The immediate effect every participant receives at the enactment; absent on a dummy. */
+    /** The immediate effect every participant receives at the enactment. */
     effect?: string;
     /** The winner-only part of the enactment (the player who won the vote). */
     winner?: string;
@@ -48,8 +48,6 @@ export type IClientResolution = {
    * winner's step places. Absent = no winner part, or one not declared as data.
    */
   winnerReward?: WinnerRewardDeclaration;
-  /** A DUMMY carries a party, votes and a quest — and no effect of its own. */
-  dummy: boolean;
   hasImmediate: boolean;
   hasWinnerEffect: boolean;
   hasPassive: boolean;

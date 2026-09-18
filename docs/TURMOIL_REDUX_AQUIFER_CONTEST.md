@@ -154,7 +154,7 @@ resolution places an Ocean tile.* Задание: карта с меткой ж�
 «Полигон» → «Витрина резолюций Redux» (`ConsoleResolutionsPlayground.vue`, реестр `ConsolePlaygroundHub`, deep link
 `/?resolutionsPlayground`). Всё на настоящих компонентах, каталоге и общей формуле; игру не трогает (синтетическая
 модель парламента на два места + синтетические держатели животных).
-- Каталог из манифеста (настоящие по коду · заглушки/dev) — новая резолюция появляется сама.
+- Каталог из манифеста (настоящие по коду · dev-примеры, не раздаются) — новая резолюция появляется сама.
 - Грань в трёх масштабах + колонки инспектора; **X — настоящий fullscreen-осмотр** через общий `consoleCardZoom`
   (в меню его обслуживает `ConsoleMenuZoomHost`, получивший сцену резолюции: партия слева, правила справа, статус и
   чтения влияния в футере по таблице стенда — `ConsoleZoomExtra.parliament {model, viewer}`); LB/RB листают каталог.
@@ -200,7 +200,8 @@ resolution places an Ocean tile.* Задание: карта с меткой ж�
    `ctx.report(...)` при мутации/пропуске; источник `{kind:'resolution', resolution: id}` в `cause`/`placementContext`
    **обязателен** — именно по нему каждый вопрос резолюции приходит честным мандаторным промтом с плашкой источника;
    `from: {resolution: id}` в мутациях).
-2. Зарегистрировать в `REDUX_RESOLUTION_CATALOG`; заменяемую заглушку оставить с `copies: 0`.
+2. Зарегистрировать в `REDUX_RESOLUTION_CATALOG` — колода растёт на одну карту (заглушек больше нет, вытеснять
+   нечего — `TURMOIL_REDUX_DUMMY_REMOVAL.md` §5).
 3. RU-ключи в `src/locales/ru/parliament.json` (проверить дубликаты `grep` по всем `src/locales/<lang>/*.json`).
 4. Арт: `node scripts/import-card-art.mjs "<png 1536×1024>" RX<NN>` → `npm run make:cards`.
 5. Спек `tests/parliament/<Name>.spec.ts` по образцу Aquifer Contest; при новом виде выплаты — новая ветка

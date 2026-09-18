@@ -87,7 +87,7 @@ async function expectFits(page: Page, preset: Preset): Promise<void> {
       const r = el.getBoundingClientRect();
       return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden';
     };
-    const blocks = '.con-parl__gov, .con-parl__slot, .con-parl__tally, .con-parl__seats, .con-parl__seat, .con-parl__party, .con-parl__pline, .con-parl__quest, .con-parl__agenda, .con-parl__stage, ' +
+    const blocks = '.con-parl__gov, .con-parl__slot, .con-parl__slot-empty, .con-parl__tally, .con-parl__seats, .con-parl__seat, .con-parl__party, .con-parl__pline, .con-parl__quest, .con-parl__agenda, .con-parl__stage, ' +
       '.con-parl__info, .con-parl__info-block, .con-parl__fact';
     for (const el of Array.from(root.querySelectorAll<HTMLElement>(blocks))) {
       if (!visible(el)) {
@@ -111,7 +111,7 @@ async function expectFits(page: Page, preset: Preset): Promise<void> {
     }
     const reading = '.con-pseal__name, .con-pseal__state-text, .con-parl__tally-row, .con-parl__fact-key, .con-parl__fact-val, ' +
       '.con-parl__quest-reward, .con-parl__quest-text, .con-parl__pline-text, .con-parl__slot-win, .con-parl__kicker, .con-parl__seat-name, .con-parl__seat-key, .con-parl__ruler-name, ' +
-      '.con-parl__recap-item, .con-parl__txn-row, .con-parl__info-src-text, .con-parl__info-name';
+      '.con-parl__recap-item, .con-parl__txn-row, .con-parl__info-src-text, .con-parl__info-name, .con-parl__slot-party, .con-parl__slot-empty-reason';
     for (const el of Array.from(root.querySelectorAll<HTMLElement>(reading))) {
       if (!visible(el)) {
         continue;
@@ -121,7 +121,7 @@ async function expectFits(page: Page, preset: Preset): Promise<void> {
       }
       // Clipped by an ancestor tier (the tier's overflow hides it) — vertically,
       // and along the one-line focus rail, horizontally too.
-      const tier = el.closest<HTMLElement>('.con-parl__pline, .con-parl__gov, .con-parl__stage, .con-parl__party, .con-parl__slot, .con-parl__seats, .con-parl__info');
+      const tier = el.closest<HTMLElement>('.con-parl__pline, .con-parl__gov, .con-parl__stage, .con-parl__party, .con-parl__slot, .con-parl__slot-empty, .con-parl__seats, .con-parl__info');
       if (tier !== null) {
         const t = tier.getBoundingClientRect();
         const e = el.getBoundingClientRect();
@@ -311,15 +311,18 @@ for (const preset of PRESETS) {
       await settle(page);
 
       // ── THE INFORMATION WORKSPACE, «ЭФФЕКТЫ»: the viewer's party effects
-      //    (the ruling Greens + the Scientists held by two delegates) stand
-      //    in their own strip over the effects explorer — full citizens of
-      //    the effects framework, with the reason each one is held.
+      //    (the ruling Greens + the second slot's party, held by two
+      //    delegates) stand in their own strip over the effects explorer —
+      //    full citizens of the effects framework, with the reason each one
+      //    is held.
       await openInfo(page);
       await openInfoEffects(page);
       const strip = page.locator('.con-pfx');
+      const byDelegates = before.game.parliament.slots[1].party;
+      expect(byDelegates, 'the fixture\'s second slot is another party than the ruling one').not.toBe('Greens');
       await expect(strip, 'the party effects strip stands in the effects route').toHaveCount(1);
       await expect(strip.locator('.con-pfx__item[data-party="Greens"]'), 'the ruling Greens').toHaveCount(1);
-      await expect(strip.locator('.con-pfx__item[data-party="Scientists"]'), 'the Scientists, held by two delegates').toHaveCount(1);
+      await expect(strip.locator(`.con-pfx__item[data-party="${byDelegates}"]`), `${byDelegates}, held by two delegates`).toHaveCount(1);
       await shoot(page, preset, '06-info-effects');
       expect(await pressUntil(page, 'Escape', async () => await page.locator('.con-info').count() === 0, {tries: 5, settleMs: 900}),
         'B leaves the Information workspace').toBeTruthy();
@@ -346,8 +349,8 @@ for (const preset of PRESETS) {
       await press(page, 'KeyR', 1200);
       const journal = page.locator('.con-journal');
       await expect(journal, 'the journal opens').toBeVisible({timeout: 10_000});
-      await expect(journal, 'the vote line names the resolution').toContainText(/Инициатива/);
-      await expect(journal).not.toContainText(/RDX_DUMMY/);
+      await expect(journal.locator('.journal-token--resolution').first(), 'the vote line names the resolution as a chip').toBeVisible();
+      await expect(journal, 'never a bare resolution id').not.toContainText(/RDX_/);
       await shoot(page, preset, '09-journal');
       await press(page, 'Escape', 800);
     });
@@ -476,8 +479,8 @@ for (const preset of PRESETS) {
         test.setTimeout(180_000);
         // Generation 2 has just begun: the first political phase ran (blue's
         // two delegates won, the winner is enacted, blue stepped onto the
-        // Agenda, the losers gained support, three fresh resolutions stand).
-        await bootFixture(page, request, 'parliament-recap', {query: preset.profileQuery});
+        // Agenda, the losers gained support, the refresh dealt the fresh area).
+        const playerId = await bootFixture(page, request, 'parliament-recap', {query: preset.profileQuery});
         // The beats MOVE delegates (the enacted card's return to the reserves,
         // popular support onto the fresh cards, the lobby refill): a cube proxy
         // must be seen in flight while the scene plays.
@@ -513,11 +516,14 @@ for (const preset of PRESETS) {
         await shoot(page, preset, '10-recap');
         await expectFits(page, preset);
         // The objects the beats named: an ENACTED card now stands in the
-        // government, blue's marker is on Agenda step 1, three resolutions are
-        // in the area.
+        // government, blue's marker is on Agenda step 1, and the area holds
+        // what the refresh dealt (distinct parties, never the ruling one's —
+        // as many as the deck's parties allow).
         await expect(page.locator('[data-parl-gov] .con-parl__gov-card .pcard')).toHaveCount(1);
         await expect(page.locator('.con-parl__step[data-step="1"] .player-cube')).not.toHaveCount(0);
-        await expect(slots(page)).toHaveCount(3);
+        const dealt = (await parliamentModel(request, playerId)).game.parliament.slots.length;
+        expect(dealt, 'the refresh dealt a fresh area').toBeGreaterThan(0);
+        await expect(slots(page)).toHaveCount(dealt);
         expect(await pressUntil(page, 'Enter', async () => await stage(page).count() === 0, {tries: 3, settleMs: 700}),
           'A lets the player through to the browse layer').toBeTruthy();
         // The results stay readable where they landed: the enacted resolution

@@ -19,7 +19,7 @@
     console's own sprite families, the influence badge is the same asset the
     card face prints.
   -->
-  <div class="con-iyield" :class="['con-iyield--' + size, {'con-iyield--reference': readings.length === 0}]" data-influence-yield>
+  <div class="con-iyield" :class="['con-iyield--' + size, {'con-iyield--reference': readings.length === 0, 'con-iyield--parts': groups.length > 1}]" data-influence-yield>
     <span v-if="kicker !== undefined" class="con-iyield__kicker">{{ $t(kicker) }}</span>
     <div v-for="group in groups" :key="group.effect.id" class="con-iyield__group" :data-yield-effect="group.effect.id">
       <!-- A SEQUENTIAL part states its own rule: «1 [card] / 3 [heat

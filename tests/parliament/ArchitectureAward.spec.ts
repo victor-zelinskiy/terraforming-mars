@@ -8,7 +8,9 @@ import {
   ARCHITECTURE_AWARD, ARCHITECTURE_AWARD_CAP, ARCHITECTURE_AWARD_CODE, ARCHITECTURE_AWARD_ID, ARCHITECTURE_AWARD_PRODUCTION,
 } from '../../src/server/parliament/resolutions/marsFirst/ArchitectureAward';
 import {AQUIFER_CONTEST} from '../../src/server/parliament/resolutions/greens/AquiferContest';
-import {dummyResolutionId, REDUX_RESOLUTION_CATALOG} from '../../src/server/parliament/resolutions/ResolutionCatalog';
+import {REDUX_RESOLUTION_CATALOG} from '../../src/server/parliament/resolutions/ResolutionCatalog';
+import {CENTRAL_POWER_GRID_ID} from '../../src/server/parliament/resolutions/industrialists/CentralPowerGrid';
+import {seatEnacted, seatResolution} from './parliamentArrange';
 import {resolutionCount} from '../../src/server/parliament/resolutions/ResolutionCounts';
 import {PartyName} from '../../src/common/turmoil/PartyName';
 import {Phase} from '../../src/common/Phase';
@@ -69,7 +71,7 @@ function reduxGame(): [IGame, TestPlayer, TestPlayer, Parliament] {
 /** Seat Architecture Award in slot 0 with p1's delegate on it, so p1 wins it at the end of the generation. */
 function stage(): [IGame, TestPlayer, TestPlayer, Parliament] {
   const [game, p1, p2, parliament] = reduxGame();
-  parliament.slots[0].instance = AWARD;
+  seatResolution(parliament, 0, AWARD);
   parliament.placeVote(p1, parliament.slots[0], 'lobby');
   p1.megaCredits = 20;
   p2.megaCredits = 20;
@@ -109,7 +111,7 @@ function countedCards(n: number): Array<ICard> {
 
 describe('ArchitectureAward', () => {
   describe('the catalog entry', () => {
-    it('is RX02 of the Mars First, replaces the Mars First dummy with the same quest in the deck and keeps the pool at 12', () => {
+    it('is RX02 of the Mars First, dealt as ONE card', () => {
       expect(REDUX_RESOLUTION_CATALOG.get(ARCHITECTURE_AWARD_ID)).eq(ARCHITECTURE_AWARD);
       expect(ARCHITECTURE_AWARD_CODE).eq('RX02');
       expect(ARCHITECTURE_AWARD_CODE).matches(RESOLUTION_CODE_PATTERN);
@@ -119,15 +121,8 @@ describe('ArchitectureAward', () => {
       expect(ARCHITECTURE_AWARD.quest).deep.eq({goal: {kind: 'tag', tag: Tag.BUILDING}, count: 2});
       expect(ARCHITECTURE_AWARD.scaled).deep.eq([ARCHITECTURE_AWARD_PRODUCTION]);
       expect(ARCHITECTURE_AWARD.winnerSteps, 'no winner-only part').is.undefined;
-      // The old dummy stays loadable — it is NOT re-pointed at the new card.
-      const oldDummy = REDUX_RESOLUTION_CATALOG.get(dummyResolutionId(PartyName.MARS, 1));
-      expect(oldDummy?.copies).eq(0);
-      expect(oldDummy?.dummy).is.true;
-      expect(oldDummy?.immediateSteps).is.undefined;
       const dealt = REDUX_RESOLUTION_CATALOG.dealtInstances(() => true);
-      expect(dealt).includes(AWARD);
-      expect(dealt).not.includes(resolutionInstanceId(dummyResolutionId(PartyName.MARS, 1), 0));
-      expect(dealt.filter((instance) => REDUX_RESOLUTION_CATALOG.ofInstance(instance).party === PartyName.MARS)).has.length(2);
+      expect(dealt.filter((instance) => instance === AWARD)).has.length(1);
     });
 
     it('the shared formula: min(5, B + I) — every example of the brief, the cap on the SUM', () => {
@@ -269,7 +264,7 @@ describe('ArchitectureAward', () => {
 
     it('a neutral winner cancels nothing: every participant is still paid', () => {
       const [game, p1, p2, parliament] = reduxGame();
-      parliament.slots[0].instance = AWARD;
+      seatResolution(parliament, 0, AWARD);
       parliament.addNeutralVote(parliament.slots[0]);
       p1.playedCards.push(...countedCards(1));
       parliament.agenda.set(p2.id, agendaForInfluence(1));
@@ -330,8 +325,8 @@ describe('ArchitectureAward', () => {
       expect(p1.production.megacredits).eq(paid);
       expect(outcomeOf(parliament, p1)).deep.eq(outcome);
       // A new government: the production stays.
-      parliament.enacted = resolutionInstanceId(dummyResolutionId(PartyName.REDS, 1), 0);
-      expect(parliament.rulingParty()).eq(PartyName.REDS);
+      seatEnacted(parliament, CENTRAL_POWER_GRID_ID);
+      expect(parliament.rulingParty()).eq(PartyName.INDUSTRIALISTS);
       expect(p1.production.megacredits).eq(paid);
     });
 
@@ -400,8 +395,7 @@ describe('ArchitectureAward', () => {
       expect(p1.production.megacredits).eq(2);
       game.phase = Phase.ACTION;
       p1.playedCards.push(new SoilFactory());
-      parliament.slots[0].instance = AWARD;
-      parliament.enacted = undefined;
+      seatResolution(parliament, 0, AWARD);
       parliament.placeVote(p1, parliament.slots[0], 'lobby');
       endGeneration(game);
       runAllActions(game);
@@ -409,18 +403,6 @@ describe('ArchitectureAward', () => {
       expect(parliament.lastPhase?.generation).eq(2);
       expect(outcomeOf(parliament, p1)).deep.include({count: 2, influence: 1, amount: 3});
       expect(p1.production.megacredits).eq(2 + 3);
-    });
-
-    it('an old save\'s Mars First dummy stays a dummy: enacting it pays nothing', () => {
-      const [game, p1, , parliament] = reduxGame();
-      parliament.slots[0].instance = resolutionInstanceId(dummyResolutionId(PartyName.MARS, 1), 0);
-      parliament.placeVote(p1, parliament.slots[0], 'lobby');
-      p1.playedCards.push(...countedCards(3));
-      endGeneration(game);
-      runAllActions(game);
-      expect(parliament.lastPhase?.winner.instance).eq(resolutionInstanceId(dummyResolutionId(PartyName.MARS, 1), 0));
-      expect(p1.production.megacredits).eq(0);
-      expect(parliament.lastPhase?.outcomes).is.undefined;
     });
   });
 
@@ -507,7 +489,7 @@ describe('ArchitectureAward', () => {
       const [game, human, bot] = testAutomaGame({coloniesExtension: true, turmoilReduxExpansion: true});
       const parliament = game.parliament!;
       game.playerIsFinishedWithResearchPhase(human);
-      parliament.slots[0].instance = AWARD;
+      seatResolution(parliament, 0, AWARD);
       parliament.placeVote(human, parliament.slots[0], 'lobby');
       human.playedCards.push(...countedCards(2));
       bot.playedCards.push(...countedCards(2));
