@@ -166,11 +166,13 @@ for (const preset of PRESETS) {
       await settle(page, {timeoutMs: 15_000});
       await expect(page.locator('[data-parl-vote-yield]'), 'the influence → animals block').toHaveCount(1);
       const readings = await yieldReadings(page, '[data-parl-vote-yield]');
-      // Blue stands at step 2 (influence 1) → 1 animal now; winning advances to step 3 (influence 2) → 2.
+      // Blue stands at step 2 (influence 1) → 1 animal now; winning advances to step 3 (influence 2) → 2 —
+      // ONE NUMBER on the panel, the win's +1 riding it as a suffix (the forecast plate is the inspector's).
       expect(readings).toEqual([
         {context: 'estimate', influence: '1', amount: '1'},
-        {context: 'forecast', influence: '2', amount: '2'},
       ]);
+      await expect(page.locator('[data-parl-vote-yield] [data-parl-vote-suffix]'), 'the win\'s difference is a suffix of the one reading').toHaveAttribute('data-parl-vote-suffix', '1');
+      await expect(page.locator('[data-parl-vote-yield] [data-parl-vote-suffix]')).toHaveAttribute('data-suffix-step', '3');
       await expect(page.locator('[data-parl-vote-yield] [data-yield-note]'), 'blue holds Fish + Pets — no «no recipient» note').toHaveCount(0);
       await expectFits(page, `${preset.id} vote mode`);
       await shoot(page, preset.id, '02-vote-reading');

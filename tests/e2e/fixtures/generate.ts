@@ -705,7 +705,7 @@ function seatQuietResolution(parliament: Parliament, index: number): void {
 //    does not (it raises energy PRODUCTION and prints no power tag): P = 3 →
 //    «3 + 1 → +4» now and «3 + 2 → +5 · max» if blue wins (the forecast
 //    reaches the cap). Red: Agenda step 5 (influence 3), two power tags. ──
-{
+function powerGridTable(blueAgenda: number): IGame {
   const [game, p1, p2] = testGame(2, {
     skipInitialCardSelection: false, coloniesExtension: true, turmoilReduxExpansion: true,
     startingCorporations: 1,
@@ -721,7 +721,7 @@ function seatQuietResolution(parliament: Parliament, index: number): void {
   }
   seatResolution(parliament, 0, CENTRAL_POWER_GRID_ID);
   parliament.placeVote(p1, parliament.slots[0], 'lobby');
-  parliament.agenda.set(p1.id, 2);
+  parliament.agenda.set(p1.id, blueAgenda);
   parliament.agenda.set(p2.id, 5);
   p1.playedCards.push(new HE3FusionPlant(), new BiomassCombustors(), new ArtificialPhotosynthesis());
   p2.playedCards.push(new PowerPlant(), new FusionPower(), new Mine());
@@ -734,8 +734,14 @@ function seatQuietResolution(parliament: Parliament, index: number): void {
   if (count.count !== 3 || count.cards.length !== 2) {
     throw new Error(`the parliament-powergrid-vote fixture expected P=3 from 2 cards, got ${JSON.stringify(count)}`);
   }
-  write('parliament-powergrid-vote', game);
+  return game;
 }
+write('parliament-powergrid-vote', powerGridTable(2));
+
+// ── parliament-powergrid-vote-cap: the same table with blue at the END of the
+//    Agenda track (step 12 = influence 5): P 3 + I 5 = 8 → +5, the maximum
+//    already — a win moves nothing, so the vote panel prints NO suffix. ──
+write('parliament-powergrid-vote-cap', powerGridTable(12));
 
 // ── parliament-powergrid-recap: generation 2 has just begun — the political
 //    phase at the end of generation 1 ENACTED Central Power Grid (red's
@@ -992,6 +998,17 @@ function climateTable(blueHeat: number, redHeat: number): {game: IGame, p1: Test
 {
   const {game} = climateTable(4, 1);
   write('parliament-climate-vote', game);
+}
+
+// ── parliament-climate-vote-raise: the SAME table with blue one Agenda step
+//    back (step 2 = influence 1; winning → step 3 = influence 2): +1 heat
+//    production now (4 → 5 → 1 card) and, if blue wins, +2 (4 → 6 → 2 cards) —
+//    the vote panel's «+1 if you win · step 3» suffix on BOTH links of the chain. ──
+{
+  const {game, p1, parliament} = climateTable(4, 1);
+  parliament.agenda.set(p1.id, 2);
+  runAllActions(game);
+  write('parliament-climate-vote-raise', game);
 }
 
 // ── parliament-climate-enact: the political phase STOPPED INSIDE blue's

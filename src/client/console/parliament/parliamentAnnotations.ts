@@ -41,7 +41,7 @@ import {InfluenceYield} from '@/common/parliament/influenceScaling';
 import {countedContributions, yieldCountPresentation} from './influenceYieldModel';
 import {WinnerRewardReading, winnerRewardRuleKey, winnerRewardSentenceOf} from './winnerRewardModel';
 
-type RowText = {text: string, params?: ReadonlyArray<string>};
+export type RowText = {text: string, params?: ReadonlyArray<string>};
 
 /**
  * A block's place in the panel: the SUBJECT's own rules first, then what
@@ -204,10 +204,23 @@ export function resolutionAnnotations(
  * THE PARTY COLUMN beside a resolution: the party's mechanics as sentences
  * (the plaque above draws the graphic). No state, no «for you», no reference
  * — the plaque's badge, the footer and the party's own inspector carry those.
+ *
+ * …and, while the card is up for the vote, YOUR VOTE (`voteFactRowsOf`): the
+ * delegate count and every consequence with its note — the whole forecast the
+ * vote panel compresses to two facts. It stands in THIS column on purpose:
+ * the rules column has no line to spare on the couch and the Deck (measured
+ * 2014 > 1760 / 691 > 575 px with the block there — a scroll, which the scene
+ * forbids), the footer has no width at 1080 and on the Deck, and the party
+ * column is the scene's shortest — where the last fact (the party effect for
+ * you) is about the very party above it.
  */
-export function resolutionPartyAnnotations(party: ReduxParty): ReadonlyArray<CardAnnotation> {
+export function resolutionPartyAnnotations(party: ReduxParty, vote?: ReadonlyArray<RowText>): ReadonlyArray<CardAnnotation> {
   const effect = getPartyEffect(party);
-  return effect === undefined ? [] : partyMechanicBlocks(effect, ASIDE_LABELS);
+  const out: Array<CardAnnotation> = effect === undefined ? [] : partyMechanicBlocks(effect, ASIDE_LABELS);
+  if (vote !== undefined && vote.length > 0) {
+    out.push(block('group:vote', 'note', 'Your vote', vote, 2));
+  }
+  return out;
 }
 
 export function partyAnnotations(party: ReduxParty, model: ParliamentModel | undefined, viewer: Color | undefined, canActNow?: boolean): ReadonlyArray<CardAnnotation> {

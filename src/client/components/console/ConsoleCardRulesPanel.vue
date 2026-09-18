@@ -12,7 +12,8 @@
         <div class="con-zoom-rules__body" data-zoom-flank-content>
           <section v-for="group in orderedAnnotations" :key="group.id"
                    class="con-zoom-rules__group"
-                   :class="'con-zoom-rules__group--' + group.kind">
+                   :class="'con-zoom-rules__group--' + group.kind"
+                   :data-rules-group="group.id">
             <span class="con-zoom-rules__kind">
               <span v-if="group.special" class="con-zoom-rules__spark" aria-hidden="true">✱</span>
               {{ $t(group.labelKey) }}

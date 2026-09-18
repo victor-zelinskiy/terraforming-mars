@@ -39,6 +39,9 @@ const readingsIn = (page: Page, scope: string) => page.evaluate((sel) => {
 }, scope) as Promise<Array<Reading>>;
 
 const heroReadings = (page: Page) => readingsIn(page, '[data-rxpg-yield]');
+/** The PROPOSAL context reads the way the vote panel does: the win's difference is a SUFFIX of the estimate (one per effect). */
+const heroSuffixes = (page: Page) => page.evaluate(() =>
+  Array.from(document.querySelectorAll<HTMLElement>('[data-rxpg-yield] [data-parl-vote-suffix]')).map((el) => el.getAttribute('data-parl-vote-suffix')));
 
 /** A COUNTED reading: every input the number stands on (the count, the influence, the sum before the cap, the MAX mark). */
 type Counted = {context: string | null, count: string | null, influence: string | null, amount: string | null, uncapped: string | null, max: string | null, skipped: string | null};
@@ -125,8 +128,8 @@ for (const preset of PRESETS) {
       await expect(page.locator('[data-rxpg-agenda]')).toHaveClass(/con-rxpg__agenda--advanced/);
       await expect(page.locator('[data-rxpg-seat="blue"] [data-rxpg-seat-advance]')).toHaveCount(1);
       await shoot(page, preset.id, '02-winner-agenda');
-      // Y: the context cycles — applied (the RECORDED 3), reference (the formula alone), proposal (the estimate 2 and,
-      // apart from it, the «if you win» forecast at Agenda step 5 = 3).
+      // Y: the context cycles — applied (the RECORDED 3), reference (the formula alone), proposal (the estimate 2 with
+      // the «if you win» difference — Agenda step 5 = 3 — riding it as a suffix, the vote panel's own reading).
       await press(page, 'KeyY', 400);
       expect(await heroReadings(page)).toEqual([reading('applied', 3, 3)]);
       await press(page, 'KeyY', 400);
@@ -134,13 +137,16 @@ for (const preset of PRESETS) {
       await expect(page.locator('[data-rxpg-yield] .con-iyield__formula')).toHaveCount(1);
       await expect(page.locator('[data-rxpg-seats]')).toHaveCount(0);
       await press(page, 'KeyY', 400);
-      expect(await heroReadings(page)).toEqual([reading('estimate', 2, 2), reading('forecast', 3, 3)]);
+      // ONE NUMBER in the proposal context: the estimate, the win's +1 as its suffix — the same model the vote panel reads.
+      expect(await heroReadings(page)).toEqual([reading('estimate', 2, 2)]);
+      expect(await heroSuffixes(page), 'the win\'s difference rides the estimate as a suffix').toEqual(['1']);
       await shoot(page, preset.id, '03-winner-agenda-proposal');
 
       // ── RT: influence beyond the track rides along — Agenda 4 + 1 = 3 now, step 5 + 1 = 4 if the vote is won.
       await press(page, 'Period', 400);
       await expectScenario(page, 'beyond-track');
-      expect(await heroReadings(page)).toEqual([reading('estimate', 3, 3), reading('forecast', 4, 4)]);
+      expect(await heroReadings(page)).toEqual([reading('estimate', 3, 3)]);
+      expect(await heroSuffixes(page)).toEqual(['1']);
 
       // ── RT: no eligible card — the payout keeps its size and names the skip; the picker yields to the skip line.
       await press(page, 'Period', 400);
@@ -295,7 +301,8 @@ for (const preset of PRESETS) {
       // ── RT: the winner's Agenda step first — now 2 + 2 → +4; winning (step 5 = influence 3) → 2 + 3 → +5, the maximum.
       await press(page, 'Period', 400);
       await expectScenario(page, 'counted-winner-agenda');
-      expect(await countedIn(page, '[data-rxpg-yield]')).toEqual([counted('estimate', 2, 2, 4, 4), counted('forecast', 2, 3, 5, 5)]);
+      expect(await countedIn(page, '[data-rxpg-yield]')).toEqual([counted('estimate', 2, 2, 4, 4)]);
+      expect(await heroSuffixes(page), 'the win reaches the maximum: +1 as a suffix').toEqual(['1']);
 
       // ── RT: the recorded result — A received +4; B (the winner, step 1 = influence 1, no counted card) +1.
       await press(page, 'Period', 400);
@@ -328,7 +335,8 @@ for (const preset of PRESETS) {
       expect(await countedIn(page, '[data-rxpg-yield]')).toEqual([counted('estimate', 0, 2, 2, 2)]);
       await press(page, 'Period', 400);
       await expectScenario(page, 'counted-cards-only');
-      expect(await countedIn(page, '[data-rxpg-yield]')).toEqual([counted('estimate', 2, 0, 2, 2), counted('forecast', 2, 1, 3, 3)]);
+      expect(await countedIn(page, '[data-rxpg-yield]')).toEqual([counted('estimate', 2, 0, 2, 2)]);
+      expect(await heroSuffixes(page)).toEqual(['1']);
 
       // ── View: test player B — ITS own tableau and influence; A (the pad) moves B's influence and the reading follows.
       await press(page, 'KeyR', 400);
@@ -400,7 +408,8 @@ for (const preset of PRESETS) {
       // ── RT: the winner's Agenda step comes BEFORE the plants — 2 → +4 now, 3 → +6 if the vote is won.
       await press(page, 'Period', 400);
       await expectScenario(page, 'tile-winner-agenda');
-      expect(await heroReadings(page)).toEqual([reading('estimate', 2, 4), reading('forecast', 3, 6)]);
+      expect(await heroReadings(page)).toEqual([reading('estimate', 2, 4)]);
+      expect(await heroSuffixes(page), '2 plants per influence: the win adds +2').toEqual(['2']);
 
       // ── RT: the WINNER's view while the phase resolves — the recipient is fixed, the tile is still to come.
       await press(page, 'Period', 400);
@@ -536,7 +545,8 @@ for (const preset of PRESETS) {
       // ── The family's opening scenario: below the maximum — two power tags at influence 1,
       //    and the winner's Agenda step would take it to 2 (both readings below the cap).
       await expectScenario(page, 'grid-below-cap');
-      expect(await countedIn(page, '[data-rxpg-yield]')).toEqual([counted('estimate', 2, 1, 3, 3), counted('forecast', 2, 2, 4, 4)]);
+      expect(await countedIn(page, '[data-rxpg-yield]')).toEqual([counted('estimate', 2, 1, 3, 3)]);
+      expect(await heroSuffixes(page)).toEqual(['1']);
       expect(await tableauOf(page, 'blue')).toEqual(['Power Plant:true', 'Solar Power:true', 'Artificial Photosynthesis:false']);
       await expect(page.locator('[data-rxpg-tableau="blue"] [data-rxpg-count]')).toHaveText('2');
       await expect(page.locator('[data-rxpg-tableau="blue"] [data-rxpg-card="Artificial Photosynthesis"]'),
@@ -551,7 +561,8 @@ for (const preset of PRESETS) {
         expect(ok, `the family ring reaches ${key}`).toBe(true);
       };
       await toScenario('grid-multi-tag');
-      expect(await countedIn(page, '[data-rxpg-yield]')).toEqual([counted('estimate', 3, 0, 3, 3), counted('forecast', 3, 1, 4, 4)]);
+      expect(await countedIn(page, '[data-rxpg-yield]')).toEqual([counted('estimate', 3, 0, 3, 3)]);
+      expect(await heroSuffixes(page), 'the win\'s step (influence 1) adds +1 — a suffix of the estimate').toEqual(['1']);
       await expect(page.locator('[data-rxpg-tableau="blue"] [data-rxpg-count]'), 'two cards, THREE tags').toHaveText('3');
       await expect(page.locator('[data-rxpg-tableau="blue"] [data-rxpg-card="HE3 Fusion Plant"] .con-rxpg__tcard-verdict'))
         .toHaveAttribute('data-rxpg-units', '2');

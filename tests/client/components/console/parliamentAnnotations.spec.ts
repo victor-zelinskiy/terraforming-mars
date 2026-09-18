@@ -217,4 +217,24 @@ describe('parliamentAnnotations — the fullscreen inspector\'s reading blocks',
   it('an unknown resolution reads nothing (never a blank chip)', () => {
     expect(resolutionAnnotations('RDX_NOT_A_CARD')).to.deep.eq([]);
   });
+
+  it('«Your vote» — the panel\'s compressed facts read whole in the PARTY column: a block under the party\'s sentences, only when given', () => {
+    const rows = [
+      {text: 'Delegates on the card: ${0} → ${1} · of them yours ${2} → ${3}', params: ['1', '2', '0', '1']},
+      {text: '${0}: ${1} → ${2}', params: ['Лидер', 'red', 'вы']},
+    ];
+    for (const party of [PartyName.GREENS, PartyName.REDS] as const) {
+      const own = resolutionPartyAnnotations(party).map((b) => b.labelKey);
+      const withVote = resolutionPartyAnnotations(party, rows);
+      expect(withVote.map((b) => b.labelKey), `${party}: the party's own blocks, then the vote`).to.deep.eq([...own, 'Your vote']);
+      const block = withVote[withVote.length - 1];
+      expect(block.id).to.eq('group:vote');
+      expect(block.kind).to.eq('note');
+      expect(block.rows.map((r) => r.text)).to.deep.eq(rows.map((r) => r.text));
+      expect(block.rows[1].params).to.deep.eq(['Лидер', 'red', 'вы']);
+      expect(resolutionPartyAnnotations(party, []).map((b) => b.labelKey), 'no rows — no block').to.deep.eq(own);
+    }
+    // The rules column is untouched: the block never competes with the card's own reading for the column's height.
+    expect(resolutionAnnotations(GRID).map((b) => b.labelKey)).to.deep.eq(['When enacted', 'Chairman quest']);
+  });
 });

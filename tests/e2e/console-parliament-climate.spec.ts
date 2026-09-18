@@ -232,6 +232,10 @@ for (const preset of PRESETS) {
         {context: 'estimate', influence: '2', amount: '2', before: '4', after: '6', skipped: null},
       ]);
       await expect(page.locator('[data-parl-vote-yield] .con-iyield__unit--prod').first(), 'the raise is PRODUCTION (the brown plate)').toBeVisible();
+      // ONE NUMBER: the chain is one reading; step 4 is a TR step, so the win raises nothing — no suffix, and never a forecast plate.
+      await expect(page.locator('[data-parl-vote-reading]'), 'one reading').toHaveCount(1);
+      await expect(page.locator('[data-parl-vote-yield] [data-parl-vote-suffix]'), 'no raise — no suffix').toHaveCount(0);
+      await expect(page.locator('[data-parl-vote-yield] .con-iyield__reading--forecast'), 'a forecast is never a plate on the panel').toHaveCount(0);
       // …and the Greens' own answer to the raise: +2 M€ PRODUCTION.
       const reaction = page.locator('[data-parl-vote-reaction]');
       await expect(reaction, 'the ruling party answers the raise').toHaveCount(1);
@@ -252,6 +256,7 @@ for (const preset of PRESETS) {
       const rules = zoom.locator('.con-zoom-rules').last();
       await expect(rules, 'the rules state both halves in words').toContainText(/производство тепла|heat production/i);
       await expect(rules, '…including the second half').toContainText(/3 шага|3 steps/i);
+      await expect(zoom.locator('[data-rules-group="group:vote"] .con-zoom-rules__text'), 'the vote\'s whole forecast, in words: the count and three facts').toHaveCount(4);
       // …and the ruling party's answer rides the footer beside the numbers.
       await expect(zoom.locator('[data-zoom-reaction]'), 'the party answer in the footer').toHaveCount(1);
       await shoot(page, preset.id, '03-fullscreen');

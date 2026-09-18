@@ -2218,7 +2218,8 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'hydro-terminal'
   'parliament-biodome-vote' | 'parliament-biodome-enact' | 'parliament-biodome-maxed' | 'parliament-biodome-recap' |
   'parliament-biodome-nocell' | 'parliament-biodome-neutral' |
   'parliament-powergrid-vote' | 'parliament-powergrid-recap' |
-  'parliament-climate-vote' | 'parliament-climate-enact' | 'parliament-climate-recap' | 'parliament-climate-big';
+  'parliament-climate-vote' | 'parliament-climate-enact' | 'parliament-climate-recap' | 'parliament-climate-big' |
+  'parliament-climate-vote-raise' | 'parliament-powergrid-vote-cap';
 
 export async function bootFixture(
   page: Page,

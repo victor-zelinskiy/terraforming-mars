@@ -224,16 +224,13 @@ for (const preset of PRESETS) {
       // ── THE VOTE MODE: the plants readings and, apart from them, the winner's block.
       expect(await pressUntil(page, 'Enter', async () => await page.locator('.con-parl__vote.con-parl__vote--up').count() > 0, {tries: 4, settleMs: 1200}), 'the vote mode opens').toBe(true);
       await settle(page, {timeoutMs: 15_000});
-      expect(await yieldReadings(page, '[data-parl-vote-yield]'), 'influence 1 → +2 now; the winner\'s step → influence 2 → +4').toEqual([
+      // ONE NUMBER: influence 1 → +2 now; the winner's step (influence 2 → +4) rides it as «+2 if you win · step 3».
+      expect(await yieldReadings(page, '[data-parl-vote-yield]'), 'the one reading').toEqual([
         {context: 'estimate', influence: '1', amount: '2'},
-        {context: 'forecast', influence: '2', amount: '4'},
       ]);
-      const vote = await winnerReading(page, '[data-parl-vote-winner]');
-      expect(vote, 'the winner\'s block: «if you win» · greenery · oxygen 5 → 6 % · +2 TR').toMatchObject({
-        context: 'conditional', tile: 'greenery', before: '5', after: '6', tr: '2', skipped: null,
-      });
-      expect(vote?.caption).toMatch(/При победе|If you win/);
-      expect(vote?.note).toMatch(/Тайл озеленения\s*\+1|Greenery tile\s*\+1/);
+      await expect(page.locator('[data-parl-vote-yield] [data-parl-vote-suffix]'), 'the win\'s difference as a suffix').toHaveAttribute('data-parl-vote-suffix', '2');
+      // The winner's tile is CONDITIONAL — the inspector's chip and its «for you» row, never a block on the panel.
+      await expect(page.locator('[data-parl-vote-winner]'), 'no winner block on the panel').toHaveCount(0);
       await expectFits(page, `${preset.id} vote mode`);
       await shoot(page, preset.id, '02-vote-reading');
 

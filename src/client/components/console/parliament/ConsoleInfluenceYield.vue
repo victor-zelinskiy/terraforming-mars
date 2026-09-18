@@ -14,12 +14,17 @@
     estimate and the «if you win» forecast); a forecast that changes nothing
     is never drawn. No player → the formula alone, no invented number.
 
+    ONE NUMBER (`oneNumber`) — the vote panel's law: the forecast is not a
+    second plate but a SUFFIX of the estimate («+1 if you win · step 3»,
+    `winSuffixesOf`), every effect's plate stands on ONE line, and the
+    block's host supplies the caption (its kicker), so the plates print none.
+
     Nothing here computes: the numbers arrive from `influenceYieldModel.ts`
     (the client reading of the common `scaledAmount`), the icons are the
     console's own sprite families, the influence badge is the same asset the
     card face prints.
   -->
-  <div class="con-iyield" :class="['con-iyield--' + size, {'con-iyield--reference': readings.length === 0, 'con-iyield--parts': groups.length > 1}]" data-influence-yield>
+  <div class="con-iyield" :class="['con-iyield--' + size, {'con-iyield--reference': readings.length === 0, 'con-iyield--parts': groups.length > 1, 'con-iyield--onenum': oneNumber}]" data-influence-yield>
     <span v-if="kicker !== undefined" class="con-iyield__kicker">{{ $t(kicker) }}</span>
     <div v-for="group in groups" :key="group.effect.id" class="con-iyield__group" :data-yield-effect="group.effect.id">
       <!-- A SEQUENTIAL part states its own rule: «1 [card] / 3 [heat
@@ -85,8 +90,29 @@
           <span v-if="y.total !== undefined || y.influence !== undefined || y.count !== undefined" class="con-iyield__arrow" aria-hidden="true">→</span>
           <!-- A forfeited payout keeps its SIZE and says it did not land (✕ + struck amount); the caption names why.
                A capped sum says MAX beside the amount — the limit is part of the number, never a footnote. -->
-          <span class="con-iyield__out" :class="{'con-iyield__out--lost': y.skipped !== undefined && (y.amount ?? 0) > 0}"><b>{{ outText(y) }}</b><i class="con-iyield__unit" :class="unitClassOf(group.effect)"></i><em v-if="atCap(y)" class="con-iyield__max">{{ $t('Max.') }}</em></span>
-          <span v-if="captionOf(y) !== ''" class="con-iyield__caption">{{ captionOf(y) }}</span>
+          <span class="con-iyield__result">
+            <span class="con-iyield__out" :class="{'con-iyield__out--lost': y.skipped !== undefined && (y.amount ?? 0) > 0}"><b>{{ outText(y) }}</b><i class="con-iyield__unit" :class="unitClassOf(group.effect)"></i><em v-if="atCap(y)" class="con-iyield__max">{{ $t('Max.') }}</em></span>
+            <!-- THE WIN'S DIFFERENCE, as a suffix of this very number — tracked
+                 caps, a quiet gold accent carried by weight, the Agenda step
+                 as the rail's own node. Not a reading: no kicker, no line of
+                 its own, no beat of its own. -->
+            <span v-if="y.context === 'estimate' && group.suffix !== undefined"
+                  class="con-iyield__suffix"
+                  :class="{'con-iyield__suffix--max': group.suffix.atCap}"
+                  :data-parl-vote-suffix="group.suffix.delta"
+                  :data-suffix-step="group.suffix.agendaStep"
+                  :data-hint="suffixHint(group.suffix)">
+              <b class="con-iyield__suffix-num">+{{ group.suffix.delta }}</b>
+              <i class="con-iyield__unit con-iyield__suffix-unit" :class="unitClassOf(group.effect)"></i>
+              <span class="con-iyield__suffix-text">{{ $t(suffixWords) }}</span>
+              <template v-if="group.suffix.agendaStep !== undefined">
+                <span class="con-iyield__suffix-sep" aria-hidden="true">·</span>
+                <span class="con-iyield__suffix-text">{{ $t(suffixStepWord) }}</span>
+                <i class="con-iyield__suffix-node" aria-hidden="true">{{ group.suffix.agendaStep }}</i>
+              </template>
+            </span>
+          </span>
+          <span v-if="captions && captionOf(y) !== ''" class="con-iyield__caption">{{ captionOf(y) }}</span>
         </div>
       </div>
     </div>
@@ -98,13 +124,14 @@
 import {defineComponent, PropType} from 'vue';
 import {InfluenceScaledEffect, InfluenceYield, yieldAtCap} from '@/common/parliament/influenceScaling';
 import {
-  sequelTotalIcon, yieldCaptionOf, yieldCountPresentation, yieldIconOf, YieldCountGlyph, YieldIcon,
+  oneNumberYieldsOf, sequelTotalIcon, WinSuffix, winSuffixesOf, yieldCaptionOf, yieldCountPresentation, yieldIconOf, YieldCountGlyph, YieldIcon,
 } from '@/client/console/parliament/influenceYieldModel';
+import {SUFFIX_HINT, SUFFIX_IF_YOU_WIN, SUFFIX_STEP} from '@/client/console/parliament/voteInfoModel';
 import PremiumCountGlyph from '@/client/components/premiumCard/PremiumCountGlyph.vue';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 
-type Group = {effect: InfluenceScaledEffect, readings: Array<InfluenceYield>};
+type Group = {effect: InfluenceScaledEffect, readings: Array<InfluenceYield>, suffix: WinSuffix | undefined};
 
 export default defineComponent({
   name: 'ConsoleInfluenceYield',
@@ -116,6 +143,20 @@ export default defineComponent({
     size: {type: String as PropType<'compact' | 'normal' | 'hero'>, default: 'normal'},
     /** Draw the constant formula above the readings (off where the card's own graphic stands beside the block). */
     formula: {type: Boolean, default: true},
+    /**
+     * ONE NUMBER: fold every «if you win» forecast into a suffix of its
+     * effect's estimate (the vote panel, the playground's proposal context).
+     * Off, the forecast stands as its own captioned plate (the inspector).
+     */
+    oneNumber: {type: Boolean, default: false},
+    /**
+     * The suffixes to draw in one-number mode, when the host has already
+     * separated them from the readings (`voteInfoModel`); absent, they are
+     * read off `yields` here — the same `winSuffixesOf` either way.
+     */
+    suffixes: {type: Array as PropType<ReadonlyArray<WinSuffix> | undefined>, default: undefined},
+    /** Print each reading's caption (off inside a block whose own kicker states the question). */
+    captions: {type: Boolean, default: true},
     /** An i18n key over the block. */
     kicker: {type: String as PropType<string | undefined>, default: undefined},
     /** An i18n key under the block — the honest «no recipient» note, never a promise. */
@@ -124,10 +165,12 @@ export default defineComponent({
   computed: {
     groups(): Array<Group> {
       const out: Array<Group> = [];
-      for (const y of this.yields) {
+      const shown = this.oneNumber ? oneNumberYieldsOf(this.yields) : this.yields;
+      const suffixes = this.oneNumber ? (this.suffixes ?? winSuffixesOf(this.yields)) : [];
+      for (const y of shown) {
         let group = out.find((g) => g.effect.id === y.effect.id);
         if (group === undefined) {
-          group = {effect: y.effect, readings: []};
+          group = {effect: y.effect, readings: [], suffix: suffixes.find((s) => s.effectId === y.effect.id)};
           out.push(group);
         }
         if (y.context !== 'reference') {
@@ -138,6 +181,12 @@ export default defineComponent({
     },
     readings(): Array<InfluenceYield> {
       return this.groups.flatMap((g) => g.readings);
+    },
+    suffixWords(): string {
+      return SUFFIX_IF_YOU_WIN;
+    },
+    suffixStepWord(): string {
+      return SUFFIX_STEP;
     },
   },
   methods: {
@@ -188,6 +237,10 @@ export default defineComponent({
         return '';
       }
       return caption.params === undefined ? translateText(caption.key) : translateTextWithParams(caption.key, [...caption.params]);
+    },
+    /** The suffix's one-phrase explanation (the premium tooltip; a step-less forecast explains nothing more than it says). */
+    suffixHint(suffix: WinSuffix): string | undefined {
+      return suffix.agendaStep === undefined ? undefined : translateTextWithParams(SUFFIX_HINT, [String(suffix.agendaStep)]);
     },
   },
 });

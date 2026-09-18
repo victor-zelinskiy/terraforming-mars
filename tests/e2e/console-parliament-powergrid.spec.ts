@@ -171,13 +171,14 @@ for (const preset of PRESETS) {
       expect(await pressUntil(page, 'Enter', async () => await page.locator('.con-parl__vote.con-parl__vote--up').count() > 0, {tries: 4, settleMs: 1200}), 'the vote mode opens').toBe(true);
       await settle(page, {timeoutMs: 15_000});
       await expect(page.locator('[data-parl-vote-yield]'), 'the tag count + influence → production block').toHaveCount(1);
-      // Blue: 3 power tags (one card worth TWO) + influence 1 → +4 now; winning takes the marker to step 4 (influence 2) → 3 + 2 = +5, the maximum.
+      // Blue: 3 power tags (one card worth TWO) + influence 1 → +4 now; winning takes the marker to step 3 (influence 2) → 3 + 2 = +5,
+      // the maximum — ONE NUMBER on the panel, the win's +1 as its suffix (the captioned forecast plate is the inspector's).
       expect(await readingsIn(page, '[data-parl-vote-yield]')).toEqual([
         reading('estimate', 3, 1, 4, 4),
-        reading('forecast', 3, 2, 5, 5),
       ]);
-      await expect(page.locator('[data-parl-vote-yield] .con-iyield__reading--estimate .con-iyield__caption'), 'the estimate is a condition, never a promise').toHaveText(/Если принять сейчас|If enacted now/i);
-      await expect(page.locator('[data-parl-vote-yield] .con-iyield__reading--forecast .con-iyield__max'), 'the forecast reaches the cap and says so').toHaveCount(1);
+      await expect(page.locator('[data-parl-vote-yield] .con-iyield__caption'), 'the panel\'s kicker is the caption — the plate prints none').toHaveCount(0);
+      await expect(page.locator('[data-parl-vote-yield] [data-parl-vote-suffix]'), 'the win\'s difference as a suffix').toHaveAttribute('data-parl-vote-suffix', '1');
+      await expect(page.locator('[data-parl-vote-yield] .con-iyield__suffix--max'), 'the suffix says the win reaches the maximum').toHaveCount(1);
       await expect(page.locator('[data-parl-vote-yield] .con-iyield__unit--prod').first(), 'the unit is PRODUCTION (the brown plate)').toBeVisible();
       await expect(page.locator('[data-parl-vote-yield] .pcglyph[data-count-tag="power"]').first(), 'the counted object in the reading is the printed tag').toBeVisible();
       await expectFits(page, `${preset.id} vote mode`);

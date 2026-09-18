@@ -37,7 +37,10 @@
         <i class="con-preact__unit con-preact__unit--trigger" :class="triggerClass" aria-hidden="true"></i>
       </span>
     </span>
-    <span class="con-preact__caption" data-reaction-caption>{{ caption }}</span>
+    <!-- The moment's caption — off where the host's own heading already says
+         it (the vote panel's «for you when enacted» kicker): the emblem and
+         the name still say whose rule pays. -->
+    <span v-if="withCaption" class="con-preact__caption" data-reaction-caption>{{ caption }}</span>
   </div>
 </template>
 
@@ -54,6 +57,8 @@ export default defineComponent({
     reading: {type: Object as PropType<PartyReactionReading>, required: true},
     /** `compact` under a dock / in a block, `normal` on a stage. */
     size: {type: String as PropType<'compact' | 'normal'>, default: 'compact'},
+    /** Print the moment's caption (off inside a block whose own kicker states the moment). */
+    withCaption: {type: Boolean, default: true},
   },
   computed: {
     emblemUrl(): string {

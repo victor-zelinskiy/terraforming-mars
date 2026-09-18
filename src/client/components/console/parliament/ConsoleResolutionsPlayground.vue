@@ -165,7 +165,9 @@
           <PremiumCard :name="cardNameOf(selected)" :vmOverride="selectedVm" inert />
         </div>
         <div class="con-rxpg__yieldcol">
-          <ConsoleInfluenceYield v-if="yields.length > 0" :yields="yields" size="hero" :note="yieldNote" :kicker="contextLabel" data-rxpg-yield />
+          <!-- The PROPOSAL context reads the way the vote panel does — one number
+               per effect, the win's difference as its suffix (the same model). -->
+          <ConsoleInfluenceYield v-if="yields.length > 0" :yields="yields" :oneNumber="context === 'proposal'" size="hero" :note="yieldNote" :kicker="contextLabel" data-rxpg-yield />
           <p v-else class="con-rxpg__none" data-rxpg-yield-none>{{ $t('Not scaled by influence') }}</p>
           <!-- …and the answer of the party the card brings to power — its own
                law, so its own block, under the numbers it answers. -->
@@ -193,7 +195,7 @@
               <PlayerCube :color="row.color" :size="12" :glow="false" />
               <span class="con-rxpg__seat-name">{{ $t(row.label) }}</span>
               <i v-if="row.winner" class="con-rxpg__seat-star" aria-hidden="true"></i>
-              <ConsoleInfluenceYield :yields="row.yields" :formula="false" size="compact" />
+              <ConsoleInfluenceYield :yields="row.yields" :formula="false" :oneNumber="context === 'proposal'" size="compact" />
               <span v-if="row.advance !== undefined" class="con-rxpg__seat-tag con-rxpg__seat-tag--agenda" data-rxpg-seat-advance>{{ row.advance }}</span>
               <span v-if="row.winnerPart && selected.text.winner !== undefined" class="con-rxpg__seat-tag con-rxpg__seat-tag--winner" data-rxpg-seat-winner-part>{{ $t(selected.text.winner) }}</span>
             </div>

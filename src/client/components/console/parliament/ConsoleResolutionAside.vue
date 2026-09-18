@@ -43,7 +43,7 @@ import {CardAnnotation} from '@/client/components/cardAnnotations/annotationMode
 import ConsoleCardRulesPanel from '@/client/components/console/ConsoleCardRulesPanel.vue';
 import {RulesLengthTier} from '@/client/components/console/consoleCardRules';
 import ConsolePartyPlaque from '@/client/components/console/parliament/ConsolePartyPlaque.vue';
-import {resolutionPartyAnnotations} from '@/client/console/parliament/parliamentAnnotations';
+import {resolutionPartyAnnotations, RowText} from '@/client/console/parliament/parliamentAnnotations';
 import {PartyActionStateVm, partyActionStateOf, ParliamentPartyVm} from '@/client/console/parliament/consoleParliamentModel';
 import {getPartyEffect} from '@/client/parliament/ClientParliamentManifest';
 import {translateText} from '@/client/directives/i18n';
@@ -61,6 +61,8 @@ export default defineComponent({
     canActNow: {type: Boolean, default: false},
     /** The context line's i18n key (from `resolutionPartyContextKey`), undefined without a table. */
     contextKey: {type: String as PropType<string | undefined>, default: undefined},
+    /** The viewer's VOTE on the card, in words (`voteFactRowsOf`) — a block under the party's sentences while the card is up for the vote. */
+    voteRows: {type: Array as PropType<ReadonlyArray<RowText> | undefined>, default: undefined},
     /** The scene's ONE reading tier (the denser of this column and the rules column). */
     tier: {type: String as PropType<RulesLengthTier | undefined>, default: undefined},
     /** The viewer's settle signal (forwarded to the rules panel's measure). */
@@ -70,7 +72,7 @@ export default defineComponent({
   },
   computed: {
     annotations(): ReadonlyArray<CardAnnotation> {
-      return resolutionPartyAnnotations(this.party);
+      return resolutionPartyAnnotations(this.party, this.voteRows);
     },
     contextText(): string | undefined {
       return this.contextKey === undefined ? undefined : translateText(this.contextKey);

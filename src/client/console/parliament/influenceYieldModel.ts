@@ -20,7 +20,7 @@ import {IClientResolution} from '@/common/parliament/IClientResolution';
 import {ParliamentModel, ParliamentPlayerModel, ParliamentEnactOutcomeModel} from '@/common/models/ParliamentModel';
 import {
   fixedSequelYield, fixedYield, InfluenceScaledEffect, InfluenceSequelTerm, InfluenceYield, influenceYield, InfluenceYieldContext,
-  referenceYield, scaledAmount, sequelYield, winnerForecastYield,
+  referenceYield, scaledAmount, sequelYield, winnerForecastYield, yieldAtCap,
 } from '@/common/parliament/influenceScaling';
 import {AGENDA_TRACK, influenceAtAgenda} from '@/common/parliament/ParliamentTypes';
 import {countOf, ResolutionCountId} from '@/common/parliament/resolutionCounts';
@@ -323,6 +323,54 @@ export function scaledEffectForCardResource(resolution: IClientResolution | unde
 export const YIELD_CONTEXTS: ReadonlyArray<InfluenceYieldContext> = ['reference', 'estimate', 'forecast', 'resolving', 'applied'];
 
 /**
+ * THE «+N IF YOU WIN» SUFFIX — the vote panel's ONE-NUMBER law. The panel
+ * shows the viewer ONE reading per effect (the estimate by the current
+ * influence); what the WIN would add is not a second reading but a suffix
+ * of the same one («+1 if you win · step 3»). It is read off the pair of
+ * readings `voteYieldsOf` already computed — the forecast minus the estimate
+ * of the same effect — so nothing is recomputed here and the panel, the
+ * inspector and the playground can never disagree about the difference. A
+ * sequel chain gets one suffix per link. Where the win raises nothing (an
+ * effect at its maximum, a marker whose next step is a TR / card step, the
+ * end of the track) `voteYieldsOf` emits no forecast, and there is no suffix.
+ */
+export type WinSuffix = {
+  effectId: string;
+  /** What the win adds to the shown number (forecast − estimate, > 0). */
+  delta: number;
+  /** The Agenda step the forecast's influence is read at (undefined for a forecast without a step). */
+  agendaStep: number | undefined;
+  /** The influence the number is read at after the win. */
+  influence: number | undefined;
+  /** The forecast stands AT the effect's maximum — the win takes the number to the cap. */
+  atCap: boolean;
+};
+
+export function winSuffixesOf(yields: ReadonlyArray<InfluenceYield>): Array<WinSuffix> {
+  const out: Array<WinSuffix> = [];
+  for (const forecast of yields) {
+    if (forecast.context !== 'forecast' || forecast.amount === undefined) {
+      continue;
+    }
+    const estimate = yields.find((y) => y.effect.id === forecast.effect.id && y.context === 'estimate');
+    if (estimate?.amount === undefined) {
+      continue;
+    }
+    const delta = forecast.amount - estimate.amount;
+    if (delta <= 0) {
+      continue;
+    }
+    out.push({effectId: forecast.effect.id, delta, agendaStep: forecast.agendaStep, influence: forecast.influence, atCap: yieldAtCap(forecast)});
+  }
+  return out;
+}
+
+/** The one-number readings: every reading but the forecasts (those fold into `winSuffixesOf`). */
+export function oneNumberYieldsOf(yields: ReadonlyArray<InfluenceYield>): Array<InfluenceYield> {
+  return yields.filter((y) => y.context !== 'forecast');
+}
+
+/**
  * The i18n key of a card resource's COUNTED name («3 animal(s)») — the RU
  * value carries its plural groups, resolved against the number to its left
  * by `translateTextWithParams`. Unknown resources fall back to their raw name.
@@ -357,6 +405,18 @@ export function noRecipientNoteOf(effect: InfluenceScaledEffect, tableau: Readon
     return type === resource || type === CardResource.WARE;
   });
   return holder ? undefined : noRecipientForecastKey(resource);
+}
+
+/**
+ * The same honesty in the panel's COMPACT register: the server's own skip
+ * reason for the case («No card can hold animals») — the sentence the game
+ * would record, never a second wording. Undefined when a recipient exists.
+ */
+export function noRecipientCompactNoteOf(effect: InfluenceScaledEffect, tableau: ReadonlyArray<{name: CardName}>): string | undefined {
+  if (effect.unit.kind !== 'cardResource' || noRecipientNoteOf(effect, tableau) === undefined) {
+    return undefined;
+  }
+  return noRecipientReasonKey(effect.unit.resource);
 }
 
 /** The forecast note for a card resource with no holder («…would be forfeited»), named by resource where the copy exists. */

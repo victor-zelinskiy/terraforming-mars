@@ -9,8 +9,8 @@ import {InfluenceScaledEffect, scaledAmount, uncappedAmount, winnerForecastYield
 import {Resource} from '@/common/Resource';
 import {Tag} from '@/common/cards/Tag';
 import {
-  cardResourcePluralKey, countedContributions, enactedYieldsOf, noRecipientNoteOf, productionResourceLabelKey, resolvingYieldOf,
-  scaledEffectForCardResource, voteYieldsOf, yieldCaptionOf, yieldCountPresentation, yieldIconOf,
+  cardResourcePluralKey, countedContributions, enactedYieldsOf, noRecipientNoteOf, oneNumberYieldsOf, productionResourceLabelKey, resolvingYieldOf,
+  scaledEffectForCardResource, voteYieldsOf, winSuffixesOf, yieldCaptionOf, yieldCountPresentation, yieldIconOf,
 } from '@/client/console/parliament/influenceYieldModel';
 import {getResolution} from '@/client/parliament/ClientParliamentManifest';
 
@@ -257,5 +257,22 @@ describe('influenceYieldModel', () => {
     const y = {effect: PRODUCTION, context: 'estimate' as const, influence: 1, amount: 3, count: 2,
       counted: [CardName.ARTIFICIAL_LAKE, CardName.PHYSICS_COMPLEX]};
     expect(countedContributions(y, (c) => String(c))).deep.eq(['Artificial Lake', 'Physics Complex']);
+  });
+
+  it('the «+N if you win» suffix is the forecast minus the estimate of the SAME effect — nothing recomputed', () => {
+    // Start of the track: 0 now, 1 if the vote is won (step 1).
+    const yields = voteYieldsOf(resolution, model([seat('blue' as Color, 0, 0)]), 'blue' as Color);
+    expect(winSuffixesOf(yields)).deep.eq([{effectId: 'animals', delta: 1, agendaStep: 1, influence: 1, atCap: false}]);
+    expect(oneNumberYieldsOf(yields).map((y) => y.context), 'the forecast folds into the suffix').deep.eq(['estimate']);
+    // A TR step next: no forecast, no suffix.
+    expect(winSuffixesOf(voteYieldsOf(resolution, model([seat('blue' as Color, 1, 1)]), 'blue' as Color))).deep.eq([]);
+    // No seat: the reference alone — no suffix.
+    expect(winSuffixesOf(voteYieldsOf(resolution, undefined, 'blue' as Color))).deep.eq([]);
+    // A forecast that reaches the cap says so.
+    const capped = [
+      {effect: PRODUCTION, context: 'estimate' as const, influence: 1, amount: 4, count: 3},
+      {effect: PRODUCTION, context: 'forecast' as const, influence: 2, amount: 5, count: 3, agendaStep: 3},
+    ];
+    expect(winSuffixesOf(capped)).deep.eq([{effectId: 'production', delta: 1, agendaStep: 3, influence: 2, atCap: true}]);
   });
 });

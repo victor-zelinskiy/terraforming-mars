@@ -507,20 +507,18 @@ for (const preset of PRESETS) {
       await expect(page.locator('[data-parl-vote-source]'), 'the delegate\'s real source').toContainText(/лобби/i);
       await expect(page.locator('[data-parl-cta-cost][data-cost-kind="free"]'), 'the confirm says the lobby delegate is free').toContainText(/бесплатно/i);
       await expect(page.locator('.con-parl__vote .con-parl__cta'), 'no «a full action» filler on the confirm').not.toContainText(/Полное действие/i);
-      await expect(page.locator('[data-parl-fact="votes"]')).toContainText(new RegExp(`${slot0.totalVotes}\\s*→\\s*${slot0.totalVotes + 1}`));
-      await expect(page.locator('[data-parl-fact="mine"]')).toContainText(/0\s*→\s*1/);
-      await expect(page.locator('[data-parl-fact="access"]'), 'the party-effect access stands beside the vote, not promised by the card').toContainText(/1\s*из\s*2/);
+      // ONE NUMBER (docs/TURMOIL_REDUX_PARLIAMENT_VOTE_ONE_NUMBER.md): the count is the ribbon under
+      // the card, the first delegate's 0 → 1 is the places under it — neither is a panel fact.
+      await expect(page.locator('[data-parl-fact="votes"], [data-parl-fact="mine"]'), 'the delegate count is not a panel fact').toHaveCount(0);
+      await expect(page.locator('[data-parl-fact="access"]'), 'the party effect is a fact only on the edge (0 → 1 is not it)').toHaveCount(0);
+      await expect(page.locator('[data-parl-fact="lead"]'), 'the leader').toHaveCount(1);
+      await expect(page.locator('[data-parl-fact="win"]'), 'the winning state').toHaveCount(1);
+      await expect(page.locator('[data-parl-kicker]'), 'two kickers — the reading\'s and the vote\'s').toHaveCount(2);
       await expect(page.locator('.con-parl__slot--selected [data-parl-vote-place]'), 'the place the delegate will take, on the selected card').toHaveCount(1);
       await expect(page.locator('[data-parl-info="own"]'), 'the resolution\'s own effect block').toHaveCount(1);
-      await expect(page.locator('[data-parl-info="own"] .con-parl__info-part'), 'a real resolution reads its own effect, under WHEN it applies').not.toHaveCount(0);
-      await expect(page.locator('[data-parl-info="party"] .con-pformula__mech'), 'the party effect as a graphic').toHaveCount(1);
-      await expect(page.locator('[data-parl-info="party"]'), 'one caption — whose the party effect becomes').toContainText(/всем игрокам/i);
-      await expect(page.locator('[data-parl-info="party"]'), 'no party sentence on the surface (the inspector has it)').not.toContainText(/раз за поколение/i);
-      await expect(page.locator('[data-parl-info="quest"]'), 'the quest block states the condition only — the reward lives in the government').not.toContainText(/награда/i);
-      const ownBox = await page.locator('[data-parl-info="own"]').boundingBox();
-      const partyBox = await page.locator('[data-parl-info="party"]').boundingBox();
-      expect((ownBox?.width ?? 0) > (partyBox?.width ?? 0) * 1.3, 'the resolution\'s own effect is the MAIN block of the surface').toBeTruthy();
-      await expect(page.locator('[data-parl-info="quest"] .pcard__mech'), 'the quest as a graphic').toHaveCount(1);
+      await expect(page.locator('[data-parl-vote-reading]'), 'ONE reading — the viewer\'s number').toHaveCount(1);
+      await expect(page.locator('[data-parl-info="own"] .con-parl__info-part'), 'no printed sentence on the panel — the inspector has them').toHaveCount(0);
+      await expect(page.locator('[data-parl-info="party"], [data-parl-info="quest"]'), 'the party and the quest left the panel for the inspector').toHaveCount(0);
       await expect(page.locator('.con-parl__stage'), 'no second surface').toHaveCount(0);
       await expectFits(page, `${preset.id} mode`);
       await shoot(page, preset.id, '03-vote-mode');
@@ -590,7 +588,7 @@ for (const preset of PRESETS) {
       await expectOneOfEach(page, before, `${preset.id} after the inspector`);
       await press(page, 'ArrowLeft', 700);
       expect(await selectedInstance(page)).toBe(slot0.instance);
-      await expect(page.locator('[data-parl-fact="votes"]')).toContainText(new RegExp(`${slot0.totalVotes}\\s*→\\s*${slot0.totalVotes + 1}`));
+      await expect(page.locator('[data-parl-vote-reading]'), 'the panel reads the selected card again').toHaveCount(1);
 
       // ── B: the same phrase folds back — every card home, the focus where it was.
       expect(await pressUntil(page, 'Escape', async () => await voteMode(page).count() === 0, {tries: 3, settleMs: 1100}), 'B folds the vote mode').toBeTruthy();
@@ -690,11 +688,12 @@ test.describe('parliament v4 · the paid vote · the bill inside the mode · the
     await expect(page.locator('.con-parl__seat--me [data-parl-seat-place="reserve"].con-parl__seat-place--source'), 'the reserve is marked as the source').toHaveCount(1);
     await expect(page.locator('[data-parl-vote-source]')).toContainText(/резерва/i);
     await expect(page.locator('[data-parl-cta-cost][data-cost-kind="cost"] .con-parl__cta-cost-num'), 'the price stands on the confirm — the server\'s own').toHaveText(String(before.parl.viewer?.vote.cost ?? -1));
-    await expect(page.locator('[data-parl-fact="votes"]')).toContainText(/2\s*→\s*3/);
-    await expect(page.locator('[data-parl-fact="mine"]')).toContainText(/1\s*→\s*2/);
+    await expect(page.locator('[data-parl-fact="votes"], [data-parl-fact="mine"]'), 'the count is the ribbon under the card, not a panel fact').toHaveCount(0);
     await expect(page.locator('[data-parl-fact="lead"].con-parl__fact--gain'), 'the lead changes hands').toHaveCount(1);
+    // THE EDGE: this very delegate (1 → 2) grants the party effect — the one case the third fact stands on the panel.
     await expect(page.locator('[data-parl-fact="access"].con-parl__fact--gain'), 'the party effect becomes the viewer\'s').toHaveCount(1);
     await expect(page.locator('[data-parl-fact="access"]')).toContainText(/ваш/i);
+    await expect(page.locator('[data-parl-fact]'), 'three facts on the edge').toHaveCount(3);
     await expectFits(page, `${preset} mode`);
     await shoot(page, preset, '11-paid-mode');
 

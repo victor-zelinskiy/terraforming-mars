@@ -602,9 +602,11 @@
            than three stand centred at their usual size). -->
       <div class="con-parl__vrow" data-parl-vrow ref="vrowEl" :style="{'--con-parl-slot-count': String(Math.max(1, view.slots.length))}"></div>
 
-      <!-- THE INFO SURFACE — what the SELECTED card is (left) and what THIS
-           VOTE changes (right). Fixed geometry: the bodies crossfade in place
-           when the selection moves; nothing above them ever reflows. -->
+      <!-- THE INFO SURFACE — ONE NUMBER (`voteInfoModel.ts`): what the
+           SELECTED card gives the viewer if enacted (left) and what THIS vote
+           changes (right). Fixed geometry: the bodies crossfade in place when
+           the selection moves; nothing above them ever reflows. Every sentence
+           and every «if» lives in the fullscreen inspector (X), never here. -->
       <div class="con-parl__info" data-parl-vote-surface>
         <div class="con-parl__info-res">
           <transition name="con-parl-xfade">
@@ -616,82 +618,32 @@
                 <b class="con-parl__info-name">{{ $t(voteInfo.name) }}</b>
                 <span v-if="voteInfo.winning" class="con-parl__slot-win">{{ $t('Winning') }}</span>
               </div>
-              <!-- ONE MAIN BLOCK and a side: the resolution's OWN effect owns
-                   the reading (its printed graphic LARGE, its parts labelled by
-                   WHEN they apply); beside it,
-                   compact, the PARTY it brings to power (its formula and one
-                   caption) and the chairman quest it sets (the condition
-                   only — the reward is the same for every resolution and
-                   lives in the government). -->
-              <div class="con-parl__info-grid">
-                <div class="con-parl__info-own" :class="{'con-parl__info-own--yields': voteInfo.yields.length > 0}" data-parl-vote-item data-parl-info="own">
-                  <span class="con-parl__info-kicker" data-parl-vote-late>{{ $t('Resolution effect') }}</span>
-                  <div class="con-parl__info-own-body">
-                    <PremiumMechanicsPanel v-if="voteInfo.ownMechanics !== undefined" class="con-parl__info-mech" :mechanics="voteInfo.ownMechanics" />
-                    <div v-if="voteInfo.ownParts.length > 0 || voteInfo.yields.length > 0" class="con-parl__info-parts" data-parl-vote-late>
-                      <div v-for="part in voteInfo.ownParts" :key="part.key" class="con-parl__info-part" :class="'con-parl__info-part--' + part.key">
-                        <span class="con-parl__info-part-head">
-                          <span class="con-parl__info-part-label">{{ $t(part.label) }}</span>
-                          <!-- THE WINNER'S TILE, read for this moment, on its own label's line —
-                               apart from everyone's numbers below: «if you win» · the tile ·
-                               what its own placement does to the table now · the TR it is worth. -->
-                          <ConsoleWinnerReward v-if="part.key === 'winner' && voteInfo.winnerReward !== undefined"
-                                               class="con-parl__info-winner"
-                                               :reading="voteInfo.winnerReward"
-                                               :viewerColor="viewerColor"
-                                               :nameOf="nameOf"
-                                               size="compact"
-                                               variant="inline"
-                                               data-parl-vote-winner />
-                        </span>
-                        <span class="con-parl__info-part-text">{{ $t(part.text) }}</span>
-                      </div>
-                      <!-- THE VIEWER'S OWN NUMBER for an influence-scaled part:
-                           the estimate by the current influence and, apart from
-                           it, the «if you win» forecast — the last line of the
-                           reading, under the words it puts a number to. The
-                           card's graphic beside it already prints the formula,
-                           so the block draws the readings alone. -->
-                      <!-- The viewer's numbers and, beside them when the column
-                           has the width for it, the ANSWER of the party the card
-                           brings to power — a second law, stated as such. One
-                           wrapping row: the block's height is what the panel
-                           budgets, and a stacked chip overran it at 1080. -->
-                      <div v-if="voteInfo.yields.length > 0 || voteInfo.reactions.length > 0" class="con-parl__info-readings">
-                        <ConsoleInfluenceYield v-if="voteInfo.yields.length > 0"
-                                               class="con-parl__info-yield"
-                                               :yields="voteInfo.yields"
-                                               :formula="false"
-                                               :note="voteInfo.yieldNote"
-                                               size="compact"
-                                               data-parl-vote-yield />
-                        <ConsolePartyReaction v-for="r in voteInfo.reactions" :key="r.reaction.id"
-                                              class="con-parl__info-reaction"
-                                              :reading="r"
-                                              size="compact"
-                                              data-parl-vote-reaction />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div class="con-parl__info-side">
-                  <div class="con-parl__info-block con-parl__info-block--party" data-parl-vote-item data-parl-info="party">
-                    <span class="con-parl__info-kicker" data-parl-vote-late>{{ $t('Party of the resolution') }}</span>
-                    <div class="con-parl__info-party-row">
-                      <span class="con-parl__info-party-ident">
-                        <img class="con-parl__info-party-emblem" :src="emblemUrl(voteInfo.party)" alt="" />
-                        <b class="con-parl__info-party-name">{{ $t(voteInfo.party) }}</b>
-                      </span>
-                      <ConsolePartyFormula class="con-parl__info-pformula" :party="voteInfo.party" size="wide" />
-                    </div>
-                    <span class="con-parl__info-scope" data-parl-vote-late>{{ $t('When enacted — for every player') }}</span>
-                  </div>
-                  <div class="con-parl__info-block con-parl__info-block--quest" data-parl-vote-item data-parl-info="quest">
-                    <span class="con-parl__info-kicker" data-parl-vote-late>{{ $t('Chairman quest') }}</span>
-                    <div class="con-parl__info-row">
-                      <PremiumMechanicsPanel v-if="voteInfo.questMechanics !== undefined" class="con-parl__info-quest" :mechanics="voteInfo.questMechanics" />
-                      <span class="con-parl__info-text" data-parl-vote-late>{{ $t(voteInfo.questText) }}</span>
-                    </div>
+              <!-- THE READING — the card's printed graphic as the formula, the
+                   viewer's ONE number beside it (the estimate by the current
+                   influence; what the win adds rides it as a suffix), and the
+                   ruling party's answer to that number. A viewer without a
+                   seat reads the graphic alone. -->
+              <div class="con-parl__info-own" :class="{'con-parl__info-own--yields': voteInfo.reading.yields.length > 0}" data-parl-vote-item data-parl-info="own">
+                <span class="con-parl__info-kicker" data-parl-kicker="reading" data-parl-vote-late>{{ $t(voteInfo.reading.kicker) }}</span>
+                <div class="con-parl__info-own-body">
+                  <PremiumMechanicsPanel v-if="ownMechanics !== undefined" class="con-parl__info-mech" :mechanics="ownMechanics" />
+                  <div v-if="voteInfo.reading.yields.length > 0" class="con-parl__info-readings" data-parl-vote-late>
+                    <ConsoleInfluenceYield class="con-parl__info-yield"
+                                           :yields="voteInfo.reading.yields"
+                                           :suffixes="voteInfo.reading.suffixes"
+                                           :formula="false"
+                                           :captions="false"
+                                           :oneNumber="true"
+                                           :note="voteInfo.reading.note"
+                                           size="compact"
+                                           data-parl-vote-yield
+                                           data-parl-vote-reading />
+                    <ConsolePartyReaction v-for="r in voteInfo.reading.reactions" :key="r.reaction.id"
+                                          class="con-parl__info-reaction"
+                                          :reading="r"
+                                          :withCaption="false"
+                                          size="compact"
+                                          data-parl-vote-reaction />
                   </div>
                 </div>
               </div>
@@ -702,60 +654,58 @@
           <div class="con-parl__info-vote-main" v-show="stage !== 'paying'">
             <transition name="con-parl-xfade">
               <div v-if="voteInfo !== undefined" :key="voteInfo.instance" class="con-parl__info-body con-parl__info-body--vote">
-                <!-- YOUR VOTE — ONE block: the delegate at its place (only
-                     when there is one to send — a missing delegate is the
-                     confirm's one reason, never said twice), then this vote's
-                     own consequences, each as current → projected (the
-                     projected side is marked as a forecast until the delegate
-                     has landed; a fact that does not change is ONE value, so
-                     the whole outcome can still be read). -->
+                <!-- YOUR VOTE — ONE block: the delegate at its place with its
+                     source and price (only when there is one to send — a
+                     missing delegate is the confirm's one reason, never said
+                     twice), then this vote's consequences as current →
+                     projected (a fact that does not change is ONE value): the
+                     leader, the winning state, and the party effect only on
+                     the edge this delegate crosses. The count is the ribbon
+                     under the card; every note is the inspector's. -->
                 <div class="con-parl__info-block con-parl__info-block--after" :class="{'con-parl__info-block--done': stage === 'landed'}" data-parl-vote-item data-parl-vote-forecast>
-                  <div class="con-parl__info-src" :class="{'con-parl__info-src--none': benchSource === 'none'}" data-parl-vote-source>
-                    <span class="con-parl__info-kicker con-parl__info-kicker--inline" data-parl-vote-late>{{ $t('Your vote') }}</span>
-                    <template v-if="benchSource !== 'none'">
+                  <div class="con-parl__info-src" :class="{'con-parl__info-src--none': voteInfo.vote.source === 'none'}" data-parl-vote-source>
+                    <span class="con-parl__info-kicker con-parl__info-kicker--inline" data-parl-kicker="vote" data-parl-vote-late>{{ $t(voteInfo.vote.kicker) }}</span>
+                    <template v-if="voteInfo.vote.source !== 'none'">
                       <span class="con-parl__socket con-parl__socket--small">
                         <PlayerCube v-if="viewerColor !== undefined" :color="viewerColor" :size="cubePx(12)" :glow="false" />
                       </span>
-                      <b class="con-parl__info-src-text">{{ sourceText }}</b>
+                      <span class="con-parl__info-src-text" data-parl-vote-late>
+                        <template v-if="voteInfo.vote.source === 'lobby'">{{ $t('from the lobby · free') }}</template>
+                        <template v-else>
+                          <span>{{ $t('from the reserve') }}</span>
+                          <span class="con-parl__info-src-sep" aria-hidden="true">·</span>
+                          <b class="con-parl__info-src-num">{{ voteInfo.vote.cost }}</b>
+                          <i class="con-parl__info-src-mc resource_icon resource_icon--megacredits" aria-hidden="true"></i>
+                        </template>
+                      </span>
                     </template>
                   </div>
-                  <span class="con-parl__info-subkicker" data-parl-vote-late>{{ $t(stage === 'landed' ? 'Result' : 'After your vote') }}</span>
                   <div class="con-parl__facts">
-                    <!-- ONE row for the count — the card's total, and of them the viewer's own. -->
-                    <div class="con-parl__fact" data-parl-fact="votes" data-parl-vote-late>
-                      <span class="con-parl__fact-key">{{ $t('Delegates on the card') }}</span>
+                    <div v-for="fact in voteInfo.vote.facts" :key="fact.id"
+                         class="con-parl__fact"
+                         :class="{'con-parl__fact--gain': fact.tone === 'gain', 'con-parl__fact--dim': fact.tone === 'none'}"
+                         :data-parl-fact="fact.id"
+                         :data-parl-fact-tone="fact.tone"
+                         data-parl-vote-late>
+                      <span class="con-parl__fact-key">{{ $t(fact.label) }}</span>
+                      <!-- A fact that does not change is ONE value — an arrow to the same reading is noise on a decision line.
+                           The leader's «before» is its cube alone (a dash without one). -->
                       <span class="con-parl__fact-val">
-                        <b>{{ voteNumbers.votesBefore }}</b><span class="con-parl__fact-arrow" aria-hidden="true">→</span><b class="con-parl__fact-after">{{ voteNumbers.votesAfter }}</b>
-                        <span class="con-parl__fact-tail" data-parl-fact="mine">{{ $t('of them yours') }} <b>{{ voteNumbers.mineBefore }}</b><span class="con-parl__fact-arrow" aria-hidden="true">→</span><b class="con-parl__fact-after">{{ voteNumbers.mineAfter }}</b></span>
-                      </span>
-                    </div>
-                    <div class="con-parl__fact" :class="{'con-parl__fact--gain': voteFacts.lead.change === 'take', 'con-parl__fact--dim': voteFacts.lead.change === 'none'}" data-parl-fact="lead" data-parl-vote-late>
-                      <span class="con-parl__fact-key">{{ $t('Leader') }}</span>
-                      <!-- A fact that does not change is ONE value — an arrow to the same reading is noise on a decision line. -->
-                      <span class="con-parl__fact-val">
-                        <template v-if="!voteFacts.lead.unchanged">
-                          <template v-if="voteFacts.lead.before !== undefined">
-                            <PlayerCube v-if="voteFacts.lead.before !== 'neutral'" :color="voteFacts.lead.before" :size="cubePx(11)" :glow="false" />
-                            <PlayerCube v-else color="neutral" steel :size="cubePx(11)" :glow="false" />
+                        <template v-if="!fact.unchanged">
+                          <template v-if="fact.id === 'lead'">
+                            <PlayerCube v-if="fact.before.cube !== undefined && fact.before.cube !== 'neutral'" :color="fact.before.cube" :size="cubePx(11)" :glow="false" />
+                            <PlayerCube v-else-if="fact.before.cube === 'neutral'" color="neutral" steel :size="cubePx(11)" :glow="false" />
+                            <span v-else class="con-parl__fact-none">—</span>
                           </template>
-                          <span v-else class="con-parl__fact-none">—</span>
+                          <b v-else>{{ factText(fact.before) }}</b>
                           <span class="con-parl__fact-arrow" aria-hidden="true">→</span>
                         </template>
-                        <template v-if="voteFacts.lead.after !== undefined">
-                          <PlayerCube v-if="voteFacts.lead.after !== 'neutral'" :color="voteFacts.lead.after" :size="cubePx(11)" :glow="false" />
+                        <template v-if="fact.after.cube !== undefined">
+                          <PlayerCube v-if="fact.after.cube !== 'neutral'" :color="fact.after.cube" :size="cubePx(11)" :glow="false" />
                           <PlayerCube v-else color="neutral" steel :size="cubePx(11)" :glow="false" />
                         </template>
-                        <b :class="{'con-parl__fact-after': !voteFacts.lead.unchanged}">{{ $t(voteFacts.lead.label) }}</b>
+                        <b :class="{'con-parl__fact-after': !fact.unchanged}">{{ factText(fact.after) }}</b>
                       </span>
-                    </div>
-                    <div class="con-parl__fact" :class="{'con-parl__fact--gain': voteFacts.win.change === 'become', 'con-parl__fact--dim': voteFacts.win.change === 'none'}" data-parl-fact="win" data-parl-vote-late>
-                      <!-- A row's NOTE stands under its key (never beside the value — it squeezed the key into an ellipsis). -->
-                      <span class="con-parl__fact-key">{{ $t('Winning') }}<span v-if="voteFacts.win.note !== undefined" class="con-parl__fact-note">{{ $t(voteFacts.win.note) }}</span></span>
-                      <span class="con-parl__fact-val"><template v-if="!voteFacts.win.unchanged"><b>{{ $t(voteFacts.win.before) }}</b><span class="con-parl__fact-arrow" aria-hidden="true">→</span></template><b :class="{'con-parl__fact-after': !voteFacts.win.unchanged}">{{ $t(voteFacts.win.after) }}</b></span>
-                    </div>
-                    <div class="con-parl__fact" :class="{'con-parl__fact--gain': voteFacts.access.change === 'unlock', 'con-parl__fact--dim': voteFacts.access.change === 'none'}" data-parl-fact="access" data-parl-vote-late>
-                      <span class="con-parl__fact-key">{{ $t('Party effect for you') }}<span v-if="voteFacts.access.note !== undefined" class="con-parl__fact-note">{{ $t(voteFacts.access.note) }}</span></span>
-                      <span class="con-parl__fact-val"><template v-if="!voteFacts.access.unchanged"><b>{{ voteFacts.access.before }}</b><span class="con-parl__fact-arrow" aria-hidden="true">→</span></template><b :class="{'con-parl__fact-after': !voteFacts.access.unchanged}">{{ voteFacts.access.after }}</b></span>
                     </div>
                   </div>
                 </div>
@@ -867,16 +817,15 @@ import {PARLIAMENT_VOTE_COST, PARLIAMENT_VOTING_SLOTS, PARTY_EFFECT_DELEGATES as
 import {IClientResolution} from '@/common/parliament/IClientResolution';
 import {InfluenceYield} from '@/common/parliament/influenceScaling';
 import {
-  cardResourcePluralKey, enactedYieldsOf, noRecipientNoteOf, productionResourceLabelKey, resolvingYieldOf, scaledEffectForCardResource, scaledEffectOf, voteYieldsOf,
+  cardResourcePluralKey, enactedYieldsOf, productionResourceLabelKey, resolvingYieldOf, scaledEffectForCardResource, scaledEffectOf,
   yieldCountPresentation,
 } from '@/client/console/parliament/influenceYieldModel';
+import {FactValue, voteFactsOf, VoteFactsVm, voteInfoOf, VoteInfoVm} from '@/client/console/parliament/voteInfoModel';
 import {runResourceTransfers} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import ConsoleInfluenceYield from '@/client/components/console/parliament/ConsoleInfluenceYield.vue';
-import ConsoleWinnerReward from '@/client/components/console/parliament/ConsoleWinnerReward.vue';
 import ConsolePartyReaction from '@/client/components/console/parliament/ConsolePartyReaction.vue';
 import {externalDrawTakeOf} from '@/client/console/externalDraw/consoleExternalDraw';
 import {PartyReactionReading, partyReactionsOf, viewerHasSeat} from '@/client/console/parliament/partyReactionModel';
-import {WinnerRewardReading, winnerRewardReadingOf, winnerRewardTableOf} from '@/client/console/parliament/winnerRewardModel';
 import ConsoleWsHead from '@/client/components/console/foundation/ConsoleWsHead.vue';
 import PlayerCube from '@/client/components/PlayerCube.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
@@ -891,7 +840,7 @@ import {isMandatoryGateHeld} from '@/client/console/consoleMandatoryGate';
 import {
   agendaViewOf, AgendaVm, buildParliamentView, ParliamentPartyVm, ParliamentPromptBridge,
   ParliamentSlotVm, ParliamentTileVm, ParliamentViewVm, parliamentPromptBridge, partyActionStateOf, PartyActionStateVm,
-  partyStateOf, PartyStateVm, seatResponse, voteAccessOf, voteForecastOf, VoteForecastVm, voteResponse, voteVerbOf, VoteVerbVm,
+  partyStateOf, PartyStateVm, seatResponse, voteForecastOf, VoteForecastVm, voteResponse, voteVerbOf, VoteVerbVm,
 } from '@/client/console/parliament/consoleParliamentModel';
 import {partyTileKey} from '@/client/console/parliament/partyActionKey';
 import {PremiumCardVM} from '@/client/components/premiumCard/premiumCardViewModel';
@@ -1026,47 +975,6 @@ type CardFlightSpec = {id: string, width: number, height: number, face?: Premium
 const DEAL_FLIGHT_MS = 560;
 const DEAL_STAGGER_MS = 150;
 
-/** THIS VOTE's consequences, each as current → projected. */
-/** `unchanged` — the reading is the same before and after: the row shows ONE value (an arrow to the same reading is noise). */
-type VoteFactsVm = {
-  lead: {before: Color | 'neutral' | undefined, after: Color | 'neutral' | undefined, label: string, change: 'take' | 'keep' | 'none', unchanged: boolean};
-  win: {before: string, after: string, note: string | undefined, change: 'become' | 'stay' | 'none', unchanged: boolean};
-  access: {before: string, after: string, note: string | undefined, change: 'unlock' | 'held' | 'progress' | 'none', unchanged: boolean};
-};
-
-/** One part of a resolution's OWN effect, labelled by WHEN it applies (the label is a key; the text is the catalog's sentence). */
-type OwnEffectPart = {key: 'effect' | 'winner' | 'passive' | 'action', label: string, text: string};
-
-/** What the SELECTED card is — the info surface's reading. */
-type VoteInfo = {
-  instance: string;
-  name: string;
-  party: ReduxParty;
-  winning: boolean;
-  ownMechanics: MechanicsVM | undefined;
-  /** The own effect's parts in the order they apply: enacted → winner → standing effect → action. */
-  ownParts: ReadonlyArray<OwnEffectPart>;
-  /**
-   * The viewer's OWN NUMBERS for the parts that scale with influence: the
-   * estimate by the current influence and, apart from it, the «if you win»
-   * forecast (the one shared reading — `influenceYieldModel`). Empty when
-   * nothing scales; the formula alone for a viewer without a seat.
-   */
-  yields: ReadonlyArray<InfluenceYield>;
-  /**
-   * …and what the party this card brings to power ANSWERS to them (the
-   * Greens' M€ production for a heat-production raise). Its own law, so its
-   * own block — never folded into the numbers above.
-   */
-  reactions: ReadonlyArray<PartyReactionReading>;
-  /** The honest note when the viewer has no card that could take the yield (English key). */
-  yieldNote: string | undefined;
-  /** The WINNER's tile, read for this moment (`winnerRewardModel`) — absent for a resolution without one. */
-  winnerReward: WinnerRewardReading | undefined;
-  questMechanics: MechanicsVM | undefined;
-  questText: string;
-};
-
 /** The confirm's price line: the lobby's delegate is free, the reserve's costs the server's own M€. */
 type CtaCost = {kind: 'free' | 'cost' | 'none', amount: number};
 
@@ -1099,7 +1007,7 @@ const ENACT_MOVE_MS = 620;
 
 export default defineComponent({
   name: 'ConsoleParliamentSection',
-  components: {ConsoleWsHead, PlayerCube, GamepadGlyph, PremiumMechanicsPanel, ConsolePartyPlaque, ConsolePartyFormula, ConsoleInfluenceYield, ConsoleWinnerReward, ConsolePartyReaction},
+  components: {ConsoleWsHead, PlayerCube, GamepadGlyph, PremiumMechanicsPanel, ConsolePartyPlaque, ConsolePartyFormula, ConsoleInfluenceYield, ConsolePartyReaction},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     myTurn: {type: Boolean, default: false},
@@ -1414,13 +1322,6 @@ export default defineComponent({
       }
       return false;
     },
-    sourceText(): string {
-      switch (this.benchSource) {
-      case 'lobby': return translateText('Free delegate from the lobby');
-      case 'reserve': return translateText('From the reserve');
-      default: return translateText('No delegate left to send');
-      }
-    },
     /** The execution gate — the viewer's own action window (never a reason of its own). */
     canActNow(): boolean {
       return this.myTurn && this.awaitingInput;
@@ -1518,48 +1419,32 @@ export default defineComponent({
       const slot = this.voteSlot;
       return slot === undefined ? undefined : voteForecastOf(slot, this.viewerColor, this.model?.viewer?.vote);
     },
-    /** The SELECTED card's reading — the info surface's left half. */
-    voteInfo(): VoteInfo | undefined {
+    /** The SELECTED card's reading — the info surface (`voteInfoModel` decides; this renders). */
+    voteInfo(): VoteInfoVm | undefined {
       const slot = this.voteSlot;
       if (slot === undefined) {
         return undefined;
       }
-      const resolution = slot.resolution ?? getResolution(slot.resolutionId);
-      const own = resolution === undefined ? undefined : buildMechanics(resolution.renderData);
-      const questRoot = resolution?.questRenderData;
-      const quest = questRoot === undefined ? undefined : buildMechanics(questRoot);
-      // The own effect's PARTS, each under the label of WHEN it applies —
-      // the same labels the fullscreen inspector prints (one vocabulary).
-      const parts: Array<OwnEffectPart> = [];
-      if (resolution !== undefined) {
-        const text = resolution.text;
-        if (text.effect !== undefined) {
-          parts.push({key: 'effect', label: 'When enacted', text: text.effect});
-        }
-        if (text.winner !== undefined) {
-          parts.push({key: 'winner', label: 'For the winner of the vote', text: text.winner});
-        }
-        if (text.passive !== undefined) {
-          parts.push({key: 'passive', label: 'Resolution effect', text: text.passive});
-        }
-        if (text.action !== undefined) {
-          parts.push({key: 'action', label: 'Resolution action', text: text.action});
-        }
-      }
-      return {
-        instance: slot.instance,
+      return voteInfoOf({
+        slot,
+        resolution: slot.resolution ?? getResolution(slot.resolutionId),
+        model: this.model,
+        viewer: this.viewerColor,
+        tableau: this.playerView.thisPlayer.tableau,
         name: this.resolutionTitle(slot.resolutionId),
-        party: slot.party,
         winning: this.winningShownOf(slot),
-        ownMechanics: own === undefined || own.textOnly ? undefined : own,
-        ownParts: parts,
-        yields: resolution === undefined ? [] : voteYieldsOf(resolution, this.model, this.viewerColor),
-        reactions: this.reactionsFor(resolution, resolution === undefined ? [] : voteYieldsOf(resolution, this.model, this.viewerColor)),
-        yieldNote: resolution === undefined ? undefined : this.yieldNoteFor(resolution),
-        winnerReward: winnerRewardReadingOf(resolution, this.model, winnerRewardTableOf(this.playerView.game)),
-        questMechanics: quest === undefined || quest.textOnly ? undefined : quest,
-        questText: resolution?.text.quest ?? '',
-      };
+        source: this.benchSource,
+        cost: this.ctaCost.amount,
+        facts: this.voteFacts,
+        numbers: this.voteNumbers,
+      });
+    },
+    /** The selected card's printed graphic — the reading's formula, beside the number. */
+    ownMechanics(): MechanicsVM | undefined {
+      const slot = this.voteSlot;
+      const resolution = slot === undefined ? undefined : (slot.resolution ?? getResolution(slot.resolutionId));
+      const own = resolution === undefined ? undefined : buildMechanics(resolution.renderData);
+      return own === undefined || own.textOnly ? undefined : own;
     },
     /**
      * THE VOTE'S NUMBERS: before the submit, the live model and its
@@ -1585,37 +1470,22 @@ export default defineComponent({
         mineBefore: slot.viewerVotes, mineAfter: slot.viewerVotes + 1,
       };
     },
-    /** THIS VOTE's consequences — every fact as current → projected (a fact that does not change is shown quiet, never hidden). */
+    /** THIS VOTE's consequences — every fact as current → projected (`voteFactsOf`; the panel prints two, the inspector all). */
     voteFacts(): VoteFactsVm {
       const slot = this.voteSlot;
-      const f = this.voteForecast;
-      const me = this.viewerColor;
-      const leaderBefore = this.voteSnapshot?.leader ?? slot?.leader;
-      const leaderAfter = this.stage === 'landed' ? slot?.leader : (f?.leaderAfter ?? (this.voteSnapshot !== undefined ? slot?.leader : leaderBefore));
-      const leadChange: 'take' | 'keep' | 'none' = leaderAfter !== undefined && leaderAfter === me ? (leaderBefore === me ? 'keep' : 'take') : 'none';
-      const leadLabel = leaderAfter === undefined ? 'no leader yet' : (leaderAfter === me ? (leadChange === 'take' && f?.tieNote === 'earlier-delegate' ? 'you (earlier delegate)' : 'you') : (leaderAfter === 'neutral' ? 'the neutral player' : this.nameOf(leaderAfter)));
-      const winningBefore = this.voteSnapshot?.winning ?? slot?.isWinning ?? false;
-      const winningAfter = this.stage === 'landed' ? (slot?.isWinning ?? false) : (f?.winningAfter ?? winningBefore);
-      const winChange: 'become' | 'stay' | 'none' = winningAfter ? (winningBefore ? 'stay' : 'become') : 'none';
-      const access = voteAccessOf(slot, this.view.parties.find((p) => p.party === slot?.party),
-        this.stage === 'landed' ? slot?.viewerVotes : this.voteNumbers.mineAfter, this.voteNumbers.mineBefore);
-      return {
-        lead: {before: leaderBefore, after: leaderAfter, label: leadLabel, change: leadChange, unchanged: leaderBefore === leaderAfter},
-        win: {
-          before: winningBefore ? 'yes' : 'no',
-          after: winningAfter ? 'yes' : 'no',
-          note: winChange === 'become' && f?.tieNote === 'slot-priority' ? 'wins the tie: closer to the government' : (winChange === 'none' && !winningAfter ? 'another resolution leads' : undefined),
-          change: winChange,
-          unchanged: winningBefore === winningAfter,
-        },
-        access: {
-          before: access.heldByOther ? translateText('effect is yours') : translateTextWithParams('${0} of ${1}', [String(access.before), String(access.threshold)]),
-          after: access.heldByOther ? translateText('effect is yours') : (access.after >= access.threshold ? translateText('effect is yours') : translateTextWithParams('${0} of ${1}', [String(access.after), String(access.threshold)])),
-          note: access.heldByOther ? access.reason : (access.after >= access.threshold && access.before < access.threshold ? 'two of your delegates' : undefined),
-          change: access.heldByOther ? 'held' : (access.after >= access.threshold ? (access.before >= access.threshold ? 'held' : 'unlock') : (access.after > access.before ? 'progress' : 'none')),
-          unchanged: access.heldByOther || access.before === access.after || (access.before >= access.threshold && access.after >= access.threshold),
-        },
-      };
+      const snap = this.voteSnapshot;
+      const landed = this.stage === 'landed';
+      return voteFactsOf({
+        slot,
+        party: this.view.parties.find((p) => p.party === slot?.party),
+        viewer: this.viewerColor,
+        forecast: this.voteForecast,
+        snapshot: snap === undefined ? undefined : {leader: snap.leader, winning: snap.winning},
+        landed,
+        mineBefore: this.voteNumbers.mineBefore,
+        mineAfter: landed ? (slot?.viewerVotes ?? this.voteNumbers.mineAfter) : this.voteNumbers.mineAfter,
+        nameOf: (color: Color) => this.nameOf(color),
+      });
     },
     ctaText(): string {
       switch (this.stage) {
@@ -2859,16 +2729,12 @@ export default defineComponent({
     reactionsFor(resolution: IClientResolution | undefined, yields: ReadonlyArray<InfluenceYield>): Array<PartyReactionReading> {
       return viewerHasSeat(this.model, this.viewerColor) ? partyReactionsOf(resolution, yields) : [];
     },
-    /** The honest recipient note for the vote surface: the viewer has no card that could hold the yield. */
-    yieldNoteFor(resolution: IClientResolution): string | undefined {
-      const tableau = this.playerView.thisPlayer.tableau;
-      for (const effect of resolution.scaled ?? []) {
-        const note = noRecipientNoteOf(effect, tableau);
-        if (note !== undefined) {
-          return note;
-        }
+    /** One side of a fact as the panel prints it (a seat's name stays raw; a key renders through i18n). */
+    factText(value: FactValue): string {
+      if (value.raw === true) {
+        return value.key;
       }
-      return undefined;
+      return value.params === undefined ? translateText(value.key) : translateTextWithParams(value.key, [...value.params]);
     },
     // ── submits (byte-identical to the live prompt) ─────────────────────
     submitVote(): void {

@@ -92,8 +92,6 @@
     --con-parl-ruler-own-zoom: calc(0.8 * var(--con-ui-scale, 1));
     --con-parl-quest-zoom: calc(0.92 * var(--con-ui-scale, 1));
     --con-parl-info-mech-zoom: calc(1.15 * var(--con-ui-scale, 1));
-    --con-parl-info-quest-zoom: calc(0.82 * var(--con-ui-scale, 1));
-    --con-parl-info-formula-zoom: calc(0.84 * var(--con-ui-scale, 1));
     /* THE HEAD LINE's reserved crumb width: the wider mode name plus a stage
        tail («ГОЛОСОВАНИЕ › ОПЛАТА») fits; «ОСМОТР» leaves the rest empty. The
        delegates zone starts where this reserve ends — the same x in every
@@ -120,7 +118,7 @@
        spent above the row). */
     --con-parl-bill-w: 29.5rem;
     --con-parl-bill-h: 14.6rem;
-    --con-parl-info-h: 14.6rem;
+    --con-parl-info-h: 10.6rem;
     --parl-accent: @con-parl-violet;
 
     /* A nested scene (the action workspace opened on a party) owns the band:
@@ -877,14 +875,17 @@
             .con-parl__tally-num { font-size: 1.4rem; }
         }
     }
-    /* ── THE INFO SURFACE — fixed geometry; the bodies crossfade in place. ── */
+    /* ── THE INFO SURFACE — ONE NUMBER (`voteInfoModel.ts`). Two columns of
+       fixed geometry (the reading · the vote); the bodies crossfade in place.
+       Every sentence and every «if» is the inspector's: the panel prints one
+       number with its suffix, the party's answer, the source and two facts. ── */
     &__info {
         display: grid;
         grid-template-columns: minmax(0, 1fr) 22rem;
         column-gap: .9rem;
         min-height: 0;
         min-width: 0;
-        padding: .55rem .8rem .5rem;
+        padding: .5rem .8rem .5rem;
         border-radius: .75rem;
         background: linear-gradient(170deg, rgba(30, 20, 52, 0.985), rgba(12, 10, 22, 0.99));
         box-shadow: 0 0 0 .06rem rgba(201, 198, 214, 0.3), 0 .9rem 2rem rgba(0, 0, 0, 0.5);
@@ -894,22 +895,12 @@
     /* THE BILL — a paid vote's payment stands in the vote column: the column
        widens to the shared panel's own width and the band takes the panel's
        height (per-profile tokens — the cards above re-fit a size smaller, a
-       FLIP in the section); beside it the reading keeps the resolution's
-       OWN effect and folds its side (the party and the quest were read
-       before the press) with the same transition, never a cut heading; the
+       FLIP in the section); beside it the reading keeps its one number; the
        hosted step's frame yields — the crumb already says ОПЛАТА and the
        panel names its price. Written with the host class doubled (0,3,0): it
        must outrank the profile ladders' own `&__info` rules (0,2,1). */
     & &__vote--bill { grid-template-rows: minmax(0, 1fr) var(--con-parl-bill-h); }
     & &__vote--bill &__info { grid-template-columns: minmax(0, 1fr) var(--con-parl-bill-w); padding-top: .35rem; padding-bottom: .35rem; }
-    & &__vote--bill &__info-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 0fr); column-gap: 0; }
-    & &__vote--bill &__info-side {
-        opacity: 0;
-        visibility: hidden;
-        min-width: 0;
-        overflow: hidden;
-        transition: opacity calc(180ms * var(--motion-scale, 1)) @con-ease-standard, visibility 0s linear calc(180ms * var(--motion-scale, 1));
-    }
     & &__vote .con-task-host--embedded .con-task { padding: 0; }
     & &__vote .con-task-host--embedded .con-task__head { display: none; }
     &__vote--committed &__info { box-shadow: 0 0 0 .06rem fade(@con-amber, 55%), 0 .9rem 2rem rgba(0, 0, 0, 0.5); }
@@ -930,59 +921,51 @@
     &__info-head { display: flex; align-items: center; gap: .5rem; min-width: 0; flex-shrink: 0; }
     &__info-emblem { width: 1.5rem; height: 1.5rem; object-fit: contain; flex-shrink: 0; }
     &__info-name { font-size: 1rem; line-height: 1.1; letter-spacing: .04em; text-transform: uppercase; color: #f6f3ec; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-    /* ONE MAIN BLOCK and a side: the resolution's OWN effect owns the left
-       (the wider column, its own accent); the party and the quest stack in
-       the narrower one. Nothing here is three equal columns. */
-    &__info-grid {
-        flex: 1 1 auto;
-        min-height: 0;
-        min-width: 0;
-        display: grid;
-        grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr);
-        column-gap: .5rem;
-        transition: grid-template-columns calc(220ms * var(--motion-scale, 1)) @con-ease-standard, column-gap calc(220ms * var(--motion-scale, 1)) @con-ease-standard;
-    }
+    /* The two KICKERS the panel has — tracked caps, quiet; the number is the loud voice. */
     &__info-kicker--inline { margin-right: .2rem; flex-shrink: 0; }
     &__info-kicker { font-size: .58rem; letter-spacing: .12em; text-transform: uppercase; opacity: .7; white-space: nowrap; }
-    /* THE OWN EFFECT — the main block: its graphic LARGE, its parts labelled
-       by when they apply (a resolution with nothing to print keeps the very
-       same frame, one calm line centred in it). */
+    /* THE READING — the main block: the card's graphic as the formula, the ONE
+       number beside it (its suffix inside the same plate), the party's answer
+       after it. A card that scales nothing keeps the frame with the graphic. */
     &__info-own {
+        flex: 1 1 auto;
         display: flex;
         flex-direction: column;
-        gap: .25rem;
+        gap: .3rem;
         min-width: 0;
         min-height: 0;
-        padding: .4rem .65rem .45rem;
+        padding: .42rem .7rem .48rem;
         border-radius: .55rem;
         background: rgba(63, 214, 241, 0.05);
         box-shadow: inset 0 0 0 .06rem fade(@con-cyan, 35%);
         overflow: hidden;
         .con-parl__info-kicker { color: @con-cyan; opacity: .95; }
     }
-    &__info-own-body { flex: 1 1 auto; min-height: 0; min-width: 0; display: flex; align-items: center; gap: .8rem; }
+    &__info-own-body { flex: 1 1 auto; min-height: 0; min-width: 0; display: flex; align-items: center; gap: .9rem; }
     &__info-mech {
         .con-parl-mech-vars();
         zoom: var(--con-parl-info-mech-zoom);
         flex-shrink: 0;
-        max-width: 54%;
+        max-width: 46%;
         padding: 5px 9px;
     }
-    &__info-parts { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: .32rem; }
-    &__info-part { display: flex; flex-direction: column; gap: .06rem; min-width: 0; }
-    /* A part's label line — the winner's reading rides it (no extra line in a fixed-height block). */
-    &__info-part-head { display: flex; align-items: center; flex-wrap: wrap; gap: .12rem .45rem; min-width: 0; }
-    &__info-part-label { font-size: .54rem; letter-spacing: .12em; text-transform: uppercase; color: fade(@con-cyan, 85%); }
-    &__info-part--winner .con-parl__info-part-label { color: fade(@con-parl-gold, 90%); }
-    &__info-part-text { font-family: @con-font-read; font-size: .78rem; line-height: 1.28; color: fade(@con-text, 92%); }
-    /* THE SIDE — the party over the quest, compact. */
-    &__info-side {
-        display: grid;
-        grid-template-rows: minmax(0, 1.25fr) minmax(0, 1fr);
-        row-gap: .45rem;
-        min-height: 0;
+    /* THE NUMBER and the party's answer share ONE wrapping row: the reading is
+       narrow and the column is not, so the answer stands beside it where there
+       is width and drops under it where there is not — never a fixed second
+       line the panel has no budget for. */
+    &__info-readings {
+        flex: 1 1 auto;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        column-gap: .6rem;
+        row-gap: .3rem;
         min-width: 0;
+        max-width: 100%;
     }
+    &__info-yield { max-width: 100%; }
+    &__info-reaction { max-width: 100%; }
+    /* THE VOTE — the source line over the facts. */
     &__info-block {
         display: flex;
         flex-direction: column;
@@ -995,36 +978,18 @@
         box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.06);
         overflow: hidden;
         transition: opacity calc(180ms * var(--motion-scale, 1)) @con-ease-standard;
-        &--party { box-shadow: inset 0 0 0 .05rem fade(@con-parl-gold, 32%); }
-        &--quest { box-shadow: inset 0 0 0 .05rem rgba(230, 195, 74, 0.18); }
-        &--after { flex: 1 1 auto; }
+        /* Content-sized: the room the column has left stays UNBOXED between the facts and the confirm (a stretched, half-empty box read as a missing line). */
+        &--after { flex: 0 0 auto; }
         &--done { box-shadow: inset 0 0 0 .05rem fade(@con-parl-mint, 45%); }
     }
-    &__info-block--party .con-parl__info-kicker { color: @con-parl-gold; opacity: .9; }
     &__info-block--after .con-parl__info-kicker { color: @con-parl-mint; opacity: .9; }
-    /* The vote block's second heading — «after your vote» over the facts, under the source line. */
-    &__info-subkicker { font-size: .54rem; letter-spacing: .12em; text-transform: uppercase; color: @con-parl-mint; opacity: .9; margin-top: .12rem; white-space: nowrap; }
-    &__info-party-row { flex: 1 1 auto; min-height: 0; min-width: 0; display: flex; align-items: center; gap: .5rem; }
-    &__info-party-ident { display: inline-flex; flex-direction: column; align-items: center; gap: .12rem; flex-shrink: 0; width: 3.6rem; min-width: 0; }
-    &__info-party-emblem { width: 2rem; height: 2rem; object-fit: contain; }
-    &__info-party-name { font-size: .56rem; line-height: 1.1; letter-spacing: .06em; text-transform: uppercase; text-align: center; color: #f3f0e8; white-space: normal; }
-    &__info-pformula { --con-pformula-zoom: var(--con-parl-info-formula-zoom); flex: 1 1 auto; min-width: 0; padding: .1rem .2rem; border-radius: .4rem; background: rgba(0, 0, 0, 0.3); }
-    /* ONE caption: whose the party effect becomes (the sentences live in the inspector). */
-    &__info-scope { flex-shrink: 0; font-size: .54rem; letter-spacing: .1em; text-transform: uppercase; color: fade(@con-parl-gold, 85%); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    &__info-row { flex: 1 1 auto; min-height: 0; display: flex; align-items: center; gap: .5rem; min-width: 0; }
-    &__info-quest {
-        .con-parl-mech-vars();
-        --pcard-band: rgba(230, 195, 74, 0.22);
-        zoom: var(--con-parl-info-quest-zoom);
-        flex-shrink: 0;
-        max-width: 56%;
-        padding: 4px 8px;
-    }
-    &__info-text { font-family: @con-font-read; font-size: .72rem; line-height: 1.25; color: fade(@con-text, 86%); min-width: 0; }
-    /* THE SOURCE line. */
+    /* THE SOURCE line: the cube at its place, where it leaves from and what it costs. */
     &__info-src { display: flex; align-items: center; gap: .5rem; min-width: 0; flex-wrap: nowrap; min-height: 1.1rem; }
     /* The source's words may take two lines on a narrow column — never an ellipsis on the place a delegate leaves from. */
-    &__info-src-text { font-size: .84rem; line-height: 1.1; flex: 1 1 auto; min-width: 0; white-space: normal; }
+    &__info-src-text { display: inline-flex; align-items: center; flex-wrap: wrap; gap: .28rem; font-size: .84rem; line-height: 1.1; flex: 1 1 auto; min-width: 0; white-space: normal; }
+    &__info-src-sep { opacity: .5; }
+    &__info-src-num { font-size: .96rem; font-variant-numeric: tabular-nums; color: #f4e7c2; }
+    &__info-src-mc { display: inline-block; width: .95rem; height: .95rem; background-size: contain; background-repeat: no-repeat; flex-shrink: 0; }
     /* THE FACTS — one line each: key left, current → projected right. */
     &__facts { display: flex; flex-direction: column; gap: .1rem; min-height: 0; }
     &__fact {
@@ -1040,16 +1005,12 @@
         &--gain { background: fade(@con-parl-mint, 7%); box-shadow: inset 0 0 0 .05rem fade(@con-parl-mint, 45%); }
         &--dim { opacity: .62; }
     }
-    /* The key may take TWO lines beside a wide value (TV: «2 из 2 → эффект ваш») — never an ellipsis on a decision fact. */
+    /* The key may take TWO lines beside a wide value (TV: «1 из 2 → эффект ваш») — never an ellipsis on a decision fact. */
     &__fact-key { font-size: .58rem; letter-spacing: .1em; text-transform: uppercase; opacity: .78; white-space: normal; overflow: hidden; line-height: 1.2; }
     &__fact-val { display: inline-flex; align-items: center; gap: .3rem; font-size: .8rem; line-height: 1.05; white-space: nowrap; b { font-size: .96rem; line-height: 1.1; font-variant-numeric: tabular-nums; } }
     &__fact-arrow { opacity: .55; }
     &__fact-after { color: @con-cyan; border-bottom: .08rem dashed fade(@con-cyan, 55%); }
     &__info-block--done &__fact-after { color: @con-parl-mint; border-bottom-color: transparent; }
-    /* A row's NOTE — one small line UNDER its key (the value column stays narrow, the key is never cut). */
-    &__fact-note { display: block; font-size: .56rem; letter-spacing: .02em; text-transform: none; white-space: normal; line-height: 1.15; margin-top: .04rem; color: @con-parl-gold; }
-    /* The count row's TAIL — «of them yours 0 → 1», quieter than the total. */
-    &__fact-tail { display: inline-flex; align-items: center; gap: .2rem; margin-left: .35rem; font-size: .62rem; opacity: .8; b { font-size: .84rem; } }
     &__fact-none { opacity: .5; }
     &__vote .con-parl__embed:not(:empty) { flex: 1 1 auto; min-height: 0; }
     &__vote--paying .con-parl__cta { display: none; }
@@ -1619,7 +1580,6 @@
 .con-pformula__mech .pcard-ic--tag,
 .con-parl__info-mech .pcard-ic--tag,
 .con-parl__quest-graphic .pcard-ic--tag,
-.con-parl__info-quest .pcard-ic--tag,
 .pcard__quest-graphic .pcard-ic--tag {
     position: relative;
     border-radius: 50%;
@@ -2300,7 +2260,7 @@ html.con-profile-handheld .con-parl {
     --con-parl-slot-label-h: 1.05rem;
     --con-parl-slot-ribbon-h: 1.4rem;
     --con-parl-slot-tally-h: 2.1rem;
-    --con-parl-info-h: 11.2rem;
+    --con-parl-info-h: 8.6rem;
     --con-parl-bill-w: 25rem;
     --con-parl-bill-h: 12.8rem;
     --con-parl-tile-formula-zoom: calc(0.58 * var(--con-ui-scale, 1));
@@ -2308,8 +2268,6 @@ html.con-profile-handheld .con-parl {
     --con-parl-ruler-own-zoom: calc(0.55 * var(--con-ui-scale, 1));
     --con-parl-quest-zoom: calc(0.62 * var(--con-ui-scale, 1));
     --con-parl-info-mech-zoom: calc(0.74 * var(--con-ui-scale, 1));
-    --con-parl-info-quest-zoom: calc(0.58 * var(--con-ui-scale, 1));
-    --con-parl-info-formula-zoom: calc(0.58 * var(--con-ui-scale, 1));
     &__body { gap: .3rem; }
     /* The head may take a second tier: the zone wraps as a whole under the
        crumb when its seats do not fit beside it (never a cut name). */
@@ -2413,49 +2371,22 @@ html.con-profile-handheld .con-parl {
             .con-parl__tally-num { font-size: 1.1rem; }
         }
     }
-    &__info { grid-template-columns: minmax(0, 1fr) 17rem; column-gap: .6rem; padding: .4rem .6rem .4rem; }
+    &__info { grid-template-columns: minmax(0, 1fr) 17rem; column-gap: .6rem; padding: .35rem .6rem .35rem; }
     &__info-body { gap: .25rem; }
     &__info-emblem { width: 1.25rem; height: 1.25rem; }
     &__info-name { font-size: .82rem; }
-    &__info-grid { grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr); column-gap: .35rem; }
     &__info-own { gap: .15rem; padding: .25rem .45rem .3rem; }
     &__info-own-body { gap: .5rem; }
-    &__info-parts { gap: .18rem; }
-    /* THE DECK'S column is 8 px short of the answer chip's own line, and the
-       chip is the one row here whose caption is redundant: the party's emblem
-       and name already say whose rule pays. Drop the caption (it stays in the
-       DOM for assistive tech and for the probes) and tighten the row — never
-       drop the READING, which is half of what the card promises. */
-    &__info-readings { margin-top: .05rem; row-gap: .1rem; }
-    &__info-reaction {
-        padding: .16rem .45rem .14rem .3rem;
-        .con-preact__caption {
-            position: absolute;
-            width: 1px;
-            height: 1px;
-            overflow: hidden;
-            clip-path: inset(50%);
-            white-space: nowrap;
-        }
-    }
-    &__info-part-label { font-size: .46rem; }
-    &__info-part-text { font-size: .62rem; line-height: 1.22; }
-    &__info-side { row-gap: .3rem; }
+    &__info-readings { column-gap: .35rem; row-gap: .15rem; }
     &__info-block { gap: .12rem; padding: .18rem .4rem .2rem; }
     &__info-kicker { font-size: .5rem; }
-    &__info-party-ident { width: 2.8rem; }
-    &__info-party-emblem { width: 1.5rem; height: 1.5rem; }
-    &__info-party-name { font-size: .46rem; }
-    &__info-scope { font-size: .46rem; }
-    &__info-text { font-size: .6rem; }
     &__facts { gap: .1rem; }
     &__fact { padding: .03rem .35rem; }
     &__fact-key { font-size: .5rem; }
     &__fact-val { font-size: .68rem; b { font-size: .82rem; } }
-    &__fact-note { font-size: .48rem; }
-    &__fact-tail { font-size: .54rem; b { font-size: .72rem; } }
-    &__info-subkicker { font-size: .46rem; margin-top: .06rem; }
     &__info-src-text { font-size: .66rem; }
+    &__info-src-num { font-size: .78rem; }
+    &__info-src-mc { width: .8rem; height: .8rem; }
     /* The confirm: a long refusal wraps rather than runs past the plate. */
     &__vote .con-parl__cta-label { white-space: normal; line-height: 1.1; font-size: .76rem; }
     &__agenda { padding: .2rem .45rem .18rem; gap: .08rem; }
@@ -2495,7 +2426,7 @@ html.con-profile-tv .con-parl {
     --con-parl-slot-label-h: 1.45rem;
     --con-parl-slot-ribbon-h: 1.95rem;
     --con-parl-slot-tally-h: 3rem;
-    --con-parl-info-h: 15.6rem;
+    --con-parl-info-h: 11.6rem;
     --con-parl-bill-w: 36rem;
     --con-parl-bill-h: 16rem;
     --con-parl-tile-formula-zoom: calc(0.84 * var(--con-ui-scale, 1));
@@ -2503,8 +2434,6 @@ html.con-profile-tv .con-parl {
     --con-parl-ruler-own-zoom: calc(0.78 * var(--con-ui-scale, 1));
     --con-parl-quest-zoom: calc(0.9 * var(--con-ui-scale, 1));
     --con-parl-info-mech-zoom: calc(1.08 * var(--con-ui-scale, 1));
-    --con-parl-info-quest-zoom: calc(0.8 * var(--con-ui-scale, 1));
-    --con-parl-info-formula-zoom: calc(0.8 * var(--con-ui-scale, 1));
     /* A wider government column on the couch: its formula breathes, and the
        voting slots are WIDTH-bound there — the overview card stays a size
        below the mode's. */
@@ -2555,22 +2484,17 @@ html.con-profile-tv .con-parl {
     &__cta-cost { font-size: .8rem; }
     &__cta-cost-num { font-size: 1.1rem; }
     &__cta-cost-mc { width: 1.15rem; height: 1.15rem; }
-    &__info-subkicker { font-size: .8rem; }
     &__info { grid-template-columns: minmax(0, 1fr) 24.5rem; }
     &__info-name { font-size: 1.15rem; }
     &__info-emblem { width: 1.7rem; height: 1.7rem; }
-    &__info-kicker, &__info-part-label, &__info-scope, &__info-party-name { font-size: .8rem; }
-    &__info-part-text, &__info-text { font-size: .88rem; }
-    &__info-party-ident { width: 4.2rem; }
-    &__info-party-emblem { width: 2.3rem; height: 2.3rem; }
+    &__info-kicker { font-size: .8rem; }
     &__info-src-text { font-size: .95rem; }
+    &__info-src-num { font-size: 1.05rem; }
+    &__info-src-mc { width: 1.05rem; height: 1.05rem; }
     &__facts { gap: .08rem; }
     &__fact { padding: .03rem .45rem; }
     &__fact-key { font-size: .8rem; }
     &__fact-val { font-size: .9rem; b { font-size: 1.05rem; } }
-    &__info-subkicker { margin-top: .04rem; }
-    &__fact-note { font-size: .8rem; }
-    &__fact-tail { font-size: .8rem; b { font-size: .95rem; } }
     &__agenda-me { font-size: .9rem; b { font-size: 1.05rem; } }
     &__step-label { font-size: .8rem; }
     &__step-level { font-size: .95rem; }
@@ -2709,6 +2633,8 @@ html.con-profile-tv .con-zoom__flip-pos b { font-size: 1.1rem; }
     &__emblem { width: 1.05rem; height: 1.05rem; object-fit: contain; flex-shrink: 0; }
     &__party {
         font-size: .58rem;
+        /* The line box holds the whole glyph box: at 1.0 the couch scale clipped 2px of the caps behind the ellipsis overflow. */
+        line-height: 1.2;
         letter-spacing: .09em;
         text-transform: uppercase;
         font-weight: 700;
@@ -2909,6 +2835,62 @@ html.con-profile-tv .con-zoom__flip-pos b { font-size: 1.1rem; }
     &__out--lost b { color: fade(@con-amber, 94%); text-decoration: line-through; text-decoration-thickness: .08rem; }
     &__note { font-size: .66rem; line-height: 1.25; color: fade(@con-amber, 92%); }
 
+    /* ONE NUMBER — the vote panel's law (`oneNumber`): the plates of a chain
+       stand in ONE row («… · …»), each plate is one line (the host's kicker is
+       the caption), and the win's difference rides the number as a SUFFIX:
+       «+1 ПРИ ПОБЕДЕ · ШАГ ⑶» — tracked caps, the gold of the forecast carried
+       by weight (it must survive desaturation), the Agenda step drawn as the
+       rail's own node. Not a second reading: no kicker, no line, no beat. */
+    &__result { display: inline-flex; align-items: center; gap: .34rem; min-width: 0; }
+    &__suffix {
+        .premium-tooltip(16rem);
+        display: inline-flex;
+        align-items: center;
+        gap: .18rem;
+        padding: .1rem .42rem .1rem .36rem;
+        border-radius: .36rem;
+        background: fade(@con-parl-gold, 10%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-parl-gold, 42%);
+        font-size: .5rem;
+        font-weight: 700;
+        letter-spacing: .1em;
+        text-transform: uppercase;
+        line-height: 1;
+        white-space: nowrap;
+        color: fade(@con-parl-gold, 96%);
+        cursor: default;
+    }
+    &__suffix-num { font-size: .8rem; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: 0; }
+    &__suffix .con-iyield__unit { width: .82rem; height: .82rem; }
+    &__suffix-text { opacity: .92; }
+    &__suffix-sep { opacity: .5; margin: 0 .04rem; }
+    &__suffix-node {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: .92rem;
+        height: .92rem;
+        border-radius: 50%;
+        font-style: normal;
+        font-size: .54rem;
+        font-weight: 800;
+        letter-spacing: 0;
+        color: #1c1608;
+        background: fade(@con-parl-gold, 90%);
+        box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.35), 0 0 0 .08rem fade(@con-parl-gold, 32%);
+    }
+    &--onenum {
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: .3rem .55rem;
+        .con-iyield__group { flex-direction: row; align-items: center; }
+        .con-iyield__group + .con-iyield__group::before { content: '·'; margin-right: .55rem; font-size: 1rem; font-weight: 700; color: fade(@con-text, 45%); }
+        .con-iyield__readings { flex-wrap: nowrap; }
+        .con-iyield__reading { display: inline-flex; align-items: center; column-gap: .3rem; }
+        .con-iyield__note { flex-basis: 100%; }
+    }
+
     /* SIZES. */
     &--compact {
         gap: .22rem;
@@ -3099,10 +3081,12 @@ html.con-profile-tv .con-zoom__flip-pos b { font-size: 1.1rem; }
    in tighter plates. Stacked under a narrow text column they overflowed the
    Deck's info height and cut the forecast's caption off (measured: 172 px of
    content in a 149 px body, Aquifer and Architecture Award alike). */
+/* HANDHELD — the one-number panel at the Deck's size: the card's graphic keeps
+   its place beside the number (the reading is ONE line now, so there is room
+   for both), the plates tighten, the suffix reads at the profile's caps size. */
 html.con-profile-handheld .con-parl__info-own--yields {
-    .con-parl__info-mech { display: none; }
-    .con-iyield__readings { flex-wrap: nowrap; gap: .3rem; }
-    .con-iyield__reading { padding: .14rem .28rem .12rem; column-gap: .1rem; }
+    .con-iyield__readings { gap: .3rem; }
+    .con-iyield__reading { padding: .14rem .3rem .12rem; column-gap: .14rem; }
     .con-iyield__in, .con-iyield__out { gap: .1rem; }
     .con-iyield__in b { font-size: .9rem; }
     .con-iyield__out b { font-size: .95rem; }
@@ -3111,19 +3095,17 @@ html.con-profile-handheld .con-parl__info-own--yields {
     .con-iyield__plus { margin: 0; }
     .con-iyield__arrow { font-size: .85rem; }
     .con-iyield__max { font-size: .42rem; padding: .1rem .2rem .08rem; margin-left: .1rem; }
-    .con-iyield__caption { font-size: .46rem; max-width: 8.2rem; }
-    /* The winner's reading stays ON its label's line: the tile's icon names the
-       tile (the sentence under it says «greenery» in words), so the name steps
-       aside and the plate tightens — a wrapped chip cost the block a line and cut
-       the forecast's caption (measured 181 px of content in a 178 px block). */
-    .con-parl__info-part-head { column-gap: .3rem; }
-    .con-wreward--inline { padding: .04rem .3rem .04rem .22rem; }
-    .con-wreward--inline .con-wreward__name { display: none; }
-    .con-wreward--inline .con-wreward__body { gap: .22rem; }
-    .con-wreward--inline .con-wreward__param,
-    .con-wreward--inline .con-wreward__tr { padding-left: .22rem; }
-    .con-wreward--inline .con-wreward__caption--inline { padding-left: .22rem; font-size: .44rem; }
 }
+/* The win's suffix on the two other profiles: the Deck's caps size, the couch's
+   .8rem floor — carried by weight and tracking, never by shrinking the number. */
+html.con-profile-handheld .con-iyield__suffix { font-size: .46rem; padding: .08rem .32rem .08rem .28rem; gap: .14rem; }
+html.con-profile-handheld .con-iyield__suffix-num { font-size: .7rem; }
+html.con-profile-handheld .con-iyield__suffix .con-iyield__unit { width: .72rem; height: .72rem; }
+html.con-profile-handheld .con-iyield__suffix-node { width: .8rem; height: .8rem; font-size: .48rem; }
+html.con-profile-tv .con-iyield__suffix { font-size: .8rem; padding: .14rem .52rem .12rem .44rem; gap: .24rem; }
+html.con-profile-tv .con-iyield__suffix-num { font-size: 1.04rem; }
+html.con-profile-tv .con-iyield__suffix .con-iyield__unit { width: 1.06rem; height: 1.06rem; }
+html.con-profile-tv .con-iyield__suffix-node { width: 1.22rem; height: 1.22rem; font-size: .8rem; }
 
 /* ── The INFLUENCE badge in the Parliament's own chrome (the Agenda readout)
    and the yield blocks the workspace hosts. ── */
@@ -3149,23 +3131,6 @@ html.con-profile-handheld .con-parl__info-own--yields {
     }
     &__step--influence &__step-node { position: relative; }
     &__step--influence &__step-level { position: relative; }
-    /* The vote surface's own-effect block: the readings sit under the parts. */
-    /* THE VIEWER'S NUMBERS and the party's answer share ONE wrapping row: the
-       readings are narrow and the column is not, so the answer sits beside
-       them where there is width and drops under them where there is not —
-       never a fixed second line the panel has no budget for. */
-    &__info-readings {
-        display: flex;
-        flex-wrap: wrap;
-        align-items: flex-start;
-        column-gap: .55rem;
-        row-gap: .25rem;
-        margin-top: .15rem;
-        min-width: 0;
-        max-width: 100%;
-    }
-    &__info-yield { align-self: flex-start; max-width: 100%; }
-    &__info-reaction { align-self: flex-start; max-width: 100%; }
     /* The government's «Принятие» row: the payout as it was applied. */
     &__ruler-paid { margin-top: .2rem; }
     &__ruler-yield { --unused: 0; }
