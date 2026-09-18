@@ -220,7 +220,7 @@
  */
 import {defineComponent, PropType} from 'vue';
 import {CardModel} from '@/common/models/CardModel';
-import {handDockPlan, HandDockPlan} from '@/client/console/consoleHandDock';
+import {handDockPlan, HandDockPlan, shownHandCount} from '@/client/console/consoleHandDock';
 import {DockInspectionView, InspectionFanSlot} from '@/client/console/handDock/dockInspection';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {translateText} from '@/client/directives/i18n';
@@ -340,22 +340,12 @@ export default defineComponent({
     };
   },
   computed: {
-    /** Held copies per name (multiset — see the prop doc). */
-    heldCounts(): Map<string, number> {
-      const m = new Map<string, number>();
-      for (const n of this.deliveryHeld) {
-        m.set(n, (m.get(n) ?? 0) + 1);
-      }
-      return m;
-    },
-    /** The count the STATUS LINE shows — held (in-flight) copies excluded.
-     *  (The pack itself is rendered by the hand BODIES layer now.) */
+    /** The count the STATUS LINE shows — held (in-flight) copies excluded,
+     *  but only those the hand actually holds (`shownHandCount`: a take's
+     *  card is in flight from the PRESS and in the hand only from the
+     *  answer). (The pack itself is rendered by the hand BODIES layer now.) */
     count(): number {
-      let held = 0;
-      this.heldCounts.forEach((k) => {
-        held += k;
-      });
-      return Math.max(0, this.cards.length - held);
+      return shownHandCount(this.cards.map((c) => c.name as string), this.deliveryHeld);
     },
     /** Geometry plan — kept for the bay/empty computed only. */
     plan(): HandDockPlan {

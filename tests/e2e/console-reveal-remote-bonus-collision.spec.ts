@@ -122,6 +122,20 @@ function patchCollision(body: Model, cycle: number): void {
   if (body.game !== undefined) {
     body.game.gameAge = (body.game.gameAge ?? 0) + cycle;
   }
+  // CONSISTENT WITH THE REAL SERVER: a drawn batch's cards are IN the hand from
+  // the draw — the client withholds the untaken ones from the dock itself. A
+  // stub that left them out sent the take's flight after a card that could
+  // never arrive: it hovered for its whole landing poll, a `hand-delivery` hold
+  // with nothing rendered, which the foreground watchdog is right to call a
+  // stuck foreground — so this spec passed or failed on how that hover
+  // happened to align with the watchdog's passes.
+  const hand: Array<Model> = body.cardsInHand ?? [];
+  for (const name of ['Micro-Mills', 'Insulation']) {
+    if (!hand.some((c) => c.name === name)) {
+      hand.push({name});
+    }
+  }
+  body.cardsInHand = hand;
   body.cardDrawReveals = [
     {
       id: OWN_BATCH_ID,

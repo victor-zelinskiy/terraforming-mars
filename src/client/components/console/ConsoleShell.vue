@@ -1543,7 +1543,7 @@ import {LiveNotification} from '@/client/components/notifications/notificationTy
 import {displayNameForColor, participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import ConsoleCommandBar, {ConsoleCommand} from '@/client/components/console/ConsoleCommandBar.vue';
 import ConsoleHandDock, {HandDockAlbum} from '@/client/components/console/ConsoleHandDock.vue';
-import {handDockBayRem} from '@/client/console/consoleHandDock';
+import {handDockBayRem, shownHandCount} from '@/client/console/consoleHandDock';
 import ConsoleSheet, {ConsoleSheetRow} from '@/client/components/console/ConsoleSheet.vue';
 import ConsoleMaScreen from '@/client/components/console/ConsoleMaScreen.vue';
 import ConsoleMaCeremony from '@/client/components/console/ConsoleMaCeremony.vue';
@@ -2537,19 +2537,7 @@ export default defineComponent({
      *  the dock's «КАРТЫ» line uses (held / in-flight / untaken-reveal
      *  copies excluded), so no surface ever runs ahead of a physical take. */
     cardsTotalCount(): number {
-      const totals = new Map<string, number>();
-      for (const c of this.handDockCards) {
-        totals.set(c.name, (totals.get(c.name) ?? 0) + 1);
-      }
-      const held = new Map<string, number>();
-      for (const n of this.dockHeld) {
-        held.set(n, (held.get(n) ?? 0) + 1);
-      }
-      let hidden = 0;
-      held.forEach((k, name) => {
-        hidden += Math.min(k, totals.get(name) ?? 0);
-      });
-      return this.handDockCards.length - hidden;
+      return shownHandCount(this.handDockCards.map((c) => c.name as string), this.dockHeld);
     },
     actionsAvailableCount(): number {
       return this.wheelCounts.cardActions;

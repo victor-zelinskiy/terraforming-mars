@@ -410,9 +410,14 @@ test.describe('a play\'s DRAW presents inside the workspace the play was made in
       if (s.reveal && s.viewer) {
         log.viewerFrames++;
       }
-      // A takes the card once the batch has arrived; then the workspace must
-      // leave on its own.
-      if (s.embedded && s.untaken > 0) {
+      // A takes the card once the batch has arrived AND the landing tableau has
+      // let go of the stage; then the workspace must leave on its own. Taking
+      // on the FIRST sample of the batch raced the tableau's dissolve (it may
+      // legitimately overlap the deal for a sample or two — see `overstay`):
+      // the take emptied the stage before this loop ever saw it free, and
+      // «freed» read 0 with the product right. A tableau that never lets go
+      // still fails — as an overstay, which is what it would be.
+      if (s.embedded && s.untaken > 0 && !s.landing) {
         await key(page, 'Enter', 500);
         taken = true;
         continue;

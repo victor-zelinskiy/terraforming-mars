@@ -13,6 +13,7 @@ import {applyConsoleFxLiteClass} from '@/client/console/consoleFxLite';
 import {applyReducedMotionClass} from '@/client/utils/reducedMotion';
 import {applyConsoleReadingScale} from '@/client/console/consoleReadingScale';
 import {installConsoleLayoutProfile} from '@/client/console/consoleLayoutProfile';
+import {warmDisplayFonts} from '@/client/utils/fontWarmup';
 // Registered globally so ColonyTradePaymentModal can host the card-target
 // picker WITHOUT a static import — Card.vue's import chain breaks the
 // mochapack client-test bundle (the known baseline class), and the picker
@@ -62,6 +63,9 @@ async function bootstrap() {
   // curtain painted unscaled and visibly re-composed the moment the layer
   // mounted. Idempotent; GamepadLayer's later call is a no-op.
   installConsoleLayoutProfile();
+  // Request the display faces the cinematics carry NOW: a face first used by a
+  // flight re-lays out the whole document mid-flight (fontWarmup.ts).
+  warmDisplayFonts();
   const lang = getPreferences().lang;
 
   // Stamp the active language on <html> at bootstrap (guaranteed to run before

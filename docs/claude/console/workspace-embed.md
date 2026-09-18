@@ -68,11 +68,18 @@ as its shallowest holder, and each of these silently cut it:
 ## The six rules
 
 1. **A step surface is HOST-AGNOSTIC.** It renders content only; shell chrome
-   — the frame plate, the `ConsoleWsHead`, the `con-ws` rail marker — belongs
-   to the host. One `embedded` prop strips the shell
-   (`ConsoleHandSection`, `ConsolePlayCardConfirm`, `ConsoleTaskHost`,
+   — the frame plate, the `ConsoleWsHead`, the `con-ws` rail marker **and the
+   `data-motion-surface` id** — belongs to the host. One `embedded` prop strips
+   the shell (`ConsoleHandSection`, `ConsolePlayCardConfirm`, `ConsoleTaskHost`,
    `ConsoleRevealOverlay` all speak it); logic, module state, captures and the
    input path are untouched by embedding. Never a per-flavour prop.
+   ⚠️ The motion id is not decoration: the surface-motion director gives every
+   element carrying it an owner's claim on the ONE shared `.con-shade`, so an
+   embedded step that keeps it DIMS ITS OWN HOST — the whole Parliament, the
+   embedded Climate Research take included, went dark for the entire mandatory
+   draw (2026-09-18). Bind it as `:data-motion-surface="embedded ? undefined :
+   '<id>'"`; `tests/console/embeddedSurfaceShadeGuard.spec.ts` fails on any
+   embeddable console SFC that does not.
 2. **ONE instance, teleported.** The shell mounts each surface once and
    `<Teleport>`s it into the host's zone. A second copy forks input and loses
    captures — the reveal/task-host/composer teleports are the precedent.

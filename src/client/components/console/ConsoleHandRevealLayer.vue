@@ -194,6 +194,7 @@ export default defineComponent({
     setHandBodiesOracle({
       poseFor: (name) => this.dockedPoseOf(name),
       poseForCopy: (name, seqFromEnd) => this.dockedPoseOfCopy(name, seqFromEnd),
+      poseForIncoming: (rank, incoming) => this.dockedPoseOfIncoming(rank, incoming),
       reconcile: () => this.applyDockedPoses(true),
       seatNew: () => this.applyDockedPoses(false),
       resettle: (names) => this.resettleBodies(names),
@@ -238,24 +239,28 @@ export default defineComponent({
       const tune = packProfileTuning(this.layout.profile);
       return {ax: r.left + r.width / 2, ay: r.bottom, remPx, ...tune};
     },
+    /*
+     * MEMBERSHIP BEFORE MEASUREMENT (both oracle reads below). `anchor()` is a
+     * `getBoundingClientRect` — a FORCED LAYOUT of the whole console whenever
+     * the DOM is dirty, and during a flight it always is (the lift tween and
+     * the response's patch write every frame). The intake director polls
+     * `poseForCopy` every tick while its card waits for the server's answer,
+     * i.e. while the card is NOT in the hand yet: measuring first paid a full
+     * layout per tick for an answer that was always «undefined» — measured
+     * ~170 ms of a 300 ms main-thread window under a 4× CPU throttle, which is
+     * exactly where the taken card visibly hung in the air.
+     */
     dockedPoseOf(name: string): {x: number, y: number, scale: number, rotation: number} | undefined {
-      const a = this.anchor();
-      if (a === undefined) {
-        return undefined;
-      }
       const i = this.cards.findIndex((c) => c.name === name);
       if (i === -1) {
         return undefined;
       }
-      return dockedBodyPose(i, this.cards.length, this.pose as PackPose, a);
+      const a = this.anchor();
+      return a === undefined ? undefined : dockedBodyPose(i, this.cards.length, this.pose as PackPose, a);
     },
     /** One COPY of `name`, claimed from the hand's end (0 = newest) — the
      *  intake director's landing target for duplicate-safe aiming. */
     dockedPoseOfCopy(name: string, seqFromEnd: number): {x: number, y: number, scale: number, rotation: number} | undefined {
-      const a = this.anchor();
-      if (a === undefined) {
-        return undefined;
-      }
       const indexes: Array<number> = [];
       this.cards.forEach((c, i) => {
         if (c.name === name) {
@@ -266,7 +271,25 @@ export default defineComponent({
       if (idx === undefined) {
         return undefined;
       }
-      return dockedBodyPose(idx, this.cards.length, this.pose as PackPose, a);
+      const a = this.anchor();
+      return a === undefined ? undefined : dockedBodyPose(idx, this.cards.length, this.pose as PackPose, a);
+    },
+    /**
+     * Where the `rank`-th of `incoming` cards NOT YET in the hand will lie once
+     * the server has put them there — appended at the hand's end, the order
+     * the server keeps (`cards` is the hand in append order). A PREDICTION,
+     * never a landing: the intake director aims its arc at it so the flight
+     * need not hover over the source while the answer is on the wire, and
+     * lands on the confirmed `dockedPoseOfCopy` all the same. Undefined when
+     * the dock cannot be measured.
+     */
+    dockedPoseOfIncoming(rank: number, incoming: number): {x: number, y: number, scale: number, rotation: number} | undefined {
+      if (!(incoming > 0) || rank < 0 || rank >= incoming) {
+        return undefined;
+      }
+      const a = this.anchor();
+      const n = this.cards.length + incoming;
+      return a === undefined ? undefined : dockedBodyPose(this.cards.length + rank, n, this.pose as PackPose, a);
     },
     /**
      * Seat every DOCKED body on its analytic pose.

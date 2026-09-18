@@ -779,6 +779,18 @@ dialog.con-zoom {
     contain: layout style;
 }
 
+/* ⚠️ THE ART IS ALREADY ON SCREEN — DO NOT RE-FADE IT IN (the `.con-discard-proxy`
+   precedent). `premium_card.less` starts every `.pcard__art img` at `opacity: 0`
+   and fades it in on the image's own `load` event — right for a card that MOUNTS,
+   wrong for an intake proxy: it is born over a card the player is looking at, the
+   same webp already painting in that slot, so the fresh <img> re-ran the fade and
+   the lifted card showed an EMPTY art window for a frame, then faded back in —
+   read in the take's video as the card going dark on the spot as it rose. */
+.con-handdelivery-layer .pcard__art img {
+    opacity: 1;
+    transition: none;
+}
+
 /* ── Card EXIT / TRANSFER cinematics (cardExitDirector.ts) ────────────
    The outbound twin of the deal: take-one, collect-all, draft hero-pick,
    hand→play-modal transfers fly FaceLite proxies on the ONE app-level

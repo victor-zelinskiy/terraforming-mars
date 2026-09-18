@@ -201,3 +201,77 @@ compact TUCK VEIL (`--tucked` ::after on the faces). Pinned by
 and the pose witnesses in `tests/e2e/console-planet-focus.spec.ts` (painted
 body width + veil, never a chassis CSS var — there is nothing left on the
 chassis to witness a pose with).
+
+## AN INTAKE FLIGHT NEVER WAITS ON THE MAIN THREAD FOR SOMETHING IT CAN KNOW (2026-09-18)
+
+Reported as «the first taken card hangs in the air instead of going into the
+hand» (the Parliament's embedded Climate Research take). On a dev box the
+flight was already clean; under a 4× CPU throttle (the Deck stand-in) and on a
+loaded machine it was not, and FOUR independent costs stacked in the flight's
+first second — each now removed at its source:
+
+1. **The arc hovered until the server answered** (`handDeliveryDirector`
+   contract 3 — the landing pose is polled, and the arc left only once it was
+   stable). A free take cannot be withheld on the answer, so its host opts into
+   **`aimAhead`**: the leg leaves on time toward the PREDICTED slot
+   (`HandBodiesOracle.poseForIncoming` — appended at the hand's end, the order
+   the server keeps; `dockOrderKeys` already modelled exactly that) and still
+   LANDS only on the confirmed one (`landOnConfirmed` → `touchdown`, which
+   re-reads the live pose). A purchase must NOT opt in: `refuteWithheldIntake`
+   can withhold it behind a payment, and flying it into the hand first would
+   show a card the player does not have.
+2. **The pose poll forced a full layout per tick for a card not in the hand
+   yet** — `dockedPoseOfCopy` measured the anchor (`getBoundingClientRect`)
+   BEFORE looking the card up. Membership first: ~170 ms of a 300 ms
+   main-thread window at ×4 was that measurement.
+3. **The first use of a lazily-loaded face re-laid out the document
+   mid-flight.** The dock's «КАРТЫ» delta chip is set in Russo One; in a
+   session booted straight into the take it was the first Russo One text on
+   screen, and the face's arrival («Fonts changed») re-laid out 2226 of 2514
+   objects and repainted the viewport as the card lifted — why only the FIRST
+   take looked stuck. `src/client/utils/fontWarmup.ts` requests the display
+   faces at boot (`tests/console/fontWarmup.spec.ts` keeps the warmed family
+   in step with `common.less`).
+4. **The counter dipped.** The take registers its card as in flight at the
+   PRESS; the server puts it in the hand on the ANSWER. Subtracting every
+   withheld name read «−1» in that gap and «+2» at the landing. The dock and
+   every HUD readout now share `shownHandCount` (`consoleHandDock.ts`: only
+   the withheld copies the hand actually holds are hidden) — one tick, on the
+   landing.
+
+Plus a small one on the take surface itself: the ghost-marking reconcile no
+longer refits a row whose shape it did not change (two forced layouts on the
+answer, mid-flight). And one seen only frame by frame: the intake proxy's
+fresh `<img>` re-ran `premium_card.less`'s load fade, so the lifted card showed
+an EMPTY art window for a frame and then faded back in — over a slot painting
+the very same webp. `.con-handdelivery-layer .pcard__art img` now shows the art
+outright (the `.con-discard-proxy` precedent).
+
+**…and one at the flight's END: the run's safety net cut a SLOW flight as if
+it were a STUCK one.** The budget is wall clock, and a starved main thread
+stretches a GSAP timeline past it (lag smoothing counts a frame gap over
+500 ms as 33 ms): under parallel 4K load a take's card was removed at ~80 % of
+its arc and simply appeared in the hand. The net now asks whether the run is
+still MOVING (`gsap.isTweening` on its own proxies) before it cuts, and
+re-arms while it is — bounded by `SAFETY_EXTENSIONS_MAX` (the pure verdict
+`intakeSafetyExtends` is pinned in `handIntakeRefute.spec.ts`); a run with
+nothing animating ends exactly as before.
+
+**What remains is not the flight's.** The answer's APPLY (a new `playerView`
+re-rendering the shell — Board, rails, counters, the Parliament's cards) is a
+~400 ms main-thread task at ×4 and freezes whatever GSAP is animating at that
+moment; since the fixes it lands in the lift instead of in a hover. Making it
+cheaper is a perf-iteration topic (the ingest cost), and making the arc immune
+to it would mean a compositor-driven (WAAPI) arc — mind the chip-conveyor
+lesson: compositor pickup of two elements' animations is not synchronous, so
+the proxy and its flip child would need one driver or an explicit shared start
+time.
+
+Measured (`console-parliament-climate.spec.ts` carries the witness: the proxy
+is sampled in the air, lands ON its body within 2 px / 2 % scale, the counter
+reads N → N+1 with no dip, the shared dim stays off): ×1 — no long task over
+50 ms in the take window, the proxy leaves its seat within ~40–60 ms; ×4 — the
+flight ends ~0.7 s sooner than before and never hovers after the lift.
+⚠️ **A probe must not read layout**: an earlier sampler (subtree
+MutationObserver + two `getBoundingClientRect` per tick) was itself ~15 % of the
+×4 window and doubled the hover it was measuring. Read inline transforms.

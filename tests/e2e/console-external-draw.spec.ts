@@ -2,6 +2,8 @@ import {test, expect, Page, APIRequestContext, Route} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {bootToBoard, fillPicks, openMandatoryAnnounce, press, reloadConsole} from './consoleStart';
+import type {ExternalDrawTakeMeta} from '../../src/common/models/ExternalDrawPromptModel';
+import type {CardName} from '../../src/common/cards/CardName';
 
 /**
  * THE EXTERNAL DRAW — the mandatory take of cards ANOTHER player's action drew
@@ -129,14 +131,27 @@ function patchForCycle(body: Model, cycle: number, taken: number): void {
     min: 1,
     max: remaining.length,
     showOnlyInLearnerMode: false,
-    externalDrawPrompt: {
-      intakeId: 1,
-      count: BATCH.length,
-      remaining: remaining.length,
-      effectCard: 'Solar Logistics',
+    externalDrawPrompt: externalDrawMarker(remaining.length),
+  };
+}
+
+/**
+ * The server's marker for this leg, TYPED against the shared model: the stub
+ * is otherwise `Record<string, any>`, and when the model grew its `cause`
+ * (Turmoil Redux — a draw can now be granted by a card OR a resolution) the
+ * flat literal kept compiling while the console failed to mount on it.
+ */
+function externalDrawMarker(remaining: number): ExternalDrawTakeMeta {
+  return {
+    intakeId: 1,
+    count: BATCH.length,
+    remaining,
+    cause: {
+      kind: 'card',
+      effectCard: 'Solar Logistics' as CardName,
       effectCardOwner: 'you',
       initiator: 'green',
-      triggerCard: 'Big Asteroid',
+      triggerCard: 'Big Asteroid' as CardName,
     },
   };
 }

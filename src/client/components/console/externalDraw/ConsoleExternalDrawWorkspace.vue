@@ -12,11 +12,16 @@
        RESOLUTION's draw (Turmoil Redux — Climate Research) is hosted exactly
        that way, inside the Parliament's enactment stage: same instance, same
        logic, same input path, one level deeper. -->
+  <!-- `data-motion-surface` is part of what `embedded` STRIPS, exactly like the
+       frame and the head: the surface-motion director gives every surface that
+       carries it an owner's claim on the ONE shared `.con-shade`, and an
+       embedded step taking that claim dims its own host — the whole Parliament
+       (crumb, carried card, readings and this take) went dark behind itself. -->
   <section class="con-extdraw"
            :class="{'con-ws': !embedded, 'con-extdraw--embedded': embedded}"
            :aria-label="effectLine"
            :data-flow="phase"
-           data-motion-surface="external-draw">
+           :data-motion-surface="embedded ? undefined : 'external-draw'">
     <ConsoleWsHead v-if="!embedded"
                    class="con-extdraw__head"
                    root="Card draw"
@@ -427,7 +432,12 @@ export default defineComponent({
           slot.taken = !remaining.has(slot.name);
         }
         this.focusNextRemaining();
-        this.scheduleFit();
+        // NO refit: a ghost keeps its seat at full size, so the row's shape —
+        // every input of the fit — is unchanged. The fit resets its own
+        // outputs before it measures (a forced layout, twice), and this
+        // reconcile runs on the take's answer, i.e. mid-flight: it was ~18 ms
+        // of main thread (×4 on a Deck-class CPU) stolen from the card on its
+        // way to the hand. A real size change still refits (ResizeObserver).
         return;
       }
       // A NEW batch (first open, a second intake, a reload re-entry): the
@@ -735,7 +745,10 @@ export default defineComponent({
       if (entries.length === 0) {
         return;
       }
-      await runHandIntake(entries, {mode: entries.length > 1 ? 'stack' : 'cascade'});
+      // `aimAhead`: a take is free — nothing on the answer can withhold the
+      // card — so the arc leaves on time instead of hovering over the seat
+      // until the server has answered (the hang a slow CPU made visible).
+      await runHandIntake(entries, {mode: entries.length > 1 ? 'stack' : 'cascade', aimAhead: true});
     },
     slotEl(name: CardName): HTMLElement | null {
       const root = this.$el as HTMLElement | undefined;

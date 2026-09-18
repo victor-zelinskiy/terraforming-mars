@@ -8,6 +8,7 @@ import {
   HAND_DOCK_DISTINCT_MAX,
   HAND_DOCK_PACK_USABLE_REM,
   HAND_DOCK_STEP_MAX_REM,
+  shownHandCount,
 } from '@/client/console/consoleHandDock';
 
 /** The narrowest edge a 20-card hand reads at, rem (≈8.7px logical). */
@@ -144,6 +145,28 @@ describe('consoleHandDock', () => {
     it('the bay narrows on the handheld profile', () => {
       expect(handDockBayRem('handheld')).to.be.lessThan(handDockBayRem('standard'));
       expect(handDockBayRem('tv')).to.eq(handDockBayRem('standard'));
+    });
+  });
+
+  describe('shownHandCount (the intake-aware «КАРТЫ» total)', () => {
+    it('a withheld card already IN the hand is not counted until it lands', () => {
+      // An untaken reveal / a card whose answer has landed mid-flight.
+      expect(shownHandCount(['A', 'B', 'C'], ['C'])).to.eq(2);
+    });
+
+    it('a card in flight BEFORE the answer put it in the hand subtracts nothing — never a «−1» at the press', () => {
+      // A take registers its card as in flight at the PRESS; the server puts
+      // it in the hand a beat later. The count must stay 3 → then 4 on the
+      // landing, one tick, never 3 → 2 → 4.
+      expect(shownHandCount(['A', 'B', 'C'], ['D'])).to.eq(3);
+      expect(shownHandCount(['A', 'B', 'C', 'D'], ['D'])).to.eq(3);
+      expect(shownHandCount(['A', 'B', 'C', 'D'], [])).to.eq(4);
+    });
+
+    it('a MULTISET: only as many copies are hidden as the hand holds', () => {
+      expect(shownHandCount(['A', 'A', 'B'], ['A'])).to.eq(2);
+      expect(shownHandCount(['A', 'B'], ['A', 'A'])).to.eq(1);
+      expect(shownHandCount([], ['A'])).to.eq(0);
     });
   });
 });

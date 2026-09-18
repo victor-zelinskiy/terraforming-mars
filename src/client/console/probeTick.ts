@@ -34,18 +34,26 @@
  */
 export const PROBE_TICK_FALLBACK_MS = 50;
 
+/**
+ * Which path woke the tick: a painted `frame`, or the `timer` — no frame came
+ * within the fallback (an idle compositor, or a long task that delayed both).
+ * A probe with a BUDGET needs it: a timer tick spans ~3 frames of time, and
+ * counting it as one inflates a frame budget ×3 on a quiet screen.
+ */
+export type ProbeTickVia = 'frame' | 'timer';
+
 /** Schedule `fn` for the next painted frame, or `PROBE_TICK_FALLBACK_MS`. */
-export function probeTick(fn: () => void): void {
+export function probeTick(fn: (via: ProbeTickVia) => void): void {
   let fired = false;
-  const run = () => {
+  const run = (via: ProbeTickVia) => {
     if (fired) {
       return;
     }
     fired = true;
-    fn();
+    fn(via);
   };
   if (typeof requestAnimationFrame === 'function') {
-    requestAnimationFrame(run);
+    requestAnimationFrame(() => run('frame'));
   }
-  setTimeout(run, PROBE_TICK_FALLBACK_MS);
+  setTimeout(() => run('timer'), PROBE_TICK_FALLBACK_MS);
 }

@@ -122,6 +122,70 @@ async function expectFits(page: Page, label: string): Promise<void> {
   expect(problems, `${label}: layout problems`).toEqual([]);
 }
 
+/** The shared surface-motion dim is up (`.con-shade--on`). */
+const shadeOn = (page: Page) => page.evaluate(() => document.querySelector('.con-shade')?.classList.contains('con-shade--on') ?? false);
+
+type Pose = {x: number, y: number, s: number};
+type TakeProbe = {samples: Array<{t: number, p: Pose, b: Pose | null}>, totals: Array<string>, shade: number, longTasks: Array<string>};
+
+/**
+ * THE TAKE PROBE — armed BEFORE the press, `setInterval` only (never rAF, which
+ * stops when the compositor goes quiet), and it READS NO LAYOUT: the proxy and
+ * the dock body are both posed by inline transforms in viewport pixels, so the
+ * witness cannot become the long task it is watching (a sampler that forced a
+ * layout per tick measurably slowed the very flight it recorded).
+ *  - `samples`: the VISIBLE proxy's pose + the taken card's dock body pose;
+ *  - `totals`: every distinct value of the dock's «КАРТЫ» total;
+ *  - `shade`: ticks the shared dim was on.
+ */
+async function armTakeProbe(page: Page, name: string): Promise<void> {
+  await page.evaluate((cardName) => {
+    const w = window as unknown as {__take: TakeProbe};
+    w.__take = {samples: [], totals: [], shade: 0, longTasks: []};
+    const t0 = performance.now();
+    // Diagnostics only: a starved main thread is the one honest reason a
+    // flight can look cut — the failure message names it.
+    try {
+      new PerformanceObserver((list) => {
+        for (const e of list.getEntries()) {
+          w.__take.longTasks.push(`${Math.round(e.startTime - t0)}+${Math.round(e.duration)}`);
+        }
+      }).observe({entryTypes: ['longtask']});
+    } catch {
+      // no Long Tasks API — the samples still carry their own times
+    }
+    const pose = (el: HTMLElement): Pose | null => {
+      const t = el.style.transform;
+      const m = /translate(?:3d)?\(\s*([-\d.]+)px,\s*([-\d.]+)px/.exec(t);
+      const s = /scale\(\s*([-\d.]+)/.exec(t);
+      return m === null ? null : {x: Number(m[1]), y: Number(m[2]), s: s === null ? 1 : Number(s[1])};
+    };
+    const esc = CSS.escape(cardName);
+    let proxy: HTMLElement | null = null;
+    window.setInterval(() => {
+      if (proxy === null || !proxy.isConnected) {
+        proxy = document.querySelector<HTMLElement>('.con-handdelivery-layer .con-deal-proxy');
+      }
+      const shown = proxy !== null && proxy.style.visibility !== 'hidden' && proxy.style.opacity !== '0';
+      const p = shown && proxy !== null ? pose(proxy) : null;
+      if (p !== null) {
+        const bodies = document.querySelectorAll<HTMLElement>(`.con-handreveal-layer [data-hand-dock-card="${esc}"]`);
+        const body = bodies.length > 0 ? bodies[bodies.length - 1] : undefined;
+        w.__take.samples.push({t: Math.round(performance.now() - t0), p, b: body === undefined ? null : pose(body)});
+      }
+      const total = document.querySelector('.con-handdock__ratio .con-handdock__num--total')?.textContent?.trim();
+      if (total !== undefined && total !== '' && total !== w.__take.totals[w.__take.totals.length - 1]) {
+        w.__take.totals.push(total);
+      }
+      if (document.querySelector('.con-shade.con-shade--on') !== null) {
+        w.__take.shade++;
+      }
+    }, 16);
+  }, name);
+}
+
+const readTakeProbe = (page: Page) => page.evaluate(() => (window as unknown as {__take: TakeProbe}).__take);
+
 const PRESETS = [
   {id: 'standard-1080', viewport: {width: 1920, height: 1080}, query: '&consoleProfile=auto'},
   {id: 'tv-4k', viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv'},
@@ -230,6 +294,13 @@ for (const preset of PRESETS) {
       // The SOURCE is the resolution — its own face, not a project card.
       await expect(page.locator('.con-extdraw__source .pcard').first(), 'the source dock draws the resolution').toHaveClass(CLIMATE_CLASS);
       await expect(page.locator('.con-extdraw .con-cards__slot'), 'two cards were drawn (production 6 / 3)').toHaveCount(2);
+      // ── …and the HOST STAYS LIT. An embedded step is not a band surface: it
+      //    must not claim the shared dim (it once did — the root kept its
+      //    `data-motion-surface` id and the whole Parliament, the take
+      //    included, went dark for the entire draw).
+      expect(await page.locator('.con-extdraw').getAttribute('data-motion-surface'),
+        'the embedded take strips its motion-surface id').toBeNull();
+      expect(await shadeOn(page), 'the embedded take dims nothing — not its host, not itself').toBe(false);
       await expectFits(page, `${preset.id} enactment take`);
       await shoot(page, preset.id, '10-enact-take');
 
@@ -245,11 +316,45 @@ for (const preset of PRESETS) {
       expect((await wireOf(request, playerId)).thisPlayer.cardsInHandNbr, 'and took nothing').toBe(handBefore);
 
       // ── A takes one, the row keeps its layout (a ghost seat), the phase still waits.
+      //    The take is a FLIGHT into the hand, witnessed by a probe armed BEFORE
+      //    the press (see `armTakeProbe`).
+      expect(await page.evaluate(() => document.fonts.check('1em "Russo One"')),
+        'the HUD display face was warmed at boot — never loaded mid-flight').toBe(true);
+      const taken = await page.locator('.con-extdraw .con-cards__slot--focused').getAttribute('data-extdraw-slot');
+      expect(taken, 'a focused card to take').not.toBeNull();
+      await armTakeProbe(page, taken as string);
       await press(page, 'Enter', 1600);
       await settle(page, {timeoutMs: 20_000});
       await expect.poll(async () => (await wireOf(request, playerId)).thisPlayer.cardsInHandNbr, {timeout: 20_000})
         .toBeGreaterThanOrEqual(handBefore + 1);
       await expect(page.locator('.con-extdraw__slot--ghost'), 'the taken card leaves a quiet ghost seat').toHaveCount(1, {timeout: 10_000});
+      await expect.poll(() => page.locator('.con-handdelivery-layer .con-deal-proxy:visible').count(), {timeout: 15_000})
+        .toBe(0);
+      const flight = await readTakeProbe(page);
+      const why = `samples=${flight.samples.length} totals=${flight.totals.join('→')} shade=${flight.shade}` +
+        ` first=${JSON.stringify(flight.samples[0])} last=${JSON.stringify(flight.samples[flight.samples.length - 1])}` +
+        ` longTasks=[${flight.longTasks.join(' ')}]`;
+      console.log(`[climate take · ${preset.id}] ${why}`);
+      // It FLEW: the proxy was seen in the air and travelled to the dock (a
+      // card that materialized in the hand would leave no samples at all).
+      expect(flight.samples.length, `the take is a flight, never a teleport (${why})`).toBeGreaterThanOrEqual(3);
+      const first = flight.samples[0];
+      const last = flight.samples[flight.samples.length - 1];
+      expect(Math.hypot(last.p.x - first.p.x, last.p.y - first.p.y), `…from its seat down to the dock (${why})`)
+        .toBeGreaterThan(preset.viewport.height * 0.2);
+      // …and LANDED on the card's own body in the fan — the handoff frame,
+      // where the real body is revealed under the proxy (never beside it).
+      expect(last.b, `the taken card has a body in the dock (${why})`).not.toBeNull();
+      const body = last.b as {x: number, y: number, s: number};
+      expect(Math.hypot(last.p.x - body.x, last.p.y - body.y), `the proxy lands ON its body (${why})`).toBeLessThanOrEqual(2);
+      expect(Math.abs(last.p.s - body.s) / body.s, `…at the body's own scale (${why})`).toBeLessThanOrEqual(0.02);
+      // The dock's «КАРТЫ» counter ticks ONCE, on the physical landing — the
+      // card is in flight from the press but in the hand only from the
+      // answer, and that gap once read as «−1» then «+2».
+      const counts = flight.totals.map(Number);
+      expect(Math.min(...counts), `the counter never dips under the starting count (${why})`).toBeGreaterThanOrEqual(counts[0]);
+      expect(counts[counts.length - 1], `…and ends one card up (${why})`).toBe(counts[0] + 1);
+      expect(flight.shade, `the shared dim stayed off through the whole take (${why})`).toBe(0);
 
       // ── …and the rest: the political phase moves on only when the take is done.
       await pressUntil(page, 'Enter', async () => await page.locator('.con-extdraw').count() === 0, {tries: 6, settleMs: 1600});

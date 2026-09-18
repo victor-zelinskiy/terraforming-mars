@@ -32,6 +32,7 @@ function spyOracle(names: ReadonlyArray<string>): Calls {
   const oracle: HandBodiesOracle = {
     poseFor: () => undefined,
     poseForCopy: () => undefined,
+    poseForIncoming: () => undefined,
     reconcile: () => {
       calls.reconcile++;
     },

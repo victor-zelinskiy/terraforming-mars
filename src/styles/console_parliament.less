@@ -3183,11 +3183,15 @@ html.con-profile-handheld .con-parl__info-own--yields {
 }
 html.con-profile-handheld .con-parl__enact { gap: .6rem; }
 html.con-profile-handheld .con-parl__enact-hero { gap: .5rem; padding: 0 .2rem; }
-/* The fullscreen inspector's footer: the viewer's own reading beside the standing chip. */
-.con-zoom__bar-yield { margin: 0 .6rem; align-self: center; }
+/* The fullscreen inspector's footer: the viewer's own reading beside the standing chip.
+   ONE RHYTHM: the step between groups is the bar's own `gap` (`.con-zoom__bar--scene`)
+   and nothing else — a group's own side margin stacked on it (the reading had .6rem a
+   side, the winner/party chips .4rem) made some steps 42 px and others 30 px at 1080 and
+   widened the plate past its items (`console-parliament-v2` § crowded table). */
+.con-zoom__bar-yield { align-self: center; }
 /* …and the winner's tile beside it: a content-sized chip that never wraps (a
    chip squeezed by the footer's flex row broke into a column). */
-.con-zoom__bar-winner { margin: 0 .4rem 0 0; align-self: center; flex-shrink: 0; white-space: nowrap; }
+.con-zoom__bar-winner { align-self: center; flex-shrink: 0; white-space: nowrap; }
 /* HANDHELD: the Deck's footer has no width for a third reading — the chip stood ON
    the influence plates. The rules column's «for you» row carries the same reading
    in words on every profile, so the footer drops the chip here. */
@@ -3195,7 +3199,7 @@ html.con-profile-handheld .con-zoom__bar-winner { display: none; }
 /* …and the ruling party's answer, the same content-sized chip grammar. The
    Deck's footer has no width for it either — the rules column's «for you» row
    carries the same reading in words on every profile. */
-.con-zoom__bar-reaction { margin: 0 .4rem 0 0; align-self: center; flex-shrink: 0; white-space: nowrap; }
+.con-zoom__bar-reaction { align-self: center; flex-shrink: 0; white-space: nowrap; }
 html.con-profile-handheld .con-zoom__bar-reaction { display: none; }
 
 /* ══ THE REDUX RESOLUTIONS PLAYGROUND (`ConsoleResolutionsPlayground`, the

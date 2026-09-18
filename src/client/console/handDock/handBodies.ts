@@ -305,6 +305,14 @@ export type HandBodiesOracle = {
    * the card is IN the hand model, seated or not.
    */
   poseForCopy: (name: string, seqFromEnd: number) => BodyPose | undefined,
+  /**
+   * A PREDICTION for a card the server has not put in the hand yet: the pose
+   * of the `rank`-th of `incoming` new cards, appended at the hand's end (the
+   * order the server keeps). The intake director AIMS at it so the arc need
+   * not wait for the answer; it never LANDS on it — the touchdown re-reads
+   * `poseForCopy`, the confirmed server truth.
+   */
+  poseForIncoming: (rank: number, incoming: number) => BodyPose | undefined,
   /** Re-seat every docked body on its exact pose (episode-end heal). */
   reconcile: () => void,
   /** Seat bodies that have never been posed (fresh mounts). */

@@ -143,6 +143,36 @@ function round2(v: number): number {
   return Math.round(v * 100) / 100;
 }
 
+/* ── The intake-aware hand COUNT ──────────────────────────────────── */
+
+/**
+ * The hand total a readout shows while cards are on their way in: the hand
+ * minus the copies WITHHELD (in flight / an untaken reveal / the starting
+ * delivery) — but only the withheld copies the hand ACTUALLY HOLDS, per name.
+ *
+ * The intersection is the whole point. A take registers its card as in flight
+ * at the PRESS, while the card joins the hand only on the server's answer, a
+ * beat later; subtracting every withheld name dropped the count by one in that
+ * gap — the dock's «КАРТЫ» counter flashed «−1» at the press and then «+2» at
+ * the landing, where the contract is ONE tick, on the physical landing. The
+ * dock and every HUD readout (`cardsTotalCount`) read this one recipe.
+ */
+export function shownHandCount(hand: ReadonlyArray<string>, withheld: ReadonlyArray<string>): number {
+  const inHand = new Map<string, number>();
+  for (const name of hand) {
+    inHand.set(name, (inHand.get(name) ?? 0) + 1);
+  }
+  const held = new Map<string, number>();
+  for (const name of withheld) {
+    held.set(name, (held.get(name) ?? 0) + 1);
+  }
+  let hidden = 0;
+  held.forEach((k, name) => {
+    hidden += Math.min(k, inHand.get(name) ?? 0);
+  });
+  return hand.length - hidden;
+}
+
 /* ── Command-bar BAY geometry ─────────────────────────────────────── */
 
 /** The reserved centre track of the command bar, rem (per layout profile —

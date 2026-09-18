@@ -42,6 +42,10 @@
  *    arcing in the moment the slot's rect is stable. A card that never
  *    reaches the hand (or an unmeasurable dock) degrades to a quiet fade —
  *    the hold is released on every path, the dock can never stick withheld.
+ *    A host whose card cannot be withheld on the answer (a free take) may
+ *    opt into `aimAhead`: the arc then leaves on time toward the PREDICTED
+ *    slot and still LANDS only on the polled one — the aim may be assumed,
+ *    the landing never is.
  *
  * Reduced motion → instant commit + release (no proxies), the project
  * convention. A safety timeout force-finishes a stalled run.
@@ -59,7 +63,7 @@ import {CARD_NATURAL_W} from '@/client/console/cardDeal/cardDealModel';
 import {dockFaceRotation} from '@/client/console/handDock/handDockPresentation';
 import {handBodiesOracle, BodyPose} from '@/client/console/handDock/handBodies';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
-import {probeTick} from '@/client/console/probeTick';
+import {PROBE_TICK_FALLBACK_MS, probeTick, ProbeTickVia} from '@/client/console/probeTick';
 import {
   deliveryEl, handDeliveryState, nextDeliveryId, clearDeliveryFlights,
   releaseInFlight, removeDeliveryFlights,
@@ -121,6 +125,22 @@ export type HandIntakeOptions = {
    * EVERY path (incl. reduced motion / degenerate).
    */
   onStaged?: () => void,
+  /**
+   * THE ARC DOES NOT WAIT FOR THE WIRE. By default a flight (contract 3)
+   * hovers over its source until the server's answer has put the card in the
+   * hand and its pose has settled — invisible on a fast machine (the answer
+   * lands inside the 240 ms lift), a card visibly HANGING IN THE AIR wherever
+   * the answer or its apply is slow (a Deck-class CPU, a loaded machine, a
+   * remote host). With `aimAhead` the leg leaves on time, aimed at where the
+   * card WILL lie (`poseForIncoming`: appended at the hand's end, the order the
+   * server keeps), and still LANDS only on the confirmed pose — the touchdown
+   * re-reads it, and a card that never reaches the hand degrades exactly as
+   * before. Opt in only where nothing can withhold the card on the answer (a
+   * free take); a purchase can be refuted behind a payment
+   * (`refuteWithheldIntake`), and flying such a card into the hand first
+   * would show a card the player does not have.
+   */
+  aimAhead?: boolean,
 };
 
 /* ── run bookkeeping ─────────────────────────────────────────────────── */
@@ -257,6 +277,36 @@ const PEEL_STEP_MS = 60; // stack mode: bottom-first landing cascade
 /** The target-slot poll budget (frames ≈ 1.8s): covers the research buy's
  *  server round-trip + the pack's own 340ms re-spread transition. */
 const POLL_FRAMES = 110;
+/**
+ * What ONE TIMER tick of the poll costs, in frames. `probeTick` falls back to a
+ * 50 ms timer when no frame comes — i.e. when the compositor is IDLE — and
+ * counting such a tick as one frame inflated the ~1.8 s budget ×3, to 5.5 s of
+ * a flight waiting for a card that is not coming (a refused or stubbed take).
+ * That is long enough for the foreground watchdog to call the flight's hold a
+ * stuck foreground and expire it (`console-reveal-remote-bonus-collision`).
+ * An idle tick therefore spends the frames its interval spans, a frame tick
+ * spends one, and a STARVED tick (a long task delayed both paths) spends at
+ * most the timer's few frames however long the stall was — so a slow machine
+ * still gets its whole budget of the server's answer.
+ */
+export const POLL_TIMER_TICK_FRAMES = Math.max(1, Math.round(PROBE_TICK_FALLBACK_MS / (1000 / 60)));
+
+/** One poll tick's cost against `POLL_FRAMES` (pure — pinned by a spec). */
+export function pollTickCost(via: ProbeTickVia | undefined): number {
+  return via === 'timer' ? POLL_TIMER_TICK_FRAMES : 1;
+}
+/** How many times the run's safety net may re-arm while its proxies are
+ *  still MOVING (see `armSafety` in `fly`) — bounded, so a stuck run ends. */
+export const SAFETY_EXTENSIONS_MAX = 4;
+
+/**
+ * The safety net's verdict when its wall-clock budget runs out: a run whose
+ * proxies are still MOVING is slow, not stuck — extend (bounded); a run with
+ * nothing animating is stuck — cut. Pure, so the rule is pinned by a spec.
+ */
+export function intakeSafetyExtends(moving: boolean, extensionsSoFar: number): boolean {
+  return moving && extensionsSoFar < SAFETY_EXTENSIONS_MAX;
+}
 
 /** Bounded cascade window regardless of how many cards arrive. */
 function stagger(n: number): number {
@@ -336,10 +386,12 @@ function usable(r: {width: number} | undefined): r is DOMRect {
  */
 function stableTargetPose(name: CardName, seqFromEnd: number, isAborted: () => boolean): Promise<BodyPose | undefined> {
   return new Promise((done) => {
+    // Budget spent, in FRAMES — an idle timer tick spends the frames it spans
+    // (`pollTickCost`), so the ~1.8 s budget stays ~1.8 s on a quiet screen.
     let tries = 0;
     let lastSig = '';
-    const poll = () => {
-      tries++;
+    const poll = (via?: ProbeTickVia) => {
+      tries += pollTickCost(via);
       if (isAborted()) {
         done(undefined);
         return;
@@ -392,7 +444,7 @@ function stableTargetPose(name: CardName, seqFromEnd: number, isAborted: () => b
  * keys to the append order after the current tail). Flights run
  * bottom-first in this order and carry matching z — contract 2.
  */
-function dockOrderKeys(entries: ReadonlyArray<HandIntakeEntry>): Array<number> {
+function dockOrderKeys(entries: ReadonlyArray<HandIntakeEntry>): {keys: Array<number>, docked: number} {
   const anchors = Array.from(document.querySelectorAll<HTMLElement>('.con-handreveal-layer [data-hand-dock-card]'));
   const byName = new Map<string, Array<number>>();
   anchors.forEach((el, i) => {
@@ -402,13 +454,49 @@ function dockOrderKeys(entries: ReadonlyArray<HandIntakeEntry>): Array<number> {
     byName.set(n, list);
   });
   let appendSeq = 0;
-  return entries.map((e) => {
+  const keys = entries.map((e) => {
     const list = byName.get(e.name);
     if (list !== undefined && list.length > 0) {
       return list.pop() as number; // end-claim (the newest copy)
     }
     return anchors.length + appendSeq++;
   });
+  // A key at or past `docked` is a card NOT in the hand yet — appended, in
+  // entry order: exactly the `poseForIncoming` model the aim-ahead predicts.
+  return {keys, docked: anchors.length};
+}
+
+/**
+ * One flight's LANDING — the confirmed pose (server truth, `stableTargetPose`)
+ * polled from the moment the leg is claimed, readable without waiting.
+ */
+type Landing = {
+  confirmed: Promise<BodyPose | undefined>,
+  /** The confirmed answer when it has already arrived (`pose` undefined = never reaches the hand). */
+  answered: () => {pose: BodyPose | undefined} | undefined,
+};
+
+function landingFor(name: CardName, seq: number, isAborted: () => boolean): Landing {
+  const confirmed = stableTargetPose(name, seq, isAborted);
+  let answer: {pose: BodyPose | undefined} | undefined;
+  void confirmed.then((pose) => {
+    answer = {pose};
+  });
+  return {confirmed, answered: () => answer};
+}
+
+/**
+ * Where the next leg AIMS: the confirmed pose once it is known; before that
+ * the PREDICTION when the host opted in (`aimAhead`); otherwise the confirmed
+ * pose is awaited — the historical hover.
+ */
+function aimPose(landing: Landing, predict: (() => BodyPose | undefined) | undefined): Promise<BodyPose | undefined> {
+  const known = landing.answered();
+  if (known !== undefined) {
+    return Promise.resolve(known.pose);
+  }
+  const predicted = predict?.();
+  return predicted !== undefined ? Promise.resolve(predicted) : landing.confirmed;
 }
 
 /* ── the generic engine ──────────────────────────────────────────────── */
@@ -524,8 +612,28 @@ async function fly(entries: ReadonlyArray<HandIntakeEntry>, snapshots: ReadonlyA
   const ui = conUiScale();
 
   // Contract 2: dock order — bottom-first departure/landing, matching z.
-  const keys = dockOrderKeys(entries);
+  const {keys, docked} = dockOrderKeys(entries);
   const order = entries.map((_e, i) => i).sort((a, b) => keys[a] - keys[b]);
+  // The aim-ahead's model of the answer (see `aimAhead`): which of these
+  // cards the server has yet to put in the hand, and in what append order.
+  const incomingRank = new Map<number, number>();
+  keys.forEach((k, i) => {
+    if (k >= docked) {
+      incomingRank.set(i, k - docked);
+    }
+  });
+  const predict = opts?.aimAhead === true ?
+    (f: LiveFlight, seq: number): BodyPose | undefined => {
+      const oracle = handBodiesOracle();
+      // Answered already (the pose merely has not settled yet): aim at the
+      // real one — the touchdown re-reads it either way.
+      const real = oracle?.poseForCopy(f.name as string, seq);
+      if (real !== undefined) {
+        return real;
+      }
+      const rank = incomingRank.get(f.entryIdx);
+      return rank === undefined ? undefined : oracle?.poseForIncoming(rank, incomingRank.size);
+    } : undefined;
 
   // Spawn one proxy per entry, z = dock rank inside the layer.
   const flightIds = new Map<number, number>(); // entry idx → flight id
@@ -675,7 +783,30 @@ async function fly(entries: ReadonlyArray<HandIntakeEntry>, snapshots: ReadonlyA
   const budget = mode === 'stack' ?
     motionMs(GATHER_MS + 45 * n + 200 + PEEL_STEP_MS * n + PEEL_MS + SETTLE_PRESS_MS + SETTLE_BACK_MS + FADE_MS) + pollBudget + 2000 :
     motionMs(LIFT_MS + ARC_MS + step * n + SETTLE_PRESS_MS + SETTLE_BACK_MS + FADE_MS) + pollBudget + 2000;
-  safety = setTimeout(finish, budget);
+  // THE NET CUTS A STALL, NEVER A SLOW FLIGHT. The budget is wall-clock, and a
+  // starved main thread stretches a GSAP timeline past it (lag smoothing counts
+  // a frame gap over 500 ms as 33 ms): measured once under parallel 4K load, a
+  // take's card was removed at ~80 % of its arc and simply appeared in the hand
+  // — the very «it never flew into the hand» this director exists to prevent.
+  // So the net asks whether the run is still MOVING before it cuts: while any
+  // of its proxies is tweening it re-arms (bounded); a run that is stuck — an
+  // await that never settles, nothing animating — ends exactly as before.
+  let extensions = 0;
+  const armSafety = (ms: number): void => {
+    safety = setTimeout(() => {
+      const moving = myIds.some((id) => {
+        const el = deliveryEl(id);
+        return el !== undefined && gsap.isTweening(el);
+      });
+      if (intakeSafetyExtends(moving, extensions)) {
+        extensions++;
+        armSafety(motionMs(ARC_MS + SETTLE_PRESS_MS + SETTLE_BACK_MS));
+        return;
+      }
+      finish();
+    }, ms);
+  };
+  armSafety(budget);
 
   // Per-run copy claims: entry k of name X targets that name's k-th copy
   // from the hand's END (the newest copies are the arriving ones).
@@ -718,9 +849,9 @@ async function fly(entries: ReadonlyArray<HandIntakeEntry>, snapshots: ReadonlyA
   };
 
   if (mode === 'stack') {
-    await flyStack(live, dockR, {ui, claimSeq, isAborted, touchdown, quietOut, ctx});
+    await flyStack(live, dockR, {ui, claimSeq, isAborted, touchdown, quietOut, predict, ctx});
   } else {
-    await flyCascade(live, dockR, {ui, step, claimSeq, isAborted, touchdown, quietOut, ctx});
+    await flyCascade(live, dockR, {ui, step, claimSeq, isAborted, touchdown, quietOut, predict, ctx});
   }
   finish();
 }
@@ -734,6 +865,8 @@ type FlightTools = {
   isAborted: () => boolean,
   touchdown: (f: LiveFlight, pose: BodyPose, seq: number) => Promise<void>,
   quietOut: (f: LiveFlight) => Promise<void>,
+  /** The aim-ahead prediction (`HandIntakeOptions.aimAhead`); absent = legs wait for the confirmed pose. */
+  predict?: (f: LiveFlight, seq: number) => BodyPose | undefined,
   ctx: RunCtx,
 };
 
@@ -759,6 +892,7 @@ async function flyCascade(live: Array<LiveFlight>, dockR: DOMRect, t: FlightTool
     // pose is defined the frame the card joins the hand model). The lift
     // is AWAITED before the arc: two live tweens on one property fight
     // and read as jitter.
+    const landing = landingFor(f.name, seq, t.isAborted);
     const lift = f.src !== undefined ?
       tween(f.el, {
         y: f.src.top - 24 * t.ui,
@@ -767,10 +901,13 @@ async function flyCascade(live: Array<LiveFlight>, dockR: DOMRect, t: FlightTool
         duration: s(LIFT_MS),
         ease: 'power2.out',
       }) : Promise.resolve();
-    const [pose] = await Promise.all([
-      stableTargetPose(f.name, seq, t.isAborted),
-      lift,
-    ]);
+    await lift;
+    if (t.isAborted()) {
+      return;
+    }
+    // The arc AIMS at the confirmed pose — or, when the host opted in and
+    // the answer is still on the wire, at the predicted one (`aimAhead`).
+    const pose = await aimPose(landing, t.predict === undefined ? undefined : () => t.predict?.(f, seq));
     if (t.isAborted()) {
       return;
     }
@@ -818,11 +955,28 @@ async function flyCascade(live: Array<LiveFlight>, dockR: DOMRect, t: FlightTool
       }, flight * FLIP_LEAD);
     }
     await awaitTimeline(tl);
-    if (t.isAborted()) {
-      return;
-    }
-    await t.touchdown(f, pose, seq);
+    await landOnConfirmed(f, landing, seq, t);
   }));
+}
+
+/**
+ * The end of every leg: LAND only on the CONFIRMED pose — the leg may have
+ * left on a prediction (`aimAhead`), and a card the server never put in the
+ * hand degrades to the quiet fade, exactly as a leg that waited would have.
+ */
+async function landOnConfirmed(f: LiveFlight, landing: Landing, seq: number, t: FlightTools): Promise<void> {
+  if (t.isAborted()) {
+    return;
+  }
+  const confirmed = await landing.confirmed;
+  if (t.isAborted()) {
+    return;
+  }
+  if (confirmed === undefined) {
+    await t.quietOut(f);
+    return;
+  }
+  await t.touchdown(f, confirmed, seq);
 }
 
 /**
@@ -912,7 +1066,8 @@ async function flyStack(live: Array<LiveFlight>, dockR: DOMRect, t: FlightTools)
     if (t.isAborted()) {
       return;
     }
-    const pose = await stableTargetPose(f.name, seq, t.isAborted);
+    const landing = landingFor(f.name, seq, t.isAborted);
+    const pose = await aimPose(landing, t.predict === undefined ? undefined : () => t.predict?.(f, seq));
     if (t.isAborted()) {
       return;
     }
@@ -926,10 +1081,7 @@ async function flyStack(live: Array<LiveFlight>, dockR: DOMRect, t: FlightTools)
     tl.to(f.el, {scale: pose.scale, duration: s(PEEL_MS), ease: 'power2.inOut'}, 0);
     tl.to(f.el, {rotation: pose.rotation, duration: s(PEEL_MS) * 0.7, ease: 'power2.out'}, 0);
     await awaitTimeline(tl);
-    if (t.isAborted()) {
-      return;
-    }
-    await t.touchdown(f, pose, seq);
+    await landOnConfirmed(f, landing, seq, t);
   }));
 }
 
