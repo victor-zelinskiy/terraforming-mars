@@ -2,6 +2,7 @@ import {Expansion, GameModule} from '../cards/GameModule';
 import {ICardRenderRoot} from '../cards/render/Types';
 import {PartyActionId, QuestDefinition, ReduxParty, ResolutionCode, ResolutionId} from './ParliamentTypes';
 import {InfluenceScaledEffect} from './influenceScaling';
+import {PartyReaction} from './partyReactions';
 import {WinnerRewardDeclaration} from './winnerReward';
 
 /**
@@ -72,6 +73,13 @@ export type IClientPartyEffect = {
   };
   actionId?: PartyActionId;
   usesPerGeneration?: number;
+  /**
+   * The passive's reactions as DATA (`partyReactions.ts`) — what the party
+   * answers, and by how much, so a surface can state the answer BEFORE the
+   * change that triggers it (a resolution's personal forecast). Absent for a
+   * party whose passive nothing forecasts yet.
+   */
+  reactions?: ReadonlyArray<PartyReaction>;
 };
 
 /** The printed generation-1 quest of the empty ENACTED slot (rulebook p.9). */

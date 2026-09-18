@@ -97,10 +97,12 @@ describe('AquiferContest', () => {
       expect(oldDummy?.copies).eq(0);
       expect(oldDummy?.dummy).is.true;
       const dealt = REDUX_RESOLUTION_CATALOG.dealtInstances(() => true);
-      expect(dealt).has.length(12);
       expect(dealt).includes(AQUIFER);
       expect(dealt).not.includes(resolutionInstanceId(dummyResolutionId(PartyName.GREENS, 2), 0));
-      expect(dealt.filter((instance) => REDUX_RESOLUTION_CATALOG.ofInstance(instance).party === PartyName.GREENS)).has.length(2);
+      // The deck is the sum of what is shipped — never a fixed total and never
+      // a quota per party (the Greens outgrew their two prototype slots).
+      expect(dealt.filter((instance) => REDUX_RESOLUTION_CATALOG.ofInstance(instance).party === PartyName.GREENS).length)
+        .eq(REDUX_RESOLUTION_CATALOG.all().filter((r) => r.party === PartyName.GREENS && r.copies > 0).length);
     });
 
     it('every printed code is unique and well-formed; a duplicate or a malformed one is refused', () => {

@@ -36,6 +36,7 @@ import {ActionEffect} from '../../../common/models/ActionPreviewModel';
 import {PartyActionPromptMeta} from '../../../common/models/PlayerInputModel';
 import {cardResourceIcon, drawGain, productionChange, targetVictoryPoints} from '../../cards/actionPreviews';
 import {PartyActionId, ReduxParty} from '../../../common/parliament/ParliamentTypes';
+import {PartyReaction} from '../../../common/parliament/partyReactions';
 import {IClientPartyEffect} from '../../../common/parliament/IClientResolution';
 import {InputError} from '../../inputs/InputError';
 import {Space} from '../../boards/Space';
@@ -65,6 +66,16 @@ export interface PartyEffectDefinition {
   passiveRenderData: ICardRenderRoot;
   actionRenderData?: ICardRenderRoot;
   actionId?: PartyActionId;
+  /**
+   * The passive's reactions DECLARED (`partyReactions.ts`) — the same rule the
+   * hooks below run, in a form a surface can state BEFORE it happens: the
+   * personal forecast of a resolution that raises a production, a placement
+   * dossier, a card's effect forecast. Every hook that answers a trigger the
+   * vocabulary covers must have its twin here, or those surfaces go quiet
+   * about a payout that will be made (the honesty law the effects framework
+   * states for `ResolutionPassive.forecast`).
+   */
+  reactions?: ReadonlyArray<PartyReaction>;
   /** The passive hooks (access already verified by the caller). */
   onTerraformRatingGained?(player: IPlayer, steps: number): void;
   onProductionChanged?(player: IPlayer, resource: Resource, delta: number): void;
@@ -141,6 +152,17 @@ const GREENS: PartyEffectDefinition = {
     b.effect(undefined, (eb) => eb.tr(1).startEffect.megacredits(2)).br;
     b.effect(undefined, (eb) => eb.production((pb) => pb.plants(1).slash().heat(1)).startEffect.production((pb) => pb.megacredits(1)));
   }),
+  // The two hooks below, DECLARED — so a forecast can state the Greens' answer
+  // before the change that triggers it (Climate Research's heat production).
+  reactions: [
+    {id: 'tr-megacredits', trigger: {kind: 'tr-gain'}, gain: {kind: 'stock', resource: Resource.MEGACREDITS}, per: GREENS_MEGACREDITS_PER_TR},
+    {
+      id: 'production-megacredits',
+      trigger: {kind: 'production-gain', resources: [Resource.PLANTS, Resource.HEAT]},
+      gain: {kind: 'production', resource: Resource.MEGACREDITS},
+      per: 1,
+    },
+  ],
   onTerraformRatingGained(player, steps) {
     player.stock.add(Resource.MEGACREDITS, GREENS_MEGACREDITS_PER_TR * steps, {log: true, from: {partyName: PartyName.GREENS}});
   },
@@ -470,6 +492,9 @@ export function toClientPartyEffect(definition: PartyEffectDefinition): IClientP
   if (definition.actionId !== undefined) {
     out.actionId = definition.actionId;
     out.usesPerGeneration = 1;
+  }
+  if (definition.reactions !== undefined) {
+    out.reactions = definition.reactions;
   }
   return out;
 }

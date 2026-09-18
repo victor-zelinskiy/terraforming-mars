@@ -704,7 +704,7 @@ describe('cross-player delivery audit (the viewer hears about foreign actions)',
     // it), withheld from the hand behind the mandatory take prompt.
     expect(owner.cardsInHand, 'withheld until taken').has.length(0);
     expect(owner.pendingCardIntakes, 'the intake stands').has.length(1);
-    expect(owner.getWaitingFor()?.externalDrawPrompt?.effectCard).eq(academies.name);
+    expect(owner.pendingCardIntakes[0].cause).deep.include({kind: 'card', effectCard: academies.name});
 
     const draw = game.events.events.find((e) =>
       e.player === owner.color && e.impact.cardsDrawn === 1);

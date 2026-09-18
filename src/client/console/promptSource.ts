@@ -24,6 +24,7 @@
  * run under the fast server runner.
  */
 
+import {externalDrawCardCause} from '@/common/models/ExternalDrawPromptModel';
 import {BonusCardId} from '@/common/automa/AutomaTypes';
 import {BonusCardContext, bonusCardInfo} from '@/common/automa/BonusCardData';
 import {CardName} from '@/common/cards/CardName';
@@ -209,14 +210,17 @@ export function promptSourceView(
       return view;
     }
   }
-  // The mandatory take of an EXTERNAL draw: the source is the card whose
-  // EFFECT granted the cards — the viewer's own reactor (Solar Logistics) or
-  // the initiator's card (Sponsored Academies). The kind chip says whose.
-  const external = wf.externalDrawPrompt;
-  if (external !== undefined) {
+  // The mandatory take of an EXTERNAL draw granted by a CARD: the source is
+  // the card whose EFFECT granted them — the viewer's own reactor (Solar
+  // Logistics) or the initiator's card (Sponsored Academies). The kind chip
+  // says whose. A draw granted by an ENACTED RESOLUTION carries the ordinary
+  // `choiceContext` source instead and falls through to the branch below,
+  // which draws the resolution's own face, code and inspection.
+  const card = wf.externalDrawPrompt === undefined ? undefined : externalDrawCardCause(wf.externalDrawPrompt);
+  if (card !== undefined) {
     return {
-      card: external.effectCard,
-      kindKey: external.effectCardOwner === 'you' ? 'Your card' : 'Card',
+      card: card.effectCard,
+      kindKey: card.effectCardOwner === 'you' ? 'Your card' : 'Card',
       inspectable: true,
     };
   }

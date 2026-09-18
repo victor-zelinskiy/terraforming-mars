@@ -80,6 +80,15 @@ export type ParliamentPlayerModel = {
    * the tableau by the server. Absent for a seat outside the parliament.
    */
   counts?: ReadonlyArray<ResolutionCountModel>;
+  /**
+   * The seat's PRODUCTIONS a SEQUENTIAL effect of the catalog divides
+   * («1 card for every 3 steps of heat production you have» — Climate
+   * Research). Only the resources some declaration names; absent for a seat
+   * outside the parliament. Every surface computes the second half of a
+   * chained effect from THIS number, so the estimate and the payout stand on
+   * the same reading.
+   */
+  production?: Readonly<Partial<Record<Resource, number>>>;
   access: ReadonlyArray<PartyAccessModel>;
   partyActionUses: Partial<Record<PartyName, number>>;
   resolutionActionUses: number;
@@ -146,8 +155,8 @@ export type ParliamentEnactOutcomeModel = {
   part?: 'effect' | 'winner';
   /** The scaled effect's id (`InfluenceScaledEffect.id`) when the amount came from influence. */
   effect?: string;
-  /** `cardResource` onto a card · `production` · `stock` into the supply · `ocean` / `greenery` the winner's tile · `skipped`. */
-  kind: 'cardResource' | 'production' | 'stock' | 'ocean' | 'greenery' | 'skipped';
+  /** `cardResource` onto a card · `production` · `stock` into the supply · `cards` drawn projects · `ocean` / `greenery` the winner's tile · `skipped`. */
+  kind: 'cardResource' | 'production' | 'stock' | 'cards' | 'ocean' | 'greenery' | 'skipped';
   resource?: CardResource;
   /** `production` (and its skip): the standard resource whose production the effect raises. */
   production?: Resource;
@@ -168,6 +177,16 @@ export type ParliamentEnactOutcomeModel = {
   /** `production` / `stock`: the value before and after. */
   before?: number;
   after?: number;
+  /**
+   * A SEQUENTIAL amount: the player TOTAL it was divided from, before and
+   * after the earlier effect moved it («heat production 4 → 6 → 2 cards»).
+   * The server's own reading — never recomputed from today's production.
+   */
+  total?: {before: number; after: number};
+  /** `cards`: how many actually left the deck (below `amount` only when the deck ran out). */
+  drawn?: number;
+  /** A card draw handed over as a mandatory intake — the intake's id. */
+  intake?: number;
   /** A winner tile: the global parameter its own placement moved, before and after (equal at the maximum). */
   parameter?: {id: WinnerRewardParameter; before: number; after: number};
 };

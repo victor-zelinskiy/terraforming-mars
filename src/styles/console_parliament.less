@@ -2374,6 +2374,23 @@ html.con-profile-handheld .con-parl {
     &__info-own { gap: .15rem; padding: .25rem .45rem .3rem; }
     &__info-own-body { gap: .5rem; }
     &__info-parts { gap: .18rem; }
+    /* THE DECK'S column is 8 px short of the answer chip's own line, and the
+       chip is the one row here whose caption is redundant: the party's emblem
+       and name already say whose rule pays. Drop the caption (it stays in the
+       DOM for assistive tech and for the probes) and tighten the row — never
+       drop the READING, which is half of what the card promises. */
+    &__info-readings { margin-top: .05rem; row-gap: .1rem; }
+    &__info-reaction {
+        padding: .16rem .45rem .14rem .3rem;
+        .con-preact__caption {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            overflow: hidden;
+            clip-path: inset(50%);
+            white-space: nowrap;
+        }
+    }
     &__info-part-label { font-size: .46rem; }
     &__info-part-text { font-size: .62rem; line-height: 1.22; }
     &__info-none { font-size: .64rem; }
@@ -2623,6 +2640,86 @@ html.con-profile-tv .con-zoom__flip-pos b { font-size: 1.1rem; }
    dock / in a footer, normal in a block, hero on a stage. Rem-authored; the
    icons are the console's own sprite families, the influence badge the very
    asset the card face prints. No filter, no text-shadow (paint baseline). ══ */
+/* THE RULING PARTY'S ANSWER (Turmoil Redux) — what the resolution's own party
+   pays on top of its effect. Its own plate, its own emblem: the numbers above
+   belong to the card, this one belongs to the government the card installs. */
+.con-preact {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: .36rem;
+    padding: .24rem .55rem .22rem .4rem;
+    border-radius: .5rem;
+    background: linear-gradient(160deg, rgba(24, 44, 30, 0.72), rgba(12, 20, 16, 0.78));
+    box-shadow: inset 0 0 0 .05rem fade(@con-parl-mint, 38%);
+    font-family: @con-font-read;
+    line-height: 1;
+    white-space: nowrap;
+    min-width: 0;
+    max-width: 100%;
+
+    &__who { display: inline-flex; align-items: center; gap: .22rem; min-width: 0; }
+    &__emblem { width: 1.05rem; height: 1.05rem; object-fit: contain; flex-shrink: 0; }
+    &__party {
+        font-size: .58rem;
+        letter-spacing: .09em;
+        text-transform: uppercase;
+        font-weight: 700;
+        color: fade(@con-parl-mint, 92%);
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    &__body { display: inline-flex; align-items: center; gap: .16rem; }
+    &__amount { font-size: 1.16rem; font-weight: 700; color: @con-parl-mint; }
+    &__unit {
+        display: inline-block;
+        width: 1.12rem;
+        height: 1.12rem;
+        flex-shrink: 0;
+        background-size: contain;
+        background-repeat: no-repeat;
+        background-position: center;
+    }
+    /* The printed production plate — «производство M€», never «M€». */
+    &__unit--prod {
+        border-radius: .2rem;
+        background-color: #6f4725;
+        background-size: 70% 70%;
+        box-shadow:
+            inset 0 0 0 .07rem rgba(214, 158, 96, 0.78),
+            inset 0 .12rem .2rem rgba(255, 224, 180, 0.22),
+            0 .05rem .14rem rgba(0, 0, 0, 0.5);
+    }
+    &__per { display: inline-flex; align-items: center; gap: .1rem; opacity: .8; }
+    &__slash { font-size: .9rem; font-weight: 700; color: fade(@con-text, 62%); }
+    &__unit--trigger { width: .92rem; height: .92rem; }
+    &__caption {
+        font-size: .5rem;
+        letter-spacing: .09em;
+        text-transform: uppercase;
+        color: fade(@con-text, 62%);
+        padding-left: .4rem;
+        border-left: .05rem solid rgba(255, 255, 255, 0.12);
+        white-space: normal;
+        max-width: 7rem;
+        line-height: 1.15;
+    }
+
+    /* PAST the payout: the answer is a receipt, calmer than the promise. */
+    &--applied { box-shadow: inset 0 0 0 .05rem fade(@con-parl-mint, 26%); }
+
+    &--normal {
+        gap: .5rem;
+        padding: .36rem .8rem .32rem .6rem;
+        .con-preact__emblem { width: 1.4rem; height: 1.4rem; }
+        .con-preact__party { font-size: .7rem; }
+        .con-preact__amount { font-size: 1.5rem; }
+        .con-preact__unit { width: 1.45rem; height: 1.45rem; }
+        .con-preact__unit--trigger { width: 1.18rem; height: 1.18rem; }
+        .con-preact__caption { font-size: .56rem; max-width: 9rem; }
+    }
+}
+
 .con-iyield {
     display: inline-flex;
     flex-direction: column;
@@ -2738,6 +2835,9 @@ html.con-profile-tv .con-zoom__flip-pos b { font-size: 1.1rem; }
         &--applied { box-shadow: inset 0 0 0 .05rem fade(@con-parl-mint, 40%); }
     }
     &__in, &__out { display: inline-flex; align-items: center; gap: .18rem; line-height: 1; white-space: nowrap; }
+    /* A SEQUENTIAL reading: «[heat production] 4 → 6» — the inner arrow is the
+       total's own change, quieter than the one that leads to the result. */
+    &__in--seq &__arrow { font-size: .9rem; color: fade(@con-text, 48%); margin: 0 .08rem; }
     &__in b { font-size: 1.28rem; font-weight: 700; color: @con-text; }
     &__out b { font-size: 1.36rem; font-weight: 700; color: @con-parl-mint; }
     &__reading--forecast &__out b { color: fade(@con-parl-gold, 96%); }
@@ -3003,7 +3103,22 @@ html.con-profile-handheld .con-parl__info-own--yields {
     &__step--influence &__step-node { position: relative; }
     &__step--influence &__step-level { position: relative; }
     /* The vote surface's own-effect block: the readings sit under the parts. */
-    &__info-yield { margin-top: .15rem; align-self: flex-start; max-width: 100%; }
+    /* THE VIEWER'S NUMBERS and the party's answer share ONE wrapping row: the
+       readings are narrow and the column is not, so the answer sits beside
+       them where there is width and drops under them where there is not —
+       never a fixed second line the panel has no budget for. */
+    &__info-readings {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-start;
+        column-gap: .55rem;
+        row-gap: .25rem;
+        margin-top: .15rem;
+        min-width: 0;
+        max-width: 100%;
+    }
+    &__info-yield { align-self: flex-start; max-width: 100%; }
+    &__info-reaction { align-self: flex-start; max-width: 100%; }
     /* The government's «Принятие» row: the payout as it was applied. */
     &__ruler-paid { margin-top: .2rem; }
     &__ruler-yield { --unused: 0; }
@@ -3043,6 +3158,7 @@ html.con-profile-handheld .con-parl__info-own--yields {
     &__enact-card .con-parl__gov-carry { flex-shrink: 0; }
     &__enact-card .con-parl__gov-card { zoom: var(--con-parl-enact-zoom, var(--con-parl-gov-zoom)); }
     &__enact-yield { flex-shrink: 0; align-items: center; }
+    &__enact-reaction { flex-shrink: 0; align-self: center; }
     &__enact-zone {
         display: flex;
         min-width: 0;
@@ -3076,6 +3192,11 @@ html.con-profile-handheld .con-parl__enact-hero { gap: .5rem; padding: 0 .2rem; 
    the influence plates. The rules column's «for you» row carries the same reading
    in words on every profile, so the footer drops the chip here. */
 html.con-profile-handheld .con-zoom__bar-winner { display: none; }
+/* …and the ruling party's answer, the same content-sized chip grammar. The
+   Deck's footer has no width for it either — the rules column's «for you» row
+   carries the same reading in words on every profile. */
+.con-zoom__bar-reaction { margin: 0 .4rem 0 0; align-self: center; flex-shrink: 0; white-space: nowrap; }
+html.con-profile-handheld .con-zoom__bar-reaction { display: none; }
 
 /* ══ THE REDUX RESOLUTIONS PLAYGROUND (`ConsoleResolutionsPlayground`, the
    «Полигон» stand). A reference sheet in the stand's own scroll: the

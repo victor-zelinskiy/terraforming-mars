@@ -22,6 +22,19 @@ function reduxGame(): [IGame, TestPlayer, TestPlayer, Parliament] {
   return [game, p1, p2, game.parliament!];
 }
 
+/**
+ * Replace the card in `index` with its own party's DUMMY — a resolution with
+ * no effect of its own, so the phase never stops to ask. Every spec whose
+ * subject is the PHASE (not a card) uses it: the voting area is dealt at
+ * random from a pool that grows with each implemented resolution, so «the
+ * card that happened to land here asks nothing» is not something a spec may
+ * assume. The party reading stays exactly as dealt.
+ */
+function quiet(parliament: Parliament, index: number): void {
+  const slot = parliament.slots[index];
+  slot.instance = resolutionInstanceId(dummyResolutionId(parliament.resolutionOf(slot.instance).party, 1), 0);
+}
+
 /** Every player passes; the engine runs production → the parliament → the next generation. */
 function endGeneration(game: IGame): void {
   game.playersInGenerationOrder.forEach((player) => {
@@ -104,12 +117,18 @@ describe('ParliamentPhase', () => {
 
   it('a neutral winner moves no Agenda and the second Agenda step pays 1 TR', () => {
     const [game, p1, , parliament] = reduxGame();
+    // THE GENERIC PHASE again: the subject is the Agenda, so the card that
+    // wins must be one whose effect never asks. The deal is random and the
+    // pool grows with every implemented resolution — pinning the winning slot
+    // to its OWN party's dummy is what keeps this spec about the Agenda.
+    quiet(parliament, 0);
     parliament.addNeutralVote(parliament.slots[0]);
     finishGeneration(game);
     expect(parliament.lastPhase?.winner.player).eq('NEUTRAL');
     expect(parliament.agendaOf(p1)).eq(0);
 
     game.phase = Phase.ACTION;
+    quiet(parliament, 0);
     parliament.agenda.set(p1.id, 1);
     parliament.placeVote(p1, parliament.slots[0], 'lobby');
     const tr = p1.terraformRating;

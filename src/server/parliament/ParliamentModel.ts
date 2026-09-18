@@ -17,7 +17,8 @@ import {PARTY_EFFECT_DELEGATES, REDUX_PARTIES, ReduxParty, ResolutionInstanceId}
 import {Delegate, Parliament, PARTY_ACTION_USES_PER_GENERATION, Slot} from './Parliament';
 import {PARTY_EFFECTS} from './parties/PartyEffects';
 import {SerializedEnactOutcome, SerializedPhaseSummary} from './SerializedParliament';
-import {declaredCountIds, resolutionCount} from './resolutions/ResolutionCounts';
+import {Resource} from '../../common/Resource';
+import {declaredCountIds, declaredSequelProductions, resolutionCount} from './resolutions/ResolutionCounts';
 
 function colorOf(game: IGame, delegate: Delegate): Color | 'neutral' {
   return delegate === 'NEUTRAL' ? 'neutral' : game.getPlayerById(delegate).color;
@@ -182,6 +183,16 @@ function playerModel(parliament: Parliament, player: IPlayer): ParliamentPlayerM
   const countIds = participates ? declaredCountIds(parliament.catalog) : [];
   if (countIds.length > 0) {
     model.counts = countIds.map((id) => resolutionCount(player, id));
+  }
+  // …and the PRODUCTIONS a sequential effect divides (Climate Research's heat
+  // production): the same reading the payout will stand on.
+  const productions = participates ? declaredSequelProductions(parliament.catalog) : [];
+  if (productions.length > 0) {
+    const reads: Partial<Record<Resource, number>> = {};
+    for (const resource of productions) {
+      reads[resource] = player.production.get(resource);
+    }
+    model.production = reads;
   }
   return model;
 }

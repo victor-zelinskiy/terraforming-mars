@@ -32,6 +32,7 @@ import {UnderworldPlayerData} from '../common/underworld/UnderworldPlayerData';
 import {DeltaProjectPlayerModel} from '../common/models/DeltaProjectPlayerModel';
 import {CardDrawRevealSource, ColonyTradeRevealSegment} from '../common/models/CardDrawRevealModel';
 import {ColonyTradeManifestModel} from '../common/models/ColonyTradeManifestModel';
+import {ExternalDrawCause} from '../common/models/ExternalDrawPromptModel';
 import {RevealResultModel} from '../common/models/RevealResultModel';
 import {EnergyHeatConversionModel} from '../common/models/EnergyHeatConversionModel';
 import {OceanAdjacencyBonusModel} from '../common/models/OceanAdjacencyBonusModel';
@@ -147,14 +148,12 @@ export type PendingCardIntake = {
   count: number,
   /** Cards still awaiting the take. */
   cards: Array<IProjectCard>,
-  /** The card whose EFFECT granted the draw. */
-  effectCard: CardName,
-  /** 'you' — the recipient's own card reacted; 'initiator' — theirs granted. */
-  effectCardOwner: 'you' | 'initiator',
-  /** Who set the effect off (ordinary player color; MarsBot included). */
-  initiator: Color,
-  /** The initiator's card that TRIGGERED the effect, when known. */
-  triggerCard?: CardName,
+  /**
+   * WHO granted the draw — a card's effect (with its initiator and trigger)
+   * or an ENACTED RESOLUTION (Turmoil Redux). Data, so the take surface reads
+   * one shape and a new source family costs a branch, not a mechanism.
+   */
+  cause: ExternalDrawCause,
 }
 
 /**

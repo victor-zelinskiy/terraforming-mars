@@ -72,6 +72,7 @@ import {CENTRAL_POWER_GRID_ID} from '../../../src/server/parliament/resolutions/
 import {resolutionCount} from '../../../src/server/parliament/resolutions/ResolutionCounts';
 import {SelectSpace} from '../../../src/server/inputs/SelectSpace';
 import {OrOptions} from '../../../src/server/inputs/OrOptions';
+import {CLIMATE_RESEARCH_ID} from '../../../src/server/parliament/resolutions/greens/ClimateResearch';
 import {BIODOME_CONTEST_ID} from '../../../src/server/parliament/resolutions/greens/BiodomeContest';
 import {Parliament} from '../../../src/server/parliament/Parliament';
 import {dummyResolutionId} from '../../../src/server/parliament/resolutions/ResolutionCatalog';
@@ -1008,6 +1009,121 @@ function biodomeTable(oxygen: number, temperature: number): {game: IGame, p1: Te
   game.playerHasPassed(p2);
   runAllActions(game);
   write('parliament-biodome-neutral', game);
+}
+
+/**
+ * A 2-seat Turmoil Redux table with CLIMATE RESEARCH (RX05) alone in the first
+ * voting slot and blue's free delegate on it: blue at Agenda step 3 (influence
+ * 2 — winning → step 4 keeps influence 2), red at step 1 (influence 1). Heat
+ * PRODUCTION is what the card reads, so it is what the fixture arranges.
+ */
+function climateTable(blueHeat: number, redHeat: number): {game: IGame, p1: TestPlayer, p2: TestPlayer, parliament: Parliament} {
+  const [game, p1, p2] = testGame(2, {
+    skipInitialCardSelection: false, coloniesExtension: true, turmoilReduxExpansion: true,
+    startingCorporations: 1,
+  });
+  if (!(p1.getWaitingFor() instanceof SelectInitialCards)) {
+    throw new Error(`expected SelectInitialCards, got ${p1.getWaitingFor()?.constructor.name}`);
+  }
+  answerStartFlow(game, [p1, p2]);
+  const parliament = game.parliament;
+  if (parliament === undefined || parliament.slots.length !== 3) {
+    throw new Error('the Climate Research fixture has no voting area');
+  }
+  seatResolutionAlone(parliament, CLIMATE_RESEARCH_ID);
+  parliament.placeVote(p1, parliament.slots[0], 'lobby');
+  parliament.agenda.set(p1.id, 3);
+  parliament.agenda.set(p2.id, 1);
+  p1.production.override({heat: blueHeat});
+  p2.production.override({heat: redHeat});
+  p1.megaCredits = 40;
+  p2.megaCredits = 30;
+  runAllActions(game);
+  return {game, p1, p2, parliament};
+}
+
+// ── parliament-climate-vote: CLIMATE RESEARCH (RX05 — +1 heat production per
+//    influence, THEN 1 card per full 3 steps of the heat production it leaves
+//    behind) up for the vote: blue leads it with heat production 4 (influence
+//    2 → 4 → 6 → 2 cards, and the ruling Greens would answer with +2 M€
+//    production), red sits at 1. ──
+{
+  const {game} = climateTable(4, 1);
+  write('parliament-climate-vote', game);
+}
+
+// ── parliament-climate-enact: the political phase STOPPED INSIDE blue's
+//    mandatory TAKE of the cards Climate Research drew. Blue's heat production
+//    was raised 4 → 6 (influence 2), the ruling Greens answered with +2 M€
+//    production, and two project cards are owed — withheld from the hand until
+//    the take. Red's own half comes after blue's. ──
+{
+  const {game, p1, p2, parliament} = climateTable(4, 2);
+  passToParliament(game, [p1, p2]);
+  const ask = p1.getWaitingFor();
+  if (!(ask instanceof SelectCard) || ask.externalDrawPrompt === undefined) {
+    throw new Error(`the parliament-climate-enact fixture expected blue's mandatory take, got ${ask?.constructor.name}`);
+  }
+  if (p1.production.heat !== 6 || p1.pendingCardIntakes.length !== 1 || p1.pendingCardIntakes[0].cards.length !== 2) {
+    throw new Error(`the parliament-climate-enact fixture expected heat production 6 and two owed cards, got ${p1.production.heat} / ${JSON.stringify(p1.pendingCardIntakes.map((i) => i.cards.length))}`);
+  }
+  if (parliament.phase?.step !== 'effects') {
+    throw new Error('the parliament-climate-enact fixture expected the effects step');
+  }
+  write('parliament-climate-enact', game);
+}
+
+// ── parliament-climate-big: the same stop with a BIG draw — heat production
+//    17 + influence 2 = 19 → SIX cards owed at once. The take must show all six
+//    at a readable size inside the enactment stage; nothing is trimmed to fit. ──
+{
+  const {game, p1, p2} = climateTable(17, 0);
+  passToParliament(game, [p1, p2]);
+  const ask = p1.getWaitingFor();
+  if (!(ask instanceof SelectCard) || ask.externalDrawPrompt?.remaining !== 6) {
+    throw new Error(`the parliament-climate-big fixture expected six owed cards, got ${ask?.constructor.name}`);
+  }
+  write('parliament-climate-big', game);
+}
+
+// ── parliament-climate-recap: generation 2 has just begun — the political
+//    phase ENACTED Climate Research won by RED, both seats were raised and
+//    both took their cards. Red opens generation 2 (the seat the dev loader
+//    opens): the results scene moves the card into the government and names
+//    BOTH halves of every seat's result. ──
+{
+  const {game, p1, p2, parliament} = climateTable(4, 2);
+  // RED wins it: blue's delegate goes back to the lobby, red's takes its place.
+  parliament.slots[0].votes = [];
+  parliament.lobby.add(p1.id);
+  parliament.placeVote(p2, parliament.slots[0], 'lobby');
+  passToParliament(game, [p1, p2]);
+  for (const player of [p1, p2]) {
+    const ask = player.getWaitingFor();
+    if (ask instanceof SelectCard && ask.externalDrawPrompt !== undefined) {
+      player.process({type: 'card', cards: ask.cards.map((c) => c.name)});
+    }
+    runAllActions(game);
+  }
+  for (const player of [p1, p2]) {
+    if (player.getWaitingFor() instanceof SelectCard) {
+      player.process({type: 'card', cards: []});
+    }
+  }
+  runAllActions(game);
+  const outcomes = parliament.lastPhase?.outcomes ?? [];
+  const raise = outcomes.find((o) => o.player === p1.id && o.step === 'heat-production');
+  const draw = outcomes.find((o) => o.player === p1.id && o.step === 'draw');
+  if (raise?.kind !== 'production' || raise.amount !== 2 || draw?.kind !== 'cards' || draw.amount !== 2) {
+    throw new Error(`the parliament-climate-recap fixture expected blue's +2 heat production and 2 cards, got ${JSON.stringify(outcomes)}`);
+  }
+  if (outcomes.find((o) => o.player === p2.id && o.step === 'draw')?.kind !== 'cards') {
+    throw new Error(`the parliament-climate-recap fixture expected red's own draw, got ${JSON.stringify(outcomes)}`);
+  }
+  if (game.playersInGenerationOrder[0].id !== p2.id) {
+    throw new Error('the parliament-climate-recap fixture expected red to open generation 2 (the seat the loader opens)');
+  }
+  write('parliament-climate-recap', game);
 }
 
 // ── parliament-dense: a crowded FIVE-seat Parliament in generation 2 (the

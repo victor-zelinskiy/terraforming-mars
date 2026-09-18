@@ -41,12 +41,40 @@ export type InfluenceYieldUnit =
   | {kind: 'production', resource: Resource}
   | {kind: 'cards'};
 
+/**
+ * A SEQUENTIAL term — the second half of a resolution whose result depends on
+ * the FIRST half's result: «Increase your heat production 1 step per point of
+ * Influence. THEN draw 1 card for every 3 steps of heat production you have»
+ * (Climate Research). The amount is read from a player TOTAL the earlier
+ * effect has just moved, never from influence: the influence is already
+ * inside that total, and adding it a second time is exactly the over-count
+ * this declaration exists to make impossible.
+ *
+ * THE TOTAL IS READ AFTER the earlier effect — the WHOLE total, not the step
+ * it just gained and not the thresholds it just crossed; the remainder of the
+ * division yields nothing; the total is NOT spent.
+ */
+export type InfluenceSequelTerm = {
+  /** The effect (`InfluenceScaledEffect.id`) whose result this one reads. */
+  after: string;
+  /** WHICH player total is divided (the same unit vocabulary as `unit`). */
+  total: InfluenceYieldUnit;
+  /** How many units of the total yield ONE unit of this effect (floor division). */
+  per: number;
+};
+
 export type InfluenceScaledEffect = {
   /** Stable within the resolution — the outcome record and the UI key on it. */
   id: string;
   unit: InfluenceYieldUnit;
-  /** Units per point of influence. */
+  /** Units per point of influence (0 for a purely sequential effect). */
   perInfluence: number;
+  /**
+   * A SEQUENTIAL part (absent = none): the amount comes from a total an
+   * EARLIER effect of the same enactment changed — see
+   * {@link InfluenceSequelTerm}. Mutually exclusive with `count`.
+   */
+  sequel?: InfluenceSequelTerm;
   /** A flat part paid regardless of influence (absent = 0). */
   base?: number;
   /**
@@ -73,6 +101,22 @@ export function scaledAmount(effect: InfluenceScaledEffect, influence: number, c
   return effect.cap === undefined ? raw : Math.min(effect.cap, raw);
 }
 
+/**
+ * The amount a SEQUENTIAL effect yields from `total` — the player total the
+ * earlier effect left behind, read AFTER it. The ONE formula for the second
+ * half: floor division, the remainder yields nothing, influence never enters
+ * twice. An effect without a sequel term yields its ordinary amount at zero
+ * influence (a caller that mixes them up gets the flat part, never a guess).
+ */
+export function sequelAmount(effect: InfluenceScaledEffect, total: number): number {
+  const term = effect.sequel;
+  if (term === undefined) {
+    return scaledAmount(effect, 0);
+  }
+  const raw = (effect.base ?? 0) + Math.floor(Math.max(0, Math.floor(total)) / term.per);
+  return effect.cap === undefined ? raw : Math.min(effect.cap, raw);
+}
+
 export type InfluenceYieldContext = 'reference' | 'estimate' | 'forecast' | 'resolving' | 'applied';
 
 /**
@@ -93,6 +137,18 @@ export type InfluenceYield = {
   countedUnits?: ReadonlyArray<number>;
   /** The formula's sum before the cap — above `amount` exactly when the cap bit. */
   uncapped?: number;
+  /**
+   * A SEQUENTIAL effect: the player total this reading divides, BEFORE and
+   * AFTER the earlier effect moved it («heat production 4 → 6 → 2 cards»).
+   * `after` is what the amount stands on — for a live or recorded reading it
+   * is the server's own value, never `before + influence`.
+   */
+  total?: {before: number, after: number};
+  /**
+   * `resolving` / `applied` of a DRAW: what was actually dealt, when the
+   * deck could not supply the whole amount. Absent = the full amount landed.
+   */
+  delivered?: number;
   /** `forecast` only: the Agenda step the scenario's influence is read at. */
   agendaStep?: number;
   /**
@@ -147,6 +203,54 @@ export function winnerForecastYield(effect: InfluenceScaledEffect, agendaPositio
   const step = Math.min(AGENDA_TRACK.length, Math.max(0, agendaPosition) + 1);
   const influence = influenceAtAgenda(step) + Math.max(0, influenceBonus);
   return withCount({effect, context: 'forecast', influence, amount: scaledAmount(effect, influence, count?.count ?? 0), agendaStep: step}, effect, count);
+}
+
+/**
+ * The reading of a SEQUENTIAL effect for a total that has NOT been moved yet
+ * (an estimate / a forecast): `before` is the player's total now, `steps` is
+ * what the earlier effect is projected to add, and the amount stands on their
+ * sum. The projection is the caller's — this module never guesses which
+ * effect feeds which; it only divides once, in one place.
+ */
+export function sequelYield(
+  effect: InfluenceScaledEffect,
+  context: Exclude<InfluenceYieldContext, 'reference'>,
+  before: number,
+  steps: number,
+  opts?: {influence?: number, agendaStep?: number},
+): InfluenceYield {
+  const after = Math.max(0, before + Math.max(0, steps));
+  const y: InfluenceYield = {effect, context, amount: sequelAmount(effect, after), total: {before, after}};
+  if (opts?.influence !== undefined) {
+    y.influence = opts.influence;
+  }
+  if (opts?.agendaStep !== undefined) {
+    y.agendaStep = opts.agendaStep;
+  }
+  return y;
+}
+
+/**
+ * A SEQUENTIAL reading the SERVER fixed — the totals are the ones it read
+ * (before and after its own change), the amount is the one it computed, and
+ * `delivered` is what actually landed when the deck could not supply it all.
+ * Nothing is recomputed from today's production.
+ */
+export function fixedSequelYield(
+  effect: InfluenceScaledEffect,
+  context: 'resolving' | 'applied',
+  amount: number,
+  total: {before: number, after: number},
+  opts?: {influence?: number, delivered?: number},
+): InfluenceYield {
+  const y: InfluenceYield = {effect, context, amount, total};
+  if (opts?.influence !== undefined) {
+    y.influence = opts.influence;
+  }
+  if (opts?.delivered !== undefined && opts.delivered !== amount) {
+    y.delivered = opts.delivered;
+  }
+  return y;
 }
 
 /**

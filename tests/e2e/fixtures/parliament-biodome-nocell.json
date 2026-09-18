@@ -809,8 +809,8 @@
   ],
   "discardPile": []
  },
- "createdTimeMs": 1789671568716,
- "currentSeed": 606248284103,
+ "createdTimeMs": 1789692994547,
+ "currentSeed": 608079849916,
  "deferredActions": [],
  "donePlayers": [],
  "draftRound": 1,
@@ -829,7 +829,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1789671568716
+   "timestamp": 1789692994547
   },
   {
    "message": "Good luck ${0}!",
@@ -839,7 +839,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1789671568716,
+   "timestamp": 1789692994547,
    "playerId": "p-player1-id"
   },
   {
@@ -850,7 +850,7 @@
      "value": "red"
     }
    ],
-   "timestamp": 1789671568716,
+   "timestamp": 1789692994547,
    "playerId": "p-player2-id"
   },
   {
@@ -861,7 +861,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1789671568716,
+   "timestamp": 1789692994547,
    "type": 1
   },
   {
@@ -876,7 +876,7 @@
      "value": "Teractor"
     }
    ],
-   "timestamp": 1789671568716,
+   "timestamp": 1789692994547,
    "correlationId": 1,
    "parentId": 1,
    "role": "root-action",
@@ -894,7 +894,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1789671568716,
+   "timestamp": 1789692994547,
    "correlationId": 1,
    "parentId": 1,
    "role": "detail"
@@ -911,7 +911,7 @@
      "value": "Aridor"
     }
    ],
-   "timestamp": 1789671568716,
+   "timestamp": 1789692994547,
    "correlationId": 2,
    "parentId": 2,
    "role": "root-action",
@@ -929,7 +929,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1789671568716,
+   "timestamp": 1789692994547,
    "correlationId": 2,
    "parentId": 2,
    "role": "detail"
@@ -1115,7 +1115,7 @@
   "Builder",
   "Planner"
  ],
- "name": "Rarefied Laser Core",
+ "name": "Static Quartz Cloud",
  "oxygenLevel": 5,
  "passedPlayers": [
   "p-player2-id"
@@ -1214,10 +1214,10 @@
    "handicap": 0,
    "timer": {
     "sumElapsed": 0,
-    "startedAt": 1789671568716,
+    "startedAt": 1789692994547,
     "running": true,
     "afterFirstAction": true,
-    "lastStoppedAt": 1789671568716
+    "lastStoppedAt": 1789692994547
    },
    "actionsTakenThisGame": 1,
    "victoryPointsByGeneration": [],
@@ -1333,10 +1333,10 @@
    "handicap": 0,
    "timer": {
     "sumElapsed": 0,
-    "startedAt": 1789671568716,
+    "startedAt": 1789692994547,
     "running": false,
     "afterFirstAction": true,
-    "lastStoppedAt": 1789671568716
+    "lastStoppedAt": 1789692994547
    },
    "actionsTakenThisGame": 0,
    "victoryPointsByGeneration": [],
@@ -1696,11 +1696,11 @@
     ]
    },
    {
-    "instance": "RDX_DUMMY_UNITY_2#0",
+    "instance": "RDX_DUMMY_SCIENTISTS_1#0",
     "votes": []
    },
    {
-    "instance": "RDX_DUMMY_REDS_1#0",
+    "instance": "RDX_DUMMY_UNITY_2#0",
     "votes": []
    }
   ],
@@ -1731,6 +1731,7 @@
   "resolutionActionUses": {},
   "deck": [
    "RDX_INDUSTRIALISTS_CENTRAL_POWER_GRID#0",
+   "RDX_GREENS_CLIMATE_RESEARCH#0",
    "RDX_MARS_ARCHITECTURE_AWARD#0",
    "RDX_GREENS_AQUIFER_CONTEST#0",
    "RDX_DUMMY_REDS_2#0",

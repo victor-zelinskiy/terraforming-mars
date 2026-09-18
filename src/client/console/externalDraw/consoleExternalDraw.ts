@@ -56,9 +56,21 @@ export function externalDrawTakeOf(wf: PlayerInputModel | undefined): ExternalDr
   return wf?.type === 'card' ? (wf as SelectCardModel).externalDrawPrompt : undefined;
 }
 
-/** A stable identity for the batch (per recipient view). */
+/** A stable identity for the batch (per recipient view) — the cause and its id. */
 export function externalDrawIntakeKey(meta: ExternalDrawTakeMeta): string {
-  return `${meta.initiator}#${meta.intakeId}`;
+  const cause = meta.cause;
+  const who = cause.kind === 'card' ? cause.initiator : cause.resolution;
+  return `${who}#${meta.intakeId}`;
+}
+
+/**
+ * The intake was granted by an ENACTED RESOLUTION (Turmoil Redux) — the take
+ * is then a STEP of the political phase's enactment stage, not a screen of its
+ * own. The shell reads this to teleport the take surface into the Parliament's
+ * zone instead of standing a second workspace up over it.
+ */
+export function externalDrawResolutionOf(meta: ExternalDrawTakeMeta | undefined): string | undefined {
+  return meta?.cause.kind === 'resolution' ? meta.cause.resolution : undefined;
 }
 
 /** Should a mount PLAY THE DEAL for this intake — true only the first time. */

@@ -10,6 +10,7 @@ import {TRSourceEntry} from '../common/game/VictoryPointsBreakdown';
 import {DiscordId} from './server/auth/discord';
 import {UnderworldPlayerData} from '../common/underworld/UnderworldPlayerData';
 import {DeltaProjectPlayerModel} from '../common/models/DeltaProjectPlayerModel';
+import {ExternalDrawCause} from '../common/models/ExternalDrawPromptModel';
 
 interface DeprecatedFields {
 }
@@ -21,9 +22,15 @@ export interface SerializedCardIntake {
   id: number;
   count: number;
   cards: Array<CardName>;
-  effectCard: CardName;
-  effectCardOwner: 'you' | 'initiator';
-  initiator: Color;
+  /**
+   * WHO granted the draw (`ExternalDrawCause`). Absent on a save written
+   * before the cause became data — the flat card fields below are then the
+   * whole record and are read as the `card` cause.
+   */
+  cause?: ExternalDrawCause;
+  effectCard?: CardName;
+  effectCardOwner?: 'you' | 'initiator';
+  initiator?: Color;
   triggerCard?: CardName;
 }
 

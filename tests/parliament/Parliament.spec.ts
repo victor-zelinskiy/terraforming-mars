@@ -5,6 +5,7 @@ import {IGame} from '../../src/server/IGame';
 import {Game} from '../../src/server/Game';
 import {Parliament} from '../../src/server/parliament/Parliament';
 import {IncompatibleParliamentSaveError} from '../../src/server/parliament/ParliamentErrors';
+import {REDUX_RESOLUTION_CATALOG} from '../../src/server/parliament/resolutions/ResolutionCatalog';
 import {PARLIAMENT_SAVE_VERSION} from '../../src/server/parliament/SerializedParliament';
 import {PartyName} from '../../src/common/turmoil/PartyName';
 import {
@@ -50,7 +51,13 @@ describe('Parliament', () => {
       expect(parliament.quest?.definition).deep.eq(STARTER_QUEST);
       expect(parliament.quest?.source).eq('starter');
       expect(parliament.quest?.generation).eq(1);
-      expect(parliament.deck.length + parliament.discard.length + PARLIAMENT_VOTING_SLOTS).eq(12);
+      // THE DECK IS THE SUM OF WHAT IS SHIPPED — never a fixed total and never
+      // a quota per party (the Greens already carry three real resolutions).
+      // Derived from the catalog, so implementing the next one cannot fail a
+      // spec that only ever meant «every dealt card is somewhere on the table».
+      const dealt = REDUX_RESOLUTION_CATALOG.dealtInstances(() => true).length;
+      expect(dealt).is.greaterThan(PARLIAMENT_VOTING_SLOTS);
+      expect(parliament.deck.length + parliament.discard.length + PARLIAMENT_VOTING_SLOTS).eq(dealt);
     });
 
     it('refuses classic Turmoil alongside Redux and requires Colonies', () => {

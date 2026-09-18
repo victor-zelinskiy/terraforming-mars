@@ -623,14 +623,17 @@
          edge, which waits out the last take's flight (`externalDrawHolding`).
          Non-minimizable by construction: it emits no defer and B is «Забрать
          все». -->
-    <transition :css="false" appear
-                @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
-                @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
-      <ConsoleExternalDrawWorkspace v-if="externalDrawWorkspaceMounted"
-                                    ref="extDrawWs"
-                                    :playerView="playerView"
-                                    @submit="onExternalDrawSubmit" />
-    </transition>
+    <Teleport :to="externalDrawEmbedTarget ?? 'body'" :disabled="externalDrawEmbedTarget === undefined">
+      <transition :css="false" appear
+                  @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
+                  @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
+        <ConsoleExternalDrawWorkspace v-if="externalDrawWorkspaceMounted"
+                                      ref="extDrawWs"
+                                      :playerView="playerView"
+                                      :embedded="externalDrawEmbedTarget !== undefined"
+                                      @submit="onExternalDrawSubmit" />
+      </transition>
+    </Teleport>
 
     <!-- EMBEDDED HOSTING (consoleWorkspaceOutcome): a card PICK the player's
          own workspace produced (Inventors' Guild / Business Network revealing
@@ -1054,6 +1057,13 @@
                                  :formula="false"
                                  size="compact"
                                  data-zoom-yield />
+          <!-- …and what the party the resolution brings to power ANSWERS to
+               those numbers (Turmoil Redux): its own law, its own chip. -->
+          <ConsolePartyReaction v-for="r in zoomResolutionReactions" :key="r.reaction.id"
+                                class="con-zoom__bar-reaction"
+                                :reading="r"
+                                size="compact"
+                                data-zoom-reaction />
           <!-- THE WINNER'S TILE of that resolution — «if you win» while it is up
                for the vote, the fixed recipient while it resolves, the record
                once it has (its own block, apart from everyone's numbers). -->
@@ -1606,6 +1616,8 @@ import ConsoleInfluenceYield from '@/client/components/console/parliament/Consol
 import ConsoleWinnerReward from '@/client/components/console/parliament/ConsoleWinnerReward.vue';
 import {WinnerRewardReading, winnerRewardReadingOf, winnerRewardTableOf} from '@/client/console/parliament/winnerRewardModel';
 import {enactedYieldsOf, voteYieldsOf} from '@/client/console/parliament/influenceYieldModel';
+import {PartyReactionReading, partyReactionsOf, viewerHasSeat} from '@/client/console/parliament/partyReactionModel';
+import ConsolePartyReaction from '@/client/components/console/parliament/ConsolePartyReaction.vue';
 import {InfluenceYield} from '@/common/parliament/influenceScaling';
 import ConsoleInfoMode from '@/client/components/console/ConsoleInfoMode.vue';
 import ConsoleStrandedPrompt from '@/client/components/console/ConsoleStrandedPrompt.vue';
@@ -1762,7 +1774,7 @@ import {
 import {consoleDraftUi} from '@/client/console/draft/consoleDraftUi';
 import ConsoleExternalDrawWorkspace from '@/client/components/console/externalDraw/ConsoleExternalDrawWorkspace.vue';
 import {
-  externalDrawHolding, externalDrawTakeOf, resetExternalDraw,
+  externalDrawHolding, externalDrawIntakeKey, externalDrawResolutionOf, externalDrawTakeOf, resetExternalDraw,
 } from '@/client/console/externalDraw/consoleExternalDraw';
 import {Phase} from '@/common/Phase';
 import ConsoleTradeFleetLayer from '@/client/components/console/colonyFleet/ConsoleTradeFleetLayer.vue';
@@ -2168,6 +2180,7 @@ export default defineComponent({
     ConsoleDraftTray,
     ConsoleDraftWorkspace,
     ConsoleExternalDrawWorkspace,
+    ConsolePartyReaction,
     ConsoleHydroMarkerLayer,
     ConsoleBoardCardBonusLayer,
     ConsoleDeckDrawLayer,
@@ -4127,15 +4140,39 @@ export default defineComponent({
     draftPaymentServeSignal(): string {
       return [draftPaymentPending(this.playerView), workspaceFrameIndex('draft')].join('|');
     },
-    /** PRESENCE IS THE STACK (invariant 1) — the workspace's ONE v-if. */
+    /**
+     * A draw granted by an ENACTED RESOLUTION (Turmoil Redux — Climate
+     * Research) is a STEP of the political phase's enactment stage, never a
+     * second workspace over it: the SAME premium take surface teleports into
+     * the Parliament's own zone. Structural (the intake's `cause`), never a
+     * name. Undefined until the zone is published — the claimant renders
+     * NOWHERE while the slot is missing (the embed contract, rule 4).
+     */
+    externalDrawEmbedTarget(): string | undefined {
+      const meta = externalDrawTakeOf(this.playerView.waitingFor);
+      if (externalDrawResolutionOf(meta) === undefined) {
+        return undefined;
+      }
+      return workspaceFrameMounted('parliament') && consoleParliamentUi.enactStanding ?
+        '.con-parl [data-embed-slot="parliament-enact"]' : undefined;
+    },
+    /**
+     * PRESENCE IS THE STACK (invariant 1) — the workspace's ONE v-if, plus the
+     * EMBEDDED case, whose host frame is the Parliament's and whose presence
+     * is therefore the published zone.
+     */
     externalDrawWorkspaceMounted(): boolean {
-      return workspaceFrameRenders('external-draw');
+      return workspaceFrameRenders('external-draw') || this.externalDrawEmbedTarget !== undefined;
     },
     /** The external-draw take is ALIVE for this player — the frame-lifetime
      *  predicate. The commit hold extends it past the LAST take's answer, so
      *  the final flight lands before the workspace folds. */
     externalDrawFrameLive(): boolean {
       return externalDrawTakeOf(this.playerView.waitingFor) !== undefined || externalDrawHolding();
+    },
+    /** The take is EMBEDDED in the Parliament — the standalone root is never entered for it. */
+    externalDrawEmbedded(): boolean {
+      return this.externalDrawEmbedTarget !== undefined;
     },
     /** The workspace owns the pad exactly while it is the surface on screen. */
     externalDrawOwnsPad(): boolean {
@@ -4863,7 +4900,7 @@ export default defineComponent({
       // legitimately fresh cycle.
       const external = externalDrawTakeOf(wf);
       const taskKey = task?.kind === 'externalDraw' && external !== undefined ?
-        `externalDraw:${external.initiator}#${external.intakeId}` :
+        `externalDraw:${externalDrawIntakeKey(external)}` :
         promptIdentityKey(wf);
       return mandatoryBeatFor({
         task,
@@ -8457,6 +8494,19 @@ export default defineComponent({
     zoomResolutionStatus(): ResolutionStatusVm | undefined {
       const id = this.zoomResolutionId;
       return id === undefined ? undefined : resolutionStatusOf(id, this.game.parliament, this.thisPlayer.color);
+    },
+    /**
+      * The RULING PARTY's answer to those readings (Turmoil Redux): a
+      * resolution that raises a production puts its own party in power, and
+      * that party then pays on top of it. The viewer's seat only.
+      */
+    zoomResolutionReactions(): Array<PartyReactionReading> {
+      const id = this.zoomResolutionId;
+      const model = this.game.parliament;
+      if (id === undefined || !viewerHasSeat(model, this.thisPlayer.color)) {
+        return [];
+      }
+      return partyReactionsOf(getResolution(id), this.zoomResolutionYields);
     },
     /** The party column's one context line (a condition in the vote, a fact once enacted). */
     zoomResolutionContextKey(): string | undefined {
@@ -16250,9 +16300,17 @@ export default defineComponent({
         return;
       }
       if (task.kind === 'externalDraw') {
-        // The mandatory take of an EXTERNAL draw — the player's A stands the
-        // dedicated workspace up. Idempotent via the frame guard (a raced
-        // double press finds the frame already known).
+        // A RESOLUTION's draw belongs to the Parliament's enactment stage (it
+        // is handled by the `parliamentEnactPrompt` door in
+        // `openMandatoryAnnounce`, before this branch is ever reached); an
+        // ordinary external draw stands its own workspace up. Idempotent via
+        // the frame guard (a raced double press finds the frame known).
+        if (externalDrawResolutionOf(externalDrawTakeOf(this.playerView.waitingFor)) !== undefined) {
+          if (!workspaceFrameKnown('parliament')) {
+            enterWorkspace('parliament');
+          }
+          return;
+        }
         if (!workspaceFrameKnown('external-draw')) {
           enterWorkspace('external-draw', {anchor: {type: 'prompt', promptType: 'card'}});
         }

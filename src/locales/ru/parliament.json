@@ -617,5 +617,22 @@
     "A wild tag is not a power tag": "Универсальная метка — не энергетическая метка",
     "Looked at on your own turn — the enactment counts the same": "Просмотр в свой ход — при принятии счёт тот же",
     "Negative production rises the ordinary way": "Отрицательное производство растёт обычным образом",
-    "Production 8 becomes 13 — the cap bounds the increase": "Производство 8 становится 13 — максимум ограничивает прирост"
+    "Production 8 becomes 13 — the cap bounds the increase": "Производство 8 становится 13 — максимум ограничивает прирост",
+    "Climate Research": "Климатические исследования",
+    "Raise your heat production 1 step per point of your influence. Then draw 1 card for every full 3 steps of heat production you have.": "Повысьте производство тепла на 1 шаг за каждую единицу своего влияния. Затем возьмите по 1 карте за каждые полные 3 шага вашего производства тепла.",
+    "${0} has no influence — no ${1} production from ${2}": "${0}: нет влияния — производство ${1} от ${2} не растёт",
+    "${0} raised ${1} production by ${2} from ${3}: 1 per point of influence, influence ${4} (${5} → ${6})": "${0} повышает производство ${1} на ${2} — ${3}: 1 за единицу влияния, влияние ${4} (${5} → ${6})",
+    "${0} has ${1} ${2} production — fewer than ${3}, so ${4} draws no cards": "${0}: производство ${2} — ${1}, это меньше ${3}, поэтому ${4} не даёт карт",
+    "${0} draws ${1} card(s) from ${2}: 1 per full ${3} steps of ${4} production (${5})": "${0} берёт ${1} {карту|карты|карт} — ${2}: 1 за каждые полные ${3} {шаг|шага|шагов} производства ${4} (${5})",
+    "Only ${0} of ${1} card(s) were left in the deck for ${2}": "В колоде осталось лишь ${0} {карта|карты|карт} из ${1} — столько и получает ${2}",
+    "${0} drew no cards from ${1} (the deck is empty)": "${0} не получает карт — ${1}: колода проектов пуста",
+    "Heat production below 3 — no cards": "Производство тепла меньше 3 — карт нет",
+    "The project deck is empty": "Колода проектов пуста",
+    "The enacted resolution draws these cards for you": "Принятая резолюция берёт для вас эти карты",
+    "The enacted resolution draws ${0} card(s) for you": "Принятая резолюция берёт для вас ${0} {карту|карты|карт}",
+    "${0}: ${1} card(s)": "${0}: ${1} {карта|карты|карт}",
+    "${0}: ${1} of ${2} card(s) — the deck ran out": "${0}: ${1} из ${2} {карты|карт|карт} — колода кончилась",
+    "${0} production ${1} → ${2}": "производство ${0}: ${1} → ${2}",
+    "The ruling party answers": "Ответ правящей партии",
+    "Received from the party": "Получено от партии"
 }

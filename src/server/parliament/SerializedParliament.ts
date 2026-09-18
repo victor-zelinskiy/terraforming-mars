@@ -54,10 +54,11 @@ export type SerializedEnactOutcome = {
   effect?: string;
   /**
    * `cardResource` resources onto a card · `production` a production increase ·
-   * `stock` standard resources into the player's supply · `ocean` / `greenery`
-   * the winner's tile · `skipped` nothing happened (see `reason`).
+   * `stock` standard resources into the player's supply · `cards` project
+   * cards drawn for the player · `ocean` / `greenery` the winner's tile ·
+   * `skipped` nothing happened (see `reason`).
    */
-  kind: 'cardResource' | 'production' | 'stock' | 'ocean' | 'greenery' | 'skipped';
+  kind: 'cardResource' | 'production' | 'stock' | 'cards' | 'ocean' | 'greenery' | 'skipped';
   resource?: CardResource;
   /** `production` (and its skip): the standard resource whose production the effect raises. */
   production?: Resource;
@@ -85,6 +86,24 @@ export type SerializedEnactOutcome = {
   /** `production` / `stock`: the value before and after the change. */
   before?: number;
   after?: number;
+  /**
+   * A SEQUENTIAL amount (`InfluenceScaledEffect.sequel`): the player TOTAL the
+   * amount was divided from, as the server read it BEFORE and AFTER the
+   * earlier effect moved it — «heat production 4 → 6 → 2 cards». Frozen here:
+   * a later production change never re-divides a payout already made.
+   */
+  total?: {before: number; after: number};
+  /**
+   * `cards`: how many actually left the deck. Below `amount` only when the
+   * deck (and its reshuffled discard) could not supply the whole draw — the
+   * difference is what the player did NOT get, and it is never silent.
+   */
+  drawn?: number;
+  /**
+   * A CARD DRAW handed over as a mandatory intake: the intake's id, so a
+   * reload can tell «already drawn, still being taken» from «not drawn yet».
+   */
+  intake?: number;
   /**
    * A winner TILE (`ocean` / `greenery`): the global parameter its own
    * placement moved, read before and after — equal when the parameter was

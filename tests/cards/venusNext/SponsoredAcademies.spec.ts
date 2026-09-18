@@ -49,9 +49,7 @@ describe('SponsoredAcademies', () => {
     expect(player2.pendingCardIntakes).has.lengthOf(1);
     const intake = player2.pendingCardIntakes[0];
     expect(intake.cards).has.lengthOf(1);
-    expect(intake.effectCard).eq(card.name);
-    expect(intake.effectCardOwner).eq('initiator');
-    expect(intake.initiator).eq(player.color);
+    expect(intake.cause).deep.eq({kind: 'card', effectCard: card.name, effectCardOwner: 'initiator', initiator: player.color});
     expect(player2.getWaitingFor()?.externalDrawPrompt?.intakeId).eq(intake.id);
     player2.process({type: 'card', cards: [intake.cards[0].name]});
     runAllActions(game);

@@ -87,7 +87,7 @@
 | Печать партии | `components/console/parliament/ConsolePartyPlaque.vue` (`__seal/__head/__name/__action/__state/__places/__formula/__support`) |
 | Стальной нейтральный куб | `PlayerCube.vue` prop `steel` |
 | Лицо резолюции | `PremiumCard.vue` (`.pcard__dummy`, `.pcard__quest` = кикер · графика · награда), `ResolutionCatalog.ts` (`DUMMY_RENDER` пустой, `RDX_DEV_IMMEDIATE/PASSIVE/ACTION`) |
-| Эмблемы | `assets/parties/redux/unity.svg`, `scientists.svg` (`partyEmblems.ts`) |
+| Эмблемы | `assets/parties/redux/unity.png`, `scientists.png` (`partyEmblems.ts`; SVG-перерисовки v3 удалены 2026-09-18) |
 | Тексты | `PartyEffects.ts` (Союз, Учёные, «Марс вперёд»), `parliamentAnnotations.ts` (условие «Если будет принята», статус «На карте: N делегатов…»), `locales/ru/parliament.json` |
 | Пассивный эффект резолюции | `resolutions/IResolution.ts` `ResolutionPassive` / `ResolutionForecastContext`, `ParliamentHandler.enactedPassive`, `models/effectForecast.ts` `resolutionFacts`, `EffectForecastSourceKind` += `resolution`, `ConsoleEffectsExplorer.fsourceName/ftilePartyEmblem`, `ConsolePartyEffectsStrip` (строка принятой резолюции) |
 

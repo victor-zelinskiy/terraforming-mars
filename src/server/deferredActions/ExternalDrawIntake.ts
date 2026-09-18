@@ -6,7 +6,8 @@ import {SelectCard} from '../inputs/SelectCard';
 import {Priority} from './Priority';
 import {LogHelper} from '../LogHelper';
 import {message} from '../logs/MessageBuilder';
-import {ExternalDrawTakeMeta} from '../../common/models/ExternalDrawPromptModel';
+import {ExternalDrawCause, ExternalDrawTakeMeta} from '../../common/models/ExternalDrawPromptModel';
+import {ChoiceContextSource} from '../../common/models/PlayerInputModel';
 
 /**
  * EXTERNAL CARD DRAW — the mandatory-intake path for every draw an effect
@@ -33,6 +34,14 @@ import {ExternalDrawTakeMeta} from '../../common/models/ExternalDrawPromptModel'
  * A MarsBot recipient never reaches this module: bot-facing draw effects
  * resolve per the Automa rules at their call sites (e.g. Sponsored Academies'
  * FAQ «MarsBot gains 1 M€ instead»).
+ *
+ * THE CAUSE IS DATA (`ExternalDrawCause`), never a card field: the same three
+ * halves carry an ENACTED RESOLUTION's draw (Turmoil Redux — Climate
+ * Research's «draw 1 card for every 3 steps of heat production»). A caller
+ * that owns the WAIT itself — the political phase, whose driver may not move
+ * on while a mandatory take is owed — uses {@link ExternalDrawIntake.open} +
+ * {@link ExternalDrawIntake.takePromptFor} and keeps the prompt; every other
+ * caller uses {@link ExternalDrawIntake.grant}, which defers it.
  */
 export class ExternalDrawIntake {
   /** The priority a RE-ISSUED prompt keeps its batch together with (outranks a
@@ -52,17 +61,41 @@ export class ExternalDrawIntake {
     initiator: IPlayer,
     triggerCard?: ICard,
   }): void {
+    const intake = ExternalDrawIntake.open(recipient, count, {
+      kind: 'card',
+      effectCard: ctx.effectCard.name,
+      effectCardOwner: ctx.effectCardOwner,
+      initiator: ctx.initiator.color,
+      ...(ctx.triggerCard === undefined ? {} : {triggerCard: ctx.triggerCard.name}),
+    });
+    if (intake !== undefined) {
+      recipient.defer(() => ExternalDrawIntake.takePromptFor(recipient, intake), Priority.BACK_OF_THE_LINE);
+    }
+  }
+
+  /**
+   * THE GAME RECEIPT alone: draw now, journal, record, push the intake — and
+   * hand it back. The caller then owns the prompt (`takePromptFor`) and
+   * therefore owns the wait. Undefined when the deck supplied nothing (named
+   * in the journal — never a silent loss).
+   */
+  public static open(recipient: IPlayer, count: number, cause: ExternalDrawCause): PendingCardIntake | undefined {
     if (recipient.isMarsBot) {
-      throw new Error(`External draw intake granted to MarsBot by ${ctx.effectCard.name} — bot recipients resolve per Automa rules at the call site`);
+      throw new Error(`External draw intake granted to MarsBot by ${ExternalDrawIntake.causeLabel(cause)} — bot recipients resolve per Automa rules at the call site`);
     }
     const game = recipient.game;
     game.resettable = false;
-    const cards = game.projectDeck.drawN(game, count);
+    const cards = count <= 0 ? [] : game.projectDeck.drawN(game, count);
     if (cards.length === 0) {
       // No silent loss: the skipped effect names itself.
-      game.log('${0} drew no cards with ${1} (the deck is empty)',
-        (b) => b.player(recipient).card(ctx.effectCard));
-      return;
+      if (cause.kind === 'card') {
+        game.log('${0} drew no cards with ${1} (the deck is empty)',
+          (b) => b.player(recipient).cardName(cause.effectCard));
+      } else {
+        game.log('${0} drew no cards from ${1} (the deck is empty)',
+          (b) => b.player(recipient).resolution(cause.resolution));
+      }
+      return undefined;
     }
     // Same journal shape as an ordinary kept draw: public count, private names.
     game.log('${0} drew ${1} card(s)', (b) => b.player(recipient).number(cards.length));
@@ -73,13 +106,24 @@ export class ExternalDrawIntake {
       id: ExternalDrawIntake.nextId(recipient),
       count: cards.length,
       cards: [...cards],
-      effectCard: ctx.effectCard.name,
-      effectCardOwner: ctx.effectCardOwner,
-      initiator: ctx.initiator.color,
-      triggerCard: ctx.triggerCard?.name,
+      cause,
     };
     recipient.pendingCardIntakes.push(intake);
-    recipient.defer(() => ExternalDrawIntake.takePrompt(recipient, intake), Priority.BACK_OF_THE_LINE);
+    return intake;
+  }
+
+  /** Is `intake` still owed (a defensive rebuild / a raced re-defer sees none)? */
+  public static isPending(recipient: IPlayer, intake: PendingCardIntake): boolean {
+    return intake.cards.length > 0 && recipient.pendingCardIntakes.includes(intake);
+  }
+
+  /** The recipient's intake with `id`, while it is still owed. */
+  public static pendingOf(recipient: IPlayer, id: number): PendingCardIntake | undefined {
+    return recipient.pendingCardIntakes.find((intake) => intake.id === id && intake.cards.length > 0);
+  }
+
+  private static causeLabel(cause: ExternalDrawCause): string {
+    return cause.kind === 'card' ? cause.effectCard : cause.resolution;
   }
 
   /**
@@ -94,19 +138,27 @@ export class ExternalDrawIntake {
         continue;
       }
       for (const intake of player.pendingCardIntakes) {
-        player.defer(() => ExternalDrawIntake.takePrompt(player, intake), Priority.BACK_OF_THE_LINE);
+        player.defer(() => ExternalDrawIntake.takePromptFor(player, intake), Priority.BACK_OF_THE_LINE);
       }
     }
   }
 
-  private static takePrompt(recipient: IPlayer, intake: PendingCardIntake): SelectCard<IProjectCard> | undefined {
-    if (intake.cards.length === 0 || !recipient.pendingCardIntakes.includes(intake)) {
+  /**
+   * The mandatory take, as a PROJECTION of the intake — re-derivable at any
+   * moment (a reload, a partial take, a caller that owns the wait). Undefined
+   * once nothing is owed.
+   */
+  public static takePromptFor(recipient: IPlayer, intake: PendingCardIntake): SelectCard<IProjectCard> | undefined {
+    if (!ExternalDrawIntake.isPending(recipient, intake)) {
       // Already fully taken (an idempotent rebuild / a raced re-defer).
       return undefined;
     }
-    return new SelectCard(
-      message('Take ${0} card(s) drawn by ${1}',
-        (b) => b.number(intake.cards.length).cardName(intake.effectCard)),
+    const cause = intake.cause;
+    const title = cause.kind === 'card' ?
+      message('Take ${0} card(s) drawn by ${1}', (b) => b.number(intake.cards.length).cardName(cause.effectCard)) :
+      message('Take ${0} card(s) drawn by ${1}', (b) => b.number(intake.cards.length).resolution(cause.resolution));
+    const prompt = new SelectCard(
+      title,
       'Take',
       intake.cards,
       // played: false → the model carries calculated costs; unplayable reasons
@@ -118,21 +170,24 @@ export class ExternalDrawIntake {
         ExternalDrawIntake.take(recipient, intake, taken);
         return undefined;
       });
+    if (cause.kind === 'resolution') {
+      // A RESOLUTION asks: the same source marker every other resolution
+      // prompt carries, so the mandatory plate, the source dock (the
+      // resolution's own face, its code, L3) and the enactment stage read
+      // this take like any other payout — structurally, never by a title.
+      const source: ChoiceContextSource = {kind: 'resolution', resolution: cause.resolution};
+      prompt.markChoiceContext({source, trigger: 'The enacted resolution draws these cards for you', mode: 'reward'});
+    }
+    return prompt;
   }
 
   private static meta(intake: PendingCardIntake): ExternalDrawTakeMeta {
-    const meta: ExternalDrawTakeMeta = {
+    return {
       intakeId: intake.id,
       count: intake.count,
       remaining: intake.cards.length,
-      effectCard: intake.effectCard,
-      effectCardOwner: intake.effectCardOwner,
-      initiator: intake.initiator,
+      cause: intake.cause,
     };
-    if (intake.triggerCard !== undefined) {
-      meta.triggerCard = intake.triggerCard;
-    }
-    return meta;
   }
 
   /** Move the taken cards into the hand; re-issue the prompt for a remainder. */
@@ -147,7 +202,7 @@ export class ExternalDrawIntake {
       recipient.cardsInHand.push(card);
     }
     if (intake.cards.length > 0) {
-      recipient.defer(() => ExternalDrawIntake.takePrompt(recipient, intake), ExternalDrawIntake.CONTINUATION_PRIORITY);
+      recipient.defer(() => ExternalDrawIntake.takePromptFor(recipient, intake), ExternalDrawIntake.CONTINUATION_PRIORITY);
     } else {
       recipient.pendingCardIntakes = recipient.pendingCardIntakes.filter((i) => i !== intake);
     }

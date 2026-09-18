@@ -114,7 +114,7 @@ function powerCards(n: number): Array<ICard> {
 
 describe('CentralPowerGrid', () => {
   describe('the catalog entry', () => {
-    it('is RX04 of the Industrialists, replaces their first dummy in the deck and keeps the pool at 12', () => {
+    it('is RX04 of the Industrialists and replaces their first dummy in the deck', () => {
       expect(REDUX_RESOLUTION_CATALOG.get(CENTRAL_POWER_GRID_ID)).eq(CENTRAL_POWER_GRID);
       expect(CENTRAL_POWER_GRID_CODE).eq('RX04');
       expect(CENTRAL_POWER_GRID_CODE).matches(RESOLUTION_CODE_PATTERN);
@@ -133,7 +133,6 @@ describe('CentralPowerGrid', () => {
       expect(oldDummy?.dummy).is.true;
       expect(oldDummy?.immediateSteps).is.undefined;
       const dealt = REDUX_RESOLUTION_CATALOG.dealtInstances(() => true);
-      expect(dealt).has.length(12);
       expect(dealt).includes(GRID);
       expect(dealt).not.includes(resolutionInstanceId(dummyResolutionId(PartyName.INDUSTRIALISTS, 1), 0));
       expect(dealt.filter((instance) => REDUX_RESOLUTION_CATALOG.ofInstance(instance).party === PartyName.INDUSTRIALISTS)).has.length(2);

@@ -167,6 +167,9 @@
         <div class="con-rxpg__yieldcol">
           <ConsoleInfluenceYield v-if="yields.length > 0" :yields="yields" size="hero" :note="yieldNote" :kicker="contextLabel" data-rxpg-yield />
           <p v-else class="con-rxpg__none" data-rxpg-yield-none>{{ $t('Not scaled by influence') }}</p>
+          <!-- …and the answer of the party the card brings to power — its own
+               law, so its own block, under the numbers it answers. -->
+          <ConsolePartyReaction v-for="r in reactions" :key="r.reaction.id" :reading="r" size="normal" data-rxpg-reaction />
           <!-- THE WINNER'S TILE — its own block, apart from everyone's numbers,
                read by the SAME model the vote surface and the fullscreen read. -->
           <ConsoleWinnerReward v-if="winnerReading !== undefined"
@@ -298,7 +301,10 @@ import {PartyName} from '@/common/turmoil/PartyName';
 import {SelectCardModel} from '@/common/models/PlayerInputModel';
 import {ParliamentEnactOutcomeModel, ParliamentModel, ParliamentPlayerModel} from '@/common/models/ParliamentModel';
 import {IClientResolution} from '@/common/parliament/IClientResolution';
-import {fixedYield, InfluenceScaledEffect, InfluenceYield, referenceYield, scaledAmount, uncappedAmount} from '@/common/parliament/influenceScaling';
+import {
+  fixedSequelYield, fixedYield, InfluenceScaledEffect, InfluenceYield, referenceYield, scaledAmount, sequelAmount, uncappedAmount,
+} from '@/common/parliament/influenceScaling';
+import {PartyReactionReading, partyReactionsOf} from '@/client/console/parliament/partyReactionModel';
 import {
   cardCountUnits, cardCountVerdict, CardCountContext, countCardsToward, ResolutionCountModel, resolutionCountKind,
 } from '@/common/parliament/resolutionCounts';
@@ -317,6 +323,7 @@ import {partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import PlayerCube from '@/client/components/PlayerCube.vue';
 import ConsoleInfluenceYield from '@/client/components/console/parliament/ConsoleInfluenceYield.vue';
+import ConsolePartyReaction from '@/client/components/console/parliament/ConsolePartyReaction.vue';
 import ConsoleWinnerReward from '@/client/components/console/parliament/ConsoleWinnerReward.vue';
 import {WinnerRewardReading, winnerRewardReadingOf} from '@/client/console/parliament/winnerRewardModel';
 import {WinnerRewardTable} from '@/common/parliament/winnerReward';
@@ -335,7 +342,8 @@ import {resolutionZoomEntry} from '@/client/components/card/cardZoomTypes';
 import {resolutionAnnotations} from '@/client/console/parliament/parliamentAnnotations';
 import {resolutionStatusOf, ResolutionStatusVm} from '@/client/console/parliament/resolutionInspectModel';
 import {
-  enactedYieldsOf, noRecipientForecastKey, noRecipientReasonKey, resolvingYieldOf, voteYieldsOf, yieldCountPresentation, YieldCountGlyph,
+  enactedYieldsOf, noRecipientForecastKey, noRecipientReasonKey, resolvingYieldOf, sequelPresentation, sequelSourceOf, voteYieldsOf,
+  yieldCountPresentation, YieldCountGlyph,
 } from '@/client/console/parliament/influenceYieldModel';
 import {choiceSourceView, PromptSourceView} from '@/client/console/promptSource';
 import {
@@ -378,7 +386,7 @@ type PgWinner = SeatIndex | 'neutral';
  * icon vs. cards that print the tag) — or a supply resource by influence + the
  * WINNER's tile.
  */
-type PgFamily = 'influence' | 'counted' | 'counted-tags' | 'winner-tile';
+type PgFamily = 'influence' | 'counted' | 'counted-tags' | 'winner-tile' | 'sequel';
 /** The table's global parameters a winner tile reads (oxygen %, temperature °C, oceans placed). */
 type PgTable = {oxygen: number, temperature: number, oceans: number};
 const DEFAULT_TABLE: PgTable = {oxygen: 5, temperature: -14, oceans: 3};
@@ -522,6 +530,62 @@ const SCENARIOS: ReadonlyArray<PgScenario> = [
     seats: [{agenda: 3, bonus: 0, cards: [PLANT_P], production: 2}, {agenda: 1, bonus: 0, cards: [], production: 0}], winner: 0, context: 'applied', noRecipient: false, quest: {progress: [1, 0]}},
   {key: 'grid-quest-done', family: 'counted-tags', label: 'Chairman quest completed', viewer: 0,
     seats: [{agenda: 3, bonus: 0, cards: [PLANT_P], production: 2}, {agenda: 1, bonus: 0, cards: [], production: 0}], winner: 0, context: 'applied', noRecipient: false, quest: {progress: [2, 1], completedBy: 0}},
+  // ── THE SEQUENTIAL FAMILY (Climate Research: +1 heat production per influence,
+  //    THEN 1 card per full 3 steps of the heat production that leaves behind) ──
+  //    `production` is the seat's HEAT production before the enactment. Test
+  //    player A is the viewer; B wins unless the scenario says otherwise (a
+  //    winner's Agenda step would move A's influence).
+  {key: 'seq-zero', family: 'sequel', label: 'Influence 0, production 0 — nothing at all', viewer: 0,
+    seats: [{agenda: 0, bonus: 0, production: 0}, {agenda: 3, bonus: 0, production: 1}], winner: 1, context: 'applied', noRecipient: false},
+  {key: 'seq-no-influence-3', family: 'sequel', label: 'Influence 0, production 3 — one card all the same', viewer: 0,
+    seats: [{agenda: 0, bonus: 0, production: 3}, {agenda: 3, bonus: 0, production: 0}], winner: 1, context: 'applied', noRecipient: false},
+  {key: 'seq-no-influence-6', family: 'sequel', label: 'Influence 0, production 6 — two cards, no raise', viewer: 0,
+    seats: [{agenda: 0, bonus: 0, production: 6}, {agenda: 3, bonus: 0, production: 0}], winner: 1, context: 'applied', noRecipient: false},
+  {key: 'seq-below-threshold', family: 'sequel', label: 'A raise that reaches no threshold: 1 → 2', viewer: 0,
+    seats: [{agenda: 1, bonus: 0, production: 1}, {agenda: 3, bonus: 0, production: 0}], winner: 1, context: 'proposal', noRecipient: false},
+  {key: 'seq-2-to-3', family: 'sequel', label: 'The first threshold: 2 → 3 — one card', viewer: 0,
+    seats: [{agenda: 1, bonus: 0, production: 2}, {agenda: 3, bonus: 0, production: 0}], winner: 1, context: 'proposal', noRecipient: false},
+  {key: 'seq-4-to-6', family: 'sequel', label: '4 → 6 — two cards', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, production: 4}, {agenda: 1, bonus: 0, production: 0}], winner: 1, context: 'proposal', noRecipient: false},
+  {key: 'seq-7-to-9', family: 'sequel', label: '7 → 9 — three cards', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, production: 7}, {agenda: 1, bonus: 0, production: 0}], winner: 1, context: 'proposal', noRecipient: false},
+  {key: 'seq-beyond-track', family: 'sequel', label: 'Influence beyond 5 — no maximum', viewer: 0,
+    seats: [{agenda: 12, bonus: 2, production: 4}, {agenda: 1, bonus: 0, production: 0}], winner: 1, context: 'proposal', noRecipient: false},
+  {key: 'seq-many-cards', family: 'sequel', label: 'A big draw — nothing is trimmed to fit', viewer: 0,
+    seats: [{agenda: 12, bonus: 2, production: 18}, {agenda: 1, bonus: 0, production: 0}], winner: 1, context: 'resolving', noRecipient: false},
+  {key: 'seq-seats', family: 'sequel', label: 'Every player gets their own result', viewer: 0,
+    seats: [{agenda: 1, bonus: 0, production: 5}, {agenda: 8, bonus: 0, production: 2}], winner: 0, context: 'applied', noRecipient: false},
+  // Agenda 4 = influence 2; winning takes the marker to step 5 (influence 3) BEFORE the effect: 4 → 6 becomes 4 → 7.
+  {key: 'seq-winner-agenda', family: 'sequel', label: 'The winner advances on the Agenda first', viewer: 0,
+    seats: [{agenda: 4, bonus: 0, production: 4}, {agenda: 3, bonus: 0, production: 0}], winner: 0, context: 'proposal', noRecipient: false},
+  {key: 'seq-neutral', family: 'sequel', label: 'Neutral winner — the effect still reaches everyone', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, production: 4}, {agenda: 5, bonus: 0, production: 7}], winner: 'neutral', context: 'applied', noRecipient: false},
+  {key: 'seq-negative', family: 'sequel', label: 'Negative production rises the ordinary way', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, production: -3}, {agenda: 1, bonus: 0, production: 0}], winner: 1, context: 'applied', noRecipient: false},
+  {key: 'seq-resolving', family: 'sequel', label: 'The chain being resolved', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, production: 4}, {agenda: 1, bonus: 0, production: 2}], winner: 1, context: 'resolving', noRecipient: false},
+  {key: 'seq-applied', family: 'sequel', label: 'Recorded result', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, production: 4}, {agenda: 0, bonus: 0, production: 8}], winner: 1, context: 'applied', noRecipient: false},
+  {key: 'seq-spectator', family: 'sequel', label: 'Spectator — the formula alone', viewer: SPECTATOR,
+    seats: [{agenda: 3, bonus: 0, production: 4}, {agenda: 1, bonus: 0, production: 0}], winner: 0, context: 'proposal', noRecipient: false},
+  {key: 'seq-quest-0', family: 'sequel', label: 'Chairman quest 0/3', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, production: 4}, {agenda: 1, bonus: 0, production: 0}], winner: 0, context: 'applied', noRecipient: false, quest: {progress: [0, 0]}},
+  {key: 'seq-quest-2', family: 'sequel', label: 'Chairman quest 2/3 — partial progress', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, production: 4}, {agenda: 1, bonus: 0, production: 0}], winner: 0, context: 'applied', noRecipient: false, quest: {progress: [2, 1]}},
+  {key: 'seq-quest-done', family: 'sequel', label: 'Chairman quest completed', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, production: 4}, {agenda: 1, bonus: 0, production: 0}], winner: 0, context: 'applied', noRecipient: false, quest: {progress: [3, 1], completedBy: 0}},
+  // ── LIVE (Climate Research): real games from the engine-generated fixtures.
+  {key: 'seq-live-vote', family: 'sequel', label: 'Live: the vote', viewer: 0,
+    seats: [{agenda: 2, bonus: 0, production: 4}, {agenda: 5, bonus: 0, production: 1}], winner: 0, context: 'proposal', noRecipient: false,
+    live: 'parliament-climate-vote', liveNote: 'Climate Research up for the vote: your heat production now and if you win, and the cards each result would draw'},
+  {key: 'seq-live-enact', family: 'sequel', label: 'Live: the raise and the draw', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, production: 4}, {agenda: 1, bonus: 0, production: 2}], winner: 0, context: 'resolving', noRecipient: false,
+    live: 'parliament-climate-enact', liveNote: 'Your take stands inside the enactment stage: the raise is recorded, the Greens answered, the cards are owed'},
+  // RED wins this one (the fixture's seat order rotates in generation 2, and
+  // the dev loader opens the seat that opens the generation).
+  {key: 'seq-live-recap', family: 'sequel', label: 'Live: the results of the generation', viewer: 1,
+    seats: [{agenda: 3, bonus: 0, production: 4}, {agenda: 1, bonus: 0, production: 2}], winner: 1, context: 'applied', noRecipient: false,
+    live: 'parliament-climate-recap', liveNote: 'Generation 2: open the Parliament — the card moves into the government and the results name both halves'},
   // ── THE WINNER-TILE FAMILY (everyone's supply resource by influence + the winner's tile) ──
   // Test player A is the viewer; B wins unless the scenario says otherwise (a winner's Agenda step would move A's influence).
   {key: 'tile-influence-0', family: 'winner-tile', label: 'Influence 0 — nothing is paid', viewer: 0, seats: [{agenda: 0, bonus: 0}, {agenda: 5, bonus: 0}], winner: 1, context: 'applied', noRecipient: false},
@@ -564,6 +628,7 @@ const DEFAULT_SCENARIO_OF: Readonly<Record<PgFamily, number>> = {
   'counted': SCENARIOS.findIndex((s) => s.key === 'counted-below-cap'),
   'counted-tags': SCENARIOS.findIndex((s) => s.key === 'grid-below-cap'),
   'winner-tile': SCENARIOS.findIndex((s) => s.key === 'tile-influence-3'),
+  'sequel': SCENARIOS.findIndex((s) => s.key === 'seq-4-to-6'),
 };
 const DEFAULT_SCENARIO = DEFAULT_SCENARIO_OF.influence;
 
@@ -586,7 +651,7 @@ const SIZES = [
 ] as const;
 
 /** One seat's payout at the enactment: what it is owed, at which influence (and count), and why it does not land (if it does not). */
-type SeatPayout = {amount: number, influence: number, skipped?: string, count?: ResolutionCountModel, uncapped?: number};
+type SeatPayout = {amount: number, influence: number, skipped?: string, count?: ResolutionCountModel, uncapped?: number, total?: {before: number, after: number}};
 
 /** One card of a seat's synthetic tableau, with the shared predicate's verdict and what it contributed. */
 type TableauCardRow = {name: CardName, counts: boolean, reason: string, units: number};
@@ -622,7 +687,7 @@ export default defineComponent({
   name: 'ConsoleResolutionsPlayground',
   components: {
     PremiumCard, GamepadGlyph, PlayerCube, ConsoleInfluenceYield, ConsoleResolutionStatus, ConsoleResolutionAside, ConsoleCardRulesPanel,
-    ConsoleSourceDock, ConsolePlayedTargetStep, PremiumMechanicsPanel, PremiumCountGlyph, ConsoleWinnerReward,
+    ConsoleSourceDock, ConsolePlayedTargetStep, PremiumMechanicsPanel, PremiumCountGlyph, ConsoleWinnerReward, ConsolePartyReaction,
   },
   props: {
     /** Inside the playground stand (the stand owns the chrome and the scroll). */
@@ -666,6 +731,11 @@ export default defineComponent({
     },
     /** The scenario family the selected resolution reads (a counted term → the family of what it counts). */
     family(): PgFamily {
+      // A SEQUENTIAL resolution first: its second half reads what its first
+      // half leaves behind, which is a different instrument from a count.
+      if (this.sequelEffect !== undefined) {
+        return 'sequel';
+      }
       const count = this.countEffect?.count;
       if (count !== undefined) {
         return resolutionCountKind(count.id).kind === 'tags' ? 'counted-tags' : 'counted';
@@ -708,6 +778,7 @@ export default defineComponent({
       switch (this.family) {
       case 'counted': return 'Result by cards and influence';
       case 'counted-tags': return 'Result by tags and influence';
+      case 'sequel': return 'Result by influence, then by production';
       default: return 'Influence-scaled payout';
       }
     },
@@ -760,6 +831,14 @@ export default defineComponent({
     },
     contextLabel(): string {
       return CONTEXT_LABEL[this.context];
+    },
+    /** The SEQUENTIAL part of the selected resolution (Climate Research's draw), if any. */
+    sequelEffect(): InfluenceScaledEffect | undefined {
+      return this.selected?.scaled?.find((e) => e.sequel !== undefined);
+    },
+    /** The ruling party's ANSWER to the viewer's readings — the second law of the same enactment. */
+    reactions(): Array<PartyReactionReading> {
+      return this.viewerSeatIndex === undefined ? [] : partyReactionsOf(this.selected, this.yields);
     },
     /** The first influence-scaled part paid onto a card — what the picker demonstrates. */
     pickerEffect(): InfluenceScaledEffect | undefined {
@@ -939,6 +1018,24 @@ export default defineComponent({
         out.push(tile);
       }
       for (const effect of r.scaled ?? []) {
+        if (effect.sequel !== undefined) {
+          // THE DRAW's record: the amount, the total it was divided from
+          // (before -> after) and what actually left the deck.
+          for (const i of SEATS) {
+            const payout = this.payoutAt(effect, i);
+            if (payout === undefined) {
+              continue;
+            }
+            const common = {
+              player: TEST_PLAYERS[i].color, step: effect.id, part: 'effect' as const, effect: effect.id,
+              amount: payout.amount, influence: payout.influence, total: payout.total,
+            };
+            out.push(payout.skipped === undefined ?
+              {...common, kind: 'cards' as const, drawn: payout.amount} :
+              {...common, kind: 'skipped' as const, reason: payout.skipped});
+          }
+          continue;
+        }
         if (effect.unit.kind === 'production') {
           // THE PRODUCTION RECORD the server keeps: the amount, every input
           // (B, the counted cards, I, the sum before the cap) and before → after.
@@ -950,7 +1047,7 @@ export default defineComponent({
             }
             const before = this.seats[i].production ?? 0;
             const common = {
-              player: TEST_PLAYERS[i].color, step: effect.id, effect: effect.id, production: resource, amount: payout.amount, influence: payout.influence,
+              player: TEST_PLAYERS[i].color, step: effect.id, part: 'effect' as const, effect: effect.id, production: resource, amount: payout.amount, influence: payout.influence,
               count: payout.count?.count, counted: payout.count?.cards, countedUnits: payout.count?.units, uncapped: payout.uncapped,
             };
             out.push(payout.skipped === undefined ?
@@ -1184,6 +1281,12 @@ export default defineComponent({
       if (count !== undefined) {
         model.counts = [count];
       }
+      // …and the PRODUCTION a sequential part divides, exactly as the server
+      // model carries it (only the resource some declaration names).
+      const total = this.sequelEffect?.sequel?.total;
+      if (total !== undefined && total.kind === 'production') {
+        model.production = {[total.resource]: this.seats[i].production ?? 0};
+      }
       return model;
     },
     /** The owner's side of the tag-activity rule for a synthetic tableau (Odyssey keeps events face up). */
@@ -1213,6 +1316,19 @@ export default defineComponent({
       const seat = this.seats[i];
       const agenda = this.winner === i ? Math.min(AGENDA_TRACK.length, seat.agenda + 1) : seat.agenda;
       const influence = influenceAtAgenda(agenda) + seat.bonus;
+      const term = effect.sequel;
+      if (term !== undefined) {
+        // A SEQUENTIAL part: the total this resolution's earlier part leaves
+        // behind, then the ONE division. Influence is already inside the total.
+        const before = seat.production ?? 0;
+        const source = sequelSourceOf(this.selected, effect);
+        const after = Math.max(0, before + (source === undefined ? 0 : scaledAmount(source, influence)));
+        const amount = sequelAmount(effect, after);
+        const total = {before, after};
+        return amount <= 0 ?
+          {amount: 0, influence, total, skipped: sequelPresentation(term).skipReasonKey} :
+          {amount, influence, total};
+      }
       if (effect.count !== undefined) {
         // A COUNTED term: the seat's own count through the shared predicate, then the ONE formula.
         const count = this.countAt(i);
@@ -1240,10 +1356,12 @@ export default defineComponent({
       if (i === undefined || payout === undefined) {
         return referenceYield(effect);
       }
-      const reading = payout.count !== undefined ?
-        fixedYield(effect, 'resolving', payout.amount, payout.influence,
-          {count: payout.count.count, counted: payout.count.cards, countedUnits: payout.count.units, uncapped: payout.uncapped}) :
-        resolvingYieldOf(effect, payout.amount, this.model, TEST_PLAYERS[i].color);
+      const reading = payout.total !== undefined ?
+        fixedSequelYield(effect, 'resolving', payout.amount, payout.total, {influence: payout.influence}) :
+        payout.count !== undefined ?
+          fixedYield(effect, 'resolving', payout.amount, payout.influence,
+            {count: payout.count.count, counted: payout.count.cards, countedUnits: payout.count.units, uncapped: payout.uncapped}) :
+          resolvingYieldOf(effect, payout.amount, this.model, TEST_PLAYERS[i].color);
       return payout.skipped === undefined ? reading : {...reading, skipped: payout.skipped};
     },
     // ── the pad ────────────────────────────────────────────────────────

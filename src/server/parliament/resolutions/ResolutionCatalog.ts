@@ -29,6 +29,7 @@ import {AQUIFER_CONTEST} from './greens/AquiferContest';
 import {ARCHITECTURE_AWARD} from './marsFirst/ArchitectureAward';
 import {BIODOME_CONTEST} from './greens/BiodomeContest';
 import {CENTRAL_POWER_GRID} from './industrialists/CentralPowerGrid';
+import {CLIMATE_RESEARCH} from './greens/ClimateResearch';
 
 /** A DUMMY prints NO effect row: the face states «no effect of its own» as a
  *  quiet caption from the `dummy` flag, never as the card's centrepiece.
@@ -421,13 +422,25 @@ const DEV_SCIENCE: ResolutionDefinition = {
  * party's directory — `greens/AquiferContest.ts` is the template), the
  * dummies still standing in for the rest of the 48 (a replaced dummy stays
  * with `copies: 0` for older saves), and the never-dealt test / development
- * resolutions. The deck keeps 12 dealt cards, two per party.
+ * resolutions.
+ *
+ * THE DECK IS THE SUM OF WHAT IS SHIPPED, never a fixed size and never a
+ * quota per party. Iteration 0's prototype happened to deal two dummies per
+ * party; as real resolutions arrive they replace a dummy WHERE ONE IS LEFT
+ * (Aquifer Contest and Biodome Contest took both Greens slots) and simply ADD
+ * a card where none is (Climate Research is the Greens' third, so the pool
+ * grows to 13). Nothing may be evicted to preserve an old total: a party's
+ * share of the deck is how many of its resolutions are implemented, and the
+ * voting area's own rule — one resolution per party among the three offered
+ * (`dealForVotingArea`) — is what keeps the offer legal, not the deck's
+ * composition.
  */
 export const REDUX_RESOLUTION_CATALOG = new ResolutionCatalog([
   AQUIFER_CONTEST,
   ARCHITECTURE_AWARD,
   BIODOME_CONTEST,
   CENTRAL_POWER_GRID,
+  CLIMATE_RESEARCH,
   ...DUMMIES.map(dummy),
   TEST_CHOICE,
   DEV_IMMEDIATE,

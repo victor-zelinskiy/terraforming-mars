@@ -1,6 +1,7 @@
 import {expect} from 'chai';
 import {CardName} from '../../src/common/cards/CardName';
 import {ExternalDrawIntake} from '../../src/server/deferredActions/ExternalDrawIntake';
+import {externalDrawCardCause} from '../../src/common/models/ExternalDrawPromptModel';
 import {SolarLogistics} from '../../src/server/cards/promo/SolarLogistics';
 import {Asteroid} from '../../src/server/cards/base/Asteroid';
 import {Game} from '../../src/server/Game';
@@ -30,10 +31,13 @@ describe('ExternalDrawIntake', () => {
       intakeId: intake.id,
       count: 2,
       remaining: 2,
-      effectCard: CardName.SOLAR_LOGISTICS,
-      effectCardOwner: 'you',
-      initiator: player2.color,
-      triggerCard: CardName.ASTEROID,
+      cause: {
+        kind: 'card',
+        effectCard: CardName.SOLAR_LOGISTICS,
+        effectCardOwner: 'you',
+        initiator: player2.color,
+        triggerCard: CardName.ASTEROID,
+      },
     });
   });
 
@@ -79,9 +83,13 @@ describe('ExternalDrawIntake', () => {
     expect(restoredIntake.id).eq(intake.id);
     expect(restoredIntake.count).eq(2);
     expect(restoredIntake.cards).has.length(1);
-    expect(restoredIntake.effectCard).eq(CardName.SOLAR_LOGISTICS);
-    expect(restoredIntake.initiator).eq(player2.color);
-    expect(restoredIntake.triggerCard).eq(CardName.ASTEROID);
+    expect(restoredIntake.cause).deep.eq({
+      kind: 'card',
+      effectCard: CardName.SOLAR_LOGISTICS,
+      effectCardOwner: 'you',
+      initiator: player2.color,
+      triggerCard: CardName.ASTEROID,
+    });
     // The prompt was re-derived (deferred actions are not serialized).
     runAllActions(restored);
     const prompt = cast(restoredPlayer.getWaitingFor(), SelectCard);
@@ -115,11 +123,11 @@ describe('ExternalDrawIntake', () => {
     runAllActions(game);
     expect(player.pendingCardIntakes).has.length(2);
     const first = cast(player.getWaitingFor(), SelectCard);
-    expect(first.externalDrawPrompt?.effectCard).eq(CardName.SOLAR_LOGISTICS);
+    expect(externalDrawCardCause(first.externalDrawPrompt!)?.effectCard).eq(CardName.SOLAR_LOGISTICS);
     player.process({type: 'card', cards: [first.cards[0].name]});
     runAllActions(game);
     const second = cast(player.getWaitingFor(), SelectCard);
-    expect(second.externalDrawPrompt?.effectCard).eq(CardName.ASTEROID);
+    expect(externalDrawCardCause(second.externalDrawPrompt!)?.effectCard).eq(CardName.ASTEROID);
     expect(second.externalDrawPrompt?.count).eq(2);
   });
 
@@ -137,7 +145,7 @@ describe('ExternalDrawIntake', () => {
     // NO runAllActions here: the queue legitimately PAUSED on the re-issued
     // prompt (the test helper's runAll would pop the next action OVER it).
     const next = cast(player.getWaitingFor(), SelectCard);
-    expect(next.externalDrawPrompt?.effectCard, 'the unfinished batch keeps the floor').eq(CardName.SOLAR_LOGISTICS);
+    expect(externalDrawCardCause(next.externalDrawPrompt!)?.effectCard, 'the unfinished batch keeps the floor').eq(CardName.SOLAR_LOGISTICS);
     expect(next.externalDrawPrompt?.remaining).eq(1);
   });
 

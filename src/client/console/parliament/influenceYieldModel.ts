@@ -19,9 +19,10 @@ import {getCard} from '@/client/cards/ClientCardManifest';
 import {IClientResolution} from '@/common/parliament/IClientResolution';
 import {ParliamentModel, ParliamentPlayerModel, ParliamentEnactOutcomeModel} from '@/common/models/ParliamentModel';
 import {
-  fixedYield, InfluenceScaledEffect, InfluenceYield, influenceYield, InfluenceYieldContext, referenceYield, winnerForecastYield,
+  fixedSequelYield, fixedYield, InfluenceScaledEffect, InfluenceSequelTerm, InfluenceYield, influenceYield, InfluenceYieldContext,
+  referenceYield, scaledAmount, sequelYield, winnerForecastYield,
 } from '@/common/parliament/influenceScaling';
-import {influenceAtAgenda} from '@/common/parliament/ParliamentTypes';
+import {AGENDA_TRACK, influenceAtAgenda} from '@/common/parliament/ParliamentTypes';
 import {countOf, ResolutionCountId} from '@/common/parliament/resolutionCounts';
 import {Tag} from '@/common/cards/Tag';
 import {CountedObjectGlyph} from '@/client/components/premiumCard/premiumCardIcons';
@@ -100,14 +101,62 @@ export function countedContributions(y: InfluenceYield, nameOf: (card: CardName)
 /** The caption under a reading — WHICH question the number answers (English keys; `params` for the step). */
 export function yieldCaptionOf(y: InfluenceYield): {key: string, params?: ReadonlyArray<string>} | undefined {
   switch (y.context) {
-  // An effect that COUNTS the tableau is a preliminary reading of two things
-  // that can still change before the enactment: it says so, conditionally.
-  case 'estimate': return y.effect.count !== undefined ? {key: 'If enacted now'} : {key: 'By your current influence'};
+  // An effect that COUNTS the tableau — or DIVIDES a total that can still move
+  // before the enactment — is a preliminary reading: it says so, conditionally.
+  case 'estimate': return y.effect.count !== undefined || y.effect.sequel !== undefined ?
+    {key: 'If enacted now'} : {key: 'By your current influence'};
   case 'forecast': return y.agendaStep === undefined ? {key: 'If you win the vote'} : {key: 'If you win — Agenda step ${0}', params: [String(y.agendaStep)]};
   case 'resolving': return y.skipped !== undefined ? {key: y.skipped} : {key: 'This payout'};
   case 'applied': return y.skipped !== undefined ? {key: y.skipped} : {key: 'Received'};
   case 'reference': return undefined;
   }
+}
+
+/**
+ * THE SEQUENTIAL TERM'S PRESENTATION — how «1 card for every 3 steps of heat
+ * production» is drawn and named. The unit of the TOTAL is an ordinary
+ * resource icon in its production frame, so the block can never draw the heat
+ * CUBE where the rule means production.
+ */
+export function sequelTotalIcon(term: InfluenceSequelTerm): YieldIcon {
+  switch (term.total.kind) {
+  case 'cardResource': return {family: 'card-resource', resource: term.total.resource};
+  case 'stock': return {family: 'resource', resource: term.total.resource, production: false};
+  case 'production': return {family: 'resource', resource: term.total.resource, production: true};
+  case 'cards': return {family: 'cards'};
+  }
+}
+
+/**
+ * HOW A SEQUENTIAL TERM IS NAMED — one entry per declared term, exactly as
+ * `yieldCountPresentation` names a counted one: the i18n key of the SERVER's
+ * own skip reason when the total is below the divisor. A surface that explains
+ * the zero reads the sentence the game would record, never one of its own.
+ */
+export function sequelPresentation(term: InfluenceSequelTerm): {skipReasonKey: string} {
+  if (term.total.kind === 'production' && term.total.resource === Resource.HEAT && term.per === 3) {
+    return {skipReasonKey: 'Heat production below 3 — no cards'};
+  }
+  return {skipReasonKey: 'Nothing is owed'};
+}
+
+/** The effect a sequel term points BACK at, inside the same resolution. */
+export function sequelSourceOf(resolution: IClientResolution | undefined, effect: InfluenceScaledEffect): InfluenceScaledEffect | undefined {
+  const after = effect.sequel?.after;
+  return after === undefined ? undefined : resolution?.scaled?.find((e) => e.id === after);
+}
+
+/**
+ * The seat's CURRENT total for a sequel term — the server's own reading
+ * (`ParliamentPlayerModel.production`), never a number found elsewhere.
+ * Undefined when the model does not carry it: the surface then falls back to
+ * the formula rather than inventing a zero.
+ */
+export function sequelTotalOf(seat: ParliamentPlayerModel | undefined, term: InfluenceSequelTerm): number | undefined {
+  if (seat === undefined || term.total.kind !== 'production') {
+    return undefined;
+  }
+  return seat.production?.[term.total.resource];
 }
 
 /** The seat of `viewer` on the table, if it takes part. */
@@ -133,6 +182,28 @@ export function voteYieldsOf(resolution: IClientResolution, model: ParliamentMod
   for (const effect of resolution.scaled ?? []) {
     if (seat === undefined) {
       out.push(referenceYield(effect));
+      continue;
+    }
+    // A SEQUENTIAL part reads the total an EARLIER part of the same resolution
+    // will move — the personal answer to «how many cards, then?». Both the
+    // estimate and the «if you win» forecast project the earlier part first,
+    // so influence is counted exactly once, inside the total.
+    const term = effect.sequel;
+    if (term !== undefined) {
+      const before = sequelTotalOf(seat, term);
+      const source = sequelSourceOf(resolution, effect);
+      if (before === undefined || source === undefined) {
+        out.push(referenceYield(effect));
+        continue;
+      }
+      const estimate = sequelYield(effect, 'estimate', before, scaledAmount(source, seat.influence), {influence: seat.influence});
+      out.push(estimate);
+      const step = Math.min(AGENDA_TRACK.length, Math.max(0, seat.agenda) + 1);
+      const winnerInfluence = influenceAtAgenda(step) + Math.max(0, seat.influence - influenceAtAgenda(seat.agenda));
+      const forecast = sequelYield(effect, 'forecast', before, scaledAmount(source, winnerInfluence), {influence: winnerInfluence, agendaStep: step});
+      if (forecast.amount !== estimate.amount) {
+        out.push(forecast);
+      }
       continue;
     }
     // A counted term is the SERVER's count for this seat (number + cards). A
@@ -164,19 +235,43 @@ export function voteYieldsOf(resolution: IClientResolution, model: ParliamentMod
  * reason (`skipped`), so no surface can print «received +3» for three animals
  * that were forfeited.
  */
-export function enactedYieldsOf(resolution: IClientResolution, model: ParliamentModel | undefined, viewer: Color | undefined): Array<InfluenceYield> {
+export function enactedYieldsOf(
+  resolution: IClientResolution,
+  model: ParliamentModel | undefined,
+  viewer: Color | undefined,
+  opts?: {
+    /**
+     * The chain is STILL RESOLVING (the political phase is on screen): the
+     * same recorded numbers, read as «this payout» rather than «received».
+     * A finished enactment reads `applied` — history is never re-labelled.
+     */
+    live?: boolean,
+  },
+): Array<InfluenceYield> {
   const out: Array<InfluenceYield> = [];
+  const context: 'resolving' | 'applied' = opts?.live === true ? 'resolving' : 'applied';
   const outcomes = model?.phase?.outcomes ?? model?.lastPhase?.outcomes ?? [];
   for (const effect of resolution.scaled ?? []) {
     const applied = viewer === undefined ? undefined : outcomes.find((o) => o.player === viewer && o.effect === effect.id);
+    // A SEQUENTIAL part's record carries the TOTAL it was divided from, as the
+    // server read it before and after the earlier part. It is never recomputed
+    // from today's production — and never from «before + influence».
+    if (effect.sequel !== undefined && applied?.total !== undefined) {
+      const reading = fixedSequelYield(effect, context, applied.amount ?? 0, applied.total, {
+        influence: applied.influence,
+        delivered: applied.drawn,
+      });
+      out.push(applied.kind === 'skipped' ? {...reading, skipped: applied.reason ?? 'Skipped'} : reading);
+      continue;
+    }
     // The RECORDED inputs travel as recorded (B, the counted cards, the sum
     // before the cap) — the past is never recomputed from today's tableau.
     const recorded = applied === undefined ? undefined :
       {count: applied.count, counted: applied.counted, countedUnits: applied.countedUnits, uncapped: applied.uncapped};
     if (applied !== undefined && applied.kind === 'skipped') {
-      out.push({...fixedYield(effect, 'applied', applied.amount ?? 0, applied.influence, recorded), skipped: applied.reason ?? 'Skipped'});
+      out.push({...fixedYield(effect, context, applied.amount ?? 0, applied.influence, recorded), skipped: applied.reason ?? 'Skipped'});
     } else if (applied !== undefined && applied.amount !== undefined) {
-      out.push(fixedYield(effect, 'applied', applied.amount, applied.influence, recorded));
+      out.push(fixedYield(effect, context, applied.amount, applied.influence, recorded));
     } else {
       out.push(referenceYield(effect));
     }

@@ -637,13 +637,25 @@
                            reading, under the words it puts a number to. The
                            card's graphic beside it already prints the formula,
                            so the block draws the readings alone. -->
-                      <ConsoleInfluenceYield v-if="voteInfo.yields.length > 0"
-                                             class="con-parl__info-yield"
-                                             :yields="voteInfo.yields"
-                                             :formula="false"
-                                             :note="voteInfo.yieldNote"
-                                             size="compact"
-                                             data-parl-vote-yield />
+                      <!-- The viewer's numbers and, beside them when the column
+                           has the width for it, the ANSWER of the party the card
+                           brings to power — a second law, stated as such. One
+                           wrapping row: the block's height is what the panel
+                           budgets, and a stacked chip overran it at 1080. -->
+                      <div v-if="voteInfo.yields.length > 0 || voteInfo.reactions.length > 0" class="con-parl__info-readings">
+                        <ConsoleInfluenceYield v-if="voteInfo.yields.length > 0"
+                                               class="con-parl__info-yield"
+                                               :yields="voteInfo.yields"
+                                               :formula="false"
+                                               :note="voteInfo.yieldNote"
+                                               size="compact"
+                                               data-parl-vote-yield />
+                        <ConsolePartyReaction v-for="r in voteInfo.reactions" :key="r.reaction.id"
+                                              class="con-parl__info-reaction"
+                                              :reading="r"
+                                              size="compact"
+                                              data-parl-vote-reaction />
+                      </div>
                     </div>
                     <span v-else-if="voteInfo.ownMechanics === undefined" class="con-parl__info-none" data-parl-vote-late>{{ $t('No effect of its own') }}</span>
                   </div>
@@ -785,6 +797,12 @@
       <div class="con-parl__enact-hero">
         <div class="con-parl__enact-card" data-parl-enact-hero></div>
         <ConsoleInfluenceYield v-if="enactYields.length > 0" class="con-parl__enact-yield" :yields="enactYields" size="hero" data-parl-enact-yield data-parl-enact-item />
+        <ConsolePartyReaction v-for="r in enactReactions" :key="r.reaction.id"
+                              class="con-parl__enact-reaction"
+                              :reading="r"
+                              size="normal"
+                              data-parl-enact-reaction
+                              data-parl-enact-item />
       </div>
       <div class="con-parl__enact-zone" data-parl-enact-item>
         <div class="con-parl__embed con-parl__embed--enact" data-embed-slot="parliament-enact"></div>
@@ -826,6 +844,7 @@ import {gsap} from 'gsap';
 import {Color} from '@/common/Color';
 import {Message} from '@/common/logs/Message';
 import {PartyName} from '@/common/turmoil/PartyName';
+import {Resource} from '@/common/Resource';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {PlayerInputModel, SelectCardModel, SelectPaymentModel, VotePaymentMeta} from '@/common/models/PlayerInputModel';
 import {InputResponse} from '@/common/inputs/InputResponse';
@@ -834,12 +853,15 @@ import {PARLIAMENT_VOTE_COST, PARTY_EFFECT_DELEGATES as PARTY_EFFECT_THRESHOLD, 
 import {IClientResolution} from '@/common/parliament/IClientResolution';
 import {InfluenceYield} from '@/common/parliament/influenceScaling';
 import {
-  cardResourcePluralKey, noRecipientNoteOf, productionResourceLabelKey, resolvingYieldOf, scaledEffectForCardResource, scaledEffectOf, voteYieldsOf,
+  cardResourcePluralKey, enactedYieldsOf, noRecipientNoteOf, productionResourceLabelKey, resolvingYieldOf, scaledEffectForCardResource, scaledEffectOf, voteYieldsOf,
   yieldCountPresentation,
 } from '@/client/console/parliament/influenceYieldModel';
 import {runResourceTransfers} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import ConsoleInfluenceYield from '@/client/components/console/parliament/ConsoleInfluenceYield.vue';
 import ConsoleWinnerReward from '@/client/components/console/parliament/ConsoleWinnerReward.vue';
+import ConsolePartyReaction from '@/client/components/console/parliament/ConsolePartyReaction.vue';
+import {externalDrawTakeOf} from '@/client/console/externalDraw/consoleExternalDraw';
+import {PartyReactionReading, partyReactionsOf, viewerHasSeat} from '@/client/console/parliament/partyReactionModel';
 import {WinnerRewardReading, winnerRewardReadingOf, winnerRewardTableOf} from '@/client/console/parliament/winnerRewardModel';
 import ConsoleWsHead from '@/client/components/console/foundation/ConsoleWsHead.vue';
 import PlayerCube from '@/client/components/PlayerCube.vue';
@@ -1017,6 +1039,12 @@ type VoteInfo = {
    * nothing scales; the formula alone for a viewer without a seat.
    */
   yields: ReadonlyArray<InfluenceYield>;
+  /**
+   * …and what the party this card brings to power ANSWERS to them (the
+   * Greens' M€ production for a heat-production raise). Its own law, so its
+   * own block — never folded into the numbers above.
+   */
+  reactions: ReadonlyArray<PartyReactionReading>;
   /** The honest note when the viewer has no card that could take the yield (English key). */
   yieldNote: string | undefined;
   /** The WINNER's tile, read for this moment (`winnerRewardModel`) — absent for a resolution without one. */
@@ -1057,7 +1085,7 @@ const ENACT_MOVE_MS = 620;
 
 export default defineComponent({
   name: 'ConsoleParliamentSection',
-  components: {ConsoleWsHead, PlayerCube, GamepadGlyph, PremiumMechanicsPanel, ConsolePartyPlaque, ConsolePartyFormula, ConsoleInfluenceYield, ConsoleWinnerReward},
+  components: {ConsoleWsHead, PlayerCube, GamepadGlyph, PremiumMechanicsPanel, ConsolePartyPlaque, ConsolePartyFormula, ConsoleInfluenceYield, ConsoleWinnerReward, ConsolePartyReaction},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     myTurn: {type: Boolean, default: false},
@@ -1199,6 +1227,16 @@ export default defineComponent({
       return this.enactPrompt !== undefined;
     },
     /**
+     * The live ask is the mandatory TAKE of the cards the resolution drew
+     * (Turmoil Redux — Climate Research): the premium take surface is hosted
+     * in this stage's own zone, so the stage names itself «Получение» and
+     * draws no picker of its own. The server's `externalDrawPrompt` marker
+     * decides — never a resolution name, never a title.
+     */
+    enactDrawStanding(): boolean {
+      return externalDrawTakeOf(this.enactPrompt) !== undefined;
+    },
+    /**
      * THE HONEST WAIT of every OTHER seat while the enacted resolution's effect
      * asks someone: who, and what kind of answer (the asked seat's live input
      * type, read by the server) — never a step name, never a resolution name
@@ -1217,16 +1255,34 @@ export default defineComponent({
       default: return translateTextWithParams('Waiting for ${0} to decide', [who]);
       }
     },
-    /** The payout being made: the SERVER's amount (the pick's own marker) read through the resolution's scaled rule. */
+    /**
+     * THE PAYOUT ON THE STAGE. A card-resource pick states the SERVER's own
+     * amount (the pick's own marker); every other ask — a chained effect whose
+     * halves are already recorded (Climate Research's raise and its draw) —
+     * reads the phase's OWN outcomes for this seat, so the stage shows the
+     * fixed parameters of the chain being resolved and never re-adds the
+     * influence to a production the server has already raised.
+     */
     enactYields(): Array<InfluenceYield> {
       const wf = this.enactPrompt as SelectCardModel | undefined;
       const id = wf?.choiceContext?.source?.resolution;
-      const meta = wf?.resourceGainPrompt;
-      if (id === undefined || meta === undefined) {
+      if (id === undefined) {
         return [];
       }
-      const effect = scaledEffectForCardResource(getResolution(id), meta.cardResource);
-      return effect === undefined ? [] : [resolvingYieldOf(effect, meta.amount, this.model, this.viewerColor)];
+      const resolution = getResolution(id);
+      const meta = wf?.resourceGainPrompt;
+      if (meta !== undefined) {
+        const effect = scaledEffectForCardResource(resolution, meta.cardResource);
+        if (effect !== undefined) {
+          return [resolvingYieldOf(effect, meta.amount, this.model, this.viewerColor)];
+        }
+      }
+      return resolution === undefined ? [] : enactedYieldsOf(resolution, this.model, this.viewerColor, {live: true});
+    },
+    /** …and the ruling party's answer to it, on the same stage. */
+    enactReactions(): Array<PartyReactionReading> {
+      const id = (this.enactPrompt as SelectCardModel | undefined)?.choiceContext?.source?.resolution;
+      return id === undefined ? [] : this.reactionsFor(getResolution(id), this.enactYields);
     },
     /** The vote mode stands over the overview. */
     voteUp(): boolean {
@@ -1474,6 +1530,7 @@ export default defineComponent({
         ownMechanics: own === undefined || own.textOnly ? undefined : own,
         ownParts: parts,
         yields: resolution === undefined ? [] : voteYieldsOf(resolution, this.model, this.viewerColor),
+        reactions: this.reactionsFor(resolution, resolution === undefined ? [] : voteYieldsOf(resolution, this.model, this.viewerColor)),
         yieldNote: resolution === undefined ? undefined : this.yieldNoteFor(resolution),
         winnerReward: winnerRewardReadingOf(resolution, this.model, winnerRewardTableOf(this.playerView.game)),
         questMechanics: quest === undefined || quest.textOnly ? undefined : quest,
@@ -2056,7 +2113,11 @@ export default defineComponent({
       switch (stage) {
       case 'paying': return 'Payment';
       case 'seat': return 'Seat';
-      case 'enact': return 'Payout';
+      // The enactment's tail names the STAGE the seat is actually in: a
+      // payout pick, or the mandatory take of the cards the resolution drew
+      // (Climate Research). Read from the live prompt's own marker, never a
+      // resolution name — one word, and only the tail moves.
+      case 'enact': return this.enactDrawStanding ? 'Intake' : 'Payout';
       default: return '';
       }
     },
@@ -2703,6 +2764,20 @@ export default defineComponent({
         ]);
         return outcome.influence === undefined ? main : `${main} — ${translateTextWithParams('influence ${0}', [String(outcome.influence)])}`;
       }
+      case 'cards': {
+        // «player1: 2 карты (производство тепла 4 → 6)» — the result, then the
+        // total it was divided from, as the SERVER read it. A deck that could
+        // not supply the whole draw names both numbers; nothing is silent.
+        const amount = outcome.amount ?? 0;
+        const drawn = outcome.drawn ?? amount;
+        const total = outcome.total;
+        const unit = translateText(productionResourceLabelKey(Resource.HEAT));
+        const main = drawn < amount ?
+          translateTextWithParams('${0}: ${1} of ${2} card(s) — the deck ran out', [who, String(drawn), String(amount)]) :
+          translateTextWithParams('${0}: ${1} card(s)', [who, String(amount)]);
+        return total === undefined ? main :
+          `${main} — ${translateTextWithParams('${0} production ${1} → ${2}', [unit, String(total.before), String(total.after)])}`;
+      }
       case 'ocean':
         return translateTextWithParams('${0} placed an ocean as the winner of the vote', [who]);
       case 'greenery': {
@@ -2722,6 +2797,14 @@ export default defineComponent({
         return translateTextWithParams('${0}: ${1} — skipped: ${2}', [who, translateText(winnerPart ? 'Winner of the vote' : 'Resolution effect'), translateText(outcome.reason ?? '')]);
       }
       }
+    },
+    /**
+     * The ruling party's answer to a resolution's readings — only for a seat
+     * that takes part (a spectator is told nothing about a table they are not
+     * at), and only where the party's DECLARED reaction says there is one.
+     */
+    reactionsFor(resolution: IClientResolution | undefined, yields: ReadonlyArray<InfluenceYield>): Array<PartyReactionReading> {
+      return viewerHasSeat(this.model, this.viewerColor) ? partyReactionsOf(resolution, yields) : [];
     },
     /** The honest recipient note for the vote surface: the viewer has no card that could hold the yield. */
     yieldNoteFor(resolution: IClientResolution): string | undefined {

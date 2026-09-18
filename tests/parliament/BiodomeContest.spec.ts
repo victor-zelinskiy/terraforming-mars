@@ -130,11 +130,15 @@ describe('BiodomeContest', () => {
       expect(oldDummy?.immediateSteps).is.undefined;
       expect(oldDummy?.winnerSteps).is.undefined;
       const dealt = REDUX_RESOLUTION_CATALOG.dealtInstances(() => true);
-      expect(dealt).has.length(12);
       expect(dealt).includes(BIODOME);
       expect(dealt).not.includes(resolutionInstanceId(dummyResolutionId(PartyName.GREENS, 1), 0));
+      // The Greens' share of the deck is however many of THEIR resolutions are
+      // implemented — the prototype's «two per party» was never a rule.
       expect(dealt.filter((instance) => REDUX_RESOLUTION_CATALOG.ofInstance(instance).party === PartyName.GREENS).sort())
-        .deep.eq([resolutionInstanceId(AQUIFER_CONTEST_ID, 0), BIODOME].sort());
+        .deep.eq(REDUX_RESOLUTION_CATALOG.all()
+          .filter((r) => r.party === PartyName.GREENS && r.copies > 0)
+          .map((r) => resolutionInstanceId(r.id, 0)).sort());
+      expect(dealt).includes(resolutionInstanceId(AQUIFER_CONTEST_ID, 0));
       expect(dealt.filter((instance) => instance === BIODOME), 'one physical copy').has.length(1);
       const codes = REDUX_RESOLUTION_CATALOG.all().map((r) => r.code).filter((c): c is string => c !== undefined);
       expect(new Set(codes).size).eq(codes.length);

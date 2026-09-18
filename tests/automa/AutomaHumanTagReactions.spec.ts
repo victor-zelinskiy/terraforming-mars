@@ -172,10 +172,13 @@ describe('AutomaHumanTagReactions (bot flips → human reactors)', () => {
       expect(human.pendingCardIntakes).has.length(1);
       const intake = human.pendingCardIntakes[0];
       expect(intake.cards).has.length(1);
-      expect(intake.effectCard).eq(CardName.SOLAR_LOGISTICS);
-      expect(intake.effectCardOwner).eq('you');
-      expect(intake.initiator).eq(bot.color);
-      expect(intake.triggerCard).eq(CardName.ASTEROID);
+      expect(intake.cause).deep.eq({
+        kind: 'card',
+        effectCard: CardName.SOLAR_LOGISTICS,
+        effectCardOwner: 'you',
+        initiator: bot.color,
+        triggerCard: CardName.ASTEROID,
+      });
       // The mandatory take prompt stands, marked structurally.
       const wf = human.getWaitingFor();
       expect(wf?.externalDrawPrompt?.intakeId).eq(intake.id);
@@ -265,7 +268,7 @@ describe('AutomaHumanTagReactions (bot flips → human reactors)', () => {
       botTakesOneTurn(game, human);
       runAllActions(game);
       expect(human.pendingCardIntakes).has.length(1);
-      expect(human.pendingCardIntakes[0].triggerCard).eq(CardName.ASTEROID);
+      expect(human.pendingCardIntakes[0].cause).deep.include({kind: 'card', triggerCard: CardName.ASTEROID});
     });
 
     it('a card revealed for a placement tiebreak is not a resolved card', () => {

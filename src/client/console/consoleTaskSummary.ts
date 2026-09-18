@@ -433,13 +433,24 @@ function kindSummary(
     // it does — go and take the cards. The effect card rides as a CARD token
     // (localized card names come with it), never a title match.
     const meta = wf?.externalDrawPrompt;
+    const cause = meta?.cause;
+    const remaining = meta?.remaining ?? 1;
+    // An ENACTED RESOLUTION's draw names its OWN promise: the wrapper above
+    // already stamps the resolution as the plate's source (emblem, name,
+    // code), so the ask states what is owed rather than repeating who owes it.
+    const resolutionAsk: Message = {
+      message: 'The enacted resolution draws ${0} card(s) for you',
+      data: [{type: LogMessageDataType.RAW_STRING, value: String(remaining)}],
+    };
     return {
       kickerKey: 'Card draw',
-      ask: meta === undefined ?
+      ask: cause === undefined ?
         ask(wf, 'Take the card') :
-        {message: 'Effect triggered: ${0}', data: [{type: LogMessageDataType.CARD, value: meta.effectCard}]},
-      sourceCard: meta?.effectCard,
-      openKey: (meta?.remaining ?? 1) > 1 ? 'Collect the cards' : 'Collect the card',
+        cause.kind === 'card' ?
+          {message: 'Effect triggered: ${0}', data: [{type: LogMessageDataType.CARD, value: cause.effectCard}]} :
+          resolutionAsk,
+      sourceCard: cause?.kind === 'card' ? cause.effectCard : undefined,
+      openKey: remaining > 1 ? 'Collect the cards' : 'Collect the card',
       returnKey: 'Return to the decision',
     };
   }

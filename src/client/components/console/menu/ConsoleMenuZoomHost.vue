@@ -100,6 +100,12 @@
                                  :formula="false"
                                  size="compact"
                                  data-zoom-yield />
+          <!-- …and the answer of the party the resolution brings to power. -->
+          <ConsolePartyReaction v-for="r in zoomResolutionReactions" :key="r.reaction.id"
+                                class="con-zoom__bar-reaction"
+                                :reading="r"
+                                size="compact"
+                                data-zoom-reaction />
           <ConsoleWinnerReward v-if="zoomResolutionWinner !== undefined && zoomResolutionWinner.context !== 'reference'"
                                class="con-zoom__bar-winner"
                                :reading="zoomResolutionWinner"
@@ -153,6 +159,8 @@ import {CardAnnotation} from '@/client/components/cardAnnotations/annotationMode
 import {resolutionAnnotations, resolutionPartyAnnotations} from '@/client/console/parliament/parliamentAnnotations';
 import {resolutionPartyContextKey, resolutionStatusOf, ResolutionStatusVm} from '@/client/console/parliament/resolutionInspectModel';
 import {enactedYieldsOf, voteYieldsOf} from '@/client/console/parliament/influenceYieldModel';
+import {PartyReactionReading, partyReactionsOf, viewerHasSeat} from '@/client/console/parliament/partyReactionModel';
+import ConsolePartyReaction from '@/client/components/console/parliament/ConsolePartyReaction.vue';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {consoleState} from '@/client/console/consoleRouter';
@@ -165,7 +173,10 @@ import {motionMs} from '@/client/components/motion/motionTokens';
 
 export default defineComponent({
   name: 'ConsoleMenuZoomHost',
-  components: {CardZoomModal, CardZoomCard, GamepadGlyph, ConsoleCardRulesPanel, ConsoleResolutionAside, ConsoleResolutionStatus, ConsoleInfluenceYield, ConsoleWinnerReward},
+  components: {
+    CardZoomModal, CardZoomCard, GamepadGlyph, ConsoleCardRulesPanel, ConsoleResolutionAside, ConsoleResolutionStatus,
+    ConsoleInfluenceYield, ConsoleWinnerReward, ConsolePartyReaction,
+  },
   data() {
     return {
       consoleState,
@@ -229,6 +240,14 @@ export default defineComponent({
       }
       const model = this.zoomParliament;
       return model?.enacted?.resolution === id ? enactedYieldsOf(resolution, model, this.zoomViewer) : voteYieldsOf(resolution, model, this.zoomViewer);
+    },
+    /** The RULING PARTY's answer to those readings — the viewer's seat only. */
+    zoomResolutionReactions(): Array<PartyReactionReading> {
+      const id = this.zoomResolutionId;
+      if (id === undefined || !viewerHasSeat(this.zoomParliament, this.zoomViewer)) {
+        return [];
+      }
+      return partyReactionsOf(getResolution(id), this.zoomResolutionYields);
     },
     /** The WINNER's tile of the resolution on the stage, read over the opener's table (none outside a table). */
     zoomResolutionWinner(): WinnerRewardReading | undefined {

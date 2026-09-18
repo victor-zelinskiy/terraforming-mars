@@ -125,7 +125,6 @@ describe('ArchitectureAward', () => {
       expect(oldDummy?.dummy).is.true;
       expect(oldDummy?.immediateSteps).is.undefined;
       const dealt = REDUX_RESOLUTION_CATALOG.dealtInstances(() => true);
-      expect(dealt).has.length(12);
       expect(dealt).includes(AWARD);
       expect(dealt).not.includes(resolutionInstanceId(dummyResolutionId(PartyName.MARS, 1), 0));
       expect(dealt.filter((instance) => REDUX_RESOLUTION_CATALOG.ofInstance(instance).party === PartyName.MARS)).has.length(2);

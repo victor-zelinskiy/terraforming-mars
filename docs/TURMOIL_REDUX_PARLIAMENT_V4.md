@@ -90,7 +90,7 @@ MarsBot — вне итерации. Документ фиксирует **на�
 | Возврат делегатов в итогах | `SerializedPhaseSummary.returned[] {owner, count}` (сервер `ParliamentPhase.stepEnact`), клиент `ParliamentPhaseSummaryModel.returned` — физические возвраты в реестр в бите итогов |
 | Стоячий модификатор эффекта | `premiumCard/mechanicsModel.ts` `effectParts` (spacer-only причина = нет причины), `PremiumMechNode.vue` `pcard-effect--standing` (без стрелки/двоеточия только для не-действий) |
 | Печать партии | `parliament/ConsolePartyPlaque.vue` — места поддержки в строке состояния, имя переносится на Deck |
-| Эмблемы | `assets/parties/redux/unity.svg` (кольца, синяя труба), `scientists.svg` (атом, серебро) |
+| Эмблемы | `assets/parties/redux/unity.png` (кольца, синие), `scientists.png` (атом, серебро); SVG-версии удалены 2026-09-18 |
 | Тексты партий | `server/parliament/parties/PartyEffects.ts` (Учёные: `empty().startEffect.plus().tag(WILD)`; «Марс вперёд»: две строки) |
 | Стили | `styles/console_parliament.less`: токены `--con-parl-bench-h / -info-h / -mid-h / -agenda-h`, `--con-parl-info-mech-zoom / -formula-zoom`, лестницы `html.con-profile-handheld` / `html.con-profile-tv` |
 | Локализация | `locales/ru/parliament.json` (ключи режима: «Your delegates», «free delegate», «spent this generation», «If the resolution is enacted», «Party effect for you», «wins the tie: closer to the government», …) |

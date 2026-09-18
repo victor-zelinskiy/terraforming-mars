@@ -50,10 +50,9 @@ describe('Solar Logistics', () => {
     expect(owner.cardsInHand, 'withheld until taken').has.length(0);
     expect(owner.pendingCardIntakes).has.length(1);
     const intake = owner.pendingCardIntakes[0];
-    expect(intake.effectCard).eq(solar.name);
-    expect(intake.effectCardOwner).eq('you');
-    expect(intake.initiator).eq(other.color);
-    expect(intake.triggerCard).eq(trigger.name);
+    expect(intake.cause).deep.eq({
+      kind: 'card', effectCard: solar.name, effectCardOwner: 'you', initiator: other.color, triggerCard: trigger.name,
+    });
     runAllActions(game);
     expect(owner.getWaitingFor()?.externalDrawPrompt?.intakeId).eq(intake.id);
     owner.process({type: 'card', cards: [intake.cards[0].name]});

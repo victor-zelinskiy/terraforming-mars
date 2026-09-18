@@ -1,5 +1,5 @@
 {
- "activePlayer": "p-player1-id",
+ "activePlayer": "p-player2-id",
  "awards": [
   "Landlord",
   "Scientist",
@@ -566,7 +566,7 @@
    "name": "Callisto",
    "colonies": [],
    "isActive": true,
-   "trackPosition": 1
+   "trackPosition": 2
   },
   {
    "name": "Enceladus",
@@ -578,13 +578,13 @@
    "name": "Ganymede",
    "colonies": [],
    "isActive": true,
-   "trackPosition": 1
+   "trackPosition": 2
   },
   {
    "name": "Luna",
    "colonies": [],
    "isActive": true,
-   "trackPosition": 1
+   "trackPosition": 2
   },
   {
    "name": "Miranda",
@@ -613,7 +613,7 @@
   ],
   "discardPile": []
  },
- "createdTimeMs": 1789692994441,
+ "createdTimeMs": 1789692994563,
  "currentSeed": 608079849916,
  "deferredActions": [],
  "donePlayers": [],
@@ -623,7 +623,7 @@
  "fundedAwards": [],
  "gagarinBase": [],
  "stJosephCathedrals": [],
- "gameAge": 9,
+ "gameAge": 29,
  "gameLog": [
   {
    "message": "First player this generation is ${0}",
@@ -633,7 +633,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1789692994441
+   "timestamp": 1789692994563
   },
   {
    "message": "Good luck ${0}!",
@@ -643,7 +643,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1789692994441,
+   "timestamp": 1789692994563,
    "playerId": "p-player1-id"
   },
   {
@@ -654,7 +654,7 @@
      "value": "red"
     }
    ],
-   "timestamp": 1789692994441,
+   "timestamp": 1789692994563,
    "playerId": "p-player2-id"
   },
   {
@@ -665,7 +665,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1789692994441,
+   "timestamp": 1789692994563,
    "type": 1
   },
   {
@@ -680,7 +680,7 @@
      "value": "Teractor"
     }
    ],
-   "timestamp": 1789692994441,
+   "timestamp": 1789692994563,
    "correlationId": 1,
    "parentId": 1,
    "role": "root-action",
@@ -698,7 +698,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1789692994441,
+   "timestamp": 1789692994563,
    "correlationId": 1,
    "parentId": 1,
    "role": "detail"
@@ -715,7 +715,7 @@
      "value": "Aridor"
     }
    ],
-   "timestamp": 1789692994441,
+   "timestamp": 1789692994563,
    "correlationId": 2,
    "parentId": 2,
    "role": "root-action",
@@ -733,9 +733,385 @@
      "value": "2"
     }
    ],
-   "timestamp": 1789692994441,
+   "timestamp": 1789692994563,
    "correlationId": 2,
    "parentId": 2,
+   "role": "detail"
+  },
+  {
+   "message": "The Mars Parliament convenes",
+   "data": [],
+   "timestamp": 1789692994565,
+   "type": 2
+  },
+  {
+   "message": "Resolution ${0} wins the vote with ${1} delegate(s)",
+   "data": [
+    {
+     "type": 16,
+     "value": "RDX_GREENS_CLIMATE_RESEARCH"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    }
+   ],
+   "timestamp": 1789692994565
+  },
+  {
+   "message": "${0} is the winning player of ${1}",
+   "data": [
+    {
+     "type": 2,
+     "value": "blue"
+    },
+    {
+     "type": 16,
+     "value": "RDX_GREENS_CLIMATE_RESEARCH"
+    }
+   ],
+   "timestamp": 1789692994565
+  },
+  {
+   "message": "${0} advances on the Agenda track to step ${1}",
+   "data": [
+    {
+     "type": 2,
+     "value": "blue"
+    },
+    {
+     "type": 1,
+     "value": "4"
+    }
+   ],
+   "timestamp": 1789692994565,
+   "correlationId": 5,
+   "parentId": 5,
+   "role": "detail"
+  },
+  {
+   "message": "${0} gained ${1} ${2} because of ${3}",
+   "data": [
+    {
+     "type": 2,
+     "value": "blue"
+    },
+    {
+     "type": 1,
+     "value": "2"
+    },
+    {
+     "type": 15,
+     "value": "megacredits"
+    },
+    {
+     "type": 8,
+     "value": "Greens"
+    }
+   ],
+   "timestamp": 1789692994565,
+   "correlationId": 5,
+   "parentId": 7,
+   "role": "effect-result"
+  },
+  {
+   "message": "${0} gained ${1} ${2} from the Agenda track",
+   "data": [
+    {
+     "type": 2,
+     "value": "blue"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    },
+    {
+     "type": 15,
+     "value": "tr"
+    }
+   ],
+   "timestamp": 1789692994565,
+   "correlationId": 5,
+   "parentId": 5,
+   "role": "detail"
+  },
+  {
+   "message": "${0} gain ${1} neutral delegate(s) in Popular Support (${2}/${3})",
+   "data": [
+    {
+     "type": 8,
+     "value": "Mars First"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    },
+    {
+     "type": 1,
+     "value": "3"
+    }
+   ],
+   "timestamp": 1789692994565
+  },
+  {
+   "message": "${0} gain ${1} neutral delegate(s) in Popular Support (${2}/${3})",
+   "data": [
+    {
+     "type": 8,
+     "value": "Industrialists"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    },
+    {
+     "type": 1,
+     "value": "3"
+    }
+   ],
+   "timestamp": 1789692994565
+  },
+  {
+   "message": "${0} gain ${1} neutral delegate(s) in Popular Support (${2}/${3})",
+   "data": [
+    {
+     "type": 8,
+     "value": "Reds"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    },
+    {
+     "type": 1,
+     "value": "3"
+    }
+   ],
+   "timestamp": 1789692994565
+  },
+  {
+   "message": "${0} gain ${1} neutral delegate(s) in Popular Support (${2}/${3})",
+   "data": [
+    {
+     "type": 8,
+     "value": "Scientists"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    },
+    {
+     "type": 1,
+     "value": "3"
+    }
+   ],
+   "timestamp": 1789692994565
+  },
+  {
+   "message": "${0} gain ${1} neutral delegate(s) in Popular Support (${2}/${3})",
+   "data": [
+    {
+     "type": 8,
+     "value": "Unity"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    },
+    {
+     "type": 1,
+     "value": "3"
+    }
+   ],
+   "timestamp": 1789692994565
+  },
+  {
+   "message": "Resolution ${0} is enacted",
+   "data": [
+    {
+     "type": 16,
+     "value": "RDX_GREENS_CLIMATE_RESEARCH"
+    }
+   ],
+   "timestamp": 1789692994565
+  },
+  {
+   "message": "${0} is now the ruling party — every player has its effect",
+   "data": [
+    {
+     "type": 8,
+     "value": "Greens"
+    }
+   ],
+   "timestamp": 1789692994565
+  },
+  {
+   "message": "Chairman quest for generation ${0}: ${1}",
+   "data": [
+    {
+     "type": 1,
+     "value": "2"
+    },
+    {
+     "type": 0,
+     "value": "Raise your heat production 3 steps"
+    }
+   ],
+   "timestamp": 1789692994565
+  },
+  {
+   "message": "${0} gained ${1} ${2} production because of ${3}",
+   "data": [
+    {
+     "type": 2,
+     "value": "blue"
+    },
+    {
+     "type": 1,
+     "value": "2"
+    },
+    {
+     "type": 15,
+     "value": "megacredits"
+    },
+    {
+     "type": 8,
+     "value": "Greens"
+    }
+   ],
+   "timestamp": 1789692994565,
+   "correlationId": 9,
+   "parentId": 11,
+   "role": "effect-result"
+  },
+  {
+   "message": "${0} raised ${1} production by ${2} from ${3}: 1 per point of influence, influence ${4} (${5} → ${6})",
+   "data": [
+    {
+     "type": 2,
+     "value": "blue"
+    },
+    {
+     "type": 15,
+     "value": "heat"
+    },
+    {
+     "type": 1,
+     "value": "2"
+    },
+    {
+     "type": 16,
+     "value": "RDX_GREENS_CLIMATE_RESEARCH"
+    },
+    {
+     "type": 1,
+     "value": "2"
+    },
+    {
+     "type": 1,
+     "value": "4"
+    },
+    {
+     "type": 1,
+     "value": "6"
+    }
+   ],
+   "timestamp": 1789692994565,
+   "correlationId": 9,
+   "parentId": 9,
+   "role": "root-action",
+   "category": "political-phase"
+  },
+  {
+   "message": "${0} drew ${1} card(s)",
+   "data": [
+    {
+     "type": 2,
+     "value": "blue"
+    },
+    {
+     "type": 1,
+     "value": "2"
+    }
+   ],
+   "timestamp": 1789692994566,
+   "correlationId": 13,
+   "parentId": 13,
+   "role": "root-action",
+   "category": "political-phase"
+  },
+  {
+   "message": "${0} drew ${1}",
+   "data": [
+    {
+     "type": 0,
+     "value": "You"
+    },
+    {
+     "type": 14,
+     "value": [
+      "Ice Cap Melting",
+      "Satellites"
+     ]
+    }
+   ],
+   "timestamp": 1789692994566,
+   "playerId": "p-player1-id",
+   "correlationId": 13,
+   "parentId": 13,
+   "role": "detail"
+  },
+  {
+   "message": "${0} draws ${1} card(s) from ${2}: 1 per full ${3} steps of ${4} production (${5})",
+   "data": [
+    {
+     "type": 2,
+     "value": "blue"
+    },
+    {
+     "type": 1,
+     "value": "2"
+    },
+    {
+     "type": 16,
+     "value": "RDX_GREENS_CLIMATE_RESEARCH"
+    },
+    {
+     "type": 1,
+     "value": "3"
+    },
+    {
+     "type": 15,
+     "value": "heat"
+    },
+    {
+     "type": 1,
+     "value": "6"
+    }
+   ],
+   "timestamp": 1789692994566,
+   "correlationId": 13,
+   "parentId": 13,
    "role": "detail"
   }
  ],
@@ -829,9 +1205,223 @@
    },
    "player": "red",
    "parentId": 2
+  },
+  {
+   "id": 5,
+   "generation": 1,
+   "phase": "parliament",
+   "type": "action",
+   "impact": {},
+   "correlationId": 5,
+   "visibility": "journal",
+   "source": {
+    "kind": "parliament"
+   },
+   "player": "blue",
+   "category": "political-phase"
+  },
+  {
+   "id": 6,
+   "generation": 1,
+   "phase": "parliament",
+   "type": "tr-changed",
+   "impact": {
+    "tr": 1
+   },
+   "correlationId": 5,
+   "visibility": "analytics",
+   "source": {
+    "kind": "parliament"
+   },
+   "player": "blue",
+   "tags": [
+    "terraforming"
+   ],
+   "parentId": 5
+  },
+  {
+   "id": 7,
+   "generation": 1,
+   "phase": "parliament",
+   "type": "effect-triggered",
+   "impact": {},
+   "correlationId": 5,
+   "visibility": "analytics",
+   "source": {
+    "kind": "party",
+    "name": "Greens",
+    "owner": "blue"
+   },
+   "player": "blue",
+   "trigger": "tr-increase",
+   "tags": [
+    "passive-effect"
+   ],
+   "parentId": 5
+  },
+  {
+   "id": 8,
+   "generation": 1,
+   "phase": "parliament",
+   "type": "resource-changed",
+   "impact": {
+    "stock": {
+     "megacredits": 2
+    },
+    "snapshot": {
+     "resource": "megacredits",
+     "scope": "stock",
+     "before": 60,
+     "after": 62
+    }
+   },
+   "correlationId": 5,
+   "visibility": "analytics",
+   "source": {
+    "kind": "party",
+    "name": "Greens",
+    "owner": "blue"
+   },
+   "player": "blue",
+   "tags": [
+    "passive-effect"
+   ],
+   "parentId": 7
+  },
+  {
+   "id": 9,
+   "generation": 1,
+   "phase": "parliament",
+   "type": "action",
+   "impact": {},
+   "correlationId": 9,
+   "visibility": "journal",
+   "source": {
+    "kind": "resolution",
+    "id": "RDX_GREENS_CLIMATE_RESEARCH",
+    "owner": "blue"
+   },
+   "player": "blue",
+   "category": "political-phase"
+  },
+  {
+   "id": 10,
+   "generation": 1,
+   "phase": "parliament",
+   "type": "production-changed",
+   "impact": {
+    "production": {
+     "heat": 2
+    },
+    "snapshot": {
+     "resource": "heat",
+     "scope": "production",
+     "before": 4,
+     "after": 6
+    }
+   },
+   "correlationId": 9,
+   "visibility": "analytics",
+   "source": {
+    "kind": "resolution",
+    "id": "RDX_GREENS_CLIMATE_RESEARCH",
+    "owner": "blue"
+   },
+   "player": "blue",
+   "tags": [
+    "production"
+   ],
+   "parentId": 9
+  },
+  {
+   "id": 11,
+   "generation": 1,
+   "phase": "parliament",
+   "type": "effect-triggered",
+   "impact": {},
+   "correlationId": 9,
+   "visibility": "analytics",
+   "source": {
+    "kind": "party",
+    "name": "Greens",
+    "owner": "blue"
+   },
+   "player": "blue",
+   "trigger": "production-gain",
+   "tags": [
+    "passive-effect"
+   ],
+   "parentId": 9
+  },
+  {
+   "id": 12,
+   "generation": 1,
+   "phase": "parliament",
+   "type": "production-changed",
+   "impact": {
+    "production": {
+     "megacredits": 2
+    },
+    "snapshot": {
+     "resource": "megacredits",
+     "scope": "production",
+     "before": 0,
+     "after": 2
+    }
+   },
+   "correlationId": 9,
+   "visibility": "analytics",
+   "source": {
+    "kind": "party",
+    "name": "Greens",
+    "owner": "blue"
+   },
+   "player": "blue",
+   "tags": [
+    "production",
+    "passive-effect"
+   ],
+   "parentId": 11
+  },
+  {
+   "id": 13,
+   "generation": 1,
+   "phase": "parliament",
+   "type": "action",
+   "impact": {},
+   "correlationId": 13,
+   "visibility": "journal",
+   "source": {
+    "kind": "resolution",
+    "id": "RDX_GREENS_CLIMATE_RESEARCH",
+    "owner": "blue"
+   },
+   "player": "blue",
+   "category": "political-phase"
+  },
+  {
+   "id": 14,
+   "generation": 1,
+   "phase": "parliament",
+   "type": "cards-drawn",
+   "impact": {
+    "cardsDrawn": 2
+   },
+   "correlationId": 13,
+   "visibility": "analytics",
+   "source": {
+    "kind": "resolution",
+    "id": "RDX_GREENS_CLIMATE_RESEARCH",
+    "owner": "blue"
+   },
+   "player": "blue",
+   "tags": [
+    "external-intake"
+   ],
+   "parentId": 13
   }
  ],
- "eventSeq": 4,
+ "eventSeq": 14,
  "gameOptions": {
   "altVenusBoard": false,
   "aresExtension": false,
@@ -919,21 +1509,28 @@
   "Builder",
   "Planner"
  ],
- "name": "Radiant Silicon Pulse",
+ "name": "Synthetic Neutron Surge",
  "oxygenLevel": 0,
  "passedPlayers": [],
- "phase": "action",
+ "phase": "parliament",
  "players": [
   {
    "id": "p-player1-id",
    "pickedCorporationCard": "Teractor",
    "initialCardSelectionDone": true,
-   "terraformRating": 20,
-   "hasIncreasedTerraformRatingThisGeneration": false,
-   "terraformRatingFromCards": 0,
-   "terraformRatingSources": [],
-   "megaCredits": 40,
-   "megaCreditProduction": 0,
+   "terraformRating": 21,
+   "hasIncreasedTerraformRatingThisGeneration": true,
+   "terraformRatingFromCards": 1,
+   "terraformRatingSources": [
+    {
+     "sourceType": "other",
+     "sourceName": "Agenda track",
+     "amount": 1,
+     "generation": 1
+    }
+   ],
+   "megaCredits": 62,
+   "megaCreditProduction": 2,
    "steel": 0,
    "steelProduction": 0,
    "titanium": 0,
@@ -942,8 +1539,8 @@
    "plantProduction": 0,
    "energy": 0,
    "energyProduction": 0,
-   "heat": 0,
-   "heatProduction": 0,
+   "heat": 4,
+   "heatProduction": 6,
    "titaniumValue": 3,
    "steelValue": 2,
    "canUseHeatAsMegaCredits": false,
@@ -979,7 +1576,21 @@
     "Kelp Farming",
     "Adaptation Technology"
    ],
-   "pendingCardIntakes": [],
+   "pendingCardIntakes": [
+    {
+     "id": 1,
+     "count": 2,
+     "cards": [
+      "Ice Cap Melting",
+      "Satellites"
+     ],
+     "cause": {
+      "kind": "resolution",
+      "resolution": "RDX_GREENS_CLIMATE_RESEARCH",
+      "effect": "draw"
+     }
+    }
+   ],
    "preludeCardsInHand": [],
    "ceoCardsInHand": [],
    "playedCards": [
@@ -987,14 +1598,6 @@
      "name": "Teractor",
      "resourceCount": 0,
      "isDisabled": false
-    },
-    {
-     "name": "Fish",
-     "resourceCount": 0
-    },
-    {
-     "name": "Pets",
-     "resourceCount": 0
     }
    ],
    "draftedCards": [],
@@ -1023,11 +1626,11 @@
    "beginner": false,
    "handicap": 0,
    "timer": {
-    "sumElapsed": 0,
-    "startedAt": 1789692994441,
+    "sumElapsed": 1,
+    "startedAt": 1789692994564,
     "running": true,
     "afterFirstAction": true,
-    "lastStoppedAt": 1789692994441
+    "lastStoppedAt": 1789692994564
    },
    "actionsTakenThisGame": 1,
    "victoryPointsByGeneration": [],
@@ -1056,7 +1659,7 @@
    "hasIncreasedTerraformRatingThisGeneration": false,
    "terraformRatingFromCards": 0,
    "terraformRatingSources": [],
-   "megaCredits": 30,
+   "megaCredits": 50,
    "megaCreditProduction": 0,
    "steel": 0,
    "steelProduction": 0,
@@ -1066,8 +1669,8 @@
    "plantProduction": 0,
    "energy": 0,
    "energyProduction": 0,
-   "heat": 0,
-   "heatProduction": 0,
+   "heat": 2,
+   "heatProduction": 2,
    "titaniumValue": 3,
    "steelValue": 2,
    "canUseHeatAsMegaCredits": false,
@@ -1114,10 +1717,6 @@
      "resourceCount": 0,
      "isDisabled": false,
      "allTags": []
-    },
-    {
-     "name": "Birds",
-     "resourceCount": 0
     }
    ],
    "draftedCards": [],
@@ -1146,13 +1745,13 @@
    "beginner": false,
    "handicap": 0,
    "timer": {
-    "sumElapsed": 0,
-    "startedAt": 1789692994441,
-    "running": false,
+    "sumElapsed": 1,
+    "startedAt": 1789692994564,
+    "running": true,
     "afterFirstAction": true,
-    "lastStoppedAt": 1789692994441
+    "lastStoppedAt": 1789692994564
    },
-   "actionsTakenThisGame": 0,
+   "actionsTakenThisGame": 1,
    "victoryPointsByGeneration": [],
    "totalDelegatesPlaced": 0,
    "underworldData": {
@@ -1448,9 +2047,7 @@
    "Atmo Collectors",
    "Power Infrastructure",
    "Capital",
-   "Magnetic Field Dome",
-   "Satellites",
-   "Ice Cap Melting"
+   "Magnetic Field Dome"
   ],
   "discardPile": [
    "Ice Asteroid",
@@ -1501,15 +2098,6 @@
   "version": 1,
   "slots": [
    {
-    "instance": "RDX_GREENS_AQUIFER_CONTEST#0",
-    "votes": [
-     {
-      "owner": "p-player1-id",
-      "seq": 1
-     }
-    ]
-   },
-   {
     "instance": "RDX_DUMMY_SCIENTISTS_1#0",
     "votes": []
    },
@@ -1518,6 +2106,7 @@
     "votes": []
    }
   ],
+  "enacted": "RDX_GREENS_CLIMATE_RESEARCH#0",
   "quest": {
    "definition": {
     "goal": {
@@ -1526,18 +2115,24 @@
     },
     "count": 3
    },
-   "source": "starter",
-   "generation": 1,
+   "source": "RDX_GREENS_CLIMATE_RESEARCH",
+   "generation": 2,
    "progress": {}
   },
   "lobby": [
    "p-player2-id"
   ],
   "voteSeq": 1,
-  "popularSupport": {},
+  "popularSupport": {
+   "Mars First": 1,
+   "Industrialists": 1,
+   "Reds": 1,
+   "Scientists": 1,
+   "Unity": 1
+  },
   "agenda": {
-   "p-player1-id": 2,
-   "p-player2-id": 5
+   "p-player1-id": 4,
+   "p-player2-id": 1
   },
   "influenceBonus": {},
   "grantedEffects": {},
@@ -1546,8 +2141,8 @@
   "deck": [
    "RDX_GREENS_BIODOME_CONTEST#0",
    "RDX_INDUSTRIALISTS_CENTRAL_POWER_GRID#0",
-   "RDX_GREENS_CLIMATE_RESEARCH#0",
    "RDX_MARS_ARCHITECTURE_AWARD#0",
+   "RDX_GREENS_AQUIFER_CONTEST#0",
    "RDX_DUMMY_REDS_2#0",
    "RDX_DUMMY_UNITY_1#0",
    "RDX_DUMMY_SCIENTISTS_2#0",
@@ -1555,6 +2150,130 @@
    "RDX_DUMMY_INDUSTRIALISTS_2#0"
   ],
   "discard": [],
+  "phase": {
+   "generation": 1,
+   "final": false,
+   "step": "effects",
+   "applied": [
+    "support:1",
+    "enact:1:RDX_GREENS_CLIMATE_RESEARCH#0"
+   ],
+   "summary": {
+    "generation": 1,
+    "final": false,
+    "winner": {
+     "instance": "RDX_GREENS_CLIMATE_RESEARCH#0",
+     "votes": 1,
+     "player": "p-player1-id",
+     "slot": 0
+    },
+    "support": [
+     {
+      "party": "Mars First",
+      "gained": 1,
+      "total": 1,
+      "reason": "absent"
+     },
+     {
+      "party": "Industrialists",
+      "gained": 1,
+      "total": 1,
+      "reason": "absent"
+     },
+     {
+      "party": "Reds",
+      "gained": 1,
+      "total": 1,
+      "reason": "absent"
+     },
+     {
+      "party": "Scientists",
+      "gained": 1,
+      "total": 1,
+      "reason": "lost"
+     },
+     {
+      "party": "Unity",
+      "gained": 1,
+      "total": 1,
+      "reason": "lost"
+     }
+    ],
+    "enacted": "RDX_GREENS_CLIMATE_RESEARCH#0",
+    "refreshed": [],
+    "lobbyRefilled": [],
+    "agenda": {
+     "player": "p-player1-id",
+     "from": 3,
+     "to": 4,
+     "bonus": "tr"
+    },
+    "returned": [
+     {
+      "owner": "p-player1-id",
+      "count": 1
+     }
+    ],
+    "outcomes": [
+     {
+      "player": "p-player1-id",
+      "step": "heat-production",
+      "part": "effect",
+      "kind": "production",
+      "effect": "heatProduction",
+      "production": "heat",
+      "amount": 2,
+      "influence": 2,
+      "before": 4,
+      "after": 6
+     },
+     {
+      "player": "p-player1-id",
+      "step": "draw",
+      "part": "effect",
+      "kind": "cards",
+      "effect": "draw",
+      "amount": 2,
+      "drawn": 2,
+      "intake": 1,
+      "influence": 2,
+      "total": {
+       "before": 4,
+       "after": 6
+      }
+     }
+    ]
+   },
+   "appliedBySeat": {
+    "p-player1-id": [
+     "agenda:1",
+     "effect:1:RDX_GREENS_CLIMATE_RESEARCH#0:heat-production"
+    ]
+   },
+   "effects": {
+    "playerIndex": 0,
+    "pending": {
+     "player": "p-player1-id",
+     "key": "draw"
+    }
+   },
+   "effectState": {
+    "p-player1-id": {
+     "heatProductionBefore": 4,
+     "heatProductionAfter": 6,
+     "drawIntake": 1
+    }
+   }
+  },
+  "lastAdvance": {
+   "seq": 1,
+   "player": "p-player1-id",
+   "from": 3,
+   "to": 4,
+   "bonus": "tr",
+   "reason": "phase",
+   "generation": 1
+  },
   "botMode": "none"
  }
 }

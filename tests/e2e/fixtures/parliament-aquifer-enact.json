@@ -613,8 +613,8 @@
   ],
   "discardPile": []
  },
- "createdTimeMs": 1789671568636,
- "currentSeed": 606248284103,
+ "createdTimeMs": 1789692994449,
+ "currentSeed": 608079849916,
  "deferredActions": [],
  "donePlayers": [],
  "draftRound": 1,
@@ -623,7 +623,7 @@
  "fundedAwards": [],
  "gagarinBase": [],
  "stJosephCathedrals": [],
- "gameAge": 23,
+ "gameAge": 22,
  "gameLog": [
   {
    "message": "First player this generation is ${0}",
@@ -633,7 +633,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1789671568636
+   "timestamp": 1789692994449
   },
   {
    "message": "Good luck ${0}!",
@@ -643,7 +643,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1789671568637,
+   "timestamp": 1789692994449,
    "playerId": "p-player1-id"
   },
   {
@@ -654,7 +654,7 @@
      "value": "red"
     }
    ],
-   "timestamp": 1789671568637,
+   "timestamp": 1789692994449,
    "playerId": "p-player2-id"
   },
   {
@@ -665,7 +665,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1789671568637,
+   "timestamp": 1789692994449,
    "type": 1
   },
   {
@@ -680,7 +680,7 @@
      "value": "Teractor"
     }
    ],
-   "timestamp": 1789671568637,
+   "timestamp": 1789692994449,
    "correlationId": 1,
    "parentId": 1,
    "role": "root-action",
@@ -698,7 +698,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1789671568637,
+   "timestamp": 1789692994449,
    "correlationId": 1,
    "parentId": 1,
    "role": "detail"
@@ -715,7 +715,7 @@
      "value": "Aridor"
     }
    ],
-   "timestamp": 1789671568637,
+   "timestamp": 1789692994449,
    "correlationId": 2,
    "parentId": 2,
    "role": "root-action",
@@ -733,7 +733,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1789671568637,
+   "timestamp": 1789692994449,
    "correlationId": 2,
    "parentId": 2,
    "role": "detail"
@@ -741,7 +741,7 @@
   {
    "message": "The Mars Parliament convenes",
    "data": [],
-   "timestamp": 1789671568639,
+   "timestamp": 1789692994452,
    "type": 2
   },
   {
@@ -756,7 +756,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1789671568639
+   "timestamp": 1789692994453
   },
   {
    "message": "${0} is the winning player of ${1}",
@@ -770,7 +770,7 @@
      "value": "RDX_GREENS_AQUIFER_CONTEST"
     }
    ],
-   "timestamp": 1789671568639
+   "timestamp": 1789692994453
   },
   {
    "message": "${0} advances on the Agenda track to step ${1}",
@@ -784,32 +784,10 @@
      "value": "3"
     }
    ],
-   "timestamp": 1789671568640,
+   "timestamp": 1789692994454,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
-  },
-  {
-   "message": "${0} gain ${1} neutral delegate(s) in Popular Support (${2}/${3})",
-   "data": [
-    {
-     "type": 8,
-     "value": "Scientists"
-    },
-    {
-     "type": 1,
-     "value": "1"
-    },
-    {
-     "type": 1,
-     "value": "1"
-    },
-    {
-     "type": 1,
-     "value": "3"
-    }
-   ],
-   "timestamp": 1789671568640
   },
   {
    "message": "${0} gain ${1} neutral delegate(s) in Popular Support (${2}/${3})",
@@ -831,7 +809,7 @@
      "value": "3"
     }
    ],
-   "timestamp": 1789671568640
+   "timestamp": 1789692994454
   },
   {
    "message": "${0} gain ${1} neutral delegate(s) in Popular Support (${2}/${3})",
@@ -853,7 +831,7 @@
      "value": "3"
     }
    ],
-   "timestamp": 1789671568640
+   "timestamp": 1789692994454
   },
   {
    "message": "${0} gain ${1} neutral delegate(s) in Popular Support (${2}/${3})",
@@ -875,7 +853,29 @@
      "value": "3"
     }
    ],
-   "timestamp": 1789671568640
+   "timestamp": 1789692994454
+  },
+  {
+   "message": "${0} gain ${1} neutral delegate(s) in Popular Support (${2}/${3})",
+   "data": [
+    {
+     "type": 8,
+     "value": "Scientists"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    },
+    {
+     "type": 1,
+     "value": "3"
+    }
+   ],
+   "timestamp": 1789692994455
   },
   {
    "message": "${0} gain ${1} neutral delegate(s) in Popular Support (${2}/${3})",
@@ -897,29 +897,7 @@
      "value": "3"
     }
    ],
-   "timestamp": 1789671568640
-  },
-  {
-   "message": "${0} gain ${1} neutral delegate(s) in Popular Support (${2}/${3})",
-   "data": [
-    {
-     "type": 8,
-     "value": "Greens"
-    },
-    {
-     "type": 1,
-     "value": "1"
-    },
-    {
-     "type": 1,
-     "value": "1"
-    },
-    {
-     "type": 1,
-     "value": "3"
-    }
-   ],
-   "timestamp": 1789671568640
+   "timestamp": 1789692994455
   },
   {
    "message": "Resolution ${0} is enacted",
@@ -929,7 +907,7 @@
      "value": "RDX_GREENS_AQUIFER_CONTEST"
     }
    ],
-   "timestamp": 1789671568641
+   "timestamp": 1789692994455
   },
   {
    "message": "${0} is now the ruling party — every player has its effect",
@@ -939,7 +917,7 @@
      "value": "Greens"
     }
    ],
-   "timestamp": 1789671568641
+   "timestamp": 1789692994455
   },
   {
    "message": "Chairman quest for generation ${0}: ${1}",
@@ -953,7 +931,7 @@
      "value": "Play a card with an animal tag"
     }
    ],
-   "timestamp": 1789671568641
+   "timestamp": 1789692994455
   }
  ],
  "gameEvents": [
@@ -1166,7 +1144,7 @@
   "Builder",
   "Planner"
  ],
- "name": "Faint Isotope Field",
+ "name": "Orbital Signal Current",
  "oxygenLevel": 0,
  "passedPlayers": [],
  "phase": "parliament",
@@ -1271,10 +1249,10 @@
    "handicap": 0,
    "timer": {
     "sumElapsed": 0,
-    "startedAt": 1789671568637,
+    "startedAt": 1789692994449,
     "running": true,
     "afterFirstAction": true,
-    "lastStoppedAt": 1789671568637
+    "lastStoppedAt": 1789692994449
    },
    "actionsTakenThisGame": 1,
    "victoryPointsByGeneration": [],
@@ -1394,10 +1372,10 @@
    "handicap": 0,
    "timer": {
     "sumElapsed": 0,
-    "startedAt": 1789671568637,
+    "startedAt": 1789692994449,
     "running": true,
     "afterFirstAction": true,
-    "lastStoppedAt": 1789671568637
+    "lastStoppedAt": 1789692994449
    },
    "actionsTakenThisGame": 1,
    "victoryPointsByGeneration": [],
@@ -1748,11 +1726,11 @@
   "version": 1,
   "slots": [
    {
-    "instance": "RDX_DUMMY_UNITY_2#0",
+    "instance": "RDX_DUMMY_SCIENTISTS_1#0",
     "votes": []
    },
    {
-    "instance": "RDX_GREENS_BIODOME_CONTEST#0",
+    "instance": "RDX_DUMMY_UNITY_2#0",
     "votes": []
    }
   ],
@@ -1774,12 +1752,11 @@
   ],
   "voteSeq": 1,
   "popularSupport": {
-   "Scientists": 1,
    "Mars First": 1,
    "Industrialists": 1,
    "Reds": 1,
-   "Unity": 1,
-   "Greens": 1
+   "Scientists": 1,
+   "Unity": 1
   },
   "agenda": {
    "p-player1-id": 3,
@@ -1790,8 +1767,9 @@
   "partyActionUses": {},
   "resolutionActionUses": {},
   "deck": [
-   "RDX_DUMMY_REDS_1#0",
+   "RDX_GREENS_BIODOME_CONTEST#0",
    "RDX_INDUSTRIALISTS_CENTRAL_POWER_GRID#0",
+   "RDX_GREENS_CLIMATE_RESEARCH#0",
    "RDX_MARS_ARCHITECTURE_AWARD#0",
    "RDX_DUMMY_REDS_2#0",
    "RDX_DUMMY_UNITY_1#0",
@@ -1819,12 +1797,6 @@
     },
     "support": [
      {
-      "party": "Scientists",
-      "gained": 1,
-      "total": 1,
-      "reason": "absent"
-     },
-     {
       "party": "Mars First",
       "gained": 1,
       "total": 1,
@@ -1843,13 +1815,13 @@
       "reason": "absent"
      },
      {
-      "party": "Unity",
+      "party": "Scientists",
       "gained": 1,
       "total": 1,
       "reason": "lost"
      },
      {
-      "party": "Greens",
+      "party": "Unity",
       "gained": 1,
       "total": 1,
       "reason": "lost"

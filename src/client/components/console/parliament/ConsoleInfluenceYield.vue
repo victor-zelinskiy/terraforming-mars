@@ -22,7 +22,18 @@
   <div class="con-iyield" :class="['con-iyield--' + size, {'con-iyield--reference': readings.length === 0}]" data-influence-yield>
     <span v-if="kicker !== undefined" class="con-iyield__kicker">{{ $t(kicker) }}</span>
     <div v-for="group in groups" :key="group.effect.id" class="con-iyield__group" :data-yield-effect="group.effect.id">
-      <div v-if="formula || group.readings.length === 0" class="con-iyield__formula" aria-hidden="true">
+      <!-- A SEQUENTIAL part states its own rule: «1 [card] / 3 [heat
+           production]» — the divisor and the TOTAL it divides, never the
+           influence (which is already inside that total). -->
+      <div v-if="(formula || group.readings.length === 0) && group.effect.sequel !== undefined" class="con-iyield__formula" aria-hidden="true">
+        <b class="con-iyield__num">1</b>
+        <i class="con-iyield__unit" :class="unitClassOf(group.effect)"></i>
+        <span class="con-iyield__slash">/</span>
+        <b class="con-iyield__num">{{ group.effect.sequel.per }}</b>
+        <i class="con-iyield__unit" :class="totalClassOf(group.effect)"></i>
+        <span class="con-iyield__who">{{ $t('For every player') }}</span>
+      </div>
+      <div v-else-if="formula || group.readings.length === 0" class="con-iyield__formula" aria-hidden="true">
         <b class="con-iyield__num">{{ group.effect.perInfluence }}</b>
         <i class="con-iyield__unit" :class="unitClassOf(group.effect)"></i>
         <span class="con-iyield__slash">/</span>
@@ -49,17 +60,29 @@
              :data-yield-uncapped="y.uncapped"
              :data-yield-max="atCap(y) ? 'true' : undefined"
              :data-yield-amount="y.amount"
+             :data-yield-total-before="y.total?.before"
+             :data-yield-total-after="y.total?.after"
+             :data-yield-delivered="y.delivered"
              :data-yield-skipped="y.skipped">
           <!-- THE INPUTS as one cluster: «[counted object] 2 + [influence] 2» — the
                count is the player's own (the server's), then the influence. -->
-          <span v-if="y.influence !== undefined || y.count !== undefined" class="con-iyield__in">
+          <!-- A SEQUENTIAL reading shows the CHAIN: the total before the
+               earlier part moved it, the total after, and the result. The
+               player never has to add the influence back in themselves. -->
+          <span v-if="y.total !== undefined" class="con-iyield__in con-iyield__in--seq">
+            <i class="con-iyield__unit" :class="totalClassOf(group.effect)"></i>
+            <b data-yield-in="total-before">{{ y.total.before }}</b>
+            <span class="con-iyield__arrow" aria-hidden="true">→</span>
+            <b data-yield-in="total-after">{{ y.total.after }}</b>
+          </span>
+          <span v-else-if="y.influence !== undefined || y.count !== undefined" class="con-iyield__in">
             <template v-if="y.count !== undefined && countGlyphOf(group.effect) !== undefined">
               <PremiumCountGlyph class="con-iyield__glyph" :glyph="countGlyphOf(group.effect)!" /><b data-yield-in="count">{{ y.count }}</b>
               <span class="con-iyield__plus" aria-hidden="true">+</span>
             </template>
             <template v-if="y.influence !== undefined"><i class="con-iyield__inf"></i><b data-yield-in="influence">{{ y.influence }}</b></template>
           </span>
-          <span v-if="y.influence !== undefined || y.count !== undefined" class="con-iyield__arrow" aria-hidden="true">→</span>
+          <span v-if="y.total !== undefined || y.influence !== undefined || y.count !== undefined" class="con-iyield__arrow" aria-hidden="true">→</span>
           <!-- A forfeited payout keeps its SIZE and says it did not land (✕ + struck amount); the caption names why.
                A capped sum says MAX beside the amount — the limit is part of the number, never a footnote. -->
           <span class="con-iyield__out" :class="{'con-iyield__out--lost': y.skipped !== undefined && (y.amount ?? 0) > 0}"><b>{{ outText(y) }}</b><i class="con-iyield__unit" :class="unitClassOf(group.effect)"></i><em v-if="atCap(y)" class="con-iyield__max">{{ $t('Max.') }}</em></span>
@@ -74,7 +97,9 @@
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
 import {InfluenceScaledEffect, InfluenceYield, yieldAtCap} from '@/common/parliament/influenceScaling';
-import {yieldCaptionOf, yieldCountPresentation, yieldIconOf, YieldCountGlyph} from '@/client/console/parliament/influenceYieldModel';
+import {
+  sequelTotalIcon, yieldCaptionOf, yieldCountPresentation, yieldIconOf, YieldCountGlyph, YieldIcon,
+} from '@/client/console/parliament/influenceYieldModel';
 import PremiumCountGlyph from '@/client/components/premiumCard/PremiumCountGlyph.vue';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
@@ -128,7 +153,14 @@ export default defineComponent({
       return effect.cap === undefined ? '' : translateTextWithParams('max ${0}', [String(effect.cap)]);
     },
     unitClassOf(effect: InfluenceScaledEffect): string {
-      const icon = yieldIconOf(effect);
+      return this.iconClass(yieldIconOf(effect));
+    },
+    /** The icon of the TOTAL a sequential part divides (the production frame included). */
+    totalClassOf(effect: InfluenceScaledEffect): string {
+      const term = effect.sequel;
+      return term === undefined ? '' : this.iconClass(sequelTotalIcon(term));
+    },
+    iconClass(icon: YieldIcon): string {
       switch (icon.family) {
       case 'card-resource':
         return iconClassFor(String(icon.resource).toLowerCase().replace(/\s+/g, '-'));
@@ -140,7 +172,15 @@ export default defineComponent({
     },
     outText(y: InfluenceYield): string {
       const amount = y.amount ?? 0;
-      return y.skipped !== undefined && amount > 0 ? '✕ ' + amount : '+' + amount;
+      if (y.skipped !== undefined && amount > 0) {
+        return '✕ ' + amount;
+      }
+      // A DRAW the deck could not fill completely names BOTH numbers — what
+      // was owed and what landed — rather than quietly printing the smaller.
+      if (y.delivered !== undefined && y.delivered < amount) {
+        return '+' + y.delivered + ' / ' + amount;
+      }
+      return '+' + amount;
     },
     captionOf(y: InfluenceYield): string {
       const caption = yieldCaptionOf(y);

@@ -3044,10 +3044,7 @@ export class Player implements IPlayer {
         id: intake.id,
         count: intake.count,
         cards: intake.cards.map(toName),
-        effectCard: intake.effectCard,
-        effectCardOwner: intake.effectCardOwner,
-        initiator: intake.initiator,
-        triggerCard: intake.triggerCard,
+        cause: intake.cause,
       })),
       preludeCardsInHand: this.preludeCardsInHand.map(toName),
       ceoCardsInHand: Array.from(this.ceoCardsInHand).map(toName),
@@ -3191,15 +3188,20 @@ export class Player implements IPlayer {
     player.dealtProjectCards = cardsFromJSON(d.dealtProjectCards);
     player.deltaProjectData = d.deltaProject;
     player.cardsInHand = cardsFromJSON(d.cardsInHand);
-    // Old saves have no intakes — degrade to an empty queue.
+    // Old saves have no intakes — degrade to an empty queue; a save written
+    // before the cause became data carries the flat card fields, which ARE
+    // the card cause (an older intake can only have come from a card).
     player.pendingCardIntakes = (d.pendingCardIntakes ?? []).map((intake) => ({
       id: intake.id,
       count: intake.count,
       cards: cardsFromJSON(intake.cards),
-      effectCard: intake.effectCard,
-      effectCardOwner: intake.effectCardOwner,
-      initiator: intake.initiator,
-      triggerCard: intake.triggerCard,
+      cause: intake.cause ?? {
+        kind: 'card' as const,
+        effectCard: intake.effectCard as CardName,
+        effectCardOwner: intake.effectCardOwner ?? 'initiator',
+        initiator: intake.initiator as Color,
+        ...(intake.triggerCard === undefined ? {} : {triggerCard: intake.triggerCard}),
+      },
     }));
     // I don't like "as IPreludeCard" but this is pretty safe.
     player.preludeCardsInHand = cardsFromJSON(d.preludeCardsInHand) as Array<IPreludeCard>;

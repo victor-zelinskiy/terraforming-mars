@@ -8,12 +8,9 @@ import {ReduxParty} from '@/common/parliament/ParliamentTypes';
  * shipped 154px Turmoil PNGs stay for the classic Turmoil surfaces.
  */
 const PARTY_EMBLEM: Readonly<Record<ReduxParty, string>> = {
-  // Unity and the Scientists are REDRAWN (SVG, the same badge language): the
-  // two used to read as one pair of thin luminous rings; Unity is now a solid
-  // triad joined at a core, the Scientists a hexagonal molecule.
-  [PartyName.UNITY]: 'assets/parties/redux/unity.svg',
+  [PartyName.UNITY]: 'assets/parties/redux/unity.png',
   [PartyName.GREENS]: 'assets/parties/redux/greens.png',
-  [PartyName.SCIENTISTS]: 'assets/parties/redux/scientists.svg',
+  [PartyName.SCIENTISTS]: 'assets/parties/redux/scientists.png',
   [PartyName.MARS]: 'assets/parties/redux/mars-first.png',
   [PartyName.INDUSTRIALISTS]: 'assets/parties/redux/industrialists.png',
   [PartyName.REDS]: 'assets/parties/redux/reds.png',

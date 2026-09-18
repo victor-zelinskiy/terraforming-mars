@@ -23,6 +23,7 @@ import {
   cardCountUnits, countCardsToward, ResolutionCountId, ResolutionCountModel, resolutionCountKind,
   RESOLUTION_COUNT_IDS, RESOLUTION_TAG_COUNTING_MODE,
 } from '../../../common/parliament/resolutionCounts';
+import {Resource} from '../../../common/Resource';
 import {IPlayer} from '../../IPlayer';
 import {ICard} from '../../cards/ICard';
 import type {ResolutionCatalog} from './ResolutionCatalog';
@@ -47,6 +48,26 @@ export function resolutionCount(player: IPlayer, id: ResolutionCountId): Resolut
 /** What ONE card of `player`'s tableau contributes to `id` (0 = it does not count). */
 export function resolutionCountUnitsOf(player: IPlayer, id: ResolutionCountId, card: ICard): number {
   return inPlay(card) ? cardCountUnits(id, card, {eventTagsInPlay: player.tags.eventTagsInPlay()}) : 0;
+}
+
+/**
+ * Every PRODUCTION a SEQUENTIAL effect of `catalog` divides («1 card for
+ * every 3 steps of heat production»). The seat's model carries exactly these
+ * — the inputs of the formulas that exist, and nothing else: a surface that
+ * needs the second half of a chained effect reads the same number the server
+ * divided by, never a production it happened to find elsewhere.
+ */
+export function declaredSequelProductions(catalog: ResolutionCatalog): Array<Resource> {
+  const out: Array<Resource> = [];
+  for (const definition of catalog.all()) {
+    for (const effect of definition.scaled ?? []) {
+      const total = effect.sequel?.total;
+      if (total?.kind === 'production' && !out.includes(total.resource)) {
+        out.push(total.resource);
+      }
+    }
+  }
+  return out;
 }
 
 /** Every count id some resolution of `catalog` declares — what a player's model carries. */

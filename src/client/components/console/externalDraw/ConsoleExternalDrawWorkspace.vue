@@ -4,12 +4,21 @@
        stage band + the one stage-surface material, `ConsoleWsHead` as the
        only header — never a centred plate (a modal look on a locked screen
        is exactly the wrong statement). The player walked in through the
-       mandatory announce, and the take is the only way out. -->
-  <section class="con-extdraw con-ws"
+       mandatory announce, and the take is the only way out.
+
+       HOST-AGNOSTIC (the embed contract, rule 1): with `embedded` the shell
+       chrome goes — the frame plate and the `ConsoleWsHead` belong to the
+       host, which already names the flow in ITS crumb. An ENACTED
+       RESOLUTION's draw (Turmoil Redux — Climate Research) is hosted exactly
+       that way, inside the Parliament's enactment stage: same instance, same
+       logic, same input path, one level deeper. -->
+  <section class="con-extdraw"
+           :class="{'con-ws': !embedded, 'con-extdraw--embedded': embedded}"
            :aria-label="effectLine"
            :data-flow="phase"
            data-motion-surface="external-draw">
-    <ConsoleWsHead class="con-extdraw__head"
+    <ConsoleWsHead v-if="!embedded"
+                   class="con-extdraw__head"
                    root="Card draw"
                    emblem="cards"
                    :subject="effectCardName"
@@ -21,7 +30,10 @@
            the initiator's act (their chip + the trigger card) and the effect's
            own promise. Constant through the whole take. -->
       <div class="con-extdraw__cause" role="note">
-        <div class="con-extdraw__cause-line">
+        <!-- WHO set it off — a card cause only. An enacted resolution has no
+             initiator: nobody did this to the player, the law did, and an
+             empty player chip would invent an actor. -->
+        <div v-if="cardCause !== undefined" class="con-extdraw__cause-line">
           <span class="con-extdraw__actor" :class="'player_color_' + initiatorColor">
             <span class="con-extdraw__actor-dot" :class="'player_bg_color_' + initiatorColor" aria-hidden="true"></span>
             {{ initiatorName }}
@@ -114,7 +126,9 @@ import ConsoleWsHead from '@/client/components/console/foundation/ConsoleWsHead.
 import ConsoleCardAvailabilityPanel from '@/client/components/console/ConsoleCardAvailabilityPanel.vue';
 import {CardName} from '@/common/cards/CardName';
 import {CardModel} from '@/common/models/CardModel';
-import {ExternalDrawTakeMeta} from '@/common/models/ExternalDrawPromptModel';
+import {
+  ExternalDrawCause, ExternalDrawTakeMeta, externalDrawCardCause, externalDrawResolutionCause,
+} from '@/common/models/ExternalDrawPromptModel';
 import {SelectCardModel} from '@/common/models/PlayerInputModel';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {Color} from '@/common/Color';
@@ -166,6 +180,12 @@ export default defineComponent({
   components: {Card, ConsoleCardAvailabilityPanel, ConsoleWsHead},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
+    /**
+     * Rendered INSIDE another workspace's zone (the embed contract): the host
+     * owns the plate and the crumb, so this surface draws content only. One
+     * prop, never a per-flavour switch.
+     */
+    embedded: {type: Boolean, default: false},
   },
   emits: ['submit'],
   data() {
@@ -213,41 +233,61 @@ export default defineComponent({
     interactive(): boolean {
       return this.phase === 'ready' && !this.submitting && this.meta !== undefined;
     },
+    /** The card-granted cause, when that is what this is. */
+    cardCause(): Extract<ExternalDrawCause, {kind: 'card'}> | undefined {
+      const m = this.meta;
+      return m === undefined ? undefined : externalDrawCardCause(m);
+    },
+    /** The RESOLUTION-granted cause (Turmoil Redux), when that is what this is. */
+    resolutionCause(): Extract<ExternalDrawCause, {kind: 'resolution'}> | undefined {
+      const m = this.meta;
+      return m === undefined ? undefined : externalDrawResolutionCause(m);
+    },
+    /** The crumb's SUBJECT — the card whose effect granted, or the resolution. */
     effectCardName(): string {
-      return this.meta?.effectCard ?? '';
+      return this.cardCause?.effectCard ?? this.resolutionCause?.resolution ?? '';
     },
     initiatorColor(): Color | '' {
-      return this.meta?.initiator ?? '';
+      return this.cardCause?.initiator ?? '';
     },
     initiatorName(): string {
-      return displayNameForColor(this.view.players, this.meta?.initiator);
+      return displayNameForColor(this.view.players, this.cardCause?.initiator);
     },
     /** The initiator's ACT — «разыграл(а) карту X». The trigger card is the
      *  card that ACTIVATED the effect; for an initiator-owned effect card the
      *  effect card itself is what they played. */
     causeLine(): string {
-      const m = this.meta;
-      if (m === undefined) {
+      const cause = this.cardCause;
+      if (cause === undefined) {
         return '';
       }
-      const played = m.triggerCard ?? (m.effectCardOwner === 'initiator' ? m.effectCard : undefined);
+      const played = cause.triggerCard ?? (cause.effectCardOwner === 'initiator' ? cause.effectCard : undefined);
       return played !== undefined ?
         translateTextWithParams('played ${0}', [translateText(played)]) :
         translateText('took an action');
     },
-    /** The effect's own promise — whose card grants, and how much. */
+    /** The effect's own promise — whose rule grants, and how much. */
     effectLine(): string {
       const m = this.meta;
       if (m === undefined) {
         return '';
       }
-      return m.effectCardOwner === 'you' ?
-        translateTextWithParams('Your ${0} effect: take ${1} card(s)', [translateText(m.effectCard), String(m.count)]) :
-        translateTextWithParams('${0}: you receive ${1} card(s)', [translateText(m.effectCard), String(m.count)]);
+      const card = this.cardCause;
+      if (card === undefined) {
+        // The RESOLUTION's draw: the political phase is the cause, so the line
+        // states the rule's promise — the source plate beside it (face, code,
+        // L3) is what names the resolution.
+        return translateTextWithParams('The enacted resolution draws ${0} card(s) for you', [String(m.count)]);
+      }
+      return card.effectCardOwner === 'you' ?
+        translateTextWithParams('Your ${0} effect: take ${1} card(s)', [translateText(card.effectCard), String(m.count)]) :
+        translateTextWithParams('${0}: you receive ${1} card(s)', [translateText(card.effectCard), String(m.count)]);
     },
     sourceView(): PromptSourceView {
+      // The server's own source marker first (a resolution draw carries the
+      // resolution's face and code through it); the card cause is the fallback.
       return promptSourceView(this.view.waitingFor) ??
-        {card: this.meta?.effectCard, kindKey: 'Card', inspectable: this.meta !== undefined};
+        {card: this.cardCause?.effectCard, kindKey: 'Card', inspectable: this.cardCause !== undefined};
     },
     stageKey(): string {
       return this.phase === 'dealing' ? 'Drawing cards…' : 'Intake';
