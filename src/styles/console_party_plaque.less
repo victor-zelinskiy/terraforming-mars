@@ -1,0 +1,227 @@
+/* ══ THE PARTY PLAQUE — the ONE visual family of a party ═══════════════
+   A dark alloy plate with the party's accent as its SEAM; the seal (the
+   emblem) wears the STATE RING; the name is the plate's brightest voice;
+   the action badge shares the head line; the MECHANIC — the same render-DSL
+   drawing every surface uses — owns the plate's CENTRE at reading size,
+   optically centred in the room the head and the foot leave; the foot is the
+   viewer's compact state (the threshold places with their count, one word
+   only where a word says more) and the popular support. Four sizes, one
+   anatomy. */
+.con-pseal {
+    position: relative;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    grid-template-areas: "seal head" "formula formula" "state state";
+    column-gap: .4rem;
+    row-gap: .18rem;
+    align-items: start;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    padding: .36rem .5rem .36rem .45rem;
+    border-radius: .6rem;
+    color: #ece8df;
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0) 50%),
+        linear-gradient(160deg, rgba(28, 26, 42, 0.94), rgba(12, 11, 20, 0.96));
+    --pseal-accent: var(--parl-accent, @con-parl-violet);
+    box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.08), inset 0 -.16rem 0 var(--pseal-accent);
+    transition: box-shadow calc(160ms * var(--motion-scale, 1)) @con-ease-standard, background-color calc(160ms * var(--motion-scale, 1)) @con-ease-standard;
+
+    /* THE SEAL — the emblem with its state ring. */
+    &__seal {
+        grid-area: seal;
+        position: relative;
+        width: 2.2rem;
+        height: 2.2rem;
+        flex-shrink: 0;
+        align-self: center;
+    }
+    &__emblem { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+    &__ring {
+        position: absolute;
+        inset: -.12rem;
+        border-radius: 50%;
+        border: .12rem solid transparent;
+        pointer-events: none;
+        transition: border-color calc(160ms * var(--motion-scale, 1)) @con-ease-standard, box-shadow calc(160ms * var(--motion-scale, 1)) @con-ease-standard;
+    }
+    /* THE HEAD — the name and the action badge on one line. */
+    &__head { grid-area: head; align-self: center; display: flex; align-items: center; gap: .3rem; min-width: 0; }
+    &__name {
+        flex: 1 1 auto;
+        min-width: 0;
+        font-size: .78rem;
+        font-weight: 700;
+        line-height: 1.15;
+        letter-spacing: .03em;
+        text-transform: uppercase;
+        color: #f4f1ea;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    /* THE ACTION BADGE — available (lit), used (stamped ✓), not now / blocked (outlined). */
+    &__action {
+        flex-shrink: 0;
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 1.2rem;
+        height: 1.2rem;
+        border-radius: .3rem;
+        font-size: .74rem;
+        line-height: 1;
+        background: rgba(0, 0, 0, 0.35);
+        box-shadow: inset 0 0 0 .06rem rgba(255, 255, 255, 0.14);
+        color: fade(@con-text, 50%);
+        &--available { color: #0d1a14; background: @con-parl-mint; box-shadow: 0 0 .6rem fade(@con-parl-mint, 45%); }
+        &--used { color: fade(@con-text, 45%); background: rgba(0, 0, 0, 0.45); box-shadow: inset 0 0 0 .06rem rgba(255, 255, 255, 0.1); }
+        &--not-now { color: @con-amber; box-shadow: inset 0 0 0 .06rem fade(@con-amber, 55%); }
+        &--blocked, &--no-access { color: fade(@con-text, 35%); }
+    }
+    &__action-bolt { display: block; }
+    &__action-mark {
+        position: absolute;
+        right: -.28rem;
+        bottom: -.28rem;
+        width: .8rem;
+        height: .8rem;
+        border-radius: 50%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: .5rem;
+        font-weight: 800;
+        background: #262633;
+        color: @con-parl-mint;
+        box-shadow: 0 0 0 .05rem rgba(255, 255, 255, 0.22);
+    }
+    /* THE MECHANIC — the plate's centre: centred on both axes in the room
+       the head and the foot leave, never pinned to an edge. */
+    &__formula {
+        grid-area: formula;
+        align-self: center;
+        justify-self: center;
+        min-width: 0;
+        max-width: 100%;
+        --con-pformula-zoom: var(--con-parl-tile-formula-zoom, calc(0.52 * var(--con-ui-scale, 1)));
+    }
+    /* THE FOOT — the state in the fewest marks, the support at the far end. */
+    &__state {
+        grid-area: state;
+        display: flex;
+        align-items: center;
+        gap: .3rem;
+        min-width: 0;
+        min-height: 1rem;
+        font-size: .6rem;
+        line-height: 1.2;
+        &--gold { color: @con-parl-gold; }
+        &--mint { color: @con-parl-mint; }
+        &--cyan { color: @con-cyan; }
+        &--dim { opacity: .65; }
+    }
+    /* The state may take a second line on a tile — a cut state is worse than a taller line. */
+    &__state-text { flex: 0 1 auto; min-width: 0; white-space: normal; line-height: 1.15; overflow: hidden; letter-spacing: .04em; text-transform: uppercase; font-size: .56rem; }
+    &__places { display: inline-flex; align-items: center; gap: .12rem; flex-shrink: 0; }
+    &__place {
+        width: .8rem; height: .8rem; border-radius: .18rem;
+        display: inline-flex; align-items: center; justify-content: center;
+        background: rgba(0, 0, 0, 0.4);
+        box-shadow: inset 0 0 0 .06rem fade(@con-cyan, 45%);
+        &--on { box-shadow: inset 0 0 0 .06rem fade(@con-parl-mint, 55%); }
+    }
+    &__places-count { margin-left: .12rem; font-size: .62rem; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: .02em; }
+    /* THE REASON (the focused tile whose action cannot be taken): one short
+       amber line in the foot — the state's ring and badge stay. */
+    &__reason { flex: 1 1 auto; min-width: 0; font-size: .56rem; line-height: 1.15; letter-spacing: .03em; text-transform: uppercase; white-space: normal; color: @con-amber; &--dim { color: fade(@con-text, 80%); } }
+    /* POPULAR SUPPORT — three places closing the foot; a steel cube per supporter. */
+    &__support {
+        display: inline-flex;
+        gap: .1rem;
+        flex-shrink: 0;
+        margin-left: auto;
+    }
+    &__support-place {
+        width: .72rem; height: .72rem; border-radius: .15rem;
+        display: inline-flex; align-items: center; justify-content: center;
+        background: rgba(0, 0, 0, 0.4);
+        box-shadow: inset 0 0 0 .06rem rgba(200, 205, 215, 0.3);
+        &--on { box-shadow: inset 0 0 0 .06rem rgba(200, 205, 215, 0.55); }
+    }
+
+    /* ── STATE RINGS — the console's state colours, never the player's. ── */
+    &--ruling &__ring, &--ruling-default &__ring { border-color: @con-parl-gold; box-shadow: 0 0 .5rem fade(@con-parl-gold, 45%); }
+    &--delegates &__ring, &--granted &__ring { border-color: @con-parl-mint; box-shadow: 0 0 .5rem fade(@con-parl-mint, 40%); }
+    &--progress &__ring, &--in-area &__ring { border-color: fade(@con-cyan, 75%); border-style: dashed; }
+    /* A party outside the vote: its ring is dark and its foot silent — the
+       identity and the mechanic stay confidently readable (a player needs
+       the party's information whether or not its effect is theirs). */
+    &--absent &__emblem { opacity: .82; }
+    &--absent &__name { opacity: .9; }
+    &--ruling, &--ruling-default { background: linear-gradient(160deg, rgba(58, 48, 30, 0.92), rgba(16, 13, 10, 0.96)); }
+    &--delegates, &--granted { background: linear-gradient(160deg, rgba(22, 44, 40, 0.92), rgba(10, 16, 15, 0.96)); }
+    &--used &__emblem { opacity: .85; }
+    &--focus { box-shadow: inset 0 0 0 .12rem @con-cyan, inset 0 -.16rem 0 var(--pseal-accent), 0 0 1rem rgba(63, 214, 241, 0.25); }
+
+    /* ── HERO — the action composer's source column: a column, the seal
+       large, the mechanic wide. ── */
+    &--hero {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: auto auto auto auto;
+        grid-template-areas: "seal" "head" "formula" "state";
+        justify-items: center;
+        row-gap: .3rem;
+        padding: .5rem .5rem .55rem;
+        text-align: center;
+        .con-pseal__seal { width: 4.4rem; height: 4.4rem; }
+        .con-pseal__head { justify-content: center; }
+        .con-pseal__name { flex: 0 1 auto; font-size: .95rem; white-space: normal; }
+        .con-pseal__state { font-size: .64rem; justify-content: center; }
+        .con-pseal__formula { --con-pformula-zoom: var(--con-parl-hero-formula-zoom, calc(0.78 * var(--con-ui-scale, 1))); justify-self: center; }
+    }
+
+    /* ── FULL — the fullscreen inspector's subject. PX-AUTHORED (keep-px:
+       the viewer sizes it with the same `zoom` it gives a card face). The
+       seal yields room to the MECHANIC, which is what the player reads. ── */
+    &--full {
+        width: 360px;   /* keep-px */
+        min-height: 430px; /* keep-px */
+        box-sizing: border-box;
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: auto auto minmax(0, 1fr);
+        grid-template-areas: "seal" "head" "formula";
+        justify-items: center;
+        row-gap: 12px;
+        padding: 22px 20px 22px;
+        border-radius: 14px;
+        text-align: center;
+        background:
+            radial-gradient(70% 45% at 50% 22%, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0) 70%),
+            linear-gradient(170deg, #201d33 0%, #100e1a 100%);
+        box-shadow:
+            inset 0 0 0 2px rgba(201, 198, 214, 0.35),
+            inset 0 0 0 5px rgba(0, 0, 0, 0.35),
+            inset 0 -6px 0 var(--pseal-accent),
+            0 18px 40px rgba(0, 0, 0, 0.55);
+        .con-pseal__seal { width: 150px; height: 150px; }
+        .con-pseal__ring { inset: -6px; border-width: 4px; }
+        .con-pseal__head { justify-content: center; gap: 10px; }
+        .con-pseal__name { flex: 0 1 auto; font-size: 24px; letter-spacing: .06em; white-space: normal; color: #f6f3ec; }
+        .con-pseal__action { width: 28px; height: 28px; border-radius: 7px; font-size: 16px; }
+        .con-pseal__action-mark { width: 14px; height: 14px; right: -5px; bottom: -5px; font-size: 9px; }
+        .con-pseal__formula {
+            --con-pformula-zoom: 1.12;
+            justify-self: center;
+            align-self: center;
+            padding: 8px 10px;
+            border-radius: 10px;
+            background: rgba(0, 0, 0, 0.32);
+            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+        }
+        .con-pseal__support, .con-pseal__state { display: none; }
+    }
+}

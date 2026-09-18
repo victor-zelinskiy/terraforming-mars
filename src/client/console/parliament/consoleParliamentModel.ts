@@ -38,6 +38,7 @@ import {
   ReduxParty, REDUX_PARTIES, ResolutionId, ResolutionInstanceId,
 } from '@/common/parliament/ParliamentTypes';
 import {getPartyEffect, getResolution, getStarterQuest} from '@/client/parliament/ClientParliamentManifest';
+import {translateText} from '@/client/directives/i18n';
 
 export type ParliamentSlotVm = {
   instance: ResolutionInstanceId;
@@ -777,3 +778,29 @@ export function offeredPartyActions(bridge: ParliamentPromptBridge): ReadonlySet
 
 /** The party whose effect is asked about in the inspector: two delegates is the threshold the rulebook prints. */
 export const PARTY_EFFECT_THRESHOLD = PARTY_EFFECT_DELEGATES;
+
+/** A marker's move along the Agenda track: whose, from which step, to which. */
+export type AgendaMove = {player: Color, from: number, to: number};
+
+/** The view of a game WITHOUT a Parliament (the model is absent) — every tier renders its honest empty state. */
+export function emptyParliamentView(): ParliamentViewVm {
+  return {
+    slots: [], enacted: undefined, rulingParty: PartyName.GREENS, rulingEffect: undefined, quest: undefined, chairman: undefined,
+    parties: [], agenda: [], agendaStart: [], players: [], viewer: undefined, tiles: [], deckSize: 0, discardSize: 0, neutralSupply: 0, botMode: 'none',
+  };
+}
+
+/** A seat's name by its colour (the neutral player by its own key) — the ONE wording every Parliament surface prints. */
+export function parliamentPlayerName(players: ReadonlyArray<PublicPlayerModel>, color: Color | 'neutral' | undefined): string {
+  if (color === undefined || color === 'neutral') {
+    return translateText('the neutral player');
+  }
+  return players.find((p) => p.color === color)?.name ?? color;
+}
+
+/** A resolution's printed name: the voting slot that carries it, the enacted card, else the manifest (the id as the last resort). */
+export function resolutionTitleOf(view: ParliamentViewVm, id: string): string {
+  return view.slots.find((s) => s.resolutionId === id)?.resolution?.text.name ??
+    (view.enacted?.resolutionId === id ? view.enacted.resolution?.text.name : undefined) ??
+    getResolution(id)?.text.name ?? id;
+}

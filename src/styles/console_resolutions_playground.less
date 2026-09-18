@@ -1,0 +1,149 @@
+/* ══ THE REDUX RESOLUTIONS PLAYGROUND (`ConsoleResolutionsPlayground`, the
+   «Полигон» stand). A reference sheet in the stand's own scroll: the
+   catalog row, the face at the game's three sizes beside the inspector's
+   columns, the context × influence instrument, the shared recipient picker.
+   Rem-authored like every console surface. ══ */
+.con-rxpg {
+    display: flex;
+    flex-direction: column;
+    gap: 1.2rem;
+    padding: .6rem 1.2rem 2rem;
+    color: @con-text;
+    font-family: @con-font-read;
+
+    h2 {
+        margin: 0 0 .6rem;
+        font-size: .9rem;
+        letter-spacing: .12em;
+        text-transform: uppercase;
+        color: fade(@con-parl-gold, 92%);
+        border-bottom: .05rem solid fade(@con-parl-violet, 45%);
+        padding-bottom: .25rem;
+    }
+    &__dim { color: fade(@con-text, 55%); text-transform: none; letter-spacing: 0; font-size: .74rem; margin-left: .5rem; }
+    &__code { font-family: Ubuntu, sans-serif; font-size: .7rem; letter-spacing: .1em; padding: .05rem .3rem; border-radius: .25rem; background: rgba(0, 0, 0, 0.35); box-shadow: inset 0 0 0 .05rem fade(@con-parl-silver, 45%); color: fade(@con-parl-silver, 95%); }
+    &__head { display: flex; flex-wrap: wrap; gap: .6rem 1.2rem; }
+    &__hints { display: flex; flex-wrap: wrap; gap: .4rem 1rem; font-size: .66rem; letter-spacing: .08em; text-transform: uppercase; color: fade(@con-text, 70%); }
+    &__hint { display: inline-flex; align-items: center; gap: .3rem; }
+
+    /* 1. the catalog */
+    &__catalog { display: flex; flex-wrap: wrap; gap: .8rem; }
+    &__slot {
+        display: flex; flex-direction: column; align-items: center; gap: .25rem;
+        padding: .4rem .45rem .45rem; border-radius: .6rem;
+        background: rgba(255, 255, 255, 0.03);
+        box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.08);
+        &--cursor { background: rgba(24, 38, 54, 0.92); box-shadow: inset 0 0 0 .1rem fade(@con-cyan, 75%); }
+        &--uncoded { opacity: .78; }
+    }
+    &__slot-face .pcard { zoom: calc(0.42 * var(--con-ui-scale, 1)); }
+    &__slot-name { font-size: .72rem; font-weight: 600; max-width: 8rem; text-align: center; line-height: 1.2; }
+    &__slot-meta { display: inline-flex; align-items: center; gap: .3rem; font-size: .62rem; color: fade(@con-text, 75%); }
+    &__emblem { width: .95rem; height: .95rem; object-fit: contain; }
+
+    /* 2. the sizes + the inspector's columns */
+    &__sizes { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 1.2rem; }
+    &__size { display: flex; flex-direction: column; align-items: center; gap: .35rem; }
+    &__size-face .pcard { zoom: calc(var(--con-ui-scale, 1) * 1); }
+    &__label { font-size: .62rem; letter-spacing: .1em; text-transform: uppercase; color: fade(@con-text, 70%); }
+    &__inspect { display: flex; align-items: flex-start; gap: 1rem; flex: 1 1 28rem; min-width: 0; }
+    &__aside, &__rules { flex: 1 1 14rem; min-width: 0; max-width: 20rem; }
+
+    /* 3. the instrument — the scenario strip, the parameters, the readings */
+    &__scenarios { display: flex; flex-wrap: wrap; gap: .4rem .5rem; margin-bottom: .7rem; }
+    &__scenario {
+        display: inline-flex; align-items: center; gap: .35rem;
+        padding: .22rem .6rem .22rem .3rem; border-radius: 1rem;
+        font-size: .7rem; line-height: 1.1; color: fade(@con-text, 78%);
+        background: rgba(255, 255, 255, 0.04);
+        box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.1);
+        cursor: pointer;
+        &--active { color: @con-text; background: rgba(24, 38, 54, 0.92); box-shadow: inset 0 0 0 .1rem fade(@con-cyan, 75%); }
+    }
+    &__scenario-n {
+        display: inline-flex; align-items: center; justify-content: center;
+        min-width: 1.1rem; height: 1.1rem; border-radius: 50%;
+        font-size: .6rem; background: rgba(0, 0, 0, 0.35); color: fade(@con-parl-gold, 92%);
+    }
+    &__scenario-mod { font-style: normal; font-size: .56rem; letter-spacing: .08em; text-transform: uppercase; color: fade(@con-amber, 90%); }
+    /* a LIVE scenario — this chip boots a real game, not a reading */
+    &__scenario-live {
+        font-style: normal; font-size: .52rem; letter-spacing: .1em; text-transform: uppercase;
+        padding: .06rem .28rem; border-radius: .28rem;
+        color: fade(@con-parl-mint, 96%); background: rgba(0, 0, 0, 0.32);
+        box-shadow: inset 0 0 0 .05rem fade(@con-parl-mint, 55%);
+    }
+    &__agenda { font-size: .66rem; color: fade(@con-text, 66%); margin-left: .2rem; }
+    &__agenda--advanced { color: fade(@con-parl-gold, 95%); }
+    &__controls { display: flex; flex-wrap: wrap; gap: .5rem 1.4rem; margin-bottom: .8rem; }
+    &__control { display: inline-flex; align-items: center; gap: .35rem; font-size: .8rem; b { font-size: .92rem; } }
+    &__ckey { font-size: .58rem; letter-spacing: .1em; text-transform: uppercase; color: fade(@con-text, 65%); }
+    /* the live-scenario plate: what the real game stands on, and A to open it */
+    &__live {
+        display: flex; flex-wrap: wrap; align-items: baseline; gap: .3rem .9rem;
+        padding: .45rem .8rem .5rem; margin-bottom: .8rem; border-radius: .6rem;
+        background: rgba(12, 30, 26, 0.72);
+        box-shadow: inset 0 0 0 .07rem fade(@con-parl-mint, 50%);
+        &--starting { box-shadow: inset 0 0 0 .07rem fade(@con-cyan, 75%); }
+        &--error { background: rgba(38, 16, 16, 0.72); box-shadow: inset 0 0 0 .07rem fade(@con-amber, 60%); }
+    }
+    &__live-kicker { font-size: .56rem; letter-spacing: .12em; text-transform: uppercase; color: fade(@con-parl-mint, 92%); }
+    &__live-what { font-size: .78rem; line-height: 1.25; flex: 1 1 18rem; min-width: 0; color: fade(@con-text, 88%); }
+    &__live-verb { display: inline-flex; align-items: center; gap: .3rem; font-size: .66rem; letter-spacing: .08em; text-transform: uppercase; color: fade(@con-text, 82%); }
+    &__live-error { font-size: .72rem; color: fade(@con-amber, 95%); }
+    &__yieldrow { display: flex; align-items: flex-start; gap: 1.4rem; flex-wrap: wrap; }
+    &__yieldcard .pcard { zoom: calc(0.72 * var(--con-ui-scale, 1)); }
+    &__yieldcol { display: flex; flex-direction: column; align-items: flex-start; gap: .8rem; min-width: 0; flex: 1 1 24rem; }
+    &__none { margin: 0; font-size: .8rem; color: fade(@con-text, 65%); }
+    &__status { align-self: flex-start; }
+    /* every seat by its own influence */
+    &__seats { display: flex; flex-direction: column; align-items: flex-start; gap: .35rem; }
+    &__seat {
+        display: flex; align-items: center; flex-wrap: wrap; gap: .3rem .55rem;
+        padding: .25rem .6rem .25rem .45rem; border-radius: .6rem;
+        background: rgba(255, 255, 255, 0.03);
+        box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.07);
+        &--viewer { background: rgba(24, 38, 54, 0.7); box-shadow: inset 0 0 0 .07rem fade(@con-cyan, 55%); }
+    }
+    &__seat-name { font-size: .74rem; font-weight: 600; min-width: 8.5rem; }
+    &__seat-star { width: .9rem; height: .9rem; background: url(./assets/misc/vote-winner.svg) center / contain no-repeat; }
+    &__seat-tag {
+        font-size: .62rem; letter-spacing: .06em; padding: .1rem .4rem; border-radius: .3rem;
+        background: rgba(0, 0, 0, 0.3);
+        &--agenda { color: fade(@con-parl-gold, 95%); box-shadow: inset 0 0 0 .05rem fade(@con-parl-gold, 45%); }
+        &--winner { color: fade(@con-parl-mint, 95%); box-shadow: inset 0 0 0 .05rem fade(@con-parl-mint, 45%); }
+    }
+    &__texts { display: flex; flex-direction: column; gap: .3rem; max-width: 34rem; p { margin: 0; font-size: .8rem; line-height: 1.3; } }
+    &__texts--winner { color: fade(@con-parl-gold, 96%); }
+    /* the counted term: every seat's tableau of real cards, each with its verdict */
+    &__tableaus { display: flex; flex-direction: column; align-items: stretch; gap: .45rem; min-width: 0; align-self: stretch; }
+    &__tableau {
+        display: flex; flex-direction: column; gap: .35rem;
+        padding: .35rem .6rem .45rem .45rem; border-radius: .6rem;
+        background: rgba(255, 255, 255, 0.03);
+        box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.07);
+        &--viewer { background: rgba(24, 38, 54, 0.7); box-shadow: inset 0 0 0 .07rem fade(@con-cyan, 55%); }
+    }
+    &__tableau-who { display: inline-flex; align-items: center; gap: .4rem; b { font-size: 1.05rem; } }
+    &__tableau-glyph { --pvpcard-size: 1.15rem; }
+    &__tableau-cards { display: flex; flex-wrap: wrap; gap: .45rem .55rem; }
+    &__tcard {
+        display: flex; flex-direction: column; align-items: center; gap: .2rem;
+        padding: .2rem .25rem .25rem; border-radius: .45rem;
+        box-shadow: inset 0 0 0 .05rem fade(@con-amber, 40%);
+        &--counted { box-shadow: inset 0 0 0 .08rem fade(@con-parl-mint, 70%); }
+    }
+    &__tcard-face .pcard { zoom: calc(0.3 * var(--con-ui-scale, 1)); }
+    &__tcard-verdict {
+        max-width: 6.2rem; text-align: center;
+        font-size: .54rem; line-height: 1.15; letter-spacing: .04em;
+        color: fade(@con-amber, 92%);
+    }
+    &__tcard--counted &__tcard-verdict { color: fade(@con-parl-mint, 96%); }
+    &__quest { align-self: stretch; max-width: 34rem; }
+
+    /* 4. the shared picker */
+    &__picker { display: flex; align-items: flex-start; gap: 1.2rem; }
+    &__picker-body { flex: 1 1 auto; min-width: 0; min-height: 12rem; }
+    &__skip { margin: .4rem 0 0; font-size: .82rem; color: fade(@con-amber, 92%); }
+}

@@ -1,0 +1,200 @@
+/* ══ A RESOLUTION WITH ITS OWN ART — the window is the WHOLE 3:2 illustration
+   (the pack is authored at 1536×1024), never the project face's cover-cropped
+   band: the art row takes its own aspect, and the lower section takes what is
+   left (the mechanics breathe, the quest plate stays anchored at the bottom).
+   The same rows on every host (overview, vote mode, fullscreen): the face is
+   px-authored and only the host's zoom changes. ══ */
+.pcard--resolution-art .pcard__content {
+    grid-template-rows:
+        var(--pcard-plate-h)                   /* header shell (title plate) */
+        auto                                   /* requirements rail / divider */
+        auto                                   /* art — its own 3:2 frame */
+        minmax(0, 1fr);                        /* lower section: mechanics + quest */
+}
+.pcard--resolution-art .pcard__art {
+    aspect-ratio: 3 / 2;
+    min-height: 0;
+    height: auto;
+    align-self: start;
+}
+.pcard--resolution-art .pcard__art img {
+    object-fit: cover;          /* 3:2 in a 3:2 frame — nothing is cut */
+    object-position: center;
+}
+.pcard--resolution-art .pcard__lower {
+    justify-content: space-between;
+    min-height: 0;
+}
+.pcard--resolution-art .pcard__lower .pcard__mech {
+    margin-top: 2px;
+}
+
+/* ══ THE RESOLUTION FACE's QUEST PLATE — px-authored (the face's own scale).
+   A kicker and the printed condition as a CENTRED GRAPHIC (its words only
+   when no graphic exists). No reward on the face — it is the same for every
+   resolution and lives in the government block and the inspector. ══ */
+.pcard__quest {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    margin: 6px 14px 22px;
+    padding: 5px 8px 6px;
+    border-radius: 6px;
+    background: linear-gradient(180deg, rgba(230, 195, 74, 0.12), rgba(230, 195, 74, 0.07));
+    box-shadow: inset 0 0 0 1px rgba(230, 195, 74, 0.42), 0 2px 6px rgba(0, 0, 0, 0.35);
+    font-size: 11px;
+    line-height: 1.2;
+}
+.pcard__quest-kicker { font-size: 8px; letter-spacing: .14em; text-transform: uppercase; opacity: .78; color: #f0dc9a; }
+.pcard__quest-cond { display: flex; align-items: center; justify-content: center; gap: 7px; min-width: 0; }
+.pcard__quest-graphic {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    background: rgba(0, 0, 0, 0.3);
+    --pcard-mech-icon: 24px;
+    --pcard-mech-font: 14px;
+}
+.pcard__quest-text { font-weight: 600; min-width: 0; text-align: center; }
+
+.con-pformula {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: .5rem;
+    min-width: 0;
+    max-width: 100%;
+    &__emblem { width: 2.2rem; height: 2.2rem; object-fit: contain; flex-shrink: 0; }
+    &__mech {
+        zoom: var(--con-pformula-zoom, calc(0.6 * var(--con-ui-scale, 1)));
+        --pcard-mech-icon: 28px;
+        --pcard-mech-font: 17px;
+        --pcard-gold: #d9b878;
+        --pcard-gold-hi: #f2d795;
+        --pcard-gold-deep: #8a6a35;
+        --pcard-text: #e9eef4;
+        --pcard-onplay-hi: #7ff0c4;
+        --pcard-onplay-deep: #2f7d5c;
+        --pcard-effect-rim: rgba(90, 169, 230, 0.5);
+        --pcard-action-rim: rgba(242, 215, 149, 0.45);
+        --pcard-band: rgba(120, 92, 170, 0.28);
+        --pcard-any-rgb: 207, 122, 99;
+        --pcard-req-copper-hi: #b87f42;
+        --pcard-req-copper-deep: #8a5730;
+        --pcard-req-rim-deep: #5d3b1e;
+        --pcard-vp-safe: 0px;
+        --pcard-res-safe: 0px;
+        --pcard-plate-h: 46px;
+        --pcard-art-min: 0px;
+        min-width: 0;
+        .pcard__mech {
+            padding: 4px 6px;
+            gap: 4px;
+            background: none;
+            border: none;
+            box-shadow: none;
+            align-items: stretch;
+        }
+        /* EVERY GROUP ON ONE AXIS: a short passive row under a long action row
+           sits centred, never flush left — the panel is a column and each row
+           centres its content within the column's full width. */
+        .pcard-mech-group { justify-content: center; }
+        .pcard-mech-group + .pcard-mech-group { padding-top: 5px; }
+        &--empty { zoom: 1; }
+    }
+    &__none { font-size: .7rem; opacity: .6; }
+    /* A LONG ROW (the Reds' action) wraps INSIDE its frame: the arrow leads
+       the line and the result folds under itself — never an arrow alone on
+       the first line with the whole result dropped beneath it. */
+    &__mech .pcard-effect { flex-wrap: nowrap; }
+    &__mech .pcard-effect__part { min-width: 0; }
+    &--compact &__mech { zoom: var(--con-pformula-zoom, calc(0.46 * var(--con-ui-scale, 1))); }
+    /* Not held: the mechanic RECEDES a step, never below reading contrast — the state carries the difference. */
+    &--dim .pcard__mech { opacity: .9; }
+}
+
+/* A TAG in a Parliament formula (the Scientists' wild tag, a quest's tags)
+   is seated as the MEDALLION a card header wears — the same ring over the
+   same art — so it reads as a tag and never as a resource chip. Scoped to
+   the parliament's hosts: a card face keeps its bare mechanics art. */
+.con-pformula__mech .pcard-ic--tag,
+.con-parl__info-mech .pcard-ic--tag,
+.con-parl__quest-graphic .pcard-ic--tag,
+.pcard__quest-graphic .pcard-ic--tag {
+    position: relative;
+    border-radius: 50%;
+    &::after {
+        content: '';
+        position: absolute;
+        inset: -6%;
+        background: url(./assets/premium-card/medallion-ring.svg) center / contain no-repeat;
+        pointer-events: none;
+    }
+}
+
+/* ══ THE RESOLUTION FACE — the parliament family on the premium face ══════
+   The party emblem in the header (where a project card's tags stand) and the
+   chairman QUEST as its own plate at the foot of the lower section. */
+.pcard__party {
+    position: absolute;
+    right: 8px;
+    top: 6px;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: radial-gradient(circle at 40% 35%, rgba(255,255,255,.18), rgba(0,0,0,.35));
+    box-shadow: 0 0 0 2px var(--pcard-rim-soft), 0 2px 6px rgba(0,0,0,.5);
+    z-index: 3;
+}
+.pcard__party-emblem { width: 32px; height: 32px; object-fit: contain; }
+/* A party BANNER's art window (the legacy premium banner — kept for the
+   surfaces that still draw a party through a face): the emblem as a centred
+   badge over a quiet radial field. */
+.pcard--party-banner .pcard__art {
+    background:
+        radial-gradient(circle at 50% 46%, rgba(178, 140, 235, 0.32), rgba(24, 16, 40, 0.0) 58%),
+        linear-gradient(180deg, #120c1e, #0a0812);
+}
+.pcard--party-banner .pcard__art img {
+    object-fit: contain;
+    object-position: center 46%;
+    padding: 22%;
+    box-sizing: border-box;
+}
+.pcard--party-banner .pcard__party { display: none; }
+/* A RESOLUTION with no art of its own yet: the art window carries the party's
+   SEAL — the emblem as a centred badge, inset from every edge over a field
+   tinted with the party's accent and a quiet ring engraving. The window
+   keeps its geometry and yields the room the lower section needs, so the
+   seal sits centred in what is left. */
+.pcard--resolution-seal .pcard__art {
+    background:
+        radial-gradient(circle at 50% 50%, rgba(10, 8, 18, 0) 0%, rgba(10, 8, 18, 0.85) 78%),
+        linear-gradient(180deg, #150f22, #0b0913);
+}
+.pcard--resolution-seal .pcard__art::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+        repeating-radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0) 0 17px, rgba(255, 255, 255, 0.05) 17px 18px),
+        radial-gradient(circle at 50% 50%, var(--pcard-party-accent, #8b6ad8) 0%, rgba(0, 0, 0, 0) 64%);
+    opacity: .38;
+    pointer-events: none;
+}
+.pcard--resolution-seal .pcard__art img {
+    object-fit: contain;
+    object-position: center;
+    padding: 21%;
+    box-sizing: border-box;
+}

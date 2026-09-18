@@ -318,6 +318,11 @@ export function conUiScale(): number {
   return consoleLayoutState.uiScale;
 }
 
+/** A logical px size (1080-logical) as real px for a JS-sized object (a cube, a marker) — the one rounding every host uses. */
+export function conLogicalPx(logical: number): number {
+  return Math.round(logical * conUiScale());
+}
+
 /**
  * Set (or clear) the persistent user profile pick — the Options
  * display picker rides this. Uses the SAME store as the debug override,

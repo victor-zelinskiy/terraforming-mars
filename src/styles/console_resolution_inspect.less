@@ -1,0 +1,429 @@
+/* ══ THE RESOLUTION INSPECTOR (the fullscreen viewer over a resolution) ═════
+   One scene in the project card's language: the party column (left) · the
+   card (centre) · the resolution's own rules (right) · the footer (standing,
+   access, the vote verb, the paging). Both columns are the rules panel's own
+   material, width and vertical centring on the card; the words explain the
+   graphic the card prints and never draw it again. The ONE graphic a column
+   carries is the party plaque's formula — the card does not print it. ══ */
+
+dialog.con-zoom {
+    /* The party formula's symbol scale on the plaque (the card face's scale). */
+    --con-rinspect-formula-zoom: calc(0.92 * var(--con-ui-scale, 1));
+}
+
+/* ── THE PARTY COLUMN — the party plaque at reading size over the mechanics'
+   sentences, ONE composition: the plaque sits in the text's own column (its
+   edges are the body's padding) and stands where the first block of a rules
+   panel would, one block-gap above the first chip. The plaque keeps the
+   tile's anatomy (seal · name · badge, the context line, the printed
+   mechanic), so the party is recognised from the Parliament at a glance. ── */
+.con-rinspect-aside {
+    &__box {
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+    }
+    &__plaque {
+        flex: 0 0 auto;
+        margin: .95rem 1.1rem 0;
+    }
+    /* The text block takes what is left and scrolls only as the last resort. */
+    &__rules {
+        flex: 0 1 auto;
+        min-height: 0;
+        width: 100%;
+        .con-zoom-rules { width: 100%; max-height: 100%; }
+        /* The plaque is the column's first block: the body opens with the
+           block gap of its own tier, never a second head's padding. */
+        .con-zoom-rules__body { padding-top: 1rem; }
+        .con-zoom-rules--packed .con-zoom-rules__body { padding-top: .6rem; }
+    }
+}
+.con-pseal--aside {
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-rows: auto auto auto;
+    grid-template-areas: "seal head" "seal note" "formula formula";
+    column-gap: .6rem;
+    row-gap: .18rem;
+    align-items: center;
+    padding: .55rem .7rem .6rem .65rem;
+    border-radius: .7rem;
+    .con-pseal__seal { width: 3.3rem; height: 3.3rem; align-self: center; }
+    .con-pseal__ring { inset: -.16rem; border-width: .14rem; }
+    .con-pseal__head { align-self: end; gap: .45rem; }
+    .con-pseal__name { font-size: 1.02rem; line-height: 1.1; letter-spacing: .05em; white-space: normal; overflow: visible; text-overflow: clip; }
+    .con-pseal__action { width: 1.4rem; height: 1.4rem; border-radius: .35rem; font-size: .84rem; }
+    .con-pseal__action-mark { width: .9rem; height: .9rem; right: -.3rem; bottom: -.3rem; font-size: .56rem; }
+    .con-pseal__note {
+        grid-area: note;
+        align-self: start;
+        .con-read-text(470);
+        font-size: .72rem;
+        line-height: 1.25;
+        color: fade(@con-text, 78%);
+        min-width: 0;
+    }
+    /* The printed mechanic across the plate — every row on the plate's axis. */
+    .con-pseal__formula {
+        --con-pformula-zoom: var(--con-rinspect-formula-zoom, calc(0.92 * var(--con-ui-scale, 1)));
+        justify-self: center;
+        align-self: start;
+        margin-top: .3rem;
+        padding: .2rem .4rem;
+        border-radius: .5rem;
+        background: rgba(0, 0, 0, 0.32);
+        box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.08);
+        max-width: 100%;
+    }
+}
+
+/* ── THE SCENE'S FOOTER — the fullscreen family's command plate, as wide as
+   what it carries. Four groups in ONE centred row: the card's standing and
+   the viewer's access · send the delegate (source · price, or the reason) ·
+   page the proposals (the position) · close. The plate is content-sized and
+   centred by `.card-zoom-actions`, exactly like an ordinary card's footer;
+   the safe area bounds it and never fills it (a plate stretched to the
+   scene's width left half a screen of empty glass between the chip and the
+   verbs). Stability is not bought with empty room either: the status chip
+   and the vote's reading reserve the widest REAL variant of the cards being
+   paged (invisible grid siblings), so a page turn changes text, never the
+   plate or a control's place. A viewer with no vote (an enacted card) simply
+   carries fewer groups — no room is kept for an absent verb. ── */
+dialog.con-zoom.con-zoom--parliament .card-zoom-actions__panel {
+    box-sizing: border-box;
+    max-width: calc(100vw - 2 * var(--con-hud-pad-x, 2rem));
+}
+/* Between groups a clear, moderate step; inside a group the glyph and its
+   words keep their own tight gaps. (The class is doubled to outrank the
+   profile ladders' `.con-zoom__bar` gap, which sit later in the cascade.) */
+.con-zoom__bar.con-zoom__bar--scene {
+    flex-wrap: nowrap;
+    gap: 1.5rem;
+}
+
+/* THE VOTE VERB — the mint confirm of the console's verbs, with its reading
+   under the label: the source and the price, or the reason it cannot go now.
+   Blocked, the verb stays in place in the calm register (the glyph and label
+   muted, the reason amber — a closed window or a spent reserve is not an
+   error). A press on a blocked verb nudges the reason where the eye is. */
+.con-zoom__vote {
+    display: inline-flex;
+    align-items: center;
+    gap: .45rem;
+    text-align: left;
+    color: @con-mint;
+
+    &-text {
+        display: inline-flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: .1rem;
+        line-height: 1.1;
+    }
+    &-label {
+        font-size: .85rem;
+        font-weight: 800;
+        letter-spacing: .09rem;
+        text-transform: uppercase;
+    }
+    /* The reading's CELL: the live line and, invisible under it, the other
+       cards' lines — the verb is as wide as the widest real reading here. */
+    &-cell {
+        display: grid;
+        justify-items: start;
+        align-items: center;
+        > * { grid-area: 1 / 1; }
+    }
+    /* ONE fixed line: the price (a figure + the M€ icon) and a refusal's
+       words take the same height, so a change of availability never
+       resizes the plate. The height is the icon's own. */
+    &-line {
+        display: inline-flex;
+        align-items: center;
+        gap: .3rem;
+        height: .95rem;
+        line-height: 1;
+        font-size: .7rem;
+        font-weight: 700;
+        letter-spacing: .03rem;
+        text-transform: none;
+        white-space: nowrap;
+        color: fade(@con-text, 80%);
+        &--sizer { visibility: hidden; }
+    }
+    &-detail--nudge { animation: con-zoom-vote-nudge calc(380ms * var(--motion-scale, 1)) @con-ease-standard; }
+    &-sep { opacity: .5; }
+    &-cost {
+        display: inline-flex;
+        align-items: center;
+        gap: .15rem;
+        color: #f4e7c2;
+        b { font-size: .82rem; font-variant-numeric: tabular-nums; }
+    }
+    &-mc {
+        display: inline-block;
+        width: .95rem;
+        height: .95rem;
+        background-size: contain;
+        background-repeat: no-repeat;
+    }
+    &-free { color: @con-mint; }
+    &-reason { color: fade(@con-amber, 92%); }
+    &--blocked {
+        color: fade(@con-text, 58%);
+        cursor: default;
+    }
+    &--blocked:hover { color: fade(@con-text, 58%); }
+}
+@keyframes con-zoom-vote-nudge {
+    0% { transform: translateX(0); }
+    22% { transform: translateX(-.28rem); }
+    48% { transform: translateX(.22rem); }
+    74% { transform: translateX(-.1rem); }
+    100% { transform: translateX(0); }
+}
+html.con-reduced-motion .con-zoom__vote-detail--nudge { animation: none; }
+@media (prefers-reduced-motion: reduce) {
+    .con-zoom__vote-detail--nudge { animation: none; }
+}
+
+/* The paging hint's POSITION (the counter the scene does not draw above the
+   card): the current index carried by weight, the total quieter. */
+.con-zoom__flip-pos {
+    display: inline-flex;
+    align-items: baseline;
+    gap: .14rem;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: .04rem;
+    /* The console face has no tabular digits: «1» is narrower than «2», so the
+       index gets ONE advance box — paging never nudges the verbs beside it. */
+    b { display: inline-block; min-width: 1.1ch; text-align: right; font-size: .95rem; color: #cfeaff; }
+}
+
+/* ── THE BAR's STATUS CHIP — where the card stands, and the viewer's access
+   to its party's effect. Two facts in one chip, told apart by LINES: the
+   standing over the access, a two-line block beside the vote verb's own
+   two-line block (side by side, the pair ran past the bar's edge beside a
+   refusal sentence on every profile — 614 + 307 px in the Deck's 1192). The
+   lifecycle carries the parliament's own colours (cyan for a vote in
+   progress, the gold of «Принята» for an enacted card), the access carries
+   the console's state colours (mint held / calm dim not held / gold for
+   everyone's). Read-only: no focus stop, no hover. ── */
+.con-rstatus {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    gap: .08rem;
+    padding: .24rem .85rem .24rem .7rem;
+    border-radius: .4rem;
+    background: linear-gradient(90deg, fade(#0b1420, 92%), fade(#0b1420, 72%));
+    box-shadow:
+        inset .16rem 0 0 var(--con-rstatus-accent, fade(@con-cyan, 70%)),
+        inset 0 0 0 .05rem rgba(130, 165, 200, 0.22);
+    font-family: @con-font;
+    white-space: nowrap;
+    &[data-lifecycle="enacted"] { --con-rstatus-accent: fade(@con-parl-gold, 80%); }
+
+    /* A line is ONE grid cell: the live line over its invisible reserve (the
+       same line of the other cards being paged) — the chip keeps one width
+       for the whole context. */
+    &__cell {
+        display: grid;
+        justify-items: start;
+        align-items: center;
+        > * { grid-area: 1 / 1; }
+    }
+    &__sizer { visibility: hidden; }
+    /* Both lines keep the vote verb's own leading, so the two-line chip is
+       never taller than the two-line verb beside it (the verb sets the
+       plate's height, as a verb does in every fullscreen footer). */
+    &__life,
+    &__access { line-height: 1.1; }
+    &__life {
+        display: inline-flex;
+        align-items: center;
+        gap: .4rem;
+        font-size: .8rem;
+        font-weight: 800;
+        letter-spacing: .1rem;
+        text-transform: uppercase;
+        color: #cfeaff;
+        &--enacted { color: @con-parl-gold; }
+    }
+    &__life-mark {
+        width: .5rem; height: .5rem;
+        border-radius: 50%;
+        background: currentColor;
+        box-shadow: 0 0 .5rem currentColor;
+        flex-shrink: 0;
+    }
+    &__life-tail {
+        font-size: .68rem;
+        font-weight: 700;
+        letter-spacing: .06rem;
+        color: @con-parl-gold;
+    }
+    &__access {
+        display: inline-flex;
+        align-items: center;
+        gap: .45rem;
+        font-size: .78rem;
+        font-weight: 700;
+        letter-spacing: .04rem;
+        color: fade(@con-text, 82%);
+        &--held { color: @con-parl-mint; }
+        &--everyone { color: @con-parl-gold; }
+    }
+    &__access-key {
+        font-size: .62rem;
+        font-weight: 800;
+        letter-spacing: .12rem;
+        text-transform: uppercase;
+        color: fade(@con-cyan, 85%);
+    }
+    &__access-val { text-transform: uppercase; letter-spacing: .06rem; }
+    &__access-basis { font-size: .68rem; font-weight: 600; letter-spacing: .02rem; color: fade(@con-text, 70%); text-transform: none; }
+    /* THE THRESHOLD INDICATOR — the two places, the viewer's own cubes in the
+       filled ones, and the count beside them. */
+    &__places { display: inline-flex; align-items: center; gap: .16rem; }
+    &__place {
+        width: .95rem; height: .95rem; border-radius: .2rem;
+        display: inline-flex; align-items: center; justify-content: center;
+        background: rgba(0, 0, 0, 0.42);
+        box-shadow: inset 0 0 0 .06rem fade(@con-cyan, 40%);
+        &--on { box-shadow: inset 0 0 0 .06rem fade(@con-parl-mint, 60%); }
+    }
+    &__access--held &__place { box-shadow: inset 0 0 0 .06rem fade(@con-parl-mint, 60%); }
+    &__count {
+        margin-left: .2rem;
+        font-size: .7rem;
+        font-weight: 800;
+        letter-spacing: .04rem;
+        font-variant-numeric: tabular-nums;
+        color: fade(@con-text, 80%);
+    }
+    &__access--held &__count { color: @con-parl-mint; }
+}
+
+/* ── THE RESOLUTION INSPECTOR on the two other profiles ──────────────────
+   Handheld: the scene's columns take the base width (two 24rem columns do
+   not stand beside a 320 px card on a 1280 px screen — and the viewer's fit
+   reserves the html-level token), the plaque compacts, the type keeps the
+   reading floor. TV: the couch scales, every label at the .8rem type floor. ── */
+html.con-profile-handheld dialog.con-zoom {
+    --con-rinspect-formula-zoom: calc(0.66 * var(--con-ui-scale, 1));
+}
+html.con-profile-handheld dialog.con-zoom.con-zoom--parliament { --con-rules-w: 21rem; }
+html.con-profile-handheld .con-rinspect-aside {
+    &__plaque { margin: .7rem 1.1rem 0; }
+    &__rules .con-zoom-rules__body,
+    &__rules .con-zoom-rules--dense .con-zoom-rules__body { padding-top: .6rem; }
+}
+html.con-profile-handheld .con-pseal--aside {
+    column-gap: .45rem;
+    padding: .4rem .5rem .45rem .5rem;
+    .con-pseal__seal { width: 2.5rem; height: 2.5rem; }
+    .con-pseal__name { font-size: .86rem; }
+    .con-pseal__note { font-size: .64rem; }
+    .con-pseal__action { width: 1.15rem; height: 1.15rem; font-size: .7rem; }
+    .con-pseal__formula { margin-top: .2rem; padding: .15rem .3rem; }
+}
+html.con-profile-handheld .con-rstatus {
+    gap: .06rem;
+    padding: .2rem .65rem .2rem .55rem;
+    &__life { font-size: .72rem; letter-spacing: .08rem; }
+    &__life-tail { font-size: .62rem; }
+    &__access { font-size: .7rem; gap: .35rem; }
+    &__access-key { font-size: .56rem; }
+    &__access-basis { font-size: .62rem; }
+    &__place { width: .85rem; height: .85rem; }
+    &__count { font-size: .64rem; }
+}
+html.con-profile-handheld .con-zoom__bar.con-zoom__bar--scene { gap: 1rem; }
+html.con-profile-handheld .con-zoom__vote {
+    &-label { font-size: .7rem; letter-spacing: .06rem; }
+    &-line { height: .85rem; font-size: .64rem; }
+    &-cost b { font-size: .74rem; }
+    &-mc { width: .85rem; height: .85rem; }
+}
+html.con-profile-tv dialog.con-zoom {
+    --con-rinspect-formula-zoom: calc(0.9 * var(--con-ui-scale, 1));
+}
+html.con-profile-tv .con-rinspect-aside {
+    &__plaque { margin: 1.1rem 1.3rem 0; }
+    &__rules .con-zoom-rules__body { padding-top: 1.15rem; }
+    &__rules .con-zoom-rules--packed .con-zoom-rules__body { padding-top: .65rem; }
+}
+html.con-profile-tv .con-pseal--aside {
+    padding: .6rem .8rem .65rem .75rem;
+    .con-pseal__seal { width: 3.6rem; height: 3.6rem; }
+    .con-pseal__name { font-size: 1.12rem; letter-spacing: .03em; }
+    .con-pseal__note { font-size: .84rem; }
+    .con-pseal__action { width: 1.5rem; height: 1.5rem; font-size: .9rem; }
+}
+html.con-profile-tv .con-rstatus {
+    gap: .1rem;
+    padding: .3rem 1rem .3rem .85rem;
+    &__life { font-size: .95rem; }
+    &__life-tail { font-size: .8rem; }
+    &__access { font-size: .9rem; }
+    &__access-key { font-size: .8rem; }
+    &__access-basis { font-size: .8rem; }
+    &__place { width: 1rem; height: 1rem; }
+    &__count { font-size: .85rem; }
+}
+html.con-profile-tv .con-zoom__bar.con-zoom__bar--scene { gap: 1.6rem; }
+html.con-profile-tv .con-zoom__vote {
+    &-label { font-size: 1.05rem; }
+    &-line { height: 1.05rem; font-size: .85rem; }
+    &-cost b { font-size: .95rem; }
+    &-mc { width: 1.05rem; height: 1.05rem; }
+}
+html.con-profile-tv .con-zoom__flip-pos b { font-size: 1.1rem; }
+
+/* The fullscreen inspector's footer: the viewer's own reading beside the standing chip.
+   ONE RHYTHM: the step between groups is the bar's own `gap` (`.con-zoom__bar--scene`)
+   and nothing else — a group's own side margin stacked on it (the reading had .6rem a
+   side, the winner/party chips .4rem) made some steps 42 px and others 30 px at 1080 and
+   widened the plate past its items (`console-parliament-v2` § crowded table). */
+.con-zoom__bar-yield { align-self: center; }
+/* A resolution with TWO scaled parts (a sequel — Climate Research) reads in the
+   footer with its parts SIDE BY SIDE, each part's readings stacked, and every
+   caption on ONE fixed measure: a plate is never narrower than its caption
+   (which then takes two lines, never three) and never wider — so the two columns
+   fit the width the footer has beside the party's answer at 1080, and the block
+   never shrinks under them (a squeezed column let its plates run into the next).
+   Four plates in a column climbed over the card on a crowded table; one-line
+   captions spilled out of plates the row had squeezed (`console-parliament-v2`
+   § crowded table). */
+.con-zoom__bar-yield.con-iyield--parts {
+    flex-direction: row;
+    flex-shrink: 0;
+    align-items: flex-start;
+    column-gap: .5rem;
+    .con-iyield__readings { flex-direction: column; flex-wrap: nowrap; }
+    .con-iyield__caption { min-width: 7rem; max-width: 7rem; }
+}
+/* …and beside such a reading the ruling party's answer drops its caption — the
+   emblem and the name already say whose rule pays (the Deck vote surface's own
+   precedent, `&__info-reaction`): the chip keeps its READING, the parts keep
+   their width, and the fully loaded 1080 footer (standing · both parts · the
+   answer · a blocked vote with its reason · paging · close) fits its plate. The
+   caption stays in the DOM for assistive tech and for the probes. */
+.con-zoom__bar:has(> .con-iyield--parts) .con-zoom__bar-reaction {
+    position: relative;
+    .con-preact__caption { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+}
+/* …and the winner's tile beside it: a content-sized chip that never wraps (a
+   chip squeezed by the footer's flex row broke into a column). */
+.con-zoom__bar-winner { align-self: center; flex-shrink: 0; white-space: nowrap; }
+/* HANDHELD: the Deck's footer has no width for a third reading — the chip stood ON
+   the influence plates. The rules column's «for you» row carries the same reading
+   in words on every profile, so the footer drops the chip here. */
+html.con-profile-handheld .con-zoom__bar-winner { display: none; }
+/* …and the ruling party's answer, the same content-sized chip grammar. The
+   Deck's footer has no width for it either — the rules column's «for you» row
+   carries the same reading in words on every profile. */
+.con-zoom__bar-reaction { align-self: center; flex-shrink: 0; white-space: nowrap; }
+html.con-profile-handheld .con-zoom__bar-reaction { display: none; }

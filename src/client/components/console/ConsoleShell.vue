@@ -1607,8 +1607,9 @@ import {unplayableReasonLine} from '@/client/components/handCards/unplayableReas
 import {buildConsoleTagFilters, filterHandByTag, cycleTagFilter, ConsoleTagFilterOption} from '@/client/components/console/consoleHandFilter';
 import ConsoleResourcePanel from '@/client/components/console/ConsoleResourcePanel.vue';
 import ConsoleColoniesSection, {ConsoleColonyPick} from '@/client/components/console/ConsoleColoniesSection.vue';
-import ConsoleParliamentSection, {ParliamentInspectRequest} from '@/client/components/console/ConsoleParliamentSection.vue';
-import {consoleParliamentUi} from '@/client/console/consoleParliamentState';
+import ConsoleParliamentSection from '@/client/components/console/ConsoleParliamentSection.vue';
+import {ParliamentInspectRequest} from '@/client/console/parliament/parliamentInspect';
+import {consoleParliamentUi} from '@/client/console/parliament/consoleParliamentFlow';
 import {partyAnnotations, resolutionAnnotations, resolutionPartyAnnotations, RowText} from '@/client/console/parliament/parliamentAnnotations';
 import {resolutionPartyContextKey, resolutionStatusOf, ResolutionStatusVm} from '@/client/console/parliament/resolutionInspectModel';
 import {getResolution} from '@/client/parliament/ClientParliamentManifest';

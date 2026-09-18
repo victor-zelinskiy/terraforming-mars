@@ -478,6 +478,17 @@ each(@players, {
 @import "./console_production_loss.less";
 @import "./console_composite.less";
 @import "./console_parliament.less";
+@import "./console_parliament_vote.less";
+@import "./console_party_plaque.less";
+@import "./console_resolution_face.less";
+@import "./console_party_action.less";
+@import "./console_resolution_inspect.less";
+@import "./console_influence_yield.less";
+/* The stages come AFTER the yield chassis: the enactment's `&__enact-yield`
+   re-aligns the hosted `.con-iyield` at equal specificity, so its place in the
+   cascade is what it was in the single file (the block stood after the yield). */
+@import "./console_parliament_sitting.less";
+@import "./console_resolutions_playground.less";
 @import "./console_tv.less";
 @import "./console_paint_baseline.less";
 @import "./console_fx_lite.less";

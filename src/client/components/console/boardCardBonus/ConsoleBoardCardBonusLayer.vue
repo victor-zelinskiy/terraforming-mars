@@ -55,7 +55,7 @@ import {concurrentResourcePayout, waitRewardPayoutQuiet} from '@/client/console/
 import {consoleCardZoom} from '@/client/console/consoleCardZoom';
 import {boardBeatParksReveal} from '@/client/console/boardBeatPark';
 import {probeTick} from '@/client/console/probeTick';
-import {consoleParliamentUi} from '@/client/console/consoleParliamentState';
+import {consoleParliamentUi} from '@/client/console/parliament/consoleParliamentFlow';
 import {
   runBonusAbortVisual, runBonusCoverLift, runBonusFanOut, runBonusHandoff,
   runBonusSingleFlight, BonusCoverHandle, BonusSceneHandle,

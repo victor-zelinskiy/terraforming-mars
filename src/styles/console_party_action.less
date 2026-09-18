@@ -1,0 +1,309 @@
+/* ══ THE PARTY ACTION COMPOSER — the action workspace's stage for a party ══ */
+.con-pact {
+    display: grid;
+    grid-template-columns: minmax(12rem, 15rem) minmax(0, 1fr);
+    gap: 1rem;
+    min-height: 0;
+    min-width: 0;
+    &--colonies, &--handstep { display: flex; }
+    &__colonyzone, &__handzone { display: flex; flex: 1; min-height: 0; min-width: 0; align-items: stretch; }
+    &__handzone > .con-hand { flex: 1 1 auto; min-width: 0; min-height: 0; max-height: 100%; }
+    /* THE SOURCE column — the plaque, carried (the FLIP target), its uses. */
+    &__source {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        gap: .4rem;
+        min-width: 0;
+        align-self: start;
+    }
+    &__hero { display: flex; min-width: 0; > .con-pseal { flex: 1 1 auto; min-width: 0; } }
+    &__uses { font-size: .64rem; letter-spacing: .06em; text-transform: uppercase; opacity: .65; text-align: center; }
+    &__main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+    /* THE CONFIGURATION SURFACE — a quiet plane (its rows carry their own chassis). */
+    &__surface {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        gap: .5rem;
+        min-width: 0;
+        padding: .5rem .55rem;
+        border-radius: .6rem;
+        background: rgba(255, 255, 255, 0.025);
+        box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.06);
+    }
+    /* A DECISION ROW: its mark says its state — a number while open, ✓ once answered. */
+    &__row {
+        display: flex;
+        flex-direction: column;
+        gap: .3rem;
+        padding: .35rem .5rem .4rem;
+        border-radius: .5rem;
+        background: rgba(0,0,0,.28);
+        box-shadow: inset 0 0 0 .05rem transparent;
+        transition: box-shadow calc(160ms * var(--motion-scale, 1)) @con-ease-standard;
+        &--focus { box-shadow: inset 0 0 0 .08rem rgba(63, 214, 241, 0.55); }
+        &--answered .con-pact__row-mark { background: fade(@con-parl-mint, 18%); box-shadow: inset 0 0 0 .06rem @con-parl-mint; color: @con-parl-mint; }
+        &--answered .con-pact__row-kicker { color: @con-parl-mint; }
+        &--open .con-pact__row-mark { box-shadow: inset 0 0 0 .06rem fade(@con-cyan, 70%); color: fade(@con-cyan, 90%); }
+    }
+    &__row-head { display: flex; align-items: center; gap: .4rem; }
+    &__row-mark {
+        display: inline-flex; align-items: center; justify-content: center;
+        width: 1.15rem; height: 1.15rem; border-radius: 50%;
+        font-size: .68rem; font-weight: 800; line-height: 1;
+        background: rgba(255,255,255,.04);
+    }
+    &__row-kicker { font-size: .62rem; letter-spacing: .12em; text-transform: uppercase; opacity: .78; }
+    &__opts { display: flex; flex-wrap: wrap; gap: .35rem; }
+    /* AN OPTION: cyan ring = the cursor, mint plate = the answer (it survives
+       the cursor leaving), both = mint plate inside a cyan ring. */
+    &__opt {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        gap: .4rem;
+        padding: .3rem .55rem;
+        border-radius: .45rem;
+        border: 0;
+        background: rgba(255,255,255,.05);
+        color: inherit;
+        font: inherit;
+        font-size: .8rem;
+        box-shadow: inset 0 0 0 .05rem rgba(255,255,255,.1);
+        cursor: pointer;
+        transition: box-shadow calc(140ms * var(--motion-scale, 1)) @con-ease-standard, background-color calc(140ms * var(--motion-scale, 1)) @con-ease-standard;
+        &--cursor { box-shadow: inset 0 0 0 .1rem @con-cyan; }
+        &--picked { background: rgba(95, 227, 180, 0.16); box-shadow: inset 0 0 0 .08rem @con-parl-mint; }
+        &--picked&--cursor { box-shadow: inset 0 0 0 .08rem @con-parl-mint, 0 0 0 .1rem @con-cyan; }
+        &--off { color: fade(@con-text, 55%); }
+    }
+    &__opt-label { white-space: nowrap; }
+    &__opt-amount { font-size: .9rem; font-weight: 800; }
+    &__res-icon { width: 1.2rem; height: 1.2rem; display: inline-block; background-size: contain !important; background-repeat: no-repeat; background-position: center; &--sm { width: .95rem; height: .95rem; } }
+    /* THE TOTAL — the whole operation per pool, one line. */
+    &__total {
+        display: flex; flex-wrap: wrap; align-items: center; gap: .4rem .6rem;
+        padding: .3rem .5rem;
+        border-radius: .45rem;
+        background: fade(@con-parl-mint, 7%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-parl-mint, 35%);
+        .con-pact__row-kicker { color: @con-parl-mint; opacity: 1; }
+    }
+    &__cards { display: flex; flex-wrap: wrap; gap: .5rem; }
+    &__card {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: .25rem;
+        padding: .3rem .35rem;
+        border-radius: .5rem;
+        border: 0;
+        background: rgba(255,255,255,.04);
+        color: inherit;
+        font: inherit;
+        box-shadow: inset 0 0 0 .05rem rgba(255,255,255,.1);
+        cursor: pointer;
+        --con-pact-card-zoom: calc(0.3 * var(--con-ui-scale, 1));
+        &--cursor { box-shadow: inset 0 0 0 .1rem @con-cyan; }
+        &--picked { background: rgba(95, 227, 180, 0.14); box-shadow: inset 0 0 0 .08rem @con-parl-mint; }
+        &--picked&--cursor { box-shadow: inset 0 0 0 .08rem @con-parl-mint, 0 0 0 .1rem @con-cyan; }
+    }
+    &__card-face { zoom: var(--con-pact-card-zoom); }
+    &__card-delta { display: inline-flex; align-items: center; gap: .3rem; font-size: .74rem; b { font-variant-numeric: tabular-nums; } em { font-style: normal; font-size: .62rem; color: @con-parl-gold; } }
+    &__none { font-size: .74rem; opacity: .6; }
+    /* THE REDS' SEQUENCE — three steps as graphics. */
+    &__seq { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem .5rem; }
+    &__seq-step { display: inline-flex; align-items: center; gap: .35rem; padding: .25rem .5rem .25rem .35rem; border-radius: 49.95rem; background: rgba(0,0,0,.3); }
+    &__seq-no { display: inline-flex; align-items: center; justify-content: center; width: 1.1rem; height: 1.1rem; border-radius: 50%; background: rgba(255,255,255,.1); font-size: .68rem; }
+    &__seq-arrow { opacity: .5; margin-right: .2rem; }
+    &__seq-note { font-size: .64rem; opacity: .7; }
+    &__warn { margin: 0; font-size: .74rem; color: @con-amber; line-height: 1.3; }
+    /* THE COMMIT ROW — its readiness ring fills one dot per decision made. */
+    &__cta {
+        margin-top: auto;
+        display: flex;
+        align-items: center;
+        gap: .6rem;
+        padding: .45rem .8rem;
+        border-radius: .5rem;
+        background: rgba(14, 22, 33, 0.6);
+        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.25);
+        color: fade(@con-text, 62%);
+        cursor: pointer;
+        transition: box-shadow calc(160ms * var(--motion-scale, 1)) @con-ease-standard, background-color calc(160ms * var(--motion-scale, 1)) @con-ease-standard, color calc(160ms * var(--motion-scale, 1)) @con-ease-standard;
+        &--focus { box-shadow: inset 0 0 0 .1rem @con-cyan; }
+        &--ready { color: @con-text; background: fade(@con-parl-mint, 9%); box-shadow: inset 0 0 0 .07rem fade(@con-parl-mint, 70%), 0 0 .9rem fade(@con-parl-mint, 14%); }
+        &--ready&--focus { box-shadow: inset 0 0 0 .07rem fade(@con-parl-mint, 80%), 0 0 0 .1rem @con-cyan, 0 0 .9rem fade(@con-parl-mint, 14%); }
+        &--danger&--ready { background: fade(@con-red, 10%); box-shadow: inset 0 0 0 .07rem fade(@con-red, 65%); }
+        &--danger&--ready&--focus { box-shadow: inset 0 0 0 .07rem fade(@con-red, 75%), 0 0 0 .1rem @con-cyan; }
+        &--busy { opacity: .8; cursor: default; }
+    }
+    &__cta-label { font-size: .92rem; font-weight: 700; letter-spacing: .02em; }
+    &__cta-steps { margin-left: auto; display: inline-flex; gap: .22rem; }
+    &__cta-step {
+        width: .55rem; height: .55rem; border-radius: 50%;
+        box-shadow: inset 0 0 0 .06rem fade(@con-text, 40%);
+        &--on { background: @con-parl-mint; box-shadow: none; }
+    }
+    &--submitting { pointer-events: none; }
+
+    /* ── THE OUTCOME ZONE (the Reds' draw) — the stable stage area the
+       decision surface hands over to; the embedded reveal fills it. ── */
+    &__revealzone {
+        position: relative;
+        flex: 1;
+        min-width: 0;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        justify-content: stretch;
+    }
+    &__beatstage { width: 100%; flex: 1; min-height: 0; }
+    &__beatslot {
+        width: 320px;  /* keep-px: the px-authored premium face */
+        height: 460px; /* keep-px */
+    }
+    &__beatstatus {
+        margin-top: .5rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: .4rem;
+        font-size: .9rem;
+        font-weight: 700;
+        letter-spacing: .06rem;
+        text-transform: uppercase;
+        color: fade(@con-cyan, 88%);
+    }
+    &__spin {
+        width: .8rem; height: .8rem; border-radius: 50%;
+        border: .1rem solid fade(@con-cyan, 30%);
+        border-top-color: @con-cyan;
+        animation: con-pact-spin calc(900ms * var(--motion-scale, 1)) linear infinite;
+    }
+    /* The flight layer of the beat: a fixed overlay, like every console flight. */
+    &__fly {
+        position: fixed;
+        inset: 0;
+        z-index: 11600;
+        pointer-events: none;
+    }
+    /* ── THE CLOSING BEAT (the Reds' payout) ── */
+    &__result {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        gap: .6rem;
+        flex: 1;
+        min-height: 0;
+        padding: .8rem 1rem;
+        border-radius: .6rem;
+        background: rgba(255, 255, 255, 0.025);
+        box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.06);
+    }
+    &__result-row { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
+    &__result-kicker { font-size: .66rem; letter-spacing: .12em; text-transform: uppercase; opacity: .7; }
+    &__result-num { font-size: 1.6rem; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+    &__result-icon { width: 1.4rem; height: 1.4rem; background-size: contain; background-repeat: no-repeat; background-position: center; }
+    &__result-note { font-size: .78rem; opacity: .85; }
+    &__result-none { font-size: .78rem; color: @con-amber; }
+    &--result &__result { animation: con-rise calc(220ms * var(--motion-scale, 1)) @con-ease-enter both; }
+}
+@keyframes con-pact-spin { to { transform: rotate(360deg); } }
+
+/* ══ THE ACTION MENU'S PARTY GROUPS — a party as an action SOURCE ═══════ */
+/* The party composer stands in the action menu's FOCUS STAGE exactly like a
+   card's composer (`.con-composer--stage`): absolute over the whole stage
+   wrap. In flow it took only its content's height — fatal for the Unity door,
+   whose colony zone is `flex: 1` and collapsed to 0 px. */
+.con-cardactions__pact {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    align-content: start;
+    padding: .1rem .1rem 0;
+    &.con-pact--colonies, &.con-pact--handstep { padding: 0; }
+}
+.con-cardactions {
+    &__plate--party { gap: .45rem; }
+    &__plate-emblem { width: 1.3rem; height: 1.3rem; object-fit: contain; flex-shrink: 0; }
+    &__plate-kicker { font-size: .56rem; letter-spacing: .12em; text-transform: uppercase; opacity: .6; flex-shrink: 0; }
+    &__plate-chip--uses { b { font-size: .66rem; } }
+    &__graphic--party {
+        --con-pformula-zoom: calc(0.52 * var(--con-ui-scale, 1));
+        .con-pformula__mech .pcard__mech { padding: 0; }
+    }
+    &__tile--party .con-cardactions__canvas { justify-content: center; }
+    &__detail-party { display: flex; flex-direction: column; align-items: center; gap: .4rem; padding: .3rem 0 .5rem; }
+    &__detail-emblem { width: 5.2rem; height: 5.2rem; object-fit: contain; }
+    &__detail-formula { --con-pformula-zoom: calc(0.66 * var(--con-ui-scale, 1)); }
+    &__detail-party-note { font-size: .7rem; opacity: .7; text-align: center; }
+    &__detail-uses { font-size: .66rem; letter-spacing: .06em; text-transform: uppercase; opacity: .7; }
+}
+
+/* ── The Information workspace's «ЭФФЕКТЫ» zone: the party effects strip ── */
+.con-pfx {
+    display: flex;
+    flex-direction: column;
+    gap: .35rem;
+    padding: .45rem .6rem .5rem;
+    margin-bottom: .5rem;
+    border-radius: .6rem;
+    background: linear-gradient(160deg, rgba(40, 26, 70, 0.5), rgba(14, 10, 24, 0.6));
+    box-shadow: inset 0 0 0 .05rem rgba(139, 106, 216, 0.3);
+
+    &__head { display: flex; align-items: baseline; gap: .8rem; }
+    &__kicker { font-size: .66rem; letter-spacing: .12em; text-transform: uppercase; opacity: .72; }
+    &__sub { font-size: .7rem; opacity: .6; }
+    &__row { display: flex; flex-wrap: wrap; gap: .6rem; }
+    &__item {
+        display: flex; align-items: flex-start; gap: .55rem;
+        padding: .4rem .6rem; border-radius: .5rem;
+        background: rgba(255, 255, 255, 0.03);
+        box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.08), inset .18rem 0 0 var(--parl-accent, @con-parl-violet);
+        min-width: 0;
+    }
+    &__emblem { width: 2.2rem; height: 2.2rem; object-fit: contain; flex-shrink: 0; }
+    &__formula { --con-pformula-zoom: calc(0.6 * var(--con-ui-scale, 1)); }
+    &__why { display: flex; flex-direction: column; gap: .15rem; font-size: .72rem; max-width: 15rem; b { font-size: .86rem; } }
+    &__reason { opacity: .85; &--holds { color: @con-parl-mint; } &--note { opacity: .6; } }
+    &__uses { font-size: .64rem; letter-spacing: .06em; text-transform: uppercase; opacity: .65; }
+}
+
+/* ── The effects explorer: a PARTY-sourced forecast fact draws the party's
+   emblem where a card source draws its printed block. ── */
+.con-efx__graphic--party { display: flex; align-items: center; justify-content: center; min-height: 3.6rem; }
+.con-efx__party-emblem { width: 3.2rem; height: 3.2rem; object-fit: contain; }
+.con-efx__hero-rule--party { display: flex; align-items: center; justify-content: center; }
+.con-efx__hero-rule--party .con-efx__party-emblem { width: 62%; height: auto; max-height: 62%; }
+
+html.con-profile-handheld .con-pact {
+    grid-template-columns: minmax(9rem, 10.5rem) minmax(0, 1fr);
+    gap: .6rem;
+    --con-parl-hero-formula-zoom: calc(0.5 * var(--con-ui-scale, 1));
+    &__hero > .con-pseal--hero { padding: .4rem .35rem .45rem; .con-pseal__seal { width: 3rem; height: 3rem; } .con-pseal__name { font-size: .8rem; } }
+    &__surface { padding: .4rem .45rem; gap: .35rem; }
+    &__row { padding: .25rem .4rem .3rem; gap: .2rem; }
+    &__opt { font-size: .72rem; padding: .22rem .45rem; }
+    &__card { --con-pact-card-zoom: calc(0.24 * var(--con-ui-scale, 1)); }
+    &__cta { padding: .35rem .6rem; }
+    &__cta-label { font-size: .82rem; }
+    &__result-num { font-size: 1.3rem; }
+}
+
+html.con-profile-tv .con-pact {
+    &__row-kicker, &__uses, &__seq-note, &__result-kicker { font-size: .8rem; }
+    &__opt { font-size: .92rem; }
+    &__card-delta { font-size: .88rem; em { font-size: .8rem; } }
+    &__seq, &__warn, &__result-note, &__result-none { font-size: .88rem; }
+    &__cta-label { font-size: 1.05rem; }
+    .con-pseal__name { font-size: 1.05rem; }
+    .con-pseal__state { font-size: .8rem; }
+}
+html.con-profile-tv .con-pfx {
+    &__kicker, &__sub, &__uses { font-size: .8rem; }
+    &__why { font-size: .88rem; b { font-size: 1rem; } }
+}

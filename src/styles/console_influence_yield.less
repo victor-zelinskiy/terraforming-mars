@@ -1,0 +1,481 @@
+/* ══ INFLUENCE → RESULT (`ConsoleInfluenceYield`, Turmoil Redux) ═══════════
+   The one graphic block for an effect that scales with influence. Two tiers:
+   the FORMULA (the card's constant rule in the card's own vocabulary — small,
+   steady) and the READING (the player's number for the surface's context —
+   large, captioned by WHICH question it answers). Sizes: compact under a
+   dock / in a footer, normal in a block, hero on a stage. Rem-authored; the
+   icons are the console's own sprite families, the influence badge the very
+   asset the card face prints. No filter, no text-shadow (paint baseline). ══ */
+/* THE RULING PARTY'S ANSWER (Turmoil Redux) — what the resolution's own party
+   pays on top of its effect. Its own plate, its own emblem: the numbers above
+   belong to the card, this one belongs to the government the card installs. */
+.con-preact {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: .36rem;
+    padding: .24rem .55rem .22rem .4rem;
+    border-radius: .5rem;
+    background: linear-gradient(160deg, rgba(24, 44, 30, 0.72), rgba(12, 20, 16, 0.78));
+    box-shadow: inset 0 0 0 .05rem fade(@con-parl-mint, 38%);
+    font-family: @con-font-read;
+    line-height: 1;
+    white-space: nowrap;
+    min-width: 0;
+    max-width: 100%;
+
+    &__who { display: inline-flex; align-items: center; gap: .22rem; min-width: 0; }
+    &__emblem { width: 1.05rem; height: 1.05rem; object-fit: contain; flex-shrink: 0; }
+    &__party {
+        font-size: .58rem;
+        /* The line box holds the whole glyph box: at 1.0 the couch scale clipped 2px of the caps behind the ellipsis overflow. */
+        line-height: 1.2;
+        letter-spacing: .09em;
+        text-transform: uppercase;
+        font-weight: 700;
+        color: fade(@con-parl-mint, 92%);
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    &__body { display: inline-flex; align-items: center; gap: .16rem; }
+    &__amount { font-size: 1.16rem; font-weight: 700; color: @con-parl-mint; }
+    &__unit {
+        display: inline-block;
+        width: 1.12rem;
+        height: 1.12rem;
+        flex-shrink: 0;
+        background-size: contain;
+        background-repeat: no-repeat;
+        background-position: center;
+    }
+    /* The printed production plate — «производство M€», never «M€». */
+    &__unit--prod {
+        border-radius: .2rem;
+        background-color: #6f4725;
+        background-size: 70% 70%;
+        box-shadow:
+            inset 0 0 0 .07rem rgba(214, 158, 96, 0.78),
+            inset 0 .12rem .2rem rgba(255, 224, 180, 0.22),
+            0 .05rem .14rem rgba(0, 0, 0, 0.5);
+    }
+    &__per { display: inline-flex; align-items: center; gap: .1rem; opacity: .8; }
+    &__slash { font-size: .9rem; font-weight: 700; color: fade(@con-text, 62%); }
+    &__unit--trigger { width: .92rem; height: .92rem; }
+    &__caption {
+        font-size: .5rem;
+        letter-spacing: .09em;
+        text-transform: uppercase;
+        color: fade(@con-text, 62%);
+        padding-left: .4rem;
+        border-left: .05rem solid rgba(255, 255, 255, 0.12);
+        white-space: normal;
+        max-width: 7rem;
+        line-height: 1.15;
+    }
+
+    /* PAST the payout: the answer is a receipt, calmer than the promise. */
+    &--applied { box-shadow: inset 0 0 0 .05rem fade(@con-parl-mint, 26%); }
+
+    &--normal {
+        gap: .5rem;
+        padding: .36rem .8rem .32rem .6rem;
+        .con-preact__emblem { width: 1.4rem; height: 1.4rem; }
+        .con-preact__party { font-size: .7rem; }
+        .con-preact__amount { font-size: 1.5rem; }
+        .con-preact__unit { width: 1.45rem; height: 1.45rem; }
+        .con-preact__unit--trigger { width: 1.18rem; height: 1.18rem; }
+        .con-preact__caption { font-size: .56rem; max-width: 9rem; }
+    }
+}
+
+.con-iyield {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: .32rem;
+    min-width: 0;
+    max-width: 100%;
+    font-family: @con-font-read;
+    color: fade(@con-text, 92%);
+
+    &__kicker { font-size: .56rem; letter-spacing: .12em; text-transform: uppercase; color: fade(@con-parl-gold, 88%); }
+    &__group { display: flex; flex-direction: column; align-items: flex-start; gap: .28rem; min-width: 0; }
+
+    /* THE FORMULA — «1 [animal] / [influence] · for every player». */
+    &__formula {
+        display: inline-flex;
+        align-items: center;
+        gap: .2rem;
+        padding: .18rem .5rem .18rem .4rem;
+        border-radius: .45rem;
+        background: rgba(0, 0, 0, 0.22);
+        box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.08);
+        font-size: .86rem;
+        line-height: 1;
+        white-space: nowrap;
+    }
+    &__num { font-size: .98rem; font-weight: 700; color: @con-text; }
+    &__unit, &__inf {
+        display: inline-block;
+        width: 1.12rem;
+        height: 1.12rem;
+        flex-shrink: 0;
+        background-size: contain;
+        background-repeat: no-repeat;
+        background-position: center;
+    }
+    &__inf { background-image: url(./assets/misc/influence.png); }
+    /* PRODUCTION — the resource sprite SEATED in the printed brown production
+       plate (the transfer chip's own language), so «+4 production» never reads
+       as «+4 M€». */
+    &__unit--prod {
+        border-radius: .2rem;
+        background-color: #6f4725;
+        background-size: 70% 70%;
+        box-shadow:
+            inset 0 0 0 .07rem rgba(214, 158, 96, 0.78),
+            inset 0 .12rem .2rem rgba(255, 224, 180, 0.22),
+            0 .05rem .14rem rgba(0, 0, 0, 0.5);
+    }
+    &__slash { font-size: 1rem; font-weight: 700; color: fade(@con-text, 70%); margin: 0 .05rem; }
+    &__cap { font-size: .66rem; color: fade(@con-text, 72%); margin-left: .15rem; }
+    /* A COUNTED term's object — the face's own glyph (a card with a tag and a VP plate), sized like the icons beside it. */
+    &__glyph { --pvpcard-size: 1.12rem; margin-right: .06rem; }
+    &__plus { font-size: .92rem; font-weight: 700; color: fade(@con-text, 70%); margin: 0 .06rem; line-height: 1; }
+    /* The cap BIT: «+5 · макс.» — part of the number, gold like the limit it names. */
+    &__max {
+        align-self: center;
+        margin-left: .22rem;
+        padding: .12rem .3rem .1rem;
+        border-radius: .3rem;
+        font-style: normal;
+        font-size: .5rem;
+        font-weight: 700;
+        letter-spacing: .1em;
+        text-transform: uppercase;
+        line-height: 1;
+        color: fade(@con-parl-gold, 98%);
+        background: fade(@con-parl-gold, 16%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-parl-gold, 55%);
+    }
+    &__who {
+        display: inline-flex;
+        align-items: center;
+        gap: .22rem;
+        margin-left: .45rem;
+        padding-left: .45rem;
+        border-left: .05rem solid rgba(255, 255, 255, 0.14);
+        font-size: .54rem;
+        letter-spacing: .1em;
+        text-transform: uppercase;
+        color: fade(@con-text, 66%);
+        &--winner { color: fade(@con-parl-gold, 92%); }
+        &--winner::before {
+            content: '';
+            display: inline-block;
+            width: .8rem;
+            height: .8rem;
+            background: url(./assets/misc/vote-winner.svg) center / contain no-repeat;
+        }
+    }
+
+    /* THE READINGS — «[influence] 3 → +3 [animal]», one plate per context. */
+    &__readings { display: flex; flex-wrap: wrap; gap: .45rem .7rem; min-width: 0; }
+    &__reading {
+        display: grid;
+        /* The number cluster stays content-sized: a caption wider than it (a
+           skip reason, the «if you win» step) spans every column, and a
+           spanning item's extra width goes to the FLEXIBLE track — the last
+           one, after the amount — never into the gaps between the numbers. */
+        grid-template-columns: auto auto 1fr;
+        grid-auto-rows: auto;
+        justify-items: start;
+        align-items: center;
+        column-gap: .32rem;
+        row-gap: .12rem;
+        padding: .32rem .62rem .3rem;
+        border-radius: .55rem;
+        background: linear-gradient(160deg, rgba(36, 30, 62, 0.72), rgba(14, 12, 26, 0.78));
+        box-shadow: inset 0 0 0 .05rem fade(@con-parl-violet, 45%), 0 .1rem .4rem rgba(0, 0, 0, 0.35);
+        min-width: 0;
+        &--forecast { box-shadow: inset 0 0 0 .05rem fade(@con-parl-gold, 55%), 0 .1rem .4rem rgba(0, 0, 0, 0.35); }
+        &--resolving { box-shadow: inset 0 0 0 .05rem fade(@con-parl-mint, 60%), 0 0 .6rem fade(@con-parl-mint, 20%); }
+        &--applied { box-shadow: inset 0 0 0 .05rem fade(@con-parl-mint, 40%); }
+    }
+    &__in, &__out { display: inline-flex; align-items: center; gap: .18rem; line-height: 1; white-space: nowrap; }
+    /* A SEQUENTIAL reading: «[heat production] 4 → 6» — the inner arrow is the
+       total's own change, quieter than the one that leads to the result. */
+    &__in--seq &__arrow { font-size: .9rem; color: fade(@con-text, 48%); margin: 0 .08rem; }
+    &__in b { font-size: 1.28rem; font-weight: 700; color: @con-text; }
+    &__out b { font-size: 1.36rem; font-weight: 700; color: @con-parl-mint; }
+    &__reading--forecast &__out b { color: fade(@con-parl-gold, 96%); }
+    &__in &__inf, &__out &__unit { width: 1.3rem; height: 1.3rem; }
+    &__in &__glyph { --pvpcard-size: 1.3rem; }
+    &__in &__plus { font-size: 1.05rem; margin: 0 .12rem; }
+    &__arrow { font-size: 1.1rem; color: fade(@con-text, 62%); line-height: 1; }
+    &__caption {
+        grid-column: 1 / -1;
+        font-size: .54rem;
+        letter-spacing: .09em;
+        text-transform: uppercase;
+        color: fade(@con-text, 68%);
+        white-space: normal;
+        max-width: 11rem;
+        line-height: 1.15;
+    }
+    &__reading--forecast &__caption { color: fade(@con-parl-gold, 84%); }
+    /* A FORFEITED payout (a recorded skip): amber, the owed amount struck — it keeps its size, it did not land. */
+    &__reading--skipped { box-shadow: inset 0 0 0 .05rem fade(@con-amber, 50%); }
+    &__reading--skipped &__caption { color: fade(@con-amber, 90%); }
+    &__out--lost b { color: fade(@con-amber, 94%); text-decoration: line-through; text-decoration-thickness: .08rem; }
+    &__note { font-size: .66rem; line-height: 1.25; color: fade(@con-amber, 92%); }
+
+    /* ONE NUMBER — the vote panel's law (`oneNumber`): the plates of a chain
+       stand in ONE row («… · …»), each plate is one line (the host's kicker is
+       the caption), and the win's difference rides the number as a SUFFIX:
+       «+1 ПРИ ПОБЕДЕ · ШАГ ⑶» — tracked caps, the gold of the forecast carried
+       by weight (it must survive desaturation), the Agenda step drawn as the
+       rail's own node. Not a second reading: no kicker, no line, no beat. */
+    &__result { display: inline-flex; align-items: center; gap: .34rem; min-width: 0; }
+    &__suffix {
+        .premium-tooltip(16rem);
+        display: inline-flex;
+        align-items: center;
+        gap: .18rem;
+        padding: .1rem .42rem .1rem .36rem;
+        border-radius: .36rem;
+        background: fade(@con-parl-gold, 10%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-parl-gold, 42%);
+        font-size: .5rem;
+        font-weight: 700;
+        letter-spacing: .1em;
+        text-transform: uppercase;
+        line-height: 1;
+        white-space: nowrap;
+        color: fade(@con-parl-gold, 96%);
+        cursor: default;
+    }
+    &__suffix-num { font-size: .8rem; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: 0; }
+    &__suffix .con-iyield__unit { width: .82rem; height: .82rem; }
+    &__suffix-text { opacity: .92; }
+    &__suffix-sep { opacity: .5; margin: 0 .04rem; }
+    &__suffix-node {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: .92rem;
+        height: .92rem;
+        border-radius: 50%;
+        font-style: normal;
+        font-size: .54rem;
+        font-weight: 800;
+        letter-spacing: 0;
+        color: #1c1608;
+        background: fade(@con-parl-gold, 90%);
+        box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.35), 0 0 0 .08rem fade(@con-parl-gold, 32%);
+    }
+    &--onenum {
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: .3rem .55rem;
+        .con-iyield__group { flex-direction: row; align-items: center; }
+        .con-iyield__group + .con-iyield__group::before { content: '·'; margin-right: .55rem; font-size: 1rem; font-weight: 700; color: fade(@con-text, 45%); }
+        .con-iyield__readings { flex-wrap: nowrap; }
+        .con-iyield__reading { display: inline-flex; align-items: center; column-gap: .3rem; }
+        .con-iyield__note { flex-basis: 100%; }
+    }
+
+    /* SIZES. */
+    &--compact {
+        gap: .22rem;
+        .con-iyield__formula { font-size: .74rem; padding: .12rem .4rem .12rem .32rem; }
+        .con-iyield__num { font-size: .84rem; }
+        .con-iyield__unit, .con-iyield__inf { width: .95rem; height: .95rem; }
+        .con-iyield__reading { padding: .22rem .5rem .2rem; column-gap: .24rem; }
+        .con-iyield__in b { font-size: 1.05rem; }
+        .con-iyield__out b { font-size: 1.12rem; }
+        .con-iyield__in .con-iyield__inf, .con-iyield__out .con-iyield__unit { width: 1.08rem; height: 1.08rem; }
+        .con-iyield__glyph { --pvpcard-size: .95rem; }
+        .con-iyield__in .con-iyield__glyph { --pvpcard-size: 1.08rem; }
+        .con-iyield__caption { font-size: .5rem; }
+        .con-iyield__who { font-size: .5rem; }
+    }
+    &--hero {
+        gap: .5rem;
+        .con-iyield__formula { font-size: 1.05rem; padding: .28rem .7rem .28rem .55rem; }
+        .con-iyield__num { font-size: 1.2rem; }
+        .con-iyield__unit, .con-iyield__inf { width: 1.45rem; height: 1.45rem; }
+        .con-iyield__reading { padding: .5rem .95rem .45rem; column-gap: .45rem; }
+        .con-iyield__in b { font-size: 1.9rem; }
+        .con-iyield__out b { font-size: 2.05rem; }
+        .con-iyield__in .con-iyield__inf, .con-iyield__out .con-iyield__unit { width: 1.9rem; height: 1.9rem; }
+        .con-iyield__glyph { --pvpcard-size: 1.45rem; }
+        .con-iyield__in .con-iyield__glyph { --pvpcard-size: 1.9rem; }
+        .con-iyield__max { font-size: .62rem; }
+        .con-iyield__arrow { font-size: 1.5rem; }
+        .con-iyield__caption { font-size: .64rem; }
+        .con-iyield__who { font-size: .62rem; }
+    }
+}
+/* THE WINNER'S PART — the winner star, its own label and caption, the tile and
+   what its placement does to its parameter, the TR it is worth. A block of its
+   own (gold, not violet): everyone's influence readings are not this. */
+.con-wreward {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: .22rem;
+    min-width: 0;
+    max-width: 100%;
+    padding: .3rem .6rem .32rem .5rem;
+    border-radius: .55rem;
+    font-family: @con-font-read;
+    color: fade(@con-text, 92%);
+    background: linear-gradient(160deg, rgba(52, 42, 18, 0.62), rgba(18, 14, 8, 0.74));
+    box-shadow: inset 0 0 0 .05rem fade(@con-parl-gold, 42%), 0 .1rem .4rem rgba(0, 0, 0, 0.35);
+
+    &__head { display: inline-flex; align-items: center; gap: .3rem; flex-wrap: wrap; min-width: 0; line-height: 1.1; }
+    &__star {
+        display: inline-block;
+        width: .82rem;
+        height: .82rem;
+        flex-shrink: 0;
+        background: url(./assets/misc/vote-winner.svg) center / contain no-repeat;
+    }
+    &__label { font-size: .54rem; letter-spacing: .12em; text-transform: uppercase; color: fade(@con-parl-gold, 94%); font-weight: 700; }
+    &__caption {
+        font-size: .54rem;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+        color: fade(@con-text, 70%);
+        padding-left: .3rem;
+        border-left: .05rem solid rgba(255, 255, 255, 0.16);
+    }
+    &__body { display: inline-flex; align-items: center; gap: .32rem; flex-wrap: wrap; min-width: 0; line-height: 1; }
+    &__tile {
+        display: inline-block;
+        width: 1.35rem;
+        height: 1.35rem;
+        flex-shrink: 0;
+        background-size: contain;
+        background-repeat: no-repeat;
+        background-position: center;
+        &--greenery { background-image: url(./assets/tiles/greenery.png); }
+        &--ocean { background-image: url(./assets/tiles/ocean.png); }
+    }
+    &__name { font-size: .86rem; font-weight: 700; color: @con-text; white-space: nowrap; }
+    &__param {
+        display: inline-flex;
+        align-items: center;
+        gap: .16rem;
+        padding-left: .34rem;
+        border-left: .05rem solid rgba(255, 255, 255, 0.14);
+        white-space: nowrap;
+    }
+    &__pico {
+        display: inline-block;
+        width: .95rem;
+        height: .95rem;
+        flex-shrink: 0;
+        background-size: contain;
+        background-repeat: no-repeat;
+        background-position: center;
+        &--oxygen { background-image: url(./assets/global-parameters/oxygen.png); }
+        &--oceans { background-image: url(./assets/tiles/ocean.png); }
+    }
+    &__from { font-size: .8rem; color: fade(@con-text, 76%); }
+    &__arrow { font-size: .78rem; color: fade(@con-text, 58%); }
+    &__to { font-size: .92rem; font-weight: 700; color: @con-parl-mint; }
+    &__max {
+        font-style: normal;
+        font-size: .46rem;
+        font-weight: 700;
+        letter-spacing: .1em;
+        text-transform: uppercase;
+        padding: .1rem .26rem .08rem;
+        border-radius: .28rem;
+        color: fade(@con-parl-gold, 98%);
+        background: fade(@con-parl-gold, 16%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-parl-gold, 55%);
+    }
+    &__param--max &__to { color: fade(@con-text, 86%); }
+    &__tr {
+        display: inline-flex;
+        align-items: center;
+        gap: .12rem;
+        padding-left: .34rem;
+        border-left: .05rem solid rgba(255, 255, 255, 0.14);
+        b { font-size: .92rem; font-weight: 700; color: @con-parl-mint; }
+    }
+    &__tr-ico {
+        display: inline-block;
+        width: .95rem;
+        height: .95rem;
+        background: url(./assets/resources/tr.png) center / contain no-repeat;
+    }
+    &__note { font-size: .54rem; line-height: 1.25; color: fade(@con-text, 66%); max-width: 18rem; }
+    &__note--hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+    /* INLINE — one line on a host label's row: the body and the caption, a slimmer plate. */
+    &--inline {
+        position: relative;
+        flex-direction: row;
+        padding: .08rem .42rem .08rem .3rem;
+        border-radius: .4rem;
+    }
+    &__caption--inline { padding-left: .3rem; }
+    /* CHIP — the footer plate: two lines, never taller than the verbs beside it. */
+    &--chip { position: relative; line-height: 1.1; }
+
+    /* The reading's MOMENT speaks through the plate's edge. */
+    &--conditional { box-shadow: inset 0 0 0 .05rem fade(@con-parl-gold, 42%), 0 .1rem .4rem rgba(0, 0, 0, 0.35); }
+    &--pending { box-shadow: inset 0 0 0 .05rem fade(@con-parl-mint, 58%), 0 0 .6rem fade(@con-parl-mint, 18%); }
+    &--applied { box-shadow: inset 0 0 0 .05rem fade(@con-parl-mint, 38%); }
+    &--mine &__caption { color: fade(@con-parl-mint, 92%); }
+    /* NOBODY places it (a neutral winner) / it did NOT happen (a named skip): the body steps back. */
+    &--neutral &__body, &--skipped &__body { opacity: .55; }
+    &--skipped { box-shadow: inset 0 0 0 .05rem fade(@con-amber, 50%); }
+    &--skipped &__caption { color: fade(@con-amber, 92%); }
+    &--skipped &__name { text-decoration: line-through; text-decoration-thickness: .06rem; }
+
+    /* SIZES. */
+    &--compact {
+        padding: .2rem .45rem .22rem .38rem;
+        gap: .16rem;
+        .con-wreward__label, .con-wreward__caption { font-size: .48rem; }
+        .con-wreward__star { width: .7rem; height: .7rem; }
+        .con-wreward__tile { width: 1.1rem; height: 1.1rem; }
+        .con-wreward__name { font-size: .74rem; }
+        .con-wreward__pico, .con-wreward__tr-ico { width: .82rem; height: .82rem; }
+        .con-wreward__from { font-size: .68rem; }
+        .con-wreward__to, .con-wreward__tr b { font-size: .8rem; }
+        .con-wreward__note { font-size: .48rem; }
+    }
+    &--hero {
+        padding: .5rem .9rem .5rem .75rem;
+        gap: .34rem;
+        .con-wreward__label, .con-wreward__caption { font-size: .64rem; }
+        .con-wreward__star { width: 1rem; height: 1rem; }
+        .con-wreward__tile { width: 1.9rem; height: 1.9rem; }
+        .con-wreward__name { font-size: 1.1rem; }
+        .con-wreward__pico, .con-wreward__tr-ico { width: 1.25rem; height: 1.25rem; }
+        .con-wreward__from { font-size: 1.02rem; }
+        .con-wreward__to, .con-wreward__tr b { font-size: 1.22rem; }
+        .con-wreward__max { font-size: .56rem; }
+        .con-wreward__note { font-size: .62rem; }
+    }
+}
+
+/* The dock's yield sits under the source face, as wide as the face. */
+.con-task__source-yield { margin-top: .1rem; }
+
+/* The win's suffix on the two other profiles: the Deck's caps size, the couch's
+   .8rem floor — carried by weight and tracking, never by shrinking the number. */
+html.con-profile-handheld .con-iyield__suffix { font-size: .46rem; padding: .08rem .32rem .08rem .28rem; gap: .14rem; }
+html.con-profile-handheld .con-iyield__suffix-num { font-size: .7rem; }
+html.con-profile-handheld .con-iyield__suffix .con-iyield__unit { width: .72rem; height: .72rem; }
+html.con-profile-handheld .con-iyield__suffix-node { width: .8rem; height: .8rem; font-size: .48rem; }
+html.con-profile-tv .con-iyield__suffix { font-size: .8rem; padding: .14rem .52rem .12rem .44rem; gap: .24rem; }
+html.con-profile-tv .con-iyield__suffix-num { font-size: 1.04rem; }
+html.con-profile-tv .con-iyield__suffix .con-iyield__unit { width: 1.06rem; height: 1.06rem; }
+html.con-profile-tv .con-iyield__suffix-node { width: 1.22rem; height: 1.22rem; font-size: .8rem; }

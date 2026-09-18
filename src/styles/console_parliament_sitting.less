@@ -1,0 +1,116 @@
+/* ══ THE PARLIAMENT'S STAGES OF THE POLITICAL PHASE (Turmoil Redux) — today
+   the RESULTS scene (the recap) and the ENACTMENT layer (the payout stage);
+   the sitting flow of docs/TURMOIL_REDUX_PARLIAMENT_ASSEMBLY.md replaces both
+   on the shared stage chassis. Split out of `console_parliament.less` (Э0);
+   tokens and the chassis live there. ══ */
+
+.con-parl {
+    /* A slot whose card is still on its way from the deck: the face waits under its proxy. */
+    &__card--dealing .pcard { visibility: hidden; }
+    /* The enacted face waits until the card has moved in from its voting slot (the results scene). */
+    &__gov-card--awaiting .pcard { visibility: hidden; }
+}
+
+/* THE RESULTS SCENE: each beat lights the object its sentence names (gold —
+   the phase's own colour), and the lines land one under another. */
+.con-parl__gov--recap,
+.con-parl__voting--recap,
+.con-parl__step--recap {
+    animation: con-parl-recap-pulse calc(900ms * var(--motion-scale, 1)) @con-ease-standard both;
+}
+@keyframes con-parl-recap-pulse {
+    from { box-shadow: inset 0 0 0 .14rem @con-parl-gold, 0 0 1.6rem rgba(230, 195, 74, 0.5); }
+    to { box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.08), 0 0 0 rgba(230, 195, 74, 0); }
+}
+.con-parl__recap-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    flex: 1;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: .25rem .5rem;
+    align-content: start;
+}
+.con-parl__recap-item {
+    padding: .25rem .55rem;
+    border-radius: .4rem;
+    background: rgba(0, 0, 0, 0.28);
+    font-family: @con-font-read;
+    font-size: .74rem;
+    line-height: 1.22;
+    opacity: 0;
+    transform: translateX(.6rem);
+    transition: opacity calc(260ms * var(--motion-scale, 1)) @con-ease-standard, transform calc(320ms * var(--motion-scale, 1)) @con-ease-standard, box-shadow calc(200ms * var(--motion-scale, 1)) @con-ease-standard;
+    &--shown { opacity: 1; transform: none; }
+    &--now { box-shadow: inset .18rem 0 0 @con-parl-gold; }
+}
+
+html.con-profile-handheld .con-parl {
+    &__recap-list { gap: .18rem .35rem; }
+    &__recap-item { font-size: .6rem; padding: .16rem .38rem; line-height: 1.18; }
+}
+html.con-profile-tv .con-parl {
+    &__recap-item { font-size: .82rem; }
+}
+
+/* ══ THE ENACTMENT LAYER — the enacted resolution pays out (the vote layer's
+   law: always mounted, hidden until up, one scene over the field). The hero
+   column carries the government's own card (teleported, FLIPped) with the
+   payout reading under it; the recipient zone hosts the SHARED picker and
+   is the decision — it gets the rest of the room. Rem-authored; the card
+   integrates through its own zoom token (`--con-parl-enact-zoom`). ══ */
+.con-parl {
+    &__enact {
+        position: absolute;
+        inset: 0;
+        z-index: 5;
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
+        gap: 1rem;
+        padding: .2rem .1rem .3rem;
+        min-height: 0;
+        visibility: hidden;
+        pointer-events: none;
+        &--up { visibility: visible; pointer-events: auto; }
+    }
+    &__enact-hero {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: .9rem;
+        min-height: 0;
+        padding: .2rem .4rem;
+    }
+    /* The teleport target: sized by the card it receives (the FLIP's box). */
+    &__enact-card { display: flex; justify-content: center; min-height: 0; }
+    &__enact-card .con-parl__gov-carry { flex-shrink: 0; }
+    &__enact-card .con-parl__gov-card { zoom: var(--con-parl-enact-zoom, var(--con-parl-gov-zoom)); }
+    &__enact-yield { flex-shrink: 0; align-items: center; }
+    &__enact-reaction { flex-shrink: 0; align-self: center; }
+    &__enact-zone {
+        display: flex;
+        min-width: 0;
+        min-height: 0;
+        border-radius: .7rem;
+        background: linear-gradient(170deg, rgba(30, 20, 52, 0.9), rgba(12, 10, 22, 0.94));
+        box-shadow: inset 0 0 0 .06rem fade(@con-parl-violet, 40%), 0 .9rem 2rem rgba(0, 0, 0, 0.45);
+        overflow: hidden;
+    }
+    &__embed--enact {
+        flex: 1 1 auto;
+        min-width: 0;
+        min-height: 0;
+        display: flex;
+        align-items: stretch;
+        /* The hosted picker spans the zone — its strict flex column then hands
+           its card row the zone's height, never the cards' own. */
+        > .con-task-host, > .con-task { flex: 1 1 auto; min-width: 0; min-height: 0; max-height: 100%; width: 100%; max-width: none; }
+    }
+    /* The government's carry wrapper: the card's box in the ruling row (no zoom of its own — the FLIP moves THIS). */
+    &__gov-carry { flex-shrink: 0; align-self: flex-start; }
+}
+html.con-profile-handheld .con-parl__enact { gap: .6rem; }
+html.con-profile-handheld .con-parl__enact-hero { gap: .5rem; padding: 0 .2rem; }
