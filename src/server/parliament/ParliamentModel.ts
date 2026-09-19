@@ -16,6 +16,7 @@ import {PartyName} from '../../common/turmoil/PartyName';
 import {PARTY_EFFECT_DELEGATES, REDUX_PARTIES, ReduxParty, ResolutionInstanceId} from '../../common/parliament/ParliamentTypes';
 import {Delegate, Parliament, PARTY_ACTION_USES_PER_GENERATION, Slot} from './Parliament';
 import {PARTY_EFFECTS} from './parties/PartyEffects';
+import {parliamentGateAwaiting} from './ParliamentPhase';
 import {SerializedEnactOutcome, SerializedPhaseSummary} from './SerializedParliament';
 import {Resource} from '../../common/Resource';
 import {declaredCountIds, declaredSequelProductions, resolutionCount} from './resolutions/ResolutionCounts';
@@ -104,6 +105,11 @@ export function getParliamentModel(game: IGame, viewer?: IPlayer): ParliamentMod
     const phase: ParliamentPhaseModel = {generation: p.generation, final: p.final, step: p.step};
     if (p.summary !== undefined) {
       phase.winner = {instance: p.summary.winner.instance, player: p.summary.winner.player === undefined ? undefined : colorOf(game, p.summary.winner.player)};
+      // The sitting SO FAR, in the one shape the finished phase leaves behind.
+      phase.summary = summaryModel(game, parliament, p.summary);
+    }
+    if (p.step === 'assembly' || p.step === 'adjourn') {
+      phase.awaiting = parliamentGateAwaiting(game, p.step);
     }
     if (p.effects?.pending !== undefined) {
       const asked = game.getPlayerById(p.effects.pending.player);
@@ -121,6 +127,9 @@ export function getParliamentModel(game: IGame, viewer?: IPlayer): ParliamentMod
   }
   if (parliament.lastPhase !== undefined) {
     model.lastPhase = summaryModel(game, parliament, parliament.lastPhase);
+  }
+  if (parliament.phaseHistory.length > 0) {
+    model.phaseHistory = parliament.phaseHistory.map((summary) => summaryModel(game, parliament, summary));
   }
   if (parliament.lastAdvance !== undefined) {
     const advance = parliament.lastAdvance;
@@ -293,6 +302,8 @@ function summaryModel(game: IGame, parliament: Parliament, summary: SerializedPh
   const model: ParliamentPhaseSummaryModel = {
     generation: summary.generation,
     final: summary.final,
+    ...(summary.seq === undefined ? {} : {seq: summary.seq}),
+    ...(summary.correlationId === undefined ? {} : {correlationId: summary.correlationId}),
     winner: {
       instance: summary.winner.instance,
       resolution: winnerDefinition.id,

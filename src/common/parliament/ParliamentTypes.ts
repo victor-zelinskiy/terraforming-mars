@@ -159,10 +159,15 @@ export type ParliamentPhaseStep =
   | 'agenda' // advance the winner's Agenda marker (+ the step's bonus)
   | 'support' // popular support for the absent / non-winning parties
   | 'enact' // the winner takes the ENACTED slot (delegates return, old card discarded)
+  | 'assembly' // GATE 1: every participant confirms the verdict and the enactment (one prompt each; the barrier is the per-seat key)
   | 'effects' // the enacted resolution's immediate effects, player by player
   | 'refresh' // discard the two losers, deal three fresh resolutions, seat the neutral votes
   | 'lobby' // every player's free delegate returns to the lobby
+  | 'adjourn' // GATE 2: every participant confirms the refreshed area (in the final phase: right after the effects)
   | 'done';
+
+/** The two GATES of the political phase — the steps that wait for every participant's confirmation. */
+export type ParliamentPhaseStage = Extract<ParliamentPhaseStep, 'assembly' | 'adjourn'>;
 
 /**
  * How MarsBot takes part in the parliament. Iteration 0 ships ONE mode:

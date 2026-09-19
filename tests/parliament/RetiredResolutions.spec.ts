@@ -10,8 +10,7 @@ import {ARCHITECTURE_AWARD_ID} from '../../src/server/parliament/resolutions/mar
 import {PARLIAMENT_VOTING_SLOTS, ReduxParty, RESOLUTION_CODE_PATTERN, ResolutionInstanceId} from '../../src/common/parliament/ParliamentTypes';
 import {PartyName} from '../../src/common/turmoil/PartyName';
 import {Phase} from '../../src/common/Phase';
-import {OrOptions} from '../../src/server/inputs/OrOptions';
-import {seatResolution} from './parliamentArrange';
+import {endGenerationThroughParliament, seatResolution, settleParliamentGates} from './parliamentArrange';
 
 /**
  * THE DECK IS REAL RESOLUTIONS ONLY — and an OLDER save that still carries
@@ -44,19 +43,13 @@ function reduxGame(): [IGame, TestPlayer, TestPlayer, Parliament] {
 }
 
 /**
- * Every player passes; production → the parliament (the harness's stale action
- * menus are cleared — a RELOADED game's seats are plain players, left as they are).
+ * Every player passes; production → the parliament; the sitting's ASSEMBLY
+ * gate is answered for every seat (the harness's stale menus cleared first),
+ * so the resolution's own asks stand — or, for a quiet card, the ADJOURN gate
+ * is answered too and the phase is over (`parliamentArrange`).
  */
 function endGeneration(game: IGame): void {
-  game.playersInGenerationOrder.forEach((player) => {
-    game.playerHasPassed(player);
-    game.playerIsFinishedTakingActions();
-  });
-  for (const player of game.playersInGenerationOrder) {
-    if (player instanceof TestPlayer && player.getWaitingFor() instanceof OrOptions) {
-      player.popWaitingFor();
-    }
-  }
+  endGenerationThroughParliament(game);
 }
 
 /** The deck the game's own deal would make (the expansion filter included). */
@@ -158,7 +151,9 @@ describe('RetiredResolutions', () => {
       seatResolution(parliament, 0, ARCHITECTURE_AWARD_ID);
       parliament.placeVote(p1, parliament.slots[0], 'lobby');
       endGeneration(game);
+      settleParliamentGates(game);
       expect(parliament.phase, 'Architecture Award asks nothing').is.undefined;
+      settleParliamentGates(game);
       expect(parliament.lastPhase?.enacted).eq(`${ARCHITECTURE_AWARD_ID}#0`);
       expect(parliament.quest?.source).eq(ARCHITECTURE_AWARD_ID);
       const saved = structuredClone(game.serialize());

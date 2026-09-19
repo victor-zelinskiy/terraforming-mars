@@ -500,6 +500,16 @@ export default defineComponent({
         return total === undefined ? main :
           `${main} — ${translateTextWithParams('${0} production ${1} → ${2}', [unit, String(total.before), String(total.after)])}`;
       }
+      case 'reaction': {
+        // «player1: the Greens answered — M€ production +2 (1 → 3)»: the ruling
+        // party's own rule, paid inside this step and recorded by the driver.
+        const unit = translateText(productionResourceLabelKey(outcome.production ?? outcome.stock));
+        const party = outcome.party === undefined ? '' : translateText(outcome.party);
+        const args = [who, party, unit, String(outcome.amount ?? 0), String(outcome.before ?? ''), String(outcome.after ?? '')];
+        return outcome.production !== undefined ?
+          translateTextWithParams('${0}: ${1} answered — ${2} production +${3} (${4} → ${5})', args) :
+          translateTextWithParams('${0}: ${1} answered — ${2} +${3} (${4} → ${5})', args);
+      }
       case 'ocean':
         return translateTextWithParams('${0} placed an ocean as the winner of the vote', [who]);
       case 'greenery': {

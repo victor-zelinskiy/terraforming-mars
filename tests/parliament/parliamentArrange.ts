@@ -1,5 +1,9 @@
 import {Parliament} from '../../src/server/parliament/Parliament';
-import {ReduxParty, ResolutionId, ResolutionInstanceId, resolutionInstanceId} from '../../src/common/parliament/ParliamentTypes';
+import {IGame} from '../../src/server/IGame';
+import {IPlayer} from '../../src/server/IPlayer';
+import {PlayerInput} from '../../src/server/PlayerInput';
+
+import {ParliamentPhaseStage, ReduxParty, ResolutionId, ResolutionInstanceId, resolutionInstanceId} from '../../src/common/parliament/ParliamentTypes';
 import {PartyName} from '../../src/common/turmoil/PartyName';
 import {AQUIFER_CONTEST_ID} from '../../src/server/parliament/resolutions/greens/AquiferContest';
 import {ARCHITECTURE_AWARD_ID} from '../../src/server/parliament/resolutions/marsFirst/ArchitectureAward';
@@ -121,3 +125,82 @@ export function seatQuiet(parliament: Parliament, index: number): ResolutionInst
  */
 export const REDS_STAND_IN: ResolutionId = DEV_COMPOUND_RESOLUTION_ID;
 export const SCIENTISTS_STAND_IN: ResolutionId = DEV_SCIENCE_RESOLUTION_ID;
+
+/*
+ * THE SITTING'S GATES, DRIVEN BY A SPEC. The political phase waits TWICE for
+ * every participant (`assembly` before the effects, `adjourn` before the next
+ * generation — docs/TURMOIL_REDUX_PARLIAMENT_ASSEMBLY.md §3); a spec whose
+ * subject is a resolution walks them here and keeps reading the resolution's
+ * own asks as before. Detection is the server's marker, never a title.
+ */
+
+/** The GATE prompt `player` holds (by the marker), if any — of `stage` when given. */
+export function gatePromptOf(player: IPlayer, stage?: ParliamentPhaseStage): PlayerInput | undefined {
+  const wf = player.getWaitingFor();
+  const marker = wf?.parliamentPhasePrompt;
+  return marker !== undefined && (stage === undefined || marker.stage === stage) ? wf : undefined;
+}
+
+/** Answer the gate `player` holds — the one press the sitting's stage sends. Throws when none stands. */
+export function answerGate(player: IPlayer, stage?: ParliamentPhaseStage): void {
+  const gate = gatePromptOf(player, stage);
+  if (gate === undefined) {
+    throw new Error(`${player.color} holds no ${stage ?? 'parliament'} gate (waitingFor: ${player.getWaitingFor()?.type ?? 'nothing'})`);
+  }
+  player.process({type: 'option'});
+}
+
+/** Answer every standing gate once, in generation order; how many were answered. */
+export function answerStandingGates(game: IGame, stage?: ParliamentPhaseStage): number {
+  let answered = 0;
+  for (const player of game.playersInGenerationOrder) {
+    if (gatePromptOf(player, stage) !== undefined) {
+      answerGate(player, stage);
+      answered++;
+    }
+  }
+  return answered;
+}
+
+/**
+ * Walk the gates: answer every standing gate until none stands — past
+ * `assembly` the resolution's own asks stand (the spec answers those), past
+ * `adjourn` the phase is over. A non-gate prompt is never answered here.
+ */
+export function settleParliamentGates(game: IGame): void {
+  for (let round = 0; round < 8; round++) {
+    if (answerStandingGates(game) === 0) {
+      return;
+    }
+  }
+  throw new Error('the parliament gates did not settle in 8 rounds');
+}
+
+/**
+ * Every seat passes; production → the parliament. A seat that PASSES holds no
+ * prompt in the engine (the pass IS its answer), but the harness leaves one
+ * standing — the action menu of the seat handed the turn after another
+ * passed, the research pick of a generation a spec skipped by setting the
+ * phase — so it is cleared BEFORE the pass: a prompt standing at the assembly
+ * gate would make the gate wait for it. A political phase still in progress
+ * (its adjourn gate unanswered) is a spec's mistake, named here rather than
+ * as the driver's «already in progress».
+ */
+export function passToParliament(game: IGame): void {
+  if (game.parliament?.phase !== undefined) {
+    throw new Error(`a political phase is still in progress (step ${game.parliament.phase.step}) — settle its gates before ending the next generation`);
+  }
+  for (const player of game.playersInGenerationOrder) {
+    if (player.getWaitingFor() !== undefined) {
+      player.clearWaitingFor();
+    }
+    game.playerHasPassed(player);
+    game.playerIsFinishedTakingActions();
+  }
+}
+
+/** Pass everyone and walk the gates: the resolution's first ask stands, or the phase is over (a quiet card). */
+export function endGenerationThroughParliament(game: IGame): void {
+  passToParliament(game);
+  settleParliamentGates(game);
+}

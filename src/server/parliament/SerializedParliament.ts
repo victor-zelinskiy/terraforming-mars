@@ -5,9 +5,13 @@ import {CardResource} from '../../common/CardResource';
 import {Resource} from '../../common/Resource';
 import {BotParliamentMode, ParliamentPhaseStep, QuestDefinition, ResolutionInstanceId} from '../../common/parliament/ParliamentTypes';
 import {WinnerRewardParameter} from '../../common/parliament/winnerReward';
+import type {EventTrigger} from '../../common/events/GameEvent';
 
 /** Bump when the shape changes incompatibly; older saves are refused explicitly. */
 export const PARLIAMENT_SAVE_VERSION = 1;
+
+/** How many finished sittings the save keeps (`phaseHistory`) — the oldest leave past it, like `automa.turnHistory`. */
+export const PARLIAMENT_PHASE_HISTORY_CAP = 24;
 
 export type SerializedDelegateOwner = PlayerId | 'NEUTRAL';
 
@@ -56,9 +60,20 @@ export type SerializedEnactOutcome = {
    * `cardResource` resources onto a card · `production` a production increase ·
    * `stock` standard resources into the player's supply · `cards` project
    * cards drawn for the player · `ocean` / `greenery` the winner's tile ·
-   * `skipped` nothing happened (see `reason`).
+   * `skipped` nothing happened (see `reason`) · `reaction` the RULING PARTY's
+   * answer to this step's own change (see `party`).
    */
-  kind: 'cardResource' | 'production' | 'stock' | 'cards' | 'ocean' | 'greenery' | 'skipped';
+  kind: 'cardResource' | 'production' | 'stock' | 'cards' | 'ocean' | 'greenery' | 'skipped' | 'reaction';
+  /**
+   * `reaction`: the answering party and what it answered — DERIVED by the
+   * driver from the recorder's own events inside the step (a `party`-sourced
+   * production / supply change under the step's scope), never re-stated by
+   * the resolution. Shares the `step` of the change it answered; `production`
+   * / `stock` name the resource paid, `amount` the sum inside the step,
+   * `before` / `after` the value around it.
+   */
+  party?: PartyName;
+  trigger?: EventTrigger;
   resource?: CardResource;
   /** `production` (and its skip): the standard resource whose production the effect raises. */
   production?: Resource;
@@ -118,6 +133,10 @@ export type EnactOutcomePart = 'effect' | 'winner';
 export type SerializedPhaseSummary = {
   generation: number;
   final: boolean;
+  /** The sitting's monotonic number (`Parliament.phaseSeq`) — the client's «played once» key; absent on a save from before the sittings. */
+  seq?: number;
+  /** The journal group of the whole phase (`political-phase` root) — every line of the sitting, a gate's answer after a reload included, carries it; absent on older saves. */
+  correlationId?: number;
   /** `slot` — the voting slot (0 = closest to ENACTED) the winner stood in; absent on older saves. */
   winner: {instance: ResolutionInstanceId; votes: number; player?: SerializedDelegateOwner; tieBreak?: 'slot-priority' | 'earlier-delegate'; slot?: number};
   agenda?: {player: PlayerId; from: number; to: number; bonus?: 'tr' | 'card'};
@@ -158,8 +177,15 @@ export type SerializedPhaseProgress = {
    * older saves, whose per-seat keys still read from `applied`.
    */
   appliedBySeat?: Record<PlayerId, Array<string>>;
-  /** The effects step's cursor: which player (generation-order index of the participants) and which step key is pending. */
-  effects?: {playerIndex: number; pending?: {player: PlayerId; key: string}};
+  /**
+   * The effects step's cursor: which player (generation-order index of the
+   * participants) and which step key is pending. `scan` is the REACTION
+   * window of the step last run — the ruling party's answers are read off the
+   * recorder's events from `sinceEvent` (an event id, stable across a reload)
+   * and folded into the step's outcome record; the window advances as it is
+   * read, so nothing is counted twice.
+   */
+  effects?: {playerIndex: number; pending?: {player: PlayerId; key: string}; scan?: {player: PlayerId; key: string; part: EnactOutcomePart; sinceEvent: number}};
   /** Free-form resumable state a resolution's multi-step effect keeps between its steps, per player. */
   effectState?: Record<PlayerId, Record<string, unknown>>;
   /** The summary being assembled (copied to `lastPhase` when the phase completes). */
@@ -196,6 +222,10 @@ export type SerializedParliament = {
   discard: Array<ResolutionInstanceId>;
   phase?: SerializedPhaseProgress;
   lastPhase?: SerializedPhaseSummary;
+  /** Sittings numbered so far (`SerializedPhaseSummary.seq` is monotonic across the game); absent on older saves = 0. */
+  phaseSeq?: number;
+  /** The finished sittings, oldest first, at most `PARLIAMENT_PHASE_HISTORY_CAP`; absent on older saves and until the first. */
+  phaseHistory?: Array<SerializedPhaseSummary>;
   lastAdvance?: SerializedAdvance;
   pendingActions?: Array<SerializedPendingAction>;
   botMode: BotParliamentMode;

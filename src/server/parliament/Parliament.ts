@@ -24,8 +24,8 @@ import {
 import {ResolutionDefinition} from './resolutions/IResolution';
 import {REDUX_RESOLUTION_CATALOG, RETIRED_RESOLUTION_IDS, ResolutionCatalog} from './resolutions/ResolutionCatalog';
 import {
-  PARLIAMENT_SAVE_VERSION, SerializedAdvance, SerializedParliament, SerializedPendingAction, SerializedPhaseProgress,
-  SerializedPhaseSummary, SerializedQuest, SerializedSlot,
+  PARLIAMENT_PHASE_HISTORY_CAP, PARLIAMENT_SAVE_VERSION, SerializedAdvance, SerializedParliament, SerializedPendingAction,
+  SerializedPhaseProgress, SerializedPhaseSummary, SerializedQuest, SerializedSlot,
 } from './SerializedParliament';
 import {IncompatibleParliamentSaveError} from './ParliamentErrors';
 import {BotParliamentPolicy, botParliamentPolicy} from './BotParliamentPolicy';
@@ -109,6 +109,10 @@ export class Parliament {
   public discard: Array<ResolutionInstanceId> = [];
   public phase: SerializedPhaseProgress | undefined = undefined;
   public lastPhase: SerializedPhaseSummary | undefined = undefined;
+  /** Sittings numbered so far — `SerializedPhaseSummary.seq` is monotonic across the game. */
+  public phaseSeq = 0;
+  /** The finished sittings, oldest first, at most `PARLIAMENT_PHASE_HISTORY_CAP` (the protocol's source). */
+  public phaseHistory: Array<SerializedPhaseSummary> = [];
   /** The last Agenda advance (mid-generation quest or the phase) — the client presents it once by `seq`. */
   public lastAdvance: SerializedAdvance | undefined = undefined;
   public pendingActions: Array<SerializedPendingAction> = [];
@@ -607,6 +611,14 @@ export class Parliament {
     this.quest = {definition: definition.quest, source: definition.id, generation, progress: new Map()};
   }
 
+  /** A finished sitting joins the history; the oldest leaves past the cap (`automa.turnHistory`'s own rule). */
+  public recordPhase(summary: SerializedPhaseSummary): void {
+    this.phaseHistory.push(summary);
+    if (this.phaseHistory.length > PARLIAMENT_PHASE_HISTORY_CAP) {
+      this.phaseHistory.splice(0, this.phaseHistory.length - PARLIAMENT_PHASE_HISTORY_CAP);
+    }
+  }
+
   // ───────────────────────── serialization ─────────────────────────
 
   public serialize(): SerializedParliament {
@@ -639,6 +651,8 @@ export class Parliament {
       discard: [...this.discard],
       phase: this.phase === undefined ? undefined : JSON.parse(JSON.stringify(this.phase)),
       lastPhase: this.lastPhase === undefined ? undefined : JSON.parse(JSON.stringify(this.lastPhase)),
+      phaseSeq: this.phaseSeq,
+      phaseHistory: this.phaseHistory.length === 0 ? undefined : JSON.parse(JSON.stringify(this.phaseHistory)),
       lastAdvance: this.lastAdvance === undefined ? undefined : {...this.lastAdvance},
       pendingActions: this.pendingActions.length > 0 ? this.pendingActions.map((action) => ({...action})) : undefined,
       botMode: this.botMode,
@@ -715,6 +729,9 @@ export class Parliament {
     parliament.discard = (d.discard ?? []).filter((instance) => !retired(instance)).map(known);
     parliament.phase = d.phase;
     parliament.lastPhase = summaryNamesAny(d.lastPhase, retired) ? undefined : d.lastPhase;
+    // The history: a sitting that names a retired card is dropped (as `lastPhase` is), the cap re-applied.
+    parliament.phaseSeq = d.phaseSeq ?? 0;
+    parliament.phaseHistory = (d.phaseHistory ?? []).filter((summary) => !summaryNamesAny(summary, retired)).slice(-PARLIAMENT_PHASE_HISTORY_CAP);
     parliament.lastAdvance = d.lastAdvance;
     parliament.pendingActions = [...(d.pendingActions ?? [])];
     if (carriedRetired) {

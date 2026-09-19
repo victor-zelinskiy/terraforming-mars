@@ -613,7 +613,7 @@
   ],
   "discardPile": []
  },
- "createdTimeMs": 1789741548784,
+ "createdTimeMs": 1789776052456,
  "currentSeed": 593427323412,
  "deferredActions": [],
  "donePlayers": [],
@@ -633,7 +633,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1789741548784
+   "timestamp": 1789776052456
   },
   {
    "message": "Good luck ${0}!",
@@ -643,7 +643,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1789741548784,
+   "timestamp": 1789776052456,
    "playerId": "p-player1-id"
   },
   {
@@ -654,7 +654,7 @@
      "value": "red"
     }
    ],
-   "timestamp": 1789741548784,
+   "timestamp": 1789776052456,
    "playerId": "p-player2-id"
   },
   {
@@ -665,7 +665,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1789741548784,
+   "timestamp": 1789776052456,
    "type": 1
   },
   {
@@ -680,7 +680,7 @@
      "value": "Teractor"
     }
    ],
-   "timestamp": 1789741548784,
+   "timestamp": 1789776052457,
    "correlationId": 1,
    "parentId": 1,
    "role": "root-action",
@@ -698,7 +698,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1789741548784,
+   "timestamp": 1789776052457,
    "correlationId": 1,
    "parentId": 1,
    "role": "detail"
@@ -715,7 +715,7 @@
      "value": "Aridor"
     }
    ],
-   "timestamp": 1789741548784,
+   "timestamp": 1789776052457,
    "correlationId": 2,
    "parentId": 2,
    "role": "root-action",
@@ -733,16 +733,25 @@
      "value": "2"
     }
    ],
-   "timestamp": 1789741548784,
+   "timestamp": 1789776052457,
    "correlationId": 2,
    "parentId": 2,
    "role": "detail"
   },
   {
-   "message": "The Mars Parliament convenes",
-   "data": [],
-   "timestamp": 1789741548785,
-   "type": 2
+   "message": "The Mars Parliament of generation ${0} convenes",
+   "data": [
+    {
+     "type": 1,
+     "value": "1"
+    }
+   ],
+   "timestamp": 1789776052458,
+   "type": 2,
+   "correlationId": 5,
+   "parentId": 5,
+   "role": "root-action",
+   "category": "political-phase"
   },
   {
    "message": "Resolution ${0} wins the vote with ${1} delegate(s)",
@@ -756,7 +765,10 @@
      "value": "1"
     }
    ],
-   "timestamp": 1789741548785
+   "timestamp": 1789776052458,
+   "correlationId": 5,
+   "parentId": 5,
+   "role": "detail"
   },
   {
    "message": "${0} is the winning player of ${1}",
@@ -770,7 +782,10 @@
      "value": "RDX_GREENS_BIODOME_CONTEST"
     }
    ],
-   "timestamp": 1789741548785
+   "timestamp": 1789776052458,
+   "correlationId": 5,
+   "parentId": 5,
+   "role": "detail"
   },
   {
    "message": "${0} advances on the Agenda track to step ${1}",
@@ -784,9 +799,9 @@
      "value": "3"
     }
    ],
-   "timestamp": 1789741548785,
+   "timestamp": 1789776052458,
    "correlationId": 5,
-   "parentId": 5,
+   "parentId": 6,
    "role": "detail"
   },
   {
@@ -809,7 +824,10 @@
      "value": "3"
     }
    ],
-   "timestamp": 1789741548785
+   "timestamp": 1789776052458,
+   "correlationId": 5,
+   "parentId": 5,
+   "role": "detail"
   },
   {
    "message": "${0} gain ${1} neutral delegate(s) in Popular Support (${2}/${3})",
@@ -831,7 +849,10 @@
      "value": "3"
     }
    ],
-   "timestamp": 1789741548785
+   "timestamp": 1789776052458,
+   "correlationId": 5,
+   "parentId": 5,
+   "role": "detail"
   },
   {
    "message": "${0} gain ${1} neutral delegate(s) in Popular Support (${2}/${3})",
@@ -853,7 +874,10 @@
      "value": "3"
     }
    ],
-   "timestamp": 1789741548785
+   "timestamp": 1789776052458,
+   "correlationId": 5,
+   "parentId": 5,
+   "role": "detail"
   },
   {
    "message": "${0} gain ${1} neutral delegate(s) in Popular Support (${2}/${3})",
@@ -875,7 +899,10 @@
      "value": "3"
     }
    ],
-   "timestamp": 1789741548785
+   "timestamp": 1789776052458,
+   "correlationId": 5,
+   "parentId": 5,
+   "role": "detail"
   },
   {
    "message": "${0} gain ${1} neutral delegate(s) in Popular Support (${2}/${3})",
@@ -897,7 +924,10 @@
      "value": "3"
     }
    ],
-   "timestamp": 1789741548785
+   "timestamp": 1789776052458,
+   "correlationId": 5,
+   "parentId": 5,
+   "role": "detail"
   },
   {
    "message": "Resolution ${0} is enacted",
@@ -907,7 +937,10 @@
      "value": "RDX_GREENS_BIODOME_CONTEST"
     }
    ],
-   "timestamp": 1789741548785
+   "timestamp": 1789776052458,
+   "correlationId": 5,
+   "parentId": 5,
+   "role": "detail"
   },
   {
    "message": "${0} is now the ruling party — every player has its effect",
@@ -917,7 +950,10 @@
      "value": "Greens"
     }
    ],
-   "timestamp": 1789741548785
+   "timestamp": 1789776052458,
+   "correlationId": 5,
+   "parentId": 5,
+   "role": "detail"
   },
   {
    "message": "Chairman quest for generation ${0}: ${1}",
@@ -931,7 +967,10 @@
      "value": "Place 2 greeneries"
     }
    ],
-   "timestamp": 1789741548785
+   "timestamp": 1789776052458,
+   "correlationId": 5,
+   "parentId": 5,
+   "role": "detail"
   },
   {
    "message": "${0} gained ${1} ${2} from ${3}: 2 per point of influence, influence ${4} (${5} → ${6})",
@@ -965,11 +1004,10 @@
      "value": "7"
     }
    ],
-   "timestamp": 1789741548785,
-   "correlationId": 6,
-   "parentId": 6,
-   "role": "root-action",
-   "category": "political-phase"
+   "timestamp": 1789776052458,
+   "correlationId": 5,
+   "parentId": 7,
+   "role": "detail"
   }
  ],
  "gameEvents": [
@@ -1074,7 +1112,6 @@
    "source": {
     "kind": "parliament"
    },
-   "player": "blue",
    "category": "political-phase"
   },
   {
@@ -1083,7 +1120,22 @@
    "phase": "parliament",
    "type": "action",
    "impact": {},
-   "correlationId": 6,
+   "correlationId": 5,
+   "visibility": "journal",
+   "source": {
+    "kind": "parliament"
+   },
+   "player": "blue",
+   "category": "political-phase",
+   "parentId": 5
+  },
+  {
+   "id": 7,
+   "generation": 1,
+   "phase": "parliament",
+   "type": "action",
+   "impact": {},
+   "correlationId": 5,
    "visibility": "journal",
    "source": {
     "kind": "resolution",
@@ -1091,10 +1143,11 @@
     "owner": "blue"
    },
    "player": "blue",
-   "category": "political-phase"
+   "category": "political-phase",
+   "parentId": 5
   },
   {
-   "id": 7,
+   "id": 8,
    "generation": 1,
    "phase": "parliament",
    "type": "resource-changed",
@@ -1109,7 +1162,7 @@
      "after": 7
     }
    },
-   "correlationId": 6,
+   "correlationId": 5,
    "visibility": "analytics",
    "source": {
     "kind": "resolution",
@@ -1117,15 +1170,15 @@
     "owner": "blue"
    },
    "player": "blue",
-   "parentId": 6
+   "parentId": 7
   },
   {
-   "id": 8,
+   "id": 9,
    "generation": 1,
    "phase": "parliament",
    "type": "action",
    "impact": {},
-   "correlationId": 8,
+   "correlationId": 5,
    "visibility": "journal",
    "source": {
     "kind": "resolution",
@@ -1133,10 +1186,11 @@
     "owner": "blue"
    },
    "player": "blue",
-   "category": "political-phase"
+   "category": "political-phase",
+   "parentId": 5
   }
  ],
- "eventSeq": 8,
+ "eventSeq": 9,
  "gameOptions": {
   "altVenusBoard": false,
   "aresExtension": false,
@@ -1224,7 +1278,7 @@
   "Builder",
   "Planner"
  ],
- "name": "Kinetic Gravity Cloud",
+ "name": "Static Pressure Trace",
  "oxygenLevel": 14,
  "passedPlayers": [],
  "phase": "parliament",
@@ -1320,11 +1374,11 @@
    "beginner": false,
    "handicap": 0,
    "timer": {
-    "sumElapsed": 0,
-    "startedAt": 1789741548784,
+    "sumElapsed": 2,
+    "startedAt": 1789776052458,
     "running": true,
     "afterFirstAction": true,
-    "lastStoppedAt": 1789741548784
+    "lastStoppedAt": 1789776052458
    },
    "actionsTakenThisGame": 1,
    "victoryPointsByGeneration": [],
@@ -1439,11 +1493,11 @@
    "beginner": false,
    "handicap": 0,
    "timer": {
-    "sumElapsed": 0,
-    "startedAt": 1789741548784,
-    "running": true,
+    "sumElapsed": 1,
+    "startedAt": 1789776052458,
+    "running": false,
     "afterFirstAction": true,
-    "lastStoppedAt": 1789741548784
+    "lastStoppedAt": 1789776052458
    },
    "actionsTakenThisGame": 1,
    "victoryPointsByGeneration": [],
@@ -1892,6 +1946,8 @@
     "enacted": "RDX_GREENS_BIODOME_CONTEST#0",
     "refreshed": [],
     "lobbyRefilled": [],
+    "seq": 1,
+    "correlationId": 5,
     "agenda": {
      "player": "p-player1-id",
      "from": 2,
@@ -1921,11 +1977,21 @@
    "appliedBySeat": {
     "p-player1-id": [
      "agenda:1",
+     "assembly:1",
      "effect:1:RDX_GREENS_BIODOME_CONTEST#0:plants"
+    ],
+    "p-player2-id": [
+     "assembly:1"
     ]
    },
    "effects": {
     "playerIndex": 0,
+    "scan": {
+     "player": "p-player1-id",
+     "key": "greenery",
+     "part": "winner",
+     "sinceEvent": 8
+    },
     "pending": {
      "player": "p-player1-id",
      "key": "greenery"
@@ -1935,6 +2001,7 @@
     "p-player1-id": {}
    }
   },
+  "phaseSeq": 1,
   "lastAdvance": {
    "seq": 1,
    "player": "p-player1-id",

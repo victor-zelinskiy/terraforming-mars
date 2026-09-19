@@ -613,7 +613,7 @@
   ],
   "discardPile": []
  },
- "createdTimeMs": 1789741548733,
+ "createdTimeMs": 1789776052342,
  "currentSeed": 593427323412,
  "deferredActions": [],
  "donePlayers": [],
@@ -633,7 +633,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1789741548733
+   "timestamp": 1789776052342
   },
   {
    "message": "Good luck ${0}!",
@@ -643,7 +643,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1789741548733,
+   "timestamp": 1789776052342,
    "playerId": "p-player1-id"
   },
   {
@@ -654,7 +654,7 @@
      "value": "red"
     }
    ],
-   "timestamp": 1789741548733,
+   "timestamp": 1789776052342,
    "playerId": "p-player2-id"
   },
   {
@@ -665,7 +665,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1789741548733,
+   "timestamp": 1789776052342,
    "type": 1
   },
   {
@@ -680,7 +680,7 @@
      "value": "Teractor"
     }
    ],
-   "timestamp": 1789741548733,
+   "timestamp": 1789776052343,
    "correlationId": 1,
    "parentId": 1,
    "role": "root-action",
@@ -698,7 +698,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1789741548733,
+   "timestamp": 1789776052343,
    "correlationId": 1,
    "parentId": 1,
    "role": "detail"
@@ -715,7 +715,7 @@
      "value": "Aridor"
     }
    ],
-   "timestamp": 1789741548733,
+   "timestamp": 1789776052343,
    "correlationId": 2,
    "parentId": 2,
    "role": "root-action",
@@ -733,7 +733,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1789741548733,
+   "timestamp": 1789776052343,
    "correlationId": 2,
    "parentId": 2,
    "role": "detail"
@@ -919,7 +919,7 @@
   "Builder",
   "Planner"
  ],
- "name": "Dense Signal Flow",
+ "name": "Silent Hydrogen Wave",
  "oxygenLevel": 0,
  "passedPlayers": [],
  "phase": "action",
@@ -1032,10 +1032,10 @@
    "handicap": 0,
    "timer": {
     "sumElapsed": 0,
-    "startedAt": 1789741548733,
+    "startedAt": 1789776052343,
     "running": true,
     "afterFirstAction": true,
-    "lastStoppedAt": 1789741548733
+    "lastStoppedAt": 1789776052343
    },
    "actionsTakenThisGame": 1,
    "victoryPointsByGeneration": [],
@@ -1171,10 +1171,10 @@
    "handicap": 0,
    "timer": {
     "sumElapsed": 0,
-    "startedAt": 1789741548733,
+    "startedAt": 1789776052343,
     "running": false,
     "afterFirstAction": true,
-    "lastStoppedAt": 1789741548733
+    "lastStoppedAt": 1789776052343
    },
    "actionsTakenThisGame": 0,
    "victoryPointsByGeneration": [],
@@ -1572,6 +1572,7 @@
    "RDX_GREENS_BIODOME_CONTEST#0",
    "RDX_GREENS_CLIMATE_RESEARCH#0"
   ],
+  "phaseSeq": 0,
   "botMode": "none"
  }
 }

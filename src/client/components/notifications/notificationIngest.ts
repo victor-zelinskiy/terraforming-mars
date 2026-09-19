@@ -308,7 +308,12 @@ function persistLedger(input: NotificationDiffInput): void {
  *
  * MarsBot turn roots ('automa-turn') are excluded: the DEDICATED turn-event
  * pipeline (marsBotPresentation) builds their richer card from the turn
- * script itself — a generic root card would double-announce.
+ * script itself — a generic root card would double-announce. The Mars
+ * Parliament's sitting ('political-phase') is excluded for the same reason:
+ * the sitting flow IS its presenter (every participant is walked through the
+ * verdict, the enactment and their own reward on the server's own gates), so
+ * a card announcing the group would announce what is already on stage. The
+ * journal group itself is untouched — the СВОДКА mode still reads its lines.
  *
  * The ORDINARY feed is suppressed while the journal is open. But a card whose
  * SIGN is personal — the viewer lost OR GAINED something to another player's
@@ -316,12 +321,16 @@ function persistLedger(input: NotificationDiffInput): void {
  * чужой ход дал или отнял у него что-то», and an open drawer must not turn a
  * personal delta into something to be discovered by reading.
  */
+/** A root whose group has NO dedicated presenter — the one the ordinary feed may show as a card (see above). */
+export function rootPresentable(m: NotificationModel): boolean {
+  return m.variant !== 'milestone' && m.variant !== 'award' && m.category !== 'automa-turn' && m.category !== 'political-phase';
+}
+
 function presentRootModels(ready: ReadonlyArray<NotificationModel>, journalOpen: boolean): void {
   if (ready.length === 0) {
     return;
   }
-  const presentable = coalesceBurst(ready.filter((m) =>
-    m.variant !== 'milestone' && m.variant !== 'award' && m.category !== 'automa-turn'));
+  const presentable = coalesceBurst(ready.filter(rootPresentable));
   pushMany(journalOpen ?
     presentable.filter((m) => m.kind === 'negative' || m.sign !== 'neutral') :
     presentable);

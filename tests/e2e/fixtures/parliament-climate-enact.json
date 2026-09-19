@@ -613,7 +613,7 @@
   ],
   "discardPile": []
  },
- "createdTimeMs": 1789741548815,
+ "createdTimeMs": 1789776052509,
  "currentSeed": 593427323412,
  "deferredActions": [],
  "donePlayers": [],
@@ -633,7 +633,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1789741548815
+   "timestamp": 1789776052509
   },
   {
    "message": "Good luck ${0}!",
@@ -643,7 +643,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1789741548816,
+   "timestamp": 1789776052509,
    "playerId": "p-player1-id"
   },
   {
@@ -654,7 +654,7 @@
      "value": "red"
     }
    ],
-   "timestamp": 1789741548816,
+   "timestamp": 1789776052509,
    "playerId": "p-player2-id"
   },
   {
@@ -665,7 +665,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1789741548816,
+   "timestamp": 1789776052509,
    "type": 1
   },
   {
@@ -680,7 +680,7 @@
      "value": "Teractor"
     }
    ],
-   "timestamp": 1789741548816,
+   "timestamp": 1789776052509,
    "correlationId": 1,
    "parentId": 1,
    "role": "root-action",
@@ -698,7 +698,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1789741548816,
+   "timestamp": 1789776052509,
    "correlationId": 1,
    "parentId": 1,
    "role": "detail"
@@ -715,7 +715,7 @@
      "value": "Aridor"
     }
    ],
-   "timestamp": 1789741548816,
+   "timestamp": 1789776052509,
    "correlationId": 2,
    "parentId": 2,
    "role": "root-action",
@@ -733,16 +733,25 @@
      "value": "2"
     }
    ],
-   "timestamp": 1789741548816,
+   "timestamp": 1789776052509,
    "correlationId": 2,
    "parentId": 2,
    "role": "detail"
   },
   {
-   "message": "The Mars Parliament convenes",
-   "data": [],
-   "timestamp": 1789741548818,
-   "type": 2
+   "message": "The Mars Parliament of generation ${0} convenes",
+   "data": [
+    {
+     "type": 1,
+     "value": "1"
+    }
+   ],
+   "timestamp": 1789776052510,
+   "type": 2,
+   "correlationId": 5,
+   "parentId": 5,
+   "role": "root-action",
+   "category": "political-phase"
   },
   {
    "message": "Resolution ${0} wins the vote with ${1} delegate(s)",
@@ -756,7 +765,10 @@
      "value": "1"
     }
    ],
-   "timestamp": 1789741548818
+   "timestamp": 1789776052510,
+   "correlationId": 5,
+   "parentId": 5,
+   "role": "detail"
   },
   {
    "message": "${0} is the winning player of ${1}",
@@ -770,7 +782,10 @@
      "value": "RDX_GREENS_CLIMATE_RESEARCH"
     }
    ],
-   "timestamp": 1789741548818
+   "timestamp": 1789776052510,
+   "correlationId": 5,
+   "parentId": 5,
+   "role": "detail"
   },
   {
    "message": "${0} advances on the Agenda track to step ${1}",
@@ -784,9 +799,9 @@
      "value": "4"
     }
    ],
-   "timestamp": 1789741548818,
+   "timestamp": 1789776052510,
    "correlationId": 5,
-   "parentId": 5,
+   "parentId": 6,
    "role": "detail"
   },
   {
@@ -809,9 +824,9 @@
      "value": "Greens"
     }
    ],
-   "timestamp": 1789741548818,
+   "timestamp": 1789776052510,
    "correlationId": 5,
-   "parentId": 7,
+   "parentId": 8,
    "role": "effect-result"
   },
   {
@@ -830,9 +845,9 @@
      "value": "tr"
     }
    ],
-   "timestamp": 1789741548818,
+   "timestamp": 1789776052510,
    "correlationId": 5,
-   "parentId": 5,
+   "parentId": 6,
    "role": "detail"
   },
   {
@@ -855,7 +870,10 @@
      "value": "3"
     }
    ],
-   "timestamp": 1789741548818
+   "timestamp": 1789776052510,
+   "correlationId": 5,
+   "parentId": 5,
+   "role": "detail"
   },
   {
    "message": "${0} gain ${1} neutral delegate(s) in Popular Support (${2}/${3})",
@@ -877,7 +895,10 @@
      "value": "3"
     }
    ],
-   "timestamp": 1789741548818
+   "timestamp": 1789776052510,
+   "correlationId": 5,
+   "parentId": 5,
+   "role": "detail"
   },
   {
    "message": "${0} gain ${1} neutral delegate(s) in Popular Support (${2}/${3})",
@@ -899,7 +920,10 @@
      "value": "3"
     }
    ],
-   "timestamp": 1789741548818
+   "timestamp": 1789776052510,
+   "correlationId": 5,
+   "parentId": 5,
+   "role": "detail"
   },
   {
    "message": "${0} gain ${1} neutral delegate(s) in Popular Support (${2}/${3})",
@@ -921,7 +945,10 @@
      "value": "3"
     }
    ],
-   "timestamp": 1789741548818
+   "timestamp": 1789776052510,
+   "correlationId": 5,
+   "parentId": 5,
+   "role": "detail"
   },
   {
    "message": "${0} gain ${1} neutral delegate(s) in Popular Support (${2}/${3})",
@@ -943,7 +970,10 @@
      "value": "3"
     }
    ],
-   "timestamp": 1789741548818
+   "timestamp": 1789776052510,
+   "correlationId": 5,
+   "parentId": 5,
+   "role": "detail"
   },
   {
    "message": "Resolution ${0} is enacted",
@@ -953,7 +983,10 @@
      "value": "RDX_GREENS_CLIMATE_RESEARCH"
     }
    ],
-   "timestamp": 1789741548818
+   "timestamp": 1789776052510,
+   "correlationId": 5,
+   "parentId": 5,
+   "role": "detail"
   },
   {
    "message": "${0} is now the ruling party — every player has its effect",
@@ -963,7 +996,10 @@
      "value": "Greens"
     }
    ],
-   "timestamp": 1789741548818
+   "timestamp": 1789776052510,
+   "correlationId": 5,
+   "parentId": 5,
+   "role": "detail"
   },
   {
    "message": "Chairman quest for generation ${0}: ${1}",
@@ -977,7 +1013,10 @@
      "value": "Raise your heat production 3 steps"
     }
    ],
-   "timestamp": 1789741548818
+   "timestamp": 1789776052510,
+   "correlationId": 5,
+   "parentId": 5,
+   "role": "detail"
   },
   {
    "message": "${0} gained ${1} ${2} production because of ${3}",
@@ -999,9 +1038,9 @@
      "value": "Greens"
     }
    ],
-   "timestamp": 1789741548819,
-   "correlationId": 9,
-   "parentId": 11,
+   "timestamp": 1789776052511,
+   "correlationId": 5,
+   "parentId": 12,
    "role": "effect-result"
   },
   {
@@ -1036,11 +1075,10 @@
      "value": "6"
     }
    ],
-   "timestamp": 1789741548819,
-   "correlationId": 9,
-   "parentId": 9,
-   "role": "root-action",
-   "category": "political-phase"
+   "timestamp": 1789776052511,
+   "correlationId": 5,
+   "parentId": 10,
+   "role": "detail"
   },
   {
    "message": "${0} drew ${1} card(s)",
@@ -1054,11 +1092,10 @@
      "value": "2"
     }
    ],
-   "timestamp": 1789741548819,
-   "correlationId": 13,
-   "parentId": 13,
-   "role": "root-action",
-   "category": "political-phase"
+   "timestamp": 1789776052512,
+   "correlationId": 5,
+   "parentId": 14,
+   "role": "detail"
   },
   {
    "message": "${0} drew ${1}",
@@ -1075,10 +1112,10 @@
      ]
     }
    ],
-   "timestamp": 1789741548819,
+   "timestamp": 1789776052512,
    "playerId": "p-player1-id",
-   "correlationId": 13,
-   "parentId": 13,
+   "correlationId": 5,
+   "parentId": 14,
    "role": "detail"
   },
   {
@@ -1109,9 +1146,9 @@
      "value": "6"
     }
    ],
-   "timestamp": 1789741548819,
-   "correlationId": 13,
-   "parentId": 13,
+   "timestamp": 1789776052512,
+   "correlationId": 5,
+   "parentId": 14,
    "role": "detail"
   }
  ],
@@ -1217,11 +1254,25 @@
    "source": {
     "kind": "parliament"
    },
-   "player": "blue",
    "category": "political-phase"
   },
   {
    "id": 6,
+   "generation": 1,
+   "phase": "parliament",
+   "type": "action",
+   "impact": {},
+   "correlationId": 5,
+   "visibility": "journal",
+   "source": {
+    "kind": "parliament"
+   },
+   "player": "blue",
+   "category": "political-phase",
+   "parentId": 5
+  },
+  {
+   "id": 7,
    "generation": 1,
    "phase": "parliament",
    "type": "tr-changed",
@@ -1237,10 +1288,10 @@
    "tags": [
     "terraforming"
    ],
-   "parentId": 5
+   "parentId": 6
   },
   {
-   "id": 7,
+   "id": 8,
    "generation": 1,
    "phase": "parliament",
    "type": "effect-triggered",
@@ -1257,10 +1308,10 @@
    "tags": [
     "passive-effect"
    ],
-   "parentId": 5
+   "parentId": 6
   },
   {
-   "id": 8,
+   "id": 9,
    "generation": 1,
    "phase": "parliament",
    "type": "resource-changed",
@@ -1286,15 +1337,15 @@
    "tags": [
     "passive-effect"
    ],
-   "parentId": 7
+   "parentId": 8
   },
   {
-   "id": 9,
+   "id": 10,
    "generation": 1,
    "phase": "parliament",
    "type": "action",
    "impact": {},
-   "correlationId": 9,
+   "correlationId": 5,
    "visibility": "journal",
    "source": {
     "kind": "resolution",
@@ -1302,10 +1353,11 @@
     "owner": "blue"
    },
    "player": "blue",
-   "category": "political-phase"
+   "category": "political-phase",
+   "parentId": 5
   },
   {
-   "id": 10,
+   "id": 11,
    "generation": 1,
    "phase": "parliament",
    "type": "production-changed",
@@ -1320,7 +1372,7 @@
      "after": 6
     }
    },
-   "correlationId": 9,
+   "correlationId": 5,
    "visibility": "analytics",
    "source": {
     "kind": "resolution",
@@ -1331,15 +1383,15 @@
    "tags": [
     "production"
    ],
-   "parentId": 9
+   "parentId": 10
   },
   {
-   "id": 11,
+   "id": 12,
    "generation": 1,
    "phase": "parliament",
    "type": "effect-triggered",
    "impact": {},
-   "correlationId": 9,
+   "correlationId": 5,
    "visibility": "analytics",
    "source": {
     "kind": "party",
@@ -1351,10 +1403,10 @@
    "tags": [
     "passive-effect"
    ],
-   "parentId": 9
+   "parentId": 10
   },
   {
-   "id": 12,
+   "id": 13,
    "generation": 1,
    "phase": "parliament",
    "type": "production-changed",
@@ -1369,7 +1421,7 @@
      "after": 2
     }
    },
-   "correlationId": 9,
+   "correlationId": 5,
    "visibility": "analytics",
    "source": {
     "kind": "party",
@@ -1381,15 +1433,15 @@
     "production",
     "passive-effect"
    ],
-   "parentId": 11
+   "parentId": 12
   },
   {
-   "id": 13,
+   "id": 14,
    "generation": 1,
    "phase": "parliament",
    "type": "action",
    "impact": {},
-   "correlationId": 13,
+   "correlationId": 5,
    "visibility": "journal",
    "source": {
     "kind": "resolution",
@@ -1397,17 +1449,18 @@
     "owner": "blue"
    },
    "player": "blue",
-   "category": "political-phase"
+   "category": "political-phase",
+   "parentId": 5
   },
   {
-   "id": 14,
+   "id": 15,
    "generation": 1,
    "phase": "parliament",
    "type": "cards-drawn",
    "impact": {
     "cardsDrawn": 2
    },
-   "correlationId": 13,
+   "correlationId": 5,
    "visibility": "analytics",
    "source": {
     "kind": "resolution",
@@ -1418,10 +1471,10 @@
    "tags": [
     "external-intake"
    ],
-   "parentId": 13
+   "parentId": 14
   }
  ],
- "eventSeq": 14,
+ "eventSeq": 15,
  "gameOptions": {
   "altVenusBoard": false,
   "aresExtension": false,
@@ -1509,7 +1562,7 @@
   "Builder",
   "Planner"
  ],
- "name": "Dense Quartz Flow",
+ "name": "Silent Particle Surge",
  "oxygenLevel": 0,
  "passedPlayers": [],
  "phase": "parliament",
@@ -1626,11 +1679,11 @@
    "beginner": false,
    "handicap": 0,
    "timer": {
-    "sumElapsed": 0,
-    "startedAt": 1789741548816,
+    "sumElapsed": 1,
+    "startedAt": 1789776052510,
     "running": true,
     "afterFirstAction": true,
-    "lastStoppedAt": 1789741548816
+    "lastStoppedAt": 1789776052510
    },
    "actionsTakenThisGame": 1,
    "victoryPointsByGeneration": [],
@@ -1746,10 +1799,10 @@
    "handicap": 0,
    "timer": {
     "sumElapsed": 0,
-    "startedAt": 1789741548816,
-    "running": true,
+    "startedAt": 1789776052510,
+    "running": false,
     "afterFirstAction": true,
-    "lastStoppedAt": 1789741548816
+    "lastStoppedAt": 1789776052510
    },
    "actionsTakenThisGame": 1,
    "victoryPointsByGeneration": [],
@@ -2196,6 +2249,8 @@
     "enacted": "RDX_GREENS_CLIMATE_RESEARCH#0",
     "refreshed": [],
     "lobbyRefilled": [],
+    "seq": 1,
+    "correlationId": 5,
     "agenda": {
      "player": "p-player1-id",
      "from": 3,
@@ -2223,6 +2278,18 @@
      },
      {
       "player": "p-player1-id",
+      "step": "heat-production",
+      "part": "effect",
+      "kind": "reaction",
+      "party": "Greens",
+      "amount": 2,
+      "trigger": "production-gain",
+      "production": "megacredits",
+      "before": 0,
+      "after": 2
+     },
+     {
+      "player": "p-player1-id",
       "step": "draw",
       "part": "effect",
       "kind": "cards",
@@ -2241,11 +2308,21 @@
    "appliedBySeat": {
     "p-player1-id": [
      "agenda:1",
+     "assembly:1",
      "effect:1:RDX_GREENS_CLIMATE_RESEARCH#0:heat-production"
+    ],
+    "p-player2-id": [
+     "assembly:1"
     ]
    },
    "effects": {
     "playerIndex": 0,
+    "scan": {
+     "player": "p-player1-id",
+     "key": "draw",
+     "part": "effect",
+     "sinceEvent": 13
+    },
     "pending": {
      "player": "p-player1-id",
      "key": "draw"
@@ -2259,6 +2336,7 @@
     }
    }
   },
+  "phaseSeq": 1,
   "lastAdvance": {
    "seq": 1,
    "player": "p-player1-id",

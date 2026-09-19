@@ -10,7 +10,7 @@ import {
 import {ARCHITECTURE_AWARD, ARCHITECTURE_AWARD_ID, ARCHITECTURE_AWARD_PRODUCTION} from '../../src/server/parliament/resolutions/marsFirst/ArchitectureAward';
 import {BIODOME_CONTEST} from '../../src/server/parliament/resolutions/greens/BiodomeContest';
 import {REDUX_RESOLUTION_CATALOG} from '../../src/server/parliament/resolutions/ResolutionCatalog';
-import {seatEnacted, seatResolution} from './parliamentArrange';
+import {endGenerationThroughParliament, seatEnacted, seatResolution, settleParliamentGates} from './parliamentArrange';
 import {resolutionCount} from '../../src/server/parliament/resolutions/ResolutionCounts';
 import {PartyName} from '../../src/common/turmoil/PartyName';
 import {Phase} from '../../src/common/Phase';
@@ -22,7 +22,6 @@ import {resolutionInstanceId, RESOLUTION_CODE_PATTERN} from '../../src/common/pa
 import {scaledAmount, uncappedAmount} from '../../src/common/parliament/influenceScaling';
 import {RESOLUTION_TAG_COUNTING_MODE} from '../../src/common/parliament/resolutionCounts';
 import {LogMessageDataType} from '../../src/common/logs/LogMessageDataType';
-import {OrOptions} from '../../src/server/inputs/OrOptions';
 import {getParliamentModel} from '../../src/server/parliament/ParliamentModel';
 import {ParliamentPhase} from '../../src/server/parliament/ParliamentPhase';
 import {fakeCard, maxOutOceans, runAllActions, setOxygenLevel, setTemperature} from '../TestingUtils';
@@ -82,17 +81,14 @@ function stage(): [IGame, TestPlayer, TestPlayer, Parliament] {
   return [game, p1, p2, parliament];
 }
 
-/** Every player passes; production → the parliament (the harness's stale action menus are cleared). */
+/**
+ * Every player passes; production → the parliament; the sitting's ASSEMBLY
+ * gate is answered for every seat (the harness's stale menus cleared first),
+ * so the resolution's own asks stand — or, for a quiet card, the ADJOURN gate
+ * is answered too and the phase is over (`parliamentArrange`).
+ */
 function endGeneration(game: IGame): void {
-  game.playersInGenerationOrder.forEach((player) => {
-    game.playerHasPassed(player);
-    game.playerIsFinishedTakingActions();
-  });
-  for (const player of game.playersInGenerationOrder) {
-    if (player.getWaitingFor() instanceof OrOptions) {
-      (player as TestPlayer).popWaitingFor();
-    }
-  }
+  endGenerationThroughParliament(game);
 }
 
 function reload(game: IGame): IGame {
@@ -276,7 +272,9 @@ describe('CentralPowerGrid', () => {
       p2.production.override({megacredits: 0});
       endGeneration(game);
       runAllActions(game);
+      settleParliamentGates(game);
       expect(parliament.phase).is.undefined;
+      settleParliamentGates(game);
       expect(game.generation).eq(2);
       expect(parliament.enacted).eq(GRID);
       expect(parliament.rulingParty()).eq(PartyName.INDUSTRIALISTS);
@@ -353,10 +351,12 @@ describe('CentralPowerGrid', () => {
       parliament.agenda.set(p2.id, agendaForInfluence(1));
       endGeneration(game);
       runAllActions(game);
+      settleParliamentGates(game);
       expect(parliament.lastPhase?.winner.player).eq('NEUTRAL');
       expect(parliament.enacted).eq(GRID);
       expect(outcomeOf(parliament, p1)).deep.include({amount: 1, count: 1, influence: 0});
       expect(outcomeOf(parliament, p2)).deep.include({amount: 1, count: 0, influence: 1});
+      settleParliamentGates(game);
       expect(parliament.lastPhase?.outcomes?.every((o) => o.part !== 'winner'), 'no winner part at all').is.true;
     });
 
@@ -405,6 +405,7 @@ describe('CentralPowerGrid', () => {
       const trAtProduction = p1.terraformRating;
       endGeneration(game);
       runAllActions(game);
+      settleParliamentGates(game);
       expect(parliament.lastPhase?.final, 'the final political phase').is.true;
       expect(p1.production.megacredits, 'the production still rises — the endgame reads the real value').eq(4 + 4);
       // The final income was paid by the production of THAT generation, before
@@ -447,8 +448,10 @@ describe('CentralPowerGrid', () => {
       const live = reload(game);
       const one = live.getPlayerById(p1.id);
       expect(one.production.megacredits).eq(paid);
+      settleParliamentGates(live);
       expect(live.parliament!.lastPhase?.outcomes?.filter((o) => o.player === p1.id && o.step === 'production')).deep.eq(
         parliament.lastPhase?.outcomes?.filter((o) => o.player === p1.id && o.step === 'production'));
+      settleParliamentGates(live);
       expect(live.parliament!.lastPhase?.outcomes?.find((o) => o.player === p1.id)?.countedUnits, 'the contribution survives the save').deep.eq([2]);
     });
 
@@ -480,9 +483,11 @@ describe('CentralPowerGrid', () => {
       runAllActions(live);
       const one = live.getPlayerById(p1.id);
       const two = live.getPlayerById(p2.id);
+      settleParliamentGates(live);
       expect(live.parliament!.phase).is.undefined;
       expect(one.production.megacredits).eq(1 + 3);
       expect(two.production.megacredits).eq(1 + 3);
+      settleParliamentGates(live);
       const outcomes = live.parliament!.lastPhase!.outcomes!;
       expect(outcomes.filter((o) => o.player === p1.id && o.step === 'production')).has.length(1);
       expect(outcomes.filter((o) => o.player === p2.id && o.step === 'production')).has.length(1);
@@ -509,6 +514,7 @@ describe('CentralPowerGrid', () => {
       endGeneration(game);
       runAllActions(game);
       // Agenda 1 → 2 (a TR step: influence stays 1); three power tags now.
+      settleParliamentGates(game);
       expect(parliament.lastPhase?.generation).eq(2);
       expect(outcomeOf(parliament, p1)).deep.include({count: 3, influence: 1, amount: 4});
       expect(p1.production.megacredits).eq(2 + 4);
@@ -621,8 +627,11 @@ describe('CentralPowerGrid', () => {
       game.playerHasPassed(human);
       game.playerIsFinishedTakingActions();
       runAllActions(game);
+      settleParliamentGates(game);
       expect(parliament.phase).is.undefined;
+      settleParliamentGates(game);
       expect(game.generation).eq(2);
+      settleParliamentGates(game);
       expect(parliament.lastPhase?.outcomes?.map((o) => o.player)).deep.eq([human.id]);
       expect(human.production.megacredits).eq(3);
       expect(getParliamentModel(game, human)?.players.find((p) => p.color === bot.color)?.counts, 'no count for a seat outside the parliament').is.undefined;
@@ -641,9 +650,11 @@ describe('CentralPowerGrid', () => {
         {id: 'powerTags', count: 0, cards: [], units: []});
       endGeneration(game);
       runAllActions(game);
+      settleParliamentGates(game);
       const last = getParliamentModel(game, p2)?.lastPhase;
       expect(last?.outcomes?.find((o) => o.player === p1.color)).deep.include({kind: 'production', amount: 4, count: 3, influence: 1, uncapped: 4});
       expect(last?.outcomes?.find((o) => o.player === p1.color)?.countedUnits).deep.eq([2, 1]);
+      settleParliamentGates(game);
       expect(parliament.lastPhase?.outcomes).has.length(2);
     });
   });

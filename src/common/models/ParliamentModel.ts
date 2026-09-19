@@ -8,6 +8,7 @@ import {WinnerRewardParameter} from '../parliament/winnerReward';
 import {PartyName} from '../turmoil/PartyName';
 import {Message} from '../logs/Message';
 import {PlayerInputType} from '../input/PlayerInputType';
+import type {EventTrigger} from '../events/GameEvent';
 import {ActionEffect} from './ActionPreviewModel';
 import {
   BotParliamentMode, ParliamentPhaseStep, PartyActionId, QuestDefinition, ReduxParty,
@@ -155,8 +156,23 @@ export type ParliamentEnactOutcomeModel = {
   part?: 'effect' | 'winner';
   /** The scaled effect's id (`InfluenceScaledEffect.id`) when the amount came from influence. */
   effect?: string;
-  /** `cardResource` onto a card · `production` · `stock` into the supply · `cards` drawn projects · `ocean` / `greenery` the winner's tile · `skipped`. */
-  kind: 'cardResource' | 'production' | 'stock' | 'cards' | 'ocean' | 'greenery' | 'skipped';
+  /**
+   * `cardResource` onto a card · `production` · `stock` into the supply · `cards`
+   * drawn projects · `ocean` / `greenery` the winner's tile · `skipped` ·
+   * `reaction` the RULING PARTY's answer to this step's own change.
+   */
+  kind: 'cardResource' | 'production' | 'stock' | 'cards' | 'ocean' | 'greenery' | 'skipped' | 'reaction';
+  /**
+   * `reaction`: the answering party and what it answered (the Greens' M€
+   * production for a heat-production raise, their M€ for the TR of the
+   * winner's tile) — derived by the driver from the recorder's own events
+   * inside the step, never re-stated by the resolution; `production` / `stock`
+   * name the resource it paid, `amount` the sum inside the step, `before` /
+   * `after` the value around it. The record shares the STEP of the change it
+   * answered — a reading groups it under its cause by `step`.
+   */
+  party?: PartyName;
+  trigger?: EventTrigger;
   resource?: CardResource;
   /** `production` (and its skip): the standard resource whose production the effect raises. */
   production?: Resource;
@@ -199,6 +215,14 @@ export type ParliamentPhaseModel = {
   pending?: ParliamentPhasePendingModel;
   /** The effect's outcomes recorded SO FAR (the enactment stage reads them live). */
   outcomes?: ReadonlyArray<ParliamentEnactOutcomeModel>;
+  /**
+   * The sitting's summary SO FAR — the SAME shape a finished phase leaves in
+   * `lastPhase` (and the history keeps), so the live sitting, the closing and
+   * a later review read one form. Filled from the first step on.
+   */
+  summary?: ParliamentPhaseSummaryModel;
+  /** A GATE step (`assembly` / `adjourn`): the participants whose answer the phase still waits for. */
+  awaiting?: ReadonlyArray<Color>;
 };
 
 /**
@@ -208,6 +232,10 @@ export type ParliamentPhaseModel = {
 export type ParliamentPhaseSummaryModel = {
   generation: number;
   final: boolean;
+  /** The sitting's monotonic number — the client's «played once» key (absent on a save from before the sittings). */
+  seq?: number;
+  /** The journal group of the whole phase (`political-phase`) — the protocol's key (absent on older saves). */
+  correlationId?: number;
   /** `slot` — the voting slot the winner stood in (0 = closest to ENACTED); absent on older saves. */
   winner: {instance: ResolutionInstanceId; resolution: ResolutionId; party: ReduxParty; votes: number; player?: Color | 'neutral'; tieBreak?: 'slot-priority' | 'earlier-delegate'; slot?: number};
   agenda?: {player: Color; from: number; to: number; bonus?: 'tr' | 'card'};
@@ -250,6 +278,8 @@ export type ParliamentModel = {
   neutralSupply: number;
   phase?: ParliamentPhaseModel;
   lastPhase?: ParliamentPhaseSummaryModel;
+  /** The finished sittings, oldest first (the last 24 — the protocol's source; absent until the first). */
+  phaseHistory?: ReadonlyArray<ParliamentPhaseSummaryModel>;
   lastAdvance?: ParliamentAdvanceModel;
   botMode: BotParliamentMode;
   /** Present on the viewer's own model only. */

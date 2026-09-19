@@ -64,6 +64,18 @@ describe('buildJournalView', () => {
     expect(group.children).to.have.length(0);
   });
 
+  it('STRICT: a single-message SITTING of the Mars Parliament stays a GROUP too (one entry per sitting — the protocol\'s shape)', () => {
+    const view = buildJournalView([
+      log('The Mars Parliament of generation ${0} convenes', {correlationId: 12, role: 'root-action', category: 'political-phase'}),
+    ]);
+    expect(view.length).to.eq(1);
+    const group = view[0] as JournalGroupNode;
+    expect(group.kind).to.eq('group');
+    expect(group.correlationId).to.eq(12);
+    expect(group.category).to.eq('political-phase');
+    expect(group.children).to.have.length(0);
+  });
+
   it('chooses the root-action as header even if it is not the first row', () => {
     const view = buildJournalView([
       log('child first', {correlationId: 3, role: 'effect-result'}),

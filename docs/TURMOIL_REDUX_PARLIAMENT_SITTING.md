@@ -93,3 +93,69 @@
 - Пробник покрывает десять сцен; композер партийного действия и «Полигон» пиксельно не сравнивались —
   их блоки в разрезе не «поздние» (порядок относительно всех остальных сохранён), риск каскада там
   снят по построению, не замером.
+
+---
+
+## Э1 — серверный момент: ворота фазы, сводка в живой модели, протокол в журнале
+
+### Оценка
+
+Прежний драйвер ставил награду ДО того, как игрок видел вердикт: сцена итогов открывалась на `mounted()`
+клиента, «видел» хранилось в `localStorage`, а фаза исследования накладывала свой промпт на раздачу.
+Сервер не ждал никого — reload пропускал момент, второе устройство показывало его дважды.
+
+### Концепция
+
+**Конец поколения — один серверный поток с ДВУМЯ воротами** (план §3, решение Q2): `assembly` после
+принятия и до эффектов — каждый участник подтверждает вердикт и принятие, и только потом закон платит;
+`adjourn` после лобби (в финальном поколении — сразу после эффектов) — каждый подтверждает обновлённую
+область, и только потом начинается следующее поколение. Ворота — один `SelectOption` на участника с
+маркером `parliamentPhasePrompt`; барьер — ключ в `appliedBySeat`, не счётчик: клон, reload и двойной
+ответ безопасны по построению; resume переиздаёт только неответившим. Вся правда фазы — в сохранении:
+сводка В ПРОЦЕССЕ едет в модели с первого шага (та же форма, что у `lastPhase`), история заседаний — cap 24.
+
+### Что изменилось
+
+| Файл | Что |
+| --- | --- |
+| `common/parliament/ParliamentTypes.ts` | `ParliamentPhaseStep` += `assembly`, `adjourn`; `ParliamentPhaseStage` |
+| `common/models/PlayerInputModel.ts` · `server/PlayerInput.ts` · `models/ServerModel.ts` | маркер `parliamentPhasePrompt {stage, generation, final, seq, awaiting}`; `markParliamentPhase`; `awaiting` считается централизованно при сборке модели |
+| `parliament/ParliamentPhase.ts` | `stepGate` · `convene` (один журнальный корень) · `rootContext` (rejoin) · итеративная `drive` · `readReactions` · `finish` → история; `parliamentGatePending / parliamentGateAwaiting / isGatePrompt / gateKey` |
+| `events/EventRecorder.ts` | `beginAction(player \| undefined)`; коалесценция `political-phase`; `rejoinAction` |
+| `parliament/SerializedParliament.ts` · `Parliament.ts` | `summary.seq / correlationId`; `effects.scan`; `phaseSeq`, `phaseHistory` (cap `PARLIAMENT_PHASE_HISTORY_CAP` = 24); outcome `kind: 'reaction'` + `party`, `trigger` |
+| `parliament/ParliamentModel.ts` · `common/models/ParliamentModel.ts` | `phase.summary`, `phase.awaiting`, `phaseHistory`, `seq / correlationId`, `reaction` |
+| `journalView.ts` · `notificationIngest.ts` · `ConsoleParliamentRecap.vue` · `winnerRewardModel.ts` | группа `political-phase` не схлопывается; корень не презентуется лентой; `case 'reaction'`; тайл ≠ реакция |
+| `ru/parliament.json` | корневая строка с поколением, заголовки ворот, тексты реакции |
+
+### Контракты
+
+- **Порядок опыта = порядок игры:** `winner → agenda → support → enact → ASSEMBLY → effects → refresh → lobby
+  → ADJOURN → done`; final: `… → effects → ADJOURN → done`.
+- **Ворота**: `parliamentGatePending(game, parliament, stage)` — единственный источник «кто ещё не ответил»
+  (модель фазы `awaiting`, маркер промпта `awaiting`, барьер драйвера — всё из него). Стоящий промпт не
+  перезаписывается никогда.
+- **Журнал**: одна группа на заседание, `summary.correlationId` — её ключ; каждое продолжение фазы
+  (ответ на ворота, ответ резолюции, resume) идёт под `rejoinAction(correlationId)`; конец фазы — вне её.
+- **`reaction`**: производная от событий рекордера в окне шага (`effects.scan`), одна запись на (партия,
+  триггер, ресурс) под `step` шага-причины; резолюция ничего о партиях не знает. Потребитель, которому
+  нужна «запись самого шага», фильтрует `kind !== 'reaction'`.
+- **Совместимость**: `PARLIAMENT_SAVE_VERSION` = 1; старая фаза в процессе доигрывается (получит `adjourn`
+  после `lobby`); `lastPhase` без `seq/correlationId` — честная деградация (без rejoin — как раньше, каждый
+  шаг сам себе группа); `Cloner.replacePlayerIds` переносит ключи ворот со своим местом.
+
+### Проверка
+
+- Серверные спеки §13.1 (+9 в `ParliamentPhase.spec`, +2 `ParliamentModel.spec`, +2 `PartyEffects.spec`,
+  +3 `politicalPhaseScope.spec`, +1 `journalView.spec`, +4 клиентский `notificationIngest.spec`,
+  `e2eFixturesLoad` с проверкой ворот); спеки пяти резолюций адаптированы без изменения числа `it`.
+- Фикстуры: единый строитель `parliamentFixture({... stopAt})`, 34 регенерированы, 10 новых
+  (`-assembly` / `-adjourn` для RX01–RX05).
+- e2e без браузера `console-parliament-gates.spec.ts`: dev-door, два места, «ответ первого не двигает,
+  второго — двигает», stale-двойной ответ отклонён.
+- Полные прогоны — см. журнал прогресса (раздел Э1 «Итог приёмки»).
+
+### Честные ограничения Э1
+
+- До Э3 промпт ворот в консоли — generic confirm, а лента уведомлений уже не показывает группу
+  `political-phase` (её презентер — заседание); журнал полон.
+- `phaseHistory` в модели каждого ответа (до 24 сводок); клиентский протокол — вне скоупа (Q8).

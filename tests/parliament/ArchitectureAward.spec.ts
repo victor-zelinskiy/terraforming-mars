@@ -10,7 +10,7 @@ import {
 import {AQUIFER_CONTEST} from '../../src/server/parliament/resolutions/greens/AquiferContest';
 import {REDUX_RESOLUTION_CATALOG} from '../../src/server/parliament/resolutions/ResolutionCatalog';
 import {CENTRAL_POWER_GRID_ID} from '../../src/server/parliament/resolutions/industrialists/CentralPowerGrid';
-import {seatEnacted, seatResolution} from './parliamentArrange';
+import {endGenerationThroughParliament, seatEnacted, seatResolution, settleParliamentGates} from './parliamentArrange';
 import {resolutionCount} from '../../src/server/parliament/resolutions/ResolutionCounts';
 import {PartyName} from '../../src/common/turmoil/PartyName';
 import {Phase} from '../../src/common/Phase';
@@ -21,7 +21,6 @@ import {Tag} from '../../src/common/cards/Tag';
 import {resolutionInstanceId, RESOLUTION_CODE_PATTERN} from '../../src/common/parliament/ParliamentTypes';
 import {scaledAmount, uncappedAmount} from '../../src/common/parliament/influenceScaling';
 import {LogMessageDataType} from '../../src/common/logs/LogMessageDataType';
-import {OrOptions} from '../../src/server/inputs/OrOptions';
 import {getParliamentModel} from '../../src/server/parliament/ParliamentModel';
 import {ParliamentPhase} from '../../src/server/parliament/ParliamentPhase';
 import {fakeCard, runAllActions} from '../TestingUtils';
@@ -78,17 +77,14 @@ function stage(): [IGame, TestPlayer, TestPlayer, Parliament] {
   return [game, p1, p2, parliament];
 }
 
-/** Every player passes; production → the parliament (the harness's stale action menus are cleared). */
+/**
+ * Every player passes; production → the parliament; the sitting's ASSEMBLY
+ * gate is answered for every seat (the harness's stale menus cleared first),
+ * so the resolution's own asks stand — or, for a quiet card, the ADJOURN gate
+ * is answered too and the phase is over (`parliamentArrange`).
+ */
 function endGeneration(game: IGame): void {
-  game.playersInGenerationOrder.forEach((player) => {
-    game.playerHasPassed(player);
-    game.playerIsFinishedTakingActions();
-  });
-  for (const player of game.playersInGenerationOrder) {
-    if (player.getWaitingFor() instanceof OrOptions) {
-      (player as TestPlayer).popWaitingFor();
-    }
-  }
+  endGenerationThroughParliament(game);
 }
 
 function reload(game: IGame): IGame {
@@ -214,7 +210,9 @@ describe('ArchitectureAward', () => {
       p2.production.override({megacredits: 0});
       endGeneration(game);
       runAllActions(game);
+      settleParliamentGates(game);
       expect(parliament.phase).is.undefined;
+      settleParliamentGates(game);
       expect(game.generation).eq(2);
       expect(parliament.enacted).eq(AWARD);
       expect(parliament.rulingParty()).eq(PartyName.MARS);
@@ -270,6 +268,7 @@ describe('ArchitectureAward', () => {
       parliament.agenda.set(p2.id, agendaForInfluence(1));
       endGeneration(game);
       runAllActions(game);
+      settleParliamentGates(game);
       expect(parliament.lastPhase?.winner.player).eq('NEUTRAL');
       expect(parliament.enacted).eq(AWARD);
       expect(outcomeOf(parliament, p1)).deep.include({amount: 1, count: 1, influence: 0});
@@ -339,6 +338,7 @@ describe('ArchitectureAward', () => {
       const live = reload(game);
       const one = live.getPlayerById(p1.id);
       expect(one.production.megacredits).eq(paid);
+      settleParliamentGates(live);
       expect(live.parliament!.lastPhase?.outcomes?.filter((o) => o.player === p1.id && o.step === 'production')).deep.eq(
         parliament.lastPhase?.outcomes?.filter((o) => o.player === p1.id && o.step === 'production'));
     });
@@ -371,9 +371,11 @@ describe('ArchitectureAward', () => {
       runAllActions(live);
       const one = live.getPlayerById(p1.id);
       const two = live.getPlayerById(p2.id);
+      settleParliamentGates(live);
       expect(live.parliament!.phase).is.undefined;
       expect(one.production.megacredits).eq(1 + 3);
       expect(two.production.megacredits).eq(1 + 3);
+      settleParliamentGates(live);
       const outcomes = live.parliament!.lastPhase!.outcomes!;
       expect(outcomes.filter((o) => o.player === p1.id && o.step === 'production')).has.length(1);
       expect(outcomes.filter((o) => o.player === p2.id && o.step === 'production')).has.length(1);
@@ -400,6 +402,7 @@ describe('ArchitectureAward', () => {
       endGeneration(game);
       runAllActions(game);
       // Agenda 1 → 2 (a TR step: influence stays 1); two counted cards now.
+      settleParliamentGates(game);
       expect(parliament.lastPhase?.generation).eq(2);
       expect(outcomeOf(parliament, p1)).deep.include({count: 2, influence: 1, amount: 3});
       expect(p1.production.megacredits).eq(2 + 3);
@@ -497,8 +500,11 @@ describe('ArchitectureAward', () => {
       game.playerHasPassed(human);
       game.playerIsFinishedTakingActions();
       runAllActions(game);
+      settleParliamentGates(game);
       expect(parliament.phase).is.undefined;
+      settleParliamentGates(game);
       expect(game.generation).eq(2);
+      settleParliamentGates(game);
       expect(parliament.lastPhase?.outcomes?.map((o) => o.player)).deep.eq([human.id]);
       expect(human.production.megacredits).eq(3);
       expect(getParliamentModel(game, human)?.players.find((p) => p.color === bot.color)?.counts, 'no count for a seat outside the parliament').is.undefined;
@@ -517,8 +523,10 @@ describe('ArchitectureAward', () => {
       expect(countOfSeat(p2.color)).deep.eq({id: 'buildingCardsWithNonNegativeVp', count: 0, cards: []});
       endGeneration(game);
       runAllActions(game);
+      settleParliamentGates(game);
       const last = getParliamentModel(game, p2)?.lastPhase;
       expect(last?.outcomes?.find((o) => o.player === p1.color)).deep.include({kind: 'production', amount: 3, count: 2, influence: 1, uncapped: 3});
+      settleParliamentGates(game);
       expect(parliament.lastPhase?.outcomes).has.length(2);
     });
   });

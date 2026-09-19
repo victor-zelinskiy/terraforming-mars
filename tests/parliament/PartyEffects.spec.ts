@@ -25,6 +25,10 @@ import {Space} from '../../src/server/boards/Space';
 import {Trees} from '../../src/server/cards/base/Trees';
 import {Fish} from '../../src/server/cards/base/Fish';
 import {SpaceElevator} from '../../src/server/cards/base/SpaceElevator';
+import {endGenerationThroughParliament, seatResolution, settleParliamentGates} from './parliamentArrange';
+import {CLIMATE_RESEARCH_ID} from '../../src/server/parliament/resolutions/greens/ClimateResearch';
+import {ARCHITECTURE_AWARD_ID} from '../../src/server/parliament/resolutions/marsFirst/ArchitectureAward';
+import {getParliamentModel} from '../../src/server/parliament/ParliamentModel';
 
 function reduxGame(): [IGame, TestPlayer, TestPlayer, Parliament] {
   const [game, p1, p2] = testGame(2, {turmoilReduxExpansion: true, coloniesExtension: true});
@@ -70,6 +74,57 @@ describe('Party effects', () => {
       p1.megaCredits = 0;
       p1.increaseTerraformRating(1);
       expect(p1.megaCredits).eq(0);
+    });
+
+    it('their answer INSIDE a sitting is recorded as the step\'s own `reaction` outcome — party, trigger, resource, amount, before / after — one per seat, never re-stated by the resolution', () => {
+      const [game, p1, p2, parliament] = reduxGame();
+      // Climate Research raises heat PRODUCTION by influence: the ruling Greens answer each raise with M€ production.
+      seatResolution(parliament, 0, CLIMATE_RESEARCH_ID);
+      parliament.placeVote(p1, parliament.slots[0], 'lobby');
+      parliament.agenda.set(p2.id, 3); // influence 2 for a non-voter
+      p1.production.override({heat: 4, megacredits: 1});
+      p2.production.override({heat: 0, megacredits: 0});
+      endGenerationThroughParliament(game);
+      // p1: 4 → 5 heat (influence 1 after the winner's step) → one card to take; p2: 0 → 2, no cards.
+      const take = p1.getWaitingFor();
+      expect(take).is.instanceOf(SelectCard);
+      p1.process({type: 'card', cards: cast(take, SelectCard).cards.map((c) => c.name)});
+      runAllActions(game);
+      settleParliamentGates(game);
+      expect(parliament.phase).is.undefined;
+      const outcomes = parliament.lastPhase?.outcomes ?? [];
+      const reactions = outcomes.filter((o) => o.kind === 'reaction');
+      expect(reactions.map((o) => o.player)).deep.eq([p1.id, p2.id]);
+      expect(reactions[0]).deep.include({
+        step: 'heat-production', part: 'effect', party: PartyName.GREENS, trigger: 'production-gain', production: Resource.MEGACREDITS, amount: 1, before: 1, after: 2,
+      });
+      expect(reactions[1]).deep.include({party: PartyName.GREENS, production: Resource.MEGACREDITS, amount: 2, before: 0, after: 2});
+      // The step's own record stands beside it — untouched, never re-stating the party's rule.
+      const raise = outcomes.find((o) => o.player === p1.id && o.step === 'heat-production' && o.kind !== 'reaction');
+      expect(raise).deep.include({kind: 'production', production: Resource.HEAT, amount: 1});
+      expect(p1.production.megacredits).eq(2);
+      // …and it reaches the client with colours, under the same step.
+      const model = getParliamentModel(game, p1)?.lastPhase?.outcomes?.filter((o) => o.kind === 'reaction');
+      expect(model?.map((o) => `${o.player}:${o.step}:${o.party}`)).deep.eq([`${p1.color}:heat-production:${PartyName.GREENS}`, `${p2.color}:heat-production:${PartyName.GREENS}`]);
+    });
+
+    it('their answer OUTSIDE a sitting (an action-phase raise) is never an outcome: a sitting records only its own', () => {
+      const [game, p1, , parliament] = reduxGame();
+      // Architecture Award raises M€ production — nothing the Greens answer — so the sitting records no reaction.
+      seatResolution(parliament, 0, ARCHITECTURE_AWARD_ID);
+      parliament.placeVote(p1, parliament.slots[0], 'lobby');
+      endGenerationThroughParliament(game);
+      expect(parliament.phase).is.undefined;
+      const before = JSON.stringify(parliament.lastPhase?.outcomes ?? []);
+      expect((parliament.lastPhase?.outcomes ?? []).some((o) => o.kind === 'reaction')).is.false;
+      game.phase = Phase.ACTION;
+      // Mars First rules now; the Greens' effect reaches p1 by a card grant — the hook fires, the sitting is over.
+      parliament.grantPartyEffect(p1, PartyName.GREENS, 'Council Seat');
+      const megacredits = p1.production.megacredits;
+      p1.production.add(Resource.HEAT, 2);
+      expect(p1.production.megacredits, 'the Greens answered the action-phase raise').eq(megacredits + 2);
+      expect(JSON.stringify(parliament.lastPhase?.outcomes ?? []), 'nothing was written into the finished sitting').eq(before);
+      expect(parliament.phase).is.undefined;
     });
   });
 

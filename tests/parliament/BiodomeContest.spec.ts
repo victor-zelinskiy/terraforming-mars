@@ -11,7 +11,7 @@ import {
 import {AQUIFER_CONTEST, AQUIFER_CONTEST_ID} from '../../src/server/parliament/resolutions/greens/AquiferContest';
 import {ARCHITECTURE_AWARD, ARCHITECTURE_AWARD_ID} from '../../src/server/parliament/resolutions/marsFirst/ArchitectureAward';
 import {REDUX_RESOLUTION_CATALOG} from '../../src/server/parliament/resolutions/ResolutionCatalog';
-import {seatEnacted, seatResolution} from './parliamentArrange';
+import {answerGate, endGenerationThroughParliament, seatEnacted, seatResolution, settleParliamentGates} from './parliamentArrange';
 import {getParliamentModel} from '../../src/server/parliament/ParliamentModel';
 import {QuestTracker} from '../../src/server/parliament/quests/QuestTracker';
 import {PartyName} from '../../src/common/turmoil/PartyName';
@@ -72,17 +72,14 @@ function stage(): [IGame, TestPlayer, TestPlayer, Parliament] {
   return [game, p1, p2, parliament];
 }
 
-/** Every player passes; production → the parliament (the harness's stale action menus are cleared). */
+/**
+ * Every player passes; production → the parliament; the sitting's ASSEMBLY
+ * gate is answered for every seat (the harness's stale menus cleared first),
+ * so the resolution's own asks stand — or, for a quiet card, the ADJOURN gate
+ * is answered too and the phase is over (`parliamentArrange`).
+ */
 function endGeneration(game: IGame): void {
-  game.playersInGenerationOrder.forEach((player) => {
-    game.playerHasPassed(player);
-    game.playerIsFinishedTakingActions();
-  });
-  for (const player of game.playersInGenerationOrder) {
-    if (player.getWaitingFor() instanceof OrOptions) {
-      (player as TestPlayer).popWaitingFor();
-    }
-  }
+  endGenerationThroughParliament(game);
 }
 
 function reload(game: IGame): IGame {
@@ -183,6 +180,7 @@ describe('BiodomeContest', () => {
       });
       p1.process({type: 'space', spaceId: quietCell(game, cast(p1.getWaitingFor(), SelectSpace)).id});
       runAllActions(game);
+      settleParliamentGates(game);
       expect(parliament.phase).is.undefined;
       expect(p2.plants).eq(4 + 6);
       expect(p1.plants, 'the winner is paid once — the greenery spends none').eq(3);
@@ -209,6 +207,7 @@ describe('BiodomeContest', () => {
       endGeneration(game);
       p1.process({type: 'space', spaceId: quietCell(game, cast(p1.getWaitingFor(), SelectSpace)).id});
       runAllActions(game);
+      settleParliamentGates(game);
       expect(parliament.phase).is.undefined;
       expect(p2.plants).eq(0);
       expect(outcomeOf(parliament, p2, 'plants')).deep.include({kind: 'skipped', reason: 'No influence', amount: 0, influence: 0, stock: Resource.PLANTS});
@@ -293,7 +292,9 @@ describe('BiodomeContest', () => {
       expect(outcomeOf(parliament, p1, 'greenery')).deep.eq({
         player: p1.id, step: 'greenery', part: 'winner', kind: 'greenery', space: space.id, parameter: {id: 'oxygen', before: 3, after: 4},
       });
+      settleParliamentGates(game);
       expect(parliament.phase).is.undefined;
+      settleParliamentGates(game);
       expect(game.generation).eq(2);
     });
 
@@ -350,6 +351,7 @@ describe('BiodomeContest', () => {
       // tile 1 + oxygen 1 + temperature 1 + ocean 1
       expect(p1.terraformRating).eq(tr + 4);
       expect(p2.plants).eq(2);
+      settleParliamentGates(game);
       expect(parliament.phase).is.undefined;
     });
 
@@ -402,6 +404,7 @@ describe('BiodomeContest', () => {
       p1.process({type: 'space', spaceId: quietCell(game, ask).id});
       expect(p1.steel, 'Mars First\'s 1 steel per tile placed on Mars').eq(steel + 1);
       runAllActions(game);
+      settleParliamentGates(game);
       expect(parliament.phase).is.undefined;
       expect(p2.steel).eq(0);
     });
@@ -415,10 +418,13 @@ describe('BiodomeContest', () => {
       const oxygen = game.getOxygenLevel();
       endGeneration(game);
       runAllActions(game);
+      settleParliamentGates(game);
       expect(parliament.phase).is.undefined;
+      settleParliamentGates(game);
       expect(parliament.lastPhase?.winner.player).eq('NEUTRAL');
       expect(p1.plants).eq(2);
       expect(p2.plants).eq(4);
+      settleParliamentGates(game);
       expect(parliament.lastPhase?.outcomes?.some((o) => o.step === 'greenery'), 'no greenery step for a neutral winner').is.false;
       expect(greeneries(game)).eq(0);
       expect(game.getOxygenLevel()).eq(oxygen);
@@ -443,7 +449,9 @@ describe('BiodomeContest', () => {
       expect(game.getOxygenLevel(), 'no oxygen step without the tile').eq(oxygen);
       expect(p1.plants).eq(2);
       expect(p2.plants).eq(2);
+      settleParliamentGates(game);
       expect(parliament.phase).is.undefined;
+      settleParliamentGates(game);
       expect(game.generation).eq(2);
       const line = game.gameLog.filter((entry) => entry.message === 'No space can take a greenery — the winner\'s greenery from ${0} is skipped');
       expect(line).has.length(1);
@@ -463,9 +471,11 @@ describe('BiodomeContest', () => {
       const space = quietCell(game, cast(p1.getWaitingFor(), SelectSpace));
       p1.process({type: 'space', spaceId: space.id});
       runAllActions(game);
+      settleParliamentGates(game);
       const last = getParliamentModel(game, p2)?.lastPhase;
+      // …and the ruling Greens' answer to the greenery's TR rides the greenery's step as its own `reaction` record.
       expect(last?.outcomes?.map((o) => `${o.player}:${o.step}:${o.kind}`)).deep.eq([
-        `${p1.color}:plants:stock`, `${p1.color}:greenery:greenery`, `${p2.color}:plants:stock`,
+        `${p1.color}:plants:stock`, `${p1.color}:greenery:greenery`, `${p1.color}:greenery:reaction`, `${p2.color}:plants:stock`,
       ]);
       expect(last?.outcomes?.[1]).deep.include({space: space.id, parameter: {id: 'oxygen', before: 5, after: 6}});
     });
@@ -477,6 +487,7 @@ describe('BiodomeContest', () => {
       endGeneration(game);
       p1.process({type: 'space', spaceId: quietCell(game, cast(p1.getWaitingFor(), SelectSpace)).id});
       runAllActions(game);
+      settleParliamentGates(game);
       expect(parliament.phase).is.undefined;
       expect(parliament.quest?.source).eq(BIODOME_CONTEST_ID);
       expect(parliament.quest?.definition).deep.eq({goal: {kind: 'tile', tile: 'greenery'}, count: 2});
@@ -560,10 +571,12 @@ describe('BiodomeContest', () => {
       expect(one.plants).eq(2);
       expect(two.plants).eq(6);
       expect(greeneries(live)).eq(1);
+      settleParliamentGates(live);
       expect(live.parliament!.phase).is.undefined;
+      settleParliamentGates(live);
       const outcomes = live.parliament!.lastPhase!.outcomes!;
       for (const step of ['plants', 'greenery']) {
-        expect(outcomes.filter((o) => o.player === p1.id && o.step === step), step).has.length(1);
+        expect(outcomes.filter((o) => o.player === p1.id && o.step === step && o.kind !== 'reaction'), step).has.length(1);
       }
       expect(outcomes.filter((o) => o.player === p2.id && o.step === 'plants')).has.length(1);
     });
@@ -587,6 +600,7 @@ describe('BiodomeContest', () => {
       const ask = cast(one.getWaitingFor(), SelectSpace);
       one.process({type: 'space', spaceId: quietCell(live, ask).id});
       runAllActions(live);
+      settleParliamentGates(live);
       expect(live.parliament!.phase).is.undefined;
       expect(one.plants).eq(2);
       expect(two.plants).eq(6);
@@ -641,6 +655,7 @@ describe('BiodomeContest', () => {
       const ask = cast(two.getWaitingFor(), SelectSpace);
       two.process({type: 'space', spaceId: quietCell(live, ask).id});
       runAllActions(live);
+      settleParliamentGates(live);
       expect(live.parliament!.phase).is.undefined;
       expect(one.plants).eq(4);
       expect(two.plants).eq(2);
@@ -657,6 +672,7 @@ describe('BiodomeContest', () => {
       endGeneration(game);
       p1.process({type: 'space', spaceId: quietCell(game, cast(p1.getWaitingFor(), SelectSpace)).id});
       runAllActions(game);
+      settleParliamentGates(game);
       expect(game.generation).eq(2);
       expect(p1.plants).eq(2);
       // Generation 2: the card leaves ENACTED, returns to the vote and wins again.
@@ -685,13 +701,18 @@ describe('BiodomeContest', () => {
       game.playerHasPassed(human);
       game.playerIsFinishedTakingActions();
       expect(game.phase).eq(Phase.PARLIAMENT);
+      // The sitting's barrier is ONE human: the bot holds no gate, the human's answer opens the effects.
+      expect(bot.getWaitingFor()).is.undefined;
+      answerGate(human, 'assembly');
       const ask = cast(human.getWaitingFor(), SelectSpace);
       expect(bot.getWaitingFor()).is.undefined;
       human.process({type: 'space', spaceId: ask.spaces[0].id});
       runAllActions(game);
       expect(bot.getWaitingFor()).is.undefined;
       expect(bot.plants).eq(0);
+      settleParliamentGates(game);
       expect(parliament.phase).is.undefined;
+      settleParliamentGates(game);
       expect(game.generation).eq(2);
       expect(human.plants).eq(2);
     });
@@ -716,7 +737,9 @@ describe('BiodomeContest', () => {
       p1.process({type: 'space', spaceId: besideCity.id});
       runAllActions(game);
       expect(p1.terraformRating).eq(tr + 1);
+      settleParliamentGates(game);
       expect(parliament.phase).is.undefined;
+      settleParliamentGates(game);
       expect(game.phase).eq(Phase.PRODUCTION);
       // THE FINAL GREENERY from the resolution's plants: +1 TR for the tile, no oxygen step, 8 plants spent.
       const final = cast(p1.getWaitingFor(), OrOptions);

@@ -191,3 +191,139 @@ nowrap` — с тем же значением) — конфликтов равн
 - Две регрессии найдены пробником и закрыты (см. выше); обе задокументированы как ловушки класса.
 - `vue-tsc` (`lint:client`), `eslint --no-cache` (изменённые файлы), `npm run build:test`, `npm run
   test:client`, `npm run test:server` — зелёные перед коммитом.
+
+Коммит: `33609a319d` «Parliament sitting · Э0: механический разрез монолитов».
+
+---
+
+## Э1 — серверный момент: ворота фазы, сводка в живой модели, протокол в журнале (принят 2026-09-19)
+
+### Что сделано
+
+- **Шаги.** `ParliamentPhaseStep` += `assembly` (после `enact`, до `effects`) и `adjourn` (после
+  `lobby`; в `final` — сразу после `effects`); тип `ParliamentPhaseStage = 'assembly' | 'adjourn'`.
+- **Ворота (`ParliamentPhase.stepGate`).** Промпт каждому участнику без ключа; барьер — `appliedBySeat[seat]
+  ∋ '<stage>:<gen>'` (никакого счётчика в памяти); `game.save()` при выдаче и при каждом ответе; ПОСЛЕДНИЙ
+  ответ двигает фазу (`continue()`); `activePlayer` не трогается. Стоящий промпт не перезаписывается:
+  свои ворота — оставляем, чужой (в движке не бывает: очередь дренируется и ПАУЗИТ на своих промптах до
+  ворот; в спеках — артефакт харнесса) — место переспрашивается при следующем входе в ворота, а входит в
+  них каждое продолжение фазы.
+- **Промпт ворот** — `SelectOption(title, 'Continue').markParliamentPhase({stage, generation, final, seq})`;
+  маркер `parliamentPhasePrompt` на `BasePlayerInput` и `BaseInputModel`; `awaiting` (цвета неответивших)
+  считается ЦЕНТРАЛЬНО в `ServerModel.getWaitingFor` из `parliamentGatePending()` — из ключей сохранения,
+  в момент сборки модели, так что список движется, пока другие отвечают. Заголовок — для журнала и
+  plain-рендера, детекция — только по маркеру.
+- **Машина шагов переписана итеративно** (`drive()` + `drainDeferred()`): прежде каждый `case` рекурсивно
+  звал `continue()`; с одним журнальным контекстом на всю фазу рекурсия загоняла бы конец фазы (`onDone`
+  → финальные озеленения / следующее поколение) ВНУТРЬ группы заседания. Теперь `finish()` возвращает
+  `{final}`, а `onDone` вызывается снаружи `runWithContext`. Отложенная очередь, опустевшая на месте,
+  продолжает тот же кадр; приостановившаяся на промпте — входит в `continue()` заново из ответа.
+- **Журнал — ОДНА группа `political-phase` на фазу.** `convene()` открывает `beginAction(undefined,
+  {kind:'parliament'}, {category:'political-phase'})` только на корневую строку `'The Mars Parliament of
+  generation ${0} convenes'` (announcement), закрывает scope и продолжает под ПЕРЕПРИСОЕДИНЁННЫМ контекстом
+  того же корня (`EventRecorder.rejoinAction(rootId, source, category)` + `runWithContext`) — так же
+  продолжаются ответы на ворота, resume после reload и шаги после input boundary. `summary.correlationId =
+  rootId`, `summary.seq = ++parliament.phaseSeq`. Коалесценция вложенных `beginAction` расширена:
+  `isInCoalescingScope()` = `automa-turn` ∨ `political-phase`; сигнатура `beginAction(player: IPlayer |
+  undefined, …)` — у заседания нет актора.
+- **`kind: 'reaction'` (решение Q6) — из событий рекордера, ни одна резолюция не переписана.**
+  `readReactions()`: окно шага `effects.scan = {player, key, part, sinceEvent}` (id события — переживает
+  reload); все `party`-события (`production-changed` / `resource-changed`) игрока в окне сворачиваются в
+  ОДНУ запись на (партия, триггер, ресурс) под ТЕМ ЖЕ `step` — `{kind:'reaction', party, trigger,
+  production|stock, amount, before, after}`; окно двигается за прочитанным (не за увиденным — прогресс
+  сериализуется одинаково до и после resume, шаг, вошедший заново, окно не переоткрывает); хвост отложенных
+  действий дочитывается на каждом обороте `drive()`. `recordOutcome` в дедупе (player, step) реакции не
+  считает.
+- **История.** `Parliament.phaseSeq`, `Parliament.phaseHistory` (cap 24, `recordPhase`), сериализация и
+  загрузка с фильтром ретирированных (`summaryNamesAny`) и повторным cap; `PARLIAMENT_SAVE_VERSION` — 1.
+- **Модель.** `ParliamentPhaseModel.summary` (та же `summaryModel`, что у `lastPhase`), `.awaiting` на
+  шагах-воротах; `ParliamentPhaseSummaryModel.seq / correlationId`; `ParliamentModel.phaseHistory`;
+  `ParliamentEnactOutcomeModel.kind += 'reaction'` + `party`, `trigger`.
+- **Клиент (две строки + потребители union).** `journalView.ts` — одиночная группа `political-phase`
+  остаётся группой (`KEEPS_GROUP_SHAPE`); `notificationIngest.ts` — `rootPresentable()` исключает корень
+  `political-phase` (у заседания свой презентер — Э3); `ConsoleParliamentRecap.vue` — `case 'reaction'` в
+  `outcomeText` (файл умирает в Э3); `winnerRewardModel.winnerOutcomeOf` не путает реакцию с записью тайла.
+- **Локаль** (`ru/parliament.json`): три ключа фазы + два текста реакции; «The Mars Parliament convenes»
+  заменён на ключ с поколением.
+
+### Тесты
+
+- `tests/parliament/parliamentArrange.ts` — хелперы ворот: `gatePromptOf` · `answerGate` ·
+  `answerStandingGates` · `settleParliamentGates` · `passToParliament` · `endGenerationThroughParliament`
+  (ЕДИНЫЙ способ пройти заседание из спека; спеки резолюций читают свои вопросы как раньше).
+- `ParliamentPhase.spec.ts` +9: барьеры с 2 и 3 местами; двойной ответ; reload внутри КАЖДЫХ ворот
+  (переиздание только неответившим; повторный resume не перезаписывает — `waitingForSerial` тот же);
+  `activePlayer` неизменен на всех переходах (S6 аудита закрыт); final: `effects → adjourn → done`; соло с
+  MarsBot — барьер из одного; клон с ремапом id внутри ворот; `seq` монотонен + история cap 24 + round-trip
+  + модель; журнал — одна группа с одним `correlationId`, включая шаги после reload.
+- `ParliamentModel.spec.ts` (новый, 2): `phase.summary` — та же форма, что `lastPhase` (ключи совпадают);
+  `awaiting`; `pending.input`; `awaiting` маркера на проводе.
+- `PartyEffects.spec.ts` +2: реакция записана внутри фазы (оба места, `before/after`, в модели с цветами);
+  вне фазы — не записана.
+- `tests/events/politicalPhaseScope.spec.ts` (новый, 3): корень без актора; вложенное действие
+  коалесцируется; rejoin. `journalView.spec.ts` +1. `tests/client/…/notificationIngest.spec.ts` (новый, 4).
+  `e2eFixturesLoad.spec.ts` — фикстура внутри ворот переиздаёт промпт ровно неответившим.
+- Спеки резолюций (Aquifer / Architecture / Biodome / PowerGrid / Climate / Retired): локальный
+  `endGeneration` → общий хелпер; `settleParliamentGates` перед чтением завершённой фазы (скрипт по
+  шаблонам + ручная дочистка); фильтры «одна запись на шаг» исключают `reaction`; MarsBot-сценарии
+  отвечают на ворота явно. Число `it` не изменилось, правила игры не тронуты.
+- **Фикстуры**: `parliamentFixture(name, {resolution, slot, votes, agenda, megacredits, arrange, stopAt,
+  expect})` заменил 20 inline-блоков (`stopAt: vote | assembly | effects | adjourn | done`; асики
+  эффектов отвечаются самым простым легальным ответом — добор целиком / первая карта / тихая клетка /
+  первая ветка); регенерированы все 34 `parliament-*`, добавлены 10:
+  `parliament-{aquifer,architecture,biodome,powergrid,climate}-{assembly,adjourn}`. Второй вид («зритель
+  ответил, другой — нет») файлом не хранится: это один API-ответ от `-assembly` — так его и берёт e2e.
+- **e2e (новый, без браузера)**: `tests/e2e/console-parliament-gates.spec.ts` — dev-door, два места, у
+  обоих `parliamentPhasePrompt{assembly}` с `awaiting` из двух цветов и `summary.seq/correlationId` на
+  проводе; ответ первого не двигает (у второго `awaiting` из одного цвета, у фазы тоже); ответ второго
+  двигает (Climate Research спрашивает добор); двойной ответ с тем же штампом отклонён как stale. 2/2.
+
+### Отклонения от буквы плана и почему
+
+1. Чужой промпт на воротах — пропуск-с-переспросом, не `setWaitingForSafely`-цепочка: при повторном
+   входе в ворота цепочка выдавала бы вторые ворота той же стадии (воспроизведено на «прерванной» фазе
+   спеков Architecture/PowerGrid); переспрос при следующем входе покрывает оба честных случая.
+2. Итеративная машина шагов — иначе конец фазы попадал в её журнальную группу (п. выше).
+3. Реакция делит `step` с шагом, который сопровождает (стадия НАГРАДА в Э5 группирует по шагу);
+   потребители «одна запись на шаг» фильтруют `kind !== 'reaction'` — три места в клиенте/спеках, остальные
+   ищут по `effect` / `kind`.
+4. Живой scope открыт только на корневую строку, всё остальное — rejoin. Не «scope на всю фазу»
+   буквально, но ровно обещанное: одна группа, все строки с одним `correlationId`, ответ после reload —
+   в цепочке, конец фазы — вне её.
+5. Хелперы спеков очищают ЛЮБОЙ стоящий промпт перед пасом (пасующее место в движке ничего не держит;
+   харнесс оставляет меню хода и пик исследования) — иначе ворота честно ждали бы его; `passToParliament`
+   отказывается заканчивать поколение, пока предыдущее заседание не закрыто (именованная ошибка вместо
+   «already in progress» драйвера).
+
+### Честные ограничения Э1
+
+- Интерим до Э3: в консоли промпт ворот идёт как generic confirm (`kind: 'choice', flavor: 'confirm'`);
+  уведомление группы `political-phase` уже выключено (презентер — заседание Э3), так что до Э3 итоги
+  фазы видны в журнале, но не в ленте.
+- Реакции читаются по событиям с источником `party`; партия, платящая мимо рекордера, не записалась бы —
+  таких нет (все хуки идут через `stock.add` / `production.add` с `from: {partyName}`), гард — сам
+  `PartyEffects.spec`.
+- `phaseHistory` едет в модели каждого ответа (до 24 сводок) — пока мал; при росте `outcomes` вернуться
+  (протокол, отдельный план).
+- Снижение версии сервера при фазе, стоящей на `assembly`/`adjourn`, не поддерживается (§12 плана).
+
+### Замеры
+
+| Что | Значение |
+| --- | --- |
+| `npm run test:server` | 11 982 ✓ · 1 pending · 0 ✗ (floor 8500; было 11 955 — +27 `it`) |
+| `npm run test:client` | 5 684 ✓ (было 5 680 — +4) |
+| `npm run build:test` (оба дерева) · `lint:client` (vue-tsc) · `eslint --no-cache` · `lint:i18n` · `make:json` | зелёные |
+| `tests/console/e2eFixturesLoad.spec.ts` | 44 ✓ (34 парламентских фикстуры, 10 новых с воротами) |
+| `tests/e2e/console-parliament-gates.spec.ts` | 2 ✓ (5,4 с, без браузера) |
+| Спеки парламента | 174 ✓ после адаптации существующих, +17 новых `it` |
+
+### Итог приёмки Э1
+
+Все пункты приёмки §5 промта закрыты: барьеры 2/3 мест · один ответ не двигает · двойной ответ
+идемпотентен (отклонён как stale) · `Game.deserialize` внутри каждых ворот переиздаёт только неответившим
+и не перезаписывает стоящий промпт · `activePlayer` неизменен на всех шагах · final `effects → adjourn →
+done` · соло с MarsBot — барьер из одного · клон с ремапом id · `phaseHistory` cap 24 · `seq` монотонен ·
+реакция партии — `reaction` и только внутри фазы · журнал — одна группа на поколение с одним
+`correlationId` (включая шаги после reload) · `test:server` ≥ floor · dev-door на два места (e2e без
+браузера). Коммит: «Parliament sitting · Э1: …» (ниже).

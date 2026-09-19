@@ -6,15 +6,15 @@ import {Game} from '../../src/server/Game';
 import {Parliament} from '../../src/server/parliament/Parliament';
 import {AQUIFER_CONTEST, AQUIFER_CONTEST_ANIMALS, AQUIFER_CONTEST_CODE, AQUIFER_CONTEST_ID} from '../../src/server/parliament/resolutions/greens/AquiferContest';
 import {REDUX_RESOLUTION_CATALOG, ResolutionCatalog} from '../../src/server/parliament/resolutions/ResolutionCatalog';
-import {seatResolution} from './parliamentArrange';
+import {answerGate, endGenerationThroughParliament, seatResolution, settleParliamentGates} from './parliamentArrange';
 import {PartyName} from '../../src/common/turmoil/PartyName';
+import {Resource} from '../../src/common/Resource';
 import {Phase} from '../../src/common/Phase';
 import {CardName} from '../../src/common/cards/CardName';
 import {resolutionInstanceId, RESOLUTION_CODE_PATTERN} from '../../src/common/parliament/ParliamentTypes';
 import {scaledAmount} from '../../src/common/parliament/influenceScaling';
 import {SelectCard} from '../../src/server/inputs/SelectCard';
 import {SelectSpace} from '../../src/server/inputs/SelectSpace';
-import {OrOptions} from '../../src/server/inputs/OrOptions';
 import {cast} from '../../src/common/utils/utils';
 import {maxOutOceans, runAllActions} from '../TestingUtils';
 import {Fish} from '../../src/server/cards/base/Fish';
@@ -58,21 +58,13 @@ function stage(): [IGame, TestPlayer, TestPlayer, Parliament] {
 }
 
 /**
- * Every player passes; the engine runs production → the parliament. The
- * harness leaves a STALE action menu (an `OrOptions`) on a seat that passed
- * after being handed its turn; the political phase's own prompts are never
- * a menu here, so the stale ones are cleared to read the phase's asks alone.
+ * Every player passes; production → the parliament; the sitting's ASSEMBLY
+ * gate is answered for every seat (the harness's stale menus cleared first),
+ * so the resolution's own asks stand — or, for a quiet card, the ADJOURN gate
+ * is answered too and the phase is over (`parliamentArrange`).
  */
 function endGeneration(game: IGame): void {
-  game.playersInGenerationOrder.forEach((player) => {
-    game.playerHasPassed(player);
-    game.playerIsFinishedTakingActions();
-  });
-  for (const player of game.playersInGenerationOrder) {
-    if (player.getWaitingFor() instanceof OrOptions) {
-      (player as TestPlayer).popWaitingFor();
-    }
-  }
+  endGenerationThroughParliament(game);
 }
 
 function reload(game: IGame): IGame {
@@ -163,11 +155,14 @@ describe('AquiferContest', () => {
       p1.process({type: 'space', spaceId: ocean.spaces[0].id});
       runAllActions(game);
       // p2 was never asked: the phase is over and the game moved on to the next research phase.
+      settleParliamentGates(game);
       expect(parliament.phase).is.undefined;
+      settleParliamentGates(game);
       expect(game.generation).eq(2);
       const next = p2.getWaitingFor();
       expect(next instanceof SelectCard ? next.resourceGainPrompt : undefined, 'no question for a zero payout').is.undefined;
       expect(animalsOn(p2, CardName.FISH)).eq(0);
+      settleParliamentGates(game);
       const outcomes = parliament.lastPhase?.outcomes ?? [];
       expect(outcomes.find((o) => o.player === p2.id && o.step === 'animals')).deep.include({kind: 'skipped', reason: 'No influence', amount: 0, influence: 0});
       expect(game.gameLog.some((entry) => entry.message.includes('has no influence'))).is.true;
@@ -210,6 +205,7 @@ describe('AquiferContest', () => {
       const ocean = cast(p1.getWaitingFor(), SelectSpace);
       p1.process({type: 'space', spaceId: ocean.spaces[0].id});
       runAllActions(game);
+      settleParliamentGates(game);
       expect(parliament.phase).is.undefined;
       expect(parliament.quest?.source).eq(AQUIFER_CONTEST_ID);
       expect(parliament.quest?.definition).deep.eq({goal: {kind: 'tag', tag: Tag.ANIMAL}, count: 1});
@@ -251,9 +247,12 @@ describe('AquiferContest', () => {
       expect(p1.megaCredits, 'no standard-project cost; the Greens\' 2 M€ arrive').eq(mc + 2);
       expect(p1.actionsTakenThisGame).eq(actions);
       expect(parliament.rulingParty()).eq(PartyName.GREENS);
+      settleParliamentGates(game);
       const outcome = parliament.lastPhase?.outcomes?.find((o) => o.player === p1.id && o.step === 'ocean');
       expect(outcome).deep.include({kind: 'ocean', part: 'winner', space: space.id, parameter: {id: 'oceans', before: 0, after: 1}});
+      settleParliamentGates(game);
       expect(parliament.phase).is.undefined;
+      settleParliamentGates(game);
       expect(game.generation).eq(2);
     });
 
@@ -271,8 +270,11 @@ describe('AquiferContest', () => {
       expect(cast(p2.getWaitingFor(), SelectCard).resourceGainPrompt?.amount).eq(2);
       p2.process({type: 'card', cards: [CardName.FISH]});
       runAllActions(game);
+      settleParliamentGates(game);
       expect(parliament.phase).is.undefined;
+      settleParliamentGates(game);
       expect(parliament.lastPhase?.winner.player).eq('NEUTRAL');
+      settleParliamentGates(game);
       expect(parliament.lastPhase?.outcomes?.some((o) => o.step === 'ocean'), 'no ocean step for a neutral winner').is.false;
       expect(game.board.getOceanSpaces()).has.length(0);
     });
@@ -284,8 +286,11 @@ describe('AquiferContest', () => {
       endGeneration(game);
       runAllActions(game);
       expect(p1.getWaitingFor(), 'no placement asked — the game moved on to the next research phase').is.not.instanceOf(SelectSpace);
+      settleParliamentGates(game);
       expect(parliament.phase).is.undefined;
+      settleParliamentGates(game);
       expect(game.generation).eq(2);
+      settleParliamentGates(game);
       expect(parliament.lastPhase?.outcomes?.find((o) => o.step === 'ocean')).deep.include({kind: 'skipped', reason: 'No ocean tile is left'});
       expect(p1.terraformRating, 'only the Agenda step itself').eq(tr);
       expect(game.gameLog.some((entry) => entry.message.includes('No ocean tile is left'))).is.true;
@@ -311,10 +316,13 @@ describe('AquiferContest', () => {
       const ocean = cast(p1.getWaitingFor(), SelectSpace);
       p1.process({type: 'space', spaceId: ocean.spaces[0].id});
       runAllActions(game);
+      settleParliamentGates(game);
       const last = getParliamentModel(game, p2)?.lastPhase;
+      // …and the ruling Greens' answer to the ocean's TR (2 M€) rides the ocean's step as its own `reaction` record.
       expect(last?.outcomes?.map((o) => `${o.player}:${o.step}:${o.kind}`)).deep.eq([
-        `${p1.color}:animals:cardResource`, `${p1.color}:ocean:ocean`, `${p2.color}:animals:skipped`,
+        `${p1.color}:animals:cardResource`, `${p1.color}:ocean:ocean`, `${p1.color}:ocean:reaction`, `${p2.color}:animals:skipped`,
       ]);
+      expect(last?.outcomes?.find((o) => o.kind === 'reaction')).deep.include({party: PartyName.GREENS, trigger: 'tr-increase', stock: Resource.MEGACREDITS, amount: 2});
     });
 
     it('the journal names the payout with its recipient card AND the resolution it came from', () => {
@@ -365,12 +373,16 @@ describe('AquiferContest', () => {
       one.process({type: 'space', spaceId: ocean.spaces[0].id});
       runAllActions(live);
       expect(live.board.getOceanSpaces()).has.length(1);
+      settleParliamentGates(live);
       expect(live.parliament!.phase).is.undefined;
+      settleParliamentGates(live);
       expect(live.generation).eq(2);
-      // Every key applied once: the outcomes are one per step.
+      // Every key applied once: the outcomes are one per step (the ruling party's `reaction` to the ocean's TR is its own record beside it).
+      settleParliamentGates(live);
       const outcomes = live.parliament!.lastPhase!.outcomes!;
       expect(outcomes.filter((o) => o.player === p1.id && o.step === 'animals')).has.length(1);
-      expect(outcomes.filter((o) => o.player === p1.id && o.step === 'ocean')).has.length(1);
+      expect(outcomes.filter((o) => o.player === p1.id && o.step === 'ocean' && o.kind !== 'reaction')).has.length(1);
+      expect(outcomes.filter((o) => o.player === p1.id && o.step === 'ocean' && o.kind === 'reaction'), 'the Greens answered the TR once').has.length(1);
     });
 
     it('a reload BETWEEN two players\' payouts asks the second player once, never the first again', () => {
@@ -394,6 +406,7 @@ describe('AquiferContest', () => {
       runAllActions(live);
       expect(two.tableau.get(CardName.FISH)?.resourceCount).eq(1);
       expect(one.tableau.get(CardName.FISH)?.resourceCount).eq(1);
+      settleParliamentGates(live);
       expect(live.parliament!.phase).is.undefined;
     });
 
@@ -405,6 +418,7 @@ describe('AquiferContest', () => {
       const ocean = cast(p1.getWaitingFor(), SelectSpace);
       p1.process({type: 'space', spaceId: ocean.spaces[0].id});
       runAllActions(game);
+      settleParliamentGates(game);
       expect(game.generation).eq(2);
       expect(animalsOn(p1, CardName.FISH)).eq(1);
       // Generation 2: the card leaves ENACTED for the discard, then returns to the vote and wins again.
@@ -429,6 +443,9 @@ describe('AquiferContest', () => {
       game.playerHasPassed(human);
       game.playerIsFinishedTakingActions();
       expect(game.phase).eq(Phase.PARLIAMENT);
+      // The sitting's barrier is ONE human: the bot holds no gate, the human's answer opens the effects.
+      expect(bot.getWaitingFor()).is.undefined;
+      answerGate(human, 'assembly');
       expect(cast(human.getWaitingFor(), SelectCard).resourceGainPrompt?.amount).eq(1);
       human.process({type: 'card', cards: [CardName.FISH]});
       expect(bot.getWaitingFor()).is.undefined;
@@ -437,7 +454,9 @@ describe('AquiferContest', () => {
       runAllActions(game);
       expect(bot.getWaitingFor()).is.undefined;
       expect(bot.tableau.get(CardName.FISH)?.resourceCount ?? 0).eq(0);
+      settleParliamentGates(game);
       expect(parliament.phase).is.undefined;
+      settleParliamentGates(game);
       expect(game.generation).eq(2);
     });
 

@@ -200,38 +200,60 @@ export class EventRecorder {
 
   // ───────────────────────── scopes ─────────────────────────
 
-  /** True while an 'automa-turn' scope is anywhere on the live stack. */
-  private isInAutomaTurn(): boolean {
-    return this.stack.some((c) => c.category === 'automa-turn');
+  /**
+   * True while a COALESCING scope is anywhere on the live stack — a MarsBot
+   * turn (`automa-turn`) or the Mars Parliament's political phase
+   * (`political-phase`): both are ONE journal entry by contract, whatever
+   * nested actions they open.
+   */
+  private isInCoalescingScope(): boolean {
+    return this.stack.some((c) => c.category === 'automa-turn' || c.category === 'political-phase');
   }
 
-  /** Begin a top-level player action (card play, blue-card action, standard project). */
-  public beginAction(player: IPlayer, source: EventSource | undefined, opts?: {category?: JournalActionCategory; visibility?: EventVisibility}): void {
+  /**
+   * Begin a top-level player action (card play, blue-card action, standard
+   * project). `player` is undefined for a scope nobody acts in — the Mars
+   * Parliament's political phase, whose root is the sitting itself.
+   */
+  public beginAction(player: IPlayer | undefined, source: EventSource | undefined, opts?: {category?: JournalActionCategory; visibility?: EventVisibility}): void {
     const parent = this.current;
     /*
-     * AUTOMA-TURN COALESCING (the strict "one journal entry per bot turn"
-     * rule): EVERYTHING a bot turn does — a milestone claim, an award
-     * funding, the Delta Project advance — must group under the turn's
-     * single 'automa-turn' entry (the one with «Осмотреть ход»), never root
-     * its own journal group. A nested action opened INSIDE the automa-turn
-     * scope therefore JOINS the turn's chain: its 'action' event keeps its
-     * own category (analytics / endgame facts unchanged) but carries the
-     * TURN's correlationId, and its scope stamps its logs as details of the
-     * turn (`rootLogEmitted: true` — the turn's own first log stays the one
-     * root-action header). Human actions are never nested in that scope, so
-     * their grouping is untouched.
+     * COALESCING (the strict "one journal entry per bot turn" rule, and the
+     * same for a sitting of the parliament): EVERYTHING a bot turn does — a
+     * milestone claim, an award funding, the Delta Project advance — must
+     * group under the turn's single 'automa-turn' entry (the one with
+     * «Осмотреть ход»), never root its own journal group; every step of the
+     * political phase (the winner's Agenda, each seat's payout) likewise
+     * groups under the sitting's 'political-phase' entry. A nested action
+     * opened INSIDE such a scope therefore JOINS the chain: its 'action'
+     * event keeps its own category (analytics / endgame facts unchanged) but
+     * carries the ROOT's correlationId, and its scope stamps its logs as
+     * details (`rootLogEmitted: true` — the root's own first log stays the
+     * one root-action header). Human actions are never nested in either
+     * scope, so their grouping is untouched.
      */
-    if (parent !== undefined && parent.rootId !== undefined && this.isInAutomaTurn()) {
+    if (parent !== undefined && parent.rootId !== undefined && this.isInCoalescingScope()) {
       const marker = this.emit(
-        {type: 'action', source, player: player.color, impact: {}, visibility: opts?.visibility ?? 'journal', tags: source?.kind === 'corporation' ? ['corporation'] : undefined, category: opts?.category},
+        {type: 'action', source, player: player?.color, impact: {}, visibility: opts?.visibility ?? 'journal', tags: source?.kind === 'corporation' ? ['corporation'] : undefined, category: opts?.category},
         parent);
-      this.stack.push({rootId: parent.rootId, parentId: marker.id, source, playerColor: player.color, kind: 'action', trigger: undefined, triggerEmitted: true, rootLogEmitted: true, category: opts?.category});
+      this.stack.push({rootId: parent.rootId, parentId: marker.id, source, playerColor: player?.color, kind: 'action', trigger: undefined, triggerEmitted: true, rootLogEmitted: true, category: opts?.category});
       return;
     }
     const root = this.emit(
-      {type: 'action', source, player: player.color, impact: {}, visibility: opts?.visibility ?? 'journal', tags: source?.kind === 'corporation' ? ['corporation'] : undefined, category: opts?.category},
+      {type: 'action', source, player: player?.color, impact: {}, visibility: opts?.visibility ?? 'journal', tags: source?.kind === 'corporation' ? ['corporation'] : undefined, category: opts?.category},
       this.current);
-    this.stack.push({rootId: root.id, parentId: root.id, source, playerColor: player.color, kind: 'action', trigger: undefined, triggerEmitted: true, rootLogEmitted: false, category: opts?.category});
+    this.stack.push({rootId: root.id, parentId: root.id, source, playerColor: player?.color, kind: 'action', trigger: undefined, triggerEmitted: true, rootLogEmitted: false, category: opts?.category});
+  }
+
+  /**
+   * A context that REJOINS a root recorded earlier — a resumable driver
+   * continuing after an input boundary or a reload (the political phase: its
+   * root is the convening, kept as `summary.correlationId`). Nothing is
+   * emitted; run under `runWithContext`, every later record and log joins the
+   * root's chain as a detail, and a nested `beginAction` coalesces into it.
+   */
+  public rejoinAction(rootId: number, source: EventSource | undefined, category: JournalActionCategory): CapturedEventContext {
+    return {rootId, parentId: rootId, source, playerColor: undefined, kind: 'action', trigger: undefined, triggerEmitted: true, rootLogEmitted: true, category};
   }
 
   /**

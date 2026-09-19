@@ -12,7 +12,7 @@ import {AQUIFER_CONTEST_ID} from '../../src/server/parliament/resolutions/greens
 import {BIODOME_CONTEST_ID} from '../../src/server/parliament/resolutions/greens/BiodomeContest';
 import {ARCHITECTURE_AWARD_ID} from '../../src/server/parliament/resolutions/marsFirst/ArchitectureAward';
 import {REDUX_RESOLUTION_CATALOG} from '../../src/server/parliament/resolutions/ResolutionCatalog';
-import {seatEnacted, seatResolution} from './parliamentArrange';
+import {answerGate, endGenerationThroughParliament, seatEnacted, seatResolution, settleParliamentGates} from './parliamentArrange';
 import {PartyName} from '../../src/common/turmoil/PartyName';
 import {Phase} from '../../src/common/Phase';
 import {Resource} from '../../src/common/Resource';
@@ -22,7 +22,6 @@ import {scaledAmount, sequelAmount} from '../../src/common/parliament/influenceS
 import {partyReactionAmount, productionReactionOf} from '../../src/common/parliament/partyReactions';
 import {PARTY_EFFECTS} from '../../src/server/parliament/parties/PartyEffects';
 import {LogMessageDataType} from '../../src/common/logs/LogMessageDataType';
-import {OrOptions} from '../../src/server/inputs/OrOptions';
 import {SelectCard} from '../../src/server/inputs/SelectCard';
 import {getParliamentModel} from '../../src/server/parliament/ParliamentModel';
 import {ExternalDrawIntake} from '../../src/server/deferredActions/ExternalDrawIntake';
@@ -64,20 +63,14 @@ function stage(): [IGame, TestPlayer, TestPlayer, Parliament] {
   return [game, p1, p2, parliament];
 }
 
-/** Every player passes; production → the parliament (the harness's stale action menus are cleared). */
+/**
+ * Every player passes; production → the parliament; the sitting's ASSEMBLY
+ * gate is answered for every seat (the harness's stale menus cleared first),
+ * so the resolution's own asks stand — or, for a quiet card, the ADJOURN gate
+ * is answered too and the phase is over (`parliamentArrange`).
+ */
 function endGeneration(game: IGame): void {
-  game.playersInGenerationOrder.forEach((player) => {
-    game.playerHasPassed(player);
-    game.playerIsFinishedTakingActions();
-  });
-  for (const player of game.playersInGenerationOrder) {
-    if (player.getWaitingFor() instanceof OrOptions) {
-      // The harness leaves a stale action menu on a passed seat. A RELOADED
-      // game has plain `Player`s (no test harness), where the stale menu is
-      // simply overwritten by whatever the phase asks next.
-      (player as Partial<TestPlayer>).popWaitingFor?.();
-    }
-  }
+  endGenerationThroughParliament(game);
 }
 
 function reload(game: IGame): IGame {
@@ -258,6 +251,7 @@ describe('ClimateResearch', () => {
       endGeneration(game);
       takeAll(p1);
       runAllActions(game);
+      settleParliamentGates(game);
       expect(parliament.lastPhase?.winner.player).eq('NEUTRAL');
       expect(parliament.enacted).eq(CLIMATE);
       expect(p1.production.heat, 'influence 1, no Agenda step for a neutral winner').eq(3);
@@ -336,6 +330,7 @@ describe('ClimateResearch', () => {
       runAllActions(game);
       expect(p2.production.heat).eq(9);
       expect(p2.production.megacredits, 'the reaction answers the STEPS, not the total').eq(0);
+      settleParliamentGates(game);
       expect(parliament.lastPhase, 'the phase completed').is.not.undefined;
     });
 
@@ -381,7 +376,9 @@ describe('ClimateResearch', () => {
         kind: 'cards', effect: 'draw', amount: 3, drawn: 3, influence: 2,
       });
       expect(outcomeOf(parliament, p1, 'draw')?.total).deep.eq({before: 7, after: 9});
+      settleParliamentGates(game);
       expect(parliament.lastPhase, 'the political phase finished only after the take').is.not.undefined;
+      settleParliamentGates(game);
       expect(game.generation).eq(2);
     });
 
@@ -439,6 +436,7 @@ describe('ClimateResearch', () => {
       takeAll(p1);
       runAllActions(game);
       expect(p1.cardsInHand).has.length(3);
+      settleParliamentGates(game);
       expect(parliament.lastPhase).is.not.undefined;
     });
 
@@ -484,6 +482,7 @@ describe('ClimateResearch', () => {
       expect(takePrompt(p2)?.cards, '4 + 2 = 6 → 2').has.length(2);
       takeAll(p2);
       runAllActions(game);
+      settleParliamentGates(game);
       expect(parliament.lastPhase).is.not.undefined;
       expect(outcomeOf(parliament, p1, 'draw')).deep.include({amount: 2});
       expect(outcomeOf(parliament, p2, 'draw')).deep.include({amount: 2});
@@ -520,6 +519,7 @@ describe('ClimateResearch', () => {
       takeAll(p1);
       runAllActions(game);
       expect(p1.cardsInHand).has.length(1);
+      settleParliamentGates(game);
 
       // Generation 2: the card comes back up and wins again.
       game.phase = Phase.ACTION;
@@ -551,6 +551,7 @@ describe('ClimateResearch', () => {
       takeAll(p1);
       runAllActions(game);
       expect(p1.cardsInHand.length).eq(handBefore + 2);
+      settleParliamentGates(game);
       expect(parliament.lastPhase?.final).is.true;
       expect(outcomeOf(parliament, p1, 'draw')).deep.include({kind: 'cards', amount: 2, drawn: 2});
     });
@@ -592,6 +593,7 @@ describe('ClimateResearch', () => {
       runAllActions(copy);
       expect(c1.cardsInHand).has.length(3);
       expect(c1.pendingCardIntakes).is.empty;
+      settleParliamentGates(copy);
       expect(copy.parliament?.lastPhase).is.not.undefined;
     });
 
@@ -612,6 +614,7 @@ describe('ClimateResearch', () => {
       takeAll(c1);
       runAllActions(copy);
       expect(c1.cardsInHand).has.length(3);
+      settleParliamentGates(copy);
       expect(copy.parliament?.lastPhase).is.not.undefined;
     });
 
@@ -634,6 +637,7 @@ describe('ClimateResearch', () => {
       runAllActions(copy);
       expect(c2.cardsInHand).has.length(2);
       expect(c1.cardsInHand).has.length(2);
+      settleParliamentGates(copy);
       expect(copy.parliament?.lastPhase).is.not.undefined;
     });
 
@@ -742,6 +746,7 @@ describe('ClimateResearch', () => {
       endGeneration(game);
       takeAll(p1);
       runAllActions(game);
+      settleParliamentGates(game);
       const after = getParliamentModel(game, p1)!;
       const outcomes = after.lastPhase?.outcomes ?? [];
       const draw = outcomes.find((o) => o.player === p1.color && o.step === 'draw');
@@ -765,12 +770,16 @@ describe('ClimateResearch', () => {
       human.popWaitingFor();
       game.playerHasPassed(human);
       game.playerIsFinishedTakingActions();
+      // The sitting's barrier is ONE human: the bot holds no gate.
+      expect(bot.getWaitingFor()).is.undefined;
+      answerGate(human, 'assembly');
       takeAll(human);
       runAllActions(game);
       expect(parliament.participates(bot)).is.false;
       expect(bot.production.heat, 'no raise for a seat outside the parliament').eq(9);
       expect(bot.cardsInHand.length).eq(botCards);
       expect(bot.pendingCardIntakes).is.empty;
+      settleParliamentGates(game);
       expect(parliament.lastPhase?.outcomes?.some((o) => o.player === bot.id)).is.false;
     });
 

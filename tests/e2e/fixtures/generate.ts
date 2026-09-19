@@ -27,7 +27,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {testGame} from '../../TestGame';
 import {TestPlayer} from '../../TestPlayer';
-import {finishGeneration, maxOutOceans, runAllActions, setOxygenLevel, setTemperature} from '../../TestingUtils';
+import {maxOutOceans, runAllActions, setOxygenLevel, setTemperature} from '../../TestingUtils';
 import {SelectCard} from '../../../src/server/inputs/SelectCard';
 import {PartyName} from '../../../src/common/turmoil/PartyName';
 import {Tardigrades} from '../../../src/server/cards/base/Tardigrades';
@@ -75,7 +75,9 @@ import {OrOptions} from '../../../src/server/inputs/OrOptions';
 import {CLIMATE_RESEARCH_ID} from '../../../src/server/parliament/resolutions/greens/ClimateResearch';
 import {BIODOME_CONTEST_ID} from '../../../src/server/parliament/resolutions/greens/BiodomeContest';
 import {Parliament} from '../../../src/server/parliament/Parliament';
-import {seatResolution} from '../../parliament/parliamentArrange';
+import {answerStandingGates, endGenerationThroughParliament, passToParliament, seatResolution} from '../../parliament/parliamentArrange';
+import {ResolutionId, resolutionInstanceId} from '../../../src/common/parliament/ParliamentTypes';
+import {Space} from '../../../src/server/boards/Space';
 import {ArtificialLake} from '../../../src/server/cards/base/ArtificialLake';
 import {DomedCrater} from '../../../src/server/cards/base/DomedCrater';
 import {SpaceElevator} from '../../../src/server/cards/base/SpaceElevator';
@@ -364,6 +366,163 @@ function write(name: string, game: IGame): void {
   write('effect-forecast', game);
 }
 
+// ═══════════════════════ THE MARS PARLIAMENT (Turmoil Redux) ═══════════════════════
+//
+// ONE BUILDER for every parliament fixture (the sitting rework, Э1): a 2-seat
+// Redux table through the real start flow, the resolution SEATED (never
+// assumed from the deal — `parliamentArrange`), the votes, the Agenda and the
+// rest of the table arranged by the spec, then DRIVEN to the requested stop:
+//   vote      — the action phase, the vote up (the browse layer, the vote mode);
+//   assembly  — every seat passed: the verdict, the winner's Agenda step, the
+//               support and the enactment are DONE, nothing paid yet, and the
+//               ASSEMBLY gate stands for both seats (nobody answered — «the
+//               viewer answered, the other did not» is one API press away);
+//   effects   — the assembly gate answered by both: the enacted resolution's
+//               FIRST ask stands (or the phase went on, for a card that asks nothing);
+//   adjourn   — the effects answered with the plainest legal answers (a pick:
+//               every card of a take / the first candidate; a placement: a
+//               quiet cell; a choice: the first branch), the area refreshed,
+//               the lobby refilled, and the ADJOURN gate stands for both seats;
+//   done      — the adjourn gate answered, research answered with empty picks:
+//               generation 2's action phase, the sitting in `lastPhase` and
+//               in the history.
+// The dev loader opens the FIRST seat of the generation order: blue (p1) in
+// generation 1, the seat that opened generation 2 in a `done` fixture.
+
+type ParliamentTable = {game: IGame; p1: TestPlayer; p2: TestPlayer; parliament: Parliament};
+
+type ParliamentStop = 'vote' | 'assembly' | 'effects' | 'adjourn' | 'done';
+
+type ParliamentFixtureSpec = {
+  /** The contested card, seated in `slot` (0 by default — closest to the government). */
+  resolution?: ResolutionId;
+  slot?: number;
+  /** Lobby votes on the contested card, by seat (0 = blue, 1 = red). */
+  votes?: ReadonlyArray<0 | 1>;
+  /** The Agenda step per seat (blue, red); `undefined` leaves the start. */
+  agenda?: [number | undefined, number | undefined];
+  /** M€ per seat (blue, red); 40 / 30 unless said otherwise. */
+  megacredits?: [number, number];
+  /** The rest of the table: tableau, production, the globals, other votes, a seat's pass. */
+  arrange?: (table: ParliamentTable) => void;
+  stopAt: ParliamentStop;
+  /** Refuse the fixture unless the reached state is the one it promises (the name tells the reader what to expect). */
+  expect?: (table: ParliamentTable) => void;
+};
+
+function reduxTable(name: string): ParliamentTable {
+  const [game, p1, p2] = testGame(2, {
+    skipInitialCardSelection: false, coloniesExtension: true, turmoilReduxExpansion: true,
+    startingCorporations: 1,
+  });
+  if (!(p1.getWaitingFor() instanceof SelectInitialCards)) {
+    throw new Error(`${name}: expected SelectInitialCards, got ${p1.getWaitingFor()?.constructor.name}`);
+  }
+  answerStartFlow(game, [p1, p2]);
+  const parliament = game.parliament;
+  if (parliament === undefined || parliament.slots.length !== 3) {
+    throw new Error(`the ${name} fixture has no voting area`);
+  }
+  return {game, p1, p2, parliament};
+}
+
+/** A quiet cell for a placement the builder answers itself — no printed bonus, no neighbour — so a landing stays legible on screen. */
+function quietCellOf(game: IGame, ask: SelectSpace): Space {
+  return ask.spaces.find((s) => s.bonus.length === 0 && !game.board.getAdjacentSpaces(s).some((a) => a.tile !== undefined)) ?? ask.spaces[0];
+}
+
+/** Answer the enacted resolution's asks with the plainest legal answer until a gate stands or the phase is over. */
+function answerEffects(game: IGame, name: string): void {
+  for (let round = 0; round < 12; round++) {
+    let answered = false;
+    for (const player of game.playersInGenerationOrder) {
+      const wf = player.getWaitingFor();
+      if (wf === undefined || wf.parliamentPhasePrompt !== undefined) {
+        continue;
+      }
+      if (wf instanceof SelectCard) {
+        const cards = wf.externalDrawPrompt !== undefined ? wf.cards.map((c) => c.name) : [wf.cards[0].name];
+        player.process({type: 'card', cards});
+      } else if (wf instanceof SelectSpace) {
+        player.process({type: 'space', spaceId: quietCellOf(game, wf).id});
+      } else if (wf instanceof OrOptions) {
+        player.process({type: 'or', index: 0, response: {type: 'option'}});
+      } else {
+        throw new Error(`${name}: the builder cannot answer a "${wf.type}" prompt of ${player.color}`);
+      }
+      runAllActions(game);
+      answered = true;
+    }
+    if (!answered) {
+      return;
+    }
+  }
+  throw new Error(`${name}: the effects did not settle in 12 rounds`);
+}
+
+function parliamentFixture(name: string, spec: ParliamentFixtureSpec): ParliamentTable {
+  const table = reduxTable(name);
+  const {game, p1, p2, parliament} = table;
+  const seats = [p1, p2] as const;
+  const slot = spec.slot ?? 0;
+  if (spec.resolution !== undefined) {
+    seatResolution(parliament, slot, spec.resolution);
+  }
+  for (const seat of spec.votes ?? []) {
+    parliament.placeVote(seats[seat], parliament.slots[slot], 'lobby');
+  }
+  spec.agenda?.forEach((step, i) => {
+    if (step !== undefined) {
+      parliament.agenda.set(seats[i].id, step);
+    }
+  });
+  const [blueMc, redMc] = spec.megacredits ?? [40, 30];
+  p1.megaCredits = blueMc;
+  p2.megaCredits = redMc;
+  spec.arrange?.(table);
+  runAllActions(game);
+  if (spec.stopAt !== 'vote') {
+    passToParliament(game);
+    if (parliament.phase?.step !== 'assembly') {
+      throw new Error(`${name}: expected the assembly gate, got ${parliament.phase?.step ?? 'no phase'}`);
+    }
+  }
+  if (spec.stopAt === 'effects' || spec.stopAt === 'adjourn' || spec.stopAt === 'done') {
+    answerStandingGates(game, 'assembly');
+  }
+  if (spec.stopAt === 'adjourn' || spec.stopAt === 'done') {
+    answerEffects(game, name);
+    if (parliament.phase?.step !== 'adjourn') {
+      throw new Error(`${name}: expected the adjourn gate, got ${parliament.phase?.step ?? 'no phase'}`);
+    }
+  }
+  if (spec.stopAt === 'done') {
+    answerStandingGates(game, 'adjourn');
+    if (parliament.phase !== undefined) {
+      throw new Error(`${name}: the sitting did not close (step ${parliament.phase.step})`);
+    }
+    for (const player of seats) {
+      if (player.getWaitingFor() instanceof SelectCard) {
+        player.process({type: 'card', cards: []});
+      }
+    }
+    runAllActions(game);
+    if (parliament.lastPhase === undefined || parliament.enacted === undefined) {
+      throw new Error(`${name}: no completed political phase`);
+    }
+  }
+  spec.expect?.(table);
+  write(name, game);
+  return table;
+}
+
+/** The winner of a sitting must be the seat the dev loader opens in a `done` fixture — the seat that opens generation 2. */
+function expectViewerOpensGeneration({game}: ParliamentTable, seat: TestPlayer, name: string): void {
+  if (game.playersInGenerationOrder[0].id !== seat.id) {
+    throw new Error(`the ${name} fixture expected ${seat.color} to open generation 2 (the seat the loader opens)`);
+  }
+}
+
 // ── parliament: a 2p Turmoil Redux table in its first action phase, the
 //    Parliament workspace's whole browse layer on screen from one wheel press
 //    (docs/TURMOIL_REDUX_ITERATION0_PLAN.md):
@@ -379,34 +538,20 @@ function write(name: string, game: IGame): void {
 //        held BY DELEGATES, so the parties row and the inspector have a real
 //        «your effect» to show.
 //    Colonies on (a Redux requirement). ──
-{
-  const [game, p1, p2] = testGame(2, {
-    skipInitialCardSelection: false, coloniesExtension: true, turmoilReduxExpansion: true,
-    startingCorporations: 1,
-  });
-  const wf = p1.getWaitingFor();
-  if (!(wf instanceof SelectInitialCards)) {
-    throw new Error(`expected SelectInitialCards, got ${wf?.constructor.name}`);
-  }
-  answerStartFlow(game, [p1, p2]);
-  const parliament = game.parliament;
-  if (parliament === undefined || parliament.slots.length !== 3) {
-    throw new Error('the parliament fixture has no voting area');
-  }
-  // Slots 0 and 1 hold parties that do NOT rule (the Greens rule by the
-  // starting rule), so the vote's «1 of 2» access and the effect held by
-  // delegates both read a real threshold; the Greens card stands third.
-  seatResolution(parliament, 0, CENTRAL_POWER_GRID_ID);
-  seatResolution(parliament, 1, ARCHITECTURE_AWARD_ID);
-  parliament.placeVote(p2, parliament.slots[0], 'lobby');
-  parliament.placeVote(p1, parliament.slots[1], 'reserve');
-  parliament.placeVote(p1, parliament.slots[1], 'reserve');
-  p1.megaCredits = 40;
-  p2.megaCredits = 30;
-  p1.cardsInHand.push(new ArtificialPhotosynthesis());
-  runAllActions(game);
-  write('parliament', game);
-}
+parliamentFixture('parliament', {
+  stopAt: 'vote',
+  arrange: ({p1, p2, parliament}) => {
+    // Slots 0 and 1 hold parties that do NOT rule (the Greens rule by the
+    // starting rule), so the vote's «1 of 2» access and the effect held by
+    // delegates both read a real threshold; the Greens card stands third.
+    seatResolution(parliament, 0, CENTRAL_POWER_GRID_ID);
+    seatResolution(parliament, 1, ARCHITECTURE_AWARD_ID);
+    parliament.placeVote(p2, parliament.slots[0], 'lobby');
+    parliament.placeVote(p1, parliament.slots[1], 'reserve');
+    parliament.placeVote(p1, parliament.slots[1], 'reserve');
+    p1.cardsInHand.push(new ArtificialPhotosynthesis());
+  },
+});
 
 // ── parliament-paid: the PAID vote with a real BILL. Blue's free delegate
 //    already stands on the FIRST slot beside red's (one of the two the party
@@ -416,674 +561,428 @@ function write(name: string, game: IGame): void {
 //    hosts (a plain M€ bill auto-settles server-side). Blue also holds two
 //    delegates on the second slot (an effect held by delegates), so both the
 //    «1 of 2» and the «yours» plaque states are on screen. ──
-{
-  const [game, p1, p2] = testGame(2, {
-    skipInitialCardSelection: false, coloniesExtension: true, turmoilReduxExpansion: true,
-    startingCorporations: 1,
-  });
-  const wf = p1.getWaitingFor();
-  if (!(wf instanceof SelectInitialCards)) {
-    throw new Error(`expected SelectInitialCards, got ${wf?.constructor.name}`);
-  }
-  answerStartFlow(game, [p1, p2]);
-  const parliament = game.parliament;
-  if (parliament === undefined || parliament.slots.length !== 3) {
-    throw new Error('the parliament-paid fixture has no voting area');
-  }
-  // Slots 0 and 1 hold parties that do NOT rule (the Greens rule by the
-  // starting rule), so the vote's «1 of 2» access and the effect held by
-  // delegates both read a real threshold; the Greens card stands third.
-  seatResolution(parliament, 0, CENTRAL_POWER_GRID_ID);
-  seatResolution(parliament, 1, ARCHITECTURE_AWARD_ID);
-  parliament.placeVote(p2, parliament.slots[0], 'lobby');
-  parliament.placeVote(p1, parliament.slots[0], 'lobby');
-  parliament.placeVote(p1, parliament.slots[1], 'reserve');
-  parliament.placeVote(p1, parliament.slots[1], 'reserve');
-  p1.megaCredits = 40;
-  p1.heat = 9;
-  p1.canUseHeatAsMegaCredits = true;
-  p2.megaCredits = 30;
-  runAllActions(game);
-  write('parliament-paid', game);
-}
+parliamentFixture('parliament-paid', {
+  stopAt: 'vote',
+  arrange: ({p1, p2, parliament}) => {
+    seatResolution(parliament, 0, CENTRAL_POWER_GRID_ID);
+    seatResolution(parliament, 1, ARCHITECTURE_AWARD_ID);
+    parliament.placeVote(p2, parliament.slots[0], 'lobby');
+    parliament.placeVote(p1, parliament.slots[0], 'lobby');
+    parliament.placeVote(p1, parliament.slots[1], 'reserve');
+    parliament.placeVote(p1, parliament.slots[1], 'reserve');
+    p1.heat = 9;
+    p1.canUseHeatAsMegaCredits = true;
+  },
+});
 
 // ── parliament-actions: the four PARTY ACTIONS on one seat, each with a real
 //    target — blue holds every action party's effect by CARD GRANT (the
 //    workspace's action tiles are all live), an energy production to shift
 //    (Industrialists), Tardigrades in the tableau to feed (Scientists), a
 //    tagged hand to recycle (Reds) and a trade fleet for the Unity trade. ──
-{
-  const [game, p1, p2] = testGame(2, {
-    skipInitialCardSelection: false, coloniesExtension: true, turmoilReduxExpansion: true,
-    startingCorporations: 1,
-  });
-  const wf = p1.getWaitingFor();
-  if (!(wf instanceof SelectInitialCards)) {
-    throw new Error(`expected SelectInitialCards, got ${wf?.constructor.name}`);
-  }
-  answerStartFlow(game, [p1, p2]);
-  const parliament = game.parliament;
-  if (parliament === undefined) {
-    throw new Error('the parliament-actions fixture has no parliament');
-  }
-  for (const party of [PartyName.UNITY, PartyName.SCIENTISTS, PartyName.INDUSTRIALISTS, PartyName.REDS] as const) {
-    parliament.grantPartyEffect(p1, party, 'Fixture');
-  }
-  p1.production.add(Resource.ENERGY, 1);
-  p1.playedCards.push(new Tardigrades());
-  p1.cardsInHand.push(new Trees(), new Fish(), new AdaptedLichen());
-  p1.megaCredits = 40;
-  p2.megaCredits = 30;
-  runAllActions(game);
-  write('parliament-actions', game);
-}
+parliamentFixture('parliament-actions', {
+  stopAt: 'vote',
+  arrange: ({p1, parliament}) => {
+    for (const party of [PartyName.UNITY, PartyName.SCIENTISTS, PartyName.INDUSTRIALISTS, PartyName.REDS] as const) {
+      parliament.grantPartyEffect(p1, party, 'Fixture');
+    }
+    p1.production.add(Resource.ENERGY, 1);
+    p1.playedCards.push(new Tardigrades());
+    p1.cardsInHand.push(new Trees(), new Fish(), new AdaptedLichen());
+  },
+});
 
-// ── parliament-aquifer-vote: AQUIFER CONTEST (RX01, the first real resolution)
-//    stands in the FIRST voting slot with blue's free delegate already on it
-//    (blue leads → blue would win: the «if you win» forecast has a real step
-//    to name), blue at Agenda step 2 (influence 1; winning → step 3 = 2) and
-//    holding Fish + Pets (two animal holders, so the payout has a real choice
-//    and the VP readings differ per card), red at step 5 (influence 3) holding
-//    Birds. The overview, the vote mode and the fullscreen inspector all read
-//    the influence-scaled payout from this table. ──
-{
-  const [game, p1, p2] = testGame(2, {
-    skipInitialCardSelection: false, coloniesExtension: true, turmoilReduxExpansion: true,
-    startingCorporations: 1,
-  });
-  const wf = p1.getWaitingFor();
-  if (!(wf instanceof SelectInitialCards)) {
-    throw new Error(`expected SelectInitialCards, got ${wf?.constructor.name}`);
-  }
-  answerStartFlow(game, [p1, p2]);
-  const parliament = game.parliament;
-  if (parliament === undefined || parliament.slots.length !== 3) {
-    throw new Error('the parliament-aquifer-vote fixture has no voting area');
-  }
-  seatResolution(parliament, 0, AQUIFER_CONTEST_ID);
-  parliament.placeVote(p1, parliament.slots[0], 'lobby');
-  parliament.agenda.set(p1.id, 2);
-  parliament.agenda.set(p2.id, 5);
-  p1.playedCards.push(new Fish(), new Pets());
-  p2.playedCards.push(new Birds());
-  p1.megaCredits = 40;
-  p2.megaCredits = 30;
-  runAllActions(game);
-  write('parliament-aquifer-vote', game);
-}
-
-// ── parliament-aquifer-enact: the political phase STOPPED INSIDE the payout —
-//    Aquifer Contest won with blue's delegate, blue's Agenda advanced to step 3
-//    (influence 2) and the phase asks BLUE where its 2 animals go (Fish or
-//    Pets); the winner's ocean and red's payout (step 5 = 3 animals onto Birds)
-//    follow. The Parliament's enactment stage, the shared picker with the
-//    resolution source and the standard ocean placement all boot from here. ──
-{
-  const [game, p1, p2] = testGame(2, {
-    skipInitialCardSelection: false, coloniesExtension: true, turmoilReduxExpansion: true,
-    startingCorporations: 1,
-  });
-  const wf = p1.getWaitingFor();
-  if (!(wf instanceof SelectInitialCards)) {
-    throw new Error(`expected SelectInitialCards, got ${wf?.constructor.name}`);
-  }
-  answerStartFlow(game, [p1, p2]);
-  const parliament = game.parliament;
-  if (parliament === undefined || parliament.slots.length !== 3) {
-    throw new Error('the parliament-aquifer-enact fixture has no voting area');
-  }
-  seatResolution(parliament, 0, AQUIFER_CONTEST_ID);
-  parliament.placeVote(p1, parliament.slots[0], 'lobby');
-  parliament.agenda.set(p1.id, 2);
-  parliament.agenda.set(p2.id, 5);
-  p1.playedCards.push(new Fish(), new Pets());
-  p2.playedCards.push(new Birds());
-  p1.megaCredits = 40;
-  p2.megaCredits = 30;
-  runAllActions(game);
-  // End the generation: production → the political phase → blue's pick stands.
-  for (const player of [p1, p2]) {
-    game.playerHasPassed(player);
-    game.playerIsFinishedTakingActions();
-  }
+// ── RX01 · AQUIFER CONTEST — the first real resolution — stands in the FIRST
+//    voting slot with blue's free delegate already on it (blue leads → blue
+//    would win: the «if you win» forecast has a real step to name), blue at
+//    Agenda step 2 (influence 1; winning → step 3 = 2) and holding Fish + Pets
+//    (two animal holders, so the payout has a real choice and the VP readings
+//    differ per card), red at step 5 (influence 3) holding Birds. ──
+const aquiferTable = (stopAt: ParliamentStop, expect?: (table: ParliamentTable) => void): ParliamentFixtureSpec => ({
+  resolution: AQUIFER_CONTEST_ID,
+  votes: [0],
+  agenda: [2, 5],
+  stopAt,
+  arrange: ({p1, p2}) => {
+    p1.playedCards.push(new Fish(), new Pets());
+    p2.playedCards.push(new Birds());
+  },
+  expect,
+});
+// The overview, the vote mode and the fullscreen inspector read the influence-scaled payout from this table.
+parliamentFixture('parliament-aquifer-vote', aquiferTable('vote'));
+// The sitting has just convened: the verdict and the enactment are done, the ASSEMBLY gate stands for both seats.
+parliamentFixture('parliament-aquifer-assembly', aquiferTable('assembly'));
+// The political phase STOPPED INSIDE the payout: Aquifer Contest won with
+// blue's delegate, blue's Agenda advanced to step 3 (influence 2) and the
+// phase asks BLUE where its 2 animals go (Fish or Pets); the winner's ocean
+// and red's payout (step 5 = 3 animals onto Birds) follow. The Parliament's
+// enactment stage, the shared picker with the resolution source and the
+// standard ocean placement all boot from here.
+parliamentFixture('parliament-aquifer-enact', aquiferTable('effects', ({p1}) => {
   const pick = p1.getWaitingFor();
   if (!(pick instanceof SelectCard) || pick.resourceGainPrompt?.amount !== 2) {
     throw new Error(`the parliament-aquifer-enact fixture expected blue's 2-animal pick, got ${pick?.constructor.name}`);
   }
-  write('parliament-aquifer-enact', game);
-}
+}));
+// Every payout made (blue's animals, the winner's ocean, red's animals), the area refreshed: the ADJOURN gate stands for both seats.
+parliamentFixture('parliament-aquifer-adjourn', aquiferTable('adjourn', ({parliament, p1}) => {
+  const outcomes = parliament.phase?.summary?.outcomes ?? [];
+  if (!outcomes.some((o) => o.player === p1.id && o.kind === 'ocean') || !outcomes.some((o) => o.player === p1.id && o.kind === 'reaction')) {
+    throw new Error(`the parliament-aquifer-adjourn fixture expected blue's ocean and the Greens' answer to it, got ${JSON.stringify(outcomes)}`);
+  }
+}));
 
 // ── parliament-recap: generation 2 has just begun — the FIRST political phase
 //    ran at the end of generation 1 (blue's two delegates carried the second
-//    slot, the winner is enacted, blue stepped onto the Agenda, the losers'
-//    parties gained popular support, the refresh dealt the fresh area) and the server's summary of it waits in `lastPhase` for the
-//    workspace's results scene. Both seats answered the research phase. ──
-{
-  const [game, p1, p2] = testGame(2, {
-    skipInitialCardSelection: false, coloniesExtension: true, turmoilReduxExpansion: true,
-    startingCorporations: 1,
-  });
-  const wf = p1.getWaitingFor();
-  if (!(wf instanceof SelectInitialCards)) {
-    throw new Error(`expected SelectInitialCards, got ${wf?.constructor.name}`);
-  }
-  answerStartFlow(game, [p1, p2]);
-  const parliament = game.parliament;
-  if (parliament === undefined || parliament.slots.length !== 3) {
-    throw new Error('the parliament-recap fixture has no voting area');
-  }
-  seatQuietResolution(parliament, 1);
-  parliament.placeVote(p2, parliament.slots[0], 'lobby');
-  parliament.placeVote(p1, parliament.slots[1], 'reserve');
-  parliament.placeVote(p1, parliament.slots[1], 'reserve');
-  p1.megaCredits = 40;
-  p2.megaCredits = 30;
-  runAllActions(game);
-  finishGeneration(game);
-  for (const player of [p1, p2]) {
-    const research = player.getWaitingFor();
-    if (research instanceof SelectCard) {
-      player.process({type: 'card', cards: []});
-    }
-  }
-  runAllActions(game);
-  if (parliament.lastPhase === undefined || parliament.enacted === undefined) {
-    throw new Error('the parliament-recap fixture has no completed political phase');
-  }
-  write('parliament-recap', game);
-}
+//    slot — a card that asks nothing — the winner is enacted, blue stepped
+//    onto the Agenda, the losers' parties gained popular support, the refresh
+//    dealt the fresh area) and the server's summary of it waits in `lastPhase`
+//    for the workspace's results scene. Both seats answered the research phase. ──
+parliamentFixture('parliament-recap', {
+  stopAt: 'done',
+  arrange: ({p1, p2, parliament}) => {
+    seatResolution(parliament, 1, ARCHITECTURE_AWARD_ID);
+    parliament.placeVote(p2, parliament.slots[0], 'lobby');
+    parliament.placeVote(p1, parliament.slots[1], 'reserve');
+    parliament.placeVote(p1, parliament.slots[1], 'reserve');
+  },
+});
 
-/**
- * A fixture that only needs the political phase to RUN (not a resolution's own
- * effect) seats a resolution that asks NOTHING at any table — Architecture
- * Award (M€ production by a count, never a choice) — where the winning
- * delegates go: a card that asks its winner something (a tile, a card, a
- * target) holds the phase, and the deal is a shuffle of a catalog that grows,
- * so «which card lands where» is not a fixture's to depend on.
- */
-function seatQuietResolution(parliament: Parliament, index: number): void {
-  seatResolution(parliament, index, ARCHITECTURE_AWARD_ID);
-}
+// ── RX02 · ARCHITECTURE AWARD (a counted term + influence, max 5) — the vote:
+//    the card in the FIRST voting slot with blue's free delegate on it. Blue:
+//    Agenda step 4 (influence 2; winning → step 5 = 3), M€ production 3, and a
+//    tableau that makes the filter READ — Artificial Lake counts (building + a
+//    positive VP icon), Physics Complex counts too (a variable icon at 0 VP
+//    right now), Mine does not (a building card with NO VP icon), Biomass
+//    Combustors does not (a negative icon): B = 2 → «2 + 2 → +4» now and
+//    «2 + 3 → +5 · max» if blue wins (the forecast reaches the cap). Red:
+//    Agenda step 5 (influence 3), four counted cards (B 4 + I 3 = 7 → +5 max). ──
+parliamentFixture('parliament-architecture-vote', {
+  resolution: ARCHITECTURE_AWARD_ID,
+  votes: [0],
+  agenda: [4, 5],
+  stopAt: 'vote',
+  arrange: ({p1, p2}) => {
+    p1.playedCards.push(new ArtificialLake(), new Mine(), new BiomassCombustors(), new PhysicsComplex());
+    p2.playedCards.push(new SpaceElevator(), new SoilFactory(), new TropicalResort(), new NoctisFarming(), new DomedCrater());
+    p1.production.override({megacredits: 3});
+    p2.production.override({megacredits: 1});
+  },
+});
 
-// ── parliament-architecture-vote: ARCHITECTURE AWARD (RX02 — a counted term +
-//    influence, max 5) stands in the FIRST voting slot with blue's free
-//    delegate on it. Blue: Agenda step 2 (influence 1; winning → step 3 = 2),
-//    M€ production 3, and a tableau that makes the filter READ — Artificial
-//    Lake counts (building + a positive VP icon), Physics Complex counts too
-//    (a variable icon at 0 VP right now), Mine does not (a building card with
-//    NO VP icon), Biomass Combustors does not (a negative icon): B = 2 →
-//    «2 + 2 → +4» now and «2 + 3 → +5 · max» if blue wins (the forecast
-//    reaches the cap). Red: Agenda step 5 (influence 3), four counted cards
-//    (B 4 + I 3 = 7 → +5 max). ──
-{
-  const [game, p1, p2] = testGame(2, {
-    skipInitialCardSelection: false, coloniesExtension: true, turmoilReduxExpansion: true,
-    startingCorporations: 1,
-  });
-  const wf = p1.getWaitingFor();
-  if (!(wf instanceof SelectInitialCards)) {
-    throw new Error(`expected SelectInitialCards, got ${wf?.constructor.name}`);
-  }
-  answerStartFlow(game, [p1, p2]);
-  const parliament = game.parliament;
-  if (parliament === undefined || parliament.slots.length !== 3) {
-    throw new Error('the parliament-architecture-vote fixture has no voting area');
-  }
-  seatResolution(parliament, 0, ARCHITECTURE_AWARD_ID);
-  parliament.placeVote(p1, parliament.slots[0], 'lobby');
-  parliament.agenda.set(p1.id, 4);
-  parliament.agenda.set(p2.id, 5);
-  p1.playedCards.push(new ArtificialLake(), new Mine(), new BiomassCombustors(), new PhysicsComplex());
-  p2.playedCards.push(new SpaceElevator(), new SoilFactory(), new TropicalResort(), new NoctisFarming(), new DomedCrater());
-  p1.production.override({megacredits: 3});
-  p2.production.override({megacredits: 1});
-  p1.megaCredits = 40;
-  p2.megaCredits = 30;
-  runAllActions(game);
-  write('parliament-architecture-vote', game);
-}
-
-// ── parliament-architecture-recap: generation 2 has just begun — the political
-//    phase at the end of generation 1 ENACTED Architecture Award (red's
-//    delegate won it: Agenda 4 → 5 = influence 3) and paid every seat by its
-//    own tableau and influence: red B 3 + I 3 = 6 → +5 M€ production, capped
-//    (production 3 → 8); blue B 1 + I 0 → +1 (1 → 2). Red is the VIEWER (the
-//    first seat in generation 2's order — the dev loader opens that seat). The
-//    results scene moves the card from its voting slot into the government and
-//    flies red's production gain from the card to the rail. Both seats answered
-//    research. ──
-{
-  const [game, p1, p2] = testGame(2, {
-    skipInitialCardSelection: false, coloniesExtension: true, turmoilReduxExpansion: true,
-    startingCorporations: 1,
-  });
-  const wf = p1.getWaitingFor();
-  if (!(wf instanceof SelectInitialCards)) {
-    throw new Error(`expected SelectInitialCards, got ${wf?.constructor.name}`);
-  }
-  answerStartFlow(game, [p1, p2]);
-  const parliament = game.parliament;
-  if (parliament === undefined || parliament.slots.length !== 3) {
-    throw new Error('the parliament-architecture-recap fixture has no voting area');
-  }
-  // The card stands in the MIDDLE slot, so its move to the government is a real journey.
-  const award = seatResolution(parliament, 1, ARCHITECTURE_AWARD_ID);
-  parliament.placeVote(p2, parliament.slots[1], 'lobby');
-  parliament.agenda.set(p2.id, 4);
-  p2.playedCards.push(new ArtificialLake(), new DomedCrater(), new SpaceElevator(), new Mine());
-  p1.playedCards.push(new SoilFactory(), new BiomassCombustors());
-  p2.production.override({megacredits: 3});
-  p1.production.override({megacredits: 1});
-  p1.megaCredits = 40;
-  p2.megaCredits = 30;
-  runAllActions(game);
-  finishGeneration(game);
-  for (const player of [p1, p2]) {
-    const research = player.getWaitingFor();
-    if (research instanceof SelectCard) {
-      player.process({type: 'card', cards: []});
-    }
-  }
-  runAllActions(game);
+// ── RX02 — the sitting: RED's delegate wins Architecture Award (Agenda 4 → 5 =
+//    influence 3) from the MIDDLE slot (its move to the government is a real
+//    journey) and every seat is paid by its own tableau and influence: red
+//    B 3 + I 3 = 6 → +5 M€ production, capped (production 3 → 8); blue
+//    B 1 + I 0 → +1 (1 → 2). Red is the VIEWER of the `done` fixture (the
+//    first seat in generation 2's order). ──
+const architectureTable = (stopAt: ParliamentStop, expect?: (table: ParliamentTable) => void): ParliamentFixtureSpec => ({
+  resolution: ARCHITECTURE_AWARD_ID,
+  slot: 1,
+  votes: [1],
+  agenda: [undefined, 4],
+  stopAt,
+  arrange: ({p1, p2}) => {
+    p2.playedCards.push(new ArtificialLake(), new DomedCrater(), new SpaceElevator(), new Mine());
+    p1.playedCards.push(new SoilFactory(), new BiomassCombustors());
+    p2.production.override({megacredits: 3});
+    p1.production.override({megacredits: 1});
+  },
+  expect,
+});
+parliamentFixture('parliament-architecture-assembly', architectureTable('assembly'));
+parliamentFixture('parliament-architecture-adjourn', architectureTable('adjourn'));
+// Generation 2 has just begun: the results scene moves the card from its voting
+// slot into the government and flies red's production gain from the card to the rail.
+parliamentFixture('parliament-architecture-recap', architectureTable('done', (table) => {
+  const {parliament, p2} = table;
   const outcomes = parliament.lastPhase?.outcomes ?? [];
   const red = outcomes.find((o) => o.player === p2.id);
-  if (parliament.enacted !== award || red?.kind !== 'production' || red.amount !== 5 || red.uncapped !== 6) {
+  if (parliament.enacted !== resolutionInstanceId(ARCHITECTURE_AWARD_ID, 0) || red?.kind !== 'production' || red.amount !== 5 || red.uncapped !== 6) {
     throw new Error(`the parliament-architecture-recap fixture expected red's capped +5, got ${JSON.stringify(outcomes)}`);
   }
-  if (game.playersInGenerationOrder[0].id !== p2.id) {
-    throw new Error('the parliament-architecture-recap fixture expected red to open generation 2 (the viewer seat)');
-  }
-  write('parliament-architecture-recap', game);
-}
+  expectViewerOpensGeneration(table, p2, 'parliament-architecture-recap');
+}));
 
-// ── parliament-powergrid-vote: CENTRAL POWER GRID (RX04 — a TAG count +
-//    influence, max 5) stands in the FIRST voting slot with blue's free
-//    delegate on it. Blue: Agenda step 4 (influence 2; winning → step 5 = 3),
-//    M€ production 3, and a tableau that makes the TAG rule read — HE3 Fusion
-//    Plant prints TWO power tags, Biomass Combustors counts too (a power tag
-//    with a −1 VP icon: the icon plays no part), Artificial Photosynthesis
-//    does not (it raises energy PRODUCTION and prints no power tag): P = 3 →
-//    «3 + 1 → +4» now and «3 + 2 → +5 · max» if blue wins (the forecast
-//    reaches the cap). Red: Agenda step 5 (influence 3), two power tags. ──
-function powerGridTable(blueAgenda: number): IGame {
-  const [game, p1, p2] = testGame(2, {
-    skipInitialCardSelection: false, coloniesExtension: true, turmoilReduxExpansion: true,
-    startingCorporations: 1,
-  });
-  const wf = p1.getWaitingFor();
-  if (!(wf instanceof SelectInitialCards)) {
-    throw new Error(`expected SelectInitialCards, got ${wf?.constructor.name}`);
-  }
-  answerStartFlow(game, [p1, p2]);
-  const parliament = game.parliament;
-  if (parliament === undefined || parliament.slots.length !== 3) {
-    throw new Error('the parliament-powergrid-vote fixture has no voting area');
-  }
-  seatResolution(parliament, 0, CENTRAL_POWER_GRID_ID);
-  parliament.placeVote(p1, parliament.slots[0], 'lobby');
-  parliament.agenda.set(p1.id, blueAgenda);
-  parliament.agenda.set(p2.id, 5);
-  p1.playedCards.push(new HE3FusionPlant(), new BiomassCombustors(), new ArtificialPhotosynthesis());
-  p2.playedCards.push(new PowerPlant(), new FusionPower(), new Mine());
-  p1.production.override({megacredits: 3});
-  p2.production.override({megacredits: 1});
-  p1.megaCredits = 40;
-  p2.megaCredits = 30;
-  runAllActions(game);
-  const count = resolutionCount(p1, 'powerTags');
-  if (count.count !== 3 || count.cards.length !== 2) {
-    throw new Error(`the parliament-powergrid-vote fixture expected P=3 from 2 cards, got ${JSON.stringify(count)}`);
-  }
-  return game;
-}
-write('parliament-powergrid-vote', powerGridTable(2));
-
-// ── parliament-powergrid-vote-cap: the same table with blue at the END of the
-//    Agenda track (step 12 = influence 5): P 3 + I 5 = 8 → +5, the maximum
-//    already — a win moves nothing, so the vote panel prints NO suffix. ──
-write('parliament-powergrid-vote-cap', powerGridTable(12));
-
-// ── parliament-powergrid-recap: generation 2 has just begun — the political
-//    phase at the end of generation 1 ENACTED Central Power Grid (red's
-//    delegate won it: Agenda 4 → 5 = influence 3) and paid every seat by its
-//    own power tags and influence: red P 4 (one card worth two) + I 3 = 7 →
-//    +5 M€ production, capped (production 3 → 8); blue P 1 + I 0 → +1 (1 → 2).
-//    Red is the VIEWER (the first seat in generation 2's order). ──
-{
-  const [game, p1, p2] = testGame(2, {
-    skipInitialCardSelection: false, coloniesExtension: true, turmoilReduxExpansion: true,
-    startingCorporations: 1,
-  });
-  const wf = p1.getWaitingFor();
-  if (!(wf instanceof SelectInitialCards)) {
-    throw new Error(`expected SelectInitialCards, got ${wf?.constructor.name}`);
-  }
-  answerStartFlow(game, [p1, p2]);
-  const parliament = game.parliament;
-  if (parliament === undefined || parliament.slots.length !== 3) {
-    throw new Error('the parliament-powergrid-recap fixture has no voting area');
-  }
-  // The card stands in the MIDDLE slot, so its move to the government is a real journey.
-  const grid = seatResolution(parliament, 1, CENTRAL_POWER_GRID_ID);
-  parliament.placeVote(p2, parliament.slots[1], 'lobby');
-  parliament.agenda.set(p2.id, 4);
-  p2.playedCards.push(new HE3FusionPlant(), new PowerPlant(), new GeothermalPower(), new Mine());
-  p1.playedCards.push(new FusionPower(), new ArtificialPhotosynthesis());
-  p2.production.override({megacredits: 3});
-  p1.production.override({megacredits: 1});
-  p1.megaCredits = 40;
-  p2.megaCredits = 30;
-  runAllActions(game);
-  finishGeneration(game);
-  for (const player of [p1, p2]) {
-    const research = player.getWaitingFor();
-    if (research instanceof SelectCard) {
-      player.process({type: 'card', cards: []});
+// ── RX04 · CENTRAL POWER GRID (a TAG count + influence, max 5) — the vote: the
+//    card in the FIRST voting slot with blue's free delegate on it. Blue:
+//    Agenda step 4 (influence 2; winning → step 5 = 3), M€ production 3, and a
+//    tableau that makes the TAG rule read — HE3 Fusion Plant prints TWO power
+//    tags, Biomass Combustors counts too (a power tag with a −1 VP icon: the
+//    icon plays no part), Artificial Photosynthesis does not (it raises energy
+//    PRODUCTION and prints no power tag): P = 3 → «3 + 1 → +4» now and
+//    «3 + 2 → +5 · max» if blue wins (the forecast reaches the cap). Red:
+//    Agenda step 5 (influence 3), two power tags. ──
+const powerGridVote = (blueAgenda: number): ParliamentFixtureSpec => ({
+  resolution: CENTRAL_POWER_GRID_ID,
+  votes: [0],
+  agenda: [blueAgenda, 5],
+  stopAt: 'vote',
+  arrange: ({p1, p2}) => {
+    p1.playedCards.push(new HE3FusionPlant(), new BiomassCombustors(), new ArtificialPhotosynthesis());
+    p2.playedCards.push(new PowerPlant(), new FusionPower(), new Mine());
+    p1.production.override({megacredits: 3});
+    p2.production.override({megacredits: 1});
+  },
+  expect: ({p1}) => {
+    const count = resolutionCount(p1, 'powerTags');
+    if (count.count !== 3 || count.cards.length !== 2) {
+      throw new Error(`the parliament-powergrid-vote fixture expected P=3 from 2 cards, got ${JSON.stringify(count)}`);
     }
-  }
-  runAllActions(game);
+  },
+});
+parliamentFixture('parliament-powergrid-vote', powerGridVote(2));
+// …the same table with blue at the END of the Agenda track (step 12 = influence 5):
+// P 3 + I 5 = 8 → +5, the maximum already — a win moves nothing, so the vote panel prints NO suffix.
+parliamentFixture('parliament-powergrid-vote-cap', powerGridVote(12));
+
+// ── RX04 — the sitting: RED's delegate wins Central Power Grid (Agenda 4 → 5 =
+//    influence 3) from the middle slot and every seat is paid by its own power
+//    tags and influence: red P 4 (one card worth two) + I 3 = 7 → +5 M€
+//    production, capped (production 3 → 8); blue P 1 + I 0 → +1 (1 → 2). Red
+//    is the VIEWER of the `done` fixture. ──
+const powerGridTable = (stopAt: ParliamentStop, expect?: (table: ParliamentTable) => void): ParliamentFixtureSpec => ({
+  resolution: CENTRAL_POWER_GRID_ID,
+  slot: 1,
+  votes: [1],
+  agenda: [undefined, 4],
+  stopAt,
+  arrange: ({p1, p2}) => {
+    p2.playedCards.push(new HE3FusionPlant(), new PowerPlant(), new GeothermalPower(), new Mine());
+    p1.playedCards.push(new FusionPower(), new ArtificialPhotosynthesis());
+    p2.production.override({megacredits: 3});
+    p1.production.override({megacredits: 1});
+  },
+  expect,
+});
+parliamentFixture('parliament-powergrid-assembly', powerGridTable('assembly'));
+parliamentFixture('parliament-powergrid-adjourn', powerGridTable('adjourn'));
+parliamentFixture('parliament-powergrid-recap', powerGridTable('done', (table) => {
+  const {parliament, p2} = table;
   const outcomes = parliament.lastPhase?.outcomes ?? [];
   const red = outcomes.find((o) => o.player === p2.id);
-  if (parliament.enacted !== grid || red?.kind !== 'production' || red.amount !== 5 || red.uncapped !== 7 || red.count !== 4) {
+  if (parliament.enacted !== resolutionInstanceId(CENTRAL_POWER_GRID_ID, 0) || red?.kind !== 'production' || red.amount !== 5 || red.uncapped !== 7 || red.count !== 4) {
     throw new Error(`the parliament-powergrid-recap fixture expected red's capped +5 from P=4, got ${JSON.stringify(outcomes)}`);
   }
   if (JSON.stringify(red.countedUnits) !== JSON.stringify([2, 1, 1])) {
     throw new Error(`the parliament-powergrid-recap fixture expected the per-card contributions 2+1+1, got ${JSON.stringify(red.countedUnits)}`);
   }
-  if (game.playersInGenerationOrder[0].id !== p2.id) {
-    throw new Error('the parliament-powergrid-recap fixture expected red to open generation 2 (the viewer seat)');
-  }
-  write('parliament-powergrid-recap', game);
-}
+  expectViewerOpensGeneration(table, p2, 'parliament-powergrid-recap');
+}));
 
-/** Every seat passes and the engine runs production → the parliament; the harness's stale action menus are cleared. */
-function passToParliament(game: IGame, players: ReadonlyArray<TestPlayer>): void {
-  for (const player of players) {
-    game.playerHasPassed(player);
-    game.playerIsFinishedTakingActions();
-  }
-  for (const player of players) {
-    if (player.getWaitingFor() instanceof OrOptions) {
-      player.popWaitingFor();
+// ── RX03 · BIODOME CONTEST — a 2-seat table with the card alone in the first
+//    voting slot and blue's free delegate on it: blue at Agenda step 2
+//    (influence 1 — winning → step 3 = influence 2 → 4 plants), red at step 5
+//    (influence 3 → 6 plants), a few plants on both, the oxygen and the
+//    temperature the scenario asks for. ──
+const biodomeTable = (oxygen: number, temperature: number, stopAt: ParliamentStop, extra?: {arrange?: (table: ParliamentTable) => void; expect?: (table: ParliamentTable) => void}): ParliamentFixtureSpec => ({
+  resolution: BIODOME_CONTEST_ID,
+  votes: [0],
+  agenda: [2, 5],
+  stopAt,
+  arrange: (table) => {
+    const {game, p1, p2} = table;
+    p1.plants = 3;
+    p2.plants = 1;
+    setOxygenLevel(game, oxygen);
+    setTemperature(game, temperature);
+    extra?.arrange?.(table);
+  },
+  expect: extra?.expect,
+});
+// The vote: blue leads it, oxygen 5 % (winning would place a greenery → 6 %,
+// +2 TR), the plants read «+2 now, +4 if you win» for blue and «+6» for red.
+parliamentFixture('parliament-biodome-vote', biodomeTable(5, -14, 'vote'));
+// The sitting has just convened: the ASSEMBLY gate stands for both seats — the plants and the greenery are still to come.
+parliamentFixture('parliament-biodome-assembly', biodomeTable(7, -2, 'assembly'));
+// The political phase STOPPED INSIDE blue's greenery placement: Biodome Contest
+// won with blue's delegate (Agenda 2 → 3 = influence 2), blue's 4 plants already
+// landed (3 → 7) and the winner's greenery is asked — oxygen 7 % → 8 % raises
+// the temperature −2 → 0 °C, which grants a FREE OCEAN (a follow-up placement
+// of its own). Red's 6 plants come after blue's placements.
+parliamentFixture('parliament-biodome-enact', biodomeTable(7, -2, 'effects', {
+  expect: ({p1, parliament}) => {
+    const ask = p1.getWaitingFor();
+    if (!(ask instanceof SelectSpace) || ask.placementContext?.source?.resolution !== BIODOME_CONTEST_ID || p1.plants !== 7) {
+      throw new Error(`the parliament-biodome-enact fixture expected blue's greenery placement, got ${ask?.constructor.name} (plants ${p1.plants})`);
     }
-  }
-}
-
-/**
- * A 2-seat Turmoil Redux table with BIODOME CONTEST (RX03) alone in the first
- * voting slot and blue's free delegate on it: blue at Agenda step 2 (influence
- * 1 — winning → step 3 = influence 2 → 4 plants), red at step 5 (influence 3
- * → 6 plants), a few plants on both, the oxygen and temperature the scenario
- * asks for.
- */
-function biodomeTable(oxygen: number, temperature: number): {game: IGame, p1: TestPlayer, p2: TestPlayer, parliament: Parliament} {
-  const [game, p1, p2] = testGame(2, {
-    skipInitialCardSelection: false, coloniesExtension: true, turmoilReduxExpansion: true,
-    startingCorporations: 1,
-  });
-  const wf = p1.getWaitingFor();
-  if (!(wf instanceof SelectInitialCards)) {
-    throw new Error(`expected SelectInitialCards, got ${wf?.constructor.name}`);
-  }
-  answerStartFlow(game, [p1, p2]);
-  const parliament = game.parliament;
-  if (parliament === undefined || parliament.slots.length !== 3) {
-    throw new Error('the Biodome Contest fixture has no voting area');
-  }
-  seatResolution(parliament, 0, BIODOME_CONTEST_ID);
-  parliament.placeVote(p1, parliament.slots[0], 'lobby');
-  parliament.agenda.set(p1.id, 2);
-  parliament.agenda.set(p2.id, 5);
-  setOxygenLevel(game, oxygen);
-  setTemperature(game, temperature);
-  p1.plants = 3;
-  p2.plants = 1;
-  p1.megaCredits = 40;
-  p2.megaCredits = 30;
-  runAllActions(game);
-  return {game, p1, p2, parliament};
-}
-
-// ── parliament-biodome-vote: BIODOME CONTEST (RX03 — plants for everyone by
-//    influence + the winner's greenery) up for the vote: blue leads it, oxygen
-//    5 % (winning would place a greenery → 6 %, +2 TR), the plants read
-//    «+2 now, +4 if you win» for blue and «+6» for red. ──
-{
-  const {game} = biodomeTable(5, -14);
-  write('parliament-biodome-vote', game);
-}
-
-// ── parliament-biodome-enact: the political phase STOPPED INSIDE blue's
-//    greenery placement. Biodome Contest won with blue's delegate (Agenda 2 → 3
-//    = influence 2): blue's 4 plants already landed (3 → 7) and the winner's
-//    greenery is asked — oxygen 7 % → 8 % raises the temperature −2 → 0 °C,
-//    which grants a FREE OCEAN (a follow-up placement of its own). Red's 6
-//    plants come after blue's placements. ──
-{
-  const {game, p1, p2, parliament} = biodomeTable(7, -2);
-  passToParliament(game, [p1, p2]);
-  const ask = p1.getWaitingFor();
-  if (!(ask instanceof SelectSpace) || ask.placementContext?.source?.resolution !== BIODOME_CONTEST_ID || p1.plants !== 7) {
-    throw new Error(`the parliament-biodome-enact fixture expected blue's greenery placement, got ${ask?.constructor.name} (plants ${p1.plants})`);
-  }
-  if (parliament.phase?.step !== 'effects') {
-    throw new Error('the parliament-biodome-enact fixture expected the effects step');
-  }
-  write('parliament-biodome-enact', game);
-}
-
-// ── parliament-biodome-maxed: the same stop with OXYGEN AT ITS MAXIMUM — the
-//    greenery still lands and pays its own TR, oxygen does not move. ──
-{
-  const {game, p1, p2} = biodomeTable(MAX_OXYGEN_LEVEL, -10);
-  passToParliament(game, [p1, p2]);
-  if (!(p1.getWaitingFor() instanceof SelectSpace)) {
-    throw new Error('the parliament-biodome-maxed fixture expected the greenery placement of blue');
-  }
-  write('parliament-biodome-maxed', game);
-}
-
-// ── parliament-biodome-recap: generation 2 has just begun — the political
-//    phase ENACTED Biodome Contest won by RED (Agenda 4 → 5 = influence 3 →
-//    +6 plants, 1 → 7), red placed the winner's greenery (oxygen 5 → 6 %),
-//    blue got +2 plants (influence 1). Red opens generation 2 (the viewer
-//    seat): the results scene moves the card into the government, flies red's
-//    plants from the card to the rail and names the greenery with its oxygen
-//    step. Both seats answered research. ──
-{
-  const {game, p1, p2, parliament} = biodomeTable(5, -14);
-  // RED wins it this time: blue's delegate goes back to the lobby, red's takes its place.
-  parliament.slots[0].votes = [];
-  parliament.lobby.add(p1.id);
-  parliament.placeVote(p2, parliament.slots[0], 'lobby');
-  parliament.agenda.set(p1.id, 1);
-  parliament.agenda.set(p2.id, 4);
-  passToParliament(game, [p1, p2]);
-  const ask = p2.getWaitingFor();
-  if (!(ask instanceof SelectSpace)) {
-    throw new Error(`the parliament-biodome-recap fixture expected the greenery placement of red, got ${ask?.constructor.name}`);
-  }
-  const space = ask.spaces.find((s) => s.bonus.length === 0 && !game.board.getAdjacentSpaces(s).some((a) => a.tile !== undefined)) ?? ask.spaces[0];
-  p2.process({type: 'space', spaceId: space.id});
-  runAllActions(game);
-  for (const player of [p1, p2]) {
-    if (player.getWaitingFor() instanceof SelectCard) {
-      player.process({type: 'card', cards: []});
+    if (parliament.phase?.step !== 'effects') {
+      throw new Error('the parliament-biodome-enact fixture expected the effects step');
     }
-  }
-  runAllActions(game);
-  const outcomes = parliament.lastPhase?.outcomes ?? [];
-  const redPlants = outcomes.find((o) => o.player === p2.id && o.step === 'plants');
-  const greenery = outcomes.find((o) => o.player === p2.id && o.step === 'greenery');
-  if (redPlants?.kind !== 'stock' || redPlants.amount !== 6 || greenery?.kind !== 'greenery') {
-    throw new Error(`the parliament-biodome-recap fixture expected the +6 plants and the greenery of red, got ${JSON.stringify(outcomes)}`);
-  }
-  if (game.playersInGenerationOrder[0].id !== p2.id) {
-    throw new Error('the parliament-biodome-recap fixture expected red to open generation 2 (the viewer seat)');
-  }
-  write('parliament-biodome-recap', game);
-}
-
-// ── parliament-biodome-nocell: ONE PASS from the political phase, with NO
-//    LEGAL CELL for the winner's greenery — every land cell of Mars already
-//    holds red's tile. Red has passed; blue (who leads Biodome Contest) passes
-//    to end the generation: the plants reach everyone, the greenery is NAMED
-//    and skipped, and generation 2's results scene says so. ──
-{
-  const {game, p1, p2} = biodomeTable(5, -14);
-  for (const space of game.board.getSpaces(SpaceType.LAND)) {
-    if (space.tile === undefined) {
-      space.tile = {tileType: TileType.GREENERY};
-      space.player = p2;
+  },
+}));
+// The greenery placed (a quiet cell), the free ocean too, red paid: the ADJOURN gate stands for both seats.
+parliamentFixture('parliament-biodome-adjourn', biodomeTable(7, -2, 'adjourn', {
+  expect: ({parliament, p1}) => {
+    const outcomes = parliament.phase?.summary?.outcomes ?? [];
+    if (!outcomes.some((o) => o.player === p1.id && o.kind === 'greenery')) {
+      throw new Error(`the parliament-biodome-adjourn fixture expected blue's greenery, got ${JSON.stringify(outcomes)}`);
     }
-  }
-  if (game.board.getAvailableSpacesForType(p1, 'greenery').length !== 0) {
-    throw new Error('the parliament-biodome-nocell fixture expected no legal greenery cell for blue');
-  }
-  game.playerHasPassed(p2);
-  runAllActions(game);
-  write('parliament-biodome-nocell', game);
-}
-
-// ── parliament-biodome-neutral: ONE PASS from the political phase with
-//    Biodome Contest carried by NEUTRAL delegates only — nobody places the
-//    greenery, the plants still reach everyone. Red has passed; blue passes. ──
-{
-  const {game, p1, p2, parliament} = biodomeTable(5, -14);
-  parliament.slots[0].votes = [];
-  parliament.lobby.add(p1.id);
-  parliament.addNeutralVote(parliament.slots[0]);
-  parliament.addNeutralVote(parliament.slots[0]);
-  game.playerHasPassed(p2);
-  runAllActions(game);
-  write('parliament-biodome-neutral', game);
-}
-
-/**
- * A 2-seat Turmoil Redux table with CLIMATE RESEARCH (RX05) alone in the first
- * voting slot and blue's free delegate on it: blue at Agenda step 3 (influence
- * 2 — winning → step 4 keeps influence 2), red at step 1 (influence 1). Heat
- * PRODUCTION is what the card reads, so it is what the fixture arranges.
- */
-function climateTable(blueHeat: number, redHeat: number): {game: IGame, p1: TestPlayer, p2: TestPlayer, parliament: Parliament} {
-  const [game, p1, p2] = testGame(2, {
-    skipInitialCardSelection: false, coloniesExtension: true, turmoilReduxExpansion: true,
-    startingCorporations: 1,
-  });
-  if (!(p1.getWaitingFor() instanceof SelectInitialCards)) {
-    throw new Error(`expected SelectInitialCards, got ${p1.getWaitingFor()?.constructor.name}`);
-  }
-  answerStartFlow(game, [p1, p2]);
-  const parliament = game.parliament;
-  if (parliament === undefined || parliament.slots.length !== 3) {
-    throw new Error('the Climate Research fixture has no voting area');
-  }
-  seatResolution(parliament, 0, CLIMATE_RESEARCH_ID);
-  parliament.placeVote(p1, parliament.slots[0], 'lobby');
-  parliament.agenda.set(p1.id, 3);
-  parliament.agenda.set(p2.id, 1);
-  p1.production.override({heat: blueHeat});
-  p2.production.override({heat: redHeat});
-  p1.megaCredits = 40;
-  p2.megaCredits = 30;
-  runAllActions(game);
-  return {game, p1, p2, parliament};
-}
-
-// ── parliament-climate-vote: CLIMATE RESEARCH (RX05 — +1 heat production per
-//    influence, THEN 1 card per full 3 steps of the heat production it leaves
-//    behind) up for the vote: blue leads it with heat production 4 (influence
-//    2 → 4 → 6 → 2 cards, and the ruling Greens would answer with +2 M€
-//    production), red sits at 1. ──
-{
-  const {game} = climateTable(4, 1);
-  write('parliament-climate-vote', game);
-}
-
-// ── parliament-climate-vote-raise: the SAME table with blue one Agenda step
-//    back (step 2 = influence 1; winning → step 3 = influence 2): +1 heat
-//    production now (4 → 5 → 1 card) and, if blue wins, +2 (4 → 6 → 2 cards) —
-//    the vote panel's «+1 if you win · step 3» suffix on BOTH links of the chain. ──
-{
-  const {game, p1, parliament} = climateTable(4, 1);
-  parliament.agenda.set(p1.id, 2);
-  runAllActions(game);
-  write('parliament-climate-vote-raise', game);
-}
-
-// ── parliament-climate-enact: the political phase STOPPED INSIDE blue's
-//    mandatory TAKE of the cards Climate Research drew. Blue's heat production
-//    was raised 4 → 6 (influence 2), the ruling Greens answered with +2 M€
-//    production, and two project cards are owed — withheld from the hand until
-//    the take. Red's own half comes after blue's. ──
-{
-  const {game, p1, p2, parliament} = climateTable(4, 2);
-  passToParliament(game, [p1, p2]);
-  const ask = p1.getWaitingFor();
-  if (!(ask instanceof SelectCard) || ask.externalDrawPrompt === undefined) {
-    throw new Error(`the parliament-climate-enact fixture expected blue's mandatory take, got ${ask?.constructor.name}`);
-  }
-  if (p1.production.heat !== 6 || p1.pendingCardIntakes.length !== 1 || p1.pendingCardIntakes[0].cards.length !== 2) {
-    throw new Error(`the parliament-climate-enact fixture expected heat production 6 and two owed cards, got ${p1.production.heat} / ${JSON.stringify(p1.pendingCardIntakes.map((i) => i.cards.length))}`);
-  }
-  if (parliament.phase?.step !== 'effects') {
-    throw new Error('the parliament-climate-enact fixture expected the effects step');
-  }
-  write('parliament-climate-enact', game);
-}
-
-// ── parliament-climate-big: the same stop with a BIG draw — heat production
-//    17 + influence 2 = 19 → SIX cards owed at once. The take must show all six
-//    at a readable size inside the enactment stage; nothing is trimmed to fit. ──
-{
-  const {game, p1, p2} = climateTable(17, 0);
-  passToParliament(game, [p1, p2]);
-  const ask = p1.getWaitingFor();
-  if (!(ask instanceof SelectCard) || ask.externalDrawPrompt?.remaining !== 6) {
-    throw new Error(`the parliament-climate-big fixture expected six owed cards, got ${ask?.constructor.name}`);
-  }
-  write('parliament-climate-big', game);
-}
-
-// ── parliament-climate-recap: generation 2 has just begun — the political
-//    phase ENACTED Climate Research won by RED, both seats were raised and
-//    both took their cards. Red opens generation 2 (the seat the dev loader
-//    opens): the results scene moves the card into the government and names
-//    BOTH halves of every seat's result. ──
-{
-  const {game, p1, p2, parliament} = climateTable(4, 2);
-  // RED wins it: blue's delegate goes back to the lobby, red's takes its place.
-  parliament.slots[0].votes = [];
-  parliament.lobby.add(p1.id);
-  parliament.placeVote(p2, parliament.slots[0], 'lobby');
-  passToParliament(game, [p1, p2]);
-  for (const player of [p1, p2]) {
-    const ask = player.getWaitingFor();
-    if (ask instanceof SelectCard && ask.externalDrawPrompt !== undefined) {
-      player.process({type: 'card', cards: ask.cards.map((c) => c.name)});
+  },
+}));
+// The same stop with OXYGEN AT ITS MAXIMUM — the greenery still lands and pays its own TR, oxygen does not move.
+parliamentFixture('parliament-biodome-maxed', biodomeTable(MAX_OXYGEN_LEVEL, -10, 'effects', {
+  expect: ({p1}) => {
+    if (!(p1.getWaitingFor() instanceof SelectSpace)) {
+      throw new Error('the parliament-biodome-maxed fixture expected the greenery placement of blue');
     }
-    runAllActions(game);
-  }
-  for (const player of [p1, p2]) {
-    if (player.getWaitingFor() instanceof SelectCard) {
-      player.process({type: 'card', cards: []});
+  },
+}));
+// Generation 2 has just begun — the political phase ENACTED Biodome Contest won
+// by RED (Agenda 4 → 5 = influence 3 → +6 plants, 1 → 7), red placed the
+// winner's greenery on a quiet cell (oxygen 5 → 6 %), blue got +2 plants
+// (influence 1). Red opens generation 2 (the viewer seat): the results scene
+// moves the card into the government, flies red's plants from the card to the
+// rail and names the greenery with its oxygen step.
+parliamentFixture('parliament-biodome-recap', biodomeTable(5, -14, 'done', {
+  arrange: ({p1, p2, parliament}) => {
+    // RED wins it this time: blue's delegate goes back to the lobby, red's takes its place.
+    parliament.slots[0].votes = [];
+    parliament.lobby.add(p1.id);
+    parliament.placeVote(p2, parliament.slots[0], 'lobby');
+    parliament.agenda.set(p1.id, 1);
+    parliament.agenda.set(p2.id, 4);
+  },
+  expect: (table) => {
+    const {parliament, p2} = table;
+    const outcomes = parliament.lastPhase?.outcomes ?? [];
+    const redPlants = outcomes.find((o) => o.player === p2.id && o.step === 'plants');
+    const greenery = outcomes.find((o) => o.player === p2.id && o.step === 'greenery' && o.kind !== 'reaction');
+    if (redPlants?.kind !== 'stock' || redPlants.amount !== 6 || greenery?.kind !== 'greenery') {
+      throw new Error(`the parliament-biodome-recap fixture expected the +6 plants and the greenery of red, got ${JSON.stringify(outcomes)}`);
     }
-  }
-  runAllActions(game);
-  const outcomes = parliament.lastPhase?.outcomes ?? [];
-  const raise = outcomes.find((o) => o.player === p1.id && o.step === 'heat-production');
-  const draw = outcomes.find((o) => o.player === p1.id && o.step === 'draw');
-  if (raise?.kind !== 'production' || raise.amount !== 2 || draw?.kind !== 'cards' || draw.amount !== 2) {
-    throw new Error(`the parliament-climate-recap fixture expected blue's +2 heat production and 2 cards, got ${JSON.stringify(outcomes)}`);
-  }
-  if (outcomes.find((o) => o.player === p2.id && o.step === 'draw')?.kind !== 'cards') {
-    throw new Error(`the parliament-climate-recap fixture expected red's own draw, got ${JSON.stringify(outcomes)}`);
-  }
-  if (game.playersInGenerationOrder[0].id !== p2.id) {
-    throw new Error('the parliament-climate-recap fixture expected red to open generation 2 (the seat the loader opens)');
-  }
-  write('parliament-climate-recap', game);
-}
+    expectViewerOpensGeneration(table, p2, 'parliament-biodome-recap');
+  },
+}));
+// ONE PASS from the political phase, with NO LEGAL CELL for the winner's
+// greenery — every land cell of Mars already holds red's tile. Red has passed;
+// blue (who leads Biodome Contest) passes to end the generation: the plants
+// reach everyone, the greenery is NAMED and skipped, and generation 2's
+// results scene says so.
+parliamentFixture('parliament-biodome-nocell', biodomeTable(5, -14, 'vote', {
+  arrange: ({game, p1, p2}) => {
+    for (const space of game.board.getSpaces(SpaceType.LAND)) {
+      if (space.tile === undefined) {
+        space.tile = {tileType: TileType.GREENERY};
+        space.player = p2;
+      }
+    }
+    if (game.board.getAvailableSpacesForType(p1, 'greenery').length !== 0) {
+      throw new Error('the parliament-biodome-nocell fixture expected no legal greenery cell for blue');
+    }
+    game.playerHasPassed(p2);
+  },
+}));
+// ONE PASS from the political phase with Biodome Contest carried by NEUTRAL
+// delegates only — nobody places the greenery, the plants still reach everyone.
+// Red has passed; blue passes.
+parliamentFixture('parliament-biodome-neutral', biodomeTable(5, -14, 'vote', {
+  arrange: ({game, p1, p2, parliament}) => {
+    parliament.slots[0].votes = [];
+    parliament.lobby.add(p1.id);
+    parliament.addNeutralVote(parliament.slots[0]);
+    parliament.addNeutralVote(parliament.slots[0]);
+    game.playerHasPassed(p2);
+  },
+}));
+
+// ── RX05 · CLIMATE RESEARCH — a 2-seat table with the card alone in the first
+//    voting slot and blue's free delegate on it: blue at Agenda step 3
+//    (influence 2 — winning → step 4 keeps influence 2), red at step 1
+//    (influence 1). Heat PRODUCTION is what the card reads, so it is what the
+//    fixture arranges. ──
+const climateTable = (blueHeat: number, redHeat: number, stopAt: ParliamentStop, extra?: {agenda?: [number | undefined, number | undefined]; arrange?: (table: ParliamentTable) => void; expect?: (table: ParliamentTable) => void}): ParliamentFixtureSpec => ({
+  resolution: CLIMATE_RESEARCH_ID,
+  votes: [0],
+  agenda: extra?.agenda ?? [3, 1],
+  stopAt,
+  arrange: (table) => {
+    table.p1.production.override({heat: blueHeat});
+    table.p2.production.override({heat: redHeat});
+    extra?.arrange?.(table);
+  },
+  expect: extra?.expect,
+});
+// The vote: +1 heat production per influence, THEN 1 card per full 3 steps of
+// the heat production it leaves behind — blue leads it with heat production 4
+// (influence 2 → 4 → 6 → 2 cards, and the ruling Greens would answer with +2
+// M€ production), red sits at 1.
+parliamentFixture('parliament-climate-vote', climateTable(4, 1, 'vote'));
+// …the SAME table with blue one Agenda step back (step 2 = influence 1;
+// winning → step 3 = influence 2): +1 heat production now (4 → 5 → 1 card)
+// and, if blue wins, +2 (4 → 6 → 2 cards) — the vote panel's «+1 if you win ·
+// step 3» suffix on BOTH links of the chain.
+parliamentFixture('parliament-climate-vote-raise', climateTable(4, 1, 'vote', {agenda: [2, 1]}));
+// The sitting has just convened: the ASSEMBLY gate stands for both seats — the raise, the Greens' answer and the draw are still to come.
+parliamentFixture('parliament-climate-assembly', climateTable(4, 2, 'assembly'));
+// The political phase STOPPED INSIDE blue's mandatory TAKE of the cards
+// Climate Research drew. Blue's heat production was raised 4 → 6 (influence
+// 2), the ruling Greens answered with +2 M€ production, and two project cards
+// are owed — withheld from the hand until the take. Red's own half comes after blue's.
+parliamentFixture('parliament-climate-enact', climateTable(4, 2, 'effects', {
+  expect: ({p1, parliament}) => {
+    const ask = p1.getWaitingFor();
+    if (!(ask instanceof SelectCard) || ask.externalDrawPrompt === undefined) {
+      throw new Error(`the parliament-climate-enact fixture expected blue's mandatory take, got ${ask?.constructor.name}`);
+    }
+    if (p1.production.heat !== 6 || p1.pendingCardIntakes.length !== 1 || p1.pendingCardIntakes[0].cards.length !== 2) {
+      throw new Error(`the parliament-climate-enact fixture expected heat production 6 and two owed cards, got ${p1.production.heat} / ${JSON.stringify(p1.pendingCardIntakes.map((i) => i.cards.length))}`);
+    }
+    if (parliament.phase?.step !== 'effects') {
+      throw new Error('the parliament-climate-enact fixture expected the effects step');
+    }
+  },
+}));
+// Both seats raised and both took their cards; the area refreshed: the ADJOURN
+// gate stands for both seats, the Greens' answer recorded under each raise.
+parliamentFixture('parliament-climate-adjourn', climateTable(4, 2, 'adjourn', {
+  expect: ({parliament, p1, p2}) => {
+    const outcomes = parliament.phase?.summary?.outcomes ?? [];
+    for (const seat of [p1, p2]) {
+      if (!outcomes.some((o) => o.player === seat.id && o.kind === 'reaction' && o.step === 'heat-production')) {
+        throw new Error(`the parliament-climate-adjourn fixture expected the Greens' answer for ${seat.color}, got ${JSON.stringify(outcomes)}`);
+      }
+    }
+  },
+}));
+// The same stop with a BIG draw — heat production 17 + influence 2 = 19 → SIX
+// cards owed at once. The take must show all six at a readable size inside the
+// enactment stage; nothing is trimmed to fit.
+parliamentFixture('parliament-climate-big', climateTable(17, 0, 'effects', {
+  expect: ({p1}) => {
+    const ask = p1.getWaitingFor();
+    if (!(ask instanceof SelectCard) || ask.externalDrawPrompt?.remaining !== 6) {
+      throw new Error(`the parliament-climate-big fixture expected six owed cards, got ${ask?.constructor.name}`);
+    }
+  },
+}));
+// Generation 2 has just begun — the political phase ENACTED Climate Research
+// won by RED, both seats were raised and both took their cards. Red opens
+// generation 2 (the seat the dev loader opens): the results scene moves the
+// card into the government and names BOTH halves of every seat's result.
+parliamentFixture('parliament-climate-recap', climateTable(4, 2, 'done', {
+  arrange: ({p1, p2, parliament}) => {
+    // RED wins it: blue's delegate goes back to the lobby, red's takes its place.
+    parliament.slots[0].votes = [];
+    parliament.lobby.add(p1.id);
+    parliament.placeVote(p2, parliament.slots[0], 'lobby');
+  },
+  expect: (table) => {
+    const {parliament, p1, p2} = table;
+    const outcomes = parliament.lastPhase?.outcomes ?? [];
+    const raise = outcomes.find((o) => o.player === p1.id && o.step === 'heat-production' && o.kind !== 'reaction');
+    const draw = outcomes.find((o) => o.player === p1.id && o.step === 'draw');
+    if (raise?.kind !== 'production' || raise.amount !== 2 || draw?.kind !== 'cards' || draw.amount !== 2) {
+      throw new Error(`the parliament-climate-recap fixture expected blue's +2 heat production and 2 cards, got ${JSON.stringify(outcomes)}`);
+    }
+    if (outcomes.find((o) => o.player === p2.id && o.step === 'draw')?.kind !== 'cards') {
+      throw new Error(`the parliament-climate-recap fixture expected red's own draw, got ${JSON.stringify(outcomes)}`);
+    }
+    expectViewerOpensGeneration(table, p2, 'parliament-climate-recap');
+  },
+}));
+
 
 // ── parliament-dense: a crowded FIVE-seat Parliament in generation 2 (the
 //    first political phase already ran, so a resolution is ENACTED and its own
@@ -1120,10 +1019,10 @@ function climateTable(blueHeat: number, redHeat: number): {game: IGame, p1: Test
     throw new Error('the parliament-dense fixture has no voting area');
   }
   // Generation 1: one delegate so the phase has a winner to enact.
-  seatQuietResolution(parliament, 1);
+  seatResolution(parliament, 1, ARCHITECTURE_AWARD_ID); // a card that asks nothing: the phase runs to its end
   parliament.placeVote(seats[1], parliament.slots[1], 'lobby');
   runAllActions(game);
-  finishGeneration(game);
+  endGenerationThroughParliament(game);
   for (const player of seats) {
     if (player.getWaitingFor() instanceof SelectCard) {
       player.process({type: 'card', cards: []});

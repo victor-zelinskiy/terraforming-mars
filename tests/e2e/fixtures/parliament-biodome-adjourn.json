@@ -47,6 +47,10 @@
    {
     "id": "05",
     "spaceType": "land",
+    "tile": {
+     "tileType": 0
+    },
+    "player": "p-player1-id",
     "bonus": [],
     "x": 6,
     "y": 0
@@ -63,6 +67,9 @@
    {
     "id": "07",
     "spaceType": "ocean",
+    "tile": {
+     "tileType": 1
+    },
     "bonus": [],
     "x": 8,
     "y": 0
@@ -613,8 +620,8 @@
   ],
   "discardPile": []
  },
- "createdTimeMs": 1789776052438,
- "currentSeed": 593427323412,
+ "createdTimeMs": 1789776052444,
+ "currentSeed": 598922020851,
  "deferredActions": [],
  "donePlayers": [],
  "draftRound": 1,
@@ -623,7 +630,7 @@
  "fundedAwards": [],
  "gagarinBase": [],
  "stJosephCathedrals": [],
- "gameAge": 23,
+ "gameAge": 41,
  "gameLog": [
   {
    "message": "First player this generation is ${0}",
@@ -633,7 +640,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1789776052438
+   "timestamp": 1789776052444
   },
   {
    "message": "Good luck ${0}!",
@@ -643,7 +650,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1789776052438,
+   "timestamp": 1789776052444,
    "playerId": "p-player1-id"
   },
   {
@@ -654,7 +661,7 @@
      "value": "red"
     }
    ],
-   "timestamp": 1789776052438,
+   "timestamp": 1789776052444,
    "playerId": "p-player2-id"
   },
   {
@@ -665,7 +672,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1789776052438,
+   "timestamp": 1789776052444,
    "type": 1
   },
   {
@@ -680,7 +687,7 @@
      "value": "Teractor"
     }
    ],
-   "timestamp": 1789776052438,
+   "timestamp": 1789776052444,
    "correlationId": 1,
    "parentId": 1,
    "role": "root-action",
@@ -698,7 +705,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1789776052438,
+   "timestamp": 1789776052444,
    "correlationId": 1,
    "parentId": 1,
    "role": "detail"
@@ -715,7 +722,7 @@
      "value": "Aridor"
     }
    ],
-   "timestamp": 1789776052439,
+   "timestamp": 1789776052444,
    "correlationId": 2,
    "parentId": 2,
    "role": "root-action",
@@ -733,7 +740,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1789776052439,
+   "timestamp": 1789776052444,
    "correlationId": 2,
    "parentId": 2,
    "role": "detail"
@@ -746,7 +753,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1789776052439,
+   "timestamp": 1789776052445,
    "type": 2,
    "correlationId": 5,
    "parentId": 5,
@@ -765,7 +772,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1789776052439,
+   "timestamp": 1789776052445,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -782,7 +789,7 @@
      "value": "RDX_GREENS_BIODOME_CONTEST"
     }
    ],
-   "timestamp": 1789776052439,
+   "timestamp": 1789776052445,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -799,7 +806,7 @@
      "value": "3"
     }
    ],
-   "timestamp": 1789776052439,
+   "timestamp": 1789776052445,
    "correlationId": 5,
    "parentId": 6,
    "role": "detail"
@@ -824,7 +831,7 @@
      "value": "3"
     }
    ],
-   "timestamp": 1789776052439,
+   "timestamp": 1789776052445,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -849,7 +856,7 @@
      "value": "3"
     }
    ],
-   "timestamp": 1789776052439,
+   "timestamp": 1789776052445,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -874,7 +881,7 @@
      "value": "3"
     }
    ],
-   "timestamp": 1789776052439,
+   "timestamp": 1789776052445,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -899,7 +906,7 @@
      "value": "3"
     }
    ],
-   "timestamp": 1789776052439,
+   "timestamp": 1789776052445,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -924,7 +931,7 @@
      "value": "3"
     }
    ],
-   "timestamp": 1789776052439,
+   "timestamp": 1789776052445,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -937,7 +944,7 @@
      "value": "RDX_GREENS_BIODOME_CONTEST"
     }
    ],
-   "timestamp": 1789776052439,
+   "timestamp": 1789776052445,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -950,7 +957,7 @@
      "value": "Greens"
     }
    ],
-   "timestamp": 1789776052439,
+   "timestamp": 1789776052445,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -967,7 +974,7 @@
      "value": "Place 2 greeneries"
     }
    ],
-   "timestamp": 1789776052439,
+   "timestamp": 1789776052445,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -1004,9 +1011,366 @@
      "value": "7"
     }
    ],
-   "timestamp": 1789776052440,
+   "timestamp": 1789776052445,
    "correlationId": 5,
    "parentId": 7,
+   "role": "detail"
+  },
+  {
+   "message": "${0} ${1} ${2} · ${3}",
+   "data": [
+    {
+     "type": 2,
+     "value": "blue"
+    },
+    {
+     "type": 0,
+     "value": "placed"
+    },
+    {
+     "type": 0,
+     "value": "greenery tile"
+    },
+    {
+     "type": 13,
+     "value": "05"
+    }
+   ],
+   "timestamp": 1789776052446,
+   "correlationId": 5,
+   "parentId": 9,
+   "role": "detail"
+  },
+  {
+   "message": "${0} gained ${1} ${2} because of ${3}",
+   "data": [
+    {
+     "type": 2,
+     "value": "blue"
+    },
+    {
+     "type": 1,
+     "value": "2"
+    },
+    {
+     "type": 15,
+     "value": "megacredits"
+    },
+    {
+     "type": 8,
+     "value": "Greens"
+    }
+   ],
+   "timestamp": 1789776052446,
+   "correlationId": 5,
+   "parentId": 12,
+   "role": "effect-result"
+  },
+  {
+   "message": "${0} gained ${1} ${2} for placing a greenery",
+   "data": [
+    {
+     "type": 2,
+     "value": "blue"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    },
+    {
+     "type": 15,
+     "value": "tr"
+    }
+   ],
+   "timestamp": 1789776052446,
+   "correlationId": 5,
+   "parentId": 9,
+   "role": "detail"
+  },
+  {
+   "message": "${0} gained ${1} ${2} because of ${3}",
+   "data": [
+    {
+     "type": 2,
+     "value": "blue"
+    },
+    {
+     "type": 1,
+     "value": "2"
+    },
+    {
+     "type": 15,
+     "value": "megacredits"
+    },
+    {
+     "type": 8,
+     "value": "Greens"
+    }
+   ],
+   "timestamp": 1789776052446,
+   "correlationId": 5,
+   "parentId": 15,
+   "role": "effect-result"
+  },
+  {
+   "message": "${0} gained ${1} ${2} because of ${3}",
+   "data": [
+    {
+     "type": 2,
+     "value": "blue"
+    },
+    {
+     "type": 1,
+     "value": "2"
+    },
+    {
+     "type": 15,
+     "value": "megacredits"
+    },
+    {
+     "type": 8,
+     "value": "Greens"
+    }
+   ],
+   "timestamp": 1789776052447,
+   "correlationId": 5,
+   "parentId": 19,
+   "role": "effect-result"
+  },
+  {
+   "message": "${0} claimed the ${1} scale bonus",
+   "data": [
+    {
+     "type": 2,
+     "value": "blue"
+    },
+    {
+     "type": 15,
+     "value": "temperature"
+    }
+   ],
+   "timestamp": 1789776052447,
+   "correlationId": 5,
+   "parentId": 9,
+   "role": "detail"
+  },
+  {
+   "message": "${0} claimed the ${1} scale bonus",
+   "data": [
+    {
+     "type": 2,
+     "value": "blue"
+    },
+    {
+     "type": 15,
+     "value": "oxygen"
+    }
+   ],
+   "timestamp": 1789776052447,
+   "correlationId": 5,
+   "parentId": 9,
+   "role": "detail"
+  },
+  {
+   "message": "${0} ${1} ${2} · ${3}",
+   "data": [
+    {
+     "type": 2,
+     "value": "blue"
+    },
+    {
+     "type": 0,
+     "value": "placed"
+    },
+    {
+     "type": 0,
+     "value": "ocean tile"
+    },
+    {
+     "type": 13,
+     "value": "07"
+    }
+   ],
+   "timestamp": 1789776052448,
+   "correlationId": 5,
+   "parentId": 9,
+   "role": "detail"
+  },
+  {
+   "message": "${0} gained ${1} ${2} because of ${3}",
+   "data": [
+    {
+     "type": 2,
+     "value": "blue"
+    },
+    {
+     "type": 1,
+     "value": "2"
+    },
+    {
+     "type": 15,
+     "value": "megacredits"
+    },
+    {
+     "type": 8,
+     "value": "Greens"
+    }
+   ],
+   "timestamp": 1789776052448,
+   "correlationId": 5,
+   "parentId": 24,
+   "role": "effect-result"
+  },
+  {
+   "message": "${0} gained ${1} ${2} from ${3}: 2 per point of influence, influence ${4} (${5} → ${6})",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 1,
+     "value": "6"
+    },
+    {
+     "type": 15,
+     "value": "plants"
+    },
+    {
+     "type": 16,
+     "value": "RDX_GREENS_BIODOME_CONTEST"
+    },
+    {
+     "type": 1,
+     "value": "3"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    },
+    {
+     "type": 1,
+     "value": "7"
+    }
+   ],
+   "timestamp": 1789776052448,
+   "correlationId": 5,
+   "parentId": 27,
+   "role": "detail"
+  },
+  {
+   "message": "Resolution ${0} leaves the voting area",
+   "data": [
+    {
+     "type": 16,
+     "value": "RDX_MARS_ARCHITECTURE_AWARD"
+    }
+   ],
+   "timestamp": 1789776052448,
+   "correlationId": 5,
+   "parentId": 5,
+   "role": "detail"
+  },
+  {
+   "message": "Resolution ${0} leaves the voting area",
+   "data": [
+    {
+     "type": 16,
+     "value": "RDX_INDUSTRIALISTS_CENTRAL_POWER_GRID"
+    }
+   ],
+   "timestamp": 1789776052448,
+   "correlationId": 5,
+   "parentId": 5,
+   "role": "detail"
+  },
+  {
+   "message": "Resolution ${0} enters the voting area",
+   "data": [
+    {
+     "type": 16,
+     "value": "RDX_MARS_ARCHITECTURE_AWARD"
+    }
+   ],
+   "timestamp": 1789776052448,
+   "correlationId": 5,
+   "parentId": 5,
+   "role": "detail"
+  },
+  {
+   "message": "${0} neutral delegate(s) from ${1} Popular Support vote for ${2}",
+   "data": [
+    {
+     "type": 1,
+     "value": "1"
+    },
+    {
+     "type": 8,
+     "value": "Mars First"
+    },
+    {
+     "type": 16,
+     "value": "RDX_MARS_ARCHITECTURE_AWARD"
+    }
+   ],
+   "timestamp": 1789776052448,
+   "correlationId": 5,
+   "parentId": 5,
+   "role": "detail"
+  },
+  {
+   "message": "Resolution ${0} enters the voting area",
+   "data": [
+    {
+     "type": 16,
+     "value": "RDX_INDUSTRIALISTS_CENTRAL_POWER_GRID"
+    }
+   ],
+   "timestamp": 1789776052448,
+   "correlationId": 5,
+   "parentId": 5,
+   "role": "detail"
+  },
+  {
+   "message": "${0} neutral delegate(s) from ${1} Popular Support vote for ${2}",
+   "data": [
+    {
+     "type": 1,
+     "value": "1"
+    },
+    {
+     "type": 8,
+     "value": "Industrialists"
+    },
+    {
+     "type": 16,
+     "value": "RDX_INDUSTRIALISTS_CENTRAL_POWER_GRID"
+    }
+   ],
+   "timestamp": 1789776052448,
+   "correlationId": 5,
+   "parentId": 5,
+   "role": "detail"
+  },
+  {
+   "message": "The resolution deck has no card for voting slot ${0}",
+   "data": [
+    {
+     "type": 1,
+     "value": "3"
+    }
+   ],
+   "timestamp": 1789776052448,
+   "correlationId": 5,
+   "parentId": 5,
+   "role": "detail"
+  },
+  {
+   "message": "Every player's free delegate returns to the lobby",
+   "data": [],
+   "timestamp": 1789776052448,
+   "correlationId": 5,
+   "parentId": 5,
    "role": "detail"
   }
  ],
@@ -1188,9 +1552,448 @@
    "player": "blue",
    "category": "political-phase",
    "parentId": 5
+  },
+  {
+   "id": 10,
+   "generation": 1,
+   "phase": "parliament",
+   "type": "tile-placed",
+   "impact": {
+    "tilesPlaced": 1
+   },
+   "correlationId": 5,
+   "visibility": "analytics",
+   "source": {
+    "kind": "resolution",
+    "id": "RDX_GREENS_BIODOME_CONTEST",
+    "owner": "blue"
+   },
+   "player": "blue",
+   "space": "05",
+   "tile": 0,
+   "tags": [
+    "terraforming"
+   ],
+   "parentId": 9
+  },
+  {
+   "id": 11,
+   "generation": 1,
+   "phase": "parliament",
+   "type": "tr-changed",
+   "impact": {
+    "tr": 1
+   },
+   "correlationId": 5,
+   "visibility": "analytics",
+   "source": {
+    "kind": "parliament"
+   },
+   "player": "blue",
+   "tags": [
+    "terraforming"
+   ],
+   "parentId": 9
+  },
+  {
+   "id": 12,
+   "generation": 1,
+   "phase": "parliament",
+   "type": "effect-triggered",
+   "impact": {},
+   "correlationId": 5,
+   "visibility": "analytics",
+   "source": {
+    "kind": "party",
+    "name": "Greens",
+    "owner": "blue"
+   },
+   "player": "blue",
+   "trigger": "tr-increase",
+   "tags": [
+    "passive-effect"
+   ],
+   "parentId": 9
+  },
+  {
+   "id": 13,
+   "generation": 1,
+   "phase": "parliament",
+   "type": "resource-changed",
+   "impact": {
+    "stock": {
+     "megacredits": 2
+    },
+    "snapshot": {
+     "resource": "megacredits",
+     "scope": "stock",
+     "before": 60,
+     "after": 62
+    }
+   },
+   "correlationId": 5,
+   "visibility": "analytics",
+   "source": {
+    "kind": "party",
+    "name": "Greens",
+    "owner": "blue"
+   },
+   "player": "blue",
+   "tags": [
+    "passive-effect"
+   ],
+   "parentId": 12
+  },
+  {
+   "id": 14,
+   "generation": 1,
+   "phase": "parliament",
+   "type": "tr-changed",
+   "impact": {
+    "tr": 1
+   },
+   "correlationId": 5,
+   "visibility": "analytics",
+   "source": {
+    "kind": "resolution",
+    "id": "RDX_GREENS_BIODOME_CONTEST",
+    "owner": "blue"
+   },
+   "player": "blue",
+   "tags": [
+    "terraforming"
+   ],
+   "parentId": 9
+  },
+  {
+   "id": 15,
+   "generation": 1,
+   "phase": "parliament",
+   "type": "effect-triggered",
+   "impact": {},
+   "correlationId": 5,
+   "visibility": "analytics",
+   "source": {
+    "kind": "party",
+    "name": "Greens",
+    "owner": "blue"
+   },
+   "player": "blue",
+   "trigger": "tr-increase",
+   "tags": [
+    "passive-effect"
+   ],
+   "parentId": 9
+  },
+  {
+   "id": 16,
+   "generation": 1,
+   "phase": "parliament",
+   "type": "resource-changed",
+   "impact": {
+    "stock": {
+     "megacredits": 2
+    },
+    "snapshot": {
+     "resource": "megacredits",
+     "scope": "stock",
+     "before": 62,
+     "after": 64
+    }
+   },
+   "correlationId": 5,
+   "visibility": "analytics",
+   "source": {
+    "kind": "party",
+    "name": "Greens",
+    "owner": "blue"
+   },
+   "player": "blue",
+   "tags": [
+    "passive-effect"
+   ],
+   "parentId": 15
+  },
+  {
+   "id": 17,
+   "generation": 1,
+   "phase": "parliament",
+   "type": "global-parameter-changed",
+   "impact": {
+    "globalParameter": {
+     "parameter": "oxygen",
+     "steps": 1
+    }
+   },
+   "correlationId": 5,
+   "visibility": "analytics",
+   "source": {
+    "kind": "resolution",
+    "id": "RDX_GREENS_BIODOME_CONTEST",
+    "owner": "blue"
+   },
+   "player": "blue",
+   "tags": [
+    "global-parameter"
+   ],
+   "parentId": 9
+  },
+  {
+   "id": 18,
+   "generation": 1,
+   "phase": "parliament",
+   "type": "tr-changed",
+   "impact": {
+    "tr": 1
+   },
+   "correlationId": 5,
+   "visibility": "analytics",
+   "source": {
+    "kind": "resolution",
+    "id": "RDX_GREENS_BIODOME_CONTEST",
+    "owner": "blue"
+   },
+   "player": "blue",
+   "tags": [
+    "terraforming"
+   ],
+   "parentId": 9
+  },
+  {
+   "id": 19,
+   "generation": 1,
+   "phase": "parliament",
+   "type": "effect-triggered",
+   "impact": {},
+   "correlationId": 5,
+   "visibility": "analytics",
+   "source": {
+    "kind": "party",
+    "name": "Greens",
+    "owner": "blue"
+   },
+   "player": "blue",
+   "trigger": "tr-increase",
+   "tags": [
+    "passive-effect"
+   ],
+   "parentId": 9
+  },
+  {
+   "id": 20,
+   "generation": 1,
+   "phase": "parliament",
+   "type": "resource-changed",
+   "impact": {
+    "stock": {
+     "megacredits": 2
+    },
+    "snapshot": {
+     "resource": "megacredits",
+     "scope": "stock",
+     "before": 64,
+     "after": 66
+    }
+   },
+   "correlationId": 5,
+   "visibility": "analytics",
+   "source": {
+    "kind": "party",
+    "name": "Greens",
+    "owner": "blue"
+   },
+   "player": "blue",
+   "tags": [
+    "passive-effect"
+   ],
+   "parentId": 19
+  },
+  {
+   "id": 21,
+   "generation": 1,
+   "phase": "parliament",
+   "type": "global-parameter-changed",
+   "impact": {
+    "globalParameter": {
+     "parameter": "temperature",
+     "steps": 1
+    }
+   },
+   "correlationId": 5,
+   "visibility": "analytics",
+   "source": {
+    "kind": "resolution",
+    "id": "RDX_GREENS_BIODOME_CONTEST",
+    "owner": "blue"
+   },
+   "player": "blue",
+   "tags": [
+    "global-parameter"
+   ],
+   "parentId": 9
+  },
+  {
+   "id": 22,
+   "generation": 1,
+   "phase": "parliament",
+   "type": "tile-placed",
+   "impact": {
+    "tilesPlaced": 1
+   },
+   "correlationId": 5,
+   "visibility": "analytics",
+   "source": {
+    "kind": "resolution",
+    "id": "RDX_GREENS_BIODOME_CONTEST",
+    "owner": "blue"
+   },
+   "player": "blue",
+   "space": "07",
+   "tile": 1,
+   "tags": [
+    "terraforming"
+   ],
+   "parentId": 9
+  },
+  {
+   "id": 23,
+   "generation": 1,
+   "phase": "parliament",
+   "type": "tr-changed",
+   "impact": {
+    "tr": 1
+   },
+   "correlationId": 5,
+   "visibility": "analytics",
+   "source": {
+    "kind": "resolution",
+    "id": "RDX_GREENS_BIODOME_CONTEST",
+    "owner": "blue"
+   },
+   "player": "blue",
+   "tags": [
+    "terraforming"
+   ],
+   "parentId": 9
+  },
+  {
+   "id": 24,
+   "generation": 1,
+   "phase": "parliament",
+   "type": "effect-triggered",
+   "impact": {},
+   "correlationId": 5,
+   "visibility": "analytics",
+   "source": {
+    "kind": "party",
+    "name": "Greens",
+    "owner": "blue"
+   },
+   "player": "blue",
+   "trigger": "tr-increase",
+   "tags": [
+    "passive-effect"
+   ],
+   "parentId": 9
+  },
+  {
+   "id": 25,
+   "generation": 1,
+   "phase": "parliament",
+   "type": "resource-changed",
+   "impact": {
+    "stock": {
+     "megacredits": 2
+    },
+    "snapshot": {
+     "resource": "megacredits",
+     "scope": "stock",
+     "before": 66,
+     "after": 68
+    }
+   },
+   "correlationId": 5,
+   "visibility": "analytics",
+   "source": {
+    "kind": "party",
+    "name": "Greens",
+    "owner": "blue"
+   },
+   "player": "blue",
+   "tags": [
+    "passive-effect"
+   ],
+   "parentId": 24
+  },
+  {
+   "id": 26,
+   "generation": 1,
+   "phase": "parliament",
+   "type": "global-parameter-changed",
+   "impact": {
+    "globalParameter": {
+     "parameter": "oceans",
+     "steps": 1
+    }
+   },
+   "correlationId": 5,
+   "visibility": "analytics",
+   "source": {
+    "kind": "resolution",
+    "id": "RDX_GREENS_BIODOME_CONTEST",
+    "owner": "blue"
+   },
+   "player": "blue",
+   "tags": [
+    "global-parameter"
+   ],
+   "parentId": 9
+  },
+  {
+   "id": 27,
+   "generation": 1,
+   "phase": "parliament",
+   "type": "action",
+   "impact": {},
+   "correlationId": 5,
+   "visibility": "journal",
+   "source": {
+    "kind": "resolution",
+    "id": "RDX_GREENS_BIODOME_CONTEST",
+    "owner": "red"
+   },
+   "player": "red",
+   "category": "political-phase",
+   "parentId": 5
+  },
+  {
+   "id": 28,
+   "generation": 1,
+   "phase": "parliament",
+   "type": "resource-changed",
+   "impact": {
+    "stock": {
+     "plants": 6
+    },
+    "snapshot": {
+     "resource": "plants",
+     "scope": "stock",
+     "before": 1,
+     "after": 7
+    }
+   },
+   "correlationId": 5,
+   "visibility": "analytics",
+   "source": {
+    "kind": "resolution",
+    "id": "RDX_GREENS_BIODOME_CONTEST",
+    "owner": "red"
+   },
+   "player": "red",
+   "parentId": 27
   }
  ],
- "eventSeq": 9,
+ "eventSeq": 28,
  "gameOptions": {
   "altVenusBoard": false,
   "aresExtension": false,
@@ -1278,8 +2081,8 @@
   "Builder",
   "Planner"
  ],
- "name": "Active Oxygen Link",
- "oxygenLevel": 7,
+ "name": "Solar Pressure Surge",
+ "oxygenLevel": 8,
  "passedPlayers": [],
  "phase": "parliament",
  "players": [
@@ -1287,11 +2090,18 @@
    "id": "p-player1-id",
    "pickedCorporationCard": "Teractor",
    "initialCardSelectionDone": true,
-   "terraformRating": 20,
-   "hasIncreasedTerraformRatingThisGeneration": false,
-   "terraformRatingFromCards": 0,
-   "terraformRatingSources": [],
-   "megaCredits": 60,
+   "terraformRating": 24,
+   "hasIncreasedTerraformRatingThisGeneration": true,
+   "terraformRatingFromCards": 1,
+   "terraformRatingSources": [
+    {
+     "sourceType": "other",
+     "sourceName": "Greenery tile",
+     "amount": 1,
+     "generation": 1
+    }
+   ],
+   "megaCredits": 68,
    "megaCreditProduction": 0,
    "steel": 0,
    "steelProduction": 0,
@@ -1374,11 +2184,11 @@
    "beginner": false,
    "handicap": 0,
    "timer": {
-    "sumElapsed": 1,
-    "startedAt": 1789776052439,
+    "sumElapsed": 2,
+    "startedAt": 1789776052447,
     "running": true,
     "afterFirstAction": true,
-    "lastStoppedAt": 1789776052439
+    "lastStoppedAt": 1789776052447
    },
    "actionsTakenThisGame": 1,
    "victoryPointsByGeneration": [],
@@ -1390,9 +2200,9 @@
    "draftHand": [],
    "autoPass": false,
    "globalParameterSteps": {
-    "oceans": 0,
-    "oxygen": 0,
-    "temperature": 0,
+    "oceans": 1,
+    "oxygen": 1,
+    "temperature": 1,
     "venus": 0,
     "moon-habitat": 0,
     "moon-mining": 0,
@@ -1413,7 +2223,7 @@
    "steelProduction": 0,
    "titanium": 0,
    "titaniumProduction": 0,
-   "plants": 1,
+   "plants": 7,
    "plantProduction": 0,
    "energy": 0,
    "energyProduction": 0,
@@ -1494,10 +2304,10 @@
    "handicap": 0,
    "timer": {
     "sumElapsed": 1,
-    "startedAt": 1789776052439,
-    "running": false,
+    "startedAt": 1789776052447,
+    "running": true,
     "afterFirstAction": true,
-    "lastStoppedAt": 1789776052439
+    "lastStoppedAt": 1789776052447
    },
    "actionsTakenThisGame": 1,
    "victoryPointsByGeneration": [],
@@ -1835,8 +2645,17 @@
   "microbe",
   "wild"
  ],
- "scaleBonusClaims": [],
- "temperature": -2,
+ "scaleBonusClaims": [
+  [
+   "temperature-0",
+   "blue"
+  ],
+  [
+   "oxygen-8",
+   "blue"
+  ]
+ ],
+ "temperature": 0,
  "tradeEmbargo": false,
  "underworldData": {
   "tokens": []
@@ -1849,11 +2668,21 @@
   "slots": [
    {
     "instance": "RDX_MARS_ARCHITECTURE_AWARD#0",
-    "votes": []
+    "votes": [
+     {
+      "owner": "NEUTRAL",
+      "seq": 2
+     }
+    ]
    },
    {
     "instance": "RDX_INDUSTRIALISTS_CENTRAL_POWER_GRID#0",
-    "votes": []
+    "votes": [
+     {
+      "owner": "NEUTRAL",
+      "seq": 3
+     }
+    ]
    }
   ],
   "enacted": "RDX_GREENS_BIODOME_CONTEST#0",
@@ -1870,15 +2699,16 @@
    "progress": {}
   },
   "lobby": [
-   "p-player2-id"
+   "p-player2-id",
+   "p-player1-id"
   ],
-  "voteSeq": 1,
+  "voteSeq": 3,
   "popularSupport": {
    "Unity": 1,
    "Scientists": 1,
    "Reds": 1,
-   "Mars First": 1,
-   "Industrialists": 1
+   "Mars First": 0,
+   "Industrialists": 0
   },
   "agenda": {
    "p-player1-id": 3,
@@ -1888,19 +2718,20 @@
   "grantedEffects": {},
   "partyActionUses": {},
   "resolutionActionUses": {},
-  "deck": [
-   "RDX_GREENS_AQUIFER_CONTEST#0"
-  ],
+  "deck": [],
   "discard": [
-   "RDX_GREENS_CLIMATE_RESEARCH#0"
+   "RDX_GREENS_CLIMATE_RESEARCH#0",
+   "RDX_GREENS_AQUIFER_CONTEST#0"
   ],
   "phase": {
    "generation": 1,
    "final": false,
-   "step": "effects",
+   "step": "adjourn",
    "applied": [
     "support:1",
-    "enact:1:RDX_GREENS_BIODOME_CONTEST#0"
+    "enact:1:RDX_GREENS_BIODOME_CONTEST#0",
+    "refresh:1",
+    "lobby:1"
    ],
    "summary": {
     "generation": 1,
@@ -1944,8 +2775,19 @@
      }
     ],
     "enacted": "RDX_GREENS_BIODOME_CONTEST#0",
-    "refreshed": [],
-    "lobbyRefilled": [],
+    "refreshed": [
+     {
+      "instance": "RDX_MARS_ARCHITECTURE_AWARD#0",
+      "neutralVotes": 1
+     },
+     {
+      "instance": "RDX_INDUSTRIALISTS_CENTRAL_POWER_GRID#0",
+      "neutralVotes": 1
+     }
+    ],
+    "lobbyRefilled": [
+     "p-player1-id"
+    ],
     "seq": 1,
     "correlationId": 5,
     "agenda": {
@@ -1971,6 +2813,42 @@
       "influence": 2,
       "before": 3,
       "after": 7
+     },
+     {
+      "player": "p-player1-id",
+      "step": "greenery",
+      "part": "winner",
+      "kind": "greenery",
+      "space": "05",
+      "parameter": {
+       "id": "oxygen",
+       "before": 7,
+       "after": 8
+      }
+     },
+     {
+      "player": "p-player1-id",
+      "step": "greenery",
+      "part": "winner",
+      "kind": "reaction",
+      "party": "Greens",
+      "amount": 8,
+      "trigger": "tr-increase",
+      "stock": "megacredits",
+      "before": 60,
+      "after": 68
+     },
+     {
+      "player": "p-player2-id",
+      "step": "plants",
+      "part": "effect",
+      "kind": "stock",
+      "effect": "plants",
+      "stock": "plants",
+      "amount": 6,
+      "influence": 3,
+      "before": 1,
+      "after": 7
      }
     ]
    },
@@ -1978,27 +2856,26 @@
     "p-player1-id": [
      "agenda:1",
      "assembly:1",
-     "effect:1:RDX_GREENS_BIODOME_CONTEST#0:plants"
+     "effect:1:RDX_GREENS_BIODOME_CONTEST#0:plants",
+     "effect:1:RDX_GREENS_BIODOME_CONTEST#0:greenery"
     ],
     "p-player2-id": [
-     "assembly:1"
+     "assembly:1",
+     "effect:1:RDX_GREENS_BIODOME_CONTEST#0:plants"
     ]
    },
    "effects": {
-    "playerIndex": 0,
+    "playerIndex": 1,
     "scan": {
-     "player": "p-player1-id",
-     "key": "greenery",
-     "part": "winner",
-     "sinceEvent": 8
-    },
-    "pending": {
-     "player": "p-player1-id",
-     "key": "greenery"
+     "player": "p-player2-id",
+     "key": "plants",
+     "part": "effect",
+     "sinceEvent": 26
     }
    },
    "effectState": {
-    "p-player1-id": {}
+    "p-player1-id": {},
+    "p-player2-id": {}
    }
   },
   "phaseSeq": 1,

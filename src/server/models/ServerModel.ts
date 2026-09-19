@@ -25,6 +25,7 @@ import {milestoneThreshold} from '../milestones/IMilestone';
 import {FundedAwardModel, AwardScore} from '../../common/models/FundedAwardModel';
 import {getTurmoilModel} from '../models/TurmoilModel';
 import {getParliamentModel} from '../parliament/ParliamentModel';
+import {parliamentGateAwaiting} from '../parliament/ParliamentPhase';
 import {GameModel} from '../../common/models/GameModel';
 import {MarsBotModel} from '../../common/models/MarsBotModel';
 import {createPathfindersModel} from './PathfindersModel';
@@ -541,6 +542,15 @@ export class Server {
     // the "stop" branch is destructive and two-step instead of a calm row.
     if (waitingFor.finalGreeneryPrompt !== undefined) {
       model.finalGreeneryPrompt = waitingFor.finalGreeneryPrompt;
+    }
+    // A GATE of the Mars Parliament's political phase — always the top-level
+    // prompt. The seats still awaited are read off the phase's per-seat keys
+    // NOW, so the list moves as the others answer (never a counter in memory).
+    if (waitingFor.parliamentPhasePrompt !== undefined) {
+      model.parliamentPhasePrompt = {
+        ...waitingFor.parliamentPhasePrompt,
+        awaiting: parliamentGateAwaiting(player.game, waitingFor.parliamentPhasePrompt.stage),
+      };
     }
     // NOTE: the DISCARD marker (`discardPrompt`) is deliberately NOT decorated
     // here. This function only touches the TOP-LEVEL prompt, and a discard is

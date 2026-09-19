@@ -67,7 +67,8 @@ export function winnerRewardTableOf(game: {oxygenLevel: number, temperature: num
  * own kind (a skip without the stamp cannot be attributed and is not guessed).
  */
 export function winnerOutcomeOf(outcomes: ReadonlyArray<ParliamentEnactOutcomeModel> | undefined): ParliamentEnactOutcomeModel | undefined {
-  return outcomes?.find((o) => o.part === 'winner') ??
+  // The ruling party's ANSWER to the tile (a `reaction` under the same step) is not the tile's record.
+  return outcomes?.find((o) => o.part === 'winner' && o.kind !== 'reaction') ??
     outcomes?.find((o) => o.part === undefined && (o.kind === 'ocean' || o.kind === 'greenery'));
 }
 

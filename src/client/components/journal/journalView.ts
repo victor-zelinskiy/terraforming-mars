@@ -6,6 +6,9 @@
 import {LogMessage} from '@/common/logs/LogMessage';
 import {JournalEntryRole, JournalActionCategory} from '@/common/events/GameEvent';
 
+/** The categories whose group is ONE entry by contract — never collapsed to a flat row even with a single line. */
+const KEEPS_GROUP_SHAPE: ReadonlySet<JournalActionCategory | undefined> = new Set<JournalActionCategory | undefined>(['automa-turn', 'political-phase']);
+
 /**
  * PURE journal grouping — turns a flat `LogMessage[]` into a premium
  * "action → effect → result" grouped view by GROUPING on the structured
@@ -69,11 +72,13 @@ export function buildJournalView(messages: ReadonlyArray<LogMessage>): Array<Jou
     if ('kind' in n) {
       return n;
     }
-    // A single-message group collapses to a flat row — EXCEPT a MarsBot turn:
-    // the strict "one journal entry per bot turn, always with «Осмотреть ход»"
-    // rule needs the GROUP shape (category accent + the replay affordance),
-    // even when the turn produced just one public log line (a bare reveal).
-    if (n.messages.length === 1 && n.messages[0].category !== 'automa-turn') {
+    // A single-message group collapses to a flat row — EXCEPT a MarsBot turn
+    // and a sitting of the Mars Parliament: the strict "one journal entry per
+    // bot turn, always with «Осмотреть ход»" rule (and the one-group-per-
+    // sitting rule, the protocol's shape) needs the GROUP shape (category
+    // accent + the review affordance), even when the turn produced just one
+    // public log line (a bare reveal; a sitting whose steps all stayed quiet).
+    if (n.messages.length === 1 && !KEEPS_GROUP_SHAPE.has(n.messages[0].category)) {
       return {kind: 'message', message: n.messages[0]};
     }
     // Header = the explicit root-action (lowest role rank), else the first row.

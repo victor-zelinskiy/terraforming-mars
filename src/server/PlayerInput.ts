@@ -3,7 +3,7 @@ import {Message} from '../common/logs/Message';
 import {PlayerInputType} from '../common/input/PlayerInputType';
 import {InputResponse} from '../common/inputs/InputResponse';
 import {IPlayer} from './IPlayer';
-import {PlayerInputModel, StartGamePromptMeta, BonusActionPromptMeta, AwardFundingPromptMeta, ChoiceContext, ColonyBonusCollectMeta, DeckPickPromptMeta, DiscardPromptMeta, DraftPromptMeta, FinalGreeneryPromptMeta, PlacementContext, ResourceGainPromptMeta, VenusBonusPromptMeta, SpendHeatPromptMeta, VotePromptMeta, VotePaymentMeta, PartyActionPromptMeta} from '../common/models/PlayerInputModel';
+import {PlayerInputModel, StartGamePromptMeta, BonusActionPromptMeta, AwardFundingPromptMeta, ChoiceContext, ColonyBonusCollectMeta, DeckPickPromptMeta, DiscardPromptMeta, DraftPromptMeta, FinalGreeneryPromptMeta, PlacementContext, ResourceGainPromptMeta, VenusBonusPromptMeta, SpendHeatPromptMeta, VotePromptMeta, VotePaymentMeta, PartyActionPromptMeta, ParliamentPhaseMarker} from '../common/models/PlayerInputModel';
 import {BotAttackPromptMeta} from '../common/models/BotAttackPromptModel';
 import {ExternalDrawTakeMeta} from '../common/models/ExternalDrawPromptModel';
 import {DeltaBonusPromptMeta} from '../common/models/DeltaBonusPromptModel';
@@ -70,6 +70,11 @@ export interface PlayerInput {
     // identity. Serialized on SelectCard.toModel (nesting-safe), not centrally.
     externalDrawPrompt?: ExternalDrawTakeMeta;
     deltaBonusPrompt?: DeltaBonusPromptMeta;
+    // Explicit "this SelectOption is a GATE of the Mars Parliament's political
+    // phase" marker (see ParliamentPhasePromptMeta) — the static half; the
+    // seats still awaited are filled centrally in ServerModel.getWaitingFor
+    // (a gate is always the TOP-LEVEL prompt).
+    parliamentPhasePrompt?: ParliamentPhaseMarker;
 
     // Contextual annotation identifying this PlayerInput.
     annotation: string | undefined;
@@ -149,6 +154,7 @@ export abstract class BasePlayerInput<T> implements PlayerInput {
   public votePrompt: VotePromptMeta | undefined;
   public votePayment: VotePaymentMeta | undefined;
   public partyActionPrompt: PartyActionPromptMeta | undefined;
+  public parliamentPhasePrompt: ParliamentPhaseMarker | undefined;
 
   public abstract toModel(player: IPlayer): PlayerInputModel;
   public abstract process(response: InputResponse, player: IPlayer): PlayerInput | undefined;
@@ -350,6 +356,15 @@ export abstract class BasePlayerInput<T> implements PlayerInput {
    *  it. See {@link PartyActionPromptMeta}. */
   public markPartyActionPrompt(meta: PartyActionPromptMeta): this {
     this.partyActionPrompt = meta;
+    return this;
+  }
+
+  /** Mark this `SelectOption` as a GATE of the Mars Parliament's political
+   *  phase (chainable): which gate, which generation, which sitting. Built by
+   *  `parliament/ParliamentPhase.stepGate` — the one producer. The seats still
+   *  awaited are derived at model time. See {@link ParliamentPhasePromptMeta}. */
+  public markParliamentPhase(meta: ParliamentPhaseMarker): this {
+    this.parliamentPhasePrompt = meta;
     return this;
   }
 }

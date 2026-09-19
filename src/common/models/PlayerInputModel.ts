@@ -11,7 +11,7 @@ import {CardName} from '../cards/CardName';
 import {Tag} from '../cards/Tag';
 import {ColonyName} from '../colonies/ColonyName';
 import {Color, ColorWithNeutral} from '../Color';
-import type {PartyActionId} from '../parliament/ParliamentTypes';
+import type {ParliamentPhaseStage, PartyActionId} from '../parliament/ParliamentTypes';
 import {PayProductionModel} from './PayProductionUnitsModel';
 import {ProductionLossSource} from './ProductionLossSource';
 import {AresData} from '../ares/AresData';
@@ -479,6 +479,30 @@ export type PartyActionPromptMeta = {
   usesPerGeneration: number;
 }
 
+/**
+ * EXPLICIT marker that a `SelectOption` is one of the two GATES of the Mars
+ * Parliament's political phase (Turmoil Redux): `assembly` — every
+ * participant confirms the verdict and the enactment BEFORE the enacted
+ * resolution pays; `adjourn` — every participant confirms the refreshed
+ * voting area before the next generation. The console routes the prompt to
+ * the sitting flow by THIS marker, never by its title. `awaiting` is filled
+ * centrally at model time (`ServerModel.getWaitingFor`) from the phase's own
+ * per-seat keys, so it moves as the others answer — the barrier lives in the
+ * save, never in a counter.
+ */
+export type ParliamentPhasePromptMeta = {
+  stage: ParliamentPhaseStage;
+  generation: number;
+  final: boolean;
+  /** The sitting's monotonic number (`SerializedPhaseSummary.seq`). */
+  seq: number;
+  /** Colours of the participants whose answer the phase still waits for (the viewer included until they answer). */
+  awaiting: ReadonlyArray<Color>;
+}
+
+/** The half of the gate marker the SERVER input carries; `awaiting` is derived when the model is built. */
+export type ParliamentPhaseMarker = Omit<ParliamentPhasePromptMeta, 'awaiting'>;
+
 export type BaseInputModel = {
   title: string | Message;
   warning?: string | Message;
@@ -556,6 +580,10 @@ export type BaseInputModel = {
   /** Explicit "this prompt is a Turmoil Redux PARTY ACTION" marker (see
    *  {@link PartyActionPromptMeta}). Serialized on the input's own `toModel`. */
   partyActionPrompt?: PartyActionPromptMeta;
+  /** Explicit "this SelectOption is a GATE of the political phase" marker (see
+   *  {@link ParliamentPhasePromptMeta}). Serialized centrally in
+   *  ServerModel.getWaitingFor: a gate is always the TOP-LEVEL prompt. */
+  parliamentPhasePrompt?: ParliamentPhasePromptMeta;
 }
 
 export type AndOptionsModel = BaseInputModel & {
