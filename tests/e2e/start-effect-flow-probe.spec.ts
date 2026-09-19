@@ -94,48 +94,113 @@ test.describe('start effect flow · interactive draw is ONE play animation', () 
 
     // THE PER-FRAME WITNESS for the whole three-effect sequence.
     await page.evaluate(() => {
-      const w = window as unknown as {__flowWatch: {frames: Array<unknown>, ghost: number, early: number, standalone: number, zoom: number,
-        handoffs: Array<{t: number, dx: number, dy: number, dw: number}>}};
+      type Landing = {t: number, x: number, y: number, w: number,
+        sx: number, sy: number, sw: number, settled: number, prev: string};
+      const w = window as unknown as {__flowWatch: {frames: Array<unknown>, ghost: number, early: number,
+        standalone: number, zoom: number, handoffs: Array<Landing>}};
       const state = {frames: [] as Array<unknown>, ghost: 0, early: 0, standalone: 0, zoom: 0,
-        handoffs: [] as Array<{t: number, dx: number, dy: number, dw: number}>};
+        handoffs: [] as Array<Landing>};
       w.__flowWatch = state;
       const t0 = performance.now();
       const vis = (el: Element | null): boolean =>
         el !== null && (el as HTMLElement).checkVisibility({opacityProperty: true, visibilityProperty: true});
-      // THE HANDOFF-DELTA WITNESS. The hero's handoff is «reveal the real
-      // seat card, then DISSOLVE the proxy over it» — so for the dissolve's
-      // whole window BOTH copies exist and one sampled frame gives the true
-      // overlay delta, immune to how sparsely headless rAF ticks (a
-      // last-frame-before-removal comparison read the DESIGNED ±3 px settle
-      // dip whenever sampling landed mid-dip). The seat mounts inside a zone
-      // running `con-start-embed-in`, so a raw (non-resting) landing measure
-      // shows up here as a 9–18 px delta — the visible snap at the handover.
+      // THE LANDING WITNESS — the handoff is a DOUBLE, not a dissolve, and the
+      // place it is measured against is the seat's RESTING rect.
+      //
+      // ① `hideHeroProxyNextFrame` (playedHeroDirector, 2026-09-13) replaced the
+      //    crossfade with «the real card paints UNDER the proxy and the proxy is
+      //    removed on the NEXT painted frame — never faded». The window this
+      //    probe used to gate on (0.02 < opacity < 0.97) was deleted together
+      //    with the artefact it caused, so it can never open again: the witness
+      //    reported «no hero handoff overlay was witnessed» about a handoff that
+      //    runs perfectly.
+      // ② The seat is NOT at its final box at that instant, and it is not
+      //    supposed to be: it mounts inside a zone running `con-start-embed-in`,
+      //    and the flight deliberately aims at the rect the slot COMES TO REST
+      //    at (`restingRectOf` / `peekTargetRect` — the landing-rect law). The
+      //    real card also fades in over the slot's own 160 ms transition, so at
+      //    the handoff frame it is painted at ~0.2, not at 1. A mid-entry
+      //    comparison would therefore fail the CORRECT product. (Measured on
+      //    this flow: the last painted proxy frame sits within a pixel of the
+      //    seat's final box while the seat's live box is still 3-10 px away.)
+      //
+      // So the claim is asserted where it is true and where the regression it
+      // exists for shows: the proxy's LAST PAINTED box must be the box the seat
+      // SETTLES at. A flight aimed at a moving rect lands short and the visible
+      // card snaps by the remaining travel — measured at 9-18 px when that bug
+      // shipped; only subpixel rounding is allowed.
+      const paintedOpacity = (el: Element): number => {
+        let op = 1;
+        for (let n: Element | null = el; n !== null; n = n.parentElement) {
+          op *= Number(getComputedStyle(n).opacity);
+        }
+        return op;
+      };
+      /** Is this element (or an ancestor zone) still being MOVED by a live
+       *  CSS animation? The same predicate `restingRectOf` uses — a seat whose
+       *  zone is mid-entry has no settled box to compare against yet. */
+      const stillEntering = (el: Element): boolean => {
+        for (let n: Element | null = el, d = 0; n !== null && d < 14; n = n.parentElement, d++) {
+          const host = n as Element & {getAnimations?: (o?: {subtree?: boolean}) => Array<Animation>};
+          if (typeof host.getAnimations !== 'function') {
+            continue;
+          }
+          for (const anim of host.getAnimations({subtree: false})) {
+            if (anim.playState !== 'running') {
+              continue;
+            }
+            try {
+              const frames = (anim.effect as KeyframeEffect).getKeyframes() as Array<{transform?: unknown}>;
+              if (frames.some((f) => typeof f.transform === 'string')) {
+                return true;
+              }
+            } catch {
+              // an effect that cannot be read is not evidence of motion
+            }
+          }
+        }
+        return false;
+      };
+      const seatEl = () =>
+        document.querySelector<HTMLElement>('[data-embed-source-slot] :is(.card-container, .pcard)') ??
+        document.querySelector<HTMLElement>('[data-embed-source-slot]');
+      let airborne: {t: number, x: number, y: number, w: number} | undefined;
       const heroDelta = () => {
         const hero = document.querySelector<HTMLElement>('.con-played-hero__proxy');
-        if (hero === null) {
+        const seat = seatEl();
+        if (hero !== null) {
+          const r = hero.getBoundingClientRect();
+          const s = seat?.getBoundingClientRect();
+          // Only the flight that is ENDING at the seat (the return leg dissolves
+          // at the shelf, hundreds of px away). Near-gate at half a card.
+          if (paintedOpacity(hero) > 0.97 && r.width > 10 && s !== undefined && s.width > 10 &&
+              Math.abs(s.left - r.left) < 200 && Math.abs(s.top - r.top) < 200) {
+            airborne = {t: Math.round(performance.now() - t0), x: r.left, y: r.top, w: r.width};
+          }
           return;
         }
-        const op = parseFloat(getComputedStyle(hero).opacity);
-        if (!(op > 0.02 && op < 0.97)) {
-          return; // not in the dissolve window — the seat may not be revealed yet
+        // The proxy is gone: the last painted box IS the handoff.
+        if (airborne !== undefined) {
+          state.handoffs.push({...airborne, sx: NaN, sy: NaN, sw: NaN, settled: 0, prev: ''});
+          airborne = undefined;
         }
-        const r = hero.getBoundingClientRect();
-        const seat = document.querySelector<HTMLElement>('[data-embed-source-slot] :is(.card-container, .pcard)') ??
-          document.querySelector<HTMLElement>('[data-embed-source-slot]');
-        if (seat === null || r.width < 10) {
+        const h = state.handoffs[state.handoffs.length - 1];
+        if (h === undefined || h.settled === 1 || seat === null) {
+          return;
+        }
+        if (stillEntering(seat)) {
+          h.prev = '';
           return;
         }
         const s = seat.getBoundingClientRect();
-        // Only the flight that ENDED at the seat (the return leg dissolves at
-        // the shelf, hundreds of px away). Near-gate at half a card.
-        if (s.width > 10 && Math.abs(s.left - r.left) < 200 && Math.abs(s.top - r.top) < 200) {
-          state.handoffs.push({
-            t: Math.round(performance.now() - t0),
-            dx: Math.round((s.left - r.left) * 100) / 100,
-            dy: Math.round((s.top - r.top) * 100) / 100,
-            dw: Math.round((s.width - r.width) * 100) / 100,
-          });
+        const sig = `${Math.round(s.left * 100)},${Math.round(s.top * 100)},${Math.round(s.width * 100)}`;
+        if (s.width > 10 && sig === h.prev) {
+          h.sx = s.left;
+          h.sy = s.top;
+          h.sw = s.width;
+          h.settled = 1;
         }
+        h.prev = sig;
       };
       const tick = () => {
         const t = Math.round(performance.now() - t0);
@@ -228,10 +293,13 @@ test.describe('start effect flow · interactive draw is ONE play animation', () 
       __flowWatch: {frames: Array<{t: number, queueOp: number, revealUp: boolean, colUp: boolean,
         dockFaceUp: boolean, intakeUp: boolean, zoomUp: boolean, inEmbed: boolean, strip: number}>,
         ghost: number, standalone: number, zoom: number,
-        handoffs: Array<{t: number, dx: number, dy: number, dw: number}>}}).__flowWatch);
+        handoffs: Array<{t: number, x: number, y: number, w: number,
+          sx: number, sy: number, sw: number, settled: number}>}}).__flowWatch);
     const frames = watch.frames;
     console.log(`[flow-watch] frames=${frames.length} ghost=${watch.ghost} standalone=${watch.standalone} zoom=${watch.zoom}`);
-    console.log(`[flow-watch] hero handoffs: ${watch.handoffs.map((h) => `t=${h.t} Δ=${h.dx},${h.dy} Δw=${h.dw}`).join(' · ') || 'none'}`);
+    console.log(`[flow-watch] hero landings: ${watch.handoffs.map((h) =>
+      `t=${h.t} proxy=${Math.round(h.x)},${Math.round(h.y)} seat=${Math.round(h.sx)},${Math.round(h.sy)} ` +
+      `Δ=${(h.sx - h.x).toFixed(2)},${(h.sy - h.y).toFixed(2)} settled=${h.settled}`).join(' · ') || 'none'}`);
     if (watch.standalone > 0) {
       console.log(`[flow-watch] standalone at ${frames.filter((f) => f.revealUp && !f.inEmbed).map((f) => f.t).join(', ')} ms`);
     }
@@ -271,15 +339,19 @@ test.describe('start effect flow · interactive draw is ONE play animation', () 
     expect(Math.max(...stripCounts), 'a multi-card reveal stood').toBeGreaterThan(1);
     expect(stripCounts.some((c, i) => i > 0 && c < stripCounts[i - 1] && c > 0),
       'the strip never re-flowed after a take (cards stayed in their slots)').toBeTruthy();
-    // 8 · THE HANDOFF IS PIXEL-TRUE. During the dissolve the real seat card
-    //     is painted UNDER the proxy — every sampled overlay frame must be a
-    //     whisker apart. A raw (non-resting) landing measure against the
-    //     still-entering embed zone read 9–18 px here; only subpixel rounding
-    //     (plus one frame of the ±3 px settle tail) is allowed.
-    expect(watch.handoffs.length, 'no hero handoff overlay was witnessed at the seat').toBeGreaterThan(0);
+    // 8 · THE LANDING IS PIXEL-TRUE. The proxy's LAST PAINTED box is the box
+    //     the seat SETTLES at — the flight aims at the resting rect, and a
+    //     flight aimed at a moving one lands short and snaps the visible card
+    //     by the remaining travel (9–18 px when that bug shipped). See the
+    //     witness above for why the comparison is against the SETTLED seat and
+    //     not against the seat's live box at the handoff frame.
+    expect(watch.handoffs.length, 'no hero landing was witnessed at the seat').toBeGreaterThan(0);
     for (const h of watch.handoffs) {
-      expect(Math.abs(h.dx), `hero handoff Δx at t=${h.t} (${h.dx},${h.dy})`).toBeLessThan(2);
-      expect(Math.abs(h.dy), `hero handoff Δy at t=${h.t} (${h.dx},${h.dy})`).toBeLessThan(2);
+      const where = `t=${h.t} proxy=${h.x.toFixed(2)},${h.y.toFixed(2)} seat=${h.sx.toFixed(2)},${h.sy.toFixed(2)}`;
+      expect(h.settled, `the seat never came to rest after the landing (${where})`).toBe(1);
+      expect(Math.abs(h.sx - h.x), `hero landing Δx (${where})`).toBeLessThan(2);
+      expect(Math.abs(h.sy - h.y), `hero landing Δy (${where})`).toBeLessThan(2);
+      expect(Math.abs(h.sw - h.w), `hero landing Δw (${where} w=${h.w.toFixed(2)}/${h.sw.toFixed(2)})`).toBeLessThan(2);
     }
   });
 });
