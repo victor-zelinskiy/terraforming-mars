@@ -29,6 +29,15 @@ import {NO_PAYMENT, createGameWithCards, fetchPlayerModel, openActionFocus, open
  * those here would only re-measure somebody else's claim.
  */
 
+/**
+ * How many 16 ms sampler ticks the carried card may spend BLANK on its way
+ * home. `runAnchorCarry` blanks the arriving anchor on mount and un-blanks it
+ * in the PIN, so the honest cost is the mount frame plus the flush that
+ * follows it; anything longer is the card visibly going missing. Measured on
+ * this flow (see the `[delta-home]` line the probe prints).
+ */
+const DELTA_HOME_BLANK_TICKS = 4;
+
 const CARD = 'Storm Surge Barrier';
 const OUT_DIR = path.resolve('screenshots', 'console-delta-card-advance');
 
@@ -377,6 +386,19 @@ test.describe('console — the card-action Hydronetwork door', () => {
       setInterval(tick, 16);
     });
     await press(page, 'Enter', 2500);
+    // THE SAMPLER'S WINDOW IS A STATE, NOT A DURATION. The 2500 ms settle above
+    // is the press's own pacing; whether the track's source dock has taken the
+    // card by then is a different question, and on a loaded run the answer is
+    // no — the read then came back with ZERO samples and reported «the card
+    // must PAINT on the track» about a carry that had not started yet
+    // (measured 1/6 at `--repeat-each=6`, n=0). The `setInterval` keeps running,
+    // so waiting for the dock's own card is enough; extra trailing samples only
+    // settle `rest` further.
+    await page.locator('.con-hydro__bonus-source .pcard')
+      .waitFor({state: 'visible', timeout: 20_000}).catch(() => {});
+    await page.waitForFunction(
+      () => ((window as unknown as {__carry?: {samples: Array<unknown>}}).__carry?.samples.length ?? 0) > 0,
+      undefined, {timeout: 15_000}).catch(() => {}); // the assert below owns the verdict, with its own report
     const carry = await page.evaluate(() => {
       const w = window as unknown as {
         __carry?: {hero?: {x: number, y: number, w: number, h: number},
@@ -537,16 +559,34 @@ test.describe('console — the card-action Hydronetwork door', () => {
     });
     await press(page, 'Escape', 2500);
     const home = await page.evaluate(() => (window as unknown as {__home?: Array<{x: number, y: number, w: number, h: number, op: number}>}).__home ?? []);
-    const firstHome = home[0];
-    const homeMsg = `dock=${JSON.stringify(dockBox)} first=${JSON.stringify(firstHome)} n=${home.length}`;
+    // THE FIRST **PAINTED** FRAME — the claim has always been about the frame
+    // the player can see, and the sampler reads the slot from the moment it is
+    // LAID OUT. `runAnchorCarry` mounts the arriving anchor blanked
+    // (`holdCarriedAnchors`: «a carried object may not paint at a home it is
+    // about to leave») and the PIN is what un-blanks it — so the samples before
+    // the pin are the hold, at the home box, at opacity 0. Taking `home[0]`
+    // measured that hold and reported «the walk home must START at the dock's
+    // own card» with a Δ of 57 px and `op: 0` in its own message.
+    const blankPrefix = home.findIndex((h) => h.op > 0.9);
+    const firstHome = blankPrefix < 0 ? undefined : home[blankPrefix];
+    const homeMsg = `dock=${JSON.stringify(dockBox)} first-painted=${JSON.stringify(firstHome)} ` +
+      `blank-prefix=${blankPrefix} n=${home.length} head=${JSON.stringify(home.slice(0, 4))}`;
+    console.log(`[delta-home] ${homeMsg}`);
     expect(firstHome, `the hero must paint on the way back (${homeMsg})`).toBeDefined();
     for (const axis of ['x', 'y', 'w', 'h'] as const) {
       expect(Math.abs((firstHome?.[axis] ?? 0) - (dockBox?.[axis] ?? 0)),
         `the walk home must START at the dock's own card (${axis}: ${homeMsg})`).toBeLessThanOrEqual(6);
     }
-    // …and SOLID while it travels: the un-yield's flat opacity fade used to
-    // run straight through the object it was carrying.
+    // …and SOLID from there on: the un-yield's flat opacity fade used to run
+    // straight through the object it was carrying.
     expect(firstHome?.op ?? 0, `the carried card must not fade home (${homeMsg})`).toBeGreaterThan(0.9);
+    // …AND THE BLANK IS A MOUNT FRAME, NOT A GAP. The hold exists so the card
+    // cannot paint at its home before the pin; if it outlives a couple of
+    // sampler ticks (16 ms each) the player sees the card they are holding
+    // VANISH and re-appear mid-flight — the exact defect `runAnchorCarry`'s
+    // «the old code held the object INVISIBLE for that whole gap» names.
+    expect(blankPrefix, `the carried card may not go missing on the way home (${homeMsg})`)
+      .toBeLessThanOrEqual(DELTA_HOME_BLANK_TICKS);
     const back = await readout(page);
     await shoot(page, '3-back');
     expect(back.hydroUp, 'B leaves the track').toBe(false);
@@ -639,7 +679,19 @@ test.describe('console — the card-action Hydronetwork door', () => {
     const moving = xs.filter((x, i) => i > 0 && x !== xs[i - 1]).length;
     const span = mk.length > 0 ? mk[mk.length - 1].t - mk[0].t : 0;
     const report = `samples=${mk.length} span=${span}ms phases=${JSON.stringify(phases)} moving=${moving}`;
-    expect(phases, `the glide must reach its ARRIVAL (${report})`).toContain('arrive');
+    // …AND REACHED ITS LANDING. `arrive` is a PHASE, not necessarily a painted
+    // state: `hydroMarkerDirector` emits it and calls `tryLock()` in the SAME
+    // tick, so when the commit is already answered — and over the WebSocket
+    // channel it is, in about one frame — `finishLock()` runs synchronously and
+    // the `--arrive` class never survives to a paint (measured 2/6 at
+    // `--repeat-each=6`: `phases=["glide","lock","pulse"]`, span 1067 ms, 26
+    // moving samples, with the leg entirely healthy). `lock`/`pulse` are the
+    // honest witness of the same fact and STRICTLY imply it: `finishLock` is
+    // reachable only through `tryLock`, which returns unless `arriveReached`.
+    // The regression this guards (the marker APPEARING on the new stop:
+    // charge+glide only, 19 samples over 343 ms, 5 moving) has neither.
+    expect(phases.some((p) => p === 'arrive' || p === 'lock'),
+      `the glide must reach its ARRIVAL (${report})`).toBe(true);
     expect(moving, `the marker must visibly travel, not appear (${report})`).toBeGreaterThan(10);
     expect(span, `the whole leg must play, not one frame of it (${report})`).toBeGreaterThan(600);
 
