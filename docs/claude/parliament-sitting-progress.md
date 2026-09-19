@@ -1278,15 +1278,18 @@ P-01…P-22 из Э5/Э8. Формат строки: **№ · поверхнос
   не увидел ни одного rotateY — «hidden-stage shape» при голодании rAF), `hand-album-probe` «tail 2» (TV) — ширина
   карты 25 px между страницами (класс «сравнение с неустоявшейся стороной» из tests.md).
 - **Чужие красные — стабильные** (красные и изолированно; в списке 2026-09-03 их не было): MarsBot-корпорации ×18
-  (`.con-info__block--botcorp .pcard` не рендерится); `console-hud-frame` fhd / tv-4k (`main == viewport − 2×(rail+gap)`,
+  (карта корпорации бота не рендерится ни в табло — `.con-played__botcorp .pcard`, 17 спеков, — ни в Информации —
+  `.con-info__block--botcorp .pcard`, `console-bot-corporation`); `console-hud-frame` fhd / tv-4k (`main == viewport − 2×(rail+gap)`,
   остаток 14 / 6 px — файлы рамы с базы не менялись, восемь коммитов «UI rework» по ним между `23f8a50c51` и базой);
   `start-effect-flow-probe` (хэндовер героя не засвидетельствован — стартовая сцена не менялась, спек — UI rework
   `94622b5504`); `console-extras-explorer` Deck (верх слота Δ = 1,3 px — субпиксельный дрейф, спек — UI rework
-  `d67f0e9a1b` до базы); `console-delta-card-advance` — класс ② списка 2026-09-03.
+  `d67f0e9a1b` до базы); `console-delta-card-advance:265` («the walk home must START at the dock's own card»: первый
+  кадр возврата снят не с карты дока, Δx 57 px при допуске 6) — в списке 2026-09-03 его НЕ было.
 - **Список 2026-09-03 против этого прогона:** классы ① и ③ и три из четырёх ② — **зелёные** (corp-first-action,
   community-marker, first-action-unsourced-draw, bonus-action-handoff, bonus-nested-first-action, planet-focus ×2,
   zz-nomads-visual ×2, start-flow-polish-probe, start-scene-profiles ×4, hydro-bonus-order ×2, hydro-copied-tile,
-  corporate-espionage ×3 — все `ok`); остался `console-delta-card-advance`. Список — на ревизию владельцу.
+  corporate-espionage ×3 — все `ok`): ни один поимённо названный в списке спек больше не красный. Список — на ревизию
+  владельцу; `console-delta-card-advance` в нём не числился и красный впервые.
 - **Чего не сделано:** прогона чужих красных на базовом коммите `65d3e556b4` (нужна вторая сборка). Доказательство
   «не Парламент» — три факта: пустой `git diff 65d3e556b4..HEAD --stat` по путям спека, последнее касание спека —
   «UI rework» до базы, изолированный перегон.
