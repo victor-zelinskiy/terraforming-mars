@@ -914,6 +914,9 @@ parliamentFixture('parliament-climate-vote', climateTable(4, 1, 'vote'));
 // and, if blue wins, +2 (4 → 6 → 2 cards) — the vote panel's «+1 if you win ·
 // step 3» suffix on BOTH links of the chain.
 parliamentFixture('parliament-climate-vote-raise', climateTable(4, 1, 'vote', {agenda: [2, 1]}));
+// …and blue one step SHORT OF A CARD STEP (step 6 = influence 3; winning → step 7 = the Agenda's CARD reward):
+// the political phase pays the step's card with the summary — the sitting's enactment glide lands on a card step.
+parliamentFixture('parliament-climate-cardstep', climateTable(4, 1, 'vote', {agenda: [6, 1]}));
 // The sitting has just convened: the ASSEMBLY gate stands for both seats — the raise, the Greens' answer and the draw are still to come.
 parliamentFixture('parliament-climate-assembly', climateTable(4, 2, 'assembly'));
 // The political phase STOPPED INSIDE blue's mandatory TAKE of the cards

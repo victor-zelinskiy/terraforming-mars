@@ -495,7 +495,11 @@ export default defineComponent({
      * premium +N chip here exactly like the resource rows.
      */
     tr(): number {
-      return this.effectivePlayer.terraformRating;
+      // The rating rides the SAME reward hold as the rows (`rating` on the
+      // stock channel — the Parliament's Agenda bonus flies into this cell):
+      // committed − held until the chip's touchdown, the viewer's own only.
+      const held = this.own && panelRewardHold.active ? heldStock('rating') : 0;
+      return this.effectivePlayer.terraformRating - held;
     },
     /** Victory points (incl. TR) — the server recomputes the breakdown per response. */
     vp(): number {

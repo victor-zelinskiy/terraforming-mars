@@ -585,6 +585,14 @@ function escapeName(name: string): string {
  *  chosen host card in the «Разыграно» table / the aux satellite). */
 function targetPointFor(spec: ResourceTransferSpec): TransferPoint | undefined {
   if (spec.channel === 'stock') {
+    // The TERRAFORM RATING rides the stock channel under the rail's own key
+    // (`rating`): its home is the score header's TR cell, not a resource row
+    // (the Parliament's Agenda bonus flies there — parliamentRewardBeat.ts).
+    if (spec.resource === 'rating') {
+      const cell = measureRestingRect('.con-res .con-score__cell--tr .con-score__valwrap') ??
+        measureRestingRect('.con-res .con-score__cell--tr');
+      return cell !== undefined ? centerOf(cell) : undefined;
+    }
     const r = measureRestingRect(`.con-res__row--${spec.resource} .con-res__stockwrap`) ??
       measureRestingRect(`.con-res__row--${spec.resource}`);
     return r !== undefined ? centerOf(r) : undefined;

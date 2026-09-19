@@ -11,8 +11,11 @@ import {Phase} from '../../src/common/Phase';
 import {PlayerId} from '../../src/common/Types';
 import {AGENDA_TRACK, influenceAtAgenda} from '../../src/common/parliament/ParliamentTypes';
 import {scaledAmount, sequelAmount} from '../../src/common/parliament/influenceScaling';
-import {OUTCOME_KINDS, REWARD_ADDRESS} from '../../src/common/parliament/rewardAddress';
+import {OUTCOME_KINDS, REWARD_ADDRESS, rewardAddressOf} from '../../src/common/parliament/rewardAddress';
+import {Color} from '../../src/common/Color';
+import {ParliamentEnactOutcomeModel, ParliamentPhaseSummaryModel} from '../../src/common/models/ParliamentModel';
 import {RESOLUTION_FAMILIES, familyOf} from '../../src/client/console/parliament/resolutionFamily';
+import {sittingBeats} from '../../src/client/console/parliament/sittingBeats';
 import {REDUX_RESOLUTION_CATALOG} from '../../src/server/parliament/resolutions/ResolutionCatalog';
 import {ResolutionDefinition} from '../../src/server/parliament/resolutions/IResolution';
 import {SerializedEnactOutcome} from '../../src/server/parliament/SerializedParliament';
@@ -257,6 +260,56 @@ function checkKinds(definition: ResolutionDefinition, run: Run): Array<string> {
         failures.push(`${label(definition)}: шаг '${o.step}' пропущен без причины`);
       } else if (LOCALE[o.reason] === undefined) {
         failures.push(`${label(definition)}: причина пропуска «${o.reason}» шага '${o.step}' не переведена (src/locales/ru)`);
+      }
+    }
+  }
+  failures.push(...checkNoSilentReward(definition, run));
+  return failures;
+}
+
+/**
+ * NO SILENT REWARD (plan §4, Э5): every record a seat receives becomes exactly
+ * ONE beat of the sitting director with an ADDRESS — a place the player sees
+ * it land, and for a skip (or a paying kind that paid nothing) a NAMED,
+ * translated reason on the stage plate. The sitting's beat list is the pure
+ * client module (`sittingBeats`) over the summary shape the server ships; the
+ * outcomes are the run's own records, so a resolution that pays a kind the
+ * director cannot present fails here, by card and step.
+ */
+function checkNoSilentReward(definition: ResolutionDefinition, run: Run): Array<string> {
+  const failures: Array<string> = [];
+  const outcomes = run.outcomes as unknown as Array<ParliamentEnactOutcomeModel>;
+  const summary = {
+    generation: 1, final: false, support: [], refreshed: [], lobbyRefilled: [], outcomes,
+    winner: {instance: `${definition.id}#0`, resolution: definition.id, party: definition.party, votes: 1},
+    enacted: {instance: `${definition.id}#0`, resolution: definition.id, party: definition.party},
+  } as unknown as ParliamentPhaseSummaryModel;
+  for (const seat of run.seats) {
+    const viewer = seat.id as unknown as Color;
+    const own = outcomes.filter((o) => o.player === viewer && o.kind !== 'reaction');
+    const beats = sittingBeats(summary, viewer, 'live').filter((b) => b.kind === 'reward');
+    if (beats.length !== own.length) {
+      failures.push(`${label(definition)}: у места ${seat.id} ${own.length} записей, но ${beats.length} бетов награды — запись без бета (тихая награда)`);
+    }
+    for (const beat of beats) {
+      const outcome = beat.outcome;
+      if (outcome === undefined) {
+        failures.push(`${label(definition)}: бет награды без записи`);
+        continue;
+      }
+      const delivery = rewardAddressOf(outcome, viewer);
+      if (!delivery.mine) {
+        failures.push(`${label(definition)}: адрес записи '${outcome.step}' не считает её записью места ${seat.id}`);
+      }
+      if (delivery.skipped !== undefined) {
+        if (beat.skipped !== delivery.skipped) {
+          failures.push(`${label(definition)}: бет пропуска '${outcome.step}' называет «${beat.skipped}», адрес — «${delivery.skipped}»`);
+        }
+        if (LOCALE[delivery.skipped] === undefined) {
+          failures.push(`${label(definition)}: плита пропуска шага '${outcome.step}' не переведена: «${delivery.skipped}»`);
+        }
+      } else if (delivery.address.unit !== 'tile' && (delivery.payload.amount ?? 0) <= 0) {
+        failures.push(`${label(definition)}: запись '${outcome.step}' (${outcome.kind}) без величины и без причины — тихая награда`);
       }
     }
   }

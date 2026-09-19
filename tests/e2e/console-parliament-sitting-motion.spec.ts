@@ -1,7 +1,7 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootFixtureSeats, fetchPlayerModel, openMandatoryAnnounce, press, settle} from './consoleStart';
+import {bootFixtureSeats, fetchPlayerModel, openMandatoryAnnounce, press} from './consoleStart';
 
 /**
  * THE PARLIAMENT'S SITTING — the MOTION half (Э4 of

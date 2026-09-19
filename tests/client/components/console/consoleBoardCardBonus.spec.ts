@@ -1,6 +1,6 @@
 import {expect} from 'chai';
 import {
-  abortBoardCardBonus, armBoardCardBonus, boardCardBonusState, bonusHoldingSingleZoom,
+  abortBoardCardBonus, agendaTrackOnScreen, armBoardCardBonus, boardCardBonusState, bonusHoldingSingleZoom,
   bonusZoomOriginEl, endBoardCardBonus, isBoardCardBonusActive, isBonusRevealStaged,
   isVenusScaleReveal, markBonusZoomEntryReady, registerBoardCardBonusHandle,
   registerBonusZoomOrigin, resetBoardCardBonus, revealMatchesSource, setBoardCardBonusPhase,
@@ -76,6 +76,23 @@ describe('consoleBoardCardBonus', () => {
     expect(revealMatchesSource({type: 'colony', colonyName: 'Pluto'} as any, step)).to.be.false;
     expect(revealMatchesSource({type: 'agenda'} as any, CELL)).to.be.false;
     expect(revealMatchesSource({type: 'agenda'} as any, VENUS)).to.be.false;
+  });
+
+  it('agendaTrackOnScreen — the Parliament\'s track is on screen only while its section stands and is not handed over (one predicate for the scene and the deck-draw verdict)', () => {
+    expect(agendaTrackOnScreen(), 'no parliament in the document').to.be.false;
+    const parl = document.createElement('div');
+    parl.className = 'con-parl';
+    const track = document.createElement('div');
+    track.setAttribute('data-parl-agenda', '');
+    parl.appendChild(track);
+    document.body.appendChild(parl);
+    try {
+      expect(agendaTrackOnScreen(), 'the track stands').to.be.true;
+      parl.classList.add('con-parl--handed-over');
+      expect(agendaTrackOnScreen(), 'handed over to a nested scene — not on screen').to.be.false;
+    } finally {
+      parl.remove();
+    }
   });
 
   it('boardCardBonusClaimsReveal — the deck-draw defers to an active colony-cell scene', () => {

@@ -31,6 +31,8 @@ import {transportDiagFacts} from '@/client/console/transport/gameTransport';
 import {workspaceStackDepth} from '@/client/console/consoleWorkspaceStack';
 import {notificationsSettled} from '@/client/components/notifications/notificationState';
 import {InputEchoSnapshot, inputEchoSnapshot} from '@/client/console/inputEcho';
+import {parliamentRewardDiag} from '@/client/console/parliament/parliamentRewardBeat';
+import {boardCardBonusDiag} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
 
 export type ConsoleReadinessSnapshot = {
   input: InputEchoSnapshot;
@@ -39,6 +41,10 @@ export type ConsoleReadinessSnapshot = {
   transport: ReturnType<typeof transportDiagFacts>;
   wsDepth: number;
   notificationsSettled: boolean;
+  /** The parliament's reward ledger — what the sitting still owes and what it did with each record (Turmoil Redux). */
+  parliamentReward: ReturnType<typeof parliamentRewardDiag>;
+  /** The board-card-bonus scene (cover lifts) — its phase, its source and why its last scene ended. */
+  cardBonus: ReturnType<typeof boardCardBonusDiag>;
   at: number;
 };
 
@@ -49,6 +55,8 @@ export function consoleReadinessSnapshot(): ConsoleReadinessSnapshot {
     transport: transportDiagFacts(),
     wsDepth: workspaceStackDepth(),
     notificationsSettled: notificationsSettled(),
+    parliamentReward: parliamentRewardDiag(),
+    cardBonus: boardCardBonusDiag(),
     at: Date.now(),
   };
 }

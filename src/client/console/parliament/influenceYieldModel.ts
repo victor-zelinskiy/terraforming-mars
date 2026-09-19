@@ -289,6 +289,23 @@ export function resolvingYieldOf(effect: InfluenceScaledEffect, amount: number, 
   return fixedYield(effect, 'resolving', amount, seat?.influence);
 }
 
+/**
+ * THE READING OF THIS PAYOUT before it is recorded — the sitting's reward
+ * page at the assembly gate (docs/TURMOIL_REDUX_PARLIAMENT_SITTING.md
+ * § «Передача в Э5», seam 5): the enactment has happened, the winner's Agenda
+ * step is taken, so the seat's influence, its counts and its totals are the
+ * ones the effects will pay by — the same declaration, the same
+ * `scaledAmount`, read as «this payout» rather than «by your current
+ * influence» / «if enacted now». No forecast (there is no vote left to win).
+ * A skipped estimate keeps its own reason; a seat outside the table reads
+ * the reference alone.
+ */
+export function resolvingYieldsOf(resolution: IClientResolution, model: ParliamentModel | undefined, viewer: Color | undefined): Array<InfluenceYield> {
+  return voteYieldsOf(resolution, model, viewer)
+    .filter((y) => y.context !== 'forecast')
+    .map((y) => (y.context === 'estimate' ? {...y, context: 'resolving'} : y));
+}
+
 /** The short name of a standard resource's production in a results line («M€ production +4»). */
 export function productionResourceLabelKey(resource: Resource | undefined): string {
   switch (resource) {

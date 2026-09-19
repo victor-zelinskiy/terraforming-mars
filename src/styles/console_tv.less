@@ -601,9 +601,11 @@ html.con-profile-tv {
         row-gap: var(--con-ws-stage-rowgap, .7rem);
         padding: 1.6rem .8rem .8rem;
     }
+    /* 2.6rem, not 2.4: the pick's status chips (current → resulting) stand 2.5rem tall on this profile —
+       a 2.4rem rail clipped them by 4 px (the parliament's reward pick, measured at 3840×2160). */
     .con-cards__verdictbar.con-ws-stage-status,
     .con-reveal__namebar.con-ws-stage-status,
-    .con-composer__beatstatus.con-ws-stage-status { height: 2.4rem; }
+    .con-composer__beatstatus.con-ws-stage-status { height: 2.6rem; }
     /* (The hand album reserves the focused card + state band headroom in its
        pure plan — ALBUM_GUTTER_TOP scales with the profile's uiScale.) */
     /* The TV rules panel beside the hero card (Этап 1-R2): a full reading

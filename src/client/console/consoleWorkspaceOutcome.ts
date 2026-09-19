@@ -839,13 +839,16 @@ export function workspaceSourceZoomOrigin(name: string): ZoomOrigin {
       // degraded to the TEXTUAL entrance: the viewer rose out of nowhere while
       // the seat kept its card, and the player saw two of the same card. The
       // whole point of a physical origin is that there is only ever one.
-      // The PARLIAMENT's enactment stage (Turmoil Redux) holds the enacted
-      // resolution in its hero slot — keyed `resolution:<id>`, the face every
-      // parliament surface slots by.
+      // The PARLIAMENT's sitting (Turmoil Redux) holds the enacted resolution
+      // on its reward stage's hero slot while a hosted step stands — and in
+      // the government the rest of the time (ONE instance, teleported) —
+      // keyed `resolution:<id>`, the face every parliament surface slots by.
       return document.querySelector<HTMLElement>(
         `[data-motion-surface="action-composer"] [data-zoom-slot="${key}"]`) ??
         document.querySelector<HTMLElement>(
-          `[data-parl-enact-hero] [data-zoom-slot="${key}"]`) ??
+          `[data-parl-sit-hero] [data-zoom-slot="${key}"]`) ??
+        document.querySelector<HTMLElement>(
+          `.con-parl [data-parl-gov-carry] [data-zoom-slot="${key}"]`) ??
         document.querySelector<HTMLElement>(
           '[data-embed-source-slot] :is(.card-container, .pcard)');
     },

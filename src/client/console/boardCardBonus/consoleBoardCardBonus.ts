@@ -51,6 +51,16 @@ export function isAgendaReveal(source: CardDrawRevealSource | undefined): boolea
   return source?.type === 'agenda';
 }
 
+/**
+ * The Parliament's Agenda track is ON SCREEN (the workspace open, not handed
+ * over to a nested scene) — the one place an `agenda` reveal lifts its cover
+ * off the step the marker reached. Read by the cover scene AND the deck-draw
+ * verdict, so the two can never disagree about who presents the card.
+ */
+export function agendaTrackOnScreen(): boolean {
+  return typeof document !== 'undefined' && document.querySelector('.con-parl:not(.con-parl--handed-over) [data-parl-agenda]') !== null;
+}
+
 /** The reveal source a `venus-scale` scene claims (the Venus 8% draw). */
 export function isVenusScaleReveal(source: CardDrawRevealSource | undefined): boolean {
   return source?.type === 'globalParameter' && source.parameter === 'venus';
@@ -297,10 +307,25 @@ export function endBoardCardBonus(): void {
  * releases its cards — an abort can never leave the UI invisible — and
  * releases a held single-card auto-open the same way.
  */
-export function abortBoardCardBonus(mode: BoardCardBonusAbortMode = 'instant'): void {
+/** The last scene's end, for a diagnostic (`window.__conReady().cardBonus`): why a cover never lifted is a named reason, never a guess. */
+let lastAbort: {source: BonusCoverSource; mode: BoardCardBonusAbortMode; why: string; at: number} | undefined;
+
+export function boardCardBonusDiag(): {active: boolean; phase: BoardCardBonusPhase; source: BonusCoverSource; stagedEventId?: number; zoomEntryReady: boolean; lastAbort?: typeof lastAbort} {
+  return {
+    active: boardCardBonusState.active,
+    phase: boardCardBonusState.phase,
+    source: boardCardBonusState.source,
+    stagedEventId: boardCardBonusState.stagedEventId,
+    zoomEntryReady: boardCardBonusState.zoomEntryReady,
+    ...(lastAbort === undefined ? {} : {lastAbort}),
+  };
+}
+
+export function abortBoardCardBonus(mode: BoardCardBonusAbortMode = 'instant', why = 'abort'): void {
   if (!boardCardBonusState.active) {
     return;
   }
+  lastAbort = {source: boardCardBonusState.source, mode, why, at: Date.now()};
   clearSafety();
   const h = handle;
   handle = undefined;

@@ -5,6 +5,7 @@ import {Color} from '../../src/common/Color';
 import {PartyName} from '../../src/common/turmoil/PartyName';
 import {ParliamentPhaseSummaryModel} from '../../src/common/models/ParliamentModel';
 import {sittingBeats, sittingBeatsOfStage, sittingBeatStage, sittingStageBefore} from '../../src/client/console/parliament/sittingBeats';
+import {rewardAddressOf} from '../../src/common/parliament/rewardAddress';
 
 /*
  * THE SITTING'S BEATS — pure (docs/TURMOIL_REDUX_PARLIAMENT_ASSEMBLY.md §13.3):
@@ -52,6 +53,20 @@ describe('sittingBeats — the sitting director\'s pure list', () => {
     // ONE beat per outcome of the VIEWER — never another seat's, never the ruling party's answer (it rides the step it answered).
     expect(beats.filter((b) => b.kind === 'reward').map((b) => b.outcome?.step)).deep.eq(['grant', 'draw']);
     expect(new Set(beats.map((b) => b.id)).size, 'ids are unique').eq(beats.length);
+  });
+
+  it('Э5 — every reward beat stands on the REWARD page whatever its address\'s step (a take, a pick, a tile are hosted INSIDE it) and carries the record it presents', () => {
+    const beats = sittingBeats(summary({outcomes: [
+      {player: BLUE, step: 'grant', kind: 'production', amount: 2},
+      {player: BLUE, step: 'draw', kind: 'cards', amount: 2},
+      {player: BLUE, step: 'pick', kind: 'cardResource', amount: 2},
+      {player: BLUE, step: 'winner', kind: 'ocean'},
+    ]}), BLUE, 'live');
+    const rewards = sittingBeatsOfStage(beats, 'reward');
+    expect(rewards.map((b) => b.outcome?.kind)).deep.eq(['production', 'cards', 'cardResource', 'ocean']);
+    expect(rewards.map((b) => b.outcome === undefined ? '' : rewardAddressOf(b.outcome, BLUE).address.stage)).deep.eq(['reward', 'take', 'choice', 'board']);
+    expect(rewards.every((b) => b.skipped === undefined), 'a paying record carries no skip').is.true;
+    expect(sittingBeatsOfStage(beats, 'enact').some((b) => b.kind === 'reward'), 'no reward beat leaks onto another page').is.false;
   });
 
   it('a skipped outcome is a reward beat that names its reason; a paying kind that paid nothing is named by its address', () => {

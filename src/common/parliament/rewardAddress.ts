@@ -87,6 +87,7 @@ export const REWARD_ADDRESS: Readonly<Record<OutcomeKind, RewardAddress>> = {
     kind: 'greenery', surface: 'board', source: 'none', unit: 'tile', stage: 'board', reading: 'winner-reward',
     skipTitle: 'Skipped: the winner\'s greenery',
   },
+  // The ruling party's answer speaks the unit its RECORD carries (a production step is answered with production); 'stock' is the nominal default.
   reaction: {
     kind: 'reaction', surface: 'rail', source: 'party-plaque', unit: 'stock', stage: 'reward', reading: 'party-reaction',
     skipTitle: 'Skipped: the ruling party\'s answer',

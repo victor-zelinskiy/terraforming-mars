@@ -1886,6 +1886,7 @@ import {bonusDiscardOwnsBatch, bonusDiscardStep, BonusDiscardStep} from '@/clien
 import {drawnRevealCommandRun} from '@/client/console/consoleRevealCommands';
 import {workspaceClaimsDrawReveal, workspaceClaimsColonyReveal, workspaceClaimsDeckCheck, workspaceClaimsEffect, workspaceClaimsPick, workspaceClaimsRevealSource, workspaceOutcomeClaimed, workspaceOutcomeBeatPending, claimWorkspaceOutcome, lastOutcomeReleaseStack, markWorkspaceOutcomeAnswerIn, markWorkspaceOutcomeArrivalDone, markWorkspaceOutcomeBeatDone, markWorkspaceOutcomePresenting, outcomeHostConcludesFlow, releaseWorkspaceOutcome, resetWorkspaceOutcome, retainWorkspaceOutcomeForNextBatch, setWorkspaceOutcomePhase, setWorkspaceOutcomeServingProbe, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
 import {boardBeatParkPending, boardBeatParksReveal, drainBoardBeatsIfDue, noteBoardScaleAdvance, registerBoardBeatLiveParams, registerBoardBeatRedrive, registerBoardWatchableProbe, resetBoardBeatPark} from '@/client/console/boardBeatPark';
+import {parliamentParksReveal} from '@/client/console/parliament/parliamentRewardBeat';
 import {cardExitBusy} from '@/client/console/cardDeal/cardExitDirector';
 import type {WorkspaceOutcomeKind, WorkspaceOutcomeScope} from '@/client/console/consoleWorkspaceOutcome';
 import {ResultRevealPresentation, resultRevealPresentation} from '@/client/console/consoleRevealPresentation';
@@ -4163,7 +4164,10 @@ export default defineComponent({
       if (externalDrawResolutionOf(meta) === undefined) {
         return undefined;
       }
-      return workspaceFrameMounted('parliament') && consoleParliamentUi.stageStanding ?
+      // The zone is the reward stage's FIELD — open one flush after the pose
+      // stands, and only once the payout that arrived WITH the draw has flown
+      // (`consoleParliamentUi.fieldStanding`): the wave first, then the deal.
+      return workspaceFrameMounted('parliament') && consoleParliamentUi.fieldStanding ?
         '.con-parl [data-embed-slot="parliament-stage"]' : undefined;
     },
     /**
@@ -4309,10 +4313,16 @@ export default defineComponent({
       // and the held scales have told their story. Same law, same shape as
       // the colony park above: scoped to the batch it parks, never «the
       // reveal», and bounded by the park's own safety.
+      // …and the PARLIAMENT's Agenda CARD batch (Turmoil Redux) is PARKED
+      // while the political phase's sitting still owes the enactment glide
+      // that reaches the step: its one honest presentation is the cover
+      // lifting off that step, on a track the player can see. Released by
+      // the sitting director at the glide's landing (or the ledger's idle net).
       const ev = currentRevealEvent();
       return ev !== undefined &&
         !remoteColonyBonusParksReveal(this.remoteColonyBonusPending, ev.source) &&
-        !boardBeatParksReveal(ev.source);
+        !boardBeatParksReveal(ev.source) &&
+        !parliamentParksReveal(ev.source);
     },
     /**
      * The reveal modal's MANDATORY closing step, when the pending prompt is the
@@ -4415,8 +4425,10 @@ export default defineComponent({
         return true;
       }
       // …and an enacted resolution's ask belongs inside the Parliament's
-      // SITTING (its reward stage's zone) on the same terms.
-      if (this.parliamentStageTask && !consoleParliamentUi.stageStanding && !this.consoleState.task.deferred) {
+      // SITTING (its reward stage's FIELD) on the same terms — held until the
+      // field has opened, i.e. until the payout that arrived with the ask has
+      // played its wave (the surfaces go in turn).
+      if (this.parliamentStageTask && !consoleParliamentUi.fieldStanding && !this.consoleState.task.deferred) {
         return true;
       }
       return this.taskBelongsToWorkspace &&
@@ -4498,7 +4510,7 @@ export default defineComponent({
       // picker stands in the Parliament's SITTING — its reward stage's zone: the
       // resolution is on stage above it, the stage names the amount, the picker
       // asks where.
-      if (this.parliamentStageTask && workspaceFrameMounted('parliament') && consoleParliamentUi.stageStanding) {
+      if (this.parliamentStageTask && workspaceFrameMounted('parliament') && consoleParliamentUi.fieldStanding) {
         return '.con-parl [data-embed-slot="parliament-stage"]';
       }
       if (!workspaceClaimsPick()) {
@@ -19059,9 +19071,10 @@ export default defineComponent({
     // …and the BOARD-BEAT park is the second member of the same exemption:
     // a global-parameter batch waiting out a covered board is presented
     // NOWHERE by design, and must not read as a live result-modal either.
+    // …and the parliament's Agenda CARD park is the third (same law, same shape).
     this.releaseRevealParkSupplier = registerRevealParkSupplier(
       (source) => remoteColonyBonusParksReveal(this.remoteColonyBonusPending, source) ||
-        boardBeatParksReveal(source));
+        boardBeatParksReveal(source) || parliamentParksReveal(source));
     // T6: the notification CTAs go through the typed notificationBus;
     // PlayerHome's listeners don't exist in console — the shell answers them.
     (this as unknown as {__notifOff: Array<() => void>}).__notifOff = [

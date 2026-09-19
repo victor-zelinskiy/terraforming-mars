@@ -33,6 +33,14 @@ export const consoleParliamentUi = reactive({
    * resolution's payout pick and the take of the cards it drew teleport there.
    */
   stageStanding: false,
+  /**
+   * The SITTING'S REWARD STAGE HOLDS THE FIELD — its recipient zone is OPEN
+   * (published post-flush by the section, one beat after the stage itself):
+   * the hosted step's door. It waits for what the field waits for — the
+   * reward beat that arrived in the same response as the ask (a payout's wave
+   * plays FIRST, then the take deals; «surfaces go in turn»).
+   */
+  fieldStanding: false,
   /** The Agenda marker is gliding along the track — an Agenda card reward's cover waits for it to settle. */
   agendaSettling: false,
 });
@@ -41,7 +49,39 @@ export function resetConsoleParliamentUi(): void {
   consoleParliamentUi.commands = [];
   consoleParliamentUi.voteStanding = false;
   consoleParliamentUi.stageStanding = false;
+  consoleParliamentUi.fieldStanding = false;
   consoleParliamentUi.agendaSettling = false;
+}
+
+// ── the session's memory of PLAYED stages ──────────────────────────────────
+
+/**
+ * WHICH STAGES OF WHICH SITTING have already played their beats IN THIS
+ * SESSION. Presentation memory, never game truth (the position is always the
+ * server's step; `docs/TURMOIL_REDUX_PARLIAMENT_ASSEMBLY.md` §3.1 names the
+ * sitting's `seq` as exactly this key): the sitting's frame steps aside for
+ * the winner's tile and comes back (`yieldsToBoard`), and a page turned back
+ * and forth must not replay a card that already moved. A reload starts a
+ * fresh session, so the compact replay (`resume`) still plays there.
+ */
+const playedStages = new Map<string, Set<string>>();
+
+export function notePlayedSittingStage(sitting: string, stage: string): void {
+  let set = playedStages.get(sitting);
+  if (set === undefined) {
+    set = new Set<string>();
+    playedStages.clear();
+    playedStages.set(sitting, set);
+  }
+  set.add(stage);
+}
+
+export function sittingStagePlayed(sitting: string, stage: string): boolean {
+  return playedStages.get(sitting)?.has(stage) === true;
+}
+
+export function resetPlayedSittingStages(): void {
+  playedStages.clear();
 }
 
 // ── the section-internal flow ──────────────────────────────────────────────

@@ -700,7 +700,22 @@
         /* The viewer's SOURCE for the next vote — marked while the mode stands. */
         &--source { background: fade(@con-parl-mint, 10%); box-shadow: inset 0 0 0 .07rem fade(@con-parl-mint, 70%), 0 0 .7rem fade(@con-parl-mint, 18%); }
     }
-    &__seat-key { font-size: .44rem; line-height: 1; letter-spacing: .1em; text-transform: uppercase; opacity: .55; }
+    &__seat-key { position: relative; font-size: .44rem; line-height: 1; letter-spacing: .1em; text-transform: uppercase; opacity: .55; }
+    /* A DELEGATE ON ITS WAY HOME (the sitting's return flights): a quiet
+       arrow beside the reserve's key — absolute, opacity only, so the mark
+       never moves the socket or its neighbours; the key brightens with it. */
+    &__seat-incoming {
+        position: absolute;
+        left: calc(100% + .12rem);
+        top: 50%;
+        transform: translateY(-50%);
+        opacity: 0;
+        color: @con-parl-gold;
+        font-weight: 700;
+        transition: opacity calc(160ms * var(--motion-scale, 1)) @con-ease-standard;
+        &--on { opacity: 1; }
+    }
+    &__seat-place--incoming .con-parl__seat-key { opacity: .95; color: @con-parl-gold; }
     &__seat-obj { display: inline-flex; align-items: center; gap: .18rem; }
     &__seat-count { font-size: .7rem; line-height: 1; font-variant-numeric: tabular-nums; }
 

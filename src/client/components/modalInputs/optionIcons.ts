@@ -22,7 +22,8 @@ const STANDARD_RESOURCE_ICONS: ReadonlySet<string> = new Set(['megacredits', 'st
 const GLOBAL_PARAMETER_ICONS: ReadonlySet<string> = new Set(['temperature', 'venus', 'oxygen', 'ocean']);
 // Pseudo-icons that map onto the global `resource_icon` sprite family (the same
 // art the card renderer uses, but its own classes are scoped under `.card-container`).
-const RESOURCE_ICON_ALIASES: Readonly<Record<string, string>> = {tr: 'rating', cards: 'cards'};
+// `rating` is the rail's own key for the terraform rating (the parliament's Agenda bonus rides it as a chip).
+const RESOURCE_ICON_ALIASES: Readonly<Record<string, string>> = {tr: 'rating', rating: 'rating', cards: 'cards'};
 // The `GlobalParameter` enum uses the PLURAL 'oceans', but the icon class is the
 // singular `wgt-icon--ocean` (the ocean TILE art). Normalise here — the single
 // resolution point — so both the journal's `impact` chips (which pass

@@ -29,10 +29,29 @@ import {CardName} from '@/common/cards/CardName';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {ParliamentEnactOutcomeModel} from '@/common/models/ParliamentModel';
 import {scheduleParliamentBeat} from '@/client/console/parliament/parliamentBeat';
-import {cardResourceKey} from '@/client/console/resourceTransfer/resourceTransferModel';
+import {cardResourceKey, ResourceTransferSpec, TransferPoint} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {
   resetCardResourceLandings, runResourceTransfers,
 } from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {resolveActionCommitAnchors, resolveGainIconOrigins} from '@/client/console/consoleActionCommitMotion';
+
+/** The ONE enacted-card instance on screen (the stage's hero while carried, the government otherwise). */
+export function enactedCardEl(): HTMLElement | undefined {
+  if (typeof document === 'undefined') {
+    return undefined;
+  }
+  return document.querySelector<HTMLElement>('[data-parl-sit-hero] .con-parl__gov-card') ??
+    document.querySelector<HTMLElement>('.con-parl [data-parl-gov-carry] .con-parl__gov-card') ?? undefined;
+}
+
+/** The printed icon of `spec`'s unit on the carrier card, as a birth point — undefined when the card (or the icon) is not on screen. */
+export function carrierIconOrigin(spec: ResourceTransferSpec): TransferPoint | undefined {
+  const card = enactedCardEl();
+  if (card === undefined) {
+    return undefined;
+  }
+  return resolveGainIconOrigins(resolveActionCommitAnchors(card, undefined), [spec])[0];
+}
 
 export type ResolutionPayoutEvent = {
   /** The chosen card (a candidate of the pick that just closed). */
@@ -128,11 +147,16 @@ export async function runResolutionPayout(event: ResolutionPayoutEvent): Promise
   pickPayoutLanding.landed = 0;
   // `runResourceTransfers` never rejects (its own wave safety releases every
   // touchdown), and the transport's abort battery closes the scope on a failure.
+  const spec: ResourceTransferSpec = {channel: 'card-resource', resource: event.resource, amount: event.amount, targetCard: event.card};
   await runResourceTransfers({
-    specs: [{channel: 'card-resource', resource: event.resource, amount: event.amount, targetCard: event.card}],
-    // Born where the player READ the amount: the stage's payout reading, else
-    // the source dock's resolution face (a standalone host).
-    source: {selectors: ['[data-parl-enact-yield] .con-iyield__out', '[data-parl-enact-yield]', '.con-task .con-src .pcard']},
+    specs: [spec],
+    // Born on the CARRIER CARD's own printed icon (the address table: a card
+    // resource leaves the resolution's graphic — `resolveGainIconOrigins`
+    // over the one enacted-card instance, on the stage's hero or in the
+    // government), else where the player READ the amount (the stage's payout
+    // reading), else the source dock's face (a standalone host).
+    origins: [carrierIconOrigin(spec)],
+    source: {selectors: ['[data-parl-sit-yield] .con-iyield__out', '[data-parl-sit-yield]', '.con-task .con-src .pcard']},
     arrival: 'auto',
     // The chips land INSIDE the standing picker: a notification-only hold,
     // or the blocking one would retract the very surface they land on.

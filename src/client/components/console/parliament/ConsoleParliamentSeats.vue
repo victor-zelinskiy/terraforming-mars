@@ -24,8 +24,11 @@
           </span>
         </span>
       </span>
-      <span class="con-parl__seat-place" :class="{'con-parl__seat-place--source': seatSourceOf(seat) === 'reserve'}" data-parl-seat-place="reserve">
-        <span class="con-parl__seat-key">{{ $t('Reserve') }}</span>
+      <span class="con-parl__seat-place" :class="{'con-parl__seat-place--source': seatSourceOf(seat) === 'reserve', 'con-parl__seat-place--incoming': seat.incoming > 0}" data-parl-seat-place="reserve">
+        <!-- A delegate is on its way HOME (the sitting's enactment beat): the
+             reserve's key says so with a quiet arrow — a mark that lives on
+             the key's own line (absolute, opacity only: nothing shifts). -->
+        <span class="con-parl__seat-key">{{ $t('Reserve') }}<span class="con-parl__seat-incoming" :class="{'con-parl__seat-incoming--on': seat.incoming > 0}" :data-parl-seat-incoming="seat.incoming > 0 ? seat.incoming : undefined" aria-hidden="true">←</span></span>
         <span class="con-parl__seat-obj">
           <span class="con-parl__stack con-parl__stack--seat" :class="{'con-parl__stack--empty': seat.reserveCubes === 0}" :data-parl-seat-reserve="seat.color" :data-count="seat.reserveCubes">
             <span v-for="n in Math.min(seat.reserveCubes, 3)" :key="n" class="con-parl__stack-cube" :data-stack="n">
@@ -85,7 +88,7 @@ import {ParliamentViewVm} from '@/client/console/parliament/consoleParliamentMod
 import {BenchSource, RIBBON_CUBE, seatSourceOf} from '@/client/console/parliament/parliamentVoteView';
 
 /** A player's group on the delegates zone: the lobby socket, the reserve's cubes (shown) and its count (said). */
-type SeatRow = {color: Color, name: string, lobby: boolean, reserve: number, reserveCubes: number, chairman: boolean};
+type SeatRow = {color: Color, name: string, lobby: boolean, reserve: number, reserveCubes: number, chairman: boolean, /** Delegates on their way back to this reserve (the enactment's return flights still in the air). */ incoming: number};
 
 /**
  * The delegates zone of the Parliament's head line — every seat's places as
@@ -124,6 +127,7 @@ export default defineComponent({
           reserve: base + (mine && parliamentFlow.sourceLeaving === 'reserve' ? 1 : 0),
           reserveCubes: base + (mine && parliamentFlow.sourceHold === 'reserve' ? 1 : 0),
           chairman: p.chairman,
+          incoming: pendingReturns,
         };
       });
     },

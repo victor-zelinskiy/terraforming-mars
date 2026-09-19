@@ -1,0 +1,253 @@
+import {expect} from 'chai';
+import {PlayerViewModel} from '@/common/models/PlayerModel';
+import {ParliamentEnactOutcomeModel} from '@/common/models/ParliamentModel';
+import {OUTCOME_KINDS, OutcomeKind, REWARD_ADDRESS} from '@/common/parliament/rewardAddress';
+import {PartyName} from '@/common/turmoil/PartyName';
+import {Resource} from '@/common/Resource';
+import {CardResource} from '@/common/CardResource';
+import {CardName} from '@/common/cards/CardName';
+import {consoleParliamentUi, resetConsoleParliamentUi} from '@/client/console/parliament/consoleParliamentFlow';
+import {
+  clearPanelRewardHold, heldProduction, heldStock, panelRewardHold,
+} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {
+  AGENDA_BONUS_HOLD_SAFETY_MS, detectAgendaBonus, detectNewViewerRewards, flushParliamentRewards, markAgendaBonusLanded, markRewardLanded,
+  noteAgendaBonusProgress, parliamentParksReveal, parliamentRewardPending, parliamentRewardState, RATING_RAIL_KEY, resetParliamentRewards, rewardBeatKey, rewardLanded,
+  seedParliamentRewardHold, sittingKeyOf, takeAgendaBonus, takeOwedRewards, waveSpecOf,
+} from '@/client/console/parliament/parliamentRewardBeat';
+
+/*
+ * THE REWARD BEAT'S LEDGER (Turmoil Redux, Э5): DETECT is pure against two
+ * views, SEED holds the rail only while the sitting stands, OWE / FLY hand
+ * the records to the director one touchdown at a time, and every path ends
+ * with the counters released — a reward is never withheld, only shown.
+ */
+const BLUE = 'blue';
+const RED = 'red';
+
+function outcome(over: Partial<ParliamentEnactOutcomeModel> & {kind: ParliamentEnactOutcomeModel['kind']}): ParliamentEnactOutcomeModel {
+  return {player: BLUE, step: 'grant', part: 'effect', ...over} as ParliamentEnactOutcomeModel;
+}
+
+function view(phase: {generation: number, seq?: number, outcomes?: Array<ParliamentEnactOutcomeModel>, agenda?: {player: string, from: number, to: number, bonus?: 'tr' | 'card'}} | undefined, viewer = BLUE): PlayerViewModel {
+  return {
+    thisPlayer: {color: viewer},
+    game: {
+      parliament: phase === undefined ? {} : {
+        phase: {
+          generation: phase.generation, final: false, step: 'effects', outcomes: phase.outcomes ?? [],
+          summary: {generation: phase.generation, seq: phase.seq, agenda: phase.agenda, support: [], refreshed: [], lobbyRefilled: [], outcomes: phase.outcomes ?? []},
+        },
+      },
+    },
+  } as unknown as PlayerViewModel;
+}
+
+describe('parliamentRewardBeat — the ledger of what the sitting still owes', () => {
+  beforeEach(() => {
+    resetParliamentRewards();
+    clearPanelRewardHold();
+    resetConsoleParliamentUi();
+  });
+  after(() => {
+    resetParliamentRewards();
+    clearPanelRewardHold();
+    resetConsoleParliamentUi();
+  });
+
+  it('a record\'s key is structural: seat · step · part · kind (a reaction shares its cause\'s step)', () => {
+    expect(rewardBeatKey(outcome({kind: 'production', step: 'heat-production'}))).eq('blue:heat-production:effect:production');
+    expect(rewardBeatKey(outcome({kind: 'reaction', step: 'heat-production', part: undefined}))).eq('blue:heat-production::reaction');
+  });
+
+  it('the rail chip of a record: production / stock on their rows, a reaction on the row of what it paid; nothing for the other kinds or a zero', () => {
+    expect(waveSpecOf(outcome({kind: 'production', production: Resource.HEAT, amount: 2}))).deep.eq({channel: 'production', resource: 'heat', amount: 2});
+    expect(waveSpecOf(outcome({kind: 'stock', stock: Resource.PLANTS, amount: 4}))).deep.eq({channel: 'stock', resource: 'plants', amount: 4});
+    expect(waveSpecOf(outcome({kind: 'reaction', party: PartyName.GREENS, production: Resource.MEGACREDITS, amount: 2}))).deep.eq({channel: 'production', resource: 'megacredits', amount: 2});
+    expect(waveSpecOf(outcome({kind: 'reaction', party: PartyName.GREENS, stock: Resource.MEGACREDITS, amount: 2}))).deep.eq({channel: 'stock', resource: 'megacredits', amount: 2});
+    expect(waveSpecOf(outcome({kind: 'production', production: Resource.HEAT, amount: 0}))).is.undefined;
+    expect(waveSpecOf(outcome({kind: 'cards', amount: 2}))).is.undefined;
+    expect(waveSpecOf(outcome({kind: 'cardResource', resource: CardResource.ANIMAL, amount: 2}))).is.undefined;
+    expect(waveSpecOf(outcome({kind: 'skipped', reason: 'No influence', amount: 2}))).is.undefined;
+  });
+
+  it('the wave and the ADDRESS agree: exactly the kinds addressed to the rail fly a rail chip, on the address\'s own unit', () => {
+    const sample: Record<OutcomeKind, ParliamentEnactOutcomeModel> = {
+      production: outcome({kind: 'production', production: Resource.HEAT, amount: 2}),
+      stock: outcome({kind: 'stock', stock: Resource.PLANTS, amount: 3}),
+      reaction: outcome({kind: 'reaction', production: Resource.MEGACREDITS, amount: 2, party: PartyName.GREENS}),
+      cardResource: outcome({kind: 'cardResource', resource: CardResource.ANIMAL, amount: 2, card: CardName.BIRDS}),
+      cards: outcome({kind: 'cards', amount: 2, drawn: 2}),
+      ocean: outcome({kind: 'ocean', parameter: {id: 'oceans', before: 0, after: 1}}),
+      greenery: outcome({kind: 'greenery'}),
+      skipped: outcome({kind: 'skipped', reason: 'no-influence'}),
+    };
+    for (const kind of OUTCOME_KINDS) {
+      const spec = waveSpecOf(sample[kind]);
+      const address = REWARD_ADDRESS[kind];
+      if (address.surface === 'rail') {
+        expect(spec, `${kind} is addressed to the rail — it flies`).is.not.undefined;
+        // The party's answer speaks the unit its RECORD carries (Greens answer a production step with production);
+        // the table's row is the nominal default. A production / stock record IS its address's unit.
+        const recorded = sample[kind].production !== undefined ? 'production' : 'stock';
+        expect(spec?.channel, `${kind} flies on its unit`).eq(kind === 'reaction' ? recorded : address.unit);
+      } else {
+        expect(spec, `${kind} is addressed to ${address.surface} — nothing flies to the rail`).is.undefined;
+      }
+    }
+  });
+
+  it('DETECT: the viewer\'s NEW rail records of this response — never another seat\'s, never a record already known, never across a generation or from a first view', () => {
+    const before = view({generation: 3, outcomes: [outcome({kind: 'production', production: Resource.HEAT, amount: 2, step: 'a'})]});
+    const after = view({generation: 3, outcomes: [
+      outcome({kind: 'production', production: Resource.HEAT, amount: 2, step: 'a'}),
+      outcome({kind: 'reaction', party: PartyName.GREENS, production: Resource.MEGACREDITS, amount: 2, step: 'a', part: undefined}),
+      outcome({kind: 'stock', stock: Resource.PLANTS, amount: 4, step: 'b'}),
+      outcome({kind: 'cards', amount: 2, step: 'c'}),
+      outcome({kind: 'stock', stock: Resource.PLANTS, amount: 6, step: 'b', player: RED}),
+    ]});
+    const fresh = detectNewViewerRewards(before, after);
+    expect(fresh.map((r) => r.key)).deep.eq(['blue:a::reaction', 'blue:b:effect:stock']);
+    expect(fresh[0].delivery.address.source).eq('party-plaque');
+    expect(fresh[1].delivery.address.source).eq('card-icon');
+    expect(detectNewViewerRewards(undefined, after), 'a first view (a reload) replays nothing').deep.eq([]);
+    expect(detectNewViewerRewards(view({generation: 2}), after), 'a new generation is a new sitting — nothing to replay').deep.eq([]);
+  });
+
+  it('DETECT: the viewer\'s Agenda TR bonus is new with the phase\'s first view of the move; a card step or another seat\'s move is not', () => {
+    const start = view({generation: 3, agenda: {player: BLUE, from: 1, to: 2, bonus: 'tr'}});
+    const bonus = detectAgendaBonus(view(undefined), start);
+    expect(bonus).deep.eq({generation: 3, player: BLUE, step: 2, kind: 'tr', spec: {channel: 'stock', resource: RATING_RAIL_KEY, amount: 1}});
+    expect(detectAgendaBonus(start, start), 'already seen').is.undefined;
+    expect(detectAgendaBonus(undefined, start), 'a first view (a reload) holds nothing').is.undefined;
+    expect(detectAgendaBonus(view(undefined), view({generation: 3, agenda: {player: BLUE, from: 6, to: 7, bonus: 'card'}})), 'a CARD step is a bonus of its own kind')
+      .deep.eq({generation: 3, player: BLUE, step: 7, kind: 'card'});
+    expect(detectAgendaBonus(view(undefined), view({generation: 3, agenda: {player: BLUE, from: 0, to: 1}})), 'an influence step pays nothing to carry').is.undefined;
+    expect(detectAgendaBonus(view(undefined), view({generation: 3, agenda: {player: RED, from: 1, to: 2, bonus: 'tr'}}))).is.undefined;
+  });
+
+  it('the Agenda CARD bonus PARKS the agenda reveal (nothing on the rail) until the director lands the glide; the park is scoped to that batch', () => {
+    seedParliamentRewardHold(view(undefined), view({generation: 3, seq: 7, agenda: {player: BLUE, from: 6, to: 7, bonus: 'card'}}));
+    expect(heldStock(RATING_RAIL_KEY), 'a card step holds no rating').eq(0);
+    expect(parliamentParksReveal({type: 'agenda'}), 'the agenda batch is parked').is.true;
+    expect(parliamentParksReveal({type: 'tile'}), 'another batch is not').is.false;
+    expect(parliamentParksReveal(undefined)).is.false;
+    const bonus = takeAgendaBonus(3);
+    expect(bonus?.kind).eq('card');
+    expect(parliamentParksReveal({type: 'agenda'}), 'still parked while the glide flies').is.true;
+    markAgendaBonusLanded();
+    expect(parliamentParksReveal({type: 'agenda'}), 'released at the landing — the cover scene may lift it now').is.false;
+    // A TR step never parks a batch.
+    seedParliamentRewardHold(view(undefined), view({generation: 4, seq: 8, agenda: {player: BLUE, from: 1, to: 2, bonus: 'tr'}}));
+    expect(parliamentParksReveal({type: 'agenda'})).is.false;
+    expect(heldStock(RATING_RAIL_KEY)).eq(1);
+  });
+
+  it('SEED with the sitting ON SCREEN: the rail is held by the records\' amounts, the records are owed; a touchdown releases its own hold and reads «landed»', () => {
+    consoleParliamentUi.stageStanding = true;
+    const before = view({generation: 3, seq: 7});
+    const after = view({generation: 3, seq: 7, outcomes: [
+      outcome({kind: 'production', production: Resource.HEAT, amount: 2, step: 'a'}),
+      outcome({kind: 'reaction', party: PartyName.GREENS, production: Resource.MEGACREDITS, amount: 2, step: 'a', part: undefined}),
+    ]});
+    seedParliamentRewardHold(before, after);
+    expect(parliamentRewardState.sitting).eq('3:7');
+    expect(parliamentRewardPending()).is.true;
+    expect(heldProduction('heat')).eq(2);
+    expect(heldProduction('megacredits')).eq(2);
+    expect(rewardLanded(after.game.parliament!.phase!.outcomes![0])).is.false;
+    const taken = takeOwedRewards();
+    expect(taken).has.length(2);
+    expect(parliamentRewardState.owed).deep.eq([]);
+    expect(parliamentRewardPending(), 'in the air').is.true;
+    markRewardLanded(taken[0]);
+    expect(heldProduction('heat')).eq(0);
+    expect(heldProduction('megacredits'), 'the other chip still flies').eq(2);
+    expect(rewardLanded(taken[0].outcome)).is.true;
+    expect(rewardLanded(taken[1].outcome)).is.false;
+    markRewardLanded(taken[1]);
+    expect(parliamentRewardPending()).is.false;
+    expect(panelRewardHold.active).is.false;
+  });
+
+  it('SEED with the sitting OFF SCREEN (parked / absent): no hold, nothing owed — the counter ticks with the commit and the record reads «landed»', () => {
+    consoleParliamentUi.stageStanding = false;
+    const before = view({generation: 3, seq: 7});
+    const record = outcome({kind: 'stock', stock: Resource.PLANTS, amount: 4, step: 'b'});
+    seedParliamentRewardHold(before, view({generation: 3, seq: 7, outcomes: [record]}));
+    expect(parliamentRewardPending()).is.false;
+    expect(heldStock('plants')).eq(0);
+    expect(rewardLanded(record)).is.true;
+  });
+
+  it('a new sitting drops what the old one still owed (its holds released), and the phase\'s end clears the ledger', () => {
+    consoleParliamentUi.stageStanding = true;
+    seedParliamentRewardHold(view({generation: 3, seq: 7}), view({generation: 3, seq: 7, outcomes: [outcome({kind: 'stock', stock: Resource.PLANTS, amount: 4})]}));
+    expect(heldStock('plants')).eq(4);
+    seedParliamentRewardHold(view({generation: 4, seq: 8}), view({generation: 4, seq: 8}));
+    expect(parliamentRewardState.sitting).eq('4:8');
+    expect(parliamentRewardPending()).is.false;
+    expect(heldStock('plants'), 'the old hold is released, not leaked').eq(0);
+    seedParliamentRewardHold(view({generation: 4, seq: 8}), view(undefined));
+    expect(parliamentRewardState.sitting).eq('');
+    expect(sittingKeyOf(view(undefined))).eq('');
+  });
+
+  it('the Agenda TR bonus holds the rating on the rail until the director takes it and its chip lands', () => {
+    seedParliamentRewardHold(view(undefined), view({generation: 3, seq: 7, agenda: {player: BLUE, from: 1, to: 2, bonus: 'tr'}}));
+    expect(heldStock(RATING_RAIL_KEY)).eq(1);
+    expect(takeAgendaBonus(2), 'another generation\'s bonus is not this one').is.undefined;
+    const bonus = takeAgendaBonus(3);
+    expect(bonus?.step).eq(2);
+    expect(heldStock(RATING_RAIL_KEY), 'still held while the chip flies').eq(1);
+    markAgendaBonusLanded();
+    expect(heldStock(RATING_RAIL_KEY)).eq(0);
+    expect(parliamentRewardState.agendaBonus).is.undefined;
+  });
+
+  it('PROGRESS re-arms the Agenda bonus\'s idle net (a sitting that moves is never a stall); nothing is armed when nothing is owed', () => {
+    const armed: Array<number> = [];
+    const cleared: Array<unknown> = [];
+    const realSet = globalThis.setTimeout;
+    const realClear = globalThis.clearTimeout;
+    let seq = 0;
+    (globalThis as unknown as {setTimeout: unknown}).setTimeout = (_fn: () => void, ms: number) => {
+      armed.push(ms);
+      return ++seq;
+    };
+    (globalThis as unknown as {clearTimeout: unknown}).clearTimeout = (id: unknown) => {
+      cleared.push(id);
+    };
+    try {
+      noteAgendaBonusProgress();
+      expect(armed, 'nothing owed — nothing armed').has.length(0);
+      seedParliamentRewardHold(view(undefined), view({generation: 3, seq: 7, agenda: {player: BLUE, from: 1, to: 2, bonus: 'tr'}}));
+      expect(armed).deep.eq([AGENDA_BONUS_HOLD_SAFETY_MS]);
+      noteAgendaBonusProgress();
+      expect(armed, 're-armed for the same span').deep.eq([AGENDA_BONUS_HOLD_SAFETY_MS, AGENDA_BONUS_HOLD_SAFETY_MS]);
+      expect(cleared, 'the earlier net was dropped first').includes(1);
+      expect(heldStock(RATING_RAIL_KEY), 'the hold itself is untouched by progress').eq(1);
+      takeAgendaBonus(3);
+      markAgendaBonusLanded();
+      noteAgendaBonusProgress();
+      expect(armed, 'landed — progress arms nothing more').has.length(2);
+    } finally {
+      globalThis.setTimeout = realSet;
+      globalThis.clearTimeout = realClear;
+    }
+  });
+
+  it('flush releases every owed and flying hold at once — a beat that cannot play is announced by its counter, never withheld', () => {
+    consoleParliamentUi.stageStanding = true;
+    seedParliamentRewardHold(view({generation: 3, seq: 7}), view({generation: 3, seq: 7, outcomes: [
+      outcome({kind: 'stock', stock: Resource.PLANTS, amount: 4, step: 'a'}),
+      outcome({kind: 'production', production: Resource.HEAT, amount: 1, step: 'b'}),
+    ]}));
+    takeOwedRewards();
+    flushParliamentRewards();
+    expect(parliamentRewardPending()).is.false;
+    expect(heldStock('plants')).eq(0);
+    expect(heldProduction('heat')).eq(0);
+    expect(parliamentRewardState.landed).has.length(2);
+  });
+});

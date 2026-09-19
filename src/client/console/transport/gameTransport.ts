@@ -98,6 +98,7 @@ import {
 } from '@/client/console/played/consolePlayedHero';
 import {stagePlayedCardReturns} from '@/client/console/played/playedCardReturn';
 import {seedBonusGainRewardHold} from '@/client/console/startBonusGain';
+import {seedParliamentRewardHold} from '@/client/console/parliament/parliamentRewardBeat';
 import {consoleModeState} from '@/client/console/consoleModeState';
 import {rollbackHydroCommit} from '@/client/console/hydroFlow/consoleHydroFlow';
 import {
@@ -566,6 +567,11 @@ function seedRewardHolds(newView?: PlayerViewModel): void {
   // for the workspace to be back on screen, so this only holds the panel and
   // leaves the beat owed.
   seedBonusGainRewardHold(currentView(), newView);
+  // The PARLIAMENT SITTING's reward (Turmoil Redux): the records the enacted
+  // resolution just paid this seat, and the viewer's Agenda TR bonus — held on
+  // the rail until the sitting's own beat flies them (only while the sitting
+  // is on screen; else the counters tick with this very commit).
+  seedParliamentRewardHold(currentView(), newView);
 }
 
 function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean): void {

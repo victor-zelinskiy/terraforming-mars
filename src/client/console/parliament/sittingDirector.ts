@@ -49,9 +49,17 @@ import {resolutionPremiumVmById} from '@/client/components/premiumCard/resolutio
 import {consoleMotionMs, consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {probeTick} from '@/client/console/probeTick';
 import {descendCascade} from '@/client/console/surfaceMotion/workspaceDescend';
+import {resolveActionCommitAnchors, resolveGainIconOrigins, runActionCommitMotion} from '@/client/console/consoleActionCommitMotion';
+import {runResourceTransfers} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {ResourceTransferSpec, TransferPoint} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {AgendaMove, ParliamentViewVm} from './consoleParliamentModel';
 import {SittingStage} from './consoleSittingFlow';
+import {enactedCardEl} from './consoleResolutionPayout';
 import {emptyParliamentHolds, parliamentHolds, resetParliamentHolds} from './parliamentDisplayHolds';
+import {
+  flushAgendaBonus, flushParliamentRewards, markAgendaBonusLanded, markRewardLanded, OwedReward, parliamentRewardState, takeAgendaBonus,
+  takeOwedRewards,
+} from './parliamentRewardBeat';
 import {
   DEAL_FLIGHT_MS, DEAL_STAGGER_MS, dealResolutionCard, dropFlight, ENACT_MOVE_MS, finishParliamentFlights, flightEl, flightRegistered, flyCube,
   killParliamentFlights, nextFlightId, placeCubeRect, pushCardFlight, rectOf, registerFlightHandle,
@@ -71,6 +79,15 @@ const LOSER_STAGGER_MS = 90;
 const SEAT_STAGGER_MS = 80;
 const LOBBY_STAGGER_MS = 90;
 const CLOSING_MS = 300;
+/** The reward page's own reveal (the reading rows cascade — RELEASE → UNFOLD → REVEAL). */
+const REWARD_REVEAL_MS = 260;
+/** The carrier card's ACTION COMMIT impulse hands the wave off at `COMMIT_HANDOFF_AT_MS` (≈460); the wave itself ≈ pop + arc + settle. */
+const REWARD_IMPULSE_MS = 460;
+const REWARD_WAVE_MS = 900;
+/** The ruling party's answer leaves its plaque once the resolution's own chips have landed — surfaces in turn. */
+const REACTION_GAP_MS = 120;
+/** The winner's tile RECEIPT (the frame back from the board): the «received» pose is READ before the next step takes the page. */
+const RECEIPT_DWELL_MS = 1500;
 /** A compact beat (resume / review) runs at half length, no dwell. */
 const COMPACT = 0.5;
 /** The hold's ceiling — above the longest stage (the renewal ≈ 2.4 s) by a wide margin. */
@@ -91,8 +108,8 @@ export type SittingDirectorContext = {
   model: ParliamentModel | undefined;
   summary: ParliamentPhaseSummaryModel;
   viewer: Color | undefined;
-  /** The Agenda tier's own glide (it registers its own hold). */
-  playAgendaGlide?: (move: AgendaMove) => void;
+  /** The Agenda tier's own glide (it registers its own hold); `onLanded` fires when the marker has settled on its step. */
+  playAgendaGlide?: (move: AgendaMove, onLanded?: () => void) => void;
 };
 
 type StageRun = {
@@ -101,6 +118,12 @@ type StageRun = {
   hold: AnimationHold;
   /** Flights launched by this stage (their ids) — «дожать» drives them to rest. */
   flights: Set<string>;
+  /** Reward WAVES in the air (the resource-transfer runs the stage launched) — the stage rests once they have touched down. */
+  pending: number;
+  /** What an abort must tear down beside the flights (the carrier card's commit impulse). */
+  kills: Array<() => void>;
+  /** The Agenda CARD bonus taken by this stage's glide — its parked reveal is released when the stage is at rest. */
+  releaseAgendaCard?: boolean;
   finished: boolean;
 };
 
@@ -301,10 +324,23 @@ function beatEnact(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: numbe
   const root = ctx.root;
   const holds = parliamentHolds;
   let at = 0;
-  // The Agenda glide runs beside the enactment on its own hold.
+  // The Agenda glide runs beside the enactment on its own hold; the step's TR
+  // BONUS (held on the rail since the phase began) leaves the reached step
+  // once the marker has settled on it — the reward follows the arrival.
   if (agenda !== undefined && ctx.playAgendaGlide !== undefined) {
     const glide = ctx.playAgendaGlide;
-    tl.call(() => glide(agenda), undefined, 0.01);
+    // The glide is the STAGE'S OWN WORK: the master's arithmetic ends before
+    // the marker settles, so the stage counts the glide as airborne until its
+    // landing — else the stage rested first, and the bonus launched into a
+    // finished run was marked landed without ever leaving the step.
+    runState.pending++;
+    tl.call(() => glide(agenda, () => {
+      launchAgendaBonus(runState, ctx);
+      runState.pending = Math.max(0, runState.pending - 1);
+    }), undefined, 0.01);
+  } else {
+    // No glide to follow (a summary without a move): nothing is owed on the track.
+    tl.call(() => flushAgendaBonus('no-glide'), undefined, 0.01);
   }
   // (1) The old law leaves for the deck zone.
   if (parked.old !== undefined) {
@@ -547,6 +583,190 @@ function beatRenewal(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: num
   return at;
 }
 
+/** A wave the stage launched — the stage rests only once it has touched down. */
+function trackWave(runState: StageRun, wave: Promise<void>): void {
+  runState.pending++;
+  void wave.finally(() => {
+    runState.pending = Math.max(0, runState.pending - 1);
+  });
+}
+
+/**
+ * THE AGENDA STEP'S TR BONUS — the marker has settled on its step: the +1 TR
+ * the server paid at the phase's start leaves that very step (its printed
+ * rating glyph) for the rail's score cell, which has held the old rating
+ * until this touchdown. Nothing owed → nothing flies; an unmeasurable step
+ * releases the hold at once (honestly late, never lost).
+ */
+function launchAgendaBonus(runState: StageRun, ctx: SittingDirectorContext): void {
+  const bonus = takeAgendaBonus(ctx.summary.generation);
+  if (bonus === undefined) {
+    return;
+  }
+  const spec = bonus.spec;
+  if (bonus.kind === 'card' || spec === undefined) {
+    // A CARD step: the reward is the reveal batch PARKED since the phase
+    // began — released once this stage is at REST (the marker settled, the
+    // support peek folded), which is what lets the card-bonus scene lift the
+    // cover off this very step (the deck answers nothing: the card was dealt
+    // with the summary, and its one honest source is the step's printed glyph).
+    if (runState.finished) {
+      markAgendaBonusLanded();
+    } else {
+      runState.releaseAgendaCard = true;
+    }
+    return;
+  }
+  const step = ctx.root.querySelector<HTMLElement>(`.con-parl__step[data-step="${bonus.step}"]`);
+  const node = step?.querySelector<HTMLElement>('.con-parl__step-res') ?? step?.querySelector<HTMLElement>('.con-parl__step-node') ?? step;
+  const r = node?.getBoundingClientRect();
+  if (node === null || node === undefined || r === undefined || r.width < 2) {
+    flushAgendaBonus('unmeasurable-step');
+    return;
+  }
+  if (runState.finished) {
+    flushAgendaBonus('stage-finished');
+    return;
+  }
+  trackWave(runState, runResourceTransfers({
+    specs: [spec],
+    source: {point: {x: r.left + r.width / 2, y: r.top + r.height / 2}},
+    arrival: 'auto',
+    onArrive: () => markAgendaBonusLanded(),
+  }));
+}
+
+/** The ruling party's plaque in the government — the source of the party's ANSWER (the law is the party's, never the resolution's). */
+function rulerPlaqueEl(root: HTMLElement): HTMLElement | undefined {
+  return root.querySelector<HTMLElement>('[data-parl-ruler]') ?? undefined;
+}
+
+/** The birth points of `specs` on `el`'s printed graphic (the carrier card, the ruler's formula) — the address's own icons. */
+function iconOriginsOn(el: HTMLElement, specs: ReadonlyArray<ResourceTransferSpec>): Array<TransferPoint | undefined> {
+  return resolveGainIconOrigins(resolveActionCommitAnchors(el, undefined), specs);
+}
+
+/** One wave: `rewards`' chips from their origins on `sourceEl` to their rail rows; each touchdown releases its own hold. */
+function launchWave(runState: StageRun, rewards: ReadonlyArray<OwedReward>, sourceEl: HTMLElement, sourceSelector: string): Promise<void> {
+  const specs = rewards.map((r) => r.spec);
+  const bySpec = new Map<ResourceTransferSpec, OwedReward>(rewards.map((r) => [r.spec, r]));
+  const wave = runResourceTransfers({
+    specs,
+    origins: iconOriginsOn(sourceEl, specs),
+    source: {selectors: [sourceSelector]},
+    arrival: 'auto',
+    onArrive: (spec) => {
+      const reward = bySpec.get(spec);
+      if (reward !== undefined) {
+        markRewardLanded(reward);
+      }
+    },
+  });
+  trackWave(runState, wave);
+  return wave;
+}
+
+/**
+ * НАГРАДА: what the law just paid THIS seat arrives by its ADDRESS
+ * (`rewardAddress.ts`). With records OWED (they arrived while the stage
+ * stood): the carrier card's ACTION COMMIT impulse — the mechanical fix, the
+ * light band over its printed effect, the ring on the result icon — hands off
+ * to the WAVE: each chip is born on the card's own icon of its unit, flies
+ * to its rail row and ticks the counter on contact (the panel hold seeded
+ * with the record releases per touchdown, the delta chip rides that
+ * transition). The ruling party's ANSWER (a `reaction` record) leaves the
+ * party's plaque in the government AFTER the resolution's own chips have
+ * landed — surfaces in turn. With nothing owed: the page's own reveal (the
+ * reading rows cascade). A carrier that is not on screen releases every hold
+ * at once — the counters tick, honestly late, never lost.
+ */
+function beatReward(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: number, runState: StageRun): number {
+  const root = ctx.root;
+  const owed = takeOwedRewards();
+  if (owed.length === 0) {
+    const rows = itemsOf(root, '.con-sit__panel--on .con-sit__hero > [data-parl-sit-item]');
+    let at = 0;
+    if (rows.length > 0) {
+      descendCascade(tl, rows, s(REWARD_REVEAL_MS) * k, s(70) * k, 0);
+      at = s(REWARD_REVEAL_MS) * k + s(70) * k * (rows.length - 1);
+    }
+    // THE TILE'S RECEIPT: the frame is back from the board and the pose says
+    // what the winner's tile did (the parameter's move, the TR) — it is READ
+    // for a beat before the server's next step takes the page.
+    if (parliamentRewardState.receiptShowing) {
+      at += s(RECEIPT_DWELL_MS) * k;
+    }
+    return at;
+  }
+  const card = enactedCardEl();
+  const own = owed.filter((r) => r.delivery.address.source === 'card-icon');
+  const reactions = owed.filter((r) => r.delivery.address.source === 'party-plaque');
+  const release = (list: ReadonlyArray<OwedReward>) => list.forEach((r) => markRewardLanded(r));
+  if (card === undefined) {
+    release(owed);
+    return 0;
+  }
+  const cardSelector = '[data-parl-sit-hero] .con-parl__gov-card .pcard, .con-parl [data-parl-gov-carry] .con-parl__gov-card .pcard';
+  const flyReactions = () => {
+    if (reactions.length === 0) {
+      return;
+    }
+    const plaque = rulerPlaqueEl(root);
+    if (plaque === undefined || runState.finished) {
+      release(reactions);
+      return;
+    }
+    const emblem = plaque.querySelector<HTMLElement>('.con-parl__ruler-emblem');
+    if (emblem !== null) {
+      gsap.fromTo(emblem, {scale: 1}, {
+        scale: 1.14, duration: s(160), ease: 'sine.out', yoyo: true, repeat: 1, transformOrigin: '50% 50%', clearProps: 'transform',
+        onInterrupt: () => gsap.set(emblem, {clearProps: 'transform'}),
+      });
+    }
+    void launchWave(runState, reactions, plaque, '[data-parl-ruler] .con-parl__ruler-formula, [data-parl-ruler]');
+  };
+  let at = 0;
+  if (own.length > 0) {
+    tl.call(() => {
+      if (runState.finished) {
+        release(own);
+        return;
+      }
+      let handedOff = false;
+      const handle = runActionCommitMotion({
+        cardWrapEl: card,
+        ctaEl: undefined,
+        actionNode: undefined,
+        kind: 'resources',
+        firstResource: own[0].spec.resource,
+        onHandoff: () => {
+          handedOff = true;
+          void launchWave(runState, own, card, cardSelector).then(() => {
+            void nextTick(() => probeTick(flyReactions));
+          });
+        },
+        onSettled: () => {
+          if (!handedOff) {
+            // The impulse was torn down before its handoff (an abort): the
+            // wave never left, so nothing else will release these records.
+            release(own);
+            release(reactions);
+          }
+        },
+      });
+      runState.kills.push(handle.kill);
+    }, undefined, at);
+    at += s(REWARD_IMPULSE_MS + REWARD_WAVE_MS) * k;
+    if (reactions.length > 0) {
+      at += s(REACTION_GAP_MS + REWARD_WAVE_MS) * k;
+    }
+  } else {
+    tl.call(flyReactions, undefined, at);
+    at += s(REWARD_WAVE_MS) * k;
+  }
+  return at;
+}
+
 /** ЗАКРЫТИЕ: the compact results card reveals, row by row. */
 function beatClosing(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: number): number {
   const rows = itemsOf(ctx.root, '.con-sit__panel--on .con-sit__closing > *');
@@ -564,6 +784,10 @@ function settleStagePoses(): void {
   unparkSittingCards();
   killParliamentFlights();
   resetParliamentHolds();
+  // The rail's held counters tick now — a reward whose beat cannot play is
+  // announced by its delta chip, never withheld.
+  flushParliamentRewards('stage-settled');
+  flushAgendaBonus('stage-settled');
   sittingMotion.peek = false;
 }
 
@@ -576,7 +800,9 @@ function settleStagePoses(): void {
 export function playSittingStage(stage: SittingStage, beats: ReadonlyArray<SittingBeat>, ctx: SittingDirectorContext, opts: {compact: boolean}): Promise<void> {
   killSittingMotion();
   const own = beats.filter((b) => b.stage === stage);
-  if (own.length === 0 || consoleReducedMotionActive()) {
+  // The REWARD page always has a beat of its own (the reading's reveal, or the
+  // wave of what just arrived) — the summary's records are not its only fact.
+  if ((own.length === 0 && stage !== 'reward') || consoleReducedMotionActive()) {
     // Nothing to move (or a reduced-motion pose): every object is already where it ends.
     if (stage === 'enact' || stage === 'renewal' || consoleReducedMotionActive()) {
       settleStagePoses();
@@ -585,7 +811,7 @@ export function playSittingStage(stage: SittingStage, beats: ReadonlyArray<Sitti
   }
   const k = opts.compact ? COMPACT : 1;
   const master = gsap.timeline({paused: true});
-  const runState: StageRun = {stage, master, hold: {release: () => undefined}, flights: new Set(), finished: false};
+  const runState: StageRun = {stage, master, hold: {release: () => undefined}, flights: new Set(), pending: 0, kills: [], finished: false};
   let total = 0;
   const agenda = own.find((b) => b.kind === 'agenda')?.agenda;
   switch (stage) {
@@ -602,7 +828,7 @@ export function playSittingStage(stage: SittingStage, beats: ReadonlyArray<Sitti
     total = beatClosing(master, ctx, k);
     break;
   case 'reward':
-    // The reward's physics (the wave, the take, the tile) belong to Э5; its poses are static here.
+    total = beatReward(master, ctx, k, runState);
     break;
   }
   // The master spans the storyboard's arithmetic; the stage is AT REST only
@@ -615,7 +841,7 @@ export function playSittingStage(stage: SittingStage, beats: ReadonlyArray<Sitti
   sittingMotion.stage = stage;
   runState.hold = beginAnimationHold(sittingHoldLabel(stage), {
     maxHoldMs: STAGE_HOLD_CEILING_MS,
-    diagnose: () => ({stage, flights: Array.from(runState.flights).filter((id) => flightRegistered(id)), peek: sittingMotion.peek, holds: {
+    diagnose: () => ({stage, flights: Array.from(runState.flights).filter((id) => flightRegistered(id)), waves: runState.pending, peek: sittingMotion.peek, holds: {
       returns: parliamentHolds.returns.size, support: parliamentHolds.support.size, fresh: parliamentHolds.freshFaces.size, lobby: parliamentHolds.lobby.size,
     }}),
     expire: () => {
@@ -634,6 +860,14 @@ export function playSittingStage(stage: SittingStage, beats: ReadonlyArray<Sitti
     runState.finished = true;
     sittingMotion.stage = '';
     runState.hold.release();
+    // The Agenda CARD bonus is released with the STAGE at rest — the peek of
+    // the parties tier folded, every card home — so the cover lifts off the
+    // step on a track that is plainly on screen (released at the glide's
+    // landing, it opened over the support peek with no lift at all).
+    if (runState.releaseAgendaCard) {
+      runState.releaseAgendaCard = false;
+      markAgendaBonusLanded();
+    }
     resolveRun();
   };
   const awaitFlights = (): void => {
@@ -641,7 +875,7 @@ export function playSittingStage(stage: SittingStage, beats: ReadonlyArray<Sitti
       resolveRun();
       return;
     }
-    const airborne = Array.from(runState.flights).some((id) => flightRegistered(id));
+    const airborne = runState.pending > 0 || Array.from(runState.flights).some((id) => flightRegistered(id));
     if (airborne) {
       probeTick(awaitFlights);
     } else {
@@ -685,6 +919,14 @@ export function killSittingMotion(): void {
   current.hold.release();
   for (const id of current.flights) {
     dropFlight(id);
+  }
+  for (const kill of current.kills) {
+    kill();
+  }
+  if (current.releaseAgendaCard) {
+    // An aborted enactment still owes the step's card — released honestly now.
+    current.releaseAgendaCard = false;
+    markAgendaBonusLanded();
   }
   sittingMotion.peek = false;
 }

@@ -99,7 +99,8 @@ import {isPlayedHeroActive} from '@/client/console/played/consolePlayedHero';
 import {isPatentSaleActive} from '@/client/console/patentSale/consolePatentSale';
 import {tilePlacementHolding} from '@/client/console/tilePlacement/consoleTilePlacement';
 import {nomadMoveHolding} from '@/client/console/nomads/consoleNomadMove';
-import {isBoardCardBonusActive, boardCardBonusClaimsReveal, isBonusRevealStaged} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
+import {agendaTrackOnScreen, isAgendaReveal, isBoardCardBonusActive, boardCardBonusClaimsReveal, isBonusRevealStaged} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
+import {parliamentParksReveal} from '@/client/console/parliament/parliamentRewardBeat';
 import {colonyTradeClaimsReveal, isColonyTradeRevealStaged, isPresentedTradeReveal} from '@/client/console/colonyTrade/consoleColonyTrade';
 import {colonyResolutionUi, remoteColonyBonusHold} from '@/client/console/colonyTrade/colonyResolution';
 import {probeTick} from '@/client/console/probeTick';
@@ -271,9 +272,13 @@ export default defineComponent({
       // ⚠️ That claim is the one owner here whose life is SHORTER than the
       // batch's — it is dropped one tick before the last card is dismissed
       // (`result-detached`) — which is why the verdict is REMEMBERED.
+      // …and the Parliament's Agenda CARD reward, while its track is on screen,
+      // is the cover scene's (it lifts off the step the marker reached — same
+      // predicate the scene itself reads); off screen the deck honestly deals it.
       const foreign = !isDeckDrawSource(e.source) ||
         workspaceClaimOwnsArrival(e.source) ||
         boardCardBonusClaimsReveal(e.source) || isBonusRevealStaged(e.id) ||
+        (isAgendaReveal(e.source) && agendaTrackOnScreen()) ||
         colonyTradeClaimsReveal(e.source) || isColonyTradeRevealStaged(e.id) ||
         isPresentedTradeReveal(e.source);
       // A FOREIGN trade's owner bonus waits for its ENTRY (the mandatory
@@ -299,8 +304,14 @@ export default defineComponent({
       // one. `waiting`, never `foreign`: the batch IS ours, just not yet, and
       // the answer must be re-asked on arrival (a remembered verdict would
       // mean the cards never get their deal at all).
+      // …and the Parliament's Agenda CARD batch PARKED by the reward ledger
+      // (the political phase's sitting still owes the enactment glide that
+      // reaches the step) is «not yet» in the same sense: released at the
+      // glide's landing, on a track the player sees — never dealt off the
+      // deck over the announce plate.
       const waiting = remoteColonyBonusHold(this.playerView.waitingFor, e.source) ||
         hydroStepQueuedFor(e.source) ||
+        parliamentParksReveal(e.source) ||
         (colonyResolutionUi.discardStage && workspaceClaimsColonyReveal(e.source));
       const v = deckDrawVerdict({eventId: e.id, foreign, waiting});
       return v === undefined ? undefined : {v, e};

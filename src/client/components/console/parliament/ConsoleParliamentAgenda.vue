@@ -113,6 +113,8 @@ export default defineComponent({
       agendaHidden: undefined as {color: Color, step: number} | undefined,
       agendaGlide: undefined as HydroMarkerDirectorHandle | undefined,
       agendaGlideHold: undefined as AnimationHold | undefined,
+      /** The caller's «the marker has settled» callback of the running glide (fired once, on every ending). */
+      onGlideLanded: undefined as (() => void) | undefined,
     };
   },
   computed: {
@@ -156,13 +158,26 @@ export default defineComponent({
      * arrival, never precedes it. Bounded by the director's own safeties
      * and an animation hold.
      */
-    async playAgendaGlide(move: AgendaMove): Promise<void> {
+    async playAgendaGlide(move: AgendaMove, opts?: {onLanded?: () => void}): Promise<void> {
       const root = parliamentRootEl();
       if (root === undefined || typeof window === 'undefined' || move.to === move.from) {
         this.pulseAgendaStep(move.to);
+        opts?.onLanded?.();
         return;
       }
       this.stopAgendaGlide();
+      // The step's own reward (the sitting director's TR bonus flight) follows
+      // the ARRIVAL: fired exactly once, on the marker's settle or on any path
+      // that ends the glide early — never lost behind a glide that could not
+      // measure its rects.
+      let landedFired = false;
+      const landed = () => {
+        if (!landedFired) {
+          landedFired = true;
+          opts?.onLanded?.();
+        }
+      };
+      this.onGlideLanded = landed;
       const fromEl = root.querySelector<HTMLElement>(`[data-agenda-markers="${move.from}"]`);
       this.agendaHidden = {color: move.player, step: move.to};
       this.agendaFlight = {color: move.player};
@@ -219,6 +234,9 @@ export default defineComponent({
       this.agendaGlideHold?.release();
       this.agendaGlideHold = undefined;
       consoleParliamentUi.agendaSettling = false;
+      const landed = this.onGlideLanded;
+      this.onGlideLanded = undefined;
+      landed?.();
     },
     stopAgendaGlide(): void {
       const handle = this.agendaGlide;

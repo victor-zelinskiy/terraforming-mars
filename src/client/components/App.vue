@@ -349,6 +349,7 @@ import {
 import {shouldHoldForMarkerPlacement} from '@/client/components/board/markerPlacementAnimation';
 import {shouldHoldForOwnerCubePlacement} from '@/client/components/board/cubeDropState';
 import {stageRemotePlacements} from '@/client/console/tilePlacement/consoleRemotePlacement';
+import {seedParliamentRewardHold} from '@/client/console/parliament/parliamentRewardBeat';
 import {endgameAvailable} from '@/client/components/endgame/endgameState';
 import {PlayerViewModel, ViewModel} from '@/common/models/PlayerModel';
 import {SimpleGameModel} from '@/common/models/SimpleGameModel';
@@ -770,6 +771,12 @@ export default defineComponent({
             const prevPromptId = (prevView as PlayerViewModel | undefined)?.waitingFor?.promptId;
             const promptPreserved = prevPromptId !== undefined &&
               prevPromptId === (model as PlayerViewModel).waitingFor?.promptId;
+            // THE PARLIAMENT SITTING's reward (Turmoil Redux): this poll path is
+            // how the viewer learns that ANOTHER seat's gate answer paid them —
+            // the rail is held in the SAME synchronous block as the commit
+            // (the transport's `seedRewardHolds` does the same for the
+            // viewer's own submit), or the panel flushes a phantom −N chip.
+            seedParliamentRewardHold(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
             app.playerView = nextViewSnapshot(app.playerView, model as PlayerViewModel);
             setTranslationContext(app.playerView);
             if (!preserveCardPickModal && !preserveOpenOverlay && !promptPreserved) {

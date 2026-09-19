@@ -40,7 +40,7 @@ import {motionMs} from '@/client/components/motion/motionTokens';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {currentRevealEvent, DrawnCardEntry} from '@/client/components/drawnCards/drawnCardsState';
 import {
-  abortBoardCardBonus, armBoardCardBonus, boardCardBonusState, endBoardCardBonus, isAgendaReveal, isVenusScaleReveal,
+  abortBoardCardBonus, agendaTrackOnScreen, armBoardCardBonus, boardCardBonusState, endBoardCardBonus, isAgendaReveal, isVenusScaleReveal,
   markBonusZoomEntryReady, registerBoardCardBonusHandle, registerBonusZoomOrigin, revealMatchesSource,
   setBoardCardBonusPhase, stageBoardCardBonusReveal, BoardCardBonusAbortMode,
 } from '@/client/console/boardCardBonus/consoleBoardCardBonus';
@@ -54,6 +54,7 @@ import {nomadMoveHolding} from '@/client/console/nomads/consoleNomadMove';
 import {concurrentResourcePayout, waitRewardPayoutQuiet} from '@/client/console/rewardPayoutQuiet';
 import {consoleCardZoom} from '@/client/console/consoleCardZoom';
 import {boardBeatParksReveal} from '@/client/console/boardBeatPark';
+import {parliamentParksReveal} from '@/client/console/parliament/parliamentRewardBeat';
 import {probeTick} from '@/client/console/probeTick';
 import {consoleParliamentUi} from '@/client/console/parliament/consoleParliamentFlow';
 import {
@@ -189,7 +190,14 @@ export default defineComponent({
       // else the standard draw presents it: the deck answers, the card
       // reaches the hand.
       if (isAgendaReveal(e.source)) {
-        return document.querySelector('.con-parl:not(.con-parl--handed-over) [data-parl-agenda]') !== null ? e : undefined;
+        // …and never while the political phase's ledger PARKS the batch: the
+        // sitting director releases it once the enactment's glide has settled
+        // on the step, so the cover lifts off a step the marker has reached.
+        // ⚠ The REACTIVE term goes FIRST: the DOM query is not a dependency,
+        // and a short-circuit before the park's read left this computed with
+        // nothing to re-evaluate on — the release changed nothing it watched,
+        // the scene never armed, and the viewer opened with a textual entrance.
+        return !parliamentParksReveal(e.source) && agendaTrackOnScreen() ? e : undefined;
       }
       if (isVenusScaleReveal(e.source)) {
         // …and NEVER against a board the player cannot see. While the batch
@@ -369,7 +377,7 @@ export default defineComponent({
       }
       const icons = this.resolveSourceIcons();
       if (icons.length === 0 && source.kind !== 'board-tile') {
-        abortBoardCardBonus('instant');
+        abortBoardCardBonus('instant', 'no-source-icon');
         return;
       }
       // The paying TILE has no printed icon (its cell is covered by its own
@@ -380,13 +388,13 @@ export default defineComponent({
         await this.tileCoverRect((source as {spaceId: string}).spaceId);
       if (from === undefined || !boardCardBonusState.active) {
         if (boardCardBonusState.active) {
-          abortBoardCardBonus('instant');
+          abortBoardCardBonus('instant', 'no-stable-rect');
         }
         return;
       }
       const cover = this.$refs.cover as HTMLElement | undefined;
       if (cover === undefined || cover === null) {
-        abortBoardCardBonus('instant');
+        abortBoardCardBonus('instant', 'no-cover-el');
         return;
       }
       ctx.cellRect = from;

@@ -29,6 +29,19 @@ const ALLOWED: ReadonlyArray<{file: string, marker: string, why: string}> = [
     marker: 'SUBMIT_SAFETY_MS',
     why: 'the submit safety net — a bound over a silent server, not a beat',
   },
+  // The reward ledger's NETS: a rail counter held for a beat that never comes
+  // (the sitting parked between the seed and the flight) releases with its
+  // chips — the same class as the transport's own hold safeties, never a beat.
+  {
+    file: path.join('src', 'client', 'console', 'parliament', 'parliamentRewardBeat.ts'),
+    marker: 'REWARD_HOLD_SAFETY_MS',
+    why: 'the reward hold safety net — a bound over a beat that never came, not a beat',
+  },
+  {
+    file: path.join('src', 'client', 'console', 'parliament', 'parliamentRewardBeat.ts'),
+    marker: 'AGENDA_BONUS_HOLD_SAFETY_MS',
+    why: 'the Agenda bonus hold safety net — the plate waits for the player\'s own A, bounded',
+  },
 ];
 
 function sourceFiles(): Array<string> {

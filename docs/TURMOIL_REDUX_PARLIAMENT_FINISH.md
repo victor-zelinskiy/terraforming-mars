@@ -1,0 +1,158 @@
+# Turmoil Redux — «Заседание парламента»: финальный прогон Э5 → Э8 → ПОЛИРОВКА → Э9
+
+Дата начала: 2026-09-19. Продолжение `TURMOIL_REDUX_PARLIAMENT_SITTING.md` (Э0–Э4) одним автономным
+прогоном; журнал по ходу — `docs/claude/parliament-sitting-progress.md` (там же «Реестр полировки»).
+Каждый этап здесь: оценка → концепция → что изменилось → контракты → бюджеты профилей → проверка →
+честные ограничения. В конце — «Парламент — состояние на сдачу» (галерея, карта файлов).
+
+---
+
+## Э5 — стадия НАГРАДА: адрес → подача
+
+### Оценка
+
+После Э4 стадия НАГРАДА была СТАТИЧНЫМ чтением: адрес из `rewardAddressOf`, плита пропуска, строка ожидания
+чужого места, hero-колонка с картой-носителем, полевая поза для встроенного шага (пикер / добор / тайл).
+Запись исхода (`phase.outcomes`) меняла рельсу ресурсов «числом, которое изменилось»: счётчик тикал в
+момент применения вида, пока игрок читал вердикт или ждал ворота — та самая тихая награда, которую
+запрещает закон «a GAIN is a REWARD». Бонус Повестки (+1 РТ за шаг) платился сервером при старте фазы и
+приходил на HUD раньше, чем маркер доезжал до шага. Добор внутри заседания держал призрак «В руке» и
+плиту причины (`__cause`) внутри зоны; L3 на встроенном доборе поднимал резолюцию как `{name: card}` —
+из ниоткуда.
+
+### Концепция — ledger «должен / летит / сел», один синхронный блок с видом
+
+**Награда = физическое событие по своему адресу, и счётчик тикает только на касании.** Для этого между
+приходом записи и её подачей стоит ledger (`console/parliament/parliamentRewardBeat.ts`) с четырьмя
+глаголами — DETECT → SEED → OWE → FLY:
+
+- **DETECT (чисто)** — по двум видам: новые записи ЗРИТЕЛЯ этого ответа (`detectNewViewerRewards`), новый
+  тайл победителя (`detectNewViewerTile`), бонус Повестки, впервые пришедший со сводкой
+  (`detectAgendaTrBonus`). Ключ записи структурный: `seat:step:part:kind` — тот же, что у плиты пропуска.
+- **SEED (в том же синхронном блоке, что применение вида)** — `seedParliamentRewardHold(before, after)`
+  вызывается из ОБЕИХ дорог применения: `gameTransport.seedRewardHolds` (свой сабмит) и `App.update()`
+  (poll / WS — другое место ответило последним). Панель рельсы рисует «зафиксировано − удержано»
+  (`beginPanelRewardHold`), поэтому фантомного «−N» чипа нет по построению. Hold сеется ТОЛЬКО когда
+  заседание стоит на экране (`consoleParliamentUi.stageStanding`, не reduced motion); иначе запись
+  помечается севшей сразу — счётчик тикает с обычным дельта-чипом там, где игрок смотрит.
+- **OWE** — пока запись должна, стоит blocking-hold `parliament-reward-owed` (supplier в реестре
+  animation-hold-ов): дверь следующего шага (`followUp` / `placement` / `host`) ждёт `presentation`, полевая
+  поза стадии и цели телепорта шелла (`consoleParliamentUi.fieldStanding`) ждут
+  `!parliamentRewardPending()`. Так «одно нажатие — несколько эффектов» идут по очереди: волна, потом
+  добор / пикер / поле.
+- **FLY** — директор берёт должное (`takeOwedRewards`) в бете `reward` и запускает волну; каждое касание
+  (`markRewardLanded`) отпускает СВОЙ hold — счётчик тикает в кадре посадки, дельта-чип рождается на
+  строке. Сеть — 8 с (`REWARD_HOLD_SAFETY_MS`); срыв (парковка, размонтирование, потолок стадии)
+  отпускает всё разом с причиной в следе.
+
+**Источник волны — печатная графика носителя** (язык ACTION COMMIT): `resolveActionCommitAnchors` /
+`resolveGainIconOrigins` по `.pcard__mech` карты в правительстве или на hero-слоте (один DOM-экземпляр в
+обеих позах); импульс `runActionCommitMotion` (фиксация → sweep → кольцо на иконке результата → handoff)
+запускает `runResourceTransfers` с origins на иконках. Реакция правящей партии летит с плашки правителя в
+правительстве (`[data-parl-ruler]`, эмблема + формула) ПОСЛЕ посадки собственных чипов — ярус партий
+остаётся под стадией, второго яруса на экране нет.
+
+**Бонус Повестки — честный полёт.** РТ едет каналом `stock` под ключом рельсы `rating`
+(`targetPointFor` знает ячейку `.con-score__cell--tr`, панель вычитает `heldStock('rating')`). Сеется с
+первым видом сводки, держится через плиту анонса и вердикт, летит с достигнутого шага
+(`.con-parl__step[data-step=N] .con-parl__step-res`) после посадки маркера. Глайд — собственная работа
+стадии ПРИНЯТИЕ (`runState.pending`), стадия отдыхает после посадки маркера И чипа. Сеть бонуса измеряет
+ПРОСТОЙ: 30 с, перевзвод на каждом движении заседания (`noteAgendaBonusProgress`).
+
+**Язык чтения.** До записи — `resolving` («Эта выплата»: декларация автора × записанное влияние места,
+`resolvingYieldsOf`, без пересчёта на клиенте); после посадки — `applied` («Получено»). Слово состояния —
+ОДНО, в кикере стадии (`[data-sit-reward-state]`), не подпись под каждым чтением. Ожидание чужого места
+читается «Получено» + строка ожидания с кубом (`[data-sit-wait-for]`).
+
+**Добор без призрака (один паттерн для embedded и standalone).** Взятая карта уходит из ряда ПОСЛЕ
+посадки в док (`runHandIntake` → `onLanded`), выжившие переукладываются `wsStageLayout` и едут FLIP-ом
+(240 мс) в новые берега. Причина — строка `.con-ws-stage-status` («Принятая резолюция берёт для вас 2
+карты · Забрано 1 из 2»), плиты `__cause` внутри стадии нет. L3 = резолюция-носитель
+(`resolutionZoomEntry` + `workspaceSourceZoomOrigin` с хостом-парламентом).
+
+**Тайл победителя.** Стек уступает поле (`yieldsToBoard`), после посадки возвращается на ТУ ЖЕ стадию в
+позе «получено» (квитанция: `tileReceipt` ledger-а → `stageHeld = 'reward'`, чтение победителя `applied`,
+чип параметра и РТ), затем обычный переход на ОБНОВЛЕНИЕ.
+
+### Что изменилось
+
+- НОВОЕ `src/client/console/parliament/parliamentRewardBeat.ts` — ledger (DETECT / SEED / OWE / FLY, след
+  причин, `parliamentRewardDiag()`), supplier `parliament-reward-owed`.
+- `sittingDirector.ts` — `beatReward` (импульс → волна → реакция → квитанция), `launchAgendaBonus`, глайд
+  Повестки как pending-работа стадии, причины сброса hold-ов.
+- `ConsoleParliamentSection.vue` — `stageHeld` / `deferredStep` (поза НАГРАДА держится через смену шага в
+  том же ответе), `fieldStanding` post-flush, память отыгранных стадий (`notePlayedSittingStage` — бет
+  награды не реплеится), квитанция тайла при возврате, перевзвод сети бонуса.
+- `ConsoleParliamentSitting.vue` — слово состояния в кикере, плита пропуска с «было бы +K», строка ожидания
+  с кубом, `rewardResolving` только по СВОИМ шагам.
+- `ConsoleExternalDrawWorkspace.vue` — без призрака, FLIP выживших после посадки, `withCause` в строке
+  статуса, L3 → `resolutionZoomEntry`.
+- `ConsoleShell.vue` — цели телепорта парламента ждут `fieldStanding`; `App.vue` и `gameTransport.ts` —
+  посев ledger-а; `consoleResourceTransfer.ts` — ячейка РТ; `ConsoleResourcePanel.vue` — `heldStock('rating')`;
+  `ConsoleParliamentAgenda.vue` — `onLanded` глайда (once-guard); `ConsoleParliamentSeats.vue` — «→ резерв».
+- `ConsoleResourceTransferLayer.vue` — `data-transfer-id` на чипе (идентичность для пробников).
+- `influenceYieldModel.ts` — `resolvingYieldsOf`; `consoleResolutionPayout.ts` — `enactedCardEl`,
+  `carrierIconOrigin`; `consoleWorkspaceOutcome.ts` — источник зума в hero-слоте / правительстве.
+- `optionIcons.ts` — псевдоним `rating → resource_icon--rating` (чип РТ летел без значка).
+- **Бонус-КАРТА шага Повестки** — ledger знает `kind: tr | card`; батч `agenda` ПАРКУЕТСЯ (`parliamentParksReveal` —
+  третий член исключений парка ривила рядом с колонией и board-beat park: `rawDrawnRevealPending`,
+  `registerRevealParkSupplier`, сцена cover-lift, вердикт deck-draw «waiting») до посадки глайда на шаг; тогда
+  обложка поднимается с самого шага (`agendaTrackOnScreen` в `consoleBoardCardBonus.ts` — ОДИН предикат для
+  сцены и для вердикта колоды), карта открывается над заседанием, A уносит её в док.
+- `console_tv.less` — рейка статуса стадии 2.6rem (чипы пикера 2.5rem резались на 4 px).
+- `e2eReadiness.ts` — `parliamentReward` в `__conReady` (снимок ledger-а + след причин).
+- `ConsoleDeckDrawLayer.vue` — вердикт: батч `agenda` при дорожке на экране — чужой (сцена обложки), запаркованный —
+  «waiting»; `consoleBoardCardBonus.ts` — `agendaTrackOnScreen`, `boardCardBonusDiag` (причина последнего abort-а —
+  в `__conReady().cardBonus`).
+- Фикстура `parliament-climate-cardstep` (синий 6 → 7 — карточный шаг), `FixtureName` в `consoleStart.ts`.
+- Тесты: `tests/e2e/console-parliament-sitting-reward.spec.ts` (НОВЫЙ, три профиля × пять резолюций + большой
+  добор на Deck + бонус РТ Повестки + бонус-КАРТА Повестки), `tests/e2e/parliamentDrive.ts` (НОВЫЙ общий драйвер),
+  `tests/client/console/parliamentRewardBeat.spec.ts` (НОВЫЙ), расширены `rewardAddress.spec`,
+  `sittingBeats.spec`, `ResolutionContract.spec` (нет тихой награды по каталогу), `parliamentNoTimers.spec`.
+
+### Контракты (для будущих агентов)
+
+1. Посев hold-а рельсы — только в синхронном блоке применения вида, из ОБЕИХ дорог; новый путь применения
+   вида обязан звать `seedParliamentRewardHold`.
+2. Волна играет один раз и только на экране; поза «Получено» — единственный реплей.
+3. Пока запись должна — стоит blocking-hold; дверь следующего шага ждёт его, а не таймер.
+4. Каждый сброс hold-а называет причину (след ledger-а); «тихого» тика нет — сброс всегда с дельта-чипом.
+5. Источник чипа — печатная иконка носителя / плашка правителя; ни одной координатной таблицы.
+6. Бонус Повестки — hold РТ до касания; сеть считает простой заседания, не длину потока.
+
+### Бюджеты профилей
+
+- **1080**: карта-носитель в правительстве стоит на одной высоте со строками рейки — хорда чипа тепла до ячейки
+  производства 180 px (16,7 % высоты): короткая прямая причинная траектория, пробник требует рождение в
+  `.pcard__mech`, посадку в ячейку и хорду ≥ min(20 % высоты, 85 % дистанции иконка → ячейка).
+- **TV 4K**: рейка статуса стадии (`.con-cards__verdictbar.con-ws-stage-status` и семья) — 2.6rem (чипы пикера
+  2.5rem; прежние 2.4rem резали их на 4 px); допуски пробника масштабируются `px(viewport, at1080)`.
+- **Deck 1280×800**: большой добор (6 карт) — два ряда по `wsStageLayout`, карты ≥ 96 px, всё внутри зоны; пробник
+  считает ряды кластерами tops (фокусная карта приподнята на свой акцент — это не ряд).
+- Все три профиля: `expectParliamentFits` (ничего за экран, ничего не clipped, ни одного scroll-контейнера) на
+  позах чтение / волна / шаг / ожидание / покой; `waitSittingAtRest` — покой ≥ 250 мс подряд.
+
+### Проверка
+
+- `tests/e2e/console-parliament-sitting-reward.spec.ts` — 18 тестов (RX01–RX05 × 3 профиля, большой добор на
+  Deck, бонус РТ, бонус-карта): зелёные, 8,0 мин при `--workers=1`; скриншоты
+  `screenshots/parliament-sitting-reward/<preset>/` просмотрены (замечания — в «Реестр полировки» журнала).
+- Регрессия Э0–Э4 (`console-parliament-sitting.spec.ts`, `-sitting-motion`, `-gates`, `-vote-fit`): 33 теста
+  зелёные (10,7 мин).
+- Юниты/гарды: `parliamentRewardBeat.spec` 12 · `consoleBoardCardBonus.spec` 18 · `rewardAddress.spec` ·
+  `sittingBeats.spec` · `ResolutionContract.spec` (49 + 1 pending) · `parliamentNoTimers` · `e2eDriverGuard` 8 ·
+  `parliamentLessOrder` · `e2eFixturesLoad` 45 · `logResourceToken` 7; `test:server`, `test:client`, `build:test`
+  (mocha + e2e деревья), `lint:client` (vue-tsc), `lint:i18n`, `make:json`, eslint по всем изменённым файлам — см.
+  итог приёмки Э5 в журнале.
+
+### Честные ограничения Э5
+
+- Бонус-карта Повестки открывается fullscreen-viewer-ом над заседанием (обложка с шага → карта → A → док), а не
+  внутри зоны стадии: у страницы ПРИНЯТИЕ нет зоны для встроенного ривила (она есть только у НАГРАДЫ), и
+  fullscreen-зум — санкционированная полноэкранная кинематика семьи. Встраивание = новая зона на странице
+  ПРИНЯТИЕ; отложено как кандидат Э8/ПОЛИРОВКИ, не как долг.
+- Растворение севшего чипа (~0,6 с absorb на рейке) перекрывается со входом следующей страницы — намеренно
+  («уходящая поверхность дорисовывает свой уход»): решение о смене страницы принимается в момент посадки.
+- Сети ledger-а (8 с волна, 30 с простой бонуса Повестки) — единственные wall-clock в парламентском дереве
+  помимо `SUBMIT_SAFETY_MS`; обе в allow-list `parliamentNoTimers` с причиной, обе отпускают честно (дельта-чип /
+  стандартная раздача), не молча.

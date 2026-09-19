@@ -57,6 +57,29 @@ describe('rewardAddress — the table', () => {
     // A tile is placed by the board scene itself: nothing flies off the card.
     expect(REWARD_ADDRESS.ocean.source).eq('none');
   });
+
+  it('Э5 — the STAGE LADDER: a rail record is the reward page\'s own wave; a card resource, a draw and a tile are hosted STEPS of it (choice / take / board); the party\'s answer rides the wave', () => {
+    expect(REWARD_ADDRESS.production.stage).eq('reward');
+    expect(REWARD_ADDRESS.stock.stage).eq('reward');
+    expect(REWARD_ADDRESS.reaction.stage).eq('reward');
+    expect(REWARD_ADDRESS.skipped.stage).eq('reward');
+    expect(REWARD_ADDRESS.cardResource.stage).eq('choice');
+    expect(REWARD_ADDRESS.cards.stage).eq('take');
+    expect(REWARD_ADDRESS.ocean.stage).eq('board');
+    expect(REWARD_ADDRESS.greenery.stage).eq('board');
+    // A rail chip is BORN on a printed icon (the carrier's mechanic, the ruling party's formula) and rides a rail unit;
+    // what the board or the stage plate presents has no flight source of its own.
+    for (const kind of OUTCOME_KINDS) {
+      const row = REWARD_ADDRESS[kind];
+      if (row.surface === 'rail') {
+        expect(['card-icon', 'party-plaque'], `${kind}: a rail chip is born on a printed icon`).includes(row.source);
+        expect(['production', 'stock'], `${kind}: a rail unit`).includes(row.unit);
+      }
+      if (row.surface === 'board' || row.surface === 'stage-plate') {
+        expect(row.source, `${kind}: nothing flies off the card`).eq('none');
+      }
+    }
+  });
 });
 
 describe('rewardAddress — the delivery of a record', () => {

@@ -91,15 +91,26 @@
          paid (never a silent loss), the honest wait for another seat, and the
          ZONE the enacted resolution's own ask stands in. ── -->
     <section class="con-sit__panel con-sit__panel--reward" :class="{'con-sit__panel--on': stage === 'reward'}" data-sit-panel="reward">
-      <span class="con-sit__kicker">{{ $t(rewardKicker) }}</span>
+      <!-- The kicker names the stage; ONE word of state beside it says which
+           moment the numbers belong to — «this payout» until every chip has
+           landed, «received» after (cyan → amber, the console's own
+           pre-/post-commit accent). The readings print no caption of their own:
+           one state, said once (law 19 — a word, never a sentence). -->
+      <span class="con-sit__kicker">{{ $t(rewardKicker) }}<span v-if="rewardStateKey !== undefined" class="con-sit__kicker-state" :class="{'con-sit__kicker-state--received': rewardStateKey === 'Received'}" :data-sit-reward-state="rewardStateKey">{{ $t(rewardStateKey) }}</span></span>
       <div class="con-sit__reward" :class="{'con-sit__reward--field': field}">
         <div class="con-sit__hero" :class="{'con-sit__hero--field': field}">
           <!-- The carried enacted card lands here (one DOM instance, teleported by the government) while the stage holds the field. -->
           <div class="con-sit__card" data-parl-sit-hero></div>
+          <!-- The readings only: the carrier card's own printed graphic (in the
+               government, or carried onto the hero slot) IS the formula — a
+               second copy of it stacked the reward past its tier over the
+               Agenda track (measured at 1080 with the two-link chain). -->
           <ConsoleInfluenceYield v-if="yields.length > 0"
                                  class="con-sit__yield"
                                  :yields="yields"
                                  :size="field ? 'hero' : 'normal'"
+                                 :formula="false"
+                                 :captions="false"
                                  data-parl-sit-yield
                                  data-parl-sit-item />
           <ConsolePartyReaction v-for="r in reactions" :key="r.reaction.id"
@@ -113,11 +124,18 @@
                                :nameOf="nameOfColor"
                                size="normal"
                                data-parl-sit-item />
-          <div v-for="skip in skips" :key="skip.key" class="con-sit__skip" data-parl-sit-item data-sit-skip>
+          <div v-for="skip in skips" :key="skip.key" class="con-sit__skip" data-parl-sit-item data-sit-skip :data-sit-skip-amount="skip.amount">
             <span class="con-sit__skip-title">{{ $t('Skipped') }} · {{ $t(skip.title) }}</span>
+            <!-- WHAT IT WOULD HAVE PAID, when the record honestly knows: the
+                 same struck «✕ +K [unit]» language the yield block speaks for
+                 a forfeited scaled part — never a silent loss (law 4). -->
+            <span v-if="skip.amount !== undefined" class="con-sit__skip-amount con-iyield__out con-iyield__out--lost"><b>✕ +{{ skip.amount }}</b><i class="con-iyield__unit" :class="skip.unit" aria-hidden="true"></i></span>
             <span class="con-sit__skip-reason">{{ $t(skip.reason) }}</span>
           </div>
-          <span v-if="waitText !== ''" class="con-sit__wait" data-sit-wait>{{ waitText }}</span>
+          <!-- The honest WAIT for ANOTHER seat — its cube, then who and what kind of answer. -->
+          <span v-if="waiting !== undefined" class="con-sit__wait" data-sit-wait :data-sit-wait-for="waiting.player">
+            <PlayerCube :color="waiting.player" :size="cubePx(11)" :glow="false" />{{ waiting.text }}
+          </span>
           <span v-else-if="position.gate === 'assembly' && position.rewardStep === 'gate'" class="con-sit__awaiting" data-sit-awaiting>
             {{ $t('Waiting for the other seats') }}
             <span class="con-sit__chips">
@@ -190,17 +208,20 @@ import ConsoleInfluenceYield from '@/client/components/console/parliament/Consol
 import ConsolePartyReaction from '@/client/components/console/parliament/ConsolePartyReaction.vue';
 import ConsoleWinnerReward from '@/client/components/console/parliament/ConsoleWinnerReward.vue';
 import {partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
+import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {conLogicalPx} from '@/client/console/consoleLayoutProfile';
 import {translateTextWithParams} from '@/client/directives/i18n';
 import {getResolution} from '@/client/parliament/ClientParliamentManifest';
 import {parliamentPlayerName, ParliamentViewVm, resolutionTitleOf} from '@/client/console/parliament/consoleParliamentModel';
 import {SittingPosition, SittingStage} from '@/client/console/parliament/consoleSittingFlow';
-import {enactedYieldsOf, voteYieldsOf} from '@/client/console/parliament/influenceYieldModel';
+import {enactedYieldsOf, resolvingYieldsOf, voteYieldsOf} from '@/client/console/parliament/influenceYieldModel';
+import {parliamentRewardState, rewardLanded} from '@/client/console/parliament/parliamentRewardBeat';
+import {cardResourceKey} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {PartyReactionReading, partyReactionsOf, viewerHasSeat} from '@/client/console/parliament/partyReactionModel';
 import {WinnerRewardReading, winnerRewardReadingOf, winnerRewardTableOf} from '@/client/console/parliament/winnerRewardModel';
 
-/** A skipped effect on the reward stage: WHAT was skipped and WHY (both i18n keys). */
-type SkipPlate = {key: string, title: string, reason: string};
+/** A skipped effect on the reward stage: WHAT was skipped and WHY (both i18n keys), and what it would have paid when the record knows. */
+type SkipPlate = {key: string, title: string, reason: string, amount?: number, unit?: string};
 
 export default defineComponent({
   name: 'ConsoleParliamentSitting',
@@ -270,9 +291,35 @@ export default defineComponent({
         return [];
       }
       const recorded = this.mine.length > 0 || this.position.step === 'adjourn' || this.position.step === 'done';
-      return recorded ?
-        enactedYieldsOf(resolution, this.model, this.viewerColor, {live: this.mode === 'live' && this.position.step === 'effects'}) :
-        voteYieldsOf(resolution, this.model, this.viewerColor).filter((y) => y.context !== 'forecast');
+      if (!recorded) {
+        // BEFORE THE RECORD (the assembly's reward page): «this payout» — the
+        // declaration read at the seat's final influence, never a forecast (the
+        // vote is over) and never «by your current influence» (the payout is
+        // fixed). A review of a finished sitting keeps the vote's own reading.
+        return this.mode === 'live' ?
+          resolvingYieldsOf(resolution, this.model, this.viewerColor) :
+          voteYieldsOf(resolution, this.model, this.viewerColor).filter((y) => y.context !== 'forecast');
+      }
+      return enactedYieldsOf(resolution, this.model, this.viewerColor, {live: this.mode === 'live' && this.rewardResolving});
+    },
+    /**
+     * THE RECORD IS IN BUT NOT YET SHOWN TO LAND: a chip owed or in the air
+     * (the reward ledger), or the seat's own hosted step still standing (the
+     * take, the pick, the tile). Then the reading says «this payout»; on the
+     * touchdown / the answer it says «received».
+     */
+    rewardResolving(): boolean {
+      void parliamentRewardState.owed.length;
+      void parliamentRewardState.flying.length;
+      void parliamentRewardState.landed.length;
+      const step = this.position.rewardStep;
+      // The viewer's OWN part is still open: nothing recorded yet, or their
+      // own step standing. Waiting on ANOTHER seat is not — their payout is
+      // in, and the wait line names whose turn it is.
+      if (this.position.step === 'effects' && (step === 'reading' || step === 'choice' || step === 'intake' || step === 'placement')) {
+        return true;
+      }
+      return this.mine.some((o) => !rewardLanded(o));
     },
     /** …and the ruling party's answer to it (a seat that takes part is told; a spectator is not). */
     reactions(): Array<PartyReactionReading> {
@@ -299,24 +346,44 @@ export default defineComponent({
         const title = outcome.kind === 'skipped' ?
           (outcome.part === 'winner' ? 'Reward for the winner of the vote' : 'Resolution effect') :
           REWARD_ADDRESS[outcome.kind].skipTitle;
-        out.push({key: `${outcome.step}:${outcome.part ?? ''}`, title, reason: delivery.skipped});
+        const amount = delivery.payload.amount;
+        out.push({
+          key: `${outcome.step}:${outcome.part ?? ''}`, title, reason: delivery.skipped,
+          ...(amount !== undefined && amount > 0 ? {amount, unit: this.skipUnitClass(outcome)} : {}),
+        });
       }
       return out;
     },
     rewardKicker(): string {
       return this.position.rewardStep === 'waiting' ? 'The effects are being paid' : 'Your reward';
     },
-    /** The honest wait — WHO the effects are asking and what kind of answer (the server's own input type). */
-    waitText(): string {
+    /**
+     * THE ONE WORD OF STATE beside the kicker: «this payout» while the numbers
+     * are what the law is ABOUT to pay / is paying (before the record, chips
+     * in the air, a step still standing), «received» once every chip has
+     * landed. Absent when there is nothing of the viewer's to read.
+     */
+    rewardStateKey(): 'This payout' | 'Received' | undefined {
+      if (this.yields.length === 0 && this.mine.length === 0 && this.winnerReading === undefined) {
+        return undefined;
+      }
+      if (this.mode !== 'live') {
+        return 'Received';
+      }
+      const recorded = this.mine.length > 0 || this.position.step === 'adjourn' || this.position.step === 'done';
+      return !recorded || this.rewardResolving ? 'This payout' : 'Received';
+    },
+    /** The honest wait — WHO the effects are asking (their cube) and what kind of answer (the server's own input type). */
+    waiting(): {player: Color, text: string} | undefined {
       const waiting = this.position.waitingFor;
       if (waiting === undefined) {
-        return '';
+        return undefined;
       }
       const who = this.nameOfColor(waiting.player);
       switch (waiting.input) {
-      case 'card': return translateTextWithParams('Waiting for ${0} to choose a card', [who]);
-      case 'space': return translateTextWithParams('Waiting for ${0} to place a tile', [who]);
-      default: return translateTextWithParams('Waiting for ${0} to decide', [who]);
+      case 'card': return {player: waiting.player, text: translateTextWithParams('Waiting for ${0} to choose a card', [who])};
+      case 'space': return {player: waiting.player, text: translateTextWithParams('Waiting for ${0} to place a tile', [who])};
+      default: return {player: waiting.player, text: translateTextWithParams('Waiting for ${0} to decide', [who])};
       }
     },
     resultsTitle(): string {
@@ -326,6 +393,22 @@ export default defineComponent({
   methods: {
     cubePx(logical: number): number {
       return conLogicalPx(logical);
+    },
+    /** The icon of what a skipped record would have paid — the console's own sprite families, the production frame where it is production. */
+    skipUnitClass(outcome: ParliamentEnactOutcomeModel): string {
+      if (outcome.kind === 'skipped' || outcome.kind === 'production' || outcome.kind === 'stock' || outcome.kind === 'reaction') {
+        const production = outcome.production;
+        if (production !== undefined) {
+          return iconClassFor(String(production)) + ' con-iyield__unit--prod';
+        }
+        if (outcome.stock !== undefined) {
+          return iconClassFor(String(outcome.stock));
+        }
+      }
+      if (outcome.resource !== undefined) {
+        return iconClassFor(cardResourceKey(String(outcome.resource)));
+      }
+      return outcome.kind === 'cards' ? iconClassFor('cards') : '';
     },
     emblemUrl(party: ReduxParty): string {
       return partyEmblemUrl(party);

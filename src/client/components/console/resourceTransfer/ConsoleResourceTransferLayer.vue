@@ -27,6 +27,7 @@
     <template v-for="f in resourceTransferState.flights" :key="f.id">
       <div class="con-transfer__chip"
            :class="chipClass(f.spec)"
+           :data-transfer-id="f.id"
            :ref="(el) => setChipRef(f.id, el as HTMLElement | null)">
         <i v-if="!isMegacredits(f.spec)" class="con-transfer__icon" :class="iconClass(f.spec)"></i>
         <span class="con-transfer__amt" :class="{'con-transfer__amt--mc': isMegacredits(f.spec)}">+{{ f.spec.amount }}</span>

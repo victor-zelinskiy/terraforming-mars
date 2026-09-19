@@ -33,8 +33,11 @@
 
       <!-- THE CAUSE — what happened, why, and who set it off. Two calm lines:
            the initiator's act (their chip + the trigger card) and the effect's
-           own promise. Constant through the whole take. -->
-      <div class="con-extdraw__cause" role="note">
+           own promise. Constant through the whole take. EMBEDDED, the host's
+           crumb already names the flow and the carrier card stands beside the
+           row: the promise folds into the ONE status line below (a second
+           plate inside a stage read as a modal that had arrived). -->
+      <div v-if="!embedded" class="con-extdraw__cause" role="note">
         <!-- WHO set it off — a card cause only. An enacted resolution has no
              initiator: nobody did this to the player, the law did, and an
              empty player chip would invent an actor. -->
@@ -54,9 +57,11 @@
         <console-source-dock :view="sourceView" compact />
       </div>
 
-      <!-- THE CARDS — the shared card chassis. Slots are STABLE for the whole
-           batch: a taken card leaves a quiet ghost seat, so the row never
-           re-flows under a flight the player is watching. -->
+      <!-- THE CARDS — the shared card chassis. The row is STABLE for the whole
+           flight of a taken card (its seat stays, hidden under the proxy), and
+           re-lays itself out only AFTER the card has landed in the dock: the
+           taken seat leaves, the rest FLIP to their new berths — the one
+           pattern every other card surface of the console speaks (no ghost). -->
       <div class="con-cards con-extdraw__cards">
         <div class="con-cards__strip con-ws-stage-row con-extdraw__row"
              :class="{'con-cards__strip--has-focus': remaining.length > 0}"
@@ -68,13 +73,10 @@
                ref="slots"
                :class="{
                  'con-cards__slot--focused': focusIdx === i && interactive && !entry.taken,
-                 'con-extdraw__slot--ghost': entry.taken,
+                 'con-extdraw__slot--taken': entry.taken,
                  'con-deal-hold': slotHeld(entry.name),
                }">
             <Card :card="{name: entry.name}" :key="entry.name" lightweight />
-            <span v-if="entry.taken" class="con-extdraw__ghostband" aria-hidden="true">
-              ✓ {{ $t('In hand') }}
-            </span>
           </div>
         </div>
 
@@ -126,7 +128,10 @@
  * (the decision-surface-rearm contract).
  */
 import {defineComponent, markRaw, PropType} from 'vue';
+import {gsap} from 'gsap';
 import Card from '@/client/components/card/CardFace.vue';
+import {resolutionZoomEntry} from '@/client/components/card/cardZoomTypes';
+import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import ConsoleWsHead from '@/client/components/console/foundation/ConsoleWsHead.vue';
 import ConsoleCardAvailabilityPanel from '@/client/components/console/ConsoleCardAvailabilityPanel.vue';
 import {CardName} from '@/common/cards/CardName';
@@ -170,6 +175,9 @@ const FIT_RETRIES = 20;
 /** How long a slow server may take before an unchanged prompt reads as a
  *  refusal (the deck-pick constant, same reasoning). */
 const REFUSAL_GRACE_MS = 1500;
+
+/** The survivors' FLIP after a landing — a calm re-seat, never a jump. */
+const REFLOW_FLIP_MS = 240;
 
 type SlotEntry = {name: CardName, taken: boolean};
 
@@ -320,18 +328,18 @@ export default defineComponent({
     statusText(): string {
       const m = this.meta;
       if (this.phase === 'dealing') {
-        return translateTextWithParams('Cards from the deck: ${0}', [String(this.entries.length)]);
+        return this.withCause(translateTextWithParams('Cards from the deck: ${0}', [String(this.entries.length)]));
       }
       if (this.phase === 'sending' || m === undefined) {
-        return translateText('Taking the card…');
+        return this.withCause(translateText('Taking the card…'));
       }
       const total = m.count;
       const taken = total - this.remaining.length;
-      return taken > 0 ?
+      return this.withCause(taken > 0 ?
         translateTextWithParams('Taken: ${0} of ${1}', [String(taken), String(total)]) :
         (total > 1 ?
           translateTextWithParams('Take ${0} cards', [String(total)]) :
-          translateText('Take the card'));
+          translateText('Take the card')));
     },
     footCommands(): Array<ConsoleCommand> {
       if (!this.interactive) {
@@ -408,6 +416,14 @@ export default defineComponent({
   methods: {
     slotHeld(name: CardName): boolean {
       return this.held.has(name);
+    },
+    /**
+     * EMBEDDED, the cause plate is gone and the effect's promise leads the ONE
+     * status line («Принятая резолюция берёт для вас 2 карты · Забрано 1 из
+     * 2») — the promise is content, never chrome, and it never goes silent.
+     */
+    withCause(progress: string): string {
+      return this.embedded && this.effectLine !== '' ? `${this.effectLine} · ${progress}` : progress;
     },
 
     // ── SLOTS: one stable layout for the whole batch ────────────────────
@@ -689,24 +705,88 @@ export default defineComponent({
       try {
         await this.flyToHand(names);
       } finally {
-        // `runHandIntake` holds the SOURCE card hidden (`con-deal-hold`,
-        // opacity:0) for the flight and normally never has to release it —
-        // the source unmounts with its surface. OUR seat outlives the take as
-        // a ghost, so the hold must be lifted here or the ghost renders as a
-        // hole: the seat then fades back in at its quiet ghost weight.
-        for (const name of names) {
-          this.slotEl(name)?.classList.remove('con-deal-hold');
-        }
         await this.awaitPromptMoved(key);
         if (this.meta !== undefined && this.promptKey === key) {
           // The server is still asking the very same question: the take was
           // REFUSED. The cards come back into play — never a sealed beat.
+          // `runHandIntake` held the SOURCE hidden (`con-deal-hold`) for the
+          // flight; the seat is still here, so the hold is lifted by hand.
+          for (const name of names) {
+            this.slotEl(name)?.classList.remove('con-deal-hold');
+          }
           this.submitting = false;
           rollbackExternalDrawSend(names);
         } else {
+          // LANDED: the taken seats leave the row now, AFTER the touchdown, and
+          // the rest FLIP to their new berths (the deck pick's own law — a
+          // reflow under a flight the player is watching is the one thing the
+          // stable row existed to prevent; a ghost seat was never needed).
+          this.settleTaken(names);
           endExternalDrawSend();
         }
       }
+    },
+    /**
+     * THE ROW AFTER A LANDING: the taken seats are removed, the fit re-solves
+     * for the cards that remain, and every survivor travels from the rect it
+     * had to the rect it now has (a FLIP on the slot, transform only, cleared
+     * at rest). Reduced motion re-lays out in place. The LAST take has no
+     * survivors: the surface leaves with the prompt.
+     */
+    settleTaken(names: ReadonlyArray<CardName>): void {
+      const survivors = this.slotsList.filter((e) => !names.includes(e.name));
+      if (survivors.length === this.slotsList.length) {
+        return;
+      }
+      const before = new Map<string, DOMRect>();
+      for (const el of asElements(this.$refs.slots)) {
+        const name = el.getAttribute('data-extdraw-slot');
+        if (name !== null && survivors.some((e) => e.name === name)) {
+          before.set(name, el.getBoundingClientRect());
+        }
+      }
+      this.slotsList = survivors;
+      this.focusNextRemaining();
+      void this.$nextTick(() => {
+        this.fitRow();
+        if (consoleReducedMotionActive() || typeof window === 'undefined') {
+          return;
+        }
+        const duration = motionMs(REFLOW_FLIP_MS) / 1000;
+        for (const el of asElements(this.$refs.slots)) {
+          const name = el.getAttribute('data-extdraw-slot');
+          const from = name === null ? undefined : before.get(name);
+          if (from === undefined || from.width < 2) {
+            continue;
+          }
+          const to = el.getBoundingClientRect();
+          if (to.width < 2) {
+            continue;
+          }
+          const dx = from.left - to.left;
+          const dy = from.top - to.top;
+          const scale = from.width / to.width;
+          if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5 && Math.abs(scale - 1) < 0.005) {
+            continue;
+          }
+          // The slot's own focus transform (the ring's scale) rides a CSS
+          // transition; the FLIP travels on the slot's inline transform with
+          // that transition switched off for its span (`--reflow`), so the
+          // two never fight over one property.
+          el.classList.add('con-extdraw__slot--reflow');
+          // `transformOrigin` is an inline style of its own: left behind, the
+          // focus ring's CSS scale grew the survivor from its top-left corner
+          // and the card stood 12 px right of centre. Both props go together.
+          gsap.fromTo(el, {x: dx, y: dy, scale, transformOrigin: '0 0'}, {
+            x: 0, y: 0, scale: 1, duration, ease: 'power2.out', clearProps: 'transform,transformOrigin',
+            onComplete: () => el.classList.remove('con-extdraw__slot--reflow'),
+            onInterrupt: () => {
+              gsap.set(el, {clearProps: 'transform,transformOrigin'});
+              el.classList.remove('con-extdraw__slot--reflow');
+            },
+          });
+        }
+      });
     },
     awaitPromptMoved(key: string): Promise<void> {
       if (this.meta === undefined || this.promptKey !== key || typeof window === 'undefined') {
@@ -784,9 +864,27 @@ export default defineComponent({
         availability: availabilityContextFor('draw-take'),
       });
     },
-    /** L3 = the SOURCE — the effect card lifts out of its seat. */
+    /**
+     * L3 = the SOURCE — the effect card lifts out of its seat; an ENACTED
+     * RESOLUTION's draw (Turmoil Redux) opens the resolution's own inspector
+     * (party column, rules, standing) over the carrier card on the host's
+     * stage — `resolutionZoomEntry`, never `{name: card}` (a resolution is
+     * not a CardName; the old branch read `sourceView.card`, which a
+     * resolution source never has, and the verb did nothing).
+     */
     inspectSource(): void {
-      const card = this.sourceView.inspectable ? this.sourceView.card : undefined;
+      if (!this.sourceView.inspectable) {
+        return;
+      }
+      const resolution = this.sourceView.resolution;
+      if (resolution !== undefined) {
+        openConsoleCardZoom([resolutionZoomEntry(resolution)], 0, undefined, undefined, {
+          statusLabel: 'Source',
+          origin: workspaceSourceZoomOrigin('resolution:' + resolution),
+        });
+        return;
+      }
+      const card = this.sourceView.card;
       if (card === undefined) {
         return;
       }
