@@ -1,7 +1,9 @@
 /*
- * THE ENACTMENT'S MOTION (Turmoil Redux) — the Parliament's browse ⇄ payout
- * phrase, spoken in the WORKSPACE DESCEND grammar the vote mode speaks
- * (`consoleParliamentVoteMotion.ts`), one object smaller:
+ * THE ENACTMENT'S MOTION (Turmoil Redux) — the sitting's REWARD stage taking
+ * the field for a hosted step (the payout pick, the take) and giving it back,
+ * spoken in the WORKSPACE DESCEND grammar the vote mode speaks
+ * (`consoleParliamentVoteMotion.ts`), one object smaller (the Э4 director
+ * absorbs it as the enactment beat):
  *
  *  · RECEDE — the overview (government · voting area · parties · Agenda)
  *    steps back; the HEAD LINE (crumb + delegates zone) is outside the field
@@ -37,9 +39,16 @@ const CARRY_MS = 460;
 const SURFACE_MS = 300;
 const FOLD_MS = 360;
 
-/** The overview's parts that step back for the payout (the voting plate included — its cards are a vote that is over). */
+/**
+ * The overview's parts that step back for the hosted step (the voting plate
+ * included — its cards are a vote that is over). NOT the middle tier: the
+ * sitting's stage lives INSIDE it and grows out of it for the field pose —
+ * parking the tier parked the stage with it (measured: an empty field under
+ * a live crumb and the picker's own verbs). Its parties are already parked by
+ * the stage standing over them.
+ */
 function recedersOf(root: HTMLElement): Array<HTMLElement> {
-  const out = Array.from(root.querySelectorAll<HTMLElement>('.con-parl__body [data-parl-recede]'));
+  const out = Array.from(root.querySelectorAll<HTMLElement>('.con-parl__body [data-parl-recede]:not([data-parl-mid])'));
   const plate = root.querySelector<HTMLElement>('.con-parl__voting');
   if (plate !== null) {
     out.push(plate);
@@ -52,7 +61,7 @@ function carryOf(root: HTMLElement): HTMLElement | null {
 }
 
 function surfaceItemsOf(root: HTMLElement): Array<HTMLElement> {
-  return Array.from(root.querySelectorAll<HTMLElement>('.con-parl__enact [data-parl-enact-item]'));
+  return Array.from(root.querySelectorAll<HTMLElement>('.con-parl__stage--field [data-parl-sit-item]'));
 }
 
 /** The carried card's rect right now (measure BEFORE the teleport moves it). */

@@ -1610,6 +1610,7 @@ import ConsoleColoniesSection, {ConsoleColonyPick} from '@/client/components/con
 import ConsoleParliamentSection from '@/client/components/console/ConsoleParliamentSection.vue';
 import {ParliamentInspectRequest} from '@/client/console/parliament/parliamentInspect';
 import {consoleParliamentUi} from '@/client/console/parliament/consoleParliamentFlow';
+import {parliamentSittingFlowBeat, parliamentSittingLive} from '@/client/console/parliament/consoleSittingFlow';
 import {partyAnnotations, resolutionAnnotations, resolutionPartyAnnotations, RowText} from '@/client/console/parliament/parliamentAnnotations';
 import {resolutionPartyContextKey, resolutionStatusOf, ResolutionStatusVm} from '@/client/console/parliament/resolutionInspectModel';
 import {getResolution} from '@/client/parliament/ClientParliamentManifest';
@@ -4115,6 +4116,15 @@ export default defineComponent({
     draftFrameLive(): boolean {
       return betweenGenDraftLive(this.playerView) || draftCompletionHolding();
     },
+    /**
+     * THE PARLIAMENT'S SITTING FRAME (Turmoil Redux) — the draft's lifecycle
+     * contract: a PHASE-anchored root (`Phase.PARLIAMENT`) whose rising edge
+     * opens NOTHING (the flow beat's announce + the player's A stand it up)
+     * and whose falling edge closes it. Read by the frame watcher below.
+     */
+    parliamentSittingFrameLive(): boolean {
+      return parliamentSittingLive(this.playerView);
+    },
     /** PRESENCE IS THE STACK (invariant 1) — the workspace's ONE v-if. */
     draftWorkspaceMounted(): boolean {
       return workspaceFrameRenders('draft');
@@ -4146,8 +4156,8 @@ export default defineComponent({
       if (externalDrawResolutionOf(meta) === undefined) {
         return undefined;
       }
-      return workspaceFrameMounted('parliament') && consoleParliamentUi.enactStanding ?
-        '.con-parl [data-embed-slot="parliament-enact"]' : undefined;
+      return workspaceFrameMounted('parliament') && consoleParliamentUi.stageStanding ?
+        '.con-parl [data-embed-slot="parliament-stage"]' : undefined;
     },
     /**
      * PRESENCE IS THE STACK (invariant 1) — the workspace's ONE v-if, plus the
@@ -4397,9 +4407,9 @@ export default defineComponent({
       if (this.parliamentBillStanding && !consoleParliamentUi.voteStanding && !this.consoleState.task.deferred) {
         return true;
       }
-      // …and the enacted resolution's payout pick belongs inside the
-      // Parliament's enactment stage on the same terms.
-      if (this.parliamentEnactStanding && !consoleParliamentUi.enactStanding && !this.consoleState.task.deferred) {
+      // …and an enacted resolution's ask belongs inside the Parliament's
+      // SITTING (its reward stage's zone) on the same terms.
+      if (this.parliamentStageTask && !consoleParliamentUi.stageStanding && !this.consoleState.task.deferred) {
         return true;
       }
       return this.taskBelongsToWorkspace &&
@@ -4416,24 +4426,24 @@ export default defineComponent({
         (this.playerView.waitingFor as SelectPaymentModel | undefined)?.votePayment !== undefined;
     },
     /**
-     * THE ENACTED RESOLUTION'S PAYOUT PICK is the live prompt (Turmoil Redux):
-     * a card pick whose source is a resolution while the political phase pays
-     * its effects — the server's own markers, never a title. It belongs
-     * INSIDE the Parliament's enactment stage, like the vote's bill belongs
-     * inside the vote step.
+     * AN ENACTED RESOLUTION'S ASK is the live host prompt (Turmoil Redux): a
+     * pick / a choice whose structural source is a resolution while the
+     * political phase is on — the server's own markers, never a title. It
+     * belongs INSIDE the Parliament's SITTING (its reward stage's zone), like
+     * the vote's bill belongs inside the vote step.
      */
-    parliamentEnactStanding(): boolean {
-      return this.hostTask?.kind === 'cardSelect' && this.parliamentEnactPrompt;
+    parliamentStageTask(): boolean {
+      return this.hostTask !== undefined && this.parliamentStagePrompt;
     },
     /**
-     * The same pick by the RAW prompt — not admission-gated: the mandatory
+     * The same ask by the RAW prompt — not admission-gated: the mandatory
      * plate's A (`openMandatoryAnnounce`) must know where the press goes in the
      * very tick it releases the gate, before `hostTask` has re-derived.
      */
-    parliamentEnactPrompt(): boolean {
+    parliamentStagePrompt(): boolean {
       const wf = this.playerView.waitingFor;
-      return wf?.type === 'card' && wf.choiceContext?.source?.kind === 'resolution' &&
-        this.game.parliament?.phase?.step === 'effects';
+      return wf !== undefined && wf.type !== 'space' && promptSourceResolution(wf) !== undefined &&
+        this.game.phase === Phase.PARLIAMENT && this.game.parliament?.phase !== undefined;
     },
     taskEmbedTarget(): string | undefined {
       // HELD means "renders nowhere yet" — so it is NOT embedded, and saying
@@ -4477,11 +4487,12 @@ export default defineComponent({
           (this.playerView.waitingFor as SelectPaymentModel | undefined)?.votePayment !== undefined) {
         return '.con-parl [data-embed-slot="parliament-vote"]';
       }
-      // THE ENACTED RESOLUTION'S PAYOUT (Turmoil Redux): the shared recipient
-      // picker stands in the Parliament's enactment stage — the resolution is
-      // on stage above it, the stage names the amount, the picker asks where.
-      if (this.parliamentEnactStanding && workspaceFrameMounted('parliament') && consoleParliamentUi.enactStanding) {
-        return '.con-parl [data-embed-slot="parliament-enact"]';
+      // AN ENACTED RESOLUTION'S ASK (Turmoil Redux): the shared recipient
+      // picker stands in the Parliament's SITTING — its reward stage's zone: the
+      // resolution is on stage above it, the stage names the amount, the picker
+      // asks where.
+      if (this.parliamentStageTask && workspaceFrameMounted('parliament') && consoleParliamentUi.stageStanding) {
+        return '.con-parl [data-embed-slot="parliament-stage"]';
       }
       if (!workspaceClaimsPick()) {
         return undefined;
@@ -4865,8 +4876,19 @@ export default defineComponent({
      * contributes its own derivation here — never an auto-`enterWorkspace`.
      */
     mandatoryFlowBeats(): ReadonlyArray<MandatoryFlowBeat> {
+      const out: Array<MandatoryFlowBeat> = [];
       const draft = draftMandatoryFlowBeat(this.playerView);
-      return draft === undefined ? [] : [draft];
+      if (draft !== undefined) {
+        out.push(draft);
+      }
+      // THE PARLIAMENT'S SITTING (Turmoil Redux): the political phase, announced
+      // once per generation — its two gates and every ask of the enacted
+      // resolution ride this ONE beat (`consoleSittingFlow`).
+      const sitting = parliamentSittingFlowBeat(this.playerView);
+      if (sitting !== undefined) {
+        out.push(sitting);
+      }
+      return out;
     },
     /** The current mandatory action beat (never a reveal). */
     mandatoryBeat(): MandatoryBeat | undefined {
@@ -5123,6 +5145,20 @@ export default defineComponent({
      *  diverge). The A-verb relabels by STATE: «Открыть» for a fresh held
      *  decision, «Вернуться к решению» for a deferred one. */
     mandatoryAnnounceView(): {kicker: string, ask: string, sourceCard: CardName | undefined, sourceResolution: string | undefined, openLabel: string} {
+      // THE SITTING'S ONE PLATE (Turmoil Redux): whatever prompt of the phase
+      // is standing (a gate, the resolution's pick / take), the beat announces
+      // the SITTING — «Парламент собрался · поколение N» — and A opens it; a
+      // resolution that is asking is still named as the source.
+      const beat = this.mandatoryBeat;
+      if (beat?.flow === 'parliament-phase' && this.mandatoryGateHeld) {
+        return {
+          kicker: translateText('Parliament'),
+          ask: translateTextWithParams('The Parliament of generation ${0} is in session', [String(this.game.generation)]),
+          sourceCard: undefined,
+          sourceResolution: this.activeTaskSummary?.sourceResolution,
+          openLabel: 'Open the sitting',
+        };
+      }
       return {
         kicker: this.deferKicker,
         ask: this.deferAsk,
@@ -8917,10 +8953,10 @@ export default defineComponent({
         }
       },
     },
-    // (THE ENACTED RESOLUTION'S PAYOUT PICK used to auto-enter the Parliament
-    // here on its arrival. It is an ANNOUNCED mandatory prompt now: the plate
-    // names the resolution, and `openMandatoryAnnounce` — the player's A — is
-    // the one door into the enactment stage, exactly like the draft.)
+    // (An enacted resolution's ask never auto-enters the Parliament: the
+    // political phase is ONE announced flow — the plate names the sitting, and
+    // `openMandatoryAnnounce` — the player's A — is the one door, exactly like
+    // the draft; the ask is then a step INSIDE the open sitting.)
     'consoleState.task.deferred'(deferred: boolean) {
       setStartSetupRevealSuspended(deferred);
       // Mirror into the leak detector: a deferred task is deliberately set aside
@@ -9779,6 +9815,18 @@ export default defineComponent({
           // The per-generation latches + presentation memory reset with the
           // flow (the NEXT generation's draft starts clean).
           resetDraftWorkspace();
+        }
+      },
+    },
+    // THE PARLIAMENT'S SITTING FRAME — the same contract: the falling edge
+    // (the political phase is over) closes a PHASE-anchored Parliament root,
+    // parked or standing. A Parliament the player walked into on their own
+    // (an `always` anchor) is not the sitting's and stays.
+    parliamentSittingFrameLive: {
+      immediate: true,
+      handler(live: boolean): void {
+        if (!live && workspaceFrameKnown('parliament') && workspaceFrameAnchor('parliament')?.type === 'phase') {
+          closeWorkspaceRoot('parliament');
         }
       },
     },
@@ -13390,9 +13438,22 @@ export default defineComponent({
         anchor: {type: 'always'},
       });
     },
-    /** A Parliament flow ended (the server answered): a finished flow LEAVES, never folds back to browse. */
+    /**
+     * A Parliament flow ended (the server answered): a finished flow LEAVES,
+     * never folds back to browse. The SITTING's ending is the phase's own end:
+     * its frame is PHASE-anchored, so the guarded conclusion would keep it —
+     * the root is closed here and by the `parliamentSittingFrameLive`
+     * watcher's falling edge (the draft's lifecycle contract).
+     */
     onParliamentFlowComplete(kind: string): void {
       if (kind === 'seat') {
+        return;
+      }
+      if (kind === 'sitting') {
+        if (!parliamentSittingLive(this.playerView) && workspaceFrameAnchor('parliament')?.type === 'phase') {
+          closeWorkspaceRoot('parliament');
+          closeConsoleLayers();
+        }
         return;
       }
       this.concludeWorkspaceFlowOrOwe('parliament');
@@ -16320,15 +16381,25 @@ export default defineComponent({
         }
         return;
       }
+      if (task.kind === 'parliamentPhase') {
+        // THE SITTING'S GATE (Turmoil Redux) — the political phase is ONE flow
+        // the player opened by A this generation (the flow beat); a gate that
+        // finds the Parliament gone (the winner's tile took the screen with no
+        // stack to resume, a reload) re-enters it at the server's step. A
+        // parked sitting is the same sitting: it comes back as it was.
+        if (!this.restoreParkedWorkspace('parliament') && !workspaceFrameKnown('parliament')) {
+          enterWorkspace('parliament', {anchor: {type: 'phase', phase: Phase.PARLIAMENT}});
+        }
+        return;
+      }
       if (task.kind === 'externalDraw') {
-        // A RESOLUTION's draw belongs to the Parliament's enactment stage (it
-        // is handled by the `parliamentEnactPrompt` door in
-        // `openMandatoryAnnounce`, before this branch is ever reached); an
-        // ordinary external draw stands its own workspace up. Idempotent via
-        // the frame guard (a raced double press finds the frame known).
+        // A RESOLUTION's draw is a STEP of the Parliament's sitting (the flow
+        // beat's A is its usual door — `openMandatoryAnnounce`); an ordinary
+        // external draw stands its own workspace up. Idempotent via the frame
+        // guard (a raced double press finds the frame known).
         if (externalDrawResolutionOf(externalDrawTakeOf(this.playerView.waitingFor)) !== undefined) {
-          if (!workspaceFrameKnown('parliament')) {
-            enterWorkspace('parliament');
+          if (!this.restoreParkedWorkspace('parliament') && !workspaceFrameKnown('parliament')) {
+            enterWorkspace('parliament', {anchor: {type: 'phase', phase: Phase.PARLIAMENT}});
           }
           return;
         }
@@ -16484,16 +16555,20 @@ export default defineComponent({
         }
         return;
       }
-      // AN ENACTED RESOLUTION'S PAYOUT PICK (Turmoil Redux): the press walks the
-      // player INTO the Parliament — its enactment stage serves the pick (the
-      // carried card, the payout reading, the shared picker in its zone). The
-      // ONE door: nothing auto-enters on the prompt's arrival any more, exactly
-      // like the draft. The winner's OCEAN needs no branch — its placement is
-      // admission-held behind this very gate and comes alive on the board the
-      // moment the acknowledge above releases it.
-      if (this.parliamentEnactPrompt) {
-        if (!workspaceFrameKnown('parliament')) {
-          enterWorkspace('parliament');
+      // THE PARLIAMENT'S SITTING (Turmoil Redux): the press walks the player
+      // INTO the Parliament's sitting flow — the ONE door for the whole
+      // political phase (its gates, the resolution's pick / take are stages of
+      // that flow; nothing auto-enters, exactly like the draft). A PARKED
+      // sitting comes back as it was. The winner's TILE needs no branch — its
+      // placement is admission-held behind this very gate and comes alive on
+      // the board the moment the acknowledge above releases it; the sitting
+      // resumes after the landing (`yieldsToBoard`).
+      if (beat.flow === 'parliament-phase') {
+        if (this.placementActive || this.playerView.waitingFor?.type === 'space') {
+          return;
+        }
+        if (!this.restoreParkedWorkspace('parliament') && !workspaceFrameKnown('parliament')) {
+          enterWorkspace('parliament', {anchor: {type: 'phase', phase: Phase.PARLIAMENT}});
         }
         return;
       }

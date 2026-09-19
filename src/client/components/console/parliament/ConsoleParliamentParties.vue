@@ -7,14 +7,15 @@
            {
              'con-parl__party--focus': flow.zone === 'parties' && flow.partyIndex === i && flow.stage === 'browse',
              'con-parl__party--held': partyStates[i].held,
-             'con-parl__party--recap': flow.stage === 'recap' && recapHighlight === 'support' && recapParties.includes(p.party),
+             'con-parl__party--lit': flow.stage === 'sitting' && sittingParties.includes(p.party),
              'con-parl__party--pulse': accessPulse === p.party || usedPulse === p.party,
              'con-parl__party--lost': accessLost === p.party,
            },
          ]"
          :data-party="p.party"
          :data-party-state="partyStates[i].kind"
-         :data-action-state="partyActionStates[i].kind">
+         :data-action-state="partyActionStates[i].kind"
+         @animationend="onPulseEnd($event, p.party)">
       <ConsolePartyPlaque :party="p.party"
                           size="tile"
                           :state="partyStates[i]"
@@ -34,7 +35,6 @@ import {Color} from '@/common/Color';
 import {Message} from '@/common/logs/Message';
 import {ReduxParty} from '@/common/parliament/ParliamentTypes';
 import ConsolePartyPlaque from '@/client/components/console/parliament/ConsolePartyPlaque.vue';
-import {consoleMotionMs} from '@/client/console/composables/useConsoleReducedMotion';
 import {translateMessage, translateText} from '@/client/directives/i18n';
 import {parliamentFlow} from '@/client/console/parliament/consoleParliamentFlow';
 import {parliamentHolds} from '@/client/console/parliament/parliamentDisplayHolds';
@@ -55,16 +55,14 @@ export default defineComponent({
     viewerColor: {type: String as PropType<Color | undefined>, default: undefined},
     awaitingInput: {type: Boolean, default: false},
     /** The results scene's current focus ('' outside the scene) and the parties its support beat names. */
-    recapHighlight: {type: String, default: ''},
-    recapParties: {type: Array as PropType<ReadonlyArray<ReduxParty>>, default: () => []},
+    /** The parties the SITTING's current stage lights (the enactment: the ruling party; the renewal: the parties whose support grew). */
+    sittingParties: {type: Array as PropType<ReadonlyArray<ReduxParty>>, default: () => []},
   },
   data() {
     return {
       accessPulse: undefined as ReduxParty | undefined,
       accessLost: undefined as ReduxParty | undefined,
-      accessTimer: undefined as number | undefined,
       usedPulse: undefined as ReduxParty | undefined,
-      usedTimer: undefined as number | undefined,
     };
   },
   computed: {
@@ -106,16 +104,10 @@ export default defineComponent({
       const after = new Set(now.split('|').filter((s) => s !== ''));
       const gained = [...after].find((p) => !before.has(p)) as ReduxParty | undefined;
       const lost = [...before].find((p) => !after.has(p)) as ReduxParty | undefined;
+      // CSS one-shots (`con-parl-access-gain` / `-lost`): each flag is cleared
+      // by its own animation's end, never by a timer guessing its length.
       this.accessPulse = gained;
       this.accessLost = lost;
-      if (this.accessTimer !== undefined) {
-        window.clearTimeout(this.accessTimer);
-      }
-      this.accessTimer = window.setTimeout(() => {
-        this.accessPulse = undefined;
-        this.accessLost = undefined;
-        this.accessTimer = undefined;
-      }, consoleMotionMs(1400));
     },
     usedKey(now: string, was: string): void {
       const before = new Set(was.split('|').filter((s) => s !== ''));
@@ -124,23 +116,22 @@ export default defineComponent({
         return;
       }
       this.usedPulse = used;
-      if (this.usedTimer !== undefined) {
-        window.clearTimeout(this.usedTimer);
-      }
-      this.usedTimer = window.setTimeout(() => {
-        this.usedPulse = undefined;
-        this.usedTimer = undefined;
-      }, consoleMotionMs(1400));
     },
   },
-  beforeUnmount() {
-    for (const timer of [this.accessTimer, this.usedTimer]) {
-      if (timer !== undefined) {
-        window.clearTimeout(timer);
-      }
-    }
-  },
   methods: {
+    /** A plaque's one-shot pulse played out — clear exactly the flag that raised it (one plaque may run two). */
+    onPulseEnd(event: AnimationEvent, party: ReduxParty): void {
+      if (event.animationName === 'con-parl-access-gain') {
+        if (this.accessPulse === party) {
+          this.accessPulse = undefined;
+        }
+        if (this.usedPulse === party) {
+          this.usedPulse = undefined;
+        }
+      } else if (event.animationName === 'con-parl-access-lost' && this.accessLost === party) {
+        this.accessLost = undefined;
+      }
+    },
     /** A party's popular support as SHOWN — the results scene keeps the cubes on their places until they have physically left. */
     supportShown(p: ParliamentPartyVm): number {
       return Math.min(3, p.support + (parliamentHolds.support.get(p.party) ?? 0));

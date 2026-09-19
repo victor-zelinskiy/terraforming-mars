@@ -233,4 +233,47 @@ describe('consolePromptAdmission (the one prompt-surface admission gate)', () =>
       expect(isConsolePlacementHeld()).to.be.false;
     });
   });
+
+  /*
+   * THE PARLIAMENT'S SITTING (Turmoil Redux, Э3) — the political phase's
+   * prompts and the families that serve them:
+   *   · the two GATES (`parliamentPhase`) are SECTION prompts: the Parliament
+   *     workspace serves them, held only behind the sitting's one announce;
+   *   · the enacted resolution's PICK / TAKE open as steps INSIDE the open
+   *     sitting through the `followUp` door — never through the announce gate
+   *     (the sitting was announced once; its steps arrive on their own
+   *     admission) — and their surfaces then stand by the `host` presence;
+   *   · the winner's TILE is a `placement`: it waits out every cinematic and
+   *     the announce gate, exactly like every other board placement.
+   */
+  describe('THE SITTING: the political phase\'s prompts, family by family', () => {
+    it('a gate is a SECTION prompt — served at once when idle, held behind the sitting\'s one announce', () => {
+      expect(isPromptAdmitted('section', idle())).to.be.true;
+      expect(promptAdmissionBlock('section', {...idle(), announceGate: true})).to.equal('announce-gate');
+      // …and never behind a card arriving elsewhere (a section hosts its own cinematics).
+      expect(isPromptAdmitted('section', {...idle(), cardArrival: true})).to.be.true;
+    });
+
+    it('a resolution\'s pick / take arrive INSIDE the open sitting through the follow-up DOOR — which never waits on the announce gate', () => {
+      // The sitting was announced once; its steps open on their own admission.
+      expect(isPromptAdmitted('followUp', {...idle(), announceGate: true})).to.be.true;
+      // …but a door waits out the whole arrival chain of the previous effect
+      // (a take's cards still flying to the dock, a reveal still up).
+      expect(promptAdmissionBlock('followUp', {...idle(), cardArrival: true})).to.equal('card-arrival');
+      expect(promptAdmissionBlock('followUp', {...idle(), revealOpen: true})).to.equal('reveal');
+      expect(isPromptAdmitted('followUp', idle())).to.be.true;
+    });
+
+    it('the standing pick / take are HOST presence: held behind the gate until the sitting is opened, then by the cinematics only', () => {
+      expect(promptAdmissionBlock('host', {...idle(), announceGate: true})).to.equal('announce-gate');
+      expect(isPromptAdmitted('host', idle())).to.be.true;
+      expect(promptAdmissionBlock('host', {...idle(), cardDiscard: true})).to.equal('card-discard');
+    });
+
+    it('the winner\'s tile is a PLACEMENT — the board goes live only past every cinematic and the gate', () => {
+      expect(promptAdmissionBlock('placement', {...idle(), announceGate: true})).to.equal('announce-gate');
+      expect(promptAdmissionBlock('placement', {...idle(), tileHero: true})).to.equal('tile-hero');
+      expect(isPromptAdmitted('placement', idle())).to.be.true;
+    });
+  });
 });

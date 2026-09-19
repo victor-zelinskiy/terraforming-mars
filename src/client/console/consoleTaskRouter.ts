@@ -21,6 +21,8 @@ import {CardType} from '@/common/cards/CardType';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {inputTitleText} from '@/client/console/turnIntents';
 import {isActionMenuTitle} from '@/common/inputs/actionMenuTitles';
+import {ParliamentPhaseStage} from '@/common/parliament/ParliamentTypes';
+import {promptSourceResolution} from '@/client/console/promptSource';
 
 export type CardSelectMode = 'draft' | 'buy' | 'target';
 
@@ -99,6 +101,16 @@ export type ConsoleTask =
    */
   | {kind: 'party'}
   /**
+   * THE SITTING'S GATE (Turmoil Redux — docs/TURMOIL_REDUX_PARLIAMENT_ASSEMBLY.md
+   * §3): the political phase asks EVERY participant to confirm the verdict
+   * and the enactment (`assembly`) and, later, the refreshed area (`adjourn`).
+   * A plain `option` on the wire, routed off the server's own
+   * `parliamentPhasePrompt` marker — never its title. Served INSIDE the
+   * Parliament workspace's sitting flow («ПАРЛАМЕНТ › ЗАСЕДАНИЕ › …»): A on the
+   * flow's last page is the answer, byte-identical to the historical radio UI.
+   */
+  | {kind: 'parliamentPhase', stage: ParliamentPhaseStage}
+  /**
    * TAKE THE CARDS AN EXTERNAL EFFECT DREW FOR YOU — another player's action
    * (MarsBot included) fired an effect that granted the viewer cards (Solar
    * Logistics on a foreign space event, Sponsored Academies' «all opponents
@@ -164,8 +176,8 @@ export const NATIVE_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>([
   'cardSelect', 'deckSelect', 'handSelect', 'payment', 'draftWait',
   'projectCard', 'colony', 'colonyBonus', 'externalDraw', 'awardFunding',
   'initialDraft', 'startSequence', 'corpFirstAction',
-  // The Mars Parliament's stand-alone party pick (Turmoil Redux).
-  'party',
+  // The Mars Parliament's stand-alone party pick and the sitting's two gates (Turmoil Redux).
+  'party', 'parliamentPhase',
   // The three that used to fall through to the DESKTOP modal inside the
   // console shell — each now has its own console-native surface.
   'venusBonus', 'spendHeat', 'aresGlobal',
@@ -186,7 +198,7 @@ export const SHELL_NATIVE_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>(['act
  * screen in free-sponsorship mode. The shell auto-opens the surface;
  * navigating away DEFERS the task (amber chip).
  */
-export const SHELL_SECTION_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>(['projectCard', 'handSelect', 'colony', 'colonyBonus', 'externalDraw', 'awardFunding', 'corpFirstAction', 'party']);
+export const SHELL_SECTION_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>(['projectCard', 'handSelect', 'colony', 'colonyBonus', 'externalDraw', 'awardFunding', 'corpFirstAction', 'party', 'parliamentPhase']);
 
 /**
  * …of those, the kinds whose console surface ALWAYS exists — the answer to
@@ -208,7 +220,7 @@ export const SHELL_SECTION_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>(['pr
  * ConsoleTaskHost's card browser + payment stage), so the legacy modal has
  * no remaining role and was deleted with the radio stack.
  */
-export const SECTION_SERVED_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>(['projectCard', 'handSelect', 'colony', 'colonyBonus', 'externalDraw', 'awardFunding', 'corpFirstAction', 'party']);
+export const SECTION_SERVED_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>(['projectCard', 'handSelect', 'colony', 'colonyBonus', 'externalDraw', 'awardFunding', 'corpFirstAction', 'party', 'parliamentPhase']);
 
 /** Where the player is standing right now, as the surface map sees it. */
 export type ShellSurfaceContext = {
@@ -272,6 +284,7 @@ export function shellTaskOnSurface(task: ConsoleTask | undefined, ctx: ShellSurf
   case 'externalDraw':
     return ctx.externalDrawOpen;
   case 'party':
+  case 'parliamentPhase':
     return ctx.section === 'parliament';
   default:
     // Not a shell-section kind — it has no surface of this family at all.
@@ -314,10 +327,36 @@ const FOLLOW_UP_STEP_STAGES: Partial<Record<TaskKind, string>> = {
   colony: 'Colony selection',
 };
 
-/** Does this prompt open as a step INSIDE the flow that produced it, and under
- *  what crumb tail? `undefined` = not a step-shaped follow-up. */
-export function followUpStepStage(kind: TaskKind | undefined): string | undefined {
-  return kind === undefined ? undefined : FOLLOW_UP_STEP_STAGES[kind];
+/**
+ * …and the SAME table for a prompt an ENACTED RESOLUTION raised (Turmoil
+ * Redux): every ask of the political phase — the payout's recipient pick, the
+ * mandatory take of the cards it drew, the winner's tile — is a STEP of the
+ * Parliament's sitting flow, under the stage name the sitting publishes for it
+ * (`consoleSittingFlow.sittingStageKey`, one key here and there). Keyed on the
+ * prompt's structural SOURCE, never on its title: the same `cardSelect` from a
+ * card action is nobody's step.
+ */
+const RESOLUTION_STEP_STAGES: Partial<Record<TaskKind, string>> = {
+  cardSelect: 'Choice',
+  choice: 'Choice',
+  externalDraw: 'Intake',
+  space: 'Placement',
+};
+
+/**
+ * Does this prompt open as a step INSIDE the flow that produced it, and under
+ * what crumb tail? `undefined` = not a step-shaped follow-up. With the prompt
+ * itself (`wf`) a RESOLUTION-sourced ask answers from its own table; without
+ * it only the source-less follow-ups are known.
+ */
+export function followUpStepStage(kind: TaskKind | undefined, wf?: PlayerInputModel): string | undefined {
+  if (kind === undefined) {
+    return undefined;
+  }
+  if (wf !== undefined && promptSourceResolution(wf) !== undefined) {
+    return RESOLUTION_STEP_STAGES[kind];
+  }
+  return FOLLOW_UP_STEP_STAGES[kind];
 }
 
 /**
@@ -405,6 +444,7 @@ export function taskMinimizable(kind: TaskKind): boolean {
   case 'deckSelect':
   case 'botAttack':
   case 'party': // the Parliament's chairman-seat pick — a section kind, restored through the Parliament workspace
+  case 'parliamentPhase': // the sitting's gate — B collapses the Parliament workspace; the board-home card restores the same stage
     return true;
   // The external-draw take is LOCKED once its workspace is open (the take is
   // the only way out); before opening, the announce plate stands and the
@@ -516,6 +556,12 @@ export function taskFor(view: PlayerViewModel): ConsoleTask | undefined {
       return {kind: 'corpFirstAction'};
     }
     return {kind: 'startSequence', prompt: start.kind};
+  }
+
+  // THE SITTING'S GATES (Turmoil Redux) ride a plain `option`; the server's own
+  // marker outranks the raw type, exactly as the start-game and vote markers do.
+  if (wf.parliamentPhasePrompt !== undefined) {
+    return {kind: 'parliamentPhase', stage: wf.parliamentPhasePrompt.stage};
   }
 
   switch (wf.type) {

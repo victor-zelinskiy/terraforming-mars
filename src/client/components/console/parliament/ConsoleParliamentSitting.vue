@@ -1,0 +1,347 @@
+<template>
+  <!-- ══ THE SITTING (Turmoil Redux) — «ПАРЛАМЕНТ › ЗАСЕДАНИЕ»: the political
+       phase's ONE flow, five STAGES as POSES of this one always-mounted
+       surface (verdict · enactment · reward · renewal · closing). A stage
+       change swaps a modifier, never a subtree — the Э4 director animates
+       between the poses; here they are static and honest. Every object on
+       every panel is the SERVER's own record (the phase summary, the recorded
+       outcomes, the awaited seats), never a recomputation.
+
+       HOST-AGNOSTIC (the embed contract): the surface titles NOTHING of its
+       own — its stage name goes UP to the host's crumb («ЗАСЕДАНИЕ › ВЕРДИКТ»),
+       its verbs live on the ONE command bar (the host publishes them), and its
+       reward zone `[data-embed-slot="parliament-stage"]` is where the shell
+       teleports the enacted resolution's own asks (the payout pick, the take).
+       `mode: 'review'` reads a finished phase's summary the same way (the
+       protocol's re-inspection, later); today only `live` is used. ══ -->
+  <div class="con-sit"
+       :class="{'con-sit--field': field, 'con-sit--embedded': embedded}"
+       :data-sit-stage="stage"
+       :data-sit-step="position.rewardStep"
+       :data-sit-mode="mode"
+       data-parl-sitting>
+
+    <!-- ── VERDICT: who won the vote, with how many delegates, and for whom. ── -->
+    <section class="con-sit__panel con-sit__panel--verdict" :class="{'con-sit__panel--on': stage === 'verdict'}" data-sit-panel="verdict">
+      <span class="con-sit__kicker">{{ $t('Winner of the vote') }}</span>
+      <template v-if="summary !== undefined">
+        <div class="con-sit__head">
+          <b class="con-sit__title">{{ $t(resolutionTitle(summary.winner.resolution)) }}</b>
+          <span class="con-sit__party"><img class="con-sit__emblem" :src="emblemUrl(summary.winner.party)" alt="" />{{ $t(summary.winner.party) }}</span>
+        </div>
+        <div class="con-sit__rows">
+          <div class="con-sit__row" data-sit-row="delegates">
+            <span class="con-parl__chip-dim">{{ $t('Delegates') }}</span>
+            <b>{{ summary.winner.votes }}</b>
+          </div>
+          <div class="con-sit__row" data-sit-row="winner">
+            <span class="con-parl__chip-dim">{{ $t('Winning player') }}</span>
+            <span class="con-sit__val">
+              <PlayerCube v-if="winnerColor !== undefined" :color="winnerColor" :size="cubePx(11)" :glow="false" />
+              <b>{{ nameOf(summary.winner.player) }}</b>
+            </span>
+          </div>
+          <div v-if="tieKey !== undefined" class="con-sit__row con-sit__row--wide con-sit__tie" data-sit-row="tie">{{ $t(tieKey) }}</div>
+        </div>
+      </template>
+    </section>
+
+    <!-- ── ENACTMENT: the law, the party that rules by it, and what the table did with it. ── -->
+    <section class="con-sit__panel con-sit__panel--enact" :class="{'con-sit__panel--on': stage === 'enact'}" data-sit-panel="enact">
+      <span class="con-sit__kicker">{{ $t('Enacted resolution') }}</span>
+      <template v-if="summary !== undefined">
+        <div class="con-sit__head">
+          <b class="con-sit__title">{{ $t(resolutionTitle(summary.enacted.resolution)) }}</b>
+          <span class="con-sit__party"><img class="con-sit__emblem" :src="emblemUrl(summary.enacted.party)" alt="" />{{ $t('Ruling party') }} · {{ $t(summary.enacted.party) }}</span>
+        </div>
+        <div class="con-sit__rows">
+          <div v-if="returned.length > 0" class="con-sit__row" data-sit-row="returned">
+            <span class="con-parl__chip-dim">{{ $t('Delegates returned') }}</span>
+            <span class="con-sit__chips">
+              <span v-for="r in returned" :key="r.owner" class="con-sit__chip">
+                <PlayerCube v-if="r.owner !== 'neutral'" :color="r.owner" :size="cubePx(11)" :glow="false" />
+                <PlayerCube v-else color="neutral" steel :size="cubePx(11)" :glow="false" />
+                <b>×{{ r.count }}</b>
+              </span>
+            </span>
+          </div>
+          <div v-if="summary.agenda !== undefined" class="con-sit__row" data-sit-row="agenda">
+            <span class="con-parl__chip-dim">{{ $t('Agenda') }}</span>
+            <span class="con-sit__val">
+              <PlayerCube :color="summary.agenda.player" :size="cubePx(11)" :glow="false" />
+              <b>{{ summary.agenda.from }} → {{ summary.agenda.to }}</b>
+              <span v-if="agendaBonus !== undefined">{{ $t(agendaBonus) }}</span>
+            </span>
+          </div>
+          <div v-if="supportGained.length > 0" class="con-sit__row" data-sit-row="support">
+            <span class="con-parl__chip-dim">{{ $t('Popular support') }}</span>
+            <span class="con-sit__chips">
+              <span v-for="s in supportGained" :key="s.party" class="con-sit__chip">
+                <img class="con-sit__emblem" :src="emblemUrl(s.party)" alt="" /><b>+{{ s.gained }}</b>
+              </span>
+            </span>
+          </div>
+        </div>
+      </template>
+    </section>
+
+    <!-- ── REWARD: the reading of what the law pays THIS seat (the server's own
+         amounts once they are recorded, the estimate before), the ruling
+         party's answer, the winner's tile, a SKIP PLATE for what could not be
+         paid (never a silent loss), the honest wait for another seat, and the
+         ZONE the enacted resolution's own ask stands in. ── -->
+    <section class="con-sit__panel con-sit__panel--reward" :class="{'con-sit__panel--on': stage === 'reward'}" data-sit-panel="reward">
+      <span class="con-sit__kicker">{{ $t(rewardKicker) }}</span>
+      <div class="con-sit__reward" :class="{'con-sit__reward--field': field}">
+        <div class="con-sit__hero" :class="{'con-sit__hero--field': field}">
+          <!-- The carried enacted card lands here (one DOM instance, teleported by the government) while the stage holds the field. -->
+          <div class="con-sit__card" data-parl-sit-hero></div>
+          <ConsoleInfluenceYield v-if="yields.length > 0"
+                                 class="con-sit__yield"
+                                 :yields="yields"
+                                 :size="field ? 'hero' : 'normal'"
+                                 data-parl-sit-yield
+                                 data-parl-sit-item />
+          <ConsolePartyReaction v-for="r in reactions" :key="r.reaction.id"
+                                class="con-sit__reaction"
+                                :reading="r"
+                                size="normal"
+                                data-parl-sit-item />
+          <ConsoleWinnerReward v-if="winnerReading !== undefined"
+                               :reading="winnerReading"
+                               :viewerColor="viewerColor"
+                               :nameOf="nameOfColor"
+                               size="normal"
+                               data-parl-sit-item />
+          <div v-for="skip in skips" :key="skip.key" class="con-sit__skip" data-parl-sit-item data-sit-skip>
+            <span class="con-sit__skip-title">{{ $t('Skipped') }} · {{ $t(skip.title) }}</span>
+            <span class="con-sit__skip-reason">{{ $t(skip.reason) }}</span>
+          </div>
+          <span v-if="waitText !== ''" class="con-sit__wait" data-sit-wait>{{ waitText }}</span>
+          <span v-else-if="position.gate === 'assembly' && position.rewardStep === 'gate'" class="con-sit__awaiting" data-sit-awaiting>
+            {{ $t('Waiting for the other seats') }}
+            <span class="con-sit__chips">
+              <span v-for="c in position.awaiting" :key="c" class="con-sit__chip"><PlayerCube :color="c" :size="cubePx(11)" :glow="false" />{{ nameOfColor(c) }}</span>
+            </span>
+          </span>
+          <span v-else-if="position.rewardStep === 'received' && yields.length === 0 && skips.length === 0 && winnerReading === undefined" class="con-sit__note">{{ $t('Your record is in') }}</span>
+        </div>
+        <div class="con-sit__zone" :class="{'con-sit__zone--on': field}" data-parl-sit-item>
+          <div class="con-sit__embed" data-embed-slot="parliament-stage"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── RENEWAL: the refreshed voting area — the fresh resolutions and the
+         neutral delegates that came with them; the lobby refilled. ── -->
+    <section class="con-sit__panel con-sit__panel--renewal" :class="{'con-sit__panel--on': stage === 'renewal'}" data-sit-panel="renewal">
+      <span class="con-sit__kicker">{{ $t('New resolutions') }}</span>
+      <template v-if="summary !== undefined">
+        <div class="con-sit__rows">
+          <div v-for="fresh in summary.refreshed" :key="fresh.instance" class="con-sit__row" data-sit-row="fresh">
+            <span class="con-sit__val"><img class="con-sit__emblem" :src="emblemUrl(fresh.party)" alt="" /><b>{{ $t(resolutionTitle(fresh.resolution)) }}</b></span>
+            <span v-if="fresh.neutralVotes > 0" class="con-parl__chip-dim">{{ neutralVotesText(fresh.neutralVotes) }}</span>
+          </div>
+        </div>
+        <span v-if="summary.lobbyRefilled.length > 0" class="con-sit__note" data-sit-row="lobby">{{ $t('Every player\'s free delegate returns to the lobby') }}</span>
+      </template>
+    </section>
+
+    <!-- ── CLOSING: the compact card — objects and numbers, one plate. ── -->
+    <section class="con-sit__panel con-sit__panel--closing" :class="{'con-sit__panel--on': stage === 'closing'}" data-sit-panel="closing">
+      <div v-if="summary !== undefined" class="con-sit__closing">
+        <div class="con-sit__closing-head"><b class="con-sit__closing-title">{{ resultsTitle }}</b></div>
+        <div class="con-sit__row" data-sit-row="closing-winner">
+          <span class="con-parl__chip-dim">{{ $t('Winner of the vote') }}</span>
+          <span class="con-sit__val"><img class="con-sit__emblem" :src="emblemUrl(summary.winner.party)" alt="" /><b>{{ $t(resolutionTitle(summary.winner.resolution)) }}</b></span>
+        </div>
+        <div class="con-sit__row" data-sit-row="closing-reward">
+          <span class="con-parl__chip-dim">{{ $t('Your reward') }}</span>
+          <span class="con-sit__val">
+            <ConsoleInfluenceYield v-if="yields.length > 0" :yields="yields" size="compact" :formula="false" :captions="false" />
+            <b v-else>{{ $t('No reward') }}</b>
+          </span>
+        </div>
+        <div class="con-sit__row" data-sit-row="closing-fresh">
+          <span class="con-parl__chip-dim">{{ $t('New resolutions') }}</span>
+          <b>{{ summary.refreshed.length }}</b>
+        </div>
+        <span v-if="position.gate === 'adjourn' && position.rewardStep === 'gate'" class="con-sit__awaiting con-sit__row" data-sit-awaiting>
+          {{ $t('Waiting for the other seats') }}
+          <span class="con-sit__chips">
+            <span v-for="c in position.awaiting" :key="c" class="con-sit__chip"><PlayerCube :color="c" :size="cubePx(11)" :glow="false" />{{ nameOfColor(c) }}</span>
+          </span>
+        </span>
+      </div>
+    </section>
+  </div>
+</template>
+<script lang="ts">
+import {defineComponent, PropType} from 'vue';
+import {Color} from '@/common/Color';
+import {PlayerViewModel} from '@/common/models/PlayerModel';
+import {ParliamentEnactOutcomeModel, ParliamentModel, ParliamentPhaseSummaryModel} from '@/common/models/ParliamentModel';
+import {ReduxParty} from '@/common/parliament/ParliamentTypes';
+import {IClientResolution} from '@/common/parliament/IClientResolution';
+import {InfluenceYield} from '@/common/parliament/influenceScaling';
+import {REWARD_ADDRESS, rewardAddressOf} from '@/common/parliament/rewardAddress';
+import PlayerCube from '@/client/components/PlayerCube.vue';
+import ConsoleInfluenceYield from '@/client/components/console/parliament/ConsoleInfluenceYield.vue';
+import ConsolePartyReaction from '@/client/components/console/parliament/ConsolePartyReaction.vue';
+import ConsoleWinnerReward from '@/client/components/console/parliament/ConsoleWinnerReward.vue';
+import {partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
+import {conLogicalPx} from '@/client/console/consoleLayoutProfile';
+import {translateTextWithParams} from '@/client/directives/i18n';
+import {getResolution} from '@/client/parliament/ClientParliamentManifest';
+import {parliamentPlayerName, ParliamentViewVm, resolutionTitleOf} from '@/client/console/parliament/consoleParliamentModel';
+import {SittingPosition, SittingStage} from '@/client/console/parliament/consoleSittingFlow';
+import {enactedYieldsOf, voteYieldsOf} from '@/client/console/parliament/influenceYieldModel';
+import {PartyReactionReading, partyReactionsOf, viewerHasSeat} from '@/client/console/parliament/partyReactionModel';
+import {WinnerRewardReading, winnerRewardReadingOf, winnerRewardTableOf} from '@/client/console/parliament/winnerRewardModel';
+
+/** A skipped effect on the reward stage: WHAT was skipped and WHY (both i18n keys). */
+type SkipPlate = {key: string, title: string, reason: string};
+
+export default defineComponent({
+  name: 'ConsoleParliamentSitting',
+  components: {PlayerCube, ConsoleInfluenceYield, ConsolePartyReaction, ConsoleWinnerReward},
+  props: {
+    /** Where the sitting stands on the server (`consoleSittingFlow.sittingPositionOf`). */
+    position: {type: Object as PropType<SittingPosition>, required: true},
+    /** The stage on screen — the host's page cursor over the position's pages. */
+    stage: {type: String as PropType<SittingStage>, required: true},
+    /** The phase's summary — the live sitting's `phase.summary`, a review's finished summary. */
+    summary: {type: Object as PropType<ParliamentPhaseSummaryModel | undefined>, default: undefined},
+    view: {type: Object as PropType<ParliamentViewVm>, required: true},
+    model: {type: Object as PropType<ParliamentModel | undefined>, default: undefined},
+    playerView: {type: Object as PropType<PlayerViewModel>, required: true},
+    viewerColor: {type: String as PropType<Color | undefined>, default: undefined},
+    /** The reward stage holds the FIELD (a hosted step stands in its zone). */
+    field: {type: Boolean, default: false},
+    /** Hosted inside another surface's zone (nothing of the chassis to strip — the sitting never titles itself). */
+    embedded: {type: Boolean, default: false},
+    /** `live` — the phase in progress; `review` — a finished sitting re-read (the protocol, later). */
+    mode: {type: String as PropType<'live' | 'review'>, default: 'live'},
+  },
+  computed: {
+    resolution(): IClientResolution | undefined {
+      const id = this.summary?.enacted.resolution;
+      return id === undefined ? undefined : getResolution(id);
+    },
+    winnerColor(): Color | undefined {
+      const player = this.summary?.winner.player;
+      return player === undefined || player === 'neutral' ? undefined : player;
+    },
+    /** A TIE was broken — one phrase of the rule that broke it. */
+    tieKey(): string | undefined {
+      switch (this.summary?.winner.tieBreak) {
+      case 'slot-priority': return 'Tie broken by the slot order';
+      case 'earlier-delegate': return 'Tie broken by the earlier delegate';
+      default: return undefined;
+      }
+    },
+    returned(): ReadonlyArray<{owner: Color | 'neutral', count: number}> {
+      return this.summary?.returned ?? [];
+    },
+    agendaBonus(): string | undefined {
+      switch (this.summary?.agenda?.bonus) {
+      case 'tr': return '+1 TR';
+      case 'card': return '+1 card';
+      default: return undefined;
+      }
+    },
+    supportGained(): ReadonlyArray<{party: ReduxParty, gained: number}> {
+      return (this.summary?.support ?? []).filter((s) => s.gained > 0);
+    },
+    /** The viewer's OWN records among the phase's outcomes (the effects so far). */
+    mine(): Array<ParliamentEnactOutcomeModel> {
+      const outcomes = this.mode === 'review' ? this.summary?.outcomes : this.model?.phase?.outcomes;
+      return this.viewerColor === undefined ? [] : (outcomes ?? []).filter((o) => o.player === this.viewerColor);
+    },
+    /**
+     * THE READING: once the seat's record is in, the server's own amounts
+     * (`resolving` while the phase pays, `applied` after); before that, the
+     * ESTIMATE by the seat's final influence — the vote panel's own reading,
+     * never a payout recomputed on the client.
+     */
+    yields(): Array<InfluenceYield> {
+      const resolution = this.resolution;
+      if (resolution === undefined) {
+        return [];
+      }
+      const recorded = this.mine.length > 0 || this.position.step === 'adjourn' || this.position.step === 'done';
+      return recorded ?
+        enactedYieldsOf(resolution, this.model, this.viewerColor, {live: this.mode === 'live' && this.position.step === 'effects'}) :
+        voteYieldsOf(resolution, this.model, this.viewerColor).filter((y) => y.context !== 'forecast');
+    },
+    /** …and the ruling party's answer to it (a seat that takes part is told; a spectator is not). */
+    reactions(): Array<PartyReactionReading> {
+      return viewerHasSeat(this.model, this.viewerColor) ? partyReactionsOf(this.resolution, this.yields) : [];
+    },
+    /** The winner's tile, when the law declares one — whose it is, and whether the table has room for it. */
+    winnerReading(): WinnerRewardReading | undefined {
+      return winnerRewardReadingOf(this.resolution, this.model, winnerRewardTableOf(this.playerView.game));
+    },
+    /**
+     * THE SKIP PLATE — every record of the viewer's that paid nothing, named:
+     * a `skipped` record by its own part and reason, a paying kind that paid
+     * zero by its address's title. A scaled effect's skip is already read in
+     * the yields block (with its reason), so it is not repeated here.
+     */
+    skips(): Array<SkipPlate> {
+      const scaledIds = new Set((this.resolution?.scaled ?? []).map((e) => e.id));
+      const out: Array<SkipPlate> = [];
+      for (const outcome of this.mine) {
+        const delivery = rewardAddressOf(outcome, this.viewerColor);
+        if (delivery.skipped === undefined || (outcome.effect !== undefined && scaledIds.has(outcome.effect))) {
+          continue;
+        }
+        const title = outcome.kind === 'skipped' ?
+          (outcome.part === 'winner' ? 'Reward for the winner of the vote' : 'Resolution effect') :
+          REWARD_ADDRESS[outcome.kind].skipTitle;
+        out.push({key: `${outcome.step}:${outcome.part ?? ''}`, title, reason: delivery.skipped});
+      }
+      return out;
+    },
+    rewardKicker(): string {
+      return this.position.rewardStep === 'waiting' ? 'The effects are being paid' : 'Your reward';
+    },
+    /** The honest wait — WHO the effects are asking and what kind of answer (the server's own input type). */
+    waitText(): string {
+      const waiting = this.position.waitingFor;
+      if (waiting === undefined) {
+        return '';
+      }
+      const who = this.nameOfColor(waiting.player);
+      switch (waiting.input) {
+      case 'card': return translateTextWithParams('Waiting for ${0} to choose a card', [who]);
+      case 'space': return translateTextWithParams('Waiting for ${0} to place a tile', [who]);
+      default: return translateTextWithParams('Waiting for ${0} to decide', [who]);
+      }
+    },
+    resultsTitle(): string {
+      return translateTextWithParams('Results of generation ${0}', [String(this.position.generation)]);
+    },
+  },
+  methods: {
+    cubePx(logical: number): number {
+      return conLogicalPx(logical);
+    },
+    emblemUrl(party: ReduxParty): string {
+      return partyEmblemUrl(party);
+    },
+    resolutionTitle(id: string): string {
+      return resolutionTitleOf(this.view, id);
+    },
+    nameOf(color: Color | 'neutral' | undefined): string {
+      return parliamentPlayerName(this.playerView.players, color);
+    },
+    nameOfColor(color: Color): string {
+      return parliamentPlayerName(this.playerView.players, color);
+    },
+    neutralVotesText(n: number): string {
+      return translateTextWithParams('Neutral delegates: ${0}', [String(n)]);
+    },
+  },
+});
+</script>

@@ -72,6 +72,30 @@ describe('consoleMandatoryGate (the mandatory announcement gate)', () => {
       expect(isInterruptiveMandatoryTask({kind: 'unknown', inputType: 'mystery'}, false, true)).to.be.false;
     });
 
+    /* INSIDE A LIVE SITTING (Э3) the same asks are STEPS of the Parliament's
+     * flow: the political phase was announced ONCE (the `parliament-phase` flow
+     * beat, keyed on the generation), and its pick / take / tile arrive inside
+     * the open workspace — a task beat here would raise a SECOND plate over the
+     * sitting the player is standing in. */
+    it('inside a live SITTING a resolution ask forms NO beat of its own — the flow beat covers it (one announce per phase)', () => {
+      const sitting: MandatoryFlowBeat = {key: 'parliament:gen2', taskKind: 'parliamentPhase', flow: 'parliament-phase'};
+      const pick = mandatoryBeatFor({task: {kind: 'cardSelect', mode: 'target'}, taskKey: 'card|pick', forcedReaction: false, resolutionPrompt: true, flows: [sitting]});
+      expect(pick).to.deep.eq(sitting);
+      const ocean = mandatoryBeatFor({task: {kind: 'space'}, taskKey: 'space|ocean', forcedReaction: false, resolutionPrompt: true, flows: [sitting]});
+      expect(ocean).to.deep.eq(sitting);
+      // The gate prompt itself is not an interruptive TASK — the flow beat is what represents it.
+      expect(mandatoryBeatFor({task: {kind: 'parliamentPhase', stage: 'assembly'}, taskKey: 'option|gate', forcedReaction: false, flows: [sitting]})).to.deep.eq(sitting);
+      // …acknowledged once at the open, the SAME key stays acknowledged through every ask of the phase.
+      acknowledgeMandatoryBeat(sitting.key);
+      expect(isMandatoryBeatHeld(pick)).to.be.false;
+      expect(isMandatoryBeatHeld(ocean)).to.be.false;
+      // An interruptive task that is NOT the resolution's (a foreign discard) still outranks the flow.
+      const discard = mandatoryBeatFor({task: {kind: 'handSelect'}, taskKey: 'card|discard', forcedReaction: false, flows: [sitting]});
+      expect(discard?.key).to.eq('task:card|discard');
+      // …and without the sitting's flow beat (no live phase) a resolution ask keeps its own beat.
+      expect(mandatoryBeatFor({task: {kind: 'cardSelect', mode: 'target'}, taskKey: 'card|pick', forcedReaction: false, resolutionPrompt: true, flows: []})?.key).to.eq('task:card|pick');
+    });
+
     it('a resolution ask is its OWN beat per prompt — the pick, then the ocean, each announced', () => {
       const pick = mandatoryBeatFor({task: {kind: 'cardSelect', mode: 'target'}, taskKey: 'card|pick', forcedReaction: false, resolutionPrompt: true});
       expect(pick).to.deep.eq({key: 'task:card|pick', taskKind: 'cardSelect'});

@@ -1,6 +1,7 @@
 import {expect} from 'chai';
 import {taskFor, taskServedByHost, isNativelyHandled, taskMinimizable, followUpStepStage, NATIVE_KINDS, NATIVE_COMPOSITE_KINDS, SCENE_KINDS, SECTION_SERVED_KINDS, SHELL_SECTION_KINDS, ConsoleTask, TaskKind} from '@/client/console/consoleTaskRouter';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
+import {PlayerInputModel} from '@/common/models/PlayerInputModel';
 
 /* Synthetic playerViews — only the fields the router reads. */
 function view(wf: any, hand: Array<string> = [], srr: Array<string> = []): PlayerViewModel {
@@ -87,6 +88,9 @@ const FIXTURES: Array<{row: string, wf: any, hand?: Array<string>, srr?: Array<s
   {row: '30 out-of-scope: delegate', wf: {type: 'delegate', title: 'Select delegate'}, expect: {kind: 'unknown', inputType: 'delegate'}},
   {row: '30b out-of-scope: classic party (no marker)', wf: {type: 'party', title: 'Select party'}, expect: {kind: 'unknown', inputType: 'party'}},
   {row: '30b2 parliament seat pick (marker)', wf: {type: 'party', title: 'Select party', votePrompt: {source: 'chairman-seat', cost: 0}}, expect: {kind: 'party'}},
+  // THE SITTING'S GATES (Turmoil Redux): a plain option on the wire, classified by the server's own marker — never the title.
+  {row: '30c parliament assembly gate (marker)', wf: {type: 'option', title: 'The Mars Parliament of generation 2 is in session: the verdict and the enactment', parliamentPhasePrompt: {stage: 'assembly', generation: 2, final: false, seq: 1, awaiting: ['blue']}}, expect: {kind: 'parliamentPhase', stage: 'assembly'}},
+  {row: '30d parliament adjourn gate (marker)', wf: {type: 'option', title: 'The Mars Parliament of generation 2 adjourns', parliamentPhasePrompt: {stage: 'adjourn', generation: 2, final: false, seq: 1, awaiting: []}}, expect: {kind: 'parliamentPhase', stage: 'adjourn'}},
   {row: '30c out-of-scope: globalEvent', wf: {type: 'globalEvent', title: 'Select event'}, expect: {kind: 'unknown', inputType: 'globalEvent'}},
   {row: '30d out-of-scope: underworld token', wf: {type: 'claimedUndergroundToken', title: 'Select token'}, expect: {kind: 'unknown', inputType: 'claimedUndergroundToken'}},
 ];
@@ -104,7 +108,7 @@ const ALL_TASK_KINDS: ReadonlyArray<TaskKind> = [
   'actionMenu', 'space', 'choice', 'awardFunding', 'player', 'amount', 'resource',
   'distribute', 'payment', 'draftWait', 'cardSelect', 'deckSelect', 'handSelect',
   'projectCard', 'colony', 'colonyBonus', 'venusBonus', 'spendHeat', 'botAttack',
-  'composite', 'initialDraft', 'startSequence', 'corpFirstAction', 'aresGlobal', 'party', 'unknown',
+  'composite', 'initialDraft', 'startSequence', 'corpFirstAction', 'aresGlobal', 'party', 'parliamentPhase', 'unknown',
 ];
 
 /** The CURRENT red list — shrink it phase by phase (CTS-6). */
@@ -202,7 +206,7 @@ describe('consoleTaskRouter (CTS-2 coverage)', () => {
     for (const kind of SHELL_SECTION_KINDS) {
       expect(NATIVE_KINDS.has(kind), `section kind "${kind}" must be native`).to.eq(true);
       // …but never claimed by the task host (the shell owns the surface).
-      expect(kind === 'projectCard' || kind === 'handSelect' || kind === 'colony' || kind === 'party' ||
+      expect(kind === 'projectCard' || kind === 'handSelect' || kind === 'colony' || kind === 'party' || kind === 'parliamentPhase' ||
         kind === 'colonyBonus' || kind === 'externalDraw' || kind === 'awardFunding' ||
         kind === 'corpFirstAction').to.eq(true);
     }
@@ -330,6 +334,25 @@ describe('consoleTaskRouter (CTS-2 coverage)', () => {
       expect(followUpStepStage('projectCard')).to.be.undefined;
       expect(followUpStepStage('space')).to.be.undefined;
       expect(followUpStepStage(undefined)).to.be.undefined;
+    });
+
+    /* AN ENACTED RESOLUTION'S ASK (Turmoil Redux) is a step of the Parliament's
+     * SITTING — under the stage name the sitting publishes for it — by the
+     * prompt's structural SOURCE, never its title; the same widget from a card
+     * action is nobody's step. */
+    it('a resolution-sourced ask is a step of the sitting: a pick → «Выбор», a take → «Получение», a tile → «Размещение»', () => {
+      const source = {kind: 'resolution', resolution: 'RDX_GREENS_CLIMATE_RESEARCH'};
+      const pick = {type: 'card', title: 'Select a card', buttonLabel: 'Select', cards: [], choiceContext: {source}} as unknown as PlayerInputModel;
+      const take = {type: 'card', title: 'Take', buttonLabel: 'Take', cards: [], choiceContext: {source}, externalDrawPrompt: {intakeId: 1, count: 2, remaining: 2, cause: source}} as unknown as PlayerInputModel;
+      const tile = {type: 'space', title: 'Select space for ocean', buttonLabel: 'Select', spaces: [], placementContext: {source}} as unknown as PlayerInputModel;
+      expect(followUpStepStage('cardSelect', pick)).to.eq('Choice');
+      expect(followUpStepStage('choice', {type: 'or', title: 'x', options: [], choiceContext: {source}} as unknown as PlayerInputModel)).to.eq('Choice');
+      expect(followUpStepStage('externalDraw', take)).to.eq('Intake');
+      expect(followUpStepStage('space', tile)).to.eq('Placement');
+      // The same kinds WITHOUT a resolution source keep their old answers.
+      expect(followUpStepStage('cardSelect', {type: 'card', title: 'Select a card', buttonLabel: 'Select', cards: []} as unknown as PlayerInputModel)).to.be.undefined;
+      expect(followUpStepStage('space', {type: 'space', title: 'Select space', buttonLabel: 'Select', spaces: []} as unknown as PlayerInputModel)).to.be.undefined;
+      expect(followUpStepStage('colony', {type: 'colony', title: 'Select colony', buttonLabel: 'Select', coloniesModel: []} as unknown as PlayerInputModel)).to.eq('Colony selection');
     });
 
     /* The door being gated is `openShellTaskSurface`'s, so a step-shaped

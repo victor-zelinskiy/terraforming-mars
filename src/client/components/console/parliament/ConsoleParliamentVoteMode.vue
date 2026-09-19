@@ -180,7 +180,8 @@ import {AnimationHold, beginAnimationHold} from '@/client/components/presentatio
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {conLogicalPx} from '@/client/console/consoleLayoutProfile';
-import {consoleMotionMs, consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
+import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
+import {ParliamentBeat, scheduleParliamentBeat} from '@/client/console/parliament/parliamentBeat';
 import {descendWorkspaceFrame, foldWorkspaceFrame, setWorkspaceFramePhase, workspaceFrameHasNested} from '@/client/console/consoleWorkspaceStack';
 import {translateMessage, translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {offTurnReason} from '@/client/console/offTurnReason';
@@ -243,8 +244,8 @@ export default defineComponent({
   emits: ['notice', 'inspect', 'send', 'flow-complete'],
   data() {
     return {
-      landingTimer: undefined as number | undefined,
-      concludeTimer: undefined as number | undefined,
+      landingBeat: undefined as ParliamentBeat | undefined,
+      concludeBeat: undefined as ParliamentBeat | undefined,
       landingHold: undefined as AnimationHold | undefined,
       flightHold: undefined as AnimationHold | undefined,
     };
@@ -813,16 +814,13 @@ export default defineComponent({
       parliamentFlow.landedSeq = seq;
       this.flightHold?.release();
       this.flightHold = undefined;
-      if (this.landingTimer !== undefined) {
-        window.clearTimeout(this.landingTimer);
-      }
-      this.landingTimer = window.setTimeout(() => this.finishLanding(), consoleMotionMs(VOTE_LANDING_MS));
+      this.landingBeat?.kill();
+      // The landed READ — a beat on the motion clock (never a wall-clock timer).
+      this.landingBeat = scheduleParliamentBeat(VOTE_LANDING_MS, () => this.finishLanding());
     },
     finishLanding(): void {
-      if (this.landingTimer !== undefined) {
-        window.clearTimeout(this.landingTimer);
-        this.landingTimer = undefined;
-      }
+      this.landingBeat?.kill();
+      this.landingBeat = undefined;
       if (parliamentFlow.stage !== 'landed') {
         this.clearLanding();
         return;
@@ -835,26 +833,22 @@ export default defineComponent({
       // full action — it does). A CLASS fade, not a tween: the unmount's
       // prop reset would have popped a tweened layer back to full.
       parliamentFlow.concluded = true;
-      this.concludeTimer = window.setTimeout(() => {
-        this.concludeTimer = undefined;
+      this.concludeBeat = scheduleParliamentBeat(VOTE_CONCLUDE_MS + 40, () => {
+        this.concludeBeat = undefined;
         this.clearLanding();
         if (parliamentFlow.stage === 'landed') {
           this.$emit('flow-complete', 'vote');
         }
-      }, consoleMotionMs(VOTE_CONCLUDE_MS) + 40);
+      });
     },
     clearConclude(): void {
-      if (this.concludeTimer !== undefined) {
-        window.clearTimeout(this.concludeTimer);
-        this.concludeTimer = undefined;
-      }
+      this.concludeBeat?.kill();
+      this.concludeBeat = undefined;
       parliamentFlow.concluded = false;
     },
     clearLanding(): void {
-      if (this.landingTimer !== undefined) {
-        window.clearTimeout(this.landingTimer);
-        this.landingTimer = undefined;
-      }
+      this.landingBeat?.kill();
+      this.landingBeat = undefined;
       dropFlightsWithPrefix('vote');
       this.flightHold?.release();
       this.flightHold = undefined;

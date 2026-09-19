@@ -42,13 +42,14 @@
       </div>
       <div v-for="step in agendaVm.steps" :key="step.index" class="con-parl__step"
            :class="['con-parl__step--' + step.step.kind, {
-             'con-parl__step--recap': flow.stage === 'recap' && recapHighlight === 'agenda' && recapStep === step.index,
+             'con-parl__step--lit': flow.stage === 'sitting' && sittingStep === step.index,
              'con-parl__step--next': step.viewerNext,
              'con-parl__step--here': step.viewerHere,
              'con-parl__step--passed': viewerParticipates && step.index < agendaVm.viewerPosition,
              'con-parl__step--pulse': agendaPulseStep === step.index,
            }]"
-           :data-step="step.index">
+           :data-step="step.index"
+           @animationend="onStepPulseEnd($event, step.index)">
           <span class="con-parl__step-node">
             <template v-if="step.step.kind === 'influence'"><span class="con-parl__step-level">{{ step.step.influence }}</span></template>
             <template v-else-if="step.step.kind === 'tr'"><i class="con-parl__step-res con-parl__step-res--tr resource_icon resource_icon--rating" aria-hidden="true"></i></template>
@@ -78,7 +79,7 @@ import {Color} from '@/common/Color';
 import {ParliamentModel} from '@/common/models/ParliamentModel';
 import PlayerCube from '@/client/components/PlayerCube.vue';
 import {conLogicalPx} from '@/client/console/consoleLayoutProfile';
-import {consoleMotionMs, consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
+import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {AnimationHold, beginAnimationHold} from '@/client/components/presentation/animationHold';
 import {HydroMarkerDirectorHandle, runHydroMarkerGlide} from '@/client/console/hydroMarker/hydroMarkerDirector';
 import {consoleParliamentUi, parliamentFlow, parliamentRootEl} from '@/client/console/parliament/consoleParliamentFlow';
@@ -98,15 +99,14 @@ export default defineComponent({
     agendaVm: {type: Object as PropType<AgendaVm>, required: true},
     viewerParticipates: {type: Boolean, default: false},
     /** The results scene's current focus ('' outside the scene) and the step its Agenda beat names. */
-    recapHighlight: {type: String, default: ''},
-    recapStep: {type: Number as PropType<number | undefined>, default: undefined},
+    /** The Agenda step the SITTING's enactment page lights (the winner's new position), if any. */
+    sittingStep: {type: Number as PropType<number | undefined>, default: undefined},
     /** A nested frame (the action workspace) took the scene — a live advance is not replayed under it. */
     handedOver: {type: Boolean, default: false},
   },
   data() {
     return {
       agendaPulseStep: undefined as number | undefined,
-      agendaTimer: undefined as number | undefined,
       /** The marker in motion along the Agenda track (a body-level proxy). */
       agendaFlight: undefined as {color: Color} | undefined,
       /** The real cube the gliding proxy stands in for — hidden until the lock. */
@@ -141,9 +141,6 @@ export default defineComponent({
     },
   },
   beforeUnmount() {
-    if (this.agendaTimer !== undefined) {
-      window.clearTimeout(this.agendaTimer);
-    }
     this.stopAgendaGlide();
   },
   methods: {
@@ -233,15 +230,14 @@ export default defineComponent({
       this.agendaGlideHold = undefined;
       consoleParliamentUi.agendaSettling = false;
     },
+    /** The step's node blooms once (a CSS one-shot); the flag is cleared by the animation's own end. */
     pulseAgendaStep(step: number): void {
       this.agendaPulseStep = step;
-      if (this.agendaTimer !== undefined) {
-        window.clearTimeout(this.agendaTimer);
-      }
-      this.agendaTimer = window.setTimeout(() => {
+    },
+    onStepPulseEnd(event: AnimationEvent, step: number): void {
+      if (event.animationName === 'con-parl-node-bloom' && this.agendaPulseStep === step) {
         this.agendaPulseStep = undefined;
-        this.agendaTimer = undefined;
-      }, consoleMotionMs(1400));
+      }
     },
   },
 });

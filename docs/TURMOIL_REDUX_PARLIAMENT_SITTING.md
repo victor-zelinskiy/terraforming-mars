@@ -207,3 +207,77 @@ dev-примеров + фраза гарда + таблица/union + клиен
 - Уместность причины пропуска — спек карты, не гард; «одна подходящая карта» — общий набор в гарде.
 - Образец сломанной карты — `describe.skip` (определение вне каталога не сажается в игру); фраза закреплена
   юнит-тестом.
+
+## Э3 — маршрутизация и каркас flow «ЗАСЕДАНИЕ»
+
+### Оценка
+
+Сцена «Итоги» открывалась по `mounted()` workspace, гейтилась `localStorage` и шла по `setTimeout`-тактам; каждый
+вопрос резолюции анонсировался отдельной плитой поверх поля; стадия принятия была второй плитой (`__enact`)
+вне chassis. Половина flow — состояние игры, половина — память браузера.
+
+### Концепция
+
+**Политическая фаза — ОДИН flow workspace «Парламент», стадия которого — серверный шаг.** Крошка
+`⚖ ПАРЛАМЕНТ › ЗАСЕДАНИЕ › ВЕРДИКТ|ПРИНЯТИЕ|НАГРАДА|ВЫБОР|ПОЛУЧЕНИЕ|РАЗМЕЩЕНИЕ|ОБНОВЛЕНИЕ|ЗАКРЫТИЕ` только
+удлиняется; один анонс на поколение («Парламент собрался · поколение N», FLOW-бит `parliament:gen<N>`), A
+открывает; вопросы резолюции — двери `followUp` внутри открытого flow, никогда вторая плита; B по фазе
+(`committed` → свернуть, `verdict` на ЗАКРЫТИИ → none, бит в полёте → none); reload — та же серверная стадия
+(ничего отвеченного не переспрашивается: отвеченные ворота садят курсор на позу «Ждём»); клиентской памяти
+«уже видел» нет.
+
+### Что изменилось
+
+| Файл | Что |
+| --- | --- |
+| `client/console/parliament/consoleSittingFlow.ts` (новый) | чистая позиция заседания: `sittingPositionOf` (шаг · страницы · ворота · ожидание · ask), `sittingStageKey`, `sittingWorkspacePhase`, `sittingPrimaryKey`, `sittingStartPage`, `parliamentSittingFlowBeat` |
+| `client/components/console/parliament/ConsoleParliamentSitting.vue` (новый) | host-agnostic поверхность (`embedded`, `mode: live\|review`): пять стадий — ПОЗЫ одной смонтированной поверхности (layer stack), плита пропуска, строка ожидания, поза «Ждём: [кубы]», зона `[data-embed-slot="parliament-stage"]` |
+| `ConsoleParliamentSection.vue` | стадия `sitting` на chassis `.con-parl__stage` (та же, что у КРЕСЛА); полевая поза `--field` для размещённого шага (пикер/добор) — офсеты среднего яруса измерены (`--con-parl-mid-top/-bottom`); крошка/фаза/команды/ответ на ворота `{type:'option'}` |
+| `consoleParliamentFlow.ts` | удалены `recapSeen`/`localStorage`/`RECAP_*`/`chairTimer`; `stage: 'sitting'`, `sittingPage`, `sittingField`, `consoleParliamentUi.stageStanding` |
+| `consoleTaskRouter.ts` | `TaskKind 'parliamentPhase'` по маркеру (выше сырых типов), членство в section-наборах, `taskMinimizable`, `followUpStepStage(kind, wf)` — таблица стадий для промптов с источником-резолюцией (`Choice`/`Intake`/`Placement`) |
+| `consoleMandatoryGate.ts` | `MandatoryFlowKind 'parliament-phase'`; в живом заседании вопрос резолюции не образует собственного бита (flow-бит покрывает) |
+| `consoleTaskSummary.ts` · `consoleWorkspaceStack.ts` | копия ворот (`Open the sitting` / `Return to the sitting`); строка `parliament`: `serves: ['party','parliamentPhase']`, `yieldsToBoard`, `parkOwnsFlow` |
+| `ConsoleShell.vue` | flow-бит заседания, дверь A (`enterWorkspace('parliament', {anchor: phase})`; парк восстанавливается), одна зона `parliament-stage` для пикера и добора, плита заседания, watcher `parliamentSittingFrameLive` (falling edge закрывает phase-anchored корень), дверь `parliamentPhase` в `openShellTaskSurface` |
+| `parliamentBeat.ts` (новый) · VoteMode · PartyActionComposer · parliamentFlights · consoleResolutionPayout · Agenda/Government/Parties | ни одного `setTimeout` в дереве кроме `SUBMIT_SAFETY_MS`: биты на часах GSAP (`gsap.delayedCall`), one-shot пульсы гасятся `animationend` |
+| удалены | `ConsoleParliamentRecap.vue`, `ConsoleParliamentEnact.vue`, `.con-parl__recap-*`, `--recap`-правила, селектор `parliament-enact` |
+| `console_parliament_sitting.less` | поверхность `.con-sit` (позы, ряды-объекты, плита пропуска, зона), полевая поза стадии, «подсветка стадии» на ярусах — статичный золотой шов |
+| `ru/parliament.json` | 26 ключей заседания (стадии, глаголы, плита, ряды) |
+| гарды | `tests/console/parliamentNoTimers.spec.ts`, `parliamentNoLocalStorage.spec.ts` (статические); `consoleSittingFlow.spec.ts` (чистый); обновлены `consoleTaskRouter/-MandatoryGate/-TaskSummary/-PromptAdmission.spec` |
+| e2e | `tests/e2e/console-parliament-sitting.spec.ts` — структурная половина на трёх профилях |
+
+### Контракты
+
+- **Стадия = серверный шаг.** `assembly` → страницы ВЕРДИКТ · ПРИНЯТИЕ · НАГРАДА (A листает, A на последней
+  отвечает ворота 1); `effects` → НАГРАДА с шагом (`choice`/`intake`/`placement`/`waiting`/`received`);
+  `adjourn` → ОБНОВЛЕНИЕ · ЗАКРЫТИЕ (A на ЗАКРЫТИИ отвечает ворота 2; `final` — сразу ЗАКРЫТИЕ). Локальная
+  страница внутри шага — презентация; отвеченные ворота садят курсор на последнюю страницу.
+- **Один анонс на поколение**: flow-бит `parliament:gen<N>` (`parliamentSittingFlowBeat`) стабилен на все
+  промпты фазы; `mandatoryBeatFor` не образует task-бит для вопроса резолюции при живом flow-бите заседания.
+- **Одна зона** `[data-embed-slot="parliament-stage"]` — пикер (`ConsoleTaskHost`) и добор
+  (`ConsoleExternalDrawWorkspace embedded`); `taskHeldForWorkspace` держит хост «нигде», пока зона не стоит.
+  Тайл победителя — поле: `yieldsToBoard` уводит стек и возвращает его после посадки.
+- **Фаза workspace**: `sittingWorkspacePhase` — `committed` до ЗАКРЫТИЯ, `verdict` на ЗАКРЫТИИ, `executing`
+  при отправке; B и его подпись — из `backVerbFor`, никогда из ветки.
+- **Конец flow = конец фазы**: корень якорится на `Phase.PARLIAMENT`; `parliamentSittingFrameLive` (falling
+  edge) закрывает его (`closeWorkspaceRoot`), как у драфта; парк тоже.
+- **Ни одного таймера** кроме `SUBMIT_SAFETY_MS`; **ни одной записи на устройство**.
+
+### Проверка
+
+`consoleSittingFlow.spec` 17 · статические гарды 4 · `consoleTaskRouter/-Gate/-Summary/-Admission.spec`
+расширены · e2e `console-parliament-sitting` (2 теста × 3 профиля). Полные прогоны и замеры — в журнале
+прогресса.
+
+### Честные ограничения Э3
+
+- Локальная страница внутри серверного шага не переживает reload/park: заседание возвращается на первую
+  страницу шага (или на позу «Ждём», если ворота отвечены). Компактный реплей пройденных стадий — Э4
+  (`resume`-режим директора).
+- Стадии — статичные позы: подсветка на ярусах — золотой шов, переходы стадий — смена модификатора
+  (chassis'ный UNFOLD/FOLD стадии — при входе/выходе; между позами — Э4).
+- Стадия ОБНОВЛЕНИЕ читает `refreshed`/`lobbyRefilled` сводки; сброшенные проигравшие не перечислены (сводка их
+  не несёт) — их уход показывает Э4 полётами.
+- Стадия НАГРАДА: чтение + плита пропуска + существующие пикер/добор/тайл; физика награды (волна, добор без
+  дубля, парковка под тайл и возврат) — Э5.
+- Reload во время тайла победителя: плита анонсирует заседание, A отпускает размещение (Парламент не
+  открывается поверх поля); после посадки следующие ворота открывают Парламент дверью `parliamentPhase`.

@@ -9,7 +9,7 @@
        :class="{
          'con-parl__voting--focus': flow.zone === 'voting' && flow.stage === 'browse',
          'con-parl__voting--carried': slotsCarried || flow.voteLeaving,
-         'con-parl__voting--recap': flow.stage === 'recap' && recapHighlight === 'refresh',
+         'con-parl__voting--lit': flow.stage === 'sitting' && sittingStage === 'renewal',
        }"
        data-parl-voting>
     <div class="con-parl__voting-head" data-parl-recede>
@@ -161,7 +161,8 @@ export default defineComponent({
     /** The seat pick's candidate slots (indices). */
     seatCandidates: {type: Array as PropType<ReadonlyArray<number>>, default: () => []},
     /** The results scene's current focus ('' outside the scene). */
-    recapHighlight: {type: String, default: ''},
+    /** The SITTING's stage on screen ('' outside the sitting) — the renewal lights the refreshed area. */
+    sittingStage: {type: String, default: ''},
   },
   data() {
     return {DENSE_RIBBON, PARTY_EFFECT_THRESHOLD, RIBBON_CUBE};

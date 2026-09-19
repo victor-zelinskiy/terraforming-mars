@@ -325,14 +325,30 @@ const WORKSPACE_KINDS: Record<WorkspaceFrameKind, WorkspaceKindSpec> = {
   },
   'parliament': {
     root: 'Parliament', rootSelector: '.con-parl', section: 'parliament',
-    // The chairman's seat pick is the one STAND-ALONE parliament prompt (the
-    // vote and the party actions are branches of the action menu, served
-    // from inside the workspace's own stages).
-    serves: ['party'],
-    // The Parliament's own stages (the vote, the seat) host their follow-up
-    // (a paid vote's payment) in the stage zone. `inFlow`: at the browse
-    // layer there is no flow for a follow-up to belong to.
+    // The chairman's seat pick and the SITTING'S TWO GATES (Turmoil Redux —
+    // the political phase's `assembly` / `adjourn` prompts, `parliamentPhase`)
+    // are the stand-alone parliament prompts; the vote and the party actions
+    // are branches of the action menu, served from inside the workspace's own
+    // stages. The enacted resolution's asks (a pick, a take, a tile) are
+    // STEPS of the sitting: hosted in its stage zone, never served by name.
+    serves: ['party', 'parliamentPhase'],
+    // The Parliament's own stages (the vote, the seat, the SITTING) host their
+    // follow-up (a paid vote's payment, the resolution's payout pick / take)
+    // in the stage zone. `inFlow`: at the browse layer there is no flow for a
+    // follow-up to belong to — and the sitting is never at browse (every one
+    // of its stages stands past the commit boundary), so inside the political
+    // phase this reads as `always` by construction.
     hosts: 'inFlow',
+    // THE WINNER'S TILE IS PLACED ON THE BOARD, INSIDE THE SITTING: the flow
+    // steps aside for the placement and comes back at the same depth to its
+    // reward stage's «received» pose — a placement is a step of the sitting,
+    // never its end (the Hydronetwork's reasoning, one row up).
+    yieldsToBoard: true,
+    // …AND A PARKED SITTING IS THE ONLY SITTING: its stage is the server's
+    // step, so a second instance beside the park would be the same sitting
+    // twice. The wheel's open routes through the park's own door instead — the
+    // one honest reading of «open the Parliament» while it is set aside.
+    parkOwnsFlow: true,
     // A PARTY ACTION taken from the Parliament is the ACTION WORKSPACE standing
     // inside this one (`parliament ⊃ card-actions`): the ONE execution point
     // every party action has, whichever door opened it. A full-height

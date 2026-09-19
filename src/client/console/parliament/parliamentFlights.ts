@@ -2,8 +2,9 @@ import {nextTick, reactive} from 'vue';
 import {gsap} from 'gsap';
 import {Color} from '@/common/Color';
 import {PremiumCardVM} from '@/client/components/premiumCard/premiumCardViewModel';
-import {consoleMotionMs, consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
+import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {probeTick} from '@/client/console/probeTick';
+import {ParliamentBeat, scheduleParliamentBeat} from './parliamentBeat';
 import {conLogicalPx} from '@/client/console/consoleLayoutProfile';
 import {CubeFlightHandle, Rect, runCardDealFlight, runDelegateCubeFlight} from './consoleParliamentVoteMotion';
 import {RIBBON_CUBE} from './parliamentVoteView';
@@ -47,8 +48,10 @@ export function placeCubeRect(root: HTMLElement, selector: string): Rect | undef
  * and the drop a frame after the touchdown.
  *
  * Today the section renders the proxies in its own body-level `<Teleport>`;
- * the shell-level flight layer of the sitting director replaces THIS module's
- * renderer and nothing else — every caller speaks in specs and rects.
+ * the shell-level flight layer of the sitting director (Э4) replaces THIS
+ * module's renderer and nothing else — every caller speaks in specs and rects.
+ * Staggers are parliament BEATS on the motion clock (`parliamentBeat.ts`),
+ * never wall-clock timers.
  */
 
 /** A delegate cube in flight — its colour and its logical size. */
@@ -74,6 +77,8 @@ export const parliamentFlights = reactive({
 /** The proxy elements and the running handles, by flight id (DOM handles — never reactive). */
 let flightEls: Record<string, HTMLElement | null> = {};
 let flightHandles: Record<string, CubeFlightHandle> = {};
+/** A flight's STAGGER beat (between its birth and its launch) — killed with the flight. */
+let flightBeats: Record<string, ParliamentBeat> = {};
 let flightSerial = 0;
 
 export function nextFlightId(prefix: string): string {
@@ -107,6 +112,8 @@ export function pushCardFlight(spec: CardFlightSpec): void {
 }
 
 export function dropFlight(id: string): void {
+  flightBeats[id]?.kill();
+  delete flightBeats[id];
   flightHandles[id]?.kill();
   delete flightHandles[id];
   delete flightEls[id];
@@ -124,6 +131,10 @@ export function dropFlightsWithPrefix(prefix: string): void {
 }
 
 export function killParliamentFlights(): void {
+  for (const id of Object.keys(flightBeats)) {
+    flightBeats[id].kill();
+  }
+  flightBeats = {};
   for (const id of Object.keys(flightHandles)) {
     flightHandles[id]?.kill();
   }
@@ -160,7 +171,9 @@ export function flyCube(color: Color | 'neutral', from: Rect | undefined, to: Re
       return;
     }
     gsap.set(proxy, {autoAlpha: 0});
-    window.setTimeout(() => {
+    // The STAGGER is a beat on the motion clock; dropping the flight kills it.
+    flightBeats[id] = scheduleParliamentBeat(delayMs, () => {
+      delete flightBeats[id];
       if (flightEls[id] === undefined) {
         return;
       }
@@ -175,7 +188,7 @@ export function flyCube(color: Color | 'neutral', from: Rect | undefined, to: Re
         },
       });
       flightHandles[id] = handle;
-    }, consoleMotionMs(delayMs));
+    });
   });
   return true;
 }
@@ -217,7 +230,8 @@ export function flyCard(from: Rect | undefined, to: Rect | undefined, delayMs: n
       return;
     }
     gsap.set(proxy, {autoAlpha: 0});
-    window.setTimeout(() => {
+    flightBeats[id] = scheduleParliamentBeat(delayMs, () => {
+      delete flightBeats[id];
       if (flightEls[id] === undefined) {
         return;
       }
@@ -233,7 +247,7 @@ export function flyCard(from: Rect | undefined, to: Rect | undefined, delayMs: n
         },
       });
       flightHandles[id] = handle;
-    }, consoleMotionMs(delayMs));
+    });
   });
   return true;
 }

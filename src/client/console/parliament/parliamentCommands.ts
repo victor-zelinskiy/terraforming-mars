@@ -12,6 +12,14 @@ export type ParliamentCommandsInput = {
   view: ParliamentViewVm;
   canVoteNow: boolean;
   partyActionStates: ReadonlyArray<PartyActionStateVm>;
+  /**
+   * THE SITTING's own verbs (`consoleSittingFlow`): the A label for the page
+   * (undefined = A does nothing here — a hosted step owns the bar, a wait pose
+   * has nothing to press), whether X inspects an object on this page, and the
+   * B verb's label (from the workspace phase — «Свернуть» past the commit,
+   * nothing on the terminal closing page).
+   */
+  sitting?: {primary: string | undefined, inspect: boolean, back: string | undefined};
 };
 
 /** The browse layer's verbs depend on the focused ZONE (one bar, one contract). */
@@ -50,11 +58,22 @@ export function parliamentCommandsOf(input: ParliamentCommandsInput): Array<Cons
     return [{control: 'confirm', label: 'Send the delegate', enabled: input.canVoteNow, highlight: input.canVoteNow}, {control: 'secondary', label: 'Inspect'}, back];
   case 'seat':
     return [{control: 'confirm', label: 'Take the delegate', highlight: true}, {control: 'secondary', label: 'Inspect'}, {control: 'back', label: 'Minimize'}];
-  case 'recap':
-    return [{control: 'confirm', label: 'Continue', highlight: true}];
-  case 'enact':
-    // The hosted picker owns the bar while it stands in the stage's zone.
-    return [];
+  case 'sitting': {
+    // The sitting's page verbs; a hosted step (the picker, the take) owns the
+    // bar while it stands in the stage's zone — then `primary` is undefined.
+    const sitting = input.sitting;
+    const cmds: Array<ConsoleCommand> = [];
+    if (sitting?.primary !== undefined) {
+      cmds.push({control: 'confirm', label: sitting.primary, highlight: true});
+    }
+    if (sitting?.inspect === true) {
+      cmds.push({control: 'secondary', label: 'Inspect'});
+    }
+    if (sitting?.back !== undefined) {
+      cmds.push({control: 'back', label: sitting.back});
+    }
+    return cmds;
+  }
   case 'submitting':
     return [{control: 'confirm', label: 'Performing…', enabled: false}];
   case 'paying':

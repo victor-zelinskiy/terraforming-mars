@@ -727,9 +727,8 @@
         > .con-pseal { flex: 1 1 auto; min-width: 0; }
         &--pulse > .con-pseal { animation: con-parl-access-gain calc(1400ms * var(--motion-scale, 1)) @con-ease-standard both; }
         &--lost > .con-pseal { animation: con-parl-access-lost calc(1400ms * var(--motion-scale, 1)) @con-ease-standard both; }
-        &--recap > .con-pseal { animation: con-parl-recap-pulse calc(900ms * var(--motion-scale, 1)) @con-ease-standard both; }
     }
-    /* ── THE STAGE ZONE — the seat pick / the results ────────────────── */
+    /* ── THE STAGE ZONE — the seat pick / the SITTING (console_parliament_sitting.less) ── */
     &__stage {
         position: absolute;
         inset: 0;
@@ -852,7 +851,7 @@
     &__step--here &__step-node { background: rgba(28, 58, 50, 0.96); box-shadow: inset 0 0 0 .08rem fade(@con-parl-mint, 80%), 0 0 .8rem fade(@con-parl-mint, 22%); }
     /* The NEXT step — a light gold ring, an invitation to read, never a focus. */
     &__step--next &__step-node::after { content: ''; position: absolute; inset: -.24rem; border-radius: inherit; border: .07rem dashed fade(@con-parl-gold, 62%); pointer-events: none; }
-    &__step--pulse &__step-node, &__step--recap &__step-node { animation: con-parl-node-bloom calc(900ms * var(--motion-scale, 1)) @con-ease-standard both; }
+    &__step--pulse &__step-node { animation: con-parl-node-bloom calc(900ms * var(--motion-scale, 1)) @con-ease-standard both; }
     &__step-level { font-weight: 800; font-size: .82rem; line-height: 1; color: @con-parl-gold; }
     /* The reward icons keep their own proportions (the TR plate is wide, the card is tall) inside the disc. */
     &__step-res {

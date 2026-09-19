@@ -1,96 +1,177 @@
-/* ══ THE PARLIAMENT'S STAGES OF THE POLITICAL PHASE (Turmoil Redux) — today
-   the RESULTS scene (the recap) and the ENACTMENT layer (the payout stage);
-   the sitting flow of docs/TURMOIL_REDUX_PARLIAMENT_ASSEMBLY.md replaces both
-   on the shared stage chassis. Split out of `console_parliament.less` (Э0);
-   tokens and the chassis live there. ══ */
+/* ══ THE SITTING (Turmoil Redux — docs/TURMOIL_REDUX_PARLIAMENT_ASSEMBLY.md §6,
+   docs/TURMOIL_REDUX_PARLIAMENT_SITTING.md § Э3) — «ПАРЛАМЕНТ › ЗАСЕДАНИЕ»:
+   the political phase's ONE flow on the middle tier's stage chassis
+   (`.con-parl__stage`, console_parliament.less — the seat pick's chassis, one
+   chassis for every stage). Five STAGES as POSES of one always-mounted
+   surface (verdict · enactment · reward · renewal · closing): a stage change
+   swaps a modifier, never a subtree — the Э4 director animates between the
+   poses. The REWARD stage takes the FIELD for a hosted step (the payout pick,
+   the take): the same element grows over the overview (`--field`) and the
+   enacted card is carried onto its hero slot (one DOM instance, teleported).
+   Split out of `console_parliament.less` (Э0); tokens and the chassis live
+   there. Cascades AFTER `console_influence_yield.less` on purpose
+   (tests/console/parliamentLessOrder.spec.ts). ══ */
 
 .con-parl {
     /* A slot whose card is still on its way from the deck: the face waits under its proxy. */
     &__card--dealing .pcard { visibility: hidden; }
-    /* The enacted face waits until the card has moved in from its voting slot (the results scene). */
+    /* The enacted face waits until the card has moved in from its voting slot (the Э4 enactment beat). */
     &__gov-card--awaiting .pcard { visibility: hidden; }
+
+    /* ── WHAT THE SITTING LIGHTS on the tiers: a STATIC gold seam (the
+       phase's own colour), never a pulse — a pose, not an event. ── */
+    &__gov--lit,
+    &__voting--lit {
+        box-shadow: inset 0 0 0 .1rem @con-parl-gold, 0 0 1.2rem rgba(230, 195, 74, 0.32);
+    }
+    &__party--lit > .con-pseal { box-shadow: inset 0 0 0 .1rem @con-parl-gold, 0 0 .9rem rgba(230, 195, 74, 0.3); }
+    &__step--lit &__step-node { box-shadow: 0 0 0 .1rem @con-parl-gold, 0 0 .8rem rgba(230, 195, 74, 0.45); }
+
+    /* ── THE FIELD POSE: the stage grows out of the middle tier over the
+       whole field (the offsets are MEASURED by the section — `--con-parl-mid-top`
+       / `--con-parl-mid-bottom`, px). The middle tier lifts above the top tier
+       for the pose's duration. ── */
+    &--sitting-field &__mid { z-index: 5; }
+    &__stage--field {
+        top: calc(-1 * var(--con-parl-mid-top, 0px));
+        bottom: calc(-1 * var(--con-parl-mid-bottom, 0px));
+        max-height: none;
+        min-height: 0;
+    }
 }
 
-/* THE RESULTS SCENE: each beat lights the object its sentence names (gold —
-   the phase's own colour), and the lines land one under another. */
-.con-parl__gov--recap,
-.con-parl__voting--recap,
-.con-parl__step--recap {
-    animation: con-parl-recap-pulse calc(900ms * var(--motion-scale, 1)) @con-ease-standard both;
-}
-@keyframes con-parl-recap-pulse {
-    from { box-shadow: inset 0 0 0 .14rem @con-parl-gold, 0 0 1.6rem rgba(230, 195, 74, 0.5); }
-    to { box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.08), 0 0 0 rgba(230, 195, 74, 0); }
-}
-.con-parl__recap-list {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    flex: 1;
+/* ══ THE SITTING SURFACE — one surface, five poses. ══ */
+.con-sit {
+    position: relative;
+    flex: 1 1 auto;
     min-height: 0;
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: .25rem .5rem;
-    align-content: start;
-}
-.con-parl__recap-item {
-    padding: .25rem .55rem;
-    border-radius: .4rem;
-    background: rgba(0, 0, 0, 0.28);
-    font-family: @con-font-read;
-    font-size: .74rem;
-    line-height: 1.22;
-    opacity: 0;
-    transform: translateX(.6rem);
-    transition: opacity calc(260ms * var(--motion-scale, 1)) @con-ease-standard, transform calc(320ms * var(--motion-scale, 1)) @con-ease-standard, box-shadow calc(200ms * var(--motion-scale, 1)) @con-ease-standard;
-    &--shown { opacity: 1; transform: none; }
-    &--now { box-shadow: inset .18rem 0 0 @con-parl-gold; }
-}
-
-html.con-profile-handheld .con-parl {
-    &__recap-list { gap: .18rem .35rem; }
-    &__recap-item { font-size: .6rem; padding: .16rem .38rem; line-height: 1.18; }
-}
-html.con-profile-tv .con-parl {
-    &__recap-item { font-size: .82rem; }
-}
-
-/* ══ THE ENACTMENT LAYER — the enacted resolution pays out (the vote layer's
-   law: always mounted, hidden until up, one scene over the field). The hero
-   column carries the government's own card (teleported, FLIPped) with the
-   payout reading under it; the recipient zone hosts the SHARED picker and
-   is the decision — it gets the rest of the room. Rem-authored; the card
-   integrates through its own zoom token (`--con-parl-enact-zoom`). ══ */
-.con-parl {
-    &__enact {
-        position: absolute;
-        inset: 0;
-        z-index: 5;
-        display: grid;
-        grid-template-columns: auto minmax(0, 1fr);
-        gap: 1rem;
-        padding: .2rem .1rem .3rem;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+    /* THE POSES ARE A LAYER STACK, never a flex row: every panel sits in the
+       one cell; only the current one is visible — a departing pose (Э4)
+       paints through its whole leave without re-fitting its neighbour. A
+       panel that is NOT on is taken OUT OF FLOW (absolute over the same box):
+       a hidden panel that still took its own height made the stage as tall as
+       the tallest of the five and pushed it over the Agenda track (measured). */
+    &__panel {
+        grid-area: 1 / 1;
+        display: flex;
+        flex-direction: column;
+        gap: .5rem;
+        min-width: 0;
         min-height: 0;
         visibility: hidden;
         pointer-events: none;
-        &--up { visibility: visible; pointer-events: auto; }
+        /* …and CLIPPED to that box: an absolute descendant's overflow still
+           counts toward the stage's scrollable overflow (measured 282 > 208
+           at 1080 — the hidden reward panel's readings hanging below). */
+        &:not(&--on) { position: absolute; inset: 0; overflow: hidden; }
+        &--on { visibility: visible; pointer-events: auto; }
     }
-    &__enact-hero {
+
+    /* ── the reading rows: OBJECTS, not prose — an emblem, a name, a number ── */
+    &__kicker {
+        display: block;
+        font-size: .66rem;
+        letter-spacing: .12em;
+        text-transform: uppercase;
+        opacity: .68;
+    }
+    &__head {
         display: flex;
-        flex-direction: column;
         align-items: center;
-        justify-content: center;
-        gap: .9rem;
-        min-height: 0;
-        padding: .2rem .4rem;
+        flex-wrap: wrap;
+        gap: .2rem .6rem;
+        min-width: 0;
     }
-    /* The teleport target: sized by the card it receives (the FLIP's box). */
-    &__enact-card { display: flex; justify-content: center; min-height: 0; }
-    &__enact-card .con-parl__gov-carry { flex-shrink: 0; }
-    &__enact-card .con-parl__gov-card { zoom: var(--con-parl-enact-zoom, var(--con-parl-gov-zoom)); }
-    &__enact-yield { flex-shrink: 0; align-items: center; }
-    &__enact-reaction { flex-shrink: 0; align-self: center; }
-    &__enact-zone {
+    &__title {
+        font-size: 1.05rem;
+        line-height: 1.15;
+        font-weight: 700;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    &__party {
+        display: inline-flex;
+        align-items: center;
+        gap: .28rem;
+        font-size: .78rem;
+        opacity: .9;
+    }
+    &__emblem { width: 1.1rem; height: 1.1rem; object-fit: contain; }
+    &__rows {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+        gap: .3rem .8rem;
+        min-width: 0;
+        align-content: start;
+    }
+    &__row {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        align-items: center;
+        gap: .1rem .5rem;
+        padding: .3rem .55rem;
+        border-radius: .45rem;
+        background: rgba(0, 0, 0, 0.32);
+        font-size: .78rem;
+        min-width: 0;
+        b { font-size: .86rem; }
+        &--wide { grid-column: 1 / -1; }
+    }
+    &__val {
+        display: inline-flex;
+        align-items: center;
+        gap: .3rem;
+        min-width: 0;
+        b { overflow: hidden; text-overflow: ellipsis; }
+    }
+    &__chips { display: inline-flex; align-items: center; gap: .25rem; flex-wrap: wrap; }
+    &__chip { display: inline-flex; align-items: center; gap: .2rem; font-size: .74rem; }
+    &__note { font-family: @con-font-read; font-size: .74rem; opacity: .8; line-height: 1.25; }
+    &__tie { font-family: @con-font-read; font-size: .74rem; color: @con-parl-gold; }
+
+    /* ── the REWARD stage: the hero column (the carried card + the readings)
+       and the recipient ZONE (the hosted step gets the rest of the room). ── */
+    &__reward {
+        flex: 1 1 auto;
+        min-height: 0;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: .6rem;
+        /* Reading pose (the middle tier): one column, the readings only. */
+        &--field {
+            grid-template-columns: auto minmax(0, 1fr);
+            gap: 1rem;
+        }
+    }
+    /* The READING pose lays its objects out as a WRAPPING ROW: the tier is
+       wide and short, and a column of five readings ran past its bottom edge
+       (measured: the wait line half-clipped at 1080). The FIELD pose is the
+       hero column beside the zone. */
+    &__hero {
+        display: flex;
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-items: flex-start;
+        justify-content: flex-start;
+        gap: .5rem .9rem;
+        min-width: 0;
+        min-height: 0;
+        &--field { flex-direction: column; flex-wrap: nowrap; align-items: center; justify-content: center; gap: .6rem; padding: .2rem .4rem; }
+    }
+    &__wait, &__awaiting, &__note { flex-basis: 100%; }
+    /* The teleport target: sized by the card it receives (the FLIP's box); empty in the reading pose. */
+    &__card { display: flex; justify-content: center; min-height: 0; &:empty { display: none; } }
+    &__card .con-parl__gov-carry { flex-shrink: 0; }
+    &__card .con-parl__gov-card { zoom: var(--con-parl-enact-zoom, var(--con-parl-gov-zoom)); }
+    &__yield { flex-shrink: 0; align-items: center; }
+    &__reaction { flex-shrink: 0; align-self: flex-start; }
+    &__zone {
         display: flex;
         min-width: 0;
         min-height: 0;
@@ -98,19 +179,81 @@ html.con-profile-tv .con-parl {
         background: linear-gradient(170deg, rgba(30, 20, 52, 0.9), rgba(12, 10, 22, 0.94));
         box-shadow: inset 0 0 0 .06rem fade(@con-parl-violet, 40%), 0 .9rem 2rem rgba(0, 0, 0, 0.45);
         overflow: hidden;
+        /* Only a hosted step opens the zone; otherwise it takes no room. */
+        &:not(&--on) { display: none; }
     }
-    &__embed--enact {
+    &__embed {
         flex: 1 1 auto;
         min-width: 0;
         min-height: 0;
         display: flex;
         align-items: stretch;
-        /* The hosted picker spans the zone — its strict flex column then hands
-           its card row the zone's height, never the cards' own. */
-        > .con-task-host, > .con-task { flex: 1 1 auto; min-width: 0; min-height: 0; max-height: 100%; width: 100%; max-width: none; }
+        /* The hosted picker / take spans the zone — its strict flex column then
+           hands its card row the zone's height, never the cards' own. */
+        > .con-task-host, > .con-task, > .con-extdraw { flex: 1 1 auto; min-width: 0; min-height: 0; max-height: 100%; width: 100%; max-width: none; }
+        /* THE CARRIER ALREADY STANDS ON THE HERO SLOT: the hosted take's own
+           source dock would be a SECOND copy of the enacted card beside it
+           (docs/TURMOIL_REDUX_PARLIAMENT_ASSEMBLY.md §7.1 «без __source»). L3
+           lifts the carried card. The stage layout's seat reserve reads a
+           zero-width seat and gives the row the whole zone. */
+        > .con-extdraw--embedded .con-extdraw__source { display: none; }
     }
-    /* The government's carry wrapper: the card's box in the ruling row (no zoom of its own — the FLIP moves THIS). */
-    &__gov-carry { flex-shrink: 0; align-self: flex-start; }
+    /* THE SKIP PLATE — a skipped effect names itself (law 4): what, and why. */
+    &__skip {
+        display: flex;
+        flex-direction: column;
+        gap: .12rem;
+        padding: .4rem .6rem;
+        border-radius: .5rem;
+        background: rgba(0, 0, 0, 0.35);
+        box-shadow: inset .18rem 0 0 rgba(230, 195, 74, 0.7);
+        min-width: 0;
+    }
+    &__skip-title { font-size: .72rem; letter-spacing: .08em; text-transform: uppercase; opacity: .8; }
+    &__skip-reason { font-family: @con-font-read; font-size: .8rem; line-height: 1.25; }
+    /* The honest WAIT line — who is answering, and what kind of answer. */
+    &__wait {
+        display: inline-flex;
+        align-items: center;
+        gap: .4rem;
+        font-family: @con-font-read;
+        font-size: .8rem;
+        opacity: .85;
+        &::before { content: ''; width: .5rem; height: .5rem; border-radius: 50%; background: @con-parl-gold; animation: con-sit-wait-breathe calc(1600ms * var(--motion-scale, 1)) ease-in-out infinite; }
+    }
+    /* The gate's «waiting for» pose: the seats still to answer, as their cubes. */
+    &__awaiting { display: inline-flex; align-items: center; gap: .35rem; font-size: .78rem; }
+
+    /* ── the CLOSING card: objects and numbers on one plate ── */
+    &__closing {
+        .con-stage-plate();
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+        gap: .4rem .8rem;
+        padding: .6rem .8rem;
+        align-content: start;
+        min-width: 0;
+    }
+    &__closing-head { grid-column: 1 / -1; display: flex; align-items: baseline; gap: .6rem; }
+    &__closing-title { font-size: 1.05rem; font-weight: 700; }
 }
-html.con-profile-handheld .con-parl__enact { gap: .6rem; }
-html.con-profile-handheld .con-parl__enact-hero { gap: .5rem; padding: 0 .2rem; }
+/* An ambient loop is COMPOSITOR-ONLY (opacity), per the console paint baseline. */
+@keyframes con-sit-wait-breathe {
+    0%, 100% { opacity: .35; }
+    50% { opacity: 1; }
+}
+html.con-fx-lite .con-sit__wait::before { animation: none; opacity: .8; }
+
+html.con-profile-handheld .con-sit {
+    &__title { font-size: .92rem; }
+    &__row { font-size: .68rem; padding: .22rem .4rem; b { font-size: .76rem; } }
+    &__rows { grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: .22rem .5rem; }
+    &__reward--field { gap: .6rem; }
+    &__hero--field { gap: .4rem; padding: 0 .2rem; }
+    &__note, &__skip-reason, &__wait { font-size: .7rem; }
+}
+html.con-profile-tv .con-sit {
+    &__title { font-size: 1.25rem; }
+    &__row { font-size: .88rem; b { font-size: .96rem; } }
+    &__note, &__skip-reason, &__wait { font-size: .9rem; }
+}

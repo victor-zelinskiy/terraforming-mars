@@ -8,10 +8,11 @@ import {ParliamentSlotVm} from './consoleParliamentModel';
 /*
  * THE DISPLAY HOLDS — what the delegates zone, the party plaques, the
  * ribbons, the supply and the deck STILL SHOW until each object has
- * physically moved. A scene that replays the political phase (today the
- * results scene; the sitting director after it) writes them as its beats fly
- * the cubes and deal the cards; the tiers read them over the live model, so
- * nothing is drawn at its destination before it has travelled there.
+ * physically moved. The SITTING DIRECTOR (Э4 — `sittingDirector.ts`) writes
+ * them as its beats fly the cubes and deal the cards; the tiers read them over
+ * the live model, so nothing is drawn at its destination before it has
+ * travelled there. In the static Э3 sitting nothing seeds them: every tier
+ * paints the server's state, and the holds stay empty.
  */
 export type ParliamentDisplayHolds = {
   /** Delegates that left the enacted card and have not reached their reserve / the supply yet. */
@@ -43,13 +44,15 @@ export function resetParliamentHolds(): void {
 }
 
 /**
- * What the results scene still has to MOVE: every cube stays where it was
- * until its beat flies it. Seeded BEFORE the scene opens, so its first frame
- * already shows the table as it stood before the phase.
+ * What the sitting's beats still have to MOVE: every cube stays where it was
+ * until its beat flies it. Seeded BEFORE the stage opens, so its first frame
+ * already shows the table as it stood before the phase. Reads the phase's
+ * SUMMARY (the live sitting's `phase.summary`, a review's `lastPhase`) — the
+ * Э4 director's seed; unused by the static Э3 poses.
  */
-export function seedRecapHolds(model: ParliamentModel | undefined, slots: ReadonlyArray<ParliamentSlotVm>, enactedInstance: string | undefined): void {
+export function seedSittingHolds(model: ParliamentModel | undefined, slots: ReadonlyArray<ParliamentSlotVm>, enactedInstance: string | undefined): void {
   const pending = emptyParliamentHolds();
-  const last = model?.lastPhase;
+  const last = model?.phase?.summary ?? model?.lastPhase;
   if (last !== undefined && !consoleReducedMotionActive()) {
     for (const entry of last.returned ?? []) {
       pending.returns.set(entry.owner, entry.count);

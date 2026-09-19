@@ -1,7 +1,7 @@
 import {reactive} from 'vue';
 import {Color} from '@/common/Color';
 import {ConsoleCommand} from '@/client/console/consoleCommandModel';
-import {consoleMotionMs} from '@/client/console/composables/useConsoleReducedMotion';
+import {SITTING_SUBJECT_KEY} from '@/client/console/parliament/consoleSittingFlow';
 
 /*
  * THE PARLIAMENT WORKSPACE'S FLOW STATE (Turmoil Redux) — two records.
@@ -18,61 +18,30 @@ import {consoleMotionMs} from '@/client/console/composables/useConsoleReducedMot
  *    record instead of threading the same six facts through props and emits.
  *    It is reset by the section on mount and on unmount, so its lifetime is
  *    the section's own: a re-opened Parliament always starts on its browse
- *    layer, exactly as a fresh component's `data()` did.
+ *    layer, exactly as a fresh component's `data()` did — and the SITTING
+ *    re-derives its stage from the SERVER's step on every mount (there is no
+ *    client memory of «already seen»: the political phase is game state, the
+ *    section only reads it — docs/TURMOIL_REDUX_PARLIAMENT_ASSEMBLY.md §3).
  */
 export const consoleParliamentUi = reactive({
   commands: [] as Array<ConsoleCommand>,
-  /** The results scene already played for this `<viewer>:<generation>` — it plays ONCE per generation. */
-  recapSeen: '' as string,
   /** The VOTE STEP stands (its payment zone `[data-embed-slot="parliament-vote"]` is in the DOM — published post-flush by the section). */
   voteStanding: false,
-  /** The ENACTMENT STAGE stands (its zone `[data-embed-slot="parliament-enact"]` is in the DOM — the enacted resolution's payout pick teleports there). */
-  enactStanding: false,
+  /**
+   * The SITTING'S STAGE stands (its zone `[data-embed-slot="parliament-stage"]`
+   * is in the DOM — published post-flush by the section): the enacted
+   * resolution's payout pick and the take of the cards it drew teleport there.
+   */
+  stageStanding: false,
   /** The Agenda marker is gliding along the track — an Agenda card reward's cover waits for it to settle. */
   agendaSettling: false,
 });
 
 export function resetConsoleParliamentUi(): void {
   consoleParliamentUi.commands = [];
-  consoleParliamentUi.recapSeen = '';
   consoleParliamentUi.voteStanding = false;
-  consoleParliamentUi.enactStanding = false;
+  consoleParliamentUi.stageStanding = false;
   consoleParliamentUi.agendaSettling = false;
-}
-
-/*
- * «ONCE PER GENERATION» OUTLIVES A RELOAD. The results scene retells what
- * already happened; replaying it because the page reloaded (or the app
- * resumed the game) is replaying history. The marks live on this device,
- * bounded — the newest few `<viewer>:<generation>` keys — and a storage that
- * cannot be read degrades to the in-memory mark alone.
- */
-const RECAP_SEEN_STORAGE = 'tm_parliament_recap_seen';
-const RECAP_SEEN_LIMIT = 24;
-
-function storedRecapMarks(): Array<string> {
-  try {
-    const raw = typeof window === 'undefined' ? null : window.localStorage.getItem(RECAP_SEEN_STORAGE);
-    const parsed: unknown = raw === null ? [] : JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed.filter((value): value is string => typeof value === 'string') : [];
-  } catch {
-    return [];
-  }
-}
-
-export function parliamentRecapSeen(key: string): boolean {
-  return consoleParliamentUi.recapSeen === key || storedRecapMarks().includes(key);
-}
-
-export function markParliamentRecapSeen(key: string): void {
-  consoleParliamentUi.recapSeen = key;
-  try {
-    const marks = storedRecapMarks().filter((mark) => mark !== key);
-    marks.push(key);
-    window.localStorage.setItem(RECAP_SEEN_STORAGE, JSON.stringify(marks.slice(-RECAP_SEEN_LIMIT)));
-  } catch {
-    // No storage on this host: the in-memory mark still holds for the session.
-  }
 }
 
 // ── the section-internal flow ──────────────────────────────────────────────
@@ -82,10 +51,11 @@ export type ParliamentZone = 'voting' | 'government' | 'parties';
  * `vote` — the decision mode (a phase descent); `submitting` — sent;
  * `paying` — a paid vote's payment stands inside the mode; `landed` — the
  * answer arrived: the delegate settles on the card before the flow leaves.
- * `seat` — the chairman's mandatory pick; `recap` — the RESULTS scene;
- * `enact` — the enacted resolution's payout stage.
+ * `seat` — the chairman's mandatory pick; `sitting` — the political phase's
+ * ONE flow («ЗАСЕДАНИЕ»: verdict → enactment → reward → renewal → closing),
+ * whose stage is the server's step (`consoleSittingFlow`).
  */
-export type ParliamentStage = 'browse' | 'vote' | 'seat' | 'submitting' | 'paying' | 'landed' | 'recap' | 'enact';
+export type ParliamentStage = 'browse' | 'vote' | 'seat' | 'submitting' | 'paying' | 'landed' | 'sitting';
 
 /** The vote's numbers at the SUBMIT — the mode reads these until the delegate has landed (and the source the delegate leaves from). */
 export type VoteSnapshot = {votes: number, mine: number, leader: Color | 'neutral' | undefined, winning: boolean, winner: string | undefined, source: 'lobby' | 'reserve'};
@@ -115,48 +85,55 @@ function freshFlow() {
     flightSeq: undefined as number | undefined,
     /** The landed scene is dissolving — the flow's last beat before the workspace leaves. */
     concluded: false,
-    /** The chair just received its delegate (the seat pick's landing) — the government's chair mark flashes. */
+    /** The chair just received its delegate (the seat pick's landing) — the government's chair mark flashes (cleared by the flash's own `animationend`). */
     chairPulse: false,
+    /**
+     * THE SITTING'S LOCAL PAGE inside the server's step (the assembly reads
+     * verdict → enactment → reward before its gate; the adjourn reads renewal
+     * → closing). Clamped by the step's page list, reset on every server step
+     * change — presentation state, never a memory of the phase.
+     */
+    sittingPage: 0,
+    /**
+     * THE SITTING'S STAGE HAS TAKEN THE FIELD: a hosted step (the payout pick,
+     * the take) stands in its zone, so the stage grows over the overview and
+     * the enacted card is carried onto its hero slot — the tiers read it to
+     * hand the card over (one DOM instance, teleported).
+     */
+    sittingField: false,
   };
 }
 
 export const parliamentFlow = reactive(freshFlow());
 
-/** The seat / recap stage's unfold / fold (the middle tier's stage zone). */
+/** The seat / sitting stage's unfold / fold (the middle tier's stage zone). */
 export const STAGE_UNFOLD_MS = 300;
 export const STAGE_FOLD_MS = 220;
 
-let chairTimer: number | undefined;
-
 export function resetParliamentFlow(): void {
-  if (chairTimer !== undefined) {
-    window.clearTimeout(chairTimer);
-    chairTimer = undefined;
-  }
   Object.assign(parliamentFlow, freshFlow());
 }
 
-/** The chairman's delegate has landed on the seat mark: it flashes once. */
+/** The chairman's delegate has landed on the seat mark: it flashes once (a CSS one-shot; the government clears the flag on `animationend`). */
 export function pulseParliamentChair(): void {
   parliamentFlow.chairPulse = true;
-  if (chairTimer !== undefined) {
-    window.clearTimeout(chairTimer);
-  }
-  chairTimer = window.setTimeout(() => {
-    parliamentFlow.chairPulse = false;
-    chairTimer = undefined;
-  }, consoleMotionMs(1400));
+}
+
+/** The chair's flash has played out. */
+export function settleParliamentChairPulse(): void {
+  parliamentFlow.chairPulse = false;
 }
 
 // ── the crumb ──────────────────────────────────────────────────────────────
 
 /**
  * ONE fixed line, two names: «Парламент › Осмотр» on the overview,
- * «Парламент › Голосование» in the vote mode — the MODE is the subject,
- * never a card (a crumb that re-set itself on every ◀ ▶ read as
- * arriving somewhere else; a card name of any length would move the
- * zone beside it). The seat pick and the results are stages of the
- * overview and of the phase: short, fixed words.
+ * «Парламент › Голосование» in the vote mode, «Парламент › Заседание» for the
+ * political phase — the MODE is the subject, never a card (a crumb that re-set
+ * itself on every ◀ ▶ read as arriving somewhere else; a card name of any
+ * length would move the zone beside it). The seat pick is a stage of the
+ * overview; the sitting's stages are the phase's own (its tail advances,
+ * `SITTING` never leaves the line).
  */
 export function parliamentCrumbSubject(): string {
   switch (parliamentFlow.stage) {
@@ -165,9 +142,9 @@ export function parliamentCrumbSubject(): string {
   case 'landed':
     return 'Voting';
   case 'submitting':
-    return parliamentFlow.stageBeforeSubmit === 'vote' ? 'Voting' : 'Parliament overview';
-  case 'recap': return 'Results';
-  case 'enact': return 'Enactment';
+    return parliamentFlow.stageBeforeSubmit === 'vote' ? 'Voting' :
+      parliamentFlow.stageBeforeSubmit === 'sitting' ? SITTING_SUBJECT_KEY : 'Parliament overview';
+  case 'sitting': return SITTING_SUBJECT_KEY;
   default: return 'Parliament overview';
   }
 }
@@ -176,24 +153,23 @@ export function parliamentCrumbSubject(): string {
  * The crumb's tail — the name of the place the player is in, never of a
  * beat: a submit is a transient beat, so the tail keeps the name of the
  * stage it left (the phase turns it amber) — relabelling it «Sending» for
- * the round-trip blinked the crumb three times. The enactment's tail names
- * the STAGE the seat is actually in: a payout pick, or the mandatory take of
- * the cards the resolution drew (`enactDrawStanding` — the live prompt's own
- * marker, never a resolution name).
+ * the round-trip blinked the crumb three times. The sitting's tail is the
+ * STAGE the sitting publishes (`sittingTail` — verdict, enactment, reward, a
+ * hosted choice / take / placement, renewal, closing).
  */
-export function parliamentCrumbStage(enactDrawStanding: boolean): string {
+export function parliamentCrumbStage(sittingTail: string): string {
   const stage = parliamentFlow.stage === 'submitting' ? parliamentFlow.stageBeforeSubmit : parliamentFlow.stage;
   switch (stage) {
   case 'paying': return 'Payment';
   case 'seat': return 'Seat';
-  case 'enact': return enactDrawStanding ? 'Intake' : 'Payout';
+  case 'sitting': return sittingTail;
   default: return '';
   }
 }
 
 export function parliamentCrumbCommitted(): boolean {
   const stage = parliamentFlow.stage;
-  return stage === 'submitting' || stage === 'landed' || stage === 'paying';
+  return stage === 'submitting' || stage === 'landed' || stage === 'paying' || stage === 'sitting';
 }
 
 /** The stage's CONTENT identity — a submit keeps the stage it left on screen (busy). */
@@ -212,10 +188,15 @@ export function parliamentSlotsCarried(): boolean {
   return parliamentVoteUp();
 }
 
-/** The seat / recap stage stands in the middle tier. */
+/** The seat / sitting stage stands in the middle tier. */
 export function parliamentStageUp(): boolean {
-  const f = parliamentFlow;
-  return f.stage === 'seat' || f.stage === 'recap' || (f.stage === 'submitting' && f.stageBeforeSubmit === 'seat');
+  const kind = parliamentStageKind();
+  return kind === 'seat' || kind === 'sitting';
+}
+
+/** The SITTING stands (its stage, or its gate answer in flight). */
+export function parliamentSittingUp(): boolean {
+  return parliamentStageKind() === 'sitting';
 }
 
 /**

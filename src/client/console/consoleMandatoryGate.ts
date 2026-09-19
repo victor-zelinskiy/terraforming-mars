@@ -88,7 +88,18 @@ import {ConsoleTask, TaskKind} from '@/client/console/consoleTaskRouter';
  * draft. A new flow = a value here + a derivation the shell feeds into
  * `MandatoryBeatInput.flows` + an open-route branch.
  */
-export type MandatoryFlowKind = 'draft';
+export type MandatoryFlowKind =
+  | 'draft'
+  /**
+   * THE PARLIAMENT'S SITTING (Turmoil Redux): the political phase, from the
+   * assembly gate through every ask of the enacted resolution to the adjourn
+   * gate — ONE beat per generation (`parliament:gen<N>`, derived in
+   * `consoleSittingFlow.parliamentSittingFlowBeat`), announced once
+   * («Парламент собрался · поколение N»), opened by A into the Parliament's
+   * sitting flow. Its asks are STEPS of that flow (`followUp` doors inside the
+   * open workspace), never beats of their own — see `mandatoryBeatFor`.
+   */
+  | 'parliament-phase';
 
 /** One interruptive mandatory DECISION beat — a stable identity + its task kind. */
 export type MandatoryBeat = {
@@ -273,10 +284,18 @@ export type MandatoryBeatInput = {
  * from its draw cinematic. PURE.
  */
 export function mandatoryBeatFor(input: MandatoryBeatInput): MandatoryBeat | undefined {
-  if (isInterruptiveMandatoryTask(input.task, input.forcedReaction, input.resolutionPrompt === true) && input.task !== undefined) {
+  const flow = input.flows?.[0];
+  // AN ENACTED RESOLUTION'S ASK INSIDE A LIVE SITTING IS THE SITTING'S OWN
+  // STEP (Turmoil Redux, Э3): the political phase was announced ONCE as a
+  // flow, and its payout pick / draw / tile arrive INSIDE the open workspace
+  // through the `followUp` door. A task beat here would raise a SECOND plate
+  // over the sitting the player is standing in, and — keyed on the prompt —
+  // re-announce every ask of one phase. So the flow beat covers them: the
+  // same key stays acknowledged, the door opens on its own admission.
+  const sittingCoversAsk = flow?.flow === 'parliament-phase' && input.resolutionPrompt === true;
+  if (!sittingCoversAsk && isInterruptiveMandatoryTask(input.task, input.forcedReaction, input.resolutionPrompt === true) && input.task !== undefined) {
     return {key: 'task:' + input.taskKey, taskKind: input.task.kind};
   }
-  const flow = input.flows?.[0];
   if (flow !== undefined) {
     return {key: flow.key, taskKind: flow.taskKind, flow: flow.flow};
   }

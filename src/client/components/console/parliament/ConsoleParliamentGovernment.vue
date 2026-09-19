@@ -7,7 +7,7 @@
   <div class="con-parl__gov"
        :class="{
          'con-parl__gov--focus': flow.zone === 'government' && flow.stage === 'browse',
-         'con-parl__gov--recap': flow.stage === 'recap' && (recapHighlight === 'enacted' || recapHighlight === 'winner'),
+         'con-parl__gov--lit': sittingLit,
          'con-parl__gov--enacted': view.enacted !== undefined,
        }"
        :style="{'--parl-accent': partyAccent(view.rulingParty)}"
@@ -27,7 +27,7 @@
       <!-- The enacted card is ONE instance: while the resolution pays out it
            is TELEPORTED onto the enactment stage's hero slot (and FLIPs
            there and back) — never a copy beside the government. -->
-      <Teleport v-if="enactedVm !== undefined" defer to="[data-parl-enact-hero]" :disabled="!enactCarried">
+      <Teleport v-if="enactedVm !== undefined" defer to="[data-parl-sit-hero]" :disabled="!enactCarried">
         <div class="con-parl__gov-carry" data-parl-gov-carry>
           <div class="con-parl__gov-card"
                :class="{'con-parl__gov-card--awaiting': holds.govAwaits !== undefined && holds.govAwaits === view.enacted?.instance}"
@@ -78,6 +78,7 @@
          pays) — and the chairman. -->
     <div v-if="view.quest !== undefined" class="con-parl__quest"
          :class="{'con-parl__quest--done': view.quest.completedBy !== undefined, 'con-parl__quest--pulse': questPulse}"
+         @animationend="onQuestPulseEnd"
          data-parl-quest>
       <div class="con-parl__quest-head">
         <span class="con-parl__kicker">{{ $t('Chairman quest') }}</span>
@@ -117,7 +118,7 @@
             </template>
           </template>
         </span>
-        <span class="con-parl__chair" :class="{'con-parl__chair--won': view.quest.completedBy !== undefined && view.quest.completedBy === view.chairman, 'con-parl__chair--pulse': flow.chairPulse}" data-parl-chair>
+        <span class="con-parl__chair" :class="{'con-parl__chair--won': view.quest.completedBy !== undefined && view.quest.completedBy === view.chairman, 'con-parl__chair--pulse': flow.chairPulse}" data-parl-chair @animationend="onChairPulseEnd">
           <span class="con-parl__quest-reward-kicker">{{ $t('Chairman') }}</span>
           <template v-if="view.chairman !== undefined">
             <!-- The SEAT's cube — the place the chairman's delegate flies to. -->
@@ -128,7 +129,7 @@
         </span>
       </div>
     </div>
-    <div v-else class="con-parl__chair con-parl__chair--alone" :class="{'con-parl__chair--pulse': flow.chairPulse}" data-parl-chair>
+    <div v-else class="con-parl__chair con-parl__chair--alone" :class="{'con-parl__chair--pulse': flow.chairPulse}" data-parl-chair @animationend="onChairPulseEnd">
       <span class="con-parl__quest-reward-kicker">{{ $t('Chairman') }}</span>
       <template v-if="view.chairman !== undefined">
         <span class="con-parl__chair-cube" :data-parl-seat-chair="view.chairman"><PlayerCube :color="view.chairman" :size="cubePx(12)" /></span>
@@ -152,9 +153,8 @@ import {buildMechanics, MechanicsVM} from '@/client/components/premiumCard/mecha
 import {resolutionPremiumVmById} from '@/client/components/premiumCard/resolutionPremiumVm';
 import {partyAccent, partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
 import {conLogicalPx} from '@/client/console/consoleLayoutProfile';
-import {consoleMotionMs} from '@/client/console/composables/useConsoleReducedMotion';
 import {translateTextWithParams} from '@/client/directives/i18n';
-import {parliamentFlow} from '@/client/console/parliament/consoleParliamentFlow';
+import {parliamentFlow, settleParliamentChairPulse} from '@/client/console/parliament/consoleParliamentFlow';
 import {parliamentHolds} from '@/client/console/parliament/parliamentDisplayHolds';
 import {AgendaVm, parliamentPlayerName, ParliamentViewVm} from '@/client/console/parliament/consoleParliamentModel';
 import {partyTileKey} from '@/client/console/parliament/partyActionKey';
@@ -173,13 +173,13 @@ export default defineComponent({
     players: {type: Array as PropType<ReadonlyArray<PublicPlayerModel>>, required: true},
     viewerColor: {type: String as PropType<Color | undefined>, default: undefined},
     agendaVm: {type: Object as PropType<AgendaVm>, required: true},
+    /** The SITTING's stage on screen ('' outside the sitting) — the verdict and the enactment light the government. */
+    sittingStage: {type: String, default: ''},
     /** The results scene's current focus ('' outside the scene). */
-    recapHighlight: {type: String, default: ''},
   },
   data() {
     return {
       questPulse: false,
-      questTimer: undefined as number | undefined,
     };
   },
   computed: {
@@ -192,9 +192,13 @@ export default defineComponent({
     viewerIsChairman(): boolean {
       return this.viewerColor !== undefined && this.view.chairman === this.viewerColor;
     },
-    /** The enacted card is on the payout stage (the one instance, teleported). */
+    /** The enacted card is on the sitting's stage (the one instance, teleported) — the stage took the field for a hosted step. */
     enactCarried(): boolean {
-      return parliamentFlow.stage === 'enact' && this.view.enacted !== undefined;
+      return parliamentFlow.stage === 'sitting' && parliamentFlow.sittingField && this.view.enacted !== undefined;
+    },
+    /** The SITTING lights the government: the verdict names the winner (now enacted), the enactment names the law. */
+    sittingLit(): boolean {
+      return parliamentFlow.stage === 'sitting' && (this.sittingStage === 'verdict' || this.sittingStage === 'enact');
     },
     enactedVm(): PremiumCardVM | undefined {
       return this.view.enacted === undefined ? undefined : resolutionPremiumVmById(this.view.enacted.resolutionId);
@@ -251,23 +255,23 @@ export default defineComponent({
   watch: {
     questCompletedBy(now: Color | undefined, was: Color | undefined): void {
       if (now !== undefined && was === undefined) {
+        // A CSS one-shot (`con-parl-quest-pulse`): the flag is cleared by the
+        // animation's own end, never by a timer guessing its length.
         this.questPulse = true;
-        if (this.questTimer !== undefined) {
-          window.clearTimeout(this.questTimer);
-        }
-        this.questTimer = window.setTimeout(() => {
-          this.questPulse = false;
-          this.questTimer = undefined;
-        }, consoleMotionMs(1600));
       }
     },
   },
-  beforeUnmount() {
-    if (this.questTimer !== undefined) {
-      window.clearTimeout(this.questTimer);
-    }
-  },
   methods: {
+    onQuestPulseEnd(event: AnimationEvent): void {
+      if (event.animationName === 'con-parl-quest-pulse') {
+        this.questPulse = false;
+      }
+    },
+    onChairPulseEnd(event: AnimationEvent): void {
+      if (event.animationName === 'con-parl-land-flash') {
+        settleParliamentChairPulse();
+      }
+    },
     cubePx(logical: number): number {
       return conLogicalPx(logical);
     },

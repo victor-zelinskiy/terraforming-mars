@@ -28,7 +28,7 @@ import {reactive} from 'vue';
 import {CardName} from '@/common/cards/CardName';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {ParliamentEnactOutcomeModel} from '@/common/models/ParliamentModel';
-import {motionMs} from '@/client/components/motion/motionTokens';
+import {scheduleParliamentBeat} from '@/client/console/parliament/parliamentBeat';
 import {cardResourceKey} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {
   resetCardResourceLandings, runResourceTransfers,
@@ -141,7 +141,8 @@ export async function runResolutionPayout(event: ResolutionPayoutEvent): Promise
       pickPayoutLanding.landed += spec.amount;
     },
   });
-  await new Promise<void>((resolve) => window.setTimeout(resolve, motionMs(PAYOUT_READ_MS)));
+  // The READ beat rides the motion clock (`parliamentBeat.ts`) — never a wall-clock timer.
+  await new Promise<void>((resolve) => scheduleParliamentBeat(PAYOUT_READ_MS, resolve));
 }
 
 /** END (post-commit) / ABORT — the scope closes (the committed view carries the real count from here on). */

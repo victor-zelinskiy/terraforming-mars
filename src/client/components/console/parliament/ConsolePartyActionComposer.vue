@@ -287,7 +287,7 @@ import {resolveCardArrivalMode} from '@/client/console/consoleCardArrival';
 import {holdDeckDisplay, releaseDeckDisplay} from '@/client/console/consoleDeckDisplay';
 import {wsStageLayout, wsStageLayoutStyle} from '@/client/console/consoleWsStageLayout';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
-import {consoleMotionMs} from '@/client/console/composables/useConsoleReducedMotion';
+import {ParliamentBeat, scheduleParliamentBeat} from '@/client/console/parliament/parliamentBeat';
 import {armOutcomeOrigin, playConfigRelease, playOutcomeContent, playOutcomePhase, resetOutcomeOrigin} from '@/client/console/consoleActionOutcomeMotion';
 import {mergeTransferSpecs, ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState';
@@ -368,7 +368,7 @@ export default defineComponent({
       beatLanded: false,
       beatHandoffPending: false,
       beatHandle: undefined as BatchArrivalHandle | undefined,
-      beatDelayTimer: undefined as number | undefined,
+      beatDelay: undefined as ParliamentBeat | undefined,
       beatRowStyle: {} as Record<string, string>,
       beatFitRetries: 0,
     };
@@ -631,10 +631,10 @@ export default defineComponent({
       if (on) {
         this.clearBeatDelay();
         this.armBeatBatch();
-        this.beatDelayTimer = window.setTimeout(() => {
-          this.beatDelayTimer = undefined;
+        this.beatDelay = scheduleParliamentBeat(COMMIT_HANDOFF_AT_MS, () => {
+          this.beatDelay = undefined;
           void this.$nextTick(() => this.beginBeatFlight());
-        }, consoleMotionMs(COMMIT_HANDOFF_AT_MS));
+        });
       } else {
         this.clearBeatDelay();
         this.handOffBeatBatch();
@@ -989,10 +989,8 @@ export default defineComponent({
       }
     },
     clearBeatDelay(): void {
-      if (this.beatDelayTimer !== undefined) {
-        window.clearTimeout(this.beatDelayTimer);
-        this.beatDelayTimer = undefined;
-      }
+      this.beatDelay?.kill();
+      this.beatDelay = undefined;
     },
     /** The real surface has taken the zone: the landed proxies give way to the real cards. */
     handOffBeatBatch(): void {

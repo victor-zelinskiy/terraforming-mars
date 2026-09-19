@@ -404,3 +404,127 @@ done` · соло с MarsBot — барьер из одного · клон с �
 - `npm run test:client` — 5684 собрано, 5683 passing; единственный красный — `parliamentAnnotations.spec` ожидал
   «Gain 1 TR.» у dev-примера (п. 4 «Отклонения»): ожидание переведено на «Gain 2 M€.», спек 13/13.
 - Коммит: «Parliament sitting · Э2: контракт автора резолюции, таблица адресов, гард по каталогу».
+
+## Э3 — маршрутизация и каркас flow «ЗАСЕДАНИЕ» (принят 2026-09-19)
+
+### Что сделано
+
+- **Чистая позиция заседания** — `src/client/console/parliament/consoleSittingFlow.ts`: `sittingPositionOf(model,
+  wf, viewer)` читает серверный шаг, сводку, `awaiting`, `pending` и СОБСТВЕННЫЙ промпт зрителя по структурным
+  маркерам (`parliamentPhasePrompt`; `choiceContext` / `externalDrawPrompt` / `placementContext` с источником-
+  резолюцией) → `{step, pages, gate, gateStanding, awaiting, rewardStep, waitingFor}`. Страницы шага:
+  `assembly` → `verdict · enact · reward`, `effects` → `reward`, `refresh/lobby` → `renewal`, `adjourn` →
+  `renewal · closing` (`final` → `closing`). `sittingStageKey` (хвост крошки: `Verdict/Enactment/Reward/
+  Choice/Intake/Placement/Renewal/Closing`), `sittingWorkspacePhase` (`committed` до закрытия, `verdict` на
+  закрытии, `executing` при отправке), `sittingPrimaryKey` (`Continue` / `To the reward` / `Close the sitting`
+  / undefined), `sittingStartPage` (отвеченные ворота → последняя страница), `parliamentSittingFlowBeat`
+  (`parliament:gen<N>`, `flow: 'parliament-phase'`).
+- **Поверхность** `ConsoleParliamentSitting.vue` — host-agnostic (`embedded`, `mode: live|review`), пять
+  стадий как ПОЗЫ одной смонтированной поверхности (grid-cell layer stack; скрытые панели вне потока), ряды-
+  объекты (эмблема · имя · число · кубы), стадия НАГРАДА: чтение (`enactedYieldsOf live` после записи /
+  `voteYieldsOf` без прогноза до), ответ партии, награда победителя, ПЛИТА ПРОПУСКА (`rewardAddressOf`,
+  кроме уже названных в чтении scaled-эффектов), строка ожидания чужого выбора, поза «Ждём остальных: [кубы]»
+  на воротах, зона `[data-embed-slot="parliament-stage"]`; ЗАКРЫТИЕ — компактная карта «Итоги поколения N».
+- **Секция** — стадия `sitting` на chassis `.con-parl__stage` (та же, что у КРЕСЛА: UNFOLD из ректа партий);
+  полевая поза `--field` при размещённом шаге (пикер/добор): офсеты среднего яруса измеряются
+  (`--con-parl-mid-top/-bottom`), карта правительства телепортируется на `[data-parl-sit-hero]`
+  (`flow.sittingField`), движение — прежний `consoleParliamentEnactMotion` (recede/carry/surface); крошка
+  `Sitting › <tail>`, фаза через `setWorkspaceFramePhase`, команды через `parliamentCommandsOf({sitting})`, A на
+  последней странице → `send({type:'option'}, 'sitting')`; ответ ворот оставляет стадию на месте; конец
+  flow = позиция стала `undefined` → `flow-complete('sitting')`.
+- **Маршрутизация** — `consoleTaskRouter`: `parliamentPhase` по маркеру (выше сырых типов), section-наборы,
+  `taskMinimizable`, `followUpStepStage(kind, wf)` с таблицей стадий для источника-резолюции;
+  `consoleMandatoryGate`: `MandatoryFlowKind 'parliament-phase'`, вопрос резолюции не образует task-бита при
+  живом flow-бите заседания; `consoleTaskSummary`: копия ворот; `consoleWorkspaceStack`: `serves:
+  ['party','parliamentPhase']`, `yieldsToBoard`, `parkOwnsFlow`.
+- **Шелл** — flow-бит заседания в `mandatoryFlowBeats`; дверь A (`beat.flow === 'parliament-phase'` →
+  `enterWorkspace('parliament', {anchor: {type:'phase', phase: PARLIAMENT}})`, парк восстанавливается, при
+  живом размещении — только отпуск ворот); одна зона `parliament-stage` для `hostEmbedTarget` и
+  `externalDrawEmbedTarget` (`consoleParliamentUi.stageStanding`); `taskHeldForWorkspace` держит хост «нигде»
+  пока зона не стоит; плита заседания в `mandatoryAnnounceView` («Парламент собрался · поколение N», источник —
+  спрашивающая резолюция); дверь `parliamentPhase` в `openShellTaskSurface`; `parliamentSittingFrameLive`
+  (falling edge → `closeWorkspaceRoot('parliament')` для phase-anchored корня — контракт драфта; реконсилер
+  якорей в сессии никем не вызывается, поэтому именно watcher).
+- **Таймеры и память** — `parliamentBeat.ts` (`gsap.delayedCall` на motion-часах): VoteMode (посадка/финал),
+  PartyActionComposer (задержка бита), parliamentFlights (стаггеры, убиваются с полётом),
+  consoleResolutionPayout (бит чтения); one-shot пульсы Agenda/Government/Parties и вспышка кресла — по
+  `animationend`. Удалены `recapSeen`/`localStorage`/`RECAP_*`/`chairTimer`, `Recap.vue`, `Enact.vue`,
+  `.con-parl__recap-*`, селектор `parliament-enact`.
+- **Гарды**: `tests/console/parliamentNoTimers.spec.ts` (allow-list — только `SUBMIT_SAFETY_MS`, строка
+  allow-list обязана существовать), `parliamentNoLocalStorage.spec.ts` (+ имена recap по grep),
+  `consoleSittingFlow.spec.ts` (17); обновлены `consoleTaskRouter.spec` (2 строки ворот, таблица стадий
+  источника, section-набор), `consoleMandatoryGate.spec` (flow-бит покрывает вопросы резолюции),
+  `consoleTaskSummary.spec` (2 строки), `consolePromptAdmission.spec` (семейства промптов заседания).
+- **e2e** `tests/e2e/console-parliament-sitting.spec.ts` — структурная половина, 3 профиля × 2 теста:
+  (1) `parliament-climate-assembly`: плита → A → ВЕРДИКТ → B/возврат → ПРИНЯТИЕ → НАГРАДА («К награде») → A =
+  ворота 1 (сервер получил option, `awaiting=[red]`, поза «Ждём») → reload → та же поза → red отвечает по API →
+  добор ВНУТРИ (`parliament-stage`, без второй плиты, без standalone-band, крошка ПОЛУЧЕНИЕ) → take → red по API
+  → ОБНОВЛЕНИЕ → ЗАКРЫТИЕ (B = none) → A = ворота 2 → red → фаза кончилась → workspace ушёл; leak detector без
+  STRANDED; (2) `parliament-aquifer-enact`: пик внутри под ВЫБОР + reload.
+- Копия: 26 ключей в `ru/parliament.json`; доки: SITTING § Э3, `.claude/rules/console-ui.md` § THE PARLIAMENT
+  SITTING.
+
+### Отклонения / решения
+
+1. `hosts: 'always'` «в фазе» — реестр не умеет «в фазе»; оставлен `inFlow`: заседание никогда не в `browse`
+   (все стадии за границей коммита), так что в фазе это `always` по построению. Задокументировано в строке.
+2. Локальная страница внутри серверного шага НЕ персистится (стек workspace в сессии не сериализуется, а
+   `localStorage` запрещён): reload/park возвращают на первую страницу шага, а при отвеченных воротах — на
+   позу «Ждём» (`sittingStartPage`, серверный факт). Компактный реплей пройденных страниц — Э4.
+3. `parkOwnsFlow: true` для Парламента: свёрнутое заседание — единственное заседание (стадия = серверный
+   шаг), открытие колесом идёт через дверь парка.
+4. Тайл победителя при reload: плита анонсирует заседание, A только отпускает ворота (размещение живое,
+   Парламент поверх поля не открывается); следующие ворота открывают Парламент дверью `parliamentPhase`.
+5. `consoleParliamentEnactMotion` сохранён (recede/carry/surface для полевой позы); директор Э4 его поглотит.
+6. Конец flow: `concludeWorkspaceFlow` для phase-anchored корня вызывает `goBoardHome` (корень выжил бы), поэтому
+   заседание закрывается явно (`closeWorkspaceRoot`) по falling edge `parliamentSittingFrameLive` — как драфт.
+
+### Замеры (собственные скриншоты, 1080)
+
+- `01-verdict`/`02-enact`/`03-reward-reading`: крошка `⚖ ПАРЛАМЕНТ › ЗАСЕДАНИЕ › …`, бар `A Продолжить · X
+  Осмотреть · B Свернуть`, на НАГРАДЕ — `A К награде`. Найдено по скриншоту: скрытые панели layer-stack
+  давали ячейке высоту самой высокой панели → стадия наезжала на трек Повестки; исправлено (`position:
+  absolute` для панели вне `--on`).
+- `10-pick-inside`: пустое поле под живой крошкой ВЫБОР и глаголами пикера — стадия внутри `__mid`, а `__mid`
+  несёт `data-parl-recede` и паркуется вместе со стадией; исправлено (`recedersOf` исключает `[data-parl-mid]`).
+- Первый прогон: поза «Ждём» — два `[data-sit-awaiting]` (панель ЗАКРЫТИЯ, скрытая, тоже рендерила);
+  исправлено (каждая панель — только для своих ворот).
+- `05-take-inside` (Deck): карта-носитель наезжала на ряд чтения — `fitParliamentCards` вычитал только блок
+  `__yield`; теперь сумма всех `[data-parl-sit-item]` колонки + gap. Там же — второй экземпляр карты-носителя
+  (док источника встроенного добора): скрыт в embedded-режиме внутри зоны заседания (план §7.1 «без
+  `__source`»); резерв сиденья `sourceSeatReservePx` читает нулевую ширину и отдаёт ряду всю зону.
+- Поза «Ждём остальных» на 1080: колонка из пяти чтений уходила за низ яруса (строка ожидания
+  полуобрезана) — чтение в позе яруса стало wrapping row (`.con-sit__hero`), строки ожидания — на всю ширину.
+- Скрытые панели вне потока давали `scrollHeight` стадии 282 > 208 (абсолютные потомки считаются в
+  scrollable overflow) — панели вне `--on` клипуются в своём боксе.
+
+### Честные ограничения Э3
+
+- Локальная страница внутри серверного шага не переживает reload/park (см. «Отклонения» 2).
+- Стадии — статичные позы; переходы между позами (RELEASE→UNFOLD→REVEAL) и реплей — Э4; вход/выход стадии —
+  chassis'ный UNFOLD/FOLD из ректа партий.
+- Ярус партий во время заседания припаркован под стадией (план §6 «средний ярус отступает в парк»), поэтому
+  подсветка `--lit` правящей партии на ПРИНЯТИИ невидима; директору Э4 (бит ПОДДЕРЖКА летит к плашкам)
+  придётся решить, где стоят плашки во время заседания.
+- Чтение НАГРАДЫ до выплаты — оценка панели голосования (контекст `estimate`: «по вашему текущему влиянию»,
+  «если принять сейчас»); язык чтения «этой выплаты» до записи — Э5.
+- Стадия ОБНОВЛЕНИЕ не перечисляет сброшенных проигравших (сводка их не несёт).
+- e2e структурной половины гоняет `climate` (добор) и `aquifer` (пик); тайл победителя (`biodome-enact`:
+  плита → A отпускает размещение → после посадки следующие ворота открывают Парламент дверью
+  `parliamentPhase`) — путь реализован, но e2e-сценарий на него — вместе с парковкой/возвратом сцены (Э5).
+- В `08-after` (следующее поколение, покупка карт) в строке статуса три чипа игроков при двух местах — не
+  парламентская поверхность; замечено, не трогалось.
+
+### Итог приёмки Э3
+
+- `npm run make:json` / `make:css` — зелёные; `npm run lint:client` (vue-tsc) — 0 ошибок; `npm run build:test`
+  — обе ступени 0; eslint по 30 изменённым файлам — чисто.
+- `npm run test:server` — 12046 собрано, 12044 passing, 0 failing, 2 pending (пол 8500): `consoleSittingFlow` 17,
+  `parliamentNoTimers` 2, `parliamentNoLocalStorage` 2, `parliamentLessOrder` 2.
+- `npm run test:client` — 5694 собрано, 5694 passing, 0 failing (были 5683 + 1 failing до Э3).
+- e2e `console-parliament-sitting.spec.ts` — 6/6 (`standard-1080`, `tv-4k`, `deck-handheld` × {assembly-walk,
+  pick-inside}), `--workers=1`, `expectFits` на каждой стадии, leak detector без `STRANDED PROMPT`; галерея
+  `screenshots/parliament-sitting/<preset>/00–08,10.png` просмотрена (три исправления выше — из неё).
+- Ратчет e2e: новый спек без `waitForTimeout`/`requestAnimationFrame`/`page.reload()`; `e2eDriverGuard` 6/6.
+- Коммит: «Parliament sitting · Э3: маршрутизация и каркас flow ЗАСЕДАНИЕ».
+

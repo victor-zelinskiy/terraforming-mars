@@ -67,6 +67,9 @@ const ROWS: Array<{row: string, wf: any, hand?: Array<string>, srr?: Array<strin
   {row: 'spend heat', wf: {type: 'and', title: 'Spend 6 heat', options: [], spendHeatPrompt: {amount: 6}}, kicker: 'Spend heat'},
   // The Parliament's chairman-seat pick (Turmoil Redux) — routed on the vote marker, never the title.
   {row: 'parliament seat pick', wf: {type: 'party', title: 'Select party', votePrompt: {source: 'chairman-seat', cost: 0}}, kicker: 'Parliament'},
+  // The sitting's gates (Turmoil Redux) — routed on the phase marker; the plate names the Parliament, A opens the sitting.
+  {row: 'parliament assembly gate', wf: {type: 'option', title: 'The Mars Parliament of generation 2 is in session: the verdict and the enactment', parliamentPhasePrompt: {stage: 'assembly', generation: 2, final: false, seq: 1, awaiting: ['blue']}}, kicker: 'Parliament'},
+  {row: 'parliament adjourn gate', wf: {type: 'option', title: 'The Mars Parliament of generation 2 adjourns', parliamentPhasePrompt: {stage: 'adjourn', generation: 2, final: false, seq: 1, awaiting: []}}, kicker: 'Parliament'},
 ];
 
 describe('consoleTaskSummary (no prompt is ever a bare «awaiting decision»)', () => {
@@ -266,7 +269,7 @@ describe('consoleTaskSummary (no prompt is ever a bare «awaiting decision»)', 
       'actionMenu', 'space', 'choice', 'awardFunding', 'player', 'amount', 'resource',
       'distribute', 'payment', 'draftWait', 'cardSelect', 'deckSelect', 'handSelect', 'projectCard',
       'colony', 'colonyBonus', 'composite', 'initialDraft', 'startSequence', 'corpFirstAction',
-      'aresGlobal', 'party', 'unknown',
+      'aresGlobal', 'party', 'parliamentPhase', 'unknown',
     ];
     const covered = new Set<TaskKind>();
     for (const r of ROWS) {

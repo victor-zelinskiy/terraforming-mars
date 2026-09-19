@@ -530,6 +530,18 @@ function kindSummary(
       openKey: 'Open the Parliament',
     };
 
+  case 'parliamentPhase':
+    // THE SITTING'S GATE (Turmoil Redux): the whole political phase is one
+    // announced flow — the plate says the Parliament is in session, the A
+    // verb opens the sitting, the return verb comes back to the same stage.
+    // The server's own title carries the generation and the gate's meaning.
+    return {
+      kickerKey: 'Parliament',
+      ask: ask(wf, task.stage === 'adjourn' ? 'The Parliament adjourns' : 'The Parliament is in session'),
+      returnKey: 'Return to the sitting',
+      openKey: 'Open the sitting',
+    };
+
   case 'aresGlobal':
     // DIEGETIC, like the rest of the shell: the player moves the thresholds at
     // which planetary events fire — «Арес» is an expansion's name, not a thing
