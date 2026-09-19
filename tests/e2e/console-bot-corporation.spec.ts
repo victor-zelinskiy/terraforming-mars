@@ -1,5 +1,5 @@
 import {expect, test} from './consoleTest';
-import {bootToBoard, soloGameConfig, visibleSurfaces} from './consoleStart';
+import {bootToBoard, openBotScreenHub, openInfoPlayedTable, soloGameConfig, visibleSurfaces} from './consoleStart';
 
 /**
  * MarsBot CORPORATIONS (Rule Book B) — the participant surfaces, live.
@@ -55,16 +55,16 @@ test.describe('console: the MarsBot corporation card', () => {
     }
     await expect(corpLine, 'the bot header wears its corporation as identity').toContainText('Spire');
 
-    // «ЭКРАН БОТА» (R3) carries the corp's rules read — the ORDINARY
-    // premium corporation card (the summary keeps NO corp zone of its own:
-    // the corporation lives inside «Разыграно», parity with a human seat).
-    await key(page, 'KeyV', 1000);
+    // «ЭКРАН БОТА» carries the corp's rules read — the ORDINARY premium
+    // corporation card (the summary keeps NO corp zone of its own: the
+    // corporation lives inside «Разыграно», parity with a human seat).
+    await openBotScreenHub(page); // R3 used to open it; the summary rework made it a ring stop
     const hubFace = page.locator('.con-info__block--botcorp .pcard');
     await expect(hubFace).toBeVisible();
     await key(page, 'Escape', 800); // back to the summary
 
     // ── The bot's «РАЗЫГРАНО» — the corporation slot (a real .pcard) ────
-    await key(page, 'KeyX', 1400);
+    await openInfoPlayedTable(page); // X used to open it; the summary rework made it a ring stop
     const slot = page.locator('.con-played__botcorp .pcard');
     await expect(slot, 'the corporation slot must stand in the bot tableau').toBeVisible();
     const slotText = (await slot.innerText()).replace(/\s+/g, ' ');

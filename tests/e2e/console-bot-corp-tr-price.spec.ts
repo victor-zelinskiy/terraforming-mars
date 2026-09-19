@@ -1,5 +1,5 @@
 import {expect, test} from './consoleTest';
-import {bootToBoard, soloGameConfig, visibleSurfaces} from './consoleStart';
+import {bootToBoard, openInfoPlayedTable, soloGameConfig, visibleSurfaces} from './consoleStart';
 
 /**
  * TERRALABS (C38) — the corporation that buys tempo with rating. Two things
@@ -58,7 +58,7 @@ test.describe('console: the MarsBot corporation that pays for its deck in TR', (
     expect(botSeat.terraformRating, 'the printed 8 TR came off the standard 20').toBe(12);
 
     // The bot's «РАЗЫГРАНО» — the corporation slot is a real `.pcard`.
-    await key(page, 'KeyX', 1400);
+    await openInfoPlayedTable(page); // X used to open it; the summary rework made it a ring stop
     const slot = page.locator('.con-played__botcorp .pcard');
     await expect(slot, 'the corporation slot stands in the bot tableau').toBeVisible();
     expect((await slot.innerText()).replace(/\s+/g, ' '), 'the title is the original corporation').toMatch(/terralabs/i);

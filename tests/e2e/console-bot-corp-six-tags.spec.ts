@@ -48,7 +48,7 @@ test.describe('console: a MarsBot corporation with six starting tags', () => {
     }
     await expect(corpLine).toContainText(/polyphemos/i);
 
-    // The printed BOARD detail (R3 — the bot seat's own reader).
+    // The printed BOARD detail (the `botdoor` ring stop — the bot seat's own reader).
     await openBotBoardDetail(page);
     const tracks = page.locator('.mb-tracks');
     await expect(tracks).toBeVisible();

@@ -46,7 +46,7 @@ test.describe('console: MarsBot corporation cubes on the tracks', () => {
     }
     await expect(corpLine).toContainText('Helion');
 
-    // The printed BOARD detail (R3 — the bot seat's own reader) with the
+    // The printed BOARD detail (the `botdoor` ring stop — the bot seat's own reader) with the
     // corporation cubes on its tracks.
     await openBotBoardDetail(page);
     const tracks = page.locator('.mb-tracks');

@@ -1989,22 +1989,100 @@ export async function openConsole(page: Page, playerId: string, query = ''): Pro
 }
 
 /**
+ * THE SUMMARY IS THE RING'S HOME — climb back up to it before walking.
+ *
+ * A route (the score explorer, the bot screen, the printed board) owns the
+ * d-pad while it is open, so a ring walk started from inside one moves nothing.
+ * B climbs ONE level, and on the summary itself B closes the whole workspace —
+ * so this only ever presses while the summary is NOT up.
+ */
+async function infoSummaryUp(page: Page): Promise<void> {
+  await pressUntilVisible(page, 'Escape', '.con-info .con-info__layout', {tries: 3, settleMs: 700});
+}
+
+/**
+ * THE INFORMATION WORKSPACE'S SUMMARY RING — walk it until `zone` is the
+ * focused stop, and say whether it got there.
+ *
+ * ⚠️ THE DEDICATED BUTTONS ARE GONE. «Экран бота» answered R3 (`KeyV`) and the
+ * seat's «РАЗЫГРАНО» answered X while the panel stood; the summary rework made
+ * BOTH of them ordinary ring stops — `infoRoute.ts` says it in as many words
+ * («a ring stop like every other — no dedicated button opens it any more»), and
+ * the shell simply stopped listening. Eighteen MarsBot probes went on pressing
+ * the retired verbs and reported the CONSEQUENCE («the corporation slot stands
+ * in the bot tableau» — element not found) three screens from the cause.
+ *
+ * The stops are DATA, never a hop count: the satellite disappears for a seat
+ * with no extra-resource sources (`infoZoneFocusable`), the human-only pair is
+ * absent on the bot, and a campaign mission adds one — so the walk reads the
+ * focused stop and turns around at the wall ({@link walkFocusUntil}) instead of
+ * counting ArrowRights. The satellite is rail chrome and carries no
+ * `[data-zone]`, so its own focused marker (`.con-res-aux--focused`) names it.
+ */
+export async function focusInfoZone(page: Page, zone: string): Promise<boolean> {
+  const at = async () => await page.evaluate(() => {
+    if (document.querySelector('.con-res-aux--focused') !== null) {
+      return 'extras';
+    }
+    return document.querySelector('.con-info__zone--focused')?.getAttribute('data-zone') ?? '';
+  });
+  return await walkFocusUntil(page, async () => await at() === zone, at, 12, 400);
+}
+
+/**
+ * Open the bot's «ЭКРАН БОТА» hub (`.con-botscr__entry` ×2) from the
+ * Information summary with the BOT seat on stage.
+ *
+ * The hub is the `botdoor` ring stop plus one A — see {@link focusInfoZone}
+ * for why no key opens it directly any more.
+ */
+export async function openBotScreenHub(page: Page): Promise<void> {
+  if (await page.locator('.con-botscr__entry').count() > 0) {
+    return;
+  }
+  await infoSummaryUp(page);
+  await focusInfoZone(page, 'botdoor');
+  await pressUntilVisible(page, 'Enter', '[data-bot-entry="botBoard"]', {tries: 3, settleMs: 900});
+  await page.locator('[data-bot-entry="botBoard"]').waitFor({state: 'visible', timeout: 15_000});
+}
+
+/**
  * Open the MarsBot PRINTED-BOARD detail (`.mb-tracks`) from Info Mode with
  * the BOT seat on stage.
  *
- * The Information rework made the bot board a ROUTE, not a verb: R3 opens
- * the «Экран бота» hub (`infoRoute 'botScreen'`), whose focus ring starts on
- * «Планшет бота» (`[data-bot-entry="botBoard"]`), and A descends into the
- * board detail. The ten bot-corp probes each pressed the pre-rework single
+ * The Information rework made the bot board a ROUTE, not a verb: the `botdoor`
+ * ring stop opens the «Экран бота» hub (`infoRoute 'botScreen'`), whose focus
+ * ring starts on «Планшет бота» (`[data-bot-entry="botBoard"]`), and A descends
+ * into the board detail. The bot-corp probes each pressed the pre-rework single
  * R3 and rotted together — one driver, so the NEXT route change is one edit.
  */
 export async function openBotBoardDetail(page: Page): Promise<void> {
-  await page.keyboard.press('KeyV'); // R3 → the «Экран бота» hub
-  await page.locator('[data-bot-entry="botBoard"]').waitFor({state: 'visible', timeout: 15_000});
+  await openBotScreenHub(page);
   await page.waitForTimeout(700); // the hub's entrance settles under the cursor
   await page.keyboard.press('Enter'); // A on the default focus → «Планшет бота»
   await page.locator('.mb-tracks').waitFor({state: 'visible', timeout: 15_000});
   await page.waitForTimeout(700); // the detail's own entrance settles
+}
+
+/**
+ * Open the inspected seat's «РАЗЫГРАНО» table — the EMBEDDED one, inside the
+ * Information workspace (`.con-info .con-played--embedded`).
+ *
+ * The same rework that retired R3 retired X here: the played table is the
+ * `played` ring stop plus one A. The table itself is the ordinary
+ * `ConsolePlayedOverlay` — for a bot seat its first family is the corporation
+ * slot (`.con-played__botcorp`) and the focus seeds there, so the very next A
+ * opens that card's fullscreen inspect, exactly as the retired verb did.
+ */
+export async function openInfoPlayedTable(page: Page): Promise<void> {
+  if (await page.locator('.con-info .con-played--embedded').count() > 0) {
+    return;
+  }
+  await infoSummaryUp(page);
+  await focusInfoZone(page, 'played');
+  await pressUntilVisible(page, 'Enter', '.con-info .con-played--embedded', {tries: 3, settleMs: 900});
+  await page.locator('.con-info .con-played--embedded').waitFor({state: 'visible', timeout: 15_000});
+  await settle(page); // the table's own entrance (and its hero-slot warm-up) lets go
 }
 
 /**

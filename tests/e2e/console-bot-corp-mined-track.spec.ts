@@ -1,5 +1,5 @@
 import {expect, test} from './consoleTest';
-import {openBotBoardDetail, bootToBoard, soloGameConfig, visibleSurfaces} from './consoleStart';
+import {bootToBoard, openBotBoardDetail, openInfoPlayedTable, soloGameConfig, visibleSurfaces} from './consoleStart';
 
 /**
  * KUIPER COOPERATIVE (C41) — six cubes, all on the space track: three white
@@ -44,7 +44,7 @@ test.describe('console: the MarsBot corporation whose whole game is one mined tr
     }
     await expect(corpLine).toContainText(/kuiper/i);
 
-    // The bot's printed MAT (R3): six cubes on ONE track, three of each colour.
+    // The bot's printed MAT (the `botdoor` ring stop): six cubes on ONE track, three of each colour.
     await openBotBoardDetail(page);
     const tracks = page.locator('.mb-tracks');
     await expect(tracks).toBeVisible();
@@ -62,7 +62,7 @@ test.describe('console: the MarsBot corporation whose whole game is one mined tr
 
     // Back to the seat, then its «РАЗЫГРАНО»: the corporation slot.
     await key(page, 'KeyB', 900);
-    await key(page, 'KeyX', 1400);
+    await openInfoPlayedTable(page); // X used to open it; the summary rework made it a ring stop
     const slot = page.locator('.con-played__botcorp .pcard');
     await expect(slot, 'the corporation slot stands in the bot tableau').toBeVisible();
     expect((await slot.innerText()).replace(/\s+/g, ' '), 'the title is the original corporation').toMatch(/kuiper/i);

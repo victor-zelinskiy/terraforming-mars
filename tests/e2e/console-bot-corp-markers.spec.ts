@@ -47,7 +47,7 @@ test.describe('console: MarsBot corporation white trackers', () => {
     // Case-insensitive: the nameplate is uppercased by CSS, which lands in innerText.
     await expect(corpLine).toContainText(/interplanetary cinematics/i);
 
-    // The printed BOARD detail (R3 — the bot seat's own reader).
+    // The printed BOARD detail (the `botdoor` ring stop — the bot seat's own reader).
     await openBotBoardDetail(page);
     const tracks = page.locator('.mb-tracks');
     await expect(tracks).toBeVisible();

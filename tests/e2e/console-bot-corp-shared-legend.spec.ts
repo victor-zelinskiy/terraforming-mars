@@ -52,7 +52,7 @@ test.describe('console: a MarsBot corporation whose colours share one meaning', 
     }
     await expect(corpLine).toContainText(/aridor/i);
 
-    // The printed BOARD detail (R3 — the bot seat's own reader).
+    // The printed BOARD detail (the `botdoor` ring stop — the bot seat's own reader).
     await openBotBoardDetail(page);
     const tracks = page.locator('.mb-tracks');
     await expect(tracks).toBeVisible();

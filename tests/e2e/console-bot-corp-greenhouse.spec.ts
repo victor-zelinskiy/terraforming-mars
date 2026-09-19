@@ -1,5 +1,5 @@
 import {expect, test} from './consoleTest';
-import {openBotBoardDetail, bootToBoard, soloGameConfig, visibleSurfaces} from './consoleStart';
+import {bootToBoard, openBotBoardDetail, openInfoPlayedTable, soloGameConfig, visibleSurfaces} from './consoleStart';
 
 /**
  * ECOTEC (C40) — a greenhouse on the corporation card: every plant, microbe or
@@ -48,7 +48,7 @@ test.describe('console: the MarsBot corporation that grows plants on its own car
     }
     await expect(corpLine).toContainText(/ecotec/i);
 
-    // The bot's printed MAT (R3) — the white marker the setup box installed.
+    // The bot's printed MAT (the `botdoor` ring stop) — the white marker the setup box installed.
     await openBotBoardDetail(page);
     const tracks = page.locator('.mb-tracks');
     await expect(tracks).toBeVisible();
@@ -60,7 +60,7 @@ test.describe('console: the MarsBot corporation that grows plants on its own car
 
     // Back to the seat, then its «РАЗЫГРАНО»: the corporation slot.
     await key(page, 'KeyB', 900);
-    await key(page, 'KeyX', 1400);
+    await openInfoPlayedTable(page); // X used to open it; the summary rework made it a ring stop
     const slot = page.locator('.con-played__botcorp .pcard');
     await expect(slot, 'the corporation slot stands in the bot tableau').toBeVisible();
     expect((await slot.innerText()).replace(/\s+/g, ' '), 'the title is the original corporation').toMatch(/ecotec/i);

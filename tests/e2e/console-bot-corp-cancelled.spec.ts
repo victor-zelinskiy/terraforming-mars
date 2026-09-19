@@ -1,5 +1,5 @@
 import {expect, test} from './consoleTest';
-import {bootToBoard, soloGameConfig, visibleSurfaces} from './consoleStart';
+import {bootToBoard, openInfoPlayedTable, soloGameConfig, visibleSurfaces} from './consoleStart';
 
 /**
  * PRISTAR (C36) — the corporation that makes the bot NOT do something. Its
@@ -49,7 +49,7 @@ test.describe('console: the MarsBot corporation that cancels the bot\'s own terr
     await expect(corpLine).toContainText(/pristar/i);
 
     // The bot's «РАЗЫГРАНО» — the corporation slot is a real `.pcard`.
-    await key(page, 'KeyX', 1400);
+    await openInfoPlayedTable(page); // X used to open it; the summary rework made it a ring stop
     const slot = page.locator('.con-played__botcorp .pcard');
     await expect(slot, 'the corporation slot stands in the bot tableau').toBeVisible();
     expect((await slot.innerText()).replace(/\s+/g, ' '), 'the title is the original corporation').toMatch(/pristar/i);
