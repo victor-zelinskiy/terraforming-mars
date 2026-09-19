@@ -50,7 +50,18 @@ async function until(what: () => boolean, budgetMs = 5000): Promise<void> {
   }
 }
 
-describe('consolePlayedHero (the animation transaction)', () => {
+describe('consolePlayedHero (the animation transaction)', function() {
+  // THE SUBJECT IS A REAL TRANSACTION, so its timers ARE the contract and
+  // nothing is faked here — `runPlayedHero` walks the whole lift → flight →
+  // handoff chain on the wall clock. Measured in isolation the heaviest cases
+  // take ~1.0-1.5 s, i.e. most of mocha's 2 s default, and under the FULL
+  // client suite (one process, thousands of specs) they cross it: the run
+  // reports «Timeout of 2000ms exceeded» about a transaction that completed
+  // perfectly (isolated re-run: 26/26). Same treatment, same reason, as
+  // `boardBeatPark.spec.ts` — raise the harness ceiling, never the assertion.
+  // eslint-disable-next-line no-invalid-this
+  this.timeout(15_000);
+
   afterEach(async () => {
     abortPlayedHero();
     resetPlayedCardReturns(); // module state — never leak a beat into the next spec

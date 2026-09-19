@@ -37,7 +37,15 @@ function sleep(ms: number): Promise<void> {
  * in boardBeatPark (see boardBeatPark.spec.ts — the shell's watchable probe
  * counts an engaged focus as a covered board).
  */
-describe('planetFocus — the main-grid placement stage', () => {
+describe('planetFocus — the main-grid placement stage', function() {
+  // The phase-machine cases walk the REAL enter/exit windows (the module's
+  // timers are its contract — nothing is faked). Isolated they take ~1.0-1.5 s
+  // against mocha's 2 s default; inside the full client suite that margin is
+  // gone and the run reports a timeout on a phase walk that finished
+  // (isolated re-run: 26/26). Same treatment as `boardBeatPark.spec.ts`.
+  // eslint-disable-next-line no-invalid-this
+  this.timeout(15_000);
+
   afterEach(() => {
     // Module state is bundle-shared across specs — drop phases and timers.
     resetPlanetFocus();
