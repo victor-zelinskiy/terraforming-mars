@@ -747,7 +747,15 @@ export default defineComponent({
           before.set(name, el.getBoundingClientRect());
         }
       }
+      // THE FOCUS FOLLOWS THE CARD, not the index: the reconcile has already moved the cursor onto the
+      // next untaken card of the OLD list, so re-reading the same index over the shortened list would
+      // skip one card (measured: A taken from [A, B, C] → the cursor landed on C, and a stub server that
+      // takes in its own order then left the row with no focusable card at all).
+      const focusedName = this.slotsList[this.focusIdx]?.name;
+      const removedBefore = this.slotsList.slice(0, this.focusIdx).filter((e) => names.includes(e.name)).length;
       this.slotsList = survivors;
+      const kept = focusedName === undefined ? -1 : survivors.findIndex((e) => e.name === focusedName);
+      this.focusIdx = kept >= 0 ? kept : Math.min(Math.max(0, this.focusIdx - removedBefore), Math.max(0, survivors.length - 1));
       this.focusNextRemaining();
       void this.$nextTick(() => {
         this.fitRow();

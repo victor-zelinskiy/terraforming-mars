@@ -2,9 +2,10 @@ import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {
-  bootFixture, bootFixtureSeats, closeZoomViewer, commitFocusedSpace, crumbText, fetchPlayerModel, openConsole, openMandatoryAnnounce, openQuickWheel,
+  bootFixture, bootFixtureSeats, closeZoomViewer, commitFocusedSpace, crumbText, fetchPlayerModel, openMandatoryAnnounce, openQuickWheel,
   openZoomViewer, placeTile, placementState, press, pressUntil, settle, waitForBoardHome, walkToSpace,
 } from './consoleStart';
+import {answerGateAs, turnTo, waitSittingAtRest} from './parliamentDrive';
 
 /**
  * BIODOME CONTEST (Turmoil Redux, RX03) — «plants for everyone by influence +
@@ -273,10 +274,10 @@ for (const preset of PRESETS) {
 
       // ── AN HONEST MANDATORY PROMPT FIRST: the plate names the resolution; the board stays calm until A.
       const plate = page.locator('.con-mandatory');
-      await expect(plate, 'the winner\'s greenery is announced on the board home').toHaveCount(1, {timeout: 30_000});
-      await expect(plate.locator(`[data-source-resolution="${BIODOME_ID}"]`)).toHaveCount(1);
-      await expect(plate.locator('.con-mandatory__src-name')).toHaveText(/Конкурс биокуполов|Biodome Contest/);
-      await expect(plate.locator('.con-mandatory__kicker')).toHaveText(/Размещение тайла|Tile placement/i);
+      // ONE announce per generation (Э3, law 1): the sitting's plate; the winner's placement is a STEP of
+      // the reward stage (the stack yields to the board), never a plate of its own.
+      await expect(plate, 'the sitting is announced on the board home').toHaveCount(1, {timeout: 30_000});
+      await expect(plate.locator('.con-mandatory__kicker')).toHaveText(/Парламент|Parliament/i);
       expect(await placementState(page), 'no placement before the press').toBe('none');
       await expectPlateReadsWhole(page, `${preset.id} greenery plate`);
       await shoot(page, preset.id, '04-greenery-announce');
@@ -350,6 +351,13 @@ for (const preset of PRESETS) {
       expect(await placeTile(page), 'the ocean is placed').toBe(true);
 
       // ── RED is paid by ITS influence (step 5 = 3 → 6 plants); the phase finishes and generation 2 begins.
+      // Э1/Э3: the phase ends through the ADJOURN gate — the sitting comes back to the viewer (renewal → closing),
+      // A on the closing answers the viewer's gate, the other seat answers over the API.
+      await expect(parliament(page), 'the sitting is back after the board').toHaveCount(1, {timeout: 60_000});
+      await waitSittingAtRest(page, 30_000);
+      expect(await turnTo(page, 'closing'), 'the closing page').toBe(true);
+      await press(page, 'Enter', 1200);
+      await answerGateAs(request, seats[1], 'adjourn');
       await expect.poll(async () => (await wireOf(request, playerId)).game.generation, {timeout: 60_000}).toBe(2);
       const after = await wireOf(request, playerId);
       expect(after.game.oceans).toBe(1);
@@ -359,6 +367,8 @@ for (const preset of PRESETS) {
       const outcomes = after.game.parliament.lastPhase?.outcomes ?? [];
       expect(outcomes.map((o) => `${o.player}:${o.step}:${o.kind}:${o.amount ?? ''}`).sort()).toEqual([
         `${after.thisPlayer.color}:greenery:greenery:`,
+        // Э1: the ruling party's answer is a RECORD too (the Greens: 2 M€ per TR step — the greenery's four steps).
+        `${after.thisPlayer.color}:greenery:reaction:8`,
         `${after.thisPlayer.color}:plants:stock:4`,
         `${redAfter.thisPlayer.color}:plants:stock:6`,
       ].sort());
@@ -368,7 +378,7 @@ for (const preset of PRESETS) {
 
     test(`oxygen at its maximum: the tile still lands for its own TR, oxygen stays (${preset.id})`, async ({page, request}) => {
       test.setTimeout(300_000);
-      const {playerId} = await bootFixtureSeats(page, request, 'parliament-biodome-maxed', {query: preset.query, landing: 'prompt'});
+      const {playerId, seats} = await bootFixtureSeats(page, request, 'parliament-biodome-maxed', {query: preset.query, landing: 'prompt'});
       const before = await wireOf(request, playerId);
       expect(before.game.oxygenLevel).toBe(14);
       expect(await openMandatoryAnnounce(page), 'A on the plate starts the placement').toBe(true);
@@ -387,6 +397,13 @@ for (const preset of PRESETS) {
       await expect.poll(async () => await placementState(page), {timeout: 10_000}).not.toBe('none');
       await shoot(page, preset.id, '09b-maxed-dossier');
       expect(await placeTile(page), 'the greenery is placed').toBe(true);
+      // Э1/Э3: the phase ends through the ADJOURN gate — the sitting comes back to the viewer (renewal → closing),
+      // A on the closing answers the viewer's gate, the other seat answers over the API.
+      await expect(parliament(page), 'the sitting is back after the board').toHaveCount(1, {timeout: 60_000});
+      await waitSittingAtRest(page, 30_000);
+      expect(await turnTo(page, 'closing'), 'the closing page').toBe(true);
+      await press(page, 'Enter', 1200);
+      await answerGateAs(request, seats[1], 'adjourn');
       await expect.poll(async () => (await wireOf(request, playerId)).game.generation, {timeout: 60_000}).toBe(2);
       const after = await wireOf(request, playerId);
       expect(after.game.oxygenLevel).toBe(14);
@@ -395,9 +412,9 @@ for (const preset of PRESETS) {
       expect(greenery?.parameter).toEqual({id: 'oxygen', before: 14, after: 14});
     });
 
-    test(`the results scene: the card moves into the government, the plants fly as one stock chip, the lines name plants and greenery (${preset.id})`, async ({page, request}) => {
-      test.setTimeout(300_000);
-      const {playerId, seats} = await bootFixtureSeats(page, request, 'parliament-biodome-recap', {query: preset.query});
+    test(`after the phase: the enacted contest stands in the government, the recorded plants and the greenery are the table's — the live beats are the sitting's (${preset.id})`, async ({page, request}) => {
+      test.setTimeout(180_000);
+      const {playerId} = await bootFixtureSeats(page, request, 'parliament-biodome-recap', {query: preset.query});
       const wire = await wireOf(request, playerId);
       expect(wire.game.parliament.enacted?.resolution).toBe(BIODOME_ID);
       const mine = wire.game.parliament.lastPhase?.outcomes?.filter((o) => o.player === wire.thisPlayer.color) ?? [];
@@ -406,127 +423,16 @@ for (const preset of PRESETS) {
       const bluePlants = wire.game.parliament.lastPhase?.outcomes?.find((o) => o.player !== wire.thisPlayer.color && o.step === 'plants');
       expect(bluePlants, 'blue was paid 2 plants').toMatchObject({kind: 'stock', amount: 2, influence: 1});
       expect(mine.find((o) => o.step === 'greenery'), 'red placed the greenery').toMatchObject({kind: 'greenery', parameter: {id: 'oxygen', before: 5, after: 6}});
-
-      await page.evaluate(() => {
-        type Probe = {samples: number, faceFlights: number, maxVisible: number, chips: number, chipText: string, chipStock: boolean};
-        const w = window as unknown as {__biodomeProbe: Probe};
-        w.__biodomeProbe = {samples: 0, faceFlights: 0, maxVisible: 0, chips: 0, chipText: '', chipStock: false};
-        const visible = (el: Element) => {
-          const r = el.getBoundingClientRect();
-          if (r.width < 4 || r.height < 4) {
-            return false;
-          }
-          for (let n: Element | null = el; n !== null; n = n.parentElement) {
-            const style = getComputedStyle(n);
-            if (style.visibility === 'hidden' || style.display === 'none' || Number(style.opacity) < 0.05) {
-              return false;
-            }
-          }
-          return true;
-        };
-        const sample = () => {
-          const probe = w.__biodomeProbe;
-          probe.samples++;
-          if (document.querySelector('.con-parl__flight--face') !== null) {
-            probe.faceFlights = 1;
-          }
-          const rects = Array.from(document.querySelectorAll('.pcard--rdx-greens-biodome-contest'))
-            .filter((el) => el.closest('dialog') === null && visible(el))
-            .map((el) => el.getBoundingClientRect());
-          const places: Array<DOMRect> = [];
-          for (const r of rects) {
-            const same = places.some((p) => {
-              const ix = Math.max(0, Math.min(p.right, r.right) - Math.max(p.left, r.left));
-              const iy = Math.max(0, Math.min(p.bottom, r.bottom) - Math.max(p.top, r.top));
-              const inter = ix * iy;
-              return inter / (p.width * p.height + r.width * r.height - inter) > 0.5;
-            });
-            if (!same) {
-              places.push(r);
-            }
-          }
-          probe.maxVisible = Math.max(probe.maxVisible, places.length);
-          const chips = document.querySelectorAll('.con-transfer__chip');
-          if (chips.length > probe.chips) {
-            probe.chips = chips.length;
-            probe.chipText = (chips[0]?.textContent ?? '').trim();
-            probe.chipStock = !(chips[0]?.classList.contains('con-transfer__chip--production') ?? true);
-          }
-        };
-        new MutationObserver(sample).observe(document.body, {subtree: true, childList: true, attributes: true, attributeFilter: ['class', 'style']});
-        window.setInterval(sample, 16);
-      });
-
+      // Э3 retired the results scene: the phase plays LIVE as the sitting — the plants fly as one stock chip in
+      // the reward wave and the greenery lands through the board (asserted in
+      // `console-parliament-sitting-reward.spec.ts` for RX03 and photographed by the gallery: 21 · 22 · 27 · 27b).
+      // After the phase the Parliament opens on the OVERVIEW with the law already standing.
       await openParliament(page);
-      const stage = page.locator('.con-parl__stage');
-      await expect(stage, 'the results scene takes the stage').toHaveAttribute('data-parl-stage', 'recap', {timeout: 15_000});
-      const items = page.locator('.con-parl__recap-item');
-      const pump = async (read: () => Promise<number>) => {
-        if (!VIDEO) {
-          await page.screenshot({clip: {x: 0, y: 0, width: 8, height: 8}});
-        }
-        return read();
-      };
-      await expect.poll(() => pump(() => page.evaluate(() => (window as unknown as {__biodomeProbe: {faceFlights: number}}).__biodomeProbe.faceFlights)), {
-        timeout: 15_000, intervals: [60], message: 'the enacted card flew from its voting slot',
-      }).toBe(1);
-      await shoot(page, preset.id, '10-recap-card-move');
-      await expect.poll(() => pump(() => page.evaluate(() => (window as unknown as {__biodomeProbe: {chips: number}}).__biodomeProbe.chips)), {
-        timeout: 20_000, intervals: [60], message: 'the plants chip flew',
-      }).toBeGreaterThan(0);
-      await shoot(page, preset.id, '11-recap-plants-flight');
-      await expect.poll(() => pump(() => page.locator('.con-parl__recap-item--shown').count()), {timeout: 25_000, intervals: [80], message: 'every beat landed'})
-        .toBe(await items.count());
-      await expect.poll(() => pump(() => page.locator('.con-parl__flight, .con-transfer__chip').count()), {timeout: 10_000, intervals: [80], message: 'no proxy is left behind'})
-        .toBe(0);
-      const probe = await page.evaluate(() => (window as unknown as {__biodomeProbe: Record<string, unknown>}).__biodomeProbe);
-      expect(probe.samples as number).toBeGreaterThan(10);
-      expect(probe.maxVisible as number, `never two visible copies of the card (${JSON.stringify(probe)})`).toBe(1);
-      expect(probe.chips as number, `ONE plants chip carries the whole amount (${JSON.stringify(probe)})`).toBe(1);
-      expect(probe.chipText as string).toContain('6');
-      expect(probe.chipStock as boolean, 'a STOCK chip, not a production plate').toBe(true);
-      const plantsLine = new RegExp(`(Растения|Plants) \\+6 \\(${redPlants!.before} → ${redPlants!.after}\\)`);
-      await expect(page.locator('.con-parl__recap-item').filter({hasText: plantsLine}), 'the viewer\'s plants line').toHaveCount(1);
-      await expect(page.locator('.con-parl__recap-item').filter({hasText: /влияние 3|influence 3/})).toHaveCount(1);
-      await expect(page.locator('.con-parl__recap-item').filter({hasText: /озеленение как победитель голосования — кислород 5 → 6|greenery as the winner of the vote — oxygen 5 → 6/}),
-        'the greenery line with its oxygen step').toHaveCount(1);
-      const otherLine = new RegExp(`\\+2 \\(${bluePlants!.before} → ${bluePlants!.after}\\)`);
-      await expect(page.locator('.con-parl__recap-item').filter({hasText: otherLine}), 'the other seat\'s own +2').toHaveCount(1);
-      await expectFits(page, `${preset.id} recap`);
-      await shoot(page, preset.id, '12-recap');
-
-      // ── The enacted card's inspector reads the RECORD: the plants and the placed greenery.
-      expect(await pressUntil(page, 'Enter', async () => await stage.count() === 0, {tries: 3, settleMs: 800}), 'A closes the results').toBeTruthy();
-      for (let i = 0; i < 4 && await page.locator('.con-parl__gov--focus').count() === 0; i++) {
-        await press(page, 'ArrowLeft', 500);
-      }
-      await openZoomViewer(page);
-      await expect(page.locator('dialog.con-zoom[open] .card-zoom-stage .pcard').first()).toHaveClass(BIODOME_CLASS);
-      await expect.poll(() => yieldReadings(page, 'dialog.con-zoom[open] [data-zoom-yield]'), {timeout: 10_000}).toEqual([{context: 'applied', influence: '3', amount: '6'}]);
-      const record = await winnerReading(page, 'dialog.con-zoom[open] [data-zoom-winner]');
-      expect(record).toMatchObject({context: 'applied', recipient: wire.thisPlayer.color, before: '5', after: '6'});
-      expect(record?.caption).toMatch(/Размещено вами|You placed it/);
-      await expectFits(page, `${preset.id} enacted inspector`, 'dialog.con-zoom[open]');
-      await shoot(page, preset.id, '13-enacted-inspector');
-      await closeZoomViewer(page);
-
-      // ── THE OTHER SEAT reads ITS plants and «placed by» the winner.
-      await openConsole(page, seats[1], preset.query);
-      await waitForBoardHome(page, 25);
-      await openParliament(page);
-      if (await page.locator('.con-parl__stage[data-parl-stage="recap"]').count() > 0) {
-        expect(await pressUntil(page, 'Enter', async () => await page.locator('.con-parl__stage').count() === 0, {tries: 4, settleMs: 900})).toBeTruthy();
-      }
-      for (let i = 0; i < 4 && await page.locator('.con-parl__gov--focus').count() === 0; i++) {
-        await press(page, 'ArrowLeft', 500);
-      }
-      await openZoomViewer(page);
-      await expect.poll(() => yieldReadings(page, 'dialog.con-zoom[open] [data-zoom-yield]'), {timeout: 10_000}).toEqual([{context: 'applied', influence: '1', amount: '2'}]);
-      const theirs = await winnerReading(page, 'dialog.con-zoom[open] [data-zoom-winner]');
-      expect(theirs?.caption).toMatch(/Размещено ·|Placed ·/);
-      expect((await crumbText(page)).length).toBeGreaterThanOrEqual(0);
-      await shoot(page, preset.id, '14-enacted-inspector-other-seat');
-      await closeZoomViewer(page);
+      await expect(page.locator('.con-parl__stage[data-parl-stage="recap"]'), 'no results scene').toHaveCount(0);
+      await expect(page.locator('[data-parl-gov] .con-parl__gov-card .pcard'), 'the contest stands in the government').toHaveClass(BIODOME_CLASS);
+      expect((await crumbText(page)).toUpperCase(), 'the overview names itself').toContain('ОБЗОР');
+      await expectFits(page, `${preset.id} after the phase`);
+      await shoot(page, preset.id, '20-after-phase');
     });
   });
 }

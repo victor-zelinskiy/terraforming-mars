@@ -247,7 +247,11 @@ for (const preset of PRESETS) {
 
       // ── THE RENEWAL, then the CLOSING; A on the closing answers gate 2.
       await expect.poll(async () => (await wireOf(request, playerId)).game.parliament?.phase?.step, {timeout: 60_000}).toBe('adjourn');
-      await expect.poll(() => sittingStage(page), {timeout: 30_000}).toBe('renewal');
+      // The reward page is HELD (`stageHeld`) until its wave run ends — and under two headless workers rAF starves,
+      // so the run falls to its named nets: the director's stage ceiling (`STAGE_HOLD_CEILING_MS` 12 s) plus the
+      // ledger's own (`REWARD_HOLD_SAFETY_MS` 8 s, `AGENDA_BONUS_HOLD_SAFETY_MS` 30 s) — 50 s, past a 30 s poll (Э9:
+      // one red in the full run, green at one worker). The bound is the nets' sum with headroom, not a guess.
+      await expect.poll(() => sittingStage(page), {timeout: 90_000}).toBe('renewal');
       await settle(page, {timeoutMs: 20_000});
       crumb = (await crumbText(page)).toUpperCase();
       expect(crumb).toMatch(/ЗАСЕДАНИЕ|SITTING/);

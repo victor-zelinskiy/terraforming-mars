@@ -322,3 +322,165 @@
 - Паритет шасси на TV/Deck — эталон («Действия карт») сам стоит ниже 2rem-линии на 5 / 10 px, «Колонии» расходятся с
   ним ещё на +7 / −4 px: это наблюдение обо всей консоли, закреплено ратчетом, не спрятано допуском.
 - R-10: строки «ВАШ ГОЛОС» в осмотре говорят словами панели, но остаются в колонке партии (панель под осмотром не видна).
+
+## Э9 — финал: долги, старые e2e, полные прогоны
+
+### Долги Э0–Э4 — что закрыто, что осталось честным ограничением
+
+- Э1 «промпт ворот как generic confirm до Э3» — закрыт Э3 (заседание — презентер ворот).
+- Э2 «образец сломанной резолюции — `describe.skip`» — **закрыт в Э9**: скип удалён, фраза гарда закреплена
+  юнитом `missingReport` (скип — обещание, которое никто не держит).
+- Э3 «переходы поз, реплей» — закрыт Э4; «язык чтения до записи» — закрыт Э5; «e2e тайла победителя с
+  парковкой/возвратом» — закрыт Э8 (галерея, кадры 21/22); «ярус партий под стадией, подсветка правящей» —
+  решение Э4 (реакция летит с плашки правителя в правительстве).
+- Э4 «подпись «→ резерв» у резерва» — закрыт Э5 (+ `v-if` в Э8).
+- ОСТАЮТСЯ (не долги, а границы): понижение версии сервера на воротах (Э1); `phaseHistory` cap 24 (Э1); стадия
+  ОБНОВЛЕНИЕ не перечисляет сброшенных (сводка их не несёт — модель сервера, вне правил этого прогона); бонус-карта
+  Повестки открывается fullscreen-viewer-ом, а не в зоне ПРИНЯТИЯ (Э5); растворение севшего чипа перекрывает вход
+  следующей страницы намеренно (Э5); две сети ledger-а — единственные wall-clock помимо `SUBMIT_SAFETY_MS` (в
+  allow-list `parliamentNoTimers`).
+
+### Старые e2e Парламента — адаптация
+
+Первый прогон всех старых суит на финальной сборке показал четыре класса красного, каждый — след замены
+грамматики, не дефект продукта (кроме одного):
+- **Сцена итогов ушла (Э3).** Тесты «the results scene …» (architecture, powergrid, biodome, climate — по три профиля)
+  и «предыдущее поколение проигрывается сценой при открытии» (parliament) ждали `data-parl-stage="recap"`,
+  `.con-parl__recap-item`, крошку «ИТОГИ». Переписаны на состояние ПОСЛЕ фазы: серверные записи (`lastPhase.outcomes`,
+  производство, растения, озеленение) сохранены как есть; на экране — обзор без сцены, принятая карта в правительстве,
+  крошка «ОБЗОР», reload ничего не реплеит. Живые беты этих же фактов утверждает `console-parliament-sitting-reward.spec`
+  и фотографирует галерея.
+- **Одна плита анонса на поколение (Э3, закон 1).** «the enactment …» (aquifer, biodome ×2) ждали плиту с кикером
+  «Эффект резолюции» / «Размещение тайла» и источником; теперь плита одна («Парламент»), пикер и тайл — шаги стадии
+  награды (`[data-embed-slot="parliament-stage"]`, `.con-sit`, `[data-parl-sit-hero]`, крошка «ВЫБОР»), поле забирает
+  стек без второй плиты и второго нажатия.
+- **Фаза заканчивается воротами adjourn (Э1).** Ожидание «поколение 2» после тайла ждало автоматического конца фазы;
+  теперь заседание возвращается (обновление → закрытие), A отвечает ворота зрителя, второе место — по API
+  (`answerGateAs`); записи `outcomes` дополнены `reaction` правящей партии (Э1).
+- **Добор без призрака (Э5).** `console-external-draw` и `console-parliament-climate` ждали место-призрак после взятия;
+  теперь взятая карта покидает ряд после посадки (слотов на один меньше), зона большого добора — зона стадии.
+  **Здесь единственный дефект продукта Э9**: после ухода карты индекс фокуса перечитывался по укороченному ряду и
+  перескакивал через карту (A: [A, B, C] → курсор на C), а с сервером-заглушкой, берущим карты в своём порядке, ряд
+  оставался без фокусируемой карты — «A ЗАБРАТЬ КАРТУ» молчал. Правка `settleTaken`: фокус следует за КАРТОЙ, не за
+  индексом (имя до фильтрации → индекс после). Все нажатия спека — `pressUntil` с позитивным свидетелем.
+- Терминология (ПОЛИРОВКА): `console-parliament-v2` (крошка «ОБЗОР», «Председательство», фрагмент правил, цена CTA
+  атрибутом, «принимается»), `console-parliament` («Председательство», «правит»), `console-parliament-biodome`
+  («Если победите: …»), `console-resolutions-playground` («Если победите»); на Deck бейдж принимаемой резолюции в
+  шапке слота — всегда форма-глиф (слово «ПРИНИМАЕТСЯ» длиннее прежнего и резало «Марс вперед»).
+- Причина пропуска — один раз на поверхность: рядом с плитой пропуска (заседание) подпись чипа «ПРОПУЩЕНО», без плиты
+  (Полигон, футер осмотра) подпись несёт причину (`ConsoleWinnerReward` · `reasonElsewhere`).
+- Ни одного `test.skip` / `describe.skip` в парламентских деревьях (`tests/parliament`, `tests/console`,
+  `tests/client/components/console`, `tests/e2e/console-parliament*`); гард драйвера/ратчет 6 / 6.
+
+### Прогоны
+
+Суиты Парламента (`--workers=1`), адаптированные старые суиты, паритет встроенной стадии и полный `tests/e2e`
+(`--workers=2 --trace=retain-on-failure`, 678 тестов: **641 / 26 / 11**) — «Прогоны Э9» в разделе «Парламент —
+состояние на сдачу» ниже; разбор полного прогона по классам — «Итог прогона» в
+`docs/claude/parliament-sitting-progress.md` § Э9. Ворота юнитов и линта — там же, «Ворота Э9».
+
+### Честные ограничения Э9
+
+- **Чужие красные полного прогона — 25 из 26** (по классам — «Итог прогона» в журнале): MarsBot-корпорации ×18,
+  HUD-рама ×2, стартовый пробник хэндовера, спутник доп. ресурсов на Deck, дельта (класс ② списка 2026-09-03) — все
+  красные и изолированно; плюс два класса нагрузки (драфт, альбом руки на TV) — зелёные на одном воркере. **Ни один
+  не прогонялся на базовом коммите `65d3e556b4`** (нужна вторая сборка): доказательство «не Парламент» — пустой diff
+  по путям спека с базы, история спека (последнее касание — «UI rework» до базы) и изолированный перегон.
+- **Список 2026-09-03 нуждается в ревизии владельцем:** классы ① (стартовый кластер ×5) и ③ (planet-focus, nomads,
+  start-flow-polish-probe, start-scene-profiles) и три из четырёх ② (hydro-bonus-order, hydro-copied-tile,
+  corporate-espionage) в этом прогоне **зелёные**; остался только `console-delta-card-advance`. Зато MarsBot-корпорации,
+  HUD-рама, стартовый хэндовер и спутник Deck — новые стабильные, сломанные коммитами «UI rework» между 03.09 и базой.
+- **Граница ожидания ОБНОВЛЕНИЯ в `console-parliament-sitting` (90 с)** — сумма именованных сетей с запасом
+  (`STAGE_HOLD_CEILING_MS` 12 с + `REWARD_HOLD_SAFETY_MS` 8 с + `AGENDA_BONUS_HOLD_SAFETY_MS` 30 с = 50 с), а не
+  измерение самого удержания под нагрузкой: трасса падения обрывается на 30-й секунде, так что «поза сменилась бы на
+  50-й» — вывод из констант, подтверждённый перегоном под двумя воркерами (`--repeat-each=2`: 4 / 4), не трассой.
+- Паритет крошки на TV/Deck (остаток 5 / 10 px, ратчет `KNOWN_TOP_RESIDUAL`), R-10, R-22, R-25в и ОБНОВЛЕНИЕ без
+  списка сброшенных — открытыми, как в реестре ПОЛИРОВКИ (причины там).
+
+## Парламент — состояние на сдачу (2026-09-19)
+
+### Что играется
+
+- Политическая фаза Turmoil Redux — ОДИН workspace-flow `ПАРЛАМЕНТ › ЗАСЕДАНИЕ › ВЕРДИКТ | ПРИНЯТИЕ | НАГРАДА | ВЫБОР |
+  ПОЛУЧЕНИЕ | РАЗМЕЩЕНИЕ | ОБНОВЛЕНИЕ | ЗАКРЫТИЕ`: двое серверных ворот (`assembly` / `adjourn`), одна плита анонса
+  на поколение, стадии — позы одной поверхности, беты — GSAP под именованными hold-ами, награда — физическое
+  событие по адресу (ledger DETECT → SEED → OWE → FLY, счётчик тикает на касании), встроенные шаги (пикер, добор,
+  тайл через поле и обратно), бонус Повестки честным полётом.
+- Пять резолюций каталога (RX01 Aquifer Contest · RX02 Architecture Award · RX03 Biodome Contest · RX04 Central
+  Power Grid · RX05 Climate Research) проходят весь путь на трёх профилях; Полигон — dev-стенд для остальных.
+- Терминология — глоссарий (резолюция «принимается / принята», игрок «победитель голосования», «если победите»,
+  «эффект ваш», «председательство», «ОБЗОР» / «ОСМОТРЕТЬ»).
+
+### Карта файлов
+
+| Слой | Файлы |
+| --- | --- |
+| Сервер | `src/server/parliament/**` (фаза, ворота, `outcomes`, `phaseHistory`), `src/common/parliament/**` (типы, `rewardAddress.ts`) |
+| Поток | `src/client/console/parliament/consoleSittingFlow.ts` · `sittingBeats.ts` · `sittingDirector.ts` · `parliamentRewardBeat.ts` · `parliamentDisplayHolds.ts` · `parliamentFlights.ts` · `consoleParliamentFlow.ts` · `parliamentCommands.ts` · `voteInfoModel.ts` · `parliamentAnnotations.ts` |
+| Поверхности | `src/client/components/console/ConsoleParliamentSection.vue` + `parliament/*.vue` (Sitting, Government, VotingArea, VoteMode, Parties, Plaque, Seats, Agenda, WinnerReward, InfluenceYield, PartyReaction, SeatPick, PartyActionComposer, ResolutionsPlayground, FlightLayer); встроенный добор `externalDraw/ConsoleExternalDrawWorkspace.vue` |
+| Стили | `src/styles/console_parliament*.less`, `console_party_plaque.less`, `console_resolution_inspect.less`, `console_extdraw.less`, профили в `console_tv.less` / handheld-лестницах |
+| Локаль | `src/locales/ru/parliament.json` (ключи форка) |
+| Гарды (mocha) | `tests/console/parliamentGlossary.spec.ts` · `parliamentNoTimers` · `parliamentNoLocalStorage` · `parliamentLessOrder` · `tests/parliament/ResolutionContract.spec.ts` · `rewardAddress.spec` · `sittingBeats.spec` · `tests/client/console/parliamentRewardBeat.spec.ts` · `voteInfoBudget.spec` |
+| e2e | `tests/e2e/parliamentDrive.ts` (драйвер) · `console-parliament-gallery` · `console-parliament-sitting*` (в т. ч. `-reward`) · `console-parliament-gates` · `console-parliament-vote-fit` · `console-parliament-stability` · `console-parliament-chassis-parity` · `console-parliament{,-v2,-aquifer,-architecture,-biodome,-powergrid,-climate}` · `console-external-draw` · `console-resolutions-playground` |
+| Фикстуры | `tests/e2e/fixtures/generate.ts` (`parliamentFixture({stopAt})`, `*-vote / *-assembly / *-enact / *-recap / *-cardstep / *-nocell / *-six`) |
+| Доки | `docs/TURMOIL_REDUX_PARLIAMENT_ASSEMBLY.md` (дизайн) · `TURMOIL_REDUX_PARLIAMENT_SITTING.md` (Э0–Э4) · `TURMOIL_REDUX_PARLIAMENT_FINISH.md` (этот) · `docs/claude/console/parliament-sitting.md` (контракт) · `docs/claude/parliament-glossary.md` · `docs/claude/parliament-resolution-checklist.md` · журнал `docs/claude/parliament-sitting-progress.md` · правило `.claude/rules/console-ui.md` § THE PARLIAMENT SITTING · инвариант 13 CLAUDE.md |
+| Галерея | `screenshots/parliament-final/<preset>/<mode>/NN-<surface>.png` (32 × 3 × 3), «до полировки» — `screenshots/parliament-final-before-polish/` (gitignored) |
+
+### Остаток по каталогу резолюций
+
+Каталог несёт пять настоящих резолюций; 43 из 48 карт спецификации (`docs/TURMOIL_REDUX_SPEC.md`) остаются
+dev-примерами Полигона или не начаты. Добавление каждой — `docs/claude/parliament-resolution-checklist.md` (контракт
+автора, таблица адресов, гард, спек, фикстура, глоссарий, галерея, пробники).
+
+#### Прогоны Э9 (финальная сборка, 2026-09-19 → 20)
+
+- **Суиты Парламента** (`console-parliament*` · `console-external-draw` · `console-resolutions-playground`, 236 тестов,
+  `--workers=1`): **227 / 236** за 1,5 ч; девять красных — три класса, все исправлены и перегнаны зелёными:
+  галерея «PICK on SIX» (1080 · reduced) — слепое `press(Enter)` перед опросом ворот → `pressUntil` (4 места);
+  `sitting-reward` RX03 на TV — тик через 186 мс при окне 160 → окно 260 мс с обоснованием; `vote-fit` ×7 —
+  регрессия R-18 (`flex: 0 0 auto` не сжимался) → `flex: 0 1 auto`. Перегон: `vote-fit` 21 / 21, цели 2 / 2.
+- **Адаптированные старые суиты** (aquifer · architecture · biodome · powergrid · climate · parliament · v2 ·
+  playground · external-draw): **62 / 62** после адаптации (первый прогон на финальной сборке — 20 красных четырёх
+  классов, см. выше).
+- **Паритет встроенной стадии** (`wsStageParity.ts`, blue-action purchase/receive): baseline переприколот с измеренных
+  `[PARITY:*]` обоих спеков — он устарел ещё до этого прогона (восемь коммитов «UI rework» меняли общее шасси после
+  последнего прикола: fhd −6 px строки, deck −5), а на TV сверху мой сознательный +8 px рейки статуса (Э5); после
+  переприкола blue-action **5 / 5**.
+- **Полный `tests/e2e`** (`--workers=2 --trace=retain-on-failure`, 678 тестов, 3,4 ч): **641 зелёных · 26 красных ·
+  11 пропущенных**. Пропущенные — 10 измерительных пробников под флагами окружения (`LONGGAME_PERF=1`, `RECV_PERF=1`)
+  и один `test.fixme` в `console-pluto-two-colony-sequence` (UI rework 2026-09-01) — в парламентских деревьях ни одного.
+  **Парламентский красный — один**: `console-parliament-sitting` (Deck), сборка — сервер уже в `adjourn`, а удержанная
+  поза НАГРАДА пережила 30-секундный опрос (под двумя воркерами rAF голодает, беты ложатся на свои сети) → граница
+  90 с с обоснованием в спеке; перегон под нагрузкой двух воркеров `--repeat-each=2` — **4 / 4**. Остальные 25 — чужие,
+  по классам ниже и в «Итоге прогона» журнала.
+- **Ворота Э9** (юниты и линт): `build:test` (обе ступени tsc: Mocha-дерево + e2e) · `lint:client` (vue-tsc) · `lint:i18n` · `make:json` ·
+  `eslint --no-cache` по 16 изменённым файлам Э9 · `test:server` **12061 / 12061** (1 pending — чужой TODO гарда
+  staged-parity про Mining Area / Mining Rights) · `test:client` **5708 / 5708** — первый прогон дал один таймерный
+  флейк чужого `animationHold.spec` («the ceiling runs the OWNER RECOVERY»: 2-секундный mocha-таймаут на
+  реальном 45-мс таймере под нагрузкой; спек и реестр с базы не менялись), изолированно 17 / 17, полный перегон
+  чистый. Гард драйвера e2e и ратчет `waitForTimeout` / `requestAnimationFrame` — внутри `test:server`.
+
+#### Чужие красные полного прогона (не Парламент — с доказательством)
+
+Доказательство у каждого из трёх фактов: `git diff 65d3e556b4..HEAD --stat` по путям спека пуст (база — коммит перед
+Э5); последнее касание спека — «UI rework» ДО базы; изолированный перегон на одном воркере (красный = стабильный,
+зелёный = класс нагрузки). Прогона на самой базе не было — см. «Честные ограничения Э9».
+
+- **Стабильные (красные и изолированно), в списке 2026-09-03 их не было:**
+  · **MarsBot-корпорации** (`console-bot-corp-*` ×17 + `console-bot-corporation`, 18 тестов): `.con-info__block--botcorp
+    .pcard` не появляется — карта корпорации бота в Информации не рендерится. Файлы MarsBot / Информации /
+    премиум-грани с базы не менялись; сломано коммитами «UI rework» по MarsBot-файлам между 03.09 и базой.
+  · **HUD-рама** (`console-hud-frame` fhd + tv-4k): `main == viewport − 2×(rail+gap)` — остаток 14 / 6 px. Файлы рамы
+    с базы не менялись; между HEAD стабильного списка (`23f8a50c51`) и базой их трогали восемь коммитов «UI rework»;
+    мои общие правки (`console_tv.less`: высота рейки статуса композера 2,6rem; fx-lite: стоп-лист пульса плиты) не
+    касаются `.con-main`.
+  · **Стартовый пробник хэндовера** (`start-effect-flow-probe`): «no hero handoff overlay was witnessed at the seat» —
+    стартовая сцена с базы не менялась, спек — UI rework `94622b5504`.
+  · **Спутник доп. ресурсов** (`console-extras-explorer`, Deck): верх слота Δ = 1,3 px — субпиксельный дрейф
+    геометрии; спек — UI rework `d67f0e9a1b` до базы; парламентские стили Deck скоупированы (`.con-parl__slot-win`,
+    `dialog.con-zoom--party`).
+  · **Гидро/дельта** (`console-delta-card-advance`): класс ② стабильного списка 2026-09-03 (единственный из него,
+    кто остался красным).
+- **Класс нагрузки (зелёные изолированно):** `console-draft-workspace` (rAF-сэмплер не увидел rotateY — «hidden-stage
+  shape» при голодании rAF под двумя воркерами) и `hand-album-probe` «tail 2» (TV) — ширина карты разошлась на 25 px
+  между страницами: класс «сравнение с неустоявшейся стороной» из `.claude/rules/tests.md`.

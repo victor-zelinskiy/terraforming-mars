@@ -1,7 +1,7 @@
 import {test, expect, Page, APIRequestContext, Route} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootToBoard, fillPicks, openMandatoryAnnounce, press, reloadConsole} from './consoleStart';
+import {bootToBoard, fillPicks, openMandatoryAnnounce, press, pressUntil, reloadConsole} from './consoleStart';
 import type {ExternalDrawTakeMeta} from '../../src/common/models/ExternalDrawPromptModel';
 import type {CardName} from '../../src/common/cards/CardName';
 
@@ -272,15 +272,17 @@ test('an external draw: announced → A opens the workspace → take one, take a
   expect(bar, 'the bar advertises take-all').toContain('ЗАБРАТЬ ВСЕ');
   expect(bar, 'no back/close affordance on a locked workspace').not.toContain('НАЗАД');
 
-  // ── 2 · A takes ONE: its seat stays as a ghost, the row does not re-flow.
+  // ── 2 · A takes ONE: the taken card leaves the row AFTER it has landed in the dock
+  //        (Э5 — «добор без призрака», one pattern for the embedded and the standalone
+  //        intake): no ghost seat stays behind, the survivors re-fit and FLIP into their
+  //        new berths, and the workspace stands through the batch.
   await press(page, 'Enter', 2600);
   const afterOne = await snapshot(page);
   console.log('── external draw, after one ──', JSON.stringify(afterOne));
   expect(sequence.taken(), 'exactly one card was submitted').toBe(1);
   expect(afterOne.workspace, 'the workspace stands through the batch').toBeTruthy();
-  expect(afterOne.slots, 'the layout is stable (ghost seat kept)').toBe(3);
-  expect(afterOne.ghosts, 'the taken card left a ghost seat').toBe(1);
-  expect(afterOne.ghostOpacity, 'the ghost seat is faintly painted, never a hole').toBeGreaterThan(0.1);
+  expect(afterOne.slots, 'the taken card left the row — no ghost seat (Э5)').toBe(2);
+  expect(afterOne.ghosts, 'no ghost seat').toBe(0);
   await shoot(page, '02-after-take-one');
 
   // ── 3 · B takes ALL the rest (two cards, one answer, the stack intake).
@@ -323,9 +325,10 @@ test('the workspace is LOCKED: B with one card left neither takes nor closes', a
   await page.waitForSelector('.con-extdraw', {timeout: 30_000});
   await page.waitForTimeout(2600);
 
-  // Take two, one at a time — one card left.
-  await press(page, 'Enter', 2600);
-  await press(page, 'Enter', 2600);
+  // Take two, one at a time — one card left. Every press is act → verify → retry: a take's flight
+  // + the row's re-seat (Э5, no ghost) can outlast a blind settle on a loaded runner.
+  expect(await pressUntil(page, 'Enter', async () => sequence.taken() === 1, {tries: 4, settleMs: 2600}), 'the first take').toBe(true);
+  expect(await pressUntil(page, 'Enter', async () => sequence.taken() === 2, {tries: 4, settleMs: 2600}), 'the second take').toBe(true);
   expect(sequence.taken()).toBe(2);
 
   // B is a dead button now: no take, no close, no minimize.
@@ -337,7 +340,7 @@ test('the workspace is LOCKED: B with one card left neither takes nor closes', a
   await shoot(page, '10-locked');
 
   // A finishes the batch; the workspace folds.
-  await press(page, 'Enter', 2600);
+  expect(await pressUntil(page, 'Enter', async () => sequence.taken() === 3, {tries: 4, settleMs: 2600}), 'the last take').toBe(true);
   expect(sequence.taken()).toBe(3);
   await expect(page.locator('.con-extdraw')).toHaveCount(0, {timeout: 25_000});
 });

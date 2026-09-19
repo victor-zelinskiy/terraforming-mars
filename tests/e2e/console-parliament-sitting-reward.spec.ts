@@ -200,7 +200,10 @@ async function placeChainedTiles(page: Page, request: APIRequestContext, playerI
 const REST_SLACK_PX = 1;
 /** The counter may tick one frame before the rest is sampled (a mutation-driven sample) and up to the settle's own tail after it. */
 const TICK_WINDOW_BEFORE_MS = 34;
-const TICK_WINDOW_AFTER_MS = 160;
+/* Measured on a quiet 1080 box the tick lands ≤ 60 ms after the chip's rest; a 4K page at the tail of a
+   two-hour run showed 186 ms (Э9). A quarter second is still «on contact» to the eye (the absorb tail alone is
+   ~600 ms) and far from «a number that changed while you were reading». */
+const TICK_WINDOW_AFTER_MS = 260;
 
 /** Every chip's samples in order, by its id. */
 function chipTracks(samples: ReadonlyArray<Sample>): Map<string, Array<{i: number, s: Sample, c: Chip}>> {

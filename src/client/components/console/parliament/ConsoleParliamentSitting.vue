@@ -123,6 +123,7 @@
                                :viewerColor="viewerColor"
                                :nameOf="nameOfColor"
                                size="normal"
+                               :reasonElsewhere="true"
                                data-parl-sit-item />
           <div v-for="skip in skips" :key="skip.key" class="con-sit__skip" data-parl-sit-item data-sit-skip :data-sit-skip-amount="skip.amount">
             <span class="con-sit__skip-title">{{ $t('Skipped') }} · {{ $t(skip.title) }}</span>

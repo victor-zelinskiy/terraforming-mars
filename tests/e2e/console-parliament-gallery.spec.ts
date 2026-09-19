@@ -243,8 +243,9 @@ for (const preset of PARLIAMENT_PRESETS) {
         expect(await turnTo(page, 'reward')).toBe(true);
         await waitSittingAtRest(page, 30_000);
         await pose(page, preset, mode, '13', 'sitting-reward-reading');
-        await press(page, 'Enter', 1200);
-        await expect.poll(async () => (await parliamentWire(request, playerId)).waitingFor?.parliamentPhasePrompt, {timeout: 20_000}).toBeUndefined();
+        // A on the last reward page answers the assembly gate — act → verify → retry (a blind press was swallowed once under reduced motion).
+        expect(await pressUntil(page, 'Enter', async () => (await parliamentWire(request, playerId)).waitingFor?.parliamentPhasePrompt === undefined, {tries: 4, settleMs: 1500}),
+          'A answers the assembly gate').toBe(true);
         await pose(page, preset, mode, '14', 'sitting-reward-gate-wait');
         await answerGateAs(request, red, 'assembly');
         await expect(page.locator('.con-parl [data-embed-slot="parliament-stage"] .con-extdraw--embedded'), 'the take stands').toHaveCount(1, {timeout: 40_000});
@@ -285,8 +286,9 @@ for (const preset of PARLIAMENT_PRESETS) {
         expect(await turnTo(page, 'enact')).toBe(true);
         expect(await turnTo(page, 'reward')).toBe(true);
         await waitSittingAtRest(page, 30_000);
-        await press(page, 'Enter', 1200);
-        await expect.poll(async () => (await parliamentWire(request, playerId)).waitingFor?.parliamentPhasePrompt, {timeout: 20_000}).toBeUndefined();
+        // A on the last reward page answers the assembly gate — act → verify → retry (a blind press was swallowed once under reduced motion).
+        expect(await pressUntil(page, 'Enter', async () => (await parliamentWire(request, playerId)).waitingFor?.parliamentPhasePrompt === undefined, {tries: 4, settleMs: 1500}),
+          'A answers the assembly gate').toBe(true);
         await answerGateAs(request, red, 'assembly');
         await expect(page.locator('.con-parl [data-embed-slot="parliament-stage"] .con-task'), 'the pick stands').toHaveCount(1, {timeout: 40_000});
         await waitSittingAtRest(page, 30_000);
@@ -406,8 +408,9 @@ for (const preset of PARLIAMENT_PRESETS) {
         expect(await turnTo(page, 'enact')).toBe(true);
         expect(await turnTo(page, 'reward')).toBe(true);
         await waitSittingAtRest(page, 30_000);
-        await press(page, 'Enter', 1200);
-        await expect.poll(async () => (await parliamentWire(request, playerId)).waitingFor?.parliamentPhasePrompt, {timeout: 20_000}).toBeUndefined();
+        // A on the last reward page answers the assembly gate — act → verify → retry (a blind press was swallowed once under reduced motion).
+        expect(await pressUntil(page, 'Enter', async () => (await parliamentWire(request, playerId)).waitingFor?.parliamentPhasePrompt === undefined, {tries: 4, settleMs: 1500}),
+          'A answers the assembly gate').toBe(true);
         await answerGateAs(request, red, 'assembly');
         await expect(page.locator('.con-parl [data-embed-slot="parliament-stage"] .con-task'), 'the pick stands').toHaveCount(1, {timeout: 40_000});
         await expect(page.locator('.con-parl [data-embed-slot="parliament-stage"] .con-task .con-cards__slot'), 'six candidates').toHaveCount(6, {timeout: 20_000});
@@ -540,8 +543,9 @@ for (const preset of PARLIAMENT_PRESETS) {
         await waitSittingAtRest(page, 30_000);
         await expect(page.locator('.con-sit__panel--on [data-winner-reward]'), 'the winner reading stands').toHaveCount(1, {timeout: 20_000});
         await pose(page, preset, mode, '27', 'sitting-reward-skip-reading');
-        await press(page, 'Enter', 1200);
-        await expect.poll(async () => (await parliamentWire(request, playerId)).waitingFor?.parliamentPhasePrompt, {timeout: 20_000}).toBeUndefined();
+        // A on the last reward page answers the assembly gate — act → verify → retry (a blind press was swallowed once under reduced motion).
+        expect(await pressUntil(page, 'Enter', async () => (await parliamentWire(request, playerId)).waitingFor?.parliamentPhasePrompt === undefined, {tries: 4, settleMs: 1500}),
+          'A answers the assembly gate').toBe(true);
         await answerGateAs(request, red, 'assembly');
         // The record arrives with the skip: the plate names the lost tile and its reason. Photographed the moment it stands
         // (the page holds through the plants' wave, then the renewal enters).

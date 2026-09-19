@@ -88,6 +88,13 @@ export default defineComponent({
      * already says «for the winner of the vote» (the vote block's part row).
      */
     variant: {type: String as PropType<'block' | 'chip' | 'inline'>, default: 'block'},
+    /**
+     * The host carries a skip's REASON elsewhere (the sitting's skip plate): the caption then
+     * says «ПРОПУЩЕНО» alone (registry R-12 — the same sentence stood twice). A host without a
+     * plate (the playground, the fullscreen footer) keeps the reason in the caption — a skip
+     * never goes unexplained.
+     */
+    reasonElsewhere: {type: Boolean, default: false},
   },
   computed: {
     neutral(): boolean {
@@ -130,8 +137,8 @@ export default defineComponent({
       return this.reading.tr === undefined ? 0 : winnerRewardTrTotal(this.reading.tr);
     },
     caption(): string {
-      // A skip says «ПРОПУЩЕНО» here; the REASON is the skip plate's alone (R-12 — the same sentence stood twice).
-      const caption = this.reading.skipped !== undefined ? {key: 'Skipped'} : winnerRewardCaptionOf(this.reading, this.viewerColor, this.nameOf);
+      // Beside a skip PLATE the caption says «ПРОПУЩЕНО» and the plate says why (R-12); elsewhere the caption is the reason.
+      const caption = this.reading.skipped !== undefined && this.reasonElsewhere ? {key: 'Skipped'} : winnerRewardCaptionOf(this.reading, this.viewerColor, this.nameOf);
       if (caption === undefined) {
         return '';
       }

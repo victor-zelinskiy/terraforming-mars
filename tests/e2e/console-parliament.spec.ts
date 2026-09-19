@@ -246,7 +246,8 @@ for (const preset of PRESETS) {
         const zone = () => parliament(page).getAttribute('data-zone');
         expect(await pressUntil(page, 'ArrowLeft', async () => await zone() === 'government', {tries: 3, settleMs: 300})).toBeTruthy();
         await press(page, 'ArrowDown', 500); // → the parties, on the ruling party
-        await expect(page.locator('.con-parl__party[data-party="Greens"] .con-pseal__state'), 'the plaque states why the Greens rule').toContainText(/стартовое правило/i);
+        // «ПРАВИТ» alone (glossary §3, registry R-03): the government block beside the tile names the basis.
+        await expect(page.locator('.con-parl__party[data-party="Greens"] .con-pseal__state'), 'the plaque states that the Greens rule').toContainText(/правит/i);
         await expectFits(page, preset);
         await shoot(page, preset, '04-party-focus');
         await settle(page, {timeoutMs: 10_000});
@@ -359,15 +360,10 @@ for (const preset of PRESETS) {
       test.setTimeout(240_000);
       const playerId = await bootFixture(page, request, 'parliament-dense', {query: preset.profileQuery});
       await openParliament(page);
-      // Generation 2: the results of the first political phase play first.
-      await expect(stage(page)).toHaveAttribute('data-parl-stage', 'recap');
-      const items = page.locator('.con-parl__recap-item');
-      await expect.poll(async () => await page.locator('.con-parl__recap-item--shown').count(), {timeout: 15_000, message: 'every beat landed'})
-        .toBe(await items.count());
+      // Generation 2: the first political phase played LIVE as the sitting (Э3) — nothing replays on the open.
+      await expect(stage(page), 'no results scene').toHaveCount(0);
       await expectFits(page, preset);
-      await shoot(page, preset, '20-dense-recap');
-      expect(await pressUntil(page, 'Enter', async () => await stage(page).count() === 0, {tries: 3, settleMs: 800}),
-        'A lets the player through').toBeTruthy();
+      await shoot(page, preset, '20-dense-open');
       await settle(page, {timeoutMs: 10_000});
 
       const model = await fetchPlayerModel(request, playerId) as unknown as {game: {parliament: {slots: Array<{totalVotes: number, isWinning: boolean}>}}};
@@ -475,80 +471,29 @@ for (const preset of PRESETS) {
     });
 
     if (preset.journey) {
-      test(`the previous generation's results play as beats when the Parliament opens (${preset.id})`, async ({page, request}) => {
+      test(`the previous generation's results are the OVERVIEW's standing objects — never a replayed scene (${preset.id})`, async ({page, request}) => {
         test.setTimeout(180_000);
-        // Generation 2 has just begun: the first political phase ran (blue's
-        // two delegates won, the winner is enacted, blue stepped onto the
-        // Agenda, the losers gained support, the refresh dealt the fresh area).
+        // Generation 2 has just begun: the first political phase ran LIVE as the sitting (Э3 retired the results
+        // scene that used to replay on the first open — a scene on `mounted()` with a device memory). What the
+        // phase produced stands on the overview: the enacted card in the government, blue's marker on Agenda
+        // step 1, the area the refresh dealt — and a reload replays nothing.
         const playerId = await bootFixture(page, request, 'parliament-recap', {query: preset.profileQuery});
-        // The beats MOVE delegates (the enacted card's return to the reserves,
-        // popular support onto the fresh cards, the lobby refill): a cube proxy
-        // must be seen in flight while the scene plays.
-        let flightSeen = false;
-        const probe = setInterval(() => {
-          void page.locator('.con-parl__flight').count().then((n) => {
-            if (n > 0) {
-              flightSeen = true;
-            }
-          }).catch(() => undefined);
-        }, 40);
         await openParliament(page);
-        await expect(stage(page), 'the results scene takes the stage on the first open').toHaveAttribute('data-parl-stage', 'recap');
-        expect((await crumbText(page)).toUpperCase()).toContain('ИТОГИ');
-        const items = page.locator('.con-parl__recap-item');
-        await expect(items).not.toHaveCount(0);
-        // Headless Chromium starves rAF on a quiet screen: the beats are
-        // timer-driven but every flight is rAF-driven, so a frame is PUMPED
-        // between polls (a tiny clip screenshot forces a BeginFrame) — as a
-        // real compositor would let each glide reach its touchdown.
-        const pump = async (read: () => Promise<number>) => {
-          await page.screenshot({clip: {x: 0, y: 0, width: 8, height: 8}});
-          return read();
-        };
-        await expect.poll(() => pump(() => page.locator('.con-parl__recap-item--shown').count()), {timeout: 15_000, intervals: [80], message: 'every beat landed'})
-          .toBe(await items.count());
-        await expect.poll(() => pump(() => page.locator('.con-parl__flight').count()), {timeout: 8_000, intervals: [80], message: 'no proxy is left behind after the beats'})
-          .toBe(0);
-        await settle(page, {timeoutMs: 10_000});
-        clearInterval(probe);
-        expect(flightSeen, 'the results scene moved its delegates physically (a cube proxy flew)').toBeTruthy();
-        await expect(page.locator('.con-parl__flight'), 'no proxy is left behind after the beats').toHaveCount(0);
-        await shoot(page, preset, '10-recap');
-        await expectFits(page, preset);
-        // The objects the beats named: an ENACTED card now stands in the
-        // government, blue's marker is on Agenda step 1, and the area holds
-        // what the refresh dealt (distinct parties, never the ruling one's —
-        // as many as the deck's parties allow).
+        await expect(stage(page), 'no results scene').toHaveCount(0);
+        expect((await crumbText(page)).toUpperCase(), 'the overview names itself').toContain('ОБЗОР');
         await expect(page.locator('[data-parl-gov] .con-parl__gov-card .pcard')).toHaveCount(1);
         await expect(page.locator('.con-parl__step[data-step="1"] .player-cube')).not.toHaveCount(0);
         const dealt = (await parliamentModel(request, playerId)).game.parliament.slots.length;
         expect(dealt, 'the refresh dealt a fresh area').toBeGreaterThan(0);
         await expect(slots(page)).toHaveCount(dealt);
-        expect(await pressUntil(page, 'Enter', async () => await stage(page).count() === 0, {tries: 3, settleMs: 700}),
-          'A lets the player through to the browse layer').toBeTruthy();
-        // The results stay readable where they landed: the enacted resolution
-        // is the government's basis now (said once, in one place).
         await expect(page.locator('[data-parl-gov]')).toContainText(/Принятая резолюция/i);
+        await expect(page.locator('.con-parl__flight'), 'nothing is in the air on a plain open').toHaveCount(0);
         await expectFits(page, preset);
-        await shoot(page, preset, '11-after-recap');
-        // A reload does not replay history: the scene played once.
+        await shoot(page, preset, '10-after-phase');
         await reloadConsole(page);
         await openParliament(page);
-        await expect(stage(page), 'the results never replay after a reload').toHaveCount(0);
-        // The scene plays ONCE: leaving and coming back lands on the browse layer.
-        expect(await pressUntil(page, 'Escape', async () => await parliament(page).count() === 0, {tries: 4, settleMs: 900})).toBeTruthy();
-        await openParliament(page);
-        await expect(stage(page)).toHaveCount(0);
-        expect(await pressUntil(page, 'Escape', async () => await parliament(page).count() === 0, {tries: 4, settleMs: 900})).toBeTruthy();
-        // The journal carries the phase's own lines — under GENERATION 1, where
-        // the phase ran (the drawer opens on the current generation; LT steps back).
-        await press(page, 'KeyR', 1200);
-        const journal = page.locator('.con-journal');
-        await expect(journal).toBeVisible({timeout: 10_000});
-        expect(await pressUntil(page, 'Comma', async () => /парламент/i.test(await journal.textContent() ?? ''), {tries: 3, settleMs: 900}),
-          'generation 1 holds the political phase lines').toBeTruthy();
-        await shoot(page, preset, '12-journal-phase');
-        await press(page, 'Escape', 800);
+        await expect(stage(page), 'a reload replays nothing').toHaveCount(0);
+        await expect(page.locator('[data-parl-gov] .con-parl__gov-card .pcard')).toHaveCount(1);
       });
     }
   });

@@ -291,7 +291,7 @@ for (const preset of PRESETS) {
       await expect(take, 'the premium take surface is on screen').toHaveCount(1, {timeout: 20_000});
       await expect(take, '…host-agnostic: no plate of its own').toHaveClass(/con-extdraw--embedded/);
       await expect(page.locator('.con-extdraw .con-wshead'), 'the crumb belongs to the host').toHaveCount(0);
-      expect(await page.locator('.con-parl [data-embed-slot="parliament-enact"] .con-extdraw').count(),
+      expect(await page.locator('.con-parl [data-embed-slot="parliament-stage"] .con-extdraw').count(),
         'the surface stands in the enactment stage\'s own zone').toBe(1);
       const crumb = (await crumbText(page)).toUpperCase();
       expect(crumb, `one continuous crumb, got «${crumb}»`).toMatch(/ПАРЛАМЕНТ|PARLIAMENT/);
@@ -332,7 +332,7 @@ for (const preset of PRESETS) {
       await settle(page, {timeoutMs: 20_000});
       await expect.poll(async () => (await wireOf(request, playerId)).thisPlayer.cardsInHandNbr, {timeout: 20_000})
         .toBeGreaterThanOrEqual(handBefore + 1);
-      await expect(page.locator('.con-extdraw__slot--ghost'), 'the taken card leaves a quiet ghost seat').toHaveCount(1, {timeout: 10_000});
+      await expect(page.locator('.con-extdraw .con-cards__slot'), 'the taken card left the row — no ghost seat (Э5)').toHaveCount(1, {timeout: 10_000});
       await expect.poll(() => page.locator('.con-handdelivery-layer .con-deal-proxy:visible').count(), {timeout: 15_000})
         .toBe(0);
       const flight = await readTakeProbe(page);
@@ -383,7 +383,8 @@ for (const preset of PRESETS) {
       // Every card is a READABLE object: a real face, and no slot smaller than a
       // fifth of the stage zone's height (the fit engine wraps, it never drops).
       const verdict = await page.evaluate(() => {
-        const zone = document.querySelector<HTMLElement>('.con-parl__enact-zone');
+        // The sitting's ONE stage zone (Э3) — the take stands inside it.
+        const zone = document.querySelector<HTMLElement>('.con-parl [data-embed-slot="parliament-stage"]');
         const slots = Array.from(document.querySelectorAll<HTMLElement>('.con-extdraw .con-cards__slot'));
         const zoneBox = zone?.getBoundingClientRect();
         return {
@@ -405,8 +406,8 @@ for (const preset of PRESETS) {
       await shoot(page, preset.id, '13-enact-big-draw');
     });
 
-    test(`the results scene names BOTH halves of every seat's result (${preset.id})`, async ({page, request}) => {
-      test.setTimeout(300_000);
+    test(`after the phase: the enacted research stands in the government, its recorded result is the rail's — the live beats are the sitting's (${preset.id})`, async ({page, request}) => {
+      test.setTimeout(180_000);
       const {playerId} = await bootFixtureSeats(page, request, 'parliament-climate-recap', {query: preset.query});
       const wire = await wireOf(request, playerId);
       expect(wire.game.parliament.enacted?.resolution).toBe(CLIMATE_ID);
@@ -416,19 +417,16 @@ for (const preset of PRESETS) {
       expect(raise, 'the server recorded the raise').toMatchObject({kind: 'production'});
       expect(draw, 'and the draw it was divided into').toMatchObject({kind: 'cards'});
       expect(draw?.total, 'with the total the division stood on').toBeDefined();
-
+      // Э3 retired the results scene: the phase plays LIVE as the sitting — the enactment beat carries the card
+      // into the government and the reward wave flies the result into the rail (asserted in
+      // `console-parliament-sitting-reward.spec.ts`, photographed by `console-parliament-gallery.spec.ts`).
+      // After the phase the Parliament opens on the OVERVIEW with the law already standing.
       await openParliament(page);
-      const stage = page.locator('.con-parl__stage');
-      await expect(stage, 'the results scene takes the stage').toHaveAttribute('data-parl-stage', 'recap', {timeout: 15_000});
-      await expect.poll(() => page.locator('.con-parl__recap-item--shown').count(), {timeout: 25_000, intervals: [120]})
-        .toBe(await page.locator('.con-parl__recap-item').count());
-      // Both halves are named for the viewer: the production step and the cards.
-      await expect(page.locator('.con-parl__recap-item').filter({hasText: /производств|production/i}), 'the raise is named')
-        .not.toHaveCount(0);
-      await expect(page.locator('.con-parl__recap-item').filter({hasText: /карт|card/i}), 'and the draw').not.toHaveCount(0);
-      await expect(page.locator('[data-parl-gov] .con-parl__gov-card .pcard'), 'the card now stands in the government').toHaveClass(CLIMATE_CLASS);
-      await expectFits(page, `${preset.id} recap`);
-      await shoot(page, preset.id, '20-recap');
+      await expect(page.locator('.con-parl__stage[data-parl-stage="recap"]'), 'no results scene').toHaveCount(0);
+      await expect(page.locator('[data-parl-gov] .con-parl__gov-card .pcard'), 'the enacted card stands in the government').toHaveCount(1);
+      expect((await crumbText(page)).toUpperCase(), 'the overview names itself').toContain('ОБЗОР');
+      await expectFits(page, `${preset.id} after the phase`);
+      await shoot(page, preset.id, '20-after-phase');
     });
   });
 }

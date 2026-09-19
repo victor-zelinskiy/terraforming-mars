@@ -429,7 +429,7 @@ for (const preset of PRESETS) {
       await expect(page.locator('[data-parl-quest] .con-parl__quest-cond .pcard__mech'), 'the quest condition is a graphic').toHaveCount(1);
       await expect(page.locator('[data-parl-quest-reward]')).toContainText(/Председательство/);
       await expect(page.locator('[data-parl-reward-step]'), 'the reward names the viewer\'s next Agenda step').toHaveCount(1);
-      await expect(page.locator('.con-parl__slot.con-parl__slot--winning .con-parl__slot-win'), 'exactly one card reads «побеждает»').toHaveCount(1);
+      await expect(page.locator('.con-parl__slot.con-parl__slot--winning .con-parl__slot-win'), 'exactly one card reads «принимается»').toHaveCount(1);
       await expect(page.locator('.con-parl__slot .pcard__quest-reward'), 'no reward marks repeated on the faces').toHaveCount(0);
       await expect(page.locator('.con-parl__voting--focus'), 'the voting area is ONE focus zone').toHaveCount(1);
       await expect(page.locator('.con-parl__slot--focus'), 'no per-card focus in the overview').toHaveCount(0);
@@ -903,7 +903,7 @@ test.describe('parliament v4 · a crowded table · the vote that is not possible
     // The inspector of the winning card: the footer says it stands in the vote
     // AND wins right now; the party column and the own-rules column both fit.
     await openZoomViewer(page);
-    await expect(page.locator('.con-rstatus[data-lifecycle="vote"]')).toContainText(/побеждает/i);
+    await expect(page.locator('.con-rstatus[data-lifecycle="vote"]')).toContainText(/принимается/i);
     await expect(page.locator('.card-zoom-aside .con-rinspect-aside')).toHaveCount(1);
     await expectInspectorScene(page, `${preset} tie`);
     // No vote possible: the verb stays in place, calm, with the server's

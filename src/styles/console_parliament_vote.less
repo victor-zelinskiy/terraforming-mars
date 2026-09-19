@@ -144,9 +144,12 @@
        number beside it (its suffix inside the same plate), the party's answer
        after it. A card that scales nothing keeps the frame with the graphic. */
     &__info-own {
-        /* Content-sized (registry R-18): as `flex: 1 1 auto` the frame filled the whole column and
-           drew a 550 × 200 plate around one row. The PANEL keeps its fixed height for stability. */
-        flex: 0 0 auto;
+        /* Content-sized but SHRINKABLE (registry R-18, two iterations): as `flex: 1 1 auto` the frame filled
+           the whole column and drew a 550 × 200 plate around one row; as `flex: 0 0 auto` it could no longer
+           yield height, and a two-row reading (RX05 · RX02) overran the panel's fixed height by 5–20 px
+           (`console-parliament-vote-fit`: «clipped-y con-parl__info-body 197 > 192»). Grow never, shrink
+           when the panel is short — the PANEL keeps its fixed height for stability. */
+        flex: 0 1 auto;
         display: flex;
         flex-direction: column;
         gap: .3rem;

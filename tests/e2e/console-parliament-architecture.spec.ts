@@ -2,8 +2,7 @@ import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {
-  bootFixture, bootFixtureSeats, closeZoomViewer, crumbText, fetchPlayerModel, openConsole, openQuickWheel, openZoomViewer, press, pressUntil, settle,
-  waitForBoardHome,
+  bootFixture, bootFixtureSeats, closeZoomViewer, crumbText, fetchPlayerModel, openQuickWheel, openZoomViewer, press, pressUntil, settle,
 } from './consoleStart';
 
 /**
@@ -210,165 +209,24 @@ for (const preset of PRESETS) {
       await press(page, 'Escape', 900);
     });
 
-    test(`the results scene: the enacted card moves into the government, the capped +5 production flies to the rail (${preset.id})`, async ({page, request}) => {
-      test.setTimeout(300_000);
-      const {playerId, seats} = await bootFixtureSeats(page, request, 'parliament-architecture-recap', {query: preset.query});
+    test(`after the phase: the enacted award stands in the government, its recorded result is the rail's — the live beats are the sitting's (${preset.id})`, async ({page, request}) => {
+      test.setTimeout(180_000);
+      const {playerId} = await bootFixtureSeats(page, request, 'parliament-architecture-recap', {query: preset.query});
       const wire = await wireOf(request, playerId);
       expect(wire.game.parliament.enacted?.resolution).toBe(AWARD_ID);
       const mine = wire.game.parliament.lastPhase?.outcomes?.find((o) => o.player === wire.thisPlayer.color);
       expect(mine, 'the server recorded the viewer\'s result').toMatchObject({kind: 'production', amount: 5, count: 3, influence: 3, uncapped: 6, before: 3, after: 8});
       expect(wire.thisPlayer.megacreditProduction).toBe(8);
-
-      // A MutationObserver + setInterval probe (never rAF), armed BEFORE the Parliament opens: the card proxy, how
-      // many copies of the award are VISIBLE at once, the production chip and its text, and how large a delegate
-      // cube in the air ever gets next to a cube at rest in a reserve.
-      await page.evaluate(() => {
-        type Probe = {
-          samples: number, faceFlights: number, maxVisible: number, awaiting: number, chips: number, chipText: string, chipProduction: boolean,
-          cubeFlights: number, cubeMaxPx: number, reserveCubePx: number,
-        };
-        const w = window as unknown as {__awardProbe: Probe};
-        w.__awardProbe = {samples: 0, faceFlights: 0, maxVisible: 0, awaiting: 0, chips: 0, chipText: '', chipProduction: false, cubeFlights: 0, cubeMaxPx: 0, reserveCubePx: 0};
-        const visible = (el: Element) => {
-          const r = el.getBoundingClientRect();
-          if (r.width < 4 || r.height < 4) {
-            return false;
-          }
-          for (let n: Element | null = el; n !== null; n = n.parentElement) {
-            const style = getComputedStyle(n);
-            if (style.visibility === 'hidden' || style.display === 'none' || Number(style.opacity) < 0.05) {
-              return false;
-            }
-          }
-          return true;
-        };
-        const sample = () => {
-          const probe = w.__awardProbe;
-          probe.samples++;
-          if (document.querySelector('.con-parl__flight--face') !== null) {
-            probe.faceFlights = Math.max(probe.faceFlights, 1);
-          }
-          if (document.querySelector('.con-parl__gov-card--awaiting') !== null) {
-            probe.awaiting++;
-          }
-          // Copies in DIFFERENT places: the landing handoff reveals the destination under the proxy for one
-          // frame by design (identical copies, one place) — two faces that overlap are one physical card.
-          const rects = Array.from(document.querySelectorAll('.pcard--rdx-mars-architecture-award'))
-            .filter((el) => el.closest('dialog') === null && visible(el))
-            .map((el) => el.getBoundingClientRect());
-          const places: Array<DOMRect> = [];
-          for (const r of rects) {
-            const same = places.some((p) => {
-              const ix = Math.max(0, Math.min(p.right, r.right) - Math.max(p.left, r.left));
-              const iy = Math.max(0, Math.min(p.bottom, r.bottom) - Math.max(p.top, r.top));
-              const inter = ix * iy;
-              return inter / (p.width * p.height + r.width * r.height - inter) > 0.5;
-            });
-            if (!same) {
-              places.push(r);
-            }
-          }
-          probe.maxVisible = Math.max(probe.maxVisible, places.length);
-          // A delegate in the air is a CUBE: its box stays the size of the cube it lands as (the lift adds ~12 %).
-          for (const cube of Array.from(document.querySelectorAll('.con-parl__flight:not(.con-parl__flight--card) .player-cube'))) {
-            if (visible(cube)) {
-              probe.cubeFlights = Math.max(probe.cubeFlights, 1);
-              probe.cubeMaxPx = Math.max(probe.cubeMaxPx, Math.round(cube.getBoundingClientRect().width));
-            }
-          }
-          for (const cube of Array.from(document.querySelectorAll('[data-parl-seat-reserve] .player-cube'))) {
-            probe.reserveCubePx = Math.max(probe.reserveCubePx, Math.round(cube.getBoundingClientRect().width));
-          }
-          const chips = document.querySelectorAll('.con-transfer__chip');
-          if (chips.length > probe.chips) {
-            probe.chips = chips.length;
-            probe.chipText = (chips[0]?.textContent ?? '').trim();
-            probe.chipProduction = chips[0]?.classList.contains('con-transfer__chip--production') ?? false;
-          }
-        };
-        new MutationObserver(sample).observe(document.body, {subtree: true, childList: true, attributes: true, attributeFilter: ['class', 'style']});
-        window.setInterval(sample, 16);
-      });
-
+      // Э3 retired the results scene: the phase plays LIVE as the sitting — the enactment beat carries the card
+      // into the government and the reward wave flies the result into the rail (asserted in
+      // `console-parliament-sitting-reward.spec.ts`, photographed by `console-parliament-gallery.spec.ts`).
+      // After the phase the Parliament opens on the OVERVIEW with the law already standing.
       await openParliament(page);
-      const stage = page.locator('.con-parl__stage');
-      await expect(stage, 'the results scene takes the stage').toHaveAttribute('data-parl-stage', 'recap', {timeout: 15_000});
-      expect((await crumbText(page)).toUpperCase()).toMatch(/ИТОГИ|RESULTS/);
-      const items = page.locator('.con-parl__recap-item');
-      // A forced frame keeps headless rAF alive while the probe polls; a recording's own screencast already
-      // draws frames, and a screenshot would grey them out.
-      const pump = async (read: () => Promise<number>) => {
-        if (!VIDEO) {
-          await page.screenshot({clip: {x: 0, y: 0, width: 8, height: 8}});
-        }
-        return read();
-      };
-      // Mid-scene: the move and the gain (a frame for the video, and the proof they were on screen).
-      await expect.poll(() => pump(() => page.evaluate(() => (window as unknown as {__awardProbe: {faceFlights: number}}).__awardProbe.faceFlights)), {
-        timeout: 15_000, intervals: [60], message: 'the enacted card flew from its voting slot',
-      }).toBe(1);
-      await shoot(page, preset.id, '10-recap-card-move');
-      await expect.poll(() => pump(() => page.evaluate(() => (window as unknown as {__awardProbe: {chips: number}}).__awardProbe.chips)), {
-        timeout: 20_000, intervals: [60], message: 'the production chip flew',
-      }).toBeGreaterThan(0);
-      await shoot(page, preset.id, '11-recap-production-flight');
-      await expect.poll(() => pump(() => page.locator('.con-parl__recap-item--shown').count()), {timeout: 20_000, intervals: [80], message: 'every beat landed'})
-        .toBe(await items.count());
-      await expect.poll(() => pump(() => page.locator('.con-parl__flight, .con-transfer__chip').count()), {timeout: 10_000, intervals: [80], message: 'no proxy is left behind'})
-        .toBe(0);
-      const probe = await page.evaluate(() => (window as unknown as {__awardProbe: Record<string, unknown>}).__awardProbe);
-      expect(probe.samples as number, 'the probe ran').toBeGreaterThan(10);
-      expect(probe.awaiting as number, `the government face waited for the card (${JSON.stringify(probe)})`).toBeGreaterThan(0);
-      expect(probe.maxVisible as number, `never two visible copies of the award (${JSON.stringify(probe)})`).toBe(1);
-      expect(probe.chips as number, `ONE production chip carries the whole amount (${JSON.stringify(probe)})`).toBe(1);
-      expect(probe.chipText as string).toContain('5');
-      expect(probe.chipProduction as boolean, 'the chip is a PRODUCTION chip, not a stock coin').toBe(true);
-      // The winner's delegate went home from the enacted card — as a cube, never as a card-sized block.
-      expect(probe.cubeFlights as number, `the enacted card's delegate flew home (${JSON.stringify(probe)})`).toBe(1);
-      expect(probe.reserveCubePx as number, 'a reserve cube was measured').toBeGreaterThan(0);
-      expect(probe.cubeMaxPx as number, `a delegate in the air stays cube-sized (${JSON.stringify(probe)})`).toBeLessThanOrEqual(Math.ceil((probe.reserveCubePx as number) * 2));
-      // The line names the result, the cap and the inputs.
-      const line = page.locator('.con-parl__recap-item').filter({hasText: /производство M€ \+5|M€ production \+5/});
-      await expect(line, 'the viewer\'s production line').toHaveCount(1);
-      await expect(line).toContainText(/максимум|the maximum/);
-      await expect(line).toContainText(/3 → 8/);
-      await expect(line).toContainText(/влияние 3|influence 3/);
-      await expect(page.locator('.con-parl__recap-item').filter({hasText: /\+1 \(1 → 2\)/}), 'the other seat\'s own +1').toHaveCount(1);
-      await expect(page.locator('[data-parl-gov] .con-parl__gov-card .pcard'), 'the award now stands in the government').toHaveClass(AWARD_CLASS);
-      await expectFits(page, `${preset.id} recap`);
-      await shoot(page, preset.id, '12-recap');
-
-      // ── A lets the player through; the enacted card's inspector reads the RECORDED result.
-      expect(await pressUntil(page, 'Enter', async () => await stage.count() === 0, {tries: 3, settleMs: 800}), 'A closes the results').toBeTruthy();
-      await expect(page.locator('[data-parl-enacted-effect]'), 'a finished one-time effect is no standing effect of the government').toHaveCount(0);
-      // The government is the second focus zone: walk to it and open the inspector on the enacted card.
-      for (let i = 0; i < 4 && await page.locator('.con-parl__gov--focus').count() === 0; i++) {
-        await press(page, 'ArrowLeft', 500);
-      }
-      await openZoomViewer(page);
-      const zoom = page.locator('dialog.con-zoom[open]');
-      await expect(zoom.locator('.card-zoom-stage .pcard').first()).toHaveClass(AWARD_CLASS);
-      await expect.poll(() => readingsIn(page, 'dialog.con-zoom[open] [data-zoom-yield]'), {timeout: 10_000}).toEqual([
-        {...reading('applied', 3, 3, 5, 6)},
-      ]);
-      await expect(zoom.locator('.con-zoom-sidecol')).toContainText(/Учтены при принятии|Counted at the enactment/);
-      await shoot(page, preset.id, '13-enacted-inspector');
-      await closeZoomViewer(page);
-
-      // ── THE OTHER SEAT reads ITS OWN recorded result: one counted card, no influence → +1.
-      await openConsole(page, seats[1], preset.query);
-      await waitForBoardHome(page, 25);
-      await openParliament(page);
-      if (await page.locator('.con-parl__stage[data-parl-stage="recap"]').count() > 0) {
-        expect(await pressUntil(page, 'Enter', async () => await page.locator('.con-parl__stage').count() === 0, {tries: 4, settleMs: 900})).toBeTruthy();
-      }
-      for (let i = 0; i < 4 && await page.locator('.con-parl__gov--focus').count() === 0; i++) {
-        await press(page, 'ArrowLeft', 500);
-      }
-      await openZoomViewer(page);
-      await expect.poll(() => readingsIn(page, 'dialog.con-zoom[open] [data-zoom-yield]'), {timeout: 10_000}).toEqual([reading('applied', 1, 0, 1, 1)]);
-      await shoot(page, preset.id, '14-enacted-inspector-other-seat');
-      await closeZoomViewer(page);
+      await expect(page.locator('.con-parl__stage[data-parl-stage="recap"]'), 'no results scene').toHaveCount(0);
+      await expect(page.locator('[data-parl-gov] .con-parl__gov-card .pcard'), 'the enacted card stands in the government').toHaveCount(1);
+      expect((await crumbText(page)).toUpperCase(), 'the overview names itself').toContain('ОБЗОР');
+      await expectFits(page, `${preset.id} after the phase`);
+      await shoot(page, preset.id, '20-after-phase');
     });
   });
 }

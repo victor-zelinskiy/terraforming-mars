@@ -5,6 +5,7 @@ import {
   bootFixture, bootFixtureSeats, closeZoomViewer, crumbText, fetchPlayerModel, openMandatoryAnnounce, openQuickWheel, openZoomViewer, placeTile,
   placementState, press, pressUntil, sendPlayerInput, settle, waitForBoardHome,
 } from './consoleStart';
+import {answerGateAs, turnTo, waitSittingAtRest} from './parliamentDrive';
 
 /**
  * AQUIFER CONTEST (Turmoil Redux, RX01) — the first REAL resolution, end to
@@ -198,11 +199,10 @@ for (const preset of PRESETS) {
       // ── AN HONEST MANDATORY PROMPT FIRST: the plate on the board home names the ask and the resolution as its
       //    source; nothing has opened by itself — no Parliament, no picker — until the player presses A.
       const plate = page.locator('.con-mandatory');
-      await expect(plate, 'the resolution\'s ask is announced on the board home').toHaveCount(1, {timeout: 30_000});
-      await expect(plate.locator('[data-source-resolution="RDX_GREENS_AQUIFER_CONTEST"]'), 'the plate names the resolution as the source').toHaveCount(1);
-      await expect(plate.locator('.con-mandatory__src-name')).toHaveText(/Конкурс водоносных пластов|Aquifer Contest/);
-      await expect(plate.locator('.con-mandatory__kicker')).toHaveText(/Эффект резолюции|Resolution effect/i);
-      await expect(plate.locator('.con-mandatory__ask')).toHaveText(/2/);
+      // ONE announce per generation (Э3, law 1): the sitting's own plate covers every ask of the enacted
+      // resolution — the pick is a STEP inside it, never a plate of its own.
+      await expect(plate, 'the sitting is announced on the board home').toHaveCount(1, {timeout: 30_000});
+      await expect(plate.locator('.con-mandatory__kicker')).toHaveText(/Парламент|Parliament/i);
       await expect(page.locator('.con-parl'), 'the Parliament does not open by itself').toHaveCount(0);
       await expect(page.locator('.con-cards__slot'), 'no picker before the press').toHaveCount(0);
       await expectPlateReadsWhole(page, `${preset.id} payout plate`);
@@ -210,21 +210,20 @@ for (const preset of PRESETS) {
       expect(await openMandatoryAnnounce(page), 'A on the plate opens the choice').toBe(true);
 
       // ── THE PARLIAMENT OPENS AROUND THE PICK: the enactment stage names the payout, the picker stands in its zone.
-      await expect(page.locator('.con-parl__enact--up'), 'the enactment layer').toHaveCount(1, {timeout: 30_000});
+      await expect(page.locator('.con-sit'), 'the sitting surface').toHaveCount(1, {timeout: 30_000});
       await settle(page, {timeoutMs: 20_000});
-      const stage = await yieldReadings(page, '[data-parl-enact-yield]');
-      expect(stage, 'the stage reads the SERVER\'s amount: influence 2 → +2 animals').toEqual([{context: 'resolving', influence: '2', amount: '2'}]);
-      const slots = page.locator('.con-parl [data-embed-slot="parliament-enact"] .con-cards__slot');
+      await expect(page.locator('.con-sit [data-sit-reward-state]'), 'the reward reads «this payout» until the record lands').toHaveAttribute('data-sit-reward-state', 'This payout');
+      const slots = page.locator('.con-parl [data-embed-slot="parliament-stage"] .con-cards__slot');
       await expect(slots, 'the two animal holders, inside the Parliament').toHaveCount(2);
       // ONE instance: the government's own card stands on the payout stage (teleported), none is left behind.
       const enactedFace = page.locator('.con-parl__gov-card .pcard');
       await expect(enactedFace, 'exactly one enacted card on screen').toHaveCount(1);
-      await expect(page.locator('[data-parl-enact-hero] .con-parl__gov-card .pcard'), 'carried onto the payout stage').toHaveClass(/rdx-greens-aquifer-contest/);
-      await expect(page.locator('[data-parl-enact-hero] .pcard__art img'), 'its own art (keyed by the code)').toHaveAttribute('src', /RX01/);
+      await expect(page.locator('[data-parl-sit-hero] .con-parl__gov-card .pcard'), 'carried onto the payout stage').toHaveClass(/rdx-greens-aquifer-contest/);
+      await expect(page.locator('[data-parl-sit-hero] .pcard__art img'), 'its own art (keyed by the code)').toHaveAttribute('src', /RX01/);
       await expect(page.locator('.pcard__code, .con-src__plate-code'), 'card numbers are OFF by default — technical information').toHaveCount(0);
-      expect(await crumbText(page), 'the crumb names the enactment').toMatch(/ПРИНЯТИЕ|ENACTMENT/i);
+      expect(await crumbText(page), 'the crumb names the pick stage of the sitting').toMatch(/ВЫБОР|CHOICE/i);
       // The focused candidate's own reading: current → resulting + VP.
-      const impacts = await page.locator('.con-parl [data-embed-slot="parliament-enact"] .con-cards__verdict--impact').allTextContents();
+      const impacts = await page.locator('.con-parl [data-embed-slot="parliament-stage"] .con-cards__verdict--impact').allTextContents();
       expect(impacts.length, 'the resource and VP readings of the focused card').toBeGreaterThan(0);
       await expectFits(page, `${preset.id} enactment`);
       await shoot(page, preset.id, '04-enact-picker');
@@ -236,14 +235,14 @@ for (const preset of PRESETS) {
       await expect(page.locator('dialog.con-zoom[open] .pcard__code'), 'no number in the inspector either (default off)').toHaveCount(0);
       await shoot(page, preset.id, '04b-enact-source');
       await closeZoomViewer(page);
-      await expect(page.locator('.con-parl__enact--up'), 'inspection does not cancel the payout').toHaveCount(1);
+      await expect(page.locator('.con-sit'), 'inspection does not cancel the payout').toHaveCount(1);
       await expect(slots).toHaveCount(2);
       // ── B = COLLAPSE, never a cancel: the board home offers the return card, A resumes the SAME payout.
       await press(page, 'Escape', 1400);
       await expect(page.locator('.con-mandatory'), 'the return card after the park').toHaveCount(1, {timeout: 15_000});
       expect((await wireOf(request, playerId)).waitingFor?.type, 'the pick still stands on the server').toBe('card');
       await press(page, 'Enter', 2000);
-      await expect(page.locator('.con-parl__enact--up'), 'the payout stage is back').toHaveCount(1, {timeout: 20_000});
+      await expect(page.locator('.con-sit'), 'the payout stage is back').toHaveCount(1, {timeout: 20_000});
       await expect(slots, 'the same two holders').toHaveCount(2, {timeout: 15_000});
       await expect(page.locator('.con-parl__gov-card .pcard'), 'still exactly one enacted card').toHaveCount(1);
       await settle(page, {timeoutMs: 20_000});
@@ -251,7 +250,7 @@ for (const preset of PRESETS) {
       // ── A on the focused card commits the pick. THE PAYOUT FLIES: one chip «+2» leaves the stage's
       //    payout reading and lands on the chosen candidate, whose capsule ticks WHILE the pick is still
       //    on screen; then the flow leaves and the WINNER'S OCEAN is the board's own placement.
-      const focusedName = await page.locator('.con-parl [data-embed-slot="parliament-enact"] .con-cards__slot--focused').getAttribute('data-zoom-slot');
+      const focusedName = await page.locator('.con-parl [data-embed-slot="parliament-stage"] .con-cards__slot--focused').getAttribute('data-zoom-slot');
       // A MutationObserver + setInterval probe (never rAF — headless starves it on a quiet screen), armed BEFORE the press.
       await page.evaluate((card) => {
         const w = window as unknown as {__payoutProbe: {samples: number, chips: number, chipText: string, tick: string}};
@@ -264,7 +263,7 @@ for (const preset of PRESETS) {
             probe.chips = chips.length;
             probe.chipText = (chips[0]?.textContent ?? '').trim();
           }
-          const capsule = document.querySelector(`.con-parl [data-embed-slot="parliament-enact"] .con-cards__slot[data-zoom-slot="${card}"] .pcard__res-count`);
+          const capsule = document.querySelector(`.con-parl [data-embed-slot="parliament-stage"] .con-cards__slot[data-zoom-slot="${card}"] .pcard__res-count`);
           if (capsule !== null && (capsule.textContent ?? '').trim() !== '0') {
             probe.tick = (capsule.textContent ?? '').trim();
           }
@@ -280,20 +279,14 @@ for (const preset of PRESETS) {
       expect(probe.samples, 'the probe ran').toBeGreaterThan(10);
       expect(probe.chips, `one payout chip flew (${JSON.stringify(probe)})`).toBe(1);
       expect(probe.chipText).toContain('+2');
-      // ── THE WINNER'S OCEAN is announced the same way: the plate names the resolution, the board stays calm
-      //    (no placement mode) until A — then the standard placement comes alive.
-      await expect(plate, 'the ocean ask is announced on the board home').toHaveCount(1, {timeout: 60_000});
-      await expect(plate.locator('[data-source-resolution="RDX_GREENS_AQUIFER_CONTEST"]'), 'the ocean\'s source is the resolution').toHaveCount(1);
-      await expect(plate.locator('.con-mandatory__kicker')).toHaveText(/Размещение тайла|Tile placement/i);
+      // ── THE WINNER'S OCEAN is a STEP of the same sitting (Э3/Э5): the reward stage yields the stack to the
+      //    board — no second plate, no second press — and the standard placement comes alive.
+      await expect.poll(async () => await placementState(page), {timeout: 60_000, message: 'the winner\'s ocean placement stands'}).not.toBe('none');
       const mid = await wireOf(request, playerId);
       const holder = mid.thisPlayer.tableau.find((c) => c.name === focusedName);
       expect(holder?.resources, `the animals landed on ${focusedName}`).toBe(2);
       expect(mid.waitingFor?.type).toBe('space');
-      expect(await placementState(page), 'no placement before the press').toBe('none');
-      await expectPlateReadsWhole(page, `${preset.id} ocean plate`);
-      await shoot(page, preset.id, '05a-ocean-announce');
-      expect(await openMandatoryAnnounce(page), 'A on the plate starts the placement').toBe(true);
-      await expect.poll(async () => await placementState(page), {timeout: 30_000, message: 'the winner\'s ocean placement stands'}).not.toBe('none');
+      await expect(plate, 'no plate of its own for a step inside the sitting').toHaveCount(0);
       await settle(page, {timeoutMs: 20_000});
       // The dossier names the resolution as the placement's source (the shared source plate).
       const dossier = page.locator('.con-context');
@@ -308,6 +301,13 @@ for (const preset of PRESETS) {
       const redPick = await wireOf(request, red);
       expect(redPick.waitingFor?.cards?.map((c) => c.name)).toEqual(['Birds']);
       await sendPlayerInput(request, red, {type: 'card', cards: ['Birds']});
+      // Э1/Э3: the phase ends through the ADJOURN gate — the sitting comes back to the viewer (renewal → closing),
+      // A on the closing answers the viewer's gate, the other seat answers over the API.
+      await expect(parliament(page), 'the sitting is back after the board').toHaveCount(1, {timeout: 60_000});
+      await waitSittingAtRest(page, 30_000);
+      expect(await turnTo(page, 'closing'), 'the closing page').toBe(true);
+      await press(page, 'Enter', 1200);
+      await answerGateAs(request, red, 'adjourn');
       await expect.poll(async () => (await wireOf(request, playerId)).game.generation, {timeout: 60_000}).toBe(2);
       const after = await wireOf(request, playerId);
       expect(after.game.oceans, 'one ocean on Mars').toBe(1);
@@ -317,6 +317,8 @@ for (const preset of PRESETS) {
       expect(outcomes.map((o) => `${o.player}:${o.step}:${o.kind}:${o.amount ?? ''}`).sort()).toEqual([
         `${after.thisPlayer.color}:animals:cardResource:2`,
         `${after.thisPlayer.color}:ocean:ocean:`,
+        // Э1: the ruling party's answer is a RECORD too (the Greens: 2 M€ per TR step of the ocean).
+        `${after.thisPlayer.color}:ocean:reaction:2`,
         `${redPick.thisPlayer.color}:animals:cardResource:3`,
       ].sort());
       const redAfter = await wireOf(request, red);

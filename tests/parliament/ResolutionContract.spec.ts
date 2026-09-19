@@ -492,22 +492,11 @@ describe('ResolutionContract — the author\'s contract over the catalog', () =>
   });
 
   /*
-   * THE TEST OF THE TEST — a planted BROKEN step. Not run (the catalog is the
-   * engine's, and a definition outside it cannot be seated in a real game);
-   * kept as the reference of what the guard says when an author forgets
-   * `report()`: seat a copy of a dev example whose step grants and returns
-   * without reporting, run `enact(...)`, and `checkReporting` answers with
-   * «Reforestation Fund: шаг 'grant-mc' не отчитался при влиянии 0 / таблице
-   * 'empty'» — the sentence pinned by the test above.
+   * THE TEST OF THE TEST — what the guard says when an author forgets `report()`
+   * is pinned by the `missingReport` unit test above («Reforestation Fund: шаг
+   * 'grant-mc' не отчитался при влиянии 0 / таблице 'empty'»). A planted broken
+   * definition cannot be SEATED in a real game (the catalog is the engine's), so
+   * there is no skipped sample here — a skipped test is a promise nobody keeps
+   * (Э9: no `describe.skip` / `test.skip` in the parliament trees).
    */
-  describe.skip('образец: сломанная резолюция (шаг без report) — что печатает гард', () => {
-    it('shows the sentence with the card, the step and the condition', () => {
-      const broken: ResolutionDefinition = {...DEV[0], immediateSteps: [{key: 'grant-mc', run: (ctx) => {
-        ctx.player.megaCredits += 3;
-        return undefined;
-      }}]};
-      const run = enact(broken, {influence: 0, tableau: 'empty', winner: 'neutral'});
-      expect(checkReporting(broken, run, {influence: 0, tableau: 'empty'})).deep.eq([missingReport(broken, 'grant-mc', {influence: 0, tableau: 'empty'})]);
-    });
-  });
 });
