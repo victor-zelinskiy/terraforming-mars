@@ -7,6 +7,9 @@ paths:
   - "src/common/cards/**"
   - "src/server/tools/cardInfo/**"
   - "tests/cards/**"
+  - "src/server/parliament/resolutions/**"
+  - "src/common/parliament/**"
+  - "tests/parliament/**"
 ---
 
 # Card / game-logic rules
@@ -48,3 +51,11 @@ The generator must not drop a `behavior` sub-field (placement restrictions, adja
 `npm run make:cards` regenerates `metadata.information` + `src/genfiles/cardInfoAudit.json` (`needsCuration` / `seededRunOn` / `missingTranslations` must all be 0). Coverage specs fail WITH the exact card list: `cardPlayPreviewCoverage`, `actionReasonCoverage`, `actionUnavailableReasons`, `cardInformation`, `requirementProse`, `effectExtraction`, `actionExtraction`, `choiceContext`, `premiumCardViewModel`, `premiumCardIcons` — and `promptMarkerGuard` (a file building `OrOptions` / `SelectPlayer` / `SelectColony` in premium scope must attach a structural marker — `markChoiceContext` et al. — or hold a reasoned allow-list row; see `docs/PROMPT_PREMIUM_AUDIT.md`).
 
 **Widening scope to a new expansion → follow `docs/claude/expansion-adaptation-checklist.md` (the master to-do: which SCOPE constants to widen, per-subsystem work, per-module gotchas, done-criteria).**
+
+## A Turmoil Redux RESOLUTION is a declaration + steps that REPORT — never a screen
+Full checklist: `docs/claude/parliament-resolution-checklist.md`; guard: `tests/parliament/ResolutionContract.spec.ts` (walks `REDUX_RESOLUTION_CATALOG`, fails with the card, the step and the condition — it is the worklist). The short form:
+1. **Declare, don't draw**: `scaled: InfluenceScaledEffect[]` for every influence/count/sequel-scaled part, `winnerReward` for the winner's tile — the face, the vote reading, the reward stage, the skip plate and the «Полигон» family (`familyOf(definition)`) are derived from it.
+2. **A step either MUTATES or ASKS**, and in EVERY branch calls `ctx.report(outcome)` exactly once with a `kind` from `src/common/parliament/rewardAddress.ts` (two payouts = two steps; a skip names its `reason` — a translated key — and the amount it would have paid). What a step decided before a question lives in `ctx.state` (a reload re-runs `run()`).
+3. **Every prompt carries a structural source** (`markChoiceContext({source:{kind:'resolution'}})` · `placementContext` via `committedPlacement` · `ExternalDrawIntake` with `cause.kind === 'resolution'`); the title is journal text only.
+4. **The address table is a `Record` over the whole outcome `kind` union**: a new mechanism (`stockLoss`, `agenda`, `colonyTrack`, `tr`, `partyAccessGrant`) gets its kind + row + spec BEFORE the first card that pays it — «add the kind later» does not compile.
+5. **Forbidden**: any resolution id / import of `server/parliament/resolutions` under `src/client/**` outside the manifest and the stand (guard 6); a per-card screen, class or choreography; a party reaction written inside a card (the driver records `kind:'reaction'` from the recorder's events); recomputing a payout on the client.

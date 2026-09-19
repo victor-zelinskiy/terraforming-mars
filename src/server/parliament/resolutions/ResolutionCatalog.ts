@@ -22,7 +22,9 @@ import {CardResource} from '../../../common/CardResource';
 import {
   isResolutionCode, ResolutionCode, ResolutionId, resolutionInstanceId, ResolutionInstanceId, resolutionIdOf,
 } from '../../../common/parliament/ParliamentTypes';
-import {EnactStep, ResolutionDefinition} from './IResolution';
+import {EnactContext, EnactStep, ResolutionDefinition} from './IResolution';
+import {ExternalDrawIntake} from '../../deferredActions/ExternalDrawIntake';
+import {PlayerInput} from '../../PlayerInput';
 import {SelectOption} from '../../inputs/SelectOption';
 import {SpaceType} from '../../../common/boards/SpaceType';
 import {Board} from '../../boards/Board';
@@ -59,11 +61,18 @@ export const RETIRED_RESOLUTION_IDS: ReadonlySet<ResolutionId> = new Set([
  */
 export const TEST_CHOICE_RESOLUTION_ID: ResolutionId = 'RDX_TEST_CHOICE';
 
+/** A supply grant that REPORTS itself (the author's contract: every step records what it did). */
+function grantStock(ctx: EnactContext, resource: Resource, amount: number, from: {resolution: ResolutionId}): void {
+  const before = ctx.player.stock.get(resource);
+  ctx.player.stock.add(resource, amount, {log: true, from});
+  ctx.report({kind: 'stock', stock: resource, amount, before, after: ctx.player.stock.get(resource)});
+}
+
 const TEST_CHOICE_STEPS: ReadonlyArray<EnactStep> = [
   {
     key: 'grant-mc',
     run: (ctx) => {
-      ctx.player.stock.add(Resource.MEGACREDITS, 1, {log: true, from: {resolution: ctx.parliament.resolutionOf(ctx.parliament.enactedInstanceOrThrow()).id}});
+      grantStock(ctx, Resource.MEGACREDITS, 1, {resolution: ctx.parliament.resolutionOf(ctx.parliament.enactedInstanceOrThrow()).id});
       return undefined;
     },
   },
@@ -73,12 +82,12 @@ const TEST_CHOICE_STEPS: ReadonlyArray<EnactStep> = [
       const from = {resolution: TEST_CHOICE_RESOLUTION_ID};
       return new OrOptions(
         new SelectOption('Gain 1 plant', 'Plant').andThen(() => {
-          ctx.player.stock.add(Resource.PLANTS, 1, {log: true, from});
+          grantStock(ctx, Resource.PLANTS, 1, from);
           ctx.state.firstChoice = 'plant';
           return undefined;
         }),
         new SelectOption('Gain 1 heat', 'Heat').andThen(() => {
-          ctx.player.stock.add(Resource.HEAT, 1, {log: true, from});
+          grantStock(ctx, Resource.HEAT, 1, from);
           ctx.state.firstChoice = 'heat';
           return undefined;
         }),
@@ -89,7 +98,7 @@ const TEST_CHOICE_STEPS: ReadonlyArray<EnactStep> = [
   {
     key: 'grant-steel',
     run: (ctx) => {
-      ctx.player.stock.add(Resource.STEEL, 1, {log: true, from: {resolution: TEST_CHOICE_RESOLUTION_ID}});
+      grantStock(ctx, Resource.STEEL, 1, {resolution: TEST_CHOICE_RESOLUTION_ID});
       return undefined;
     },
   },
@@ -99,12 +108,14 @@ const TEST_CHOICE_STEPS: ReadonlyArray<EnactStep> = [
       const from = {resolution: TEST_CHOICE_RESOLUTION_ID};
       return new OrOptions(
         new SelectOption('Draw 1 card', 'Draw').andThen(() => {
+          // Straight into the hand (a test resolution): the record says so — no intake, nothing owed.
           ctx.player.drawCard(1);
+          ctx.report({kind: 'cards', amount: 1, drawn: 1});
           ctx.state.secondChoice = 'card';
           return undefined;
         }),
         new SelectOption('Gain 2 M€', 'Gain').andThen(() => {
-          ctx.player.stock.add(Resource.MEGACREDITS, 2, {log: true, from});
+          grantStock(ctx, Resource.MEGACREDITS, 2, from);
           ctx.state.secondChoice = 'mc';
           return undefined;
         }),
@@ -113,6 +124,34 @@ const TEST_CHOICE_STEPS: ReadonlyArray<EnactStep> = [
     },
   },
 ];
+
+/** The state key a dev draw step keeps its intake under — the proof it already drew (the Climate Research pattern). */
+const DEV_INTAKE_KEY = 'drawIntake';
+
+/**
+ * A DRAW that REPORTS itself and survives a reload inside the take (the
+ * shared intake: the cards leave the deck once, the take is re-derived from
+ * the intake). `owed` 0 asks nothing and records the skip with `reason`.
+ */
+function drawStep(ctx: EnactContext, resolution: ResolutionId, owed: number, skipReason: string): PlayerInput | undefined {
+  const remembered = ctx.state[DEV_INTAKE_KEY];
+  if (typeof remembered === 'number') {
+    const pending = ExternalDrawIntake.pendingOf(ctx.player, remembered);
+    return pending === undefined ? undefined : ExternalDrawIntake.takePromptFor(ctx.player, pending);
+  }
+  if (owed <= 0) {
+    ctx.report({kind: 'skipped', amount: 0, reason: skipReason});
+    return undefined;
+  }
+  const intake = ExternalDrawIntake.open(ctx.player, owed, {kind: 'resolution', resolution, effect: 'draw'});
+  if (intake === undefined) {
+    ctx.report({kind: 'skipped', amount: owed, drawn: 0, reason: 'The project deck is empty'});
+    return undefined;
+  }
+  ctx.state[DEV_INTAKE_KEY] = intake.id;
+  ctx.report({kind: 'cards', amount: owed, drawn: intake.count, intake: intake.id});
+  return ExternalDrawIntake.takePromptFor(ctx.player, intake);
+}
 
 const TEST_CHOICE: ResolutionDefinition = {
   id: TEST_CHOICE_RESOLUTION_ID,
@@ -218,15 +257,23 @@ const DEV_IMMEDIATE: ResolutionDefinition = {
     quest: 'Raise your plant production 2 steps',
   },
   quest: {goal: {kind: 'production', resource: Resource.PLANTS}, count: 2},
-  immediateSteps: [{
-    key: 'grant',
-    run: (ctx) => {
-      const from = {resolution: DEV_IMMEDIATE_RESOLUTION_ID};
-      ctx.player.stock.add(Resource.MEGACREDITS, 3, {log: true, from});
-      ctx.player.stock.add(Resource.PLANTS, 1, {log: true, from});
-      return undefined;
+  // ONE record per step: two grants are two steps (the contract — a step reports exactly once).
+  immediateSteps: [
+    {
+      key: 'grant-mc',
+      run: (ctx) => {
+        grantStock(ctx, Resource.MEGACREDITS, 3, {resolution: DEV_IMMEDIATE_RESOLUTION_ID});
+        return undefined;
+      },
     },
-  }],
+    {
+      key: 'grant-plants',
+      run: (ctx) => {
+        grantStock(ctx, Resource.PLANTS, 1, {resolution: DEV_IMMEDIATE_RESOLUTION_ID});
+        return undefined;
+      },
+    },
+  ],
 };
 
 const DEV_PASSIVE: ResolutionDefinition = {
@@ -310,32 +357,41 @@ const DEV_COMPOUND: ResolutionDefinition = {
   copies: 0,
   renderData: CardRenderer.builder((b) => {
     b.megacredits(2).slash().tag(Tag.PLANT).tag(Tag.MICROBE).tag(Tag.ANIMAL).asterix().nbsp.cards(1).br;
-    b.tr(1).asterix();
+    b.megacredits(2).asterix();
   }),
   text: {
     name: 'Interplanetary Reconstruction Accord',
     effect: 'Every player gains 2 M€ for each plant, microbe and animal tag they have, up to 10 M€, and draws 1 card.',
-    winner: 'Gain 1 TR.',
+    // The winner's part pays a kind the address table knows (`rewardAddress.ts`) — a
+    // TR grant would be a kind with an address and no payer, which the table refuses.
+    winner: 'Gain 2 M€.',
     quest: 'Send 4 delegates to resolutions',
   },
   quest: {goal: {kind: 'delegates'}, count: 4},
-  immediateSteps: [{
-    key: 'grant',
-    run: (ctx) => {
-      const from = {resolution: DEV_COMPOUND_RESOLUTION_ID};
-      const tags = ctx.player.tags.count(Tag.PLANT, 'raw') + ctx.player.tags.count(Tag.MICROBE, 'raw') + ctx.player.tags.count(Tag.ANIMAL, 'raw');
-      const megacredits = Math.min(10, 2 * tags);
-      if (megacredits > 0) {
-        ctx.player.stock.add(Resource.MEGACREDITS, megacredits, {log: true, from});
-      }
-      ctx.player.drawCard(1);
-      return undefined;
+  // ONE record per step: the M€ by tags and the draw are two steps.
+  immediateSteps: [
+    {
+      key: 'grant-mc',
+      run: (ctx) => {
+        const tags = ctx.player.tags.count(Tag.PLANT, 'raw') + ctx.player.tags.count(Tag.MICROBE, 'raw') + ctx.player.tags.count(Tag.ANIMAL, 'raw');
+        const megacredits = Math.min(10, 2 * tags);
+        if (megacredits <= 0) {
+          ctx.report({kind: 'skipped', stock: Resource.MEGACREDITS, amount: 0, reason: 'No plant, microbe or animal tags'});
+          return undefined;
+        }
+        grantStock(ctx, Resource.MEGACREDITS, megacredits, {resolution: DEV_COMPOUND_RESOLUTION_ID});
+        return undefined;
+      },
     },
-  }],
+    {
+      key: 'draw',
+      run: (ctx) => drawStep(ctx, DEV_COMPOUND_RESOLUTION_ID, 1, 'The project deck is empty'),
+    },
+  ],
   winnerSteps: [{
-    key: 'winner-tr',
+    key: 'winner-mc',
     run: (ctx) => {
-      ctx.player.increaseTerraformRating(1, {log: true, from: {resolution: DEV_COMPOUND_RESOLUTION_ID}});
+      grantStock(ctx, Resource.MEGACREDITS, 2, {resolution: DEV_COMPOUND_RESOLUTION_ID});
       return undefined;
     },
   }],
@@ -359,10 +415,7 @@ const DEV_SCIENCE: ResolutionDefinition = {
     key: 'draw',
     run: (ctx) => {
       const cards = Math.min(3, Math.floor(ctx.player.tags.count(Tag.SCIENCE, 'raw') / 2));
-      if (cards > 0) {
-        ctx.player.drawCard(cards);
-      }
-      return undefined;
+      return drawStep(ctx, DEV_SCIENCE_RESOLUTION_ID, cards, 'Fewer than 2 science tags — no cards');
     },
   }],
 };

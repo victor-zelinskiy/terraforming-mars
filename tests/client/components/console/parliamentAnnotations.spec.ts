@@ -152,7 +152,7 @@ describe('parliamentAnnotations — the fullscreen inspector\'s reading blocks',
     expect(texts([immediate[0]])).to.deep.eq(['Every player gains 3 M€ and 1 plant.']);
     const compound = resolutionAnnotations('RDX_DEV_COMPOUND');
     expect(compound.map((b) => b.labelKey), 'a multi-part effect keeps its parts apart').to.deep.eq(['When enacted', 'For the winner of the vote', 'Chairman quest']);
-    expect(texts([compound[1]])).to.deep.eq(['Gain 1 TR.']);
+    expect(texts([compound[1]])).to.deep.eq(['Gain 2 M€.']);
     const passive = resolutionAnnotations('RDX_DEV_PASSIVE');
     expect(passive.map((b) => b.labelKey)).to.deep.eq(['Resolution effect', 'Chairman quest']);
     expect(passive[0].kind).to.eq('effect');

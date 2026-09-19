@@ -303,12 +303,13 @@ import {PartyName} from '@/common/turmoil/PartyName';
 import {SelectCardModel} from '@/common/models/PlayerInputModel';
 import {ParliamentEnactOutcomeModel, ParliamentModel, ParliamentPlayerModel} from '@/common/models/ParliamentModel';
 import {IClientResolution} from '@/common/parliament/IClientResolution';
+import {familyOf} from '@/client/console/parliament/resolutionFamily';
 import {
   fixedSequelYield, fixedYield, InfluenceScaledEffect, InfluenceYield, referenceYield, scaledAmount, sequelAmount, uncappedAmount,
 } from '@/common/parliament/influenceScaling';
 import {PartyReactionReading, partyReactionsOf} from '@/client/console/parliament/partyReactionModel';
 import {
-  cardCountUnits, cardCountVerdict, CardCountContext, countCardsToward, ResolutionCountModel, resolutionCountKind,
+  cardCountUnits, cardCountVerdict, CardCountContext, countCardsToward, ResolutionCountModel,
 } from '@/common/parliament/resolutionCounts';
 import PremiumMechanicsPanel from '@/client/components/premiumCard/PremiumMechanicsPanel.vue';
 import PremiumCountGlyph from '@/client/components/premiumCard/PremiumCountGlyph.vue';
@@ -731,19 +732,9 @@ export default defineComponent({
       return this.selected === undefined ? [] :
         resolutionAnnotations(this.selected.id, this.yields, {reading: this.winnerReading, viewer: this.viewerColor, nameOf: this.seatName});
     },
-    /** The scenario family the selected resolution reads (a counted term → the family of what it counts). */
+    /** The scenario family the selected resolution reads — from its DECLARATION (`resolutionFamily.ts`), never a table by id. */
     family(): PgFamily {
-      // A SEQUENTIAL resolution first: its second half reads what its first
-      // half leaves behind, which is a different instrument from a count.
-      if (this.sequelEffect !== undefined) {
-        return 'sequel';
-      }
-      const count = this.countEffect?.count;
-      if (count !== undefined) {
-        return resolutionCountKind(count.id).kind === 'tags' ? 'counted-tags' : 'counted';
-      }
-      // A winner's TILE with no card to pick for everyone's part: the winner-tile family.
-      return this.selected?.winnerReward !== undefined && this.pickerEffect === undefined ? 'winner-tile' : 'influence';
+      return this.selected === undefined ? 'influence' : familyOf(this.selected);
     },
     /** The table the winner's tile reads (the scenario's parameters). */
     winnerTable(): WinnerRewardTable {
