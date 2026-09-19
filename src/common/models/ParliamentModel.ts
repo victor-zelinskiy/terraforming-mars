@@ -247,6 +247,8 @@ export type ParliamentPhaseSummaryModel = {
   /** The delegates that left the enacted card at the enactment, per owner — the client's return flights (absent on older saves). */
   returned?: ReadonlyArray<{owner: Color | 'neutral'; count: number}>;
   refreshed: ReadonlyArray<{instance: ResolutionInstanceId; resolution: ResolutionId; party: ReduxParty; neutralVotes: number}>;
+  /** The losers the refresh discarded, in their slot order — the renewal beat flies them off the table (absent before the refresh / on older saves). */
+  discarded?: ReadonlyArray<{instance: ResolutionInstanceId; resolution: ResolutionId; party: ReduxParty}>;
   lobbyRefilled: ReadonlyArray<Color>;
 };
 

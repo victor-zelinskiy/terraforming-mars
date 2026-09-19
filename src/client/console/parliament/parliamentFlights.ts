@@ -2,8 +2,10 @@ import {nextTick, reactive} from 'vue';
 import {gsap} from 'gsap';
 import {Color} from '@/common/Color';
 import {PremiumCardVM} from '@/client/components/premiumCard/premiumCardViewModel';
-import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
+import {consoleMotionMs, consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {probeTick} from '@/client/console/probeTick';
+import {addCard3DTurn, FACE_DOWN_DEG, FACE_UP_DEG, readCard3DInner, setCard3DFace} from '@/client/console/cardFlight/card3dInner';
+import {DEAL_TURN_GLINT} from '@/client/console/cardDeal/premiumTurn';
 import {ParliamentBeat, scheduleParliamentBeat} from './parliamentBeat';
 import {conLogicalPx} from '@/client/console/consoleLayoutProfile';
 import {CubeFlightHandle, Rect, runCardDealFlight, runDelegateCubeFlight} from './consoleParliamentVoteMotion';
@@ -56,8 +58,15 @@ export function placeCubeRect(root: HTMLElement, selector: string): Rect | undef
 
 /** A delegate cube in flight — its colour and its logical size. */
 export type FlightSpec = {id: string, color: Color | 'neutral', size: number};
-/** A card back on its way from the deck to a slot — sized to the slot's face (the proxy scales up into it); with a face it is the enacted card moving. */
-export type CardFlightSpec = {id: string, width: number, height: number, face?: PremiumCardVM};
+/**
+ * A card on its way — sized to the face it stands in for (the proxy scales
+ * into it). With a `face` it is a PHYSICAL card body (the Card3DInner
+ * chassis: the premium face, the back, the edge — the shell's flight layer
+ * renders it), born face-up (`faceUp`, the enacted card moving, a parked
+ * card) or face-down (a resolution being DEALT — it turns in flight); without
+ * one it is a bare back.
+ */
+export type CardFlightSpec = {id: string, width: number, height: number, face?: PremiumCardVM, faceUp?: boolean};
 
 /** A results-scene cube's flight. */
 export const RECAP_FLIGHT_MS = 480;
@@ -77,17 +86,27 @@ export const parliamentFlights = reactive({
 /** The proxy elements and the running handles, by flight id (DOM handles — never reactive). */
 let flightEls: Record<string, HTMLElement | null> = {};
 let flightHandles: Record<string, CubeFlightHandle> = {};
-/** A flight's STAGGER beat (between its birth and its launch) — killed with the flight. */
-let flightBeats: Record<string, ParliamentBeat> = {};
+/** A flight's STAGGER beat (between its birth and its launch) — killed with the flight; «дожать» fires it at once. */
+let flightBeats: Record<string, {beat: ParliamentBeat, fire: () => void}> = {};
 let flightSerial = 0;
 
 export function nextFlightId(prefix: string): string {
   return `${prefix}${++flightSerial}`;
 }
 
-/** The section's `:ref` callback for every proxy it renders. */
+/**
+ * The layer's `:ref` callback for every proxy it renders. Vue calls it with
+ * `null` on the element's UNMOUNT — after `dropFlight` removed the spec — and
+ * re-registering the id as `null` kept a dropped flight «registered» forever:
+ * the director's wait for its last touchdown never ended (measured: the
+ * enactment's hold standing until its ceiling). An unmounted proxy is gone.
+ */
 export function setFlightEl(id: string, el: HTMLElement | null): void {
-  flightEls[id] = el;
+  if (el === null) {
+    delete flightEls[id];
+  } else {
+    flightEls[id] = el;
+  }
 }
 
 export function flightEl(id: string): HTMLElement | null | undefined {
@@ -96,7 +115,7 @@ export function flightEl(id: string): HTMLElement | null | undefined {
 
 /** Whether a flight is still REGISTERED (its key exists) — a dropped flight's delayed launch must not run. */
 export function flightRegistered(id: string): boolean {
-  return flightEls[id] !== undefined;
+  return flightEls[id] !== undefined && flightEls[id] !== null;
 }
 
 export function registerFlightHandle(id: string, handle: CubeFlightHandle): void {
@@ -112,7 +131,7 @@ export function pushCardFlight(spec: CardFlightSpec): void {
 }
 
 export function dropFlight(id: string): void {
-  flightBeats[id]?.kill();
+  flightBeats[id]?.beat.kill();
   delete flightBeats[id];
   flightHandles[id]?.kill();
   delete flightHandles[id];
@@ -132,7 +151,7 @@ export function dropFlightsWithPrefix(prefix: string): void {
 
 export function killParliamentFlights(): void {
   for (const id of Object.keys(flightBeats)) {
-    flightBeats[id].kill();
+    flightBeats[id].beat.kill();
   }
   flightBeats = {};
   for (const id of Object.keys(flightHandles)) {
@@ -150,15 +169,17 @@ export function parliamentFlightsAirborne(): boolean {
 }
 
 /**
- * ONE cube from a real rect to a real rect (a results beat, the seat). The
+ * ONE cube from a real rect to a real rect (a sitting beat, the seat). The
  * proxy is born at the source's size and lands at the destination's.
- * Returns false when there is nothing measurable — the caller settles the
- * display holds itself.
+ * Returns the flight's id — undefined when there is nothing measurable (the
+ * caller settles the display holds itself). The id is known at BIRTH: the
+ * element registers on the next render, so a caller that tracks the flight
+ * (the director's «дожать») must not wait for the element to exist.
  */
-export function flyCube(color: Color | 'neutral', from: Rect | undefined, to: Rect | undefined, delayMs: number, onLanded: () => void): boolean {
+export function flyCube(color: Color | 'neutral', from: Rect | undefined, to: Rect | undefined, delayMs: number, onLanded: () => void): string | undefined {
   if (from === undefined || to === undefined || typeof window === 'undefined' || consoleReducedMotionActive()) {
     onLanded();
-    return false;
+    return undefined;
   }
   const id = nextFlightId('f');
   const size = Math.max(8, Math.round(Math.min(from.width, from.height)));
@@ -172,7 +193,7 @@ export function flyCube(color: Color | 'neutral', from: Rect | undefined, to: Re
     }
     gsap.set(proxy, {autoAlpha: 0});
     // The STAGGER is a beat on the motion clock; dropping the flight kills it.
-    flightBeats[id] = scheduleParliamentBeat(delayMs, () => {
+    const fire = () => {
       delete flightBeats[id];
       if (flightEls[id] === undefined) {
         return;
@@ -188,9 +209,10 @@ export function flyCube(color: Color | 'neutral', from: Rect | undefined, to: Re
         },
       });
       flightHandles[id] = handle;
-    });
+    };
+    flightBeats[id] = {beat: scheduleParliamentBeat(delayMs, fire), fire};
   });
-  return true;
+  return id;
 }
 
 /** The chairman's delegate leaves the card it was taken from and settles on the seat mark of the ledger (`onLanded` pulses the chair). */
@@ -202,52 +224,89 @@ export function flySeatDelegate(root: HTMLElement | undefined, color: Color | un
   const chair = root.querySelector<HTMLElement>(`[data-parl-seat-chair="${color}"]`);
   const r = chair?.getBoundingClientRect();
   const to = r === undefined || r.width < 2 ? undefined : {left: r.left, top: r.top, width: r.height, height: r.height};
-  if (!flyCube(color, from, to, 0, onLanded)) {
+  if (flyCube(color, from, to, 0, onLanded) === undefined) {
     onLanded();
   }
 }
 
 /**
- * ONE card dealt from the deck: a back-faced proxy the size of the slot's
- * face is born over the pile's top card (scaled down to it) and grows
- * into the slot; the face beneath reveals on the touchdown and the
- * proxy leaves the next frame. Returns false when nothing is measurable —
- * the caller settles the display holds itself.
+ * ONE RESOLUTION DEALT WITH A REAL TURN: a physical card body (its own
+ * premium face — the same lightweight vm the slot draws, the deck's back, an
+ * edge) is born FACE-DOWN scaled onto the pile's top card, flies to its slot
+ * and TURNS on the way (`addCard3DTurn` — the face is readable only past
+ * 90°, a one-shot glint as it comes round); the slot's own face shows on the
+ * touchdown and the proxy leaves on the next frame. Returns the flight's id,
+ * or undefined when nothing is measurable (the caller settles the holds).
  */
-export function flyCard(from: Rect | undefined, to: Rect | undefined, delayMs: number, onLanded: () => void, onLaunch?: () => void): boolean {
-  if (from === undefined || to === undefined || to.width < 4 || typeof window === 'undefined' || consoleReducedMotionActive()) {
-    onLanded();
-    return false;
+export function dealResolutionCard(args: {
+  from: Rect | undefined, to: Rect | undefined, delayMs: number, durationMs?: number,
+  face: PremiumCardVM | undefined, onLaunch?: () => void, onLanded: () => void, onSideCrossed?: () => void,
+}): string | undefined {
+  const {from, to, face} = args;
+  if (from === undefined || to === undefined || to.width < 4 || face === undefined || typeof window === 'undefined' || consoleReducedMotionActive()) {
+    return undefined;
   }
-  const id = nextFlightId('deal');
-  pushCardFlight({id, width: Math.round(to.width), height: Math.round(to.height)});
+  const id = nextFlightId('sit-deal');
+  pushCardFlight({id, width: Math.round(to.width), height: Math.round(to.height), face, faceUp: false});
+  const durationMs = args.durationMs ?? DEAL_FLIGHT_MS;
   void nextTick(() => {
     const proxy = flightEls[id];
     if (proxy === null || proxy === undefined) {
       dropFlight(id);
-      onLaunch?.();
-      onLanded();
+      args.onLaunch?.();
+      args.onLanded();
       return;
     }
     gsap.set(proxy, {autoAlpha: 0});
-    flightBeats[id] = scheduleParliamentBeat(delayMs, () => {
+    const card = readCard3DInner(proxy);
+    if (card !== undefined) {
+      setCard3DFace(card, false);
+    }
+    const fire = () => {
       delete flightBeats[id];
       if (flightEls[id] === undefined) {
         return;
       }
-      onLaunch?.();
+      args.onLaunch?.();
       const handle = runCardDealFlight({
         proxy,
         from,
         to,
-        durationMs: DEAL_FLIGHT_MS,
+        durationMs,
         onLanded: () => {
-          onLanded();
+          args.onLanded();
           probeTick(() => dropFlight(id));
         },
       });
+      if (card !== undefined) {
+        // THE TURN, layered onto the flight's own timeline: one gesture.
+        const dur = consoleMotionMs(durationMs) / 1000;
+        addCard3DTurn(handle.tween, {
+          card, at: dur * 0.24, dur: dur * 0.62, to: FACE_UP_DEG, from: FACE_DOWN_DEG,
+          reduced: false, glintClass: DEAL_TURN_GLINT, onSideCrossed: args.onSideCrossed,
+        });
+      }
       flightHandles[id] = handle;
-    });
+    };
+    flightBeats[id] = {beat: scheduleParliamentBeat(args.delayMs, fire), fire};
   });
-  return true;
+  return id;
+}
+
+/**
+ * «ДОЖАТЬ»: every flight still waiting for its stagger launches NOW, and
+ * every flight in the air is driven to its touchdown — the landing callbacks
+ * fire in order, the proxies leave on the next frame. The director's A-during-
+ * a-beat; never a skipped touchdown, never a proxy left in the air.
+ */
+export function finishParliamentFlights(): void {
+  for (const id of Object.keys(flightBeats)) {
+    const pending = flightBeats[id];
+    pending.beat.kill();
+    delete flightBeats[id];
+    pending.fire();
+  }
+  for (const id of Object.keys(flightHandles)) {
+    flightHandles[id]?.tween.progress(1);
+  }
 }

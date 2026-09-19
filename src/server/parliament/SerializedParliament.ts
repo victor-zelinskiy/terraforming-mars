@@ -148,6 +148,8 @@ export type SerializedPhaseSummary = {
   /** The delegates that LEFT the enacted card at the enactment, per owner (absent on a save from before this field). */
   returned?: Array<{owner: SerializedDelegateOwner; count: number}>;
   refreshed: Array<{instance: ResolutionInstanceId; neutralVotes: number}>;
+  /** The losers the refresh discarded, in their slot order (absent on a save from before this field, and before the refresh). */
+  discarded?: Array<ResolutionInstanceId>;
   lobbyRefilled: Array<PlayerId>;
 };
 

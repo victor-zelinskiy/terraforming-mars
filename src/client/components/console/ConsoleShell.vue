@@ -1243,6 +1243,11 @@
          stage: an arriving card dives BEHIND the tray plate/bar texture. -->
     <ConsoleHandDeliveryLayer />
 
+    <!-- The PARLIAMENT's flight stage (Turmoil Redux): every cube and card the
+         sitting director flies rides this body-level fixed layer, so a flight
+         survives the section's transforms, its stage's clip and its unmount. -->
+    <ConsoleParliamentFlightLayer />
+
     <!-- The colony-trade LAUNCH flight stage (send a trade fleet to the
          planet) — app-level so the ship survives the composer dissolving
          beneath it; docks on the target colony's berth, then the trade
@@ -1753,6 +1758,7 @@ import {
 } from '@/client/console/cardDiscard/discardIntent';
 import ConsoleHandRevealLayer from '@/client/components/console/ConsoleHandRevealLayer.vue';
 import ConsoleHandDeliveryLayer from '@/client/components/console/ConsoleHandDeliveryLayer.vue';
+import ConsoleParliamentFlightLayer from '@/client/components/console/parliament/ConsoleParliamentFlightLayer.vue';
 import {handRevealState, RevealVisual} from '@/client/console/handDock/handRevealState';
 import {preloadPremiumCardArt} from '@/client/cards/cardArt';
 import {
@@ -2183,6 +2189,7 @@ export default defineComponent({
     ConsoleCardDiscardLayer,
     ConsoleHandRevealLayer,
     ConsoleHandDeliveryLayer,
+    ConsoleParliamentFlightLayer,
     ConsoleDraftTray,
     ConsoleDraftWorkspace,
     ConsoleExternalDrawWorkspace,

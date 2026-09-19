@@ -804,7 +804,8 @@ function summaryNamesAny(summary: SerializedPhaseSummary | undefined, matches: (
   }
   return matches(summary.winner.instance) || matches(summary.enacted) ||
     (summary.discardedEnacted !== undefined && matches(summary.discardedEnacted)) ||
-    summary.refreshed.some((entry) => matches(entry.instance));
+    summary.refreshed.some((entry) => matches(entry.instance)) ||
+    (summary.discarded ?? []).some((instance) => matches(instance));
 }
 
 function resolutionIdOfInstance(instance: ResolutionInstanceId): ResolutionId {

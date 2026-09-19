@@ -59,7 +59,7 @@
            SITTING) — ONE zone, one rect; the sitting's reward stage may take
            the whole field for a hosted step (`--field`). ══ -->
       <div class="con-parl__mid" data-parl-mid data-parl-recede ref="midEl">
-        <div class="con-parl__parties-tier" ref="partiesTierEl" :class="{'con-parl__parties-tier--parked': stageUp}" v-show="!stageUp || stageLeaving">
+        <div class="con-parl__parties-tier" ref="partiesTierEl" :class="{'con-parl__parties-tier--parked': stageUp && !motion.peek}" v-show="!stageUp || stageLeaving || motion.peek">
           <ConsoleParliamentParties :view="view" :partyStates="partyStates" :partyActionStates="partyActionStates" :viewerColor="viewerColor"
                                     :awaitingInput="awaitingInput" :sittingParties="sittingParties" />
         </div>
@@ -67,7 +67,7 @@
         <!-- ── THE STAGE ZONE — the chairman SEAT pick and the SITTING unfold in
              place of the parties tier (one chassis). ── -->
         <transition :css="false" @enter="onStageEnter" @leave="onStageLeave" @enter-cancelled="onStageEnterCancelled" @leave-cancelled="onStageLeaveCancelled">
-          <div v-if="stageUp" class="con-parl__stage" :class="['con-parl__stage--' + stageKind, {'con-parl__stage--field': flow.sittingField}]" :data-parl-stage="stageKind">
+          <div v-if="stageUp" class="con-parl__stage" :class="['con-parl__stage--' + stageKind, {'con-parl__stage--field': flow.sittingField, 'con-parl__stage--peek': motion.peek}]" :data-parl-stage="stageKind" :data-sitting-motion="motion.stage || undefined">
             <ConsoleParliamentSeatPick v-if="stageKind === 'seat' && focusedSlot !== undefined" ref="seatPick"
                                        :view="view" :slot="focusedSlot" :viewerColor="viewerColor" :seatCandidates="seatCandidates"
                                        @submit="submitSeat($event)" @inspect="$emit('inspect', $event)" />
@@ -91,8 +91,6 @@
                                @notice="$emit('notice', $event)" @inspect="$emit('inspect', $event)"
                                @send="send($event.response, $event.from)" @flow-complete="$emit('flow-complete', $event)" />
     </div>
-
-    <ConsoleParliamentFlights />
   </section>
 </template>
 <script lang="ts">
@@ -113,14 +111,13 @@ import ConsoleParliamentAgenda from '@/client/components/console/parliament/Cons
 import ConsoleParliamentVoteMode from '@/client/components/console/parliament/ConsoleParliamentVoteMode.vue';
 import ConsoleParliamentSeatPick from '@/client/components/console/parliament/ConsoleParliamentSeatPick.vue';
 import ConsoleParliamentSitting from '@/client/components/console/parliament/ConsoleParliamentSitting.vue';
-import ConsoleParliamentFlights from '@/client/components/console/parliament/ConsoleParliamentFlights.vue';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {ConsoleCommand} from '@/client/console/consoleCommandModel';
 import {backLabelForVerb, backVerbFor} from '@/client/console/consoleWorkspaceFlow';
 import {getResolution} from '@/client/parliament/ClientParliamentManifest';
 import {
-  agendaViewOf, AgendaVm, buildParliamentView, emptyParliamentView, ParliamentPartyVm, ParliamentPromptBridge, ParliamentSlotVm, ParliamentTileVm,
+  AgendaMove, agendaViewOf, AgendaVm, buildParliamentView, emptyParliamentView, ParliamentPartyVm, ParliamentPromptBridge, ParliamentSlotVm, ParliamentTileVm,
   ParliamentViewVm, parliamentPromptBridge, partyActionStateOf, PartyActionStateVm, partyStateOf, PartyStateVm, seatResponse,
 } from '@/client/console/parliament/consoleParliamentModel';
 import {
@@ -133,6 +130,13 @@ import {
   sittingStartPage, sittingWorkspacePhase,
 } from '@/client/console/parliament/consoleSittingFlow';
 import {resetParliamentHolds} from '@/client/console/parliament/parliamentDisplayHolds';
+import {SittingBeat, sittingBeats, sittingStageBefore} from '@/client/console/parliament/sittingBeats';
+import {
+  finishSittingMotion, killSittingMotion, parkSittingCards, playSittingStage, resetSittingDirector, seedEnactHolds, seedRenewalHolds,
+  sittingMotion, sittingMotionActive, SittingDirectorContext,
+} from '@/client/console/parliament/sittingDirector';
+import {probeTick} from '@/client/console/probeTick';
+import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {flySeatDelegate, killParliamentFlights, parliamentFlightsAirborne} from '@/client/console/parliament/parliamentFlights';
 import {fitParliamentCards} from '@/client/console/parliament/parliamentCardFit';
 import {parliamentCommandsOf} from '@/client/console/parliament/parliamentCommands';
@@ -158,7 +162,7 @@ export default defineComponent({
   name: 'ConsoleParliamentSection',
   components: {
     ConsoleWsHead, ConsoleParliamentSeats, ConsoleParliamentGovernment, ConsoleParliamentVotingArea, ConsoleParliamentParties,
-    ConsoleParliamentAgenda, ConsoleParliamentVoteMode, ConsoleParliamentSeatPick, ConsoleParliamentSitting, ConsoleParliamentFlights,
+    ConsoleParliamentAgenda, ConsoleParliamentVoteMode, ConsoleParliamentSeatPick, ConsoleParliamentSitting,
   },
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
@@ -178,6 +182,12 @@ export default defineComponent({
       seatFrom: undefined as Rect | undefined,
       /** The parties tier's rect at the press — the seat / sitting stage unfolds from it. */
       stageFromRect: undefined as Rect | undefined,
+      /** The stage is unfolding — a motion queued meanwhile starts on the unfold's end. */
+      stageEntering: false,
+      /** The director's next run, waiting for the DOM (and the unfold) to stand. */
+      motionPlan: undefined as {replay: ReadonlyArray<SittingStage>, stage: SittingStage} | undefined,
+      /** Stages whose beats already played in THIS mount (a page turned back and forth replays nothing). */
+      playedStages: [] as Array<SittingStage>,
     };
   },
   computed: {
@@ -218,6 +228,15 @@ export default defineComponent({
     },
     sittingUp(): boolean {
       return parliamentSittingUp();
+    },
+    /** The director's live state (the peek, the playing stage). */
+    motion() {
+      return sittingMotion;
+    },
+    /** THE SITTING'S BEATS — pure over the phase's summary (`sittingBeats.ts`). */
+    sittingBeatList(): Array<SittingBeat> {
+      const summary = this.model?.phase?.summary;
+      return summary === undefined ? [] : sittingBeats(summary, this.viewerColor, 'live');
     },
     // ── the SITTING (the political phase's own flow) ───────────────────
     /**
@@ -406,6 +425,10 @@ export default defineComponent({
           if (parliamentFlow.stage === 'browse') {
             parliamentFlow.zone = 'government';
             parliamentFlow.sittingPage = sittingStartPage(position);
+            // THE OPENING: the display holds are seeded BEFORE the first frame
+            // (the tiers show the table as it stood), the passed stages replay
+            // compactly (a reload inside the phase), the current one plays in full.
+            this.planOpeningMotion(sittingStageAt(position, parliamentFlow.sittingPage));
             this.openStage('sitting');
           }
           if (parliamentFlow.stage === 'sitting') {
@@ -418,13 +441,29 @@ export default defineComponent({
       },
     },
     /** A new server step starts its walk on its first page (a gate this seat already answered: on its wait pose); the phase follows the page. */
-    'sittingStepKey'(): void {
+    'sittingStepKey'(_now: string, was: string): void {
       const position = this.sitting;
       parliamentFlow.sittingPage = position === undefined ? 0 : sittingStartPage(position);
+      // A step that arrives while the sitting stands (the adjourn after the
+      // effects): its holds seed before the render, its beats follow it.
+      if (position !== undefined && was !== '' && parliamentFlow.stage === 'sitting') {
+        const stage = sittingStageAt(position, parliamentFlow.sittingPage);
+        const summary = this.model?.phase?.summary;
+        if (stage === 'renewal' && summary !== undefined && !consoleReducedMotionActive()) {
+          seedRenewalHolds(summary, this.view);
+        }
+        this.motionPlan = {replay: [], stage};
+        this.queueMotion();
+      }
     },
     'sittingStage'(stage: SittingStage): void {
       if (parliamentFlow.stage === 'sitting') {
         setWorkspaceFramePhase('parliament', sittingWorkspacePhase(stage, false));
+        // A page turned by A: its beats play once per mount (turning back replays nothing).
+        if (this.motionPlan === undefined && !this.playedStages.includes(stage)) {
+          this.motionPlan = {replay: [], stage};
+          this.queueMotion();
+        }
       }
     },
     /**
@@ -541,10 +580,20 @@ export default defineComponent({
         fitParliamentCards();
       }).stop;
     }
+    // A SITTING STANDING AT MOUNT (the usual door — the plate's A mounts the
+    // section with the stage already in its first render): the stage's
+    // `<transition>` never plays an enter for an element present at the
+    // initial render, so the opening's plan starts here, on the mounted DOM.
+    // The measured defect: three motion probes waiting on a beat that had
+    // never been queued.
+    if (this.motionPlan !== undefined && !this.stageEntering) {
+      this.queueMotion();
+    }
   },
   beforeUnmount() {
     this.stopFitObs?.();
     this.clearSubmitTimer();
+    resetSittingDirector();
     killParliamentFlights();
     killParliamentVoteMotion(this.$refs.rootEl as HTMLElement | undefined);
     killParliamentEnactMotion(this.$refs.rootEl as HTMLElement | undefined);
@@ -685,6 +734,11 @@ export default defineComponent({
       }
       switch (consoleActionOf(intent)) {
       case 'primary':
+        // A DURING A BEAT = «дожать»: the stage is driven to its resting pose — never skipped.
+        if (sittingMotionActive()) {
+          finishSittingMotion();
+          return;
+        }
         if (this.sittingPrimary === undefined) {
           return;
         }
@@ -744,11 +798,102 @@ export default defineComponent({
       setWorkspaceFramePhase('parliament', stage === 'sitting' ? sittingWorkspacePhase(this.sittingStage, false) : 'configure');
     },
     closeStage(): void {
+      killSittingMotion();
+      this.motionPlan = undefined;
+      this.playedStages = [];
       parliamentFlow.stage = 'browse';
       setWorkspaceFramePhase('parliament', 'browse');
     },
+    // ── the director ────────────────────────────────────────────────────
+    /**
+     * THE OPENING'S PLAN: seed every hold the stages up to `stage` consume
+     * (before the first frame), replay the passed stages compactly (a
+     * reload / a restore inside the phase — `resume`), play `stage` in full.
+     * A sitting opening straight onto a hosted step (the field pose) replays
+     * nothing: the overview it would play on is parked under the step.
+     */
+    planOpeningMotion(stage: SittingStage): void {
+      const summary = this.model?.phase?.summary;
+      this.playedStages = [];
+      if (summary === undefined || consoleReducedMotionActive()) {
+        resetParliamentHolds();
+        this.motionPlan = summary === undefined ? undefined : {replay: [], stage};
+        return;
+      }
+      const replay: Array<SittingStage> = [];
+      if (!this.sittingField) {
+        for (const passed of ['verdict', 'enact', 'renewal'] as const) {
+          if (sittingStageBefore(passed, stage) && this.sittingBeatList.some((b) => b.stage === passed)) {
+            replay.push(passed);
+          }
+        }
+      }
+      // The holds of every stage that will play — passed or current.
+      const seeds = new Set<SittingStage>([...replay, stage]);
+      resetParliamentHolds();
+      if (seeds.has('verdict') || seeds.has('enact')) {
+        seedEnactHolds(summary, this.view);
+      }
+      if (seeds.has('renewal')) {
+        seedRenewalHolds(summary, this.view);
+      }
+      this.motionPlan = {replay, stage};
+    },
+    /** Run the plan once the DOM (and the stage's unfold) stands. */
+    queueMotion(): void {
+      if (this.motionPlan === undefined || this.stageEntering) {
+        return;
+      }
+      void this.$nextTick(() => probeTick(() => void this.runMotion()));
+    },
+    directorContext(): SittingDirectorContext | undefined {
+      const root = this.$refs.rootEl as HTMLElement | undefined;
+      const summary = this.model?.phase?.summary;
+      if (root === undefined || summary === undefined) {
+        return undefined;
+      }
+      return {
+        root, view: this.view, model: this.model, summary, viewer: this.viewerColor,
+        playAgendaGlide: (move: AgendaMove) => {
+          void (this.$refs.agenda as InstanceType<typeof ConsoleParliamentAgenda> | undefined)?.playAgendaGlide(move);
+        },
+      };
+    },
+    async runMotion(): Promise<void> {
+      const plan = this.motionPlan;
+      if (plan === undefined || this.stageEntering || !this.sittingUp) {
+        return;
+      }
+      this.motionPlan = undefined;
+      const ctx = this.directorContext();
+      if (ctx === undefined) {
+        return;
+      }
+      const beats = this.sittingBeatList;
+      const needsPark = plan.replay.includes('verdict') || plan.stage === 'verdict' || plan.replay.includes('enact') || plan.stage === 'enact';
+      if (needsPark) {
+        await parkSittingCards(ctx);
+      }
+      for (const passed of plan.replay) {
+        if (!this.sittingUp || this.motionPlan !== undefined) {
+          return;
+        }
+        this.playedStages.push(passed);
+        await playSittingStage(passed, beats, ctx, {compact: true});
+      }
+      if (!this.sittingUp || this.motionPlan !== undefined) {
+        return;
+      }
+      this.playedStages.push(plan.stage);
+      await playSittingStage(plan.stage, beats, ctx, {compact: false});
+    },
     onStageEnter(el: Element, done: () => void): void {
-      playStageUnfold(el as HTMLElement, this.stageFromRect, done);
+      this.stageEntering = true;
+      playStageUnfold(el as HTMLElement, this.stageFromRect, () => {
+        this.stageEntering = false;
+        done();
+        this.queueMotion();
+      });
     },
     onStageLeave(el: Element, done: () => void): void {
       this.stageLeaving = true;

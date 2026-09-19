@@ -324,6 +324,12 @@ function summaryModel(game: IGame, parliament: Parliament, summary: SerializedPh
   if (summary.agenda !== undefined) {
     model.agenda = {player: game.getPlayerById(summary.agenda.player).color, from: summary.agenda.from, to: summary.agenda.to, bonus: summary.agenda.bonus};
   }
+  if (summary.discarded !== undefined) {
+    model.discarded = summary.discarded.map((instance) => {
+      const definition = parliament.resolutionOf(instance);
+      return {instance, resolution: definition.id, party: definition.party};
+    });
+  }
   const outcomes = outcomeModels(game, summary.outcomes);
   if (outcomes !== undefined) {
     model.outcomes = outcomes;

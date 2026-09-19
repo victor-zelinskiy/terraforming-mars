@@ -257,3 +257,29 @@ html.con-profile-tv .con-sit {
     &__row { font-size: .88rem; b { font-size: .96rem; } }
     &__note, &__skip-reason, &__wait { font-size: .9rem; }
 }
+
+/* ══ THE DIRECTOR'S POSES (Э4) ══ */
+.con-parl {
+    /* The parties tier PEEKS through the stage for the support beat: the
+       cubes land on the plaques' real places. Opacity only — a pose. */
+    &__stage--peek { opacity: .08; pointer-events: none; }
+    &__stage { transition: opacity calc(180ms * var(--motion-scale, 1)) @con-ease-standard; }
+    /* The winning card, lit for the verdict (the parked proxy, or the government's card). */
+    &__gov-card--lit .pcard { box-shadow: inset 0 0 0 .12rem @con-parl-gold, 0 0 1.4rem rgba(230, 195, 74, 0.5); }
+}
+/* A PHYSICAL CARD PROXY (Card3DInner): the outer is the projector — no clip,
+   no rim of its own; the face and the back carry the card's frame. */
+.con-parl__flight--card.con-card3d-outer {
+    overflow: visible;
+    border-radius: 0;
+    box-shadow: none;
+    .con-card3d__face { border-radius: .4rem; overflow: hidden; box-shadow: 0 .5rem 1.4rem rgba(0, 0, 0, 0.55); }
+    .con-card3d__back { border-radius: .4rem; overflow: hidden; box-shadow: 0 .5rem 1.4rem rgba(0, 0, 0, 0.55), inset 0 0 0 .06rem rgba(165, 195, 225, 0.32); }
+    .con-parl__cardback { position: absolute; inset: 0; }
+    .con-parl__flight-face { position: absolute; left: 0; top: 0; width: 320px; height: 460px; }
+}
+.con-parl__flight--lit .con-card3d__face { box-shadow: inset 0 0 0 .12rem @con-parl-gold, 0 0 1.4rem rgba(230, 195, 74, 0.5); }
+/* A pose change is a crossfade of the panel, never a swap (the departing pose is Э4's director's). */
+.con-sit__panel { transition: opacity calc(160ms * var(--motion-scale, 1)) @con-ease-standard; opacity: 0; }
+.con-sit__panel--on { opacity: 1; }
+

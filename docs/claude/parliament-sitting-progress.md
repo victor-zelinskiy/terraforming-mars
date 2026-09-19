@@ -528,3 +528,99 @@ done` · соло с MarsBot — барьер из одного · клон с �
 - Ратчет e2e: новый спек без `waitForTimeout`/`requestAnimationFrame`/`page.reload()`; `e2eDriverGuard` 6/6.
 - Коммит: «Parliament sitting · Э3: маршрутизация и каркас flow ЗАСЕДАНИЕ».
 
+
+## Э4 — директор заседания: физические беты под hold, 3D-переворот раздачи (принят 2026-09-19)
+
+### Что сделано
+
+- **`sittingBeats.ts`** (чистый) + `tests/console/sittingBeats.spec.ts` (7): список бетов из сводки в порядке
+  сервера; бет только для факта сводки; один `reward` на исход зрителя (skip с причиной через
+  `rewardAddressOf`); `final` без renewal/lobby; `resume` компактит стадии до текущей, `review` — все; гард
+  «модуль не знает id каталога».
+- **`sittingDirector.ts`** — один master-таймлайн на стадию под `holdForGsapAnimation('parliament-sitting:<stage>',
+  {maxHoldMs: 12 s, diagnose, expire})`; `seedEnactHolds`/`seedRenewalHolds` (renewal сливается в enact-holds для
+  resume); `parkSittingCards` (победитель лицом вверх над первым пустым контуром слота, старый закон над
+  правительством; `govAwaits` прячет лицо правительства); беты: ВЕРДИКТ (свет на припаркованной карте, пульс
+  числа делегатов, cascade рядов победителя/ничьей), ПРИНЯТИЕ (старый закон → зона колоды; карта победителя
+  `runCardDealFlight` в правительство, посадка = `govAwaits` снят, прокси на следующем кадре; кубы возврата
+  по владельцу с центра карты в `[data-parl-seat-reserve]`/склад, стаггер 70; ПОДДЕРЖКА — `sittingMotion.peek`
+  → ярус партий показан под стадией `opacity .08`, кубы со склада на `.con-pseal__support-place`, peek
+  снимается последней посадкой; reveal `[data-parl-ruler]`/`[data-parl-quest]`; глайд Повестки через ref
+  Agenda), ОБНОВЛЕНИЕ (проигравшие (`summary.discarded`, серверная добавка) паркуются лицом вверх над своими
+  слотами и улетают в зону колоды; раздача `dealResolutionCard` — тело `Card3DInner` face-down на
+  `[data-parl-deck-top]`, `addCard3DTurn` на таймлайне полёта (24–86 % пути), glint, тик колоды на отделении,
+  лицо слота на посадке; кубы поддержки со склада на свежие карты; лобби из резервов), ЗАКРЫТИЕ (cascade
+  карточки). `finishSittingMotion` = стаггеры выстреливают + все тайны → `progress(1)`; `killSittingMotion`;
+  `expire` → finish + settle (holds чистятся, peek снят).
+- **Слой полётов шелла** `ConsoleParliamentFlightLayer.vue` (рядом с `ConsoleHandDeliveryLayer`), секционный
+  `ConsoleParliamentFlights.vue` удалён; спек карты с `face` рендерится chassis'ом `Card3DInner` (лицо —
+  тот же lightweight vm, что в слоте; рубашка; кромка), `faceUp:false` = `rotateY(180)` с первого кадра.
+- **`parliamentFlights.ts`**: `flightBeats` хранят `fire` (для «дожать»), `dealResolutionCard`,
+  `flyCube` возвращает id полёта ПРИ РОЖДЕНИИ (элемент прокси регистрируется только на следующем рендере),
+  `setFlightEl(id, null)` при размонтировании УДАЛЯЕТ запись (иначе `flightRegistered` считает сброшенный
+  полёт «в воздухе» вечно), `finishParliamentFlights`.
+- **Секция**: `planOpeningMotion` (seed holds всех стадий ≤ текущей ДО первого кадра; реплей пройденных —
+  resume; в полевой позе реплея нет), `queueMotion` после unfold стадии ИЛИ из `mounted()` (transition без
+  `appear` не играет enter на первом рендере — три пробника ждали бет, который никто не ставил в очередь),
+  беты на смену страницы один раз за монтаж, A во время бета = дожать, peek.
+- **Сервер**: `summary.discarded` (проигравшие обновления) — `SerializedParliament`, `ParliamentPhase.stepRefresh`,
+  `ParliamentModel` (сервер и common), фильтр retired в `Parliament.ts`.
+- **LESS**: `--peek`, `--lit`, физический прокси (outer без клипа, рамка/тень на гранях), кроссфейд панели.
+- **e2e** `console-parliament-sitting-motion.spec.ts` (1080): сэмплер `setInterval`+`MutationObserver`
+  (rotateY из inline transform, смещения прокси, `--dealing`, `--awaiting`, peek, `data-count` колоды,
+  количество нарисованных лиц по slug, hold'ы из `__conReady`), 4 теста: ВЕРДИКТ→ПРИНЯТИЕ, ОБНОВЛЕНИЕ+«дожать»,
+  reduced-motion, perf-lite.
+
+### Отклонения / решения
+
+1. Бонус Повестки (чип РТ → HUD / карта → док) не переигрывается — уже выплачен до ворот, счётчик HUD уже
+   сдвинулся; глайд маркера — да (свой hold), строка «+1 РТ» на панели.
+2. Подпись «→ резерв player1» у резерва — не реализована (язык Э5).
+3. Бывший слот победителя = первый ПУСТОЙ контур (`[data-parl-slot-empty-card]`): область рисует реальные слоты
+   первыми, индекс `winner.slot` визуально не сохраняется.
+4. Ярус партий во время заседания припаркован; для ПОДДЕРЖКИ — peek (стадия `opacity .08`), не постоянная
+   видимость плашек.
+5. Видео покадрово не смотрел (нет инструмента кадров) — эвидентность: сэмплер + скриншоты в полёте.
+6. Транзишн стадии без `appear`: очередь моушена стартует из `mounted()` на смонтированном DOM.
+
+### Замеры пробника (что нашёл сэмплер, а не глаз)
+
+Пробник `console-parliament-sitting-motion.spec.ts` (1080, `setInterval` + `MutationObserver`, никогда rAF):
+
+- **Прогон 1 — 3 из 4 красные, «бет не стартовал».** `<transition>` без `appear` не играет enter для
+  элемента ПЕРВОГО рендера; очередь бетов стояла только в хуке unfold, а плита монтирует секцию с уже
+  стоящей стадией. Исправлено: `queueMotion()` также из `mounted()`.
+- **Прогон 2 — «`sit-deal11` rests face-up: expected < 10, received 180».** У последней сданной карты после
+  сброса соседа Vue пере-применил `:style="{transform: rotateY(180deg)}"` inner-тела — тело вернулось в
+  позу рождения посреди переворота (сэмплы 180 → 90 → 30 → 180). Исправлено: никаких `:style` на свойствах,
+  которыми владеет GSAP; `setCard3DFace` ставит позу рождения на первом тике.
+- **Прогон 3 — «lobby cube displacement 0».** Кубы директора не отслеживались: `flyCubeTracked` искал id в
+  `flightEls`, а элемент регистрируется на следующем рендере. Исправлено: `flyCube` возвращает id при
+  рождении; hold стадии снимается на ПОСЛЕДНЕЙ посадке (`awaitFlights` по `flightRegistered`), а не на конце
+  master-таймлайна.
+- **Прогон 4 — стадия не приходит в покой.** `:ref`-callback Vue при размонтировании прокси регистрировал
+  `null`, и `flightRegistered` считал сброшенный полёт живым вечно. Исправлено: `setFlightEl(id, null)` →
+  delete; `waitAtRest` пробника игнорирует припаркованные прокси `sit-park*`.
+- **Прогон 5 — 4/4.** Утверждено сэмплером: ВЕРДИКТ 400–1500 мс без единого куба, припаркованная карта стоит
+  весь вердикт, лицо правительства скрыто (`--awaiting`); ПРИНЯТИЕ 900–3600 мс, карта прошла ≥ 60 px, каждый
+  куб ≥ 20 px, peek яруса был, `--awaiting` снят только на посадке, каждая карта нарисована один раз на
+  покое, hold-ы пусты; ОБНОВЛЕНИЕ 1200–4000 мс, три тела `3d`, `rotateY` 180 → (30…150) → 0 монотонно, лица
+  слотов скрыты в полёте и 0 `--dealing` на покое, колода только худеет на N раздач, кубы лобби ≥ 20 px;
+  «дожать» на ЗАКРЫТИИ — страница остаётся; reduced-motion — ни одного прокси и hold-а, обход ≤ 6 с двумя
+  нажатиями; perf-lite — `filter: none` на каждом прокси. GSAP не пишет `rotateY(0deg)` в transform —
+  сэмплер трактует записанный transform без `rotateY` как 0.
+- Скриншоты в полёте просмотрены: `screenshots/parliament-sitting-motion/02-enact-in-flight.png` (карта
+  победителя между областью и правительством, кубы в воздухе), `10-renewal-deal-in-flight.png` (карта ребром
+  у колоды, лица слотов пусты) — аномалий нет.
+
+### Итог приёмки Э4
+
+- `npm run lint:client` — 0; `npm run build:test` — 0; eslint по изменённым файлам — 0.
+- `npm run test:server` — 12053 собрано, 12051 passing, 2 pending (`sittingBeats` 7, `consoleSittingFlow` 17,
+  гарды `parliamentNoTimers` / `parliamentNoLocalStorage` / `glyphLiteralGuard` / `e2eDriverGuard`);
+  `npm run test:client` — 5694 passing.
+- e2e (`--workers=1`): `console-parliament-sitting.spec.ts` 6/6 (регресс Э3 на трёх профилях),
+  `console-parliament-sitting-motion.spec.ts` 4/4.
+- Существующие e2e-сюиты по правилам прогона НЕ гонялись; ожидаемо сломанные перечислены в
+  `docs/TURMOIL_REDUX_PARLIAMENT_SITTING.md` § «Передача в Э5».
+- Коммит: «Parliament sitting · Э4: директор заседания, физические беты, 3D-переворот раздачи».

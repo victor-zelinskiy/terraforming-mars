@@ -1,9 +1,6 @@
 import {reactive} from 'vue';
 import {Color} from '@/common/Color';
 import {ReduxParty} from '@/common/parliament/ParliamentTypes';
-import {ParliamentModel} from '@/common/models/ParliamentModel';
-import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
-import {ParliamentSlotVm} from './consoleParliamentModel';
 
 /*
  * THE DISPLAY HOLDS — what the delegates zone, the party plaques, the
@@ -11,8 +8,8 @@ import {ParliamentSlotVm} from './consoleParliamentModel';
  * physically moved. The SITTING DIRECTOR (Э4 — `sittingDirector.ts`) writes
  * them as its beats fly the cubes and deal the cards; the tiers read them over
  * the live model, so nothing is drawn at its destination before it has
- * travelled there. In the static Э3 sitting nothing seeds them: every tier
- * paints the server's state, and the holds stay empty.
+ * travelled there. The director seeds them per stage (`seedEnactHolds` /
+ * `seedRenewalHolds`) and its beats consume them touchdown by touchdown.
  */
 export type ParliamentDisplayHolds = {
   /** Delegates that left the enacted card and have not reached their reserve / the supply yet. */
@@ -41,49 +38,4 @@ export const parliamentHolds = reactive(emptyParliamentHolds()) as ParliamentDis
 
 export function resetParliamentHolds(): void {
   Object.assign(parliamentHolds, emptyParliamentHolds());
-}
-
-/**
- * What the sitting's beats still have to MOVE: every cube stays where it was
- * until its beat flies it. Seeded BEFORE the stage opens, so its first frame
- * already shows the table as it stood before the phase. Reads the phase's
- * SUMMARY (the live sitting's `phase.summary`, a review's `lastPhase`) — the
- * Э4 director's seed; unused by the static Э3 poses.
- */
-export function seedSittingHolds(model: ParliamentModel | undefined, slots: ReadonlyArray<ParliamentSlotVm>, enactedInstance: string | undefined): void {
-  const pending = emptyParliamentHolds();
-  const last = model?.phase?.summary ?? model?.lastPhase;
-  if (last !== undefined && !consoleReducedMotionActive()) {
-    for (const entry of last.returned ?? []) {
-      pending.returns.set(entry.owner, entry.count);
-    }
-    for (const fresh of last.refreshed) {
-      if (fresh.neutralVotes <= 0) {
-        continue;
-      }
-      const slot = slots.find((s) => s.instance === fresh.instance);
-      if (slot === undefined) {
-        continue;
-      }
-      const neutralSeqs = slot.votes.filter((v) => v.owner === 'neutral').map((v) => v.seq).sort((a, b) => a - b).slice(0, fresh.neutralVotes);
-      for (const seq of neutralSeqs) {
-        pending.hiddenCubes.add(`${slot.instance}#${seq}`);
-      }
-      pending.support.set(fresh.party, (pending.support.get(fresh.party) ?? 0) + neutralSeqs.length);
-    }
-    for (const color of last.lobbyRefilled) {
-      pending.lobby.add(color);
-    }
-    // The fresh resolutions are still ON the deck: their faces wait, the pile keeps them.
-    for (const fresh of last.refreshed) {
-      pending.freshFaces.add(fresh.instance);
-    }
-    pending.deckPending = last.refreshed.length;
-    // THE ENACTED CARD moves in from the slot it won in: its government face
-    // waits until the touchdown (an older save without the slot keeps it in place).
-    if (last.winner.slot !== undefined && enactedInstance === last.enacted.instance) {
-      pending.govAwaits = last.enacted.instance;
-    }
-  }
-  Object.assign(parliamentHolds, pending);
 }

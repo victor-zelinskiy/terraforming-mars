@@ -667,7 +667,9 @@ export class ParliamentPhase {
       return;
     }
     const parliament = this.parliament;
-    // The two losers leave; their delegates go home (derived).
+    // The two losers leave; their delegates go home (derived). The sitting's
+    // renewal beat flies them off the table, so the summary names them.
+    this.summary.discarded = parliament.slots.map((slot) => slot.instance);
     for (const slot of parliament.slots) {
       const definition = parliament.resolutionOf(slot.instance);
       parliament.discard.push(slot.instance);
