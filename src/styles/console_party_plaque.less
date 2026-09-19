@@ -116,7 +116,13 @@
         align-items: center;
         gap: .3rem;
         min-width: 0;
-        min-height: 1rem;
+        /* RESERVED, never `min-height` (registry R-16): the row holds two lines of state
+           text or the places' cubes on EVERY tile, so a caption that exists on three tiles
+           and not on three others, or a focused tile's reason replacing a one-line state,
+           moves nothing (measured: 20 → 26 px on focus at 1080; 40 / 74 px across tiles on
+           the TV). The profile ladders restate the height with their own type sizes. */
+        height: 1.4rem;
+        overflow: hidden;
         font-size: .6rem;
         line-height: 1.2;
         &--gold { color: @con-parl-gold; }

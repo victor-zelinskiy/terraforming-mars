@@ -113,13 +113,17 @@
            anatomy as a slot, a card-shaped outline where a card would
            stand and one line that says why — never an unexplained hole.
            A card enacted from this position still leaves from HERE. -->
-      <div v-for="n in emptySlotCount" :key="'empty-' + n" class="con-parl__slot-home con-parl__slot-home--empty" data-parl-slot-empty>
+      <!-- …but it names itself only once the ENACTED card has physically left (registry R-25): while the
+           director still parks that card over its former slot, the model already lists the slot as empty
+           and «ПУСТОЙ СЛОТ» stood over a card the player could see. The head and the reason wait for
+           the enactment beat; the outline stays. -->
+      <div v-for="n in emptySlotCount" :key="'empty-' + n" class="con-parl__slot-home con-parl__slot-home--empty" data-parl-slot-empty :data-parl-slot-empty-held="holds.parked !== undefined ? 'true' : undefined">
         <div class="con-parl__slot-empty">
           <div class="con-parl__slot-label">
-            <span class="con-parl__slot-party">{{ $t('Empty slot') }}</span>
+            <span v-if="holds.parked === undefined" class="con-parl__slot-party">{{ $t('Empty slot') }}</span>
           </div>
           <div class="con-parl__slot-empty-card" data-parl-slot-empty-card aria-hidden="true"></div>
-          <span class="con-parl__slot-empty-reason">{{ $t(emptySlotReason) }}</span>
+          <span v-if="holds.parked === undefined" class="con-parl__slot-empty-reason">{{ $t(emptySlotReason) }}</span>
         </div>
       </div>
     </div>

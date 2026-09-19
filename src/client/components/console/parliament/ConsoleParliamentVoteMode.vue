@@ -146,16 +146,11 @@
              }"
              data-parl-vote-item data-parl-cta @click="submitVote()">
           <GamepadGlyph v-if="flow.stage === 'vote' && canVoteNow" control="confirm" class="con-parl__cta-glyph" />
+          <!-- The verb alone (R-14): the delegate's source and price are the «ВАШ ГОЛОС» row's, said once —
+               the tail here doubled them and wrapped the plate onto two lines on the TV. The cost stays
+               readable to probes on the plate's own attribute. -->
           <span class="con-parl__cta-label">{{ ctaText }}</span>
-          <span v-if="flow.stage === 'vote' && canVoteNow && ctaCost.kind !== 'none'" class="con-parl__cta-cost" :class="'con-parl__cta-cost--' + ctaCost.kind" data-parl-cta-cost :data-cost-kind="ctaCost.kind">
-            <template v-if="ctaCost.kind === 'free'">{{ $t('from the lobby · free') }}</template>
-            <template v-else>
-              <span class="con-parl__cta-cost-src">{{ $t('from the reserve') }}</span>
-              <span class="con-parl__cta-cost-sep" aria-hidden="true">·</span>
-              <b class="con-parl__cta-cost-num">{{ ctaCost.amount }}</b>
-              <i class="con-parl__cta-cost-mc resource_icon resource_icon--megacredits" aria-hidden="true"></i>
-            </template>
-          </span>
+          <span v-if="flow.stage === 'vote' && canVoteNow && ctaCost.kind !== 'none'" class="con-parl__cta-cost con-parl__cta-cost--silent" data-parl-cta-cost :data-cost-kind="ctaCost.kind" :data-cost-amount="ctaCost.kind === 'free' ? 0 : ctaCost.amount" aria-hidden="true"></span>
         </div>
       </div>
     </div>

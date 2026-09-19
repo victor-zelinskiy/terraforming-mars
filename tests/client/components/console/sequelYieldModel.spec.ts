@@ -210,6 +210,6 @@ describe('partyReactionModel', () => {
       {effect: raise, context: 'applied', influence: 4, amount: 4},
     ]);
     expect(applied[0]).deep.include({moment: 'applied', amount: 4});
-    expect(reactionCaptionOf(applied[0])).eq('Received from the party');
+    expect(reactionCaptionOf(applied[0])).eq('The ruling party answers');
   });
 });

@@ -224,7 +224,7 @@ for (const preset of PRESETS) {
       await expect(gov.locator('[data-parl-gov-empty]'), 'no resolution enacted yet: an honest empty seat').toHaveCount(1);
       await expect(page.locator('.con-wshead [data-parl-seats] .con-parl__seat[data-parl-seat]'), 'the delegates zone on the head line — one group per player').toHaveCount(2);
       await expect(page.locator('.con-parl__body [data-parl-seats]'), 'no ledger row in the body').toHaveCount(0);
-      await expect(page.locator('[data-parl-quest] .con-parl__quest-reward')).toContainText(/Кресло/);
+      await expect(page.locator('[data-parl-quest] .con-parl__quest-reward')).toContainText(/Председательство/);
       await expect(page.locator('[data-parl-tally]')).toHaveCount(3);
       await expect(page.locator('.con-parl__party')).toHaveCount(6);
       await shoot(page, preset, '01-browse');

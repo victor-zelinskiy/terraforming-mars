@@ -330,7 +330,7 @@ async function expectInspectorScene(page: Page, label: string): Promise<void> {
 /** The overview carries NO rule paragraphs, no V-labels, no second ledger of the viewer's delegates. */
 async function expectNoRuleProse(page: Page): Promise<void> {
   const text = (await parliament(page).textContent() ?? '').replace(/\s+/g, ' ');
-  for (const fragment of ['Побеждает больше делегатов', 'Эффект есть у всех', 'Пронумерованные шаги', 'У вас есть:', 'Раз за поколение', 'Прогноз при текущем', 'ближайшая к правительству — первая']) {
+  for (const fragment of ['Принимается резолюция с большинством делегатов', 'Эффект есть у всех', 'Пронумерованные шаги', 'У вас есть:', 'Раз за поколение', 'Прогноз при текущем', 'ближайшая к правительству — первая']) {
     expect(text, `no rule prose on the overview: «${fragment}»`).not.toContain(fragment);
   }
   expect(text, 'no V1/V2/V3 labels').not.toMatch(/\bV[123]\b/);
@@ -422,12 +422,12 @@ for (const preset of PRESETS) {
       await expect(page.locator('[data-parl-ruler] .con-pformula__mech'), 'the ruling effect is a GRAPHIC here').toHaveCount(1);
       await expect(page.locator('[data-parl-ruler] .con-parl__ruler-rule'), 'no rule paragraph in the government — the inspector has the sentences').toHaveCount(0);
       await expect(page.locator('.con-parl__voting-lead'), 'the winner is named ONCE — on its slot, never a second line over the voting area').toHaveCount(0);
-      expect((await crumbText(page)).toUpperCase(), 'the overview names itself on the head line').toContain('ОСМОТР');
+      expect((await crumbText(page)).toUpperCase(), 'the overview names itself on the head line').toContain('ОБЗОР');
       await expect(page.locator('[data-parl-seats] .con-parl__seat[data-parl-seat]'), 'the delegates zone: one group per player').toHaveCount(2);
       await expect(page.locator(`[data-parl-seat-lobby="${before.players[0].color}"] .player-cube, [data-parl-seat-lobby="${before.players[1].color}"] .player-cube`),
         'a free delegate stands in a lobby socket').not.toHaveCount(0);
       await expect(page.locator('[data-parl-quest] .con-parl__quest-cond .pcard__mech'), 'the quest condition is a graphic').toHaveCount(1);
-      await expect(page.locator('[data-parl-quest-reward]')).toContainText(/Кресло/);
+      await expect(page.locator('[data-parl-quest-reward]')).toContainText(/Председательство/);
       await expect(page.locator('[data-parl-reward-step]'), 'the reward names the viewer\'s next Agenda step').toHaveCount(1);
       await expect(page.locator('.con-parl__slot.con-parl__slot--winning .con-parl__slot-win'), 'exactly one card reads «побеждает»').toHaveCount(1);
       await expect(page.locator('.con-parl__slot .pcard__quest-reward'), 'no reward marks repeated on the faces').toHaveCount(0);
@@ -505,7 +505,8 @@ for (const preset of PRESETS) {
       await expect(page.locator('.con-parl__seat--me [data-parl-seat-lobby] .player-cube'), 'the viewer\'s free delegate stands in their lobby socket on the zone').toHaveCount(1);
       await expect(page.locator('.con-parl__seat--me [data-parl-seat-place="lobby"].con-parl__seat-place--source'), 'the viewer\'s lobby is marked as the source').toHaveCount(1);
       await expect(page.locator('[data-parl-vote-source]'), 'the delegate\'s real source').toContainText(/лобби/i);
-      await expect(page.locator('[data-parl-cta-cost][data-cost-kind="free"]'), 'the confirm says the lobby delegate is free').toContainText(/бесплатно/i);
+      // The plate carries the verb alone (registry R-14); the price is the «ВАШ ГОЛОС» row's and the plate's own attribute.
+      await expect(page.locator('[data-parl-cta-cost][data-cost-kind="free"]'), 'the confirm knows the lobby delegate is free').toHaveAttribute('data-cost-amount', '0');
       await expect(page.locator('.con-parl__vote .con-parl__cta'), 'no «a full action» filler on the confirm').not.toContainText(/Полное действие/i);
       // ONE NUMBER (docs/TURMOIL_REDUX_PARLIAMENT_VOTE_ONE_NUMBER.md): the count is the ribbon under
       // the card, the first delegate's 0 → 1 is the places under it — neither is a panel fact.
@@ -687,7 +688,8 @@ test.describe('parliament v4 · the paid vote · the bill inside the mode · the
     await expect(page.locator(`.con-wshead [data-parl-seat-reserve="${before.color}"] .con-parl__stack-cube`), 'the reserve stack on the head line shows its cubes').not.toHaveCount(0);
     await expect(page.locator('.con-parl__seat--me [data-parl-seat-place="reserve"].con-parl__seat-place--source'), 'the reserve is marked as the source').toHaveCount(1);
     await expect(page.locator('[data-parl-vote-source]')).toContainText(/резерва/i);
-    await expect(page.locator('[data-parl-cta-cost][data-cost-kind="cost"] .con-parl__cta-cost-num'), 'the price stands on the confirm — the server\'s own').toHaveText(String(before.parl.viewer?.vote.cost ?? -1));
+    // The plate says the verb alone (registry R-14); the server's own price rides its attribute and the «ВАШ ГОЛОС» row.
+    await expect(page.locator('[data-parl-cta-cost][data-cost-kind="cost"]'), 'the price stands on the confirm — the server\'s own').toHaveAttribute('data-cost-amount', String(before.parl.viewer?.vote.cost ?? -1));
     await expect(page.locator('[data-parl-fact="votes"], [data-parl-fact="mine"]'), 'the count is the ribbon under the card, not a panel fact').toHaveCount(0);
     await expect(page.locator('[data-parl-fact="lead"].con-parl__fact--gain'), 'the lead changes hands').toHaveCount(1);
     // THE EDGE: this very delegate (1 → 2) grants the party effect — the one case the third fact stands on the panel.

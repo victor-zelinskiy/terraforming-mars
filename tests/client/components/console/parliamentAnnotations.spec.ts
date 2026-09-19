@@ -65,7 +65,7 @@ describe('parliamentAnnotations — the fullscreen inspector\'s reading blocks',
       const blocks = resolutionPartyAnnotations(party);
       expect(blocks.length, party).to.be.within(1, 2);
       for (const block of blocks) {
-        expect(block.labelKey, party).to.be.oneOf(['Effect', 'Action']);
+        expect(block.labelKey, party).to.be.oneOf(['Party effect', 'Party action']);
         expect(block.rows.length, `${party}: one printed text per mechanic`).to.eq(1);
       }
       for (const text of texts(blocks)) {
@@ -79,7 +79,7 @@ describe('parliamentAnnotations — the fullscreen inspector\'s reading blocks',
       'Draw 2 cards, then discard any 2 cards from your hand. Gain 2 M€ for each plant, microbe or animal tag on the discarded cards.',
     ]);
     const scientists = resolutionPartyAnnotations(PartyName.SCIENTISTS);
-    expect(scientists.map((b) => b.labelKey), 'the effect and the action told apart').to.deep.eq(['Effect', 'Action']);
+    expect(scientists.map((b) => b.labelKey), 'the effect and the action told apart').to.deep.eq(['Party effect', 'Party action']);
     expect(texts(scientists)).to.deep.eq([
       '+1 wild tag. It counts as any tag, except for awards and victory points.',
       'Add 2 data or 2 microbes to one of your cards that can hold that resource.',

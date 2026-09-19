@@ -165,4 +165,14 @@ describe('voteInfoBudget — the vote panel never overloads again', () => {
     expect(b.readings).to.eq(0);
     expect(b.words).to.be.at.most(VOTE_INFO_LIMITS.words);
   });
+
+  it('the panel speaks the glossary — a RESOLUTION «принимается», the player «если победите», the effect «ваш» (ПОЛИРОВКА)', () => {
+    // No `\b`: JS word boundaries are ASCII-only and never fire beside a Cyrillic letter.
+    const banned = [/побежда/i, /при победе/i, /ваш эффект/i, /победивший игрок/i];
+    const keys = [SUFFIX_IF_YOU_WIN, SUFFIX_HINT, 'Winning', 'effect is yours', 'Leader', VOTE_KICKER, READING_KICKER_SEATED];
+    const hits = keys.flatMap((k) => banned.filter((b) => b.test(ru(k))).map((b) => `${k}: «${ru(k)}» matches ${b}`));
+    expect(hits, 'retired forms in the panel\'s RU lines').to.deep.eq([]);
+    expect(ru('Winning')).to.eq('Принимается');
+    expect(ru(SUFFIX_IF_YOU_WIN)).to.eq('если победите');
+  });
 });

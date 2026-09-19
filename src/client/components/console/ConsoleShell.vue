@@ -925,7 +925,7 @@
     <CardZoomModal v-if="consoleCardZoom.card !== undefined"
                    ref="cardZoom"
                    class="con-zoom"
-                   :class="{'con-zoom--flight': zoomFlight, 'con-zoom--closing': zoomClosing, 'con-zoom--parliament': zoomResolutionId !== undefined}"
+                   :class="{'con-zoom--flight': zoomFlight, 'con-zoom--closing': zoomClosing, 'con-zoom--parliament': zoomResolutionId !== undefined, 'con-zoom--party': zoomPartyOpen}"
                    :card="consoleCardZoom.card"
                    :cards="consoleCardZoom.cards.length > 1 ? consoleCardZoom.cards : undefined"
                    :index="consoleCardZoom.index"
@@ -1516,7 +1516,7 @@ import {Color} from '@/common/Color';
 import {GameModel} from '@/common/models/GameModel';
 import {CardModel} from '@/common/models/CardModel';
 import {CardName} from '@/common/cards/CardName';
-import {isReduxParty, ReduxParty} from '@/common/parliament/ParliamentTypes';
+import {isReduxParty, REDUX_PARTIES, ReduxParty} from '@/common/parliament/ParliamentTypes';
 import {Message} from '@/common/logs/Message';
 import {Payment} from '@/common/inputs/Payment';
 import {ColonyBonusCollectMeta, ColonyBonusDiscardMeta, DiscardPromptMeta, PlacementEffect, SelectCardModel, SelectColonyModel, SelectPaymentModel, SelectProjectCardToPlayModel, SelectSpaceModel} from '@/common/models/PlayerInputModel';
@@ -8528,6 +8528,11 @@ export default defineComponent({
       const card = this.consoleCardZoom.card;
       return card !== undefined && isResolutionZoom(card) ? card.resolution : undefined;
     },
+    /** A PARTY's inspector is open (the plate + the rules column) — the handheld rules width rides this class (registry R-19). */
+    zoomPartyOpen(): boolean {
+      const card = this.consoleCardZoom.card;
+      return card !== undefined && isPartyEffectZoom(card);
+    },
     /** Its party — the left column's subject (the CATALOG's party, so it shows outside a live table too). */
     zoomResolutionParty(): ReduxParty | undefined {
       const id = this.zoomResolutionId;
@@ -13409,11 +13414,15 @@ export default defineComponent({
      */
     inspectParliament(request: ParliamentInspectRequest): void {
       if (request.kind === 'party') {
+        // All six parties in ONE viewer, LB/RB paging them in the tier's order (registry R-19):
+        // the party the player pressed X on lifts out of its own tile; the others open textually.
         const resolveOrigin = request.origin;
+        const parties = REDUX_PARTIES as ReadonlyArray<ReduxParty>;
+        const index = Math.max(0, parties.indexOf(request.party));
         const origin: ZoomOrigin = resolveOrigin === undefined ?
           {kind: 'textual'} :
-          {kind: 'physical', resolve: () => resolveOrigin() ?? null};
-        openConsoleCardZoom([partyEffectZoomEntry(request.party)], 0, undefined, undefined, {origin});
+          {kind: 'physical', resolve: (i) => i === index ? (resolveOrigin() ?? null) : null};
+        openConsoleCardZoom(parties.map((p) => partyEffectZoomEntry(p)), index, undefined, undefined, {origin, counterInFooter: true});
         return;
       }
       // The vote mode's three proposals in one viewer, in the order they

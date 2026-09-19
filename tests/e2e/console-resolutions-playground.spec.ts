@@ -388,7 +388,7 @@ for (const preset of PRESETS) {
       await expect(winner).toHaveAttribute('data-winner-before', '5');
       await expect(winner).toHaveAttribute('data-winner-after', '6');
       await expect(winner).toHaveAttribute('data-winner-tr', '2');
-      await expect(winner.locator('[data-winner-caption]')).toHaveText(/При победе|If you win/);
+      await expect(winner.locator('[data-winner-caption]')).toHaveText(/Если победите|If you win/);
       await shoot(page, preset.id, '21-biodome-influence-3');
 
       // ── RT: influence BEYOND the track — 7 → +14 plants. The +5 maximum is RX02's rule and never appears here.

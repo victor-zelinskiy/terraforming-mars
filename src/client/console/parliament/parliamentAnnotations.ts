@@ -66,7 +66,10 @@ function block(id: string, kind: CardAnnotationKind, labelKey: string, rows: Rea
 /** The labels a mechanic block wears — plain beside the party plaque, qualified in the party's own inspector. */
 type MechanicLabels = {effect: string, action: string};
 
-const ASIDE_LABELS: MechanicLabels = {effect: 'Effect', action: 'Action'};
+/* ONE name per mechanic wherever it is read (docs/claude/parliament-glossary.md §3): the resolution's
+   party column once said «ДЕЙСТВИЕ» / «ЭФФЕКТ» where the party's own inspector said «ДЕЙСТВИЕ ПАРТИИ» /
+   «ЭФФЕКТ ПАРТИИ». */
+const ASIDE_LABELS: MechanicLabels = {effect: 'Party effect', action: 'Party action'};
 const PARTY_INSPECTOR_LABELS: MechanicLabels = {effect: 'Party effect', action: 'Party action'};
 
 /**

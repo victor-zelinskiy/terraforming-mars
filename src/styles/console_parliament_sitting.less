@@ -250,7 +250,9 @@
         min-width: 0;
     }
     &__closing-head { grid-column: 1 / -1; display: flex; align-items: baseline; gap: .6rem; }
-    &__closing-title { font-size: 1.05rem; font-weight: 700; }
+    /* A panel title in the KICKER grammar (registry R-29): «ИТОГИ ПОКОЛЕНИЯ 1» was the one
+       sentence-case heading among tracked caps. */
+    &__closing-title { font-size: .92rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
 }
 /* An ambient loop is COMPOSITOR-ONLY (opacity), per the console paint baseline. */
 @keyframes con-sit-wait-breathe {

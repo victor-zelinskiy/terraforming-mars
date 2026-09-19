@@ -43,7 +43,8 @@ function browseCommands(input: ParliamentCommandsInput, back: ConsoleCommand): A
     if (state !== undefined && state.kind !== 'none' && state.kind !== 'no-access') {
       cmds.push({control: 'confirm', label: 'Party action', enabled: state.kind === 'available', highlight: state.kind === 'available'});
     }
-    cmds.push({control: 'secondary', label: 'Party effect'}, back);
+    // X is ONE verb across the parliament (glossary §5): «ОСМОТРЕТЬ», never the name of what it opens.
+    cmds.push({control: 'secondary', label: 'Inspect'}, back);
     return cmds;
   }
   }

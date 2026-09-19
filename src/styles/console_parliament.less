@@ -78,7 +78,10 @@
     flex-direction: column;
     gap: .4rem;
     position: relative;
-    padding: var(--con-parl-pad-t, .1rem) var(--con-stage-x, .55rem) .3rem var(--con-parl-pad-l, .55rem);
+    /* THE SHARED FRAME INSETS (registry R-17, `console-parliament-chassis-parity.spec.ts`): the
+       crumb row stands where every other workspace's does — the parliament once kept its own
+       top/left tokens and its crumb sat 21 px higher and 11 px further left than «Действия карт». */
+    padding: var(--con-ws-frame-pad-t) var(--con-stage-x, .55rem) .3rem var(--con-ws-frame-pad-x);
     font-family: @con-font;
     color: @con-text;
     --con-parl-card-zoom: calc(0.62 * var(--con-ui-scale, 1));
@@ -143,6 +146,10 @@
            beside it (five long names) — never a squeezed or cut name. */
         flex-wrap: wrap;
         row-gap: .15rem;
+        /* The crumb row stands on the SHARED head's 2rem line (registry R-17): every other
+           workspace centres its crumb on `min-height: 2rem`; this head is taller (the seats
+           zone), so the row is given that same line explicitly, or it sits 8 px higher. */
+        .con-wshead__ident { min-height: 2rem; align-items: center; }
         .con-wshead__aux { flex: 0 0 var(--con-parl-crumb-w); min-width: 0; }
         .con-wshead__trailing {
             margin-left: 0;
@@ -761,7 +768,8 @@
         max-height: calc(100% + var(--con-parl-agenda-h) + .4rem);
     }
     &__stage-head { display: flex; gap: .6rem; align-items: center; flex-shrink: 0; & > div:not(.con-parl__cta) { display: flex; flex-direction: column; gap: .1rem; min-width: 0; } }
-    &__stage-title { font-size: 1.05rem; line-height: 1.15; }
+    /* The seat pick's title in the KICKER grammar (registry R-29), like every other panel head. */
+    &__stage-title { font-size: .92rem; line-height: 1.15; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
     &__stage-sub { font-family: @con-font-read; font-size: .74rem; opacity: .8; line-height: 1.25; }
     &__stage-nav { margin-left: auto; font-size: .7rem; opacity: .55; letter-spacing: .3em; }
     &__stage-body { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: .8rem; }
@@ -1085,7 +1093,7 @@ html.con-profile-handheld .con-parl {
         .con-pseal__name { font-size: .56rem; white-space: normal; line-height: 1.05; letter-spacing: 0; }
         .con-pseal__action { width: 1rem; height: 1rem; font-size: .6rem; }
         .con-pseal__action-mark { width: .62rem; height: .62rem; font-size: .4rem; }
-        .con-pseal__state { font-size: .48rem; min-height: .8rem; }
+        .con-pseal__state { font-size: .48rem; height: 1.3rem; }
         .con-pseal__state-text { font-size: .46rem; }
         .con-pseal__place { width: .6rem; height: .6rem; }
         .con-pseal__places-count { font-size: .52rem; }
@@ -1183,7 +1191,7 @@ html.con-profile-tv .con-parl {
     &__party > .con-pseal { padding-left: .4rem; padding-right: .4rem; column-gap: .35rem; }
     .con-pseal__name { font-size: .8rem; letter-spacing: 0; }
     .con-pseal__seal { width: 2.4rem; height: 2.4rem; }
-    .con-pseal__state { font-size: .8rem; align-items: center; }
+    .con-pseal__state { font-size: .8rem; height: 2rem; align-items: center; }
     .con-pseal__state-text { white-space: normal; line-height: 1.15; font-size: .8rem; }
     .con-pseal__places-count { font-size: .8rem; }
     .con-pseal__action { width: 1.3rem; height: 1.3rem; font-size: .84rem; }

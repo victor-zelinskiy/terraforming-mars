@@ -144,7 +144,9 @@
        number beside it (its suffix inside the same plate), the party's answer
        after it. A card that scales nothing keeps the frame with the graphic. */
     &__info-own {
-        flex: 1 1 auto;
+        /* Content-sized (registry R-18): as `flex: 1 1 auto` the frame filled the whole column and
+           drew a 550 × 200 plate around one row. The PANEL keeps its fixed height for stability. */
+        flex: 0 0 auto;
         display: flex;
         flex-direction: column;
         gap: .3rem;

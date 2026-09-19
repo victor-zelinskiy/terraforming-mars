@@ -170,8 +170,11 @@ export default defineComponent({
         return '';
       }
       switch (state.kind) {
-      case 'ruling-default': return translateText('Ruling · starting rule');
+      // «ПРАВИТ» alone: the government block beside the tile already names the basis («СТАРТОВОЕ ПРАВИЛО» /
+      // the enacted card) — saying it twice on one screen was registry row R-03.
+      case 'ruling-default': return translateText('Ruling');
       case 'ruling': return translateText('Ruling');
+      // The same word order as the voting columns' «ЭФФЕКТ ВАШ» (glossary §3, R-04) — the keys' RU line.
       case 'delegates': return translateText('Your effect');
       case 'granted': return translateText('Your effect · granted by a card');
       default: return '';

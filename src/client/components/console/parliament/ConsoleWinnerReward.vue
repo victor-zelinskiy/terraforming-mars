@@ -130,7 +130,8 @@ export default defineComponent({
       return this.reading.tr === undefined ? 0 : winnerRewardTrTotal(this.reading.tr);
     },
     caption(): string {
-      const caption = winnerRewardCaptionOf(this.reading, this.viewerColor, this.nameOf);
+      // A skip says «ПРОПУЩЕНО» here; the REASON is the skip plate's alone (R-12 — the same sentence stood twice).
+      const caption = this.reading.skipped !== undefined ? {key: 'Skipped'} : winnerRewardCaptionOf(this.reading, this.viewerColor, this.nameOf);
       if (caption === undefined) {
         return '';
       }

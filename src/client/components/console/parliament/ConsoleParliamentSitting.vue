@@ -355,7 +355,9 @@ export default defineComponent({
       return out;
     },
     rewardKicker(): string {
-      return this.position.rewardStep === 'waiting' ? 'The effects are being paid' : 'Your reward';
+      // ONE kicker for the panel's whole life (glossary §6, R-07): the STATE beside it is the one word
+      // that moves («ЭТА ВЫПЛАТА» → «ПОЛУЧЕНО»); «ЭФФЕКТЫ ВЫПЛАЧИВАЮТСЯ | ПОЛУЧЕНО» was two voices.
+      return 'Your reward';
     },
     /**
      * THE ONE WORD OF STATE beside the kicker: «this payout» while the numbers

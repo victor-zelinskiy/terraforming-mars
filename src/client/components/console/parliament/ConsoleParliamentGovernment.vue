@@ -15,11 +15,10 @@
        data-parl-recede>
     <div class="con-parl__gov-head">
       <span class="con-parl__kicker">{{ $t('Government') }}</span>
-      <!-- While the enactment's effect waits on ANOTHER seat, the basis
-           line says who and what for (the asked seat's own input kind —
-           a card pick, a placement, a decision); otherwise the basis. -->
-      <span v-if="phaseWaitText !== ''" class="con-parl__gov-basis con-parl__gov-basis--waiting" data-parl-phase-wait>{{ phaseWaitText }}</span>
-      <span v-else class="con-parl__gov-basis" :class="{'con-parl__gov-basis--default': view.enacted === undefined}">
+      <!-- The basis, and only the basis: a wait on ANOTHER seat is said ONCE, on the
+           reward panel's own wait line with the seat's chip (registry R-11 — the same
+           sentence stood here as a second kicker and was cut on the Deck). -->
+      <span class="con-parl__gov-basis" :class="{'con-parl__gov-basis--default': view.enacted === undefined}">
         {{ $t(view.enacted === undefined ? 'Starting rule' : 'Enacted resolution') }}
       </span>
     </div>
@@ -63,7 +62,8 @@
              the inspector's). Centred together in the plate's height. -->
         <div class="con-parl__ruler-body">
           <ConsolePartyFormula class="con-parl__ruler-formula" :party="view.rulingParty" size="wide" />
-          <p v-if="rulingSummary !== undefined" class="con-parl__ruler-summary" data-parl-ruler-summary>{{ $t(rulingSummary) }}</p>
+          <!-- No sentence on the game screen (R-13): the printed formula above IS the effect; the
+               words are the inspector's (X on the ruler). -->
         </div>
         <div v-if="enactedOwnMechanics !== undefined" class="con-parl__ruler-own" data-parl-enacted-effect>
           <span class="con-parl__ruler-own-kicker"><i class="con-parl__card-mark resource_icon resource_icon--cards" aria-hidden="true"></i>{{ $t('Resolution effect') }}</span>
@@ -104,10 +104,11 @@
           </template>
           <template v-else>
             <span class="con-parl__reward-seat" :class="{'con-parl__reward-seat--kept': viewerIsChairman}">
-              <span class="con-parl__seat-glyph" aria-hidden="true"></span>{{ $t(viewerIsChairman ? 'Seat (kept)' : 'Seat') }}
+              <!-- The reward is the OFFICE, not the chair (glossary §4, R-05): «ПРЕДСЕДАТЕЛЬСТВО + ШАГ ПОВЕСТКИ». -->
+              <span class="con-parl__seat-glyph" aria-hidden="true"></span>{{ $t(viewerIsChairman ? 'Chairmanship (kept)' : 'Chairmanship') }}
             </span>
             <span class="con-parl__reward-plus" aria-hidden="true">+</span>
-            <span class="con-parl__reward-move">{{ $t('1 step') }}</span>
+            <span class="con-parl__reward-move">{{ $t('Agenda step') }}</span>
             <template v-if="agendaVm.nextStep !== undefined">
               <span class="con-parl__reward-arrow" aria-hidden="true">→</span>
               <span class="con-parl__reward-step" :class="'con-parl__reward-step--' + agendaVm.nextStep.kind" data-parl-reward-step>
@@ -153,7 +154,6 @@ import {buildMechanics, MechanicsVM} from '@/client/components/premiumCard/mecha
 import {resolutionPremiumVmById} from '@/client/components/premiumCard/resolutionPremiumVm';
 import {partyAccent, partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
 import {conLogicalPx} from '@/client/console/consoleLayoutProfile';
-import {translateTextWithParams} from '@/client/directives/i18n';
 import {parliamentFlow, settleParliamentChairPulse} from '@/client/console/parliament/consoleParliamentFlow';
 import {parliamentHolds} from '@/client/console/parliament/parliamentDisplayHolds';
 import {AgendaVm, parliamentPlayerName, ParliamentViewVm} from '@/client/console/parliament/consoleParliamentModel';
@@ -204,25 +204,6 @@ export default defineComponent({
       return this.view.enacted === undefined ? undefined : resolutionPremiumVmById(this.view.enacted.resolutionId);
     },
     /**
-     * THE HONEST WAIT of every OTHER seat while the enacted resolution's effect
-     * asks someone: who, and what kind of answer (the asked seat's live input
-     * type, read by the server) — never a step name, never a resolution name
-     * check. Empty when nothing waits or the viewer is the one asked.
-     */
-    phaseWaitText(): string {
-      const phase = this.model?.phase;
-      const pending = phase?.pending;
-      if (phase?.step !== 'effects' || pending === undefined || pending.player === this.viewerColor) {
-        return '';
-      }
-      const who = this.nameOf(pending.player);
-      switch (pending.input) {
-      case 'card': return translateTextWithParams('Waiting for ${0} to choose a card', [who]);
-      case 'space': return translateTextWithParams('Waiting for ${0} to place a tile', [who]);
-      default: return translateTextWithParams('Waiting for ${0} to decide', [who]);
-      }
-    },
-    /**
      * The ENACTED resolution's OWN standing effect / action (its printed
      * graphic) — a second source beside the ruling party's, told apart in
      * the government. Undefined for a resolution whose only effect was the
@@ -235,11 +216,6 @@ export default defineComponent({
       }
       const mechanics = buildMechanics(resolution.renderData);
       return mechanics.textOnly ? undefined : mechanics;
-    },
-    /** The ruling party's ONE short reading (the catalog's summary; its sentence when a party carries none). */
-    rulingSummary(): string | undefined {
-      const text = this.view.rulingEffect?.text;
-      return text?.summary ?? text?.passive ?? text?.action ?? text?.rule;
     },
     questMechanics(): MechanicsVM | undefined {
       const root = this.view.quest?.renderData;

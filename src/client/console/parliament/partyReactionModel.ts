@@ -139,7 +139,9 @@ export function reactionCaptionOf(reading: PartyReactionReading): string {
   switch (reading.moment) {
   case 'conditional': return 'The ruling party answers';
   case 'resolving': return 'The ruling party answers';
-  case 'applied': return 'Received from the party';
+  // The caption names the SOURCE and stays the same before and after the record (glossary §6, R-07):
+  // the reward panel's kicker carries the state («ЭТА ВЫПЛАТА» → «ПОЛУЧЕНО»), never the chip.
+  case 'applied': return 'The ruling party answers';
   }
 }
 

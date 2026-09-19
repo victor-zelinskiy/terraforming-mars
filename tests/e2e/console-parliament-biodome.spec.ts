@@ -246,7 +246,7 @@ for (const preset of PRESETS) {
       await expect(rules).toContainText(/1 РТ за сам тайл|1 TR for the tile itself/);
       await expect(rules).toContainText(/Разместите 2 озеленения|Place 2 greeneries/);
       // FOR YOU: the winner's reading in words — on the Deck the footer has no room for the chip, so this row is it.
-      await expect(rules).toContainText(/При победе: кислород 5 → 6 %; РТ \+2 \(за тайл \+1, за кислород \+1\)|If you win: oxygen 5 → 6 %; TR \+2 \(for the tile \+1, for oxygen \+1\)/);
+      await expect(rules).toContainText(/Если победите: кислород 5 → 6 %; РТ \+2 \(за тайл \+1, за кислород \+1\)|If you win: oxygen 5 → 6 %; TR \+2 \(for the tile \+1, for oxygen \+1\)/);
       await expectFits(page, `${preset.id} fullscreen`, 'dialog.con-zoom[open]');
       await shoot(page, preset.id, '03-fullscreen');
       await closeZoomViewer(page);
