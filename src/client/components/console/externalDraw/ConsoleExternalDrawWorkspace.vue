@@ -86,7 +86,8 @@
              :class="{'con-cards__verdictbar--held': !interactive}" role="status">
           <div class="con-cards__verdict-inner">
             <span class="con-cards__verdict-name" :key="focusedName">{{ focusedName === '' ? '' : $t(focusedName) }}</span>
-            <span class="con-cards__verdict con-cards__verdict--ok">{{ statusText }}</span>
+            <span v-if="causeText !== ''" class="con-extdraw__status-cause">{{ causeText }}</span>
+            <span class="con-cards__verdict con-cards__verdict--ok">{{ progressText }}</span>
             <ConsoleCardAvailabilityPanel v-if="focusedAvailability !== undefined"
                                           variant="line"
                                           class="con-extdraw__avail"
@@ -325,21 +326,31 @@ export default defineComponent({
       }
       return buildCardAvailability({reasons: this.liveModelFor(this.focusedName)?.unplayableReasons}, context);
     },
-    statusText(): string {
+    /** The take's PROGRESS («Заберите карты: 6» / «Взято 1 из 6») — STATE, the
+     *  rail's one pill, kept whole under width pressure. */
+    progressText(): string {
       const m = this.meta;
       if (this.phase === 'dealing') {
-        return this.withCause(translateTextWithParams('Cards from the deck: ${0}', [String(this.entries.length)]));
+        return translateTextWithParams('Cards from the deck: ${0}', [String(this.entries.length)]);
       }
       if (this.phase === 'sending' || m === undefined) {
-        return this.withCause(translateText('Taking the card…'));
+        return translateText('Taking the card…');
       }
       const total = m.count;
       const taken = total - this.remaining.length;
-      return this.withCause(taken > 0 ?
+      return taken > 0 ?
         translateTextWithParams('Taken: ${0} of ${1}', [String(taken), String(total)]) :
         (total > 1 ?
           translateTextWithParams('Take ${0} cards', [String(total)]) :
-          translateText('Take the card')));
+          translateText('Take the card'));
+    },
+    /** The embedded rail's CAUSE («Принятая резолюция берёт для вас 6 карт»):
+     *  the standalone surface states it in its own cause block, so the embedded
+     *  one may not say less — but it is context the kicker and the source plate
+     *  already frame, so on the rail it is its OWN member and the FIRST to yield
+     *  width (an ellipsis inside its box), never folded into the state pill. */
+    causeText(): string {
+      return this.embedded && this.effectLine !== '' ? this.effectLine : '';
     },
     footCommands(): Array<ConsoleCommand> {
       if (!this.interactive) {
@@ -417,15 +428,6 @@ export default defineComponent({
     slotHeld(name: CardName): boolean {
       return this.held.has(name);
     },
-    /**
-     * EMBEDDED, the cause plate is gone and the effect's promise leads the ONE
-     * status line («Принятая резолюция берёт для вас 2 карты · Забрано 1 из
-     * 2») — the promise is content, never chrome, and it never goes silent.
-     */
-    withCause(progress: string): string {
-      return this.embedded && this.effectLine !== '' ? `${this.effectLine} · ${progress}` : progress;
-    },
-
     // ── SLOTS: one stable layout for the whole batch ────────────────────
     /**
      * Reconcile the stable slot list against the server's remaining set. A

@@ -1,5 +1,5 @@
 import {expect, Page, APIRequestContext} from './consoleTest';
-import {fetchPlayerModel, pressUntil, sendPlayerInput} from './consoleStart';
+import {fetchPlayerModel, openQuickWheel, press, pressUntil, sendPlayerInput, settle} from './consoleStart';
 
 /*
  * THE PARLIAMENT'S SHARED E2E DRIVER (Turmoil Redux) — the readers and the
@@ -92,11 +92,11 @@ export async function passAs(request: APIRequestContext, seat: string): Promise<
  * box, and NOTHING SCROLLS (a scroll container under the workspace is a
  * defect — the fit engines exist so nothing has to).
  */
-export async function expectParliamentFits(page: Page, label: string): Promise<void> {
-  const problems = await page.evaluate(() => {
-    const root = document.querySelector('.con-parl');
+export async function expectParliamentFits(page: Page, label: string, rootSelector = '.con-parl'): Promise<void> {
+  const problems = await page.evaluate((rootSel) => {
+    const root = document.querySelector(rootSel);
     if (root === null) {
-      return ['no root'];
+      return [`no root ${rootSel}`];
     }
     const vw = window.innerWidth;
     const vh = window.innerHeight;
@@ -104,8 +104,11 @@ export async function expectParliamentFits(page: Page, label: string): Promise<v
     const name = (el: Element) => el.className.toString().split(' ')[0];
     const blocks = '.con-parl__gov, .con-parl__slot, .con-parl__stage, .con-sit__panel--on, .con-sit__row, .con-sit__closing,' +
       ' .con-iyield, .con-iyield__reading, .con-preact, .con-wreward, .con-sit__skip, .con-sit__zone--on, .con-extdraw__cards, .con-cards__slot, .con-task,' +
-      ' .con-cards__verdictbar, .con-sit__wait, .con-sit__awaiting';
-    for (const el of Array.from(root.querySelectorAll<HTMLElement>(blocks))) {
+      ' .con-cards__verdictbar, .con-sit__wait, .con-sit__awaiting,' +
+      // The other parliament chassis a gallery photographs: the announce plate, the fullscreen inspect, the party composer, the playground, the seat.
+      ' .con-mandatory__card, .con-mandatory__body, .con-zoom__card, .con-zoom__aside, .con-zoom__foot, .con-pact__panel, .con-pact__step, .con-rplay__panel, .con-seat__panel';
+    const scoped = root.matches(blocks) ? [root as HTMLElement] : [];
+    for (const el of [...scoped, ...Array.from(root.querySelectorAll<HTMLElement>(blocks))]) {
       const r = el.getBoundingClientRect();
       if (r.width === 0 || r.height === 0 || getComputedStyle(el).visibility === 'hidden') {
         continue;
@@ -122,6 +125,11 @@ export async function expectParliamentFits(page: Page, label: string): Promise<v
       }
     }
     for (const el of Array.from(root.querySelectorAll<HTMLElement>('*'))) {
+      // The console's ONE sanctioned scroll instrument (`ConsoleScrollArea` — the inspect's rules prose on a
+      // handheld, with its own scroll badge) is not a stray scroll container; everything else is.
+      if (el.classList.contains('con-scroll-area__viewport')) {
+        continue;
+      }
       const cs = getComputedStyle(el);
       if ((cs.overflowY === 'auto' || cs.overflowY === 'scroll' || cs.overflowX === 'auto' || cs.overflowX === 'scroll') &&
           (el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1)) {
@@ -129,8 +137,69 @@ export async function expectParliamentFits(page: Page, label: string): Promise<v
       }
     }
     return out;
-  });
+  }, rootSelector);
   expect(problems, `${label}: layout problems`).toEqual([]);
+}
+
+/**
+ * A one-line STATUS RAIL is HONEST: a member with more text than room
+ * ellipsizes INSIDE ITS OWN BOX (the box that clips it declares the ellipsis),
+ * and no member is cut by an ANCESTOR's overflow — a hard cut at a panel edge
+ * says nothing about what was lost («ТРЕБОВАНИЕ ПОКА НЕ ВЫПО» on the Deck).
+ * `expectParliamentFits` cannot see this: the rail's own box fits, the loss is
+ * inside it.
+ */
+export async function expectRailHonest(page: Page, label: string, railSelector: string): Promise<void> {
+  const problems = await page.evaluate((railSel) => {
+    const rail = document.querySelector<HTMLElement>(railSel);
+    if (rail === null) {
+      return [`no rail ${railSel}`];
+    }
+    const out: Array<string> = [];
+    const name = (el: Element) => el.className.toString().split(' ')[0];
+    const clips = (cs: CSSStyleDeclaration) => cs.overflowX !== 'visible' || cs.overflowY !== 'visible';
+    const quote = (el: Element) => `«${(el.textContent ?? '').trim().replace(/\s+/g, ' ').slice(0, 40)}»`;
+    const members = Array.from(rail.querySelectorAll<HTMLElement>('*')).filter((el) =>
+      Array.from(el.childNodes).some((n) => n.nodeType === Node.TEXT_NODE && (n.textContent ?? '').trim() !== ''));
+    for (const leaf of members) {
+      const r = leaf.getBoundingClientRect();
+      if (r.width === 0 || r.height === 0) {
+        continue;
+      }
+      let hidden = false;
+      for (let a: HTMLElement | null = leaf; a !== null && a !== rail.parentElement; a = a.parentElement) {
+        const acs = getComputedStyle(a);
+        if (acs.visibility === 'hidden' || Number(acs.opacity) === 0 || acs.display === 'none') {
+          hidden = true;
+          break;
+        }
+      }
+      if (hidden) {
+        continue;
+      }
+      const cs = getComputedStyle(leaf);
+      // An ellipsis renders only on a BLOCK container's own text: on a flex/grid box the text is an anonymous
+      // item and `text-overflow` is declared but never painted (the chassis pill cut «Принятая резо» that way).
+      const honest = clips(cs) && cs.textOverflow === 'ellipsis' && cs.whiteSpace === 'nowrap' && !/flex|grid/.test(cs.display);
+      if (leaf.scrollWidth > leaf.clientWidth + 1 && !honest) {
+        out.push(`cut-in-place ${name(leaf)} ${leaf.scrollWidth}>${leaf.clientWidth} without an ellipsis (${cs.display}) ${quote(leaf)}`);
+      }
+      for (let a = leaf.parentElement; a !== null && a !== rail.parentElement; a = a.parentElement) {
+        if (!clips(getComputedStyle(a))) {
+          continue;
+        }
+        const ar = a.getBoundingClientRect();
+        const left = ar.left + a.clientLeft;
+        const right = left + a.clientWidth;
+        if (r.left < left - 1 || r.right > right + 1) {
+          out.push(`cut-by-ancestor ${name(leaf)} ${Math.round(r.left)}..${Math.round(r.right)} by ${name(a)} ${Math.round(left)}..${Math.round(right)} ${quote(leaf)}`);
+          break;
+        }
+      }
+    }
+    return out;
+  }, railSelector);
+  expect(problems, `${label}: status rail members`).toEqual([]);
 }
 
 /** The leak detector's own verdict: no stranded prompt was ever reported on this page. */
@@ -151,6 +220,31 @@ export async function armLeakWitness(page: Page): Promise<void> {
 
 export async function strandedReports(page: Page): Promise<Array<string>> {
   return page.evaluate(() => (window as unknown as {__stranded?: Array<string>}).__stranded ?? []);
+}
+
+/** Open the Parliament workspace from the quick wheel (RT → down): the direction press IS the activation. */
+export async function openParliament(page: Page): Promise<void> {
+  for (let i = 0; i < 6 && await parliament(page).count() === 0; i++) {
+    await openQuickWheel(page);
+    await press(page, 'ArrowDown', 1400);
+  }
+  await expect(parliament(page)).toHaveCount(1, {timeout: 15_000});
+  await settle(page, {timeoutMs: 15_000});
+}
+
+/** The browse layer's focus ZONE (`data-zone` on the root): government · voting · parties. */
+export async function parliamentZone(page: Page): Promise<string> {
+  return (await parliament(page).getAttribute('data-zone')) ?? '';
+}
+
+/** Walk the browse layer's zones until `zone` is the focus zone (a positive witness on the root's own attribute). */
+export async function focusParliamentZone(page: Page, zone: 'government' | 'voting' | 'parties'): Promise<void> {
+  for (let i = 0; i < 6 && await parliamentZone(page) !== zone; i++) {
+    const at = await parliamentZone(page);
+    const key = zone === 'parties' ? 'ArrowDown' : at === 'parties' ? 'ArrowUp' : zone === 'voting' ? 'ArrowRight' : 'ArrowLeft';
+    await press(page, key, 400);
+  }
+  expect(await parliamentZone(page), `the ${zone} zone is the focus zone`).toBe(zone);
 }
 
 /**

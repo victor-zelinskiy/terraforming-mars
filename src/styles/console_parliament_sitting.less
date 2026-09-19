@@ -298,3 +298,6 @@ html.con-profile-tv .con-sit {
 .con-sit__panel { transition: opacity calc(160ms * var(--motion-scale, 1)) @con-ease-standard; opacity: 0; }
 .con-sit__panel--on { opacity: 1; }
 
+
+/* fx-lite: the vote mode's breathing GHOST (the place the arriving delegate takes) rests on its dashed outline. */
+html.con-fx-lite .con-parl__vote-cube--place::after { animation: none; opacity: .7; }

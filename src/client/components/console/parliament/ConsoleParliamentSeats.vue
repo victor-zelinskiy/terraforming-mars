@@ -28,7 +28,9 @@
         <!-- A delegate is on its way HOME (the sitting's enactment beat): the
              reserve's key says so with a quiet arrow — a mark that lives on
              the key's own line (absolute, opacity only: nothing shifts). -->
-        <span class="con-parl__seat-key">{{ $t('Reserve') }}<span class="con-parl__seat-incoming" :class="{'con-parl__seat-incoming--on': seat.incoming > 0}" :data-parl-seat-incoming="seat.incoming > 0 ? seat.incoming : undefined" aria-hidden="true">←</span></span>
+        <!-- The «→ reserve» mark exists ONLY while a cube is on its way back (absolute, zero layout — a
+             standing invisible glyph read as cut text to the fit probes). -->
+        <span class="con-parl__seat-key">{{ $t('Reserve') }}<span v-if="seat.incoming > 0" class="con-parl__seat-incoming con-parl__seat-incoming--on" :data-parl-seat-incoming="seat.incoming" aria-hidden="true">←</span></span>
         <span class="con-parl__seat-obj">
           <span class="con-parl__stack con-parl__stack--seat" :class="{'con-parl__stack--empty': seat.reserveCubes === 0}" :data-parl-seat-reserve="seat.color" :data-count="seat.reserveCubes">
             <span v-for="n in Math.min(seat.reserveCubes, 3)" :key="n" class="con-parl__stack-cube" :data-stack="n">

@@ -1267,7 +1267,19 @@ export function enterWorkspace(
 }
 
 /** Leave the deepest workspace — one screen back towards the board. */
+/**
+ * OPT-IN VERB TRACE for a diagnostic (an e2e sets `window.__wsTrace = true` and
+ * reads the console): every verb that removes frames names itself with its
+ * caller's stack — «who popped the parliament» is then a fact, never a guess.
+ */
+function traceVerb(verb: string): void {
+  if (typeof window !== 'undefined' && (window as unknown as {__wsTrace?: boolean}).__wsTrace === true) {
+    console.warn('[ws-stack] ' + verb + ' depth=' + workspaceStackState.frames.length, new Error().stack);
+  }
+}
+
 export function leaveWorkspace(): void {
+  traceVerb('leaveWorkspace');
   popWorkspaceFrame();
 }
 
@@ -1287,6 +1299,7 @@ export function leaveWorkspace(): void {
  * screen is gone», with the deployment still owed.
  */
 export function goBoardHome(): void {
+  traceVerb('goBoardHome');
   const root = workspaceStackState.frames[0];
   truncateWorkspaceStack(root !== undefined && root.anchor.type === 'phase' ? 1 : 0);
   // The PARK is deliberately untouched: it is a different flow, set aside on
@@ -1355,6 +1368,7 @@ export function closeWorkspaceSheet(): void {
 
 /** Leave the top frame — one logical level. */
 export function popWorkspaceFrame(): void {
+  traceVerb('popWorkspaceFrame');
   workspaceStackState.frames.pop();
 }
 
@@ -1369,6 +1383,7 @@ export function popWorkspaceFrame(): void {
  * of the game.
  */
 export function closeWorkspaceRoot(kind: WorkspaceFrameKind): void {
+  traceVerb('closeWorkspaceRoot:' + kind);
   const depth = workspaceFrameIndex(kind);
   if (depth !== -1) {
     truncateWorkspaceStack(depth);
@@ -1565,6 +1580,7 @@ export function stackYieldedToBoard(): boolean {
 
 /** Park the whole stack (B past the commit boundary — «свернуть»). */
 export function collapseWorkspaceStack(): void {
+  traceVerb('collapseWorkspaceStack');
   if (workspaceStackState.frames.length === 0) {
     return;
   }
@@ -1619,6 +1635,7 @@ export function discardWorkspacePark(): void {
 
 /** Full reset (game switch, shell unmount, test cleanup). */
 export function resetWorkspaceStack(): void {
+  traceVerb('resetWorkspaceStack');
   workspaceStackState.frames.splice(0);
   workspaceStackState.parked.splice(0);
   boardYielded.splice(0);

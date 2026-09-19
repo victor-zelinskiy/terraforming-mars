@@ -175,3 +175,83 @@
 :is(.con-cards__strip, .con-composer__beatrow).con-ws-stage-row > .con-cards__slot.con-extdraw__slot--reflow {
     transition: none;
 }
+
+/* THE STATUS RAIL BUDGET (Э8). The embedded take's line carries FOUR members on
+   ONE row — the focused card's NAME, the CAUSE («Принятая резолюция берёт для
+   вас N карт»), the PROGRESS pill («Заберите карты: N» / «Взято 1 из N») and
+   the card's availability note — and the row is a FIXED height that clips, so
+   every cut must be an ellipsis INSIDE the member's own box (guard:
+   `expectRailHonest`). The hierarchy under pressure: the name and the progress
+   pill are STATE and stay whole; the cause is context the kicker and the source
+   plate already frame, so it is its OWN member (never folded into the pill —
+   the chassis pill is `inline-flex` + `flex-shrink: 0`, and `text-overflow`
+   never applies to a flex container's own text: the Deck cut it to «Принятая
+   резо» with nothing to say it had been cut) and the FIRST to yield; the
+   availability note yields LAST, its verdict title before its reason text
+   (the ◈ already carries the category; the reason is the specific fact) — the
+   chassis pins `__status` whole (`flex-shrink: 0`), which inside this rail let
+   the `--line` container cut it at the panel edge («ТРЕБОВАНИЕ ПОКА НЕ ВЫПО»). */
+.con-extdraw__status .con-cards__verdict-inner {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    min-width: 0;
+    max-width: 100%;
+}
+.con-extdraw__status-cause {
+    /* STRICT priority is not a flex-shrink weight: shrink splits the overflow in
+       PROPORTION (weight × basis), so 3 : 2 : 1 trimmed all three members a
+       little (measured at 1080: «…берёт…», «…ВЫПО…», «…-30/…») and 100 : 10 : 1
+       still took a letter off the note before the cause was at its minimum.
+       `flex-basis: 0` + grow + `max-width: max-content` is the strict form: the
+       cause takes only the room the whole members LEAVE, up to its own text and
+       never below its minimum — so it has given everything before the note
+       loses a letter (guard: `expectDrawRailHierarchy`). */
+    flex: 1 1 0;
+    min-width: 6rem;
+    max-width: max-content;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: .8rem;
+    font-weight: 600;
+    letter-spacing: .015em;
+    color: fade(@con-amber, 80%);
+}
+/* HANDHELD: the rail cannot hold name + cause + progress + fact (~600 px of
+   text into 571 — measured with the cause at 4.5rem the fact still read
+   «Температур…»). Every member is STATE except the cause, which the source plate
+   and the reward chip beside the stage already state — so on the Deck the cause
+   stands on the rail only while no availability note needs its room. The
+   `:has()` is anchored on the cause itself, never on a root. */
+html.con-profile-handheld .con-extdraw__status-cause:has(+ .con-cards__verdict + .con-extdraw__avail) {
+    display: none;
+}
+.con-extdraw__status .con-extdraw__avail {
+    flex: 0 1 auto;
+    min-width: 0;
+}
+.con-extdraw__status .con-extdraw__avail .con-cardavail__status {
+    /* The same strict form one level down: the verdict TITLE yields all the way
+       down to its icon (the ◈ carries the category by tone) before the FACT
+       («Температура -30/2°C») loses a letter — a Deck rail once read «◈ Т… Тем…»
+       with a 3rem title floor, three fragments and no fact. */
+    flex: 1 1 0;
+    /* Exactly the icon: a floor a sliver wider than the glyph painted the first
+       pixels of the clipped title beside it («◈ 1»). */
+    min-width: 1rem;
+    max-width: max-content;
+    gap: .35rem;
+    overflow: hidden;
+}
+.con-extdraw__status .con-extdraw__avail .con-cardavail__title {
+    flex: 1 1 0;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.con-extdraw__status .con-extdraw__avail .con-cardavail__text {
+    flex: 0 1 auto;
+    min-width: 0;
+}

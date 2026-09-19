@@ -342,6 +342,14 @@ export default defineComponent({
       if (p === undefined || this.sittingField) {
         return undefined;
       }
+      // The reward pose HELD through a step that arrived with the record (the
+      // deferred adjourn): the verb follows the pose the player is looking at —
+      // A drives the wave home («дожать»), it never answers the closing gate
+      // from a page that is still the reward (measured: «Закрыть заседание»
+      // hot over the skip plate).
+      if (this.stageHeld !== undefined) {
+        return 'Continue';
+      }
       return sittingPrimaryKey(p, parliamentFlow.sittingPage, {rewardComing: this.sittingRewardComing});
     },
     /** The sitting's B verb label — from the workspace phase, so B can never say one thing and do another. */
@@ -580,43 +588,19 @@ export default defineComponent({
     'view'(): void {
       void this.$nextTick(() => fitParliamentCards());
     },
-    /** The server answered: the stage it committed is over — a vote LANDS first, a paid vote PAYS first, a gate answer stays on its stage. */
-    answerKey(key: string): void {
-      const f = parliamentFlow;
-      if (f.stage === 'paying') {
-        this.voteMode()?.answerWhilePaying();
-        return;
-      }
-      if (f.stage === 'submitting' && key !== this.submittedKey) {
-        this.clearSubmitTimer();
-        if (f.stageBeforeSubmit === 'vote') {
-          this.voteMode()?.answerAfterSubmit();
-          return;
-        }
-        if (f.stageBeforeSubmit === 'sitting') {
-          // THE GATE IS ANSWERED — the sitting stays on its stage: the position
-          // re-derives (the wait pose, the effects, the renewal) and the
-          // `sitting` watcher ends the flow only when the phase itself is over.
-          f.stage = this.sitting === undefined ? 'browse' : 'sitting';
-          setWorkspaceFramePhase('parliament', f.stage === 'sitting' ? sittingWorkspacePhase(this.sittingStage, false) : 'browse');
-          if (f.stage === 'browse') {
-            this.$emit('flow-complete', 'sitting');
-          }
-          return;
-        }
-        // The chairman's delegate leaves the card for the seat.
-        const wasSeat = f.stageBeforeSubmit === 'seat';
-        f.stage = 'browse';
-        setWorkspaceFramePhase('parliament', 'browse');
-        if (wasSeat) {
-          void this.$nextTick(() => {
-            const from = this.seatFrom;
-            this.seatFrom = undefined;
-            flySeatDelegate(this.$refs.rootEl as HTMLElement | undefined, this.viewerColor, from, () => pulseParliamentChair());
-          });
-        }
-        this.$emit('flow-complete', f.stageBeforeSubmit);
-      }
+    /**
+     * The server answered: the stage it committed is over — a vote LANDS first, a paid vote PAYS first, a gate answer stays on its stage.
+     * POST-flush on purpose: the answer is read by the vote-mode CHILD off its `playerView` PROP, and a parent's pre-flush
+     * watcher runs one patch BEFORE that prop is updated — the child then read the OLD prompt, saw no bill, closed the vote
+     * and reported the flow complete, and the shell concluded the workspace out from under the payment (the stranded
+     * «Выберите, как оплатить …» over the board). The Э0 split moved `paymentStands` from this component into the child;
+     * this is the seam it crossed.
+     */
+    'answerKey': {
+      flush: 'post',
+      handler(key: string): void {
+        this.onAnswerKey(key);
+      },
     },
     /** A stand-alone chairman-seat pick is MANDATORY: it takes the stage as soon as it stands. */
     'bridge.seat': {
@@ -698,6 +682,44 @@ export default defineComponent({
     resetParliamentHolds();
   },
   methods: {
+    /** The answer's stage handling (see the `answerKey` watcher). */
+    onAnswerKey(key: string): void {
+      const f = parliamentFlow;
+      if (f.stage === 'paying') {
+        this.voteMode()?.answerWhilePaying();
+        return;
+      }
+      if (f.stage === 'submitting' && key !== this.submittedKey) {
+        this.clearSubmitTimer();
+        if (f.stageBeforeSubmit === 'vote') {
+          this.voteMode()?.answerAfterSubmit();
+          return;
+        }
+        if (f.stageBeforeSubmit === 'sitting') {
+          // THE GATE IS ANSWERED — the sitting stays on its stage: the position
+          // re-derives (the wait pose, the effects, the renewal) and the
+          // `sitting` watcher ends the flow only when the phase itself is over.
+          f.stage = this.sitting === undefined ? 'browse' : 'sitting';
+          setWorkspaceFramePhase('parliament', f.stage === 'sitting' ? sittingWorkspacePhase(this.sittingStage, false) : 'browse');
+          if (f.stage === 'browse') {
+            this.$emit('flow-complete', 'sitting');
+          }
+          return;
+        }
+        // The chairman's delegate leaves the card for the seat.
+        const wasSeat = f.stageBeforeSubmit === 'seat';
+        f.stage = 'browse';
+        setWorkspaceFramePhase('parliament', 'browse');
+        if (wasSeat) {
+          void this.$nextTick(() => {
+            const from = this.seatFrom;
+            this.seatFrom = undefined;
+            flySeatDelegate(this.$refs.rootEl as HTMLElement | undefined, this.viewerColor, from, () => pulseParliamentChair());
+          });
+        }
+        this.$emit('flow-complete', f.stageBeforeSubmit);
+      }
+    },
     voteMode(): InstanceType<typeof ConsoleParliamentVoteMode> | undefined {
       return this.$refs.voteMode as InstanceType<typeof ConsoleParliamentVoteMode> | undefined;
     },
@@ -828,7 +850,8 @@ export default defineComponent({
           finishSittingMotion();
           return;
         }
-        if (this.sittingPrimary === undefined) {
+        if (this.sittingPrimary === undefined || this.stageHeld !== undefined) {
+          // A held pose owes nothing to the pad: the deferred step enters on the wave's end.
           return;
         }
         if (!sittingAtLastPage(position, parliamentFlow.sittingPage)) {

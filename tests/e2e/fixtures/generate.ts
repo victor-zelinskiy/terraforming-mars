@@ -66,6 +66,8 @@ import {IndenturedWorkers} from '../../../src/server/cards/base/IndenturedWorker
 import {Resource} from '../../../src/common/Resource';
 import {ChairmanSeat} from '../../../src/server/parliament/quests/ChairmanSeat';
 import {Birds} from '../../../src/server/cards/base/Birds';
+import {Predators} from '../../../src/server/cards/base/Predators';
+import {SmallAnimals} from '../../../src/server/cards/base/SmallAnimals';
 import {AQUIFER_CONTEST_ID} from '../../../src/server/parliament/resolutions/greens/AquiferContest';
 import {ARCHITECTURE_AWARD_ID} from '../../../src/server/parliament/resolutions/marsFirst/ArchitectureAward';
 import {CENTRAL_POWER_GRID_ID} from '../../../src/server/parliament/resolutions/industrialists/CentralPowerGrid';
@@ -613,6 +615,15 @@ const aquiferTable = (stopAt: ParliamentStop, expect?: (table: ParliamentTable) 
 parliamentFixture('parliament-aquifer-vote', aquiferTable('vote'));
 // The sitting has just convened: the verdict and the enactment are done, the ASSEMBLY gate stands for both seats.
 parliamentFixture('parliament-aquifer-assembly', aquiferTable('assembly'));
+// …the SAME gate with SIX animal holders in blue's tableau: the recipient picker stands on six candidates —
+// the Deck's «picker on 6» composition (docs/TURMOIL_REDUX_PARLIAMENT_FINISH.md § Э8).
+parliamentFixture('parliament-aquifer-assembly-six', {
+  ...aquiferTable('assembly'),
+  arrange: ({p1, p2}) => {
+    p1.playedCards.push(new Fish(), new Pets(), new Birds(), new Livestock(), new Predators(), new SmallAnimals());
+    p2.playedCards.push(new Birds());
+  },
+});
 // The political phase STOPPED INSIDE the payout: Aquifer Contest won with
 // blue's delegate, blue's Agenda advanced to step 3 (influence 2) and the
 // phase asks BLUE where its 2 animals go (Fish or Pets); the winner's ocean
@@ -872,6 +883,21 @@ parliamentFixture('parliament-biodome-nocell', biodomeTable(5, -14, 'vote', {
       throw new Error('the parliament-biodome-nocell fixture expected no legal greenery cell for blue');
     }
     game.playerHasPassed(p2);
+  },
+}));
+// THE SAME table at the ASSEMBLY gate: the sitting's reward page reads the winner's greenery as a SKIP (no legal cell)
+// before the record, and the record's own skip plate after it.
+parliamentFixture('parliament-biodome-nocell-assembly', biodomeTable(5, -14, 'assembly', {
+  arrange: ({game, p1, p2}) => {
+    for (const space of game.board.getSpaces(SpaceType.LAND)) {
+      if (space.tile === undefined) {
+        space.tile = {tileType: TileType.GREENERY};
+        space.player = p2;
+      }
+    }
+    if (game.board.getAvailableSpacesForType(p1, 'greenery').length !== 0) {
+      throw new Error('the parliament-biodome-nocell-assembly fixture expected no legal greenery cell for blue');
+    }
   },
 }));
 // ONE PASS from the political phase with Biodome Contest carried by NEUTRAL
