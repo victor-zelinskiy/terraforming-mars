@@ -891,6 +891,24 @@
     &__reward-step &__step-res { width: 1.15rem; height: 1.15rem; }
 }
 
+/* THE FLIGHT LAYER ITSELF CARRIES NO BOX — and it MUST be out of flow.
+   `.con-root` is a flex COLUMN with `gap: --con-hud-gap`, so an unstyled
+   wrapper is a zero-height FLEX ITEM that costs the central opening one whole
+   gap with nothing on screen to blame it on: `.con-main` measured 6 px short
+   at FHD and 14 px at 4K — exactly one gap on each ladder — and
+   `console-hud-frame` § «main == viewport − 2×(rail+gap) — no hidden spacers»
+   is the guard that caught it. Every other shell-mounted flight layer
+   (`.con-exit-layer`, `.con-handdelivery-layer`, `.con-bonusfly-layer`, …) is
+   fixed for the same reason.
+   NO `z-index` here on purpose: with `z-index: auto` this layer opens no
+   stacking context, so each `.con-parl__flight` keeps competing at the ROOT
+   level on its own 11499 — the order the flights have always painted in. */
+.con-parl-flightlayer {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+}
+
 /* THE DELEGATE FLIGHT — a cube on its way from its place to its place (a
    body-level fixed layer: measured rects, transform-only travel). The proxy
    is sized in real px from the source cube it stands in for. */

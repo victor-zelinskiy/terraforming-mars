@@ -64,15 +64,23 @@ export const WS_STAGE_BOX: Record<string, StageBox> = {
   // fhd nets out unchanged (the freed edge went to the rail), tv4k +6px,
   // deck −17px; every height and zoom held, and the parity was verified
   // before pasting (purchase == receive byte-identical per profile).
-  // Re-pinned 2026-09-20 (Parliament finish · Э9) from the `[PARITY:*]` lines of BOTH specs, which agree to
-  // the pixel: the row lost 6 / 22 / 5 px (fhd / tv4k / deck) since the previous pin. Two causes, told apart:
-  // eight «UI rework» commits touched the shared chassis (console.less · consoleWsStageLayout · foundation)
-  // after the last pin without re-syncing (fhd −6, deck −5 — no parliament style reaches those profiles);
-  // and on the TV the shared status rail is 2.6rem instead of 2.4 (Э5: the parliament pick's 2.5rem chips
-  // were clipped by 4 px) — +8 px status, the remaining −14 px is the same rework drift at ×2.
-  fhd: {headH: 36, rowH: 762, rowW: 1065, statusH: 48, zoom: '1.568', hostW: 1113, zoneW: 1113},
-  tv4k: {headH: 94, rowH: 1470, rowW: 2386, statusH: 104, zoom: '2.984', hostW: 2482, zoneW: 2482},
-  deck: {headH: 36, rowH: 507, rowW: 823, statusH: 44, zoom: '1.022', hostW: 859, zoneW: 859},
+  // Re-pinned 2026-09-20 (Parliament finish · Э9): the row had lost 6 / 22 / 5 px (fhd / tv4k / deck) and the
+  // loss was READ AS «eight UI-rework commits drifted the shared chassis». It was not. The whole −6 / −14 / −5
+  // was ONE product bug — `.con-parl-flightlayer` mounted as an unstyled, in-flow flex child of `.con-root`,
+  // so the column spent one extra `--con-hud-gap` and the central opening (`.con-main`) came out exactly one
+  // gap short on every ladder (6 / 14 / 5 px). `console-hud-frame` § «no hidden spacers» was failing on the
+  // same defect at the same time.
+  //
+  // RE-PINNED BACK 2026-09-20 (this session) with the layer taken out of flow, from the `[PARITY:*]` lines of
+  // BOTH specs, which agree to the pixel: the row regains exactly that gap (762→768 · 1470→1484 · 507→512)
+  // and the zoom follows the taller room (1.568→1.581 · 2.984→3.015 · 1.022→1.033). fhd and deck land BYTE
+  // FOR BYTE back on the 2026-08-15 sync (768 / 512) — proof that nothing else had drifted at all; the TV
+  // sits 8 px under its own 2026-08-15 value (1492) because of the deliberate Э5 status rail (2.6rem instead
+  // of 2.4 — the parliament pick's 2.5rem chips were clipped by 4 px). Heads, widths and status heights are
+  // untouched. Analysis: `docs/claude/e2e-foreign-reds-fix.md` § B.
+  fhd: {headH: 36, rowH: 768, rowW: 1065, statusH: 48, zoom: '1.581', hostW: 1113, zoneW: 1113},
+  tv4k: {headH: 94, rowH: 1484, rowW: 2386, statusH: 104, zoom: '3.015', hostW: 2482, zoneW: 2482},
+  deck: {headH: 36, rowH: 512, rowW: 823, statusH: 44, zoom: '1.033', hostW: 859, zoneW: 859},
 };
 
 /**

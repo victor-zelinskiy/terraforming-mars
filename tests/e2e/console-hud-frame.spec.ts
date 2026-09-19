@@ -52,6 +52,8 @@ const PRESETS: ReadonlyArray<Preset> = [
 type Box = {top: number, bottom: number, left: number, right: number, height: number, width: number};
 
 type FrameGeometry = {
+  /** Every IN-FLOW child of `.con-root`, as `class[position/display/h]`. */
+  inflow: Array<string>;
   remPx: number;
   hudToken: string;
   hudPx: number;
@@ -103,7 +105,19 @@ async function readFrameGeometry(page: Page): Promise<FrameGeometry> {
     const dockCardTops = Array.from(document.querySelectorAll('.con-handbody[data-hand-body-mode="docked"]'))
       .map((el) => el.getBoundingClientRect().top)
       .filter((t) => Number.isFinite(t));
+    // WHO ELSE IS IN THE COLUMN. `.con-root` is a flex column with
+    // `gap: --con-hud-gap`, so ANY extra in-flow child costs the central
+    // opening a whole gap while painting nothing — the shape assertion 4 is
+    // named for («no hidden spacers»). It shipped once, as an unstyled
+    // `.con-parl-flightlayer` wrapper, and cost three sessions because the
+    // failure said «6 px» and never said WHOSE. Now it does.
+    const inflow = Array.from(root.children)
+      .map((el) => ({el, cs: getComputedStyle(el as HTMLElement)}))
+      .filter(({cs}) => cs.display !== 'none' && cs.position !== 'fixed' && cs.position !== 'absolute')
+      .map(({el, cs}) => `${(el as HTMLElement).className || el.tagName}` +
+        `[${cs.position}/${cs.display}/h=${Math.round((el as HTMLElement).getBoundingClientRect().height)}]`);
     return {
+      inflow,
       remPx,
       hudToken,
       hudPx: toPx(hudToken),
@@ -173,7 +187,15 @@ for (const preset of PRESETS) {
 
       // ── 4 · the centre band really got the height. ──
       const expectedMain = vh - 2 * (g.hudPx + g.gapPx);
-      expect(Math.abs(g.main.height - expectedMain), 'main == viewport − 2×(rail+gap) — no hidden spacers')
+      // The column is the strip, the centre and the bar — nothing else. A
+      // fourth in-flow child is a hidden spacer whatever its height, so the
+      // count is asserted FIRST: it names the culprit, where the height
+      // difference below only names the symptom.
+      expect(g.inflow.length,
+        `.con-root must carry exactly three in-flow children (strip · main · bar); got ${JSON.stringify(g.inflow)}`)
+        .toBe(3);
+      expect(Math.abs(g.main.height - expectedMain),
+        `main == viewport − 2×(rail+gap) — no hidden spacers (gap=${g.gapPx}px, column=${JSON.stringify(g.inflow)})`)
         .toBeLessThanOrEqual(2 * eps);
       // Both side rails stretch the full centre band.
       expect(g.resRail, 'left resource rail mounted').not.toBe(undefined);
