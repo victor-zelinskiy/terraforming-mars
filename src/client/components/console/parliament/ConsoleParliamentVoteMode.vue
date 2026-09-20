@@ -10,7 +10,6 @@
          'con-parl__vote--landed': flow.stage === 'landed',
          'con-parl__vote--paying': flow.stage === 'paying',
          'con-parl__vote--bill': billGeometry,
-         'con-parl__vote--concluded': flow.concluded,
          'con-parl__vote--entering': flow.voteEntering,
        }"
        :style="{'--parl-accent': voteSlot !== undefined ? partyAccent(voteSlot.party) : undefined}"
@@ -171,12 +170,12 @@ import {offTurnReason} from '@/client/console/offTurnReason';
 import {probeTick} from '@/client/console/probeTick';
 import {getResolution} from '@/client/parliament/ClientParliamentManifest';
 import {parliamentFlow, parliamentRootEl, parliamentVoteInFlight, parliamentVoteUp} from '@/client/console/parliament/consoleParliamentFlow';
-import {fitParliamentCards} from '@/client/console/parliament/parliamentCardFit';
+import {fitParliamentCards, freezeParliamentFit} from '@/client/console/parliament/parliamentCardFit';
 import {
   dropFlight, dropFlightsWithPrefix, flightEl, nextFlightId, pushCubeFlight, registerFlightHandle, VOTE_FLIGHT_MS,
 } from '@/client/console/parliament/parliamentFlights';
 import {
-  killParliamentVoteMotion, measureVoteRects, parkParliamentBody, playParliamentVoteEnter, playParliamentVoteLeave, playParliamentVoteRefit, Rect,
+  killParliamentVoteMotion, measureVoteRects, parkParliamentBody, playParliamentVoteEnter, playParliamentVoteLeave, Rect,
   restoreParliamentBody, runDelegateCubeFlight,
 } from '@/client/console/parliament/consoleParliamentVoteMotion';
 import {
@@ -187,10 +186,8 @@ import {PARTY_MOMENT, voteFactsOf, VoteFactsVm, voteInfoOf, VoteInfoVm} from '@/
 import {BenchSource, voteSourceOf, winningShownOf} from '@/client/console/parliament/parliamentVoteView';
 import {ParliamentInspectRequest, slotFaceOf} from '@/client/console/parliament/parliamentInspect';
 
-/** The delegate's landing beat (the cube settles, the counters tick). */
+/** The delegate's landing beat (the cube settles, the counters tick, the landed reading is READ) — then the flow leaves as ONE surface. */
 const VOTE_LANDING_MS = 700;
-/** THE CONCLUSION — the landed scene lets go as one picture (a class fade) before the workspace leaves. */
-const VOTE_CONCLUDE_MS = 220;
 
 /** The confirm's price line: the lobby's delegate is free, the reserve's costs the server's own M€. */
 type CtaCost = {kind: 'free' | 'cost' | 'none', amount: number};
@@ -229,7 +226,6 @@ export default defineComponent({
     return {
       partyMoment: PARTY_MOMENT,
       landingBeat: undefined as ParliamentBeat | undefined,
-      concludeBeat: undefined as ParliamentBeat | undefined,
       landingHold: undefined as AnimationHold | undefined,
       flightHold: undefined as AnimationHold | undefined,
     };
@@ -372,12 +368,16 @@ export default defineComponent({
       return wf?.type === 'payment' ? (wf as SelectPaymentModel).votePayment : undefined;
     },
     /**
-     * THE BILL GEOMETRY — the vote column at the shared payment panel's width
-     * and the band at its height, from the payment through the paid delegate's
-     * landing (a re-fit under a flight would jump the scene it measures).
+     * THE BILL GEOMETRY (v2, § Б5) — ONLY while a payment panel REALLY stands
+     * (the server's `votePayment` bill): the vote column widens to host it,
+     * and NOTHING ELSE moves — the card row keeps its rows, the panel its
+     * height (the bill rises out of the fixed panel as an overlay). A vote
+     * from the reserve the server auto-pays raises no bill and changes no
+     * geometry: from the press to the flow's end only text, the confirm's
+     * state and the cube's flight change.
      */
     billGeometry(): boolean {
-      return parliamentFlow.stage === 'paying' || (parliamentFlow.stage === 'landed' && parliamentFlow.voteSnapshot?.source === 'reserve');
+      return this.paymentStands && (parliamentFlow.stage === 'paying' || parliamentFlow.stage === 'submitting');
     },
     paymentStands(): boolean {
       return this.votePayment !== undefined;
@@ -411,32 +411,15 @@ export default defineComponent({
         setWorkspaceFramePhase('parliament', 'committed');
         void this.$nextTick(() => {
           fitParliamentCards();
+          freezeParliamentFit(true);
           parkParliamentBody(parliamentRootEl());
         });
       },
     },
-    /**
-     * The bill geometry changes under a STANDING mode: measure before the
-     * layout moves (pre-flush), re-fit the cards after it, and FLIP every
-     * carried object from where it stood — never a jump under the bill. A mode
-     * that opens straight into the payment (a reload) has nothing to carry.
-     */
-    billGeometry(): void {
-      const root = parliamentRootEl();
-      const up = root?.querySelector<HTMLElement>('.con-parl__vote--up') ?? null;
-      if (root === undefined || up === null || parliamentFlow.voteEntering || parliamentFlow.voteLeaving) {
-        return;
-      }
-      const before = measureVoteRects(root, {mode: 'vote'});
-      void this.$nextTick(() => {
-        fitParliamentCards();
-        playParliamentVoteRefit({root, before});
-      });
-    },
   },
   beforeUnmount() {
     this.clearLanding();
-    this.clearConclude();
+    freezeParliamentFit(false);
   },
   methods: {
     cubePx(logical: number): number {
@@ -463,7 +446,6 @@ export default defineComponent({
      * the three proposals is its job too; the confirm carries the reason.
      */
     openVote(opts?: {fromViewer?: boolean, index?: number}): void {
-      this.clearConclude();
       const root = parliamentRootEl();
       const f = parliamentFlow;
       if (this.view.slots.length === 0 || root === undefined) {
@@ -513,8 +495,8 @@ export default defineComponent({
       }
       const root = parliamentRootEl();
       const f = parliamentFlow;
-      this.clearConclude();
       this.clearLanding();
+      freezeParliamentFit(false);
       f.voteSnapshot = undefined;
       f.sourceHold = undefined;
       f.sourceLeaving = undefined;
@@ -658,6 +640,9 @@ export default defineComponent({
       }
       const source = this.benchSource === 'none' ? 'lobby' : this.benchSource;
       parliamentFlow.voteSnapshot = {votes: slot.totalVotes, mine: slot.viewerVotes, leader: slot.leader, winning: slot.isWinning, winner: this.winningSlot?.instance, source};
+      // FROM THE PRESS TO THE FLOW'S END nothing but text, the confirm's state and the cube's flight may change:
+      // the card fit is FROZEN (a re-fit under the flight jumped the scene it measured — § Б5).
+      freezeParliamentFit(true);
       this.$emit('send', {response: voteResponse(this.bridge, slot.party), from: 'vote'});
     },
     /** The server answered while the BILL stood: the paid delegate lands — or the payment was refused / the prompt moved on. */
@@ -802,26 +787,14 @@ export default defineComponent({
         this.clearLanding();
         return;
       }
-      // The flow is over: the landed scene lets go as ONE picture — cards, zone
-      // and band together (a leaving Teleport would drop the cards a frame
-      // before the fading layer) — while its counters keep the landed reading
-      // (`landedSeq` stands until the fade is out); then the shell's ONE
-      // guarded conclusion decides whether the workspace leaves (a vote is a
-      // full action — it does). A CLASS fade, not a tween: the unmount's
-      // prop reset would have popped a tweened layer back to full.
-      parliamentFlow.concluded = true;
-      this.concludeBeat = scheduleParliamentBeat(VOTE_CONCLUDE_MS + 40, () => {
-        this.concludeBeat = undefined;
-        this.clearLanding();
-        if (parliamentFlow.stage === 'landed') {
-          this.$emit('flow-complete', 'vote');
-        }
-      });
-    },
-    clearConclude(): void {
-      this.concludeBeat?.kill();
-      this.concludeBeat = undefined;
-      parliamentFlow.concluded = false;
+      // The flow is over: the landed reading has been READ, and the WHOLE surface leaves as ONE motion — the
+      // shell's ONE guarded conclusion pops the frame and the surface-motion director dissolves the root with
+      // the vote layer, the cards and the zone inside it (v2, § Б5: a separate fade of the layer before the
+      // frame left a frame with an empty body under a live crumb). The counters keep the landed reading
+      // until the unmount (`landedSeq` stands); the fit stays frozen through the leave.
+      this.landingHold?.release();
+      this.landingHold = undefined;
+      this.$emit('flow-complete', 'vote');
     },
     clearLanding(): void {
       this.landingBeat?.kill();

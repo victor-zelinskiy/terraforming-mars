@@ -57,9 +57,7 @@
         visibility: hidden;
         pointer-events: none;
         &--up { visibility: visible; pointer-events: auto; }
-        /* THE CONCLUSION — the landed scene (cards, band) lets go as one picture before the workspace leaves. */
-        transition: opacity calc(220ms * var(--motion-scale, 1)) @con-ease-standard;
-        &--concluded { opacity: 0; }
+        /* (v2, § Б5: no conclusion fade of its own — a finished vote leaves WITH the whole surface, one motion.) */
     }
     /* ── THE CARD ROW — the three slots, larger. ── */
     &__vrow {
@@ -115,8 +113,22 @@
        hosted step's frame yields — the crumb already says ОПЛАТА and the
        panel names its price. Written with the host class doubled (0,3,0): it
        must outrank the profile ladders' own `&__info` rules (0,2,1). */
-    & &__vote--bill { grid-template-rows: minmax(0, 1fr) var(--con-parl-bill-h); }
-    & &__vote--bill &__info { grid-template-columns: minmax(0, 1fr) var(--con-parl-bill-w); padding-top: .35rem; padding-bottom: .35rem; }
+    /* v2, § Б5: the panel HOSTS the bill as an OVERLAY rising out of its fixed box (`--con-parl-bill-h` tall,
+       over the card row) — the card row's grid never changes, the three cards never re-fit, nothing above
+       the panel moves. `--con-parl-bill-h` touches the panel's columns only, never the layer's rows. */
+    & &__vote--bill &__info { grid-template-columns: minmax(0, 1fr) var(--con-parl-bill-w); overflow: visible; }
+    & &__vote--bill &__info-vote { position: relative; }
+    & &__vote--bill &__info-vote .con-parl__embed:not(:empty) {
+        position: absolute;
+        right: 0;
+        bottom: 0;
+        width: 100%;
+        height: var(--con-parl-bill-h);
+        z-index: 6;
+        border-radius: .6rem;
+        background: linear-gradient(170deg, rgba(30, 20, 52, 0.985), rgba(12, 10, 22, 0.99));
+        box-shadow: 0 0 0 .06rem rgba(201, 198, 214, 0.3), 0 -.6rem 2rem rgba(0, 0, 0, 0.5);
+    }
     & &__vote .con-task-host--embedded .con-task { padding: 0; }
     & &__vote .con-task-host--embedded .con-task__head { display: none; }
     &__vote--committed &__info { box-shadow: 0 0 0 .06rem fade(@con-amber, 55%), 0 .9rem 2rem rgba(0, 0, 0, 0.5); }
