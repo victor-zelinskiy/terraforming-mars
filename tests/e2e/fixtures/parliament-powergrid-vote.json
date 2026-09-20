@@ -613,7 +613,7 @@
   ],
   "discardPile": []
  },
- "createdTimeMs": 1789776052375,
+ "createdTimeMs": 1789912676298,
  "currentSeed": 593427323412,
  "deferredActions": [],
  "donePlayers": [],
@@ -633,7 +633,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1789776052375
+   "timestamp": 1789912676298
   },
   {
    "message": "Good luck ${0}!",
@@ -643,7 +643,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1789776052375,
+   "timestamp": 1789912676298,
    "playerId": "p-player1-id"
   },
   {
@@ -654,7 +654,7 @@
      "value": "red"
     }
    ],
-   "timestamp": 1789776052375,
+   "timestamp": 1789912676298,
    "playerId": "p-player2-id"
   },
   {
@@ -665,7 +665,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1789776052375,
+   "timestamp": 1789912676298,
    "type": 1
   },
   {
@@ -680,7 +680,7 @@
      "value": "Teractor"
     }
    ],
-   "timestamp": 1789776052375,
+   "timestamp": 1789912676298,
    "correlationId": 1,
    "parentId": 1,
    "role": "root-action",
@@ -698,7 +698,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1789776052376,
+   "timestamp": 1789912676298,
    "correlationId": 1,
    "parentId": 1,
    "role": "detail"
@@ -715,7 +715,7 @@
      "value": "Aridor"
     }
    ],
-   "timestamp": 1789776052376,
+   "timestamp": 1789912676298,
    "correlationId": 2,
    "parentId": 2,
    "role": "root-action",
@@ -733,7 +733,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1789776052376,
+   "timestamp": 1789912676298,
    "correlationId": 2,
    "parentId": 2,
    "role": "detail"
@@ -919,7 +919,7 @@
   "Builder",
   "Planner"
  ],
- "name": "Polar Flux Zone",
+ "name": "Solar Stellar State",
  "oxygenLevel": 0,
  "passedPlayers": [],
  "phase": "action",
@@ -1027,11 +1027,11 @@
    "beginner": false,
    "handicap": 0,
    "timer": {
-    "sumElapsed": 1,
-    "startedAt": 1789776052376,
+    "sumElapsed": 0,
+    "startedAt": 1789912676298,
     "running": true,
     "afterFirstAction": true,
-    "lastStoppedAt": 1789776052376
+    "lastStoppedAt": 1789912676298
    },
    "actionsTakenThisGame": 1,
    "victoryPointsByGeneration": [],
@@ -1158,11 +1158,11 @@
    "beginner": false,
    "handicap": 0,
    "timer": {
-    "sumElapsed": 1,
-    "startedAt": 1789776052376,
+    "sumElapsed": 0,
+    "startedAt": 1789912676298,
     "running": false,
     "afterFirstAction": true,
-    "lastStoppedAt": 1789776052376
+    "lastStoppedAt": 1789912676298
    },
    "actionsTakenThisGame": 0,
    "victoryPointsByGeneration": [],

@@ -156,10 +156,10 @@ export type NeutralDelegate = 'NEUTRAL';
 /** The parliament's end-of-generation steps, in order (see ParliamentPhase). */
 export type ParliamentPhaseStep =
   | 'winner' // determine the winning resolution + the winning player
+  | 'assembly' // GATE 1 (v2: BEFORE anything changes): every participant confirms the verdict (one prompt each; the barrier is the per-seat key)
   | 'agenda' // advance the winner's Agenda marker (+ the step's bonus)
   | 'support' // popular support for the absent / non-winning parties
   | 'enact' // the winner takes the ENACTED slot (delegates return, old card discarded)
-  | 'assembly' // GATE 1: every participant confirms the verdict and the enactment (one prompt each; the barrier is the per-seat key)
   | 'effects' // the enacted resolution's immediate effects, player by player
   | 'refresh' // discard the two losers, deal three fresh resolutions, seat the neutral votes
   | 'lobby' // every player's free delegate returns to the lobby

@@ -613,7 +613,7 @@
   ],
   "discardPile": []
  },
- "createdTimeMs": 1789776052328,
+ "createdTimeMs": 1789912676262,
  "currentSeed": 600753586664,
  "deferredActions": [],
  "donePlayers": [],
@@ -633,7 +633,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1789776052328
+   "timestamp": 1789912676262
   },
   {
    "message": "Good luck ${0}!",
@@ -643,7 +643,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1789776052329,
+   "timestamp": 1789912676262,
    "playerId": "p-player1-id"
   },
   {
@@ -654,7 +654,7 @@
      "value": "red"
     }
    ],
-   "timestamp": 1789776052329,
+   "timestamp": 1789912676262,
    "playerId": "p-player2-id"
   },
   {
@@ -665,7 +665,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1789776052329,
+   "timestamp": 1789912676262,
    "type": 1
   },
   {
@@ -680,7 +680,7 @@
      "value": "Teractor"
     }
    ],
-   "timestamp": 1789776052329,
+   "timestamp": 1789912676262,
    "correlationId": 1,
    "parentId": 1,
    "role": "root-action",
@@ -698,7 +698,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1789776052329,
+   "timestamp": 1789912676262,
    "correlationId": 1,
    "parentId": 1,
    "role": "detail"
@@ -715,7 +715,7 @@
      "value": "Aridor"
     }
    ],
-   "timestamp": 1789776052329,
+   "timestamp": 1789912676263,
    "correlationId": 2,
    "parentId": 2,
    "role": "root-action",
@@ -733,7 +733,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1789776052329,
+   "timestamp": 1789912676263,
    "correlationId": 2,
    "parentId": 2,
    "role": "detail"
@@ -746,7 +746,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1789776052330,
+   "timestamp": 1789912676264,
    "type": 2,
    "correlationId": 5,
    "parentId": 5,
@@ -765,7 +765,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1789776052331,
+   "timestamp": 1789912676264,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -782,7 +782,7 @@
      "value": "RDX_MARS_ARCHITECTURE_AWARD"
     }
    ],
-   "timestamp": 1789776052331,
+   "timestamp": 1789912676264,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -799,7 +799,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1789776052331,
+   "timestamp": 1789912676264,
    "correlationId": 5,
    "parentId": 6,
    "role": "detail"
@@ -824,7 +824,7 @@
      "value": "3"
     }
    ],
-   "timestamp": 1789776052331,
+   "timestamp": 1789912676264,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -849,7 +849,7 @@
      "value": "3"
     }
    ],
-   "timestamp": 1789776052331,
+   "timestamp": 1789912676264,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -874,7 +874,7 @@
      "value": "3"
     }
    ],
-   "timestamp": 1789776052331,
+   "timestamp": 1789912676264,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -899,7 +899,7 @@
      "value": "3"
     }
    ],
-   "timestamp": 1789776052331,
+   "timestamp": 1789912676265,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -924,7 +924,7 @@
      "value": "3"
     }
    ],
-   "timestamp": 1789776052331,
+   "timestamp": 1789912676265,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -937,7 +937,7 @@
      "value": "RDX_MARS_ARCHITECTURE_AWARD"
     }
    ],
-   "timestamp": 1789776052331,
+   "timestamp": 1789912676265,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -950,7 +950,7 @@
      "value": "Mars First"
     }
    ],
-   "timestamp": 1789776052331,
+   "timestamp": 1789912676265,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -967,7 +967,7 @@
      "value": "Play 2 building tags"
     }
    ],
-   "timestamp": 1789776052331,
+   "timestamp": 1789912676265,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -1008,7 +1008,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1789776052332,
+   "timestamp": 1789912676265,
    "correlationId": 5,
    "parentId": 7,
    "role": "detail"
@@ -1029,7 +1029,7 @@
      "value": "RDX_MARS_ARCHITECTURE_AWARD"
     }
    ],
-   "timestamp": 1789776052332,
+   "timestamp": 1789912676266,
    "correlationId": 5,
    "parentId": 9,
    "role": "detail"
@@ -1042,7 +1042,7 @@
      "value": "RDX_GREENS_AQUIFER_CONTEST"
     }
    ],
-   "timestamp": 1789776052332,
+   "timestamp": 1789912676266,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -1055,7 +1055,7 @@
      "value": "RDX_INDUSTRIALISTS_CENTRAL_POWER_GRID"
     }
    ],
-   "timestamp": 1789776052332,
+   "timestamp": 1789912676266,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -1068,7 +1068,7 @@
      "value": "RDX_GREENS_CLIMATE_RESEARCH"
     }
    ],
-   "timestamp": 1789776052332,
+   "timestamp": 1789912676266,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -1089,7 +1089,7 @@
      "value": "RDX_GREENS_CLIMATE_RESEARCH"
     }
    ],
-   "timestamp": 1789776052332,
+   "timestamp": 1789912676266,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -1102,7 +1102,7 @@
      "value": "RDX_INDUSTRIALISTS_CENTRAL_POWER_GRID"
     }
    ],
-   "timestamp": 1789776052332,
+   "timestamp": 1789912676266,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -1123,7 +1123,7 @@
      "value": "RDX_INDUSTRIALISTS_CENTRAL_POWER_GRID"
     }
    ],
-   "timestamp": 1789776052332,
+   "timestamp": 1789912676266,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -1136,7 +1136,7 @@
      "value": "3"
     }
    ],
-   "timestamp": 1789776052332,
+   "timestamp": 1789912676266,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -1144,7 +1144,7 @@
   {
    "message": "Every player's free delegate returns to the lobby",
    "data": [],
-   "timestamp": 1789776052332,
+   "timestamp": 1789912676266,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -1157,7 +1157,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1789776052334,
+   "timestamp": 1789912676267,
    "type": 1
   },
   {
@@ -1168,7 +1168,7 @@
      "value": "red"
     }
    ],
-   "timestamp": 1789776052334
+   "timestamp": 1789912676267
   },
   {
    "message": "${0} ${1} ${2} card(s)",
@@ -1186,7 +1186,7 @@
      "value": "0"
     }
    ],
-   "timestamp": 1789776052335
+   "timestamp": 1789912676268
   },
   {
    "message": "${0} ${1} ${2} card(s)",
@@ -1204,7 +1204,7 @@
      "value": "0"
     }
    ],
-   "timestamp": 1789776052335
+   "timestamp": 1789912676268
   }
  ],
  "gameEvents": [
@@ -1484,7 +1484,7 @@
   "Builder",
   "Planner"
  ],
- "name": "Polar Carbon Core",
+ "name": "Residual Carbon Trace",
  "oxygenLevel": 0,
  "passedPlayers": [],
  "phase": "action",
@@ -1580,11 +1580,11 @@
    "beginner": false,
    "handicap": 0,
    "timer": {
-    "sumElapsed": 5,
-    "startedAt": 1789776052332,
+    "sumElapsed": 6,
+    "startedAt": 1789912676266,
     "running": false,
     "afterFirstAction": true,
-    "lastStoppedAt": 1789776052335
+    "lastStoppedAt": 1789912676268
    },
    "actionsTakenThisGame": 1,
    "victoryPointsByGeneration": [
@@ -1702,10 +1702,10 @@
    "handicap": 0,
    "timer": {
     "sumElapsed": 5,
-    "startedAt": 1789776052335,
+    "startedAt": 1789912676268,
     "running": true,
     "afterFirstAction": true,
-    "lastStoppedAt": 1789776052335
+    "lastStoppedAt": 1789912676268
    },
    "actionsTakenThisGame": 2,
    "victoryPointsByGeneration": [
@@ -2215,6 +2215,10 @@
      "amount": 0,
      "reason": "No qualifying cards and no influence"
     }
+   ],
+   "discarded": [
+    "RDX_GREENS_AQUIFER_CONTEST#0",
+    "RDX_INDUSTRIALISTS_CENTRAL_POWER_GRID#0"
    ]
   },
   "phaseSeq": 1,
@@ -2317,6 +2321,10 @@
       "amount": 0,
       "reason": "No qualifying cards and no influence"
      }
+    ],
+    "discarded": [
+     "RDX_GREENS_AQUIFER_CONTEST#0",
+     "RDX_INDUSTRIALISTS_CENTRAL_POWER_GRID#0"
     ]
    }
   ],

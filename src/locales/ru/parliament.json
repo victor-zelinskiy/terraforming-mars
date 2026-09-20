@@ -61,7 +61,7 @@
   "You do not have it yet — one more delegate on its resolution would grant it": "Недоступен · ещё один делегат на её резолюции откроет его",
   "You do not have it": "Недоступен",
   "The Mars Parliament of generation ${0} convenes": "Заседание парламента · поколение ${0}",
-  "The Mars Parliament of generation ${0} is in session: the verdict and the enactment": "Заседание поколения ${0}: вердикт и принятие",
+  "The Mars Parliament of generation ${0} is in session: the verdict": "Заседание поколения ${0}: вердикт",
   "The Mars Parliament of generation ${0} adjourns": "Заседание поколения ${0} закрыто",
   "Resolution ${0} wins the vote with ${1} delegate(s)": "Резолюция ${0} принята голосованием: ${1} {делегат|делегата|делегатов}",
   "Tie among resolutions: ${0} stands closer to the ENACTED slot": "Ничья между резолюциями: ${0} ближе к правительству",
@@ -528,5 +528,10 @@
   "To the lobby": "В лобби",
   "Effect while enacted": "Эффект, пока принята",
   "Action while enacted": "Действие, пока принята",
-  "Available in Card actions": "Доступно в «Действиях карт»"
+  "Available in Card actions": "Доступно в «Действиях карт»",
+  "Onto the board": "К полю",
+  "Your tile waits on the board": "Ваш тайл ждёт на поле",
+  "Nobody completed it": "Никто не выполнил",
+  "Outcome": "Итог",
+  "Opposition": "Оппозиция"
 }

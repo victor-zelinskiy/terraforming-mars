@@ -616,7 +616,7 @@
   ],
   "discardPile": []
  },
- "createdTimeMs": 1789776052315,
+ "createdTimeMs": 1789912676249,
  "currentSeed": 600753586664,
  "deferredActions": [],
  "donePlayers": [],
@@ -636,7 +636,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1789776052315
+   "timestamp": 1789912676249
   },
   {
    "message": "Good luck ${0}!",
@@ -646,7 +646,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1789776052316,
+   "timestamp": 1789912676250,
    "playerId": "p-player1-id"
   },
   {
@@ -657,7 +657,7 @@
      "value": "red"
     }
    ],
-   "timestamp": 1789776052316,
+   "timestamp": 1789912676250,
    "playerId": "p-player2-id"
   },
   {
@@ -668,7 +668,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1789776052316,
+   "timestamp": 1789912676250,
    "type": 1
   },
   {
@@ -683,7 +683,7 @@
      "value": "Teractor"
     }
    ],
-   "timestamp": 1789776052316,
+   "timestamp": 1789912676250,
    "correlationId": 1,
    "parentId": 1,
    "role": "root-action",
@@ -701,7 +701,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1789776052316,
+   "timestamp": 1789912676250,
    "correlationId": 1,
    "parentId": 1,
    "role": "detail"
@@ -718,7 +718,7 @@
      "value": "Aridor"
     }
    ],
-   "timestamp": 1789776052316,
+   "timestamp": 1789912676250,
    "correlationId": 2,
    "parentId": 2,
    "role": "root-action",
@@ -736,7 +736,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1789776052316,
+   "timestamp": 1789912676250,
    "correlationId": 2,
    "parentId": 2,
    "role": "detail"
@@ -749,7 +749,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1789776052318,
+   "timestamp": 1789912676251,
    "type": 2,
    "correlationId": 5,
    "parentId": 5,
@@ -768,7 +768,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1789776052318,
+   "timestamp": 1789912676251,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -785,7 +785,7 @@
      "value": "RDX_GREENS_AQUIFER_CONTEST"
     }
    ],
-   "timestamp": 1789776052318,
+   "timestamp": 1789912676251,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -802,7 +802,7 @@
      "value": "3"
     }
    ],
-   "timestamp": 1789776052318,
+   "timestamp": 1789912676252,
    "correlationId": 5,
    "parentId": 6,
    "role": "detail"
@@ -827,7 +827,7 @@
      "value": "3"
     }
    ],
-   "timestamp": 1789776052318,
+   "timestamp": 1789912676252,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -852,7 +852,7 @@
      "value": "3"
     }
    ],
-   "timestamp": 1789776052318,
+   "timestamp": 1789912676252,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -877,7 +877,7 @@
      "value": "3"
     }
    ],
-   "timestamp": 1789776052318,
+   "timestamp": 1789912676252,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -902,7 +902,7 @@
      "value": "3"
     }
    ],
-   "timestamp": 1789776052318,
+   "timestamp": 1789912676252,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -927,7 +927,7 @@
      "value": "3"
     }
    ],
-   "timestamp": 1789776052318,
+   "timestamp": 1789912676252,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -940,7 +940,7 @@
      "value": "RDX_GREENS_AQUIFER_CONTEST"
     }
    ],
-   "timestamp": 1789776052318,
+   "timestamp": 1789912676252,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -953,7 +953,7 @@
      "value": "Greens"
     }
    ],
-   "timestamp": 1789776052318,
+   "timestamp": 1789912676252,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -970,7 +970,7 @@
      "value": "Play a card with an animal tag"
     }
    ],
-   "timestamp": 1789776052318,
+   "timestamp": 1789912676252,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -999,7 +999,7 @@
      "value": "RDX_GREENS_AQUIFER_CONTEST"
     }
    ],
-   "timestamp": 1789776052319,
+   "timestamp": 1789912676252,
    "correlationId": 5,
    "parentId": 7,
    "role": "detail"
@@ -1024,7 +1024,7 @@
      "value": "07"
     }
    ],
-   "timestamp": 1789776052320,
+   "timestamp": 1789912676254,
    "correlationId": 5,
    "parentId": 9,
    "role": "detail"
@@ -1049,7 +1049,7 @@
      "value": "Greens"
     }
    ],
-   "timestamp": 1789776052321,
+   "timestamp": 1789912676254,
    "correlationId": 5,
    "parentId": 12,
    "role": "effect-result"
@@ -1078,7 +1078,7 @@
      "value": "RDX_GREENS_AQUIFER_CONTEST"
     }
    ],
-   "timestamp": 1789776052321,
+   "timestamp": 1789912676254,
    "correlationId": 5,
    "parentId": 15,
    "role": "detail"
@@ -1091,7 +1091,7 @@
      "value": "RDX_MARS_ARCHITECTURE_AWARD"
     }
    ],
-   "timestamp": 1789776052322,
+   "timestamp": 1789912676255,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -1104,7 +1104,7 @@
      "value": "RDX_INDUSTRIALISTS_CENTRAL_POWER_GRID"
     }
    ],
-   "timestamp": 1789776052322,
+   "timestamp": 1789912676255,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -1117,7 +1117,7 @@
      "value": "RDX_MARS_ARCHITECTURE_AWARD"
     }
    ],
-   "timestamp": 1789776052322,
+   "timestamp": 1789912676255,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -1138,7 +1138,7 @@
      "value": "RDX_MARS_ARCHITECTURE_AWARD"
     }
    ],
-   "timestamp": 1789776052322,
+   "timestamp": 1789912676255,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -1151,7 +1151,7 @@
      "value": "RDX_INDUSTRIALISTS_CENTRAL_POWER_GRID"
     }
    ],
-   "timestamp": 1789776052322,
+   "timestamp": 1789912676255,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -1172,7 +1172,7 @@
      "value": "RDX_INDUSTRIALISTS_CENTRAL_POWER_GRID"
     }
    ],
-   "timestamp": 1789776052322,
+   "timestamp": 1789912676255,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -1185,7 +1185,7 @@
      "value": "3"
     }
    ],
-   "timestamp": 1789776052322,
+   "timestamp": 1789912676255,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -1193,7 +1193,7 @@
   {
    "message": "Every player's free delegate returns to the lobby",
    "data": [],
-   "timestamp": 1789776052322,
+   "timestamp": 1789912676255,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -1629,7 +1629,7 @@
   "Builder",
   "Planner"
  ],
- "name": "Volatile Isotope Node",
+ "name": "Cosmic Flux Flow",
  "oxygenLevel": 0,
  "passedPlayers": [],
  "phase": "parliament",
@@ -1734,10 +1734,10 @@
    "handicap": 0,
    "timer": {
     "sumElapsed": 4,
-    "startedAt": 1789776052321,
+    "startedAt": 1789912676254,
     "running": true,
     "afterFirstAction": true,
-    "lastStoppedAt": 1789776052321
+    "lastStoppedAt": 1789912676254
    },
    "actionsTakenThisGame": 1,
    "victoryPointsByGeneration": [],
@@ -1856,11 +1856,11 @@
    "beginner": false,
    "handicap": 0,
    "timer": {
-    "sumElapsed": 2,
-    "startedAt": 1789776052321,
+    "sumElapsed": 1,
+    "startedAt": 1789912676254,
     "running": true,
     "afterFirstAction": true,
-    "lastStoppedAt": 1789776052321
+    "lastStoppedAt": 1789912676254
    },
    "actionsTakenThisGame": 1,
    "victoryPointsByGeneration": [],
@@ -2392,12 +2392,16 @@
       "card": "Birds",
       "influence": 3
      }
+    ],
+    "discarded": [
+     "RDX_MARS_ARCHITECTURE_AWARD#0",
+     "RDX_INDUSTRIALISTS_CENTRAL_POWER_GRID#0"
     ]
    },
    "appliedBySeat": {
     "p-player1-id": [
-     "agenda:1",
      "assembly:1",
+     "agenda:1",
      "effect:1:RDX_GREENS_AQUIFER_CONTEST#0:animals",
      "effect:1:RDX_GREENS_AQUIFER_CONTEST#0:ocean"
     ],

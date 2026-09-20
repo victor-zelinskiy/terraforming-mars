@@ -1,5 +1,8 @@
 import {expect} from 'chai';
+import * as fs from 'fs';
+import * as path from 'path';
 import {testGame} from '../TestGame';
+import {SerializedGame} from '../../src/server/SerializedGame';
 import {TestPlayer} from '../TestPlayer';
 import {IGame} from '../../src/server/IGame';
 import {Game} from '../../src/server/Game';
@@ -360,17 +363,28 @@ describe('ParliamentPhase', () => {
     const wire = (player: IPlayer) => Server.getPlayerModel(player).waitingFor?.parliamentPhasePrompt;
     const reload = (game: IGame): IGame => Game.deserialize(structuredClone(game.serialize()));
 
-    it('ASSEMBLY stands after the enactment and before the effects; every participant is asked once and the LAST answer moves the phase — then ADJOURN the same way (2 seats)', () => {
+    it('ASSEMBLY stands right after the VERDICT and before anything changes; every participant is asked once and the LAST answer moves the phase — then ADJOURN the same way (2 seats)', () => {
       const [game, p1, p2, parliament] = reduxGame();
       seatResolution(parliament, 0, ARCHITECTURE_AWARD_ID); // asks nothing: M€ production, never a choice
+      const winnerInstance = parliament.slots[0].instance;
+      const tableBefore = parliament.slots.map((slot) => slot.instance);
+      const supportBefore = REDUX_PARTIES.map((party) => parliament.popularSupportOf(party));
       parliament.placeVote(p1, parliament.slots[0], 'lobby');
       passToParliament(game);
       expect(game.phase).eq(Phase.PARLIAMENT);
       expect(parliament.phase?.step).eq('assembly');
-      // The verdict, the Agenda step and the enactment are DONE before anyone is asked; nothing is paid yet.
-      expect(parliament.enacted).eq(parliament.phase?.summary?.enacted);
-      expect(parliament.agendaOf(p1)).eq(1);
+      // v2: ONLY the verdict is done at the gate. The table is exactly as it was voted — the winner still in its
+      // slot with its delegate, the government untouched, no Agenda step, no popular support, nothing paid.
+      expect(parliament.phase?.summary?.winner.instance).eq(winnerInstance);
+      expect(parliament.enacted, 'the government has not changed').is.undefined;
+      expect(parliament.slots.map((slot) => slot.instance), 'the winner is still in its slot').deep.eq(tableBefore);
+      expect(parliament.votesOf(p1), 'its delegate is still on the card').eq(1);
+      expect(parliament.agendaOf(p1), 'no Agenda step yet').eq(0);
+      expect(REDUX_PARTIES.map((party) => parliament.popularSupportOf(party)), 'no popular support yet').deep.eq(supportBefore);
+      expect(parliament.phase?.summary?.agenda).is.undefined;
+      expect(parliament.phase?.summary?.support).is.empty;
       expect(parliament.phase?.summary?.outcomes ?? []).is.empty;
+      expect(parliament.quest?.generation, 'the chairman quest is the current one').eq(1);
       const active = game.activePlayer.id;
       for (const seat of [p1, p2]) {
         expect(marker(seat), seat.color + '\'s gate').deep.include({stage: 'assembly', generation: 1, final: false, seq: 1});
@@ -386,8 +400,15 @@ describe('ParliamentPhase', () => {
       expect(parliament.phase?.appliedBySeat?.[p1.id]).includes('assembly:1');
       expect(game.activePlayer.id, 'activePlayer is never reassigned to an asked seat').eq(active);
       answerGate(p2, 'assembly');
-      // The effects ran (a quiet card asks nothing), the area was refreshed, the lobby refilled — and ADJOURN stands.
+      // The LAST answer opens the barrier and the whole chain runs in order: the winner's Agenda, the support,
+      // the enactment, the effects (a quiet card asks nothing), the refresh, the lobby — and ADJOURN stands.
       expect(parliament.phase?.step).eq('adjourn');
+      expect(parliament.enacted, 'the winner is enacted now').eq(winnerInstance);
+      expect(parliament.agendaOf(p1), 'the winner\'s Agenda moved').eq(1);
+      expect(parliament.phase?.summary?.agenda).deep.include({player: p1.id, from: 0, to: 1});
+      expect(parliament.phase?.summary?.support.length, 'the support was granted').is.greaterThan(0);
+      expect(parliament.slots.map((slot) => slot.instance), 'the winner left the area').not.includes(winnerInstance);
+      expect(parliament.quest?.generation, 'the quest is the enacted resolution\'s, for the next generation').eq(2);
       expect(parliament.lobby.has(p1.id)).is.true;
       expect(parliament.phase?.summary?.refreshed.length).is.greaterThan(0);
       for (const seat of [p1, p2]) {
@@ -514,6 +535,83 @@ describe('ParliamentPhase', () => {
       answerGate(human, 'adjourn');
       expect(parliament.phase).is.undefined;
       expect(game.generation).eq(2);
+    });
+
+    it('the Agenda still moves BEFORE the support, the enactment and the rewards — one chain after the barrier (the rules are untouched by the moved gate)', () => {
+      const [game, p1, , parliament] = reduxGame();
+      seatResolution(parliament, 0, ARCHITECTURE_AWARD_ID); // pays M€ production by influence — the Agenda step must be counted first
+      parliament.placeVote(p1, parliament.slots[0], 'lobby');
+      parliament.agenda.set(p1.id, 1); // step 2 is a TR step: the winner's step pays 1 TR before the law pays
+      const tr = p1.terraformRating;
+      const production = p1.production.megacredits;
+      passToParliament(game);
+      expect(parliament.phase?.step).eq('assembly');
+      expect(p1.terraformRating, 'nothing is paid at the gate').eq(tr);
+      expect(p1.production.megacredits).eq(production);
+      // The journal keeps the order the rules prescribe: the Agenda line before the support, the support before the enactment, the enactment before the payout.
+      const logsBefore = game.gameLog.length;
+      expect(answerStandingGates(game, 'assembly')).eq(2);
+      expect(parliament.agendaOf(p1)).eq(2);
+      expect(p1.terraformRating, 'the Agenda step paid its TR').eq(tr + 1);
+      expect(p1.production.megacredits, 'the law paid after it').is.greaterThan(production);
+      const lines = game.gameLog.slice(logsBefore).map((m) => m.message);
+      const at = (re: RegExp) => lines.findIndex((m) => re.test(m));
+      const agendaAt = at(/Agenda/);
+      const supportAt = at(/Popular Support/);
+      const enactAt = at(/is enacted/);
+      expect(agendaAt, `an Agenda line among ${lines.join(' | ')}`).is.greaterThan(-1);
+      expect(supportAt).is.greaterThan(agendaAt);
+      expect(enactAt).is.greaterThan(supportAt);
+      expect(parliament.phase?.summary?.outcomes?.some((o) => o.player === p1.id && o.kind === 'production'), 'the payout is recorded after the enactment').is.true;
+    });
+
+    it('an OLD save standing at the assembly gate AFTER the enactment (the pre-v2 order) resumes and finishes without paying anything twice', () => {
+      // The fixture is a real save from the previous order: the assembly gate for both seats with `applied`
+      // already carrying the support and the enactment and `appliedBySeat` the winner's Agenda step.
+      const file = path.join(__dirname, 'fixtures', 'legacy-assembly-after-enact.json');
+      const live = Game.deserialize(JSON.parse(fs.readFileSync(file, 'utf8')) as SerializedGame);
+      const parliament = live.parliament!;
+      const phase = parliament.phase!;
+      expect(phase.step).eq('assembly');
+      expect(phase.applied).includes(`support:${phase.generation}`);
+      expect(phase.applied.some((key) => key.startsWith(`enact:${phase.generation}:`)), 'the enactment was applied before the save').is.true;
+      const winnerId = phase.summary!.winner.player as PlayerId;
+      expect(phase.appliedBySeat?.[winnerId]).includes(`agenda:${phase.generation}`);
+      const winner = live.getPlayerById(winnerId);
+      const enactedBefore = parliament.enacted;
+      const agendaBefore = parliament.agendaOf(winner);
+      // The summary's records of the steps already done — a step that ran again would re-push its records.
+      const summaryBefore = JSON.stringify({support: phase.summary!.support, agenda: phase.summary!.agenda, returned: phase.summary!.returned});
+      const supportTotal = REDUX_PARTIES.reduce((sum, party) => sum + parliament.popularSupportOf(party), 0);
+      const productionBefore = live.players.map((p) => p.production.megacredits);
+      const trBefore = winner.terraformRating;
+      // The gate stands for every seat still without its key — the resume re-issued it.
+      for (const seat of parliament.participants(live)) {
+        expect(marker(seat)?.stage, `${seat.color}'s gate`).eq('assembly');
+      }
+      expect(answerStandingGates(live, 'assembly')).eq(parliament.participants(live).length);
+      // The chain after the barrier found the Agenda, the support and the enactment DONE: nothing moved twice,
+      // nothing was paid twice — and the effects (Architecture Award pays M€ production) ran exactly once.
+      expect(parliament.enacted).eq(enactedBefore);
+      expect(parliament.agendaOf(winner)).eq(agendaBefore);
+      expect(winner.terraformRating).eq(trBefore);
+      expect(JSON.stringify({support: parliament.phase!.summary!.support, agenda: parliament.phase!.summary!.agenda, returned: parliament.phase!.summary!.returned}),
+        'the support, the Agenda and the returns were recorded ONCE').eq(summaryBefore);
+      // The refresh may MOVE support onto a freshly dealt card (neutral votes) — it never grants any: the pool is conserved.
+      const supportAfter = REDUX_PARTIES.reduce((sum, party) => sum + parliament.popularSupportOf(party), 0) +
+        parliament.slots.reduce((sum, slot) => sum + slot.votes.filter((vote) => vote.owner === 'NEUTRAL').length, 0);
+      expect(supportAfter, 'no support granted twice').eq(supportTotal);
+      expect(parliament.phase?.step).eq('adjourn');
+      const paid = live.players.map((p, i) => p.production.megacredits - productionBefore[i]);
+      expect(paid.some((delta) => delta > 0), `the law paid once (${paid.join(',')})`).is.true;
+      const outcomes = parliament.phase?.summary?.outcomes ?? [];
+      for (const player of live.players) {
+        expect(outcomes.filter((o) => o.player === player.id && o.kind === 'production').length, `${player.color} has ONE production record`).eq(1);
+      }
+      expect(answerStandingGates(live, 'adjourn')).eq(parliament.participants(live).length);
+      expect(parliament.phase).is.undefined;
+      expect(live.generation).eq(phase.generation + 1);
+      parliament.assertLedger(live);
     });
 
     it('a save CLONED inside a gate with fresh player ids does not ask the answered seat again: the key travels with the seat', () => {

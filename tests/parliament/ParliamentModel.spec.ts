@@ -37,8 +37,11 @@ describe('ParliamentModel — the sitting', () => {
     expect(summary?.seq).eq(1);
     expect(summary?.correlationId).is.a('number');
     expect(summary?.winner.player).eq(p1.color);
-    expect(summary?.enacted.instance).eq(parliament.enacted);
-    expect(summary?.agenda).deep.eq({player: p1.color, from: 0, to: 1, bonus: undefined});
+    // v2: the gate stands BEFORE the table changes — the summary names the card that WILL be enacted; the
+    // government is still the old one, the Agenda has not moved, nothing is refreshed.
+    expect(summary?.enacted.instance).eq(summary?.winner.instance);
+    expect(parliament.enacted, 'the government is untouched at the gate').is.undefined;
+    expect(summary?.agenda, 'no Agenda step at the gate').is.undefined;
     expect(summary?.refreshed, 'not refreshed yet').deep.eq([]);
     answerGate(p1, 'assembly');
     expect(getParliamentModel(game, p1)?.phase?.awaiting).deep.eq([p2.color]);

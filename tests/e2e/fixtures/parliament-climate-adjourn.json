@@ -613,7 +613,7 @@
   ],
   "discardPile": []
  },
- "createdTimeMs": 1789776052519,
+ "createdTimeMs": 1789912676410,
  "currentSeed": 598922020851,
  "deferredActions": [],
  "donePlayers": [],
@@ -633,7 +633,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1789776052519
+   "timestamp": 1789912676410
   },
   {
    "message": "Good luck ${0}!",
@@ -643,7 +643,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1789776052519,
+   "timestamp": 1789912676410,
    "playerId": "p-player1-id"
   },
   {
@@ -654,7 +654,7 @@
      "value": "red"
     }
    ],
-   "timestamp": 1789776052519,
+   "timestamp": 1789912676410,
    "playerId": "p-player2-id"
   },
   {
@@ -665,7 +665,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1789776052519,
+   "timestamp": 1789912676410,
    "type": 1
   },
   {
@@ -680,7 +680,7 @@
      "value": "Teractor"
     }
    ],
-   "timestamp": 1789776052520,
+   "timestamp": 1789912676410,
    "correlationId": 1,
    "parentId": 1,
    "role": "root-action",
@@ -698,7 +698,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1789776052520,
+   "timestamp": 1789912676410,
    "correlationId": 1,
    "parentId": 1,
    "role": "detail"
@@ -715,7 +715,7 @@
      "value": "Aridor"
     }
    ],
-   "timestamp": 1789776052520,
+   "timestamp": 1789912676410,
    "correlationId": 2,
    "parentId": 2,
    "role": "root-action",
@@ -733,7 +733,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1789776052520,
+   "timestamp": 1789912676410,
    "correlationId": 2,
    "parentId": 2,
    "role": "detail"
@@ -746,7 +746,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1789776052522,
+   "timestamp": 1789912676411,
    "type": 2,
    "correlationId": 5,
    "parentId": 5,
@@ -765,7 +765,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1789776052522,
+   "timestamp": 1789912676411,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -782,7 +782,7 @@
      "value": "RDX_GREENS_CLIMATE_RESEARCH"
     }
    ],
-   "timestamp": 1789776052522,
+   "timestamp": 1789912676411,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -799,7 +799,7 @@
      "value": "4"
     }
    ],
-   "timestamp": 1789776052522,
+   "timestamp": 1789912676411,
    "correlationId": 5,
    "parentId": 6,
    "role": "detail"
@@ -824,7 +824,7 @@
      "value": "Greens"
     }
    ],
-   "timestamp": 1789776052522,
+   "timestamp": 1789912676411,
    "correlationId": 5,
    "parentId": 8,
    "role": "effect-result"
@@ -845,7 +845,7 @@
      "value": "tr"
     }
    ],
-   "timestamp": 1789776052522,
+   "timestamp": 1789912676411,
    "correlationId": 5,
    "parentId": 6,
    "role": "detail"
@@ -870,7 +870,7 @@
      "value": "3"
     }
    ],
-   "timestamp": 1789776052522,
+   "timestamp": 1789912676411,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -895,7 +895,7 @@
      "value": "3"
     }
    ],
-   "timestamp": 1789776052522,
+   "timestamp": 1789912676411,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -920,7 +920,7 @@
      "value": "3"
     }
    ],
-   "timestamp": 1789776052522,
+   "timestamp": 1789912676411,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -945,7 +945,7 @@
      "value": "3"
     }
    ],
-   "timestamp": 1789776052522,
+   "timestamp": 1789912676411,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -970,7 +970,7 @@
      "value": "3"
     }
    ],
-   "timestamp": 1789776052522,
+   "timestamp": 1789912676411,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -983,7 +983,7 @@
      "value": "RDX_GREENS_CLIMATE_RESEARCH"
     }
    ],
-   "timestamp": 1789776052522,
+   "timestamp": 1789912676411,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -996,7 +996,7 @@
      "value": "Greens"
     }
    ],
-   "timestamp": 1789776052522,
+   "timestamp": 1789912676411,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -1013,7 +1013,7 @@
      "value": "Raise your heat production 3 steps"
     }
    ],
-   "timestamp": 1789776052522,
+   "timestamp": 1789912676411,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -1038,7 +1038,7 @@
      "value": "Greens"
     }
    ],
-   "timestamp": 1789776052522,
+   "timestamp": 1789912676412,
    "correlationId": 5,
    "parentId": 12,
    "role": "effect-result"
@@ -1075,7 +1075,7 @@
      "value": "6"
     }
    ],
-   "timestamp": 1789776052522,
+   "timestamp": 1789912676412,
    "correlationId": 5,
    "parentId": 10,
    "role": "detail"
@@ -1092,7 +1092,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1789776052522,
+   "timestamp": 1789912676412,
    "correlationId": 5,
    "parentId": 14,
    "role": "detail"
@@ -1112,7 +1112,7 @@
      ]
     }
    ],
-   "timestamp": 1789776052522,
+   "timestamp": 1789912676412,
    "playerId": "p-player1-id",
    "correlationId": 5,
    "parentId": 14,
@@ -1146,7 +1146,7 @@
      "value": "6"
     }
    ],
-   "timestamp": 1789776052522,
+   "timestamp": 1789912676412,
    "correlationId": 5,
    "parentId": 14,
    "role": "detail"
@@ -1171,7 +1171,7 @@
      "value": "Greens"
     }
    ],
-   "timestamp": 1789776052522,
+   "timestamp": 1789912676412,
    "correlationId": 5,
    "parentId": 18,
    "role": "effect-result"
@@ -1208,7 +1208,7 @@
      "value": "3"
     }
    ],
-   "timestamp": 1789776052522,
+   "timestamp": 1789912676412,
    "correlationId": 5,
    "parentId": 16,
    "role": "detail"
@@ -1225,7 +1225,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1789776052522,
+   "timestamp": 1789912676412,
    "correlationId": 5,
    "parentId": 20,
    "role": "detail"
@@ -1244,7 +1244,7 @@
      ]
     }
    ],
-   "timestamp": 1789776052522,
+   "timestamp": 1789912676412,
    "playerId": "p-player2-id",
    "correlationId": 5,
    "parentId": 20,
@@ -1278,7 +1278,7 @@
      "value": "3"
     }
    ],
-   "timestamp": 1789776052522,
+   "timestamp": 1789912676412,
    "correlationId": 5,
    "parentId": 20,
    "role": "detail"
@@ -1291,7 +1291,7 @@
      "value": "RDX_MARS_ARCHITECTURE_AWARD"
     }
    ],
-   "timestamp": 1789776052523,
+   "timestamp": 1789912676412,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -1304,7 +1304,7 @@
      "value": "RDX_INDUSTRIALISTS_CENTRAL_POWER_GRID"
     }
    ],
-   "timestamp": 1789776052523,
+   "timestamp": 1789912676412,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -1317,7 +1317,7 @@
      "value": "RDX_MARS_ARCHITECTURE_AWARD"
     }
    ],
-   "timestamp": 1789776052523,
+   "timestamp": 1789912676412,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -1338,7 +1338,7 @@
      "value": "RDX_MARS_ARCHITECTURE_AWARD"
     }
    ],
-   "timestamp": 1789776052523,
+   "timestamp": 1789912676412,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -1351,7 +1351,7 @@
      "value": "RDX_INDUSTRIALISTS_CENTRAL_POWER_GRID"
     }
    ],
-   "timestamp": 1789776052523,
+   "timestamp": 1789912676412,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -1372,7 +1372,7 @@
      "value": "RDX_INDUSTRIALISTS_CENTRAL_POWER_GRID"
     }
    ],
-   "timestamp": 1789776052523,
+   "timestamp": 1789912676412,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -1385,7 +1385,7 @@
      "value": "3"
     }
    ],
-   "timestamp": 1789776052523,
+   "timestamp": 1789912676412,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -1393,7 +1393,7 @@
   {
    "message": "Every player's free delegate returns to the lobby",
    "data": [],
-   "timestamp": 1789776052523,
+   "timestamp": 1789912676412,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -1943,7 +1943,7 @@
   "Builder",
   "Planner"
  ],
- "name": "Massive Vacuum Core",
+ "name": "Stable Oxygen Pulse",
  "oxygenLevel": 0,
  "passedPlayers": [],
  "phase": "parliament",
@@ -2049,10 +2049,10 @@
    "handicap": 0,
    "timer": {
     "sumElapsed": 2,
-    "startedAt": 1789776052522,
+    "startedAt": 1789912676412,
     "running": true,
     "afterFirstAction": true,
-    "lastStoppedAt": 1789776052522
+    "lastStoppedAt": 1789912676412
    },
    "actionsTakenThisGame": 1,
    "victoryPointsByGeneration": [],
@@ -2168,11 +2168,11 @@
    "beginner": false,
    "handicap": 0,
    "timer": {
-    "sumElapsed": 1,
-    "startedAt": 1789776052522,
+    "sumElapsed": 0,
+    "startedAt": 1789912676412,
     "running": true,
     "afterFirstAction": true,
-    "lastStoppedAt": 1789776052522
+    "lastStoppedAt": 1789912676412
    },
    "actionsTakenThisGame": 1,
    "victoryPointsByGeneration": [],
@@ -2734,12 +2734,16 @@
        "after": 3
       }
      }
+    ],
+    "discarded": [
+     "RDX_MARS_ARCHITECTURE_AWARD#0",
+     "RDX_INDUSTRIALISTS_CENTRAL_POWER_GRID#0"
     ]
    },
    "appliedBySeat": {
     "p-player1-id": [
-     "agenda:1",
      "assembly:1",
+     "agenda:1",
      "effect:1:RDX_GREENS_CLIMATE_RESEARCH#0:heat-production",
      "effect:1:RDX_GREENS_CLIMATE_RESEARCH#0:draw"
     ],

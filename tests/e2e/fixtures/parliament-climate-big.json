@@ -613,7 +613,7 @@
   ],
   "discardPile": []
  },
- "createdTimeMs": 1789776052529,
+ "createdTimeMs": 1789912676416,
  "currentSeed": 593427323412,
  "deferredActions": [],
  "donePlayers": [],
@@ -633,7 +633,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1789776052529
+   "timestamp": 1789912676416
   },
   {
    "message": "Good luck ${0}!",
@@ -643,7 +643,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1789776052529,
+   "timestamp": 1789912676416,
    "playerId": "p-player1-id"
   },
   {
@@ -654,7 +654,7 @@
      "value": "red"
     }
    ],
-   "timestamp": 1789776052529,
+   "timestamp": 1789912676416,
    "playerId": "p-player2-id"
   },
   {
@@ -665,7 +665,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1789776052529,
+   "timestamp": 1789912676416,
    "type": 1
   },
   {
@@ -680,7 +680,7 @@
      "value": "Teractor"
     }
    ],
-   "timestamp": 1789776052530,
+   "timestamp": 1789912676417,
    "correlationId": 1,
    "parentId": 1,
    "role": "root-action",
@@ -698,7 +698,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1789776052530,
+   "timestamp": 1789912676417,
    "correlationId": 1,
    "parentId": 1,
    "role": "detail"
@@ -715,7 +715,7 @@
      "value": "Aridor"
     }
    ],
-   "timestamp": 1789776052530,
+   "timestamp": 1789912676417,
    "correlationId": 2,
    "parentId": 2,
    "role": "root-action",
@@ -733,7 +733,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1789776052530,
+   "timestamp": 1789912676417,
    "correlationId": 2,
    "parentId": 2,
    "role": "detail"
@@ -746,7 +746,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1789776052532,
+   "timestamp": 1789912676417,
    "type": 2,
    "correlationId": 5,
    "parentId": 5,
@@ -765,7 +765,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1789776052532,
+   "timestamp": 1789912676417,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -782,7 +782,7 @@
      "value": "RDX_GREENS_CLIMATE_RESEARCH"
     }
    ],
-   "timestamp": 1789776052532,
+   "timestamp": 1789912676417,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -799,7 +799,7 @@
      "value": "4"
     }
    ],
-   "timestamp": 1789776052532,
+   "timestamp": 1789912676417,
    "correlationId": 5,
    "parentId": 6,
    "role": "detail"
@@ -824,7 +824,7 @@
      "value": "Greens"
     }
    ],
-   "timestamp": 1789776052532,
+   "timestamp": 1789912676417,
    "correlationId": 5,
    "parentId": 8,
    "role": "effect-result"
@@ -845,7 +845,7 @@
      "value": "tr"
     }
    ],
-   "timestamp": 1789776052532,
+   "timestamp": 1789912676418,
    "correlationId": 5,
    "parentId": 6,
    "role": "detail"
@@ -870,7 +870,7 @@
      "value": "3"
     }
    ],
-   "timestamp": 1789776052532,
+   "timestamp": 1789912676418,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -895,7 +895,7 @@
      "value": "3"
     }
    ],
-   "timestamp": 1789776052532,
+   "timestamp": 1789912676418,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -920,7 +920,7 @@
      "value": "3"
     }
    ],
-   "timestamp": 1789776052532,
+   "timestamp": 1789912676418,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -945,7 +945,7 @@
      "value": "3"
     }
    ],
-   "timestamp": 1789776052532,
+   "timestamp": 1789912676418,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -970,7 +970,7 @@
      "value": "3"
     }
    ],
-   "timestamp": 1789776052532,
+   "timestamp": 1789912676418,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -983,7 +983,7 @@
      "value": "RDX_GREENS_CLIMATE_RESEARCH"
     }
    ],
-   "timestamp": 1789776052532,
+   "timestamp": 1789912676418,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -996,7 +996,7 @@
      "value": "Greens"
     }
    ],
-   "timestamp": 1789776052532,
+   "timestamp": 1789912676418,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -1013,7 +1013,7 @@
      "value": "Raise your heat production 3 steps"
     }
    ],
-   "timestamp": 1789776052532,
+   "timestamp": 1789912676418,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -1038,7 +1038,7 @@
      "value": "Greens"
     }
    ],
-   "timestamp": 1789776052532,
+   "timestamp": 1789912676418,
    "correlationId": 5,
    "parentId": 12,
    "role": "effect-result"
@@ -1075,7 +1075,7 @@
      "value": "19"
     }
    ],
-   "timestamp": 1789776052532,
+   "timestamp": 1789912676418,
    "correlationId": 5,
    "parentId": 10,
    "role": "detail"
@@ -1092,7 +1092,7 @@
      "value": "6"
     }
    ],
-   "timestamp": 1789776052533,
+   "timestamp": 1789912676418,
    "correlationId": 5,
    "parentId": 14,
    "role": "detail"
@@ -1116,7 +1116,7 @@
      ]
     }
    ],
-   "timestamp": 1789776052533,
+   "timestamp": 1789912676418,
    "playerId": "p-player1-id",
    "correlationId": 5,
    "parentId": 14,
@@ -1150,7 +1150,7 @@
      "value": "19"
     }
    ],
-   "timestamp": 1789776052533,
+   "timestamp": 1789912676418,
    "correlationId": 5,
    "parentId": 14,
    "role": "detail"
@@ -1566,7 +1566,7 @@
   "Builder",
   "Planner"
  ],
- "name": "Distant Vector Core",
+ "name": "Erratic Fusion Cloud",
  "oxygenLevel": 0,
  "passedPlayers": [],
  "phase": "parliament",
@@ -1687,11 +1687,11 @@
    "beginner": false,
    "handicap": 0,
    "timer": {
-    "sumElapsed": 3,
-    "startedAt": 1789776052532,
+    "sumElapsed": 1,
+    "startedAt": 1789912676417,
     "running": true,
     "afterFirstAction": true,
-    "lastStoppedAt": 1789776052532
+    "lastStoppedAt": 1789912676417
    },
    "actionsTakenThisGame": 1,
    "victoryPointsByGeneration": [],
@@ -1807,10 +1807,10 @@
    "handicap": 0,
    "timer": {
     "sumElapsed": 1,
-    "startedAt": 1789776052532,
+    "startedAt": 1789912676417,
     "running": false,
     "afterFirstAction": true,
-    "lastStoppedAt": 1789776052532
+    "lastStoppedAt": 1789912676417
    },
    "actionsTakenThisGame": 1,
    "victoryPointsByGeneration": [],
@@ -2311,8 +2311,8 @@
    },
    "appliedBySeat": {
     "p-player1-id": [
-     "agenda:1",
      "assembly:1",
+     "agenda:1",
      "effect:1:RDX_GREENS_CLIMATE_RESEARCH#0:heat-production"
     ],
     "p-player2-id": [

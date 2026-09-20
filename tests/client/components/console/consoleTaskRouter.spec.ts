@@ -89,7 +89,7 @@ const FIXTURES: Array<{row: string, wf: any, hand?: Array<string>, srr?: Array<s
   {row: '30b out-of-scope: classic party (no marker)', wf: {type: 'party', title: 'Select party'}, expect: {kind: 'unknown', inputType: 'party'}},
   {row: '30b2 parliament seat pick (marker)', wf: {type: 'party', title: 'Select party', votePrompt: {source: 'chairman-seat', cost: 0}}, expect: {kind: 'party'}},
   // THE SITTING'S GATES (Turmoil Redux): a plain option on the wire, classified by the server's own marker — never the title.
-  {row: '30c parliament assembly gate (marker)', wf: {type: 'option', title: 'The Mars Parliament of generation 2 is in session: the verdict and the enactment', parliamentPhasePrompt: {stage: 'assembly', generation: 2, final: false, seq: 1, awaiting: ['blue']}}, expect: {kind: 'parliamentPhase', stage: 'assembly'}},
+  {row: '30c parliament assembly gate (marker)', wf: {type: 'option', title: 'The Mars Parliament of generation 2 is in session: the verdict', parliamentPhasePrompt: {stage: 'assembly', generation: 2, final: false, seq: 1, awaiting: ['blue']}}, expect: {kind: 'parliamentPhase', stage: 'assembly'}},
   {row: '30d parliament adjourn gate (marker)', wf: {type: 'option', title: 'The Mars Parliament of generation 2 adjourns', parliamentPhasePrompt: {stage: 'adjourn', generation: 2, final: false, seq: 1, awaiting: []}}, expect: {kind: 'parliamentPhase', stage: 'adjourn'}},
   {row: '30c out-of-scope: globalEvent', wf: {type: 'globalEvent', title: 'Select event'}, expect: {kind: 'unknown', inputType: 'globalEvent'}},
   {row: '30d out-of-scope: underworld token', wf: {type: 'claimedUndergroundToken', title: 'Select token'}, expect: {kind: 'unknown', inputType: 'claimedUndergroundToken'}},

@@ -376,10 +376,13 @@ function write(name: string, game: IGame): void {
 // assumed from the deal — `parliamentArrange`), the votes, the Agenda and the
 // rest of the table arranged by the spec, then DRIVEN to the requested stop:
 //   vote      — the action phase, the vote up (the browse layer, the vote mode);
-//   assembly  — every seat passed: the verdict, the winner's Agenda step, the
-//               support and the enactment are DONE, nothing paid yet, and the
-//               ASSEMBLY gate stands for both seats (nobody answered — «the
-//               viewer answered, the other did not» is one API press away);
+//   assembly  — every seat passed: the VERDICT is known and NOTHING ELSE has
+//               changed yet («Заседание v2»: the gate stands before the
+//               Agenda step, the support, the enactment and the rewards — the
+//               winner is still in its slot with its delegates, the government
+//               is the previous one), and the ASSEMBLY gate stands for both
+//               seats (nobody answered — «the viewer answered, the other did
+//               not» is one API press away);
 //   effects   — the assembly gate answered by both: the enacted resolution's
 //               FIRST ask stands (or the phase went on, for a card that asks nothing);
 //   adjourn   — the effects answered with the plainest legal answers (a pick:
@@ -614,7 +617,7 @@ const aquiferTable = (stopAt: ParliamentStop, expect?: (table: ParliamentTable) 
 });
 // The overview, the vote mode and the fullscreen inspector read the influence-scaled payout from this table.
 parliamentFixture('parliament-aquifer-vote', aquiferTable('vote'));
-// The sitting has just convened: the verdict and the enactment are done, the ASSEMBLY gate stands for both seats.
+// The sitting has just convened: the verdict is known, the table untouched, the ASSEMBLY gate stands for both seats.
 parliamentFixture('parliament-aquifer-assembly', aquiferTable('assembly'));
 // …the SAME gate with SIX animal holders in blue's tableau: the recipient picker stands on six candidates —
 // the Deck's «picker on 6» composition (docs/TURMOIL_REDUX_PARLIAMENT_FINISH.md § Э8).
@@ -1143,10 +1146,12 @@ const familyTable = (resolution: ResolutionId, stopAt: ParliamentStop): Parliame
     p2.playedCards.push(new Birds());
   },
   expect: ({parliament}) => {
-    // At the vote the card stands in the first slot; at the assembly gate it has WON — it sits in the government.
-    const seated = stopAt === 'vote' ? parliament.slots[0]?.instance : parliament.enacted;
-    if (seated !== resolutionInstanceId(resolution, 0)) {
-      throw new Error(`the family fixture expected ${resolution} ${stopAt === 'vote' ? 'in the first slot' : 'enacted'}, got ${seated}`);
+    // At the vote the card stands in the first slot; at the assembly gate (v2: before anything changes) it is
+    // the summary's WINNER and still stands in that very slot — the government has not changed yet.
+    const seated = parliament.slots[0]?.instance;
+    const won = stopAt === 'vote' || parliament.phase?.summary?.winner.instance === seated;
+    if (seated !== resolutionInstanceId(resolution, 0) || !won) {
+      throw new Error(`the family fixture expected ${resolution} ${stopAt === 'vote' ? 'in the first slot' : 'winning from the first slot'}, got ${seated}`);
     }
   },
 });

@@ -809,7 +809,7 @@
   ],
   "discardPile": []
  },
- "createdTimeMs": 1789800043257,
+ "createdTimeMs": 1789912676372,
  "currentSeed": 593427323412,
  "deferredActions": [],
  "donePlayers": [],
@@ -819,7 +819,7 @@
  "fundedAwards": [],
  "gagarinBase": [],
  "stJosephCathedrals": [],
- "gameAge": 22,
+ "gameAge": 13,
  "gameLog": [
   {
    "message": "First player this generation is ${0}",
@@ -829,7 +829,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1789800043257
+   "timestamp": 1789912676372
   },
   {
    "message": "Good luck ${0}!",
@@ -839,7 +839,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1789800043257,
+   "timestamp": 1789912676372,
    "playerId": "p-player1-id"
   },
   {
@@ -850,7 +850,7 @@
      "value": "red"
     }
    ],
-   "timestamp": 1789800043257,
+   "timestamp": 1789912676372,
    "playerId": "p-player2-id"
   },
   {
@@ -861,7 +861,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1789800043257,
+   "timestamp": 1789912676372,
    "type": 1
   },
   {
@@ -876,7 +876,7 @@
      "value": "Teractor"
     }
    ],
-   "timestamp": 1789800043257,
+   "timestamp": 1789912676373,
    "correlationId": 1,
    "parentId": 1,
    "role": "root-action",
@@ -894,7 +894,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1789800043257,
+   "timestamp": 1789912676373,
    "correlationId": 1,
    "parentId": 1,
    "role": "detail"
@@ -911,7 +911,7 @@
      "value": "Aridor"
     }
    ],
-   "timestamp": 1789800043257,
+   "timestamp": 1789912676373,
    "correlationId": 2,
    "parentId": 2,
    "role": "root-action",
@@ -929,7 +929,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1789800043257,
+   "timestamp": 1789912676373,
    "correlationId": 2,
    "parentId": 2,
    "role": "detail"
@@ -942,7 +942,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1789800043258,
+   "timestamp": 1789912676374,
    "type": 2,
    "correlationId": 5,
    "parentId": 5,
@@ -961,7 +961,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1789800043258,
+   "timestamp": 1789912676374,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -978,192 +978,7 @@
      "value": "RDX_GREENS_BIODOME_CONTEST"
     }
    ],
-   "timestamp": 1789800043258,
-   "correlationId": 5,
-   "parentId": 5,
-   "role": "detail"
-  },
-  {
-   "message": "${0} advances on the Agenda track to step ${1}",
-   "data": [
-    {
-     "type": 2,
-     "value": "blue"
-    },
-    {
-     "type": 1,
-     "value": "3"
-    }
-   ],
-   "timestamp": 1789800043258,
-   "correlationId": 5,
-   "parentId": 6,
-   "role": "detail"
-  },
-  {
-   "message": "${0} gain ${1} neutral delegate(s) in Popular Support (${2}/${3})",
-   "data": [
-    {
-     "type": 8,
-     "value": "Unity"
-    },
-    {
-     "type": 1,
-     "value": "1"
-    },
-    {
-     "type": 1,
-     "value": "1"
-    },
-    {
-     "type": 1,
-     "value": "3"
-    }
-   ],
-   "timestamp": 1789800043258,
-   "correlationId": 5,
-   "parentId": 5,
-   "role": "detail"
-  },
-  {
-   "message": "${0} gain ${1} neutral delegate(s) in Popular Support (${2}/${3})",
-   "data": [
-    {
-     "type": 8,
-     "value": "Scientists"
-    },
-    {
-     "type": 1,
-     "value": "1"
-    },
-    {
-     "type": 1,
-     "value": "1"
-    },
-    {
-     "type": 1,
-     "value": "3"
-    }
-   ],
-   "timestamp": 1789800043258,
-   "correlationId": 5,
-   "parentId": 5,
-   "role": "detail"
-  },
-  {
-   "message": "${0} gain ${1} neutral delegate(s) in Popular Support (${2}/${3})",
-   "data": [
-    {
-     "type": 8,
-     "value": "Reds"
-    },
-    {
-     "type": 1,
-     "value": "1"
-    },
-    {
-     "type": 1,
-     "value": "1"
-    },
-    {
-     "type": 1,
-     "value": "3"
-    }
-   ],
-   "timestamp": 1789800043258,
-   "correlationId": 5,
-   "parentId": 5,
-   "role": "detail"
-  },
-  {
-   "message": "${0} gain ${1} neutral delegate(s) in Popular Support (${2}/${3})",
-   "data": [
-    {
-     "type": 8,
-     "value": "Mars First"
-    },
-    {
-     "type": 1,
-     "value": "1"
-    },
-    {
-     "type": 1,
-     "value": "1"
-    },
-    {
-     "type": 1,
-     "value": "3"
-    }
-   ],
-   "timestamp": 1789800043258,
-   "correlationId": 5,
-   "parentId": 5,
-   "role": "detail"
-  },
-  {
-   "message": "${0} gain ${1} neutral delegate(s) in Popular Support (${2}/${3})",
-   "data": [
-    {
-     "type": 8,
-     "value": "Industrialists"
-    },
-    {
-     "type": 1,
-     "value": "1"
-    },
-    {
-     "type": 1,
-     "value": "1"
-    },
-    {
-     "type": 1,
-     "value": "3"
-    }
-   ],
-   "timestamp": 1789800043258,
-   "correlationId": 5,
-   "parentId": 5,
-   "role": "detail"
-  },
-  {
-   "message": "Resolution ${0} is enacted",
-   "data": [
-    {
-     "type": 16,
-     "value": "RDX_GREENS_BIODOME_CONTEST"
-    }
-   ],
-   "timestamp": 1789800043258,
-   "correlationId": 5,
-   "parentId": 5,
-   "role": "detail"
-  },
-  {
-   "message": "${0} is now the ruling party — every player has its effect",
-   "data": [
-    {
-     "type": 8,
-     "value": "Greens"
-    }
-   ],
-   "timestamp": 1789800043258,
-   "correlationId": 5,
-   "parentId": 5,
-   "role": "detail"
-  },
-  {
-   "message": "Chairman quest for generation ${0}: ${1}",
-   "data": [
-    {
-     "type": 1,
-     "value": "2"
-    },
-    {
-     "type": 0,
-     "value": "Place 2 greeneries"
-    }
-   ],
-   "timestamp": 1789800043258,
+   "timestamp": 1789912676374,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -1272,24 +1087,9 @@
     "kind": "parliament"
    },
    "category": "political-phase"
-  },
-  {
-   "id": 6,
-   "generation": 1,
-   "phase": "parliament",
-   "type": "action",
-   "impact": {},
-   "correlationId": 5,
-   "visibility": "journal",
-   "source": {
-    "kind": "parliament"
-   },
-   "player": "blue",
-   "category": "political-phase",
-   "parentId": 5
   }
  ],
- "eventSeq": 6,
+ "eventSeq": 5,
  "gameOptions": {
   "altVenusBoard": false,
   "aresExtension": false,
@@ -1377,7 +1177,7 @@
   "Builder",
   "Planner"
  ],
- "name": "Distant Proton Pulse",
+ "name": "Solar Proton Mass",
  "oxygenLevel": 5,
  "passedPlayers": [],
  "phase": "parliament",
@@ -1473,11 +1273,11 @@
    "beginner": false,
    "handicap": 0,
    "timer": {
-    "sumElapsed": 1,
-    "startedAt": 1789800043258,
+    "sumElapsed": 0,
+    "startedAt": 1789912676373,
     "running": true,
     "afterFirstAction": true,
-    "lastStoppedAt": 1789800043258
+    "lastStoppedAt": 1789912676373
    },
    "actionsTakenThisGame": 1,
    "victoryPointsByGeneration": [],
@@ -1593,10 +1393,10 @@
    "handicap": 0,
    "timer": {
     "sumElapsed": 0,
-    "startedAt": 1789800043258,
+    "startedAt": 1789912676373,
     "running": true,
     "afterFirstAction": true,
-    "lastStoppedAt": 1789800043258
+    "lastStoppedAt": 1789912676373
    },
    "actionsTakenThisGame": 1,
    "victoryPointsByGeneration": [],
@@ -1947,6 +1747,15 @@
   "version": 1,
   "slots": [
    {
+    "instance": "RDX_GREENS_BIODOME_CONTEST#0",
+    "votes": [
+     {
+      "owner": "p-player1-id",
+      "seq": 1
+     }
+    ]
+   },
+   {
     "instance": "RDX_MARS_ARCHITECTURE_AWARD#0",
     "votes": []
    },
@@ -1955,32 +1764,25 @@
     "votes": []
    }
   ],
-  "enacted": "RDX_GREENS_BIODOME_CONTEST#0",
   "quest": {
    "definition": {
     "goal": {
-     "kind": "tile",
-     "tile": "greenery"
+     "kind": "production",
+     "resource": "heat"
     },
-    "count": 2
+    "count": 3
    },
-   "source": "RDX_GREENS_BIODOME_CONTEST",
-   "generation": 2,
+   "source": "starter",
+   "generation": 1,
    "progress": {}
   },
   "lobby": [
    "p-player2-id"
   ],
   "voteSeq": 1,
-  "popularSupport": {
-   "Unity": 1,
-   "Scientists": 1,
-   "Reds": 1,
-   "Mars First": 1,
-   "Industrialists": 1
-  },
+  "popularSupport": {},
   "agenda": {
-   "p-player1-id": 3,
+   "p-player1-id": 2,
    "p-player2-id": 5
   },
   "influenceBonus": {},
@@ -1997,10 +1799,7 @@
    "generation": 1,
    "final": false,
    "step": "assembly",
-   "applied": [
-    "support:1",
-    "enact:1:RDX_GREENS_BIODOME_CONTEST#0"
-   ],
+   "applied": [],
    "summary": {
     "generation": 1,
     "final": false,
@@ -2010,70 +1809,15 @@
      "player": "p-player1-id",
      "slot": 0
     },
-    "support": [
-     {
-      "party": "Unity",
-      "gained": 1,
-      "total": 1,
-      "reason": "absent"
-     },
-     {
-      "party": "Scientists",
-      "gained": 1,
-      "total": 1,
-      "reason": "absent"
-     },
-     {
-      "party": "Reds",
-      "gained": 1,
-      "total": 1,
-      "reason": "absent"
-     },
-     {
-      "party": "Mars First",
-      "gained": 1,
-      "total": 1,
-      "reason": "lost"
-     },
-     {
-      "party": "Industrialists",
-      "gained": 1,
-      "total": 1,
-      "reason": "lost"
-     }
-    ],
+    "support": [],
     "enacted": "RDX_GREENS_BIODOME_CONTEST#0",
     "refreshed": [],
     "lobbyRefilled": [],
     "seq": 1,
-    "correlationId": 5,
-    "agenda": {
-     "player": "p-player1-id",
-     "from": 2,
-     "to": 3
-    },
-    "returned": [
-     {
-      "owner": "p-player1-id",
-      "count": 1
-     }
-    ]
-   },
-   "appliedBySeat": {
-    "p-player1-id": [
-     "agenda:1"
-    ]
+    "correlationId": 5
    }
   },
   "phaseSeq": 1,
-  "lastAdvance": {
-   "seq": 1,
-   "player": "p-player1-id",
-   "from": 2,
-   "to": 3,
-   "reason": "phase",
-   "generation": 1
-  },
   "botMode": "none"
  }
 }

@@ -2,7 +2,7 @@
  * THE POLITICAL PHASE — the parliament's end-of-generation steps (rulebook
  * pp.10–12), as a RESUMABLE driver.
  *
- * Steps: winner → agenda → support → enact → ASSEMBLY → effects → refresh →
+ * Steps: winner → ASSEMBLY → agenda → support → enact → effects → refresh →
  * lobby → ADJOURN → done (the final generation: … → effects → ADJOURN → done).
  * Every operation has an idempotency key recorded in `phase.applied` (a
  * per-seat one under its player in `phase.appliedBySeat`), the
@@ -12,12 +12,21 @@
  * is paid twice, none is lost, nothing is re-randomized (`Game.deserialize`
  * → `ParliamentPhase.resume`).
  *
- * THE SITTING'S TWO GATES (docs/TURMOIL_REDUX_PARLIAMENT_ASSEMBLY.md §3):
- * `assembly` stands after the enactment and before the effects — every
- * participant confirms the verdict and the enactment, and only then the law
- * pays; `adjourn` stands after the lobby (after the effects in the final
- * generation) — every participant confirms the refreshed area, and only then
- * the next generation begins. A gate is one `SelectOption` per participant
+ * THE SITTING'S TWO GATES (docs/TURMOIL_REDUX_PARLIAMENT_ASSEMBLY.md §3; the
+ * first one MOVED by «Заседание v2» — docs/TURMOIL_REDUX_PARLIAMENT_SITTING_V2.md):
+ * `assembly` stands right after the VERDICT and BEFORE anything changes —
+ * every participant confirms the verdict, and only then the winner's Agenda
+ * moves, the support is granted, the law is enacted and pays. Everything a
+ * player sees at the gate is still the table as it was voted: the marker on
+ * its old step, the winning card in its slot, the previous government. The
+ * RULES are untouched — the winner's Agenda still moves strictly before the
+ * support, the enactment and the rewards, in one chain of `drive()` after the
+ * barrier; the gate only moves the MOMENT the players are asked. A save from
+ * before this order (its `assembly` standing after the enactment) resumes
+ * correctly: `agenda` / `support` / `enact` are idempotent by their keys and
+ * find themselves already done. `adjourn` stands after the lobby (after the
+ * effects in the final generation) — every participant confirms the
+ * refreshed area, and only then the next generation begins. A gate is one `SelectOption` per participant
  * (the `parliamentPhasePrompt` marker), the barrier is the per-seat key —
  * never a counter in memory — so a clone, a reload and a doubled answer are
  * safe by construction, and a resume re-issues only to the seats without
@@ -204,6 +213,14 @@ export class ParliamentPhase {
       switch (p.step) {
       case 'winner':
         this.stepWinner();
+        p.step = 'assembly';
+        break;
+      case 'assembly':
+        // GATE 1 stands BEFORE the table changes (v2): the verdict is the only
+        // fact the summary carries here; everything after it runs in ONE chain.
+        if (this.stepGate('assembly') === 'waiting') {
+          return undefined;
+        }
         p.step = 'agenda';
         break;
       case 'agenda':
@@ -216,14 +233,9 @@ export class ParliamentPhase {
         break;
       case 'enact':
         this.stepEnact();
-        p.step = 'assembly';
-        break;
-      case 'assembly':
-        if (this.stepGate('assembly') === 'waiting') {
-          return undefined;
-        }
         p.step = 'effects';
-        p.effects = {playerIndex: 0};
+        // A save from the old order already carries its cursor — never reset it.
+        p.effects ??= {playerIndex: 0};
         break;
       case 'effects':
         if (this.stepEffects() === 'waiting') {
@@ -470,7 +482,7 @@ export class ParliamentPhase {
   private gatePrompt(stage: ParliamentPhaseStage): PlayerInput {
     const p = this.progress;
     const title = stage === 'assembly' ?
-      message('The Mars Parliament of generation ${0} is in session: the verdict and the enactment', (b) => b.number(p.generation)) :
+      message('The Mars Parliament of generation ${0} is in session: the verdict', (b) => b.number(p.generation)) :
       message('The Mars Parliament of generation ${0} adjourns', (b) => b.number(p.generation));
     return new SelectOption(title, 'Continue')
       .markParliamentPhase({stage, generation: p.generation, final: p.final, seq: p.summary?.seq ?? 0});
