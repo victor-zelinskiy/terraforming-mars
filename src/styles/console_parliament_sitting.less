@@ -31,7 +31,8 @@
     &__slot-home--vacated { transition: opacity calc(200ms * var(--motion-scale, 1)) @con-ease-standard; }
     /* THE AGENDA SEGMENT the marker is crossing (the ПОВЕСТКА beat): the reached steps' nodes light. */
     &__step--segment &__step-node { box-shadow: 0 0 0 .08rem fade(@con-parl-gold, 80%), 0 0 .7rem rgba(230, 195, 74, 0.4); }
-    &__party--lit > .con-pseal { box-shadow: inset 0 0 0 .1rem @con-parl-gold, 0 0 .9rem rgba(230, 195, 74, 0.3); }
+    /* (v3 В3) A party tile carries NO stage accent: a gold seam on every receiving tile was the traffic light
+       the sitting must not be — only the socket that RECEIVES a cube answers, and only on contact. */
     &__step--lit &__step-node { box-shadow: 0 0 0 .1rem @con-parl-gold, 0 0 .8rem rgba(230, 195, 74, 0.45); }
 
     /* ── THE FIELD POSE: the stage grows out of the middle tier over the

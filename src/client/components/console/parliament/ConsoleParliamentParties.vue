@@ -15,7 +15,6 @@
                  'con-parl__party--ruler': p.party === rulerShown,
                  'con-parl__party--focus': focusedIndex === i,
                  'con-parl__party--held': partyStates[i].held,
-                 'con-parl__party--lit': flow.stage === 'sitting' && sittingParties.includes(p.party),
                  'con-parl__party--pulse': accessPulse === p.party || usedPulse === p.party,
                  'con-parl__party--lost': accessLost === p.party,
                },
@@ -33,6 +32,7 @@
                               :viewerColor="viewerColor"
                               :formula="true"
                               :focused="focusedIndex === i"
+                              :roll="rollWord(p.party)"
                               :reason="focusedIndex === i ? partyLine : ''"
                               :reasonTone="partyLineTone" />
         </div>
@@ -49,6 +49,7 @@ import ConsolePartyPlaque from '@/client/components/console/parliament/ConsolePa
 import {translateMessage, translateText} from '@/client/directives/i18n';
 import {parliamentFlow} from '@/client/console/parliament/consoleParliamentFlow';
 import {parliamentHolds} from '@/client/console/parliament/parliamentDisplayHolds';
+import {supportStatusKey} from '@/client/console/parliament/supportScene';
 import {ParliamentPartyVm, PartyActionStateVm, PartyStateVm, ParliamentViewVm} from '@/client/console/parliament/consoleParliamentModel';
 
 /**
@@ -66,8 +67,6 @@ export default defineComponent({
     partyActionStates: {type: Array as PropType<ReadonlyArray<PartyActionStateVm>>, required: true},
     viewerColor: {type: String as PropType<Color | undefined>, default: undefined},
     awaitingInput: {type: Boolean, default: false},
-    /** The parties the SITTING's current beat lights (the plaque accepting support; the enacted party once the plaques have changed places). */
-    sittingParties: {type: Array as PropType<ReadonlyArray<ReduxParty>>, default: () => []},
   },
   data() {
     return {
@@ -79,6 +78,18 @@ export default defineComponent({
   computed: {
     flow() {
       return parliamentFlow;
+    },
+    /**
+     * THE ROLL CALL's word for a party (v3 В3): while the support scene names the parties, each tile says
+     * WHY it stands where it stands, in its own reserved row — «принимается» / «не принята» /
+     * «не на голосовании» / «правит». Empty outside the scene: the tile keeps its live state.
+     */
+    rollWord(): (party: ReduxParty) => string {
+      const roll = parliamentHolds.rollStatus;
+      return (party: ReduxParty) => {
+        const status = roll.get(party);
+        return status === undefined ? '' : translateText(supportStatusKey(status));
+      };
     },
     /** THE RULER AS SHOWN: the previous ruling party until the enactment's beat has changed the plaques' places. */
     rulerShown(): ReduxParty {

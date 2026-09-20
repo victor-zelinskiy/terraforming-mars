@@ -198,9 +198,14 @@ export default defineComponent({
       const before = this.holds.questBefore;
       return before !== undefined ? before.chairman : this.view.chairman;
     },
-    /** The old quest is held CLOSED — its outcome instead of a race. */
+    /**
+     * THE QUEST READS CLOSED from the VERDICT on (v3 В2): the generation is over, so its race is over —
+     * the block states its OUTCOME (who took the chairmanship, or nobody) where the verdict can be read,
+     * and the enactment then has nothing to add: the whole block simply leaves and the new one unfolds.
+     * Before v3 the outcome appeared mid-enactment, a third object changing inside one phrase.
+     */
     questClosed(): boolean {
-      return this.holds.questBefore !== undefined;
+      return this.holds.questBefore !== undefined || this.sittingStage === 'verdict';
     },
     /**
      * THE BASIS THE SEAT SHOWS. While the enacted card is still on its way (the enactment beat holds the seat
