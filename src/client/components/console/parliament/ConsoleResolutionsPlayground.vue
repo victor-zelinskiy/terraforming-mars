@@ -1394,6 +1394,9 @@ export default defineComponent({
             this.cursor = index;
           }),
         parliament: {model: () => this.model, viewer: () => this.viewerColor, table: () => this.winnerTable, nameOf: (color: Color) => this.seatName(color)},
+        // The position rides the FOOTER, as in the Parliament («LB ◀ 1/11 ▶ RB») — never a counter plate over
+        // the card plus a «ЛИСТАТЬ» pager below it (registry R-08 / R-22).
+        counterInFooter: this.catalog.length > 1,
       });
     },
     /** The stand forwards every intent here first; `false` hands it back (scroll, sections, B). */

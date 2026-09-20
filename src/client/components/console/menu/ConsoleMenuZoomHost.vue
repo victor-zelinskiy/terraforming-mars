@@ -39,6 +39,7 @@
     <CardZoomModal v-if="consoleCardZoom.card !== undefined"
                    ref="cardZoom"
                    class="con-zoom"
+                   :navCounter="!consoleCardZoom.counterInFooter"
                    :class="{'con-zoom--flight': zoomFlight, 'con-zoom--closing': zoomClosing, 'con-zoom--parliament': zoomResolutionId !== undefined}"
                    :card="consoleCardZoom.card"
                    :cards="consoleCardZoom.cards.length > 1 ? consoleCardZoom.cards : undefined"
@@ -122,7 +123,12 @@
           <span v-if="consoleCardZoom.cards.length > 1" class="con-zoom__cmd con-zoom__cmd--flip">
             <GamepadGlyph control="bumperL" />
             <span class="con-zoom__flip-arrow" aria-hidden="true">◀</span>
-            <span>{{ $t('Browse') }}</span>
+            <!-- The position rides HERE when the opener asks for it (the resolutions stand — registry R-08 / R-22):
+                 the same «LB ◀ 1/11 ▶ RB» the game shell prints, no counter plate over the card. -->
+            <span v-if="consoleCardZoom.counterInFooter" class="con-zoom__flip-pos" data-zoom-position>
+              <b>{{ consoleCardZoom.index + 1 }}</b><span aria-hidden="true">/</span>{{ consoleCardZoom.cards.length }}
+            </span>
+            <span v-else>{{ $t('Browse') }}</span>
             <span class="con-zoom__flip-arrow" aria-hidden="true">▶</span>
             <GamepadGlyph control="bumperR" />
           </span>

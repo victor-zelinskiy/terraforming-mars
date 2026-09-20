@@ -35773,3 +35773,8 @@ dialog.con-zoom {
 .con-zoom__btn:focus-visible {
     outline: none;
 }
+
+/* R-20 (final polish C): a crowded status ribbon — four seats and more — gives the name its room: the waiting
+   seats' pills keep only their dot (no width floor), the name may take 12rem. Two and three seats: unchanged. */
+.con-status__ribbon--dense .con-status__pstatus { min-width: 0; }
+.con-status__ribbon--dense .con-status__pname { max-width: 12rem; }

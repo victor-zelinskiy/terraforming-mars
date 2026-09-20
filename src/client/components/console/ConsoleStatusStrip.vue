@@ -17,7 +17,7 @@
          makes tearing unexpressible). data-color is the chips' stable
          identity for the FLIP measurement (the same identity as :key). -->
     <div class="con-status__players" ref="playersEl">
-      <div class="con-status__ribbon">
+      <div class="con-status__ribbon" :class="{'con-status__ribbon--dense': denseSeats}">
       <span v-for="p in players"
             :key="p.color"
             class="con-status__player"
@@ -27,7 +27,8 @@
         <span class="con-status__pname">{{ displayName(p) }}</span>
         <span class="con-status__pstatus" :class="'con-status__pstatus--' + presentation(p).category">
           <span class="con-status__pstatus-glyph" aria-hidden="true">{{ statusGlyph(p) }}</span>
-          <span v-if="presentation(p).textKey !== ''" class="con-status__pstatus-text">{{ $t(presentation(p).textKey) }}</span>
+          <!-- A crowded table (R-20): a WAITING seat's word gives way to its dot so the name stays whole («play…» ×4 at five seats); the active seat keeps its word and counter. -->
+          <span v-if="presentation(p).textKey !== '' && !(denseSeats && presentation(p).category === 'waiting')" class="con-status__pstatus-text">{{ $t(presentation(p).textKey) }}</span>
           <b v-if="presentation(p).showCounter" class="con-status__pstatus-counter">{{ actionCounter(p) }}</b>
         </span>
         <!-- Attention beacon: a mandatory decision awaits the VIEWER, is
@@ -328,6 +329,10 @@ export default defineComponent({
         ...this.playerView.game,
         ...boardBeatDisplayParams(captureGlobalParams(this.playerView.game)),
       };
+    },
+    /** Four seats and more: the ribbon is crowded — the names outrank the waiting seats' words (R-20). */
+    denseSeats(): boolean {
+      return this.players.length >= 4;
     },
     players(): ReadonlyArray<PublicPlayerModel> {
       return this.playerView.players;

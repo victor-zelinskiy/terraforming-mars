@@ -214,6 +214,11 @@ for (const preset of PRESETS) {
       await openZoomViewer(page, 'KeyX');
       const zoom = page.locator('dialog.con-zoom.con-zoom--parliament');
       await expect(zoom).toHaveCount(1, {timeout: 10_000});
+      // ONE command line, the Parliament's grammar (R-08 / R-22 / P-26 / P-27): the position rides the footer
+      // («1/11»), no counter plate over the card, the stand's own hint line yields while the inspector is open.
+      await expect(zoom.locator('[data-zoom-position]'), 'the position rides the footer').toHaveCount(1, {timeout: 10_000});
+      await expect(zoom.locator('.card-zoom-topbar'), 'no counter plate over the card').toHaveCount(0);
+      await expect(page.locator('.cm-stand__foot'), 'the stand\'s hint line yields to the inspector').toBeHidden();
       await expect(zoom.locator('.con-zoom-asidecol')).toHaveCount(1, {timeout: 10_000});
       await expect(zoom.locator('.con-zoom-sidecol')).toHaveCount(1);
       await expect(zoom.locator('.card-zoom-stage .pcard').first(), 'the resolution on the stage').toHaveClass(/rdx-greens-aquifer-contest/);

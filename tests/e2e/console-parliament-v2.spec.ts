@@ -424,6 +424,8 @@ for (const preset of PRESETS) {
       await expect(page.locator('.con-parl__voting-lead'), 'the winner is named ONCE — on its slot, never a second line over the voting area').toHaveCount(0);
       expect((await crumbText(page)).toUpperCase(), 'the overview names itself on the head line').toContain('ОБЗОР');
       await expect(page.locator('[data-parl-seats] .con-parl__seat[data-parl-seat]'), 'the delegates zone: one group per player').toHaveCount(2);
+      // PARITY (R-20): two seats keep the strip as it was — the waiting seat still says its word.
+      await expect(page.locator('.con-status__player:not(.con-status__player--active) .con-status__pstatus-text'), 'two seats: the waiting word stays').not.toHaveCount(0);
       await expect(page.locator(`[data-parl-seat-lobby="${before.players[0].color}"] .player-cube, [data-parl-seat-lobby="${before.players[1].color}"] .player-cube`),
         'a free delegate stands in a lobby socket').not.toHaveCount(0);
       await expect(page.locator('[data-parl-quest] .con-parl__quest-cond .pcard__mech'), 'the quest condition is a graphic').toHaveCount(1);
@@ -875,6 +877,15 @@ test.describe('parliament v4 · a crowded table · the vote that is not possible
     await expect(page.locator('[data-parl-seats] .con-parl__seat[data-parl-seat]'), 'five groups on the zone — one per seat').toHaveCount(5);
     await expect(page.locator('[data-parl-seat-chair]'), 'the chairman\'s seat is in the government').toHaveCount(1);
     await expectFits(page, `${preset} zone`);
+    // THE CROWDED STRIP (R-20): five seats — every name whole, the waiting seats' pills reduced to their dot.
+    const strip = await page.evaluate(() => ({
+      cut: Array.from(document.querySelectorAll<HTMLElement>('.con-status__pname')).filter((el) => el.scrollWidth > el.clientWidth + 1).map((el) => el.textContent?.trim()),
+      waitingWords: document.querySelectorAll('.con-status__player:not(.con-status__player--active) .con-status__pstatus-text').length,
+      seats: document.querySelectorAll('.con-status__player').length,
+    }));
+    expect(strip.seats, 'five seats on the strip').toBeGreaterThanOrEqual(4);
+    expect(strip.cut, 'no player name is cut on the crowded strip').toEqual([]);
+    expect(strip.waitingWords, 'a waiting seat says it with its dot').toBe(0);
     await expectFits(page, preset);
     await shoot(page, preset, '20-dense-offturn');
     // A off-turn: the mode OPENS for reading; the confirm names the reason; the bench says no delegate is left.

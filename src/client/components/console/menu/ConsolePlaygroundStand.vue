@@ -26,7 +26,8 @@
         <slot />
       </div>
     </ConsoleScrollArea>
-    <div class="cm-stand__foot">
+    <!-- ONE command line on screen: the stand's hints yield while the fullscreen inspector holds the footer (P-27). -->
+    <div v-show="zoom.card === undefined" class="cm-stand__foot">
       <span class="cm-stand__hint"><GamepadGlyph control="stickR" />{{ $t('Scroll') }}</span>
       <span class="cm-stand__hint"><GamepadGlyph control="bumperL" /><GamepadGlyph control="bumperR" />{{ $t('Sections') }}</span>
       <span v-if="sectionTitle !== ''" class="cm-stand__section">{{ sectionTitle }}</span>
@@ -42,6 +43,7 @@ import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {installMenuPad} from '@/client/console/menu/consoleMenuPad';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
+import {consoleCardZoom} from '@/client/console/consoleCardZoom';
 
 /** One d-pad step / held-stick tick of scroll, in px. */
 const SCROLL_STEP = 220;
@@ -85,6 +87,8 @@ export default defineComponent({
   emits: ['close'],
   data() {
     return {
+      /** The fullscreen inspector's state — the stand's hint line yields to its footer. */
+      zoom: consoleCardZoom,
       offPad: undefined as (() => void) | undefined,
       /** Title of the section the viewport top currently sits in. */
       sectionTitle: '',
