@@ -403,7 +403,7 @@
 - Паритет крошки на TV/Deck (остаток 5 / 10 px, ратчет `KNOWN_TOP_RESIDUAL`), R-10, R-22, R-25в и ОБНОВЛЕНИЕ без
   списка сброшенных — открытыми, как в реестре ПОЛИРОВКИ (причины там).
 
-## Парламент — состояние на сдачу (2026-09-19)
+## Парламент — состояние на сдачу (2026-09-19; уточнено 2026-09-21 после финальной полировки)
 
 ### Что играется
 
@@ -415,22 +415,28 @@
 - Пять резолюций каталога (RX01 Aquifer Contest · RX02 Architecture Award · RX03 Biodome Contest · RX04 Central
   Power Grid · RX05 Climate Research) проходят весь путь на трёх профилях; Полигон — dev-стенд для остальных.
 - Терминология — глоссарий (резолюция «принимается / принята», игрок «победитель голосования», «если победите»,
-  «эффект ваш», «председательство», «ОБЗОР» / «ОСМОТРЕТЬ»).
+  «эффект ваш», «председательство», «ОБЗОР» / «ОСМОТРЕТЬ»; после полировки — свои имена партий с Ё, одна грамматика
+  доступа, «Эффект, пока принята» / «Действие, пока принята» для карты без немедленных шагов).
+- После финальной полировки (блоки A–E ниже): подвал осмотра резолюции в две строки на всех профилях, стол «как
+  проголосовали» до обновления, бар мерит подписи, стенд и полоса статуса в общем слое; семейства «пассив» и
+  «действие» отрепетированы кадром на dev-примерах (тихая награда, кикер панели, часть карты на плакетке) — следующая
+  резолюция каталога любого из этих семейств встаёт на готовую подачу. Сценарий приёмки —
+  `docs/claude/parliament-acceptance-walkthrough.md`.
 
 ### Карта файлов
 
 | Слой | Файлы |
 | --- | --- |
 | Сервер | `src/server/parliament/**` (фаза, ворота, `outcomes`, `phaseHistory`), `src/common/parliament/**` (типы, `rewardAddress.ts`) |
-| Поток | `src/client/console/parliament/consoleSittingFlow.ts` · `sittingBeats.ts` · `sittingDirector.ts` · `parliamentRewardBeat.ts` · `parliamentDisplayHolds.ts` · `parliamentFlights.ts` · `consoleParliamentFlow.ts` · `parliamentCommands.ts` · `voteInfoModel.ts` · `parliamentAnnotations.ts` |
+| Поток | `src/client/console/parliament/consoleSittingFlow.ts` · `sittingBeats.ts` · `sittingDirector.ts` · `parliamentRewardBeat.ts` · `parliamentDisplayHolds.ts` · `parliamentFlights.ts` · `consoleParliamentFlow.ts` · `parliamentCommands.ts` · `voteInfoModel.ts` · `parliamentAnnotations.ts` · `quietRewardPose.ts` (тихая награда) · `partyNames.ts` (имена партий) · `parliamentVoteView.ts` (`winningShownOf`); общий слой — `src/client/console/consoleTextMeasure.ts` (бар мерит подписи) |
 | Поверхности | `src/client/components/console/ConsoleParliamentSection.vue` + `parliament/*.vue` (Sitting, Government, VotingArea, VoteMode, Parties, Plaque, Seats, Agenda, WinnerReward, InfluenceYield, PartyReaction, SeatPick, PartyActionComposer, ResolutionsPlayground, FlightLayer); встроенный добор `externalDraw/ConsoleExternalDrawWorkspace.vue` |
 | Стили | `src/styles/console_parliament*.less`, `console_party_plaque.less`, `console_resolution_inspect.less`, `console_extdraw.less`, профили в `console_tv.less` / handheld-лестницах |
 | Локаль | `src/locales/ru/parliament.json` (ключи форка) |
 | Гарды (mocha) | `tests/console/parliamentGlossary.spec.ts` · `parliamentNoTimers` · `parliamentNoLocalStorage` · `parliamentLessOrder` · `tests/parliament/ResolutionContract.spec.ts` · `rewardAddress.spec` · `sittingBeats.spec` · `tests/client/console/parliamentRewardBeat.spec.ts` · `voteInfoBudget.spec` |
 | e2e | `tests/e2e/parliamentDrive.ts` (драйвер) · `console-parliament-gallery` · `console-parliament-sitting*` (в т. ч. `-reward`) · `console-parliament-gates` · `console-parliament-vote-fit` · `console-parliament-stability` · `console-parliament-chassis-parity` · `console-parliament{,-v2,-aquifer,-architecture,-biodome,-powergrid,-climate}` · `console-external-draw` · `console-resolutions-playground` |
-| Фикстуры | `tests/e2e/fixtures/generate.ts` (`parliamentFixture({stopAt})`, `*-vote / *-assembly / *-enact / *-recap / *-cardstep / *-nocell / *-six`) |
-| Доки | `docs/TURMOIL_REDUX_PARLIAMENT_ASSEMBLY.md` (дизайн) · `TURMOIL_REDUX_PARLIAMENT_SITTING.md` (Э0–Э4) · `TURMOIL_REDUX_PARLIAMENT_FINISH.md` (этот) · `docs/claude/console/parliament-sitting.md` (контракт) · `docs/claude/parliament-glossary.md` · `docs/claude/parliament-resolution-checklist.md` · журнал `docs/claude/parliament-sitting-progress.md` · правило `.claude/rules/console-ui.md` § THE PARLIAMENT SITTING · инвариант 13 CLAUDE.md |
-| Галерея | `screenshots/parliament-final/<preset>/<mode>/NN-<surface>.png` (32 × 3 × 3), «до полировки» — `screenshots/parliament-final-before-polish/` (gitignored) |
+| Фикстуры | `tests/e2e/fixtures/generate.ts` (`parliamentFixture({stopAt})`, `*-vote / *-assembly / *-enact / *-recap / *-cardstep / *-nocell / *-six`; семейства — `familyTable`: `parliament-dev{passive,action}-{vote,assembly}`) |
+| Доки | `docs/TURMOIL_REDUX_PARLIAMENT_ASSEMBLY.md` (дизайн) · `TURMOIL_REDUX_PARLIAMENT_SITTING.md` (Э0–Э4) · `TURMOIL_REDUX_PARLIAMENT_FINISH.md` (этот) · `docs/claude/console/parliament-sitting.md` (контракт) · `docs/claude/parliament-glossary.md` · `docs/claude/parliament-resolution-checklist.md` · журнал `docs/claude/parliament-sitting-progress.md` · сценарий приёмки `docs/claude/parliament-acceptance-walkthrough.md` · правило `.claude/rules/console-ui.md` § THE PARLIAMENT SITTING · инвариант 13 CLAUDE.md |
+| Галерея | `screenshots/parliament-final/<preset>/<mode>/NN-<surface>.png` (39 × 3 × 3; 31–33b — семейства), «до полировки» — `screenshots/parliament-final-before-polish/` (gitignored) |
 
 ### Остаток по каталогу резолюций
 
@@ -540,6 +546,16 @@ dev-примерами Полигона или не начаты. Добавле
 имена целиком, слово ожидающего кресла уступает точке (R-20). Доказано: R-15 (CTA + эхо бара — конвенция консоли),
 R-28 (лестница ярусов грани), R-32 («ИСТОЧНИК» — роль осмотра), R-33 (колонки центрированы по закону). Открыто с
 замером: R-23/R-24 — общий якорь дельта-чипа на восьми потребителях (отдельная итерация).
+
+### Блок E — приёмка
+
+Галерея пересобрана на финальной сборке (39 × 3 × 3, семейства — 31–33b), кадры пересмотрены глазами на трёх профилях;
+сценарий приёмки — `docs/claude/parliament-acceptance-walkthrough.md`; журнал закрыт «Итогом финальной полировки».
+Прогоны на сдачу: e2e-набор Парламента 247/254 + семь перегнаны поимённо (все зелёные; 1 тайминг Deck, 6 — обрыв
+сессии инструмента на последнем спеке); юниты и линт на тихой машине — зелёные. **Полный `tests/e2e` в E не гонялся
+по указанию пользователя** («только точечные проверки»); последний полный — Э9 (641/26/11), общие правки полировки
+покрыты паритетными пробниками в своих спеках. Открыто: R-23/R-24 (дельта-чип), Союз без dev-заместителя, классы
+разовых таймаутов под нагрузкой.
 
 ### Блок D — семейства резолюций
 
