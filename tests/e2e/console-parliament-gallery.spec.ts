@@ -3,8 +3,8 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {bootFixture, bootFixtureSeats, closeZoomViewer, openCardActions, openMandatoryAnnounce, openZoomViewer, placeTile, press, pressUntil, settle} from './consoleStart';
 import {
-  answerAsksAs, answerGateAs, expectParliamentFits, expectRailHonest, focusParliamentZone, mandatoryPlate, openParliament, parliament,
-  PARLIAMENT_PRESETS, ParliamentPreset, parliamentWire, sittingStage, sittingStep, turnTo, waitSittingAtRest,
+  answerAsksAs, answerGateAs, expectInspectorFooterWhole, expectParliamentFits, expectRailHonest, focusParliamentZone, mandatoryPlate, openParliament,
+  parliament, PARLIAMENT_PRESETS, ParliamentPreset, parliamentWire, sittingStage, sittingStep, turnTo, waitSittingAtRest,
 } from './parliamentDrive';
 
 /*
@@ -563,6 +563,87 @@ for (const preset of PARLIAMENT_PRESETS) {
         await expectPaintBaseline(page, `${preset.id}/${mode} playground inspect`, ['dialog.con-zoom[open]']);
         await shoot(page, preset.id, mode, '26', 'playground-inspect');
         await press(page, 'Escape', 1000);
+      });
+
+      // ── THE FAMILIES REHEARSAL (final polish D.1): the catalog's next families, walked through the whole path on the
+      //    dev examples that stand for them — RDX_DEV_PASSIVE (an effect while enacted, no immediate step) and RDX_DEV_ACTION
+      //    (a card action while enacted). The vote, the inspect, the sitting's REWARD stage (which has no wave to show and
+      //    must still say what the player got — the quiet pose) and the closing card (which names it again).
+      test('the FAMILIES rehearsal: a passive and an action resolution — the vote, the inspect, the quiet REWARD pose and the closing', async ({page, request}) => {
+        test.setTimeout(600_000);
+        // ── The VOTE on a passive: the face, the panel, the inspect of a card that pays nothing at the enactment.
+        await bootFor(page, request, preset, mode, 'parliament-devpassive-vote', 'board');
+        await openParliament(page);
+        await focusParliamentZone(page, 'voting');
+        expect(await pressUntil(page, 'Enter', async () => await page.locator('.con-parl__vote.con-parl__vote--up').count() > 0, {tries: 4, settleMs: 1200}), 'A opens the vote mode').toBe(true);
+        await waitSittingAtRest(page, 20_000);
+        // The panel's reading on a card that pays nothing at the enactment: the quiet reward's kicker, the same words the sitting prints later.
+        await expect(page.locator('.con-parl__vote--up [data-parl-kicker="reading"]'), 'the passive reads as an effect while enacted, not a payout')
+          .toHaveText(/Эффект, пока принята|Effect while enacted/i, {timeout: 10_000});
+        await expect(page.locator('.con-parl__vote--up [data-yield-context]'), 'no reading pretends a payout').toHaveCount(0);
+        await pose(page, preset, mode, '31', 'family-passive-vote-mode');
+        await openZoomViewer(page);
+        await expect(page.locator('dialog.con-zoom[open].con-zoom--parliament')).toHaveCount(1, {timeout: 15_000});
+        await expectInspectorFooterWhole(page, `${preset.id}/${mode} family passive inspect`);
+        await pose(page, preset, mode, '31b', 'family-passive-inspect', 'dialog.con-zoom[open]');
+        await closeZoomViewer(page);
+        expect(await pressUntil(page, 'Escape', async () => await page.locator('.con-parl__vote--up').count() === 0, {tries: 4, settleMs: 900}), 'B leaves the vote mode').toBe(true);
+        expect(await pressUntil(page, 'Escape', async () => await parliament(page).count() === 0, {tries: 4, settleMs: 900}), 'B closes the Parliament').toBe(true);
+        // ── The VOTE on an action: the same panel reads a card whose payout is an action, not a sum.
+        await bootFor(page, request, preset, mode, 'parliament-devaction-vote', 'board');
+        await openParliament(page);
+        await focusParliamentZone(page, 'voting');
+        expect(await pressUntil(page, 'Enter', async () => await page.locator('.con-parl__vote.con-parl__vote--up').count() > 0, {tries: 4, settleMs: 1200}), 'A opens the vote mode').toBe(true);
+        await waitSittingAtRest(page, 20_000);
+        await expect(page.locator('.con-parl__vote--up [data-parl-kicker="reading"]'), 'the action reads as an action while enacted, not a payout')
+          .toHaveText(/Действие, пока принята|Action while enacted/i, {timeout: 10_000});
+        await pose(page, preset, mode, '31c', 'family-action-vote-mode');
+        expect(await pressUntil(page, 'Escape', async () => await page.locator('.con-parl__vote--up').count() === 0, {tries: 4, settleMs: 900}), 'B leaves the vote mode').toBe(true);
+        expect(await pressUntil(page, 'Escape', async () => await parliament(page).count() === 0, {tries: 4, settleMs: 900}), 'B closes the Parliament').toBe(true);
+        // ── The SITTING for each family: verdict → enactment → the quiet REWARD pose → the gate → the renewal → the closing.
+        const families = [
+          {kind: 'passive', fixture: 'parliament-devpassive-assembly', nn: '32', kicker: /Эффект, пока принята|Effect while enacted/i},
+          {kind: 'action', fixture: 'parliament-devaction-assembly', nn: '33', kicker: /Действие, пока принята|Action while enacted/i},
+        ] as const;
+        for (const family of families) {
+          const {playerId, seats} = await bootFor(page, request, preset, mode, family.fixture, 'prompt');
+          const red = seats[1];
+          await expect(mandatoryPlate(page)).toHaveCount(1, {timeout: 30_000});
+          expect(await openMandatoryAnnounce(page)).toBe(true);
+          await expect(parliament(page)).toHaveCount(1, {timeout: 20_000});
+          await expect.poll(() => sittingStage(page), {timeout: 15_000}).toBe('verdict');
+          await waitSittingAtRest(page, 30_000);
+          expect(await turnTo(page, 'enact')).toBe(true);
+          expect(await turnTo(page, 'reward')).toBe(true);
+          await waitSittingAtRest(page, 30_000);
+          // The quiet pose: no reading pretends a payout; the stage says what OUTLIVES the enactment, and for an action, where it lives.
+          const quiet = page.locator('.con-sit__panel--on [data-sit-quiet]');
+          await expect(quiet, `${family.kind}: the REWARD stage carries its quiet pose`).toHaveCount(1, {timeout: 10_000});
+          await expect(quiet).toHaveAttribute('data-sit-quiet', family.kind);
+          await expect(quiet.locator('.con-sit__quiet-kicker')).toHaveText(family.kicker);
+          await expect(page.locator('.con-sit__panel--on [data-yield-context]'), `${family.kind}: no reading pretends a payout`).toHaveCount(0);
+          await expect(page.locator('.con-sit__panel--on .con-sit__quiet-where'), 'an action names its address, a passive needs none').toHaveCount(family.kind === 'action' ? 1 : 0);
+          // The declaration under the kicker does not repeat its kind («ЭФФЕКТ, ПОКА ПРИНЯТА · Эффект: …» — frame 32 of the first run).
+          await expect(quiet.locator('.con-sit__quiet-text')).not.toHaveText(/^\s*(Эффект|Действие|Effect|Action)\s*:/i);
+          await expect(quiet.locator('.con-sit__quiet-text'), 'the declaration begins with a capital (frame 33 of the second run)').toHaveText(/^\s*[A-ZА-ЯЁ]/);
+          // The government plaque titles the enacted card's graphic by its PART — an action is not an effect (frame 33 of the first run).
+          await expect(page.locator('[data-parl-enacted-effect] .con-parl__ruler-own-kicker'), `${family.kind}: the government names the part`)
+            .toHaveText(family.kind === 'action' ? /Действие резолюции|Resolution action/i : /Эффект резолюции|Resolution effect/i);
+          await pose(page, preset, mode, family.nn, `family-${family.kind}-reward`);
+          expect(await pressUntil(page, 'Enter', async () => (await parliamentWire(request, playerId)).waitingFor?.parliamentPhasePrompt === undefined, {tries: 4, settleMs: 1500}),
+            'A answers the assembly gate').toBe(true);
+          await answerGateAs(request, red, 'assembly');
+          // Nothing to pay: the adjourn arrives in the same response — the renewal enters, the closing names the family again.
+          await expect.poll(() => sittingStage(page), {timeout: 40_000}).toBe('renewal');
+          await waitSittingAtRest(page, 30_000);
+          expect(await turnTo(page, 'closing')).toBe(true);
+          await waitSittingAtRest(page, 30_000);
+          await expect(page.locator('.con-sit [data-sit-row="closing-reward"]'), `${family.kind}: the closing card names what outlives the payout`).toHaveText(family.kicker);
+          await pose(page, preset, mode, `${family.nn}b`, `family-${family.kind}-closing`);
+        }
+        if (mode === 'reduced') {
+          await expectReducedQuiet(page, `${preset.id} families`);
+        }
       });
 
       test('the SKIP: the winner\'s greenery with no legal cell — read as a skip before the record, the skip plate after it', async ({page, request}) => {

@@ -114,6 +114,14 @@
                                  :captions="false"
                                  data-parl-sit-yield
                                  data-parl-sit-item />
+          <!-- THE QUIET REWARD (final polish D): no immediate step for this seat — the passive effect that
+               now stands, or the action to take from «Действия карт»; the kicker says which, the text is
+               the card's own declaration. Never an empty stage. -->
+          <div v-if="yields.length === 0 && quietPose !== undefined" class="con-sit__quiet" :data-sit-quiet="quietPose.kind" data-parl-sit-item>
+            <span class="con-sit__quiet-kicker">{{ $t(quietPose.kicker) }}</span>
+            <span class="con-sit__quiet-text">{{ quietText(quietPose.text) }}</span>
+            <span v-if="quietPose.kind === 'action'" class="con-sit__quiet-where">{{ $t('Available in Card actions') }}</span>
+          </div>
           <ConsolePartyReaction v-for="r in reactions" :key="r.reaction.id"
                                 class="con-sit__reaction"
                                 :reading="r"
@@ -200,7 +208,7 @@
           <span class="con-parl__chip-dim">{{ $t('Your reward') }}</span>
           <span class="con-sit__val">
             <ConsoleInfluenceYield v-if="yields.length > 0" :yields="yields" size="compact" :formula="false" :captions="false" />
-            <b v-else>{{ $t('No reward') }}</b>
+            <b v-else>{{ $t(quietPose === undefined ? 'No reward' : quietPose.kicker) }}</b>
           </span>
         </div>
         <div class="con-sit__row" data-sit-row="closing-fresh">
@@ -233,11 +241,12 @@ import ConsolePartyReaction from '@/client/components/console/parliament/Console
 import ConsoleWinnerReward from '@/client/components/console/parliament/ConsoleWinnerReward.vue';
 import {partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
+import {actionRuleText} from '@/client/components/actions/actionDescription';
 import {conLogicalPx} from '@/client/console/consoleLayoutProfile';
 import {translateTextWithParams} from '@/client/directives/i18n';
 import {getResolution} from '@/client/parliament/ClientParliamentManifest';
 import {parliamentPlayerName, ParliamentViewVm, resolutionTitleOf} from '@/client/console/parliament/consoleParliamentModel';
-import {SittingPosition, SittingStage} from '@/client/console/parliament/consoleSittingFlow';
+import {SittingPosition, SittingStage, quietRewardPoseOf, QuietRewardPose} from '@/client/console/parliament/consoleSittingFlow';
 import {returningInstances} from '@/client/console/parliament/sittingBeats';
 import {enactedYieldsOf, resolvingYieldsOf, voteYieldsOf} from '@/client/console/parliament/influenceYieldModel';
 import {parliamentRewardState, rewardLanded} from '@/client/console/parliament/parliamentRewardBeat';
@@ -270,6 +279,10 @@ export default defineComponent({
     mode: {type: String as PropType<'live' | 'review'>, default: 'live'},
   },
   computed: {
+    /** The quiet reward of a passive / an action resolution (final polish D). */
+    quietPose(): QuietRewardPose | undefined {
+      return quietRewardPoseOf(this.resolution);
+    },
     resolution(): IClientResolution | undefined {
       const id = this.summary?.enacted.resolution;
       return id === undefined ? undefined : getResolution(id);
@@ -429,6 +442,10 @@ export default defineComponent({
   methods: {
     partyNameKey(party: string): string {
       return partyNameKey(party);
+    },
+    /** The declaration under the quiet kicker: translated, its kind prefix stripped (the kicker says it), capitalized. */
+    quietText(key: string): string {
+      return actionRuleText(key);
     },
     cubePx(logical: number): number {
       return conLogicalPx(logical);

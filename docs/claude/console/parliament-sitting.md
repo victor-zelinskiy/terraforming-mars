@@ -101,6 +101,31 @@ Four members on ONE fixed-height row: NAME · CAUSE · PROGRESS pill · availabi
   reveal does.
 - **The command bar measures its labels** (`consoleTextMeasure.ts`) — a hint drops whole, a word is never cut.
 
+## 3-quater. Block D — the families rehearsal (the quiet reward)
+
+The catalog's next families (a passive that stands while enacted, an action taken from «Действия карт») were walked
+through the whole path on their dev examples (`RDX_DEV_PASSIVE`, `RDX_DEV_ACTION` — fixtures
+`parliament-dev{passive,action}-{vote,assembly}`, gallery test «the FAMILIES rehearsal», frames 31–33b). Two laws came
+out of it, both in `src/client/console/parliament/quietRewardPose.ts`:
+
+- **A resolution that pays NOTHING at the enactment still says what it gave — with ONE phrase everywhere.**
+  `quietRewardPoseOf(resolution)` reads the declaration (`text.passive` / `text.action`) and its kicker
+  (`QUIET_REWARD_KICKER`: «Эффект, пока принята» / «Действие, пока принята»); an action adds its address
+  («Доступно в «Действиях карт»»). The vote panel's reading prints that kicker over the card's graphic BEFORE the vote
+  (`voteReadingOf` — the graphic under «При принятии» read as a payout that did not exist), the REWARD stage prints it
+  as its pose (`.con-sit__quiet`, `data-sit-quiet`) instead of an empty stage, the closing card prints it instead of
+  «Без награды». A spectator (no seat) keeps the plain «При принятии». Never a number the record did not pay: a
+  passive's numbers are the forecast's, read where the forecast lives.
+- **The contract owns the seam** (`ResolutionContract.spec` § 9 · THE SEAM): a passive without `forecast`, an action
+  without `preview`, either without its declaration text, or a resolution with no immediate step AND no passive /
+  action («the REWARD stage would be empty») is red for real and dev examples alike. The client half
+  (`consoleSittingFlow.spec`, `voteInfoModel.spec`) holds the pose over the whole catalog.
+
+The e2e (`console-parliament-gallery.spec.ts` «the FAMILIES rehearsal») asserts on every profile × mode: the panel's
+kicker on both families, `[data-yield-context]` = 0 on the panel and on the stage (no reading pretends a payout), the
+stage's `data-sit-quiet` kind, the address only on the action, the closing card's text, the inspector footer whole on
+the passive's inspect, and the fit / paint baselines of every frame.
+
 ## 4. Profiles
 
 | | 1080 | TV 4K | Deck |

@@ -100,3 +100,4 @@ files here are the deeper dives it points at.
 - [AUTOMA_PROMO_MULTIPLAYER_FRAME.md](AUTOMA_PROMO_MULTIPLAYER_FRAME.md) — binding design frame for MarsBot promo adaptation + future multiplayer-with-bot mode (two modes, no global card patches, positive-production policy, per-card hook rules).
 - [BOT_TURN_REVIEW_CONCEPT.md](BOT_TURN_REVIEW_CONCEPT.md) — bot-turn "review" screen concept.
 - [AUTOMA_CORP_FRAMEWORK_REFERENCE.md](AUTOMA_CORP_FRAMEWORK_REFERENCE.md) — HISTORICAL: upstream's types-only corp framework shape (the implementation deliberately did not adopt its facade — see claude/marsbot-corporations.md).
+- `docs/claude/parliament-acceptance-walkthrough.md` — сценарий приёмки Парламента после финальной полировки (что открыть, что нажать, что ожидается; кадры галереи).

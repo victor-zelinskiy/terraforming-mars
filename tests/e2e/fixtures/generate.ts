@@ -76,6 +76,7 @@ import {SelectSpace} from '../../../src/server/inputs/SelectSpace';
 import {OrOptions} from '../../../src/server/inputs/OrOptions';
 import {CLIMATE_RESEARCH_ID} from '../../../src/server/parliament/resolutions/greens/ClimateResearch';
 import {BIODOME_CONTEST_ID} from '../../../src/server/parliament/resolutions/greens/BiodomeContest';
+import {DEV_ACTION_RESOLUTION_ID, DEV_PASSIVE_RESOLUTION_ID} from '../../../src/server/parliament/resolutions/ResolutionCatalog';
 import {Parliament} from '../../../src/server/parliament/Parliament';
 import {answerStandingGates, endGenerationThroughParliament, passToParliament, seatResolution} from '../../parliament/parliamentArrange';
 import {ResolutionId, resolutionInstanceId} from '../../../src/common/parliament/ParliamentTypes';
@@ -1123,6 +1124,36 @@ parliamentFixture('parliament-climate-recap', climateTable(4, 2, 'done', {
   runAllActions(game);
   write('parliament-dense', game);
 }
+
+// ── THE FAMILIES REHEARSAL (final polish D.1) — the dev examples that stand
+//    for the catalog's next families: RDX_DEV_PASSIVE (an effect while enacted,
+//    no immediate step) and RDX_DEV_ACTION (a card action while enacted). Seated
+//    in the first slot with blue's delegate (blue wins), blue at Agenda step 2,
+//    red at step 5 — the same table as Aquifer Contest, so the frames compare.
+//    At the VOTE the face, the panel and the inspect read a card that pays
+//    nothing at the enactment; at the ASSEMBLY gate the sitting's REWARD stage
+//    has no wave to show and must still say what the player got. ──
+const familyTable = (resolution: ResolutionId, stopAt: ParliamentStop): ParliamentFixtureSpec => ({
+  resolution,
+  votes: [0],
+  agenda: [2, 5],
+  stopAt,
+  arrange: ({p1, p2}) => {
+    p1.playedCards.push(new Fish(), new Pets());
+    p2.playedCards.push(new Birds());
+  },
+  expect: ({parliament}) => {
+    // At the vote the card stands in the first slot; at the assembly gate it has WON — it sits in the government.
+    const seated = stopAt === 'vote' ? parliament.slots[0]?.instance : parliament.enacted;
+    if (seated !== resolutionInstanceId(resolution, 0)) {
+      throw new Error(`the family fixture expected ${resolution} ${stopAt === 'vote' ? 'in the first slot' : 'enacted'}, got ${seated}`);
+    }
+  },
+});
+parliamentFixture('parliament-devpassive-vote', familyTable(DEV_PASSIVE_RESOLUTION_ID, 'vote'));
+parliamentFixture('parliament-devpassive-assembly', familyTable(DEV_PASSIVE_RESOLUTION_ID, 'assembly'));
+parliamentFixture('parliament-devaction-vote', familyTable(DEV_ACTION_RESOLUTION_ID, 'vote'));
+parliamentFixture('parliament-devaction-assembly', familyTable(DEV_ACTION_RESOLUTION_ID, 'assembly'));
 
 // ── parliament-seat: the viewer COMPLETED the chairman quest while every one
 //    of their seven delegates stands on a resolution — the seat must be taken

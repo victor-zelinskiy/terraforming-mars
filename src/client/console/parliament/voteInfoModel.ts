@@ -35,8 +35,14 @@ import {ReduxParty} from '@/common/parliament/ParliamentTypes';
 import {ParliamentPartyVm, ParliamentSlotVm, voteAccessOf, VoteForecastVm} from './consoleParliamentModel';
 import {noRecipientCompactNoteOf, oneNumberYieldsOf, voteYieldsOf, WinSuffix, winSuffixesOf} from './influenceYieldModel';
 import {PartyReactionReading, partyReactionsOf, viewerHasSeat} from './partyReactionModel';
+import {quietRewardPoseOf} from './quietRewardPose';
 
-/** English i18n keys of the two kickers the panel prints (the ONLY headings it has). */
+/**
+ * English i18n keys of the reading's kicker (the panel's ONLY heading over the reading): the seated
+ * viewer's payout, the spectator's plain «when enacted» — and, for a card that pays NOTHING at the
+ * enactment (a passive, an action), the quiet reward's own kicker (`quietRewardPose.ts`), the same
+ * words the sitting's REWARD stage prints later: the graphic under it is the effect, not a payout.
+ */
 export const READING_KICKER_SEATED = 'For you when enacted';
 export const READING_KICKER_SPECTATOR = 'When enacted';
 export const VOTE_KICKER = 'Your vote';
@@ -131,7 +137,10 @@ export function voteReadingOf(
   const all = voteYieldsOf(resolution, model, viewer);
   const yields = oneNumberYieldsOf(all).filter((y) => y.context !== 'reference');
   if (yields.length === 0) {
-    return none;
+    // Nothing to pay at the enactment: a passive / an action reads under the quiet reward's kicker
+    // (what the card gives while enacted); a card with neither keeps the spectator's plain heading.
+    const quiet = quietRewardPoseOf(resolution);
+    return quiet === undefined ? none : {...none, kicker: quiet.kicker};
   }
   let note: string | undefined;
   for (const effect of resolution.scaled ?? []) {

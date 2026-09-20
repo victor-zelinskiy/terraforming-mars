@@ -5,10 +5,14 @@ import {ParliamentModel, ParliamentPhaseModel} from '../../src/common/models/Par
 import {PlayerInputModel} from '../../src/common/models/PlayerInputModel';
 import {PlayerViewModel} from '../../src/common/models/PlayerModel';
 import {
-  parliamentSittingFlowBeat, parliamentSittingLive, SITTING_SUBJECT_KEY, sittingAskOf, sittingAtLastPage, sittingPagesOf, sittingPositionOf,
-  sittingPrimaryKey, sittingRewardComing, sittingStageAt, sittingStageKey, sittingStartPage, sittingWorkspacePhase,
+  parliamentSittingFlowBeat, parliamentSittingLive, quietRewardPoseOf, SITTING_SUBJECT_KEY, sittingAskOf, sittingAtLastPage, sittingPagesOf,
+  sittingPositionOf, sittingPrimaryKey, sittingRewardComing, sittingStageAt, sittingStageKey, sittingStartPage, sittingWorkspacePhase,
 } from '../../src/client/console/parliament/consoleSittingFlow';
 import {backVerbFor} from '../../src/client/console/consoleWorkspaceFlow';
+import {AQUIFER_CONTEST_ID} from '../../src/server/parliament/resolutions/greens/AquiferContest';
+import {
+  DEV_ACTION_RESOLUTION_ID, DEV_COMPOUND_RESOLUTION_ID, DEV_IMMEDIATE_RESOLUTION_ID, DEV_PASSIVE_RESOLUTION_ID, REDUX_RESOLUTION_CATALOG,
+} from '../../src/server/parliament/resolutions/ResolutionCatalog';
 
 /*
  * THE SITTING FLOW — pure (docs/TURMOIL_REDUX_PARLIAMENT_SITTING.md § Э3):
@@ -203,5 +207,35 @@ describe('consoleSittingFlow — the political phase as ONE flow', () => {
       expect(parliamentSittingLive(view(phase({step: 'effects'}), undefined))).is.true;
       expect(parliamentSittingLive(view(undefined, undefined))).is.false;
     });
+  });
+});
+
+describe('the quiet reward (final polish D) — a passive / an action resolution gives the REWARD stage an honest pose', () => {
+  const byId = (id: string) => {
+    const d = REDUX_RESOLUTION_CATALOG.all().find((x) => x.id === id);
+    if (d === undefined) {
+      throw new Error('missing ' + id);
+    }
+    return d;
+  };
+  it('the DEV passive reads its effect, the DEV action names its address, an immediate-only resolution has no quiet pose', () => {
+    const passive = quietRewardPoseOf(byId(DEV_PASSIVE_RESOLUTION_ID));
+    expect(passive?.kind).to.eq('passive');
+    expect(passive?.text).to.eq(byId(DEV_PASSIVE_RESOLUTION_ID).text.passive);
+    const action = quietRewardPoseOf(byId(DEV_ACTION_RESOLUTION_ID));
+    expect(action?.kind).to.eq('action');
+    expect(action?.text).to.eq(byId(DEV_ACTION_RESOLUTION_ID).text.action);
+    expect(quietRewardPoseOf(byId(DEV_IMMEDIATE_RESOLUTION_ID))).to.eq(undefined);
+    expect(quietRewardPoseOf(byId(AQUIFER_CONTEST_ID))).to.eq(undefined);
+    expect(quietRewardPoseOf(undefined)).to.eq(undefined);
+  });
+  it('a compound resolution (immediate steps + a winner part, nothing that outlives the payout) has no quiet pose — its stage is the wave', () => {
+    expect(quietRewardPoseOf(byId(DEV_COMPOUND_RESOLUTION_ID))).to.eq(undefined);
+  });
+  it('every catalogued passive / action resolution has a pose, an immediate-only one has none (the client half of contract § 9)', () => {
+    for (const d of REDUX_RESOLUTION_CATALOG.all()) {
+      const withSeam = d.passive !== undefined || d.action !== undefined;
+      expect(quietRewardPoseOf(d) !== undefined, d.id + ' has a quiet pose').to.eq(withSeam);
+    }
   });
 });

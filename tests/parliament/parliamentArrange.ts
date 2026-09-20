@@ -107,8 +107,12 @@ export function quietResolutionOf(party: ReduxParty): ResolutionId {
   case PartyName.GREENS: return AQUIFER_CONTEST_ID;
   case PartyName.MARS: return ARCHITECTURE_AWARD_ID;
   case PartyName.INDUSTRIALISTS: return CENTRAL_POWER_GRID_ID;
+  // The parties WITHOUT a real card yet seat their DEV substitutes (final polish D.2): a spec or a fixture
+  // of the first Reds / Scientists card starts from the table, not from this helper.
+  case PartyName.REDS: return DEV_COMPOUND_RESOLUTION_ID;
+  case PartyName.SCIENTISTS: return DEV_SCIENCE_RESOLUTION_ID;
   default:
-    throw new Error(`no real resolution of ${party} is dealt — a spec cannot meet one in the voting area`);
+    throw new Error(`no resolution of ${party} exists yet, not even a DEV substitute (Unity: add one to the catalog first) — a spec cannot meet one in the voting area`);
   }
 }
 

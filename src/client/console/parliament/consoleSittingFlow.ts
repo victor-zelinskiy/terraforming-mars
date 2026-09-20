@@ -320,3 +320,10 @@ const VOTE_DECIDED_STEPS: ReadonlySet<string> = new Set(['winner', 'agenda', 'su
 export function voteDecidedAt(step: ParliamentPhaseModel['step'] | undefined): boolean {
   return step !== undefined && VOTE_DECIDED_STEPS.has(step);
 }
+
+/**
+ * THE QUIET REWARD (final polish D) — the REWARD stage's pose for a resolution with no immediate step:
+ * the passive that now stands, or the action to take from «Действия карт». Lives in `quietRewardPose.ts`
+ * (the vote panel's reading prints the same kicker — one glossary); re-exported here for the sitting.
+ */
+export {QuietRewardPose, quietRewardPoseOf} from './quietRewardPose';

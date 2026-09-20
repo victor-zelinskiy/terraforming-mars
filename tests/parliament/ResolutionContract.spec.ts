@@ -64,7 +64,10 @@ import {answerStandingGates, passToParliament, seatResolution, settleParliamentG
  *      resolutions' directory anywhere under src/client outside the manifest
  *      and the stand;
  *   7. FACE AND LOCALE — a non-empty face, translated texts, unique codes;
- *   8. THE STAND — the declaration alone yields a scenario family.
+ *   8. THE STAND — the declaration alone yields a scenario family;
+ *   9. THE SEAM — a passive declares its forecast, an action its preview, both
+ *      their declaration text; a resolution with no immediate step still gives
+ *      the sitting's REWARD stage an honest pose (`quietRewardPoseOf`).
  */
 
 const ROOT = path.join(__dirname, '..', '..');
@@ -245,6 +248,35 @@ function checkReporting(definition: ResolutionDefinition, run: Run, condition: {
         failures.push(`${label(definition)}: шаг победителя '${step.key}' отчитался у НЕ-победителя ${seat.id}`);
       }
     }
+  }
+  return failures;
+}
+
+/**
+ * THE SEAM (final polish D.4) — the effects framework's honesty law on the parliament's own declarations:
+ * a passive with no forecast twin and an action with no preview are silent lies in the play / action forecast;
+ * a passive / action without its declaration text has nothing for the sitting to read; and a resolution with NO
+ * immediate step and no passive / action would leave the sitting's REWARD stage empty (the stage reads the
+ * passive or names the action's address — `quietRewardPoseOf` in `consoleSittingFlow.ts`).
+ */
+function checkSeam(definition: ResolutionDefinition): Array<string> {
+  const failures: Array<string> = [];
+  const name = label(definition);
+  if (definition.passive !== undefined && typeof definition.passive.forecast !== 'function') {
+    failures.push(`${name}: a passive without a forecast`);
+  }
+  if (definition.action !== undefined && typeof definition.action.preview !== 'function') {
+    failures.push(`${name}: an action without a preview`);
+  }
+  if (definition.passive !== undefined && (definition.text.passive ?? '') === '') {
+    failures.push(`${name}: a passive without its declaration text (the REWARD stage reads it)`);
+  }
+  if (definition.action !== undefined && (definition.text.action ?? '') === '') {
+    failures.push(`${name}: an action without its declaration text (the REWARD stage reads it)`);
+  }
+  const immediate = (definition.immediateSteps ?? []).length + (definition.winnerSteps ?? []).length;
+  if (immediate === 0 && definition.passive === undefined && definition.action === undefined) {
+    failures.push(`${name}: no immediate step, no passive, no action — the REWARD stage would be empty`);
   }
   return failures;
 }
@@ -455,6 +487,11 @@ describe('ResolutionContract — the author\'s contract over the catalog', () =>
       it('8 · THE STAND: the declaration alone yields a scenario family', () => {
         expect(RESOLUTION_FAMILIES).includes(familyOf(definition));
       });
+
+      it('9 · THE SEAM: a passive declares its forecast, an action its preview; no immediate step still leaves the REWARD stage an honest pose', () => {
+        const failures = checkSeam(definition);
+        expect(failures, failures.join('\n')).deep.eq([]);
+      });
     });
   }
 
@@ -470,6 +507,7 @@ describe('ResolutionContract — the author\'s contract over the catalog', () =>
         }
         const withWinner = enact(definition, {influence: 3, tableau: 'saturated', winner: 'player', reload: true});
         failures.push(...checkReporting(definition, withWinner, {influence: 3, tableau: 'saturated'}), ...checkResume(definition, withWinner));
+        failures.push(...checkSeam(definition));
         expect(failures, failures.join('\n')).deep.eq([]);
         expect(definition.renderData.rows.length).to.be.greaterThan(0);
         for (const [field, text] of Object.entries(definition.text)) {

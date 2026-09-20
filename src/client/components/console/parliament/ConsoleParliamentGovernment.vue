@@ -66,7 +66,7 @@
                words are the inspector's (X on the ruler). -->
         </div>
         <div v-if="enactedOwnMechanics !== undefined" class="con-parl__ruler-own" data-parl-enacted-effect>
-          <span class="con-parl__ruler-own-kicker"><i class="con-parl__card-mark resource_icon resource_icon--cards" aria-hidden="true"></i>{{ $t('Resolution effect') }}</span>
+          <span class="con-parl__ruler-own-kicker" :data-parl-enacted-part="enactedOwnPart"><i class="con-parl__card-mark resource_icon resource_icon--cards" aria-hidden="true"></i>{{ $t(enactedOwnPart === 'action' ? 'Resolution action' : 'Resolution effect') }}</span>
           <PremiumMechanicsPanel class="con-parl__ruler-own-mech" :mechanics="enactedOwnMechanics" />
         </div>
       </div>
@@ -235,6 +235,11 @@ export default defineComponent({
       }
       const mechanics = buildMechanics(resolution.renderData);
       return mechanics.textOnly ? undefined : mechanics;
+    },
+    /** Which part of the enacted card the graphic IS — an action is not an effect (the families rehearsal, frame 33). */
+    enactedOwnPart(): 'effect' | 'action' {
+      const resolution = this.view.enacted?.resolution;
+      return resolution !== undefined && resolution.hasAction && !resolution.hasPassive ? 'action' : 'effect';
     },
     questMechanics(): MechanicsVM | undefined {
       const root = this.view.quest?.renderData;

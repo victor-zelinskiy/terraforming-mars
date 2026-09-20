@@ -155,3 +155,35 @@ export function rewardAddressOf(outcome: ParliamentEnactOutcomeModel, viewer: Co
   }
   return delivery;
 }
+
+/*
+ * ── FUTURE KINDS — how to add one (final polish D.3) ─────────────────────────────────────────────
+ * The table refuses an address without a payer, so none of these rows exists yet; the first card of a
+ * kind adds the row TOGETHER with its payer, on this sketch (surface · source · unit · stage · reading ·
+ * skip plate · the gallery pose it brings):
+ *   · `stockLoss` (a budget: «every player loses N …») — surface `rail`, source `carrier` (the chip flies
+ *     the WAVE BACKWARDS, rail → the card's icon), unit `stock`, stage `reward`, reading `influence-yield`
+ *     with a loss tone (struck amount, amber), skip «ПРОПУЩЕНО · нечего терять»; pose: the reading with a
+ *     minus and the rail's counter ticking DOWN on touchdown.
+ *   · `globalParameter` (temperature / oxygen / oceans for everyone) — surface `board` (the scale marker),
+ *     source `carrier`, unit `none`, stage `board` (the frame yields to the board like a winner tile),
+ *     reading `winner-reward`'s parameter line («кислород 5 % → 6 %, +1 РТ каждому»), skip «на максимуме»;
+ *     pose: the parameter line + the scale story on the board (the board-beat park presents it).
+ *   · `agendaStepAll` (every player advances one Agenda step) — surface `agenda`, source `carrier`, unit
+ *     `none`, stage `reward`, reading a marker line per seat («Повестка 2 → 3»), never skipped (the track's
+ *     end is «уже в конце трека», a line, not a plate); pose: every marker glides on the rail at once.
+ *   · `colonyTrack` (a colony's track marker moves) — surface `colonies`, source `carrier`, unit `none`,
+ *     stage `reward` (the colonies screen is NOT opened — the reading names the colony and the step), skip
+ *     «нет колонии в игре»; pose: a colony chip with its track step, the reward stays on the sitting.
+ *   · `colonyToWinner` (the winner places a colony) — surface `colonies`, source `carrier`, unit `tile`,
+ *     stage `choice` (the shared colony picker in the stage's zone, as the recipient picker), skip «нет
+ *     свободного места»; pose: the winner chip + the picker embedded; the other seats' wait line.
+ *   · `cityEveryone` (each player places a city) — surface `board`, source `carrier`, unit `tile`, stage
+ *     `board` per seat IN TURN (the sitting yields to the board and comes back, the other seats wait —
+ *     the winner-tile route generalized to every seat), skip «нет клетки под город»; pose: the board
+ *     placement per seat, then the received line «Город · размещён».
+ *   · `drawUpTo` («добор до N карт») — surface `hand`, source `deck`, unit `cards`, stage `take` (the
+ *     embedded intake), reading `influence-yield` with the count RESOLVED by the record (never the formula's
+ *     N — a hand of N takes nothing: a skip «рука уже полна», not a zero); pose: the intake with 0…N cards.
+ * Every row keeps the laws above: the record pays, the address only says where; a skip names itself.
+ */

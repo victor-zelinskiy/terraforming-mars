@@ -9,6 +9,7 @@ import {influenceAtAgenda} from '@/common/parliament/ParliamentTypes';
 import {getPartyEffect, getResolution} from '@/client/parliament/ClientParliamentManifest';
 import {ParliamentPartyVm, ParliamentSlotVm, voteForecastOf} from '@/client/console/parliament/consoleParliamentModel';
 import {voteYieldsOf, winSuffixesOf} from '@/client/console/parliament/influenceYieldModel';
+import {QUIET_REWARD_KICKER} from '@/client/console/parliament/quietRewardPose';
 import {
   factValueText, footerFactsOf, panelFactsOf, READING_KICKER_SEATED, READING_KICKER_SPECTATOR, voteFactsOf, VoteFactsVm, voteInfoBudget,
   voteInfoOf, voteReadingOf,
@@ -29,6 +30,8 @@ const AQUIFER = 'RDX_GREENS_AQUIFER_CONTEST';
 const CLIMATE = 'RDX_GREENS_CLIMATE_RESEARCH';
 const GRID = 'RDX_INDUSTRIALISTS_CENTRAL_POWER_GRID';
 const AWARD = 'RDX_MARS_ARCHITECTURE_AWARD';
+const DEV_PASSIVE = 'RDX_DEV_PASSIVE';
+const DEV_ACTION = 'RDX_DEV_ACTION';
 
 function shipped(id: string): IClientResolution {
   const r = getResolution(id);
@@ -115,6 +118,17 @@ describe('voteInfoModel — the reading', () => {
       expect(reading.suffixes).deep.eq([]);
       expect(reading.reactions).deep.eq([]);
     }
+  });
+
+  it('a card that pays NOTHING at the enactment (a passive, an action) reads under the quiet reward\'s kicker — the sitting\'s own words — never «for you»; a spectator keeps the plain heading', () => {
+    const passive = voteReadingOf(shipped(DEV_PASSIVE), model([seat(3)]), BLUE, []);
+    expect(passive.kicker).eq(QUIET_REWARD_KICKER.passive);
+    expect(passive.yields).deep.eq([]);
+    expect(passive.suffixes).deep.eq([]);
+    const action = voteReadingOf(shipped(DEV_ACTION), model([seat(3)]), BLUE, []);
+    expect(action.kicker).eq(QUIET_REWARD_KICKER.action);
+    expect(action.yields).deep.eq([]);
+    expect(voteReadingOf(shipped(DEV_PASSIVE), model([seat(3)]), RED, []).kicker).eq(READING_KICKER_SPECTATOR);
   });
 
   it('the honest note is the server\'s own compact reason when no card of the viewer can hold the payout', () => {
