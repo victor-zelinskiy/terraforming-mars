@@ -188,19 +188,19 @@ export function handDockBayRem(profile: string): number {
  * see `.con-cmdbar--bay` in console.less). Coarse on purpose — the
  * estimate only balances the split; each zone still clips overflow safely.
  */
-export function commandWidthRem(label: string, opts?: {badge?: boolean, twoGlyphs?: boolean}): number {
+export function commandWidthRem(label: string, opts?: {badge?: boolean, twoGlyphs?: boolean, labelRem?: number}): number {
   const glyphs = opts?.twoGlyphs === true ? 2 : 1;
   return glyphs * 1.55 + // glyph badge(s), pill-average
     (glyphs - 1) * 0.3 + // paired-glyph gap
     0.45 + // glyph→label gap
-    label.length * 0.6 +
+    (opts?.labelRem ?? label.length * 0.6) + // the label: MEASURED when the bar has its font (consoleTextMeasure), else the coarse estimate
     (opts?.badge === true ? 1.4 : 0) +
     1.05; // inter-command gap share
 }
 
-/** Estimated width of the bay-mode context label (.95rem + tracking), rem. */
-export function contextWidthRem(context: string): number {
-  return context.length * 0.68 + 1.2;
+/** Estimated width of the bay-mode context label (.95rem + tracking), rem — or its MEASURED width plus the same breathing. */
+export function contextWidthRem(context: string, labelRem?: number): number {
+  return (labelRem ?? context.length * 0.68) + 1.2;
 }
 
 /**

@@ -296,6 +296,22 @@ for (const preset of PRESETS) {
         expect(budget.captions, 'the kicker is the caption; the plates print none').toBe(0);
         expect(budget.partyGraphic, 'the party\'s formula stands beside the reading').toBe(1);
         expect(budget.partyMoment, 'with its one line of moment').toBe(1);
+        // The panel's head repeats no «принимается» — the slot right above says it (P-03); the winning badge has ONE form per
+        // profile — the word on 1080/TV, the glyph with its hint on the Deck (P-12); an empty slot says «0 делегатов · —», once (P-02).
+        const badges = await page.evaluate(() => ({
+          head: document.querySelectorAll('.con-parl__info-head .con-parl__slot-win').length,
+          glyphs: document.querySelectorAll('.con-parl__slot-win--glyph').length,
+          glyphsHinted: document.querySelectorAll('.con-parl__slot-win--glyph[data-hint]').length,
+          words: document.querySelectorAll('.con-parl__slot-win:not(.con-parl__slot-win--glyph)').length,
+          ribbonEmpty: document.querySelectorAll('.con-parl__ribbon-empty').length,
+          noLeader: Array.from(document.querySelectorAll('.con-parl__tally-row--none')).map((el) => (el.textContent ?? '').trim()),
+        }));
+        expect(badges.head, 'no winning badge in the panel head').toBe(0);
+        // The word at 1080; the glyph on the Deck and the TV (the couch's «ИНДУСТРИАЛИСТЫ» + the word overran the label row by 73 px).
+        expect(preset.id === 'standard-1080' ? badges.glyphs : badges.words, 'one form of the winning badge on this profile').toBe(0);
+        expect(badges.glyphsHinted, 'every glyph badge carries its hint').toBe(badges.glyphs);
+        expect(badges.ribbonEmpty, 'the empty ribbon says nothing').toBe(0);
+        expect(badges.noLeader.every((t) => t === '—'), `no leader is a dash: ${badges.noLeader.join('|')}`).toBe(true);
         expect(budget.suffixes, `the win's difference (${fixture.why})`).toEqual(fixture.suffix);
         expect(budget.kickers, 'two kickers').toBe(2);
         expect(budget.facts.slice(0, 2), 'the leader and the winning state').toEqual(['lead', 'win']);

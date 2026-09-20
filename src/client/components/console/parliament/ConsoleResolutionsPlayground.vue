@@ -82,7 +82,7 @@
           <span class="con-rxpg__slot-meta">
             <b class="con-rxpg__code">{{ entry.code ?? '—' }}</b>
             <img class="con-rxpg__emblem" :src="emblemUrl(entry.party)" alt="" />
-            <span>{{ $t(entry.party) }}</span>
+            <span>{{ $t(partyNameKey(entry.party)) }}</span>
           </span>
         </div>
       </div>
@@ -292,6 +292,7 @@
 </template>
 
 <script lang="ts">
+import {partyNameKey} from '@/client/console/parliament/partyNames';
 import {defineComponent} from 'vue';
 import {Color} from '@/common/Color';
 import {CardName} from '@/common/cards/CardName';
@@ -1201,6 +1202,9 @@ export default defineComponent({
     },
   },
   methods: {
+    partyNameKey(party: string): string {
+      return partyNameKey(party);
+    },
     vmOf(entry: IClientResolution): PremiumCardVM {
       return resolutionPremiumVm(entry);
     },

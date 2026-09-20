@@ -54,7 +54,7 @@
       <img class="con-pseal__emblem" :src="emblemUrl" alt="" />
     </div>
     <div class="con-pseal__head">
-      <span class="con-pseal__name">{{ $t(party) }}</span>
+      <span class="con-pseal__name">{{ $t(partyNameKey(party)) }}</span>
       <!-- THE ACTION BADGE — one object for one fact: available now (lit),
            used this generation (stamped ✓), not now / blocked (outlined). -->
       <span v-if="actionState !== undefined && actionState.kind !== 'none'"
@@ -102,6 +102,7 @@
 </template>
 
 <script lang="ts">
+import {partyNameKey} from '@/client/console/parliament/partyNames';
 import {defineComponent, PropType} from 'vue';
 import {Color} from '@/common/Color';
 import {ReduxParty, PARTY_EFFECT_DELEGATES} from '@/common/parliament/ParliamentTypes';
@@ -136,6 +137,11 @@ export default defineComponent({
     /** The ONE translated reason the party's action cannot be taken right now (the focused tile's foot); '' draws the state. */
     reason: {type: String, default: ''},
     reasonTone: {type: String as PropType<'dim' | 'warn'>, default: 'dim'},
+  },
+  methods: {
+    partyNameKey(party: string): string {
+      return partyNameKey(party);
+    },
   },
   computed: {
     accent(): string {

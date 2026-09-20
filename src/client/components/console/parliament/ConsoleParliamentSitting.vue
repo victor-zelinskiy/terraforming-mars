@@ -23,11 +23,12 @@
 
     <!-- ── VERDICT: who won the vote, with how many delegates, and for whom. ── -->
     <section class="con-sit__panel con-sit__panel--verdict" :class="{'con-sit__panel--on': stage === 'verdict'}" data-sit-panel="verdict">
-      <span class="con-sit__kicker">{{ $t('Winner of the vote') }}</span>
+      <!-- The RESOLUTION's state is the kicker (glossary: a resolution «принимается»); the winning PLAYER is a row below (P-18: the kicker repeated the row's label). -->
+      <span class="con-sit__kicker">{{ $t('Winning') }}</span>
       <template v-if="summary !== undefined">
         <div class="con-sit__head">
           <b class="con-sit__title">{{ $t(resolutionTitle(summary.winner.resolution)) }}</b>
-          <span class="con-sit__party"><img class="con-sit__emblem" :src="emblemUrl(summary.winner.party)" alt="" />{{ $t(summary.winner.party) }}</span>
+          <span class="con-sit__party"><img class="con-sit__emblem" :src="emblemUrl(summary.winner.party)" alt="" />{{ $t(partyNameKey(summary.winner.party)) }}</span>
         </div>
         <div class="con-sit__rows">
           <div class="con-sit__row" data-sit-row="delegates">
@@ -52,7 +53,7 @@
       <template v-if="summary !== undefined">
         <div class="con-sit__head">
           <b class="con-sit__title">{{ $t(resolutionTitle(summary.enacted.resolution)) }}</b>
-          <span class="con-sit__party"><img class="con-sit__emblem" :src="emblemUrl(summary.enacted.party)" alt="" />{{ $t('Ruling party') }} · {{ $t(summary.enacted.party) }}</span>
+          <span class="con-sit__party"><img class="con-sit__emblem" :src="emblemUrl(summary.enacted.party)" alt="" />{{ $t('Ruling party') }} · {{ $t(partyNameKey(summary.enacted.party)) }}</span>
         </div>
         <div class="con-sit__rows">
           <div v-if="returned.length > 0" class="con-sit__row" data-sit-row="returned">
@@ -165,10 +166,17 @@
           </div>
           <div v-for="fresh in summary.refreshed" :key="fresh.instance" class="con-sit__row" data-sit-row="fresh">
             <span class="con-sit__val"><img class="con-sit__emblem" :src="emblemUrl(fresh.party)" alt="" /><b>{{ $t(resolutionTitle(fresh.resolution)) }}</b></span>
+            <span v-if="returning.has(fresh.instance)" class="con-parl__chip-dim" data-sit-stays>{{ $t('stays · reshuffled') }}</span>
             <span v-if="fresh.neutralVotes > 0" class="con-parl__chip-dim">{{ neutralVotesText(fresh.neutralVotes) }}</span>
           </div>
+          <!-- The lobby refilled: objects — the seats' cubes back in the lobby (P-23: a sentence stood here). -->
+          <div v-if="summary.lobbyRefilled.length > 0" class="con-sit__row" data-sit-row="lobby">
+            <span class="con-parl__chip-dim">{{ $t('To the lobby') }}</span>
+            <span class="con-sit__chips">
+              <span v-for="color in summary.lobbyRefilled" :key="color" class="con-sit__chip"><PlayerCube :color="color" :size="cubePx(11)" :glow="false" /></span>
+            </span>
+          </div>
         </div>
-        <span v-if="summary.lobbyRefilled.length > 0" class="con-sit__note" data-sit-row="lobby">{{ $t('Every player\'s free delegate returns to the lobby') }}</span>
       </template>
     </section>
 
@@ -176,9 +184,17 @@
     <section class="con-sit__panel con-sit__panel--closing" :class="{'con-sit__panel--on': stage === 'closing'}" data-sit-panel="closing">
       <div v-if="summary !== undefined" class="con-sit__closing">
         <div class="con-sit__closing-head"><b class="con-sit__closing-title">{{ resultsTitle }}</b></div>
+        <!-- The resolution is «принята», the player is the «победитель голосования» (P-24: one label named both). -->
         <div class="con-sit__row" data-sit-row="closing-winner">
-          <span class="con-parl__chip-dim">{{ $t('Winner of the vote') }}</span>
+          <span class="con-parl__chip-dim">{{ $t('Enacted') }}</span>
           <span class="con-sit__val"><img class="con-sit__emblem" :src="emblemUrl(summary.winner.party)" alt="" /><b>{{ $t(resolutionTitle(summary.winner.resolution)) }}</b></span>
+        </div>
+        <div class="con-sit__row" data-sit-row="closing-player">
+          <span class="con-parl__chip-dim">{{ $t('Winning player') }}</span>
+          <span class="con-sit__val">
+            <PlayerCube v-if="winnerColor !== undefined" :color="winnerColor" :size="cubePx(11)" :glow="false" />
+            <b>{{ nameOf(summary.winner.player) }}</b>
+          </span>
         </div>
         <div class="con-sit__row" data-sit-row="closing-reward">
           <span class="con-parl__chip-dim">{{ $t('Your reward') }}</span>
@@ -202,6 +218,7 @@
   </div>
 </template>
 <script lang="ts">
+import {partyNameKey} from '@/client/console/parliament/partyNames';
 import {defineComponent, PropType} from 'vue';
 import {Color} from '@/common/Color';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
@@ -221,6 +238,7 @@ import {translateTextWithParams} from '@/client/directives/i18n';
 import {getResolution} from '@/client/parliament/ClientParliamentManifest';
 import {parliamentPlayerName, ParliamentViewVm, resolutionTitleOf} from '@/client/console/parliament/consoleParliamentModel';
 import {SittingPosition, SittingStage} from '@/client/console/parliament/consoleSittingFlow';
+import {returningInstances} from '@/client/console/parliament/sittingBeats';
 import {enactedYieldsOf, resolvingYieldsOf, voteYieldsOf} from '@/client/console/parliament/influenceYieldModel';
 import {parliamentRewardState, rewardLanded} from '@/client/console/parliament/parliamentRewardBeat';
 import {cardResourceKey} from '@/client/console/resourceTransfer/resourceTransferModel';
@@ -282,8 +300,13 @@ export default defineComponent({
       return (this.summary?.support ?? []).filter((s) => s.gained > 0);
     },
     /** The losers the refresh sent to the discard, in their slot order (the server's own list — absent before the refresh). */
+    /** The losers that LEFT — a card dealt straight back from the reshuffled discard stays on the table (P-22). */
     discarded(): ReadonlyArray<{instance: string, resolution: string, party: ReduxParty}> {
-      return this.summary?.discarded ?? [];
+      const returning = this.returning;
+      return (this.summary?.discarded ?? []).filter((loser) => !returning.has(loser.instance));
+    },
+    returning(): Set<string> {
+      return this.summary === undefined ? new Set() : returningInstances(this.summary);
     },
     /** The viewer's OWN records among the phase's outcomes (the effects so far). */
     mine(): Array<ParliamentEnactOutcomeModel> {
@@ -404,6 +427,9 @@ export default defineComponent({
     },
   },
   methods: {
+    partyNameKey(party: string): string {
+      return partyNameKey(party);
+    },
     cubePx(logical: number): number {
       return conLogicalPx(logical);
     },

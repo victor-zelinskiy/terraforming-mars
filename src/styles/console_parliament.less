@@ -430,6 +430,8 @@
         white-space: nowrap;
         &--kept { color: @con-parl-mint; background: fade(@con-parl-mint, 12%); box-shadow: inset 0 0 0 .05rem fade(@con-parl-mint, 45%); }
     }
+    /* «+ ШАГ ПОВЕСТКИ → ③» wraps as ONE unit (P-30: the Deck broke the line after a dangling «+»). */
+    &__reward-tail { display: inline-flex; align-items: center; gap: inherit; white-space: nowrap; }
     &__reward-plus, &__reward-arrow { opacity: .6; font-weight: 700; }
     &__reward-move { font-size: .66rem; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; }
     &__reward-step { display: inline-flex; align-items: center; justify-content: center; }

@@ -50,10 +50,18 @@ const BANNED: ReadonlyArray<{pattern: RegExp, why: string}> = [
   {pattern: /ваш эффект/i, why: 'the state reads «эффект ваш», the columns\' word order (glossary §3)'},
   {pattern: /правит · стартовое/i, why: 'the tile says «ПРАВИТ»; the basis is the government block\'s (glossary §3)'},
   {pattern: /ждём остальных/i, why: 'one wait form: «Ожидание» + the seat\'s chip (glossary §6)'},
+  // Final polish B (the locale read as an editor): one grammar of access, one word for the government,
+  // the party names with Ё, one currency spelling, the glossary's «осмотр» and «тайл».
+  {pattern: /у вас (есть|нет|пока нет)/i, why: 'access reads «доступен · …» / «недоступен · …» (P-06, P-11, P-34)'},
+  {pattern: /нет доступа/i, why: 'the state is «недоступен» (P-34)'},
+  {pattern: /слот «принята»/i, why: 'the ENACTED slot is the «правительство» (P-32)'},
+  {pattern: /марс вперед|ученые/i, why: 'the parliament prints its own party names, with Ё («Марс вперёд», «Учёные» — P-01)'},
+  {pattern: /М€/, why: 'the currency is «M€» with a Latin M, as in the rest of the RU locale (P-38)'},
+  {pattern: /размер в fullscreen|плитка/i, why: 'the glossary says «осмотр» and «тайл» (P-36, P-37)'},
 ];
 
 /** Retired keys: not translated, not referenced. */
-const GONE = ['Ruling · starting rule'];
+const GONE = ['Ruling · starting rule', 'No delegates yet', 'No leader yet'];
 
 function listFiles(dir: string): Array<string> {
   const abs = path.join(ROOT, dir);

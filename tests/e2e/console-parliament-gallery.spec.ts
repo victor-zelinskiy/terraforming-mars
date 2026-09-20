@@ -48,6 +48,12 @@ type ReducedProbe = {samples: Array<ReducedSample>};
 async function shoot(page: Page, preset: string, mode: Mode, nn: string, surface: string): Promise<void> {
   const dir = path.join(OUT_ROOT, preset, mode);
   fs.mkdirSync(dir, {recursive: true});
+  // Every image DECODED before the frame (P-31: the Deck's six-card picker was shot with three black art
+  // windows — `img.complete` is not painted). Bounded: a broken image never holds the gallery.
+  await page.evaluate(() => Promise.race([
+    Promise.all(Array.from(document.images).filter((img) => !img.complete || img.naturalWidth === 0).map((img) => img.decode().catch(() => undefined))),
+    new Promise<void>((resolve) => window.setTimeout(resolve, 4000)),
+  ]));
   await page.screenshot({path: path.join(dir, `${nn}-${surface}.png`)});
 }
 
@@ -580,6 +586,17 @@ for (const preset of PARLIAMENT_PRESETS) {
         // The record arrives with the skip: the plate names the lost tile and its reason. Photographed the moment it stands
         // (the page holds through the plants' wave, then the renewal enters).
         await expect(page.locator('.con-sit__skip'), 'the skip plate names the lost tile').toHaveCount(1, {timeout: 40_000});
+        // THE TABLE UNDER THE PLATE: a card dealt straight back from the reshuffled discard never left — its face
+        // stays (P-28: the fresh-face hold hid both cards of the table for the whole read).
+        const hiddenFaces = await page.evaluate(() => Array.from(document.querySelectorAll<HTMLElement>('.con-parl__slot[data-instance]')).filter((slot) => {
+          const face = slot.querySelector<HTMLElement>('.con-parl__card .pcard');
+          if (face === null) {
+            return true;
+          }
+          const cs = getComputedStyle(face);
+          return face.getBoundingClientRect().height < 2 || cs.visibility === 'hidden' || cs.opacity === '0' || slot.querySelector('.con-parl__card--dealing') !== null;
+        }).map((slot) => slot.getAttribute('data-instance')));
+        expect(hiddenFaces, `${preset.id}/${mode}: every card on the table keeps its face under the skip plate`).toEqual([]);
         await expectParliamentFits(page, `${preset.id}/${mode} sitting-reward-skip`);
         await expectPaintBaseline(page, `${preset.id}/${mode} sitting-reward-skip`);
         await shoot(page, preset.id, mode, '27b', 'sitting-reward-skip-plate');

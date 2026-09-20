@@ -40,7 +40,10 @@ function browseCommands(input: ParliamentCommandsInput, back: ConsoleCommand): A
   case 'parties': {
     const state = input.partyActionStates[parliamentFlow.partyIndex];
     const cmds: Array<ConsoleCommand> = [];
-    if (state !== undefined && state.kind !== 'none' && state.kind !== 'no-access') {
+    // A party WITH an action always advertises A — available (lit), used or without access (dimmed; the
+    // tile carries the reason and the press opens the action's surface, which states it). Only a party
+    // with no action at all offers nothing (final polish P-05: «no-access» hid the verb altogether).
+    if (state !== undefined && state.kind !== 'none') {
       cmds.push({control: 'confirm', label: 'Party action', enabled: state.kind === 'available', highlight: state.kind === 'available'});
     }
     // X is ONE verb across the parliament (glossary §5): «ОСМОТРЕТЬ», never the name of what it opens.

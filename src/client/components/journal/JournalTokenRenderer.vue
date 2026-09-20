@@ -47,7 +47,7 @@
     <JournalColonyChip v-else-if="token.type === LogMessageDataType.COLONY" :name="token.value" />
     <JournalMaChip v-else-if="token.type === LogMessageDataType.AWARD" kind="award" :name="token.value" />
     <JournalMaChip v-else-if="token.type === LogMessageDataType.MILESTONE" kind="milestone" :name="token.value" />
-    <span v-else-if="token.type === LogMessageDataType.PARTY" class="journal-token journal-token--party" v-i18n>{{ token.value }}</span>
+    <span v-else-if="token.type === LogMessageDataType.PARTY" class="journal-token journal-token--party">{{ $t(partyNameKey(token.value)) }}</span>
     <!-- A Turmoil Redux resolution — named through the parliament catalog. -->
     <span v-else-if="token.type === LogMessageDataType.RESOLUTION" class="journal-token journal-token--resolution" v-i18n>{{ resolutionLabel(token.value) }}</span>
     <span v-else-if="token.type === LogMessageDataType.UNDERGROUND_TOKEN" class="journal-token journal-token--underground" v-i18n>{{ undergroundDescription[token.value] }}</span>
@@ -71,6 +71,7 @@
 </template>
 
 <script lang="ts">
+import {partyNameKey} from '@/client/console/parliament/partyNames';
 import {defineComponent, PropType} from 'vue';
 import {Color} from '@/common/Color';
 import {CardName} from '@/common/cards/CardName';
@@ -148,6 +149,9 @@ export default defineComponent({
     },
   },
   methods: {
+    partyNameKey(party: string): string {
+      return partyNameKey(party);
+    },
     /** A Turmoil Redux resolution's printed name (the catalog's English key) — never a bare id. */
     resolutionLabel(id: string): string {
       return resolutionName(id);

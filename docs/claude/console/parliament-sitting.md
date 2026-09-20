@@ -82,6 +82,25 @@ Four members on ONE fixed-height row: NAME · CAUSE · PROGRESS pill · availabi
   top — the parity residual of «Действия карт» on the TV/Deck is zero (`KNOWN_TOP_RESIDUAL = {}`).
 - The Information workspace's party strip is a BAND above the effects explorer (`.con-info__efxhost` is a column).
 
+## 3-ter. Block B (the second audit)
+
+- **The decided table.** From the phase's first step to the refresh (`voteDecidedAt(step)`) no slot is badged
+  «принимается»: the winner is the summary's, the server has already re-ranked the losers for the NEXT vote, and the
+  badge returns with the refreshed table (`winningShownOf(slot, decided)`).
+- **A returning card never left.** `returningInstances(summary)` — an instance in both `discarded` and `refreshed`
+  (an empty deck, the discard reshuffled): not a fresh face, not flown off, not dealt; the renewal row says
+  «остаётся · перетасована».
+- **The government's basis follows the seat**, not the record: `govBasisKey` keeps the previous basis while
+  `holds.govAwaits` holds the seat empty.
+- **The party's name is the parliament's own key** — `partyNameKey(party)` for every surface and the journal's
+  party token; the upstream Turmoil keys are never rewritten.
+- **The winning badge has ONE form per profile** (the word at 1080; the glyph with a hint on the Deck and the TV —
+  the couch's «ИНДУСТРИАЛИСТЫ» beside the word overran the 608 px label row); an empty slot says «0 делегатов · —»
+  once.
+- **An embedded step names the stage in the bar** (the picker in the sitting's zone: «ВЫБОР»), as the embedded
+  reveal does.
+- **The command bar measures its labels** (`consoleTextMeasure.ts`) — a hint drops whole, a word is never cut.
+
 ## 4. Profiles
 
 | | 1080 | TV 4K | Deck |

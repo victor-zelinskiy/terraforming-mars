@@ -314,3 +314,9 @@ export function sittingRewardComing(
   }
   return resolution.winnerReward !== undefined && phase.summary?.winner.player === viewer;
 }
+
+/** The phase's steps BEFORE the refresh — the vote is decided and the table still shows the losers as they voted (P-17). */
+const VOTE_DECIDED_STEPS: ReadonlySet<string> = new Set(['winner', 'agenda', 'support', 'enact', 'assembly', 'effects']);
+export function voteDecidedAt(step: ParliamentPhaseModel['step'] | undefined): boolean {
+  return step !== undefined && VOTE_DECIDED_STEPS.has(step);
+}

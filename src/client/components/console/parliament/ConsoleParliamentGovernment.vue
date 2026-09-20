@@ -18,8 +18,8 @@
       <!-- The basis, and only the basis: a wait on ANOTHER seat is said ONCE, on the
            reward panel's own wait line with the seat's chip (registry R-11 — the same
            sentence stood here as a second kicker and was cut on the Deck). -->
-      <span class="con-parl__gov-basis" :class="{'con-parl__gov-basis--default': view.enacted === undefined}">
-        {{ $t(view.enacted === undefined ? 'Starting rule' : 'Enacted resolution') }}
+      <span class="con-parl__gov-basis" :class="{'con-parl__gov-basis--default': govBasisKey === 'Starting rule'}">
+        {{ $t(govBasisKey) }}
       </span>
     </div>
     <div class="con-parl__ruling">
@@ -51,7 +51,7 @@
           <div class="con-parl__ruler-text">
             <span class="con-parl__ruler-kicker">{{ $t('Ruling party') }}</span>
             <span class="con-parl__ruler-title">
-              <b class="con-parl__ruler-name">{{ $t(view.rulingParty) }}</b>
+              <b class="con-parl__ruler-name">{{ $t(partyNameKey(view.rulingParty)) }}</b>
               <!-- Whose the effect is — beside the name, never a caption a panel away. -->
               <span class="con-parl__ruler-scope">{{ $t('Available to every player') }}</span>
             </span>
@@ -107,6 +107,7 @@
               <!-- The reward is the OFFICE, not the chair (glossary §4, R-05): «ПРЕДСЕДАТЕЛЬСТВО + ШАГ ПОВЕСТКИ». -->
               <span class="con-parl__seat-glyph" aria-hidden="true"></span>{{ $t(viewerIsChairman ? 'Chairmanship (kept)' : 'Chairmanship') }}
             </span>
+            <span class="con-parl__reward-tail">
             <span class="con-parl__reward-plus" aria-hidden="true">+</span>
             <span class="con-parl__reward-move">{{ $t('Agenda step') }}</span>
             <template v-if="agendaVm.nextStep !== undefined">
@@ -117,6 +118,7 @@
                 <template v-else><i class="con-parl__step-res resource_icon resource_icon--cards" aria-hidden="true"></i></template>
               </span>
             </template>
+            </span>
           </template>
         </span>
         <span class="con-parl__chair" :class="{'con-parl__chair--won': view.quest.completedBy !== undefined && view.quest.completedBy === view.chairman, 'con-parl__chair--pulse': flow.chairPulse}" data-parl-chair @animationend="onChairPulseEnd">
@@ -141,6 +143,7 @@
   </div>
 </template>
 <script lang="ts">
+import {partyNameKey} from '@/client/console/parliament/partyNames';
 import {defineComponent, PropType} from 'vue';
 import {Color} from '@/common/Color';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
@@ -183,6 +186,22 @@ export default defineComponent({
     };
   },
   computed: {
+    /**
+     * THE BASIS THE SEAT SHOWS. While the enacted card is still on its way (the sitting's verdict
+     * and enactment beats hold the seat empty — `holds.govAwaits`), the kicker keeps the PREVIOUS
+     * basis: «принятая резолюция» over an empty seat named a card that had not arrived (P-16).
+     */
+    govBasisKey(): string {
+      const enacted = this.view.enacted;
+      if (enacted === undefined) {
+        return 'Starting rule';
+      }
+      const awaiting = this.holds.govAwaits !== undefined && this.holds.govAwaits === enacted.instance;
+      if (awaiting && this.model?.phase?.summary?.discardedEnacted === undefined) {
+        return 'Starting rule';
+      }
+      return 'Enacted resolution';
+    },
     flow() {
       return parliamentFlow;
     },
@@ -238,6 +257,9 @@ export default defineComponent({
     },
   },
   methods: {
+    partyNameKey(party: string): string {
+      return partyNameKey(party);
+    },
     onQuestPulseEnd(event: AnimationEvent): void {
       if (event.animationName === 'con-parl-quest-pulse') {
         this.questPulse = false;

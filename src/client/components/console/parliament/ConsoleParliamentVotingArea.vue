@@ -34,8 +34,9 @@
                :data-votes="slot.totalVotes">
             <div class="con-parl__slot-label">
               <img class="con-parl__slot-emblem" :src="emblemUrl(slot.party)" alt="" />
-              <span class="con-parl__slot-party">{{ $t(slot.party) }}</span>
-              <span v-if="winningShownOf(slot)" class="con-parl__slot-win" :class="{'con-parl__slot-win--glyph': partyNameLong(slot.party)}"><span class="con-parl__slot-win-text">{{ $t('Winning') }}</span></span>
+              <span class="con-parl__slot-party">{{ $t(partyNameKey(slot.party)) }}</span>
+              <!-- ONE form per profile (P-12): the word on the 1080/TV label row, the winner glyph with its hint on the Deck — never two forms of one fact on one screen. -->
+              <span v-if="winningShownOf(slot)" class="con-parl__slot-win" :class="{'con-parl__slot-win--glyph': glyphBadge}" :data-hint="glyphBadge ? $t('Winning') : undefined"><span class="con-parl__slot-win-text">{{ $t('Winning') }}</span></span>
             </div>
             <div class="con-parl__card"
                  :class="{'con-parl__card--dealing': holds.freshFaces.has(slot.instance)}"
@@ -69,7 +70,6 @@
                 </span>
               </template>
               <span v-if="placeShownOn(i)" class="con-parl__vote-cube con-parl__vote-cube--place" data-parl-vote-place aria-hidden="true"></span>
-              <span v-if="slot.votes.length === 0 && !placeShownOn(i)" class="con-parl__ribbon-empty">{{ $t('No delegates yet') }}</span>
             </div>
             <!-- THE TALLY — TWO FIXED LINES for every slot: «N delegates ·
                  leader», then «yours ○○ n» with the two places of the
@@ -88,7 +88,8 @@
                   <PlayerCube v-if="tallyOf(slot, i).leader !== 'neutral'" :color="tallyOf(slot, i).leader" :size="cubePx(12)" :glow="false" />
                   <PlayerCube v-else color="neutral" steel :size="cubePx(12)" :glow="false" />
                 </span>
-                <span v-else class="con-parl__tally-row con-parl__tally-row--none">{{ $t('No leader yet') }}</span>
+                <!-- No leader: the fact row's own dash (P-02: «0 делегатов · Лидера пока нет · Делегатов пока нет» said it three times). -->
+                <span v-else class="con-parl__tally-row con-parl__tally-row--none" aria-hidden="true">—</span>
               </span>
               <span class="con-parl__tally-line con-parl__tally-line--mine">
                 <span v-if="viewerParticipates && viewerColor !== undefined" class="con-parl__tally-row con-parl__tally-row--mine"
@@ -140,13 +141,16 @@ import {PremiumCardVM} from '@/client/components/premiumCard/premiumCardViewMode
 import {resolutionPremiumVmById} from '@/client/components/premiumCard/resolutionPremiumVm';
 import {partyAccent, partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
 import {conLogicalPx} from '@/client/console/consoleLayoutProfile';
-import {translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {translateTextWithParams} from '@/client/directives/i18n';
 import {parliamentFlow, parliamentSlotsCarried} from '@/client/console/parliament/consoleParliamentFlow';
 import {parliamentHolds} from '@/client/console/parliament/parliamentDisplayHolds';
 import {ParliamentSlotVm, ParliamentViewVm} from '@/client/console/parliament/consoleParliamentModel';
 import {
   DENSE_RIBBON, placeShownOn, RIBBON_CUBE, RibbonGroup, ribbonGroupsOf, tallyShownOf, winningShownOf,
 } from '@/client/console/parliament/parliamentVoteView';
+import {voteDecidedAt} from '@/client/console/parliament/consoleSittingFlow';
+import {partyNameKey} from '@/client/console/parliament/partyNames';
+import {useConsoleViewport} from '@/client/console/composables/useConsoleViewport';
 
 /**
  * The VOTING AREA tier: the resolution slots (each ONE DOM instance the vote
@@ -156,6 +160,10 @@ import {
 export default defineComponent({
   name: 'ConsoleParliamentVotingArea',
   components: {PlayerCube},
+  setup() {
+    const {isHandheld, isTv} = useConsoleViewport();
+    return {isHandheld, isTv};
+  },
   props: {
     view: {type: Object as PropType<ParliamentViewVm>, required: true},
     model: {type: Object as PropType<ParliamentModel | undefined>, default: undefined},
@@ -172,6 +180,15 @@ export default defineComponent({
     return {DENSE_RIBBON, PARTY_EFFECT_THRESHOLD, RIBBON_CUBE};
   },
   computed: {
+    /**
+     * ONE form per profile (P-12): the word on the 1080 label row (every party name fits beside it — the
+     * vote-fit clip probe), the winner glyph with its hint on the Deck AND the couch (measured on the TV:
+     * «ИНДУСТРИАЛИСТЫ» 311 px + the word 292 px + the emblem and gaps = 681 px on a 608 px row — the word
+     * cut the party name).
+     */
+    glyphBadge(): boolean {
+      return this.isHandheld || this.isTv;
+    },
     flow() {
       return parliamentFlow;
     },
@@ -225,7 +242,10 @@ export default defineComponent({
       return tallyShownOf(slot, index);
     },
     winningShownOf(slot: ParliamentSlotVm): boolean {
-      return winningShownOf(slot);
+      return winningShownOf(slot, voteDecidedAt(this.model?.phase?.step));
+    },
+    partyNameKey(party: PartyName): string {
+      return partyNameKey(party);
     },
     placeShownOn(index: number): boolean {
       return placeShownOn(index, this.benchWarn);
@@ -239,9 +259,6 @@ export default defineComponent({
      * beside it; «ИНДУСТРИАЛИСТЫ», 14, does not) — its badge says it with the
      * vote's winner glyph instead, never by cutting the name.
      */
-    partyNameLong(party: PartyName): boolean {
-      return translateText(party).length > 12;
-    },
   },
 });
 </script>

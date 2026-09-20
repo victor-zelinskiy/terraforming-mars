@@ -7602,6 +7602,12 @@ export default defineComponent({
       if (this.finalGreeneryActive) {
         return FINAL_GREENERY_EYEBROW;
       }
+      if (this.hostTask !== undefined && this.parliamentStageTask && workspaceFrameMounted('parliament') && !this.consoleState.task.deferred) {
+        // EMBEDDED in the Parliament's sitting (the recipient picker in the reward stage's zone): the
+        // bar names the STAGE the crumb already names («ВЫБОР»), one voice in two places — never the
+        // picker's own kicker over a workspace that has a name (final polish P-13).
+        return followUpStepStage(this.hostTask.kind) ?? this.activeTaskSummary?.kickerKey ?? 'Awaiting decision';
+      }
       if (this.hostTask !== undefined && !this.consoleState.task.deferred && this.taskSpacePending === undefined && !this.handPickActive) {
         // The bar names the KIND of decision the host is serving ("ОПЛАТА" /
         // "ДРАФТ"), not a generic "awaiting" — the host's own header carries

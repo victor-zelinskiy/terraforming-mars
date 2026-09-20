@@ -35,7 +35,6 @@
             <div class="con-parl__info-head" data-parl-vote-item>
               <img class="con-parl__info-emblem" :src="emblemUrl(voteInfo.party)" alt="" />
               <b class="con-parl__info-name">{{ $t(voteInfo.name) }}</b>
-              <span v-if="voteInfo.winning" class="con-parl__slot-win">{{ $t('Winning') }}</span>
             </div>
             <!-- THE READING — the card's printed graphic as the formula, the
                  viewer's ONE number beside it (the estimate by the current

@@ -156,6 +156,13 @@ for (const preset of PRESETS) {
       expect(crumb).toMatch(/ЗАСЕДАНИЕ|SITTING/);
       expect(crumb).toMatch(/ВЕРДИКТ|VERDICT/);
       await expect(sitting(page).locator('[data-sit-panel="verdict"].con-sit__panel--on [data-sit-row="winner"]'), 'the verdict names the winning player').toHaveCount(1);
+      // The verdict's kicker is the RESOLUTION's state (glossary: «принимается»); the winning PLAYER is its own row (P-18).
+      await expect(sitting(page).locator('[data-sit-panel="verdict"].con-sit__panel--on .con-sit__kicker'), 'the kicker names the resolution\'s state, not the row').toHaveText(/Принимается|Winning/i);
+      // THE DECIDED TABLE: the server already re-ranked the losers for the NEXT vote — no card is badged «принимается» until the refresh (P-17).
+      await expect(page.locator('.con-parl__slot--winning'), 'no «принимается» on the decided table').toHaveCount(0);
+      await expect(page.locator('.con-parl__slot-win'), 'no winning badge on the decided table').toHaveCount(0);
+      // The government's basis while the card is still on its way: the PREVIOUS one, never «принятая резолюция» over an empty seat (P-16).
+      await expect(page.locator('.con-parl__gov-basis'), 'the seat keeps the starting rule until the card lands').toHaveText(/Стартовое правило|Starting rule/i);
       await expect(page.locator('.con-parl__gov--lit'), 'the government is lit at the verdict').toHaveCount(1);
       expect(await hotVerb(page)).toMatch(/Продолжить|Continue/i);
       await expectFits(page, `${preset.id} verdict`);
@@ -185,6 +192,8 @@ for (const preset of PRESETS) {
       crumb = (await crumbText(page)).toUpperCase();
       expect(crumb).toMatch(/НАГРАДА|REWARD/);
       await expect(sitting(page).locator('[data-sit-panel="reward"].con-sit__panel--on [data-parl-sit-yield]'), 'the reading of what is coming').toHaveCount(1);
+      await expect(page.locator('.con-parl__slot--winning'), 'still no «принимается» on the decided table (reward page)').toHaveCount(0);
+      await expect(page.locator('.con-parl__gov-basis'), 'the card has landed — the seat reads the enacted resolution').toHaveText(/Принятая резолюция|Enacted resolution/i);
       // Climate Research pays this seat (influence 2 → +2 heat production, then cards) — the verb says so.
       expect(await hotVerb(page), 'A on the reward page answers the gate').toMatch(/К награде|To the reward/i);
       expect((await wireOf(request, playerId)).waitingFor?.parliamentPhasePrompt?.stage, 'turning the pages answered NOTHING').toBe('assembly');
@@ -258,15 +267,29 @@ for (const preset of PRESETS) {
       expect(crumb).toMatch(/ЗАСЕДАНИЕ|SITTING/);
       expect(crumb).toMatch(/ОБНОВЛЕНИЕ|RENEWAL/);
       await expect(sitting(page).locator('[data-sit-panel="renewal"].con-sit__panel--on [data-sit-row="fresh"]'), 'the fresh resolutions').not.toHaveCount(0);
+      // The refreshed table has its leader back; the lobby refilled is a row of CUBES, one per seat (P-23: a sentence stood there).
+      await expect(page.locator('.con-parl__slot--winning'), 'the refreshed table shows its leader').toHaveCount(1);
+      const lobbyRefilled = ((await wireOf(request, playerId)).game.parliament?.phase as {summary?: {lobbyRefilled?: Array<unknown>}} | undefined)?.summary?.lobbyRefilled?.length ?? 0;
+      await expect(sitting(page).locator('[data-sit-panel="renewal"].con-sit__panel--on [data-sit-row="lobby"] .player-cube'), 'the lobby row: one cube per refilled seat').toHaveCount(lobbyRefilled);
+      await expect(sitting(page).locator('[data-sit-panel="renewal"].con-sit__panel--on'), 'no sentence on the renewal').not.toContainText(/возвращаются в лобби/);
       // The losers that left for the discard are named as OBJECTS (an emblem, a name) — the server's own list (final polish A.10).
-      const discarded = ((await wireOf(request, playerId)).game.parliament?.phase as {summary?: {discarded?: Array<unknown>}} | undefined)?.summary?.discarded?.length ?? 0;
+      const renewal = ((await wireOf(request, playerId)).game.parliament?.phase as {summary?: {discarded?: Array<{instance: string}>, refreshed?: Array<{instance: string}>}} | undefined)?.summary;
+      const dealt = new Set((renewal?.refreshed ?? []).map((f) => f.instance));
+      // A loser dealt straight back from the reshuffled discard never left the table: it is a fresh row that says
+      // «остаётся · перетасована», not a discarded row (final polish P-22 / P-28).
+      const returning = (renewal?.discarded ?? []).filter((d) => dealt.has(d.instance)).length;
+      const discarded = (renewal?.discarded?.length ?? 0) - returning;
       await expect(sitting(page).locator('[data-sit-panel="renewal"].con-sit__panel--on [data-sit-row="discarded"]'), `the ${discarded} discarded resolutions are named`).toHaveCount(discarded);
+      await expect(sitting(page).locator('[data-sit-panel="renewal"].con-sit__panel--on [data-sit-stays]'), `the ${returning} returning resolutions say they stay`).toHaveCount(returning);
       await expectFits(page, `${preset.id} renewal`);
       await shoot(page, preset.id, '06-renewal');
       expect(await turnTo(page, 'closing'), 'A turns to the closing').toBe(true);
       crumb = (await crumbText(page)).toUpperCase();
       expect(crumb).toMatch(/ЗАКРЫТИЕ|CLOSING/);
       await expect(sitting(page).locator('[data-sit-panel="closing"].con-sit__panel--on .con-sit__closing'), 'the closing card').toHaveCount(1);
+      // The closing names the RESOLUTION as «принята» and the PLAYER as the winner of the vote — two rows, two objects (P-24).
+      await expect(sitting(page).locator('[data-sit-row="closing-winner"] .con-parl__chip-dim')).toHaveText(/Принята|Enacted/i);
+      await expect(sitting(page).locator('[data-sit-row="closing-player"] .player-cube'), 'the winning player\'s cube on the closing').toHaveCount(1);
       expect(await hotVerb(page)).toMatch(/Закрыть заседание|Close the sitting/i);
       expect((await wireOf(request, playerId)).waitingFor?.parliamentPhasePrompt?.stage, 'gate 2 stands until A').toBe('adjourn');
       await expectFits(page, `${preset.id} closing`);

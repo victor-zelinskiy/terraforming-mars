@@ -65,7 +65,7 @@ import {
   killParliamentFlights, nextFlightId, placeCubeRect, pushCardFlight, rectOf, registerFlightHandle,
 } from './parliamentFlights';
 import {Rect, runCardDealFlight} from './consoleParliamentVoteMotion';
-import {SittingBeat} from './sittingBeats';
+import {SittingBeat, returningInstances} from './sittingBeats';
 
 // ── the storyboard's budget (base ms; §6) ───────────────────────────────────
 const VERDICT_LIGHT_MS = 220;
@@ -175,8 +175,12 @@ export function seedRenewalHolds(summary: ParliamentPhaseSummaryModel, view: Par
   // MERGED into whatever the enactment still holds (a resume seeds both sets
   // before its first frame), never a fresh record over it.
   const pending = parliamentHolds;
+  // A card dealt straight back from the reshuffled discard is not a fresh face (`returningInstances`).
+  const returning = returningInstances(summary);
   for (const fresh of summary.refreshed) {
-    pending.freshFaces.add(fresh.instance);
+    if (!returning.has(fresh.instance)) {
+      pending.freshFaces.add(fresh.instance);
+    }
     if (fresh.neutralVotes <= 0) {
       continue;
     }
@@ -200,7 +204,7 @@ export function seedRenewalHolds(summary: ParliamentPhaseSummaryModel, view: Par
       pending.support.set(fresh.party, (pending.support.get(fresh.party) ?? 0) + added);
     }
   }
-  pending.deckPending = summary.refreshed.length;
+  pending.deckPending = summary.refreshed.filter((f) => !returning.has(f.instance)).length;
   for (const color of summary.lobbyRefilled) {
     pending.lobby.add(color);
   }
@@ -479,7 +483,8 @@ function beatRenewal(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: num
   const summary = ctx.summary;
   let at = 0;
   // (1) The losers leave from the slots they stood in (the fresh faces wait hidden there).
-  const losers = summary.discarded ?? [];
+  const returning = returningInstances(summary);
+  const losers = (summary.discarded ?? []).filter((loser) => !returning.has(loser.instance));
   if (losers.length > 0) {
     tl.call(() => {
       const homes = itemsOf(root, '.con-parl__slots .con-parl__slot-home');

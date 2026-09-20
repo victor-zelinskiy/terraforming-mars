@@ -25,7 +25,7 @@
        :data-reaction-amount="reading.amount">
     <span class="con-preact__who">
       <img class="con-preact__emblem" :src="emblemUrl" alt="" />
-      <b class="con-preact__party">{{ $t(reading.party) }}</b>
+      <b class="con-preact__party">{{ $t(partyNameKey(reading.party)) }}</b>
     </span>
     <span class="con-preact__body">
       <!-- «+2 [M€ production]» — the gain in the game's own production frame,
@@ -45,6 +45,7 @@
 </template>
 
 <script lang="ts">
+import {partyNameKey} from '@/client/console/parliament/partyNames';
 import {defineComponent, PropType} from 'vue';
 import {PartyReactionReading, reactionCaptionOf, reactionGainIcon, reactionTriggerIcon} from '@/client/console/parliament/partyReactionModel';
 import {partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
@@ -59,6 +60,11 @@ export default defineComponent({
     size: {type: String as PropType<'compact' | 'normal'>, default: 'compact'},
     /** Print the moment's caption (off inside a block whose own kicker states the moment). */
     withCaption: {type: Boolean, default: true},
+  },
+  methods: {
+    partyNameKey(party: string): string {
+      return partyNameKey(party);
+    },
   },
   computed: {
     emblemUrl(): string {

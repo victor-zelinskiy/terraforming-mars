@@ -73,7 +73,14 @@ export function tallyShownOf(slot: ParliamentSlotVm, index: number): {votes: num
 }
 
 /** Whether a card reads «winning» as SHOWN: while the cube is in the air every card keeps the pre-vote verdict (the badge moves on the touchdown). */
-export function winningShownOf(slot: ParliamentSlotVm): boolean {
+export function winningShownOf(slot: ParliamentSlotVm, decided = false): boolean {
+  // The vote is DECIDED (the sitting's steps before the refresh): the winner is named by the
+  // summary and the remaining cards are not up for anything yet — the server already re-ranked
+  // them for the NEXT vote, so a «принимается» here named a card with no delegates beside the
+  // verdict naming another (P-17). The badge returns with the refreshed table.
+  if (decided) {
+    return false;
+  }
   const snap = parliamentFlow.voteSnapshot;
   if (snap !== undefined && parliamentVoteInFlight()) {
     return slot.instance === snap.winner;

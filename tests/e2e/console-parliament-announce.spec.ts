@@ -70,6 +70,10 @@ for (const preset of PARLIAMENT_PRESETS) {
       // No board object under the plate — the off-Mars spaces above the planet included.
       const covered = m.spaces.filter((s) => s.rect.w > 0 && intersects(plate, s.rect)).map((s) => `${s.id} ${Math.round(s.rect.x)},${Math.round(s.rect.y)} ${Math.round(s.rect.w)}×${Math.round(s.rect.h)}`);
       expect(covered, `${preset.id}: the plate (${Math.round(plate.x)},${Math.round(plate.y)} ${Math.round(plate.w)}×${Math.round(plate.h)}) covers no board space`).toEqual([]);
+      // The bar under the plate cuts no verb (P-15: four labels were cut to «ОТКРЫ…» / «ИНФОРМАЦ…» at 1080 — the fit plan now measures the painted text).
+      const cut = await page.evaluate(() => Array.from(document.querySelectorAll<HTMLElement>('.con-cmdbar__label'))
+        .filter((el) => el.scrollWidth > el.clientWidth + 1).map((el) => (el.textContent ?? '').trim()));
+      expect(cut, `${preset.id}: no command label is cut on the board home`).toEqual([]);
     });
   });
 }

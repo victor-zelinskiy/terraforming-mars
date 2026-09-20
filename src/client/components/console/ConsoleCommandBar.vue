@@ -95,6 +95,7 @@ import {commandWidthRem, contextWidthRem, handDockBayRem} from '@/client/console
 import {ConsoleCommand, defaultDropPriority, planCommandRun} from '@/client/console/consoleCommandModel';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {holdConfirmState} from '@/client/console/consoleHoldConfirm';
+import {LabelFont, labelFontOf, measureTextPx} from '@/client/console/consoleTextMeasure';
 
 /* The type lives in consoleCommandModel.ts (pure TS — importable by plain
  * .ts modules); re-exported here so the existing .vue importers keep their
@@ -113,6 +114,26 @@ export default defineComponent({
   setup() {
     const {width, profile, uiScale} = useConsoleViewport();
     return {vpWidth: width, profile, uiScale};
+  },
+  data() {
+    return {
+      /** The bar's own label font (read off a rendered label; the fit plan measures with it — P-15). */
+      labelFont: undefined as LabelFont | undefined,
+      contextFont: undefined as LabelFont | undefined,
+    };
+  },
+  mounted() {
+    this.readFonts();
+  },
+  watch: {
+    profile() {
+      this.$nextTick(() => this.readFonts());
+    },
+    commands() {
+      if (this.labelFont === undefined) {
+        this.$nextTick(() => this.readFonts());
+      }
+    },
   },
   computed: {
     /**
@@ -160,14 +181,29 @@ export default defineComponent({
       // (the logic still works; the step chips show the structure) beats a
       // clipped one.
       const wScale = this.profile === 'tv' ? 1.15 : 1;
-      const zoneLeft = halfRem - contextWidthRem(translateText(this.context)) * wScale;
+      // MEASURED labels (consoleTextMeasure) once the bar has painted a label: the chrome (glyphs,
+      // gaps, badge) keeps the estimate scaled for the TV, the words are their painted width — a
+      // 2 % margin for the runner's glyph rounding. Before the first paint: the coarse estimate.
+      const labelRem = (text: string, font: LabelFont | undefined): number | undefined => {
+        const px = font === undefined ? undefined : measureTextPx(text, font);
+        return px === undefined ? undefined : (px * 1.02) / remPx;
+      };
+      const contextText = translateText(this.context);
+      const contextMeasured = labelRem(contextText, this.contextFont);
+      const zoneLeft = halfRem - (contextMeasured === undefined ?
+        contextWidthRem(contextText) * wScale :
+        contextWidthRem('', 0) * wScale + contextMeasured);
       const entries = this.commands.map((c) => ({
         // The estimate measures the RENDERED text — params included, or a
         // parameterised label under-counts and truncates on 4K.
-        width: commandWidthRem(this.cmdLabel(c), {
-          badge: c.badge !== undefined && c.badge > 0,
-          twoGlyphs: c.control2 !== undefined,
-        }) * wScale,
+        width: ((): number => {
+          const text = this.cmdLabel(c);
+          const opts = {badge: c.badge !== undefined && c.badge > 0, twoGlyphs: c.control2 !== undefined};
+          const measured = labelRem(text, this.labelFont);
+          return measured === undefined ?
+            commandWidthRem(text, opts) * wScale :
+            commandWidthRem('', {...opts, labelRem: 0}) * wScale + measured;
+        })(),
         keep: c.control === 'confirm' || c.control === 'back',
         dropPriority: c.priority ?? defaultDropPriority(c.control),
       }));
@@ -184,6 +220,15 @@ export default defineComponent({
     },
   },
   methods: {
+    /** The fonts the bar paints its labels and its context with — read off the DOM, re-read per profile. */
+    readFonts(): void {
+      const root = this.$el as HTMLElement | undefined;
+      if (root === undefined || typeof root.querySelector !== 'function') {
+        return;
+      }
+      this.labelFont = labelFontOf(root.querySelector('.con-cmdbar__label')) ?? this.labelFont;
+      this.contextFont = labelFontOf(root.querySelector('.con-cmdbar__context')) ?? this.contextFont;
+    },
     /** A hint's rendered text: the plain key, or the `${0}`-parameterised
      *  key interpolated with its (already translated) params. */
     cmdLabel(cmd: ConsoleCommand): string {

@@ -101,6 +101,9 @@ dialog.con-zoom.con-zoom--parliament .card-zoom-actions__panel {
    padding = 170 of 170; TV — 140 + 116 + 16 + 44 = 316 of 340; Deck — 70 + 60 + 4 + 22 = 156 of 168. */
 dialog.con-zoom.con-zoom--parliament .card-zoom-actions { height: 8.5rem; }
 html.con-profile-handheld dialog.con-zoom.con-zoom--parliament .card-zoom-actions { height: 8.4rem; }
+/* The couch: the reading's plates at the .8rem floor (P-08) make the two-part reading 167 px tall — the plate
+   measured 343 px in the 340 px band; 9.2rem (368 px) holds it with a margin. */
+html.con-profile-tv dialog.con-zoom.con-zoom--parliament .card-zoom-actions { height: 9.2rem; }
 /* Between groups a clear, moderate step; inside a group the glyph and its
    words keep their own tight gaps. (The class is doubled to outrank the
    profile ladders' `.con-zoom__bar` gap, which sit later in the cascade.) */
@@ -468,6 +471,15 @@ html.con-profile-tv .con-rvote {
     .con-parl__fact-val { font-size: .9rem; b { font-size: 1.05rem; } }
 }
 html.con-profile-tv .con-zoom__bar.con-zoom__bar--scene { --con-zoom-bar-gap: 1.4rem; row-gap: .4rem; }
+/* The reading's plates at the couch floor (P-08: the compact caption was .5rem — 20 px physical — on the TV). */
+html.con-profile-tv .con-zoom__bar-yield {
+    .con-iyield__caption { font-size: .8rem; max-width: 12rem; }
+    .con-iyield__num { font-size: 1.05rem; }
+    .con-iyield__in b { font-size: 1.3rem; }
+    .con-iyield__out b { font-size: 1.4rem; }
+    .con-iyield__unit, .con-iyield__inf { width: 1.2rem; height: 1.2rem; }
+    .con-iyield__in .con-iyield__inf, .con-iyield__out .con-iyield__unit { width: 1.35rem; height: 1.35rem; }
+}
 html.con-profile-tv .con-zoom__vote {
     &-label { font-size: 1.05rem; }
     &-line { height: 1.05rem; font-size: .85rem; }

@@ -131,3 +131,16 @@ export function sittingBeats(
 export function sittingBeatsOfStage(beats: ReadonlyArray<SittingBeat>, stage: SittingStage): Array<SittingBeat> {
   return beats.filter((b) => b.stage === stage);
 }
+
+/**
+ * THE RETURNING CARDS of a refresh (final polish P-22 / P-28): with an empty deck the discard is
+ * reshuffled and a loser can be dealt straight back — the summary then names ONE instance in
+ * `discarded` AND in `refreshed`. Physically it never left the table: the renewal beat neither flies
+ * it off nor deals it, its face is never a «fresh» (hidden) face, and the renewal page says it
+ * stays (measured: the fresh-face hold hid both cards of the table under the skip plate for the
+ * whole read, two empty frames beside the reward).
+ */
+export function returningInstances(summary: {refreshed: ReadonlyArray<{instance: string}>, discarded?: ReadonlyArray<{instance: string}>}): Set<string> {
+  const dealt = new Set(summary.refreshed.map((f) => f.instance));
+  return new Set((summary.discarded ?? []).map((d) => d.instance).filter((instance) => dealt.has(instance)));
+}
