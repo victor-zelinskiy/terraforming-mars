@@ -23,11 +23,7 @@ export function oppositionIndices(view: ParliamentViewVm): Array<number> {
   return view.parties.map((p, i) => ({p, i})).filter(({p}) => p.party !== view.rulingParty).map(({i}) => i);
 }
 
-/** The index of the ruling party in `view.parties` (-1 when the view has no parties). */
-export function rulerIndex(view: ParliamentViewVm): number {
-  return view.parties.findIndex((p) => p.party === view.rulingParty);
-}
-
+/** Seat the row cursor on an OPPOSITION tile: the preferred index when it is one, else the nearest. */
 function seatOnOpposition(view: ParliamentViewVm, preferred: number): void {
   const row = oppositionIndices(view);
   if (row.length === 0) {
@@ -36,6 +32,14 @@ function seatOnOpposition(view: ParliamentViewVm, preferred: number): void {
   parliamentFlow.partyIndex = row.includes(preferred) ? preferred : row[Math.min(row.length - 1, Math.max(0, row.findIndex((i) => i >= preferred)))] ?? row[0];
 }
 
+/**
+ * THE BROWSE RING (v3 В5) — THREE zones, one per object the player can act on: the VOTING AREA's cards,
+ * the five OPPOSITION tiles of the row, and the RULING party's tile in the government. The government
+ * block itself is no longer a stop: its only decision-bearing object is that tile, and the enacted
+ * resolution — already enacted, nothing to decide about it — is read with R3 from anywhere here.
+ *
+ *   ruler ─ right ─▶ voting        ruler / voting ─ down ─▶ the row        the row ─ up ─▶ ruler | voting
+ */
 export function navigateParliamentZones(dir: 'up' | 'down' | 'left' | 'right', view: ParliamentViewVm): void {
   const f = parliamentFlow;
   const row = oppositionIndices(view);
@@ -50,22 +54,16 @@ export function navigateParliamentZones(dir: 'up' | 'down' | 'left' | 'right', v
       seatOnOpposition(view, idx >= 0 && row.includes(idx) ? idx : (row[Math.min(row.length - 1, 2)] ?? 0));
     }
     return;
+  // A Parliament restored with the retired zone (a save, a parked stack) lands on the tile that replaced it.
   case 'government':
-    if (dir === 'right') {
-      f.zone = 'ruler';
-    } else if (dir === 'down') {
-      f.zone = 'parties';
-      seatOnOpposition(view, row[0] ?? 0);
-    }
+    f.zone = 'ruler';
     return;
   case 'ruler':
     if (dir === 'right') {
       f.zone = 'voting';
-    } else if (dir === 'left') {
-      f.zone = 'government';
     } else if (dir === 'down') {
       f.zone = 'parties';
-      seatOnOpposition(view, row[Math.min(row.length - 1, 1)] ?? row[0] ?? 0);
+      seatOnOpposition(view, row[0] ?? 0);
     }
     return;
   case 'parties': {
@@ -76,8 +74,8 @@ export function navigateParliamentZones(dir: 'up' | 'down' | 'left' | 'right', v
     } else if (dir === 'right') {
       f.partyIndex = row[Math.min(row.length - 1, pos + 1)] ?? f.partyIndex;
     } else if (dir === 'up') {
-      // The column above: the government's card over the first tile, the ruler over the second, the voting area over the rest.
-      f.zone = pos === 0 ? 'government' : pos === 1 ? 'ruler' : 'voting';
+      // The column above: the ruler's tile over the first two tiles, the voting area over the rest.
+      f.zone = pos <= 1 ? 'ruler' : 'voting';
     }
     return;
   }
@@ -125,11 +123,6 @@ export function armPartyActionDescent(root: HTMLElement | undefined, party: Redu
 export function parliamentBrowseInspectRequest(view: ParliamentViewVm, root: HTMLElement | undefined): ParliamentInspectRequest | undefined {
   switch (parliamentFlow.zone) {
   case 'government':
-    if (view.enacted !== undefined) {
-      const id = view.enacted.resolutionId;
-      return {kind: 'resolution', ids: [id], index: 0, origin: () => root?.querySelector<HTMLElement>('.con-parl__gov-card .pcard') ?? root?.querySelector<HTMLElement>('.con-parl__gov-card') ?? null};
-    }
-    return {kind: 'party', party: view.rulingParty, origin: () => root?.querySelector<HTMLElement>('[data-parl-ruler] .con-pseal') ?? null};
   case 'ruler':
     return {kind: 'party', party: view.rulingParty, origin: () => root?.querySelector<HTMLElement>('[data-parl-ruler] .con-pseal') ?? null};
   case 'parties': {
@@ -140,4 +133,20 @@ export function parliamentBrowseInspectRequest(view: ParliamentViewVm, root: HTM
   default:
     return undefined;
   }
+}
+
+/**
+ * R3 — THE ENACTED RESOLUTION (v3 В5). It is already enacted: nothing about it is a decision, so it left
+ * the focus ring and kept a verb of its own, the way the source verb names a source elsewhere in this
+ * console. Undefined until a resolution has ever been enacted.
+ */
+export function parliamentEnactedInspectRequest(view: ParliamentViewVm, root: HTMLElement | undefined): ParliamentInspectRequest | undefined {
+  const enacted = view.enacted;
+  if (enacted === undefined) {
+    return undefined;
+  }
+  return {
+    kind: 'resolution', ids: [enacted.resolutionId], index: 0,
+    origin: () => root?.querySelector<HTMLElement>('.con-parl__gov-card .pcard') ?? root?.querySelector<HTMLElement>('.con-parl__gov-card') ?? null,
+  };
 }

@@ -24,19 +24,21 @@ export type ParliamentCommandsInput = {
 
 /** The browse layer's verbs depend on the focused ZONE (one bar, one contract). */
 function browseCommands(input: ParliamentCommandsInput, back: ConsoleCommand): Array<ConsoleCommand> {
-  switch (parliamentFlow.zone) {
+  // The retired `government` zone reads as the ruler's tile (a restored stack may still name it).
+  switch (parliamentFlow.zone === 'government' ? 'ruler' : parliamentFlow.zone) {
   case 'voting': {
     const cmds: Array<ConsoleCommand> = [];
     if (input.view.slots.length > 0) {
       cmds.push({control: 'confirm', label: 'Open the vote', enabled: true, highlight: input.canVoteNow});
+    }
+    if (input.view.enacted !== undefined) {
+      cmds.push({control: 'stickR', label: 'Inspect the enacted resolution'});
     }
     // No X here: the voting area is ONE zone with no card of its own
     // selected — the inspector belongs to the mode's selected card.
     cmds.push(back);
     return cmds;
   }
-  case 'government':
-    return [{control: 'secondary', label: 'Inspect'}, back];
   case 'ruler':
   case 'parties': {
     // The ruling party's tile stands in the government (v2) and answers as a party tile: the same verbs.
@@ -50,7 +52,11 @@ function browseCommands(input: ParliamentCommandsInput, back: ConsoleCommand): A
       cmds.push({control: 'confirm', label: 'Party action', enabled: state.kind === 'available', highlight: state.kind === 'available'});
     }
     // X is ONE verb across the parliament (glossary §5): «ОСМОТРЕТЬ», never the name of what it opens.
-    cmds.push({control: 'secondary', label: 'Inspect'}, back);
+    cmds.push({control: 'secondary', label: 'Inspect'});
+    if (input.view.enacted !== undefined) {
+      cmds.push({control: 'stickR', label: 'Inspect the enacted resolution'});
+    }
+    cmds.push(back);
     return cmds;
   }
   }

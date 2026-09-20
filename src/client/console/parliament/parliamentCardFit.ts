@@ -64,13 +64,27 @@ export function fitParliamentCards(): void {
     const pcs = getComputedStyle(parties);
     const columns = Math.max(1, parties.children.length || 5);
     let tileW = (parties.clientWidth - px(pcs.columnGap) * (columns - 1)) / columns;
+    let tileH = 0;
     const ruler = root.querySelector<HTMLElement>('[data-parl-ruler]');
     if (ruler !== null && ruler.clientWidth > 0) {
       const rcs = getComputedStyle(ruler);
       tileW = Math.min(tileW, ruler.clientWidth - px(rcs.paddingLeft) - px(rcs.paddingRight));
+      // …and the HEIGHT the same way (v3 В5): the row's tile is as tall as the middle tier, the ruler's
+      // slot sits in the TOP tier under its own kicker, and the slot then clipped the very tile it hosts.
+      // ONE token both honour: the smaller room, measured — never two sizes of one chassis.
+      const slot = ruler.querySelector<HTMLElement>('[data-parl-ruler-slot]');
+      const own = ruler.querySelector<HTMLElement>('.con-parl__ruler-own');
+      if (slot !== null) {
+        const taken = (ruler.querySelector<HTMLElement>('.con-parl__ruler-kicker')?.offsetHeight ?? 0) +
+          (own?.offsetHeight ?? 0) + px(rcs.rowGap) * (own === null ? 1 : 2);
+        tileH = Math.max(0, ruler.clientHeight - px(rcs.paddingTop) - px(rcs.paddingBottom) - taken);
+      }
     }
     if (tileW > 0) {
-      root.style.setProperty('--con-parl-tile-w', `${Math.floor(tileW)}px`);
+      root.style.setProperty('--con-parl-tile-w', String(Math.floor(tileW)) + 'px');
+    }
+    if (tileH > 0) {
+      root.style.setProperty('--con-parl-tile-h', String(Math.floor(Math.min(tileH, parties.clientHeight))) + 'px');
     }
   }
   // Layout heights (`offsetHeight`), never painted boxes: a FLIP in flight
