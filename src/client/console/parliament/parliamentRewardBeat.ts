@@ -29,15 +29,19 @@
  *    announced where the player is looking, never withheld from them — and the
  *    stage reads «Получено» when they come back. A reward beat never REPLAYS
  *    (resume / a yield-return): a counter cannot honestly tick twice;
- *  · every hold is bounded by a named net (`REWARD_HOLD_SAFETY_MS`): a beat
- *    that never comes releases the rail with its chips, marginally late, never
- *    lost.
+ *  · NO WALL CLOCK decides a tick (v2). A hold is released by (a) its chip's
+ *    touchdown, (b) an explicit END OF THE STAGE — the sitting leaves for the
+ *    board, closes, collapses, its section unmounts (`releaseParliamentRewards`
+ *    with a named reason), or (c) the hold registry's own 35 s ceiling with
+ *    a diagnosis (`parliament-reward-owed` / `parliament-agenda-bonus-owed`,
+ *    the wedge net every critical animation shares). A player who pauses on
+ *    a page releases nothing: the numbers wait for their beat.
  *
  * The AGENDA STEP'S TR BONUS of the viewer rides the same ledger: it is paid
- * by the server BEFORE the first gate (the winner's step of the phase), so the
- * HUD's rating would otherwise have moved while the announce plate stood. The
- * rating is held on the rail's own score cell (`stock` channel, key `rating`)
- * and flies from the reached Agenda step after the marker's glide has landed.
+ * by the server in the chain after the first gate (v2), in the SAME response
+ * that carries the enactment — the rating is held on the rail's own score
+ * cell (`stock` channel, key `rating`) and flies from the reached Agenda step
+ * once the marker's glide has landed (the enactment's first beat).
  *
  * Pure + a reactive record; no DOM, no Vue components, no i18n.
  */
@@ -55,19 +59,8 @@ import {consoleParliamentUi} from './consoleParliamentFlow';
 /** The rail's key for the terraform rating (the score cell) — the ONE key the transfer layer, the panel and the seeder share. */
 export const RATING_RAIL_KEY = 'rating';
 
-/**
- * How long the rail may hold a counter for a beat that has not come — above
- * the reward stage's whole wave (≈1.4 s) and a page turn's unfold, below any
- * attention span: a stale number for longer would be a lie the flight is not
- * worth. The Agenda bonus's net (`AGENDA_BONUS_HOLD_SAFETY_MS`) measures
- * IDLENESS, not the flow's length: it is seeded while the announce plate
- * still waits for the player's own A and the verdict is read at the player's
- * pace, so the sitting's every progress edge (it opens, a page turns —
- * `noteAgendaBonusProgress`) re-arms it, and it fires only for a sitting that
- * stands still that long — the board-beat park's own bound.
- */
-export const REWARD_HOLD_SAFETY_MS = 8_000;
-export const AGENDA_BONUS_HOLD_SAFETY_MS = 30_000;
+/** THE REASONS a stage ends with holds still standing — every release names one (the trail reads it). */
+export type RewardReleaseReason = 'board' | 'close' | 'collapse' | 'unmount' | 'stage-settled' | 'ceiling' | 'new-sitting' | 'reset' | 'no-glide' | 'unmeasurable-step' | 'stage-finished' | 'landed' | 're-seed';
 
 export type RewardBeatKey = string;
 
@@ -124,8 +117,9 @@ export const parliamentRewardState = reactive({
  * placement prompt live before a single plant had left the card). A
  * BLOCKING supplier over the ledger's reactive record closes that gap: the
  * placement / host / follow-up families wait on `presentation` until the last
- * chip has landed; the ledger's own net (`REWARD_HOLD_SAFETY_MS`) bounds it
- * and the ceiling's `expire` releases the counters honestly.
+ * chip has landed. The registry's ceiling (35 s, with `diagnose`) is the ONE
+ * wedge net (v2 — no wall clock of the ledger's own): its `expire` releases
+ * the counters honestly and names what was still in the air.
  */
 registerAnimationHoldSupplier('parliament-reward-owed', () => parliamentRewardPending(), {
   diagnose: () => ({
@@ -133,7 +127,16 @@ registerAnimationHoldSupplier('parliament-reward-owed', () => parliamentRewardPe
     owed: parliamentRewardState.owed.map((r) => r.key),
     flying: parliamentRewardState.flying.map((r) => r.key),
   }),
-  expire: () => flushParliamentRewards(),
+  expire: () => flushParliamentRewards('ceiling'),
+});
+
+/** The Agenda bonus rides the same law: held until the marker's glide lands, bounded by the registry's ceiling alone. */
+registerAnimationHoldSupplier('parliament-agenda-bonus-owed', () => parliamentRewardState.agendaBonus !== undefined, {
+  diagnose: () => {
+    const bonus = parliamentRewardState.agendaBonus;
+    return {sitting: parliamentRewardState.sitting, bonus: bonus === undefined ? undefined : {kind: bonus.kind, step: bonus.step, generation: bonus.generation}};
+  },
+  expire: () => flushAgendaBonus('ceiling'),
 });
 
 /** The structural identity of one record: its seat, its step, its part and its kind (a reaction shares its cause's step). */
@@ -260,9 +263,6 @@ export function detectAgendaBonus(before: PlayerViewModel | undefined, after: Pl
 
 // ── the ledger ─────────────────────────────────────────────────────────────
 
-let safety: ReturnType<typeof setTimeout> | undefined;
-let agendaSafety: ReturnType<typeof setTimeout> | undefined;
-
 // ── the trail — what the ledger did and WHY (read by the e2e readiness probe; never by the product) ──
 export type RewardTrailEvent = {t: number; ev: string; detail?: unknown};
 const TRAIL_CAP = 80;
@@ -287,62 +287,26 @@ export function parliamentRewardDiag(): {sitting: string; owed: Array<string>; f
   };
 }
 
-function clearSafety(): void {
-  if (safety !== undefined) {
-    clearTimeout(safety);
-    safety = undefined;
-  }
-}
-
-function clearAgendaSafety(): void {
-  if (agendaSafety !== undefined) {
-    clearTimeout(agendaSafety);
-    agendaSafety = undefined;
-  }
-}
-
-/** The reward net fired: the beat never came — the counters tick now. */
-function onRewardSafety(): void {
-  safety = undefined;
-  flushParliamentRewards('net');
-}
-
-/** The Agenda bonus net fired: the glide never came — the rating ticks now. */
-function onAgendaSafety(): void {
-  agendaSafety = undefined;
-  flushAgendaBonus('idle-net');
-}
-
-/** Arm (or re-arm) the Agenda bonus's idle net. */
-function armAgendaSafety(): void {
-  clearAgendaSafety();
-  if (typeof setTimeout === 'function') {
-    agendaSafety = setTimeout(onAgendaSafety, AGENDA_BONUS_HOLD_SAFETY_MS);
-  }
-}
-
-/**
- * PROGRESS — the sitting moved (it opened, a page turned): the Agenda bonus's
- * net counts idle time only. A player reading the verdict for a while is not
- * a stall; a sitting standing still for `AGENDA_BONUS_HOLD_SAFETY_MS` is, and
- * its rating then ticks with its delta chip (the enactment's glide plays
- * without the chip — the fact was already announced, never withheld).
- */
-export function noteAgendaBonusProgress(): void {
-  if (parliamentRewardState.agendaBonus !== undefined) {
-    armAgendaSafety();
-  }
-}
-
 function noteLanded(key: RewardBeatKey): void {
   if (!parliamentRewardState.landed.includes(key)) {
     parliamentRewardState.landed.push(key);
   }
 }
 
-/** Release every owed / flying record's hold at once (the net, the park, the unmount) — the counters tick, honestly late. `why` is for the trail. */
-export function flushParliamentRewards(why = 'flush'): void {
-  clearSafety();
+/**
+ * THE END OF A STAGE with holds still standing — the sitting leaves for the
+ * board («К полю»), closes, collapses or its section unmounts: every owed /
+ * flying record and the Agenda bonus release at once, the counters tick
+ * (honestly late, never lost). The ONE door the section and the shell use —
+ * a release always names its reason in the trail.
+ */
+export function releaseParliamentRewards(why: RewardReleaseReason): void {
+  flushParliamentRewards(why);
+  flushAgendaBonus(why);
+}
+
+/** Release every owed / flying record's hold at once (a stage's end, the ceiling, a new sitting) — the counters tick, honestly late. `why` is for the trail. */
+export function flushParliamentRewards(why: RewardReleaseReason | string = 'flush'): void {
   const pending = [...parliamentRewardState.owed, ...parliamentRewardState.flying];
   parliamentRewardState.owed = [];
   parliamentRewardState.flying = [];
@@ -355,9 +319,8 @@ export function flushParliamentRewards(why = 'flush'): void {
   }
 }
 
-/** Release the Agenda bonus's hold (the net, or a glide that never came). `why` is for the trail. */
-export function flushAgendaBonus(why = 'flush'): void {
-  clearAgendaSafety();
+/** Release the Agenda bonus's hold (a stage's end, the ceiling, a glide that never came). `why` is for the trail. */
+export function flushAgendaBonus(why: RewardReleaseReason | string = 'flush'): void {
   const bonus = parliamentRewardState.agendaBonus;
   parliamentRewardState.agendaBonus = undefined;
   if (bonus !== undefined) {
@@ -413,21 +376,20 @@ export function seedParliamentRewardHold(before: PlayerViewModel | undefined, af
     } else {
       beginPanelRewardHold(fresh.map((r) => r.spec));
       parliamentRewardState.owed.push(...fresh);
-      clearSafety();
-      if (typeof setTimeout === 'function') {
-        safety = setTimeout(onRewardSafety, REWARD_HOLD_SAFETY_MS);
-      }
     }
   }
+  // The Agenda bonus rides the same «on screen» honesty: a parked sitting has no track to fly it on — the
+  // rating ticks with the commit and the glide plays without a chip when the sitting comes back.
   const bonus = detectAgendaBonus(before, after);
   if (bonus !== undefined && !consoleReducedMotionActive()) {
-    trail('seed-agenda', {key, kind: bonus.kind, step: bonus.step, generation: bonus.generation});
+    trail('seed-agenda', {key, kind: bonus.kind, step: bonus.step, generation: bonus.generation, onScreen});
     flushAgendaBonus('re-seed');
-    if (bonus.spec !== undefined) {
-      beginPanelRewardHold([bonus.spec]);
+    if (onScreen) {
+      if (bonus.spec !== undefined) {
+        beginPanelRewardHold([bonus.spec]);
+      }
+      parliamentRewardState.agendaBonus = bonus;
     }
-    parliamentRewardState.agendaBonus = bonus;
-    armAgendaSafety();
   }
 }
 
@@ -448,7 +410,6 @@ export function takeAgendaBonus(generation: number): AgendaBonusOwed | undefined
   if (bonus === undefined || bonus.generation !== generation) {
     return undefined;
   }
-  clearAgendaSafety();
   return bonus;
 }
 
@@ -458,9 +419,6 @@ export function markRewardLanded(reward: OwedReward): void {
   releasePanelRewardHold(reward.spec);
   parliamentRewardState.flying = parliamentRewardState.flying.filter((r) => r.key !== reward.key);
   noteLanded(reward.key);
-  if (parliamentRewardState.owed.length === 0 && parliamentRewardState.flying.length === 0) {
-    clearSafety();
-  }
 }
 
 export function markAgendaBonusLanded(): void {

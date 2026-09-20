@@ -325,6 +325,7 @@
                                   @inspect="inspectParliament($event)"
                                   @open-action="openParliamentPartyAction($event)"
                                   @flow-complete="onParliamentFlowComplete($event)"
+                                  @to-board="openParliamentBoardDoor()"
                                   @collapse="collapseWorkspace()"
                                   @close="leaveWorkspace()" />
       </transition>
@@ -5393,7 +5394,21 @@ export default defineComponent({
      * it paints the hex highlight, which would otherwise stay lit under the modal.
      */
     placementHeld(): boolean {
-      return this.playerView.waitingFor?.type === 'space' && !this.admits('placement');
+      return this.playerView.waitingFor?.type === 'space' && (!this.admits('placement') || this.parliamentPlacementDoorClosed);
+    },
+    /**
+     * THE WINNER'S TILE WAITS FOR THE PLAYER'S OWN PRESS (Turmoil Redux, «Заседание
+     * v2»): a resolution-sourced placement raised while the sitting's stage
+     * STANDS is held behind the stage's «К полю» — the hexes stay dark, the
+     * stack stays, the reward stage reads the tile. The press opens the door
+     * (`consoleParliamentUi.boardDoorOpen`); a parked sitting (the player is
+     * already on the board) never closes it, and the placement's end resets it.
+     */
+    parliamentPlacementDoorClosed(): boolean {
+      const wf = this.playerView.waitingFor;
+      return wf?.type === 'space' && promptSourceResolution(wf) !== undefined &&
+        this.game.phase === Phase.PARLIAMENT && this.game.parliament?.phase !== undefined &&
+        consoleParliamentUi.stageStanding && !consoleParliamentUi.boardDoorOpen;
     },
     /**
      * Server-driven placement (SelectSpace) or a client-side board picker.
@@ -10180,6 +10195,8 @@ export default defineComponent({
         // AUTOMATIC transition, so it waits out the placement's own
         // post-commit story first (see the method).
         this.resumeYieldedStackOverQuietBoard();
+        // The sitting's door to the board closes with the placement (the next tile waits for its own press).
+        consoleParliamentUi.boardDoorOpen = false;
       }
       // P20: the R3 inspect-all toggle never outlives its placement.
       this.consoleState.freeRoam = false;
@@ -13491,6 +13508,19 @@ export default defineComponent({
      * the root is closed here and by the `parliamentSittingFrameLive`
      * watcher's falling edge (the draft's lifecycle contract).
      */
+    /**
+     * «К ПОЛЮ» (Turmoil Redux, v2): the ONE door from the sitting's reward stage
+     * to the winner's tile. Opening it makes the held placement admissible;
+     * the `placementActive` rising edge then does what a placement always does
+     * — the parliament root declares `yieldsToBoard`, so the stack steps aside
+     * and comes back to the reward stage after the landing. Never automatic.
+     */
+    openParliamentBoardDoor(): void {
+      if (this.playerView.waitingFor?.type !== 'space') {
+        return;
+      }
+      consoleParliamentUi.boardDoorOpen = true;
+    },
     onParliamentFlowComplete(kind: string): void {
       if (kind === 'seat') {
         return;

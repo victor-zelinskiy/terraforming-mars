@@ -10,17 +10,20 @@ import {consoleParliamentUi, resetConsoleParliamentUi} from '@/client/console/pa
 import {
   clearPanelRewardHold, heldProduction, heldStock, panelRewardHold,
 } from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {activeAnimationHoldLabels, isAnimationHoldActive} from '@/client/components/presentation/animationHold';
 import {
-  AGENDA_BONUS_HOLD_SAFETY_MS, detectAgendaBonus, detectNewViewerRewards, flushParliamentRewards, markAgendaBonusLanded, markRewardLanded,
-  noteAgendaBonusProgress, parliamentParksReveal, parliamentRewardPending, parliamentRewardState, RATING_RAIL_KEY, resetParliamentRewards, rewardBeatKey, rewardLanded,
-  seedParliamentRewardHold, sittingKeyOf, takeAgendaBonus, takeOwedRewards, waveSpecOf,
+  detectAgendaBonus, detectNewViewerRewards, flushParliamentRewards, markAgendaBonusLanded, markRewardLanded, parliamentParksReveal,
+  parliamentRewardDiag, parliamentRewardPending, parliamentRewardState, RATING_RAIL_KEY, releaseParliamentRewards, resetParliamentRewards,
+  rewardBeatKey, rewardLanded, seedParliamentRewardHold, sittingKeyOf, takeAgendaBonus, takeOwedRewards, waveSpecOf,
 } from '@/client/console/parliament/parliamentRewardBeat';
 
 /*
- * THE REWARD BEAT'S LEDGER (Turmoil Redux, Э5): DETECT is pure against two
- * views, SEED holds the rail only while the sitting stands, OWE / FLY hand
+ * THE REWARD BEAT'S LEDGER (Turmoil Redux, Э5 → v2): DETECT is pure against
+ * two views, SEED holds the rail only while the sitting stands, OWE / FLY hand
  * the records to the director one touchdown at a time, and every path ends
- * with the counters released — a reward is never withheld, only shown.
+ * with the counters released — a reward is never withheld, only shown. v2:
+ * NO WALL CLOCK decides a tick — a hold ends by its touchdown, by a named end
+ * of the stage, or by the hold registry's own ceiling.
  */
 const BLUE = 'blue';
 const RED = 'red';
@@ -127,6 +130,7 @@ describe('parliamentRewardBeat — the ledger of what the sitting still owes', (
   });
 
   it('the Agenda CARD bonus PARKS the agenda reveal (nothing on the rail) until the director lands the glide; the park is scoped to that batch', () => {
+    consoleParliamentUi.stageStanding = true;
     seedParliamentRewardHold(view(undefined), view({generation: 3, seq: 7, agenda: {player: BLUE, from: 6, to: 7, bonus: 'card'}}));
     expect(heldStock(RATING_RAIL_KEY), 'a card step holds no rating').eq(0);
     expect(parliamentParksReveal({type: 'agenda'}), 'the agenda batch is parked').is.true;
@@ -170,14 +174,16 @@ describe('parliamentRewardBeat — the ledger of what the sitting still owes', (
     expect(panelRewardHold.active).is.false;
   });
 
-  it('SEED with the sitting OFF SCREEN (parked / absent): no hold, nothing owed — the counter ticks with the commit and the record reads «landed»', () => {
+  it('SEED with the sitting OFF SCREEN (parked / absent): no hold, nothing owed — the counter ticks with the commit and the record reads «landed»; the Agenda bonus too', () => {
     consoleParliamentUi.stageStanding = false;
     const before = view({generation: 3, seq: 7});
     const record = outcome({kind: 'stock', stock: Resource.PLANTS, amount: 4, step: 'b'});
-    seedParliamentRewardHold(before, view({generation: 3, seq: 7, outcomes: [record]}));
+    seedParliamentRewardHold(before, view({generation: 3, seq: 7, outcomes: [record], agenda: {player: BLUE, from: 1, to: 2, bonus: 'tr'}}));
     expect(parliamentRewardPending()).is.false;
     expect(heldStock('plants')).eq(0);
     expect(rewardLanded(record)).is.true;
+    expect(heldStock(RATING_RAIL_KEY), 'no track on screen to fly the bonus on — the rating ticks with the commit').eq(0);
+    expect(parliamentRewardState.agendaBonus).is.undefined;
   });
 
   it('a new sitting drops what the old one still owed (its holds released), and the phase\'s end clears the ledger', () => {
@@ -194,6 +200,7 @@ describe('parliamentRewardBeat — the ledger of what the sitting still owes', (
   });
 
   it('the Agenda TR bonus holds the rating on the rail until the director takes it and its chip lands', () => {
+    consoleParliamentUi.stageStanding = true;
     seedParliamentRewardHold(view(undefined), view({generation: 3, seq: 7, agenda: {player: BLUE, from: 1, to: 2, bonus: 'tr'}}));
     expect(heldStock(RATING_RAIL_KEY)).eq(1);
     expect(takeAgendaBonus(2), 'another generation\'s bonus is not this one').is.undefined;
@@ -205,36 +212,40 @@ describe('parliamentRewardBeat — the ledger of what the sitting still owes', (
     expect(parliamentRewardState.agendaBonus).is.undefined;
   });
 
-  it('PROGRESS re-arms the Agenda bonus\'s idle net (a sitting that moves is never a stall); nothing is armed when nothing is owed', () => {
+  it('v2 — NO WALL CLOCK: seeding arms no timer; a hold outlives any pause and ends only by a touchdown, an explicit end of the stage, or the registry\'s ceiling', () => {
     const armed: Array<number> = [];
-    const cleared: Array<unknown> = [];
     const realSet = globalThis.setTimeout;
-    const realClear = globalThis.clearTimeout;
-    let seq = 0;
     (globalThis as unknown as {setTimeout: unknown}).setTimeout = (_fn: () => void, ms: number) => {
       armed.push(ms);
-      return ++seq;
-    };
-    (globalThis as unknown as {clearTimeout: unknown}).clearTimeout = (id: unknown) => {
-      cleared.push(id);
+      return 0;
     };
     try {
-      noteAgendaBonusProgress();
-      expect(armed, 'nothing owed — nothing armed').has.length(0);
-      seedParliamentRewardHold(view(undefined), view({generation: 3, seq: 7, agenda: {player: BLUE, from: 1, to: 2, bonus: 'tr'}}));
-      expect(armed).deep.eq([AGENDA_BONUS_HOLD_SAFETY_MS]);
-      noteAgendaBonusProgress();
-      expect(armed, 're-armed for the same span').deep.eq([AGENDA_BONUS_HOLD_SAFETY_MS, AGENDA_BONUS_HOLD_SAFETY_MS]);
-      expect(cleared, 'the earlier net was dropped first').includes(1);
-      expect(heldStock(RATING_RAIL_KEY), 'the hold itself is untouched by progress').eq(1);
-      takeAgendaBonus(3);
-      markAgendaBonusLanded();
-      noteAgendaBonusProgress();
-      expect(armed, 'landed — progress arms nothing more').has.length(2);
+      consoleParliamentUi.stageStanding = true;
+      seedParliamentRewardHold(view({generation: 3, seq: 7}), view({generation: 3, seq: 7,
+        outcomes: [outcome({kind: 'stock', stock: Resource.PLANTS, amount: 4, step: 'a'})], agenda: {player: BLUE, from: 1, to: 2, bonus: 'tr'}}));
     } finally {
       globalThis.setTimeout = realSet;
-      globalThis.clearTimeout = realClear;
     }
+    // The ONLY timers around a seed are the hold registry's own ceilings (the wedge net every critical animation
+    // shares) — the ledger itself arms none: nothing here ticks by the clock.
+    expect(armed.every((ms) => ms >= 30_000), `the ledger armed no net of its own (${armed.join(',')})`).is.true;
+    expect(heldStock('plants')).eq(4);
+    expect(heldStock(RATING_RAIL_KEY)).eq(1);
+    // The blocking suppliers stand for both (the door the placement / host families wait on).
+    expect(isAnimationHoldActive()).is.true;
+    const labels = activeAnimationHoldLabels();
+    expect(labels.some((l) => l.startsWith('parliament-reward-owed')), labels.join(',')).is.true;
+    expect(labels.some((l) => l.startsWith('parliament-agenda-bonus-owed')), labels.join(',')).is.true;
+    // An explicit END OF THE STAGE releases everything at once, with its reason in the trail.
+    releaseParliamentRewards('board');
+    expect(parliamentRewardPending()).is.false;
+    expect(heldStock('plants')).eq(0);
+    expect(heldStock(RATING_RAIL_KEY)).eq(0);
+    expect(parliamentRewardState.agendaBonus).is.undefined;
+    const trail = parliamentRewardDiag().trail.map((e) => `${e.ev}:${(e.detail as {why?: string} | undefined)?.why ?? ''}`);
+    expect(trail).includes('flush:board');
+    expect(trail).includes('flush-agenda:board');
+    expect(activeAnimationHoldLabels().some((l) => l.startsWith('parliament-'))).is.false;
   });
 
   it('flush releases every owed and flying hold at once — a beat that cannot play is announced by its counter, never withheld', () => {
