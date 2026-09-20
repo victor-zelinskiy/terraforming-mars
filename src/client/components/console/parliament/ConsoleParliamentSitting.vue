@@ -73,22 +73,9 @@
               </span>
             </span>
           </div>
-          <div v-if="summary.agenda !== undefined" class="con-sit__row" data-sit-row="agenda">
-            <span class="con-parl__chip-dim">{{ $t('Agenda') }}</span>
-            <span class="con-sit__val">
-              <PlayerCube :color="summary.agenda.player" :size="cubePx(11)" :glow="false" />
-              <b>{{ summary.agenda.from }} → {{ summary.agenda.to }}</b>
-              <span v-if="agendaBonus !== undefined">{{ $t(agendaBonus) }}</span>
-            </span>
-          </div>
-          <div v-if="supportGained.length > 0" class="con-sit__row" data-sit-row="support">
-            <span class="con-parl__chip-dim">{{ $t('Popular support') }}</span>
-            <span class="con-sit__chips">
-              <span v-for="s in supportGained" :key="s.party" class="con-sit__chip">
-                <img class="con-sit__emblem" :src="emblemUrl(s.party)" alt="" /><b>+{{ s.gained }}</b>
-              </span>
-            </span>
-          </div>
+          <!-- (v3 В6) The AGENDA move and the POPULAR SUPPORT are no longer listed here: the player has just
+               watched the marker glide and the cubes land. A panel that re-tells what a movement said makes the
+               movement decorative — this one names only what was NOT on screen. -->
         </div>
       </template>
     </section>

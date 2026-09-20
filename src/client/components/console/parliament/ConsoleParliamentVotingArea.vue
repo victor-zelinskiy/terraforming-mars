@@ -19,8 +19,12 @@
       <div v-for="(slot, i) in shownSlots" :key="slot.instance" class="con-parl__slot-home" :class="{'con-parl__slot-home--vacated': holds.vacated.has(slot.instance)}" :data-home="slot.instance" :data-parl-slot-vacated="holds.vacated.has(slot.instance) ? '' : undefined">
         <!-- A HELD slot whose card has LEFT for the government (v2): an empty outline in its OWN place — the row never re-orders under the player. -->
         <div v-if="holds.vacated.has(slot.instance)" class="con-parl__slot-empty" data-parl-slot-empty>
-          <div class="con-parl__slot-label"></div>
+          <!-- (v3 В6) It explains itself EXACTLY like the empty slot beside it — a place that says «пусто» next to
+               a mute place of the same size was the emptier of the two. The label names the place, the plate says
+               why it is empty: this card has just been enacted. -->
+          <div class="con-parl__slot-label"><span class="con-parl__slot-party">{{ $t('Empty slot') }}</span></div>
           <div class="con-parl__slot-empty-card" data-parl-slot-empty-card aria-hidden="true"></div>
+          <span class="con-parl__slot-empty-reason">{{ $t('Enacted — it left the table') }}</span>
         </div>
         <Teleport v-else defer to="[data-parl-vrow]" :disabled="!slotsCarried">
           <div class="con-parl__slot"

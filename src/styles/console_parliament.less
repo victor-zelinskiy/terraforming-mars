@@ -729,6 +729,11 @@
            this row's column and the government's ruler block — the ruler's tile is the same chassis at the
            same size); the room left over goes into the gaps. `1fr` only before the first measure. */
         grid-template-columns: repeat(5, minmax(0, var(--con-parl-tile-w, 1fr)));
+        /* …and the same HEIGHT token (v3 В5): the ruler's tile stands in the government's SHORTER block, so a row
+           that filled its whole tier made the two plaques different objects — and the swap between them then read
+           as a substitution rather than a move. One box for all six; the tier's slack is split above and below. */
+        grid-template-rows: var(--con-parl-tile-h, minmax(0, 1fr));
+        align-content: center;
         justify-content: space-between;
         gap: .4rem;
         min-height: 0;
@@ -866,7 +871,29 @@
     /* The NEXT step — a light gold ring, an invitation to read, never a focus. */
     &__step--next &__step-node::after { content: ''; position: absolute; inset: -.24rem; border-radius: inherit; border: .07rem dashed fade(@con-parl-gold, 62%); pointer-events: none; }
     &__step--pulse &__step-node { animation: con-parl-node-bloom calc(900ms * var(--motion-scale, 1)) @con-ease-standard both; }
-    &__step-level { font-weight: 800; font-size: .82rem; line-height: 1; color: @con-parl-gold; }
+    /* THE INFLUENCE NODE (v3 В4) carries its own GLYPH with the LEVEL on it — the same disc, the same
+       frame and the same size as the TR and card nodes, so the three rewards read as three rewards. A
+       bare numeral in a circle read as an ordinal step, and the panel printed the same numeral about the
+       same event: two counts on one screen. There are no ordinals on this track. */
+    &__step-level {
+        position: absolute;
+        right: -.06rem;
+        bottom: -.1rem;
+        min-width: .68rem;
+        height: .68rem;
+        padding: 0 .1rem;
+        box-sizing: border-box;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 49.95rem;
+        background: rgba(12, 10, 6, 0.96);
+        box-shadow: inset 0 0 0 .06rem fade(@con-parl-gold, 72%);
+        font-weight: 800;
+        font-size: .58rem;
+        line-height: 1;
+        color: @con-parl-gold;
+    }
     /* The reward icons keep their own proportions (the TR plate is wide, the card is tall) inside the disc. */
     &__step-res {
         background-size: contain;
@@ -874,11 +901,15 @@
         background-position: center;
         &--tr { width: 1.02rem; height: .76rem; }
         &--card { width: .8rem; height: 1.14rem; border-radius: .08rem; box-shadow: 0 0 0 .05rem rgba(255, 255, 255, 0.3); }
+        &--inf { width: .92rem; height: .92rem; background-image: url(./assets/misc/influence.png); }
     }
     &__step-cubes { display: flex; align-items: flex-start; justify-content: center; gap: .08rem; width: 100%; height: 100%; padding-top: .06rem; box-sizing: border-box; }
     &__agenda-cube { display: inline-flex; &--hidden { visibility: hidden; } }
     /* The head's «next step» chip draws the same symbols at chip size. */
-    &__reward-step &__step-level { display: inline-flex; align-items: center; justify-content: center; width: 1.15rem; height: 1.15rem; border-radius: 50%; font-size: .7rem; background: fade(@con-parl-gold, 18%); box-shadow: inset 0 0 0 .07rem fade(@con-parl-gold, 70%); }
+    /* In the HEAD's chip the two stand SIDE BY SIDE (v3 В4): there is room on the line, and a badge over a 1rem
+       glyph reads as a circled number again — the very thing the track stopped doing. */
+    &__reward-step &__step-level { position: static; margin-left: .18rem; min-width: .72rem; height: .72rem; font-size: .56rem; }
+    &__reward-step { position: relative; display: inline-flex; align-items: center; }
     &__reward-step &__step-res { width: 1.15rem; height: 1.15rem; }
 }
 
@@ -907,6 +938,12 @@
     position: fixed;
     left: 0;
     top: 0;
+    /* BORN INVISIBLE (v3): a proxy is created NOW and positioned on the NEXT TICK, so without this it paints
+       one frame at the layer's origin — a cube blinking in the screen's corner before every single flight
+       (measured by the v3 support probe: every cube's first painted frame was at 8,8). All three entry
+       points set autoAlpha on that tick (0 for a flight that fades in, 1 for a parked face) and an inline
+       visibility beats this class, so nothing can stay hidden by accident. */
+    visibility: hidden;
     z-index: 11499;
     pointer-events: none;
     display: flex;
@@ -989,18 +1026,6 @@
         height: 1rem;
         background: url(./assets/misc/influence.png) center / contain no-repeat;
         flex-shrink: 0;
-    }
-    /* An influence step's node carries the badge as a quiet watermark UNDER
-       its level number — the number stays the reading, the badge says what it
-       is a level OF. */
-    &__step--influence &__step-node::before {
-        content: '';
-        position: absolute;
-        inset: .14rem;
-        border-radius: inherit;
-        background: url(./assets/misc/influence.png) center / 78% no-repeat;
-        opacity: .18;
-        pointer-events: none;
     }
     &__step--influence &__step-node { position: relative; }
     &__step--influence &__step-level { position: relative; }
