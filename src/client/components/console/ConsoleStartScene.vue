@@ -2183,7 +2183,15 @@ export default defineComponent({
     /** …and its resolution CONTEXT — one short state, never a breakdown. */
     ceremonyStatusText(): string {
       if (this.embedPresenting) {
-        return translateText('Card draw');
+        // THE EMBEDDED STAGE NAMES ITSELF. A hard-coded «Добор карт» was true
+        // of the only guest the zone originally had (the drawn-cards reveal)
+        // and a lie about every other one: a priced prelude's PAYMENT stood in
+        // this very zone under «СТАРТ ПАРТИИ › … › ОПЛАТА» with the rail below
+        // announcing a card draw that was not happening. The stage publishes
+        // its own key up (`setWorkspaceOutcomePhase`), which is the same source
+        // the crumb's tail reads — one voice, two places. Same resolution as
+        // `ConsoleColoniesSection`'s embedded kicker.
+        return translateText(this.outcome.phaseKey !== '' ? this.outcome.phaseKey : 'Card draw');
       }
       // The first-action stage: the rail carries only the short state — the
       // briefing panel owns the wait line (one text, one place; the rail

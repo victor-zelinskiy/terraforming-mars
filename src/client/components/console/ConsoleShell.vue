@@ -1861,7 +1861,7 @@ import {consoleReducedMotionActive} from '@/client/console/composables/useConsol
 import {currentRevealEvent, drawnCardsState, markRevealPresented, revealPresented, serverRevealConsumed, untakenNameMultiset} from '@/client/components/drawnCards/drawnCardsState';
 import {energyConversionState} from '@/client/components/feedback/energyConversionTransition';
 import {revealViewerState} from '@/client/components/notifications/revealViewerState';
-import {ConsoleTask, TaskKind, taskFor, taskMinimizable, taskServedByHost, shellTaskOnSurface, followUpStepStage, NATIVE_COMPOSITE_KINDS, SCENE_KINDS, SECTION_SERVED_KINDS, SHELL_SECTION_KINDS, corpFirstActionInStartFlow} from '@/client/console/consoleTaskRouter';
+import {ConsoleTask, TaskKind, taskFor, taskMinimizable, taskServedByHost, shellTaskOnSurface, followUpStepStage, promptOutranksStartScene, NATIVE_COMPOSITE_KINDS, SCENE_KINDS, SECTION_SERVED_KINDS, SHELL_SECTION_KINDS, corpFirstActionInStartFlow} from '@/client/console/consoleTaskRouter';
 import ConsoleSpendHeat from '@/client/components/console/ConsoleSpendHeat.vue';
 import ConsoleVenusBonus from '@/client/components/console/ConsoleVenusBonus.vue';
 import ConsoleBotAttack from '@/client/components/console/ConsoleBotAttack.vue';
@@ -4103,9 +4103,33 @@ export default defineComponent({
       // surviving start root — the deepest frame owns the pad (the stack's
       // own law). Without this term the scene swallowed every A over a served
       // prompt with a focused row and a live bar: four presses, zero submits.
+      // …and never over a PROMPT SURFACE of its own (`startPromptSurfaceStands`)
+      // — the general form of the three terms above, and the last hole in them.
       return this.startSceneVisible && this.startSceneServes &&
         !this.startSponsorEmbed && !this.colonyEmbedActive && !this.deckPickServing &&
-        this.consoleState.sheet === undefined;
+        this.consoleState.sheet === undefined && !this.startPromptSurfaceStands;
+    },
+    /**
+     * ANOTHER SURFACE IS SERVING THE SERVER'S PROMPT over (or inside) the start
+     * workspace — so the workspace owns neither the pad nor the bar.
+     *
+     * The opening's lifetime hold spans every gap between beats, which is what
+     * makes «the scene is up» say nothing about who is being asked. A prelude
+     * with a price answered in an alternative currency (Helion's heat on
+     * «Огромный астероид») raises a `SelectPayment` that teleports into the
+     * workspace's OWN zone as its «› ОПЛАТА» stage; the scene kept the pad, so A
+     * still read «РАЗЫГРАТЬ» on the queue behind the panel and LB/RB never
+     * reached the heat lane. An exact, valid payment that could not be
+     * confirmed — and the same for every other host-served family a prelude can
+     * raise (`promptOutranksStartScene` states the whole class).
+     *
+     * ADMISSION-GATED on purpose, exactly like `hostTask` / `nativeCompositeTask`
+     * are: during a hold nothing is mounted to hand the pad TO, and the press
+     * must keep being absorbed by the scene rather than fall through to the
+     * board standing behind it.
+     */
+    startPromptSurfaceStands(): boolean {
+      return this.admits('host') && promptOutranksStartScene(this.playerView);
     },
     /** OPTIONAL draft re-pick — the fork shows a calm "waiting for the other
      *  players" banner instead of offering to change the pick (desktop parity). */
@@ -7594,13 +7618,19 @@ export default defineComponent({
         }
         return 'Cards';
       }
-      if (this.startSceneServes && !this.consoleState.task.deferred && !this.placementActive) {
+      if (this.startSceneServes && !this.consoleState.task.deferred && !this.placementActive &&
+          !this.startPromptSurfaceStands) {
         // The scene's own header already reads «СТАРТ ПАРТИИ» (kicker +
         // title) — repeating it in the bar is noise. The bar carries ONLY
         // the physical commands during the initial setup.
         // …unless the workspace has YIELDED to a board placement: the scene
         // paints nothing then, so an empty context would leave the placement
         // unnamed — it falls through to the placement kicker below.
+        // …or to a PROMPT SURFACE of its own (the prelude's payment host, a
+        // composite): the bar belongs to the surface the player is driving,
+        // exactly as the pad does — it falls through and names that decision.
+        // A hosted STEP (the sponsor's hand, a colony) keeps the '' : the
+        // crumb already names the whole path and the step is not a new voice.
         return '';
       }
       if (this.govSupportActive && !this.consoleState.task.deferred && this.taskSpacePending === undefined) {
@@ -7910,6 +7940,10 @@ export default defineComponent({
         // vs. summary vs. ceremony: X inspects, RT continues / begins, etc.);
         // the bar mirrors it verbatim so it can never diverge from the buttons
         // (the old hard-coded list wrongly showed X = «Продолжить» and hid RT).
+        // ⚠️ THE SAME QUESTION AS THE PAD, deliberately: reading `startSceneServes`
+        // here instead is what printed «A РАЗЫГРАТЬ · X ОСМОТРЕТЬ · B СВЕРНУТЬ»
+        // over a live payment the queue could not take — the bar belongs to the
+        // surface the player is driving, and the branches below name it.
         return consoleStartUi.commands.length > 0 ?
           [...consoleStartUi.commands] :
           [
@@ -12010,6 +12044,12 @@ export default defineComponent({
       // Same for the YIELD to a board PLACEMENT (a prelude that owes a tile):
       // the scene is hidden, so routing here would swallow the pad — the
       // board below is the surface that serves it (`startSceneOwnsPad`).
+      // …and the GENERAL form of all three: a PROMPT SURFACE OF ITS OWN is
+      // standing (the task host and the panels cascading off it, a dedicated
+      // composite — `startPromptSurfaceStands`). The branches for those sit
+      // BELOW this one, so yielding here is what lets the press reach them:
+      // «Огромный астероид» paid with Helion's heat raised the payment INSIDE
+      // this very workspace and the scene swallowed every press aimed at it.
       // DRAW & SELECT owns the pad while it serves — BEFORE the start scene,
       // because the commonest host for it IS the start scene (a prelude that
       // looks at the top of the deck). Through its own outgoing beats it

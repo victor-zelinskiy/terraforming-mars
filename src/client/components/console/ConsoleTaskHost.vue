@@ -1925,9 +1925,34 @@ export default defineComponent({
      * accepted mid-flight is an input race by construction. Exactly the
      * `deal.state.active` rule the standalone stage has always applied to its
      * own cinematic, for the workspace's.
+     *
+     * ⚠️ IT IS ABOUT THE SLOTS, NOT ABOUT THE CLAIM. A play claims its outcome
+     * OPTIMISTICALLY — `draw` + `pick` + `effect`, before the response exists,
+     * because a triggered draw is invisible to every preview — and the arrival
+     * is marked done by whoever actually LANDS the cards. A response that
+     * carries no cards at all therefore leaves `arrivalDone` false until the
+     * claim's own backstop fires, which is harmless for a stage the batch was
+     * going to land on and pure damage for one it never could: a prelude's
+     * embedded PAYMENT («Огромный астероид» paid with Helion's heat) stood
+     * exact and valid with every press swallowed and the bar reduced to the
+     * shell's fallback verbs for the backstop's whole length. The gate belongs
+     * to the LANDING ZONE — see `stageTakesBatch`.
      */
     arrivalPending(): boolean {
-      return this.embedded && workspaceOutcomeArrivalPending();
+      return this.embedded && this.stageTakesBatch && workspaceOutcomeArrivalPending();
+    },
+    /**
+     * IS THIS STAGE THE CLAIMED BATCH'S LANDING ZONE — the card strip whose
+     * held, invisible slots the proxies fly into?
+     *
+     * Only the card families have slots for a batch to arrive over. A payment,
+     * an amount, a resource pick, an OrOptions branch list renders no card of
+     * the batch at all, so for them «the batch is still arriving» can only ever
+     * mean «swallow the player's input for nothing».
+     */
+    stageTakesBatch(): boolean {
+      return this.activeTask.kind === 'cardSelect' ||
+        (this.activeTask.kind === 'projectCard' && this.pcStage === 'pick');
     },
   },
   watch: {

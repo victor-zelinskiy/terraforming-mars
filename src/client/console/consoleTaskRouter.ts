@@ -781,3 +781,54 @@ export function taskServedByHost(view: PlayerViewModel): ConsoleTask | undefined
     return undefined;
   }
 }
+
+/**
+ * DOES A SURFACE OF ITS OWN STAND OVER THE GAME START WORKSPACE FOR THIS
+ * PROMPT — and must the workspace therefore hand it the pad and the bar?
+ *
+ * THE FAILURE THIS EXISTS FOR. The start workspace holds the pad for the WHOLE
+ * opening: its lifetime hold spans every gap between beats, so «the scene is
+ * up» says nothing about who the server is asking right now. A prelude with a
+ * price («Огромный астероид») played by a corporation with an alternative
+ * currency (Helion's heat) raises a `SelectPayment`; the task host teleports
+ * into the workspace's own zone as its «› ОПЛАТА» stage — and the scene kept
+ * the pad. The panel stood there exact and valid while A still read as
+ * «РАЗЫГРАТЬ» on the queue behind it and LB/RB walked a card list the player
+ * could not see. The opening was structurally unable to accept a decision it
+ * was itself displaying.
+ *
+ * AND IT IS A CLASS, NOT A CARD. Every host-served family can arrive during
+ * the opening — the OrOptions a prelude asks, an amount, a resource pick, a
+ * target player («Great Escarpment Consortium»), a card buy — plus the
+ * dedicated composites a prelude's global parameter can trip (the Venus
+ * bonus, the Ares thresholds, Stormcraft's spend-heat).
+ *
+ * WHAT IS DELIBERATELY NOT HERE. A prompt whose surface is a FRAME — the hand
+ * (the sponsor's play-from-hand), the colonies, «Добор карт», the awards
+ * sheet, the Parliament — is already yielded to by PRESENCE
+ * (`startSponsorEmbed` / `colonyEmbedActive` / `deckPickServing` /
+ * `workspaceHostYieldsScene`), which is the stack's own law. Saying «yes» for
+ * one of those here would hand the pad over in the window BEFORE its frame is
+ * up, and the press would fall through to the board standing behind the
+ * scene. Same for `composite` / `unknown`: nothing native serves them, so
+ * there is nobody to hand the pad to and the scene must keep absorbing.
+ *
+ * Built ON `taskServedByHost` instead of restating its carve-outs (the
+ * `projectCard` mode split, the nestable-`or` test, the workspace-served
+ * `choice` flavours): one classifier, one answer, no second list to drift.
+ */
+export function promptOutranksStartScene(view: PlayerViewModel): boolean {
+  if (taskServedByHost(view) !== undefined) {
+    return true;
+  }
+  const kind = taskFor(view)?.kind;
+  if (kind === undefined) {
+    return false;
+  }
+  // The DEDICATED COMPOSITES rise on the same admission as the host and take
+  // the whole decision the same way — except `deckSelect`, whose surface is
+  // the DRAW & SELECT workspace: it is routed ABOVE the scene and carries its
+  // own term (`deckPickServing`), so while it is still coming up the scene is
+  // the only thing on screen and must keep absorbing presses.
+  return kind !== 'deckSelect' && NATIVE_COMPOSITE_KINDS.has(kind);
+}

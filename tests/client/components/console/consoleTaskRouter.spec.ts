@@ -1,5 +1,5 @@
 import {expect} from 'chai';
-import {taskFor, taskServedByHost, isNativelyHandled, taskMinimizable, followUpStepStage, NATIVE_KINDS, NATIVE_COMPOSITE_KINDS, SCENE_KINDS, SECTION_SERVED_KINDS, SHELL_SECTION_KINDS, ConsoleTask, TaskKind} from '@/client/console/consoleTaskRouter';
+import {taskFor, taskServedByHost, isNativelyHandled, taskMinimizable, followUpStepStage, promptOutranksStartScene, NATIVE_KINDS, NATIVE_COMPOSITE_KINDS, SCENE_KINDS, SECTION_SERVED_KINDS, SHELL_SECTION_KINDS, ConsoleTask, TaskKind} from '@/client/console/consoleTaskRouter';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {PlayerInputModel} from '@/common/models/PlayerInputModel';
 
@@ -48,6 +48,11 @@ const FIXTURES: Array<{row: string, wf: any, hand?: Array<string>, srr?: Array<s
   // exactly why the marker had to exist.
   {row: '13a deck keep-some', wf: {type: 'card', title: 'Select 2 card(s) to keep', buttonLabel: 'Select', cards: [{name: 'Birds'}, {name: 'Tardigrades'}], deckPickPrompt: {revealed: 2, min: 2, max: 2, origin: 'deck', mode: 'keep'}}, expect: {kind: 'deckSelect'}},
   {row: '13b discard-pile keep-some', wf: {type: 'card', title: 'Select 1 card(s) to keep', buttonLabel: 'Select', cards: [{name: 'Birds'}], deckPickPrompt: {revealed: 1, min: 1, max: 1, origin: 'discard', mode: 'keep'}}, expect: {kind: 'deckSelect'}},
+  // The MANDATORY TAKE of a draw ANOTHER player's effect made for the viewer —
+  // an ordinary `SelectCard` on the wire, and the marker carries its whole
+  // meaning (cause, initiator, trigger). Classified by type it lands in the
+  // generic card browser, which is exactly what the marker exists to prevent.
+  {row: '13c external draw take', wf: {type: 'card', title: 'Take the cards', buttonLabel: 'Take', cards: [{name: 'Birds'}], externalDrawPrompt: {intakeId: 1, count: 1, remaining: 1}}, expect: {kind: 'externalDraw'}},
   {row: '16 play-from-hand prompt', wf: {type: 'projectCard', title: 'Play a card from hand', cards: [{name: 'Birds'}]}, hand: ['Birds'], expect: {kind: 'projectCard', mode: 'playFromHand'}},
   {row: '17 std-project prompt', wf: {type: 'projectCard', title: 'Play a standard project', cards: [{name: 'Power Plant:SP'}]}, expect: {kind: 'projectCard', mode: 'standardProject'}},
   // Wave 2: the DEGENERATE third shape is structural — candidates that are
@@ -107,7 +112,7 @@ const ALL_INPUT_TYPES = [
 const ALL_TASK_KINDS: ReadonlyArray<TaskKind> = [
   'actionMenu', 'space', 'choice', 'awardFunding', 'player', 'amount', 'resource',
   'distribute', 'payment', 'draftWait', 'cardSelect', 'deckSelect', 'handSelect',
-  'projectCard', 'colony', 'colonyBonus', 'venusBonus', 'spendHeat', 'botAttack',
+  'projectCard', 'colony', 'colonyBonus', 'externalDraw', 'venusBonus', 'spendHeat', 'botAttack',
   'composite', 'initialDraft', 'startSequence', 'corpFirstAction', 'aresGlobal', 'party', 'parliamentPhase', 'unknown',
 ];
 
@@ -280,6 +285,15 @@ describe('consoleTaskRouter (CTS-2 coverage)', () => {
       if (task === undefined) {
         continue;
       }
+      if (task.kind === 'externalDraw') {
+        // THE ONE DELIBERATE ASYMMETRY (`taskMinimizable` states it too): its
+        // workspace IS claimed by a family, but the take is LOCKED once that
+        // workspace is open — the take is the only way out — and before it
+        // opens the player roams freely behind the announce plate. So there is
+        // nothing to fold and nothing to come back to.
+        expect(taskMinimizable(task.kind), 'the external-draw take never folds').to.eq(false);
+        continue;
+      }
       const claimed = taskServedByHost(v) !== undefined ||
         SHELL_SECTION_KINDS.has(task.kind) ||
         SCENE_KINDS.has(task.kind) ||
@@ -392,5 +406,143 @@ describe('consoleTaskRouter (CTS-2 coverage)', () => {
     for (const kind of NATIVE_KINDS) {
       expect(red.has(kind), `native kind "${kind}" must not be red`).to.eq(false);
     }
+  });
+
+  /**
+   * WHO OWNS THE PAD DURING THE OPENING — the guard for a whole CLASS of
+   * soft-locks, not for one card.
+   *
+   * The Game Start Workspace holds the pad and the bar for the WHOLE opening:
+   * its lifetime hold spans every gap between beats, so «the scene is up» says
+   * nothing about who the server is asking. A prelude with a price («Огромный
+   * астероид») played by a corporation with an alternative currency (Helion's
+   * heat) raises a `SelectPayment`, and the host teleports into the workspace's
+   * own zone as its «› ОПЛАТА» stage — but the scene kept the pad. The panel
+   * stood there exact and valid («ОПЛАЧЕНО 5/5 · ТОЧНАЯ ОПЛАТА») while A still
+   * read «РАЗЫГРАТЬ» on the queue behind it and LB/RB never reached the heat
+   * lane: a decision the opening was displaying and was structurally unable to
+   * accept. Every other host-served family a prelude can raise — an OrOptions,
+   * an amount, a resource pick, a target player, a card buy — and every
+   * dedicated composite a prelude's global parameter can trip was deaf for
+   * exactly the same reason.
+   *
+   * THREE SIDES, and a kind is on exactly one of them:
+   *
+   *   · `self`    — the opening answers it ITSELF (its wizard, its deployment
+   *                 presses, its first-action stage). It keeps the pad.
+   *   · `frame`   — the surface is a FRAME the workspace stack already accounts
+   *                 for (the hand, the colonies, «Добор карт», the awards
+   *                 sheet, the Parliament, the board). The scene yields to
+   *                 those by PRESENCE, which is what keeps it ABSORBING presses
+   *                 in the window before that frame is up — so this predicate
+   *                 must answer «no», or the press falls through to the board
+   *                 standing behind the scene. `composite` / `unknown` sit here
+   *                 too: nothing native serves them, so there is nobody to hand
+   *                 the pad to.
+   *   · `surface` — a surface of its OWN comes up over (or inside) the
+   *                 workspace and takes the whole decision: the task host and
+   *                 every panel cascading off it, plus the dedicated
+   *                 composites. The opening hands over the pad AND the bar.
+   */
+  describe('promptOutranksStartScene (the opening never holds a pad it cannot use)', () => {
+    type StartSide = 'self' | 'frame' | 'surface';
+
+    /** Exhaustive over TaskKind — checked against ALL_TASK_KINDS below. */
+    const START_SIDE: Readonly<Record<TaskKind, StartSide>> = {
+      // ── the opening answers these ITSELF ────────────────────────────────
+      initialDraft: 'self', // the setup wizard (corp / preludes / CEO / buy)
+      startSequence: 'self', // every deployment press, the campaign ones included
+      corpFirstAction: 'self', // the «ПЕРВОЕ ДЕЙСТВИЕ» stage of the same flow
+      actionMenu: 'self', // «Фора»: the announce, before the trip to the board
+      draftWait: 'self', // the initial draft's calm «ждём других» page
+      // ── a FRAME serves these; presence yields, never this predicate ─────
+      space: 'frame', // the board (the scene hides — `startSceneVisible`)
+      projectCard: 'frame', // playFromHand → the hand step; standardProject → the sheet
+      handSelect: 'frame', // the hand carousel in select mode
+      colony: 'frame',
+      colonyBonus: 'frame',
+      awardFunding: 'frame', // Vitor's free sponsorship — the awards frame takes the scene
+      party: 'frame',
+      parliamentPhase: 'frame',
+      externalDraw: 'frame',
+      deckSelect: 'frame', // «Добор карт» — routed ABOVE the scene, its own term
+      composite: 'frame', // nothing native serves it…
+      unknown: 'frame', // …nor it: the honest guard, and the scene keeps absorbing
+      // ── THE CLASS THE OPENING USED TO SWALLOW ──────────────────────────
+      payment: 'surface',
+      choice: 'surface',
+      player: 'surface',
+      amount: 'surface',
+      resource: 'surface',
+      distribute: 'surface',
+      cardSelect: 'surface',
+      venusBonus: 'surface',
+      spendHeat: 'surface',
+      aresGlobal: 'surface',
+      botAttack: 'surface',
+    };
+
+    it('EXHAUSTIVE: every TaskKind declares which side of the opening it is on', () => {
+      expect(ALL_TASK_KINDS.filter((k) => START_SIDE[k] === undefined),
+        'a new prompt family must say whether the opening answers it, a frame does, or it takes the pad').to.deep.eq([]);
+      expect(Object.keys(START_SIDE).filter((k) => !ALL_TASK_KINDS.includes(k as TaskKind)),
+        'stale kind in START_SIDE').to.deep.eq([]);
+    });
+
+    /* The fixture table covers every kind (its own exhaustiveness test above),
+     * so this walks the whole classification against real wire shapes. The one
+     * kind that splits by MODE is asserted separately below. */
+    for (const f of FIXTURES) {
+      it(`row ${f.row} · the opening knows who owns the pad`, () => {
+        const v = view(f.wf, f.hand ?? [], f.srr ?? []);
+        const task = taskFor(v);
+        expect(task, f.row).to.not.eq(undefined);
+        if (task === undefined || task.kind === 'projectCard') {
+          return; // the mode split has its own assertions
+        }
+        expect(promptOutranksStartScene(v), `${f.row} · ${task.kind}`)
+          .to.eq(START_SIDE[task.kind] === 'surface');
+      });
+    }
+
+    it('THE REPORTED CASE: a prelude payment takes the pad from the opening', () => {
+      // «Огромный астероид» + Helion — the bill the console showed and could
+      // not accept. Identified structurally (the prompt TYPE), never a title.
+      const pay = view({type: 'payment', title: 'Select how to spend 5 M€'});
+      expect(taskFor(pay)?.kind).to.eq('payment');
+      expect(promptOutranksStartScene(pay), 'the payment host owns the pad, not the queue behind it').to.eq(true);
+    });
+
+    it('a GENERIC projectCard is host-served and outranks; the two real shapes are frames', () => {
+      expect(promptOutranksStartScene(view({type: 'projectCard', title: 'p', cards: []}))).to.eq(true);
+      expect(promptOutranksStartScene(view({type: 'projectCard', title: 'p', cards: [{name: 'Birds'}]}))).to.eq(true);
+      // playFromHand (every candidate in hand) and the std-project shape are
+      // the hand step / the sheet — the scene yields to them by PRESENCE.
+      expect(promptOutranksStartScene(view({type: 'projectCard', title: 'p', cards: [{name: 'Birds'}]}, ['Birds']))).to.eq(false);
+      expect(promptOutranksStartScene(view({type: 'projectCard', title: 'p', cards: [{name: 'Power Plant:SP'}]}))).to.eq(false);
+    });
+
+    it('a WORKSPACE-served choice flavour does NOT outrank (the Hydronetwork owns it)', () => {
+      const deltaBonus = view({type: 'or', title: 'Bonus move', options: [], deltaBonusPrompt: {stage: 1}});
+      expect(taskFor(deltaBonus)?.kind).to.eq('choice');
+      expect(taskServedByHost(deltaBonus), 'its own workspace serves it').to.eq(undefined);
+      expect(promptOutranksStartScene(deltaBonus)).to.eq(false);
+    });
+
+    it('nothing asked → nothing outranks (the opening keeps its own pad)', () => {
+      expect(promptOutranksStartScene(view(undefined))).to.eq(false);
+    });
+
+    /* THE RULE, stated once against the ONE classifier: anything the task host
+     * fully serves takes the pad. A future carve-out in `taskServedByHost` is
+     * inherited here instead of drifting from it. */
+    it('every host-served prompt outranks the opening', () => {
+      for (const f of FIXTURES) {
+        const v = view(f.wf, f.hand ?? [], f.srr ?? []);
+        if (taskServedByHost(v) !== undefined) {
+          expect(promptOutranksStartScene(v), `${f.row}: host-served ⇒ the host owns the pad`).to.eq(true);
+        }
+      }
+    });
   });
 });
