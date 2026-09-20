@@ -34,6 +34,7 @@
            :data-stage="flow.stage"
            :data-sitting-stage="sittingUp ? sittingStage : undefined"
            :data-sitting-walking="walking ? '' : undefined"
+           :data-parl-leaving="leaving ? '' : undefined"
            data-motion-panel>
     <ConsoleWsHead class="con-parl__head"
                    root="Parliament"
@@ -53,7 +54,7 @@
     <div class="con-parl__body">
       <!-- ══ TOP TIER: the GOVERNMENT · the VOTING AREA ══ -->
       <div class="con-parl__top">
-        <ConsoleParliamentGovernment :view="view" :model="model" :players="playerView.players" :viewerColor="viewerColor"
+        <ConsoleParliamentGovernment :view="view" :model="model" :players="pv.players" :viewerColor="viewerColor"
                                      :agendaVm="agendaVm" :sittingStage="sittingUp ? sittingStage : ''" />
         <ConsoleParliamentVotingArea :view="view" :model="model" :viewerColor="viewerColor" :viewerParticipates="viewerParticipates"
                                      :benchWarn="benchWarn" :seatCandidates="seatCandidates" :sittingStage="sittingUp ? sittingStage : ''" />
@@ -67,7 +68,7 @@
       <div class="con-parl__mid" data-parl-mid data-parl-recede ref="midEl">
         <div class="con-parl__parties-tier" ref="partiesTierEl" :class="{'con-parl__parties-tier--parked': stageUp && !motion.peek}" v-show="!stageUp || stageLeaving || motion.peek">
           <ConsoleParliamentParties :view="view" :partyStates="partyStates" :partyActionStates="partyActionStates" :viewerColor="viewerColor"
-                                    :awaitingInput="awaitingInput" :sittingParties="sittingParties" />
+                                    :awaitingInput="awaitingInput" />
         </div>
 
         <!-- ── THE STAGE ZONE — the chairman SEAT pick and the SITTING unfold in
@@ -79,7 +80,7 @@
                                        @submit="submitSeat($event)" @inspect="$emit('inspect', $event)" />
             <ConsoleParliamentSitting v-else-if="stageKind === 'sitting' && sitting !== undefined" ref="sitting"
                                       :position="sitting" :stage="sittingStage" :summary="model?.phase?.summary"
-                                      :view="view" :model="model" :playerView="playerView" :viewerColor="viewerColor"
+                                      :view="view" :model="model" :playerView="pv" :viewerColor="viewerColor"
                                       :field="flow.sittingField" :resultsHidden="resultsHidden" mode="live" />
             <div class="con-parl__embed" data-embed-slot="parliament"></div>
           </div>
@@ -91,7 +92,7 @@
     </div>
 
     <ConsoleParliamentVoteMode ref="voteMode"
-                               :view="view" :model="model" :playerView="playerView" :viewerColor="viewerColor" :viewerParticipates="viewerParticipates"
+                               :view="view" :model="model" :playerView="pv" :viewerColor="viewerColor" :viewerParticipates="viewerParticipates"
                                :awaitingInput="awaitingInput" :bridge="bridge" :voteTile="voteTile" :winningSlot="winningSlot"
                                :benchSource="benchSource" :benchWarn="benchWarn" :canActNow="canActNow" :canVoteNow="canVoteNow"
                                @notice="$emit('notice', $event)" @inspect="$emit('inspect', $event)"
@@ -136,6 +137,7 @@ import {
 import {
   sittingPageAuto, sittingPositionOf, SittingPosition, sittingPrimaryKey, sittingRewardSettled, SittingStage, sittingStageAt, sittingStageKey,
   sittingStartPage, sittingWorkspacePhase, verdictStandsAt,
+  parliamentSittingLive,
 } from '@/client/console/parliament/consoleSittingFlow';
 import {parliamentHolds, resetParliamentHolds} from '@/client/console/parliament/parliamentDisplayHolds';
 import {SittingBeat, sittingBeats} from '@/client/console/parliament/sittingBeats';
@@ -148,11 +150,11 @@ import {fitParliamentCards, freezeParliamentFit} from '@/client/console/parliame
 import {parliamentCommandsOf} from '@/client/console/parliament/parliamentCommands';
 import {ParliamentInspectRequest} from '@/client/console/parliament/parliamentInspect';
 import {
-  armPartyActionDescent, navigateParliamentZones, parliamentBrowseInspectRequest, partyActionRefusal,
+  armPartyActionDescent, navigateParliamentZones, parliamentBrowseInspectRequest, parliamentEnactedInspectRequest, partyActionRefusal,
 } from '@/client/console/parliament/parliamentNavigation';
 import {BenchSource, benchSourceOf, benchWarnOf} from '@/client/console/parliament/parliamentVoteView';
 import {
-  setWorkspaceFramePhase, setWorkspaceFrameStage, setWorkspaceFrameSubject, workspaceFrameAnchor, workspaceFrameHasNested,
+  setWorkspaceFramePhase, setWorkspaceFrameStage, setWorkspaceFrameSubject, workspaceFrameAnchor, workspaceFrameHasNested, workspaceFrameRenders,
 } from '@/client/console/consoleWorkspaceStack';
 import {translateText} from '@/client/directives/i18n';
 import {promptIdentityKey} from '@/client/console/turnIntents';
@@ -174,6 +176,8 @@ export default defineComponent({
   },
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
+    /** The shell plays this section's LEAVE (v3 В1): the surface is latched on the last coherent view until the unmount. */
+    leaving: {type: Boolean, default: false},
     myTurn: {type: Boolean, default: false},
     awaitingInput: {type: Boolean, default: false},
   },
@@ -182,6 +186,13 @@ export default defineComponent({
     return {
       /** The seat / sitting stage is folding back — its DOM stays for the leave beat. */
       stageLeaving: false,
+      /**
+       * THE LEAVE LATCH (v3 В1): the last COHERENT player view, frozen when the surface starts leaving —
+       * the phase's end (the sitting's data gone in the same response that closes the frame), the flow's
+       * conclusion, B's «свернуть», the yield to the board. Every computed reads `pv` (this or the live
+       * prop), so no tier re-computes on its way out: the surface leaves WHOLE, as one motion.
+       */
+      frozenView: undefined as PlayerViewModel | undefined,
       submitTimer: undefined as number | undefined,
       /** The server's answer key at the submit — the answer is whatever changes it. */
       submittedKey: '',
@@ -207,21 +218,25 @@ export default defineComponent({
     flightsAirborne(): boolean {
       return parliamentFlightsAirborne();
     },
+    /** THE VIEW THIS SURFACE READS: the leave latch while leaving, the live prop otherwise (v3 В1). */
+    pv(): PlayerViewModel {
+      return this.frozenView ?? this.playerView;
+    },
     model(): ParliamentModel | undefined {
-      return this.playerView.game.parliament;
+      return this.pv.game.parliament;
     },
     viewerColor(): Color | undefined {
-      return this.playerView.thisPlayer?.color;
+      return this.pv.thisPlayer?.color;
     },
     viewerParticipates(): boolean {
       return this.view.viewer?.participates === true;
     },
     view(): ParliamentViewVm {
       const model = this.model;
-      return model === undefined ? emptyParliamentView() : buildParliamentView(model, this.viewerColor, this.playerView.players);
+      return model === undefined ? emptyParliamentView() : buildParliamentView(model, this.viewerColor, this.pv.players);
     },
     bridge(): ParliamentPromptBridge {
-      return parliamentPromptBridge(this.playerView.waitingFor);
+      return parliamentPromptBridge(this.pv.waitingFor);
     },
     /** A nested frame (the action workspace) took the scene — this screen yields and waits. */
     sceneHandedOver(): boolean {
@@ -256,7 +271,7 @@ export default defineComponent({
      * phase the viewer takes part in. Every stage below derives from it.
      */
     sitting(): SittingPosition | undefined {
-      return sittingPositionOf(this.model, this.playerView.waitingFor, this.viewerColor);
+      return sittingPositionOf(this.model, this.pv.waitingFor, this.viewerColor);
     },
     /** The sitting's server step — its change re-seats the walk. */
     sittingStepKey(): string {
@@ -312,24 +327,6 @@ export default defineComponent({
       const phase = this.model?.phase;
       return phase === undefined ? '' : `${phase.generation}:${phase.summary?.seq ?? phase.generation}`;
     },
-    /**
-     * The parties the sitting lights: the plaque ACCEPTING support during the
-     * support beat; the enacted party once the plaques have changed places
-     * (never before — the new ruler's tile in the row would spoil the beat).
-     */
-    sittingParties(): Array<ReduxParty> {
-      const summary = this.model?.phase?.summary;
-      if (!this.sittingUp || summary === undefined) {
-        return [];
-      }
-      if (sittingMotion.supportParty !== '') {
-        return [sittingMotion.supportParty];
-      }
-      if (this.sittingStage === 'verdict' || parliamentHolds.rulerBefore !== undefined) {
-        return [];
-      }
-      return [summary.enacted.party];
-    },
     /** The Agenda step the enactment lights — the winner's new position, once the marker has reached it. */
     sittingStep(): number | undefined {
       const summary = this.model?.phase?.summary;
@@ -371,7 +368,7 @@ export default defineComponent({
       return benchSourceOf(this.view, parliamentFlow.voteSnapshot);
     },
     benchWarn(): boolean {
-      return benchWarnOf(this.benchSource, this.voteTile, this.playerView.thisPlayer?.megacredits ?? 0);
+      return benchWarnOf(this.benchSource, this.voteTile, this.pv.thisPlayer?.megacredits ?? 0);
     },
     /** The execution gate — the viewer's own action window (never a reason of its own). */
     canActNow(): boolean {
@@ -423,10 +420,29 @@ export default defineComponent({
      * miss it. The identity is structural (`promptIdentityKey`), never a raw title.
      */
     answerKey(): string {
-      return `${this.playerView.game.gameAge}|${promptIdentityKey(this.playerView.waitingFor)}`;
+      return `${this.pv.game.gameAge}|${promptIdentityKey(this.pv.waitingFor)}`;
     },
   },
   watch: {
+    /**
+     * THE PHASE'S END IS THE SURFACE'S END (v3 В1): the response that carries the sitting's data away is
+     * the one that closes the frame (the shell's `parliamentSittingFrameLive` watcher) — the surface must
+     * never render THAT view. Pre-flush, before this very render: latch the view the sitting stood with.
+     * Declared first: the `leaving` watcher below keeps whatever this one froze.
+     */
+    'playerView'(now: PlayerViewModel, was: PlayerViewModel | undefined): void {
+      if (this.frozenView === undefined && was !== undefined && parliamentSittingLive(was) && !parliamentSittingLive(now) && this.rootIsClosing()) {
+        this.frozenView = was;
+      }
+    },
+    /** The shell plays the leave: freeze on the live view (a flow's conclusion, «свернуть», the yield); a cancelled leave lets go. */
+    'leaving'(on: boolean): void {
+      if (on) {
+        this.frozenView ??= this.playerView;
+      } else {
+        this.frozenView = undefined;
+      }
+    },
     'commands': {
       immediate: true,
       handler(cmds: ReadonlyArray<ConsoleCommand>): void {
@@ -628,6 +644,12 @@ export default defineComponent({
     this.stopFitObs?.();
     this.clearSubmitTimer();
     resetSittingDirector();
+    // The phase is over (the section unmounts after its latched leave — v3 В1): the sitting's display
+    // holds end here, never in the apply block that carried the phase away (the surface still needed
+    // them for its leave). A park / a yield keeps them: the walk resumes over them.
+    if (!parliamentSittingLive(this.playerView)) {
+      resetParliamentHolds();
+    }
     // A reward whose wave has not left with the sitting leaving (a park, the
     // board taking the screen, the phase's end) is announced by its counter
     // now — never held for a stage that is gone. The DISPLAY holds stay: the
@@ -724,6 +746,15 @@ export default defineComponent({
     handleBrowseIntent(intent: GamepadIntent): void {
       if (intent.kind === 'nav') {
         navigateParliamentZones(intent.dir, this.view);
+        return;
+      }
+      // R3 — the ENACTED resolution (v3 В5): it left the focus ring (nothing about it is a decision) and
+      // kept its own verb, read from wherever the player stands in the browse layer.
+      if (intent.kind === 'press' && intent.button === 'stickR') {
+        const enacted = parliamentEnactedInspectRequest(this.view, this.$refs.rootEl as HTMLElement | undefined);
+        if (enacted !== undefined) {
+          this.$emit('inspect', enacted);
+        }
         return;
       }
       switch (consoleActionOf(intent)) {
@@ -895,9 +926,22 @@ export default defineComponent({
      * frame); a Parliament the player walked into on their own stays, so its
      * stage folds back to the browse layer.
      */
+    /**
+     * IS THIS ROOT ON ITS WAY OUT? (v3 В1) The phase's end closes a PHASE-anchored Parliament — and the
+     * SHELL's own watcher gets there FIRST, in the same flush, so by the time this section is asked the
+     * frame is already gone and its anchor with it. Both facts mean the same thing and both must count:
+     * the frame no longer renders, or it still does and is the phase's. A Parliament the player walked
+     * into on their own (an `always` anchor, still in the stack) is NOT closing — it folds back to browse
+     * and goes on living on the live view.
+     */
+    rootIsClosing(): boolean {
+      return !workspaceFrameRenders('parliament') || workspaceFrameAnchor('parliament')?.type === 'phase';
+    },
     endSitting(): void {
       killSittingMotion();
-      if (workspaceFrameAnchor('parliament')?.type === 'phase') {
+      if (this.rootIsClosing()) {
+        // The surface leaves WITH its stage: folding to browse under a leaving frame shows the player the
+        // overview for the length of a dissolve — a screen they never asked for (v3 В1).
         this.walkOwed = false;
       } else {
         this.closeStage();

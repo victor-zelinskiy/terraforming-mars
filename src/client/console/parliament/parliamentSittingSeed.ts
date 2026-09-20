@@ -164,7 +164,12 @@ export function seedParliamentSittingHolds(before: PlayerViewModel | undefined, 
   }
   const key = sittingKey(phaseOf(after));
   if (key !== heldSitting) {
-    resetParliamentHolds();
+    // A NEW sitting drops the old holds. The PHASE'S END does not (v3 В1): this very block carries the
+    // sitting's data away, and the surface still stands — latched — for its leave; the section drops
+    // the holds when it unmounts after the phase.
+    if (key !== '') {
+      resetParliamentHolds();
+    }
     heldSitting = key;
   }
   if (key === '' || consoleReducedMotionActive()) {

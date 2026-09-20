@@ -311,13 +311,22 @@
            (`workspaceFrameRenders`); the section publishes its command
            contract into `consoleParliamentUi` and submits byte-identical
            responses through the ONE transport funnel. -->
+      <!-- THE PARLIAMENT LEAVES ALIVE («Заседание v3», В1): the section stays MOUNTED for its whole leave
+           (`parliamentMounted` = the stack's presence OR the leave in flight), so the surface that
+           dissolves is the one that stood — a section unmounted at the frame's close lost its TELEPORTED
+           objects on the spot (the ruler's tile out of the government, the vote layer's cards) while its
+           retained DOM played a 170 ms leave over the holes. The leave is driven EXPLICITLY by the watcher
+           (`surfaceLeaveHook` on the live element — the director's own section dissolve), never by a
+           `v-if`/`v-show` race whose semantics decide whether anything animates at all; the section
+           latches its last coherent view on the `leaving` prop and reads nothing live until it unmounts. -->
       <transition :css="false" appear
-                  @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
-                  @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
-        <ConsoleParliamentSection v-if="workspaceFrameRenders('parliament')"
+                  @enter="surfaceEnterHook" @leave="surfaceLeaveHook" @after-leave="onParliamentAfterLeave"
+                  @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="onParliamentLeaveCancelled">
+        <ConsoleParliamentSection v-if="parliamentMounted"
                                   data-motion-surface="section"
                                   ref="parliamentSection"
                                   :playerView="playerView"
+                                  :leaving="parliamentLeaving"
                                   :myTurn="myTurn"
                                   :awaitingInput="awaitingInput"
                                   @submit="submitParliament($event)"
@@ -2131,6 +2140,13 @@ const REVEAL_EXIT_BARRIER_NET_MS = 4000;
 const OWED_CONCLUSION_FORCE_MS = 8000;
 
 /**
+ * THE PARLIAMENT'S LEAVE NET (v3 В1): the director's section dissolve is ~170 ms and reports back when it
+ * lands; this bounds «it never did». A latched surface may never outlive its own leave by more than a
+ * beat — every hold in this console is bounded and named.
+ */
+const PARLIAMENT_LEAVE_NET_MS = 900;
+
+/**
  * WHICH PROMPTS A CARD PLAY'S CLAIM ANSWERS FOR — the card questions its own
  * draw raises: the pick over the cards it turned over (`deckSelect` is the
  * DRAW & SELECT surface, `cardSelect` the buy/keep browser) and the payment
@@ -2270,6 +2286,10 @@ export default defineComponent({
       playedHeroState,
       handRevealState,
       handDeliveryState,
+      /** The Parliament section's leave is in flight: the frame is out of the stack, the section still mounted (v3 В1). */
+      parliamentLeaving: false,
+      /** …and its bounded net: a leave that never reports back may not latch the surface for the session. */
+      parliamentLeaveNet: undefined as number | undefined,
       patentSaleState,
       /** The terminal std-project commit phrase. MIRRORED for the same reason
        *  as the two below: `'stdProjectCommitState.abortNonce'` resolves
@@ -4168,6 +4188,14 @@ export default defineComponent({
      */
     parliamentSittingFrameLive(): boolean {
       return parliamentSittingLive(this.playerView);
+    },
+    /** The Parliament frame is in the stack (the section's `v-show`) — invariant 1's presence, read as visibility. */
+    parliamentShown(): boolean {
+      return workspaceFrameRenders('parliament');
+    },
+    /** …and the section stays MOUNTED through its leave (v3 В1): presence, or the leave still playing over the latched surface. */
+    parliamentMounted(): boolean {
+      return this.parliamentShown || this.parliamentLeaving;
     },
     /** PRESENCE IS THE STACK (invariant 1) — the workspace's ONE v-if. */
     draftWorkspaceMounted(): boolean {
@@ -9918,8 +9946,42 @@ export default defineComponent({
       handler(live: boolean): void {
         if (!live && workspaceFrameKnown('parliament') && workspaceFrameAnchor('parliament')?.type === 'phase') {
           closeWorkspaceRoot('parliament');
+          // …and the layers the sitting stood over close with it. This used to ride the section's own
+          // `flow-complete`, which the v3 leave latch no longer emits (the surface keeps its last coherent
+          // view and simply leaves) — the intent belongs to whoever ends the phase, and that is here.
+          closeConsoleLayers();
         }
       },
+    },
+    /**
+     * THE PARLIAMENT'S LEAVE (v3 В1). The frame left the stack while the section stood: keep the section
+     * MOUNTED (pre-flush, so the render that drops the frame never unmounts it) and play the director's
+     * own section dissolve on the LIVE element; its end unmounts. The element is marked `headless` first,
+     * so the `v-if` removal that follows plays no SECOND leave over an already-faded surface.
+     * A re-show (a restore, a board yield coming back) clears the latch — the flag can never outlive its
+     * own leave, and a leave that never starts is bounded by a named net.
+     */
+    parliamentShown(shown: boolean, was: boolean): void {
+      window.clearTimeout(this.parliamentLeaveNet);
+      this.parliamentLeaveNet = undefined;
+      if (shown) {
+        this.parliamentLeaving = false;
+        return;
+      }
+      const el = (this.$refs.parliamentSection as {$el?: unknown} | undefined)?.$el;
+      if (!was || !(el instanceof HTMLElement)) {
+        this.parliamentLeaving = false;
+        return;
+      }
+      this.parliamentLeaving = true;
+      const release = (): void => {
+        window.clearTimeout(this.parliamentLeaveNet);
+        this.parliamentLeaveNet = undefined;
+        el.dataset.motionVariant = 'headless';
+        this.parliamentLeaving = false;
+      };
+      this.parliamentLeaveNet = window.setTimeout(release, PARLIAMENT_LEAVE_NET_MS);
+      surfaceLeaveHook(el, release);
     },
     // THE EXTERNAL-DRAW WORKSPACE'S FRAME — the draft's lifecycle contract:
     // the rising edge opens NOTHING (the mandatory announce + the player's A
@@ -13560,6 +13622,17 @@ export default defineComponent({
         return;
       }
       consoleParliamentUi.boardDoorOpen = true;
+    },
+    /** The Parliament's leave has played (v3 В1): the section may unmount now — nothing of it is on screen. */
+    onParliamentAfterLeave(): void {
+      window.clearTimeout(this.parliamentLeaveNet);
+      this.parliamentLeaveNet = undefined;
+      this.parliamentLeaving = false;
+    },
+    /** The frame came back mid-leave (a restore, a re-open): the section is live again — drop the freeze with the director's. */
+    onParliamentLeaveCancelled(el: Element): void {
+      surfaceLeaveCancelledHook(el);
+      this.parliamentLeaving = false;
     },
     onParliamentFlowComplete(kind: string): void {
       if (kind === 'seat') {
