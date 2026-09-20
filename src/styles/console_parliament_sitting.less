@@ -181,7 +181,9 @@
     &__card { display: flex; justify-content: center; min-height: 0; &:empty { display: none; } }
     &__card .con-parl__gov-carry { flex-shrink: 0; }
     &__card .con-parl__gov-card { zoom: var(--con-parl-enact-zoom, var(--con-parl-gov-zoom)); }
-    &__yield { flex-shrink: 0; align-items: center; }
+    /* The readings share ONE left edge (registry R-30): centred, a wider second reading stood
+       18 px left of the first — a column of chips whose left edges wandered. */
+    &__yield { flex-shrink: 0; align-items: flex-start; }
     &__reaction { flex-shrink: 0; align-self: flex-start; }
     &__zone {
         display: flex;

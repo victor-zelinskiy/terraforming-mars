@@ -10,7 +10,7 @@ import {getPartyEffect, getResolution} from '@/client/parliament/ClientParliamen
 import {ParliamentPartyVm, ParliamentSlotVm, voteForecastOf} from '@/client/console/parliament/consoleParliamentModel';
 import {voteYieldsOf, winSuffixesOf} from '@/client/console/parliament/influenceYieldModel';
 import {
-  factValueText, panelFactsOf, READING_KICKER_SEATED, READING_KICKER_SPECTATOR, voteFactRowsOf, voteFactsOf, VoteFactsVm, voteInfoBudget,
+  factValueText, footerFactsOf, panelFactsOf, READING_KICKER_SEATED, READING_KICKER_SPECTATOR, voteFactsOf, VoteFactsVm, voteInfoBudget,
   voteInfoOf, voteReadingOf,
 } from '@/client/console/parliament/voteInfoModel';
 
@@ -205,17 +205,15 @@ describe('voteInfoModel — the facts', () => {
     expect(landed.win.after).deep.eq({key: 'yes'});
   });
 
-  it('the inspector\'s rows: the count, then every fact in words with its note', () => {
+  it('the inspector\'s footer: the leader and the winning state as the panel\'s own rows — never a sentence, and never the access (the status chip projects that edge)', () => {
     const slot = slotVm({votes: [{owner: RED, seq: 1}], totalVotes: 1, leader: RED, projection: projection({votesAfter: 2, unlocksEffect: true}), viewerVotes: 1});
     const all = facts(slot, partyVm({access: {party: PartyName.GREENS, ruling: false, delegates: 1, byDelegates: false, granted: [], hasEffect: false, satisfiesRequirement: false}}));
     const text = (key: string, params?: ReadonlyArray<string>) => (params ?? []).reduce<string>((acc, p, i) => acc.split('${' + i + '}').join(p), key);
-    const rows = voteFactRowsOf({all, numbers: {votesBefore: 1, votesAfter: 2, mineBefore: 1, mineAfter: 2}}, text).map((r) => text(r.text, r.params));
-    expect(rows).deep.eq([
-      'Delegates on the card: 1 → 2 · of them yours 1 → 2',
-      'Leader: name:red → you',
-      'Winning: no → yes',
-      'Party effect: 1 of 2 → effect is yours · two of your delegates',
-    ]);
+    const footer = footerFactsOf(all);
+    expect(footer.map((f) => f.id), 'the leader, then the winning state — the edge is the status chip\'s').deep.eq(['lead', 'win']);
+    expect(footer[0]).eq(all.lead);
+    expect(footer[1]).eq(all.win);
+    expect(all.access.tone, 'the edge stands in the facts for the panel').eq('gain');
     expect(factValueText({key: 'name:red', raw: true}, text)).eq('name:red');
   });
 });

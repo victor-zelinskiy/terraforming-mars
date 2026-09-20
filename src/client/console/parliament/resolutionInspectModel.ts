@@ -46,6 +46,13 @@ export type ResolutionAccessVm = {
    * «available» would read as a failed requirement.
    */
   places: boolean;
+  /**
+   * THIS VOTE crosses the threshold — the server's own projection for the
+   * card (`VoteProjectionModel.unlocksEffect`): the footer draws the
+   * projection on the access line itself («▢■ 1/2 недоступен → эффект ваш»),
+   * the vote panel's grammar, so the edge is said once in the footer.
+   */
+  unlocksWithVote?: boolean;
 };
 
 export type ResolutionStatusVm = {
@@ -117,11 +124,12 @@ export function resolutionStatusOf(id: ResolutionId, model: ParliamentModel | un
       access: {kind: 'held', basis, mine, threshold, places: basis === 'delegates'},
     };
   }
+  const projection = model.viewer?.vote.projections.find((p) => p.instance === slot.instance);
   return {
     lifecycle: 'vote',
     winning: slot.isWinning,
     party: slot.party,
-    access: {kind: 'progress', mine, threshold, places: true},
+    access: {kind: 'progress', mine, threshold, places: true, unlocksWithVote: projection?.unlocksEffect === true},
   };
 }
 

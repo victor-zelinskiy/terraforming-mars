@@ -1,4 +1,5 @@
 import {test, expect, Page} from './consoleTest';
+import * as fs from 'node:fs';
 import {bootFixtureSeats, openQuickWheel, press, settle} from './consoleStart';
 import {openParliament, parliament, PARLIAMENT_PRESETS} from './parliamentDrive';
 
@@ -16,14 +17,19 @@ import {openParliament, parliament, PARLIAMENT_PRESETS} from './parliamentDrive'
  * (v5: «зона делегатов в шапке») — so its box is taller by design (76 vs 40 px
  * at 1080); the crumb's own row, type and placement are the shared chassis.
  */
-/** The reference host's crumb sits this much LOWER than the parliament's on these profiles (measured 2026-09-19; 1080 is exact). */
-const KNOWN_TOP_RESIDUAL: Record<string, number> = {'tv-4k': 5, 'deck-handheld': 10};
+/**
+ * The reference host's crumb once sat LOWER than the parliament's on the TV (5 px) and the Deck (10 px):
+ * the shared head centred its identity in a row that a taller sibling (couch-sized facet chips, the
+ * fleet dock, the Deck's two-tier facets) had grown. Since A.11 every member pins to the head's one
+ * crumb line (`--con-wshead-line`) from the top — the residual is ZERO on every profile, and stays so.
+ */
+const KNOWN_TOP_RESIDUAL: Record<string, number> = {};
 
 type Chassis = {
   name: string,
   identTop: number, identLeft: number, identH: number,
   rootFont: string, contextFont: string,
-  cmdbarH: number, stage: string,
+  cmdbarH: number, stage: string, members: Array<string>, headH: number,
 };
 
 async function chassisOf(page: Page, headSelector: string): Promise<Chassis> {
@@ -45,6 +51,13 @@ async function chassisOf(page: Page, headSelector: string): Promise<Chassis> {
       identTop: r === undefined ? -1 : Math.round(r.top), identLeft: r === undefined ? -1 : Math.round(r.left), identH: r === undefined ? -1 : Math.round(r.height),
       rootFont: font('.con-wshead__root'), contextFont: font('.con-wshead__context'),
       cmdbarH: cmdbar === null ? -1 : Math.round(cmdbar.getBoundingClientRect().height),
+      // The head's members and what makes the row tall (diagnostics for the parity table).
+      members: head === null ? [] : Array.from(head.children).map((c) => {
+        const b = c.getBoundingClientRect();
+        const kids = Array.from(c.querySelectorAll<HTMLElement>('*')).filter((k) => k.getBoundingClientRect().height > b.height * 0.6 && k.children.length === 0).slice(0, 3).map((k) => `${k.className.toString().split(' ')[0]}:${Math.round(k.getBoundingClientRect().height)}`);
+        return `${c.className.toString().split(' ').slice(0, 2).join('.')} h${Math.round(b.height)} top${Math.round(b.top)} [${kids.join(' ')}]`;
+      }),
+      headH: head === null ? -1 : Math.round(head.getBoundingClientRect().height),
       stage: cs === undefined ? '' : ['--con-stage-t', '--con-stage-b', '--con-stage-l', '--con-stage-r-eff'].map((p) => cs.getPropertyValue(p).trim()).join(' '),
     };
   }, headSelector);
@@ -88,6 +101,8 @@ for (const preset of PARLIAMENT_PRESETS) {
       await expect(parliament(page).locator('.con-parl__head'), 'the parliament head stands').toHaveCount(1, {timeout: 20_000});
       await settle(page, {timeoutMs: 20_000});
       const parl = await chassisOf(page, '.con-parl__head');
+      fs.mkdirSync('tmp', {recursive: true});
+      fs.writeFileSync(`tmp/chassis-${preset.id}.json`, JSON.stringify([parl, ...refs], null, 2));
       const table = [parl, ...refs].map((c) => `${c.name}: ident top ${c.identTop} left ${c.identLeft} h ${c.identH} · root ${c.rootFont} · context ${c.contextFont} · cmdbar ${c.cmdbarH} · stage ${c.stage}`).join('\n');
 
       // «Действия карт» is THE reference (the brief's reference workspace); the other wheel

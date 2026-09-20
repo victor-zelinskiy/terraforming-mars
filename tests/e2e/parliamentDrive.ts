@@ -272,3 +272,55 @@ export async function waitSittingAtRest(page: Page, timeout = 15_000, quietMs = 
     return Date.now() - w.__sitQuietSince >= quiet;
   }, quietMs), {timeout, intervals: [50]}).toBe(true);
 }
+
+/**
+ * THE RESOLUTION INSPECTOR'S FOOTER (final polish A.1): two rows of members that keep their width —
+ * every one inside the bar and none squeezed (a squeezed fact row cut its one-word key to «ПР»; a
+ * squeezed reading spilled its caption), the plate standing inside its FIXED actions band and clear
+ * of the card above it (the band is what the viewer's fit engine reserves — a plate taller than the
+ * band is exactly what overlapped the card). Polled: the columns lift in after the open.
+ */
+export async function expectInspectorFooterWhole(page: Page, label: string): Promise<void> {
+  const read = () => page.evaluate(() => {
+    const out: Array<string> = [];
+    const dialog = document.querySelector<HTMLElement>('dialog.con-zoom[open]');
+    const bar = dialog?.querySelector<HTMLElement>('.con-zoom__bar') ?? null;
+    const panel = dialog?.querySelector<HTMLElement>('.card-zoom-actions__panel') ?? null;
+    const band = dialog?.querySelector<HTMLElement>('.card-zoom-actions') ?? null;
+    const card = dialog?.querySelector<HTMLElement>('.card-zoom-stage .pcard') ?? null;
+    if (bar === null || panel === null || band === null || card === null) {
+      return 'no footer scene';
+    }
+    const name = (el: Element) => el.className.toString().split(' ').filter((c) => c !== '')[0] ?? el.tagName.toLowerCase();
+    const box = bar.getBoundingClientRect();
+    for (const kid of Array.from(bar.children) as Array<HTMLElement>) {
+      const r = kid.getBoundingClientRect();
+      if (r.width <= 0) {
+        continue;
+      }
+      if (r.left < box.left - 1 || r.right > box.right + 1) {
+        out.push(`${name(kid)} outside the bar (${Math.round(r.left)}..${Math.round(r.right)} of ${Math.round(box.left)}..${Math.round(box.right)})`);
+      }
+      if (kid.scrollWidth > kid.clientWidth + 1) {
+        out.push(`${name(kid)} squeezed (${kid.scrollWidth} > ${kid.clientWidth})`);
+      }
+    }
+    // A member's own words: a key, a plate, a caption — each whole in its own box.
+    for (const el of Array.from(bar.querySelectorAll<HTMLElement>('.con-parl__fact-key, .con-iyield__reading, .con-iyield__caption'))) {
+      if (el.scrollWidth > el.clientWidth + 1) {
+        out.push(`${name(el)} «${(el.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 24)}» cut (${el.scrollWidth} > ${el.clientWidth})`);
+      }
+    }
+    const plate = panel.getBoundingClientRect();
+    const bandBox = band.getBoundingClientRect();
+    const cardBox = card.getBoundingClientRect();
+    if (plate.height > bandBox.height + 1) {
+      out.push(`plate ${Math.round(plate.height)} px tall in a ${Math.round(bandBox.height)} px band`);
+    }
+    if (plate.top < cardBox.bottom - 1) {
+      out.push(`plate (top ${Math.round(plate.top)}) overlaps the card (bottom ${Math.round(cardBox.bottom)})`);
+    }
+    return out.join('; ');
+  });
+  await expect.poll(read, {timeout: 8_000, message: `${label}: the inspector's footer stands whole — every member inside the bar, none squeezed, the plate inside its band and clear of the card`}).toBe('');
+}

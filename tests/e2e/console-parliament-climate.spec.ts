@@ -5,6 +5,7 @@ import {
   bootFixture, bootFixtureSeats, closeZoomViewer, crumbText, fetchPlayerModel, openMandatoryAnnounce, openQuickWheel,
   openZoomViewer, press, pressUntil, settle,
 } from './consoleStart';
+import {expectInspectorFooterWhole} from './parliamentDrive';
 
 /**
  * CLIMATE RESEARCH (Turmoil Redux, RX05) — the first SEQUENTIAL resolution:
@@ -103,7 +104,7 @@ async function expectFits(page: Page, label: string): Promise<void> {
     const out: Array<string> = [];
     const name = (el: Element) => el.className.toString().split(' ')[0];
     const blocks = '.con-parl__gov, .con-parl__slot, .con-parl__info, .con-parl__info-block, .con-parl__info-own,' +
-      ' .con-parl__stage, .con-iyield, .con-iyield__reading, .con-preact, .con-parl__recap-item,' +
+      ' .con-parl__stage, .con-iyield, .con-iyield__reading, .con-preact,' +
       ' .con-parl__enact-hero, .con-extdraw__cards, .con-cards__slot';
     for (const el of Array.from(root.querySelectorAll<HTMLElement>(blocks))) {
       const r = el.getBoundingClientRect();
@@ -256,9 +257,13 @@ for (const preset of PRESETS) {
       const rules = zoom.locator('.con-zoom-rules').last();
       await expect(rules, 'the rules state both halves in words').toContainText(/производство тепла|heat production/i);
       await expect(rules, '…including the second half').toContainText(/3 шага|3 steps/i);
-      await expect(zoom.locator('[data-rules-group="group:vote"] .con-zoom-rules__text'), 'the vote\'s whole forecast, in words: the count and three facts').toHaveCount(4);
+      await expect(zoom.locator('[data-zoom-vote-facts] [data-zoom-vote-fact]'), 'the vote\'s facts as the panel\'s rows in the footer (the leader, the winning state)').toHaveCount(2);
+      await expect(zoom.locator('[data-rules-group="group:vote"]'), 'no vote block in the columns').toHaveCount(0);
       // …and the ruling party's answer rides the footer beside the numbers.
       await expect(zoom.locator('[data-zoom-reaction]'), 'the party answer in the footer').toHaveCount(1);
+      // The two-part reading is the footer's TALLEST composition: its two rows stand whole inside
+      // the scene's fixed actions band and clear of the card (final polish A.1).
+      await expectInspectorFooterWhole(page, `${preset.id} climate inspector`);
       await shoot(page, preset.id, '03-fullscreen');
       await closeZoomViewer(page);
       await press(page, 'Escape', 900);

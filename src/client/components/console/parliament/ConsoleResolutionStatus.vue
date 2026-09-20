@@ -14,7 +14,7 @@
        same line of every other card the viewer pages through (`reserve`). The
        chip therefore takes the widest REAL variant of this context — paging
        never resizes it and never moves the verbs beside it. -->
-  <span class="con-rstatus" :data-lifecycle="status.lifecycle" :data-access="accessKindOf(status)" :data-mine="status.access?.mine ?? ''">
+  <span class="con-rstatus" :data-lifecycle="status.lifecycle" :data-access="accessKindOf(status)" :data-mine="status.access?.mine ?? ''" :data-vote-access="status.access?.unlocksWithVote ? 'unlocks' : undefined">
     <span class="con-rstatus__cell">
       <span v-for="(entry, i) in entries" :key="'life-' + i"
             class="con-rstatus__life"
@@ -22,7 +22,8 @@
             :aria-hidden="i > 0 ? 'true' : undefined">
         <span class="con-rstatus__life-mark" aria-hidden="true"></span>
         <span class="con-rstatus__life-text">{{ $t(entry.lifecycle === 'enacted' ? 'Enacted' : 'Up for the vote') }}</span>
-        <span v-if="entry.winning" class="con-rstatus__life-tail">· {{ $t('Winning') }}</span>
+        <!-- The winning tail yields to the vote chip beside the status (its «ПРИНИМАЕТСЯ» row says it, current → projected). -->
+        <span v-if="entry.winning && winningTail" class="con-rstatus__life-tail">· {{ $t('Winning') }}</span>
       </span>
     </span>
     <span v-if="status.access !== undefined" class="con-rstatus__cell">
@@ -43,6 +44,10 @@
             <span class="con-rstatus__count">{{ Math.min(entry.access.mine, entry.access.threshold) }}/{{ entry.access.threshold }}</span>
           </span>
           <span class="con-rstatus__access-val">{{ accessTextOf(entry) }}</span>
+          <!-- THIS VOTE's projection on the same line — the vote panel's arrow grammar, said here once. -->
+          <span v-if="entry.access.unlocksWithVote" class="con-rstatus__access-next" :data-zoom-vote-access="i === 0 ? '' : undefined">
+            <span class="con-rstatus__access-arrow" aria-hidden="true">→</span>{{ $t('effect is yours') }}
+          </span>
           <span v-if="basisTextOf(entry) !== undefined" class="con-rstatus__access-basis">· {{ basisTextOf(entry) }}</span>
         </span>
       </template>
@@ -70,7 +75,9 @@ export default defineComponent({
      * invisibly under the live lines, so the chip is sized once for the whole
      * context (never for a variant that cannot occur here).
      */
-    reserve: {type: Array as PropType<ReadonlyArray<ResolutionStatusVm>>, default: () => []},
+    reserve: {type: Array as PropType<ResolutionStatusVm[]>, default: () => []},
+    /** Print «· Принимается» on the lifecycle line — off while the vote chip beside the status carries the winning state as a fact. */
+    winningTail: {type: Boolean, default: true},
   },
   computed: {
     /** The live standing first, then the reserve. */

@@ -53,6 +53,8 @@ type Sample = {
   t: number; stage: string; step: string; chips: Array<Chip>; card: Rect | undefined; mech: Rect | undefined; ruler: Rect | undefined;
   rail: Record<string, {prod: string, stock: string}>; cells: Cells; trCell: Rect | undefined; tr: string; deltas: Record<string, number>; contexts: Array<string>;
   extdraw: number; zone: number; deals: Array<number>; placing: boolean; parl: boolean; winner: string | undefined; holds: Array<string>;
+  /** The voting columns as SHOWN: every slot's instance and its delegate count (the held table under a held reward pose — registry R-25в). */
+  slots: string;
   /** The card-bonus witnesses: the deck-draw scene (phase), the bonus cover lift, the reveal, the plate, the hand dock's total. */
   deckdraw: string; cover: boolean; reveal: boolean; zoom: boolean; plate: boolean; hand: string;
 };
@@ -116,6 +118,7 @@ async function armProbe(page: Page): Promise<void> {
         placing: document.querySelector('.con-board--placing, .con-board--locked') !== null,
         parl: document.querySelector('.con-parl') !== null,
         winner: document.querySelector('.con-sit__panel--on [data-winner-reward]')?.getAttribute('data-winner-context') ?? undefined,
+        slots: Array.from(document.querySelectorAll('.con-parl__slots .con-parl__slot')).map((el) => `${el.getAttribute('data-instance')}@${el.getAttribute('data-votes')}`).join('|'),
         holds: (w.__conReady?.().holds ?? []).filter((h) => h.startsWith('parliament-sitting') || h.startsWith('resource-transfer')),
         deckdraw: document.querySelector('.con-deckdraw')?.getAttribute('data-dd-phase') ?? '',
         cover: ((el) => el !== null && el.getBoundingClientRect().width > 0 && getComputedStyle(el).visibility !== 'hidden' && getComputedStyle(el).opacity !== '0')(document.querySelector<HTMLElement>('.con-bonusfly-cover')),
@@ -445,6 +448,13 @@ for (const preset of PARLIAMENT_PRESETS) {
           await expect.poll(() => sittingStage(page), {timeout: 30_000}).toBe('renewal');
           const probe = await readProbe(page);
           const firstRenewal = probe.samples.findIndex((s) => s.stage === 'renewal');
+          // THE TABLE AS IT STOOD (registry R-25в): the server refreshed the slots with the adjourn, yet every
+          // sample of the HELD reward pose still shows the losers with their delegate counts — the columns
+          // change only when the renewal enters and its beat moves them.
+          const tableBefore = probe.samples[0]?.slots ?? '';
+          expect(tableBefore, 'the probe saw the table before the gate was answered').not.toBe('');
+          const changedUnderHold = probe.samples.slice(0, Math.max(0, firstRenewal)).filter((s) => s.parl && s.stage === 'reward' && s.slots !== tableBefore);
+          expect(changedUnderHold.length, `the columns kept the table as it stood under the held reward pose (${changedUnderHold.length} samples showed ${changedUnderHold[0]?.slots} instead of ${tableBefore})`).toBe(0);
           for (const wv of c.waves) {
             const field = wv.channel === 'production' ? 'prod' : 'stock';
             const was = rowBefore[wv.res][field];

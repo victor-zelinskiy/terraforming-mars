@@ -163,6 +163,31 @@
         .con-parl__info-kicker { color: @con-cyan; opacity: .95; }
     }
     &__info-own-body { flex: 1 1 auto; min-height: 0; min-width: 0; display: flex; align-items: center; gap: .9rem; }
+    /* THE READING ROW: the reading (grows) and, at its right, THE PARTY BOX — the card's party as a
+       graphic: its emblem inside its printed formula and one quiet line of moment. The row takes the
+       column's whole remaining height and BOTH boxes stretch to it (the stability law: a card with a
+       one-row reading and a card with two rows draw the same frame — measured, the content-sized row
+       moved 22 px on the TV between two cards); the party box keeps ONE width whatever its formula
+       (a content-sized box moved the reading 4 px per card at 1080). */
+    &__info-main { flex: 1 1 auto; min-height: 0; min-width: 0; display: flex; align-items: stretch; gap: .6rem; }
+    &__info-main > .con-parl__info-own { flex: 1 1 auto; }
+    &__info-party {
+        flex: 0 0 13rem;
+        width: 13rem;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: .3rem;
+        min-width: 0;
+        padding: .35rem .6rem .4rem;
+        border-radius: .55rem;
+        background: rgba(0, 0, 0, 0.3);
+        box-shadow: inset 0 0 0 .05rem fade(@con-parl-gold, 32%);
+        overflow: hidden;
+    }
+    &__info-party-formula { --con-pformula-zoom: calc(0.74 * var(--con-ui-scale, 1)); max-width: 100%; }
+    &__info-party-when { font-size: .5rem; letter-spacing: .12em; text-transform: uppercase; color: fade(@con-parl-gold, 88%); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
     &__info-mech {
         .con-parl-mech-vars();
         zoom: var(--con-parl-info-mech-zoom);
@@ -275,6 +300,15 @@ html.con-profile-handheld .con-parl {
     &__info-name { font-size: .82rem; }
     &__info-own { gap: .15rem; padding: .25rem .45rem .3rem; }
     &__info-own-body { gap: .5rem; }
+    &__info-main { gap: .4rem; }
+    /* The Deck's reading column is 712 px: the box gives the reading the room its widest chip needs
+       (measured — «+1 ЕСЛИ ПОБЕДИТЕ · ШАГ ③» overran a 485 px plate by 24 px beside a 10.5rem box) and
+       its line of moment wraps to two lines instead of a fourth-rung type size. */
+    &__info-party { flex-basis: 9rem; width: 9rem; padding: .2rem .4rem .25rem; gap: .15rem; }
+    /* .52: a two-row formula is 75 px here and the box's 107 px hold it with the two-line moment
+       (at .56 it was 81 and the moment lost 3 px of its second line). */
+    &__info-party-formula { --con-pformula-zoom: calc(0.52 * var(--con-ui-scale, 1)); }
+    &__info-party-when { font-size: .5rem; white-space: normal; text-align: center; line-height: 1.15; }
     &__info-readings { column-gap: .35rem; row-gap: .15rem; }
     &__info-block { gap: .12rem; padding: .18rem .4rem .2rem; }
     &__info-kicker { font-size: .5rem; }
@@ -300,6 +334,12 @@ html.con-profile-tv .con-parl {
     &__info-name { font-size: 1.15rem; }
     &__info-emblem { width: 1.7rem; height: 1.7rem; }
     &__info-kicker { font-size: .8rem; }
+    /* The reading beside the box needs up to 1415 px at the couch sizes (measured: the two-link
+       Climate reading; the Award's 1413, the Grid's 1398) of the row's 2198 — a 20rem box left it
+       1374 and clipped it. 17.5rem leaves 1474; the line of moment (730 px on one line at the
+       .8rem floor) takes two centred lines instead of a smaller type. */
+    &__info-party { flex-basis: 17.5rem; width: 17.5rem; }
+    &__info-party-when { font-size: .8rem; white-space: normal; text-align: center; line-height: 1.15; }
     &__info-src-text { font-size: .95rem; }
     &__info-src-num { font-size: 1.05rem; }
     &__info-src-mc { width: 1.05rem; height: 1.05rem; }

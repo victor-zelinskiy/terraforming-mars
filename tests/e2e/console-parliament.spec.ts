@@ -111,7 +111,7 @@ async function expectFits(page: Page, preset: Preset): Promise<void> {
     }
     const reading = '.con-pseal__name, .con-pseal__state-text, .con-parl__tally-row, .con-parl__fact-key, .con-parl__fact-val, ' +
       '.con-parl__quest-reward, .con-parl__quest-text, .con-parl__pline-text, .con-parl__slot-win, .con-parl__kicker, .con-parl__seat-name, .con-parl__seat-key, .con-parl__ruler-name, ' +
-      '.con-parl__recap-item, .con-parl__txn-row, .con-parl__info-src-text, .con-parl__info-name, .con-parl__slot-party, .con-parl__slot-empty-reason';
+      '.con-parl__txn-row, .con-parl__info-src-text, .con-parl__info-name, .con-parl__slot-party, .con-parl__slot-empty-reason';
     for (const el of Array.from(root.querySelectorAll<HTMLElement>(reading))) {
       if (!visible(el)) {
         continue;

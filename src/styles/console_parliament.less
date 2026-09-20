@@ -94,7 +94,11 @@
     --con-parl-ruler-formula-zoom: calc(1.05 * var(--con-ui-scale, 1));
     --con-parl-ruler-own-zoom: calc(0.8 * var(--con-ui-scale, 1));
     --con-parl-quest-zoom: calc(0.92 * var(--con-ui-scale, 1));
-    --con-parl-info-mech-zoom: calc(1.15 * var(--con-ui-scale, 1));
+    /* The panel's copy of the resolution's printed graphic at the CARD'S OWN size (the selected card
+       right above prints the same formula at the mode's .9 zoom): the vote panel's height is set by
+       this graphic on every profile (measured, final polish A.2: at 1.15 the two-row Climate formula was
+       133 px tall and the panel could not shrink below 10.6rem), and the cards are the mode's object. */
+    --con-parl-info-mech-zoom: calc(0.95 * var(--con-ui-scale, 1));
     /* THE HEAD LINE's reserved crumb width: the wider mode name plus a stage
        tail («ГОЛОСОВАНИЕ › ОПЛАТА») fits; «ОСМОТР» leaves the rest empty. The
        delegates zone starts where this reserve ends — the same x in every
@@ -121,7 +125,10 @@
        spent above the row). */
     --con-parl-bill-w: 29.5rem;
     --con-parl-bill-h: 14.6rem;
-    --con-parl-info-h: 10.6rem;
+    /* Set by MEASURE (final polish A.2): the head (30 px) + the reading row — the two-row Climate
+       reading beside the party box (152 px at the .95 graphic) + the panel's own padding — 198 px at 1080;
+       the vote row gains the difference and the cards grow to the new cap (`MAX_VOTE_ZOOM`). */
+    --con-parl-info-h: 9.9rem;
     --parl-accent: @con-parl-violet;
 
     /* A nested scene (the action workspace opened on a party) owns the band:
@@ -146,10 +153,9 @@
            beside it (five long names) — never a squeezed or cut name. */
         flex-wrap: wrap;
         row-gap: .15rem;
-        /* The crumb row stands on the SHARED head's 2rem line (registry R-17): every other
-           workspace centres its crumb on `min-height: 2rem`; this head is taller (the seats
-           zone), so the row is given that same line explicitly, or it sits 8 px higher. */
-        .con-wshead__ident { min-height: 2rem; align-items: center; }
+        /* The crumb row stands on the SHARED head's crumb line (registry R-17 → A.11): the line is
+           the head's own token now, and every workspace pins its identity to it from the top. */
+        .con-wshead__ident { min-height: var(--con-wshead-line); align-items: center; }
         .con-wshead__aux { flex: 0 0 var(--con-parl-crumb-w); min-width: 0; }
         .con-wshead__trailing {
             margin-left: 0;
@@ -723,8 +729,14 @@
         &--on { opacity: 1; }
     }
     &__seat-place--incoming .con-parl__seat-key { opacity: .95; color: @con-parl-gold; }
+    /* THE LANDING RING — the reserve place lights in the frame a returning delegate touches down
+       (the stack is re-keyed on the landing; the ring plays once on mount and ends on its own
+       animationend — a one-shot feedback animation, box-shadow allowed). */
+    &__stack--landed { animation: con-parl-stack-land calc(560ms * var(--motion-scale, 1)) @con-ease-standard both; }
     &__seat-obj { display: inline-flex; align-items: center; gap: .18rem; }
-    &__seat-count { font-size: .7rem; line-height: 1; font-variant-numeric: tabular-nums; }
+    /* The count keeps ONE width across «×5 → ×7» (the console font has no tabular figures: the seats
+       zone moved 2 px on the TV between two sitting pages — the stability probe). */
+    &__seat-count { font-size: .7rem; line-height: 1; font-variant-numeric: tabular-nums; min-width: 1.9em; }
 
     /* ══ MIDDLE TIER — the parties (browse) OR a stage ══════════════════ */
     &__mid { position: relative; min-height: 0; }
@@ -1036,14 +1048,16 @@ html.con-profile-handheld .con-parl {
     --con-parl-slot-label-h: 1.05rem;
     --con-parl-slot-ribbon-h: 1.4rem;
     --con-parl-slot-tally-h: 2.1rem;
-    --con-parl-info-h: 8.6rem;
+    /* Measured (final polish A.2, batch 1): the two-link Climate reading is 110 px tall on the Deck
+       and a 7.6rem panel gave its row 108 — 8rem gives it 116. */
+    --con-parl-info-h: 8rem;
     --con-parl-bill-w: 25rem;
     --con-parl-bill-h: 12.8rem;
     --con-parl-tile-formula-zoom: calc(0.58 * var(--con-ui-scale, 1));
     --con-parl-ruler-formula-zoom: calc(0.64 * var(--con-ui-scale, 1));
     --con-parl-ruler-own-zoom: calc(0.55 * var(--con-ui-scale, 1));
     --con-parl-quest-zoom: calc(0.62 * var(--con-ui-scale, 1));
-    --con-parl-info-mech-zoom: calc(0.74 * var(--con-ui-scale, 1));
+    --con-parl-info-mech-zoom: calc(0.66 * var(--con-ui-scale, 1));
     &__body { gap: .3rem; }
     /* The head may take a second tier: the zone wraps as a whole under the
        crumb when its seats do not fit beside it (never a cut name). */
@@ -1146,14 +1160,14 @@ html.con-profile-tv .con-parl {
     --con-parl-slot-label-h: 1.45rem;
     --con-parl-slot-ribbon-h: 1.95rem;
     --con-parl-slot-tally-h: 3rem;
-    --con-parl-info-h: 11.6rem;
+    --con-parl-info-h: 10.6rem;
     --con-parl-bill-w: 36rem;
     --con-parl-bill-h: 16rem;
     --con-parl-tile-formula-zoom: calc(0.84 * var(--con-ui-scale, 1));
     --con-parl-ruler-formula-zoom: calc(1 * var(--con-ui-scale, 1));
     --con-parl-ruler-own-zoom: calc(0.78 * var(--con-ui-scale, 1));
     --con-parl-quest-zoom: calc(0.9 * var(--con-ui-scale, 1));
-    --con-parl-info-mech-zoom: calc(1.08 * var(--con-ui-scale, 1));
+    --con-parl-info-mech-zoom: calc(0.9 * var(--con-ui-scale, 1));
     /* A wider government column on the couch: its formula breathes, and the
        voting slots are WIDTH-bound there — the overview card stays a size
        below the mode's. */
@@ -1228,4 +1242,15 @@ html.con-profile-handheld .con-parl__slot-win {
     padding: .08rem .32rem;
     &::before { content: ''; width: 1.15em; height: 1.15em; background: url(./assets/misc/vote-winner.svg) center / contain no-repeat; }
     .con-parl__slot-win-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+}
+
+/* The reserve place's landing ring (A.3): a gold ring that swells and fades, once. */
+@keyframes con-parl-stack-land {
+    0% { box-shadow: 0 0 0 0 fade(@con-parl-gold, 0%); }
+    30% { box-shadow: 0 0 0 .22rem fade(@con-parl-gold, 70%), 0 0 .8rem fade(@con-parl-gold, 45%); }
+    100% { box-shadow: 0 0 0 .1rem fade(@con-parl-gold, 0%); }
+}
+html.con-reduced-motion .con-parl__stack--landed { animation: none; }
+@media (prefers-reduced-motion: reduce) {
+    .con-parl__stack--landed { animation: none; }
 }

@@ -1,4 +1,5 @@
 import {expect} from 'chai';
+import {Color} from '@/common/Color';
 import {PartyName} from '@/common/turmoil/PartyName';
 import {ParliamentModel, ParliamentSlotModel, PartyAccessModel} from '@/common/models/ParliamentModel';
 import {resolutionPartyContextKey, resolutionStatusOf} from '@/client/console/parliament/resolutionInspectModel';
@@ -99,5 +100,32 @@ describe('resolutionInspectModel — the footer\'s standing and access', () => {
     expect(status?.lifecycle).to.eq('vote');
     expect(status?.winning).to.eq(true);
     expect(status?.access).to.eq(undefined);
+  });
+});
+
+describe('resolutionInspectModel — THIS vote\'s projection on the access line (registry R-10)', () => {
+  const BLUE = 'blue' as Color;
+  const RED = 'red' as Color;
+  function modelWith(unlocksEffect: boolean | undefined, mine: number): ParliamentModel {
+    const instance = 'RDX_GREENS_AQUIFER_CONTEST#0';
+    const votes = [{owner: RED, seq: 1}, ...(mine > 0 ? [{owner: BLUE, seq: 2}] : [])];
+    const access: PartyAccessModel = {party: PartyName.GREENS, ruling: false, delegates: mine, byDelegates: false, granted: [], hasEffect: false, satisfiesRequirement: false};
+    const slot: ParliamentSlotModel = {instance, resolution: 'RDX_GREENS_AQUIFER_CONTEST', party: PartyName.GREENS, votes, totalVotes: votes.length, leader: RED, isWinning: false, tiePriority: 1, viewerVotes: mine};
+    return {
+      slots: [slot], rulingParty: PartyName.GREENS, popularSupport: {}, deckSize: 3, discardSize: 0, neutralSupply: 10, botMode: 'none',
+      players: [{color: BLUE, participates: true, lobby: true, reserve: 5, onResolutions: mine, chairman: false, agenda: 0, influence: 0, access: [access], partyActionUses: {}, resolutionActionUses: 0, counts: [], production: {}}],
+      viewer: {vote: {available: true, reason: '', source: 'lobby', cost: 0, projections: unlocksEffect === undefined ? [] : [{instance, votesAfter: votes.length + 1, leaderAfter: RED, viewerLeads: false, becomesWinning: false, unlocksEffect, unlocksRequirement: unlocksEffect}]}, partyActions: []},
+    } as unknown as ParliamentModel;
+  }
+  it('on the edge (one own delegate, the server projects the unlock) the progress line says «→ effect is yours»', () => {
+    const status = resolutionStatusOf('RDX_GREENS_AQUIFER_CONTEST', modelWith(true, 1), BLUE);
+    expect(status?.access?.kind).eq('progress');
+    expect(status?.access?.unlocksWithVote).eq(true);
+  });
+  it('off the edge (no own delegate yet) the line projects nothing', () => {
+    expect(resolutionStatusOf('RDX_GREENS_AQUIFER_CONTEST', modelWith(false, 0), BLUE)?.access?.unlocksWithVote).eq(false);
+  });
+  it('without a projection (no vote option on the wire) the line projects nothing — never a client guess', () => {
+    expect(resolutionStatusOf('RDX_GREENS_AQUIFER_CONTEST', modelWith(undefined, 1), BLUE)?.access?.unlocksWithVote).eq(false);
   });
 });

@@ -389,6 +389,36 @@ for (const preset of PARLIAMENT_PRESETS) {
         expect(await pressUntil(page, 'Enter', async () => await page.locator('.con-efx').count() > 0, {tries: 3, settleMs: 1100}), 'the effects explorer opens').toBe(true);
         await expect(page.locator('.con-pfx'), 'the Parliament strip stands in the explorer').toHaveCount(1, {timeout: 10_000});
         await settle(page, {timeoutMs: 20_000});
+        // The strip is a BAND above the explorer, and the explorer's columns keep the screen (registry R-31: as a
+        // row sibling the strip pushed the dossier column past the Deck's right edge and stood as a half-empty
+        // plate down the left of 1080).
+        const infoLayout = await page.evaluate(() => {
+          const vw = window.innerWidth;
+          const vh = window.innerHeight;
+          const out: Array<string> = [];
+          const strip = document.querySelector<HTMLElement>('.con-pfx');
+          const efx = document.querySelector<HTMLElement>('.con-efx');
+          if (strip !== null && efx !== null) {
+            const s = strip.getBoundingClientRect();
+            const e = efx.getBoundingClientRect();
+            if (s.bottom > e.top + 1) {
+              out.push(`the strip is not above the explorer (strip bottom ${Math.round(s.bottom)}, explorer top ${Math.round(e.top)})`);
+            }
+          }
+          for (const sel of ['.con-pfx', '.con-pfx__item', '.con-efx__filters', '.con-efx__body', '.con-efx__detail']) {
+            for (const el of Array.from(document.querySelectorAll<HTMLElement>(sel))) {
+              const r = el.getBoundingClientRect();
+              if (r.width === 0 || r.height === 0) {
+                continue;
+              }
+              if (r.right > vw + 1 || r.bottom > vh + 1 || r.left < -1 || r.top < -1) {
+                out.push(`off-screen ${sel} ${Math.round(r.left)},${Math.round(r.top)} ${Math.round(r.right)},${Math.round(r.bottom)} (viewport ${vw}×${vh})`);
+              }
+            }
+          }
+          return out;
+        });
+        expect(infoLayout, `${preset.id}/${mode} info strip: the strip is a band above the explorer and every column is on screen`).toEqual([]);
         await expectPaintBaseline(page, `${preset.id}/${mode} info strip`, ['.con-info']);
         await shoot(page, preset.id, mode, '08', 'info-parliament-strip');
         if (mode === 'reduced') {

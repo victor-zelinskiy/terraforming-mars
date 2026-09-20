@@ -40,6 +40,8 @@ import {PartyReactionReading, partyReactionsOf, viewerHasSeat} from './partyReac
 export const READING_KICKER_SEATED = 'For you when enacted';
 export const READING_KICKER_SPECTATOR = 'When enacted';
 export const VOTE_KICKER = 'Your vote';
+/** The party box's one line of moment (the graphic beside the reading — not a kicker, not a reading). */
+export const PARTY_MOMENT = 'party effect · to every player when enacted';
 /** …and of the suffix's words. */
 export const SUFFIX_IF_YOU_WIN = 'if you win';
 export const SUFFIX_STEP = 'step';
@@ -230,6 +232,16 @@ export function panelFactsOf(facts: VoteFactsVm): Array<VoteFactVm> {
   return out;
 }
 
+/**
+ * THE FOOTER'S FACTS (the fullscreen inspector): the leader and the winning
+ * state, in the panel's own `before → after` rows — never a sentence. The
+ * party effect's edge is the status chip's own projection there
+ * (`resolutionStatusOf` → `unlocksWithVote`), so the footer says it once.
+ */
+export function footerFactsOf(facts: VoteFactsVm): Array<VoteFactVm> {
+  return [facts.lead, facts.win];
+}
+
 // ── THE PANEL ────────────────────────────────────────────────────────────────
 
 export type VoteInfoInput = {
@@ -265,36 +277,13 @@ export function voteInfoOf(input: VoteInfoInput): VoteInfoVm {
   };
 }
 
-// ── THE INSPECTOR'S ROWS — the full reading, in words ────────────────────────
+// ── THE WORDS OF A FACT ───────────────────────────────────────────────────────
 
 export type TextFn = (key: string, params?: ReadonlyArray<string>) => string;
-export type VoteRow = {text: string, params: ReadonlyArray<string>};
 
-/** One side of a fact as words (the inspector never draws a cube). */
+/** One side of a fact as words (a seat's NAME is a display string, never a key). */
 export function factValueText(value: FactValue, text: TextFn): string {
   return value.raw === true ? value.key : text(value.key, value.params);
-}
-
-/**
- * «Your vote» for the fullscreen inspector: the delegate count, then every
- * fact as `label: before → after` (one value where nothing changes) with its
- * note — the sentences the panel deliberately does not print. Params arrive
- * translated; the row keys carry no words of their own.
- */
-export function voteFactRowsOf(vote: {all: VoteFactsVm, numbers: VoteNumbersVm}, text: TextFn): Array<VoteRow> {
-  const n = vote.numbers;
-  const rows: Array<VoteRow> = [{
-    text: 'Delegates on the card: ${0} → ${1} · of them yours ${2} → ${3}',
-    params: [String(n.votesBefore), String(n.votesAfter), String(n.mineBefore), String(n.mineAfter)],
-  }];
-  for (const fact of [vote.all.lead, vote.all.win, vote.all.access]) {
-    const label = text(fact.label);
-    const after = factValueText(fact.after, text);
-    const line = fact.unchanged ? {text: '${0}: ${1}', params: [label, after]} :
-      {text: '${0}: ${1} → ${2}', params: [label, factValueText(fact.before, text), after]};
-    rows.push(fact.note === undefined ? line : {text: '${0} · ${1}', params: [text(line.text, line.params), text(fact.note)]});
-  }
-  return rows;
 }
 
 // ── THE BUDGET — the rule the overload cannot come back through ─────────────
@@ -307,10 +296,12 @@ export type VoteInfoBudget = {
   facts: number;
   /** Words the panel prints outside the head line and the confirm (numbers and icons are not words). */
   words: number;
+  /** Words of the party box's one line of moment beside the reading (a caption under a graphic — not decision text; its own ceiling). */
+  moment: number;
 };
 
 /** The ceilings `voteInfoBudget.spec.ts` holds every resolution of the catalog to. */
-export const VOTE_INFO_LIMITS = {kickers: 3, readings: 1, facts: 2, factsOnEdge: 3, words: 28} as const;
+export const VOTE_INFO_LIMITS = {kickers: 3, readings: 1, facts: 2, factsOnEdge: 3, words: 28, momentWords: 5} as const;
 
 const IDENTITY: TextFn = (key, params) => (params ?? []).reduce<string>((acc, p, i) => acc.split('${' + i + '}').join(p), key);
 
@@ -358,5 +349,8 @@ export function voteInfoBudget(vm: VoteInfoVm, text: TextFn = IDENTITY): VoteInf
     readings: contexts.size,
     facts: vm.vote.facts.length,
     words: countWords(strings.join(' ')),
+    // The party box beside the reading prints a GRAPHIC (the emblem in the printed formula) and one
+    // line of moment — counted apart from the decision text, against its own ceiling.
+    moment: countWords(text(PARTY_MOMENT)),
   };
 }

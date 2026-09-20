@@ -164,7 +164,7 @@ async function expectFits(page: Page, label: string): Promise<void> {
     }
     const reading = '.con-pseal__name, .con-pseal__state-text, .con-parl__tally-row, .con-parl__seat, .con-parl__ruler-name, .con-parl__ruler-scope, .con-parl__info-scope, .con-parl__cta-cost, ' +
       '.con-parl__quest-text, .con-parl__quest-reward, .con-parl__slot-win, .con-parl__slot-party, .con-parl__kicker, .con-parl__pline-text, ' +
-      '.con-parl__recap-item, .con-parl__txn-row, .con-parl__fact-key, .con-parl__fact-val, .con-parl__info-name, .con-parl__info-kicker, ' +
+      '.con-parl__txn-row, .con-parl__fact-key, .con-parl__fact-val, .con-parl__info-name, .con-parl__info-kicker, ' +
       '.con-parl__seat-name, .con-parl__seat-key, .con-parl__info-src-text, .con-parl__cta-label, .con-parl__slot-empty-reason';
     for (const el of Array.from(root.querySelectorAll<HTMLElement>(reading))) {
       if (!visible(el)) {
@@ -903,7 +903,12 @@ test.describe('parliament v4 · a crowded table · the vote that is not possible
     // The inspector of the winning card: the footer says it stands in the vote
     // AND wins right now; the party column and the own-rules column both fit.
     await openZoomViewer(page);
-    await expect(page.locator('.con-rstatus[data-lifecycle="vote"]')).toContainText(/принимается/i);
+    await expect(page.locator('.con-rstatus[data-lifecycle="vote"]'), 'the standing chip: up for the vote').toHaveCount(1);
+    // The winning state is the footer's own FACT ROW (final polish A.1): «ПРИНИМАЕТСЯ да» — one value,
+    // no arrow, since no delegate of the viewer can move it; the chip carries no second «принимается».
+    await expect(page.locator('[data-zoom-vote-facts] [data-zoom-vote-fact="win"]'), 'the fact row says it wins right now').toContainText(/принимается/i);
+    await expect(page.locator('[data-zoom-vote-facts] [data-zoom-vote-fact="win"] .con-parl__fact-arrow'), 'nothing to change: one value, no arrow').toHaveCount(0);
+    await expect(page.locator('dialog.con-zoom[open] .con-rstatus__life-tail'), 'the standing chip says it once — no winning tail beside the rows').toHaveCount(0);
     await expect(page.locator('.card-zoom-aside .con-rinspect-aside')).toHaveCount(1);
     await expectInspectorScene(page, `${preset} tie`);
     // No vote possible: the verb stays in place, calm, with the server's

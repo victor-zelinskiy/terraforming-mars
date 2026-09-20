@@ -93,13 +93,48 @@ dialog.con-zoom.con-zoom--parliament .card-zoom-actions__panel {
     box-sizing: border-box;
     max-width: calc(100vw - 2 * var(--con-hud-pad-x, 2rem));
 }
+/* THE SCENE'S ACTIONS BAND: the footer is two rows (below), so the band the card is fitted against
+   is taller than a plain card's 5.2rem (console.less) — FIXED per profile and sized for the tallest
+   composition (a two-part reading over a blocked verb with its reason), so the card's position stays
+   rock-solid across LB/RB; the viewer's fit engine reads this very band (`CardZoomModal`: the console
+   instance reserves the band it has). Measured: 1080 — rows 72 + 70, a 6 px step, 22 px of plate
+   padding = 170 of 170; TV — 140 + 116 + 16 + 44 = 316 of 340; Deck — 70 + 60 + 4 + 22 = 156 of 168. */
+dialog.con-zoom.con-zoom--parliament .card-zoom-actions { height: 8.5rem; }
+html.con-profile-handheld dialog.con-zoom.con-zoom--parliament .card-zoom-actions { height: 8.4rem; }
 /* Between groups a clear, moderate step; inside a group the glyph and its
    words keep their own tight gaps. (The class is doubled to outrank the
    profile ladders' `.con-zoom__bar` gap, which sit later in the cascade.) */
 .con-zoom__bar.con-zoom__bar--scene {
-    flex-wrap: nowrap;
-    gap: 1.5rem;
+    --con-zoom-bar-gap: 1.5rem;
+    flex-wrap: wrap;
+    row-gap: .3rem;
+    column-gap: var(--con-zoom-bar-gap);
+    /* TWO ROWS: the FACTS (the standing chip · the vote's rows · the reading · the winner's chip)
+       over the VERBS (the delegate · the paging · the close) — the break is the bar's own `::before`
+       on a full-width basis, ordered between the two groups. Measured (final polish A.1): one row
+       held the vote's fact rows only by squeezing them (keys cut to «ПР»), and at their honest
+       widths the members were 1217 px on the Deck's 1140 px bar, 1767 on the 1080's 1766 and 3534
+       on the TV's 3524 (the reading squeezed to a 335 px stack there and still clipped); two rows
+       are no taller than that stack (the reading's plates stand side by side) and nothing in them
+       is squeezed. Every profile draws the same composition. */
+    /* The break is a flex item, so the bar's INTRINSIC width would count one more column gap than
+       the members have between them (a plate 30 px wider than its one-line content at 1080 — the
+       scene probe's «no empty stretch»); its negative half-gaps give that gap back exactly. */
+    &::before { content: ''; flex-basis: 100%; height: 0; order: 1; margin-inline: calc(var(--con-zoom-bar-gap) / -2); }
+    > .con-zoom__vote, > .con-zoom__cmd, > .con-zoom__btn { order: 2; }
 }
+/* THE FOOTER'S WIDTH POLICY (final polish A.1): a member yields width only by WRAPPING its own
+   lines — never by a squeeze that cuts what it says. The standing chip, the vote's fact rows (a key
+   is one word: «ПРИНИМАЕТСЯ» cannot wrap, so a squeezed row cut it to «ПР» on the Deck and the TV),
+   the paging and the close keep their width; the reading stacks its plates and takes its captions to
+   a second line, and the verb takes its label to two — each down to its own wrapped minimum and not
+   a pixel further (`min-width: auto`: the chip's own `min-width: 0` let the row cut a caption at 162
+   of its 197 px). The rest of the room is the winner's chip dropping its kicker beside the fact rows
+   (below) and each profile's gap — ONE rhythm sized to its bar. A bar that still cannot hold its
+   members overflows in the open, where the scene probe sees it — never a clipped fact. */
+.con-zoom__bar--scene > * { flex-shrink: 0; }
+.con-zoom__bar--scene > .con-zoom__bar-yield { flex-shrink: 1; min-width: auto; }
+.con-zoom__bar--scene > .con-zoom__vote { flex-shrink: 1; }
 
 /* THE VOTE VERB — the mint confirm of the console's verbs, with its reading
    under the label: the source and the price, or the reason it cannot go now.
@@ -332,6 +367,46 @@ html.con-profile-handheld .con-pseal--aside {
     .con-pseal__action { width: 1.15rem; height: 1.15rem; font-size: .7rem; }
     .con-pseal__formula { margin-top: .2rem; padding: .15rem .3rem; }
 }
+/* THE VOTE CHIP — the viewer's vote as the panel's fact rows, on the status chip's chassis with the vote's
+   own mint accent (the confirm's colour). Rows are grid cells over their reserve (the other cards' rows), so
+   the chip keeps one size for the whole context. */
+.con-rvote {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: center;
+    gap: .12rem;
+    padding: .22rem .6rem .22rem .5rem;
+    border-radius: .4rem;
+    background: linear-gradient(90deg, fade(#0b1420, 92%), fade(#0b1420, 72%));
+    box-shadow:
+        inset .16rem 0 0 fade(@con-parl-mint, 75%),
+        inset 0 0 0 .05rem rgba(130, 165, 200, 0.22);
+    font-family: @con-font;
+    white-space: nowrap;
+    &__cell {
+        display: grid;
+        justify-items: stretch;
+        align-items: center;
+        > * { grid-area: 1 / 1; }
+    }
+    &__sizer { visibility: hidden; }
+    &__row { line-height: 1.1; }
+    /* A seat's NAME in the lead row is the one value without a ceiling: it ends with an ellipsis in
+       its OWN box (the rail law) — the row is never squeezed for it. */
+    .con-parl__fact-val > b { max-width: 8rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+}
+/* THIS VOTE's projection on the access line — the panel's arrow grammar, mint (the gain tone). */
+.con-rstatus__access-next {
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+    color: @con-parl-mint;
+    text-transform: uppercase;
+    letter-spacing: .06rem;
+}
+.con-rstatus__access-arrow { opacity: .7; }
+
 html.con-profile-handheld .con-rstatus {
     gap: .06rem;
     padding: .2rem .65rem .2rem .55rem;
@@ -343,7 +418,15 @@ html.con-profile-handheld .con-rstatus {
     &__place { width: .85rem; height: .85rem; }
     &__count { font-size: .64rem; }
 }
-html.con-profile-handheld .con-zoom__bar.con-zoom__bar--scene { gap: 1rem; }
+/* The fact rows at the vote panel's own handheld sizes (one grammar, two hosts). */
+html.con-profile-handheld .con-rvote {
+    gap: .08rem;
+    padding: .18rem .5rem .18rem .4rem;
+    .con-parl__fact { padding: .03rem .35rem; }
+    .con-parl__fact-key { font-size: .5rem; }
+    .con-parl__fact-val { font-size: .68rem; b { font-size: .82rem; } }
+}
+html.con-profile-handheld .con-zoom__bar.con-zoom__bar--scene { --con-zoom-bar-gap: 1rem; row-gap: .2rem; }
 html.con-profile-handheld .con-zoom__vote {
     &-label { font-size: .7rem; letter-spacing: .06rem; }
     &-line { height: .85rem; font-size: .64rem; }
@@ -376,7 +459,15 @@ html.con-profile-tv .con-rstatus {
     &__place { width: 1rem; height: 1rem; }
     &__count { font-size: .85rem; }
 }
-html.con-profile-tv .con-zoom__bar.con-zoom__bar--scene { gap: 1.6rem; }
+/* The fact rows at the vote panel's own couch sizes (the .8rem floor). */
+html.con-profile-tv .con-rvote {
+    gap: .16rem;
+    padding: .28rem .8rem .28rem .65rem;
+    .con-parl__fact { padding: .03rem .45rem; }
+    .con-parl__fact-key { font-size: .8rem; }
+    .con-parl__fact-val { font-size: .9rem; b { font-size: 1.05rem; } }
+}
+html.con-profile-tv .con-zoom__bar.con-zoom__bar--scene { --con-zoom-bar-gap: 1.4rem; row-gap: .4rem; }
 html.con-profile-tv .con-zoom__vote {
     &-label { font-size: 1.05rem; }
     &-line { height: 1.05rem; font-size: .85rem; }
@@ -392,21 +483,19 @@ html.con-profile-tv .con-zoom__flip-pos b { font-size: 1.1rem; }
    widened the plate past its items (`console-parliament-v2` § crowded table). */
 .con-zoom__bar-yield { align-self: center; }
 /* A resolution with TWO scaled parts (a sequel — Climate Research) reads in the
-   footer with its parts SIDE BY SIDE, each part's readings stacked, and every
-   caption on ONE fixed measure: a plate is never narrower than its caption
-   (which then takes two lines, never three) and never wider — so the two columns
-   fit the width the footer has beside the party's answer at 1080, and the block
-   never shrinks under them (a squeezed column let its plates run into the next).
-   Four plates in a column climbed over the card on a crowded table; one-line
-   captions spilled out of plates the row had squeezed (`console-parliament-v2`
-   § crowded table). */
+   footer with its parts SIDE BY SIDE, each part's readings stacked (four plates
+   in a column climbed over the card on a crowded table). Their captions keep the
+   plate's own measure: on the two-row footer the facts row has the width for a
+   one-line caption (the fixed 7rem measure that once folded every caption to two
+   lines existed for a one-row bar that had to fit beside the party's answer at
+   1080), and a plate never spills — the chip yields only by wrapping, down to its
+   wrapped minimum (the bar's policy above). */
 .con-zoom__bar-yield.con-iyield--parts {
     flex-direction: row;
     flex-shrink: 0;
     align-items: flex-start;
     column-gap: .5rem;
     .con-iyield__readings { flex-direction: column; flex-wrap: nowrap; }
-    .con-iyield__caption { min-width: 7rem; max-width: 7rem; }
 }
 /* …and beside such a reading the ruling party's answer drops its caption — the
    emblem and the name already say whose rule pays (the Deck vote surface's own
@@ -421,6 +510,15 @@ html.con-profile-tv .con-zoom__flip-pos b { font-size: 1.1rem; }
 /* …and the winner's tile beside it: a content-sized chip that never wraps (a
    chip squeezed by the footer's flex row broke into a column). */
 .con-zoom__bar-winner { align-self: center; flex-shrink: 0; white-space: nowrap; }
+/* …and beside the vote's FACT ROWS (the card up for the vote, the viewer seated) the winner's chip
+   drops its kicker: «если победите» on the same line already addresses the winner in the second
+   person, and the rows beside it say whether that is you — the reaction chip's precedent above. The
+   kicker stays in the DOM for assistive tech and the probes; the caption's divider goes with it. */
+.con-zoom__bar:has(> .con-zoom__bar-vote) .con-zoom__bar-winner {
+    position: relative;
+    .con-wreward__label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+    .con-wreward__caption { padding-left: 0; border-left: 0; }
+}
 /* HANDHELD: the Deck's footer has no width for a third reading — the chip stood ON
    the influence plates. The rules column's «for you» row carries the same reading
    in words on every profile, so the footer drops the chip here. */

@@ -1,6 +1,6 @@
 import {test, expect, Page} from './consoleTest';
-import {bootFixtureSeats, press, settle} from './consoleStart';
-import {focusParliamentZone, openParliament, parliament, PARLIAMENT_PRESETS, parliamentZone} from './parliamentDrive';
+import {bootFixtureSeats, openMandatoryAnnounce, press, pressUntil, settle} from './consoleStart';
+import {focusParliamentZone, openParliament, parliament, PARLIAMENT_PRESETS, parliamentZone, sittingStage, turnTo, waitSittingAtRest} from './parliamentDrive';
 
 /*
  * THE BROWSE LAYER IS STILL WHILE THE PLAYER POINTS (ПОЛИРОВКА — the registry's
@@ -124,6 +124,96 @@ for (const preset of PARLIAMENT_PRESETS) {
       await check('focus government');
       await focusParliamentZone(page, 'parties');
       await check('back to parties');
+    });
+
+    /*
+     * THE VOTE MODE IS STILL WHILE THE PLAYER POINTS (final polish B): the
+     * selection moves across the three cards, the info surface — the reading,
+     * the party box beside it, the vote block, the confirm — keeps its box.
+     */
+    test('the d-pad walk across the vote mode moves the selection and nothing else', async ({page, request}) => {
+      test.setTimeout(240_000);
+      await bootFixtureSeats(page, request, 'parliament-dense', {query: preset.query, landing: 'board'});
+      await openParliament(page);
+      await settle(page, {timeoutMs: 20_000});
+      await focusParliamentZone(page, 'voting');
+      expect(await pressUntil(page, 'Enter', async () => await page.locator('.con-parl__vote.con-parl__vote--up').count() > 0, {tries: 4, settleMs: 1200}), 'the vote mode opens').toBe(true);
+      await settle(page, {timeoutMs: 15_000});
+      const blocks = ['.con-parl__vote', '.con-parl__vrow', '.con-parl__info', '.con-parl__info-res', '.con-parl__info-vote', '.con-parl__info-main', '.con-parl__info-party', '.con-parl__cta'];
+      const snap = () => page.evaluate((sel) => {
+        const out: Record<string, {x: number, y: number, w: number, h: number}> = {};
+        for (const s of sel) {
+          const el = document.querySelector<HTMLElement>(s);
+          if (el !== null) {
+            const r = el.getBoundingClientRect();
+            out[s] = {x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height)};
+          }
+        }
+        document.querySelectorAll<HTMLElement>('.con-parl__vrow .con-parl__slot').forEach((el) => {
+          const r = el.getBoundingClientRect();
+          out[`slot:${el.getAttribute('data-instance')}`] = {x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height)};
+        });
+        return out;
+      }, blocks);
+      const base = await snap();
+      expect(base['.con-parl__info-party'], `${preset.id}: the party box stands beside the reading`).toBeDefined();
+      const trail: Array<string> = [];
+      for (const [key, label] of [['ArrowRight', '→ 1'], ['ArrowRight', '→ 2'], ['ArrowLeft', '← 1'], ['ArrowLeft', '← 2']] as const) {
+        await press(page, key, 700);
+        const moved = diff(base, await snap());
+        trail.push(`${label}: moved=${moved.length}`);
+        expect(moved, `${preset.id} · vote mode after ${label} — nothing but the selection moved\n${trail.join('\n')}`).toEqual([]);
+      }
+      await press(page, 'Escape', 1100);
+    });
+
+    /*
+     * THE SITTING'S PAGES ARE STILL AT REST (final polish B): a page turn by A
+     * moves the stage's pose, never the tiers around it (head, seats,
+     * government, voting, agenda) — and on the reward page the readings share
+     * ONE left edge (registry R-30: centred, a wider second reading stood
+     * 18 px left of the first).
+     */
+    test('the sitting: the tiers keep their boxes across the pages; the reward readings share one left edge', async ({page, request}) => {
+      test.setTimeout(300_000);
+      await bootFixtureSeats(page, request, 'parliament-climate-assembly', {query: preset.query, landing: 'prompt'});
+      expect(await openMandatoryAnnounce(page), 'A opens the sitting').toBe(true);
+      await expect(parliament(page)).toHaveCount(1, {timeout: 20_000});
+      await waitSittingAtRest(page, 30_000);
+      const tiers = ['.con-parl__head', '.con-parl__seats', '.con-parl__gov', '.con-parl__voting', '.con-parl__agenda', '.con-parl__stage'];
+      const snapTiers = () => page.evaluate((sel) => {
+        const out: Record<string, {x: number, y: number, w: number, h: number}> = {};
+        for (const s of sel) {
+          const el = document.querySelector<HTMLElement>(s);
+          if (el !== null) {
+            out[s] = {x: el.offsetLeft, y: el.offsetTop, w: el.offsetWidth, h: el.offsetHeight};
+          }
+        }
+        return out;
+      }, tiers);
+      const base = await snapTiers();
+      const trail: Array<string> = [];
+      for (const stage of ['enact', 'reward']) {
+        expect(await turnTo(page, stage), `A turns to ${stage}`).toBe(true);
+        await waitSittingAtRest(page, 40_000);
+        const moved = diff(base, await snapTiers());
+        trail.push(`${stage}: moved=${moved.length}`);
+        expect(moved, `${preset.id} · on ${stage} — the tiers keep their boxes\n${trail.join('\n')}`).toEqual([]);
+      }
+      expect(await sittingStage(page)).toBe('reward');
+      // R-30: every reading of the viewer's yield block starts at the same x.
+      const lefts = await page.evaluate(() => Array.from(document.querySelectorAll<HTMLElement>('.con-sit__panel--on .con-sit__yield .con-iyield__reading')).map((el) => Math.round(el.getBoundingClientRect().left)));
+      expect(lefts.length, 'the reward page reads at least one reading').toBeGreaterThan(0);
+      expect(Math.max(...lefts) - Math.min(...lefts), `${preset.id}: the readings share one left edge (${lefts.join(', ')})`).toBeLessThanOrEqual(1);
+      const items = await page.evaluate(() => Array.from(document.querySelectorAll<HTMLElement>('.con-sit__panel--on .con-sit__hero > [data-parl-sit-item]')).map((el) => ({cls: el.className.toString().split(' ')[0], left: Math.round(el.getBoundingClientRect().left), top: Math.round(el.getBoundingClientRect().top)})));
+      const firstRowLeft = Math.min(...items.map((i) => i.left));
+      const firstOnEachRow = new Map<number, number>();
+      for (const i of items) {
+        firstOnEachRow.set(i.top, Math.min(firstOnEachRow.get(i.top) ?? Infinity, i.left));
+      }
+      for (const [top, left] of Array.from(firstOnEachRow.entries())) {
+        expect(Math.abs(left - firstRowLeft), `${preset.id}: every row of the hero column starts at the same x (row at y=${top}: ${left} vs ${firstRowLeft})`).toBeLessThanOrEqual(1);
+      }
     });
   });
 }

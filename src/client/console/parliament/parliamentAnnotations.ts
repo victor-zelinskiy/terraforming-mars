@@ -208,22 +208,14 @@ export function resolutionAnnotations(
  * (the plaque above draws the graphic). No state, no «for you», no reference
  * — the plaque's badge, the footer and the party's own inspector carry those.
  *
- * …and, while the card is up for the vote, YOUR VOTE (`voteFactRowsOf`): the
- * delegate count and every consequence with its note — the whole forecast the
- * vote panel compresses to two facts. It stands in THIS column on purpose:
- * the rules column has no line to spare on the couch and the Deck (measured
- * 2014 > 1760 / 691 > 575 px with the block there — a scroll, which the scene
- * forbids), the footer has no width at 1080 and on the Deck, and the party
- * column is the scene's shortest — where the last fact (the party effect for
- * you) is about the very party above it.
+ * The viewer's VOTE is never a block here (registry R-10): the columns are
+ * rules, and a vote's state — the leader, the winning state, the party
+ * effect's edge — is the footer's, in the vote panel's own fact rows
+ * (`ConsoleZoomVoteFacts`, `ConsoleResolutionStatus`), never prose.
  */
-export function resolutionPartyAnnotations(party: ReduxParty, vote?: ReadonlyArray<RowText>): ReadonlyArray<CardAnnotation> {
+export function resolutionPartyAnnotations(party: ReduxParty): ReadonlyArray<CardAnnotation> {
   const effect = getPartyEffect(party);
-  const out: Array<CardAnnotation> = effect === undefined ? [] : partyMechanicBlocks(effect, ASIDE_LABELS);
-  if (vote !== undefined && vote.length > 0) {
-    out.push(block('group:vote', 'note', 'Your vote', vote, 2));
-  }
-  return out;
+  return effect === undefined ? [] : partyMechanicBlocks(effect, ASIDE_LABELS);
 }
 
 export function partyAnnotations(party: ReduxParty, model: ParliamentModel | undefined, viewer: Color | undefined, canActNow?: boolean): ReadonlyArray<CardAnnotation> {

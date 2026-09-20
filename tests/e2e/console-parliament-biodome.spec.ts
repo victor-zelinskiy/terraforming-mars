@@ -128,7 +128,7 @@ async function expectFits(page: Page, label: string, rootSelector = '.con-parl')
     const vh = window.innerHeight;
     const out: Array<string> = [];
     const name = (el: Element) => el.className.toString().split(' ')[0];
-    const blocks = '.con-parl__gov, .con-parl__slot, .con-parl__info, .con-parl__info-block, .con-parl__info-own, .con-parl__stage, .con-iyield, .con-iyield__reading, .con-wreward, .con-parl__recap-item, .con-zoom__bar';
+    const blocks = '.con-parl__gov, .con-parl__slot, .con-parl__info, .con-parl__info-block, .con-parl__info-own, .con-parl__stage, .con-iyield, .con-iyield__reading, .con-wreward, .con-zoom__bar';
     for (const el of Array.from(root.querySelectorAll<HTMLElement>(blocks))) {
       const r = el.getBoundingClientRect();
       if (r.width === 0 || r.height === 0 || getComputedStyle(el).visibility === 'hidden') {

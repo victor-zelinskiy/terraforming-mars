@@ -23,7 +23,12 @@ export const MAX_ENACT_ZOOM = 1.05;
 /** …and at most this share of the layer's width (the recipient zone is the decision). */
 export const ENACT_HERO_SHARE = 0.3;
 /** The vote row's cards. */
-export const MAX_VOTE_ZOOM = 1.05;
+/**
+ * The vote mode's card cap. 1.05 was reached on every profile at the old panel heights; the panel was
+ * re-measured (final polish A.2 — its graphic at the card's own size) and the row's room now fits 1.12
+ * at 1080 (measured: row 668 px → 682 px, slot chrome 163 px, card 320×460 × 1.12 = 515 px).
+ */
+export const MAX_VOTE_ZOOM = 1.12;
 export const MIN_VOTE_ZOOM = 0.35;
 
 /** Solve the card zooms (voting slots · the enacted face · the vote row) from the measured frame. */

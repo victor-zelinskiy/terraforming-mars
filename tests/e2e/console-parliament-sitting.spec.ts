@@ -140,8 +140,9 @@ for (const preset of PRESETS) {
 
       // ── ONE ANNOUNCE: the plate says the Parliament is in session; nothing opened by itself.
       await expect(plate(page), 'the sitting is announced on the board home').toHaveCount(1, {timeout: 30_000});
-      await expect(plate(page).locator('.con-mandatory__ask')).toHaveText(/Парламент собрался|is in session/i);
-      await expect(plate(page).locator('.con-mandatory__open')).toHaveText(/Открыть заседание|Open the sitting/i);
+      await expect(plate(page).locator('.con-mandatory__ask')).toHaveText(/^\s*Заседание\s*$|^\s*Sitting\s*$/i);
+      await expect(plate(page).locator('.con-mandatory__open'), 'the family\'s own verb on the plate (the bar carries «Открыть заседание»)').toContainText(/Открыть|Open/i);
+      await expect(plate(page).locator('.con-mandatory__open')).not.toContainText(/заседание|sitting/i);
       await expect(parliament(page), 'the Parliament does not open by itself').toHaveCount(0);
       await shoot(page, preset.id, '00-announce');
       expect(await openMandatoryAnnounce(page), 'A opens the sitting').toBe(true);
@@ -257,6 +258,9 @@ for (const preset of PRESETS) {
       expect(crumb).toMatch(/ЗАСЕДАНИЕ|SITTING/);
       expect(crumb).toMatch(/ОБНОВЛЕНИЕ|RENEWAL/);
       await expect(sitting(page).locator('[data-sit-panel="renewal"].con-sit__panel--on [data-sit-row="fresh"]'), 'the fresh resolutions').not.toHaveCount(0);
+      // The losers that left for the discard are named as OBJECTS (an emblem, a name) — the server's own list (final polish A.10).
+      const discarded = ((await wireOf(request, playerId)).game.parliament?.phase as {summary?: {discarded?: Array<unknown>}} | undefined)?.summary?.discarded?.length ?? 0;
+      await expect(sitting(page).locator('[data-sit-panel="renewal"].con-sit__panel--on [data-sit-row="discarded"]'), `the ${discarded} discarded resolutions are named`).toHaveCount(discarded);
       await expectFits(page, `${preset.id} renewal`);
       await shoot(page, preset.id, '06-renewal');
       expect(await turnTo(page, 'closing'), 'A turns to the closing').toBe(true);
@@ -291,7 +295,7 @@ for (const preset of PRESETS) {
       expect((await wireOf(request, playerId)).waitingFor?.type).toBe('card');
       // The plate announces the SITTING (the resolution asking is named as its source), never the pick alone.
       await expect(plate(page)).toHaveCount(1, {timeout: 30_000});
-      await expect(plate(page).locator('.con-mandatory__ask')).toHaveText(/Парламент собрался|is in session/i);
+      await expect(plate(page).locator('.con-mandatory__ask')).toHaveText(/Заседание|Sitting/i);
       await expect(plate(page).locator('[data-source-resolution="RDX_GREENS_AQUIFER_CONTEST"]'), 'the resolution asking is the plate\'s source').toHaveCount(1);
       await expect(parliament(page)).toHaveCount(0);
       expect(await openMandatoryAnnounce(page)).toBe(true);

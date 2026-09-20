@@ -187,6 +187,9 @@ test.describe('the sitting — the director\'s beats (standard-1080)', () => {
     const cubeMoves = displacements(enactSamples, 'cube');
     expect(cubeMoves.size, 'the delegates went home as cubes').toBeGreaterThan(0);
     expect(Math.min(...cubeMoves.values()), 'every cube travelled').toBeGreaterThan(20);
+    // THE LANDING FRAME (final polish A.3): a returning delegate's touchdown re-keys the owner's reserve stack for
+    // its one-shot ring — the reserve place answers the arrival where the eye is (never a caption, never a timer).
+    await expect(page.locator('[data-parl-seat-reserve][data-parl-seat-landed]'), 'a reserve stack answered a touchdown').not.toHaveCount(0, {timeout: 5_000});
     if (gainedParties > 0) {
       expect(enactSamples.some((s) => s.peek), 'the parties tier peeked for the support beat').toBe(true);
     }

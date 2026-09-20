@@ -95,7 +95,7 @@ export type MandatoryFlowKind =
    * assembly gate through every ask of the enacted resolution to the adjourn
    * gate — ONE beat per generation (`parliament:gen<N>`, derived in
    * `consoleSittingFlow.parliamentSittingFlowBeat`), announced once
-   * («Парламент собрался · поколение N»), opened by A into the Parliament's
+   * («ПАРЛАМЕНТ · Заседание»), opened by A into the Parliament's
    * sitting flow. Its asks are STEPS of that flow (`followUp` doors inside the
    * open workspace), never beats of their own — see `mandatoryBeatFor`.
    */

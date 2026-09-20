@@ -68,8 +68,8 @@ export type FlightSpec = {id: string, color: Color | 'neutral', size: number};
  */
 export type CardFlightSpec = {id: string, width: number, height: number, face?: PremiumCardVM, faceUp?: boolean};
 
-/** A results-scene cube's flight. */
-export const RECAP_FLIGHT_MS = 480;
+/** A delegate cube's flight (the enactment's returns home, the seat pick's delegate to the chair). */
+export const CUBE_FLIGHT_MS = 480;
 /** One dealt card's flight (the deck's top → its slot). */
 export const DEAL_FLIGHT_MS = 560;
 export const DEAL_STAGGER_MS = 150;
@@ -202,7 +202,7 @@ export function flyCube(color: Color | 'neutral', from: Rect | undefined, to: Re
         proxy,
         from,
         to,
-        durationMs: RECAP_FLIGHT_MS,
+        durationMs: CUBE_FLIGHT_MS,
         onLanded: () => {
           onLanded();
           probeTick(() => dropFlight(id));

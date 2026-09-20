@@ -9,7 +9,7 @@ import {influenceAtAgenda} from '@/common/parliament/ParliamentTypes';
 import {allResolutions, getPartyEffect} from '@/client/parliament/ClientParliamentManifest';
 import {ParliamentPartyVm, ParliamentSlotVm, voteForecastOf} from '@/client/console/parliament/consoleParliamentModel';
 import {
-  SUFFIX_HINT, SUFFIX_IF_YOU_WIN, SUFFIX_STEP, READING_KICKER_SEATED, READING_KICKER_SPECTATOR, VOTE_INFO_LIMITS, VOTE_KICKER, voteFactsOf,
+  PARTY_MOMENT, SUFFIX_HINT, SUFFIX_IF_YOU_WIN, SUFFIX_STEP, READING_KICKER_SEATED, READING_KICKER_SPECTATOR, VOTE_INFO_LIMITS, VOTE_KICKER, voteFactsOf,
   voteInfoBudget, voteInfoOf, VoteInfoVm,
 } from '@/client/console/parliament/voteInfoModel';
 import ruParliament from '@/locales/ru/parliament.json';
@@ -124,6 +124,9 @@ function offencesOf(resolution: IClientResolution, opts: {dealt: boolean}): Arra
         if (b.words > VOTE_INFO_LIMITS.words) {
           out.push(`${where}: words ${b.words} (≤ ${VOTE_INFO_LIMITS.words})`);
         }
+        if (b.moment > VOTE_INFO_LIMITS.momentWords) {
+          out.push(`${where}: the party box's line of moment ${b.moment} words (≤ ${VOTE_INFO_LIMITS.momentWords})`);
+        }
       }
     }
   }
@@ -149,10 +152,9 @@ describe('voteInfoBudget — the vote panel never overloads again', () => {
   });
 
   it('the words are counted in the language the player reads — every key the panel prints has its RU line', () => {
-    const keys = [READING_KICKER_SEATED, READING_KICKER_SPECTATOR, VOTE_KICKER, SUFFIX_IF_YOU_WIN, SUFFIX_STEP, SUFFIX_HINT,
+    const keys = [READING_KICKER_SEATED, READING_KICKER_SPECTATOR, VOTE_KICKER, PARTY_MOMENT, SUFFIX_IF_YOU_WIN, SUFFIX_STEP, SUFFIX_HINT,
       'from the lobby · free', 'from the reserve', 'Leader', 'Winning', 'Party effect', 'effect is yours', '${0} of ${1}', 'yes', 'no', 'you',
-      'no leader yet', 'the neutral player', 'you (earlier delegate)', 'No card can hold animals', 'No card can hold this resource',
-      'Delegates on the card: ${0} → ${1} · of them yours ${2} → ${3}'];
+      'no leader yet', 'the neutral player', 'you (earlier delegate)', 'No card can hold animals', 'No card can hold this resource'];
     const missing = keys.filter((k) => RU[k] === undefined);
     expect(missing, 'untranslated panel keys').to.deep.eq([]);
   });

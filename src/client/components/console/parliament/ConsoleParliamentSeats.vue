@@ -32,7 +32,10 @@
              standing invisible glyph read as cut text to the fit probes). -->
         <span class="con-parl__seat-key">{{ $t('Reserve') }}<span v-if="seat.incoming > 0" class="con-parl__seat-incoming con-parl__seat-incoming--on" :data-parl-seat-incoming="seat.incoming" aria-hidden="true">←</span></span>
         <span class="con-parl__seat-obj">
-          <span class="con-parl__stack con-parl__stack--seat" :class="{'con-parl__stack--empty': seat.reserveCubes === 0}" :data-parl-seat-reserve="seat.color" :data-count="seat.reserveCubes">
+          <!-- THE LANDING FRAME: a returning delegate's touchdown re-keys the stack, whose one-shot ring plays
+               on mount and ends on its own animationend — the reserve place answers the arrival where the eye
+               is (never a timer, never a caption: the row already names the seat). -->
+          <span :key="'st' + seat.color + landFlashOf(seat.color)" class="con-parl__stack con-parl__stack--seat" :class="{'con-parl__stack--empty': seat.reserveCubes === 0, 'con-parl__stack--landed': landFlashOf(seat.color) > 0}" :data-parl-seat-reserve="seat.color" :data-count="seat.reserveCubes" :data-parl-seat-landed="landFlashOf(seat.color) > 0 ? landFlashOf(seat.color) : undefined">
             <span v-for="n in Math.min(seat.reserveCubes, 3)" :key="n" class="con-parl__stack-cube" :data-stack="n">
               <PlayerCube :color="seat.color" :size="cubePx(RIBBON_CUBE)" :glow="false" />
             </span>
@@ -108,7 +111,11 @@ export default defineComponent({
     benchWarn: {type: Boolean, default: false},
   },
   data() {
-    return {RIBBON_CUBE};
+    return {
+      RIBBON_CUBE,
+      /** Per seat: how many returning delegates have LANDED on its reserve this mount (each landing re-keys the stack for its ring). */
+      landFlash: {} as Record<string, number>,
+    };
   },
   computed: {
     /** THE SEATS — every participating player's places, with the results scene's display holds applied. */
@@ -146,9 +153,31 @@ export default defineComponent({
       return n <= 1 ? 0 : (n <= 3 ? 1 : 2);
     },
   },
+  watch: {
+    /**
+     * A RETURNING DELEGATE LANDED: the shown reserve grows by one while the
+     * sitting stands (the display hold lets go touchdown by touchdown) —
+     * that frame is the ring's cue. The vote mode's own cube leaving never
+     * counts (the sitting is the only stage the reserve grows in).
+     */
+    seats(now: Array<SeatRow>, was: Array<SeatRow>): void {
+      if (parliamentFlow.stage !== 'sitting') {
+        return;
+      }
+      for (const seat of now) {
+        const before = was.find((s) => s.color === seat.color);
+        if (before !== undefined && seat.reserveCubes > before.reserveCubes) {
+          this.landFlash[seat.color] = (this.landFlash[seat.color] ?? 0) + 1;
+        }
+      }
+    },
+  },
   methods: {
     cubePx(logical: number): number {
       return conLogicalPx(logical);
+    },
+    landFlashOf(color: Color): number {
+      return this.landFlash[color] ?? 0;
     },
     /** WHICH of the viewer's places the next delegate leaves — marked on the zone while the mode stands, never on another player's group. */
     seatSourceOf(seat: SeatRow): 'lobby' | 'reserve' | undefined {

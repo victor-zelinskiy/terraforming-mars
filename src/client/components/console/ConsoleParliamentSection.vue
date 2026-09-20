@@ -132,7 +132,7 @@ import {
   sittingAtLastPage, sittingPagesOf, sittingPositionOf, SittingPosition, sittingPrimaryKey, sittingRewardComing, SittingStage, sittingStageAt,
   sittingStageKey, sittingStartPage, sittingWorkspacePhase,
 } from '@/client/console/parliament/consoleSittingFlow';
-import {resetParliamentHolds} from '@/client/console/parliament/parliamentDisplayHolds';
+import {noteSlotsBeforeYield, parliamentHolds, resetParliamentHolds, takeSlotsBeforeYield} from '@/client/console/parliament/parliamentDisplayHolds';
 import {SittingBeat, sittingBeats, sittingStageBefore} from '@/client/console/parliament/sittingBeats';
 import {
   finishSittingMotion, killSittingMotion, parkSittingCards, playSittingStage, resetSittingDirector, seedEnactHolds, seedRenewalHolds,
@@ -199,6 +199,8 @@ export default defineComponent({
        * reward run's end, which then plays the deferred step transition.
        */
       stageHeld: undefined as SittingStage | undefined,
+      /** The voting slots BEFORE the last model change (a sync watcher writes it) — what a held reward pose keeps on the table. */
+      prevSlots: undefined as ReadonlyArray<ParliamentSlotVm> | undefined,
       /** The server step that arrived while the reward beat still played — replayed once the beat is over. */
       deferredStep: undefined as {key: string, was: string} | undefined,
     };
@@ -429,6 +431,17 @@ export default defineComponent({
     },
   },
   watch: {
+    /**
+     * THE TABLE BEFORE THIS CHANGE — written SYNCHRONOUSLY (before any
+     * pre-flush watcher below reads it): a server step that arrives under a
+     * held reward pose keeps the slots as they stood (registry R-25в).
+     */
+    'view.slots': {
+      flush: 'sync',
+      handler(_now: ReadonlyArray<ParliamentSlotVm>, was: ReadonlyArray<ParliamentSlotVm> | undefined): void {
+        this.prevSlots = was;
+      },
+    },
     'commands': {
       immediate: true,
       handler(cmds: ReadonlyArray<ConsoleCommand>): void {
@@ -494,12 +507,15 @@ export default defineComponent({
             // parameter's move, the TR), read for a beat, and only then the
             // server's next step (the renewal) takes the page. Nothing replays.
             const receipt = takeTileReceipt(this.sittingKey);
+            const slotsBeforeYield = takeSlotsBeforeYield();
             if (receipt !== undefined && position.step !== 'effects') {
               this.stageHeld = 'reward';
               this.deferredStep = {key: this.sittingStepKey, was: 'return'};
               parliamentRewardState.receiptShowing = true;
               this.playedStages = [];
               resetParliamentHolds();
+              // The table as it stood when the frame yielded to the board — held under the receipt pose.
+              this.holdTableUnderReward(slotsBeforeYield);
               this.motionPlan = {replay: [], stage: 'reward', reward: true};
             } else {
               // THE OPENING: the display holds are seeded BEFORE the first frame
@@ -533,6 +549,7 @@ export default defineComponent({
       if (parliamentFlow.stage === 'sitting' && was !== '' && this.rewardPending && wasStage === 'reward') {
         this.stageHeld = 'reward';
         this.deferredStep = {key: now, was};
+        this.holdTableUnderReward(this.prevSlots);
         return;
       }
       this.enterServerStep(was);
@@ -661,6 +678,12 @@ export default defineComponent({
   beforeUnmount() {
     this.stopFitObs?.();
     this.clearSubmitTimer();
+    // The frame yields to the board for the winner's tile with the sitting on
+    // its reward page: the table as it stands leaves with it, for the receipt
+    // pose the frame comes back to (a park, a close: the next mount discards it).
+    if (parliamentFlow.stage === 'sitting' && this.sittingStage === 'reward') {
+      noteSlotsBeforeYield(this.view.slots);
+    }
     resetSittingDirector();
     // A reward whose wave has not left with the sitting leaving (a park, the
     // phase's end) is announced by its counter now — never held for a stage
@@ -925,8 +948,31 @@ export default defineComponent({
      * the sitting stands seeds its holds before the render and plays its
      * beats after it.
      */
+    /**
+     * A SERVER STEP ARRIVED UNDER A HELD REWARD POSE (the adjourn in the same
+     * response as the record; the return from the board): the columns keep
+     * the losers as they stood — their faces, ribbons and tallies — and the
+     * renewal's holds are seeded now, before this render, so the fresh cards'
+     * faces, their neutral cubes, the deck's count and the lobby wait for the
+     * beat that will move them (registry R-25в: the columns showed the
+     * refreshed table under a page still reading «this payout»).
+     */
+    holdTableUnderReward(slots: ReadonlyArray<ParliamentSlotVm> | undefined): void {
+      const position = this.sitting;
+      const summary = this.model?.phase?.summary;
+      if (position === undefined || summary === undefined || consoleReducedMotionActive()) {
+        return;
+      }
+      if (sittingStageAt(position, sittingStartPage(position)) !== 'renewal' || sittingStagePlayed(this.sittingKey, 'renewal')) {
+        return;
+      }
+      seedRenewalHolds(summary, this.view);
+      parliamentHolds.heldSlots = slots;
+    },
     enterServerStep(was: string): void {
       const position = this.sitting;
+      // The held table lets go with the pose: the renewal beat parks the losers over these very homes.
+      parliamentHolds.heldSlots = undefined;
       parliamentFlow.sittingPage = position === undefined ? 0 : sittingStartPage(position);
       if (position !== undefined && was !== '' && parliamentFlow.stage === 'sitting') {
         const stage = sittingStageAt(position, parliamentFlow.sittingPage);

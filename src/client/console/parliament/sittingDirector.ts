@@ -185,10 +185,20 @@ export function seedRenewalHolds(summary: ParliamentPhaseSummaryModel, view: Par
       continue;
     }
     const seqs = slot.votes.filter((v) => v.owner === 'neutral').map((v) => v.seq).sort((a, b) => a - b).slice(0, fresh.neutralVotes);
+    // IDEMPOTENT: a step that arrives under a HELD reward pose seeds these
+    // before its render and again at its entry — a cube already hidden adds
+    // no second support hold (a doubled hold left cubes on the plaques).
+    let added = 0;
     for (const seq of seqs) {
-      pending.hiddenCubes.add(`${slot.instance}#${seq}`);
+      const key = `${slot.instance}#${seq}`;
+      if (!pending.hiddenCubes.has(key)) {
+        pending.hiddenCubes.add(key);
+        added++;
+      }
     }
-    pending.support.set(fresh.party, (pending.support.get(fresh.party) ?? 0) + seqs.length);
+    if (added > 0) {
+      pending.support.set(fresh.party, (pending.support.get(fresh.party) ?? 0) + added);
+    }
   }
   pending.deckPending = summary.refreshed.length;
   for (const color of summary.lobbyRefilled) {

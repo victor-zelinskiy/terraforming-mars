@@ -954,7 +954,6 @@
                                   :viewer="thisPlayer.color"
                                   :canActNow="myTurn && awaitingInput"
                                   :contextKey="zoomResolutionContextKey"
-                                  :voteRows="zoomVoteRows"
                                   :tier="zoomResolutionTier"
                                   :nonce="aside.nonce"
                                   :closing="aside.closing" />
@@ -1046,7 +1045,17 @@
                                    class="con-zoom__bar-info"
                                    :status="zoomResolutionStatus"
                                    :reserve="zoomResolutionStatusReserve"
+                                   :winningTail="zoomVoteFacts === undefined"
                                    :viewerColor="thisPlayer.color" />
+          <!-- THE VIEWER'S VOTE on the card (Turmoil Redux): what sending a
+               delegate would change — the leader and the winning state in the
+               vote panel's own fact rows, beside the standing (the party
+               effect's edge rides the status chip's access line). Only while
+               the card is up for the vote and the viewer has a seat. -->
+          <ConsoleZoomVoteFacts v-if="zoomVoteFacts !== undefined"
+                                class="con-zoom__bar-vote"
+                                :facts="zoomVoteFacts"
+                                :reserve="zoomVoteFactsReserve" />
           <!-- THE VIEWER'S OWN NUMBER for an influence-scaled part of the
                resolution on the stage: the estimate (and the «if you win»
                forecast) while it is up for the vote, what was recorded once
@@ -1616,18 +1625,19 @@ import ConsoleParliamentSection from '@/client/components/console/ConsoleParliam
 import {ParliamentInspectRequest} from '@/client/console/parliament/parliamentInspect';
 import {consoleParliamentUi} from '@/client/console/parliament/consoleParliamentFlow';
 import {parliamentSittingFlowBeat, parliamentSittingLive} from '@/client/console/parliament/consoleSittingFlow';
-import {partyAnnotations, resolutionAnnotations, resolutionPartyAnnotations, RowText} from '@/client/console/parliament/parliamentAnnotations';
+import {partyAnnotations, resolutionAnnotations, resolutionPartyAnnotations} from '@/client/console/parliament/parliamentAnnotations';
 import {resolutionPartyContextKey, resolutionStatusOf, ResolutionStatusVm} from '@/client/console/parliament/resolutionInspectModel';
 import {getResolution} from '@/client/parliament/ClientParliamentManifest';
 import ConsoleResolutionAside from '@/client/components/console/parliament/ConsoleResolutionAside.vue';
 import ConsoleResolutionStatus from '@/client/components/console/parliament/ConsoleResolutionStatus.vue';
+import ConsoleZoomVoteFacts from '@/client/components/console/parliament/ConsoleZoomVoteFacts.vue';
 import ConsoleInfluenceYield from '@/client/components/console/parliament/ConsoleInfluenceYield.vue';
 import ConsoleWinnerReward from '@/client/components/console/parliament/ConsoleWinnerReward.vue';
 import {WinnerRewardReading, winnerRewardReadingOf, winnerRewardTableOf} from '@/client/console/parliament/winnerRewardModel';
 import {enactedYieldsOf, voteYieldsOf} from '@/client/console/parliament/influenceYieldModel';
 import {PartyReactionReading, partyReactionsOf, viewerHasSeat} from '@/client/console/parliament/partyReactionModel';
 import {buildParliamentView, voteForecastOf} from '@/client/console/parliament/consoleParliamentModel';
-import {voteFactRowsOf, voteFactsOf} from '@/client/console/parliament/voteInfoModel';
+import {footerFactsOf, voteFactsOf, VoteFactVm} from '@/client/console/parliament/voteInfoModel';
 import ConsolePartyReaction from '@/client/components/console/parliament/ConsolePartyReaction.vue';
 import {InfluenceYield} from '@/common/parliament/influenceScaling';
 import ConsoleInfoMode from '@/client/components/console/ConsoleInfoMode.vue';
@@ -2163,6 +2173,7 @@ export default defineComponent({
     ConsoleParliamentSection,
     ConsoleResolutionAside,
     ConsoleResolutionStatus,
+    ConsoleZoomVoteFacts,
     ConsoleInfluenceYield,
     ConsoleWinnerReward,
     ConsoleInfoMode,
@@ -5166,16 +5177,20 @@ export default defineComponent({
     mandatoryAnnounceView(): {kicker: string, ask: string, sourceCard: CardName | undefined, sourceResolution: string | undefined, openLabel: string} {
       // THE SITTING'S ONE PLATE (Turmoil Redux): whatever prompt of the phase
       // is standing (a gate, the resolution's pick / take), the beat announces
-      // the SITTING — «Парламент собрался · поколение N» — and A opens it; a
+      // the SITTING — kicker «ПАРЛАМЕНТ», ask «Заседание» — and A opens it; a
       // resolution that is asking is still named as the source.
       const beat = this.mandatoryBeat;
       if (beat?.flow === 'parliament-phase' && this.mandatoryGateHeld) {
         return {
           kicker: translateText('Parliament'),
-          ask: translateTextWithParams('The Parliament of generation ${0} is in session', [String(this.game.generation)]),
+          // The ask names the SITTING, once, under the «ПАРЛАМЕНТ» kicker — the generation is the HUD's own pill
+          // right above the plate; the verb is the family's («Открыть», the command bar carries «Открыть заседание»).
+          // Measured (registry R-35): «Парламент собрался · поколение 1» + «Открыть заседание» made the plate 676 px,
+          // the whole band between the off-Mars spaces (560 px at 1080, 470 px on the Deck) and then some.
+          ask: translateText('Sitting'),
           sourceCard: undefined,
           sourceResolution: this.activeTaskSummary?.sourceResolution,
-          openLabel: 'Open the sitting',
+          openLabel: 'Open',
         };
       }
       return {
@@ -8604,35 +8619,32 @@ export default defineComponent({
       if (id === undefined || party === undefined) {
         return undefined;
       }
-      return denserRulesTier(rulesLengthTier(resolutionAnnotations(id, this.zoomResolutionYields, this.zoomResolutionWinnerWords)), rulesLengthTier(resolutionPartyAnnotations(party, this.zoomVoteRows)));
+      return denserRulesTier(rulesLengthTier(resolutionAnnotations(id, this.zoomResolutionYields, this.zoomResolutionWinnerWords)), rulesLengthTier(resolutionPartyAnnotations(party)));
     },
     /**
-     * THE VIEWER'S VOTE on the resolution on the stage, in words — the party
-     * column's «Your vote» block: the delegate count and every consequence
-     * with its note, the whole forecast the vote panel compresses to two
-     * facts. Only while the card is up for the vote and the viewer has a seat;
-     * the same pure facts the panel reads (`voteFactsOf`), over the live model.
+     * THE VIEWER'S VOTE on the resolution on the stage — the footer's fact
+     * rows: what sending a delegate would change (the leader, the winning
+     * state), the SAME pure facts the vote panel reads (`voteFactsOf`) over
+     * the live model. Only while the card is up for the vote and the viewer
+     * has a seat.
      */
-    zoomVoteRows(): ReadonlyArray<RowText> | undefined {
-      const id = this.zoomResolutionId;
-      const model = this.game.parliament;
-      const viewer = this.thisPlayer.color;
-      if (id === undefined || model === undefined || this.zoomResolutionStatus?.lifecycle !== 'vote' || !viewerHasSeat(model, viewer)) {
-        return undefined;
-      }
-      const view = buildParliamentView(model, viewer, this.playerView.players);
-      const slot = view.slots.find((s) => s.resolutionId === id);
-      if (slot === undefined) {
-        return undefined;
-      }
-      const forecast = voteForecastOf(slot, viewer, model.viewer?.vote);
-      const mineBefore = slot.viewerVotes;
-      const facts = voteFactsOf({
-        slot, party: view.parties.find((p) => p.party === slot.party), viewer, forecast,
-        snapshot: undefined, landed: false, mineBefore, mineAfter: mineBefore + 1, nameOf: this.parliamentSeatName,
+    zoomVoteFacts(): Array<VoteFactVm> | undefined {
+      return this.zoomVoteFactsFor(this.zoomResolutionId);
+    },
+    /** The same rows for every OTHER card of the context — the chip's invisible reserve (the footer's stability law). */
+    zoomVoteFactsReserve(): Array<Array<VoteFactVm>> {
+      const z = this.consoleCardZoom;
+      const out: Array<Array<VoteFactVm>> = [];
+      z.cards.forEach((card, i) => {
+        if (i === z.index || !isResolutionZoom(card)) {
+          return;
+        }
+        const facts = this.zoomVoteFactsFor(card.resolution);
+        if (facts !== undefined) {
+          out.push(facts);
+        }
       });
-      const numbers = {votesBefore: slot.totalVotes, votesAfter: forecast?.votesAfter ?? slot.totalVotes + 1, mineBefore, mineAfter: mineBefore + 1};
-      return voteFactRowsOf({all: facts, numbers}, (key, params) => params === undefined ? translateText(key) : translateTextWithParams(key, [...params]));
+      return out;
     },
     /**
      * «Send the delegate» for the card ON SCREEN — the vote mode's own
@@ -18149,6 +18161,25 @@ export default defineComponent({
      * the close (`zoomClosing`), and the mode's submit refuses outside its
      * vote stage — a held or doubled A can never send twice.
      */
+    /** The footer's vote facts for one resolution of the zoom context (undefined: not up for the vote, or the viewer has no seat). */
+    zoomVoteFactsFor(id: string | undefined): Array<VoteFactVm> | undefined {
+      const model = this.game.parliament;
+      const viewer = this.thisPlayer.color;
+      if (id === undefined || model === undefined || resolutionStatusOf(id, model, viewer)?.lifecycle !== 'vote' || !viewerHasSeat(model, viewer)) {
+        return undefined;
+      }
+      const view = buildParliamentView(model, viewer, this.playerView.players);
+      const slot = view.slots.find((s) => s.resolutionId === id);
+      if (slot === undefined) {
+        return undefined;
+      }
+      const forecast = voteForecastOf(slot, viewer, model.viewer?.vote);
+      const mineBefore = slot.viewerVotes;
+      return footerFactsOf(voteFactsOf({
+        slot, party: view.parties.find((p) => p.party === slot.party), viewer, forecast,
+        snapshot: undefined, landed: false, mineBefore, mineAfter: mineBefore + 1, nameOf: this.parliamentSeatName,
+      }));
+    },
     zoomSendVote(): void {
       const z = this.consoleCardZoom;
       const vote = z.vote;

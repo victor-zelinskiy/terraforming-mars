@@ -1075,7 +1075,16 @@ export default defineComponent({
       const loreReserve = this.loreVisible && rootVars !== undefined ?
         cssLengthPx(rootVars.getPropertyValue('--con-lore-w'), 520 * s) + 3.9 * remPx : 0;
       const flankReserve = 2 * Math.max(sideReserve, loreReserve);
-      const chromeVertical = (48 + 20 + 96 + 8 + (this.navEnabled && this.navCounter ? 64 : 0)) * s;
+      // The ACTIONS BAND: the console instance pins it to a FIXED height per scene (console.less —
+      // 5.2rem = the 96 + 8 below — for a plain card; the parliament scene's two-row footer stands on
+      // a taller band, `console_resolution_inspect.less`), so the reservation READS the band it has
+      // instead of restating the plain one: the card is sized for its own footer and never overlaps
+      // it (measured: the two-row footer's plate stood 32 px over the card at 1080), and the band
+      // being fixed per scene keeps the card's position rock-solid across LB/RB exactly as before.
+      // Desktop instances measure nothing (byte-identical).
+      const actionsEl = this.consoleMotion ? (this.$refs.dialog as HTMLElement | undefined)?.querySelector<HTMLElement>('.card-zoom-actions') ?? null : null;
+      const actionsReserve = actionsEl !== null && actionsEl.offsetHeight > 0 ? actionsEl.offsetHeight + 8 * s : (96 + 8) * s;
+      const chromeVertical = (48 + 20 + (this.navEnabled && this.navCounter ? 64 : 0)) * s + actionsReserve;
       // The 200 is the two TOUCH CHEVRONS' gutters. The console instance hides
       // them outright (`dialog.con-zoom .card-zoom-nav-slot {display: none}` —
       // LB/RB browse instead), so reserving their width there was reserving

@@ -16,7 +16,7 @@
       <span class="con-parl__kicker">{{ $t('Voting') }}</span>
     </div>
     <div class="con-parl__slots">
-      <div v-for="(slot, i) in view.slots" :key="slot.instance" class="con-parl__slot-home" :data-home="slot.instance">
+      <div v-for="(slot, i) in shownSlots" :key="slot.instance" class="con-parl__slot-home" :data-home="slot.instance">
         <Teleport defer to="[data-parl-vrow]" :disabled="!slotsCarried">
           <div class="con-parl__slot"
                :class="{
@@ -182,12 +182,22 @@ export default defineComponent({
     slotsCarried(): boolean {
       return parliamentSlotsCarried();
     },
+    /**
+     * THE SLOTS AS SHOWN: the live model — or, while the sitting HOLDS the
+     * reward pose through a step that already refreshed the table, the slots
+     * as they stood (registry R-25в). The director's holds hide what the
+     * renewal beat has yet to move; this hold keeps what it has yet to
+     * take away.
+     */
+    shownSlots(): ReadonlyArray<ParliamentSlotVm> {
+      return this.holds.heldSlots ?? this.view.slots;
+    },
     slotVms(): Array<PremiumCardVM | undefined> {
-      return this.view.slots.map((slot) => resolutionPremiumVmById(slot.resolutionId));
+      return this.shownSlots.map((slot) => resolutionPremiumVmById(slot.resolutionId));
     },
     /** Voting slots the refresh could not fill (distinct parties, never the ruling one's) — each shown as an EMPTY slot. */
     emptySlotCount(): number {
-      return Math.max(0, PARLIAMENT_VOTING_SLOTS - this.view.slots.length);
+      return Math.max(0, PARLIAMENT_VOTING_SLOTS - this.shownSlots.length);
     },
     /** WHY a slot stands empty: the final vote deals nothing after it; otherwise nothing of another party was left to deal. */
     emptySlotReason(): string {

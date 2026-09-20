@@ -151,12 +151,18 @@
       </div>
     </section>
 
-    <!-- ── RENEWAL: the refreshed voting area — the fresh resolutions and the
-         neutral delegates that came with them; the lobby refilled. ── -->
+    <!-- ── RENEWAL: the refreshed voting area — the losers that left for the
+         discard (the summary names them; the beat flies them), the fresh
+         resolutions and the neutral delegates that came with them; the lobby
+         refilled. Objects only: an emblem, a name, a number. ── -->
     <section class="con-sit__panel con-sit__panel--renewal" :class="{'con-sit__panel--on': stage === 'renewal'}" data-sit-panel="renewal">
       <span class="con-sit__kicker">{{ $t('New resolutions') }}</span>
       <template v-if="summary !== undefined">
         <div class="con-sit__rows">
+          <div v-for="loser in discarded" :key="loser.instance" class="con-sit__row con-sit__row--discarded" data-sit-row="discarded">
+            <span class="con-sit__val"><img class="con-sit__emblem" :src="emblemUrl(loser.party)" alt="" /><b>{{ $t(resolutionTitle(loser.resolution)) }}</b></span>
+            <span class="con-parl__chip-dim">{{ $t('To the discard') }}</span>
+          </div>
           <div v-for="fresh in summary.refreshed" :key="fresh.instance" class="con-sit__row" data-sit-row="fresh">
             <span class="con-sit__val"><img class="con-sit__emblem" :src="emblemUrl(fresh.party)" alt="" /><b>{{ $t(resolutionTitle(fresh.resolution)) }}</b></span>
             <span v-if="fresh.neutralVotes > 0" class="con-parl__chip-dim">{{ neutralVotesText(fresh.neutralVotes) }}</span>
@@ -274,6 +280,10 @@ export default defineComponent({
     },
     supportGained(): ReadonlyArray<{party: ReduxParty, gained: number}> {
       return (this.summary?.support ?? []).filter((s) => s.gained > 0);
+    },
+    /** The losers the refresh sent to the discard, in their slot order (the server's own list — absent before the refresh). */
+    discarded(): ReadonlyArray<{instance: string, resolution: string, party: ReduxParty}> {
+      return this.summary?.discarded ?? [];
     },
     /** The viewer's OWN records among the phase's outcomes (the effects so far). */
     mine(): Array<ParliamentEnactOutcomeModel> {

@@ -42,28 +42,39 @@
                  influence; what the win adds rides it as a suffix), and the
                  ruling party's answer to that number. A viewer without a
                  seat reads the graphic alone. -->
-            <div class="con-parl__info-own" :class="{'con-parl__info-own--yields': voteInfo.reading.yields.length > 0}" data-parl-vote-item data-parl-info="own">
-              <span class="con-parl__info-kicker" data-parl-kicker="reading" data-parl-vote-late>{{ $t(voteInfo.reading.kicker) }}</span>
-              <div class="con-parl__info-own-body">
-                <PremiumMechanicsPanel v-if="ownMechanics !== undefined" class="con-parl__info-mech" :mechanics="ownMechanics" />
-                <div v-if="voteInfo.reading.yields.length > 0" class="con-parl__info-readings" data-parl-vote-late>
-                  <ConsoleInfluenceYield class="con-parl__info-yield"
-                                         :yields="voteInfo.reading.yields"
-                                         :suffixes="voteInfo.reading.suffixes"
-                                         :formula="false"
-                                         :captions="false"
-                                         :oneNumber="true"
-                                         :note="voteInfo.reading.note"
-                                         size="compact"
-                                         data-parl-vote-yield
-                                         data-parl-vote-reading />
-                  <ConsolePartyReaction v-for="r in voteInfo.reading.reactions" :key="r.reaction.id"
-                                        class="con-parl__info-reaction"
-                                        :reading="r"
-                                        :withCaption="false"
-                                        size="compact"
-                                        data-parl-vote-reaction />
+            <!-- THE READING and, beside it, THE PARTY the card brings to power:
+                 its emblem, its printed formula and one line of moment («эффект
+                 партии · всем при принятии») — a graphic, never a sentence
+                 (registry example 4: the reading stood alone in a half-empty
+                 plate; the words are the inspector's). -->
+            <div class="con-parl__info-main">
+              <div class="con-parl__info-own" :class="{'con-parl__info-own--yields': voteInfo.reading.yields.length > 0}" data-parl-vote-item data-parl-info="own">
+                <span class="con-parl__info-kicker" data-parl-kicker="reading" data-parl-vote-late>{{ $t(voteInfo.reading.kicker) }}</span>
+                <div class="con-parl__info-own-body">
+                  <PremiumMechanicsPanel v-if="ownMechanics !== undefined" class="con-parl__info-mech" :mechanics="ownMechanics" />
+                  <div v-if="voteInfo.reading.yields.length > 0" class="con-parl__info-readings" data-parl-vote-late>
+                    <ConsoleInfluenceYield class="con-parl__info-yield"
+                                           :yields="voteInfo.reading.yields"
+                                           :suffixes="voteInfo.reading.suffixes"
+                                           :formula="false"
+                                           :captions="false"
+                                           :oneNumber="true"
+                                           :note="voteInfo.reading.note"
+                                           size="compact"
+                                           data-parl-vote-yield
+                                           data-parl-vote-reading />
+                    <ConsolePartyReaction v-for="r in voteInfo.reading.reactions" :key="r.reaction.id"
+                                          class="con-parl__info-reaction"
+                                          :reading="r"
+                                          :withCaption="false"
+                                          size="compact"
+                                          data-parl-vote-reaction />
+                  </div>
                 </div>
+              </div>
+              <div class="con-parl__info-party" data-parl-vote-item data-parl-info="party-effect" :data-party="voteInfo.party">
+                <ConsolePartyFormula class="con-parl__info-party-formula" :party="voteInfo.party" :emblem="true" size="compact" />
+                <span class="con-parl__info-party-when" data-parl-vote-late>{{ $t(partyMoment) }}</span>
               </div>
             </div>
           </div>
@@ -99,33 +110,9 @@
                     </span>
                   </template>
                 </div>
+                <!-- The SHARED fact row (ConsoleVoteFactRow) — the same markup the fullscreen inspector's footer prints. -->
                 <div class="con-parl__facts">
-                  <div v-for="fact in voteInfo.vote.facts" :key="fact.id"
-                       class="con-parl__fact"
-                       :class="{'con-parl__fact--gain': fact.tone === 'gain', 'con-parl__fact--dim': fact.tone === 'none'}"
-                       :data-parl-fact="fact.id"
-                       :data-parl-fact-tone="fact.tone"
-                       data-parl-vote-late>
-                    <span class="con-parl__fact-key">{{ $t(fact.label) }}</span>
-                    <!-- A fact that does not change is ONE value — an arrow to the same reading is noise on a decision line.
-                         The leader's «before» is its cube alone (a dash without one). -->
-                    <span class="con-parl__fact-val">
-                      <template v-if="!fact.unchanged">
-                        <template v-if="fact.id === 'lead'">
-                          <PlayerCube v-if="fact.before.cube !== undefined && fact.before.cube !== 'neutral'" :color="fact.before.cube" :size="cubePx(11)" :glow="false" />
-                          <PlayerCube v-else-if="fact.before.cube === 'neutral'" color="neutral" steel :size="cubePx(11)" :glow="false" />
-                          <span v-else class="con-parl__fact-none">—</span>
-                        </template>
-                        <b v-else>{{ factText(fact.before) }}</b>
-                        <span class="con-parl__fact-arrow" aria-hidden="true">→</span>
-                      </template>
-                      <template v-if="fact.after.cube !== undefined">
-                        <PlayerCube v-if="fact.after.cube !== 'neutral'" :color="fact.after.cube" :size="cubePx(11)" :glow="false" />
-                        <PlayerCube v-else color="neutral" steel :size="cubePx(11)" :glow="false" />
-                      </template>
-                      <b :class="{'con-parl__fact-after': !fact.unchanged}">{{ factText(fact.after) }}</b>
-                    </span>
-                  </div>
+                  <ConsoleVoteFactRow v-for="fact in voteInfo.vote.facts" :key="fact.id" :fact="fact" :cubePx="cubePx(11)" data-parl-vote-late />
                 </div>
               </div>
             </div>
@@ -166,6 +153,8 @@ import {SelectPaymentModel, VotePaymentMeta} from '@/common/models/PlayerInputMo
 import {PARLIAMENT_VOTE_COST, ReduxParty} from '@/common/parliament/ParliamentTypes';
 import ConsoleInfluenceYield from '@/client/components/console/parliament/ConsoleInfluenceYield.vue';
 import ConsolePartyReaction from '@/client/components/console/parliament/ConsolePartyReaction.vue';
+import ConsolePartyFormula from '@/client/components/console/parliament/ConsolePartyFormula.vue';
+import ConsoleVoteFactRow from '@/client/components/console/parliament/ConsoleVoteFactRow.vue';
 import PlayerCube from '@/client/components/PlayerCube.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import PremiumMechanicsPanel from '@/client/components/premiumCard/PremiumMechanicsPanel.vue';
@@ -178,7 +167,7 @@ import {conLogicalPx} from '@/client/console/consoleLayoutProfile';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {ParliamentBeat, scheduleParliamentBeat} from '@/client/console/parliament/parliamentBeat';
 import {descendWorkspaceFrame, foldWorkspaceFrame, setWorkspaceFramePhase, workspaceFrameHasNested} from '@/client/console/consoleWorkspaceStack';
-import {translateMessage, translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {translateMessage, translateText} from '@/client/directives/i18n';
 import {offTurnReason} from '@/client/console/offTurnReason';
 import {probeTick} from '@/client/console/probeTick';
 import {getResolution} from '@/client/parliament/ClientParliamentManifest';
@@ -195,7 +184,7 @@ import {
   ParliamentPromptBridge, parliamentPlayerName, ParliamentSlotVm, ParliamentTileVm, ParliamentViewVm, resolutionTitleOf, voteForecastOf,
   VoteForecastVm, voteResponse, voteVerbOf, VoteVerbVm,
 } from '@/client/console/parliament/consoleParliamentModel';
-import {FactValue, voteFactsOf, VoteFactsVm, voteInfoOf, VoteInfoVm} from '@/client/console/parliament/voteInfoModel';
+import {PARTY_MOMENT, voteFactsOf, VoteFactsVm, voteInfoOf, VoteInfoVm} from '@/client/console/parliament/voteInfoModel';
 import {BenchSource, voteSourceOf, winningShownOf} from '@/client/console/parliament/parliamentVoteView';
 import {ParliamentInspectRequest, slotFaceOf} from '@/client/console/parliament/parliamentInspect';
 
@@ -219,7 +208,7 @@ type CtaCost = {kind: 'free' | 'cost' | 'none', amount: number};
  */
 export default defineComponent({
   name: 'ConsoleParliamentVoteMode',
-  components: {ConsoleInfluenceYield, ConsolePartyReaction, PlayerCube, GamepadGlyph, PremiumMechanicsPanel},
+  components: {ConsoleInfluenceYield, ConsolePartyFormula, ConsolePartyReaction, ConsoleVoteFactRow, PlayerCube, GamepadGlyph, PremiumMechanicsPanel},
   props: {
     view: {type: Object as PropType<ParliamentViewVm>, required: true},
     model: {type: Object as PropType<ParliamentModel | undefined>, default: undefined},
@@ -239,6 +228,7 @@ export default defineComponent({
   emits: ['notice', 'inspect', 'send', 'flow-complete'],
   data() {
     return {
+      partyMoment: PARTY_MOMENT,
       landingBeat: undefined as ParliamentBeat | undefined,
       concludeBeat: undefined as ParliamentBeat | undefined,
       landingHold: undefined as AnimationHold | undefined,
@@ -464,13 +454,6 @@ export default defineComponent({
     },
     reasonText(reason: string | Message): string {
       return typeof reason === 'string' ? translateText(reason) : translateMessage(reason);
-    },
-    /** One side of a fact as the panel prints it (a seat's name stays raw; a key renders through i18n). */
-    factText(value: FactValue): string {
-      if (value.raw === true) {
-        return value.key;
-      }
-      return value.params === undefined ? translateText(value.key) : translateTextWithParams(value.key, [...value.params]);
     },
     /**
      * A on the voting area: the frame DESCENDS into the vote mode (a phase,

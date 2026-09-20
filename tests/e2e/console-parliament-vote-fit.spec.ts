@@ -132,7 +132,7 @@ async function expectVoteFits(page: Page, label: string): Promise<void> {
     const vh = window.innerHeight;
     const out: Array<string> = [];
     const name = (el: Element) => el.className.toString().split(' ')[0];
-    const blocks = '.con-parl__slot, .con-parl__info, .con-parl__info-own, .con-parl__info-block, .con-parl__fact, .con-parl__cta, ' +
+    const blocks = '.con-parl__slot, .con-parl__info, .con-parl__info-own, .con-parl__info-party, .con-parl__info-block, .con-parl__fact, .con-parl__cta, ' +
       '.con-iyield, .con-iyield__reading, .con-iyield__suffix, .con-preact, .con-parl__info-src';
     for (const el of Array.from(root.querySelectorAll<HTMLElement>(blocks))) {
       const r = el.getBoundingClientRect();
@@ -157,7 +157,7 @@ async function expectVoteFits(page: Page, label: string): Promise<void> {
 
 type Budget = {
   kickers: number, readings: number, forecastPlates: number, estimatePlates: number, suffixes: Array<string | null>,
-  facts: Array<string | null>, words: number, text: string, gone: Array<string>, captions: number,
+  facts: Array<string | null>, words: number, text: string, gone: Array<string>, captions: number, partyGraphic: number, partyMoment: number,
 };
 
 /** (в) THE BUDGET by the panel's own witnesses. */
@@ -192,6 +192,9 @@ const budgetOf = (page: Page) => page.evaluate((limit) => {
     text,
     gone,
     captions: q('[data-parl-vote-reading] .con-iyield__caption').length,
+    // The party's GRAPHIC beside the reading (registry example 4): its formula and one line of moment — no sentence.
+    partyGraphic: q('[data-parl-info="party-effect"] .con-pformula').length,
+    partyMoment: q('[data-parl-info="party-effect"] .con-parl__info-party-when').length,
     limit,
   } as Budget & {limit: number};
 }, WORD_LIMIT);
@@ -211,6 +214,7 @@ const metricsOf = (page: Page) => page.evaluate(() => {
   return {
     panel: box('.con-parl__info'), infoToken: infoH, card: box('.con-parl__slot--selected .pcard'), viewport: {w: window.innerWidth, h: window.innerHeight},
     head: box('.con-parl__info-head'), mech: box('.con-parl__info-mech'), readings: box('.con-parl__info-readings'), own: box('.con-parl__info-own'),
+    party: box('.con-parl__info-party'), main: box('.con-parl__info-main'), vrow: box('.con-parl__vrow'), body: box('[data-parl-vote-body]'),
     voteBlock: box('.con-parl__info-block--after'), facts: box('.con-parl__facts'), cta: box('.con-parl__cta'),
   };
 });
@@ -242,7 +246,12 @@ const inspectorOf = (page: Page) => page.evaluate(() => {
   return {
     estimates: q('[data-zoom-vote-reading] [data-yield-context="estimate"]').length,
     forecasts: q('[data-zoom-vote-reading] [data-yield-context="forecast"]').length,
-    voteRows: q('[data-rules-group="group:vote"] .con-zoom-rules__text').map((el) => (el.textContent ?? '').replace(/\s+/g, ' ').trim()),
+    // The viewer's vote in the footer: the fact rows of the chip, the status chip's access projection, no winning tail beside a chip, no vote block in the columns.
+    voteFacts: q('[data-zoom-vote-facts] [data-zoom-vote-fact]').map((el) => el.getAttribute('data-zoom-vote-fact')),
+    voteFactTexts: q('[data-zoom-vote-facts] [data-zoom-vote-fact]').map((el) => (el.textContent ?? '').replace(/\s+/g, ' ').trim()),
+    voteAccess: q('[data-zoom-vote-access]').length,
+    winningTails: q('.con-rstatus__life-tail').length,
+    voteBlocks: q('[data-rules-group="group:vote"]').length,
     position: q('[data-zoom-position]').map((el) => (el.textContent ?? '').replace(/\s+/g, ' ').trim())[0] ?? null,
     parties: q('.con-rinspect-aside').length,
   };
@@ -269,7 +278,10 @@ for (const preset of PRESETS) {
         expect(await page.locator('.con-parl__slot--selected').getAttribute('data-instance'), 'the first slot — the fixture\'s resolution — is selected').toContain(fixture.id);
 
         // ── (а) + (б)
-        expect(await clipProblems(page), `${fixture.name} @ ${preset.id}: nothing under the vote layer is clipped or scrollable`).toEqual([]);
+        // Polled, not read once: the entrance travels the late items in on a transform, and a
+        // transformed box is scrollable overflow while it moves — a one-shot read on a loaded runner
+        // sampled «clipped-y … 402 > 384» mid-flight; a real clip persists and fails here the same way.
+        await expect.poll(() => clipProblems(page), {timeout: 8_000, message: `${fixture.name} @ ${preset.id}: nothing under the vote layer is clipped or scrollable`}).toEqual([]);
         await expectVoteFits(page, `${fixture.name} @ ${preset.id}`);
 
         // ── (в) the budget — and the edge, read off the server's own model
@@ -282,6 +294,8 @@ for (const preset of PRESETS) {
         expect(budget.forecastPlates, 'a forecast is never a plate on the panel').toBe(0);
         expect(budget.estimatePlates, 'the estimate plates — one per effect').toBeGreaterThan(0);
         expect(budget.captions, 'the kicker is the caption; the plates print none').toBe(0);
+        expect(budget.partyGraphic, 'the party\'s formula stands beside the reading').toBe(1);
+        expect(budget.partyMoment, 'with its one line of moment').toBe(1);
         expect(budget.suffixes, `the win's difference (${fixture.why})`).toEqual(fixture.suffix);
         expect(budget.kickers, 'two kickers').toBe(2);
         expect(budget.facts.slice(0, 2), 'the leader and the winning state').toEqual(['lead', 'win']);
@@ -309,8 +323,10 @@ for (const preset of PRESETS) {
         const inspector = (await inspectorOf(page))!;
         expect(inspector.estimates, 'every estimate the panel shows').toBe(budget.estimatePlates);
         expect(inspector.forecasts, 'a forecast plate wherever the panel shows a suffix').toBe(fixture.suffix.length);
-        expect(inspector.voteRows.length, `the vote's four facts in words: ${inspector.voteRows.join(' | ')}`).toBe(4);
-        expect(inspector.voteRows[0], 'the delegate count leads').toMatch(/\d+\s*→\s*\d+/);
+        expect(inspector.voteFacts, `the vote's facts as the panel's rows in the footer: ${inspector.voteFactTexts.join(' | ')}`).toEqual(['lead', 'win']);
+        expect(inspector.voteBlocks, 'no vote block in the columns (registry R-10)').toBe(0);
+        expect(inspector.winningTails, 'the status chip drops its winning tail beside the vote chip').toBe(0);
+        expect(inspector.voteAccess, onEdge ? 'on the edge the access line projects «→ эффект ваш»' : 'off the edge the access line projects nothing').toBe(onEdge ? 1 : 0);
         expect(inspector.parties, 'the party column').toBe(1);
         // LB/RB page the proposals (three on every fixture table).
         const position = inspector.position;
@@ -324,7 +340,7 @@ for (const preset of PRESETS) {
         await expect(page.locator('.con-parl__vote.con-parl__vote--up'), 'the mode survives the inspector').toHaveCount(1);
         const panelAfter = await panelSignature(page);
         expect(panelAfter, 'the panel under the inspector is the same afterwards').toBe(panelBefore);
-        expect(await clipProblems(page), 'still nothing clipped after the inspector').toEqual([]);
+        await expect.poll(() => clipProblems(page), {timeout: 8_000, message: 'still nothing clipped after the inspector'}).toEqual([]);
 
         await press(page, 'Escape', 900);
       });

@@ -1098,8 +1098,14 @@ html.console-native {
      amber past the commit boundary.
    Separators recede to hairline guides: they are punctuation, not content. */
 .con-wshead {
+    /* THE CRUMB LINE — one token, every workspace (registry R-17 / final polish A.11). The head's
+       members pin to it from the TOP: the identity centres on it whatever a sibling's height, and
+       a taller sibling (the couch-sized filter chips, the fleet dock, the Deck's two-tier facets)
+       grows DOWN from it. Centred in the whole row, the crumb of «Действия карт» stood 5 px lower
+       than the Parliament's on the TV and 10 px lower on the Deck — measured, not a token. */
+    --con-wshead-line: 2rem;
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: .35rem .9rem;
     /* NOWRAP on purpose: the identity and the aux zone always share the first
        line. A narrow band is absorbed INSIDE the aux zone (its own content
@@ -1107,7 +1113,7 @@ html.console-native {
        by pushing the whole zone below the identity, which would cost a third
        tier and move the stage geometry between profiles. */
     flex-wrap: nowrap;
-    min-height: 2rem;
+    min-height: var(--con-wshead-line);
     flex-shrink: 0;
 
     &__ident {
@@ -1116,6 +1122,7 @@ html.console-native {
         align-items: center;
         gap: .4rem;
         min-width: 0;
+        min-height: var(--con-wshead-line);
         /* NEVER SHRINKS. The identity is nowrap text with no overflow clip, so
            a shrunk box does not truncate it — the deep crumb layer (an absolute
            overlay on the aux zone, which starts where this box ENDS) then
@@ -1175,11 +1182,13 @@ html.console-native {
         position: relative;
         flex: 1 1 auto;
         min-width: 0;
+        min-height: var(--con-wshead-line);
         display: flex;
     }
     &__layer {
         display: flex;
         align-items: center;
+        min-height: var(--con-wshead-line);
         flex-wrap: wrap;
         gap: .35rem .9rem;
         min-width: 0;
@@ -1191,7 +1200,10 @@ html.console-native {
            as long as it likes without reflowing anything. */
         &--deep {
             position: absolute;
-            inset: 0;
+            /* The deep crumb tail stands on the CRUMB LINE (the top of the zone), never centred in
+               a zone the browse tier's two-tier facets made taller (the Deck). */
+            inset: 0 0 auto 0;
+            height: var(--con-wshead-line);
             /* ONE crumb rhythm. The head's column-gap (.9rem — right for the
                browse filters) would also space root → first separator, while
                every later step sits at the layer's own .4rem: the first `›`
@@ -1234,6 +1246,7 @@ html.console-native {
         gap: .45rem;
         flex-shrink: 0;
         min-width: 0;
+        min-height: var(--con-wshead-line);
     }
 
     /* FLOW MODE: breadcrumb + local meta keep the first tier; the directional
@@ -16585,6 +16598,11 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         flex: 1;
         min-height: 0;
         display: flex;
+        /* A COLUMN: the Parliament's party-effects strip (Turmoil Redux) stands ABOVE the
+           explorer as a band. As a row sibling it stood beside it — a half-empty plate down the
+           whole left side at 1080, and on the Deck it pushed the explorer's dossier column past
+           the screen's right edge (registry R-31). */
+        flex-direction: column;
         align-items: stretch;
     }
     &__acrow {
@@ -28620,6 +28638,24 @@ body.con-start-barshold .con-status {
     }
 }
 
+/* HANDHELD — the plate had no ladder of its own: at the Deck's 1280 px the base sizes made it
+   676 px wide, the whole band between the off-Mars spaces (470 px) and then some — Phobos and Luna
+   under it (registry R-35). The Deck's own chrome density: tighter gap and padding, the text one
+   rung down; a plate stays one line. */
+html.con-profile-handheld .con-mandatory {
+    gap: .55rem;
+    /* The Deck's prompt band is 63 px tall (the HUD's bottom to the planet's first hex row at 1280×800):
+       the base plate was 69 px and its bottom edge sat 6 px into the top hexes' boxes — a plate one
+       rung tighter (≤ 60 px) keeps the shared TOP position and clears the board. */
+    padding: .3rem .8rem .3rem .7rem;
+    &__body { gap: .05rem; }
+    &__glyph { font-size: 1.2rem; }
+    &__kicker { font-size: .74rem; line-height: 1.1; }
+    &__ask { font-size: .9rem; line-height: 1.15; }
+    &__src { font-size: .72rem; }
+    &__open { margin-left: .2rem; padding: .18rem .6rem; font-size: .82rem; }
+}
+
 @keyframes con-mandatory-in {
     from { opacity: 0; transform: translate(-50%, -.5rem) scale(.97); }
     to   { opacity: 1; transform: translate(-50%, 0) scale(1); }
@@ -34323,7 +34359,7 @@ html.con-profile-handheld {
        so the hand and «Действия карт» cannot read at two sizes on the same
        screen. (The hand's own `__title` is gone: the line is `.con-wshead`.) */
     .con-wshead {
-        min-height: 1.6rem;
+        --con-wshead-line: 1.6rem;
         gap: .25rem .45rem;
         /* The deep layer's left pull EQUALISES the crumb rhythm: it cancels the
            head's column-gap so the first `›` sits at the layer's own gap like
