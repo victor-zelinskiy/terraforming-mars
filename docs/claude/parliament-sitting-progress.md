@@ -1922,17 +1922,14 @@ A зрителя → «Ожидание» в строке заголовка к�
 уходит одним движением.
 
 ### Ворота (финальная сборка, 2026-09-21)
-- **Пробники (`--workers=1`, все на финальной сборке):** `console-parliament-sitting-v2` 3/3 (2.0 мин; волна после A:
-  1080 6.18 с · TV 7.31 с · Deck 6.17 с; порядок битов agenda → support → enact на всех), `-sitting-v2-remote` 1/1
-  (28.9 с), `-stability` 9/9 (3.4 мин; обходы ×3, голосование ×3, смена правительства ×3),
-  `-vote-geometry` 2/2 (46.1 с; 1080 + TV, лобби и резерв, 0 px), `-leave` 3/3 (37.5 с; конец голосования, конец
-  заседания, B «свернуть»).
-- **Юниты:** eslint по изменённым файлам, `build:test` (обе ступени), `lint:client` (vue-tsc) — зелёные; чистые модели
-  на серверном раннере 114/0 (`consoleSittingFlow`, `sittingBeats`, `parliamentGlossary`, `parliamentNoTimers`,
-  `parliamentNoLocalStorage`, `ParliamentPhase`, `ParliamentModel`, `e2eFixturesLoad`, `e2eDriverGuard`); mochapack
-  по Парламенту 144/0 (`parliamentRewardBeat`, `parliamentSittingSeed`, `consoleTaskRouter`, `consoleTaskSummary`);
-  полные `test:server` 12 075 / 0 (1 pending; collected 12 076, floor 8 500) и `test:client` 5 716 / 0 (collected
-  5 716, floor 4 000) — на тихой машине, после всех e2e; `make:json` без дубликатов.
-- **Коммиты (локальные, без push):** Б1 · Б2+Б4 · Б3 · Б5 · пробники/драйвер/старые e2e/доки — по файлам блоков
-  (ядро клиента Б2 и Б4 живёт в одних файлах, поэтому один коммит; полный набор ворот прогнан на ФИНАЛЬНОМ состоянии
-  дерева, промежуточные коммиты по отдельности не гонялись — честно).
+- **Пробники (`--workers=1`, все на финальной сборке):** `console-parliament-leave` 3/3 (каждый внутренний блок цел,
+  три конца ухода), `console-parliament-sitting-v3` 3/3 (смена власти одним комплектом · сцена поддержки · Повестка
+  без ординалов), `console-parliament-sitting-v2` 3/3 (волна после A: 1080 6.2 с · TV 7.6 с · Deck 6.2 с),
+  `-sitting-v2-remote` 1/1, `-vote-geometry` 2/2, `-stability` 9/9 (три профиля; шесть плиток партий одной высоты и
+  одной ширины на всех профилях).
+- **Найдено пробниками по ходу:** прокси Парламента рождался в углу экрана (починено в источнике — `.con-parl__flight`
+  рождается невидимым); пробник геометрии голосования ловил СОБСТВЕННЫЙ уход поверхности (масштаб 0.988) — окно
+  сужено до конца потока, качество ухода проверяет свой пробник.
+- **Юниты:** `supportScene.spec.ts` 7/7, `parliamentSittingSeed.spec.ts` + `parliamentRewardBeat.spec.ts` 16/16,
+  чистые модели Парламента на серверном раннере 41/41; `lint:client`, `build:test` (обе ступени), eslint по деревьям
+  Парламента, `make:json` — зелёные; полные `test:server` 12 082/0 (1 pending, collected 12 083) и `test:client` 5 774/0 на тихой машине после всех e2e.

@@ -12,7 +12,7 @@ import {focusParliamentZone, openParliament, parliament, parliamentWire} from '.
  * `MutationObserver`, never rAF.
  */
 type Box = {x: number, y: number, w: number, h: number};
-type GeoSample = {t: number, stage: string, boxes: Record<string, Box>, flights: number};
+type GeoSample = {t: number, stage: string, boxes: Record<string, Box>, flights: number, leaving: boolean};
 type GeoProbe = {samples: Array<GeoSample>};
 
 const PRESETS = [
@@ -48,6 +48,10 @@ async function armGeometryProbe(page: Page): Promise<void> {
         stage: document.querySelector('.con-parl')?.getAttribute('data-stage') ?? '',
         boxes,
         flights: document.querySelectorAll('[data-parl-flight]').length,
+        // THE LEAVE IS NOT THE FLOW (v3 В1): the whole surface dissolves with the director's own 1.2 % scale, and
+        // since the section now stays MOUNTED for it, its boxes are measurable while it goes. The claim here is
+        // about the window from A to the flow's END — the leave's own quality belongs to `console-parliament-leave`.
+        leaving: ((el) => el === null ? false : el.style.position === 'fixed' || getComputedStyle(el).transform !== 'none')(document.querySelector<HTMLElement>('.con-parl')),
       });
       if (w.__voteGeo.samples.length > 8000) {
         w.__voteGeo.samples.splice(0, 1000);
@@ -85,7 +89,8 @@ async function voteAndSample(page: Page, label: string): Promise<{changes: Array
   // The flow ends by leaving: the whole workspace is gone once the delegate has landed and been read.
   await expect(parliament(page), `${label}: the vote's flow left`).toHaveCount(0, {timeout: 40_000});
   const probe = await readGeometry(page);
-  const withMode = probe.samples.filter((s) => Object.keys(s.boxes).some((k) => k.startsWith('card:')));
+  const upToLeave = probe.samples.slice(0, ((i) => i === -1 ? probe.samples.length : i)(probe.samples.findIndex((s) => s.leaving)));
+  const withMode = upToLeave.filter((s) => Object.keys(s.boxes).some((k) => k.startsWith('card:')));
   return {changes: sizeChanges(withMode), samples: withMode.length, flights: probe.samples.some((s) => s.flights > 0)};
 }
 

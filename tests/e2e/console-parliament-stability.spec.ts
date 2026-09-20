@@ -101,7 +101,7 @@ for (const preset of PARLIAMENT_PRESETS) {
       expect(Array.from(stateHeights), `${preset.id}: the six state rows share one height (a caption is reserved on every tile)`).toHaveLength(1);
       expect(Math.min(...Array.from(stateHeights)), `${preset.id}: the state row is reserved, not collapsed`).toBeGreaterThan(0);
 
-      // Then the walk: parties → across all five and back → voting → across the slots → the ruler's tile → government.
+      // Then the walk (v3 В5 — three zones): parties → across all five and back → voting → across the slots → the ruler's tile.
       const trail: Array<string> = [];
       const check = async (step: string) => {
         const now = await layoutSnapshot(page);
@@ -127,8 +127,6 @@ for (const preset of PARLIAMENT_PRESETS) {
       }
       await focusParliamentZone(page, 'ruler');
       await check('focus the ruler\'s tile');
-      await focusParliamentZone(page, 'government');
-      await check('focus government');
       await focusParliamentZone(page, 'parties');
       await check('back to parties');
     });

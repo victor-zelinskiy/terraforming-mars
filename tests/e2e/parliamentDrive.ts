@@ -280,8 +280,9 @@ export async function parliamentZone(page: Page): Promise<string> {
  * attribute). v2: four zones on the top row — government · ruler · voting (left to right) — and the
  * opposition row below.
  */
-export async function focusParliamentZone(page: Page, zone: 'government' | 'ruler' | 'voting' | 'parties'): Promise<void> {
-  const order = ['government', 'ruler', 'voting'];
+export async function focusParliamentZone(page: Page, zone: 'ruler' | 'voting' | 'parties'): Promise<void> {
+  // v3 В5: THREE zones — the ruler's tile is the government's only stop, the enacted resolution rides R3.
+  const order = ['ruler', 'voting'];
   for (let i = 0; i < 8 && await parliamentZone(page) !== zone; i++) {
     const at = await parliamentZone(page);
     let key: string;

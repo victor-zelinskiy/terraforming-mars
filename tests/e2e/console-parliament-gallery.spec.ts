@@ -331,8 +331,8 @@ for (const preset of PARLIAMENT_PRESETS) {
           await armReducedProbe(page);
         }
         await openParliament(page);
-        await focusParliamentZone(page, 'government');
-        await pose(page, preset, mode, '01', 'overview-government');
+        await focusParliamentZone(page, 'ruler');
+        await pose(page, preset, mode, '01', 'overview-ruler');
         await focusParliamentZone(page, 'voting');
         await pose(page, preset, mode, '02', 'overview-voting');
         await focusParliamentZone(page, 'parties');
