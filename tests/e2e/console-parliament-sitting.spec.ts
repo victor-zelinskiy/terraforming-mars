@@ -4,6 +4,7 @@ import * as path from 'node:path';
 import {
   bootFixtureSeats, crumbText, fetchPlayerModel, openMandatoryAnnounce, press, pressUntil, reloadConsole, sendPlayerInput, settle,
 } from './consoleStart';
+import {turnTo, waitSittingAtRest} from './parliamentDrive';
 
 /**
  * THE PARLIAMENT'S SITTING — the STRUCTURAL half (Э3 of
@@ -13,9 +14,11 @@ import {
  *
  *   · ONE announce per generation: the plate says the Parliament is in
  *     session, A opens the sitting; nothing opens by itself;
- *   · the pages: ВЕРДИКТ → ПРИНЯТИЕ → НАГРАДА walked by A, and A on the last
- *     page ANSWERS gate 1 (the server receives the option — never an
- *     auto-answer); the wait pose names the seat still to answer;
+ *   · «Заседание v2»: A on the ВЕРДИКТ ANSWERS gate 1 (the server receives the
+ *     option — never an auto-answer); the wait pose names the seat still to
+ *     answer; ПРИНЯТИЕ and НАГРАДА are turned by the DIRECTOR once every seat
+ *     has answered — the player presses nothing between the verdict and the
+ *     results;
  *   · B past the commit = «свернуть»: the board-home card brings the SAME
  *     stage back;
  *   · a reload lands on the server's stage (the plate re-announces the same
@@ -23,9 +26,9 @@ import {
  *   · the enacted resolution's ask (Climate Research's take) arrives as a
  *     STEP inside the open sitting — no second plate, no standalone band, the
  *     take stands in the stage's own zone under a continuous crumb;
- *   · the other seat answers over the API, the renewal and the closing
- *     follow, A on the closing answers gate 2, and the workspace leaves with
- *     the phase.
+ *   · the other seat answers over the API, the ИТОГИ follow as ONE stage
+ *     (the renewal's beats, then the results card), A on the results answers
+ *     gate 2, and the workspace leaves with the phase.
  *
  * The motion half (the director's beats, the 3D deal, the flights) is Э4's
  * `console-parliament-sitting-motion.spec.ts`.
@@ -61,11 +64,6 @@ async function hotVerb(page: Page): Promise<string> {
   return labels.map((l) => l.trim()).join(' | ');
 }
 
-/** Turn the sitting's page by A until `stage` is on screen (a positive, specific witness). */
-async function turnTo(page: Page, stage: string): Promise<boolean> {
-  return pressUntil(page, 'Enter', async () => await sittingStage(page) === stage, {tries: 4, settleMs: 1100});
-}
-
 /** Nothing of the sitting sticks out of the viewport and no block spills. */
 async function expectFits(page: Page, label: string): Promise<void> {
   const problems = await page.evaluate(() => {
@@ -77,7 +75,7 @@ async function expectFits(page: Page, label: string): Promise<void> {
     const vh = window.innerHeight;
     const out: Array<string> = [];
     const name = (el: Element) => el.className.toString().split(' ')[0];
-    const blocks = '.con-parl__gov, .con-parl__slot, .con-parl__stage, .con-sit__panel--on, .con-sit__row, .con-sit__closing,' +
+    const blocks = '.con-parl__gov, .con-parl__slot, .con-parl__stage, .con-sit__panel--on, .con-sit__row, .con-sit__results,' +
       ' .con-iyield, .con-iyield__reading, .con-preact, .con-sit__skip, .con-sit__zone--on, .con-extdraw__cards, .con-cards__slot, .con-task';
     for (const el of Array.from(root.querySelectorAll<HTMLElement>(blocks))) {
       const r = el.getBoundingClientRect();
@@ -179,36 +177,23 @@ for (const preset of PRESETS) {
       await expect.poll(() => sittingStage(page), {timeout: 15_000}).toBe('verdict');
       await settle(page, {timeoutMs: 20_000});
 
-      // ── THE PAGES BY A: ПРИНЯТИЕ, then НАГРАДА — the crumb only ever gains a tail.
-      expect(await turnTo(page, 'enact'), 'A turns to the enactment').toBe(true);
-      crumb = (await crumbText(page)).toUpperCase();
-      expect(crumb).toMatch(/ЗАСЕДАНИЕ|SITTING/);
-      expect(crumb).toMatch(/ПРИНЯТИЕ|ENACTMENT/);
-      await expect(sitting(page).locator('[data-sit-panel="enact"].con-sit__panel--on'), 'the enactment panel').toHaveCount(1);
-      await expect(page.locator('.con-parl__party--lit'), 'the ruling party is lit').toHaveCount(1);
-      await expectFits(page, `${preset.id} enactment`);
-      await shoot(page, preset.id, '02-enact');
-      expect(await turnTo(page, 'reward'), 'A turns to the reward').toBe(true);
-      crumb = (await crumbText(page)).toUpperCase();
-      expect(crumb).toMatch(/НАГРАДА|REWARD/);
-      await expect(sitting(page).locator('[data-sit-panel="reward"].con-sit__panel--on [data-parl-sit-yield]'), 'the reading of what is coming').toHaveCount(1);
-      await expect(page.locator('.con-parl__slot--winning'), 'still no «принимается» on the decided table (reward page)').toHaveCount(0);
-      await expect(page.locator('.con-parl__gov-basis'), 'the card has landed — the seat reads the enacted resolution').toHaveText(/Принятая резолюция|Enacted resolution/i);
-      // Climate Research pays this seat (influence 2 → +2 heat production, then cards) — the verb says so.
-      expect(await hotVerb(page), 'A on the reward page answers the gate').toMatch(/К награде|To the reward/i);
-      expect((await wireOf(request, playerId)).waitingFor?.parliamentPhasePrompt?.stage, 'turning the pages answered NOTHING').toBe('assembly');
-      await expectFits(page, `${preset.id} reward reading`);
-      await shoot(page, preset.id, '03-reward-reading');
-
-      // ── A ON THE LAST PAGE ANSWERS GATE 1: the server receives the option; the other seat is still awaited.
+      // ── A ON THE VERDICT ANSWERS GATE 1 («Заседание v2»: the enactment and the reward turn by THEMSELVES once
+      //    every seat has answered — nothing turns yet): the server receives the option; the other seat is still
+      //    awaited, the verdict shows its wait pose, and nothing else has happened — the decided table, the
+      //    previous government.
       await press(page, 'Enter', 1500);
       await expect.poll(async () => (await wireOf(request, playerId)).waitingFor?.parliamentPhasePrompt, {timeout: 20_000, message: 'the gate is answered'}).toBeUndefined();
       const answered = await wireOf(request, playerId);
       expect(answered.game.parliament?.phase?.step, 'one answer moves nothing').toBe('assembly');
       expect(answered.game.parliament?.phase?.awaiting).toEqual([(await wireOf(request, red)).thisPlayer.color]);
+      expect(await sittingStage(page), 'the verdict stands until the others answer').toBe('verdict');
       await expect(sitting(page).locator('.con-sit__panel--on [data-sit-awaiting]'), 'the wait pose names the seat still to answer').toHaveCount(1, {timeout: 15_000});
       await expect(parliament(page), 'the sitting stays open while the others read').toHaveCount(1);
-      expect((await crumbText(page)).toUpperCase()).toMatch(/ЗАСЕДАНИЕ|SITTING/);
+      await expect(page.locator('.con-parl__gov-basis'), 'the seat keeps the starting rule — nothing changed yet').toHaveText(/Стартовое правило|Starting rule/i);
+      crumb = (await crumbText(page)).toUpperCase();
+      expect(crumb).toMatch(/ЗАСЕДАНИЕ|SITTING/);
+      expect(crumb).toMatch(/ВЕРДИКТ|VERDICT/);
+      await expectFits(page, `${preset.id} verdict wait`);
       await shoot(page, preset.id, '04-await-others');
 
       // ── A RELOAD LANDS ON THE SERVER'S STAGE: the sitting is announced again (the device remembers
@@ -218,21 +203,26 @@ for (const preset of PRESETS) {
       await expect(plate(page), 'the same sitting is announced after the reload').toHaveCount(1, {timeout: 30_000});
       expect(await openMandatoryAnnounce(page)).toBe(true);
       await expect(parliament(page)).toHaveCount(1, {timeout: 20_000});
-      await expect.poll(() => sittingStage(page), {timeout: 15_000}).toBe('reward');
+      await expect.poll(() => sittingStage(page), {timeout: 15_000}).toBe('verdict');
       await expect(sitting(page).locator('.con-sit__panel--on [data-sit-awaiting]'), 'the wait pose again').toHaveCount(1, {timeout: 15_000});
 
-      // ── THE OTHER SEAT ANSWERS OVER THE API: the effects run — Climate Research draws for blue, and the
-      //    TAKE arrives as a STEP INSIDE the open sitting: no second plate, no standalone band.
+      // ── THE OTHER SEAT ANSWERS OVER THE API: the barrier opens — the walk plays ПРИНЯТИЕ (the Agenda, the
+      //    support, the enactment) and НАГРАДА by itself, Climate Research draws for blue, and the TAKE arrives
+      //    as a STEP INSIDE the open sitting: no second plate, no standalone band.
       const redGate = await wireOf(request, red);
       expect(redGate.waitingFor?.parliamentPhasePrompt?.stage).toBe('assembly');
       await sendPlayerInput(request, red, {type: 'option', promptId: redGate.waitingFor?.promptId} as never);
+      expect(await turnTo(page, 'enact'), 'the walk reached the enactment by itself').toBe(true);
       await expect(page.locator('.con-parl [data-embed-slot="parliament-stage"] .con-extdraw--embedded'), 'the take stands in the sitting\'s own zone').toHaveCount(1, {timeout: 60_000});
       await expect(page.locator('.con-extdraw.con-ws'), 'never a standalone take workspace').toHaveCount(0);
       await expect(plate(page), 'no second announce inside the sitting').toHaveCount(0);
       await settle(page, {timeoutMs: 20_000});
+      expect(await sittingStage(page), 'the take is a step of the REWARD page').toBe('reward');
       crumb = (await crumbText(page)).toUpperCase();
       expect(crumb, `the crumb keeps the sitting, got «${crumb}»`).toMatch(/ЗАСЕДАНИЕ|SITTING/);
       expect(crumb).toMatch(/ПОЛУЧЕНИЕ|INTAKE/);
+      await expect(page.locator('.con-parl__slot--winning'), 'still no «принимается» on the decided table').toHaveCount(0);
+      await expect(page.locator('.con-parl__gov-basis'), 'the card has landed — the seat reads the enacted resolution').toHaveText(/Принятая резолюция|Enacted resolution/i);
       await expect(page.locator('.con-parl__gov-card .pcard'), 'exactly one enacted card on screen (carried onto the stage)').toHaveCount(1);
       await expect(page.locator('[data-parl-sit-hero] .con-parl__gov-card .pcard'), 'the card stands on the stage\'s hero slot').toHaveCount(1);
       await expect(page.locator('.con-extdraw .con-cards__slot'), 'two cards were drawn').toHaveCount(2);
@@ -255,51 +245,44 @@ for (const preset of PRESETS) {
         await sendPlayerInput(request, red, {type: 'card', cards: redNow.waitingFor.cards?.map((c) => c.name) ?? []} as never);
       }
 
-      // ── THE RENEWAL, then the CLOSING; A on the closing answers gate 2.
+      // ── THE RESULTS — ONE stage (v2): the renewal's beats play over the table by themselves, then the card of
+      //    the generation's results reveals; A on it answers gate 2.
       await expect.poll(async () => (await wireOf(request, playerId)).game.parliament?.phase?.step, {timeout: 60_000}).toBe('adjourn');
-      // The reward page is HELD (`stageHeld`) until its wave run ends — and under two headless workers rAF starves,
-      // so the run falls to its named nets: the director's stage ceiling (`STAGE_HOLD_CEILING_MS` 12 s) plus the
-      // ledger's own (`REWARD_HOLD_SAFETY_MS` 8 s, `AGENDA_BONUS_HOLD_SAFETY_MS` 30 s) — 50 s, past a 30 s poll (Э9:
-      // one red in the full run, green at one worker). The bound is the nets' sum with headroom, not a guess.
-      await expect.poll(() => sittingStage(page), {timeout: 90_000}).toBe('renewal');
+      // The reward page is HELD until its wave run ends — and under two headless workers rAF starves, so the run
+      // falls to its named nets (the director's stage ceiling, the ledger's own): the bound is the nets' sum with headroom.
+      await expect.poll(() => sittingStage(page), {timeout: 90_000}).toBe('results');
+      await waitSittingAtRest(page, 40_000);
       await settle(page, {timeoutMs: 20_000});
       crumb = (await crumbText(page)).toUpperCase();
       expect(crumb).toMatch(/ЗАСЕДАНИЕ|SITTING/);
-      expect(crumb).toMatch(/ОБНОВЛЕНИЕ|RENEWAL/);
-      await expect(sitting(page).locator('[data-sit-panel="renewal"].con-sit__panel--on [data-sit-row="fresh"]'), 'the fresh resolutions').not.toHaveCount(0);
+      expect(crumb).toMatch(/ИТОГИ|RESULTS/);
+      await expect(sitting(page).locator('[data-sit-panel="results"].con-sit__panel--on [data-sit-results]'), 'the results card').toHaveCount(1);
+      await expect(sitting(page).locator('[data-sit-results-hidden]'), 'revealed at rest').toHaveCount(0);
+      await expect(sitting(page).locator('[data-sit-results] [data-sit-fresh]'), 'the fresh resolutions').not.toHaveCount(0);
       // The refreshed table has its leader back; the lobby refilled is a row of CUBES, one per seat (P-23: a sentence stood there).
       await expect(page.locator('.con-parl__slot--winning'), 'the refreshed table shows its leader').toHaveCount(1);
       const lobbyRefilled = ((await wireOf(request, playerId)).game.parliament?.phase as {summary?: {lobbyRefilled?: Array<unknown>}} | undefined)?.summary?.lobbyRefilled?.length ?? 0;
-      await expect(sitting(page).locator('[data-sit-panel="renewal"].con-sit__panel--on [data-sit-row="lobby"] .player-cube'), 'the lobby row: one cube per refilled seat').toHaveCount(lobbyRefilled);
-      await expect(sitting(page).locator('[data-sit-panel="renewal"].con-sit__panel--on'), 'no sentence on the renewal').not.toContainText(/возвращаются в лобби/);
-      // The losers that left for the discard are named as OBJECTS (an emblem, a name) — the server's own list (final polish A.10).
+      await expect(sitting(page).locator('[data-sit-results] [data-sit-row="results-lobby"] .player-cube'), 'the lobby row: one cube per refilled seat').toHaveCount(lobbyRefilled);
+      await expect(sitting(page).locator('[data-sit-results]'), 'no sentence on the results').not.toContainText(/возвращаются в лобби/);
+      // A loser dealt straight back from the reshuffled discard never left the table: its fresh chip says «остаётся ·
+      // перетасована» (final polish P-22 / P-28). The losers that LEFT are not listed — they left physically, in the beat.
       const renewal = ((await wireOf(request, playerId)).game.parliament?.phase as {summary?: {discarded?: Array<{instance: string}>, refreshed?: Array<{instance: string}>}} | undefined)?.summary;
       const dealt = new Set((renewal?.refreshed ?? []).map((f) => f.instance));
-      // A loser dealt straight back from the reshuffled discard never left the table: it is a fresh row that says
-      // «остаётся · перетасована», not a discarded row (final polish P-22 / P-28).
       const returning = (renewal?.discarded ?? []).filter((d) => dealt.has(d.instance)).length;
-      const discarded = (renewal?.discarded?.length ?? 0) - returning;
-      await expect(sitting(page).locator('[data-sit-panel="renewal"].con-sit__panel--on [data-sit-row="discarded"]'), `the ${discarded} discarded resolutions are named`).toHaveCount(discarded);
-      await expect(sitting(page).locator('[data-sit-panel="renewal"].con-sit__panel--on [data-sit-stays]'), `the ${returning} returning resolutions say they stay`).toHaveCount(returning);
-      await expectFits(page, `${preset.id} renewal`);
-      await shoot(page, preset.id, '06-renewal');
-      expect(await turnTo(page, 'closing'), 'A turns to the closing').toBe(true);
-      crumb = (await crumbText(page)).toUpperCase();
-      expect(crumb).toMatch(/ЗАКРЫТИЕ|CLOSING/);
-      await expect(sitting(page).locator('[data-sit-panel="closing"].con-sit__panel--on .con-sit__closing'), 'the closing card').toHaveCount(1);
-      // The closing names the RESOLUTION as «принята» and the PLAYER as the winner of the vote — two rows, two objects (P-24).
-      await expect(sitting(page).locator('[data-sit-row="closing-winner"] .con-parl__chip-dim')).toHaveText(/Принята|Enacted/i);
-      await expect(sitting(page).locator('[data-sit-row="closing-player"] .player-cube'), 'the winning player\'s cube on the closing').toHaveCount(1);
+      await expect(sitting(page).locator('[data-sit-results] [data-sit-stays]'), `the ${returning} returning resolutions say they stay`).toHaveCount(returning);
+      // The results name the RESOLUTION as «принята» and the PLAYER as the winner of the vote — two objects (P-24).
+      await expect(sitting(page).locator('[data-sit-row="results-enacted"] .con-parl__chip-dim')).toHaveText(/Принята|Enacted/i);
+      await expect(sitting(page).locator('[data-sit-row="results-player"] .player-cube'), 'the winning player\'s cube on the results').toHaveCount(1);
       expect(await hotVerb(page)).toMatch(/Закрыть заседание|Close the sitting/i);
       expect((await wireOf(request, playerId)).waitingFor?.parliamentPhasePrompt?.stage, 'gate 2 stands until A').toBe('adjourn');
-      await expectFits(page, `${preset.id} closing`);
-      await shoot(page, preset.id, '07-closing');
-      // B on the terminal closing page is NONE — the workspace stays.
+      await expectFits(page, `${preset.id} results`);
+      await shoot(page, preset.id, '06-results');
+      // B on the terminal results page is NONE — the workspace stays.
       await press(page, 'Escape', 1000);
-      await expect(parliament(page), 'B does nothing on the closing').toHaveCount(1);
+      await expect(parliament(page), 'B does nothing on the results').toHaveCount(1);
       await press(page, 'Enter', 1500);
       await expect.poll(async () => (await wireOf(request, playerId)).waitingFor?.parliamentPhasePrompt, {timeout: 20_000, message: 'gate 2 is answered'}).toBeUndefined();
-      await expect(sitting(page).locator('.con-sit__panel--on [data-sit-awaiting]'), 'the closing waits for the other seat').toHaveCount(1, {timeout: 15_000});
+      await expect(sitting(page).locator('.con-sit__panel--on [data-sit-awaiting]'), 'the results wait for the other seat').toHaveCount(1, {timeout: 15_000});
 
       // ── THE OTHER SEAT CLOSES TOO: the phase ends and the workspace LEAVES with it.
       const redAdjourn = await wireOf(request, red);

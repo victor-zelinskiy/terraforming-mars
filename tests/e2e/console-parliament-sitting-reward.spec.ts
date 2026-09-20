@@ -256,17 +256,11 @@ for (const preset of PARLIAMENT_PRESETS) {
         await expect(parliament(page)).toHaveCount(1, {timeout: 20_000});
         await expect.poll(() => sittingStage(page), {timeout: 15_000}).toBe('verdict');
         await settle(page, {timeoutMs: 20_000});
-        expect(await turnTo(page, 'enact')).toBe(true);
-        expect(await turnTo(page, 'reward')).toBe(true);
-        await settle(page, {timeoutMs: 20_000});
+        // v2: the verdict is the ONE page before the barrier — the reading of what is coming stands on the REWARD page
+        // the director turns by itself; it is read from the probe's samples below («this payout» before the record).
         expect(await sittingStep(page)).toBe('reading');
-        const contextsBefore = await page.locator('.con-sit__panel--on [data-yield-context]').evaluateAll((els) => els.map((el) => el.getAttribute('data-yield-context')));
-        expect(contextsBefore.length, 'a reading of what is coming').toBeGreaterThan(0);
-        expect(contextsBefore.every((ctx) => ctx === 'resolving'), `the reading speaks of THIS payout before the record, got ${contextsBefore.join(',')}`).toBe(true);
-        await expect(page.locator('.con-sit__panel--on [data-sit-reward-state]'), 'ONE word of state beside the kicker').toHaveText(/Эта выплата|This payout/i);
-        await expect(page.locator('.con-sit__panel--on .con-iyield__caption'), 'no caption under each reading — the state is said once').toHaveCount(0);
-        await expectParliamentFits(page, `${preset.id} ${c.rx} reading`);
-        await shoot(page, preset.id, `${c.rx}-01-reading`);
+        await expectParliamentFits(page, `${preset.id} ${c.rx} verdict`);
+        await shoot(page, preset.id, `${c.rx}-01-verdict`);
 
         // ── A answers gate 1; the wait pose; the OTHER seat answers last over the API — the effects run.
         await armProbe(page);
@@ -283,6 +277,10 @@ for (const preset of PARLIAMENT_PRESETS) {
           const probe = await readProbe(page);
           const tracks = chipTracks(probe.samples);
           expect(tracks.size, 'chips flew').toBeGreaterThan(0);
+          // THE READING BEFORE THE RECORD: the first reward samples read «this payout» (`resolving`) — «received» comes with the touchdown.
+          const firstReading = probe.samples.findIndex((s) => s.stage === 'reward' && s.contexts.length > 0);
+          expect(firstReading, 'the reward page read what was coming').toBeGreaterThanOrEqual(0);
+          expect(probe.samples[firstReading].contexts.every((ctx) => ctx === 'resolving'), `the reading speaks of THIS payout before the record, got ${probe.samples[firstReading].contexts.join(',')}`).toBe(true);
           const own = c.waves.filter((wv) => wv.reaction !== true);
           const reactions = c.waves.filter((wv) => wv.reaction === true);
           const ownIds = new Set<string>();
@@ -411,17 +409,17 @@ for (const preset of PARLIAMENT_PRESETS) {
           await settle(page, {timeoutMs: 30_000});
         }
         if (c.follow === 'tile' || (c.follow === 'pick' && iWin)) {
-          // ── THE WINNER'S TILE: the board takes the screen after the wave; the frame comes BACK to the reward stage in its «received» pose.
-          await expect.poll(() => page.evaluate(() => document.querySelector('.con-board--placing, .con-board--locked') !== null), {timeout: 40_000, message: 'the board is live for the winner\'s tile'}).toBe(true);
+          // ── THE WINNER'S TILE (v2): the reward page STOPS on the tile behind «К полю» — the board is NOT live until the
+          //    player's own press; the frame comes BACK to the reward stage in its «received» pose.
+          await expect.poll(() => sittingStep(page), {timeout: 40_000}).toBe('placement');
+          await expect(page.locator('[data-sit-door]'), 'the door plate names the tile').toHaveCount(1);
+          expect(await hotVerb(page)).toMatch(/К полю|Onto the board/i);
+          await settle(page, {timeoutMs: 20_000});
           const probe = await readProbe(page);
-          const firstPlacing = probe.samples.findIndex((s) => s.placing);
-          for (const wv of c.waves) {
-            // The wave's TOUCHDOWN is the counter's tick — the board may take the screen only after it (the absorb tail of a landed chip may still be dissolving).
-            const field = wv.channel === 'production' ? 'prod' : 'stock';
-            const was = rowBefore[wv.res][field];
-            const tickAt = probe.samples.findIndex((s) => s.rail[wv.res][field] !== was);
-            expect(firstPlacing, `the board took the screen only after the ${wv.res} chip had landed (placing @${firstPlacing}, tick @${tickAt})`).toBeGreaterThanOrEqual(tickAt);
-          }
+          expect(probe.samples.some((s) => s.placing), 'the board never went live by itself').toBe(false);
+          await shoot(page, preset.id, `${c.rx}-05-door`);
+          await press(page, 'Enter', 800);
+          await expect.poll(() => page.evaluate(() => document.querySelector('.con-board--placing, .con-board--locked') !== null), {timeout: 40_000, message: 'the board is live after the press'}).toBe(true);
           await expect(parliament(page), 'the sitting stepped aside for the board').toHaveCount(0, {timeout: 20_000});
           await shoot(page, preset.id, `${c.rx}-06-board`);
           const placed = await placeChainedTiles(page, request, playerId);
@@ -440,14 +438,14 @@ for (const preset of PARLIAMENT_PRESETS) {
             await shoot(page, preset.id, `${c.rx}-07b-waiting`);
             await answerAsksAs(request, red);
           }
-          await expect.poll(() => sittingStage(page), {timeout: 30_000}).toBe('renewal');
-          await shoot(page, preset.id, `${c.rx}-07c-renewal`);
+          await expect.poll(() => sittingStage(page), {timeout: 60_000}).toBe('results');
+          await shoot(page, preset.id, `${c.rx}-07c-results`);
         }
         if (c.follow === 'none') {
-          // A resolution that asks nothing: the adjourn arrived WITH the record — the renewal enters after the wave has LANDED.
-          await expect.poll(() => sittingStage(page), {timeout: 30_000}).toBe('renewal');
+          // A resolution that asks nothing: the adjourn arrived WITH the record — the results enter after the wave has LANDED.
+          await expect.poll(() => sittingStage(page), {timeout: 60_000}).toBe('results');
           const probe = await readProbe(page);
-          const firstRenewal = probe.samples.findIndex((s) => s.stage === 'renewal');
+          const firstRenewal = probe.samples.findIndex((s) => s.stage === 'results');
           // THE TABLE AS IT STOOD (registry R-25в): the server refreshed the slots with the adjourn, yet every
           // sample of the HELD reward pose still shows the losers with their delegate counts — the columns
           // change only when the renewal enters and its beat moves them.
@@ -459,9 +457,9 @@ for (const preset of PARLIAMENT_PRESETS) {
             const field = wv.channel === 'production' ? 'prod' : 'stock';
             const was = rowBefore[wv.res][field];
             const tickAt = probe.samples.findIndex((s) => s.rail[wv.res][field] !== was);
-            expect(firstRenewal, `the renewal entered only after the ${wv.res} chip had landed (renewal @${firstRenewal}, tick @${tickAt})`).toBeGreaterThanOrEqual(tickAt);
+            expect(firstRenewal, `the results entered only after the ${wv.res} chip had landed (results @${firstRenewal}, tick @${tickAt})`).toBeGreaterThanOrEqual(tickAt);
           }
-          await shoot(page, preset.id, `${c.rx}-06-renewal`);
+          await shoot(page, preset.id, `${c.rx}-06-results`);
         }
 
         // ── AT REST: the record reads «received», nothing is held, nothing sticks out.
@@ -547,6 +545,7 @@ test.describe('the Agenda step\'s TR bonus (standard-1080)', () => {
     console.log(`[tr-bonus] the sitting opened ${since()}`);
     await waitSittingAtRest(page);
     await expect(page.locator('.con-res .con-score__value--tr'), 'still held at the verdict').toHaveText(String(trBefore));
+    await answerGateAs(request, red, 'assembly');
     expect(await turnTo(page, 'enact')).toBe(true);
     console.log(`[tr-bonus] the enactment page ${since()}`);
     // The glide, then the chip: the rating ticks on the chip's contact.
@@ -571,7 +570,7 @@ test.describe('the Agenda step\'s TR bonus (standard-1080)', () => {
     expect(tickLag, `the rating ticks on the chip's contact (tick @${tickAt}, landing @${landedAt}, chip last @${last.i}: ${Math.round(tickLag)} ms after the rest)`).toBeGreaterThanOrEqual(-TICK_WINDOW_BEFORE_MS);
     expect(tickLag, `the rating ticks on the chip's contact (tick @${tickAt}, landing @${landedAt}, chip last @${last.i}: ${Math.round(tickLag)} ms after the rest)`).toBeLessThanOrEqual(TICK_WINDOW_AFTER_MS);
     expect(probe.samples.some((s) => s.deltas.rating > 0), 'the rating\'s delta chip fired').toBe(true);
-    expect(await hotVerb(page), 'the enactment page keeps its own verb after the flight').toMatch(/Продолжить|Continue/i);
+    expect(['enact', 'reward', 'results'], 'the walk went on by itself after the flight (v2)').toContain(await sittingStage(page));
     await shoot(page, 'standard-1080', 'RX05-tr-bonus-landed');
   });
 
@@ -600,6 +599,7 @@ test.describe('the Agenda step\'s TR bonus (standard-1080)', () => {
     await waitSittingAtRest(page);
     // THE PARK: nothing presented the card while the plate stood or the verdict was read — the dock still says the old total.
     expect(await page.locator('[data-hand-total]').getAttribute('data-hand-total'), 'the dock holds the old total through the verdict').toBe(String(handBefore));
+    await answerGateAs(request, red, 'assembly');
     expect(await turnTo(page, 'enact')).toBe(true);
     console.log(`[card-bonus] the enactment page ${since()}`);
     // The glide lands on the card step → the cover lifts off it → the card opens over the sitting → A takes it to the dock.
@@ -631,8 +631,7 @@ test.describe('the Agenda step\'s TR bonus (standard-1080)', () => {
     expect(firstPlate, 'the plate came first — nothing presented the card over it').toBeLessThan(firstCover);
     expect(firstReveal, 'nothing presented the card before the enactment page').toBeGreaterThan(firstEnact);
     expect(handTick, 'the dock ticked after the card was taken').toBeGreaterThan(firstZoom);
-    expect(await sittingStage(page), 'the sitting stands on its enactment page').toBe('enact');
-    expect(await hotVerb(page)).toMatch(/Продолжить|Continue/i);
+    expect(['enact', 'reward', 'results'], 'the walk went on by itself (v2)').toContain(await sittingStage(page));
     await shoot(page, 'standard-1080', 'RX05-card-bonus-landed');
     expect(await strandedReports(page)).toEqual([]);
   });

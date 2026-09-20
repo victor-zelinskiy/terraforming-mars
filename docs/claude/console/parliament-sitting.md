@@ -1,8 +1,8 @@
-# The Parliament sitting — the console contract (after the final run, 2026-09-19)
+# The Parliament sitting — the console contract (after «Заседание v2», 2026-09-21)
 
 The political phase of Turmoil Redux is ONE workspace flow: `ПАРЛАМЕНТ › ЗАСЕДАНИЕ › ВЕРДИКТ | ПРИНЯТИЕ | НАГРАДА |
-ВЫБОР | ПОЛУЧЕНИЕ | РАЗМЕЩЕНИЕ | ОБНОВЛЕНИЕ | ЗАКРЫТИЕ`. The rules that carry it live in `.claude/rules/console-ui.md`
-§ THE PARLIAMENT SITTING (laws 1–8); this page is the map of the pieces and the numbers behind them. Design:
+ВЫБОР | ПОЛУЧЕНИЕ | РАЗМЕЩЕНИЕ | ИТОГИ` — two presses of A per generation since v2 (§ 7 below). The rules that carry
+it live in `.claude/rules/console-ui.md` § THE PARLIAMENT SITTING (laws 1–10); this page is the map of the pieces and the numbers behind them. Design:
 `docs/TURMOIL_REDUX_PARLIAMENT_ASSEMBLY.md`; implementation history: `docs/TURMOIL_REDUX_PARLIAMENT_SITTING.md`
 (Э0–Э4) and `docs/TURMOIL_REDUX_PARLIAMENT_FINISH.md` (Э5 · Э8 · ПОЛИРОВКА · Э9); the journal:
 `docs/claude/parliament-sitting-progress.md`.
@@ -163,3 +163,29 @@ the passive's inspect, and the fit / paint baselines of every frame.
 - GSAP `clearProps: 'transform'` leaves `transformOrigin` — clear both.
 - Never rebuild `build/` while a Playwright run serves it — a page loads mid-write and the red is an artifact.
 - JS `\b` never fires beside Cyrillic — RU guards use `(^|\s)`.
+
+## 7. «Заседание v2» (2026-09-21) — what changed in the map above
+
+Full write-up: `docs/TURMOIL_REDUX_PARLIAMENT_SITTING_V2.md`. The pieces that moved:
+
+| Piece | File | What it owns now |
+| --- | --- | --- |
+| Server order | `src/server/parliament/ParliamentPhase.ts` | `winner → ▶assembly◀ → agenda → support → enact → effects → refresh → lobby → ▶adjourn◀ → done` — the gate stands BEFORE the changes; a pre-v2 save at `assembly` after `enact` is caught up (`ParliamentPhase.spec` § legacy) |
+| Position | `consoleSittingFlow.ts` | four stages (`verdict · enact · reward · results`), `sittingPagesOf(step)`, `sittingPageAuto`, `sittingStartPage(position, played, receiptOwed)` — the tile's receipt seats the walk on the reward page |
+| Transition seeds | `parliamentSittingSeed.ts` (new) | DETECT the barrier / the refresh in the diff of two views → the enactment family (`heldSlots`, `winnerSlot`, `agendaAwaits`, `supportIncoming`, `returns`, `govBefore`, `rulerBefore`, `questBefore`) and the renewal family (`freshFaces`, `hiddenCubes`, `deckPending`, `lobby`); ONE function on both apply paths (`gameTransport.seedRewardHolds`, `App.update`) |
+| The walk | `ConsoleParliamentSection.vue` (`runWalk` / `planOpening` / `enterServerStep` / `mayLeave` / `endSitting`) | the director turns the auto pages; the stops: the verdict, an own ask, a wait, the results; A during a beat = «дожать» |
+| Beats | `sittingDirector.ts` | ПОВЕСТКА (segment · glide · pulse · influence ticks · bonus) → ПОДДЕРЖКА (party by party, the opposition tier whole) → ПРИНЯТИЕ (old law → discard, winner FLIP slot → government, cubes home, government change, quest RELEASE → UNFOLD → REVEAL) → the reward's wave → the results (renewal beats, then the card's reveal); `BEAT_GAP_MS = 250`; reduced motion = the poses at once |
+| The door | `ConsoleParliamentSitting.vue` `[data-sit-door]` + `ConsoleShell.openParliamentBoardDoor` | A «К полю» opens the board (`consoleParliamentUi.boardDoorOpen`); `parliamentPlacementDoorClosed` holds the hexes; the placement's end closes the door |
+| Results | `ConsoleParliamentSitting.vue` panel `results` | ONE stage: the card «Итоги поколения N» (`[data-sit-results]`, hidden until the beats end); the wait on the other seats in its head line; A «Закрыть заседание» = gate 2 |
+| Government / opposition | `ConsoleParliamentGovernment.vue` · `ConsoleParliamentParties.vue` | five opposition tiles in the row; the ruler's tile teleported into `[data-parl-ruler-slot]`; one width token `--con-parl-tile-w` = min(row column, ruler block) — the row lays its five at that width |
+| Vote geometry | `ConsoleParliamentVoteMode.vue` · `parliamentCardFit.ts` (`fitFrozen`) | frozen from A to the leave; the bill only with a real `votePayment`, inside the fixed panel; the leave is one motion of the surface |
+| Ledger | `parliamentRewardBeat.ts` | no wall clock: released by the chip's landing, an explicit stage end, or the 35 s ceiling with a reason; the door independent of a transient stage |
+
+Numbers (the v2 probe, `--workers=1`): the wave lands 6.2 s after A on 1080 and the Deck, 7.4 s on the TV; the
+beats' order `agenda → support → enact` on every profile and on the remote path; the counter ticks within
+−34…+400 ms of the chip's rest. The results card: three columns × two rows inside the tier on 1080 / TV; on the Deck the
+stage takes the Agenda track WHOLE (`html.con-profile-handheld .con-parl[data-sitting-stage="results"] .con-parl__stage`).
+
+The probes: `console-parliament-sitting-v2` (three profiles), `-sitting-v2-remote`, `-vote-geometry`, `-leave`,
+`-stability` (five + the ruler, the government's change). The old specs (`-sitting`, `-sitting-motion`, `-sitting-reward`,
+`-gallery`, `-aquifer`, `-biodome`) speak v2 through the driver's `turnTo` (A only on the verdict; «reached or passed»).

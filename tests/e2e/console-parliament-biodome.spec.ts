@@ -351,11 +351,11 @@ for (const preset of PRESETS) {
       expect(await placeTile(page), 'the ocean is placed').toBe(true);
 
       // ── RED is paid by ITS influence (step 5 = 3 → 6 plants); the phase finishes and generation 2 begins.
-      // Э1/Э3: the phase ends through the ADJOURN gate — the sitting comes back to the viewer (renewal → closing),
-      // A on the closing answers the viewer's gate, the other seat answers over the API.
+      // Э1/Э3 · v2: the phase ends through the ADJOURN gate — the sitting comes back to the viewer, reads the tile's receipt and walks to the RESULTS,
+      // A on the results answers the viewer's gate, the other seat answers over the API.
       await expect(parliament(page), 'the sitting is back after the board').toHaveCount(1, {timeout: 60_000});
       await waitSittingAtRest(page, 30_000);
-      expect(await turnTo(page, 'closing'), 'the closing page').toBe(true);
+      expect(await turnTo(page, 'results'), 'the results page').toBe(true);
       await press(page, 'Enter', 1200);
       await answerGateAs(request, seats[1], 'adjourn');
       await expect.poll(async () => (await wireOf(request, playerId)).game.generation, {timeout: 60_000}).toBe(2);
@@ -397,11 +397,11 @@ for (const preset of PRESETS) {
       await expect.poll(async () => await placementState(page), {timeout: 10_000}).not.toBe('none');
       await shoot(page, preset.id, '09b-maxed-dossier');
       expect(await placeTile(page), 'the greenery is placed').toBe(true);
-      // Э1/Э3: the phase ends through the ADJOURN gate — the sitting comes back to the viewer (renewal → closing),
-      // A on the closing answers the viewer's gate, the other seat answers over the API.
+      // Э1/Э3 · v2: the phase ends through the ADJOURN gate — the sitting comes back to the viewer, reads the tile's receipt and walks to the RESULTS,
+      // A on the results answers the viewer's gate, the other seat answers over the API.
       await expect(parliament(page), 'the sitting is back after the board').toHaveCount(1, {timeout: 60_000});
       await waitSittingAtRest(page, 30_000);
-      expect(await turnTo(page, 'closing'), 'the closing page').toBe(true);
+      expect(await turnTo(page, 'results'), 'the results page').toBe(true);
       await press(page, 'Enter', 1200);
       await answerGateAs(request, seats[1], 'adjourn');
       await expect.poll(async () => (await wireOf(request, playerId)).game.generation, {timeout: 60_000}).toBe(2);

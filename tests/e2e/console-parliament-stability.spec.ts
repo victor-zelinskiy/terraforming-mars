@@ -1,6 +1,6 @@
 import {test, expect, Page} from './consoleTest';
 import {bootFixtureSeats, openMandatoryAnnounce, press, pressUntil, settle} from './consoleStart';
-import {focusParliamentZone, openParliament, parliament, PARLIAMENT_PRESETS, parliamentZone, sittingStage, turnTo, waitSittingAtRest} from './parliamentDrive';
+import {answerGateAs, focusParliamentZone, openParliament, parliament, PARLIAMENT_PRESETS, parliamentWire, parliamentZone, sittingStage, waitSittingAtRest} from './parliamentDrive';
 
 /*
  * THE BROWSE LAYER IS STILL WHILE THE PLAYER POINTS (ПОЛИРОВКА — the registry's
@@ -86,17 +86,22 @@ for (const preset of PARLIAMENT_PRESETS) {
       await openParliament(page);
       await settle(page, {timeoutMs: 20_000});
       const parties = await parliament(page).locator('.con-parl__party').count();
-      expect(parties, 'six party tiles').toBe(6);
+      expect(parties, 'six party tiles — one DOM instance per party').toBe(6);
+      // v2: the FIVE opposition tiles stand in the row, the RULING party's tile in the government's ruler slot.
+      await expect(parliament(page).locator('.con-parl__parties .con-parl__party'), `${preset.id}: five opposition tiles in the row`).toHaveCount(5);
+      await expect(parliament(page).locator('[data-parl-ruler] .con-parl__party'), `${preset.id}: the ruler's tile in the government`).toHaveCount(1);
 
-      // The chassis law first: every tile and every state row the same height, before anything moves.
+      // The chassis law first: every tile (the ruler's included) and every state row the same height, before anything moves.
       const base = await layoutSnapshot(page);
       const tileHeights = new Set(Object.keys(base).filter((k) => /^party:[^:]+$/.test(k)).map((k) => base[k].h));
+      const tileWidths = Object.keys(base).filter((k) => /^party:[^:]+$/.test(k)).map((k) => base[k].w);
       const stateHeights = new Set(Object.keys(base).filter((k) => /:state$/.test(k)).map((k) => base[k].h));
-      expect(Array.from(tileHeights), `${preset.id}: the six tiles share one height`).toHaveLength(1);
+      expect(Array.from(tileHeights), `${preset.id}: the six tiles share one height (the ruler's in the government too)`).toHaveLength(1);
+      expect(Math.max(...tileWidths) - Math.min(...tileWidths), `${preset.id}: the six tiles share one width (${tileWidths.join(', ')})`).toBeLessThanOrEqual(2);
       expect(Array.from(stateHeights), `${preset.id}: the six state rows share one height (a caption is reserved on every tile)`).toHaveLength(1);
       expect(Math.min(...Array.from(stateHeights)), `${preset.id}: the state row is reserved, not collapsed`).toBeGreaterThan(0);
 
-      // Then the walk: parties → across all six and back → voting → across the slots → government.
+      // Then the walk: parties → across all five and back → voting → across the slots → the ruler's tile → government.
       const trail: Array<string> = [];
       const check = async (step: string) => {
         const now = await layoutSnapshot(page);
@@ -120,6 +125,8 @@ for (const preset of PARLIAMENT_PRESETS) {
         await press(page, 'ArrowRight', 350);
         await check(`voting → ${i + 1}`);
       }
+      await focusParliamentZone(page, 'ruler');
+      await check('focus the ruler\'s tile');
       await focusParliamentZone(page, 'government');
       await check('focus government');
       await focusParliamentZone(page, 'parties');
@@ -174,13 +181,19 @@ for (const preset of PARLIAMENT_PRESETS) {
      * ONE left edge (registry R-30: centred, a wider second reading stood
      * 18 px left of the first).
      */
-    test('the sitting: the tiers keep their boxes across the pages; the reward readings share one left edge', async ({page, request}) => {
+    test('the sitting: the tiers keep their boxes through the walk and the opposition row through the government\'s change; the reward readings share one left edge', async ({page, request}) => {
       test.setTimeout(300_000);
-      await bootFixtureSeats(page, request, 'parliament-climate-assembly', {query: preset.query, landing: 'prompt'});
+      // Architecture Award: RED wins from the middle slot and the government CHANGES (the Greens' starting rule →
+      // Mars First) — the plaques change places, the row's five boxes must not.
+      const {playerId, seats} = await bootFixtureSeats(page, request, 'parliament-architecture-assembly', {query: preset.query, landing: 'prompt'});
       expect(await openMandatoryAnnounce(page), 'A opens the sitting').toBe(true);
       await expect(parliament(page)).toHaveCount(1, {timeout: 20_000});
       await waitSittingAtRest(page, 30_000);
-      const tiers = ['.con-parl__head', '.con-parl__seats', '.con-parl__gov', '.con-parl__voting', '.con-parl__agenda', '.con-parl__stage'];
+      expect(await sittingStage(page)).toBe('verdict');
+      // The tiers, the opposition row and the RULER'S SLOT (the tile's box — the party in it changes with the
+      // government, the box must not). The stage itself is not in the list: on the Deck the results pose takes the
+      // Agenda track whole by its own rule (guarded by the v2 probe's «whole or none»).
+      const tiers = ['.con-parl__head', '.con-parl__seats', '.con-parl__gov', '.con-parl__voting', '.con-parl__agenda', '.con-parl__parties', '[data-parl-ruler-slot]'];
       const snapTiers = () => page.evaluate((sel) => {
         const out: Record<string, {x: number, y: number, w: number, h: number}> = {};
         for (const s of sel) {
@@ -189,31 +202,28 @@ for (const preset of PARLIAMENT_PRESETS) {
             out[s] = {x: el.offsetLeft, y: el.offsetTop, w: el.offsetWidth, h: el.offsetHeight};
           }
         }
+        // The opposition row's five boxes BY POSITION (the parties in them change with the government).
+        document.querySelectorAll<HTMLElement>('.con-parl__parties .con-parl__party').forEach((el, i) => {
+          out[`row:${i}`] = {x: el.offsetLeft, y: el.offsetTop, w: el.offsetWidth, h: el.offsetHeight};
+        });
         return out;
       }, tiers);
       const base = await snapTiers();
+      // The other seat answers first; the viewer's A is the last answer — the walk plays the whole chain.
+      await answerGateAs(request, seats[1], 'assembly');
+      await press(page, 'Enter', 400);
+      await expect.poll(async () => (await parliamentWire(request, playerId)).game.parliament?.phase?.step, {timeout: 30_000}).toBe('adjourn');
+      await expect.poll(() => sittingStage(page), {timeout: 60_000}).toBe('results');
+      await waitSittingAtRest(page, 40_000);
       const trail: Array<string> = [];
-      for (const stage of ['enact', 'reward']) {
-        expect(await turnTo(page, stage), `A turns to ${stage}`).toBe(true);
-        await waitSittingAtRest(page, 40_000);
-        const moved = diff(base, await snapTiers());
-        trail.push(`${stage}: moved=${moved.length}`);
-        expect(moved, `${preset.id} · on ${stage} — the tiers keep their boxes\n${trail.join('\n')}`).toEqual([]);
-      }
-      expect(await sittingStage(page)).toBe('reward');
-      // R-30: every reading of the viewer's yield block starts at the same x.
-      const lefts = await page.evaluate(() => Array.from(document.querySelectorAll<HTMLElement>('.con-sit__panel--on .con-sit__yield .con-iyield__reading')).map((el) => Math.round(el.getBoundingClientRect().left)));
-      expect(lefts.length, 'the reward page reads at least one reading').toBeGreaterThan(0);
-      expect(Math.max(...lefts) - Math.min(...lefts), `${preset.id}: the readings share one left edge (${lefts.join(', ')})`).toBeLessThanOrEqual(1);
-      const items = await page.evaluate(() => Array.from(document.querySelectorAll<HTMLElement>('.con-sit__panel--on .con-sit__hero > [data-parl-sit-item]')).map((el) => ({cls: el.className.toString().split(' ')[0], left: Math.round(el.getBoundingClientRect().left), top: Math.round(el.getBoundingClientRect().top)})));
-      const firstRowLeft = Math.min(...items.map((i) => i.left));
-      const firstOnEachRow = new Map<number, number>();
-      for (const i of items) {
-        firstOnEachRow.set(i.top, Math.min(firstOnEachRow.get(i.top) ?? Infinity, i.left));
-      }
-      for (const [top, left] of Array.from(firstOnEachRow.entries())) {
-        expect(Math.abs(left - firstRowLeft), `${preset.id}: every row of the hero column starts at the same x (row at y=${top}: ${left} vs ${firstRowLeft})`).toBeLessThanOrEqual(1);
-      }
+      const moved = diff(base, await snapTiers());
+      trail.push(`results: moved=${moved.length}`);
+      expect(moved, `${preset.id} · after the walk (the government changed) — the tiers and the row's five boxes keep their places\n${trail.join('\n')}`).toEqual([]);
+      await expect(page.locator('[data-parl-ruler] .con-parl__party[data-party="Mars First"]'), 'Mars First rules').toHaveCount(1);
+      await expect(page.locator('.con-parl__parties .con-parl__party[data-party="Greens"]'), 'the Greens are back in the row').toHaveCount(1);
+      expect(await sittingStage(page)).toBe('results');
+      // R-30 (every reading of the viewer's yield block on one left edge; every hero row starting at one x) is pinned on
+      // the v2 probe's DOOR pose — the reward page's one stable stop (`console-parliament-sitting-v2.spec.ts`).
     });
   });
 }

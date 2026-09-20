@@ -24,7 +24,10 @@ export type ParliamentWire = {
   game: {
     phase: string; generation: number;
     parliament?: {phase?: {step: string; awaiting?: Array<string>; pending?: {player: string}; outcomes?: Array<Record<string, unknown>>;
-      summary?: {agenda?: {player: string; from: number; to: number; bonus?: string}; winner: {player?: string}; refreshed: Array<unknown>}}};
+      summary?: {
+        agenda?: {player: string; from: number; to: number; bonus?: string}; winner: {player?: string; instance?: string}; refreshed: Array<unknown>;
+        support?: Array<{party: string; gained: number; total: number}>;
+      }}};
   };
   thisPlayer: {color: string; cardsInHandNbr: number; terraformRating: number; plants: number; heatProduction: number; megaCreditProduction: number};
 };
@@ -52,9 +55,37 @@ export async function hotVerb(page: Page): Promise<string> {
   return labels.map((l) => l.trim()).join(' | ');
 }
 
-/** Turn the sitting's page by A until `stage` is on screen (a positive, specific witness). */
-export async function turnTo(page: Page, stage: string): Promise<boolean> {
-  return pressUntil(page, 'Enter', async () => await sittingStage(page) === stage, {tries: 4, settleMs: 1100});
+/** The sitting's stages in walk order (v2); the retired «renewal» / «closing» pages are the RESULTS stage. */
+const SITTING_STAGE_ORDER = ['verdict', 'enact', 'reward', 'results'];
+const RETIRED_SITTING_STAGES: Record<string, string> = {renewal: 'results', closing: 'results'};
+
+/**
+ * Bring the sitting to `stage` («Заседание v2»): the enactment and the reward turn BY THEMSELVES — A answers
+ * only the verdict (gate 1) and the results (gate 2). On the verdict A is pressed once, with a positive witness
+ * (the stage left the verdict, or the verdict shows its wait pose — the other seats have not answered yet);
+ * then the walk is awaited until it has reached — or passed — `stage`. False when it never gets there: a
+ * spec that needs the enactment must first let the OTHER seats answer gate 1 (`answerGateAs`).
+ */
+export async function turnTo(page: Page, stage: string, timeout = 60_000): Promise<boolean> {
+  const target = RETIRED_SITTING_STAGES[stage] ?? stage;
+  const rank = (s: string) => SITTING_STAGE_ORDER.indexOf(s);
+  const reached = async () => rank(await sittingStage(page)) >= rank(target);
+  if (await reached()) {
+    return true;
+  }
+  const waiting = () => page.locator('.con-sit__panel--on [data-sit-awaiting]').count();
+  if (await sittingStage(page) === 'verdict' && await waiting() === 0) {
+    const pressed = await pressUntil(page, 'Enter', async () => await sittingStage(page) !== 'verdict' || await waiting() > 0, {tries: 4, settleMs: 1100});
+    if (!pressed) {
+      return false;
+    }
+  }
+  try {
+    await expect.poll(reached, {timeout}).toBe(true);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** Answer a standing PARLIAMENT GATE for `seat` over the API (the other seat of a two-seat fixture). */
@@ -102,7 +133,7 @@ export async function expectParliamentFits(page: Page, label: string, rootSelect
     const vh = window.innerHeight;
     const out: Array<string> = [];
     const name = (el: Element) => el.className.toString().split(' ')[0];
-    const blocks = '.con-parl__gov, .con-parl__slot, .con-parl__stage, .con-sit__panel--on, .con-sit__row, .con-sit__closing,' +
+    const blocks = '.con-parl__gov, .con-parl__slot, .con-parl__stage, .con-sit__panel--on, .con-sit__row, .con-sit__results,' +
       ' .con-iyield, .con-iyield__reading, .con-preact, .con-wreward, .con-sit__skip, .con-sit__zone--on, .con-extdraw__cards, .con-cards__slot, .con-task,' +
       ' .con-cards__verdictbar, .con-sit__wait, .con-sit__awaiting,' +
       // The other parliament chassis a gallery photographs: the announce plate, the fullscreen inspect, the party composer, the playground, the seat.
@@ -122,6 +153,13 @@ export async function expectParliamentFits(page: Page, label: string, rootSelect
       }
       if (el.scrollHeight > el.clientHeight + 2 && cs.overflowY !== 'visible') {
         out.push(`clipped-y ${name(el)} ${el.scrollHeight}>${el.clientHeight}`);
+      }
+      // A POSE OF THE SITTING IS A FIXED TIER: the stage's box is the middle tier's (`--con-parl-mid-h`), and a
+      // pose that spills paints over the Agenda track with nothing clipped — `overflow: visible` hides it from
+      // the clip checks above, so the on-pose is asked directly (measured with the v2 results card: four rows and
+      // the head ran ~50 px past the tier on every profile; on the Deck the whole track was covered).
+      if (el.matches('.con-sit__panel--on') && el.scrollHeight > el.clientHeight + 2) {
+        out.push(`spills-y ${name(el)} ${el.scrollHeight}>${el.clientHeight} (the pose runs past the stage's tier)`);
       }
     }
     for (const el of Array.from(root.querySelectorAll<HTMLElement>('*'))) {
@@ -237,11 +275,23 @@ export async function parliamentZone(page: Page): Promise<string> {
   return (await parliament(page).getAttribute('data-zone')) ?? '';
 }
 
-/** Walk the browse layer's zones until `zone` is the focus zone (a positive witness on the root's own attribute). */
-export async function focusParliamentZone(page: Page, zone: 'government' | 'voting' | 'parties'): Promise<void> {
-  for (let i = 0; i < 6 && await parliamentZone(page) !== zone; i++) {
+/**
+ * Walk the browse layer's zones until `zone` is the focus zone (a positive witness on the root's own
+ * attribute). v2: four zones on the top row — government · ruler · voting (left to right) — and the
+ * opposition row below.
+ */
+export async function focusParliamentZone(page: Page, zone: 'government' | 'ruler' | 'voting' | 'parties'): Promise<void> {
+  const order = ['government', 'ruler', 'voting'];
+  for (let i = 0; i < 8 && await parliamentZone(page) !== zone; i++) {
     const at = await parliamentZone(page);
-    const key = zone === 'parties' ? 'ArrowDown' : at === 'parties' ? 'ArrowUp' : zone === 'voting' ? 'ArrowRight' : 'ArrowLeft';
+    let key: string;
+    if (zone === 'parties') {
+      key = 'ArrowDown';
+    } else if (at === 'parties') {
+      key = 'ArrowUp';
+    } else {
+      key = order.indexOf(zone) > order.indexOf(at) ? 'ArrowRight' : 'ArrowLeft';
+    }
     await press(page, key, 400);
   }
   expect(await parliamentZone(page), `the ${zone} zone is the focus zone`).toBe(zone);
