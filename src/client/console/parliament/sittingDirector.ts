@@ -69,6 +69,7 @@ import {ResourceTransferSpec, TransferPoint} from '@/client/console/resourceTran
 import {AgendaMove, ParliamentViewVm} from './consoleParliamentModel';
 import {SittingStage} from './consoleSittingFlow';
 import {enactedCardEl} from './consoleResolutionPayout';
+import {SupportMark, SupportSource, supportSceneOf, SupportWaveEntry} from './supportScene';
 import {parliamentHolds, releaseEnactmentHolds, releaseRenewalHolds} from './parliamentDisplayHolds';
 import {
   flushAgendaBonus, flushParliamentRewards, markAgendaBonusLanded, markRewardLanded, OwedReward, parliamentRewardState, takeAgendaBonus,
@@ -131,7 +132,6 @@ export const sittingMotion = reactive({
   /** The winning card's slot, lit for the verdict (its instance; '' = none). */
   litSlot: '' as string,
   /** The party whose plaque is ACCEPTING support right now ('' = none). */
-  supportParty: '' as ReduxParty | '',
   /** The Agenda segment the marker is crossing (its steps light). */
   agendaSegment: undefined as AgendaMove | undefined,
   /** The results card has been REVEALED (the renewal's beats are over) — hidden until then while the stage plays. */
@@ -343,40 +343,127 @@ function beatAgenda(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: numb
 // ── ПРИНЯТИЕ · ПОДДЕРЖКА ───────────────────────────────────────────────────
 
 /** The support cubes of ONE party leave the neutral supply for the party's next free places, cube by cube. */
-function launchSupportFor(runState: StageRun, ctx: SittingDirectorContext, party: ReduxParty, count: number, k: number): void {
+/** The roll call's pace: one party named every step — a reading rhythm, left to right, no returns. */
+const ROLL_STEP_MS = 70;
+const ROLL_TAIL_MS = 120;
+const SUPPORT_SETTLE_MS = 200;
+
+/** Where a support cube comes FROM, as a place on screen (v3 В3) — never the centre of the screen. */
+function supportSourceRect(root: HTMLElement, source: SupportSource, to: Rect | undefined): Rect | undefined {
+  if (source.from === 'supply') {
+    return placeCubeRect(root, '[data-parl-neutral-cube]');
+  }
+  const selector = source.from === 'ribbon' ?
+    `.con-parl__slot[data-instance="${source.instance}"] .con-parl__ribbon` :
+    `.con-parl__slot[data-instance="${source.instance}"] .con-parl__card`;
+  const host = rectOf(root.querySelector(selector));
+  if (host === undefined || to === undefined) {
+    return host;
+  }
+  // A cube leaves the card (or its ribbon) at the CUBE's own size, from the middle of that object.
+  return {left: host.left + host.width / 2 - to.width / 2, top: host.top + host.height / 2 - to.height / 2, width: to.width, height: to.height};
+}
+
+/**
+ * THE ROLL CALL's mark: the object that speaks for a party answers ONCE, on its own — a short mechanical
+ * press of the card, nothing else on screen moves (v3, law 1). The party's tile gains its WORD in the same
+ * call; the word is written into the reserved row, never flashed.
+ */
+function markRollSource(root: HTMLElement, mark: SupportMark, runState: StageRun, k: number): void {
+  const el = mark.kind === 'slot' ?
+    root.querySelector<HTMLElement>(`.con-parl__slot[data-instance="${mark.instance}"] .con-parl__card`) :
+    mark.kind === 'government' ? root.querySelector<HTMLElement>('.con-parl__gov-card') : null;
+  if (el === null || runState.finished) {
+    return;
+  }
+  const tw = gsap.fromTo(el, {scale: 1}, {
+    scale: 1.014, duration: s(ROLL_STEP_MS) * k, ease: 'sine.inOut', yoyo: true, repeat: 1,
+    transformOrigin: '50% 50%', clearProps: 'transform,transformOrigin',
+    onInterrupt: () => gsap.set(el, {clearProps: 'transform,transformOrigin'}),
+  });
+  runState.kills.push(() => {
+    tw.kill();
+    gsap.set(el, {clearProps: 'transform,transformOrigin'});
+  });
+}
+
+/**
+ * THE TOUCHDOWN ANSWER (v3, law 1): the ONE socket that received the cube grows denser for a moment —
+ * a one-shot CSS animation that ends on its own. No tile changes colour, no neighbour lights, nothing
+ * repeats; the counter under it ticks in the same frame because the hold is consumed here.
+ */
+function answerSupportPlace(root: HTMLElement, party: ReduxParty, index: number): void {
+  const el = root.querySelector<HTMLElement>(`[data-parl-support="${party}"] [data-support-place="${index + 1}"]`);
+  if (el === null) {
+    return;
+  }
+  el.classList.remove('con-pseal__support-place--landed');
+  void el.offsetWidth;
+  el.classList.add('con-pseal__support-place--landed');
+  el.addEventListener('animationend', () => el.classList.remove('con-pseal__support-place--landed'), {once: true});
+}
+
+/** ONE wave: this party's cubes, each from its own place, one every `SUPPORT_CUBE_STAGGER_MS`. */
+function launchSupportWave(runState: StageRun, ctx: SittingDirectorContext, wave: SupportWaveEntry, k: number): void {
   const root = ctx.root;
   const holds = parliamentHolds;
-  const supply = placeCubeRect(root, '[data-parl-neutral-cube]');
-  const places = itemsOf(root, `.con-parl__party[data-party="${party}"] .con-pseal__support-place`);
-  const total = ctx.view.parties.find((p) => p.party === party)?.support ?? 0;
-  // The places this party's cubes take: the ones after those already lit (the plaque shows live − incoming).
-  const base = Math.max(0, Math.min(places.length, total) - count);
+  const places = itemsOf(root, `[data-parl-support="${wave.party}"] .con-pseal__support-place`);
+  const total = ctx.view.parties.find((p) => p.party === wave.party)?.support ?? 0;
+  const incoming = holds.supportIncoming.get(wave.party) ?? wave.cubes.length;
+  // The places these cubes take: the ones after the cubes the plaque already shows (live − incoming).
+  const base = Math.max(0, Math.min(places.length, total) - incoming);
   let launched = 0;
-  for (let n = 0; n < count; n++) {
-    const to = rectOf(places[Math.min(places.length - 1, base + n)]);
-    const id = flyCube('neutral', supply, to, n * SUPPORT_CUBE_STAGGER_MS * k, () => {
-      const left = (holds.supportIncoming.get(party) ?? 0) - 1;
+  wave.cubes.forEach((cube, n) => {
+    const index = wave.overflow === true ? places.length - 1 : Math.min(places.length - 1, base + n);
+    const to = rectOf(places[index]);
+    const from = supportSourceRect(root, cube, to);
+    const landed = (): void => {
+      if (wave.overflow === true) {
+        return;
+      }
+      answerSupportPlace(root, wave.party, index);
+      const left = (holds.supportIncoming.get(wave.party) ?? 0) - 1;
       if (left <= 0) {
-        holds.supportIncoming.delete(party);
+        holds.supportIncoming.delete(wave.party);
       } else {
-        holds.supportIncoming.set(party, left);
+        holds.supportIncoming.set(wave.party, left);
+      }
+    };
+    const id = flyCube('neutral', from, to, n * SUPPORT_CUBE_STAGGER_MS * k, () => {
+      landed();
+      if (wave.overflow === true && from !== undefined && to !== undefined) {
+        // FULL: the places answer as full and the cube goes home — the discard is shown, never merely logged.
+        answerSupportPlace(root, wave.party, index);
+        const back = flyCube('neutral', to, from, 0, () => undefined);
+        if (back !== undefined) {
+          runState.flights.add(back);
+        }
       }
     });
     if (id !== undefined) {
       runState.flights.add(id);
       launched++;
     }
-  }
+  });
   if (launched === 0) {
-    holds.supportIncoming.delete(party);
+    holds.supportIncoming.delete(wave.party);
   }
 }
 
-/** ПОДДЕРЖКА: party by party in the summary's order — the opposition tier in full view, each plaque lighting as it accepts. */
+/**
+ * ПОДДЕРЖКА — ONE scene in three beats (v3 В3), all of it in the row, the voting area and the neutral
+ * supply: ① the ROLL CALL — each card of the table and then the government mark their party, and the
+ * party's tile gains the word that says why it stands where it stands; ② the two parties nobody spoke
+ * for take a cube from the SUPPLY; ③ every unenacted card sends its own cube to its party, plus a second
+ * one off its delegate ribbon when a player voted there. The enacted card gives nothing and shows it.
+ */
 function beatSupport(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: number, runState: StageRun): number {
   const holds = parliamentHolds;
-  const parties = ctx.summary.support.filter((entry) => entry.gained > 0 && (holds.supportIncoming.get(entry.party) ?? 0) > 0);
-  if (parties.length === 0) {
+  const root = ctx.root;
+  const slots = (holds.heldSlots ?? ctx.view.slots).map((slot) => ({instance: slot.instance, party: slot.party}));
+  const scene = supportSceneOf(ctx.summary, slots, holds.rulerBefore ?? ctx.view.rulingParty);
+  const waves = scene.waves.filter((wave) => wave.overflow === true || (holds.supportIncoming.get(wave.party) ?? 0) > 0);
+  if (waves.length === 0) {
     tl.call(() => holds.supportIncoming.clear(), undefined, 0.01);
     return 0;
   }
@@ -385,15 +472,26 @@ function beatSupport(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: num
     sittingMotion.peek = true;
   }, undefined, at);
   at += s(SUPPORT_TIER_IN_MS) * k;
-  for (const entry of parties) {
-    const count = holds.supportIncoming.get(entry.party) ?? entry.gained;
+  for (const entry of scene.roll) {
     tl.call(() => {
-      sittingMotion.supportParty = entry.party;
-      launchSupportFor(runState, ctx, entry.party, count, k);
+      holds.rollStatus.set(entry.party, entry.status);
+      markRollSource(root, entry.mark, runState, k);
     }, undefined, at);
-    at += s((count - 1) * SUPPORT_CUBE_STAGGER_MS + SUPPORT_PARTY_GAP_MS) * k;
+    at += s(ROLL_STEP_MS) * k;
   }
-  at += s(480) * k;
+  at += s(ROLL_TAIL_MS) * k;
+  for (const wave of waves) {
+    tl.call(() => {
+      launchSupportWave(runState, ctx, wave, k);
+    }, undefined, at);
+    at += s((wave.cubes.length - 1) * SUPPORT_CUBE_STAGGER_MS + SUPPORT_PARTY_GAP_MS) * k;
+  }
+  at += s(SUPPORT_SETTLE_MS) * k;
+  // The roll call's words are the SCENE's, not the tiles' own state: they leave with it.
+  tl.call(() => {
+    holds.rollStatus.clear();
+    holds.supportIncoming.clear();
+  }, undefined, at);
   return at;
 }
 
@@ -563,14 +661,17 @@ function beatEnactMove(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: n
         const fresh = root.querySelector<HTMLElement>('[data-parl-quest]');
         if (fresh === null || runState.finished) {
           if (fresh !== null) {
-            gsap.set(fresh, {clearProps: 'transform,opacity,visibility'});
+            gsap.set(fresh, {clearProps: 'transform,transformOrigin,opacity,visibility'});
           }
           return;
         }
-        const tw = gsap.fromTo(fresh, {autoAlpha: 0, y: -6}, {autoAlpha: 1, y: 0, duration: s(QUEST_REVEAL_MS) * k, ease: 'expo.out', clearProps: 'transform,opacity,visibility'});
+        // IT COMES FROM THE CARD (v3 В2): the quest is printed on the resolution that just landed above it,
+        // so the new block UNFOLDS downward out of that edge — never a panel fading in beside it.
+        const tw = gsap.fromTo(fresh, {autoAlpha: 0, scaleY: 0.82, y: -4, transformOrigin: '50% 0%'},
+          {autoAlpha: 1, scaleY: 1, y: 0, duration: s(QUEST_REVEAL_MS) * k, ease: 'expo.out', clearProps: 'transform,transformOrigin,opacity,visibility'});
         runState.kills.push(() => {
           tw.kill();
-          gsap.set(fresh, {clearProps: 'transform,opacity,visibility'});
+          gsap.set(fresh, {clearProps: 'transform,transformOrigin,opacity,visibility'});
         });
       });
     };
@@ -578,10 +679,11 @@ function beatEnactMove(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: n
       swap();
       return;
     }
-    const out = gsap.to(quest, {autoAlpha: 0, y: 6, duration: s(QUEST_RELEASE_MS) * k, ease: 'power2.in', onComplete: swap});
+    // …and the old one FOLDS INTO that same edge before it: one object leaves where the next arrives.
+    const out = gsap.to(quest, {autoAlpha: 0, scaleY: 0.86, y: -2, transformOrigin: '50% 0%', duration: s(QUEST_RELEASE_MS) * k, ease: 'power2.in', onComplete: swap});
     runState.kills.push(() => {
       out.kill();
-      gsap.set(quest, {clearProps: 'transform,opacity,visibility'});
+      gsap.set(quest, {clearProps: 'transform,transformOrigin,opacity,visibility'});
     });
   }, undefined, at);
   at += s(QUEST_RELEASE_MS + QUEST_REVEAL_MS) * k;
@@ -880,7 +982,6 @@ function beatResults(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: num
 function settleStagePoses(stage: SittingStage): void {
   killParliamentFlights();
   sittingMotion.peek = false;
-  sittingMotion.supportParty = '';
   sittingMotion.agendaSegment = undefined;
   switch (stage) {
   case 'verdict':
@@ -1005,7 +1106,6 @@ export async function playSittingStage(stage: SittingStage, beats: ReadonlyArray
       if (stagePlaying === stage) {
         await runBeat(stage, 'support', opts.compact, (tl, r) => beatSupport(tl, ctx, k, r));
         sittingMotion.peek = false;
-        sittingMotion.supportParty = '';
         await gap(BEAT_GAP_MS);
       }
       if (stagePlaying === stage) {
@@ -1058,7 +1158,6 @@ export function killSittingMotion(): void {
   sittingMotion.stage = '';
   sittingMotion.beat = '';
   sittingMotion.peek = false;
-  sittingMotion.supportParty = '';
   sittingMotion.agendaSegment = undefined;
   if (current === undefined) {
     return;

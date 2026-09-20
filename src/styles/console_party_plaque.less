@@ -157,6 +157,24 @@
         background: rgba(0, 0, 0, 0.4);
         box-shadow: inset 0 0 0 .06rem rgba(200, 205, 215, 0.3);
         &--on { box-shadow: inset 0 0 0 .06rem rgba(200, 205, 215, 0.55); }
+        /* THE TOUCHDOWN (v3 В3, law 1): the ONE socket that received the cube answers — its material goes
+           denser for a beat and settles. A one-shot ended by its own animationend: no pulse, no repeat,
+           and nothing around it moves. */
+        &--landed { animation: con-pseal-support-land calc(280ms * var(--motion-scale, 1)) @con-ease-standard 1; }
+    }
+    /* THE ROLL CALL's word (v3 В3): the scene's own reading of this party, in the state row's place — a
+       compact tracked accent that carries by weight, never by colour alone. */
+    &__roll {
+        flex: 1 1 auto;
+        min-width: 0;
+        font-size: .6rem;
+        font-weight: 800;
+        letter-spacing: .1em;
+        text-transform: uppercase;
+        color: fade(@con-parl-silver, 92%);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
 
     /* ── STATE RINGS — the console's state colours, never the player's. ── */
@@ -231,3 +249,11 @@
         .con-pseal__support, .con-pseal__state { display: none; }
     }
 }
+
+/* The support socket's one-shot answer: the material densifies and settles (v3 В3). */
+@keyframes con-pseal-support-land {
+    0% { box-shadow: inset 0 0 0 .06rem rgba(200, 205, 215, 0.55); }
+    38% { box-shadow: inset 0 0 0 .1rem rgba(226, 232, 240, 0.95), 0 0 .5rem rgba(200, 212, 230, 0.35); }
+    100% { box-shadow: inset 0 0 0 .06rem rgba(200, 205, 215, 0.55); }
+}
+html.con-fx-lite .con-pseal__support-place--landed { animation: none; }

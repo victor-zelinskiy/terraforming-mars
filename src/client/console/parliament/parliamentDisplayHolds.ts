@@ -1,4 +1,5 @@
 import {reactive} from 'vue';
+import {SupportStatus} from './supportScene';
 import {Color} from '@/common/Color';
 import {ReduxParty} from '@/common/parliament/ParliamentTypes';
 import type {ParliamentQuestVm, ParliamentSlotVm, ParliamentViewVm} from './consoleParliamentModel';
@@ -41,6 +42,11 @@ export type ParliamentDisplayHolds = {
   support: Map<ReduxParty, number>;
   /** Popular-support cubes the model has GRANTED that have not reached their party's places yet (party → count; the enactment's support beat lands them). */
   supportIncoming: Map<ReduxParty, number>;
+  /**
+   * THE ROLL CALL of the support scene (v3 В3): party → the word its tile shows while the scene runs, in
+   * its own reserved state row. A STATUS, never a highlight — the tile's colour and ring never move.
+   */
+  rollStatus: Map<ReduxParty, SupportStatus>;
   /** Neutral cubes on a fresh card that have not arrived yet (`instance#seq`). */
   hiddenCubes: Set<string>;
   /** Players whose free delegate has not reached the lobby yet. */
@@ -78,7 +84,7 @@ export type ParliamentDisplayHolds = {
 
 export function emptyParliamentHolds(): ParliamentDisplayHolds {
   return {
-    returns: new Map(), support: new Map(), supportIncoming: new Map(), hiddenCubes: new Set(), lobby: new Set(), freshFaces: new Set(), deckPending: 0,
+    returns: new Map(), support: new Map(), supportIncoming: new Map(), rollStatus: new Map(), hiddenCubes: new Set(), lobby: new Set(), freshFaces: new Set(), deckPending: 0,
     govAwaits: undefined, parked: undefined, heldSlots: undefined, vacated: new Set(), liftedFaces: new Set(), winnerSlot: undefined,
     agendaAwaits: undefined, govBefore: undefined, rulerBefore: undefined, questBefore: undefined,
   };
@@ -108,6 +114,7 @@ export function releaseEnactmentHolds(): void {
   const h = parliamentHolds;
   h.returns.clear();
   h.supportIncoming.clear();
+  h.rollStatus.clear();
   h.govAwaits = undefined;
   h.parked = undefined;
   h.agendaAwaits = undefined;

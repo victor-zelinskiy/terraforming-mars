@@ -84,15 +84,22 @@
          saying the state) — the reason stands where the eye already is, and
          the row never reserves an empty line for it. -->
     <div v-if="state !== undefined && size !== 'full'" class="con-pseal__state" :class="['con-pseal__state--' + state.tone, {'con-pseal__state--reason': reason !== ''}]" :data-state-kind="state.kind">
-      <span v-if="reason !== ''" class="con-pseal__reason" :class="'con-pseal__reason--' + reasonTone" data-pseal-reason>{{ reason }}</span>
-      <span v-if="reason === '' && showPlaces && viewerColor !== undefined" class="con-pseal__places" aria-hidden="true">
+      <!-- THE ROLL CALL's word (v3 В3): while the support scene names this party, its own state row says
+           WHY it stands where it stands — «принимается» / «не принята» / «не на голосовании» / «правит».
+           It takes the row in place of the live state: one line, written, never a flash. -->
+      <span v-if="roll !== ''" class="con-pseal__roll" data-pseal-roll>{{ roll }}</span>
+      <span v-if="roll === '' && reason !== ''" class="con-pseal__reason" :class="'con-pseal__reason--' + reasonTone" data-pseal-reason>{{ reason }}</span>
+      <span v-if="roll === '' && reason === '' && showPlaces && viewerColor !== undefined" class="con-pseal__places" aria-hidden="true">
         <span v-for="n in placesCount" :key="n" class="con-pseal__place" :class="{'con-pseal__place--on': n <= (state?.delegates ?? 0)}">
           <PlayerCube v-if="n <= (state?.delegates ?? 0)" :color="viewerColor" :size="placeCubePx" :glow="false" />
         </span>
         <span class="con-pseal__places-count">{{ Math.min(state?.delegates ?? 0, placesCount) }}/{{ placesCount }}</span>
       </span>
-      <span v-if="reason === '' && stateText !== ''" class="con-pseal__state-text">{{ stateText }}</span>
-      <span v-if="support !== undefined && support > 0" class="con-pseal__support" :data-support="support" aria-hidden="true">
+      <span v-if="roll === '' && reason === '' && stateText !== ''" class="con-pseal__state-text">{{ stateText }}</span>
+      <!-- POPULAR SUPPORT — three places, ALWAYS reserved (v3 В3): a socket that appears when the first
+           cube lands would make the arrival its own layout jump. Empty sockets read as empty sockets; the
+           landing socket answers ONCE, on contact (`--landed`, the director adds it at the touchdown). -->
+      <span v-if="support !== undefined" class="con-pseal__support" :data-support="support" :data-parl-support="party" aria-hidden="true">
         <span v-for="n in 3" :key="n" class="con-pseal__support-place" :class="{'con-pseal__support-place--on': n <= support}" :data-support-place="n">
           <PlayerCube v-if="n <= support" color="neutral" steel :size="supportCubePx" :glow="false" />
         </span>
@@ -137,6 +144,8 @@ export default defineComponent({
     /** The ONE translated reason the party's action cannot be taken right now (the focused tile's foot); '' draws the state. */
     reason: {type: String, default: ''},
     reasonTone: {type: String as PropType<'dim' | 'warn'>, default: 'dim'},
+    /** The roll call's word for this party while the support scene runs (v3 В3) — it takes the state row in place of the live state. */
+    roll: {type: String, default: ''},
   },
   methods: {
     partyNameKey(party: string): string {
