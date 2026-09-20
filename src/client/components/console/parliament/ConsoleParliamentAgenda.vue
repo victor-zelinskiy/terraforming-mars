@@ -15,9 +15,9 @@
         <i class="con-parl__inf-icon" aria-hidden="true"></i>
         <b :key="'ai' + shown.viewerInfluence" class="con-parl__tick" data-parl-influence>{{ shown.viewerInfluence }}</b>
         <span class="con-parl__agenda-next">
-          <span class="con-parl__chip-dim">{{ $t(shown.nextStep === undefined ? 'end of the track' : 'next step') }}</span>
+          <span class="con-parl__chip-dim">{{ $t(shown.nextStep === undefined ? 'end of the track' : 'next reward') }}</span>
           <span v-if="shown.nextStep !== undefined" class="con-parl__reward-step" :class="'con-parl__reward-step--' + shown.nextStep.kind">
-            <template v-if="shown.nextStep.kind === 'influence'"><span class="con-parl__step-level">{{ shown.nextStep.influence }}</span></template>
+            <template v-if="shown.nextStep.kind === 'influence'"><i class="con-parl__step-res con-parl__step-res--inf" aria-hidden="true"></i><span class="con-parl__step-level">{{ shown.nextStep.influence }}</span></template>
             <template v-else-if="shown.nextStep.kind === 'tr'"><i class="con-parl__step-res resource_icon resource_icon--rating" aria-hidden="true"></i></template>
             <template v-else><i class="con-parl__step-res resource_icon resource_icon--cards" aria-hidden="true"></i></template>
           </span>
@@ -54,7 +54,7 @@
            :data-step="step.index"
            @animationend="onStepPulseEnd($event, step.index)">
           <span class="con-parl__step-node">
-            <template v-if="step.step.kind === 'influence'"><span class="con-parl__step-level">{{ step.step.influence }}</span></template>
+            <template v-if="step.step.kind === 'influence'"><i class="con-parl__step-res con-parl__step-res--inf" aria-hidden="true"></i><span class="con-parl__step-level">{{ step.step.influence }}</span></template>
             <template v-else-if="step.step.kind === 'tr'"><i class="con-parl__step-res con-parl__step-res--tr resource_icon resource_icon--rating" aria-hidden="true"></i></template>
             <template v-else><i class="con-parl__step-res con-parl__step-res--card resource_icon resource_icon--cards" aria-hidden="true"></i></template>
           </span>
