@@ -1,16 +1,20 @@
 <template>
-  <!-- ── THE GOVERNMENT — the enacted resolution is the MAIN OBJECT;
-       beside it the RULING PARTY with its printed effect LARGE (one
-       caption: it is every player's), and — apart from it — the enacted
-       resolution's OWN standing effect when it has one; under both, the
-       chairman quest. ── -->
+  <!-- ── THE GOVERNMENT — the enacted resolution is the MAIN OBJECT; beside
+       it the RULING PARTY's own TILE (the same chassis and size as the five
+       opposition tiles below — one DOM instance per party, teleported here
+       by the parties tier; focusable: X inspects the party, A is the party
+       action's door), the enacted resolution's OWN standing effect when it
+       has one; under both, the chairman quest.
+       DURING THE SITTING the block shows the PREVIOUS government until the
+       enactment's beat has moved each piece (the display holds: the old
+       card, the old ruler, the old quest closed with its outcome). ── -->
   <div class="con-parl__gov"
        :class="{
          'con-parl__gov--focus': flow.zone === 'government' && flow.stage === 'browse',
          'con-parl__gov--lit': sittingLit,
-         'con-parl__gov--enacted': view.enacted !== undefined,
+         'con-parl__gov--enacted': enactedShown !== undefined,
        }"
-       :style="{'--parl-accent': partyAccent(view.rulingParty)}"
+       :style="{'--parl-accent': partyAccent(rulerShown)}"
        data-parl-gov
        data-parl-recede>
     <div class="con-parl__gov-head">
@@ -29,8 +33,8 @@
       <Teleport v-if="enactedVm !== undefined" defer to="[data-parl-sit-hero]" :disabled="!enactCarried">
         <div class="con-parl__gov-carry" data-parl-gov-carry>
           <div class="con-parl__gov-card"
-               :class="{'con-parl__gov-card--awaiting': holds.govAwaits !== undefined && holds.govAwaits === view.enacted?.instance}"
-               :data-zoom-slot="'resolution:' + view.enacted?.resolutionId">
+               :class="{'con-parl__gov-card--awaiting': holds.govAwaits !== undefined && holds.govAwaits === enactedShown?.instance}"
+               :data-zoom-slot="'resolution:' + enactedShown?.resolutionId">
             <premium-card-face :vmOverride="enactedVm" :lightweight="!enactCarried" :inert="true" />
           </div>
         </div>
@@ -41,30 +45,11 @@
         <span class="con-parl__gov-empty-mark" aria-hidden="true">◇</span>
         <span class="con-parl__gov-empty-text">{{ $t('No resolution enacted yet') }}</span>
       </div>
-      <!-- THE RULER — the identity line, then the effect everyone holds
-           while the party rules: its printed formula LARGE, one caption.
-           The resolution's OWN standing effect (when it has one) is a
-           separate row under its own mark — two sources, told apart. -->
-      <div class="con-parl__ruler" :data-zoom-slot="partyKeyOf(view.rulingParty)" data-parl-ruler>
-        <div class="con-parl__ruler-ident">
-          <img class="con-parl__ruler-emblem" :src="emblemUrl(view.rulingParty)" alt="" />
-          <div class="con-parl__ruler-text">
-            <span class="con-parl__ruler-kicker">{{ $t('Ruling party') }}</span>
-            <span class="con-parl__ruler-title">
-              <b class="con-parl__ruler-name">{{ $t(partyNameKey(view.rulingParty)) }}</b>
-              <!-- Whose the effect is — beside the name, never a caption a panel away. -->
-              <span class="con-parl__ruler-scope">{{ $t('Available to every player') }}</span>
-            </span>
-          </div>
-        </div>
-        <!-- The mechanic: its printed graphic, and under it the ONE short
-             reading the catalog carries for it (the full sentences are
-             the inspector's). Centred together in the plate's height. -->
-        <div class="con-parl__ruler-body">
-          <ConsolePartyFormula class="con-parl__ruler-formula" :party="view.rulingParty" size="wide" />
-          <!-- No sentence on the game screen (R-13): the printed formula above IS the effect; the
-               words are the inspector's (X on the ruler). -->
-        </div>
+      <!-- THE RULER — the party's TILE lands here (teleported by the parties tier);
+           under it the resolution's OWN standing effect (a second source, told apart). -->
+      <div class="con-parl__ruler" :class="{'con-parl__ruler--focus': flow.zone === 'ruler' && flow.stage === 'browse'}" :data-zoom-slot="partyKeyOf(rulerShown)" data-parl-ruler>
+        <span class="con-parl__ruler-kicker">{{ $t('Ruling party') }} · <span class="con-parl__ruler-scope">{{ $t('Available to every player') }}</span></span>
+        <div class="con-parl__ruler-slot" data-parl-ruler-slot></div>
         <div v-if="enactedOwnMechanics !== undefined" class="con-parl__ruler-own" data-parl-enacted-effect>
           <span class="con-parl__ruler-own-kicker" :data-parl-enacted-part="enactedOwnPart"><i class="con-parl__card-mark resource_icon resource_icon--cards" aria-hidden="true"></i>{{ $t(enactedOwnPart === 'action' ? 'Resolution action' : 'Resolution effect') }}</span>
           <PremiumMechanicsPanel class="con-parl__ruler-own-mech" :mechanics="enactedOwnMechanics" />
@@ -75,33 +60,37 @@
     <!-- THE CHAIRMAN QUEST: the printed condition (a graphic + its short
          words), the race per seat, the reward as two things — the SEAT
          and ONE STEP of the Agenda (with what the viewer's next step
-         pays) — and the chairman. -->
-    <div v-if="view.quest !== undefined" class="con-parl__quest"
-         :class="{'con-parl__quest--done': view.quest.completedBy !== undefined, 'con-parl__quest--pulse': questPulse}"
+         pays) — and the chairman. While the sitting holds the OLD quest, it
+         reads CLOSED: its outcome (who completed it, or nobody) instead of a race. -->
+    <div v-if="questShown !== undefined" class="con-parl__quest"
+         :class="{'con-parl__quest--done': questShown.completedBy !== undefined, 'con-parl__quest--closed': questClosed, 'con-parl__quest--pulse': questPulse}"
          @animationend="onQuestPulseEnd"
-         data-parl-quest>
+         data-parl-quest
+         :data-parl-quest-closed="questClosed ? '' : undefined">
       <div class="con-parl__quest-head">
         <span class="con-parl__kicker">{{ $t('Chairman quest') }}</span>
-        <span v-if="view.quest.completedBy !== undefined" class="con-parl__quest-state">✓ {{ $t('Completed') }}</span>
+        <span v-if="questShown.completedBy !== undefined" class="con-parl__quest-state">✓ {{ $t('Completed') }}</span>
+        <span v-else-if="questClosed" class="con-parl__quest-state con-parl__quest-state--none">{{ $t('Nobody completed it') }}</span>
       </div>
       <div class="con-parl__quest-cond">
         <PremiumMechanicsPanel v-if="questMechanics !== undefined && !questMechanics.textOnly" class="con-parl__quest-graphic" :mechanics="questMechanics" />
-        <span class="con-parl__quest-text">{{ $t(view.quest.text) }}</span>
+        <span class="con-parl__quest-text">{{ $t(questShown.text) }}</span>
       </div>
-      <div v-if="view.quest.completedBy === undefined" class="con-parl__quest-progress" data-parl-quest-progress>
+      <div v-if="questShown.completedBy === undefined && !questClosed" class="con-parl__quest-progress" data-parl-quest-progress>
         <span v-for="row in questRows" :key="row.color" class="con-parl__quest-row"
-              :class="{'con-parl__quest-row--me': row.color === viewerColor, 'con-parl__quest-row--close': row.value > 0 && row.value >= view.quest.definition.count - 1}">
+              :class="{'con-parl__quest-row--me': row.color === viewerColor, 'con-parl__quest-row--close': row.value > 0 && row.value >= questShown.definition.count - 1}">
           <PlayerCube :color="row.color" :size="cubePx(12)" />
-          <b :key="row.value" class="con-parl__tick">{{ row.value }}</b><span class="con-parl__quest-of">/{{ view.quest.definition.count }}</span>
+          <b :key="row.value" class="con-parl__tick">{{ row.value }}</b><span class="con-parl__quest-of">/{{ questShown.definition.count }}</span>
         </span>
       </div>
       <div class="con-parl__quest-foot">
         <span class="con-parl__quest-reward" data-parl-quest-reward>
-          <span class="con-parl__quest-reward-kicker">{{ $t(view.quest.completedBy !== undefined ? 'Won by' : 'Reward') }}</span>
-          <template v-if="view.quest.completedBy !== undefined">
-            <PlayerCube :color="view.quest.completedBy" :size="cubePx(12)" />
-            <b>{{ nameOf(view.quest.completedBy) }}</b>
+          <span class="con-parl__quest-reward-kicker">{{ $t(questShown.completedBy !== undefined ? 'Won by' : (questClosed ? 'Outcome' : 'Reward')) }}</span>
+          <template v-if="questShown.completedBy !== undefined">
+            <PlayerCube :color="questShown.completedBy" :size="cubePx(12)" />
+            <b>{{ nameOf(questShown.completedBy) }}</b>
           </template>
+          <b v-else-if="questClosed">{{ $t('Nobody') }}</b>
           <template v-else>
             <span class="con-parl__reward-seat" :class="{'con-parl__reward-seat--kept': viewerIsChairman}">
               <!-- The reward is the OFFICE, not the chair (glossary §4, R-05): «ПРЕДСЕДАТЕЛЬСТВО + ШАГ ПОВЕСТКИ». -->
@@ -121,12 +110,12 @@
             </span>
           </template>
         </span>
-        <span class="con-parl__chair" :class="{'con-parl__chair--won': view.quest.completedBy !== undefined && view.quest.completedBy === view.chairman, 'con-parl__chair--pulse': flow.chairPulse}" data-parl-chair @animationend="onChairPulseEnd">
+        <span class="con-parl__chair" :class="{'con-parl__chair--won': questShown.completedBy !== undefined && questShown.completedBy === chairmanShown, 'con-parl__chair--pulse': flow.chairPulse}" data-parl-chair @animationend="onChairPulseEnd">
           <span class="con-parl__quest-reward-kicker">{{ $t('Chairman') }}</span>
-          <template v-if="view.chairman !== undefined">
+          <template v-if="chairmanShown !== undefined">
             <!-- The SEAT's cube — the place the chairman's delegate flies to. -->
-            <span class="con-parl__chair-cube" :data-parl-seat-chair="view.chairman"><PlayerCube :color="view.chairman" :size="cubePx(12)" /></span>
-            <b>{{ nameOf(view.chairman) }}</b>
+            <span class="con-parl__chair-cube" :data-parl-seat-chair="chairmanShown"><PlayerCube :color="chairmanShown" :size="cubePx(12)" /></span>
+            <b>{{ nameOf(chairmanShown) }}</b>
           </template>
           <span v-else class="con-parl__chair-empty">{{ $t('Seat empty') }}</span>
         </span>
@@ -134,16 +123,15 @@
     </div>
     <div v-else class="con-parl__chair con-parl__chair--alone" :class="{'con-parl__chair--pulse': flow.chairPulse}" data-parl-chair @animationend="onChairPulseEnd">
       <span class="con-parl__quest-reward-kicker">{{ $t('Chairman') }}</span>
-      <template v-if="view.chairman !== undefined">
-        <span class="con-parl__chair-cube" :data-parl-seat-chair="view.chairman"><PlayerCube :color="view.chairman" :size="cubePx(12)" /></span>
-        <b>{{ nameOf(view.chairman) }}</b>
+      <template v-if="chairmanShown !== undefined">
+        <span class="con-parl__chair-cube" :data-parl-seat-chair="chairmanShown"><PlayerCube :color="chairmanShown" :size="cubePx(12)" /></span>
+        <b>{{ nameOf(chairmanShown) }}</b>
       </template>
       <span v-else class="con-parl__chair-empty">{{ $t('Seat empty') }}</span>
     </div>
   </div>
 </template>
 <script lang="ts">
-import {partyNameKey} from '@/client/console/parliament/partyNames';
 import {defineComponent, PropType} from 'vue';
 import {Color} from '@/common/Color';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
@@ -151,25 +139,26 @@ import {ParliamentModel} from '@/common/models/ParliamentModel';
 import {ReduxParty} from '@/common/parliament/ParliamentTypes';
 import PlayerCube from '@/client/components/PlayerCube.vue';
 import PremiumMechanicsPanel from '@/client/components/premiumCard/PremiumMechanicsPanel.vue';
-import ConsolePartyFormula from '@/client/components/console/parliament/ConsolePartyFormula.vue';
 import {PremiumCardVM} from '@/client/components/premiumCard/premiumCardViewModel';
 import {buildMechanics, MechanicsVM} from '@/client/components/premiumCard/mechanicsModel';
 import {resolutionPremiumVmById} from '@/client/components/premiumCard/resolutionPremiumVm';
-import {partyAccent, partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
+import {partyAccent} from '@/client/components/premiumCard/partyEmblems';
 import {conLogicalPx} from '@/client/console/consoleLayoutProfile';
 import {parliamentFlow, settleParliamentChairPulse} from '@/client/console/parliament/consoleParliamentFlow';
 import {parliamentHolds} from '@/client/console/parliament/parliamentDisplayHolds';
-import {AgendaVm, parliamentPlayerName, ParliamentViewVm} from '@/client/console/parliament/consoleParliamentModel';
+import {AgendaVm, parliamentPlayerName, ParliamentQuestVm, ParliamentViewVm} from '@/client/console/parliament/consoleParliamentModel';
 import {partyTileKey} from '@/client/console/parliament/partyActionKey';
 
 /**
  * The GOVERNMENT tier: the enacted resolution (carried onto the payout stage
- * while it pays), the ruling party's printed effect, the resolution's own
- * standing effect, the chairman quest and the chair.
+ * while it pays), the ruling party's TILE (teleported in by the parties tier),
+ * the resolution's own standing effect, the chairman quest and the chair —
+ * each read through the sitting's display holds (the previous government
+ * stands until the enactment's beat has moved it).
  */
 export default defineComponent({
   name: 'ConsoleParliamentGovernment',
-  components: {PlayerCube, PremiumMechanicsPanel, ConsolePartyFormula},
+  components: {PlayerCube, PremiumMechanicsPanel},
   props: {
     view: {type: Object as PropType<ParliamentViewVm>, required: true},
     model: {type: Object as PropType<ParliamentModel | undefined>, default: undefined},
@@ -178,7 +167,6 @@ export default defineComponent({
     agendaVm: {type: Object as PropType<AgendaVm>, required: true},
     /** The SITTING's stage on screen ('' outside the sitting) — the verdict and the enactment light the government. */
     sittingStage: {type: String, default: ''},
-    /** The results scene's current focus ('' outside the scene). */
   },
   data() {
     return {
@@ -186,13 +174,41 @@ export default defineComponent({
     };
   },
   computed: {
+    flow() {
+      return parliamentFlow;
+    },
+    holds() {
+      return parliamentHolds;
+    },
+    /** THE CARD AS SHOWN: the previous law while the enactment's beat still holds it, else the live one. */
+    enactedShown(): ParliamentViewVm['enacted'] {
+      const before = this.holds.govBefore;
+      return before !== undefined ? before.enacted : this.view.enacted;
+    },
+    /** THE RULING PARTY AS SHOWN: the previous ruler until the plaques have changed places. */
+    rulerShown(): ReduxParty {
+      return this.holds.rulerBefore ?? this.view.rulingParty;
+    },
+    /** THE QUEST AS SHOWN: the previous quest (closed) until the new one unfolds. */
+    questShown(): ParliamentQuestVm | undefined {
+      const before = this.holds.questBefore;
+      return before !== undefined ? before.quest : this.view.quest;
+    },
+    chairmanShown(): Color | undefined {
+      const before = this.holds.questBefore;
+      return before !== undefined ? before.chairman : this.view.chairman;
+    },
+    /** The old quest is held CLOSED — its outcome instead of a race. */
+    questClosed(): boolean {
+      return this.holds.questBefore !== undefined;
+    },
     /**
-     * THE BASIS THE SEAT SHOWS. While the enacted card is still on its way (the sitting's verdict
-     * and enactment beats hold the seat empty — `holds.govAwaits`), the kicker keeps the PREVIOUS
-     * basis: «принятая резолюция» over an empty seat named a card that had not arrived (P-16).
+     * THE BASIS THE SEAT SHOWS. While the enacted card is still on its way (the enactment beat holds the seat
+     * empty — `holds.govAwaits`), the kicker keeps the PREVIOUS basis: «принятая резолюция» over an empty seat
+     * named a card that had not arrived (P-16).
      */
     govBasisKey(): string {
-      const enacted = this.view.enacted;
+      const enacted = this.enactedShown;
       if (enacted === undefined) {
         return 'Starting rule';
       }
@@ -202,25 +218,20 @@ export default defineComponent({
       }
       return 'Enacted resolution';
     },
-    flow() {
-      return parliamentFlow;
-    },
-    holds() {
-      return parliamentHolds;
-    },
     viewerIsChairman(): boolean {
-      return this.viewerColor !== undefined && this.view.chairman === this.viewerColor;
+      return this.viewerColor !== undefined && this.chairmanShown === this.viewerColor;
     },
     /** The enacted card is on the sitting's stage (the one instance, teleported) — the stage took the field for a hosted step. */
     enactCarried(): boolean {
-      return parliamentFlow.stage === 'sitting' && parliamentFlow.sittingField && this.view.enacted !== undefined;
+      return parliamentFlow.stage === 'sitting' && parliamentFlow.sittingField && this.enactedShown !== undefined;
     },
-    /** The SITTING lights the government: the verdict names the winner (now enacted), the enactment names the law. */
+    /** The SITTING lights the government: the verdict names the winner, the enactment names the law. */
     sittingLit(): boolean {
       return parliamentFlow.stage === 'sitting' && (this.sittingStage === 'verdict' || this.sittingStage === 'enact');
     },
     enactedVm(): PremiumCardVM | undefined {
-      return this.view.enacted === undefined ? undefined : resolutionPremiumVmById(this.view.enacted.resolutionId);
+      const shown = this.enactedShown;
+      return shown === undefined ? undefined : resolutionPremiumVmById(shown.resolutionId);
     },
     /**
      * The ENACTED resolution's OWN standing effect / action (its printed
@@ -229,7 +240,7 @@ export default defineComponent({
      * enactment itself (already paid, nothing stands).
      */
     enactedOwnMechanics(): MechanicsVM | undefined {
-      const resolution = this.view.enacted?.resolution;
+      const resolution = this.enactedShown?.resolution;
       if (resolution === undefined || !(resolution.hasPassive || resolution.hasAction)) {
         return undefined;
       }
@@ -238,15 +249,15 @@ export default defineComponent({
     },
     /** Which part of the enacted card the graphic IS — an action is not an effect (the families rehearsal, frame 33). */
     enactedOwnPart(): 'effect' | 'action' {
-      const resolution = this.view.enacted?.resolution;
+      const resolution = this.enactedShown?.resolution;
       return resolution !== undefined && resolution.hasAction && !resolution.hasPassive ? 'action' : 'effect';
     },
     questMechanics(): MechanicsVM | undefined {
-      const root = this.view.quest?.renderData;
+      const root = this.questShown?.renderData;
       return root === undefined ? undefined : buildMechanics(root);
     },
     questRows(): ReadonlyArray<{color: Color, value: number}> {
-      return (this.view.quest?.progress ?? []).filter((row) => row.participates);
+      return (this.questShown?.progress ?? []).filter((row) => row.participates);
     },
     questCompletedBy(): Color | undefined {
       return this.view.quest?.completedBy;
@@ -254,7 +265,7 @@ export default defineComponent({
   },
   watch: {
     questCompletedBy(now: Color | undefined, was: Color | undefined): void {
-      if (now !== undefined && was === undefined) {
+      if (now !== undefined && was === undefined && parliamentFlow.stage !== 'sitting') {
         // A CSS one-shot (`con-parl-quest-pulse`): the flag is cleared by the
         // animation's own end, never by a timer guessing its length.
         this.questPulse = true;
@@ -262,9 +273,6 @@ export default defineComponent({
     },
   },
   methods: {
-    partyNameKey(party: string): string {
-      return partyNameKey(party);
-    },
     onQuestPulseEnd(event: AnimationEvent): void {
       if (event.animationName === 'con-parl-quest-pulse') {
         this.questPulse = false;
@@ -280,9 +288,6 @@ export default defineComponent({
     },
     partyKeyOf(party: ReduxParty): string {
       return partyTileKey(party);
-    },
-    emblemUrl(party: ReduxParty): string {
-      return partyEmblemUrl(party);
     },
     partyAccent(party: ReduxParty): string {
       return partyAccent(party);

@@ -2,31 +2,40 @@
  * @console-shared LIVE — console native stands on this file.
  *
  * THE SITTING FLOW (Turmoil Redux — docs/TURMOIL_REDUX_PARLIAMENT_ASSEMBLY.md
- * §3.4, §6; docs/TURMOIL_REDUX_PARLIAMENT_SITTING.md § Э3) — the PURE half of
+ * §3.4, §6; docs/TURMOIL_REDUX_PARLIAMENT_SITTING_V2.md) — the PURE half of
  * «ПАРЛАМЕНТ › ЗАСЕДАНИЕ»: where the political phase stands on the SERVER, which
- * pages the viewer walks locally before each gate, what the crumb's tail says,
- * which phase B's verb comes from, and the mandatory FLOW beat that opens the
- * whole sitting once per generation.
+ * pages the viewer walks inside a step, which of them the walk turns by itself,
+ * what the crumb's tail says, which phase B's verb comes from, and the mandatory
+ * FLOW beat that opens the whole sitting once per generation.
  *
- * The sitting is ONE flow with TWO synchronous gates (`ParliamentPhase.ts`):
+ * The sitting is ONE flow with TWO synchronous gates (`ParliamentPhase.ts`, v2):
  *
- *   winner → agenda → support → enact → ▶ ASSEMBLY ◀ → effects → refresh → lobby → ▶ ADJOURN ◀ → done
+ *   winner → ▶ ASSEMBLY ◀ → agenda → support → enact → effects → refresh → lobby → ▶ ADJOURN ◀ → done
+ *
+ * The first gate stands BEFORE anything changes: at the VERDICT everything the
+ * player sees is still the table as it was voted. One A answers it; the server
+ * then runs the whole chain and the response (an own submit or a poll / WS
+ * frame) carries the diffs. The client SEEDS its display holds in the same
+ * synchronous block that applies the view (`parliamentSittingSeed.ts`) and
+ * plays the beats from the old state to the new one: ПОВЕСТКА → ПОДДЕРЖКА →
+ * ПРИНЯТИЕ → the reward's wave — with no press in between. The only real
+ * stops of the walk are the verdict (gate 1), the viewer's own ask on the
+ * reward page (a pick, a take, the winner's tile behind «К полю»), a wait on
+ * another seat, and the RESULTS (gate 2 — «Закрыть заседание»).
  *
  * Every fact here is the server's: the phase's `step`, its `summary`, its
  * `awaiting` list, the viewer's own prompt and its STRUCTURAL markers
  * (`parliamentPhasePrompt`, a `choiceContext` / `externalDrawPrompt` /
  * `placementContext` whose source is a resolution) — never a title, never a
- * resolution name, never a client memory of «already seen» (the recap's
- * `localStorage` mark is what this module replaces).
+ * resolution name, never a client memory of «already seen».
  *
- * WHAT IS LOCAL, and why that is honest: inside the ASSEMBLY step the viewer
- * reads three pages (the verdict, the enactment, the reward) before answering
- * the gate; inside ADJOURN two (the renewal, the closing). The server holds
- * ONE prompt for the whole step, so which page the viewer is on is
- * presentation state — `parliamentFlow.sittingPage`. A reload therefore lands
- * on the step's FIRST page (a seat that has already answered lands on the
- * gate's wait pose — that much the server does know); Э4's `resume` mode
- * replays the passed pages compactly. Nothing is persisted on the device.
+ * WHAT IS LOCAL, and why that is honest: inside one server step the viewer
+ * sees up to three PAGES (the enactment's beats, the reward, the results).
+ * Which page is on screen is presentation state — `parliamentFlow.sittingPage`
+ * — and the pages `enact` / `reward` are turned by the director once their
+ * beats have landed (`sittingPageAuto`). A reload lands on the step's LAST
+ * page in its final poses (nothing replays); a seat that already answered a
+ * gate lands on the gate's wait pose. Nothing is persisted on the device.
  */
 import {Color} from '@/common/Color';
 import {Phase} from '@/common/Phase';
@@ -40,16 +49,23 @@ import type {MandatoryFlowBeat} from '@/client/console/consoleMandatoryGate';
 import {promptSourceResolution} from '@/client/console/promptSource';
 import {externalDrawTakeOf} from '@/client/console/externalDraw/consoleExternalDraw';
 
-/** The sitting's STAGES, in the order the server produces their facts. */
-export type SittingStage = 'verdict' | 'enact' | 'reward' | 'renewal' | 'closing';
+/**
+ * The sitting's STAGES, in the order the server produces their facts:
+ *  · `verdict` — the assembly gate: who won, with how many delegates (A answers gate 1);
+ *  · `enact`   — the chain after the barrier, as beats: the Agenda step, the popular support, the enactment;
+ *  · `reward`  — what the law paid THIS seat (the wave), or the seat's own ask, or the wait on another;
+ *  · `results` — the renewal's beats (the losers leave, the deal, the support seats, the lobby), then the
+ *                results card; A answers gate 2 («Закрыть заседание»).
+ */
+export type SittingStage = 'verdict' | 'enact' | 'reward' | 'results';
 
 /**
  * What the REWARD stage is doing for THIS seat right now.
- *  · `reading`   — before the effects (the assembly's last page): the reading of what is coming;
- *  · `choice` / `intake` / `placement` — the viewer's own ask, hosted in the stage's zone (or the board);
+ *  · `reading`   — before the effects: the reading of what is coming;
+ *  · `choice` / `intake` / `placement` — the viewer's own ask, hosted in the stage's zone (or behind «К полю»);
  *  · `waiting`   — the effects ask ANOTHER seat (the honest wait line);
  *  · `received`  — the viewer's record is in: paid, or skipped with its reason (the plate names it);
- *  · `gate`      — the viewer answered the gate; the pose lists who is still awaited.
+ *  · `gate`      — the viewer answered the step's gate; the pose lists who is still awaited.
  */
 export type SittingRewardStep = 'reading' | 'choice' | 'intake' | 'placement' | 'waiting' | 'received' | 'gate';
 
@@ -62,15 +78,15 @@ export type SittingPosition = {
   final: boolean;
   /** The server's step. */
   step: ParliamentPhaseModel['step'];
-  /** The pages the viewer walks locally in this step, first to last (never empty). */
+  /** The pages the viewer walks in this step, first to last (never empty). */
   pages: ReadonlyArray<SittingStage>;
   /** The gate this step ends in, when it is a gate step. */
   gate?: ParliamentPhaseStage;
-  /** The viewer's own gate prompt stands — A on the last page answers it. */
+  /** The viewer's own gate prompt stands — A on the step's last page answers it. */
   gateStanding: boolean;
   /** The viewer has answered the gate (or was never asked) and the phase still waits for these seats. */
   awaiting: ReadonlyArray<Color>;
-  /** The REWARD stage's step for this seat (meaningful while `pages` includes `reward`, i.e. always past the enactment). */
+  /** The REWARD stage's step for this seat (meaningful while `pages` includes `reward`, i.e. always past the verdict). */
   rewardStep: SittingRewardStep;
   /** The seat the effects are asking right now, when it is somebody else — and what kind of answer. */
   waitingFor?: {player: Color, input?: PlayerInputType};
@@ -100,33 +116,46 @@ function viewerOutcomes(phase: ParliamentPhaseModel, viewer: Color | undefined):
   return viewer === undefined ? [] : (phase.outcomes ?? []).filter((o) => o.player === viewer);
 }
 
+/** The steps at which the verdict is known and NOTHING has changed yet (the assembly gate's own reading). */
+const VERDICT_STEPS: ReadonlySet<string> = new Set(['winner', 'assembly']);
+
 /**
- * The pages of a step. The ASSEMBLY gate stands after the enactment, so its
- * step reads the verdict, the enactment and the reward that is coming; the
- * EFFECTS step IS the reward; the ADJOURN gate stands after the refresh, so
- * its step reads the renewal and closes — in the FINAL phase there is no
- * refresh (the server goes straight to the gate), so the sitting closes at
- * once. The transient server steps (`refresh` / `lobby`) are never on the
- * wire long enough to read; they map onto the renewal page.
+ * The pages of a step. The ASSEMBLY gate (v2) stands before anything changes,
+ * so its step is the verdict alone; the steps after the barrier are one chain
+ * on the server, so the EFFECTS step (a resolution asking) reads the enactment's
+ * beats and the reward; the ADJOURN gate stands after the refresh, so its step
+ * reads the enactment, the reward and the RESULTS — in the FINAL phase there is
+ * no refresh, and the results card simply lists nothing new. The transient
+ * server steps (`agenda` / `support` / `enact`, `refresh` / `lobby`) are never
+ * on the wire long enough to read; they map onto the page they belong to.
  */
-export function sittingPagesOf(step: ParliamentPhaseModel['step'], final: boolean): ReadonlyArray<SittingStage> {
+export function sittingPagesOf(step: ParliamentPhaseModel['step'], _final: boolean): ReadonlyArray<SittingStage> {
   switch (step) {
   case 'winner':
+  case 'assembly':
+    return ['verdict'];
   case 'agenda':
   case 'support':
   case 'enact':
-  case 'assembly':
-    return ['verdict', 'enact', 'reward'];
+    return ['enact'];
   case 'effects':
-    return ['reward'];
+    return ['enact', 'reward'];
   case 'refresh':
   case 'lobby':
-    return ['renewal'];
   case 'adjourn':
-    return final ? ['closing'] : ['renewal', 'closing'];
   case 'done':
-    return ['closing'];
+    return ['enact', 'reward', 'results'];
   }
+}
+
+/**
+ * A page the walk turns BY ITSELF once its beats have landed (the enactment's
+ * chain, the reward's wave) — the player presses nothing between the verdict
+ * and the results. The verdict and the results are STOPS: a gate is answered
+ * by A, never by the director.
+ */
+export function sittingPageAuto(stage: SittingStage): boolean {
+  return stage === 'enact' || stage === 'reward';
 }
 
 /**
@@ -159,7 +188,7 @@ export function sittingPositionOf(
     rewardStep = ask;
   } else if (gate !== undefined && !gateStanding) {
     rewardStep = 'gate';
-  } else if (phase.step === 'assembly' || phase.step === 'enact' || phase.step === 'support' || phase.step === 'agenda' || phase.step === 'winner') {
+  } else if (VERDICT_STEPS.has(phase.step) || phase.step === 'agenda' || phase.step === 'support' || phase.step === 'enact') {
     rewardStep = 'reading';
   } else if (waitingFor !== undefined) {
     rewardStep = 'waiting';
@@ -182,14 +211,30 @@ export function sittingPositionOf(
 }
 
 /**
- * WHERE A STEP'S WALK STARTS: on its first page — unless the seat has already
- * answered the step's gate (a reload, a restore while the others are still
- * reading): then there is nothing left to turn to, and the walk starts on the
- * gate's own wait pose. Server-derived, so a reload never re-asks a question
- * the seat has answered and never skips one it has not.
+ * WHERE A STEP'S WALK STARTS: on the first page whose beats have NOT played
+ * this session (`played`) — unless the seat has already answered the step's
+ * gate (a reload, a restore while the others are still reading): then there
+ * is nothing left to turn to, and the walk starts on the gate's own wait pose.
+ * Server-derived, so a reload never re-asks a question the seat has answered
+ * and never skips one it has not; session-derived, so a page turned back and
+ * forth replays nothing. A tile RECEIPT owed (the frame is back from the board
+ * with the winner's tile placed) seats the walk on the REWARD page first —
+ * «получено» is read before the results — unless the seat has already answered
+ * the gate, where the wait pose is the only honest place.
  */
-export function sittingStartPage(position: SittingPosition): number {
-  return position.gate !== undefined && !position.gateStanding ? position.pages.length - 1 : 0;
+export function sittingStartPage(position: SittingPosition, played: (stage: SittingStage) => boolean = () => false, receiptOwed = false): number {
+  const last = position.pages.length - 1;
+  if (position.gate !== undefined && !position.gateStanding) {
+    return last;
+  }
+  if (receiptOwed) {
+    const reward = position.pages.indexOf('reward');
+    if (reward !== -1) {
+      return reward;
+    }
+  }
+  const first = position.pages.findIndex((stage) => !played(stage));
+  return first === -1 ? last : first;
 }
 
 /** The stage on screen for a position and the viewer's local page cursor (clamped — a shorter step never reads past its end). */
@@ -202,6 +247,17 @@ export function sittingStageAt(position: SittingPosition, page: number): Sitting
 /** Is the local cursor on the step's LAST page (the page whose A answers the gate, or has nothing left to turn)? */
 export function sittingAtLastPage(position: SittingPosition, page: number): boolean {
   return page >= position.pages.length - 1;
+}
+
+/**
+ * MAY THE WALK LEAVE THE REWARD PAGE by itself? Only once nothing of this
+ * seat's is still open there: no ask of its own (a pick, a take, the tile
+ * behind «К полю»), no wait on another seat, no reading of a payout still to
+ * come — and the caller adds «no wave owed or in the air» (the ledger's own
+ * fact, not the position's).
+ */
+export function sittingRewardSettled(position: SittingPosition): boolean {
+  return position.rewardStep === 'received' || position.rewardStep === 'gate';
 }
 
 /**
@@ -221,8 +277,7 @@ export function sittingStageKey(stage: SittingStage, rewardStep: SittingRewardSt
     case 'placement': return 'Placement';
     default: return 'Reward';
     }
-  case 'renewal': return 'Renewal';
-  case 'closing': return 'Closing';
+  case 'results': return 'Results';
   }
 }
 
@@ -232,9 +287,9 @@ export const SITTING_SUBJECT_KEY = 'Sitting';
 /**
  * WHERE THE STAGE STANDS RELATIVE TO ITS COMMIT — the workspace phase B's verb
  * is derived from (`consoleWorkspaceFlow.backVerbFor`):
- *  · every stage up to the closing is `committed` (the sitting cannot be
+ *  · every stage up to the results is `committed` (the sitting cannot be
  *    unmade; B = «свернуть» — hide to read the board, the decision stays);
- *  · the CLOSING is a terminal `verdict` (nothing is chosen after it; B = none,
+ *  · the RESULTS are a terminal `verdict` (nothing is chosen after them; B = none,
  *    A closes the sitting);
  *  · a gate answer in flight is `executing` (input absorbed by phase).
  */
@@ -242,31 +297,29 @@ export function sittingWorkspacePhase(stage: SittingStage, submitting: boolean):
   if (submitting) {
     return 'executing';
   }
-  return stage === 'closing' ? 'verdict' : 'committed';
+  return stage === 'results' ? 'verdict' : 'committed';
 }
 
 /**
  * THE A VERB on a page — an i18n key, or undefined when A does nothing here
- * (a hosted step owns the bar; a wait pose has nothing to press).
- *  · a page before the last turns the page («Продолжить»);
- *  · the assembly's last page answers gate 1 — «К награде» when something is
- *    coming for this seat, else «Продолжить» (the verb follows the reward);
- *  · the adjourn's last page answers gate 2 — «Закрыть заседание».
+ * (a page the director turns, a hosted step that owns the bar, a wait pose).
+ *  · the VERDICT answers gate 1 («Продолжить» — the whole chain follows);
+ *  · the REWARD's placement step offers the ONE door to the board («К полю» —
+ *    the tile is placed only by that press, never by the prompt's arrival);
+ *  · the RESULTS answer gate 2 («Закрыть заседание»).
  */
-export function sittingPrimaryKey(position: SittingPosition, page: number, opts: {rewardComing: boolean}): string | undefined {
+export function sittingPrimaryKey(position: SittingPosition, page: number): string | undefined {
   const stage = sittingStageAt(position, page);
-  if (!sittingAtLastPage(position, page)) {
-    return 'Continue';
+  switch (stage) {
+  case 'verdict':
+    return position.gate === 'assembly' && position.gateStanding ? 'Continue' : undefined;
+  case 'reward':
+    return position.rewardStep === 'placement' ? 'Onto the board' : undefined;
+  case 'results':
+    return position.gate === 'adjourn' && position.gateStanding ? 'Close the sitting' : undefined;
+  default:
+    return undefined;
   }
-  if (position.gate !== undefined && position.gateStanding) {
-    if (position.gate === 'assembly') {
-      return opts.rewardComing ? 'To the reward' : 'Continue';
-    }
-    return 'Close the sitting';
-  }
-  // The effects: a hosted step owns the bar; a wait / a receipt has no verb.
-  void stage;
-  return undefined;
 }
 
 /**
@@ -292,33 +345,15 @@ export function parliamentSittingLive(view: PlayerViewModel): boolean {
   return parliamentSittingFlowBeat(view) !== undefined;
 }
 
-/**
- * IS SOMETHING COMING FOR THIS SEAT — the assembly's A verb («К награде»)
- * reads it: a scaled effect of the enacted resolution the seat's influence
- * or count pays, or the winner's tile when the viewer won the vote. The
- * server's own facts (the declaration + the recorded winner), never a
- * recomputation of the payout.
- */
-export function sittingRewardComing(
-  model: ParliamentModel | undefined,
-  viewer: Color | undefined,
-  resolution: {scaled?: ReadonlyArray<unknown>, winnerReward?: unknown} | undefined,
-): boolean {
-  const phase = model?.phase;
-  if (phase === undefined || viewer === undefined || resolution === undefined) {
-    return false;
-  }
-  const scaled = resolution.scaled ?? [];
-  if (scaled.length > 0) {
-    return true;
-  }
-  return resolution.winnerReward !== undefined && phase.summary?.winner.player === viewer;
-}
-
 /** The phase's steps BEFORE the refresh — the vote is decided and the table still shows the losers as they voted (P-17). */
 const VOTE_DECIDED_STEPS: ReadonlySet<string> = new Set(['winner', 'agenda', 'support', 'enact', 'assembly', 'effects']);
 export function voteDecidedAt(step: ParliamentPhaseModel['step'] | undefined): boolean {
   return step !== undefined && VOTE_DECIDED_STEPS.has(step);
+}
+
+/** The steps at which the verdict stands and the table is still exactly as voted (the assembly gate, v2). */
+export function verdictStandsAt(step: ParliamentPhaseModel['step'] | undefined): boolean {
+  return step !== undefined && VERDICT_STEPS.has(step);
 }
 
 /**
@@ -326,4 +361,5 @@ export function voteDecidedAt(step: ParliamentPhaseModel['step'] | undefined): b
  * the passive that now stands, or the action to take from «Действия карт». Lives in `quietRewardPose.ts`
  * (the vote panel's reading prints the same kicker — one glossary); re-exported here for the sitting.
  */
-export {QuietRewardPose, quietRewardPoseOf} from './quietRewardPose';
+export type {QuietRewardPose} from './quietRewardPose';
+export {quietRewardPoseOf} from './quietRewardPose';

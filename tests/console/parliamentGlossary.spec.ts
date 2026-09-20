@@ -39,6 +39,10 @@ const CANON: Record<string, string> = {
   'The ruling party answers': 'Ответ правящей партии',
   'Party effect': 'Эффект партии',
   'Inspect': 'Осмотреть',
+  // «Заседание v2»: the one door to the winner's tile, the one closing stage, the row below the government.
+  'Onto the board': 'К полю',
+  'Results': 'Итоги',
+  'Opposition': 'Оппозиция',
 };
 
 /** Retired forms — none may survive in a RU value of the parliament's own file. */

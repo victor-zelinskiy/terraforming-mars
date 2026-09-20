@@ -5,8 +5,9 @@ import {ParliamentModel, ParliamentPhaseModel} from '../../src/common/models/Par
 import {PlayerInputModel} from '../../src/common/models/PlayerInputModel';
 import {PlayerViewModel} from '../../src/common/models/PlayerModel';
 import {
-  parliamentSittingFlowBeat, parliamentSittingLive, quietRewardPoseOf, SITTING_SUBJECT_KEY, sittingAskOf, sittingAtLastPage, sittingPagesOf,
-  sittingPositionOf, sittingPrimaryKey, sittingRewardComing, sittingStageAt, sittingStageKey, sittingStartPage, sittingWorkspacePhase,
+  parliamentSittingFlowBeat, parliamentSittingLive, quietRewardPoseOf, SITTING_SUBJECT_KEY, sittingAskOf, sittingAtLastPage, sittingPageAuto,
+  sittingPagesOf, sittingPositionOf, sittingPrimaryKey, sittingRewardSettled, sittingStageAt, sittingStageKey, sittingStartPage,
+  sittingWorkspacePhase, verdictStandsAt,
 } from '../../src/client/console/parliament/consoleSittingFlow';
 import {backVerbFor} from '../../src/client/console/consoleWorkspaceFlow';
 import {AQUIFER_CONTEST_ID} from '../../src/server/parliament/resolutions/greens/AquiferContest';
@@ -15,9 +16,10 @@ import {
 } from '../../src/server/parliament/resolutions/ResolutionCatalog';
 
 /*
- * THE SITTING FLOW — pure (docs/TURMOIL_REDUX_PARLIAMENT_SITTING.md § Э3):
- * the server's step → the pages the viewer walks → the crumb's tail → B's
- * verb → the ONE flow beat per generation. No DOM, no Vue: the server runner.
+ * THE SITTING FLOW — pure (docs/TURMOIL_REDUX_PARLIAMENT_SITTING_V2.md): the
+ * server's step → the pages the viewer walks (and which the director turns by
+ * itself) → the crumb's tail → B's verb → the A verb → the ONE flow beat per
+ * generation. No DOM, no Vue: the server runner.
  */
 const BLUE = 'blue' as Color;
 const RED = 'red' as Color;
@@ -47,39 +49,56 @@ const take = (): PlayerInputModel =>
 const tile = (): PlayerInputModel =>
   ({type: 'space', title: 'ocean', buttonLabel: 'Select', spaces: [], placementContext: {source: {kind: 'resolution', resolution: 'RDX_X'}}} as unknown as PlayerInputModel);
 
-describe('consoleSittingFlow — the political phase as ONE flow', () => {
+describe('consoleSittingFlow — the political phase as ONE flow (v2)', () => {
   describe('the pages of a server step', () => {
-    it('the ASSEMBLY reads the verdict, the enactment and the reward before its gate', () => {
-      expect(sittingPagesOf('assembly', false)).deep.eq(['verdict', 'enact', 'reward']);
-      // …and every step before the gate (the driver never parks there) reads the same.
-      for (const step of ['winner', 'agenda', 'support', 'enact'] as const) {
-        expect(sittingPagesOf(step, false), step).deep.eq(['verdict', 'enact', 'reward']);
+    it('the ASSEMBLY gate (before anything changes) is the VERDICT alone', () => {
+      expect(sittingPagesOf('assembly', false)).deep.eq(['verdict']);
+      expect(sittingPagesOf('winner', false)).deep.eq(['verdict']);
+      expect(verdictStandsAt('assembly')).is.true;
+      expect(verdictStandsAt('effects')).is.false;
+    });
+    it('the chain after the barrier is ONE page of beats; the EFFECTS read it and the reward; the ADJOURN (and the final phase) adds the RESULTS', () => {
+      for (const step of ['agenda', 'support', 'enact'] as const) {
+        expect(sittingPagesOf(step, false), step).deep.eq(['enact']);
       }
+      expect(sittingPagesOf('effects', false)).deep.eq(['enact', 'reward']);
+      expect(sittingPagesOf('refresh', false)).deep.eq(['enact', 'reward', 'results']);
+      expect(sittingPagesOf('lobby', false)).deep.eq(['enact', 'reward', 'results']);
+      expect(sittingPagesOf('adjourn', false)).deep.eq(['enact', 'reward', 'results']);
+      expect(sittingPagesOf('adjourn', true), 'the final phase closes on the same results page').deep.eq(['enact', 'reward', 'results']);
+      expect(sittingPagesOf('done', false)).deep.eq(['enact', 'reward', 'results']);
     });
-    it('the EFFECTS are the reward; the ADJOURN reads the renewal and closes — the FINAL phase closes at once', () => {
-      expect(sittingPagesOf('effects', false)).deep.eq(['reward']);
-      expect(sittingPagesOf('refresh', false)).deep.eq(['renewal']);
-      expect(sittingPagesOf('lobby', false)).deep.eq(['renewal']);
-      expect(sittingPagesOf('adjourn', false)).deep.eq(['renewal', 'closing']);
-      expect(sittingPagesOf('adjourn', true)).deep.eq(['closing']);
-      expect(sittingPagesOf('done', false)).deep.eq(['closing']);
+    it('the enactment and the reward are turned by the DIRECTOR; the verdict and the results are STOPS (A answers a gate)', () => {
+      expect(sittingPageAuto('enact')).is.true;
+      expect(sittingPageAuto('reward')).is.true;
+      expect(sittingPageAuto('verdict')).is.false;
+      expect(sittingPageAuto('results')).is.false;
     });
-    it('a walk starts on its first page — on the wait pose once the seat has answered the step\'s gate (a reload re-asks nothing answered)', () => {
+    it('a walk starts on the first page NOT yet played this session; on the wait pose once the seat has answered the step\'s gate; on the last page when everything played', () => {
+      const played = (...stages: Array<string>) => (stage: string) => stages.includes(stage);
       expect(sittingStartPage(sittingPositionOf(model(phase({step: 'assembly'})), gate('assembly'), BLUE)!)).eq(0);
-      expect(sittingStartPage(sittingPositionOf(model(phase({step: 'assembly', awaiting: [RED]})), undefined, BLUE)!)).eq(2);
-      expect(sittingStartPage(sittingPositionOf(model(phase({step: 'effects'})), undefined, BLUE)!)).eq(0);
-      expect(sittingStartPage(sittingPositionOf(model(phase({step: 'adjourn'})), gate('adjourn'), BLUE)!)).eq(0);
-      expect(sittingStartPage(sittingPositionOf(model(phase({step: 'adjourn', awaiting: [RED]})), undefined, BLUE)!)).eq(1);
+      expect(sittingStartPage(sittingPositionOf(model(phase({step: 'assembly', awaiting: [RED]})), undefined, BLUE)!), 'answered: the wait pose').eq(0);
+      const effects = sittingPositionOf(model(phase({step: 'effects'})), undefined, BLUE)!;
+      expect(sittingStartPage(effects), 'nothing played: the enactment first').eq(0);
+      expect(sittingStartPage(effects, played('enact')), 'the enactment played: the reward').eq(1);
+      expect(sittingStartPage(effects, played('enact', 'reward')), 'everything played: the last page').eq(1);
+      const adjourn = sittingPositionOf(model(phase({step: 'adjourn'})), gate('adjourn'), BLUE)!;
+      expect(sittingStartPage(adjourn, played('enact', 'reward')), 'the results after a played enactment and reward').eq(2);
+      expect(sittingStartPage(adjourn), 'a step that arrives with everything unplayed walks from the enactment').eq(0);
+      expect(sittingStartPage(sittingPositionOf(model(phase({step: 'adjourn', awaiting: [RED]})), undefined, BLUE)!), 'gate 2 answered: the results\' wait pose').eq(2);
+      // The tile's RECEIPT (the frame is back from the board): the reward page is read first, though it played.
+      expect(sittingStartPage(adjourn, played('enact', 'reward'), true), 'a receipt owed: back on the reward page').eq(1);
+      expect(sittingStartPage(sittingPositionOf(model(phase({step: 'adjourn', awaiting: [RED]})), undefined, BLUE)!, played('enact', 'reward'), true), 'gate 2 answered: the receipt yields to the wait pose').eq(2);
+      expect(sittingStartPage(sittingPositionOf(model(phase({step: 'assembly'})), gate('assembly'), BLUE)!, () => false, true), 'a step with no reward page ignores the receipt').eq(0);
     });
     it('the cursor is clamped — a shorter step never reads past its end', () => {
       const p = sittingPositionOf(model(phase({step: 'effects'})), undefined, BLUE)!;
       expect(sittingStageAt(p, 5)).eq('reward');
-      expect(sittingAtLastPage(p, 0)).is.true;
+      expect(sittingAtLastPage(p, 1)).is.true;
       const a = sittingPositionOf(model(phase({step: 'assembly'})), gate('assembly'), BLUE)!;
       expect(sittingStageAt(a, 0)).eq('verdict');
-      expect(sittingStageAt(a, 1)).eq('enact');
-      expect(sittingAtLastPage(a, 1)).is.false;
-      expect(sittingAtLastPage(a, 2)).is.true;
+      expect(sittingStageAt(a, 3)).eq('verdict');
+      expect(sittingAtLastPage(a, 0)).is.true;
     });
   });
 
@@ -90,10 +109,11 @@ describe('consoleSittingFlow — the political phase as ONE flow', () => {
       expect(sittingPositionOf(model(phase({})), undefined, undefined)).is.undefined;
       expect(sittingPositionOf(undefined, undefined, BLUE)).is.undefined;
     });
-    it('the assembly gate STANDING: the reward page reads what is coming; ANSWERED: the wait pose names who is awaited', () => {
+    it('the assembly gate STANDING: the verdict page, the reward reads what is coming; ANSWERED: the wait pose names who is awaited', () => {
       const standing = sittingPositionOf(model(phase({step: 'assembly', awaiting: [BLUE, RED]})), gate('assembly'), BLUE)!;
       expect(standing.gate).eq('assembly');
       expect(standing.gateStanding).is.true;
+      expect(standing.pages).deep.eq(['verdict']);
       expect(standing.rewardStep).eq('reading');
       const answered = sittingPositionOf(model(phase({step: 'assembly', awaiting: [RED]})), undefined, BLUE)!;
       expect(answered.gateStanding).is.false;
@@ -109,25 +129,30 @@ describe('consoleSittingFlow — the political phase as ONE flow', () => {
       const p = sittingPositionOf(model(phase({step: 'effects', pending: {player: BLUE, key: 'k', input: 'card'}})), pick(), BLUE)!;
       expect(p.rewardStep).eq('choice');
       expect(p.waitingFor).is.undefined;
+      expect(sittingRewardSettled(p), 'an own ask keeps the reward page').is.false;
     });
-    it('the effects asking ANOTHER seat: the honest wait names who and what kind of answer', () => {
+    it('the effects asking ANOTHER seat: the honest wait names who and what kind of answer — and keeps the page', () => {
       const p = sittingPositionOf(model(phase({step: 'effects', pending: {player: RED, key: 'k', input: 'space'}})), undefined, BLUE)!;
       expect(p.rewardStep).eq('waiting');
       expect(p.waitingFor).deep.eq({player: RED, input: 'space'});
+      expect(sittingRewardSettled(p)).is.false;
     });
-    it('the effects with the viewer\'s record in: the reward is RECEIVED (a skip included — the plate names it)', () => {
+    it('the effects with the viewer\'s record in: the reward is RECEIVED (a skip included — the plate names it) and the page may be left', () => {
       const paid = sittingPositionOf(model(phase({step: 'effects', outcomes: [{player: BLUE, step: 'grant', kind: 'stock', amount: 2}]})), undefined, BLUE)!;
       expect(paid.rewardStep).eq('received');
+      expect(sittingRewardSettled(paid)).is.true;
       const skipped = sittingPositionOf(model(phase({step: 'effects', outcomes: [{player: BLUE, step: 'grant', kind: 'skipped', reason: 'No influence'}]})), undefined, BLUE)!;
       expect(skipped.rewardStep).eq('received');
     });
-    it('the adjourn gate: the renewal then the closing; answered → the closing\'s wait pose', () => {
+    it('the adjourn gate: the enactment, the reward and the RESULTS; answered → the results\' wait pose', () => {
       const standing = sittingPositionOf(model(phase({step: 'adjourn', awaiting: [BLUE]})), gate('adjourn', [BLUE]), BLUE)!;
-      expect(standing.pages).deep.eq(['renewal', 'closing']);
+      expect(standing.pages).deep.eq(['enact', 'reward', 'results']);
       expect(standing.gateStanding).is.true;
+      expect(standing.rewardStep, 'the reward is settled at the adjourn').eq('received');
       const answered = sittingPositionOf(model(phase({step: 'adjourn', awaiting: [RED]})), undefined, BLUE)!;
       expect(answered.rewardStep).eq('gate');
       expect(answered.awaiting).deep.eq([RED]);
+      expect(sittingRewardSettled(answered)).is.true;
     });
     it('a gate prompt of the OTHER stage does not count as this step\'s (the marker\'s stage is compared, never assumed)', () => {
       const p = sittingPositionOf(model(phase({step: 'adjourn'})), gate('assembly'), BLUE)!;
@@ -136,7 +161,7 @@ describe('consoleSittingFlow — the political phase as ONE flow', () => {
   });
 
   describe('the crumb, the phase and the verbs', () => {
-    it('one key per stage; the reward names the hosted step; «ЗАСЕДАНИЕ» is the subject', () => {
+    it('one key per stage; the reward names the hosted step; «ЗАСЕДАНИЕ» is the subject; the results are ONE word', () => {
       expect(SITTING_SUBJECT_KEY).eq('Sitting');
       expect(sittingStageKey('verdict', 'reading')).eq('Verdict');
       expect(sittingStageKey('enact', 'reading')).eq('Enactment');
@@ -146,42 +171,41 @@ describe('consoleSittingFlow — the political phase as ONE flow', () => {
       expect(sittingStageKey('reward', 'choice')).eq('Choice');
       expect(sittingStageKey('reward', 'intake')).eq('Intake');
       expect(sittingStageKey('reward', 'placement')).eq('Placement');
-      expect(sittingStageKey('renewal', 'gate')).eq('Renewal');
-      expect(sittingStageKey('closing', 'gate')).eq('Closing');
+      expect(sittingStageKey('results', 'gate')).eq('Results');
+      expect(sittingStageKey('results', 'received')).eq('Results');
     });
-    it('every stage up to the closing is COMMITTED (B = collapse); the closing is a terminal VERDICT (B = none); a submit is EXECUTING', () => {
-      for (const stage of ['verdict', 'enact', 'reward', 'renewal'] as const) {
+    it('every stage up to the results is COMMITTED (B = collapse); the results are a terminal VERDICT (B = none); a submit is EXECUTING', () => {
+      for (const stage of ['verdict', 'enact', 'reward'] as const) {
         expect(sittingWorkspacePhase(stage, false), stage).eq('committed');
         expect(backVerbFor(sittingWorkspacePhase(stage, false)), stage).eq('collapse');
       }
-      expect(sittingWorkspacePhase('closing', false)).eq('verdict');
-      expect(backVerbFor(sittingWorkspacePhase('closing', false))).eq('none');
-      expect(sittingWorkspacePhase('reward', true)).eq('executing');
-      expect(backVerbFor(sittingWorkspacePhase('reward', true))).eq('none');
+      expect(sittingWorkspacePhase('results', false)).eq('verdict');
+      expect(backVerbFor(sittingWorkspacePhase('results', false))).eq('none');
+      expect(sittingWorkspacePhase('verdict', true)).eq('executing');
+      expect(backVerbFor(sittingWorkspacePhase('verdict', true))).eq('none');
     });
-    it('A turns the page; on the assembly\'s last page it answers the gate — «К награде» when something is coming, else «Продолжить»', () => {
-      const p = sittingPositionOf(model(phase({step: 'assembly'})), gate('assembly'), BLUE)!;
-      expect(sittingPrimaryKey(p, 0, {rewardComing: true})).eq('Continue');
-      expect(sittingPrimaryKey(p, 1, {rewardComing: true})).eq('Continue');
-      expect(sittingPrimaryKey(p, 2, {rewardComing: true})).eq('To the reward');
-      expect(sittingPrimaryKey(p, 2, {rewardComing: false})).eq('Continue');
-    });
-    it('on the adjourn\'s last page it CLOSES the sitting; an answered gate and a wait have no A', () => {
-      const p = sittingPositionOf(model(phase({step: 'adjourn'})), gate('adjourn'), BLUE)!;
-      expect(sittingPrimaryKey(p, 0, {rewardComing: false})).eq('Continue');
-      expect(sittingPrimaryKey(p, 1, {rewardComing: false})).eq('Close the sitting');
-      const answered = sittingPositionOf(model(phase({step: 'adjourn', awaiting: [RED]})), undefined, BLUE)!;
-      expect(sittingPrimaryKey(answered, 1, {rewardComing: false})).is.undefined;
+    it('A on the VERDICT answers gate 1 («Продолжить»); the director\'s pages advertise nothing; A on the RESULTS closes the sitting', () => {
+      const verdict = sittingPositionOf(model(phase({step: 'assembly'})), gate('assembly'), BLUE)!;
+      expect(sittingPrimaryKey(verdict, 0)).eq('Continue');
+      const answered = sittingPositionOf(model(phase({step: 'assembly', awaiting: [RED]})), undefined, BLUE)!;
+      expect(sittingPrimaryKey(answered, 0), 'answered: nothing to press').is.undefined;
+      const effects = sittingPositionOf(model(phase({step: 'effects', outcomes: [{player: BLUE, step: 'grant', kind: 'stock', amount: 2}]})), undefined, BLUE)!;
+      expect(sittingPrimaryKey(effects, 0), 'the enactment is the director\'s').is.undefined;
+      expect(sittingPrimaryKey(effects, 1), 'a received reward has no verb').is.undefined;
+      const adjourn = sittingPositionOf(model(phase({step: 'adjourn'})), gate('adjourn'), BLUE)!;
+      expect(sittingPrimaryKey(adjourn, 2)).eq('Close the sitting');
+      expect(sittingPrimaryKey(adjourn, 1), 'the reward page of the adjourn is the director\'s').is.undefined;
+      const closed = sittingPositionOf(model(phase({step: 'adjourn', awaiting: [RED]})), undefined, BLUE)!;
+      expect(sittingPrimaryKey(closed, 2)).is.undefined;
       const waiting = sittingPositionOf(model(phase({step: 'effects', pending: {player: RED, key: 'k'}})), undefined, BLUE)!;
-      expect(sittingPrimaryKey(waiting, 0, {rewardComing: false})).is.undefined;
+      expect(sittingPrimaryKey(waiting, 1)).is.undefined;
     });
-    it('«something is coming» reads the declaration and the recorded winner — never a payout recomputed here', () => {
-      const m = model(phase({step: 'assembly', summary: {winner: {player: BLUE}} as never}));
-      expect(sittingRewardComing(m, BLUE, {scaled: [{}]})).is.true;
-      expect(sittingRewardComing(m, BLUE, {winnerReward: {}})).is.true;
-      expect(sittingRewardComing(m, RED, {winnerReward: {}}), 'the tile is the winner\'s').is.false;
-      expect(sittingRewardComing(m, BLUE, {})).is.false;
-      expect(sittingRewardComing(m, BLUE, undefined)).is.false;
+    it('the winner\'s tile is placed ONLY by the player\'s press: the placement step offers «К полю» and nothing turns the page by itself', () => {
+      const placement = sittingPositionOf(model(phase({step: 'effects', pending: {player: BLUE, key: 'k', input: 'space'}})), tile(), BLUE)!;
+      expect(placement.rewardStep).eq('placement');
+      expect(sittingPrimaryKey(placement, 1)).eq('Onto the board');
+      expect(sittingRewardSettled(placement)).is.false;
+      expect(sittingStageKey('reward', placement.rewardStep)).eq('Placement');
     });
   });
 

@@ -31,14 +31,48 @@ export const ENACT_HERO_SHARE = 0.3;
 export const MAX_VOTE_ZOOM = 1.12;
 export const MIN_VOTE_ZOOM = 0.35;
 
+/**
+ * THE FIT IS FROZEN from a vote's submit until the flow leaves (v2, «Заседание v2» § Б5): a re-fit under the
+ * delegate's flight jumped the very scene it measured (three cards shrinking for the cube's flight, the panel
+ * growing). ONE point: the view watcher, the ResizeObserver and the bill's arrival all pass through here.
+ */
+let fitFrozen = false;
+
+export function freezeParliamentFit(frozen: boolean): void {
+  fitFrozen = frozen;
+}
+
+export function parliamentFitFrozen(): boolean {
+  return fitFrozen;
+}
+
 /** Solve the card zooms (voting slots · the enacted face · the vote row) from the measured frame. */
 export function fitParliamentCards(): void {
   const root = parliamentRootEl();
-  if (root === undefined) {
+  if (root === undefined || fitFrozen) {
     return;
   }
   const scale = conUiScale();
   const px = (v: string): number => parseFloat(v) || 0;
+  // THE PARTY TILE'S WIDTH (v2): the ruling party's tile in the government stands on the same chassis at the
+  // same size as the five in the opposition row — ONE token both read. It is the SMALLER of the row's column
+  // and the room the government's ruler block has for it (measured: at 1080 the block holds 281 px against
+  // the row's 327 — clamped by `max-width` alone, the ruler's tile was 46 px narrower than its siblings);
+  // the row then lays its five tiles at that width and spends the rest on its gaps.
+  const parties = root.querySelector<HTMLElement>('.con-parl__parties');
+  if (parties !== null && parties.clientWidth > 0) {
+    const pcs = getComputedStyle(parties);
+    const columns = Math.max(1, parties.children.length || 5);
+    let tileW = (parties.clientWidth - px(pcs.columnGap) * (columns - 1)) / columns;
+    const ruler = root.querySelector<HTMLElement>('[data-parl-ruler]');
+    if (ruler !== null && ruler.clientWidth > 0) {
+      const rcs = getComputedStyle(ruler);
+      tileW = Math.min(tileW, ruler.clientWidth - px(rcs.paddingLeft) - px(rcs.paddingRight));
+    }
+    if (tileW > 0) {
+      root.style.setProperty('--con-parl-tile-w', `${Math.floor(tileW)}px`);
+    }
+  }
   // Layout heights (`offsetHeight`), never painted boxes: a FLIP in flight
   // scales these very elements, and a rect read then under-fits the card.
   const heightOf = (host: Element, sel: string): number => host.querySelector<HTMLElement>(sel)?.offsetHeight ?? 0;
@@ -76,17 +110,25 @@ export function fitParliamentCards(): void {
   // the row's width — the ruler's effect stands beside it.
   const gov = root.querySelector<HTMLElement>('.con-parl__gov');
   const ruling = root.querySelector<HTMLElement>('.con-parl__ruling');
-  let govZoom = MAX_GOV_ZOOM * scale;
-  if (gov !== null && ruling !== null) {
-    const gcs = getComputedStyle(gov);
-    const innerH = gov.clientHeight - px(gcs.paddingTop) - px(gcs.paddingBottom);
-    const blocks = Array.from(gov.children).filter((child) => child !== ruling);
-    const taken = blocks.reduce((sum, child) => sum + child.getBoundingClientRect().height, 0) + px(gcs.rowGap) * blocks.length;
-    const rcs = getComputedStyle(ruling);
-    const innerW = ruling.clientWidth - px(rcs.paddingLeft) - px(rcs.paddingRight);
-    govZoom = Math.min(govZoom, (innerH - taken - px(rcs.paddingTop) - px(rcs.paddingBottom)) / PCARD_H, (innerW * 0.52) / PCARD_W);
+  // THE SITTING KEEPS THE GOVERNMENT'S ZOOM («Заседание v2»): the chairman's quest changes WITH the government in
+  // the middle of the walk, and the zoom is solved from the room the quest leaves — on the Deck a shorter quest
+  // freed a line, the re-solve widened the enacted card by 36 px and pushed the ruler's tile sideways in the very
+  // beat that FLIPs it (measured by `console-parliament-stability`). The zoom solved when the sitting opens stands
+  // until the surface leaves; the browse layer re-solves on its next mount.
+  const govFrozen = parliamentFlow.stage === 'sitting' && root.style.getPropertyValue('--con-parl-gov-zoom') !== '';
+  if (!govFrozen) {
+    let govZoom = MAX_GOV_ZOOM * scale;
+    if (gov !== null && ruling !== null) {
+      const gcs = getComputedStyle(gov);
+      const innerH = gov.clientHeight - px(gcs.paddingTop) - px(gcs.paddingBottom);
+      const blocks = Array.from(gov.children).filter((child) => child !== ruling);
+      const taken = blocks.reduce((sum, child) => sum + child.getBoundingClientRect().height, 0) + px(gcs.rowGap) * blocks.length;
+      const rcs = getComputedStyle(ruling);
+      const innerW = ruling.clientWidth - px(rcs.paddingLeft) - px(rcs.paddingRight);
+      govZoom = Math.min(govZoom, (innerH - taken - px(rcs.paddingTop) - px(rcs.paddingBottom)) / PCARD_H, (innerW * 0.52) / PCARD_W);
+    }
+    root.style.setProperty('--con-parl-gov-zoom', String(snap(govZoom, MIN_GOV_ZOOM)));
   }
-  root.style.setProperty('--con-parl-gov-zoom', String(snap(govZoom, MIN_GOV_ZOOM)));
 
   // THE SITTING'S REWARD STAGE ON THE FIELD — the carried enacted card takes
   // the hero column's height minus the payout reading under it, and at most a

@@ -8,53 +8,79 @@ import {ParliamentViewVm, PartyActionStateVm} from './consoleParliamentModel';
 import {ParliamentInspectRequest} from './parliamentInspect';
 
 /*
- * THE BROWSE LAYER'S CURSOR — three zones (the government · the voting area ·
- * the parties) and one d-pad grammar over them, plus what X inspects from
- * each zone. Pure over the flow record and the view.
+ * THE BROWSE LAYER'S CURSOR — four zones (the government's card · the RULING
+ * PARTY's tile in the government · the voting area · the five OPPOSITION
+ * tiles) and one d-pad grammar over them, plus what X inspects from each
+ * zone. Pure over the flow record and the view.
+ *
+ * v2: the ruling party's tile stands in the government, the row below holds
+ * the five parties WITHOUT power. `partyIndex` still indexes `view.parties`
+ * (all six, in the board's order); the row's walk skips the ruler.
  */
 
-/** The parties tier is ONE row of six plaques on every profile. */
-const PARTY_COLUMNS = 6;
+/** The opposition's indices into `view.parties` (the board's order minus the ruler). */
+export function oppositionIndices(view: ParliamentViewVm): Array<number> {
+  return view.parties.map((p, i) => ({p, i})).filter(({p}) => p.party !== view.rulingParty).map(({i}) => i);
+}
+
+/** The index of the ruling party in `view.parties` (-1 when the view has no parties). */
+export function rulerIndex(view: ParliamentViewVm): number {
+  return view.parties.findIndex((p) => p.party === view.rulingParty);
+}
+
+function seatOnOpposition(view: ParliamentViewVm, preferred: number): void {
+  const row = oppositionIndices(view);
+  if (row.length === 0) {
+    return;
+  }
+  parliamentFlow.partyIndex = row.includes(preferred) ? preferred : row[Math.min(row.length - 1, Math.max(0, row.findIndex((i) => i >= preferred)))] ?? row[0];
+}
 
 export function navigateParliamentZones(dir: 'up' | 'down' | 'left' | 'right', view: ParliamentViewVm): void {
   const f = parliamentFlow;
+  const row = oppositionIndices(view);
   switch (f.zone) {
   case 'voting':
     if (dir === 'left') {
-      f.zone = 'government';
+      f.zone = 'ruler';
     } else if (dir === 'down') {
       f.zone = 'parties';
       const focused = view.slots[f.slotIndex];
       const idx = view.parties.findIndex((p) => p.party === focused?.party);
-      f.partyIndex = idx >= 0 ? idx : Math.min(f.partyIndex, view.parties.length - 1);
+      seatOnOpposition(view, idx >= 0 && row.includes(idx) ? idx : (row[Math.min(row.length - 1, 2)] ?? 0));
     }
     return;
   case 'government':
     if (dir === 'right') {
-      f.zone = 'voting';
+      f.zone = 'ruler';
     } else if (dir === 'down') {
       f.zone = 'parties';
-      const idx = view.parties.findIndex((p) => p.party === view.rulingParty);
-      f.partyIndex = idx >= 0 ? idx : 0;
+      seatOnOpposition(view, row[0] ?? 0);
     }
     return;
-  case 'parties':
-    if (dir === 'left') {
-      f.partyIndex = Math.max(0, f.partyIndex - 1);
-    } else if (dir === 'right') {
-      f.partyIndex = Math.min(view.parties.length - 1, f.partyIndex + 1);
-    } else if (dir === 'up') {
-      if (f.partyIndex >= PARTY_COLUMNS) {
-        f.partyIndex -= PARTY_COLUMNS;
-      } else {
-        f.zone = f.partyIndex < 2 ? 'government' : 'voting';
-      }
+  case 'ruler':
+    if (dir === 'right') {
+      f.zone = 'voting';
+    } else if (dir === 'left') {
+      f.zone = 'government';
     } else if (dir === 'down') {
-      if (f.partyIndex + PARTY_COLUMNS < view.parties.length) {
-        f.partyIndex += PARTY_COLUMNS;
-      }
+      f.zone = 'parties';
+      seatOnOpposition(view, row[Math.min(row.length - 1, 1)] ?? row[0] ?? 0);
     }
     return;
+  case 'parties': {
+    const at = row.indexOf(f.partyIndex);
+    const pos = at === -1 ? 0 : at;
+    if (dir === 'left') {
+      f.partyIndex = row[Math.max(0, pos - 1)] ?? f.partyIndex;
+    } else if (dir === 'right') {
+      f.partyIndex = row[Math.min(row.length - 1, pos + 1)] ?? f.partyIndex;
+    } else if (dir === 'up') {
+      // The column above: the government's card over the first tile, the ruler over the second, the voting area over the rest.
+      f.zone = pos === 0 ? 'government' : pos === 1 ? 'ruler' : 'voting';
+    }
+    return;
+  }
   }
 }
 
@@ -77,7 +103,7 @@ export function partyActionRefusal(state: PartyActionStateVm, offered: boolean, 
   return offered ? undefined : translateText('This option is no longer offered');
 }
 
-/** The pressed plaque is the descent's origin — the action workspace unfolds from its rect. */
+/** The pressed plaque is the descent's origin — the action workspace unfolds from its rect (the ruler's tile in the government included). */
 export function armPartyActionDescent(root: HTMLElement | undefined, party: ReduxParty): void {
   const plaque = root?.querySelector<HTMLElement>(`.con-parl__party[data-party="${party}"] .con-pseal`);
   const rect = plaque?.getBoundingClientRect();
@@ -94,7 +120,7 @@ export function armPartyActionDescent(root: HTMLElement | undefined, party: Redu
  * into). The voting area is ONE zone with no card of its own selected, so
  * nothing is inspected from it (the vote mode's X inspects the card it
  * stands on); the government inspects the enacted resolution, else the ruling
- * party's effect; a party plaque inspects that party's effect.
+ * party's effect; the ruler's tile and a party plaque inspect that party's effect.
  */
 export function parliamentBrowseInspectRequest(view: ParliamentViewVm, root: HTMLElement | undefined): ParliamentInspectRequest | undefined {
   switch (parliamentFlow.zone) {
@@ -103,7 +129,9 @@ export function parliamentBrowseInspectRequest(view: ParliamentViewVm, root: HTM
       const id = view.enacted.resolutionId;
       return {kind: 'resolution', ids: [id], index: 0, origin: () => root?.querySelector<HTMLElement>('.con-parl__gov-card .pcard') ?? root?.querySelector<HTMLElement>('.con-parl__gov-card') ?? null};
     }
-    return {kind: 'party', party: view.rulingParty, origin: () => root?.querySelector<HTMLElement>('[data-parl-ruler]') ?? null};
+    return {kind: 'party', party: view.rulingParty, origin: () => root?.querySelector<HTMLElement>('[data-parl-ruler] .con-pseal') ?? null};
+  case 'ruler':
+    return {kind: 'party', party: view.rulingParty, origin: () => root?.querySelector<HTMLElement>('[data-parl-ruler] .con-pseal') ?? null};
   case 'parties': {
     const party = view.parties[parliamentFlow.partyIndex]?.party;
     return party === undefined ? undefined :

@@ -37,8 +37,11 @@ function browseCommands(input: ParliamentCommandsInput, back: ConsoleCommand): A
   }
   case 'government':
     return [{control: 'secondary', label: 'Inspect'}, back];
+  case 'ruler':
   case 'parties': {
-    const state = input.partyActionStates[parliamentFlow.partyIndex];
+    // The ruling party's tile stands in the government (v2) and answers as a party tile: the same verbs.
+    const index = parliamentFlow.zone === 'ruler' ? input.view.parties.findIndex((p) => p.party === input.view.rulingParty) : parliamentFlow.partyIndex;
+    const state = input.partyActionStates[index];
     const cmds: Array<ConsoleCommand> = [];
     // A party WITH an action always advertises A — available (lit), used or without access (dimmed; the
     // tile carries the reason and the press opens the action's surface, which states it). Only a party

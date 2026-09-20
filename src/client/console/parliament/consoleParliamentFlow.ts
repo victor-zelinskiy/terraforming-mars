@@ -43,6 +43,15 @@ export const consoleParliamentUi = reactive({
   fieldStanding: false,
   /** The Agenda marker is gliding along the track — an Agenda card reward's cover waits for it to settle. */
   agendaSettling: false,
+  /**
+   * THE DOOR TO THE BOARD IS OPEN (v2): the winner's tile is placed ONLY by the
+   * player's own press on the sitting's reward stage («К полю»). Until then the
+   * board placement the server raised is HELD (the shell's `placementHeld`
+   * reads this): the hexes stay dark, the stack stays, the stage reads the
+   * tile. The press opens the door; the placement's end (or the stage's
+   * absence) closes it again.
+   */
+  boardDoorOpen: false,
 });
 
 export function resetConsoleParliamentUi(): void {
@@ -51,6 +60,7 @@ export function resetConsoleParliamentUi(): void {
   consoleParliamentUi.stageStanding = false;
   consoleParliamentUi.fieldStanding = false;
   consoleParliamentUi.agendaSettling = false;
+  consoleParliamentUi.boardDoorOpen = false;
 }
 
 // ── the session's memory of PLAYED stages ──────────────────────────────────
@@ -80,13 +90,19 @@ export function sittingStagePlayed(sitting: string, stage: string): boolean {
   return playedStages.get(sitting)?.has(stage) === true;
 }
 
+/** Has THIS session seen the sitting at all (any page played)? A reload has not — it lands in the final poses. */
+export function sittingSessionKnown(sitting: string): boolean {
+  return sitting !== '' && playedStages.has(sitting);
+}
+
 export function resetPlayedSittingStages(): void {
   playedStages.clear();
 }
 
 // ── the section-internal flow ──────────────────────────────────────────────
 
-export type ParliamentZone = 'voting' | 'government' | 'parties';
+/** The browse layer's focus zones: the government's card · the RULING PARTY's tile in the government · the voting area · the five opposition tiles. */
+export type ParliamentZone = 'voting' | 'government' | 'ruler' | 'parties';
 /**
  * `vote` — the decision mode (a phase descent); `submitting` — sent;
  * `paying` — a paid vote's payment stands inside the mode; `landed` — the
@@ -123,14 +139,12 @@ function freshFlow() {
     landedSeq: undefined as number | undefined,
     /** The vote whose cube is IN FLIGHT (hidden on the ribbon until the handoff). */
     flightSeq: undefined as number | undefined,
-    /** The landed scene is dissolving — the flow's last beat before the workspace leaves. */
-    concluded: false,
     /** The chair just received its delegate (the seat pick's landing) — the government's chair mark flashes (cleared by the flash's own `animationend`). */
     chairPulse: false,
     /**
-     * THE SITTING'S LOCAL PAGE inside the server's step (the assembly reads
-     * verdict → enactment → reward before its gate; the adjourn reads renewal
-     * → closing). Clamped by the step's page list, reset on every server step
+     * THE SITTING'S LOCAL PAGE inside the server's step (v2: the verdict; then
+     * the enactment → the reward → the results, turned by the director's
+     * walk). Clamped by the step's page list, re-seated on every server step
      * change — presentation state, never a memory of the phase.
      */
     sittingPage: 0,

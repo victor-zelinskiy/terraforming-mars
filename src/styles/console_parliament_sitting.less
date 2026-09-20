@@ -24,6 +24,13 @@
     &__voting--lit {
         box-shadow: inset 0 0 0 .1rem @con-parl-gold, 0 0 1.2rem rgba(230, 195, 74, 0.32);
     }
+    /* THE VERDICT (v2): the winning card lights IN ITS SLOT — the table is exactly as voted, nothing is parked. */
+    &__slot--lit .pcard { box-shadow: inset 0 0 0 .12rem @con-parl-gold, 0 0 1.4rem rgba(230, 195, 74, 0.5); }
+    &__slot--lit { box-shadow: inset 0 0 0 .08rem fade(@con-parl-gold, 70%); }
+    /* A HELD slot whose card has LEFT for the government: an empty outline in its OWN place (the row never re-orders). */
+    &__slot-home--vacated { transition: opacity calc(200ms * var(--motion-scale, 1)) @con-ease-standard; }
+    /* THE AGENDA SEGMENT the marker is crossing (the ПОВЕСТКА beat): the reached steps' nodes light. */
+    &__step--segment &__step-node { box-shadow: 0 0 0 .08rem fade(@con-parl-gold, 80%), 0 0 .7rem rgba(230, 195, 74, 0.4); }
     &__party--lit > .con-pseal { box-shadow: inset 0 0 0 .1rem @con-parl-gold, 0 0 .9rem rgba(230, 195, 74, 0.3); }
     &__step--lit &__step-node { box-shadow: 0 0 0 .1rem @con-parl-gold, 0 0 .8rem rgba(230, 195, 74, 0.45); }
 
@@ -241,20 +248,53 @@
     /* The gate's «waiting for» pose: the seats still to answer, as their cubes. */
     &__awaiting { display: inline-flex; align-items: center; gap: .35rem; font-size: .78rem; }
 
-    /* ── the CLOSING card: objects and numbers on one plate ── */
-    &__closing {
+    /* ── the RESULTS card (v2 — one stage): objects and numbers on one plate, revealed after the renewal's beats ── */
+    &__results {
         .con-stage-plate();
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+        /* THREE columns, TWO rows under the head. The stage grows out of its tier BY CONTENT (`bottom:
+           auto` up to the Agenda track's height), so a card a little taller than the tier covers the
+           track PARTIALLY — the label row hidden, the nodes peeking under the plate (measured with the
+           auto-fitted rows on 1080 and TV: the lobby wrapped onto a fourth line, ~50 px of the track
+           covered). Two rows keep the card inside the tier on 1080 / TV; on the Deck the stage takes the
+           track WHOLE (below). The wait on the other seats rides the head's line, so the answered gate
+           adds no row either. Guards: `expectParliamentFits` (spills-y), the v2 probe (no partial cover). */
+        grid-template-columns: repeat(3, minmax(0, 1fr));
         gap: .4rem .8rem;
         padding: .6rem .8rem;
         align-content: start;
         min-width: 0;
+        > [data-sit-row="results-fresh"] { grid-column: 1 / 3; }
+        > [data-sit-row="results-lobby"] { grid-column: 3; }
+        /* Waits for the renewal's beats — the director reveals it row by row (never a card that stood there all along). */
+        &--hidden { visibility: hidden; }
     }
-    &__closing-head { grid-column: 1 / -1; display: flex; align-items: baseline; gap: .6rem; }
+    &__results-head {
+        grid-column: 1 / -1;
+        display: flex;
+        align-items: baseline;
+        gap: .6rem;
+        min-width: 0;
+        .con-sit__awaiting { margin-left: auto; flex-basis: auto; min-width: 0; }
+    }
     /* A panel title in the KICKER grammar (registry R-29): «ИТОГИ ПОКОЛЕНИЯ 1» was the one
        sentence-case heading among tracked caps. */
-    &__closing-title { font-size: .92rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+    &__results-title { font-size: .92rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+    /* THE DOOR TO THE BOARD (v2): the winner's tile waits for the player's own press — a plate that names it. */
+    &__door {
+        display: inline-flex;
+        align-items: center;
+        gap: .45rem;
+        padding: .35rem .6rem;
+        border-radius: .5rem;
+        background: rgba(0, 0, 0, 0.35);
+        box-shadow: inset .18rem 0 0 fade(@con-parl-mint, 80%);
+        font-family: @con-font-read;
+        font-size: .8rem;
+        min-width: 0;
+    }
+    &__door-tile { width: .9rem; height: .9rem; border-radius: .2rem; flex-shrink: 0; background: #3aa35a; box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.3); &--ocean { background: #2c7dd6; } }
+    &__door-text { min-width: 0; }
 }
 /* An ambient loop is COMPOSITOR-ONLY (opacity), per the console paint baseline. */
 @keyframes con-sit-wait-breathe {
@@ -263,6 +303,13 @@
 }
 html.con-fx-lite .con-sit__wait::before { animation: none; opacity: .8; }
 
+/* THE DECK'S RESULTS POSE TAKES THE AGENDA TRACK WHOLE: the results card cannot fit the handheld's
+   8.4rem tier, and the stage's content-sized growth covers exactly as much of the track as the card
+   needs — a half-covered track (its nodes peeking under the plate) is the one thing never to show.
+   The Agenda's own beat has played by then; the track is read-only until the next generation. */
+html.con-profile-handheld .con-parl[data-sitting-stage="results"] .con-parl__stage {
+    min-height: calc(100% + var(--con-parl-agenda-h) + .4rem);
+}
 html.con-profile-handheld .con-sit {
     &__title { font-size: .92rem; }
     &__row { font-size: .68rem; padding: .22rem .4rem; b { font-size: .76rem; } }
@@ -281,7 +328,8 @@ html.con-profile-tv .con-sit {
 .con-parl {
     /* The parties tier PEEKS through the stage for the support beat: the
        cubes land on the plaques' real places. Opacity only — a pose. */
-    &__stage--peek { opacity: .08; pointer-events: none; }
+    /* v2: the stage steps OUT OF THE WAY for the support beat — the whole opposition tier in view, never a peek at 8 %. */
+    &__stage--peek { opacity: 0; pointer-events: none; }
     &__stage { transition: opacity calc(180ms * var(--motion-scale, 1)) @con-ease-standard; }
     /* The winning card, lit for the verdict (the parked proxy, or the government's card). */
     &__gov-card--lit .pcard { box-shadow: inset 0 0 0 .12rem @con-parl-gold, 0 0 1.4rem rgba(230, 195, 74, 0.5); }

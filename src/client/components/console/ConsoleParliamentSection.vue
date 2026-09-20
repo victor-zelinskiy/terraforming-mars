@@ -1,19 +1,21 @@
 <template>
   <!-- «ПАРЛАМЕНТ» — the Mars Parliament workspace (Turmoil Redux): ONE flow,
        one GAME SCREEN. Three instruments under one fixed head line (the
-       GOVERNMENT · the VOTING AREA · the six PARTIES), the read-only AGENDA
-       track, the DELEGATES ZONE at fixed coordinates in every mode; the VOTE
-       MODE is a phase descent of this frame, a PARTY ACTION nests the action
-       workspace (`parliament ⊃ card-actions`), and the SITTING — the political
-       phase's own flow («ЗАСЕДАНИЕ») — stands on the middle tier's stage
-       chassis, its stage the SERVER's step. THIS ROOT owns the stage machine
-       (the shared flow record), the browse layer's grammar, the submit funnel
-       and the crumb; every tier is its own component reading the same record.
-       Nothing here re-derives a rule: availability is the PRESENCE of the
-       server's option (its structural marker), the numbers are the server's
-       projections, a submit is the byte-identical response.
+       GOVERNMENT with the RULING PARTY's tile · the VOTING AREA · the five
+       OPPOSITION parties), the read-only AGENDA track, the DELEGATES ZONE at
+       fixed coordinates in every mode; the VOTE MODE is a phase descent of
+       this frame, a PARTY ACTION nests the action workspace
+       (`parliament ⊃ card-actions`), and the SITTING — the political phase's
+       own flow («ЗАСЕДАНИЕ») — stands on the middle tier's stage chassis, its
+       stage the SERVER's step and its pages a WALK the director turns
+       (v2: docs/TURMOIL_REDUX_PARLIAMENT_SITTING_V2.md). THIS ROOT owns the
+       stage machine (the shared flow record), the browse layer's grammar, the
+       submit funnel and the crumb; every tier is its own component reading
+       the same record. Nothing here re-derives a rule: availability is the
+       PRESENCE of the server's option (its structural marker), the numbers
+       are the server's projections, a submit is the byte-identical response.
        Anatomy and history: docs/TURMOIL_REDUX_PARLIAMENT_V6.md; the sitting:
-       docs/TURMOIL_REDUX_PARLIAMENT_SITTING.md. -->
+       docs/TURMOIL_REDUX_PARLIAMENT_SITTING.md, the v2 rework above. -->
   <section class="con-parl con-ws"
            :class="{
              'con-parl--handed-over': sceneHandedOver,
@@ -30,7 +32,9 @@
            :aria-label="$t('Parliament')"
            :data-zone="flow.zone"
            :data-stage="flow.stage"
-           :data-sitting-stage="sittingUp ? sittingStage : undefined">
+           :data-sitting-stage="sittingUp ? sittingStage : undefined"
+           :data-sitting-walking="walking ? '' : undefined"
+           data-motion-panel>
     <ConsoleWsHead class="con-parl__head"
                    root="Parliament"
                    emblem="parliament"
@@ -55,9 +59,11 @@
                                      :benchWarn="benchWarn" :seatCandidates="seatCandidates" :sittingStage="sittingUp ? sittingStage : ''" />
       </div>
 
-      <!-- ══ MIDDLE TIER — the PARTIES (browse) or a STAGE (the seat pick, the
+      <!-- ══ MIDDLE TIER — the OPPOSITION (browse) or a STAGE (the seat pick, the
            SITTING) — ONE zone, one rect; the sitting's reward stage may take
-           the whole field for a hosted step (`--field`). ══ -->
+           the whole field for a hosted step (`--field`). The parties tier
+           renders EVERY party (the ruling one is teleported into the
+           government's ruler slot — one DOM instance per party). ══ -->
       <div class="con-parl__mid" data-parl-mid data-parl-recede ref="midEl">
         <div class="con-parl__parties-tier" ref="partiesTierEl" :class="{'con-parl__parties-tier--parked': stageUp && !motion.peek}" v-show="!stageUp || stageLeaving || motion.peek">
           <ConsoleParliamentParties :view="view" :partyStates="partyStates" :partyActionStates="partyActionStates" :viewerColor="viewerColor"
@@ -67,14 +73,14 @@
         <!-- ── THE STAGE ZONE — the chairman SEAT pick and the SITTING unfold in
              place of the parties tier (one chassis). ── -->
         <transition :css="false" @enter="onStageEnter" @leave="onStageLeave" @enter-cancelled="onStageEnterCancelled" @leave-cancelled="onStageLeaveCancelled">
-          <div v-if="stageUp" class="con-parl__stage" :class="['con-parl__stage--' + stageKind, {'con-parl__stage--field': flow.sittingField, 'con-parl__stage--peek': motion.peek}]" :data-parl-stage="stageKind" :data-sitting-motion="motion.stage || undefined">
+          <div v-if="stageUp" class="con-parl__stage" :class="['con-parl__stage--' + stageKind, {'con-parl__stage--field': flow.sittingField, 'con-parl__stage--peek': motion.peek}]" :data-parl-stage="stageKind" :data-sitting-motion="motion.stage || undefined" :data-sitting-beat="motion.beat || undefined">
             <ConsoleParliamentSeatPick v-if="stageKind === 'seat' && focusedSlot !== undefined" ref="seatPick"
                                        :view="view" :slot="focusedSlot" :viewerColor="viewerColor" :seatCandidates="seatCandidates"
                                        @submit="submitSeat($event)" @inspect="$emit('inspect', $event)" />
             <ConsoleParliamentSitting v-else-if="stageKind === 'sitting' && sitting !== undefined" ref="sitting"
                                       :position="sitting" :stage="sittingStage" :summary="model?.phase?.summary"
                                       :view="view" :model="model" :playerView="playerView" :viewerColor="viewerColor"
-                                      :field="flow.sittingField" mode="live" />
+                                      :field="flow.sittingField" :resultsHidden="resultsHidden" mode="live" />
             <div class="con-parl__embed" data-embed-slot="parliament"></div>
           </div>
         </transition>
@@ -115,7 +121,6 @@ import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {ConsoleCommand} from '@/client/console/consoleCommandModel';
 import {backLabelForVerb, backVerbFor} from '@/client/console/consoleWorkspaceFlow';
-import {getResolution} from '@/client/parliament/ClientParliamentManifest';
 import {
   AgendaMove, agendaViewOf, AgendaVm, buildParliamentView, emptyParliamentView, ParliamentPartyVm, ParliamentPromptBridge, ParliamentSlotVm, ParliamentTileVm,
   ParliamentViewVm, parliamentPromptBridge, partyActionStateOf, PartyActionStateVm, partyStateOf, PartyStateVm, seatResponse,
@@ -123,32 +128,32 @@ import {
 import {
   consoleParliamentUi, notePlayedSittingStage, parliamentCrumbCommitted, parliamentCrumbStage, parliamentCrumbSubject, ParliamentStage,
   parliamentFlow, parliamentSittingUp, parliamentStageKind, parliamentStageUp, parliamentVoteUp, pulseParliamentChair, resetParliamentFlow,
-  setParliamentRootEl, sittingStagePlayed,
+  setParliamentRootEl, sittingSessionKnown, sittingStagePlayed,
 } from '@/client/console/parliament/consoleParliamentFlow';
 import {
-  flushParliamentRewards, noteAgendaBonusProgress, parliamentRewardPending, parliamentRewardState, takeTileReceipt,
+  parliamentRewardPending, parliamentRewardState, releaseParliamentRewards, takeTileReceipt,
 } from '@/client/console/parliament/parliamentRewardBeat';
 import {
-  sittingAtLastPage, sittingPagesOf, sittingPositionOf, SittingPosition, sittingPrimaryKey, sittingRewardComing, SittingStage, sittingStageAt,
-  sittingStageKey, sittingStartPage, sittingWorkspacePhase,
+  sittingPageAuto, sittingPositionOf, SittingPosition, sittingPrimaryKey, sittingRewardSettled, SittingStage, sittingStageAt, sittingStageKey,
+  sittingStartPage, sittingWorkspacePhase, verdictStandsAt,
 } from '@/client/console/parliament/consoleSittingFlow';
-import {noteSlotsBeforeYield, parliamentHolds, resetParliamentHolds, takeSlotsBeforeYield} from '@/client/console/parliament/parliamentDisplayHolds';
-import {SittingBeat, sittingBeats, sittingStageBefore} from '@/client/console/parliament/sittingBeats';
+import {parliamentHolds, resetParliamentHolds} from '@/client/console/parliament/parliamentDisplayHolds';
+import {SittingBeat, sittingBeats} from '@/client/console/parliament/sittingBeats';
 import {
-  finishSittingMotion, killSittingMotion, parkSittingCards, playSittingStage, resetSittingDirector, seedEnactHolds, seedRenewalHolds,
-  sittingMotion, sittingMotionActive, SittingDirectorContext,
+  finishSittingMotion, killSittingMotion, playSittingStage, resetSittingDirector, sittingMotion, sittingMotionActive, SittingDirectorContext,
 } from '@/client/console/parliament/sittingDirector';
 import {probeTick} from '@/client/console/probeTick';
-import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {flySeatDelegate, killParliamentFlights, parliamentFlightsAirborne} from '@/client/console/parliament/parliamentFlights';
-import {fitParliamentCards} from '@/client/console/parliament/parliamentCardFit';
+import {fitParliamentCards, freezeParliamentFit} from '@/client/console/parliament/parliamentCardFit';
 import {parliamentCommandsOf} from '@/client/console/parliament/parliamentCommands';
 import {ParliamentInspectRequest} from '@/client/console/parliament/parliamentInspect';
 import {
   armPartyActionDescent, navigateParliamentZones, parliamentBrowseInspectRequest, partyActionRefusal,
 } from '@/client/console/parliament/parliamentNavigation';
 import {BenchSource, benchSourceOf, benchWarnOf} from '@/client/console/parliament/parliamentVoteView';
-import {setWorkspaceFramePhase, setWorkspaceFrameStage, setWorkspaceFrameSubject, workspaceFrameHasNested} from '@/client/console/consoleWorkspaceStack';
+import {
+  setWorkspaceFramePhase, setWorkspaceFrameStage, setWorkspaceFrameSubject, workspaceFrameAnchor, workspaceFrameHasNested,
+} from '@/client/console/consoleWorkspaceStack';
 import {translateText} from '@/client/directives/i18n';
 import {promptIdentityKey} from '@/client/console/turnIntents';
 import {useResizeObserver} from '@vueuse/core';
@@ -172,7 +177,7 @@ export default defineComponent({
     myTurn: {type: Boolean, default: false},
     awaitingInput: {type: Boolean, default: false},
   },
-  emits: ['close', 'submit', 'notice', 'inspect', 'open-action', 'flow-complete', 'collapse'],
+  emits: ['close', 'submit', 'notice', 'inspect', 'open-action', 'flow-complete', 'collapse', 'to-board'],
   data() {
     return {
       /** The seat / sitting stage is folding back — its DOM stays for the leave beat. */
@@ -185,24 +190,14 @@ export default defineComponent({
       seatFrom: undefined as Rect | undefined,
       /** The parties tier's rect at the press — the seat / sitting stage unfolds from it. */
       stageFromRect: undefined as Rect | undefined,
-      /** The stage is unfolding — a motion queued meanwhile starts on the unfold's end. */
+      /** The stage is unfolding — a walk queued meanwhile starts on the unfold's end. */
       stageEntering: false,
-      /** The director's next run, waiting for the DOM (and the unfold) to stand. `reward: true` = the wave of what just arrived, whatever page beats already played. */
-      motionPlan: undefined as {replay: ReadonlyArray<SittingStage>, stage: SittingStage, reward?: boolean} | undefined,
-      /** Stages whose beats already played in THIS mount (a page turned back and forth replays nothing). */
-      playedStages: [] as Array<SittingStage>,
-      /**
-       * THE STAGE ON SCREEN IS HELD on the reward page while its wave is owed
-       * or in the air — a server step that arrives in the SAME response as the
-       * record (the adjourn after a resolution that asks nothing) would
-       * otherwise swap the pose out from under the chips. Cleared by the
-       * reward run's end, which then plays the deferred step transition.
-       */
-      stageHeld: undefined as SittingStage | undefined,
-      /** The voting slots BEFORE the last model change (a sync watcher writes it) — what a held reward pose keeps on the table. */
-      prevSlots: undefined as ReadonlyArray<ParliamentSlotVm> | undefined,
-      /** The server step that arrived while the reward beat still played — replayed once the beat is over. */
-      deferredStep: undefined as {key: string, was: string} | undefined,
+      /** THE WALK is running (the director turning the sitting's pages) — a step that arrives meanwhile is picked up by its loop. */
+      walking: false,
+      /** A walk is queued for the next probe tick (idempotent). */
+      walkQueued: false,
+      /** Something asked for a walk WHILE one ran — re-run once it ends. */
+      walkOwed: false,
     };
   },
   computed: {
@@ -263,16 +258,13 @@ export default defineComponent({
     sitting(): SittingPosition | undefined {
       return sittingPositionOf(this.model, this.playerView.waitingFor, this.viewerColor);
     },
-    /** The sitting's server step — its change resets the local page cursor. */
+    /** The sitting's server step — its change re-seats the walk. */
     sittingStepKey(): string {
       const p = this.sitting;
       return p === undefined ? '' : `${p.generation}:${p.step}`;
     },
-    /** The stage on screen: the position's pages under the local cursor — or the reward page, held while its wave plays. */
+    /** The stage on screen: the position's pages under the local cursor. */
     sittingStage(): SittingStage {
-      if (this.stageHeld !== undefined) {
-        return this.stageHeld;
-      }
       const p = this.sitting;
       return p === undefined ? 'verdict' : sittingStageAt(p, parliamentFlow.sittingPage);
     },
@@ -293,9 +285,13 @@ export default defineComponent({
       void parliamentRewardState.flying.length;
       return parliamentRewardPending();
     },
-    /** The records the ledger still owes — the watcher below queues the wave on the rising edge. */
+    /** The records the ledger still owes — the watcher below queues the walk on the rising edge. */
     rewardsOwed(): number {
       return parliamentRewardState.owed.length;
+    },
+    /** The results card is hidden until the renewal's beats are over (the director reveals it). */
+    resultsHidden(): boolean {
+      return this.sittingStage === 'results' && sittingMotion.stage === 'results' && !sittingMotion.resultsRevealed;
     },
     /**
      * The crumb's tail for the sitting's stage (`sittingStageKey`). The tail
@@ -316,27 +312,28 @@ export default defineComponent({
       const phase = this.model?.phase;
       return phase === undefined ? '' : `${phase.generation}:${phase.summary?.seq ?? phase.generation}`;
     },
-    /** The parties the sitting's stage lights: the enactment lights the ruling party, the renewal the parties whose support grew. */
+    /**
+     * The parties the sitting lights: the plaque ACCEPTING support during the
+     * support beat; the enacted party once the plaques have changed places
+     * (never before — the new ruler's tile in the row would spoil the beat).
+     */
     sittingParties(): Array<ReduxParty> {
       const summary = this.model?.phase?.summary;
       if (!this.sittingUp || summary === undefined) {
         return [];
       }
-      switch (this.sittingStage) {
-      case 'enact': return [summary.enacted.party];
-      case 'renewal': return summary.support.filter((s) => s.gained > 0).map((s) => s.party);
-      default: return [];
+      if (sittingMotion.supportParty !== '') {
+        return [sittingMotion.supportParty];
       }
+      if (this.sittingStage === 'verdict' || parliamentHolds.rulerBefore !== undefined) {
+        return [];
+      }
+      return [summary.enacted.party];
     },
-    /** The Agenda step the enactment page lights — the winner's new position. */
+    /** The Agenda step the enactment lights — the winner's new position, once the marker has reached it. */
     sittingStep(): number | undefined {
       const summary = this.model?.phase?.summary;
-      return this.sittingUp && this.sittingStage === 'enact' ? summary?.agenda?.to : undefined;
-    },
-    /** IS SOMETHING COMING FOR THIS SEAT — the assembly's A verb («К награде») reads it. */
-    sittingRewardComing(): boolean {
-      const id = this.model?.phase?.summary?.enacted.resolution;
-      return sittingRewardComing(this.model, this.viewerColor, id === undefined ? undefined : getResolution(id));
+      return this.sittingUp && this.sittingStage !== 'verdict' && parliamentHolds.agendaAwaits === undefined ? summary?.agenda?.to : undefined;
     },
     /** The sitting's A verb (undefined = A does nothing here). */
     sittingPrimary(): string | undefined {
@@ -344,15 +341,12 @@ export default defineComponent({
       if (p === undefined || this.sittingField) {
         return undefined;
       }
-      // The reward pose HELD through a step that arrived with the record (the
-      // deferred adjourn): the verb follows the pose the player is looking at —
-      // A drives the wave home («дожать»), it never answers the closing gate
-      // from a page that is still the reward (measured: «Закрыть заседание»
-      // hot over the skip plate).
-      if (this.stageHeld !== undefined) {
-        return 'Continue';
+      const key = sittingPrimaryKey(p, parliamentFlow.sittingPage);
+      // The door to the board opens only once the wave that arrived with the tile has landed (the surfaces go in turn).
+      if (key === 'Onto the board' && (this.rewardPending || this.walking)) {
+        return undefined;
       }
-      return sittingPrimaryKey(p, parliamentFlow.sittingPage, {rewardComing: this.sittingRewardComing});
+      return key;
     },
     /** The sitting's B verb label — from the workspace phase, so B can never say one thing and do another. */
     sittingBack(): string | undefined {
@@ -365,7 +359,9 @@ export default defineComponent({
       return this.view.slots[parliamentFlow.slotIndex];
     },
     focusedParty(): ParliamentPartyVm | undefined {
-      return this.view.parties[parliamentFlow.partyIndex];
+      return parliamentFlow.zone === 'ruler' ?
+        this.view.parties.find((p) => p.party === this.view.rulingParty) :
+        this.view.parties[parliamentFlow.partyIndex];
     },
     voteTile(): ParliamentTileVm | undefined {
       return this.view.tiles.find((t) => t.id === 'vote');
@@ -431,17 +427,6 @@ export default defineComponent({
     },
   },
   watch: {
-    /**
-     * THE TABLE BEFORE THIS CHANGE — written SYNCHRONOUSLY (before any
-     * pre-flush watcher below reads it): a server step that arrives under a
-     * held reward pose keeps the slots as they stood (registry R-25в).
-     */
-    'view.slots': {
-      flush: 'sync',
-      handler(_now: ReadonlyArray<ParliamentSlotVm>, was: ReadonlyArray<ParliamentSlotVm> | undefined): void {
-        this.prevSlots = was;
-      },
-    },
     'commands': {
       immediate: true,
       handler(cmds: ReadonlyArray<ConsoleCommand>): void {
@@ -478,12 +463,16 @@ export default defineComponent({
     },
     /**
      * A REWARD ARRIVED while the sitting stands (the ledger seeded its hold in
-     * the transport's own commit block): the reward page's wave plays now —
-     * whatever page beats already played this mount.
+     * the transport's own commit block): the walk plays its wave on the reward
+     * page. The door is the STANDING of the sitting (its stage, or its gate
+     * answer in flight — `parliamentSittingUp`), never the section's transient
+     * flow stage: the viewer's own answer comes back while the stage is still
+     * `submitting`, the other seat's through the poll while it is `sitting`,
+     * and both must reach the same walk.
      */
     'rewardsOwed'(n: number, was: number): void {
-      if (n > 0 && n > was && parliamentFlow.stage === 'sitting') {
-        this.queueRewardMotion();
+      if (n > 0 && n > was && parliamentSittingUp()) {
+        this.queueWalk();
       }
     },
     /**
@@ -501,68 +490,32 @@ export default defineComponent({
         if (position !== undefined) {
           if (parliamentFlow.stage === 'browse') {
             parliamentFlow.zone = 'government';
-            parliamentFlow.sittingPage = sittingStartPage(position);
-            // THE FRAME IS BACK FROM THE BOARD with the winner's tile just
-            // landed: the reward stage shows its «received» pose first (the
-            // parameter's move, the TR), read for a beat, and only then the
-            // server's next step (the renewal) takes the page. Nothing replays.
-            const receipt = takeTileReceipt(this.sittingKey);
-            const slotsBeforeYield = takeSlotsBeforeYield();
-            if (receipt !== undefined && position.step !== 'effects') {
-              this.stageHeld = 'reward';
-              this.deferredStep = {key: this.sittingStepKey, was: 'return'};
-              parliamentRewardState.receiptShowing = true;
-              this.playedStages = [];
-              resetParliamentHolds();
-              // The table as it stood when the frame yielded to the board — held under the receipt pose.
-              this.holdTableUnderReward(slotsBeforeYield);
-              this.motionPlan = {replay: [], stage: 'reward', reward: true};
-            } else {
-              // THE OPENING: the display holds are seeded BEFORE the first frame
-              // (the tiers show the table as it stood), the passed stages replay
-              // compactly (a reload inside the phase), the current one plays in full.
-              this.planOpeningMotion(sittingStageAt(position, parliamentFlow.sittingPage));
-            }
+            this.planOpening(position);
             this.openStage('sitting');
           }
           if (parliamentFlow.stage === 'sitting') {
             setWorkspaceFramePhase('parliament', sittingWorkspacePhase(this.sittingStage, false));
           }
         } else if (parliamentFlow.stage === 'sitting') {
-          this.closeStage();
-          this.$emit('flow-complete', 'sitting');
+          this.endSitting();
         }
       },
     },
-    /** A new server step starts its walk on its first page (a gate this seat already answered: on its wait pose); the phase follows the page. */
-    'sittingStepKey'(now: string, was: string): void {
-      // A step that arrives in the SAME response as this seat's reward (the
-      // adjourn after a resolution that asks nothing): the reward's wave plays
-      // FIRST on the page the seat is looking at; the step's own transition
-      // waits for it (`afterRewardMotion`). «The page the seat is looking at»
-      // is the OLD step's page under the local cursor — the live `sittingStage`
-      // already derives from the step that just arrived (measured: the renewal
-      // entered 500 ms before the chip left the card).
-      const wasStep = was.split(':')[1] as Parameters<typeof sittingPagesOf>[0] | undefined;
-      const wasPages = wasStep === undefined ? [] : sittingPagesOf(wasStep, this.model?.phase?.final ?? false);
-      const wasStage = wasPages[Math.max(0, Math.min(wasPages.length - 1, parliamentFlow.sittingPage))];
-      if (parliamentFlow.stage === 'sitting' && was !== '' && this.rewardPending && wasStage === 'reward') {
-        this.stageHeld = 'reward';
-        this.deferredStep = {key: now, was};
-        this.holdTableUnderReward(this.prevSlots);
+    /** A new server step re-seats the walk: from its first unplayed page (a gate this seat already answered: its wait pose). */
+    'sittingStepKey'(_now: string, was: string): void {
+      if (was === '' || !parliamentSittingUp()) {
         return;
       }
-      this.enterServerStep(was);
+      if (this.walking) {
+        // The walk's own loop re-reads the position after every beat; a step that arrives mid-beat is picked up there.
+        this.walkOwed = true;
+        return;
+      }
+      this.enterServerStep();
     },
     'sittingStage'(stage: SittingStage): void {
       if (parliamentFlow.stage === 'sitting') {
         setWorkspaceFramePhase('parliament', sittingWorkspacePhase(stage, false));
-        noteAgendaBonusProgress(); // a page turned — the sitting is moving, not stalled
-        // A page turned by A: its beats play once per mount (turning back replays nothing).
-        if (this.motionPlan === undefined && !this.playedStages.includes(stage)) {
-          this.motionPlan = {replay: [], stage};
-          this.queueMotion();
-        }
       }
     },
     /**
@@ -638,9 +591,10 @@ export default defineComponent({
     // browse layer. BEFORE the watchers: an `immediate` one (the sitting, a
     // standing chairman-seat pick) opens its stage at setup, exactly as it did
     // over the old `data()` — a reset in `created()` ran after them and wiped
-    // the stage they had just opened.
+    // the stage they had just opened. The DISPLAY HOLDS are NOT reset here
+    // (v2): they outlive the section — a collapsed or yielded sitting resumes
+    // its walk over the table as it stood.
     resetParliamentFlow();
-    resetParliamentHolds();
   },
   mounted() {
     setParliamentRootEl(this.$refs.rootEl as HTMLElement | undefined);
@@ -650,9 +604,6 @@ export default defineComponent({
     // The field already standing at mount is published from the mounted DOM
     // (the watcher above cannot fire for a value that never changed).
     consoleParliamentUi.fieldStanding = this.sittingField && parliamentFlow.stage === 'sitting';
-    if (parliamentFlow.stage === 'sitting') {
-      noteAgendaBonusProgress(); // the sitting opened — the Agenda bonus's idle net starts over
-    }
     this.publishMidOffsets();
     if (this.sittingField) {
       parkParliamentForEnact(this.$refs.rootEl as HTMLElement | undefined);
@@ -668,30 +619,24 @@ export default defineComponent({
     // A SITTING STANDING AT MOUNT (the usual door — the plate's A mounts the
     // section with the stage already in its first render): the stage's
     // `<transition>` never plays an enter for an element present at the
-    // initial render, so the opening's plan starts here, on the mounted DOM.
-    // The measured defect: three motion probes waiting on a beat that had
-    // never been queued.
-    if (this.motionPlan !== undefined && !this.stageEntering) {
-      this.queueMotion();
+    // initial render, so the walk starts here, on the mounted DOM.
+    if (parliamentFlow.stage === 'sitting' && !this.stageEntering) {
+      this.queueWalk();
     }
   },
   beforeUnmount() {
     this.stopFitObs?.();
     this.clearSubmitTimer();
-    // The frame yields to the board for the winner's tile with the sitting on
-    // its reward page: the table as it stands leaves with it, for the receipt
-    // pose the frame comes back to (a park, a close: the next mount discards it).
-    if (parliamentFlow.stage === 'sitting' && this.sittingStage === 'reward') {
-      noteSlotsBeforeYield(this.view.slots);
-    }
     resetSittingDirector();
     // A reward whose wave has not left with the sitting leaving (a park, the
-    // phase's end) is announced by its counter now — never held for a stage
-    // that is gone.
-    flushParliamentRewards('unmount');
+    // board taking the screen, the phase's end) is announced by its counter
+    // now — never held for a stage that is gone. The DISPLAY holds stay: the
+    // walk resumes over them when the section comes back.
+    releaseParliamentRewards('unmount');
     killParliamentFlights();
     killParliamentVoteMotion(this.$refs.rootEl as HTMLElement | undefined);
     killParliamentEnactMotion(this.$refs.rootEl as HTMLElement | undefined);
+    freezeParliamentFit(false);
     consoleParliamentUi.commands = [];
     consoleParliamentUi.voteStanding = false;
     consoleParliamentUi.stageStanding = false;
@@ -702,7 +647,6 @@ export default defineComponent({
   unmounted() {
     setParliamentRootEl(undefined);
     resetParliamentFlow();
-    resetParliamentHolds();
   },
   methods: {
     /** The answer's stage handling (see the `answerKey` watcher). */
@@ -720,7 +664,7 @@ export default defineComponent({
         }
         if (f.stageBeforeSubmit === 'sitting') {
           // THE GATE IS ANSWERED — the sitting stays on its stage: the position
-          // re-derives (the wait pose, the effects, the renewal) and the
+          // re-derives (the wait pose, the chain's beats, the results) and the
           // `sitting` watcher ends the flow only when the phase itself is over.
           f.stage = this.sitting === undefined ? 'browse' : 'sitting';
           setWorkspaceFramePhase('parliament', f.stage === 'sitting' ? sittingWorkspacePhase(this.sittingStage, false) : 'browse');
@@ -805,9 +749,12 @@ export default defineComponent({
       case 'voting':
         this.voteMode()?.openVote();
         return;
-      case 'parties': {
+      case 'parties':
+      case 'ruler': {
+        // The ruling party's tile in the government is a party tile like the five below it: the same door.
         const party = this.focusedParty;
-        const state = this.partyActionStates[parliamentFlow.partyIndex];
+        const index = party === undefined ? -1 : this.view.parties.findIndex((p) => p.party === party.party);
+        const state = index === -1 ? undefined : this.partyActionStates[index];
         if (party?.actionId === undefined || state === undefined || state.kind === 'none') {
           this.$emit('notice', translateText('This party has no action'));
           return;
@@ -855,11 +802,13 @@ export default defineComponent({
       }
     },
     /**
-     * THE SITTING'S GRAMMAR: A turns the page, and on a step's last page
-     * ANSWERS THE GATE (never before, never automatically); X inspects the
-     * enacted resolution; B obeys the workspace phase — «свернуть» past the
-     * commit (the whole stack parks, the board-home card restores this very
-     * stage), nothing on the terminal closing page.
+     * THE SITTING'S GRAMMAR (v2): A on the VERDICT answers gate 1 — the whole
+     * chain follows with no press; A on the reward's PLACEMENT step is the ONE
+     * door to the board («К полю»); A on the RESULTS answers gate 2; A during a
+     * beat = «дожать» (never a skipped stage); X inspects the enacted
+     * resolution; B obeys the workspace phase — «свернуть» past the commit
+     * (the whole stack parks, the board-home card restores this very page),
+     * nothing on the terminal results page.
      */
     handleSittingIntent(intent: GamepadIntent): void {
       const position = this.sitting;
@@ -867,24 +816,25 @@ export default defineComponent({
         return;
       }
       switch (consoleActionOf(intent)) {
-      case 'primary':
-        // A DURING A BEAT = «дожать»: the stage is driven to its resting pose — never skipped.
+      case 'primary': {
         if (sittingMotionActive()) {
           finishSittingMotion();
           return;
         }
-        if (this.sittingPrimary === undefined || this.stageHeld !== undefined) {
-          // A held pose owes nothing to the pad: the deferred step enters on the wave's end.
+        const stage = this.sittingStage;
+        if (stage === 'verdict' && position.gateStanding) {
+          this.send({type: 'option'}, 'sitting');
           return;
         }
-        if (!sittingAtLastPage(position, parliamentFlow.sittingPage)) {
-          parliamentFlow.sittingPage += 1;
+        if (stage === 'reward' && position.rewardStep === 'placement' && this.sittingPrimary !== undefined) {
+          this.$emit('to-board');
           return;
         }
-        if (position.gateStanding) {
+        if (stage === 'results' && position.gateStanding) {
           this.send({type: 'option'}, 'sitting');
         }
         return;
+      }
       case 'inspect':
         this.inspectSitting();
         return;
@@ -934,120 +884,80 @@ export default defineComponent({
     },
     closeStage(): void {
       killSittingMotion();
-      this.motionPlan = undefined;
-      this.playedStages = [];
-      this.stageHeld = undefined;
-      this.deferredStep = undefined;
+      this.walkOwed = false;
       parliamentFlow.stage = 'browse';
       setWorkspaceFramePhase('parliament', 'browse');
     },
     /**
-     * THE SERVER'S STEP MOVED (the effects after the assembly, the adjourn
-     * after the refresh): the walk starts on the step's first page (a gate
-     * this seat already answered: on its wait pose); a step that arrives while
-     * the sitting stands seeds its holds before the render and plays its
-     * beats after it.
+     * THE PHASE IS OVER. A PHASE-anchored root leaves WITH its stage standing
+     * (the shell's `closeWorkspaceRoot` on the falling edge — one motion of
+     * the whole surface, never a stage folding to browse under a leaving
+     * frame); a Parliament the player walked into on their own stays, so its
+     * stage folds back to the browse layer.
      */
+    endSitting(): void {
+      killSittingMotion();
+      if (workspaceFrameAnchor('parliament')?.type === 'phase') {
+        this.walkOwed = false;
+      } else {
+        this.closeStage();
+      }
+      this.$emit('flow-complete', 'sitting');
+    },
     /**
-     * A SERVER STEP ARRIVED UNDER A HELD REWARD POSE (the adjourn in the same
-     * response as the record; the return from the board): the columns keep
-     * the losers as they stood — their faces, ribbons and tallies — and the
-     * renewal's holds are seeded now, before this render, so the fresh cards'
-     * faces, their neutral cubes, the deck's count and the lobby wait for the
-     * beat that will move them (registry R-25в: the columns showed the
-     * refreshed table under a page still reading «this payout»).
+     * THE OPENING (the section mounts with the sitting standing, or the stage
+     * unfolds over the browse layer): where the walk starts and what it plays.
+     *  · at the VERDICT (gate 1) — the verdict page; its light plays once;
+     *  · past the barrier with NO memory of this sitting (a reload inside the
+     *    sequence): the step's last page in its final poses — nothing replays,
+     *    the holds are dropped;
+     *  · past the barrier with a memory (a collapsed sitting coming back, the
+     *    frame back from the board): the first unplayed page, with the holds
+     *    the transport seeded while the section was away — the walk goes on
+     *    from there (the tile's RECEIPT is read first when one is owed).
      */
-    holdTableUnderReward(slots: ReadonlyArray<ParliamentSlotVm> | undefined): void {
-      const position = this.sitting;
-      const summary = this.model?.phase?.summary;
-      if (position === undefined || summary === undefined || consoleReducedMotionActive()) {
-        return;
-      }
-      if (sittingStageAt(position, sittingStartPage(position)) !== 'renewal' || sittingStagePlayed(this.sittingKey, 'renewal')) {
-        return;
-      }
-      seedRenewalHolds(summary, this.view);
-      parliamentHolds.heldSlots = slots;
-    },
-    enterServerStep(was: string): void {
-      const position = this.sitting;
-      // The held table lets go with the pose: the renewal beat parks the losers over these very homes.
-      parliamentHolds.heldSlots = undefined;
-      parliamentFlow.sittingPage = position === undefined ? 0 : sittingStartPage(position);
-      if (position !== undefined && was !== '' && parliamentFlow.stage === 'sitting') {
-        const stage = sittingStageAt(position, parliamentFlow.sittingPage);
-        const summary = this.model?.phase?.summary;
-        if (stage === 'renewal' && summary !== undefined && !consoleReducedMotionActive() && !sittingStagePlayed(this.sittingKey, 'renewal')) {
-          seedRenewalHolds(summary, this.view);
-        }
-        this.motionPlan = {replay: [], stage};
-        this.queueMotion();
-      }
-    },
-    /** The reward's wave of what just arrived — queued over whatever the page already played. */
-    queueRewardMotion(): void {
-      if (this.motionPlan !== undefined && this.motionPlan.stage !== 'reward') {
-        // A page beat is already queued: the reward rides the same run (runMotion plays owed rewards first).
-        return;
-      }
-      this.motionPlan = {replay: [], stage: 'reward', reward: true};
-      this.queueMotion();
-    },
-    /** The reward run is over: the pose held for it lets go and a step that arrived meanwhile enters now. */
-    afterRewardMotion(): void {
-      const deferred = this.deferredStep;
-      this.deferredStep = undefined;
-      this.stageHeld = undefined;
-      parliamentRewardState.receiptShowing = false;
-      if (deferred !== undefined && parliamentFlow.stage === 'sitting') {
-        this.enterServerStep(deferred.was);
-      }
-    },
-    // ── the director ────────────────────────────────────────────────────
-    /**
-     * THE OPENING'S PLAN: seed every hold the stages up to `stage` consume
-     * (before the first frame), replay the passed stages compactly (a
-     * reload / a restore inside the phase — `resume`), play `stage` in full.
-     * A sitting opening straight onto a hosted step (the field pose) replays
-     * nothing: the overview it would play on is parked under the step.
-     */
-    planOpeningMotion(stage: SittingStage): void {
-      const summary = this.model?.phase?.summary;
-      this.playedStages = [];
-      if (summary === undefined || consoleReducedMotionActive()) {
-        resetParliamentHolds();
-        this.motionPlan = summary === undefined ? undefined : {replay: [], stage};
-        return;
-      }
-      const replay: Array<SittingStage> = [];
+    planOpening(position: SittingPosition): void {
       const key = this.sittingKey;
-      if (!this.sittingField) {
-        for (const passed of ['verdict', 'enact', 'renewal'] as const) {
-          // A stage this SESSION already played (the frame stepped aside for the
-          // winner's tile and came back) does not replay: its cards have moved.
-          if (sittingStageBefore(passed, stage) && this.sittingBeatList.some((b) => b.stage === passed) && !sittingStagePlayed(key, passed)) {
-            replay.push(passed);
-          }
-        }
-      }
-      const current = sittingStagePlayed(key, stage) ? undefined : stage;
-      // The holds of every stage that will play — passed or current.
-      const seeds = new Set<SittingStage>([...replay, ...(current === undefined ? [] : [current])]);
-      resetParliamentHolds();
-      if (seeds.has('verdict') || seeds.has('enact')) {
-        seedEnactHolds(summary, this.view);
-      }
-      if (seeds.has('renewal')) {
-        seedRenewalHolds(summary, this.view);
-      }
-      this.motionPlan = {replay, stage};
-    },
-    /** Run the plan once the DOM (and the stage's unfold) stands. */
-    queueMotion(): void {
-      if (this.motionPlan === undefined || this.stageEntering) {
+      const played = (stage: SittingStage) => sittingStagePlayed(key, stage);
+      if (verdictStandsAt(position.step)) {
+        parliamentFlow.sittingPage = 0;
         return;
       }
-      void this.$nextTick(() => probeTick(() => void this.runMotion()));
+      if (!sittingSessionKnown(key)) {
+        for (const stage of position.pages) {
+          notePlayedSittingStage(key, stage);
+        }
+        resetParliamentHolds();
+        parliamentRewardState.receiptShowing = false;
+        parliamentFlow.sittingPage = position.pages.length - 1;
+        return;
+      }
+      const receipt = takeTileReceipt(key);
+      parliamentFlow.sittingPage = sittingStartPage(position, played, receipt !== undefined);
+      // The receipt is READ on the reward page; a walk that cannot start there (the gate already answered) owes no read.
+      parliamentRewardState.receiptShowing = receipt !== undefined && position.pages[parliamentFlow.sittingPage] === 'reward';
+    },
+    /** A new server step: the walk re-seats on the step's first unplayed page and goes on. */
+    enterServerStep(): void {
+      const position = this.sitting;
+      if (position === undefined) {
+        return;
+      }
+      const key = this.sittingKey;
+      parliamentFlow.sittingPage = sittingStartPage(position, (stage) => sittingStagePlayed(key, stage));
+      this.queueWalk();
+    },
+    // ── the director's walk ─────────────────────────────────────────────
+    /** Run the walk once the DOM (and the stage's unfold) stands — idempotent. */
+    queueWalk(): void {
+      if (this.walkQueued) {
+        return;
+      }
+      this.walkQueued = true;
+      void this.$nextTick(() => probeTick(() => {
+        this.walkQueued = false;
+        void this.runWalk();
+      }));
     },
     directorContext(): SittingDirectorContext | undefined {
       const root = this.$refs.rootEl as HTMLElement | undefined;
@@ -1067,71 +977,87 @@ export default defineComponent({
         },
       };
     },
-    async runMotion(): Promise<void> {
-      const plan = this.motionPlan;
-      if (plan === undefined || this.stageEntering || !this.sittingUp) {
+    /** May the walk leave `stage` by itself? The enactment always; the reward once nothing of this seat's is open there. */
+    mayLeave(stage: SittingStage, position: SittingPosition): boolean {
+      if (stage === 'enact') {
+        return true;
+      }
+      if (stage === 'reward') {
+        return sittingRewardSettled(position) && !this.rewardPending && !parliamentRewardState.receiptShowing;
+      }
+      return false;
+    },
+    /**
+     * THE WALK — the director turns the sitting's pages: every page's beats
+     * play ONCE per session (a page turned back and forth replays nothing),
+     * the reward page replays for what arrived since (a wave owed, the tile's
+     * receipt), and the walk advances by itself over the auto pages until a
+     * STOP: the verdict, an ask of this seat, a wait on another, the results.
+     * The position is re-read after every beat, so a step that arrived
+     * mid-beat (a poll, the viewer's own answer) is picked up where it lands.
+     */
+    async runWalk(): Promise<void> {
+      if (this.walking || this.stageEntering || !this.sittingUp) {
         return;
       }
-      this.motionPlan = undefined;
-      const ctx = this.directorContext();
-      if (ctx === undefined) {
-        return;
-      }
-      const beats = this.sittingBeatList;
-      const key = this.sittingKey;
-      // THE REWARD FIRST: a record that arrived with this very response is
-      // owed its wave before any page beat (the surfaces go in turn).
-      if (plan.reward === true || this.rewardPending) {
-        await playSittingStage('reward', beats, ctx, {compact: false});
-        // The reward page has PLAYED for this sitting now: a step transition
-        // that lands on the same page again (the deferred adjourn, a take
-        // arriving with the record, the return from the board) POSES it —
-        // it never replays the readings' reveal over readings already read
-        // (measured: a second 500 ms `parliament-sitting:reward` run right
-        // after the wave, the panel's items cascading in twice).
-        if (!this.playedStages.includes('reward')) {
-          this.playedStages.push('reward');
+      this.walking = true;
+      try {
+        for (let guard = 0; guard < 16; guard++) {
+          const position = this.sitting;
+          if (position === undefined || !this.sittingUp) {
+            break;
+          }
+          const cursor = Math.max(0, Math.min(position.pages.length - 1, parliamentFlow.sittingPage));
+          parliamentFlow.sittingPage = cursor;
+          const stage = position.pages[cursor];
+          const ctx = this.directorContext();
+          if (ctx === undefined) {
+            break;
+          }
+          const key = this.sittingKey;
+          const receipt = stage === 'reward' && parliamentRewardState.receiptShowing;
+          if (!sittingStagePlayed(key, stage) || receipt || (stage === 'reward' && this.rewardPending)) {
+            notePlayedSittingStage(key, stage);
+            await playSittingStage(stage, this.sittingBeatList, ctx, {compact: false});
+            if (receipt) {
+              parliamentRewardState.receiptShowing = false;
+            }
+          }
+          if (!this.sittingUp) {
+            break;
+          }
+          const now = this.sitting;
+          if (now === undefined) {
+            break;
+          }
+          const idx = Math.min(cursor, now.pages.length - 1);
+          if (now.pages[idx] !== stage) {
+            // The step changed under the walk: re-seat on the first unplayed page of the new step.
+            parliamentFlow.sittingPage = sittingStartPage(now, (st) => sittingStagePlayed(key, st));
+            continue;
+          }
+          if (idx < now.pages.length - 1 && sittingPageAuto(stage) && this.mayLeave(stage, now)) {
+            parliamentFlow.sittingPage = idx + 1;
+            continue;
+          }
+          break;
         }
-        notePlayedSittingStage(key, 'reward');
-        this.afterRewardMotion();
-        if (plan.reward === true) {
-          return;
-        }
-        if (!this.sittingUp || this.motionPlan !== undefined) {
-          return;
-        }
+      } finally {
+        this.walking = false;
       }
-      const playedAlready = sittingStagePlayed(key, plan.stage);
-      const needsPark = !playedAlready && (plan.replay.includes('verdict') || plan.stage === 'verdict' || plan.replay.includes('enact') || plan.stage === 'enact');
-      if (needsPark) {
-        await parkSittingCards(ctx);
+      if (this.walkOwed) {
+        this.walkOwed = false;
+        this.queueWalk();
       }
-      for (const passed of plan.replay) {
-        if (!this.sittingUp || this.motionPlan !== undefined) {
-          return;
-        }
-        this.playedStages.push(passed);
-        notePlayedSittingStage(key, passed);
-        await playSittingStage(passed, beats, ctx, {compact: true});
-      }
-      if (!this.sittingUp || this.motionPlan !== undefined) {
-        return;
-      }
-      this.playedStages.push(plan.stage);
-      if (playedAlready && plan.stage !== 'reward' && plan.stage !== 'closing') {
-        // The frame came back to a stage whose objects already moved this
-        // session: the pose stands, nothing re-flies.
-        return;
-      }
-      notePlayedSittingStage(key, plan.stage);
-      await playSittingStage(plan.stage, beats, ctx, {compact: false});
     },
     onStageEnter(el: Element, done: () => void): void {
       this.stageEntering = true;
       playStageUnfold(el as HTMLElement, this.stageFromRect, () => {
         this.stageEntering = false;
         done();
-        this.queueMotion();
+        if (parliamentFlow.stage === 'sitting') {
+          this.queueWalk();
+        }
       });
     },
     onStageLeave(el: Element, done: () => void): void {
@@ -1183,6 +1109,9 @@ export default defineComponent({
         f.stage = f.stageBeforeSubmit === 'seat' ? 'seat' : f.stageBeforeSubmit;
         f.voteSnapshot = undefined;
         this.seatFrom = undefined;
+        if (f.stage !== 'landed' && f.stage !== 'paying') {
+          freezeParliamentFit(false);
+        }
         setWorkspaceFramePhase('parliament',
           f.stage === 'browse' ? 'browse' :
             f.stage === 'sitting' ? sittingWorkspacePhase(this.sittingStage, false) : 'configure');

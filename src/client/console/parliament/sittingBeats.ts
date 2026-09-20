@@ -2,21 +2,24 @@
  * @console-shared LIVE — console native stands on this file.
  *
  * THE SITTING'S BEATS (Turmoil Redux — docs/TURMOIL_REDUX_PARLIAMENT_ASSEMBLY.md
- * §6): the PURE list of what the sitting director plays, derived from the
- * phase's summary and nothing else. The order is the SERVER's order (winner →
- * agenda → support → enact → the viewer's rewards → refresh → lobby →
- * closing); a beat exists only for a fact the summary carries (no agenda move
- * — no agenda beat; nothing gained — no support beat); the viewer's own
- * outcomes are one beat each, a skip with its reason; the FINAL phase has no
- * renewal. No beat is ever keyed on a resolution's name: a beat names an
- * OBJECT and an ADDRESS, the way the reward address table does.
+ * §6; v2 — docs/TURMOIL_REDUX_PARLIAMENT_SITTING_V2.md): the PURE list of what
+ * the sitting director plays, derived from the phase's summary and nothing
+ * else. The order is the SERVER's order (winner → agenda → support → enact →
+ * the viewer's rewards → refresh → lobby → closing); a beat exists only for a
+ * fact the summary carries (no agenda move — no agenda beat; nothing gained —
+ * no support beat); the viewer's own outcomes are one beat each, a skip with
+ * its reason; the FINAL phase has no renewal. No beat is ever keyed on a
+ * resolution's name: a beat names an OBJECT and an ADDRESS, the way the
+ * reward address table does. The stages are the v2 pages: the enactment's
+ * three beats play on ONE page (`enact`), the renewal, the lobby and the
+ * closing card on the RESULTS page.
  *
  * MODES:
  *  · `live`   — the phase in progress: every beat at full length, the dwell
  *               between beats where the storyboard has one;
- *  · `resume` — a reload / a restore INSIDE the phase: the beats of stages
- *               already passed play COMPACT (half length, no dwell), the
- *               current stage's own beat plays in full;
+ *  · `resume` — a restore INSIDE the phase (a collapsed sitting coming back):
+ *               the beats of stages already passed play COMPACT (half length,
+ *               no dwell), the current stage's own beat plays in full;
  *  · `review` — a finished sitting re-read (the protocol, later): every beat
  *               compact, no waits.
  */
@@ -61,7 +64,7 @@ export type SittingBeat = {
 
 export type SittingBeatMode = 'live' | 'resume' | 'review';
 
-/** The stage each beat kind plays on — the storyboard's own mapping. */
+/** The stage each beat kind plays on — the storyboard's own mapping (v2: one enactment page, one results page). */
 export function sittingBeatStage(kind: SittingBeatKind): SittingStage {
   switch (kind) {
   case 'verdict': return 'verdict';
@@ -70,12 +73,12 @@ export function sittingBeatStage(kind: SittingBeatKind): SittingStage {
   case 'enact': return 'enact';
   case 'reward': return 'reward';
   case 'renewal':
-  case 'lobby': return 'renewal';
-  case 'closing': return 'closing';
+  case 'lobby':
+  case 'closing': return 'results';
   }
 }
 
-const STAGE_ORDER: ReadonlyArray<SittingStage> = ['verdict', 'enact', 'reward', 'renewal', 'closing'];
+const STAGE_ORDER: ReadonlyArray<SittingStage> = ['verdict', 'enact', 'reward', 'results'];
 
 /** Is `stage` BEFORE `current` in the sitting's order? */
 export function sittingStageBefore(stage: SittingStage, current: SittingStage): boolean {

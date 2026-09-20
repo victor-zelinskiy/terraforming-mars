@@ -262,8 +262,10 @@
     }
     &__gov-empty-mark { font-size: 1.6rem; line-height: 1; opacity: .5; }
     &__gov-empty-text { font-size: .62rem; letter-spacing: .06em; text-transform: uppercase; opacity: .7; line-height: 1.2; }
-    /* THE RULER — the identity line, the effect LARGE on the plate's axis,
-       one caption; the resolution's own effect as its own row underneath. */
+    /* THE RULER (v2) — the ruling party's OWN TILE lands here (teleported by the parties tier: one DOM instance
+       per party, the same chassis and size as the five opposition tiles), under one kicker; the resolution's
+       own standing effect as its own row underneath. A focus zone of its own (X inspects the party, A is the
+       party action's door — as from the row). */
     &__ruler {
         flex: 1 1 auto;
         min-width: 0;
@@ -272,61 +274,25 @@
         flex-direction: column;
         align-items: stretch;
         gap: .3rem;
-        padding: .4rem .5rem .45rem;
+        padding: .3rem .4rem .35rem;
         border-radius: .55rem;
-        background: rgba(0, 0, 0, 0.34);
-        box-shadow: inset 0 0 0 .05rem fade(@con-parl-gold, 35%);
+        background: rgba(0, 0, 0, 0.24);
+        box-shadow: inset 0 0 0 .05rem fade(@con-parl-gold, 30%);
         overflow: hidden;
+        transition: box-shadow calc(160ms * var(--motion-scale, 1)) @con-ease-standard;
+        &--focus { box-shadow: inset 0 0 0 .12rem @con-cyan, 0 0 1.2rem rgba(63, 214, 241, 0.25); }
     }
-    &__ruler-ident { display: flex; align-items: center; gap: .45rem; min-width: 0; flex-shrink: 0; }
-    &__ruler-emblem { width: 2.4rem; height: 2.4rem; object-fit: contain; flex-shrink: 0; }
-    &__ruler-text { display: flex; flex-direction: column; gap: .06rem; min-width: 0; }
-    &__ruler-kicker { font-size: .56rem; letter-spacing: .12em; text-transform: uppercase; color: @con-parl-gold; }
-    /* The name with its scope chip BESIDE it — whose the effect is, read in the same glance as the party. */
-    &__ruler-title { display: flex; flex-wrap: wrap; align-items: center; gap: .15rem .4rem; min-width: 0; }
-    &__ruler-name { font-size: 1rem; line-height: 1.1; letter-spacing: .04em; text-transform: uppercase; color: #f3f0e8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    &__ruler-scope {
+    &__ruler-kicker { flex-shrink: 0; font-size: .56rem; letter-spacing: .12em; text-transform: uppercase; color: @con-parl-gold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    &__ruler-scope { color: fade(@con-parl-gold, 85%); letter-spacing: .08em; }
+    /* THE SLOT the tile stands in — the row's tile box exactly (height = the tier's, width = the measured column). */
+    &__ruler-slot {
         flex-shrink: 0;
-        display: inline-flex;
-        align-items: center;
-        padding: .08rem .42rem;
-        border-radius: 49.95rem;
-        background: fade(@con-parl-gold, 14%);
-        box-shadow: inset 0 0 0 .05rem fade(@con-parl-gold, 55%);
-        color: @con-parl-gold;
-        font-size: .5rem;
-        letter-spacing: .1em;
-        text-transform: uppercase;
-        white-space: nowrap;
-    }
-    /* THE MECHANIC — its graphic LARGE and, under it, the one short reading:
-       one group centred in the plate's free height. */
-    &__ruler-body {
-        flex: 1 1 auto;
-        min-height: 0;
-        min-width: 0;
         display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        gap: .5rem;
-    }
-    &__ruler-formula {
-        --con-pformula-zoom: var(--con-parl-ruler-formula-zoom);
+        width: var(--con-parl-tile-w, auto);
         max-width: 100%;
-        padding: .2rem .4rem;
-        border-radius: .45rem;
-        background: rgba(0, 0, 0, 0.3);
-        box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.06);
-    }
-    &__ruler-summary {
-        margin: 0;
-        max-width: 100%;
-        font-family: @con-font-read;
-        font-size: .74rem;
-        line-height: 1.3;
-        text-align: center;
-        color: fade(@con-text, 88%);
+        height: var(--con-parl-tile-h);
+        min-height: 0;
+        > .con-parl__party { flex: 1 1 auto; min-width: 0; }
     }
     /* THE RESOLUTION'S OWN standing effect — a second source, under its own mark, apart from the party's. */
     &__ruler-own {
@@ -366,9 +332,11 @@
         flex-shrink: 0;
         &--done { background: rgba(95, 227, 180, 0.07); box-shadow: inset 0 0 0 .05rem rgba(95, 227, 180, 0.35); }
         &--pulse { animation: con-parl-quest-pulse calc(1200ms * var(--motion-scale, 1)) @con-ease-standard both; }
+        /* The OLD quest, CLOSED with its outcome (the sitting's hold before the new one unfolds): the race is over, the plate rests. */
+        &--closed { background: rgba(0, 0, 0, 0.28); box-shadow: inset 0 0 0 .05rem rgba(201, 198, 214, 0.22); }
     }
     &__quest-head { display: flex; align-items: baseline; justify-content: space-between; gap: .5rem; }
-    &__quest-state { font-size: .64rem; letter-spacing: .1em; text-transform: uppercase; color: @con-parl-mint; white-space: nowrap; }
+    &__quest-state { font-size: .64rem; letter-spacing: .1em; text-transform: uppercase; color: @con-parl-mint; white-space: nowrap; &--none { color: fade(@con-text, 55%); } }
     &__quest-cond {
         display: flex;
         align-items: center;
@@ -750,9 +718,18 @@
         transition: opacity calc(200ms * var(--motion-scale, 1)) @con-ease-standard;
         &--parked { opacity: 0; pointer-events: none; }
     }
+    /* THE OPPOSITION ROW (v2): the FIVE parties without power — the ruling party's tile stands in the
+       government (teleported there, one DOM instance per party), on the same chassis at the same size:
+       the row's tile height is the tier's (`--con-parl-tile-h`), its width is measured by the fit engine
+       and published as `--con-parl-tile-w` for the government's ruler slot. */
+    --con-parl-tile-h: var(--con-parl-mid-h);
     &__parties {
         display: grid;
-        grid-template-columns: repeat(6, minmax(0, 1fr));
+        /* Five tiles at the ONE tile width (`--con-parl-tile-w`, measured by the fit engine as the smaller of
+           this row's column and the government's ruler block — the ruler's tile is the same chassis at the
+           same size); the room left over goes into the gaps. `1fr` only before the first measure. */
+        grid-template-columns: repeat(5, minmax(0, var(--con-parl-tile-w, 1fr)));
+        justify-content: space-between;
         gap: .4rem;
         min-height: 0;
     }

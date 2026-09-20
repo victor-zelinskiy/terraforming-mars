@@ -2,41 +2,55 @@
  * @console-shared LIVE — console native stands on this file.
  *
  * THE SITTING DIRECTOR (Turmoil Redux — docs/TURMOIL_REDUX_PARLIAMENT_ASSEMBLY.md
- * §6; docs/TURMOIL_REDUX_PARLIAMENT_SITTING.md § Э4) — the ONE owner of the
- * sitting's timelines. A stage's beats (`sittingBeats.ts`) become one GSAP
- * master timeline under ONE animation hold (`parliament-sitting:<stage>`),
- * every object on it MOVES from a real, measured place to a real, measured
- * place:
+ * §6; docs/TURMOIL_REDUX_PARLIAMENT_SITTING_V2.md) — the ONE owner of the
+ * sitting's timelines. A page's beats (`sittingBeats.ts`) become GSAP master
+ * timelines under NAMED animation holds (`parliament-sitting:<stage>[/<beat>]`),
+ * and every object on them MOVES from a real, measured place to a real,
+ * measured place — from the state the DISPLAY HOLDS still show
+ * (`parliamentDisplayHolds.ts`, seeded with the response) to the state the
+ * model already carries:
  *
- *   ВЕРДИКТ   — light + numbers on the winning card (parked face-up over the
- *               slot it won in); nothing flies.
- *   ПРИНЯТИЕ  — the old law leaves for the deck zone; the winner FLIPs from its
- *               slot into the government (one visible card the whole way — the
- *               government's face waits under `govAwaits`); its delegates go
- *               home by OWNER (a player's to their reserve, neutral to the
- *               supply); popular support seats its cubes on the parties'
- *               places (the tier peeks through the stage for the beat); the
- *               ruling plaque and the quest REVEAL; the Agenda glide runs its
- *               own hold beside it.
- *   ОБНОВЛЕНИЕ — the losers leave for the deck zone; three resolutions are
- *               DEALT from the deck's top card WITH A REAL 3D TURN (the face is
- *               readable only past 90°, the slot's own face shows on the
- *               touchdown, the proxy leaves on the next frame); support votes
- *               seat on the fresh cards; every free delegate returns to the
- *               lobby.
- *   ЗАКРЫТИЕ  — the compact results card REVEALS.
+ *   ВЕРДИКТ   — the winning card lights IN ITS SLOT (the table is exactly as
+ *               voted — nothing is parked, nothing has moved), the delegate
+ *               number pulses, the winner row reveals.
+ *   ПРИНЯТИЕ  — three beats IN TURN, each under its own hold, the next one
+ *               starting only once the previous has landed (≥ 250 ms apart):
+ *               ПОВЕСТКА — the reached segment of the track lights, the
+ *               marker GLIDES from its old step (where the hold keeps it) to
+ *               the new one, the step pulses, the influence ticks, the
+ *               step's TR bonus leaves the step for the rail;
+ *               ПОДДЕРЖКА — party by party in the summary's order, the
+ *               plaque lighting as it accepts, the neutral cubes leaving the
+ *               supply ≥ 90 ms apart, the parties ≥ 180 ms apart, the whole
+ *               opposition tier in view for it (the stage steps out of the
+ *               way — never a peek at 8 %);
+ *               ПРИНЯТИЕ — one phrase: the old law leaves the government for
+ *               the discard, the winner FLIPs out of its slot into the
+ *               government (its slot stays as an empty outline in its own
+ *               place), its delegates go home by owner, the ruling party's
+ *               plaque rises from the opposition row into the government
+ *               while the old ruler's descends (one DOM instance per party —
+ *               a FLIP, the row re-laid out after the landing), and the
+ *               chairman quest RELEASES (closed, with its outcome) → the new
+ *               one REVEALS.
+ *   НАГРАДА   — the wave of what the law paid this seat (`beatReward`), from
+ *               the carrier card's printed graphic to the rail.
+ *   ИТОГИ     — the losers leave their homes for the discard, the fresh
+ *               resolutions are DEALT with a real 3D turn, the support votes
+ *               seat on them, every free delegate returns to the lobby, and
+ *               the results card REVEALS in the same panel.
  *
- * A DURING A BEAT = «дожать»: the master and every flight are driven to their
- * resting pose (`progress(1)`) — never a skipped stage, never a proxy left in
- * the air. Reduced motion = the resting poses at once, the same stages, the
- * same A presses (the holds register and release synchronously). Perf-lite
- * plays the same timelines: transform / opacity only, no `filter`.
+ * A DURING A BEAT = «дожать»: the current run and every flight of the stage
+ * are driven to their resting pose (`progress(1)`), and every beat still to
+ * come plays instantly — never a skipped stage, never a proxy left in the
+ * air. Reduced motion = the resting poses at once, the same stages, the same
+ * A presses. Perf-lite plays the same timelines: transform / opacity only.
  *
  * Every beat is BOUNDED and NAMED: the hold's ceiling calls `expire`, which
- * ends the wedge (kills the flights, clears the display holds, releases the
- * peek) rather than merely masking it; `diagnose` names what was still in the
- * air. Durations go through the motion scale; no wall-clock timer anywhere
- * (`parliamentNoTimers.spec.ts`).
+ * ends the wedge (kills the flights, releases the display holds of THAT
+ * stage, releases the peek) rather than merely masking it; `diagnose` names
+ * what was still in the air. Durations go through the motion scale; no
+ * wall-clock timer anywhere (`parliamentNoTimers.spec.ts`).
  */
 import {gsap} from 'gsap';
 import {nextTick, reactive} from 'vue';
@@ -48,14 +62,14 @@ import {motionMs} from '@/client/components/motion/motionTokens';
 import {resolutionPremiumVmById} from '@/client/components/premiumCard/resolutionPremiumVm';
 import {consoleMotionMs, consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {probeTick} from '@/client/console/probeTick';
-import {descendCascade} from '@/client/console/surfaceMotion/workspaceDescend';
+import {descendCascade, descendFlipFrom} from '@/client/console/surfaceMotion/workspaceDescend';
 import {resolveActionCommitAnchors, resolveGainIconOrigins, runActionCommitMotion} from '@/client/console/consoleActionCommitMotion';
 import {runResourceTransfers} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {ResourceTransferSpec, TransferPoint} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {AgendaMove, ParliamentViewVm} from './consoleParliamentModel';
 import {SittingStage} from './consoleSittingFlow';
 import {enactedCardEl} from './consoleResolutionPayout';
-import {emptyParliamentHolds, parliamentHolds, resetParliamentHolds} from './parliamentDisplayHolds';
+import {parliamentHolds, releaseEnactmentHolds, releaseRenewalHolds} from './parliamentDisplayHolds';
 import {
   flushAgendaBonus, flushParliamentRewards, markAgendaBonusLanded, markRewardLanded, OwedReward, parliamentRewardState, takeAgendaBonus,
   takeOwedRewards,
@@ -64,17 +78,30 @@ import {
   DEAL_FLIGHT_MS, DEAL_STAGGER_MS, dealResolutionCard, dropFlight, ENACT_MOVE_MS, finishParliamentFlights, flightEl, flightRegistered, flyCube,
   killParliamentFlights, nextFlightId, placeCubeRect, pushCardFlight, rectOf, registerFlightHandle,
 } from './parliamentFlights';
+import {scheduleParliamentBeat} from './parliamentBeat';
 import {Rect, runCardDealFlight} from './consoleParliamentVoteMotion';
 import {SittingBeat, returningInstances} from './sittingBeats';
 
-// ── the storyboard's budget (base ms; §6) ───────────────────────────────────
+// ── the storyboard's budget (base ms; §6, v2) ───────────────────────────────
 const VERDICT_LIGHT_MS = 220;
 const VERDICT_PULSE_MS = 180;
 const VERDICT_BADGE_MS = 260;
+/** The pause between the enactment's beats — the next starts only once the previous has LANDED. */
+const BEAT_GAP_MS = 250;
+/** ПОВЕСТКА: the reached segment lights before the marker leaves; the glide's own length is the marker director's. */
+const AGENDA_SEGMENT_MS = 240;
+const AGENDA_GLIDE_BUDGET_MS = 900;
+/** ПОДДЕРЖКА: cube by cube, party by party. */
+const SUPPORT_CUBE_STAGGER_MS = 90;
+const SUPPORT_PARTY_GAP_MS = 180;
+const SUPPORT_TIER_IN_MS = 140;
+/** ПРИНЯТИЕ. */
 const DISCARD_MS = 320;
 const RETURN_STAGGER_MS = 70;
-const SUPPORT_STAGGER_MS = 70;
-const REVEAL_MS = 220;
+const PLAQUE_FLIP_MS = 420;
+const QUEST_RELEASE_MS = 180;
+const QUEST_REVEAL_MS = 260;
+/** ИТОГИ. */
 const LOSER_STAGGER_MS = 90;
 const SEAT_STAGGER_MS = 80;
 const LOBBY_STAGGER_MS = 90;
@@ -90,15 +117,25 @@ const REACTION_GAP_MS = 120;
 const RECEIPT_DWELL_MS = 1500;
 /** A compact beat (resume / review) runs at half length, no dwell. */
 const COMPACT = 0.5;
-/** The hold's ceiling — above the longest stage (the renewal ≈ 2.4 s) by a wide margin. */
+/** A beat's hold ceiling — above the longest beat (the renewal ≈ 2.4 s, the enactment's phrase ≈ 2.4 s) by a wide margin. */
 const STAGE_HOLD_CEILING_MS = 12_000;
 
-/** What the director is doing — read by the section (peek) and the specs. */
+/** What the director is doing — read by the tiers (the poses) and the specs. */
 export const sittingMotion = reactive({
   /** The stage whose beats are playing ('' at rest). */
   stage: '' as SittingStage | '',
-  /** The parties tier PEEKS through the stage (the support beat lands on its places). */
+  /** The beat of the stage that is playing ('' at rest / a one-beat stage). */
+  beat: '' as '' | 'agenda' | 'support' | 'enact',
+  /** The stage steps out of the way: the opposition tier is in full view (the support beat lands on its places). */
   peek: false,
+  /** The winning card's slot, lit for the verdict (its instance; '' = none). */
+  litSlot: '' as string,
+  /** The party whose plaque is ACCEPTING support right now ('' = none). */
+  supportParty: '' as ReduxParty | '',
+  /** The Agenda segment the marker is crossing (its steps light). */
+  agendaSegment: undefined as AgendaMove | undefined,
+  /** The results card has been REVEALED (the renewal's beats are over) — hidden until then while the stage plays. */
+  resultsRevealed: false,
 });
 
 export type SittingDirectorContext = {
@@ -116,107 +153,34 @@ type StageRun = {
   stage: SittingStage;
   master: gsap.core.Timeline;
   hold: AnimationHold;
-  /** Flights launched by this stage (their ids) — «дожать» drives them to rest. */
+  /** Flights launched by this run (their ids) — «дожать» drives them to rest. */
   flights: Set<string>;
-  /** Reward WAVES in the air (the resource-transfer runs the stage launched) — the stage rests once they have touched down. */
+  /** Waves / glides in the air the run launched — the run rests once they have touched down. */
   pending: number;
-  /** What an abort must tear down beside the flights (the carrier card's commit impulse). */
+  /** What an abort must tear down beside the flights (the carrier card's commit impulse, a plaque FLIP). */
   kills: Array<() => void>;
-  /** The Agenda CARD bonus taken by this stage's glide — its parked reveal is released when the stage is at rest. */
+  /** The Agenda CARD bonus taken by this run's glide — its parked reveal is released when the run is at rest. */
   releaseAgendaCard?: boolean;
   finished: boolean;
 };
 
 let run: StageRun | undefined;
-/** The parked proxies of the sitting's opening (the winner over its former slot, the old law over the government). */
-const parked = {winner: undefined as string | undefined, old: undefined as string | undefined};
+/** The STAGE whose beats are playing (a multi-beat stage spans several runs) and whether A asked to hurry it. */
+let stagePlaying: SittingStage | '' = '';
+let hurry = false;
 
 const s = (baseMs: number): number => motionMs(baseMs) / 1000;
 
 export function sittingMotionActive(): boolean {
-  return run !== undefined && !run.finished;
+  return stagePlaying !== '' || (run !== undefined && !run.finished);
 }
 
 /** The label the hold carries — the e2e reads the registry by it. */
-export function sittingHoldLabel(stage: SittingStage): string {
-  return `parliament-sitting:${stage}`;
+export function sittingHoldLabel(stage: SittingStage, beat = ''): string {
+  return beat === '' ? `parliament-sitting:${stage}` : `parliament-sitting:${stage}/${beat}`;
 }
 
-// ── the display holds, per stage ───────────────────────────────────────────
-
-/**
- * WHAT THE ENACTMENT STILL HAS TO MOVE, seeded before the sitting's first
- * frame: the returned delegates stay off their reserves, the gained support
- * stays off the parties' places, the government's face waits for the card.
- */
-export function seedEnactHolds(summary: ParliamentPhaseSummaryModel, view: ParliamentViewVm): void {
-  const pending = emptyParliamentHolds();
-  for (const entry of summary.returned ?? []) {
-    pending.returns.set(entry.owner, entry.count);
-  }
-  for (const entry of summary.support) {
-    if (entry.gained > 0) {
-      pending.support.set(entry.party, entry.gained);
-    }
-  }
-  if (view.enacted !== undefined && view.enacted.instance === summary.enacted.instance) {
-    pending.govAwaits = summary.enacted.instance;
-  }
-  Object.assign(parliamentHolds, pending);
-}
-
-/**
- * WHAT THE RENEWAL STILL HAS TO MOVE: the fresh cards are still on the deck
- * (their faces hidden, the pile one card thicker each), their neutral votes
- * have not arrived, the parties' consumed support still shows on the
- * plaques, the free delegates are still in the reserves.
- */
-export function seedRenewalHolds(summary: ParliamentPhaseSummaryModel, view: ParliamentViewVm): void {
-  // MERGED into whatever the enactment still holds (a resume seeds both sets
-  // before its first frame), never a fresh record over it.
-  const pending = parliamentHolds;
-  // A card dealt straight back from the reshuffled discard is not a fresh face (`returningInstances`).
-  const returning = returningInstances(summary);
-  for (const fresh of summary.refreshed) {
-    if (!returning.has(fresh.instance)) {
-      pending.freshFaces.add(fresh.instance);
-    }
-    if (fresh.neutralVotes <= 0) {
-      continue;
-    }
-    const slot = view.slots.find((sl) => sl.instance === fresh.instance);
-    if (slot === undefined) {
-      continue;
-    }
-    const seqs = slot.votes.filter((v) => v.owner === 'neutral').map((v) => v.seq).sort((a, b) => a - b).slice(0, fresh.neutralVotes);
-    // IDEMPOTENT: a step that arrives under a HELD reward pose seeds these
-    // before its render and again at its entry — a cube already hidden adds
-    // no second support hold (a doubled hold left cubes on the plaques).
-    let added = 0;
-    for (const seq of seqs) {
-      const key = `${slot.instance}#${seq}`;
-      if (!pending.hiddenCubes.has(key)) {
-        pending.hiddenCubes.add(key);
-        added++;
-      }
-    }
-    if (added > 0) {
-      pending.support.set(fresh.party, (pending.support.get(fresh.party) ?? 0) + added);
-    }
-  }
-  pending.deckPending = summary.refreshed.filter((f) => !returning.has(f.instance)).length;
-  for (const color of summary.lobbyRefilled) {
-    pending.lobby.add(color);
-  }
-}
-
-// ── the parked cards of the opening ────────────────────────────────────────
-
-/** The winner's former slot: the first EMPTY home's card outline (the refresh has not happened), else the slots' plate. */
-function formerSlotRect(root: HTMLElement): Rect | undefined {
-  return rectOf(root.querySelector('[data-parl-slot-empty] [data-parl-slot-empty-card]')) ??
-    rectOf(root.querySelector('[data-parl-voting] .con-parl__slots'));
-}
+// ── measured places ────────────────────────────────────────────────────────
 
 function governmentCardRect(root: HTMLElement): Rect | undefined {
   return rectOf(root.querySelector('[data-parl-gov] .con-parl__gov-card .pcard') ?? root.querySelector('[data-parl-gov] .con-parl__gov-card'));
@@ -226,7 +190,16 @@ function deckRect(root: HTMLElement): Rect | undefined {
   return rectOf(root.querySelector('[data-parl-deck-top]')) ?? rectOf(root.querySelector('[data-parl-deck]'));
 }
 
-/** A face-up proxy standing still over `at` (the parked pose). Returns its id, or undefined when nothing is measurable. */
+function slotFaceRect(root: HTMLElement, instance: string): Rect | undefined {
+  return rectOf(root.querySelector(`.con-parl__slot[data-instance="${instance}"] .con-parl__card .pcard`) ??
+    root.querySelector(`.con-parl__slot[data-instance="${instance}"] .con-parl__card`));
+}
+
+function itemsOf(root: HTMLElement, selector: string): Array<HTMLElement> {
+  return Array.from(root.querySelectorAll<HTMLElement>(selector));
+}
+
+/** A face-up proxy standing still over `at`. Returns its id, or undefined when nothing is measurable. */
 async function parkFace(resolutionId: string, at: Rect | undefined): Promise<string | undefined> {
   const face = resolutionPremiumVmById(resolutionId);
   if (at === undefined || face === undefined || at.width < 4) {
@@ -242,70 +215,6 @@ async function parkFace(resolutionId: string, at: Rect | undefined): Promise<str
   }
   gsap.set(proxy, {x: at.left, y: at.top, scale: 1, transformOrigin: '50% 50%', autoAlpha: 1});
   return id;
-}
-
-/**
- * THE OPENING'S PARKED CARDS: the winner stands face-up where it won (the
- * government's face waits hidden), the old law stands over the government
- * until the enactment moves both. Under reduced motion nothing is parked —
- * the poses are final.
- */
-export async function parkSittingCards(ctx: SittingDirectorContext): Promise<void> {
-  unparkSittingCards();
-  if (consoleReducedMotionActive() || parliamentHolds.govAwaits === undefined) {
-    parliamentHolds.govAwaits = undefined;
-    return;
-  }
-  const gov = governmentCardRect(ctx.root);
-  parked.winner = await parkFace(ctx.summary.winner.resolution, formerSlotRect(ctx.root));
-  if (parked.winner === undefined) {
-    parliamentHolds.govAwaits = undefined;
-    return;
-  }
-  parliamentHolds.parked = parked.winner;
-  if (ctx.summary.discardedEnacted !== undefined) {
-    parked.old = await parkFace(ctx.summary.discardedEnacted.resolution, gov);
-  }
-}
-
-export function unparkSittingCards(): void {
-  for (const key of ['winner', 'old'] as const) {
-    const id = parked[key];
-    if (id !== undefined) {
-      dropFlight(id);
-      parked[key] = undefined;
-    }
-  }
-  parliamentHolds.parked = undefined;
-}
-
-// ── the beats ──────────────────────────────────────────────────────────────
-
-function itemsOf(root: HTMLElement, selector: string): Array<HTMLElement> {
-  return Array.from(root.querySelectorAll<HTMLElement>(selector));
-}
-
-/** ВЕРДИКТ: the winning card lights, the delegate number pulses, the winner row reveals; a tie's phrase last. */
-function beatVerdict(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: number): number {
-  const root = ctx.root;
-  const winnerProxy = parked.winner === undefined ? undefined : flightEl(parked.winner);
-  const lit = winnerProxy ?? root.querySelector<HTMLElement>('[data-parl-gov] .con-parl__gov-card');
-  let at = 0;
-  if (lit !== null && lit !== undefined) {
-    tl.call(() => lit.classList.add('con-parl__flight--lit', 'con-parl__gov-card--lit'), undefined, at);
-  }
-  at += s(VERDICT_LIGHT_MS) * k;
-  const number = root.querySelector<HTMLElement>('.con-sit__panel--on [data-sit-row="delegates"] b');
-  if (number !== null) {
-    tl.fromTo(number, {scale: 1}, {scale: 1.22, duration: s(VERDICT_PULSE_MS) * k * 0.5, ease: 'power2.out', transformOrigin: '50% 50%'}, at);
-    tl.to(number, {scale: 1, duration: s(VERDICT_PULSE_MS) * k * 0.5, ease: 'power2.in'}, at + s(VERDICT_PULSE_MS) * k * 0.5);
-  }
-  at += s(VERDICT_PULSE_MS) * k;
-  const rows = itemsOf(root, '.con-sit__panel--on [data-sit-row="winner"], .con-sit__panel--on [data-sit-row="tie"]');
-  if (rows.length > 0) {
-    descendCascade(tl, rows, s(VERDICT_BADGE_MS) * k, s(120) * k, at);
-  }
-  return at + s(VERDICT_BADGE_MS) * k + (rows.length > 1 ? s(120) * k : 0);
 }
 
 /** A parked proxy flies to the deck zone and dissolves (the old law, a loser). */
@@ -333,65 +242,270 @@ function flyToDeck(runState: StageRun, ctx: SittingDirectorContext, id: string, 
   runState.flights.add(id);
 }
 
-/** ПРИНЯТИЕ: the old law leaves, the winner moves into the government, the delegates go home, support seats, the plaque reveals. */
-function beatEnact(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: number, runState: StageRun, agenda: AgendaMove | undefined): number {
+// ── ВЕРДИКТ ────────────────────────────────────────────────────────────────
+
+/** The winning card lights IN ITS SLOT, the delegate number pulses, the winner row reveals; a tie's phrase last. */
+function beatVerdict(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: number): number {
+  const root = ctx.root;
+  let at = 0;
+  tl.call(() => {
+    sittingMotion.litSlot = ctx.summary.winner.instance;
+  }, undefined, at);
+  at += s(VERDICT_LIGHT_MS) * k;
+  const number = root.querySelector<HTMLElement>('.con-sit__panel--on [data-sit-row="delegates"] b');
+  if (number !== null) {
+    tl.fromTo(number, {scale: 1}, {scale: 1.22, duration: s(VERDICT_PULSE_MS) * k * 0.5, ease: 'power2.out', transformOrigin: '50% 50%'}, at);
+    tl.to(number, {scale: 1, duration: s(VERDICT_PULSE_MS) * k * 0.5, ease: 'power2.in', clearProps: 'transform,transformOrigin'}, at + s(VERDICT_PULSE_MS) * k * 0.5);
+  }
+  at += s(VERDICT_PULSE_MS) * k;
+  const rows = itemsOf(root, '.con-sit__panel--on [data-sit-row="winner"], .con-sit__panel--on [data-sit-row="tie"]');
+  if (rows.length > 0) {
+    descendCascade(tl, rows, s(VERDICT_BADGE_MS) * k, s(120) * k, at);
+  }
+  return at + s(VERDICT_BADGE_MS) * k + (rows.length > 1 ? s(120) * k : 0);
+}
+
+// ── ПРИНЯТИЕ · ПОВЕСТКА ────────────────────────────────────────────────────
+
+/**
+ * THE AGENDA STEP'S TR BONUS — the marker has settled on its step: the +1 TR
+ * the server paid leaves that very step (its printed rating glyph) for the
+ * rail's score cell, which has held the old rating until this touchdown.
+ * Nothing owed → nothing flies; an unmeasurable step releases the hold at
+ * once (honestly late, never lost).
+ */
+function launchAgendaBonus(runState: StageRun, ctx: SittingDirectorContext): void {
+  const bonus = takeAgendaBonus(ctx.summary.generation);
+  if (bonus === undefined) {
+    return;
+  }
+  const spec = bonus.spec;
+  if (bonus.kind === 'card' || spec === undefined) {
+    // A CARD step: the reward is the reveal batch PARKED since the response arrived — released once this
+    // run is at REST (the marker settled), which lets the card-bonus scene lift the cover off this very step.
+    if (runState.finished) {
+      markAgendaBonusLanded();
+    } else {
+      runState.releaseAgendaCard = true;
+    }
+    return;
+  }
+  const step = ctx.root.querySelector<HTMLElement>(`.con-parl__step[data-step="${bonus.step}"]`);
+  const node = step?.querySelector<HTMLElement>('.con-parl__step-res') ?? step?.querySelector<HTMLElement>('.con-parl__step-node') ?? step;
+  const r = node?.getBoundingClientRect();
+  if (node === null || node === undefined || r === undefined || r.width < 2) {
+    flushAgendaBonus('unmeasurable-step');
+    return;
+  }
+  if (runState.finished) {
+    flushAgendaBonus('stage-finished');
+    return;
+  }
+  trackWave(runState, runResourceTransfers({
+    specs: [spec],
+    source: {point: {x: r.left + r.width / 2, y: r.top + r.height / 2}},
+    arrival: 'auto',
+    onArrive: () => markAgendaBonusLanded(),
+  }));
+}
+
+/** ПОВЕСТКА: the reached segment lights, the marker glides from its old step to the new one, the step's bonus follows the arrival. */
+function beatAgenda(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: number, runState: StageRun): number {
+  const agenda = ctx.summary.agenda;
+  const move: AgendaMove | undefined = parliamentHolds.agendaAwaits ??
+    (agenda !== undefined && agenda.to !== agenda.from ? {player: agenda.player, from: agenda.from, to: agenda.to} : undefined);
+  if (move === undefined || ctx.playAgendaGlide === undefined) {
+    tl.call(() => {
+      parliamentHolds.agendaAwaits = undefined;
+      flushAgendaBonus('no-glide');
+    }, undefined, 0.01);
+    return 0;
+  }
+  const glide = ctx.playAgendaGlide;
+  let at = 0;
+  tl.call(() => {
+    sittingMotion.agendaSegment = move;
+  }, undefined, at);
+  at += s(AGENDA_SEGMENT_MS) * k;
+  // The glide is the beat's OWN work: the master's arithmetic ends before the marker settles, so the run counts
+  // the glide as airborne until its landing — the bonus then leaves the reached step.
+  runState.pending++;
+  tl.call(() => glide(move, () => {
+    sittingMotion.agendaSegment = undefined;
+    parliamentHolds.agendaAwaits = undefined;
+    launchAgendaBonus(runState, ctx);
+    runState.pending = Math.max(0, runState.pending - 1);
+  }), undefined, at);
+  at += s(AGENDA_GLIDE_BUDGET_MS) * k;
+  return at;
+}
+
+// ── ПРИНЯТИЕ · ПОДДЕРЖКА ───────────────────────────────────────────────────
+
+/** The support cubes of ONE party leave the neutral supply for the party's next free places, cube by cube. */
+function launchSupportFor(runState: StageRun, ctx: SittingDirectorContext, party: ReduxParty, count: number, k: number): void {
   const root = ctx.root;
   const holds = parliamentHolds;
-  let at = 0;
-  // The Agenda glide runs beside the enactment on its own hold; the step's TR
-  // BONUS (held on the rail since the phase began) leaves the reached step
-  // once the marker has settled on it — the reward follows the arrival.
-  if (agenda !== undefined && ctx.playAgendaGlide !== undefined) {
-    const glide = ctx.playAgendaGlide;
-    // The glide is the STAGE'S OWN WORK: the master's arithmetic ends before
-    // the marker settles, so the stage counts the glide as airborne until its
-    // landing — else the stage rested first, and the bonus launched into a
-    // finished run was marked landed without ever leaving the step.
-    runState.pending++;
-    tl.call(() => glide(agenda, () => {
-      launchAgendaBonus(runState, ctx);
-      runState.pending = Math.max(0, runState.pending - 1);
-    }), undefined, 0.01);
-  } else {
-    // No glide to follow (a summary without a move): nothing is owed on the track.
-    tl.call(() => flushAgendaBonus('no-glide'), undefined, 0.01);
+  const supply = placeCubeRect(root, '[data-parl-neutral-cube]');
+  const places = itemsOf(root, `.con-parl__party[data-party="${party}"] .con-pseal__support-place`);
+  const total = ctx.view.parties.find((p) => p.party === party)?.support ?? 0;
+  // The places this party's cubes take: the ones after those already lit (the plaque shows live − incoming).
+  const base = Math.max(0, Math.min(places.length, total) - count);
+  let launched = 0;
+  for (let n = 0; n < count; n++) {
+    const to = rectOf(places[Math.min(places.length - 1, base + n)]);
+    const id = flyCube('neutral', supply, to, n * SUPPORT_CUBE_STAGGER_MS * k, () => {
+      const left = (holds.supportIncoming.get(party) ?? 0) - 1;
+      if (left <= 0) {
+        holds.supportIncoming.delete(party);
+      } else {
+        holds.supportIncoming.set(party, left);
+      }
+    });
+    if (id !== undefined) {
+      runState.flights.add(id);
+      launched++;
+    }
   }
-  // (1) The old law leaves for the deck zone.
-  if (parked.old !== undefined) {
-    const old = parked.old;
+  if (launched === 0) {
+    holds.supportIncoming.delete(party);
+  }
+}
+
+/** ПОДДЕРЖКА: party by party in the summary's order — the opposition tier in full view, each plaque lighting as it accepts. */
+function beatSupport(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: number, runState: StageRun): number {
+  const holds = parliamentHolds;
+  const parties = ctx.summary.support.filter((entry) => entry.gained > 0 && (holds.supportIncoming.get(entry.party) ?? 0) > 0);
+  if (parties.length === 0) {
+    tl.call(() => holds.supportIncoming.clear(), undefined, 0.01);
+    return 0;
+  }
+  let at = 0;
+  tl.call(() => {
+    sittingMotion.peek = true;
+  }, undefined, at);
+  at += s(SUPPORT_TIER_IN_MS) * k;
+  for (const entry of parties) {
+    const count = holds.supportIncoming.get(entry.party) ?? entry.gained;
     tl.call(() => {
-      parked.old = undefined;
-      flyToDeck(runState, ctx, old, 0);
+      sittingMotion.supportParty = entry.party;
+      launchSupportFor(runState, ctx, entry.party, count, k);
+    }, undefined, at);
+    at += s((count - 1) * SUPPORT_CUBE_STAGGER_MS + SUPPORT_PARTY_GAP_MS) * k;
+  }
+  at += s(480) * k;
+  return at;
+}
+
+// ── ПРИНЯТИЕ · ПРИНЯТИЕ ────────────────────────────────────────────────────
+
+/** Every party tile's rect right now, by party (the plaques' FLIP measures them before the government changes). */
+function partyRects(root: HTMLElement): Map<string, Rect> {
+  const out = new Map<string, Rect>();
+  for (const el of itemsOf(root, '.con-parl__party[data-party]')) {
+    const r = rectOf(el);
+    if (r !== undefined) {
+      out.set(el.getAttribute('data-party') ?? '', r);
+    }
+  }
+  return out;
+}
+
+/** The government CHANGES: the new ruler's tile rises into the government, the old one descends into the row, the row re-lays out — one FLIP each. */
+function flipPlaques(runState: StageRun, root: HTMLElement, before: Map<string, Rect>, k: number): void {
+  const tl = gsap.timeline();
+  for (const el of itemsOf(root, '.con-parl__party[data-party]')) {
+    const from = before.get(el.getAttribute('data-party') ?? '');
+    if (from === undefined) {
+      continue;
+    }
+    const delta = descendFlipFrom(el, from);
+    if (delta === undefined || (Math.abs(delta.x) < 0.5 && Math.abs(delta.y) < 0.5 && Math.abs(delta.scale - 1) < 0.002)) {
+      continue;
+    }
+    gsap.set(el, {x: delta.x, y: delta.y, scale: delta.scale, transformOrigin: 'top left'});
+    tl.to(el, {x: 0, y: 0, scale: 1, duration: s(PLAQUE_FLIP_MS) * k, ease: 'power3.inOut', clearProps: 'transform,transformOrigin', overwrite: 'auto'}, 0);
+  }
+  runState.kills.push(() => {
+    tl.kill();
+    gsap.set(itemsOf(root, '.con-parl__party[data-party]'), {clearProps: 'transform,transformOrigin'});
+  });
+  runState.pending++;
+  tl.eventCallback('onComplete', () => {
+    runState.pending = Math.max(0, runState.pending - 1);
+  });
+}
+
+/** ПРИНЯТИЕ: the old law leaves, the winner FLIPs into the government, the delegates go home, the plaques change places, the quest turns over. */
+function beatEnactMove(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: number, runState: StageRun): number {
+  const root = ctx.root;
+  const holds = parliamentHolds;
+  const summary = ctx.summary;
+  let at = 0;
+  // (1) The old law leaves the government for the deck zone — the government then shows the NEW card, its face waiting.
+  const old = holds.govBefore?.enacted;
+  if (old !== undefined) {
+    tl.call(() => {
+      const rect = governmentCardRect(root);
+      void parkFace(old.resolutionId, rect).then((id) => {
+        holds.govBefore = undefined;
+        if (id === undefined || runState.finished) {
+          if (id !== undefined) {
+            dropFlight(id);
+          }
+          return;
+        }
+        flyToDeck(runState, ctx, id, 0);
+      });
+    }, undefined, at);
+    at += s(DISCARD_MS * 0.55) * k;
+  } else {
+    tl.call(() => {
+      holds.govBefore = undefined;
     }, undefined, at);
   }
-  // (2) The winner moves from its slot into the government — one visible card.
+  // (2) The winner moves from its slot into the government — one visible card (the slot's face waits under the proxy).
+  const winner = summary.winner.instance;
   const moveMs = ENACT_MOVE_MS * k;
   tl.call(() => {
-    const id = parked.winner;
-    const proxy = id === undefined ? undefined : flightEl(id);
-    const to = governmentCardRect(root);
-    const from = id === undefined || proxy === null || proxy === undefined ? undefined :
-      ((r) => ({left: r.left, top: r.top, width: r.width, height: r.height}))(proxy.getBoundingClientRect());
+    const from = slotFaceRect(root, winner);
     const settle = () => {
       holds.govAwaits = undefined;
-      holds.parked = undefined;
-      if (id !== undefined) {
+      holds.liftedFaces.delete(winner);
+      if (holds.heldSlots !== undefined && holds.heldSlots.some((slot) => slot.instance === winner)) {
+        holds.vacated.add(winner);
+      }
+      sittingMotion.litSlot = '';
+    };
+    void nextTick().then(async () => {
+      const to = governmentCardRect(root);
+      if (from === undefined || to === undefined || runState.finished) {
+        settle();
+        return;
+      }
+      const id = await parkFace(summary.winner.resolution, from);
+      const proxy = id === undefined ? undefined : flightEl(id);
+      if (id === undefined || proxy === null || proxy === undefined || runState.finished) {
+        if (id !== undefined) {
+          dropFlight(id);
+        }
+        settle();
+        return;
+      }
+      holds.liftedFaces.add(winner);
+      sittingMotion.litSlot = '';
+      proxy.classList.add('con-parl__flight--lit');
+      const handle = runCardDealFlight({proxy, from, to, durationMs: moveMs, onLanded: () => {
+        settle();
         runState.flights.delete(id);
         probeTick(() => dropFlight(id));
-      }
-      parked.winner = undefined;
-    };
-    if (id === undefined || proxy === null || proxy === undefined || to === undefined || from === undefined) {
-      settle();
-      return;
-    }
-    proxy.classList.remove('con-parl__flight--lit');
-    const handle = runCardDealFlight({proxy, from, to, durationMs: moveMs, onLanded: settle});
-    registerFlightHandle(id, handle);
-    runState.flights.add(id);
-  }, undefined, at + 0.02);
-  at += s(moveMs);
-  // (3) The delegates go home by OWNER — from the card's centre, each at its reserve's own size.
+      }});
+      registerFlightHandle(id, handle);
+      runState.flights.add(id);
+    });
+  }, undefined, at);
+  at += s(moveMs + 40) * k;
+  // (3) The delegates go home by OWNER — from the card's centre in the government, each at its reserve's own size.
   tl.call(() => {
     const card = governmentCardRect(root);
     let i = 0;
@@ -421,81 +535,226 @@ function beatEnact(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: numbe
   }, undefined, at);
   const returnCount = Array.from(holds.returns.values()).reduce((a, b) => a + b, 0);
   at += returnCount > 0 ? s(480 + (returnCount - 1) * RETURN_STAGGER_MS) * k : 0;
-  // (4) Popular support: the tier peeks through the stage, the neutral cubes seat on the parties' places.
-  const supportTotal = Array.from(holds.support.values()).reduce((a, b) => a + b, 0);
-  if (supportTotal > 0) {
-    tl.call(() => {
-      sittingMotion.peek = true;
-      void nextTick(() => probeTick(() => launchSupport(runState, ctx, k)));
-    }, undefined, at);
-    at += s(SUPPORT_STAGGER_MS * (supportTotal - 1) + 480 + 80) * k;
+  // (4) The government CHANGES: the plaques change places (one DOM instance per party, a FLIP each).
+  const rulerChanges = holds.rulerBefore !== undefined && holds.rulerBefore !== ctx.view.rulingParty;
+  tl.call(() => {
+    if (!rulerChanges || runState.finished) {
+      holds.rulerBefore = undefined;
+      return;
+    }
+    const before = partyRects(root);
+    holds.rulerBefore = undefined;
+    void nextTick().then(() => {
+      if (runState.finished) {
+        return;
+      }
+      flipPlaques(runState, root, before, k);
+    });
+  }, undefined, at);
+  if (rulerChanges) {
+    at += s(PLAQUE_FLIP_MS + 60) * k;
   }
-  // (5) The ruling plaque and the quest REVEAL.
-  const reveals = itemsOf(root, '[data-parl-ruler], [data-parl-quest]');
-  if (reveals.length > 0) {
-    descendCascade(tl, reveals, s(REVEAL_MS) * k, s(100) * k, at);
-    at += s(REVEAL_MS + 100) * k;
+  // (5) The chairman quest: the old block RELEASES (closed, with its outcome) → the new one UNFOLDS and REVEALS.
+  tl.call(() => {
+    const quest = root.querySelector<HTMLElement>('[data-parl-quest]');
+    const swap = () => {
+      holds.questBefore = undefined;
+      void nextTick().then(() => {
+        const fresh = root.querySelector<HTMLElement>('[data-parl-quest]');
+        if (fresh === null || runState.finished) {
+          if (fresh !== null) {
+            gsap.set(fresh, {clearProps: 'transform,opacity,visibility'});
+          }
+          return;
+        }
+        const tw = gsap.fromTo(fresh, {autoAlpha: 0, y: -6}, {autoAlpha: 1, y: 0, duration: s(QUEST_REVEAL_MS) * k, ease: 'expo.out', clearProps: 'transform,opacity,visibility'});
+        runState.kills.push(() => {
+          tw.kill();
+          gsap.set(fresh, {clearProps: 'transform,opacity,visibility'});
+        });
+      });
+    };
+    if (quest === null || runState.finished) {
+      swap();
+      return;
+    }
+    const out = gsap.to(quest, {autoAlpha: 0, y: 6, duration: s(QUEST_RELEASE_MS) * k, ease: 'power2.in', onComplete: swap});
+    runState.kills.push(() => {
+      out.kill();
+      gsap.set(quest, {clearProps: 'transform,opacity,visibility'});
+    });
+  }, undefined, at);
+  at += s(QUEST_RELEASE_MS + QUEST_REVEAL_MS) * k;
+  return at;
+}
+
+// ── НАГРАДА ────────────────────────────────────────────────────────────────
+
+/** A wave the run launched — the run rests only once it has touched down. */
+function trackWave(runState: StageRun, wave: Promise<void>): void {
+  runState.pending++;
+  void wave.finally(() => {
+    runState.pending = Math.max(0, runState.pending - 1);
+  });
+}
+
+/** The ruling party's plaque in the government — the source of the party's ANSWER (the law is the party's, never the resolution's). */
+function rulerPlaqueEl(root: HTMLElement): HTMLElement | undefined {
+  return root.querySelector<HTMLElement>('[data-parl-ruler] .con-pseal') ?? root.querySelector<HTMLElement>('[data-parl-ruler]') ?? undefined;
+}
+
+/** The birth points of `specs` on `el`'s printed graphic (the carrier card, the ruler's formula) — the address's own icons. */
+function iconOriginsOn(el: HTMLElement, specs: ReadonlyArray<ResourceTransferSpec>): Array<TransferPoint | undefined> {
+  return resolveGainIconOrigins(resolveActionCommitAnchors(el, undefined), specs);
+}
+
+/** One wave: `rewards`' chips from their origins on `sourceEl` to their rail rows; each touchdown releases its own hold. */
+function launchWave(runState: StageRun, rewards: ReadonlyArray<OwedReward>, sourceEl: HTMLElement, sourceSelector: string): Promise<void> {
+  const specs = rewards.map((r) => r.spec);
+  const bySpec = new Map<ResourceTransferSpec, OwedReward>(rewards.map((r) => [r.spec, r]));
+  const wave = runResourceTransfers({
+    specs,
+    origins: iconOriginsOn(sourceEl, specs),
+    source: {selectors: [sourceSelector]},
+    arrival: 'auto',
+    onArrive: (spec) => {
+      const reward = bySpec.get(spec);
+      if (reward !== undefined) {
+        markRewardLanded(reward);
+      }
+    },
+  });
+  trackWave(runState, wave);
+  return wave;
+}
+
+/**
+ * НАГРАДА: what the law just paid THIS seat arrives by its ADDRESS
+ * (`rewardAddress.ts`). With records OWED: the carrier card's ACTION COMMIT
+ * impulse — the mechanical fix, the light band over its printed effect, the
+ * ring on the result icon — hands off to the WAVE: each chip is born on the
+ * card's own icon of its unit, flies to its rail row and ticks the counter on
+ * contact (the panel hold seeded with the record releases per touchdown, the
+ * delta chip rides that transition). The ruling party's ANSWER (a `reaction`
+ * record) leaves the party's plaque in the government AFTER the resolution's
+ * own chips have landed — surfaces in turn. With nothing owed: the page's own
+ * reveal (the reading rows cascade). A carrier that is not on screen releases
+ * every hold at once — the counters tick, honestly late, never lost.
+ */
+function beatReward(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: number, runState: StageRun): number {
+  const root = ctx.root;
+  const owed = takeOwedRewards();
+  if (owed.length === 0) {
+    const rows = itemsOf(root, '.con-sit__panel--on .con-sit__hero > [data-parl-sit-item]');
+    let at = 0;
+    if (rows.length > 0) {
+      descendCascade(tl, rows, s(REWARD_REVEAL_MS) * k, s(70) * k, 0);
+      at = s(REWARD_REVEAL_MS) * k + s(70) * k * (rows.length - 1);
+    }
+    // THE TILE'S RECEIPT: the frame is back from the board and the pose says what the winner's tile did — it is
+    // READ for a beat before the walk goes on.
+    if (parliamentRewardState.receiptShowing) {
+      at += s(RECEIPT_DWELL_MS) * k;
+    }
+    return at;
+  }
+  const card = enactedCardEl();
+  const own = owed.filter((r) => r.delivery.address.source === 'card-icon');
+  const reactions = owed.filter((r) => r.delivery.address.source === 'party-plaque');
+  const release = (list: ReadonlyArray<OwedReward>) => list.forEach((r) => markRewardLanded(r));
+  if (card === undefined) {
+    release(owed);
+    return 0;
+  }
+  const cardSelector = '[data-parl-sit-hero] .con-parl__gov-card .pcard, .con-parl [data-parl-gov-carry] .con-parl__gov-card .pcard';
+  const flyReactions = () => {
+    if (reactions.length === 0) {
+      return;
+    }
+    const plaque = rulerPlaqueEl(root);
+    if (plaque === undefined || runState.finished) {
+      release(reactions);
+      return;
+    }
+    const emblem = plaque.querySelector<HTMLElement>('.con-pseal__emblem');
+    if (emblem !== null) {
+      gsap.fromTo(emblem, {scale: 1}, {
+        scale: 1.14, duration: s(160), ease: 'sine.out', yoyo: true, repeat: 1, transformOrigin: '50% 50%', clearProps: 'transform,transformOrigin',
+        onInterrupt: () => gsap.set(emblem, {clearProps: 'transform,transformOrigin'}),
+      });
+    }
+    void launchWave(runState, reactions, plaque, '[data-parl-ruler] .con-pseal__formula, [data-parl-ruler]');
+  };
+  let at = 0;
+  if (own.length > 0) {
+    tl.call(() => {
+      if (runState.finished) {
+        release(own);
+        return;
+      }
+      let handedOff = false;
+      const handle = runActionCommitMotion({
+        cardWrapEl: card,
+        ctaEl: undefined,
+        actionNode: undefined,
+        kind: 'resources',
+        firstResource: own[0].spec.resource,
+        onHandoff: () => {
+          handedOff = true;
+          void launchWave(runState, own, card, cardSelector).then(() => {
+            void nextTick(() => probeTick(flyReactions));
+          });
+        },
+        onSettled: () => {
+          if (!handedOff) {
+            // The impulse was torn down before its handoff (an abort): the wave never left, so nothing else will
+            // release these records.
+            release(own);
+            release(reactions);
+          }
+        },
+      });
+      runState.kills.push(handle.kill);
+    }, undefined, at);
+    at += s(REWARD_IMPULSE_MS + REWARD_WAVE_MS) * k;
+    if (reactions.length > 0) {
+      at += s(REACTION_GAP_MS + REWARD_WAVE_MS) * k;
+    }
+  } else {
+    tl.call(flyReactions, undefined, at);
+    at += s(REWARD_WAVE_MS) * k;
   }
   return at;
 }
 
-/** The support cubes leave the neutral supply for each party's next free place (the parties tier is peeking). */
-function launchSupport(runState: StageRun, ctx: SittingDirectorContext, k: number): void {
-  const root = ctx.root;
-  const holds = parliamentHolds;
-  const supply = placeCubeRect(root, '[data-parl-neutral-cube]');
-  let i = 0;
-  for (const [party, count] of Array.from(holds.support.entries())) {
-    const places = itemsOf(root, `.con-parl__party[data-party="${party}"] .con-pseal__support-place`);
-    const shownTotal = ctx.view.parties.find((p) => p.party === party)?.support ?? 0;
-    for (let n = 0; n < count; n++) {
-      // The place this cube takes: the first not yet lit (the plaque shows live − pending).
-      const index = Math.min(places.length - 1, Math.max(0, shownTotal - count + n));
-      const to = rectOf(places[index]);
-      const delay = i * SUPPORT_STAGGER_MS * k;
-      i++;
-      const id = flyCube('neutral', supply, to, delay, () => {
-        const left = (holds.support.get(party as ReduxParty) ?? 0) - 1;
-        if (left <= 0) {
-          holds.support.delete(party as ReduxParty);
-        } else {
-          holds.support.set(party as ReduxParty, left);
-        }
-        if (holds.support.size === 0) {
-          sittingMotion.peek = false;
-        }
-      });
-      if (id !== undefined) {
-        runState.flights.add(id);
-      }
-    }
-  }
-  if (i === 0) {
-    holds.support.clear();
-    sittingMotion.peek = false;
-  }
-}
+// ── ИТОГИ ──────────────────────────────────────────────────────────────────
 
-/** ОБНОВЛЕНИЕ: the losers leave, the deal WITH THE TURN, the support votes seat, the lobby refills. */
-function beatRenewal(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: number, runState: StageRun): number {
+/** The renewal: the losers leave their homes, the deal WITH THE TURN, the support votes seat, the lobby refills — then the results card reveals. */
+function beatResults(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: number, runState: StageRun): number {
   const root = ctx.root;
   const holds = parliamentHolds;
   const summary = ctx.summary;
   let at = 0;
-  // (1) The losers leave from the slots they stood in (the fresh faces wait hidden there).
   const returning = returningInstances(summary);
   const losers = (summary.discarded ?? []).filter((loser) => !returning.has(loser.instance));
+  const dealCount = summary.refreshed.filter((f) => holds.freshFaces.has(f.instance)).length;
+  const releaseTable = () => {
+    holds.heldSlots = undefined;
+    holds.vacated.clear();
+    holds.liftedFaces.clear();
+    holds.winnerSlot = undefined;
+  };
+  // (1) The losers leave from the homes they stood in (the held table): a proxy over each, the live table under them, the flights off.
   if (losers.length > 0) {
     tl.call(() => {
-      const homes = itemsOf(root, '.con-parl__slots .con-parl__slot-home');
-      losers.forEach((loser, n) => {
-        const home = homes[n];
-        const at2 = rectOf(home?.querySelector('.con-parl__card') ?? home ?? null);
-        void parkFace(loser.resolution, at2).then((id) => {
-          if (id === undefined || runState.finished) {
-            if (id !== undefined) {
-              dropFlight(id);
-            }
+      void Promise.all(losers.map((loser) => parkFace(loser.resolution, slotFaceRect(root, loser.instance)))).then((ids) => {
+        releaseTable();
+        ids.forEach((id, n) => {
+          if (id === undefined) {
+            return;
+          }
+          if (runState.finished) {
+            dropFlight(id);
             return;
           }
           flyToDeck(runState, ctx, id, n * LOSER_STAGGER_MS * k);
@@ -503,6 +762,8 @@ function beatRenewal(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: num
       });
     }, undefined, at);
     at += s(DISCARD_MS + (losers.length - 1) * LOSER_STAGGER_MS) * k;
+  } else if (dealCount > 0 || holds.heldSlots === undefined) {
+    tl.call(releaseTable, undefined, at);
   }
   // (2) THE DEAL: each fresh resolution leaves the deck's top card, turns in flight, lands in its slot.
   let dealt = 0;
@@ -533,10 +794,9 @@ function beatRenewal(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: num
       }
     });
   }, undefined, at);
-  const dealCount = summary.refreshed.filter((f) => holds.freshFaces.has(f.instance)).length;
   const dealSpan = dealCount > 0 ? s(DEAL_FLIGHT_MS + (dealCount - 1) * DEAL_STAGGER_MS) * k : 0;
   at += dealSpan;
-  // (3) The support votes seat on the fresh cards: from the neutral supply (the parties tier is parked under the stage — a real, measured place).
+  // (3) The support votes seat on the fresh cards: from the neutral supply.
   const seatCount = holds.hiddenCubes.size;
   if (seatCount > 0) {
     tl.call(() => {
@@ -595,274 +855,78 @@ function beatRenewal(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: num
     }, undefined, at);
     at += s(480 + (lobbyCount - 1) * LOBBY_STAGGER_MS) * k;
   }
+  // (5) The results card REVEALS in the same panel, row by row.
+  tl.call(() => {
+    sittingMotion.resultsRevealed = true;
+    const rows = itemsOf(root, '.con-sit__panel--on .con-sit__results > *');
+    if (rows.length === 0) {
+      return;
+    }
+    const reveal = gsap.timeline();
+    descendCascade(reveal, rows, s(CLOSING_MS) * k, 0, s(60) * k);
+    runState.kills.push(() => {
+      reveal.kill();
+      gsap.set(rows, {clearProps: 'transform,opacity,visibility'});
+    });
+  }, undefined, at);
+  const rowCount = itemsOf(root, '.con-sit__panel--on .con-sit__results > *').length;
+  at += s(CLOSING_MS) * k + s(60) * k * Math.max(0, rowCount - 1);
   return at;
 }
 
-/** A wave the stage launched — the stage rests only once it has touched down. */
-function trackWave(runState: StageRun, wave: Promise<void>): void {
-  runState.pending++;
-  void wave.finally(() => {
-    runState.pending = Math.max(0, runState.pending - 1);
-  });
-}
+// ── the runs ───────────────────────────────────────────────────────────────
 
-/**
- * THE AGENDA STEP'S TR BONUS — the marker has settled on its step: the +1 TR
- * the server paid at the phase's start leaves that very step (its printed
- * rating glyph) for the rail's score cell, which has held the old rating
- * until this touchdown. Nothing owed → nothing flies; an unmeasurable step
- * releases the hold at once (honestly late, never lost).
- */
-function launchAgendaBonus(runState: StageRun, ctx: SittingDirectorContext): void {
-  const bonus = takeAgendaBonus(ctx.summary.generation);
-  if (bonus === undefined) {
-    return;
-  }
-  const spec = bonus.spec;
-  if (bonus.kind === 'card' || spec === undefined) {
-    // A CARD step: the reward is the reveal batch PARKED since the phase
-    // began — released once this stage is at REST (the marker settled, the
-    // support peek folded), which is what lets the card-bonus scene lift the
-    // cover off this very step (the deck answers nothing: the card was dealt
-    // with the summary, and its one honest source is the step's printed glyph).
-    if (runState.finished) {
-      markAgendaBonusLanded();
-    } else {
-      runState.releaseAgendaCard = true;
-    }
-    return;
-  }
-  const step = ctx.root.querySelector<HTMLElement>(`.con-parl__step[data-step="${bonus.step}"]`);
-  const node = step?.querySelector<HTMLElement>('.con-parl__step-res') ?? step?.querySelector<HTMLElement>('.con-parl__step-node') ?? step;
-  const r = node?.getBoundingClientRect();
-  if (node === null || node === undefined || r === undefined || r.width < 2) {
-    flushAgendaBonus('unmeasurable-step');
-    return;
-  }
-  if (runState.finished) {
-    flushAgendaBonus('stage-finished');
-    return;
-  }
-  trackWave(runState, runResourceTransfers({
-    specs: [spec],
-    source: {point: {x: r.left + r.width / 2, y: r.top + r.height / 2}},
-    arrival: 'auto',
-    onArrive: () => markAgendaBonusLanded(),
-  }));
-}
-
-/** The ruling party's plaque in the government — the source of the party's ANSWER (the law is the party's, never the resolution's). */
-function rulerPlaqueEl(root: HTMLElement): HTMLElement | undefined {
-  return root.querySelector<HTMLElement>('[data-parl-ruler]') ?? undefined;
-}
-
-/** The birth points of `specs` on `el`'s printed graphic (the carrier card, the ruler's formula) — the address's own icons. */
-function iconOriginsOn(el: HTMLElement, specs: ReadonlyArray<ResourceTransferSpec>): Array<TransferPoint | undefined> {
-  return resolveGainIconOrigins(resolveActionCommitAnchors(el, undefined), specs);
-}
-
-/** One wave: `rewards`' chips from their origins on `sourceEl` to their rail rows; each touchdown releases its own hold. */
-function launchWave(runState: StageRun, rewards: ReadonlyArray<OwedReward>, sourceEl: HTMLElement, sourceSelector: string): Promise<void> {
-  const specs = rewards.map((r) => r.spec);
-  const bySpec = new Map<ResourceTransferSpec, OwedReward>(rewards.map((r) => [r.spec, r]));
-  const wave = runResourceTransfers({
-    specs,
-    origins: iconOriginsOn(sourceEl, specs),
-    source: {selectors: [sourceSelector]},
-    arrival: 'auto',
-    onArrive: (spec) => {
-      const reward = bySpec.get(spec);
-      if (reward !== undefined) {
-        markRewardLanded(reward);
-      }
-    },
-  });
-  trackWave(runState, wave);
-  return wave;
-}
-
-/**
- * НАГРАДА: what the law just paid THIS seat arrives by its ADDRESS
- * (`rewardAddress.ts`). With records OWED (they arrived while the stage
- * stood): the carrier card's ACTION COMMIT impulse — the mechanical fix, the
- * light band over its printed effect, the ring on the result icon — hands off
- * to the WAVE: each chip is born on the card's own icon of its unit, flies
- * to its rail row and ticks the counter on contact (the panel hold seeded
- * with the record releases per touchdown, the delta chip rides that
- * transition). The ruling party's ANSWER (a `reaction` record) leaves the
- * party's plaque in the government AFTER the resolution's own chips have
- * landed — surfaces in turn. With nothing owed: the page's own reveal (the
- * reading rows cascade). A carrier that is not on screen releases every hold
- * at once — the counters tick, honestly late, never lost.
- */
-function beatReward(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: number, runState: StageRun): number {
-  const root = ctx.root;
-  const owed = takeOwedRewards();
-  if (owed.length === 0) {
-    const rows = itemsOf(root, '.con-sit__panel--on .con-sit__hero > [data-parl-sit-item]');
-    let at = 0;
-    if (rows.length > 0) {
-      descendCascade(tl, rows, s(REWARD_REVEAL_MS) * k, s(70) * k, 0);
-      at = s(REWARD_REVEAL_MS) * k + s(70) * k * (rows.length - 1);
-    }
-    // THE TILE'S RECEIPT: the frame is back from the board and the pose says
-    // what the winner's tile did (the parameter's move, the TR) — it is READ
-    // for a beat before the server's next step takes the page.
-    if (parliamentRewardState.receiptShowing) {
-      at += s(RECEIPT_DWELL_MS) * k;
-    }
-    return at;
-  }
-  const card = enactedCardEl();
-  const own = owed.filter((r) => r.delivery.address.source === 'card-icon');
-  const reactions = owed.filter((r) => r.delivery.address.source === 'party-plaque');
-  const release = (list: ReadonlyArray<OwedReward>) => list.forEach((r) => markRewardLanded(r));
-  if (card === undefined) {
-    release(owed);
-    return 0;
-  }
-  const cardSelector = '[data-parl-sit-hero] .con-parl__gov-card .pcard, .con-parl [data-parl-gov-carry] .con-parl__gov-card .pcard';
-  const flyReactions = () => {
-    if (reactions.length === 0) {
-      return;
-    }
-    const plaque = rulerPlaqueEl(root);
-    if (plaque === undefined || runState.finished) {
-      release(reactions);
-      return;
-    }
-    const emblem = plaque.querySelector<HTMLElement>('.con-parl__ruler-emblem');
-    if (emblem !== null) {
-      gsap.fromTo(emblem, {scale: 1}, {
-        scale: 1.14, duration: s(160), ease: 'sine.out', yoyo: true, repeat: 1, transformOrigin: '50% 50%', clearProps: 'transform',
-        onInterrupt: () => gsap.set(emblem, {clearProps: 'transform'}),
-      });
-    }
-    void launchWave(runState, reactions, plaque, '[data-parl-ruler] .con-parl__ruler-formula, [data-parl-ruler]');
-  };
-  let at = 0;
-  if (own.length > 0) {
-    tl.call(() => {
-      if (runState.finished) {
-        release(own);
-        return;
-      }
-      let handedOff = false;
-      const handle = runActionCommitMotion({
-        cardWrapEl: card,
-        ctaEl: undefined,
-        actionNode: undefined,
-        kind: 'resources',
-        firstResource: own[0].spec.resource,
-        onHandoff: () => {
-          handedOff = true;
-          void launchWave(runState, own, card, cardSelector).then(() => {
-            void nextTick(() => probeTick(flyReactions));
-          });
-        },
-        onSettled: () => {
-          if (!handedOff) {
-            // The impulse was torn down before its handoff (an abort): the
-            // wave never left, so nothing else will release these records.
-            release(own);
-            release(reactions);
-          }
-        },
-      });
-      runState.kills.push(handle.kill);
-    }, undefined, at);
-    at += s(REWARD_IMPULSE_MS + REWARD_WAVE_MS) * k;
-    if (reactions.length > 0) {
-      at += s(REACTION_GAP_MS + REWARD_WAVE_MS) * k;
-    }
-  } else {
-    tl.call(flyReactions, undefined, at);
-    at += s(REWARD_WAVE_MS) * k;
-  }
-  return at;
-}
-
-/** ЗАКРЫТИЕ: the compact results card reveals, row by row. */
-function beatClosing(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: number): number {
-  const rows = itemsOf(ctx.root, '.con-sit__panel--on .con-sit__closing > *');
-  if (rows.length === 0) {
-    return 0;
-  }
-  descendCascade(tl, rows, s(CLOSING_MS) * k, s(60) * k, 0);
-  return s(CLOSING_MS) * k + s(60) * k * (rows.length - 1);
-}
-
-// ── the stage run ──────────────────────────────────────────────────────────
-
-/** Force the poses a stage would end in — reduced motion, or the ceiling's honest recovery. */
-function settleStagePoses(): void {
-  unparkSittingCards();
+/** Force the poses a STAGE would end in — reduced motion, or the ceiling's honest recovery. */
+function settleStagePoses(stage: SittingStage): void {
   killParliamentFlights();
-  resetParliamentHolds();
-  // The rail's held counters tick now — a reward whose beat cannot play is
-  // announced by its delta chip, never withheld.
-  flushParliamentRewards('stage-settled');
-  flushAgendaBonus('stage-settled');
   sittingMotion.peek = false;
-}
-
-/**
- * PLAY A STAGE's beats. Resolves when the stage is at rest (naturally, by
- * «дожать», or by the ceiling). `compact` halves every duration and drops
- * the dwell (resume / review). Reduced motion: the resting poses at once,
- * the hold registered and released synchronously.
- */
-export function playSittingStage(stage: SittingStage, beats: ReadonlyArray<SittingBeat>, ctx: SittingDirectorContext, opts: {compact: boolean}): Promise<void> {
-  killSittingMotion();
-  const own = beats.filter((b) => b.stage === stage);
-  // The REWARD page always has a beat of its own (the reading's reveal, or the
-  // wave of what just arrived) — the summary's records are not its only fact.
-  if ((own.length === 0 && stage !== 'reward') || consoleReducedMotionActive()) {
-    // Nothing to move (or a reduced-motion pose): every object is already where it ends.
-    if (stage === 'enact' || stage === 'renewal' || consoleReducedMotionActive()) {
-      settleStagePoses();
-    }
-    return Promise.resolve();
-  }
-  const k = opts.compact ? COMPACT : 1;
-  const master = gsap.timeline({paused: true});
-  const runState: StageRun = {stage, master, hold: {release: () => undefined}, flights: new Set(), pending: 0, kills: [], finished: false};
-  let total = 0;
-  const agenda = own.find((b) => b.kind === 'agenda')?.agenda;
+  sittingMotion.supportParty = '';
+  sittingMotion.agendaSegment = undefined;
   switch (stage) {
   case 'verdict':
-    total = beatVerdict(master, ctx, k);
+    sittingMotion.litSlot = '';
     break;
   case 'enact':
-    total = beatEnact(master, ctx, k, runState, agenda === undefined ? undefined : {player: agenda.player, from: agenda.from, to: agenda.to});
-    break;
-  case 'renewal':
-    total = beatRenewal(master, ctx, k, runState);
-    break;
-  case 'closing':
-    total = beatClosing(master, ctx, k);
+    sittingMotion.litSlot = '';
+    releaseEnactmentHolds();
+    flushAgendaBonus('stage-settled');
     break;
   case 'reward':
-    total = beatReward(master, ctx, k, runState);
+    // The rail's held counters tick now — a reward whose beat cannot play is announced by its delta chip, never withheld.
+    flushParliamentRewards('stage-settled');
+    break;
+  case 'results':
+    releaseRenewalHolds();
+    sittingMotion.resultsRevealed = true;
     break;
   }
-  // The master spans the storyboard's arithmetic; the stage is AT REST only
-  // once its last flight has landed (the flights fly on their own timelines),
-  // so the hold is the director's own and releases on that touchdown, never
-  // on the master's end alone — an early release let a cube launched by the
-  // master's last beat land after the hold was gone.
-  master.to({}, {duration: Math.max(0.01, total + (opts.compact ? 0 : s(80)))}, 0);
+}
+
+/**
+ * ONE RUN — a master timeline under its named hold; resolves when at rest
+ * (naturally, by «дожать», or by the ceiling). `build` adds the beat's calls
+ * and returns the storyboard's arithmetic (seconds).
+ */
+function runBeat(stage: SittingStage, beat: '' | 'agenda' | 'support' | 'enact', compact: boolean,
+  build: (tl: gsap.core.Timeline, runState: StageRun) => number): Promise<void> {
+  const master = gsap.timeline({paused: true});
+  const runState: StageRun = {stage, master, hold: {release: () => undefined}, flights: new Set(), pending: 0, kills: [], finished: false};
+  const total = build(master, runState);
+  // The master spans the storyboard's arithmetic; the run is AT REST only once its last flight has landed (the
+  // flights fly on their own timelines), so the hold is the director's own and releases on that touchdown.
+  master.to({}, {duration: Math.max(0.01, total + (compact ? 0 : s(80)))}, 0);
   run = runState;
-  sittingMotion.stage = stage;
-  runState.hold = beginAnimationHold(sittingHoldLabel(stage), {
+  sittingMotion.beat = beat;
+  runState.hold = beginAnimationHold(sittingHoldLabel(stage, beat), {
     maxHoldMs: STAGE_HOLD_CEILING_MS,
-    diagnose: () => ({stage, flights: Array.from(runState.flights).filter((id) => flightRegistered(id)), waves: runState.pending, peek: sittingMotion.peek, holds: {
-      returns: parliamentHolds.returns.size, support: parliamentHolds.support.size, fresh: parliamentHolds.freshFaces.size, lobby: parliamentHolds.lobby.size,
+    diagnose: () => ({stage, beat, flights: Array.from(runState.flights).filter((id) => flightRegistered(id)), waves: runState.pending, peek: sittingMotion.peek, holds: {
+      returns: parliamentHolds.returns.size, incoming: parliamentHolds.supportIncoming.size, support: parliamentHolds.support.size,
+      fresh: parliamentHolds.freshFaces.size, lobby: parliamentHolds.lobby.size, gov: parliamentHolds.govBefore !== undefined, ruler: parliamentHolds.rulerBefore,
     }}),
     expire: () => {
       if (run === runState) {
         finishSittingMotion();
-        settleStagePoses();
+        settleStagePoses(stage);
         settle();
       }
     },
@@ -873,12 +937,8 @@ export function playSittingStage(stage: SittingStage, beats: ReadonlyArray<Sitti
       return;
     }
     runState.finished = true;
-    sittingMotion.stage = '';
     runState.hold.release();
-    // The Agenda CARD bonus is released with the STAGE at rest — the peek of
-    // the parties tier folded, every card home — so the cover lifts off the
-    // step on a track that is plainly on screen (released at the glide's
-    // landing, it opened over the support peek with no lift at all).
+    sittingMotion.beat = '';
     if (runState.releaseAgendaCard) {
       runState.releaseAgendaCard = false;
       markAgendaBonusLanded();
@@ -901,15 +961,83 @@ export function playSittingStage(stage: SittingStage, beats: ReadonlyArray<Sitti
     resolveRun = resolve;
     master.eventCallback('onComplete', awaitFlights);
     master.play();
+    if (hurry) {
+      finishSittingMotion();
+    }
   });
 }
 
+/** A pause between two beats on the motion clock (instant under «дожать» / reduced motion). */
+function gap(baseMs: number): Promise<void> {
+  if (hurry || consoleReducedMotionActive()) {
+    return Promise.resolve();
+  }
+  return new Promise<void>((resolve) => scheduleParliamentBeat(baseMs, resolve));
+}
+
 /**
- * «ДОЖАТЬ»: A during a beat drives the master and every flight of the stage
- * to their resting pose — the touchdown callbacks fire, the holds fold, the
- * proxies leave on the next frame. Never a skipped stage.
+ * PLAY A STAGE's beats. Resolves when the stage is at rest (naturally, by
+ * «дожать», or by the ceiling). `compact` halves every duration and drops the
+ * dwell (a restore). Reduced motion: the resting poses at once, the hold
+ * registered and released synchronously.
+ */
+export async function playSittingStage(stage: SittingStage, beats: ReadonlyArray<SittingBeat>, ctx: SittingDirectorContext, opts: {compact: boolean}): Promise<void> {
+  killSittingMotion();
+  const own = beats.filter((b) => b.stage === stage);
+  // The REWARD page always has a beat of its own (the reading's reveal, or the wave of what just arrived); the
+  // RESULTS page always reveals its card — the summary's records are not their only fact.
+  if ((own.length === 0 && stage !== 'reward' && stage !== 'results') || consoleReducedMotionActive()) {
+    settleStagePoses(stage);
+    return;
+  }
+  const k = opts.compact ? COMPACT : 1;
+  stagePlaying = stage;
+  sittingMotion.stage = stage;
+  hurry = false;
+  try {
+    switch (stage) {
+    case 'verdict':
+      await runBeat(stage, '', opts.compact, (tl) => beatVerdict(tl, ctx, k));
+      break;
+    case 'enact':
+      await runBeat(stage, 'agenda', opts.compact, (tl, r) => beatAgenda(tl, ctx, k, r));
+      await gap(BEAT_GAP_MS);
+      if (stagePlaying === stage) {
+        await runBeat(stage, 'support', opts.compact, (tl, r) => beatSupport(tl, ctx, k, r));
+        sittingMotion.peek = false;
+        sittingMotion.supportParty = '';
+        await gap(BEAT_GAP_MS);
+      }
+      if (stagePlaying === stage) {
+        await runBeat(stage, 'enact', opts.compact, (tl, r) => beatEnactMove(tl, ctx, k, r));
+      }
+      break;
+    case 'reward':
+      await runBeat(stage, '', opts.compact, (tl, r) => beatReward(tl, ctx, k, r));
+      break;
+    case 'results':
+      sittingMotion.resultsRevealed = false;
+      await runBeat(stage, '', opts.compact, (tl, r) => beatResults(tl, ctx, k, r));
+      sittingMotion.resultsRevealed = true;
+      break;
+    }
+  } finally {
+    if (stagePlaying === stage) {
+      stagePlaying = '';
+      sittingMotion.stage = '';
+      hurry = false;
+    }
+  }
+}
+
+/**
+ * «ДОЖАТЬ»: A during a beat drives the current run and every flight of the
+ * stage to their resting pose — the touchdown callbacks fire, the holds fold,
+ * the proxies leave on the next frame — and every beat still to come plays
+ * at once. Never a skipped stage.
  */
 export function finishSittingMotion(): void {
+  hurry = true;
   const current = run;
   if (current === undefined || current.finished) {
     return;
@@ -925,7 +1053,13 @@ export function finishSittingMotion(): void {
 export function killSittingMotion(): void {
   const current = run;
   run = undefined;
+  stagePlaying = '';
+  hurry = false;
   sittingMotion.stage = '';
+  sittingMotion.beat = '';
+  sittingMotion.peek = false;
+  sittingMotion.supportParty = '';
+  sittingMotion.agendaSegment = undefined;
   if (current === undefined) {
     return;
   }
@@ -943,15 +1077,13 @@ export function killSittingMotion(): void {
     current.releaseAgendaCard = false;
     markAgendaBonusLanded();
   }
-  sittingMotion.peek = false;
 }
 
-/** The director's whole reset (the section's unmount). */
+/** The director's whole reset (the section's unmount): the flights and the poses of the motion; the display holds stay (they outlive the section). */
 export function resetSittingDirector(): void {
   killSittingMotion();
-  unparkSittingCards();
-  sittingMotion.peek = false;
-  sittingMotion.stage = '';
+  sittingMotion.litSlot = '';
+  sittingMotion.resultsRevealed = false;
 }
 
 /** The number of milliseconds a compact replay of `stages` takes at most (the resume budget read by the section). */

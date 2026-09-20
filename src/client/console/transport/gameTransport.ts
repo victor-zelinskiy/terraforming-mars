@@ -99,6 +99,7 @@ import {
 import {stagePlayedCardReturns} from '@/client/console/played/playedCardReturn';
 import {seedBonusGainRewardHold} from '@/client/console/startBonusGain';
 import {seedParliamentRewardHold} from '@/client/console/parliament/parliamentRewardBeat';
+import {seedParliamentSittingHolds} from '@/client/console/parliament/parliamentSittingSeed';
 import {consoleModeState} from '@/client/console/consoleModeState';
 import {rollbackHydroCommit} from '@/client/console/hydroFlow/consoleHydroFlow';
 import {
@@ -572,6 +573,11 @@ function seedRewardHolds(newView?: PlayerViewModel): void {
   // the rail until the sitting's own beat flies them (only while the sitting
   // is on screen; else the counters tick with this very commit).
   seedParliamentRewardHold(currentView(), newView);
+  // …and the sitting's DISPLAY holds (v2): the table as it stood before the
+  // barrier opened / the area was refreshed — the tiers keep it until the
+  // director's beats have moved every object. The SAME block as the commit,
+  // or the new state paints for a frame before its beat.
+  seedParliamentSittingHolds(currentView(), newView);
 }
 
 function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean): void {

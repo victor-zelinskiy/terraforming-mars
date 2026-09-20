@@ -9,19 +9,25 @@
        :class="{
          'con-parl__voting--focus': flow.zone === 'voting' && flow.stage === 'browse',
          'con-parl__voting--carried': slotsCarried || flow.voteLeaving,
-         'con-parl__voting--lit': flow.stage === 'sitting' && sittingStage === 'renewal',
+         'con-parl__voting--lit': flow.stage === 'sitting' && sittingStage === 'results',
        }"
        data-parl-voting>
     <div class="con-parl__voting-head" data-parl-recede>
       <span class="con-parl__kicker">{{ $t('Voting') }}</span>
     </div>
     <div class="con-parl__slots">
-      <div v-for="(slot, i) in shownSlots" :key="slot.instance" class="con-parl__slot-home" :data-home="slot.instance">
-        <Teleport defer to="[data-parl-vrow]" :disabled="!slotsCarried">
+      <div v-for="(slot, i) in shownSlots" :key="slot.instance" class="con-parl__slot-home" :class="{'con-parl__slot-home--vacated': holds.vacated.has(slot.instance)}" :data-home="slot.instance" :data-parl-slot-vacated="holds.vacated.has(slot.instance) ? '' : undefined">
+        <!-- A HELD slot whose card has LEFT for the government (v2): an empty outline in its OWN place — the row never re-orders under the player. -->
+        <div v-if="holds.vacated.has(slot.instance)" class="con-parl__slot-empty" data-parl-slot-empty>
+          <div class="con-parl__slot-label"></div>
+          <div class="con-parl__slot-empty-card" data-parl-slot-empty-card aria-hidden="true"></div>
+        </div>
+        <Teleport v-else defer to="[data-parl-vrow]" :disabled="!slotsCarried">
           <div class="con-parl__slot"
                :class="{
                  'con-parl__slot--selected': slotsCarried && flow.slotIndex === i,
                  'con-parl__slot--winning': winningShownOf(slot),
+                 'con-parl__slot--lit': motion.litSlot === slot.instance,
                  'con-parl__slot--target': (flow.stage === 'seat' || (flow.stage === 'submitting' && flow.stageBeforeSubmit === 'seat')) && flow.slotIndex === i,
                  'con-parl__slot--candidate': flow.stage === 'seat' && seatCandidates.includes(i),
                  'con-parl__slot--mine': tallyOf(slot, i).leader !== undefined && tallyOf(slot, i).leader === viewerColor,
@@ -39,7 +45,7 @@
               <span v-if="winningShownOf(slot)" class="con-parl__slot-win" :class="{'con-parl__slot-win--glyph': glyphBadge}" :data-hint="glyphBadge ? $t('Winning') : undefined"><span class="con-parl__slot-win-text">{{ $t('Winning') }}</span></span>
             </div>
             <div class="con-parl__card"
-                 :class="{'con-parl__card--dealing': holds.freshFaces.has(slot.instance)}"
+                 :class="{'con-parl__card--dealing': holds.freshFaces.has(slot.instance) || holds.liftedFaces.has(slot.instance)}"
                  :data-zoom-slot="'resolution:' + slot.resolutionId"
                  :data-zoom-handoff="slotsCarried && flow.slotIndex === i ? 'parliament-vote' : undefined"
                  :data-parl-vote-card="slotsCarried && flow.slotIndex === i ? '' : undefined">
@@ -144,6 +150,7 @@ import {conLogicalPx} from '@/client/console/consoleLayoutProfile';
 import {translateTextWithParams} from '@/client/directives/i18n';
 import {parliamentFlow, parliamentSlotsCarried} from '@/client/console/parliament/consoleParliamentFlow';
 import {parliamentHolds} from '@/client/console/parliament/parliamentDisplayHolds';
+import {sittingMotion} from '@/client/console/parliament/sittingDirector';
 import {ParliamentSlotVm, ParliamentViewVm} from '@/client/console/parliament/consoleParliamentModel';
 import {
   DENSE_RIBBON, placeShownOn, RIBBON_CUBE, RibbonGroup, ribbonGroupsOf, tallyShownOf, winningShownOf,
@@ -194,6 +201,10 @@ export default defineComponent({
     },
     holds() {
       return parliamentHolds;
+    },
+    /** The director's poses (the verdict's lit slot). */
+    motion() {
+      return sittingMotion;
     },
     /** The three slots are in the vote row (up, or folding back — the leave animates them home first). */
     slotsCarried(): boolean {
