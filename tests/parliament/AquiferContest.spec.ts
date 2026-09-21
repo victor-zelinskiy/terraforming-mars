@@ -6,7 +6,7 @@ import {Game} from '../../src/server/Game';
 import {Parliament} from '../../src/server/parliament/Parliament';
 import {AQUIFER_CONTEST, AQUIFER_CONTEST_ANIMALS, AQUIFER_CONTEST_CODE, AQUIFER_CONTEST_ID} from '../../src/server/parliament/resolutions/greens/AquiferContest';
 import {REDUX_RESOLUTION_CATALOG, ResolutionCatalog} from '../../src/server/parliament/resolutions/ResolutionCatalog';
-import {answerGate, endGenerationThroughParliament, seatResolution, settleParliamentGates} from './parliamentArrange';
+import {answerQuestGate, answerGate, endGenerationThroughParliament, seatResolution, settleParliamentGates} from './parliamentArrange';
 import {PartyName} from '../../src/common/turmoil/PartyName';
 import {Resource} from '../../src/common/Resource';
 import {Phase} from '../../src/common/Phase';
@@ -221,6 +221,7 @@ describe('AquiferContest', () => {
       }
       runAllActions(game);
       expect(parliament.quest?.completedBy).eq(p2.id);
+      answerQuestGate(game, p2);
       expect(parliament.chairman).eq(p2.id);
     });
   });

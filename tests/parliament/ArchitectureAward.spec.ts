@@ -10,7 +10,7 @@ import {
 import {AQUIFER_CONTEST} from '../../src/server/parliament/resolutions/greens/AquiferContest';
 import {REDUX_RESOLUTION_CATALOG} from '../../src/server/parliament/resolutions/ResolutionCatalog';
 import {CENTRAL_POWER_GRID_ID} from '../../src/server/parliament/resolutions/industrialists/CentralPowerGrid';
-import {endGenerationThroughParliament, seatEnacted, seatResolution, settleParliamentGates} from './parliamentArrange';
+import {answerQuestGate, endGenerationThroughParliament, seatEnacted, seatResolution, settleParliamentGates} from './parliamentArrange';
 import {resolutionCount} from '../../src/server/parliament/resolutions/ResolutionCounts';
 import {PartyName} from '../../src/common/turmoil/PartyName';
 import {Phase} from '../../src/common/Phase';
@@ -431,7 +431,7 @@ describe('ArchitectureAward', () => {
     }
 
     it('counts played building TAGS regardless of VP; cards already in play and the enactment itself count nothing', () => {
-      const [, p1, p2, parliament] = enactAward();
+      const [game, p1, p2, parliament] = enactAward();
       expect(parliament.questProgressOf(p1), 'the enactment is not a building play').eq(0);
       p1.playedCards.push(new ArtificialLake(), new DomedCrater());
       expect(parliament.questProgressOf(p1), 'no retroactive progress').eq(0);
@@ -439,6 +439,7 @@ describe('ArchitectureAward', () => {
       expect(parliament.questProgressOf(p1)).eq(1);
       playAsAction(p1, new BiomassCombustors()); // a building tag, a negative icon
       expect(parliament.quest?.completedBy).eq(p1.id);
+      answerQuestGate(game, p1);
       expect(parliament.chairman).eq(p1.id);
       // Once per generation: nobody else completes it.
       playAsAction(p2, new Mine());
@@ -448,22 +449,24 @@ describe('ArchitectureAward', () => {
     });
 
     it('one card with two building tags completes it at once; a wild tag is no building tag', () => {
-      const [, p1, p2, parliament] = enactAward();
+      const [game, p1, p2, parliament] = enactAward();
       playAsAction(p2, new NobelPrize());
       expect(parliament.questProgressOf(p2)).eq(0);
       const agendaBefore = parliament.agendaOf(p1);
       playAsAction(p1, fakeCard({name: 'Twin Towers' as CardName, type: CardType.AUTOMATED, tags: [Tag.BUILDING, Tag.BUILDING]}));
       expect(parliament.quest?.completedBy).eq(p1.id);
+      answerQuestGate(game, p1);
       expect(parliament.agendaOf(p1), 'the chairman reward: one Agenda step').eq(agendaBefore + 1);
     });
 
     it('a sitting chairman who completes it keeps the seat and still takes the Agenda step', () => {
-      const [, p1, , parliament] = enactAward();
+      const [game, p1, , parliament] = enactAward();
       parliament.chairman = p1.id;
       const agendaBefore = parliament.agendaOf(p1);
       playAsAction(p1, new Mine());
       playAsAction(p1, new ArtificialLake());
       expect(parliament.quest?.completedBy).eq(p1.id);
+      answerQuestGate(game, p1);
       expect(parliament.chairman).eq(p1.id);
       expect(parliament.agendaOf(p1)).eq(agendaBefore + 1);
     });
@@ -477,6 +480,7 @@ describe('ArchitectureAward', () => {
       expect(live.parliament!.questProgressOf(one)).eq(1);
       playAsAction(one, new ArtificialLake());
       expect(live.parliament!.quest?.completedBy).eq(one.id);
+      answerQuestGate(live, one);
       const agenda = live.parliament!.agendaOf(one);
       live = reload(live);
       one = live.getPlayerById(p1.id) as TestPlayer;

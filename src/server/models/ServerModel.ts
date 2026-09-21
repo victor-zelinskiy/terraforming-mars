@@ -552,6 +552,13 @@ export class Server {
         awaiting: parliamentGateAwaiting(player.game, waitingFor.parliamentPhasePrompt.stage),
       };
     }
+    // THE CHAIRMAN-QUEST GATE — also always the top-level prompt. Nothing is
+    // derived here: the flow reads the quest, the seat and the marker off the
+    // live parliament model, which at the gate still shows the state BEFORE
+    // the answer.
+    if (waitingFor.chairmanQuestPrompt !== undefined) {
+      model.chairmanQuestPrompt = waitingFor.chairmanQuestPrompt;
+    }
     // NOTE: the DISCARD marker (`discardPrompt`) is deliberately NOT decorated
     // here. This function only touches the TOP-LEVEL prompt, and a discard is
     // routinely NESTED (Mars University's "discard a card to draw a card" is one

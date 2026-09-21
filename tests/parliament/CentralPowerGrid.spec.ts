@@ -10,7 +10,7 @@ import {
 import {ARCHITECTURE_AWARD, ARCHITECTURE_AWARD_ID, ARCHITECTURE_AWARD_PRODUCTION} from '../../src/server/parliament/resolutions/marsFirst/ArchitectureAward';
 import {BIODOME_CONTEST} from '../../src/server/parliament/resolutions/greens/BiodomeContest';
 import {REDUX_RESOLUTION_CATALOG} from '../../src/server/parliament/resolutions/ResolutionCatalog';
-import {endGenerationThroughParliament, seatEnacted, seatResolution, settleParliamentGates} from './parliamentArrange';
+import {answerQuestGate, endGenerationThroughParliament, seatEnacted, seatResolution, settleParliamentGates} from './parliamentArrange';
 import {resolutionCount} from '../../src/server/parliament/resolutions/ResolutionCounts';
 import {PartyName} from '../../src/common/turmoil/PartyName';
 import {Phase} from '../../src/common/Phase';
@@ -543,7 +543,7 @@ describe('CentralPowerGrid', () => {
     }
 
     it('counts PLAYED power tags regardless of VP; cards already in play and the enactment itself count nothing', () => {
-      const [, p1, p2, parliament] = enactGrid();
+      const [game, p1, p2, parliament] = enactGrid();
       expect(parliament.questProgressOf(p1), 'the enactment is not a power play').eq(0);
       p1.playedCards.push(new PowerPlant(), new SolarPower());
       expect(parliament.questProgressOf(p1), 'no retroactive progress').eq(0);
@@ -551,6 +551,7 @@ describe('CentralPowerGrid', () => {
       expect(parliament.questProgressOf(p1)).eq(1);
       playAsAction(p1, new BiomassCombustors()); // a power tag, a negative icon
       expect(parliament.quest?.completedBy).eq(p1.id);
+      answerQuestGate(game, p1);
       expect(parliament.chairman).eq(p1.id);
       // Once per generation: nobody else completes it.
       playAsAction(p2, new PowerPlant());
@@ -560,12 +561,13 @@ describe('CentralPowerGrid', () => {
     });
 
     it('one card with two power tags completes it at once; a wild tag is no power tag', () => {
-      const [, p1, p2, parliament] = enactGrid();
+      const [game, p1, p2, parliament] = enactGrid();
       playAsAction(p2, new NobelPrize());
       expect(parliament.questProgressOf(p2)).eq(0);
       const agendaBefore = parliament.agendaOf(p1);
       playAsAction(p1, new HE3FusionPlant());
       expect(parliament.quest?.completedBy).eq(p1.id);
+      answerQuestGate(game, p1);
       expect(parliament.agendaOf(p1), 'the chairman reward: one Agenda step').eq(agendaBefore + 1);
     });
 
@@ -578,12 +580,13 @@ describe('CentralPowerGrid', () => {
     });
 
     it('a sitting chairman who completes it keeps the seat and still takes the Agenda step', () => {
-      const [, p1, , parliament] = enactGrid();
+      const [game, p1, , parliament] = enactGrid();
       parliament.chairman = p1.id;
       const agendaBefore = parliament.agendaOf(p1);
       playAsAction(p1, new PowerPlant());
       playAsAction(p1, new SolarPower());
       expect(parliament.quest?.completedBy).eq(p1.id);
+      answerQuestGate(game, p1);
       expect(parliament.chairman).eq(p1.id);
       expect(parliament.agendaOf(p1)).eq(agendaBefore + 1);
     });
@@ -597,6 +600,7 @@ describe('CentralPowerGrid', () => {
       expect(live.parliament!.questProgressOf(one)).eq(1);
       playAsAction(one, new SolarPower());
       expect(live.parliament!.quest?.completedBy).eq(one.id);
+      answerQuestGate(live, one);
       const agenda = live.parliament!.agendaOf(one);
       live = reload(live);
       one = live.getPlayerById(p1.id) as TestPlayer;

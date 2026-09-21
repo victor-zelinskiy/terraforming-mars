@@ -11,7 +11,7 @@ import {
 import {AQUIFER_CONTEST, AQUIFER_CONTEST_ID} from '../../src/server/parliament/resolutions/greens/AquiferContest';
 import {ARCHITECTURE_AWARD, ARCHITECTURE_AWARD_ID} from '../../src/server/parliament/resolutions/marsFirst/ArchitectureAward';
 import {REDUX_RESOLUTION_CATALOG} from '../../src/server/parliament/resolutions/ResolutionCatalog';
-import {answerGate, endGenerationThroughParliament, seatEnacted, seatResolution, settleParliamentGates} from './parliamentArrange';
+import {answerQuestGate, answerGate, endGenerationThroughParliament, seatEnacted, seatResolution, settleParliamentGates} from './parliamentArrange';
 import {getParliamentModel} from '../../src/server/parliament/ParliamentModel';
 import {QuestTracker} from '../../src/server/parliament/quests/QuestTracker';
 import {PartyName} from '../../src/common/turmoil/PartyName';
@@ -512,6 +512,7 @@ describe('BiodomeContest', () => {
         }
       }
       expect(parliament.quest?.completedBy).eq(p2.id);
+      answerQuestGate(game, p2);
       expect(parliament.chairman).eq(p2.id);
       expect(parliament.agendaOf(p2)).eq(agenda + 1);
     });

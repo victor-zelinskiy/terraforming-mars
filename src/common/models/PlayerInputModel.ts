@@ -503,6 +503,27 @@ export type ParliamentPhasePromptMeta = {
 /** The half of the gate marker the SERVER input carries; `awaiting` is derived when the model is built. */
 export type ParliamentPhaseMarker = Omit<ParliamentPhasePromptMeta, 'awaiting'>;
 
+/**
+ * THE CHAIRMAN-QUEST GATE (Turmoil Redux) — «задание председателя выполнено».
+ *
+ * The quest's count was reached inside the player's own action, and the server
+ * has applied NOTHING yet: the Agenda marker still stands on its old step, the
+ * TR / card the step pays is unpaid, the chairman's seat is untouched. This
+ * `SelectOption` is the barrier — the answer is what seats the player and
+ * moves the marker, in that order. The console routes it to the
+ * «ПРЕДСЕДАТЕЛЬСТВО» flow by THIS marker, never by the title (the title is for
+ * the journal and a plain renderer).
+ *
+ * Everything the flow reads about the quest itself — which condition closed,
+ * who closed it, who held the seat — is on the live parliament model, which at
+ * the gate still reads the state BEFORE the answer. The marker carries only
+ * the identity of the moment.
+ */
+export type ChairmanQuestPromptMeta = {
+  /** The generation whose quest was completed. */
+  generation: number;
+}
+
 export type BaseInputModel = {
   title: string | Message;
   warning?: string | Message;
@@ -584,6 +605,10 @@ export type BaseInputModel = {
    *  {@link ParliamentPhasePromptMeta}). Serialized centrally in
    *  ServerModel.getWaitingFor: a gate is always the TOP-LEVEL prompt. */
   parliamentPhasePrompt?: ParliamentPhasePromptMeta;
+  /** Explicit "this SelectOption is the CHAIRMAN-QUEST gate" marker (see
+   *  {@link ChairmanQuestPromptMeta}). Serialized centrally in
+   *  ServerModel.getWaitingFor: the gate is always the TOP-LEVEL prompt. */
+  chairmanQuestPrompt?: ChairmanQuestPromptMeta;
 }
 
 export type AndOptionsModel = BaseInputModel & {

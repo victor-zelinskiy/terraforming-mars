@@ -1,22 +1,47 @@
 /*
  * COMPLETING THE CHAIRMAN QUEST (rulebook p.9, project decision Q13).
  *
- * The first player to reach the quest's count this generation advances one
- * step on the Agenda track (collecting the step's bonus) and puts a delegate
- * in the chairman's seat. The previous chairman's delegate returns to its
- * owner; a sitting chairman who completes the quest again keeps the seat and
- * only advances. The new chairman's delegate comes from the reserve, else
- * from the lobby, else from one of the player's own resolutions (the player
- * chooses which) — an eighth delegate is never created.
+ * The first player to reach the quest's count this generation puts a delegate
+ * in the chairman's seat and advances one step on the Agenda track (collecting
+ * the step's bonus). The previous chairman's delegate returns to its owner's
+ * RESERVE; a sitting chairman who completes the quest again keeps the seat and
+ * only advances. The new chairman's delegate comes from the reserve, else from
+ * the lobby, else from one of the player's own resolutions (the player chooses
+ * which) — an eighth delegate is never created.
+ *
+ * THE GATE (docs/claude/prompts/parliament-chairman-quest.md §2). Nothing of
+ * the above happens when the count is reached: the completion only RECORDS
+ * itself (`pendingActions` + a deferred confirm) and the player is asked.
+ * Until the answer the screen is untouched — the marker on its old step, the
+ * TR unchanged, the hand the same size, the seat as it was. It is the law the
+ * sitting's `assembly` gate follows: the players are asked BEFORE anything
+ * changes, never shown a change they missed.
+ *
+ * The gate is deferred at `BACK_OF_THE_LINE` on purpose: the count is reached
+ * by the last tag of a card or the last tile of a placement, and a gate at
+ * `DEFAULT` would announce the reward in the middle of that card's own
+ * cinematic.
+ *
+ * THE ORDER after the answer is SEAT, then AGENDA. The rules fix no order;
+ * this is the presentation's choice and it follows the sitting's own law
+ * «причина раньше следствия» — the player learns WHAT they took (the office)
+ * before being paid for it. In the corner case where the seat needs a choice
+ * (every delegate stands on a resolution) the Agenda step waits for that
+ * choice too: a marker that moves while the player is still picking is a
+ * reward with no cause on screen.
  */
 import {IPlayer} from '../../IPlayer';
 import {IGame} from '../../IGame';
 import {PlayerInput} from '../../PlayerInput';
 import {SelectParty} from '../../inputs/SelectParty';
+import {SelectOption} from '../../inputs/SelectOption';
 import {InputError} from '../../inputs/InputError';
 import {Priority} from '../../deferredActions/Priority';
 import {PartyName} from '../../../common/turmoil/PartyName';
 import type {AgendaAdvance, Parliament} from '../Parliament';
+
+/** What `seat()` did: the office changed hands here and now, or the player still has to pick the delegate. */
+type SeatResult = 'seated' | 'asking';
 
 export class ChairmanSeat {
   /** Advance the Agenda marker and pay the step's bonus, attributed to the parliament. Returns what happened. */
@@ -52,6 +77,10 @@ export class ChairmanSeat {
     return advance;
   }
 
+  /**
+   * The count was reached. NOTHING is applied: the fact is logged, the pending
+   * record written (so a reload finds it) and the gate deferred.
+   */
   public static onQuestCompleted(player: IPlayer): void {
     const game = player.game;
     const parliament = game.parliament;
@@ -59,15 +88,89 @@ export class ChairmanSeat {
       return;
     }
     game.log('${0} completed the chairman quest', (b) => b.player(player));
-    ChairmanSeat.advanceAgenda(player, parliament);
-    ChairmanSeat.seat(player, parliament);
+    parliament.pendingActions.push({kind: 'chairman-quest', player: player.id});
+    player.defer(() => ChairmanSeat.questPrompt(player, parliament), Priority.BACK_OF_THE_LINE);
   }
 
-  private static seat(player: IPlayer, parliament: Parliament): void {
+  /**
+   * THE GATE'S PROMPT (also rebuilt after a reload) — a bare confirm carrying
+   * the structural marker; the title is for the journal and a plain renderer,
+   * never for detection. `undefined` when the record is already gone (a
+   * doubled defer, a resume that raced the answer): answering twice is not
+   * expressible.
+   */
+  public static questPrompt(player: IPlayer, parliament: Parliament): PlayerInput | undefined {
+    if (!ChairmanSeat.questGatePending(parliament, player)) {
+      return undefined;
+    }
+    const generation = parliament.quest?.generation ?? player.game.generation;
+    // The title is the one the seat pick already prints — the journal and a
+    // plain renderer read it; the console routes on the marker alone.
+    return new SelectOption('You completed the chairman quest', 'Continue')
+      .markChairmanQuest({generation})
+      .andThen(() => {
+        ChairmanSeat.applyQuest(player, parliament);
+        return undefined;
+      });
+  }
+
+  /** Is `player`'s quest gate still unanswered? (The save's own record — never a counter in memory.) */
+  public static questGatePending(parliament: Parliament, player: IPlayer): boolean {
+    return parliament.pendingActions.some((action) => action.kind === 'chairman-quest' && action.player === player.id);
+  }
+
+  /**
+   * Re-raise every unanswered quest gate whose player is not already holding
+   * it. Returns true when something was deferred — the caller then drains the
+   * queue and re-enters. The generation may not END over an unanswered gate:
+   * the political phase would move the very same marker on top of a reward the
+   * player has never seen.
+   */
+  public static deferPendingQuestGates(game: IGame, parliament: Parliament): boolean {
+    let deferred = false;
+    for (const pending of parliament.pendingActions) {
+      if (pending.kind !== 'chairman-quest') {
+        continue;
+      }
+      const player = game.getPlayerById(pending.player);
+      if (player.getWaitingFor()?.chairmanQuestPrompt !== undefined) {
+        // The gate already stands — the seat is blocked on it by construction.
+        continue;
+      }
+      player.defer(() => ChairmanSeat.questPrompt(player, parliament), Priority.BACK_OF_THE_LINE);
+      deferred = true;
+    }
+    return deferred;
+  }
+
+  /**
+   * THE ANSWER: the office first, the Agenda step second — and, when the seat
+   * still needs the player's pick, the step waits for that pick
+   * (`seatPrompt`'s `finish`). One journal ROOT for the whole thing, so the
+   * other players' notification has a group of its own to stand on instead of
+   * hanging off whatever card happened to close the quest.
+   */
+  private static applyQuest(player: IPlayer, parliament: Parliament): void {
+    const game = player.game;
+    parliament.pendingActions = parliament.pendingActions.filter(
+      (action) => !(action.kind === 'chairman-quest' && action.player === player.id));
+    const events = game.events;
+    events.beginAction(player, {kind: 'parliament'}, {category: 'parliament'});
+    try {
+      if (ChairmanSeat.seat(player, parliament) === 'seated') {
+        ChairmanSeat.advanceAgenda(player, parliament);
+      }
+    } finally {
+      events.endScope();
+    }
+    game.save();
+  }
+
+  private static seat(player: IPlayer, parliament: Parliament): SeatResult {
     const game = player.game;
     if (parliament.chairman === player.id) {
       game.log('${0} remains the chairman', (b) => b.player(player));
-      return;
+      return 'seated';
     }
     if (parliament.chairman !== undefined) {
       const previous = game.getPlayerById(parliament.chairman);
@@ -77,17 +180,18 @@ export class ChairmanSeat {
     if (parliament.reserve(player) > 0) {
       parliament.chairman = player.id;
       game.log('${0} becomes the chairman (delegate from the reserve)', (b) => b.player(player));
-      return;
+      return 'seated';
     }
     if (parliament.lobby.has(player.id)) {
       parliament.lobby.delete(player.id);
       parliament.chairman = player.id;
       game.log('${0} becomes the chairman (delegate from the lobby)', (b) => b.player(player));
-      return;
+      return 'seated';
     }
     // Every delegate is on a resolution: the player chooses which card gives one up.
     parliament.pendingActions.push({kind: 'chairman-seat', player: player.id});
     player.defer(() => ChairmanSeat.seatPrompt(player, parliament), Priority.DEFAULT);
+    return 'asking';
   }
 
   /** The prompt of a pending seat (also rebuilt after a reload). */
@@ -110,6 +214,8 @@ export class ChairmanSeat {
       parliament.chairman = player.id;
       parliament.pendingActions = parliament.pendingActions.filter((action) => action !== pending);
       player.game.log('${0} becomes the chairman', (b) => b.player(player));
+      // …and only NOW the Agenda step: the office is what the step pays for.
+      ChairmanSeat.advanceAgenda(player, parliament);
     };
     if (parties.length === 0) {
       // Defensive: should be unreachable (7 delegates are always somewhere).
@@ -124,14 +230,17 @@ export class ChairmanSeat {
       });
   }
 
-  /** Re-derive the seat prompts after a reload (deferred actions are not serialized). */
+  /** Re-derive the pending prompts after a reload (deferred actions are not serialized). */
   public static rebuildPrompts(game: IGame, parliament: Parliament): void {
     for (const pending of parliament.pendingActions) {
-      if (pending.kind !== 'chairman-seat') {
-        continue;
-      }
       const player = game.getPlayerById(pending.player);
-      player.defer(() => ChairmanSeat.seatPrompt(player, parliament), Priority.BACK_OF_THE_LINE);
+      if (pending.kind === 'chairman-quest') {
+        // THE GATE ITSELF. Without this branch the reward is lost outright: the
+        // record says «not applied» and nothing would ever ask again.
+        player.defer(() => ChairmanSeat.questPrompt(player, parliament), Priority.BACK_OF_THE_LINE);
+      } else if (pending.kind === 'chairman-seat') {
+        player.defer(() => ChairmanSeat.seatPrompt(player, parliament), Priority.BACK_OF_THE_LINE);
+      }
     }
   }
 }

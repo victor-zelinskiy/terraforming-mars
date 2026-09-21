@@ -203,7 +203,18 @@ export type SerializedPendingAction =
   /** The Reds' recycle: 2 cards were drawn, 2 must be discarded. */
   | {kind: 'reds-recycle'; player: PlayerId; countAction: boolean}
   /** A quest was completed but the new chairman still has to pick which own resolution gives up a delegate. */
-  | {kind: 'chairman-seat'; player: PlayerId};
+  | {kind: 'chairman-seat'; player: PlayerId}
+  /**
+   * THE CHAIRMAN QUEST WAS COMPLETED and the player has NOT answered its gate
+   * yet — so nothing of it is applied: no seat, no Agenda step, no TR, no
+   * card. Unlike its two siblings this record stands BEFORE the irreversible
+   * half, which is the whole point of it: the reward must not arrive while the
+   * player is looking at the board (the presentation of the step lives in the
+   * Parliament section, and a step played with the section off screen plays
+   * into nothing). Deferred actions are not serialized, so this is also what
+   * lets a reload re-raise the gate instead of losing the reward.
+   */
+  | {kind: 'chairman-quest'; player: PlayerId};
 
 export type SerializedParliament = {
   version: number;

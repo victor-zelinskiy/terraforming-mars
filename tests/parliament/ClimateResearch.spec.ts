@@ -12,7 +12,7 @@ import {AQUIFER_CONTEST_ID} from '../../src/server/parliament/resolutions/greens
 import {BIODOME_CONTEST_ID} from '../../src/server/parliament/resolutions/greens/BiodomeContest';
 import {ARCHITECTURE_AWARD_ID} from '../../src/server/parliament/resolutions/marsFirst/ArchitectureAward';
 import {REDUX_RESOLUTION_CATALOG} from '../../src/server/parliament/resolutions/ResolutionCatalog';
-import {answerGate, endGenerationThroughParliament, seatEnacted, seatResolution, settleParliamentGates} from './parliamentArrange';
+import {answerQuestGate, answerGate, endGenerationThroughParliament, seatEnacted, seatResolution, settleParliamentGates} from './parliamentArrange';
 import {PartyName} from '../../src/common/turmoil/PartyName';
 import {Phase} from '../../src/common/Phase';
 import {Resource} from '../../src/common/Resource';
@@ -700,6 +700,7 @@ describe('ClimateResearch', () => {
       p1.production.add(Resource.HEAT, 1, {log: false});
       game.events.endScope();
       expect(parliament.quest?.completedBy).eq(p1.id);
+      answerQuestGate(game, p1);
       expect(parliament.chairman).eq(p1.id);
     });
 

@@ -9,6 +9,7 @@ import {AQUIFER_CONTEST_ID} from '../../src/server/parliament/resolutions/greens
 import {ARCHITECTURE_AWARD_ID} from '../../src/server/parliament/resolutions/marsFirst/ArchitectureAward';
 import {CENTRAL_POWER_GRID_ID} from '../../src/server/parliament/resolutions/industrialists/CentralPowerGrid';
 import {DEV_COMPOUND_RESOLUTION_ID, DEV_SCIENCE_RESOLUTION_ID} from '../../src/server/parliament/resolutions/ResolutionCatalog';
+import {runAllActions} from '../TestingUtils';
 
 /**
  * THE VOTING AREA, ARRANGED BY THE SPEC — never assumed from the deal.
@@ -152,6 +153,29 @@ export function answerGate(player: IPlayer, stage?: ParliamentPhaseStage): void 
     throw new Error(`${player.color} holds no ${stage ?? 'parliament'} gate (waitingFor: ${player.getWaitingFor()?.type ?? 'nothing'})`);
   }
   player.process({type: 'option'});
+}
+
+/*
+ * THE CHAIRMAN-QUEST GATE — the same law one flow up: the quest's count was
+ * reached and NOTHING is applied until the player answers
+ * (`ChairmanSeat.questPrompt`). A spec that completes a quest therefore runs
+ * the deferred queue and answers here; detection is the server's own marker.
+ */
+
+/** The QUEST gate `player` holds (by the marker), if any. */
+export function questGateOf(player: IPlayer): PlayerInput | undefined {
+  const wf = player.getWaitingFor();
+  return wf?.chairmanQuestPrompt !== undefined ? wf : undefined;
+}
+
+/** Run the deferred queue and answer `player`'s quest gate — the one press the console's flow sends. */
+export function answerQuestGate(game: IGame, player: IPlayer): void {
+  runAllActions(game);
+  if (questGateOf(player) === undefined) {
+    throw new Error(`${player.color} holds no chairman-quest gate (waitingFor: ${player.getWaitingFor()?.type ?? 'nothing'})`);
+  }
+  player.process({type: 'option'});
+  runAllActions(game);
 }
 
 /** Answer every standing gate once, in generation order; how many were answered. */

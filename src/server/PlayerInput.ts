@@ -3,7 +3,7 @@ import {Message} from '../common/logs/Message';
 import {PlayerInputType} from '../common/input/PlayerInputType';
 import {InputResponse} from '../common/inputs/InputResponse';
 import {IPlayer} from './IPlayer';
-import {PlayerInputModel, StartGamePromptMeta, BonusActionPromptMeta, AwardFundingPromptMeta, ChoiceContext, ColonyBonusCollectMeta, DeckPickPromptMeta, DiscardPromptMeta, DraftPromptMeta, FinalGreeneryPromptMeta, PlacementContext, ResourceGainPromptMeta, VenusBonusPromptMeta, SpendHeatPromptMeta, VotePromptMeta, VotePaymentMeta, PartyActionPromptMeta, ParliamentPhaseMarker} from '../common/models/PlayerInputModel';
+import {PlayerInputModel, StartGamePromptMeta, BonusActionPromptMeta, AwardFundingPromptMeta, ChoiceContext, ColonyBonusCollectMeta, DeckPickPromptMeta, DiscardPromptMeta, DraftPromptMeta, FinalGreeneryPromptMeta, PlacementContext, ResourceGainPromptMeta, VenusBonusPromptMeta, SpendHeatPromptMeta, VotePromptMeta, VotePaymentMeta, PartyActionPromptMeta, ParliamentPhaseMarker, ChairmanQuestPromptMeta} from '../common/models/PlayerInputModel';
 import {BotAttackPromptMeta} from '../common/models/BotAttackPromptModel';
 import {ExternalDrawTakeMeta} from '../common/models/ExternalDrawPromptModel';
 import {DeltaBonusPromptMeta} from '../common/models/DeltaBonusPromptModel';
@@ -75,6 +75,11 @@ export interface PlayerInput {
     // seats still awaited are filled centrally in ServerModel.getWaitingFor
     // (a gate is always the TOP-LEVEL prompt).
     parliamentPhasePrompt?: ParliamentPhaseMarker;
+    // Explicit "this SelectOption is the CHAIRMAN-QUEST gate" marker (see
+    // ChairmanQuestPromptMeta) — nothing of the quest's reward is applied
+    // until it is answered. Serialized centrally in ServerModel.getWaitingFor
+    // (the gate is always the TOP-LEVEL prompt).
+    chairmanQuestPrompt?: ChairmanQuestPromptMeta;
 
     // Contextual annotation identifying this PlayerInput.
     annotation: string | undefined;
@@ -155,6 +160,7 @@ export abstract class BasePlayerInput<T> implements PlayerInput {
   public votePayment: VotePaymentMeta | undefined;
   public partyActionPrompt: PartyActionPromptMeta | undefined;
   public parliamentPhasePrompt: ParliamentPhaseMarker | undefined;
+  public chairmanQuestPrompt: ChairmanQuestPromptMeta | undefined;
 
   public abstract toModel(player: IPlayer): PlayerInputModel;
   public abstract process(response: InputResponse, player: IPlayer): PlayerInput | undefined;
@@ -365,6 +371,15 @@ export abstract class BasePlayerInput<T> implements PlayerInput {
    *  awaited are derived at model time. See {@link ParliamentPhasePromptMeta}. */
   public markParliamentPhase(meta: ParliamentPhaseMarker): this {
     this.parliamentPhasePrompt = meta;
+    return this;
+  }
+
+  /** Mark this `SelectOption` as the CHAIRMAN-QUEST gate (chainable): the quest
+   *  is complete and NOTHING has been applied yet. Built by
+   *  `parliament/quests/ChairmanSeat.questPrompt` — the one producer.
+   *  See {@link ChairmanQuestPromptMeta}. */
+  public markChairmanQuest(meta: ChairmanQuestPromptMeta): this {
+    this.chairmanQuestPrompt = meta;
     return this;
   }
 }

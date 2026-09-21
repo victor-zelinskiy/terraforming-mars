@@ -59,6 +59,7 @@ import {Turmoil} from './turmoil/Turmoil';
 import {Parliament} from './parliament/Parliament';
 import {ParliamentHandler} from './parliament/ParliamentHandler';
 import {ParliamentPhase} from './parliament/ParliamentPhase';
+import {ChairmanSeat} from './parliament/quests/ChairmanSeat';
 import {PoliticalOps, politicalOpsOf} from './politics/PoliticalOps';
 import {RandomMAOptionType} from '../common/ma/RandomMAOptionType';
 import {AresHandler} from './ares/AresHandler';
@@ -1100,6 +1101,17 @@ export class Game implements IGame, Logger {
 
   private postProductionPhase(): void {
     if (this.deferredActions.length > 0) {
+      this.deferredActions.runAll(() => this.postProductionPhase());
+      return;
+    }
+    // THE CHAIRMAN-QUEST GATE STANDS BEFORE THE SITTING (Turmoil Redux). Its
+    // pending record means the quest's reward is NOT applied yet, and the
+    // political phase moves the very same Agenda marker: letting the
+    // generation end over an unanswered gate would pay the sitting's step on
+    // top of one the player has never seen. Normally unreachable (the gate is
+    // raised inside the player's own action and blocks their turn) — this is
+    // the net for a defer lost to a reload.
+    if (this.parliament !== undefined && ChairmanSeat.deferPendingQuestGates(this, this.parliament)) {
       this.deferredActions.runAll(() => this.postProductionPhase());
       return;
     }

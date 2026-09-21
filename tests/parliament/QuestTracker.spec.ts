@@ -12,10 +12,11 @@ import {CardType} from '../../src/common/cards/CardType';
 import {Tag} from '../../src/common/cards/Tag';
 import {SelectParty} from '../../src/server/inputs/SelectParty';
 import {cast} from '../../src/common/utils/utils';
-import {fakeCard, runAllActions} from '../TestingUtils';
+import {fakeCard} from '../TestingUtils';
 import {EventSource} from '../../src/common/events/EventSource';
 import {CLIMATE_RESEARCH_ID} from '../../src/server/parliament/resolutions/greens/ClimateResearch';
 import {ARCHITECTURE_AWARD_ID} from '../../src/server/parliament/resolutions/marsFirst/ArchitectureAward';
+import {answerQuestGate} from './parliamentArrange';
 
 function reduxGame(): [IGame, TestPlayer, TestPlayer, Parliament] {
   const [game, p1, p2] = testGame(2, {turmoilReduxExpansion: true, coloniesExtension: true});
@@ -61,9 +62,14 @@ describe('QuestTracker (the chairman quest)', () => {
   });
 
   it('completing the quest advances the Agenda and seats the chairman from the reserve; nobody else can complete it this generation', () => {
-    const [, p1, p2, parliament] = reduxGame();
+    const [game, p1, p2, parliament] = reduxGame();
     asOwnAction(p1, () => p1.production.add(Resource.HEAT, 3));
     expect(parliament.quest?.completedBy).eq(p1.id);
+    // THE GATE STANDS: the completion is recorded, nothing is applied.
+    expect(parliament.pendingActions).deep.eq([{kind: 'chairman-quest', player: p1.id}]);
+    expect(parliament.chairman).is.undefined;
+    expect(parliament.agendaOf(p1)).eq(0);
+    answerQuestGate(game, p1);
     expect(parliament.chairman).eq(p1.id);
     expect(parliament.agendaOf(p1)).eq(1);
     expect(parliament.lobby.has(p1.id), 'the lobby delegate stays; the seat came from the reserve').is.true;
@@ -74,10 +80,12 @@ describe('QuestTracker (the chairman quest)', () => {
   });
 
   it('a new chairman unseats the previous one (whose delegate returns); a sitting chairman only advances', () => {
-    const [, p1, p2, parliament] = reduxGame();
+    const [game, p1, p2, parliament] = reduxGame();
     parliament.chairman = p2.id;
     expect(parliament.reserve(p2)).eq(5);
     asOwnAction(p1, () => p1.production.add(Resource.HEAT, 3));
+    expect(parliament.chairman, 'the office is untouched until the gate is answered').eq(p2.id);
+    answerQuestGate(game, p1);
     expect(parliament.chairman).eq(p1.id);
     expect(parliament.reserve(p2)).eq(6);
     // Next generation's quest (the spec's own definition — the tracker reads
@@ -85,6 +93,8 @@ describe('QuestTracker (the chairman quest)', () => {
     parliament.quest = {definition: {goal: {kind: 'tag', tag: Tag.EARTH}, count: 1}, source: ARCHITECTURE_AWARD_ID, generation: 2, progress: new Map()};
     const reserve = parliament.reserve(p1);
     asOwnAction(p1, () => p1.onCardPlayed(fakeCard({tags: [Tag.EARTH]})));
+    // The sitting chairman is asked too — the office does not change, but the step is still a reward.
+    answerQuestGate(game, p1);
     expect(parliament.chairman).eq(p1.id);
     expect(parliament.agendaOf(p1)).eq(2);
     expect(parliament.reserve(p1), 'kept the seated delegate').eq(reserve);
@@ -100,9 +110,10 @@ describe('QuestTracker (the chairman quest)', () => {
     }
     expect(parliament.reserve(p1)).eq(0);
     asOwnAction(p1, () => p1.production.add(Resource.HEAT, 3));
+    answerQuestGate(game, p1);
     expect(parliament.chairman, 'not seated yet — a delegate must be chosen').is.undefined;
     expect(parliament.pendingActions).deep.eq([{kind: 'chairman-seat', player: p1.id}]);
-    runAllActions(game);
+    expect(parliament.agendaOf(p1), 'the step waits for the seat it pays for').eq(0);
     const ask = cast(p1.getWaitingFor(), SelectParty);
     expect(ask.votePrompt).deep.eq({source: 'chairman-seat', cost: 0});
     expect(ask.parties).has.length(3);
@@ -114,6 +125,7 @@ describe('QuestTracker (the chairman quest)', () => {
     const party = copy.resolutionOf(copy.slots[2].instance).party;
     rebuilt.process({type: 'party', partyName: party});
     expect(copy.chairman).eq(p1.id);
+    expect(copy.agendaOf(one), 'the Agenda step follows the seat, never precedes it').eq(1);
     expect(copy.votesOf(one, copy.slots[2])).eq(2);
     expect(copy.votesOf(one)).eq(6);
     expect(copy.pendingActions).deep.eq([]);
