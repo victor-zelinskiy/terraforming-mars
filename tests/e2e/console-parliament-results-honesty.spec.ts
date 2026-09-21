@@ -3,7 +3,7 @@ import * as path from 'path';
 import {test, expect, Page} from './consoleTest';
 import {bootFixture, bootFixtureSeats, openMandatoryAnnounce, press, settle} from './consoleStart';
 import {
-  answerGateAs, expectRailHonest, mandatoryPlate, openParliament, parliament, parliamentWire,
+  answerGateAs, expectParliamentFits, expectRailHonest, mandatoryPlate, openParliament, parliament, parliamentWire,
   PARLIAMENT_PRESETS, sittingStage, waitSittingAtRest,
 } from './parliamentDrive';
 
@@ -97,8 +97,8 @@ function summaryOf(wire: Awaited<ReturnType<typeof parliamentWire>>): SittingSum
 
 type HonestyFixture = 'parliament-architecture-assembly' | 'parliament-support-stock';
 
-async function openSitting(page: Page, request: Parameters<typeof bootFixtureSeats>[1], fixture: HonestyFixture) {
-  const boot = await bootFixtureSeats(page, request, fixture, {query: '&consoleProfile=auto', landing: 'prompt'});
+async function openSitting(page: Page, request: Parameters<typeof bootFixtureSeats>[1], fixture: HonestyFixture, query = '&consoleProfile=auto') {
+  const boot = await bootFixtureSeats(page, request, fixture, {query, landing: 'prompt'});
   await expect(mandatoryPlate(page)).toHaveCount(1, {timeout: 30_000});
   expect(await openMandatoryAnnounce(page)).toBe(true);
   await expect(parliament(page)).toHaveCount(1, {timeout: 20_000});
@@ -271,6 +271,34 @@ test.describe('«Итоги: честность» — панель, поддер
     expect(last, `the government changed hands (${first} → ${last})`).not.toBe(first);
   });
 });
+
+/**
+ * И6 · ВМЕЩАЕМОСТЬ on the two profiles the 1080 probes above do not cover — the Deck is the tight one
+ * («Отдельно Deck: панель из двух секций и ряд из шести плиток должны умещаться без обрезаний»). The support row is
+ * where the two-section panel got wider and the Deck's column is the narrowest, so the honest-rail rule is
+ * asked there by name on top of the fit sweep.
+ */
+for (const preset of PARLIAMENT_PRESETS.filter((p) => p.id !== 'standard-1080')) {
+  test.describe(`«Итоги: честность» — вмещаемость панели (${preset.id})`, () => {
+    test.use({viewport: preset.viewport});
+
+    test('И6 · панель из двух секций вмещается, ни одна строка не срезана', async ({page, request}) => {
+      test.setTimeout(300_000);
+      const {seats} = await openSitting(page, request, 'parliament-support-stock', preset.query);
+      await runWalk(page, request, seats[1]);
+      await shoot(page, `honesty-results-${preset.id}`);
+
+      const sections = await page.locator('[data-sit-section]').evaluateAll((els) => els.map((el) => el.getAttribute('data-sit-section')));
+      expect(sections, 'the payouts and the table — and nothing else').toEqual(['payouts', 'table']);
+      const chips = await page.locator('[data-sit-support]').count();
+      expect(chips, 'five parties state their stock').toBe(5);
+      // Nothing of the parliament spills its box, scrolls, or runs past the stage's own tier.
+      await expectParliamentFits(page, `${preset.id} results`);
+      await expectRailHonest(page, `${preset.id} support row`, '[data-sit-row="results-support"]');
+      await expectRailHonest(page, `${preset.id} lobby row`, '[data-sit-row="results-lobby"]');
+    });
+  });
+}
 
 /**
  * И4 · ПЛИТКА ПРАВИТЕЛЯ, on every profile: its support places are invisible and still occupy their room,

@@ -132,6 +132,18 @@ describe('parliamentResultsModel — the sitting\'s last reading, in two section
     });
   });
 
+  it('THE FINAL PHASE still has a panel: no deal, no lobby — but every seat keeps its payout row and the stocks are stated', () => {
+    // The last sitting enacts and pays, then stops: the area is not refreshed and the lobby is not
+    // refilled. What is left must still be a reading, never an empty frame.
+    const reading = resultsReadingOf(
+      summary({final: true, refreshed: [], lobbyRefilled: [], outcomes: [outcome({}), outcome({player: RED, kind: 'stock', amount: 3, stock: Resource.STEEL})]}),
+      [BLUE, RED], SUPPORT);
+    expect(reading.payouts.map((p) => p.parts.length), 'both seats are paid and both rows stand').deep.eq([1, 1]);
+    expect(reading.table.fresh, 'nothing was dealt').deep.eq([]);
+    expect(reading.table.lobby, 'nobody got a delegate back').deep.eq([]);
+    expect(reading.table.support.map((s) => s.party), 'the stocks are still the one thing seen nowhere else').deep.eq([PartyName.MARS]);
+  });
+
   it('the RULING PARTY\'s own answer keeps its party — the emblem stands beside the amount', () => {
     const reading = resultsReadingOf(
       summary({outcomes: [outcome({kind: 'reaction', party: PartyName.GREENS, amount: 1, stock: Resource.MEGACREDITS})]}),
