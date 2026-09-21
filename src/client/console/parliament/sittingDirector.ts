@@ -1123,6 +1123,23 @@ export async function playSittingStage(stage: SittingStage, beats: ReadonlyArray
   // RESULTS page always reveals its card — the summary's records are not their only fact.
   if ((own.length === 0 && stage !== 'reward' && stage !== 'results') || consoleReducedMotionActive()) {
     settleStagePoses(stage);
+    // …EXCEPT THAT A READING IS STILL A READING UNDER REDUCED MOTION. The poses land at once — that is what
+    // reduced motion asks for — but a page whose WHOLE content is a sentence («ЭФФЕКТ / ДЕЙСТВИЕ, ПОКА
+    // ПРИНЯТА …», the only place a payout-less resolution says what it leaves behind) must still stand long
+    // enough to be read: reduced motion removes MOTION, not information. The dwell rides the stage's own beat
+    // machinery (hold, ceiling, «дожать»), never a wall clock.
+    if (stage === 'reward' && ctx.root.querySelector('.con-sit__panel--on [data-sit-quiet]') !== null) {
+      stagePlaying = stage;
+      sittingMotion.stage = stage;
+      try {
+        await runBeat(stage, '', opts.compact, () => s(QUIET_REWARD_DWELL_MS));
+      } finally {
+        if (stagePlaying === stage) {
+          stagePlaying = '';
+          sittingMotion.stage = '';
+        }
+      }
+    }
     return;
   }
   const k = opts.compact ? COMPACT : 1;

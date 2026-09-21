@@ -103,7 +103,16 @@ async function armReducedProbe(page: Page): Promise<void> {
   });
 }
 
-/** REDUCED verdict: no proxy ever, no parliament hold longer than `maxHoldMs`. */
+/**
+ * REDUCED verdict: no proxy ever, no parliament hold longer than `maxHoldMs`.
+ *
+ * ⚠ REDUCED MOTION REMOVES MOTION, NOT READING TIME («Заседание v4»). The reward page of a resolution that pays
+ * nothing carries the ONE sentence that says what the enactment leaves behind, and that page dwells on purpose —
+ * under reduced motion too, where there is no beat to spend. So its hold has a bound of its own: still bounded,
+ * still far under the stage ceiling, and every OTHER hold keeps the strict 2 s.
+ */
+const READING_HOLDS: Record<string, number> = {'parliament-sitting:reward[blocking]': 2600};
+
 async function expectReducedQuiet(page: Page, label: string, maxHoldMs = 2000): Promise<void> {
   const probe = await page.evaluate(() => (window as unknown as {__reducedProbe: ReducedProbe}).__reducedProbe);
   const s = probe.samples;
@@ -131,7 +140,7 @@ async function expectReducedQuiet(page: Page, label: string, maxHoldMs = 2000): 
   for (const [h, t0] of Array.from(since.entries())) {
     longest.set(h, Math.max(longest.get(h) ?? 0, last.t - t0));
   }
-  const over = Array.from(longest.entries()).filter(([, ms]) => ms > maxHoldMs).map(([h, ms]) => `${h} ${Math.round(ms)} ms`);
+  const over = Array.from(longest.entries()).filter(([h, ms]) => ms > (READING_HOLDS[h] ?? maxHoldMs)).map(([h, ms]) => `${h} ${Math.round(ms)} ms`);
   expect(over, `${label}: no parliament hold stands longer than ${maxHoldMs} ms under reduced motion`).toEqual([]);
 }
 
