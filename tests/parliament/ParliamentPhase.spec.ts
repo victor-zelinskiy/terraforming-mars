@@ -186,6 +186,35 @@ describe('ParliamentPhase', () => {
     }
   });
 
+  /*
+   * …AND THE ONE WINDOW WHERE THE PROOF'S FIRST PREMISE DOES NOT HOLD. «The ruler is represented by the
+   * card in ENACTED» is false before the FIRST enactment: the slot is empty and the Greens rule by the
+   * starting rule (`Parliament.rulingParty`), so the support step's first wave — which pays every party
+   * represented neither in the area nor in ENACTED — could pay the ruler.
+   *
+   * It cannot TODAY, and this spec is why: the deck holds real resolutions of exactly three parties, so
+   * generation 1's three voting slots are those three and the starting-rule ruler is always one of them.
+   * The day a FOURTH party ships a resolution this spec fails — and that failure is the worklist entry:
+   * the ruler's plaque hides its support sockets (`ConsolePartyPlaque.vue`), so a default ruler that can
+   * actually hold a delegate needs that rule re-read.
+   */
+  it('THE STARTING-RULE RULER holds a card in the generation-1 voting area, so the support step never pays it as absent', () => {
+    const [game, , , parliament] = reduxGame();
+    expect(parliament.enacted, 'the ENACTED slot is empty before the first sitting').is.undefined;
+    const ruler = parliament.rulingParty();
+    expect(parliament.partiesInVotingArea(),
+      `the starting-rule ruler (${ruler}) must be represented in the generation-1 area — a fourth party's ` +
+      'resolution would break that, and then a party with HIDDEN support sockets could be paid by wave 1')
+      .includes(ruler);
+
+    for (let i = 0; i < parliament.slots.length; i++) {
+      quiet(parliament, i);
+    }
+    endGenerationThroughParliament(game);
+    const paidAsAbsent = (parliament.lastPhase?.support ?? []).find((entry) => entry.party === ruler && entry.reason === 'absent');
+    expect(paidAsAbsent, `wave 1 paid the starting-rule ruler ${ruler}`).is.undefined;
+  });
+
   it('a neutral winner moves no Agenda and the second Agenda step pays 1 TR', () => {
     const [game, p1, , parliament] = reduxGame();
     // THE GENERIC PHASE again: the subject is the Agenda, so the card that

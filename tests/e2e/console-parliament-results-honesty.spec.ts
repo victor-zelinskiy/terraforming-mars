@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page} from './consoleTest';
-import {bootFixture, bootFixtureSeats, openMandatoryAnnounce, press, settle} from './consoleStart';
+import {bootFixture, bootFixtureSeats, openMandatoryAnnounce, press, pressUntil, settle} from './consoleStart';
 import {
   answerGateAs, expectParliamentFits, expectRailHonest, mandatoryPlate, openParliament, parliament, parliamentWire,
   PARLIAMENT_PRESETS, sittingStage, waitSittingAtRest,
@@ -28,14 +28,49 @@ import {
  * state the browser never paints. Claims about FRAMES are made on the `tick` samples only.
  */
 type TileSample = {party: string, inSlot: boolean, socketsHidden: boolean, socketsBox: boolean};
+type ZoneWord = {zone: string, text: string};
 type HonestySample = {
   src: 'mo' | 'tick',
   t: number, stage: string, swapping: boolean,
   sections: Array<string>,
   panelText: string,
+  /** The panel's text WITHOUT the declared exceptions (`PANEL_EXCEPTIONS`) — what the law is asserted on. */
+  panelStrict: string,
+  /** Every word the OTHER zones own right now, read off the live DOM (`ZONE_WORDS`). */
+  zoneWords: Array<ZoneWord>,
   tiles: Array<TileSample>,
 };
 type HonestyProbe = {samples: Array<HonestySample>};
+
+/*
+ * ЗАКОН ПАНЕЛИ, ЗАКРЕПЛЁННЫЙ МЕХАНИЧЕСКИ (Ф2): the results panel never prints what is VISIBLE IN ANOTHER
+ * ZONE of the screen at that moment. Three rows have already died of it — ЗАКОН (the government's three
+ * facts), В ЛОББИ (the delegates ledger) — so the guard may not be a list of the rows we happened to
+ * remove: it reads each zone's OWN WORDS off the live DOM and refuses to find any of them inside the
+ * panel, in any beat. Adding a zone is one row here; re-adding any removed row fails immediately.
+ */
+const ZONE_WORDS: ReadonlyArray<{zone: string, selector: string, why: string}> = [
+  {zone: 'government/enacted', selector: '.con-parl__gov-card .pcard__title',
+    why: 'the enacted resolution names itself on its own card under «ПРИНЯТАЯ РЕЗОЛЮЦИЯ»'},
+  {zone: 'government/ruler', selector: '[data-parl-ruler-slot] .con-pseal__name',
+    why: 'the ruling party is the plaque standing in the government, with «ПРАВИТ» on it'},
+  {zone: 'government/quest', selector: '.con-parl__quest-text',
+    why: 'the chairman quest is its own block — with progress, reward and the chair'},
+  {zone: 'delegates-ledger', selector: '.con-parl__seats .con-parl__seat-key',
+    why: 'the lobby socket and the reserve stack are stated per seat, permanently, at the top of the screen'},
+  {zone: 'voting-area', selector: '.con-parl__slot .con-parl__card .pcard__title',
+    why: 'the freshly dealt resolutions stand on the table the whole time the panel is up'},
+];
+
+/*
+ * THE ONE DECLARED EXCEPTION, and it is an OPEN QUESTION rather than a blessing: «НОВЫЕ РЕЗОЛЮЦИИ» names
+ * the cards the deal put on the table — and those cards are standing in the VOTING AREA at that very
+ * moment, so by the law above the row is a restatement too. Its one member that is genuinely nowhere else
+ * is «остаётся · перетасована» (a loser dealt straight back never left the table). Removing the row was
+ * not part of this task, so it is excluded HERE, by name, where the next reader can see the question —
+ * never by weakening the rule.
+ */
+const PANEL_EXCEPTIONS: ReadonlyArray<string> = ['[data-sit-row="results-fresh"]'];
 
 const OUT_DIR = path.resolve(__dirname, '..', '..', 'artifacts', 'parliament-v5');
 
@@ -45,7 +80,7 @@ async function shoot(page: Page, name: string): Promise<void> {
 }
 
 async function armHonestyProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
+  await page.evaluate(([zones, exceptions]: [typeof ZONE_WORDS, ReadonlyArray<string>]) => {
     const w = window as unknown as {__hon: HonestyProbe};
     w.__hon = {samples: []};
     const text = (el: Element | null | undefined): string =>
@@ -62,6 +97,24 @@ async function armHonestyProbe(page: Page): Promise<void> {
         socketsBox: r !== undefined && r.width > 0 && r.height > 0,
       };
     });
+    // A zone's own words, normalized for comparison: case-folded (the panel's kickers are uppercased by
+    // CSS, so `textContent` keeps whatever case the key was written in) and stripped of the marks a zone
+    // paints into its own text (the reserve key carries a «←» while a delegate is on its way home).
+    const words = (): Array<ZoneWord> => zones.flatMap(({zone, selector}) =>
+      Array.from(document.querySelectorAll(selector))
+        .map((el) => ({zone, text: text(el).toLowerCase().replace(/[^\p{L}\p{N} ]+/gu, ' ').replace(/\s+/g, ' ').trim()}))
+        .filter((wrd) => wrd.text.length >= 5));
+    const strict = (): string => {
+      const panel = document.querySelector('[data-sit-results]');
+      if (panel === null) {
+        return '';
+      }
+      const clone = panel.cloneNode(true) as HTMLElement;
+      for (const sel of exceptions) {
+        clone.querySelectorAll(sel).forEach((el) => el.remove());
+      }
+      return text(clone).toLowerCase().replace(/[^\p{L}\p{N} ]+/gu, ' ').replace(/\s+/g, ' ').trim();
+    };
     const sample = (src: 'mo' | 'tick') => {
       const root = document.querySelector('.con-parl');
       if (root === null) {
@@ -74,13 +127,15 @@ async function armHonestyProbe(page: Page): Promise<void> {
         swapping: root.classList.contains('con-parl--swapping'),
         sections: Array.from(document.querySelectorAll('[data-sit-section]')).map((el) => el.getAttribute('data-sit-section') ?? ''),
         panelText: text(document.querySelector('[data-sit-results]')),
+        panelStrict: strict(),
+        zoneWords: words(),
         tiles: tiles(),
       });
     };
     new MutationObserver(() => sample('mo')).observe(document.body, {subtree: true, childList: true, attributes: true, characterData: true});
     window.setInterval(() => sample('tick'), 40);
     sample('tick');
-  });
+  }, [ZONE_WORDS, PANEL_EXCEPTIONS] as [typeof ZONE_WORDS, ReadonlyArray<string>]);
 }
 
 const readHonesty = (page: Page): Promise<HonestyProbe> =>
@@ -88,7 +143,11 @@ const readHonesty = (page: Page): Promise<HonestyProbe> =>
 
 const ticks = (s: ReadonlyArray<HonestySample>) => s.filter((x) => x.src === 'tick');
 
-type SittingSummary = {support?: Array<{party: string, gained: number}>, lobbyRefilled?: Array<string>};
+type SittingSummary = {
+  support?: Array<{party: string, gained: number}>,
+  lobbyRefilled?: Array<string>,
+  enacted?: {party: string},
+};
 
 /** The SERVER's own record of the sitting on screen: its phase's summary while it runs, `lastPhase` once closed. */
 function summaryOf(wire: Awaited<ReturnType<typeof parliamentWire>>): SittingSummary {
@@ -153,12 +212,28 @@ test.describe('«Итоги: честность» — панель, поддер
     expect(wrongSections.map((s) => `${s.stage}: ${s.sections.join('|')}`).slice(0, 4),
       'the payouts and the table — and nothing else').toEqual([]);
 
-    // ③ …AND THE PANEL NEVER RESTATES THEM, in any beat.
-    const echoes = withPanel.filter((s) =>
-      s.panelText.includes(zone.enacted) || s.panelText.includes(zone.ruler) || s.panelText.includes(zone.quest));
-    expect(echoes.map((s) => `${s.stage}: ${s.panelText.slice(0, 120)}`).slice(0, 3),
-      `the panel repeats the government's zone («${zone.enacted}» / «${zone.ruler}» / «${zone.quest}»)`).toEqual([]);
+    // ③ …AND THE PANEL NEVER RESTATES ANY ZONE'S OWN WORDS, in any beat — the LAW, asserted mechanically
+    //    over `ZONE_WORDS` rather than over the rows we happened to delete. Re-add ЗАКОН and the
+    //    government's three facts fail it; re-add В ЛОББИ and the ledger's «Лобби» fails it; a row that
+    //    restates some zone nobody has thought of yet fails it the moment that zone joins the table.
+    const zoneSeen = new Map<string, number>();
+    const echoes: Array<string> = [];
+    for (const sample of withPanel) {
+      for (const word of sample.zoneWords) {
+        zoneSeen.set(word.zone, (zoneSeen.get(word.zone) ?? 0) + 1);
+        if (sample.panelStrict.includes(word.text)) {
+          echoes.push(`${sample.stage}: the panel repeats ${word.zone}'s «${word.text}»`);
+        }
+      }
+    }
+    expect([...new Set(echoes)].slice(0, 5), 'the panel restates a zone that is standing beside it').toEqual([]);
+    // …and the guard is not vacuous: every zone in the table actually spoke while the panel was up.
+    expect(ZONE_WORDS.filter((z) => (zoneSeen.get(z.zone) ?? 0) === 0).map((z) => `${z.zone} (${z.selector}) — ${z.why}`),
+      'a zone whose own words were never read: the law is unguarded there').toEqual([]);
     await expect(page.locator('[data-sit-law]'), 'no law member survives anywhere').toHaveCount(0);
+    // The three government facts are the ones the table's first three rows carry, and they are REAL.
+    expect(`${zone.enacted}|${zone.ruler}|${zone.quest}`.toLowerCase(), 'the government still states all three')
+      .not.toBe('||');
 
     // ④ «В ЛОББИ» IS GONE, and what replaced it is an EXCEPTION. The delegates ledger states every seat's
     //    lobby socket and reserve by name, permanently — so «who got one back» was a restatement (and a
@@ -190,6 +265,69 @@ test.describe('«Итоги: честность» — панель, поддер
   // resolution in the deck, so the deal can never take them away — the row then holds a party with BOTH
   // older and fresh delegates. On the plain table every stock is fresh and «told apart from the older
   // ones» would be a claim about nothing.
+  /*
+   * И8 · ПЕРВОЕ ПОКОЛЕНИЕ: the one window where the ruler rules WITHOUT an enacted card (the starting
+   * rule), so the «a party that rules holds no support» proof's first premise does not hold on the
+   * server. The screen must still lose nothing: the starting-rule ruler is replaced by the enacted card's
+   * party, descends into the ROW where sockets are drawn, and its stock reads there. The hole would be a
+   * party left standing in the GOVERNMENT — sockets hidden — with a stock the server says it has.
+   * (The server half is pinned in `ParliamentPhase.spec.ts` § THE STARTING-RULE RULER.)
+   */
+  test('И8 · ПЕРВОЕ ПОКОЛЕНИЕ: прежний правитель уезжает в ряд и его запас читается; в правительстве — партия принятой карты с нулём', async ({page, request}) => {
+    test.setTimeout(300_000);
+    const {playerId, seats} = await openSitting(page, request, 'parliament-architecture-assembly');
+    const before = await parliamentWire(request, playerId);
+    const startingRuler = (before.game.parliament as unknown as {rulingParty: string}).rulingParty;
+    expect((before.game.parliament as unknown as {enacted?: string}).enacted, 'generation 1: nothing is enacted yet — the ruler rules by the STARTING RULE')
+      .toBeUndefined();
+
+    await runWalk(page, request, seats[1]);
+    // Close the sitting and walk back into the overview: the parties row is parked behind the results
+    // panel while it stands, and «its stock reads in the row» is a claim about a row the player can see.
+    await answerGateAs(request, seats[1], 'adjourn');
+    expect(await pressUntil(page, 'Enter', async () => (await parliamentWire(request, playerId)).waitingFor?.parliamentPhasePrompt === undefined,
+      {tries: 5, settleMs: 1500}), 'A answers the adjourn gate').toBe(true);
+    await settle(page, {timeoutMs: 30_000});
+    await openParliament(page);
+    await settle(page, {timeoutMs: 20_000});
+    await shoot(page, 'honesty-first-generation');
+
+    const wire = await parliamentWire(request, playerId);
+    const model = wire.game.parliament as unknown as {rulingParty: string, popularSupport: Record<string, number>};
+    const enactedParty = summaryOf(wire).enacted?.party ?? '';
+    expect(enactedParty.length, 'the sitting enacted a resolution').toBeGreaterThan(0);
+    expect(model.rulingParty, 'the party of the enacted card now rules').toBe(enactedParty);
+    expect(model.rulingParty, 'the government changed hands — the starting-rule ruler stepped down').not.toBe(startingRuler);
+    expect(model.popularSupport[model.rulingParty] ?? 0, 'the ruling party holds no stock (the rule the hidden sockets stand on)').toBe(0);
+
+    const tiles = await page.locator('.con-parl__party[data-party]').evaluateAll((els) => els.map((el) => {
+      const sockets = el.querySelector<HTMLElement>('.con-pseal__support');
+      const r = sockets?.getBoundingClientRect();
+      return {
+        party: el.getAttribute('data-party') ?? '',
+        inSlot: el.closest('[data-parl-ruler-slot]') !== null,
+        socketsVisible: sockets !== null && getComputedStyle(sockets).visibility === 'visible',
+        socketsBox: r !== undefined && r.width > 0 && r.height > 0,
+        filled: el.querySelectorAll('.con-pseal__support-place--on').length,
+      };
+    }));
+    expect(tiles.length, 'six plaques: five in the row and the one in the government').toBe(6);
+
+    const ruler = tiles.find((t) => t.inSlot);
+    expect(ruler?.party, 'the plaque in the government belongs to the party of the enacted card').toBe(enactedParty);
+    expect(ruler?.socketsVisible, 'and it shows no sockets — its stock can never be anything but zero').toBe(false);
+    expect(ruler?.socketsBox, '…while still taking their room').toBe(true);
+
+    const row = tiles.filter((t) => !t.inSlot);
+    const former = row.find((t) => t.party === startingRuler);
+    expect(former, `the starting-rule ruler (${startingRuler}) descended into the row`).toBeDefined();
+    expect(former?.socketsVisible, 'and its sockets are DRAWN there — nothing of its stock is hidden').toBe(true);
+    // …and every row tile states the server's own number: a stock cannot be lost on the way down.
+    const wrong = row.filter((t) => t.filled !== (model.popularSupport[t.party] ?? 0));
+    expect(wrong.map((t) => `${t.party}: ${t.filled} shown, ${model.popularSupport[t.party] ?? 0} on the server`),
+      'a row tile disagrees with the server about its stock').toEqual([]);
+  });
+
   test('И2 · ПОДДЕРЖКА ЧЕСТНА: места равны запасу сервера, правителя в строке нет, свежие отличимы, ничего не срезано', async ({page, request}) => {
     test.setTimeout(300_000);
     const {playerId, seats} = await openSitting(page, request, 'parliament-support-stock');
