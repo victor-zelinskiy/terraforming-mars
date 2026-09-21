@@ -38,7 +38,7 @@ export type SittingSample = {
   chips: Array<{id: string, x: number, y: number, res: string}>;
   /** The carrier card's printed mechanic rect (the wave's birthplace). */
   mech: {x: number, y: number, w: number, h: number} | undefined;
-  /** The results card hidden / revealed, the door plate, the board live, the parliament mounted, the hot verb. */
+  /** The results panel hidden / revealed, the winner's tile chip, the board live, the parliament mounted, the hot verb. */
   resultsHidden: boolean; door: boolean; placing: boolean; parl: boolean; hot: string;
 };
 export type SittingProbe = {samples: Array<SittingSample>};
@@ -126,7 +126,8 @@ export async function armSittingProbe(page: Page): Promise<void> {
         chips,
         mech: rect(govCardEl?.querySelector('.pcard__mech') ?? null),
         resultsHidden: document.querySelector('[data-sit-results-hidden]') !== null,
-        door: document.querySelector('[data-sit-door]') !== null,
+        // v5: the winner's tile reads as a chip of the BAND (the door's verb is still the command bar's «К полю»).
+        door: document.querySelector('[data-parl-band-chip="tile"]') !== null,
         placing: document.querySelector('.con-board--placing, .con-board--locked') !== null,
         parl: document.querySelector('.con-parl') !== null,
         hot: Array.from(document.querySelectorAll('.con-cmdbar__cmd--hot .con-cmdbar__label')).map((el) => el.textContent?.trim() ?? '').join('|'),

@@ -271,7 +271,7 @@ for (const preset of PARLIAMENT_PRESETS) {
         await armProbe(page);
         await press(page, 'Enter', 1200);
         await expect.poll(async () => (await parliamentWire(request, playerId)).waitingFor?.parliamentPhasePrompt, {timeout: 20_000}).toBeUndefined();
-        await expect(page.locator('.con-sit__panel--on [data-sit-awaiting]')).toHaveCount(1, {timeout: 15_000});
+        await expect(page.locator('.con-band [data-sit-awaiting]')).toHaveCount(1, {timeout: 15_000});
         const rowBefore: Record<string, {prod: string, stock: string}> = (await readProbe(page)).samples.slice(-1)[0].rail;
         await answerGateAs(request, red, 'assembly');
 
@@ -433,7 +433,8 @@ for (const preset of PARLIAMENT_PRESETS) {
           // ── THE WINNER'S TILE (v2): the reward page STOPS on the tile behind «К полю» — the board is NOT live until the
           //    player's own press; the frame comes BACK to the reward stage in its «received» pose.
           await expect.poll(() => sittingStep(page), {timeout: 40_000}).toBe('placement');
-          await expect(page.locator('[data-sit-door]'), 'the door plate names the tile').toHaveCount(1);
+          // v5: the tile is a chip of the BAND; the door's verb stays on the command bar.
+          await expect(page.locator('.con-band [data-parl-band-chip="tile"]'), 'the band names the tile').toHaveCount(1);
           expect(await hotVerb(page)).toMatch(/К полю|Onto the board/i);
           await settle(page, {timeoutMs: 20_000});
           const probe = await readProbe(page);

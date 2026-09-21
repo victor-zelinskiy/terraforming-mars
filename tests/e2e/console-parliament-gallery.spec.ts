@@ -624,17 +624,21 @@ for (const preset of PARLIAMENT_PRESETS) {
           await answerGateAs(request, red, 'assembly');
           const seen: {quiet: {kind: string | null, kicker: string, text: string, where: number, contexts: number, part: string} | null} = {quiet: null};
           await expect.poll(async () => {
+            // v5: the quiet pose is the BAND's line — it names what OUTLIVES the enactment and, for an action,
+            // where it lives. The card's own declaration is NOT repeated: the enacted resolution prints it in
+            // the government, one tier up, and the band never says what an object already says itself.
             seen.quiet = await page.evaluate(() => {
-              const q = document.querySelector<HTMLElement>('.con-sit__panel--on [data-sit-quiet]');
-              if (q === null) {
+              const band = document.querySelector<HTMLElement>('.con-band[data-parl-band-quiet]');
+              if (band === null) {
                 return null;
               }
+              const labels = Array.from(band.querySelectorAll<HTMLElement>('[data-parl-band-chip="label"]')).map((el) => el.textContent?.trim() ?? '');
               return {
-                kind: q.getAttribute('data-sit-quiet'),
-                kicker: q.querySelector('.con-sit__quiet-kicker')?.textContent?.trim() ?? '',
-                text: q.querySelector('.con-sit__quiet-text')?.textContent?.trim() ?? '',
-                where: document.querySelectorAll('.con-sit__panel--on .con-sit__quiet-where').length,
-                contexts: document.querySelectorAll('.con-sit__panel--on [data-yield-context]').length,
+                kind: band.getAttribute('data-parl-band-quiet'),
+                kicker: labels[0] ?? '',
+                text: '',
+                where: labels.length - 1,
+                contexts: band.querySelectorAll('[data-yield-context]').length,
                 part: document.querySelector('[data-parl-enacted-effect] .con-parl__ruler-own-kicker')?.textContent?.trim() ?? '',
               };
             });
@@ -645,16 +649,19 @@ for (const preset of PARLIAMENT_PRESETS) {
           expect(q.kicker).toMatch(family.kicker);
           expect(q.contexts, `${family.kind}: no reading pretends a payout`).toBe(0);
           expect(q.where, 'an action names its address, a passive needs none').toBe(family.kind === 'action' ? 1 : 0);
-          // The declaration under the kicker does not repeat its kind («ЭФФЕКТ, ПОКА ПРИНЯТА · Эффект: …» — frame 32 of the first run).
-          expect(q.text).not.toMatch(/^\s*(Эффект|Действие|Effect|Action)\s*:/i);
-          expect(q.text, 'the declaration begins with a capital (frame 33 of the second run)').toMatch(/^\s*[A-ZА-ЯЁ]/);
+          // v5: there is no declaration under the kicker at all — the band carries no prose, and the card's own
+          // wording stands on the enacted face in the government (frames 32–33 of the earlier runs fixed the
+          // wording itself; the line that carried it is gone).
+          expect(q.text, 'the band prints no prose').toBe('');
           // The government plaque titles the enacted card's graphic by its PART — an action is not an effect (frame 33 of the first run).
           expect(q.part, `${family.kind}: the government names the part`).toMatch(family.kind === 'action' ? /Действие резолюции|Resolution action/i : /Эффект резолюции|Resolution effect/i);
           await shoot(page, preset.id, mode, family.nn, `family-${family.kind}-walk`);
           // Nothing to pay: the adjourn arrives in the same response — the RESULTS card names the family again.
           await expect.poll(() => sittingStage(page), {timeout: 60_000}).toBe('results');
           await waitSittingAtRest(page, 30_000);
-          await expect(page.locator('.con-sit [data-sit-row="results-reward"]'), `${family.kind}: the results card names what outlives the payout`).toHaveText(family.kicker);
+          // v5 §4: a resolution that pays NOBODY replaces the payout rows with what stands instead — never a
+          // column of empty rows, and never the viewer's own reward repeated from the band.
+          await expect(page.locator('.con-sit [data-sit-payout-quiet]'), `${family.kind}: the results panel names what outlives the payout`).toHaveText(family.kicker);
           await pose(page, preset, mode, `${family.nn}b`, `family-${family.kind}-results`);
         }
         if (mode === 'reduced') {
@@ -678,7 +685,9 @@ for (const preset of PARLIAMENT_PRESETS) {
         await answerGateAs(request, red, 'assembly');
         // The record arrives with the skip: the plate names the lost tile and its reason. Photographed the moment it stands
         // (the page holds through the plants' wave, then the results enter).
-        await expect(page.locator('.con-sit__skip'), 'the skip plate names the lost tile').toHaveCount(1, {timeout: 40_000});
+        // v5: a skip names itself with its reason in the reading BAND — the sitting's own surface carries no
+        // readings, and law 4 (never a silent loss) is unchanged.
+        await expect(page.locator('.con-band__chip--skip'), 'the skip names the lost tile').toHaveCount(1, {timeout: 40_000});
         // THE TABLE UNDER THE PLATE: a card dealt straight back from the reshuffled discard never left — its face
         // stays (P-28: the fresh-face hold hid both cards of the table for the whole read).
         const hiddenFaces = await page.evaluate(() => Array.from(document.querySelectorAll<HTMLElement>('.con-parl__slot[data-instance]')).filter((slot) => {

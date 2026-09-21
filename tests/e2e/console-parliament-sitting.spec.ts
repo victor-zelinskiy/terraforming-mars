@@ -76,7 +76,7 @@ async function expectFits(page: Page, label: string): Promise<void> {
     const out: Array<string> = [];
     const name = (el: Element) => el.className.toString().split(' ')[0];
     const blocks = '.con-parl__gov, .con-parl__slot, .con-parl__stage, .con-sit__panel--on, .con-sit__row, .con-sit__results,' +
-      ' .con-iyield, .con-iyield__reading, .con-preact, .con-sit__skip, .con-sit__zone--on, .con-extdraw__cards, .con-cards__slot, .con-task';
+      ' .con-iyield, .con-iyield__reading, .con-preact, .con-band__line, .con-sit__zone--on, .con-extdraw__cards, .con-cards__slot, .con-task';
     for (const el of Array.from(root.querySelectorAll<HTMLElement>(blocks))) {
       const r = el.getBoundingClientRect();
       if (r.width === 0 || r.height === 0 || getComputedStyle(el).visibility === 'hidden') {
@@ -153,9 +153,12 @@ for (const preset of PRESETS) {
       expect(crumb, `the crumb, got «${crumb}»`).toMatch(/ПАРЛАМЕНТ|PARLIAMENT/);
       expect(crumb).toMatch(/ЗАСЕДАНИЕ|SITTING/);
       expect(crumb).toMatch(/ВЕРДИКТ|VERDICT/);
-      await expect(sitting(page).locator('[data-sit-panel="verdict"].con-sit__panel--on [data-sit-row="winner"]'), 'the verdict names the winning player').toHaveCount(1);
-      // The verdict's kicker is the RESOLUTION's state (glossary: «принимается»); the winning PLAYER is its own row (P-18).
-      await expect(sitting(page).locator('[data-sit-panel="verdict"].con-sit__panel--on .con-sit__kicker'), 'the kicker names the resolution\'s state, not the row').toHaveText(/Принимается|Winning/i);
+      // v5: THE VERDICT IS READ IN THE BAND — the row of parties stays on screen for it, and the line names the
+      // resolution, its delegates, the winner of the vote BY NAME and that they take an Agenda step.
+      await expect(page.locator('.con-band[data-parl-band-kicker="Verdict"]'), 'the band is on the verdict').toHaveCount(1);
+      await expect(page.locator('.con-band [data-parl-band-chip="player"]'), 'the verdict names the winning player').toHaveCount(1);
+      await expect(page.locator('.con-band [data-parl-band-chip="resolution"]'), '…and the resolution being enacted').toHaveCount(1);
+      await expect(page.locator('.con-parl [data-parl-row-shown]'), 'the row of parties is the body: nothing stands over it').toHaveCount(1);
       // THE DECIDED TABLE: the server already re-ranked the losers for the NEXT vote — no card is badged «принимается» until the refresh (P-17).
       await expect(page.locator('.con-parl__slot--winning'), 'no «принимается» on the decided table').toHaveCount(0);
       await expect(page.locator('.con-parl__slot-win'), 'no winning badge on the decided table').toHaveCount(0);
@@ -187,7 +190,7 @@ for (const preset of PRESETS) {
       expect(answered.game.parliament?.phase?.step, 'one answer moves nothing').toBe('assembly');
       expect(answered.game.parliament?.phase?.awaiting).toEqual([(await wireOf(request, red)).thisPlayer.color]);
       expect(await sittingStage(page), 'the verdict stands until the others answer').toBe('verdict');
-      await expect(sitting(page).locator('.con-sit__panel--on [data-sit-awaiting]'), 'the wait pose names the seat still to answer').toHaveCount(1, {timeout: 15_000});
+      await expect(page.locator('.con-band [data-sit-awaiting]'), 'the wait pose names the seat still to answer').toHaveCount(1, {timeout: 15_000});
       await expect(parliament(page), 'the sitting stays open while the others read').toHaveCount(1);
       await expect(page.locator('.con-parl__gov-basis'), 'the seat keeps the starting rule — nothing changed yet').toHaveText(/Стартовое правило|Starting rule/i);
       crumb = (await crumbText(page)).toUpperCase();
@@ -204,7 +207,7 @@ for (const preset of PRESETS) {
       expect(await openMandatoryAnnounce(page)).toBe(true);
       await expect(parliament(page)).toHaveCount(1, {timeout: 20_000});
       await expect.poll(() => sittingStage(page), {timeout: 15_000}).toBe('verdict');
-      await expect(sitting(page).locator('.con-sit__panel--on [data-sit-awaiting]'), 'the wait pose again').toHaveCount(1, {timeout: 15_000});
+      await expect(page.locator('.con-band [data-sit-awaiting]'), 'the wait pose again').toHaveCount(1, {timeout: 15_000});
 
       // ── THE OTHER SEAT ANSWERS OVER THE API: the barrier opens — the walk plays ПРИНЯТИЕ (the Agenda, the
       //    support, the enactment) and НАГРАДА by itself, Climate Research draws for blue, and the TAKE arrives
@@ -263,6 +266,7 @@ for (const preset of PRESETS) {
       await expect(page.locator('.con-parl__slot--winning'), 'the refreshed table shows its leader').toHaveCount(1);
       const lobbyRefilled = ((await wireOf(request, playerId)).game.parliament?.phase as {summary?: {lobbyRefilled?: Array<unknown>}} | undefined)?.summary?.lobbyRefilled?.length ?? 0;
       await expect(sitting(page).locator('[data-sit-results] [data-sit-row="results-lobby"] .player-cube'), 'the lobby row: one cube per refilled seat').toHaveCount(lobbyRefilled);
+      await expect(sitting(page).locator('[data-sit-payout]'), 'a payout row per participating seat — the one thing seen nowhere else').toHaveCount(2);
       await expect(sitting(page).locator('[data-sit-results]'), 'no sentence on the results').not.toContainText(/возвращаются в лобби/);
       // A loser dealt straight back from the reshuffled discard never left the table: its fresh chip says «остаётся ·
       // перетасована» (final polish P-22 / P-28). The losers that LEFT are not listed — they left physically, in the beat.
@@ -270,9 +274,10 @@ for (const preset of PRESETS) {
       const dealt = new Set((renewal?.refreshed ?? []).map((f) => f.instance));
       const returning = (renewal?.discarded ?? []).filter((d) => dealt.has(d.instance)).length;
       await expect(sitting(page).locator('[data-sit-results] [data-sit-stays]'), `the ${returning} returning resolutions say they stay`).toHaveCount(returning);
-      // The results name the RESOLUTION as «принята» and the PLAYER as the winner of the vote — two objects (P-24).
-      await expect(sitting(page).locator('[data-sit-row="results-enacted"] .con-parl__chip-dim')).toHaveText(/Принята|Enacted/i);
-      await expect(sitting(page).locator('[data-sit-row="results-player"] .player-cube'), 'the winning player\'s cube on the results').toHaveCount(1);
+      // v5: the LAW is the panel's heading — the resolution is «принята» and the party that rules by it stands
+      // beside it. The winner of the VOTE is not repeated here: the band named them at the verdict (§4).
+      await expect(sitting(page).locator('[data-sit-law="enacted"] .con-parl__chip-dim')).toHaveText(/Принята|Enacted/i);
+      await expect(sitting(page).locator('[data-sit-law="ruling"]'), 'the party that rules by it').toHaveCount(1);
       expect(await hotVerb(page)).toMatch(/Закрыть заседание|Close the sitting/i);
       expect((await wireOf(request, playerId)).waitingFor?.parliamentPhasePrompt?.stage, 'gate 2 stands until A').toBe('adjourn');
       await expectFits(page, `${preset.id} results`);
@@ -282,7 +287,7 @@ for (const preset of PRESETS) {
       await expect(parliament(page), 'B does nothing on the results').toHaveCount(1);
       await press(page, 'Enter', 1500);
       await expect.poll(async () => (await wireOf(request, playerId)).waitingFor?.parliamentPhasePrompt, {timeout: 20_000, message: 'gate 2 is answered'}).toBeUndefined();
-      await expect(sitting(page).locator('.con-sit__panel--on [data-sit-awaiting]'), 'the results wait for the other seat').toHaveCount(1, {timeout: 15_000});
+      await expect(page.locator('.con-band [data-sit-awaiting]'), 'the results wait for the other seat').toHaveCount(1, {timeout: 15_000});
 
       // ── THE OTHER SEAT CLOSES TOO: the phase ends and the workspace LEAVES with it.
       const redAdjourn = await wireOf(request, red);

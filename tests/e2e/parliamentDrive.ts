@@ -73,7 +73,9 @@ export async function turnTo(page: Page, stage: string, timeout = 60_000): Promi
   if (await reached()) {
     return true;
   }
-  const waiting = () => page.locator('.con-sit__panel--on [data-sit-awaiting]').count();
+  // v5: the wait on the other seats is a chip of the READING BAND — the sitting's own surface carries
+  // no readings at all now.
+  const waiting = () => page.locator('.con-band [data-sit-awaiting]').count();
   if (await sittingStage(page) === 'verdict' && await waiting() === 0) {
     const pressed = await pressUntil(page, 'Enter', async () => await sittingStage(page) !== 'verdict' || await waiting() > 0, {tries: 4, settleMs: 1100});
     if (!pressed) {
@@ -134,8 +136,9 @@ export async function expectParliamentFits(page: Page, label: string, rootSelect
     const out: Array<string> = [];
     const name = (el: Element) => el.className.toString().split(' ')[0];
     const blocks = '.con-parl__gov, .con-parl__slot, .con-parl__stage, .con-sit__panel--on, .con-sit__row, .con-sit__results,' +
-      ' .con-iyield, .con-iyield__reading, .con-preact, .con-wreward, .con-sit__skip, .con-sit__zone--on, .con-extdraw__cards, .con-cards__slot, .con-task,' +
-      ' .con-cards__verdictbar, .con-sit__wait, .con-sit__awaiting,' +
+      ' .con-iyield, .con-iyield__reading, .con-preact, .con-wreward, .con-sit__zone--on, .con-extdraw__cards, .con-cards__slot, .con-task,' +
+      // v5: the middle zone is a BAND and a BODY — the band's line and the results panel's three sections.
+      ' .con-cards__verdictbar, .con-band, .con-band__line, .con-sit__law, .con-sit__payouts, .con-sit__payout, .con-sit__table,' +
       // The other parliament chassis a gallery photographs: the announce plate, the fullscreen inspect, the party composer, the playground, the seat.
       ' .con-mandatory__card, .con-mandatory__body, .con-zoom__card, .con-zoom__aside, .con-zoom__foot, .con-pact__panel, .con-pact__step, .con-rplay__panel, .con-seat__panel';
     const scoped = root.matches(blocks) ? [root as HTMLElement] : [];
@@ -154,7 +157,8 @@ export async function expectParliamentFits(page: Page, label: string, rootSelect
       if (el.scrollHeight > el.clientHeight + 2 && cs.overflowY !== 'visible') {
         out.push(`clipped-y ${name(el)} ${el.scrollHeight}>${el.clientHeight}`);
       }
-      // A POSE OF THE SITTING IS A FIXED TIER: the stage's box is the middle tier's (`--con-parl-mid-h`), and a
+      // A POSE OF THE SITTING IS A FIXED BODY: the stage's box is the middle zone's BODY (v5: `--con-parl-mid-h`
+      // minus the reading band), and a
       // pose that spills paints over the Agenda track with nothing clipped — `overflow: visible` hides it from
       // the clip checks above, so the on-pose is asked directly (measured with the v2 results card: four rows and
       // the head ran ~50 px past the tier on every profile; on the Deck the whole track was covered).

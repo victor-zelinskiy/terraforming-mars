@@ -26,6 +26,12 @@ import {answerGateAs, mandatoryPlate, parliament, parliamentWire, PARLIAMENT_PRE
  *
  * The sampler is `setInterval` + `MutationObserver`, never rAF (headless Chromium drives rAF off the
  * compositor and stops exactly when the screen goes quiet).
+ *
+ * «ЗАСЕДАНИЕ v5» KEPT EVERY LAW HERE AND TIGHTENED ONE: the REWARD is no longer a reading stage at all —
+ * its formula is read in the always-standing BAND and the row of parties keeps the body — so the only
+ * reading panel a plain sitting ever raises is the RESULTS one, and Г-П5 measures that handoff. The zone
+ * contract itself (band + body, the three body states, the one swap grammar) is
+ * `console-parliament-zone-v5.spec.ts`.
  */
 type Rect = {x: number, y: number, w: number, h: number};
 /** Visibility, the three facts: a box, ink, and nothing on top of its centre. */

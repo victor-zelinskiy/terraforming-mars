@@ -158,27 +158,27 @@ for (const preset of PARLIAMENT_PRESETS) {
 
       // ── THE DOOR: the reward page stops on the tile; the board is NOT live; «К полю» is the verb.
       await expect.poll(() => sittingStep(page), {timeout: 20_000}).toBe('placement');
-      await expect(page.locator('[data-sit-door]'), 'the door plate names the tile').toHaveCount(1);
+      // v5: the winner's tile reads as a chip of the BAND; the DOOR is still the command bar's own «К полю».
+      await expect(page.locator('.con-band [data-parl-band-chip="tile"]'), 'the band names the tile').toHaveCount(1);
       expect((await crumbText(page)).toUpperCase()).toMatch(/РАЗМЕЩЕНИЕ|PLACEMENT/);
       expect(await hotVerb(page)).toMatch(/К полю|Onto the board/i);
       await settle(page, {timeoutMs: 20_000});
       expect(await placementState(page), 'the board waits for the press').toBe('none');
       expect((await parliamentWire(request, playerId)).waitingFor?.type, 'the server\'s placement stands').toBe('space');
       await expectParliamentFits(page, `${preset.id} door`);
-      // R-30 (from the stability spec — the door is the reward page's one stable stop): every reading of the
-      // viewer's yield block starts at the same x, and every row of the hero column starts at one x.
+      // R-30 was about the reward page's READINGS COLUMN — one left edge for a stack of chips. v5 retired that
+      // column outright: the reward's whole reading is the BAND's single line, so the law it enforced is now
+      // structural (a line has one left edge by construction) and what is left to check is that the line is
+      // THERE and reads on ONE row, never wrapped inside a strip of fixed height.
       const r30 = await page.evaluate(() => {
-        const lefts = Array.from(document.querySelectorAll<HTMLElement>('.con-sit__panel--on .con-sit__yield .con-iyield__reading')).map((el) => Math.round(el.getBoundingClientRect().left));
-        const items = Array.from(document.querySelectorAll<HTMLElement>('.con-sit__panel--on .con-sit__hero > [data-parl-sit-item]')).map((el) => ({left: Math.round(el.getBoundingClientRect().left), top: Math.round(el.getBoundingClientRect().top)}));
-        const firstOnEachRow = new Map<number, number>();
-        for (const i of items) {
-          firstOnEachRow.set(i.top, Math.min(firstOnEachRow.get(i.top) ?? Infinity, i.left));
-        }
-        return {lefts, rowLefts: Array.from(firstOnEachRow.values())};
+        const band = document.querySelector<HTMLElement>('.con-band');
+        const line = document.querySelector<HTMLElement>('.con-band__line');
+        const lefts = Array.from(document.querySelectorAll<HTMLElement>('.con-band__yield .con-iyield__reading')).map((el) => Math.round(el.getBoundingClientRect().left));
+        return {lefts, bandH: Math.round(band?.getBoundingClientRect().height ?? -1), lineH: Math.round(line?.getBoundingClientRect().height ?? -1)};
       });
-      expect(r30.lefts.length, 'the reward page reads at least one reading').toBeGreaterThan(0);
-      expect(Math.max(...r30.lefts) - Math.min(...r30.lefts), `${preset.id}: the readings share one left edge (${r30.lefts.join(', ')})`).toBeLessThanOrEqual(1);
-      expect(Math.max(...r30.rowLefts) - Math.min(...r30.rowLefts), `${preset.id}: every row of the hero column starts at the same x (${r30.rowLefts.join(', ')})`).toBeLessThanOrEqual(1);
+      expect(r30.lefts.length, 'the reward\'s payout reads in the band').toBeGreaterThan(0);
+      expect(r30.lineH, `the line is ONE line inside the band (${r30.lineH} of ${r30.bandH})`).toBeLessThanOrEqual(r30.bandH);
+      expect(Math.max(...r30.lefts) - Math.min(...r30.lefts), `${preset.id}: a wandering left edge is impossible on one line (${r30.lefts.join(', ')})`).toBeLessThanOrEqual(1);
       await shoot(page, preset.id, '03-door');
       await press(page, 'Enter', 800);
       await expect.poll(() => placementState(page), {timeout: 30_000, message: 'the board is live after the press'}).not.toBe('none');
@@ -234,7 +234,7 @@ for (const preset of PARLIAMENT_PRESETS) {
       await shoot(page, preset.id, '06-results');
       await press(page, 'Enter', 1200);
       await expect.poll(async () => (await parliamentWire(request, playerId)).waitingFor?.parliamentPhasePrompt, {timeout: 20_000}).toBeUndefined();
-      await expect(page.locator('.con-sit__panel--on [data-sit-awaiting]'), 'the results wait for the other seat').toHaveCount(1, {timeout: 15_000});
+      await expect(page.locator('.con-band [data-sit-awaiting]'), 'the results wait for the other seat').toHaveCount(1, {timeout: 15_000});
       // …and the wait adds NO row: the answered gate keeps the card inside the tier too.
       await expectParliamentFits(page, `${preset.id} results · waiting`);
       await expectWholeOrNone('results · waiting');

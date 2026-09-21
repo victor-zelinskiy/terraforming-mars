@@ -51,7 +51,7 @@ test.describe('the sitting v2 · the spectator (standard-1080)', () => {
     await armSittingProbe(page);
     await press(page, 'Enter', 800);
     await expect.poll(async () => (await parliamentWire(request, playerId)).waitingFor?.parliamentPhasePrompt, {timeout: 20_000}).toBeUndefined();
-    await expect(page.locator('.con-sit__panel--on [data-sit-awaiting]'), 'the wait pose names the seat still to answer').toHaveCount(1, {timeout: 15_000});
+    await expect(page.locator('.con-band [data-sit-awaiting]'), 'the wait pose names the seat still to answer').toHaveCount(1, {timeout: 15_000});
     expect(await sittingStage(page)).toBe('verdict');
     expect((await parliamentWire(request, playerId)).game.parliament?.phase?.step, 'one answer moves nothing').toBe('assembly');
     await shoot(page, '01-waiting');
