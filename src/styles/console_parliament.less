@@ -1094,8 +1094,19 @@
     &__bonus { display: inline-flex; align-items: center; gap: .16rem; b { font-size: .8rem; font-weight: 800; } }
     &__seat { display: inline-flex; align-items: center; gap: .2rem; min-width: 0; }
     &__lost { flex-shrink: 0; display: inline-flex; align-items: center; gap: .16rem; }
-    /* The readings keep their own chassis; the band only stops them from growing the strip. */
-    &__yield, &__reaction, &__winner { flex-shrink: 0; min-width: 0; max-height: 100%; }
+    /* THE READINGS KEEP THEIR OWN CHASSIS — the band only lays them along the LINE. The compact yield
+       block already expects its groups side by side (it draws a «·» between them), but its container is a
+       flex COLUMN, so a resolution with two effects (Climate Research: heat production, then a draw) stood
+       66 px tall inside a 39 px strip and was cut in half. In a rail the groups are a row. */
+    &__yield, &__reaction, &__winner { flex-shrink: 0; min-width: 0; }
+    &__yield.con-iyield {
+        flex-direction: row;
+        align-items: center;
+        flex-wrap: nowrap;
+        gap: .5rem;
+        .con-iyield__reading { padding: .14rem .45rem .12rem; }
+    }
+    &__reaction.con-preact { padding: .08rem .35rem; }
 }
 
 /* …the step's pose: the band travels exactly the middle zone's own offset inside the field
