@@ -21,7 +21,7 @@ import {answerGateAs, mandatoryPlate, openParliament, parliament, parliamentWire
 type Rect = {x: number, y: number, w: number, h: number};
 type Flight = {id: string, x: number, y: number, shown: boolean};
 type V3Sample = {
-  t: number, motion: string, stage: string,
+  t: number, motion: string, beat: string, stage: string,
   /** The government's accent, and the party of the tile standing in its slot — the two must never disagree. */
   accent: string, rulerTile: string, accentOf: Record<string, string>,
   /** The enacted card's own slug and the quest's text — the caption may never move before its object. */
@@ -74,7 +74,8 @@ async function armV3Probe(page: Page): Promise<void> {
       }
       w.__v3.samples.push({
         t: performance.now(),
-        motion: root.querySelector('.con-parl__stage')?.getAttribute('data-sitting-motion') ?? '',
+        motion: root.getAttribute('data-sitting-motion') ?? '',
+        beat: root.getAttribute('data-sitting-beat') ?? '',
         stage: root.getAttribute('data-sitting-stage') ?? '',
         accent: gov === null ? '' : getComputedStyle(gov).getPropertyValue('--parl-accent').trim(),
         rulerTile: root.querySelector('[data-parl-ruler] .con-parl__party')?.getAttribute('data-party') ?? '',
@@ -202,10 +203,14 @@ test.describe('the sitting v3 (standard-1080)', () => {
     s.forEach((x, i) => x.flights.forEach((f) => {
       // …and only the SUPPORT scene's own cubes: the enactment's returning delegates leave the government's
       // card by design, and the Agenda's marker is not a support cube at all.
-      if (!firstSeen.has(f.id) && f.shown && f.id.startsWith('f') && x.motion === 'support') {
+      if (!firstSeen.has(f.id) && f.shown && f.id.startsWith('f') && x.beat === 'support') {
         firstSeen.set(f.id, {x: f.x, y: f.y, at: i});
       }
     }));
+    // ANTI-VACUOUS: with no cube seen, every check below passes by saying nothing. (This filter read the
+    // STAGE before v4 — `data-sitting-motion` is 'enact' for the whole enactment, never 'support' — so the
+    // birthplace law was asserted over an empty set.)
+    expect(firstSeen.size, 'support cubes were seen in the air').toBeGreaterThan(0);
     const strays: Array<string> = [];
     for (const [id, p] of firstSeen) {
       const frame = s[p.at];
@@ -247,7 +252,7 @@ test.describe('the sitting v3 (standard-1080)', () => {
     // ① ONE DISC for the three rewards — an influence step is not a different shape.
     const widths = new Set(read.boxes.map((b) => b[0]));
     const heights = new Set(read.boxes.map((b) => b[1]));
-    expect(Array.from(widths), `one node width (${read.boxes.map((b) => b.join("x")).join(", ")})`).toHaveLength(1);
+    expect(Array.from(widths), `one node width (${read.boxes.map((b) => b.join('x')).join(', ')})`).toHaveLength(1);
     expect(Array.from(heights), 'one node height').toHaveLength(1);
     // ② THE INFLUENCE NODE carries its glyph WITH its level — never a bare numeral.
     expect(read.influence.length, 'the track has influence steps').toBeGreaterThan(0);

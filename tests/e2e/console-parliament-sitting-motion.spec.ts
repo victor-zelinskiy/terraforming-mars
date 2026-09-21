@@ -47,7 +47,7 @@ type Wire = {
 const wireOf = async (request: APIRequestContext, id: string): Promise<Wire> => await fetchPlayerModel(request, id) as unknown as Wire;
 
 type ProxySample = {id: string, body: string, face: string, x: number, y: number, rotY: number | undefined, filter: string};
-type Sample = {t: number, motion: string, stage: string, holds: Array<string>, proxies: Array<ProxySample>, dealing: number, govAwaiting: boolean, peek: boolean, deck: number, faces: Record<string, number>, resultsHidden: boolean};
+type Sample = {t: number, motion: string, stage: string, holds: Array<string>, proxies: Array<ProxySample>, dealing: number, govAwaiting: boolean, rowShown: boolean, reading: boolean, deck: number, faces: Record<string, number>, resultsHidden: boolean};
 type Probe = {samples: Array<Sample>};
 
 /** THE PROBE — armed BEFORE the press. `setInterval` + `MutationObserver`, never rAF. */
@@ -56,7 +56,6 @@ async function armProbe(page: Page): Promise<void> {
     const w = window as unknown as {__sitProbe: Probe, __conReady?: () => {holds: Array<string>}};
     w.__sitProbe = {samples: []};
     const sample = () => {
-      const stageEl = document.querySelector('.con-parl__stage');
       const proxies = Array.from(document.querySelectorAll<HTMLElement>('[data-parl-flight]')).map((el) => {
         const r = el.getBoundingClientRect();
         const inner = el.querySelector<HTMLElement>('.con-card3d');
@@ -83,13 +82,15 @@ async function armProbe(page: Page): Promise<void> {
       }
       w.__sitProbe.samples.push({
         t: performance.now(),
-        motion: stageEl?.getAttribute('data-sitting-motion') ?? '',
+        motion: document.querySelector('.con-parl')?.getAttribute('data-sitting-motion') ?? '',
         stage: document.querySelector('.con-parl')?.getAttribute('data-sitting-stage') ?? '',
         holds: (w.__conReady?.().holds ?? []).filter((h) => h.startsWith('parliament-sitting')),
         proxies,
         dealing: document.querySelectorAll('.con-parl__card--dealing').length,
         govAwaiting: document.querySelector('.con-parl__gov-card--awaiting') !== null,
-        peek: document.querySelector('.con-parl__stage--peek') !== null,
+        // СТОЛ и ЧТЕНИЕ (v4): the row's own marker and the presence of a reading panel — the peek is retired.
+        rowShown: document.querySelector('[data-parl-row-shown]') !== null,
+        reading: document.querySelector('[data-parl-reading]') !== null,
         deck: Number(document.querySelector('[data-parl-deck-pile]')?.getAttribute('data-count') ?? '-1'),
         faces,
         resultsHidden: document.querySelector('[data-sit-results-hidden]') !== null,
@@ -105,7 +106,7 @@ async function armProbe(page: Page): Promise<void> {
 const readProbe = (page: Page) => page.evaluate(() => (window as unknown as {__sitProbe: Probe}).__sitProbe);
 
 const stageAttr = (page: Page) => page.locator('.con-parl').getAttribute('data-sitting-stage');
-const motionAttr = (page: Page) => page.locator('.con-parl__stage').getAttribute('data-sitting-motion');
+const motionAttr = (page: Page) => page.locator('.con-parl').getAttribute('data-sitting-motion');
 
 /** The span (ms) the stage's beats were playing, from the samples. */
 function motionSpan(samples: ReadonlyArray<Sample>, stage: string): number {
@@ -142,7 +143,7 @@ async function waitAtRest(page: Page, timeout = 12_000): Promise<void> {
     const w = window as unknown as {__conReady?: () => {holds: Array<string>}};
     // A PARKED card (the winner over its former slot, the old law over the government) is part of the
     // verdict's resting POSE — the enactment is what moves it; only flights in the air count.
-    return (document.querySelector('.con-parl__stage')?.getAttribute('data-sitting-motion') ?? '') === '' &&
+    return (document.querySelector('.con-parl')?.getAttribute('data-sitting-motion') ?? '') === '' &&
       Array.from(document.querySelectorAll('[data-parl-flight]')).filter((el) => !(el.getAttribute('data-parl-flight') ?? '').startsWith('sit-park')).length === 0 &&
       (w.__conReady?.().holds ?? []).every((h) => !h.startsWith('parliament-sitting'));
   }), {timeout, intervals: [50]}).toBe(true);
@@ -151,12 +152,11 @@ async function waitAtRest(page: Page, timeout = 12_000): Promise<void> {
 test.describe('the sitting — the director\'s beats (standard-1080)', () => {
   test.use({viewport: {width: 1920, height: 1080}});
 
-  test('ВЕРДИКТ → ПРИНЯТИЕ (v2): the winner\'s slot lit, nothing in the air; ONE A (the last answer) plays ПОВЕСТКА → ПОДДЕРЖКА → ПРИНЯТИЕ — a card that travels, cubes that travel, the peek, the touchdown, the holds released', async ({page, request}) => {
+  test('ВЕРДИКТ → ПРИНЯТИЕ (v2): the winner\'s slot lit, nothing in the air; ONE A (the last answer) plays ПОВЕСТКА → ПОДДЕРЖКА → ПРИНЯТИЕ — a card that travels, cubes that travel, the table in full view, the touchdown, the holds released', async ({page, request}) => {
     test.setTimeout(240_000);
     const {playerId, seats} = await bootFixtureSeats(page, request, 'parliament-climate-assembly', {query: '&consoleProfile=auto', landing: 'prompt'});
     const before = await wireOf(request, playerId);
     expect(before.game.parliament?.phase?.step).toBe('assembly');
-    const gainedParties = (before.game.parliament?.phase?.summary?.support ?? []).filter((s) => s.gained > 0).length;
     await expect(page.locator('.con-mandatory')).toHaveCount(1, {timeout: 30_000});
     await armProbe(page);
     expect(await openMandatoryAnnounce(page)).toBe(true);
@@ -195,9 +195,9 @@ test.describe('the sitting — the director\'s beats (standard-1080)', () => {
     // THE LANDING FRAME (final polish A.3): a returning delegate's touchdown re-keys the owner's reserve stack for
     // its one-shot ring — the reserve place answers the arrival where the eye is (never a caption, never a timer).
     await expect(page.locator('[data-parl-seat-reserve][data-parl-seat-landed]'), 'a reserve stack answered a touchdown').not.toHaveCount(0, {timeout: 5_000});
-    if (gainedParties > 0) {
-      expect(enactSamples.some((s) => s.peek), 'the parties tier peeked for the support beat').toBe(true);
-    }
+    // СТОЛ (v4 §2.1): the whole row stood in view for the physical beats, and NO reading panel was mounted over it.
+    expect(enactSamples.every((s) => s.rowShown), 'the parties row was shown for every frame of the physical beats').toBe(true);
+    expect(enactSamples.some((s) => s.reading), 'no reading panel stood over the table').toBe(false);
     // The government's face waited until the card landed, then showed — and stayed painted ONCE.
     expect(enactSamples.findIndex((s) => s.govAwaiting), 'the government\'s face waited for the card').toBeGreaterThanOrEqual(0);
     expect(enactSamples[enactSamples.length - 1].govAwaiting, 'the face showed on the touchdown').toBe(false);
@@ -206,7 +206,8 @@ test.describe('the sitting — the director\'s beats (standard-1080)', () => {
       expect(n, `${slug} is painted once at rest`).toBeLessThanOrEqual(1);
     }
     expect(rest.holds, 'every sitting hold released at rest').toEqual([]);
-    expect(await page.locator('.con-parl__stage--peek').count(), 'the peek is over').toBe(0);
+    // …and once the physical part is over the READING panel takes the row's place (the reward's own stage).
+    await expect(page.locator('[data-parl-reading]'), 'the reading panel took the tier for the reward').toHaveCount(1, {timeout: 10_000});
     await shoot(page, '03-enact-rest');
     // The one A answered gate 1; the walk went on to the reward by itself — the resolution's take stands there.
     const after = await wireOf(request, playerId);

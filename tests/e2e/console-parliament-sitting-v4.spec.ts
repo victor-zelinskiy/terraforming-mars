@@ -33,15 +33,22 @@ type Vis = {box: boolean, ink: number, free: boolean, hit: string, overlap: numb
 type TileSample = {party: string, where: 'row' | 'ruler', rect: Rect, vis: Vis};
 type FlightSample = {id: string, body: string, x: number, y: number, shown: boolean};
 type V4Sample = {
+  /**
+   * WHICH CLOCK TOOK THIS SAMPLE. `mo` runs as a MICROTASK off the MutationObserver — it can therefore observe
+   * the DOM between a Vue patch and the `nextTick` that applies a FLIP's inverse transform, a state the browser
+   * never paints. `tick` runs as a TASK (setInterval), so every microtask of the patch has drained. A claim about
+   * FRAMES («the slot never changed without movement») may only be made on ticks; `mo` is for catching events.
+   */
+  src: 'mo' | 'tick',
   t: number, motion: string, beat: string, stage: string, resultsHidden: boolean,
   rowShown: boolean, rowVis: Vis, rowRect: Rect | undefined,
-  reading: boolean, readingRect: Rect | undefined, readingInk: number,
+  reading: boolean, unfolding: boolean, readingRect: Rect | undefined, readingInk: number,
   tiles: Array<TileSample>, rulerSlotParty: string,
   flights: Array<FlightSample>,
   support: Record<string, number>, landed: number,
   sockets: Record<string, Rect>, supply: Rect | undefined,
   cards: Record<string, Rect>, ribbons: Record<string, Rect>,
-  govCard: Rect | undefined, ruling: Rect | undefined, quest: Rect | undefined,
+  govCard: Rect | undefined, ruling: Rect | undefined, quest: Rect | undefined, gov: Rect | undefined, govHead: Rect | undefined, govZoom: string,
   rulerBox: Rect | undefined, rulerSlot: Rect | undefined,
   kicker: {w: number, sw: number, text: string} | undefined,
 };
@@ -105,7 +112,7 @@ async function armV4Probe(page: Page): Promise<void> {
       }
       return {box: r.w > 1 && r.h > 1, ink, free, hit: hit === null ? '' : (hit.className || hit.tagName).toString().slice(0, 60), overlap};
     };
-    const sample = () => {
+    const sample = (src: 'mo' | 'tick') => {
       const root = document.querySelector<HTMLElement>('.con-parl');
       if (root === null) {
         return;
@@ -149,6 +156,7 @@ async function armV4Probe(page: Page): Promise<void> {
       const panel = root.querySelector<HTMLElement>('[data-parl-reading]');
       const kickerEl = root.querySelector<HTMLElement>('.con-parl__ruler-kicker');
       w.__v4.samples.push({
+        src,
         t: performance.now(),
         motion: root.getAttribute('data-sitting-motion') ?? '',
         beat: root.getAttribute('data-sitting-beat') ?? '',
@@ -158,6 +166,7 @@ async function armV4Probe(page: Page): Promise<void> {
         rowVis: vis(tier),
         rowRect: rect(tier),
         reading: panel !== null,
+        unfolding: root.hasAttribute('data-parl-unfolding'),
         readingRect: rect(panel),
         readingInk: panel === null ? 0 : Number(getComputedStyle(panel).opacity || 1),
         tiles,
@@ -175,6 +184,9 @@ async function armV4Probe(page: Page): Promise<void> {
         sockets, supply: rect(root.querySelector('[data-parl-neutral-cube]')),
         cards, ribbons,
         govCard: rect(root.querySelector('.con-parl__gov-card')),
+        gov: rect(root.querySelector('.con-parl__gov')),
+        govHead: rect(root.querySelector('.con-parl__gov-head')),
+        govZoom: getComputedStyle(root).getPropertyValue('--con-parl-gov-zoom').trim(),
         ruling: rect(root.querySelector('.con-parl__ruling')),
         quest: rect(root.querySelector('[data-parl-quest]')),
         rulerBox: rect(root.querySelector('[data-parl-ruler]')),
@@ -185,9 +197,9 @@ async function armV4Probe(page: Page): Promise<void> {
         w.__v4.samples.splice(0, 1500);
       }
     };
-    new MutationObserver(sample).observe(document.body, {subtree: true, childList: true, attributes: true,
+    new MutationObserver(() => sample('mo')).observe(document.body, {subtree: true, childList: true, attributes: true,
       attributeFilter: ['style', 'class', 'data-sitting-motion', 'data-sitting-beat', 'data-parl-row-shown', 'data-party']});
-    window.setInterval(sample, 16);
+    window.setInterval(() => sample('tick'), 16);
   });
 }
 
@@ -215,9 +227,31 @@ function travelOf(samples: Array<V4Sample>, id: string): number {
   return sum;
 }
 
-/** The physical beats — the ones that MOVE objects on the table. */
-const TABLE_MOTIONS = ['agenda', 'support', 'enact'];
+/** The TABLE's stages — the ones that MOVE objects the player must see (`data-sitting-motion` is the STAGE). */
+const TABLE_MOTIONS = ['verdict', 'enact'];
 const tableFrames = (s: Array<V4Sample>): Array<V4Sample> => s.filter((x) => TABLE_MOTIONS.includes(x.motion));
+/** …and every frame of the physical part, the results' own renewal beats included (the card is still hidden). */
+const physicalFrames = (s: Array<V4Sample>): Array<V4Sample> =>
+  s.filter((x) => TABLE_MOTIONS.includes(x.motion) || (x.stage === 'results' && x.resultsHidden));
+
+/** The window each named beat owned, in ms — measured from the published beat, never from a wall clock. */
+function beatWindows(s: Array<V4Sample>): {span: Map<string, {from: number, to: number}>, gaps: Array<{after: string, ms: number}>} {
+  const span = new Map<string, {from: number, to: number}>();
+  const gaps: Array<{after: string, ms: number}> = [];
+  let last: {beat: string, t: number} | undefined;
+  for (const f of s) {
+    if (f.beat === '') {
+      continue;
+    }
+    const cur = span.get(f.beat);
+    span.set(f.beat, {from: cur?.from ?? f.t, to: f.t});
+    if (last !== undefined && last.beat !== f.beat) {
+      gaps.push({after: last.beat, ms: Math.round(f.t - last.t)});
+    }
+    last = {beat: f.beat, t: f.t};
+  }
+  return {span, gaps};
+}
 
 /** A tile is VISIBLE: it has a box, it has ink, nothing covers its centre and no reading panel overlaps it. */
 function tileFailures(frames: Array<V4Sample>): Array<string> {
@@ -285,27 +319,26 @@ test.describe('«Заседание v4» — СТОЛ и ЧТЕНИЕ (standard-
     const bad = tileFailures(frames);
     expect(bad.length, `every tile is visible in every physical frame (${bad.length} failures; first: ${bad[0] ?? '—'})`).toBe(0);
 
-    // ③ THE BUDGETS (§3): each beat's own window, measured from the published motion.
-    const spans = new Map<string, {from: number, to: number}>();
-    for (const f of s) {
-      if (f.motion === '') {
-        continue;
-      }
-      const cur = spans.get(f.motion);
-      spans.set(f.motion, {from: cur?.from ?? f.t, to: f.t});
-    }
+    // ③ THE BUDGETS (§3): each beat's own window, measured from the published beat (the sampler's own clock).
+    const {span, gaps} = beatWindows(s);
     const ms = (k: string): number => {
-      const sp = spans.get(k);
+      const sp = span.get(k);
       return sp === undefined ? 0 : Math.round(sp.to - sp.from);
     };
-    // eslint-disable-next-line no-console
-    console.log(`[v4] beat windows: agenda=${ms('agenda')}ms support=${ms('support')}ms enact=${ms('enact')}ms reward=${ms('reward')}ms results=${ms('results')}ms`);
-    expect(ms('agenda'), 'ПОВЕСТКА inside its budget').toBeGreaterThan(600);
-    expect(ms('agenda'), 'ПОВЕСТКА inside its budget').toBeLessThan(1600);
-    expect(ms('support'), 'ПОДДЕРЖКА inside its budget').toBeGreaterThan(900);
-    expect(ms('support'), 'ПОДДЕРЖКА inside its budget').toBeLessThan(2600);
-    expect(ms('enact'), 'ПРИНЯТИЕ inside its budget').toBeGreaterThan(1200);
+
+    console.log(`[v4] beats: agenda=${ms('agenda')}ms support=${ms('support')}ms enact=${ms('enact')}ms · gaps ${gaps.map((g) => g.after + '→' + g.ms + 'ms').join(' ')}`);
+    // ПОВЕСТКА is 0.9–1.1 s of OUR choreography plus the SHARED marker glide (charge → lift → glide → lock →
+    // pulse ≈ 1.07 s, the hydro track's own phrase): the measured window is therefore ~1.2 s and the budget is
+    // asserted against what the beat can be — the alternative is trimming a console-wide object language.
+    expect(ms('agenda'), 'ПОВЕСТКА is the segment lead plus the shared marker glide').toBeGreaterThan(700);
+    expect(ms('agenda'), 'ПОВЕСТКА adds nothing of its own past the glide').toBeLessThan(1450);
+    expect(ms('support'), 'ПОДДЕРЖКА inside its budget (≈1.5 s)').toBeGreaterThan(1000);
+    expect(ms('support'), 'ПОДДЕРЖКА inside its budget').toBeLessThan(1900);
+    expect(ms('enact'), 'ПРИНЯТИЕ inside its budget (1.8–2.2 s with the swap and the quest)').toBeGreaterThan(1300);
     expect(ms('enact'), 'ПРИНЯТИЕ inside its budget').toBeLessThan(3600);
+    for (const gap of gaps) {
+      expect(gap.ms, `at least a quarter of a second between beats (after ${gap.after})`).toBeGreaterThan(180);
+    }
     await shoot(page, '02-after-walk');
   });
 
@@ -321,7 +354,10 @@ test.describe('«Заседание v4» — СТОЛ и ЧТЕНИЕ (standard-
     expect(paid.length, 'the server paid somebody (the scene has something to show)').toBeGreaterThan(0);
 
     const s = (await readV4(page)).samples;
-    const support = s.filter((x) => x.motion === 'support');
+    // The BEAT, not the stage: `data-sitting-motion` publishes the server's STAGE ('enact' covers all three
+    // physical beats) and `data-sitting-beat` the beat inside it. Filtering on the stage would sample the whole
+    // enactment and the birthplace check would stop meaning anything.
+    const support = s.filter((x) => x.beat === 'support');
     expect(support.length, 'the support beat was sampled').toBeGreaterThan(10);
 
     // ① THE SOURCES AND THE DESTINATIONS ARE VISIBLE FOR THE WHOLE BEAT — the tiles carry the sockets.
@@ -377,9 +413,13 @@ test.describe('«Заседание v4» — СТОЛ и ЧТЕНИЕ (standard-
     await armV4Probe(page);
     await runWalk(page, request, seats[1]);
 
-    const s = (await readV4(page)).samples;
+    // TICKS ONLY (see `V4Sample.src`): the swap is a FLIP — the tile is re-parented by the patch and its inverse
+    // transform is written in the `nextTick` microtask that follows, so a MutationObserver sample legitimately
+    // sees the teleported position in a state that is never painted. A frame claim is made on the task clock.
+    const s = (await readV4(page)).samples.filter((x) => x.src === 'tick');
     const first = s[0];
     const rest = s[s.length - 1];
+    expect(s.length, 'the task-clock sampler ran').toBeGreaterThan(40);
     expect(first.rulerSlotParty, 'the Greens ruled at the verdict').toBe('Greens');
     expect(rest.rulerSlotParty, 'Mars First rules at rest').toBe('Mars First');
 
@@ -434,7 +474,7 @@ test.describe('«Заседание v4» — СТОЛ и ЧТЕНИЕ (standard-
 
     const s = (await readV4(page)).samples;
     // ① NOT ONE FRAME of the physical beats (nor of the results' physical part) has a reading panel.
-    const physical = s.filter((x) => TABLE_MOTIONS.includes(x.motion) || (x.stage === 'results' && x.resultsHidden));
+    const physical = physicalFrames(s);
     expect(physical.length, 'the physical part was sampled').toBeGreaterThan(20);
     const leaked = physical.filter((x) => x.reading && x.readingInk > 0.02);
     expect(leaked.length, `no reading panel exists while anything is moving on the table (${leaked.length} frames; first at ${leaked[0]?.motion || leaked[0]?.stage})`).toBe(0);
@@ -458,9 +498,9 @@ test.describe('«Заседание v4» — СТОЛ и ЧТЕНИЕ (standard-
     expect(settledAt, 'the panel reached full ink').toBeGreaterThanOrEqual(0);
     const rising = inkWindow.slice(0, Math.max(1, settledAt)).filter((x) => x.readingInk > 0.02 && x.readingInk < 0.98).length;
     const took = Math.round(inkWindow[Math.max(0, settledAt)].t - inkWindow[0].t);
-    // eslint-disable-next-line no-console
+
     console.log(`[v4] table → reading: ${took}ms over ${rising} partial frames`);
-    expect(rising, 'the panel faded in over several frames (a v-if swap is a blink)').toBeGreaterThanOrEqual(2);
+    expect(rising, `the panel faded in over several frames — a v-if swap is a blink (ink ${inkWindow.slice(0, 10).map((x) => x.readingInk.toFixed(2)).join(' ')})`).toBeGreaterThanOrEqual(2);
     expect(took, 'the handoff is inside the 0.3–0.4 s budget (with the sampler\'s slack)').toBeLessThan(700);
 
     // ④ …AND THE ROW RECEDED rather than being cut: it is still in the DOM, parked, with its ink gone.
@@ -486,6 +526,7 @@ for (const preset of PARLIAMENT_PRESETS) {
       test.setTimeout(300_000);
       const {seats} = await openSitting(page, request, 'parliament-architecture-assembly', preset.query);
       await armV4Probe(page);
+      await expect.poll(async () => (await readV4(page)).samples.length, {timeout: 10_000}).toBeGreaterThan(2);
       const atVerdict = (await readV4(page)).samples.slice(-1)[0];
       await shoot(page, `06-geometry-${preset.id}-verdict`);
       await runWalk(page, request, seats[1]);
@@ -498,13 +539,27 @@ for (const preset of PARLIAMENT_PRESETS) {
       const spills = s.filter((f) => f.govCard !== undefined && f.ruling !== undefined &&
         (f.govCard.y + f.govCard.h > f.ruling.y + f.ruling.h + 1.5 || f.govCard.x + f.govCard.w > f.ruling.x + f.ruling.w + 1.5));
       const worst = spills.map((f) => (f.govCard!.y + f.govCard!.h) - (f.ruling!.y + f.ruling!.h)).sort((a, b) => b - a)[0];
+      const w0 = spills.sort((a, b) => ((b.govCard!.y + b.govCard!.h) - (b.ruling!.y + b.ruling!.h)) - ((a.govCard!.y + a.govCard!.h) - (a.ruling!.y + a.ruling!.h)))[0];
+      if (w0 !== undefined) {
+        console.log(`[v4 ${preset.id}] worst spill: stage=${w0.stage || '-'} beat=${w0.beat || '-'} zoom=${w0.govZoom} card=${w0.govCard!.h.toFixed(1)} ruling=${w0.ruling!.h.toFixed(1)} gov=${w0.gov!.h.toFixed(1)} head=${w0.govHead!.h.toFixed(1)} quest=${w0.quest?.h.toFixed(1) ?? '—'}`);
+
+        console.log(`[v4 ${preset.id}] at rest: zoom=${rest.govZoom} card=${rest.govCard?.h.toFixed(1)} ruling=${rest.ruling?.h.toFixed(1)} gov=${rest.gov?.h.toFixed(1)} head=${rest.govHead?.h.toFixed(1)} quest=${rest.quest?.h.toFixed(1) ?? '—'}`);
+      }
       expect(spills.length, `the enacted face never leaves its block (${spills.length} of ${s.length} frames, worst ${worst?.toFixed(1) ?? 0} px over)`).toBe(0);
 
-      // ② THE QUEST'S BOX DOES NOT CHANGE SIZE ACROSS THE GOVERNMENT'S CHANGE — that is WHY ① holds: the card's
-      //    zoom is solved against the room this block leaves, and the race is now always rendered.
+      // ② …AND THE ROOM THE CARD WAS SOLVED AGAINST NEVER SHRINKS UNDER IT. The quest legitimately changes shape
+      //    with the generation (another condition, another race, another foot), so the budget is a HIGH-WATER
+      //    MARK: the block may end SHORTER than it started (the card simply keeps a little slack), never taller —
+      //    growth is what used to push the face over the quest's own head.
       expect(atVerdict.quest, 'the quest stood at the verdict').not.toBeUndefined();
       expect(rest.quest, 'the quest stands at rest').not.toBeUndefined();
-      expect(Math.abs(rest.quest!.h - atVerdict.quest!.h), `the quest keeps its height through the sitting (${atVerdict.quest!.h.toFixed(1)} → ${rest.quest!.h.toFixed(1)})`).toBeLessThan(2);
+
+      console.log(`[v4 ${preset.id}] quest room ${atVerdict.quest!.h.toFixed(1)} → ${rest.quest!.h.toFixed(1)} (zoom ${atVerdict.govZoom} → ${rest.govZoom})`);
+      expect(rest.quest!.h, `the quest's room never grows under a solved card (${atVerdict.quest!.h.toFixed(1)} → ${rest.quest!.h.toFixed(1)})`).toBeLessThan(atVerdict.quest!.h + 2);
+      // The budget is MONOTONIC, so the zoom may only fall (the quest's first measure can still gain a fraction
+      // of a px after the section's first fit): what must never happen is the card growing back into room the
+      // next generation's quest will ask for.
+      expect(Number(rest.govZoom), `the card never grows back (${atVerdict.govZoom} → ${rest.govZoom})`).toBeLessThanOrEqual(Number(atVerdict.govZoom) + 0.0005);
 
       // ③ THE RULER'S HEADER IS NEVER TRUNCATED (its own box, its own ellipsis — `scrollWidth` tells on it).
       const cut = s.filter((f) => f.kicker !== undefined && f.kicker.sw > f.kicker.w + 1);
@@ -513,8 +568,12 @@ for (const preset of PARLIAMENT_PRESETS) {
       // ④ THE RULER BLOCK'S HEIGHT IS PARTY-INDEPENDENT: the same box before and after the change of government,
       //    and its slot is the row's own tile box (ONE measured token for all six).
       expect(Math.abs(rest.rulerBox!.h - atVerdict.rulerBox!.h), `the ruler block keeps its height across the change (${atVerdict.rulerBox!.h.toFixed(1)} → ${rest.rulerBox!.h.toFixed(1)})`).toBeLessThan(2);
-      const rowTile = rest.tiles.find((t) => t.where === 'row');
-      const rulerTile = rest.tiles.find((t) => t.where === 'ruler');
+      // …compared on a TABLE frame: at rest the row is PARKED, and the park's own recede (`scale(.972)`) is a
+      //    pose — measuring a tile through it would report the recede as a chassis difference (202.2 vs 208.0).
+      const tableRest = s.filter((x) => x.rowShown).slice(-1)[0];
+      expect(tableRest, 'a table frame was sampled').not.toBeUndefined();
+      const rowTile = tableRest.tiles.find((t) => t.where === 'row');
+      const rulerTile = tableRest.tiles.find((t) => t.where === 'ruler');
       expect(rowTile, 'the row has tiles').not.toBeUndefined();
       expect(rulerTile, 'the ruler\'s slot has its tile').not.toBeUndefined();
       expect(Math.abs(rulerTile!.rect.h - rowTile!.rect.h), `one tile box for the row and the government (${rowTile!.rect.h.toFixed(1)} vs ${rulerTile!.rect.h.toFixed(1)})`).toBeLessThan(2);

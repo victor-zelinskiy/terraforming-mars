@@ -9,12 +9,12 @@ import {Page} from './consoleTest';
 
 /** The beat of the stage that is playing ('' at rest / a one-beat stage) — the director's own attribute. */
 export async function sittingBeat(page: Page): Promise<string> {
-  return (await page.locator('.con-parl__stage').getAttribute('data-sitting-beat')) ?? '';
+  return (await page.locator('.con-parl').getAttribute('data-sitting-beat')) ?? '';
 }
 
 /** The stage whose beats are playing ('' at rest). */
 export async function sittingMotion(page: Page): Promise<string> {
-  return (await page.locator('.con-parl__stage').getAttribute('data-sitting-motion')) ?? '';
+  return (await page.locator('.con-parl').getAttribute('data-sitting-motion')) ?? '';
 }
 
 export type SittingSample = {
@@ -106,8 +106,8 @@ export async function armSittingProbe(page: Page): Promise<void> {
       w.__sitV2.samples.push({
         t: performance.now(),
         stage: document.querySelector('.con-parl')?.getAttribute('data-sitting-stage') ?? '',
-        motion: document.querySelector('.con-parl__stage')?.getAttribute('data-sitting-motion') ?? '',
-        beat: document.querySelector('.con-parl__stage')?.getAttribute('data-sitting-beat') ?? '',
+        motion: document.querySelector('.con-parl')?.getAttribute('data-sitting-motion') ?? '',
+        beat: document.querySelector('.con-parl')?.getAttribute('data-sitting-beat') ?? '',
         step: document.querySelector('.con-sit')?.getAttribute('data-sit-step') ?? '',
         holds: (w.__conReady?.().holds ?? []).filter((h) => h.startsWith('parliament') || h.startsWith('resource-transfer')),
         markers,

@@ -311,7 +311,7 @@ export async function waitSittingAtRest(page: Page, timeout = 15_000, quietMs = 
   });
   await expect.poll(async () => page.evaluate((quiet) => {
     const w = window as unknown as {__conReady?: () => {holds: Array<string>}, __sitQuietSince?: number};
-    const rest = (document.querySelector('.con-parl__stage')?.getAttribute('data-sitting-motion') ?? '') === '' &&
+    const rest = (document.querySelector('.con-parl')?.getAttribute('data-sitting-motion') ?? '') === '' &&
       Array.from(document.querySelectorAll('[data-parl-flight]')).filter((el) => !(el.getAttribute('data-parl-flight') ?? '').startsWith('sit-park')).length === 0 &&
       document.querySelectorAll('.con-transfer__chip').length === 0 &&
       (w.__conReady?.().holds ?? []).every((h) => !h.startsWith('parliament-sitting') && !h.startsWith('resource-transfer'));
