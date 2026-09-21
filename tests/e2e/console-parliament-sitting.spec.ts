@@ -274,10 +274,15 @@ for (const preset of PRESETS) {
       const dealt = new Set((renewal?.refreshed ?? []).map((f) => f.instance));
       const returning = (renewal?.discarded ?? []).filter((d) => dealt.has(d.instance)).length;
       await expect(sitting(page).locator('[data-sit-results] [data-sit-stays]'), `the ${returning} returning resolutions say they stay`).toHaveCount(returning);
-      // v5: the LAW is the panel's heading — the resolution is «принята» and the party that rules by it stands
-      // beside it. The winner of the VOTE is not repeated here: the band named them at the verdict (§4).
-      await expect(sitting(page).locator('[data-sit-law="enacted"] .con-parl__chip-dim')).toHaveText(/Принята|Enacted/i);
-      await expect(sitting(page).locator('[data-sit-law="ruling"]'), 'the party that rules by it').toHaveCount(1);
+      // «Итоги: честность»: the LAW section is GONE — the enacted resolution, the party that rules by it
+      // and the chairman's new quest all stand in the government's own zone on this very screen, and the
+      // panel states only what is nowhere else (the payouts and the table).
+      await expect(sitting(page).locator('[data-sit-law]'), 'no law member survives').toHaveCount(0);
+      expect(await sitting(page).locator('[data-sit-section]').evaluateAll((els) => els.map((el) => el.getAttribute('data-sit-section'))),
+        'two sections, and nothing beside them').toEqual(['payouts', 'table']);
+      // …and every lobby chip NAMES its seat: a bare colour cube is not an assertion.
+      await expect(sitting(page).locator('[data-sit-results] [data-sit-lobby] .con-sit__lobby-name'), 'one name per returned delegate')
+        .toHaveCount(lobbyRefilled);
       expect(await hotVerb(page)).toMatch(/Закрыть заседание|Close the sitting/i);
       expect((await wireOf(request, playerId)).waitingFor?.parliamentPhasePrompt?.stage, 'gate 2 stands until A').toBe('adjourn');
       await expectFits(page, `${preset.id} results`);

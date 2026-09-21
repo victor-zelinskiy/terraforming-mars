@@ -325,7 +325,7 @@ test.describe('«Заседание v5» — ЛЕНТА и ТЕЛО (standard-10
       'the band is never hidden and is on top of everything, the step included').toEqual([]);
   });
 
-  test('П6 · ИТОГИ: три секции, выплаты по всем игрокам; без выбора — ровно один переход тела', async ({page, request}) => {
+  test('П6 · ИТОГИ: две секции, выплаты по всем игрокам; без выбора — ровно один переход тела', async ({page, request}) => {
     test.setTimeout(300_000);
     const {playerId, seats} = await openSitting(page, request, 'parliament-architecture-assembly', '&consoleProfile=auto');
     await armV5Probe(page);
@@ -347,8 +347,10 @@ test.describe('«Заседание v5» — ЛЕНТА и ТЕЛО (standard-10
     expect(flips, `one transition, and it is the one onto the results (${flips.join(' · ')})`).toHaveLength(1);
     expect(flips[0]).toMatch(/@results$/);
 
+    // «Итоги: честность»: the LAW section is gone — it restated the government's zone, which stands on the
+    // same screen and says all three facts more fully. The payouts and the table, and nothing else.
     const sections = await page.locator('[data-sit-section]').evaluateAll((els) => els.map((el) => el.getAttribute('data-sit-section')));
-    expect(sections, 'the law, the payouts and the table — and nothing else').toEqual(['law', 'payouts', 'table']);
+    expect(sections, 'the payouts and the table — and nothing else').toEqual(['payouts', 'table']);
 
     const wire = await parliamentWire(request, playerId);
     const seatCount = (wire.game.parliament as unknown as {players?: Array<{participates: boolean}>})?.players?.filter((p) => p.participates).length ?? seats.length;
@@ -356,9 +358,8 @@ test.describe('«Заседание v5» — ЛЕНТА и ТЕЛО (standard-10
     expect(rows.length, `a row per participating seat (${rows.join(',')})`).toBe(seatCount);
     expect(new Set(rows).size, 'one row per seat, never two').toBe(rows.length);
 
-    // The law names what stands, the table what has already left the eye.
-    await expect(page.locator('[data-sit-law="enacted"]')).toHaveCount(1);
-    await expect(page.locator('[data-sit-law="ruling"]')).toHaveCount(1);
+    // The table says what has already left the eye — and only that.
+    await expect(page.locator('[data-sit-law]'), 'no law member survives').toHaveCount(0);
     await expect(page.locator('[data-sit-row="results-fresh"]')).toHaveCount(1);
     await expect(page.locator('[data-sit-row="results-support"]')).toHaveCount(1);
     await expect(page.locator('[data-sit-row="results-lobby"]')).toHaveCount(1);

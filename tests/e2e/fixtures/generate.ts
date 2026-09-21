@@ -708,6 +708,28 @@ const architectureTable = (stopAt: ParliamentStop, expect?: (table: ParliamentTa
 });
 parliamentFixture('parliament-architecture-assembly', architectureTable('assembly'));
 parliamentFixture('parliament-architecture-adjourn', architectureTable('adjourn'));
+// ── «Итоги: честность» — the SUPPORT STOCK. The same table, except that UNITY has been collecting
+//    neutral delegates for two generations already. Unity has no resolution in the deck at all, so the
+//    refresh can never deal it a card and take them away: after this sitting it holds 2 older delegates
+//    plus the 1 this support step grants. WITHOUT such a party the results panel's support row is all
+//    fresh, and the probe's «свежие отличимы от ранее накопленных» would have nothing to compare — it
+//    would pass on an empty claim. ──
+const supportStockTable = (): ParliamentFixtureSpec => {
+  const base = architectureTable('assembly');
+  return {
+    ...base,
+    arrange: (table) => {
+      base.arrange?.(table);
+      table.parliament.popularSupport.set(PartyName.UNITY, 2);
+    },
+    expect: ({parliament}) => {
+      if (parliament.popularSupportOf(PartyName.UNITY) !== 2) {
+        throw new Error(`the parliament-support-stock fixture expected Unity to hold 2 neutral delegates before the sitting, got ${parliament.popularSupportOf(PartyName.UNITY)}`);
+      }
+    },
+  };
+};
+parliamentFixture('parliament-support-stock', supportStockTable());
 // Generation 2 has just begun: the results scene moves the card from its voting
 // slot into the government and flies red's production gain from the card to the rail.
 parliamentFixture('parliament-architecture-recap', architectureTable('done', (table) => {
