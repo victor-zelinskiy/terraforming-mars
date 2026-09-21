@@ -87,6 +87,15 @@ export type ParliamentDisplayHolds = {
   govBefore: GovernmentBefore | undefined;
   /** The old RULING PARTY, until the plaques have changed places. */
   rulerBefore: ReduxParty | undefined;
+  /**
+   * THE OLD RULING PARTY WHILE ITS PLAQUE IS STILL IN THE AIR. `rulerBefore` has to be released one frame
+   * BEFORE the flight (the FLIP measures the tiles in their NEW places and inverts them back), so it
+   * cannot say what a travelling tile should LOOK like. This can: until the swap has settled, each of the
+   * two plaques still wears the state of the place it LEFT — the ruler's tile loses its support sockets in
+   * the frame it ARRIVES in the government, not in the frame it takes off («подпись не опережает объект»).
+   * Set beside the release in the enactment beat, cleared by the FLIP's own settle.
+   */
+  rulerSettling: ReduxParty | undefined;
   /** The old CHAIRMAN QUEST (closed, with its outcome), until the new one unfolds. */
   questBefore: QuestBefore | undefined;
 };
@@ -95,7 +104,7 @@ export function emptyParliamentHolds(): ParliamentDisplayHolds {
   return {
     returns: new Map(), support: new Map(), supportIncoming: new Map(), rollStatus: new Map(), hiddenCubes: new Set(), lobby: new Set(), freshFaces: new Set(), deckPending: 0,
     govAwaits: undefined, parked: undefined, heldSlots: undefined, vacated: new Set(), liftedFaces: new Set(), winnerSlot: undefined,
-    agendaAwaits: undefined, chairAwaits: undefined, govBefore: undefined, rulerBefore: undefined, questBefore: undefined,
+    agendaAwaits: undefined, chairAwaits: undefined, govBefore: undefined, rulerBefore: undefined, rulerSettling: undefined, questBefore: undefined,
   };
 }
 
@@ -129,6 +138,7 @@ export function releaseEnactmentHolds(): void {
   h.agendaAwaits = undefined;
   h.govBefore = undefined;
   h.rulerBefore = undefined;
+  h.rulerSettling = undefined;
   h.questBefore = undefined;
   h.liftedFaces.clear();
   // The winner has left the table: its held slot stands vacated until the renewal takes the whole table.

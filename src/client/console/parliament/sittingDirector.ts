@@ -539,6 +539,9 @@ function flipPlaques(runState: StageRun, root: HTMLElement, before: Map<string, 
   sittingMotion.swapping = true;
   const settlePose = () => {
     sittingMotion.swapping = false;
+    // …and the two plaques ARRIVE: only now does each take the state of the place it landed in (the
+    // ruler's tile loses its support sockets here, the descending one gets them back — never in flight).
+    parliamentHolds.rulerSettling = undefined;
   };
   for (const el of itemsOf(root, '.con-parl__party[data-party]')) {
     const from = before.get(el.getAttribute('data-party') ?? '');
@@ -668,9 +671,13 @@ function beatEnactMove(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: n
   tl.call(() => {
     if (!rulerChanges || runState.finished) {
       holds.rulerBefore = undefined;
+      holds.rulerSettling = undefined;
       return;
     }
     const before = partyRects(root);
+    // The two tiles are about to TRAVEL: each keeps the state of the place it is leaving until it lands
+    // (`rulerSettling`), while `rulerBefore` has to go now — the FLIP measures them in their new places.
+    holds.rulerSettling = holds.rulerBefore;
     holds.rulerBefore = undefined;
     void nextTick().then(() => {
       if (runState.finished) {

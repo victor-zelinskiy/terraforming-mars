@@ -150,6 +150,11 @@
         gap: .1rem;
         flex-shrink: 0;
         margin-left: auto;
+        /* THE RULING PARTY HOLDS NONE, EVER (see the plaque's markup for the proof) — so its places are
+           hidden and KEEP THEIR ROOM: the ruler's plaque is the row's plaque, one box, and the two
+           exchange places physically. `display: none` would resize the government's tile and break the
+           swap; `visibility` leaves the geometry untouched. */
+        &--void { visibility: hidden; }
     }
     &__support-place {
         width: .72rem; height: .72rem; border-radius: .15rem;

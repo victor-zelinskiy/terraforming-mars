@@ -139,6 +139,53 @@ describe('ParliamentPhase', () => {
     expect(summary.lobbyRefilled).has.members([p1.id, p2.id]);
   });
 
+  /*
+   * ПРАВИТЕЛЬ БЕЗ ПОДДЕРЖКИ — the rule two console surfaces STAND on: the ruler's plaque hides its three
+   * support sockets and the results panel leaves the ruling party out of its support row, both because a
+   * party that rules by an enacted card can never hold a neutral delegate. The rule is not written
+   * anywhere in the engine; it FOLLOWS from three independent facts, and this spec pins the two that can
+   * be weakened by a careless edit (the third, `moveSupportToSlot`, is asserted by the phase spec above).
+   */
+  it('ПРАВИТЕЛЬ БЕЗ ПОДДЕРЖКИ: the enacted card\'s party gains nothing, is never dealt back into the area, and holds zero support', () => {
+    const [game, p1, , parliament] = reduxGame();
+    for (let generation = 1; generation <= 3; generation++) {
+      game.phase = Phase.ACTION;
+      // A quiet table throughout: the subject is the PHASE's own bookkeeping, and a card that asks would
+      // hold the walk for an answer this spec has no business giving. The NEUTRAL player carries the
+      // winning slot (two votes beat one, so which card wins is not left to a tie-break) and a real
+      // player votes for a LOSING card — that is what exercises the second support wave's `+2` branch,
+      // the one that would pay the ruler if a second card of its party could ever stand in the area.
+      for (let i = 0; i < parliament.slots.length; i++) {
+        quiet(parliament, i);
+      }
+      parliament.addNeutralVote(parliament.slots[0]);
+      parliament.addNeutralVote(parliament.slots[0]);
+      if (parliament.slots.length > 1) {
+        parliament.placeVote(p1, parliament.slots[1], 'lobby');
+      }
+      endGenerationThroughParliament(game);
+
+      const ruling = parliament.rulingParty();
+      const summary = parliament.lastPhase!;
+      const where = `generation ${generation}, ruling ${ruling}`;
+      // ① the support step never pays it (it is represented by the card in ENACTED, and it won its slot).
+      expect(summary.support.map((entry) => entry.party), `the support step paid the ruler (${where})`).not.includes(ruling);
+      // ② the refresh never deals it back into the area — the rule `dealSlot` keeps, and the one that
+      //    makes ① hold next generation too. Weaken it and this spec is the first thing to fail.
+      const parties = parliament.partiesInVotingArea();
+      expect(parties, `a card of the ruling party stands in the voting area (${where})`).not.includes(ruling);
+      expect(new Set(parties).size, `two cards of one party in the area (${parties.join(', ')} — ${where})`).eq(parties.length);
+      // ③ …so after the whole phase, deal included, the ruler holds nothing.
+      expect(parliament.popularSupportOf(ruling), `the ruler holds popular support (${where})`).eq(0);
+      // …and the invariant the rule rides on: a party REPRESENTED in the area holds no stock either —
+      // the deal turned whatever it had into votes on its fresh card.
+      for (const party of parties) {
+        expect(parliament.popularSupportOf(party), `${party} keeps a stock while its card is in the area (${where})`).eq(0);
+      }
+      parliament.assertLedger(game);
+    }
+  });
+
   it('a neutral winner moves no Agenda and the second Agenda step pays 1 TR', () => {
     const [game, p1, , parliament] = reduxGame();
     // THE GENERIC PHASE again: the subject is the Agenda, so the card that

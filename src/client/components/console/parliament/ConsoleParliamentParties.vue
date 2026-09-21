@@ -32,7 +32,7 @@
                               :viewerColor="viewerColor"
                               :formula="true"
                               :focused="focusedIndex === i"
-                              :ruling="p.party === rulerShown"
+                              :ruling="p.party === rulerSettled"
                               :roll="rollWord(p.party)"
                               :reason="focusedIndex === i ? partyLine : ''"
                               :reasonTone="partyLineTone" />
@@ -95,6 +95,17 @@ export default defineComponent({
     /** THE RULER AS SHOWN: the previous ruling party until the enactment's beat has changed the plaques' places. */
     rulerShown(): ReduxParty {
       return parliamentHolds.rulerBefore ?? this.view.rulingParty;
+    },
+    /**
+     * THE RULER AS SETTLED — which tile WEARS the ruler's state. `rulerShown` answers WHERE each tile
+     * stands (the teleport must move a frame before the FLIP, or there is nothing to invert), and the two
+     * answers differ for exactly the length of the swap: a plaque in the air still shows the state of the
+     * place it left, and changes in the frame it ARRIVES in («подпись не опережает объект» — the rising
+     * tile keeps its support sockets until it has landed in the government, the descending one gets its
+     * own back on the row).
+     */
+    rulerSettled(): ReduxParty {
+      return parliamentHolds.rulerSettling ?? this.rulerShown;
     },
     /** The focused tile's index in `view.parties`: the row's cursor, or the ruler when the government's tile is the focus zone. */
     focusedIndex(): number {

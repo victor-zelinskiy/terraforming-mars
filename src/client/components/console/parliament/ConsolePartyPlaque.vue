@@ -98,8 +98,27 @@
       <span v-if="roll === '' && reason === '' && stateText !== ''" class="con-pseal__state-text">{{ stateText }}</span>
       <!-- POPULAR SUPPORT — three places, ALWAYS reserved (v3 В3): a socket that appears when the first
            cube lands would make the arrival its own layout jump. Empty sockets read as empty sockets; the
-           landing socket answers ONCE, on contact (`--landed`, the director adds it at the touchdown). -->
-      <span v-if="support !== undefined" class="con-pseal__support" :data-support="support" :data-parl-support="party" aria-hidden="true">
+           landing socket answers ONCE, on contact (`--landed`, the director adds it at the touchdown).
+           …AND THE RULING PARTY HAS NO PLACES TO SHOW. A party that rules by an ENACTED CARD holds exactly
+           zero popular support in every legal state, by construction — three sockets there promise
+           something that cannot happen, which is v4 §2.5 («0/2» стояло на месте правителя) all over
+           again. So the block is HIDDEN and stays IN THE FLOW: the ruler's plaque must keep the row's
+           height, that being the condition of the physical swap (v3–v5). The proof, and the two places
+           support can move at all (`grantSupport` in the phase, `moveSupportToSlot` at the deal):
+             ① the first wave skips it — it is represented by the card in ENACTED;
+             ② the second wave skips it — it pays the area's UNENACTED cards, and the deal never puts a
+                card of the enacted party (nor a second card of any party) into the area (`dealSlot` in
+                `ParliamentPhase.ts`, the rule stated in `ResolutionCatalog.ts`; guarded by
+                `ParliamentPhase.spec.ts` § ПРАВИТЕЛЬ БЕЗ ПОДДЕРЖКИ);
+             ③ whatever it had accumulated was zeroed by `moveSupportToSlot` the moment its card entered
+                the area and the stock became instant votes.
+           (The one party that rules WITHOUT an enacted card is the starting-rule Greens of generation 1,
+           whom the server may pay as «absent»; the sitting's own hold keeps that cube off the plaque
+           until the tile has descended into the row, so the ruler's slot has nothing to show there
+           either.) The same rule keeps the ruling party out of the results panel's support row. -->
+      <span v-if="support !== undefined" class="con-pseal__support"
+            :class="{'con-pseal__support--void': ruling}"
+            :data-support="support" :data-parl-support="party" aria-hidden="true">
         <span v-for="n in 3" :key="n" class="con-pseal__support-place" :class="{'con-pseal__support-place--on': n <= support}" :data-support-place="n">
           <PlayerCube v-if="n <= support" color="neutral" steel :size="supportCubePx" :glow="false" />
         </span>
@@ -144,7 +163,12 @@ export default defineComponent({
     /** The ONE translated reason the party's action cannot be taken right now (the focused tile's foot); '' draws the state. */
     reason: {type: String, default: ''},
     reasonTone: {type: String as PropType<'dim' | 'warn'>, default: 'dim'},
-    /** This tile stands in the GOVERNMENT's slot: it is the ruling party's, and its state row says so (v4 §2.5). */
+    /**
+     * This tile WEARS the ruler's state: it is the ruling party's, so its state row says «правит» instead
+     * of an access counter (v4 §2.5) and its support sockets are hidden (they could never fill). During
+     * the government's swap this deliberately lags the tile's PLACE by the length of the flight — the host
+     * passes «the ruler as settled», so a plaque changes state in the frame it arrives, never in flight.
+     */
     ruling: {type: Boolean, default: false},
     /** The roll call's word for this party while the support scene runs (v3 В3) — it takes the state row in place of the live state. */
     roll: {type: String, default: ''},
