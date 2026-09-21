@@ -161,7 +161,9 @@ export default defineComponent({
      * counts (the sitting is the only stage the reserve grows in).
      */
     seats(now: Array<SeatRow>, was: Array<SeatRow>): void {
-      if (parliamentFlow.stage !== 'sitting') {
+      // The sitting and «ПРЕДСЕДАТЕЛЬСТВО» are the two stages a reserve GROWS in
+      // (a vote's own cube leaving never counts).
+      if (parliamentFlow.stage !== 'sitting' && parliamentFlow.stage !== 'quest') {
         return;
       }
       for (const seat of now) {

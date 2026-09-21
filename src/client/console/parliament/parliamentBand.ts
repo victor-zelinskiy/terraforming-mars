@@ -132,9 +132,31 @@ export type BandSitting = {
   reward: BandRewardReading;
 };
 
+/**
+ * «ПРЕДСЕДАТЕЛЬСТВО» — the chairman-quest flow's own reading. The band is the
+ * ONLY reading this flow has (the body stays the overview: the objects the
+ * beats move — the quest block, the chair, the Agenda marker — are all on the
+ * table already, and a panel over them would cover the very things that fly).
+ * It names the REASON of the beat that is playing, never what an object says
+ * itself: the quest block prints its own condition and its own «✓ Выполнено»,
+ * so the line says who closed it and WHAT IT PAYS — the office, then the step.
+ */
+export type BandQuest = {
+  /** The director's beat ('' before it starts). */
+  beat: '' | 'task' | 'seat' | 'agenda' | 'done';
+  /** The seat that closed the quest. */
+  player?: Color;
+  /** The office as it stood at the open (undefined = the seat was empty) — named while it changes hands. */
+  seatWas?: Color;
+  /** The Agenda move the answer produced, once the server has answered. */
+  move?: {from: number, to: number, bonus?: 'tr' | 'card'};
+};
+
 export type BandContext = {
   /** `undefined` outside a live sitting the viewer takes part in — the overview's line. */
   sitting?: BandSitting;
+  /** `undefined` outside the chairman-quest flow — it outranks the overview, never the sitting (they cannot coexist). */
+  quest?: BandQuest;
   standing: BandStanding;
 };
 
@@ -150,7 +172,7 @@ function supportRuleKey(wave: '' | SupportStatus): string {
 export function parliamentBandLine(ctx: BandContext): BandLine {
   const sitting = ctx.sitting;
   if (sitting === undefined) {
-    return overviewLine(ctx.standing);
+    return ctx.quest === undefined ? overviewLine(ctx.standing) : questLine(ctx.quest);
   }
   switch (sitting.stage) {
   case 'verdict':
@@ -162,6 +184,47 @@ export function parliamentBandLine(ctx: BandContext): BandLine {
   case 'results':
     return sitting.resultsHidden ? renewalLine(sitting) : resultsLine(sitting);
   }
+}
+
+/**
+ * ЗАДАНИЕ · ПРЕДСЕДАТЕЛЬСТВО · ПОВЕСТКА — one line per beat of the
+ * chairmanship flow. Past the commit throughout: the quest is closed and the
+ * answer is on its way before the first beat even plays.
+ */
+function questLine(quest: BandQuest): BandLine {
+  const chips: Array<BandChip> = [];
+  const player = quest.player;
+  if (quest.beat === 'agenda' || quest.beat === 'done') {
+    const move = quest.move;
+    if (move === undefined) {
+      chips.push({kind: 'label', key: 'end of the track', tone: 'quiet'});
+      return {kicker: 'Agenda', key: 'quest:agenda:end', chips, committed: true};
+    }
+    if (player !== undefined) {
+      chips.push({kind: 'player', player});
+    }
+    chips.push({kind: 'agenda', to: move.to, bonus: move.bonus});
+    return {kicker: 'Agenda', key: `quest:agenda:${player ?? ''}:${move.to}`, chips, committed: true};
+  }
+  if (quest.beat === 'seat') {
+    if (player !== undefined) {
+      chips.push({kind: 'player', player});
+    }
+    if (quest.seatWas !== undefined && quest.seatWas !== player) {
+      // The outgoing delegate's own fact — where it GOES, not what was lost.
+      chips.push({kind: 'label', key: 'The delegate returns to the reserve', tone: 'quiet'});
+      chips.push({kind: 'player', player: quest.seatWas});
+    }
+    return {kicker: 'Chairmanship', key: `quest:seat:${quest.seatWas ?? ''}:${player ?? ''}`, chips, committed: true};
+  }
+  // ЗАДАНИЕ — who closed it, and what the closing pays (the block's own foot
+  // reads «ВЫПОЛНИЛ · игрок» from here on and no longer states the reward).
+  chips.push({kind: 'label', key: 'Completed', tone: 'quiet'});
+  if (player !== undefined) {
+    chips.push({kind: 'player', player});
+  }
+  chips.push({kind: 'label', key: 'Chairmanship'});
+  return {kicker: 'Quest', key: `quest:task:${player ?? ''}`, chips, committed: true};
 }
 
 /** ОБЗОР — what is enacted as things stand, and who would win it. */

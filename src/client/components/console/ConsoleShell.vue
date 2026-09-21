@@ -16573,6 +16573,18 @@ export default defineComponent({
         }
         return;
       }
+      if (task.kind === 'chairmanQuest') {
+        // «ПРЕДСЕДАТЕЛЬСТВО» (Turmoil Redux) — the whole point of the server's
+        // gate is that the player is BROUGHT to the Parliament: the beats of
+        // the Agenda step live in that section, and a section off screen plays
+        // them into nothing. An `always` anchor, because the flow deliberately
+        // outlives its own prompt (the office and the step play AFTER the
+        // answer); its own guarded conclusion ends it.
+        if (!this.restoreParkedWorkspace('parliament') && !workspaceFrameKnown('parliament')) {
+          enterWorkspace('parliament', {anchor: {type: 'always'}});
+        }
+        return;
+      }
       if (task.kind === 'parliamentPhase') {
         // THE SITTING'S GATE (Turmoil Redux) — the political phase is ONE flow
         // the player opened by A this generation (the flow beat); a gate that

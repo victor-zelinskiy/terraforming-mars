@@ -33,6 +33,10 @@ const CANON: Record<string, string> = {
   'Your effect · 2 delegates': 'Эффект ваш · 2 делегата',
   'Chairmanship': 'Председательство',
   'Chairmanship (kept)': 'Председательство (сохраняется)',
+  // «ПРЕДСЕДАТЕЛЬСТВО» (the chairman-quest flow): the crumb's two stages, one
+  // word each, and the outgoing delegate's own fact — where it GOES.
+  'Quest': 'Задание',
+  'The delegate returns to the reserve': 'Делегат возвращается в резерв',
   'Agenda step': 'шаг Повестки',
   'Available to every player': 'Доступен всем',
   'Waiting for the other seats': 'Ожидание',

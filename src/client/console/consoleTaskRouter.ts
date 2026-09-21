@@ -111,6 +111,17 @@ export type ConsoleTask =
    */
   | {kind: 'parliamentPhase', stage: ParliamentPhaseStage}
   /**
+   * THE CHAIRMAN-QUEST GATE (Turmoil Redux): the quest's count was reached
+   * inside the player's own action and the server has applied NOTHING — the
+   * seat, the Agenda step and its bonus all wait for this confirm. A plain
+   * `option` on the wire, routed off the server's `chairmanQuestPrompt`
+   * marker. Served INSIDE the Parliament workspace by the «ПРЕДСЕДАТЕЛЬСТВО»
+   * flow, which is the whole point of the gate: the presentation of the step
+   * lives in that section, and a section that is not on screen plays it into
+   * nothing.
+   */
+  | {kind: 'chairmanQuest'}
+  /**
    * TAKE THE CARDS AN EXTERNAL EFFECT DREW FOR YOU — another player's action
    * (MarsBot included) fired an effect that granted the viewer cards (Solar
    * Logistics on a foreign space event, Sponsored Academies' «all opponents
@@ -176,8 +187,9 @@ export const NATIVE_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>([
   'cardSelect', 'deckSelect', 'handSelect', 'payment', 'draftWait',
   'projectCard', 'colony', 'colonyBonus', 'externalDraw', 'awardFunding',
   'initialDraft', 'startSequence', 'corpFirstAction',
-  // The Mars Parliament's stand-alone party pick and the sitting's two gates (Turmoil Redux).
-  'party', 'parliamentPhase',
+  // The Mars Parliament's stand-alone party pick, the sitting's two gates and
+  // the chairman-quest gate (Turmoil Redux).
+  'party', 'parliamentPhase', 'chairmanQuest',
   // The three that used to fall through to the DESKTOP modal inside the
   // console shell — each now has its own console-native surface.
   'venusBonus', 'spendHeat', 'aresGlobal',
@@ -198,7 +210,7 @@ export const SHELL_NATIVE_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>(['act
  * screen in free-sponsorship mode. The shell auto-opens the surface;
  * navigating away DEFERS the task (amber chip).
  */
-export const SHELL_SECTION_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>(['projectCard', 'handSelect', 'colony', 'colonyBonus', 'externalDraw', 'awardFunding', 'corpFirstAction', 'party', 'parliamentPhase']);
+export const SHELL_SECTION_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>(['projectCard', 'handSelect', 'colony', 'colonyBonus', 'externalDraw', 'awardFunding', 'corpFirstAction', 'party', 'parliamentPhase', 'chairmanQuest']);
 
 /**
  * …of those, the kinds whose console surface ALWAYS exists — the answer to
@@ -448,7 +460,10 @@ export function taskMinimizable(kind: TaskKind): boolean {
     return true;
   // The external-draw take is LOCKED once its workspace is open (the take is
   // the only way out); before opening, the announce plate stands and the
-  // player roams freely — «свернуть» never exists for it.
+  // player roams freely — «свернуть» never exists for it. The chairman-quest
+  // gate is locked on the same reasoning: its flow is one uninterrupted
+  // phrase past the commit, and the plate covers the window before it opens.
+  case 'chairmanQuest':
   case 'externalDraw':
   case 'actionMenu':
   case 'space':
@@ -562,6 +577,11 @@ export function taskFor(view: PlayerViewModel): ConsoleTask | undefined {
   // marker outranks the raw type, exactly as the start-game and vote markers do.
   if (wf.parliamentPhasePrompt !== undefined) {
     return {kind: 'parliamentPhase', stage: wf.parliamentPhasePrompt.stage};
+  }
+  // …and the CHAIRMAN-QUEST gate, on the same terms (a plain `option` whose
+  // whole meaning is its marker).
+  if (wf.chairmanQuestPrompt !== undefined) {
+    return {kind: 'chairmanQuest'};
   }
 
   switch (wf.type) {

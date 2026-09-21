@@ -48,7 +48,42 @@
 
 ## Блок B · консоль: flow «Председательство»
 
-СТАТУС: не начат.
+СТАТУС: **СДАН** (client 5787/0, `tests/console` 297/0, `lint:client` и `build:test` чисто).
+
+**Тело остаётся обзором Парламента** (закон 18 `console-ui.md`): новой панели НЕТ, говорит ЛЕНТА,
+а объекты (блок задания в правительстве, кресло, маркер Повестки) двигаются на своих местах.
+
+Новые файлы:
+- `console/parliament/consoleChairmanQuest.ts` — чистая половина: запись потока, `armChairmanQuestFlow`
+  (читает кресло и место делегата ДО ответа), детекторы `detectChairmanQuestAdvance` /
+  `detectChairmanChange` и `seedChairmanQuestHolds` — посев в ТОМ ЖЕ синхронном блоке, что применение
+  вида (вызывается из `gameTransport.seedRewardHolds` и `App.update`, последним: `enterSitting('')`
+  реестра наград флашит бонус Повестки, посеянный до него).
+- `console/parliament/chairmanQuestDirector.ts` — такты. Нового моушена НЕТ: глайд маркера — метод
+  `ConsoleParliamentAgenda.playAgendaGlide`, кубы — `parliamentFlights.flyCube`, РТ-чип и обложка
+  карты — тот же реестр `parliamentRewardBeat`. Бюджет: ЗАДАНИЕ 700 мс, пауза 250 мс,
+  ПРЕДСЕДАТЕЛЬСТВО 300 + 480 = 780 мс (без прежнего председателя 180 + 480 = 660 мс),
+  ПОВЕСТКА — фраза общего маркер-директора ≈ 1.07 с. Ни одного `setTimeout`: всё через
+  `scheduleParliamentBeat` (гард `parliamentNoTimers`), весь поток держит animation hold.
+
+Добавления в общие файлы (только добавлением):
+- `parliamentDisplayHolds.ts` + `chairAwaits` (кресло показывает прежнего, пока куб не сел);
+- `ConsoleParliamentGovernment.chairmanShown` читает его; блок задания пульсирует и от `flow.questPulse`;
+- `parliamentBand.ts` + `BandQuest` и три строки (ЗАДАНИЕ · ПРЕДСЕДАТЕЛЬСТВО · ПОВЕСТКА);
+- `consoleParliamentFlow.ts` + стадия `'quest'`, `questPulse`, крошка (`parliamentCrumbSubject(questLive)` /
+  `parliamentCrumbStage(sittingTail, questTail)`);
+- `ConsoleParliamentSeats.landFlash` звенит и в потоке `quest`;
+- роутер (`chairmanQuest` по маркеру), сводка, `serves` парламента, `NATIVE_KINDS`,
+  `SECTION_SERVED_KINDS`, `taskMinimizable` = false, `ALWAYS_INTERRUPTIVE` (анонс), маршрут открытия
+  в `ConsoleShell` (`anchor: {type: 'always'}` — поток ПЕРЕЖИВАЕТ свой промпт).
+
+Грамматика: A на плите анонса открывает Парламент, поток шлёт подтверждение ПОД читкой (минимальный
+бет, который быстрый сервер не срезает); дальше такты идут сами; A во время такта — «дожать»
+(не рекламируется, как в заседании), в конце A «Закрыть»; B молчит весь поток. Крайний случай
+(все делегаты на резолюциях) — СТАДИЯ потока: директор ждёт (`owesSeatPick`), крошка остаётся
+«ПРЕДСЕДАТЕЛЬСТВО › КРЕСЛО», после ответа такты продолжаются.
+
+Пробники: `tests/client/console/chairmanQuestFlow.spec.ts` (10 шт. — см. ниже).
 
 ## Блок C · нотификации
 

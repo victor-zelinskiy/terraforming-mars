@@ -166,6 +166,12 @@ import {
   parliamentSittingLive,
 } from '@/client/console/parliament/consoleSittingFlow';
 import {parliamentHolds, resetParliamentHolds} from '@/client/console/parliament/parliamentDisplayHolds';
+import {
+  armChairmanQuestFlow, chairmanQuestFlow, chairmanQuestGateOf, chairmanQuestStageKey, releaseChairmanQuestHolds, resetChairmanQuestFlow,
+} from '@/client/console/parliament/consoleChairmanQuest';
+import {
+  chairmanQuestBeatActive, finishChairmanQuestBeats, killChairmanQuestBeats, noteChairmanQuestAnswer, startChairmanQuestBeats,
+} from '@/client/console/parliament/chairmanQuestDirector';
 import {SittingBeat, sittingBeats} from '@/client/console/parliament/sittingBeats';
 import {
   finishSittingMotion, killSittingMotion, playSittingStage, resetSittingDirector, sittingMotion, sittingMotionActive, SittingDirectorContext,
@@ -449,14 +455,34 @@ export default defineComponent({
       const parties = (this.bridge.seat as {parties?: Array<PartyName>} | undefined)?.parties ?? [];
       return this.view.slots.map((slot, i) => ({slot, i})).filter(({slot}) => parties.includes(slot.party)).map(({i}) => i);
     },
+    /**
+     * THE CHAIRMAN-QUEST GATE stands for this seat — the server's own marker,
+     * never a title. While it stands NOTHING of the quest is applied: the
+     * marker is on its old step, the office untouched, the rating unchanged.
+     */
+    questGate(): {generation: number} | undefined {
+      return chairmanQuestGateOf(this.pv.waitingFor);
+    },
+    /** The chairmanship flow's crumb tail — one word per stage («ЗАДАНИЕ» → «ПОВЕСТКА»). */
+    questTail(): string {
+      return chairmanQuestStageKey(chairmanQuestFlow.stage);
+    },
+    /** The flow is holding at its seat beat with the server's own pick standing — the picker takes the stage. */
+    questSeatStep(): boolean {
+      return chairmanQuestFlow.live && chairmanQuestFlow.beat === 'seat' && this.bridge.seat !== undefined;
+    },
+    /** Its A verb: nothing while a beat is in flight (A «дожать» is unadvertised), «Закрыть» once everything has landed. */
+    questCommands(): {done: boolean} | undefined {
+      return chairmanQuestFlow.live ? {done: chairmanQuestFlow.beat === 'done'} : undefined;
+    },
     crumbSubject(): string {
-      return parliamentCrumbSubject();
+      return parliamentCrumbSubject(chairmanQuestFlow.live);
     },
     crumbStage(): string {
-      return parliamentCrumbStage(this.sittingTail);
+      return parliamentCrumbStage(this.sittingTail, this.questTail);
     },
     crumbCommitted(): boolean {
-      return parliamentCrumbCommitted();
+      return parliamentCrumbCommitted(chairmanQuestFlow.live);
     },
     /** THE ONE COMMAND CONTRACT — published to the shell's bar. */
     commands(): Array<ConsoleCommand> {
@@ -465,6 +491,7 @@ export default defineComponent({
         canVoteNow: this.canVoteNow,
         partyActionStates: this.partyActionStates,
         sitting: {primary: this.sittingPrimary, inspect: this.sittingInspectable, back: this.sittingBack},
+        quest: this.questCommands,
       });
     },
     /** X on the sitting inspects the enacted resolution — the object every stage is about. */
@@ -662,6 +689,38 @@ export default defineComponent({
         this.onAnswerKey(key);
       },
     },
+    /**
+     * THE CHAIRMAN-QUEST GATE takes the stage the moment it stands. The
+     * player has ALREADY pressed A — on the mandatory announce plate, which is
+     * what mounted this section — so the flow opens, starts its reading beat
+     * and sends the answer under it: the reading is the minimum beat a fast
+     * server never cuts, and everything past it waits for the response.
+     */
+    'questGate': {
+      immediate: true,
+      handler(gate: {generation: number} | undefined): void {
+        if (gate !== undefined && parliamentFlow.stage === 'browse' && !chairmanQuestFlow.live) {
+          this.openQuestFlow();
+        }
+      },
+    },
+    /**
+     * THE CHAIRMANSHIP FLOW HOLDS FOR THE DELEGATE PICK (the corner case: every
+     * delegate of this seat stands on a resolution). The DIRECTOR decides that
+     * — not the prompt's arrival — so the picker opens on its own beat, and the
+     * crumb keeps «ПРЕДСЕДАТЕЛЬСТВО» with only the tail advancing.
+     */
+    'questSeatStep'(open: boolean): void {
+      if (!open || parliamentStageKind() !== 'quest') {
+        return;
+      }
+      const seat = this.bridge.seat;
+      const parties = seat === undefined ? [] : (seat as {parties: Array<PartyName>}).parties;
+      const idx = this.view.slots.findIndex((slot) => parties.includes(slot.party));
+      parliamentFlow.slotIndex = idx >= 0 ? idx : 0;
+      parliamentFlow.zone = 'voting';
+      this.openStage('seat');
+    },
     /** A stand-alone chairman-seat pick is MANDATORY: it takes the stage as soon as it stands. */
     'bridge.seat': {
       immediate: true,
@@ -718,6 +777,14 @@ export default defineComponent({
     this.stopFitObs?.();
     this.clearSubmitTimer();
     resetSittingDirector();
+    // «ПРЕДСЕДАТЕЛЬСТВО» ends with its section: a beat has nowhere to play and
+    // a hold nobody would consume would freeze the track for the rest of the
+    // game (its counters tick with this block instead — honestly late).
+    if (chairmanQuestFlow.live) {
+      killChairmanQuestBeats();
+      releaseChairmanQuestHolds('unmount');
+      resetChairmanQuestFlow();
+    }
     // The phase is over (the section unmounts after its latched leave — v3 В1): the sitting's display
     // holds end here, never in the apply block that carried the phase away (the surface still needed
     // them for its leave). A park / a yield keeps them: the walk resumes over them.
@@ -758,6 +825,15 @@ export default defineComponent({
           this.voteMode()?.answerAfterSubmit();
           return;
         }
+        if (f.stageBeforeSubmit === 'quest') {
+          // THE GATE IS ANSWERED — the flow STAYS: its beats play the office
+          // and the Agenda step the answer produced. The holds were seeded in
+          // the response's own commit block; the director consumes them.
+          f.stage = 'quest';
+          setWorkspaceFramePhase('parliament', 'committed');
+          noteChairmanQuestAnswer();
+          return;
+        }
         if (f.stageBeforeSubmit === 'sitting') {
           // THE GATE IS ANSWERED — the sitting stays on its stage: the position
           // re-derives (the wait pose, the chain's beats, the results) and the
@@ -771,6 +847,15 @@ export default defineComponent({
         }
         // The chairman's delegate leaves the card for the seat.
         const wasSeat = f.stageBeforeSubmit === 'seat';
+        if (wasSeat && chairmanQuestFlow.live) {
+          // …and inside the chairmanship flow it goes back to it: the office
+          // beat plays the cube onto the chair, then the Agenda step.
+          f.stage = 'quest';
+          setWorkspaceFramePhase('parliament', 'committed');
+          this.seatFrom = undefined;
+          noteChairmanQuestAnswer();
+          return;
+        }
         f.stage = 'browse';
         setWorkspaceFramePhase('parliament', 'browse');
         if (wasSeat) {
@@ -883,6 +968,10 @@ export default defineComponent({
         this.handleSittingIntent(intent);
         return;
       }
+      if (f.stage === 'quest') {
+        this.handleQuestIntent(intent);
+        return;
+      }
       if (consoleActionOf(intent) === 'back') {
         if (f.stage === 'seat') {
           this.$emit('collapse');
@@ -951,6 +1040,77 @@ export default defineComponent({
       default:
         return;
       }
+    },
+    /**
+     * «ПРЕДСЕДАТЕЛЬСТВО»: A «дожать» while a beat is in flight, A «Закрыть»
+     * once everything has landed. B says nothing for the whole flow — it is
+     * past the commit and there is no reversible level to go back to; a beat
+     * in flight absorbs input by construction (the phase is `executing`).
+     */
+    handleQuestIntent(intent: GamepadIntent): void {
+      if (consoleActionOf(intent) !== 'primary') {
+        return;
+      }
+      if (!chairmanQuestFlow.answered && !chairmanQuestFlow.sent && this.questGate !== undefined) {
+        // A refused or silenced submit gave the stage back: the gate still
+        // stands, so A means what it meant — send it again.
+        chairmanQuestFlow.sent = true;
+        this.send({type: 'option'}, 'quest');
+        return;
+      }
+      if (chairmanQuestBeatActive()) {
+        finishChairmanQuestBeats();
+        return;
+      }
+      if (chairmanQuestFlow.beat === 'done') {
+        this.endQuestFlow();
+      }
+    },
+    /**
+     * OPEN the chairmanship flow: arm it from the model as it stands BEFORE
+     * the answer (the office, the delegate's own place), unfold the stage,
+     * start the reading beat and send the gate's confirm under it.
+     */
+    openQuestFlow(): void {
+      armChairmanQuestFlow(this.model, this.viewerColor);
+      parliamentFlow.zone = 'government';
+      this.openStage('quest');
+      void this.$nextTick(() => probeTick(() => {
+        const root = this.$refs.rootEl as HTMLElement | undefined;
+        if (root === undefined || !chairmanQuestFlow.live) {
+          return;
+        }
+        startChairmanQuestBeats({
+          root,
+          viewer: this.viewerColor,
+          generation: this.pv.game.generation,
+          playAgendaGlide: (move: AgendaMove, onLanded: () => void) => {
+            const agenda = this.$refs.agenda as InstanceType<typeof ConsoleParliamentAgenda> | undefined;
+            if (agenda === undefined) {
+              onLanded();
+              return;
+            }
+            void agenda.playAgendaGlide(move, {onLanded});
+          },
+          owesSeatPick: () => this.bridge.seat !== undefined,
+          onStage: () => {
+            setWorkspaceFrameStage('parliament', this.crumbStage);
+          },
+          onDone: () => undefined,
+        });
+      }));
+      if (this.questGate !== undefined) {
+        chairmanQuestFlow.sent = true;
+        this.send({type: 'option'}, 'quest');
+      }
+    },
+    /** The flow is over: the holds are gone with their beats, and the workspace concludes. */
+    endQuestFlow(): void {
+      killChairmanQuestBeats();
+      releaseChairmanQuestHolds('quest-closed');
+      resetChairmanQuestFlow();
+      this.closeStage();
+      this.$emit('flow-complete', 'quest');
     },
     /** X: the enacted resolution lifts out of the government's card (or the stage's hero, while carried). */
     inspectSitting(): void {

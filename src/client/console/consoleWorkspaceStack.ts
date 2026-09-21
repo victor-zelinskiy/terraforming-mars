@@ -331,7 +331,7 @@ const WORKSPACE_KINDS: Record<WorkspaceFrameKind, WorkspaceKindSpec> = {
     // are branches of the action menu, served from inside the workspace's own
     // stages. The enacted resolution's asks (a pick, a take, a tile) are
     // STEPS of the sitting: hosted in its stage zone, never served by name.
-    serves: ['party', 'parliamentPhase'],
+    serves: ['party', 'parliamentPhase', 'chairmanQuest'],
     // The Parliament's own stages (the vote, the seat, the SITTING) host their
     // follow-up (a paid vote's payment, the resolution's payout pick / take)
     // in the stage zone. `inFlow`: at the browse layer there is no flow for a

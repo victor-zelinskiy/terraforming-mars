@@ -542,6 +542,17 @@ function kindSummary(
       openKey: 'Open the sitting',
     };
 
+  case 'chairmanQuest':
+    // «ПРЕДСЕДАТЕЛЬСТВО» (Turmoil Redux): the quest is done and NOTHING has
+    // been applied — the plate announces it, A opens the Parliament and the
+    // flow walks the player through what the completion pays.
+    return {
+      kickerKey: 'Parliament',
+      ask: 'You completed the chairman quest',
+      returnKey: 'Return to the Parliament',
+      openKey: 'Open the Parliament',
+    };
+
   case 'aresGlobal':
     // DIEGETIC, like the rest of the shell: the player moves the thresholds at
     // which planetary events fire — «Арес» is an expansion's name, not a thing

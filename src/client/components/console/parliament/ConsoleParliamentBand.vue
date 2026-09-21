@@ -113,7 +113,8 @@ import {conLogicalPx} from '@/client/console/consoleLayoutProfile';
 import {getResolution} from '@/client/parliament/ClientParliamentManifest';
 import {parliamentPlayerName, ParliamentViewVm, resolutionTitleOf} from '@/client/console/parliament/consoleParliamentModel';
 import {partyNameKey} from '@/client/console/parliament/partyNames';
-import {BandLine, BandRewardReading, BandSitting, BandStanding, parliamentBandLine} from '@/client/console/parliament/parliamentBand';
+import {BandLine, BandQuest, BandRewardReading, BandSitting, BandStanding, parliamentBandLine} from '@/client/console/parliament/parliamentBand';
+import {chairmanQuestFlow} from '@/client/console/parliament/consoleChairmanQuest';
 import {quietRewardPoseOf, SittingPosition, SittingStage} from '@/client/console/parliament/consoleSittingFlow';
 import {enactedYieldsOf, resolvingYieldsOf} from '@/client/console/parliament/influenceYieldModel';
 import {parliamentRewardState, rewardLanded} from '@/client/console/parliament/parliamentRewardBeat';
@@ -140,7 +141,24 @@ export default defineComponent({
   },
   computed: {
     line(): BandLine {
-      return parliamentBandLine({sitting: this.sitting, standing: this.standing});
+      return parliamentBandLine({sitting: this.sitting, quest: this.quest, standing: this.standing});
+    },
+    /**
+     * «ПРЕДСЕДАТЕЛЬСТВО»'s own context — the flow is never live during a
+     * sitting (its gate is answered inside the player's own action phase), so
+     * the two can never disagree about the zone.
+     */
+    quest(): BandQuest | undefined {
+      if (!chairmanQuestFlow.live) {
+        return undefined;
+      }
+      const move = chairmanQuestFlow.move;
+      return {
+        beat: chairmanQuestFlow.beat,
+        ...(chairmanQuestFlow.player === undefined ? {} : {player: chairmanQuestFlow.player}),
+        ...(chairmanQuestFlow.seatWas === undefined ? {} : {seatWas: chairmanQuestFlow.seatWas}),
+        ...(move === undefined ? {} : {move: {from: move.from, to: move.to, ...(chairmanQuestFlow.bonus === undefined ? {} : {bonus: chairmanQuestFlow.bonus})}}),
+      };
     },
     /** The sitting's own context, or `undefined` for the overview's line. */
     sitting(): BandSitting | undefined {

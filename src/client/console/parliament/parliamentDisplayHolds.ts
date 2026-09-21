@@ -74,6 +74,15 @@ export type ParliamentDisplayHolds = {
   winnerSlot: string | undefined;
   /** The winner's Agenda move not yet made on screen: the marker stands on `from`, the influence reads the old level. */
   agendaAwaits: AgendaAwaits | undefined;
+  /**
+   * THE CHAIRMAN'S SEAT HAS NOT CHANGED HANDS ON SCREEN YET («Председательство»):
+   * the chair keeps showing `from` (undefined = the empty seat, which is also
+   * what it reads the instant the outgoing delegate lifts off) until the new
+   * cube has touched it. Seeded by `consoleChairmanQuest.seedChairmanQuestHolds`
+   * in the same block as the view apply; released by the seat beat's own
+   * touchdown.
+   */
+  chairAwaits: {from: Color | undefined, to: Color} | undefined;
   /** The government's old CARD, until the old law has left and the new one moved in. */
   govBefore: GovernmentBefore | undefined;
   /** The old RULING PARTY, until the plaques have changed places. */
@@ -86,7 +95,7 @@ export function emptyParliamentHolds(): ParliamentDisplayHolds {
   return {
     returns: new Map(), support: new Map(), supportIncoming: new Map(), rollStatus: new Map(), hiddenCubes: new Set(), lobby: new Set(), freshFaces: new Set(), deckPending: 0,
     govAwaits: undefined, parked: undefined, heldSlots: undefined, vacated: new Set(), liftedFaces: new Set(), winnerSlot: undefined,
-    agendaAwaits: undefined, govBefore: undefined, rulerBefore: undefined, questBefore: undefined,
+    agendaAwaits: undefined, chairAwaits: undefined, govBefore: undefined, rulerBefore: undefined, questBefore: undefined,
   };
 }
 

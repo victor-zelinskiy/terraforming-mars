@@ -20,6 +20,14 @@ export type ParliamentCommandsInput = {
    * nothing on the terminal closing page).
    */
   sitting?: {primary: string | undefined, inspect: boolean, back: string | undefined};
+  /**
+   * «ПРЕДСЕДАТЕЛЬСТВО»: the flow advertises A only once every beat has landed
+   * («Закрыть»). While a beat is in flight A means «дожать» — unadvertised, on
+   * the sitting's own grammar: a bar that offers «пропустить» invites the
+   * player to skip the thing the flow exists to show. B is silent for the
+   * whole flow: it is past the commit and there is no level to go back to.
+   */
+  quest?: {done: boolean};
 };
 
 /** The browse layer's verbs depend on the focused ZONE (one bar, one contract). */
@@ -87,7 +95,15 @@ export function parliamentCommandsOf(input: ParliamentCommandsInput): Array<Cons
     }
     return cmds;
   }
+  case 'quest':
+    return input.quest?.done === true ? [{control: 'confirm', label: 'Close', highlight: true}] : [];
   case 'submitting':
+    // A SUBMIT INSIDE THE CHAIRMANSHIP FLOW is not a wait the player watches —
+    // the reading beat plays over it, so the bar stays as quiet as it is
+    // during every other beat of the flow.
+    if (parliamentFlow.stageBeforeSubmit === 'quest') {
+      return [];
+    }
     return [{control: 'confirm', label: 'Performing…', enabled: false}];
   case 'paying':
     // The bill's own panel owns the bar while it stands in the mode's zone.

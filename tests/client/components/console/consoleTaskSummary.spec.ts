@@ -70,6 +70,7 @@ const ROWS: Array<{row: string, wf: any, hand?: Array<string>, srr?: Array<strin
   // The sitting's gates (Turmoil Redux) — routed on the phase marker; the plate names the Parliament, A opens the sitting.
   {row: 'parliament assembly gate', wf: {type: 'option', title: 'The Mars Parliament of generation 2 is in session: the verdict', parliamentPhasePrompt: {stage: 'assembly', generation: 2, final: false, seq: 1, awaiting: ['blue']}}, kicker: 'Parliament'},
   {row: 'parliament adjourn gate', wf: {type: 'option', title: 'The Mars Parliament of generation 2 adjourns', parliamentPhasePrompt: {stage: 'adjourn', generation: 2, final: false, seq: 1, awaiting: []}}, kicker: 'Parliament'},
+  {row: 'chairman-quest gate', wf: {type: 'option', title: 'You completed the chairman quest', chairmanQuestPrompt: {generation: 3}}, kicker: 'Parliament'},
 ];
 
 describe('consoleTaskSummary (no prompt is ever a bare «awaiting decision»)', () => {
@@ -269,7 +270,7 @@ describe('consoleTaskSummary (no prompt is ever a bare «awaiting decision»)', 
       'actionMenu', 'space', 'choice', 'awardFunding', 'player', 'amount', 'resource',
       'distribute', 'payment', 'draftWait', 'cardSelect', 'deckSelect', 'handSelect', 'projectCard',
       'colony', 'colonyBonus', 'composite', 'initialDraft', 'startSequence', 'corpFirstAction',
-      'aresGlobal', 'party', 'parliamentPhase', 'unknown',
+      'aresGlobal', 'party', 'parliamentPhase', 'chairmanQuest', 'unknown',
     ];
     const covered = new Set<TaskKind>();
     for (const r of ROWS) {

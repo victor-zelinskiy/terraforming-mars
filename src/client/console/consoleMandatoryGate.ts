@@ -193,6 +193,12 @@ const ALWAYS_INTERRUPTIVE: ReadonlySet<TaskKind> = new Set<TaskKind>([
   // tears the player out of their workspace» behaviour: the cards wait until
   // their owner walks in by A.
   'externalDraw',
+  // THE CHAIRMAN-QUEST GATE (Turmoil Redux) arrives at the END of the very
+  // action that completed the quest — the last tag of a card, the last tile of
+  // a placement — so opening it would cut into that card's own cinematic. The
+  // plate waits; the player finishes their move and walks into the Parliament
+  // by A, which is where the step's presentation lives.
+  'chairmanQuest',
 ]);
 
 /**

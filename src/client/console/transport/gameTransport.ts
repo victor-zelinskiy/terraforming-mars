@@ -100,6 +100,7 @@ import {stagePlayedCardReturns} from '@/client/console/played/playedCardReturn';
 import {seedBonusGainRewardHold} from '@/client/console/startBonusGain';
 import {seedParliamentRewardHold} from '@/client/console/parliament/parliamentRewardBeat';
 import {seedParliamentSittingHolds} from '@/client/console/parliament/parliamentSittingSeed';
+import {seedChairmanQuestHolds} from '@/client/console/parliament/consoleChairmanQuest';
 import {consoleModeState} from '@/client/console/consoleModeState';
 import {rollbackHydroCommit} from '@/client/console/hydroFlow/consoleHydroFlow';
 import {
@@ -578,6 +579,11 @@ function seedRewardHolds(newView?: PlayerViewModel): void {
   // director's beats have moved every object. The SAME block as the commit,
   // or the new state paints for a frame before its beat.
   seedParliamentSittingHolds(currentView(), newView);
+  // …and «ПРЕДСЕДАТЕЛЬСТВО»'s own (the chairman quest's gate answer): the
+  // office and the Agenda step the answer produced, held until their beats
+  // have moved them. Seeded LAST — the reward ledger's own `enterSitting('')`
+  // runs above and would flush an Agenda bonus seeded before it.
+  seedChairmanQuestHolds(currentView(), newView);
 }
 
 function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean): void {

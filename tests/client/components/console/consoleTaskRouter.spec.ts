@@ -96,6 +96,7 @@ const FIXTURES: Array<{row: string, wf: any, hand?: Array<string>, srr?: Array<s
   // THE SITTING'S GATES (Turmoil Redux): a plain option on the wire, classified by the server's own marker — never the title.
   {row: '30c parliament assembly gate (marker)', wf: {type: 'option', title: 'The Mars Parliament of generation 2 is in session: the verdict', parliamentPhasePrompt: {stage: 'assembly', generation: 2, final: false, seq: 1, awaiting: ['blue']}}, expect: {kind: 'parliamentPhase', stage: 'assembly'}},
   {row: '30d parliament adjourn gate (marker)', wf: {type: 'option', title: 'The Mars Parliament of generation 2 adjourns', parliamentPhasePrompt: {stage: 'adjourn', generation: 2, final: false, seq: 1, awaiting: []}}, expect: {kind: 'parliamentPhase', stage: 'adjourn'}},
+  {row: '30e chairman-quest gate (marker, never the title)', wf: {type: 'option', title: 'You completed the chairman quest', chairmanQuestPrompt: {generation: 3}}, expect: {kind: 'chairmanQuest'}},
   {row: '30c out-of-scope: globalEvent', wf: {type: 'globalEvent', title: 'Select event'}, expect: {kind: 'unknown', inputType: 'globalEvent'}},
   {row: '30d out-of-scope: underworld token', wf: {type: 'claimedUndergroundToken', title: 'Select token'}, expect: {kind: 'unknown', inputType: 'claimedUndergroundToken'}},
 ];
@@ -113,7 +114,7 @@ const ALL_TASK_KINDS: ReadonlyArray<TaskKind> = [
   'actionMenu', 'space', 'choice', 'awardFunding', 'player', 'amount', 'resource',
   'distribute', 'payment', 'draftWait', 'cardSelect', 'deckSelect', 'handSelect',
   'projectCard', 'colony', 'colonyBonus', 'externalDraw', 'venusBonus', 'spendHeat', 'botAttack',
-  'composite', 'initialDraft', 'startSequence', 'corpFirstAction', 'aresGlobal', 'party', 'parliamentPhase', 'unknown',
+  'composite', 'initialDraft', 'startSequence', 'corpFirstAction', 'aresGlobal', 'party', 'parliamentPhase', 'chairmanQuest', 'unknown',
 ];
 
 /** The CURRENT red list — shrink it phase by phase (CTS-6). */
@@ -211,7 +212,7 @@ describe('consoleTaskRouter (CTS-2 coverage)', () => {
     for (const kind of SHELL_SECTION_KINDS) {
       expect(NATIVE_KINDS.has(kind), `section kind "${kind}" must be native`).to.eq(true);
       // …but never claimed by the task host (the shell owns the surface).
-      expect(kind === 'projectCard' || kind === 'handSelect' || kind === 'colony' || kind === 'party' || kind === 'parliamentPhase' ||
+      expect(kind === 'projectCard' || kind === 'handSelect' || kind === 'colony' || kind === 'party' || kind === 'parliamentPhase' || kind === 'chairmanQuest' ||
         kind === 'colonyBonus' || kind === 'externalDraw' || kind === 'awardFunding' ||
         kind === 'corpFirstAction').to.eq(true);
     }
@@ -283,6 +284,14 @@ describe('consoleTaskRouter (CTS-2 coverage)', () => {
       const v = view(f.wf, f.hand ?? [], f.srr ?? []);
       const task = taskFor(v);
       if (task === undefined) {
+        continue;
+      }
+      if (task.kind === 'chairmanQuest') {
+        // THE SAME DELIBERATE ASYMMETRY as the external-draw take: the
+        // Parliament workspace IS a claimed family, but «ПРЕДСЕДАТЕЛЬСТВО» is
+        // one uninterrupted phrase past the commit — nothing folds, and before
+        // it opens the player roams freely behind the announce plate.
+        expect(taskMinimizable(task.kind), 'the chairmanship flow never folds').to.eq(false);
         continue;
       }
       if (task.kind === 'externalDraw') {
@@ -464,6 +473,7 @@ describe('consoleTaskRouter (CTS-2 coverage)', () => {
       awardFunding: 'frame', // Vitor's free sponsorship — the awards frame takes the scene
       party: 'frame',
       parliamentPhase: 'frame',
+      chairmanQuest: 'frame', // the Parliament workspace's «ПРЕДСЕДАТЕЛЬСТВО» flow
       externalDraw: 'frame',
       deckSelect: 'frame', // «Добор карт» — routed ABOVE the scene, its own term
       composite: 'frame', // nothing native serves it…

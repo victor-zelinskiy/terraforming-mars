@@ -119,11 +119,13 @@ export type ParliamentZone = 'voting' | 'government' | 'ruler' | 'parties';
  * `vote` — the decision mode (a phase descent); `submitting` — sent;
  * `paying` — a paid vote's payment stands inside the mode; `landed` — the
  * answer arrived: the delegate settles on the card before the flow leaves.
- * `seat` — the chairman's mandatory pick; `sitting` — the political phase's
+ * `seat` — the chairman's mandatory pick; `quest` — the SHORT flow of a
+ * completed chairman quest («ПРЕДСЕДАТЕЛЬСТВО»: the reading, the office, the
+ * Agenda step — `consoleChairmanQuest`); `sitting` — the political phase's
  * ONE flow («ЗАСЕДАНИЕ»: verdict → enactment → reward → renewal → closing),
  * whose stage is the server's step (`consoleSittingFlow`).
  */
-export type ParliamentStage = 'browse' | 'vote' | 'seat' | 'submitting' | 'paying' | 'landed' | 'sitting';
+export type ParliamentStage = 'browse' | 'vote' | 'seat' | 'quest' | 'submitting' | 'paying' | 'landed' | 'sitting';
 
 /** The vote's numbers at the SUBMIT — the mode reads these until the delegate has landed (and the source the delegate leaves from). */
 export type VoteSnapshot = {votes: number, mine: number, leader: Color | 'neutral' | undefined, winning: boolean, winner: string | undefined, source: 'lobby' | 'reserve'};
@@ -153,6 +155,8 @@ function freshFlow() {
     flightSeq: undefined as number | undefined,
     /** The chair just received its delegate (the seat pick's landing) — the government's chair mark flashes (cleared by the flash's own `animationend`). */
     chairPulse: false,
+    /** The chairman QUEST block answers once (its reading beat) — the same one-shot grammar as the chair's. */
+    questPulse: false,
     /**
      * THE SITTING'S LOCAL PAGE inside the server's step (v2: the verdict; then
      * the enactment → the reward → the results, turned by the director's
@@ -194,7 +198,24 @@ export function settleParliamentChairPulse(): void {
   parliamentFlow.chairPulse = false;
 }
 
+/** The chairman quest's block answers once — «ЗАДАНИЕ», the first beat of the chairmanship flow. */
+export function pulseParliamentQuest(): void {
+  parliamentFlow.questPulse = true;
+}
+
+export function settleParliamentQuestPulse(): void {
+  parliamentFlow.questPulse = false;
+}
+
 // ── the crumb ──────────────────────────────────────────────────────────────
+
+/**
+ * THE CHAIRMANSHIP FLOW'S crumb SUBJECT — one fixed word, the glossary's own
+ * («председательство» is the OFFICE; «кресло» is the physical seat and is
+ * never the name of a reward). Lives here with the rest of the crumb;
+ * `consoleChairmanQuest.ts` re-exports it for its own surfaces.
+ */
+export const CHAIRMAN_QUEST_SUBJECT_KEY = 'Chairmanship';
 
 /**
  * ONE fixed line, two names: «Парламент › Осмотр» on the overview,
@@ -205,16 +226,23 @@ export function settleParliamentChairPulse(): void {
  * overview; the sitting's stages are the phase's own (its tail advances,
  * `SITTING` never leaves the line).
  */
-export function parliamentCrumbSubject(): string {
+export function parliamentCrumbSubject(questLive = false): string {
   switch (parliamentFlow.stage) {
+  // The chairman's delegate pick is a STAGE of the chairmanship flow when that
+  // flow raised it — the subject stays «ПРЕДСЕДАТЕЛЬСТВО» and only the tail
+  // advances. Stand-alone (a reload into the pending pick) it is the overview's.
+  case 'seat':
+    return questLive ? CHAIRMAN_QUEST_SUBJECT_KEY : 'Parliament overview';
   case 'vote':
   case 'paying':
   case 'landed':
     return 'Voting';
   case 'submitting':
     return parliamentFlow.stageBeforeSubmit === 'vote' ? 'Voting' :
-      parliamentFlow.stageBeforeSubmit === 'sitting' ? SITTING_SUBJECT_KEY : 'Parliament overview';
+      parliamentFlow.stageBeforeSubmit === 'sitting' ? SITTING_SUBJECT_KEY :
+        parliamentFlow.stageBeforeSubmit === 'quest' ? CHAIRMAN_QUEST_SUBJECT_KEY : 'Parliament overview';
   case 'sitting': return SITTING_SUBJECT_KEY;
+  case 'quest': return CHAIRMAN_QUEST_SUBJECT_KEY;
   default: return 'Parliament overview';
   }
 }
@@ -227,19 +255,21 @@ export function parliamentCrumbSubject(): string {
  * STAGE the sitting publishes (`sittingTail` — verdict, enactment, reward, a
  * hosted choice / take / placement, renewal, closing).
  */
-export function parliamentCrumbStage(sittingTail: string): string {
+export function parliamentCrumbStage(sittingTail: string, questTail = ''): string {
   const stage = parliamentFlow.stage === 'submitting' ? parliamentFlow.stageBeforeSubmit : parliamentFlow.stage;
   switch (stage) {
   case 'paying': return 'Payment';
   case 'seat': return 'Seat';
   case 'sitting': return sittingTail;
+  case 'quest': return questTail;
   default: return '';
   }
 }
 
-export function parliamentCrumbCommitted(): boolean {
+export function parliamentCrumbCommitted(questLive = false): boolean {
   const stage = parliamentFlow.stage;
-  return stage === 'submitting' || stage === 'landed' || stage === 'paying' || stage === 'sitting';
+  return stage === 'submitting' || stage === 'landed' || stage === 'paying' || stage === 'sitting' || stage === 'quest' ||
+    (stage === 'seat' && questLive);
 }
 
 /** The stage's CONTENT identity — a submit keeps the stage it left on screen (busy). */

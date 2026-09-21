@@ -63,7 +63,7 @@
          pays) — and the chairman. While the sitting holds the OLD quest, it
          reads CLOSED: its outcome (who completed it, or nobody) instead of a race. -->
     <div v-if="questShown !== undefined" class="con-parl__quest"
-         :class="{'con-parl__quest--done': questShown.completedBy !== undefined, 'con-parl__quest--closed': questClosed, 'con-parl__quest--pulse': questPulse}"
+         :class="{'con-parl__quest--done': questShown.completedBy !== undefined, 'con-parl__quest--closed': questClosed, 'con-parl__quest--pulse': questPulse || flow.questPulse}"
          @animationend="onQuestPulseEnd"
          data-parl-quest
          :data-parl-quest-closed="questClosed ? '' : undefined">
@@ -157,7 +157,7 @@ import {buildMechanics, MechanicsVM} from '@/client/components/premiumCard/mecha
 import {resolutionPremiumVmById} from '@/client/components/premiumCard/resolutionPremiumVm';
 import {partyAccent} from '@/client/components/premiumCard/partyEmblems';
 import {conLogicalPx} from '@/client/console/consoleLayoutProfile';
-import {parliamentFlow, settleParliamentChairPulse} from '@/client/console/parliament/consoleParliamentFlow';
+import {parliamentFlow, settleParliamentChairPulse, settleParliamentQuestPulse} from '@/client/console/parliament/consoleParliamentFlow';
 import {parliamentHolds} from '@/client/console/parliament/parliamentDisplayHolds';
 import {AgendaVm, parliamentPlayerName, ParliamentQuestVm, ParliamentViewVm} from '@/client/console/parliament/consoleParliamentModel';
 import {partyTileKey} from '@/client/console/parliament/partyActionKey';
@@ -208,6 +208,13 @@ export default defineComponent({
       return before !== undefined ? before.quest : this.view.quest;
     },
     chairmanShown(): Color | undefined {
+      // «ПРЕДСЕДАТЕЛЬСТВО»: the office has changed on the server and NOT on
+      // screen yet — the chair keeps the previous holder (and reads empty from
+      // the frame the outgoing delegate lifts off) until the new cube lands.
+      const chair = this.holds.chairAwaits;
+      if (chair !== undefined) {
+        return chair.from;
+      }
       const before = this.holds.questBefore;
       return before !== undefined ? before.chairman : this.view.chairman;
     },
@@ -309,6 +316,7 @@ export default defineComponent({
     onQuestPulseEnd(event: AnimationEvent): void {
       if (event.animationName === 'con-parl-quest-pulse') {
         this.questPulse = false;
+        settleParliamentQuestPulse();
       }
     },
     onChairPulseEnd(event: AnimationEvent): void {

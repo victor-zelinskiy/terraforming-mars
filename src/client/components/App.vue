@@ -351,6 +351,7 @@ import {shouldHoldForOwnerCubePlacement} from '@/client/components/board/cubeDro
 import {stageRemotePlacements} from '@/client/console/tilePlacement/consoleRemotePlacement';
 import {seedParliamentRewardHold} from '@/client/console/parliament/parliamentRewardBeat';
 import {seedParliamentSittingHolds} from '@/client/console/parliament/parliamentSittingSeed';
+import {seedChairmanQuestHolds} from '@/client/console/parliament/consoleChairmanQuest';
 import {endgameAvailable} from '@/client/components/endgame/endgameState';
 import {PlayerViewModel, ViewModel} from '@/common/models/PlayerModel';
 import {SimpleGameModel} from '@/common/models/SimpleGameModel';
@@ -781,6 +782,8 @@ export default defineComponent({
             // …and its display holds (v2): the other seat's answer moved the phase — the table as it stood is
             // kept until the director's beats have moved it (the same block as the apply, on THIS path too).
             seedParliamentSittingHolds(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
+            // …and «ПРЕДСЕДАТЕЛЬСТВО»'s (a quest gate answered through a poll / WS frame).
+            seedChairmanQuestHolds(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
             app.playerView = nextViewSnapshot(app.playerView, model as PlayerViewModel);
             setTranslationContext(app.playerView);
             if (!preserveCardPickModal && !preserveOpenOverlay && !promptPreserved) {
