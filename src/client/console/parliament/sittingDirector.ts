@@ -121,6 +121,8 @@ const REWARD_WAVE_MS = 900;
 const REACTION_GAP_MS = 120;
 /** The winner's tile RECEIPT (the frame back from the board): the «received» pose is READ before the next step takes the page. */
 const RECEIPT_DWELL_MS = 1500;
+/** A reward page that only READS (a resolution with no payout): long enough for the sentence to be read. */
+const QUIET_REWARD_DWELL_MS = 900;
 /** A compact beat (resume / review) runs at half length, no dwell. */
 const COMPACT = 0.5;
 /** A beat's hold ceiling — above the longest beat (the renewal ≈ 2.4 s, the enactment's phrase ≈ 2.4 s) by a wide margin. */
@@ -777,6 +779,14 @@ function beatReward(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: numb
     // READ for a beat before the walk goes on.
     if (parliamentRewardState.receiptShowing) {
       at += s(RECEIPT_DWELL_MS) * k;
+    }
+    // …AND A PAGE WHOSE WHOLE CONTENT IS A READING MUST BE READABLE (v4). A resolution that pays nothing still
+    // leaves something behind — «ЭФФЕКТ, ПОКА ПРИНЯТА …» / «ДЕЙСТВИЕ, ПОКА ПРИНЯТА …» — and that sentence is on
+    // the reward page alone. With only the cascade to spend, the page stood 271 ms (measured) and the walk moved
+    // on: a reading nobody can read is not a reading. The quiet pose therefore dwells like the tile's receipt
+    // does; «дожать» still drives it to its end, because the dwell is part of the beat's own timeline.
+    if (root.querySelector('.con-sit__panel--on [data-sit-quiet]') !== null) {
+      at += s(QUIET_REWARD_DWELL_MS) * k;
     }
     return at;
   }
