@@ -1,0 +1,165 @@
+/* ══ DESIGN SKETCHES of the resolution face («Лицо резолюции», block A) — three
+   directions of one object on the resolutions stand. px-authored (the premium
+   face's 320×460 design space; hosts zoom `.pcard`). Console-safe by
+   construction: gradients, clip-path, box-shadow and SVG strokes only — no
+   `filter`, no `text-shadow`, no blur. TEMPORARY: deleted with the sketch
+   component once the chosen direction is promoted. ══ */
+.rface {
+    --rf-party: var(--rface-party, #8b6ad8);
+    --rf-gold: #e6c34a;
+    --rf-silver: #c9c6d6;
+    filter: none;
+    border-radius: 0;
+}
+.rface__sheet { position: absolute; inset: 0; overflow: hidden; }
+.rface__artwrap { position: absolute; overflow: hidden; }
+.rface__artwrap .pcard__art {
+    position: absolute;
+    inset: 0;
+    min-height: 0;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+}
+.rface__artwrap .pcard__art img { object-position: center; }
+.rface__artwrap .pcard__art::after { display: none; }
+.rface__head, .rface__body, .rface__foot { position: absolute; }
+.rface__body { display: flex; flex-direction: column; justify-content: center; }
+.rface__body .pcard__mech { background: none; border: none; box-shadow: none; padding: 0; gap: 5px; }
+.rface__body .pcard-play-rail { display: none; }
+.rface__body .pcard-mech-group + .pcard-mech-group { border-top: none; padding-top: 0; }
+.rface__title { position: absolute; display: flex; align-items: center; container-type: inline-size; }
+.rface .rface__title span { background: none; -webkit-background-clip: border-box; background-clip: border-box; filter: none; text-shadow: none; }
+/* THE FORMULA IS THE FACE'S MAIN VOICE: the room the old quest plate took goes to the icons. */
+.rface.pcard--mech-sparse    { --pcard-mech-icon: 34px; --pcard-mech-font: 20px; }
+.rface.pcard--mech-normal    { --pcard-mech-icon: 31px; --pcard-mech-font: 18.5px; }
+.rface.pcard--mech-dense     { --pcard-mech-icon: 26px; --pcard-mech-font: 16px; }
+.rface.pcard--mech-veryDense { --pcard-mech-icon: 22px; --pcard-mech-font: 14px; }
+.rface .rface__title span { text-transform: uppercase; -webkit-line-clamp: 3; }
+.rface .pcard__title--t1 span { font-size: 17px; --pcard-title-size: 17px; letter-spacing: .07em; }
+.rface .pcard__title--t2 span { font-size: 15px; --pcard-title-size: 15px; letter-spacing: .06em; }
+.rface .pcard__title--t3 span { font-size: 13.5px; --pcard-title-size: 13.5px; --pcard-title-cw: 0.74; letter-spacing: .05em; }
+.rface .pcard__title--t4 span { font-size: 11.5px; --pcard-title-size: 11.5px; --pcard-title-cw: 0.72; letter-spacing: .03em; }
+.rface__quest { display: inline-flex; align-items: center; gap: 3px; --pcard-mech-icon: 23px; --pcard-mech-font: 14px; }
+.rface__chair { width: 17px; height: 17px; margin-right: 6px; fill: var(--rf-gold); flex-shrink: 0; }
+.rface__quest .pcard-ic--tag { position: relative; border-radius: 50%; }
+.rface__quest .pcard-ic--tag::after { content: ''; position: absolute; inset: -6%; background: url(./assets/premium-card/medallion-ring.svg) center / contain no-repeat; }
+.rface__seal { position: absolute; border-radius: 50%; z-index: 4; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(0, 0, 0, 0.5); }
+.rface__seal img, .rface__chip img { position: absolute; left: -4.5%; top: -4.5%; width: 109%; height: 109%; max-width: none; }
+.rface__trim { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 3; path { fill: none; } }
+/* An art-less resolution (a never-dealt dev example): the window is the party's field, the emblem its watermark. */
+.rface--seal-art .rface__artwrap .pcard__art { background: radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--rf-party) 42%, #0b0a12) 0%, #0b0a12 72%); }
+.rface--seal-art .rface__artwrap .pcard__art img { object-fit: contain; padding: 13%; box-sizing: border-box; opacity: .5; }
+
+/* ── A · «ГРАМОТА» ──────────────────────────────────────────────────────── */
+.rface--charter {
+    --rf-vellum-hi: #f3eff9;
+    --rf-vellum: #dcd6e8;
+    --rf-vellum-lo: #b8b0cc;
+    --rf-title-ink: #231a3c;
+    .rface__sheet {
+        clip-path: path('M5 0H280L320 40V455a5 5 0 0 1-5 5H5a5 5 0 0 1-5-5V5a5 5 0 0 1 5-5Z');
+        background:
+            radial-gradient(120% 60% at 50% 58%, rgba(139, 106, 216, 0.10), transparent 70%),
+            linear-gradient(180deg, #1d1a2a 0%, #100f18 100%);
+    }
+    .rface__artwrap { left: 8px; right: 8px; top: 8px; height: 203px; }
+    /* THE WATERMARK — the author's seal pressed into the sheet under the articles. */
+    .rface__body::before {
+        content: ''; position: absolute; left: 50%; top: 50%; width: 170px; height: 170px; margin: -85px 0 0 -85px;
+        background: var(--rface-emblem) center / contain no-repeat; opacity: .07; pointer-events: none;
+    }
+    &.pcard--tier-thumb .rface__body::before { display: none; }
+    .rface__head {
+        left: 0; right: 0; top: 211px; height: 50px;
+        background:
+            repeating-linear-gradient(180deg, rgba(60, 44, 100, 0.05) 0 1px, transparent 1px 3px),
+            linear-gradient(90deg, rgba(60, 44, 100, 0.22), transparent 16% 84%, rgba(60, 44, 100, 0.22)),
+            linear-gradient(180deg, var(--rf-vellum-hi) 0%, var(--rf-vellum) 52%, var(--rf-vellum-lo) 100%);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85), inset 0 -1px 0 rgba(40, 28, 70, 0.5), 0 -1px 0 rgba(0, 0, 0, 0.6);
+    }
+    .rface__title { inset: 0 10px 0 102px; justify-content: flex-start; text-align: left; }
+    .rface__title span { color: var(--rf-title-ink); }
+    .rface__ribbon {
+        position: absolute; left: 0; right: 0; top: 261px; height: 5px;
+        background: linear-gradient(180deg, color-mix(in srgb, var(--rf-party) 80%, #fff) 0%, var(--rf-party) 45%, color-mix(in srgb, var(--rf-party) 62%, #000) 100%);
+        box-shadow: 0 1px 0 rgba(0, 0, 0, 0.55);
+    }
+    .rface__seal { left: 11px; top: 195px; width: 80px; height: 80px; box-shadow: 0 0 0 3px var(--rf-vellum-hi), 0 0 0 4px rgba(40, 28, 70, 0.55), 0 3px 7px rgba(0, 0, 0, 0.6); }
+    .rface__body { left: 14px; right: 14px; top: 272px; bottom: 48px; }
+    .rface__foot {
+        left: 16px; right: 16px; bottom: 8px; height: 38px;
+        display: flex; align-items: center; justify-content: center;
+        border-top: 1px solid rgba(201, 198, 214, 0.2);
+    }
+    .rface__fold {
+        position: absolute; top: 0; right: 0; width: 40px; height: 40px;
+        background: linear-gradient(to bottom left, transparent 50%, var(--rf-vellum-lo) 50%, var(--rf-vellum-hi) 78%, var(--rf-vellum) 100%);
+        box-shadow: -2px 2px 4px rgba(0, 0, 0, 0.45);
+    }
+    .rface__keyline {
+        position: absolute; inset: 3px; border-radius: 3px; pointer-events: none;
+        box-shadow: inset 0 0 0 1px rgba(201, 198, 214, 0.28);
+    }
+    .pcard-mech-group--winner {
+        align-self: center;
+        padding: 3px 14px;
+        border-radius: 4px;
+        background: linear-gradient(90deg, transparent, rgba(230, 195, 74, 0.12) 22% 78%, transparent);
+        box-shadow: inset 0 1px 0 rgba(230, 195, 74, 0.28), inset 0 -1px 0 rgba(230, 195, 74, 0.28);
+    }
+}
+
+/* ── B · «ШТАНДАРТ» ─────────────────────────────────────────────────────── */
+.rface--standard {
+    .rface__sheet {
+        clip-path: path('M8 0H312a8 8 0 0 1 8 8V392L160 460 0 392V8a8 8 0 0 1 8-8Z');
+        background:
+            linear-gradient(90deg, rgba(0, 0, 0, 0.35) 0 1px, transparent 1px),
+            radial-gradient(130% 70% at 50% 0%, color-mix(in srgb, var(--rf-party) 44%, #0b0d14) 0%, color-mix(in srgb, var(--rf-party) 17%, #07080c) 72%);
+    }
+    .rface__artwrap { left: 18px; right: 18px; top: 17px; height: 189px; border-radius: 3px; box-shadow: 0 0 0 1px rgba(230, 195, 74, 0.55), 0 0 0 3px rgba(0, 0, 0, 0.35); overflow: visible; }
+    .rface__artwrap .pcard__art { border-radius: 3px; }
+    .rface__seal { left: 50%; top: 160px; width: 90px; height: 90px; margin-left: -45px; }
+    .rface__head { left: 20px; right: 20px; top: 252px; height: 40px; }
+    .rface__title { inset: 0; justify-content: center; text-align: center; }
+    .rface__title span { background: linear-gradient(180deg, #fdf4d4 0%, #ecd493 50%, #c9a65e 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+    &.pcard--tier-thumb .rface__title span { background: none; color: #f2e3b8; }
+    .rface__body { left: 22px; right: 22px; top: 292px; bottom: 78px; }
+    .rface__foot { left: 60px; right: 60px; bottom: 30px; height: 40px; display: flex; align-items: center; justify-content: center; }
+    .rface__trim path { stroke: rgba(230, 195, 74, 0.7); stroke-width: 1.5; }
+    .pcard-mech-group--winner {
+        align-self: center;
+        padding: 3px 14px;
+        border-radius: 4px;
+        background: rgba(0, 0, 0, 0.28);
+        box-shadow: inset 0 0 0 1px rgba(230, 195, 74, 0.35);
+    }
+}
+
+/* ── C · «ПЛАНШЕТ» ──────────────────────────────────────────────────────── */
+.rface--slate {
+    .rface__sheet {
+        clip-path: polygon(27px 0, 100% 0, 100% calc(100% - 27px), calc(100% - 27px) 100%, 0 100%, 0 27px);
+        background:
+            repeating-linear-gradient(180deg, rgba(255, 255, 255, 0.018) 0 1px, transparent 1px 4px),
+            linear-gradient(180deg, #131c2b 0%, #090d15 100%);
+    }
+    .rface__artwrap { left: 0; right: 0; top: 0; height: 236px; mask-image: linear-gradient(180deg, #000 0 56%, transparent 100%); -webkit-mask-image: linear-gradient(180deg, #000 0 56%, transparent 100%); }
+    .rface__edge { position: absolute; left: 0; top: 0; bottom: 0; width: 6px; background: linear-gradient(180deg, var(--rf-party) 0%, var(--rf-party) 55%, color-mix(in srgb, var(--rf-party) 25%, transparent) 100%); }
+    .rface__head { left: 16px; right: 12px; top: 184px; height: 56px; display: flex; align-items: center; gap: 10px; }
+    .rface__chip { position: relative; width: 44px; height: 44px; border-radius: 50%; flex-shrink: 0; box-shadow: 0 0 0 2px color-mix(in srgb, var(--rf-party) 70%, transparent), 0 2px 6px rgba(0, 0, 0, 0.6); }
+    .rface__title { position: relative; flex: 1 1 0; min-width: 0; height: 100%; justify-content: flex-start; text-align: left; }
+    .rface__title span { color: #eaf4ff; }
+    .rface__body { left: 16px; right: 14px; top: 250px; bottom: 50px; }
+    .rface__body .pcard-mech-group {
+        padding: 4px 8px;
+        border-radius: 3px;
+        background: rgba(106, 176, 230, 0.06);
+        box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.2);
+    }
+    .rface__body .pcard-mech-group--winner { background: rgba(230, 195, 74, 0.07); box-shadow: inset 0 0 0 1px rgba(230, 195, 74, 0.34); }
+    .rface__foot { right: 34px; bottom: 9px; height: 32px; display: flex; align-items: center; }
+    .rface__quest { padding: 3px 9px 3px 7px; border-radius: 3px; background: rgba(0, 0, 0, 0.35); box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.3); }
+    .rface__trim path { stroke: rgba(106, 176, 230, 0.55); stroke-width: 1.5; }
+}

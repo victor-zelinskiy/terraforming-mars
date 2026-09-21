@@ -88,6 +88,33 @@
       </div>
     </section>
 
+    <!-- ── 1b. THE FACE LAB (block A of «Лицо резолюции») — three DIRECTIONS of the face, each judged the
+         way the brief demands: beside real project cards and a prelude (the peripheral-vision test), at
+         both ends of the game's zoom range (the scale test), and across the catalog's parties. TEMPORARY:
+         the chosen direction becomes the face and this section turns into its acceptance frames. ── -->
+    <section class="con-rxpg__section con-rxpg__lab" v-if="selected !== undefined && selectedVm !== undefined">
+      <h2>Face directions · A «Грамота» · B «Штандарт» · C «Планшет»</h2>
+      <div class="con-rxpg__labrow" data-rxpg-lab="peripheral">
+        <div v-for="name in LAB_PROJECTS" :key="name" class="con-rxpg__labcell" style="--lab-zoom: 0.5"><PremiumCard :name="name" inert lightweight /></div>
+        <div class="con-rxpg__labcell con-rxpg__labcell--old" style="--lab-zoom: 0.5"><PremiumCard :name="cardNameOf(selected)" :vmOverride="selectedVm" inert lightweight /><span class="con-rxpg__label">now</span></div>
+        <div v-for="dir in LAB_DIRECTIONS" :key="dir" class="con-rxpg__labcell" style="--lab-zoom: 0.5">
+          <ResolutionFaceSketch :vm="selectedVm" :direction="dir" thumb /><span class="con-rxpg__label">{{ dir }}</span>
+        </div>
+      </div>
+      <div v-for="dir in LAB_DIRECTIONS" :key="'x' + dir" class="con-rxpg__labrow" :data-rxpg-lab="'extremes-' + dir">
+        <div class="con-rxpg__labcell" style="--lab-zoom: 0.2"><ResolutionFaceSketch :vm="selectedVm" :direction="dir" thumb /><span class="con-rxpg__label">×0.2</span></div>
+        <div class="con-rxpg__labcell" style="--lab-zoom: 0.3"><ResolutionFaceSketch :vm="selectedVm" :direction="dir" thumb /><span class="con-rxpg__label">×0.3</span></div>
+        <div class="con-rxpg__labcell" style="--lab-zoom: 0.55"><ResolutionFaceSketch :vm="selectedVm" :direction="dir" thumb /><span class="con-rxpg__label">×0.55</span></div>
+        <div class="con-rxpg__labcell" style="--lab-zoom: 0.8"><ResolutionFaceSketch :vm="selectedVm" :direction="dir" /><span class="con-rxpg__label">×0.8</span></div>
+        <div class="con-rxpg__labcell" style="--lab-zoom: 1.12"><ResolutionFaceSketch :vm="selectedVm" :direction="dir" /><span class="con-rxpg__label">×1.12</span></div>
+        <div class="con-rxpg__labcell con-rxpg__labcell--old" style="--lab-zoom: 1.12"><PremiumCard :name="cardNameOf(selected)" :vmOverride="selectedVm" inert tier="full" /><span class="con-rxpg__label">now ×1.12</span></div>
+        <div class="con-rxpg__labcell con-rxpg__labcell--old" style="--lab-zoom: 0.3"><PremiumCard :name="cardNameOf(selected)" :vmOverride="selectedVm" inert lightweight /><span class="con-rxpg__label">now ×0.3</span></div>
+      </div>
+      <div v-for="dir in LAB_DIRECTIONS" :key="'p' + dir" class="con-rxpg__labrow" :data-rxpg-lab="'parties-' + dir">
+        <div v-for="entry in catalog" :key="entry.id" class="con-rxpg__labcell" style="--lab-zoom: 0.62"><ResolutionFaceSketch :vm="vmOf(entry)" :direction="dir" thumb /></div>
+      </div>
+    </section>
+
     <!-- ── 2. THE FACE at the three sizes the game paints it. ── -->
     <section class="con-rxpg__section" v-if="selected !== undefined">
       <h2>{{ $t('Card sizes') }} · {{ $t(selected.text.name) }} <b class="con-rxpg__code">{{ selected.code ?? '—' }}</b></h2>
@@ -321,6 +348,7 @@ import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {allResolutions} from '@/client/parliament/ClientParliamentManifest';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import PremiumCard from '@/client/components/premiumCard/PremiumCard.vue';
+import ResolutionFaceSketch, {ResolutionFaceDirection} from '@/client/components/console/parliament/ResolutionFaceSketch.vue';
 import {PremiumCardVM} from '@/client/components/premiumCard/premiumCardViewModel';
 import {resolutionPremiumVm} from '@/client/components/premiumCard/resolutionPremiumVm';
 import {partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
@@ -648,6 +676,10 @@ const DEMO_HOLDERS: ReadonlyArray<{name: CardName, resources: number, per: numbe
   {name: CardName.ECOLOGICAL_ZONE, resources: 3, per: 2},
 ];
 
+/** THE FACE LAB (block A): the three sketched directions, and the real cards a resolution must be told apart from. */
+const LAB_DIRECTIONS: ReadonlyArray<ResolutionFaceDirection> = ['charter', 'standard', 'slate'];
+const LAB_PROJECTS: ReadonlyArray<CardName> = [CardName.ARTIFICIAL_LAKE, CardName.BIRDS, CardName.ASTEROID, CardName.DONATION];
+
 const SIZES = [
   {key: 'overview', label: 'Overview size', zoom: 0.55},
   {key: 'vote', label: 'Voting size', zoom: 0.8},
@@ -690,7 +722,7 @@ function scenarioState(index: number) {
 export default defineComponent({
   name: 'ConsoleResolutionsPlayground',
   components: {
-    PremiumCard, GamepadGlyph, PlayerCube, ConsoleInfluenceYield, ConsoleResolutionStatus, ConsoleResolutionAside, ConsoleCardRulesPanel,
+    PremiumCard, ResolutionFaceSketch, GamepadGlyph, PlayerCube, ConsoleInfluenceYield, ConsoleResolutionStatus, ConsoleResolutionAside, ConsoleCardRulesPanel,
     ConsoleSourceDock, ConsolePlayedTargetStep, PremiumMechanicsPanel, PremiumCountGlyph, ConsoleWinnerReward, ConsolePartyReaction,
   },
   props: {
@@ -701,6 +733,8 @@ export default defineComponent({
     return {
       SIZES,
       SCENARIOS,
+      LAB_DIRECTIONS,
+      LAB_PROJECTS,
       cursor: 0,
       ...scenarioState(DEFAULT_SCENARIO),
       pickerIndex: 0,

@@ -63,6 +63,13 @@ export type MechGroup = {
    * choice; losing the marker would misread as "do both").
    */
   orJoin?: boolean;
+  /**
+   * The row carries the VOTE-WINNER mark (Turmoil Redux): it is the clause of
+   * a resolution that belongs to the winner of the vote alone — a structural
+   * fact of the printed row, so a face can set that clause apart from the part
+   * every player receives without reading anything but the DSL.
+   */
+  winnerRow?: boolean;
 };
 
 export type MechanicsVM = {
@@ -166,6 +173,11 @@ function emptyCauseEffect(nodes: ReadonlyArray<ItemType>): ICardRenderEffect | u
     }
   }
   return undefined;
+}
+
+/** The VOTE-WINNER mark (Turmoil Redux) — the star that closes the winner's own clause of a resolution. */
+function isVoteWinnerMark(node: ItemType): boolean {
+  return node !== undefined && typeof node !== 'string' && isICardRenderItem(node) && node.type === CardRenderItemType.VOTE_WINNER;
 }
 
 /** Does this group draw a TAG item — the trigger signal of the Viral-Enhancers
@@ -619,6 +631,9 @@ export function buildMechanics(renderData: CardComponent | undefined, options: B
     };
     if (pendingOr || leadingOr) {
       group.orJoin = true;
+    }
+    if (effectiveNodes.some(isVoteWinnerMark)) {
+      group.winnerRow = true;
     }
     pendingOr = trailingOr;
     groups.push(group);

@@ -41,6 +41,11 @@
     &__slot-meta { display: inline-flex; align-items: center; gap: .3rem; font-size: .62rem; color: fade(@con-text, 75%); }
     &__emblem { width: .95rem; height: .95rem; object-fit: contain; }
 
+    /* 1b. the face lab — rows of faces, each cell at its own zoom (`--lab-zoom`) */
+    &__labrow { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 1rem 1.1rem; padding: .7rem .8rem; margin-bottom: .6rem; border-radius: .5rem; background: #0a0d14; }
+    &__labcell { display: flex; flex-direction: column; align-items: center; gap: .3rem; .pcard { zoom: calc(var(--lab-zoom, 0.5) * var(--con-ui-scale, 1)); } }
+    &__labcell--old { opacity: .92; }
+
     /* 2. the sizes + the inspector's columns */
     &__sizes { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 1.2rem; }
     &__size { display: flex; flex-direction: column; align-items: center; gap: .35rem; }

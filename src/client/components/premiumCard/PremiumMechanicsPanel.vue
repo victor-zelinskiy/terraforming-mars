@@ -20,7 +20,7 @@
            anchors its rule blocks to the ROW and tethers its lines to the
            EXACT node inside it (undefined → attribute omitted, no anchor). -->
       <div class="pcard-mech-group"
-           :class="['pcard-mech-group--' + group.kind, {'pcard-mech-group--after-or': group.orJoin}]"
+           :class="['pcard-mech-group--' + group.kind, {'pcard-mech-group--after-or': group.orJoin, 'pcard-mech-group--winner': group.winnerRow}]"
            :data-graphic-id="group.graphicId">
         <PremiumMechNode v-for="(node, ni) in group.nodes"
                          :key="ni"
