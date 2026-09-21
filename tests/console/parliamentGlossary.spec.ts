@@ -43,6 +43,10 @@ const CANON: Record<string, string> = {
   'Onto the board': 'К полю',
   'Results': 'Итоги',
   'Opposition': 'Оппозиция',
+  // «Заседание v4»: the government that has NOT left yet is named, so «принятая резолюция» can never be read
+  // over a card on its way out (§2.3) — one word for one state of that block.
+  'Outgoing government': 'Уходящее правительство',
+  'Enacted resolution': 'Принятая резолюция',
 };
 
 /** Retired forms — none may survive in a RU value of the parliament's own file. */

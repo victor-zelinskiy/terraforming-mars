@@ -35,6 +35,7 @@
            :data-stage="flow.stage"
            :data-sitting-stage="sittingUp ? sittingStage : undefined"
            :data-sitting-walking="walking ? '' : undefined"
+           :data-sitting-page="sittingUp ? String(flow.sittingPage) : undefined"
            :data-sitting-motion="motion.stage || undefined"
            :data-sitting-beat="motion.beat || undefined"
            :data-parl-reading-up="stagePanelUp ? '' : undefined"
@@ -80,9 +81,17 @@
         </div>
 
         <!-- ── THE READING PANEL — the chairman SEAT pick and the sitting's READING stages unfold in place
-             of the parties row (one chassis, one rect). ── -->
+             of the parties row (one chassis, one rect).
+             IT IS SHOWN, NOT MOUNTED, PER STAGE (`v-show`): three `<Teleport>`s point INTO this panel (the
+             enacted card onto its hero slot, the hosted step into `[data-embed-slot="parliament-stage"]`, and
+             a step's own children), and a teleport re-resolves its target only when the `to` string CHANGES.
+             Unmounting the panel between the table and the reading therefore left Vue patching into detached
+             nodes — «Cannot read properties of null (reading 'insertBefore')», after which the whole section
+             stopped re-rendering and the walk froze at the enactment with the take standing in a zombie panel.
+             `v-show` fires the same enter/leave hooks, so the phrase is unchanged; the panel is `position:
+             absolute`, so hidden it costs the layout nothing. ── -->
         <transition :css="false" @enter="onStageEnter" @leave="onStageLeave" @enter-cancelled="onStageEnterCancelled" @leave-cancelled="onStageLeaveCancelled">
-          <div v-if="stagePanelUp" class="con-parl__stage" :class="['con-parl__stage--' + stageKind, {'con-parl__stage--field': flow.sittingField}]" :data-parl-stage="stageKind" data-parl-reading>
+          <div v-if="stageKind === 'seat' || stageKind === 'sitting'" v-show="stagePanelUp" class="con-parl__stage" :class="['con-parl__stage--' + stageKind, {'con-parl__stage--field': flow.sittingField}]" :data-parl-stage="stageKind" data-parl-reading>
             <ConsoleParliamentSeatPick v-if="stageKind === 'seat' && focusedSlot !== undefined" ref="seatPick"
                                        :view="view" :slot="focusedSlot" :viewerColor="viewerColor" :seatCandidates="seatCandidates"
                                        @submit="submitSeat($event)" @inspect="$emit('inspect', $event)" />
@@ -324,9 +333,17 @@ export default defineComponent({
     rewardsOwed(): number {
       return parliamentRewardState.owed.length;
     },
-    /** The results card is hidden until the renewal's beats are over (the director reveals it). */
+    /**
+     * The results card is hidden until the renewal's beats have played it out (the director reveals it) — and
+     * SO IS ITS WHOLE PANEL (v4: `resultsHidden` is what keeps the results' physical part on the TABLE). The
+     * beat's own `sittingMotion.stage` is not enough for that: between the walk arriving on the page and the
+     * beat's first tick there is a gap, and in it the panel would flash over the very table the renewal is
+     * about to move things on. The page's arrival is therefore the start of «hidden» (the stage not yet
+     * played), the beat carries it, and the reveal ends it — a RELOAD onto a finished sitting marks every
+     * stage played with nothing playing, so the card simply stands.
+     */
     resultsHidden(): boolean {
-      return this.sittingStage === 'results' && sittingMotion.stage === 'results' && !sittingMotion.resultsRevealed;
+      return this.sittingStage === 'results' && !sittingMotion.resultsRevealed;
     },
     /**
      * The crumb's tail for the sitting's stage (`sittingStageKey`). The tail
@@ -1007,6 +1024,10 @@ export default defineComponent({
         for (const stage of position.pages) {
           notePlayedSittingStage(key, stage);
         }
+        // …and the results card is simply STANDING for a sitting re-read at its final poses: nothing will play,
+        // so nothing will reveal it, and `resultsHidden` (which keeps the panel off the table while the renewal
+        // moves) must not hold it hidden for ever.
+        sittingMotion.resultsRevealed = true;
         resetParliamentHolds();
         parliamentRewardState.receiptShowing = false;
         parliamentFlow.sittingPage = position.pages.length - 1;
@@ -1094,6 +1115,32 @@ export default defineComponent({
           if (ctx === undefined) {
             break;
           }
+          // A READING STAGE IS PLAYED INSIDE ITS OWN SURFACE (v4): its beats measure the carrier card's printed
+          // graphic, the payout rail, the results card's rows — all of them INSIDE the panel that takes the
+          // tier only when this page is reached. Played a flush too early they measure nothing, the wave never
+          // lands, its hold sits until the 12 s stage ceiling and `rewardPending` never clears — the walk then
+          // never leaves the reward at all (measured: the take arrived ~15 s late, ИТОГИ never came). So the
+          // walk YIELDS here; `onStageEnter` re-queues it the moment the panel stands, and nothing is marked
+          // played, so nothing is skipped.
+          if (sittingSurfaceMode(stage, this.resultsHidden) === 'table') {
+            // …and the other way round: a TABLE stage's beats move objects where the reading panel still is,
+            // because its fold takes its own 220 ms. The flush is what STARTS that fold (the page changed in
+            // this very loop, with no patch in between), so the walk asks for it first and only then reads the
+            // leave. Its completion re-queues the walk. Measured: the renewal's first beat otherwise played
+            // under a panel still fading over the table it was moving things on.
+            await this.$nextTick();
+            if (this.stageLeaving) {
+              break;
+            }
+          }
+          if (sittingSurfaceMode(stage, this.resultsHidden) === 'reading') {
+            // ONE FLUSH FIRST (v4): the walk advances the page and loops without one, so the reading panel this
+            // stage's beats measure INSIDE (the carrier card's printed graphic, the payout rail, the results
+            // card's rows) is still `display: none` on this very iteration. Measured against a hidden panel the
+            // wave never launches, its hold sits to the 12 s ceiling and `rewardPending` never clears — the walk
+            // then never leaves the reward at all.
+            await this.$nextTick();
+          }
           const key = this.sittingKey;
           const receipt = stage === 'reward' && parliamentRewardState.receiptShowing;
           if (!sittingStagePlayed(key, stage) || receipt || (stage === 'reward' && this.rewardPending)) {
@@ -1145,6 +1192,10 @@ export default defineComponent({
       playStageFold(el as HTMLElement, () => {
         this.stageLeaving = false;
         done();
+        // The table is clear again: a stage whose beats were waiting for the panel to go can play now.
+        if (parliamentFlow.stage === 'sitting') {
+          this.queueWalk();
+        }
       });
     },
     onStageEnterCancelled(el: Element): void {

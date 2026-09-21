@@ -34,6 +34,17 @@ export const consoleParliamentUi = reactive({
    */
   stageStanding: false,
   /**
+   * THE STAGE'S ZONE NODE IS IN THE DOM (v4). `stageStanding` is about the SITTING — true through the table
+   * stages too, which is what the placement hold and the reward ledger mean by it. The teleport targets mean
+   * something narrower and physical: `[data-embed-slot="parliament-stage"]` EXISTS. Since v4 the reading panel
+   * that carries it mounts and unmounts with the stage, and a `<Teleport>` re-resolves its target only when the
+   * string CHANGES — pointed at a node that has been destroyed, Vue patches into a detached parent and throws
+   * «Cannot read properties of null (reading 'insertBefore')», after which the whole section stops re-rendering
+   * (measured: the walk froze at the enactment with the take standing in a zombie panel). So the zone's own
+   * host publishes this in `mounted` and RETRACTS it in `beforeUnmount`, unconditionally.
+   */
+  stageZone: false,
+  /**
    * The SITTING'S REWARD STAGE HOLDS THE FIELD — its recipient zone is OPEN
    * (published post-flush by the section, one beat after the stage itself):
    * the hosted step's door. It waits for what the field waits for — the
@@ -58,6 +69,7 @@ export function resetConsoleParliamentUi(): void {
   consoleParliamentUi.commands = [];
   consoleParliamentUi.voteStanding = false;
   consoleParliamentUi.stageStanding = false;
+  consoleParliamentUi.stageZone = false;
   consoleParliamentUi.fieldStanding = false;
   consoleParliamentUi.agendaSettling = false;
   consoleParliamentUi.boardDoorOpen = false;

@@ -153,7 +153,12 @@ async function armV4Probe(page: Page): Promise<void> {
         }
       }
       const tier = root.querySelector<HTMLElement>('.con-parl__parties-tier');
-      const panel = root.querySelector<HTMLElement>('[data-parl-reading]');
+      // THE PANEL IS JUDGED BY SIGHT, NOT BY PRESENCE (v4): it is `v-show`n, so the node stands for the whole
+      // sitting (three teleports point into it) and what matters is whether it is on screen.
+      const panelEl = root.querySelector<HTMLElement>('[data-parl-reading]');
+      const panelRect = rect(panelEl);
+      const panelVis = panelEl !== null && panelRect !== undefined && vis(panelEl).ink > 0.02;
+      const panel = panelVis ? panelEl : null;
       const kickerEl = root.querySelector<HTMLElement>('.con-parl__ruler-kicker');
       w.__v4.samples.push({
         src,
@@ -230,9 +235,14 @@ function travelOf(samples: Array<V4Sample>, id: string): number {
 /** The TABLE's stages — the ones that MOVE objects the player must see (`data-sitting-motion` is the STAGE). */
 const TABLE_MOTIONS = ['verdict', 'enact'];
 const tableFrames = (s: Array<V4Sample>): Array<V4Sample> => s.filter((x) => TABLE_MOTIONS.includes(x.motion));
-/** …and every frame of the physical part, the results' own renewal beats included (the card is still hidden). */
+/**
+ * …and every frame in which SOMETHING IS MOVING ON THE TABLE — the renewal beats of ИТОГИ included (its card is
+ * still hidden then). Keyed on the BEAT that is playing, never on the page's name: the handoff between the two
+ * modes is itself a motion (the reward's panel folds for its own 220 ms before the renewal starts), and a rule
+ * written against the page would call that fold «a panel over the table» while the table is deliberately still.
+ */
 const physicalFrames = (s: Array<V4Sample>): Array<V4Sample> =>
-  s.filter((x) => TABLE_MOTIONS.includes(x.motion) || (x.stage === 'results' && x.resultsHidden));
+  s.filter((x) => TABLE_MOTIONS.includes(x.motion) || (x.motion === 'results' && x.resultsHidden));
 
 /** The window each named beat owned, in ms — measured from the published beat, never from a wall clock. */
 function beatWindows(s: Array<V4Sample>): {span: Map<string, {from: number, to: number}>, gaps: Array<{after: string, ms: number}>} {
@@ -268,7 +278,9 @@ function tileFailures(frames: Array<V4Sample>): Array<string> {
         bad.push(`@${i} (${f.motion}): ${t.party} ink=${t.vis.ink.toFixed(3)}`);
       } else if (t.vis.overlap > 0.02) {
         bad.push(`@${i} (${f.motion}): ${t.party} covered by a reading panel (${(t.vis.overlap * 100).toFixed(0)} %)`);
-      } else if (!t.vis.free) {
+      } else if (!t.vis.free && !t.vis.hit.includes('con-pseal')) {
+        // …by anything that is NOT another party tile: the swap's two objects genuinely cross, and one of two
+        // crossing bodies is necessarily in front. What may never cover a tile is a SURFACE.
         bad.push(`@${i} (${f.motion}): ${t.party} centre is covered by ${t.vis.hit}`);
       }
     }

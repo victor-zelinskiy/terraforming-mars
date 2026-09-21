@@ -72,7 +72,10 @@ async function armProbe(page: Page): Promise<void> {
       // Every painted premium face per resolution slug — a card at rest is painted ONCE.
       const faces: Record<string, number> = {};
       for (const el of Array.from(document.querySelectorAll<HTMLElement>('.con-parl .pcard, [data-parl-flight] .pcard'))) {
-        if (getComputedStyle(el).visibility === 'hidden') {
+        // ON SCREEN, not merely in the DOM: since v4 the reading panel is `v-show`n (its teleport targets must
+        // outlive the table stages), so a hidden pose legitimately holds a second copy of the same face.
+        const r = el.getBoundingClientRect();
+        if (getComputedStyle(el).visibility === 'hidden' || r.width < 2 || r.height < 2) {
           continue;
         }
         const slug = Array.from(el.classList).find((c) => c.startsWith('pcard--rdx-')) ?? '';
@@ -90,7 +93,12 @@ async function armProbe(page: Page): Promise<void> {
         govAwaiting: document.querySelector('.con-parl__gov-card--awaiting') !== null,
         // СТОЛ и ЧТЕНИЕ (v4): the row's own marker and the presence of a reading panel — the peek is retired.
         rowShown: document.querySelector('[data-parl-row-shown]') !== null,
-        reading: document.querySelector('[data-parl-reading]') !== null,
+        reading: (() => {
+          // By SIGHT: the reading panel is `v-show`n (v4), so its node stands for the whole sitting.
+          const el = document.querySelector<HTMLElement>('[data-parl-reading]');
+          const r = el?.getBoundingClientRect();
+          return el !== null && r !== undefined && r.width > 1 && Number(getComputedStyle(el).opacity || 1) > 0.02;
+        })(),
         deck: Number(document.querySelector('[data-parl-deck-pile]')?.getAttribute('data-count') ?? '-1'),
         faces,
         resultsHidden: document.querySelector('[data-sit-results-hidden]') !== null,
@@ -195,9 +203,13 @@ test.describe('the sitting — the director\'s beats (standard-1080)', () => {
     // THE LANDING FRAME (final polish A.3): a returning delegate's touchdown re-keys the owner's reserve stack for
     // its one-shot ring — the reserve place answers the arrival where the eye is (never a caption, never a timer).
     await expect(page.locator('[data-parl-seat-reserve][data-parl-seat-landed]'), 'a reserve stack answered a touchdown').not.toHaveCount(0, {timeout: 5_000});
-    // СТОЛ (v4 §2.1): the whole row stood in view for the physical beats, and NO reading panel was mounted over it.
-    expect(enactSamples.every((s) => s.rowShown), 'the parties row was shown for every frame of the physical beats').toBe(true);
-    expect(enactSamples.some((s) => s.reading), 'no reading panel stood over the table').toBe(false);
+    // СТОЛ (v4 §2.1): the whole row stood in view for every frame of the PHYSICAL beats, and no reading panel
+    // was mounted over it. Scoped to those beats on purpose — the samples run on to the reward, where the panel
+    // legitimately takes the tier and the row legitimately recedes.
+    const physical = enactSamples.filter((x) => x.motion === 'enact');
+    expect(physical.length, 'the physical beats were sampled').toBeGreaterThan(10);
+    expect(physical.every((s) => s.rowShown), 'the parties row was shown for every frame of the physical beats').toBe(true);
+    expect(physical.some((s) => s.reading), 'no reading panel stood over the table').toBe(false);
     // The government's face waited until the card landed, then showed — and stayed painted ONCE.
     expect(enactSamples.findIndex((s) => s.govAwaiting), 'the government\'s face waited for the card').toBeGreaterThanOrEqual(0);
     expect(enactSamples[enactSamples.length - 1].govAwaiting, 'the face showed on the touchdown').toBe(false);

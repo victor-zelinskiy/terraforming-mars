@@ -118,7 +118,12 @@ async function armProbe(page: Page): Promise<void> {
         placing: document.querySelector('.con-board--placing, .con-board--locked') !== null,
         parl: document.querySelector('.con-parl') !== null,
         winner: document.querySelector('.con-sit__panel--on [data-winner-reward]')?.getAttribute('data-winner-context') ?? undefined,
-        slots: Array.from(document.querySelectorAll('.con-parl__slots .con-parl__slot')).map((el) => `${el.getAttribute('data-instance')}@${el.getAttribute('data-votes')}`).join('|'),
+        // THE PLACES, not the cards: a slot whose card has been enacted keeps its HOME and renders an explicit
+        // empty place in it («Пустой слот · Принята — ушла со стола», v3 В6), so a reading that counted
+        // `.con-parl__slot` saw the table lose a column at the enactment — the one thing the home exists to
+        // prevent. The home's own reading is the card's vote count, or «empty» when the card has left.
+        slots: Array.from(document.querySelectorAll('.con-parl__slots .con-parl__slot-home')).map((el) =>
+          `${el.getAttribute('data-home')}@${el.querySelector('.con-parl__slot')?.getAttribute('data-votes') ?? 'empty'}`).join('|'),
         holds: (w.__conReady?.().holds ?? []).filter((h) => h.startsWith('parliament-sitting') || h.startsWith('resource-transfer')),
         deckdraw: document.querySelector('.con-deckdraw')?.getAttribute('data-dd-phase') ?? '',
         cover: ((el) => el !== null && el.getBoundingClientRect().width > 0 && getComputedStyle(el).visibility !== 'hidden' && getComputedStyle(el).opacity !== '0')(document.querySelector<HTMLElement>('.con-bonusfly-cover')),
@@ -318,9 +323,13 @@ for (const preset of PARLIAMENT_PRESETS) {
             expect(tickAt, 'the counter never moved BEFORE its chip left the card').toBeGreaterThanOrEqual(first.i);
             expect(probe.samples.some((s) => s.deltas[wv.res] > 0), `a delta chip fired on the ${wv.res} row`).toBe(true);
           }
+          const reactionIds = new Set<string>();
           for (const wv of reactions) {
             // The answer leaves the plaque once the card's own chips have LANDED (their dissolve may still be running).
             const track = Array.from(tracks.values()).find((tr) => tr[0].c.res === wv.res && !ownIds.has(tr[0].c.id) && tr[0].i >= ownLanded - 2);
+            if (track !== undefined) {
+              reactionIds.add(track[0].c.id);
+            }
             expect(track, `the ruling party's ${wv.res} answer flew AFTER the card's own chips landed (@${ownLanded})`).toBeDefined();
             const first = track![0];
             const last = track![track!.length - 1];
@@ -328,11 +337,23 @@ for (const preset of PARLIAMENT_PRESETS) {
             const field = wv.channel === 'production' ? 'prod' : 'stock';
             expect(inside({x: last.c.x, y: last.c.y}, last.s.cells[wv.res][field], px(preset.viewport, 10)), `the answer LANDED on the rail's ${wv.res} ${field} cell`).toBe(true);
           }
-          // The reward page HELD while the chips FLEW (a step that arrived with the record waits its turn);
-          // a landed chip's dissolve may overlap the next page's entry — the decision was made at the landing.
+          // THE REWARD PAGE HELD WHILE **ITS OWN** CHIPS FLEW (a step that arrived with the record waits its
+          // turn); a landed chip's dissolve may overlap the next page's entry — the decision was made at the
+          // landing. Scoped to the resolution's own payout and the ruling party's answer on purpose: the AGENDA
+          // STEP's bonus is a beat of ПОВЕСТКА and leaves the reached STEP (not the carrier card) on the
+          // enactment page — that is the documented order, not a page that failed to hold. What is asked of
+          // EVERY chip instead is that its whole flight happened on ONE page: no chip may straddle a change.
           for (const [id, tr] of tracks) {
             const landedAt = landingIndex(tr, REST_SLACK_PX);
-            expect(tr.filter((p) => p.i < landedAt).every((p) => p.s.stage === 'reward'), `the reward page stood while chip ${id} flew (landing @${landedAt})`).toBe(true);
+            const flew = tr.filter((p) => p.i < landedAt);
+            if (flew.length === 0) {
+              continue;
+            }
+            const pages = Array.from(new Set(flew.map((p) => p.s.stage)));
+            expect(pages.length, `chip ${id} flew on ONE page (${pages.join(', ')}; landing @${landedAt})`).toBe(1);
+            if (ownIds.has(id) || reactionIds.has(id)) {
+              expect(pages[0], `the reward page stood while chip ${id} flew (landing @${landedAt})`).toBe('reward');
+            }
           }
           // …and nothing of the parliament or the wave is held at rest — read LIVE (a sample can lag a release by one tick).
           const restHolds = await page.evaluate(() => ((window as unknown as {__conReady: () => {holds: Array<string>}}).__conReady().holds)
@@ -449,8 +470,12 @@ for (const preset of PARLIAMENT_PRESETS) {
           // THE TABLE AS IT STOOD (registry R-25в): the server refreshed the slots with the adjourn, yet every
           // sample of the HELD reward pose still shows the losers with their delegate counts — the columns
           // change only when the renewal enters and its beat moves them.
-          const tableBefore = probe.samples[0]?.slots ?? '';
-          expect(tableBefore, 'the probe saw the table before the gate was answered').not.toBe('');
+          // The base is the table AS THE REWARD PAGE FOUND IT: the enactment legitimately empties the winner's
+          // home one page earlier (that IS the beat), and what R-25в forbids is the ADJOURN's refresh reaching
+          // the columns while the reward pose still holds.
+          const rewardSamples = probe.samples.filter((s) => s.parl && s.stage === 'reward');
+          const tableBefore = rewardSamples[0]?.slots ?? '';
+          expect(tableBefore, 'the probe saw the table under the reward pose').not.toBe('');
           const changedUnderHold = probe.samples.slice(0, Math.max(0, firstRenewal)).filter((s) => s.parl && s.stage === 'reward' && s.slots !== tableBefore);
           expect(changedUnderHold.length, `the columns kept the table as it stood under the held reward pose (${changedUnderHold.length} samples showed ${changedUnderHold[0]?.slots} instead of ${tableBefore})`).toBe(0);
           for (const wv of c.waves) {
@@ -533,9 +558,11 @@ test.describe('the Agenda step\'s TR bonus (standard-1080)', () => {
     const t0 = Date.now();
     const since = () => `${((Date.now() - t0) / 1000).toFixed(1)} s after the phase began`;
     await expect.poll(async () => (await parliamentWire(request, playerId)).game.parliament?.phase?.step, {timeout: 30_000}).toBe('assembly');
-    const wire = await parliamentWire(request, playerId);
-    expect(wire.game.parliament?.phase?.summary?.agenda?.bonus, 'the winner\'s step is a TR step').toBe('tr');
-    expect(wire.thisPlayer.terraformRating, 'the server already paid the rating').toBe(trBefore + 1);
+    // THE GATE STANDS BEFORE THE CHANGES («Заседание v2»): at `assembly` the Agenda has NOT moved and nothing
+    // is paid yet — this test predates that order and read the summary here, where it is legitimately empty.
+    const atGate = await parliamentWire(request, playerId);
+    expect(atGate.game.parliament?.phase?.summary?.agenda, 'the Agenda moves only PAST the gate').toBeUndefined();
+    expect(atGate.thisPlayer.terraformRating, 'nothing is paid before the gate').toBe(trBefore);
     await expect(mandatoryPlate(page)).toHaveCount(1, {timeout: 30_000});
     console.log(`[tr-bonus] the plate stands ${since()}`);
     // THE HOLD: the HUD still says the old rating while the plate stands.
@@ -548,6 +575,11 @@ test.describe('the Agenda step\'s TR bonus (standard-1080)', () => {
     await answerGateAs(request, red, 'assembly');
     expect(await turnTo(page, 'enact')).toBe(true);
     console.log(`[tr-bonus] the enactment page ${since()}`);
+    // …and past the gate the server has moved the marker and paid: the step it reached is a TR step.
+    await expect.poll(async () => (await parliamentWire(request, playerId)).game.parliament?.phase?.summary?.agenda?.bonus,
+      {timeout: 30_000}).toBe('tr');
+    const wire = await parliamentWire(request, playerId);
+    expect(wire.thisPlayer.terraformRating, 'the server paid the rating past the gate').toBe(trBefore + 1);
     // The glide, then the chip: the rating ticks on the chip's contact.
     await expect(page.locator('.con-res .con-score__value--tr')).toHaveText(String(trBefore + 1), {timeout: 20_000});
     await waitSittingAtRest(page, 20_000);
@@ -588,9 +620,10 @@ test.describe('the Agenda step\'s TR bonus (standard-1080)', () => {
     const t0 = Date.now();
     const since = () => `${((Date.now() - t0) / 1000).toFixed(1)} s after the phase began`;
     await expect.poll(async () => (await parliamentWire(request, playerId)).game.parliament?.phase?.step, {timeout: 30_000}).toBe('assembly');
-    const wire = await parliamentWire(request, playerId);
-    expect(wire.game.parliament?.phase?.summary?.agenda?.bonus, 'the winner\'s step is a CARD step').toBe('card');
-    expect(wire.thisPlayer.cardsInHandNbr, 'the server already dealt the step\'s card').toBe(handBefore + 1);
+    // The gate stands BEFORE the changes (v2): nothing is dealt at `assembly`.
+    const atGate = await parliamentWire(request, playerId);
+    expect(atGate.game.parliament?.phase?.summary?.agenda, 'the Agenda moves only PAST the gate').toBeUndefined();
+    expect(atGate.thisPlayer.cardsInHandNbr, 'nothing is dealt before the gate').toBe(handBefore);
     await expect(mandatoryPlate(page)).toHaveCount(1, {timeout: 30_000});
     console.log(`[card-bonus] the plate stands ${since()}`);
     expect(await openMandatoryAnnounce(page)).toBe(true);
@@ -602,6 +635,10 @@ test.describe('the Agenda step\'s TR bonus (standard-1080)', () => {
     await answerGateAs(request, red, 'assembly');
     expect(await turnTo(page, 'enact')).toBe(true);
     console.log(`[card-bonus] the enactment page ${since()}`);
+    // …and past the gate the step the marker reached is a CARD step, and the server has dealt it.
+    await expect.poll(async () => (await parliamentWire(request, playerId)).game.parliament?.phase?.summary?.agenda?.bonus,
+      {timeout: 30_000}).toBe('card');
+    expect((await parliamentWire(request, playerId)).thisPlayer.cardsInHandNbr, 'the server dealt the card past the gate').toBe(handBefore + 1);
     // The glide lands on the card step → the cover lifts off it → the card opens over the sitting → A takes it to the dock.
     await expect(page.locator('.con-reveal, dialog.con-zoom[open]'), 'the step\'s card is presented after the glide').toHaveCount(1, {timeout: 30_000});
     await shoot(page, 'standard-1080', 'RX05-card-bonus-reveal');

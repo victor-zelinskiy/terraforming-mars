@@ -4231,7 +4231,10 @@ export default defineComponent({
       // The zone is the reward stage's FIELD — open one flush after the pose
       // stands, and only once the payout that arrived WITH the draw has flown
       // (`consoleParliamentUi.fieldStanding`): the wave first, then the deal.
-      return workspaceFrameMounted('parliament') && consoleParliamentUi.fieldStanding ?
+      // …and the ZONE NODE must be in the DOM (v4): the reading panel that carries it mounts with the reward
+      // stage and unmounts when the walk is back on the table, and a teleport pointed at a destroyed node
+      // crashes the patch (`consoleParliamentUi.stageZone`).
+      return workspaceFrameMounted('parliament') && consoleParliamentUi.fieldStanding && consoleParliamentUi.stageZone ?
         '.con-parl [data-embed-slot="parliament-stage"]' : undefined;
     },
     /**
@@ -4574,7 +4577,7 @@ export default defineComponent({
       // picker stands in the Parliament's SITTING — its reward stage's zone: the
       // resolution is on stage above it, the stage names the amount, the picker
       // asks where.
-      if (this.parliamentStageTask && workspaceFrameMounted('parliament') && consoleParliamentUi.fieldStanding) {
+      if (this.parliamentStageTask && workspaceFrameMounted('parliament') && consoleParliamentUi.fieldStanding && consoleParliamentUi.stageZone) {
         return '.con-parl [data-embed-slot="parliament-stage"]';
       }
       if (!workspaceClaimsPick()) {

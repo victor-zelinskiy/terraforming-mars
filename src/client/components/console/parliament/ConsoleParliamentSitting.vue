@@ -233,6 +233,7 @@ import {actionRuleText} from '@/client/components/actions/actionDescription';
 import {conLogicalPx} from '@/client/console/consoleLayoutProfile';
 import {translateTextWithParams} from '@/client/directives/i18n';
 import {getResolution} from '@/client/parliament/ClientParliamentManifest';
+import {consoleParliamentUi} from '@/client/console/parliament/consoleParliamentFlow';
 import {parliamentPlayerName, ParliamentViewVm, resolutionTitleOf} from '@/client/console/parliament/consoleParliamentModel';
 import {SittingPosition, SittingStage, quietRewardPoseOf, QuietRewardPose} from '@/client/console/parliament/consoleSittingFlow';
 import {returningInstances} from '@/client/console/parliament/sittingBeats';
@@ -267,6 +268,18 @@ export default defineComponent({
     embedded: {type: Boolean, default: false},
     /** `live` — the phase in progress; `review` — a finished sitting re-read (the protocol, later). */
     mode: {type: String as PropType<'live' | 'review'>, default: 'live'},
+  },
+  mounted() {
+    // THE ZONE IS PUBLISHED BY ITS OWN HOST (v4) — see `consoleParliamentUi.stageZone`. The live surface only:
+    // a review / gallery copy owns no teleport target.
+    if (this.mode === 'live') {
+      consoleParliamentUi.stageZone = true;
+    }
+  },
+  beforeUnmount() {
+    if (this.mode === 'live') {
+      consoleParliamentUi.stageZone = false;
+    }
   },
   computed: {
     /** The quiet reward of a passive / an action resolution (final polish D). */

@@ -313,6 +313,12 @@ html.con-profile-handheld .con-parl[data-sitting-stage="results"] .con-parl__sta
 }
 html.con-profile-handheld .con-sit {
     &__title { font-size: .92rem; }
+    /* …AND THE RESULTS CARD PAYS ITS OWN WAY ON THE DECK. The stage already takes the Agenda track whole here
+       (above) and still ran 14 px past it — the card's last row («НОВЫЕ РЕЗОЛЮЦИИ» / «В ЛОББИ») was cut at the
+       tier's edge. The room is bought from the PLATE's own chrome (padding, the row gap, the head), never from
+       a row's text: a cut sentence is the defect, a tighter plate is not. */
+    &__results { padding: .4rem .6rem; gap: .26rem .6rem; }
+    &__results-title { font-size: .8rem; }
     &__row { font-size: .68rem; padding: .22rem .4rem; b { font-size: .76rem; } }
     &__rows { grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: .22rem .5rem; }
     &__reward--field { gap: .6rem; }
