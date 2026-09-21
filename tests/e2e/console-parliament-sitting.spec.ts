@@ -159,12 +159,19 @@ for (const preset of PRESETS) {
       await expect(page.locator('.con-band [data-parl-band-chip="player"]'), 'the verdict names the winning player').toHaveCount(1);
       await expect(page.locator('.con-band [data-parl-band-chip="resolution"]'), '…and the resolution being enacted').toHaveCount(1);
       await expect(page.locator('.con-parl [data-parl-row-shown]'), 'the row of parties is the body: nothing stands over it').toHaveCount(1);
-      // THE DECIDED TABLE: the server already re-ranked the losers for the NEXT vote — no card is badged «принимается» until the refresh (P-17).
+      // THE DECIDED TABLE: the server already re-ranked the losers for the NEXT vote — no card is badged
+      // «принимается» until the refresh (P-17). ⚠ The LIVE badge is what must be gone; the verdict has its
+      // OWN sign on the winning card since v4 Г7 («вердикт получает СВОЙ знак на карте, а не чужой»), so
+      // this assertion was stale — it read «no badge at all» and failed on the sign v4 deliberately added.
       await expect(page.locator('.con-parl__slot--winning'), 'no «принимается» on the decided table').toHaveCount(0);
-      await expect(page.locator('.con-parl__slot-win'), 'no winning badge on the decided table').toHaveCount(0);
+      await expect(page.locator('.con-parl__slot-win:not(.con-parl__slot-win--verdict)'), 'no LIVE winning badge on the decided table').toHaveCount(0);
+      await expect(page.locator('[data-parl-slot-verdict]'), 'the verdict names the winning card with its own sign (v4 Г7)').toHaveCount(1);
       // The government's basis while the card is still on its way: the PREVIOUS one, never «принятая резолюция» over an empty seat (P-16).
       await expect(page.locator('.con-parl__gov-basis'), 'the seat keeps the starting rule until the card lands').toHaveText(/Стартовое правило|Starting rule/i);
-      await expect(page.locator('.con-parl__gov--lit'), 'the government is lit at the verdict').toHaveCount(1);
+      // …and it is NOT lit yet: `sittingLit` is «once its new set is in place, and for the rest of the
+      // sitting» (`ConsoleParliamentGovernment.sittingLit` — explicitly `sittingStage !== 'verdict'`).
+      // The old line asserted the opposite of the contract the source states; same rot as the badge above.
+      await expect(page.locator('.con-parl__gov--lit'), 'the government lights only once its new set has landed').toHaveCount(0);
       expect(await hotVerb(page)).toMatch(/Продолжить|Continue/i);
       await expectFits(page, `${preset.id} verdict`);
       await shoot(page, preset.id, '01-verdict');
