@@ -137,8 +137,8 @@ export async function expectParliamentFits(page: Page, label: string, rootSelect
     const name = (el: Element) => el.className.toString().split(' ')[0];
     const blocks = '.con-parl__gov, .con-parl__slot, .con-parl__stage, .con-sit__panel--on, .con-sit__row, .con-sit__results,' +
       ' .con-iyield, .con-iyield__reading, .con-preact, .con-wreward, .con-sit__zone--on, .con-extdraw__cards, .con-cards__slot, .con-task,' +
-      // v5: the middle zone is a BAND and a BODY — the band's line and the results panel's three sections.
-      ' .con-cards__verdictbar, .con-band, .con-band__line, .con-sit__law, .con-sit__payouts, .con-sit__payout, .con-sit__table,' +
+      // v5: the middle zone is a BAND and a BODY — the band's line and the results panel's two sections.
+      ' .con-cards__verdictbar, .con-band, .con-band__line, .con-sit__payouts, .con-sit__payout, .con-sit__table,' +
       // The other parliament chassis a gallery photographs: the announce plate, the fullscreen inspect, the party composer, the playground, the seat.
       ' .con-mandatory__card, .con-mandatory__body, .con-zoom__card, .con-zoom__aside, .con-zoom__foot, .con-pact__panel, .con-pact__step, .con-rplay__panel, .con-seat__panel';
     const scoped = root.matches(blocks) ? [root as HTMLElement] : [];

@@ -149,21 +149,22 @@
         > .con-extdraw--embedded .con-extdraw__source { display: none; }
     }
 
-    /* ── ПАНЕЛЬ ИТОГОВ (v5 §4): THREE sections, in reading order — the LAW as the heading,
-       the PAYOUTS as the body (the one thing seen nowhere else), the TABLE as the tail.
-       The generation's number is in the band above and is not repeated here. ── */
+    /* ── ПАНЕЛЬ ИТОГОВ (v5 §4): TWO sections — the PAYOUTS as the body (the one thing seen
+       nowhere else) and the TABLE as the tail. The generation's number is in the band above;
+       the enacted card, the party that rules by it and the chairman's quest are the
+       GOVERNMENT's zone, standing on the same screen — a LAW line here said all three one
+       more time and poorer, and it is gone. ── */
     &__results {
         .con-stage-plate();
         display: grid;
-        /* THE LAW IS THE HEAD, and the two bodies stand SIDE BY SIDE under it — ВЫПЛАТЫ (the main
-           content, one row per seat) beside СТОЛ (the tail). Stacked, the three sections wanted ~300 px
-           of the 265 the stage has at 1080 and the last row was cut at the plate's edge; two columns hold
-           five seats and the three table rows in the same box. Never a `1fr` among the ROWS either: a
-           starved middle row let the payouts paint straight over the table's own heading (measured —
-           «СТОЛ» through «player2 +5»). What does not fit is a FIT bug the geometry probe sees, never a
-           silent overlap and never a cut row. */
+        /* THE TWO BODIES STAND SIDE BY SIDE — ВЫПЛАТЫ (the main content, one row per seat) beside СТОЛ
+           (the tail). Stacked, the sections wanted ~300 px of the 265 the stage has at 1080 and the last
+           row was cut at the plate's edge; two columns hold five seats and the table's rows in the same
+           box. Never a `1fr` among the ROWS either: a starved row let the payouts paint straight over the
+           table's own heading (measured — «СТОЛ» through «player2 +5»). What does not fit is a FIT bug
+           the geometry probe sees, never a silent overlap and never a cut row. */
         grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
-        grid-template-rows: auto auto;
+        grid-template-rows: auto;
         align-content: start;
         gap: .4rem .9rem;
         padding: .55rem .8rem;
@@ -173,34 +174,13 @@
         &--hidden { visibility: hidden; }
     }
     &__section-kicker { display: block; margin-bottom: .18rem; }
-    /* (1) ЗАКОН — one line with icons. */
-    &__law {
-        grid-column: 1 / -1;
-        display: flex;
-        align-items: center;
-        gap: .2rem 1rem;
-        min-width: 0;
-        padding-bottom: .35rem;
-        box-shadow: inset 0 -.05rem 0 rgba(255, 255, 255, 0.1);
-    }
-    &__law-part {
-        display: inline-flex;
-        align-items: center;
-        gap: .3rem;
-        min-width: 0;
-        flex-shrink: 0;
-        font-size: .78rem;
-        /* The quest is the longest member and the only one that may give width (the strict order: basis 0). */
-        &--quest { flex: 1 1 0; max-width: max-content; }
-    }
-    &__law-name { font-size: .9rem; font-weight: 800; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    &__law-quest { font-family: @con-font-read; font-size: .76rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    /* (2) ВЫПЛАТЫ — the panel's main content: a row per seat. */
+    /* (1) ВЫПЛАТЫ — the panel's main content: a row per seat. The height the LAW line used to take is
+       spent HERE, on the rows' own air: the payouts are what the panel exists for. */
     &__payouts {
         grid-column: 1;
         display: flex;
         flex-direction: column;
-        gap: .22rem;
+        gap: .32rem;
         min-width: 0;
     }
     &__payout {
@@ -208,7 +188,7 @@
         align-items: center;
         gap: .55rem;
         min-width: 0;
-        padding: .26rem .55rem;
+        padding: .38rem .6rem;
         border-radius: .45rem;
         background: rgba(0, 0, 0, 0.32);
     }
@@ -228,7 +208,7 @@
     }
     &__part-unit { width: 1.1rem; height: 1.1rem; background-size: contain; background-repeat: no-repeat; background-position: center; flex-shrink: 0; }
     &__part-reason { font-family: @con-font-read; font-size: .74rem; opacity: .85; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    /* (3) СТОЛ — what changed and is already out of sight. */
+    /* (2) СТОЛ — what changed and is already out of sight. */
     &__table {
         grid-column: 2;
         display: flex;
@@ -236,6 +216,22 @@
         gap: .22rem;
         min-width: 0;
     }
+    /* НАРОДНАЯ ПОДДЕРЖКА — the plaques' OWN sockets, at the panel's size: a stock in PLACES, so a zero
+       reads as three empty sockets and the ceiling of three is visible without a word. Nothing in the
+       chip is text, so nothing in it can be cut: a chip that does not fit WRAPS onto the next line. */
+    &__support { gap: .3rem; }
+    &__support-places { display: inline-flex; align-items: center; gap: .1rem; flex-shrink: 0; }
+    &__support-place {
+        width: .72rem; height: .72rem; border-radius: .15rem;
+        display: inline-flex; align-items: center; justify-content: center;
+        background: rgba(0, 0, 0, 0.4);
+        box-shadow: inset 0 0 0 .06rem rgba(200, 205, 215, 0.3);
+        &--on { box-shadow: inset 0 0 0 .06rem rgba(200, 205, 215, 0.55); }
+        /* …and the ones THIS sitting brought carry the gold rim the whole surface uses for «new»: the
+           distinction survives desaturation by the rim's weight, never by colour alone. */
+        &--fresh { box-shadow: inset 0 0 0 .09rem fade(@con-parl-gold, 85%); }
+    }
+    &__lobby-name { font-size: .78rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     &__door-tile { width: .9rem; height: .9rem; border-radius: .2rem; flex-shrink: 0; background: #3aa35a; box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.3); &--ocean { background: #2c7dd6; } }
 }
 
@@ -253,16 +249,14 @@ html.con-profile-handheld .con-sit {
        (above); the rest of the room is bought from the PLATE's own chrome (padding, the row gap), never from
        a row's text: a cut sentence is the defect, a tighter plate is not. */
     &__results { padding: .28rem .5rem .2rem; gap: .2rem .6rem; }
-    &__law { padding-bottom: .16rem; }
     /* The emblem sets the line height of a wrapped chip row, and «НОВЫЕ РЕЗОЛЮЦИИ» legitimately
        wraps in the Deck's narrower column: a smaller emblem is what pays for the wrap. */
     &__emblem { width: .9rem; height: .9rem; }
     &__section-kicker { margin-bottom: .08rem; }
-    &__payout { padding: .16rem .35rem; }
-    &__law-name { font-size: .8rem; }
-    &__law-part, &__law-quest { font-size: .68rem; }
+    &__payout { padding: .24rem .4rem; }
     &__row { font-size: .68rem; padding: .14rem .35rem; b { font-size: .76rem; } }
-    &__payout-name { font-size: .7rem; }
+    &__payout-name, &__lobby-name { font-size: .7rem; }
+    &__support-place { width: .56rem; height: .56rem; }
     &__part { font-size: .74rem; }
     &__part-unit { width: .95rem; height: .95rem; }
     &__part-reason, &__payout-quiet { font-size: .68rem; }
@@ -270,10 +264,9 @@ html.con-profile-handheld .con-sit {
     &__hero--field { gap: .4rem; padding: 0 .2rem; }
 }
 html.con-profile-tv .con-sit {
-    &__law-name { font-size: 1.1rem; }
-    &__law-part, &__law-quest { font-size: .9rem; }
     &__row { font-size: .88rem; b { font-size: .96rem; } }
-    &__payout-name { font-size: .94rem; }
+    &__payout-name, &__lobby-name { font-size: .94rem; }
+    &__support-place { width: .9rem; height: .9rem; }
     &__part { font-size: .98rem; }
     &__part-unit { width: 1.3rem; height: 1.3rem; }
     &__part-reason, &__payout-quiet { font-size: .9rem; }

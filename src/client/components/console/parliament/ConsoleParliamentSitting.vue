@@ -40,32 +40,15 @@
     </section>
 
     <!-- ── ПАНЕЛЬ ИТОГОВ (v5 §4) — the sitting's last reading, and the one surface that does NOT fold
-         back: the sitting ends after it. THREE sections and nothing beside them, because the panel shows
+         back: the sitting ends after it. TWO sections and nothing beside them, because the panel shows
          only what is nowhere else on the screen — the generation's number is in the band above it, the
-         voting area is the voting area, the enacted card prints its own effect in the government.
-         ① ЗАКОН · ② ВЫПЛАТЫ (a row per seat — a player saw its OWN chips fly and has never been shown
-         anybody else's) · ③ СТОЛ (what changed and is already out of sight). ── -->
+         voting area is the voting area, and the enacted card, the party that rules by it and the new
+         chairman quest all stand in the GOVERNMENT's zone, richer there than any line here could be.
+         ① ВЫПЛАТЫ (a row per seat — a player saw its OWN chips fly and has never been shown anybody
+         else's) · ② СТОЛ (what changed and is already out of sight). ── -->
     <section class="con-sit__panel con-sit__panel--results" :class="{'con-sit__panel--on': stage === 'results'}" data-sit-panel="results">
       <div v-if="results !== undefined" class="con-sit__results" :class="{'con-sit__results--hidden': resultsHidden}" data-sit-results :data-sit-results-hidden="resultsHidden ? '' : undefined">
-        <!-- ① ЗАКОН — one line with icons: what stands, who rules by it, what the chairman is set. -->
-        <div class="con-sit__law" data-sit-section="law">
-          <span class="con-sit__law-part" data-sit-law="enacted">
-            <span class="con-parl__chip-dim">{{ $t('Enacted') }}</span>
-            <img class="con-sit__emblem" :src="emblemUrl(results.law.party)" alt="" />
-            <b class="con-sit__law-name">{{ $t(resolutionTitle(results.law.resolution)) }}</b>
-          </span>
-          <span class="con-sit__law-part" data-sit-law="ruling">
-            <span class="con-parl__chip-dim">{{ $t('Ruling party') }}</span>
-            <b>{{ $t(partyNameKey(results.law.party)) }}</b>
-          </span>
-          <span v-if="results.law.quest !== undefined" class="con-sit__law-part con-sit__law-part--quest" data-sit-law="quest">
-            <span class="con-parl__chip-dim">{{ $t('Chairman quest') }}</span>
-            <span class="con-sit__law-quest">{{ $t(results.law.quest.text) }}</span>
-            <PlayerCube v-if="results.law.chairman !== undefined" :color="results.law.chairman" :size="cubePx(11)" :glow="false" />
-          </span>
-        </div>
-
-        <!-- ② ВЫПЛАТЫ — the panel's main content. A skip names itself with its reason, as on the reward beat. -->
+        <!-- ① ВЫПЛАТЫ — the panel's main content. A skip names itself with its reason, as on the reward beat. -->
         <div class="con-sit__payouts" data-sit-section="payouts">
           <span class="con-parl__chip-dim con-sit__section-kicker">{{ $t('Payouts') }}</span>
           <span v-if="results.quiet !== undefined" class="con-sit__payout-quiet" data-sit-payout-quiet>{{ $t(results.quiet.kicker) }}</span>
@@ -95,7 +78,7 @@
           </div>
         </div>
 
-        <!-- ③ СТОЛ — the new resolutions with their parties, the support after the deal, the lobby. -->
+        <!-- ② СТОЛ — the new resolutions with their parties, the support STOCK after the deal, the lobby. -->
         <div class="con-sit__table" data-sit-section="table">
           <span class="con-parl__chip-dim con-sit__section-kicker">{{ $t('The table') }}</span>
           <div class="con-sit__row" data-sit-row="results-fresh">
@@ -108,19 +91,40 @@
               </span>
             </span>
           </div>
+          <!-- НАРОДНАЯ ПОДДЕРЖКА — the STOCK after the deal, in the plaques' OWN vocabulary: filled and
+               empty places out of three, so a zero reads as three empty sockets and the ceiling shows
+               itself. A bare number could not say whether it was an increment or a stock, nor of what.
+               This sitting's arrivals keep the brighter socket — one row answers «how much now» and
+               «what changed» at once. The ruling party is absent by construction (its stock is always
+               zero) and is read in the government's zone. -->
           <div class="con-sit__row" data-sit-row="results-support">
             <span class="con-parl__chip-dim">{{ $t('Popular support') }}</span>
             <span class="con-sit__chips">
-              <span v-for="entry in results.table.support" :key="entry.party" class="con-sit__chip" data-sit-support :data-sit-support-party="entry.party">
-                <img class="con-sit__emblem" :src="emblemUrl(entry.party)" alt="" /><b>{{ entry.total }}</b>
+              <span v-for="entry in results.table.support" :key="entry.party" class="con-sit__chip con-sit__support"
+                    data-sit-support :data-sit-support-party="entry.party"
+                    :data-sit-support-total="entry.total" :data-sit-support-fresh="entry.fresh">
+                <img class="con-sit__emblem" :src="emblemUrl(entry.party)" alt="" />
+                <span class="con-sit__support-places" aria-hidden="true">
+                  <span v-for="n in supportPlaces" :key="n" class="con-sit__support-place"
+                        :class="{
+                          'con-sit__support-place--on': n <= entry.total,
+                          'con-sit__support-place--fresh': n <= entry.total && n > entry.total - entry.fresh,
+                        }"
+                        :data-support-place="n">
+                    <PlayerCube v-if="n <= entry.total" color="neutral" steel :size="cubePx(9)" :glow="false" />
+                  </span>
+                </span>
               </span>
             </span>
           </div>
-          <div class="con-sit__row" data-sit-row="results-lobby">
+          <!-- В ЛОББИ — a cube alone is not an assertion: every chip NAMES the seat whose delegate came
+               back. Nobody returned one and there is no row (the final phase does not refill the lobby). -->
+          <div v-if="results.table.lobby.length > 0" class="con-sit__row" data-sit-row="results-lobby">
             <span class="con-parl__chip-dim">{{ $t('To the lobby') }}</span>
-            <span v-if="results.table.lobby.length === 0" class="con-sit__chips"><b>—</b></span>
-            <span v-else class="con-sit__chips">
-              <span v-for="color in results.table.lobby" :key="color" class="con-sit__chip"><PlayerCube :color="color" :size="cubePx(11)" :glow="false" /></span>
+            <span class="con-sit__chips">
+              <span v-for="color in results.table.lobby" :key="color" class="con-sit__chip" data-sit-lobby :data-sit-lobby-seat="color">
+                <PlayerCube :color="color" :size="cubePx(11)" :glow="false" /><b class="con-sit__lobby-name">{{ nameOfColor(color) }}</b>
+              </span>
             </span>
           </div>
         </div>
@@ -129,12 +133,11 @@
   </div>
 </template>
 <script lang="ts">
-import {partyNameKey} from '@/client/console/parliament/partyNames';
 import {defineComponent, PropType} from 'vue';
 import {Color} from '@/common/Color';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {ParliamentModel, ParliamentPhaseSummaryModel} from '@/common/models/ParliamentModel';
-import {ReduxParty} from '@/common/parliament/ParliamentTypes';
+import {PARLIAMENT_MAX_POPULAR_SUPPORT, ReduxParty} from '@/common/parliament/ParliamentTypes';
 import {IClientResolution} from '@/common/parliament/IClientResolution';
 import PlayerCube from '@/client/components/PlayerCube.vue';
 import {partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
@@ -191,9 +194,11 @@ export default defineComponent({
       return this.mode === 'review' ? this.summary : this.model?.phase?.summary ?? this.summary;
     },
     /**
-     * ПАНЕЛЬ ИТОГОВ — the pure reading (`parliamentResultsModel.ts`): the law, a payout row per seat, the
+     * ПАНЕЛЬ ИТОГОВ — the pure reading (`parliamentResultsModel.ts`): a payout row per seat, and the
      * table. The SEAT ORDER is the parliament model's own — the same one the seats zone in the head line
-     * already shows, so the panel has one visible ordering key and no other.
+     * already shows, so the panel has one visible ordering key and no other. The SUPPORT is the LIVE
+     * stock (`view.parties`), read after the deal — never the summary's own total, which the deal has
+     * since turned into votes on the fresh cards.
      */
     results(): ResultsReading | undefined {
       const summary = this.shownSummary;
@@ -201,23 +206,19 @@ export default defineComponent({
         return undefined;
       }
       const quiet = quietRewardPoseOf(this.resolution);
-      const quest = this.view.quest;
       return resultsReadingOf(
         summary,
         (this.model?.players ?? []).filter((p) => p.participates).map((p) => p.color),
         this.view.parties.map((party) => ({party: party.party, support: party.support})),
-        {
-          ...(quest === undefined ? {} : {quest: {text: quest.text, generation: quest.generation}}),
-          ...(this.view.chairman === undefined ? {} : {chairman: this.view.chairman}),
-          ...(quiet === undefined ? {} : {quiet: {kicker: quiet.kicker, kind: quiet.kind}}),
-        },
+        quiet === undefined ? {} : {quiet: {kicker: quiet.kicker, kind: quiet.kind}},
       );
+    },
+    /** The places one party's support row reserves — the plaques' own count, so the two read as one vocabulary. */
+    supportPlaces(): number {
+      return PARLIAMENT_MAX_POPULAR_SUPPORT;
     },
   },
   methods: {
-    partyNameKey(party: string): string {
-      return partyNameKey(party);
-    },
     cubePx(logical: number): number {
       return conLogicalPx(logical);
     },

@@ -7,19 +7,33 @@
  * THE RULE THAT SHAPES IT: the panel shows only what is NOWHERE ELSE on the
  * screen. The generation's number is in the band above it, the voting area is
  * the voting area, the enacted card stands in the government printing its own
- * effect — none of that is repeated here. Three sections, and nothing beside
- * them:
+ * effect, the party that rules by it is the plaque in the ruler's slot and the
+ * chairman's new quest is the block under them — none of that is repeated
+ * here. A LAW section once headed the panel and said those three ONE MORE
+ * TIME, poorer than the zone standing beside it (no quest progress, no reward,
+ * no chair); it is gone. TWO sections, and nothing beside them:
  *
- *  ① ЗАКОН — the enacted resolution, the party that rules by it and the
- *    chairman's new quest. One line with icons: the heading of the results.
- *  ② ВЫПЛАТЫ — a row per seat: what each of them actually got. This is the
+ *  ① ВЫПЛАТЫ — a row per seat: what each of them actually got. This is the
  *    panel's main content, because a seat saw its OWN reward as chips flying
  *    to its rail and has never been shown anybody else's. A skip names itself
  *    with its reason, exactly as on the reward beat — never a silent loss.
  *    In a solo game it collapses to the one row.
- *  ③ СТОЛ — what changed and is already out of sight: the new resolutions with
- *    their parties, the popular support per party after the deal, and who got
- *    a delegate back into the lobby.
+ *  ② СТОЛ — what changed and is already out of sight: the new resolutions with
+ *    their parties, the POPULAR SUPPORT STOCK per party after the deal, and
+ *    who got a delegate back into the lobby.
+ *
+ *    THE SUPPORT ROW IS A STOCK, never this deal's increment: the increment is
+ *    «+1» almost every time and is not worth a row, while the stock is exactly
+ *    what a player plans on (accumulated neutral delegates become instant votes
+ *    the moment a card of that party reaches the area) — and the row of party
+ *    plaques, the only other place that shows it, is hidden by this very panel
+ *    while it stands. The increment rides along as a MARK on the fresh places,
+ *    never as the row's quantity.
+ *
+ *    THE RULING PARTY IS NOT IN THAT ROW: a party that rules by an enacted card
+ *    holds exactly zero support by construction (the proof is in
+ *    `ConsolePartyPlaque.vue`, which hides the sockets on the ruler's own tile
+ *    for the same reason), and its place is read in the government's zone.
  *
  * Every fact is the SERVER's own record (`summary.outcomes` is the whole
  * phase's, not just the viewer's) — nothing is recomputed, and a skip's reason
@@ -31,16 +45,6 @@ import {ReduxParty, ResolutionId, ResolutionInstanceId} from '@/common/parliamen
 import {ParliamentEnactOutcomeModel, ParliamentPhaseSummaryModel} from '@/common/models/ParliamentModel';
 import {REWARD_ADDRESS, rewardAddressOf} from '@/common/parliament/rewardAddress';
 import {returningInstances} from './sittingBeats';
-
-/** ① THE LAW: what now stands, who rules by it, and the quest the chairman is set. */
-export type ResultsLaw = {
-  resolution: ResolutionId;
-  party: ReduxParty;
-  /** The chairman's quest for the generation that begins (absent in the final phase / without a quest). */
-  quest?: {text: string, generation: number};
-  /** The seat holding the chairmanship, when there is one. */
-  chairman?: Color;
-};
 
 /** ONE part of one seat's payout — an object and an amount, or a skip with its reason. */
 export type ResultsPayoutPart = {
@@ -67,15 +71,32 @@ export type ResultsPayout = {
   parts: ReadonlyArray<ResultsPayoutPart>;
 };
 
-/** ③ THE TABLE: what changed and has already left the eye. */
+/**
+ * ONE party's POPULAR SUPPORT as the row states it: the STOCK standing in its
+ * places after the deal, and how many of those places this sitting filled.
+ */
+export type ResultsSupport = {
+  party: ReduxParty;
+  /** The stock after the deal (0…`PARLIAMENT_MAX_POPULAR_SUPPORT`) — the row's quantity, in places. */
+  total: number;
+  /**
+   * How many of the filled places arrived in THIS sitting — the freshness mark,
+   * never the row's quantity. Clamped to `total` on purpose: support the deal
+   * moved straight onto a fresh card of that party is no longer a stock, so a
+   * gain that left marks nothing (and a gain the server capped at three was
+   * already counted honestly by `addPopularSupport`).
+   */
+  fresh: number;
+};
+
+/** ② THE TABLE: what changed and has already left the eye. */
 export type ResultsTable = {
   fresh: ReadonlyArray<{instance: ResolutionInstanceId, resolution: ResolutionId, party: ReduxParty, stays: boolean}>;
-  support: ReadonlyArray<{party: ReduxParty, total: number}>;
+  support: ReadonlyArray<ResultsSupport>;
   lobby: ReadonlyArray<Color>;
 };
 
 export type ResultsReading = {
-  law: ResultsLaw;
   payouts: ReadonlyArray<ResultsPayout>;
   /** NOBODY was paid: the resolution is a passive / an action, and the kicker says which. */
   quiet?: {kicker: string, kind: 'passive' | 'action'};
@@ -131,15 +152,18 @@ export function resultsPayoutPart(outcome: ParliamentEnactOutcomeModel, index: n
 
 /**
  * THE READING. `seats` is the order the panel prints (the parliament model's own
- * seat order — the one key the seats zone above already shows); `quiet` is the
- * pose of a resolution that pays nobody, and it replaces the rows rather than
- * printing an empty one per seat.
+ * seat order — the one key the seats zone above already shows); `support` is the
+ * LIVE stock per party, read AFTER the deal (the deal turns a party's whole
+ * stock into votes on its fresh card, so the summary's own `total` — written one
+ * step earlier — is not what stands on the table); `quiet` is the pose of a
+ * resolution that pays nobody, and it replaces the rows rather than printing an
+ * empty one per seat.
  */
 export function resultsReadingOf(
   summary: ParliamentPhaseSummaryModel,
   seats: ReadonlyArray<Color>,
   support: ReadonlyArray<{party: ReduxParty, support: number}>,
-  extras: {quest?: {text: string, generation: number}, chairman?: Color, quiet?: {kicker: string, kind: 'passive' | 'action'}} = {},
+  extras: {quiet?: {kicker: string, kind: 'passive' | 'action'}} = {},
 ): ResultsReading {
   const byPlayer = new Map<Color, Array<ResultsPayoutPart>>();
   for (const seat of seats) {
@@ -153,19 +177,25 @@ export function resultsReadingOf(
   });
   const payouts = seats.map((player) => ({player, parts: byPlayer.get(player) ?? []}));
   const staying = returningInstances(summary);
+  // What the SUPPORT STEP granted, per party — the freshness mark of the row below. Summed, never
+  // assigned: one party gets at most one record today, and a reading may not depend on that.
+  const gained = new Map<ReduxParty, number>();
+  for (const entry of summary.support) {
+    gained.set(entry.party, (gained.get(entry.party) ?? 0) + entry.gained);
+  }
   const reading: ResultsReading = {
-    law: {
-      resolution: summary.enacted.resolution,
-      party: summary.enacted.party,
-      ...(extras.quest === undefined ? {} : {quest: extras.quest}),
-      ...(extras.chairman === undefined ? {} : {chairman: extras.chairman}),
-    },
     payouts,
     table: {
       fresh: summary.refreshed.map((f) => ({
         instance: f.instance, resolution: f.resolution, party: f.party, stays: staying.has(f.instance),
       })),
-      support: support.map((entry) => ({party: entry.party, total: entry.support})),
+      // The party that rules by the enacted card is left out: its stock is zero by construction and its
+      // plaque stands in the government's zone, two hand-spans away from this row.
+      support: support.filter((entry) => entry.party !== summary.enacted.party).map((entry) => ({
+        party: entry.party,
+        total: entry.support,
+        fresh: Math.max(0, Math.min(entry.support, gained.get(entry.party) ?? 0)),
+      })),
       lobby: summary.lobbyRefilled,
     },
   };

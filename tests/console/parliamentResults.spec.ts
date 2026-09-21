@@ -7,9 +7,10 @@ import {ReduxParty} from '@/common/parliament/ParliamentTypes';
 import {resultsReadingOf} from '@/client/console/parliament/parliamentResultsModel';
 
 /*
- * ПАНЕЛЬ ИТОГОВ («Заседание v5» §4) — three sections and nothing beside them, because the panel shows
- * only what is NOWHERE ELSE on the screen. Its main content is the PAYOUTS: a seat watched its own
- * chips fly to its own rail and has never been shown anybody else's.
+ * ПАНЕЛЬ ИТОГОВ («Заседание v5» §4, «Итоги: честность») — TWO sections and nothing beside them, because
+ * the panel shows only what is NOWHERE ELSE on the screen. Its main content is the PAYOUTS: a seat watched
+ * its own chips fly to its own rail and has never been shown anybody else's. The LAW line that once headed
+ * it repeated the government's zone word for word and is gone — the reading carries no `law` at all.
  */
 const AQUIFER = 'RDX_GREENS_AQUIFER_CONTEST';
 const ARCHITECTURE = 'RDX_MARS_ARCHITECTURE_AWARD';
@@ -32,18 +33,21 @@ function summary(over: Partial<ParliamentPhaseSummaryModel> = {}): ParliamentPha
 const outcome = (over: Partial<ParliamentEnactOutcomeModel>): ParliamentEnactOutcomeModel =>
   ({player: BLUE, step: 'effect', kind: 'stock', amount: 2, stock: Resource.PLANTS, ...over}) as ParliamentEnactOutcomeModel;
 
+/** The LIVE stock per party, as the view reads it AFTER the deal (the Greens rule here — see `summary`). */
 const SUPPORT: ReadonlyArray<{party: ReduxParty, support: number}> = [{party: PartyName.GREENS, support: 2}, {party: PartyName.MARS, support: 0}];
 
-describe('parliamentResultsModel — the sitting\'s last reading, in three sections', () => {
-  it('① ЗАКОН carries the enacted resolution, its party and the chairman\'s new quest', () => {
-    const reading = resultsReadingOf(summary(), [BLUE], SUPPORT, {quest: {text: 'Play 2 building tags', generation: 5}, chairman: RED});
-    expect(reading.law.resolution).eq(AQUIFER);
-    expect(reading.law.party).eq(PartyName.GREENS);
-    expect(reading.law.quest?.generation).eq(5);
-    expect(reading.law.chairman).eq(RED);
+const supportRecord = (party: ReduxParty, gained: number, total: number): ParliamentPhaseSummaryModel['support'][number] =>
+  ({party, gained, total, reason: 'absent'});
+
+describe('parliamentResultsModel — the sitting\'s last reading, in two sections', () => {
+  it('carries NO LAW: the enacted resolution, the ruling party and the chairman\'s quest stand in the government\'s zone', () => {
+    const reading = resultsReadingOf(summary(), [BLUE], SUPPORT);
+    expect(Object.keys(reading).sort(), 'the reading is the payouts and the table (plus the quiet pose)')
+      .deep.eq(['payouts', 'table']);
+    expect((reading as Record<string, unknown>).law, 'nothing of the law survives the reading').eq(undefined);
   });
 
-  it('② ВЫПЛАТЫ lists EVERY seat, in the seat order it is given — a seat the law paid nothing keeps its row', () => {
+  it('① ВЫПЛАТЫ lists EVERY seat, in the seat order it is given — a seat the law paid nothing keeps its row', () => {
     const reading = resultsReadingOf(
       summary({outcomes: [outcome({}), outcome({player: RED, kind: 'production', amount: 1, production: Resource.HEAT, stock: undefined})]}),
       [BLUE, RED], SUPPORT);
@@ -77,7 +81,7 @@ describe('parliamentResultsModel — the sitting\'s last reading, in three secti
     expect(paid.quiet, 'one paid seat and the rows are the reading').eq(undefined);
   });
 
-  it('③ СТОЛ carries the new resolutions with their parties, the support after the deal, and the lobby', () => {
+  it('② СТОЛ carries the new resolutions with their parties, the support after the deal, and the lobby', () => {
     const reading = resultsReadingOf(summary({
       refreshed: [{instance: `${ARCHITECTURE}#1`, resolution: ARCHITECTURE, party: PartyName.MARS, neutralVotes: 0}],
       discarded: [{instance: `${ARCHITECTURE}#1`, resolution: ARCHITECTURE, party: PartyName.MARS}],
@@ -85,8 +89,47 @@ describe('parliamentResultsModel — the sitting\'s last reading, in three secti
     }), [BLUE], SUPPORT);
     expect(reading.table.fresh.map((f) => `${f.resolution}:${f.stays}`), 'a card dealt straight back never left the table')
       .deep.eq([`${ARCHITECTURE}:true`]);
-    expect(reading.table.support.map((s) => `${s.party}:${s.total}`)).deep.eq([`${PartyName.GREENS}:2`, `${PartyName.MARS}:0`]);
     expect(reading.table.lobby).deep.eq([BLUE, RED]);
+  });
+
+  describe('НАРОДНАЯ ПОДДЕРЖКА — a STOCK in places, never this deal\'s increment', () => {
+    it('the quantity is the LIVE stock after the deal, not the total the support step wrote', () => {
+      // The server granted the Mars party a delegate; the deal then dealt it a card and moved its whole
+      // stock onto it as votes. What stands on the table is ZERO, and that is what the row says.
+      const reading = resultsReadingOf(
+        summary({support: [supportRecord(PartyName.MARS, 1, 3)]}),
+        [BLUE],
+        [{party: PartyName.MARS, support: 0}, {party: PartyName.REDS, support: 2}]);
+      expect(reading.table.support.map((s) => `${s.party}:${s.total}`)).deep.eq([`${PartyName.MARS}:0`, `${PartyName.REDS}:2`]);
+    });
+
+    it('this sitting\'s arrivals are MARKED, and the mark is never bigger than the stock it marks', () => {
+      const reading = resultsReadingOf(
+        summary({support: [supportRecord(PartyName.MARS, 2, 3), supportRecord(PartyName.REDS, 1, 1)]}),
+        [BLUE],
+        // Mars kept its three; the Reds' single delegate left with the card the deal gave them.
+        [{party: PartyName.MARS, support: 3}, {party: PartyName.REDS, support: 0}, {party: PartyName.SCIENTISTS, support: 1}]);
+      expect(reading.table.support.map((s) => `${s.party}:${s.total}/${s.fresh}`)).deep.eq([
+        `${PartyName.MARS}:3/2`,
+        `${PartyName.REDS}:0/0`,
+        `${PartyName.SCIENTISTS}:1/0`,
+      ]);
+    });
+
+    it('a gain the server CAPPED at three marks only what actually landed (`gained` is the server\'s own count)', () => {
+      const reading = resultsReadingOf(
+        summary({support: [supportRecord(PartyName.MARS, 0, 3)]}),
+        [BLUE], [{party: PartyName.MARS, support: 3}]);
+      expect(reading.table.support[0], 'the full party gained nothing, so nothing is fresh').deep.eq({party: PartyName.MARS, total: 3, fresh: 0});
+    });
+
+    it('THE RULING PARTY IS NOT IN THE ROW — its stock is zero by construction and its plaque is in the government', () => {
+      const reading = resultsReadingOf(
+        summary({support: [supportRecord(PartyName.MARS, 1, 1)]}),
+        [BLUE],
+        [{party: PartyName.GREENS, support: 0}, {party: PartyName.MARS, support: 1}]);
+      expect(reading.table.support.map((s) => s.party), 'the Greens enacted the law and rule by it').deep.eq([PartyName.MARS]);
+    });
   });
 
   it('the RULING PARTY\'s own answer keeps its party — the emblem stands beside the amount', () => {
