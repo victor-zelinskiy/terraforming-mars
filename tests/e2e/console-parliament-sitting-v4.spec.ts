@@ -45,7 +45,7 @@ type V4Sample = {
   reading: boolean, unfolding: boolean, readingRect: Rect | undefined, readingInk: number,
   tiles: Array<TileSample>, rulerSlotParty: string,
   flights: Array<FlightSample>,
-  support: Record<string, number>, landed: number,
+  support: Record<string, number>, landed: number, winCube: boolean, winCubeSlot: string,
   sockets: Record<string, Rect>, supply: Rect | undefined,
   cards: Record<string, Rect>, ribbons: Record<string, Rect>,
   govCard: Rect | undefined, ruling: Rect | undefined, quest: Rect | undefined, gov: Rect | undefined, govHead: Rect | undefined, govZoom: string,
@@ -186,6 +186,12 @@ async function armV4Probe(page: Page): Promise<void> {
           };
         }),
         support, landed: root.querySelectorAll('.con-pseal__support-place--landed').length,
+        // §2.1: the verdict is read ON THE OBJECTS — the seat that carried the resolution is a cube in the
+        // winning card's own chip, not a line in a panel over the table. The SLOT is sampled with it: the mark
+        // must stand on the card the server enacted, and the live «принимается» badge is off once the vote is
+        // decided (P-17), so «some chip somewhere» would prove nothing.
+        winCube: root.querySelector('[data-parl-slot-verdict] .con-parl__slot-win-cube') !== null,
+        winCubeSlot: root.querySelector('[data-parl-slot-verdict]')?.closest('.con-parl__slot')?.getAttribute('data-instance') ?? '',
         sockets, supply: rect(root.querySelector('[data-parl-neutral-cube]')),
         cards, ribbons,
         govCard: rect(root.querySelector('.con-parl__gov-card')),
@@ -313,7 +319,7 @@ test.describe('«Заседание v4» — СТОЛ и ЧТЕНИЕ (standard-
 
   test('Г-П1 · СТОЛ: все шесть плиток видны и не перекрыты в каждом кадре Повестки, Поддержки и Принятия', async ({page, request}) => {
     test.setTimeout(300_000);
-    const {seats} = await openSitting(page, request, 'parliament-architecture-assembly', '&consoleProfile=auto');
+    const {playerId, seats} = await openSitting(page, request, 'parliament-architecture-assembly', '&consoleProfile=auto');
     await armV4Probe(page);
     await shoot(page, '01-verdict-table');
     await runWalk(page, request, seats[1]);
@@ -331,7 +337,15 @@ test.describe('«Заседание v4» — СТОЛ и ЧТЕНИЕ (standard-
     const bad = tileFailures(frames);
     expect(bad.length, `every tile is visible in every physical frame (${bad.length} failures; first: ${bad[0] ?? '—'})`).toBe(0);
 
-    // ③ THE BUDGETS (§3): each beat's own window, measured from the published beat (the sampler's own clock).
+    // ③ THE VERDICT READS ON THE OBJECTS: the winning card carries the winner's own cube (§2.1) — with no
+    //    panel on the tier, that chip IS the verdict's reading of «кто выиграл голосование».
+    const verdictFrames = s.filter((x) => x.stage === 'verdict');
+    expect(verdictFrames.length, 'the verdict was sampled').toBeGreaterThan(0);
+    const enacted = (await parliamentWire(request, playerId)).game.parliament?.phase?.summary?.winner.instance;
+    expect(verdictFrames.some((x) => x.winCube), 'the winning card carries the cube of the seat that won').toBe(true);
+    expect(verdictFrames.some((x) => x.winCubeSlot === enacted), `the mark stands on the card the server enacted (${enacted})`).toBe(true);
+
+    // ④ THE BUDGETS (§3): each beat's own window, measured from the published beat (the sampler's own clock).
     const {span, gaps} = beatWindows(s);
     const ms = (k: string): number => {
       const sp = span.get(k);
@@ -514,6 +528,9 @@ test.describe('«Заседание v4» — СТОЛ и ЧТЕНИЕ (standard-
     console.log(`[v4] table → reading: ${took}ms over ${rising} partial frames`);
     expect(rising, `the panel faded in over several frames — a v-if swap is a blink (ink ${inkWindow.slice(0, 10).map((x) => x.readingInk.toFixed(2)).join(' ')})`).toBeGreaterThanOrEqual(2);
     expect(took, 'the handoff is inside the 0.3–0.4 s budget (with the sampler\'s slack)').toBeLessThan(700);
+    // …and it is the UNFOLD that brought it: the section publishes the episode, so «it faded in» and «the
+    // director ran» are two facts, not one guess.
+    expect(inkWindow.slice(0, Math.max(1, settledAt)).some((x) => x.unfolding), 'the panel arrived by its own unfold').toBe(true);
 
     // ④ …AND THE ROW RECEDED rather than being cut: it is still in the DOM, parked, with its ink gone.
     const parked = s[s.length - 1];

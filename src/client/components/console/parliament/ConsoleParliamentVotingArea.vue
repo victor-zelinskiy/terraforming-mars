@@ -46,7 +46,20 @@
               <img class="con-parl__slot-emblem" :src="emblemUrl(slot.party)" alt="" />
               <span class="con-parl__slot-party">{{ $t(partyNameKey(slot.party)) }}</span>
               <!-- ONE form per profile (P-12): the word on the 1080/TV label row, the winner glyph with its hint on the Deck — never two forms of one fact on one screen. -->
-              <span v-if="winningShownOf(slot)" class="con-parl__slot-win" :class="{'con-parl__slot-win--glyph': glyphBadge}" :data-hint="glyphBadge ? $t('Winning') : undefined"><span class="con-parl__slot-win-text">{{ $t('Winning') }}</span><PlayerCube v-if="sittingWinnerColor !== undefined && winningShownOf(slot)" class="con-parl__slot-win-cube" :color="sittingWinnerColor" :size="cubePx(11)" :glow="false" /></span>
+              <span v-if="winningShownOf(slot)" class="con-parl__slot-win" :class="{'con-parl__slot-win--glyph': glyphBadge}" :data-hint="glyphBadge ? $t('Winning') : undefined"><span class="con-parl__slot-win-text">{{ $t('Winning') }}</span></span>
+              <!-- THE VERDICT'S OWN MARK (v4 §2.1). The live «принимается» badge is deliberately OFF once the vote
+                   is decided (P-17: the server has already re-ranked the table for the NEXT vote, so the live
+                   badge would name a card the verdict does not), and in table mode there is no panel to read the
+                   verdict from — so the sitting brings its own mark, sourced from the SUMMARY: the card that won,
+                   and the seat that carried it, as a cube in the chip. It stands only while the verdict is the
+                   subject; past the enactment the table is refreshed and this chip would be two facts at once. -->
+              <span v-else-if="sittingWinnerInstance === slot.instance" class="con-parl__slot-win con-parl__slot-win--verdict"
+                    :class="{'con-parl__slot-win--glyph': glyphBadge}" :data-hint="glyphBadge ? $t('Winning') : undefined" data-parl-slot-verdict>
+                <span class="con-parl__slot-win-text">{{ $t('Winning') }}</span>
+                <PlayerCube v-if="sittingWinnerColor !== undefined" class="con-parl__slot-win-cube"
+                            :color="sittingWinnerColor === 'neutral' ? 'neutral' : sittingWinnerColor"
+                            :steel="sittingWinnerColor === 'neutral'" :size="cubePx(11)" :glow="false" />
+              </span>
             </div>
             <div class="con-parl__card"
                  :class="{'con-parl__card--dealing': holds.freshFaces.has(slot.instance) || holds.liftedFaces.has(slot.instance)}"
@@ -196,8 +209,19 @@ export default defineComponent({
      * enacted carries its badge and, beside it, the winning player's own cube. The verdict is read on the
      * objects — there is no panel over the row to read it from.
      */
-    sittingWinnerColor(): Color | undefined {
-      return this.sittingStage === '' ? undefined : this.model?.phase?.summary?.winner.player;
+    /**
+     * THE SEAT THAT CARRIED THE RESOLUTION, as a cube in the winning card's own chip — the verdict read on the
+     * OBJECT (v4 §2.1), because in table mode there is no panel to read it from. Only while the verdict IS the
+     * subject: past the enactment the table has been refreshed and its «ПРИНИМАЕТСЯ» chip belongs to the NEXT
+     * vote, so a cube from the summary of the vote just closed would be two facts under one mark.
+     */
+    sittingWinnerColor(): Color | 'neutral' | undefined {
+      return this.sittingWinnerInstance === undefined ? undefined : this.model?.phase?.summary?.winner.player;
+    },
+    /** …and the card it belongs to: the instance the SUMMARY enacted, never the table's live re-ranking. */
+    sittingWinnerInstance(): string | undefined {
+      return this.sittingStage === 'verdict' || this.sittingStage === 'enact' ?
+        this.model?.phase?.summary?.winner.instance : undefined;
     },
     /**
      * ONE form per profile (P-12): the word on the 1080 label row (every party name fits beside it — the

@@ -1,4 +1,13 @@
-# The Parliament sitting — the console contract (after «Заседание v2», 2026-09-21)
+# The Parliament sitting — the console contract (after «Заседание v4», 2026-09-21)
+
+> **v4 — СТОЛ и ЧТЕНИЕ, split IN TIME.** The middle tier is either the TABLE (the verdict, the Agenda, the
+> support, the enactment and the physical part of the results — no panel at all, everything read on objects) or
+> a READING panel (the reward, the results card), and the panel takes the row's place once, by an explicit
+> motion. It is SHOWN, not mounted (`v-show`) — three teleports point into it. Laws 14–16 in
+> `.claude/rules/console-ui.md`; the full write-up with the measurements is
+> `docs/TURMOIL_REDUX_PARLIAMENT_SITTING_V2.md` § «Заседание v4». Everything below still holds; where a stage
+> used to be described as «a pose of the always-mounted panel», read «a pose of the panel while it is shown».
+
 
 The political phase of Turmoil Redux is ONE workspace flow: `ПАРЛАМЕНТ › ЗАСЕДАНИЕ › ВЕРДИКТ | ПРИНЯТИЕ | НАГРАДА |
 ВЫБОР | ПОЛУЧЕНИЕ | РАЗМЕЩЕНИЕ | ИТОГИ` — two presses of A per generation since v2 (§ 7 below). The rules that carry

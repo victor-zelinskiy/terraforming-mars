@@ -557,8 +557,10 @@
     }
     /* THE WINNER OF THE VOTE STANDS AT THE CARD (v4 §2.1): the verdict is read on the objects, so the seat
        that carried this resolution is a cube IN the card's own gold chip — never a line in a panel over the
-       table. It joins the chip the card already has; the chip's box is unchanged (the cube rides its gap). */
+       table. The SITTING's chip is the same object as the vote's, one step brighter: it names a decision that
+       has been made, not one in progress. */
     &__slot-win-cube { flex-shrink: 0; }
+    &__slot-win--verdict { background: fade(@con-parl-gold, 24%); box-shadow: inset 0 0 0 .06rem fade(@con-parl-gold, 80%); }
     &__card {
         grid-area: card;
         zoom: var(--con-parl-card-zoom);
