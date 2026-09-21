@@ -68,6 +68,7 @@ import {runResourceTransfers} from '@/client/console/resourceTransfer/consoleRes
 import {ResourceTransferSpec, TransferPoint} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {AgendaMove, ParliamentViewVm} from './consoleParliamentModel';
 import {SittingStage} from './consoleSittingFlow';
+import {STAGE_UNFOLD_MS} from './consoleParliamentFlow';
 import {enactedCardEl} from './consoleResolutionPayout';
 import {SupportMark, SupportSource, supportSceneOf, SupportWaveEntry} from './supportScene';
 import {parliamentHolds, releaseEnactmentHolds, releaseRenewalHolds} from './parliamentDisplayHolds';
@@ -89,13 +90,17 @@ const VERDICT_PULSE_MS = 180;
 const VERDICT_BADGE_MS = 260;
 /** The pause between the enactment's beats — the next starts only once the previous has LANDED. */
 const BEAT_GAP_MS = 250;
-/** ПОВЕСТКА: the reached segment lights before the marker leaves; the glide's own length is the marker director's. */
-const AGENDA_SEGMENT_MS = 240;
+/**
+   * ПОВЕСТКА: the reached segment lights before the marker leaves; the glide's own length is the SHARED marker
+   * director's (charge → lift → glide → lock → pulse ≈ 1.07 s — the same phrase the hydro track's marker
+   * speaks, and a console-wide object language is not worth trimming for one beat's budget). So this lead is
+   * the only part of the beat that is ours: v4 cut it from 240 ms, which is what kept the beat near 1.2 s.
+   */
+const AGENDA_SEGMENT_MS = 150;
 const AGENDA_GLIDE_BUDGET_MS = 900;
-/** ПОДДЕРЖКА: cube by cube, party by party. */
+/** ПОДДЕРЖКА: cube by cube, party by party. The row is already standing (v4 — there is no tier to bring in). */
 const SUPPORT_CUBE_STAGGER_MS = 90;
-const SUPPORT_PARTY_GAP_MS = 180;
-const SUPPORT_TIER_IN_MS = 140;
+const SUPPORT_PARTY_GAP_MS = 150;
 /** ПРИНЯТИЕ. */
 const DISCARD_MS = 320;
 const RETURN_STAGGER_MS = 70;
@@ -128,7 +133,6 @@ export const sittingMotion = reactive({
   /** The beat of the stage that is playing ('' at rest / a one-beat stage). */
   beat: '' as '' | 'agenda' | 'support' | 'enact',
   /** The stage steps out of the way: the opposition tier is in full view (the support beat lands on its places). */
-  peek: false,
   /** The winning card's slot, lit for the verdict (its instance; '' = none). */
   litSlot: '' as string,
   /** The party whose plaque is ACCEPTING support right now ('' = none). */
@@ -136,6 +140,15 @@ export const sittingMotion = reactive({
   agendaSegment: undefined as AgendaMove | undefined,
   /** The results card has been REVEALED (the renewal's beats are over) — hidden until then while the stage plays. */
   resultsRevealed: false,
+  /**
+   * THE GOVERNMENT IS CHANGING HANDS RIGHT NOW (v4 §2.2). The two plaques travel between the government's
+   * slot and the opposition row, which are two TIERS: their path crosses the other tier's own objects, and
+   * the ruler block, the ruling row and the government plate all CLIP their content by design. So for the
+   * length of the swap the travelling tiles are the top-most things on the screen and nothing clips them
+   * (`.con-parl--swapping`) — without it the rising tile was cut to the slot it was flying INTO and the
+   * move read as the substitution the whole rework exists to remove.
+   */
+  swapping: false,
 });
 
 export type SittingDirectorContext = {
@@ -252,13 +265,16 @@ function beatVerdict(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: num
     sittingMotion.litSlot = ctx.summary.winner.instance;
   }, undefined, at);
   at += s(VERDICT_LIGHT_MS) * k;
-  const number = root.querySelector<HTMLElement>('.con-sit__panel--on [data-sit-row="delegates"] b');
+  // v4 §2.1: the verdict reads ON THE TABLE — the winning card's own delegate count, its badge and the
+  // winner's chip beside it. There is no panel over the row to pulse.
+  const winnerSlot = '.con-parl__slot[data-instance="' + ctx.summary.winner.instance + '"]';
+  const number = root.querySelector<HTMLElement>(winnerSlot + ' .con-parl__tally-num');
   if (number !== null) {
     tl.fromTo(number, {scale: 1}, {scale: 1.22, duration: s(VERDICT_PULSE_MS) * k * 0.5, ease: 'power2.out', transformOrigin: '50% 50%'}, at);
     tl.to(number, {scale: 1, duration: s(VERDICT_PULSE_MS) * k * 0.5, ease: 'power2.in', clearProps: 'transform,transformOrigin'}, at + s(VERDICT_PULSE_MS) * k * 0.5);
   }
   at += s(VERDICT_PULSE_MS) * k;
-  const rows = itemsOf(root, '.con-sit__panel--on [data-sit-row="winner"], .con-sit__panel--on [data-sit-row="tie"]');
+  const rows = itemsOf(root, winnerSlot + ' .con-parl__slot-win, ' + winnerSlot + ' [data-parl-leader]');
   if (rows.length > 0) {
     descendCascade(tl, rows, s(VERDICT_BADGE_MS) * k, s(120) * k, at);
   }
@@ -345,8 +361,8 @@ function beatAgenda(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: numb
 /** The support cubes of ONE party leave the neutral supply for the party's next free places, cube by cube. */
 /** The roll call's pace: one party named every step — a reading rhythm, left to right, no returns. */
 const ROLL_STEP_MS = 70;
-const ROLL_TAIL_MS = 120;
-const SUPPORT_SETTLE_MS = 200;
+const ROLL_TAIL_MS = 100;
+const SUPPORT_SETTLE_MS = 170;
 
 /** Where a support cube comes FROM, as a place on screen (v3 В3) — never the centre of the screen. */
 function supportSourceRect(root: HTMLElement, source: SupportSource, to: Rect | undefined): Rect | undefined {
@@ -467,11 +483,8 @@ function beatSupport(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: num
     tl.call(() => holds.supportIncoming.clear(), undefined, 0.01);
     return 0;
   }
+  // …and it opens AT ONCE: v3 waited for the stage panel to step out of the way; in v4 the table never left.
   let at = 0;
-  tl.call(() => {
-    sittingMotion.peek = true;
-  }, undefined, at);
-  at += s(SUPPORT_TIER_IN_MS) * k;
   for (const entry of scene.roll) {
     tl.call(() => {
       holds.rollStatus.set(entry.party, entry.status);
@@ -512,6 +525,11 @@ function partyRects(root: HTMLElement): Map<string, Rect> {
 /** The government CHANGES: the new ruler's tile rises into the government, the old one descends into the row, the row re-lays out — one FLIP each. */
 function flipPlaques(runState: StageRun, root: HTMLElement, before: Map<string, Rect>, k: number): void {
   const tl = gsap.timeline();
+  // THE POSE FIRST, the measurements after: it lifts the clips the two objects are about to cross.
+  sittingMotion.swapping = true;
+  const settlePose = () => {
+    sittingMotion.swapping = false;
+  };
   for (const el of itemsOf(root, '.con-parl__party[data-party]')) {
     const from = before.get(el.getAttribute('data-party') ?? '');
     if (from === undefined) {
@@ -527,10 +545,12 @@ function flipPlaques(runState: StageRun, root: HTMLElement, before: Map<string, 
   runState.kills.push(() => {
     tl.kill();
     gsap.set(itemsOf(root, '.con-parl__party[data-party]'), {clearProps: 'transform,transformOrigin'});
+    settlePose();
   });
   runState.pending++;
   tl.eventCallback('onComplete', () => {
     runState.pending = Math.max(0, runState.pending - 1);
+    settlePose();
   });
 }
 
@@ -957,22 +977,27 @@ function beatResults(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: num
     }, undefined, at);
     at += s(480 + (lobbyCount - 1) * LOBBY_STAGGER_MS) * k;
   }
-  // (5) The results card REVEALS in the same panel, row by row.
+  // (5) …and only once the LAST object has landed does the reading panel take the row's place (v4 §1): the
+  //     table's beats above all moved objects the player had to see, so the card that describes them may not
+  //     stand over the row while they fly. Flipping `resultsRevealed` is what puts the surface into READING
+  //     mode; the panel mounts and unfolds on the next tick, and the card's rows cascade inside it.
   tl.call(() => {
     sittingMotion.resultsRevealed = true;
-    const rows = itemsOf(root, '.con-sit__panel--on .con-sit__results > *');
-    if (rows.length === 0) {
-      return;
-    }
-    const reveal = gsap.timeline();
-    descendCascade(reveal, rows, s(CLOSING_MS) * k, 0, s(60) * k);
-    runState.kills.push(() => {
-      reveal.kill();
-      gsap.set(rows, {clearProps: 'transform,opacity,visibility'});
-    });
+    void nextTick().then(() => probeTick(() => {
+      const rows = itemsOf(root, '.con-sit__panel--on .con-sit__results > *');
+      if (rows.length === 0 || runState.finished) {
+        return;
+      }
+      const reveal = gsap.timeline();
+      descendCascade(reveal, rows, s(CLOSING_MS) * k, 0, 0);
+      runState.kills.push(() => {
+        reveal.kill();
+        gsap.set(rows, {clearProps: 'transform,opacity,visibility'});
+      });
+    }));
   }, undefined, at);
-  const rowCount = itemsOf(root, '.con-sit__panel--on .con-sit__results > *').length;
-  at += s(CLOSING_MS) * k + s(60) * k * Math.max(0, rowCount - 1);
+  // The panel's own unfold (0.3–0.4 s) plus the rows' cascade — the beat owns the whole reading handoff.
+  at += s(STAGE_UNFOLD_MS + CLOSING_MS) * k;
   return at;
 }
 
@@ -981,7 +1006,6 @@ function beatResults(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: num
 /** Force the poses a STAGE would end in — reduced motion, or the ceiling's honest recovery. */
 function settleStagePoses(stage: SittingStage): void {
   killParliamentFlights();
-  sittingMotion.peek = false;
   sittingMotion.agendaSegment = undefined;
   switch (stage) {
   case 'verdict':
@@ -1020,7 +1044,7 @@ function runBeat(stage: SittingStage, beat: '' | 'agenda' | 'support' | 'enact',
   sittingMotion.beat = beat;
   runState.hold = beginAnimationHold(sittingHoldLabel(stage, beat), {
     maxHoldMs: STAGE_HOLD_CEILING_MS,
-    diagnose: () => ({stage, beat, flights: Array.from(runState.flights).filter((id) => flightRegistered(id)), waves: runState.pending, peek: sittingMotion.peek, holds: {
+    diagnose: () => ({stage, beat, flights: Array.from(runState.flights).filter((id) => flightRegistered(id)), waves: runState.pending, holds: {
       returns: parliamentHolds.returns.size, incoming: parliamentHolds.supportIncoming.size, support: parliamentHolds.support.size,
       fresh: parliamentHolds.freshFaces.size, lobby: parliamentHolds.lobby.size, gov: parliamentHolds.govBefore !== undefined, ruler: parliamentHolds.rulerBefore,
     }}),
@@ -1105,7 +1129,6 @@ export async function playSittingStage(stage: SittingStage, beats: ReadonlyArray
       await gap(BEAT_GAP_MS);
       if (stagePlaying === stage) {
         await runBeat(stage, 'support', opts.compact, (tl, r) => beatSupport(tl, ctx, k, r));
-        sittingMotion.peek = false;
         await gap(BEAT_GAP_MS);
       }
       if (stagePlaying === stage) {
@@ -1146,7 +1169,6 @@ export function finishSittingMotion(): void {
   current.master.progress(1);
   // A flight launched by the master's last `call` (progress(1) fires it) is driven to rest too.
   finishParliamentFlights();
-  sittingMotion.peek = false;
 }
 
 /** Abort (unmount, a stage change mid-beat, the ceiling) — nothing stays posed. */
@@ -1157,7 +1179,6 @@ export function killSittingMotion(): void {
   hurry = false;
   sittingMotion.stage = '';
   sittingMotion.beat = '';
-  sittingMotion.peek = false;
   sittingMotion.agendaSegment = undefined;
   if (current === undefined) {
     return;

@@ -48,7 +48,7 @@
       <!-- THE RULER — the party's TILE lands here (teleported by the parties tier);
            under it the resolution's OWN standing effect (a second source, told apart). -->
       <div class="con-parl__ruler" :class="{'con-parl__ruler--focus': flow.zone === 'ruler' && flow.stage === 'browse'}" :data-zoom-slot="partyKeyOf(rulerShown)" data-parl-ruler>
-        <span class="con-parl__ruler-kicker">{{ $t('Ruling party') }} · <span class="con-parl__ruler-scope">{{ $t('Available to every player') }}</span></span>
+        <span class="con-parl__ruler-kicker">{{ $t('Ruling party') }}</span>
         <div class="con-parl__ruler-slot" data-parl-ruler-slot></div>
         <div v-if="enactedOwnMechanics !== undefined" class="con-parl__ruler-own" data-parl-enacted-effect>
           <span class="con-parl__ruler-own-kicker" :data-parl-enacted-part="enactedOwnPart"><i class="con-parl__card-mark resource_icon resource_icon--cards" aria-hidden="true"></i>{{ $t(enactedOwnPart === 'action' ? 'Resolution action' : 'Resolution effect') }}</span>
@@ -76,7 +76,14 @@
         <PremiumMechanicsPanel v-if="questMechanics !== undefined && !questMechanics.textOnly" class="con-parl__quest-graphic" :mechanics="questMechanics" />
         <span class="con-parl__quest-text">{{ $t(questShown.text) }}</span>
       </div>
-      <div v-if="questShown.completedBy === undefined && !questClosed" class="con-parl__quest-progress" data-parl-quest-progress>
+      <!-- THE RACE IS ALWAYS RENDERED (v4 §2.4). It used to be dropped the moment the quest closed, and the
+           government's whole geometry is solved against the room this block leaves: the sitting opens with the
+           quest already CLOSED (the announce plate's A mounts the section there), so the enacted face was fitted
+           against a block short by the race, and when the NEXT quest unfolded with its rows the card painted over
+           the quest's own head. Closed, the rows are the FINAL standings — dimmed by `--closed` / `--done`, the
+           same count of rows, the same height: the column stops moving under a solved zoom, and the outcome line
+           («никто не выполнил») gains the numbers that explain it. -->
+      <div v-if="questRows.length > 0" class="con-parl__quest-progress" data-parl-quest-progress>
         <span v-for="row in questRows" :key="row.color" class="con-parl__quest-row"
               :class="{'con-parl__quest-row--me': row.color === viewerColor, 'con-parl__quest-row--close': row.value > 0 && row.value >= questShown.definition.count - 1}">
           <PlayerCube :color="row.color" :size="cubePx(12)" />
@@ -84,13 +91,19 @@
         </span>
       </div>
       <div class="con-parl__quest-foot">
+        <!-- THE REWARD IS ALWAYS STATED (v4 §2.4/§2.6). It is what the quest PAYS — a property of the printed
+             condition, not of the race — so hiding it while the quest reads closed said less AND changed the
+             block's height by a whole foot line: the government's card zoom is solved against the room this
+             block leaves, and a foot that grows one line mid-walk overflowed the card by 51 px at 4K (the
+             geometry probe's own numbers). What §2.6 forbade was a SECOND sentence about the outcome («ИТОГ
+             Никто» beside «НИКТО НЕ ВЫПОЛНИЛ»), and that row is gone; the reward is a different fact. -->
         <span class="con-parl__quest-reward" data-parl-quest-reward>
-          <span class="con-parl__quest-reward-kicker">{{ $t(questShown.completedBy !== undefined ? 'Won by' : (questClosed ? 'Outcome' : 'Reward')) }}</span>
+          <span class="con-parl__quest-reward-kicker">{{ $t(questShown.completedBy !== undefined ? 'Won by' : 'Reward') }}</span>
           <template v-if="questShown.completedBy !== undefined">
             <PlayerCube :color="questShown.completedBy" :size="cubePx(12)" />
             <b>{{ nameOf(questShown.completedBy) }}</b>
           </template>
-          <b v-else-if="questClosed">{{ $t('Nobody') }}</b>
+
           <template v-else>
             <span class="con-parl__reward-seat" :class="{'con-parl__reward-seat--kept': viewerIsChairman}">
               <!-- The reward is the OFFICE, not the chair (glossary §4, R-05): «ПРЕДСЕДАТЕЛЬСТВО + ШАГ ПОВЕСТКИ». -->
@@ -221,6 +234,11 @@ export default defineComponent({
       if (awaiting && this.model?.phase?.summary?.discardedEnacted === undefined) {
         return 'Starting rule';
       }
+      // …and while the sitting is deciding, this block is the one that is LEAVING (v4 §2.3): it may not
+      // call itself the enacted resolution before the new card has taken its place.
+      if (parliamentFlow.stage === 'sitting' && !this.govArrived) {
+        return 'Outgoing government';
+      }
       return 'Enacted resolution';
     },
     viewerIsChairman(): boolean {
@@ -230,9 +248,19 @@ export default defineComponent({
     enactCarried(): boolean {
       return parliamentFlow.stage === 'sitting' && parliamentFlow.sittingField && this.enactedShown !== undefined;
     },
-    /** The SITTING lights the government: the verdict names the winner, the enactment names the law. */
+    /**
+     * THE NEW SET HAS ARRIVED (v4 §2.3): the gold seam is the mark of the government IN POWER. At the
+     * verdict the block is the OUTGOING one (nothing has moved yet) and during the enactment it is in
+     * transit — the seam lights only once the new card has landed AND the new tile stands in its slot.
+     * Gold may burn neither over what is leaving nor over what has not come.
+     */
+    govArrived(): boolean {
+      const h = this.holds;
+      return h.govBefore === undefined && h.rulerBefore === undefined && h.govAwaits === undefined && h.questBefore === undefined;
+    },
+    /** The SITTING lights the government — once its new set is in place, and for the rest of the sitting. */
     sittingLit(): boolean {
-      return parliamentFlow.stage === 'sitting' && (this.sittingStage === 'verdict' || this.sittingStage === 'enact');
+      return parliamentFlow.stage === 'sitting' && this.sittingStage !== 'verdict' && this.govArrived;
     },
     enactedVm(): PremiumCardVM | undefined {
       const shown = this.enactedShown;

@@ -32,6 +32,7 @@
                               :viewerColor="viewerColor"
                               :formula="true"
                               :focused="focusedIndex === i"
+                              :ruling="p.party === rulerShown"
                               :roll="rollWord(p.party)"
                               :reason="focusedIndex === i ? partyLine : ''"
                               :reasonTone="partyLineTone" />

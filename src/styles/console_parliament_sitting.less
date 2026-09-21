@@ -327,11 +327,13 @@ html.con-profile-tv .con-sit {
 
 /* ══ THE DIRECTOR'S POSES (Э4) ══ */
 .con-parl {
-    /* The parties tier PEEKS through the stage for the support beat: the
-       cubes land on the plaques' real places. Opacity only — a pose. */
-    /* v2: the stage steps OUT OF THE WAY for the support beat — the whole opposition tier in view, never a peek at 8 %. */
-    &__stage--peek { opacity: 0; pointer-events: none; }
-    &__stage { transition: opacity calc(180ms * var(--motion-scale, 1)) @con-ease-standard; }
+    /* v4: the stage's opacity POSE and its transition are GONE with the peek they served. Two reasons, and the
+       second one is a bug the geometry probe caught: a panel that hides itself so objects behind it can be seen
+       is the admission that it should not have been mounted for that stage at all (СТОЛ и ЧТЕНИЕ split in TIME
+       instead) — AND a CSS transition on `opacity` FIGHTS the unfold that animates the same property from JS.
+       GSAP wrote 0.4 and the browser spent 180 ms crawling toward it from 1 while the tween was already on its
+       way back up, so the measured curve never left 0.91–1.00: the panel simply APPEARED. Never leave a CSS
+       transition on a property a director tweens. */
     /* The winning card, lit for the verdict (the parked proxy, or the government's card). */
     &__gov-card--lit .pcard { box-shadow: inset 0 0 0 .12rem @con-parl-gold, 0 0 1.4rem rgba(230, 195, 74, 0.5); }
 }

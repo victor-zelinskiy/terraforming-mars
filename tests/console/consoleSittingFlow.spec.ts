@@ -6,7 +6,7 @@ import {PlayerInputModel} from '../../src/common/models/PlayerInputModel';
 import {PlayerViewModel} from '../../src/common/models/PlayerModel';
 import {
   parliamentSittingFlowBeat, parliamentSittingLive, quietRewardPoseOf, SITTING_SUBJECT_KEY, sittingAskOf, sittingAtLastPage, sittingPageAuto,
-  sittingPagesOf, sittingPositionOf, sittingPrimaryKey, sittingRewardSettled, sittingStageAt, sittingStageKey, sittingStartPage,
+  sittingPagesOf, sittingPositionOf, sittingSurfaceMode, sittingPrimaryKey, sittingRewardSettled, sittingStageAt, sittingStageKey, sittingStartPage,
   sittingWorkspacePhase, verdictStandsAt,
 } from '../../src/client/console/parliament/consoleSittingFlow';
 import {backVerbFor} from '../../src/client/console/consoleWorkspaceFlow';
@@ -262,4 +262,16 @@ describe('the quiet reward (final polish D) — a passive / an action resolution
       expect(quietRewardPoseOf(d) !== undefined, d.id + ' has a quiet pose').to.eq(withSeam);
     }
   });
-});
+
+  describe('СТОЛ и ЧТЕНИЕ (v4) — the middle zone is one of two modes, separated in time', () => {
+    it('the verdict, the enactment and the results\' PHYSICAL part are the TABLE: no panel may stand over the row', () => {
+      expect(sittingSurfaceMode('verdict', false)).eq('table');
+      expect(sittingSurfaceMode('enact', false)).eq('table');
+      expect(sittingSurfaceMode('results', true), 'the renewal\'s beats play over the table').eq('table');
+    });
+    it('the reward and the results CARD are the READING panel — the row takes no part in those beats', () => {
+      expect(sittingSurfaceMode('reward', false)).eq('reading');
+      expect(sittingSurfaceMode('reward', true), 'the reward is reading whatever the results flag says').eq('reading');
+      expect(sittingSurfaceMode('results', false), 'the card is revealed: the panel may take the row\'s place').eq('reading');
+    });
+  });});

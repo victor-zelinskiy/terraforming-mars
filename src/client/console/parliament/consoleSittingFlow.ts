@@ -244,6 +244,42 @@ export function sittingStageAt(position: SittingPosition, page: number): Sitting
   return pages[index];
 }
 
+/**
+ * СТОЛ И ЧТЕНИЕ («Заседание v4») — the sitting's middle zone is a TABLE or a READING panel, and the two are
+ * separated IN TIME, never in space.
+ *
+ * **СТОЛ.** The verdict, the Agenda, the support and the enactment — plus the whole PHYSICAL part of the
+ * results (the losers leaving, the deal, the lobby). The government, the voting area, the WHOLE row of
+ * parties and the Agenda are on screen; there is no text panel at all, because every one of those beats
+ * moves an object the player must see. The verdict reads ON the objects: the badge on the card being
+ * enacted, its delegate count, the winner's chip beside it, the roll call's word in each tile's own
+ * reserved row, the chairmanship's outcome in the government.
+ *
+ * **ЧТЕНИЕ.** The reward with its steps, and the final results card. Nothing of the row takes part in those
+ * beats, so the panel may take its place — once, by an explicit motion (the row recedes, the panel unfolds
+ * where it stood).
+ *
+ * The law that follows: a reading panel may never cover an object something is flying to or from. That is
+ * why the results' physical part is table and only the card that follows it is reading.
+ */
+export type SittingSurfaceMode = 'table' | 'reading';
+
+/**
+ * `resultsHidden` is the director's own fact: the results card waits while the renewal's beats play over
+ * the table (and a reload that never played them lands with it already shown).
+ */
+export function sittingSurfaceMode(stage: SittingStage, resultsHidden: boolean): SittingSurfaceMode {
+  switch (stage) {
+  case 'verdict':
+  case 'enact':
+    return 'table';
+  case 'reward':
+    return 'reading';
+  case 'results':
+    return resultsHidden ? 'table' : 'reading';
+  }
+}
+
 /** Is the local cursor on the step's LAST page (the page whose A answers the gate, or has nothing left to turn)? */
 export function sittingAtLastPage(position: SittingPosition, page: number): boolean {
   return page >= position.pages.length - 1;

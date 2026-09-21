@@ -46,7 +46,7 @@
               <img class="con-parl__slot-emblem" :src="emblemUrl(slot.party)" alt="" />
               <span class="con-parl__slot-party">{{ $t(partyNameKey(slot.party)) }}</span>
               <!-- ONE form per profile (P-12): the word on the 1080/TV label row, the winner glyph with its hint on the Deck — never two forms of one fact on one screen. -->
-              <span v-if="winningShownOf(slot)" class="con-parl__slot-win" :class="{'con-parl__slot-win--glyph': glyphBadge}" :data-hint="glyphBadge ? $t('Winning') : undefined"><span class="con-parl__slot-win-text">{{ $t('Winning') }}</span></span>
+              <span v-if="winningShownOf(slot)" class="con-parl__slot-win" :class="{'con-parl__slot-win--glyph': glyphBadge}" :data-hint="glyphBadge ? $t('Winning') : undefined"><span class="con-parl__slot-win-text">{{ $t('Winning') }}</span><PlayerCube v-if="sittingWinnerColor !== undefined && winningShownOf(slot)" class="con-parl__slot-win-cube" :color="sittingWinnerColor" :size="cubePx(11)" :glow="false" /></span>
             </div>
             <div class="con-parl__card"
                  :class="{'con-parl__card--dealing': holds.freshFaces.has(slot.instance) || holds.liftedFaces.has(slot.instance)}"
@@ -191,6 +191,14 @@ export default defineComponent({
     return {DENSE_RIBBON, PARTY_EFFECT_THRESHOLD, RIBBON_CUBE};
   },
   computed: {
+    /**
+     * THE WINNER OF THE VOTE, as a chip AT THE CARD (v4 §2.1): while the sitting stands, the card being
+     * enacted carries its badge and, beside it, the winning player's own cube. The verdict is read on the
+     * objects — there is no panel over the row to read it from.
+     */
+    sittingWinnerColor(): Color | undefined {
+      return this.sittingStage === '' ? undefined : this.model?.phase?.summary?.winner.player;
+    },
     /**
      * ONE form per profile (P-12): the word on the 1080 label row (every party name fits beside it — the
      * vote-fit clip probe), the winner glyph with its hint on the Deck AND the couch (measured on the TV:

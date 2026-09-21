@@ -1,5 +1,6 @@
 import {consoleLayoutState, conUiScale} from '@/client/console/consoleLayoutProfile';
 import {parliamentFlow, parliamentRootEl, parliamentSlotsCarried} from './consoleParliamentFlow';
+import {sittingMotion} from './sittingDirector';
 
 /*
  * THE CARD FIT. The premium face is px-designed (`--pcard-w/h`) and integrates
@@ -30,6 +31,30 @@ export const ENACT_HERO_SHARE = 0.3;
  */
 export const MAX_VOTE_ZOOM = 1.12;
 export const MIN_VOTE_ZOOM = 0.35;
+
+/**
+ * THE QUEST'S ROOM IS A HIGH-WATER MARK (v4 §2.4). The enacted face's zoom is solved from what the chairman
+ * quest LEAVES, and that block legitimately changes height mid-sitting: a new generation's condition is a
+ * different sentence, and its foot says «НАГРАДА …» where the closed one said nothing. Solved against the
+ * SHORTER of the two, the card then overflowed its block by 51 px at 4K the moment the taller quest unfolded
+ * (measured by `console-parliament-sitting-v4` § Г-П4) — and a re-solve at that instant is worse than the
+ * overflow: the government's own card would change size while the set is still landing.
+ *
+ * So the budget only ever SHRINKS the card, never grows it back: the reserve is the tallest quest this layout
+ * has shown. The mark belongs to ONE layout — a profile change / resize moves `innerH`, and there the mark is
+ * re-taken from scratch (an old 4K reserve would starve the Deck's card). The card is at most a few per cent
+ * smaller than it could be, which nobody can see; a clipped card is what everybody sees.
+ */
+let questReserve = {innerH: 0, questH: 0};
+
+function questReserveFor(innerH: number, questH: number): number {
+  if (Math.abs(questReserve.innerH - innerH) > 1) {
+    questReserve = {innerH, questH};
+    return questH;
+  }
+  questReserve.questH = Math.max(questReserve.questH, questH);
+  return questReserve.questH;
+}
 
 /**
  * THE FIT IS FROZEN from a vote's submit until the flow leaves (v2, «Заседание v2» § Б5): a re-fit under the
@@ -129,14 +154,27 @@ export function fitParliamentCards(): void {
   // freed a line, the re-solve widened the enacted card by 36 px and pushed the ruler's tile sideways in the very
   // beat that FLIPs it (measured by `console-parliament-stability`). The zoom solved when the sitting opens stands
   // until the surface leaves; the browse layer re-solves on its next mount.
-  const govFrozen = parliamentFlow.stage === 'sitting' && root.style.getPropertyValue('--con-parl-gov-zoom') !== '';
+  // …and the freeze is scoped to the BEAT that moves the set (v4 §2.4): freezing it for the whole sitting
+  // let the card keep a zoom solved against a taller quest, so the face overflowed its block and painted over
+  // the quest's own head. The enactment's beat is the only window where a re-solve could jump the scene.
+  const govFrozen = sittingMotion.stage === 'enact' && root.style.getPropertyValue('--con-parl-gov-zoom') !== '';
   if (!govFrozen) {
     let govZoom = MAX_GOV_ZOOM * scale;
     if (gov !== null && ruling !== null) {
       const gcs = getComputedStyle(gov);
       const innerH = gov.clientHeight - px(gcs.paddingTop) - px(gcs.paddingBottom);
       const blocks = Array.from(gov.children).filter((child) => child !== ruling);
-      const taken = blocks.reduce((sum, child) => sum + child.getBoundingClientRect().height, 0) + px(gcs.rowGap) * blocks.length;
+      const quest = gov.querySelector<HTMLElement>('[data-parl-quest]');
+      const others = blocks.filter((child) => child !== quest)
+        .reduce((sum, child) => sum + child.getBoundingClientRect().height, 0);
+      // …and the SAME reserve is published as the quest's own floor, so the column's geometry stops moving at
+      // all: without it the quest released its 7–23 px to the ruling row instead, the ruler block grew with it
+      // and `--con-parl-tile-h` (derived from that block's room) resized all six party tiles mid-sitting.
+      const reserve = questReserveFor(innerH, quest?.getBoundingClientRect().height ?? 0);
+      if (quest !== null && reserve > 0) {
+        root.style.setProperty('--con-parl-quest-h', String(Math.round(reserve)) + 'px');
+      }
+      const taken = others + reserve + px(gcs.rowGap) * blocks.length;
       const rcs = getComputedStyle(ruling);
       const innerW = ruling.clientWidth - px(rcs.paddingLeft) - px(rcs.paddingRight);
       govZoom = Math.min(govZoom, (innerH - taken - px(rcs.paddingTop) - px(rcs.paddingBottom)) / PCARD_H, (innerW * 0.52) / PCARD_W);

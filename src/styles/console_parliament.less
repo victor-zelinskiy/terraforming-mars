@@ -239,7 +239,12 @@
            into silence — the name is the reading. */
         &--waiting { color: @con-amber; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
     }
-    &__ruling { display: flex; align-items: stretch; gap: .55rem; min-height: 0; flex: 1 1 auto; }
+    /* …and the ruling ROW clips its own content (v4 §2.4): the enacted face integrates through `zoom`, so its box is
+       the fit engine's output — and when the chairman's quest grew under it mid-walk the card simply painted DOWNWARD,
+       over the quest's own head. The clamp is the last resort, never the plan (`fitParliamentCards` re-solves the face
+       against the room the quest leaves): a card cut by a few px is a fit bug the geometry probe SEES, while a card
+       painting over the block below it is one that looks like a layout nobody designed. */
+    &__ruling { display: flex; align-items: stretch; gap: .55rem; min-height: 0; flex: 1 1 auto; overflow: hidden; }
     &__gov-card { flex-shrink: 0; align-self: flex-start; zoom: var(--con-parl-gov-zoom); }
     /* THE EMPTY SEAT — until the first political phase: an honest empty
        card-shaped place, never a placeholder card. */
@@ -319,12 +324,28 @@
     }
     &__gov--enacted &__ruler { box-shadow: inset 0 0 0 .05rem fade(@con-parl-gold, 55%); }
 
+    /* ── THE SWAP'S POSE (v4 §2.2) — the government changes hands, and the two plaques travel between the
+         government's slot and the opposition ROW: two different TIERS. Every box on that path clips its own
+         content by design (the government plate, the ruling row, the ruler block) and the row's static tiles
+         paint after the government in document order — so the rising tile was CUT to the slot it was flying
+         into and slid UNDER the tiles it was leaving. For the length of the swap only: no clip on the path,
+         and the tiles are the top-most objects on the screen. None of the three ancestors makes a stacking
+         context of its own (no z-index, no transform), which is exactly why one z-index on the tile is enough
+         to lift it over BOTH tiers. It is a POSE: it lasts the flip and nothing else. ── */
+    &--swapping &__gov, &--swapping &__ruling, &--swapping &__ruler { overflow: visible; }
+    &--swapping &__party { position: relative; z-index: 30; }
+
     /* THE CHAIRMAN QUEST — its own plate at the column's foot: the condition
        as a GRAPHIC with its short words, the race, the reward, the chairman. */
     &__quest {
         display: flex;
         flex-direction: column;
         gap: .28rem;
+        /* THE BLOCK'S OWN FLOOR — the fit engine's monotonic reserve (`parliamentCardFit`), the same number the
+           enacted card's zoom is solved against. It keeps the whole government column still: a quest that came
+           back SHORTER handed its room to the ruling row, which grew the ruler block, which moved the measured
+           `--con-parl-tile-h` and resized all six party tiles in the middle of the sitting. */
+        min-height: var(--con-parl-quest-h, auto);
         padding: .4rem .55rem .42rem;
         border-radius: .55rem;
         background: rgba(230, 195, 74, 0.07);
@@ -334,6 +355,9 @@
         &--pulse { animation: con-parl-quest-pulse calc(1200ms * var(--motion-scale, 1)) @con-ease-standard both; }
         /* The OLD quest, CLOSED with its outcome (the sitting's hold before the new one unfolds): the race is over, the plate rests. */
         &--closed { background: rgba(0, 0, 0, 0.28); box-shadow: inset 0 0 0 .05rem rgba(201, 198, 214, 0.22); }
+        /* A CLOSED or WON race is a FINAL SCORE — the same rows, the same box, quieter ink (v4 §2.4): what the
+           block must not do is change size, because the enacted card's zoom is solved against the room it leaves. */
+        &--closed .con-parl__quest-progress, &--done .con-parl__quest-progress { opacity: .55; }
     }
     &__quest-head { display: flex; align-items: baseline; justify-content: space-between; gap: .5rem; }
     &__quest-state { font-size: .64rem; letter-spacing: .1em; text-transform: uppercase; color: @con-parl-mint; white-space: nowrap; &--none { color: fade(@con-text, 55%); } }
@@ -357,7 +381,10 @@
         box-shadow: none;
         padding: 0;
     }
-    &__quest-text { font-family: @con-font-read; font-size: .76rem; font-weight: 600; line-height: 1.2; min-width: 0; }
+    /* TWO LINES RESERVED (v4 §2.4): one quest's condition is a line and the next one's is two, and this block's
+       height is the enacted card's budget — so a one-line condition keeps the second line's room instead of
+       handing it to a card that will have to give it back next generation. */
+    &__quest-text { font-family: @con-font-read; font-size: .76rem; font-weight: 600; line-height: 1.2; min-height: 2.4em; min-width: 0; }
     &__quest-progress { display: flex; flex-wrap: wrap; gap: .22rem .32rem; }
     &__quest-row {
         display: inline-flex; align-items: center; gap: .25rem;
@@ -504,6 +531,9 @@
     &__slot-party { font-weight: 700; letter-spacing: .04em; text-transform: uppercase; font-size: .68rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #f3f0e8; }
     &__slot-win {
         margin-left: auto;
+        display: inline-flex;
+        align-items: center;
+        gap: .28rem;
         padding: .05rem .4rem;
         border-radius: 49.95rem;
         background: fade(@con-parl-gold, 16%);
@@ -525,6 +555,10 @@
             .con-parl__slot-win-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
         }
     }
+    /* THE WINNER OF THE VOTE STANDS AT THE CARD (v4 §2.1): the verdict is read on the objects, so the seat
+       that carried this resolution is a cube IN the card's own gold chip — never a line in a panel over the
+       table. It joins the chip the card already has; the chip's box is unchanged (the cube rides its gap). */
+    &__slot-win-cube { flex-shrink: 0; }
     &__card {
         grid-area: card;
         zoom: var(--con-parl-card-zoom);
@@ -710,13 +744,19 @@
 
     /* ══ MIDDLE TIER — the parties (browse) OR a stage ══════════════════ */
     &__mid { position: relative; min-height: 0; }
+    /* СТОЛ и ЧТЕНИЕ («Заседание v4»): the row is the TABLE, and it hands the tier over to a READING panel
+       by RECEDING — it lets go in place (opacity + one step back) while the panel unfolds from the rect it
+       occupied (`playStageUnfold`, 300 ms). It is never `display: none`d: taken out of the DOM it could not
+       recede at all (the swap read as a cut), its rect would stop being measurable for the unfold, and the
+       five tiles would re-mount — a blink on the way back. Parked = invisible and untouchable, nothing more. */
     &__parties-tier {
         position: absolute;
         inset: 0;
         display: grid;
         grid-template-rows: minmax(0, 1fr);
-        transition: opacity calc(200ms * var(--motion-scale, 1)) @con-ease-standard;
-        &--parked { opacity: 0; pointer-events: none; }
+        transition: opacity calc(260ms * var(--motion-scale, 1)) @con-ease-standard,
+                    transform calc(260ms * var(--motion-scale, 1)) @con-ease-standard;
+        &--parked { opacity: 0; transform: scale(.972); pointer-events: none; }
     }
     /* THE OPPOSITION ROW (v2): the FIVE parties without power — the ruling party's tile stands in the
        government (teleported there, one DOM instance per party), on the same chassis at the same size:

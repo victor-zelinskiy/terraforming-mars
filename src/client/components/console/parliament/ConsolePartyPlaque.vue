@@ -144,6 +144,8 @@ export default defineComponent({
     /** The ONE translated reason the party's action cannot be taken right now (the focused tile's foot); '' draws the state. */
     reason: {type: String, default: ''},
     reasonTone: {type: String as PropType<'dim' | 'warn'>, default: 'dim'},
+    /** This tile stands in the GOVERNMENT's slot: it is the ruling party's, and its state row says so (v4 §2.5). */
+    ruling: {type: Boolean, default: false},
     /** The roll call's word for this party while the support scene runs (v3 В3) — it takes the state row in place of the live state. */
     roll: {type: String, default: ''},
   },
@@ -162,7 +164,9 @@ export default defineComponent({
     /** The threshold places show while the party is IN the vote and the effect is not yet the viewer's by other means. */
     showPlaces(): boolean {
       const state = this.state;
-      return state !== undefined && (state.kind === 'progress' || state.kind === 'in-area' || state.kind === 'delegates');
+      // A tile STANDING IN THE GOVERNMENT is the ruling party's: its state is «правит» and its support
+      // sockets, never the access counter of an opposition tile (v4 §2.5 — «0/2» стояло на месте правителя).
+      return !this.ruling && state !== undefined && (state.kind === 'progress' || state.kind === 'in-area' || state.kind === 'delegates');
     },
     placesCount(): number {
       return PARTY_EFFECT_DELEGATES;

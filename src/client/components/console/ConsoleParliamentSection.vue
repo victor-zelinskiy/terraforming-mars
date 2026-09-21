@@ -19,10 +19,11 @@
   <section class="con-parl con-ws"
            :class="{
              'con-parl--handed-over': sceneHandedOver,
-             'con-parl--stage': stageUp,
+             'con-parl--stage': stagePanelUp,
              'con-parl--vote': voteUp,
              'con-parl--vote-leaving': flow.voteLeaving,
              'con-parl--flying': flightsAirborne,
+             'con-parl--swapping': motion.swapping,
              'con-parl--sitting': sittingUp,
              'con-parl--sitting-field': flow.sittingField,
              ['con-parl--zone-' + flow.zone]: true,
@@ -34,6 +35,10 @@
            :data-stage="flow.stage"
            :data-sitting-stage="sittingUp ? sittingStage : undefined"
            :data-sitting-walking="walking ? '' : undefined"
+           :data-sitting-motion="motion.stage || undefined"
+           :data-sitting-beat="motion.beat || undefined"
+           :data-parl-reading-up="stagePanelUp ? '' : undefined"
+           :data-parl-unfolding="stageEntering ? '' : undefined"
            :data-parl-leaving="leaving ? '' : undefined"
            data-motion-panel>
     <ConsoleWsHead class="con-parl__head"
@@ -60,21 +65,24 @@
                                      :benchWarn="benchWarn" :seatCandidates="seatCandidates" :sittingStage="sittingUp ? sittingStage : ''" />
       </div>
 
-      <!-- ══ MIDDLE TIER — the OPPOSITION (browse) or a STAGE (the seat pick, the
-           SITTING) — ONE zone, one rect; the sitting's reward stage may take
-           the whole field for a hosted step (`--field`). The parties tier
-           renders EVERY party (the ruling one is teleported into the
-           government's ruler slot — one DOM instance per party). ══ -->
+      <!-- ══ MIDDLE TIER — СТОЛ или ЧТЕНИЕ («Заседание v4»), never both. In TABLE mode the row of parties
+           is the tier: the verdict, the Agenda, the support and the enactment all MOVE objects the player
+           must see, so no panel may stand here. The reading PANEL (the reward's steps, the results card)
+           takes the row's place once, by an explicit motion — the row recedes, the panel unfolds where it
+           stood. The chairman SEAT pick is a reading surface too (a decision, nothing flying). ══ -->
       <div class="con-parl__mid" data-parl-mid data-parl-recede ref="midEl">
-        <div class="con-parl__parties-tier" ref="partiesTierEl" :class="{'con-parl__parties-tier--parked': stageUp && !motion.peek}" v-show="!stageUp || stageLeaving || motion.peek">
+        <div class="con-parl__parties-tier" ref="partiesTierEl"
+             :class="{'con-parl__parties-tier--parked': stagePanelUp && !stageLeaving}"
+             :data-parl-row-shown="stagePanelUp && !stageLeaving ? undefined : ''"
+             :aria-hidden="stagePanelUp && !stageLeaving ? 'true' : undefined">
           <ConsoleParliamentParties :view="view" :partyStates="partyStates" :partyActionStates="partyActionStates" :viewerColor="viewerColor"
                                     :awaitingInput="awaitingInput" />
         </div>
 
-        <!-- ── THE STAGE ZONE — the chairman SEAT pick and the SITTING unfold in
-             place of the parties tier (one chassis). ── -->
+        <!-- ── THE READING PANEL — the chairman SEAT pick and the sitting's READING stages unfold in place
+             of the parties row (one chassis, one rect). ── -->
         <transition :css="false" @enter="onStageEnter" @leave="onStageLeave" @enter-cancelled="onStageEnterCancelled" @leave-cancelled="onStageLeaveCancelled">
-          <div v-if="stageUp" class="con-parl__stage" :class="['con-parl__stage--' + stageKind, {'con-parl__stage--field': flow.sittingField, 'con-parl__stage--peek': motion.peek}]" :data-parl-stage="stageKind" :data-sitting-motion="motion.stage || undefined" :data-sitting-beat="motion.beat || undefined">
+          <div v-if="stagePanelUp" class="con-parl__stage" :class="['con-parl__stage--' + stageKind, {'con-parl__stage--field': flow.sittingField}]" :data-parl-stage="stageKind" data-parl-reading>
             <ConsoleParliamentSeatPick v-if="stageKind === 'seat' && focusedSlot !== undefined" ref="seatPick"
                                        :view="view" :slot="focusedSlot" :viewerColor="viewerColor" :seatCandidates="seatCandidates"
                                        @submit="submitSeat($event)" @inspect="$emit('inspect', $event)" />
@@ -136,7 +144,7 @@ import {
 } from '@/client/console/parliament/parliamentRewardBeat';
 import {
   sittingPageAuto, sittingPositionOf, SittingPosition, sittingPrimaryKey, sittingRewardSettled, SittingStage, sittingStageAt, sittingStageKey,
-  sittingStartPage, sittingWorkspacePhase, verdictStandsAt,
+  sittingStartPage, sittingSurfaceMode, sittingWorkspacePhase, verdictStandsAt,
   parliamentSittingLive,
 } from '@/client/console/parliament/consoleSittingFlow';
 import {parliamentHolds, resetParliamentHolds} from '@/client/console/parliament/parliamentDisplayHolds';
@@ -244,6 +252,18 @@ export default defineComponent({
     },
     stageUp(): boolean {
       return parliamentStageUp();
+    },
+    /**
+     * СТОЛ или ЧТЕНИЕ (v4): the sitting's READING stages — the reward with its steps and the revealed
+     * results card. Everything else is the table, where the panel may not stand at all.
+     */
+    sittingReading(): boolean {
+      return this.sittingUp && sittingSurfaceMode(this.sittingStage, this.resultsHidden) === 'reading';
+    },
+    /** The reading PANEL stands: the chairman seat pick (a decision), or the sitting in a reading stage. */
+    stagePanelUp(): boolean {
+      const kind = parliamentStageKind();
+      return kind === 'seat' || (kind === 'sitting' && this.sittingReading);
     },
     voteUp(): boolean {
       return parliamentVoteUp();
@@ -433,6 +453,22 @@ export default defineComponent({
     'playerView'(now: PlayerViewModel, was: PlayerViewModel | undefined): void {
       if (this.frozenView === undefined && was !== undefined && parliamentSittingLive(was) && !parliamentSittingLive(now) && this.rootIsClosing()) {
         this.frozenView = was;
+      }
+    },
+    /**
+     * СТОЛ → ЧТЕНИЕ (v4 §1): the panel unfolds FROM THE ROW'S OWN RECT, so that rect is read at the
+     * handoff and not at `openStage` — the sitting's panel goes up stages later (the reward, the results
+     * card), by which time the row has been re-fitted at least once (the tile token, a profile change).
+     * A `pre`-flush watcher runs BEFORE this render, so the row is still standing when it is measured.
+     */
+    'stagePanelUp'(up: boolean): void {
+      if (!up) {
+        return;
+      }
+      const tier = this.$refs.partiesTierEl as HTMLElement | undefined;
+      const rect = tier?.getBoundingClientRect();
+      if (rect !== undefined && rect.width > 0) {
+        this.stageFromRect = {left: rect.left, top: rect.top, width: rect.width, height: rect.height};
       }
     },
     /** The shell plays the leave: freeze on the live view (a flow's conclusion, «свернуть», the yield); a cancelled leave lets go. */

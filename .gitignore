@@ -31,6 +31,9 @@ assets/card-art/review/
 /.tmp/
 
 # Playwright (E2E) artifacts
+# …including the probes' own screenshots (`artifacts/<probe>/*.png`): they are the EVIDENCE a probe hands the
+# reader of a failing run, regenerable by re-running the spec, and a few of them are megabytes at 4K.
+/artifacts/
 /test-results/
 /test-results-codex-*/
 /playwright-report/
