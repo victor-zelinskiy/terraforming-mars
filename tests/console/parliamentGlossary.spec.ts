@@ -51,6 +51,8 @@ const CANON: Record<string, string> = {
   // over a card on its way out (§2.3) — one word for one state of that block.
   'Outgoing government': 'Уходящее правительство',
   'Enacted resolution': 'Принятая резолюция',
+  // «Итоги: честность»: the one lobby fact the delegates ledger does not state out loud.
+  'Without a free delegate': 'Без свободного делегата',
 };
 
 /** Retired forms — none may survive in a RU value of the parliament's own file. */
@@ -73,7 +75,10 @@ const BANNED: ReadonlyArray<{pattern: RegExp, why: string}> = [
 ];
 
 /** Retired keys: not translated, not referenced. */
-const GONE = ['Ruling · starting rule', 'No delegates yet', 'No leader yet'];
+// «Итоги: честность» Ф1: the results panel's «В ЛОББИ» row restated the delegates ledger, which shows
+// every seat's lobby socket and reserve stack by name — and said less (`lobbyRefilled` is «whose lobby was
+// EMPTY and got filled»). Its place is now the EXCEPTION: «Без свободного делегата».
+const GONE = ['Ruling · starting rule', 'No delegates yet', 'No leader yet', 'To the lobby'];
 
 function listFiles(dir: string): Array<string> {
   const abs = path.join(ROOT, dir);

@@ -231,7 +231,10 @@
            distinction survives desaturation by the rim's weight, never by colour alone. */
         &--fresh { box-shadow: inset 0 0 0 .09rem fade(@con-parl-gold, 85%); }
     }
-    &__lobby-name { font-size: .78rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    &__seat-name { font-size: .78rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    /* THE EXCEPTION READS AS ONE: the amber seam the whole surface uses for «this cost you something»
+       (the same as a skipped payout's), never a colour the row has to be decoded by. */
+    &__row--warn { box-shadow: inset .16rem 0 0 rgba(230, 195, 74, 0.7); }
     &__door-tile { width: .9rem; height: .9rem; border-radius: .2rem; flex-shrink: 0; background: #3aa35a; box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.3); &--ocean { background: #2c7dd6; } }
 }
 
@@ -255,7 +258,7 @@ html.con-profile-handheld .con-sit {
     &__section-kicker { margin-bottom: .08rem; }
     &__payout { padding: .24rem .4rem; }
     &__row { font-size: .68rem; padding: .14rem .35rem; b { font-size: .76rem; } }
-    &__payout-name, &__lobby-name { font-size: .7rem; }
+    &__payout-name, &__seat-name { font-size: .7rem; }
     &__support-place { width: .56rem; height: .56rem; }
     &__part { font-size: .74rem; }
     &__part-unit { width: .95rem; height: .95rem; }
@@ -265,7 +268,7 @@ html.con-profile-handheld .con-sit {
 }
 html.con-profile-tv .con-sit {
     &__row { font-size: .88rem; b { font-size: .96rem; } }
-    &__payout-name, &__lobby-name { font-size: .94rem; }
+    &__payout-name, &__seat-name { font-size: .94rem; }
     &__support-place { width: .9rem; height: .9rem; }
     &__part { font-size: .98rem; }
     &__part-unit { width: 1.3rem; height: 1.3rem; }

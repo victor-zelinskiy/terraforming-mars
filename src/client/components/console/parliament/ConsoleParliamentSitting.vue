@@ -117,13 +117,18 @@
               </span>
             </span>
           </div>
-          <!-- В ЛОББИ — a cube alone is not an assertion: every chip NAMES the seat whose delegate came
-               back. Nobody returned one and there is no row (the final phase does not refill the lobby). -->
-          <div v-if="results.table.lobby.length > 0" class="con-sit__row" data-sit-row="results-lobby">
-            <span class="con-parl__chip-dim">{{ $t('To the lobby') }}</span>
+          <!-- БЕЗ СВОБОДНОГО ДЕЛЕГАТА — the EXCEPTION, and the one lobby fact that is nowhere else. The
+               delegates ledger at the top of the screen already shows, seat by seat, the lobby socket and
+               the reserve stack with its count and name — so «who got one back» was a restatement of it
+               (and a poorer one: `lobbyRefilled` records whose lobby was EMPTY and got filled, never who
+               HAS a delegate). What the ledger never says out loud is the consequence: an empty socket
+               over an empty reserve means this seat cannot vote at all next generation. Almost never
+               true, so almost never on screen — and when it is, it is stated, never left silent. -->
+          <div v-if="results.table.noDelegate.length > 0" class="con-sit__row con-sit__row--warn" data-sit-row="results-nodelegate">
+            <span class="con-parl__chip-dim">{{ $t('Without a free delegate') }}</span>
             <span class="con-sit__chips">
-              <span v-for="color in results.table.lobby" :key="color" class="con-sit__chip" data-sit-lobby :data-sit-lobby-seat="color">
-                <PlayerCube :color="color" :size="cubePx(11)" :glow="false" /><b class="con-sit__lobby-name">{{ nameOfColor(color) }}</b>
+              <span v-for="color in results.table.noDelegate" :key="color" class="con-sit__chip" data-sit-nodelegate :data-sit-nodelegate-seat="color">
+                <PlayerCube :color="color" :size="cubePx(11)" :glow="false" /><b class="con-sit__seat-name">{{ nameOfColor(color) }}</b>
               </span>
             </span>
           </div>
@@ -208,7 +213,10 @@ export default defineComponent({
       const quiet = quietRewardPoseOf(this.resolution);
       return resultsReadingOf(
         summary,
-        (this.model?.players ?? []).filter((p) => p.participates).map((p) => p.color),
+        // The LIVE participating seats, after the lobby step: the payout order AND what each of them will
+        // have to vote with when the next generation opens.
+        (this.model?.players ?? []).filter((p) => p.participates)
+          .map((p) => ({player: p.color, lobby: p.lobby, reserve: p.reserve})),
         this.view.parties.map((party) => ({party: party.party, support: party.support})),
         quiet === undefined ? {} : {quiet: {kicker: quiet.kicker, kind: quiet.kind}},
       );

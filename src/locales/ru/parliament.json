@@ -530,7 +530,6 @@
   "party name: Industrialists": "Индустриалисты",
   "party name: Reds": "Красные",
   "stays · reshuffled": "остаётся · перетасована",
-  "To the lobby": "В лобби",
   "Effect while enacted": "Эффект, пока принята",
   "Action while enacted": "Действие, пока принята",
   "Available in Card actions": "Доступно в «Действиях карт»",
@@ -549,5 +548,6 @@
   "Your delegate left the chairmanship and returned to your reserve": "Ваш делегат покинул председательство и вернулся в ваш резерв",
   "The delegate returns to the reserve": "Делегат возвращается в резерв",
   "Payouts": "Выплаты",
-  "The table": "Стол"
+  "The table": "Стол",
+  "Without a free delegate": "Без свободного делегата"
 }

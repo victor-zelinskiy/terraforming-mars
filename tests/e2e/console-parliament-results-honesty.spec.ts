@@ -15,7 +15,8 @@ import {
  *    ruling party, the chairman's quest) appear in the government's zone and NOWHERE inside the panel;
  * ② НАРОДНАЯ ПОДДЕРЖКА is a STOCK in places that equals the server's own record, the ruling party is not
  *    in the row, this sitting's arrivals are told apart from the older ones, and nothing is cut;
- * ③ В ЛОББИ names every seat whose delegate came back (no row at all when nobody did);
+ * ③ «В ЛОББИ» is GONE (the delegates ledger states it, permanently and by name) and its place is the
+ *    EXCEPTION it never stated: the seats that enter the next vote with nothing to vote with;
  * ④ the RULER's plaque shows no support sockets and still has the row's exact height;
  * ⑤ the government's swap changes a plaque's state in the frame it ARRIVES, never in flight.
  *
@@ -118,10 +119,10 @@ async function runWalk(page: Page, request: Parameters<typeof bootFixtureSeats>[
   await settle(page, {timeoutMs: 20_000});
 }
 
-test.describe('«Итоги: честность» — панель, поддержка, лобби (standard-1080)', () => {
+test.describe('«Итоги: честность» — панель, поддержка, исключение (standard-1080)', () => {
   test.use({viewport: {width: 1920, height: 1080}});
 
-  test('И1+И3 · ДВЕ СЕКЦИИ, и правительство не пересказано; лобби названо', async ({page, request}) => {
+  test('И1+И3 · ДВЕ СЕКЦИИ, и правительство не пересказано; строки лобби нет, есть исключение', async ({page, request}) => {
     test.setTimeout(300_000);
     const {playerId, seats} = await openSitting(page, request, 'parliament-architecture-assembly');
     await armHonestyProbe(page);
@@ -159,19 +160,30 @@ test.describe('«Итоги: честность» — панель, поддер
       `the panel repeats the government's zone («${zone.enacted}» / «${zone.ruler}» / «${zone.quest}»)`).toEqual([]);
     await expect(page.locator('[data-sit-law]'), 'no law member survives anywhere').toHaveCount(0);
 
-    // ④ В ЛОББИ NAMES ITS SEATS — a bare colour chip is not an assertion. Nobody returned one → no row.
-    // THE SUMMARY OF A SITTING STILL IN PROGRESS lives on the PHASE — `lastPhase` is only written when the
-    // adjourn gate closes, and the panel stands one press BEFORE that.
-    const refilled = summaryOf(await parliamentWire(request, playerId)).lobbyRefilled ?? [];
-    const lobby = await page.locator('[data-sit-lobby]').evaluateAll((els) => els.map((el) => ({
-      seat: el.getAttribute('data-sit-lobby-seat') ?? '',
-      name: (el.querySelector('.con-sit__lobby-name')?.textContent ?? '').trim(),
-      cube: el.querySelector('.player-cube, [class*="cube"]') !== null,
+    // ④ «В ЛОББИ» IS GONE, and what replaced it is an EXCEPTION. The delegates ledger states every seat's
+    //    lobby socket and reserve by name, permanently — so «who got one back» was a restatement (and a
+    //    poorer one: `lobbyRefilled` records whose lobby was EMPTY and got filled). The panel now states
+    //    only the consequence the ledger never says out loud, and only when somebody is in it.
+    //    THE SUMMARY OF A SITTING STILL IN PROGRESS lives on the PHASE — `lastPhase` is only written when
+    //    the adjourn gate closes, and the panel stands one press BEFORE that.
+    const wire = await parliamentWire(request, playerId);
+    const refilled = summaryOf(wire).lobbyRefilled ?? [];
+    expect(refilled.length, 'the server DID refill somebody — the removed row was not vacuous').toBeGreaterThan(0);
+    await expect(page.locator('[data-sit-row="results-lobby"]'), 'no lobby row survives').toHaveCount(0);
+    await expect(page.locator('[data-sit-lobby]'), 'and no chip of it either').toHaveCount(0);
+
+    const wireSeats = (wire.game.parliament as unknown as {players?: Array<{color: string, participates: boolean, lobby: boolean, reserve: number}>})?.players ?? [];
+    const voteless = wireSeats.filter((p) => p.participates && !p.lobby && p.reserve <= 0).map((p) => p.color);
+    const stated = await page.locator('[data-sit-nodelegate]').evaluateAll((els) => els.map((el) => ({
+      seat: el.getAttribute('data-sit-nodelegate-seat') ?? '',
+      name: (el.querySelector('.con-sit__seat-name')?.textContent ?? '').trim(),
+      cube: el.querySelector('.player-cube') !== null,
     })));
-    expect(lobby.length, `a chip per refilled seat (server: ${refilled.length})`).toBe(refilled.length);
-    expect(lobby.filter((c) => c.name === '' || !c.cube), 'every chip carries a cube AND a name').toEqual([]);
-    await expect(page.locator('[data-sit-row="results-lobby"]'), refilled.length > 0 ? 'the row stands' : 'no row when nobody returned one')
-      .toHaveCount(refilled.length > 0 ? 1 : 0);
+    expect(stated.map((c) => c.seat), `the exception names exactly the voteless seats (server: ${voteless.join(',') || 'none'})`)
+      .toEqual(voteless);
+    expect(stated.filter((c) => c.name === '' || !c.cube), 'every chip carries a cube AND a name').toEqual([]);
+    await expect(page.locator('[data-sit-row="results-nodelegate"]'), voteless.length > 0 ? 'the exception stands' : 'no row while everybody can vote')
+      .toHaveCount(voteless.length > 0 ? 1 : 0);
   });
 
   // THE FIXTURE IS THE POINT: Unity has been collecting neutral delegates for two generations and has no
@@ -295,7 +307,7 @@ for (const preset of PARLIAMENT_PRESETS.filter((p) => p.id !== 'standard-1080'))
       // Nothing of the parliament spills its box, scrolls, or runs past the stage's own tier.
       await expectParliamentFits(page, `${preset.id} results`);
       await expectRailHonest(page, `${preset.id} support row`, '[data-sit-row="results-support"]');
-      await expectRailHonest(page, `${preset.id} lobby row`, '[data-sit-row="results-lobby"]');
+      await expect(page.locator('[data-sit-row="results-lobby"]'), 'the lobby row is gone on every profile').toHaveCount(0);
     });
   });
 }

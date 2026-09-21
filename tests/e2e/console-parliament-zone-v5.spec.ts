@@ -362,7 +362,9 @@ test.describe('«Заседание v5» — ЛЕНТА и ТЕЛО (standard-10
     await expect(page.locator('[data-sit-law]'), 'no law member survives').toHaveCount(0);
     await expect(page.locator('[data-sit-row="results-fresh"]')).toHaveCount(1);
     await expect(page.locator('[data-sit-row="results-support"]')).toHaveCount(1);
-    await expect(page.locator('[data-sit-row="results-lobby"]')).toHaveCount(1);
+    // «Итоги: честность» Ф1: the lobby row is gone (the delegates ledger says it, permanently and by name);
+    // what replaced it is an EXCEPTION that does not exist while every seat can vote.
+    await expect(page.locator('[data-sit-row="results-lobby"]')).toHaveCount(0);
   });
 });
 

@@ -265,7 +265,10 @@ for (const preset of PRESETS) {
       // The refreshed table has its leader back; the lobby refilled is a row of CUBES, one per seat (P-23: a sentence stood there).
       await expect(page.locator('.con-parl__slot--winning'), 'the refreshed table shows its leader').toHaveCount(1);
       const lobbyRefilled = ((await wireOf(request, playerId)).game.parliament?.phase as {summary?: {lobbyRefilled?: Array<unknown>}} | undefined)?.summary?.lobbyRefilled?.length ?? 0;
-      await expect(sitting(page).locator('[data-sit-results] [data-sit-row="results-lobby"] .player-cube'), 'the lobby row: one cube per refilled seat').toHaveCount(lobbyRefilled);
+      // «Итоги: честность» Ф1: «В ЛОББИ» is GONE — the delegates ledger in the head states every seat's
+      // lobby socket and reserve by name, permanently, and said it more fully than `lobbyRefilled` could.
+      expect(lobbyRefilled, 'the server did refill somebody (the row it replaced was not vacuous)').toBeGreaterThan(0);
+      await expect(sitting(page).locator('[data-sit-row="results-lobby"]'), 'no lobby row survives').toHaveCount(0);
       await expect(sitting(page).locator('[data-sit-payout]'), 'a payout row per participating seat — the one thing seen nowhere else').toHaveCount(2);
       await expect(sitting(page).locator('[data-sit-results]'), 'no sentence on the results').not.toContainText(/возвращаются в лобби/);
       // A loser dealt straight back from the reshuffled discard never left the table: its fresh chip says «остаётся ·
@@ -280,9 +283,9 @@ for (const preset of PRESETS) {
       await expect(sitting(page).locator('[data-sit-law]'), 'no law member survives').toHaveCount(0);
       expect(await sitting(page).locator('[data-sit-section]').evaluateAll((els) => els.map((el) => el.getAttribute('data-sit-section'))),
         'two sections, and nothing beside them').toEqual(['payouts', 'table']);
-      // …and every lobby chip NAMES its seat: a bare colour cube is not an assertion.
-      await expect(sitting(page).locator('[data-sit-results] [data-sit-lobby] .con-sit__lobby-name'), 'one name per returned delegate')
-        .toHaveCount(lobbyRefilled);
+      // …and the row that took its place is an EXCEPTION: with every seat holding a delegate it does not exist.
+      await expect(sitting(page).locator('[data-sit-row="results-nodelegate"]'), 'nobody is voteless, so no row')
+        .toHaveCount(0);
       expect(await hotVerb(page)).toMatch(/Закрыть заседание|Close the sitting/i);
       expect((await wireOf(request, playerId)).waitingFor?.parliamentPhasePrompt?.stage, 'gate 2 stands until A').toBe('adjourn');
       await expectFits(page, `${preset.id} results`);
