@@ -2303,7 +2303,10 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'hydro-terminal'
   'parliament-biodome-assembly' | 'parliament-biodome-adjourn' | 'parliament-powergrid-assembly' | 'parliament-powergrid-adjourn' |
   'parliament-climate-assembly' | 'parliament-climate-adjourn' |
   // THE FAMILIES REHEARSAL (final polish D.1): the dev examples of the next families at the vote and at gate 1.
-  'parliament-devpassive-vote' | 'parliament-devpassive-assembly' | 'parliament-devaction-vote' | 'parliament-devaction-assembly';
+  'parliament-devpassive-vote' | 'parliament-devpassive-assembly' | 'parliament-devaction-vote' | 'parliament-devaction-assembly' |
+  // «ПРЕДСЕДАТЕЛЬСТВО»: the quest is completed and the GATE stands — nothing of
+  // its reward is applied, and opening it is the whole flow.
+  'parliament-chairman-quest';
 
 export async function bootFixture(
   page: Page,

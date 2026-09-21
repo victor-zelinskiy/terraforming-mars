@@ -1193,8 +1193,54 @@ parliamentFixture('parliament-devaction-assembly', familyTable(DEV_ACTION_RESOLU
   ChairmanSeat.onQuestCompleted(p1);
   p1.megaCredits = 40;
   runAllActions(game);
+  // The GATE stands first (nothing of the quest is applied until it is
+  // answered); answering it is what raises the delegate pick.
+  const gate = p1.getWaitingFor();
+  if (gate?.chairmanQuestPrompt === undefined) {
+    throw new Error('parliament-seat: the chairman-quest gate did not stand');
+  }
+  p1.process({type: 'option'});
+  runAllActions(game);
   if (!parliament.pendingActions.some((action) => action.kind === 'chairman-seat')) {
     throw new Error('parliament-seat: no pending chairman seat');
   }
   write('parliament-seat', game);
+}
+
+// ── parliament-chairman-quest: the viewer COMPLETED the chairman quest and
+//    the server has applied NOTHING — the gate stands, the marker is on its
+//    old step, the office is still RED's. Opening it is the whole flow
+//    («ПРЕДСЕДАТЕЛЬСТВО»), and the Agenda step it pays is a TR one (step 2),
+//    so the reward has a chip to fly. ──
+{
+  const [game, p1, p2] = testGame(2, {
+    skipInitialCardSelection: false, coloniesExtension: true, turmoilReduxExpansion: true,
+    startingCorporations: 1,
+  });
+  if (!(p1.getWaitingFor() instanceof SelectInitialCards)) {
+    throw new Error('parliament-chairman-quest: expected SelectInitialCards');
+  }
+  answerStartFlow(game, [p1, p2]);
+  const parliament = game.parliament;
+  if (parliament === undefined || parliament.slots.length !== 3) {
+    throw new Error('the parliament-chairman-quest fixture has no voting area');
+  }
+  // The office is held by the OTHER seat, so the flow has a delegate to send
+  // home; the marker stands one step below the track's first TR reward.
+  parliament.chairman = p2.id;
+  parliament.agenda.set(p1.id, 1);
+  const quest = parliament.quest;
+  if (quest === undefined || parliament.addQuestProgress(p1, quest.definition.count) !== 'completed') {
+    throw new Error('parliament-chairman-quest: the quest did not complete');
+  }
+  ChairmanSeat.onQuestCompleted(p1);
+  p1.megaCredits = 40;
+  runAllActions(game);
+  if (p1.getWaitingFor()?.chairmanQuestPrompt === undefined) {
+    throw new Error('parliament-chairman-quest: the gate did not stand');
+  }
+  if (parliament.chairman !== p2.id || parliament.agendaOf(p1) !== 1) {
+    throw new Error('parliament-chairman-quest: the server applied something before the answer');
+  }
+  write('parliament-chairman-quest', game);
 }

@@ -38,6 +38,7 @@
            :data-sitting-page="sittingUp ? String(flow.sittingPage) : undefined"
            :data-sitting-motion="motion.stage || undefined"
            :data-sitting-beat="motion.beat || undefined"
+           :data-quest-beat="questBeat || undefined"
            :data-parl-reading-up="stagePanelUp ? '' : undefined"
            :data-parl-unfolding="stageEntering ? '' : undefined"
            :data-parl-leaving="leaving ? '' : undefined"
@@ -466,6 +467,10 @@ export default defineComponent({
     /** The chairmanship flow's crumb tail — one word per stage («ЗАДАНИЕ» → «ПОВЕСТКА»). */
     questTail(): string {
       return chairmanQuestStageKey(chairmanQuestFlow.stage);
+    },
+    /** The chairmanship flow's own beat, published on the root — read by the e2e probe, never by the product. */
+    questBeat(): string {
+      return chairmanQuestFlow.live ? chairmanQuestFlow.beat : '';
     },
     /** The flow is holding at its seat beat with the server's own pick standing — the picker takes the stage. */
     questSeatStep(): boolean {

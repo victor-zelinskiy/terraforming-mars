@@ -105,3 +105,39 @@
   `target.player` записи). Выполнившему карточки нет вообще: он прошёл весь поток.
 - **Осмотр открывает Парламент**: новый CTA `open-parliament` → `notificationBus.openParliament` →
   `ConsoleShell.onNotificationOpenParliament` (браузный слой, ничего не переигрывается).
+
+
+## Пробники (раздел 6 промта)
+
+| № | Что утверждает | Где |
+| --- | --- | --- |
+| 1 | **Сервер молчит до ответа.** Задание выполнено, ворота стоят: маркер на старом шаге, РТ не изменился, рука не выросла, председательство не занято, `lastAdvance` не опубликован. После ответа — всё применилось. Плюс: ворота дефёрятся с `BACK_OF_THE_LINE`. | `tests/parliament/ChairmanQuestGate.spec.ts` (3 it) |
+| 2 | **Порядок.** В логе посадка ПРЕДШЕСТВУЕТ шагу; в крайнем случае с выбором резолюции маркер не двигается, пока выбор стоит, и двигается сразу после ответа. | там же (2 it) |
+| 3 | **Перезагрузка.** Ворота сериализованы, релоад их восстанавливает, ответ применяет награду один раз; второй релоад ничего не поднимает. | там же |
+| 4 | **Граница поколения.** Неотвеченная запись не пускает политическую фазу: ворота перевыставляются, после ответа заседание собирается. | там же |
+| 5 | **СЦЕНА ВИДНА** (тот самый пробник, что ловит исходный дефект). Плита стоит и Парламента НЕТ до нажатия A; после A секция смонтирована, трек виден, прокси маркера имеет чернила и над ним ничего не стоит во всех кадрах глайда, он реально перемещается, достигнутый шаг виден в кадре посадки; кресло меняется кубом; крошка всю жизнь несёт «ПРЕДСЕДАТЕЛЬСТВО» и её хвост двигается; законченный поток УХОДИТ. Сэмплер — `MutationObserver` + `setInterval`, никогда rAF. | `tests/e2e/console-parliament-chairman-quest.spec.ts` (фикстура `parliament-chairman-quest`) |
+| 6 | **Маркер не опережает.** Посев ставит `agendaAwaits`, и смонтированный `ConsoleParliamentAgenda.shown` рисует куб на СТАРОМ шаге, а не на новом; вне потока ничего не держится. В e2e — то же по кадрам задачного клока. | `tests/client/console/chairmanQuestFlow.spec.ts` + e2e §⑥ |
+| 7 | **Бонус по адресу.** Шаг РТ кладёт награду в реестр на достигнутый шаг (чип тикает на касании); шаг КАРТЫ паркует свой `agenda`-батч (и только его); шаг ВЛИЯНИЯ не должен ничего — и маркер всё равно едет. | `tests/client/console/chairmanQuestFlow.spec.ts` (3 it) |
+| 8 | **Нотификация проходит фильтр.** В личном режиме её видят и прежний председатель, и игрок, никак не затронутый событием. Плюс сквозной прогон настоящего сервера: два текста, три читателя, включая крайний случай с выбором делегата. | `tests/notifications/notificationFeedPolicy.spec.ts` + `tests/notifications/chairmanNotification.spec.ts` (4 it) |
+
+Дополнительно: маркер ворот и маршрутизация — `tests/client/components/console/consoleTaskRouter.spec.ts`
+(строка 30e + полнота `TaskKind`), копия плиты — `consoleTaskSummary.spec.ts`, глоссарий —
+`tests/console/parliamentGlossary.spec.ts`.
+
+## Переписанные старые спеки
+
+Поведение изменилось (награда теперь за воротами), поэтому переписаны:
+`tests/parliament/QuestTracker.spec.ts`, `AquiferContest.spec.ts`, `ArchitectureAward.spec.ts`,
+`BiodomeContest.spec.ts`, `CentralPowerGrid.spec.ts`, `ClimateResearch.spec.ts` — все через общий
+хелпер `answerQuestGate(game, player)`. Фикстура `parliament-seat` пересобрана (теперь выбор делегата
+поднимается ПОСЛЕ ответа на ворота); `tests/e2e/console-parliament.spec.ts` § кресло — 3/3 зелёные на
+трёх профилях.
+
+## Заседание не изменилось
+
+Ни один файл заседания не переписан: в общие файлы добавлены только НОВЫЕ члены
+(`parliamentDisplayHolds.chairAwaits`, `parliamentBand.BandQuest` + ветка `ctx.quest`, стадия
+`'quest'` в `ParliamentStage`, `questPulse`), ветка `parliamentFlow.stage === 'sitting'` не тронута
+нигде. Подтверждение: `tests/console/*` 297/0 (включая `parliamentBand`, `parliamentGlossary`,
+`parliamentNoTimers`, `parliamentResults`), `tests/parliament/*` 258/0 (включая `ParliamentPhase`),
+client 5787/0, server 12123/0.

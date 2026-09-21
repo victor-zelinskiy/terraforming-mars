@@ -613,7 +613,7 @@
   ],
   "discardPile": []
  },
- "createdTimeMs": 1790003631354,
+ "createdTimeMs": 1790003631362,
  "currentSeed": 593427323412,
  "deferredActions": [],
  "donePlayers": [],
@@ -623,7 +623,7 @@
  "fundedAwards": [],
  "gagarinBase": [],
  "stJosephCathedrals": [],
- "gameAge": 11,
+ "gameAge": 10,
  "gameLog": [
   {
    "message": "First player this generation is ${0}",
@@ -633,7 +633,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1790003631354
+   "timestamp": 1790003631362
   },
   {
    "message": "Good luck ${0}!",
@@ -643,7 +643,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1790003631354,
+   "timestamp": 1790003631362,
    "playerId": "p-player1-id"
   },
   {
@@ -654,7 +654,7 @@
      "value": "red"
     }
    ],
-   "timestamp": 1790003631354,
+   "timestamp": 1790003631362,
    "playerId": "p-player2-id"
   },
   {
@@ -665,7 +665,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1790003631354,
+   "timestamp": 1790003631362,
    "type": 1
   },
   {
@@ -680,7 +680,7 @@
      "value": "Teractor"
     }
    ],
-   "timestamp": 1790003631354,
+   "timestamp": 1790003631362,
    "correlationId": 1,
    "parentId": 1,
    "role": "root-action",
@@ -698,7 +698,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1790003631354,
+   "timestamp": 1790003631362,
    "correlationId": 1,
    "parentId": 1,
    "role": "detail"
@@ -715,7 +715,7 @@
      "value": "Aridor"
     }
    ],
-   "timestamp": 1790003631354,
+   "timestamp": 1790003631362,
    "correlationId": 2,
    "parentId": 2,
    "role": "root-action",
@@ -733,7 +733,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1790003631354,
+   "timestamp": 1790003631362,
    "correlationId": 2,
    "parentId": 2,
    "role": "detail"
@@ -746,21 +746,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1790003631355
-  },
-  {
-   "message": "${0} takes the chairmanship",
-   "data": [
-    {
-     "type": 2,
-     "value": "blue"
-    }
-   ],
-   "timestamp": 1790003631355,
-   "correlationId": 5,
-   "parentId": 5,
-   "role": "root-action",
-   "category": "parliament"
+   "timestamp": 1790003631363
   }
  ],
  "gameEvents": [
@@ -853,23 +839,9 @@
    },
    "player": "red",
    "parentId": 2
-  },
-  {
-   "id": 5,
-   "generation": 1,
-   "phase": "action",
-   "type": "action",
-   "impact": {},
-   "correlationId": 5,
-   "visibility": "journal",
-   "source": {
-    "kind": "parliament"
-   },
-   "player": "blue",
-   "category": "parliament"
   }
  ],
- "eventSeq": 5,
+ "eventSeq": 4,
  "gameOptions": {
   "altVenusBoard": false,
   "aresExtension": false,
@@ -957,7 +929,7 @@
   "Builder",
   "Planner"
  ],
- "name": "Radiant Oxygen Burst",
+ "name": "Cosmic Flux Point",
  "oxygenLevel": 0,
  "passedPlayers": [],
  "phase": "action",
@@ -1053,15 +1025,15 @@
    "beginner": false,
    "handicap": 0,
    "timer": {
-    "sumElapsed": 1,
-    "startedAt": 1790003631355,
+    "sumElapsed": 0,
+    "startedAt": 1790003631362,
     "running": true,
     "afterFirstAction": true,
-    "lastStoppedAt": 1790003631355
+    "lastStoppedAt": 1790003631362
    },
    "actionsTakenThisGame": 1,
    "victoryPointsByGeneration": [],
-   "totalDelegatesPlaced": 7,
+   "totalDelegatesPlaced": 0,
    "underworldData": {
     "corruption": 0,
     "tokens": []
@@ -1173,14 +1145,14 @@
    "handicap": 0,
    "timer": {
     "sumElapsed": 0,
-    "startedAt": 1790003631354,
+    "startedAt": 1790003631362,
     "running": false,
     "afterFirstAction": true,
-    "lastStoppedAt": 1790003631355
+    "lastStoppedAt": 1790003631362
    },
    "actionsTakenThisGame": 0,
    "victoryPointsByGeneration": [],
-   "totalDelegatesPlaced": 1,
+   "totalDelegatesPlaced": 0,
    "underworldData": {
     "corruption": 0,
     "tokens": []
@@ -1528,50 +1500,15 @@
   "slots": [
    {
     "instance": "RDX_GREENS_AQUIFER_CONTEST#0",
-    "votes": [
-     {
-      "owner": "p-player1-id",
-      "seq": 1
-     },
-     {
-      "owner": "p-player1-id",
-      "seq": 2
-     }
-    ]
+    "votes": []
    },
    {
     "instance": "RDX_MARS_ARCHITECTURE_AWARD#0",
-    "votes": [
-     {
-      "owner": "p-player1-id",
-      "seq": 3
-     },
-     {
-      "owner": "p-player1-id",
-      "seq": 4
-     },
-     {
-      "owner": "p-player1-id",
-      "seq": 5
-     }
-    ]
+    "votes": []
    },
    {
     "instance": "RDX_INDUSTRIALISTS_CENTRAL_POWER_GRID#0",
-    "votes": [
-     {
-      "owner": "p-player1-id",
-      "seq": 6
-     },
-     {
-      "owner": "p-player1-id",
-      "seq": 7
-     },
-     {
-      "owner": "p-player2-id",
-      "seq": 8
-     }
-    ]
+    "votes": []
    }
   ],
   "quest": {
@@ -1589,10 +1526,16 @@
    },
    "completedBy": "p-player1-id"
   },
-  "lobby": [],
-  "voteSeq": 8,
+  "chairman": "p-player2-id",
+  "lobby": [
+   "p-player1-id",
+   "p-player2-id"
+  ],
+  "voteSeq": 0,
   "popularSupport": {},
-  "agenda": {},
+  "agenda": {
+   "p-player1-id": 1
+  },
   "influenceBonus": {},
   "grantedEffects": {},
   "partyActionUses": {},
@@ -1605,7 +1548,7 @@
   "phaseSeq": 0,
   "pendingActions": [
    {
-    "kind": "chairman-seat",
+    "kind": "chairman-quest",
     "player": "p-player1-id"
    }
   ],
