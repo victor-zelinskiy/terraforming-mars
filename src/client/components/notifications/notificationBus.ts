@@ -26,4 +26,6 @@ export const notificationBus = {
   cancel: useEventBus<void>('tm:notification:cancel'),
   /** Your-turn acknowledged — draw the eye to the action area. */
   focusActions: useEventBus<void>('tm:notification:focus-actions'),
+  /** «Осмотреть» on a Mars Parliament card — open the Parliament (Turmoil Redux). */
+  openParliament: useEventBus<void>('tm:notification:open-parliament'),
 } as const;

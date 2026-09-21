@@ -37,6 +37,7 @@ import {SelectParty} from '../../inputs/SelectParty';
 import {SelectOption} from '../../inputs/SelectOption';
 import {InputError} from '../../inputs/InputError';
 import {Priority} from '../../deferredActions/Priority';
+import {Color} from '../../../common/Color';
 import {PartyName} from '../../../common/turmoil/PartyName';
 import type {AgendaAdvance, Parliament} from '../Parliament';
 
@@ -157,6 +158,10 @@ export class ChairmanSeat {
     const events = game.events;
     events.beginAction(player, {kind: 'parliament'}, {category: 'parliament'});
     try {
+      // THE GROUP'S OWN HEADER — the fact the other players' notification is
+      // built on. Logged first, so the journal group never opens with the
+      // outgoing delegate's line.
+      game.log('${0} takes the chairmanship', (b) => b.player(player));
       if (ChairmanSeat.seat(player, parliament) === 'seated') {
         ChairmanSeat.advanceAgenda(player, parliament);
       }
@@ -170,26 +175,35 @@ export class ChairmanSeat {
     const game = player.game;
     if (parliament.chairman === player.id) {
       game.log('${0} remains the chairman', (b) => b.player(player));
+      // Nobody lost anything: the record carries no previous holder, and no
+      // card tells anyone that one did.
+      game.events.recordChairmanSeated(player);
       return 'seated';
     }
+    let previous: Color | undefined = undefined;
     if (parliament.chairman !== undefined) {
-      const previous = game.getPlayerById(parliament.chairman);
-      game.log('The delegate of ${0} leaves the chairman seat', (b) => b.player(previous));
+      const holder = game.getPlayerById(parliament.chairman);
+      previous = holder.color;
+      game.log('The delegate of ${0} leaves the chairman seat', (b) => b.player(holder));
       parliament.chairman = undefined;
     }
     if (parliament.reserve(player) > 0) {
       parliament.chairman = player.id;
       game.log('${0} becomes the chairman (delegate from the reserve)', (b) => b.player(player));
+      game.events.recordChairmanSeated(player, previous);
       return 'seated';
     }
     if (parliament.lobby.has(player.id)) {
       parliament.lobby.delete(player.id);
       parliament.chairman = player.id;
       game.log('${0} becomes the chairman (delegate from the lobby)', (b) => b.player(player));
+      game.events.recordChairmanSeated(player, previous);
       return 'seated';
     }
-    // Every delegate is on a resolution: the player chooses which card gives one up.
-    parliament.pendingActions.push({kind: 'chairman-seat', player: player.id});
+    // Every delegate is on a resolution: the player chooses which card gives
+    // one up. WHOSE delegate left the seat rides the RECORD, not a field in
+    // memory: the pick is routinely answered after a reload.
+    parliament.pendingActions.push({kind: 'chairman-seat', player: player.id, ...(previous === undefined ? {} : {previous})});
     player.defer(() => ChairmanSeat.seatPrompt(player, parliament), Priority.DEFAULT);
     return 'asking';
   }
@@ -203,19 +217,31 @@ export class ChairmanSeat {
     const parties = parliament.slots
       .filter((slot) => parliament.votesOf(player, slot) > 0)
       .map((slot) => parliament.resolutionOf(slot.instance).party);
+    const previous = pending.kind === 'chairman-seat' ? pending.previous : undefined;
     const finish = (party: PartyName | undefined) => {
-      if (party !== undefined) {
-        const slot = parliament.slotOf(party as never);
-        if (slot === undefined || parliament.removeLatestVote(player, slot) === undefined) {
-          throw new InputError('You have no delegate on that resolution');
+      const game = player.game;
+      // ITS OWN JOURNAL ROOT: the pick is answered in a separate request, so
+      // without one the seating would hang off whatever chain happened to be
+      // live — and the other players' notification would have no group.
+      game.events.beginAction(player, {kind: 'parliament'}, {category: 'parliament'});
+      try {
+        game.log('${0} takes the chairmanship', (b) => b.player(player));
+        if (party !== undefined) {
+          const slot = parliament.slotOf(party as never);
+          if (slot === undefined || parliament.removeLatestVote(player, slot) === undefined) {
+            throw new InputError('You have no delegate on that resolution');
+          }
+          game.log('${0} takes a delegate back from ${1} for the chairman seat', (b) => b.player(player).resolution(parliament.resolutionOf(slot.instance).id));
         }
-        player.game.log('${0} takes a delegate back from ${1} for the chairman seat', (b) => b.player(player).resolution(parliament.resolutionOf(slot.instance).id));
+        parliament.chairman = player.id;
+        parliament.pendingActions = parliament.pendingActions.filter((action) => action !== pending);
+        game.log('${0} becomes the chairman', (b) => b.player(player));
+        game.events.recordChairmanSeated(player, previous);
+        // …and only NOW the Agenda step: the office is what the step pays for.
+        ChairmanSeat.advanceAgenda(player, parliament);
+      } finally {
+        game.events.endScope();
       }
-      parliament.chairman = player.id;
-      parliament.pendingActions = parliament.pendingActions.filter((action) => action !== pending);
-      player.game.log('${0} becomes the chairman', (b) => b.player(player));
-      // …and only NOW the Agenda step: the office is what the step pays for.
-      ChairmanSeat.advanceAgenda(player, parliament);
     };
     if (parties.length === 0) {
       // Defensive: should be unreachable (7 delegates are always somewhere).

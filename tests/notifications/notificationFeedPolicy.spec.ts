@@ -21,6 +21,7 @@ import {
 
 const RED: Color = 'red';
 const BLUE: Color = 'blue';
+const GREEN: Color = 'green';
 const YELLOW: Color = 'yellow';
 
 function model(extra: Partial<NotificationModel> & {kind: NotificationKind; variant: NotificationVariant}): NotificationModel {
@@ -56,7 +57,7 @@ describe('notificationFeedPolicy (the ONE quick-toast filter)', () => {
       // Record enforces presence at compile time, and this spec pins the SET
       // so a rename/removal surfaces here instead of silently fail-opening.
       expect(Object.keys(VARIANT_RELEVANCE).sort()).to.deep.eq([
-        'action-required', 'award', 'blue-action', 'bot-turn', 'colony',
+        'action-required', 'award', 'blue-action', 'bot-turn', 'chairman', 'colony',
         'destroy', 'event', 'generation', 'hydronetwork', 'milestone', 'pass',
         'passive-effect', 'planetary-event', 'play-card', 'production-reduction',
         'production-transfer', 'reveal-deck', 'reveal-hand', 'standard-project',
@@ -92,6 +93,21 @@ describe('notificationFeedPolicy (the ONE quick-toast filter)', () => {
 
     it('the terraforming-complete announcement (the game-end condition) always presents', () => {
       expect(quickToastAllowed(model({kind: 'important', variant: 'terraforming-complete'}), 'personal', BLUE)).to.eq(true);
+    });
+
+    /*
+     * PROBE 8 (docs/claude/prompts/parliament-chairman-quest.md §6). The
+     * chairmanship is EXEMPT on purpose: through `involves` the previous
+     * chairman would still get their card off `affects`, and every OTHER
+     * player would get NOTHING — they carry no typed delta, and yet what the
+     * card tells them is that this generation's quest is closed and neither
+     * the office nor the Agenda step can be taken by anyone until the next.
+     */
+    it('the chairmanship presents for BOTH the previous holder and a player the event does not touch', () => {
+      const previousChairman = model({kind: 'important', variant: 'chairman', actor: RED, affects: [RED, BLUE]});
+      expect(quickToastAllowed(previousChairman, 'personal', BLUE), 'the seat they lost is theirs to read').to.eq(true);
+      const bystander = model({kind: 'important', variant: 'chairman', actor: RED, affects: [RED]});
+      expect(quickToastAllowed(bystander, 'personal', GREEN), 'and the quest is closed for them too').to.eq(true);
     });
 
     it('the Vermin VP-pressure activation always presents (every player loses VP)', () => {

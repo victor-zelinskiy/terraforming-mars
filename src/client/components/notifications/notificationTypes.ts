@@ -119,6 +119,7 @@ export type NotificationVariant =
   | 'hydronetwork' // an advance on the Delta Project ("Гидросеть") track
   | 'planetary-event' // an Ares planetary event (hazards appear / intensify / recede)
   | 'milestone' // an achievement was claimed
+  | 'chairman' // the Mars Parliament's chairmanship changed hands (Turmoil Redux)
   | 'award' // an award was funded
   | 'terraforming-complete' // Temperature + Oxygen + Oceans first reached completion
   | 'generation' // a new generation began
@@ -141,6 +142,7 @@ export const NOTIFICATION_PRIORITY: Readonly<Record<NotificationKind, number>> =
 /** What the single call-to-action button does. */
 export type NotificationCtaAction =
   | 'open-journal' // open the journal + highlight this root event
+  | 'open-parliament' // open the Mars Parliament (Turmoil Redux — the object the card is about)
   | 'focus-actions' // draw attention to the action area (your turn)
   | 'go-to-action' // best-effort: surface the pending mandatory prompt
   | 'view-reveal' // open the read-only viewer of the revealed/shown cards

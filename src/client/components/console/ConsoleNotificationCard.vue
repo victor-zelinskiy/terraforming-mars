@@ -487,6 +487,7 @@ export default defineComponent({
     },
     glyph(): string {
       switch (this.notification.variant) {
+      case 'chairman': return '⚖';
       case 'milestone': return '🏆';
       case 'award': return '🏅';
       case 'warning': return '⚠';

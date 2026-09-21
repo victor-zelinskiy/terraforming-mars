@@ -74,6 +74,12 @@ function headerHasCard(header: LogMessage, card: CardName): boolean {
 }
 
 function rootVariant(header: LogMessage, chain: ReadonlyArray<GameEvent>): NotificationVariant {
+  // THE CHAIRMANSHIP (Turmoil Redux) rides its own event: the `parliament`
+  // category is shared with every vote and party action, so only the record
+  // can tell them apart — and it is what carries the previous holder too.
+  if (chain.some((e) => e.type === 'chairman-seated')) {
+    return 'chairman';
+  }
   if (header.category === 'milestone' || chain.some((e) => e.type === 'milestone-claimed')) {
     return 'milestone';
   }
@@ -111,6 +117,29 @@ function rootVariant(header: LogMessage, chain: ReadonlyArray<GameEvent>): Notif
   return 'event';
 }
 
+/**
+ * TWO TEXTS, ONE FACT (Turmoil Redux — «Председательство»). The event is the
+ * same for everybody; what differs is what it MEANS to the reader:
+ *  · everyone else — the office is taken and this generation's quest is
+ *    closed (the group's own header says it);
+ *  · the PREVIOUS chairman — their delegate is back in their RESERVE, which is
+ *    practical information (it can be spent again), not a statement of loss.
+ * The addressee is structural: the seating record's `target.player`. When the
+ * office did not change hands there is no target and nobody is told they lost
+ * anything.
+ */
+function chairmanHeaderFor(header: LogMessage, chain: ReadonlyArray<GameEvent>, viewerColor: Color | undefined): LogMessage {
+  const seated = chain.find((e) => e.type === 'chairman-seated');
+  if (viewerColor === undefined || seated?.target?.player !== viewerColor) {
+    return header;
+  }
+  return {
+    ...header,
+    message: 'Your delegate left the chairmanship and returned to your reserve',
+    data: [],
+  } as LogMessage;
+}
+
 /** The card behind a passive-effect root (the effect-triggered marker's source). */
 function effectSourceCard(chain: ReadonlyArray<GameEvent>, correlationId: number | undefined): CardName | undefined {
   const root = chain.find((e) => e.id === correlationId && e.type === 'effect-triggered');
@@ -130,6 +159,9 @@ function variantKind(variant: NotificationVariant): NotificationKind {
   case 'production-reduction':
   case 'production-transfer':
     return 'negative';
+  // …and the chairmanship: a generation's quest is closed and an office
+  // changed hands — a fact of the table, not one player's routine action.
+  case 'chairman':
   case 'milestone':
   case 'award':
   case 'threat':
@@ -145,6 +177,7 @@ function variantTypeLabel(variant: NotificationVariant, category: JournalActionC
   switch (variant) {
   case 'milestone': return 'Achievement';
   case 'award': return 'Award';
+  case 'chairman': return 'Chairmanship';
   case 'passive-effect': return 'Effect triggered';
   case 'hydronetwork': return 'Hydronetwork';
   case 'planetary-event': return 'Planetary event';
@@ -373,6 +406,12 @@ function buildRootNotification(input: RootBuildInput): NotificationModel | undef
   if (kind === 'normal' && actor !== undefined && actor === viewerColor) {
     return undefined;
   }
+  // …and the CHAIRMANSHIP is suppressed for its own actor whatever its kind:
+  // the player who completed the quest walked through the whole flow
+  // («ПРЕДСЕДАТЕЛЬСТВО»), so a card announcing it to them is a second telling.
+  if (variant === 'chairman' && actor !== undefined && actor === viewerColor) {
+    return undefined;
+  }
 
   // The viewer's own typed deltas inside this chain (empty when they ARE the
   // actor — an own highlight presents action-first, not "you paid 8 M€").
@@ -434,7 +473,7 @@ function buildRootNotification(input: RootBuildInput): NotificationModel | undef
     actor,
     // Structured feed-filter metadata: who the chain's typed deltas touch.
     affects: affectedPlayersOfChain(chain),
-    header,
+    header: variant === 'chairman' ? chairmanHeaderFor(header, chain, viewerColor) : header,
     childVMs: vms,
     pills,
     pillGroups: pillGroups.length > 0 ? pillGroups : undefined,
@@ -443,7 +482,12 @@ function buildRootNotification(input: RootBuildInput): NotificationModel | undef
     generation: input.generation,
     ttl: NOTIFICATION_TTL[kind],
     persistent: false,
-    cta: {labelKey: 'To journal', action: 'open-journal'},
+    // THE OBJECT THE CARD IS ABOUT: a chairmanship card opens the Parliament,
+    // where the office, the quest and the Agenda track all read as they stand
+    // now (nothing is replayed — the beats belonged to the player who acted).
+    cta: variant === 'chairman' ?
+      {labelKey: 'Open the Parliament', action: 'open-parliament'} :
+      {labelKey: 'To journal', action: 'open-journal'},
     createdAt: input.createdAt,
     effectCard: variant === 'passive-effect' ? effectSourceCard(chain, input.correlationId) : undefined,
     reveal: input.reveal?.reveal !== undefined ? {

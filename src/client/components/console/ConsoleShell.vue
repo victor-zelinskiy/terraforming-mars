@@ -13637,6 +13637,15 @@ export default defineComponent({
       surfaceLeaveCancelledHook(el);
       this.parliamentLeaving = false;
     },
+    /** «Осмотреть» on a Mars Parliament card: the workspace opens on its browse layer, as it stands now. */
+    onNotificationOpenParliament(): void {
+      if (this.playerView.game.parliament === undefined) {
+        return;
+      }
+      if (!this.restoreParkedWorkspace('parliament') && !workspaceFrameKnown('parliament')) {
+        enterWorkspace('parliament', {anchor: {type: 'always'}});
+      }
+    },
     onParliamentFlowComplete(kind: string): void {
       if (kind === 'seat') {
         return;
@@ -19284,6 +19293,7 @@ export default defineComponent({
     (this as unknown as {__notifOff: Array<() => void>}).__notifOff = [
       notificationBus.goToAction.on(this.onNotificationGoToAction),
       notificationBus.cancel.on(this.onNotificationCancel),
+      notificationBus.openParliament.on(this.onNotificationOpenParliament),
     ];
     // SCENE TRANSITION (the game destination). Register where «выйти из
     // партии» leads — a campaign mission returns to ITS campaign map, an

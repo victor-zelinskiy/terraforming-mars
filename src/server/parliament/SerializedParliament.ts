@@ -1,4 +1,5 @@
 import {PlayerId, SpaceId} from '../../common/Types';
+import {Color} from '../../common/Color';
 import {PartyName} from '../../common/turmoil/PartyName';
 import {CardName} from '../../common/cards/CardName';
 import {CardResource} from '../../common/CardResource';
@@ -202,8 +203,14 @@ export type SerializedPhaseProgress = {
 export type SerializedPendingAction =
   /** The Reds' recycle: 2 cards were drawn, 2 must be discarded. */
   | {kind: 'reds-recycle'; player: PlayerId; countAction: boolean}
-  /** A quest was completed but the new chairman still has to pick which own resolution gives up a delegate. */
-  | {kind: 'chairman-seat'; player: PlayerId}
+  /**
+   * A quest was completed but the new chairman still has to pick which own
+   * resolution gives up a delegate. `previous` is the player whose delegate
+   * already LEFT the seat — carried here rather than in memory, because the
+   * pick is routinely answered after a reload and it is what tells the other
+   * players' notification apart from the one the previous holder gets.
+   */
+  | {kind: 'chairman-seat'; player: PlayerId; previous?: Color}
   /**
    * THE CHAIRMAN QUEST WAS COMPLETED and the player has NOT answered its gate
    * yet — so nothing of it is applied: no seat, no Agenda step, no TR, no

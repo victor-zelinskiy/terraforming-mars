@@ -36,6 +36,14 @@ export type GameEventType =
   | 'delta-position-changed' // ONE committed Hydronetwork move (signed steps; both directions)
   | 'delta-blockade-changed' // a Modular Floodgates blockade placed against / expired for a player
   | 'vp-granted'
+  /**
+   * THE CHAIRMAN'S SEAT CHANGED HANDS (Turmoil Redux): `player` is the new
+   * chairman, `target.player` the previous one when the office was held (absent
+   * when it was empty, or when the sitting chairman completed the quest again).
+   * The ONE structural signal the notification's two texts are told apart by —
+   * an office is not a resource, so no `impact` delta names it.
+   */
+  | 'chairman-seated'
   // High-level game milestones:
   | 'milestone-claimed'
   | 'award-funded'

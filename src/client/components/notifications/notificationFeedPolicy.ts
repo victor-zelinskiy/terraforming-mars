@@ -51,6 +51,17 @@ export const VARIANT_RELEVANCE: Readonly<Record<NotificationVariant, FeedRelevan
   'your-turn': 'exempt',
   'action-required': 'exempt',
   'terraforming-complete': 'exempt', // the game-end condition — never noise
+  /*
+   * THE CHAIRMANSHIP CHANGED HANDS (Turmoil Redux) — EXEMPT, deliberately, and
+   * this is the one place the choice can be stated. Through `involves` the
+   * previous chairman would get their card off the `affects` list and every
+   * OTHER player would get nothing: they are not touched by any typed delta,
+   * and yet what the card tells them is that THIS generation's quest is closed
+   * — nobody else can take the office or the Agenda step until the next one.
+   * The filter exists to cut NOISE, not a signal a player cannot afford to
+   * miss (the header of this table says exactly that).
+   */
+  'chairman': 'exempt',
   // ── Involves: another participant's activity — presents only when the
   //    structured data says the viewer is directly in it. ────────────────────
   'bot-turn': 'involves',

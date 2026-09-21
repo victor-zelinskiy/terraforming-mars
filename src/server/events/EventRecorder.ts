@@ -347,6 +347,21 @@ export class EventRecorder {
     }
   }
 
+  /**
+   * THE CHAIRMAN'S SEAT CHANGED HANDS (Turmoil Redux). `previous` is the
+   * player whose delegate LEFT the seat and went back to their reserve —
+   * absent when the office was empty or kept by the same player, which is
+   * exactly the case where nobody has lost anything and no card says so.
+   */
+  public recordChairmanSeated(player: IPlayer, previous?: Color): void {
+    this.record({
+      type: 'chairman-seated',
+      player: player.color,
+      impact: {},
+      ...(previous === undefined ? {} : {target: {player: previous}}),
+    });
+  }
+
   /** Record a tile placement (carries the space for "show on map" + the tile type). */
   public recordTilePlaced(player: IPlayer, space: Space, tile: TileType): void {
     this.record({type: 'tile-placed', player: player.color, impact: {tilesPlaced: 1}, space: space.id, tile, tags: ['terraforming']});

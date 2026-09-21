@@ -517,6 +517,16 @@ export default defineComponent({
         }
         notificationBus.goToAction.emit();
         break;
+      case 'open-parliament':
+        // THE OBJECT, not the record: the Mars Parliament reads as it stands
+        // now. Nothing is replayed there — the beats belonged to the player
+        // whose quest it was.
+        if (this.journalOpen) {
+          journalState.open = false;
+        }
+        notificationBus.openParliament.emit();
+        dismiss(notification.id);
+        break;
       case 'view-reveal':
         if (notification.reveal !== undefined) {
           openRevealViewer(notification.reveal);
