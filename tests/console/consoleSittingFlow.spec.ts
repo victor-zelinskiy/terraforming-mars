@@ -6,7 +6,7 @@ import {PlayerInputModel} from '../../src/common/models/PlayerInputModel';
 import {PlayerViewModel} from '../../src/common/models/PlayerModel';
 import {
   parliamentSittingFlowBeat, parliamentSittingLive, quietRewardPoseOf, SITTING_SUBJECT_KEY, sittingAskOf, sittingAtLastPage, sittingPageAuto,
-  sittingPagesOf, sittingPositionOf, sittingSurfaceMode, sittingPrimaryKey, sittingRewardSettled, sittingStageAt, sittingStageKey, sittingStartPage,
+  sittingBodyOf, sittingPagesOf, sittingPositionOf, sittingPrimaryKey, sittingRewardSettled, sittingStageAt, sittingStageKey, sittingStartPage,
   sittingWorkspacePhase, verdictStandsAt,
 } from '../../src/client/console/parliament/consoleSittingFlow';
 import {backVerbFor} from '../../src/client/console/consoleWorkspaceFlow';
@@ -263,15 +263,21 @@ describe('the quiet reward (final polish D) — a passive / an action resolution
     }
   });
 
-  describe('СТОЛ и ЧТЕНИЕ (v4) — the middle zone is one of two modes, separated in time', () => {
-    it('the verdict, the enactment and the results\' PHYSICAL part are the TABLE: no panel may stand over the row', () => {
-      expect(sittingSurfaceMode('verdict', false)).eq('table');
-      expect(sittingSurfaceMode('enact', false)).eq('table');
-      expect(sittingSurfaceMode('results', true), 'the renewal\'s beats play over the table').eq('table');
+  describe('ЛЕНТА и ТЕЛО (v5) — the body has exactly three states, and the row is the default', () => {
+    it('every beat that MOVES an object keeps the row: the verdict, the enactment, the reward, the renewal', () => {
+      expect(sittingBodyOf('verdict', false, false)).eq('parties');
+      expect(sittingBodyOf('enact', false, false)).eq('parties');
+      expect(sittingBodyOf('reward', false, false), 'the payout\'s formula is read in the BAND, the chips fly to the rail').eq('parties');
+      expect(sittingBodyOf('results', true, false), 'the renewal\'s beats play over the row').eq('parties');
     });
-    it('the reward and the results CARD are the READING panel — the row takes no part in those beats', () => {
-      expect(sittingSurfaceMode('reward', false)).eq('reading');
-      expect(sittingSurfaceMode('reward', true), 'the reward is reading whatever the results flag says').eq('reading');
-      expect(sittingSurfaceMode('results', false), 'the card is revealed: the panel may take the row\'s place').eq('reading');
+    it('a hosted STEP of this seat is the one body the player works in — whatever page it arrived on', () => {
+      expect(sittingBodyOf('reward', false, true)).eq('step');
+      expect(sittingBodyOf('results', false, true), 'a step outranks the results panel: it is the live decision').eq('step');
+      expect(sittingBodyOf('enact', false, true)).eq('step');
     });
-  });});
+    it('the RESULTS panel is the sitting\'s last reading — only once the renewal\'s beats have played', () => {
+      expect(sittingBodyOf('results', false, false)).eq('results');
+      expect(sittingBodyOf('results', true, false), 'hidden = the beats still play over the row').eq('parties');
+    });
+  });
+});

@@ -105,15 +105,33 @@
        mode, whatever the crumb says. */
     --con-parl-crumb-w: 15.5rem;
     /* The tiers' FIXED heights — browse and every stage share them, so a
-       descent moves nothing above or below. */
-    --con-parl-mid-h: 10.4rem;
-    --con-parl-agenda-h: 4.7rem;
+       descent moves nothing above or below.
+
+       THE MIDDLE ZONE IS A BAND AND A BODY («Заседание v5»): a reading strip of
+       FIXED height at the top — the same in every mode, at every beat, on every
+       profile, in rem — and the body under it (the row of parties by default, an
+       embedded step, the results panel). `--con-parl-mid-h` is the WHOLE zone;
+       the body is what the band leaves it.
+
+       WHERE THE BAND'S HEIGHT CAME FROM (§5 of the brief, both sources allowed by
+       the owner): the Agenda track, whose nodes are purely horizontal and lose no
+       readability by being shorter, and the row itself. `mid + agenda` is
+       UNCHANGED on every profile, so the top tier — and with it the government's
+       ruler block, which is what `--con-parl-tile-h` is measured from — does not
+       move a pixel, and the ruling tile keeps the row's own height (the condition
+       of the physical swap). */
+    --con-parl-band-h: 1.95rem;
+    --con-parl-band-gap: .28rem;
+    --con-parl-mid-h: 10.8rem;
+    --con-parl-body-h: calc(var(--con-parl-mid-h) - var(--con-parl-band-h) - var(--con-parl-band-gap));
+    --con-parl-agenda-h: 4.3rem;
     /* The Agenda's cell grid: the node row (the symbol on the rail) and the
        marker row beneath it — reserved always, so an arriving marker moves
-       no symbol; the node's own diameter. */
-    --con-parl-node-row: 1.7rem;
-    --con-parl-cube-row: .95rem;
-    --con-parl-node: 1.5rem;
+       no symbol; the node's own diameter. The three node kinds keep ONE size
+       between them at every height (v3 В4). */
+    --con-parl-node-row: 1.45rem;
+    --con-parl-cube-row: .78rem;
+    --con-parl-node: 1.28rem;
     /* A SLOT's fixed chrome — label · ribbon · two tally lines — the SAME
        in every slot, so the card row is the only thing that flexes and no
        card ever moves because its neighbour's count wrapped. */
@@ -744,27 +762,43 @@
        zone moved 2 px on the TV between two sitting pages — the stability probe). */
     &__seat-count { font-size: .7rem; line-height: 1; font-variant-numeric: tabular-nums; min-width: 1.9em; }
 
-    /* ══ MIDDLE TIER — the parties (browse) OR a stage ══════════════════ */
-    &__mid { position: relative; min-height: 0; }
-    /* СТОЛ и ЧТЕНИЕ («Заседание v4»): the row is the TABLE, and it hands the tier over to a READING panel
-       by RECEDING — it lets go in place (opacity + one step back) while the panel unfolds from the rect it
-       occupied (`playStageUnfold`, 300 ms). It is never `display: none`d: taken out of the DOM it could not
-       recede at all (the swap read as a cut), its rect would stop being measurable for the unfold, and the
-       five tiles would re-mount — a blink on the way back. Parked = invisible and untouchable, nothing more. */
+    /* ══ MIDDLE ZONE — the BAND and the BODY («Заседание v5») ═══════════
+       Two rows and nothing else, in every mode. The BAND is a strip of fixed
+       height that exists always and only ever crossfades its content; the BODY
+       below it is the row of parties by default and changes exactly twice in a
+       sitting — for an embedded step the player works in, and for the results
+       panel. Nothing else may take the zone: a beat that MOVES an object the
+       player must watch is read on the objects and named by the band. */
+    &__mid {
+        display: grid;
+        grid-template-rows: var(--con-parl-band-h) minmax(0, 1fr);
+        gap: var(--con-parl-band-gap);
+        min-height: 0;
+    }
+    /* The BODY's own stacking context: the row and whatever replaces it are both
+       absolute inside it, so one can leave while the other arrives (the swap is a
+       movement, never a `v-if` cut) without either taking the zone's height. */
+    &__bodyzone { position: relative; min-height: 0; }
+    /* СМЕНА ТЕЛА («Заседание v5»): the row hands the body over by being PUSHED SHUT — its tiles go down
+       as one group with a light stagger while the new body unfolds from under the band, and they come
+       back the same way. The motion is GSAP's (`parliamentStageMotion.ts`), on the TILES, so there is no
+       CSS transition on the tier: a transition on a property a director tween owns never leaves its end
+       value and the object simply appears. The tier is never `display: none`d either — taken out of the
+       DOM it could not move at all (the swap would read as a cut), its rect would stop being measurable
+       for the unfold, and the five tiles would re-mount (a blink on the way back). PARKED is the RESTING
+       pose only — invisible and untouchable once the drawer has shut, never during the move. */
     &__parties-tier {
         position: absolute;
         inset: 0;
         display: grid;
         grid-template-rows: minmax(0, 1fr);
-        transition: opacity calc(260ms * var(--motion-scale, 1)) @con-ease-standard,
-                    transform calc(260ms * var(--motion-scale, 1)) @con-ease-standard;
-        &--parked { opacity: 0; transform: scale(.972); pointer-events: none; }
+        &--parked { opacity: 0; pointer-events: none; }
     }
     /* THE OPPOSITION ROW (v2): the FIVE parties without power — the ruling party's tile stands in the
        government (teleported there, one DOM instance per party), on the same chassis at the same size:
        the row's tile height is the tier's (`--con-parl-tile-h`), its width is measured by the fit engine
        and published as `--con-parl-tile-w` for the government's ruler slot. */
-    --con-parl-tile-h: var(--con-parl-mid-h);
+    --con-parl-tile-h: var(--con-parl-body-h);
     &__parties {
         display: grid;
         /* Five tiles at the ONE tile width (`--con-parl-tile-w`, measured by the fit engine as the smaller of
@@ -955,6 +989,126 @@
     &__reward-step &__step-res { width: 1.15rem; height: 1.15rem; }
 }
 
+/* ══ ЛЕНТА ЧТЕНИЯ («Заседание v5») ═════════════════════════════════════════
+   The middle zone's upper strip. It EXISTS ALWAYS and its box NEVER moves: one
+   fixed height in rem, the same at every beat, in every mode and on all three
+   profiles (the probe measures a zero delta). Only the CONTENT changes, and it
+   changes by a crossfade inside ONE cell — the two lines overlap in the same
+   grid area, so the slot is never empty and nothing beside the band shifts.
+   The line NEVER WRAPS. Room is yielded in a STRICT ORDER, and a strict order
+   is never a `flex-shrink` weight (weights trim every member a little): the
+   member that gives first is `flex: 1 1 0` + `min-width` + `max-width:
+   max-content`, whole members are `flex-shrink: 0`. A cut is an ellipsis on a
+   member's OWN text leaf — `text-overflow` declared on a flex box is never
+   painted — and never a slice by an ancestor (guard: `expectRailHonest`). */
+.con-band {
+    position: relative;
+    z-index: 4;
+    /* THE ONE POSE THE BAND HAS BESIDES STANDING STILL: while an embedded STEP takes the field (a pick, a
+       take — §3 gives them the площадь), the whole zone is the work surface, and the band rides to its top
+       as that surface's head. It keeps its exact height and its content; it SLIDES there and back, never
+       jumps, and it is never covered. Across the sitting's own beats (and the overview) it does not move at
+       all — that is what the geometry probe measures. */
+    transition: transform calc(300ms * var(--motion-scale, 1)) @con-ease-standard;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: center;
+    min-width: 0;
+    min-height: 0;
+    padding: 0 .55rem;
+    box-sizing: border-box;
+    border-radius: .45rem;
+    background: rgba(10, 13, 24, 0.55);
+    box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.06);
+    overflow: hidden;
+
+    &__line {
+        grid-area: 1 / 1;
+        display: flex;
+        align-items: center;
+        gap: .5rem;
+        min-width: 0;
+        white-space: nowrap;
+    }
+    /* THE KICKER yields FIRST — a tracked-caps accent, cyan before the commit
+       boundary and amber past it, and it must survive desaturation by WEIGHT,
+       not by colour alone. */
+    &__kicker {
+        display: block;
+        flex: 1 1 0;
+        min-width: 1.6rem;
+        max-width: max-content;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: .64rem;
+        font-weight: 800;
+        letter-spacing: .16em;
+        text-transform: uppercase;
+        color: @con-cyan;
+    }
+    &--committed &__kicker { color: @con-amber; }
+    /* ONE word of state beside the kicker (the reward beat only). */
+    &__state {
+        flex-shrink: 0;
+        font-size: .58rem;
+        font-weight: 800;
+        letter-spacing: .14em;
+        text-transform: uppercase;
+        color: @con-cyan;
+        &--received { color: @con-amber; }
+    }
+    &__chips {
+        display: flex;
+        align-items: center;
+        gap: .55rem;
+        flex: 0 1 auto;
+        min-width: 0;
+        overflow: hidden;
+    }
+    &__chip {
+        display: inline-flex;
+        align-items: center;
+        gap: .28rem;
+        flex-shrink: 0;
+        min-width: 0;
+        font-size: .76rem;
+        line-height: 1.1;
+        /* The SECONDARY members give their width after the kicker and before anything printed on an object. */
+        &--quiet, &--skip, &--await { flex: 1 1 0; min-width: 0; max-width: max-content; }
+    }
+    &__text {
+        display: block;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        &--strong { font-weight: 800; }
+        &--dim { opacity: .62; font-size: .64rem; letter-spacing: .08em; text-transform: uppercase; }
+        &--quiet { opacity: .7; }
+    }
+    &__chip--quiet &__text { opacity: .68; font-size: .66rem; letter-spacing: .06em; text-transform: uppercase; }
+    &__num { font-size: .92rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+    &__emblem { width: .95rem; height: .95rem; object-fit: contain; flex-shrink: 0; }
+    &__unit { display: inline-block; width: 1rem; height: 1rem; background-size: contain; background-repeat: no-repeat; background-position: center; }
+    &__bonus { display: inline-flex; align-items: center; gap: .16rem; b { font-size: .8rem; font-weight: 800; } }
+    &__seat { display: inline-flex; align-items: center; gap: .2rem; min-width: 0; }
+    &__lost { flex-shrink: 0; display: inline-flex; align-items: center; gap: .16rem; }
+    /* The readings keep their own chassis; the band only stops them from growing the strip. */
+    &__yield, &__reaction, &__winner { flex-shrink: 0; min-width: 0; max-height: 100%; }
+}
+
+/* …the step's pose: the band travels exactly the middle zone's own offset inside the field
+   (`--con-parl-mid-top`, the px the section measures), so it lands flush with the field's top edge. */
+.con-parl--sitting-field .con-band { transform: translateY(calc(-1 * var(--con-parl-mid-top, 0px))); z-index: 6; }
+
+/* The crossfade: ONE cell, both lines in it — `mode="out-in"` would empty the
+   cell for the length of the leave and the band would blink. */
+.con-band-fade-enter-active,
+.con-band-fade-leave-active { transition: opacity calc(200ms * var(--motion-scale, 1)) @con-ease-standard; }
+.con-band-fade-enter-from,
+.con-band-fade-leave-to { opacity: 0; }
+
 /* THE FLIGHT LAYER ITSELF CARRIES NO BOX — and it MUST be out of flow.
    `.con-root` is a flex COLUMN with `gap: --con-hud-gap`, so an unstyled
    wrapper is a zero-height FLEX ITEM that costs the central opening one whole
@@ -1086,11 +1240,11 @@
 html.con-profile-handheld .con-parl {
     gap: .3rem;
     --con-parl-crumb-w: 14.5rem;
-    --con-parl-mid-h: 8.4rem;
-    --con-parl-agenda-h: 3.9rem;
-    --con-parl-node-row: 1.35rem;
-    --con-parl-cube-row: .8rem;
-    --con-parl-node: 1.2rem;
+    --con-parl-mid-h: 8.7rem;
+    --con-parl-agenda-h: 3.6rem;
+    --con-parl-node-row: 1.18rem;
+    --con-parl-cube-row: .66rem;
+    --con-parl-node: 1.05rem;
     --con-parl-slot-label-h: 1.05rem;
     --con-parl-slot-ribbon-h: 1.4rem;
     --con-parl-slot-tally-h: 2.1rem;
@@ -1198,11 +1352,11 @@ html.con-profile-handheld .con-parl {
    readable below the .8rem floor, focus rings stronger. ── */
 html.con-profile-tv .con-parl {
     --con-parl-crumb-w: 19rem;
-    --con-parl-mid-h: 12rem;
-    --con-parl-agenda-h: 5.3rem;
-    --con-parl-node-row: 2rem;
-    --con-parl-cube-row: 1.05rem;
-    --con-parl-node: 1.75rem;
+    --con-parl-mid-h: 12.4rem;
+    --con-parl-agenda-h: 4.9rem;
+    --con-parl-node-row: 1.72rem;
+    --con-parl-cube-row: .86rem;
+    --con-parl-node: 1.52rem;
     --con-parl-slot-label-h: 1.45rem;
     --con-parl-slot-ribbon-h: 1.95rem;
     --con-parl-slot-tally-h: 3rem;

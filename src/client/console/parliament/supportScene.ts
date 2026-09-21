@@ -42,6 +42,8 @@ export type SupportMark = {kind: 'slot', instance: string} | {kind: 'government'
 export type SupportRollEntry = {party: ReduxParty, status: SupportStatus, mark: SupportMark};
 export type SupportWaveEntry = {
   party: ReduxParty,
+  /** WHICH WAVE this is — the band reads the rule off it: the absent parties first, the unenacted cards after. */
+  status: 'absent' | 'lost',
   cubes: ReadonlyArray<SupportSource>,
   /** The party's places are FULL: the cube arrives, the sockets answer as full, and it goes back to the supply. */
   overflow?: true,
@@ -111,10 +113,10 @@ export function supportSceneOf(
       continue;
     }
     if (record.gained > 0) {
-      waves.push({party: entry.party, cubes: Array.from({length: record.gained}, () => ({from: 'supply'} as SupportSource))});
+      waves.push({party: entry.party, status: 'absent', cubes: Array.from({length: record.gained}, () => ({from: 'supply'} as SupportSource))});
     } else {
       // The server paid nothing because the party is FULL: the cube still travels, and the sockets say why.
-      waves.push({party: entry.party, cubes: [{from: 'supply'}], overflow: true});
+      waves.push({party: entry.party, status: 'absent', cubes: [{from: 'supply'}], overflow: true});
     }
   }
   for (const entry of roll) {
@@ -127,7 +129,7 @@ export function supportSceneOf(
     }
     const instance = entry.mark.instance;
     if (record.gained === 0) {
-      waves.push({party: entry.party, cubes: [{from: 'card', instance}], overflow: true});
+      waves.push({party: entry.party, status: 'lost', cubes: [{from: 'card', instance}], overflow: true});
       continue;
     }
     // The FIRST cube is the card's own; the SECOND (a player's delegate stands on it) leaves that card's
@@ -136,7 +138,7 @@ export function supportSceneOf(
     for (let n = 0; n < record.gained; n++) {
       cubes.push(n === 1 && record.reason === 'lost-with-player-vote' ? {from: 'ribbon', instance} : {from: 'card', instance});
     }
-    waves.push({party: entry.party, cubes});
+    waves.push({party: entry.party, status: 'lost', cubes});
   }
   return {roll, waves};
 }

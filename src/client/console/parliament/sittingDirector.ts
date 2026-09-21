@@ -68,7 +68,7 @@ import {runResourceTransfers} from '@/client/console/resourceTransfer/consoleRes
 import {ResourceTransferSpec, TransferPoint} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {AgendaMove, ParliamentViewVm} from './consoleParliamentModel';
 import {SittingStage} from './consoleSittingFlow';
-import {STAGE_UNFOLD_MS} from './consoleParliamentFlow';
+import {BODY_SWAP_MS} from './consoleParliamentFlow';
 import {enactedCardEl} from './consoleResolutionPayout';
 import {SupportMark, SupportSource, supportSceneOf, SupportWaveEntry} from './supportScene';
 import {parliamentHolds, releaseEnactmentHolds, releaseRenewalHolds} from './parliamentDisplayHolds';
@@ -134,6 +134,12 @@ export const sittingMotion = reactive({
   stage: '' as SittingStage | '',
   /** The beat of the stage that is playing ('' at rest / a one-beat stage). */
   beat: '' as '' | 'agenda' | 'support' | 'enact',
+  /**
+   * …and WHICH WAVE of the support beat is in the air ('' between waves). The two waves obey two different
+   * rules — the parties nobody spoke for take from the supply, the unenacted resolutions send their own —
+   * and the reading band names the rule of the wave the player is watching, never both at once.
+   */
+  supportWave: '' as '' | 'absent' | 'lost',
   /** The stage steps out of the way: the opposition tier is in full view (the support beat lands on its places). */
   /** The winning card's slot, lit for the verdict (its instance; '' = none). */
   litSlot: '' as string,
@@ -497,6 +503,7 @@ function beatSupport(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: num
   at += s(ROLL_TAIL_MS) * k;
   for (const wave of waves) {
     tl.call(() => {
+      sittingMotion.supportWave = wave.status;
       launchSupportWave(runState, ctx, wave, k);
     }, undefined, at);
     at += s((wave.cubes.length - 1) * SUPPORT_CUBE_STAGGER_MS + SUPPORT_PARTY_GAP_MS) * k;
@@ -506,6 +513,7 @@ function beatSupport(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: num
   tl.call(() => {
     holds.rollStatus.clear();
     holds.supportIncoming.clear();
+    sittingMotion.supportWave = '';
   }, undefined, at);
   return at;
 }
@@ -769,23 +777,21 @@ function beatReward(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: numb
   const root = ctx.root;
   const owed = takeOwedRewards();
   if (owed.length === 0) {
-    const rows = itemsOf(root, '.con-sit__panel--on .con-sit__hero > [data-parl-sit-item]');
-    let at = 0;
-    if (rows.length > 0) {
-      descendCascade(tl, rows, s(REWARD_REVEAL_MS) * k, s(70) * k, 0);
-      at = s(REWARD_REVEAL_MS) * k + s(70) * k * (rows.length - 1);
-    }
-    // THE TILE'S RECEIPT: the frame is back from the board and the pose says what the winner's tile did — it is
+    // NOTHING FLIES, SO THE BEAT IS A READ (v5). The reward's whole reading is the BAND's line — the payout
+    // formula, the ruling party's answer, a skip with its reason — and the band brings it in by its own
+    // crossfade. The beat spends its time letting that line be read, never re-animating it.
+    let at = s(REWARD_REVEAL_MS) * k;
+    // THE TILE'S RECEIPT: the frame is back from the board and the line says what the winner's tile did — it is
     // READ for a beat before the walk goes on.
     if (parliamentRewardState.receiptShowing) {
       at += s(RECEIPT_DWELL_MS) * k;
     }
-    // …AND A PAGE WHOSE WHOLE CONTENT IS A READING MUST BE READABLE (v4). A resolution that pays nothing still
-    // leaves something behind — «ЭФФЕКТ, ПОКА ПРИНЯТА …» / «ДЕЙСТВИЕ, ПОКА ПРИНЯТА …» — and that sentence is on
-    // the reward page alone. With only the cascade to spend, the page stood 271 ms (measured) and the walk moved
-    // on: a reading nobody can read is not a reading. The quiet pose therefore dwells like the tile's receipt
-    // does; «дожать» still drives it to its end, because the dwell is part of the beat's own timeline.
-    if (root.querySelector('.con-sit__panel--on [data-sit-quiet]') !== null) {
+    // …AND A BEAT WHOSE WHOLE CONTENT IS A READING MUST BE READABLE (v4's own finding, kept). A resolution that
+    // pays nothing still leaves something behind — the effect that now stands, or the action to take — and the
+    // band is the only place that says so. With only the crossfade to spend, that beat stood 271 ms (measured)
+    // and the walk moved on: a reading nobody can read is not a reading. «Дожать» still drives it to its
+    // end, because the dwell is part of the beat's own timeline.
+    if (root.querySelector('[data-parl-band-quiet]') !== null) {
       at += s(QUIET_REWARD_DWELL_MS) * k;
     }
     return at;
@@ -1007,7 +1013,7 @@ function beatResults(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: num
     }));
   }, undefined, at);
   // The panel's own unfold (0.3–0.4 s) plus the rows' cascade — the beat owns the whole reading handoff.
-  at += s(STAGE_UNFOLD_MS + CLOSING_MS) * k;
+  at += s(BODY_SWAP_MS + CLOSING_MS) * k;
   return at;
 }
 
@@ -1074,6 +1080,7 @@ function runBeat(stage: SittingStage, beat: '' | 'agenda' | 'support' | 'enact',
     runState.finished = true;
     runState.hold.release();
     sittingMotion.beat = '';
+    sittingMotion.supportWave = '';
     if (runState.releaseAgendaCard) {
       runState.releaseAgendaCard = false;
       markAgendaBonusLanded();
@@ -1206,6 +1213,7 @@ export function killSittingMotion(): void {
   hurry = false;
   sittingMotion.stage = '';
   sittingMotion.beat = '';
+  sittingMotion.supportWave = '';
   sittingMotion.agendaSegment = undefined;
   if (current === undefined) {
     return;

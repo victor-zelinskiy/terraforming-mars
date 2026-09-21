@@ -60,8 +60,12 @@ function carryOf(root: HTMLElement): HTMLElement | null {
   return root.querySelector<HTMLElement>('[data-parl-gov-carry]');
 }
 
+/**
+ * What REVEALS with the step (v5): the zone the work stands in. The reward's own readings used to cascade
+ * here — they live in the reading BAND now, which never moves and therefore never cascades.
+ */
 function surfaceItemsOf(root: HTMLElement): Array<HTMLElement> {
-  return Array.from(root.querySelectorAll<HTMLElement>('.con-parl__stage--field [data-parl-sit-item]'));
+  return Array.from(root.querySelectorAll<HTMLElement>('.con-parl__stage--field .con-sit__zone--on'));
 }
 
 /** The carried card's rect right now (measure BEFORE the teleport moves it). */

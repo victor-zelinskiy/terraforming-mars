@@ -173,8 +173,12 @@ function freshFlow() {
 export const parliamentFlow = reactive(freshFlow());
 
 /** The seat / sitting stage's unfold / fold (the middle tier's stage zone). */
-export const STAGE_UNFOLD_MS = 300;
-export const STAGE_FOLD_MS = 220;
+/**
+ * СМЕНА ТЕЛА (v5 §3) — ONE duration for the whole grammar, both ways: the row is pushed shut downward
+ * while the new body unfolds from under the band, and back. «Порядка четырёх десятых секунды в обе
+ * стороны» — a swap that is faster in one direction reads as two different moves.
+ */
+export const BODY_SWAP_MS = 400;
 
 export function resetParliamentFlow(): void {
   Object.assign(parliamentFlow, freshFlow());

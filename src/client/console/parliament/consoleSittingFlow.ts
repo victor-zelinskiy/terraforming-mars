@@ -245,39 +245,40 @@ export function sittingStageAt(position: SittingPosition, page: number): Sitting
 }
 
 /**
- * СТОЛ И ЧТЕНИЕ («Заседание v4») — the sitting's middle zone is a TABLE or a READING panel, and the two are
- * separated IN TIME, never in space.
+ * ЛЕНТА И ТЕЛО («Заседание v5») — the middle zone is a BAND and a BODY, and the body has exactly THREE
+ * states. The band above it never changes: it names the reason for what is happening and crossfades its
+ * content, and nothing below it may move because of that.
  *
- * **СТОЛ.** The verdict, the Agenda, the support and the enactment — plus the whole PHYSICAL part of the
- * results (the losers leaving, the deal, the lobby). The government, the voting area, the WHOLE row of
- * parties and the Agenda are on screen; there is no text panel at all, because every one of those beats
- * moves an object the player must see. The verdict reads ON the objects: the badge on the card being
- * enacted, its delegate count, the winner's chip beside it, the roll call's word in each tile's own
- * reserved row, the chairmanship's outcome in the government.
+ * **РЯД ПАРТИЙ** — the default, and the state of every beat that MOVES an object the player must watch:
+ * the verdict, the Agenda, the popular support, the enactment, and the whole physical part of the results
+ * (the losers leaving, the deal, the lobby). The reward is one of them too: its chips fly to the rail and
+ * its formula is read in the band, so nothing needs to take the row's place for it — which is what removed
+ * the switching from a quiet resolution entirely.
  *
- * **ЧТЕНИЕ.** The reward with its steps, and the final results card. Nothing of the row takes part in those
- * beats, so the panel may take its place — once, by an explicit motion (the row recedes, the panel unfolds
- * where it stood).
+ * **ВСТРОЕННЫЙ ШАГ** — the player has to WORK: a pick of a card for a resource, a take of drawn cards.
+ * Those are separate widgets and they need the площадь, so the zone becomes the work surface for as long
+ * as the step stands (`sittingField` — the section's own fact: the seat's own ask, and only once the wave
+ * that arrived with it has played).
  *
- * The law that follows: a reading panel may never cover an object something is flying to or from. That is
- * why the results' physical part is table and only the card that follows it is reading.
+ * **ПАНЕЛЬ ИТОГОВ** — the sitting's last reading, and it does not fold back: the sitting ends after it.
+ *
+ * The law that follows and has not changed: a reading surface may never cover an object something is
+ * flying to or from — which is why the results' physical part is the ROW and only the card after it is
+ * the panel, and why placing the winner's tile is not a body state at all (the stack yields to the board
+ * and comes back).
  */
-export type SittingSurfaceMode = 'table' | 'reading';
+export type SittingBody = 'parties' | 'step' | 'results';
 
 /**
  * `resultsHidden` is the director's own fact: the results card waits while the renewal's beats play over
- * the table (and a reload that never played them lands with it already shown).
+ * the table (and a reload that never played them lands with it already shown). `field` is the section's:
+ * a hosted step of this seat's stands in the zone.
  */
-export function sittingSurfaceMode(stage: SittingStage, resultsHidden: boolean): SittingSurfaceMode {
-  switch (stage) {
-  case 'verdict':
-  case 'enact':
-    return 'table';
-  case 'reward':
-    return 'reading';
-  case 'results':
-    return resultsHidden ? 'table' : 'reading';
+export function sittingBodyOf(stage: SittingStage, resultsHidden: boolean, field: boolean): SittingBody {
+  if (field) {
+    return 'step';
   }
+  return stage === 'results' && !resultsHidden ? 'results' : 'parties';
 }
 
 /** Is the local cursor on the step's LAST page (the page whose A answers the gate, or has nothing left to turn)? */

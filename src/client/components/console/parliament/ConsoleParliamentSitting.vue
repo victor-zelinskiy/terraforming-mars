@@ -21,193 +21,108 @@
        :data-sit-mode="mode"
        data-parl-sitting>
 
-    <!-- ── VERDICT: who won the vote, with how many delegates, and for whom. Nothing else has happened yet (v2). ── -->
-    <section class="con-sit__panel con-sit__panel--verdict" :class="{'con-sit__panel--on': stage === 'verdict'}" data-sit-panel="verdict">
-      <!-- The RESOLUTION's state is the kicker (glossary: a resolution «принимается»); the winning PLAYER is a row below (P-18: the kicker repeated the row's label). -->
-      <span class="con-sit__kicker">{{ $t('Winning') }}</span>
-      <template v-if="summary !== undefined">
-        <div class="con-sit__head">
-          <b class="con-sit__title">{{ $t(resolutionTitle(summary.winner.resolution)) }}</b>
-          <span class="con-sit__party"><img class="con-sit__emblem" :src="emblemUrl(summary.winner.party)" alt="" />{{ $t(partyNameKey(summary.winner.party)) }}</span>
-        </div>
-        <div class="con-sit__rows">
-          <div class="con-sit__row" data-sit-row="delegates">
-            <span class="con-parl__chip-dim">{{ $t('Delegates') }}</span>
-            <b>{{ summary.winner.votes }}</b>
-          </div>
-          <div class="con-sit__row" data-sit-row="winner">
-            <span class="con-parl__chip-dim">{{ $t('Winning player') }}</span>
-            <span class="con-sit__val">
-              <PlayerCube v-if="winnerColor !== undefined" :color="winnerColor" :size="cubePx(11)" :glow="false" />
-              <b>{{ nameOf(summary.winner.player) }}</b>
-            </span>
-          </div>
-          <div v-if="tieKey !== undefined" class="con-sit__row con-sit__row--wide con-sit__tie" data-sit-row="tie">{{ $t(tieKey) }}</div>
-          <!-- The gate answered: who is still reading the verdict. -->
-          <span v-if="position.gate === 'assembly' && position.rewardStep === 'gate'" class="con-sit__awaiting con-sit__row con-sit__row--wide" data-sit-awaiting>
-            {{ $t('Waiting for the other seats') }}
-            <span class="con-sit__chips">
-              <span v-for="c in position.awaiting" :key="c" class="con-sit__chip"><PlayerCube :color="c" :size="cubePx(11)" :glow="false" />{{ nameOfColor(c) }}</span>
-            </span>
-          </span>
-        </div>
-      </template>
-    </section>
-
-    <!-- ── ENACTMENT: the law, the party that rules by it, and what the table did with it (the director's three beats play over it). ── -->
-    <section class="con-sit__panel con-sit__panel--enact" :class="{'con-sit__panel--on': stage === 'enact'}" data-sit-panel="enact">
-      <span class="con-sit__kicker">{{ $t('Enacted resolution') }}</span>
-      <template v-if="summary !== undefined">
-        <div class="con-sit__head">
-          <b class="con-sit__title">{{ $t(resolutionTitle(summary.enacted.resolution)) }}</b>
-          <span class="con-sit__party"><img class="con-sit__emblem" :src="emblemUrl(summary.enacted.party)" alt="" />{{ $t('Ruling party') }} · {{ $t(partyNameKey(summary.enacted.party)) }}</span>
-        </div>
-        <div class="con-sit__rows">
-          <div v-if="returned.length > 0" class="con-sit__row" data-sit-row="returned">
-            <span class="con-parl__chip-dim">{{ $t('Delegates returned') }}</span>
-            <span class="con-sit__chips">
-              <span v-for="r in returned" :key="r.owner" class="con-sit__chip">
-                <PlayerCube v-if="r.owner !== 'neutral'" :color="r.owner" :size="cubePx(11)" :glow="false" />
-                <PlayerCube v-else color="neutral" steel :size="cubePx(11)" :glow="false" />
-                <b>×{{ r.count }}</b>
-              </span>
-            </span>
-          </div>
-          <!-- (v3 В6) The AGENDA move and the POPULAR SUPPORT are no longer listed here: the player has just
-               watched the marker glide and the cubes land. A panel that re-tells what a movement said makes the
-               movement decorative — this one names only what was NOT on screen. -->
-        </div>
-      </template>
-    </section>
-
-    <!-- ── REWARD: the reading of what the law pays THIS seat (the server's own
-         amounts once they are recorded, the estimate before), the ruling
-         party's answer, the winner's tile (behind «К полю»), a SKIP PLATE for
-         what could not be paid (never a silent loss), the honest wait for
-         another seat, and the ZONE the enacted resolution's own ask stands in. ── -->
+    <!-- ── ВСТРОЕННЫЙ ШАГ (v5): the ONE body state the player WORKS in — a pick of a card for a
+         resource, a take of drawn cards. The readings of the reward itself are NOT here: the payout's
+         formula, the ruling party's answer, a skip with its reason and the honest wait all live in the
+         READING BAND above the zone, which never moves and is never taken by anything. What stands here
+         is the work: the carrier card as the visible source, and the zone the enacted resolution's own
+         ask is teleported into. ── -->
     <section class="con-sit__panel con-sit__panel--reward" :class="{'con-sit__panel--on': stage === 'reward'}" data-sit-panel="reward">
-      <!-- The kicker names the stage; ONE word of state beside it says which
-           moment the numbers belong to — «this payout» until every chip has
-           landed, «received» after (cyan → amber, the console's own
-           pre-/post-commit accent). The readings print no caption of their own:
-           one state, said once (law 19 — a word, never a sentence). -->
-      <span class="con-sit__kicker">{{ $t(rewardKicker) }}<span v-if="rewardStateKey !== undefined" class="con-sit__kicker-state" :class="{'con-sit__kicker-state--received': rewardStateKey === 'Received'}" :data-sit-reward-state="rewardStateKey">{{ $t(rewardStateKey) }}</span></span>
       <div class="con-sit__reward" :class="{'con-sit__reward--field': field}">
         <div class="con-sit__hero" :class="{'con-sit__hero--field': field}">
-          <!-- The carried enacted card lands here (one DOM instance, teleported by the government) while the stage holds the field. -->
+          <!-- The carried enacted card lands here (one DOM instance, teleported by the government) while the step holds the field. -->
           <div class="con-sit__card" data-parl-sit-hero></div>
-          <!-- The readings only: the carrier card's own printed graphic (in the
-               government, or carried onto the hero slot) IS the formula — a
-               second copy of it stacked the reward past its tier over the
-               Agenda track (measured at 1080 with the two-link chain). -->
-          <ConsoleInfluenceYield v-if="yields.length > 0"
-                                 class="con-sit__yield"
-                                 :yields="yields"
-                                 :size="field ? 'hero' : 'normal'"
-                                 :formula="false"
-                                 :captions="false"
-                                 data-parl-sit-yield
-                                 data-parl-sit-item />
-          <!-- THE QUIET REWARD (final polish D): no immediate step for this seat — the passive effect that
-               now stands, or the action to take from «Действия карт»; the kicker says which, the text is
-               the card's own declaration. Never an empty stage. -->
-          <div v-if="yields.length === 0 && quietPose !== undefined" class="con-sit__quiet" :data-sit-quiet="quietPose.kind" data-parl-sit-item>
-            <span class="con-sit__quiet-kicker">{{ $t(quietPose.kicker) }}</span>
-            <span class="con-sit__quiet-text">{{ quietText(quietPose.text) }}</span>
-            <span v-if="quietPose.kind === 'action'" class="con-sit__quiet-where">{{ $t('Available in Card actions') }}</span>
-          </div>
-          <ConsolePartyReaction v-for="r in reactions" :key="r.reaction.id"
-                                class="con-sit__reaction"
-                                :reading="r"
-                                size="normal"
-                                data-parl-sit-item />
-          <ConsoleWinnerReward v-if="winnerReading !== undefined"
-                               :reading="winnerReading"
-                               :viewerColor="viewerColor"
-                               :nameOf="nameOfColor"
-                               size="normal"
-                               :reasonElsewhere="true"
-                               data-parl-sit-item />
-          <div v-for="skip in skips" :key="skip.key" class="con-sit__skip" data-parl-sit-item data-sit-skip :data-sit-skip-amount="skip.amount">
-            <span class="con-sit__skip-title">{{ $t('Skipped') }} · {{ $t(skip.title) }}</span>
-            <!-- WHAT IT WOULD HAVE PAID, when the record honestly knows: the
-                 same struck «✕ +K [unit]» language the yield block speaks for
-                 a forfeited scaled part — never a silent loss (law 4). -->
-            <span v-if="skip.amount !== undefined" class="con-sit__skip-amount con-iyield__out con-iyield__out--lost"><b>✕ +{{ skip.amount }}</b><i class="con-iyield__unit" :class="skip.unit" aria-hidden="true"></i></span>
-            <span class="con-sit__skip-reason">{{ $t(skip.reason) }}</span>
-          </div>
-          <!-- THE DOOR TO THE BOARD (v2): the winner's tile is placed only by the player's own press —
-               the pose reads the tile and names the verb; the board's hexes stay dark until then. -->
-          <span v-if="position.rewardStep === 'placement'" class="con-sit__door" data-sit-door data-parl-sit-item>
-            <i class="con-sit__door-tile" :class="'con-sit__door-tile--' + (winnerReading?.reward.tile ?? 'greenery')" aria-hidden="true"></i>
-            <span class="con-sit__door-text">{{ $t('Your tile waits on the board') }}</span>
-          </span>
-          <!-- The honest WAIT for ANOTHER seat — its cube, then who and what kind of answer. -->
-          <span v-if="waiting !== undefined" class="con-sit__wait" data-sit-wait :data-sit-wait-for="waiting.player">
-            <PlayerCube :color="waiting.player" :size="cubePx(11)" :glow="false" />{{ waiting.text }}
-          </span>
-          <span v-else-if="position.rewardStep === 'received' && yields.length === 0 && skips.length === 0 && winnerReading === undefined && quietPose === undefined" class="con-sit__note">{{ $t('Your record is in') }}</span>
         </div>
-        <div class="con-sit__zone" :class="{'con-sit__zone--on': field}" data-parl-sit-item>
+        <div class="con-sit__zone" :class="{'con-sit__zone--on': field}">
           <div class="con-sit__embed" data-embed-slot="parliament-stage"></div>
         </div>
       </div>
     </section>
 
-    <!-- ── RESULTS (v2 — one stage): the renewal's beats play over the table (the losers
-         leave, the deal, the support seats, the lobby refills), then the results card
-         REVEALS here — objects only: enacted · the winner of the vote · your reward ·
-         the new resolutions with their parties · the lobby. A «Закрыть заседание». ── -->
+    <!-- ── ПАНЕЛЬ ИТОГОВ (v5 §4) — the sitting's last reading, and the one surface that does NOT fold
+         back: the sitting ends after it. THREE sections and nothing beside them, because the panel shows
+         only what is nowhere else on the screen — the generation's number is in the band above it, the
+         voting area is the voting area, the enacted card prints its own effect in the government.
+         ① ЗАКОН · ② ВЫПЛАТЫ (a row per seat — a player saw its OWN chips fly and has never been shown
+         anybody else's) · ③ СТОЛ (what changed and is already out of sight). ── -->
     <section class="con-sit__panel con-sit__panel--results" :class="{'con-sit__panel--on': stage === 'results'}" data-sit-panel="results">
-      <span class="con-sit__kicker">{{ $t('Results') }}</span>
-      <div v-if="summary !== undefined" class="con-sit__results" :class="{'con-sit__results--hidden': resultsHidden}" data-sit-results :data-sit-results-hidden="resultsHidden ? '' : undefined">
-        <div class="con-sit__results-head">
-          <b class="con-sit__results-title">{{ resultsTitle }}</b>
-          <!-- The wait on the other seats rides the HEAD's line (right), never a row of its own: the stage is a
-               fixed tier and a fifth row ran the card over the Agenda track (measured on every profile). -->
-          <span v-if="position.gate === 'adjourn' && position.rewardStep === 'gate'" class="con-sit__awaiting" data-sit-awaiting>
-            {{ $t('Waiting for the other seats') }}
+      <div v-if="results !== undefined" class="con-sit__results" :class="{'con-sit__results--hidden': resultsHidden}" data-sit-results :data-sit-results-hidden="resultsHidden ? '' : undefined">
+        <!-- ① ЗАКОН — one line with icons: what stands, who rules by it, what the chairman is set. -->
+        <div class="con-sit__law" data-sit-section="law">
+          <span class="con-sit__law-part" data-sit-law="enacted">
+            <span class="con-parl__chip-dim">{{ $t('Enacted') }}</span>
+            <img class="con-sit__emblem" :src="emblemUrl(results.law.party)" alt="" />
+            <b class="con-sit__law-name">{{ $t(resolutionTitle(results.law.resolution)) }}</b>
+          </span>
+          <span class="con-sit__law-part" data-sit-law="ruling">
+            <span class="con-parl__chip-dim">{{ $t('Ruling party') }}</span>
+            <b>{{ $t(partyNameKey(results.law.party)) }}</b>
+          </span>
+          <span v-if="results.law.quest !== undefined" class="con-sit__law-part con-sit__law-part--quest" data-sit-law="quest">
+            <span class="con-parl__chip-dim">{{ $t('Chairman quest') }}</span>
+            <span class="con-sit__law-quest">{{ $t(results.law.quest.text) }}</span>
+            <PlayerCube v-if="results.law.chairman !== undefined" :color="results.law.chairman" :size="cubePx(11)" :glow="false" />
+          </span>
+        </div>
+
+        <!-- ② ВЫПЛАТЫ — the panel's main content. A skip names itself with its reason, as on the reward beat. -->
+        <div class="con-sit__payouts" data-sit-section="payouts">
+          <span class="con-parl__chip-dim con-sit__section-kicker">{{ $t('Payouts') }}</span>
+          <span v-if="results.quiet !== undefined" class="con-sit__payout-quiet" data-sit-payout-quiet>{{ $t(results.quiet.kicker) }}</span>
+          <div v-for="row in results.payouts" v-else :key="row.player" class="con-sit__payout" data-sit-payout :data-sit-payout-seat="row.player">
+            <span class="con-sit__payout-who">
+              <PlayerCube :color="row.player" :size="cubePx(11)" :glow="false" />
+              <b class="con-sit__payout-name">{{ nameOfColor(row.player) }}</b>
+            </span>
+            <span class="con-sit__payout-parts">
+              <span v-if="row.parts.length === 0" class="con-parl__chip-dim" data-sit-payout-none>{{ $t('No reward') }}</span>
+              <span v-for="part in row.parts" :key="part.id" class="con-sit__part"
+                    :class="{'con-sit__part--skipped': part.skipped !== undefined}" :data-sit-part="part.kind">
+                <template v-if="part.skipped !== undefined">
+                  <span class="con-parl__chip-dim">{{ $t('Skipped') }} · {{ $t(part.skipped.title) }}</span>
+                  <span class="con-sit__part-reason">{{ $t(part.skipped.reason) }}</span>
+                </template>
+                <template v-else>
+                  <img v-if="part.party !== undefined" class="con-sit__emblem" :src="emblemUrl(part.party)" alt="" />
+                  <i v-if="part.tile !== undefined" class="con-sit__door-tile" :class="'con-sit__door-tile--' + part.tile" aria-hidden="true"></i>
+                  <template v-else>
+                    <b>+{{ part.amount }}</b>
+                    <i class="con-sit__part-unit" :class="partUnitClass(part)" aria-hidden="true"></i>
+                  </template>
+                </template>
+              </span>
+            </span>
+          </div>
+        </div>
+
+        <!-- ③ СТОЛ — the new resolutions with their parties, the support after the deal, the lobby. -->
+        <div class="con-sit__table" data-sit-section="table">
+          <span class="con-parl__chip-dim con-sit__section-kicker">{{ $t('The table') }}</span>
+          <div class="con-sit__row" data-sit-row="results-fresh">
+            <span class="con-parl__chip-dim">{{ $t('New resolutions') }}</span>
+            <span v-if="results.table.fresh.length === 0" class="con-sit__chips"><b>—</b></span>
+            <span v-else class="con-sit__chips">
+              <span v-for="fresh in results.table.fresh" :key="fresh.instance" class="con-sit__chip" data-sit-fresh>
+                <img class="con-sit__emblem" :src="emblemUrl(fresh.party)" alt="" /><b>{{ $t(resolutionTitle(fresh.resolution)) }}</b>
+                <span v-if="fresh.stays" class="con-parl__chip-dim" data-sit-stays>{{ $t('stays · reshuffled') }}</span>
+              </span>
+            </span>
+          </div>
+          <div class="con-sit__row" data-sit-row="results-support">
+            <span class="con-parl__chip-dim">{{ $t('Popular support') }}</span>
             <span class="con-sit__chips">
-              <span v-for="c in position.awaiting" :key="c" class="con-sit__chip"><PlayerCube :color="c" :size="cubePx(11)" :glow="false" />{{ nameOfColor(c) }}</span>
+              <span v-for="entry in results.table.support" :key="entry.party" class="con-sit__chip" data-sit-support :data-sit-support-party="entry.party">
+                <img class="con-sit__emblem" :src="emblemUrl(entry.party)" alt="" /><b>{{ entry.total }}</b>
+              </span>
             </span>
-          </span>
-        </div>
-        <!-- The resolution is «принята», the player is the «победитель голосования» (P-24: one label named both). -->
-        <div class="con-sit__row" data-sit-row="results-enacted">
-          <span class="con-parl__chip-dim">{{ $t('Enacted') }}</span>
-          <span class="con-sit__val"><img class="con-sit__emblem" :src="emblemUrl(summary.winner.party)" alt="" /><b>{{ $t(resolutionTitle(summary.winner.resolution)) }}</b></span>
-        </div>
-        <div class="con-sit__row" data-sit-row="results-player">
-          <span class="con-parl__chip-dim">{{ $t('Winning player') }}</span>
-          <span class="con-sit__val">
-            <PlayerCube v-if="winnerColor !== undefined" :color="winnerColor" :size="cubePx(11)" :glow="false" />
-            <b>{{ nameOf(summary.winner.player) }}</b>
-          </span>
-        </div>
-        <div class="con-sit__row" data-sit-row="results-reward">
-          <span class="con-parl__chip-dim">{{ $t('Your reward') }}</span>
-          <span class="con-sit__val">
-            <ConsoleInfluenceYield v-if="yields.length > 0" :yields="yields" size="compact" :formula="false" :captions="false" />
-            <b v-else>{{ $t(quietPose === undefined ? 'No reward' : quietPose.kicker) }}</b>
-          </span>
-        </div>
-        <!-- The new resolutions WITH their parties — objects: an emblem, a name; a card dealt straight back says it stays. -->
-        <div class="con-sit__row" data-sit-row="results-fresh">
-          <span class="con-parl__chip-dim">{{ $t('New resolutions') }}</span>
-          <span v-if="summary.refreshed.length === 0" class="con-sit__chips"><b>—</b></span>
-          <span v-else class="con-sit__chips">
-            <span v-for="fresh in summary.refreshed" :key="fresh.instance" class="con-sit__chip" data-sit-fresh>
-              <img class="con-sit__emblem" :src="emblemUrl(fresh.party)" alt="" /><b>{{ $t(resolutionTitle(fresh.resolution)) }}</b>
-              <span v-if="returning.has(fresh.instance)" class="con-parl__chip-dim" data-sit-stays>{{ $t('stays · reshuffled') }}</span>
+          </div>
+          <div class="con-sit__row" data-sit-row="results-lobby">
+            <span class="con-parl__chip-dim">{{ $t('To the lobby') }}</span>
+            <span v-if="results.table.lobby.length === 0" class="con-sit__chips"><b>—</b></span>
+            <span v-else class="con-sit__chips">
+              <span v-for="color in results.table.lobby" :key="color" class="con-sit__chip"><PlayerCube :color="color" :size="cubePx(11)" :glow="false" /></span>
             </span>
-          </span>
-        </div>
-        <!-- The lobby refilled: objects — the seats' cubes back in the lobby (P-23: a sentence stood here). -->
-        <div v-if="summary.lobbyRefilled.length > 0" class="con-sit__row" data-sit-row="results-lobby">
-          <span class="con-parl__chip-dim">{{ $t('To the lobby') }}</span>
-          <span class="con-sit__chips">
-            <span v-for="color in summary.lobbyRefilled" :key="color" class="con-sit__chip"><PlayerCube :color="color" :size="cubePx(11)" :glow="false" /></span>
-          </span>
+          </div>
         </div>
       </div>
     </section>
@@ -218,37 +133,23 @@ import {partyNameKey} from '@/client/console/parliament/partyNames';
 import {defineComponent, PropType} from 'vue';
 import {Color} from '@/common/Color';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
-import {ParliamentEnactOutcomeModel, ParliamentModel, ParliamentPhaseSummaryModel} from '@/common/models/ParliamentModel';
+import {ParliamentModel, ParliamentPhaseSummaryModel} from '@/common/models/ParliamentModel';
 import {ReduxParty} from '@/common/parliament/ParliamentTypes';
 import {IClientResolution} from '@/common/parliament/IClientResolution';
-import {InfluenceYield} from '@/common/parliament/influenceScaling';
-import {REWARD_ADDRESS, rewardAddressOf} from '@/common/parliament/rewardAddress';
 import PlayerCube from '@/client/components/PlayerCube.vue';
-import ConsoleInfluenceYield from '@/client/components/console/parliament/ConsoleInfluenceYield.vue';
-import ConsolePartyReaction from '@/client/components/console/parliament/ConsolePartyReaction.vue';
-import ConsoleWinnerReward from '@/client/components/console/parliament/ConsoleWinnerReward.vue';
 import {partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
-import {actionRuleText} from '@/client/components/actions/actionDescription';
 import {conLogicalPx} from '@/client/console/consoleLayoutProfile';
-import {translateTextWithParams} from '@/client/directives/i18n';
 import {getResolution} from '@/client/parliament/ClientParliamentManifest';
 import {consoleParliamentUi} from '@/client/console/parliament/consoleParliamentFlow';
 import {parliamentPlayerName, ParliamentViewVm, resolutionTitleOf} from '@/client/console/parliament/consoleParliamentModel';
-import {SittingPosition, SittingStage, quietRewardPoseOf, QuietRewardPose} from '@/client/console/parliament/consoleSittingFlow';
-import {returningInstances} from '@/client/console/parliament/sittingBeats';
-import {enactedYieldsOf, resolvingYieldsOf, voteYieldsOf} from '@/client/console/parliament/influenceYieldModel';
-import {parliamentRewardState, rewardLanded} from '@/client/console/parliament/parliamentRewardBeat';
+import {quietRewardPoseOf, SittingPosition, SittingStage} from '@/client/console/parliament/consoleSittingFlow';
+import {ResultsPayoutPart, ResultsReading, resultsReadingOf} from '@/client/console/parliament/parliamentResultsModel';
 import {cardResourceKey} from '@/client/console/resourceTransfer/resourceTransferModel';
-import {PartyReactionReading, partyReactionsOf, viewerHasSeat} from '@/client/console/parliament/partyReactionModel';
-import {WinnerRewardReading, winnerRewardReadingOf, winnerRewardTableOf} from '@/client/console/parliament/winnerRewardModel';
-
-/** A skipped effect on the reward stage: WHAT was skipped and WHY (both i18n keys), and what it would have paid when the record knows. */
-type SkipPlate = {key: string, title: string, reason: string, amount?: number, unit?: string};
 
 export default defineComponent({
   name: 'ConsoleParliamentSitting',
-  components: {PlayerCube, ConsoleInfluenceYield, ConsolePartyReaction, ConsoleWinnerReward},
+  components: {PlayerCube},
   props: {
     /** Where the sitting stands on the server (`consoleSittingFlow.sittingPositionOf`). */
     position: {type: Object as PropType<SittingPosition>, required: true},
@@ -260,9 +161,9 @@ export default defineComponent({
     model: {type: Object as PropType<ParliamentModel | undefined>, default: undefined},
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     viewerColor: {type: String as PropType<Color | undefined>, default: undefined},
-    /** The reward stage holds the FIELD (a hosted step stands in its zone). */
+    /** The step holds the FIELD (a hosted step stands in its zone). */
     field: {type: Boolean, default: false},
-    /** The results card waits for the renewal's beats (the director reveals it). */
+    /** The results panel waits for the renewal's beats (the director reveals it). */
     resultsHidden: {type: Boolean, default: false},
     /** Hosted inside another surface's zone (nothing of the chassis to strip — the sitting never titles itself). */
     embedded: {type: Boolean, default: false},
@@ -282,184 +183,43 @@ export default defineComponent({
     }
   },
   computed: {
-    /** The quiet reward of a passive / an action resolution (final polish D). */
-    quietPose(): QuietRewardPose | undefined {
-      return quietRewardPoseOf(this.resolution);
-    },
     resolution(): IClientResolution | undefined {
-      const id = this.summary?.enacted.resolution;
+      const id = this.shownSummary?.enacted.resolution;
       return id === undefined ? undefined : getResolution(id);
     },
-    winnerColor(): Color | undefined {
-      const player = this.summary?.winner.player;
-      return player === undefined || player === 'neutral' ? undefined : player;
-    },
-    /** A TIE was broken — one phrase of the rule that broke it. */
-    tieKey(): string | undefined {
-      switch (this.summary?.winner.tieBreak) {
-      case 'slot-priority': return 'Tie broken by the slot order';
-      case 'earlier-delegate': return 'Tie broken by the earlier delegate';
-      default: return undefined;
-      }
-    },
-    returned(): ReadonlyArray<{owner: Color | 'neutral', count: number}> {
-      return this.summary?.returned ?? [];
-    },
-    agendaBonus(): string | undefined {
-      switch (this.summary?.agenda?.bonus) {
-      case 'tr': return '+1 TR';
-      case 'card': return '+1 card';
-      default: return undefined;
-      }
-    },
-    supportGained(): ReadonlyArray<{party: ReduxParty, gained: number}> {
-      return (this.summary?.support ?? []).filter((s) => s.gained > 0);
-    },
-    returning(): Set<string> {
-      return this.summary === undefined ? new Set() : returningInstances(this.summary);
-    },
-    /** The viewer's OWN records among the phase's outcomes (the effects so far). */
-    mine(): Array<ParliamentEnactOutcomeModel> {
-      const outcomes = this.mode === 'review' ? this.summary?.outcomes : this.model?.phase?.outcomes;
-      return this.viewerColor === undefined ? [] : (outcomes ?? []).filter((o) => o.player === this.viewerColor);
+    shownSummary(): ParliamentPhaseSummaryModel | undefined {
+      return this.mode === 'review' ? this.summary : this.model?.phase?.summary ?? this.summary;
     },
     /**
-     * THE READING: once the seat's record is in, the server's own amounts
-     * (`resolving` while the phase pays, `applied` after); before that, the
-     * ESTIMATE by the seat's final influence — the vote panel's own reading,
-     * never a payout recomputed on the client.
+     * ПАНЕЛЬ ИТОГОВ — the pure reading (`parliamentResultsModel.ts`): the law, a payout row per seat, the
+     * table. The SEAT ORDER is the parliament model's own — the same one the seats zone in the head line
+     * already shows, so the panel has one visible ordering key and no other.
      */
-    yields(): Array<InfluenceYield> {
-      const resolution = this.resolution;
-      if (resolution === undefined) {
-        return [];
-      }
-      const recorded = this.mine.length > 0 || this.position.step === 'adjourn' || this.position.step === 'done';
-      if (!recorded) {
-        // BEFORE THE RECORD: «this payout» — the declaration read at the seat's final influence, never a
-        // forecast (the vote is over) and never «by your current influence» (the payout is fixed). A review
-        // of a finished sitting keeps the vote's own reading.
-        return this.mode === 'live' ?
-          resolvingYieldsOf(resolution, this.model, this.viewerColor) :
-          voteYieldsOf(resolution, this.model, this.viewerColor).filter((y) => y.context !== 'forecast');
-      }
-      return enactedYieldsOf(resolution, this.model, this.viewerColor, {live: this.mode === 'live' && this.rewardResolving});
-    },
-    /**
-     * THE RECORD IS IN BUT NOT YET SHOWN TO LAND: a chip owed or in the air
-     * (the reward ledger), or the seat's own hosted step still standing (the
-     * take, the pick, the tile). Then the reading says «this payout»; on the
-     * touchdown / the answer it says «received».
-     */
-    rewardResolving(): boolean {
-      void parliamentRewardState.owed.length;
-      void parliamentRewardState.flying.length;
-      void parliamentRewardState.landed.length;
-      const step = this.position.rewardStep;
-      // The viewer's OWN part is still open: nothing recorded yet, or their own step standing. Waiting on
-      // ANOTHER seat is not — their payout is in, and the wait line names whose turn it is.
-      if (this.position.step === 'effects' && (step === 'reading' || step === 'choice' || step === 'intake' || step === 'placement')) {
-        return true;
-      }
-      return this.mine.some((o) => !rewardLanded(o));
-    },
-    /** …and the ruling party's answer to it (a seat that takes part is told; a spectator is not). */
-    reactions(): Array<PartyReactionReading> {
-      return viewerHasSeat(this.model, this.viewerColor) ? partyReactionsOf(this.resolution, this.yields) : [];
-    },
-    /** The winner's tile, when the law declares one — whose it is, and whether the table has room for it. */
-    winnerReading(): WinnerRewardReading | undefined {
-      return winnerRewardReadingOf(this.resolution, this.model, winnerRewardTableOf(this.playerView.game));
-    },
-    /**
-     * THE SKIP PLATE — every record of the viewer's that paid nothing, named:
-     * a `skipped` record by its own part and reason, a paying kind that paid
-     * zero by its address's title. A scaled effect's skip is already read in
-     * the yields block (with its reason), so it is not repeated here.
-     */
-    skips(): Array<SkipPlate> {
-      const scaledIds = new Set((this.resolution?.scaled ?? []).map((e) => e.id));
-      const out: Array<SkipPlate> = [];
-      for (const outcome of this.mine) {
-        const delivery = rewardAddressOf(outcome, this.viewerColor);
-        if (delivery.skipped === undefined || (outcome.effect !== undefined && scaledIds.has(outcome.effect))) {
-          continue;
-        }
-        const title = outcome.kind === 'skipped' ?
-          (outcome.part === 'winner' ? 'Reward for the winner of the vote' : 'Resolution effect') :
-          REWARD_ADDRESS[outcome.kind].skipTitle;
-        const amount = delivery.payload.amount;
-        out.push({
-          key: `${outcome.step}:${outcome.part ?? ''}`, title, reason: delivery.skipped,
-          ...(amount !== undefined && amount > 0 ? {amount, unit: this.skipUnitClass(outcome)} : {}),
-        });
-      }
-      return out;
-    },
-    rewardKicker(): string {
-      // ONE kicker for the panel's whole life (glossary §6, R-07): the STATE beside it is the one word
-      // that moves («ЭТА ВЫПЛАТА» → «ПОЛУЧЕНО»); «ЭФФЕКТЫ ВЫПЛАЧИВАЮТСЯ | ПОЛУЧЕНО» was two voices.
-      return 'Your reward';
-    },
-    /**
-     * THE ONE WORD OF STATE beside the kicker: «this payout» while the numbers
-     * are what the law is ABOUT to pay / is paying (before the record, chips
-     * in the air, a step still standing), «received» once every chip has
-     * landed. Absent when there is nothing of the viewer's to read.
-     */
-    rewardStateKey(): 'This payout' | 'Received' | undefined {
-      if (this.yields.length === 0 && this.mine.length === 0 && this.winnerReading === undefined) {
+    results(): ResultsReading | undefined {
+      const summary = this.shownSummary;
+      if (summary === undefined) {
         return undefined;
       }
-      if (this.mode !== 'live') {
-        return 'Received';
-      }
-      const recorded = this.mine.length > 0 || this.position.step === 'adjourn' || this.position.step === 'done';
-      return !recorded || this.rewardResolving ? 'This payout' : 'Received';
-    },
-    /** The honest wait — WHO the effects are asking (their cube) and what kind of answer (the server's own input type). */
-    waiting(): {player: Color, text: string} | undefined {
-      const waiting = this.position.waitingFor;
-      if (waiting === undefined) {
-        return undefined;
-      }
-      const who = this.nameOfColor(waiting.player);
-      switch (waiting.input) {
-      case 'card': return {player: waiting.player, text: translateTextWithParams('Waiting for ${0} to choose a card', [who])};
-      case 'space': return {player: waiting.player, text: translateTextWithParams('Waiting for ${0} to place a tile', [who])};
-      default: return {player: waiting.player, text: translateTextWithParams('Waiting for ${0} to decide', [who])};
-      }
-    },
-    resultsTitle(): string {
-      return translateTextWithParams('Results of generation ${0}', [String(this.position.generation)]);
+      const quiet = quietRewardPoseOf(this.resolution);
+      const quest = this.view.quest;
+      return resultsReadingOf(
+        summary,
+        (this.model?.players ?? []).filter((p) => p.participates).map((p) => p.color),
+        this.view.parties.map((party) => ({party: party.party, support: party.support})),
+        {
+          ...(quest === undefined ? {} : {quest: {text: quest.text, generation: quest.generation}}),
+          ...(this.view.chairman === undefined ? {} : {chairman: this.view.chairman}),
+          ...(quiet === undefined ? {} : {quiet: {kicker: quiet.kicker, kind: quiet.kind}}),
+        },
+      );
     },
   },
   methods: {
     partyNameKey(party: string): string {
       return partyNameKey(party);
     },
-    /** The declaration under the quiet kicker: translated, its kind prefix stripped (the kicker says it), capitalized. */
-    quietText(key: string): string {
-      return actionRuleText(key);
-    },
     cubePx(logical: number): number {
       return conLogicalPx(logical);
-    },
-    /** The icon of what a skipped record would have paid — the console's own sprite families, the production frame where it is production. */
-    skipUnitClass(outcome: ParliamentEnactOutcomeModel): string {
-      if (outcome.kind === 'skipped' || outcome.kind === 'production' || outcome.kind === 'stock' || outcome.kind === 'reaction') {
-        const production = outcome.production;
-        if (production !== undefined) {
-          return iconClassFor(String(production)) + ' con-iyield__unit--prod';
-        }
-        if (outcome.stock !== undefined) {
-          return iconClassFor(String(outcome.stock));
-        }
-      }
-      if (outcome.resource !== undefined) {
-        return iconClassFor(cardResourceKey(String(outcome.resource)));
-      }
-      return outcome.kind === 'cards' ? iconClassFor('cards') : '';
     },
     emblemUrl(party: ReduxParty): string {
       return partyEmblemUrl(party);
@@ -467,11 +227,18 @@ export default defineComponent({
     resolutionTitle(id: string): string {
       return resolutionTitleOf(this.view, id);
     },
-    nameOf(color: Color | 'neutral' | undefined): string {
-      return parliamentPlayerName(this.playerView.players, color);
-    },
     nameOfColor(color: Color): string {
       return parliamentPlayerName(this.playerView.players, color);
+    },
+    /** The icon family of a payout part — the console's own sprites, the production frame where it is production. */
+    partUnitClass(part: ResultsPayoutPart): string {
+      if (part.unit === '') {
+        return '';
+      }
+      if (part.kind === 'cardResource') {
+        return iconClassFor(cardResourceKey(part.unit));
+      }
+      return iconClassFor(part.unit) + (part.production ? ' con-iyield__unit--prod' : '');
     },
   },
 });

@@ -182,22 +182,16 @@ export function fitParliamentCards(): void {
     root.style.setProperty('--con-parl-gov-zoom', String(snap(govZoom, MIN_GOV_ZOOM)));
   }
 
-  // THE SITTING'S REWARD STAGE ON THE FIELD — the carried enacted card takes
-  // the hero column's height minus the payout reading under it, and at most a
-  // share of the layer's width (the recipient zone is the decision).
+  // THE EMBEDDED STEP'S CARRIER CARD (v5) — the hero column holds NOTHING but the card: the payout's
+  // formula, the ruling party's answer, a skip and the wait all read in the BAND above the zone now. So
+  // the card takes the column's own height and at most a share of the layer's width — the work the player
+  // came here to do is the decision, and it gets the rest.
   if (parliamentFlow.stage === 'sitting' && parliamentFlow.sittingField) {
     const layer = root.querySelector<HTMLElement>('.con-sit__reward--field');
     const hero = root.querySelector<HTMLElement>('.con-sit__hero--field');
     if (layer !== null && hero !== null) {
       const hcs = getComputedStyle(hero);
-      // EVERYTHING under the card is measured — the reading, the ruling party's
-      // answer, the winner's tile, a skip plate, the wait line — with the
-      // column's gap per item: measuring the reading alone let the card grow
-      // over the rows beneath it on the Deck (a «1» peeking out from under the
-      // card's bottom edge).
-      const items = Array.from(hero.querySelectorAll<HTMLElement>('[data-parl-sit-item]'));
-      const readingH = items.reduce((sum, item) => sum + item.offsetHeight, 0) + items.length * px(hcs.rowGap);
-      const availH = hero.clientHeight - px(hcs.paddingTop) - px(hcs.paddingBottom) - readingH;
+      const availH = hero.clientHeight - px(hcs.paddingTop) - px(hcs.paddingBottom);
       const availW = layer.clientWidth * ENACT_HERO_SHARE;
       const zoom = Math.min(availH / PCARD_H, availW / PCARD_W, MAX_ENACT_ZOOM * scale);
       root.style.setProperty('--con-parl-enact-zoom', String(snap(zoom, MIN_GOV_ZOOM)));

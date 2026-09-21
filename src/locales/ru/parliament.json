@@ -538,5 +538,12 @@
   "Your tile waits on the board": "Ваш тайл ждёт на поле",
   "Nobody completed it": "Никто не выполнил",
   "Outcome": "Итог",
-  "Opposition": "Оппозиция"
+  "Opposition": "Оппозиция",
+  "No delegates on the table": "Делегатов на столе нет",
+  "Unenacted resolutions": "Непринятые резолюции",
+  "gain a neutral delegate": "получают нейтрального делегата",
+  "Popular support becomes votes": "Народная поддержка становится голосами",
+  "The final generation": "Последнее поколение",
+  "Payouts": "Выплаты",
+  "The table": "Стол"
 }

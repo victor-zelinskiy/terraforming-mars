@@ -66,16 +66,23 @@
                                      :benchWarn="benchWarn" :seatCandidates="seatCandidates" :sittingStage="sittingUp ? sittingStage : ''" />
       </div>
 
-      <!-- ══ MIDDLE TIER — СТОЛ или ЧТЕНИЕ («Заседание v4»), never both. In TABLE mode the row of parties
-           is the tier: the verdict, the Agenda, the support and the enactment all MOVE objects the player
-           must see, so no panel may stand here. The reading PANEL (the reward's steps, the results card)
-           takes the row's place once, by an explicit motion — the row recedes, the panel unfolds where it
-           stood. The chairman SEAT pick is a reading surface too (a decision, nothing flying). ══ -->
+      <!-- ══ MIDDLE ZONE — ЛЕНТА и ТЕЛО («Заседание v5»), and that is its only anatomy in every mode.
+           The BAND is a strip of FIXED height that exists always: it names WHY what is on the table is
+           happening and never repeats what an object says itself; only its content crossfades.
+           The BODY under it is the row of parties by default — the verdict, the Agenda, the support, the
+           enactment and the whole physical part of the results MOVE objects the player must watch, so
+           nothing may stand over them. It changes exactly twice in a sitting: for an EMBEDDED STEP the
+           player works in (a pick, a take — they need the площадь) and for the RESULTS panel. The chairman
+           SEAT pick is a body of its own too (a decision, nothing flying). ══ -->
       <div class="con-parl__mid" data-parl-mid data-parl-recede ref="midEl">
+        <ConsoleParliamentBand :view="view" :model="model" :playerView="pv" :viewerColor="viewerColor"
+                               :position="sitting" :sittingUp="sittingUp" :stage="sittingStage" :resultsHidden="resultsHidden" />
+
+        <div class="con-parl__bodyzone" data-parl-body>
         <div class="con-parl__parties-tier" ref="partiesTierEl"
-             :class="{'con-parl__parties-tier--parked': stagePanelUp && !stageLeaving}"
-             :data-parl-row-shown="stagePanelUp && !stageLeaving ? undefined : ''"
-             :aria-hidden="stagePanelUp && !stageLeaving ? 'true' : undefined">
+             :class="{'con-parl__parties-tier--parked': rowParked}"
+             :data-parl-row-shown="rowParked ? undefined : ''"
+             :aria-hidden="rowParked ? 'true' : undefined">
           <ConsoleParliamentParties :view="view" :partyStates="partyStates" :partyActionStates="partyActionStates" :viewerColor="viewerColor"
                                     :awaitingInput="awaitingInput" />
         </div>
@@ -102,6 +109,7 @@
             <div class="con-parl__embed" data-embed-slot="parliament"></div>
           </div>
         </transition>
+        </div>
       </div>
 
       <ConsoleParliamentAgenda ref="agenda" :view="view" :model="model" :agendaVm="agendaVm" :viewerParticipates="viewerParticipates"
@@ -130,6 +138,7 @@ import ConsoleWsHead from '@/client/components/console/foundation/ConsoleWsHead.
 import ConsoleParliamentSeats from '@/client/components/console/parliament/ConsoleParliamentSeats.vue';
 import ConsoleParliamentGovernment from '@/client/components/console/parliament/ConsoleParliamentGovernment.vue';
 import ConsoleParliamentVotingArea from '@/client/components/console/parliament/ConsoleParliamentVotingArea.vue';
+import ConsoleParliamentBand from '@/client/components/console/parliament/ConsoleParliamentBand.vue';
 import ConsoleParliamentParties from '@/client/components/console/parliament/ConsoleParliamentParties.vue';
 import ConsoleParliamentAgenda from '@/client/components/console/parliament/ConsoleParliamentAgenda.vue';
 import ConsoleParliamentVoteMode from '@/client/components/console/parliament/ConsoleParliamentVoteMode.vue';
@@ -153,7 +162,7 @@ import {
 } from '@/client/console/parliament/parliamentRewardBeat';
 import {
   sittingPageAuto, sittingPositionOf, SittingPosition, sittingPrimaryKey, sittingRewardSettled, SittingStage, sittingStageAt, sittingStageKey,
-  sittingStartPage, sittingSurfaceMode, sittingWorkspacePhase, verdictStandsAt,
+  sittingBodyOf, SittingBody, sittingStartPage, sittingWorkspacePhase, verdictStandsAt,
   parliamentSittingLive,
 } from '@/client/console/parliament/consoleSittingFlow';
 import {parliamentHolds, resetParliamentHolds} from '@/client/console/parliament/parliamentDisplayHolds';
@@ -176,7 +185,7 @@ import {
 import {translateText} from '@/client/directives/i18n';
 import {promptIdentityKey} from '@/client/console/turnIntents';
 import {useResizeObserver} from '@vueuse/core';
-import {playStageFold, playStageUnfold} from '@/client/console/parliament/parliamentStageMotion';
+import {playBodyFold, playBodyUnfold, pulseCarrier, settleRow} from '@/client/console/parliament/parliamentStageMotion';
 import {killParliamentVoteMotion, Rect} from '@/client/console/parliament/consoleParliamentVoteMotion';
 import {
   enactCarryRect, killParliamentEnactMotion, parkParliamentForEnact, playParliamentEnactEnter, playParliamentEnactFold,
@@ -188,8 +197,8 @@ const SUBMIT_SAFETY_MS = 6000;
 export default defineComponent({
   name: 'ConsoleParliamentSection',
   components: {
-    ConsoleWsHead, ConsoleParliamentSeats, ConsoleParliamentGovernment, ConsoleParliamentVotingArea, ConsoleParliamentParties,
-    ConsoleParliamentAgenda, ConsoleParliamentVoteMode, ConsoleParliamentSeatPick, ConsoleParliamentSitting,
+    ConsoleWsHead, ConsoleParliamentSeats, ConsoleParliamentGovernment, ConsoleParliamentVotingArea, ConsoleParliamentBand,
+    ConsoleParliamentParties, ConsoleParliamentAgenda, ConsoleParliamentVoteMode, ConsoleParliamentSeatPick, ConsoleParliamentSitting,
   },
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
@@ -263,13 +272,25 @@ export default defineComponent({
       return parliamentStageUp();
     },
     /**
-     * СТОЛ или ЧТЕНИЕ (v4): the sitting's READING stages — the reward with its steps and the revealed
-     * results card. Everything else is the table, where the panel may not stand at all.
+     * ТЕЛО СРЕДНЕЙ ЗОНЫ (v5): the row of parties by default, an embedded STEP while the seat works, the
+     * RESULTS panel at the end. Derived once (`sittingBodyOf`) — never decided per case.
      */
-    sittingReading(): boolean {
-      return this.sittingUp && sittingSurfaceMode(this.sittingStage, this.resultsHidden) === 'reading';
+    sittingBody(): SittingBody {
+      return sittingBodyOf(this.sittingStage, this.resultsHidden, this.sittingField);
     },
-    /** The reading PANEL stands: the chairman seat pick (a decision), or the sitting in a reading stage. */
+    /**
+     * THE ROW'S RESTING POSE. Parked means SHUT — invisible and untouchable — and it is applied only when
+     * the drawer is not moving: during the swap the tiles are the director's, and a tier faded by CSS on
+     * top of them would swallow the motion whole.
+     */
+    rowParked(): boolean {
+      return this.stagePanelUp && !this.stageLeaving && !this.stageEntering;
+    },
+    /** The body has left the row: a step or the results panel stands in its place. */
+    sittingReading(): boolean {
+      return this.sittingUp && this.sittingBody !== 'parties';
+    },
+    /** The body is NOT the row: the chairman seat pick (a decision), or the sitting in a step / the results. */
     stagePanelUp(): boolean {
       const kind = parliamentStageKind();
       return kind === 'seat' || (kind === 'sitting' && this.sittingReading);
@@ -1115,31 +1136,17 @@ export default defineComponent({
           if (ctx === undefined) {
             break;
           }
-          // A READING STAGE IS PLAYED INSIDE ITS OWN SURFACE (v4): its beats measure the carrier card's printed
-          // graphic, the payout rail, the results card's rows — all of them INSIDE the panel that takes the
-          // tier only when this page is reached. Played a flush too early they measure nothing, the wave never
-          // lands, its hold sits until the 12 s stage ceiling and `rewardPending` never clears — the walk then
-          // never leaves the reward at all (measured: the take arrived ~15 s late, ИТОГИ never came). So the
-          // walk YIELDS here; `onStageEnter` re-queues it the moment the panel stands, and nothing is marked
-          // played, so nothing is skipped.
-          if (sittingSurfaceMode(stage, this.resultsHidden) === 'table') {
-            // …and the other way round: a TABLE stage's beats move objects where the reading panel still is,
-            // because its fold takes its own 220 ms. The flush is what STARTS that fold (the page changed in
-            // this very loop, with no patch in between), so the walk asks for it first and only then reads the
-            // leave. Its completion re-queues the walk. Measured: the renewal's first beat otherwise played
-            // under a panel still fading over the table it was moving things on.
-            await this.$nextTick();
-            if (this.stageLeaving) {
-              break;
-            }
-          }
-          if (sittingSurfaceMode(stage, this.resultsHidden) === 'reading') {
-            // ONE FLUSH FIRST (v4): the walk advances the page and loops without one, so the reading panel this
-            // stage's beats measure INSIDE (the carrier card's printed graphic, the payout rail, the results
-            // card's rows) is still `display: none` on this very iteration. Measured against a hidden panel the
-            // wave never launches, its hold sits to the 12 s ceiling and `rewardPending` never clears — the walk
-            // then never leaves the reward at all.
-            await this.$nextTick();
+          // A BEAT IS PLAYED ONLY ON ITS OWN SURFACE (v4, kept): a beat whose objects live in the BODY may
+          // not start while the body is still swapping, and a beat that measures inside a panel may not
+          // start before that panel stands. One flush is what starts the swap (the page changed in this very
+          // loop, with no patch in between), so the walk asks for it and then reads the leave; the swap's
+          // completion re-queues the walk, and nothing is marked played, so nothing is skipped. Measured in
+          // v4: without it the renewal's first beat played under a panel still fading over the very table it
+          // was moving things on, and the reward's wave measured a hidden panel — its hold then sat to the
+          // 12 s ceiling, `rewardPending` never cleared, and the walk never left the reward at all.
+          await this.$nextTick();
+          if (this.sittingBody === 'parties' && this.stageLeaving) {
+            break;
           }
           const key = this.sittingKey;
           const receipt = stage === 'reward' && parliamentRewardState.receiptShowing;
@@ -1177,9 +1184,16 @@ export default defineComponent({
         this.queueWalk();
       }
     },
+    /**
+     * СМЕНА ТЕЛА (v5 §3): the row is pushed shut downward as one group while the new body unfolds from
+     * under the band, and the carrier card gives its one impulse — the cause of the work that is opening.
+     * The band itself does not take part: it stands still and changes only its text.
+     */
     onStageEnter(el: Element, done: () => void): void {
       this.stageEntering = true;
-      playStageUnfold(el as HTMLElement, this.stageFromRect, () => {
+      pulseCarrier(this.$refs.rootEl instanceof HTMLElement ?
+        this.$refs.rootEl.querySelector<HTMLElement>('[data-parl-gov-carry] .con-parl__gov-card') ?? undefined : undefined);
+      playBodyUnfold(el as HTMLElement, this.$refs.partiesTierEl as HTMLElement | undefined, this.stageFromRect, () => {
         this.stageEntering = false;
         done();
         if (parliamentFlow.stage === 'sitting') {
@@ -1189,10 +1203,10 @@ export default defineComponent({
     },
     onStageLeave(el: Element, done: () => void): void {
       this.stageLeaving = true;
-      playStageFold(el as HTMLElement, () => {
+      playBodyFold(el as HTMLElement, this.$refs.partiesTierEl as HTMLElement | undefined, () => {
         this.stageLeaving = false;
         done();
-        // The table is clear again: a stage whose beats were waiting for the panel to go can play now.
+        // The row is back: a beat whose objects live in it can play now.
         if (parliamentFlow.stage === 'sitting') {
           this.queueWalk();
         }
@@ -1200,9 +1214,11 @@ export default defineComponent({
     },
     onStageEnterCancelled(el: Element): void {
       (el as HTMLElement).style.clipPath = '';
+      settleRow(this.$refs.partiesTierEl as HTMLElement | undefined, !this.stagePanelUp);
     },
     onStageLeaveCancelled(): void {
       this.stageLeaving = false;
+      settleRow(this.$refs.partiesTierEl as HTMLElement | undefined, !this.stagePanelUp);
     },
     // ── submits (byte-identical to the live prompt) ─────────────────────
     /** The seat pick's A — `from` is the rect of the cube that leaves the card (the flight's source after the answer). */

@@ -62,6 +62,9 @@ describe('supportScene — the support step as objects on screen', () => {
       `${PartyName.MARS}:card(${B})`,
       `${PartyName.INDUSTRIALISTS}:card(${C})+ribbon(${C})`,
     ]);
+    // «The rule of the wave now playing» is what the reading band names («Заседание v5» §2), so each wave
+    // carries its own: the two waves obey two different rules and the band may never state both at once.
+    expect(scene.waves.map((w) => w.status)).deep.eq(['absent', 'absent', 'lost', 'lost']);
   });
 
   it('the WINNING card gives nothing, and a party with no record gains nothing — the scene never invents a cube', () => {
