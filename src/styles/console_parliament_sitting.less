@@ -299,6 +299,11 @@ html.con-profile-tv .con-sit {
     /* Both sides draw the BILL's own outline (a page with a folded corner — mirrored on the back): no rounded
        clip and no rim around it, only the body's shadow. */
     .con-card3d__face, .con-card3d__back { box-shadow: 0 .5rem 1.4rem rgba(0, 0, 0, 0.5); }
+    /* THE ART IS ALREADY DECODED — a proxy never re-fades it in (the `.con-discard-proxy` precedent): a moving
+       card stands over a face the player is looking at right now, and a dealt one was warmed at arm time
+       (`preloadResolutionArt`). The face's own load-fade would spend the flight's first ~250 ms as a black
+       window — exactly while the card must read. */
+    .pcard__art img { opacity: 1; transition: none; }
     .con-parl__cardback { position: absolute; inset: 0; }
     .con-parl__flight-face { position: absolute; left: 0; top: 0; width: 320px; height: 460px; }
 }

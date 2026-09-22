@@ -37,7 +37,7 @@
       <div v-else class="con-card3d con-deal-proxy__flip">
         <div class="con-card3d__face con-deal-proxy__face">
           <div class="con-parl__flight-face" :style="{zoom: f.width / 320}">
-            <premium-card-face :vmOverride="f.face" :lightweight="true" :inert="true" />
+            <premium-card-face :vmOverride="f.face" :lightweight="true" :artTier="artTier" :inert="true" />
           </div>
         </div>
         <div class="con-card3d__back con-deal-proxy__back"><span class="con-parl__cardback"></span></div>
@@ -50,6 +50,8 @@
 import {defineComponent} from 'vue';
 import PlayerCube from '@/client/components/PlayerCube.vue';
 import {parliamentFlights, setFlightEl} from '@/client/console/parliament/parliamentFlights';
+import {parliamentArtTier} from '@/client/console/parliament/parliamentArtTier';
+import {CardArtTier} from '@/client/cards/cardArt';
 
 /** The proxies of the Parliament's flights, rendered by the SHELL from the flight module's reactive specs. */
 export default defineComponent({
@@ -58,6 +60,10 @@ export default defineComponent({
   computed: {
     flights() {
       return parliamentFlights;
+    },
+    /** The surface's ONE art tier — a proxy paints the very picture its slot does (`parliamentArtTier`). */
+    artTier(): CardArtTier {
+      return parliamentArtTier();
     },
   },
   methods: {

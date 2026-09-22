@@ -149,7 +149,11 @@ async function expectInsideHosts(page: Page, label: string, pairs: Array<{host: 
           }
           seen++;
           if (f.left < h.left - 1 || f.right > h.right + 1 || f.top < h.top - 1 || f.bottom > h.bottom + 1) {
-            problems.push(`${face} leaves ${host}: ${Math.round(f.width)}×${Math.round(f.height)} in ${Math.round(h.width)}×${Math.round(h.height)}`);
+            // The solver's inputs beside the verdict — a 2 px overflow is a fit that ran a beat too early.
+            const root = document.querySelector<HTMLElement>('.con-parl');
+            const q = (s: string) => Math.round((document.querySelector(s)?.getBoundingClientRect().height ?? -1) * 10) / 10;
+            const solver = root === null ? '' : ` [gov-zoom=${root.style.getPropertyValue('--con-parl-gov-zoom')} quest-h=${root.style.getPropertyValue('--con-parl-quest-h')} quest=${q('[data-parl-quest]')} head=${q('.con-parl__gov-head')} gov=${document.querySelector('.con-parl__gov')?.clientHeight}]`;
+            problems.push(`${face} leaves ${host}: ${Math.round(f.width)}×${Math.round(f.height)} in ${Math.round(h.width)}×${Math.round(h.height)}${solver}`);
           }
         }
       }
@@ -160,7 +164,7 @@ async function expectInsideHosts(page: Page, label: string, pairs: Array<{host: 
   expect(out.problems, `${label}: the face fits its host`).toEqual([]);
 }
 
-type FlightWitness = {faces: number, backs: number, foreign: Array<string>};
+type FlightWitness = {faces: number, backs: number, foreign: Array<string>, faceUp: number, blankArt: number, blankTrail: Array<string>};
 
 /**
  * (е) Every frame a CARD PROXY paints is sampled on a timer: a card in the air is the bill too — the face on
@@ -172,7 +176,7 @@ async function armFlightWitness(page: Page): Promise<void> {
     if (w.__faceFlights !== undefined) {
       return;
     }
-    const witness: FlightWitness = {faces: 0, backs: 0, foreign: []};
+    const witness: FlightWitness = {faces: 0, backs: 0, foreign: [], faceUp: 0, blankArt: 0, blankTrail: []};
     w.__faceFlights = witness;
     const note = (what: string) => {
       if (!witness.foreign.includes(what)) {
@@ -190,6 +194,22 @@ async function armFlightWitness(page: Page): Promise<void> {
           if (!face.classList.contains('pcard--bill')) {
             note('a flying face that is not the bill');
           }
+          // A face TURNED TOWARDS the player must carry its illustration: a blank window in the air is the
+          // old «the card flies black» defect (the art re-fading in on a proxy, or never warmed for a deal).
+          const body = proxy.querySelector<HTMLElement>('.con-card3d');
+          const m = body === null ? null : /matrix3d\(([^,]+),/.exec(getComputedStyle(body).transform);
+          const cos = m === null ? 1 : parseFloat(m[1]);
+          const img = face.querySelector<HTMLImageElement>('.pcard__art img');
+          if (cos > 0.25 && img !== null) {
+            witness.faceUp++;
+            const painted = img.complete && img.naturalWidth > 0 && parseFloat(getComputedStyle(img).opacity) > 0.95;
+            if (!painted) {
+              witness.blankArt++;
+              if (witness.blankTrail.length < 6) {
+                witness.blankTrail.push(`${proxy.getAttribute('data-parl-flight')}: complete=${img.complete} natural=${img.naturalWidth} opacity=${getComputedStyle(img).opacity} cos=${cos.toFixed(2)}`);
+              }
+            }
+          }
         }
         const back = proxy.querySelector<HTMLElement>('.con-parl__cardback');
         if (back !== null) {
@@ -205,6 +225,28 @@ async function armFlightWitness(page: Page): Promise<void> {
 
 const readFlightWitness = (page: Page): Promise<FlightWitness> =>
   page.evaluate(() => (window as unknown as {__faceFlights: FlightWitness}).__faceFlights);
+
+/**
+ * A FRAME OF A CARD IN THE AIR — for the eye only (best effort, never an assertion: a frame taken a moment late
+ * shows the table at rest, and that is harmless). Armed BEFORE the press that starts the flights and polled on a
+ * timer; `part` picks the proxy: a body that carries a back (a deal) or any flying face.
+ */
+function shootInTheAir(page: Page, preset: string, name: string, part: 'back' | 'face'): Promise<void> {
+  return page.waitForFunction((which) => Array.from(document.querySelectorAll<HTMLElement>('.con-parl__flight--card')).some((proxy) => {
+    if (getComputedStyle(proxy).visibility === 'hidden' || proxy.getBoundingClientRect().width < 40 || proxy.querySelector('.pcard') === null) {
+      return false;
+    }
+    if (which === 'face') {
+      return true;
+    }
+    // A body showing its BACK: the 3D body is turned past the edge (rotateY → m11 = cos θ of the matrix).
+    const body = proxy.querySelector<HTMLElement>('.con-card3d');
+    const m = body === null ? null : /matrix3d\(([^,]+),/.exec(getComputedStyle(body).transform);
+    return m !== null && parseFloat(m[1]) < 0.35;
+  }), part, {timeout: 120_000, polling: 25})
+    .then(() => shoot(page, preset, name))
+    .catch(() => undefined);
+}
 
 for (const preset of PARLIAMENT_PRESETS) {
   test.describe(`resolution face · ${preset.id}`, () => {
@@ -298,6 +340,7 @@ for (const preset of PARLIAMENT_PRESETS) {
       await expectFaces(page, `${preset.id} verdict`, '.con-parl', 3);
       await shoot(page, preset.id, '05-verdict');
       await armFlightWitness(page);
+      const enactedInTheAir = shootInTheAir(page, preset.id, '05b-enacted-in-the-air', 'face');
       expect(await pressUntil(page, 'Enter', async () => (await parliamentWire(request, playerId)).waitingFor?.parliamentPhasePrompt === undefined, {tries: 4, settleMs: 1500}),
         'A answers the assembly gate').toBe(true);
       await answerGateAs(request, seats[1], 'assembly');
@@ -309,6 +352,8 @@ for (const preset of PARLIAMENT_PRESETS) {
       const flights = await readFlightWitness(page);
       expect(flights.foreign, 'every card in the air is the bill').toEqual([]);
       expect(flights.faces, 'the enacted card was seen in the air (a dead sampler proves nothing)').toBeGreaterThan(0);
+      expect(flights.blankArt, `a face turned to the player always carries its illustration (${flights.blankTrail.join(' · ')})`).toBe(0);
+      await enactedInTheAir;
       await shoot(page, preset.id, '06-payout-hero');
     });
 
@@ -324,6 +369,7 @@ for (const preset of PARLIAMENT_PRESETS) {
       await expect.poll(() => sittingStage(page), {timeout: 15_000}).toBe('verdict');
       await waitSittingAtRest(page, 30_000);
       await armFlightWitness(page);
+      const dealInTheAir = shootInTheAir(page, preset.id, '07a-deal-in-the-air', 'back');
       expect(await pressUntil(page, 'Enter', async () => (await parliamentWire(request, playerId)).waitingFor?.parliamentPhasePrompt === undefined, {tries: 4, settleMs: 1500}),
         'A answers the assembly gate').toBe(true);
       await answerGateAs(request, seats[1], 'assembly');
@@ -334,6 +380,8 @@ for (const preset of PARLIAMENT_PRESETS) {
       expect(flights.foreign, 'every card in the air is the bill, both sides').toEqual([]);
       expect(flights.faces, 'the enacted card was seen in the air').toBeGreaterThan(0);
       expect(flights.backs, 'a dealt card showed its back on the way (a dead sampler proves nothing)').toBeGreaterThan(0);
+      expect(flights.faceUp, 'a face was seen turned to the player in the air').toBeGreaterThan(0);
+      expect(flights.blankArt, `a face turned to the player always carries its illustration (${flights.blankTrail.join(' · ')})`).toBe(0);
       // The Parliament's pile is a pile of BILLS.
       const pile = await page.evaluate(() => {
         const top = document.querySelector<HTMLElement>('[data-parl-deck-top]');
@@ -343,6 +391,7 @@ for (const preset of PARLIAMENT_PRESETS) {
         return getComputedStyle(top).backgroundImage.includes('card.webp') ? 'project back' : 'bill back';
       });
       expect(pile, 'the top card of the pile').toBe('bill back');
+      await dealInTheAir;
       await expectFaces(page, `${preset.id} results`, '.con-parl', 1);
       await shoot(page, preset.id, '07-results-after-the-deal');
     });

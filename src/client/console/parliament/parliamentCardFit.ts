@@ -1,6 +1,7 @@
 import {consoleLayoutState, conUiScale} from '@/client/console/consoleLayoutProfile';
 import {parliamentFlow, parliamentRootEl, parliamentSlotsCarried} from './consoleParliamentFlow';
 import {sittingMotion} from './sittingDirector';
+import {MAX_VOTE_ZOOM, PCARD_W} from './parliamentArtTier';
 
 /*
  * THE CARD FIT. The premium face is px-designed (`--pcard-w/h`) and integrates
@@ -9,7 +10,7 @@ import {sittingMotion} from './sittingDirector';
  * never reads its own output. One solver for the voting slots, the enacted
  * face and the vote row, published as the section's own zoom tokens.
  */
-export const PCARD_W = 320;
+export {MAX_VOTE_ZOOM, PCARD_W};
 export const PCARD_H = 460;
 /** The overview's cards stop here so the vote mode can GROW them (never shrink the object the player picked up). */
 export const MAX_CARD_ZOOM = 0.8;
@@ -23,13 +24,7 @@ export const MIN_GOV_ZOOM = 0.2;
 export const MAX_ENACT_ZOOM = 1.05;
 /** …and at most this share of the layer's width (the recipient zone is the decision). */
 export const ENACT_HERO_SHARE = 0.3;
-/** The vote row's cards. */
-/**
- * The vote mode's card cap. 1.05 was reached on every profile at the old panel heights; the panel was
- * re-measured (final polish A.2 — its graphic at the card's own size) and the row's room now fits 1.12
- * at 1080 (measured: row 668 px → 682 px, slot chrome 163 px, card 320×460 × 1.12 = 515 px).
- */
-export const MAX_VOTE_ZOOM = 1.12;
+/** The vote row's cards (the cap — `MAX_VOTE_ZOOM` — lives in `parliamentArtTier.ts`: the art tier is decided by it). */
 export const MIN_VOTE_ZOOM = 0.35;
 
 /**

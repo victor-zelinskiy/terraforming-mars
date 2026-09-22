@@ -26,7 +26,7 @@
         {{ $t(govBasisKey) }}
       </span>
     </div>
-    <div class="con-parl__ruling">
+    <div class="con-parl__ruling" ref="rulingEl">
       <!-- The enacted card is ONE instance: while the resolution pays out it
            is TELEPORTED onto the enactment stage's hero slot (and FLIPs
            there and back) — never a copy beside the government. -->
@@ -35,7 +35,7 @@
           <div class="con-parl__gov-card"
                :class="{'con-parl__gov-card--awaiting': holds.govAwaits !== undefined && holds.govAwaits === enactedShown?.instance}"
                :data-zoom-slot="'resolution:' + enactedShown?.resolutionId">
-            <premium-card-face :vmOverride="enactedVm" :lightweight="!enactCarried" :inert="true" />
+            <premium-card-face :vmOverride="enactedVm" :lightweight="!enactCarried" :artTier="artTier" :inert="true" />
           </div>
         </div>
       </Teleport>
@@ -147,7 +147,7 @@
   </div>
 </template>
 <script lang="ts">
-import {defineComponent, PropType} from 'vue';
+import {defineComponent, markRaw, PropType} from 'vue';
 import {Color} from '@/common/Color';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {ParliamentModel} from '@/common/models/ParliamentModel';
@@ -162,6 +162,9 @@ import {partyAccent} from '@/client/components/premiumCard/partyEmblems';
 import {conLogicalPx} from '@/client/console/consoleLayoutProfile';
 import {parliamentFlow, settleParliamentChairPulse, settleParliamentQuestPulse} from '@/client/console/parliament/consoleParliamentFlow';
 import {parliamentHolds} from '@/client/console/parliament/parliamentDisplayHolds';
+import {parliamentArtTier} from '@/client/console/parliament/parliamentArtTier';
+import {fitParliamentCards} from '@/client/console/parliament/parliamentCardFit';
+import {CardArtTier} from '@/client/cards/cardArt';
 import {AgendaVm, parliamentPlayerName, ParliamentQuestVm, ParliamentViewVm} from '@/client/console/parliament/consoleParliamentModel';
 import {partyTileKey} from '@/client/console/parliament/partyActionKey';
 
@@ -187,7 +190,15 @@ export default defineComponent({
   data() {
     return {
       questPulse: false,
+      roomObs: undefined as ResizeObserver | undefined,
     };
+  },
+  mounted() {
+    this.observeRoom();
+  },
+  beforeUnmount() {
+    this.roomObs?.disconnect();
+    this.roomObs = undefined;
   },
   computed: {
     flow() {
@@ -272,6 +283,10 @@ export default defineComponent({
     sittingLit(): boolean {
       return parliamentFlow.stage === 'sitting' && this.sittingStage !== 'verdict' && this.govArrived;
     },
+    /** The surface's ONE art tier (`parliamentArtTier`) — the same in the government and on the payout's hero slot. */
+    artTier(): CardArtTier {
+      return parliamentArtTier();
+    },
     enactedVm(): PremiumCardVM | undefined {
       const shown = this.enactedShown;
       return shown === undefined ? undefined : resolutionPremiumVmById(shown.resolutionId);
@@ -316,6 +331,27 @@ export default defineComponent({
     },
   },
   methods: {
+    /**
+     * THE RULING ROW IS THE ROOM THE ENACTED CARD IS SOLVED INTO (`fitParliamentCards`: the column minus its
+     * other blocks), and that room settles a beat AFTER the section's mount-time fit — measured at 4K: the
+     * quest block read 387.8 px at the fit and 392.5 settled (its zoomed graphic and the race's cubes take
+     * their size on the next frame), the head's kicker re-wraps when its font swaps in — while the FIELD the
+     * section observes is frame-sized and never moves. Solved against the early room, the card stood 2 px past
+     * its row (one run in eight). So the row itself is observed: whatever shrinks it — the quest, the head, a
+     * gap — re-solves the card from the room that stands. Loop-safe: the row is flex-sized by the column and
+     * its content never grows it (the fit never reads its own output); the monotonic reserve keeps the re-solve
+     * honest (a card only ever shrinks from it); a frozen fit stays frozen.
+     */
+    observeRoom(): void {
+      const room = this.$refs.rulingEl as HTMLElement | undefined;
+      if (room === undefined || typeof ResizeObserver === 'undefined') {
+        return;
+      }
+      // A browser object in `data()` is kept RAW on purpose — nothing reactive ever reads it, and a native
+      // method must never be reached through a reactive wrapper.
+      this.roomObs = markRaw(new ResizeObserver(() => fitParliamentCards()));
+      this.roomObs.observe(room);
+    },
     onQuestPulseEnd(event: AnimationEvent): void {
       if (event.animationName === 'con-parl-quest-pulse') {
         this.questPulse = false;

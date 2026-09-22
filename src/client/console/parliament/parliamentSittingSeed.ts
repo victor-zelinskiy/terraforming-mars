@@ -34,6 +34,7 @@ import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {ParliamentModel, ParliamentPhaseModel} from '@/common/models/ParliamentModel';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {buildParliamentView, ParliamentViewVm} from './consoleParliamentModel';
+import {preloadResolutionArt} from './parliamentArtTier';
 import {parliamentHolds, resetParliamentHolds} from './parliamentDisplayHolds';
 import {returningInstances} from './sittingBeats';
 import {verdictStandsAt} from './consoleSittingFlow';
@@ -147,6 +148,9 @@ export function seedRenewalHolds(after: ParliamentModel, afterView: ParliamentVi
     }
   }
   h.deckPending = summary.refreshed.filter((f) => !returning.has(f.instance)).length;
+  // ARM TIME for the deal: a fresh card's illustration has never been painted, and its proxy turns face up in
+  // the air — decode it now, while the beats before the deal play (a blank window mid-turn otherwise).
+  preloadResolutionArt(summary.refreshed.filter((f) => !returning.has(f.instance)).map((f) => f.resolution));
   for (const color of summary.lobbyRefilled) {
     h.lobby.add(color);
   }

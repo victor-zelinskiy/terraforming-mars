@@ -66,7 +66,7 @@
                  :data-zoom-slot="'resolution:' + slot.resolutionId"
                  :data-zoom-handoff="slotsCarried && flow.slotIndex === i ? 'parliament-vote' : undefined"
                  :data-parl-vote-card="slotsCarried && flow.slotIndex === i ? '' : undefined">
-              <premium-card-face v-if="slotVms[i] !== undefined" :vmOverride="slotVms[i]" :lightweight="true" :inert="true" />
+              <premium-card-face v-if="slotVms[i] !== undefined" :vmOverride="slotVms[i]" :lightweight="true" :artTier="artTier" :inert="true" />
             </div>
             <!-- THE DELEGATE RIBBON — every delegate on the card, in placement
                  order (the order that breaks a tie among players), and — in
@@ -167,6 +167,8 @@ import {conLogicalPx} from '@/client/console/consoleLayoutProfile';
 import {translateTextWithParams} from '@/client/directives/i18n';
 import {parliamentFlow, parliamentSlotsCarried} from '@/client/console/parliament/consoleParliamentFlow';
 import {parliamentHolds} from '@/client/console/parliament/parliamentDisplayHolds';
+import {parliamentArtTier} from '@/client/console/parliament/parliamentArtTier';
+import {CardArtTier} from '@/client/cards/cardArt';
 import {sittingMotion} from '@/client/console/parliament/sittingDirector';
 import {ParliamentSlotVm, ParliamentViewVm} from '@/client/console/parliament/consoleParliamentModel';
 import {
@@ -255,6 +257,10 @@ export default defineComponent({
      */
     shownSlots(): ReadonlyArray<ParliamentSlotVm> {
       return this.holds.heldSlots ?? this.view.slots;
+    },
+    /** The surface's ONE art tier (`parliamentArtTier`) — the same from the overview to the vote row, the same as a proxy's. */
+    artTier(): CardArtTier {
+      return parliamentArtTier();
     },
     slotVms(): Array<PremiumCardVM | undefined> {
       return this.shownSlots.map((slot) => resolutionPremiumVmById(slot.resolutionId));
