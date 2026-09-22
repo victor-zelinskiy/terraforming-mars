@@ -26,6 +26,7 @@ import {AGENDA_TRACK, influenceAtAgenda} from '@/common/parliament/ParliamentTyp
 import {countOf, ResolutionCountId} from '@/common/parliament/resolutionCounts';
 import {Tag} from '@/common/cards/Tag';
 import {CountedObjectGlyph} from '@/client/components/premiumCard/premiumCardIcons';
+import {getSpecialCellInfo} from '@/client/components/board/specialCellInfo';
 
 /** The icon of the yield's unit — the same CSS families the chips use. */
 export type YieldIcon =
@@ -119,6 +120,21 @@ export function countedContributions(y: InfluenceYield, nameOf: (card: CardName)
   return counted.map((card, i) => {
     const units = y.countedUnits?.[i] ?? 1;
     return units > 1 ? `${nameOf(card)} ×${units}` : nameOf(card);
+  });
+}
+
+/**
+ * The counted CELLS of a BOARD count (Colonization Funding's space cities), each
+ * by the name THE BOARD INFORMATION LAYER already gives it — the reserved
+ * areas' own titles («Ganymede Colony», «Phobos Space Haven», «Stanford
+ * Torus», the Venus areas), the same words the placement hints print. A cell
+ * that layer does not name is `undefined`: nothing here christens a cell —
+ * the reader then prints the number and lets the rule speak.
+ */
+export function countedCellNames(y: Pick<InfluenceYield, 'countedSpaces'>, nameOf: (key: string) => string): Array<string | undefined> {
+  return (y.countedSpaces ?? []).map((id) => {
+    const cell = getSpecialCellInfo(id);
+    return cell === undefined ? undefined : nameOf(cell.title);
   });
 }
 
@@ -240,7 +256,8 @@ export function voteYieldsOf(resolution: IClientResolution, model: ParliamentMod
       continue;
     }
     // …with its per-tag breakdown, where the count is over several tags (Venus + Jovian): the reading names each.
-    const counted = count === undefined ? undefined : {count: count.count, cards: count.cards, units: count.units, byTag: count.byTag};
+    // …and its CELLS, where the count is over the board (Colonization Funding's space cities): the reading names each.
+    const counted = count === undefined ? undefined : {count: count.count, cards: count.cards, units: count.units, byTag: count.byTag, spaces: count.spaces};
     const estimate = influenceYield(effect, 'estimate', seat.influence, counted);
     out.push(estimate);
     if (effect.recipient === 'each' || effect.recipient === 'winner') {
@@ -293,7 +310,10 @@ export function enactedYieldsOf(
     // The RECORDED inputs travel as recorded (B, the counted cards, the sum
     // before the cap) — the past is never recomputed from today's tableau.
     const recorded = applied === undefined ? undefined :
-      {count: applied.count, counted: applied.counted, countedUnits: applied.countedUnits, countedByTag: applied.countedByTag, uncapped: applied.uncapped};
+      {
+        count: applied.count, counted: applied.counted, countedUnits: applied.countedUnits, countedByTag: applied.countedByTag,
+        countedSpaces: applied.countedSpaces, uncapped: applied.uncapped,
+      };
     // A MULTIPLIER effect (the colony ledger): every record of the plan pays its own unit and carries the
     // multiplier beside it — the reading is the multiplier, never the first row's amount.
     const paid = applied === undefined ? undefined : (yieldIsMultiplier(effect) ? (applied.multiplier ?? applied.amount) : applied.amount);

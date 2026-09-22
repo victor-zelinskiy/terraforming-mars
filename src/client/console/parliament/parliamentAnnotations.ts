@@ -38,7 +38,7 @@ import {Color} from '@/common/Color';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {accessReasonRows} from './consoleParliamentModel';
 import {InfluenceYield} from '@/common/parliament/influenceScaling';
-import {countedContributions, yieldCountPresentation} from './influenceYieldModel';
+import {countedCellNames, countedContributions, yieldCountPresentation} from './influenceYieldModel';
 import {WinnerRewardReading, winnerRewardRuleKey, winnerRewardSentenceOf} from './winnerRewardModel';
 
 export type RowText = {text: string, params?: ReadonlyArray<string>};
@@ -175,8 +175,24 @@ export function resolutionAnnotations(
   // cards of the enactment once it is recorded (frozen), today's cards while
   // the card is up for the vote — each labelled by which one it is.
   const forYou: Array<RowText> = [];
-  const counted = (yields ?? []).find((y) => y.counted !== undefined && (y.context === 'estimate' || y.context === 'applied'));
-  if (counted?.counted !== undefined) {
+  const counted = (yields ?? []).find((y) => (y.counted !== undefined || y.countedSpaces !== undefined) && (y.context === 'estimate' || y.context === 'applied'));
+  if (counted?.countedSpaces !== undefined) {
+    // A BOARD count (space cities): the CELLS, by the names the board's own
+    // information layer gives the reserved areas. A cell that layer does not
+    // name is never christened here — the row prints the NUMBER instead and
+    // the rule sentence above says what was counted.
+    const applied = counted.context === 'applied';
+    const cells = countedCellNames(counted, (key) => translateText(key));
+    const named = cells.filter((cell): cell is string => cell !== undefined);
+    if (cells.length > 0 && named.length === cells.length) {
+      forYou.push({text: applied ? 'Counted at the enactment: ${0}' : 'Counted right now: ${0}', params: [named.join(' · ')]});
+    } else if (cells.length > 0 && counted.effect.count !== undefined) {
+      const plural = translateTextWithParams(yieldCountPresentation(counted.effect.count.id).pluralKey, [String(cells.length)]);
+      forYou.push({text: applied ? 'Counted at the enactment: ${0}' : 'Counted right now: ${0}', params: [plural]});
+    } else if ((counted.count ?? 0) === 0) {
+      forYou.push({text: applied ? 'No tile was counted at the enactment' : 'No tile counts right now'});
+    }
+  } else if (counted?.counted !== undefined) {
     // Each card with what IT contributed («Fusion Power ×2») — a TAG count can
     // owe several units to one card, and a list of bare names would leave the
     // number unexplained. A card count is worth 1 apiece and reads as a list.

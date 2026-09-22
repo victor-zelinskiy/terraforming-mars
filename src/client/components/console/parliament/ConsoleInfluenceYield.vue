@@ -38,13 +38,24 @@
         <i class="con-iyield__unit" :class="totalClassOf(group.effect)"></i>
         <span class="con-iyield__who">{{ $t('For every player') }}</span>
       </div>
-      <div v-else-if="formula || group.readings.length === 0" class="con-iyield__formula" aria-hidden="true">
+      <div v-else-if="formula || group.readings.length === 0" class="con-iyield__formula" :data-yield-count-rate="group.effect.count?.per" aria-hidden="true">
+        <!-- A COUNTED term at its OWN rate («2 [unit] / [city*] + 1 [unit] / [influence]» —
+             Colonization Funding): both rates are stated, or the row would promise the
+             influence's rate for the count. -->
+        <template v-if="countGlyphOf(group.effect) !== undefined && group.effect.count?.per !== group.effect.perInfluence">
+          <b class="con-iyield__num">{{ group.effect.count?.per }}</b>
+          <i class="con-iyield__unit" :class="unitClassOf(group.effect)"></i>
+          <span class="con-iyield__slash">/</span>
+          <PremiumCountGlyph class="con-iyield__glyph" :glyph="countGlyphOf(group.effect)!" />
+          <span class="con-iyield__plus">+</span>
+        </template>
         <b class="con-iyield__num">{{ group.effect.perInfluence }}</b>
         <i class="con-iyield__unit" :class="unitClassOf(group.effect)"></i>
         <span class="con-iyield__slash">/</span>
-        <!-- A COUNTED term shares the rate («1 [unit] / [counted object] + [influence]»):
+        <!-- A COUNTED term sharing the rate («1 [unit] / [counted object] + [influence]»):
              the counted object is exactly what the face prints — the card glyph
-             for a card count, the printed tag medallion for a tag count. -->
+             for a card count, the printed tag medallion for a tag count, the city
+             tile with its spark for a board count. -->
         <template v-if="countGlyphOf(group.effect) !== undefined && group.effect.count?.per === group.effect.perInfluence">
           <PremiumCountGlyph class="con-iyield__glyph" :glyph="countGlyphOf(group.effect)!" />
           <span class="con-iyield__plus">+</span>

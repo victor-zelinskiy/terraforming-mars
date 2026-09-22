@@ -214,6 +214,36 @@ describe('parliamentAnnotations — the fullscreen inspector\'s reading blocks',
     expect(texts([recorded[1]])).to.deep.eq(['No card was counted at the enactment']);
   });
 
+  it('a BOARD-COUNTED effect (Colonization Funding): its own qualification sentence, and the CELLS behind the number — by the board layer\'s names, else the number', () => {
+    const id = 'RDX_UNITY_COLONIZATION_FUNDING';
+    const effect = getResolution(id)?.scaled?.[0];
+    if (effect === undefined) {
+      throw new Error('Colonization Funding declares no scaled effect');
+    }
+    const bare = resolutionAnnotations(id);
+    expect(bare.map((b) => b.labelKey), 'no winner block — this card has no winner part').to.deep.eq(['When enacted', 'Chairman quest']);
+    expect(texts([bare[0]])).to.deep.eq([
+      'Every player raises their M€ production by 2 for each of their space cities, plus 1 per point of their influence. At most +6.',
+      'A city tile on a reserved area off Mars counts — Ganymede Colony, Phobos Space Haven, Stanford Torus and the like. A city on Mars and the Moon\'s tiles do not count.',
+    ]);
+    expect(texts([bare[1]])).to.deep.eq(['Place 1 space city']);
+    // Two named reserved areas: the row lists them by the names the placement hints already print.
+    const now: InfluenceYield = {effect, context: 'estimate', influence: 3, amount: 6, count: 2, counted: [], countedSpaces: ['01', '02'], uncapped: 7};
+    const live = resolutionAnnotations(id, [now]);
+    expect(live.map((b) => b.labelKey)).to.deep.eq(['When enacted', 'For you', 'Chairman quest']);
+    expect(live[1].rows[0].text).to.eq('Counted right now: ${0}');
+    expect(live[1].rows[0].params?.[0]).to.eq('Ganymede Colony · Phobos Space Haven');
+    // A cell the board layer does not name: the row prints the NUMBER (the plural of the counted object), never an invented name.
+    const unnamed = resolutionAnnotations(id, [{...now, count: 2, countedSpaces: ['01', '75']}]);
+    expect(unnamed[1].rows[0].text).to.eq('Counted right now: ${0}');
+    expect(unnamed[1].rows[0].params?.[0]).to.match(/^2 /);
+    expect(unnamed[1].rows[0].params?.[0]).to.not.contain('75');
+    // Nothing counted at the enactment — said in the object's own terms (a tile, never «no card»).
+    const recorded = resolutionAnnotations(id, [{...now, context: 'applied', count: 0, countedSpaces: [], amount: 3, uncapped: 3}]);
+    expect(texts([recorded[1]])).to.deep.eq(['No tile was counted at the enactment']);
+    expect(texts([resolutionAnnotations(id, [{...now, count: 0, countedSpaces: [], amount: 3, uncapped: 3}])[1]])).to.deep.eq(['No tile counts right now']);
+  });
+
   it('an unknown resolution reads nothing (never a blank chip)', () => {
     expect(resolutionAnnotations('RDX_NOT_A_CARD')).to.deep.eq([]);
   });

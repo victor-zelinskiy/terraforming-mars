@@ -9,8 +9,8 @@ import {InfluenceScaledEffect, scaledAmount, uncappedAmount, winnerForecastYield
 import {Resource} from '@/common/Resource';
 import {Tag} from '@/common/cards/Tag';
 import {
-  cardResourcePluralKey, countedContributions, enactedYieldsOf, noRecipientNoteOf, oneNumberYieldsOf, productionResourceLabelKey, resolvingYieldOf,
-  scaledEffectForCardResource, voteYieldsOf, winSuffixesOf, yieldCaptionOf, yieldCountPresentation, yieldIconOf,
+  cardResourcePluralKey, countedCellNames, countedContributions, enactedYieldsOf, noRecipientNoteOf, oneNumberYieldsOf, productionResourceLabelKey,
+  resolvingYieldOf, scaledEffectForCardResource, voteYieldsOf, winSuffixesOf, yieldCaptionOf, yieldCountPresentation, yieldIconOf,
 } from '@/client/console/parliament/influenceYieldModel';
 import {getResolution} from '@/client/parliament/ClientParliamentManifest';
 
@@ -274,5 +274,90 @@ describe('influenceYieldModel', () => {
       {effect: PRODUCTION, context: 'forecast' as const, influence: 2, amount: 5, count: 3, agendaStep: 3},
     ];
     expect(winSuffixesOf(capped)).deep.eq([{effectId: 'production', delta: 1, agendaStep: 3, influence: 2, atCap: true}]);
+  });
+
+  // ── A BOARD-COUNTED TERM (Colonization Funding: min(6, 2 × S + I), S = the SPACE CITIES) ──
+  const FUNDING_PRODUCTION: InfluenceScaledEffect = {
+    id: 'production', unit: {kind: 'production', resource: Resource.MEGACREDITS}, perInfluence: 1,
+    count: {id: 'spaceCities', per: 2}, cap: 6, recipient: 'each',
+  };
+  const funding = {...resolution, id: 'RDX_FUNDING', scaled: [FUNDING_PRODUCTION]};
+  const withCities = (s: ParliamentPlayerModel, spaces: Array<'01' | '02' | '69' | '75'>): ParliamentPlayerModel =>
+    ({...s, counts: [{id: 'spaceCities', count: spaces.length, cards: [], spaces}]});
+
+  it('the shipped catalog declares Colonization Funding as a BOARD count at its own rate (2 per space city + 1 per influence), capped at 6, for every player', () => {
+    const card = getResolution('RDX_UNITY_COLONIZATION_FUNDING');
+    expect(card?.code).eq('RX08');
+    expect(card?.party).eq(PartyName.UNITY);
+    expect(card?.scaled).deep.eq([FUNDING_PRODUCTION]);
+    expect(card?.hasWinnerEffect, 'no winner-only part').is.false;
+    expect(card?.compatibility, 'a base card').deep.eq([]);
+    // The counted object is the TILE with its spark — never a card glyph, never a bare city.
+    const presentation = yieldCountPresentation('spaceCities');
+    expect(presentation.glyph).deep.eq({kind: 'tile', tile: 'spaceCity'});
+    expect(presentation.pluralKey).eq('${0} space city(-ies)');
+    expect(presentation.skipReasonKey).eq('No space cities and no influence');
+    expect(presentation.ruleKey).contains('off Mars');
+    expect(presentation.ruleKey).contains('Moon');
+    // The other counts keep their objects — the family did not move.
+    expect(yieldCountPresentation('powerTags').glyph).deep.eq({kind: 'tag', tag: Tag.POWER});
+    expect(yieldCountPresentation('buildingCardsWithNonNegativeVp').glyph).deep.eq({kind: 'vp-card', tag: Tag.BUILDING});
+    expect(yieldCountPresentation('venusJovianTags').glyph).deep.eq({kind: 'tags', tags: [Tag.VENUS, Tag.JOVIAN]});
+  });
+
+  it('a board-counted vote reading: «[city] 2 + [influence] 3 → +6», the cap named (the sum 7 kept), the CELLS carried — and no forecast where a win adds nothing', () => {
+    // Agenda 5 = influence 3; the next step (6) is a TR step, so a win raises nothing: ONE number, at the maximum.
+    const blue = withCities(seat('blue' as Color, 5, 3), ['01', '02']);
+    const yields = voteYieldsOf(funding, model([blue]), 'blue' as Color);
+    expect(yields.map((y) => y.context)).deep.eq(['estimate']);
+    expect(yields[0]).deep.include({influence: 3, count: 2, amount: 6, uncapped: 7});
+    expect(yields[0].countedSpaces, 'the cells explain the number').deep.eq(['01', '02']);
+    expect(yields[0].counted, 'no card in the list').deep.eq([]);
+    expect(yieldAtCap(yields[0])).is.true;
+    expect(yieldCapped(yields[0]), 'the cap bit: 7 owed, 6 paid').is.true;
+    expect(yieldCaptionOf(yields[0])).deep.eq({key: 'If enacted now'});
+    expect(winSuffixesOf(yields), 'no suffix at the maximum').deep.eq([]);
+    // Two cities and influence 1 → +5; a win (step 3 → influence 2) makes it +6 exactly: the suffix says «+1 · max».
+    const red = withCities(seat('red' as Color, 2, 1), ['01', '02']);
+    const growing = voteYieldsOf(funding, model([red]), 'red' as Color);
+    expect(growing[0]).deep.include({influence: 1, count: 2, amount: 5, uncapped: 5});
+    expect(growing[1]).deep.include({context: 'forecast', influence: 2, count: 2, amount: 6, agendaStep: 3});
+    expect(winSuffixesOf(growing)).deep.eq([{effectId: 'production', delta: 1, agendaStep: 3, influence: 2, atCap: true}]);
+  });
+
+  it('influence pays on its own: no space city and influence 3 reads «+3» — an input of 0 cities, never an empty place', () => {
+    const blue = withCities(seat('blue' as Color, 5, 3), []);
+    const [y] = voteYieldsOf(funding, model([blue]), 'blue' as Color);
+    expect(y).deep.include({influence: 3, count: 0, amount: 3, uncapped: 3});
+    expect(y.countedSpaces).deep.eq([]);
+    expect(yieldAtCap(y)).is.false;
+    // The arithmetic is the one formula's: 2 per city, 1 per influence, then the cap.
+    expect(scaledAmount(FUNDING_PRODUCTION, 5, 3)).eq(6);
+    expect(uncappedAmount(FUNDING_PRODUCTION, 5, 3)).eq(11);
+    expect(scaledAmount(FUNDING_PRODUCTION, 1, 2)).eq(5);
+  });
+
+  it('an enacted board count reads the RECORDED cells, never today\'s board', () => {
+    const blue = withCities(seat('blue' as Color, 12, 5), ['01', '02', '69']);
+    const m = model([blue], {
+      lastPhase: {
+        generation: 3, final: false, winner: {instance: 'RDX_FUNDING#0', resolution: 'RDX_FUNDING', party: PartyName.UNITY, votes: 1},
+        outcomes: [{
+          player: 'blue' as Color, step: 'production', effect: 'production', kind: 'production', production: Resource.MEGACREDITS,
+          amount: 5, influence: 1, count: 2, counted: [], countedSpaces: ['01', '02'], uncapped: 5, before: 3, after: 8,
+        }],
+        support: [], enacted: {instance: 'RDX_FUNDING#0', resolution: 'RDX_FUNDING', party: PartyName.UNITY}, refreshed: [], lobbyRefilled: [],
+      },
+    });
+    const [y] = enactedYieldsOf(funding, m, 'blue' as Color);
+    expect(y).deep.include({context: 'applied', amount: 5, influence: 1, count: 2, uncapped: 5});
+    expect(y.countedSpaces, 'the cells of the enactment, not the three of today').deep.eq(['01', '02']);
+    expect(yieldCaptionOf(y)).deep.eq({key: 'Received'});
+  });
+
+  it('the cells are named by the board information layer, and a cell it does not name is left unnamed — never christened', () => {
+    const names = countedCellNames({countedSpaces: ['01', '02', '69', '75']}, (key) => `t:${key}`);
+    expect(names).deep.eq(['t:Ganymede Colony', 't:Phobos Space Haven', 't:Stanford Torus', undefined]);
+    expect(countedCellNames({countedSpaces: undefined}, (key) => key)).deep.eq([]);
   });
 });

@@ -650,5 +650,17 @@
   "Counted on the board, not among cards": "Считается на поле, а не среди карт",
   "Counted among cards, not on the board": "Считается среди карт, а не на поле",
   "On Mars — not a space city": "На Марсе — не космический город",
-  "No city tile here": "Здесь нет тайла города"
+  "No city tile here": "Здесь нет тайла города",
+  "No tile counts right now": "Сейчас не учитывается ни один тайл",
+  "No tile was counted at the enactment": "При принятии не учтено ни одного тайла",
+  "Result by space cities and influence": "Результат по космическим городам и влиянию",
+  "Tiles on the board": "Тайлы на поле",
+  "No tiles on the board": "Тайлов на поле нет",
+  "Space cities alone": "Только космические города",
+  "Exactly +6": "Ровно +6",
+  "A city on Mars does not count": "Город на Марсе не считается",
+  "An empty reserved area counts nothing": "Пустая зарезервированная область ничего не даёт",
+  "A Venus reserved area counts like the base ones": "Зарезервированная область Венеры считается как базовые",
+  "Chairman quest 0/1": "Задание председателя 0/1",
+  "Colonization Funding up for the vote: your two space cities and influence 3 reach the maximum — one number, nothing left for a win to add": "«Финансирование колонизации» на голосовании: два ваших космических города и влияние 3 дают максимум — одно число, и победе прибавить уже нечего"
 }
