@@ -12,7 +12,13 @@
       · `tags`    — «per Venus AND Jovian tag» (Cloud Development): the
         medallions of every listed tag, joined by the face's own «+» — one
         term, several tags, each worth one. A single medallion would hide a
-        tag the rule counts; a card would state a fourth rule.
+        tag the rule counts; a card would state a fourth rule;
+      · `tile`    — «per SPACE CITY you have» (Colonization Funding): the city
+        pictogram with the face's own footnote spark (`.pcard-sym--asterix`,
+        the physical card's «*» — a city on a reserved area OFF Mars). The
+        same asset the mechanics print for `b.city()` and the same spark, so
+        the reading cannot draw a different city than the card; a bare city
+        would read «every city you have», a card a fifth rule.
 
     All sit in the SAME square per medallion (`--pvpcard-size`), so a formula
     row, a reading and the Polygon keep one rhythm whichever object they count.
@@ -24,6 +30,10 @@
       <span class="pcglyph__tag" :data-count-tag="tag" :style="{backgroundImage: `url(${tagUrlOf(tag)})`}"></span>
     </template>
   </span>
+  <span v-else-if="glyph.kind === 'tile'" class="pcglyph pcglyph--tile" :data-count-tile="glyph.tile" aria-hidden="true">
+    <span class="pcglyph__tile" :style="{backgroundImage: `url(${tileUrlOf(glyph.tile)})`}"></span>
+    <span class="pcard-sym pcard-sym--asterix pcglyph__spark">*</span>
+  </span>
   <span v-else class="pcglyph" :data-count-tag="glyph.tag" aria-hidden="true">
     <span class="pcglyph__tag" :style="{backgroundImage: `url(${tagUrlOf(glyph.tag)})`}"></span>
   </span>
@@ -32,8 +42,9 @@
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
 import {Tag} from '@/common/cards/Tag';
+import {BoardCountedTile} from '@/common/parliament/resolutionCounts';
 import PremiumVpCardGlyph from './PremiumVpCardGlyph.vue';
-import {CountedObjectGlyph, tagIconUrl} from './premiumCardIcons';
+import {CountedObjectGlyph, countedTileIconUrl, tagIconUrl} from './premiumCardIcons';
 
 export default defineComponent({
   name: 'PremiumCountGlyph',
@@ -44,6 +55,9 @@ export default defineComponent({
   methods: {
     tagUrlOf(tag: Tag): string {
       return tagIconUrl(tag);
+    },
+    tileUrlOf(tile: BoardCountedTile): string {
+      return countedTileIconUrl(tile);
     },
   },
 });

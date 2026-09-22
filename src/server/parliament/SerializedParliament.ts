@@ -126,6 +126,12 @@ export type SerializedEnactOutcome = {
    * the reading prints beside the sum. Absent on a single-tag count.
    */
   countedByTag?: Array<{tag: Tag; count: number}>;
+  /**
+   * A BOARD count (Colonization Funding's space cities): the CELLS counted at
+   * the enactment — a tile has no card, so `counted` is empty and this list
+   * explains the number. Frozen here, never re-read from a later board.
+   */
+  countedSpaces?: Array<SpaceId>;
   /** The formula's sum before the cap (above `amount` exactly when the cap bit). */
   uncapped?: number;
   /** `production` / `stock`: the value before and after the change. */

@@ -32,6 +32,7 @@ import {CardName} from '../cards/CardName';
 import {CardResource} from '../CardResource';
 import {Resource} from '../Resource';
 import {Tag} from '../cards/Tag';
+import {SpaceId} from '../Types';
 import {AGENDA_TRACK, influenceAtAgenda} from './ParliamentTypes';
 import {ResolutionCountTerm} from './resolutionCounts';
 
@@ -166,6 +167,8 @@ export type InfluenceYield = {
   countedUnits?: ReadonlyArray<number>;
   /** A count over SEVERAL tags: each tag's own total («Venus 1 · Jovian 2») — the reading's breakdown. */
   countedByTag?: ReadonlyArray<{tag: Tag, count: number}>;
+  /** A BOARD count: WHICH cells were counted (a tile has no card — the list that explains the number is of cells). */
+  countedSpaces?: ReadonlyArray<SpaceId>;
   /** The formula's sum before the cap — above `amount` exactly when the cap bit. */
   uncapped?: number;
   /**
@@ -196,13 +199,15 @@ export type InfluenceYield = {
   skipped?: string;
 };
 
-/** The counted part of a reading: how many items, which cards, and what each contributed. */
+/** The counted part of a reading: how many items, which cards (or which cells, for a board count), and what each contributed. */
 export type YieldCount = {
   count: number,
   cards?: ReadonlyArray<CardName>,
   units?: ReadonlyArray<number>,
   /** A multi-tag count's per-tag totals (the reading's breakdown). */
   byTag?: ReadonlyArray<{tag: Tag, count: number}>,
+  /** A board count's cells (the list that explains the number where no card can). */
+  spaces?: ReadonlyArray<SpaceId>,
 };
 
 function withCount(y: InfluenceYield, effect: InfluenceScaledEffect, count: YieldCount | undefined): InfluenceYield {
@@ -216,6 +221,9 @@ function withCount(y: InfluenceYield, effect: InfluenceScaledEffect, count: Yiel
     }
     if (count.byTag !== undefined) {
       y.countedByTag = count.byTag;
+    }
+    if (count.spaces !== undefined) {
+      y.countedSpaces = count.spaces;
     }
   }
   if (effect.cap !== undefined && y.influence !== undefined) {
@@ -311,7 +319,7 @@ export function fixedYield(
   influence?: number,
   recorded?: {
     count?: number, counted?: ReadonlyArray<CardName>, countedUnits?: ReadonlyArray<number>,
-    countedByTag?: ReadonlyArray<{tag: Tag, count: number}>, uncapped?: number,
+    countedByTag?: ReadonlyArray<{tag: Tag, count: number}>, countedSpaces?: ReadonlyArray<SpaceId>, uncapped?: number,
     targets?: ReadonlyArray<{card: CardName, amount: number}>,
   },
 ): InfluenceYield {
@@ -327,6 +335,9 @@ export function fixedYield(
   }
   if (recorded?.countedByTag !== undefined) {
     y.countedByTag = recorded.countedByTag;
+  }
+  if (recorded?.countedSpaces !== undefined) {
+    y.countedSpaces = recorded.countedSpaces;
   }
   if (recorded?.uncapped !== undefined) {
     y.uncapped = recorded.uncapped;

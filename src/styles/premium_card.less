@@ -1429,6 +1429,36 @@
     color: var(--pcard-ink, #f2ecdc);
   }
 }
+/* A TILE as a counted object («per space city you have» — Colonization
+   Funding): the city pictogram the mechanics print for `b.city()`, in the same
+   square, and the face's own footnote SPARK docked to its top-right corner —
+   the physical card's «*» (a reserved area off Mars). The spark is the
+   `.pcard-sym--asterix` rule re-seated: absolute instead of the flex-row
+   docking, and sized as a share of the glyph so it survives the fullscreen. */
+.pcglyph--tile {
+  .pcglyph__tile {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 92%;
+    height: 92%;
+    transform: translate(-50%, -50%);
+    background-size: contain;
+    background-position: center;
+    background-repeat: no-repeat;
+  }
+  .pcglyph__spark {
+    position: absolute;
+    right: -8%;
+    top: -10%;
+    width: 40%;
+    height: 40%;
+    min-width: 0;
+    margin: 0;
+    transform: none;
+    align-self: auto;
+  }
+}
 
 /* secondary tag bubble (top-right) */
 .pcard-mi__bubble {

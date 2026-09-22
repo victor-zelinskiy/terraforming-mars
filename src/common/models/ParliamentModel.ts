@@ -222,6 +222,8 @@ export type ParliamentEnactOutcomeModel = {
   countedUnits?: ReadonlyArray<number>;
   /** A count over SEVERAL tags: each tag's own total («Venus 1 · Jovian 2»). */
   countedByTag?: ReadonlyArray<{tag: Tag; count: number}>;
+  /** A BOARD count: the CELLS counted at the enactment (a tile has no card — `counted` is empty, this list explains the number). */
+  countedSpaces?: ReadonlyArray<SpaceId>;
   /** The formula's sum before the cap (above `amount` exactly when the cap bit). */
   uncapped?: number;
   /** `production` / `stock`: the value before and after. */

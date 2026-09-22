@@ -637,5 +637,18 @@
   "time(s)": "{раз|раза|раз}",
   "card → discard": "карта → сброс",
   "A colony bonus is the tile's printed bonus a cube's owner receives when somebody else trades there — never the trade income and never the building bonus. Pluto's draw-then-discard is paid one pair at a time.": "Бонус колонии — напечатанный на тайле бонус, который владелец куба получает, когда там торгует другой игрок; ни доход торговли, ни бонус постройки им не являются. «Взять карту, затем сбросить» Плутона выплачивается по одной паре.",
-  "Result by influence, over your colony bonuses": "Результат по влиянию, помноженный на ваши бонусы колоний"
+  "Result by influence, over your colony bonuses": "Результат по влиянию, помноженный на ваши бонусы колоний",
+  "Colonization Funding": "Финансирование колонизации",
+  "Every player raises their M€ production by 2 for each of their space cities, plus 1 per point of their influence. At most +6.": "Каждый игрок повышает производство M€ на 2 за каждый свой космический город и ещё на 1 за каждое очко своего влияния. Максимум +6.",
+  "Place 1 space city": "Разместите 1 космический город",
+  "No space cities and no influence": "Нет космических городов и нет влияния",
+  "${0} space city(-ies)": "${0} {космический город|космических города|космических городов}",
+  "A city tile on a reserved area off Mars counts — Ganymede Colony, Phobos Space Haven, Stanford Torus and the like. A city on Mars and the Moon's tiles do not count.": "Считается тайл города на зарезервированной области вне Марса — Колония на Ганимеде, Космопорт на Фобосе, Стэнфордский тор и подобные. Город на Марсе и тайлы Луны не считаются.",
+  "${0} has no space city and no influence — no ${1} production from ${2}": "${0}: нет космических городов и нет влияния — производство ${1} от ${2} не растёт",
+  "${0} gained ${1} ${2} production from ${3}: ${4} space city(-ies) × 2 + ${5} influence = ${6}, limited to the maximum of ${1} (${7} → ${8})": "${0} повышает производство ${2} на ${1} — ${3}: ${4} {космический город|космических города|космических городов} × 2 + влияние ${5} = ${6}, ограничено максимумом ${1} (${7} → ${8})",
+  "${0} gained ${1} ${2} production from ${3}: ${4} space city(-ies) × 2 + ${5} influence (${6} → ${7})": "${0} повышает производство ${2} на ${1} — ${3}: ${4} {космический город|космических города|космических городов} × 2 + влияние ${5} (${6} → ${7})",
+  "Counted on the board, not among cards": "Считается на поле, а не среди карт",
+  "Counted among cards, not on the board": "Считается среди карт, а не на поле",
+  "On Mars — not a space city": "На Марсе — не космический город",
+  "No city tile here": "Здесь нет тайла города"
 }

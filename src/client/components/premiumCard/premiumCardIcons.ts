@@ -22,6 +22,7 @@ import {Tag} from '@/common/cards/Tag';
 import {Resource} from '@/common/Resource';
 import {TileType} from '@/common/TileType';
 import {Color} from '@/common/Color';
+import {BoardCountedTile} from '@/common/parliament/resolutionCounts';
 
 export type MechIconSpec =
   | {kind: 'img', url: string, mod?: string}
@@ -72,15 +73,30 @@ export function tagIconUrl(tag: Tag): string {
  * THE COUNTED OBJECT of a «for every X you have» rule, as a DRAWING
  * (`PremiumCountGlyph.vue`). It lives with the face's icon vocabulary because
  * the face prints the same objects: a CARD that carries a tag and a VP icon
- * («per Building card with a VP icon»), ONE printed TAG («per Power tag»), or
+ * («per Building card with a VP icon»), ONE printed TAG («per Power tag»),
  * SEVERAL printed tags added up («per Venus and Jovian tag» — the medallions
- * joined by the face's own «+», exactly as the card prints them).
+ * joined by the face's own «+», exactly as the card prints them), or a TILE
+ * («per space city» — the city pictogram with the footnote spark, the very
+ * drawing the face and the chairman quest print for one).
  * The rules that USE it are the parliament's (`influenceYieldModel`).
  */
 export type CountedObjectGlyph =
   | {kind: 'vp-card', tag: Tag}
   | {kind: 'tag', tag: Tag}
-  | {kind: 'tags', tags: ReadonlyArray<Tag>};
+  | {kind: 'tags', tags: ReadonlyArray<Tag>}
+  | {kind: 'tile', tile: BoardCountedTile};
+
+/**
+ * The pictogram of a counted TILE — the SAME asset the face's mechanics print
+ * for the render item (`b.city()` → `CardRenderItemType.CITY`), so the glyph
+ * of a reading and the graphic of the card can never draw two different
+ * cities.
+ */
+export function countedTileIconUrl(tile: BoardCountedTile): string {
+  switch (tile) {
+  case 'spaceCity': return `${TILES}/city.png`;
+  }
+}
 
 /** Standard-resource icon (production requirements, reserve units). */
 const STANDARD_RESOURCE_URL: Readonly<Record<Resource, string>> = {

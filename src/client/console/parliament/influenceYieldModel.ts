@@ -97,6 +97,14 @@ export function yieldCountPresentation(id: ResolutionCountId): YieldCountPresent
       ruleKey: 'Every Venus tag and every Jovian tag counts, one unit each: a card that prints both counts twice. A wild tag is neither at an enactment.',
       skipReasonKey: 'No Venus or Jovian tags and no influence',
     };
+  case 'spaceCities':
+    // A count over the BOARD: the glyph is the city tile with the footnote spark — the face's own «space city».
+    return {
+      glyph: {kind: 'tile', tile: 'spaceCity'},
+      pluralKey: '${0} space city(-ies)',
+      ruleKey: 'A city tile on a reserved area off Mars counts — Ganymede Colony, Phobos Space Haven, Stanford Torus and the like. A city on Mars and the Moon\'s tiles do not count.',
+      skipReasonKey: 'No space cities and no influence',
+    };
   }
 }
 

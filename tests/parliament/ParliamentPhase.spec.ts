@@ -8,7 +8,10 @@ import {IGame} from '../../src/server/IGame';
 import {Game} from '../../src/server/Game';
 import {compatibleWith, Parliament} from '../../src/server/parliament/Parliament';
 import {TEST_CHOICE_RESOLUTION_ID} from '../../src/server/parliament/resolutions/ResolutionCatalog';
-import {answerGate, answerStandingGates, endGenerationThroughParliament, gatePromptOf, passToParliament, seatQuiet, seatResolution, settleParliamentGates} from './parliamentArrange';
+import {
+  answerGate, answerStandingGates, endGenerationThroughParliament, gatePromptOf, passToParliament, quietWinnerIndex, seatQuiet, seatResolution,
+  settleParliamentGates,
+} from './parliamentArrange';
 import {ParliamentHandler} from '../../src/server/parliament/ParliamentHandler';
 import {getParliamentModel} from '../../src/server/parliament/ParliamentModel';
 import {Server} from '../../src/server/models/ServerModel';
@@ -63,15 +66,18 @@ function endGeneration(game: IGame): void {
 describe('ParliamentPhase', () => {
   it('resolves the vote at the end of the generation: winner, Agenda, popular support, enactment, refresh, lobby', () => {
     const [game, p1, p2, parliament] = reduxGame();
-    const slot = parliament.slots[1];
     // THE GENERIC PHASE: the voted card is one whose effect never asks — a
     // real resolution dealt here (a winner's tile) would hold the phase for
     // its answer. A quiet card of the dealt card's OWN party keeps every
-    // party reading below as it was.
-    quiet(parliament, 1);
+    // party reading below as it was; the slot is one a PLAYER can win quietly
+    // (the seeded deal decides where the Greens' card — whose winner ocean
+    // asks — landed this catalog).
+    const winnerIndex = quietWinnerIndex(parliament);
+    const slot = parliament.slots[winnerIndex];
+    quiet(parliament, winnerIndex);
     const winnerParty = parliament.resolutionOf(slot.instance).party;
     const loserParties = parliament.partiesInVotingArea().filter((party) => party !== winnerParty);
-    const loserWithVote = parliament.slots[2];
+    const loserWithVote = parliament.slots[(winnerIndex + 1) % parliament.slots.length];
     const loserWithVoteParty = parliament.resolutionOf(loserWithVote.instance).party;
     parliament.placeVote(p1, slot, 'lobby');
     parliament.placeVote(p1, slot, 'reserve');
@@ -280,11 +286,16 @@ describe('ParliamentPhase', () => {
     expect(parliament.agendaOf(p1)).eq(0);
 
     game.phase = Phase.ACTION;
-    quiet(parliament, 0);
+    // The PLAYER wins this one: a slot whose quiet card asks nothing of the winner either.
+    const winnerIndex = quietWinnerIndex(parliament);
+    quiet(parliament, winnerIndex);
     parliament.agenda.set(p1.id, 1);
-    parliament.placeVote(p1, parliament.slots[0], 'lobby');
+    // Two delegates: the fresh card may carry a neutral vote from the deal, and an earlier delegate wins a tie.
+    parliament.placeVote(p1, parliament.slots[winnerIndex], 'lobby');
+    parliament.placeVote(p1, parliament.slots[winnerIndex], 'reserve');
     const tr = p1.terraformRating;
     endGenerationThroughParliament(game);
+    expect(parliament.lastPhase?.winner.player).eq(p1.id);
     expect(parliament.agendaOf(p1)).eq(2);
     expect(p1.terraformRating).eq(tr + 1);
     expect(parliament.lastPhase?.agenda?.bonus).eq('tr');

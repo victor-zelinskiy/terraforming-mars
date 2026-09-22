@@ -36,6 +36,7 @@ import {CENTRAL_POWER_GRID} from './industrialists/CentralPowerGrid';
 import {CLIMATE_RESEARCH} from './greens/ClimateResearch';
 import {CLOUD_DEVELOPMENT} from './unity/CloudDevelopment';
 import {COLONIAL_AFFAIRS} from './unity/ColonialAffairs';
+import {COLONIZATION_FUNDING} from './unity/ColonizationFunding';
 
 /**
  * THE RETIRED IDS — iteration 0's DUMMY resolutions (a party, a quest, no
@@ -445,6 +446,8 @@ export const REDUX_RESOLUTION_CATALOG = new ResolutionCatalog([
   CLOUD_DEVELOPMENT,
   // A PLAN PER PLAYER (`immediateStepsFor`): one step per colony tile the seat has a cube on.
   COLONIAL_AFFAIRS,
+  // A count over THE BOARD (space cities), not the tableau.
+  COLONIZATION_FUNDING,
   TEST_CHOICE,
   DEV_IMMEDIATE,
   DEV_PASSIVE,

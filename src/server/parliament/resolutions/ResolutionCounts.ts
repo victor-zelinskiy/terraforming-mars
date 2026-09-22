@@ -20,26 +20,48 @@
  * and `tests/parliament/CloudDevelopment.spec.ts` pin the breakdowns against
  * the canonical numbers over a corpus, so the explanation can never drift
  * from the number.
+ *
+ * A BOARD count (Colonization Funding's space cities) walks no tableau at
+ * all: it asks THE ENGINE — `MarsBoard.getCitiesOffMars(player)`, the very
+ * function the Cosmic Settler award and the behavior counter stand on — for
+ * the number AND the cells, so nothing here restates what a space city is.
+ * The shared cell predicate (`spaceCountVerdict`) exists for the stand's
+ * synthetic cells and is pinned to this reading by
+ * `tests/parliament/ColonizationFunding.spec.ts`.
  */
 import {CardName} from '../../../common/cards/CardName';
 import {
-  cardCountUnits, countCardsToward, ResolutionCountId, ResolutionCountModel, resolutionCountKind,
+  BoardCountedTile, cardCountUnits, countCardsToward, ResolutionCountId, ResolutionCountModel, resolutionCountKind,
   RESOLUTION_COUNT_IDS, RESOLUTION_TAG_COUNTING_MODE,
 } from '../../../common/parliament/resolutionCounts';
 import {Resource} from '../../../common/Resource';
 import {IPlayer} from '../../IPlayer';
 import {ICard} from '../../cards/ICard';
+import {Space} from '../../boards/Space';
 import type {ResolutionCatalog} from './ResolutionCatalog';
 
 function inPlay(card: ICard): boolean {
   return !(card.name === CardName.PHARMACY_UNION && card.isDisabled === true);
 }
 
-/** `player`'s count for `id`, with the cards that made it (in play order). */
+/** THE ENGINE'S OWN LIST of `player`'s tiles of `tiles` kind on the Mars board — the canonical reading of a board count. */
+function boardCountSpaces(player: IPlayer, tiles: BoardCountedTile): ReadonlyArray<Space> {
+  switch (tiles) {
+  case 'spaceCity': return player.game.board.getCitiesOffMars(player);
+  }
+}
+
+/** `player`'s count for `id`, with what made it: the cards (in play order), or the cells of a board count. */
 export function resolutionCount(player: IPlayer, id: ResolutionCountId): ResolutionCountModel {
+  const kind = resolutionCountKind(id);
+  if (kind.kind === 'board') {
+    // THE CANONICAL NUMBER AND ITS CELLS, from the engine — never a walk of
+    // this module's own over the board.
+    const spaces = boardCountSpaces(player, kind.tiles);
+    return {id, count: spaces.length, cards: [], spaces: spaces.map((space) => space.id)};
+  }
   const tableau = player.tableau.filter(inPlay);
   const breakdown = countCardsToward(id, tableau, {eventTagsInPlay: player.tags.eventTagsInPlay()});
-  const kind = resolutionCountKind(id);
   if (kind.kind === 'cards') {
     return breakdown;
   }

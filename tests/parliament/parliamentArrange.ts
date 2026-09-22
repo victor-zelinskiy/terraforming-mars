@@ -8,7 +8,7 @@ import {PartyName} from '../../src/common/turmoil/PartyName';
 import {AQUIFER_CONTEST_ID} from '../../src/server/parliament/resolutions/greens/AquiferContest';
 import {ARCHITECTURE_AWARD_ID} from '../../src/server/parliament/resolutions/marsFirst/ArchitectureAward';
 import {CENTRAL_POWER_GRID_ID} from '../../src/server/parliament/resolutions/industrialists/CentralPowerGrid';
-import {CLOUD_DEVELOPMENT_ID} from '../../src/server/parliament/resolutions/unity/CloudDevelopment';
+import {COLONIZATION_FUNDING_ID} from '../../src/server/parliament/resolutions/unity/ColonizationFunding';
 import {DEV_COMPOUND_RESOLUTION_ID, DEV_SCIENCE_RESOLUTION_ID} from '../../src/server/parliament/resolutions/ResolutionCatalog';
 import {runAllActions} from '../TestingUtils';
 
@@ -99,12 +99,13 @@ export function seatEnacted(parliament: Parliament, id: ResolutionId | Resolutio
  * A REAL resolution of `party` whose enactment ASKS NOTHING at a fresh table —
  * the stand-in a spec seats when its subject is the PHASE, not a card:
  *  - the Greens: Aquifer Contest (its animals go to a holder, and a fresh
- *    table has none — the share is named and forfeited, nothing is asked);
- *  - Mars First: Architecture Award, the Industrialists: Central Power Grid
- *    (M€ production, never a choice);
- *  - Unity: Cloud Development (its floaters go to a holder, and a fresh table
- *    has none — named and forfeited, nothing asked; a Venus card, seated by
- *    id regardless of the game's expansions).
+ *    table has none — the share is named and forfeited, nothing is asked).
+ *    ⚠ Quiet for EVERY SEAT'S SHARE, not for the winner: its WINNER'S OCEAN
+ *    asks for a cell, so a Greens slot is quiet only under a NEUTRAL winner —
+ *    a spec whose PLAYER wins seats the winner through `quietWinnerIndex`;
+ *  - Mars First: Architecture Award, the Industrialists: Central Power Grid,
+ *    Unity: Colonization Funding (M€ production, never a choice — quiet for
+ *    every seat and for the winner alike).
  * The parties with no real resolution yet are never dealt, so they never need one.
  */
 export function quietResolutionOf(party: ReduxParty): ResolutionId {
@@ -112,7 +113,7 @@ export function quietResolutionOf(party: ReduxParty): ResolutionId {
   case PartyName.GREENS: return AQUIFER_CONTEST_ID;
   case PartyName.MARS: return ARCHITECTURE_AWARD_ID;
   case PartyName.INDUSTRIALISTS: return CENTRAL_POWER_GRID_ID;
-  case PartyName.UNITY: return CLOUD_DEVELOPMENT_ID;
+  case PartyName.UNITY: return COLONIZATION_FUNDING_ID;
   // The parties WITHOUT a real card yet seat their DEV substitutes (final polish D.2): a spec or a fixture
   // of the first Reds / Scientists card starts from the table, not from this helper.
   case PartyName.REDS: return DEV_COMPOUND_RESOLUTION_ID;
@@ -126,6 +127,21 @@ export function quietResolutionOf(party: ReduxParty): ResolutionId {
 export function seatQuiet(parliament: Parliament, index: number): ResolutionInstanceId {
   const party = parliament.resolutionOf(parliament.slots[index].instance).party;
   return seatResolution(parliament, index, quietResolutionOf(party));
+}
+
+/**
+ * The first voting slot a PLAYER can win quietly once `seatQuiet` has run on it —
+ * a slot of any party but the Greens (their quiet card's winner ocean asks for a
+ * cell). The deal is seeded, so which slot that is shifts whenever the catalog
+ * grows: a spec that pinned «slot 1» met Aquifer Contest there the day RX08
+ * joined the deck, and stood at the winner's ocean instead of finishing.
+ */
+export function quietWinnerIndex(parliament: Parliament): number {
+  const index = parliament.slots.findIndex((slot) => parliament.resolutionOf(slot.instance).party !== PartyName.GREENS);
+  if (index < 0) {
+    throw new Error('every slot of the voting area is the Greens\' — no slot a player can win quietly');
+  }
+  return index;
 }
 
 /**

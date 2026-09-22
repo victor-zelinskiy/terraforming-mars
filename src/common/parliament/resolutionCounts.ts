@@ -14,14 +14,23 @@
  * (or, off the table, this predicate), and every reading keeps the LIST of
  * counted cards so the number can always be explained.
  *
- * TWO KINDS OF COUNT, told apart by `resolutionCountKind` because the cards
- * answer them differently:
+ * THREE KINDS OF COUNT, told apart by `resolutionCountKind` because the
+ * objects answer them differently:
  *   · CARDS — «for every Building card with a VP icon»: one card is ONE unit,
  *     however many tags or victory points it prints (Architecture Award);
  *   · TAGS — «for each Power tag you have»: one card contributes EVERY
  *     matching tag it prints, so a two-power-tag card is 2 (Central Power
  *     Grid). The card list still explains the number — with the card's own
- *     contribution beside it (`ResolutionCountModel.units`).
+ *     contribution beside it (`ResolutionCountModel.units`);
+ *   · BOARD — «for every space city you have» (Colonization Funding): the
+ *     count walks the player's TILES, not their tableau — a tile has no card,
+ *     so what explains the number is a list of CELLS (`ResolutionCountModel.spaces`).
+ *     The server asks THE ENGINE for the number (`MarsBoard.getCitiesOffMars`,
+ *     the function the awards and the behavior counter already stand on); the
+ *     cell predicate here (`spaceCountVerdict`) is the stand's, pinned to the
+ *     engine by spec. The next board count (Migration Funding's «city on
+ *     Mars») is one more `BoardCountedTile` and one more branch, never a kind
+ *     of its own.
  *
  * WHAT A CARD IS, for a count: its name, type, printed tags and VP
  * declaration — the facts `ICard` and `ClientCard` share. Played-event tags
@@ -29,11 +38,17 @@
  * Odyssey). A wild tag never stands in for a printed tag here: «a Building
  * card» is a card that PRINTS the building tag, and a Power tag is a printed
  * power tag — see `RESOLUTION_TAG_COUNTING_MODE` for why.
+ *
+ * WHAT A CELL IS, for a board count: its id, its space type and the tile on
+ * it — the facts the server's `Space` and the stand's synthetic cells share.
  */
 import {CardName} from '../cards/CardName';
 import {CardType} from '../cards/CardType';
 import {Tag} from '../cards/Tag';
 import {hasNonNegativeVictoryPointsIcon, VictoryPointsDeclaration, victoryPointsIconOf} from '../cards/victoryPointsIcon';
+import {SpaceId} from '../Types';
+import {SpaceType} from '../boards/SpaceType';
+import {CITY_TILES, TileType} from '../TileType';
 
 export const RESOLUTION_COUNT_IDS = [
   /** Architecture Award: own cards in play that print a building tag AND a non-negative VP icon. */
@@ -46,6 +61,13 @@ export const RESOLUTION_COUNT_IDS = [
    * with a per-tag breakdown so the number can be explained tag by tag.
    */
   'venusJovianTags',
+  /**
+   * Colonization Funding: the player's SPACE CITIES — city tiles on the
+   * reserved areas off Mars (Ganymede Colony, Phobos Space Haven, Stanford
+   * Torus, the Venus and Pathfinders areas). A count over the BOARD, not the
+   * tableau: the Moon's tiles and a city on Mars are not space cities.
+   */
+  'spaceCities',
 ] as const;
 export type ResolutionCountId = typeof RESOLUTION_COUNT_IDS[number];
 
@@ -72,30 +94,50 @@ export type ResolutionCountTerm = {
 };
 
 /**
+ * WHAT a BOARD count counts among the player's tiles on the Mars board:
+ * `spaceCity` — a city tile on a reserved area OFF Mars (`SpaceType.COLONY`).
+ * The family's next word is `marsCity` (Migration Funding) — one entry here,
+ * one branch in `spaceCountVerdict`, one line in the server's reader.
+ */
+export type BoardCountedTile = 'spaceCity';
+
+/**
  * WHAT a count id counts. `cards` — one unit per qualifying card; `tags` — the
  * printed occurrences of the listed tags, ADDED UP (the canonical tag count of
  * each, read in `RESOLUTION_TAG_COUNTING_MODE`). One tag is the ordinary case
  * (Central Power Grid); a term over several tags (Cloud Development's «per
  * Venus and Jovian tag») is the SAME kind with a longer list — a card
  * printing two of the listed tags is worth 2, whichever two they are.
+ * `board` — the player's TILES of the named kind on the Mars board, one unit
+ * per cell (Colonization Funding's space cities).
  */
-export type ResolutionCountKind = {kind: 'cards'} | {kind: 'tags', tags: ReadonlyArray<Tag>};
+export type ResolutionCountKind =
+  | {kind: 'cards'}
+  | {kind: 'tags', tags: ReadonlyArray<Tag>}
+  | {kind: 'board', tiles: BoardCountedTile};
 
 export function resolutionCountKind(id: ResolutionCountId): ResolutionCountKind {
   switch (id) {
   case 'buildingCardsWithNonNegativeVp': return {kind: 'cards'};
   case 'powerTags': return {kind: 'tags', tags: [Tag.POWER]};
   case 'venusJovianTags': return {kind: 'tags', tags: [Tag.VENUS, Tag.JOVIAN]};
+  case 'spaceCities': return {kind: 'board', tiles: 'spaceCity'};
   }
 }
 
 /** ONE tag's share of a multi-tag count («Venus 1 · Jovian 2»). */
 export type ResolutionCountByTag = {tag: Tag; count: number};
 
-/** ONE player's count for a term — the number, and the cards that made it (in play order). */
+/**
+ * ONE player's count for a term — the number, and what made it: the cards (in
+ * play order) for a card or tag count, the CELLS for a board count. ONE model
+ * for every kind — a reading, a record and the stand all explain the number
+ * from the same shape, whichever list happens to carry it.
+ */
 export type ResolutionCountModel = {
   id: ResolutionCountId;
   count: number;
+  /** The counted cards — EMPTY on a board count (a tile has no card; see `spaces`). */
   cards: ReadonlyArray<CardName>;
   /**
    * A TAG count: what each listed card contributed (aligned with `cards`) —
@@ -108,7 +150,59 @@ export type ResolutionCountModel = {
    * Absent on a single-tag count (the sum IS the one tag) and on a card count.
    */
   byTag?: ReadonlyArray<ResolutionCountByTag>;
+  /**
+   * A BOARD count: the cells that made it (their ids, in the board's order) —
+   * the list that explains the number where no card can. Present on a board
+   * count only (empty when nothing counted); absent on a card or tag count.
+   */
+  spaces?: ReadonlyArray<SpaceId>;
 };
+
+/** The cell facts a BOARD count reads (satisfied by the server's `Space` and by the stand's synthetic cells). */
+export type CountedSpaceFacts = {
+  id: SpaceId;
+  spaceType: SpaceType;
+  tile?: {tileType: TileType};
+};
+
+/**
+ * WHY a cell of the player's does or does not count toward a BOARD count —
+ * the stand's predicate, one sentence per failed condition (English i18n
+ * keys). THE RULE IS THE ENGINE'S (`MarsBoard.getCitiesOffMars`: a city tile
+ * on a `COLONY` space of the Mars board); this restates it for a cell the
+ * stand made up, and `tests/parliament/ColonizationFunding.spec.ts` pins the
+ * two together over a corpus of boards. A cell of another board (the Moon)
+ * never reaches a board count at all.
+ */
+export type SpaceCountVerdict = {counts: true} | {counts: false, reason: string};
+
+export function spaceCountVerdict(id: ResolutionCountId, space: CountedSpaceFacts): SpaceCountVerdict {
+  const kind = resolutionCountKind(id);
+  if (kind.kind !== 'board') {
+    return {counts: false, reason: 'Counted among cards, not on the board'};
+  }
+  switch (kind.tiles) {
+  case 'spaceCity':
+    if (space.spaceType !== SpaceType.COLONY) {
+      return {counts: false, reason: 'On Mars — not a space city'};
+    }
+    if (space.tile === undefined || !CITY_TILES.has(space.tile.tileType)) {
+      return {counts: false, reason: 'No city tile here'};
+    }
+    return {counts: true};
+  }
+}
+
+/** Count `spaces` (the owner's cells) toward a BOARD count `id` — the stand's reading of synthetic cells. */
+export function countSpacesToward(id: ResolutionCountId, spaces: Iterable<CountedSpaceFacts>): ResolutionCountModel {
+  const counted: Array<SpaceId> = [];
+  for (const space of spaces) {
+    if (spaceCountVerdict(id, space).counts) {
+      counted.push(space.id);
+    }
+  }
+  return {id, count: counted.length, cards: [], spaces: counted};
+}
 
 /** The card facts a card-based count reads (satisfied by `ICard` and by `ClientCard`). */
 export type CountedCardFacts = VictoryPointsDeclaration & {
@@ -183,6 +277,9 @@ export function cardCountVerdict(id: ResolutionCountId, card: CountedCardFacts, 
     }
     return {counts: true};
   }
+  case 'spaceCities':
+    // A BOARD count: no card counts — the tiles do (`spaceCountVerdict`).
+    return {counts: false, reason: 'Counted on the board, not among cards'};
   }
 }
 
@@ -201,7 +298,7 @@ export function cardCountUnits(id: ResolutionCountId, card: CountedCardFacts, ct
     return 0;
   }
   const kind = resolutionCountKind(id);
-  return kind.kind === 'cards' ? 1 : card.tags.filter((tag) => kind.tags.includes(tag)).length;
+  return kind.kind === 'tags' ? card.tags.filter((tag) => kind.tags.includes(tag)).length : 1;
 }
 
 /**
@@ -236,8 +333,9 @@ export function countCardsToward(id: ResolutionCountId, cards: Iterable<CountedC
   const model: ResolutionCountModel = {id, count: total, cards: counted};
   // The per-card contribution rides along only where it can differ from 1 —
   // a `cards` count would carry a column of ones and say nothing; the per-tag
-  // breakdown only where there is more than one tag to tell apart.
-  if (kind.kind === 'cards') {
+  // breakdown only where there is more than one tag to tell apart. (A board
+  // count walked over cards counts nothing: its cells are `countSpacesToward`'s.)
+  if (kind.kind !== 'tags') {
     return model;
   }
   return byTag.length > 0 ? {...model, units, byTag} : {...model, units};

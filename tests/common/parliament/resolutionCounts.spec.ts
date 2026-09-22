@@ -5,8 +5,11 @@ import {CardType} from '../../../src/common/cards/CardType';
 import {Tag} from '../../../src/common/cards/Tag';
 import {ClientCard} from '../../../src/common/cards/ClientCard';
 import {
-  cardCountUnits, cardCountVerdict, countCardsToward, CountedCardFacts, resolutionCountKind, RESOLUTION_COUNT_IDS,
+  cardCountUnits, cardCountVerdict, countCardsToward, CountedCardFacts, countSpacesToward, resolutionCountKind, RESOLUTION_COUNT_IDS,
+  spaceCountVerdict,
 } from '../../../src/common/parliament/resolutionCounts';
+import {SpaceType} from '../../../src/common/boards/SpaceType';
+import {TileType} from '../../../src/common/TileType';
 import {ALL_MODULE_MANIFESTS} from '../../../src/server/cards/AllManifests';
 import {CardManifest} from '../../../src/server/cards/ModuleManifest';
 import {ICard} from '../../../src/server/cards/ICard';
@@ -159,6 +162,41 @@ describe('resolutionCounts', () => {
       expect(mismatches).deep.eq([]);
       expect(tagUnits, 'the corpus prints power tags').greaterThan(50);
       expect(multiTagCards, 'and at least one card prints two of them').greaterThan(0);
+    });
+  });
+
+  describe('a BOARD count (spaceCities)', () => {
+    const BOARD = 'spaceCities' as const;
+    const ganymede = {id: '01' as const, spaceType: SpaceType.COLONY, tile: {tileType: TileType.CITY}};
+    const phobos = {id: '02' as const, spaceType: SpaceType.COLONY, tile: {tileType: TileType.CITY}};
+    const emptyArea = {id: '69' as const, spaceType: SpaceType.COLONY};
+    const marsCity = {id: '35' as const, spaceType: SpaceType.LAND, tile: {tileType: TileType.CITY}};
+    const marsCapital = {id: '36' as const, spaceType: SpaceType.LAND, tile: {tileType: TileType.CAPITAL}};
+    const oceanCity = {id: '70' as const, spaceType: SpaceType.COLONY, tile: {tileType: TileType.OCEAN_CITY}};
+    const greenery = {id: '37' as const, spaceType: SpaceType.LAND, tile: {tileType: TileType.GREENERY}};
+
+    it('is a count over the BOARD, and the cells answer it — each «does not count» names its reason', () => {
+      expect(resolutionCountKind(BOARD)).deep.eq({kind: 'board', tiles: 'spaceCity'});
+      expect(spaceCountVerdict(BOARD, ganymede)).deep.eq({counts: true});
+      expect(spaceCountVerdict(BOARD, oceanCity), 'every city tile kind counts, as the engine\'s own city predicate reads it').deep.eq({counts: true});
+      expect(spaceCountVerdict(BOARD, emptyArea)).deep.eq({counts: false, reason: 'No city tile here'});
+      expect(spaceCountVerdict(BOARD, marsCity)).deep.eq({counts: false, reason: 'On Mars — not a space city'});
+      expect(spaceCountVerdict(BOARD, marsCapital)).deep.eq({counts: false, reason: 'On Mars — not a space city'});
+      expect(spaceCountVerdict(BOARD, greenery)).deep.eq({counts: false, reason: 'On Mars — not a space city'});
+      // A card or tag count asked about a cell: never.
+      expect(spaceCountVerdict(ID, ganymede)).deep.eq({counts: false, reason: 'Counted among cards, not on the board'});
+      expect(spaceCountVerdict(TAGS, ganymede)).deep.eq({counts: false, reason: 'Counted among cards, not on the board'});
+    });
+
+    it('the model explains the number with CELLS and carries no card at all', () => {
+      expect(countSpacesToward(BOARD, [marsCity, ganymede, emptyArea, phobos, greenery])).deep.eq({id: BOARD, count: 2, cards: [], spaces: ['01', '02']});
+      expect(countSpacesToward(BOARD, [])).deep.eq({id: BOARD, count: 0, cards: [], spaces: []});
+    });
+
+    it('no card ever counts toward it — the card predicate says so, and a tableau walk gives zero without a per-card column', () => {
+      expect(cardCountVerdict(BOARD, new ArtificialLake(), FACE_DOWN)).deep.eq({counts: false, reason: 'Counted on the board, not among cards'});
+      expect(cardCountUnits(BOARD, new PowerPlant(), {eventTagsInPlay: true})).eq(0);
+      expect(countCardsToward(BOARD, [new ArtificialLake(), new HE3FusionPlant()], FACE_DOWN)).deep.eq({id: BOARD, count: 0, cards: []});
     });
   });
 });
