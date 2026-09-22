@@ -85,6 +85,9 @@ const FIXTURES: Array<{row: string, wf: any, hand?: Array<string>, srr?: Array<s
   {row: '24a venus bonus (base)', wf: {type: 'and', title: 'Gain 2', options: [], venusBonusPrompt: {kind: 'standard', baseCount: 2}}, expect: {kind: 'venusBonus', mode: 'standard'}},
   {row: '24b venus bonus (final)', wf: {type: 'or', title: 'Gain 3', options: [], venusBonusPrompt: {kind: 'final', baseCount: 2}}, expect: {kind: 'venusBonus', mode: 'final'}},
   {row: '24c spend heat', wf: {type: 'and', title: 'Spend 6 heat', options: [], spendHeatPrompt: {amount: 6}}, expect: {kind: 'spendHeat'}},
+  // The shared distribution step's `and` (Cloud Development's floaters, Cyanobacteria's microbes): the
+  // marker routes it onto the card-target chassis in LAYOUT mode, never onto the composite carve-out.
+  {row: '24d card-resource distribution', wf: {type: 'and', title: 'Place 3 floaters on your cards', options: [], cardResourceDistributionPrompt: {amount: 3, cardResource: 'floater', cards: []}}, expect: {kind: 'cardSelect', mode: 'distribute'}},
   // A MARSBOT ATTACK — byte-identical to row 13 on the wire apart from
   // `botAttackPrompt`, which is exactly why the marker had to exist: without
   // it the prompt is a nameless target pick in the generic card browser.
@@ -348,6 +351,14 @@ describe('consoleTaskRouter (CTS-2 coverage)', () => {
       // The SAME key `openColoniesForPrompt` pushes and `ConsoleColoniesSection`
       // publishes up — one stage, one word, so the tail animates once.
       expect(followUpStepStage('colony')).to.eq('Colony selection');
+      // A RESOLUTION-sourced ask answers from the sitting's own table: a pick is «Choice», the shared
+      // distribution's marked `and` is «Distribution» (the crumb's one word, `consoleSittingFlow` prints the same).
+      const resolutionPick = {type: 'card', title: 'pick', buttonLabel: 'Select', cards: [], choiceContext: {source: {kind: 'resolution', resolution: 'RDX_X'}}} as unknown as PlayerInputModel;
+      const resolutionSpread = {type: 'and', title: 'lay', buttonLabel: 'Confirm', options: [], choiceContext: {source: {kind: 'resolution', resolution: 'RDX_X'}},
+        cardResourceDistributionPrompt: {amount: 3, cardResource: 'floater', cards: []}} as unknown as PlayerInputModel;
+      expect(followUpStepStage('cardSelect', resolutionPick)).to.eq('Choice');
+      expect(followUpStepStage('cardSelect', resolutionSpread)).to.eq('Distribution');
+      expect(taskServedByHost(view({type: 'and', title: 'lay', options: [], cardResourceDistributionPrompt: {amount: 3, cardResource: 'floater', cards: []}}))?.kind, 'the host serves the layout').to.eq('cardSelect');
     });
 
     /* A discard the played card FORCED is not a step of the play: it needs the

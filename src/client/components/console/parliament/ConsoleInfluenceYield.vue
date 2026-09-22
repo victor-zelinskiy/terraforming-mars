@@ -81,7 +81,16 @@
             <b data-yield-in="total-after">{{ y.total.after }}</b>
           </span>
           <span v-else-if="y.influence !== undefined || y.count !== undefined" class="con-iyield__in">
-            <template v-if="y.count !== undefined && countGlyphOf(group.effect) !== undefined">
+            <!-- A count over SEVERAL tags reads TAG BY TAG («[Venus] 1 + [Jovian] 2 + [influence] 1»):
+                 the breakdown the server recorded, each tag with its own medallion — never one
+                 number the player has to take apart. A single-tag count keeps the one glyph. -->
+            <template v-if="y.count !== undefined && y.countedByTag !== undefined && y.countedByTag.length > 1">
+              <template v-for="entry in y.countedByTag" :key="entry.tag">
+                <PremiumCountGlyph class="con-iyield__glyph" :glyph="{kind: 'tag', tag: entry.tag}" /><b :data-yield-in="'tag:' + entry.tag">{{ entry.count }}</b>
+                <span class="con-iyield__plus" aria-hidden="true">+</span>
+              </template>
+            </template>
+            <template v-else-if="y.count !== undefined && countGlyphOf(group.effect) !== undefined">
               <PremiumCountGlyph class="con-iyield__glyph" :glyph="countGlyphOf(group.effect)!" /><b data-yield-in="count">{{ y.count }}</b>
               <span class="con-iyield__plus" aria-hidden="true">+</span>
             </template>

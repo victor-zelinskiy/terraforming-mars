@@ -83,8 +83,14 @@ export type ResultsPayoutPart = {
   amount?: number;
   /** A winner's tile: which one. */
   tile?: 'ocean' | 'greenery';
-  /** The card a card resource landed on. */
+  /** The card a card resource landed on (one recipient). */
   card?: string;
+  /**
+   * WHERE a card resource landed, card by card — printed when it was SPREAD
+   * over several (a distribution): the row then names each recipient with
+   * its own share beside the sum; one recipient prints the sum alone.
+   */
+  cards?: ReadonlyArray<{card: string, amount: number}>;
   /** The RULING PARTY's own answer — its emblem stands beside the amount. */
   party?: ReduxParty;
   /** The part paid nothing: WHAT it was and WHY (both English i18n keys). */
@@ -185,6 +191,9 @@ export function resultsPayoutPart(outcome: ParliamentEnactOutcomeModel, index: n
   }
   if (outcome.card !== undefined) {
     part.card = outcome.card;
+  }
+  if (delivery.payload.cards !== undefined && delivery.payload.cards.length > 1) {
+    part.cards = delivery.payload.cards.map((entry) => ({card: entry.card, amount: entry.amount}));
   }
   if (outcome.kind === 'reaction' && outcome.party !== undefined) {
     part.party = outcome.party as ReduxParty;

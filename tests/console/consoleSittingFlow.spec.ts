@@ -126,6 +126,12 @@ describe('consoleSittingFlow — the political phase as ONE flow (v2)', () => {
       expect(sittingAskOf(pick())).eq('choice');
       expect(sittingAskOf(take())).eq('intake');
       expect(sittingAskOf(tile())).eq('placement');
+      // The shared distribution step's marked `and` is a LAYOUT — its own hosted step, its own one-word tail.
+      const spread = {type: 'and', title: 'lay', buttonLabel: 'Confirm', options: [], choiceContext: {source: {kind: 'resolution', resolution: 'RDX_X'}},
+        cardResourceDistributionPrompt: {amount: 3, cardResource: 'floater', cards: []}} as unknown as PlayerInputModel;
+      expect(sittingAskOf(spread)).eq('distribution');
+      expect(sittingStageKey('reward', 'distribution')).eq('Distribution');
+      expect(sittingStageKey('reward', 'choice')).eq('Choice');
       expect(sittingAskOf({type: 'card', title: 'Select a card to keep', buttonLabel: 'Keep', cards: []} as unknown as PlayerInputModel), 'no resolution source').is.undefined;
       expect(sittingAskOf(undefined)).is.undefined;
       const p = sittingPositionOf(model(phase({step: 'effects', pending: {player: BLUE, key: 'k', input: 'card'}})), pick(), BLUE)!;

@@ -22337,6 +22337,31 @@ html.con-scale-focus-oceans .global-numbers-oceans {
         box-shadow: inset 0 0 0 .075rem fade(@con-cyan, 92%), 0 .2rem .7rem rgba(0, 0, 0, 0.55), 0 0 .8rem fade(@con-cyan, 22%);
         color: #d6f3ff;
     }
+    /* THE LAYOUT COUNTER (the card-target chassis in distribute mode — the
+       shared `AddResourcesToCards` step): «+2 [floater]» on a card the player
+       has placed units on. The SAME band chassis as the selection mark (one
+       state system, one place on the card), in the pre-commit cyan: nothing
+       has landed yet — the card's own capsule ticks only when the chips do. */
+    &__pickband--spread {
+        gap: .2rem;
+        background: linear-gradient(180deg, fade(@con-cyan, 30%), fade(@con-cyan, 14%)), @con-glass;
+        box-shadow: inset 0 0 0 .075rem fade(@con-cyan, 92%), 0 .2rem .7rem rgba(0, 0, 0, 0.55), 0 0 .8rem fade(@con-cyan, 22%);
+        color: #d6f3ff;
+        font-variant-numeric: tabular-nums;
+    }
+    &__spread-icon {
+        display: inline-block;
+        width: 1rem;
+        height: 1rem;
+        background-size: contain;
+        background-repeat: no-repeat;
+        background-position: center;
+    }
+    /* …and the slot wears a quiet outline while it holds units, so the
+       layout reads from the row as a whole, not only from the focused card. */
+    &__slot--spread > :is(.card-container, .pcard) {
+        box-shadow: 0 0 0 .12rem fade(@con-cyan, 55%), 0 0 1rem fade(@con-cyan, 18%);
+    }
     &__reason {
         position: absolute;
         left: .3rem;

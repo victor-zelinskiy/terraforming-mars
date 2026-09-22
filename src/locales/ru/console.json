@@ -959,5 +959,11 @@
     "asks": "спросит",
     "discount": "скидка",
     "event track": "трек событий",
-    "on the played card": "на разыгранную карту"
+    "on the played card": "на разыгранную карту",
+    "All placed": "Всё разложено",
+    "VP total": "ПО всего",
+    "Left": "Осталось",
+    "Left to place: ${0}": "Осталось разложить: ${0}",
+    "Laid out": "Разложено",
+    "Return to the layout": "Вернуться к раскладке"
 }

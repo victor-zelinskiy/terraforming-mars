@@ -165,7 +165,7 @@ import {
 import {
   sittingPageAuto, sittingPositionOf, SittingPosition, sittingPrimaryKey, sittingRewardSettled, SittingStage, sittingStageAt, sittingStageKey,
   sittingBodyOf, SittingBody, sittingStartPage, sittingWorkspacePhase, verdictStandsAt,
-  parliamentSittingLive,
+  parliamentSittingLive, SITTING_HOSTED_STEPS,
 } from '@/client/console/parliament/consoleSittingFlow';
 import {parliamentHolds, resetParliamentHolds} from '@/client/console/parliament/parliamentDisplayHolds';
 import {
@@ -350,7 +350,7 @@ export default defineComponent({
     sittingField(): boolean {
       const p = this.sitting;
       return this.sittingUp && p !== undefined && this.sittingStage === 'reward' &&
-        (p.rewardStep === 'choice' || p.rewardStep === 'intake') && !this.rewardPending;
+        SITTING_HOSTED_STEPS.has(p.rewardStep) && !this.rewardPending;
     },
     /** A reward wave is owed or in the air for this seat (the ledger's reactive fact). */
     rewardPending(): boolean {
@@ -382,7 +382,7 @@ export default defineComponent({
       if (p === undefined) {
         return '';
       }
-      const step = (p.rewardStep === 'choice' || p.rewardStep === 'intake') && !this.sittingField ? 'received' : p.rewardStep;
+      const step = SITTING_HOSTED_STEPS.has(p.rewardStep) && !this.sittingField ? 'received' : p.rewardStep;
       return sittingStageKey(this.sittingStage, step);
     },
     /** The sitting's identity for the session's memory of played stages (`generation:seq`). */

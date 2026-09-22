@@ -324,16 +324,25 @@
                   <div v-for="(entry, i) in cardEntries" :key="entry.card.name + '#' + i"
                        class="con-cards__slot"
                        :data-zoom-slot="entry.card.name"
+                       :data-spread="isSpreadMode ? spreadOnCard(entry.card.name) : undefined"
                        :class="{
                          'con-cards__slot--focused': focusIdx === i && !trayPickBeat && !arrivalPending,
                          'con-cards__slot--picked': isPicked(entry.card.name) && !trayPickBeat,
+                         'con-cards__slot--spread': isSpreadMode && spreadOnCard(entry.card.name) > 0,
                          'con-cards__slot--disabled': entry.disabled,
                          'con-cards__slot--dim': cardDimUnpicked && !entry.disabled && !isPicked(entry.card.name),
                          'con-deal-hold': deal.isHeld(entry.card.name + '#' + i),
                        }"
                        :ref="focusIdx === i ? 'focusedCardSlot' : undefined">
                     <Card :card="landedCardOf(entry.card)" :key="entry.card.name" lightweight />
-                    <span v-if="isPicked(entry.card.name) && !trayPickBeat" class="con-cards__pickband" aria-hidden="true">✓ {{ $t('Card selected') }}</span>
+                    <!-- THE LAYOUT COUNTER (distribute mode): what the player has put on THIS card so far —
+                         a pre-commit mark on the same band chassis as the selection mark. The card's own
+                         stored-resource capsule stays at its live count: nothing has landed yet, and it
+                         ticks only when the chips do (`landedCardOf`). -->
+                    <span v-if="isSpreadMode && spreadOnCard(entry.card.name) > 0" class="con-cards__pickband con-cards__pickband--spread" aria-hidden="true" data-spread-band>
+                      +{{ spreadOnCard(entry.card.name) }}<i class="con-cards__spread-icon" :class="spreadIconClass"></i>
+                    </span>
+                    <span v-else-if="isPicked(entry.card.name) && !trayPickBeat" class="con-cards__pickband" aria-hidden="true">✓ {{ $t('Card selected') }}</span>
                     <!-- P18: disabled candidates wear the state badge + the
                          concrete reason line (glance + detail). -->
                     <span v-else-if="entry.disabled" class="con-cards__pickband con-cards__pickband--disabled" aria-hidden="true">{{ $t('Unavailable') }}</span>
@@ -385,6 +394,22 @@
                          gamepad verbs, and repeating A/X/RT here made two footers
                          compete. What earns its place beside the card is what the
                          bar cannot say: the card's own economics. -->
+                    <!-- THE LAYOUT (distribute mode), embedded or not: the status line answers what is
+                         left to place — the honest reason the commit is withheld (invariant 5) — and the
+                         whole layout's VP shift; the focused card's own `current → resulting` and its VP
+                         for THIS amount stand to the left as the impact rows above. -->
+                    <template v-else-if="isSpreadMode">
+                      <span v-if="spreadBlockedText !== ''" class="con-cards__verdict con-cards__verdict--blocked" data-spread-blocked>
+                        <span aria-hidden="true">⚠</span><span>{{ spreadBlockedText }}</span>
+                      </span>
+                      <span v-else class="con-cards__verdict con-cards__verdict--ok" data-spread-ready>
+                        <span>{{ $t('All placed') }}</span>
+                      </span>
+                      <span v-if="spreadVpShift !== 0" class="con-cards__verdict con-cards__verdict--impact" data-spread-vp :data-spread-vp-shift="spreadVpShift">
+                        <span class="con-cards__impact-label">{{ $t('VP total') }}</span>
+                        <span class="con-cards__impact-nums">{{ spreadVpShift > 0 ? '+' : '' }}{{ spreadVpShift }}</span>
+                      </span>
+                    </template>
                     <template v-else-if="embedded">
                       <!-- The aggregate SHORTFALL outranks the economics: it is
                            the one thing that stops the decision, and now that
@@ -597,7 +622,11 @@ import Card from '@/client/components/card/CardFace.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
-import {PlayerInputModel, OrOptionsModel, SelectAmountModel, SelectOptionModel, OptionMetadata, SelectCardModel, SelectPaymentModel, SelectProjectCardToPlayModel} from '@/common/models/PlayerInputModel';
+import {PlayerInputModel, OrOptionsModel, AndOptionsModel, CardResourceDistributionMeta, SelectAmountModel, SelectOptionModel, OptionMetadata, SelectCardModel, SelectPaymentModel, SelectProjectCardToPlayModel} from '@/common/models/PlayerInputModel';
+import {
+  pourRemaining, spreadBlocked, spreadCardReading, spreadComplete, spreadFromPicks, spreadOn, spreadRemaining, SpreadState, spreadToPicks,
+  spreadTotal, spreadVictoryPointsShift, stepSpread,
+} from '@/client/console/cardResourceDistribution';
 import {CardName} from '@/common/cards/CardName';
 import {CardType} from '@/common/cards/CardType';
 import {Phase} from '@/common/Phase';
@@ -644,7 +673,7 @@ import {GlyphControl} from '@/client/gamepad/glyphSets';
 import type {ConsoleCommand} from '@/client/console/consoleCommandModel';
 import {setPanelCommands, clearPanelCommands} from '@/client/console/consolePanelUi';
 import {
-  amountResponse, cardsResponse, deltaProjectResponse, optionConfirmResponse, orOptionResponse,
+  amountResponse, cardResourceDistributionResponse, cardsResponse, deltaProjectResponse, optionConfirmResponse, orOptionResponse,
   orWrappedResponse, paymentResponse, playerResponse, productionToLoseResponse, projectCardResponse,
   resourceResponse, resourcesResponse,
 } from '@/client/console/taskResponses';
@@ -774,6 +803,13 @@ export default defineComponent({
       units: {} as Partial<Record<keyof Units, number>>,
       /** T2 card browser: picked card names, in pick order. */
       picks: [] as Array<CardName>,
+      /**
+       * The card browser's LAYOUT MODE (`cardSelect` / `distribute`): units placed
+       * per card — the shared distribution step's answer in the making. Opens
+       * EMPTY (no default recipient: an auto-select and a loaded reflex submit
+       * at once); LB / RB / RT move it; only a COMPLETE layout can be sent.
+       */
+      spread: {} as SpreadState,
       /** projectCard (generic, wave 2): pick → pay two-stage state. */
       pcStage: 'pick' as 'pick' | 'pay',
       pcPick: undefined as CardName | undefined,
@@ -1044,6 +1080,14 @@ export default defineComponent({
       if (!this.embedded || this.activeTask.kind !== 'cardSelect' ||
           this.embeddedSingleBuy || (this.singlePick && !this.isBuyMode)) {
         return [];
+      }
+      // THE LAYOUT's two live numbers — placed of N, and what is left — always
+      // TWO badges (a constant count per mode, so a press never reshapes the head).
+      if (this.isSpreadMode) {
+        return [
+          {key: 'placed', label: translateText('Laid out'), value: `${this.spreadPlaced}/${this.spreadAmount}`, warn: false, coin: false},
+          {key: 'left', label: translateText('Left'), value: `${this.spreadLeft}`, warn: this.spreadLeft > 0, coin: false},
+        ];
       }
       const out: Array<{key: string, label: string, value: string, warn: boolean, coin: boolean}> = [];
       if (!this.singlePick) {
@@ -1465,7 +1509,78 @@ export default defineComponent({
     },
     // ── card browser (T2) ────────────────────────────────────────────
     cardModel(): SelectCardModel | undefined {
-      return this.wf?.type === 'card' ? (this.wf as SelectCardModel) : undefined;
+      if (this.wf?.type === 'card') {
+        return this.wf as SelectCardModel;
+      }
+      // THE LAYOUT MODE reads the SAME model shape off the distribution marker:
+      // the faces (their live stored counts included), the sum as the pick's own
+      // `resourceGainPrompt` amount, and no single recipient to choose (min 0).
+      // One chassis, two modes — the grid, the fit, the zoom and the status
+      // line are the card pick's, untouched.
+      const spread = this.spreadMeta;
+      if (spread !== undefined && this.wf !== undefined) {
+        return {
+          type: 'card',
+          title: this.wf.title,
+          buttonLabel: this.wf.buttonLabel,
+          cards: spread.cards,
+          min: 0,
+          max: spread.cards.length,
+          showOnlyInLearnerMode: false,
+          selectBlueCardAction: false,
+          showOwner: false,
+          showSelectAll: false,
+          resourceGainPrompt: {amount: spread.amount, cardResource: spread.cardResource},
+          choiceContext: this.wf.choiceContext,
+        };
+      }
+      return undefined;
+    },
+    /** The DISTRIBUTION marker of a `distribute`-mode ask (the shared `AddResourcesToCards` step's `and`). */
+    spreadMeta(): CardResourceDistributionMeta | undefined {
+      if (this.activeTask.kind !== 'cardSelect' || this.activeTask.mode !== 'distribute' || this.wf?.type !== 'and') {
+        return undefined;
+      }
+      return (this.wf as AndOptionsModel).cardResourceDistributionPrompt;
+    },
+    /** The card browser stands in LAYOUT mode: N units to spread, a counter per card, the remaining count. */
+    isSpreadMode(): boolean {
+      return this.spreadMeta !== undefined;
+    },
+    spreadAmount(): number {
+      return this.spreadMeta?.amount ?? 0;
+    },
+    spreadLeft(): number {
+      return spreadRemaining(this.spreadAmount, this.spread);
+    },
+    spreadPlaced(): number {
+      return spreadTotal(this.spread);
+    },
+    /** The layout is complete — every unit placed (the ONE condition the commit stands on). */
+    spreadReady(): boolean {
+      return this.isSpreadMode && spreadComplete(this.spreadAmount, this.spread);
+    },
+    /** Why the commit is withheld («Осталось разложить: 2»), '' when the layout is complete. */
+    spreadBlockedText(): string {
+      if (!this.isSpreadMode) {
+        return '';
+      }
+      const blocked = spreadBlocked(this.spreadAmount, this.spread);
+      return blocked === undefined ? '' : translateTextWithParams(blocked.key, [...blocked.params]);
+    },
+    /** The whole layout's VP shift — the sum of each placed card's own entry of the server's table. */
+    spreadVpShift(): number {
+      const meta = this.spreadMeta;
+      return meta === undefined ? 0 : spreadVictoryPointsShift(meta, this.spread);
+    },
+    /** The icon family of the distributed resource (a card resource is `card-resource-*`). */
+    spreadIconClass(): string {
+      const meta = this.spreadMeta;
+      return meta === undefined ? '' : iconClassFor(meta.cardResource);
+    },
+    /** The picks store's key for the layout — its own, beside the picks' (a minimize → restore keeps both). */
+    spreadStoreKey(): string {
+      return `${this.resetKey}|spread`;
     },
     /** Selectable candidates first, then the DISABLED ones (with reasons). */
     /** Live models aligned with the deal's card list — the flying face must
@@ -1487,6 +1602,25 @@ export default defineComponent({
       const entry = this.focusedCardEntry;
       if (model?.resourceGainPrompt === undefined || entry === undefined || entry.disabled) {
         return [];
+      }
+      // THE LAYOUT MODE reads the focused card for ITS CURRENT AMOUNT: the
+      // resource «current → resulting» for what the player has put on it, and
+      // the VP for exactly that amount — the server's own table entry, never a
+      // delta scaled here. At 0 placed both readings stand still (quiet).
+      const spread = this.spreadMeta;
+      if (spread !== undefined) {
+        const reading = spreadCardReading(spread, this.spread, entry.card.name as CardName);
+        if (reading === undefined) {
+          return [];
+        }
+        const out: Array<PlayedTargetImpact & {iconClass: string}> = [{
+          label: 'Resources on this card', icon: spread.cardResource, from: reading.resources.from, to: reading.resources.to,
+          static: reading.placed === 0, iconClass: iconClassFor(spread.cardResource),
+        }];
+        if (reading.vp !== undefined) {
+          out.push({label: 'VP', from: reading.vp.from, to: reading.vp.to, static: reading.vp.from === reading.vp.to, iconClass: ''});
+        }
+        return out;
       }
       const sections = playedTargetPreviewFor(undefined, model, entry.card.name as CardName);
       return (sections.find((s) => s.key === 'res')?.impacts ?? [])
@@ -1728,7 +1862,9 @@ export default defineComponent({
       case 'resource':
         return this.resourceUnits.length > 0;
       case 'cardSelect':
-        return this.cardPicksValid;
+        // The LAYOUT is sendable only when complete — the same condition the
+        // handler and the response builder each check for themselves.
+        return this.isSpreadMode ? this.spreadReady : this.cardPicksValid;
       case 'payment':
         return this.paymentReady;
       case 'projectCard':
@@ -1848,6 +1984,19 @@ export default defineComponent({
         // X ALWAYS opens the fullscreen INSPECT viewer (never labelled "Card").
         const nav: {control: GlyphControl, label: string} = {control: this.gridMode ? 'dpad' : 'dpadH', label: 'Navigate'};
         const inspect: {control: GlyphControl, label: string} = {control: 'secondary', label: 'Inspect'};
+        if (this.isSpreadMode) {
+          // THE LAYOUT speaks the console's existing amount grammar and nothing
+          // new: LB / RB move one unit on the focused card, RT pours the rest
+          // onto it, A confirms — enabled only once everything is placed (the
+          // status line says why not yet). Inspect and Source as on any pick.
+          return [
+            nav,
+            {control: 'bumperL', label: '−1'}, {control: 'bumperR', label: '+1'},
+            {control: 'triggerR', label: 'MAX'},
+            {control: 'confirm', label: this.confirmLabel, enabled: this.spreadReady, priority: 0},
+            inspect, ...this.sourceHint, defer,
+          ];
+        }
         if (this.singlePick) {
           // PICK phase (draft / single target): A commits the focused card in
           // one press — no toggle-then-confirm, no re-pick. RT (otherwise free)
@@ -2037,8 +2186,18 @@ export default defineComponent({
     picks: {
       deep: true,
       handler(picks: ReadonlyArray<CardName>) {
-        if (this.activeTask.kind === 'cardSelect') {
+        // The layout mode keeps no picks — its own watcher below owns the store.
+        if (this.activeTask.kind === 'cardSelect' && !this.isSpreadMode) {
           rememberCardBrowserPicks(this.resetKey, picks);
+        }
+      },
+    },
+    /** …and the LAYOUT the same way: a minimize → restore comes back to the same counters. */
+    spread: {
+      deep: true,
+      handler(state: SpreadState) {
+        if (this.isSpreadMode) {
+          rememberCardBrowserPicks(this.spreadStoreKey, spreadToPicks(state));
         }
       },
     },
@@ -2121,7 +2280,10 @@ export default defineComponent({
       // defer-durable module store when the reset key matches (same prompt +
       // card set, e.g. a re-expanded modal), otherwise start empty (a
       // genuinely new ask / fresh card set / non-card task).
-      this.picks = this.activeTask.kind === 'cardSelect' ? recallCardBrowserPicks(this.resetKey) as Array<CardName> : [];
+      this.picks = this.activeTask.kind === 'cardSelect' && !this.isSpreadMode ? recallCardBrowserPicks(this.resetKey) as Array<CardName> : [];
+      // THE LAYOUT OPENS EMPTY — or exactly as it was left when the same ask was minimized.
+      const spread = this.spreadMeta;
+      this.spread = spread === undefined ? {} : spreadFromPicks(recallCardBrowserPicks(this.spreadStoreKey), spread);
       // projectCard (generic): a fresh prompt always re-opens on the PICK
       // stage — a stale pay stage would price a card the new ask never offered.
       this.pcStage = 'pick';
@@ -2921,6 +3083,42 @@ export default defineComponent({
     laneValue(unit: string): number {
       return (this.units as Record<string, number>)[unit] ?? 0;
     },
+    /** Units the layout has put on `card` so far (distribute mode). */
+    spreadOnCard(card: string): number {
+      return spreadOn(this.spread, card);
+    },
+    /**
+     * THE LAYOUT'S GESTURES: LB / RB move one unit on the focused card, RT pours
+     * everything left onto it. Bounded by the engine (never below 0, never past
+     * what is left), so LB on zero and RB with nothing left are no-ops — and
+     * neither is advertised as available by the bar's own enabled states.
+     */
+    spreadStepFocused(delta: number): void {
+      const entry = this.focusedCardEntry;
+      if (entry === undefined || entry.disabled) {
+        return;
+      }
+      this.spread = stepSpread(this.spread, entry.card.name, delta, this.spreadAmount);
+    },
+    spreadPourFocused(): void {
+      const entry = this.focusedCardEntry;
+      if (entry === undefined || entry.disabled) {
+        return;
+      }
+      this.spread = pourRemaining(this.spread, entry.card.name, this.spreadAmount);
+    },
+    /**
+     * A on the layout: SEND ONLY A COMPLETE LAYOUT. The check stands in the
+     * handler itself — not only on the bar's disabled verb — so a press that
+     * arrives with units left to place does nothing: no submit, no nudge, no
+     * transition. The response builder refuses an incomplete layout once more.
+     */
+    spreadCommit(): void {
+      if (!this.spreadReady) {
+        return;
+      }
+      this.onConfirm();
+    },
     /** The single-step gesture: put the one unit on this lane, or take it back. */
     distToggleFocused(): void {
       if (this.submitting) {
@@ -2939,6 +3137,10 @@ export default defineComponent({
       // a dial move racing the server response would repaint the preview (and
       // the commit verb) as something the player did NOT confirm.
       if (this.submitting) {
+        return;
+      }
+      if (this.activeTask.kind === 'cardSelect' && this.isSpreadMode) {
+        this.spreadStepFocused(step);
         return;
       }
       if (this.activeTask.kind === 'amount') {
@@ -3004,6 +3206,10 @@ export default defineComponent({
       if (this.submitting) {
         return; // commit lock — see adjust()
       }
+      if (this.activeTask.kind === 'cardSelect' && this.isSpreadMode) {
+        this.spreadPourFocused();
+        return;
+      }
       if (this.activeTask.kind === 'amount') {
         this.value = this.amountMax;
         return;
@@ -3053,9 +3259,12 @@ export default defineComponent({
       case 'nextTab':
         // CARD context: RT is the MULTI (buy / multi-target) commit. In the
         // single-keep DRAFT (where RT would otherwise be inert) RT opens the
-        // read-only drafted-cards viewer instead.
+        // read-only drafted-cards viewer instead. In the LAYOUT it pours
+        // everything left onto the focused card (the amount grammar's MAX).
         if (this.activeTask.kind === 'cardSelect') {
-          if (this.canInspectDrafted) {
+          if (this.isSpreadMode) {
+            this.spreadPourFocused();
+          } else if (this.canInspectDrafted) {
             this.openDraftedViewer();
           } else if (!this.singlePick) {
             this.confirmCardSetWithExit();
@@ -3130,7 +3339,9 @@ export default defineComponent({
         return;
       }
       if (this.activeTask.kind === 'cardSelect') {
-        if (this.singlePick) {
+        if (this.isSpreadMode) {
+          this.spreadCommit(); // LAYOUT: A sends a COMPLETE layout, and nothing else
+        } else if (this.singlePick) {
           this.commitFocusedCard(); // PICK phase: A selects + submits at once
         } else {
           this.togglePick(); // BUY / multi: A toggles; RT commits
@@ -3230,7 +3441,20 @@ export default defineComponent({
         this.submitResponse( this.activeTask.mode === 'production' ?
           productionToLoseResponse(this.units) : resourcesResponse(this.units));
         return;
-      case 'cardSelect':
+      case 'cardSelect': {
+        const spread = this.spreadMeta;
+        if (spread !== undefined) {
+          // THE LAYOUT — one amount per candidate in the server's own card
+          // order; the builder yields nothing for any sum but N, so an
+          // incomplete layout never reaches the transport whatever pressed.
+          const response = cardResourceDistributionResponse(spread.cards.map((c) => c.name), this.spread, spread.amount);
+          if (response === undefined) {
+            return;
+          }
+          this.submitResponse(response);
+          clearCardBrowserPicks();
+          return;
+        }
         // Byte-parity: the bare top-level {type:'card', cards} the desktop
         // CardSelectionContent / hand-select flow POSTs.
         this.submitResponse( cardsResponse(this.picks));
@@ -3238,6 +3462,7 @@ export default defineComponent({
         // rehydrate a later same-key prompt.
         clearCardBrowserPicks();
         return;
+      }
       case 'payment':
         this.submitResponse( paymentResponse(
           paymentFromCounts(this.paymentCost, this.payLanes, this.payCounts, this.megacreditsOnHand)));

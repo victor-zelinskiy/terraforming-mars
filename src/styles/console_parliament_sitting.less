@@ -231,6 +231,10 @@
         &--skipped { padding-left: .4rem; box-shadow: inset .16rem 0 0 rgba(230, 195, 74, 0.7); font-size: .74rem; }
     }
     &__part-unit { width: 1.1rem; height: 1.1rem; background-size: contain; background-repeat: no-repeat; background-position: center; flex-shrink: 0; }
+    /* A payout SPREAD over several cards: each recipient with its share, quiet beside the sum — the
+       record's own list (never a recount), cut only by its own ellipsis. */
+    &__part-cards { display: inline-flex; align-items: center; gap: .35rem; min-width: 0; font-family: @con-font-read; font-size: .72rem; opacity: .82; }
+    &__part-card { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     &__part-reason { font-family: @con-font-read; font-size: .74rem; opacity: .85; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     /* (2) СТОЛ — what changed and is already out of sight. */
     &__table {

@@ -362,6 +362,10 @@ function kindSummary(
       return {kickerKey: 'Draft', ask: 'Choose 1 card to draft', returnKey: 'Return to the draft'};
     case 'buy':
       return {kickerKey: 'Purchase', ask: 'Select cards to purchase', returnKey: 'Return to selection'};
+    case 'distribute':
+      // The LAYOUT mode of the same chassis: the server's own ask («Place 3 floaters on your cards») is
+      // the sentence; the kicker names the act, one word, the same the sitting's crumb prints.
+      return {kickerKey: 'Distribution', ask: ask(wf, 'Distribute resources'), sourceCard: source, returnKey: 'Return to the layout'};
     case 'target':
     default:
       return {kickerKey: 'Card target', ask: ask(wf, 'Choose a card'), sourceCard: source, returnKey: 'Return to selection'};

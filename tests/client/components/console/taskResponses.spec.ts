@@ -1,6 +1,6 @@
 import {expect} from 'chai';
 import {
-  amountResponse, cancelResponse, cardsResponse, colonyResponse, deltaProjectResponse,
+  amountResponse, cancelResponse, cardResourceDistributionResponse, cardsResponse, colonyResponse, deltaProjectResponse,
   emptyUnits, optionConfirmResponse, orOptionResponse, orWrappedResponse, paymentResponse,
   playerResponse, productionToLoseResponse, resourceResponse, resourcesResponse, unitsFrom,
 } from '@/client/console/taskResponses';
@@ -41,6 +41,15 @@ describe('taskResponses (submission byte-parity)', () => {
     expect(cardsResponse([CardName.BIRDS, CardName.ANTS])).to.deep.eq(
       {type: 'card', cards: [CardName.BIRDS, CardName.ANTS]});
     expect(cardsResponse([])).to.deep.eq({type: 'card', cards: []}); // buy-none is legal
+  });
+
+  it('card-resource distribution: the `and` of one amount per candidate in the SERVER\'s card order — and NOTHING for an incomplete layout', () => {
+    const order = [CardName.FLOATING_HABS, CardName.DIRIGIBLES, CardName.JOVIAN_LANTERNS];
+    expect(cardResourceDistributionResponse(order, {[CardName.JOVIAN_LANTERNS]: 2, [CardName.FLOATING_HABS]: 1}, 3)).to.deep.eq(
+      {type: 'and', responses: [{type: 'amount', amount: 1}, {type: 'amount', amount: 0}, {type: 'amount', amount: 2}]});
+    expect(cardResourceDistributionResponse(order, {[CardName.FLOATING_HABS]: 2}, 3), 'below N: nothing to send').to.eq(undefined);
+    expect(cardResourceDistributionResponse(order, {[CardName.FLOATING_HABS]: 2, [CardName.DIRIGIBLES]: 2}, 3), 'above N').to.eq(undefined);
+    expect(cardResourceDistributionResponse(order, {}, 0), 'no amount at all').to.eq(undefined);
   });
 
   it('payment (T3): the SelectPayment answer wraps the full Payment', () => {

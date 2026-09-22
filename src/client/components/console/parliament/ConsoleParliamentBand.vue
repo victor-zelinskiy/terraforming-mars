@@ -229,7 +229,7 @@ export default defineComponent({
         return false;
       }
       const step = position.rewardStep;
-      if (position.step === 'effects' && (step === 'reading' || step === 'choice' || step === 'intake' || step === 'placement')) {
+      if (position.step === 'effects' && (step === 'reading' || step === 'choice' || step === 'distribution' || step === 'intake' || step === 'placement')) {
         return true;
       }
       return this.mine.some((o) => !rewardLanded(o));

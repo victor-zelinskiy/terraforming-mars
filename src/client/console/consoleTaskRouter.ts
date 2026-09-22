@@ -24,7 +24,14 @@ import {isActionMenuTitle} from '@/common/inputs/actionMenuTitles';
 import {ParliamentPhaseStage} from '@/common/parliament/ParliamentTypes';
 import {promptSourceResolution} from '@/client/console/promptSource';
 
-export type CardSelectMode = 'draft' | 'buy' | 'target';
+/**
+ * `distribute` — the card-target chassis in LAYOUT MODE: N units of one card
+ * resource spread over the player's holders (the shared `AddResourcesToCards`
+ * step's `and`, routed off its `cardResourceDistributionPrompt` marker). The
+ * SAME component as `target` — the grid of real faces and the status line —
+ * with a counter per card and the remaining count; never a second surface.
+ */
+export type CardSelectMode = 'draft' | 'buy' | 'target' | 'distribute';
 
 export type ConsoleTask =
   /** The per-turn action menu — natively handled by the Turn verbs. */
@@ -366,6 +373,11 @@ export function followUpStepStage(kind: TaskKind | undefined, wf?: PlayerInputMo
     return undefined;
   }
   if (wf !== undefined && promptSourceResolution(wf) !== undefined) {
+    // A DISTRIBUTION is the card pick's layout mode: its own one-word stage
+    // (`consoleSittingFlow.sittingStageKey`, the same key there and here).
+    if (wf.cardResourceDistributionPrompt !== undefined) {
+      return 'Distribution';
+    }
     return RESOLUTION_STEP_STAGES[kind];
   }
   return FOLLOW_UP_STEP_STAGES[kind];
@@ -538,6 +550,14 @@ export function taskFor(view: PlayerViewModel): ConsoleTask | undefined {
   }
   if (wf.spendHeatPrompt !== undefined) {
     return {kind: 'spendHeat'};
+  }
+  // A DISTRIBUTION of a card resource over several cards — an `and` of amounts
+  // on the wire, and the marker is the only thing that says the amounts are
+  // CARDS (their faces, the sum, the VP of every amount). Classified by type it
+  // would fall onto the faceless composite carve-out, which is exactly where
+  // it used to land: the card-target chassis serves it in layout mode.
+  if (wf.cardResourceDistributionPrompt !== undefined) {
+    return {kind: 'cardSelect', mode: 'distribute'};
   }
   // A MARSBOT ATTACK — an ordinary `SelectCard` on the wire, and the marker is
   // the ONLY thing that says the player is being attacked rather than choosing

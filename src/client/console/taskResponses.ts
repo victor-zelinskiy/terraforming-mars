@@ -81,6 +81,28 @@ export function cardsResponse(cards: ReadonlyArray<CardName>): {type: 'card', ca
   return {type: 'card', cards: [...cards]};
 }
 
+/**
+ * A card-resource DISTRIBUTION answer (the shared `AddResourcesToCards`
+ * step): one amount per candidate, IN THE SERVER'S OWN CARD ORDER — the
+ * `and`'s options are positional. BUILT ONLY FROM A COMPLETE LAYOUT: a sum
+ * other than `amount` yields `undefined` (nothing to send), so an incomplete
+ * layout can never reach the transport whatever pressed the commit. The
+ * server refuses the same sum with an `InputError`; this builder is the
+ * client's half of one rule, never a substitute for it.
+ */
+export function cardResourceDistributionResponse(
+  order: ReadonlyArray<CardName>,
+  placed: Readonly<Record<string, number>>,
+  amount: number,
+): {type: 'and', responses: Array<{type: 'amount', amount: number}>} | undefined {
+  const responses = order.map((card) => ({type: 'amount' as const, amount: placed[card] ?? 0}));
+  const sum = responses.reduce((acc, r) => acc + r.amount, 0);
+  if (amount <= 0 || sum !== amount || responses.some((r) => r.amount < 0)) {
+    return undefined;
+  }
+  return {type: 'and', responses};
+}
+
 /** A SelectPayment answer (T3) — the dialed-in resource mix. */
 /** The bare top-level {type:'projectCard'} the desktop SelectProjectCardToPlay
  *  used to POST — the generic task-host fallback submits byte-identically. */

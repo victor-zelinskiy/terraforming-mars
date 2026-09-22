@@ -41,11 +41,37 @@ const pick = {
 const paid = (player: Color, card: CardName, amount = 2): ParliamentEnactOutcomeModel =>
   ({player, step: 'animals', effect: 'animals', kind: 'cardResource', resource: CardResource.ANIMAL, amount, card, influence: 2});
 
+/** THE SHARED DISTRIBUTION's marked `and` (Cloud Development: N floaters laid out over the player's holders). */
+const CLOUD = 'RDX_UNITY_CLOUD_DEVELOPMENT';
+const spread = {
+  type: 'and', title: 'Place 3 floater(s) on your cards', buttonLabel: 'Confirm',
+  options: [{type: 'amount', title: CardName.DIRIGIBLES, min: 0, max: 3}, {type: 'amount', title: CardName.ATMO_COLLECTORS, min: 0, max: 3}],
+  cardResourceDistributionPrompt: {amount: 3, cardResource: 'floater', cards: [{name: CardName.DIRIGIBLES}, {name: CardName.ATMO_COLLECTORS}]},
+  choiceContext: {source: {kind: 'resolution', resolution: CLOUD}, mode: 'reward'},
+};
+
+const laidOut = (player: Color, cards: Array<{card: CardName, amount: number}>): ParliamentEnactOutcomeModel =>
+  ({player, step: 'floaters', effect: 'floaters', kind: 'cardResource', resource: CardResource.FLOATER, amount: cards.reduce((sum, c) => sum + c.amount, 0), cards, influence: 1});
+
 describe('consoleResolutionPayout', () => {
-  it('flies the viewer\'s own recorded payout onto the candidate they chose', () => {
+  it('flies the viewer\'s own recorded payout onto the candidate they chose — a record naming ONE card is the list of one', () => {
     const before = view(parliament([]), pick);
     const after = view(parliament([paid(BLUE, CardName.PETS)]));
-    expect(detectResolutionPayout(before, after)).deep.eq({card: CardName.PETS, resource: 'animal', amount: 2, resolution: AQUIFER});
+    expect(detectResolutionPayout(before, after)).deep.eq({targets: [{card: CardName.PETS, amount: 2}], resource: 'animal', amount: 2, resolution: AQUIFER});
+  });
+
+  it('a DISTRIBUTION flies one chip per recipient, in the record\'s order, and drops the cards that received nothing', () => {
+    const before = view(parliament([]), spread);
+    const after = view(parliament([laidOut(BLUE, [{card: CardName.ATMO_COLLECTORS, amount: 2}, {card: CardName.DIRIGIBLES, amount: 1}])]));
+    expect(detectResolutionPayout(before, after)).deep.eq({
+      targets: [{card: CardName.ATMO_COLLECTORS, amount: 2}, {card: CardName.DIRIGIBLES, amount: 1}],
+      resource: 'floater', amount: 3, resolution: CLOUD,
+    });
+    const oneOfTwo = view(parliament([laidOut(BLUE, [{card: CardName.DIRIGIBLES, amount: 3}, {card: CardName.ATMO_COLLECTORS, amount: 0}])]));
+    expect(detectResolutionPayout(before, oneOfTwo)?.targets, 'a zero stays home').deep.eq([{card: CardName.DIRIGIBLES, amount: 3}]);
+    // A recipient the ask never offered means the record is not this ask's.
+    const stranger = view(parliament([laidOut(BLUE, [{card: CardName.DIRIGIBLES, amount: 2}, {card: CardName.FLOATING_HABS, amount: 1}])]));
+    expect(detectResolutionPayout(before, stranger)).is.undefined;
   });
 
   it('reads the COMPLETED phase record when this very answer finished the phase', () => {
@@ -81,23 +107,25 @@ describe('consoleResolutionPayout', () => {
     expect(detectResolutionPayout(view(parliament([paid(BLUE, CardName.FISH)]), pick), view(parliament([paid(BLUE, CardName.FISH)])))).is.undefined;
   });
 
-  it('the picker\'s landing tick is scoped to the one candidate being flown into', () => {
-    pickPayoutLanding.card = CardName.FISH;
-    pickPayoutLanding.landed = 2;
+  it('the picker\'s landing tick is scoped per card of the flight — a card outside it reads nothing', () => {
+    pickPayoutLanding.landed = {[CardName.FISH]: 2, [CardName.DIRIGIBLES]: 1};
     try {
       expect(pickPayoutLandedOn(CardName.FISH)).eq(2);
+      expect(pickPayoutLandedOn(CardName.DIRIGIBLES)).eq(1);
       expect(pickPayoutLandedOn(CardName.PETS)).eq(0);
     } finally {
-      pickPayoutLanding.card = undefined;
-      pickPayoutLanding.landed = 0;
+      pickPayoutLanding.landed = {};
     }
     expect(pickPayoutLandedOn(CardName.FISH)).eq(0);
   });
 
-  it('the payout pick is committed IN PLACE only for a resolution\'s card-resource pick (the server\'s markers)', () => {
+  it('the payout ask is committed IN PLACE only for a resolution\'s card-resource pick or its distribution (the server\'s markers)', () => {
     expect(payoutPickLandsInPlace(pick)).is.true;
+    expect(payoutPickLandsInPlace(spread), 'the shared distribution\'s marked and').is.true;
     expect(payoutPickLandsInPlace({...pick, choiceContext: {source: {kind: 'card'}}}), 'a card-sourced reward keeps its hero departure').is.false;
+    expect(payoutPickLandsInPlace({...spread, choiceContext: {source: {kind: 'card'}}}), 'a card-sourced distribution likewise').is.false;
     expect(payoutPickLandsInPlace({...pick, resourceGainPrompt: undefined}), 'a plain card pick').is.false;
+    expect(payoutPickLandsInPlace({...spread, cardResourceDistributionPrompt: undefined}), 'a plain and').is.false;
     expect(payoutPickLandsInPlace({type: 'or'}), 'not a card pick').is.false;
     expect(payoutPickLandsInPlace(undefined)).is.false;
   });

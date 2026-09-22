@@ -66,12 +66,17 @@ export type SittingStage = 'verdict' | 'enact' | 'reward' | 'renewal' | 'results
 /**
  * What the REWARD stage is doing for THIS seat right now.
  *  · `reading`   — before the effects: the reading of what is coming;
- *  · `choice` / `intake` / `placement` — the viewer's own ask, hosted in the stage's zone (or behind «К полю»);
+ *  · `choice` / `distribution` / `intake` / `placement` — the viewer's own ask, hosted in the stage's zone
+ *                  (or behind «К полю»): a pick of ONE recipient, a LAYOUT of a payout over several
+ *                  holders (the shared distribution step's marker), a take, a tile;
  *  · `waiting`   — the effects ask ANOTHER seat (the honest wait line);
  *  · `received`  — the viewer's record is in: paid, or skipped with its reason (the plate names it);
  *  · `gate`      — the viewer answered the step's gate; the pose lists who is still awaited.
  */
-export type SittingRewardStep = 'reading' | 'choice' | 'intake' | 'placement' | 'waiting' | 'received' | 'gate';
+export type SittingRewardStep = 'reading' | 'choice' | 'distribution' | 'intake' | 'placement' | 'waiting' | 'received' | 'gate';
+
+/** The steps in which the seat WORKS in the stage's zone — a hosted surface stands there (the field). */
+export const SITTING_HOSTED_STEPS: ReadonlySet<SittingRewardStep> = new Set<SittingRewardStep>(['choice', 'distribution', 'intake']);
 
 /**
  * WHERE THE SITTING STANDS, read off the server. `undefined` outside a live
@@ -97,7 +102,7 @@ export type SittingPosition = {
 };
 
 /** The viewer's own resolution-sourced ask, by its structural markers — never a title. */
-export function sittingAskOf(wf: PlayerInputModel | undefined): 'choice' | 'intake' | 'placement' | undefined {
+export function sittingAskOf(wf: PlayerInputModel | undefined): 'choice' | 'distribution' | 'intake' | 'placement' | undefined {
   if (wf === undefined || promptSourceResolution(wf) === undefined) {
     return undefined;
   }
@@ -106,6 +111,10 @@ export function sittingAskOf(wf: PlayerInputModel | undefined): 'choice' | 'inta
   }
   if (wf.type === 'space') {
     return 'placement';
+  }
+  // The shared distribution step's marker: a LAYOUT over several holders, not a pick of one recipient.
+  if (wf.cardResourceDistributionPrompt !== undefined) {
+    return 'distribution';
   }
   return 'choice';
 }
@@ -316,6 +325,7 @@ export function sittingStageKey(stage: SittingStage, rewardStep: SittingRewardSt
   case 'reward':
     switch (rewardStep) {
     case 'choice': return 'Choice';
+    case 'distribution': return 'Distribution';
     case 'intake': return 'Intake';
     case 'placement': return 'Placement';
     default: return 'Reward';

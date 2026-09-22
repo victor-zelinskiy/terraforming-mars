@@ -71,6 +71,11 @@
                   <template v-else>
                     <b>+{{ part.amount }}</b>
                     <i class="con-sit__part-unit" :class="partUnitClass(part)" aria-hidden="true"></i>
+                    <!-- A payout SPREAD over several cards names each recipient with its share — the list is the
+                         record's own (`cards`), never a recount; one recipient prints the sum alone. -->
+                    <span v-if="part.cards !== undefined" class="con-sit__part-cards" data-sit-part-cards>
+                      <span v-for="entry in part.cards" :key="entry.card" class="con-sit__part-card" :data-sit-part-card="entry.card">{{ $t(entry.card) }} +{{ entry.amount }}</span>
+                    </span>
                   </template>
                 </template>
               </span>
