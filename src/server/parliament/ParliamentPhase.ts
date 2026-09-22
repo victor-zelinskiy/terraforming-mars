@@ -53,14 +53,18 @@ import {Phase} from '../../common/Phase';
 import {Resource} from '../../common/Resource';
 import {PartyName} from '../../common/turmoil/PartyName';
 import {EventTrigger} from '../../common/events/GameEvent';
-import {PARLIAMENT_MAX_POPULAR_SUPPORT, PARLIAMENT_VOTING_SLOTS, ParliamentPhaseStage, ReduxParty, REDUX_PARTIES} from '../../common/parliament/ParliamentTypes';
+import {
+  PARLIAMENT_MAX_POPULAR_SUPPORT, PARLIAMENT_VOTING_SLOTS, ParliamentPhaseStage, ReduxParty, REDUX_PARTIES, ResolutionInstanceId,
+} from '../../common/parliament/ParliamentTypes';
 import {CapturedEventContext} from '../events/EventRecorder';
 import {SelectOption} from '../inputs/SelectOption';
 import {message} from '../logs/MessageBuilder';
 import {PlayerInput} from '../PlayerInput';
-import {Parliament, Slot} from './Parliament';
+import {Parliament, Slot, Vote} from './Parliament';
 import {EnactContext, EnactOutcome, EnactStep} from './resolutions/IResolution';
-import {EnactOutcomePart, SerializedDelegateOwner, SerializedEnactOutcome, SerializedPhaseProgress, SerializedPhaseSummary} from './SerializedParliament';
+import {
+  EnactOutcomePart, SerializedDelegateOwner, SerializedEnactOutcome, SerializedPhaseProgress, SerializedPhaseSummary, SerializedRenewalEvent,
+} from './SerializedParliament';
 import {ChairmanSeat} from './quests/ChairmanSeat';
 
 export class ParliamentPhase {
@@ -402,16 +406,7 @@ export class ParliamentPhase {
     // supply): both are DERIVED, so emptying the list is the whole move. The
     // summary keeps WHO went home (per owner) so the client can play the
     // return from the card to each reserve as a physical move.
-    const returned: Array<{owner: SerializedDelegateOwner; count: number}> = [];
-    for (const vote of slot.votes) {
-      const entry = returned.find((r) => r.owner === vote.owner);
-      if (entry === undefined) {
-        returned.push({owner: vote.owner, count: 1});
-      } else {
-        entry.count++;
-      }
-    }
-    this.summary.returned = returned;
+    this.summary.returned = ownersOf(slot.votes);
     slot.votes = [];
     const previous = parliament.enacted;
     if (previous !== undefined) {
@@ -679,31 +674,48 @@ export class ParliamentPhase {
       return;
     }
     const parliament = this.parliament;
-    // The two losers leave; their delegates go home (derived). The sitting's
-    // renewal beat flies them off the table, so the summary names them.
+    // THE RENEWAL JOURNAL: every physical event, in the order it happens. The
+    // client's renewal beat plays it and nothing else (the flat lists below
+    // are derived — they cannot say the order, the reshuffle, the rejects nor
+    // whose delegates came home off a loser).
+    const journal = (this.summary.renewal ??= []);
+    // The two losers leave; their delegates go home (derived — the record is
+    // what lets the client fly them, per owner, BEFORE the card goes). The
+    // slot recorded is the PHYSICAL one the card stood in as voted (the
+    // winner's own slot is already out of the array).
+    const winnerSlot = this.summary.winner.slot;
     this.summary.discarded = parliament.slots.map((slot) => slot.instance);
-    for (const slot of parliament.slots) {
+    parliament.slots.forEach((slot, index) => {
       const definition = parliament.resolutionOf(slot.instance);
+      journal.push({
+        kind: 'leave', instance: slot.instance,
+        slot: winnerSlot !== undefined && index >= winnerSlot ? index + 1 : index,
+        returned: ownersOf(slot.votes),
+      });
       parliament.discard.push(slot.instance);
       this.game.log('Resolution ${0} leaves the voting area', (b) => b.resolution(definition.id));
-    }
+    });
     parliament.slots = [];
     // Deal three fresh resolutions, closest slot first; no party may repeat a
     // party already in the area or the enacted party.
     for (let i = 0; i < PARLIAMENT_VOTING_SLOTS; i++) {
-      const instance = this.dealSlot();
-      if (instance === undefined) {
+      const dealt = this.dealSlot(i, journal);
+      if (dealt === undefined) {
+        journal.push({kind: 'empty', slot: i});
         this.game.log('The resolution deck has no card for voting slot ${0}', (b) => b.number(i + 1));
         continue;
       }
+      const {instance, source} = dealt;
       const slot: Slot = {instance, votes: []};
       parliament.slots.push(slot);
       const definition = parliament.resolutionOf(instance);
+      journal.push({kind: 'deal', instance, slot: i, source});
       this.game.log('Resolution ${0} enters the voting area', (b) => b.resolution(definition.id));
       // Popular Support of the card's party becomes immediate votes.
       const moved = parliament.moveSupportToSlot(definition.party, slot);
       this.summary.refreshed.push({instance, neutralVotes: moved});
       if (moved > 0) {
+        journal.push({kind: 'support', party: definition.party, instance, count: moved});
         this.game.log('${0} neutral delegate(s) from ${1} Popular Support vote for ${2}', (b) =>
           b.number(moved).partyName(definition.party).resolution(definition.id));
       }
@@ -711,17 +723,41 @@ export class ParliamentPhase {
     this.markApplied(key);
   }
 
-  private dealSlot(): string | undefined {
+  /**
+   * ONE slot's deal, journalled as it happens: the reshuffle (the deck ran
+   * out — the discard becomes the deck, possibly mid-deal), every card
+   * revealed and rejected (with WHY: its party is in the area, or it is the
+   * enacted party's), and where the dealt card came from (the deck as it
+   * was, or the reshuffled one).
+   */
+  private dealSlot(slotIndex: number, journal: Array<SerializedRenewalEvent>): {instance: ResolutionInstanceId, source: 'deck' | 'reshuffled'} | undefined {
     const parliament = this.parliament;
-    const excluded = new Set<ReduxParty>(parliament.partiesInVotingArea());
-    const enacted = parliament.enactedDefinition();
-    if (enacted !== undefined) {
-      excluded.add(enacted.party);
+    const inArea = new Set<ReduxParty>(parliament.partiesInVotingArea());
+    const enactedParty = parliament.enactedDefinition()?.party;
+    const excluded = new Set<ReduxParty>(inArea);
+    if (enactedParty !== undefined) {
+      excluded.add(enactedParty);
     }
+    let reshuffled = journal.some((event) => event.kind === 'reshuffle');
     // `drawDistinct` is private to the ledger; the phase reaches it through
-    // the deal helper below (same rules: rejected → discard, empty deck →
-    // reshuffled discard, nothing fits → undefined).
-    return parliament.dealForVotingArea(this.game.rng, Array.from(excluded));
+    // the deal helper (same rules: rejected → discard, empty deck →
+    // reshuffled discard, nothing fits → undefined) and journals what it sees.
+    const instance = parliament.dealForVotingArea(this.game.rng, Array.from(excluded), {
+      onReshuffle: (size) => {
+        reshuffled = true;
+        journal.push({kind: 'reshuffle', size});
+        this.game.log('The resolution deck is empty: the discard pile is reshuffled into a new deck of ${0}', (b) => b.number(size));
+      },
+      onReject: (rejected) => {
+        const party = parliament.resolutionOf(rejected).party;
+        // The enacted party's card is refused for that reason first — the area may hold no card of it either way.
+        const reason = party === enactedParty ? 'party-enacted' : 'party-in-area';
+        journal.push({kind: 'reject', instance: rejected, slot: slotIndex, reason});
+        this.game.log('Resolution ${0} is revealed and discarded: its party is already represented', (b) =>
+          b.resolution(parliament.resolutionOf(rejected).id));
+      },
+    });
+    return instance === undefined ? undefined : {instance, source: reshuffled ? 'reshuffled' : 'deck'};
   }
 
   // ───────────────────────── step 5b: the lobby ─────────────────────────
@@ -733,10 +769,13 @@ export class ParliamentPhase {
       return;
     }
     const parliament = this.parliament;
+    // The lobby step is the renewal's last movement: it joins the same journal, in seat order.
+    const journal = (this.summary.renewal ??= []);
     for (const player of parliament.participants(this.game)) {
       if (!parliament.lobby.has(player.id) && parliament.reserve(player) > 0) {
         parliament.lobby.add(player.id);
         this.summary.lobbyRefilled.push(player.id);
+        journal.push({kind: 'lobby', player: player.id});
       }
     }
     parliament.resetGenerationUses();
@@ -759,6 +798,20 @@ export class ParliamentPhase {
     this.parliament.assertLedger(this.game);
     return {final};
   }
+}
+
+/** The delegates of a card grouped by OWNER, in first-placement order — who goes home, and how many, when the card leaves. */
+function ownersOf(votes: ReadonlyArray<Vote>): Array<{owner: SerializedDelegateOwner; count: number}> {
+  const returned: Array<{owner: SerializedDelegateOwner; count: number}> = [];
+  for (const vote of votes) {
+    const entry = returned.find((r) => r.owner === vote.owner);
+    if (entry === undefined) {
+      returned.push({owner: vote.owner, count: 1});
+    } else {
+      entry.count++;
+    }
+  }
+  return returned;
 }
 
 /** The per-seat key a gate writes (`assembly:<generation>` / `adjourn:<generation>`). */

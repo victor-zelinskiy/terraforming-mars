@@ -90,6 +90,18 @@ export type VoteAvailability =
 
 export type AgendaAdvance = {from: number; to: number; bonus?: 'tr' | 'card'};
 
+/** What a deal for the voting area reports as it happens (the refresh journal's source). */
+export type DealObserver = {
+  /**
+   * The deck ran out: the discard of `size` cards becomes the deck. A card
+   * rejected earlier in the SAME draw is held aside and is not among them (it
+   * could only be rejected again) — it joins the discard once the draw ends.
+   */
+  onReshuffle?: (size: number) => void;
+  /** A card was revealed and does not fit — it goes to the discard, the next is drawn. */
+  onReject?: (instance: ResolutionInstanceId) => void;
+};
+
 export class Parliament {
   public readonly catalog: ResolutionCatalog;
   public readonly policy: BotParliamentPolicy;
@@ -150,8 +162,8 @@ export class Parliament {
   }
 
   /** Deal one resolution for the voting area during the refresh step (rulebook p.11–12). */
-  public dealForVotingArea(rng: Random, excludedParties: ReadonlyArray<ReduxParty>): ResolutionInstanceId | undefined {
-    return this.drawDistinct(rng, excludedParties);
+  public dealForVotingArea(rng: Random, excludedParties: ReadonlyArray<ReduxParty>, observer?: DealObserver): ResolutionInstanceId | undefined {
+    return this.drawDistinct(rng, excludedParties, observer);
   }
 
   /**
@@ -159,8 +171,15 @@ export class Parliament {
    * cards go to the discard, an empty deck is refilled from the shuffled
    * discard (rulebook p.11–12). `undefined` when no such card exists anywhere
    * — the slot then stays empty rather than looping.
+   *
+   * The `observer` sees every PHYSICAL event in the order it happens (the
+   * refresh step journals them): the discard turning into the deck, a card
+   * revealed and rejected. A rejected card is held aside until the draw ends
+   * and only then joins the discard — physically it lies on the discard from
+   * the moment it is rejected, but a reshuffle mid-draw must not deal it
+   * again (it cannot fit), which is what bounds the loop by `budget`.
    */
-  private drawDistinct(rng: Random, excludedParties: ReadonlyArray<ReduxParty>): ResolutionInstanceId | undefined {
+  private drawDistinct(rng: Random, excludedParties: ReadonlyArray<ReduxParty>, observer?: DealObserver): ResolutionInstanceId | undefined {
     const excluded = new Set<ReduxParty>(excludedParties);
     const budget = this.deck.length + this.discard.length;
     const rejected: Array<ResolutionInstanceId> = [];
@@ -169,6 +188,7 @@ export class Parliament {
         if (this.discard.length === 0) {
           break;
         }
+        observer?.onReshuffle?.(this.discard.length);
         this.deck = shuffle(this.discard, rng);
         this.discard = [];
       }
@@ -178,6 +198,7 @@ export class Parliament {
       }
       if (excluded.has(this.resolutionOf(candidate).party)) {
         rejected.push(candidate);
+        observer?.onReject?.(candidate);
         continue;
       }
       this.discard.push(...rejected);
@@ -805,7 +826,8 @@ function summaryNamesAny(summary: SerializedPhaseSummary | undefined, matches: (
   return matches(summary.winner.instance) || matches(summary.enacted) ||
     (summary.discardedEnacted !== undefined && matches(summary.discardedEnacted)) ||
     summary.refreshed.some((entry) => matches(entry.instance)) ||
-    (summary.discarded ?? []).some((instance) => matches(instance));
+    (summary.discarded ?? []).some((instance) => matches(instance)) ||
+    (summary.renewal ?? []).some((event) => 'instance' in event && matches(event.instance));
 }
 
 function resolutionIdOfInstance(instance: ResolutionInstanceId): ResolutionId {

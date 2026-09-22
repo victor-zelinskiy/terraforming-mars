@@ -131,6 +131,40 @@ export type SerializedEnactOutcome = {
 /** `effect` — everyone's part (`immediateSteps`); `winner` — the winner's (`winnerSteps`). */
 export type EnactOutcomePart = 'effect' | 'winner';
 
+/**
+ * ONE PHYSICAL EVENT OF THE VOTING AREA'S RENEWAL (rulebook p.11–12; spec
+ * §1.3 step 5), in the order the server PRODUCED it. The three flat lists
+ * (`discarded` / `refreshed` / `lobbyRefilled`) cannot say in which order the
+ * losers left, whether the discard was reshuffled mid-deal, which revealed
+ * cards were rejected, nor whose delegates came home off a loser — and the
+ * client can only play honestly what the server wrote down. Every entry is
+ * a card that moved, a pile that turned over, a cube that went somewhere:
+ *  · `leave`     — a loser leaves its slot for the discard; its delegates
+ *                  go home per owner (players → their reserve, neutral → the
+ *                  supply) BEFORE the card goes (the returns are derived, so
+ *                  the record is what lets the client fly them);
+ *  · `reshuffle` — the deck was empty: the discard (`size` cards) became the
+ *                  deck. It can happen mid-deal, and a card that left one
+ *                  entry earlier can be dealt straight back after it;
+ *  · `reject`    — a card was revealed for `slot` and does not fit (its
+ *                  party is already in the area / is the enacted party): it
+ *                  goes to the discard and the next is drawn;
+ *  · `deal`      — a card lands in `slot`, off the deck as it was or off the
+ *                  reshuffled one;
+ *  · `support`   — the party's whole popular support becomes `count` neutral
+ *                  votes on the card just dealt;
+ *  · `empty`     — nothing of another party exists anywhere: `slot` stays empty;
+ *  · `lobby`     — the lobby step put a free delegate into `player`'s lobby.
+ */
+export type SerializedRenewalEvent =
+  | {kind: 'leave'; instance: ResolutionInstanceId; slot: number; returned: Array<{owner: SerializedDelegateOwner; count: number}>}
+  | {kind: 'reshuffle'; size: number}
+  | {kind: 'reject'; instance: ResolutionInstanceId; slot: number; reason: 'party-in-area' | 'party-enacted'}
+  | {kind: 'deal'; instance: ResolutionInstanceId; slot: number; source: 'deck' | 'reshuffled'}
+  | {kind: 'support'; party: PartyName; instance: ResolutionInstanceId; count: number}
+  | {kind: 'empty'; slot: number}
+  | {kind: 'lobby'; player: PlayerId};
+
 export type SerializedPhaseSummary = {
   generation: number;
   final: boolean;
@@ -152,6 +186,15 @@ export type SerializedPhaseSummary = {
   /** The losers the refresh discarded, in their slot order (absent on a save from before this field, and before the refresh). */
   discarded?: Array<ResolutionInstanceId>;
   lobbyRefilled: Array<PlayerId>;
+  /**
+   * THE RENEWAL JOURNAL — every physical event of the refresh and the lobby
+   * steps, in the server's order (`SerializedRenewalEvent`). The client's
+   * renewal beat plays this and nothing else; the three lists above are kept
+   * as derived summaries. Absent before the refresh, on the final sitting
+   * (nothing is renewed) and on a save from before this field (the client
+   * then shows the refreshed table without a beat).
+   */
+  renewal?: Array<SerializedRenewalEvent>;
 };
 
 /** The last Agenda advance (see `ParliamentAdvanceModel`). */

@@ -83,6 +83,8 @@
   "Resolution ${0} leaves the voting area": "Резолюция ${0} покидает область голосования",
   "The resolution deck has no card for voting slot ${0}": "В колоде резолюций нет карты для слота голосования ${0}",
   "Resolution ${0} enters the voting area": "Резолюция ${0} выходит на голосование",
+  "The resolution deck is empty: the discard pile is reshuffled into a new deck of ${0}": "Колода резолюций пуста: сброс перетасован в новую колоду из ${0}",
+  "Resolution ${0} is revealed and discarded: its party is already represented": "Резолюция ${0} вскрыта и сброшена: её партия уже представлена",
   "${0} neutral delegate(s) from ${1} Popular Support vote for ${2}": "${0} {нейтральный делегат|нейтральных делегата|нейтральных делегатов} из Народной поддержки ${1} — за ${2}",
   "Every player's free delegate returns to the lobby": "Свободные делегаты всех игроков возвращаются в лобби",
   "${0} sent the free delegate from the lobby to ${1}": "${0} отправляет свободного делегата из лобби на ${1}",

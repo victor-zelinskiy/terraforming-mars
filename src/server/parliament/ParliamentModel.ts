@@ -9,8 +9,8 @@ import {IPlayer} from '../IPlayer';
 import {Color} from '../../common/Color';
 import {PlayerId} from '../../common/Types';
 import {
-  ParliamentModel, ParliamentPhaseModel, ParliamentPhaseSummaryModel, ParliamentPlayerModel, ParliamentSlotModel, PartyAccessModel,
-  PartyActionModel, VoteOptionModel, VoteProjectionModel, ParliamentEnactedModel, ParliamentEnactOutcomeModel,
+  ParliamentModel, ParliamentPhaseModel, ParliamentPhaseSummaryModel, ParliamentPlayerModel, ParliamentRenewalEventModel, ParliamentSlotModel,
+  PartyAccessModel, PartyActionModel, VoteOptionModel, VoteProjectionModel, ParliamentEnactedModel, ParliamentEnactOutcomeModel,
 } from '../../common/models/ParliamentModel';
 import {PartyName} from '../../common/turmoil/PartyName';
 import {PARTY_EFFECT_DELEGATES, REDUX_PARTIES, ReduxParty, ResolutionInstanceId} from '../../common/parliament/ParliamentTypes';
@@ -339,6 +339,35 @@ function summaryModel(game: IGame, parliament: Parliament, summary: SerializedPh
   }
   if (summary.returned !== undefined) {
     model.returned = summary.returned.map((entry) => ({owner: colorOf(game, entry.owner), count: entry.count}));
+  }
+  if (summary.renewal !== undefined) {
+    model.renewal = summary.renewal.map((event): ParliamentRenewalEventModel => {
+      switch (event.kind) {
+      case 'leave': {
+        const definition = parliament.resolutionOf(event.instance);
+        return {
+          kind: 'leave', instance: event.instance, resolution: definition.id, party: definition.party, slot: event.slot,
+          returned: event.returned.map((entry) => ({owner: colorOf(game, entry.owner), count: entry.count})),
+        };
+      }
+      case 'reject': {
+        const definition = parliament.resolutionOf(event.instance);
+        return {kind: 'reject', instance: event.instance, resolution: definition.id, party: definition.party, slot: event.slot, reason: event.reason};
+      }
+      case 'deal': {
+        const definition = parliament.resolutionOf(event.instance);
+        return {kind: 'deal', instance: event.instance, resolution: definition.id, party: definition.party, slot: event.slot, source: event.source};
+      }
+      case 'support':
+        return {kind: 'support', party: event.party as ReduxParty, instance: event.instance, count: event.count};
+      case 'lobby':
+        return {kind: 'lobby', player: game.getPlayerById(event.player).color};
+      case 'reshuffle':
+        return {kind: 'reshuffle', size: event.size};
+      case 'empty':
+        return {kind: 'empty', slot: event.slot};
+      }
+    });
   }
   return model;
 }

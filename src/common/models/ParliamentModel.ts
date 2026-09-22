@@ -226,6 +226,23 @@ export type ParliamentPhaseModel = {
 };
 
 /**
+ * ONE PHYSICAL EVENT OF THE RENEWAL (`SerializedRenewalEvent`, players and
+ * delegates named by colour) — the client's renewal beat plays these in this
+ * exact order: a loser leaves (its delegates home first, per owner), the
+ * discard turns over into a new deck, a revealed card is rejected, a card is
+ * dealt into its slot, a party's support becomes votes on it, a slot stays
+ * empty, a free delegate enters a lobby.
+ */
+export type ParliamentRenewalEventModel =
+  | {kind: 'leave'; instance: ResolutionInstanceId; resolution: ResolutionId; party: ReduxParty; slot: number; returned: ReadonlyArray<{owner: Color | 'neutral'; count: number}>}
+  | {kind: 'reshuffle'; size: number}
+  | {kind: 'reject'; instance: ResolutionInstanceId; resolution: ResolutionId; party: ReduxParty; slot: number; reason: 'party-in-area' | 'party-enacted'}
+  | {kind: 'deal'; instance: ResolutionInstanceId; resolution: ResolutionId; party: ReduxParty; slot: number; source: 'deck' | 'reshuffled'}
+  | {kind: 'support'; party: ReduxParty; instance: ResolutionInstanceId; count: number}
+  | {kind: 'empty'; slot: number}
+  | {kind: 'lobby'; player: Color};
+
+/**
  * What the LAST completed end-of-generation phase did — a summary the client
  * presents once (keyed by generation) and never reconstructs from the log.
  */
@@ -250,6 +267,13 @@ export type ParliamentPhaseSummaryModel = {
   /** The losers the refresh discarded, in their slot order — the renewal beat flies them off the table (absent before the refresh / on older saves). */
   discarded?: ReadonlyArray<{instance: ResolutionInstanceId; resolution: ResolutionId; party: ReduxParty}>;
   lobbyRefilled: ReadonlyArray<Color>;
+  /**
+   * THE RENEWAL JOURNAL — every physical event of the refresh and the lobby
+   * steps in the server's order; the ONLY thing the renewal beat plays.
+   * Absent before the refresh, on the final sitting and on older saves (the
+   * refreshed table is then shown without a beat).
+   */
+  renewal?: ReadonlyArray<ParliamentRenewalEventModel>;
 };
 
 /**
