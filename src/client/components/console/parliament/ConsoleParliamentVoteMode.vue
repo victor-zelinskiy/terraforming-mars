@@ -67,6 +67,13 @@
                                           :withCaption="false"
                                           size="compact"
                                           data-parl-vote-reaction />
+                    <!-- THE COLONY LEDGER (Colonial Affairs): the tiles the «×k» above multiplies — the
+                         SERVER's registry, one row per tile, the sums; «no colonies» in words. -->
+                    <ConsoleColonyLedger v-if="voteInfo.reading.ledger !== undefined"
+                                         class="con-parl__info-ledger"
+                                         :reading="voteInfo.reading.ledger"
+                                         size="compact"
+                                         data-parl-vote-ledger />
                   </div>
                 </div>
               </div>
@@ -150,6 +157,7 @@ import {ParliamentModel} from '@/common/models/ParliamentModel';
 import {SelectPaymentModel, VotePaymentMeta} from '@/common/models/PlayerInputModel';
 import {PARLIAMENT_VOTE_COST, ReduxParty} from '@/common/parliament/ParliamentTypes';
 import ConsoleInfluenceYield from '@/client/components/console/parliament/ConsoleInfluenceYield.vue';
+import ConsoleColonyLedger from '@/client/components/console/parliament/ConsoleColonyLedger.vue';
 import ConsolePartyReaction from '@/client/components/console/parliament/ConsolePartyReaction.vue';
 import ConsolePartyFormula from '@/client/components/console/parliament/ConsolePartyFormula.vue';
 import ConsoleVoteFactRow from '@/client/components/console/parliament/ConsoleVoteFactRow.vue';
@@ -205,7 +213,7 @@ type CtaCost = {kind: 'free' | 'cost' | 'none', amount: number};
  */
 export default defineComponent({
   name: 'ConsoleParliamentVoteMode',
-  components: {ConsoleInfluenceYield, ConsolePartyFormula, ConsolePartyReaction, ConsoleVoteFactRow, PlayerCube, GamepadGlyph, PremiumMechanicsPanel},
+  components: {ConsoleInfluenceYield, ConsoleColonyLedger, ConsolePartyFormula, ConsolePartyReaction, ConsoleVoteFactRow, PlayerCube, GamepadGlyph, PremiumMechanicsPanel},
   props: {
     view: {type: Object as PropType<ParliamentViewVm>, required: true},
     model: {type: Object as PropType<ParliamentModel | undefined>, default: undefined},

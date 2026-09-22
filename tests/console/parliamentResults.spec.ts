@@ -175,6 +175,22 @@ describe('parliamentResultsModel — the sitting\'s last reading, in two section
     expect(reading.table.support.map((s) => s.party), 'the stocks are still the one thing seen nowhere else').deep.eq([PartyName.MARS]);
   });
 
+  it('a COLONY-PAID part (Colonial Affairs) carries its tile — the panel groups a seat\'s parts by it — and a HUD-side bonus its description; a discard speaks the card unit', () => {
+    const reading = resultsReadingOf(summary({outcomes: [
+      outcome({step: 'colony:Luna', kind: 'stock', stock: Resource.MEGACREDITS, amount: 6, colony: 'Luna' as never, multiplier: 3}),
+      outcome({step: 'colony:Pluto:1:draw', kind: 'cards', stock: undefined, amount: 1, colony: 'Pluto' as never, multiplier: 3}),
+      outcome({step: 'colony:Pluto:1:discard', kind: 'discard', stock: undefined, amount: 1, card: 'Fish' as never, colony: 'Pluto' as never, multiplier: 3}),
+      outcome({step: 'colony:Titania', kind: 'colonyBonus', stock: Resource.MEGACREDITS, amount: -6, colony: 'Titania' as never, multiplier: 2, description: 'Lose 3 M€'}),
+      outcome({step: 'colony:Iapetus', kind: 'colonyBonus', stock: undefined, amount: 2, colony: 'Iapetus' as never, multiplier: 2, description: 'Pay 1 M€ less for cards this generation'}),
+    ]}), [seat(BLUE)], SUPPORT);
+    const parts = reading.payouts[0].parts;
+    expect(parts.map((p) => `${p.colony}:${p.kind}:${p.unit}:${p.amount}`)).deep.eq([
+      'Luna:stock:megacredits:6', 'Pluto:cards:cards:1', 'Pluto:discard:cards:1', 'Titania:colonyBonus:megacredits:-6', 'Iapetus:colonyBonus::2',
+    ]);
+    expect(parts.map((p) => p.description)).deep.eq([undefined, undefined, undefined, 'Lose 3 M€', 'Pay 1 M€ less for cards this generation']);
+    expect(parts.every((p) => p.skipped === undefined), 'a loss is a payout, never a skip').is.true;
+  });
+
   it('the RULING PARTY\'s own answer keeps its party — the emblem stands beside the amount', () => {
     const reading = resultsReadingOf(
       summary({outcomes: [outcome({kind: 'reaction', party: PartyName.GREENS, amount: 1, stock: Resource.MEGACREDITS})]}),

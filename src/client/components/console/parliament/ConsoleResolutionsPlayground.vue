@@ -197,6 +197,9 @@
                per effect, the win's difference as its suffix (the same model). -->
           <ConsoleInfluenceYield v-if="yields.length > 0" :yields="yields" :oneNumber="context === 'proposal'" size="hero" :note="yieldNote" :kicker="contextLabel" data-rxpg-yield />
           <p v-else class="con-rxpg__none" data-rxpg-yield-none>{{ $t('Not scaled by influence') }}</p>
+          <!-- THE COLONY LEDGER (Colonial Affairs): the viewer's tiles the multiplier above multiplies — the
+               same reading the vote panel, the inspector and the sitting print. -->
+          <ConsoleColonyLedger v-if="ledger !== undefined" :reading="ledger" size="normal" data-rxpg-ledger />
           <!-- …and the answer of the party the card brings to power — its own
                law, so its own block, under the numbers it answers. -->
           <ConsolePartyReaction v-for="r in reactions" :key="r.reaction.id" :reading="r" size="normal" data-rxpg-reaction />
@@ -347,7 +350,13 @@ import {PartyName} from '@/common/turmoil/PartyName';
 import {SelectCardModel} from '@/common/models/PlayerInputModel';
 import {ParliamentEnactOutcomeModel, ParliamentModel, ParliamentPlayerModel} from '@/common/models/ParliamentModel';
 import {IClientResolution} from '@/common/parliament/IClientResolution';
-import {familyOf} from '@/client/console/parliament/resolutionFamily';
+import {colonyBonusesEffectOf, familyOf} from '@/client/console/parliament/resolutionFamily';
+import {ColonyName} from '@/common/colonies/ColonyName';
+import {ColonyBenefit} from '@/common/colonies/ColonyBenefit';
+import {ColonyTradeGrantModel} from '@/common/models/ColonyTradeManifestModel';
+import {getColony} from '@/client/colonies/ClientColonyManifest';
+import {ColonyLedgerReading, colonyLedgerOf} from '@/client/console/parliament/colonyLedgerModel';
+import ConsoleColonyLedger from '@/client/components/console/parliament/ConsoleColonyLedger.vue';
 import {
   fixedSequelYield, fixedYield, InfluenceScaledEffect, InfluenceYield, referenceYield, scaledAmount, sequelAmount, uncappedAmount,
 } from '@/common/parliament/influenceScaling';
@@ -424,7 +433,11 @@ const SPECTATOR: ViewerIndex = 2;
  * influence it holds beyond the track, and — for a resolution that counts the
  * tableau — its cards in play (REAL card names) and its production before.
  */
-type PgSeat = {agenda: number, bonus: number, cards?: ReadonlyArray<CardName>, production?: number};
+type PgSeat = {
+  agenda: number, bonus: number, cards?: ReadonlyArray<CardName>, production?: number,
+  /** The colony-bonuses family: the tiles this seat has a cube on (the server's registry, synthesized from the colony manifest). */
+  colonies?: ReadonlyArray<ColonyName>,
+};
 type PgWinner = SeatIndex | 'neutral';
 /**
  * Which family of scenarios a resolution reads: influence alone (a payout onto
@@ -433,7 +446,7 @@ type PgWinner = SeatIndex | 'neutral';
  * icon vs. cards that print the tag) — or a supply resource by influence + the
  * WINNER's tile.
  */
-type PgFamily = 'influence' | 'counted' | 'counted-tags' | 'distributed' | 'winner-tile' | 'sequel';
+type PgFamily = 'influence' | 'counted' | 'counted-tags' | 'distributed' | 'winner-tile' | 'sequel' | 'colony-bonuses';
 /** The table's global parameters a winner tile reads (oxygen %, temperature °C, oceans placed). */
 type PgTable = {oxygen: number, temperature: number, oceans: number};
 const DEFAULT_TABLE: PgTable = {oxygen: 5, temperature: -14, oceans: 3};
@@ -733,6 +746,14 @@ const SCENARIOS: ReadonlyArray<PgScenario> = [
   {key: 'cloud-live-layout', family: 'distributed', label: 'Live: the layout inside the sitting', viewer: 0,
     seats: [{agenda: 2, bonus: 0, cards: [DIRIGIBLES, JFS]}, {agenda: 5, bonus: 0, cards: [ATMO]}], winner: 0, context: 'resolving', noRecipient: false,
     live: 'parliament-cloud-enact', liveNote: 'Your layout stands inside the enactment stage: 4 floaters over two holders, nothing placed until A'},
+  /*
+   * THE COLONY-BONUSES FAMILY (Colonial Affairs): each seat holds SYNTHETIC CUBES on real tiles of the
+   * colony manifest — the server's registry shape — and the ledger multiplies them: a supply tile (Luna),
+   * a resource-onto-card tile (Titan), a plain draw (Miranda), the pair that never merges (Pluto).
+   */
+  {key: 'colonial-vote', family: 'colony-bonuses', label: 'Four tiles — a supply gain, a card resource, a draw, the pair', viewer: 0,
+    seats: [{agenda: 5, bonus: 0, colonies: [ColonyName.LUNA, ColonyName.TITAN, ColonyName.MIRANDA, ColonyName.PLUTO]}, {agenda: 1, bonus: 0, colonies: [ColonyName.LUNA]}],
+    winner: 0, context: 'proposal', noRecipient: false},
 ];
 /** Each family's opening scenario. */
 const DEFAULT_SCENARIO_OF: Readonly<Record<PgFamily, number>> = {
@@ -742,6 +763,7 @@ const DEFAULT_SCENARIO_OF: Readonly<Record<PgFamily, number>> = {
   'distributed': SCENARIOS.findIndex((s) => s.key === 'cloud-layout'),
   'winner-tile': SCENARIOS.findIndex((s) => s.key === 'tile-influence-3'),
   'sequel': SCENARIOS.findIndex((s) => s.key === 'seq-4-to-6'),
+  'colony-bonuses': SCENARIOS.findIndex((s) => s.key === 'colonial-vote'),
 };
 const DEFAULT_SCENARIO = DEFAULT_SCENARIO_OF.influence;
 
@@ -816,7 +838,7 @@ function scenarioState(index: number) {
 export default defineComponent({
   name: 'ConsoleResolutionsPlayground',
   components: {
-    PremiumCard, GamepadGlyph, PlayerCube, ConsoleInfluenceYield, ConsoleResolutionStatus, ConsoleResolutionAside, ConsoleCardRulesPanel,
+    PremiumCard, GamepadGlyph, PlayerCube, ConsoleInfluenceYield, ConsoleColonyLedger, ConsoleResolutionStatus, ConsoleResolutionAside, ConsoleCardRulesPanel,
     ConsoleSourceDock, ConsolePlayedTargetStep, PremiumMechanicsPanel, PremiumCountGlyph, ConsoleWinnerReward, ConsolePartyReaction,
   },
   props: {
@@ -907,8 +929,16 @@ export default defineComponent({
       case 'counted-tags': return 'Result by tags and influence';
       case 'distributed': return 'Result by tags and influence, laid out over your holders';
       case 'sequel': return 'Result by influence, then by production';
+      case 'colony-bonuses': return 'Result by influence, over your colony bonuses';
       default: return 'Influence-scaled payout';
       }
+    },
+    /** THE COLONY LEDGER of the selected resolution for the viewer and the context — the one client reading. */
+    ledger(): ColonyLedgerReading | undefined {
+      if (this.context === 'reference') {
+        return undefined;
+      }
+      return colonyLedgerOf(this.selected, this.model, this.viewerColor, {enacted: this.context !== 'proposal', live: this.context === 'resolving'});
     },
     /** Every seat's tableau with each card's verdict (the SHARED predicate over the client card manifest). */
     tableauRows(): Array<TableauRow> {
@@ -1472,6 +1502,22 @@ export default defineComponent({
       const total = this.sequelEffect?.sequel?.total;
       if (total !== undefined && total.kind === 'production') {
         model.production = {[total.resource]: this.seats[i].production ?? 0};
+      }
+      // …and the COLONY LEDGER a «colony bonuses» part multiplies — the registry the server ships, built from
+      // the colony manifest's printed bonuses (the same descriptors `IColony.colonyBonusGrant` reads).
+      if (colonyBonusesEffectOf(this.selected ?? {}) !== undefined) {
+        model.colonyBonuses = (this.seats[i].colonies ?? []).map((name) => {
+          const colony = getColony(name).colony;
+          const grant: ColonyTradeGrantModel = {benefit: colony.type, quantity: colony.quantity};
+          if (colony.resource !== undefined) {
+            grant.resource = colony.resource;
+          }
+          const cardResource = getColony(name).cardResource;
+          if (cardResource !== undefined && (colony.type === ColonyBenefit.ADD_RESOURCES_TO_CARD || colony.type === ColonyBenefit.ADD_RESOURCES_TO_VENUS_CARD)) {
+            grant.cardResource = cardResource;
+          }
+          return {colony: name, grant, description: colony.description};
+        });
       }
       return model;
     },

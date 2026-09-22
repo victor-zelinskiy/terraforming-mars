@@ -286,10 +286,13 @@ export function enactedYieldsOf(
     // before the cap) — the past is never recomputed from today's tableau.
     const recorded = applied === undefined ? undefined :
       {count: applied.count, counted: applied.counted, countedUnits: applied.countedUnits, countedByTag: applied.countedByTag, uncapped: applied.uncapped};
-    if (applied !== undefined && applied.kind === 'skipped') {
-      out.push({...fixedYield(effect, context, applied.amount ?? 0, applied.influence, recorded), skipped: applied.reason ?? 'Skipped'});
-    } else if (applied !== undefined && applied.amount !== undefined) {
-      out.push(fixedYield(effect, context, applied.amount, applied.influence, recorded));
+    // A MULTIPLIER effect (the colony ledger): every record of the plan pays its own unit and carries the
+    // multiplier beside it — the reading is the multiplier, never the first row's amount.
+    const paid = applied === undefined ? undefined : (yieldIsMultiplier(effect) ? (applied.multiplier ?? applied.amount) : applied.amount);
+    if (applied !== undefined && applied.kind === 'skipped' && (!yieldIsMultiplier(effect) || applied.colony === undefined)) {
+      out.push({...fixedYield(effect, context, paid ?? 0, applied.influence, recorded), skipped: applied.reason ?? 'Skipped'});
+    } else if (applied !== undefined && paid !== undefined) {
+      out.push(fixedYield(effect, context, paid, applied.influence, recorded));
     } else {
       out.push(referenceYield(effect));
     }

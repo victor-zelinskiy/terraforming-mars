@@ -17,9 +17,11 @@ import {WinnerRewardDeclaration} from '@/common/parliament/winnerReward';
  *                   (Cloud Development: floaters by Venus + Jovian tags + influence) — the count
  *                   is a term of it, the SPREAD is what the player works with;
  *   winner-tile   — a supply payout by influence + the WINNER's tile (Biodome Contest);
- *   sequel        — a second half that reads what the first half left behind (Climate Research).
+ *   sequel        — a second half that reads what the first half left behind (Climate Research);
+ *   colony-bonuses — the player's COLONY BONUSES paid a number of times (Colonial Affairs: 2 + 1 per 2
+ *                   influence) — the instrument is the LEDGER of the player's tiles, multiplied.
  */
-export const RESOLUTION_FAMILIES = ['influence', 'counted', 'counted-tags', 'distributed', 'winner-tile', 'sequel'] as const;
+export const RESOLUTION_FAMILIES = ['influence', 'counted', 'counted-tags', 'distributed', 'winner-tile', 'sequel', 'colony-bonuses'] as const;
 export type ResolutionFamily = typeof RESOLUTION_FAMILIES[number];
 
 /** The declaration facts the family reads — what the server definition and the client manifest share. */
@@ -48,8 +50,17 @@ export function spreadEffectOf(facts: ResolutionFamilyFacts): InfluenceScaledEff
   return facts.scaled?.find((effect) => effect.unit.kind === 'cardResource' && effect.unit.spread === true);
 }
 
+/** The part paid as the player's COLONY BONUSES a number of times, if any. */
+export function colonyBonusesEffectOf(facts: ResolutionFamilyFacts): InfluenceScaledEffect | undefined {
+  return facts.scaled?.find((effect) => effect.unit.kind === 'colonyBonuses');
+}
+
 export function familyOf(facts: ResolutionFamilyFacts): ResolutionFamily {
-  // A SEQUENTIAL resolution first: its second half reads what its first half
+  // THE COLONY LEDGER first: what is multiplied is the player's own tiles, an instrument no other family has.
+  if (colonyBonusesEffectOf(facts) !== undefined) {
+    return 'colony-bonuses';
+  }
+  // A SEQUENTIAL resolution next: its second half reads what its first half
   // leaves behind, which is a different instrument from a count.
   if (sequelEffectOf(facts) !== undefined) {
     return 'sequel';

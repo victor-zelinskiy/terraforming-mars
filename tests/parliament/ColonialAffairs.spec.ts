@@ -44,6 +44,7 @@ import {SpaceElevator} from '../../src/server/cards/base/SpaceElevator';
 import {Satellites} from '../../src/server/cards/base/Satellites';
 import {testAutomaGame} from '../automa/AutomaTestGame';
 import {getParliamentModel} from '../../src/server/parliament/ParliamentModel';
+import {familyOf} from '../../src/client/console/parliament/resolutionFamily';
 import {SerializedEnactOutcome} from '../../src/server/parliament/SerializedParliament';
 import {IPlayer} from '../../src/server/IPlayer';
 
@@ -146,6 +147,7 @@ describe('ColonialAffairs', () => {
       expect(COLONIAL_AFFAIRS.winnerSteps, 'no winner-only part').is.undefined;
       expect(COLONIAL_AFFAIRS.immediateSteps, 'the steps are a PLAN per player, not a list').is.undefined;
       expect(COLONIAL_AFFAIRS.immediateStepsFor).eq(colonyBonusSteps);
+      expect(familyOf(COLONIAL_AFFAIRS), 'the stand opens the colony-bonuses family from the declaration alone').eq('colony-bonuses');
     });
 
     it('k = 2 + ⌊influence / 2⌋: influence 0…5 reads 2, 2, 3, 3, 4, 4 — the ONE shared formula', () => {

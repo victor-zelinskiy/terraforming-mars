@@ -484,6 +484,8 @@ each(@players, {
 @import "./console_party_action.less";
 @import "./console_resolution_inspect.less";
 @import "./console_influence_yield.less";
+/* The colony ledger stands on the yield chassis (its multiplier line IS that block). */
+@import "./console_colony_ledger.less";
 /* The stages come AFTER the yield chassis: the enactment's `&__enact-yield`
    re-aligns the hosted `.con-iyield` at equal specificity, so its place in the
    cascade is what it was in the single file (the block stood after the yield). */

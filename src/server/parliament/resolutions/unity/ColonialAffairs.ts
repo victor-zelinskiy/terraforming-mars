@@ -69,8 +69,8 @@ import {PartyName} from '../../../../common/turmoil/PartyName';
 import {Tag} from '../../../../common/cards/Tag';
 import {Resource} from '../../../../common/Resource';
 import {CardResource} from '../../../../common/CardResource';
-import {ColonyBenefit} from '../../../../common/colonies/ColonyBenefit';
 import {ColonyName} from '../../../../common/colonies/ColonyName';
+import {ColonyBonusShape, colonyBonusShape} from '../../../../common/parliament/colonyLedger';
 import {ColonyTradeGrantModel} from '../../../../common/models/ColonyTradeManifestModel';
 import {ChoiceContextSource} from '../../../../common/models/PlayerInputModel';
 import {ResolutionCode, ResolutionId} from '../../../../common/parliament/ParliamentTypes';
@@ -134,34 +134,12 @@ export function colonyTilesOf(player: IPlayer, game: IGame): Array<IColony> {
 }
 
 /**
- * WHAT A PRINTED COLONY BONUS BECOMES under ×k — the family table (§2 of the
- * card's document), stated once: a merged supply / production gain, ONE
- * distribution of k units onto the player's holders, ONE intake of k cards,
- * k pairs of «draw 1, then discard 1», k paid reveals, and the community
- * benefits the chip language does not speak (a loss, a discount, M€ per
- * Earth tag / hazard). `unsupported` is a benefit NO tile of the pool prints
- * as a colony bonus — named and skipped, never thrown, never silent.
+ * WHAT A PRINTED COLONY BONUS BECOMES under ×k — the family table, stated
+ * ONCE in the shared ledger module (`common/parliament/colonyLedger.ts`): the
+ * plan below walks it, and the client's ledger reads the very same shapes.
  */
-export type ColonyBonusStepShape =
-  | 'stock' | 'production' | 'cardResource' | 'venusCardResource' | 'draw' | 'drawDiscard' | 'revealBuy'
-  | 'loss' | 'discount' | 'mcPerEarthTags' | 'mcPerHazard' | 'unsupported';
-
-export function colonyBonusStepShape(benefit: ColonyBenefit): ColonyBonusStepShape {
-  switch (benefit) {
-  case ColonyBenefit.GAIN_RESOURCES: return 'stock';
-  case ColonyBenefit.GAIN_PRODUCTION: return 'production';
-  case ColonyBenefit.ADD_RESOURCES_TO_CARD: return 'cardResource';
-  case ColonyBenefit.ADD_RESOURCES_TO_VENUS_CARD: return 'venusCardResource';
-  case ColonyBenefit.DRAW_CARDS: return 'draw';
-  case ColonyBenefit.DRAW_CARDS_AND_DISCARD_ONE: return 'drawDiscard';
-  case ColonyBenefit.DRAW_CARDS_AND_BUY_ONE: return 'revealBuy';
-  case ColonyBenefit.LOSE_RESOURCES: return 'loss';
-  case ColonyBenefit.GAIN_CARD_DISCOUNT: return 'discount';
-  case ColonyBenefit.GAIN_MC_FOR_EARTH_TAGS: return 'mcPerEarthTags';
-  case ColonyBenefit.GAIN_MC_PER_HAZARD_TILE: return 'mcPerHazard';
-  default: return 'unsupported';
-  }
-}
+export type ColonyBonusStepShape = ColonyBonusShape;
+export const colonyBonusStepShape = colonyBonusShape;
 
 /** The SERVER's own skip reason for a card resource with no holder — the client's `noRecipientReasonKey` prints the same key. */
 export function noHolderReason(resource: CardResource | undefined): string {

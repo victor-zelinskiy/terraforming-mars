@@ -34,6 +34,7 @@ import {InfluenceYield} from '@/common/parliament/influenceScaling';
 import {ReduxParty} from '@/common/parliament/ParliamentTypes';
 import {ParliamentPartyVm, ParliamentSlotVm, voteAccessOf, VoteForecastVm} from './consoleParliamentModel';
 import {noRecipientCompactNoteOf, oneNumberYieldsOf, voteYieldsOf, WinSuffix, winSuffixesOf} from './influenceYieldModel';
+import {COLONY_LEDGER_EMPTY, COLONY_LEDGER_TOTAL, ColonyLedgerReading, colonyLedgerOf} from './colonyLedgerModel';
 import {PartyReactionReading, partyReactionsOf, viewerHasSeat} from './partyReactionModel';
 import {quietRewardPoseOf} from './quietRewardPose';
 
@@ -65,6 +66,11 @@ export type VoteReadingVm = {
   reactions: ReadonlyArray<PartyReactionReading>;
   /** The honest recipient note, in the server's own compact words (English key); undefined when the payout can land. */
   note: string | undefined;
+  /**
+   * THE COLONY LEDGER (Colonial Affairs): the viewer's tiles multiplied by the reading's number — the
+   * rows the «×k» stands on, from the SERVER's registry. Undefined for every other resolution.
+   */
+  ledger?: ColonyLedgerReading;
 };
 
 /** One side of a fact: a translatable key with params, or a RAW display string (a player's name), optionally with the leader's cube. */
@@ -146,6 +152,7 @@ export function voteReadingOf(
   for (const effect of resolution.scaled ?? []) {
     note = note ?? noRecipientCompactNoteOf(effect, tableau);
   }
+  const ledger = colonyLedgerOf(resolution, model, viewer);
   return {
     kicker: READING_KICKER_SEATED,
     yields,
@@ -153,6 +160,7 @@ export function voteReadingOf(
     // The answer follows the number the panel SHOWS — the estimate, never the folded forecast.
     reactions: partyReactionsOf(resolution, yields),
     note,
+    ...(ledger === undefined ? {} : {ledger}),
   };
 }
 
@@ -337,6 +345,16 @@ export function voteInfoBudget(vm: VoteInfoVm, text: TextFn = IDENTITY): VoteInf
   }
   if (vm.reading.note !== undefined) {
     strings.push(text(vm.reading.note));
+  }
+  // THE COLONY LEDGER's words: the tiles' names (one each — the bonus, the multiplier and the total are
+  // icons and numbers), the «no colonies» line, the sums' kicker.
+  const ledger = vm.reading.ledger;
+  if (ledger !== undefined) {
+    if (ledger.empty) {
+      strings.push(text(COLONY_LEDGER_EMPTY));
+    } else {
+      strings.push(...ledger.rows.map((row) => text(row.colony)), text(COLONY_LEDGER_TOTAL));
+    }
   }
   strings.push(text(vm.vote.kicker));
   if (vm.vote.source === 'lobby') {

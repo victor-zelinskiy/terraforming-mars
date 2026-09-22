@@ -236,6 +236,21 @@
     &__part-cards { display: inline-flex; align-items: center; gap: .35rem; min-width: 0; font-family: @con-font-read; font-size: .72rem; opacity: .82; }
     &__part-card { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     &__part-reason { font-family: @con-font-read; font-size: .74rem; opacity: .85; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    /* A COLONY-PAID part (Colonial Affairs): the tile leads its group — the planet disc (the colonies'
+       own art, re-seated) and the name, quiet beside the amounts; the parts of one tile follow it. */
+    &__part-colony { display: inline-flex; align-items: center; gap: .22rem; min-width: 0; margin-right: .1rem; }
+    &__part-planet {
+        display: inline-block;
+        width: 1rem;
+        height: 1rem;
+        border-radius: 50%;
+        flex-shrink: 0;
+        background-size: cover !important;
+        background-position: center !important;
+        box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.28), 0 .05rem .2rem rgba(0, 0, 0, 0.5) !important;
+    }
+    &__part-colony-name { font-family: @con-font-read; font-size: .7rem; font-weight: 700; opacity: .86; white-space: nowrap; }
+    &__part-discard { font-size: .9rem; font-weight: 700; color: rgba(242, 193, 78, 0.92); line-height: 1; }
     /* (2) СТОЛ — what changed and is already out of sight. */
     &__table {
         grid-column: 2;

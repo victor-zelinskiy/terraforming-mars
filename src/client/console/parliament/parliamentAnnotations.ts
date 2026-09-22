@@ -43,6 +43,9 @@ import {WinnerRewardReading, winnerRewardRuleKey, winnerRewardSentenceOf} from '
 
 export type RowText = {text: string, params?: ReadonlyArray<string>};
 
+/** The rule a «colony bonuses» effect stands on — the one sentence the inspector prints under it (an English key). */
+export const COLONY_BONUS_RULE_KEY = 'A colony bonus is the tile\'s printed bonus a cube\'s owner receives when somebody else trades there — never the trade income and never the building bonus. Pluto\'s draw-then-discard is paid one pair at a time.';
+
 /**
  * A block's place in the panel: the SUBJECT's own rules first, then what
  * surrounds it — a reading order, never the card panel's kind order.
@@ -142,6 +145,11 @@ export function resolutionAnnotations(
     for (const effect of resolution.scaled ?? []) {
       if (effect.count !== undefined) {
         rows.push(yieldCountPresentation(effect.count.id).ruleKey);
+      }
+      // THE COLONY LEDGER's qualification — what a colony bonus IS (the detailed reading of «all your colony
+      // bonuses»), one sentence under the effect; the ledger itself reads in the footer.
+      if (effect.unit.kind === 'colonyBonuses') {
+        rows.push(COLONY_BONUS_RULE_KEY);
       }
     }
     out.push(block('group:immediate', 'immediate', 'When enacted', rows, 0));

@@ -1078,6 +1078,13 @@
                                  size="compact"
                                  data-zoom-yield
                                  :data-zoom-vote-reading="zoomResolutionStatus?.lifecycle === 'vote' ? '' : undefined" />
+          <!-- THE COLONY LEDGER of a resolution paying «all your colony bonuses» (Colonial Affairs): the
+               viewer's tiles the number above multiplies — the same rows the vote panel and the sitting read. -->
+          <ConsoleColonyLedger v-if="zoomResolutionLedger !== undefined"
+                               class="con-zoom__bar-ledger"
+                               :reading="zoomResolutionLedger"
+                               size="compact"
+                               data-zoom-ledger />
           <!-- …and what the party the resolution brings to power ANSWERS to
                those numbers (Turmoil Redux): its own law, its own chip. -->
           <ConsolePartyReaction v-for="r in zoomResolutionReactions" :key="r.reaction.id"
@@ -1642,6 +1649,8 @@ import ConsoleResolutionAside from '@/client/components/console/parliament/Conso
 import ConsoleResolutionStatus from '@/client/components/console/parliament/ConsoleResolutionStatus.vue';
 import ConsoleZoomVoteFacts from '@/client/components/console/parliament/ConsoleZoomVoteFacts.vue';
 import ConsoleInfluenceYield from '@/client/components/console/parliament/ConsoleInfluenceYield.vue';
+import ConsoleColonyLedger from '@/client/components/console/parliament/ConsoleColonyLedger.vue';
+import {ColonyLedgerReading, colonyLedgerOf} from '@/client/console/parliament/colonyLedgerModel';
 import ConsoleWinnerReward from '@/client/components/console/parliament/ConsoleWinnerReward.vue';
 import {WinnerRewardReading, winnerRewardReadingOf, winnerRewardTableOf} from '@/client/console/parliament/winnerRewardModel';
 import {enactedYieldsOf, voteYieldsOf} from '@/client/console/parliament/influenceYieldModel';
@@ -2192,6 +2201,7 @@ export default defineComponent({
     ConsoleResolutionStatus,
     ConsoleZoomVoteFacts,
     ConsoleInfluenceYield,
+    ConsoleColonyLedger,
     ConsoleWinnerReward,
     ConsoleInfoMode,
     ConsoleCardRulesPanel,
@@ -8680,6 +8690,16 @@ export default defineComponent({
       const model = this.game.parliament;
       const viewer = this.thisPlayer.color;
       return model?.enacted?.resolution === id ? enactedYieldsOf(resolution, model, viewer) : voteYieldsOf(resolution, model, viewer);
+    },
+    /** The colony ledger of the resolution on the stage (Colonial Affairs) — the vote's reading, or the enacted record. */
+    zoomResolutionLedger(): ColonyLedgerReading | undefined {
+      const id = this.zoomResolutionId;
+      const resolution = id === undefined ? undefined : getResolution(id);
+      if (resolution === undefined) {
+        return undefined;
+      }
+      const model = this.game.parliament;
+      return colonyLedgerOf(resolution, model, this.thisPlayer.color, {enacted: model?.enacted?.resolution === id});
     },
     /** A seat's display name for a parliament caption (the winner's recipient). */
     parliamentSeatName(): (color: Color) => string {

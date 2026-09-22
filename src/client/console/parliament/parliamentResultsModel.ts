@@ -93,6 +93,13 @@ export type ResultsPayoutPart = {
   cards?: ReadonlyArray<{card: string, amount: number}>;
   /** The RULING PARTY's own answer — its emblem stands beside the amount. */
   party?: ReduxParty;
+  /**
+   * THE COLONY whose printed bonus this part pays (Colonial Affairs) — the panel GROUPS a seat's parts by
+   * it, so «Luna +6 M€ · Pluto card → discard ×3» reads tile by tile, as the ledger did.
+   */
+  colony?: string;
+  /** A HUD-side colony bonus (`colonyBonus`): the tile's printed description IS the reading. */
+  description?: string;
   /** The part paid nothing: WHAT it was and WHY (both English i18n keys). */
   skipped?: {title: string, reason: string};
 };
@@ -170,7 +177,8 @@ function unitOf(outcome: ParliamentEnactOutcomeModel): {unit: string, production
   if (outcome.resource !== undefined) {
     return {unit: String(outcome.resource), production: false};
   }
-  return {unit: outcome.kind === 'cards' ? 'cards' : '', production: false};
+  // A card thrown away (Pluto's second half) speaks the card unit too; a HUD-side colony bonus has none — its description reads.
+  return {unit: outcome.kind === 'cards' || outcome.kind === 'discard' ? 'cards' : '', production: false};
 }
 
 /** ONE record as a part of its seat's payout — the server's amount, or the skip the address names. */
@@ -197,6 +205,12 @@ export function resultsPayoutPart(outcome: ParliamentEnactOutcomeModel, index: n
   }
   if (outcome.kind === 'reaction' && outcome.party !== undefined) {
     part.party = outcome.party as ReduxParty;
+  }
+  if (outcome.colony !== undefined) {
+    part.colony = outcome.colony;
+  }
+  if (outcome.description !== undefined) {
+    part.description = outcome.description;
   }
   if (delivery.skipped !== undefined) {
     part.skipped = {

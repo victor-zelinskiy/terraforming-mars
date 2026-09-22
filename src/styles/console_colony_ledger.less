@@ -1,0 +1,150 @@
+/* ══ THE COLONY LEDGER (`ConsoleColonyLedger`, Turmoil Redux — Colonial Affairs) ═
+   «Gain all your colony bonuses k times» as ONE reading: the multiplier line in
+   the influence-yield grammar, a row per tile (planet · name · the printed bonus
+   of one repeat · «× k =» · the row's total · its state), the sums by unit.
+   Cascades AFTER `console_influence_yield.less` (the multiplier line IS that
+   block). Rem-authored; the planet medallion reuses the colonies' own
+   `<Name>-background` art, re-seated as a small disc. No filter, no text-shadow
+   (paint baseline). ══ */
+.con-cledger {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: .34rem;
+    min-width: 0;
+    max-width: 100%;
+    font-family: @con-font-read;
+    color: fade(@con-text, 92%);
+
+    &__kicker { font-size: .56rem; letter-spacing: .12em; text-transform: uppercase; color: fade(@con-parl-gold, 88%); }
+    &__k { max-width: 100%; }
+    &__empty { font-size: .8rem; line-height: 1.2; color: fade(@con-amber, 92%); }
+
+    /* THE ROWS — a grid so every column stands on one axis across the tiles. */
+    &__rows {
+        display: grid;
+        grid-template-columns: auto minmax(0, max-content) auto auto auto minmax(0, 1fr);
+        column-gap: .5rem;
+        row-gap: .22rem;
+        align-items: center;
+        min-width: 0;
+        max-width: 100%;
+    }
+    &__row {
+        display: contents;
+        /* Each cell of the row carries the row's own plate through a shared background — the row is
+           `display: contents`, so the plate is painted on the cells (see the modifiers below). */
+    }
+    &__planet {
+        display: inline-block;
+        width: 1.15rem;
+        height: 1.15rem;
+        border-radius: 50%;
+        flex-shrink: 0;
+        /* The colony art was authored for the 150 px tile: re-seat it as a disc. */
+        background-size: cover !important;
+        background-position: center !important;
+        box-shadow: inset 0 0 0 .06rem rgba(255, 255, 255, 0.28), 0 .05rem .2rem rgba(0, 0, 0, 0.5) !important;
+    }
+    &__name { font-size: .8rem; font-weight: 700; color: @con-text; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+    &__bonus, &__total { display: inline-flex; align-items: center; gap: .16rem; line-height: 1; white-space: nowrap; }
+    &__num { font-size: .96rem; font-weight: 700; color: @con-text; font-variant-numeric: tabular-nums; }
+    &__num--sum { color: @con-parl-mint; font-size: 1.08rem; }
+    &__unit {
+        display: inline-block;
+        width: 1.05rem;
+        height: 1.05rem;
+        flex-shrink: 0;
+        background-size: contain;
+        background-repeat: no-repeat;
+        background-position: center;
+    }
+    &__unit--prod {
+        border-radius: .2rem;
+        background-color: #6f4725;
+        background-size: 70% 70%;
+        box-shadow: inset 0 0 0 .07rem rgba(214, 158, 96, 0.78), inset 0 .12rem .2rem rgba(255, 224, 180, 0.22), 0 .05rem .14rem rgba(0, 0, 0, 0.5);
+    }
+    &__arrow { font-size: .82rem; color: fade(@con-text, 58%); margin: 0 .06rem; }
+    &__disc { font-size: .92rem; font-weight: 700; color: fade(@con-amber, 92%); line-height: 1; }
+    &__desc { font-size: .66rem; line-height: 1.15; color: fade(@con-text, 84%); white-space: normal; max-width: 12rem; }
+    &__times { font-size: .78rem; font-weight: 700; letter-spacing: .06em; color: fade(@con-parl-gold, 94%); white-space: nowrap; }
+    &__eq { font-size: .84rem; color: fade(@con-text, 55%); margin-right: .1rem; }
+    &__times-word { font-size: .52rem; letter-spacing: .08em; text-transform: uppercase; color: fade(@con-text, 66%); margin-left: .12rem; }
+    &__state {
+        font-size: .54rem;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        min-width: 0;
+        justify-self: start;
+        &--received { color: fade(@con-parl-mint, 92%); }
+        &--skipped { color: fade(@con-amber, 92%); }
+    }
+    /* THE ROW NOW PAYING — one row, marked by weight and a mint seam; nothing pulses (the motion taste laws). */
+    &__row--active > * { color: @con-text; }
+    &__row--active &__name { color: @con-parl-mint; }
+    &__row--active &__planet { box-shadow: inset 0 0 0 .06rem rgba(255, 255, 255, 0.28), 0 0 0 .12rem fade(@con-parl-mint, 70%) !important; }
+    &__row--received &__num--sum { color: fade(@con-parl-mint, 96%); }
+    &__row--skipped &__num, &__row--skipped &__times { color: fade(@con-text, 55%); }
+    &__row--skipped &__num--sum { color: fade(@con-amber, 90%); text-decoration: line-through; text-decoration-thickness: .06rem; }
+
+    /* THE SUMS. */
+    &__totals {
+        display: inline-flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: .24rem .6rem;
+        padding: .22rem .55rem .2rem .45rem;
+        border-radius: .5rem;
+        background: linear-gradient(160deg, rgba(24, 44, 30, 0.62), rgba(12, 20, 16, 0.72));
+        box-shadow: inset 0 0 0 .05rem fade(@con-parl-mint, 34%);
+        min-width: 0;
+        max-width: 100%;
+    }
+    &__totals-kicker { font-size: .52rem; letter-spacing: .12em; text-transform: uppercase; color: fade(@con-parl-mint, 90%); font-weight: 700; }
+    &__sum { display: inline-flex; align-items: center; gap: .14rem; line-height: 1; white-space: nowrap; }
+    &__sum &__num { color: @con-parl-mint; }
+    &__unit--pair { opacity: .9; }
+
+    /* SIZES. */
+    &--compact {
+        gap: .22rem;
+        .con-cledger__rows { column-gap: .34rem; row-gap: .12rem; }
+        .con-cledger__planet { width: .92rem; height: .92rem; }
+        .con-cledger__name { font-size: .68rem; }
+        .con-cledger__num { font-size: .8rem; }
+        .con-cledger__num--sum { font-size: .9rem; }
+        .con-cledger__unit { width: .88rem; height: .88rem; }
+        .con-cledger__times { font-size: .66rem; }
+        .con-cledger__desc { font-size: .58rem; max-width: 9rem; }
+        .con-cledger__state { font-size: .48rem; }
+        .con-cledger__totals { padding: .14rem .42rem .12rem .36rem; gap: .16rem .45rem; }
+        .con-cledger__empty { font-size: .68rem; }
+    }
+    &--hero {
+        gap: .55rem;
+        .con-cledger__rows { column-gap: .8rem; row-gap: .42rem; }
+        .con-cledger__planet { width: 1.9rem; height: 1.9rem; }
+        .con-cledger__name { font-size: 1.15rem; }
+        .con-cledger__num { font-size: 1.35rem; }
+        .con-cledger__num--sum { font-size: 1.55rem; }
+        .con-cledger__unit { width: 1.5rem; height: 1.5rem; }
+        .con-cledger__arrow { font-size: 1.15rem; }
+        .con-cledger__disc { font-size: 1.3rem; }
+        .con-cledger__times { font-size: 1.05rem; }
+        .con-cledger__eq { font-size: 1.15rem; }
+        .con-cledger__times-word { font-size: .66rem; }
+        .con-cledger__desc { font-size: .84rem; max-width: 16rem; }
+        .con-cledger__state { font-size: .68rem; }
+        .con-cledger__totals { padding: .36rem .8rem .34rem .65rem; gap: .3rem .85rem; }
+        .con-cledger__totals-kicker { font-size: .66rem; }
+        .con-cledger__sum .con-cledger__num { font-size: 1.35rem; }
+        .con-cledger__empty { font-size: 1.05rem; }
+    }
+}
+
+/* The ledger's «× k» in the yield block: the colony TILE is the unit of the multiplier. */
+.con-iyield__unit--colony { background-image: url(./assets/tiles/colony.png); }

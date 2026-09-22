@@ -631,5 +631,10 @@
   "Cards played by ${0} cost ${1} M€ less this generation: the ${2} colony bonus ×${3} from ${4}": "Карты ${0} в этом поколении стоят на ${1} M€ дешевле: бонус колонии ${2} ×${3} от ${4}",
   "${0} gained ${1} M€: the ${2} colony bonus ×${3} from ${4} (${5} Earth tags in play)": "${0} получает ${1} M€: бонус колонии ${2} ×${3} от ${4} (меток Земли в игре: ${5})",
   "${0} gained ${1} M€: the ${2} colony bonus ×${3} from ${4} (${5} hazard tiles)": "${0} получает ${1} M€: бонус колонии ${2} ×${3} от ${4} (опасных зон: ${5})",
-  "The ${0} colony bonus cannot be paid by ${1} — skipped": "Бонус колонии ${0} резолюция ${1} выплатить не может — пропущено"
+  "The ${0} colony bonus cannot be paid by ${1} — skipped": "Бонус колонии ${0} резолюция ${1} выплатить не может — пропущено",
+  "Colony bonuses": "Бонусы колоний",
+  "time(s)": "{раз|раза|раз}",
+  "card → discard": "карта → сброс",
+  "A colony bonus is the tile's printed bonus a cube's owner receives when somebody else trades there — never the trade income and never the building bonus. Pluto's draw-then-discard is paid one pair at a time.": "Бонус колонии — напечатанный на тайле бонус, который владелец куба получает, когда там торгует другой игрок; ни доход торговли, ни бонус постройки им не являются. «Взять карту, затем сбросить» Плутона выплачивается по одной паре.",
+  "Result by influence, over your colony bonuses": "Результат по влиянию, помноженный на ваши бонусы колоний"
 }

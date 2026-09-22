@@ -60,7 +60,14 @@
             <span class="con-sit__payout-parts">
               <span v-if="row.parts.length === 0" class="con-parl__chip-dim" data-sit-payout-none>{{ $t('No reward') }}</span>
               <span v-for="part in row.parts" :key="part.id" class="con-sit__part"
-                    :class="{'con-sit__part--skipped': part.skipped !== undefined}" :data-sit-part="part.kind">
+                    :class="{'con-sit__part--skipped': part.skipped !== undefined, 'con-sit__part--colony': part.colony !== undefined}" :data-sit-part="part.kind"
+                    :data-sit-part-colony="part.colony">
+                <!-- A COLONY-PAID part (Colonial Affairs) leads with its TILE — the panel groups a seat's parts by it,
+                     one planet + name per tile, the parts of that tile following (the ledger's own order). -->
+                <span v-if="part.colony !== undefined && colonyLeads(row.parts, part)" class="con-sit__part-colony" data-sit-part-tile>
+                  <span class="con-sit__part-planet" :class="planetClass(part.colony)" aria-hidden="true"></span>
+                  <b class="con-sit__part-colony-name">{{ $t(part.colony) }}</b>
+                </span>
                 <template v-if="part.skipped !== undefined">
                   <span class="con-parl__chip-dim">{{ $t('Skipped') }} · {{ $t(part.skipped.title) }}</span>
                   <span class="con-sit__part-reason">{{ $t(part.skipped.reason) }}</span>
@@ -68,6 +75,18 @@
                 <template v-else>
                   <img v-if="part.party !== undefined" class="con-sit__emblem" :src="emblemUrl(part.party)" alt="" />
                   <i v-if="part.tile !== undefined" class="con-sit__door-tile" :class="'con-sit__door-tile--' + part.tile" aria-hidden="true"></i>
+                  <!-- A HUD-side colony bonus reads by its printed description, signed where it prints an amount (a loss is negative). -->
+                  <template v-else-if="part.kind === 'colonyBonus'">
+                    <b v-if="part.unit !== ''">{{ signedAmount(part.amount) }}</b>
+                    <i v-if="part.unit !== ''" class="con-sit__part-unit" :class="partUnitClass(part)" aria-hidden="true"></i>
+                    <span class="con-sit__part-reason" data-sit-part-description>{{ $t(part.description ?? '') }}</span>
+                  </template>
+                  <!-- A card thrown away (Pluto's second half): the discard mark, the card. -->
+                  <template v-else-if="part.kind === 'discard'">
+                    <span class="con-sit__part-discard" aria-hidden="true">⌫</span>
+                    <b>{{ part.amount }}</b>
+                    <i class="con-sit__part-unit" :class="partUnitClass(part)" aria-hidden="true"></i>
+                  </template>
                   <template v-else>
                     <b>+{{ part.amount }}</b>
                     <i class="con-sit__part-unit" :class="partUnitClass(part)" aria-hidden="true"></i>
@@ -242,6 +261,18 @@ export default defineComponent({
     },
     nameOfColor(color: Color): string {
       return parliamentPlayerName(this.playerView.players, color);
+    },
+    /** The first part of its tile among a seat's parts — the one that carries the tile's name (the panel groups by tile). */
+    colonyLeads(parts: ReadonlyArray<ResultsPayoutPart>, part: ResultsPayoutPart): boolean {
+      const index = parts.indexOf(part);
+      return index <= 0 || parts[index - 1].colony !== part.colony;
+    },
+    planetClass(colony: string): string {
+      return colony.replace(' ', '-') + '-background';
+    },
+    signedAmount(amount: number | undefined): string {
+      const n = amount ?? 0;
+      return n > 0 ? `+${n}` : String(n);
     },
     /** The icon family of a payout part — the console's own sprites, the production frame where it is production. */
     partUnitClass(part: ResultsPayoutPart): string {
