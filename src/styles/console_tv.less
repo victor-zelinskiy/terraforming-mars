@@ -469,18 +469,9 @@ html.con-profile-tv {
         }
     }
 
-    /* ═══ 5b · FEEDBACK DELTA CHIPS (px-authored desktop components) ═
-       The AnimatedMetricValue chips anchor inside the console rails/HUD —
-       scale the CHIP, not the host (the host is the positioning anchor).
-       Scoped to the console surfaces; board-internal chips (inside the
-       planet's transform space) keep their own px space. */
-    .con-status .delta-chip,
-    .con-res .delta-chip,
-    .con-res-aux .delta-chip,
-    .con-hand .delta-chip,
-    .con-handdock .delta-chip {
-        zoom: var(--con-ui-scale, 1);
-    }
+    /* (5b · the feedback delta chips used to be zoomed here as px-authored desktop components; they are
+       rem-sized in the console since the DELTA-CHIP ANCHOR LAW — console.less — so they scale with their
+       anchors and this profile adds nothing. Board-internal chips keep their own px space.) */
 
     /* ═══ 6 · RT/LT QUICK WHEELS — the couch ACTION FOCUS MODE ═══════
        While the wheel is open it is the screen's one object: command-deck

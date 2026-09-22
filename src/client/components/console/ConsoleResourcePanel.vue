@@ -121,14 +121,16 @@
                binding stays CANONICAL (row.value), never the conversion
                override — the chip logic must track real game state. -->
           <span class="con-res__stockwrap">
-            <span class="con-res__value">{{ displayValue(row) }}</span>
-            <AnimatedMetricValue
+            <!-- THE DIGITS are the chip's anchor (the delta-chip anchor law, console.less): the value keeps
+                 its reserved right-aligned column, the ink-tight span inside it is what the ±N chip stands
+                 beside — never the column's empty reserve, never the row's frame. -->
+            <span class="con-res__value"><span class="con-res__digits">{{ displayValue(row) }}<AnimatedMetricValue
               v-if="epoch !== ''"
               :value="row.value"
               :metricKey="row.metricKey"
               :scopeKey="player.color"
               :epoch="epoch"
-              variant="resource-stock" />
+              variant="resource-stock" /></span></span>
           </span>
           <span v-if="row.production !== undefined" class="con-res__prod" :class="{'con-res__prod--negative': row.production < 0}">
             {{ row.production >= 0 ? '+' + row.production : row.production }}
@@ -209,14 +211,17 @@
             </span>
             <span class="con-tagmx__numwrap">
               <span class="con-tagmx__num">{{ t.na ? '—' : t.count }}</span>
-              <AnimatedMetricValue
-                v-if="epoch !== '' && !t.na"
-                :value="t.count"
-                :metricKey="'tag.' + t.tag"
-                :scopeKey="player.color"
-                :epoch="epoch"
-                variant="tag" />
             </span>
+            <!-- The tag's ±N chip is a BADGE on the cell's own corner (over the medallion's shoulder — the
+                 delta-chip anchor law): the count line below is too narrow on every profile to stand a
+                 chip beside the digits. -->
+            <AnimatedMetricValue
+              v-if="epoch !== '' && !t.na"
+              :value="t.count"
+              :metricKey="'tag.' + t.tag"
+              :scopeKey="player.color"
+              :epoch="epoch"
+              variant="tag" />
           </div>
         </div>
       </section>

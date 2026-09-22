@@ -2364,11 +2364,12 @@ html.con-reduced-motion {
    chip (console_tv § 5b), and a bottom-anchored chip would drop its own
    height difference below the line. */
 .con-status {
-    /* Where the chip's TOP edge sits relative to the seam: a hair ABOVE it,
-       so the chip reads as sliding out from UNDER the beam rather than
-       floating in the scene. ONE token — profiles retune the feel, never the
-       formula. */
-    --con-status-chip-drop: -.12rem;
+    /* Where the chip's TOP edge sits relative to the seam: just UNDER it, so
+       the chip reads as sliding out from under the beam rather than floating
+       in the scene — and never over the readout's own ink (at 4K the digits
+       reach the seam, and a hair above it grazed them: the delta-chip anchor
+       law, ①). ONE token — profiles retune the feel, never the formula. */
+    --con-status-chip-drop: .04rem;
 }
 .con-status .metric-feedback-host--global-parameter,
 .con-status .metric-feedback-host--misc {
@@ -25181,23 +25182,78 @@ body.con-start-ceremony {
     .con-status__player--active .con-status__dot::after { animation: none; }
 }
 
-/* ── T7: delta-chip anchors (the AnimatedMetricValue hosts are absolute —
-   each needs a positioned parent, mirroring the desktop cells). ───────── */
+/* ══ THE DELTA-CHIP ANCHOR LAW (R-23 / R-24 — one rule for every console counter) ═══════════════
+   Every counter that announces its change with the shared ±N chip (`AnimatedMetricValue` →
+   `.metric-feedback-host`) obeys ONE law, stated here and nowhere else:
+     ① OFF THE DIGITS it reports — the chip never covers the number's ink;
+     ② OFF THE NEIGHBOURS — never another row / cell, never another readout's digits;
+     ③ INSIDE THE INSTRUMENT — the rail's box, the aux column, the hand dock; the top beam keeps its
+       documented CHIP LINE under the seam (`.con-status`, above);
+     ④ REM-AUTHORED — offsets AND the chips themselves scale with the profile: the desktop's px anchors
+       («−10px, −6px») read a quarter of a rem at 4K and landed the chip on the rail row's frame (R-23),
+       and the dock's badge over «КАРТЫ n/m» (R-24) was the same anchor in a one-line bar.
+   Four POSES carry the law, and a host names only its pose (the geometry never leaves this block):
+     · DIGITS — the chip stands at the digits' upper-left, on the free side of a right-anchored number
+       (the rail's stock rows, the score cap — the column's reserve is EMPTY to the left of the ink);
+     · CORNER-TR / CORNER-TL — a BADGE on the cell's own emblem (the tag medallion, the aux icon) or on
+       the production plate's shoulder: cells whose line has no room on any profile;
+     · the LINE — beside the digits on their own line (the hand dock: `.con-handdock`, above);
+     · the CHIP LINE — hanging from the beam's seam (`.con-status`, above).
+   Probe: tests/e2e/console-delta-chip-anchor.spec.ts — the eight consumers × three profiles. ══ */
+.con-chip-pose-digits() {
+    display: flex;
+    top: -.15rem;
+    right: 100%;
+    bottom: auto;
+    left: auto;
+    margin-right: .15rem;
+}
+.con-chip-pose-corner-tr() {
+    display: flex;
+    top: .06rem;
+    right: .06rem;
+    bottom: auto;
+    left: auto;
+}
+.con-chip-pose-corner-tl() {
+    display: flex;
+    top: .08rem;
+    left: .12rem;
+    bottom: auto;
+    right: auto;
+}
 .con-res__row { position: relative; }
 .con-res__stockwrap {
     position: relative;
     display: inline-flex;
     align-items: baseline;
 }
+/* The ink-tight digits inside the value's reserved column — the stock chip's anchor. */
+.con-res__digits {
+    position: relative;
+    display: inline-block;
+    line-height: inherit;
+}
+.con-res__digits > .metric-feedback-host--resource-stock { .con-chip-pose-digits(); }
+/* The production plate has no line room (the stock digits end where it begins): a badge on its shoulder,
+   inside the row — the row's own top-right corner, clear of the plate's centred digits. */
+.con-res__row > .metric-feedback-host--resource-production { .con-chip-pose-corner-tr(); }
+/* A tag's chip: a badge on the medallion's shoulder (the count line below is a few digits wide). */
+.con-tagmx__cell { position: relative; }
+.con-tagmx__cell > .metric-feedback-host--tag { .con-chip-pose-corner-tr(); }
+/* The score cap: the digits' upper-left (the number is right-anchored, the room is toward the icon). */
+.con-score__valwrap > .metric-feedback-host--score { .con-chip-pose-digits(); }
+/* An aux cell (a card-resource total): a badge on its icon's shoulder — the cell is icon + digits, no line room. */
+.con-res-aux__cell > .metric-feedback-host--misc { .con-chip-pose-corner-tl(); }
 
-/* Score-cap chips (score.tr / score.vp): rem-authored anchor override — the
-   desktop px offsets (top/right −10px) would push the chip out of the rail
-   box in the cap's top position; anchored to the valwrap the chip lands just
-   above its own number, INSIDE the panel on every profile, so the TR and VP
-   chips can never cross the divider or each other. */
-.con-score .metric-feedback-host--score {
-    top: -.75rem;
-    right: -.1rem;
+/* THE CHIPS ARE REM-SIZED in the console (the TV profile's `zoom` on px chips is gone with this): the
+   same weight as the desktop's px sizes at 1080, and twice that at 4K — with the anchors, never apart. */
+html.console-native :is(.con-res, .con-res-aux, .con-status, .con-hand, .con-handdock) {
+    .delta-chip { border-width: .05rem; letter-spacing: .02rem; }
+    .delta-chip--resource-stock { font-size: .6rem; padding: .12rem .36rem .1rem .3rem; }
+    .delta-chip--resource-production, .delta-chip--tag { font-size: .46rem; padding: .06rem .2rem .05rem .18rem; }
+    .delta-chip--misc, .delta-chip--global-parameter { font-size: .55rem; padding: .09rem .28rem .08rem .24rem; }
+    .delta-chip--score { font-size: .6rem; padding: .11rem .34rem .09rem .3rem; }
 }
 
 /* The score-number pulse — the SAME score-num-transition keyframes the
