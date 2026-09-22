@@ -222,7 +222,8 @@ export function voteYieldsOf(resolution: IClientResolution, model: ParliamentMod
       out.push(referenceYield(effect));
       continue;
     }
-    const counted = count === undefined ? undefined : {count: count.count, cards: count.cards, units: count.units};
+    // …with its per-tag breakdown, where the count is over several tags (Venus + Jovian): the reading names each.
+    const counted = count === undefined ? undefined : {count: count.count, cards: count.cards, units: count.units, byTag: count.byTag};
     const estimate = influenceYield(effect, 'estimate', seat.influence, counted);
     out.push(estimate);
     if (effect.recipient === 'each' || effect.recipient === 'winner') {
@@ -275,7 +276,7 @@ export function enactedYieldsOf(
     // The RECORDED inputs travel as recorded (B, the counted cards, the sum
     // before the cap) — the past is never recomputed from today's tableau.
     const recorded = applied === undefined ? undefined :
-      {count: applied.count, counted: applied.counted, countedUnits: applied.countedUnits, uncapped: applied.uncapped};
+      {count: applied.count, counted: applied.counted, countedUnits: applied.countedUnits, countedByTag: applied.countedByTag, uncapped: applied.uncapped};
     if (applied !== undefined && applied.kind === 'skipped') {
       out.push({...fixedYield(effect, context, applied.amount ?? 0, applied.influence, recorded), skipped: applied.reason ?? 'Skipped'});
     } else if (applied !== undefined && applied.amount !== undefined) {
@@ -446,10 +447,18 @@ export function noRecipientCompactNoteOf(effect: InfluenceScaledEffect, tableau:
 
 /** The forecast note for a card resource with no holder («…would be forfeited»), named by resource where the copy exists. */
 export function noRecipientForecastKey(resource: CardResource): string {
-  return resource === CardResource.ANIMAL ? 'no eligible card — the animals would be forfeited' : 'no eligible card — the payout would be forfeited';
+  switch (resource) {
+  case CardResource.ANIMAL: return 'no eligible card — the animals would be forfeited';
+  case CardResource.FLOATER: return 'no eligible card — the floaters would be forfeited';
+  default: return 'no eligible card — the payout would be forfeited';
+  }
 }
 
 /** The SKIP reason for a card resource with no holder — the key the server's outcome record carries for the same case. */
 export function noRecipientReasonKey(resource: CardResource): string {
-  return resource === CardResource.ANIMAL ? 'No card can hold animals' : 'No card can hold this resource';
+  switch (resource) {
+  case CardResource.ANIMAL: return 'No card can hold animals';
+  case CardResource.FLOATER: return 'No card can hold floaters';
+  default: return 'No card can hold this resource';
+  }
 }

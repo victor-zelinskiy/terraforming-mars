@@ -40,6 +40,8 @@ import {Celestic} from '../../src/server/cards/venusNext/Celestic';
 import {Fish} from '../../src/server/cards/base/Fish';
 import {testAutomaGame} from '../automa/AutomaTestGame';
 import {getParliamentModel} from '../../src/server/parliament/ParliamentModel';
+import {familyOf} from '../../src/client/console/parliament/resolutionFamily';
+import {CENTRAL_POWER_GRID_ID} from '../../src/server/parliament/resolutions/industrialists/CentralPowerGrid';
 import {LogMessageDataType} from '../../src/common/logs/LogMessageDataType';
 import {TradeWithUnity} from '../../src/server/parliament/TradeWithUnity';
 import {AddResourcesToCards} from '../../src/server/deferredActions/AddResourcesToCards';
@@ -671,5 +673,19 @@ describe('CloudDevelopment', () => {
       expect(one, 'one unit over two holders: a pick, never a distribution').is.instanceOf(SelectCard);
       expect(cast(one, SelectCard).cards.map((c) => c.name)).deep.eq([CardName.FLOATING_HABS, CardName.DIRIGIBLES]);
     });
+  });
+});
+
+/*
+ * THE STAND: the declaration alone puts the card in the DISTRIBUTED family — the player's instrument is the
+ * layout over their holders, the two-tag count is a term of the reading (Central Power Grid, whose count is
+ * the whole instrument, stays in the tag-counted family). The «Полигон» opens the family of a resolution it
+ * has never seen from this one function; a spread that fell into the tag-counted family would be shown as a
+ * production formula.
+ */
+describe('Cloud Development — the stand', () => {
+  it('is the DISTRIBUTED family by its declaration; the tag-counted family keeps Central Power Grid', () => {
+    expect(familyOf(CLOUD_DEVELOPMENT)).eq('distributed');
+    expect(familyOf(REDUX_RESOLUTION_CATALOG.get(CENTRAL_POWER_GRID_ID)!)).eq('counted-tags');
   });
 });

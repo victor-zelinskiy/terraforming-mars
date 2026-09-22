@@ -45,10 +45,17 @@ dock, the stand) gets this ONE anatomy.
         </span>
         <span v-else class="pcard__quest-text">{{ $t(vm.parliament.quest) }}</span>
       </span>
-      <!-- The expansion stamp and the opt-in catalog code («RX01») — pressed into the page's foot. -->
+      <!-- The expansion stamp, the DEPENDENCIES beside it (a card that exists only with Venus Next wears the
+           Venus medallion the way a project face wears its compatibility — as plainly as the printed scan),
+           and the opt-in catalog code («RX01») — pressed into the page's foot. -->
       <span class="pcard-bill__stamp">
         <span v-if="showCode && vm.code !== undefined" class="pcard__code" :data-card-code="vm.code">{{ vm.code }}</span>
         <span class="pcard__exp-medallion" :class="{'pcard__exp-medallion--base': expansionIcon === undefined}" :style="expansionStyle"></span>
+        <span v-for="module in compatibilityIcons"
+              :key="module.module"
+              class="pcard__exp-compat pcard-bill__compat"
+              :data-bill-compat="module.module"
+              :style="{backgroundImage: `url(${module.url})`}"></span>
       </span>
     </div>
     <!-- The page's printed keyline runs UNDER the folded corner, the way ink does. -->
@@ -66,6 +73,7 @@ dock, the stand) gets this ONE anatomy.
 <script lang="ts">
 import {defineComponent} from 'vue';
 import {ItemType} from '@/common/cards/render/Types';
+import {GameModule} from '@/common/cards/GameModule';
 import {CardArtTier, PremiumCardArt as CardArtRef} from '@/client/cards/cardArt';
 import {PremiumCardVM} from './premiumCardViewModel';
 import {renderableNodes} from './mechanicsModel';
@@ -106,6 +114,20 @@ export default defineComponent({
     },
     expansionStyle(): Record<string, string> {
       return this.expansionIcon !== undefined ? {backgroundImage: `url(${this.expansionIcon})`} : {};
+    },
+    /** The expansions the resolution DEPENDS on (its `compatibility`, the module itself aside), each with its icon. */
+    compatibilityIcons(): Array<{module: GameModule, url: string}> {
+      const out: Array<{module: GameModule, url: string}> = [];
+      for (const module of this.vm.compatibility) {
+        if (module === this.vm.expansion) {
+          continue;
+        }
+        const url = expansionIconUrl(module);
+        if (url !== undefined) {
+          out.push({module, url});
+        }
+      }
+      return out;
     },
   },
 });

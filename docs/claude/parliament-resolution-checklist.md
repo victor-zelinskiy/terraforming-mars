@@ -32,8 +32,9 @@ worklist:** сначала пиши карту, потом читай, что о
    `text` (`name`, `effect?`, `winner?`, `passive?`, `action?`, `quest`) — английские ключи локали, `quest`.
 2. `scaled: InfluenceScaledEffect[]` — КАЖДАЯ часть, чья величина зависит от влияния / счёта / итога
    (`unit ∈ {production, stock, cardResource, cards}`; `count` — по образцу RX02/RX04, `sequel` — по RX05,
-   `cap` — «max N»). Из этой декларации клиент строит лицо, прогноз голосования, чтение стадии НАГРАДА,
-   плиту пропуска и семейство сценариев «Полигона» (`familyOf(definition)`) — автору рисовать нечего.
+   `cap` — «max N»; **`cardResource` с `spread: true`** — РАСПРЕДЕЛЕНИЕ по образцу RX06: игрок сам раскладывает
+   N единиц по своим держателям). Из этой декларации клиент строит лицо, прогноз голосования, чтение стадии
+   НАГРАДА, плиту пропуска и семейство сценариев «Полигона» (`familyOf(definition)`) — автору рисовать нечего.
 3. `winnerReward?` — часть победителя как ДАННЫЕ (`winnerReward.ts`: какой тайл, какой параметр двигает).
 4. `immediateSteps` / `winnerSteps` — шаги. КАЖДЫЙ шаг **либо мутирует, либо спрашивает** (`EnactStep`:
    вернул `undefined` — всё сделал; вернул промпт — ничего не менял, изменит ответ). В ЛЮБОЙ ветке — включая
@@ -64,7 +65,34 @@ worklist:** сначала пиши карту, потом читай, что о
 заседания (вердикт / принятие / обновление не зависят от карты) · **адрес и моушен награды по `kind`** · плиту
 пропуска с причиной · строку ожидания для других мест · запись протокола в журнале (одна группа на заседание)
 · стенд «Полигон» (семейство сценариев по декларации) · гард-тесты · фикстуры e2e через
-`parliamentFixture({resolution, stopAt: 'vote' | 'assembly' | 'effects' | 'adjourn' | 'done'})`.
+`parliamentFixture({resolution, stopAt: 'vote' | 'assembly' | 'effects' | 'adjourn' | 'done', options?})`
+· **раскладку ресурса по картам** (RX06): шаг `AddResourcesToCards` сам решает форму вопроса — выбор одной карты
+(`N = 1` или держатель один; `autoSelect: false` — показывается всегда) или РАСПРЕДЕЛЕНИЕ (структурный маркер
+`cardResourceDistributionPrompt`, сумма ровно N, `InputError` на любую другую, применение после проверки), а
+консоль показывает его тем же выбором карт в режиме раскладки (счётчики, остаток, LB/RB/RT, ноль на старте,
+неполная отправка невозможна на четырёх уровнях), летит по одному чипу на карту и пишет список в итоги.
+
+### Распределение по картам — строка семейства (RX06, 2026-09-22)
+
+```ts
+scaled: [{id: 'floaters', unit: {kind: 'cardResource', resource: CardResource.FLOATER, spread: true},
+  perInfluence: 1, count: {id: 'venusJovianTags', per: 1}, recipient: 'each'}],
+// шаг:
+return new AddResourcesToCards(player, CardResource.FLOATER, owed, {autoSelect: false, cause: SOURCE, from: {resolution: ID},
+  pickTitle: message('Add ${0} floater(s) to one of your cards', …), distributeTitle: message('Place ${0} floater(s) on your cards', …)})
+  .andThen((placed) => { ctx.report({kind: 'cardResource', resource, amount: owed, cards: placed.map(…), ...(placed.length === 1 ? {card} : {})}); return undefined; })
+  .execute();
+```
+
+- Запись — ВСЁ ТОТ ЖЕ `kind: 'cardResource'`, расширенный `cards: [{card, amount}]` (список из одной несёт и
+  `card`); нового вида исхода нет. Счёт над несколькими метками — `resolutionCountKind = {kind: 'tags', tags: [...]}`
+  с разбивкой `byTag` → `countedByTag` в записи (чтение печатает вход по каждой метке).
+- «Полигон» открывает семейство `distributed` по `spread: true` (`spreadEffectOf`); сценарии — держатели,
+  считающиеся-не-держащие, обе метки на одной карте, нет держателя (названо с величиной). Живой сценарий
+  открывает настоящую раскладку — на стенде второй реализации нет.
+- Две единицы разом (Greens Budget: животные и микробы) — два шага с двумя единицами, а не новая модель.
+- Зависимость от дополнения — `compatibility: ['venus']`, больше ничего: колода, пул в спеках
+  (`compatibleWith(game.gameOptions.expansions)`) и лицо (медальон рядом со штампом модуля) читают декларацию.
 
 ## 4. Таблица адресов (`src/common/parliament/rewardAddress.ts`) — правило добавления вида
 

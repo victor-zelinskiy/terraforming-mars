@@ -281,6 +281,8 @@
                   <div class="con-rxpg__tcard-face"><PremiumCard :name="card.name" inert lightweight /></div>
                   <!-- A TAG count can owe SEVERAL units to one card: the verdict says how many. -->
                   <span class="con-rxpg__tcard-verdict" :data-rxpg-units="card.counts ? card.units : undefined">{{ verdictOf(card) }}</span>
+                  <!-- A DISTRIBUTED payout: which of the counted-or-not cards can HOLD it (the layout's candidates). -->
+                  <span v-if="card.holds" class="con-rxpg__tcard-holds" data-rxpg-holds>{{ $t('Can hold') }}</span>
                 </div>
                 <span v-if="row.cards.length === 0" class="con-rxpg__dim">{{ $t('No cards in play') }}</span>
               </div>
@@ -306,6 +308,19 @@
         </ConsoleSourceDock>
         <div class="con-rxpg__picker-body">
           <p v-if="pickerSkip !== undefined" class="con-rxpg__skip" data-rxpg-skip>✕ {{ $t(pickerSkip) }}</p>
+          <!-- THE LAYOUT (a distributed payout over several holders): the facts the shared step asks about — the
+               holders as real faces with their stored count and the 0…N each may take. The surface itself is the
+               game's (`ConsoleTaskHost` in layout mode) and is never re-drawn here — the live scenario boots it. -->
+          <div v-else-if="pickerLayout !== undefined" class="con-rxpg__layout" data-rxpg-layout :data-rxpg-layout-amount="pickerLayout.amount">
+            <span class="con-rxpg__ckey">{{ $t('Layout') }}</span>
+            <span class="con-rxpg__dim">{{ pickerLayoutLine }}</span>
+            <div class="con-rxpg__tableau-cards">
+              <div v-for="h in pickerLayout.holders" :key="h.name" class="con-rxpg__tcard con-rxpg__tcard--counted" :data-rxpg-holder="h.name">
+                <div class="con-rxpg__tcard-face"><PremiumCard :name="h.name" inert lightweight /></div>
+                <span class="con-rxpg__tcard-verdict">{{ h.resources }} → {{ h.resources }}…{{ h.resources + pickerLayout.amount }}</span>
+              </div>
+            </div>
+          </div>
           <ConsolePlayedTargetStep v-else-if="targetModel !== undefined"
                                    :model="targetModel"
                                    :layout="targetLayout"
@@ -418,7 +433,7 @@ type PgWinner = SeatIndex | 'neutral';
  * icon vs. cards that print the tag) — or a supply resource by influence + the
  * WINNER's tile.
  */
-type PgFamily = 'influence' | 'counted' | 'counted-tags' | 'winner-tile' | 'sequel';
+type PgFamily = 'influence' | 'counted' | 'counted-tags' | 'distributed' | 'winner-tile' | 'sequel';
 /** The table's global parameters a winner tile reads (oxygen %, temperature °C, oceans placed). */
 type PgTable = {oxygen: number, temperature: number, oceans: number};
 const DEFAULT_TABLE: PgTable = {oxygen: 5, temperature: -14, oceans: 3};
@@ -478,6 +493,24 @@ const THORGATE = CardName.THORGATE; // corporation with a power tag
 const POWERGEN = CardName.POWER_GENERATION; // prelude with a power tag
 const PHOTOSYNTHESIS = CardName.ARTIFICIAL_PHOTOSYNTHESIS; // science, +2 energy PRODUCTION, no power tag
 const NOBEL = CardName.NOBEL_PRIZE; // a WILD tag — never a power tag at an enactment
+
+/*
+ * THE DISTRIBUTED FAMILY's tableaus (Cloud Development: floaters by Venus +
+ * Jovian tags + influence, LAID OUT over the player's holders) — real Venus
+ * Next / Colonies / Prelude 2 cards chosen for what the layout must tell apart
+ * from a count: a holder that prints a counted tag, a holder that prints NONE
+ * (it holds, it counts nothing), a card that COUNTS but cannot hold (a tag is
+ * not storage), one card printing BOTH tags (two units, one holder), a played
+ * EVENT (face down — its tag is not in play), a corporation, and the wild tag.
+ */
+const DIRIGIBLES = CardName.DIRIGIBLES; // Venus, holds floaters
+const JFS = CardName.JUPITER_FLOATING_STATION; // Jovian, holds floaters (a flat 1 VP — the count is what it adds)
+const ATMO = CardName.ATMO_COLLECTORS; // no tag, holds floaters
+const ATMOSCOOP = CardName.ATMOSCOOP; // Jovian + Space — counts, holds nothing
+const CLOUD_TOURISM = CardName.CLOUD_TOURISM; // Venus + Jovian on ONE card, holds floaters — two units
+const IO_MINING = CardName.IO_MINING_INDUSTRIES; // Jovian, no floaters
+const AIR_SCRAPPING = CardName.AIR_SCRAPPING_EXPEDITION; // a Venus EVENT — face down once played
+const CELESTIC = CardName.CELESTIC; // corporation: a Venus tag, holds floaters
 
 const SCENARIOS: ReadonlyArray<PgScenario> = [
   // Step 0 of the Agenda: influence 0 — the step asks nothing and names the skip.
@@ -653,12 +686,60 @@ const SCENARIOS: ReadonlyArray<PgScenario> = [
     live: 'parliament-biodome-neutral', liveNote: 'Pass to end the generation: neutral delegates carry the card, nobody places the greenery'},
   {key: 'live-recap', family: 'winner-tile', label: 'Live: the results of the generation', viewer: 1, seats: [{agenda: 1, bonus: 0}, {agenda: 4, bonus: 0}], winner: 1, context: 'applied', noRecipient: false,
     live: 'parliament-biodome-recap', liveNote: 'Generation 2: open the Parliament — the card moves into the government, your plants fly, the greenery is named'},
+  // ── THE DISTRIBUTED FAMILY (Cloud Development: N = Venus tags + Jovian tags + influence, laid out over the
+  //    player's floater holders — 0..N per card, the sum exactly N; N = 1 or ONE holder is the family's ordinary pick) ──
+  {key: 'cloud-zero', family: 'distributed', label: 'No Venus or Jovian tags and no influence', viewer: 0,
+    seats: [{agenda: 0, bonus: 0, cards: [ATMO]}, {agenda: 3, bonus: 0, cards: [DIRIGIBLES]}], winner: 1, context: 'applied', noRecipient: false},
+  {key: 'cloud-influence-only', family: 'distributed', label: 'Influence alone', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, cards: [ATMO]}, {agenda: 1, bonus: 0, cards: [DIRIGIBLES]}], winner: 1, context: 'proposal', noRecipient: false},
+  {key: 'cloud-tags-only', family: 'distributed', label: 'Tags alone', viewer: 0,
+    seats: [{agenda: 0, bonus: 0, cards: [DIRIGIBLES, JFS]}, {agenda: 1, bonus: 0, cards: []}], winner: 1, context: 'proposal', noRecipient: false},
+  // Agenda 2 = influence 1; winning takes the marker to step 3 (influence 2): 2 tags + 1 → 3 becomes 2 + 2 → 4 — over TWO holders: the layout.
+  {key: 'cloud-layout', family: 'distributed', label: 'The layout — two holders', viewer: 0,
+    seats: [{agenda: 2, bonus: 0, cards: [DIRIGIBLES, JFS]}, {agenda: 1, bonus: 0, cards: [ATMO]}], winner: 1, context: 'proposal', noRecipient: false},
+  // Atmoscoop COUNTS (a Jovian tag) and holds nothing: 2 tags + 2 = 4, all onto the ONE holder — the ordinary pick, shown and confirmed.
+  {key: 'cloud-one-holder', family: 'distributed', label: 'One holder — the ordinary pick', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, cards: [DIRIGIBLES, ATMOSCOOP]}, {agenda: 1, bonus: 0, cards: []}], winner: 1, context: 'resolving', noRecipient: false},
+  {key: 'cloud-both-tags', family: 'distributed', label: 'One card with a Venus and a Jovian tag', viewer: 0,
+    seats: [{agenda: 0, bonus: 0, cards: [CLOUD_TOURISM]}, {agenda: 1, bonus: 0, cards: []}], winner: 1, context: 'proposal', noRecipient: false},
+  // Two tags and influence 2 are OWED — and forfeited, named with their size: a Jovian tag is not storage.
+  {key: 'cloud-no-holder', family: 'distributed', label: 'No card can hold floaters — the payout is named and forfeited', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, cards: [ATMOSCOOP, IO_MINING]}, {agenda: 1, bonus: 0, cards: [DIRIGIBLES]}], winner: 1, context: 'applied', noRecipient: false},
+  {key: 'cloud-event', family: 'distributed', label: 'A played event lies face down', viewer: 0,
+    seats: [{agenda: 0, bonus: 0, cards: [AIR_SCRAPPING, DIRIGIBLES]}, {agenda: 1, bonus: 0, cards: []}], winner: 1, context: 'proposal', noRecipient: false},
+  {key: 'cloud-wild', family: 'distributed', label: 'A wild tag is neither', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, cards: [NOBEL, DIRIGIBLES]}, {agenda: 1, bonus: 0, cards: []}], winner: 1, context: 'proposal', noRecipient: false},
+  {key: 'cloud-corporation', family: 'distributed', label: 'Tags on a corporation and a project', viewer: 0,
+    seats: [{agenda: 0, bonus: 0, cards: [CELESTIC, DIRIGIBLES]}, {agenda: 1, bonus: 0, cards: []}], winner: 1, context: 'proposal', noRecipient: false},
+  {key: 'cloud-seats', family: 'distributed', label: 'Every player gets their own result', viewer: 0,
+    seats: [{agenda: 1, bonus: 0, cards: [DIRIGIBLES]}, {agenda: 8, bonus: 0, cards: [JFS, CLOUD_TOURISM, ATMO]}], winner: 0, context: 'applied', noRecipient: false},
+  // Agenda 4 = influence 2; winning takes the marker to step 5 (influence 3) BEFORE the effect: 2 + 2 → 4 becomes 2 + 3 → 5.
+  {key: 'cloud-winner-agenda', family: 'distributed', label: 'The winner advances on the Agenda first', viewer: 0,
+    seats: [{agenda: 4, bonus: 0, cards: [DIRIGIBLES, JFS]}, {agenda: 3, bonus: 0, cards: []}], winner: 0, context: 'proposal', noRecipient: false},
+  {key: 'cloud-applied', family: 'distributed', label: 'Recorded result', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, cards: [DIRIGIBLES, JFS, ATMO]}, {agenda: 0, bonus: 0, cards: [ATMO]}], winner: 1, context: 'applied', noRecipient: false},
+  {key: 'cloud-spectator', family: 'distributed', label: 'Spectator — the formula alone', viewer: SPECTATOR,
+    seats: [{agenda: 3, bonus: 0, cards: [DIRIGIBLES, JFS]}, {agenda: 1, bonus: 0, cards: []}], winner: 0, context: 'proposal', noRecipient: false},
+  {key: 'cloud-quest-0', family: 'distributed', label: 'Chairman quest 0/2', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, cards: [DIRIGIBLES]}, {agenda: 1, bonus: 0, cards: []}], winner: 0, context: 'applied', noRecipient: false, quest: {progress: [0, 0]}},
+  {key: 'cloud-quest-1', family: 'distributed', label: 'Chairman quest 1/2', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, cards: [DIRIGIBLES]}, {agenda: 1, bonus: 0, cards: []}], winner: 0, context: 'applied', noRecipient: false, quest: {progress: [1, 0]}},
+  {key: 'cloud-quest-done', family: 'distributed', label: 'Chairman quest completed', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, cards: [DIRIGIBLES]}, {agenda: 1, bonus: 0, cards: []}], winner: 0, context: 'applied', noRecipient: false, quest: {progress: [2, 1], completedBy: 0}},
+  // ── LIVE (Cloud Development): real games from the engine-generated fixtures — a VENUS game, a FOUR-party table.
+  {key: 'cloud-live-vote', family: 'distributed', label: 'Live: the vote', viewer: 0,
+    seats: [{agenda: 2, bonus: 0, cards: [DIRIGIBLES, JFS]}, {agenda: 5, bonus: 0, cards: [ATMO]}], winner: 0, context: 'proposal', noRecipient: false,
+    live: 'parliament-cloud-vote', liveNote: 'Cloud Development up for the vote on a four-party table: your floaters by Venus and Jovian tags plus influence, now and if you win'},
+  {key: 'cloud-live-layout', family: 'distributed', label: 'Live: the layout inside the sitting', viewer: 0,
+    seats: [{agenda: 2, bonus: 0, cards: [DIRIGIBLES, JFS]}, {agenda: 5, bonus: 0, cards: [ATMO]}], winner: 0, context: 'resolving', noRecipient: false,
+    live: 'parliament-cloud-enact', liveNote: 'Your layout stands inside the enactment stage: 4 floaters over two holders, nothing placed until A'},
 ];
 /** Each family's opening scenario. */
 const DEFAULT_SCENARIO_OF: Readonly<Record<PgFamily, number>> = {
   'influence': SCENARIOS.findIndex((s) => s.key === 'influence-3'),
   'counted': SCENARIOS.findIndex((s) => s.key === 'counted-below-cap'),
   'counted-tags': SCENARIOS.findIndex((s) => s.key === 'grid-below-cap'),
+  'distributed': SCENARIOS.findIndex((s) => s.key === 'cloud-layout'),
   'winner-tile': SCENARIOS.findIndex((s) => s.key === 'tile-influence-3'),
   'sequel': SCENARIOS.findIndex((s) => s.key === 'seq-4-to-6'),
 };
@@ -693,8 +774,17 @@ const SIZES = [
 /** One seat's payout at the enactment: what it is owed, at which influence (and count), and why it does not land (if it does not). */
 type SeatPayout = {amount: number, influence: number, skipped?: string, count?: ResolutionCountModel, uncapped?: number, total?: {before: number, after: number}};
 
-/** One card of a seat's synthetic tableau, with the shared predicate's verdict and what it contributed. */
-type TableauCardRow = {name: CardName, counts: boolean, reason: string, units: number};
+/** One card of a seat's synthetic tableau, with the shared predicate's verdict, what it contributed — and whether it can HOLD the payout (a distributed family's holder). */
+type TableauCardRow = {name: CardName, counts: boolean, reason: string, units: number, holds: boolean};
+
+/** A layout's plainest even spread (the stand's recorded result): round-robin over the holders, in their order. */
+function spreadOver(holders: ReadonlyArray<CardName>, amount: number): Array<{card: CardName, amount: number}> {
+  const laid = holders.map((card) => ({card, amount: 0}));
+  for (let n = 0; n < amount && laid.length > 0; n++) {
+    laid[n % laid.length].amount++;
+  }
+  return laid.filter((entry) => entry.amount > 0);
+}
 type TableauRow = {color: Color, label: string, viewer: boolean, count: number, cards: ReadonlyArray<TableauCardRow>};
 
 type SeatRow = {
@@ -815,6 +905,7 @@ export default defineComponent({
       switch (this.family) {
       case 'counted': return 'Result by cards and influence';
       case 'counted-tags': return 'Result by tags and influence';
+      case 'distributed': return 'Result by tags and influence, laid out over your holders';
       case 'sequel': return 'Result by influence, then by production';
       default: return 'Influence-scaled payout';
       }
@@ -829,17 +920,20 @@ export default defineComponent({
       return SEATS.map((i) => {
         const names = this.seats[i].cards ?? [];
         const ctx = this.countContextOf(names);
+        const holdsResource = this.spreadResource;
         const cards: Array<TableauCardRow> = names.map((name) => {
           const card = getCard(name);
           if (card === undefined) {
-            return {name, counts: false, reason: 'Unknown card', units: 0};
+            return {name, counts: false, reason: 'Unknown card', units: 0, holds: false};
           }
           const verdict = cardCountVerdict(id, card, ctx);
+          // A DISTRIBUTED payout lands on the cards that can HOLD it — a fact apart from the count.
+          const holds = holdsResource !== undefined && card.resourceType === holdsResource;
           // The units are the SHARED rule's too: one per card for a card
           // count, every printed occurrence for a tag count.
           return verdict.counts ?
-            {name, counts: true, reason: '', units: cardCountUnits(id, card, ctx)} :
-            {name, counts: false, reason: verdict.reason, units: 0};
+            {name, counts: true, reason: '', units: cardCountUnits(id, card, ctx), holds} :
+            {name, counts: false, reason: verdict.reason, units: 0, holds};
         });
         return {
           color: TEST_PLAYERS[i].color,
@@ -1102,9 +1196,21 @@ export default defineComponent({
             continue;
           }
           const common = {player: TEST_PLAYERS[i].color, step: effect.id, effect: effect.id, resource: effect.unit.resource, amount: payout.amount, influence: payout.influence};
-          out.push(payout.skipped === undefined ?
-            {...common, kind: 'cardResource', card: i === 0 ? CardName.FISH : CardName.BIRDS} :
-            {...common, kind: 'skipped', reason: payout.skipped});
+          if (payout.skipped !== undefined) {
+            out.push({...common, kind: 'skipped', reason: payout.skipped});
+            continue;
+          }
+          if (effect.unit.spread === true) {
+            // THE DISTRIBUTION's record: the whole list of recipients (the stand lays the payout out evenly), the
+            // count's inputs beside it — a list of ONE names its card too, exactly as the server records it.
+            const laid = spreadOver(this.holdersAt(effect.unit.resource, i), payout.amount);
+            out.push({
+              ...common, kind: 'cardResource', cards: laid, ...(laid.length === 1 ? {card: laid[0].card} : {}),
+              count: payout.count?.count, counted: payout.count?.cards, countedUnits: payout.count?.units, countedByTag: payout.count?.byTag,
+            });
+            continue;
+          }
+          out.push({...common, kind: 'cardResource', card: i === 0 ? CardName.FISH : CardName.BIRDS});
         }
       }
       return out;
@@ -1183,19 +1289,59 @@ export default defineComponent({
       const effect = this.pickerEffect;
       return effect !== undefined && effect.unit.kind === 'cardResource' ? String(effect.unit.resource).toLowerCase().replace(/\s+/g, '-') : 'animal';
     },
+    /** The resource a DISTRIBUTED payout lands on (the picker effect's, when it is laid out), else undefined. */
+    spreadResource(): CardResource | undefined {
+      const effect = this.pickerEffect;
+      return effect !== undefined && effect.unit.kind === 'cardResource' && effect.unit.spread === true ? effect.unit.resource : undefined;
+    },
+    /**
+     * The picker's candidates: for a DISTRIBUTED payout the viewer's OWN holders from the scenario's tableau
+     * (stored counts 0, 1, 2… so the readings differ per card); for the animal families the demo holders.
+     */
+    pickerHolders(): ReadonlyArray<{name: CardName, resources: number, per?: number}> {
+      const resource = this.spreadResource;
+      const viewer = this.viewerSeatIndex;
+      if (resource === undefined || viewer === undefined) {
+        return DEMO_HOLDERS;
+      }
+      return this.holdersAt(resource, viewer).map((name, n) => ({name, resources: n}));
+    },
+    /**
+     * THE LAYOUT the shared step would ask for — N ≥ 2 over ≥ 2 holders (below that the family's ordinary pick
+     * stands, and the stand shows exactly that). The real surface is the game's own (`ConsoleTaskHost` in its
+     * layout mode); the stand states the facts and hands over to the LIVE scenario for the surface.
+     */
+    pickerLayout(): {amount: number, holders: ReadonlyArray<{name: CardName, resources: number}>} | undefined {
+      if (this.spreadResource === undefined || this.pickerSkip !== undefined) {
+        return undefined;
+      }
+      const amount = this.pickerYieldAmount;
+      const holders = this.pickerHolders;
+      return amount >= 2 && holders.length >= 2 ? {amount, holders} : undefined;
+    },
+    pickerLayoutLine(): string {
+      const layout = this.pickerLayout;
+      return layout === undefined ? '' :
+        translateTextWithParams('Lay out ${0} over ${1} cards — 0 to ${0} on each; the live scenario opens the real layout', [String(layout.amount), String(layout.holders.length)]);
+    },
     /** The SelectCard the server would send: candidates with live counts, the amount, the per-card VP reading. */
     selectModel(): SelectCardModel {
       const amount = this.pickerYieldAmount;
-      const cards = DEMO_HOLDERS.map((h) => ({name: h.name, resources: h.resources} as CardModel));
+      const holders = this.pickerHolders;
+      const cards = holders.map((h) => ({name: h.name, resources: h.resources} as CardModel));
       const vpBox: Partial<Record<CardName, {from: number, to: number}>> = {};
-      for (const h of DEMO_HOLDERS) {
-        vpBox[h.name] = {from: Math.floor(h.resources / h.per), to: Math.floor((h.resources + amount) / h.per)};
+      for (const h of holders) {
+        if (h.per !== undefined) {
+          vpBox[h.name] = {from: Math.floor(h.resources / h.per), to: Math.floor((h.resources + amount) / h.per)};
+        }
       }
-      // The server's own ask for an animal payout (AquiferContest's title), numbered by the payout.
+      // The server's own ask (the family's pick title), numbered by the payout.
       const effect = this.pickerEffect;
       const title: Message | string = effect?.unit.kind === 'cardResource' && effect.unit.resource === CardResource.ANIMAL ?
         {message: 'Add ${0} animal(s) to one of your cards', data: [{type: LogMessageDataType.RAW_STRING, value: String(amount)}]} :
-        translateText('Add resource to this card');
+        effect?.unit.kind === 'cardResource' && effect.unit.resource === CardResource.FLOATER ?
+          {message: 'Add ${0} floater(s) to one of your cards', data: [{type: LogMessageDataType.RAW_STRING, value: String(amount)}]} :
+          translateText('Add resource to this card');
       return {
         type: 'card', title, buttonLabel: 'Add', cards, max: 1, min: 1,
         showOnlyInLearnerMode: false, selectBlueCardAction: false, showOwner: false, showSelectAll: false,
@@ -1333,6 +1479,10 @@ export default defineComponent({
     countContextOf(names: ReadonlyArray<CardName>): CardCountContext {
       return {eventTagsInPlay: names.includes(CardName.ODYSSEY)};
     },
+    /** Seat `i`'s cards that can HOLD `resource` (the layout's candidates), in tableau order. */
+    holdersAt(resource: CardResource, i: SeatIndex): Array<CardName> {
+      return (this.seats[i].cards ?? []).filter((name) => getCard(name)?.resourceType === resource);
+    },
     /** Seat `i`'s count for the selected resolution's counted term (undefined when nothing is counted). */
     countAt(i: SeatIndex): ResolutionCountModel | undefined {
       const effect = this.countEffect;
@@ -1377,9 +1527,14 @@ export default defineComponent({
         const uncapped = uncappedAmount(effect, influence, counted);
         // The skip reason is the SERVER's own for this count id — the stand
         // never invents a sentence the game would not record.
-        return amount <= 0 ?
-          {amount: 0, influence, count, uncapped, skipped: yieldCountPresentation(effect.count.id).skipReasonKey} :
-          {amount, influence, count, uncapped};
+        if (amount <= 0) {
+          return {amount: 0, influence, count, uncapped, skipped: yieldCountPresentation(effect.count.id).skipReasonKey};
+        }
+        // A DISTRIBUTED payout with no holder is OWED and forfeited — named with its size (the server's own reason).
+        if (effect.unit.kind === 'cardResource' && ((this.noRecipient && this.viewerSeatIndex === i) || this.holdersAt(effect.unit.resource, i).length === 0)) {
+          return {amount, influence, count, uncapped, skipped: noRecipientReasonKey(effect.unit.resource)};
+        }
+        return {amount, influence, count, uncapped};
       }
       const amount = scaledAmount(effect, influence);
       if (amount <= 0) {

@@ -25,7 +25,7 @@
 import '../../testing/setup';
 import * as fs from 'fs';
 import * as path from 'path';
-import {testGame} from '../../TestGame';
+import {testGame, TestGameOptions} from '../../TestGame';
 import {TestPlayer} from '../../TestPlayer';
 import {maxOutOceans, runAllActions, setOxygenLevel, setTemperature} from '../../TestingUtils';
 import {SelectCard} from '../../../src/server/inputs/SelectCard';
@@ -77,6 +77,11 @@ import {OrOptions} from '../../../src/server/inputs/OrOptions';
 import {CLIMATE_RESEARCH_ID} from '../../../src/server/parliament/resolutions/greens/ClimateResearch';
 import {BIODOME_CONTEST_ID} from '../../../src/server/parliament/resolutions/greens/BiodomeContest';
 import {DEV_ACTION_RESOLUTION_ID, DEV_PASSIVE_RESOLUTION_ID} from '../../../src/server/parliament/resolutions/ResolutionCatalog';
+import {CLOUD_DEVELOPMENT_ID} from '../../../src/server/parliament/resolutions/unity/CloudDevelopment';
+import {AndOptions} from '../../../src/server/inputs/AndOptions';
+import {Dirigibles} from '../../../src/server/cards/venusNext/Dirigibles';
+import {JovianLanterns} from '../../../src/server/cards/colonies/JovianLanterns';
+import {AtmoCollectors} from '../../../src/server/cards/colonies/AtmoCollectors';
 import {Parliament} from '../../../src/server/parliament/Parliament';
 import {answerStandingGates, endGenerationThroughParliament, passToParliament, seatResolution} from '../../parliament/parliamentArrange';
 import {ResolutionId, resolutionInstanceId} from '../../../src/common/parliament/ParliamentTypes';
@@ -414,12 +419,15 @@ type ParliamentFixtureSpec = {
   stopAt: ParliamentStop;
   /** Refuse the fixture unless the reached state is the one it promises (the name tells the reader what to expect). */
   expect?: (table: ParliamentTable) => void;
+  /** The game's options beyond the Redux table (a VENUS game for a card that exists only with Venus Next). */
+  options?: Partial<TestGameOptions>;
 };
 
-function reduxTable(name: string): ParliamentTable {
+function reduxTable(name: string, options: Partial<TestGameOptions> = {}): ParliamentTable {
   const [game, p1, p2] = testGame(2, {
     skipInitialCardSelection: false, coloniesExtension: true, turmoilReduxExpansion: true,
     startingCorporations: 1,
+    ...options,
   });
   if (!(p1.getWaitingFor() instanceof SelectInitialCards)) {
     throw new Error(`${name}: expected SelectInitialCards, got ${p1.getWaitingFor()?.constructor.name}`);
@@ -453,6 +461,10 @@ function answerEffects(game: IGame, name: string): void {
         player.process({type: 'space', spaceId: quietCellOf(game, wf).id});
       } else if (wf instanceof OrOptions) {
         player.process({type: 'or', index: 0, response: {type: 'option'}});
+      } else if (wf instanceof AndOptions && wf.cardResourceDistributionPrompt !== undefined) {
+        // The shared DISTRIBUTION (one amount per holder, the sum exactly N): the plainest complete layout — everything onto the first holder.
+        const amount = wf.cardResourceDistributionPrompt.amount;
+        player.process({type: 'and', responses: wf.options.map((_, n) => ({type: 'amount', amount: n === 0 ? amount : 0}))});
       } else {
         throw new Error(`${name}: the builder cannot answer a "${wf.type}" prompt of ${player.color}`);
       }
@@ -467,7 +479,7 @@ function answerEffects(game: IGame, name: string): void {
 }
 
 function parliamentFixture(name: string, spec: ParliamentFixtureSpec): ParliamentTable {
-  const table = reduxTable(name);
+  const table = reduxTable(name, spec.options);
   const {game, p1, p2, parliament} = table;
   const seats = [p1, p2] as const;
   const slot = spec.slot ?? 0;
@@ -834,6 +846,58 @@ parliamentFixture('parliament-powergrid-recap', powerGridTable('done', (table) =
     throw new Error(`the parliament-powergrid-recap fixture expected the per-card contributions 2+1+1, got ${JSON.stringify(red.countedUnits)}`);
   }
   expectViewerOpensGeneration(table, p2, 'parliament-powergrid-recap');
+}));
+
+// ── RX06 · CLOUD DEVELOPMENT (Unity — a VENUS game: the card exists only with Venus Next, and it is the
+//    FOURTH party's first card). The card stands in the FIRST voting slot with blue's free delegate on it;
+//    the generation-1 area is Unity / Mars First / the Industrialists, so the GREENS RULE BY THE STARTING
+//    RULE AND HOLD NO CARD — the literal rule's window (rulebook p.8 / p.11): the support step pays them as
+//    a party «not present on any card», and their plaque in the government keeps its sockets. Blue: Agenda
+//    step 2 (influence 1; winning → step 3 = 2), Dirigibles (a Venus tag, holds floaters) + Jovian Lanterns
+//    (a Jovian tag, holds floaters, 1 VP per 2 floaters — the STEPPED VP the rail reads per k):
+//    N = 2 tags + 2 = 4 floaters over TWO holders → the shared DISTRIBUTION. Red: step 5 (influence 3),
+//    Atmo Collectors alone (no tag) → N = 3 onto ONE holder → the family's ordinary pick. ──
+const cloudTable = (stopAt: ParliamentStop, expect?: (table: ParliamentTable) => void): ParliamentFixtureSpec => ({
+  options: {venusNextExtension: true},
+  resolution: CLOUD_DEVELOPMENT_ID,
+  votes: [0],
+  agenda: [2, 5],
+  stopAt,
+  arrange: ({p1, p2, parliament}) => {
+    seatResolution(parliament, 1, ARCHITECTURE_AWARD_ID);
+    seatResolution(parliament, 2, CENTRAL_POWER_GRID_ID);
+    p1.playedCards.push(new Dirigibles(), new JovianLanterns());
+    p2.playedCards.push(new AtmoCollectors());
+  },
+  expect: (table) => {
+    const {parliament, p1, p2} = table;
+    // Before the enactment the Greens rule by the starting rule and hold no card; past it, Unity rules BY THE CARD.
+    const unityRules = stopAt === 'effects' || stopAt === 'adjourn' || stopAt === 'done';
+    if (unityRules ? parliament.rulingParty() !== PartyName.UNITY :
+      (parliament.rulingParty() !== PartyName.GREENS || parliament.partiesInVotingArea().includes(PartyName.GREENS))) {
+      throw new Error(`the parliament-cloud fixture (${stopAt}) expected ${unityRules ? 'Unity ruling by its card' : 'the Greens ruling by the starting rule with no card on the table'}, got ${parliament.rulingParty()}`);
+    }
+    const blue = resolutionCount(p1, 'venusJovianTags');
+    const red = resolutionCount(p2, 'venusJovianTags');
+    if (blue.count !== 2 || red.count !== 0) {
+      throw new Error(`the parliament-cloud fixture expected blue's two tags and none for red (a corporation with a Venus/Jovian tag was dealt?), got ${blue.count} / ${red.count}`);
+    }
+    expect?.(table);
+  },
+});
+// The vote: the face with its Venus dependency, the two-tag formula, blue's reading «2 tags + 1 → 3 (+1 if you win)».
+parliamentFixture('parliament-cloud-vote', cloudTable('vote'));
+// The sitting has just convened on a four-party table: the ASSEMBLY gate stands for both seats.
+parliamentFixture('parliament-cloud-assembly', cloudTable('assembly'));
+// The political phase STOPPED INSIDE blue's LAYOUT: Cloud Development won with blue's delegate (Agenda 2 → 3 =
+// influence 2), the phase asks BLUE to lay 4 floaters over Dirigibles and Jovian Lanterns; red's
+// single-holder pick (3 floaters onto Atmo Collectors) follows.
+parliamentFixture('parliament-cloud-enact', cloudTable('effects', ({p1}) => {
+  const ask = p1.getWaitingFor();
+  const meta = ask instanceof AndOptions ? ask.cardResourceDistributionPrompt : undefined;
+  if (meta === undefined || meta.amount !== 4 || meta.cards.length !== 2) {
+    throw new Error(`the parliament-cloud-enact fixture expected blue's 4-floater layout over two holders, got ${ask?.constructor.name} ${JSON.stringify(meta)}`);
+  }
 }));
 
 // ── RX03 · BIODOME CONTEST — a 2-seat table with the card alone in the first

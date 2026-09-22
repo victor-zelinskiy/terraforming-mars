@@ -2292,7 +2292,7 @@ export type BootOptions = {
 export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'hydro-terminal' | 'hydro-terminal-surge' | 'staged-interposer' | 'staged-hazard' |
   'play-scale-card' | 'effect-forecast' | 'parliament' | 'parliament-actions' | 'parliament-recap' |
   'parliament-dense' | 'parliament-seat' | 'parliament-paid' | 'parliament-aquifer-vote' | 'parliament-aquifer-enact' |
-  'parliament-architecture-vote' | 'parliament-architecture-recap' |
+  'parliament-architecture-vote' | 'parliament-architecture-recap' | 'parliament-cloud-vote' | 'parliament-cloud-assembly' | 'parliament-cloud-enact' |
   'parliament-biodome-vote' | 'parliament-biodome-enact' | 'parliament-biodome-maxed' | 'parliament-biodome-recap' |
   'parliament-biodome-nocell' | 'parliament-biodome-neutral' |
   'parliament-powergrid-vote' | 'parliament-powergrid-recap' |

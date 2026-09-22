@@ -394,6 +394,20 @@
     gap: 4px;
 }
 .pcard-bill__stamp .pcard__code { margin-left: 0; color: rgba(201, 198, 214, 0.5); }
+/* THE DEPENDENCY medallion(s) beside the module stamp — a card that exists only with Venus Next says so as
+   plainly as the printed scan: the stamp's own size and pressed-in shading, not the project face's faint
+   8px compat dot (that one is a hint under the mechanics; this one is a condition of the card's existence). */
+.pcard-bill__stamp .pcard-bill__compat {
+    width: 13px;
+    height: 13px;
+    border-radius: 50%;
+    background-color: rgba(0, 0, 0, 0.32);
+    background-size: 78%;
+    background-position: center;
+    background-repeat: no-repeat;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.8), 0 1px 0 rgba(255, 255, 255, 0.05);
+    opacity: 0.92;
+}
 
 /* ══ THE BILL'S BACK — what the Parliament's deck and a card dealt from it show: the same page from behind
    (the fold mirrored), the band and a blank seal — no party, no title. Drawn in % so it stands at any size:

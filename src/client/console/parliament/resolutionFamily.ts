@@ -13,10 +13,13 @@ import {WinnerRewardDeclaration} from '@/common/parliament/winnerReward';
  *   influence     — a payout scaled by influence alone (onto a card, into the supply);
  *   counted       — a COUNT of cards + influence (Architecture Award);
  *   counted-tags  — a COUNT of tags + influence (Central Power Grid);
+ *   distributed   — a card-resource payout LAID OUT over the player's holders, 0..N per card
+ *                   (Cloud Development: floaters by Venus + Jovian tags + influence) — the count
+ *                   is a term of it, the SPREAD is what the player works with;
  *   winner-tile   — a supply payout by influence + the WINNER's tile (Biodome Contest);
  *   sequel        — a second half that reads what the first half left behind (Climate Research).
  */
-export const RESOLUTION_FAMILIES = ['influence', 'counted', 'counted-tags', 'winner-tile', 'sequel'] as const;
+export const RESOLUTION_FAMILIES = ['influence', 'counted', 'counted-tags', 'distributed', 'winner-tile', 'sequel'] as const;
 export type ResolutionFamily = typeof RESOLUTION_FAMILIES[number];
 
 /** The declaration facts the family reads — what the server definition and the client manifest share. */
@@ -40,11 +43,21 @@ export function pickerEffectOf(facts: ResolutionFamilyFacts): InfluenceScaledEff
   return facts.scaled?.find((effect) => effect.unit.kind === 'cardResource');
 }
 
+/** The card-resource part the player LAYS OUT over several holders (the shared distribution), if any. */
+export function spreadEffectOf(facts: ResolutionFamilyFacts): InfluenceScaledEffect | undefined {
+  return facts.scaled?.find((effect) => effect.unit.kind === 'cardResource' && effect.unit.spread === true);
+}
+
 export function familyOf(facts: ResolutionFamilyFacts): ResolutionFamily {
   // A SEQUENTIAL resolution first: its second half reads what its first half
   // leaves behind, which is a different instrument from a count.
   if (sequelEffectOf(facts) !== undefined) {
     return 'sequel';
+  }
+  // A SPREAD next: the player's instrument is the layout over their holders;
+  // whatever counts toward N is a term of the reading, not the family.
+  if (spreadEffectOf(facts) !== undefined) {
+    return 'distributed';
   }
   const count = countEffectOf(facts)?.count;
   if (count !== undefined) {

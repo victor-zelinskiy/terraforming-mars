@@ -328,6 +328,63 @@ for (const preset of PARLIAMENT_PRESETS) {
         }
       });
 
+      // ── THE DISTRIBUTION (RX06 Cloud Development — the first Unity card, a VENUS game, a FOUR-party table): the reward
+      //    variant that is a LAYOUT over several holders — the same card picker in its layout mode, inside the sitting —
+      //    and, after it, Unity in power for the first time (its tile in the government, its sockets void).
+      test('the REWARD variant: the DISTRIBUTION — the layout over two holders inside the sitting, then Unity in power', async ({page, request}) => {
+        test.setTimeout(420_000);
+        const {playerId, seats} = await bootFor(page, request, preset, mode, 'parliament-cloud-assembly', 'prompt');
+        const red = seats[1];
+        await expect(mandatoryPlate(page)).toHaveCount(1, {timeout: 30_000});
+        expect(await openMandatoryAnnounce(page)).toBe(true);
+        await expect(parliament(page)).toHaveCount(1, {timeout: 20_000});
+        await expect.poll(() => sittingStage(page), {timeout: 15_000}).toBe('verdict');
+        await waitSittingAtRest(page, 30_000);
+        await waitSittingAtRest(page, 30_000);
+        // Generation 1 of a four-party table: the Greens rule by the STARTING RULE and hold no card — their sockets are DRAWN in the government.
+        const rulerBefore = page.locator('[data-parl-ruler-slot] .con-parl__party[data-party]');
+        await expect(rulerBefore).toHaveAttribute('data-party', 'Greens');
+        await expect(rulerBefore.locator('[data-parl-support]'), 'a ruler without a card keeps its sockets').toHaveCount(1);
+        await expect(rulerBefore.locator('[data-support-void]')).toHaveCount(0);
+        await pose(page, preset, mode, '23', 'sitting-verdict-four-parties');
+        expect(await pressUntil(page, 'Enter', async () => (await parliamentWire(request, playerId)).waitingFor?.parliamentPhasePrompt === undefined, {tries: 4, settleMs: 1500}),
+          'A answers the assembly gate').toBe(true);
+        await answerGateAs(request, red, 'assembly');
+        await expect(page.locator('.con-parl [data-embed-slot="parliament-stage"] .con-task'), 'the layout stands inside the sitting').toHaveCount(1, {timeout: 40_000});
+        await waitSittingAtRest(page, 30_000);
+        await expect(page.locator('.con-parl [data-embed-slot="parliament-stage"] [data-spread-blocked]'), 'opens with everything still to place').toHaveCount(1);
+        await pose(page, preset, mode, '24', 'sitting-reward-layout');
+        // RB, RB on the focused holder; the d-pad to the other; RT pours the remainder — the layout is complete.
+        await press(page, 'KeyE', 500);
+        await press(page, 'KeyE', 500);
+        await press(page, 'ArrowRight', 500);
+        await press(page, 'Period', 700);
+        await expect(page.locator('.con-parl [data-embed-slot="parliament-stage"] [data-spread-ready]')).toHaveCount(1);
+        await pose(page, preset, mode, '24b', 'sitting-reward-layout-ready');
+        await press(page, 'Enter', 1500);
+        await expect.poll(async () => {
+          const wire = await parliamentWire(request, playerId);
+          return (wire.game.parliament?.phase?.outcomes ?? []).some((o) => o.player === wire.thisPlayer.color && o.kind === 'cardResource' && Array.isArray(o.cards));
+        }, {timeout: 30_000}).toBe(true);
+        await answerAsksAs(request, red);
+        await expect.poll(() => sittingStage(page), {timeout: 60_000}).toBe('results');
+        await waitSittingAtRest(page, 30_000);
+        await pose(page, preset, mode, '24c', 'sitting-results-distribution');
+        // UNITY IN POWER: close the sitting, open the Parliament — the Unity tile in the government, its sockets void.
+        await answerGateAs(request, red, 'adjourn');
+        expect(await pressUntil(page, 'Enter', async () => (await parliamentWire(request, playerId)).waitingFor?.parliamentPhasePrompt === undefined, {tries: 5, settleMs: 1500}),
+          'A answers the adjourn gate').toBe(true);
+        await settle(page, {timeoutMs: 30_000});
+        await openParliament(page);
+        const ruler = page.locator('[data-parl-ruler-slot] .con-parl__party[data-party]');
+        await expect(ruler).toHaveAttribute('data-party', 'Unity');
+        await expect(ruler.locator('[data-support-void]'), 'a ruler by an enacted card shows no sockets').toHaveCount(1);
+        await pose(page, preset, mode, '24d', 'overview-unity-rules');
+        if (mode === 'reduced') {
+          await expectReducedQuiet(page, `${preset.id} distribution`);
+        }
+      });
+
       test('the OVERVIEW: the three zones, the party inspect, the vote mode and the resolution inspect, the journal group, the Info strip', async ({page, request}) => {
         test.setTimeout(420_000);
         if (mode === 'reduced') {

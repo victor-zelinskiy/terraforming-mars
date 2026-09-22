@@ -152,4 +152,11 @@
     &__picker { display: flex; align-items: flex-start; gap: 1.2rem; }
     &__picker-body { flex: 1 1 auto; min-width: 0; min-height: 12rem; }
     &__skip { margin: .4rem 0 0; font-size: .82rem; color: fade(@con-amber, 92%); }
+    /* THE LAYOUT (a distributed payout): the holders as faces with «stored → stored…stored+N», under one line of facts. */
+    &__layout { display: flex; flex-direction: column; align-items: flex-start; gap: .4rem; margin-top: .3rem; }
+    &__tcard-holds {
+        font-size: .5rem; line-height: 1.1; letter-spacing: .08em; text-transform: uppercase;
+        padding: .08rem .3rem; border-radius: .3rem;
+        color: fade(@con-cyan, 96%); box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 55%);
+    }
 }

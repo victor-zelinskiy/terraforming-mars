@@ -20,6 +20,8 @@ export type ParliamentWire = {
   waitingFor?: {
     type: string; promptId?: number; cards?: Array<{name: string}>; options?: Array<{title: string | {message: string}}>;
     parliamentPhasePrompt?: {stage: string; awaiting: Array<string>};
+    /** The shared distribution's marker (an `and` of one amount per holder): N units over the listed holders. */
+    cardResourceDistributionPrompt?: {amount: number; cardResource: string; cards: Array<{name: string}>};
   };
   game: {
     phase: string; generation: number;
@@ -102,10 +104,20 @@ export async function answerAsksAs(request: APIRequestContext, seat: string, rou
   for (let i = 0; i < rounds; i++) {
     const wire = await parliamentWire(request, seat);
     const wf = wire.waitingFor;
-    if (wf === undefined || wf.parliamentPhasePrompt !== undefined || wf.type !== 'card') {
+    if (wf === undefined || wf.parliamentPhasePrompt !== undefined) {
       return;
     }
-    await sendPlayerInput(request, seat, {type: 'card', cards: (wf.cards ?? []).map((c) => c.name).slice(0, 1), promptId: wf.promptId} as never);
+    if (wf.type === 'card') {
+      await sendPlayerInput(request, seat, {type: 'card', cards: (wf.cards ?? []).map((c) => c.name).slice(0, 1), promptId: wf.promptId} as never);
+    } else if (wf.type === 'and' && wf.cardResourceDistributionPrompt !== undefined) {
+      // The shared DISTRIBUTION (an `and` of one amount per holder): the plainest COMPLETE layout —
+      // everything onto the first holder. The server refuses any other sum, so a partial answer is no answer.
+      const amount = wf.cardResourceDistributionPrompt.amount;
+      const responses = (wf.options ?? []).map((_, n) => ({type: 'amount', amount: n === 0 ? amount : 0}));
+      await sendPlayerInput(request, seat, {type: 'and', responses, promptId: wf.promptId} as never);
+    } else {
+      return;
+    }
   }
 }
 

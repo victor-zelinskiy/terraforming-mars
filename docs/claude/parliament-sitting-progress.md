@@ -2197,3 +2197,84 @@ assembly/effects), — значит либо сервер не считает н
 
 ### Прогоны (2026-09-22)
 См. таблицу в отчёте итерации ниже (заполняется по мере прогонов).
+
+## Cloud Development — RX06 (2026-09-22, промт `docs/claude/prompts/resolution-rx06-cloud-development.md`)
+
+### Режим
+Экономный: юниты + пробники §4 промта. Коммит на блок (A сервер и модель · B встроенный шаг · C Союз и первое
+поколение · D арт, лицо, локаль, пробники), каждый зелёный по юнитам, `npm run lint`, `npm run build:test`, не пушить.
+Документ карты — `docs/TURMOIL_REDUX_CLOUD_DEVELOPMENT.md`.
+
+### Блок A — сервер, общий механизм распределения, модель исхода (`ddd2c635b7`)
+- Счётный член над ДВУМЯ метками: `resolutionCountKind('venusJovianTags') = {kind: 'tags', tags: [VENUS, JOVIAN]}`,
+  разбивка `byTag`, канонический счётчик `player.tags.count(tag, 'raw')` на метку.
+- `AddResourcesToCards` поднят до контракта (ОДИН механизм для резолюций и трёх карт проектов): опции
+  `{autoSelect, cause, from, pickTitle, distributeTitle}`, форма вопроса решается шагом (`N ≥ 2` и держателей `≥ 2`
+  → `AndOptions` из `SelectAmount` с маркером `cardResourceDistributionPrompt {amount, cardResource, cards,
+  vpByAmount}`; иначе `AddResourcesToCard` с `autoSelect`), проверка суммы ДО применения (`InputError`), колбэк
+  со списком посадок. `distributionVictoryPoints` — серверная таблица ПО для каждой карты и каждого k.
+- Исход `cardResource` расширен `cards` (+ `countedByTag`); `rewardAddressOf` отдаёт список. Нового вида нет.
+- `CloudDevelopment.ts` (Unity, `compatibility: ['venus']`, `copies: 1`), `compatibleWith` экспортирован —
+  спеки пула переведены на фильтр. Арт `RX06.webp`, `PremiumCountGlyph` умеет несколько медальонов (`.pcglyph--tags`).
+- 14 ключей `ru/parliament.json`.
+
+### Блок B — встроенный шаг раскладки: одно шасси, два режима (`b6e7bcc162`)
+- `cardResourceDistribution.ts` (чистая модель) + `cardResourceDistributionResponse` (нечего отправлять при сумме ≠ N).
+- `ConsoleTaskHost` режим `distribute`: счётчик на карте (`data-spread`, полоса `+k`), статус-строка
+  (`data-spread-blocked` / `-ready` / `-vp`), бейджи «Разложено k/N» · «Осталось», LB/RB/RT/A семантикой; A при
+  остатке — `spreadCommit` возвращается без отправки; старт с нуля; раскладка переживает «свернуть» через хранилище
+  пиков. Маршрут по маркеру (`taskFor` → `cardSelect/distribute`), стадия «Раскладка» в заседании
+  (`SittingRewardStep 'distribution'`, `SITTING_HOSTED_STEPS`).
+- `consoleResolutionPayout` переписан на список целей: по одному чипу на карту с иконки резолюции, посадка тикает
+  свою карту (`pickPayoutLanding.landed[card]`). Итоги печатают список карт; чтение — вход по каждой метке.
+- 6 ключей `ru/console.json`.
+
+### Блок C — Союз и первое поколение: правитель без карты (`9047f0d39c`)
+- Рулбук (стр. 8 сетап, стр. 9/11 шаг поддержки «not present on any card in the Voting Area or Enacted slot»,
+  стр. 17 FAQ): напечатанный слот — не карта → сервер прав, не менялся.
+- Клиент: `ConsolePartyPlaque` `rulesByCard` (гнёзда void только у правителя ПО ПРИНЯТОЙ КАРТЕ), хост читает
+  `view.enacted`, во время смены правительства — `rulerBeforeByCard` из холдов (посев в `parliamentSittingSeed`),
+  `beatSupport` отдаёт сцене правящую партию только когда та правит по карте.
+- Спеки: `ParliamentPhase` § THE STARTING-RULE RULER (две формы), `ParliamentRenewal` сценарий 8 (четыре партии,
+  отказ по площади + перетасовка посреди раздачи, реплей), `supportScene` (правитель без карты), `ConsolePartyPlaque`.
+
+### Блок D — стенд, галерея, фикстуры, e2e, документы
+- `resolutionFamily.ts`: семейство `distributed` (`spreadEffectOf`), «Полигон» — 19 сценариев на настоящих картах
+  + два живых; секция пикера показывает факты раскладки, поверхность — только живой сценарий.
+- Фикстуры `parliament-cloud-vote` / `-assembly` / `-enact` (Venus-партия, `options` у `parliamentFixture`,
+  область Союз / Марс / Индустриалисты — Зелёные правят без карты); генератор и `answerAsksAs` отвечают на
+  помеченный `and`.
+- e2e `console-parliament-cloud.spec.ts` (три профиля) и галерея § the DISTRIBUTION (три профиля × три режима).
+- `noRecipientReasonKey/ForecastKey` знают аэростаты (паритет с серверной причиной).
+
+### Прогоны (2026-09-22)
+
+| Что | Результат |
+| --- | --- |
+| mocha: `CloudDevelopment` (29) · `ResolutionContract` · `ParliamentPhase` · `ParliamentRenewal` (8 сценариев) · `supportScene` · `cardResourceDistribution` · `e2eFixturesLoad` · `e2eDriverGuard` | зелёные |
+| mochapack: `consoleTaskRouter` · `taskResponses` · `consoleResolutionPayout` · `ConsolePartyPlaque` | зелёные |
+| `npm run build:test` · eslint · `vue-tsc` · `lint:i18n` | зелёные (блоки A–C; D — см. финальный прогон) |
+| e2e `console-parliament-cloud` · standard-1080 · лицо + обзор + голосование | ✓ 3.7 мин (после двух правок продукта: медальон зависимости на «Грамоте», `byTag` в чтениях) |
+| e2e `console-parliament-cloud` · standard-1080 · раскладка → коммит → запись → Союз у власти | ✓ 7.3 мин: нулевой старт, 0 запросов на A при остатке, LB/RB/RT, ДВА чипа «+2», капсулы 2/2 на экране раскладки, `cards: [Dirigibles:2, Jovian Lanterns:2]`, Зелёные `absent`, лента одной высоты, тело без пустых кадров |
+| галерея § the REWARD variant: the DISTRIBUTION · standard-1080 / tv-4k / deck-handheld (режим standard) | ✓ 3/3, 2.3 мин: вердикт на четырёх партиях (гнёзда стартовых Зелёных видны), раскладка (позы 24 / 24b), итоги (24c), Союз у власти (24d) |
+| e2e `console-parliament-cloud` · tv-4k · раскладка (повтор на тихой машине) | ✓ 1.1 мин |
+| e2e `console-parliament-cloud` · deck-handheld · лицо | ✓ |
+| e2e `console-parliament-cloud` · tv-4k · лицо (повтор на тихой машине) | ✓ 1.3 мин |
+| e2e `console-parliament-cloud` · deck-handheld · раскладка (пробник читает тики капсул в своих семплах) | ✓ 53 с |
+
+Итого: `console-parliament-cloud` — 6/6 на трёх профилях (1080 и tv-4k раскладка — прогон с прежним опросом,
+deck — с пробником по семплам), галерея § the DISTRIBUTION — 3/3.
+
+Замечания к пробникам. (1) Первый прогон упал по «worker server never answered in 90 s» (пустой `worker-0.log`) при
+параллельно идущих `webpack --watch` чужой сессии и `vue-tsc`; повтор на тихой машине прошёл. (2) Раскладка на
+deck-handheld дважды падала на «капсулы тикают на экране раскладки» с `[]` — шаг уже ушёл: на маленькой сцене
+Deck полёт двух чипов короче 1.2-секундного `settle` нажатия, и опрос DOM снаружи приходил к пустому слоту, хотя
+чипы летели и капсулы тикали. Опрос заменён чтением ПРОБНИКА (MutationObserver + setInterval, семплы берутся,
+пока слот стоит в сцене) — закон «сравнение настолько же осевшее, как его наименее осевшая сторона» из
+`tests.md`, теперь и для «событие короче окна опроса». На tv-4k тот же красный под нагрузкой ушёл на тихой машине.
+В спек добавлен `[cloud diag]` (чипы, слоты, `__conReady`). (3) Ошибка спеки: Jupiter Floating Station — плоское
+1 ПО, не «1 за 2 аэростата»; ступенчатые ПО в фикстуре несёт Jovian Lanterns. (4) Две правки продукта по
+пробникам: лицо «Грамоты» не рисовало медальоны совместимости (отдельная ветка шаблона — `.pcard-bill__compat`),
+чтения `voteYieldsOf` / `enactedYieldsOf` не прокидывали `byTag` / `countedByTag` (вход по меткам не печатался).
+(5) Замечено по кадру Deck (не правилось): на шаге НАГРАДА освободившийся слот победителя в области подписан
+«В колоде нет резолюции другой партии» — текст пустого слота после обновления показывается и до него.
