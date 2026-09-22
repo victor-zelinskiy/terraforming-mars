@@ -32,6 +32,10 @@ const SOURCE_KEYS: Record<string, string> = {
   // Turmoil Redux: a party's action asks (the Reds' recycle) — the header
   // names the party through `partyName`.
   party: 'Party action',
+  // Turmoil Redux: an ENACTED RESOLUTION asks (Colonial Affairs repeating Pluto's
+  // «draw 1, then discard 1») — the header leads with the colony that demands it
+  // (`colonyRepeat`), the resolution stands as the hero of the sitting's stage.
+  resolution: 'Resolution',
   system: 'Game rule',
 };
 
@@ -60,7 +64,7 @@ export type DiscardIntent = {
   card?: CardName,
   /** What the discard buys back for the CURRENT selection (undefined = pure loss). */
   exchange?: DiscardExchange,
-  /** Pluto's per-cube position, when the discard closes a colony payout. */
+  /** Pluto's per-cube position, when the discard closes a colony payout — or a resolution's REPEAT of it (`colonyRepeat`). */
   sequence?: {index: number, total: number},
   /** The colony demanding it (colony-bonus discards) — the ask plate leads
    *  with its planet mini, so the source is a PLACE, not just the word
@@ -136,6 +140,10 @@ export function discardPickedTags(meta: DiscardPromptMeta, pickedTags: ReadonlyA
  */
 export function deriveDiscardIntent(meta: DiscardPromptMeta, picked: number, pickedTags = 0): DiscardIntent {
   const source = meta.source;
+  // A colony payout's own discard (`colonyBonus` — the colony workspace's step) and a resolution's
+  // REPEAT of that bonus (`colonyRepeat` — the sitting's step) read the same sequence and the same
+  // planet; only the routing differs, and that is the marker's whole point.
+  const colony = meta.colonyBonus ?? meta.colonyRepeat;
   return {
     min: meta.min,
     max: meta.max,
@@ -144,10 +152,10 @@ export function deriveDiscardIntent(meta: DiscardPromptMeta, picked: number, pic
     sourceKey: SOURCE_KEYS[source?.kind ?? 'system'] ?? SOURCE_KEYS.system,
     card: source?.card,
     exchange: discardExchangeFor(meta, picked, pickedTags),
-    sequence: meta.colonyBonus === undefined ?
+    sequence: colony === undefined ?
       undefined :
-      {index: meta.colonyBonus.index, total: meta.colonyBonus.total},
-    colonyName: meta.colonyBonus?.colonyName,
+      {index: colony.index, total: colony.total},
+    colonyName: colony?.colonyName,
     partyName: source?.kind === 'party' ? source.party : undefined,
     picked,
     single: meta.min === 1 && meta.max === 1,

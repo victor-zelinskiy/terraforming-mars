@@ -90,7 +90,7 @@ export function parkParliamentForEnact(root: HTMLElement | null | undefined): vo
  * government rect, measured before the teleport) into the hero slot, the
  * payout surface rises. Call after the layout change (the teleport happened).
  */
-export function playParliamentEnactEnter(args: {root: HTMLElement, cardFrom: Rect | undefined}): void {
+export function playParliamentEnactEnter(args: {root: HTMLElement, cardFrom: Rect | undefined, onDone?: () => void}): void {
   const {root, cardFrom} = args;
   const receders = recedersOf(root);
   const carry = carryOf(root);
@@ -99,10 +99,11 @@ export function playParliamentEnactEnter(args: {root: HTMLElement, cardFrom: Rec
     for (const el of receders) {
       descendParkLayer(el);
     }
+    args.onDone?.();
     return;
   }
   const s = (ms: number) => motionMs(ms) / 1000;
-  guardedDescend(root, motionMs(CARRY_MS + SURFACE_MS), () => undefined, (finish) => {
+  guardedDescend(root, motionMs(CARRY_MS + SURFACE_MS), () => args.onDone?.(), (finish) => {
     const tl = gsap.timeline({onComplete: finish});
     for (const el of receders) {
       descendRecede(tl, el, undefined, s(RECEDE_MS), 0);
@@ -126,16 +127,17 @@ export function playParliamentEnactEnter(args: {root: HTMLElement, cardFrom: Rec
  * (its hero rect, measured before the teleport returned it) and the overview
  * breathes back. Call after the layout change.
  */
-export function playParliamentEnactFold(args: {root: HTMLElement, cardFrom: Rect | undefined}): void {
+export function playParliamentEnactFold(args: {root: HTMLElement, cardFrom: Rect | undefined, onDone?: () => void}): void {
   const {root, cardFrom} = args;
   const receders = recedersOf(root);
   const carry = carryOf(root);
   if (consoleReducedMotionActive()) {
     gsap.set(receders, {clearProps: 'transform,opacity,visibility'});
+    args.onDone?.();
     return;
   }
   const s = (ms: number) => motionMs(ms) / 1000;
-  guardedDescend(root, motionMs(FOLD_MS), () => undefined, (finish) => {
+  guardedDescend(root, motionMs(FOLD_MS), () => args.onDone?.(), (finish) => {
     const tl = gsap.timeline({onComplete: finish});
     if (carry !== null && cardFrom !== undefined) {
       const flip = descendFlipFrom(carry, cardFrom);

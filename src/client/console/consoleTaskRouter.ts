@@ -359,6 +359,10 @@ const RESOLUTION_STEP_STAGES: Partial<Record<TaskKind, string>> = {
   cardSelect: 'Choice',
   choice: 'Choice',
   externalDraw: 'Intake',
+  // A DISCARD from hand the resolution demands (Pluto's «draw 1, then discard 1» — Colonial Affairs): the
+  // HAND is the hosted step, in its discard mode, under one word — unlike a card's forced discard (above),
+  // which is nobody's step. The same key `consoleSittingFlow.sittingStageKey` prints for the step.
+  handSelect: 'Discarding',
   space: 'Placement',
 };
 

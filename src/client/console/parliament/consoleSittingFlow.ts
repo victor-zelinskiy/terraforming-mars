@@ -48,6 +48,7 @@ import type {WorkspacePhase} from '@/client/console/consoleWorkspaceFlow';
 import type {MandatoryFlowBeat} from '@/client/console/consoleMandatoryGate';
 import {promptSourceResolution} from '@/client/console/promptSource';
 import {externalDrawTakeOf} from '@/client/console/externalDraw/consoleExternalDraw';
+import {isDiscardPrompt} from '@/client/console/cardDiscard/discardIntent';
 
 /**
  * The sitting's STAGES, in the order the server produces their facts:
@@ -66,17 +67,37 @@ export type SittingStage = 'verdict' | 'enact' | 'reward' | 'renewal' | 'results
 /**
  * What the REWARD stage is doing for THIS seat right now.
  *  · `reading`   — before the effects: the reading of what is coming;
- *  · `choice` / `distribution` / `intake` / `placement` — the viewer's own ask, hosted in the stage's zone
- *                  (or behind «К полю»): a pick of ONE recipient, a LAYOUT of a payout over several
- *                  holders (the shared distribution step's marker), a take, a tile;
+ *  · `choice` / `distribution` / `intake` / `discard` / `placement` — the viewer's own ask, hosted in the
+ *                  stage's zone (or behind «К полю»): a pick of ONE recipient, a LAYOUT of a payout over
+ *                  several holders (the shared distribution step's marker), a take, a DISCARD from hand
+ *                  (the second half of Pluto's «draw 1, then discard 1» — the hand as a hosted step), a tile;
  *  · `waiting`   — the effects ask ANOTHER seat (the honest wait line);
  *  · `received`  — the viewer's record is in: paid, or skipped with its reason (the plate names it);
  *  · `gate`      — the viewer answered the step's gate; the pose lists who is still awaited.
  */
-export type SittingRewardStep = 'reading' | 'choice' | 'distribution' | 'intake' | 'placement' | 'waiting' | 'received' | 'gate';
+export type SittingRewardStep = 'reading' | 'choice' | 'distribution' | 'intake' | 'discard' | 'placement' | 'waiting' | 'received' | 'gate';
 
 /** The steps in which the seat WORKS in the stage's zone — a hosted surface stands there (the field). */
-export const SITTING_HOSTED_STEPS: ReadonlySet<SittingRewardStep> = new Set<SittingRewardStep>(['choice', 'distribution', 'intake']);
+export const SITTING_HOSTED_STEPS: ReadonlySet<SittingRewardStep> = new Set<SittingRewardStep>(['choice', 'distribution', 'intake', 'discard']);
+
+/**
+ * THE FIELD AND THE STEP'S DOOR — two facts of the reward stage, derived once for the section, the shell
+ * and the specs (Colonial Affairs, block C):
+ *  · `pose` — the stage takes the FIELD (the overview recedes, the enacted card is carried onto the hero
+ *    slot, the zone opens): for a HOSTED STEP once the wave that arrived with it has flown, and for the
+ *    whole reward page when the resolution reads a LEDGER (the colony bonuses — its rows are the wave's
+ *    sources, so the body must stand BEFORE the wave, not after it);
+ *  · `stepOpen` — a hosted step may teleport INTO the zone: the ask stands and nothing is owed to the
+ *    ledger or in the air (one press, several effects — the surfaces go in turn). With a ledger body the
+ *    two differ for the length of the wave: the field stands, the door is still shut.
+ */
+export function sittingFieldOf(stage: SittingStage, rewardStep: SittingRewardStep, rewardPending: boolean, ledger: boolean): {pose: boolean, stepOpen: boolean} {
+  if (stage !== 'reward') {
+    return {pose: false, stepOpen: false};
+  }
+  const stepOpen = SITTING_HOSTED_STEPS.has(rewardStep) && !rewardPending;
+  return {pose: stepOpen || ledger, stepOpen};
+}
 
 /**
  * WHERE THE SITTING STANDS, read off the server. `undefined` outside a live
@@ -102,7 +123,7 @@ export type SittingPosition = {
 };
 
 /** The viewer's own resolution-sourced ask, by its structural markers — never a title. */
-export function sittingAskOf(wf: PlayerInputModel | undefined): 'choice' | 'distribution' | 'intake' | 'placement' | undefined {
+export function sittingAskOf(wf: PlayerInputModel | undefined): 'choice' | 'distribution' | 'intake' | 'discard' | 'placement' | undefined {
   if (wf === undefined || promptSourceResolution(wf) === undefined) {
     return undefined;
   }
@@ -111,6 +132,11 @@ export function sittingAskOf(wf: PlayerInputModel | undefined): 'choice' | 'dist
   }
   if (wf.type === 'space') {
     return 'placement';
+  }
+  // The shared discard's marker (`DiscardCards` → `discardPrompt`): a card LEAVES the hand — the hand
+  // itself is the hosted step (its discard mode), never the recipient picker.
+  if (isDiscardPrompt(wf)) {
+    return 'discard';
   }
   // The shared distribution step's marker: a LAYOUT over several holders, not a pick of one recipient.
   if (wf.cardResourceDistributionPrompt !== undefined) {
@@ -327,6 +353,7 @@ export function sittingStageKey(stage: SittingStage, rewardStep: SittingRewardSt
     case 'choice': return 'Choice';
     case 'distribution': return 'Distribution';
     case 'intake': return 'Intake';
+    case 'discard': return 'Discarding';
     case 'placement': return 'Placement';
     default: return 'Reward';
     }

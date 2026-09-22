@@ -107,7 +107,8 @@
             <ConsoleParliamentSitting v-else-if="stageKind === 'sitting' && sitting !== undefined" ref="sitting"
                                       :position="sitting" :stage="sittingStage" :summary="model?.phase?.summary"
                                       :view="view" :model="model" :playerView="pv" :viewerColor="viewerColor"
-                                      :field="flow.sittingField" :resultsHidden="resultsHidden" mode="live" />
+                                      :field="flow.sittingField" :stepOpen="sittingStepOpen" :ledger="sittingLedger"
+                                      :resultsHidden="resultsHidden" mode="live" />
             <div class="con-parl__embed" data-embed-slot="parliament"></div>
           </div>
         </transition>
@@ -165,8 +166,10 @@ import {
 import {
   sittingPageAuto, sittingPositionOf, SittingPosition, sittingPrimaryKey, sittingRewardSettled, SittingStage, sittingStageAt, sittingStageKey,
   sittingBodyOf, SittingBody, sittingStartPage, sittingWorkspacePhase, verdictStandsAt,
-  parliamentSittingLive, SITTING_HOSTED_STEPS,
+  parliamentSittingLive, SITTING_HOSTED_STEPS, sittingFieldOf,
 } from '@/client/console/parliament/consoleSittingFlow';
+import {colonyLedgerOf, ColonyLedgerReading} from '@/client/console/parliament/colonyLedgerModel';
+import {getResolution} from '@/client/parliament/ClientParliamentManifest';
 import {parliamentHolds, resetParliamentHolds} from '@/client/console/parliament/parliamentDisplayHolds';
 import {
   armChairmanQuestFlow, chairmanQuestFlow, chairmanQuestGateOf, chairmanQuestStageKey, releaseChairmanQuestHolds, resetChairmanQuestFlow,
@@ -188,7 +191,8 @@ import {
 } from '@/client/console/parliament/parliamentNavigation';
 import {BenchSource, benchSourceOf, benchWarnOf} from '@/client/console/parliament/parliamentVoteView';
 import {
-  setWorkspaceFramePhase, setWorkspaceFrameStage, setWorkspaceFrameSubject, workspaceFrameAnchor, workspaceFrameHasNested, workspaceFrameRenders,
+  setWorkspaceFramePhase, setWorkspaceFrameSlot, setWorkspaceFrameStage, setWorkspaceFrameSubject, workspaceFrameAnchor,
+  workspaceFrameRenders, workspaceHostYieldsScene,
 } from '@/client/console/consoleWorkspaceStack';
 import {translateText} from '@/client/directives/i18n';
 import {promptIdentityKey} from '@/client/console/turnIntents';
@@ -201,6 +205,13 @@ import {
 
 /** How long a submit may stay unanswered before the stage gives the player back their hands (a net over a silent server — the tree's one wall-clock timer). */
 const SUBMIT_SAFETY_MS = 6000;
+
+/**
+ * THE SITTING'S STAGE ZONE — the one selector every hosted step of the sitting is teleported into (the shell
+ * names it for the picker / the take; the Parliament FRAME publishes it as its slot for a step that is a
+ * workspace frame of its own — the hand in its discard mode).
+ */
+const STAGE_ZONE_SELECTOR = '.con-parl [data-embed-slot="parliament-stage"]';
 
 export default defineComponent({
   name: 'ConsoleParliamentSection',
@@ -237,6 +248,12 @@ export default defineComponent({
       stageFromRect: undefined as Rect | undefined,
       /** The stage is unfolding — a walk queued meanwhile starts on the unfold's end. */
       stageEntering: false,
+      /**
+       * The reward stage is TAKING THE FIELD (the overview recedes, the enacted card FLIPs onto its hero
+       * slot): a wave that would leave the ledger's rows waits for the card to land — the cause before the
+       * effect. Cleared by the entrance's own end, which re-queues the walk.
+       */
+      fieldSettling: false,
       /** THE WALK is running (the director turning the sitting's pages) — a step that arrives meanwhile is picked up by its loop. */
       walking: false,
       /** A walk is queued for the next probe tick (idempotent). */
@@ -272,9 +289,13 @@ export default defineComponent({
     bridge(): ParliamentPromptBridge {
       return parliamentPromptBridge(this.pv.waitingFor);
     },
-    /** A nested frame (the action workspace) took the scene — this screen yields and waits. */
+    /**
+     * A nested frame (the action workspace) took the SCENE — this screen yields and waits. A frame this
+     * one hosts as an EMBEDDED step (the hand in its discard mode, inside the sitting's zone — the
+     * registry's `frameSteps`) is not a hand-over: the screen stays, the step stands inside it.
+     */
     sceneHandedOver(): boolean {
-      return workspaceFrameHasNested('parliament');
+      return workspaceHostYieldsScene('parliament');
     },
     stageUp(): boolean {
       return parliamentStageUp();
@@ -342,15 +363,36 @@ export default defineComponent({
       return p === undefined ? 'verdict' : sittingStageAt(p, parliamentFlow.sittingPage);
     },
     /**
-     * The reward stage HOLDS THE FIELD while a hosted step (the pick, the take)
-     * stands in its zone — but not before the reward that arrived WITH the ask
-     * has played: the payout's wave first, then the take deals (one press,
-     * several effects — the surfaces go in turn).
+     * THE COLONY LEDGER the enacted resolution pays this seat (Colonial Affairs) — undefined for every
+     * other resolution and for a seat outside the parliament. Read LIVE: the rows' states follow the
+     * viewer's own records as they arrive (`colonyLedgerOf`, the one reading every surface shares).
      */
-    sittingField(): boolean {
+    sittingLedger(): ColonyLedgerReading | undefined {
+      const id = this.model?.phase?.summary?.enacted.resolution;
+      const resolution = id === undefined ? undefined : getResolution(id);
+      return colonyLedgerOf(resolution, this.model, this.viewerColor, {enacted: true, live: true});
+    },
+    /**
+     * THE FIELD AND THE STEP'S DOOR (`sittingFieldOf`): the reward stage HOLDS THE FIELD while a hosted
+     * step (the pick, the take, the discard) stands in its zone — but not before the reward that arrived
+     * WITH the ask has played: the payout's wave first, then the take deals (one press, several effects —
+     * the surfaces go in turn) — and for the whole reward page when the resolution reads a LEDGER, whose
+     * rows are the wave's own sources.
+     */
+    sittingFieldState(): {pose: boolean, stepOpen: boolean} {
       const p = this.sitting;
-      return this.sittingUp && p !== undefined && this.sittingStage === 'reward' &&
-        SITTING_HOSTED_STEPS.has(p.rewardStep) && !this.rewardPending;
+      if (!this.sittingUp || p === undefined) {
+        return {pose: false, stepOpen: false};
+      }
+      return sittingFieldOf(this.sittingStage, p.rewardStep, this.rewardPending, this.sittingLedger !== undefined);
+    },
+    /** The stage's FIELD pose stands (the overview receded, the card on the hero slot, the zone open). */
+    sittingField(): boolean {
+      return this.sittingFieldState.pose;
+    },
+    /** A hosted step may teleport INTO the zone right now (the ledger, if any, yields to it). */
+    sittingStepOpen(): boolean {
+      return this.sittingFieldState.stepOpen;
     },
     /** A reward wave is owed or in the air for this seat (the ledger's reactive fact). */
     rewardPending(): boolean {
@@ -382,7 +424,7 @@ export default defineComponent({
       if (p === undefined) {
         return '';
       }
-      const step = SITTING_HOSTED_STEPS.has(p.rewardStep) && !this.sittingField ? 'received' : p.rewardStep;
+      const step = SITTING_HOSTED_STEPS.has(p.rewardStep) && !this.sittingStepOpen ? 'received' : p.rewardStep;
       return sittingStageKey(this.sittingStage, step);
     },
     /** The sitting's identity for the session's memory of played stages (`generation:seq`). */
@@ -398,7 +440,7 @@ export default defineComponent({
     /** The sitting's A verb (undefined = A does nothing here). */
     sittingPrimary(): string | undefined {
       const p = this.sitting;
-      if (p === undefined || this.sittingField) {
+      if (p === undefined || this.sittingStepOpen) {
         return undefined;
       }
       const key = sittingPrimaryKey(p, parliamentFlow.sittingPage);
@@ -499,7 +541,7 @@ export default defineComponent({
     },
     /** X on the sitting inspects the enacted resolution — the object every stage is about. */
     sittingInspectable(): boolean {
-      return this.model?.phase?.summary?.enacted !== undefined && !this.sittingField;
+      return this.model?.phase?.summary?.enacted !== undefined && !this.sittingStepOpen;
     },
     /**
      * THE SERVER'S ANSWER KEY. A submit is answered by a state change (the
@@ -652,23 +694,41 @@ export default defineComponent({
       const cardFrom = enactCarryRect(root);
       this.publishMidOffsets();
       void this.$nextTick(() => {
-        // THE FIELD STANDS (post-flush — the zone is in the DOM now): the
-        // hosted step's door. Published here, one tick after the pose, so the
-        // shell's teleport never names a zone the pose has not opened yet.
-        consoleParliamentUi.fieldStanding = on && parliamentFlow.stage === 'sitting';
         if (root === undefined) {
           return;
         }
         fitParliamentCards();
         if (on) {
-          playParliamentEnactEnter({root, cardFrom});
+          // A wave that leaves the ledger waits for the card to LAND on its hero slot (the cause before the effect).
+          this.fieldSettling = true;
+          playParliamentEnactEnter({root, cardFrom, onDone: () => {
+            this.fieldSettling = false;
+            if (parliamentFlow.stage === 'sitting') {
+              this.queueWalk();
+            }
+          }});
         } else {
+          this.fieldSettling = false;
           playParliamentEnactFold({root, cardFrom});
         }
       });
     },
+    /**
+     * THE STEP'S DOOR (Colonial Affairs, block C): a hosted step may teleport into the zone — published
+     * POST-FLUSH (the zone node is in the DOM) as `fieldStanding` for the shell's teleports (the picker, the
+     * take) and as the Parliament FRAME's slot for a step that is a workspace FRAME (the hand in its
+     * discard mode). For every step but the ledger's the door flips WITH the pose; with a ledger body the
+     * field stands from the page's start and the door opens only once the wave has landed.
+     */
+    'sittingStepOpen': {
+      flush: 'post',
+      handler(on: boolean): void {
+        this.publishStepDoor(on);
+      },
+    },
     sceneHandedOver(on: boolean): void {
       if (!on && parliamentFlow.stage === 'browse') {
+        // (the falling edge of a SCENE hand-over — the browse layer republishes its own crumb)
         setWorkspaceFrameSubject('parliament', this.crumbSubject);
         setWorkspaceFrameStage('parliament', this.crumbStage);
         setWorkspaceFramePhase('parliament', 'browse');
@@ -753,9 +813,9 @@ export default defineComponent({
     // A sitting already holding the field at mount (a reload, a restore) has
     // no entrance to play — the overview is parked at once.
     parliamentFlow.sittingField = this.sittingField;
-    // The field already standing at mount is published from the mounted DOM
+    // A step's door already open at mount is published from the mounted DOM
     // (the watcher above cannot fire for a value that never changed).
-    consoleParliamentUi.fieldStanding = this.sittingField && parliamentFlow.stage === 'sitting';
+    this.publishStepDoor(this.sittingStepOpen);
     this.publishMidOffsets();
     if (this.sittingField) {
       parkParliamentForEnact(this.$refs.rootEl as HTMLElement | undefined);
@@ -807,6 +867,9 @@ export default defineComponent({
     consoleParliamentUi.voteStanding = false;
     consoleParliamentUi.stageStanding = false;
     consoleParliamentUi.fieldStanding = false;
+    // The zone's host retracts its frame slot unconditionally (the embed contract): a nested frame
+    // pointed at a destroyed node would mount outside the document.
+    setWorkspaceFrameSlot('parliament', '');
     setWorkspaceFrameSubject('parliament', '');
     setWorkspaceFrameStage('parliament', '');
   },
@@ -875,6 +938,16 @@ export default defineComponent({
       return this.$refs.voteMode as InstanceType<typeof ConsoleParliamentVoteMode> | undefined;
     },
     /**
+     * THE STEP'S DOOR, published (see the `sittingStepOpen` watcher): the shell's teleports read
+     * `fieldStanding`; a step that is a workspace FRAME (the hand) reads the Parliament frame's slot.
+     * Both retract together — a door left open names a zone the pose has already closed.
+     */
+    publishStepDoor(on: boolean): void {
+      const open = on && parliamentFlow.stage === 'sitting';
+      consoleParliamentUi.fieldStanding = open;
+      setWorkspaceFrameSlot('parliament', open ? STAGE_ZONE_SELECTOR : '');
+    },
+    /**
      * THE MIDDLE TIER'S OFFSETS inside the field, as px tokens on the field —
      * what the stage's FIELD pose grows by (`.con-parl__stage--field`, one
      * element, two poses). Measured, never assumed: the top tier's height is
@@ -896,7 +969,7 @@ export default defineComponent({
       const f = parliamentFlow;
       // A beat in flight absorbs input by phase; a hosted step owns the pad
       // while it stands in the sitting's zone (the shell routes to it first).
-      if (f.stage === 'submitting' || f.stage === 'landed' || f.stage === 'paying' || (f.stage === 'sitting' && this.sittingField)) {
+      if (f.stage === 'submitting' || f.stage === 'landed' || f.stage === 'paying' || (f.stage === 'sitting' && this.sittingStepOpen)) {
         return;
       }
       if (f.stage === 'browse') {
@@ -1309,6 +1382,12 @@ export default defineComponent({
           // 12 s ceiling, `rewardPending` never cleared, and the walk never left the reward at all.
           await this.$nextTick();
           if (this.sittingBody === 'parties' && this.stageLeaving) {
+            break;
+          }
+          // …and a beat whose objects live in a body still UNFOLDING (the ledger's rows, the card landing on
+          // its hero slot) waits for the entrance to end — its end re-queues the walk (nothing is marked
+          // played, so nothing is skipped). A wave measured mid-unfold leaves a row that is still moving.
+          if (this.stageEntering || this.fieldSettling) {
             break;
           }
           const key = this.sittingKey;

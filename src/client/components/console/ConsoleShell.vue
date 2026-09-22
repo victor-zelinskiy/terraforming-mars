@@ -16670,6 +16670,16 @@ export default defineComponent({
         if (marker !== undefined && marker.stage === 'discard' && workspaceFrameHost('hand') === 'card-actions') {
           setWorkspaceFrameStage('hand', 'Card discard');
         }
+        // AN ENACTED RESOLUTION'S DISCARD (Colonial Affairs — Pluto's «draw 1,
+        // then discard 1» repeated): the hand is a STEP of the Parliament's
+        // SITTING, in the sitting's own zone (the frame's slot the section
+        // publishes once the step's door opens), under the ONE word the sitting
+        // publishes for it («ПАРЛАМЕНТ › ЗАСЕДАНИЕ › СБРОС») — the same key
+        // `consoleSittingFlow.sittingStageKey` prints, so the tail animates once.
+        const resolutionStep = followUpStepStage(task.kind, this.playerView.waitingFor);
+        if (resolutionStep !== undefined && workspaceFrameHost('hand') === 'parliament') {
+          setWorkspaceFrameStage('hand', resolutionStep);
+        }
         this.focusFirstSelectableHandCard();
         return;
       }

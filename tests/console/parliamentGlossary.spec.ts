@@ -48,6 +48,9 @@ const CANON: Record<string, string> = {
   'Results': 'Итоги',
   // «Обновление» (2026-09-22): the renewal is a page of its own before the results — one word, the tact's.
   'Renewal': 'Обновление',
+  // Colonial Affairs (RX07): the sitting hosts a discard from hand as a step of its own — one word, the hand's.
+  'Discarding': 'Сброс',
+  'Distribution': 'Раскладка',
   'Opposition': 'Оппозиция',
   // «Заседание v4»: the government that has NOT left yet is named, so «принятая резолюция» can never be read
   // over a card on its way out (§2.3) — one word for one state of that block.

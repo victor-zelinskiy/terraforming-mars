@@ -67,6 +67,18 @@ export function playBodyUnfold(surface: HTMLElement, row: HTMLElement | undefine
   });
 }
 
+/**
+ * A LAYER OF THE ZONE RETURNS (Colonial Affairs, block C): the colony ledger comes back under a hosted step
+ * that has just left — the same drawer phrase as the body swap, on one layer of the zone's own stack (the
+ * step's surface paints through its whole leave beside it). The step's own ENTRY belongs to its CSS.
+ */
+export function playZoneLayerEnter(surface: HTMLElement, done: () => void): void {
+  guardedDescend(surface, BODY_SWAP_MS, done, (finish) =>
+    gsap.fromTo(surface,
+      {opacity: 0, y: 14},
+      {opacity: 1, y: 0, duration: motionMs(BODY_SWAP_MS) / 1000, ease: 'expo.out', clearProps: 'opacity,transform', onComplete: finish}));
+}
+
 /** LEAVE — the step is pushed shut downward; the row is already coming back under it. */
 export function playBodyFold(surface: HTMLElement, row: HTMLElement | undefined, done: () => void): void {
   playRowReturn(row);

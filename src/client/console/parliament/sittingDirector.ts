@@ -144,6 +144,8 @@ const REWARD_REVEAL_MS = 260;
 /** The carrier card's ACTION COMMIT impulse hands the wave off at `COMMIT_HANDOFF_AT_MS` (≈460); the wave itself ≈ pop + arc + settle. */
 const REWARD_IMPULSE_MS = 460;
 const REWARD_WAVE_MS = 900;
+/** Between two LEDGER ROWS' waves (Colonial Affairs): the next tile pays only once the previous one's chips have landed. */
+const LEDGER_ROW_GAP_MS = 140;
 /** The ruling party's answer leaves its plaque once the resolution's own chips have landed — surfaces in turn. */
 const REACTION_GAP_MS = 120;
 /** The winner's tile RECEIPT (the frame back from the board): the «received» pose is READ before the next step takes the page. */
@@ -183,6 +185,11 @@ export const sittingMotion = reactive({
    * add to it — the probe reads it; «дожать» and reduced motion legitimately do (the poses at once).
    */
   renewalDegraded: [] as Array<string>,
+  /**
+   * THE LEDGER ROW NOW PAYING (Colonial Affairs): the tile whose chips are in the air — the ledger marks that
+   * one row by weight (never a blink); '' between rows and at rest. The rows go IN TURN, in the server's order.
+   */
+  colonyRow: '' as string,
   /**
    * THE GOVERNMENT IS CHANGING HANDS RIGHT NOW (v4 §2.2). The two plaques travel between the government's
    * slot and the opposition row, which are two TIERS: their path crosses the other tier's own objects, and
@@ -874,14 +881,63 @@ function beatReward(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: numb
     return at;
   }
   const card = enactedCardEl();
-  const own = owed.filter((r) => r.delivery.address.source === 'card-icon');
-  const reactions = owed.filter((r) => r.delivery.address.source === 'party-plaque');
+  // WHERE EACH RECORD LEAVES FROM (`rewardFlightSourceOf`): the carrier card's printed icon, a LEDGER ROW's
+  // bonus cell (a record that names its colony — Colonial Affairs), the ruling party's plaque.
+  const own = owed.filter((r) => r.delivery.source === 'card-icon');
+  const rows = ledgerRowGroups(owed.filter((r) => r.delivery.source === 'colony-row'));
+  const reactions = owed.filter((r) => r.delivery.source === 'party-plaque');
   const release = (list: ReadonlyArray<OwedReward>) => list.forEach((r) => markRewardLanded(r));
   if (card === undefined) {
     release(owed);
     return 0;
   }
   const cardSelector = '[data-parl-sit-hero] .con-parl__gov-card .pcard, .con-parl [data-parl-gov-carry] .con-parl__gov-card .pcard';
+  /**
+   * THE LEDGER'S ROWS PAY IN TURN, in the server's order: the row is marked, its chips leave the printed bonus
+   * of that tile (its own icon in the cell), land on their rail rows — the counter ticks on the touchdown — and
+   * only then the next tile pays. A row that is not on screen (the ledger folded under a step, a reload) releases
+   * its holds at once: the counter ticks, honestly late, never lost.
+   */
+  const flyRows = (index: number, then: () => void): void => {
+    const group = rows[index];
+    if (group === undefined) {
+      sittingMotion.colonyRow = '';
+      then();
+      return;
+    }
+    if (runState.finished) {
+      rows.slice(index).forEach((g) => release(g.rewards));
+      sittingMotion.colonyRow = '';
+      then();
+      return;
+    }
+    const selector = ledgerRowBonusSelector(group.colony);
+    const cell = root.querySelector<HTMLElement>(selector);
+    if (cell === null || cell.getBoundingClientRect().width < 4) {
+      release(group.rewards);
+      flyRows(index + 1, then);
+      return;
+    }
+    sittingMotion.colonyRow = group.colony;
+    const specs = group.rewards.map((r) => r.spec);
+    const bySpec = new Map<ResourceTransferSpec, OwedReward>(group.rewards.map((r) => [r.spec, r]));
+    const wave = runResourceTransfers({
+      specs,
+      origins: ledgerBonusIconOrigins(cell, specs),
+      source: {selectors: [selector]},
+      arrival: 'auto',
+      onArrive: (spec) => {
+        const reward = bySpec.get(spec);
+        if (reward !== undefined) {
+          markRewardLanded(reward);
+        }
+      },
+    });
+    trackWave(runState, wave);
+    void wave.then(() => {
+      void nextTick(() => probeTick(() => flyRows(index + 1, then)));
+    });
+  };
   const flyReactions = () => {
     if (reactions.length === 0) {
       return;
@@ -901,10 +957,15 @@ function beatReward(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: numb
     void launchWave(runState, reactions, plaque, '[data-parl-ruler] .con-pseal__formula, [data-parl-ruler]');
   };
   let at = 0;
-  if (own.length > 0) {
+  if (own.length > 0 || rows.length > 0) {
+    // THE CARD FIXES FIRST (the one universal ACTION COMMIT): its impulse hands off to the wave — from the card's
+    // own icons for a plain payout, from the LEDGER'S ROWS in turn for the colony bonuses (each row a wave of
+    // its own), then the party's answer. Surfaces in turn: nothing of the next leaves before the previous landed.
+    const first = own[0] ?? rows[0]?.rewards[0];
     tl.call(() => {
       if (runState.finished) {
         release(own);
+        rows.forEach((g) => release(g.rewards));
         return;
       }
       let handedOff = false;
@@ -913,25 +974,38 @@ function beatReward(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: numb
         ctaEl: undefined,
         actionNode: undefined,
         kind: 'resources',
-        firstResource: own[0].spec.resource,
+        firstResource: first?.spec.resource,
         onHandoff: () => {
           handedOff = true;
-          void launchWave(runState, own, card, cardSelector).then(() => {
+          const afterOwn = () => flyRows(0, () => {
             void nextTick(() => probeTick(flyReactions));
           });
+          if (own.length > 0) {
+            void launchWave(runState, own, card, cardSelector).then(() => {
+              void nextTick(() => probeTick(afterOwn));
+            });
+          } else {
+            afterOwn();
+          }
         },
         onSettled: () => {
           if (!handedOff) {
             // The impulse was torn down before its handoff (an abort): the wave never left, so nothing else will
             // release these records.
             release(own);
+            rows.forEach((g) => release(g.rewards));
             release(reactions);
+            sittingMotion.colonyRow = '';
           }
         },
       });
       runState.kills.push(handle.kill);
     }, undefined, at);
-    at += s(REWARD_IMPULSE_MS + REWARD_WAVE_MS) * k;
+    at += s(REWARD_IMPULSE_MS) * k;
+    if (own.length > 0) {
+      at += s(REWARD_WAVE_MS) * k;
+    }
+    at += s(REWARD_WAVE_MS + LEDGER_ROW_GAP_MS) * k * rows.length;
     if (reactions.length > 0) {
       at += s(REACTION_GAP_MS + REWARD_WAVE_MS) * k;
     }
@@ -940,6 +1014,35 @@ function beatReward(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: numb
     at += s(REWARD_WAVE_MS) * k;
   }
   return at;
+}
+
+/** The owed records of the ledger, grouped by TILE in the order the server paid them (a tile's records stay together). */
+function ledgerRowGroups(rewards: ReadonlyArray<OwedReward>): Array<{colony: string, rewards: Array<OwedReward>}> {
+  const out: Array<{colony: string, rewards: Array<OwedReward>}> = [];
+  for (const reward of rewards) {
+    const colony = reward.outcome.colony ?? '';
+    const group = out.find((g) => g.colony === colony);
+    if (group === undefined) {
+      out.push({colony, rewards: [reward]});
+    } else {
+      group.rewards.push(reward);
+    }
+  }
+  return out;
+}
+
+/** The bonus cell of `colony`'s ledger row — the place the player read the printed bonus in, the chips' birthplace. */
+function ledgerRowBonusSelector(colony: string): string {
+  const name = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(colony) : colony.replace(/"/g, '\\"');
+  return `[data-parl-sitting] [data-colony-row="${name}"] [data-colony-bonus]`;
+}
+
+/** The birth points on a ledger row's bonus cell: the printed unit icon of the cell (one per row), else the cell itself. */
+function ledgerBonusIconOrigins(cell: HTMLElement, specs: ReadonlyArray<ResourceTransferSpec>): Array<TransferPoint | undefined> {
+  const icon = cell.querySelector<HTMLElement>('.con-cledger__unit');
+  const r = (icon ?? cell).getBoundingClientRect();
+  const point: TransferPoint | undefined = r.width > 4 ? {x: r.left + r.width / 2, y: r.top + r.height / 2} : undefined;
+  return specs.map(() => point);
 }
 
 // ── ОБНОВЛЕНИЕ ─────────────────────────────────────────────────────────────
@@ -1593,6 +1696,7 @@ export function killSittingMotion(): void {
   sittingMotion.supportWave = '';
   sittingMotion.agendaSegment = undefined;
   sittingMotion.renewal = undefined;
+  sittingMotion.colonyRow = '';
   setParliamentFlightsHurried(false);
   if (current === undefined) {
     return;

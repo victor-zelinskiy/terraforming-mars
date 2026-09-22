@@ -593,6 +593,7 @@
   "${0} has no card that can hold floaters — ${1} floater(s) from ${2} are forfeited": "${0}: нет карты, принимающей аэростаты — ${2} не даёт ${1} {аэростат|аэростата|аэростатов}",
   "${0} placed ${1} floater(s) from ${2}: ${3} Venus and Jovian tag(s) + ${4} influence": "${0} раскладывает ${1} {аэростат|аэростата|аэростатов} — ${2}: ${3} {метка|метки|меток} Венеры и Юпитера + влияние ${4}",
   "Distribution": "Раскладка",
+  "Discarding": "Сброс",
   "Colonial Affairs": "Колониальные дела",
   "Every player gains all of their colony bonuses 2 times, plus 1 more time per 2 points of their influence.": "Каждый игрок получает все свои бонусы колоний 2 раза плюс ещё по разу за каждые 2 очка влияния.",
   "Play 2 space tags": "Разыграйте 2 метки космоса",

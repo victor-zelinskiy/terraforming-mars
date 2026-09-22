@@ -6,6 +6,7 @@ import {PartyName} from '@/common/turmoil/PartyName';
 import {Resource} from '@/common/Resource';
 import {CardResource} from '@/common/CardResource';
 import {CardName} from '@/common/cards/CardName';
+import {ColonyName} from '@/common/colonies/ColonyName';
 import {consoleParliamentUi, resetConsoleParliamentUi} from '@/client/console/parliament/consoleParliamentFlow';
 import {
   clearPanelRewardHold, heldProduction, heldStock, panelRewardHold,
@@ -119,6 +120,25 @@ describe('parliamentRewardBeat — the ledger of what the sitting still owes', (
     expect(fresh[1].delivery.address.source).eq('card-icon');
     expect(detectNewViewerRewards(undefined, after), 'a first view (a reload) replays nothing').deep.eq([]);
     expect(detectNewViewerRewards(view({generation: 2}), after), 'a new generation is a new sitting — nothing to replay').deep.eq([]);
+  });
+
+  /* Colonial Affairs (RX07): a rail record that names its COLONY is owed like any other — and its flight
+   * leaves the LEDGER ROW of that tile (the bonus cell the player read the amount in), never the card's icon;
+   * a Pluto pair (a draw, a discard) and a HUD-side bonus (a loss) fly no rail chip and are never owed. */
+  it('DETECT: a colony-tagged rail record is owed with the ledger row as its flight source; the pairs and the HUD-side bonuses are not', () => {
+    const before = view({generation: 3, outcomes: []});
+    const after = view({generation: 3, outcomes: [
+      outcome({kind: 'stock', stock: Resource.MEGACREDITS, amount: 6, step: 'colony:Luna', colony: ColonyName.LUNA, multiplier: 3}),
+      outcome({kind: 'production', production: Resource.ENERGY, amount: 3, step: 'colony:Europa', colony: ColonyName.EUROPA, multiplier: 3}),
+      outcome({kind: 'cards', amount: 1, step: 'colony:Pluto:1:draw', colony: ColonyName.PLUTO, multiplier: 3}),
+      outcome({kind: 'discard', amount: 1, step: 'colony:Pluto:1:discard', colony: ColonyName.PLUTO, multiplier: 3}),
+      outcome({kind: 'colonyBonus', stock: Resource.MEGACREDITS, amount: -9, step: 'colony:Titania', colony: ColonyName.TITANIA, multiplier: 3}),
+    ]});
+    const fresh = detectNewViewerRewards(before, after);
+    expect(fresh.map((r) => r.outcome.colony)).deep.eq([ColonyName.LUNA, ColonyName.EUROPA]);
+    expect(fresh.map((r) => r.delivery.source)).deep.eq(['colony-row', 'colony-row']);
+    expect(fresh.map((r) => r.delivery.address.source), 'the ADDRESS still says the card — the row is the record\'s own birthplace').deep.eq(['card-icon', 'card-icon']);
+    expect(fresh[1].spec).deep.eq({channel: 'production', resource: 'energy', amount: 3});
   });
 
   it('DETECT: the viewer\'s Agenda TR bonus is new with the phase\'s first view of the move; a card step or another seat\'s move is not', () => {

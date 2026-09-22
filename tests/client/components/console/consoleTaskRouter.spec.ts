@@ -368,6 +368,20 @@ describe('consoleTaskRouter (CTS-2 coverage)', () => {
       expect(followUpStepStage('projectCard')).to.be.undefined;
       expect(followUpStepStage('space')).to.be.undefined;
       expect(followUpStepStage(undefined)).to.be.undefined;
+      // …not even with the prompt in hand: a CARD's discard (Mars University) has the card as its source.
+      const cardDiscard = {type: 'card', title: 'Discard 1 card', buttonLabel: 'Discard', cards: [], min: 1, max: 1,
+        discardPrompt: {min: 1, max: 1, source: {kind: 'card', card: 'Mars University'}}} as unknown as PlayerInputModel;
+      expect(followUpStepStage('handSelect', cardDiscard)).to.be.undefined;
+    });
+
+    /* Colonial Affairs (RX07): the DISCARD a resolution demands (Pluto's second half, repeated) IS a step
+     * of the sitting — the hand in its discard mode, under the sitting's one word for it. */
+    it('a resolution-sourced DISCARD from hand is a step of the sitting: «Сброс»', () => {
+      const resolutionDiscard = {type: 'card', title: 'Discard 1 card', buttonLabel: 'Discard', cards: [{name: 'Birds'}], min: 1, max: 1,
+        discardPrompt: {min: 1, max: 1, source: {kind: 'resolution', resolution: 'RDX_UNITY_COLONIAL_AFFAIRS'}, colonyRepeat: {colonyName: 'Pluto', index: 1, total: 2}}} as unknown as PlayerInputModel;
+      expect(followUpStepStage('handSelect', resolutionDiscard)).to.eq('Discarding');
+      // …served by the HAND SECTION like every discard (the candidates are the hand — the hand-subset rule).
+      expect(taskFor(view(resolutionDiscard, ['Birds', 'Zeppelins']))?.kind).to.eq('handSelect');
     });
 
     /* AN ENACTED RESOLUTION'S ASK (Turmoil Redux) is a step of the Parliament's

@@ -22,19 +22,29 @@
        data-parl-sitting>
 
     <!-- ── ВСТРОЕННЫЙ ШАГ (v5): the ONE body state the player WORKS in — a pick of a card for a
-         resource, a take of drawn cards. The readings of the reward itself are NOT here: the payout's
-         formula, the ruling party's answer, a skip with its reason and the honest wait all live in the
-         READING BAND above the zone, which never moves and is never taken by anything. What stands here
-         is the work: the carrier card as the visible source, and the zone the enacted resolution's own
-         ask is teleported into. ── -->
+         resource, a take of drawn cards, a discard from hand. The readings of the reward itself are NOT
+         here: the payout's formula, the ruling party's answer, a skip with its reason and the honest wait
+         all live in the READING BAND above the zone, which never moves and is never taken by anything.
+         What stands here is the work: the carrier card as the visible source, and the zone the enacted
+         resolution's own ask is teleported into.
+         …AND THE COLONY LEDGER (Colonial Affairs): a resolution that pays the seat's colony bonuses reads
+         its ledger IN THE ZONE for the whole reward page — its rows are the wave's sources (a chip leaves
+         the printed bonus of the tile that pays it), so the body stands BEFORE the wave. The zone is a
+         LAYER STACK: the ledger and the hosted step's slot share one rect; the ledger yields (folds down)
+         while a step stands and comes back when it has left — never a `v-if` cut. ── -->
     <section class="con-sit__panel con-sit__panel--reward" :class="{'con-sit__panel--on': stage === 'reward'}" data-sit-panel="reward">
       <div class="con-sit__reward" :class="{'con-sit__reward--field': field}">
         <div class="con-sit__hero" :class="{'con-sit__hero--field': field}">
           <!-- The carried enacted card lands here (one DOM instance, teleported by the government) while the step holds the field. -->
           <div class="con-sit__card" data-parl-sit-hero></div>
         </div>
-        <div class="con-sit__zone" :class="{'con-sit__zone--on': field}">
-          <div class="con-sit__embed" data-embed-slot="parliament-stage"></div>
+        <div class="con-sit__zone" :class="{'con-sit__zone--on': field, 'con-sit__zone--ledger': ledger !== undefined}" :data-sit-zone-step="stepOpen ? '' : undefined">
+          <div class="con-sit__embed" :class="{'con-sit__embed--on': stepOpen}" data-embed-slot="parliament-stage"></div>
+          <transition :css="false" @enter="onLedgerEnter" @leave="onLedgerLeave" @enter-cancelled="onLedgerCancelled" @leave-cancelled="onLedgerCancelled">
+            <div v-if="ledger !== undefined" v-show="!stepOpen" class="con-sit__ledgerpane" data-sit-ledger>
+              <ConsoleColonyLedger :reading="ledger" size="hero" :activeColony="activeColony" :landedColonies="landedColonies" />
+            </div>
+          </transition>
         </div>
       </div>
     </section>
@@ -175,12 +185,17 @@ import {getResolution} from '@/client/parliament/ClientParliamentManifest';
 import {consoleParliamentUi} from '@/client/console/parliament/consoleParliamentFlow';
 import {parliamentPlayerName, ParliamentViewVm, resolutionTitleOf} from '@/client/console/parliament/consoleParliamentModel';
 import {quietRewardPoseOf, SittingPosition, SittingStage} from '@/client/console/parliament/consoleSittingFlow';
+import ConsoleColonyLedger from '@/client/components/console/parliament/ConsoleColonyLedger.vue';
+import {ColonyLedgerReading} from '@/client/console/parliament/colonyLedgerModel';
+import {parliamentRewardState, rewardLanded} from '@/client/console/parliament/parliamentRewardBeat';
+import {sittingMotion} from '@/client/console/parliament/sittingDirector';
+import {playBodyFold, playZoneLayerEnter} from '@/client/console/parliament/parliamentStageMotion';
 import {ResultsPayoutPart, ResultsReading, resultsReadingOf} from '@/client/console/parliament/parliamentResultsModel';
 import {cardResourceKey} from '@/client/console/resourceTransfer/resourceTransferModel';
 
 export default defineComponent({
   name: 'ConsoleParliamentSitting',
-  components: {PlayerCube},
+  components: {PlayerCube, ConsoleColonyLedger},
   props: {
     /** Where the sitting stands on the server (`consoleSittingFlow.sittingPositionOf`). */
     position: {type: Object as PropType<SittingPosition>, required: true},
@@ -192,8 +207,12 @@ export default defineComponent({
     model: {type: Object as PropType<ParliamentModel | undefined>, default: undefined},
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     viewerColor: {type: String as PropType<Color | undefined>, default: undefined},
-    /** The step holds the FIELD (a hosted step stands in its zone). */
+    /** The step holds the FIELD (a hosted step stands in its zone, or the colony ledger reads there). */
     field: {type: Boolean, default: false},
+    /** A hosted step may teleport INTO the zone right now (`consoleSittingFlow.sittingFieldOf`): the ledger layer yields to it. */
+    stepOpen: {type: Boolean, default: false},
+    /** THE COLONY LEDGER the enacted resolution pays (Colonial Affairs) — undefined for every other resolution. */
+    ledger: {type: Object as PropType<ColonyLedgerReading | undefined>, default: undefined},
     /** The results panel waits for the renewal's beats (the director reveals it). */
     resultsHidden: {type: Boolean, default: false},
     /** Hosted inside another surface's zone (nothing of the chassis to strip — the sitting never titles itself). */
@@ -248,10 +267,43 @@ export default defineComponent({
     supportPlaces(): number {
       return PARLIAMENT_MAX_POPULAR_SUPPORT;
     },
+    /** THE ROW NOW PAYING — the director marks the tile whose chips are in the air (one row, never a blink). */
+    activeColony(): string | undefined {
+      return sittingMotion.colonyRow === '' ? undefined : sittingMotion.colonyRow;
+    },
+    /**
+     * THE TILES WHOSE PAYOUT HAS LANDED — a row reads «получено» on its chips' TOUCHDOWN, never on the
+     * record's arrival (the counter and the row turn together). A record without a rail wave (a card
+     * resource laid out in the hosted step, a Pluto pair) counts as landed once it is recorded.
+     */
+    landedColonies(): ReadonlySet<string> {
+      void parliamentRewardState.landed.length;
+      void parliamentRewardState.owed.length;
+      void parliamentRewardState.flying.length;
+      const out = new Set<string>();
+      for (const outcome of this.model?.phase?.outcomes ?? []) {
+        if (outcome.player === this.viewerColor && outcome.colony !== undefined && outcome.kind !== 'reaction' && rewardLanded(outcome)) {
+          out.add(outcome.colony);
+        }
+      }
+      return out;
+    },
   },
   methods: {
     cubePx(logical: number): number {
       return conLogicalPx(logical);
+    },
+    /** The ledger layer comes back under a step that has left — the drawer phrase, on the zone's own layer. */
+    onLedgerEnter(el: Element, done: () => void): void {
+      playZoneLayerEnter(el as HTMLElement, done);
+    },
+    /** …and yields to a step that is opening: pushed shut downward while the step's surface paints beside it. */
+    onLedgerLeave(el: Element, done: () => void): void {
+      playBodyFold(el as HTMLElement, undefined, done);
+    },
+    onLedgerCancelled(el: Element): void {
+      (el as HTMLElement).style.opacity = '';
+      (el as HTMLElement).style.transform = '';
     },
     emblemUrl(party: ReduxParty): string {
       return partyEmblemUrl(party);

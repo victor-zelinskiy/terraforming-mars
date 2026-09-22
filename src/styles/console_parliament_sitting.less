@@ -148,29 +148,50 @@
     &__card .con-parl__gov-carry { flex-shrink: 0; }
     &__card .con-parl__gov-card { zoom: var(--con-parl-enact-zoom, var(--con-parl-gov-zoom)); }
     &__zone {
-        display: flex;
+        /* A LAYER STACK (Colonial Affairs): the hosted step's slot and the colony LEDGER share the one
+           cell — a departing layer paints through its whole leave beside the arriving one, and neither
+           takes the other's height. */
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: minmax(0, 1fr);
         min-width: 0;
         min-height: 0;
         border-radius: .7rem;
         background: linear-gradient(170deg, rgba(30, 20, 52, 0.9), rgba(12, 10, 22, 0.94));
         box-shadow: inset 0 0 0 .06rem fade(@con-parl-violet, 40%), 0 .9rem 2rem rgba(0, 0, 0, 0.45);
         overflow: hidden;
-        /* Only a hosted step opens the zone; otherwise it takes no room. */
+        /* Only a hosted step (or the ledger) opens the zone; otherwise it takes no room. */
         &:not(&--on) { display: none; }
+        > * { grid-area: 1 / 1; }
     }
     &__embed {
-        flex: 1 1 auto;
         min-width: 0;
         min-height: 0;
         display: flex;
         align-items: stretch;
-        /* The hosted picker / take spans the zone — its strict flex column then
+        /* The hosted picker / take / hand spans the zone — its strict flex column then
            hands its card row the zone's height, never the cards' own. */
-        > .con-task-host, > .con-task, > .con-extdraw { flex: 1 1 auto; min-width: 0; min-height: 0; max-height: 100%; width: 100%; max-width: none; }
+        > .con-task-host, > .con-task, > .con-extdraw, > .con-hand { flex: 1 1 auto; min-width: 0; min-height: 0; max-height: 100%; width: 100%; max-width: none; }
+        /* The slot stands under the ledger while no step is teleported into it — a teleport target must
+           exist at all times (it re-resolves only when its selector CHANGES). */
+        &:not(&--on):empty { visibility: hidden; }
         /* THE CARRIER ALREADY STANDS ON THE HERO SLOT: the hosted take's own
            source dock would be a SECOND copy of the enacted card beside it. L3
            lifts the carried card. */
         > .con-extdraw--embedded .con-extdraw__source { display: none; }
+    }
+    /* THE COLONY LEDGER's layer — the reading the wave leaves from, at the hero size; it scrolls nothing
+       (a registry taller than the zone is a fit defect the probe sees, never a scroll). */
+    &__ledgerpane {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 0;
+        min-height: 0;
+        padding: .6rem 1rem;
+        overflow: hidden;
+        z-index: 1;
+        > .con-cledger { max-height: 100%; }
     }
 
     /* ── ПАНЕЛЬ ИТОГОВ (v5 §4): TWO sections — the PAYOUTS as the body (the one thing seen

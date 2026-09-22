@@ -93,6 +93,19 @@ describe('discardIntent', () => {
     expect(intent.picked).eq(1);
   });
 
+  /* Turmoil Redux — Colonial Affairs repeats Pluto's bonus k times: the resolution is the source, the
+   * tile and the pair's position ride `colonyRepeat` (deliberately NOT `colonyBonus`, which would route the
+   * COLONY workspace's step), and the header reads the same planet and the same «n of k». */
+  it('a RESOLUTION\'s repeat of a colony bonus names the resolution and carries the tile + position through `colonyRepeat`', () => {
+    const intent = deriveDiscardIntent(
+      meta({source: {kind: 'resolution', resolution: 'RDX_UNITY_COLONIAL_AFFAIRS'}, colonyRepeat: {colonyName: ColonyName.PLUTO, index: 1, total: 2}}), 0);
+    expect(intent.sourceKey).eq('Resolution');
+    expect(intent.card).is.undefined;
+    expect(intent.sequence).deep.eq({index: 1, total: 2});
+    expect(intent.colonyName).eq(ColonyName.PLUTO);
+    expect(intent.single).is.true;
+  });
+
   it('finds the discard BRANCH of an OrOptions (Mars University) and ignores the rest', () => {
     const or = {
       type: 'or',

@@ -5,9 +5,9 @@ import {ParliamentModel, ParliamentPhaseModel} from '../../src/common/models/Par
 import {PlayerInputModel} from '../../src/common/models/PlayerInputModel';
 import {PlayerViewModel} from '../../src/common/models/PlayerModel';
 import {
-  parliamentSittingFlowBeat, parliamentSittingLive, quietRewardPoseOf, SITTING_SUBJECT_KEY, sittingAskOf, sittingAtLastPage, sittingPageAuto,
-  sittingBodyOf, sittingPagesOf, sittingPositionOf, sittingPrimaryKey, sittingRewardSettled, sittingStageAt, sittingStageKey, sittingStartPage,
-  sittingWorkspacePhase, verdictStandsAt,
+  parliamentSittingFlowBeat, parliamentSittingLive, quietRewardPoseOf, SITTING_HOSTED_STEPS, SITTING_SUBJECT_KEY, sittingAskOf, sittingAtLastPage,
+  sittingBodyOf, sittingFieldOf, sittingPageAuto, sittingPagesOf, sittingPositionOf, sittingPrimaryKey, sittingRewardSettled, sittingStageAt,
+  sittingStageKey, sittingStartPage, sittingWorkspacePhase, verdictStandsAt,
 } from '../../src/client/console/parliament/consoleSittingFlow';
 import {backVerbFor} from '../../src/client/console/consoleWorkspaceFlow';
 import {AQUIFER_CONTEST_ID} from '../../src/server/parliament/resolutions/greens/AquiferContest';
@@ -48,6 +48,10 @@ const take = (): PlayerInputModel =>
     externalDrawPrompt: {intakeId: 1, count: 2, remaining: 2, cause: {kind: 'resolution', resolution: 'RDX_X'}}} as unknown as PlayerInputModel);
 const tile = (): PlayerInputModel =>
   ({type: 'space', title: 'ocean', buttonLabel: 'Select', spaces: [], placementContext: {source: {kind: 'resolution', resolution: 'RDX_X'}}} as unknown as PlayerInputModel);
+/** The shared discard's marker with the resolution as its source (Colonial Affairs repeating Pluto's second half). */
+const discard = (): PlayerInputModel =>
+  ({type: 'card', title: 'Discard 1 card', buttonLabel: 'Discard', cards: [], min: 1, max: 1,
+    discardPrompt: {min: 1, max: 1, source: {kind: 'resolution', resolution: 'RDX_X'}, colonyRepeat: {colonyName: 'Pluto', index: 1, total: 2}}} as unknown as PlayerInputModel);
 
 describe('consoleSittingFlow — the political phase as ONE flow (v2)', () => {
   describe('the pages of a server step', () => {
@@ -139,6 +143,35 @@ describe('consoleSittingFlow — the political phase as ONE flow (v2)', () => {
       expect(p.waitingFor).is.undefined;
       expect(sittingRewardSettled(p), 'an own ask keeps the reward page').is.false;
     });
+    /* Colonial Affairs (RX07): the second half of Pluto's «draw 1, then discard 1» is the shared DISCARD from
+     * hand, marked with the resolution as its source — the HAND is the hosted step, in its discard mode. */
+    it('a resolution-sourced DISCARD is the seat\'s own ask too — a hosted step of its own («СБРОС»), by the discard marker, never a title', () => {
+      expect(sittingAskOf(discard())).eq('discard');
+      expect(SITTING_HOSTED_STEPS.has('discard'), 'the hand stands in the zone like the picker and the take').is.true;
+      expect(sittingStageKey('reward', 'discard')).eq('Discarding');
+      // A card's own forced discard is nobody's step of the sitting.
+      const cardDiscard = {type: 'card', title: 'Discard 1 card', buttonLabel: 'Discard', cards: [], min: 1, max: 1,
+        discardPrompt: {min: 1, max: 1, source: {kind: 'card', card: 'Mars University'}}} as unknown as PlayerInputModel;
+      expect(sittingAskOf(cardDiscard)).is.undefined;
+      const p = sittingPositionOf(model(phase({step: 'effects', pending: {player: BLUE, key: 'k', input: 'card'}})), discard(), BLUE)!;
+      expect(p.rewardStep).eq('discard');
+      expect(sittingRewardSettled(p)).is.false;
+    });
+    /* THE FIELD AND THE STEP'S DOOR are two facts: a hosted step opens both once the wave that arrived with it
+     * has flown; a LEDGER body (the colony bonuses) takes the field for the whole reward page — its rows are
+     * the wave's sources — while the door stays shut until the wave has landed. */
+    it('sittingFieldOf: a hosted step takes the field and opens the door after the wave; a ledger takes the field at once and keeps the door shut while a wave flies', () => {
+      expect(sittingFieldOf('enact', 'intake', false, false), 'not the reward page').deep.eq({pose: false, stepOpen: false});
+      expect(sittingFieldOf('reward', 'intake', true, false), 'the wave first').deep.eq({pose: false, stepOpen: false});
+      expect(sittingFieldOf('reward', 'intake', false, false), 'then the take deals').deep.eq({pose: true, stepOpen: true});
+      expect(sittingFieldOf('reward', 'discard', false, false), 'the discard is hosted like the take').deep.eq({pose: true, stepOpen: true});
+      expect(sittingFieldOf('reward', 'received', false, false), 'a plain payout keeps the row of parties').deep.eq({pose: false, stepOpen: false});
+      expect(sittingFieldOf('reward', 'reading', false, true), 'the ledger reads before anything flies').deep.eq({pose: true, stepOpen: false});
+      expect(sittingFieldOf('reward', 'intake', true, true), 'the ledger stands under its own wave; the door waits').deep.eq({pose: true, stepOpen: false});
+      expect(sittingFieldOf('reward', 'intake', false, true), 'the wave landed: the step takes the zone, the ledger yields').deep.eq({pose: true, stepOpen: true});
+      expect(sittingFieldOf('reward', 'received', false, true), 'everything paid: the ledger reads «получено»').deep.eq({pose: true, stepOpen: false});
+      expect(sittingFieldOf('results', 'received', false, true), 'the results page is the panel, never the ledger').deep.eq({pose: false, stepOpen: false});
+    });
     it('the effects asking ANOTHER seat: the honest wait names who and what kind of answer — and keeps the page', () => {
       const p = sittingPositionOf(model(phase({step: 'effects', pending: {player: RED, key: 'k', input: 'space'}})), undefined, BLUE)!;
       expect(p.rewardStep).eq('waiting');
@@ -178,6 +211,7 @@ describe('consoleSittingFlow — the political phase as ONE flow (v2)', () => {
       expect(sittingStageKey('reward', 'gate')).eq('Reward');
       expect(sittingStageKey('reward', 'choice')).eq('Choice');
       expect(sittingStageKey('reward', 'intake')).eq('Intake');
+      expect(sittingStageKey('reward', 'discard')).eq('Discarding');
       expect(sittingStageKey('reward', 'placement')).eq('Placement');
       expect(sittingStageKey('renewal', 'received'), 'ОБНОВЛЕНИЕ — one word, the tact\'s own').eq('Renewal');
       expect(sittingStageKey('results', 'gate')).eq('Results');
