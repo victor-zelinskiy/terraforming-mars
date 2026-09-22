@@ -40,6 +40,12 @@ export const RESOLUTION_COUNT_IDS = [
   'buildingCardsWithNonNegativeVp',
   /** Central Power Grid: the POWER TAGS the player has in play (a card gives every one it prints). */
   'powerTags',
+  /**
+   * Cloud Development: the VENUS and JOVIAN tags the player has in play, added
+   * up — one term over TWO tags (a card that prints both is worth 2), read
+   * with a per-tag breakdown so the number can be explained tag by tag.
+   */
+  'venusJovianTags',
 ] as const;
 export type ResolutionCountId = typeof RESOLUTION_COUNT_IDS[number];
 
@@ -67,17 +73,24 @@ export type ResolutionCountTerm = {
 
 /**
  * WHAT a count id counts. `cards` — one unit per qualifying card; `tags` — the
- * printed occurrences of ONE tag (the canonical tag count, read in
- * `RESOLUTION_TAG_COUNTING_MODE`).
+ * printed occurrences of the listed tags, ADDED UP (the canonical tag count of
+ * each, read in `RESOLUTION_TAG_COUNTING_MODE`). One tag is the ordinary case
+ * (Central Power Grid); a term over several tags (Cloud Development's «per
+ * Venus and Jovian tag») is the SAME kind with a longer list — a card
+ * printing two of the listed tags is worth 2, whichever two they are.
  */
-export type ResolutionCountKind = {kind: 'cards'} | {kind: 'tags', tag: Tag};
+export type ResolutionCountKind = {kind: 'cards'} | {kind: 'tags', tags: ReadonlyArray<Tag>};
 
 export function resolutionCountKind(id: ResolutionCountId): ResolutionCountKind {
   switch (id) {
   case 'buildingCardsWithNonNegativeVp': return {kind: 'cards'};
-  case 'powerTags': return {kind: 'tags', tag: Tag.POWER};
+  case 'powerTags': return {kind: 'tags', tags: [Tag.POWER]};
+  case 'venusJovianTags': return {kind: 'tags', tags: [Tag.VENUS, Tag.JOVIAN]};
   }
 }
+
+/** ONE tag's share of a multi-tag count («Venus 1 · Jovian 2»). */
+export type ResolutionCountByTag = {tag: Tag; count: number};
 
 /** ONE player's count for a term — the number, and the cards that made it (in play order). */
 export type ResolutionCountModel = {
@@ -89,6 +102,12 @@ export type ResolutionCountModel = {
    * absent on a `cards` count, where every entry is worth exactly 1.
    */
   units?: ReadonlyArray<number>;
+  /**
+   * A count over SEVERAL tags: each tag's own total, in the term's order —
+   * the breakdown a reading prints beside the sum («[Venus] 1 + [Jovian] 2»).
+   * Absent on a single-tag count (the sum IS the one tag) and on a card count.
+   */
+  byTag?: ReadonlyArray<ResolutionCountByTag>;
 };
 
 /** The card facts a card-based count reads (satisfied by `ICard` and by `ClientCard`). */
@@ -153,6 +172,17 @@ export function cardCountVerdict(id: ResolutionCountId, card: CountedCardFacts, 
     }
     return {counts: true};
   }
+  case 'venusJovianTags': {
+    // The same one question, over two tags: prints a Venus OR a Jovian tag,
+    // face up. Which of the two (or both) is the UNITS' business.
+    if (!cardTagsInPlay(card, ctx)) {
+      return {counts: false, reason: 'A played event is face down'};
+    }
+    if (!card.tags.includes(Tag.VENUS) && !card.tags.includes(Tag.JOVIAN)) {
+      return {counts: false, reason: 'No Venus or Jovian tag'};
+    }
+    return {counts: true};
+  }
   }
 }
 
@@ -171,13 +201,26 @@ export function cardCountUnits(id: ResolutionCountId, card: CountedCardFacts, ct
     return 0;
   }
   const kind = resolutionCountKind(id);
-  return kind.kind === 'cards' ? 1 : card.tags.filter((tag) => tag === kind.tag).length;
+  return kind.kind === 'cards' ? 1 : card.tags.filter((tag) => kind.tags.includes(tag)).length;
+}
+
+/**
+ * What `card` contributes to ONE tag of a multi-tag term (its printed
+ * occurrences of that tag, face up) — the per-tag half of the breakdown.
+ */
+export function cardTagUnits(id: ResolutionCountId, card: CountedCardFacts, ctx: CardCountContext, tag: Tag): number {
+  if (!cardCountsToward(id, card, ctx)) {
+    return 0;
+  }
+  return card.tags.filter((t) => t === tag).length;
 }
 
 /** Count `cards` (the owner's cards in play, in play order) toward `id`. */
 export function countCardsToward(id: ResolutionCountId, cards: Iterable<CountedCardFacts>, ctx: CardCountContext): ResolutionCountModel {
   const counted: Array<CardName> = [];
   const units: Array<number> = [];
+  const kind = resolutionCountKind(id);
+  const byTag: Array<ResolutionCountByTag> = kind.kind === 'tags' && kind.tags.length > 1 ? kind.tags.map((tag) => ({tag, count: 0})) : [];
   let total = 0;
   for (const card of cards) {
     const n = cardCountUnits(id, card, ctx);
@@ -185,12 +228,19 @@ export function countCardsToward(id: ResolutionCountId, cards: Iterable<CountedC
       counted.push(card.name);
       units.push(n);
       total += n;
+      for (const entry of byTag) {
+        entry.count += cardTagUnits(id, card, ctx, entry.tag);
+      }
     }
   }
   const model: ResolutionCountModel = {id, count: total, cards: counted};
   // The per-card contribution rides along only where it can differ from 1 —
-  // a `cards` count would carry a column of ones and say nothing.
-  return resolutionCountKind(id).kind === 'cards' ? model : {...model, units};
+  // a `cards` count would carry a column of ones and say nothing; the per-tag
+  // breakdown only where there is more than one tag to tell apart.
+  if (kind.kind === 'cards') {
+    return model;
+  }
+  return byTag.length > 0 ? {...model, units, byTag} : {...model, units};
 }
 
 /** A player's count for `id` in a list of count models (undefined when the list does not carry it). */

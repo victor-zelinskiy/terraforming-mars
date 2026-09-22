@@ -34,6 +34,7 @@ import {ARCHITECTURE_AWARD} from './marsFirst/ArchitectureAward';
 import {BIODOME_CONTEST} from './greens/BiodomeContest';
 import {CENTRAL_POWER_GRID} from './industrialists/CentralPowerGrid';
 import {CLIMATE_RESEARCH} from './greens/ClimateResearch';
+import {CLOUD_DEVELOPMENT} from './unity/CloudDevelopment';
 
 /**
  * THE RETIRED IDS — iteration 0's DUMMY resolutions (a party, a quest, no
@@ -429,7 +430,9 @@ const DEV_SCIENCE: ResolutionDefinition = {
  * are implemented. The voting area's own rule — one resolution per party
  * among the three offered, never the enacted card's party
  * (`dealForVotingArea`) — is what keeps the offer legal; while few parties
- * have real cards, a slot that nothing fits simply stays empty.
+ * have real cards, a slot that nothing fits simply stays empty. A card that
+ * needs an expansion (`compatibility`) is in the sum only in a game that has
+ * it — the deck of a Venus game holds one card more than a game without.
  */
 export const REDUX_RESOLUTION_CATALOG = new ResolutionCatalog([
   AQUIFER_CONTEST,
@@ -437,6 +440,8 @@ export const REDUX_RESOLUTION_CATALOG = new ResolutionCatalog([
   BIODOME_CONTEST,
   CENTRAL_POWER_GRID,
   CLIMATE_RESEARCH,
+  // Venus Next only (`compatibility`): the deal's filter keeps it out of a game without Venus.
+  CLOUD_DEVELOPMENT,
   TEST_CHOICE,
   DEV_IMMEDIATE,
   DEV_PASSIVE,

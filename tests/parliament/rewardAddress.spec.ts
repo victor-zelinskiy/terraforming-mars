@@ -92,7 +92,14 @@ describe('rewardAddress — the delivery of a record', () => {
 
     const animals = rewardAddressOf(outcome({kind: 'cardResource', resource: CardResource.ANIMAL, card: CardName.FISH, amount: 2}), 'red');
     expect(animals.mine, 'another seat\'s record').is.false;
-    expect(animals.payload).deep.eq({resource: 'Animal', card: CardName.FISH, amount: 2});
+    // ONE recipient is the LIST of one: every reader of a card-resource record reads `cards`.
+    expect(animals.payload).deep.eq({resource: 'Animal', card: CardName.FISH, cards: [{card: CardName.FISH, amount: 2}], amount: 2});
+    // A DISTRIBUTED record names its cards one by one, and no single card.
+    const spread = rewardAddressOf(outcome({kind: 'cardResource', resource: CardResource.FLOATER, amount: 3,
+      cards: [{card: CardName.DIRIGIBLES, amount: 2}, {card: CardName.FLOATING_HABS, amount: 1}]}), 'blue');
+    expect(spread.mine).is.true;
+    expect(spread.skipped).is.undefined;
+    expect(spread.payload).deep.eq({resource: 'Floater', cards: [{card: CardName.DIRIGIBLES, amount: 2}, {card: CardName.FLOATING_HABS, amount: 1}], amount: 3});
 
     const ocean = rewardAddressOf(outcome({kind: 'ocean', part: 'winner', space: '03', parameter: {id: 'oceans', before: 2, after: 3}}), 'blue');
     expect(ocean.address.surface).eq('board');

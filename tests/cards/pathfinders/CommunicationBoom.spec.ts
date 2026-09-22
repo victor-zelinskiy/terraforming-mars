@@ -5,6 +5,7 @@ import {Kelvinists} from '../../../src/server/turmoil/parties/Kelvinists';
 import {CardName} from '../../../src/common/cards/CardName';
 import {CardResource} from '../../../src/common/CardResource';
 import {AndOptions} from '../../../src/server/inputs/AndOptions';
+import {SelectCard} from '../../../src/server/inputs/SelectCard';
 import {cast} from '../../../src/common/utils/utils';
 
 describe('CommunicationBoom', () => {
@@ -51,23 +52,23 @@ describe('CommunicationBoom', () => {
 
     runAllActions(game);
 
-    // This doesn't test that the deferred action limits counts. Does it need it? Possibly. _possibly._
-    // Or replace AndOptions with some subclass.
-    //
-    // In the meantime, it also works because the AndOptions in AddResourcesToCards will reject
-    // the wrong amount.
-    const playerOptions = cast(player.getWaitingFor(), AndOptions);
-    expect(playerOptions.options).has.length(2);
-    expect(playerOptions.options[0].title).contains(b.name);
-    playerOptions.options[0].cb(1);
-    playerOptions.cb(undefined);
+    // The shared distribution step decides the SHAPE: ONE unit over two holders is the family's ordinary
+    // card pick (which holder gets it), never a column of 0…1 dials.
+    const playerPick = cast(player.getWaitingFor(), SelectCard);
+    expect(playerPick.cards.map((c) => c.name)).deep.eq([b.name, d.name]);
+    expect(playerPick.resourceGainPrompt?.amount).eq(1);
+    player.process({type: 'card', cards: [b.name]});
     expect(b.resourceCount).eq(3);
 
     runAllActions(game);
 
+    // Three units over two holders IS a distribution: the marked `and` of one amount per holder, the sum
+    // exactly the count (a wrong sum is refused by the step, with nothing applied).
     const playerOptions2 = cast(player2.getWaitingFor(), AndOptions);
     expect(playerOptions2.options).has.length(2);
     expect(playerOptions2.options[0].title).contains(e.name);
+    expect(playerOptions2.cardResourceDistributionPrompt?.amount).eq(3);
+    expect(playerOptions2.cardResourceDistributionPrompt?.cards.map((c) => c.name)).deep.eq([e.name, f.name]);
     playerOptions2.options[0].cb(3);
     playerOptions2.cb(undefined);
     expect(e.resourceCount).eq(5);

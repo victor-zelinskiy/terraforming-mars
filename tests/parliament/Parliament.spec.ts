@@ -3,7 +3,7 @@ import {testGame} from '../TestGame';
 import {TestPlayer} from '../TestPlayer';
 import {IGame} from '../../src/server/IGame';
 import {Game} from '../../src/server/Game';
-import {Parliament} from '../../src/server/parliament/Parliament';
+import {compatibleWith, Parliament} from '../../src/server/parliament/Parliament';
 import {IncompatibleParliamentSaveError} from '../../src/server/parliament/ParliamentErrors';
 import {REDUX_RESOLUTION_CATALOG} from '../../src/server/parliament/resolutions/ResolutionCatalog';
 import {PARLIAMENT_SAVE_VERSION} from '../../src/server/parliament/SerializedParliament';
@@ -38,7 +38,7 @@ function voteOption(player: TestPlayer): SelectParty | undefined {
 describe('Parliament', () => {
   describe('setup', () => {
     it('deals three resolutions of different parties, seats every free delegate in the lobby and starts with the Greens ruling', () => {
-      const [, p1, p2, parliament] = reduxGame();
+      const [game, p1, p2, parliament] = reduxGame();
       expect(parliament.slots).has.length(PARLIAMENT_VOTING_SLOTS);
       const parties = parliament.partiesInVotingArea();
       expect(new Set(parties).size).eq(PARLIAMENT_VOTING_SLOTS);
@@ -53,9 +53,11 @@ describe('Parliament', () => {
       expect(parliament.quest?.generation).eq(1);
       // THE DECK IS THE SUM OF WHAT IS SHIPPED — never a fixed total and never
       // a quota per party (the Greens already carry three real resolutions).
-      // Derived from the catalog, so implementing the next one cannot fail a
-      // spec that only ever meant «every dealt card is somewhere on the table».
-      const dealt = REDUX_RESOLUTION_CATALOG.dealtInstances(() => true).length;
+      // Derived from the catalog THROUGH THE GAME'S OWN EXPANSION FILTER (a
+      // Venus-only card is catalogued and dealt in no game without Venus), so
+      // implementing the next one cannot fail a spec that only ever meant
+      // «every dealt card is somewhere on the table».
+      const dealt = REDUX_RESOLUTION_CATALOG.dealtInstances(compatibleWith(game.gameOptions.expansions)).length;
       expect(dealt).is.greaterThan(PARLIAMENT_VOTING_SLOTS);
       expect(parliament.deck.length + parliament.discard.length + PARLIAMENT_VOTING_SLOTS).eq(dealt);
     });

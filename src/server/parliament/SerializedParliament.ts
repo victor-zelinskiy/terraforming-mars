@@ -2,6 +2,7 @@ import {PlayerId, SpaceId} from '../../common/Types';
 import {Color} from '../../common/Color';
 import {PartyName} from '../../common/turmoil/PartyName';
 import {CardName} from '../../common/cards/CardName';
+import {Tag} from '../../common/cards/Tag';
 import {CardResource} from '../../common/CardResource';
 import {Resource} from '../../common/Resource';
 import {BotParliamentMode, ParliamentPhaseStep, QuestDefinition, ResolutionInstanceId} from '../../common/parliament/ParliamentTypes';
@@ -81,7 +82,14 @@ export type SerializedEnactOutcome = {
   /** `stock` (and its skip): the standard resource the effect adds to the supply. */
   stock?: Resource;
   amount?: number;
+  /** `cardResource`: the ONE card the whole amount landed on (absent when it was spread over several — see `cards`). */
   card?: CardName;
+  /**
+   * `cardResource`: WHERE the units landed, card by card — the whole list,
+   * every consumer's reading (the stage, the results, the journal); a single
+   * recipient is the list of one. Absent on older saves (then `card`).
+   */
+  cards?: Array<{card: CardName; amount: number}>;
   space?: SpaceId;
   /** `skipped`: why nothing happened (English i18n key). */
   reason?: string;
@@ -97,6 +105,12 @@ export type SerializedEnactOutcome = {
    * Absent on a count where every card is worth exactly 1, and on older saves.
    */
   countedUnits?: Array<number>;
+  /**
+   * A count over SEVERAL tags (Cloud Development's Venus + Jovian): each
+   * tag's own total at the enactment, in the term's order — the breakdown
+   * the reading prints beside the sum. Absent on a single-tag count.
+   */
+  countedByTag?: Array<{tag: Tag; count: number}>;
   /** The formula's sum before the cap (above `amount` exactly when the cap bit). */
   uncapped?: number;
   /** `production` / `stock`: the value before and after the change. */

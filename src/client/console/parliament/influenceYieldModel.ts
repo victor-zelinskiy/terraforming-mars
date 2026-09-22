@@ -81,6 +81,14 @@ export function yieldCountPresentation(id: ResolutionCountId): YieldCountPresent
       ruleKey: 'Every power tag counts, whatever the card scores: one card with two of them counts twice. A wild tag is not a power tag at an enactment, and energy production is not a tag.',
       skipReasonKey: 'No power tags and no influence',
     };
+  case 'venusJovianTags':
+    // ONE term over TWO tags: the glyph is both medallions joined by «+», as the face prints them.
+    return {
+      glyph: {kind: 'tags', tags: [Tag.VENUS, Tag.JOVIAN]},
+      pluralKey: '${0} Venus and Jovian tag(s)',
+      ruleKey: 'Every Venus tag and every Jovian tag counts, one unit each: a card that prints both counts twice. A wild tag is neither at an enactment.',
+      skipReasonKey: 'No Venus or Jovian tags and no influence',
+    };
   }
 }
 

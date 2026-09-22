@@ -101,7 +101,7 @@ describe('resolutionCounts', () => {
 
   describe('a TAG count (powerTags)', () => {
     it('counts every printed occurrence: one card with two power tags is two units', () => {
-      expect(resolutionCountKind(TAGS)).deep.eq({kind: 'tags', tag: Tag.POWER});
+      expect(resolutionCountKind(TAGS)).deep.eq({kind: 'tags', tags: [Tag.POWER]});
       expect(cardCountUnits(TAGS, new PowerPlant(), FACE_DOWN)).eq(1);
       expect(cardCountUnits(TAGS, new HE3FusionPlant(), FACE_DOWN), 'two printed power tags').eq(2);
       // …while a CARD count is one unit whatever the card prints.

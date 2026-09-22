@@ -1,6 +1,7 @@
 import {Color} from '../Color';
 import {SpaceId} from '../Types';
 import {CardName} from '../cards/CardName';
+import {Tag} from '../cards/Tag';
 import {CardResource} from '../CardResource';
 import {Resource} from '../Resource';
 import {ResolutionCountModel} from '../parliament/resolutionCounts';
@@ -179,7 +180,10 @@ export type ParliamentEnactOutcomeModel = {
   /** `stock` (and its skip): the standard resource the effect adds to the supply. */
   stock?: Resource;
   amount?: number;
+  /** `cardResource`: the ONE card the whole amount landed on (absent when spread over several — see `cards`). */
   card?: CardName;
+  /** `cardResource`: WHERE the units landed, card by card — every reader's list; one recipient is a list of one. */
+  cards?: ReadonlyArray<{card: CardName; amount: number}>;
   space?: SpaceId;
   reason?: string;
   influence?: number;
@@ -188,6 +192,8 @@ export type ParliamentEnactOutcomeModel = {
   counted?: ReadonlyArray<CardName>;
   /** …and what each of those cards contributed (a TAG count: a two-power-tag card is 2). */
   countedUnits?: ReadonlyArray<number>;
+  /** A count over SEVERAL tags: each tag's own total («Venus 1 · Jovian 2»). */
+  countedByTag?: ReadonlyArray<{tag: Tag; count: number}>;
   /** The formula's sum before the cap (above `amount` exactly when the cap bit). */
   uncapped?: number;
   /** `production` / `stock`: the value before and after. */

@@ -6,7 +6,7 @@ import {SerializedGame} from '../../src/server/SerializedGame';
 import {TestPlayer} from '../TestPlayer';
 import {IGame} from '../../src/server/IGame';
 import {Game} from '../../src/server/Game';
-import {Parliament} from '../../src/server/parliament/Parliament';
+import {compatibleWith, Parliament} from '../../src/server/parliament/Parliament';
 import {TEST_CHOICE_RESOLUTION_ID} from '../../src/server/parliament/resolutions/ResolutionCatalog';
 import {answerGate, answerStandingGates, endGenerationThroughParliament, gatePromptOf, passToParliament, seatQuiet, seatResolution, settleParliamentGates} from './parliamentArrange';
 import {ParliamentHandler} from '../../src/server/parliament/ParliamentHandler';
@@ -108,7 +108,9 @@ describe('ParliamentPhase', () => {
     //    The refresh deals one card per party, never the enacted card's
     //    party: as many slots as the pool has OTHER parties, at most three (a
     //    slot nothing fits stays empty — the deck is real resolutions only).
-    const otherParties = new Set(parliament.catalog.dealtInstances(() => true)
+    //    …and «the pool» is what THIS game deals — the catalog through the game's own expansion filter
+    //    (a Venus-only card is in no deck of a game without Venus Next).
+    const otherParties = new Set(parliament.catalog.dealtInstances(compatibleWith(game.gameOptions.expansions))
       .map((instance) => parliament.resolutionOf(instance).party)
       .filter((party) => party !== winnerParty));
     const expectedSlots = Math.min(PARLIAMENT_VOTING_SLOTS, otherParties.size);

@@ -1403,6 +1403,32 @@
   background-position: center;
   box-shadow: 0 0 0 1px var(--pcard-gold-deep, #8a6a35), 0 1px 2px rgba(0, 0, 0, 0.7);
 }
+/* SEVERAL PRINTED TAGS as ONE counted object («per Venus and Jovian tag» —
+   Cloud Development): every medallion in its own square of the same size, the
+   face's own «+» between them. The box is a row now, so it grows with the
+   list; each medallion keeps the single glyph's optical centring. */
+.pcglyph--tags {
+  display: inline-flex;
+  align-items: center;
+  width: auto;
+  gap: 0.12em;
+  .pcglyph__tag {
+    position: relative;
+    left: auto;
+    top: auto;
+    transform: none;
+    flex-shrink: 0;
+    width: calc(var(--pvpcard-size, var(--pcard-mech-icon, 24px)) * 0.88);
+    height: calc(var(--pvpcard-size, var(--pcard-mech-icon, 24px)) * 0.88);
+  }
+  .pcglyph__plus {
+    flex-shrink: 0;
+    font-weight: 800;
+    font-size: calc(var(--pvpcard-size, var(--pcard-mech-icon, 24px)) * 0.62);
+    line-height: 1;
+    color: var(--pcard-ink, #f2ecdc);
+  }
+}
 
 /* secondary tag bubble (top-right) */
 .pcard-mi__bubble {

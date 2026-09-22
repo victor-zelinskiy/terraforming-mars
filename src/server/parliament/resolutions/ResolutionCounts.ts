@@ -14,9 +14,12 @@
  * source of a tag, including the permanent modifiers no card prints (Leavitt
  * Station's science, Underworld's plants, the Delta Project's jovian) — while
  * the shared predicate supplies the BREAKDOWN that explains it, card by card
- * with its own contribution. `tests/parliament/CentralPowerGrid.spec.ts` pins
- * the two against each other over the corpus, so the explanation can never
- * drift from the number.
+ * with its own contribution. A term over SEVERAL tags (Cloud Development's
+ * Venus + Jovian) is the canonical count of EACH tag, added up, and the model
+ * keeps the per-tag totals beside the sum. `tests/parliament/CentralPowerGrid.spec.ts`
+ * and `tests/parliament/CloudDevelopment.spec.ts` pin the breakdowns against
+ * the canonical numbers over a corpus, so the explanation can never drift
+ * from the number.
  */
 import {CardName} from '../../../common/cards/CardName';
 import {
@@ -40,9 +43,13 @@ export function resolutionCount(player: IPlayer, id: ResolutionCountId): Resolut
   if (kind.kind === 'cards') {
     return breakdown;
   }
-  // THE CANONICAL NUMBER. The breakdown above is the same rule expressed per
-  // card; the counter is the one that also sees a permanent modifier.
-  return {...breakdown, count: player.tags.count(kind.tag, RESOLUTION_TAG_COUNTING_MODE)};
+  // THE CANONICAL NUMBER, tag by tag. The breakdown above is the same rule
+  // expressed per card; the counter is the one that also sees a permanent
+  // modifier. A single-tag term is the one count; a multi-tag term is the sum
+  // of each tag's count, with the per-tag totals kept for the reading.
+  const byTag = kind.tags.map((tag) => ({tag, count: player.tags.count(tag, RESOLUTION_TAG_COUNTING_MODE)}));
+  const count = byTag.reduce((sum, entry) => sum + entry.count, 0);
+  return byTag.length > 1 ? {...breakdown, count, byTag} : {...breakdown, count};
 }
 
 /** What ONE card of `player`'s tableau contributes to `id` (0 = it does not count). */

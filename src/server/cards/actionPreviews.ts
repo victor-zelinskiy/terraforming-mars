@@ -589,13 +589,56 @@ export function targetVictoryPoints(
   }
   let box: Partial<Record<CardName, VictoryPointsDelta>> | undefined;
   for (const c of cards) {
-    // A card BEING PLAYED is on no tableau yet (Jovian Lanterns targets itself),
-    // and an SRR-hosted card is unplayed — both are the actor's own.
-    const owner = player.game.getCardPlayerOrUndefined(c.name) ?? player;
-    const vp = resourceVictoryPoints(owner, c, delta);
+    const vp = targetVictoryPointsOf(player, c, delta);
     if (vp !== undefined) {
       box = box ?? {};
-      box[c.name] = owner.id === player.id ? vp : {...vp, owner: {color: owner.color, name: owner.name}};
+      box[c.name] = vp;
+    }
+  }
+  return box;
+}
+
+/** ONE candidate's VP reading for `delta` — through ITS OWNER's counter, the owner named when it is not the actor. */
+function targetVictoryPointsOf(player: IPlayer, card: ICard, delta: number): VictoryPointsDelta | undefined {
+  // A card BEING PLAYED is on no tableau yet (Jovian Lanterns targets itself),
+  // and an SRR-hosted card is unplayed — both are the actor's own.
+  const owner = player.game.getCardPlayerOrUndefined(card.name) ?? player;
+  const vp = resourceVictoryPoints(owner, card, delta);
+  if (vp === undefined) {
+    return undefined;
+  }
+  return owner.id === player.id ? vp : {...vp, owner: {color: owner.color, name: owner.name}};
+}
+
+/**
+ * The per-candidate VP reading of EVERY amount a DISTRIBUTION could put on it
+ * — k = 1…`max`, index k − 1 — for the shared distribution step
+ * (`AddResourcesToCards`). The SAME machine as {@link targetVictoryPoints},
+ * read once per k because a stepped rule («1 VP per 2 floaters») makes the
+ * delta of one amount say nothing about another, and the client may derive
+ * no rule of its own. A card whose points never respond is absent.
+ */
+export function distributionVictoryPoints(
+  player: IPlayer,
+  cards: ReadonlyArray<ICard>,
+  max: number,
+): Partial<Record<CardName, ReadonlyArray<VictoryPointsDelta>>> | undefined {
+  if (max <= 0) {
+    return undefined;
+  }
+  let box: Partial<Record<CardName, ReadonlyArray<VictoryPointsDelta>>> | undefined;
+  for (const c of cards) {
+    const table: Array<VictoryPointsDelta> = [];
+    for (let k = 1; k <= max; k++) {
+      const vp = targetVictoryPointsOf(player, c, k);
+      if (vp === undefined) {
+        break;
+      }
+      table.push(vp);
+    }
+    if (table.length === max) {
+      box = box ?? {};
+      box[c.name] = table;
     }
   }
   return box;

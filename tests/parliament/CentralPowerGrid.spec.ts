@@ -648,8 +648,8 @@ describe('CentralPowerGrid', () => {
       const counts = model?.players.find((p) => p.color === p1.color)?.counts;
       expect(counts?.find((c) => c.id === 'powerTags')).deep.eq(
         {id: 'powerTags', count: 3, cards: [CardName.HE3_FUSION_PLANT, CardName.POWER_PLANT], units: [2, 1]});
-      // Both counted terms of the catalog ride along — one model, every rule.
-      expect(counts?.map((c) => c.id)).deep.eq(['buildingCardsWithNonNegativeVp', 'powerTags']);
+      // Every counted term of the catalog rides along — one model, every rule (Cloud Development's two-tag term included).
+      expect(counts?.map((c) => c.id)).deep.eq(['buildingCardsWithNonNegativeVp', 'powerTags', 'venusJovianTags']);
       expect(model?.players.find((p) => p.color === p2.color)?.counts?.find((c) => c.id === 'powerTags')).deep.eq(
         {id: 'powerTags', count: 0, cards: [], units: []});
       endGeneration(game);

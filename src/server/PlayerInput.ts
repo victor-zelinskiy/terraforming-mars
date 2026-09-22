@@ -3,7 +3,7 @@ import {Message} from '../common/logs/Message';
 import {PlayerInputType} from '../common/input/PlayerInputType';
 import {InputResponse} from '../common/inputs/InputResponse';
 import {IPlayer} from './IPlayer';
-import {PlayerInputModel, StartGamePromptMeta, BonusActionPromptMeta, AwardFundingPromptMeta, ChoiceContext, ColonyBonusCollectMeta, DeckPickPromptMeta, DiscardPromptMeta, DraftPromptMeta, FinalGreeneryPromptMeta, PlacementContext, ResourceGainPromptMeta, VenusBonusPromptMeta, SpendHeatPromptMeta, VotePromptMeta, VotePaymentMeta, PartyActionPromptMeta, ParliamentPhaseMarker, ChairmanQuestPromptMeta} from '../common/models/PlayerInputModel';
+import {PlayerInputModel, StartGamePromptMeta, BonusActionPromptMeta, AwardFundingPromptMeta, ChoiceContext, ColonyBonusCollectMeta, DeckPickPromptMeta, DiscardPromptMeta, DraftPromptMeta, FinalGreeneryPromptMeta, PlacementContext, ResourceGainPromptMeta, CardResourceDistributionMeta, VenusBonusPromptMeta, SpendHeatPromptMeta, VotePromptMeta, VotePaymentMeta, PartyActionPromptMeta, ParliamentPhaseMarker, ChairmanQuestPromptMeta} from '../common/models/PlayerInputModel';
 import {BotAttackPromptMeta} from '../common/models/BotAttackPromptModel';
 import {ExternalDrawTakeMeta} from '../common/models/ExternalDrawPromptModel';
 import {DeltaBonusPromptMeta} from '../common/models/DeltaBonusPromptModel';
@@ -80,6 +80,11 @@ export interface PlayerInput {
     // until it is answered. Serialized centrally in ServerModel.getWaitingFor
     // (the gate is always the TOP-LEVEL prompt).
     chairmanQuestPrompt?: ChairmanQuestPromptMeta;
+    // Explicit "this AndOptions DISTRIBUTES a card resource over the chosen
+    // cards" marker (see CardResourceDistributionMeta) — the candidates as
+    // faces, the sum, the VP reading of every amount. Serialized on
+    // AndOptions.toModel (nesting-safe), not centrally.
+    cardResourceDistributionPrompt?: CardResourceDistributionMeta;
 
     // Contextual annotation identifying this PlayerInput.
     annotation: string | undefined;
@@ -161,6 +166,7 @@ export abstract class BasePlayerInput<T> implements PlayerInput {
   public partyActionPrompt: PartyActionPromptMeta | undefined;
   public parliamentPhasePrompt: ParliamentPhaseMarker | undefined;
   public chairmanQuestPrompt: ChairmanQuestPromptMeta | undefined;
+  public cardResourceDistributionPrompt: CardResourceDistributionMeta | undefined;
 
   public abstract toModel(player: IPlayer): PlayerInputModel;
   public abstract process(response: InputResponse, player: IPlayer): PlayerInput | undefined;
@@ -380,6 +386,16 @@ export abstract class BasePlayerInput<T> implements PlayerInput {
    *  See {@link ChairmanQuestPromptMeta}. */
   public markChairmanQuest(meta: ChairmanQuestPromptMeta): this {
     this.chairmanQuestPrompt = meta;
+    return this;
+  }
+
+  /** Mark this `AndOptions` as a DISTRIBUTION of a card resource over the
+   *  chosen cards (chainable): the candidates as faces, the sum every answer
+   *  must reach, the VP reading of every amount. Stamped by
+   *  `AddResourcesToCards`, the one funnel of the family.
+   *  See {@link CardResourceDistributionMeta}. */
+  public markCardResourceDistribution(meta: CardResourceDistributionMeta): this {
+    this.cardResourceDistributionPrompt = meta;
     return this;
   }
 }

@@ -8,6 +8,7 @@ import {PartyName} from '../../src/common/turmoil/PartyName';
 import {AQUIFER_CONTEST_ID} from '../../src/server/parliament/resolutions/greens/AquiferContest';
 import {ARCHITECTURE_AWARD_ID} from '../../src/server/parliament/resolutions/marsFirst/ArchitectureAward';
 import {CENTRAL_POWER_GRID_ID} from '../../src/server/parliament/resolutions/industrialists/CentralPowerGrid';
+import {CLOUD_DEVELOPMENT_ID} from '../../src/server/parliament/resolutions/unity/CloudDevelopment';
 import {DEV_COMPOUND_RESOLUTION_ID, DEV_SCIENCE_RESOLUTION_ID} from '../../src/server/parliament/resolutions/ResolutionCatalog';
 import {runAllActions} from '../TestingUtils';
 
@@ -100,7 +101,10 @@ export function seatEnacted(parliament: Parliament, id: ResolutionId | Resolutio
  *  - the Greens: Aquifer Contest (its animals go to a holder, and a fresh
  *    table has none — the share is named and forfeited, nothing is asked);
  *  - Mars First: Architecture Award, the Industrialists: Central Power Grid
- *    (M€ production, never a choice).
+ *    (M€ production, never a choice);
+ *  - Unity: Cloud Development (its floaters go to a holder, and a fresh table
+ *    has none — named and forfeited, nothing asked; a Venus card, seated by
+ *    id regardless of the game's expansions).
  * The parties with no real resolution yet are never dealt, so they never need one.
  */
 export function quietResolutionOf(party: ReduxParty): ResolutionId {
@@ -108,12 +112,13 @@ export function quietResolutionOf(party: ReduxParty): ResolutionId {
   case PartyName.GREENS: return AQUIFER_CONTEST_ID;
   case PartyName.MARS: return ARCHITECTURE_AWARD_ID;
   case PartyName.INDUSTRIALISTS: return CENTRAL_POWER_GRID_ID;
+  case PartyName.UNITY: return CLOUD_DEVELOPMENT_ID;
   // The parties WITHOUT a real card yet seat their DEV substitutes (final polish D.2): a spec or a fixture
   // of the first Reds / Scientists card starts from the table, not from this helper.
   case PartyName.REDS: return DEV_COMPOUND_RESOLUTION_ID;
   case PartyName.SCIENTISTS: return DEV_SCIENCE_RESOLUTION_ID;
   default:
-    throw new Error(`no resolution of ${party} exists yet, not even a DEV substitute (Unity: add one to the catalog first) — a spec cannot meet one in the voting area`);
+    throw new Error(`no resolution of ${party} exists yet, not even a DEV substitute — a spec cannot meet one in the voting area`);
   }
 }
 

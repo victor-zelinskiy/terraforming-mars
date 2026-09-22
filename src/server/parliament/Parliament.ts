@@ -797,8 +797,13 @@ export class Parliament {
   }
 }
 
-/** The deal's filter: a resolution that needs an expansion is dealt only in a game that has it. */
-function compatibleWith(expansions: Readonly<Record<Expansion, boolean>>): (definition: ResolutionDefinition) => boolean {
+/**
+ * The deal's filter: a resolution that needs an expansion is dealt only in a
+ * game that has it. Exported so a spec derives «every dealt card» from the
+ * SAME filter the deal used, never from the whole catalog (a Venus-only card
+ * is in the catalog and in no deck of a game without Venus Next).
+ */
+export function compatibleWith(expansions: Readonly<Record<Expansion, boolean>>): (definition: ResolutionDefinition) => boolean {
   return (definition) => (definition.compatibility ?? []).every((expansion) => expansions[expansion] === true);
 }
 

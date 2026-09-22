@@ -22,7 +22,10 @@ import {SerializedEnactOutcome} from '../../src/server/parliament/SerializedParl
 import {SelectCard} from '../../src/server/inputs/SelectCard';
 import {SelectSpace} from '../../src/server/inputs/SelectSpace';
 import {OrOptions} from '../../src/server/inputs/OrOptions';
+import {AndOptions} from '../../src/server/inputs/AndOptions';
 import {IProjectCard} from '../../src/server/cards/IProjectCard';
+import {Dirigibles} from '../../src/server/cards/venusNext/Dirigibles';
+import {AtmoCollectors} from '../../src/server/cards/colonies/AtmoCollectors';
 import {Fish} from '../../src/server/cards/base/Fish';
 import {Pets} from '../../src/server/cards/base/Pets';
 import {Birds} from '../../src/server/cards/base/Birds';
@@ -83,12 +86,15 @@ const INFLUENCES = [0, 1, 3, 5] as const;
 type TableauName = 'empty' | 'one' | 'saturated';
 const TABLEAUS: Readonly<Record<TableauName, () => Array<IProjectCard>>> = {
   empty: () => [],
-  // ONE fitting card for every family: an animal holder, a counted building, a power tag, a science tag.
-  one: () => [new Fish(), new ArtificialLake(), new PowerPlant(), new Research()],
+  // ONE fitting card for every family: an animal holder, a counted building, a power tag, a science tag,
+  // a floater holder (with a Venus tag — the distributing family's ordinary pick: one holder takes all).
+  one: () => [new Fish(), new ArtificialLake(), new PowerPlant(), new Research(), new Dirigibles()],
+  // …and TWO floater holders, so the distributing family asks its DISTRIBUTION (N ≥ 2 over ≥ 2 holders).
   saturated: () => [
     new Fish(), new Pets(), new Birds(), new Tardigrades(), new Trees(),
     new ArtificialLake(), new DomedCrater(), new SpaceElevator(), new Mine(),
     new HE3FusionPlant(), new PowerPlant(), new FusionPower(), new Research(),
+    new Dirigibles(), new AtmoCollectors(),
   ],
 };
 
@@ -200,6 +206,10 @@ function enact(definition: ResolutionDefinition, opts: {influence: number; table
         player.process({type: 'space', spaceId: wf.spaces[0].id});
       } else if (wf instanceof OrOptions) {
         player.process({type: 'or', index: 0, response: {type: 'option'}});
+      } else if (wf instanceof AndOptions && wf.cardResourceDistributionPrompt !== undefined) {
+        // A DISTRIBUTION (the shared step's marker): the plainest legal answer puts everything on the first holder.
+        const amount = wf.cardResourceDistributionPrompt.amount;
+        player.process({type: 'and', responses: wf.options.map((_, i) => ({type: 'amount', amount: i === 0 ? amount : 0}))});
       } else {
         throw new Error(`${label(definition)}: the guard cannot answer a "${wf.type}" prompt of ${player.color}`);
       }

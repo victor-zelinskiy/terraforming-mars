@@ -31,12 +31,19 @@
 import {CardName} from '../cards/CardName';
 import {CardResource} from '../CardResource';
 import {Resource} from '../Resource';
+import {Tag} from '../cards/Tag';
 import {AGENDA_TRACK, influenceAtAgenda} from './ParliamentTypes';
 import {ResolutionCountTerm} from './resolutionCounts';
 
 /** WHAT one unit of the yield is. */
 export type InfluenceYieldUnit =
-  | {kind: 'cardResource', resource: CardResource}
+  /**
+   * A resource ONTO the player's own cards. `spread` is the printed «each
+   * resource can go on a different card» (Cloud Development): the amount is
+   * DISTRIBUTED over the holders through the shared distribution step, never
+   * paid onto one card. Absent = one payout onto ONE card (Aquifer Contest).
+   */
+  | {kind: 'cardResource', resource: CardResource, spread?: boolean}
   | {kind: 'stock', resource: Resource}
   | {kind: 'production', resource: Resource}
   | {kind: 'cards'};
@@ -135,8 +142,16 @@ export type InfluenceYield = {
   counted?: ReadonlyArray<CardName>;
   /** …and what EACH of them contributed (a tag count: a two-power-tag card is 2). */
   countedUnits?: ReadonlyArray<number>;
+  /** A count over SEVERAL tags: each tag's own total («Venus 1 · Jovian 2») — the reading's breakdown. */
+  countedByTag?: ReadonlyArray<{tag: Tag, count: number}>;
   /** The formula's sum before the cap — above `amount` exactly when the cap bit. */
   uncapped?: number;
+  /**
+   * `resolving` / `applied` of a DISTRIBUTED card resource: where each unit
+   * LANDED («Dirigibles +2 · Floating Habs +1») — the server's record, so the
+   * reading can name the destinations without knowing the cards.
+   */
+  targets?: ReadonlyArray<{card: CardName, amount: number}>;
   /**
    * A SEQUENTIAL effect: the player total this reading divides, BEFORE and
    * AFTER the earlier effect moved it («heat production 4 → 6 → 2 cards»).
@@ -160,7 +175,13 @@ export type InfluenceYield = {
 };
 
 /** The counted part of a reading: how many items, which cards, and what each contributed. */
-export type YieldCount = {count: number, cards?: ReadonlyArray<CardName>, units?: ReadonlyArray<number>};
+export type YieldCount = {
+  count: number,
+  cards?: ReadonlyArray<CardName>,
+  units?: ReadonlyArray<number>,
+  /** A multi-tag count's per-tag totals (the reading's breakdown). */
+  byTag?: ReadonlyArray<{tag: Tag, count: number}>,
+};
 
 function withCount(y: InfluenceYield, effect: InfluenceScaledEffect, count: YieldCount | undefined): InfluenceYield {
   if (effect.count !== undefined && count !== undefined) {
@@ -170,6 +191,9 @@ function withCount(y: InfluenceYield, effect: InfluenceScaledEffect, count: Yiel
     }
     if (count.units !== undefined) {
       y.countedUnits = count.units;
+    }
+    if (count.byTag !== undefined) {
+      y.countedByTag = count.byTag;
     }
   }
   if (effect.cap !== undefined && y.influence !== undefined) {
@@ -263,7 +287,11 @@ export function fixedYield(
   context: 'resolving' | 'applied',
   amount: number,
   influence?: number,
-  recorded?: {count?: number, counted?: ReadonlyArray<CardName>, countedUnits?: ReadonlyArray<number>, uncapped?: number},
+  recorded?: {
+    count?: number, counted?: ReadonlyArray<CardName>, countedUnits?: ReadonlyArray<number>,
+    countedByTag?: ReadonlyArray<{tag: Tag, count: number}>, uncapped?: number,
+    targets?: ReadonlyArray<{card: CardName, amount: number}>,
+  },
 ): InfluenceYield {
   const y: InfluenceYield = {effect, context, amount, influence};
   if (recorded?.count !== undefined) {
@@ -275,8 +303,14 @@ export function fixedYield(
   if (recorded?.countedUnits !== undefined) {
     y.countedUnits = recorded.countedUnits;
   }
+  if (recorded?.countedByTag !== undefined) {
+    y.countedByTag = recorded.countedByTag;
+  }
   if (recorded?.uncapped !== undefined) {
     y.uncapped = recorded.uncapped;
+  }
+  if (recorded?.targets !== undefined && recorded.targets.length > 0) {
+    y.targets = recorded.targets;
   }
   return y;
 }

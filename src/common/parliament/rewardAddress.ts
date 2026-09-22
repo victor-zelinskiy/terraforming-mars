@@ -104,8 +104,10 @@ export const OUTCOME_KINDS: ReadonlyArray<OutcomeKind> = Object.keys(REWARD_ADDR
 export type RewardPayload = {
   /** The standard resource (production / stock / a reaction) or the card resource (onto a card). */
   resource?: string;
-  /** The card the resource landed on (`cardResource`). */
+  /** The card the resource landed on (`cardResource`, one recipient). */
   card?: string;
+  /** WHERE a `cardResource` landed, card by card — the whole list (one recipient is a list of one). */
+  cards?: ReadonlyArray<{card: string; amount: number}>;
   /** The amount actually paid — a skip carries the amount it would have paid, when the record knows it. */
   amount?: number;
   /** The tile's own parameter, before and after (`ocean` / `greenery`). */
@@ -136,6 +138,13 @@ export function rewardAddressOf(outcome: ParliamentEnactOutcomeModel, viewer: Co
   }
   if (outcome.card !== undefined) {
     payload.card = outcome.card;
+  }
+  // THE LIST IS THE READING: a record that names its cards one by one is
+  // read as that list; an older record with one `card` is the list of one.
+  if (outcome.cards !== undefined && outcome.cards.length > 0) {
+    payload.cards = outcome.cards.map((entry) => ({card: entry.card, amount: entry.amount}));
+  } else if (outcome.card !== undefined && (outcome.amount ?? 0) > 0) {
+    payload.cards = [{card: outcome.card, amount: outcome.amount ?? 0}];
   }
   if (outcome.amount !== undefined) {
     payload.amount = outcome.amount;

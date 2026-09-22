@@ -609,6 +609,10 @@ export type BaseInputModel = {
    *  {@link ChairmanQuestPromptMeta}). Serialized centrally in
    *  ServerModel.getWaitingFor: the gate is always the TOP-LEVEL prompt. */
   chairmanQuestPrompt?: ChairmanQuestPromptMeta;
+  /** Explicit "this `and` DISTRIBUTES a card resource over the chosen cards"
+   *  marker (see {@link CardResourceDistributionMeta}). Serialized on
+   *  `AndOptions.toModel` (nesting-safe), not centrally. */
+  cardResourceDistributionPrompt?: CardResourceDistributionMeta;
 }
 
 export type AndOptionsModel = BaseInputModel & {
@@ -744,6 +748,34 @@ export type ResourceGainPromptMeta = {
   /** Per-candidate VP reading; a card whose points the resource never moves is
    *  simply ABSENT (never a fabricated zero) — see {@link VictoryPointsDelta}. */
   vpBox?: Partial<Record<CardName, VictoryPointsDelta>>;
+}
+
+/**
+ * "This prompt DISTRIBUTES resources over the chosen cards" — the structural
+ * marker of the shared distribution step (`AddResourcesToCards`): N units of
+ * one card resource, spread freely over the player's holders, the sum EXACTLY
+ * N. On the wire it is an `AndOptions` of one `SelectAmount` per candidate (in
+ * `cards` order — the answer's amounts are positional), and the marker is what
+ * tells the console to serve it on the card-target chassis in LAYOUT mode
+ * rather than as a faceless column of numbers. Every fact a surface needs is
+ * here, so nothing is recovered from a title:
+ *  · the candidates as REAL card models (their live stored count included);
+ *  · the VP reading of EVERY amount a card could receive (k = 1…N, index
+ *    k − 1) — the same machine `vpBox` runs (`resourceVictoryPoints`), read
+ *    per k because floater points are often stepped («1 VP per 2») and the
+ *    delta of one amount says nothing about another. Absent for a card whose
+ *    points never move.
+ * READ-ONLY preview data. Serialized on `AndOptions.toModel` (nesting-safe).
+ */
+export type CardResourceDistributionMeta = {
+  /** How many units are placed — the sum every answer must reach. */
+  amount: number;
+  /** Icon key of the card resource ('floater', 'microbe', …). */
+  cardResource: string;
+  /** The candidates, in the `and`'s option order. */
+  cards: ReadonlyArray<CardModel>;
+  /** Per candidate, the VP reading for k = 1…amount (index k − 1). */
+  vpByAmount?: Partial<Record<CardName, ReadonlyArray<VictoryPointsDelta>>>;
 }
 
 export type SelectCardModel = BaseInputModel & {

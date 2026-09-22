@@ -562,5 +562,19 @@
   "The delegate returns to the reserve": "Делегат возвращается в резерв",
   "Payouts": "Выплаты",
   "The table": "Стол",
-  "Without a free delegate": "Без свободного делегата"
+  "Without a free delegate": "Без свободного делегата",
+  "Cloud Development": "Освоение облаков",
+  "Every player adds 1 floater per Venus and Jovian tag they have, plus their influence, to their cards that can hold floaters — each floater may go on a different card.": "Каждый игрок добавляет по 1 аэростату за каждую свою метку Венеры и Юпитера плюс своё влияние на свои карты, принимающие аэростаты, — каждый аэростат может лечь на другую карту.",
+  "Play 2 Venus tags": "Разыграйте 2 метки Венеры",
+  "No Venus or Jovian tags and no influence": "Нет меток Венеры и Юпитера и нет влияния",
+  "No card can hold floaters": "Нет карты, принимающей аэростаты",
+  "No Venus or Jovian tag": "Нет метки Венеры или Юпитера",
+  "Add ${0} floater(s) to one of your cards": "Добавьте ${0} {аэростат|аэростата|аэростатов} на одну из своих карт",
+  "Place ${0} floater(s) on your cards": "Разложите ${0} {аэростат|аэростата|аэростатов} по своим картам",
+  "${0} Venus and Jovian tag(s)": "${0} {метка|метки|меток} Венеры и Юпитера",
+  "Every Venus tag and every Jovian tag counts, one unit each: a card that prints both counts twice. A wild tag is neither at an enactment.": "Считается каждая метка Венеры и каждая метка Юпитера, по единице за метку: карта с обеими даёт две. Универсальная метка при принятии — ни та, ни другая.",
+  "${0} has no Venus or Jovian tags and no influence — no floaters from ${1}": "${0}: нет меток Венеры и Юпитера и нет влияния — ${1} не даёт аэростатов",
+  "${0} has no card that can hold floaters — ${1} floater(s) from ${2} are forfeited": "${0}: нет карты, принимающей аэростаты — ${2} не даёт ${1} {аэростат|аэростата|аэростатов}",
+  "${0} placed ${1} floater(s) from ${2}: ${3} Venus and Jovian tag(s) + ${4} influence": "${0} раскладывает ${1} {аэростат|аэростата|аэростатов} — ${2}: ${3} {метка|метки|меток} Венеры и Юпитера + влияние ${4}",
+  "Distribution": "Раскладка"
 }
