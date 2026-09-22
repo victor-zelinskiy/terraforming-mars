@@ -3,7 +3,7 @@
  *
  * A quest's goal is data (`QuestDefinition`), and the ONE drawing of it is
  * built here from the same render DSL every card face uses — so the
- * resolution's quest corner, the Parliament workspace's quest block and the
+ * resolution's quest footnote, the Parliament workspace's quest block and the
  * inspector all show the same icons for «raise your heat production 3 steps»
  * and none of them ever hand-composes a second formula. Exported into
  * `genfiles/parliament.json` beside the resolution's own render data.

@@ -88,33 +88,6 @@
       </div>
     </section>
 
-    <!-- ── 1b. THE FACE LAB (block A of «Лицо резолюции») — three DIRECTIONS of the face, each judged the
-         way the brief demands: beside real project cards and a prelude (the peripheral-vision test), at
-         both ends of the game's zoom range (the scale test), and across the catalog's parties. TEMPORARY:
-         the chosen direction becomes the face and this section turns into its acceptance frames. ── -->
-    <section class="con-rxpg__section con-rxpg__lab" v-if="selected !== undefined && selectedVm !== undefined">
-      <h2>Face directions · A «Грамота» · B «Штандарт» · C «Планшет»</h2>
-      <div class="con-rxpg__labrow" data-rxpg-lab="peripheral">
-        <div v-for="name in LAB_PROJECTS" :key="name" class="con-rxpg__labcell" style="--lab-zoom: 0.5"><PremiumCard :name="name" inert lightweight /></div>
-        <div class="con-rxpg__labcell con-rxpg__labcell--old" style="--lab-zoom: 0.5"><PremiumCard :name="cardNameOf(selected)" :vmOverride="selectedVm" inert lightweight /><span class="con-rxpg__label">now</span></div>
-        <div v-for="dir in LAB_DIRECTIONS" :key="dir" class="con-rxpg__labcell" style="--lab-zoom: 0.5">
-          <ResolutionFaceSketch :vm="selectedVm" :direction="dir" thumb /><span class="con-rxpg__label">{{ dir }}</span>
-        </div>
-      </div>
-      <div v-for="dir in LAB_DIRECTIONS" :key="'x' + dir" class="con-rxpg__labrow" :data-rxpg-lab="'extremes-' + dir">
-        <div class="con-rxpg__labcell" style="--lab-zoom: 0.2"><ResolutionFaceSketch :vm="selectedVm" :direction="dir" thumb /><span class="con-rxpg__label">×0.2</span></div>
-        <div class="con-rxpg__labcell" style="--lab-zoom: 0.3"><ResolutionFaceSketch :vm="selectedVm" :direction="dir" thumb /><span class="con-rxpg__label">×0.3</span></div>
-        <div class="con-rxpg__labcell" style="--lab-zoom: 0.55"><ResolutionFaceSketch :vm="selectedVm" :direction="dir" thumb /><span class="con-rxpg__label">×0.55</span></div>
-        <div class="con-rxpg__labcell" style="--lab-zoom: 0.8"><ResolutionFaceSketch :vm="selectedVm" :direction="dir" /><span class="con-rxpg__label">×0.8</span></div>
-        <div class="con-rxpg__labcell" style="--lab-zoom: 1.12"><ResolutionFaceSketch :vm="selectedVm" :direction="dir" /><span class="con-rxpg__label">×1.12</span></div>
-        <div class="con-rxpg__labcell con-rxpg__labcell--old" style="--lab-zoom: 1.12"><PremiumCard :name="cardNameOf(selected)" :vmOverride="selectedVm" inert tier="full" /><span class="con-rxpg__label">now ×1.12</span></div>
-        <div class="con-rxpg__labcell con-rxpg__labcell--old" style="--lab-zoom: 0.3"><PremiumCard :name="cardNameOf(selected)" :vmOverride="selectedVm" inert lightweight /><span class="con-rxpg__label">now ×0.3</span></div>
-      </div>
-      <div v-for="dir in LAB_DIRECTIONS" :key="'p' + dir" class="con-rxpg__labrow" :data-rxpg-lab="'parties-' + dir">
-        <div v-for="entry in catalog" :key="entry.id" class="con-rxpg__labcell" style="--lab-zoom: 0.62"><ResolutionFaceSketch :vm="vmOf(entry)" :direction="dir" thumb /></div>
-      </div>
-    </section>
-
     <!-- ── 2. THE FACE at the three sizes the game paints it. ── -->
     <section class="con-rxpg__section" v-if="selected !== undefined">
       <h2>{{ $t('Card sizes') }} · {{ $t(selected.text.name) }} <b class="con-rxpg__code">{{ selected.code ?? '—' }}</b></h2>
@@ -132,6 +105,34 @@
         <div class="con-rxpg__inspect" data-rxpg-inspect>
           <ConsoleResolutionAside class="con-rxpg__aside" :party="selected.party" :parliament="undefined" :viewer="undefined" :contextKey="undefined" />
           <ConsoleCardRulesPanel class="con-rxpg__rules" embedded keepOrder :annotationsOverride="annotations" :nonce="0" />
+        </div>
+      </div>
+      <!-- THE FACE'S ACCEPTANCE FRAMES — the two tests a resolution's face must pass by eye, and its back.
+           BESIDE PROJECT CARDS: the peripheral-vision test — resolutions stand between real project cards and
+           a prelude at one size and must be told apart without reading. ACROSS THE ZOOM RANGE: the scale test
+           — the same face at every size the game paints it (×0.2 the enacted card on the Deck … ×1.12 the
+           vote row): no element turns to mush, none leaves an empty box behind. THE BACK: what the
+           Parliament's deck and a card dealt from it show. Sub-headings, never section stops (LB/RB). -->
+      <div v-if="selectedVm !== undefined" class="con-rxpg__lab" data-rxpg-face-lab>
+        <h3>{{ $t('Beside project cards') }}</h3>
+        <div class="con-rxpg__labrow" data-rxpg-lab="peripheral">
+          <template v-for="(name, i) in LAB_PROJECTS" :key="name">
+            <div class="con-rxpg__labcell" style="--lab-zoom: 0.5" data-rxpg-lab-project><PremiumCard :name="name" inert lightweight /></div>
+            <div v-if="labResolutions[i] !== undefined" class="con-rxpg__labcell" style="--lab-zoom: 0.5" data-rxpg-lab-resolution>
+              <PremiumCard :name="cardNameOf(labResolutions[i])" :vmOverride="vmOf(labResolutions[i])" inert lightweight />
+            </div>
+          </template>
+        </div>
+        <h3>{{ $t('Across the zoom range') }}</h3>
+        <div class="con-rxpg__labrow" data-rxpg-lab="ladder">
+          <div v-for="zoom in LAB_LADDER" :key="zoom" class="con-rxpg__labcell" :style="{'--lab-zoom': zoom}" :data-rxpg-lab-zoom="zoom">
+            <PremiumCard :name="cardNameOf(selected)" :vmOverride="selectedVm" inert lightweight />
+            <span class="con-rxpg__label">×{{ zoom }}</span>
+          </div>
+          <div class="con-rxpg__labcell" data-rxpg-lab-back>
+            <span class="con-rxpg__back"></span>
+            <span class="con-rxpg__label">{{ $t('The back of a resolution') }}</span>
+          </div>
         </div>
       </div>
     </section>
@@ -348,9 +349,8 @@ import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {allResolutions} from '@/client/parliament/ClientParliamentManifest';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import PremiumCard from '@/client/components/premiumCard/PremiumCard.vue';
-import ResolutionFaceSketch, {ResolutionFaceDirection} from '@/client/components/console/parliament/ResolutionFaceSketch.vue';
 import {PremiumCardVM} from '@/client/components/premiumCard/premiumCardViewModel';
-import {resolutionPremiumVm} from '@/client/components/premiumCard/resolutionPremiumVm';
+import {PARLIAMENT_GRAPHIC, resolutionPremiumVm} from '@/client/components/premiumCard/resolutionPremiumVm';
 import {partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import PlayerCube from '@/client/components/PlayerCube.vue';
@@ -676,9 +676,13 @@ const DEMO_HOLDERS: ReadonlyArray<{name: CardName, resources: number, per: numbe
   {name: CardName.ECOLOGICAL_ZONE, resources: 3, per: 2},
 ];
 
-/** THE FACE LAB (block A): the three sketched directions, and the real cards a resolution must be told apart from. */
-const LAB_DIRECTIONS: ReadonlyArray<ResolutionFaceDirection> = ['charter', 'standard', 'slate'];
+/**
+ * THE FACE'S ACCEPTANCE FRAMES: the real cards a resolution must be told apart from at a glance (an automated
+ * project, an active one, an event, a prelude — every colour family a hand can hold), and every zoom the game
+ * paints the face at (`parliamentCardFit.ts`: the enacted card's floor … the vote row's cap).
+ */
 const LAB_PROJECTS: ReadonlyArray<CardName> = [CardName.ARTIFICIAL_LAKE, CardName.BIRDS, CardName.ASTEROID, CardName.DONATION];
+const LAB_LADDER: ReadonlyArray<number> = [0.2, 0.3, 0.45, 0.62, 0.8, 1.12];
 
 const SIZES = [
   {key: 'overview', label: 'Overview size', zoom: 0.55},
@@ -722,7 +726,7 @@ function scenarioState(index: number) {
 export default defineComponent({
   name: 'ConsoleResolutionsPlayground',
   components: {
-    PremiumCard, ResolutionFaceSketch, GamepadGlyph, PlayerCube, ConsoleInfluenceYield, ConsoleResolutionStatus, ConsoleResolutionAside, ConsoleCardRulesPanel,
+    PremiumCard, GamepadGlyph, PlayerCube, ConsoleInfluenceYield, ConsoleResolutionStatus, ConsoleResolutionAside, ConsoleCardRulesPanel,
     ConsoleSourceDock, ConsolePlayedTargetStep, PremiumMechanicsPanel, PremiumCountGlyph, ConsoleWinnerReward, ConsolePartyReaction,
   },
   props: {
@@ -733,8 +737,8 @@ export default defineComponent({
     return {
       SIZES,
       SCENARIOS,
-      LAB_DIRECTIONS,
       LAB_PROJECTS,
+      LAB_LADDER,
       cursor: 0,
       ...scenarioState(DEFAULT_SCENARIO),
       pickerIndex: 0,
@@ -759,6 +763,11 @@ export default defineComponent({
     },
     selected(): IClientResolution | undefined {
       return this.catalog[this.cursor];
+    },
+    /** The resolutions standing BETWEEN the project cards of the peripheral-vision row: the selected one first, then the other real ones. */
+    labResolutions(): ReadonlyArray<IClientResolution> {
+      const selected = this.selected;
+      return selected === undefined ? [] : [selected, ...this.real.filter((r) => r.id !== selected.id)].slice(0, LAB_PROJECTS.length);
     },
     selectedVm(): PremiumCardVM | undefined {
       return this.selected === undefined ? undefined : resolutionPremiumVm(this.selected);
@@ -842,7 +851,7 @@ export default defineComponent({
       });
     },
     questMechanics(): MechanicsVM {
-      return buildMechanics(this.selected?.questRenderData);
+      return buildMechanics(this.selected?.questRenderData, PARLIAMENT_GRAPHIC);
     },
     /** The chairman quest's race as the scenario sets it (the counted family). */
     questView(): {rows: Array<{color: Color, value: number}>, completedBy: Color | undefined, completedLabel: string} | undefined {

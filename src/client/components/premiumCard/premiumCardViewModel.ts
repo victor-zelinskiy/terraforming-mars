@@ -152,10 +152,11 @@ export type PremiumCardVM = {
    */
   prose?: string;
   /**
-   * The MARS PARLIAMENT family (Turmoil Redux) — a resolution or a party's
-   * printed effect. The party emblem sits in the header; a resolution prints
-   * its chairman quest in the lower corner. Built by `resolutionPremiumVm.ts`,
-   * never from the card manifest.
+   * A RESOLUTION of the Mars Parliament (Turmoil Redux) — what its own face
+   * (`PremiumResolutionFace`, the bill) prints beside the shared fields: the
+   * party that brings it in (the author's seal, the band's colour) and the
+   * chairman quest it puts in force (the footnote). Built by
+   * `resolutionPremiumVm.ts`, never from the card manifest.
    */
   parliament?: {
     party: PartyName;
@@ -164,9 +165,7 @@ export type PremiumCardVM = {
     quest?: string;
     /** The quest's goal as a graphic (the same nodes the workspace draws) — resolutions only. */
     questRenderData?: ICardRenderRoot;
-    /** The face is a PARTY EFFECT banner, not a resolution. */
-    partyEffect?: boolean;
-    /** The party's accent colour — tints the seal composition of an art-less resolution. */
+    /** The party's accent colour — the band's dyed edge, the seal's tails, an art-less window's field. */
     accent?: string;
     /**
      * The art window carries the party's SEAL (emblem over an accent field)

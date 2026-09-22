@@ -33,7 +33,7 @@ export type IClientResolution = {
   quest: QuestDefinition;
   /**
    * The quest's GOAL as a graphic (the same render DSL the faces draw): the
-   * card's quest corner, the workspace's quest block and the inspector all
+   * card's quest footnote, the workspace's quest block and the inspector all
    * read this ONE description, so the three can never drift apart.
    */
   questRenderData: ICardRenderRoot;

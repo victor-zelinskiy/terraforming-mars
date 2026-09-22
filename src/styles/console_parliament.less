@@ -3,8 +3,8 @@
    family it shares with the action menu, the Information strip and the
    inspector: the PARTY PLAQUE (`.con-pseal` — seal · name · action badge ·
    mechanic · state · support), the party FORMULA (`.con-pformula`), the party
-   ACTION composer (`.con-pact`), the action menu's party groups, the
-   resolution face's quest plate.
+   ACTION composer (`.con-pact`), the action menu's party groups. (The face of
+   a resolution — the bill — lives in `console_resolution_face.less`.)
 
    Authored in rem (1rem = 20px logical at 1080p; `--con-ui-scale` maps it).
    Premium card faces and the printed mechanics are px-designed, so they
@@ -418,17 +418,20 @@
     &__quest-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .25rem .6rem; }
     &__quest-reward, &__chair { display: inline-flex; flex-wrap: wrap; align-items: center; gap: .2rem .35rem; font-size: .74rem; line-height: 1.25; }
     &__quest-reward-kicker { font-size: .58rem; letter-spacing: .1em; text-transform: uppercase; opacity: .65; }
-    /* THE SEAT MARK — the chairman's chair as a glyph (shape, never colour alone). */
+    /* THE SEAT MARK — the chairman's chair (`PremiumChairGlyph`, the ONE drawing: a resolution's face prints
+       it in place of the words, so it stands here BESIDE the words — shape, never colour alone). */
     &__seat-glyph, &__reward-seat .con-parl__seat-glyph {
         display: inline-block;
-        width: .7rem;
-        height: .7rem;
-        margin-right: .2rem;
-        vertical-align: -.08rem;
-        border-radius: .12rem .12rem .05rem .05rem;
-        background: linear-gradient(180deg, currentColor 0 45%, transparent 45% 58%, currentColor 58% 100%);
-        opacity: .9;
+        /* Sized by its host's own text and pulled in by its margins, so it never grows a line box: the quest
+           block's height is the enacted card's budget (`parliamentCardFit`), and a mark may not move it. */
+        width: 1.1em;
+        height: 1.1em;
+        margin: -.25em .3em -.25em 0;
+        vertical-align: -.2em;
+        fill: currentColor;
+        opacity: .92;
     }
+    &__kicker .con-parl__seat-glyph { fill: @con-parl-gold; }
     &__reward-seat {
         display: inline-flex;
         align-items: center;
@@ -718,8 +721,10 @@
     &__deck-layer { background: linear-gradient(180deg, #2b3947 0%, #16202c 100%); box-shadow: inset 0 0 0 .04rem rgba(140, 170, 200, 0.26); }
     &__deck-layer--1 { transform: translate(.08rem, .09rem) rotate(0.6deg); }
     &__deck-layer--2 { transform: translate(.16rem, .18rem) rotate(-0.5deg); background: linear-gradient(180deg, #223040 0%, #111925 100%); }
-    /* The top card IS the approved back texture — never a CSS redraw. */
-    &__deck-top { background: url('./assets/resources/card.webp') center / cover no-repeat; box-shadow: inset 0 0 0 .04rem rgba(165, 195, 225, 0.32), 0 .05rem .16rem rgba(0, 0, 0, 0.45); }
+    /* The top card is a RESOLUTION's back — the bill seen from behind (`.pcard-bill-back()`, the face's own
+       page: the fold mirrored, the band, a blank seal). It was the project card's back texture while a
+       resolution wore the project's face; a pile of bills is not a pile of project cards. */
+    &__deck-top { .pcard-bill-back(); }
     &__seat-ident { display: inline-flex; align-items: center; gap: .3rem; min-width: 0; font-size: .7rem; font-weight: 600; }
     &__seat-name { max-width: 4.4rem; overflow: hidden; text-overflow: ellipsis; }
     /* The cap is for free PLAYER names; the neutral supply's word is fixed and never cut
@@ -1158,13 +1163,12 @@
     justify-content: center;
     will-change: transform;
 }
-/* A DEALT RESOLUTION on its way: the deck's back at the slot's size (the
-   proxy is scaled down onto the pile and grows), a card's own shadow. */
+/* A DEALT RESOLUTION on its way: the bill's back at the slot's size (the
+   proxy is scaled down onto the pile and grows), a card's own shadow. The back
+   draws its OWN outline (a page with a folded corner) — no rounded rim around it. */
 .con-parl__flight--card {
-    border-radius: .4rem;
-    overflow: hidden;
-    box-shadow: 0 .5rem 1.4rem rgba(0, 0, 0, 0.55), inset 0 0 0 .06rem rgba(165, 195, 225, 0.32);
-    .con-parl__cardback { position: absolute; inset: 0; background: url('./assets/resources/card.webp') center / cover no-repeat; }
+    box-shadow: 0 .5rem 1.4rem rgba(0, 0, 0, 0.5);
+    .con-parl__cardback { position: absolute; inset: 0; .pcard-bill-back(); }
 }
 /* THE ENACTED CARD moving from its voting slot to the government: its own
    face (px-designed, zoomed to the proxy's box), the card's own frame and

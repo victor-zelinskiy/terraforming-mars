@@ -10,111 +10,99 @@ Before changing it, check the console consumers in docs/DESKTOP_DEPRECATION_AUDI
        role="img"
        :aria-label="ariaLabel"
        @click="onClick">
-    <div class="pcard__body" aria-hidden="true"></div>
-    <div class="pcard__rim" aria-hidden="true"></div>
+    <!-- A RESOLUTION (Turmoil Redux) is NOT a project and does not wear the
+         project's anatomy: its own face — the bill — stands inside the same
+         root, so every host keeps zooming / flying / inspecting one `.pcard`. -->
+    <PremiumResolutionFace v-if="isResolution"
+                           :vm="vm"
+                           :title="translatedTitle"
+                           :titleTier="titleTier"
+                           :artTier="artTier"
+                           :showCode="showCardNumber" />
+    <template v-else>
+      <div class="pcard__body" aria-hidden="true"></div>
+      <div class="pcard__rim" aria-hidden="true"></div>
 
-    <div class="pcard__content">
-      <!-- ── HEADER SHELL ─────────────────────────────────────────────
-           The title plate is the FLAGSHIP element: a full-width faceted
-           nameplate whose silhouette NEVER changes. Cost badge and tag
-           medallions are OVERLAY layers pinned over its ends — they only
-           drive the title text's safe-area paddings (CSS vars set from
-           the deterministic view-model, no DOM measuring). -->
-      <div class="pcard__header">
-        <div class="pcard-nameplate" aria-hidden="true">
-          <span class="pcard-nameplate__body"></span>
+      <div class="pcard__content">
+        <!-- ── HEADER SHELL ─────────────────────────────────────────────
+             The title plate is the FLAGSHIP element: a full-width faceted
+             nameplate whose silhouette NEVER changes. Cost badge and tag
+             medallions are OVERLAY layers pinned over its ends — they only
+             drive the title text's safe-area paddings (CSS vars set from
+             the deterministic view-model, no DOM measuring). -->
+        <div class="pcard__header">
+          <div class="pcard-nameplate" aria-hidden="true">
+            <span class="pcard-nameplate__body"></span>
+          </div>
+          <div class="pcard__title pcard-nameplate__text" :class="'pcard__title--t' + titleTier">
+            <span>{{ translatedTitle }}</span>
+          </div>
+          <PremiumCostBadge v-if="vm.cost !== undefined" :cost="vm.cost" />
+          <PremiumTagRail v-if="vm.tags.length > 0" :tags="vm.tags" :plan="vm.tagCluster" />
         </div>
-        <div class="pcard__title pcard-nameplate__text" :class="'pcard__title--t' + titleTier">
-          <span>{{ translatedTitle }}</span>
-        </div>
-        <PremiumCostBadge v-if="vm.cost !== undefined" :cost="vm.cost" />
-        <PremiumTagRail v-if="vm.tags.length > 0" :tags="vm.tags" :plan="vm.tagCluster" />
-        <!-- The Mars Parliament family: the PARTY EMBLEM takes the tag rail's
-             place (a resolution has no tags — its party IS its identity). -->
-        <span v-if="vm.parliament !== undefined" class="pcard__party" aria-hidden="true">
-          <img class="pcard__party-emblem" :src="vm.parliament.emblemUrl" alt="" />
-        </span>
-      </div>
 
-      <!-- requirements rail (secondary to the plate); collapses to a thin
-           decorative divider when the card has no requirements -->
-      <PremiumRequirementsBar v-if="vm.requirements.length > 0" :requirements="vm.requirements" />
-      <span v-else class="pcard__divider" aria-hidden="true"></span>
+        <!-- requirements rail (secondary to the plate); collapses to a thin
+             decorative divider when the card has no requirements -->
+        <PremiumRequirementsBar v-if="vm.requirements.length > 0" :requirements="vm.requirements" />
+        <span v-else class="pcard__divider" aria-hidden="true"></span>
 
-      <!-- art viewport; a corporation / CEO shows real art if it has any,
-           else its own identity zone (vm.art is undefined then): the corp
-           brand wordmark, or the CEO's procedural executive band — no CEO
-           ships art, so the band is that type's INTENDED face. A PEEK face
-           skips this zone entirely — the art row starts below the peek
-           band, so nothing of it can show. -->
-      <PremiumCardArt v-if="!peek && vm.art !== undefined" :art="vm.art" :tier="artTier" />
-      <PremiumCorpIdentity v-else-if="!peek && isCorporation" :name="vm.name" />
-      <div v-else-if="!peek && isCeo" class="pcard-ceo-ident" aria-hidden="true">
-        <span class="pcard-ceo-ident__line pcard-ceo-ident__line--l"></span>
-        <span class="pcard-ceo-ident__crest">
-          <span class="pcard-ceo-ident__chev"></span>
-          <span class="pcard-ceo-ident__word">{{ ceoWord }}</span>
-          <span class="pcard-ceo-ident__chev"></span>
-        </span>
-        <span class="pcard-ceo-ident__line pcard-ceo-ident__line--r"></span>
-      </div>
-
-      <!-- ── LOWER SECTION ────────────────────────────────────────────
-           Mechanics content + ANCHORED service elements (no footer row).
-           The VP badge reserves a right column via `--pcard-lower-safe-r`
-           (per-variant, only when VP exists); the expansion stamp and the
-           resource capsule are pinned at the bottom-left corner — tiny,
-           overlapping the panel's border zone only. -->
-      <div v-if="!peek" class="pcard__lower">
-        <PremiumMechanicsPanel v-if="!vm.mechanics.textOnly" :mechanics="vm.mechanics" />
-        <!-- CEO PROSE — the rule zone (the one deliberate exception to the
-             icons-only face: on this type the description IS the rule).
-             Length-tier ladder, never a scroll, never a clamp. -->
-        <div v-if="proseText !== ''"
-             class="pcard__prose"
-             :class="'pcard__prose--t' + proseTier">{{ proseText }}</div>
-        <!-- A RESOLUTION's chairman quest — the lower corner of the parliament
-             family (rulebook p.9: the quest printed on the enacted card). -->
-        <!-- THE CHAIRMAN QUEST — the printed CONDITION alone, centred: the
-             reward (the seat + one Agenda step) is the same for every
-             resolution and lives in the inspector and the government block,
-             never repeated on every face. -->
-        <div v-if="vm.parliament?.quest !== undefined" class="pcard__quest" :class="{'pcard__quest--words': questNodes.length === 0}">
-          <span class="pcard__quest-kicker">{{ $t('Chairman quest') }}</span>
-          <span class="pcard__quest-cond">
-            <!-- The GOAL as a GRAPHIC (the same render-DSL nodes the Parliament
-                 workspace and the inspector draw): the counts and limits are in
-                 the icons; the sentence lives in the inspector's rules panel. -->
-            <span v-if="questNodes.length > 0" class="pcard__quest-graphic" aria-hidden="true">
-              <PremiumMechNode v-for="(node, i) in questNodes" :key="i" :node="node" />
-            </span>
-            <span v-else class="pcard__quest-text">{{ $t(vm.parliament.quest) }}</span>
+        <!-- art viewport; a corporation / CEO shows real art if it has any,
+             else its own identity zone (vm.art is undefined then): the corp
+             brand wordmark, or the CEO's procedural executive band — no CEO
+             ships art, so the band is that type's INTENDED face. A PEEK face
+             skips this zone entirely — the art row starts below the peek
+             band, so nothing of it can show. -->
+        <PremiumCardArt v-if="!peek && vm.art !== undefined" :art="vm.art" :tier="artTier" />
+        <PremiumCorpIdentity v-else-if="!peek && isCorporation" :name="vm.name" />
+        <div v-else-if="!peek && isCeo" class="pcard-ceo-ident" aria-hidden="true">
+          <span class="pcard-ceo-ident__line pcard-ceo-ident__line--l"></span>
+          <span class="pcard-ceo-ident__crest">
+            <span class="pcard-ceo-ident__chev"></span>
+            <span class="pcard-ceo-ident__word">{{ ceoWord }}</span>
+            <span class="pcard-ceo-ident__chev"></span>
           </span>
+          <span class="pcard-ceo-ident__line pcard-ceo-ident__line--r"></span>
         </div>
-        <div class="pcard__exp" aria-hidden="true">
-          <span class="pcard__exp-medallion"
-                :class="{'pcard__exp-medallion--base': expansionIcon === undefined}"
-                :style="expansionStyle"></span>
-          <span v-for="module in compatibilityIcons"
-                :key="module.module"
-                class="pcard__exp-compat"
-                :style="{backgroundImage: `url(${module.url})`}"></span>
-          <!-- THE PRINTED CATALOG CODE («X31», «DP07», a resolution's «RX01»):
-               engraved beside the stamp in the same pressed-in language — the
-               key the art, the lore and the catalog search resolve by.
-               Technical information, so it is an OPT-IN («Настройки» →
-               «Номера карт», off by default — `cardNumberDisplay.ts`). -->
-          <span v-if="vm.code !== undefined && showCardNumber" class="pcard__code" :data-card-code="vm.code">{{ vm.code }}</span>
-        </div>
-        <div v-if="resourceInfo !== undefined" class="pcard__res">
-          <span class="pcard__res-icon" :style="{backgroundImage: `url(${resourceIconUrl})`}"></span>
-          <span class="pcard__res-count">{{ resourceInfo.amount }}</span>
-        </div>
-        <PremiumVpBadge v-if="vm.vp !== undefined" :vp="vm.vp" />
-      </div>
-    </div>
 
-    <div class="pcard__frame" aria-hidden="true"></div>
+        <!-- ── LOWER SECTION ────────────────────────────────────────────
+             Mechanics content + ANCHORED service elements (no footer row).
+             The VP badge reserves a right column via `--pcard-lower-safe-r`
+             (per-variant, only when VP exists); the expansion stamp and the
+             resource capsule are pinned at the bottom-left corner — tiny,
+             overlapping the panel's border zone only. -->
+        <div v-if="!peek" class="pcard__lower">
+          <PremiumMechanicsPanel v-if="!vm.mechanics.textOnly" :mechanics="vm.mechanics" />
+          <!-- CEO PROSE — the rule zone (the one deliberate exception to the
+               icons-only face: on this type the description IS the rule).
+               Length-tier ladder, never a scroll, never a clamp. -->
+          <div v-if="proseText !== ''"
+               class="pcard__prose"
+               :class="'pcard__prose--t' + proseTier">{{ proseText }}</div>
+          <div class="pcard__exp" aria-hidden="true">
+            <span class="pcard__exp-medallion"
+                  :class="{'pcard__exp-medallion--base': expansionIcon === undefined}"
+                  :style="expansionStyle"></span>
+            <span v-for="module in compatibilityIcons"
+                  :key="module.module"
+                  class="pcard__exp-compat"
+                  :style="{backgroundImage: `url(${module.url})`}"></span>
+            <!-- THE PRINTED CATALOG CODE («X31», «DP07», a resolution's «RX01»):
+                 engraved beside the stamp in the same pressed-in language — the
+                 key the art, the lore and the catalog search resolve by.
+                 Technical information, so it is an OPT-IN («Настройки» →
+                 «Номера карт», off by default — `cardNumberDisplay.ts`). -->
+            <span v-if="vm.code !== undefined && showCardNumber" class="pcard__code" :data-card-code="vm.code">{{ vm.code }}</span>
+          </div>
+          <div v-if="resourceInfo !== undefined" class="pcard__res">
+            <span class="pcard__res-icon" :style="{backgroundImage: `url(${resourceIconUrl})`}"></span>
+            <span class="pcard__res-count">{{ resourceInfo.amount }}</span>
+          </div>
+          <PremiumVpBadge v-if="vm.vp !== undefined" :vp="vm.vp" />
+        </div>
+      </div>
+
+      <div class="pcard__frame" aria-hidden="true"></div>
+    </template>
     <div class="pcard__state" aria-hidden="true"></div>
 
     <player-cube v-if="showPlayerCube" :color="cubeColor" :size="30"></player-cube>
@@ -153,10 +141,8 @@ import PremiumRequirementsBar from './PremiumRequirementsBar.vue';
 import PremiumCardArt from './PremiumCardArt.vue';
 import PremiumCorpIdentity from './PremiumCorpIdentity.vue';
 import PremiumMechanicsPanel from './PremiumMechanicsPanel.vue';
-import PremiumMechNode from './PremiumMechNode.vue';
+import PremiumResolutionFace from './PremiumResolutionFace.vue';
 import PremiumVpBadge from './PremiumVpBadge.vue';
-import {ItemType} from '@/common/cards/render/Types';
-import {renderableNodes} from './mechanicsModel';
 import {cardNumberDisplayState} from './cardNumberDisplay';
 
 export type PremiumCardTier = 'thumb' | 'normal' | 'full';
@@ -169,8 +155,6 @@ export type PremiumCardTier = 'thumb' | 'normal' | 'full';
 const TITLE_SAFE_BASE = 14;
 const TITLE_SAFE_COST = 50;
 const TITLE_SAFE_COST_MOD = 84;
-/** The parliament family's party emblem (40px at an 8px inset) + its breathing room. */
-const TITLE_SAFE_PARTY = 52;
 const TITLE_SAFE_TAG_GAP = 18;
 
 /**
@@ -213,7 +197,7 @@ export default defineComponent({
     PremiumCardArt,
     PremiumCorpIdentity,
     PremiumMechanicsPanel,
-    PremiumMechNode,
+    PremiumResolutionFace,
     PremiumVpBadge,
   },
   props: {
@@ -320,11 +304,6 @@ export default defineComponent({
     showCardNumber(): boolean {
       return cardNumberDisplayState.enabled;
     },
-    /** The chairman quest's goal nodes (a resolution face) — the first row of its render root. */
-    questNodes(): ReadonlyArray<ItemType> {
-      const root = this.vm.parliament?.questRenderData;
-      return root === undefined ? [] : renderableNodes(root.rows[0] ?? []);
-    },
     cardName(): CardName {
       const name = this.card?.name ?? this.name;
       if (name === undefined) {
@@ -381,6 +360,10 @@ export default defineComponent({
     isCeo(): boolean {
       return this.vm.type === CardType.CEO;
     },
+    /** A Turmoil Redux resolution — its own anatomy (`PremiumResolutionFace`), never the project's. */
+    isResolution(): boolean {
+      return this.vm.type === CardType.RESOLUTION;
+    },
     /** The identity-band role word («CEO» → «ДИРЕКТОР») — an existing key. */
     ceoWord(): string {
       return translateText('CEO');
@@ -400,25 +383,21 @@ export default defineComponent({
         ['pcard--tier-' + this.effectiveTier]: true,
         ['pcard--' + this.vm.slug]: true,
         'pcard--interactive': this.interactive,
-        // A PARTY banner (Turmoil Redux): the art window carries the party's
-        // emblem as a badge, never a cover-scaled picture.
-        'pcard--party-banner': this.vm.parliament?.partyEffect === true,
-        // An art-less RESOLUTION: the art window carries the party's seal.
-        'pcard--resolution-seal': this.vm.parliament?.sealArt === true,
-        // A RESOLUTION WITH ITS OWN ART: the window keeps the illustration's
-        // full 3:2 frame (the pack is authored at 1536×1024), never the
-        // project face's cover-cropped band.
-        'pcard--resolution-art': this.vm.parliament !== undefined && this.vm.parliament.partyEffect !== true && this.vm.parliament.sealArt !== true,
+        // A RESOLUTION is the BILL anatomy (`.pcard-bill`); its window holds the
+        // card's own 3:2 illustration, or — a never-dealt dev example with no
+        // art yet — the party's seal over its accent field.
+        'pcard--bill': this.isResolution,
+        'pcard--resolution-art': this.isResolution && this.vm.parliament?.sealArt !== true,
+        'pcard--resolution-seal': this.isResolution && this.vm.parliament?.sealArt === true,
         'pcard--unavailable': this.isUnavailable,
         'pcard--selected': this.selected,
         'pcard--cost-mod': this.vm.cost !== undefined && this.vm.cost.delta !== 0,
         'pcard--has-res': this.resourceInfo !== undefined,
         // No lower rules block at all (a requirement/VP-only card): the art
         // runs down to the bottom inner border and the corner anchors overlay
-        // it — see `.pcard--no-mech` in premium_card.less. A RESOLUTION always
-        // has a lower block (its quest plate), so its art window must yield
-        // the room instead of running under it.
-        'pcard--no-mech': this.vm.mechanics.textOnly && this.vm.parliament?.quest === undefined,
+        // it — see `.pcard--no-mech` in premium_card.less. A resolution has
+        // its own anatomy and never takes this pose.
+        'pcard--no-mech': this.vm.mechanics.textOnly && !this.isResolution,
       };
       if (this.vm.vp !== undefined) {
         classes['pcard--vp-' + vpVariantOf(this.vm.vp)] = true;
@@ -436,9 +415,7 @@ export default defineComponent({
       const safeL = this.vm.cost === undefined ?
         TITLE_SAFE_BASE :
         (this.vm.cost.delta !== 0 ? TITLE_SAFE_COST_MOD : TITLE_SAFE_COST);
-      // A parliament face carries the party emblem where tags stand (40px + an 8px inset).
-      const safeR = this.vm.parliament !== undefined && this.vm.parliament.partyEffect !== true ? TITLE_SAFE_PARTY :
-        (plan.count === 0 ? TITLE_SAFE_BASE : plan.width + TITLE_SAFE_TAG_GAP);
+      const safeR = plan.count === 0 ? TITLE_SAFE_BASE : plan.width + TITLE_SAFE_TAG_GAP;
       const vars: Record<string, string> = {
         '--pcard-title-safe-l': `${safeL}px`,
         '--pcard-title-safe-r': `${safeR}px`,
@@ -449,8 +426,13 @@ export default defineComponent({
         '--pcard-tag-overlap': `${plan.overlap}px`,
         '--pcard-tag-cluster-w': `${plan.width}px`,
       };
+      // The bill's party: its accent dyes the band's edge and the seal's tails; its
+      // emblem is also the page's watermark (one url, set once — never measured).
       if (this.vm.parliament?.accent !== undefined) {
         vars['--pcard-party-accent'] = this.vm.parliament.accent;
+      }
+      if (this.isResolution && this.vm.parliament !== undefined) {
+        vars['--pcard-party-emblem'] = `url(${this.vm.parliament.emblemUrl})`;
       }
       return vars;
     },

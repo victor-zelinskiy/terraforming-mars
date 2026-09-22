@@ -1,29 +1,37 @@
 /*
- * PREMIUM FACES FOR THE MARS PARLIAMENT (Turmoil Redux).
+ * THE FACE OF A RESOLUTION (Turmoil Redux, the Mars Parliament).
  *
  * A resolution is NOT a project card — it lives in the parliament's own deck
  * and never reaches a hand or a tableau — so its face is built HERE from the
  * client parliament manifest (`genfiles/parliament.json`) and handed to
  * `PremiumCard` through `vmOverride` (the one sanctioned entry for a face
- * outside the card manifest — the MarsBot corporations' precedent). The
- * geometry is the shared premium face; only the theme (`resolution`, the
- * violet family), the medallion and the identity differ. No fictitious
- * project card is ever created to represent a resolution or a party.
+ * outside the card manifest — the MarsBot corporations' precedent). The type
+ * is the parliament's own, and `PremiumCard` answers it with the resolution's
+ * OWN anatomy (`PremiumResolutionFace` — the bill: a folded page, a vellum
+ * band, the author's seal), never the project's. The box (320×460) and the
+ * formula renderer are the shared ones. No fictitious project card is ever
+ * created to represent a resolution.
  *
- * A PARTY EFFECT gets the same treatment: the board's six printed banners
- * render as premium faces too, so the inspector, the info panel and the
- * parliament workspace all show ONE rendering of «the Greens' effect».
+ * A PARTY is not a face at all: its printed effect is the party PLAQUE
+ * (`ConsolePartyPlaque` / `ConsolePartyFormula`) on every surface.
  */
 import {CardName} from '@/common/cards/CardName';
 import {CardType} from '@/common/cards/CardType';
-import {IClientPartyEffect, IClientResolution} from '@/common/parliament/IClientResolution';
-import {ReduxParty, ResolutionId} from '@/common/parliament/ParliamentTypes';
+import {IClientResolution} from '@/common/parliament/IClientResolution';
+import {ResolutionId} from '@/common/parliament/ParliamentTypes';
 import {PremiumCardVM} from './premiumCardViewModel';
-import {buildMechanics} from './mechanicsModel';
+import {buildMechanics, BuildMechanicsOptions} from './mechanicsModel';
 import {tagClusterPlan} from './tagLayout';
-import {getPartyEffect, getResolution} from '@/client/parliament/ClientParliamentManifest';
+import {getResolution} from '@/client/parliament/ClientParliamentManifest';
 import {partyAccent, partyEmblemUrl} from './partyEmblems';
 import {premiumCardArtForKey} from '@/client/cards/cardArt';
+
+/**
+ * How EVERY parliament graphic is read (a resolution's effect, a chairman
+ * quest, a party's formula): nothing here is ever «played», so no surface
+ * draws the project card's «при розыгрыше» rail over it.
+ */
+export const PARLIAMENT_GRAPHIC: BuildMechanicsOptions = {noPlayZone: true};
 
 /** The face's key for a resolution — the catalog id doubles as the slug. */
 export function resolutionSlug(id: ResolutionId): string {
@@ -39,10 +47,10 @@ export function resolutionSlug(id: ResolutionId): string {
 export function resolutionPremiumVm(resolution: IClientResolution): PremiumCardVM {
   // THE ART is keyed by the printed CODE through the one card-art pipeline
   // (`assets/card-images/RX01.webp`, indexed by `make:cards`): a resolution
-  // with an illustration shows it in the 3:2 window (`pcard--resolution-art`);
-  // one without (a never-dealt dev example) carries the PARTY'S SEAL in the
-  // window instead (`pcard--resolution-seal`) — never the project fallback,
-  // so a card of the voting area is told apart at a glance either way.
+  // with an illustration heads its page with it, whole (the pack is authored
+  // 3:2 and the window IS 3:2 — `pcard--resolution-art`); one without (a
+  // never-dealt dev example) carries the PARTY'S SEAL over its accent field
+  // instead (`pcard--resolution-seal`) — never the project fallback.
   const art = premiumCardArtForKey(resolution.code);
   return {
     name: resolution.id as CardName,
@@ -55,7 +63,7 @@ export function resolutionPremiumVm(resolution: IClientResolution): PremiumCardV
     tagCluster: tagClusterPlan(0),
     requirements: [],
     art: art ?? {url: partyEmblemUrl(resolution.party), fallback: false},
-    mechanics: buildMechanics(resolution.renderData),
+    mechanics: buildMechanics(resolution.renderData, PARLIAMENT_GRAPHIC),
     expansion: 'turmoilRedux',
     compatibility: ['turmoilRedux', ...resolution.compatibility],
     parliament: {
@@ -72,43 +80,4 @@ export function resolutionPremiumVm(resolution: IClientResolution): PremiumCardV
 export function resolutionPremiumVmById(id: ResolutionId): PremiumCardVM | undefined {
   const resolution = getResolution(id);
   return resolution === undefined ? undefined : resolutionPremiumVm(resolution);
-}
-
-/** The face of a party's printed effect (the board banner as a card). */
-export function partyEffectPremiumVm(effect: IClientPartyEffect): PremiumCardVM {
-  return {
-    name: `PARTY_${effect.party}` as CardName,
-    slug: `party-${effect.party.toLowerCase().replaceAll(' ', '-')}`,
-    type: CardType.RESOLUTION,
-    theme: 'resolution',
-    title: effect.party,
-    tags: [],
-    tagCluster: tagClusterPlan(0),
-    requirements: [],
-    art: {url: partyEmblemUrl(effect.party), fallback: false},
-    mechanics: buildMechanics(mergedPartyRender(effect)),
-    expansion: 'turmoilRedux',
-    compatibility: ['turmoilRedux'],
-    parliament: {
-      party: effect.party,
-      emblemUrl: partyEmblemUrl(effect.party),
-      partyEffect: true,
-    },
-  };
-}
-
-export function partyEffectPremiumVmOf(party: ReduxParty): PremiumCardVM | undefined {
-  const effect = getPartyEffect(party);
-  return effect === undefined ? undefined : partyEffectPremiumVm(effect);
-}
-
-/** The passive rows and the action rows of a party, as ONE render root (the face prints both). */
-function mergedPartyRender(effect: IClientPartyEffect) {
-  if (effect.actionRenderData === undefined) {
-    return effect.passiveRenderData;
-  }
-  return {
-    ...effect.passiveRenderData,
-    rows: [...effect.passiveRenderData.rows, ...effect.actionRenderData.rows],
-  };
 }

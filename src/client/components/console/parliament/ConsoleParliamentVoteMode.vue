@@ -157,6 +157,7 @@ import PlayerCube from '@/client/components/PlayerCube.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import PremiumMechanicsPanel from '@/client/components/premiumCard/PremiumMechanicsPanel.vue';
 import {buildMechanics, MechanicsVM} from '@/client/components/premiumCard/mechanicsModel';
+import {PARLIAMENT_GRAPHIC} from '@/client/components/premiumCard/resolutionPremiumVm';
 import {partyAccent, partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
 import {AnimationHold, beginAnimationHold} from '@/client/components/presentation/animationHold';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
@@ -282,7 +283,7 @@ export default defineComponent({
     ownMechanics(): MechanicsVM | undefined {
       const slot = this.voteSlot;
       const resolution = slot === undefined ? undefined : (slot.resolution ?? getResolution(slot.resolutionId));
-      const own = resolution === undefined ? undefined : buildMechanics(resolution.renderData);
+      const own = resolution === undefined ? undefined : buildMechanics(resolution.renderData, PARLIAMENT_GRAPHIC);
       return own === undefined || own.textOnly ? undefined : own;
     },
     /**

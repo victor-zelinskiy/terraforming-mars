@@ -536,6 +536,14 @@ export type BuildMechanicsOptions = {
    * and the face has NO on-play zone (`playStart` = groups.length).
    */
   printedLayout?: boolean;
+  /**
+   * THE SUBJECT IS NEVER PLAYED (the Mars Parliament's graphics: a resolution
+   * is ENACTED, a chairman quest is a CONDITION, a party's effect STANDS). It
+   * has no «при розыгрыше» zone, so the mint play-rail — a project card's word —
+   * never draws over it. The canonical order still applies (unlike
+   * `printedLayout`): every surface keeps reading the same rows top to bottom.
+   */
+  noPlayZone?: boolean;
 };
 
 /**
@@ -670,6 +678,6 @@ export function buildMechanics(renderData: CardComponent | undefined, options: B
     textOnly: ordered.length === 0,
     // No on-play zone on a printed-narrative face — its trailing plain rows
     // are the once-per-game block, not «при розыгрыше».
-    playStart: options.printedLayout === true ? ordered.length : playZoneStart(ordered),
+    playStart: options.printedLayout === true || options.noPlayZone === true ? ordered.length : playZoneStart(ordered),
   };
 }

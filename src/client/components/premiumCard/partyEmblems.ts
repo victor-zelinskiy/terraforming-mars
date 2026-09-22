@@ -4,8 +4,9 @@ import {ReduxParty} from '@/common/parliament/ParliamentTypes';
 /**
  * The party emblems (Turmoil Redux): the fork's own 512px badge set in one
  * language (dark navy badge, thin gold rim, the party's luminous sigil) —
- * crisp from the 40px workspace tile to the fullscreen party banner. The
- * shipped 154px Turmoil PNGs stay for the classic Turmoil surfaces.
+ * crisp from the 40px workspace tile to a resolution's seal and the fullscreen
+ * party plaque. The shipped 154px Turmoil PNGs stay for the classic Turmoil
+ * surfaces.
  */
 const PARTY_EMBLEM: Readonly<Record<ReduxParty, string>> = {
   [PartyName.UNITY]: 'assets/parties/redux/unity.png',

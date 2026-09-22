@@ -68,7 +68,9 @@
          data-parl-quest
          :data-parl-quest-closed="questClosed ? '' : undefined">
       <div class="con-parl__quest-head">
-        <span class="con-parl__kicker">{{ $t('Chairman quest') }}</span>
+        <!-- THE CHAIR beside its words: a resolution's face prints this mark INSTEAD of the caption, so the
+             block that owns the words is where the player learns it (one drawing — `PremiumChairGlyph`). -->
+        <span class="con-parl__kicker"><PremiumChairGlyph class="con-parl__seat-glyph" />{{ $t('Chairman quest') }}</span>
         <span v-if="questShown.completedBy !== undefined" class="con-parl__quest-state">✓ {{ $t('Completed') }}</span>
         <span v-else-if="questClosed" class="con-parl__quest-state con-parl__quest-state--none">{{ $t('Nobody completed it') }}</span>
       </div>
@@ -107,7 +109,7 @@
           <template v-else>
             <span class="con-parl__reward-seat" :class="{'con-parl__reward-seat--kept': viewerIsChairman}">
               <!-- The reward is the OFFICE, not the chair (glossary §4, R-05): «ПРЕДСЕДАТЕЛЬСТВО + ШАГ ПОВЕСТКИ». -->
-              <span class="con-parl__seat-glyph" aria-hidden="true"></span>{{ $t(viewerIsChairman ? 'Chairmanship (kept)' : 'Chairmanship') }}
+              <PremiumChairGlyph class="con-parl__seat-glyph" />{{ $t(viewerIsChairman ? 'Chairmanship (kept)' : 'Chairmanship') }}
             </span>
             <span class="con-parl__reward-tail">
             <span class="con-parl__reward-plus" aria-hidden="true">+</span>
@@ -151,10 +153,11 @@ import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {ParliamentModel} from '@/common/models/ParliamentModel';
 import {ReduxParty} from '@/common/parliament/ParliamentTypes';
 import PlayerCube from '@/client/components/PlayerCube.vue';
+import PremiumChairGlyph from '@/client/components/premiumCard/PremiumChairGlyph.vue';
 import PremiumMechanicsPanel from '@/client/components/premiumCard/PremiumMechanicsPanel.vue';
 import {PremiumCardVM} from '@/client/components/premiumCard/premiumCardViewModel';
 import {buildMechanics, MechanicsVM} from '@/client/components/premiumCard/mechanicsModel';
-import {resolutionPremiumVmById} from '@/client/components/premiumCard/resolutionPremiumVm';
+import {PARLIAMENT_GRAPHIC, resolutionPremiumVmById} from '@/client/components/premiumCard/resolutionPremiumVm';
 import {partyAccent} from '@/client/components/premiumCard/partyEmblems';
 import {conLogicalPx} from '@/client/console/consoleLayoutProfile';
 import {parliamentFlow, settleParliamentChairPulse, settleParliamentQuestPulse} from '@/client/console/parliament/consoleParliamentFlow';
@@ -171,7 +174,7 @@ import {partyTileKey} from '@/client/console/parliament/partyActionKey';
  */
 export default defineComponent({
   name: 'ConsoleParliamentGovernment',
-  components: {PlayerCube, PremiumMechanicsPanel},
+  components: {PlayerCube, PremiumChairGlyph, PremiumMechanicsPanel},
   props: {
     view: {type: Object as PropType<ParliamentViewVm>, required: true},
     model: {type: Object as PropType<ParliamentModel | undefined>, default: undefined},
@@ -284,7 +287,7 @@ export default defineComponent({
       if (resolution === undefined || !(resolution.hasPassive || resolution.hasAction)) {
         return undefined;
       }
-      const mechanics = buildMechanics(resolution.renderData);
+      const mechanics = buildMechanics(resolution.renderData, PARLIAMENT_GRAPHIC);
       return mechanics.textOnly ? undefined : mechanics;
     },
     /** Which part of the enacted card the graphic IS — an action is not an effect (the families rehearsal, frame 33). */
@@ -294,7 +297,7 @@ export default defineComponent({
     },
     questMechanics(): MechanicsVM | undefined {
       const root = this.questShown?.renderData;
-      return root === undefined ? undefined : buildMechanics(root);
+      return root === undefined ? undefined : buildMechanics(root, PARLIAMENT_GRAPHIC);
     },
     questRows(): ReadonlyArray<{color: Color, value: number}> {
       return (this.questShown?.progress ?? []).filter((row) => row.participates);

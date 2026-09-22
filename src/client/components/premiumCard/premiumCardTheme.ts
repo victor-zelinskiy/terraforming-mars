@@ -35,9 +35,10 @@ const THEME_BY_TYPE: Partial<Record<CardType, PremiumTheme>> = {
   [CardType.STANDARD_PROJECT]: 'standard',
   [CardType.STANDARD_ACTION]: 'standard',
   [CardType.CEO]: 'ceo',
-  // Turmoil Redux resolutions — the parliament's purple family (silver
-  // mechanics panel). Faces are built by `resolutionPremiumVm.ts`, never
-  // from the card manifest.
+  // Turmoil Redux resolutions — in scope of the premium face, but with an
+  // anatomy of their OWN (the bill — `PremiumResolutionFace`), never the
+  // project's. Their vm is built by `resolutionPremiumVm.ts`, never from the
+  // card manifest.
   [CardType.RESOLUTION]: 'resolution',
 };
 

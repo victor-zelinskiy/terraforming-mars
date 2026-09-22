@@ -1,69 +1,4 @@
-/* ══ A RESOLUTION WITH ITS OWN ART — the window is the WHOLE 3:2 illustration
-   (the pack is authored at 1536×1024), never the project face's cover-cropped
-   band: the art row takes its own aspect, and the lower section takes what is
-   left (the mechanics breathe, the quest plate stays anchored at the bottom).
-   The same rows on every host (overview, vote mode, fullscreen): the face is
-   px-authored and only the host's zoom changes. ══ */
-.pcard--resolution-art .pcard__content {
-    grid-template-rows:
-        var(--pcard-plate-h)                   /* header shell (title plate) */
-        auto                                   /* requirements rail / divider */
-        auto                                   /* art — its own 3:2 frame */
-        minmax(0, 1fr);                        /* lower section: mechanics + quest */
-}
-.pcard--resolution-art .pcard__art {
-    aspect-ratio: 3 / 2;
-    min-height: 0;
-    height: auto;
-    align-self: start;
-}
-.pcard--resolution-art .pcard__art img {
-    object-fit: cover;          /* 3:2 in a 3:2 frame — nothing is cut */
-    object-position: center;
-}
-.pcard--resolution-art .pcard__lower {
-    justify-content: space-between;
-    min-height: 0;
-}
-.pcard--resolution-art .pcard__lower .pcard__mech {
-    margin-top: 2px;
-}
-
-/* ══ THE RESOLUTION FACE's QUEST PLATE — px-authored (the face's own scale).
-   A kicker and the printed condition as a CENTRED GRAPHIC (its words only
-   when no graphic exists). No reward on the face — it is the same for every
-   resolution and lives in the government block and the inspector. ══ */
-.pcard__quest {
-    position: relative;
-    z-index: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 3px;
-    margin: 6px 14px 22px;
-    padding: 5px 8px 6px;
-    border-radius: 6px;
-    background: linear-gradient(180deg, rgba(230, 195, 74, 0.12), rgba(230, 195, 74, 0.07));
-    box-shadow: inset 0 0 0 1px rgba(230, 195, 74, 0.42), 0 2px 6px rgba(0, 0, 0, 0.35);
-    font-size: 11px;
-    line-height: 1.2;
-}
-.pcard__quest-kicker { font-size: 8px; letter-spacing: .14em; text-transform: uppercase; opacity: .78; color: #f0dc9a; }
-.pcard__quest-cond { display: flex; align-items: center; justify-content: center; gap: 7px; min-width: 0; }
-.pcard__quest-graphic {
-    flex-shrink: 0;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 2px;
-    padding: 3px 8px;
-    border-radius: 4px;
-    background: rgba(0, 0, 0, 0.3);
-    --pcard-mech-icon: 24px;
-    --pcard-mech-font: 14px;
-}
-.pcard__quest-text { font-weight: 600; min-width: 0; text-align: center; }
-
+/* ══ THE PARLIAMENT'S FORMULA HOST + THE FACE OF A RESOLUTION (Turmoil Redux) ══ */
 .con-pformula {
     display: inline-flex;
     align-items: center;
@@ -139,62 +74,347 @@
     }
 }
 
-/* ══ THE RESOLUTION FACE — the parliament family on the premium face ══════
-   The party emblem in the header (where a project card's tags stand) and the
-   chairman QUEST as its own plate at the foot of the lower section. */
-.pcard__party {
+/* ══ THE FACE OF A RESOLUTION — «THE BILL» (`PremiumResolutionFace`) ═══════════
+   A resolution is not a project and does not wear the project's anatomy: no
+   gold frame, no nameplate on top, no cost corner, no tag rail. It is a bill a
+   party brings in, and the face is that DOCUMENT:
+
+     the SHEET     a page with a folded corner — told from a card by OUTLINE;
+     the ART       heads the page edge to edge, whole (the pack is 3:2);
+     the BAND      a vellum strip bound round the page: the TITLE in ink, its
+                   lower edge dyed the PARTY's colour;
+     the SEAL      the author — the party's own emblem on a notary rosette,
+                   closing the band over the illustration's edge;
+     the ARTICLES  the printed effect (the ONE formula renderer), the winner's
+                   clause set apart by the row's own structure;
+     the FOOTNOTE  the chairman quest under a rule — a chair and the condition
+                   as a graphic. Never a block, never a caption.
+
+   THE HIERARCHY IS BUILT FOR A 4× ZOOM RANGE (×0.2 in the government on the
+   Deck … ×1.12 in the vote row, more in the inspector) with NO level-of-detail
+   switch: a card FLIPs between zones mid-zoom, and a detail that existed in one
+   zone only would pop on the way. Instead every element holds one of three
+   ranks — MASSES that read at ×0.2 (the art · the light band · the seal's
+   disc · the dyed edge), VOICES that read from ×0.5 (the title, the formula's
+   icons) and FINE PRINT (the footnote, the keyline, the rosette's teeth, the
+   watermark): low in contrast and small in area, so below its scale it sinks
+   into the page's texture instead of leaving an empty box behind. No fine
+   repeating pattern anywhere — that is what turns to moiré at ×0.3.
+
+   px-authored in the premium face's 320×460 design space (hosts zoom `.pcard`).
+   Console-safe by construction: gradients, clip-path and box-shadow only — no
+   `filter`, no `text-shadow`, no blur, nothing animated. Six of these stand on
+   screen at once. ══ */
+.pcard--bill {
+    --bill-vellum-hi: #f4f0fa;
+    --bill-vellum: #ddd7e9;
+    --bill-vellum-lo: #b9b1cd;
+    --bill-ink: #221a3b;
+    --bill-silver: #c9c6d6;
+    --bill-gold: #e6c34a;
+    --bill-party: var(--pcard-party-accent, #8b6ad8);
+    /* The page's own outline — shared by the sheet and the state overlay. */
+    --bill-outline: path('M5 0H280L320 40V455a5 5 0 0 1-5 5H5a5 5 0 0 1-5-5V5a5 5 0 0 1 5-5Z');
+    border-radius: 5px;
+    /* THE FORMULA IS THE FACE'S MAIN VOICE: the room the old quest plate held goes to the icons. */
+    &.pcard--mech-sparse    { --pcard-mech-icon: 34px; --pcard-mech-font: 20px; }
+    &.pcard--mech-normal    { --pcard-mech-icon: 31px; --pcard-mech-font: 18.5px; }
+    &.pcard--mech-dense     { --pcard-mech-icon: 26px; --pcard-mech-font: 16px; }
+    &.pcard--mech-veryDense { --pcard-mech-icon: 22px; --pcard-mech-font: 14px; }
+    .pcard__state { border-radius: 5px; clip-path: var(--bill-outline); }
+}
+.pcard-bill__sheet {
     position: absolute;
-    right: 8px;
-    top: 6px;
+    inset: 0;
+    clip-path: var(--bill-outline);
+    background:
+        radial-gradient(120% 56% at 50% 64%, rgba(139, 106, 216, 0.11), transparent 72%),
+        linear-gradient(180deg, #1e1b2c 0%, #14121d 46%, #0e0d15 100%);
+}
+/* The page's edge and its printed keyline (both run UNDER the folded corner, the way ink does). */
+.pcard-bill__keyline {
+    position: absolute;
+    inset: 0;
+    border-radius: 5px;
+    /* the page's own EDGE — a dark sheet keeps its outline on a dark table… */
+    box-shadow: inset 0 0 0 1px rgba(201, 198, 214, 0.42);
+    pointer-events: none;
+    /* …and the printed rule a finger's width inside it */
+    &::after {
+        content: '';
+        position: absolute;
+        inset: 3.5px;
+        border-radius: 2.5px;
+        box-shadow: inset 0 0 0 1px rgba(201, 198, 214, 0.2);
+    }
+}
+/* THE FOLDED CORNER — the page's own back turned over (vellum), a crease where it bends. */
+.pcard-bill__fold {
+    position: absolute;
+    top: 0;
+    right: 0;
     width: 40px;
     height: 40px;
+    background: linear-gradient(to bottom left,
+        transparent 50%, rgba(20, 14, 38, 0.7) 50%, var(--bill-vellum-lo) 53%, var(--bill-vellum-hi) 80%, var(--bill-vellum) 100%);
+    box-shadow: -2px 2px 5px rgba(0, 0, 0, 0.5);
+    pointer-events: none;
+}
+
+/* ── the illustration ── */
+.pcard-bill__art {
+    position: absolute;
+    left: 8px;
+    right: 8px;
+    top: 8px;
+    height: 203px;              /* 304 × 203 — the pack's own 3:2, nothing is cut */
+    overflow: hidden;
+    border-radius: 2px;
+    background: #090d13;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.55);
+}
+.pcard-bill__art .pcard__art {
+    position: absolute;
+    inset: 0;
+    min-height: 0;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+}
+.pcard-bill__art .pcard__art img { object-position: center; }
+/* the project face's corpus-seating wash belongs to a FRAMED window; a page's print only sinks under the band */
+.pcard-bill__art .pcard__art::after {
+    background: linear-gradient(180deg, rgba(6, 8, 12, 0.18) 0%, transparent 14% 80%, rgba(6, 8, 12, 0.45) 100%);
+    box-shadow: none;
+    opacity: 1;
+}
+/* An art-less resolution (a never-dealt dev example): the window is the party's field, the emblem its charge. */
+.pcard--resolution-seal .pcard-bill__art .pcard__art {
+    background: radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--bill-party) 40%, #0b0a12) 0%, #0b0a12 74%);
+}
+.pcard--resolution-seal .pcard-bill__art .pcard__art img {
+    object-fit: contain;
+    padding: 14%;
+    box-sizing: border-box;
+}
+.pcard--resolution-seal.pcard--bill .pcard-bill__art .pcard__art--loaded img { opacity: .55; }
+
+/* ── the band: vellum bound round the page, the title in ink, the lower edge dyed ── */
+.pcard-bill__band {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 209px;
+    height: 57px;               /* 52 of vellum + the 5px dyed edge */
+    background:
+        linear-gradient(180deg, transparent 0 52px,
+            color-mix(in srgb, var(--bill-party) 78%, #fff) 52px, var(--bill-party) 54px, color-mix(in srgb, var(--bill-party) 58%, #000) 57px),
+        linear-gradient(90deg, rgba(58, 42, 98, 0.30), transparent 13% 87%, rgba(58, 42, 98, 0.30)),
+        linear-gradient(180deg, var(--bill-vellum-hi) 0%, var(--bill-vellum) 50%, var(--bill-vellum-lo) 100%);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.9),
+        0 -1px 0 rgba(0, 0, 0, 0.6),
+        0 -3px 6px rgba(0, 0, 0, 0.35),
+        0 1px 0 rgba(0, 0, 0, 0.6),
+        0 4px 7px rgba(0, 0, 0, 0.42);
+}
+/* a ruled pair inside the vellum — the certificate's own border, ink at a whisper */
+.pcard-bill__band::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 4px;
+    height: 44px;
+    border-top: 1px solid rgba(34, 26, 59, 0.22);
+    border-bottom: 1px solid rgba(34, 26, 59, 0.22);
+    box-sizing: border-box;
+    pointer-events: none;
+}
+.pcard-bill__title {
+    position: absolute;
+    left: 104px;                /* past the seal */
+    right: 12px;
+    top: 0;
+    height: 52px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    text-align: left;
+    container-type: inline-size;
+}
+/* INK on vellum: the project plate's engraved-gold lettering (a clipped gradient + glyph filters) is not this
+   material — solid ink at every tier, caps at every length (a document's heading). */
+.pcard--bill .pcard-bill__title span {
+    background: none;
+    -webkit-background-clip: border-box;
+    background-clip: border-box;
+    color: var(--bill-ink);
+    filter: none;
+    text-shadow: none;
+    text-transform: uppercase;
+    -webkit-line-clamp: 3;
+    line-height: 1.1;
+}
+.pcard--bill .pcard__title--t1 span { font-size: 17px; --pcard-title-size: 17px; --pcard-title-cw: 0.74; letter-spacing: .07em; }
+.pcard--bill .pcard__title--t2 span { font-size: 15px; --pcard-title-size: 15px; --pcard-title-cw: 0.74; letter-spacing: .06em; }
+.pcard--bill .pcard__title--t3 span { font-size: 13.5px; --pcard-title-size: 13.5px; --pcard-title-cw: 0.74; letter-spacing: .05em; }
+.pcard--bill .pcard__title--t4 span { font-size: 11.5px; --pcard-title-size: 11.5px; --pcard-title-cw: 0.72; letter-spacing: .03em; }
+
+/* ── the author's seal ── */
+.pcard-bill__seal {
+    position: absolute;
+    left: 10px;
+    top: 194px;
+    width: 86px;
+    height: 86px;
+    z-index: 4;
+    pointer-events: none;
+}
+/* THE ROSETTE — the notary's serrated collar under the emblem (vellum, so the disc reads on any illustration). */
+.pcard-bill__rosette {
+    position: absolute;
+    inset: 0;
+    clip-path: polygon(50.00% 0.00%, 53.64% 3.74%, 57.82% 0.62%, 60.83% 4.88%, 65.45% 2.45%, 67.76% 7.13%, 72.70% 5.45%, 74.24% 10.44%, 79.39% 9.55%, 80.13% 14.72%, 85.36% 14.64%, 85.28% 19.87%, 90.45% 20.61%, 89.56% 25.76%, 94.55% 27.30%, 92.87% 32.24%, 97.55% 34.55%, 95.12% 39.17%, 99.38% 42.18%, 96.26% 46.36%, 100.00% 50.00%, 96.26% 53.64%, 99.38% 57.82%, 95.12% 60.83%, 97.55% 65.45%, 92.87% 67.76%, 94.55% 72.70%, 89.56% 74.24%, 90.45% 79.39%, 85.28% 80.13%, 85.36% 85.36%, 80.13% 85.28%, 79.39% 90.45%, 74.24% 89.56%, 72.70% 94.55%, 67.76% 92.87%, 65.45% 97.55%, 60.83% 95.12%, 57.82% 99.38%, 53.64% 96.26%, 50.00% 100.00%, 46.36% 96.26%, 42.18% 99.38%, 39.17% 95.12%, 34.55% 97.55%, 32.24% 92.87%, 27.30% 94.55%, 25.76% 89.56%, 20.61% 90.45%, 19.87% 85.28%, 14.64% 85.36%, 14.72% 80.13%, 9.55% 79.39%, 10.44% 74.24%, 5.45% 72.70%, 7.13% 67.76%, 2.45% 65.45%, 4.88% 60.83%, 0.62% 57.82%, 3.74% 53.64%, 0.00% 50.00%, 3.74% 46.36%, 0.62% 42.18%, 4.88% 39.17%, 2.45% 34.55%, 7.13% 32.24%, 5.45% 27.30%, 10.44% 25.76%, 9.55% 20.61%, 14.72% 19.87%, 14.64% 14.64%, 19.87% 14.72%, 20.61% 9.55%, 25.76% 10.44%, 27.30% 5.45%, 32.24% 7.13%, 34.55% 2.45%, 39.17% 4.88%, 42.18% 0.62%, 46.36% 3.74%);
+    background:
+        radial-gradient(circle at 50% 50%, rgba(34, 26, 59, 0.55) 0 41%, transparent 43%),
+        radial-gradient(circle at 38% 30%, #ffffff 0%, var(--bill-vellum-hi) 38%, var(--bill-vellum-lo) 100%);
+}
+.pcard-bill__seal .pcard__party-emblem {
+    position: absolute;
+    /* the emblem's disc fills ~92% of its 512px art: the box is sized so the DISC is 72px */
+    left: 4px;
+    top: 4px;
+    width: 78px;
+    height: 78px;
+    max-width: none;
+    object-fit: contain;
+}
+/* THE TAILS — two short ends of the party's ribbon under the seal: the colour as a MASS beside the disc. */
+.pcard-bill__tails {
+    position: absolute;
+    left: 18px;
+    top: 54px;
+    width: 50px;
+    height: 46px;
+    &::before, &::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        width: 19px;
+        height: 100%;
+        transform-origin: 50% 0;
+        clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 80%, 0 100%);
+    }
+    &::before {
+        left: 4px;
+        transform: rotate(10deg);
+        background: linear-gradient(90deg, color-mix(in srgb, var(--bill-party) 60%, #000) 0 1.5px, var(--bill-party) 1.5px 60%, color-mix(in srgb, var(--bill-party) 82%, #000) 100%);
+    }
+    &::after {
+        right: 4px;
+        transform: rotate(-10deg);
+        background: linear-gradient(90deg, color-mix(in srgb, var(--bill-party) 78%, #000) 0%, color-mix(in srgb, var(--bill-party) 66%, #000) calc(100% - 1.5px), color-mix(in srgb, var(--bill-party) 45%, #000) calc(100% - 1.5px));
+    }
+}
+
+/* ── the articles ── */
+.pcard-bill__articles {
+    position: absolute;
+    left: 14px;
+    right: 14px;
+    top: 274px;
+    bottom: 50px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+/* THE WATERMARK — the author's seal pressed into the page under the articles. */
+.pcard-bill__articles::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 150px;
+    height: 150px;
+    margin: -75px 0 0 -75px;
+    background: var(--pcard-party-emblem) center / contain no-repeat;
+    opacity: .045;
+    pointer-events: none;
+}
+/* the formula stands on the page itself — the project face's inset plate is not this material */
+.pcard-bill__articles .pcard__mech {
+    position: relative;
+    padding: 0;
+    gap: 6px;
+    background: none;
+    border: none;
+    box-shadow: none;
+}
+.pcard-bill__articles .pcard-mech-group + .pcard-mech-group { border-top: none; padding-top: 0; }
+/* THE WINNER'S CLAUSE — the part of the bill that is one player's: ruled off in the chair's gold. */
+.pcard-bill__articles .pcard-mech-group--winner {
+    align-self: center;
+    padding: 3px 16px;
+    border-radius: 3px;
+    background: linear-gradient(90deg, transparent, rgba(230, 195, 74, 0.13) 20% 80%, transparent);
+    box-shadow: inset 0 1px 0 rgba(230, 195, 74, 0.3), inset 0 -1px 0 rgba(230, 195, 74, 0.3);
+}
+
+/* ── the footnote: the chairman quest under a rule ── */
+.pcard-bill__foot {
+    position: absolute;
+    left: 16px;
+    right: 16px;
+    bottom: 8px;
+    height: 38px;
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: 50%;
-    background: radial-gradient(circle at 40% 35%, rgba(255,255,255,.18), rgba(0,0,0,.35));
-    box-shadow: 0 0 0 2px var(--pcard-rim-soft), 0 2px 6px rgba(0,0,0,.5);
-    z-index: 3;
+    background: linear-gradient(90deg, transparent, rgba(201, 198, 214, 0.24) 18% 82%, transparent) top / 100% 1px no-repeat;
 }
-.pcard__party-emblem { width: 32px; height: 32px; object-fit: contain; }
-/* A party BANNER's art window (the legacy premium banner — kept for the
-   surfaces that still draw a party through a face): the emblem as a centred
-   badge over a quiet radial field. */
-.pcard--party-banner .pcard__art {
-    background:
-        radial-gradient(circle at 50% 46%, rgba(178, 140, 235, 0.32), rgba(24, 16, 40, 0.0) 58%),
-        linear-gradient(180deg, #120c1e, #0a0812);
+.pcard-bill__quest {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    min-width: 0;
+    --pcard-mech-icon: 23px;
+    --pcard-mech-font: 14px;
 }
-.pcard--party-banner .pcard__art img {
-    object-fit: contain;
-    object-position: center 46%;
-    padding: 22%;
-    box-sizing: border-box;
-}
-.pcard--party-banner .pcard__party { display: none; }
-/* A RESOLUTION with no art of its own yet: the art window carries the party's
-   SEAL — the emblem as a centred badge, inset from every edge over a field
-   tinted with the party's accent and a quiet ring engraving. The window
-   keeps its geometry and yields the room the lower section needs, so the
-   seal sits centred in what is left. */
-.pcard--resolution-seal .pcard__art {
-    background:
-        radial-gradient(circle at 50% 50%, rgba(10, 8, 18, 0) 0%, rgba(10, 8, 18, 0.85) 78%),
-        linear-gradient(180deg, #150f22, #0b0913);
-}
-.pcard--resolution-seal .pcard__art::before {
-    content: '';
+.pcard-bill__chair { width: 17px; height: 17px; flex-shrink: 0; fill: var(--bill-gold); }
+.pcard-bill__quest .pcard__quest-graphic { display: inline-flex; align-items: center; gap: 3px; }
+.pcard-bill__quest .pcard__quest-text { font-size: 11px; line-height: 1.15; font-weight: 600; color: #e7dfc9; min-width: 0; }
+/* the page's stamp: pressed in at the foot's right end, under everything */
+.pcard-bill__stamp {
     position: absolute;
-    inset: 0;
-    background:
-        repeating-radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0) 0 17px, rgba(255, 255, 255, 0.05) 17px 18px),
-        radial-gradient(circle at 50% 50%, var(--pcard-party-accent, #8b6ad8) 0%, rgba(0, 0, 0, 0) 64%);
-    opacity: .38;
-    pointer-events: none;
+    right: 0;
+    bottom: 1px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
 }
-.pcard--resolution-seal .pcard__art img {
-    object-fit: contain;
-    object-position: center;
-    padding: 21%;
-    box-sizing: border-box;
+.pcard-bill__stamp .pcard__code { margin-left: 0; color: rgba(201, 198, 214, 0.5); }
+
+/* ══ THE BILL'S BACK — what the Parliament's deck and a card dealt from it show: the same page from behind
+   (the fold mirrored), the band and a blank seal — no party, no title. Drawn in % so it stands at any size:
+   the HUD's 21px pile and a flight proxy growing towards its slot are the same object. ══ */
+.pcard-bill-back() {
+    clip-path: polygon(12.5% 0, 100% 0, 100% 100%, 0 100%, 0 8.7%);
+    background:
+        /* the folded corner, mirrored: the page's face turned over (vellum), a crease where it bends */
+        linear-gradient(to bottom right, transparent 50%, rgba(20, 14, 38, 0.7) 50%, #b9b1cd 53%, #f4f0fa 80%, #ddd7e9 100%) top left / 12.5% 8.7% no-repeat,
+        /* a blank seal on the band: the rosette's collar, a violet field, a silver pip — no party */
+        radial-gradient(ellipse 2.2% 1.53% at 78% 51.2%, #c9c6d6 0 90%, transparent 100%),
+        radial-gradient(ellipse 9.2% 6.4% at 78% 51.2%, #2b2248 0 94%, transparent 100%),
+        radial-gradient(ellipse 12.4% 8.63% at 78% 51.2%, #f4f0fa 0 95%, transparent 100%),
+        /* the band and its dyed edge (the Parliament's violet — a back names no party) */
+        linear-gradient(180deg, transparent 45.4%, #f4f0fa 45.4%, #ddd7e9 51%, #b9b1cd 56.7%, #9a7de0 56.7%, #5b45a3 57.8%, transparent 57.8%),
+        /* the printed keyline */
+        linear-gradient(rgba(201, 198, 214, 0.26), rgba(201, 198, 214, 0.26)) 50% 1.1% / 96.8% 0.22% no-repeat,
+        linear-gradient(rgba(201, 198, 214, 0.26), rgba(201, 198, 214, 0.26)) 50% 98.9% / 96.8% 0.22% no-repeat,
+        linear-gradient(rgba(201, 198, 214, 0.26), rgba(201, 198, 214, 0.26)) 1.25% 50% / 0.32% 97.8% no-repeat,
+        linear-gradient(rgba(201, 198, 214, 0.26), rgba(201, 198, 214, 0.26)) 98.75% 50% / 0.32% 97.8% no-repeat,
+        radial-gradient(90% 46% at 50% 24%, rgba(139, 106, 216, 0.2), transparent 72%),
+        radial-gradient(90% 40% at 50% 80%, rgba(139, 106, 216, 0.12), transparent 72%),
+        linear-gradient(180deg, #1e1b2c 0%, #0e0d15 100%);
 }

@@ -25,7 +25,10 @@
         box-shadow: inset 0 0 0 .1rem @con-parl-gold, 0 0 1.2rem rgba(230, 195, 74, 0.32);
     }
     /* THE VERDICT (v2): the winning card lights IN ITS SLOT — the table is exactly as voted, nothing is parked. */
-    &__slot--lit .pcard { box-shadow: inset 0 0 0 .12rem @con-parl-gold, 0 0 1.4rem rgba(230, 195, 74, 0.5); }
+    /* The light is the PAGE's own: its printed edge turns gold (it runs under the folded corner, like the
+       silver one it replaces) and the body glows — a ring on the card's BOX would show through the cut corner. */
+    &__slot--lit .pcard { box-shadow: 0 0 1.4rem rgba(230, 195, 74, 0.5); }
+    &__slot--lit .pcard-bill__keyline, &__gov-card--lit .pcard-bill__keyline { box-shadow: inset 0 0 0 2.5px @con-parl-gold; }
     &__slot--lit { box-shadow: inset 0 0 0 .08rem fade(@con-parl-gold, 70%); }
     /* A HELD slot whose card has LEFT for the government: an empty outline in its OWN place (the row never re-orders). */
     &__slot-home--vacated { transition: opacity calc(200ms * var(--motion-scale, 1)) @con-ease-standard; }
@@ -285,7 +288,7 @@ html.con-profile-tv .con-sit {
        way back up, so the measured curve never left 0.91–1.00: the panel simply APPEARED. Never leave a CSS
        transition on a property a director tweens. */
     /* The winning card, lit for the verdict (the parked proxy, or the government's card). */
-    &__gov-card--lit .pcard { box-shadow: inset 0 0 0 .12rem @con-parl-gold, 0 0 1.4rem rgba(230, 195, 74, 0.5); }
+    &__gov-card--lit .pcard { box-shadow: 0 0 1.4rem rgba(230, 195, 74, 0.5); }
 }
 /* A PHYSICAL CARD PROXY (Card3DInner): the outer is the projector — no clip,
    no rim of its own; the face and the back carry the card's frame. */
@@ -293,12 +296,14 @@ html.con-profile-tv .con-sit {
     overflow: visible;
     border-radius: 0;
     box-shadow: none;
-    .con-card3d__face { border-radius: .4rem; overflow: hidden; box-shadow: 0 .5rem 1.4rem rgba(0, 0, 0, 0.55); }
-    .con-card3d__back { border-radius: .4rem; overflow: hidden; box-shadow: 0 .5rem 1.4rem rgba(0, 0, 0, 0.55), inset 0 0 0 .06rem rgba(165, 195, 225, 0.32); }
+    /* Both sides draw the BILL's own outline (a page with a folded corner — mirrored on the back): no rounded
+       clip and no rim around it, only the body's shadow. */
+    .con-card3d__face, .con-card3d__back { box-shadow: 0 .5rem 1.4rem rgba(0, 0, 0, 0.5); }
     .con-parl__cardback { position: absolute; inset: 0; }
     .con-parl__flight-face { position: absolute; left: 0; top: 0; width: 320px; height: 460px; }
 }
-.con-parl__flight--lit .con-card3d__face { box-shadow: inset 0 0 0 .12rem @con-parl-gold, 0 0 1.4rem rgba(230, 195, 74, 0.5); }
+.con-parl__flight--lit .con-card3d__face { box-shadow: 0 0 1.4rem rgba(230, 195, 74, 0.5); }
+.con-parl__flight--lit .pcard-bill__keyline { box-shadow: inset 0 0 0 2.5px @con-parl-gold; }
 /* A pose change is a crossfade of the panel, never a swap (the departing pose is Э4's director's). */
 .con-sit__panel { transition: opacity calc(160ms * var(--motion-scale, 1)) @con-ease-standard; opacity: 0; }
 .con-sit__panel--on { opacity: 1; }

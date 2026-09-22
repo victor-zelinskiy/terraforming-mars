@@ -21,6 +21,7 @@ import {ICardRenderRoot} from '@/common/cards/render/Types';
 import PremiumMechanicsPanel from '@/client/components/premiumCard/PremiumMechanicsPanel.vue';
 import {buildMechanics, MechanicsVM} from '@/client/components/premiumCard/mechanicsModel';
 import {partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
+import {PARLIAMENT_GRAPHIC} from '@/client/components/premiumCard/resolutionPremiumVm';
 import {getPartyEffect} from '@/client/parliament/ClientParliamentManifest';
 import {partyFormulaRender} from '@/client/console/parliament/consoleParliamentModel';
 
@@ -45,7 +46,7 @@ export default defineComponent({
     },
     mechanics(): MechanicsVM {
       const root = this.renderRoot ?? (this.resolvedEffect === undefined ? undefined : partyFormulaRender(this.resolvedEffect));
-      return buildMechanics(root);
+      return buildMechanics(root, PARLIAMENT_GRAPHIC);
     },
     emblemUrl(): string {
       return partyEmblemUrl(this.party);
