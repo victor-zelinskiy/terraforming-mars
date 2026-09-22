@@ -94,6 +94,77 @@ return new AddResourcesToCards(player, CardResource.FLOATER, owed, {autoSelect: 
 - Зависимость от дополнения — `compatibility: ['venus']`, больше ничего: колода, пул в спеках
   (`compatibleWith(game.gameOptions.expansions)`) и лицо (медальон рядом со штампом модуля) читают декларацию.
 
+### Бонусы колоний — план шагов на игрока, реестр, шаг СБРОС (RX07, 2026-09-23)
+
+```ts
+scaled: [{id: 'colonyBonuses', unit: {kind: 'colonyBonuses'}, base: 2, perInfluence: 1, influenceStep: 2, recipient: 'each'}],
+immediateStepsFor: colonyBonusSteps,   // (player, parliament, game) → шаги по СТОЛУ колоний; ключи `colony:<tile>[:<n>:draw|discard|reveal]`
+// каждая запись шага: {..., effect, influence, multiplier: k, colony}
+```
+
+- **План шагов на игрока** — `IResolution.immediateStepsFor?(player, parliament, game)` рядом со статическим
+  `immediateSteps`; `immediateStepsOf` — один читатель обоих (драйвер, гард, экспорт). Ключи стабильны через reload.
+- **Шаг влияния** — `InfluenceScaledEffect.influenceStep` (`perInfluence × ⌊I / step⌋`); множительная единица
+  `{kind: 'colonyBonuses'}` — гард формулы сверяет `multiplier` записи.
+- **Закон объединения** — запас/производство ×k = одна запись; ресурс на карту = ОДНА раскладка k
+  (`AddResourcesToCards`, `autoSelect: false`); добор = ОДИН приём k; Плутон = k ПАР «взять → сбросить», никогда не
+  объединять (следующая карта не видна до сброса). Бонус колонии = ТРЕТЬЯ строка тайла (`metadata.colony`), не доход
+  торговли: у Миранды это «взять 1 карту».
+- **Виды** `discard` (адрес `hand-dock` / `hand` / `discard` / `colony-ledger`) и `colonyBonus` (`hud`, описание
+  тайла; потеря — отрицательная сумма, пропуск только при 0). Источник полёта **`colony-row`**
+  (`rewardFlightSourceOf`): запись с `colony` рождается на строке реестра, адрес не меняется.
+- **Маркер сброса** — `discardPrompt {source: resolution, colonyRepeat: {colonyName, index, total}}`; **никогда
+  `colonyBonus`** (он маршрутизирует шаг рабочего пространства КОЛОНИЙ).
+- **Реестр** — сервер шлёт `ParliamentPlayerModel.colonyBonuses: [{colony, grant, description}]`; клиент читает
+  `colonyLedgerOf` (чистый `common/parliament/colonyLedger.ts` + `colonyLedgerModel.ts`), рисует
+  `ConsoleColonyLedger` на панели голосования, в осмотре, в стадии (герой-размер) и на стенде; итоги группируют по
+  тайлу. Семейство стенда `colony-bonuses` (`colonyBonusesEffectOf`).
+- **Стадия** — реестр = тело страницы НАГРАДА (`sittingFieldOf`: поза до волны, дверь шага после), волны по строкам
+  (`beatReward` → `ledgerRowGroups`), сброс = встроенный шаг `'discard'` (`sittingAskOf` по маркеру,
+  `sittingStageKey → 'Discarding'` «СБРОС», `RESOLUTION_STEP_STAGES.handSelect`; секция публикует слот фрейма
+  парламента вместе с дверью). Док: `docs/TURMOIL_REDUX_COLONIAL_AFFAIRS.md` §3–5.
+
+### Счётный член по ПОЛЮ — когда счёт считает не табло, а доску (RX08, 2026-09-23)
+
+```ts
+scaled: [{id: 'production', unit: {kind: 'production', resource: MEGACREDITS}, perInfluence: 1,
+  count: {id: 'spaceCities', per: 2}, cap: 6, recipient: 'each'}],
+// resolutionCountKind('spaceCities') === {kind: 'board', tiles: 'spaceCity'}
+```
+
+- **Вид `board`** в `resolutionCountKind` — третий рядом с `cards` и `tags`; что считается — слово из `BoardCountedTile`
+  (`'spaceCity'`; следующее — `'marsCity'` для Migration Funding: одно слово, одна ветка в `spaceCountVerdict`, одна
+  строка в `boardCountSpaces` сервера). Никакой особой ветки «для этой карты».
+- **Число даёт ДВИЖОК**: `ResolutionCounts.resolutionCount` для `board` не ходит по табло — берёт клетки у
+  канонического хелпера (`MarsBoard.getCitiesOffMars(player)` — им же живут награда Cosmic Settler и `behavior/Counter`).
+  Предикат космического города в модуле резолюций не переписывается.
+- **Объяснение числа — КЛЕТКИ в той же модели**: `ResolutionCountModel.spaces` (`cards` пуст), в записи и модели —
+  `countedSpaces` (`SerializedEnactOutcome` / `ParliamentEnactOutcomeModel`), в чтении — `InfluenceYield.countedSpaces`
+  (`YieldCount.spaces`, `fixedYield(..., {countedSpaces})`). Второго типа модели счёта нет.
+- **Имя клетки — только из существующего слоя информации о доске** (`getSpecialCellInfo(id).title`: «Колония на
+  Ганимеде», «Космопорт на Фобосе», «Стэнфордский тор», области Венеры). Клетку без имени никто не крестит:
+  «Для вас» печатает ЧИСЛО (`${0} space city(-ies)`) и оставляет правило говорить (`countedCellNames` →
+  `parliamentAnnotations`).
+- **Глиф счётного объекта** — `CountedObjectGlyph {kind: 'tile', tile}`: `PremiumCountGlyph` рисует его ТЕМ ЖЕ ассетом,
+  что печатает лицо для `b.city()`, и той же искрой `.pcard-sym--asterix` (`countedTileIconUrl`). Формула блока чтения
+  печатает ДВЕ ставки, когда `count.per ≠ perInfluence` («2 [ед.] / [город*] + 1 [ед.] / [влияние]»).
+- **Стенд**: общий предикат клетки `spaceCountVerdict` / `countSpacesToward` (`CountedSpaceFacts` — то, что делят
+  серверный `Space` и синтетическая клетка) считает синтетические КЛЕТКИ семейства `counted-board`; паритет с движком
+  закреплён спеком по корпусу досок (`ColonizationFunding.spec.ts` § PARITY), а не подразумевается.
+
+### Бюджет проверки на карту (решение владельца 2026-09-23)
+
+Состав проверки определяется ОДНИМ вопросом: **что в карте ново?**
+
+- Нет новой механики (только новая формула из существующих членов) → нового e2e НЕТ вовсе: юниты карты + гард
+  контракта; общие модели защищены юнитами уже выданных карт (RX02 / RX04 / RX06 / RX07), они дешевле и ловят ту же
+  поломку.
+- Есть ровно одна новая механика → РОВНО ОДИН новый e2e на карту, покрывающий именно её, на одном профиле
+  (три профиля и Deck — только если у карты своя геометрия; у выплаты штатной волной её нет).
+- Старые сюиты e2e, галерею и стенд не гонять «для спокойствия». Фикстуры править точечно
+  (`FIXTURES=… npm run e2e:fixtures`), тяжёлую новую не городить.
+- Визуальная приёмка — несколько кадров НОВОГО на одном профиле в отчёт.
+
 ## 4. Таблица адресов (`src/common/parliament/rewardAddress.ts`) — правило добавления вида
 
 Строка есть у КАЖДОГО значения union `kind`; клиентский директор знает адреса, не резолюции. Новый механизм

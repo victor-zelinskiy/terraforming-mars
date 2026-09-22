@@ -37,6 +37,7 @@ import {ICard} from '../../src/server/cards/ICard';
 import {IProjectCard} from '../../src/server/cards/IProjectCard';
 import {GanymedeColony} from '../../src/server/cards/base/GanymedeColony';
 import {PhobosSpaceHaven} from '../../src/server/cards/base/PhobosSpaceHaven';
+import {familyOf} from '../../src/client/console/parliament/resolutionFamily';
 
 /**
  * COLONIZATION FUNDING (Turmoil Redux, RX08) — the THIRD card of the «counter
@@ -137,6 +138,7 @@ describe('ColonizationFunding', () => {
       expect(COLONIZATION_FUNDING_PRODUCTION.count).deep.eq({id: 'spaceCities', per: 2});
       expect(COLONIZATION_FUNDING_PRODUCTION.cap).eq(6);
       expect(resolutionCountKind('spaceCities')).deep.eq({kind: 'board', tiles: 'spaceCity'});
+      expect(familyOf(COLONIZATION_FUNDING), 'the stand opens the board-count family from the declaration alone').eq('counted-board');
     });
 
     it('the quest graphic is the city tile with the footnote spark — the same drawing the face prints as the counted object', () => {

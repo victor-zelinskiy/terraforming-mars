@@ -13,6 +13,8 @@ import {WinnerRewardDeclaration} from '@/common/parliament/winnerReward';
  *   influence     — a payout scaled by influence alone (onto a card, into the supply);
  *   counted       — a COUNT of cards + influence (Architecture Award);
  *   counted-tags  — a COUNT of tags + influence (Central Power Grid);
+ *   counted-board — a COUNT of the player's TILES on the board + influence (Colonization Funding's
+ *                   space cities) — the instrument is a set of CELLS, not a tableau;
  *   distributed   — a card-resource payout LAID OUT over the player's holders, 0..N per card
  *                   (Cloud Development: floaters by Venus + Jovian tags + influence) — the count
  *                   is a term of it, the SPREAD is what the player works with;
@@ -21,7 +23,7 @@ import {WinnerRewardDeclaration} from '@/common/parliament/winnerReward';
  *   colony-bonuses — the player's COLONY BONUSES paid a number of times (Colonial Affairs: 2 + 1 per 2
  *                   influence) — the instrument is the LEDGER of the player's tiles, multiplied.
  */
-export const RESOLUTION_FAMILIES = ['influence', 'counted', 'counted-tags', 'distributed', 'winner-tile', 'sequel', 'colony-bonuses'] as const;
+export const RESOLUTION_FAMILIES = ['influence', 'counted', 'counted-tags', 'counted-board', 'distributed', 'winner-tile', 'sequel', 'colony-bonuses'] as const;
 export type ResolutionFamily = typeof RESOLUTION_FAMILIES[number];
 
 /** The declaration facts the family reads — what the server definition and the client manifest share. */
@@ -72,7 +74,11 @@ export function familyOf(facts: ResolutionFamilyFacts): ResolutionFamily {
   }
   const count = countEffectOf(facts)?.count;
   if (count !== undefined) {
-    return resolutionCountKind(count.id).kind === 'tags' ? 'counted-tags' : 'counted';
+    switch (resolutionCountKind(count.id).kind) {
+    case 'tags': return 'counted-tags';
+    case 'board': return 'counted-board';
+    case 'cards': return 'counted';
+    }
   }
   // A winner's TILE with no card to pick for everyone's part: the winner-tile family.
   return facts.winnerReward !== undefined && pickerEffectOf(facts) === undefined ? 'winner-tile' : 'influence';
