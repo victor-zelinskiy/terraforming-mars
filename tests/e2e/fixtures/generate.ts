@@ -730,6 +730,34 @@ const supportStockTable = (): ParliamentFixtureSpec => {
   };
 };
 parliamentFixture('parliament-support-stock', supportStockTable());
+// ── «ОБНОВЛЕНИЕ» · scenario 2 (the owner's own frames): an EMPTY DECK and an empty discard, so the two losers
+//    are the whole pool the renewal can draw from — they leave, the discard turns over into a new deck, both
+//    are dealt straight back, the third slot stays empty. Red wins Architecture Award from the middle slot with
+//    TWO delegates; BLUE's free delegate stands on the Greens' loser (scenario 6: it goes home BEFORE that card
+//    leaves). The support step pays the losers' parties (Greens +2 — a player voted there, Industrialists +1),
+//    and the deal moves those cubes onto the re-dealt cards. Architecture asks nothing, so ONE A plays the
+//    whole walk: enactment → reward → RENEWAL → results. ──
+parliamentFixture('parliament-renewal-assembly', {
+  ...architectureTable('assembly'),
+  arrange: (table) => {
+    architectureTable('assembly').arrange?.(table);
+    const {parliament, p1, p2} = table;
+    parliament.placeVote(p2, parliament.slots[1], 'reserve');
+    const greens = parliament.slots.findIndex((s) => parliament.resolutionOf(s.instance).party === PartyName.GREENS);
+    if (greens < 0) {
+      throw new Error('the parliament-renewal-assembly fixture expected a Greens card on the table');
+    }
+    parliament.placeVote(p1, parliament.slots[greens], 'lobby');
+    parliament.deck = [];
+    parliament.discard = [];
+  },
+  expect: ({parliament, p2}) => {
+    const winner = parliament.winner();
+    if (winner?.player !== p2.id || parliament.deck.length !== 0 || parliament.discard.length !== 0) {
+      throw new Error(`the parliament-renewal-assembly fixture expected red to win on an empty deck, got ${JSON.stringify(winner)} deck=${parliament.deck.length} discard=${parliament.discard.length}`);
+    }
+  },
+});
 // Generation 2 has just begun: the results scene moves the card from its voting
 // slot into the government and flies red's production gain from the card to the rail.
 parliamentFixture('parliament-architecture-recap', architectureTable('done', (table) => {

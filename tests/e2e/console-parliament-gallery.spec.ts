@@ -274,7 +274,8 @@ for (const preset of PARLIAMENT_PRESETS) {
         await expect.poll(() => sittingStep(page), {timeout: 20_000}).toMatch(/received|waiting/);
         await pose(page, preset, mode, '17', 'sitting-reward-received');
         await answerAsksAs(request, red);
-        // v2: the ИТОГИ are ONE stage — the renewal's beats, then the results card; A on it answers gate 2.
+        // «Обновление»: the renewal is a page of its own (the tact on the table), then the results card; A on it answers gate 2.
+        await expect.poll(() => sittingStage(page), {timeout: 60_000}).toBe('renewal');
         await expect.poll(() => sittingStage(page), {timeout: 60_000}).toBe('results');
         await waitSittingAtRest(page, 30_000);
         await pose(page, preset, mode, '18', 'sitting-results');

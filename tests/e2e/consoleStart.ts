@@ -2300,6 +2300,8 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'hydro-terminal'
   'parliament-climate-vote-raise' | 'parliament-climate-cardstep' | 'parliament-biodome-nocell-assembly' | 'parliament-aquifer-assembly-six' | 'parliament-powergrid-vote-cap' |
   // The SITTING's gates (Э1): the phase stopped at gate 1 (`-assembly`) / gate 2 (`-adjourn`) for both seats.
   'parliament-aquifer-assembly' | 'parliament-aquifer-adjourn' | 'parliament-architecture-assembly' | 'parliament-architecture-adjourn' | 'parliament-support-stock' |
+  // «Обновление» scenario 2: an EMPTY deck, both losers dealt straight back after the reshuffle, a delegate on a loser.
+  'parliament-renewal-assembly' |
   'parliament-biodome-assembly' | 'parliament-biodome-adjourn' | 'parliament-powergrid-assembly' | 'parliament-powergrid-adjourn' |
   'parliament-climate-assembly' | 'parliament-climate-adjourn' |
   // THE FAMILIES REHEARSAL (final polish D.1): the dev examples of the next families at the vote and at gate 1.

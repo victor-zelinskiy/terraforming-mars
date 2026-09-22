@@ -245,23 +245,22 @@ test.describe('the sitting — the director\'s beats (standard-1080)', () => {
     expect(await pressUntil(page, 'Enter', async () => await page.locator('.con-extdraw').count() === 0, {tries: 8, settleMs: 2200}), 'the take is taken').toBe(true);
     await answerAsksAs(request, seats[1]);
     await expect.poll(async () => (await wireOf(request, playerId)).game.parliament?.phase?.step, {timeout: 60_000}).toBe('adjourn');
-    const summary = (await wireOf(request, playerId)).game.parliament?.phase?.summary;
-    const dealtBack = new Set((summary?.discarded ?? []).map((d) => d.instance));
-    // A loser dealt straight back from the reshuffled discard never left the table — it is not DEALT (P-28).
-    const dealt = (summary?.refreshed ?? []).filter((f) => !dealtBack.has(f.instance)).length;
-    expect((summary?.refreshed ?? []).length, 'the area was refreshed').toBeGreaterThan(0);
+    const summary = (await wireOf(request, playerId)).game.parliament?.phase?.summary as (NonNullable<Wire['game']['parliament']>['phase'] extends infer P ? (P extends {summary?: infer S} ? S : never) : never) & {renewal?: Array<{kind: string, size?: number}>} | undefined;
+    // «Обновление»: EVERY dealt card is dealt — a loser dealt straight back from the reshuffled discard left the table
+    // and comes back the whole way; the old «it never left» exception (P-22 / P-28) is gone.
+    const dealt = (summary?.refreshed ?? []).length;
+    expect(dealt, 'the area was refreshed').toBeGreaterThan(0);
+    await expect.poll(() => stageAttr(page), {timeout: 60_000}).toBe('renewal');
+    await expect.poll(() => motionAttr(page), {timeout: 30_000}).toBe('renewal');
+    await expect.poll(() => page.locator('[data-parl-flight][data-parl-flight-body="3d"]').count(), {timeout: 10_000}).toBeGreaterThan(0);
+    await shoot(page, '10-renewal-in-flight');
     await expect.poll(() => stageAttr(page), {timeout: 60_000}).toBe('results');
-    await expect.poll(() => motionAttr(page), {timeout: 30_000}).toBe('results');
-    if (dealt > 0) {
-      await expect.poll(() => page.locator('[data-parl-flight][data-parl-flight-body="3d"]').count(), {timeout: 10_000}).toBeGreaterThan(0);
-      await shoot(page, '10-results-deal-in-flight');
-    }
     await waitAtRest(page, 20_000);
     const probe = await readProbe(page);
-    const renewal = probe.samples.filter((s) => s.motion === 'results');
-    const span = motionSpan(probe.samples, 'results');
-    expect(span, `the results' beats span ${span} ms (the renewal, then the card's reveal)`).toBeGreaterThan(800);
-    expect(span).toBeLessThan(6000);
+    const renewal = probe.samples.filter((s) => s.motion === 'renewal');
+    const span = motionSpan(probe.samples, 'renewal');
+    expect(span, `the renewal's tact spans ${span} ms (the losers leave, the deck turns over, the deal, the support, the lobby)`).toBeGreaterThan(800);
+    expect(span).toBeLessThan(14000);
     // THE TURN: every dealt body starts face-down, passes through its own plane, rests face-up.
     const byId = new Map<string, Array<number>>();
     for (const s of renewal) {
@@ -289,12 +288,21 @@ test.describe('the sitting — the director\'s beats (standard-1080)', () => {
     for (const [slug, n] of Object.entries(rest.faces)) {
       expect(n, `${slug} is painted once at rest`).toBeLessThanOrEqual(1);
     }
-    // THE DECK ticked per launch — monotonic, never up.
+    // THE DECK ticked per launch (a deal, a revealed card that does not fit) — down by one at a time; the ONE way it
+    // ever grows is the discard turning over into a new deck, by exactly the journal's size, and only then.
+    const reshuffles = (summary?.renewal ?? []).filter((e) => e.kind === 'reshuffle').map((e) => e.size ?? 0);
     const decks = renewal.map((s) => s.deck).filter((d) => d >= 0);
+    const ups: Array<number> = [];
     for (let i = 1; i < decks.length; i++) {
-      expect(decks[i], 'the pile only ever thins').toBeLessThanOrEqual(decks[i - 1]);
+      if (decks[i] > decks[i - 1]) {
+        ups.push(decks[i] - decks[i - 1]);
+      } else {
+        expect(decks[i - 1] - decks[i], 'the pile thins one card at a time').toBeLessThanOrEqual(1);
+      }
     }
-    expect(decks[0] - decks[decks.length - 1], 'the pile is thinner by the dealt cards').toBe(dealt);
+    expect(ups, `the deck grew exactly at the reshuffle(s), by the pile turned over (${decks.join(',')})`).toEqual(reshuffles);
+    expect(decks[decks.length - 1], 'the pile at rest is the live count').toBe((await wireOf(request, playerId)).game.parliament === undefined ? -1 :
+      ((await wireOf(request, playerId)).game.parliament as unknown as {deckSize: number}).deckSize);
     // THE LOBBY refilled with cubes that travelled.
     if ((summary?.lobbyRefilled.length ?? 0) > 0) {
       const cubes = displacements(renewal, 'cube');
@@ -302,8 +310,9 @@ test.describe('the sitting — the director\'s beats (standard-1080)', () => {
       expect(Math.min(...cubes.values())).toBeGreaterThan(20);
     }
     expect(rest.holds).toEqual([]);
-    // The results card revealed only AFTER the beats — hidden while they played, standing at rest.
-    expect(renewal.some((s) => s.resultsHidden), 'the card was hidden while the renewal\'s beats played').toBe(true);
+    // The results card exists only on ITS page, after the tact: hidden when the page opens, revealed by its own beat.
+    expect(renewal.some((s) => s.resultsHidden), 'no results card stands on the renewal page').toBe(false);
+    expect(probe.samples.find((s) => s.stage === 'results')?.resultsHidden, 'the card was hidden when its page opened').toBe(true);
     await expect(page.locator('[data-sit-results-hidden]'), 'the results card revealed at rest').toHaveCount(0);
     expect((await wireOf(request, playerId)).waitingFor?.parliamentPhasePrompt?.stage, 'gate 2 stands until A').toBe('adjourn');
     await shoot(page, '11-results-rest');
@@ -326,7 +335,7 @@ test.describe('the sitting — the director\'s beats (standard-1080)', () => {
     await waitAtRest(page, 20_000);
     const probe = await readProbe(page);
     const order = probe.samples.map((s) => s.motion).filter((m) => m !== '').filter((m, i, all) => i === 0 || all[i - 1] !== m);
-    expect(order.join(' → '), 'no stage skipped by the hurry').toMatch(/verdict → enact → reward → results$/);
+    expect(order.join(' → '), 'no stage skipped by the hurry').toMatch(/verdict → enact → reward → renewal → results$/);
     expect((await wireOf(request, playerId)).waitingFor?.parliamentPhasePrompt?.stage, 'nothing was answered by the hurry').toBe('adjourn');
     expect(probe.samples[probe.samples.length - 1].holds, 'every sitting hold released at rest').toEqual([]);
     await shoot(page, '12-hurried-rest');

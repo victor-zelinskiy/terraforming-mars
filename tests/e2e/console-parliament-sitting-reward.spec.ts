@@ -108,7 +108,8 @@ async function armProbe(page: Page): Promise<void> {
         trCell: rectOf(document.querySelector('.con-res .con-score__cell--tr .con-score__valwrap') ?? document.querySelector('.con-res .con-score__cell--tr')),
         tr: document.querySelector('.con-res .con-score__value--tr')?.textContent?.trim() ?? '',
         deltas,
-        contexts: Array.from(document.querySelectorAll('.con-sit__panel--on [data-yield-context]')).map((el) => el.getAttribute('data-yield-context') ?? ''),
+        // v5: the reward's reading lives in the BAND, not in a panel.
+        contexts: Array.from(document.querySelectorAll('.con-band [data-yield-context]')).map((el) => el.getAttribute('data-yield-context') ?? ''),
         extdraw: document.querySelectorAll('.con-parl [data-embed-slot="parliament-stage"] .con-extdraw--embedded').length,
         zone: document.querySelectorAll('.con-sit__zone--on').length,
         deals: Array.from(document.querySelectorAll<HTMLElement>('.con-deckpick-fly .con-deal-proxy__flip')).map((el) => {
@@ -117,7 +118,7 @@ async function armProbe(page: Page): Promise<void> {
         }),
         placing: document.querySelector('.con-board--placing, .con-board--locked') !== null,
         parl: document.querySelector('.con-parl') !== null,
-        winner: document.querySelector('.con-sit__panel--on [data-winner-reward]')?.getAttribute('data-winner-context') ?? undefined,
+        winner: document.querySelector('.con-band [data-winner-reward]')?.getAttribute('data-winner-context') ?? undefined,
         // THE PLACES, not the cards: a slot whose card has been enacted keeps its HOME and renders an explicit
         // empty place in it («Пустой слот · Принята — ушла со стола», v3 В6), so a reading that counted
         // `.con-parl__slot` saw the table lose a column at the enactment — the one thing the home exists to
@@ -455,7 +456,7 @@ for (const preset of PARLIAMENT_PRESETS) {
           const redWire = await parliamentWire(request, red);
           if (redWire.waitingFor?.type === 'card') {
             await expect.poll(() => sittingStep(page), {timeout: 20_000}).toBe('waiting');
-            await expect(page.locator('.con-sit__panel--on [data-sit-wait]'), 'the wait line names the seat').toHaveAttribute('data-sit-wait-for', redWire.thisPlayer.color);
+            await expect(page.locator('.con-band [data-sit-awaiting]'), 'the band waits on the other seat (v5: the wait is a chip of the band)').toHaveCount(1);
             await expectParliamentFits(page, `${preset.id} ${c.rx} waiting`);
             await shoot(page, preset.id, `${c.rx}-07b-waiting`);
             await answerAsksAs(request, red);
@@ -467,7 +468,7 @@ for (const preset of PARLIAMENT_PRESETS) {
           // A resolution that asks nothing: the adjourn arrived WITH the record — the results enter after the wave has LANDED.
           await expect.poll(() => sittingStage(page), {timeout: 60_000}).toBe('results');
           const probe = await readProbe(page);
-          const firstRenewal = probe.samples.findIndex((s) => s.stage === 'results');
+          const firstRenewal = probe.samples.findIndex((s) => s.stage === 'renewal');
           // THE TABLE AS IT STOOD (registry R-25в): the server refreshed the slots with the adjourn, yet every
           // sample of the HELD reward pose still shows the losers with their delegate counts — the columns
           // change only when the renewal enters and its beat moves them.
@@ -483,7 +484,7 @@ for (const preset of PARLIAMENT_PRESETS) {
             const field = wv.channel === 'production' ? 'prod' : 'stock';
             const was = rowBefore[wv.res][field];
             const tickAt = probe.samples.findIndex((s) => s.rail[wv.res][field] !== was);
-            expect(firstRenewal, `the results entered only after the ${wv.res} chip had landed (results @${firstRenewal}, tick @${tickAt})`).toBeGreaterThanOrEqual(tickAt);
+            expect(firstRenewal, `the renewal entered only after the ${wv.res} chip had landed (renewal @${firstRenewal}, tick @${tickAt})`).toBeGreaterThanOrEqual(tickAt);
           }
           await shoot(page, preset.id, `${c.rx}-06-results`);
         }
@@ -491,10 +492,10 @@ for (const preset of PARLIAMENT_PRESETS) {
         // ── AT REST: the record reads «received», nothing is held, nothing sticks out.
         await waitSittingAtRest(page, 30_000);
         await settle(page, {timeoutMs: 30_000});
-        const contextsAfter = await page.locator('.con-sit__panel--on [data-yield-context]').evaluateAll((els) => els.map((el) => el.getAttribute('data-yield-context')));
+        const contextsAfter = await page.locator('.con-band [data-yield-context]').evaluateAll((els) => els.map((el) => el.getAttribute('data-yield-context')));
         if (contextsAfter.length > 0 && await sittingStage(page) === 'reward') {
           expect(contextsAfter.every((ctx) => ctx === 'applied'), `the reading says «received» at rest, got ${contextsAfter.join(',')}`).toBe(true);
-          await expect(page.locator('.con-sit__panel--on [data-sit-reward-state]')).toHaveText(/Получено|Received/i);
+          await expect(page.locator('.con-band [data-parl-band-state]')).toHaveText(/Получено|Received/i);
         }
         await expectParliamentFits(page, `${preset.id} ${c.rx} rest`);
         await shoot(page, preset.id, `${c.rx}-08-rest`);

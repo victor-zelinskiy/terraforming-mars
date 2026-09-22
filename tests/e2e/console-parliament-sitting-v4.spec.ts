@@ -245,7 +245,8 @@ function travelOf(samples: Array<V4Sample>, id: string): number {
 }
 
 /** The TABLE's stages — the ones that MOVE objects the player must see (`data-sitting-motion` is the STAGE). */
-const TABLE_MOTIONS = ['verdict', 'enact'];
+// «Обновление»: the renewal's whole tact plays on the TABLE (its own page — the results panel opens only after it).
+const TABLE_MOTIONS = ['verdict', 'enact', 'renewal'];
 const tableFrames = (s: Array<V4Sample>): Array<V4Sample> => s.filter((x) => TABLE_MOTIONS.includes(x.motion));
 /**
  * …and every frame in which SOMETHING IS MOVING ON THE TABLE — the renewal beats of ИТОГИ included (its card is
@@ -254,7 +255,7 @@ const tableFrames = (s: Array<V4Sample>): Array<V4Sample> => s.filter((x) => TAB
  * written against the page would call that fold «a panel over the table» while the table is deliberately still.
  */
 const physicalFrames = (s: Array<V4Sample>): Array<V4Sample> =>
-  s.filter((x) => TABLE_MOTIONS.includes(x.motion) || (x.motion === 'results' && x.resultsHidden));
+  s.filter((x) => TABLE_MOTIONS.includes(x.motion));
 
 /** The window each named beat owned, in ms — measured from the published beat, never from a wall clock. */
 function beatWindows(s: Array<V4Sample>): {span: Map<string, {from: number, to: number}>, gaps: Array<{after: string, ms: number}>} {

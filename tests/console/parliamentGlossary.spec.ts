@@ -46,6 +46,8 @@ const CANON: Record<string, string> = {
   // «Заседание v2»: the one door to the winner's tile, the one closing stage, the row below the government.
   'Onto the board': 'К полю',
   'Results': 'Итоги',
+  // «Обновление» (2026-09-22): the renewal is a page of its own before the results — one word, the tact's.
+  'Renewal': 'Обновление',
   'Opposition': 'Оппозиция',
   // «Заседание v4»: the government that has NOT left yet is named, so «принятая резолюция» can never be read
   // over a card on its way out (§2.3) — one word for one state of that block.

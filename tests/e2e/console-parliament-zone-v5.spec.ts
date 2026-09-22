@@ -235,7 +235,7 @@ test.describe('«Заседание v5» — ЛЕНТА и ТЕЛО (standard-10
 
     const all = ticks((await readV5(page)).samples);
     // The beats that MOVE something on the table: the Agenda, the support, the enactment, and the renewal.
-    const working = all.filter((s) => s.motion !== '' && (s.beat !== '' || s.stage === 'enact' || (s.stage === 'results' && s.panel === false)));
+    const working = all.filter((s) => s.motion !== '' && (s.beat !== '' || s.stage === 'enact' || s.stage === 'renewal'));
     expect(working.length, 'the physical beats were sampled').toBeGreaterThan(15);
     const bad = working.filter((s) => s.tiles.length < 6 || s.tiles.some((t) => !t.vis.box || t.vis.ink < 0.9 || t.vis.overlap > 0.02));
     expect(bad.map((s) => `${s.stage}/${s.beat} tiles=${s.tiles.length} ` +

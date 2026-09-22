@@ -126,6 +126,8 @@ const LEAVE_RETURN_STAGGER_MS = 70;
 const LEAVE_CUBE_DEPART_MS = 200;
 /** The second loser starts turning this long after the first (one hand, two cards). */
 const LEAVE_CARD_STAGGER_MS = 160;
+/** The dealer squares the new deck before the first card comes off it — and the stack's landing (a GSAP timeline plus its birth tick) trails the storyboard's arithmetic by a couple of frames. */
+const RESHUFFLE_SETTLE_MS = 160;
 /** A revealed card that does not fit is READ over its slot before it turns back. */
 const REJECT_DWELL_MS = 420;
 /** An empty slot is named for a beat. */
@@ -1003,6 +1005,11 @@ function launchLeaveReturns(runState: StageRun, ctx: SittingDirectorContext, eve
       const delay = i * LEAVE_RETURN_STAGGER_MS * k;
       i++;
       const landed = () => {
+        // The cube is home: its place on the (gone) card is no longer anybody's — a card dealt straight back
+        // carries NEW seqs, and a stale key would send the support beat looking for a place that does not exist.
+        if (key !== undefined) {
+          holds.hiddenCubes.delete(key);
+        }
         const left = (holds.renewalReturns.get(entry.owner) ?? 0) - 1;
         if (left <= 0) {
           holds.renewalReturns.delete(entry.owner);
@@ -1053,6 +1060,9 @@ function launchLeave(runState: StageRun, ctx: SittingDirectorContext, event: Ext
       }
       return;
     }
+    // The proxy stands over the card: the real face hides in the SAME frame (the exit contract — never a card
+    // flying while it still sits in its slot), and the proxy is the very same picture.
+    holds.liftedFaces.add(event.instance);
     flyToDiscard(runState, ctx, id, 0, {onLift: settle, onGone: landOnDiscard, degrade: `leave of ${event.resolution}`});
     settleIfHurried();
   });
@@ -1068,7 +1078,7 @@ function launchReshuffle(runState: StageRun, ctx: SittingDirectorContext, event:
       holds.pile.discard = Math.max(0, holds.pile.discard - event.size);
     }
   };
-  const ids = runReshuffle({from: discardRect(root), to: deckRect(root), cards: holds.pile?.discard ?? event.size, delayMs: 0, onLanded: land});
+  const ids = runReshuffle({from: discardRect(root), to: deckRect(root), cards: event.size, delayMs: 0, onLanded: land});
   if (ids.length === 0) {
     noteDegraded('the reshuffle');
   }
@@ -1172,7 +1182,9 @@ function launchDeal(runState: StageRun, ctx: SittingDirectorContext, event: Extr
 function launchSupportSeat(runState: StageRun, ctx: SittingDirectorContext, event: Extract<ParliamentRenewalEventModel, {kind: 'support'}>, k: number): void {
   const root = ctx.root;
   const holds = parliamentHolds;
-  const hidden = Array.from(holds.hiddenCubes).filter((key) => key.startsWith(`${event.instance}#`))
+  // The card's LIVE places only (a delegate that left this very card at the leave is a different seq, already home).
+  const live = new Set((ctx.view.slots.find((slot) => slot.instance === event.instance)?.votes ?? []).map((v) => `${event.instance}#${v.seq}`));
+  const hidden = Array.from(holds.hiddenCubes).filter((key) => key.startsWith(`${event.instance}#`) && live.has(key))
     .sort((a, b) => Number(a.substring(a.lastIndexOf('#') + 1)) - Number(b.substring(b.lastIndexOf('#') + 1)));
   let i = 0;
   for (const key of hidden) {
@@ -1275,9 +1287,13 @@ function beatRenewal(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: num
     case 'leave':
       return;
     case 'reshuffle':
+      // The pile can turn over only once every card that left the table LIES on it: the reshuffle waits for the
+      // last landing (a loser still in the air is not on the discard, and a stack that lifts before it lands
+      // would be lifting nothing).
+      at = Math.max(at, tail);
       cue(index, event, at);
       tl.call(() => launchReshuffle(runState, ctx, event), undefined, at);
-      at += s(RESHUFFLE_MS) * k;
+      at += s(RESHUFFLE_MS + RESHUFFLE_SETTLE_MS) * k;
       tail = Math.max(tail, at);
       return;
     case 'reject':
@@ -1303,13 +1319,14 @@ function beatRenewal(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: num
       return;
     }
     case 'empty':
-      at = Math.max(at, lastDealLanding);
+      // Named once the cards and their cubes have LANDED: a caption never runs ahead of an object still in the air.
+      at = Math.max(at, tail);
       cue(index, event, at);
       at += s(EMPTY_READ_MS) * k;
       tail = Math.max(tail, at);
       return;
     case 'lobby':
-      at = Math.max(at, lastDealLanding);
+      at = Math.max(at, tail);
       cue(index, event, at);
       tl.call(() => launchLobby(runState, ctx, event), undefined, at);
       tail = Math.max(tail, at + s(CUBE_FLIGHT_MS) * k);

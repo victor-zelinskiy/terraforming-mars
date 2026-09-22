@@ -33,7 +33,7 @@
                  'con-parl__slot--selected': slotsCarried && flow.slotIndex === i,
                  'con-parl__slot--winning': winningShownOf(slot),
                  'con-parl__slot--lit': motion.litSlot === slot.instance,
-                 'con-parl__slot--awaiting': holds.freshFaces.has(slot.instance),
+                 'con-parl__slot--awaiting': awaitingDeal(slot),
                  'con-parl__slot--target': (flow.stage === 'seat' || (flow.stage === 'submitting' && flow.stageBeforeSubmit === 'seat')) && flow.slotIndex === i,
                  'con-parl__slot--candidate': flow.stage === 'seat' && seatCandidates.includes(i),
                  'con-parl__slot--mine': tallyOf(slot, i).leader !== undefined && tallyOf(slot, i).leader === viewerColor,
@@ -44,7 +44,7 @@
                :data-party="slot.party"
                :data-order="slot.tiePriority"
                :data-votes="slot.totalVotes"
-               :data-parl-slot-awaiting="holds.freshFaces.has(slot.instance) ? '' : undefined">
+               :data-parl-slot-awaiting="awaitingDeal(slot) ? '' : undefined">
             <div class="con-parl__slot-label">
               <img class="con-parl__slot-emblem" :src="emblemUrl(slot.party)" alt="" />
               <span class="con-parl__slot-party">{{ $t(partyNameKey(slot.party)) }}</span>
@@ -65,7 +65,7 @@
               </span>
             </div>
             <div class="con-parl__card"
-                 :class="{'con-parl__card--dealing': holds.freshFaces.has(slot.instance) || holds.liftedFaces.has(slot.instance)}"
+                 :class="{'con-parl__card--dealing': awaitingDeal(slot) || holds.liftedFaces.has(slot.instance)}"
                  :data-zoom-slot="'resolution:' + slot.resolutionId"
                  :data-zoom-handoff="slotsCarried && flow.slotIndex === i ? 'parliament-vote' : undefined"
                  :data-parl-vote-card="slotsCarried && flow.slotIndex === i ? '' : undefined">
@@ -296,6 +296,14 @@ export default defineComponent({
     /** A slot's tally as SHOWN: the selected card waits for the touchdown before its numbers move. */
     tallyOf(slot: ParliamentSlotVm, index: number): {votes: number, mine: number, leader: Color | 'neutral' | undefined} {
       return tallyShownOf(slot, index);
+    },
+    /**
+     * A slot whose card is still ON THE DECK — a waiting place. Only on the LIVE table: while the sitting still HOLDS the
+     * table as voted, a loser that will be dealt straight back is the same instance as its own fresh face, and the
+     * held slot must go on showing the card that stands there (it leaves physically, in the tact, before the deal).
+     */
+    awaitingDeal(slot: ParliamentSlotVm): boolean {
+      return this.holds.heldSlots === undefined && this.holds.freshFaces.has(slot.instance);
     },
     /** The card that has left its held slot: for the government (the winner), or for the discard (a loser at the renewal). */
     homeEmptied(slot: ParliamentSlotVm): boolean {

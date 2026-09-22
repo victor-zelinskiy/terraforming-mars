@@ -206,9 +206,14 @@ for (const preset of PARLIAMENT_PRESETS) {
       await waitSittingAtRest(page, 40_000);
       await expect(page.locator('[data-sit-results]'), 'the results card').toHaveCount(1);
       await expect(page.locator('[data-sit-results-hidden]'), 'revealed at rest').toHaveCount(0);
-      const hiddenWhilePlaying = (await readSittingProbe(page)).samples.filter((st) => st.motion === 'results' && st.stage === 'results');
-      expect(hiddenWhilePlaying.length, 'the results stage played').toBeGreaterThan(0);
-      expect(hiddenWhilePlaying[0].resultsHidden, 'the card was HIDDEN while the renewal\'s beats played').toBe(true);
+      // «Обновление»: the renewal is a page of its OWN before the results (its tact on the table, no panel), and the
+      // results card's rows stay hidden until their own reveal on the results page.
+      const probeNow = await readSittingProbe(page);
+      const renewalPlayed = probeNow.samples.filter((st) => st.motion === 'renewal' && st.stage === 'renewal');
+      expect(renewalPlayed.length, 'the renewal page played its tact').toBeGreaterThan(0);
+      expect(renewalPlayed.every((st) => !st.resultsHidden), 'no results card exists on the renewal page').toBe(true);
+      const revealed = probeNow.samples.filter((st) => st.stage === 'results');
+      expect(revealed[0]?.resultsHidden, 'the card was HIDDEN when its page opened, revealed by its own beat').toBe(true);
       expect((await crumbText(page)).toUpperCase()).toMatch(/ИТОГИ|RESULTS/);
       expect(await hotVerb(page)).toMatch(/Закрыть заседание|Close the sitting/i);
       await expect(page.locator('[data-sit-results] [data-sit-fresh]'), 'the new resolutions with their parties').not.toHaveCount(0);
@@ -227,8 +232,11 @@ for (const preset of PARLIAMENT_PRESETS) {
       });
       const expectWholeOrNone = async (label: string) => {
         const c = await agendaCover();
-        expect(c.overlap === 0 || c.overlap >= c.track - 1, `${label}: the stage never half-covers the Agenda track (covered ${Math.round(c.overlap)} of ${Math.round(c.track)} px)`).toBe(true);
-        expect(c.overlap === 0 || preset.id === 'deck-handheld', `${label}: the results fit their tier on this profile (covered ${Math.round(c.overlap)} px of the track)`).toBe(true);
+        // v5 («whole or none», generalized to EVERY profile): the results panel takes the Agenda track WHOLE — the body
+        // is shorter by the band's height everywhere, so «fits its tier» is no longer a pose the panel has. Measured
+        // 2026-09-22 with and without the discard pile in the head: 85 of 86 px at 1080, 194 of 196 at 4K — a
+        // sub-pixel rounding of the track's own box, never a half-cover.
+        expect(c.overlap === 0 || c.overlap >= c.track - 2, `${label}: the stage never half-covers the Agenda track (covered ${Math.round(c.overlap)} of ${Math.round(c.track)} px)`).toBe(true);
       };
       await expectWholeOrNone('results');
       await shoot(page, preset.id, '06-results');

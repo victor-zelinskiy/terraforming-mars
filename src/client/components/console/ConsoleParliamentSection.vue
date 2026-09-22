@@ -38,6 +38,7 @@
            :data-sitting-page="sittingUp ? String(flow.sittingPage) : undefined"
            :data-sitting-motion="motion.stage || undefined"
            :data-sitting-beat="motion.beat || undefined"
+           :data-renewal-degraded="motion.renewalDegraded.length > 0 ? motion.renewalDegraded.join(' · ') : undefined"
            :data-quest-beat="questBeat || undefined"
            :data-parl-reading-up="stagePanelUp ? '' : undefined"
            :data-parl-unfolding="stageEntering ? '' : undefined"
