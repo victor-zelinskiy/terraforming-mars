@@ -10,9 +10,17 @@ release pipeline was originally built on, so the tooling compensates for it.
 npm run push
 ```
 
-It asserts a clean tree, fetches, rebases onto `origin/main`, re-derives the release
+It checks the tree, fetches, rebases onto `origin/main`, re-derives the release
 version against the remote, amends the tip and pushes — retrying when the other clone
 lands first. There is nothing else to remember, and no checklist to follow by hand.
+
+The tree check (`scripts/pushTree.mjs`, spec `tests/scripts/pushTree.spec.ts`) refuses
+only REAL uncommitted work — a modified, staged, deleted or conflicted tracked file — and
+names each one. Two things are not work and never block: an untracked file (a rebase and
+an amend never touch it) and a PHANTOM index entry (`AD` — a file `git add`ed and then
+deleted from disk, present in neither HEAD nor the tree), which the script drops itself,
+printing the blob id to recover it from. The latter once stopped a push with nothing to
+commit: a temporary spec had been staged and removed.
 
 Setup is automatic: `npm install` runs `prepare` → `scripts/setup-hooks.mjs`, which
 points git at `.githooks/` and sets `pull.rebase true`. A hook committed here is live

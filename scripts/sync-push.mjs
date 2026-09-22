@@ -4,7 +4,8 @@
 // moment; that is normal, not an incident. Everything the situation needs is done
 // here so it does not have to live in a checklist someone has to remember:
 //
-//   clean-tree assert → fetch → rebase → re-derive the version against the REMOTE
+//   tree check (stale index entries dropped, untracked files ignored, real changes named
+//   and refused — scripts/pushTree.mjs) → fetch → rebase → re-derive the version against the REMOTE
 //   → amend the tip → push, retrying when the other clone slips in first.
 //
 // The version step is the point of the whole script. The pre-commit hook decides a
@@ -20,6 +21,7 @@ import {execFileSync} from 'node:child_process';
 import {
   git, root, readVersion, ceilingVersion, bumpPatch, isVersionFree, writeVersion, VERSION_FILES,
 } from './version.mjs';
+import {classifyTree, describeBlocking, parsePorcelainZ} from './pushTree.mjs';
 
 const REMOTE = 'origin';
 const MAX_ATTEMPTS = 3;
@@ -94,9 +96,31 @@ if (branch === 'HEAD') {
   fail('detached HEAD — check out a branch first');
 }
 
-const dirty = git(['status', '--porcelain']);
-if (dirty !== '') {
-  fail('working tree is not clean — commit your work first (never stash: the tree may hold work that is not yours)');
+// The tree, classified (scripts/pushTree.mjs). Read RAW: the shared `git()` helper trims, and a
+// leading space is half of a porcelain status code.
+let porcelain;
+try {
+  porcelain = execFileSync('git', ['status', '--porcelain=v1', '-z', '--untracked-files=all'], {cwd: root, encoding: 'utf8'});
+} catch {
+  fail('could not read the working tree status');
+}
+const tree = classifyTree(parsePorcelainZ(porcelain));
+for (const phantom of tree.phantoms) {
+  // Staged, then deleted from disk: in neither HEAD nor the tree. Drop the stale index entry;
+  // the content stays in the object store, so name the blob it can be recovered from.
+  const blob = git(['rev-parse', `:${phantom.path}`]);
+  if (!run(['rm', '--cached', '--quiet', '--', phantom.path])) {
+    fail(`could not drop the stale index entry ${phantom.path}`);
+  }
+  say(`dropped a stale index entry: ${phantom.path} (staged, then deleted from disk)` +
+    (blob === undefined ? '' : ` — recover with: git show ${blob} > ${phantom.path}`));
+}
+if (tree.blocking.length > 0) {
+  fail('working tree has uncommitted changes — commit them first (never stash: the tree may hold work that is not yours):\n' +
+    describeBlocking(tree.blocking));
+}
+if (tree.untracked.length > 0) {
+  say(`${tree.untracked.length} untracked file(s) left alone — a push never touches them`);
 }
 
 for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
@@ -110,7 +134,8 @@ for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     say(`${before.behind} commit(s) arrived from the other clone — rebasing`);
     if (!run(['rebase', `${REMOTE}/${branch}`])) {
       run(['rebase', '--abort']);
-      fail('rebase hit a conflict and was aborted — resolve it by hand (never -X ours/-X theirs), then run npm run push again');
+      fail('rebase stopped and was aborted — a content conflict (resolve it by hand, never -X ours/-X theirs), ' +
+        'or an untracked file in the way of an incoming one (git names it above); then run npm run push again');
     }
     reportOverlap(base, branch);
   }
