@@ -292,6 +292,11 @@ export abstract class Colony implements IColony {
     }
   }
 
+  /** The PRINTED colony bonus (the per-cube payout of a trade) as the manifest's grant descriptor — see `IColony.colonyBonusGrant`. */
+  public colonyBonusGrant(): ColonyTradeGrantModel {
+    return this.tradeGrantModel(this.metadata.colony.type, this.metadata.colony.quantity, this.metadata.colony.resource);
+  }
+
   /** The manifest's grant descriptor for one benefit, from this colony's metadata. */
   private tradeGrantModel(benefit: ColonyBenefit, quantity: number, resource: Resource | undefined): ColonyTradeGrantModel {
     const wantsCardResource = benefit === ColonyBenefit.ADD_RESOURCES_TO_CARD || benefit === ColonyBenefit.ADD_RESOURCES_TO_VENUS_CARD;

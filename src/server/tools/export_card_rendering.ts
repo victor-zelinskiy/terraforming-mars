@@ -24,7 +24,7 @@ import {globalInitialize} from '../globalInitialize';
 import {buildCardInformation, writeCardInfoArtifacts} from './cardInfo/buildCardInformation';
 import {buildBoardLayouts} from '../boards/boardLayoutExport';
 import {REDUX_RESOLUTION_CATALOG} from '../parliament/resolutions/ResolutionCatalog';
-import {ResolutionDefinition} from '../parliament/resolutions/IResolution';
+import {hasImmediateSteps, ResolutionDefinition} from '../parliament/resolutions/IResolution';
 import {PARTY_EFFECTS, toClientPartyEffect} from '../parliament/parties/PartyEffects';
 import {REDUX_PARTIES, STARTER_QUEST} from '../../common/parliament/ParliamentTypes';
 import {IClientResolution, ParliamentCatalog} from '../../common/parliament/IClientResolution';
@@ -212,7 +212,7 @@ class ParliamentProcessor {
       text: definition.text,
       quest: definition.quest,
       questRenderData: questRenderData(definition.quest),
-      hasImmediate: (definition.immediateSteps?.length ?? 0) > 0,
+      hasImmediate: hasImmediateSteps(definition),
       hasWinnerEffect: (definition.winnerSteps?.length ?? 0) > 0,
       hasPassive: definition.passive !== undefined,
       hasAction: definition.action !== undefined,

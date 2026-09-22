@@ -4,6 +4,7 @@ import {PartyName} from '../../common/turmoil/PartyName';
 import {CardName} from '../../common/cards/CardName';
 import {Tag} from '../../common/cards/Tag';
 import {CardResource} from '../../common/CardResource';
+import {ColonyName} from '../../common/colonies/ColonyName';
 import {Resource} from '../../common/Resource';
 import {BotParliamentMode, ParliamentPhaseStep, QuestDefinition, ResolutionInstanceId} from '../../common/parliament/ParliamentTypes';
 import {WinnerRewardParameter} from '../../common/parliament/winnerReward';
@@ -61,11 +62,25 @@ export type SerializedEnactOutcome = {
   /**
    * `cardResource` resources onto a card · `production` a production increase ·
    * `stock` standard resources into the player's supply · `cards` project
-   * cards drawn for the player · `ocean` / `greenery` the winner's tile ·
-   * `skipped` nothing happened (see `reason`) · `reaction` the RULING PARTY's
-   * answer to this step's own change (see `party`).
+   * cards drawn for the player · `discard` a card the player threw away (the
+   * second half of Pluto's colony bonus — see `colony`) · `colonyBonus` a
+   * colony bonus the chip language does not speak, paid through its own
+   * counter (a discount, a loss, a science tag — see `description`) ·
+   * `ocean` / `greenery` the winner's tile · `skipped` nothing happened (see
+   * `reason`) · `reaction` the RULING PARTY's answer to this step's own change
+   * (see `party`).
    */
-  kind: 'cardResource' | 'production' | 'stock' | 'cards' | 'ocean' | 'greenery' | 'skipped' | 'reaction';
+  kind: 'cardResource' | 'production' | 'stock' | 'cards' | 'discard' | 'colonyBonus' | 'ocean' | 'greenery' | 'skipped' | 'reaction';
+  /**
+   * THE COLONY whose printed bonus this record pays (Colonial Affairs: «gain
+   * all your colony bonuses k times») — the ledger row the record belongs to
+   * on every surface; `multiplier` is how many times that bonus was paid in
+   * this one record (the resolution's k, the scaled effect's own amount).
+   */
+  colony?: ColonyName;
+  multiplier?: number;
+  /** `colonyBonus`: the tile's printed description of the bonus (the colony's own English key). */
+  description?: string;
   /**
    * `reaction`: the answering party and what it answered — DERIVED by the
    * driver from the recorder's own events inside the step (a `party`-sourced

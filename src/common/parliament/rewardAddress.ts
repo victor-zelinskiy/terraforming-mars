@@ -33,6 +33,13 @@ export type RewardSurface =
   | 'tableau-card' // a card of the player's tableau (a card resource)
   | 'hand-dock' // the hand dock at the bottom (cards)
   | 'board' // the planet (a tile) + the parameter HUD + TR
+  /**
+   * The HUD readout the benefit changes — the rail's TR cell, a discount the
+   * action sheet prices, a science tag on the tag matrix: a colony bonus the
+   * chip language does not speak (`colonyBonus`) commits through the standard
+   * delta-chip path of whatever counter it moved, and the ledger row names it.
+   */
+  | 'hud'
   | 'stage-plate'; // the sitting's own plate — a skip lives nowhere else
 
 /** WHERE the flight leaves from — the physical source the motion answers «where did this come from». */
@@ -40,16 +47,24 @@ export type RewardFlightSource =
   | 'card-icon' // the printed graphic of the carried resolution (`data-graphic-node`)
   | 'party-plaque' // the ruling party's plaque: the law is the party's, not the resolution's
   | 'project-deck' // the project deck pile (`.con-deckstack__pile`)
+  /**
+   * A ROW OF THE COLONY LEDGER on the stage — the bonus cell of the tile that
+   * pays (`[data-colony-row]`): a record that names its `colony` flies from
+   * there, never from the resolution's icon (`rewardFlightSourceOf`).
+   */
+  | 'colony-row'
+  /** The player's HAND: a card leaves it for the discard pile — the discard scene's own flight. */
+  | 'hand'
   | 'none'; // nothing moves (a skip, a tile the board scene places itself)
 
 /** The unit the chip / counter speaks. */
 export type RewardUnit = 'production' | 'stock' | 'card-resource' | 'cards' | 'tile' | 'none';
 
 /** The sitting's stage the outcome is presented on (the flow's stage names — Э3). */
-export type RewardStage = 'reward' | 'choice' | 'take' | 'board';
+export type RewardStage = 'reward' | 'choice' | 'take' | 'discard' | 'board';
 
 /** The reading component the stage binds to the record (Э5 binds names to components). */
-export type RewardReading = 'influence-yield' | 'winner-reward' | 'party-reaction' | 'skip-plate';
+export type RewardReading = 'influence-yield' | 'winner-reward' | 'party-reaction' | 'colony-ledger' | 'skip-plate';
 
 export type RewardAddress = {
   kind: OutcomeKind;
@@ -78,6 +93,18 @@ export const REWARD_ADDRESS: Readonly<Record<OutcomeKind, RewardAddress>> = {
   cards: {
     kind: 'cards', surface: 'hand-dock', source: 'project-deck', unit: 'cards', stage: 'take', reading: 'influence-yield',
     skipTitle: 'Skipped: cards',
+  },
+  // A CARD THROWN AWAY by a colony bonus's second half (Pluto's «draw 1, then discard 1» — Colonial Affairs):
+  // the hand's own discard step, the card leaving the hand for the pile — the ledger's row reads it.
+  discard: {
+    kind: 'discard', surface: 'hand-dock', source: 'hand', unit: 'cards', stage: 'discard', reading: 'colony-ledger',
+    skipTitle: 'Skipped: discard',
+  },
+  // A COLONY BONUS the chip language does not speak (a card discount, a loss, a science tag, a paid reveal):
+  // paid honestly through the standard delta-chip path of the counter it moves; the ledger names the tile's printed bonus.
+  colonyBonus: {
+    kind: 'colonyBonus', surface: 'hud', source: 'none', unit: 'none', stage: 'reward', reading: 'colony-ledger',
+    skipTitle: 'Skipped: colony bonus',
   },
   ocean: {
     kind: 'ocean', surface: 'board', source: 'none', unit: 'tile', stage: 'board', reading: 'winner-reward',
@@ -114,16 +141,38 @@ export type RewardPayload = {
   parameter?: {id: string; before: number; after: number};
   /** The answering party (`reaction`). */
   party?: string;
+  /** The COLONY whose printed bonus this record pays (Colonial Affairs) — the ledger row it belongs to. */
+  colony?: string;
+  /** …how many times that bonus was paid in this one record (the resolution's multiplier k). */
+  multiplier?: number;
+  /** `colonyBonus`: the tile's printed description of the bonus (an English key of the colony's own). */
+  description?: string;
 };
 
 export type RewardDelivery = {
   address: RewardAddress;
+  /**
+   * WHERE THIS RECORD'S FLIGHT LEAVES FROM: the address's source, except that a
+   * record naming its `colony` is born on its ledger row's bonus cell — the
+   * physical place the player read the bonus in (`rewardFlightSourceOf`).
+   */
+  source: RewardFlightSource;
   /** The record belongs to the viewer: a flight, a plate — else a line about another seat. */
   mine: boolean;
   /** The outcome did NOT pay: the plate's reason (an English key) — a `skipped` record's own, or a zero payout of a paying kind. */
   skipped?: string;
   payload: RewardPayload;
 };
+
+/**
+ * The flight source of ONE record: a rail chip of a colony-tagged record
+ * leaves the LEDGER ROW of that colony (the bonus cell the player read the
+ * amount in), every other record its address's source. Pure.
+ */
+export function rewardFlightSourceOf(outcome: ParliamentEnactOutcomeModel): RewardFlightSource {
+  const address = REWARD_ADDRESS[outcome.kind];
+  return outcome.colony !== undefined && address.source === 'card-icon' ? 'colony-row' : address.source;
+}
 
 /**
  * The delivery of ONE record for ONE viewer. Pure: reads the record, decides
@@ -155,9 +204,24 @@ export function rewardAddressOf(outcome: ParliamentEnactOutcomeModel, viewer: Co
   if (outcome.party !== undefined) {
     payload.party = outcome.party;
   }
-  const delivery: RewardDelivery = {address, mine: viewer !== undefined && outcome.player === viewer, payload};
+  if (outcome.colony !== undefined) {
+    payload.colony = outcome.colony;
+  }
+  if (outcome.multiplier !== undefined) {
+    payload.multiplier = outcome.multiplier;
+  }
+  if (outcome.description !== undefined) {
+    payload.description = outcome.description;
+  }
+  const delivery: RewardDelivery = {address, source: rewardFlightSourceOf(outcome), mine: viewer !== undefined && outcome.player === viewer, payload};
   if (outcome.kind === 'skipped') {
     delivery.skipped = outcome.reason ?? address.skipTitle;
+  } else if (outcome.kind === 'colonyBonus') {
+    // A HUD-side colony bonus pays its own counter: a LOSS (Titania) is a negative amount and still a payout —
+    // only a bonus that came to nothing at all (0) is a skip.
+    if ((outcome.amount ?? 0) === 0) {
+      delivery.skipped = address.skipTitle;
+    }
   } else if (address.unit !== 'tile' && address.unit !== 'none' && (outcome.amount ?? 0) <= 0) {
     // A paying kind that paid nothing is a skip the record did not name — the address names it.
     delivery.skipped = address.skipTitle;

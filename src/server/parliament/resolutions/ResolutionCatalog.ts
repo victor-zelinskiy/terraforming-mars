@@ -35,6 +35,7 @@ import {BIODOME_CONTEST} from './greens/BiodomeContest';
 import {CENTRAL_POWER_GRID} from './industrialists/CentralPowerGrid';
 import {CLIMATE_RESEARCH} from './greens/ClimateResearch';
 import {CLOUD_DEVELOPMENT} from './unity/CloudDevelopment';
+import {COLONIAL_AFFAIRS} from './unity/ColonialAffairs';
 
 /**
  * THE RETIRED IDS — iteration 0's DUMMY resolutions (a party, a quest, no
@@ -442,6 +443,8 @@ export const REDUX_RESOLUTION_CATALOG = new ResolutionCatalog([
   CLIMATE_RESEARCH,
   // Venus Next only (`compatibility`): the deal's filter keeps it out of a game without Venus.
   CLOUD_DEVELOPMENT,
+  // A PLAN PER PLAYER (`immediateStepsFor`): one step per colony tile the seat has a cube on.
+  COLONIAL_AFFAIRS,
   TEST_CHOICE,
   DEV_IMMEDIATE,
   DEV_PASSIVE,

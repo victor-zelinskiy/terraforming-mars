@@ -332,6 +332,16 @@ export type DiscardPromptMeta = {
    * sequence, so the payout surface can lay out one zone per colony.
    */
   colonyBonus?: ColonyBonusDiscardMeta;
+  /**
+   * A COLONY'S PRINTED BONUS PAID BY ANOTHER SOURCE — an enacted resolution's
+   * «gain all your colony bonuses k times» (Turmoil Redux, Colonial Affairs)
+   * paying Pluto's «draw 1, then discard 1» k times: WHICH tile's bonus this
+   * discard closes and its position among that tile's repeats («2 из 3»).
+   * The demanding `source` stays the resolution; `colonyBonus` is deliberately
+   * NOT set — that marker routes the COLONY resolution's own flow (the trade
+   * workspace), and this discard is a step of the sitting.
+   */
+  colonyRepeat?: ColonyBonusDiscardMeta;
 }
 
 /**

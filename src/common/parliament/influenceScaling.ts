@@ -46,7 +46,18 @@ export type InfluenceYieldUnit =
   | {kind: 'cardResource', resource: CardResource, spread?: boolean}
   | {kind: 'stock', resource: Resource}
   | {kind: 'production', resource: Resource}
-  | {kind: 'cards'};
+  | {kind: 'cards'}
+  /**
+   * The player's COLONY BONUSES, paid a NUMBER OF TIMES (Colonial Affairs:
+   * «gain all your colony bonuses 2 times + 1/2 influence»). The amount is
+   * the MULTIPLIER k — how many times every printed colony bonus of every
+   * tile the player has a cube on is paid — never a resource: WHAT is paid
+   * is the tile's own printed bonus, read off the colony's metadata by the
+   * shared step plan (`colonyBonusSteps`), and every payout the plan makes
+   * records `multiplier: k` beside its own unit. The seat's model carries the
+   * registry (`ParliamentPlayerModel.colonyBonuses`) the reading multiplies.
+   */
+  | {kind: 'colonyBonuses'};
 
 /**
  * A SEQUENTIAL term — the second half of a resolution whose result depends on
@@ -77,6 +88,14 @@ export type InfluenceScaledEffect = {
   /** Units per point of influence (0 for a purely sequential effect). */
   perInfluence: number;
   /**
+   * THE INFLUENCE STEP (absent = 1): `perInfluence` units for every FULL
+   * `influenceStep` points of influence — «+1 time per 2 points of Influence»
+   * (Colonial Affairs) is `perInfluence: 1, influenceStep: 2`: influence 3 is
+   * one extra time, influence 4 two. Floor division; the remainder yields
+   * nothing. Applied BEFORE the cap, like every other term.
+   */
+  influenceStep?: number;
+  /**
    * A SEQUENTIAL part (absent = none): the amount comes from a total an
    * EARLIER effect of the same enactment changed — see
    * {@link InfluenceSequelTerm}. Mutually exclusive with `count`.
@@ -99,7 +118,10 @@ export type InfluenceScaledEffect = {
 /** The amount BEFORE the cap — what the formula adds up to. */
 export function uncappedAmount(effect: InfluenceScaledEffect, influence: number, counted: number = 0): number {
   const countPart = effect.count === undefined ? 0 : effect.count.per * Math.max(0, Math.floor(counted));
-  return (effect.base ?? 0) + countPart + effect.perInfluence * Math.max(0, Math.floor(influence));
+  // The influence term counts FULL steps of the declared size (1 = every point).
+  const step = Math.max(1, Math.floor(effect.influenceStep ?? 1));
+  const influencePart = effect.perInfluence * Math.floor(Math.max(0, Math.floor(influence)) / step);
+  return (effect.base ?? 0) + countPart + influencePart;
 }
 
 /** The amount `effect` yields at `influence` (and `counted` items of its count term) — the ONE formula. */

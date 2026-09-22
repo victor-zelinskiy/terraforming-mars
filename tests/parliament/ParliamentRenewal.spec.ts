@@ -5,7 +5,10 @@ import {IGame} from '../../src/server/IGame';
 import {Parliament} from '../../src/server/parliament/Parliament';
 import {SerializedPhaseSummary, SerializedRenewalEvent} from '../../src/server/parliament/SerializedParliament';
 import {getParliamentModel} from '../../src/server/parliament/ParliamentModel';
-import {answerStandingGates, endGenerationThroughParliament, passToParliament, REDS_STAND_IN, SCIENTISTS_STAND_IN, seatQuiet, seatResolution, settleParliamentGates} from './parliamentArrange';
+import {
+  answerStandingGates, endGenerationThroughParliament, passToParliament, quietResolutionOf, REDS_STAND_IN, SCIENTISTS_STAND_IN, seatResolution,
+  settleParliamentGates,
+} from './parliamentArrange';
 import {PartyName} from '../../src/common/turmoil/PartyName';
 import {Phase} from '../../src/common/Phase';
 import {ReduxParty, ResolutionInstanceId, resolutionInstanceId} from '../../src/common/parliament/ParliamentTypes';
@@ -49,14 +52,17 @@ const SCIENTISTS = instance(SCIENTISTS_STAND_IN);
 
 type Table = {game: IGame, p1: TestPlayer, p2: TestPlayer, parliament: Parliament};
 
-/** A two-seat Redux game with three QUIET real resolutions on the table (one per real party, as the setup deals them). */
+/**
+ * A two-seat Redux game with three QUIET real resolutions on the table — the Greens', Mars First's and the
+ * Industrialists', in that slot order. Seated by PARTY, never taken from the deal: since Colonial Affairs
+ * (RX07) the deck of every game holds FOUR real parties, so the setup may deal Unity into the area and a
+ * scenario written for «the Greens win, the deck holds…» would find no Industrialists card on the table.
+ */
 function table(): Table {
   const [game, p1, p2] = testGame(2, {turmoilReduxExpansion: true, coloniesExtension: true});
   game.phase = Phase.ACTION;
   const parliament = game.parliament!;
-  for (let i = 0; i < parliament.slots.length; i++) {
-    seatQuiet(parliament, i);
-  }
+  ([G, M, I] as const).forEach((party, i) => seatResolution(parliament, i, quietResolutionOf(party)));
   return {game, p1, p2, parliament};
 }
 

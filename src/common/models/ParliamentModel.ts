@@ -3,6 +3,8 @@ import {SpaceId} from '../Types';
 import {CardName} from '../cards/CardName';
 import {Tag} from '../cards/Tag';
 import {CardResource} from '../CardResource';
+import {ColonyName} from '../colonies/ColonyName';
+import {ColonyTradeGrantModel} from './ColonyTradeManifestModel';
 import {Resource} from '../Resource';
 import {ResolutionCountModel} from '../parliament/resolutionCounts';
 import {WinnerRewardParameter} from '../parliament/winnerReward';
@@ -66,6 +68,14 @@ export type PartyAccessModel = {
   satisfiesRequirement: boolean;
 };
 
+/** ONE row of a seat's colony ledger: the tile and its printed colony bonus (see `ParliamentPlayerModel.colonyBonuses`). */
+export type ColonyLedgerEntryModel = {
+  colony: ColonyName;
+  grant: ColonyTradeGrantModel;
+  /** The tile's printed description of the bonus — an English key of the colony's own. */
+  description: string;
+};
+
 export type ParliamentPlayerModel = {
   color: Color;
   /** False for a MarsBot seat in iteration 0 (see BotParliamentMode). */
@@ -91,6 +101,16 @@ export type ParliamentPlayerModel = {
    * the same reading.
    */
   production?: Readonly<Partial<Record<Resource, number>>>;
+  /**
+   * THE SEAT'S COLONY LEDGER — every colony tile the seat has a cube on, in
+   * the table's order, with the tile's PRINTED colony bonus as a grant
+   * (`ColonyTradeGrantModel` — the trade manifest's own shape) and its printed
+   * description (the colony's English key). Present only while some
+   * resolution of the catalog pays «all your colony bonuses» (Colonial
+   * Affairs); every surface reads THIS list — the client never derives it
+   * from the colonies model (the server's rule of what a colony bonus is).
+   */
+  colonyBonuses?: ReadonlyArray<ColonyLedgerEntryModel>;
   access: ReadonlyArray<PartyAccessModel>;
   partyActionUses: Partial<Record<PartyName, number>>;
   resolutionActionUses: number;
@@ -159,10 +179,18 @@ export type ParliamentEnactOutcomeModel = {
   effect?: string;
   /**
    * `cardResource` onto a card · `production` · `stock` into the supply · `cards`
-   * drawn projects · `ocean` / `greenery` the winner's tile · `skipped` ·
+   * drawn projects · `discard` a card thrown away (Pluto's second half) ·
+   * `colonyBonus` a colony bonus paid through its own counter (a discount, a
+   * loss, a science tag) · `ocean` / `greenery` the winner's tile · `skipped` ·
    * `reaction` the RULING PARTY's answer to this step's own change.
    */
-  kind: 'cardResource' | 'production' | 'stock' | 'cards' | 'ocean' | 'greenery' | 'skipped' | 'reaction';
+  kind: 'cardResource' | 'production' | 'stock' | 'cards' | 'discard' | 'colonyBonus' | 'ocean' | 'greenery' | 'skipped' | 'reaction';
+  /** The COLONY whose printed bonus this record pays (Colonial Affairs) — the ledger row it belongs to. */
+  colony?: ColonyName;
+  /** …how many times that bonus was paid in this one record (the resolution's multiplier k). */
+  multiplier?: number;
+  /** `colonyBonus`: the tile's printed description of the bonus (the colony's own English key). */
+  description?: string;
   /**
    * `reaction`: the answering party and what it answered (the Greens' M€
    * production for a heat-production raise, their M€ for the TR of the

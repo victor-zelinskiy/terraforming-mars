@@ -133,7 +133,8 @@
 import {defineComponent, PropType} from 'vue';
 import {InfluenceScaledEffect, InfluenceYield, yieldAtCap} from '@/common/parliament/influenceScaling';
 import {
-  oneNumberYieldsOf, sequelTotalIcon, WinSuffix, winSuffixesOf, yieldCaptionOf, yieldCountPresentation, yieldIconOf, YieldCountGlyph, YieldIcon,
+  oneNumberYieldsOf, sequelTotalIcon, WinSuffix, winSuffixesOf, yieldCaptionOf, yieldCountPresentation, yieldIconOf, yieldIsMultiplier, YieldCountGlyph,
+  YieldIcon,
 } from '@/client/console/parliament/influenceYieldModel';
 import {SUFFIX_HINT, SUFFIX_IF_YOU_WIN, SUFFIX_STEP} from '@/client/console/parliament/voteInfoModel';
 import PremiumCountGlyph from '@/client/components/premiumCard/PremiumCountGlyph.vue';
@@ -226,10 +227,17 @@ export default defineComponent({
         return iconClassFor(icon.resource) + (icon.production ? ' con-iyield__unit--prod' : '');
       case 'cards':
         return iconClassFor('cards');
+      case 'colony':
+        // The colony TILE, the console's own sprite (the same asset the card faces print for a colony).
+        return 'con-iyield__unit--colony';
       }
     },
     outText(y: InfluenceYield): string {
       const amount = y.amount ?? 0;
+      // A MULTIPLIER reads «×k» — it is not a count of anything until the ledger multiplies it.
+      if (yieldIsMultiplier(y.effect)) {
+        return (y.skipped !== undefined && amount > 0 ? '✕ ' : '') + '×' + amount;
+      }
       if (y.skipped !== undefined && amount > 0) {
         return '✕ ' + amount;
       }

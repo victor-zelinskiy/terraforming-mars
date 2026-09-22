@@ -26,6 +26,13 @@ export type DiscardCardsOptions = {
    * present it inside the same payout the cards arrived in.
    */
   colonyBonus?: ColonyBonusDiscardMeta,
+  /**
+   * A colony's printed «draw 1, then discard 1» paid by ANOTHER source (an
+   * enacted resolution — Turmoil Redux, Colonial Affairs): the tile and the
+   * repeat's position, without routing the colony resolution's own flow
+   * (see `DiscardPromptMeta.colonyRepeat`).
+   */
+  colonyRepeat?: ColonyBonusDiscardMeta,
 };
 
 export class DiscardCards extends DeferredAction<ReadonlyArray<IProjectCard>> {
@@ -74,6 +81,7 @@ export class DiscardCards extends DeferredAction<ReadonlyArray<IProjectCard>> {
       source: this.options.source ?? {kind: 'system'},
       exchange: this.options.exchange,
       colonyBonus: this.options.colonyBonus,
+      colonyRepeat: this.options.colonyRepeat,
     });
     return select
       .andThen((discards) => {

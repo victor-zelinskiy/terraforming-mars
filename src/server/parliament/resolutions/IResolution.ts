@@ -145,9 +145,38 @@ export interface ResolutionDefinition {
   winnerReward?: WinnerRewardDeclaration;
   /** Per-player immediate effect (every participating player, generation order). */
   immediateSteps?: ReadonlyArray<EnactStep>;
+  /**
+   * A PLAN OF STEPS PER PLAYER — for an effect whose steps depend on the
+   * player's own table (Colonial Affairs: one step per colony tile the player
+   * has a cube on, k pairs for Pluto). The driver asks it for every
+   * participant and walks the answer exactly as it walks `immediateSteps`;
+   * the keys it returns are DETERMINISTIC over the game state the plan reads
+   * (the table cannot change between the steps of one sitting), so a reload
+   * inside any step rebuilds the same plan and finds its own key. Read
+   * through `immediateStepsOf` — never the two fields by hand.
+   */
+  immediateStepsFor?: (player: IPlayer, parliament: Parliament, game: IGame) => ReadonlyArray<EnactStep>;
   /** Winner-only effect (skipped for a neutral winner — rulebook FAQ p.18). */
   winnerSteps?: ReadonlyArray<EnactStep>;
   /** Passive effect while enacted (see {@link ResolutionPassive}) — the DEV passive example proves the seam. */
   passive?: ResolutionPassive;
   action?: ResolutionAction;
+}
+
+/**
+ * THE IMMEDIATE STEPS OF `definition` FOR `player` — the static list, or the
+ * per-player plan when the definition declares one (a plan outranks the
+ * list: a card declares one or the other). The ONE reader of the two fields:
+ * the driver, the contract guard and the fixture builders all walk this.
+ */
+export function immediateStepsOf(definition: ResolutionDefinition, player: IPlayer, parliament: Parliament, game: IGame): ReadonlyArray<EnactStep> {
+  if (definition.immediateStepsFor !== undefined) {
+    return definition.immediateStepsFor(player, parliament, game);
+  }
+  return definition.immediateSteps ?? [];
+}
+
+/** Does the definition pay every participant something at the enactment (a list or a plan)? */
+export function hasImmediateSteps(definition: ResolutionDefinition): boolean {
+  return (definition.immediateSteps?.length ?? 0) > 0 || definition.immediateStepsFor !== undefined;
 }

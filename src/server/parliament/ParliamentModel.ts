@@ -19,7 +19,7 @@ import {PARTY_EFFECTS} from './parties/PartyEffects';
 import {parliamentGateAwaiting} from './ParliamentPhase';
 import {SerializedEnactOutcome, SerializedPhaseSummary} from './SerializedParliament';
 import {Resource} from '../../common/Resource';
-import {declaredCountIds, declaredSequelProductions, resolutionCount} from './resolutions/ResolutionCounts';
+import {declaredCountIds, declaredSequelProductions, declaresColonyBonuses, resolutionCount} from './resolutions/ResolutionCounts';
 
 function colorOf(game: IGame, delegate: Delegate): Color | 'neutral' {
   return delegate === 'NEUTRAL' ? 'neutral' : game.getPlayerById(delegate).color;
@@ -68,7 +68,7 @@ export function getParliamentModel(game: IGame, viewer?: IPlayer): ParliamentMod
     popularSupport[party] = parliament.popularSupportOf(party);
   }
 
-  const players: Array<ParliamentPlayerModel> = game.playersInGenerationOrder.map((player) => playerModel(parliament, player));
+  const players: Array<ParliamentPlayerModel> = game.playersInGenerationOrder.map((player) => playerModel(game, parliament, player));
 
   const model: ParliamentModel = {
     slots,
@@ -152,7 +152,7 @@ export function getParliamentModel(game: IGame, viewer?: IPlayer): ParliamentMod
   return model;
 }
 
-function playerModel(parliament: Parliament, player: IPlayer): ParliamentPlayerModel {
+function playerModel(game: IGame, parliament: Parliament, player: IPlayer): ParliamentPlayerModel {
   const participates = parliament.participates(player);
   const access: Array<PartyAccessModel> = REDUX_PARTIES.map((party) => {
     const a = parliament.access(player, party);
@@ -202,6 +202,16 @@ function playerModel(parliament: Parliament, player: IPlayer): ParliamentPlayerM
       reads[resource] = player.production.get(resource);
     }
     model.production = reads;
+  }
+  // …and the COLONY LEDGER a resolution paying «all your colony bonuses»
+  // multiplies (Colonial Affairs): the tiles the seat has a cube on, in the
+  // table's order, each with its PRINTED colony bonus as a grant — the
+  // server's rule of what a colony bonus is, so the client never derives the
+  // list from the colonies model.
+  if (participates && declaresColonyBonuses(parliament.catalog)) {
+    model.colonyBonuses = game.colonies
+      .filter((colony) => colony.colonies.includes(player.id))
+      .map((colony) => ({colony: colony.name, grant: colony.colonyBonusGrant(), description: colony.metadata.colony.description}));
   }
   return model;
 }

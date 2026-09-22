@@ -1,7 +1,7 @@
 import {expect} from 'chai';
 import * as fs from 'fs';
 import * as path from 'path';
-import {OUTCOME_KINDS, REWARD_ADDRESS, rewardAddressOf} from '../../src/common/parliament/rewardAddress';
+import {OUTCOME_KINDS, REWARD_ADDRESS, rewardAddressOf, rewardFlightSourceOf} from '../../src/common/parliament/rewardAddress';
 import {ParliamentEnactOutcomeModel} from '../../src/common/models/ParliamentModel';
 import {Resource} from '../../src/common/Resource';
 import {CardResource} from '../../src/common/CardResource';
@@ -25,7 +25,7 @@ function outcome(over: Partial<ParliamentEnactOutcomeModel> & {kind: ParliamentE
  */
 describe('rewardAddress — the table', () => {
   it('has a row for EVERY outcome kind — and only for kinds (the union and the table are one)', () => {
-    expect(OUTCOME_KINDS.slice().sort()).deep.eq(['cardResource', 'cards', 'greenery', 'ocean', 'production', 'reaction', 'skipped', 'stock']);
+    expect(OUTCOME_KINDS.slice().sort()).deep.eq(['cardResource', 'cards', 'colonyBonus', 'discard', 'greenery', 'ocean', 'production', 'reaction', 'skipped', 'stock']);
     for (const kind of OUTCOME_KINDS) {
       expect(REWARD_ADDRESS[kind].kind, kind).eq(kind);
     }
@@ -56,6 +56,35 @@ describe('rewardAddress — the table', () => {
     expect(REWARD_ADDRESS.cards.source).eq('project-deck');
     // A tile is placed by the board scene itself: nothing flies off the card.
     expect(REWARD_ADDRESS.ocean.source).eq('none');
+    // COLONIAL AFFAIRS' two kinds: a card thrown away by Pluto's second half leaves the HAND for the pile (the discard
+    // scene's own flight, hosted as the sitting's DISCARD step); a colony bonus the chip language does not speak
+    // commits through the HUD counter it moves — nothing flies off the card, the ledger row names it.
+    expect(REWARD_ADDRESS.discard.surface).eq('hand-dock');
+    expect(REWARD_ADDRESS.discard.source).eq('hand');
+    expect(REWARD_ADDRESS.discard.stage).eq('discard');
+    expect(REWARD_ADDRESS.discard.reading).eq('colony-ledger');
+    expect(REWARD_ADDRESS.colonyBonus.surface).eq('hud');
+    expect(REWARD_ADDRESS.colonyBonus.source).eq('none');
+    expect(REWARD_ADDRESS.colonyBonus.reading).eq('colony-ledger');
+  });
+
+  it('a record that names its COLONY is born on its LEDGER ROW, never on the resolution\'s icon — the ledger is where the player read the bonus', () => {
+    const record = outcome({kind: 'stock', stock: Resource.MEGACREDITS, amount: 6, colony: 'Luna' as never, multiplier: 3});
+    expect(rewardFlightSourceOf(record)).eq('colony-row');
+    const luna = rewardAddressOf(record, 'blue');
+    expect(luna.source).eq('colony-row');
+    expect(luna.payload).deep.eq({resource: 'megacredits', amount: 6, colony: 'Luna', multiplier: 3});
+    // Without a colony the same kind keeps the table's source; a reaction never moves to the row (its source is the plaque).
+    expect(rewardAddressOf(outcome({kind: 'stock', stock: Resource.MEGACREDITS, amount: 2}), 'blue').source).eq('card-icon');
+    expect(rewardAddressOf(outcome({kind: 'reaction', party: PartyName.GREENS, stock: Resource.MEGACREDITS, amount: 2, colony: 'Luna' as never}), 'blue').source).eq('party-plaque');
+    // A LOSS is a payout with a negative amount (Titania), never a skip; a colony bonus that came to nothing is.
+    const loss = rewardAddressOf(outcome({kind: 'colonyBonus', stock: Resource.MEGACREDITS, amount: -5, colony: 'Titania' as never, multiplier: 2, description: 'Lose 3 M€'}), 'blue');
+    expect(loss.skipped).is.undefined;
+    expect(loss.payload).deep.include({amount: -5, colony: 'Titania', multiplier: 2, description: 'Lose 3 M€'});
+    expect(rewardAddressOf(outcome({kind: 'colonyBonus', amount: 0, colony: 'Iapetus' as never}), 'blue').skipped).eq(REWARD_ADDRESS.colonyBonus.skipTitle);
+    // A discard is a payout of one card; zero cards thrown away is the address's own skip.
+    expect(rewardAddressOf(outcome({kind: 'discard', amount: 1, card: CardName.FISH, colony: 'Pluto' as never}), 'blue').skipped).is.undefined;
+    expect(rewardAddressOf(outcome({kind: 'discard', amount: 0, colony: 'Pluto' as never}), 'blue').skipped).eq(REWARD_ADDRESS.discard.skipTitle);
   });
 
   it('Э5 — the STAGE LADDER: a rail record is the reward page\'s own wave; a card resource, a draw and a tile are hosted STEPS of it (choice / take / board); the party\'s answer rides the wave', () => {

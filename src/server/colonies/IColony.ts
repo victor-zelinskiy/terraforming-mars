@@ -5,6 +5,7 @@ import {IGame} from '../IGame';
 import {SerializedColony} from '../SerializedColony';
 import {ColonyMetadata} from '../../common/colonies/ColonyMetadata';
 import {ColonyName} from '../../common/colonies/ColonyName';
+import {ColonyTradeGrantModel} from '../../common/models/ColonyTradeManifestModel';
 
 export type TradeOptions = {
   usesTradeFleet?: boolean;
@@ -46,5 +47,13 @@ export interface IColony {
    * inline. Absent for the self-directed grants (ProductiveOutpost, Yvonne).
    */
   giveColonyBonus(player: IPlayer, isGiveColonyBonus?: boolean, ordinal?: ColonyBonusOrdinal, trader?: IPlayer): undefined | PlayerInput;
+  /**
+   * THE PRINTED COLONY BONUS AS A GRANT — the same descriptor the trade
+   * manifest carries for the per-cube payout (`colonyBonus`), read off this
+   * tile's own metadata, so a payer other than a trade (an enacted resolution
+   * paying «all your colony bonuses») pays exactly what the tile prints and
+   * never re-states it.
+   */
+  colonyBonusGrant(): ColonyTradeGrantModel;
   serialize(): SerializedColony;
 }

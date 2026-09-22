@@ -61,7 +61,7 @@ import {SelectOption} from '../inputs/SelectOption';
 import {message} from '../logs/MessageBuilder';
 import {PlayerInput} from '../PlayerInput';
 import {Parliament, Slot, Vote} from './Parliament';
-import {EnactContext, EnactOutcome, EnactStep} from './resolutions/IResolution';
+import {EnactContext, EnactOutcome, EnactStep, hasImmediateSteps, immediateStepsOf} from './resolutions/IResolution';
 import {
   EnactOutcomePart, SerializedDelegateOwner, SerializedEnactOutcome, SerializedPhaseProgress, SerializedPhaseSummary, SerializedRenewalEvent,
 } from './SerializedParliament';
@@ -494,9 +494,8 @@ export class ParliamentPhase {
     const winnerId = this.summary.winner.player;
     const winner = winnerId === undefined || winnerId === 'NEUTRAL' ? undefined : this.game.getPlayerById(winnerId);
     const players = parliament.participants(this.game);
-    const immediate = definition.immediateSteps ?? [];
     const winnerSteps = definition.winnerSteps ?? [];
-    if (immediate.length === 0 && winnerSteps.length === 0) {
+    if (!hasImmediateSteps(definition) && winnerSteps.length === 0) {
       // Nothing to walk: a passive or an action works from the ENACTED slot.
       return 'done';
     }
@@ -507,6 +506,10 @@ export class ParliamentPhase {
     for (let index = 0; index < players.length; index++) {
       cursor.playerIndex = index;
       const player = players[index];
+      // THE SEAT'S OWN STEPS — the static list, or the definition's per-player
+      // PLAN (one step per colony tile the seat has a cube on): re-derived on
+      // every entry from the same table, so a reload finds the same keys.
+      const immediate = immediateStepsOf(definition, player, parliament, this.game);
       // WHICH PART each step belongs to rides every record it makes: the
       // client tells «everyone's effect» from «the winner's part» by it,
       // never by a step key.

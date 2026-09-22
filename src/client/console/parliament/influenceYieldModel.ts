@@ -31,7 +31,9 @@ import {CountedObjectGlyph} from '@/client/components/premiumCard/premiumCardIco
 export type YieldIcon =
   | {family: 'card-resource', resource: CardResource}
   | {family: 'resource', resource: Resource, production: boolean}
-  | {family: 'cards'};
+  | {family: 'cards'}
+  /** The COLONY tile — the unit of a «gain all your colony bonuses k times» effect is the multiplier over the ledger. */
+  | {family: 'colony'};
 
 export function yieldIconOf(effect: InfluenceScaledEffect): YieldIcon {
   switch (effect.unit.kind) {
@@ -39,7 +41,13 @@ export function yieldIconOf(effect: InfluenceScaledEffect): YieldIcon {
   case 'stock': return {family: 'resource', resource: effect.unit.resource, production: false};
   case 'production': return {family: 'resource', resource: effect.unit.resource, production: true};
   case 'cards': return {family: 'cards'};
+  case 'colonyBonuses': return {family: 'colony'};
   }
+}
+
+/** The effect's amount is a MULTIPLIER over the player's colony ledger (Colonial Affairs), not a count of a resource. */
+export function yieldIsMultiplier(effect: InfluenceScaledEffect): boolean {
+  return effect.unit.kind === 'colonyBonuses';
 }
 
 /**
@@ -132,6 +140,7 @@ export function sequelTotalIcon(term: InfluenceSequelTerm): YieldIcon {
   case 'stock': return {family: 'resource', resource: term.total.resource, production: false};
   case 'production': return {family: 'resource', resource: term.total.resource, production: true};
   case 'cards': return {family: 'cards'};
+  case 'colonyBonuses': return {family: 'colony'};
   }
 }
 
@@ -459,6 +468,8 @@ export function noRecipientReasonKey(resource: CardResource): string {
   switch (resource) {
   case CardResource.ANIMAL: return 'No card can hold animals';
   case CardResource.FLOATER: return 'No card can hold floaters';
+  case CardResource.MICROBE: return 'No card can hold microbes';
+  case CardResource.DATA: return 'No card can hold data';
   default: return 'No card can hold this resource';
   }
 }

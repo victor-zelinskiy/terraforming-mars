@@ -17,7 +17,7 @@ import {ParliamentEnactOutcomeModel, ParliamentPhaseSummaryModel} from '../../sr
 import {RESOLUTION_FAMILIES, familyOf} from '../../src/client/console/parliament/resolutionFamily';
 import {sittingBeats} from '../../src/client/console/parliament/sittingBeats';
 import {REDUX_RESOLUTION_CATALOG} from '../../src/server/parliament/resolutions/ResolutionCatalog';
-import {ResolutionDefinition} from '../../src/server/parliament/resolutions/IResolution';
+import {hasImmediateSteps, immediateStepsOf, ResolutionDefinition} from '../../src/server/parliament/resolutions/IResolution';
 import {SerializedEnactOutcome} from '../../src/server/parliament/SerializedParliament';
 import {SelectCard} from '../../src/server/inputs/SelectCard';
 import {SelectSpace} from '../../src/server/inputs/SelectSpace';
@@ -241,7 +241,10 @@ function recordsOf(run: Run, seat: PlayerId, step: string): Array<SerializedEnac
 function checkReporting(definition: ResolutionDefinition, run: Run, condition: {influence: number; tableau: string}): Array<string> {
   const failures: Array<string> = [];
   for (const seat of run.seats) {
-    for (const step of definition.immediateSteps ?? []) {
+    // The seat's OWN steps — the static list, or the definition's per-player PLAN re-derived over the run's table
+    // (the plan is deterministic over the table, which the sitting never changes — the same keys the driver walked).
+    const steps = immediateStepsOf(definition, run.game.getPlayerById(seat.id), run.game.parliament!, run.game);
+    for (const step of steps) {
       const records = recordsOf(run, seat.id, step.key);
       if (records.length === 0) {
         failures.push(missingReport(definition, step.key, condition));
@@ -284,7 +287,7 @@ function checkSeam(definition: ResolutionDefinition): Array<string> {
   if (definition.action !== undefined && (definition.text.action ?? '') === '') {
     failures.push(`${name}: an action without its declaration text (the REWARD stage reads it)`);
   }
-  const immediate = (definition.immediateSteps ?? []).length + (definition.winnerSteps ?? []).length;
+  const immediate = (hasImmediateSteps(definition) ? 1 : 0) + (definition.winnerSteps ?? []).length;
   if (immediate === 0 && definition.passive === undefined && definition.action === undefined) {
     failures.push(`${name}: no immediate step, no passive, no action — the REWARD stage would be empty`);
   }
@@ -380,7 +383,9 @@ function checkFormula(definition: ResolutionDefinition, run: Run): Array<string>
         failures.push(`${label(definition)}: последовательная часть '${effect.id}' не записала итог (total), из которого делила`);
         continue;
       }
-      const paid = record.amount ?? 0;
+      // A COLONY-BONUSES effect declares the MULTIPLIER: every record of the plan pays its own unit (2k M€, k
+      // floaters, one card) and carries `multiplier: k` beside it — that is the declaration's number.
+      const paid = effect.unit.kind === 'colonyBonuses' ? (record.multiplier ?? record.amount ?? 0) : (record.amount ?? 0);
       if (record.kind === 'skipped' ? (paid !== 0 && paid !== expected) : paid !== expected) {
         failures.push(`${label(definition)}: часть '${effect.id}' заплатила ${paid}, декларация даёт ${expected} (влияние ${seat.influence}, счёт ${record.count ?? 0})`);
       }

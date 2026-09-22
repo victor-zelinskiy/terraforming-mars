@@ -77,6 +77,16 @@ export function declaredSequelProductions(catalog: ResolutionCatalog): Array<Res
   return out;
 }
 
+/**
+ * Does some resolution of `catalog` pay the player's COLONY BONUSES a number
+ * of times (Colonial Affairs)? Then every seat's model carries its colony
+ * ledger — the tiles it has a cube on with their printed bonus — so a
+ * surface can multiply the SERVER's registry, never a list of its own.
+ */
+export function declaresColonyBonuses(catalog: ResolutionCatalog): boolean {
+  return catalog.all().some((definition) => (definition.scaled ?? []).some((effect) => effect.unit.kind === 'colonyBonuses'));
+}
+
 /** Every count id some resolution of `catalog` declares — what a player's model carries. */
 export function declaredCountIds(catalog: ResolutionCatalog): Array<ResolutionCountId> {
   const ids = new Set<ResolutionCountId>();

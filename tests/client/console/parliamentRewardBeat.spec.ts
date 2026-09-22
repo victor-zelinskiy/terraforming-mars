@@ -84,6 +84,10 @@ describe('parliamentRewardBeat — the ledger of what the sitting still owes', (
       ocean: outcome({kind: 'ocean', parameter: {id: 'oceans', before: 0, after: 1}}),
       greenery: outcome({kind: 'greenery'}),
       skipped: outcome({kind: 'skipped', reason: 'no-influence'}),
+      // Colonial Affairs' two kinds: a discard rides the hand (the discard scene's own flight), a HUD-side
+      // colony bonus commits through its own counter — neither flies a rail chip.
+      discard: outcome({kind: 'discard', amount: 1, card: CardName.BIRDS, colony: 'Pluto' as never}),
+      colonyBonus: outcome({kind: 'colonyBonus', amount: 2, colony: 'Iapetus' as never, description: 'Pay 1 M€ less for cards this generation'}),
     };
     for (const kind of OUTCOME_KINDS) {
       const spec = waveSpecOf(sample[kind]);
