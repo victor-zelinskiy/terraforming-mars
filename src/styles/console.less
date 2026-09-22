@@ -4933,6 +4933,20 @@ each(@players, {
 }
 
 /* ── Board section ───────────────────────────────────────────────── */
+/* THE SECTION LEAVE IS A CROSSFADE (surfaceMotionDirector § sectionLeaveEpisode).
+   A workspace section is glass with no ground of its own; the board it covered
+   comes back in the leave's first task, so without this the planet showed
+   THROUGH a still-opaque surface and only its opaque cards seemed to linger.
+   The returning surfaces rise on the leave's own curve and duration, on the
+   compositor (opacity only), started on the same commit as the section's fade. */
+@keyframes con-section-leave-rise {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+html.con-section-leaving .con-board,
+html.con-section-leaving .con-strat {
+    animation: con-section-leave-rise calc(170ms * var(--motion-scale, 1)) cubic-bezier(0.55, 0.085, 0.68, 0.53) both;
+}
 .con-board {
     flex: 1;
     min-width: 0;

@@ -147,13 +147,95 @@ function panelsOf(el: Element): Array<HTMLElement> {
   return el instanceof HTMLElement ? [el] : [];
 }
 
+/** Anything the live registry can stop: a GSAP tween/timeline, or the
+ *  compositor-driven section leave (`sectionLeaveEpisode`). */
+type LiveEpisode = {kill(): unknown};
+
 /** The per-element live tween registry — a new hook on the same element
  *  kills the previous episode and continues from the live values. */
-const liveTweens = new WeakMap<Element, gsap.core.Timeline | gsap.core.Tween>();
+const liveTweens = new WeakMap<Element, LiveEpisode>();
 
 function killLive(el: Element): void {
   liveTweens.get(el)?.kill();
   liveTweens.delete(el);
+}
+
+/**
+ * THE SECTION LEAVE IS A CROSSFADE, AND IT RUNS ON THE COMPOSITOR.
+ *
+ * A workspace section is GLASS: it has no ground of its own — while it stands,
+ * the board behind it is `display: none` and the translucent plates read as
+ * solid over the empty atmosphere. The leave flips the board back on in the
+ * SAME task, so from the first frame the planet showed THROUGH every plate of a
+ * surface still at full opacity, and only the opaque objects on it (the
+ * Parliament's resolution cards) kept reading as «still there»: the workspace
+ * seemed to vanish into the planet and its cards to follow a beat later. Worse,
+ * the fade was a GSAP tween on the main thread, and re-showing the board is
+ * exactly the long task that stalls it — its clock ran on through the stall and
+ * the dissolve collapsed into a frame or two.
+ *
+ * So both halves are compositor animations started in the same task: the
+ * section's panels fade (WAAPI — immune to the stall, and both halves start on
+ * the same commit), and the surfaces coming back (the board, the strategy rail)
+ * RISE on the same curve and duration under `html.con-section-leaving`
+ * (`console.less`) — the planet appears exactly as fast as the glass lets go.
+ */
+let sectionLeaves = 0;
+function beginSectionLeave(): () => void {
+  sectionLeaves++;
+  document.documentElement.classList.add('con-section-leaving');
+  let ended = false;
+  return () => {
+    if (ended) {
+      return;
+    }
+    ended = true;
+    sectionLeaves = Math.max(0, sectionLeaves - 1);
+    if (sectionLeaves === 0) {
+      document.documentElement.classList.remove('con-section-leaving');
+    }
+  };
+}
+
+/** power2.in — the section leave's ease as a CSS curve (the rise in
+ *  `console.less` uses the same one). */
+const SECTION_OUT_EASE = 'cubic-bezier(0.55, 0.085, 0.68, 0.53)';
+
+function compositorLeaveSupported(panels: ReadonlyArray<HTMLElement>): boolean {
+  return panels.every((p) => typeof p.animate === 'function');
+}
+
+function sectionLeaveEpisode(panels: ReadonlyArray<HTMLElement>, finish: () => void): LiveEpisode {
+  const end = beginSectionLeave();
+  // Bounded like every hold: a leave whose animations never report (the
+  // element detached mid-flight) must not leave the board rising forever.
+  window.setTimeout(end, motionMs(SECTION_OUT_MS) + SAFETY_SLACK_MS);
+  const u = conUiScale();
+  const animations = panels.map((p) => {
+    p.style.transformOrigin = '50% 60%';
+    return p.animate(
+      [{opacity: 0, transform: `translateY(${8 * u}px) scale(0.988)`}],
+      {duration: motionMs(SECTION_OUT_MS), easing: SECTION_OUT_EASE, fill: 'forwards'});
+  });
+  let settled = 0;
+  for (const a of animations) {
+    a.onfinish = () => {
+      settled++;
+      if (settled === animations.length) {
+        end();
+        finish();
+      }
+    };
+  }
+  return {
+    kill: () => {
+      end();
+      for (const a of animations) {
+        a.onfinish = null;
+        a.cancel();
+      }
+    },
+  };
 }
 
 /**
@@ -165,7 +247,7 @@ function guarded(
   el: Element,
   totalMs: number,
   done: () => void,
-  body: (finish: () => void) => gsap.core.Timeline | gsap.core.Tween | undefined,
+  body: (finish: () => void) => LiveEpisode | undefined,
 ): void {
   killLive(el);
   let finished = false;
@@ -963,6 +1045,10 @@ export function surfaceLeaveHook(el: Element, done: () => void): void {
       }
       return tl;
     });
+    return;
+  }
+  if (id === 'section' && compositorLeaveSupported(panels)) {
+    guarded(el, SECTION_OUT_MS, done, (finish) => sectionLeaveEpisode(panels, finish));
     return;
   }
   guarded(el, id === 'section' ? SECTION_OUT_MS : DISMISS_MS, done, (finish) => gsap.to(panels, {

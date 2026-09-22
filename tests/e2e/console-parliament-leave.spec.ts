@@ -187,4 +187,57 @@ test.describe('the parliament leaves as one surface (standard-1080)', () => {
     await expect(mandatoryPlate(page), 'the return card').toHaveCount(1, {timeout: 15_000});
     await expectWholeLeave(page, 0, 'B «свернуть»');
   });
+
+  /*
+   * THE LEAVE IS A CROSSFADE (surfaceMotionDirector § sectionLeaveEpisode). The section is GLASS: while it
+   * stands the board behind it is hidden, and the leave re-shows the board in its first task. Before the fix
+   * the planet showed at FULL strength through a surface still at opacity 1 — the plates seemed to vanish
+   * into the planet and only the opaque resolution cards stayed, going a beat later. Now the board rises on
+   * the section's own curve: in every task-clock sample while the root exists, the board is never more
+   * visible than the glass has let go (board ≤ 1 − root + slack), and no resolution card outlives its root.
+   */
+  test('closing from the overview: the board rises exactly as the glass lets go, and the cards leave with the surface', async ({page, request}) => {
+    test.setTimeout(180_000);
+    await bootFixtureSeats(page, request, 'parliament', {query: '&consoleProfile=auto', landing: 'board'});
+    await openParliament(page);
+    await settle(page, {timeoutMs: 20_000});
+    await page.evaluate(() => {
+      const w = window as unknown as {__xfade: Array<{root: number, board: number, cards: Array<number>}>};
+      w.__xfade = [];
+      const ink = (el: Element | null): number => {
+        if (el === null) {
+          return -1;
+        }
+        let v = 1;
+        for (let n: Element | null = el; n !== null && n !== document.documentElement; n = n.parentElement) {
+          const cs = getComputedStyle(n);
+          if (cs.display === 'none') {
+            return 0;
+          }
+          v *= Number(cs.opacity);
+        }
+        return getComputedStyle(el).visibility === 'hidden' ? 0 : v;
+      };
+      // Task clock only (setInterval) — a MutationObserver microtask can see a state the browser never paints.
+      window.setInterval(() => {
+        const root = document.querySelector('.con-parl');
+        if (root === null) {
+          return;
+        }
+        const cards = Array.from(document.querySelectorAll('.pcard')).filter((c) => Array.from(c.classList).some((k) => k.startsWith('pcard--rdx-')));
+        w.__xfade.push({root: ink(root), board: ink(document.querySelector('.con-board')), cards: cards.map(ink)});
+      }, 8);
+    });
+    await press(page, 'Escape', 200);
+    await expect(parliament(page), 'the workspace closed').toHaveCount(0, {timeout: 20_000});
+    const samples = await page.evaluate(() => (window as unknown as {__xfade: Array<{root: number, board: number, cards: Array<number>}>}).__xfade);
+    const leaving = samples.filter((s) => s.root < 0.999);
+    const standing = samples.filter((s) => s.root >= 0.999);
+    expect(samples.length, `the sampler ran (${samples.length} samples)`).toBeGreaterThan(0);
+    expect(standing.some((s) => s.cards.length > 0), 'the resolution cards were on the table before the leave').toBe(true);
+    const fmt = (s: {root: number, board: number, cards: Array<number>}) => `root=${s.root.toFixed(2)} board=${s.board.toFixed(2)} cards=[${s.cards.map((c) => c.toFixed(2)).join(' ')}]`;
+    expect(samples.filter((s) => s.board > 1 - s.root + 0.2).map(fmt),
+      `the planet never shows through a standing surface (${leaving.length} leaving samples)`).toEqual([]);
+    expect(samples.filter((s) => s.cards.some((c) => c > s.root + 0.02)).map(fmt), 'no card outlives its surface').toEqual([]);
+  });
 });
