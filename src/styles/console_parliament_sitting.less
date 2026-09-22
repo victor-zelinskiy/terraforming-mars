@@ -15,6 +15,27 @@
 .con-parl {
     /* A slot whose card is still on its way from the deck: the face waits under its proxy. */
     &__card--dealing .pcard { visibility: hidden; }
+    /* ОБНОВЛЕНИЕ — a slot whose card is still ON THE DECK reads as a WAITING PLACE: the card-shaped outline the
+       empty slot draws (the same footprint), nothing of the card's own (its label, its ribbon, its tally are the
+       card's and arrive with it — a caption never runs ahead of its object). */
+    &__slot--awaiting {
+        .con-parl__slot-label > *, .con-parl__ribbon, .con-parl__tally { visibility: hidden; }
+        .con-parl__card { position: relative; }
+        .con-parl__card::after {
+            content: '';
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            width: 320px;
+            height: 460px;
+            transform: translate(-50%, -50%);
+            box-sizing: border-box;
+            border-radius: 16px;
+            border: 3px dashed rgba(255, 255, 255, 0.14);
+            background: rgba(255, 255, 255, 0.015);
+            pointer-events: none;
+        }
+    }
     /* The enacted face waits until the card has moved in from its voting slot (the Э4 enactment beat). */
     &__gov-card--awaiting .pcard { visibility: hidden; }
 

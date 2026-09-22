@@ -53,8 +53,24 @@ export type ParliamentDisplayHolds = {
   lobby: Set<Color>;
   /** Fresh resolutions whose card has not been dealt from the deck yet (their faces stay hidden). */
   freshFaces: Set<string>;
-  /** Cards the deck still SHOWS on its pile (dealt in the model, not yet flown). */
-  deckPending: number;
+  /**
+   * THE TWO PILES AS SHOWN — the deck and the discard as they stood BEFORE the
+   * response, moved card by card as each event LANDS (a loser onto the discard,
+   * the old law onto the discard, the discard turning over into the deck, a
+   * revealed card off the deck and onto the discard, a dealt card off the deck).
+   * `undefined` = the live counts.
+   */
+  pile: {deck: number, discard: number} | undefined;
+  /**
+   * Delegates that left a LOSING card at the renewal and have not reached
+   * their reserve / the supply yet (per owner). A record of its own — the
+   * enactment's `returns` fly from the enacted card, these from each loser.
+   */
+  renewalReturns: Map<Color | 'neutral', number>;
+  /** A held slot whose loser has LIFTED for the discard — an empty outline in its own place until the table is released. */
+  departed: Set<string>;
+  /** The renewal journal of this sitting has been seeded (idempotent over echo frames). */
+  renewalSeeded: boolean;
   /** The ENACTED card whose government face waits until it has moved in from its voting slot (its instance). */
   govAwaits: string | undefined;
   /** The proxy (flight id) of a card parked over its former voting slot until the enactment beat (the resume path). */
@@ -102,7 +118,8 @@ export type ParliamentDisplayHolds = {
 
 export function emptyParliamentHolds(): ParliamentDisplayHolds {
   return {
-    returns: new Map(), support: new Map(), supportIncoming: new Map(), rollStatus: new Map(), hiddenCubes: new Set(), lobby: new Set(), freshFaces: new Set(), deckPending: 0,
+    returns: new Map(), support: new Map(), supportIncoming: new Map(), rollStatus: new Map(), hiddenCubes: new Set(), lobby: new Set(), freshFaces: new Set(),
+    pile: undefined, renewalReturns: new Map(), departed: new Set(), renewalSeeded: false,
     govAwaits: undefined, parked: undefined, heldSlots: undefined, vacated: new Set(), liftedFaces: new Set(), winnerSlot: undefined,
     agendaAwaits: undefined, chairAwaits: undefined, govBefore: undefined, rulerBefore: undefined, rulerSettling: undefined, questBefore: undefined,
   };
@@ -121,10 +138,10 @@ export function enactmentHeld(): boolean {
     h.rulerBefore !== undefined || h.questBefore !== undefined || h.govAwaits !== undefined;
 }
 
-/** Is anything of the RENEWAL still held (the results' beats have cards, cubes or delegates to move)? */
+/** Is anything of the RENEWAL still held (the renewal's beats have cards, cubes or delegates to move)? */
 export function renewalHeld(): boolean {
   const h = parliamentHolds;
-  return h.freshFaces.size > 0 || h.hiddenCubes.size > 0 || h.lobby.size > 0 || h.deckPending > 0;
+  return h.freshFaces.size > 0 || h.hiddenCubes.size > 0 || h.lobby.size > 0 || h.renewalReturns.size > 0 || h.renewalSeeded;
 }
 
 /** Release every hold of the ENACTMENT at once (the ceiling's honest recovery, reduced motion): the table reads the new state. */
@@ -153,7 +170,10 @@ export function releaseRenewalHolds(): void {
   h.freshFaces.clear();
   h.hiddenCubes.clear();
   h.lobby.clear();
-  h.deckPending = 0;
+  h.pile = undefined;
+  h.renewalReturns.clear();
+  h.departed.clear();
+  h.renewalSeeded = false;
   h.heldSlots = undefined;
   h.vacated.clear();
   h.liftedFaces.clear();

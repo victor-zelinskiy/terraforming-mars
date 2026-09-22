@@ -97,36 +97,58 @@ describe('parliamentSittingSeed — the holds of one response, in the same block
     }
   });
 
-  it('a quiet card: the barrier and the refresh in ONE response — the renewal\'s holds ride on top (fresh faces, the neutral cubes, the deck, the lobby), the held table stays the voted one', () => {
-    const before = view(model({step: 'assembly'}));
+  it('a quiet card: the barrier and the refresh in ONE response — the renewal\'s holds ride on top FROM THE JOURNAL (the losers\' returns, the two piles, every dealt face, the neutral cubes, the lobby), the held table stays the voted one', () => {
+    const before = view(model({step: 'assembly'}, {deckSize: 1, discardSize: 0, slots: [slot(A, PartyName.GREENS, [{owner: BLUE, seq: 1}]), slot(B, PartyName.MARS, [{owner: RED, seq: 2}]), slot(C, PartyName.INDUSTRIALISTS)]}));
     const fresh = 'RDX_GREENS_CLIMATE_RESEARCH#0';
     const after = view(model({
       step: 'adjourn',
       summary: summary({
         support: [{party: PartyName.MARS, gained: 1, total: 1, reason: 'lost'}],
-        refreshed: [{instance: fresh, resolution: 'RDX_GREENS_CLIMATE_RESEARCH', party: PartyName.GREENS, neutralVotes: 1}],
+        refreshed: [{instance: fresh, resolution: 'RDX_GREENS_CLIMATE_RESEARCH', party: PartyName.GREENS, neutralVotes: 1}, {instance: B, resolution: 'RDX_MARS_ARCHITECTURE_AWARD', party: PartyName.MARS, neutralVotes: 2}],
         discarded: [{instance: B, resolution: 'RDX_MARS_ARCHITECTURE_AWARD', party: PartyName.MARS}, {instance: C, resolution: 'RDX_INDUSTRIALISTS_CENTRAL_POWER_GRID', party: PartyName.INDUSTRIALISTS}],
         lobbyRefilled: [BLUE, RED],
+        renewal: [
+          // Red's delegate on the Mars card goes home BEFORE the card leaves; the card is then dealt straight back after the reshuffle.
+          {kind: 'leave', instance: B, resolution: 'RDX_MARS_ARCHITECTURE_AWARD', party: PartyName.MARS, slot: 1, returned: [{owner: RED, count: 1}]},
+          {kind: 'leave', instance: C, resolution: 'RDX_INDUSTRIALISTS_CENTRAL_POWER_GRID', party: PartyName.INDUSTRIALISTS, slot: 2, returned: []},
+          {kind: 'deal', instance: fresh, resolution: 'RDX_GREENS_CLIMATE_RESEARCH', party: PartyName.GREENS, slot: 0, source: 'deck'},
+          {kind: 'support', party: PartyName.GREENS, instance: fresh, count: 1},
+          {kind: 'reshuffle', size: 2},
+          {kind: 'deal', instance: B, resolution: 'RDX_MARS_ARCHITECTURE_AWARD', party: PartyName.MARS, slot: 1, source: 'reshuffled'},
+          {kind: 'support', party: PartyName.MARS, instance: B, count: 2},
+          {kind: 'empty', slot: 2},
+          {kind: 'lobby', player: BLUE},
+          {kind: 'lobby', player: RED},
+        ],
       }),
     }, {
-      slots: [slot(fresh, PartyName.GREENS, [{owner: 'neutral', seq: 7}])],
+      slots: [slot(fresh, PartyName.GREENS, [{owner: 'neutral', seq: 7}]), slot(B, PartyName.MARS, [{owner: 'neutral', seq: 8}, {owner: 'neutral', seq: 9}])],
       enacted: {instance: A, resolution: 'RDX_GREENS_AQUIFER_CONTEST', party: PartyName.GREENS},
+      deckSize: 0, discardSize: 1,
     }));
     seedParliamentSittingHolds(before, after);
     const h = parliamentHolds;
     expect(h.heldSlots?.map((s) => s.instance), 'the table as voted, through the whole walk').deep.eq([A, B, C]);
     expect(h.supportIncoming.get(PartyName.MARS), 'the enactment\'s support').eq(1);
     expect(renewalHeld()).is.true;
-    expect(Array.from(h.freshFaces)).deep.eq([fresh]);
-    expect(Array.from(h.hiddenCubes)).deep.eq([`${fresh}#7`]);
+    expect(h.renewalSeeded).is.true;
+    // EVERY dealt card is a fresh face — the one dealt straight back included: by the rules it left and was dealt again.
+    expect(Array.from(h.freshFaces)).deep.eq([fresh, B]);
+    expect(Array.from(h.hiddenCubes)).deep.eq([`${fresh}#7`, `${B}#8`, `${B}#9`]);
     expect(h.support.get(PartyName.GREENS), 'the plaque keeps the cube the refresh moved onto the fresh card').eq(1);
-    expect(h.deckPending).eq(1);
+    expect(h.support.get(PartyName.MARS)).eq(2);
+    // The piles read as they stood BEFORE the response; the tact moves them landing by landing.
+    expect(h.pile, 'the deck and the discard as they stood').deep.eq({deck: 1, discard: 0});
+    // Red's delegate is still on the loser: the reserve grows on its touchdown, not on the response.
+    expect(Array.from(h.renewalReturns.entries())).deep.eq([[RED, 1]]);
     expect(Array.from(h.lobby)).deep.eq([BLUE, RED]);
     // IDEMPOTENT over a second frame of the same step (a poll echo): nothing doubles.
     seedParliamentSittingHolds(after, after);
     expect(h.supportIncoming.get(PartyName.MARS)).eq(1);
     expect(h.support.get(PartyName.GREENS)).eq(1);
-    expect(Array.from(h.hiddenCubes)).deep.eq([`${fresh}#7`]);
+    expect(Array.from(h.hiddenCubes)).deep.eq([`${fresh}#7`, `${B}#8`, `${B}#9`]);
+    expect(Array.from(h.renewalReturns.entries())).deep.eq([[RED, 1]]);
+    expect(h.pile).deep.eq({deck: 1, discard: 0});
     // The director releases each family on its own: the enactment's, then the renewal's.
     releaseEnactmentHolds();
     expect(enactmentHeld()).is.false;
@@ -135,6 +157,40 @@ describe('parliamentSittingSeed — the holds of one response, in the same block
     releaseRenewalHolds();
     expect(renewalHeld()).is.false;
     expect(h.heldSlots).is.undefined;
+    expect(h.pile).is.undefined;
+    expect(h.renewalReturns.size).eq(0);
+  });
+
+  it('a summary WITHOUT a journal (a save from before it) seeds NO renewal hold: the refreshed table is shown as it stands', () => {
+    const before = view(model({step: 'effects'}));
+    const fresh = 'RDX_GREENS_CLIMATE_RESEARCH#0';
+    const after = view(model({
+      step: 'adjourn',
+      summary: summary({
+        refreshed: [{instance: fresh, resolution: 'RDX_GREENS_CLIMATE_RESEARCH', party: PartyName.GREENS, neutralVotes: 1}],
+        discarded: [{instance: B, resolution: 'RDX_MARS_ARCHITECTURE_AWARD', party: PartyName.MARS}],
+        lobbyRefilled: [BLUE],
+      }),
+    }, {slots: [slot(fresh, PartyName.GREENS, [{owner: 'neutral', seq: 7}])]}));
+    seedParliamentSittingHolds(before, after);
+    const h = parliamentHolds;
+    expect(h.heldSlots?.map((s) => s.instance), 'the losers\' table is kept as it stood — the renewal beat releases it').deep.eq([A, B, C]);
+    expect(h.freshFaces.size).eq(0);
+    expect(h.hiddenCubes.size).eq(0);
+    expect(h.lobby.size).eq(0);
+    expect(h.pile).is.undefined;
+    expect(h.renewalSeeded).is.false;
+  });
+
+  it('the old law leaves for the DISCARD pile: the barrier alone seeds the piles as they stood, and only when a law is discarded', () => {
+    const before = view(model({step: 'assembly'}, {deckSize: 3, discardSize: 2, enacted: {instance: 'RDX_OLD#0', resolution: 'RDX_OLD', party: PartyName.REDS}}));
+    const after = view(model({step: 'effects', summary: summary({discardedEnacted: {instance: 'RDX_OLD#0', resolution: 'RDX_OLD', party: PartyName.REDS}})},
+      {deckSize: 3, discardSize: 3, enacted: {instance: A, resolution: 'RDX_GREENS_AQUIFER_CONTEST', party: PartyName.GREENS}}));
+    seedParliamentSittingHolds(before, after);
+    expect(parliamentHolds.pile, 'the discard is one card thinner until the old law lands on it').deep.eq({deck: 3, discard: 2});
+    resetParliamentSittingSeed();
+    seedParliamentSittingHolds(view(model({step: 'assembly'})), view(model({step: 'effects'})));
+    expect(parliamentHolds.pile, 'no law discarded: the piles read live').is.undefined;
   });
 
   it('a first view seeds nothing (a reload lands in the final poses); a new sitting drops the old holds; the phase\'s end resets', () => {

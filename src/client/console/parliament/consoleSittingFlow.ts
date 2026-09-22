@@ -54,10 +54,14 @@ import {externalDrawTakeOf} from '@/client/console/externalDraw/consoleExternalD
  *  · `verdict` — the assembly gate: who won, with how many delegates (A answers gate 1);
  *  · `enact`   — the chain after the barrier, as beats: the Agenda step, the popular support, the enactment;
  *  · `reward`  — what the law paid THIS seat (the wave), or the seat's own ask, or the wait on another;
- *  · `results` — the renewal's beats (the losers leave, the deal, the support seats, the lobby), then the
- *                results card; A answers gate 2 («Закрыть заседание»).
+ *  · `renewal` — the voting area is RENEWED («Обновление»): the losers leave (their delegates home
+ *                first), the discard turns over when the deck is empty, revealed cards are rejected,
+ *                the fresh ones are dealt with a real turn, the support seats on them, the lobby
+ *                refills — the whole of it on the TABLE, played from the server's journal, turned by
+ *                the director; a FINAL sitting has no such page at all;
+ *  · `results` — the results card; A answers gate 2 («Закрыть заседание»).
  */
-export type SittingStage = 'verdict' | 'enact' | 'reward' | 'results';
+export type SittingStage = 'verdict' | 'enact' | 'reward' | 'renewal' | 'results';
 
 /**
  * What the REWARD stage is doing for THIS seat right now.
@@ -124,12 +128,13 @@ const VERDICT_STEPS: ReadonlySet<string> = new Set(['winner', 'assembly']);
  * so its step is the verdict alone; the steps after the barrier are one chain
  * on the server, so the EFFECTS step (a resolution asking) reads the enactment's
  * beats and the reward; the ADJOURN gate stands after the refresh, so its step
- * reads the enactment, the reward and the RESULTS — in the FINAL phase there is
- * no refresh, and the results card simply lists nothing new. The transient
+ * reads the enactment, the reward, the RENEWAL and the RESULTS — in the FINAL
+ * phase nothing is renewed, so that page does not exist (neither a beat nor a
+ * band line — the rules run no refresh, and the walk shows none). The transient
  * server steps (`agenda` / `support` / `enact`, `refresh` / `lobby`) are never
  * on the wire long enough to read; they map onto the page they belong to.
  */
-export function sittingPagesOf(step: ParliamentPhaseModel['step'], _final: boolean): ReadonlyArray<SittingStage> {
+export function sittingPagesOf(step: ParliamentPhaseModel['step'], final: boolean): ReadonlyArray<SittingStage> {
   switch (step) {
   case 'winner':
   case 'assembly':
@@ -144,18 +149,18 @@ export function sittingPagesOf(step: ParliamentPhaseModel['step'], _final: boole
   case 'lobby':
   case 'adjourn':
   case 'done':
-    return ['enact', 'reward', 'results'];
+    return final ? ['enact', 'reward', 'results'] : ['enact', 'reward', 'renewal', 'results'];
   }
 }
 
 /**
  * A page the walk turns BY ITSELF once its beats have landed (the enactment's
- * chain, the reward's wave) — the player presses nothing between the verdict
- * and the results. The verdict and the results are STOPS: a gate is answered
- * by A, never by the director.
+ * chain, the reward's wave, the renewal's tact) — the player presses nothing
+ * between the verdict and the results. The verdict and the results are STOPS:
+ * a gate is answered by A, never by the director.
  */
 export function sittingPageAuto(stage: SittingStage): boolean {
-  return stage === 'enact' || stage === 'reward';
+  return stage === 'enact' || stage === 'reward' || stage === 'renewal';
 }
 
 /**
@@ -263,22 +268,23 @@ export function sittingStageAt(position: SittingPosition, page: number): Sitting
  * **ПАНЕЛЬ ИТОГОВ** — the sitting's last reading, and it does not fold back: the sitting ends after it.
  *
  * The law that follows and has not changed: a reading surface may never cover an object something is
- * flying to or from — which is why the results' physical part is the ROW and only the card after it is
- * the panel, and why placing the winner's tile is not a body state at all (the stack yields to the board
- * and comes back).
+ * flying to or from — which is why the RENEWAL is a page of its own with the ROW for its body (the
+ * losers leave, the deck turns over, the deal, the support, the lobby — every one of them flies to or
+ * from an object of the table) and only the card AFTER it is the panel, and why placing the winner's tile
+ * is not a body state at all (the stack yields to the board and comes back).
  */
 export type SittingBody = 'parties' | 'step' | 'results';
 
 /**
- * `resultsHidden` is the director's own fact: the results card waits while the renewal's beats play over
- * the table (and a reload that never played them lands with it already shown). `field` is the section's:
- * a hosted step of this seat's stands in the zone.
+ * `field` is the section's own fact: a hosted step of this seat's stands in the zone. The results page
+ * is the panel from its first frame — the physical part of the sitting ended on the renewal page, so
+ * nothing is left to fly under it (the card's rows still REVEAL inside it, by the director's cascade).
  */
-export function sittingBodyOf(stage: SittingStage, resultsHidden: boolean, field: boolean): SittingBody {
+export function sittingBodyOf(stage: SittingStage, field: boolean): SittingBody {
   if (field) {
     return 'step';
   }
-  return stage === 'results' && !resultsHidden ? 'results' : 'parties';
+  return stage === 'results' ? 'results' : 'parties';
 }
 
 /** Is the local cursor on the step's LAST page (the page whose A answers the gate, or has nothing left to turn)? */
@@ -314,6 +320,7 @@ export function sittingStageKey(stage: SittingStage, rewardStep: SittingRewardSt
     case 'placement': return 'Placement';
     default: return 'Reward';
     }
+  case 'renewal': return 'Renewal';
   case 'results': return 'Results';
   }
 }

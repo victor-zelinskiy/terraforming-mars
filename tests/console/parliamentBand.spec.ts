@@ -41,7 +41,6 @@ function sitting(over: Partial<BandSitting> = {}): BandSitting {
     rewardStep: 'reading',
     beat: '',
     supportWave: '',
-    resultsHidden: false,
     generation: 3,
     awaiting: [],
     summary: summary(),
@@ -157,14 +156,40 @@ describe('parliamentBand — the reading band says the REASON, in objects', () =
   });
 
   describe('ОБНОВЛЕНИЕ · ИТОГИ', () => {
-    it('while the renewal\'s beats play, the band states the renewal\'s own rule', () => {
-      const band = line({stage: 'results', resultsHidden: true});
+    it('on the RENEWAL page with no event playing, the band states the renewal\'s own rule', () => {
+      const band = line({stage: 'renewal'});
       expect(band.kicker).eq('Renewal');
       expect((band.chips[0] as {key: string}).key).eq('Popular support becomes votes');
     });
-    it('the FINAL phase renews nothing and says so', () => {
-      const band = line({stage: 'results', resultsHidden: true, summary: summary({final: true})});
-      expect((band.chips[0] as {key: string}).key).eq('The final generation');
+    it('while an EVENT of the journal plays, the band says what happens on the table — the objects and the reason, one line per event', () => {
+      const leave = line({stage: 'renewal', renewal: {index: 0, kind: 'leave', resolution: 'RDX_B', party: PartyName.REDS, returned: [{owner: RED, count: 1}]}});
+      expect(leave.kicker).eq('Renewal');
+      expect(kinds(leave.chips)).deep.eq(['label', 'resolution', 'label', 'player']);
+      expect((leave.chips[0] as {key: string}).key).eq('Leaves the table');
+      const reshuffle = line({stage: 'renewal', renewal: {index: 2, kind: 'reshuffle', count: 2}});
+      expect((reshuffle.chips[0] as {key: string}).key).eq('The deck is empty');
+      const reject = line({stage: 'renewal', renewal: {index: 3, kind: 'reject', resolution: 'RDX_C', party: PartyName.GREENS, reason: 'party-enacted'}});
+      expect(kinds(reject.chips)).deep.eq(['label', 'resolution', 'label']);
+      expect((reject.chips[2] as {key: string}).key).eq('its party rules — back to the discard');
+      expect((line({stage: 'renewal', renewal: {index: 3, kind: 'reject', resolution: 'RDX_C', party: PartyName.GREENS, reason: 'party-in-area'}}).chips[2] as {key: string}).key)
+        .eq('its party is already on the table — back to the discard');
+      const deal = line({stage: 'renewal', renewal: {index: 4, kind: 'deal', resolution: 'RDX_B', party: PartyName.REDS}});
+      expect(kinds(deal.chips)).deep.eq(['label', 'resolution']);
+      const support = line({stage: 'renewal', renewal: {index: 5, kind: 'support', party: PartyName.REDS, count: 2}});
+      expect(kinds(support.chips)).deep.eq(['party', 'label', 'count']);
+      expect(support.chips[2]).deep.eq({kind: 'count', key: 'Delegates', amount: 2});
+      const empty = line({stage: 'renewal', renewal: {index: 6, kind: 'empty'}});
+      expect((empty.chips[1] as {key: string}).key).eq('The deck has no resolution of another party');
+      const lobby = line({stage: 'renewal', renewal: {index: 7, kind: 'lobby', player: BLUE}});
+      expect(kinds(lobby.chips)).deep.eq(['label', 'player']);
+      // Every event is its own line: the crossfade fires per event, never within one.
+      expect(new Set([leave, reshuffle, reject, deal, support, empty, lobby].map((l) => l.key)).size).eq(7);
+      expect(line({stage: 'renewal', renewal: {index: 0, kind: 'leave', resolution: 'RDX_B', party: PartyName.REDS}}).key).eq(leave.key);
+    });
+    it('the FINAL phase has no renewal page at all — its results line is the heading, nothing renews', () => {
+      const band = line({stage: 'results', summary: summary({final: true})});
+      expect(band.kicker).eq('Results');
+      expect(band.chips[0]).deep.eq({kind: 'count', key: 'Generation', amount: 3});
     });
     it('the revealed panel gets its heading from the band: the generation, once', () => {
       const band = line({stage: 'results'});

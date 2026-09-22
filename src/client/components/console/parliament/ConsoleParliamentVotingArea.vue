@@ -9,22 +9,23 @@
        :class="{
          'con-parl__voting--focus': flow.zone === 'voting' && flow.stage === 'browse',
          'con-parl__voting--carried': slotsCarried || flow.voteLeaving,
-         'con-parl__voting--lit': flow.stage === 'sitting' && sittingStage === 'results',
+         'con-parl__voting--lit': flow.stage === 'sitting' && (sittingStage === 'renewal' || sittingStage === 'results'),
        }"
        data-parl-voting>
     <div class="con-parl__voting-head" data-parl-recede>
       <span class="con-parl__kicker">{{ $t('Voting') }}</span>
     </div>
     <div class="con-parl__slots">
-      <div v-for="(slot, i) in shownSlots" :key="slot.instance" class="con-parl__slot-home" :class="{'con-parl__slot-home--vacated': holds.vacated.has(slot.instance)}" :data-home="slot.instance" :data-parl-slot-vacated="holds.vacated.has(slot.instance) ? '' : undefined">
-        <!-- A HELD slot whose card has LEFT for the government (v2): an empty outline in its OWN place — the row never re-orders under the player. -->
-        <div v-if="holds.vacated.has(slot.instance)" class="con-parl__slot-empty" data-parl-slot-empty>
+      <div v-for="(slot, i) in shownSlots" :key="slot.instance" class="con-parl__slot-home" :class="{'con-parl__slot-home--vacated': homeEmptied(slot)}" :data-home="slot.instance" :data-parl-slot-vacated="homeEmptied(slot) ? '' : undefined">
+        <!-- A HELD slot whose card has LEFT — for the government (v2), or for the discard at the renewal («departed»):
+             an empty outline in its OWN place — the row never re-orders under the player. -->
+        <div v-if="homeEmptied(slot)" class="con-parl__slot-empty" data-parl-slot-empty>
           <!-- (v3 В6) It explains itself EXACTLY like the empty slot beside it — a place that says «пусто» next to
                a mute place of the same size was the emptier of the two. The label names the place, the plate says
-               why it is empty: this card has just been enacted. -->
+               why it is empty: this card has just been enacted, or has just been discarded. -->
           <div class="con-parl__slot-label"><span class="con-parl__slot-party">{{ $t('Empty slot') }}</span></div>
           <div class="con-parl__slot-empty-card" data-parl-slot-empty-card aria-hidden="true"></div>
-          <span class="con-parl__slot-empty-reason">{{ $t('Enacted — it left the table') }}</span>
+          <span class="con-parl__slot-empty-reason">{{ $t(holds.departed.has(slot.instance) ? 'Discarded — it left the table' : 'Enacted — it left the table') }}</span>
         </div>
         <Teleport v-else defer to="[data-parl-vrow]" :disabled="!slotsCarried">
           <div class="con-parl__slot"
@@ -32,6 +33,7 @@
                  'con-parl__slot--selected': slotsCarried && flow.slotIndex === i,
                  'con-parl__slot--winning': winningShownOf(slot),
                  'con-parl__slot--lit': motion.litSlot === slot.instance,
+                 'con-parl__slot--awaiting': holds.freshFaces.has(slot.instance),
                  'con-parl__slot--target': (flow.stage === 'seat' || (flow.stage === 'submitting' && flow.stageBeforeSubmit === 'seat')) && flow.slotIndex === i,
                  'con-parl__slot--candidate': flow.stage === 'seat' && seatCandidates.includes(i),
                  'con-parl__slot--mine': tallyOf(slot, i).leader !== undefined && tallyOf(slot, i).leader === viewerColor,
@@ -41,7 +43,8 @@
                :data-instance="slot.instance"
                :data-party="slot.party"
                :data-order="slot.tiePriority"
-               :data-votes="slot.totalVotes">
+               :data-votes="slot.totalVotes"
+               :data-parl-slot-awaiting="holds.freshFaces.has(slot.instance) ? '' : undefined">
             <div class="con-parl__slot-label">
               <img class="con-parl__slot-emblem" :src="emblemUrl(slot.party)" alt="" />
               <span class="con-parl__slot-party">{{ $t(partyNameKey(slot.party)) }}</span>
@@ -294,8 +297,15 @@ export default defineComponent({
     tallyOf(slot: ParliamentSlotVm, index: number): {votes: number, mine: number, leader: Color | 'neutral' | undefined} {
       return tallyShownOf(slot, index);
     },
+    /** The card that has left its held slot: for the government (the winner), or for the discard (a loser at the renewal). */
+    homeEmptied(slot: ParliamentSlotVm): boolean {
+      return this.holds.vacated.has(slot.instance) || this.holds.departed.has(slot.instance);
+    },
     winningShownOf(slot: ParliamentSlotVm): boolean {
-      return winningShownOf(slot, voteDecidedAt(this.model?.phase?.step));
+      // While the renewal still has cards on the deck or cubes in the air, no card reads «принимается» yet: the
+      // badge would name a verdict about objects that have not arrived (a caption never runs ahead of its object).
+      const renewing = this.holds.freshFaces.size > 0 || this.holds.hiddenCubes.size > 0;
+      return winningShownOf(slot, voteDecidedAt(this.model?.phase?.step) || renewing);
     },
     partyNameKey(party: PartyName): string {
       return partyNameKey(party);

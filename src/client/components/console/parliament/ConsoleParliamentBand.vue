@@ -136,8 +136,6 @@ export default defineComponent({
     /** The sitting is the zone's subject right now (the section's own flow state). */
     sittingUp: {type: Boolean, default: false},
     stage: {type: String as PropType<SittingStage>, default: 'verdict'},
-    /** The results panel still waits behind the renewal's physical beats. */
-    resultsHidden: {type: Boolean, default: false},
   },
   computed: {
     line(): BandLine {
@@ -171,7 +169,7 @@ export default defineComponent({
         rewardStep: position.rewardStep,
         beat: sittingMotion.beat,
         supportWave: sittingMotion.supportWave,
-        resultsHidden: this.resultsHidden,
+        ...(sittingMotion.renewal === undefined ? {} : {renewal: sittingMotion.renewal}),
         generation: position.generation,
         awaiting: position.awaiting,
         summary: this.summary,

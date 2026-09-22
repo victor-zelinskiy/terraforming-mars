@@ -61,12 +61,14 @@
         </span>
       </span>
     </div>
-    <!-- THE DECK — a PHYSICAL pile at the zone's end: the top back (the
-         card.webp every console back wears), slim edges of the cards
-         beneath (tiered by the count — one card shows no edge, an empty
-         deck a ghost) and the count beside it. The results scene deals
-         the fresh resolutions FROM this top card, so the pile and its
-         count keep the pre-deal reading until each card has left. -->
+    <!-- THE TWO PILES — PHYSICAL piles at the zone's end: the DECK (the top back —
+         the bill seen from behind — slim edges of the cards beneath, tiered by
+         the count; a ghost when empty) and the DISCARD beside it (the same pile,
+         face-down, dimmer). The renewal deals the fresh resolutions FROM the
+         deck's top card, puts every leaving card ONTO the discard, and turns
+         the discard over INTO the deck when the deck is empty — so both piles
+         and both counts keep their pre-response reading and move card by
+         card as each of those lands (`parliamentHolds.pile`). -->
     <div class="con-parl__seat con-parl__seat--deck" data-parl-deck>
       <span class="con-parl__seat-place">
         <span class="con-parl__seat-key">{{ $t('Resolution deck') }}</span>
@@ -77,6 +79,17 @@
             <span class="con-parl__deck-top" data-parl-deck-top></span>
           </span>
           <b :key="'d' + deckShown" class="con-parl__seat-count con-parl__tick">×{{ deckShown }}</b>
+        </span>
+      </span>
+      <span class="con-parl__seat-place con-parl__seat-place--discard" data-parl-discard>
+        <span class="con-parl__seat-key">{{ $t('Resolution discard') }}</span>
+        <span class="con-parl__seat-obj">
+          <span class="con-parl__deck con-parl__deck--discard" :class="{'con-parl__deck--empty': discardShown === 0}" :data-count="discardShown" data-parl-discard-pile aria-hidden="true">
+            <span v-if="discardLayers >= 2" class="con-parl__deck-layer con-parl__deck-layer--2"></span>
+            <span v-if="discardLayers >= 1" class="con-parl__deck-layer con-parl__deck-layer--1"></span>
+            <span class="con-parl__deck-top" data-parl-discard-top></span>
+          </span>
+          <b :key="'x' + discardShown" class="con-parl__seat-count con-parl__tick">×{{ discardShown }}</b>
         </span>
       </span>
     </div>
@@ -91,6 +104,11 @@ import {parliamentFlow} from '@/client/console/parliament/consoleParliamentFlow'
 import {parliamentHolds} from '@/client/console/parliament/parliamentDisplayHolds';
 import {ParliamentViewVm} from '@/client/console/parliament/consoleParliamentModel';
 import {BenchSource, RIBBON_CUBE, seatSourceOf} from '@/client/console/parliament/parliamentVoteView';
+
+/** A pile's edges beneath its top back: none for one card, one for a few, two for a stack. */
+function pileLayers(n: number): number {
+  return n <= 1 ? 0 : (n <= 3 ? 1 : 2);
+}
 
 /** A player's group on the delegates zone: the lobby socket, the reserve's cubes (shown) and its count (said). */
 type SeatRow = {color: Color, name: string, lobby: boolean, reserve: number, reserveCubes: number, chairman: boolean, /** Delegates on their way back to this reserve (the enactment's return flights still in the air). */ incoming: number};
@@ -124,7 +142,8 @@ export default defineComponent({
       const holds = parliamentHolds;
       return this.view.players.filter((p) => p.participates).map((p) => {
         const pendingLobby = holds.lobby.has(p.color);
-        const pendingReturns = holds.returns.get(p.color) ?? 0;
+        // Delegates on their way home: off the enacted card (the enactment's returns) and off a loser (the renewal's).
+        const pendingReturns = (holds.returns.get(p.color) ?? 0) + (holds.renewalReturns.get(p.color) ?? 0);
         const base = Math.max(0, p.reserve - pendingReturns + (pendingLobby ? 1 : 0));
         // The viewer's places keep PAINTING the delegate that is leaving until
         // its proxy stands over it (`sourceHold`), and keep SAYING its count
@@ -141,16 +160,22 @@ export default defineComponent({
       });
     },
     neutralSupplyShown(): number {
-      return Math.max(0, this.view.neutralSupply - (parliamentHolds.returns.get('neutral') ?? 0));
+      return Math.max(0, this.view.neutralSupply - (parliamentHolds.returns.get('neutral') ?? 0) - (parliamentHolds.renewalReturns.get('neutral') ?? 0));
     },
-    /** The deck as SHOWN — the results scene keeps the dealt cards on the pile until each has visibly left it. */
+    /** The deck as SHOWN — the renewal's tact moves the piles card by card as each landing happens; the live count otherwise. */
     deckShown(): number {
-      return this.view.deckSize + parliamentHolds.deckPending;
+      return parliamentHolds.pile?.deck ?? this.view.deckSize;
+    },
+    /** The discard as SHOWN — the same hold. */
+    discardShown(): number {
+      return parliamentHolds.pile?.discard ?? this.view.discardSize;
     },
     /** The pile's edges beneath the top back: none for one card, one for a few, two for a stack. */
     deckLayers(): number {
-      const n = this.deckShown;
-      return n <= 1 ? 0 : (n <= 3 ? 1 : 2);
+      return pileLayers(this.deckShown);
+    },
+    discardLayers(): number {
+      return pileLayers(this.discardShown);
     },
   },
   watch: {

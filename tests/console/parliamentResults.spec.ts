@@ -92,8 +92,10 @@ describe('parliamentResultsModel — the sitting\'s last reading, in two section
       discarded: [{instance: `${ARCHITECTURE}#1`, resolution: ARCHITECTURE, party: PartyName.MARS}],
       lobbyRefilled: [BLUE, RED],
     }), [seat(BLUE)], SUPPORT);
-    expect(reading.table.fresh.map((f) => `${f.resolution}:${f.stays}`), 'a card dealt straight back never left the table')
-      .deep.eq([`${ARCHITECTURE}:true`]);
+    // «Обновление»: a card dealt straight back from the reshuffled discard LEFT the table and was dealt again — the tact
+    // showed exactly that, so the panel names it as a fresh resolution like any other. Nothing says «stays».
+    expect(reading.table.fresh.map((f) => f.resolution)).deep.eq([ARCHITECTURE]);
+    expect(Object.keys(reading.table.fresh[0]).sort()).deep.eq(['instance', 'party', 'resolution']);
     expect((reading.table as Record<string, unknown>).lobby, 'the refilled seats belong to the delegates ledger, not to the panel').eq(undefined);
     expect(reading.table.noDelegate, 'both seats can vote, so the exception is empty').deep.eq([]);
   });

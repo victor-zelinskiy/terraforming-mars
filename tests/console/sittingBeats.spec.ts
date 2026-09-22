@@ -48,8 +48,8 @@ describe('sittingBeats — the sitting director\'s pure list', () => {
       lobbyRefilled: [BLUE, RED],
     }), BLUE, 'live');
     expect(beats.map((b) => b.kind)).deep.eq(['verdict', 'agenda', 'support', 'enact', 'reward', 'reward', 'renewal', 'lobby', 'closing']);
-    // v2: the enactment's three beats play on ONE page; the renewal, the lobby and the closing card on the RESULTS page.
-    expect(beats.map((b) => b.stage)).deep.eq(['verdict', 'enact', 'enact', 'enact', 'reward', 'reward', 'results', 'results', 'results']);
+    // The enactment's three beats play on ONE page; the renewal and the lobby on the RENEWAL page («Обновление»); the closing card on the RESULTS page.
+    expect(beats.map((b) => b.stage)).deep.eq(['verdict', 'enact', 'enact', 'enact', 'reward', 'reward', 'renewal', 'renewal', 'results']);
     expect(beats[1].agenda).deep.eq({player: BLUE, from: 2, to: 3, bonus: 'tr'});
     // ONE beat per outcome of the VIEWER — never another seat's, never the ruling party's answer (it rides the step it answered).
     expect(beats.filter((b) => b.kind === 'reward').map((b) => b.outcome?.step)).deep.eq(['grant', 'draw']);
@@ -79,6 +79,18 @@ describe('sittingBeats — the sitting director\'s pure list', () => {
     expect(beats.map((b) => b.skipped)).deep.eq(['No influence', 'Skipped: resources', undefined]);
   });
 
+  it('THE JOURNAL is the renewal: a summary whose journal holds events plays the tact (a save without a journal still names its refresh in the flat lists)', () => {
+    const journalled = sittingBeats(summary({renewal: [
+      {kind: 'leave', instance: 'RDX_B#0', resolution: 'RDX_B', party: PartyName.REDS, slot: 1, returned: []},
+      {kind: 'reshuffle', size: 2},
+      {kind: 'deal', instance: 'RDX_B#0', resolution: 'RDX_B', party: PartyName.REDS, slot: 0, source: 'reshuffled'},
+      {kind: 'lobby', player: BLUE},
+    ]}), BLUE, 'live');
+    expect(journalled.map((b) => b.kind)).deep.eq(['verdict', 'enact', 'renewal', 'lobby', 'closing']);
+    // A card that left and was dealt straight back is NOT an exception: the tact plays, nothing says «stays».
+    expect(sittingBeatsOfStage(journalled, 'renewal').map((b) => b.kind)).deep.eq(['renewal', 'lobby']);
+  });
+
   it('a spectator gets no reward beats; the FINAL phase has no renewal and no lobby', () => {
     expect(sittingBeats(summary({outcomes: [{player: BLUE, step: 'g', kind: 'stock', amount: 1}]}), undefined, 'live')
       .map((b) => b.kind)).deep.eq(['verdict', 'enact', 'closing']);
@@ -89,7 +101,8 @@ describe('sittingBeats — the sitting director\'s pure list', () => {
   it('RESUME compacts the stages before the current one; REVIEW compacts everything; LIVE nothing', () => {
     const s = summary({refreshed: [{instance: 'x', resolution: 'RDX_B', party: PartyName.REDS, neutralVotes: 0}]});
     expect(sittingBeats(s, BLUE, 'live').map((b) => b.compact)).deep.eq([false, false, false, false]);
-    expect(sittingBeats(s, BLUE, 'resume', 'results').map((b) => `${b.kind}:${b.compact}`)).deep.eq(['verdict:true', 'enact:true', 'renewal:false', 'closing:false']);
+    expect(sittingBeats(s, BLUE, 'resume', 'results').map((b) => `${b.kind}:${b.compact}`)).deep.eq(['verdict:true', 'enact:true', 'renewal:true', 'closing:false']);
+    expect(sittingBeats(s, BLUE, 'resume', 'renewal').map((b) => `${b.kind}:${b.compact}`), 'a restore INTO the renewal plays its tact in full').deep.eq(['verdict:true', 'enact:true', 'renewal:false', 'closing:false']);
     expect(sittingBeats(s, BLUE, 'resume', 'verdict').every((b) => !b.compact)).is.true;
     expect(sittingBeats(s, BLUE, 'review').every((b) => b.compact)).is.true;
     expect(sittingStageBefore('enact', 'reward')).is.true;
@@ -99,8 +112,9 @@ describe('sittingBeats — the sitting director\'s pure list', () => {
   it('the beats of one stage are the page\'s own', () => {
     const beats = sittingBeats(summary({agenda: {player: BLUE, from: 0, to: 1}, refreshed: [{instance: 'x', resolution: 'RDX_B', party: PartyName.REDS, neutralVotes: 0}], lobbyRefilled: [BLUE]}), BLUE, 'live');
     expect(sittingBeatsOfStage(beats, 'enact').map((b) => b.kind)).deep.eq(['agenda', 'enact']);
-    // v2: the RESULTS page plays the renewal, the lobby and the closing card in one run.
-    expect(sittingBeatsOfStage(beats, 'results').map((b) => b.kind)).deep.eq(['renewal', 'lobby', 'closing']);
+    // «Обновление»: the RENEWAL page plays the tact and the lobby; the RESULTS page only reveals its card.
+    expect(sittingBeatsOfStage(beats, 'renewal').map((b) => b.kind)).deep.eq(['renewal', 'lobby']);
+    expect(sittingBeatsOfStage(beats, 'results').map((b) => b.kind)).deep.eq(['closing']);
     for (const kind of ['verdict', 'agenda', 'support', 'enact', 'reward', 'renewal', 'lobby', 'closing'] as const) {
       expect(sittingBeatStage(kind), kind).is.a('string');
     }

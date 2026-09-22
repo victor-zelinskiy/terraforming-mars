@@ -1,6 +1,7 @@
 import {Color} from '@/common/Color';
 import {PARLIAMENT_VOTE_COST} from '@/common/parliament/ParliamentTypes';
 import {parliamentFlow, parliamentSlotsCarried, parliamentVoteInFlight, VoteSnapshot} from './consoleParliamentFlow';
+import {parliamentHolds} from './parliamentDisplayHolds';
 import {ParliamentSlotVm, ParliamentTileVm, ParliamentViewVm} from './consoleParliamentModel';
 
 /*
@@ -69,7 +70,15 @@ export function tallyShownOf(slot: ParliamentSlotVm, index: number): {votes: num
   if (snap !== undefined && index === parliamentFlow.slotIndex && parliamentVoteInFlight()) {
     return {votes: snap.votes, mine: snap.mine, leader: snap.leader};
   }
-  return {votes: slot.totalVotes, mine: slot.viewerVotes, leader: slot.leader};
+  // A cube the sitting still holds in the air (a support cube on its way from the plaque, a delegate on its
+  // way home off a loser) is not on the card: the counter ticks on the touchdown, and a card whose every
+  // delegate is airborne has no leader yet.
+  const hidden = slot.votes.filter((v) => parliamentHolds.hiddenCubes.has(`${slot.instance}#${v.seq}`)).length;
+  if (hidden === 0) {
+    return {votes: slot.totalVotes, mine: slot.viewerVotes, leader: slot.leader};
+  }
+  const votes = Math.max(0, slot.totalVotes - hidden);
+  return {votes, mine: slot.viewerVotes, leader: votes === 0 ? undefined : slot.leader};
 }
 
 /** Whether a card reads «winning» as SHOWN: while the cube is in the air every card keeps the pre-vote verdict (the badge moves on the touchdown). */

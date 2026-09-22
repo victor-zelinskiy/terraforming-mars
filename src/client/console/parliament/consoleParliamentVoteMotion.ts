@@ -544,6 +544,13 @@ export type CubeFlightArgs = {
   durationMs?: number;
   /** A small arc off the surface (0 = a straight glide). */
   arcPx?: number;
+  /**
+   * Seconds on the flight's own timeline before the travel starts (default a
+   * hair past 0). A caller layers a gesture into that lead — a card turning
+   * over in place before it is carried off — on the SAME timeline, so «turn»
+   * and «carry» stay one object on one clock.
+   */
+  leadInS?: number;
 };
 
 /**
@@ -602,6 +609,7 @@ function runProxyFlight(args: CubeFlightArgs): CubeFlightHandle {
   const prog = {p: 0};
   const tl = gsap.timeline();
   tl.call(() => args.onLifted?.(), undefined, 0.001);
+  const leadIn = Math.max(0.02, args.leadInS ?? 0.02);
   tl.to(prog, {
     p: 1,
     duration: reduced ? dur * 0.5 : dur,
@@ -631,7 +639,7 @@ function runProxyFlight(args: CubeFlightArgs): CubeFlightHandle {
       }
       land();
     },
-  }, 0.02);
+  }, leadIn);
   return {
     tween: tl,
     kill: () => {

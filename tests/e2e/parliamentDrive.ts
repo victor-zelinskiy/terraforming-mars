@@ -55,9 +55,9 @@ export async function hotVerb(page: Page): Promise<string> {
   return labels.map((l) => l.trim()).join(' | ');
 }
 
-/** The sitting's stages in walk order (v2); the retired «renewal» / «closing» pages are the RESULTS stage. */
-const SITTING_STAGE_ORDER = ['verdict', 'enact', 'reward', 'results'];
-const RETIRED_SITTING_STAGES: Record<string, string> = {renewal: 'results', closing: 'results'};
+/** The sitting's stages in walk order («Обновление»: the renewal is a page of its own before the results); the retired «closing» page is the RESULTS stage. */
+const SITTING_STAGE_ORDER = ['verdict', 'enact', 'reward', 'renewal', 'results'];
+const RETIRED_SITTING_STAGES: Record<string, string> = {closing: 'results'};
 
 /**
  * Bring the sitting to `stage` («Заседание v2»): the enactment and the reward turn BY THEMSELVES — A answers

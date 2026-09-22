@@ -117,6 +117,26 @@ export type BandStanding = {
   votes: number;
 };
 
+/**
+ * THE RENEWAL'S CUE — the journal event the director is PLAYING right now
+ * (`sittingMotion.renewal`), so the band says what is happening on the table
+ * at this moment: which card leaves, that the discard turns over, which card
+ * was revealed and why it goes back, which card is dealt, whose support
+ * becomes votes, which slot stays empty, whose delegate enters the lobby.
+ */
+export type BandRenewalCue = {
+  /** The event's index in the journal — a new index is a new line. */
+  index: number;
+  kind: 'leave' | 'reshuffle' | 'reject' | 'deal' | 'support' | 'empty' | 'lobby';
+  resolution?: ResolutionId;
+  party?: ReduxParty;
+  reason?: 'party-in-area' | 'party-enacted';
+  count?: number;
+  player?: Color;
+  /** `leave`: the delegates that go home first, per owner. */
+  returned?: ReadonlyArray<{owner: Color | 'neutral', count: number}>;
+};
+
 export type BandSitting = {
   stage: SittingStage;
   rewardStep: SittingRewardStep;
@@ -124,8 +144,8 @@ export type BandSitting = {
   beat: BandBeat;
   /** …and the wave of the support beat now playing. */
   supportWave: '' | SupportStatus;
-  /** The results panel still waits behind the renewal's physical beats. */
-  resultsHidden: boolean;
+  /** The renewal event now playing (undefined between events / at rest). */
+  renewal?: BandRenewalCue;
   generation: number;
   awaiting: ReadonlyArray<Color>;
   summary?: ParliamentPhaseSummaryModel;
@@ -181,8 +201,10 @@ export function parliamentBandLine(ctx: BandContext): BandLine {
     return enactLine(sitting);
   case 'reward':
     return rewardLine(sitting);
+  case 'renewal':
+    return renewalLine(sitting);
   case 'results':
-    return sitting.resultsHidden ? renewalLine(sitting) : resultsLine(sitting);
+    return resultsLine(sitting);
   }
 }
 
@@ -346,13 +368,73 @@ function rewardLine(sitting: BandSitting): BandLine {
   };
 }
 
-/** ОБНОВЛЕНИЕ — the renewal's own rule, while the table is dealt again. */
+/**
+ * ОБНОВЛЕНИЕ — the renewal's own rule («popular support becomes votes»), and
+ * WHAT IS HAPPENING ON THE TABLE at this moment: the journal event the
+ * director is playing. The reason and the objects only — the card that
+ * leaves, the pile that turns over, the card refused and why, the card dealt,
+ * the party whose stock seats, the slot that stays empty and why, the seat
+ * whose delegate returns. Never prose, never what an object says itself (the
+ * empty slot prints its own reason on the table; the line names the fact).
+ */
 function renewalLine(sitting: BandSitting): BandLine {
-  const summary = sitting.summary;
-  if (summary === undefined || summary.final) {
-    return {kicker: 'Results', key: 'renewal:final', chips: [{kind: 'label', key: 'The final generation', tone: 'quiet'}], committed: true};
+  const cue = sitting.renewal;
+  const chips: Array<BandChip> = [];
+  if (cue === undefined) {
+    chips.push({kind: 'label', key: 'Popular support becomes votes'});
+    return {kicker: 'Renewal', key: 'renewal', chips, committed: true};
   }
-  return {kicker: 'Renewal', key: 'renewal', chips: [{kind: 'label', key: 'Popular support becomes votes'}], committed: true};
+  switch (cue.kind) {
+  case 'leave':
+    chips.push({kind: 'label', key: 'Leaves the table', tone: 'quiet'});
+    if (cue.resolution !== undefined && cue.party !== undefined) {
+      chips.push({kind: 'resolution', resolution: cue.resolution, party: cue.party});
+    }
+    if ((cue.returned?.length ?? 0) > 0) {
+      chips.push({kind: 'label', key: 'delegates go home', tone: 'quiet'});
+      for (const entry of cue.returned ?? []) {
+        chips.push({kind: 'player', player: entry.owner});
+      }
+    }
+    break;
+  case 'reshuffle':
+    chips.push({kind: 'label', key: 'The deck is empty'});
+    chips.push({kind: 'label', key: 'the discard is reshuffled into a new deck', tone: 'quiet'});
+    break;
+  case 'reject':
+    chips.push({kind: 'label', key: 'Revealed', tone: 'quiet'});
+    if (cue.resolution !== undefined && cue.party !== undefined) {
+      chips.push({kind: 'resolution', resolution: cue.resolution, party: cue.party});
+    }
+    chips.push({kind: 'label', key: cue.reason === 'party-enacted' ? 'its party rules — back to the discard' : 'its party is already on the table — back to the discard'});
+    break;
+  case 'deal':
+    chips.push({kind: 'label', key: 'Dealt', tone: 'quiet'});
+    if (cue.resolution !== undefined && cue.party !== undefined) {
+      chips.push({kind: 'resolution', resolution: cue.resolution, party: cue.party});
+    }
+    break;
+  case 'support':
+    if (cue.party !== undefined) {
+      chips.push({kind: 'party', party: cue.party});
+    }
+    chips.push({kind: 'label', key: 'Popular support becomes votes'});
+    if (cue.count !== undefined) {
+      chips.push({kind: 'count', key: 'Delegates', amount: cue.count});
+    }
+    break;
+  case 'empty':
+    chips.push({kind: 'label', key: 'Empty slot'});
+    chips.push({kind: 'label', key: 'The deck has no resolution of another party', tone: 'quiet'});
+    break;
+  case 'lobby':
+    chips.push({kind: 'label', key: 'A free delegate enters the lobby', tone: 'quiet'});
+    if (cue.player !== undefined) {
+      chips.push({kind: 'player', player: cue.player});
+    }
+    break;
+  }
+  return {kicker: 'Renewal', key: `renewal:${cue.index}:${cue.kind}`, chips, committed: true};
 }
 
 /** ИТОГИ — the generation's number, as the heading of the panel that stands below. */

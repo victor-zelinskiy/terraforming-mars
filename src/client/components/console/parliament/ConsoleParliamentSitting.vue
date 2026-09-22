@@ -87,7 +87,6 @@
             <span v-else class="con-sit__chips">
               <span v-for="fresh in results.table.fresh" :key="fresh.instance" class="con-sit__chip" data-sit-fresh>
                 <img class="con-sit__emblem" :src="emblemUrl(fresh.party)" alt="" /><b>{{ $t(resolutionTitle(fresh.resolution)) }}</b>
-                <span v-if="fresh.stays" class="con-parl__chip-dim" data-sit-stays>{{ $t('stays · reshuffled') }}</span>
               </span>
             </span>
           </div>

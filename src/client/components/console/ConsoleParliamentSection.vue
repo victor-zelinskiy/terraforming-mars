@@ -77,7 +77,7 @@
            SEAT pick is a body of its own too (a decision, nothing flying). ══ -->
       <div class="con-parl__mid" data-parl-mid data-parl-recede ref="midEl">
         <ConsoleParliamentBand :view="view" :model="model" :playerView="pv" :viewerColor="viewerColor"
-                               :position="sitting" :sittingUp="sittingUp" :stage="sittingStage" :resultsHidden="resultsHidden" />
+                               :position="sitting" :sittingUp="sittingUp" :stage="sittingStage" />
 
         <div class="con-parl__bodyzone" data-parl-body>
         <div class="con-parl__parties-tier" ref="partiesTierEl"
@@ -283,7 +283,7 @@ export default defineComponent({
      * RESULTS panel at the end. Derived once (`sittingBodyOf`) — never decided per case.
      */
     sittingBody(): SittingBody {
-      return sittingBodyOf(this.sittingStage, this.resultsHidden, this.sittingField);
+      return sittingBodyOf(this.sittingStage, this.sittingField);
     },
     /**
      * THE ROW'S RESTING POSE. Parked means SHUT — invisible and untouchable — and it is applied only when
@@ -362,13 +362,10 @@ export default defineComponent({
       return parliamentRewardState.owed.length;
     },
     /**
-     * The results card is hidden until the renewal's beats have played it out (the director reveals it) — and
-     * SO IS ITS WHOLE PANEL (v4: `resultsHidden` is what keeps the results' physical part on the TABLE). The
-     * beat's own `sittingMotion.stage` is not enough for that: between the walk arriving on the page and the
-     * beat's first tick there is a gap, and in it the panel would flash over the very table the renewal is
-     * about to move things on. The page's arrival is therefore the start of «hidden» (the stage not yet
-     * played), the beat carries it, and the reveal ends it — a RELOAD onto a finished sitting marks every
-     * stage played with nothing playing, so the card simply stands.
+     * The results card's ROWS are hidden until the director's cascade reveals them — the panel itself stands
+     * from the page turn (the body swapped to it), and its rows come in by the results beat. The physical part
+     * of the sitting is the RENEWAL page's, so nothing flies under this panel any more. A RELOAD onto a
+     * finished sitting marks every stage played with nothing playing, so the card simply stands.
      */
     resultsHidden(): boolean {
       return this.sittingStage === 'results' && !sittingMotion.resultsRevealed;
@@ -1266,7 +1263,7 @@ export default defineComponent({
     },
     /** May the walk leave `stage` by itself? The enactment always; the reward once nothing of this seat's is open there. */
     mayLeave(stage: SittingStage, position: SittingPosition): boolean {
-      if (stage === 'enact') {
+      if (stage === 'enact' || stage === 'renewal') {
         return true;
       }
       if (stage === 'reward') {
@@ -1336,6 +1333,10 @@ export default defineComponent({
             continue;
           }
           if (idx < now.pages.length - 1 && sittingPageAuto(stage) && this.mayLeave(stage, now)) {
+            if (now.pages[idx + 1] === 'results') {
+              // The results' rows wait for their own cascade: hidden from the frame the panel opens.
+              sittingMotion.resultsRevealed = false;
+            }
             parliamentFlow.sittingPage = idx + 1;
             continue;
           }

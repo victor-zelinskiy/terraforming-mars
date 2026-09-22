@@ -70,7 +70,6 @@ import {Color} from '@/common/Color';
 import {ReduxParty, ResolutionId, ResolutionInstanceId} from '@/common/parliament/ParliamentTypes';
 import {ParliamentEnactOutcomeModel, ParliamentPhaseSummaryModel} from '@/common/models/ParliamentModel';
 import {REWARD_ADDRESS, rewardAddressOf} from '@/common/parliament/rewardAddress';
-import {returningInstances} from './sittingBeats';
 
 /** ONE part of one seat's payout — an object and an amount, or a skip with its reason. */
 export type ResultsPayoutPart = {
@@ -129,9 +128,14 @@ export type ResultsSupport = {
   fresh: number;
 };
 
-/** ② THE TABLE: what changed and has already left the eye. */
+/**
+ * ② THE TABLE: what changed and has already left the eye. A fresh resolution
+ * is a fresh resolution — a loser dealt straight back from the reshuffled
+ * discard LEFT the table and was dealt again by the rules, and the renewal's
+ * tact showed exactly that; nothing here says «it stayed».
+ */
 export type ResultsTable = {
-  fresh: ReadonlyArray<{instance: ResolutionInstanceId, resolution: ResolutionId, party: ReduxParty, stays: boolean}>;
+  fresh: ReadonlyArray<{instance: ResolutionInstanceId, resolution: ResolutionId, party: ReduxParty}>;
   support: ReadonlyArray<ResultsSupport>;
   /**
    * THE EXCEPTION: seats that enter the NEXT vote with nothing to vote with —
@@ -223,7 +227,6 @@ export function resultsReadingOf(
     }
   });
   const payouts = seats.map((seat) => ({player: seat.player, parts: byPlayer.get(seat.player) ?? []}));
-  const staying = returningInstances(summary);
   // What the SUPPORT STEP granted, per party — the freshness mark of the row below. Summed, never
   // assigned: one party gets at most one record today, and a reading may not depend on that.
   const gained = new Map<ReduxParty, number>();
@@ -233,9 +236,7 @@ export function resultsReadingOf(
   const reading: ResultsReading = {
     payouts,
     table: {
-      fresh: summary.refreshed.map((f) => ({
-        instance: f.instance, resolution: f.resolution, party: f.party, stays: staying.has(f.instance),
-      })),
+      fresh: summary.refreshed.map((f) => ({instance: f.instance, resolution: f.resolution, party: f.party})),
       // The party that rules by the enacted card is left out: its stock is zero by construction and its
       // plaque stands in the government's zone, two hand-spans away from this row.
       support: support.filter((entry) => entry.party !== summary.enacted.party).map((entry) => ({

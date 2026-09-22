@@ -36,7 +36,6 @@ import {consoleReducedMotionActive} from '@/client/console/composables/useConsol
 import {buildParliamentView, ParliamentViewVm} from './consoleParliamentModel';
 import {preloadResolutionArt} from './parliamentArtTier';
 import {parliamentHolds, resetParliamentHolds} from './parliamentDisplayHolds';
-import {returningInstances} from './sittingBeats';
 import {verdictStandsAt} from './consoleSittingFlow';
 
 /** The sitting the holds belong to (`generation:seq`) — a new sitting drops the old holds. */
@@ -84,6 +83,11 @@ export function seedEnactmentHolds(beforeView: ParliamentViewVm, after: Parliame
     return;
   }
   const h = parliamentHolds;
+  // The old law leaves the government for the DISCARD PILE: the piles keep their pre-response counts until
+  // it lands there (the renewal, when it rides the same response, goes on moving them from these values).
+  if (summary.discardedEnacted !== undefined && h.pile === undefined) {
+    h.pile = {deck: beforeView.deckSize, discard: beforeView.discardSize};
+  }
   if (summary.agenda !== undefined && summary.agenda.to !== summary.agenda.from) {
     h.agendaAwaits = {player: summary.agenda.player, from: summary.agenda.from, to: summary.agenda.to};
   }
@@ -109,24 +113,38 @@ export function seedEnactmentHolds(beforeView: ParliamentViewVm, after: Parliame
 }
 
 /**
- * WHAT THE RENEWAL STILL HAS TO MOVE: the fresh cards are still on the deck
- * (their faces hidden, the pile one card thicker each), their neutral votes
- * have not arrived, the parties' consumed support still shows on the
+ * WHAT THE RENEWAL STILL HAS TO MOVE, from the server's JOURNAL: the losers'
+ * delegates are still on their cards, the piles still read their pre-response
+ * counts, the fresh cards are still on the deck (their faces hidden — EVERY
+ * dealt card, a loser dealt straight back from the reshuffled discard
+ * included: by the rules it left the table and was dealt again, and so it is
+ * on screen; there is no «the same card stays» exception), their neutral
+ * votes have not arrived, the parties' consumed support still shows on the
  * plaques, the free delegates are still in the reserves. IDEMPOTENT — a cube
- * already hidden adds no second support hold.
+ * already hidden adds no second support hold, the journal is seeded once. A
+ * summary WITHOUT a journal (a save from before it) seeds nothing: the table
+ * is shown as it stands.
  */
-export function seedRenewalHolds(after: ParliamentModel, afterView: ParliamentViewVm): void {
+export function seedRenewalHolds(beforeView: ParliamentViewVm, after: ParliamentModel, afterView: ParliamentViewVm): void {
   const summary = after.phase?.summary;
-  if (summary === undefined) {
+  const journal = summary?.renewal;
+  if (summary === undefined || journal === undefined || parliamentHolds.renewalSeeded) {
     return;
   }
   const h = parliamentHolds;
-  // A card dealt straight back from the reshuffled discard is not a fresh face (`returningInstances`).
-  const returning = returningInstances(summary);
-  for (const fresh of summary.refreshed) {
-    if (!returning.has(fresh.instance)) {
-      h.freshFaces.add(fresh.instance);
+  h.renewalSeeded = true;
+  if (h.pile === undefined) {
+    h.pile = {deck: beforeView.deckSize, discard: beforeView.discardSize};
+  }
+  for (const event of journal) {
+    if (event.kind === 'leave') {
+      for (const entry of event.returned) {
+        h.renewalReturns.set(entry.owner, (h.renewalReturns.get(entry.owner) ?? 0) + entry.count);
+      }
     }
+  }
+  for (const fresh of summary.refreshed) {
+    h.freshFaces.add(fresh.instance);
     if (fresh.neutralVotes <= 0) {
       continue;
     }
@@ -147,10 +165,10 @@ export function seedRenewalHolds(after: ParliamentModel, afterView: ParliamentVi
       h.support.set(fresh.party, (h.support.get(fresh.party) ?? 0) + added);
     }
   }
-  h.deckPending = summary.refreshed.filter((f) => !returning.has(f.instance)).length;
   // ARM TIME for the deal: a fresh card's illustration has never been painted, and its proxy turns face up in
-  // the air — decode it now, while the beats before the deal play (a blank window mid-turn otherwise).
-  preloadResolutionArt(summary.refreshed.filter((f) => !returning.has(f.instance)).map((f) => f.resolution));
+  // the air — decode it now, while the beats before the deal play (a blank window mid-turn otherwise). A
+  // rejected card is revealed in the air too.
+  preloadResolutionArt(journal.flatMap((e) => e.kind === 'deal' || e.kind === 'reject' ? [e.resolution] : []));
   for (const color of summary.lobbyRefilled) {
     h.lobby.add(color);
   }
@@ -186,16 +204,15 @@ export function seedParliamentSittingHolds(before: PlayerViewModel | undefined, 
     return;
   }
   const viewer = after.thisPlayer?.color;
+  const beforeView = buildParliamentView(beforeModel, viewer, before?.players ?? after.players);
   if (transition.barrier) {
-    const beforeView = buildParliamentView(beforeModel, viewer, before?.players ?? after.players);
     seedEnactmentHolds(beforeView, afterModel);
   } else if (transition.refresh && parliamentHolds.heldSlots === undefined) {
     // The refresh arrived on its own (after the effects): the losers' table is kept as it stood.
-    const beforeView = buildParliamentView(beforeModel, viewer, before?.players ?? after.players);
     parliamentHolds.heldSlots = beforeView.slots;
   }
   if (transition.refresh) {
-    seedRenewalHolds(afterModel, buildParliamentView(afterModel, viewer, after.players));
+    seedRenewalHolds(beforeView, afterModel, buildParliamentView(afterModel, viewer, after.players));
   }
 }
 

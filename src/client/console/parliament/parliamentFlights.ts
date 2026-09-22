@@ -89,6 +89,36 @@ let flightHandles: Record<string, CubeFlightHandle> = {};
 /** A flight's STAGGER beat (between its birth and its launch) — killed with the flight; «дожать» fires it at once. */
 let flightBeats: Record<string, {beat: ParliamentBeat, fire: () => void}> = {};
 let flightSerial = 0;
+/**
+ * «ДОЖАТЬ» IS ARMED: every flight born from now on launches at once and is
+ * driven straight to its touchdown. The director's hurry fires the flights
+ * that already exist (`finishParliamentFlights`); a flight born AFTER that
+ * press — the second phrase of a chained flight, a launch that waited for a
+ * tick — would otherwise play at full length after the player asked for the
+ * poses. Cleared when a stage starts playing and when the motion is killed.
+ */
+let hurried = false;
+
+export function setParliamentFlightsHurried(on: boolean): void {
+  hurried = on;
+}
+
+/** Register a flight's launch beat — or fire it now under «дожать». */
+function scheduleLaunch(id: string, delayMs: number, fire: () => void): void {
+  if (hurried) {
+    fire();
+    return;
+  }
+  flightBeats[id] = {beat: scheduleParliamentBeat(delayMs, fire), fire};
+}
+
+/** Register a running handle — and drive it to rest at once under «дожать». */
+function runHandle(id: string, handle: CubeFlightHandle): void {
+  flightHandles[id] = handle;
+  if (hurried) {
+    handle.tween.progress(1);
+  }
+}
 
 export function nextFlightId(prefix: string): string {
   return `${prefix}${++flightSerial}`;
@@ -150,6 +180,7 @@ export function dropFlightsWithPrefix(prefix: string): void {
 }
 
 export function killParliamentFlights(): void {
+  hurried = false;
   for (const id of Object.keys(flightBeats)) {
     flightBeats[id].beat.kill();
   }
@@ -176,8 +207,10 @@ export function parliamentFlightsAirborne(): boolean {
  * element registers on the next render, so a caller that tracks the flight
  * (the director's «дожать») must not wait for the element to exist.
  */
-export function flyCube(color: Color | 'neutral', from: Rect | undefined, to: Rect | undefined, delayMs: number, onLanded: () => void): string | undefined {
+export function flyCube(color: Color | 'neutral', from: Rect | undefined, to: Rect | undefined, delayMs: number, onLanded: () => void,
+  opts: {/** The proxy stands over the source (the real cube may hide now — the frame it LEAVES its place). */ onLifted?: () => void} = {}): string | undefined {
   if (from === undefined || to === undefined || typeof window === 'undefined' || consoleReducedMotionActive()) {
+    opts.onLifted?.();
     onLanded();
     return undefined;
   }
@@ -188,6 +221,7 @@ export function flyCube(color: Color | 'neutral', from: Rect | undefined, to: Re
     const proxy = flightEls[id];
     if (proxy === null || proxy === undefined) {
       dropFlight(id);
+      opts.onLifted?.();
       onLanded();
       return;
     }
@@ -203,14 +237,15 @@ export function flyCube(color: Color | 'neutral', from: Rect | undefined, to: Re
         from,
         to,
         durationMs: CUBE_FLIGHT_MS,
+        onLifted: opts.onLifted,
         onLanded: () => {
           onLanded();
           probeTick(() => dropFlight(id));
         },
       });
-      flightHandles[id] = handle;
+      runHandle(id, handle);
     };
-    flightBeats[id] = {beat: scheduleParliamentBeat(delayMs, fire), fire};
+    scheduleLaunch(id, delayMs, fire);
   });
   return id;
 }
@@ -241,12 +276,14 @@ export function flySeatDelegate(root: HTMLElement | undefined, color: Color | un
 export function dealResolutionCard(args: {
   from: Rect | undefined, to: Rect | undefined, delayMs: number, durationMs?: number,
   face: PremiumCardVM | undefined, onLaunch?: () => void, onLanded: () => void, onSideCrossed?: () => void,
+  /** The proxy STAYS after the touchdown (a chained phrase takes it from there — a revealed card that is refused); the caller drops it. */
+  keep?: boolean, /** The id's prefix (`sit-deal` for a deal; a reveal that will be refused names itself). */ prefix?: string,
 }): string | undefined {
   const {from, to, face} = args;
   if (from === undefined || to === undefined || to.width < 4 || face === undefined || typeof window === 'undefined' || consoleReducedMotionActive()) {
     return undefined;
   }
-  const id = nextFlightId('sit-deal');
+  const id = nextFlightId(args.prefix ?? 'sit-deal');
   pushCardFlight({id, width: Math.round(to.width), height: Math.round(to.height), face, faceUp: false});
   const durationMs = args.durationMs ?? DEAL_FLIGHT_MS;
   void nextTick(() => {
@@ -275,7 +312,9 @@ export function dealResolutionCard(args: {
         durationMs,
         onLanded: () => {
           args.onLanded();
-          probeTick(() => dropFlight(id));
+          if (args.keep !== true) {
+            probeTick(() => dropFlight(id));
+          }
         },
       });
       if (card !== undefined) {
@@ -286,11 +325,138 @@ export function dealResolutionCard(args: {
           reduced: false, glintClass: DEAL_TURN_GLINT, onSideCrossed: args.onSideCrossed,
         });
       }
-      flightHandles[id] = handle;
+      runHandle(id, handle);
     };
-    flightBeats[id] = {beat: scheduleParliamentBeat(args.delayMs, fire), fire};
+    scheduleLaunch(id, args.delayMs, fire);
   });
   return id;
+}
+
+/** A card leaving the table: the turn face-DOWN before the carry, and the carry itself (base ms). */
+export const LEAVE_TURN_MS = 340;
+/** …the carry starts this far into the turn: the card is past its edge when it begins to travel. */
+export const LEAVE_TURN_LEAD_MS = 190;
+export const LEAVE_CARRY_MS = 460;
+/** The pile's own gesture when the discard turns over into a new deck (base ms, the whole phrase). */
+export const RESHUFFLE_MS = 760;
+
+/**
+ * A CARD LEAVES THE TABLE — a face-up proxy already standing over its card
+ * (`parkFace`'s) is TURNED OVER where it lies (the physical turn: pitch and
+ * push toward the viewer, the edge lit as it passes through its plane — the
+ * same body, the same law: never opacity on the inner, never an overshoot on
+ * the turn) and, past its edge, CARRIED off along a low arc onto the discard
+ * pile, shrinking into the pile's top card. The touchdown is the event: the
+ * proxy leaves on the next frame and the pile is one card thicker. No fade —
+ * a card that is put away lands somewhere. `onLift` fires the frame the card
+ * starts to turn (the slot under it may read as empty from here). False when
+ * nothing is measurable: the caller settles its holds and says so.
+ */
+export function flyCardOffTable(args: {
+  id: string, to: Rect | undefined, delayMs: number, onLift?: () => void, onLanded: () => void,
+}): boolean {
+  const {id, to} = args;
+  const proxy = flightEls[id];
+  const card = readCard3DInner(proxy);
+  if (proxy === null || proxy === undefined || to === undefined || card === undefined || consoleReducedMotionActive()) {
+    dropFlight(id);
+    args.onLift?.();
+    args.onLanded();
+    return false;
+  }
+  const r = proxy.getBoundingClientRect();
+  const from: Rect = {left: r.left, top: r.top, width: r.width, height: r.height};
+  const fire = () => {
+    delete flightBeats[id];
+    if (flightEls[id] === undefined) {
+      return;
+    }
+    args.onLift?.();
+    const handle = runCardDealFlight({
+      proxy, from, to, durationMs: LEAVE_CARRY_MS, leadInS: consoleMotionMs(LEAVE_TURN_LEAD_MS) / 1000,
+      onLanded: () => {
+        args.onLanded();
+        probeTick(() => dropFlight(id));
+      },
+    });
+    addCard3DTurn(handle.tween, {card, at: 0, dur: consoleMotionMs(LEAVE_TURN_MS) / 1000, to: FACE_DOWN_DEG, from: FACE_UP_DEG, reduced: false});
+    runHandle(id, handle);
+  };
+  scheduleLaunch(id, args.delayMs, fire);
+  return true;
+}
+
+/**
+ * THE DISCARD TURNS OVER INTO A NEW DECK — the rule's own visible event: the
+ * pile's top cards (up to three backs, the count the pile shows) LIFT off
+ * the discard together, FAN a little and gather (the squaring of a pile
+ * about to be shuffled — one gesture, never a riffle), and SLIDE as one
+ * stack onto the deck's place, where they land: the deck reads its new count
+ * and the discard its remainder on that touchdown. Returns the flights'
+ * ids (empty when nothing is measurable — the caller settles and says so).
+ */
+export function runReshuffle(args: {from: Rect | undefined, to: Rect | undefined, cards: number, delayMs: number, onLanded: () => void}): Array<string> {
+  const {from, to} = args;
+  if (from === undefined || to === undefined || args.cards <= 0 || typeof window === 'undefined' || consoleReducedMotionActive()) {
+    args.onLanded();
+    return [];
+  }
+  const n = Math.min(3, args.cards);
+  const ids: Array<string> = [];
+  for (let i = 0; i < n; i++) {
+    const id = nextFlightId('sit-shuffle');
+    pushCardFlight({id, width: Math.round(from.width), height: Math.round(from.height)});
+    ids.push(id);
+  }
+  void nextTick(() => {
+    const proxies = ids.map((id) => flightEls[id]).filter((el): el is HTMLElement => el !== null && el !== undefined);
+    if (proxies.length !== ids.length) {
+      ids.forEach(dropFlight);
+      args.onLanded();
+      return;
+    }
+    const ui = conLogicalPx(1);
+    // Born on the pile, the top card last (the pile's own order), invisible until the launch.
+    proxies.forEach((proxy, i) => {
+      gsap.set(proxy, {x: from.left + i * 0.9 * ui, y: from.top - i * 0.9 * ui, rotation: 0, scale: 1, transformOrigin: '50% 50%', autoAlpha: 0});
+    });
+    const s = (ms: number) => consoleMotionMs(ms) / 1000;
+    const key = ids[0];
+    const fire = () => {
+      delete flightBeats[key];
+      if (flightEls[key] === undefined) {
+        return;
+      }
+      const tl = gsap.timeline();
+      tl.set(proxies, {autoAlpha: 1}, 0);
+      // LIFT and FAN: the stack comes off the pile and spreads by a hand's width…
+      proxies.forEach((proxy, i) => {
+        const spread = (i - (n - 1) / 2);
+        tl.to(proxy, {y: `-=${9 * ui}`, x: `+=${spread * 7 * ui}`, rotation: spread * 9, duration: s(RESHUFFLE_MS * 0.28), ease: 'power2.out'}, 0);
+        // …and GATHERS square again (the shuffle's own squaring), then the whole stack SLIDES to the deck's place.
+        tl.to(proxy, {x: from.left + i * 0.9 * ui, rotation: 0, duration: s(RESHUFFLE_MS * 0.22), ease: 'power2.inOut'}, s(RESHUFFLE_MS * 0.3));
+        tl.to(proxy, {x: to.left + to.width / 2 - from.width / 2 + i * 0.9 * ui, y: to.top + to.height / 2 - from.height / 2 - i * 0.9 * ui, duration: s(RESHUFFLE_MS * 0.42), ease: 'power2.inOut'}, s(RESHUFFLE_MS * 0.56));
+      });
+      let landed = false;
+      const land = () => {
+        if (landed) {
+          return;
+        }
+        landed = true;
+        args.onLanded();
+        probeTick(() => ids.forEach(dropFlight));
+      };
+      tl.eventCallback('onComplete', land);
+      const handle: CubeFlightHandle = {tween: tl, kill: () => {
+        tl.kill();
+        gsap.set(proxies, {autoAlpha: 0});
+      }};
+      // ONE handle for the stack (the first id carries it; the rest are dropped with it).
+      runHandle(key, handle);
+    };
+    scheduleLaunch(key, args.delayMs, fire);
+  });
+  return ids;
 }
 
 /**

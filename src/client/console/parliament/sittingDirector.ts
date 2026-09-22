@@ -35,10 +35,21 @@
  *               one REVEALS.
  *   НАГРАДА   — the wave of what the law paid this seat (`beatReward`), from
  *               the carrier card's printed graphic to the rail.
- *   ИТОГИ     — the losers leave their homes for the discard, the fresh
- *               resolutions are DEALT with a real 3D turn, the support votes
- *               seat on them, every free delegate returns to the lobby, and
- *               the results card REVEALS in the same panel.
+ *   ОБНОВЛЕНИЕ — the SERVER'S JOURNAL, event by event, all of it on the
+ *               table (`beatRenewal`): each loser's delegates go home per
+ *               owner and the card is TURNED OVER and carried onto the
+ *               discard pile; an empty deck is the discard turning over into
+ *               a new deck (a visible event of its own); a revealed card that
+ *               does not fit comes to its slot, is read, and goes back to the
+ *               discard; each fresh resolution is DEALT off the deck's top
+ *               with a real 3D turn onto its waiting place; a party's support
+ *               cubes leave THEIR OWN PLAQUE's sockets one by one for the
+ *               card; every free delegate returns to the lobby. A card that
+ *               left and was dealt straight back goes the whole way — the
+ *               rules have no «the same card stays» exception, and neither
+ *               does the tact.
+ *   ИТОГИ     — the results card REVEALS in its panel (the body swapped to
+ *               it on the page turn).
  *
  * A DURING A BEAT = «дожать»: the current run and every flight of the stage
  * are driven to their resting pose (`progress(1)`), and every beat still to
@@ -68,21 +79,23 @@ import {runResourceTransfers} from '@/client/console/resourceTransfer/consoleRes
 import {ResourceTransferSpec, TransferPoint} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {AgendaMove, ParliamentViewVm} from './consoleParliamentModel';
 import {SittingStage} from './consoleSittingFlow';
-import {BODY_SWAP_MS} from './consoleParliamentFlow';
 import {enactedCardEl} from './consoleResolutionPayout';
 import {SupportMark, SupportSource, supportSceneOf, SupportWaveEntry} from './supportScene';
-import {parliamentHolds, releaseEnactmentHolds, releaseRenewalHolds} from './parliamentDisplayHolds';
+import {parliamentHolds, releaseEnactmentHolds, releaseRenewalHolds, renewalHeld} from './parliamentDisplayHolds';
 import {
   flushAgendaBonus, flushParliamentRewards, markAgendaBonusLanded, markRewardLanded, OwedReward, parliamentRewardState, takeAgendaBonus,
   takeOwedRewards,
 } from './parliamentRewardBeat';
 import {
-  DEAL_FLIGHT_MS, DEAL_STAGGER_MS, dealResolutionCard, dropFlight, ENACT_MOVE_MS, finishParliamentFlights, flightEl, flightRegistered, flyCube,
-  killParliamentFlights, nextFlightId, placeCubeRect, pushCardFlight, rectOf, registerFlightHandle,
+  CUBE_FLIGHT_MS, DEAL_FLIGHT_MS, DEAL_STAGGER_MS, dealResolutionCard, dropFlight, ENACT_MOVE_MS, finishParliamentFlights, flightEl, flightRegistered,
+  flyCardOffTable, flyCube, killParliamentFlights, LEAVE_CARRY_MS, LEAVE_TURN_LEAD_MS, nextFlightId, placeCubeRect, pushCardFlight, rectOf,
+  registerFlightHandle, RESHUFFLE_MS, runReshuffle, setParliamentFlightsHurried,
 } from './parliamentFlights';
 import {scheduleParliamentBeat} from './parliamentBeat';
 import {Rect, runCardDealFlight} from './consoleParliamentVoteMotion';
-import {SittingBeat, returningInstances} from './sittingBeats';
+import {SittingBeat} from './sittingBeats';
+import {BandRenewalCue} from './parliamentBand';
+import {ParliamentRenewalEventModel} from '@/common/models/ParliamentModel';
 
 // ── the storyboard's budget (base ms; §6, v2) ───────────────────────────────
 const VERDICT_LIGHT_MS = 220;
@@ -107,10 +120,22 @@ const RETURN_STAGGER_MS = 70;
 const PLAQUE_FLIP_MS = 420;
 const QUEST_RELEASE_MS = 180;
 const QUEST_REVEAL_MS = 260;
-/** ИТОГИ. */
-const LOSER_STAGGER_MS = 90;
+/** ОБНОВЛЕНИЕ. */
+/** A loser's delegates go home one every step; the card lifts once its last cube has visibly LEFT its place (not landed). */
+const LEAVE_RETURN_STAGGER_MS = 70;
+const LEAVE_CUBE_DEPART_MS = 200;
+/** The second loser starts turning this long after the first (one hand, two cards). */
+const LEAVE_CARD_STAGGER_MS = 160;
+/** A revealed card that does not fit is READ over its slot before it turns back. */
+const REJECT_DWELL_MS = 420;
+/** An empty slot is named for a beat. */
+const EMPTY_READ_MS = 320;
+/** The support cubes onto a fresh card, one by one. */
 const SEAT_STAGGER_MS = 80;
 const LOBBY_STAGGER_MS = 90;
+/** The tact's own ceiling — above its longest storyboard (two losers with delegates, a reshuffle, two rejects, three deals and their support ≈ 8 s) by a wide margin; a ceiling, never an expected length. */
+const RENEWAL_HOLD_CEILING_MS = 24_000;
+/** ИТОГИ. */
 const CLOSING_MS = 300;
 /** The reward page's own reveal (the reading rows cascade — RELEASE → UNFOLD → REVEAL). */
 const REWARD_REVEAL_MS = 260;
@@ -146,8 +171,16 @@ export const sittingMotion = reactive({
   /** The party whose plaque is ACCEPTING support right now ('' = none). */
   /** The Agenda segment the marker is crossing (its steps light). */
   agendaSegment: undefined as AgendaMove | undefined,
-  /** The results card has been REVEALED (the renewal's beats are over) — hidden until then while the stage plays. */
+  /** The results card has been REVEALED (its rows cascaded in) — hidden until then while its page opens. */
   resultsRevealed: false,
+  /** THE RENEWAL EVENT NOW PLAYING (the band reads it); undefined between events and at rest. */
+  renewal: undefined as BandRenewalCue | undefined,
+  /**
+   * THE TACT'S OWN CONFESSIONS: a renewal event whose flight had no measurable source or destination
+   * settled its holds WITHOUT a flight, and says so here (one line per event). A live scene must never
+   * add to it — the probe reads it; «дожать» and reduced motion legitimately do (the poses at once).
+   */
+  renewalDegraded: [] as Array<string>,
   /**
    * THE GOVERNMENT IS CHANGING HANDS RIGHT NOW (v4 §2.2). The two plaques travel between the government's
    * slot and the opposition row, which are two TIERS: their path crosses the other tier's own objects, and
@@ -211,6 +244,11 @@ function deckRect(root: HTMLElement): Rect | undefined {
   return rectOf(root.querySelector('[data-parl-deck-top]')) ?? rectOf(root.querySelector('[data-parl-deck]'));
 }
 
+/** The DISCARD pile's top card — where a card that leaves the table lands (the old law, a loser, a revealed card that does not fit). */
+function discardRect(root: HTMLElement): Rect | undefined {
+  return rectOf(root.querySelector('[data-parl-discard-top]')) ?? rectOf(root.querySelector('[data-parl-discard]')) ?? deckRect(root);
+}
+
 function slotFaceRect(root: HTMLElement, instance: string): Rect | undefined {
   return rectOf(root.querySelector(`.con-parl__slot[data-instance="${instance}"] .con-parl__card .pcard`) ??
     root.querySelector(`.con-parl__slot[data-instance="${instance}"] .con-parl__card`));
@@ -238,29 +276,48 @@ async function parkFace(resolutionId: string, at: Rect | undefined): Promise<str
   return id;
 }
 
-/** A parked proxy flies to the deck zone and dissolves (the old law, a loser). */
-function flyToDeck(runState: StageRun, ctx: SittingDirectorContext, id: string, delayMs: number, onGone?: () => void): void {
-  const proxy = flightEl(id);
-  const to = deckRect(ctx.root);
-  if (proxy === null || proxy === undefined || to === undefined) {
-    dropFlight(id);
-    onGone?.();
-    return;
-  }
-  const r = proxy.getBoundingClientRect();
-  const from: Rect = {left: r.left, top: r.top, width: r.width, height: r.height};
-  const tw = gsap.timeline({delay: s(delayMs)});
-  tw.to(proxy, {
-    x: to.left + to.width / 2 - from.width / 2, y: to.top + to.height / 2 - from.height / 2,
-    scale: Math.max(0.12, to.width / from.width), autoAlpha: 0, duration: s(DISCARD_MS), ease: 'power2.in',
-    onComplete: () => {
+/**
+ * A parked face-up proxy LEAVES THE TABLE for the discard pile (the old law,
+ * a loser): turned over where it lies, then carried onto the pile — the
+ * physical exit (`flyCardOffTable`). `onLift` fires as the card starts to
+ * turn; `onGone` on the touchdown (the pile is one card thicker there).
+ * Nothing measurable → the holds settle at once and the tact says so.
+ */
+function flyToDiscard(runState: StageRun, ctx: SittingDirectorContext, id: string, delayMs: number, hooks: {onLift?: () => void, onGone?: () => void, degrade?: string} = {}): void {
+  const flown = flyCardOffTable({
+    id, to: discardRect(ctx.root), delayMs,
+    onLift: hooks.onLift,
+    onLanded: () => {
       runState.flights.delete(id);
-      dropFlight(id);
-      onGone?.();
+      hooks.onGone?.();
     },
   });
-  registerFlightHandle(id, {tween: tw, kill: () => tw.kill()});
-  runState.flights.add(id);
+  if (flown) {
+    runState.flights.add(id);
+  } else if (hooks.degrade !== undefined) {
+    noteDegraded(hooks.degrade);
+  }
+}
+
+/** A renewal event settled its holds WITHOUT its flight (no measurable source / destination) — confessed, never silent. */
+function noteDegraded(what: string): void {
+  if (hurry || consoleReducedMotionActive()) {
+    return;
+  }
+  sittingMotion.renewalDegraded.push(what);
+  console.warn(`[parliament] renewal: ${what} — settled without a flight`);
+}
+
+/** The pile shown grows by a card on the discard (a landing there). */
+function landOnDiscard(): void {
+  const h = parliamentHolds;
+  if (h.pile !== undefined) {
+    h.pile.discard++;
+    // The old law's landing outside a renewal: the piles read live from here.
+    if (!h.renewalSeeded) {
+      h.pile = undefined;
+    }
+  }
 }
 
 // ── ВЕРДИКТ ────────────────────────────────────────────────────────────────
@@ -573,7 +630,8 @@ function beatEnactMove(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: n
   const holds = parliamentHolds;
   const summary = ctx.summary;
   let at = 0;
-  // (1) The old law leaves the government for the deck zone — the government then shows the NEW card, its face waiting.
+  // (1) The old law leaves the government for the DISCARD PILE (turned over, carried, landed — the pile ticks) —
+  //     the government then shows the NEW card, its face waiting.
   const old = holds.govBefore?.enacted;
   if (old !== undefined) {
     tl.call(() => {
@@ -584,9 +642,11 @@ function beatEnactMove(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: n
           if (id !== undefined) {
             dropFlight(id);
           }
+          landOnDiscard();
           return;
         }
-        flyToDeck(runState, ctx, id, 0);
+        flyToDiscard(runState, ctx, id, 0, {onGone: landOnDiscard});
+        settleIfHurried();
       });
     }, undefined, at);
     at += s(DISCARD_MS * 0.55) * k;
@@ -872,138 +932,410 @@ function beatReward(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: numb
   return at;
 }
 
-// ── ИТОГИ ──────────────────────────────────────────────────────────────────
+// ── ОБНОВЛЕНИЕ ─────────────────────────────────────────────────────────────
 
-/** The renewal: the losers leave their homes, the deal WITH THE TURN, the support votes seat, the lobby refills — then the results card reveals. */
-function beatResults(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: number, runState: StageRun): number {
+/** The table is released to the LIVE model: the held slots, the vacated / departed outlines, the lifted faces — all let go. */
+function releaseTable(): void {
+  const holds = parliamentHolds;
+  holds.heldSlots = undefined;
+  holds.vacated.clear();
+  holds.departed.clear();
+  holds.liftedFaces.clear();
+  holds.winnerSlot = undefined;
+}
+
+/** «Дожать» pressed while a launch waited for its tick: the flights born since are driven to rest too. */
+function settleIfHurried(): void {
+  if (hurry) {
+    finishParliamentFlights();
+  }
+}
+
+/** The renewal's cue for the band: the event now playing (the band's line changes with the index). */
+function cueOf(index: number, event: ParliamentRenewalEventModel): BandRenewalCue {
+  switch (event.kind) {
+  case 'leave': return {index, kind: 'leave', resolution: event.resolution, party: event.party, returned: event.returned};
+  case 'reshuffle': return {index, kind: 'reshuffle', count: event.size};
+  case 'reject': return {index, kind: 'reject', resolution: event.resolution, party: event.party, reason: event.reason};
+  case 'deal': return {index, kind: 'deal', resolution: event.resolution, party: event.party};
+  case 'support': return {index, kind: 'support', party: event.party, count: event.count};
+  case 'empty': return {index, kind: 'empty'};
+  case 'lobby': return {index, kind: 'lobby', player: event.player};
+  }
+}
+
+/** The LIVE slot's face element for `instance` (its card waits hidden under the dealt proxy). */
+function liveFaceEl(root: HTMLElement, instance: string): HTMLElement | null {
+  return root.querySelector<HTMLElement>(`.con-parl__slot[data-instance="${instance}"] .con-parl__card .pcard`) ??
+    root.querySelector<HTMLElement>(`.con-parl__slot[data-instance="${instance}"] .con-parl__card`);
+}
+
+/** The place a revealed card comes to: the slot it was drawn for (a waiting card's box, or the empty outline). */
+function slotHomeRect(root: HTMLElement, slot: number): Rect | undefined {
+  const homes = itemsOf(root, '.con-parl__slots > .con-parl__slot-home');
+  const home = homes[slot];
+  if (home === undefined) {
+    return undefined;
+  }
+  return rectOf(home.querySelector('.con-parl__card .pcard') ?? home.querySelector('.con-parl__card') ?? home.querySelector('.con-parl__slot-empty-card'));
+}
+
+/**
+ * A LOSER'S DELEGATES GO HOME — off the card's own ribbon (the held slot,
+ * as voted), one cube per delegate, to its owner's reserve or the neutral
+ * supply; the ribbon's cube hides the frame the proxy stands over it, the
+ * reserve grows on the touchdown. Returns the number launched.
+ */
+function launchLeaveReturns(runState: StageRun, ctx: SittingDirectorContext, event: Extract<ParliamentRenewalEventModel, {kind: 'leave'}>, k: number): number {
   const root = ctx.root;
   const holds = parliamentHolds;
-  const summary = ctx.summary;
-  let at = 0;
-  const returning = returningInstances(summary);
-  const losers = (summary.discarded ?? []).filter((loser) => !returning.has(loser.instance));
-  const dealCount = summary.refreshed.filter((f) => holds.freshFaces.has(f.instance)).length;
-  const releaseTable = () => {
-    holds.heldSlots = undefined;
-    holds.vacated.clear();
-    holds.liftedFaces.clear();
-    holds.winnerSlot = undefined;
-  };
-  // (1) The losers leave from the homes they stood in (the held table): a proxy over each, the live table under them, the flights off.
-  if (losers.length > 0) {
-    tl.call(() => {
-      void Promise.all(losers.map((loser) => parkFace(loser.resolution, slotFaceRect(root, loser.instance)))).then((ids) => {
-        releaseTable();
-        ids.forEach((id, n) => {
-          if (id === undefined) {
-            return;
-          }
-          if (runState.finished) {
-            dropFlight(id);
-            return;
-          }
-          flyToDeck(runState, ctx, id, n * LOSER_STAGGER_MS * k);
-        });
-      });
-    }, undefined, at);
-    at += s(DISCARD_MS + (losers.length - 1) * LOSER_STAGGER_MS) * k;
-  } else if (dealCount > 0 || holds.heldSlots === undefined) {
-    tl.call(releaseTable, undefined, at);
-  }
-  // (2) THE DEAL: each fresh resolution leaves the deck's top card, turns in flight, lands in its slot.
-  let dealt = 0;
-  tl.call(() => {
-    const deckTop = deckRect(root);
-    summary.refreshed.forEach((fresh) => {
-      if (!holds.freshFaces.has(fresh.instance)) {
-        return;
-      }
-      const face = root.querySelector<HTMLElement>(`.con-parl__slot[data-instance="${fresh.instance}"] .con-parl__card .pcard`) ??
-        root.querySelector<HTMLElement>(`.con-parl__slot[data-instance="${fresh.instance}"] .con-parl__card`);
-      const launched = () => {
-        holds.deckPending = Math.max(0, holds.deckPending - 1);
-      };
+  const held = (holds.heldSlots ?? ctx.view.slots).find((slot) => slot.instance === event.instance);
+  let i = 0;
+  for (const entry of event.returned) {
+    const seqs = (held?.votes ?? []).filter((v) => v.owner === entry.owner).map((v) => v.seq).slice(0, entry.count);
+    const to = placeCubeRect(root, entry.owner === 'neutral' ? '[data-parl-neutral-cube]' : `[data-parl-seat-reserve="${entry.owner}"]`);
+    for (let n = 0; n < entry.count; n++) {
+      const seq = seqs[n];
+      const key = seq === undefined ? undefined : `${event.instance}#${seq}`;
+      const cube = seq === undefined ? null :
+        root.querySelector(`.con-parl__slot[data-instance="${event.instance}"] .con-parl__ribbon [data-seq="${seq}"]`);
+      const from = rectOf(cube) ?? rectOf(root.querySelector(`.con-parl__slot[data-instance="${event.instance}"] .con-parl__ribbon`));
+      const delay = i * LEAVE_RETURN_STAGGER_MS * k;
+      i++;
       const landed = () => {
-        holds.freshFaces.delete(fresh.instance);
+        const left = (holds.renewalReturns.get(entry.owner) ?? 0) - 1;
+        if (left <= 0) {
+          holds.renewalReturns.delete(entry.owner);
+        } else {
+          holds.renewalReturns.set(entry.owner, left);
+        }
       };
-      const id = dealResolutionCard({
-        from: deckTop, to: rectOf(face), delayMs: dealt * DEAL_STAGGER_MS * k, durationMs: DEAL_FLIGHT_MS * k,
-        face: resolutionPremiumVmById(fresh.resolution), onLaunch: launched, onLanded: landed,
-      });
+      const id = flyCube(entry.owner, from, to, delay, landed, {onLifted: () => {
+        if (key !== undefined) {
+          holds.hiddenCubes.add(key);
+        }
+      }});
       if (id === undefined) {
-        launched();
-        landed();
+        noteDegraded(`return of ${entry.owner} delegate off ${event.resolution}`);
       } else {
         runState.flights.add(id);
-        dealt++;
       }
+    }
+  }
+  return i;
+}
+
+/**
+ * A LOSER LEAVES: a face-up proxy over its held slot, the slot under it an
+ * empty outline from the lift on (`departed`), the card turned over and
+ * carried onto the discard pile, the pile ticking on the touchdown. The LAST
+ * loser's lift releases the held table to the live model (the fresh places
+ * wait under their hidden faces from that frame).
+ */
+function launchLeave(runState: StageRun, ctx: SittingDirectorContext, event: Extract<ParliamentRenewalEventModel, {kind: 'leave'}>, last: boolean): void {
+  const root = ctx.root;
+  const holds = parliamentHolds;
+  const settle = () => {
+    holds.departed.add(event.instance);
+    if (last) {
+      releaseTable();
+    }
+  };
+  void parkFace(event.resolution, slotFaceRect(root, event.instance)).then((id) => {
+    if (id === undefined || runState.finished) {
+      if (id !== undefined) {
+        dropFlight(id);
+      }
+      settle();
+      landOnDiscard();
+      if (id === undefined) {
+        noteDegraded(`leave of ${event.resolution}`);
+      }
+      return;
+    }
+    flyToDiscard(runState, ctx, id, 0, {onLift: settle, onGone: landOnDiscard, degrade: `leave of ${event.resolution}`});
+    settleIfHurried();
+  });
+}
+
+/** THE DECK TURNS OVER: the discard's top cards lift, square and slide onto the deck's place; the counts change on the touchdown. */
+function launchReshuffle(runState: StageRun, ctx: SittingDirectorContext, event: Extract<ParliamentRenewalEventModel, {kind: 'reshuffle'}>): void {
+  const root = ctx.root;
+  const holds = parliamentHolds;
+  const land = () => {
+    if (holds.pile !== undefined) {
+      holds.pile.deck = event.size;
+      holds.pile.discard = Math.max(0, holds.pile.discard - event.size);
+    }
+  };
+  const ids = runReshuffle({from: discardRect(root), to: deckRect(root), cards: holds.pile?.discard ?? event.size, delayMs: 0, onLanded: land});
+  if (ids.length === 0) {
+    noteDegraded('the reshuffle');
+  }
+  for (const id of ids) {
+    runState.flights.add(id);
+  }
+}
+
+/**
+ * A REVEALED CARD THAT DOES NOT FIT: it comes off the deck's top to the slot
+ * it was drawn for, turning face-up on the way (the ONE turn this fork has),
+ * is READ there for a beat while the band names why it cannot stay, then
+ * turns back over and is carried onto the discard. The deck thins at the
+ * launch, the discard grows at the landing.
+ */
+function launchReject(runState: StageRun, ctx: SittingDirectorContext, event: Extract<ParliamentRenewalEventModel, {kind: 'reject'}>, k: number): void {
+  const root = ctx.root;
+  const holds = parliamentHolds;
+  const launched = () => {
+    if (holds.pile !== undefined) {
+      holds.pile.deck = Math.max(0, holds.pile.deck - 1);
+    }
+  };
+  // The proxy's id is read back inside its own landing callback (the second phrase takes it from there).
+  const id: string | undefined = dealResolutionCard({
+    from: deckRect(root), to: slotHomeRect(root, event.slot), delayMs: 0, durationMs: DEAL_FLIGHT_MS * k,
+    face: resolutionPremiumVmById(event.resolution), onLaunch: launched, keep: true, prefix: 'sit-reject',
+    onLanded: () => {
+      // READ, then refused: the second phrase starts after the dwell (a beat on the motion clock, fired at once under «дожать»).
+      const back = () => {
+        const proxyId = id ?? '';
+        if (runState.finished) {
+          dropFlight(proxyId);
+          landOnDiscard();
+          return;
+        }
+        flyToDiscard(runState, ctx, proxyId, 0, {onGone: landOnDiscard, degrade: `reject of ${event.resolution}`});
+        settleIfHurried();
+      };
+      if (hurry) {
+        back();
+      } else {
+        scheduleParliamentBeat(REJECT_DWELL_MS * k, back);
+      }
+    },
+  });
+  if (id === undefined) {
+    launched();
+    landOnDiscard();
+    noteDegraded(`reveal of ${event.resolution}`);
+  } else {
+    runState.flights.add(id);
+  }
+}
+
+/** A FRESH RESOLUTION IS DEALT: off the deck's top, turned in flight, onto its waiting place; the face shows on the touchdown. */
+function launchDeal(runState: StageRun, ctx: SittingDirectorContext, event: Extract<ParliamentRenewalEventModel, {kind: 'deal'}>, k: number): void {
+  const root = ctx.root;
+  const holds = parliamentHolds;
+  if (holds.heldSlots !== undefined) {
+    // The tact deals only onto the LIVE table (a hurry can reach here before the last loser's lift released it).
+    releaseTable();
+  }
+  const launched = () => {
+    if (holds.pile !== undefined) {
+      holds.pile.deck = Math.max(0, holds.pile.deck - 1);
+    }
+  };
+  const landed = () => {
+    holds.freshFaces.delete(event.instance);
+  };
+  const go = () => {
+    const id = dealResolutionCard({
+      from: deckRect(root), to: rectOf(liveFaceEl(root, event.instance)), delayMs: 0, durationMs: DEAL_FLIGHT_MS * k,
+      face: resolutionPremiumVmById(event.resolution), onLaunch: launched, onLanded: landed,
     });
+    if (id === undefined) {
+      launched();
+      landed();
+      noteDegraded(`deal of ${event.resolution}`);
+    } else {
+      runState.flights.add(id);
+      settleIfHurried();
+    }
+  };
+  if (liveFaceEl(root, event.instance) === null) {
+    // The live table was released this very tick: its places render on the next.
+    void nextTick().then(go);
+  } else {
+    go();
+  }
+}
+
+/**
+ * A PARTY'S SUPPORT BECOMES VOTES: cube by cube, each off ITS OWN PLAQUE's
+ * socket (the topmost filled one first — the plaque lets go of the cube the
+ * frame it starts), onto the card's own place on the ribbon (the card takes
+ * it on the touchdown; the counter under the card ticks then). Never a
+ * cube from the neutral supply: nothing of this comes from there.
+ */
+function launchSupportSeat(runState: StageRun, ctx: SittingDirectorContext, event: Extract<ParliamentRenewalEventModel, {kind: 'support'}>, k: number): void {
+  const root = ctx.root;
+  const holds = parliamentHolds;
+  const hidden = Array.from(holds.hiddenCubes).filter((key) => key.startsWith(`${event.instance}#`))
+    .sort((a, b) => Number(a.substring(a.lastIndexOf('#') + 1)) - Number(b.substring(b.lastIndexOf('#') + 1)));
+  let i = 0;
+  for (const key of hidden) {
+    const seq = key.substring(key.lastIndexOf('#') + 1);
+    const to = rectOf(root.querySelector(`.con-parl__slot[data-instance="${event.instance}"] [data-seq="${seq}"]`));
+    // The socket this cube leaves: the topmost one the plaque still shows.
+    const shown = holds.support.get(event.party) ?? 0;
+    const place = Math.max(1, shown - i);
+    const from = placeCubeRect(root, `[data-parl-support="${event.party}"] [data-support-place="${place}"]`);
+    const delay = i * SEAT_STAGGER_MS * k;
+    i++;
+    const id = flyCube('neutral', from, to, delay, () => {
+      holds.hiddenCubes.delete(key);
+    }, {onLifted: () => {
+      const left = (holds.support.get(event.party) ?? 0) - 1;
+      if (left <= 0) {
+        holds.support.delete(event.party);
+      } else {
+        holds.support.set(event.party, left);
+      }
+    }});
+    if (id === undefined) {
+      noteDegraded(`support cube of ${event.party} onto ${event.instance}`);
+    } else {
+      runState.flights.add(id);
+    }
+  }
+}
+
+/** A FREE DELEGATE RETURNS to the lobby's socket from its reserve. */
+function launchLobby(runState: StageRun, ctx: SittingDirectorContext, event: Extract<ParliamentRenewalEventModel, {kind: 'lobby'}>): void {
+  const root = ctx.root;
+  const holds = parliamentHolds;
+  const from = placeCubeRect(root, `[data-parl-seat-reserve="${event.player}"]`);
+  const to = placeCubeRect(root, `[data-parl-seat-lobby="${event.player}"]`);
+  const id = flyCube(event.player, from, to, 0, () => holds.lobby.delete(event.player));
+  if (id === undefined) {
+    noteDegraded(`lobby delegate of ${event.player}`);
+  } else {
+    runState.flights.add(id);
+  }
+}
+
+/**
+ * ОБНОВЛЕНИЕ — the server's journal, played event by event on the TABLE
+ * (the row of parties, the voting area, the delegates zone and the two
+ * piles all in view). The storyboard's arithmetic is the launch schedule;
+ * every landing is an event that releases its own hold, and the run rests
+ * only once the last flight has touched down. A journal-less summary (a
+ * save from before the journal) releases the holds at once.
+ */
+function beatRenewal(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: number, runState: StageRun): number {
+  const journal = ctx.summary.renewal ?? [];
+  const holds = parliamentHolds;
+  if (journal.length === 0) {
+    tl.call(() => {
+      releaseTable();
+      releaseRenewalHolds();
+    }, undefined, 0.01);
+    return 0;
+  }
+  let at = 0;
+  /** The moment the last object launched will have landed — the tact's own tail. */
+  let tail = 0;
+  const cue = (index: number, event: ParliamentRenewalEventModel, when: number): void => {
+    tl.call(() => {
+      sittingMotion.renewal = cueOf(index, event);
+    }, undefined, when);
+  };
+  // ── THE LOSERS LEAVE (the journal opens with them): each one's delegates home first, then the card. ──
+  const leaves = journal.map((event, index) => ({event, index}))
+    .filter((e): e is {event: Extract<ParliamentRenewalEventModel, {kind: 'leave'}>, index: number} => e.event.kind === 'leave');
+  if (leaves.length === 0) {
+    tl.call(releaseTable, undefined, at);
+  }
+  let lastLeaveLaunch = 0;
+  leaves.forEach(({event, index}, n) => {
+    const last = n === leaves.length - 1;
+    cue(index, event, at);
+    const returned = event.returned.reduce((sum, entry) => sum + entry.count, 0);
+    if (returned > 0) {
+      tl.call(() => launchLeaveReturns(runState, ctx, event, k), undefined, at);
+      // The card lifts once its last cube has visibly LEFT its place — the cubes are still in the air.
+      tail = Math.max(tail, at + s(CUBE_FLIGHT_MS + (returned - 1) * LEAVE_RETURN_STAGGER_MS) * k);
+      at += s(LEAVE_CUBE_DEPART_MS + (returned - 1) * LEAVE_RETURN_STAGGER_MS) * k;
+    }
+    tl.call(() => launchLeave(runState, ctx, event, last), undefined, at);
+    lastLeaveLaunch = at;
+    tail = Math.max(tail, at + s(LEAVE_TURN_LEAD_MS + LEAVE_CARRY_MS) * k);
+    at += s(LEAVE_CARD_STAGGER_MS) * k;
+  });
+  if (leaves.length > 0) {
+    // The deal begins once the last loser is on its way off the table (past its edge, not yet landed).
+    at = Math.max(at, lastLeaveLaunch + s(LEAVE_TURN_LEAD_MS + LEAVE_CARRY_MS * 0.6) * k);
+  }
+  // ── THE DEAL, in the journal's order: the deck turning over, the cards revealed and refused, the cards dealt, the support, the lobby. ──
+  let lastDealLanding = at;
+  journal.forEach((event, index) => {
+    switch (event.kind) {
+    case 'leave':
+      return;
+    case 'reshuffle':
+      cue(index, event, at);
+      tl.call(() => launchReshuffle(runState, ctx, event), undefined, at);
+      at += s(RESHUFFLE_MS) * k;
+      tail = Math.max(tail, at);
+      return;
+    case 'reject':
+      cue(index, event, at);
+      tl.call(() => launchReject(runState, ctx, event, k), undefined, at);
+      at += s(DEAL_FLIGHT_MS + REJECT_DWELL_MS + LEAVE_TURN_LEAD_MS + LEAVE_CARRY_MS) * k;
+      tail = Math.max(tail, at);
+      return;
+    case 'deal':
+      cue(index, event, at);
+      tl.call(() => launchDeal(runState, ctx, event, k), undefined, at);
+      lastDealLanding = at + s(DEAL_FLIGHT_MS) * k;
+      tail = Math.max(tail, lastDealLanding);
+      // The next card comes off the pile a beat later (a cascade); a landing is an event of its own.
+      at += s(DEAL_STAGGER_MS) * k;
+      return;
+    case 'support': {
+      // The cubes leave the plaque as the card LANDS — never before the object they seat on is there.
+      const when = Math.max(at, lastDealLanding);
+      cue(index, event, when);
+      tl.call(() => launchSupportSeat(runState, ctx, event, k), undefined, when);
+      tail = Math.max(tail, when + s(CUBE_FLIGHT_MS + (event.count - 1) * SEAT_STAGGER_MS) * k);
+      return;
+    }
+    case 'empty':
+      at = Math.max(at, lastDealLanding);
+      cue(index, event, at);
+      at += s(EMPTY_READ_MS) * k;
+      tail = Math.max(tail, at);
+      return;
+    case 'lobby':
+      at = Math.max(at, lastDealLanding);
+      cue(index, event, at);
+      tl.call(() => launchLobby(runState, ctx, event), undefined, at);
+      tail = Math.max(tail, at + s(CUBE_FLIGHT_MS) * k);
+      at += s(LOBBY_STAGGER_MS) * k;
+      return;
+    }
+  });
+  at = Math.max(at, tail) + s(120) * k;
+  // The tact is over when its last object has landed: the cue clears, and whatever the journal left the
+  // holds still counting (a record with nothing on screen behind it) is released HERE — named by the
+  // confessions above, never silently mid-tact.
+  tl.call(() => {
+    sittingMotion.renewal = undefined;
+    if (renewalHeld() && holds.freshFaces.size === 0 && holds.hiddenCubes.size === 0 && holds.lobby.size === 0 && holds.renewalReturns.size === 0) {
+      releaseRenewalHolds();
+    }
   }, undefined, at);
-  const dealSpan = dealCount > 0 ? s(DEAL_FLIGHT_MS + (dealCount - 1) * DEAL_STAGGER_MS) * k : 0;
-  at += dealSpan;
-  // (3) The support votes seat on the fresh cards: from the neutral supply.
-  const seatCount = holds.hiddenCubes.size;
-  if (seatCount > 0) {
-    tl.call(() => {
-      const supply = placeCubeRect(root, '[data-parl-neutral-cube]');
-      let i = 0;
-      for (const fresh of summary.refreshed) {
-        const slot = ctx.view.slots.find((sl) => sl.instance === fresh.instance);
-        if (slot === undefined) {
-          continue;
-        }
-        const hidden = Array.from(holds.hiddenCubes).filter((key) => key.startsWith(`${slot.instance}#`));
-        for (const key of hidden) {
-          const seq = key.substring(key.lastIndexOf('#') + 1);
-          const to = rectOf(root.querySelector(`.con-parl__slot[data-instance="${slot.instance}"] [data-seq="${seq}"]`));
-          const delay = i * SEAT_STAGGER_MS * k;
-          i++;
-          const id = flyCube('neutral', supply, to, delay, () => {
-            holds.hiddenCubes.delete(key);
-            const left = (holds.support.get(fresh.party) ?? 0) - 1;
-            if (left <= 0) {
-              holds.support.delete(fresh.party);
-            } else {
-              holds.support.set(fresh.party, left);
-            }
-          });
-          if (id !== undefined) {
-            runState.flights.add(id);
-          }
-        }
-      }
-      if (i === 0) {
-        holds.hiddenCubes.clear();
-        holds.support.clear();
-      }
-    }, undefined, at);
-    at += s(480 + (seatCount - 1) * SEAT_STAGGER_MS) * k;
-  }
-  // (4) Every free delegate returns from the reserve to the lobby's socket.
-  const lobbyCount = holds.lobby.size;
-  if (lobbyCount > 0) {
-    tl.call(() => {
-      let i = 0;
-      for (const color of Array.from(holds.lobby)) {
-        const from = placeCubeRect(root, `[data-parl-seat-reserve="${color}"]`);
-        const to = placeCubeRect(root, `[data-parl-seat-lobby="${color}"]`);
-        const delay = i * LOBBY_STAGGER_MS * k;
-        i++;
-        const id = flyCube(color, from, to, delay, () => holds.lobby.delete(color));
-        if (id !== undefined) {
-          runState.flights.add(id);
-        }
-      }
-      if (i === 0) {
-        holds.lobby.clear();
-      }
-    }, undefined, at);
-    at += s(480 + (lobbyCount - 1) * LOBBY_STAGGER_MS) * k;
-  }
-  // (5) …and only once the LAST object has landed does the reading panel take the row's place (v4 §1): the
-  //     table's beats above all moved objects the player had to see, so the card that describes them may not
-  //     stand over the row while they fly. Flipping `resultsRevealed` is what puts the surface into READING
-  //     mode; the panel mounts and unfolds on the next tick, and the card's rows cascade inside it.
+  return at;
+}
+
+// ── ИТОГИ ──────────────────────────────────────────────────────────────────
+
+/** The results card REVEALS in its panel (the body swapped to it on the page turn): its rows cascade in. */
+function beatResults(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: number, runState: StageRun): number {
+  const root = ctx.root;
+  let at = 0;
   tl.call(() => {
     sittingMotion.resultsRevealed = true;
     void nextTick().then(() => probeTick(() => {
@@ -1019,8 +1351,7 @@ function beatResults(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: num
       });
     }));
   }, undefined, at);
-  // The panel's own unfold (0.3–0.4 s) plus the rows' cascade — the beat owns the whole reading handoff.
-  at += s(BODY_SWAP_MS + CLOSING_MS) * k;
+  at += s(CLOSING_MS) * k;
   return at;
 }
 
@@ -1043,8 +1374,12 @@ function settleStagePoses(stage: SittingStage): void {
     // The rail's held counters tick now — a reward whose beat cannot play is announced by its delta chip, never withheld.
     flushParliamentRewards('stage-settled');
     break;
-  case 'results':
+  case 'renewal':
+    // The table reads the live state at once: the live places, the piles' counts, the seats, the lobby.
     releaseRenewalHolds();
+    sittingMotion.renewal = undefined;
+    break;
+  case 'results':
     sittingMotion.resultsRevealed = true;
     break;
   }
@@ -1056,7 +1391,7 @@ function settleStagePoses(stage: SittingStage): void {
  * and returns the storyboard's arithmetic (seconds).
  */
 function runBeat(stage: SittingStage, beat: '' | 'agenda' | 'support' | 'enact', compact: boolean,
-  build: (tl: gsap.core.Timeline, runState: StageRun) => number): Promise<void> {
+  build: (tl: gsap.core.Timeline, runState: StageRun) => number, bounds: {ceilingMs?: number} = {}): Promise<void> {
   const master = gsap.timeline({paused: true});
   const runState: StageRun = {stage, master, hold: {release: () => undefined}, flights: new Set(), pending: 0, kills: [], finished: false};
   const total = build(master, runState);
@@ -1066,10 +1401,12 @@ function runBeat(stage: SittingStage, beat: '' | 'agenda' | 'support' | 'enact',
   run = runState;
   sittingMotion.beat = beat;
   runState.hold = beginAnimationHold(sittingHoldLabel(stage, beat), {
-    maxHoldMs: STAGE_HOLD_CEILING_MS,
+    maxHoldMs: bounds.ceilingMs ?? STAGE_HOLD_CEILING_MS,
     diagnose: () => ({stage, beat, flights: Array.from(runState.flights).filter((id) => flightRegistered(id)), waves: runState.pending, holds: {
       returns: parliamentHolds.returns.size, incoming: parliamentHolds.supportIncoming.size, support: parliamentHolds.support.size,
-      fresh: parliamentHolds.freshFaces.size, lobby: parliamentHolds.lobby.size, gov: parliamentHolds.govBefore !== undefined, ruler: parliamentHolds.rulerBefore,
+      fresh: parliamentHolds.freshFaces.size, cubes: parliamentHolds.hiddenCubes.size, lobby: parliamentHolds.lobby.size,
+      renewalReturns: parliamentHolds.renewalReturns.size, pile: parliamentHolds.pile, renewal: sittingMotion.renewal?.kind,
+      gov: parliamentHolds.govBefore !== undefined, ruler: parliamentHolds.rulerBefore,
     }}),
     expire: () => {
       if (run === runState) {
@@ -1160,6 +1497,10 @@ export async function playSittingStage(stage: SittingStage, beats: ReadonlyArray
   stagePlaying = stage;
   sittingMotion.stage = stage;
   hurry = false;
+  setParliamentFlightsHurried(false);
+  if (stage === 'renewal') {
+    sittingMotion.renewalDegraded = [];
+  }
   try {
     switch (stage) {
     case 'verdict':
@@ -1179,8 +1520,10 @@ export async function playSittingStage(stage: SittingStage, beats: ReadonlyArray
     case 'reward':
       await runBeat(stage, '', opts.compact, (tl, r) => beatReward(tl, ctx, k, r));
       break;
+    case 'renewal':
+      await runBeat(stage, '', opts.compact, (tl, r) => beatRenewal(tl, ctx, k, r), {ceilingMs: RENEWAL_HOLD_CEILING_MS});
+      break;
     case 'results':
-      sittingMotion.resultsRevealed = false;
       await runBeat(stage, '', opts.compact, (tl, r) => beatResults(tl, ctx, k, r));
       sittingMotion.resultsRevealed = true;
       break;
@@ -1202,6 +1545,8 @@ export async function playSittingStage(stage: SittingStage, beats: ReadonlyArray
  */
 export function finishSittingMotion(): void {
   hurry = true;
+  // …and every flight born from here on (a chained phrase, a launch that waited a tick) goes straight to rest.
+  setParliamentFlightsHurried(true);
   const current = run;
   if (current === undefined || current.finished) {
     return;
@@ -1222,6 +1567,8 @@ export function killSittingMotion(): void {
   sittingMotion.beat = '';
   sittingMotion.supportWave = '';
   sittingMotion.agendaSegment = undefined;
+  sittingMotion.renewal = undefined;
+  setParliamentFlightsHurried(false);
   if (current === undefined) {
     return;
   }

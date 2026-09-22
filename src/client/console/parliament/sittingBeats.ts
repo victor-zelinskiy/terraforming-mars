@@ -39,9 +39,9 @@ export type SittingBeatKind =
   | 'enact'
   /** ONE of the viewer's own outcomes: paid (its address), or skipped (its reason). */
   | 'reward'
-  /** The losers leave, three fresh resolutions are dealt (with the turn), support votes seat on them. */
+  /** THE RENEWAL'S TACT, played from the server's journal: the losers leave, the deck turns over, the fresh resolutions are dealt (with the turn), support votes seat on them. */
   | 'renewal'
-  /** Every free delegate returns to the lobby. */
+  /** Every free delegate returns to the lobby (the journal's last entries — the same tact). */
   | 'lobby'
   /** The compact results card. */
   | 'closing';
@@ -64,7 +64,7 @@ export type SittingBeat = {
 
 export type SittingBeatMode = 'live' | 'resume' | 'review';
 
-/** The stage each beat kind plays on — the storyboard's own mapping (v2: one enactment page, one results page). */
+/** The stage each beat kind plays on — the storyboard's own mapping (one enactment page, one RENEWAL page, one results page). */
 export function sittingBeatStage(kind: SittingBeatKind): SittingStage {
   switch (kind) {
   case 'verdict': return 'verdict';
@@ -73,12 +73,12 @@ export function sittingBeatStage(kind: SittingBeatKind): SittingStage {
   case 'enact': return 'enact';
   case 'reward': return 'reward';
   case 'renewal':
-  case 'lobby':
+  case 'lobby': return 'renewal';
   case 'closing': return 'results';
   }
 }
 
-const STAGE_ORDER: ReadonlyArray<SittingStage> = ['verdict', 'enact', 'reward', 'results'];
+const STAGE_ORDER: ReadonlyArray<SittingStage> = ['verdict', 'enact', 'reward', 'renewal', 'results'];
 
 /** Is `stage` BEFORE `current` in the sitting's order? */
 export function sittingStageBefore(stage: SittingStage, current: SittingStage): boolean {
@@ -119,10 +119,13 @@ export function sittingBeats(
     push('reward', {outcome, ...(delivery.skipped === undefined ? {} : {skipped: delivery.skipped})});
   }
   if (!summary.final) {
-    if (summary.refreshed.length > 0 || (summary.discarded?.length ?? 0) > 0) {
+    // THE RENEWAL IS ITS JOURNAL: one beat for every physical event but the lobby's (a save from before the
+    // journal still names its refresh in the flat lists — the beat then exists and settles the table at once).
+    const journal = summary.renewal ?? [];
+    if (journal.some((e) => e.kind !== 'lobby') || summary.refreshed.length > 0 || (summary.discarded?.length ?? 0) > 0) {
       push('renewal');
     }
-    if (summary.lobbyRefilled.length > 0) {
+    if (journal.some((e) => e.kind === 'lobby') || summary.lobbyRefilled.length > 0) {
       push('lobby');
     }
   }
@@ -133,17 +136,4 @@ export function sittingBeats(
 /** The beats of ONE stage (what the director plays when the page opens). */
 export function sittingBeatsOfStage(beats: ReadonlyArray<SittingBeat>, stage: SittingStage): Array<SittingBeat> {
   return beats.filter((b) => b.stage === stage);
-}
-
-/**
- * THE RETURNING CARDS of a refresh (final polish P-22 / P-28): with an empty deck the discard is
- * reshuffled and a loser can be dealt straight back — the summary then names ONE instance in
- * `discarded` AND in `refreshed`. Physically it never left the table: the renewal beat neither flies
- * it off nor deals it, its face is never a «fresh» (hidden) face, and the renewal page says it
- * stays (measured: the fresh-face hold hid both cards of the table under the skip plate for the
- * whole read, two empty frames beside the reward).
- */
-export function returningInstances(summary: {refreshed: ReadonlyArray<{instance: string}>, discarded?: ReadonlyArray<{instance: string}>}): Set<string> {
-  const dealt = new Set(summary.refreshed.map((f) => f.instance));
-  return new Set((summary.discarded ?? []).map((d) => d.instance).filter((instance) => dealt.has(instance)));
 }
