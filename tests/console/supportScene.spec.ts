@@ -95,6 +95,34 @@ describe('supportScene — the support step as objects on screen', () => {
     expect(scene.waves.map((w) => w.cubes.length)).deep.eq([1]);
   });
 
+  it('THE STARTING-RULE RULER HOLDS NO CARD: with no ruling party handed in, a ruler the server paid as absent is ABSENT — named by nobody, paid from the supply', () => {
+    // Generation 1 of a game with a fourth party on the table: the area is Unity / Mars / Industrialists, the
+    // Greens rule by the printed slot (no card) and the support step pays them as «not present on any card».
+    const D = 'RDX_UNITY_CLOUD_DEVELOPMENT#0';
+    const fourParties: ReadonlyArray<SupportSlot> = [slot(D, PartyName.UNITY), slot(B, PartyName.MARS), slot(C, PartyName.INDUSTRIALISTS)];
+    const scene = supportSceneOf(summary({
+      winner: {instance: B, resolution: 'RDX_MARS_ARCHITECTURE_AWARD', party: PartyName.MARS, votes: 1, player: 'neutral', slot: 1},
+      support: [
+        {party: PartyName.GREENS, gained: 1, total: 1, reason: 'absent'},
+        {party: PartyName.SCIENTISTS, gained: 1, total: 1, reason: 'absent'},
+        {party: PartyName.REDS, gained: 1, total: 1, reason: 'absent'},
+        {party: PartyName.UNITY, gained: 1, total: 1, reason: 'lost'},
+        {party: PartyName.INDUSTRIALISTS, gained: 1, total: 1, reason: 'lost'},
+      ],
+    }), fourParties, undefined);
+    const greens = scene.roll.find((e) => e.party === PartyName.GREENS);
+    expect(greens?.status, 'the office is not a card: the starting ruler is absent from the table').eq('absent');
+    expect(greens?.mark.kind, 'nothing on the table speaks for it — no government card to press').eq('none');
+    expect(scene.roll.filter((e) => e.status === 'ruling'), 'nobody rules by a card').deep.eq([]);
+    const wave = scene.waves.find((w) => w.party === PartyName.GREENS);
+    expect(wave?.status).eq('absent');
+    expect(wave?.cubes, 'one cube from the supply, like every absent party').deep.eq([{from: 'supply'}]);
+    // …and once a card rules (any later generation), the office IS named and never gains.
+    const later = supportSceneOf(summary({support: [{party: PartyName.GREENS, gained: 1, total: 1, reason: 'absent'}]}), fourParties, PartyName.GREENS);
+    expect(later.roll.find((e) => e.party === PartyName.GREENS)?.status, 'the card outranks the record').eq('ruling');
+    expect(later.waves.find((w) => w.party === PartyName.GREENS)).is.undefined;
+  });
+
   it('OVERFLOW is honest: a party the server could not pay (its places are full) still gets a cube — and it goes back', () => {
     const scene = supportSceneOf(summary({support: [
       {party: PartyName.MARS, gained: 0, total: 3, reason: 'lost'},

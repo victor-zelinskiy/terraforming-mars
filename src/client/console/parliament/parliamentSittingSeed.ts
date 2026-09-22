@@ -109,6 +109,9 @@ export function seedEnactmentHolds(beforeView: ParliamentViewVm, after: Parliame
   h.govBefore = {enacted: beforeView.enacted};
   h.govAwaits = after.enacted?.instance;
   h.rulerBefore = beforeView.rulingParty;
+  // Whether the old ruler ruled BY A CARD — generation 1's starting-rule Greens did not, and their plaque
+  // keeps its support sockets (the support step may pay them as «not present on any card»).
+  h.rulerBeforeByCard = beforeView.enacted !== undefined;
   h.questBefore = {quest: beforeView.quest, chairman: beforeView.chairman};
 }
 

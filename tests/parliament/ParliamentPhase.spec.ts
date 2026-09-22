@@ -17,6 +17,8 @@ import {IPlayer} from '../../src/server/IPlayer';
 import {PlayerId} from '../../src/common/Types';
 import {LogMessageType} from '../../src/common/logs/LogMessageType';
 import {ARCHITECTURE_AWARD_ID} from '../../src/server/parliament/resolutions/marsFirst/ArchitectureAward';
+import {CENTRAL_POWER_GRID_ID} from '../../src/server/parliament/resolutions/industrialists/CentralPowerGrid';
+import {CLOUD_DEVELOPMENT_ID} from '../../src/server/parliament/resolutions/unity/CloudDevelopment';
 import {PartyName} from '../../src/common/turmoil/PartyName';
 import {PARLIAMENT_VOTING_SLOTS, REDUX_PARTIES, resolutionInstanceId} from '../../src/common/parliament/ParliamentTypes';
 import {Phase} from '../../src/common/Phase';
@@ -30,6 +32,13 @@ import {testAutomaGame} from '../automa/AutomaTestGame';
 
 function reduxGame(): [IGame, TestPlayer, TestPlayer, Parliament] {
   const [game, p1, p2] = testGame(2, {turmoilReduxExpansion: true, coloniesExtension: true});
+  game.phase = Phase.ACTION;
+  return [game, p1, p2, game.parliament!];
+}
+
+/** A Redux game WITH Venus Next — the deck then holds a FOURTH party's card (Cloud Development, Unity). */
+function venusGame(): [IGame, TestPlayer, TestPlayer, Parliament] {
+  const [game, p1, p2] = testGame(2, {turmoilReduxExpansion: true, coloniesExtension: true, venusNextExtension: true});
   game.phase = Phase.ACTION;
   return [game, p1, p2, game.parliament!];
 }
@@ -200,21 +209,62 @@ describe('ParliamentPhase', () => {
    * the ruler's plaque hides its support sockets (`ConsolePartyPlaque.vue`), so a default ruler that can
    * actually hold a delegate needs that rule re-read.
    */
-  it('THE STARTING-RULE RULER holds a card in the generation-1 voting area, so the support step never pays it as absent', () => {
+  it('THE STARTING-RULE RULER: with three parties in the deck the Greens always hold a generation-1 card and are never paid as absent', () => {
     const [game, , , parliament] = reduxGame();
     expect(parliament.enacted, 'the ENACTED slot is empty before the first sitting').is.undefined;
     const ruler = parliament.rulingParty();
-    expect(parliament.partiesInVotingArea(),
-      `the starting-rule ruler (${ruler}) must be represented in the generation-1 area — a fourth party's ` +
-      'resolution would break that, and then a party with HIDDEN support sockets could be paid by wave 1')
-      .includes(ruler);
-
+    // A game WITHOUT Venus Next deals three parties (Greens, Mars First, the Industrialists), so the three
+    // generation-1 slots are those three and the starting ruler is always among them.
+    expect(parliament.partiesInVotingArea(), `the starting-rule ruler (${ruler}) is represented in a three-party area`).includes(ruler);
     for (let i = 0; i < parliament.slots.length; i++) {
       quiet(parliament, i);
     }
     endGenerationThroughParliament(game);
     const paidAsAbsent = (parliament.lastPhase?.support ?? []).find((entry) => entry.party === ruler && entry.reason === 'absent');
     expect(paidAsAbsent, `wave 1 paid the starting-rule ruler ${ruler}`).is.undefined;
+  });
+
+  /*
+   * …AND THE RULE ITSELF, READ LITERALLY, once a FOURTH party can be dealt (Cloud Development — Unity, Venus
+   * Next). The rulebook's support step pays «each party that is not present on any of the resolution cards»
+   * in the Voting Area or the Enacted slot (p.11; the areas on p.9 say the same), and the Greens rule
+   * generation 1 «if there is no card in the Enacted slot» (p.8): the printed slot is NOT a card. So a
+   * generation-1 area without a Greens card pays the Greens as ABSENT while they rule — the server's reading
+   * since the phase was written, now REACHABLE and pinned. The client answers it by the card, not the
+   * office: the ruler's plaque hides its sockets only when it rules BY AN ENACTED CARD
+   * (`ConsolePartyPlaque` § `rulesByCard`), so the starting ruler's stock is drawn in the government and the
+   * support wave lands there. From the first enactment on, ПРАВИТЕЛЬ БЕЗ ПОДДЕРЖКИ (above) holds as before.
+   */
+  it('THE STARTING-RULE RULER HOLDS NO CARD: a Venus game can deal a generation-1 area without the Greens, and the support step then pays them as ABSENT — the literal rule', () => {
+    const [game, , , parliament] = venusGame();
+    seatResolution(parliament, 0, CLOUD_DEVELOPMENT_ID);
+    seatResolution(parliament, 1, ARCHITECTURE_AWARD_ID);
+    seatResolution(parliament, 2, CENTRAL_POWER_GRID_ID);
+    expect(parliament.enacted).is.undefined;
+    expect(parliament.rulingParty(), 'the Greens rule by the starting rule').eq(PartyName.GREENS);
+    expect(parliament.partiesInVotingArea(), 'and hold no card').not.includes(PartyName.GREENS);
+    // Mars First wins on the neutral player's vote (a quiet card: the phase is the subject).
+    parliament.addNeutralVote(parliament.slots[1]);
+    endGenerationThroughParliament(game);
+    const summary = parliament.lastPhase!;
+    expect(summary.support.find((entry) => entry.party === PartyName.GREENS), 'the Greens are paid as a party not present on any card')
+      .deep.include({party: PartyName.GREENS, reason: 'absent', gained: 1});
+    expect(summary.support.map((entry) => entry.party), 'the three absent parties and the two losers, nobody twice')
+      .has.members([PartyName.GREENS, PartyName.SCIENTISTS, PartyName.REDS, PartyName.UNITY, PartyName.INDUSTRIALISTS]);
+    expect(summary.support.find((entry) => entry.party === PartyName.MARS), 'the winner\'s party gains nothing').is.undefined;
+    // The stock is real: it is either still in the Greens' places, or — the deck holds their three cards — it
+    // became votes on the Greens card the refresh dealt. Either way nothing of it was lost, and the NEW ruler
+    // (by a card now) holds nothing.
+    const dealtGreens = parliament.slots.find((slot) => parliament.resolutionOf(slot.instance).party === PartyName.GREENS);
+    if (dealtGreens === undefined) {
+      expect(parliament.popularSupportOf(PartyName.GREENS)).eq(1);
+    } else {
+      expect(parliament.popularSupportOf(PartyName.GREENS)).eq(0);
+      expect(parliament.neutralVotes(dealtGreens), 'the Greens\' stock became votes on their fresh card').eq(1);
+    }
+    expect(parliament.rulingParty()).eq(PartyName.MARS);
+    expect(parliament.popularSupportOf(PartyName.MARS)).eq(0);
+    parliament.assertLedger(game);
   });
 
   it('a neutral winner moves no Agenda and the second Agenda step pays 1 TR', () => {

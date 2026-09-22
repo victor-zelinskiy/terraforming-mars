@@ -33,6 +33,7 @@
                               :formula="true"
                               :focused="focusedIndex === i"
                               :ruling="p.party === rulerSettled"
+                              :rulesByCard="rulerSettledByCard"
                               :roll="rollWord(p.party)"
                               :reason="focusedIndex === i ? partyLine : ''"
                               :reasonTone="partyLineTone" />
@@ -106,6 +107,20 @@ export default defineComponent({
      */
     rulerSettled(): ReduxParty {
       return parliamentHolds.rulerSettling ?? this.rulerShown;
+    },
+    /**
+     * …AND WHETHER THAT SETTLED RULER RULES BY AN ENACTED CARD — the fact the support sockets stand on.
+     * While the old ruler is still shown or still in the air, the answer is the OLD government's (seeded
+     * with the sitting: `rulerBeforeByCard`); at rest it is the live one. Generation 1's starting-rule
+     * Greens are the one ruler without a card: their sockets stay drawn, and the support step's cube for
+     * them lands there.
+     */
+    rulerSettledByCard(): boolean {
+      const holds = parliamentHolds;
+      if (holds.rulerBefore !== undefined || holds.rulerSettling !== undefined) {
+        return holds.rulerBeforeByCard ?? true;
+      }
+      return this.view.enacted !== undefined;
     },
     /** The focused tile's index in `view.parties`: the row's cursor, or the ruler when the government's tile is the focus zone. */
     focusedIndex(): number {

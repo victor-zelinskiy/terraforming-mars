@@ -544,7 +544,13 @@ function beatSupport(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: num
   const holds = parliamentHolds;
   const root = ctx.root;
   const slots = (holds.heldSlots ?? ctx.view.slots).map((slot) => ({instance: slot.instance, party: slot.party}));
-  const scene = supportSceneOf(ctx.summary, slots, holds.rulerBefore ?? ctx.view.rulingParty);
+  // THE GOVERNMENT SPEAKS ONLY THROUGH A CARD. The scene's «ruling» mark is the enacted card's party
+  // (rulebook p.11: the support step reads the parties «present on any card in the Voting Area or
+  // Enacted slot»); generation 1's starting-rule Greens hold NO card, so the government marks nothing
+  // for them, and the server's «absent» record pays them a cube from the supply like any other absent
+  // party — onto the sockets their plaque keeps in the government (`rulesByCard`).
+  const rulerByCard = holds.rulerBefore !== undefined ? holds.rulerBeforeByCard === true : ctx.view.enacted !== undefined;
+  const scene = supportSceneOf(ctx.summary, slots, rulerByCard ? (holds.rulerBefore ?? ctx.view.rulingParty) : undefined);
   const waves = scene.waves.filter((wave) => wave.overflow === true || (holds.supportIncoming.get(wave.party) ?? 0) > 0);
   if (waves.length === 0) {
     tl.call(() => holds.supportIncoming.clear(), undefined, 0.01);
@@ -601,6 +607,7 @@ function flipPlaques(runState: StageRun, root: HTMLElement, before: Map<string, 
     // …and the two plaques ARRIVE: only now does each take the state of the place it landed in (the
     // ruler's tile loses its support sockets here, the descending one gets them back — never in flight).
     parliamentHolds.rulerSettling = undefined;
+    parliamentHolds.rulerBeforeByCard = undefined;
   };
   for (const el of itemsOf(root, '.con-parl__party[data-party]')) {
     const from = before.get(el.getAttribute('data-party') ?? '');
@@ -733,6 +740,7 @@ function beatEnactMove(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: n
   tl.call(() => {
     if (!rulerChanges || runState.finished) {
       holds.rulerBefore = undefined;
+      holds.rulerBeforeByCard = undefined;
       holds.rulerSettling = undefined;
       return;
     }

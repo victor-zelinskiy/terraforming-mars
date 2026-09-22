@@ -104,6 +104,15 @@ export type ParliamentDisplayHolds = {
   /** The old RULING PARTY, until the plaques have changed places. */
   rulerBefore: ReduxParty | undefined;
   /**
+   * …AND WHETHER THAT OLD RULER RULED BY AN ENACTED CARD. The one ruler that does not is generation 1's
+   * starting-rule Greens (an empty ENACTED slot — rulebook p.8): a party the support step MAY pay as
+   * «not present on any card» (p.11), and whose plaque therefore keeps its support sockets while it
+   * stands in the government. The tile keeps the state of the place it LEFT until the swap has settled
+   * (`rulerSettling`), so the fact travels with it; cleared with the settle. `undefined` outside a seeded
+   * sitting (the live model answers then: the government holds a card, or it does not).
+   */
+  rulerBeforeByCard: boolean | undefined;
+  /**
    * THE OLD RULING PARTY WHILE ITS PLAQUE IS STILL IN THE AIR. `rulerBefore` has to be released one frame
    * BEFORE the flight (the FLIP measures the tiles in their NEW places and inverts them back), so it
    * cannot say what a travelling tile should LOOK like. This can: until the swap has settled, each of the
@@ -121,7 +130,7 @@ export function emptyParliamentHolds(): ParliamentDisplayHolds {
     returns: new Map(), support: new Map(), supportIncoming: new Map(), rollStatus: new Map(), hiddenCubes: new Set(), lobby: new Set(), freshFaces: new Set(),
     pile: undefined, renewalReturns: new Map(), departed: new Set(), renewalSeeded: false,
     govAwaits: undefined, parked: undefined, heldSlots: undefined, vacated: new Set(), liftedFaces: new Set(), winnerSlot: undefined,
-    agendaAwaits: undefined, chairAwaits: undefined, govBefore: undefined, rulerBefore: undefined, rulerSettling: undefined, questBefore: undefined,
+    agendaAwaits: undefined, chairAwaits: undefined, govBefore: undefined, rulerBefore: undefined, rulerBeforeByCard: undefined, rulerSettling: undefined, questBefore: undefined,
   };
 }
 
@@ -155,6 +164,7 @@ export function releaseEnactmentHolds(): void {
   h.agendaAwaits = undefined;
   h.govBefore = undefined;
   h.rulerBefore = undefined;
+  h.rulerBeforeByCard = undefined;
   h.rulerSettling = undefined;
   h.questBefore = undefined;
   h.liftedFaces.clear();

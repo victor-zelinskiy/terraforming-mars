@@ -5,12 +5,15 @@ import {IGame} from '../../src/server/IGame';
 import {Parliament} from '../../src/server/parliament/Parliament';
 import {SerializedPhaseSummary, SerializedRenewalEvent} from '../../src/server/parliament/SerializedParliament';
 import {getParliamentModel} from '../../src/server/parliament/ParliamentModel';
-import {answerStandingGates, endGenerationThroughParliament, passToParliament, REDS_STAND_IN, SCIENTISTS_STAND_IN, seatQuiet, settleParliamentGates} from './parliamentArrange';
+import {answerStandingGates, endGenerationThroughParliament, passToParliament, REDS_STAND_IN, SCIENTISTS_STAND_IN, seatQuiet, seatResolution, settleParliamentGates} from './parliamentArrange';
 import {PartyName} from '../../src/common/turmoil/PartyName';
 import {Phase} from '../../src/common/Phase';
 import {ReduxParty, ResolutionInstanceId, resolutionInstanceId} from '../../src/common/parliament/ParliamentTypes';
 import {BIODOME_CONTEST_ID} from '../../src/server/parliament/resolutions/greens/BiodomeContest';
 import {CLIMATE_RESEARCH_ID} from '../../src/server/parliament/resolutions/greens/ClimateResearch';
+import {CLOUD_DEVELOPMENT_ID} from '../../src/server/parliament/resolutions/unity/CloudDevelopment';
+import {ARCHITECTURE_AWARD_ID} from '../../src/server/parliament/resolutions/marsFirst/ArchitectureAward';
+import {CENTRAL_POWER_GRID_ID} from '../../src/server/parliament/resolutions/industrialists/CentralPowerGrid';
 import {maxOutOceans, runAllActions, setOxygenLevel, setTemperature} from '../TestingUtils';
 import {SelectSpace} from '../../src/server/inputs/SelectSpace';
 import {SelectCard} from '../../src/server/inputs/SelectCard';
@@ -38,6 +41,9 @@ const I = PartyName.INDUSTRIALISTS;
 const instance = (id: string): ResolutionInstanceId => resolutionInstanceId(id, 0);
 const BIODOME = instance(BIODOME_CONTEST_ID);
 const CLIMATE = instance(CLIMATE_RESEARCH_ID);
+const CLOUD = instance(CLOUD_DEVELOPMENT_ID);
+const ARCHITECTURE = instance(ARCHITECTURE_AWARD_ID);
+const GRID = instance(CENTRAL_POWER_GRID_ID);
 const REDS = instance(REDS_STAND_IN);
 const SCIENTISTS = instance(SCIENTISTS_STAND_IN);
 
@@ -51,6 +57,20 @@ function table(): Table {
   for (let i = 0; i < parliament.slots.length; i++) {
     seatQuiet(parliament, i);
   }
+  return {game, p1, p2, parliament};
+}
+
+/**
+ * …and the FOUR-PARTY table of a Venus game (Cloud Development is Unity's): the generation-1 area is Unity /
+ * Mars First / the Industrialists, the Greens rule by the starting rule and their three cards make the deck.
+ */
+function fourPartyTable(): Table {
+  const [game, p1, p2] = testGame(2, {turmoilReduxExpansion: true, coloniesExtension: true, venusNextExtension: true});
+  game.phase = Phase.ACTION;
+  const parliament = game.parliament!;
+  seatResolution(parliament, 0, CLOUD);
+  seatResolution(parliament, 1, ARCHITECTURE);
+  seatResolution(parliament, 2, GRID);
   return {game, p1, p2, parliament};
 }
 
@@ -388,6 +408,43 @@ describe('ParliamentPhase — the renewal JOURNAL (the small deck\'s seven scena
     expect(summary.renewal, 'the final sitting writes no renewal').is.undefined;
     expect(summary.refreshed).deep.eq([]);
     expect(summary.lobbyRefilled).deep.eq([]);
+  });
+
+  it('8 · FOUR PARTIES (a Venus game): the Greens hold no generation-1 card and rule by the starting rule — paid as absent, dealt in off the deck, their second card refused for the area, the losers back off the reshuffled discard', () => {
+    const t = fourPartyTable();
+    const {parliament, p1} = t;
+    expect(parliament.rulingParty(), 'the starting rule').eq(PartyName.GREENS);
+    expect(parliament.partiesInVotingArea(), 'and no Greens card on the table').not.includes(PartyName.GREENS);
+    // Unity wins on p1's vote; the deck is two of the Greens' three cards, nothing in the discard.
+    parliament.placeVote(p1, parliament.slots[slotOfParty(parliament, PartyName.UNITY)], 'lobby');
+    parliament.deck = [BIODOME, CLIMATE];
+    parliament.discard = [];
+    const losers = parliament.slots.filter((s) => parliament.resolutionOf(s.instance).party !== PartyName.UNITY).map((s) => s.instance);
+    const {journal, summary} = sit(t);
+    // The literal rule, from the renewal's side: the office is not a card, so the Greens were paid with the absent parties…
+    expect(summary.support.find((entry) => entry.party === PartyName.GREENS)).deep.include({reason: 'absent', gained: 1});
+    // …and that one cube seats on their card the moment it is dealt (slot 0, straight off the deck).
+    expect(moves(journal)).deep.eq(['leave', 'leave', 'deal', 'reject', 'reshuffle', 'deal', 'deal', 'lobby']);
+    expect(kinds(journal).slice(2, 4)).deep.eq(['deal', 'support']);
+    const first = journal.find((e) => e.kind === 'deal') as {instance: string, slot: number, source: string};
+    expect(first).deep.include({instance: BIODOME, slot: 0, source: 'deck'});
+    const seated = journal.find((e) => e.kind === 'support') as {party: string, instance: string, count: number};
+    expect(seated).deep.include({party: PartyName.GREENS, instance: BIODOME, count: 1});
+    // The second Greens card is refused for the area (never for the office); the deck is then empty, so the
+    // two losers turn over MID-DEAL — the refused card is held aside and is not among them.
+    const reject = journal.find((e) => e.kind === 'reject') as {instance: string, slot: number, reason: string};
+    expect(reject).deep.include({instance: CLIMATE, slot: 1, reason: 'party-in-area'});
+    expect((journal.find((e) => e.kind === 'reshuffle') as {size: number}).size, 'the two losers, and nothing else').eq(2);
+    const dealt = journal.filter((e) => e.kind === 'deal') as Array<{instance: string, slot: number, source: string}>;
+    expect(dealt.slice(1).map((d) => d.source)).deep.eq(['reshuffled', 'reshuffled']);
+    expect(new Set(dealt.slice(1).map((d) => d.instance)), 'the very cards that left').deep.eq(new Set(losers));
+    expect(parliament.discard, 'the refused card joins the discard once the draw is over').deep.eq([CLIMATE]);
+    // The table the sitting leaves: Unity rules BY A CARD now and holds nothing; the Greens' stock is votes.
+    expect(parliament.enacted).eq(CLOUD);
+    expect(parliament.rulingParty()).eq(PartyName.UNITY);
+    expect(parliament.popularSupportOf(PartyName.UNITY)).eq(0);
+    expect(parliament.popularSupportOf(PartyName.GREENS)).eq(0);
+    expect(parliament.neutralVotes(parliament.slots[0])).eq(1);
   });
 
   it('the wire carries the journal with resolutions and colours resolved — one event per record, in order', () => {

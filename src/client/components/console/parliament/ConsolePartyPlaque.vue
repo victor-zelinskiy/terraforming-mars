@@ -112,13 +112,18 @@
                 `ParliamentPhase.spec.ts` § ПРАВИТЕЛЬ БЕЗ ПОДДЕРЖКИ);
              ③ whatever it had accumulated was zeroed by `moveSupportToSlot` the moment its card entered
                 the area and the stock became instant votes.
-           (The one party that rules WITHOUT an enacted card is the starting-rule Greens of generation 1,
-           whom the server may pay as «absent»; the sitting's own hold keeps that cube off the plaque
-           until the tile has descended into the row, so the ruler's slot has nothing to show there
-           either.) The same rule keeps the ruling party out of the results panel's support row. -->
+           THE ONE PARTY THAT RULES WITHOUT AN ENACTED CARD is the starting-rule Greens of generation 1
+           (rulebook p.8: an empty ENACTED slot). The rule is the CARD's, not the office's: the support
+           step pays every party «not present on any card in the Voting Area or Enacted slot» (p.11), and
+           a printed slot is not a card — so once a fourth party's resolution can leave the Greens out of
+           the generation-1 area, the server pays them as absent while they still rule. Their plaque
+           therefore KEEPS its sockets and its stock in the government (`rulesByCard` false — the host
+           reads it off the enacted card, lagging the swap exactly as `ruling` does), and the sitting's
+           support wave lands there. The same rule keeps the ENACTED CARD's party — never the office — out
+           of the results panel's support row. -->
       <span v-if="support !== undefined" class="con-pseal__support"
-            :class="{'con-pseal__support--void': ruling}"
-            :data-support="support" :data-parl-support="party" aria-hidden="true">
+            :class="{'con-pseal__support--void': ruling && rulesByCard}"
+            :data-support="support" :data-parl-support="party" :data-support-void="ruling && rulesByCard ? '' : undefined" aria-hidden="true">
         <span v-for="n in 3" :key="n" class="con-pseal__support-place" :class="{'con-pseal__support-place--on': n <= support}" :data-support-place="n">
           <PlayerCube v-if="n <= support" color="neutral" steel :size="supportCubePx" :glow="false" />
         </span>
@@ -170,6 +175,12 @@ export default defineComponent({
      * passes «the ruler as settled», so a plaque changes state in the frame it arrives, never in flight.
      */
     ruling: {type: Boolean, default: false},
+    /**
+     * The ruler's state is BY AN ENACTED CARD — the sockets are void (its stock can never be anything but
+     * zero). False for the one ruler without a card, generation 1's starting-rule Greens, whose sockets
+     * and stock stay drawn in the government. Read with `ruling`, lagging the swap the same way.
+     */
+    rulesByCard: {type: Boolean, default: true},
     /** The roll call's word for this party while the support scene runs (v3 В3) — it takes the state row in place of the live state. */
     roll: {type: String, default: ''},
   },
