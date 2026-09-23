@@ -9439,57 +9439,7 @@ export default defineComponent({
       if (live || !was) {
         return;
       }
-      // A visit the PLAYER made stays exactly where it is; a frame the PROMPT
-      // pushed hands the screen back once its demand is met. That distinction
-      // is the frame's own anchor, not a flag somebody has to clear.
-      if (workspaceFrameAnchor('colonies')?.type !== 'prompt') {
-        return;
-      }
-      const host = workspaceFrameHost('colonies');
-      // THE COMPLETION SETTLE (standalone only). Popping on the same frame the
-      // last physical change lands means the player never sees what it was: the
-      // cube had only just seated. The section owns the dwell, then hands the
-      // screen forward through `flow-complete`.
-      const section = this.$refs.coloniesSection as InstanceType<typeof ConsoleColoniesSection> | undefined;
-      if (host === undefined && this.colonyFocus.open && section !== undefined) {
-        section.completeFlow();
-        return;
-      }
-      // The focus stage (if the follow-up resolved on it) folds with the step —
-      // the parent continuation gets a clean surface back.
-      closeColonyFocus();
-      leaveWorkspace();
-      // WHAT THE UNCOVERED HOST DOES NEXT. Not a latch table: each of these is a
-      // genuinely different completion, and every one of them is now a plain
-      // question about the frame that came back.
-      if (host === 'hand') {
-        // THE CARD-PLAY STEP IS OVER — its only remaining business WAS this
-        // colony. It ends through the play's ONE guarded ending, which is what
-        // makes the two shapes one call: hosted (`start ⊃ hand`) the hand step
-        // leaves and the deployment gets its screen back exactly where it
-        // stopped; standing alone there is nothing left to show and it goes
-        // home. And it still HOLDS if this play ALSO drew cards — the colony
-        // was one of two things it owed. (The played hero's own closing beat
-        // does this when no colony was involved — same ending, one beat
-        // earlier.)
-        this.endPlayCardFlow();
-      } else if (host === 'card-actions') {
-        // The activation's follow-up is done — the action workspace folds the
-        // way every completed action does.
-        this.foldWorkspaceAfterResult();
-      } else if (host === 'parliament') {
-        // THE SITTING'S COLONY STEP IS OVER (Colony Contest): the winner's free
-        // colony stands, its build chain (the cube's flight, the tile's own
-        // bonus) has finished, and the frame above was just popped. That is
-        // ALL the shell does here. The Parliament is not a card play — it is
-        // neither concluded nor folded nor collapsed by a step's end: the
-        // section reads the frame's departure itself (`stepFrameNested`
-        // falling — the stage's door closes, the hero card folds home) and
-        // continues its own walk from the reward page («получено» → the
-        // renewal → the results); the sitting ends only through its own gate
-        // («Закрыть заседание»), never through a pop.
-        consoleParliamentUi.stepFrameLeftAt = Date.now();
-      }
+      this.settleColonyFollowUp();
     },
     // THE STRANDED-COLONY SELF-HEAL: a live SelectColony that no frame serves
     // degrades to the STANDALONE colonies — never to a prompt with no surface.
@@ -11381,6 +11331,78 @@ export default defineComponent({
      * anchor is what later says «the demand brought the player here, so hand the
      * screen back when it is met».
      */
+    /**
+     * THE COLONY FOLLOW-UP IS OVER — the prompt answered, the build's cube landed, the payout's last leg done: a frame
+     * the PROMPT pushed hands the screen back to whatever hosted it. Called on the falling edge of `colonyFollowUpLive`
+     * and — the one case that edge cannot see — after a yielded stack comes BACK from the board with the follow-up
+     * already over (Europa's build ocean inside the sitting: the frame was aside while its chain ended).
+     */
+    settleColonyFollowUp(): void {
+      // A visit the PLAYER made stays exactly where it is; a frame the PROMPT
+      // pushed hands the screen back once its demand is met. That distinction
+      // is the frame's own anchor, not a flag somebody has to clear.
+      if (workspaceFrameAnchor('colonies')?.type !== 'prompt') {
+        return;
+      }
+      const host = workspaceFrameHost('colonies');
+      // THE COMPLETION SETTLE (standalone only). Popping on the same frame the
+      // last physical change lands means the player never sees what it was: the
+      // cube had only just seated. The section owns the dwell, then hands the
+      // screen forward through `flow-complete`.
+      const section = this.$refs.coloniesSection as InstanceType<typeof ConsoleColoniesSection> | undefined;
+      if (host === undefined && this.colonyFocus.open && section !== undefined) {
+        section.completeFlow();
+        return;
+      }
+      // The focus stage (if the follow-up resolved on it) folds with the step —
+      // the parent continuation gets a clean surface back.
+      closeColonyFocus();
+      leaveWorkspace();
+      // WHAT THE UNCOVERED HOST DOES NEXT. Not a latch table: each of these is a
+      // genuinely different completion, and every one of them is now a plain
+      // question about the frame that came back.
+      if (host === 'hand') {
+        // THE CARD-PLAY STEP IS OVER — its only remaining business WAS this
+        // colony. It ends through the play's ONE guarded ending, which is what
+        // makes the two shapes one call: hosted (`start ⊃ hand`) the hand step
+        // leaves and the deployment gets its screen back exactly where it
+        // stopped; standing alone there is nothing left to show and it goes
+        // home. And it still HOLDS if this play ALSO drew cards — the colony
+        // was one of two things it owed. (The played hero's own closing beat
+        // does this when no colony was involved — same ending, one beat
+        // earlier.)
+        this.endPlayCardFlow();
+      } else if (host === 'card-actions') {
+        // The activation's follow-up is done — the action workspace folds the
+        // way every completed action does.
+        this.foldWorkspaceAfterResult();
+      } else if (host === 'parliament') {
+        // THE SITTING'S COLONY STEP IS OVER (Colony Contest): the winner's free
+        // colony stands, its build chain (the cube's flight, the tile's own
+        // bonus) has finished, and the frame above was just popped. That is
+        // ALL the shell does here. The Parliament is not a card play — it is
+        // neither concluded nor folded nor collapsed by a step's end: the
+        // section reads the frame's departure itself (`stepFrameNested`
+        // falling — the stage's door closes, the hero card folds home) and
+        // continues its own walk from the reward page («получено» → the
+        // renewal → the results); the sitting ends only through its own gate
+        // («Закрыть заседание»), never through a pop.
+        consoleParliamentUi.stepFrameLeftAt = Date.now();
+      }
+    },
+    /**
+     * The board's business is done and the yielded stack comes back at the same depth — and a colony follow-up
+     * that ENDED while the stack was aside (the build's own ocean, placed on the board) is settled at once: its
+     * falling edge fired against a stack that held no frames, so nothing else will pop the frame.
+     */
+    resumeStackFromBoardAndSettle(): void {
+      if (!resumeStackFromBoard()) {
+        return;
+      }
+      if (!this.colonyFollowUpLive) {
+        this.settleColonyFollowUp();
+      }
+    },
     openColoniesForPrompt(): void {
       if (this.restoreParkedWorkspace('colonies')) {
         return;
@@ -17369,7 +17391,7 @@ export default defineComponent({
       // the board watchable), so the wait resolves on the story's own end;
       // the shared 8 s cap bounds a wedged story to seconds, never the flow.
       if (!boardStorySettling()) {
-        resumeStackFromBoard();
+        this.resumeStackFromBoardAndSettle();
         return;
       }
       void waitBoardStoryQuiet({
@@ -17378,7 +17400,7 @@ export default defineComponent({
         if (!stackYieldedToBoard() || this.placementActive) {
           return;
         }
-        resumeStackFromBoard();
+        this.resumeStackFromBoardAndSettle();
       });
     },
     /**

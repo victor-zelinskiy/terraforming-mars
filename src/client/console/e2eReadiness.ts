@@ -28,7 +28,7 @@
  */
 import {activeAnimationHoldLabels} from '@/client/components/presentation/animationHold';
 import {transportDiagFacts} from '@/client/console/transport/gameTransport';
-import {workspaceStackDepth} from '@/client/console/consoleWorkspaceStack';
+import {stackYieldedToBoard, workspaceStackDepth} from '@/client/console/consoleWorkspaceStack';
 import {notificationsSettled} from '@/client/components/notifications/notificationState';
 import {InputEchoSnapshot, inputEchoSnapshot} from '@/client/console/inputEcho';
 import {parliamentRewardDiag} from '@/client/console/parliament/parliamentRewardBeat';
@@ -40,6 +40,8 @@ export type ConsoleReadinessSnapshot = {
   holds: Array<string>;
   transport: ReturnType<typeof transportDiagFacts>;
   wsDepth: number;
+  /** The workspace stack stands ASIDE for a board placement (its frames wait to come back at the same depth). */
+  wsYielded: boolean;
   notificationsSettled: boolean;
   /** The parliament's reward ledger — what the sitting still owes and what it did with each record (Turmoil Redux). */
   parliamentReward: ReturnType<typeof parliamentRewardDiag>;
@@ -54,6 +56,7 @@ export function consoleReadinessSnapshot(): ConsoleReadinessSnapshot {
     holds: activeAnimationHoldLabels(),
     transport: transportDiagFacts(),
     wsDepth: workspaceStackDepth(),
+    wsYielded: stackYieldedToBoard(),
     notificationsSettled: notificationsSettled(),
     parliamentReward: parliamentRewardDiag(),
     cardBonus: boardCardBonusDiag(),

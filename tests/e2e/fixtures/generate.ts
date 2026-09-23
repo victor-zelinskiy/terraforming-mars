@@ -82,9 +82,12 @@ import {CLOUD_DEVELOPMENT_ID} from '../../../src/server/parliament/resolutions/u
 import {COLONIZATION_FUNDING_ID} from '../../../src/server/parliament/resolutions/unity/ColonizationFunding';
 import {SpaceName} from '../../../src/common/boards/SpaceName';
 import {COLONIAL_AFFAIRS_ID} from '../../../src/server/parliament/resolutions/unity/ColonialAffairs';
+import {COLONY_CONTEST_ID} from '../../../src/server/parliament/resolutions/unity/ColonyContest';
 import {IColony} from '../../../src/server/colonies/IColony';
 import {Luna} from '../../../src/server/colonies/Luna';
 import {Titan} from '../../../src/server/colonies/Titan';
+import {Europa} from '../../../src/server/colonies/Europa';
+import {Callisto} from '../../../src/server/colonies/Callisto';
 import {Miranda} from '../../../src/server/colonies/Miranda';
 import {Pluto} from '../../../src/server/colonies/Pluto';
 import {ColonyName} from '../../../src/common/colonies/ColonyName';
@@ -991,6 +994,40 @@ const colonialTable = (stopAt: ParliamentStop, expect?: (table: ParliamentTable)
 parliamentFixture('parliament-colonial-vote', colonialTable('vote'));
 // The sitting has just convened: the ASSEMBLY gate stands for both seats — the e2e walks the whole reward stage from here.
 parliamentFixture('parliament-colonial-assembly', colonialTable('assembly'));
+
+// ── RX09 · COLONY CONTEST — the winner's FREE COLONY as the sitting's own step. Blue's delegate on the card, blue at
+//    Agenda step 2 (the winner's step → 3 = influence 2: 2 titanium), red at step 1 (influence 1: 1 titanium). The
+//    table: Luna (open, a quiet build bonus), TITAN (activated, open — the interactive bonus: 3 floaters onto one of
+//    blue's TWO holders, Atmo Collectors / Jovian Lanterns → the recipient pick inside the colonies), EUROPA (open —
+//    the build's ocean: the board chain), Callisto with red's cube. ──
+const colonyContestTable = (stopAt: ParliamentStop): ParliamentFixtureSpec => ({
+  resolution: COLONY_CONTEST_ID,
+  votes: [0],
+  agenda: [2, 1],
+  stopAt,
+  arrange: ({game, p1, p2}) => {
+    const owned = (colony: IColony, owners: ReadonlyArray<TestPlayer>): IColony => {
+      colony.isActive = true;
+      colony.colonies = owners.map((p) => p.id);
+      return colony;
+    };
+    game.colonies = [owned(new Luna(), []), owned(new Titan(), []), owned(new Europa(), []), owned(new Callisto(), [p2])];
+    p1.playedCards.push(new AtmoCollectors(), new JovianLanterns());
+  },
+  expect: ({game, p1}) => {
+    const names = game.colonies.map((c) => c.name);
+    if (JSON.stringify(names) !== JSON.stringify([ColonyName.LUNA, ColonyName.TITAN, ColonyName.EUROPA, ColonyName.CALLISTO])) {
+      throw new Error(`the parliament-colony fixture (${stopAt}) expected the four arranged tiles, got ${names.join(', ')}`);
+    }
+    if (game.colonies.some((c) => c.colonies.includes(p1.id))) {
+      throw new Error(`the parliament-colony fixture (${stopAt}) expected blue on no tile yet`);
+    }
+    if (!p1.tableau.has(CardName.ATMO_COLLECTORS) || !p1.tableau.has(CardName.JOVIAN_LANTERNS)) {
+      throw new Error(`the parliament-colony fixture (${stopAt}) expected two floater holders for Titan's recipient pick`);
+    }
+  },
+});
+parliamentFixture('parliament-colony-assembly', colonyContestTable('assembly'));
 
 // ── RX03 · BIODOME CONTEST — a 2-seat table with the card alone in the first
 //    voting slot and blue's free delegate on it: blue at Agenda step 2

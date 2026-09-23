@@ -2302,6 +2302,8 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'hydro-terminal'
   'parliament-climate-vote-raise' | 'parliament-climate-cardstep' | 'parliament-biodome-nocell-assembly' | 'parliament-aquifer-assembly-six' | 'parliament-powergrid-vote-cap' |
   // RX07 Colonial Affairs: the arranged colony table (Luna · Titan · Miranda · Pluto) at the vote and at gate 1.
   'parliament-colonial-vote' | 'parliament-colonial-assembly' |
+  // RX09 Colony Contest: the winner's free colony as the sitting's own step (Titan / Europa open on the table) at gate 1.
+  'parliament-colony-assembly' |
   // The SITTING's gates (Э1): the phase stopped at gate 1 (`-assembly`) / gate 2 (`-adjourn`) for both seats.
   'parliament-aquifer-assembly' | 'parliament-aquifer-adjourn' | 'parliament-architecture-assembly' | 'parliament-architecture-adjourn' | 'parliament-support-stock' |
   // «Обновление» scenario 2: an EMPTY deck, both losers dealt straight back after the reshuffle, a delegate on a loser.

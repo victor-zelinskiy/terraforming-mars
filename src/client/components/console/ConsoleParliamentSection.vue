@@ -192,7 +192,7 @@ import {
 import {BenchSource, benchSourceOf, benchWarnOf} from '@/client/console/parliament/parliamentVoteView';
 import {
   setWorkspaceFramePhase, setWorkspaceFrameSlot, setWorkspaceFrameStage, setWorkspaceFrameSubject, workspaceFrameAnchor,
-  workspaceFrameHasNested, workspaceFrameRenders, workspaceHostYieldsScene,
+  workspaceFrameHasNested, workspaceFrameRenders, workspaceHostYieldsScene, workspaceStackCrumb,
 } from '@/client/console/consoleWorkspaceStack';
 import {translateText} from '@/client/directives/i18n';
 import {promptIdentityKey} from '@/client/console/turnIntents';
@@ -440,6 +440,16 @@ export default defineComponent({
       const p = this.sitting;
       if (p === undefined) {
         return '';
+      }
+      // A hosted step that is a workspace FRAME (the hand's discard, the colonies of the winner's free colony)
+      // names the tail for as long as it stands — its own stage, which only ever advances («КОЛОНИИ» → the
+      // colony picked up → its build), and which outlives the server's answer: the position reads «received»
+      // the moment the pick is answered, while the cube is still flying inside the frame.
+      if (this.stepFrameNested) {
+        const nested = workspaceStackCrumb()?.stage;
+        if (nested !== undefined && nested !== '') {
+          return nested;
+        }
       }
       const step = SITTING_HOSTED_STEPS.has(p.rewardStep) && !this.sittingStepOpen ? 'received' : p.rewardStep;
       return sittingStageKey(this.sittingStage, step);
@@ -1345,10 +1355,13 @@ export default defineComponent({
       if (ledgerRead) {
         this.ledgerReadOwed = true;
       }
-      // A hosted FRAME still standing in the zone (the colonies of the winner's free colony — the server moved
+      // A hosted FRAME still standing IN THE OPEN ZONE (the colonies of the winner's free colony — the server moved
       // to the adjourn gate the moment the pick was answered, the cube is still flying) seats the walk on the
-      // reward page too: the step is where the player is, and the page holds until the frame has left.
-      parliamentFlow.sittingPage = sittingStartPage(position, (stage) => sittingStagePlayed(key, stage), ledgerRead || this.stepFrameNested);
+      // reward page too: the step is where the player is, and the page holds until the frame has left. The door
+      // must have been OPEN (`stepOpenMirror`): the frame is pushed the moment its prompt is admitted — in the very
+      // update that brings the enactment — and a frame merely PUSHED must not skip the enactment's own beats.
+      const hostedFrameStands = this.stepOpenMirror && this.stepFrameNested;
+      parliamentFlow.sittingPage = sittingStartPage(position, (stage) => sittingStagePlayed(key, stage), ledgerRead || hostedFrameStands);
       this.queueWalk();
     },
     // ── the director's walk ─────────────────────────────────────────────

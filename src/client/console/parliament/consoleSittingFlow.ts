@@ -101,13 +101,15 @@ export const SITTING_HOSTED_STEPS: ReadonlySet<SittingRewardStep> = new Set<Sitt
  * the colonies after the winner's pick was answered — its build scene flying the cube, the tile's own bonus
  * asking where the floaters go — while the server's position already reads «received». A host may not drop
  * its zone under a step standing in it (the stack's own law), so the field and the door stay open until the
- * frame has LEFT; the walk holds the page for the same reason (`mayLeave`).
+ * frame has LEFT; the walk holds the page for the same reason (`mayLeave`). The frame is PUSHED the moment the
+ * prompt is admitted — before the wave that arrived with it has flown — so `hosting` never opens the door on its
+ * own: the wave still comes first (measured: the grid stood 2.4 s before the titanium touched the rail).
  */
 export function sittingFieldOf(stage: SittingStage, rewardStep: SittingRewardStep, rewardPending: boolean, ledger: boolean, hosting = false): {pose: boolean, stepOpen: boolean} {
   if (stage !== 'reward') {
     return {pose: false, stepOpen: false};
   }
-  const stepOpen = (SITTING_HOSTED_STEPS.has(rewardStep) && !rewardPending) || hosting;
+  const stepOpen = (SITTING_HOSTED_STEPS.has(rewardStep) || hosting) && !rewardPending;
   return {pose: stepOpen || ledger, stepOpen};
 }
 

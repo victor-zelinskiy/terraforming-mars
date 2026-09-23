@@ -180,6 +180,7 @@ describe('consoleSittingFlow — the political phase as ONE flow (v2)', () => {
       expect(sittingFieldOf('reward', 'colony', false, false), 'the pick stands: the field and the door').deep.eq({pose: true, stepOpen: true});
       expect(sittingFieldOf('reward', 'colony', true, false), 'the titanium wave first').deep.eq({pose: false, stepOpen: false});
       expect(sittingFieldOf('reward', 'received', false, false, true), 'answered, the frame still inside: open for it').deep.eq({pose: true, stepOpen: true});
+      expect(sittingFieldOf('reward', 'colony', true, false, true), 'the frame is pushed the moment the prompt is admitted — the wave STILL comes first').deep.eq({pose: false, stepOpen: false});
       expect(sittingFieldOf('reward', 'received', false, false, false), 'the frame left: the row of parties returns').deep.eq({pose: false, stepOpen: false});
       expect(sittingFieldOf('results', 'received', false, false, true), 'never on another page — the walk holds the reward page instead').deep.eq({pose: false, stepOpen: false});
     });
