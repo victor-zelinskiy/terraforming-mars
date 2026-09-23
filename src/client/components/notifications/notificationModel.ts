@@ -10,7 +10,8 @@ import {buildJournalView} from '@/client/components/journal/journalView';
 import {buildEventChildren, impactChips, JournalChildVM, JournalImpactChip} from '@/client/components/journal/journalEventChild';
 import {affectedPlayersOfChain} from './notificationFeedPolicy';
 import {importanceForRoot, lossCausesOf, viewerImpactOfChain, ViewerImpactMeta} from './notificationSemantics';
-import {NotificationKind, NotificationVariant, NotificationModel, NotificationPillGroup, NegativeScope, NOTIFICATION_PRIORITY, NOTIFICATION_TTL, COALESCE_THRESHOLD} from './notificationTypes';
+import {NotificationKind, NotificationVariant, NotificationModel, NotificationPillGroup, NegativeScope, NotificationEffectSource, NOTIFICATION_PRIORITY, NOTIFICATION_TTL, COALESCE_THRESHOLD} from './notificationTypes';
+import {LogMessageType} from '@/common/logs/LogMessageType';
 
 /**
  * PURE notification mappers — turn the structured journal stream + the client's
@@ -140,14 +141,83 @@ function chairmanHeaderFor(header: LogMessage, chain: ReadonlyArray<GameEvent>, 
   } as LogMessage;
 }
 
-/** The card behind a passive-effect root (the effect-triggered marker's source). */
-function effectSourceCard(chain: ReadonlyArray<GameEvent>, correlationId: number | undefined): CardName | undefined {
-  const root = chain.find((e) => e.id === correlationId && e.type === 'effect-triggered');
-  const s = root?.source;
-  if (s !== undefined && (s.kind === 'card' || s.kind === 'corporation')) {
-    return s.card;
+/** WHAT fired, off an effect-triggered marker's source: a tableau card, or the enacted resolution. */
+function effectSourceOfMarker(marker: GameEvent | undefined): NotificationEffectSource | undefined {
+  const s = marker?.source;
+  if (s === undefined) {
+    return undefined;
+  }
+  if (s.kind === 'card' || s.kind === 'corporation') {
+    return {kind: 'card', card: s.card};
+  }
+  if (s.kind === 'resolution') {
+    return {kind: 'resolution', resolution: s.id};
   }
   return undefined;
+}
+
+/** The source behind a passive-effect ROOT (the effect-triggered marker IS the root). */
+function effectSourceOf(chain: ReadonlyArray<GameEvent>, correlationId: number | undefined): NotificationEffectSource | undefined {
+  return effectSourceOfMarker(chain.find((e) => e.id === correlationId && e.type === 'effect-triggered'));
+}
+
+/** The one action a fired passive offers: a resolution opens its own inspector; a card's story is the journal's. */
+function effectCta(source: NotificationEffectSource | undefined): NotificationModel['cta'] {
+  return source?.kind === 'resolution' ?
+    {labelKey: 'Inspect', action: 'inspect-resolution'} :
+    {labelKey: 'To journal', action: 'open-journal'};
+}
+
+/**
+ * THE LAW'S ANSWER TO THE VIEWER'S OWN ACTION (Turmoil Redux). The viewer's
+ * ordinary actions are suppressed — they just did them — but an ENACTED
+ * RESOLUTION's passive that paid the viewer INSIDE that action is not the
+ * viewer's doing: the law fired on them (Development Craze pays a placement's
+ * bonuses a second time), and without a card the doubling would read as
+ * numbers that silently grew. So the chain's resolution-sourced
+ * `effect-triggered` marker — with a non-empty payout — becomes ONE
+ * `passive-effect` card of its own: the effect's own log line as the headline
+ * (the marker's first child message, else the generic «Effect triggered»), the
+ * effect's own chips, the resolution as the source, its inspector as the
+ * action. A marker that paid nothing (a bare cell) makes no card.
+ */
+function lawAnswerNotification(input: RootBuildInput, actor: Color): NotificationModel | undefined {
+  const {chain} = input;
+  const marker = chain.find((e) => e.type === 'effect-triggered' && e.source?.kind === 'resolution' && e.player === actor);
+  const source = effectSourceOfMarker(marker);
+  if (marker === undefined || source?.kind !== 'resolution') {
+    return undefined;
+  }
+  const chips = mergeChips(chain.filter((e) => e.parentId === marker.id && e.player === actor).flatMap((e) => impactChips(e.impact)));
+  if (chips.length === 0) {
+    return undefined;
+  }
+  const own = input.children.find((m) => m.parentId === marker.id);
+  const header: LogMessage = own ?? new LogMessage(LogMessageType.DEFAULT, 'Effect triggered: ${0}', [{type: LogMessageDataType.RESOLUTION, value: source.resolution}]);
+  const pills = chips.sort((a, b) => chipRank(a) - chipRank(b)).slice(0, 3);
+  return {
+    id: `g${input.correlationId}:law`,
+    kind: 'normal',
+    variant: 'passive-effect',
+    priority: NOTIFICATION_PRIORITY.normal,
+    sign: 'neutral',
+    importance: 'notable',
+    typeLabelKey: 'Effect triggered',
+    category: input.header.category,
+    actor,
+    affects: [actor],
+    header,
+    pills,
+    pillGroups: [{scope: 'actor', chips: pills}],
+    detailCount: 0,
+    correlationId: input.correlationId,
+    generation: input.generation,
+    ttl: NOTIFICATION_TTL.normal,
+    persistent: false,
+    cta: effectCta(source),
+    createdAt: input.createdAt,
+    effectSource: source,
+  };
 }
 
 /** The behaviour KIND a variant implies (priority / TTL / persistence channel). */
@@ -404,7 +474,8 @@ function buildRootNotification(input: RootBuildInput): NotificationModel | undef
   // just played. Highlights / threats / VP-pressure are worth a card even when
   // yours (kind !== 'normal'), so only ordinary actions are dropped.
   if (kind === 'normal' && actor !== undefined && actor === viewerColor) {
-    return undefined;
+    // …except what the LAW did to them inside it (see lawAnswerNotification).
+    return lawAnswerNotification(input, actor);
   }
   // …and the CHAIRMANSHIP is suppressed for its own actor whatever its kind:
   // the player who completed the quest walked through the whole flow
@@ -487,9 +558,11 @@ function buildRootNotification(input: RootBuildInput): NotificationModel | undef
     // now (nothing is replayed — the beats belonged to the player who acted).
     cta: variant === 'chairman' ?
       {labelKey: 'Open the Parliament', action: 'open-parliament'} :
-      {labelKey: 'To journal', action: 'open-journal'},
+      variant === 'passive-effect' ?
+        effectCta(effectSourceOf(chain, input.correlationId)) :
+        {labelKey: 'To journal', action: 'open-journal'},
     createdAt: input.createdAt,
-    effectCard: variant === 'passive-effect' ? effectSourceCard(chain, input.correlationId) : undefined,
+    effectSource: variant === 'passive-effect' ? effectSourceOf(chain, input.correlationId) : undefined,
     reveal: input.reveal?.reveal !== undefined ? {
       origin: input.reveal.reveal.origin,
       result: input.reveal.reveal.result,
@@ -653,7 +726,7 @@ export function coalesceBurst(models: ReadonlyArray<NotificationModel>): Array<N
       viewerImpact: undefined,
       negative: undefined,
       reveal: undefined,
-      effectCard: undefined,
+      effectSource: undefined,
       header: undefined,
       childVMs: undefined,
       affects,

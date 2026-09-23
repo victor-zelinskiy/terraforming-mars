@@ -30,7 +30,9 @@
     the safe default.
   -->
   <div v-if="tilePlacementState.active || remotePlacementState.active || oceanBeatState.coins.length > 0"
-       class="con-tileplace con-flight-to-board" aria-hidden="true">
+       class="con-tileplace con-flight-to-board" aria-hidden="true"
+       :data-tile-phase="tilePlacementState.active ? tilePlacementState.phase : undefined"
+       :data-echo="tilePlacementState.echoing ? '1' : undefined">
     <!-- OCEAN ADJACENCY — the SHARED payout beat (oceanAdjacencyBeat.ts).
          Deliberately OUTSIDE the tile-scene block: the very same water pays a
          Mars Nomads camp that merely MOVES onto the cell, and that hop has no

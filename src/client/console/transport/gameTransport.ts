@@ -718,6 +718,9 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
             // WHAT to WHOM — the adjacency beat's authority, same principle.
             aresGrants: newView.game?.aresAdjacencyGrants,
             viewerColor: newView.thisPlayer?.color,
+            // …and the enacted resolution's ECHO — the bonuses it paid a
+            // second time for THIS cell (Development Craze): the second wave.
+            bonusEcho: newView.lastPlacementBonusEcho,
           });
         if (tileHeroEvent !== undefined) {
           transportHolds.tilePlacementHero = true;

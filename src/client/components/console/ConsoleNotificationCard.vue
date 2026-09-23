@@ -95,11 +95,14 @@
         </div>
       </div>
 
-      <!-- Passive effect fired — the source card by NAME (details live in
-           the ЭФФЕКТЫ overlay / journal; a console toast hosts no popover). -->
-      <template v-if="impactBand === undefined && notification.variant === 'passive-effect' && notification.effectCard !== undefined">
-        <div class="con-notif__line">
-          <b class="con-notif__card">{{ $t(notification.effectCard) }}</b>
+      <!-- Passive effect fired — the SOURCE by name: a tableau card (details
+           live in the ЭФФЕКТЫ overlay / journal; a console toast hosts no
+           popover), or the ENACTED RESOLUTION (Turmoil Redux — the law that
+           fired; hold X opens its own inspector). -->
+      <template v-if="impactBand === undefined && notification.variant === 'passive-effect' && notification.effectSource !== undefined">
+        <div class="con-notif__line con-notif__source" :data-effect-source="notification.effectSource.kind">
+          <span v-if="notification.effectSource.kind === 'resolution'" class="con-notif__dim" v-i18n>Enacted resolution</span>
+          <b class="con-notif__card">{{ $t(effectSourceName) }}</b>
         </div>
       </template>
 
@@ -276,6 +279,7 @@ import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {JournalImpactChip} from '@/client/components/journal/journalEventChild';
 import JournalTokenRenderer from '@/client/components/journal/JournalTokenRenderer.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
+import {resolutionName} from '@/client/parliament/ClientParliamentManifest';
 import {NOTIF_HOLD_MS, notifHoldState} from '@/client/console/consoleNotifHold';
 import {ViewerImpactMeta} from '@/client/components/notifications/notificationSemantics';
 import {causeLinesOf, NotificationCauseLine} from '@/client/components/notifications/notificationCauseView';
@@ -522,17 +526,32 @@ export default defineComponent({
     showProgress(): boolean {
       return !this.notification.persistent && this.notification.ttl > 0;
     },
-    /** The toast's DETAIL action: the AI-turn review, or the journal AT this
-     *  event (any card carrying a correlationId — the full causal chain). */
+    /** The fired passive's source, by name (a card name key, or the resolution's printed name key). */
+    effectSourceName(): string {
+      const source = this.notification.effectSource;
+      if (source === undefined) {
+        return '';
+      }
+      return source.kind === 'card' ? source.card : resolutionName(source.resolution);
+    },
+    /** A fired passive of the ENACTED RESOLUTION: the detail is its inspector. */
+    inspectsResolution(): boolean {
+      return this.notification.variant === 'passive-effect' && this.notification.effectSource?.kind === 'resolution';
+    },
+    /** The toast's DETAIL action: the AI-turn review, the enacted resolution's
+     *  inspector, or the journal AT this event (any card carrying a
+     *  correlationId — the full causal chain). */
     hasDetailAction(): boolean {
       if (this.notification.holdsFlow === true && this.notification.botTurnKey !== undefined) {
         return true;
       }
-      return this.notification.correlationId !== undefined;
+      return this.inspectsResolution || this.notification.correlationId !== undefined;
     },
     detailLabel(): string {
-      return this.notification.holdsFlow === true && this.notification.botTurnKey !== undefined ?
-        'Watch turn' : 'Log';
+      if (this.notification.holdsFlow === true && this.notification.botTurnKey !== undefined) {
+        return 'Watch turn';
+      }
+      return this.inspectsResolution ? 'Inspect' : 'Log';
     },
     /** The X-hold on THIS card is filling (shell-tracked, module-reactive). */
     holdActive(): boolean {

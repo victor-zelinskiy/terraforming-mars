@@ -83,6 +83,7 @@ import {
   OCEAN_BEAT_BREATH_MS, OCEAN_COIN_LIFT_PX, OCEAN_COIN_T, OCEAN_PULSE_T, OCEAN_PULSE_DRIFT,
   OCEAN_PULSE_MS, OCEAN_SPLASH_MS,
   oceanEdgePoint, oceanShoreDirection,
+  PlacementEcho, echoWaveFor, ECHO_WAVE_BREATH_MS,
 } from '@/client/console/tilePlacement/tilePlacementModel';
 import {
   setPlacementHiddenTiles, clearPlacementHiddenTiles,
@@ -95,6 +96,7 @@ import {
   claimAresGrant, latestAresGrantFor, viewerAresAdjacencyFlights,
 } from '@/client/console/tilePlacement/aresAdjacencyFlights';
 import {AresAdjacencyGrantModel} from '@/common/models/AresAdjacencyGrantModel';
+import {PlacementBonusEchoModel} from '@/common/models/PlacementBonusEchoModel';
 import {
   TileStageEls, placeTileProxy, playTileFlight, disposeTileProxy,
   placeBonusProxies, playBonusPreLift, playBonusHandoff, killTileTweens,
@@ -163,6 +165,9 @@ export const tilePlacementState = reactive({
   bonusProxies: [] as Array<BonusProxy>,
   /** The paying Ares neighbours, staged for the adjacency beat. */
   aresSources: [] as Array<AresSourceWake>,
+  /** THE ECHO WAVE is playing: the enacted resolution's second payout of the
+   *  same cell (a probe's witness that two waves went IN TURN). */
+  echoing: false,
   reducedMotion: false,
 });
 
@@ -177,6 +182,10 @@ let pendingBonuses: ReadonlyArray<PlacementBonus> = [];
 /** The SERVER's ocean-adjacency breakdown for THIS placement (captured at
  *  detect, matched on the armed space) — the ocean beat's manifest. */
 let pendingOceanBonus: OceanAdjacencyBonusModel | undefined;
+/** The SERVER's ECHO for THIS placement — what the enacted resolution paid a
+ *  SECOND time (captured at detect, matched on the armed space): the second
+ *  wave's manifest. */
+let pendingEcho: PlacementEcho | undefined;
 /** The SERVER's Ares adjacency manifest for THIS placement, reduced to the
  *  viewer's own flights (captured + claimed at detect) — the ares beat. */
 let pendingAresFlights: ReadonlyArray<AresAdjacencyFlight> = [];
@@ -260,7 +269,7 @@ registerAnimationHoldSupplier('tile-placement', tilePlacementHolding);
 export function tilePlacementRewardsSettling(): boolean {
   return tilePlacementState.active && (
     tilePlacementState.phase === 'rewarding' ||
-    pendingBonuses.length > 0 || pendingOceanBonus !== undefined || pendingAresFlights.length > 0);
+    pendingBonuses.length > 0 || pendingOceanBonus !== undefined || pendingAresFlights.length > 0 || pendingEcho !== undefined);
 }
 
 /**
@@ -300,6 +309,8 @@ export function armTilePlacement(opts: {
   pendingBonuses = [];
   pendingOceanBonus = undefined;
   pendingAresFlights = [];
+  pendingEcho = undefined;
+  tilePlacementState.echoing = false;
   hexRect = undefined;
   restoreHeldBonuses();
   releaseClearedCell();
@@ -344,6 +355,10 @@ export function detectTilePlacement(
      *  — matched on the armed space + consumed once (`claimAresGrant`). */
     aresGrants?: ReadonlyArray<AresAdjacencyGrantModel>,
     viewerColor?: Color,
+    /** The SERVER's echo of a payout the enacted resolution repeated
+     *  (`thisPlayer.lastPlacementBonusEcho`): accepted only when it names the
+     *  space WE armed — the second wave never re-derives what a law doubled. */
+    bonusEcho?: PlacementBonusEchoModel,
   },
 ): {spaceId: string} | undefined {
   if (!tilePlacementState.active || claimed) {
@@ -387,6 +402,9 @@ export function detectTilePlacement(
   }
   const ocean = opts?.oceanBonus;
   pendingOceanBonus = oceanBonusFor(ocean, spaceId);
+  // THE ECHO: the same printed icons and the same water, a second time — what
+  // the server says the law repeated for THIS cell, nothing the scene guessed.
+  pendingEcho = echoWaveFor(opts?.bonusEcho, spaceId, pendingBonuses);
   // The Ares adjacency manifest: the newest grant CAUSED BY this placement,
   // consumed exactly once per client (the remote scene shares the ledger).
   const grant = latestAresGrantFor(opts?.aresGrants, spaceId);
@@ -593,13 +611,14 @@ async function runDeparture(hex: TileRect): Promise<void> {
  */
 export function seedTilePlacementRewardHold(): void {
   if (!tilePlacementState.active || bonusHoldSeeded ||
-      (pendingBonuses.length === 0 && pendingOceanBonus === undefined && pendingAresFlights.length === 0)) {
+      (pendingBonuses.length === 0 && pendingOceanBonus === undefined && pendingAresFlights.length === 0 && pendingEcho === undefined)) {
     return;
   }
   if (tilePlacementState.reducedMotion) {
     pendingBonuses = [];
     pendingOceanBonus = undefined;
     pendingAresFlights = [];
+    pendingEcho = undefined;
     return;
   }
   bonusHoldSeeded = true;
@@ -614,6 +633,15 @@ export function seedTilePlacementRewardHold(): void {
   // The Ares adjacency flights release per chip — each paying tile's own
   // touchdown ticks its own metric (the neighbourhood pays tile by tile).
   specs.push(...pendingAresFlights.map((f) => f.spec));
+  // THE ECHO's share is held too — the map is keyed by resource and additive,
+  // so the second wave's chips release the second half at THEIR touchdowns:
+  // the counter ticks twice, never once by a doubled number.
+  if (pendingEcho !== undefined) {
+    specs.push(...pendingEcho.printed.map((b) => b.spec));
+    if (pendingEcho.ocean !== undefined) {
+      specs.push({channel: 'stock', resource: 'megacredits', amount: pendingEcho.ocean.megacredits});
+    }
+  }
   beginPanelRewardHold(specs);
 }
 
@@ -632,10 +660,14 @@ export async function endTilePlacement(): Promise<void> {
   const bonuses = pendingBonuses;
   const ocean = pendingOceanBonus;
   const aresFlights = pendingAresFlights;
+  const echo = pendingEcho;
   pendingBonuses = [];
   pendingOceanBonus = undefined;
   pendingAresFlights = [];
-  if (tilePlacementState.reducedMotion || (bonuses.length === 0 && ocean === undefined && aresFlights.length === 0)) {
+  pendingEcho = undefined;
+  tilePlacementState.echoing = false;
+  pendingEcho = undefined;
+  if (tilePlacementState.reducedMotion || (bonuses.length === 0 && ocean === undefined && aresFlights.length === 0 && echo === undefined)) {
     finish();
     return;
   }
@@ -655,10 +687,42 @@ export async function endTilePlacement(): Promise<void> {
   if (aresFlights.length > 0 && tilePlacementState.active) {
     await runAresAdjacencyBeat(aresFlights);
   }
+  // …and then, IN TURN, the law's second payout of the very same cell.
+  if (echo !== undefined && tilePlacementState.active) {
+    await runEchoWave(echo);
+  }
   // Belt-and-braces: any hold a degraded transfer left behind snaps to the
   // committed truth now (its chip fires marginally late, never lost).
   clearPanelRewardHold();
   finish();
+}
+
+/**
+ * THE ECHO WAVE — the enacted resolution paid the SAME cell a SECOND time
+ * (Development Craze). It reads as a second statement, never as a doubled
+ * first one: one breath after the first wave's last touchdown, the same
+ * printed icons rise AGAIN from the same points (nothing is left to dissolve
+ * — the proxies' captured rects are the origins) and the same water pays
+ * again, coin by coin; each touchdown releases its own share of the hold, so
+ * the counter ticks a second time at the second contact. The two waves go in
+ * turn, as every payout of one placement does.
+ */
+async function runEchoWave(echo: PlacementEcho): Promise<void> {
+  tilePlacementState.echoing = true;
+  try {
+    await wait(motionMs(ECHO_WAVE_BREATH_MS));
+    if (!tilePlacementState.active) {
+      return;
+    }
+    if (echo.printed.length > 0) {
+      await runPrintedBonusBeat(echo.printed);
+    }
+    if (echo.ocean !== undefined && tilePlacementState.active) {
+      await runOceanBonusBeat(echo.ocean);
+    }
+  } finally {
+    tilePlacementState.echoing = false;
+  }
 }
 
 /**
@@ -847,6 +911,8 @@ export function abortTilePlacement(): void {
   pendingBonuses = [];
   pendingOceanBonus = undefined;
   pendingAresFlights = [];
+  pendingEcho = undefined;
+  tilePlacementState.echoing = false;
   hexRect = undefined;
   armedReplacing = false;
   tilePlacementState.active = false;
@@ -884,6 +950,8 @@ function finish(): void {
   pendingBonuses = [];
   pendingOceanBonus = undefined;
   pendingAresFlights = [];
+  pendingEcho = undefined;
+  tilePlacementState.echoing = false;
   hexRect = undefined;
   armedReplacing = false;
   tilePlacementState.active = false;

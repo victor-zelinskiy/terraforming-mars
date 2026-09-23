@@ -98,7 +98,11 @@ export type EffectParts = {
 };
 
 function isRenderableNode(node: ItemType): node is CardComponent {
-  return node !== undefined && typeof node !== 'string';
+  // The DSL leaves an EMPTY trailing slot in an effect's result row; the
+  // client reads render data from JSON, where that slot arrives as `null`
+  // (`typeof null === 'object'`) — a null handed to a node component is a
+  // prop-type defect, never a drawing.
+  return node !== undefined && node !== null && typeof node !== 'string';
 }
 
 /** Strip strings (descriptions) and undefined from a row, keeping node references. */

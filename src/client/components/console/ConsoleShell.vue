@@ -11959,11 +11959,19 @@ export default defineComponent({
         // renders. Same availability policy as the View toggle (board home
         // only, never over a live placement) — refusals speak, never no-op.
         const detailKey = topCard.holdsFlow === true ? topCard.botTurnKey : undefined;
-        const detailCorrelation = detailKey === undefined ? topCard.correlationId : undefined;
-        if ((detailKey !== undefined || detailCorrelation !== undefined) && action === 'inspect' && !this.notifTapReplay) {
+        // A fired passive of the ENACTED RESOLUTION: the detail is the resolution's own inspector, not the journal.
+        const detailResolution = detailKey === undefined && topCard.variant === 'passive-effect' && topCard.effectSource?.kind === 'resolution' ?
+          topCard.effectSource.resolution : undefined;
+        const detailCorrelation = detailKey === undefined && detailResolution === undefined ? topCard.correlationId : undefined;
+        if ((detailKey !== undefined || detailResolution !== undefined || detailCorrelation !== undefined) && action === 'inspect' && !this.notifTapReplay) {
           beginNotifHold(topCard.id, () => {
             if (detailKey !== undefined) {
               openBotTurnReviewByKey(detailKey);
+              return;
+            }
+            if (detailResolution !== undefined) {
+              dismissNotification(topCard.id);
+              this.onNotificationInspectResolution(detailResolution);
               return;
             }
             this.openJournalToNotification(topCard);
@@ -13696,6 +13704,18 @@ export default defineComponent({
     onParliamentLeaveCancelled(el: Element): void {
       surfaceLeaveCancelledHook(el);
       this.parliamentLeaving = false;
+    },
+    /**
+     * «Осмотреть» on a fired-passive card whose source is the ENACTED RESOLUTION
+     * (Development Craze doubled a placement's bonuses): the resolution's OWN
+     * inspector — the one viewer the Parliament's X opens — never a second one.
+     * Textual origin: the toast is not the card's physical place.
+     */
+    onNotificationInspectResolution(resolution: string): void {
+      if (this.playerView.game.parliament === undefined) {
+        return;
+      }
+      this.inspectParliament({kind: 'resolution', ids: [resolution], index: 0});
     },
     /** «Осмотреть» on a Mars Parliament card: the workspace opens on its browse layer, as it stands now. */
     onNotificationOpenParliament(): void {
@@ -19364,6 +19384,7 @@ export default defineComponent({
       notificationBus.goToAction.on(this.onNotificationGoToAction),
       notificationBus.cancel.on(this.onNotificationCancel),
       notificationBus.openParliament.on(this.onNotificationOpenParliament),
+      notificationBus.inspectResolution.on(this.onNotificationInspectResolution),
     ];
     // SCENE TRANSITION (the game destination). Register where «выйти из
     // партии» leads — a campaign mission returns to ITS campaign map, an

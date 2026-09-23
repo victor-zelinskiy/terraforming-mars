@@ -28,4 +28,6 @@ export const notificationBus = {
   focusActions: useEventBus<void>('tm:notification:focus-actions'),
   /** «Осмотреть» on a Mars Parliament card — open the Parliament (Turmoil Redux). */
   openParliament: useEventBus<void>('tm:notification:open-parliament'),
+  /** «Осмотреть» on a fired-passive card whose source is the ENACTED RESOLUTION — its own inspector (the catalog id). */
+  inspectResolution: useEventBus<string>('tm:notification:inspect-resolution'),
 } as const;

@@ -108,7 +108,7 @@ See docs/DESKTOP_DEPRECATION_AUDIT.md + the deprecation banner in CLAUDE.md.
       </template>
 
       <!-- Passive effect fired — name + hover effect-block popover + click → details. -->
-      <template v-else-if="notification.variant === 'passive-effect' && notification.effectCard !== undefined">
+      <template v-else-if="notification.variant === 'passive-effect' && effectCard !== undefined">
         <span v-if="notification.actor !== undefined"
               class="journal-player notification-card__actor"
               :class="'player_translucent_bg_color_' + notification.actor">
@@ -123,7 +123,7 @@ See docs/DESKTOP_DEPRECATION_AUDIT.md + the deprecation banner in CLAUDE.md.
                 @focus="onEffectHover"
                 @blur="onEffectLeave"
                 @click.stop="onEffectClick">
-          <span class="notification-card__effect-name" v-i18n>{{ notification.effectCard }}</span>
+          <span class="notification-card__effect-name" v-i18n>{{ effectCard }}</span>
           <span class="notification-card__effect-hint" v-i18n>Details</span>
         </button>
       </template>
@@ -266,7 +266,7 @@ See docs/DESKTOP_DEPRECATION_AUDIT.md + the deprecation banner in CLAUDE.md.
     <!-- Hover popover with the passive-effect block (same style as the Эффекты overlay). -->
     <EffectPreviewPopover
       v-if="notification.variant === 'passive-effect'"
-      :name="notification.effectCard"
+      :name="effectCard"
       :anchor="effectAnchor"
       :visible="effectHover" />
 
@@ -296,6 +296,7 @@ import EffectPreviewPopover from '@/client/components/notifications/EffectPrevie
 import {openEffectDetail} from '@/client/components/notifications/effectDetailState';
 import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import {Color} from '@/common/Color';
+import {CardName} from '@/common/cards/CardName';
 import {LiveNotification, NotificationVariant, NegativeMeta} from '@/client/components/notifications/notificationTypes';
 
 // Icon-key → PublicPlayerModel field (irregular: megacredit/plant production drop
@@ -359,6 +360,11 @@ export default defineComponent({
     };
   },
   computed: {
+    /** The fired passive's CARD (this frozen desktop card knows no resolution source). */
+    effectCard(): CardName | undefined {
+      const source = this.notification.effectSource;
+      return source?.kind === 'card' ? source.card : undefined;
+    },
     canExpand(): boolean {
       return (this.notification.childVMs?.length ?? 0) > 0;
     },
@@ -550,8 +556,8 @@ export default defineComponent({
       this.effectHover = false;
     },
     onEffectClick(): void {
-      if (this.notification.effectCard !== undefined) {
-        openEffectDetail(this.notification.effectCard, this.notification.actor);
+      if (this.effectCard !== undefined) {
+        openEffectDetail(this.effectCard, this.notification.actor);
       }
     },
     // Arm the your-turn countdown on the FIRST meaningful player activity.

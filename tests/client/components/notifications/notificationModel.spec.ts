@@ -200,12 +200,75 @@ describe('notificationModel (pure)', () => {
   });
 
   describe('passive-effect root', () => {
-    it('carries the effect source card (for the name + popover + details)', () => {
+    it('carries the effect source CARD (for the name + popover + details); its action is the journal', () => {
       const header = rootHeader(BLUE, 50);
       header.category = undefined; // no action category → reaches the effect-triggered branch
       const chain = [event({id: 50, type: 'effect-triggered', player: BLUE, correlationId: 50, source: {kind: 'card', card: CARD}, impact: {}})];
       const {models} = diffRootNotifications({messages: [header], events: chain, seen: new Set(), viewerColor: RED, generation: 1, createdAt: 1});
-      expect(models[0]).to.include({variant: 'passive-effect', effectCard: CARD, typeLabelKey: 'Effect triggered'});
+      expect(models[0]).to.include({variant: 'passive-effect', typeLabelKey: 'Effect triggered'});
+      expect(models[0].effectSource).to.deep.eq({kind: 'card', card: CARD});
+      expect(models[0].cta).to.deep.eq({labelKey: 'To journal', action: 'open-journal'});
+    });
+
+    it("a root fired by the ENACTED RESOLUTION carries the resolution as its source, and its action is the resolution's inspector", () => {
+      const header = rootHeader(BLUE, 51);
+      header.category = undefined;
+      const chain = [event({id: 51, type: 'effect-triggered', player: BLUE, correlationId: 51, source: {kind: 'resolution', id: 'RDX_TEST_LAW', owner: BLUE}, impact: {}})];
+      const {models} = diffRootNotifications({messages: [header], events: chain, seen: new Set(), viewerColor: RED, generation: 1, createdAt: 1});
+      expect(models[0]).to.include({variant: 'passive-effect', typeLabelKey: 'Effect triggered'});
+      expect(models[0].effectSource).to.deep.eq({kind: 'resolution', resolution: 'RDX_TEST_LAW'});
+      expect(models[0].cta).to.deep.eq({labelKey: 'Inspect', action: 'inspect-resolution'});
+    });
+  });
+
+  describe("the LAW's answer to the viewer's OWN action (Turmoil Redux)", () => {
+    /** Blue's own card play; inside it the enacted resolution's passive paid blue 2 steel (a bare marker pays nothing). */
+    function ownPlay(opts: {paid: boolean, ownLine?: boolean}) {
+      const header = rootHeader(BLUE, 60);
+      const marker = event({id: 61, type: 'effect-triggered', player: BLUE, correlationId: 60, parentId: 60, trigger: 'tile-placed', source: {kind: 'resolution', id: 'RDX_TEST_LAW', owner: BLUE}, impact: {}});
+      const chain = [
+        event({id: 60, type: 'action', player: BLUE, correlationId: 60, source: {kind: 'card', card: CARD}, impact: {}}),
+        event({id: 62, type: 'resource-changed', player: BLUE, correlationId: 60, parentId: 60, source: {kind: 'spaceBonus'}, impact: {stock: {steel: 2}}}),
+        marker,
+        ...(opts.paid ? [event({id: 63, type: 'resource-changed', player: BLUE, correlationId: 60, parentId: 61, source: {kind: 'resolution', id: 'RDX_TEST_LAW', owner: BLUE}, impact: {stock: {steel: 2}}})] : []),
+      ];
+      const messages = [header];
+      if (opts.ownLine === true) {
+        const own = new LogMessage(LogMessageType.DEFAULT, '${0} receives the bonuses a second time — ${1}', [
+          {type: LogMessageDataType.PLAYER, value: BLUE},
+          {type: LogMessageDataType.RESOLUTION, value: 'RDX_TEST_LAW'},
+        ]);
+        own.correlationId = 60;
+        own.parentId = 61;
+        own.role = 'effect-result';
+        messages.push(own);
+      }
+      return diffRootNotifications({messages, events: chain, seen: new Set(), viewerColor: BLUE, generation: 1, createdAt: 1});
+    }
+
+    it("the viewer's own action stays suppressed, but the law that paid them inside it is ONE passive-effect card: the effect's own chips, the resolution as source, its inspector as the action", () => {
+      const {models, encounteredIds} = ownPlay({paid: true, ownLine: true});
+      expect(encounteredIds).to.deep.eq([60]);
+      expect(models).to.have.length(1);
+      const card = models[0];
+      expect(card).to.include({id: 'g60:law', variant: 'passive-effect', kind: 'normal', typeLabelKey: 'Effect triggered', actor: BLUE, correlationId: 60});
+      expect(card.effectSource).to.deep.eq({kind: 'resolution', resolution: 'RDX_TEST_LAW'});
+      expect(card.cta).to.deep.eq({labelKey: 'Inspect', action: 'inspect-resolution'});
+      expect(card.pills, "the LAW's own payout — never the whole action's (+4)").to.deep.eq([{icon: 'steel', text: '+2'}]);
+      expect(card.header?.message, "the effect's own log line is the headline").to.eq('${0} receives the bonuses a second time — ${1}');
+      expect(card.affects).to.deep.eq([BLUE]);
+    });
+
+    it('without its own log line the headline is the generic «Effect triggered» with the resolution token', () => {
+      const {models} = ownPlay({paid: true});
+      expect(models[0].header?.message).to.eq('Effect triggered: ${0}');
+      expect(models[0].header?.data[0]).to.deep.eq({type: LogMessageDataType.RESOLUTION, value: 'RDX_TEST_LAW'});
+    });
+
+    it('a marker that paid nothing makes no card — the action stays suppressed as before', () => {
+      const {models, encounteredIds} = ownPlay({paid: false});
+      expect(models).to.deep.eq([]);
+      expect(encounteredIds).to.deep.eq([60]);
     });
   });
 

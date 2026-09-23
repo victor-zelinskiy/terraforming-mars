@@ -527,6 +527,14 @@ export default defineComponent({
         notificationBus.openParliament.emit();
         dismiss(notification.id);
         break;
+      case 'inspect-resolution':
+        // THE SOURCE, not the record: the enacted resolution's own inspector
+        // (party column, rules, standing) — the same viewer the Parliament's X opens.
+        if (notification.effectSource?.kind === 'resolution') {
+          notificationBus.inspectResolution.emit(notification.effectSource.resolution);
+        }
+        dismiss(notification.id);
+        break;
       case 'view-reveal':
         if (notification.reveal !== undefined) {
           openRevealViewer(notification.reveal);

@@ -29,6 +29,8 @@
 import {Color} from '@/common/Color';
 import {SpaceId} from '@/common/Types';
 import {SpaceBonus} from '@/common/boards/SpaceBonus';
+import {PlacementBonusEchoModel} from '@/common/models/PlacementBonusEchoModel';
+import {OceanAdjacencyBonusModel} from '@/common/models/OceanAdjacencyBonusModel';
 import {SpaceModel} from '@/common/models/SpaceModel';
 import {TileType, HAZARD_TILES} from '@/common/TileType';
 import {ResourceTransferSpec, TransferPoint} from '@/client/console/resourceTransfer/resourceTransferModel';
@@ -105,6 +107,10 @@ export const OCEAN_COIN_FORM_MS = 420;
 /** The calm breath before the water wakes (after the tile — or the printed
  *  bonuses — has settled). The cause is read before the consequence starts. */
 export const OCEAN_BEAT_BREATH_MS = 140;
+/** The pause between the first wave's last touchdown and the ECHO's first
+ *  chip — long enough to read as a SECOND statement about the same cell,
+ *  short enough to stay one beat of the same placement. */
+export const ECHO_WAVE_BREATH_MS = 320;
 /** Coin float above the water surface at birth (px @ uiScale 1). */
 export const OCEAN_COIN_LIFT_PX = 12;
 /** Number of condensation particles per coin — a hint of matter, not confetti. */
@@ -439,6 +445,37 @@ export function placementBonuses(bonus: ReadonlyArray<SpaceBonus>): Array<Placem
     });
   });
   return out;
+}
+
+/**
+ * THE ECHO WAVE — what the enacted resolution paid a SECOND time (Development
+ * Craze: «double all placement and adjacency bonuses»), as the scene replays
+ * it: the SAME printed icons again (`printed`), the SAME water again
+ * (`ocean`). Accepted only when the server's echo names the armed space
+ * (a stale snapshot from an earlier input can never double a wave), and only
+ * when there is something to repeat. The scene never decides what a law
+ * doubled — it replays what the server says it repeated.
+ */
+export type PlacementEcho = {
+  printed: ReadonlyArray<PlacementBonus>;
+  ocean: OceanAdjacencyBonusModel | undefined;
+};
+
+export function echoWaveFor(
+  echo: PlacementBonusEchoModel | undefined,
+  spaceId: string,
+  printed: ReadonlyArray<PlacementBonus>,
+): PlacementEcho | undefined {
+  if (echo === undefined || echo.spaceId !== spaceId) {
+    return undefined;
+  }
+  const again = echo.printed ? printed : [];
+  const ocean = echo.ocean !== undefined && echo.ocean.spaceId === spaceId &&
+    echo.ocean.megacredits > 0 && echo.ocean.oceanSpaceIds.length > 0 ? echo.ocean : undefined;
+  if (again.length === 0 && ocean === undefined) {
+    return undefined;
+  }
+  return {printed: again, ocean};
 }
 
 // ── placement verification + the targeted silent preview ───────────────────

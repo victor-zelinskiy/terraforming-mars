@@ -139,10 +139,16 @@ export const NOTIFICATION_PRIORITY: Readonly<Record<NotificationKind, number>> =
   'normal': 5,
 };
 
+/** The source of a fired passive: a card in a tableau, or the enacted resolution (its catalog id). */
+export type NotificationEffectSource =
+  | {kind: 'card'; card: CardName}
+  | {kind: 'resolution'; resolution: string};
+
 /** What the single call-to-action button does. */
 export type NotificationCtaAction =
   | 'open-journal' // open the journal + highlight this root event
   | 'open-parliament' // open the Mars Parliament (Turmoil Redux — the object the card is about)
+  | 'inspect-resolution' // open the enacted resolution's own inspector (a passive of the law fired)
   | 'focus-actions' // draw attention to the action area (your turn)
   | 'go-to-action' // best-effort: surface the pending mandatory prompt
   | 'view-reveal' // open the read-only viewer of the revealed/shown cards
@@ -252,9 +258,13 @@ export type NotificationModel = {
   reveal?: RevealMeta;
 
   // ── Passive effect ────────────────────────────────────────────────────────
-  /** The card whose passive effect fired (variant `passive-effect`) — drives the
-   *  effect name + the hover effect-block popover + the details modal. */
-  effectCard?: CardName;
+  /**
+   * WHAT fired (variant `passive-effect`): a card of a tableau, or the ENACTED
+   * RESOLUTION (Turmoil Redux) — ONE field, a union, so a passive source can
+   * never be a card by omission. Drives the effect name and the detail action
+   * (a card: the journal / the effects overlay; a resolution: its own inspector).
+   */
+  effectSource?: NotificationEffectSource;
 
   // ── Coalesced burst ───────────────────────────────────────────────────────
   /** When several same-actor events were merged: how many. */

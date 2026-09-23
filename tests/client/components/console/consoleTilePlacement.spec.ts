@@ -3,6 +3,7 @@ import {SpaceBonus} from '@/common/boards/SpaceBonus';
 import {SpaceModel} from '@/common/models/SpaceModel';
 import {SpaceId} from '@/common/Types';
 import {OceanAdjacencyBonusModel} from '@/common/models/OceanAdjacencyBonusModel';
+import {PlacementBonusEchoModel} from '@/common/models/PlacementBonusEchoModel';
 import {TileType} from '@/common/TileType';
 import {
   armTilePlacement,
@@ -335,6 +336,47 @@ describe('consoleTilePlacement (the animation transaction)', () => {
       expect(panelRewardHold.active).to.be.false; // nothing mis-attributed
       await endTilePlacement();
       expect(isTilePlacementActive()).to.be.false;
+    });
+
+    it('THE ECHO (the enacted resolution paid the cell a second time): the held specs double and a second wave runs IN TURN; a foreign echo is ignored', async () => {
+      armTilePlacement({spaceId: '05'});
+      const prev = [space('05', {bonus: [SpaceBonus.STEEL, SpaceBonus.STEEL]})];
+      const next = [space('05', {bonus: [SpaceBonus.STEEL, SpaceBonus.STEEL], tileType: TileType.CITY, color: 'red'})];
+      const water = oceanBonus('05', ['32']);
+      const echo: PlacementBonusEchoModel = {spaceId: '05' as SpaceId, resolution: 'RDX_TEST_LAW', printed: true, ocean: water};
+      expect(detectTilePlacement(prev, next, {oceanBonus: water, bonusEcho: echo})).to.not.be.undefined;
+      await runTilePlacement(prev, next);
+      seedTilePlacementRewardHold();
+      // 2 printed + 2 echoed; 2 M€ + 2 M€ — held as the SUM, released at each wave's own touchdowns.
+      expect(heldStock('steel')).to.eq(4);
+      expect(heldStock('megacredits')).to.eq(4);
+      expect(tilePlacementRewardsSettling()).to.be.true;
+      const seen = {echoing: false};
+      const watch = setInterval(() => {
+        if (tilePlacementState.echoing) {
+          seen.echoing = true;
+        }
+      }, 5);
+      await endTilePlacement();
+      clearInterval(watch);
+      expect(seen.echoing, 'the second wave was announced as the echo').to.be.true;
+      expect(tilePlacementState.echoing).to.be.false;
+      expect(panelRewardHold.active).to.be.false;
+      expect(heldStock('steel')).to.eq(0);
+      expect(heldStock('megacredits')).to.eq(0);
+      expect(isTilePlacementActive()).to.be.false;
+
+      // A stale echo (another space) doubles nothing.
+      abortTilePlacement();
+      await settle(5);
+      armTilePlacement({spaceId: '05'});
+      const prev2 = [space('05', {bonus: [SpaceBonus.STEEL]})];
+      const next2 = [space('05', {bonus: [SpaceBonus.STEEL], tileType: TileType.CITY, color: 'red'})];
+      detectTilePlacement(prev2, next2, {bonusEcho: {spaceId: '07' as SpaceId, resolution: 'RDX_TEST_LAW', printed: true}});
+      await runTilePlacement(prev2, next2);
+      seedTilePlacementRewardHold();
+      expect(heldStock('steel')).to.eq(1);
+      await endTilePlacement();
     });
 
     it('no adjacent oceans → no beat, no hold, not one extra frame', async () => {

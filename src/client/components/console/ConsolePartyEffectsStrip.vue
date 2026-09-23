@@ -14,6 +14,8 @@
       <div v-for="row in rows" :key="row.key" class="con-pfx__item" :class="{'con-pfx__item--resolution': row.resolution !== undefined}" :data-party="row.party" :data-resolution="row.resolution" :style="{'--parl-accent': row.accent}">
         <img class="con-pfx__emblem" :src="row.emblem" alt="" />
         <div class="con-pfx__why">
+          <!-- The law's own kicker: a resolution row is titled by the card's NAME, so the kind is said above it. -->
+          <span v-if="row.resolution !== undefined" class="con-pfx__law" v-i18n>Enacted resolution</span>
           <b>{{ $t(row.title) }}</b>
           <ConsolePartyFormula class="con-pfx__formula" :party="row.party" :renderRoot="row.renderRoot" size="wide" />
           <span v-for="(reason, i) in row.reasons" :key="i" class="con-pfx__reason" :class="'con-pfx__reason--' + reason.tone">{{ reasonText(reason) }}</span>
@@ -92,11 +94,15 @@ export default defineComponent({
           action: hasAction ? (uses > 0 ? 'Action used this generation' : 'Action available this generation') : undefined,
         });
       }
-      // THE ENACTED RESOLUTION's own passive effect — everyone's law while it
-      // stands: one row with its printed graphic, under its party's seal.
+      // THE ENACTED RESOLUTION's own passive effect — everyone's LAW while it
+      // stands: one row with its printed graphic, under its party's seal. It
+      // LEADS the strip (the law before the privileges) and wears the gold of
+      // the government in power (`.con-pfx__item--resolution`) — the same
+      // mark the Parliament gives the enacted card, so it never reads as one
+      // more party's perk among the rows.
       const enacted = model.enacted === undefined ? undefined : getResolution(model.enacted.resolution);
       if (enacted !== undefined && enacted.text.passive !== undefined) {
-        out.push({
+        out.unshift({
           key: `resolution:${enacted.id}`,
           party: enacted.party,
           resolution: enacted.id,

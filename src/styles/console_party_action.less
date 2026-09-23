@@ -266,6 +266,16 @@
         box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.08), inset .18rem 0 0 var(--parl-accent, @con-parl-violet);
         min-width: 0;
     }
+    /* THE LAW'S ROW — the enacted resolution's passive. It leads the strip and wears the
+       gold seam of the government in power (the Parliament's own mark of the enacted
+       card, `.con-parl__gov--enacted`), so it reads as everyone's law beside the party
+       privileges — never as one more party's perk. Weight, not colour alone: the kicker
+       is tracked caps, the seam is a full frame, the field is a shade warmer. */
+    &__item--resolution {
+        background: linear-gradient(160deg, fade(@con-parl-gold, 9%), rgba(255, 255, 255, 0.03));
+        box-shadow: inset 0 0 0 .07rem fade(@con-parl-gold, 55%), inset .18rem 0 0 var(--parl-accent, @con-parl-violet);
+    }
+    &__law { font-size: .58rem; letter-spacing: .14em; text-transform: uppercase; font-weight: 700; color: @con-parl-gold; }
     &__emblem { width: 2.2rem; height: 2.2rem; object-fit: contain; flex-shrink: 0; }
     &__formula { --con-pformula-zoom: calc(0.6 * var(--con-ui-scale, 1)); }
     &__why { display: flex; flex-direction: column; gap: .15rem; font-size: .72rem; max-width: 15rem; b { font-size: .86rem; } }
@@ -305,5 +315,6 @@ html.con-profile-tv .con-pact {
 }
 html.con-profile-tv .con-pfx {
     &__kicker, &__sub, &__uses { font-size: .8rem; }
+    &__law { font-size: .7rem; }
     &__why { font-size: .88rem; b { font-size: 1rem; } }
 }
