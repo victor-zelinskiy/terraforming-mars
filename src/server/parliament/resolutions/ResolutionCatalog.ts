@@ -38,6 +38,7 @@ import {CLOUD_DEVELOPMENT} from './unity/CloudDevelopment';
 import {COLONIAL_AFFAIRS} from './unity/ColonialAffairs';
 import {COLONIZATION_FUNDING} from './unity/ColonizationFunding';
 import {COLONY_CONTEST} from './unity/ColonyContest';
+import {DEVELOPMENT_CRAZE} from './marsFirst/DevelopmentCraze';
 
 /**
  * THE RETIRED IDS — iteration 0's DUMMY resolutions (a party, a quest, no
@@ -237,9 +238,9 @@ export class ResolutionCatalog {
  * THE TEMPLATE'S DEVELOPMENT EXAMPLES (never dealt: `copies: 0`). One
  * IMMEDIATE effect, one PASSIVE and one ACTION, built from the existing
  * primitives. They were how the face, the inspector and the workspace were
- * proven before the real catalog existed; today the passive and the action
- * are still the ONLY cards that exercise those two mechanisms, until a real
- * resolution does.
+ * proven before the real catalog existed; today the action is still the ONLY
+ * card that exercises that mechanism, until a real resolution does — the
+ * passive seam is walked by a real card (Development Craze, RX10).
  */
 export const DEV_IMMEDIATE_RESOLUTION_ID: ResolutionId = 'RDX_DEV_IMMEDIATE';
 export const DEV_PASSIVE_RESOLUTION_ID: ResolutionId = 'RDX_DEV_PASSIVE';
@@ -452,6 +453,8 @@ export const REDUX_RESOLUTION_CATALOG = new ResolutionCatalog([
   // The winner's part is a COLONY built for free (`winnerReward: {kind: 'colony'}`) — the colonies screen hosted as
   // the sitting's own step.
   COLONY_CONTEST,
+  // The first LIVE PASSIVE: a placement's bonuses paid a second time while the card stands enacted.
+  DEVELOPMENT_CRAZE,
   TEST_CHOICE,
   DEV_IMMEDIATE,
   DEV_PASSIVE,

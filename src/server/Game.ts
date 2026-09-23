@@ -37,6 +37,7 @@ import {awardManifest} from './awards/Awards';
 import {PartyHooks} from './turmoil/parties/PartyHooks';
 import {Phase} from '../common/Phase';
 import {IPlayer} from './IPlayer';
+import {OceanAdjacencyBonusModel} from '../common/models/OceanAdjacencyBonusModel';
 import {Player} from './Player';
 import {PlayerId, GameId, SpectatorId, SpaceId} from '../common/Types';
 import {PlayerInput} from './PlayerInput';
@@ -2133,23 +2134,13 @@ export class Game implements IGame, Logger {
       }
     }
 
-    const {oceans: adjacentOceanCount, megacredits: oceanAdjacencyBonus, spaceIds: oceanSpaceIds} =
-      this.board.oceanAdjacencyBonus(player, space);
-    if (oceanAdjacencyBonus > 0) {
-      this.events.withSource({kind: 'oceanBonus'}, () => {
-        player.stock.add(Resource.MEGACREDITS, oceanAdjacencyBonus);
-        this.log('${0} gained ${1} ${2} from ${3} ocean(s)', (b) => b.player(player).number(oceanAdjacencyBonus).resource(Resource.MEGACREDITS).number(adjacentOceanCount));
-      });
+    const ocean = this.events.withSource({kind: 'oceanBonus'}, () => this.grantOceanAdjacencyBonus(player, space));
+    if (ocean !== undefined) {
       // Presentation-only breakdown for the premium placement scene: WHICH
       // neighbours paid, so it can materialize one M€ coin at each of them.
       // Self-only + transient (cleared on the player's next input); the money
       // above is the single source of truth, this never moves any.
-      player.lastOceanBonus = {
-        spaceId: space.id,
-        oceanSpaceIds,
-        perOcean: player.oceanBonus,
-        megacredits: oceanAdjacencyBonus,
-      };
+      player.lastOceanBonus = ocean;
     }
 
     // TODO(kberg): these might not apply for some bonuses, e.g. Frontier Town.
@@ -2160,8 +2151,11 @@ export class Game implements IGame, Logger {
       });
 
       TurmoilHandler.resolveTilePlacementBonuses(player, space.spaceType);
-      // Turmoil Redux party passives on a placed tile (Mars First's steel + card).
-      ParliamentHandler.onTilePlaced(player, space);
+      // Turmoil Redux party passives on a placed tile (Mars First's steel +
+      // card) and the enacted resolution's passive — told what this placement
+      // paid, so a passive that pays it AGAIN never invents a printed bonus
+      // an ocean cover skipped.
+      ParliamentHandler.onTilePlaced(player, space, {coveringExistingTile});
 
       if (arcadianCommunityBonus) {
         this.defer(new GainResourcesDeferred(player, Resource.MEGACREDITS, {count: 3}));
@@ -2186,6 +2180,26 @@ export class Game implements IGame, Logger {
     this.events.recordTilePlaced(player, space, tile.tileType);
   }
 
+  /**
+   * THE OCEAN ADJACENCY BONUS of a placement on `space` — «gain N M€ per
+   * adjacent ocean» — paid and logged, the paying neighbours returned as the
+   * presentation breakdown (`OceanAdjacencyBonusModel`) or `undefined` when no
+   * ocean touches the cell. ONE grant path: the ordinary placement runs it
+   * under the `oceanBonus` source and keeps the breakdown as `lastOceanBonus`;
+   * an effect that pays the bonus a SECOND time (the enacted Development
+   * Craze) runs the same method under its own source, so the rule is never
+   * restated.
+   */
+  public grantOceanAdjacencyBonus(player: IPlayer, space: Space): OceanAdjacencyBonusModel | undefined {
+    const {oceans, megacredits, spaceIds} = this.board.oceanAdjacencyBonus(player, space);
+    if (megacredits <= 0) {
+      return undefined;
+    }
+    player.stock.add(Resource.MEGACREDITS, megacredits);
+    this.log('${0} gained ${1} ${2} from ${3} ocean(s)', (b) => b.player(player).number(megacredits).resource(Resource.MEGACREDITS).number(oceans));
+    return {spaceId: space.id, oceanSpaceIds: spaceIds, perOcean: player.oceanBonus, megacredits};
+  }
+
   public grantSpaceBonuses(player: IPlayer, space: Space) {
     const bonuses = MultiSet.from(space.bonus);
     bonuses.forEachMultiplicity((count: number, bonus: SpaceBonus) => {
@@ -2193,6 +2207,13 @@ export class Game implements IGame, Logger {
     });
   }
 
+  /**
+   * A PAY-TO-USE bonus is an OFFER: a bill the player cannot pay when it comes
+   * up is skipped and named, never thrown (`skipIfUnaffordable`). The ordinary
+   * placement never hits it — the validator charged the cell's transaction —
+   * it protects the REPEATED grants (Frontier Town, Jansson, the enacted
+   * Development Craze), whose second bill nobody vetted.
+   */
   public grantSpaceBonus(player: IPlayer, spaceBonus: SpaceBonus, count: number = 1, source?: {spaceId?: SpaceId}): SpaceBonusGrant {
     switch (spaceBonus) {
     case SpaceBonus.DRAW_CARD:
@@ -2213,7 +2234,10 @@ export class Game implements IGame, Logger {
     case SpaceBonus.OCEAN:
       // Hellas special requirements ocean tile
       if (this.canAddOcean()) {
-        this.defer(new SelectPaymentDeferred(player, constants.HELLAS_BONUS_OCEAN_COST, {title: 'Select how to pay for placement bonus ocean'}))
+        this.defer(new SelectPaymentDeferred(player, constants.HELLAS_BONUS_OCEAN_COST, {
+          title: 'Select how to pay for placement bonus ocean',
+          skipIfUnaffordable: 'The ocean placement bonus is skipped — ${0} cannot pay ${1} M€',
+        }))
           .andThen(() => {
             this.defer(new PlaceOceanTile(player, {title: 'Select space for ocean from placement bonus'}));
             return undefined;
@@ -2242,7 +2266,10 @@ export class Game implements IGame, Logger {
         this.defer(new SelectPaymentDeferred(
           player,
           cost,
-          {title: 'Select how to pay for placement bonus temperature'}))
+          {
+            title: 'Select how to pay for placement bonus temperature',
+            skipIfUnaffordable: 'The temperature placement bonus is skipped — ${0} cannot pay ${1} M€',
+          }))
           .andThen(() => this.increaseTemperature(player, 1));
       }
       return {kind: 'other'};
@@ -2259,7 +2286,10 @@ export class Game implements IGame, Logger {
       this.defer(new SelectPaymentDeferred(
         player,
         constants.TERRA_CIMMERIA_COLONY_COST,
-        {title: 'Select how to pay for building a colony'}))
+        {
+          title: 'Select how to pay for building a colony',
+          skipIfUnaffordable: 'The colony placement bonus is skipped — ${0} cannot pay ${1} M€',
+        }))
         .andThen(() => this.defer(new BuildColony(player)));
       return {kind: 'other'};
     default:

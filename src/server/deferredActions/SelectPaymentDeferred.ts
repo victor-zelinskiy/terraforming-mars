@@ -43,6 +43,19 @@ export type Options = {
   atMost?: boolean;
   /** This bill settles a Turmoil Redux VOTE from the reserve (see {@link VotePaymentMeta}). */
   votePayment?: VotePaymentMeta;
+  /**
+   * A PAY-TO-USE placement bonus (the Hellas ocean, Vastitas' temperature,
+   * Terra Cimmeria's colony) can be offered a SECOND time (Frontier Town,
+   * Jansson, the enacted Development Craze): the placement validator charged
+   * the first bill, nobody vetted the second — and both are QUEUED before
+   * either is paid, so a check at grant time sees the money still there.
+   * Decided AT EXECUTION TIME like `atMost`: a bill the player cannot pay is
+   * SKIPPED AND NAMED (this template is the journal line — `${0}` the player,
+   * `${1}` the amount), never thrown, and its follow-up (the ocean, the
+   * temperature step, the colony) never runs. Only for an OFFER a rule makes
+   * — a mandatory cost keeps throwing.
+   */
+  skipIfUnaffordable?: string;
 }
 
 export class SelectPaymentDeferred extends DeferredAction<Payment> {
@@ -145,6 +158,10 @@ export class SelectPaymentDeferred extends DeferredAction<Payment> {
     const amount = this.payableAmount();
     if (amount === 0) {
       this.cb(Payment.of({}));
+      return undefined;
+    }
+    if (this.options.skipIfUnaffordable !== undefined && !this.player.canAfford(amount)) {
+      this.player.game.log(this.options.skipIfUnaffordable, (b) => b.player(this.player).number(amount));
       return undefined;
     }
 

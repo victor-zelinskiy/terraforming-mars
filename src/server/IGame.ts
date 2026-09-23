@@ -12,6 +12,7 @@ import {LogMessage} from '../common/logs/LogMessage';
 import {RevealLogMeta} from '../common/logs/RevealLogMeta';
 import {Phase} from '../common/Phase';
 import {IPlayer} from './IPlayer';
+import {OceanAdjacencyBonusModel} from '../common/models/OceanAdjacencyBonusModel';
 import {PlayerId, GameId, SpectatorId, SpaceId, isGameId} from '../common/Types';
 import {AndThen, DeferredAction} from './deferredActions/DeferredAction';
 import {Priority} from './deferredActions/Priority';
@@ -269,6 +270,13 @@ export interface IGame extends Logger {
    * Gives all the bonuses from a space on the map.
    */
   grantSpaceBonuses(player: IPlayer, space: Space): void;
+  /**
+   * The ocean adjacency M€ of a placement on `space`, paid and logged; the
+   * paying neighbours returned as the presentation breakdown, `undefined` when
+   * no ocean touches the cell. The ONE path the ordinary placement and an effect
+   * that pays the bonus a second time (Development Craze) both run.
+   */
+  grantOceanAdjacencyBonus(player: IPlayer, space: Space): OceanAdjacencyBonusModel | undefined;
   /**
    * Grants one space bonus. `source.spaceId` (when known) names the PAYING
    * cell so a card draw's reveal can lift off that exact hex. Returns HOW the

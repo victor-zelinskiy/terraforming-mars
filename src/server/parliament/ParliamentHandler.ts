@@ -28,7 +28,7 @@ import {PARTY_EFFECTS, partySource, redsDiscardPrompt} from './parties/PartyEffe
 import {QuestTracker} from './quests/QuestTracker';
 import {ChairmanSeat} from './quests/ChairmanSeat';
 import {ParliamentPhase} from './ParliamentPhase';
-import {ResolutionPassive} from './resolutions/IResolution';
+import {ResolutionPassive, TilePlacementBonusContext} from './resolutions/IResolution';
 
 export class ParliamentHandler {
   // ───────────────────────── the action menu ─────────────────────────
@@ -150,8 +150,13 @@ export class ParliamentHandler {
     player.game.events.withEffectSource(player, {kind: 'resolution', id: enacted.id, owner: player.color}, channel, () => run(passive));
   }
 
-  /** Placement BONUSES for a tile (the engine calls this outside the World Government). */
-  public static onTilePlaced(player: IPlayer, space: Space): void {
+  /**
+   * Placement BONUSES for a tile (the engine calls this outside the World
+   * Government, AFTER the cell's own bonuses and the adjacency bonuses were
+   * paid). `placement` tells the enacted passive what that payout was — a
+   * passive that pays it AGAIN (Development Craze) reads it, never guesses.
+   */
+  public static onTilePlaced(player: IPlayer, space: Space, placement: TilePlacementBonusContext = {coveringExistingTile: false}): void {
     const parliament = player.game?.parliament;
     if (parliament === undefined) {
       return;
@@ -161,7 +166,7 @@ export class ParliamentHandler {
         player.game.events.withEffectSource(player, partySource(party, player), 'tile-placed', () => effect.onTilePlaced?.(player, space));
       }
     });
-    ParliamentHandler.enactedPassive(player, parliament, 'tile-placed', (passive) => passive.onTilePlaced?.(player, space));
+    ParliamentHandler.enactedPassive(player, parliament, 'tile-placed', (passive) => passive.onTilePlaced?.(player, space, placement));
   }
 
   public static onTerraformRatingGained(player: IPlayer, steps: number): void {

@@ -36,6 +36,7 @@ import {ExternalDrawCause} from '../common/models/ExternalDrawPromptModel';
 import {RevealResultModel} from '../common/models/RevealResultModel';
 import {EnergyHeatConversionModel} from '../common/models/EnergyHeatConversionModel';
 import {OceanAdjacencyBonusModel} from '../common/models/OceanAdjacencyBonusModel';
+import {PlacementBonusEchoModel} from '../common/models/PlacementBonusEchoModel';
 import {StartingSetupModel} from '../common/models/StartingSetupModel';
 import {AlliedParty} from '../common/turmoil/Types';
 import {IParty} from './turmoil/parties/IParty';
@@ -283,6 +284,14 @@ export interface IPlayer {
    * OceanAdjacencyBonusModel.
    */
   lastOceanBonus: OceanAdjacencyBonusModel | undefined;
+  /**
+   * Transient (NOT serialized) snapshot of a placement whose bonuses the
+   * enacted resolution paid a SECOND time (Development Craze) — set by the
+   * passive that paid, serialized self-only in the player model, cleared at
+   * the start of the next input (Player.process). The premium placement scene
+   * plays it as a second wave from the same cell. See PlacementBonusEchoModel.
+   */
+  lastPlacementBonusEcho: PlacementBonusEchoModel | undefined;
   /**
    * Transient (NOT serialized) snapshot of the start-of-game setup applied by
    * this player's corporation — its starting bonuses + the M€ paid for the

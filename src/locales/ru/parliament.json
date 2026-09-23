@@ -682,5 +682,12 @@
   "You built it": "Построено вами",
   "Built · ${0}": "Построено · ${0}",
   "Colony · ${0}": "Колония · ${0}",
-  "The colony is built for free on any open tile without your cube; its build bonus is paid, no trade fleet is spent.": "Колония строится бесплатно на любом открытом тайле, где ещё нет вашего кубика; бонус постройки выплачивается, торговый флот не тратится."
+  "The colony is built for free on any open tile without your cube; its build bonus is paid, no trade fleet is spent.": "Колония строится бесплатно на любом открытом тайле, где ещё нет вашего кубика; бонус постройки выплачивается, торговый флот не тратится.",
+  "Development Craze": "Строительная лихорадка",
+  "Gain 1 steel for every point of your influence.": "Получите 1 сталь за каждое очко вашего влияния.",
+  "All placement and adjacency bonuses you get for placing tiles on Mars are paid twice.": "Все бонусы размещения и соседства, которые вы получаете за размещение тайлов на Марсе, выплачиваются дважды.",
+  "Place 1 city or special tile": "Разместите 1 тайл города или спецтайл",
+  "${0} has no influence — no steel from ${1}": "${0}: влияния нет — ${1} не даёт стали",
+  "${0} receives the placement bonuses of the tile a second time — ${1}": "${0} получает бонусы размещённого тайла второй раз — ${1}",
+  "Development Craze pays the placement and adjacency bonuses of a tile you place on Mars a second time": "«Строительная лихорадка» платит бонусы размещения и соседства тайла на Марсе второй раз"
 }

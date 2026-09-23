@@ -91,6 +91,17 @@ export type ResolutionForecastContext = {
 };
 
 /**
+ * What the engine knows about the placement whose bonuses it just paid, told
+ * to the `onTilePlaced` hook (`Game.grantPlacementBonuses` runs it AFTER the
+ * cell's printed bonuses and the adjacency bonuses). `coveringExistingTile`:
+ * the tile landed ON another tile (an Ares ocean cover), so the cell's PRINTED
+ * bonuses were NOT paid — a hook that repeats the payout must not invent them.
+ */
+export type TilePlacementBonusContext = {
+  coveringExistingTile: boolean;
+};
+
+/**
  * A PASSIVE effect while the resolution stands enacted — the SAME hook set
  * the party effects use, run for EVERY participant (an enacted resolution is
  * everyone's law), every mutation under the resolution's own event source.
@@ -98,7 +109,7 @@ export type ResolutionForecastContext = {
  * with no forecast twin is a silent lie in the play / action forecast.
  */
 export type ResolutionPassive = {
-  onTilePlaced?(player: IPlayer, space: Space): void;
+  onTilePlaced?(player: IPlayer, space: Space, placement: TilePlacementBonusContext): void;
   onTerraformRatingGained?(player: IPlayer, steps: number): void;
   onProductionChanged?(player: IPlayer, resource: Resource, delta: number): void;
   forecast(ctx: ResolutionForecastContext): Array<EffectForecastFact>;

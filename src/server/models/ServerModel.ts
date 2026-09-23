@@ -281,6 +281,10 @@ export class Server {
       // placement bonus (and how much each), for the premium per-ocean coin
       // payout. Already a serialized OceanAdjacencyBonusModel (or undefined).
       lastOceanBonus: player.lastOceanBonus,
+      // Self-only + transient: the enacted resolution paid this placement's
+      // bonuses a SECOND time (Development Craze) — the premium scene's second
+      // wave. Already a serialized PlacementBonusEchoModel (or undefined).
+      lastPlacementBonusEcho: player.lastPlacementBonusEcho,
       // Self-only + transient: the start-of-game corporation setup (starting
       // bonuses + card payment) for the premium start-flow reveal stages.
       // Already a serialized StartingSetupModel (or undefined).

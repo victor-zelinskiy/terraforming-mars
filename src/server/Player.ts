@@ -85,6 +85,7 @@ import {ColonyTradeManifestModel} from '../common/models/ColonyTradeManifestMode
 import {RevealResultModel} from '../common/models/RevealResultModel';
 import {EnergyHeatConversionModel} from '../common/models/EnergyHeatConversionModel';
 import {OceanAdjacencyBonusModel} from '../common/models/OceanAdjacencyBonusModel';
+import {PlacementBonusEchoModel} from '../common/models/PlacementBonusEchoModel';
 import {StartingSetupModel, StartingSetupSnapshot} from '../common/models/StartingSetupModel';
 import {UnderworldExpansion} from './underworld/UnderworldExpansion';
 import {Counter} from './behavior/Counter';
@@ -310,6 +311,10 @@ export class Player implements IPlayer {
   // placing next to oceans — names the paying neighbours (self-only, cleared at
   // the start of the next input). See IPlayer.lastOceanBonus.
   public lastOceanBonus: OceanAdjacencyBonusModel | undefined = undefined;
+  // Transient snapshot of a placement whose bonuses the enacted resolution paid
+  // a SECOND time (self-only, cleared at the start of the next input). See
+  // IPlayer.lastPlacementBonusEcho.
+  public lastPlacementBonusEcho: PlacementBonusEchoModel | undefined = undefined;
   // Transient snapshot of the start-of-game corporation setup (starting bonuses
   // + card payment) over the pre-corp baseline (self-only, cleared at the start
   // of the next input). Drives the premium start flow's explicit reveal stages.
@@ -2864,6 +2869,8 @@ export class Player implements IPlayer {
     // (The grant runs inside this very input, after this line, so its snapshot
     // survives — exactly like the reveal / conversion above.)
     this.lastOceanBonus = undefined;
+    // …and the echo of a doubled placement payout (the same one-shot scene).
+    this.lastPlacementBonusEcho = undefined;
     // The start-of-game setup reveal is a one-shot at the ceremony; the player's
     // next input (their first prelude / corp action) means that moment passed.
     this.startingSetup = undefined;

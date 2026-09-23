@@ -18,6 +18,7 @@ import {CardDrawRevealModel} from './CardDrawRevealModel';
 import {RevealResultModel} from './RevealResultModel';
 import {EnergyHeatConversionModel} from './EnergyHeatConversionModel';
 import {OceanAdjacencyBonusModel} from './OceanAdjacencyBonusModel';
+import {PlacementBonusEchoModel} from './PlacementBonusEchoModel';
 import {StartingSetupModel} from './StartingSetupModel';
 import {ColonyTradeManifestModel} from './ColonyTradeManifestModel';
 import {PotentialActionsModel} from './PotentialActionsModel';
@@ -235,6 +236,11 @@ export interface PlayerViewModel extends ViewModel {
   // triggered ocean instead of re-deriving board adjacency client-side. Absent
   // whenever a placement earned no ocean bonus. See OceanAdjacencyBonusModel.
   lastOceanBonus?: OceanAdjacencyBonusModel;
+  // Self-only, transient (cleared on the next input): the enacted resolution paid
+  // this placement's bonuses a SECOND time (Development Craze). The premium
+  // placement scene plays it as a second wave from the same cell; nothing is
+  // re-derived. Absent unless a passive doubled the payout. See PlacementBonusEchoModel.
+  lastPlacementBonusEcho?: PlacementBonusEchoModel;
   // Self-only, transient (cleared on the next input): the start-of-game setup the
   // corporation just applied — its starting bonuses + the M€ paid for the bought
   // project cards, over the pre-corp baseline. Drives the premium start flow's

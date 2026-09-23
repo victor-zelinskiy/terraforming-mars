@@ -1250,5 +1250,8 @@
     "FROM THE ARCHIVES": "ЗАПИСЬ ИЗ АРХИВА",
     "No archive entry is available.": "Архивная запись отсутствует.",
     "No tile of yours is next to an ocean": "Ни один ваш тайл не соседствует с океаном",
-    "Your tiles next to an ocean": "Ваши тайлы рядом с океаном"
+    "Your tiles next to an ocean": "Ваши тайлы рядом с океаном",
+    "The ocean placement bonus is skipped — ${0} cannot pay ${1} M€": "Бонус клетки «океан» пропущен — ${0} не может заплатить ${1} M€",
+    "The temperature placement bonus is skipped — ${0} cannot pay ${1} M€": "Бонус клетки «температура» пропущен — ${0} не может заплатить ${1} M€",
+    "The colony placement bonus is skipped — ${0} cannot pay ${1} M€": "Бонус клетки «колония» пропущен — ${0} не может заплатить ${1} M€"
 }
