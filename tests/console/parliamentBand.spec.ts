@@ -148,6 +148,37 @@ describe('parliamentBand — the reading band says the REASON, in objects', () =
       expect((band.chips[0] as {key: string}).key).eq('Resolution action');
       expect((band.chips[1] as {key: string}).key).eq('Available in Card actions');
     });
+    /*
+     * THE PLANET IS A MEMBER OF THE SAME LINE (Gas Export, RX12) — after the
+     * seat's own part, in the card's own order, and with «nobody gets the TR»
+     * carried on the chip itself: that is the one thing the scales cannot say.
+     */
+    it('the WORLD’s own moves ride the reward line, after the seat’s part', () => {
+      const band = line({
+        stage: 'reward',
+        rewardStep: 'received',
+        reward: {
+          yields: [{context: 'applied'} as never],
+          reactions: [],
+          skips: [],
+          world: [
+            {parameter: 'oxygen', before: 5, after: 4, steps: -1, unrewarded: true},
+            {parameter: 'venus', before: 10, after: 14, steps: 2, unrewarded: true},
+          ],
+        },
+      });
+      expect(kinds(band.chips)).deep.eq(['yield', 'world', 'world']);
+      expect(band.chips[1]).deep.include({kind: 'world', parameter: 'oxygen', before: 5, after: 4, steps: -1, unrewarded: true});
+      expect(band.chips[2]).deep.include({kind: 'world', parameter: 'venus', steps: 2});
+    });
+    it('a world move that could NOT happen carries its reason on the same chip', () => {
+      const band = line({
+        stage: 'reward', rewardStep: 'received',
+        reward: {...NO_REWARD, world: [{parameter: 'oxygen', before: 14, after: 14, steps: 0, unrewarded: true, skipped: 'Oxygen is at its maximum — it is not reduced'}]},
+      });
+      expect(kinds(band.chips)).deep.eq(['world']);
+      expect(band.chips[0]).deep.include({skipped: 'Oxygen is at its maximum — it is not reduced'});
+    });
     it('a wait on ANOTHER seat is the line, and a seat with nothing at all still reads', () => {
       expect(kinds(line({stage: 'reward', reward: {...NO_REWARD, waitingFor: RED}}).chips)).deep.eq(['awaiting']);
       const empty = line({stage: 'reward', rewardStep: 'received'});

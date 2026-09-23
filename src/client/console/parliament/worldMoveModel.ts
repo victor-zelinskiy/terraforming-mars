@@ -151,6 +151,13 @@ export function worldParameterUnit(parameter: ParameterMoveId): string {
 export function worldMoveSentenceOf(
   reading: WorldMoveReading,
   t: {text: (key: string) => string, params: (key: string, params: Array<string>) => string},
+  /**
+   * `credit: false` — the caller has already stated WHO is credited once, for
+   * the whole part (the inspector prints the law's own sentence above the
+   * rows, the results panel states it once under them): repeating «РТ никому»
+   * on every row is the same fact three times over.
+   */
+  opts: {credit?: boolean} = {},
 ): {caption: string, detail: string} {
   const name = t.text(worldParameterLabelKey(reading.parameter));
   const unit = worldParameterUnit(reading.parameter);
@@ -167,10 +174,12 @@ export function worldMoveSentenceOf(
     return {caption, detail: t.text(reading.move.steps < 0 ? 'at its limit — no step' : 'at its maximum — no step')};
   }
   const parts = [t.params('${0}${2} → ${1}${2}', [String(range.before), String(range.after), unit])];
-  if (reading.unrewarded) {
-    parts.push(t.text('nobody gets the TR'));
-  } else if (reading.tr > 0) {
-    parts.push(t.params('TR +${0}', [String(reading.tr)]));
+  if (opts.credit !== false) {
+    if (reading.unrewarded) {
+      parts.push(t.text('nobody gets the TR'));
+    } else if (reading.tr > 0) {
+      parts.push(t.params('TR +${0}', [String(reading.tr)]));
+    }
   }
   return {caption, detail: parts.join(', ')};
 }

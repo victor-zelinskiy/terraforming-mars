@@ -265,14 +265,18 @@ export default defineComponent({
     },
     zoomResolutionAnnotations(): ReadonlyArray<CardAnnotation> {
       const id = this.zoomResolutionId;
-      return id === undefined ? [] : resolutionAnnotations(id, this.zoomResolutionYields, {reading: this.zoomResolutionWinner, viewer: this.zoomViewer, nameOf: this.zoomNameOf});
+      return id === undefined ? [] : resolutionAnnotations(id, this.zoomResolutionYields,
+        {reading: this.zoomResolutionWinner, viewer: this.zoomViewer, nameOf: this.zoomNameOf},
+        {table: this.consoleCardZoom.parliament?.table?.()});
     },
     zoomResolutionTier(): RulesLengthTier | undefined {
       const id = this.zoomResolutionId;
       const party = this.zoomResolutionParty;
       return id === undefined || party === undefined ? undefined :
-        denserRulesTier(rulesLengthTier(resolutionAnnotations(id, this.zoomResolutionYields, {reading: this.zoomResolutionWinner, viewer: this.zoomViewer, nameOf: this.zoomNameOf})),
-          rulesLengthTier(resolutionPartyAnnotations(party)));
+        denserRulesTier(rulesLengthTier(resolutionAnnotations(id, this.zoomResolutionYields,
+          {reading: this.zoomResolutionWinner, viewer: this.zoomViewer, nameOf: this.zoomNameOf},
+          {table: this.consoleCardZoom.parliament?.table?.()})),
+        rulesLengthTier(resolutionPartyAnnotations(party)));
     },
     zoomRulesCardName(): CardName | undefined {
       const name = this.consoleCardZoom.card?.name;

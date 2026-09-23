@@ -27,7 +27,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {testGame, TestGameOptions} from '../../TestGame';
 import {TestPlayer} from '../../TestPlayer';
-import {addCity, maxOutOceans, runAllActions, setOxygenLevel, setTemperature} from '../../TestingUtils';
+import {addCity, maxOutOceans, runAllActions, setOxygenLevel, setTemperature, setVenusScaleLevel} from '../../TestingUtils';
 import {SelectCard} from '../../../src/server/inputs/SelectCard';
 import {PartyName} from '../../../src/common/turmoil/PartyName';
 import {Tardigrades} from '../../../src/server/cards/base/Tardigrades';
@@ -81,6 +81,7 @@ import {CLIMATE_RESEARCH_ID} from '../../../src/server/parliament/resolutions/gr
 import {BIODOME_CONTEST_ID} from '../../../src/server/parliament/resolutions/greens/BiodomeContest';
 import {DEV_ACTION_RESOLUTION_ID, DEV_PASSIVE_RESOLUTION_ID} from '../../../src/server/parliament/resolutions/ResolutionCatalog';
 import {CLOUD_DEVELOPMENT_ID} from '../../../src/server/parliament/resolutions/unity/CloudDevelopment';
+import {GAS_EXPORT_ID} from '../../../src/server/parliament/resolutions/reds/GasExport';
 import {COLONIZATION_FUNDING_ID} from '../../../src/server/parliament/resolutions/unity/ColonizationFunding';
 import {SpaceName} from '../../../src/common/boards/SpaceName';
 import {COLONIAL_AFFAIRS_ID} from '../../../src/server/parliament/resolutions/unity/ColonialAffairs';
@@ -1107,6 +1108,34 @@ parliamentFixture('parliament-forestry-enacted', {
     expectViewerOpensGeneration(table, p2, 'parliament-forestry-enacted');
   },
 });
+
+// ── RX12 · GAS EXPORT (the Reds — «2 M€ per influence; oxygen −1, Venus +2, no TR for anybody»): the
+//    first law that MOVES THE WORLD. A Venus table (the card exists nowhere else) with the card alone in
+//    the first voting slot and blue's free delegate on it: blue at Agenda step 2 (winning → step 3 =
+//    influence 2 → 4 M€), red at step 1 (influence 1 → 2 M€). The globals are SET where both moves have
+//    room and neither crosses a Venus threshold: oxygen 5 %, Venus 10 % → 4 % / 14 %, so the e2e can read
+//    the two markers travel and assert that not one TR chip flies for either.
+const gasExportTable = (stopAt: ParliamentStop): ParliamentFixtureSpec => ({
+  options: {venusNextExtension: true},
+  resolution: GAS_EXPORT_ID,
+  votes: [0],
+  agenda: [2, 1],
+  stopAt,
+  arrange: ({game}) => {
+    setOxygenLevel(game, 5);
+    setVenusScaleLevel(game, 10);
+  },
+  expect: ({game, parliament}) => {
+    if (game.getOxygenLevel() !== 5 || game.getVenusScaleLevel() !== 10) {
+      throw new Error(`the parliament-gas fixture expected oxygen 5 % and Venus 10 %, got ${game.getOxygenLevel()} / ${game.getVenusScaleLevel()}`);
+    }
+    if (!parliament.slots.some((slot) => slot.instance.startsWith(GAS_EXPORT_ID))) {
+      throw new Error('the parliament-gas fixture lost Gas Export out of the voting area');
+    }
+  },
+});
+// The sitting has just convened: the ASSEMBLY gate stands for both seats — the e2e walks the world beat from here.
+parliamentFixture('parliament-gas-assembly', gasExportTable('assembly'));
 
 // ── RX03 · BIODOME CONTEST — a 2-seat table with the card alone in the first
 //    voting slot and blue's free delegate on it: blue at Agenda step 2

@@ -1653,6 +1653,8 @@ import ConsoleColonyLedger from '@/client/components/console/parliament/ConsoleC
 import {ColonyLedgerReading, colonyLedgerOf} from '@/client/console/parliament/colonyLedgerModel';
 import ConsoleWinnerReward from '@/client/components/console/parliament/ConsoleWinnerReward.vue';
 import {WinnerRewardReading, winnerRewardReadingOf, winnerRewardTableOf} from '@/client/console/parliament/winnerRewardModel';
+import {WinnerRewardTable} from '@/common/parliament/winnerReward';
+import {ParliamentEnactOutcomeModel} from '@/common/models/ParliamentModel';
 import {enactedYieldsOf, voteYieldsOf} from '@/client/console/parliament/influenceYieldModel';
 import {PartyReactionReading, partyReactionsOf, viewerHasSeat} from '@/client/console/parliament/partyReactionModel';
 import {buildParliamentView, voteForecastOf} from '@/client/console/parliament/consoleParliamentModel';
@@ -8627,7 +8629,7 @@ export default defineComponent({
       }
       if (isResolutionZoom(card)) {
         // The viewer's own readings ride along: the rules name the counted cards behind their number.
-        return resolutionAnnotations(card.resolution, this.zoomResolutionYields, this.zoomResolutionWinnerWords);
+        return resolutionAnnotations(card.resolution, this.zoomResolutionYields, this.zoomResolutionWinnerWords, this.zoomResolutionWorld);
       }
       if (isPartyEffectZoom(card)) {
         return partyAnnotations(card.partyEffect, this.game.parliament, this.thisPlayer.color, this.myTurn && this.awaitingInput);
@@ -8709,6 +8711,24 @@ export default defineComponent({
     zoomResolutionWinnerWords(): {reading: WinnerRewardReading | undefined, viewer: Color | undefined, nameOf: (color: Color) => string} {
       return {reading: this.zoomResolutionWinner, viewer: this.thisPlayer.color, nameOf: this.parliamentSeatName};
     },
+    /**
+     * The WORLD's part of the resolution on the stage, read over the live
+     * table — and, once the sitting has made it, over the server's own
+     * records (`worldMoveModel`): «Кислород: 5 % → 4 %», «Венера: 10 % →
+     * 14 %, РТ никому».
+     */
+    zoomResolutionWorld(): {table: WinnerRewardTable | undefined, enacted: boolean, outcomes: ReadonlyArray<ParliamentEnactOutcomeModel> | undefined} {
+      const id = this.zoomResolutionId;
+      const model = this.game.parliament;
+      const enacted = id !== undefined && model?.enacted?.resolution === id;
+      const phase = model?.phase;
+      const summary = phase?.summary ?? (model?.lastPhase?.enacted.resolution === id ? model?.lastPhase : undefined);
+      return {
+        table: winnerRewardTableOf(this.game),
+        enacted,
+        outcomes: enacted ? (phase?.outcomes ?? summary?.outcomes) : undefined,
+      };
+    },
     /** The WINNER's tile of the resolution on the stage, read over the live table (`winnerRewardModel`). */
     zoomResolutionWinner(): WinnerRewardReading | undefined {
       const id = this.zoomResolutionId;
@@ -8725,7 +8745,8 @@ export default defineComponent({
       if (id === undefined || party === undefined) {
         return undefined;
       }
-      return denserRulesTier(rulesLengthTier(resolutionAnnotations(id, this.zoomResolutionYields, this.zoomResolutionWinnerWords)), rulesLengthTier(resolutionPartyAnnotations(party)));
+      return denserRulesTier(rulesLengthTier(resolutionAnnotations(id, this.zoomResolutionYields, this.zoomResolutionWinnerWords, this.zoomResolutionWorld)),
+        rulesLengthTier(resolutionPartyAnnotations(party)));
     },
     /**
      * THE VIEWER'S VOTE on the resolution on the stage — the footer's fact

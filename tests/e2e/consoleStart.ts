@@ -2307,6 +2307,8 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'hydro-terminal'
   // RX10 Development Craze ENACTED: red opens generation 2 with 30 M€ — a standard city on a bonus cell pays its bonuses twice.
   'parliament-craze-enacted' |
   'parliament-forestry-enacted' |
+  // RX12 Gas Export: a Venus table at gate 1, oxygen 5 % and Venus 10 % — the world's own move plays from here.
+  'parliament-gas-assembly' |
   // The SITTING's gates (Э1): the phase stopped at gate 1 (`-assembly`) / gate 2 (`-adjourn`) for both seats.
   'parliament-aquifer-assembly' | 'parliament-aquifer-adjourn' | 'parliament-architecture-assembly' | 'parliament-architecture-adjourn' | 'parliament-support-stock' |
   // «Обновление» scenario 2: an EMPTY deck, both losers dealt straight back after the reshuffle, a delegate on a loser.

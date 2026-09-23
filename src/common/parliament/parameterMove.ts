@@ -113,7 +113,9 @@ export function parameterRoom(move: {parameter: ParameterMoveId; steps: number},
   const current = parameterValue(parameter, table);
   const size = parameterStepSize(parameter);
   const room = steps >= 0 ? (max - current) / size : (current - min) / size;
-  const applied = steps >= 0 ? Math.min(steps, Math.floor(room)) : -Math.min(-steps, Math.floor(room));
+  // `+ 0` normalises the negative zero a clamped lowering produces: a reading
+  // that prints «−0» and an `Object.is` comparison in a spec both deserve 0.
+  const applied = (steps >= 0 ? Math.min(steps, Math.floor(room)) : -Math.min(-steps, Math.floor(room))) + 0;
   const resulting = current + applied * size;
   return {
     parameter,

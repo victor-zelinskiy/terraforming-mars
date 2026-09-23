@@ -98,6 +98,30 @@ describe('AnimatedMetricValue (reactive transitions)', () => {
     wrapper.unmount();
   });
 
+  /*
+   * A LOWERED GLOBAL PARAMETER (Turmoil Redux, Gas Export RX12: «кислород
+   * 5 % → 4 %»). The world going BACKWARDS is the one thing the HUD must not
+   * announce like a reward: the chip is the ordinary global-parameter chip in
+   * the ordinary LOSS register — a real minus sign, the negative polarity
+   * class, and no celebration of its own.
+   */
+  it('a LOWERED global parameter reads as a loss: «−1» in the negative register', async () => {
+    const wrapper = mount(AnimatedMetricValue, {
+      ...globalConfig,
+      props: {value: 5, scopeKey: 'global', metricKey: 'globals.oxygen', variant: 'global-parameter'},
+    });
+    await wrapper.setProps({value: 4});
+    expect((wrapper.vm as any).displayedDelta).to.eq(-1);
+    expect((wrapper.vm as any).polarity).to.eq('negative');
+    const chip = wrapper.find('.delta-chip');
+    expect(chip.classes(), 'the loss register, not a second gain style').to.contain('delta-chip--negative');
+    expect(chip.classes()).to.contain('delta-chip--global-parameter');
+    expect(chip.classes()).to.not.contain('delta-chip--positive');
+    expect(wrapper.find('.delta-chip__sign').text(), 'a real minus sign').to.eq('−');
+    expect(wrapper.find('.delta-chip__value').text()).to.eq('1');
+    wrapper.unmount();
+  });
+
   it('a polarity flip opens a SECOND chip instead of netting the two out', async () => {
     const wrapper = mountHost(0);
     await wrapper.setProps({value: 3});

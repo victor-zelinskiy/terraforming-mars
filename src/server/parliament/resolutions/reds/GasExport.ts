@@ -118,8 +118,13 @@ const OXYGEN_STEP: EnactStep = {
   run(ctx) {
     const move = GAS_EXPORT_OXYGEN;
     const room = parameterRoom(move, tableOf(ctx));
-    if (!room.moves) {
-      const atMaximum = room.current >= room.max;
+    // THE CARD'S OWN CLAUSE FIRST — «if oxygen is not at maximum»: a maxed
+    // oxygen is a rule of this resolution, not an arithmetic limit (there is
+    // plenty of room BELOW it). The floor is the arithmetic one, and both are
+    // NAMED: the engine's own negative branch would do nothing in either case,
+    // and leaning on that silence is exactly the defect this guards against.
+    const atMaximum = room.current >= room.max;
+    if (atMaximum || !room.moves) {
       const reason = atMaximum ? 'Oxygen is at its maximum — it is not reduced' : 'Oxygen is already at its minimum';
       if (atMaximum) {
         ctx.game.log('Oxygen is at its maximum — ${0} does not reduce it', (b) => b.resolution(GAS_EXPORT_ID));

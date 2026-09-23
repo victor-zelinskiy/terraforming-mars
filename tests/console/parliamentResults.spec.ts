@@ -52,6 +52,46 @@ describe('parliamentResultsModel — the sitting\'s last reading, in two section
     expect((reading as Record<string, unknown>).law, 'nothing of the law survives the reading').eq(undefined);
   });
 
+  /*
+   * ПЛАНЕТА (Gas Export, RX12) — the WORLD's own part. It belongs to no seat,
+   * so it is never a payout row; and the panel's law holds: the scales have
+   * already moved on the board (the sitting stepped aside for exactly that),
+   * so the line states the STEP and the one fact that is nowhere else — that
+   * nobody was credited for it.
+   */
+  it('the WORLD’s moves are their own line, never a seat’s row', () => {
+    const world = (step: string, over: Partial<ParliamentEnactOutcomeModel>): ParliamentEnactOutcomeModel =>
+      ({step, part: 'world', kind: 'globalParameter', unrewarded: true, ...over}) as ParliamentEnactOutcomeModel;
+    const reading = resultsReadingOf(summary({outcomes: [
+      outcome({}),
+      world('oxygen', {amount: -1, parameter: {id: 'oxygen', before: 5, after: 4}}),
+      world('venus', {amount: 2, parameter: {id: 'venus', before: 10, after: 14}}),
+    ]}), [seat(BLUE)], SUPPORT);
+    expect(reading.payouts[0].parts.map((p) => p.kind), 'the seat’s row carries only the seat’s own record').deep.eq(['stock']);
+    expect(reading.planet?.map((m) => `${m.parameter}:${m.before}→${m.after}:${m.steps}`))
+      .deep.eq(['oxygen:5→4:-1', 'venus:10→14:2']);
+    expect(reading.planet?.every((m) => m.unrewarded), 'nobody was credited — the one fact the scales cannot state').is.true;
+    expect(reading.planet?.every((m) => m.skipped === undefined)).is.true;
+  });
+
+  it('…and a world move that did NOT happen is on the line too, with its reason', () => {
+    const reading = resultsReadingOf(summary({outcomes: [
+      {step: 'oxygen', part: 'world', kind: 'skipped', amount: 0, unrewarded: true,
+        reason: 'Oxygen is at its maximum — it is not reduced', parameter: {id: 'oxygen', before: 14, after: 14}} as ParliamentEnactOutcomeModel,
+    ]}), [seat(BLUE)], SUPPORT);
+    expect(reading.planet).lengthOf(1);
+    expect(reading.planet?.[0]).deep.include({parameter: 'oxygen', steps: 0, skipped: 'Oxygen is at its maximum — it is not reduced'});
+  });
+
+  it('a law that MOVED THE WORLD is never «quiet», even when it paid no seat', () => {
+    const quiet = {kicker: 'Effect while enacted', kind: 'passive' as const};
+    const world = {step: 'venus', part: 'world', kind: 'globalParameter', amount: 2, unrewarded: true,
+      parameter: {id: 'venus', before: 10, after: 14}} as ParliamentEnactOutcomeModel;
+    expect(resultsReadingOf(summary({outcomes: [world]}), [seat(BLUE)], SUPPORT, {quiet}).quiet,
+      'the planet line IS its reading').is.undefined;
+    expect(resultsReadingOf(summary({outcomes: []}), [seat(BLUE)], SUPPORT, {quiet}).quiet, 'a truly quiet law still says so').deep.eq(quiet);
+  });
+
   it('① ВЫПЛАТЫ lists EVERY seat, in the seat order it is given — a seat the law paid nothing keeps its row', () => {
     const reading = resultsReadingOf(
       summary({outcomes: [outcome({}), outcome({player: RED, kind: 'production', amount: 1, production: Resource.HEAT, stock: undefined})]}),

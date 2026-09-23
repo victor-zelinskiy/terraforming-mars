@@ -164,11 +164,16 @@ export function resolutionAnnotations(
   // «Кислород: 5 % → 4 %», «Венера: 10 % → 14 %, РТ никому»).
   if (text.world !== undefined) {
     const rows: Array<string | RowText> = [text.world];
-    for (const reading of worldMoveReadingOf(resolution, world?.table, {enacted: world?.enacted === true, outcomes: world?.outcomes})) {
+    const moves = worldMoveReadingOf(resolution, world?.table, {enacted: world?.enacted === true, outcomes: world?.outcomes});
+    // WHO IS CREDITED is said ONCE — the law's own sentence above these rows
+    // already says it. A row carries it only when the moves DISAGREE (a future
+    // card that terraforms for its winner and vents for nobody).
+    const credit = new Set(moves.map((m) => m.unrewarded)).size > 1;
+    for (const reading of moves) {
       if (reading.context === 'reference') {
         continue;
       }
-      const sentence = worldMoveSentenceOf(reading, {text: translateText, params: translateTextWithParams});
+      const sentence = worldMoveSentenceOf(reading, {text: translateText, params: translateTextWithParams}, {credit});
       rows.push({text: '${0}: ${1}', params: [sentence.caption, sentence.detail]});
     }
     out.push(block('group:world', 'immediate', 'What it does to the planet', rows, 0.5));
