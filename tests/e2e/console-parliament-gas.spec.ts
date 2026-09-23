@@ -148,6 +148,13 @@ test.describe(`Gas Export · ${PRESET.id}`, () => {
 
     // ── ⑤ THE FRAME COMES BACK at the same depth…
     await expect(parliament(page), 'the sitting is back').toHaveCount(1, {timeout: 60_000});
+    // …and the trip is BOUNDED: the beat's own cap is 9 s, and what it actually waits for is the park's
+    // settle + glide. The window is annotated so a regression in the wait shows up as a number.
+    const walk = (await readProbe(page)).samples;
+    const left = walk.find((s) => !s.parl)?.t ?? 0;
+    const back = [...walk].reverse().find((s) => !s.parl)?.t ?? 0;
+    test.info().annotations.push({type: 'world-beat', description: `away ${back - left} ms (cap 9000)`});
+    expect(back - left, 'the sitting is away for the story, not for a timeout').toBeLessThan(9_000);
     await waitSittingAtRest(page, 60_000);
     await shoot(page, '03-back-from-the-board');
 
