@@ -304,7 +304,8 @@ const DEV_PASSIVE: ResolutionDefinition = {
       player.stock.add(Resource.MEGACREDITS, 2, {log: true, from: {resolution: DEV_PASSIVE_RESOLUTION_ID}});
     },
     placementFacts(ctx) {
-      return ctx.onMars && ctx.placesTile && ctx.grantsPlacementBonus && ctx.countsAsCity ?
+      // `firesTilePassive`, never `grantsPlacementBonus`: the live hook pays for a COVERING city too (RX11's law).
+      return ctx.onMars && ctx.firesTilePassive && ctx.countsAsCity ?
         [ctx.gain('urban-charter', {icon: 'megacredits', amount: 2, direction: 'gain'}, 'Enacted resolution: 2 M€ for a city you place on Mars')] :
         [];
     },
