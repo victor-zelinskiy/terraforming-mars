@@ -231,7 +231,7 @@ describe('ForestrySupport', () => {
         resolution: FORESTRY_SUPPORT_ID,
         greeneries: {spaceId: cell.id, greenerySpaceIds: groves, perGreenery: RATE, megacredits: 4, plants: 2},
       });
-      const line = game.gameLog.find((entry) => entry.message === '${0} gained ${1} ${2} and ${3} ${4} from ${5}: ${6} adjacent greenery(-ies)');
+      const line = game.gameLog.find((entry) => entry.message === '${0} gained ${1} ${2} and ${3} ${4} for ${6} adjacent greenery(-ies) — ${5}');
       expect(line?.data.find((d) => d.type === LogMessageDataType.RESOLUTION)?.value).eq(FORESTRY_SUPPORT_ID);
     });
 
@@ -266,7 +266,7 @@ describe('ForestrySupport', () => {
       runAllActions(game);
       expect(lawMarkers(game)).deep.eq([]);
       expect(p1.lastPlacementLawPayout).is.undefined;
-      expect(game.gameLog.some((entry) => entry.message === '${0} gained ${1} ${2} and ${3} ${4} from ${5}: ${6} adjacent greenery(-ies)')).is.false;
+      expect(game.gameLog.some((entry) => entry.message === '${0} gained ${1} ${2} and ${3} ${4} for ${6} adjacent greenery(-ies) — ${5}')).is.false;
     });
 
     it('OFF MARS nothing pays: a reserved area has no neighbours', () => {

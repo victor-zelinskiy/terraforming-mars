@@ -71,6 +71,7 @@ import {SmallAnimals} from '../../../src/server/cards/base/SmallAnimals';
 import {AQUIFER_CONTEST_ID} from '../../../src/server/parliament/resolutions/greens/AquiferContest';
 import {ARCHITECTURE_AWARD_ID} from '../../../src/server/parliament/resolutions/marsFirst/ArchitectureAward';
 import {DEVELOPMENT_CRAZE_ID} from '../../../src/server/parliament/resolutions/marsFirst/DevelopmentCraze';
+import {FORESTRY_SUPPORT_ID} from '../../../src/server/parliament/resolutions/greens/ForestrySupport';
 import {CENTRAL_POWER_GRID_ID} from '../../../src/server/parliament/resolutions/industrialists/CentralPowerGrid';
 import {resolutionCount} from '../../../src/server/parliament/resolutions/ResolutionCounts';
 import {SelectSpace} from '../../../src/server/inputs/SelectSpace';
@@ -1053,6 +1054,57 @@ parliamentFixture('parliament-craze-enacted', {
       throw new Error('the parliament-craze-enacted fixture expected a free greenery cell with a printed bonus and no tiled neighbour');
     }
     expectViewerOpensGeneration(table, p2, 'parliament-craze-enacted');
+  },
+});
+
+// ── RX11 · FORESTRY SUPPORT (the Greens) — the law that INTRODUCES an adjacency bonus, ENACTED: the sitting is over,
+//    red (the seat the loader opens) holds 30 M€ — a standard-project CITY (25) — and TWO of BLUE's greeneries stand
+//    around one quiet legal cell: any owner's grove pays, exactly as any owner's ocean does. A city, not a greenery:
+//    a greenery would also step the oxygen (a TR step the ruling Greens pay 2 M€ for) and advance the card's own
+//    chairman quest — two other flows over the +4 M€ / +2 plants under test. The cell prints nothing and touches no
+//    ocean, so the whole M€ movement past the price IS the law's. ──
+parliamentFixture('parliament-forestry-enacted', {
+  resolution: FORESTRY_SUPPORT_ID,
+  votes: [1],
+  agenda: [1, 2],
+  stopAt: 'done',
+  arrange: ({game, p1}) => {
+    // A quiet LAND cell with two free land neighbours, itself printing nothing and touching no ocean/city.
+    const quiet = (s: Space) => s.spaceType === SpaceType.LAND && s.tile === undefined && s.bonus.length === 0 &&
+      game.board.getAdjacentSpaces(s).every((a) => a.tile === undefined);
+    const cell = game.board.spaces.find((s) => quiet(s) &&
+      game.board.getAdjacentSpaces(s).filter((a) => a.spaceType === SpaceType.LAND && a.tile === undefined && a.bonus.length === 0).length >= 2);
+    if (cell === undefined) {
+      throw new Error('the parliament-forestry fixture found no quiet cell with two free land neighbours');
+    }
+    const groves = game.board.getAdjacentSpaces(cell)
+      .filter((a) => a.spaceType === SpaceType.LAND && a.tile === undefined && a.bonus.length === 0).slice(0, 2);
+    for (const grove of groves) {
+      // `simpleAddTile`: the arrangement is the state the fixture declares, not a played placement.
+      game.simpleAddTile(p1, grove, {tileType: TileType.GREENERY});
+    }
+  },
+  expect: (table) => {
+    const {game, p1, p2, parliament} = table;
+    if (parliament.enacted !== resolutionInstanceId(FORESTRY_SUPPORT_ID, 0)) {
+      throw new Error(`the parliament-forestry fixture expected Forestry Support enacted, got ${parliament.enacted}`);
+    }
+    if (p2.megaCredits < 25) {
+      throw new Error(`the parliament-forestry fixture expected red to afford a standard city, has ${p2.megaCredits} M€`);
+    }
+    const target = game.board.getAvailableSpacesForCity(p2).find((s) => s.bonus.length === 0 &&
+      game.board.getAdjacentSpaces(s).filter((a) => a.tile?.tileType === TileType.GREENERY).length === 2 &&
+      game.board.getAdjacentSpaces(s).every((a) => a.tile === undefined || a.tile.tileType === TileType.GREENERY));
+    if (target === undefined) {
+      throw new Error('the parliament-forestry fixture expected a legal city cell with exactly two adjacent greeneries and nothing else around it');
+    }
+    if (game.board.greeneryAdjacencyBonus(target, {megacredits: 2, plants: 1}).megacredits !== 4) {
+      throw new Error('the parliament-forestry fixture expected the two groves to pay 4 M€');
+    }
+    if (game.board.getAdjacentSpaces(target).some((a) => a.tile !== undefined && a.player !== p1)) {
+      throw new Error('the parliament-forestry fixture expected BLUE to own both groves (any owner pays)');
+    }
+    expectViewerOpensGeneration(table, p2, 'parliament-forestry-enacted');
   },
 });
 

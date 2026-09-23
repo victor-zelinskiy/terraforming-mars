@@ -35,6 +35,7 @@ describe('discardPrompt marker', () => {
       source: {kind: 'colony'},
       exchange: undefined,
       colonyBonus: undefined,
+      colonyRepeat: undefined,
     });
   });
 

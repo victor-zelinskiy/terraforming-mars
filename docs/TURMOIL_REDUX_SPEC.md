@@ -431,7 +431,7 @@ Lobbyist/Politician/T. Politician — набор в `getCandidates` (`MilestoneA
 | Colony Contest | Unity | титан = влияние; ★ колония бесплатно | В, ★ | 2 колонии | A |
 | Development Craze | Mars First | сталь = влияние; **П**: все бонусы размещения и соседства ×2 | Н, П | 1 город/спецтайл | A |
 | Diverted Research | Reds | data = влияние; **П**: REPLACE рост кислорода/температуры и тайлы озеленений/океанов → 1 data | Н, П | 4 data | B, D |
-| Forestry Support | Greens | растения = 2×влияние; **П**: озеленения дают 2 M€ + 1 растение соседства | Н, П | 2 озеленения | B |
+| Forestry Support | Greens | растения = 2×влияние; **П**: озеленения дают 2 M€ + 1 растение соседства | Н, П | 2 озеленения | A |
 | Gas Export | Reds (Venus) | 2 M€/влияние; кислород −1; Венера +2 без РТ | Н | 2 метки Венеры | A/Venus |
 | Generous Funding | Greens | 2 M€ за влияние и за каждые полные 5 РТ сверх 15 | Н | +3 РТ | A |
 | Geodesic Contest | Greens (UW) | ★ identify 5 / claim 2; растения за токены | — | 3 токена | C |

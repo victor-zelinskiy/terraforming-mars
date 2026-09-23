@@ -58,9 +58,16 @@ describe('Hellas ocean bonus tile placement while Reds rule', () => {
       thrown = e as Error;
     }
 
-    // The fee payment fails before any ocean space is ever offered or placed, so the
-    // board is left untouched instead of holding a tile nobody paid for.
-    expect(thrown?.message).to.eq(`Player does not have ${constants.HELLAS_BONUS_OCEAN_COST} M€`);
+    // The fee is an OFFER the map makes, so a player who cannot pay it has the bonus
+    // SKIPPED AND NAMED (`skipIfUnaffordable`) rather than the turn thrown: the ocean
+    // space is never offered, the board is left untouched, and the journal says why.
+    // (It used to throw — which left the same board but crashed the action; the skip
+    // became the behaviour when a repeated placement made two of these bills queue
+    // before either was paid, so a grant-time affordability check could not work.)
+    expect(thrown, thrown?.message).is.undefined;
+    expect(game.gameLog.some((entry) =>
+      entry.message === 'The ocean placement bonus is skipped — ${0} cannot pay ${1} M€'),
+    'the skipped bonus names itself').is.true;
     cast(player.getWaitingFor(), undefined);
     expect(game.board.getOceanSpaces().length).to.eq(0);
   });

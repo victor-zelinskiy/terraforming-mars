@@ -127,7 +127,7 @@ export function payGreeneryAdjacency(player: IPlayer, space: Space): GreeneryAdj
   }
   player.stock.add(Resource.MEGACREDITS, megacredits, {log: false, from: {resolution: FORESTRY_SUPPORT_ID}});
   player.stock.add(Resource.PLANTS, plants, {log: false, from: {resolution: FORESTRY_SUPPORT_ID}});
-  game.log('${0} gained ${1} ${2} and ${3} ${4} from ${5}: ${6} adjacent greenery(-ies)', (b) =>
+  game.log('${0} gained ${1} ${2} and ${3} ${4} for ${6} adjacent greenery(-ies) — ${5}', (b) =>
     b.player(player).number(megacredits).resource(Resource.MEGACREDITS).number(plants).resource(Resource.PLANTS)
       .resolution(FORESTRY_SUPPORT_ID).number(greeneries));
   const bonus: GreeneryAdjacencyBonusModel = {
@@ -186,13 +186,15 @@ export const FORESTRY_SUPPORT: ResolutionDefinition = {
       // ONE row per POOL (the dossier's own grammar), both naming the paying
       // cells so the board lights them — the ocean fact's `spaces`, generalized.
       // The arithmetic is spent on the FIRST row only, and only when more than
-      // one grove pays: for a single neighbour the chips ARE the rate.
-      const rate = FORESTRY_SUPPORT_ADJACENCY;
+      // one grove pays: for a single neighbour the chips ARE the rate. The RATE
+      // itself is printed in the sentence rather than interpolated — it is this
+      // card's own constant (the same numbers its face prints), and a `${n}
+      // plants` slot holding 1 cannot be inflected in RU.
       const many = greeneries > 1;
       const out: Array<BoardFact> = [
         ctx.gain('greenery-adjacency-mc', {icon: 'megacredits', amount: megacredits, direction: 'gain'},
-          many ? 'Adjacent greeneries: ${0} × (${1} M€ + ${2} plants)' : undefined,
-          {spaces: spaceIds, ...(many ? {params: [String(greeneries), String(rate.megacredits), String(rate.plants)]} : {})}),
+          many ? 'Adjacent greeneries: ${0} × (2 M€ + 1 plant)' : undefined,
+          {spaces: spaceIds, ...(many ? {params: [String(greeneries)]} : {})}),
         ctx.gain('greenery-adjacency-plants', {icon: 'plants', amount: plants, direction: 'gain'},
           undefined, {spaces: spaceIds}),
       ];

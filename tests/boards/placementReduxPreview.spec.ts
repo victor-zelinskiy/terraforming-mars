@@ -165,8 +165,8 @@ describe('Turmoil Redux placement preview ↔ commit', () => {
     expect(law.length, 'one row per POOL').eq(2);
     expect(law.every((f) => f.title === 'Forestry Support')).is.true;
     expect(law[0].spaces, 'the paying groves are named, so the board lights them').deep.eq(free.map((n) => n.id));
-    expect(law[0].description).eq('Adjacent greeneries: ${0} × (${1} M€ + ${2} plants)');
-    expect(law[0].params).deep.eq(['2', '2', '1']);
+    expect(law[0].description).eq('Adjacent greeneries: ${0} × (2 M€ + 1 plant)');
+    expect(law[0].params).deep.eq(['2']);
     // The law's own two rows; the 2 M€ beside them are the ruling Greens paying for the tile's TR step.
     expect(sum(law, 'megacredits')).eq(4);
     expect(sum(law, 'plants')).eq(2);

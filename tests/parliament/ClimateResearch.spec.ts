@@ -128,12 +128,17 @@ describe('ClimateResearch', () => {
       expect(CLIMATE_RESEARCH.party).eq(PartyName.GREENS);
       expect(CLIMATE_RESEARCH.winnerSteps, 'no winner-only part').is.undefined;
       expect(CLIMATE_RESEARCH.winnerReward, 'no winner tile either').is.undefined;
-      // The deck is the sum of what is shipped: all three Greens resolutions ride in it.
+      // The deck is the sum of what is shipped, DERIVED from the catalog rather than listed here: every new
+      // Greens resolution would otherwise have to edit this card's own spec to say «and that one too».
       const dealt = REDUX_RESOLUTION_CATALOG.dealtInstances(() => true);
       const greens = dealt.filter((instance) => REDUX_RESOLUTION_CATALOG.ofInstance(instance).party === PartyName.GREENS);
-      expect(greens.sort()).deep.eq([
-        resolutionInstanceId(AQUIFER_CONTEST_ID, 0), resolutionInstanceId(BIODOME_CONTEST_ID, 0), CLIMATE,
-      ].sort());
+      const shippedGreens = REDUX_RESOLUTION_CATALOG.all()
+        .filter((definition) => definition.party === PartyName.GREENS)
+        .flatMap((definition) => Array.from({length: definition.copies}, (_v, copy) => resolutionInstanceId(definition.id, copy)));
+      expect(greens.sort()).deep.eq(shippedGreens.sort());
+      expect(greens, 'Aquifer Contest, Biodome Contest and this one at the very least').includes(CLIMATE)
+        .and.includes(resolutionInstanceId(AQUIFER_CONTEST_ID, 0))
+        .and.includes(resolutionInstanceId(BIODOME_CONTEST_ID, 0));
       expect(dealt.filter((i) => i === CLIMATE), 'one physical copy').has.length(1);
     });
 

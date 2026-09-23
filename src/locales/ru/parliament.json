@@ -694,7 +694,7 @@
   "Enacted resolution: 2 M€ for a city you place on Mars": "Принятая резолюция: 2 M€ за город, который вы размещаете на Марсе",
   "Forestry Support": "Поддержка лесничества",
   "Greenery tiles pay 2 M€ and 1 plant when you place a tile next to them.": "Тайлы озеленения платят 2 M€ и 1 растение, когда вы размещаете тайл рядом с ними.",
-  "${0} gained ${1} ${2} and ${3} ${4} from ${5}: ${6} adjacent greenery(-ies)": "${0} получает ${1} ${2} и ${3} ${4} — ${5}: соседних озеленений ${6}",
-  "Adjacent greeneries: ${0} × (${1} M€ + ${2} plants)": "Соседние озеленения: ${0} × (${1} M€ + ${2} растения)",
+  "${0} gained ${1} ${2} and ${3} ${4} for ${6} adjacent greenery(-ies) — ${5}": "${0} получает ${1} ${2} и ${3} ${4} за соседние озеленения (${6}) — ${5}",
+  "Adjacent greeneries: ${0} × (2 M€ + 1 plant)": "Соседние озеленения: ${0} × (2 M€ + 1 растение)",
   "Forestry Support pays 2 M€ and 1 plant for every greenery next to a tile you place on Mars": "«Поддержка лесничества» платит 2 M€ и 1 растение за каждое озеленение рядом с тайлом, который вы размещаете на Марсе"
 }
