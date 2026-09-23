@@ -250,7 +250,11 @@ test.describe('Colonization Funding · standard-1080', () => {
     await answerGateAs(request, red, 'assembly');
 
     // ── THE WAVE: the +6 chip born inside the carrier card's mechanic, landing on the M€ production cell.
-    await expect.poll(async () => (await readProbe(page)).samples.some((s) => s.chips.length > 0), {timeout: 30_000, message: 'the wave left the card'}).toBe(true);
+    // The Agenda step's TR bonus flies first (a chip of ПРИНЯТИЕ); the wave this spec is about is the M€ chip on the REWARD page.
+    await expect.poll(async () => (await readProbe(page)).samples.some((s) => s.stage === 'reward' && s.chips.some((c) => c.res === 'megacredits')),
+      {timeout: 30_000, message: 'the M€ wave left the card on the reward page'}).toBe(true);
+    // The reward page of a card that asks nothing stands only while its chip flies — the frame is taken in flight.
+    await shoot(page, '05-reward-wave');
     await waitSittingAtRest(page, 30_000);
     const probe = await readProbe(page);
     const firstReading = probe.samples.findIndex((s) => s.stage === 'reward' && s.contexts.length > 0);
@@ -287,8 +291,9 @@ test.describe('Colonization Funding · standard-1080', () => {
     expect(tickLag, `the tick rides the touchdown (${Math.round(tickLag)} ms after the rest)`).toBeLessThanOrEqual(TICK_WINDOW_AFTER_MS);
     expect(tickAt, 'the counter never moved BEFORE its chip left the card').toBeGreaterThanOrEqual(first.i);
     expect(probe.samples.some((s) => s.deltas > 0), 'a delta chip fired on the M€ row').toBe(true);
-    expect(probe.samples[tickAt].prod, 'production 3 → 9: the whole +6 landed').toBe('9');
-    await shoot(page, '05-after-wave');
+    // The rail prints a production with its sign («+9»): the whole +6 landed on 3.
+    expect(probe.samples[tickAt].prod, 'production 3 → 9: the whole +6 landed').toMatch(/^\+?9$/);
+    await shoot(page, '06-after-wave');
 
     // ── THE RECORD is the server's: +6 from 2 cells and influence 3, the sum 7 before the cap.
     const wire = await fetchPlayerModel(request, playerId) as unknown as Wire;
@@ -302,7 +307,7 @@ test.describe('Colonization Funding · standard-1080', () => {
     await waitSittingAtRest(page, 30_000);
     await settle(page, {timeoutMs: 30_000});
     await expectParliamentFits(page, 'results');
-    await shoot(page, '06-results');
+    await shoot(page, '07-results');
     expect(await strandedReports(page)).toEqual([]);
   });
 });

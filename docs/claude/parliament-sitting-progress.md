@@ -2278,3 +2278,82 @@ Deck полёт двух чипов короче 1.2-секундного `settl
 чтения `voteYieldsOf` / `enactedYieldsOf` не прокидывали `byTag` / `countedByTag` (вход по меткам не печатался).
 (5) Замечено по кадру Deck (не правилось): на шаге НАГРАДА освободившийся слот победителя в области подписан
 «В колоде нет резолюции другой партии» — текст пустого слота после обновления показывается и до него.
+
+## Colonization Funding — RX08 (2026-09-23, промт `docs/claude/prompts/resolution-rx08-colonization-funding.md`)
+
+### Режим
+Экономный по бюджету проверки §4 промта: юниты + РОВНО ОДИН e2e на новую механику (счёт по полю), один профиль,
+старые сюиты e2e не гонялись. Коммит на блок (A сервер · B чтения · C стенд/документы · D фикстура/e2e/журнал),
+`npm run build:test`, eslint по файлам, `vue-tsc` один раз после клиентских правок, не пушить.
+Документ карты — `docs/TURMOIL_REDUX_COLONIZATION_FUNDING.md`.
+
+### Блок A — сервер: счётный член по ПОЛЮ (`3b1e0877f5`)
+- `ResolutionCountKind` получил третий вид `{kind: 'board', tiles: BoardCountedTile}` (`'spaceCity'`; следующее слово —
+  `'marsCity'`). Сервер для `board` не ходит по табло: `boardCountSpaces` → `player.game.board.getCitiesOffMars(player)`
+  (та же функция у награды Cosmic Settler и `behavior/Counter`); число = длина, клетки = id.
+- Объяснение числа — КЛЕТКИ в ТОЙ ЖЕ модели: `ResolutionCountModel.spaces` (`cards` пуст), запись/модель `countedSpaces`,
+  чтение `InfluenceYield.countedSpaces`. Второго типа модели счёта нет.
+- Общий предикат клетки для стенда `spaceCountVerdict` / `countSpacesToward` над `CountedSpaceFacts`; паритет с движком
+  закреплён спеком по корпусу досок (Марс / чужой / пустая область / Венера / Луна).
+- Карта `ColonizationFunding.ts` (Unity, `copies: 1`, без совместимости): `2 × S + I`, `cap 6`, один шаг `production`,
+  журнал с «× 2» и потолком, пропуск «Нет космических городов и нет влияния» с `countedSpaces: []`.
+- Глиф `{kind: 'tile', tile: 'spaceCity'}` в `PremiumCountGlyph` — ассет города лица + искра `.pcard-sym--asterix`;
+  запись презентации `spaceCities`. Арт `RX08.webp` (файл с суффиксом `_art`).
+- Спеки: `ColonizationFunding.spec.ts` (21), `resolutionCounts.spec.ts` (+3), `ResolutionContract` проходит RX08 сам.
+
+### Блок B — чтения (`46e2d46fd9`)
+- `ConsoleInfluenceYield`: формула с ДВУМЯ ставками при `count.per ≠ perInfluence` («2 [пр. M€] / [город*] + 1 [пр. M€] /
+  [влияние] · макс. 6», `data-yield-count-rate`); чтение «[город*] 2 + [влияние] 3 → +6 МАКС.», `uncapped 7` в данных.
+- `voteYieldsOf` / `enactedYieldsOf` несут клетки; `countedCellNames` — имена только из `getSpecialCellInfo` (слой
+  информации о доске), безымянная клетка = `undefined`. «Для вас»: список клеток по именам · при безымянной — число
+  («2 космических города») · при нуле — «Сейчас не учитывается ни один тайл».
+- Юниты: `influenceYieldModel.spec` (+5), `parliamentAnnotations.spec` (+1), `PremiumCountGlyph.spec` (новый, 2).
+
+### Блок C — стенд, документ, чеклист (`0e35502268`)
+- Семейство «Полигона» `counted-board` (`familyOf`: `kind === 'board'`), места держат синтетические КЛЕТКИ
+  (`CountedSpaceFacts`: 01, 02, 69, 71, пустая 02, город на Марсе 35), счёт общим `countSpacesToward`, вердикт клетки
+  `spaceCountVerdict`, имя из слоя доски; 17 сценариев + живой `parliament-colonization-vote`.
+- Чеклист автора: строка «Счётный член по ПОЛЮ» + «Бюджет проверки на карту».
+
+### Блок D — фикстура, ОДИН e2e, журнал
+- Фикстура `parliament-colonization-vote` (`FIXTURES=… npm run e2e:fixtures`): RX08 в слоте 0 с делегатом синего, синий
+  Повестка 5 (влияние 3) + Ганимед + Фобос (2 × 2 + 3 = 7 → 6, максимум; следующий шаг Повестки — РТ, надбавки за победу
+  нет), красный Повестка 1 без городов (+1).
+- e2e `console-parliament-colonization.spec.ts` (standard-1080, один проход): лицо (арт RX08, эмблема Союза, город с
+  искрой, «макс. 6», задание) → панель голосования (`estimate · 2 · 3 · 6 · uncapped 7 · max`, без надбавки, глиф
+  плитки) → fullscreen (то же число; «Учтены сейчас: Колония на Ганимеде · Космопорт на Фобосе»; правило) → оба паса по
+  API → анонс → вердикт → A → второе место по API → волна: чип «+6» рождён в `.pcard__mech` героя (ВИДИМОМ по пробнику:
+  ненулевой rect, ненулевая эффективная прозрачность, ничего над центром), сел в `.con-res__prod` строки M€ (ВИДИМОЙ),
+  пролёт ≥ 85 % хорды, тик счётчика в окне посадки (−34 … +260 мс), дельта-чип, `+9` на рельсе → запись сервера
+  `{production, amount 6, count 2, influence 3, uncapped 7, countedSpaces ['01','02']}` → ИТОГИ.
+
+### Находки
+1. **Посевная колода сдвинулась с ростом каталога**: в слот 1 первого поколения лёг Aquifer Contest, и два спека
+   `ParliamentPhase`, пинавшие «тихого» победителя-игрока к слоту 1 / 0, встали на ОКЕАНЕ ПОБЕДИТЕЛЯ (Aquifer тих для
+   долей мест, но не для победителя). Хелпер честнее: `quietWinnerIndex` (слот не Зелёных), Союз в `quietResolutionOf` →
+   RX08 (производство — тихо для всех и для победителя); док хелпера называет ловушку.
+2. **`max 6` на лице** печатался латиницей: ключ `max 5` лежит в `promo.json`, `max 6` не существовало — добавлен в
+   `parliament.json`. (Замороженная сборка e2e этого ключа ещё не несла — на кадрах «MAX 6».)
+3. **Рельса печатает производство со знаком** («+9»): первый прогон e2e упал на моём же ожидании «9» — правка спека, не
+   продукта.
+4. **Страница НАГРАДА тихой карты стоит ровно пока летит чип**: кадр «после посадки» — уже ИТОГИ; в спек добавлен кадр
+   В ПОЛЁТЕ (`05-reward-wave`), кадр после посадки — итоги с рельсой 65 / +9.
+5. **Соседняя сессия в том же клоне** (RX07 блок D e2e) держит в индексе свои файлы: обычный `git commit` подхватывает
+   ВЕСЬ индекс — блок B унёс её `console-parliament-colonial.spec.ts` и фикстуры (и мои файлы блока D раньше времени).
+   Дальше коммиты делались с явными путями (`git commit -- <paths>` / `-i`) и точечным `git apply --cached --unidiff-zero`
+   для общих `generate.ts` / `consoleStart.ts`. e2e гонялся на ЗАМОРОЖЕННОЙ копии сборки (`.e2e-frozen-rx08/`, в
+   `.git/info/exclude`) со своим сервером на 8160 (`TM_E2E_SHARED_SERVER=1 BASE_URL=…`), чтобы пересборки соседа не
+   роняли прогон.
+
+### Прогоны (2026-09-23)
+
+| Что | Результат |
+| --- | --- |
+| mocha: `ColonizationFunding` (21) · `resolutionCounts` · весь `tests/parliament/*` (430, в т.ч. `ArchitectureAward`, `CentralPowerGrid`, `CloudDevelopment`, `ColonialAffairs`, `ResolutionContract`) · `tests/console/*` + `tests/common/**` (429) · `e2eFixturesLoad` · `e2eDriverGuard` · `glyphLiteralGuard` | зелёные |
+| mochapack: `influenceYieldModel` · `parliamentAnnotations` · `PremiumCountGlyph` (40) | зелёные |
+| `npm run build:test` · eslint по файлам · `vue-tsc` (`lint:client`) · `make:json` · `make:css` | зелёные |
+| e2e `console-parliament-colonization` · standard-1080 | ✓ 1/1 (43.5 с; повтор с кадром в полёте — 1.4 мин под нагрузкой) |
+
+Кадры: `screenshots/parliament-colonization/standard-1080/` — `02-vote-reading` (панель голосования с потолком),
+`03-fullscreen` (клетки по именам, правило), `05-reward-wave` (стадия НАГРАДА, чип в полёте), `06-after-wave` / `07-results`
+(итоги, рельса 65 / +9), `08-polygon` (стенд: семейство по полю, клетки с вердиктами), `01-overview` (лицо в области).

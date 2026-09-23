@@ -27,7 +27,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {testGame, TestGameOptions} from '../../TestGame';
 import {TestPlayer} from '../../TestPlayer';
-import {maxOutOceans, runAllActions, setOxygenLevel, setTemperature} from '../../TestingUtils';
+import {addCity, maxOutOceans, runAllActions, setOxygenLevel, setTemperature} from '../../TestingUtils';
 import {SelectCard} from '../../../src/server/inputs/SelectCard';
 import {PartyName} from '../../../src/common/turmoil/PartyName';
 import {Tardigrades} from '../../../src/server/cards/base/Tardigrades';
@@ -78,6 +78,8 @@ import {CLIMATE_RESEARCH_ID} from '../../../src/server/parliament/resolutions/gr
 import {BIODOME_CONTEST_ID} from '../../../src/server/parliament/resolutions/greens/BiodomeContest';
 import {DEV_ACTION_RESOLUTION_ID, DEV_PASSIVE_RESOLUTION_ID} from '../../../src/server/parliament/resolutions/ResolutionCatalog';
 import {CLOUD_DEVELOPMENT_ID} from '../../../src/server/parliament/resolutions/unity/CloudDevelopment';
+import {COLONIZATION_FUNDING_ID} from '../../../src/server/parliament/resolutions/unity/ColonizationFunding';
+import {SpaceName} from '../../../src/common/boards/SpaceName';
 import {AndOptions} from '../../../src/server/inputs/AndOptions';
 import {Dirigibles} from '../../../src/server/cards/venusNext/Dirigibles';
 import {JovianLanterns} from '../../../src/server/cards/colonies/JovianLanterns';
@@ -847,6 +849,36 @@ parliamentFixture('parliament-powergrid-recap', powerGridTable('done', (table) =
   }
   expectViewerOpensGeneration(table, p2, 'parliament-powergrid-recap');
 }));
+
+// ── RX08 · COLONIZATION FUNDING (Unity — «2 M€ production per SPACE CITY + 1 per influence, max 6»): the
+//    first counter that reads the BOARD instead of the tableau. The vote: the card in the first voting slot
+//    with blue's free delegate on it; blue at Agenda step 5 (influence 3) with TWO space cities — Ganymede
+//    Colony and Phobos Space Haven, the base game's reserved areas — so 2 × 2 + 3 = 7 → +6, the maximum: the
+//    panel reads ONE number with «max» and no win suffix (the next Agenda step is a TR step). Red: step 1
+//    (influence 1), no space city → +1 by influence alone. The card's ONE e2e walks from this vote through
+//    both passes into the sitting's reward stage. ──
+const colonizationVote = (): ParliamentFixtureSpec => ({
+  resolution: COLONIZATION_FUNDING_ID,
+  votes: [0],
+  agenda: [5, 1],
+  stopAt: 'vote',
+  arrange: ({p1, p2}) => {
+    addCity(p1, SpaceName.GANYMEDE_COLONY);
+    addCity(p1, SpaceName.PHOBOS_SPACE_HAVEN);
+    p1.production.override({megacredits: 3});
+    p2.production.override({megacredits: 1});
+  },
+  expect: ({p1, p2}) => {
+    const count = resolutionCount(p1, 'spaceCities');
+    if (count.count !== 2 || JSON.stringify(count.spaces) !== JSON.stringify([SpaceName.GANYMEDE_COLONY, SpaceName.PHOBOS_SPACE_HAVEN])) {
+      throw new Error(`the parliament-colonization-vote fixture expected blue's two space cities, got ${JSON.stringify(count)}`);
+    }
+    if (resolutionCount(p2, 'spaceCities').count !== 0) {
+      throw new Error('the parliament-colonization-vote fixture expected red without a space city');
+    }
+  },
+});
+parliamentFixture('parliament-colonization-vote', colonizationVote());
 
 // ── RX06 · CLOUD DEVELOPMENT (Unity — a VENUS game: the card exists only with Venus Next, and it is the
 //    FOURTH party's first card). The card stands in the FIRST voting slot with blue's free delegate on it;
