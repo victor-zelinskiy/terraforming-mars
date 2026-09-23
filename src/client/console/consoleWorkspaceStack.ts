@@ -356,8 +356,14 @@ const WORKSPACE_KINDS: Record<WorkspaceFrameKind, WorkspaceKindSpec> = {
     // says whose flow it is («ПАРЛАМЕНТ › ИНДУСТРИАЛИСТЫ › НАСТРОЙКА»); the
     // action's own follow-ups (the Unity trade's colonies, the Reds' discard)
     // nest one level deeper, inside the action workspace, exactly as they do
-    // from the action menu.
-    frameSteps: {'card-actions': 'scene', 'colonies': 'scene', 'hand': 'embed'},
+    // from the action menu. The frames that stand DIRECTLY on the Parliament
+    // are the SITTING's own steps and EMBED in its stage zone (`[data-embed-slot
+    // ="parliament-stage"]`, published by the step's door): the hand in its
+    // discard mode (Colonial Affairs) and the colonies for the winner's free
+    // colony (Colony Contest) — the hero card and the band stand, the step
+    // takes the body. Nothing else can stand directly on the Parliament past
+    // its browse layer: a party action's colonies nest under `card-actions`.
+    frameSteps: {'card-actions': 'scene', 'colonies': 'embed', 'hand': 'embed'},
     emblem: 'parliament',
     wheelAnchor: 'parliament',
   },

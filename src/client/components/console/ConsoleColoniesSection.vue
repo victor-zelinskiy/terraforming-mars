@@ -842,7 +842,10 @@ export default defineComponent({
           return;
         }
         setWorkspaceFrameSubject('colonies', crumb.subject);
-        setWorkspaceFrameStage('colonies', crumb.stage !== '' ? crumb.stage : 'Colony selection');
+        // A screen with no stage of its own yet (the plain pick, before a colony is picked up) KEEPS the name
+        // the door pushed for it — «КОЛОНИИ» for the sitting's own step, «ВЫБОР КОЛОНИИ» everywhere else (the
+        // stage the prompt's source decides, `followUpStepStage`); overwriting it made the tail say two things.
+        setWorkspaceFrameStage('colonies', crumb.stage !== '' ? crumb.stage : (workspaceFrameStage('colonies') || 'Colony selection'));
       },
     },
     layout() {

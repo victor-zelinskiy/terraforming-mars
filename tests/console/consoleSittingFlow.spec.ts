@@ -157,6 +157,32 @@ describe('consoleSittingFlow — the political phase as ONE flow (v2)', () => {
       expect(p.rewardStep).eq('discard');
       expect(sittingRewardSettled(p)).is.false;
     });
+    /* Colony Contest (RX09): the winner's free colony is a `SelectColony` the resolution raised — the COLONIES
+     * SCREEN is the hosted step (a workspace frame in the Parliament's slot, like the hand's discard), under one
+     * word, «КОЛОНИИ»; never the task host's picker, never a title. */
+    it('a resolution-sourced COLONY pick is the seat\'s own ask — the colonies frame as a hosted step («КОЛОНИИ»), by the placement marker\'s source', () => {
+      const colony = {type: 'colony', title: 'Select where to build the free colony', buttonLabel: 'Build', coloniesModel: [],
+        placementContext: {cancellable: false, reason: 'r', source: {kind: 'resolution', resolution: 'RDX_X'}}} as unknown as PlayerInputModel;
+      expect(sittingAskOf(colony)).eq('colony');
+      expect(SITTING_HOSTED_STEPS.has('colony'), 'the door publishes the slot the colonies frame teleports into').is.true;
+      expect(sittingStageKey('reward', 'colony')).eq('Colonies');
+      // A colony pick a CARD raised (Trading Colony, the standard project) is nobody's step of the sitting.
+      const cardPick = {type: 'colony', title: 'Select where to build a colony', buttonLabel: 'Build', coloniesModel: [],
+        placementContext: {cancellable: true}} as unknown as PlayerInputModel;
+      expect(sittingAskOf(cardPick)).is.undefined;
+      const p = sittingPositionOf(model(phase({step: 'effects', pending: {player: BLUE, key: 'colony', input: 'colony'}})), colony, BLUE)!;
+      expect(p.rewardStep).eq('colony');
+      expect(sittingRewardSettled(p), 'the page holds while the pick stands').is.false;
+      expect(sittingPrimaryKey(p, 1), 'the colonies frame owns the bar — A is theirs, not the sitting\'s').is.undefined;
+      expect(backVerbFor(sittingWorkspacePhase('reward', false)), 'B past the commit: collapse, never a close').eq('collapse');
+      // The frame outlives the pick: once answered, the position reads «received» while the colonies still stand
+      // (the cube's flight, the tile's own bonus) — the field and the door stay open for the frame (`hosting`).
+      expect(sittingFieldOf('reward', 'colony', false, false), 'the pick stands: the field and the door').deep.eq({pose: true, stepOpen: true});
+      expect(sittingFieldOf('reward', 'colony', true, false), 'the titanium wave first').deep.eq({pose: false, stepOpen: false});
+      expect(sittingFieldOf('reward', 'received', false, false, true), 'answered, the frame still inside: open for it').deep.eq({pose: true, stepOpen: true});
+      expect(sittingFieldOf('reward', 'received', false, false, false), 'the frame left: the row of parties returns').deep.eq({pose: false, stepOpen: false});
+      expect(sittingFieldOf('results', 'received', false, false, true), 'never on another page — the walk holds the reward page instead').deep.eq({pose: false, stepOpen: false});
+    });
     /* THE FIELD AND THE STEP'S DOOR are two facts: a hosted step opens both once the wave that arrived with it
      * has flown; a LEDGER body (the colony bonuses) takes the field for the whole reward page — its rows are
      * the wave's sources — while the door stays shut until the wave has landed. */

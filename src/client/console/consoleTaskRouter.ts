@@ -363,6 +363,9 @@ const RESOLUTION_STEP_STAGES: Partial<Record<TaskKind, string>> = {
   // HAND is the hosted step, in its discard mode, under one word — unlike a card's forced discard (above),
   // which is nobody's step. The same key `consoleSittingFlow.sittingStageKey` prints for the step.
   handSelect: 'Discarding',
+  // The winner's COLONY (Colony Contest): the colonies SCREEN is the hosted step, under one word — the same key
+  // `consoleSittingFlow.sittingStageKey` prints for the step and `openColoniesForPrompt` pushes for the frame.
+  colony: 'Colonies',
   space: 'Placement',
 };
 

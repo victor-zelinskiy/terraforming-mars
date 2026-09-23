@@ -9477,6 +9477,18 @@ export default defineComponent({
         // The activation's follow-up is done — the action workspace folds the
         // way every completed action does.
         this.foldWorkspaceAfterResult();
+      } else if (host === 'parliament') {
+        // THE SITTING'S COLONY STEP IS OVER (Colony Contest): the winner's free
+        // colony stands, its build chain (the cube's flight, the tile's own
+        // bonus) has finished, and the frame above was just popped. That is
+        // ALL the shell does here. The Parliament is not a card play — it is
+        // neither concluded nor folded nor collapsed by a step's end: the
+        // section reads the frame's departure itself (`stepFrameNested`
+        // falling — the stage's door closes, the hero card folds home) and
+        // continues its own walk from the reward page («получено» → the
+        // renewal → the results); the sitting ends only through its own gate
+        // («Закрыть заседание»), never through a pop.
+        consoleParliamentUi.stepFrameLeftAt = Date.now();
       }
     },
     // THE STRANDED-COLONY SELF-HEAL: a live SelectColony that no frame serves
@@ -11375,6 +11387,11 @@ export default defineComponent({
       }
       const host = workspaceHostForStep();
       const anchor: FrameAnchor = {type: 'prompt', promptType: 'colony'};
+      // THE STAGE THE FRAME OPENS UNDER is the prompt's own: a resolution-sourced pick (the winner's free colony
+      // of Colony Contest) is a step of the SITTING and reads «КОЛОНИИ» — the key `consoleSittingFlow` prints
+      // for that step; every other pick keeps «ВЫБОР КОЛОНИИ». The same table the section publishes up from
+      // (`followUpStepStage`), so the tail animates once.
+      const stage = followUpStepStage('colony', this.playerView.waitingFor) ?? 'Colony selection';
       if (host === undefined) {
         enterWorkspace('colonies', {anchor});
       } else if (host === 'standard-projects' && this.colonyCancellable) {
@@ -11386,7 +11403,7 @@ export default defineComponent({
         this.armStdpStepOrigin();
         setWorkspaceFramePhase(host, 'configure');
         pushWorkspaceFrame({
-          kind: 'colonies', subject: '', stage: 'Colony selection', phase: 'configure',
+          kind: 'colonies', subject: '', stage, phase: 'configure',
           serves: ['colony'], anchor,
         });
       } else {
@@ -11398,8 +11415,9 @@ export default defineComponent({
           // The SAME stage name the section publishes up on mount (and the same
           // one the reversible branch above pushes): a frame that opens under a
           // placeholder its own surface immediately corrects makes the crumb
-          // tail animate twice to say one thing.
-          kind: 'colonies', subject: '', stage: 'Colony selection', phase: 'committed',
+          // tail animate twice to say one thing. Inside the SITTING the host's
+          // subject («ЗАСЕДАНИЕ») stays the crumb's — this frame carries none.
+          kind: 'colonies', subject: '', stage, phase: 'committed',
           serves: ['colony'], anchor,
         });
       }

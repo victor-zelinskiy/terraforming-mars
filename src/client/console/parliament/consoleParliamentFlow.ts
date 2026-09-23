@@ -55,6 +55,12 @@ export const consoleParliamentUi = reactive({
   /** The Agenda marker is gliding along the track — an Agenda card reward's cover waits for it to settle. */
   agendaSettling: false,
   /**
+   * WHEN a hosted step that is a workspace FRAME last LEFT the Parliament (the colonies of the winner's free
+   * colony — Colony Contest): a witness for diagnostics and probes. The work itself is the section's — it
+   * reads the stack (`workspaceFrameHasNested`) and continues its walk; nothing waits on this stamp.
+   */
+  stepFrameLeftAt: 0,
+  /**
    * THE DOOR TO THE BOARD IS OPEN (v2): the winner's tile is placed ONLY by the
    * player's own press on the sitting's reward stage («К полю»). Until then the
    * board placement the server raised is HELD (the shell's `placementHeld`

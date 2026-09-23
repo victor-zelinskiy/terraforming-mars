@@ -358,6 +358,14 @@ describe('consoleTaskRouter (CTS-2 coverage)', () => {
         cardResourceDistributionPrompt: {amount: 3, cardResource: 'floater', cards: []}} as unknown as PlayerInputModel;
       expect(followUpStepStage('cardSelect', resolutionPick)).to.eq('Choice');
       expect(followUpStepStage('cardSelect', resolutionSpread)).to.eq('Distribution');
+      // The winner's free COLONY (Colony Contest): the colonies screen is the SITTING's step — «КОЛОНИИ», one
+      // word — while a card's or a project's pick keeps «ВЫБОР КОЛОНИИ» (the source decides, never the title).
+      const resolutionColony = {type: 'colony', title: 'Select where to build the free colony', buttonLabel: 'Build', coloniesModel: [],
+        placementContext: {cancellable: false, reason: 'r', source: {kind: 'resolution', resolution: 'RDX_X'}}} as unknown as PlayerInputModel;
+      const projectColony = {type: 'colony', title: 'Select where to build a colony', buttonLabel: 'Build', coloniesModel: [],
+        placementContext: {cancellable: true}} as unknown as PlayerInputModel;
+      expect(followUpStepStage('colony', resolutionColony)).to.eq('Colonies');
+      expect(followUpStepStage('colony', projectColony)).to.eq('Colony selection');
       expect(taskServedByHost(view({type: 'and', title: 'lay', options: [], cardResourceDistributionPrompt: {amount: 3, cardResource: 'floater', cards: []}}))?.kind, 'the host serves the layout').to.eq('cardSelect');
     });
 

@@ -53,6 +53,7 @@ import {
   workspaceStackTop,
 } from '@/client/console/consoleWorkspaceStack';
 import {buildWorkspaceHeader} from '@/client/console/consoleWorkspaceHeader';
+import {workspaceConclusionFor} from '@/client/console/consoleWorkspaceFlow';
 
 const ALWAYS: FrameAnchor = {type: 'always'};
 
@@ -874,6 +875,46 @@ describe('consoleWorkspaceStack — the ONE depth model of a workspace', () => {
     leaveWorkspace();
     expect(workspaceHostYieldsScene('parliament'), 'the Parliament owns the scene again').to.eq(false);
     expect(workspaceFrameMounted('parliament'), 'untouched underneath the whole flow').to.eq(true);
+  });
+
+  /*
+   * THE SITTING'S COLONY STEP (Colony Contest): the colonies frame the winner's
+   * free colony pushes stands DIRECTLY on the Parliament — and EMBEDS in its
+   * stage zone (the hand's discard's own shape), never a scene hand-over: the
+   * hero card, the band and the crumb's subject («ЗАСЕДАНИЕ») stand while the
+   * grid takes the body. While it stands the Parliament hosts a step and may
+   * not conclude; when it leaves, the Parliament is untouched underneath.
+   */
+  it('parliament ⊃ colonies: the sitting\'s colony step EMBEDS in the Parliament\'s stage slot, holds its conclusion, and leaves it standing', () => {
+    pushWorkspaceFrame({
+      kind: 'parliament', subject: 'Sitting', stage: 'Reward', phase: 'committed',
+      serves: ['parliamentPhase'], anchor: {type: 'phase', phase: 'parliament'},
+    });
+    expect(workspaceHostForStep(), 'the sitting is past the browse layer: it hosts').to.eq('parliament');
+    pushWorkspaceFrame({
+      kind: 'colonies', subject: '', stage: 'Colonies', phase: 'committed',
+      serves: ['colony'], anchor: {type: 'prompt', promptType: 'colony'},
+    });
+    expect(workspaceFrameHost('colonies'), 'hosted by the Parliament').to.eq('parliament');
+    expect(workspaceFrameIsOverlay('colonies'), 'EMBEDDED — no scene hand-over').to.eq(false);
+    expect(workspaceHostYieldsScene('parliament'), 'the Parliament keeps its scene').to.eq(false);
+    // Ownership ≠ readiness: the frame renders nowhere until the step's door publishes the stage zone.
+    expect(workspaceFrameRenders('colonies')).to.eq(false);
+    setWorkspaceFrameSlot('parliament', '.con-parl [data-embed-slot="parliament-stage"]');
+    expect(workspaceFrameTarget('colonies'), 'the door: the Parliament\'s stage zone').to.eq('.con-parl [data-embed-slot="parliament-stage"]');
+    expect(workspaceFrameRenders('colonies')).to.eq(true);
+    const crumb = workspaceStackCrumb();
+    expect(crumb?.root).to.eq('Parliament');
+    expect(crumb?.subject?.text, 'the sitting stays the subject — the frame carries none').to.eq('Sitting');
+    expect(crumb?.stage, 'the tail is the step\'s one word').to.eq('Colonies');
+    expect(workspaceFrameHasNested('parliament')).to.eq(true);
+    expect(workspaceConclusionFor({nested: workspaceFrameHasNested('parliament'), outcomeLive: false, ownsPrompt: false, parked: false}),
+      'a step is standing inside: the flow may not conclude').to.deep.eq({verdict: 'hold', reason: 'nested-step'});
+    leaveWorkspace();
+    expect(workspaceFrameHasNested('parliament')).to.eq(false);
+    expect(workspaceFrameMounted('parliament'), 'untouched underneath the step').to.eq(true);
+    expect(workspaceStackCrumb()?.stage, 'the Parliament\'s own tail again').to.eq('Reward');
+    expect(workspaceConclusionFor({nested: false, outcomeLive: false, ownsPrompt: false, parked: false})).to.deep.eq({verdict: 'dismiss'});
   });
 
   /*

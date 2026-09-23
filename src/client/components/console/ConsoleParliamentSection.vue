@@ -192,7 +192,7 @@ import {
 import {BenchSource, benchSourceOf, benchWarnOf} from '@/client/console/parliament/parliamentVoteView';
 import {
   setWorkspaceFramePhase, setWorkspaceFrameSlot, setWorkspaceFrameStage, setWorkspaceFrameSubject, workspaceFrameAnchor,
-  workspaceFrameRenders, workspaceHostYieldsScene,
+  workspaceFrameHasNested, workspaceFrameRenders, workspaceHostYieldsScene,
 } from '@/client/console/consoleWorkspaceStack';
 import {translateText} from '@/client/directives/i18n';
 import {promptIdentityKey} from '@/client/console/turnIntents';
@@ -392,7 +392,16 @@ export default defineComponent({
       if (!this.sittingUp || p === undefined) {
         return {pose: false, stepOpen: false};
       }
-      return sittingFieldOf(this.sittingStage, p.rewardStep, this.rewardPending, this.sittingLedger !== undefined);
+      return sittingFieldOf(this.sittingStage, p.rewardStep, this.rewardPending, this.sittingLedger !== undefined, this.stepFrameNested);
+    },
+    /**
+     * A hosted step that is a workspace FRAME still stands INSIDE the Parliament (the colonies of the winner's
+     * free colony — Colony Contest — after its pick was answered: the build's cube in flight, the tile's own
+     * bonus asking). The stack is the one witness (`workspaceFrameHasNested`), and it is reactive: the field
+     * and the door stay open for as long as the frame stands, and the walk holds the reward page (`mayLeave`).
+     */
+    stepFrameNested(): boolean {
+      return workspaceFrameHasNested('parliament');
     },
     /** The stage's FIELD pose stands (the overview receded, the card on the hero slot, the zone open). */
     sittingField(): boolean {
@@ -739,6 +748,17 @@ export default defineComponent({
           this.queueWalk();
         }
       },
+    },
+    /**
+     * THE HOSTED FRAME LEFT (Colony Contest): the shell popped the colonies once the build chain finished. The
+     * position moved on long ago (the response after the build), so nothing else re-queues the walk — the
+     * stage's door closes with the frame (`sittingStepOpen` falls), the hero card folds home, and the walk
+     * goes on from the reward page: «получено», the renewal, the results. The sitting is never concluded here.
+     */
+    stepFrameNested(on: boolean, was: boolean): void {
+      if (!on && was && parliamentFlow.stage === 'sitting') {
+        this.queueWalk();
+      }
     },
     sceneHandedOver(on: boolean): void {
       if (!on && parliamentFlow.stage === 'browse') {
@@ -1325,7 +1345,10 @@ export default defineComponent({
       if (ledgerRead) {
         this.ledgerReadOwed = true;
       }
-      parliamentFlow.sittingPage = sittingStartPage(position, (stage) => sittingStagePlayed(key, stage), ledgerRead);
+      // A hosted FRAME still standing in the zone (the colonies of the winner's free colony — the server moved
+      // to the adjourn gate the moment the pick was answered, the cube is still flying) seats the walk on the
+      // reward page too: the step is where the player is, and the page holds until the frame has left.
+      parliamentFlow.sittingPage = sittingStartPage(position, (stage) => sittingStagePlayed(key, stage), ledgerRead || this.stepFrameNested);
       this.queueWalk();
     },
     // ── the director's walk ─────────────────────────────────────────────
@@ -1364,7 +1387,9 @@ export default defineComponent({
         return true;
       }
       if (stage === 'reward') {
-        return sittingRewardSettled(position) && !this.rewardPending && !parliamentRewardState.receiptShowing && !this.ledgerReadOwed;
+        // …and never while a hosted FRAME still stands in the zone (the colonies' build chain after the pick).
+        return sittingRewardSettled(position) && !this.rewardPending && !parliamentRewardState.receiptShowing && !this.ledgerReadOwed &&
+          !this.stepFrameNested;
       }
       return false;
     },
