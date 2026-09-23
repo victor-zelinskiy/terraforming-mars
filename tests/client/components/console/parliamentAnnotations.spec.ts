@@ -244,6 +244,36 @@ describe('parliamentAnnotations — the fullscreen inspector\'s reading blocks',
     expect(texts([resolutionAnnotations(id, [{...now, count: 0, countedSpaces: [], amount: 3, uncapped: 3}])[1]])).to.deep.eq(['No tile counts right now']);
   });
 
+  it('a THRESHOLD-COUNTED effect (Generous Funding): its own qualification sentence, and the BREAKDOWN of the rating behind the number — never a list, never «no card»', () => {
+    const id = 'RDX_GREENS_GENEROUS_FUNDING';
+    const effect = getResolution(id)?.scaled?.[0];
+    if (effect === undefined) {
+      throw new Error('Generous Funding declares no scaled effect');
+    }
+    const bare = resolutionAnnotations(id);
+    expect(bare.map((b) => b.labelKey), 'no winner block — this card has no winner part').to.deep.eq(['When enacted', 'Chairman quest']);
+    expect(texts([bare[0]])).to.deep.eq([
+      'Every player gains 2 M€ per point of their influence and 2 M€ for each complete set of 5 TR they have over 15.',
+      'Only complete sets of 5 TR above 15 count: TR 20 is one set, TR 24 still one, TR 25 two. The remainder pays nothing; the threshold is the card\'s, whatever rating the game started at.',
+    ]);
+    expect(texts([bare[1]])).to.deep.eq(['Raise your TR 3 steps']);
+    // The row is the breakdown of the VALUE: «TR 24 · threshold 15 · 1 complete set · 1 to the next set» — the server's numbers.
+    const metric = {metric: 'terraformRating' as const, value: 24, over: 15, step: 5, sets: 1, toNext: 1};
+    const now: InfluenceYield = {effect, context: 'estimate', influence: 3, amount: 8, count: 1, counted: [], countedMetric: metric};
+    const live = resolutionAnnotations(id, [now]);
+    expect(live.map((b) => b.labelKey)).to.deep.eq(['When enacted', 'For you', 'Chairman quest']);
+    expect(live[1].rows[0].text).to.eq('Counted right now: ${0}');
+    expect(live[1].rows[0].params?.[0]).to.eq('TR 24 · threshold 15 · 1 complete set(s) · 1 to the next set');
+    // Zero sets is still a breakdown (TR 19: one point short) — never «no card counts right now».
+    const short = resolutionAnnotations(id, [{...now, count: 0, amount: 6, countedMetric: {...metric, value: 19, sets: 0, toNext: 1}}]);
+    expect(short[1].rows[0].params?.[0]).to.eq('TR 19 · threshold 15 · 0 complete set(s) · 1 to the next set');
+    expect(texts(short)).to.not.include('No card counts right now');
+    // Once recorded, the row says so and prints the RECORDED breakdown.
+    const recorded = resolutionAnnotations(id, [{...now, context: 'applied'}]);
+    expect(recorded[1].rows[0].text).to.eq('Counted at the enactment: ${0}');
+    expect(recorded[1].rows[0].params?.[0]).to.eq('TR 24 · threshold 15 · 1 complete set(s) · 1 to the next set');
+  });
+
   it('an unknown resolution reads nothing (never a blank chip)', () => {
     expect(resolutionAnnotations('RDX_NOT_A_CARD')).to.deep.eq([]);
   });

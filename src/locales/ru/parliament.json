@@ -727,5 +727,10 @@
   "Counted by your terraform rating, not among cards": "Считается по вашему РТ, а не среди карт",
   "Counted by your terraform rating, not on the board": "Считается по вашему РТ, а не на поле",
   "${0} complete set(s) of 5 TR over 15": "${0} {полный набор|полных набора|полных наборов} по 5 РТ сверх 15",
-  "Only complete sets of 5 TR above 15 count: TR 20 is one set, TR 24 still one, TR 25 two. The remainder pays nothing; the threshold is the card's, whatever rating the game started at.": "Считаются только полные наборы по 5 РТ сверх 15: РТ 20 — один набор, РТ 24 — всё ещё один, РТ 25 — два. Остаток ничего не платит; порог принадлежит карте, с какого бы РТ ни началась партия."
+  "Only complete sets of 5 TR above 15 count: TR 20 is one set, TR 24 still one, TR 25 two. The remainder pays nothing; the threshold is the card's, whatever rating the game started at.": "Считаются только полные наборы по 5 РТ сверх 15: РТ 20 — один набор, РТ 24 — всё ещё один, РТ 25 — два. Остаток ничего не платит; порог принадлежит карте, с какого бы РТ ни началась партия.",
+  "TR ${0}": "РТ ${0}",
+  "threshold ${0}": "порог ${0}",
+  "${0} complete set(s)": "${0} {полный набор|полных набора|полных наборов}",
+  "${0} to the next set": "до следующего ${0}",
+  "${0} set(s)": "${0} {набор|набора|наборов}"
 }

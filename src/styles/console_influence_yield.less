@@ -206,6 +206,14 @@
     /* A SEQUENTIAL reading: «[heat production] 4 → 6» — the inner arrow is the
        total's own change, quieter than the one that leads to the result. */
     &__in--seq &__arrow { font-size: .9rem; color: fade(@con-text, 48%); margin: 0 .08rem; }
+    /* A THRESHOLD reading: «[TR] 24 → 1 set» — the inner arrow is the rule's
+       division, quieter than the one that leads to the result; the noun beside
+       the sets is a tracked-caps whisper, never a second number. */
+    &__arrow--in { font-size: .9rem; color: fade(@con-text, 48%); margin: 0 .08rem; }
+    &__sets {
+        font-size: .58rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase;
+        color: fade(@con-text, 66%); margin: 0 .04rem 0 .14rem; align-self: flex-end; line-height: 1.2;
+    }
     &__in b { font-size: 1.28rem; font-weight: 700; color: @con-text; }
     &__out b { font-size: 1.36rem; font-weight: 700; color: @con-parl-mint; }
     &__reading--forecast &__out b { color: fade(@con-parl-gold, 96%); }

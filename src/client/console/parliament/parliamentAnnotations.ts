@@ -39,7 +39,7 @@ import {accessReasonRows} from './consoleParliamentModel';
 import {InfluenceYield} from '@/common/parliament/influenceScaling';
 import {ParliamentEnactOutcomeModel, ParliamentModel} from '@/common/models/ParliamentModel';
 import {WorldMoveTable, worldMoveReadingOf, worldMoveSentenceOf} from './worldMoveModel';
-import {countedCellNames, countedContributions, yieldCountPresentation} from './influenceYieldModel';
+import {countedCellNames, countedContributions, countedMetricParts, yieldCountPresentation} from './influenceYieldModel';
 import {WinnerRewardReading, winnerRewardRuleKey, winnerRewardSentenceOf} from './winnerRewardModel';
 
 export type RowText = {text: string, params?: ReadonlyArray<string>};
@@ -199,8 +199,16 @@ export function resolutionAnnotations(
   // cards of the enactment once it is recorded (frozen), today's cards while
   // the card is up for the vote — each labelled by which one it is.
   const forYou: Array<RowText> = [];
-  const counted = (yields ?? []).find((y) => (y.counted !== undefined || y.countedSpaces !== undefined) && (y.context === 'estimate' || y.context === 'applied'));
-  if (counted?.countedSpaces !== undefined) {
+  const counted = (yields ?? []).find((y) => (y.counted !== undefined || y.countedSpaces !== undefined || y.countedMetric !== undefined) &&
+    (y.context === 'estimate' || y.context === 'applied'));
+  if (counted?.countedMetric !== undefined) {
+    // A THRESHOLD count (sets of TR): there is no list — the row is the
+    // BREAKDOWN of the value («TR 24 · threshold 15 · 1 complete set · 1 to
+    // the next set»), the server's own numbers, frozen once recorded.
+    const applied = counted.context === 'applied';
+    const breakdown = countedMetricParts(counted.countedMetric).map((part) => translateTextWithParams(part.key, [...part.params])).join(' · ');
+    forYou.push({text: applied ? 'Counted at the enactment: ${0}' : 'Counted right now: ${0}', params: [breakdown]});
+  } else if (counted?.countedSpaces !== undefined) {
     // A BOARD count (space cities): the CELLS, by the names the board's own
     // information layer gives the reserved areas. A cell that layer does not
     // name is never christened here — the row prints the NUMBER instead and

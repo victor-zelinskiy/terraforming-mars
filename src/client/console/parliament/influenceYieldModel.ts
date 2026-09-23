@@ -20,10 +20,10 @@ import {IClientResolution} from '@/common/parliament/IClientResolution';
 import {ParliamentModel, ParliamentPlayerModel, ParliamentEnactOutcomeModel} from '@/common/models/ParliamentModel';
 import {
   fixedSequelYield, fixedYield, InfluenceScaledEffect, InfluenceSequelTerm, InfluenceYield, influenceYield, InfluenceYieldContext,
-  referenceYield, scaledAmount, sequelYield, winnerForecastYield, yieldAtCap,
+  referenceYield, scaledAmount, sequelYield, winnerForecastYield, yieldAtCap, YieldCount,
 } from '@/common/parliament/influenceScaling';
 import {AGENDA_TRACK, influenceAtAgenda} from '@/common/parliament/ParliamentTypes';
-import {countOf, ResolutionCountId} from '@/common/parliament/resolutionCounts';
+import {countMetricToward, countOf, ResolutionCountId, ResolutionCountMetric, ResolutionCountMetricModel} from '@/common/parliament/resolutionCounts';
 import {Tag} from '@/common/cards/Tag';
 import {CountedObjectGlyph} from '@/client/components/premiumCard/premiumCardIcons';
 import {getSpecialCellInfo} from '@/client/components/board/specialCellInfo';
@@ -146,6 +146,53 @@ export function countedCellNames(y: Pick<InfluenceYield, 'countedSpaces'>, nameO
   });
 }
 
+/**
+ * THE BREAKDOWN of a THRESHOLD count (Generous Funding's sets of 5 TR over
+ * 15), in words — the reading that stands where a list of cards or cells
+ * would: «TR 24 · threshold 15 · 1 complete set · 1 to the next set». English
+ * keys with their params; the consumer translates and joins them. The
+ * metric's own label is one word per metric (`metricLabelKeyOf`).
+ */
+export function countedMetricParts(metric: ResolutionCountMetricModel): Array<{key: string, params: ReadonlyArray<string>}> {
+  return [
+    {key: metricLabelKeyOf(metric.metric), params: [String(metric.value)]},
+    {key: 'threshold ${0}', params: [String(metric.over)]},
+    {key: '${0} complete set(s)', params: [String(metric.sets)]},
+    {key: '${0} to the next set', params: [String(metric.toNext)]},
+  ];
+}
+
+/** The i18n key naming a counted metric's VALUE («TR ${0}»). */
+export function metricLabelKeyOf(metric: ResolutionCountMetric): string {
+  switch (metric) {
+  case 'terraformRating': return 'TR ${0}';
+  }
+}
+
+/** The i18n key of the SETS a threshold count came to («1 set»), with its plural groups — the reading's word beside the count. */
+export const METRIC_SETS_PLURAL_KEY = '${0} set(s)';
+
+/**
+ * THE COUNT THE «IF YOU WIN» FORECAST STANDS ON. The winner's marker takes ONE
+ * Agenda step before the effect resolves (rulebook p.10) — and when the step
+ * reached is a TR step, the rating rises by one BEFORE a threshold count over
+ * the rating is read (`ChairmanSeat.advanceAgenda` raises it inside the
+ * phase). A forecast that ignored it would promise +8 and pay +10. Every other
+ * count rides along unchanged: the phase moves no tableau and no tile.
+ */
+export function winnerForecastCount(effect: InfluenceScaledEffect, count: YieldCount | undefined, agendaPosition: number): YieldCount | undefined {
+  const metric = count?.metric;
+  if (effect.count === undefined || count === undefined || metric === undefined || metric.metric !== 'terraformRating') {
+    return count;
+  }
+  const step = Math.min(AGENDA_TRACK.length, Math.max(0, agendaPosition) + 1);
+  if (AGENDA_TRACK[step - 1]?.kind !== 'tr') {
+    return count;
+  }
+  const raised = countMetricToward(effect.count.id, metric.value + 1);
+  return {...count, count: raised.count, metric: raised.metric};
+}
+
 /** The caption under a reading — WHICH question the number answers (English keys; `params` for the step). */
 export function yieldCaptionOf(y: InfluenceYield): {key: string, params?: ReadonlyArray<string>} | undefined {
   switch (y.context) {
@@ -265,13 +312,16 @@ export function voteYieldsOf(resolution: IClientResolution, model: ParliamentMod
     }
     // …with its per-tag breakdown, where the count is over several tags (Venus + Jovian): the reading names each.
     // …and its CELLS, where the count is over the board (Colonization Funding's space cities): the reading names each.
-    const counted = count === undefined ? undefined : {count: count.count, cards: count.cards, units: count.units, byTag: count.byTag, spaces: count.spaces};
+    // …and the BREAKDOWN of its metric, where the count is a threshold over one (Generous Funding's sets of TR).
+    const counted: YieldCount | undefined = count === undefined ? undefined :
+      {count: count.count, cards: count.cards, units: count.units, byTag: count.byTag, spaces: count.spaces, metric: count.metric};
     const estimate = influenceYield(effect, 'estimate', seat.influence, counted);
     out.push(estimate);
     if (effect.recipient === 'each' || effect.recipient === 'winner') {
-      // Every influence beyond the track (cards, colonies) rides along unchanged.
+      // Every influence beyond the track (cards, colonies) rides along unchanged; a threshold count over the
+      // rating is read AFTER the TR step the win may take (`winnerForecastCount`).
       const bonus = seat.influence - influenceAtAgenda(seat.agenda);
-      const forecast = winnerForecastYield(effect, seat.agenda, bonus, counted);
+      const forecast = winnerForecastYield(effect, seat.agenda, bonus, winnerForecastCount(effect, counted, seat.agenda));
       if (forecast.amount !== estimate.amount) {
         out.push(forecast);
       }
@@ -320,7 +370,7 @@ export function enactedYieldsOf(
     const recorded = applied === undefined ? undefined :
       {
         count: applied.count, counted: applied.counted, countedUnits: applied.countedUnits, countedByTag: applied.countedByTag,
-        countedSpaces: applied.countedSpaces, uncapped: applied.uncapped,
+        countedSpaces: applied.countedSpaces, countedMetric: applied.countedMetric, uncapped: applied.uncapped,
       };
     // A MULTIPLIER effect (the colony ledger): every record of the plan pays its own unit and carries the
     // multiplier beside it — the reading is the multiplier, never the first row's amount.

@@ -73,6 +73,7 @@
              :data-yield-context="y.context"
              :data-yield-influence="y.influence"
              :data-yield-count="y.count"
+             :data-yield-metric="y.countedMetric?.value"
              :data-yield-uncapped="y.uncapped"
              :data-yield-max="atCap(y) ? 'true' : undefined"
              :data-yield-amount="y.amount"
@@ -100,6 +101,15 @@
                 <PremiumCountGlyph class="con-iyield__glyph" :glyph="{kind: 'tag', tag: entry.tag}" /><b :data-yield-in="'tag:' + entry.tag">{{ entry.count }}</b>
                 <span class="con-iyield__plus" aria-hidden="true">+</span>
               </template>
+            </template>
+            <!-- A THRESHOLD count reads the VALUE and what it came to («[TR] 24 → 1 set + [influence] 3»):
+                 the rating is the player's own number, the sets are what the rule made of it — the
+                 player never divides in their head. The breakdown in full is the inspector's row. -->
+            <template v-else-if="y.count !== undefined && y.countedMetric !== undefined && countGlyphOf(group.effect) !== undefined">
+              <PremiumCountGlyph class="con-iyield__glyph" :glyph="countGlyphOf(group.effect)!" /><b data-yield-in="metric">{{ y.countedMetric.value }}</b>
+              <span class="con-iyield__arrow con-iyield__arrow--in" aria-hidden="true">→</span>
+              <b data-yield-in="count">{{ y.count }}</b><span class="con-iyield__sets">{{ setsNounOf(y.count) }}</span>
+              <span class="con-iyield__plus" aria-hidden="true">+</span>
             </template>
             <template v-else-if="y.count !== undefined && countGlyphOf(group.effect) !== undefined">
               <PremiumCountGlyph class="con-iyield__glyph" :glyph="countGlyphOf(group.effect)!" /><b data-yield-in="count">{{ y.count }}</b>
@@ -144,8 +154,8 @@
 import {defineComponent, PropType} from 'vue';
 import {InfluenceScaledEffect, InfluenceYield, yieldAtCap} from '@/common/parliament/influenceScaling';
 import {
-  oneNumberYieldsOf, sequelTotalIcon, WinSuffix, winSuffixesOf, yieldCaptionOf, yieldCountPresentation, yieldIconOf, yieldIsMultiplier, YieldCountGlyph,
-  YieldIcon,
+  METRIC_SETS_PLURAL_KEY, oneNumberYieldsOf, sequelTotalIcon, WinSuffix, winSuffixesOf, yieldCaptionOf, yieldCountPresentation, yieldIconOf,
+  yieldIsMultiplier, YieldCountGlyph, YieldIcon,
 } from '@/client/console/parliament/influenceYieldModel';
 import {SUFFIX_HINT, SUFFIX_IF_YOU_WIN, SUFFIX_STEP} from '@/client/console/parliament/voteInfoModel';
 import PremiumCountGlyph from '@/client/components/premiumCard/PremiumCountGlyph.vue';
@@ -214,6 +224,16 @@ export default defineComponent({
     /** The counted object's glyph (a card with a VP icon, or a printed tag), undefined for an effect without a count term. */
     countGlyphOf(effect: InfluenceScaledEffect): YieldCountGlyph | undefined {
       return effect.count === undefined ? undefined : yieldCountPresentation(effect.count.id).glyph;
+    },
+    /**
+     * The NOUN beside a threshold count («set» / «набора»): the plural key resolves its word forms against the
+     * number to its left, so the number is rendered into the key and stripped again — the count itself stands
+     * in its own `data-yield-in="count"` element, the way every other reading prints it.
+     */
+    setsNounOf(count: number): string {
+      const numbered = translateTextWithParams(METRIC_SETS_PLURAL_KEY, [String(count)]);
+      const digits = String(count);
+      return numbered.startsWith(digits) ? numbered.slice(digits.length).trim() : numbered;
     },
     /** The reading stands at the effect's maximum — the MAX mark (reached or passed; the uncapped sum rides the data attribute). */
     atCap(y: InfluenceYield): boolean {

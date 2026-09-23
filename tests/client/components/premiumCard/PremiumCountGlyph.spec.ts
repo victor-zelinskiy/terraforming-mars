@@ -2,7 +2,7 @@ import {mount} from '@vue/test-utils';
 import {expect} from 'chai';
 import {Tag} from '@/common/cards/Tag';
 import PremiumCountGlyph from '@/client/components/premiumCard/PremiumCountGlyph.vue';
-import {countedTileIconUrl} from '@/client/components/premiumCard/premiumCardIcons';
+import {countedMetricIconUrl, countedTileIconUrl} from '@/client/components/premiumCard/premiumCardIcons';
 
 /**
  * THE COUNTED OBJECT's glyph (Turmoil Redux): ONE drawing per kind of count,
@@ -31,6 +31,23 @@ describe('PremiumCountGlyph', () => {
     // A tile glyph carries no tag and no card silhouette.
     expect(wrapper.find('.pcglyph__tag').exists()).to.eq(false);
     expect(wrapper.find('.pvpcard').exists()).to.eq(false);
+  });
+
+  it('a METRIC count draws the rating badge — the face\'s own TR asset — alone: no spark, no number, no tag, no card', () => {
+    const wrapper = mount(PremiumCountGlyph, {props: {glyph: {kind: 'metric', metric: 'terraformRating'}}});
+    const glyph = wrapper.find('.pcglyph');
+    expect(glyph.exists()).to.eq(true);
+    expect(glyph.classes()).to.include('pcglyph--metric');
+    expect(glyph.attributes('data-count-metric')).to.eq('terraformRating');
+    const badge = wrapper.find('.pcglyph__metric');
+    expect(badge.exists()).to.eq(true);
+    expect(badge.attributes('style')).to.contain(countedMetricIconUrl('terraformRating'));
+    expect(countedMetricIconUrl('terraformRating')).to.contain('resources/tr.png');
+    expect(wrapper.find('.pcglyph__spark').exists()).to.eq(false);
+    expect(wrapper.find('.pcglyph__tile').exists()).to.eq(false);
+    expect(wrapper.find('.pcglyph__tag').exists()).to.eq(false);
+    expect(wrapper.find('.pvpcard').exists()).to.eq(false);
+    expect(glyph.text().trim(), 'no number inside the badge — the value stands beside the glyph').to.eq('');
   });
 
   it('the other kinds are untouched: a tag medallion, several medallions joined by «+», the card silhouette', () => {

@@ -9,9 +9,12 @@ import {InfluenceScaledEffect, scaledAmount, uncappedAmount, winnerForecastYield
 import {Resource} from '@/common/Resource';
 import {Tag} from '@/common/cards/Tag';
 import {
-  cardResourcePluralKey, countedCellNames, countedContributions, enactedYieldsOf, noRecipientNoteOf, oneNumberYieldsOf, productionResourceLabelKey,
-  resolvingYieldOf, scaledEffectForCardResource, voteYieldsOf, winSuffixesOf, yieldCaptionOf, yieldCountPresentation, yieldIconOf,
+  cardResourcePluralKey, countedCellNames, countedContributions, countedMetricParts, enactedYieldsOf, METRIC_SETS_PLURAL_KEY, metricLabelKeyOf,
+  noRecipientNoteOf, oneNumberYieldsOf, productionResourceLabelKey, resolvingYieldOf, scaledEffectForCardResource, voteYieldsOf, winnerForecastCount,
+  winSuffixesOf, yieldCaptionOf, yieldCountPresentation, yieldIconOf,
 } from '@/client/console/parliament/influenceYieldModel';
+import {countMetricToward} from '@/common/parliament/resolutionCounts';
+import {SpaceId} from '@/common/Types';
 import {getResolution} from '@/client/parliament/ClientParliamentManifest';
 
 /**
@@ -359,5 +362,134 @@ describe('influenceYieldModel', () => {
     const names = countedCellNames({countedSpaces: ['01', '02', '69', '75']}, (key) => `t:${key}`);
     expect(names).deep.eq(['t:Ganymede Colony', 't:Phobos Space Haven', 't:Stanford Torus', undefined]);
     expect(countedCellNames({countedSpaces: undefined}, (key) => key)).deep.eq([]);
+  });
+
+  // ── A THRESHOLD-COUNTED TERM (Generous Funding: 2 × (S + I), S = the complete SETS of 5 TR over 15) ──
+  const GENEROUS_MEGACREDITS: InfluenceScaledEffect = {
+    id: 'megacredits', unit: {kind: 'stock', resource: Resource.MEGACREDITS}, perInfluence: 2,
+    count: {id: 'terraformRatingSets', per: 2}, recipient: 'each',
+  };
+  const generous = {...resolution, id: 'RDX_GENEROUS', scaled: [GENEROUS_MEGACREDITS]};
+  /** A seat whose rating is `tr` — the count the server model carries, breakdown included (the ONE shared function). */
+  const withRating = (s: ParliamentPlayerModel, tr: number): ParliamentPlayerModel => ({...s, counts: [countMetricToward('terraformRatingSets', tr)]});
+  const breakdownOf = (tr: number) => countMetricToward('terraformRatingSets', tr).metric!;
+
+  it('the shipped catalog declares Generous Funding as a THRESHOLD count at the influence\'s own rate (2 per set + 2 per influence), uncapped, for every player', () => {
+    const card = getResolution('RDX_GREENS_GENEROUS_FUNDING');
+    expect(card?.code).eq('RX13');
+    expect(card?.party).eq(PartyName.GREENS);
+    expect(card?.scaled).deep.eq([GENEROUS_MEGACREDITS]);
+    expect(card?.hasWinnerEffect, 'no winner-only part').is.false;
+    expect(card?.compatibility, 'a base card').deep.eq([]);
+    expect(yieldIconOf(GENEROUS_MEGACREDITS)).deep.eq({family: 'resource', resource: Resource.MEGACREDITS, production: false});
+    // The counted object is the RATING badge — never a card glyph, never a tile.
+    const presentation = yieldCountPresentation('terraformRatingSets');
+    expect(presentation.glyph).deep.eq({kind: 'metric', metric: 'terraformRating'});
+    expect(presentation.pluralKey).eq('${0} complete set(s) of 5 TR over 15');
+    expect(presentation.skipReasonKey).eq('No TR sets and no influence');
+    expect(presentation.ruleKey).contains('TR 25 two');
+    expect(presentation.ruleKey).contains('remainder pays nothing');
+    // The other counts keep their objects — the family did not move.
+    expect(yieldCountPresentation('spaceCities').glyph).deep.eq({kind: 'tile', tile: 'spaceCity'});
+    expect(yieldCountPresentation('powerTags').glyph).deep.eq({kind: 'tag', tag: Tag.POWER});
+    expect(yieldCountPresentation('buildingCardsWithNonNegativeVp').glyph).deep.eq({kind: 'vp-card', tag: Tag.BUILDING});
+    expect(yieldCountPresentation('venusJovianTags').glyph).deep.eq({kind: 'tags', tags: [Tag.VENUS, Tag.JOVIAN]});
+  });
+
+  it('a threshold-counted vote reading: «[TR] 24 → 1 set + [influence] 3 → +8 M€», the BREAKDOWN carried, no cap mark — and no list of anything', () => {
+    // Agenda 5 = influence 3; the next step (6) is a TR step — see the forecast spec below.
+    const blue = withRating(seat('blue' as Color, 5, 3), 24);
+    const yields = voteYieldsOf(generous, model([blue]), 'blue' as Color);
+    const [estimate] = yields;
+    expect(estimate).deep.include({context: 'estimate', influence: 3, count: 1, amount: 8});
+    expect(estimate.countedMetric, 'the breakdown explains the number').deep.eq({metric: 'terraformRating', value: 24, over: 15, step: 5, sets: 1, toNext: 1});
+    expect(estimate.counted, 'no card in the list').deep.eq([]);
+    expect(estimate.countedSpaces, 'no cell either').is.undefined;
+    expect(estimate.uncapped, 'no cap declared — no sum beside the amount').is.undefined;
+    expect(yieldAtCap(estimate)).is.false;
+    expect(yieldCapped(estimate)).is.false;
+    expect(yieldCaptionOf(estimate)).deep.eq({key: 'If enacted now'});
+    // The arithmetic is the one formula's: 2 per set, 2 per influence, no cap.
+    expect(scaledAmount(GENEROUS_MEGACREDITS, 3, 1)).eq(8);
+    expect(scaledAmount(GENEROUS_MEGACREDITS, 5, 3)).eq(16);
+    expect(uncappedAmount(GENEROUS_MEGACREDITS, 5, 3)).eq(16);
+  });
+
+  it('influence pays on its own: TR 15 and influence 3 reads «+6» — an input of 0 sets with its breakdown, never an empty place', () => {
+    const blue = withRating(seat('blue' as Color, 5, 3), 15);
+    const [y] = voteYieldsOf(generous, model([blue]), 'blue' as Color);
+    expect(y).deep.include({influence: 3, count: 0, amount: 6});
+    expect(y.countedMetric).deep.eq({metric: 'terraformRating', value: 15, over: 15, step: 5, sets: 0, toNext: 5});
+    // Below the threshold the distance to the first set says how far: TR 14 → six points.
+    expect(breakdownOf(14)).deep.include({sets: 0, toNext: 6});
+    expect(breakdownOf(19)).deep.include({sets: 0, toNext: 1});
+    expect(breakdownOf(30)).deep.include({sets: 3, toNext: 5});
+  });
+
+  it('the «if you win» forecast reads the rating AFTER the TR step the win takes: TR 24 at Agenda 5 (step 6 = TR) forecasts 25 → 2 sets, «+2 if you win»', () => {
+    const blue = withRating(seat('blue' as Color, 5, 3), 24);
+    const yields = voteYieldsOf(generous, model([blue]), 'blue' as Color);
+    expect(yields.map((y) => y.context)).deep.eq(['estimate', 'forecast']);
+    const [estimate, forecast] = yields;
+    expect(estimate).deep.include({influence: 3, count: 1, amount: 8});
+    expect(forecast).deep.include({influence: 3, count: 2, amount: 10, agendaStep: 6});
+    expect(forecast.countedMetric, 'the forecast\'s breakdown is the RAISED rating\'s').deep.eq({metric: 'terraformRating', value: 25, over: 15, step: 5, sets: 2, toNext: 5});
+    expect(winSuffixesOf(yields)).deep.eq([{effectId: 'megacredits', delta: 2, agendaStep: 6, influence: 3, atCap: false}]);
+    // The helper itself: a TR step raises a rating count by one point; any other step — or any other count — rides along unchanged.
+    const count = {count: 1, cards: [], metric: breakdownOf(24)};
+    expect(winnerForecastCount(GENEROUS_MEGACREDITS, count, 5)?.count, 'Agenda 5 → step 6, a TR step').eq(2);
+    expect(winnerForecastCount(GENEROUS_MEGACREDITS, count, 4), 'Agenda 4 → step 5, an influence step').deep.eq(count);
+    expect(winnerForecastCount(GENEROUS_MEGACREDITS, count, 12), 'the end of the track — no step').deep.eq(count);
+    expect(winnerForecastCount(GENEROUS_MEGACREDITS, undefined, 5)).is.undefined;
+    const cities = {count: 2, cards: [], spaces: ['01', '02'] as ReadonlyArray<SpaceId>};
+    expect(winnerForecastCount(FUNDING_PRODUCTION, cities, 5), 'a board count never moves in the phase').deep.eq(cities);
+    // …and at an influence step the win changes the influence alone: Agenda 4 (influence 2) → step 5 (influence 3): +6 becomes +8.
+    const red = withRating(seat('red' as Color, 4, 2), 24);
+    const growing = voteYieldsOf(generous, model([red]), 'red' as Color);
+    expect(growing[0]).deep.include({influence: 2, count: 1, amount: 6});
+    expect(growing[1]).deep.include({context: 'forecast', influence: 3, count: 1, amount: 8, agendaStep: 5});
+    expect(growing[1].countedMetric).deep.eq(breakdownOf(24));
+    expect(winSuffixesOf(growing)).deep.eq([{effectId: 'megacredits', delta: 2, agendaStep: 5, influence: 3, atCap: false}]);
+  });
+
+  it('an enacted threshold count reads the RECORDED breakdown, never today\'s rating', () => {
+    const blue = withRating(seat('blue' as Color, 12, 5), 34);
+    const m = model([blue], {
+      lastPhase: {
+        generation: 3, final: false, winner: {instance: 'RDX_GENEROUS#0', resolution: 'RDX_GENEROUS', party: PartyName.GREENS, votes: 1},
+        outcomes: [{
+          player: 'blue' as Color, step: 'megacredits', effect: 'megacredits', kind: 'stock', stock: Resource.MEGACREDITS,
+          amount: 8, influence: 3, count: 1, counted: [], countedMetric: breakdownOf(24), before: 44, after: 52,
+        }],
+        support: [], enacted: {instance: 'RDX_GENEROUS#0', resolution: 'RDX_GENEROUS', party: PartyName.GREENS}, refreshed: [], lobbyRefilled: [],
+      },
+    });
+    const [y] = enactedYieldsOf(generous, m, 'blue' as Color);
+    expect(y).deep.include({context: 'applied', amount: 8, influence: 3, count: 1});
+    expect(y.countedMetric, 'the rating of the enactment, not the 34 of today').deep.eq(breakdownOf(24));
+    expect(yieldCaptionOf(y)).deep.eq({key: 'Received'});
+    // A skipped record keeps its breakdown and names the reason.
+    const skipped = model([blue], {
+      lastPhase: {
+        ...m.lastPhase!,
+        outcomes: [{player: 'blue' as Color, step: 'megacredits', effect: 'megacredits', kind: 'skipped', stock: Resource.MEGACREDITS,
+          amount: 0, influence: 0, count: 0, counted: [], countedMetric: breakdownOf(19), reason: 'No TR sets and no influence'}],
+      },
+    });
+    const [s] = enactedYieldsOf(generous, skipped, 'blue' as Color);
+    expect(s).deep.include({context: 'applied', amount: 0, skipped: 'No TR sets and no influence'});
+    expect(s.countedMetric).deep.eq(breakdownOf(19));
+  });
+
+  it('the breakdown in words: «TR 24 · threshold 15 · 1 complete set · 1 to the next set» — keys with their numbers, the metric\'s own label first', () => {
+    expect(countedMetricParts(breakdownOf(24))).deep.eq([
+      {key: 'TR ${0}', params: ['24']},
+      {key: 'threshold ${0}', params: ['15']},
+      {key: '${0} complete set(s)', params: ['1']},
+      {key: '${0} to the next set', params: ['1']},
+    ]);
+    expect(countedMetricParts(breakdownOf(30)).map((p) => p.params[0])).deep.eq(['30', '15', '3', '5']);
+    expect(metricLabelKeyOf('terraformRating')).eq('TR ${0}');
+    expect(METRIC_SETS_PLURAL_KEY).eq('${0} set(s)');
   });
 });
