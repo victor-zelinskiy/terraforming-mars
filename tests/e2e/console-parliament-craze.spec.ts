@@ -179,6 +179,7 @@ test.describe('Development Craze (RX10) · the law pays a placement twice, visib
     await expect(toast.locator('.con-notif__lawline')).toContainText(/Строительная лихорадка/i);
     await expect(toast.locator('.con-notif__chip'), 'the law\'s own +2 steel').toContainText(/\+2/);
     await expect(toast.locator('.con-notif__action--detail'), 'hold X → Осмотреть').toContainText(/Осмотреть/i);
+    await cinematicBeat(page, 450, 'the toast finishes its entrance before the frame is taken');
     await shoot(page, '03-law-toast');
 
     // ④ HOLD X — the resolution's OWN inspector.
