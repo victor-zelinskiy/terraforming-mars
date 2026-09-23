@@ -40,9 +40,10 @@
  *    places — as a DEFERRED fact with no number (the cell is chosen later; a
  *    number here would be a guess). The honesty law: a live hook without its
  *    forecast is a silent lie.
- *  · THE ECHO: the passive publishes what it repeated (`lastPlacementBonusEcho`
- *    — the `lastOceanBonus` pattern) so the premium placement scene plays the
- *    second payout as a SECOND WAVE from the same cell. Presentation only.
+ *  · THE RECORD: the passive publishes what it repeated (`lastPlacementLawPayout`
+ *    — the `lastOceanBonus` pattern, the ONE channel every law's placement
+ *    payout rides) so the premium placement scene plays the second payout as
+ *    the LAW'S OWN WAVE from the same cell. Presentation only.
  *  · ENDS WITH THE LAW: the handler reads the ENACTED definition at the hook
  *    — a later sitting that enacts another card ends the doubling.
  */
@@ -53,7 +54,7 @@ import {Resource} from '../../../../common/Resource';
 import {SpaceType} from '../../../../common/boards/SpaceType';
 import {ResolutionCode, ResolutionId} from '../../../../common/parliament/ParliamentTypes';
 import {InfluenceScaledEffect, scaledAmount} from '../../../../common/parliament/influenceScaling';
-import {PlacementBonusEchoModel} from '../../../../common/models/PlacementBonusEchoModel';
+import {PlacementLawPayoutModel} from '../../../../common/models/PlacementLawPayoutModel';
 import {BoardFact} from '../../../../common/boards/BoardInformationFacts';
 import {AresHandler} from '../../../ares/AresHandler';
 import {IPlayer} from '../../../IPlayer';
@@ -101,10 +102,10 @@ const STEEL_STEP: EnactStep = {
  * order: the cell's printed bonuses (unless the tile COVERED a tile — the
  * engine paid none the first time), then the ocean adjacency, then the Ares
  * adjacency under Ares. Returns the ECHO the presentation reads (what was
- * repeated, for the second wave), or `undefined` when the cell had nothing to
+ * repeated, for the law's wave), or `undefined` when the cell had nothing to
  * repeat — then nothing is logged and no marker is raised.
  */
-export function repeatPlacementBonuses(player: IPlayer, space: Space, placement: TilePlacementBonusContext): PlacementBonusEchoModel | undefined {
+export function repeatPlacementBonuses(player: IPlayer, space: Space, placement: TilePlacementBonusContext): PlacementLawPayoutModel | undefined {
   const game = player.game;
   const printed = !placement.coveringExistingTile;
   const printedPaid = printed && space.bonus.length > 0;
@@ -122,14 +123,14 @@ export function repeatPlacementBonuses(player: IPlayer, space: Space, placement:
   }
   const ocean = game.grantOceanAdjacencyBonus(player, space);
   AresHandler.ifAres(game, () => AresHandler.earnAdjacencyBonuses(player, space));
-  const echo: PlacementBonusEchoModel = {
+  const payout: PlacementLawPayoutModel = {
     spaceId: space.id,
     resolution: DEVELOPMENT_CRAZE_ID,
     printed,
     ...(ocean !== undefined ? {ocean} : {}),
   };
-  player.lastPlacementBonusEcho = echo;
-  return echo;
+  player.lastPlacementLawPayout = payout;
+  return payout;
 }
 
 export const DEVELOPMENT_CRAZE: ResolutionDefinition = {

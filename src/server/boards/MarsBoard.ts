@@ -220,6 +220,36 @@ export class MarsBoard extends Board {
   }
 
   /**
+   * THE GREENERY TWIN of {@link oceanAdjacencyBonus} (Turmoil Redux, «Forestry
+   * Support»): pure, read-only, what the GREENERIES adjacent to `space` would
+   * pay at `rate` (NOT applied). The single source of truth for the greenery-
+   * adjacency rule — called by the live passive, by its dossier twin and by the
+   * specs, so a promise and a payout cannot drift.
+   *
+   * Two things are deliberately NOT the ocean's. The payers are found by the
+   * canonical tile predicate (`Board.isGreenerySpace` — greenery + Wetlands),
+   * never a re-implementation; and the rate is the LAW's (a greenery pays two
+   * resources), not a player attribute, so it is handed in by the card that
+   * prints it. ANY owner's greenery pays, exactly as any owner's ocean does.
+   *
+   * `spaceIds` names the paying neighbours (board clockwise order) — what lets
+   * the grant path publish an honest per-greenery breakdown
+   * ({@link GreeneryAdjacencyBonusModel}) instead of a bare count.
+   */
+  public greeneryAdjacencyBonus(
+    space: Space,
+    rate: {megacredits: number, plants: number},
+  ): {greeneries: number, megacredits: number, plants: number, spaceIds: ReadonlyArray<SpaceId>} {
+    const spaceIds = this.getAdjacentSpaces(space).filter(Board.isGreenerySpace).map((s) => s.id);
+    return {
+      greeneries: spaceIds.length,
+      megacredits: spaceIds.length * rate.megacredits,
+      plants: spaceIds.length * rate.plants,
+      spaceIds,
+    };
+  }
+
+  /**
    * Read-only cost descriptor for placing on `space`: the tile's OWN additional
    * costs (Ares hazard removal / `spaceCosts` overrides like Hellas ocean 6 M€ /
    * Vastitas temperature 3 M€ / Ares adjacency `cost`), whether the player can

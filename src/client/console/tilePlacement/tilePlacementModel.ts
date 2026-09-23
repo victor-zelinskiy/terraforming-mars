@@ -29,7 +29,8 @@
 import {Color} from '@/common/Color';
 import {SpaceId} from '@/common/Types';
 import {SpaceBonus} from '@/common/boards/SpaceBonus';
-import {PlacementBonusEchoModel} from '@/common/models/PlacementBonusEchoModel';
+import {PlacementLawPayoutModel} from '@/common/models/PlacementLawPayoutModel';
+import {GreeneryAdjacencyBonusModel} from '@/common/models/GreeneryAdjacencyBonusModel';
 import {OceanAdjacencyBonusModel} from '@/common/models/OceanAdjacencyBonusModel';
 import {SpaceModel} from '@/common/models/SpaceModel';
 import {TileType, HAZARD_TILES} from '@/common/TileType';
@@ -107,10 +108,10 @@ export const OCEAN_COIN_FORM_MS = 420;
 /** The calm breath before the water wakes (after the tile — or the printed
  *  bonuses — has settled). The cause is read before the consequence starts. */
 export const OCEAN_BEAT_BREATH_MS = 140;
-/** The pause between the first wave's last touchdown and the ECHO's first
- *  chip — long enough to read as a SECOND statement about the same cell,
- *  short enough to stay one beat of the same placement. */
-export const ECHO_WAVE_BREATH_MS = 320;
+/** The pause between the engine's last touchdown and the LAW's first chip —
+ *  long enough to read as a SECOND statement about the same cell, short
+ *  enough to stay one beat of the same placement. */
+export const LAW_WAVE_BREATH_MS = 320;
 /** Coin float above the water surface at birth (px @ uiScale 1). */
 export const OCEAN_COIN_LIFT_PX = 12;
 /** Number of condensation particles per coin — a hint of matter, not confetti. */
@@ -448,34 +449,38 @@ export function placementBonuses(bonus: ReadonlyArray<SpaceBonus>): Array<Placem
 }
 
 /**
- * THE ECHO WAVE — what the enacted resolution paid a SECOND time (Development
- * Craze: «double all placement and adjacency bonuses»), as the scene replays
- * it: the SAME printed icons again (`printed`), the SAME water again
- * (`ocean`). Accepted only when the server's echo names the armed space
- * (a stale snapshot from an earlier input can never double a wave), and only
- * when there is something to repeat. The scene never decides what a law
- * doubled — it replays what the server says it repeated.
+ * THE LAW'S WAVE — what the ENACTED RESOLUTION paid on this placement, over
+ * and above the engine's own bonuses, as the scene plays it: the SAME printed
+ * icons again (`printed`) and the SAME water again (`ocean`) for a law that
+ * REPEATS (Development Craze), the paying GROVES for a law that INTRODUCES an
+ * adjacency (Forestry Support). Accepted only when the server's record names
+ * the armed space — a stale snapshot from an earlier input can never pay a
+ * second wave — and only when there is something to play. The scene never
+ * decides what a law did: it plays what the server says it paid.
  */
-export type PlacementEcho = {
+export type PlacementLawWave = {
   printed: ReadonlyArray<PlacementBonus>;
   ocean: OceanAdjacencyBonusModel | undefined;
+  greeneries: GreeneryAdjacencyBonusModel | undefined;
 };
 
-export function echoWaveFor(
-  echo: PlacementBonusEchoModel | undefined,
+export function lawWaveFor(
+  payout: PlacementLawPayoutModel | undefined,
   spaceId: string,
   printed: ReadonlyArray<PlacementBonus>,
-): PlacementEcho | undefined {
-  if (echo === undefined || echo.spaceId !== spaceId) {
+): PlacementLawWave | undefined {
+  if (payout === undefined || payout.spaceId !== spaceId) {
     return undefined;
   }
-  const again = echo.printed ? printed : [];
-  const ocean = echo.ocean !== undefined && echo.ocean.spaceId === spaceId &&
-    echo.ocean.megacredits > 0 && echo.ocean.oceanSpaceIds.length > 0 ? echo.ocean : undefined;
-  if (again.length === 0 && ocean === undefined) {
+  const again = payout.printed === true ? printed : [];
+  const ocean = payout.ocean !== undefined && payout.ocean.spaceId === spaceId &&
+    payout.ocean.megacredits > 0 && payout.ocean.oceanSpaceIds.length > 0 ? payout.ocean : undefined;
+  const greeneries = payout.greeneries !== undefined && payout.greeneries.spaceId === spaceId &&
+    payout.greeneries.greenerySpaceIds.length > 0 ? payout.greeneries : undefined;
+  if (again.length === 0 && ocean === undefined && greeneries === undefined) {
     return undefined;
   }
-  return {printed: again, ocean};
+  return {printed: again, ocean, greeneries};
 }
 
 // ── placement verification + the targeted silent preview ───────────────────

@@ -172,6 +172,26 @@
         }
     }
 
+    /* ── GREENERY ADJACENCY: the grove answers the new neighbour ─────────
+       (Turmoil Redux, «Поддержка лесничества»). The SAME shoreline swell —
+       identical geometry and choreography — in the canopy's register: a lit
+       clearing under the leaves, not water. The palette is the only
+       difference, exactly as the Ares wake above. */
+    &__oceanpulse--grove {
+        .con-tileplace__oceanpulse-wash {
+            background: radial-gradient(50% 50% at 50% 50%,
+                rgba(226, 255, 198, 0.85) 0%,
+                rgba(126, 214, 106, 0.45) 42%,
+                transparent 74%);
+        }
+        .con-tileplace__oceanpulse-ring {
+            border-color: rgba(214, 255, 196, 0.75);
+            box-shadow:
+                0 0 .5rem rgba(140, 226, 118, 0.5),
+                inset 0 0 .4rem rgba(190, 245, 170, 0.35);
+        }
+    }
+
     /* ── OCEAN COVER: the sea accepts the building ───────────────────────
        A tile lands ON the water (Ocean City / Farm / Sanctuary / New
        Holland): one thin ring opens from under the seated tile while a
@@ -282,6 +302,43 @@
         visibility: hidden;
         will-change: transform, opacity;
     }
+    /* THE PLANT half of a grove's payment — the same condensation anatomy,
+       the framework's own PLANT chip as its substance: the resource sprite on
+       a dark seat, so the handoff into the flight is invisible here too. The
+       coin above keeps the gold; only this modifier repaints. */
+    &__oceancoin--plants {
+        .con-tileplace__coin-spark {
+            background: radial-gradient(50% 50% at 50% 50%, #f2ffdc 0%, #6cc24a 55%, transparent 78%);
+        }
+        .con-tileplace__coin-ring {
+            border-color: rgba(206, 250, 176, 0.9);
+            box-shadow:
+                0 0 .45rem rgba(120, 208, 96, 0.55),
+                inset 0 0 .3rem rgba(226, 255, 206, 0.5);
+        }
+        .con-tileplace__coin-body {
+            background: url('./assets/resources/plant.png') center / contain no-repeat;
+        }
+        /* The amount rides the framework's own dark seat, not the struck-gold ink. */
+        .con-tileplace__coin-value {
+            position: absolute;
+            right: -.45rem;
+            bottom: -.35rem;
+            min-width: 1.3rem;
+            padding: .08rem .3rem;
+            border-radius: 49.95rem;
+            text-align: center;
+            background: linear-gradient(180deg, rgba(38, 48, 62, 0.98), rgba(14, 20, 28, 0.98));
+            box-shadow:
+                inset 0 0 0 .06rem rgba(190, 215, 240, 0.55),
+                0 .12rem .3rem rgba(0, 0, 0, 0.65);
+            color: #f4f9ff;
+            font-size: .85rem;
+            text-shadow: none;
+        }
+        .con-tileplace__coin-sheen { display: none; }
+    }
+
     /* One short specular pass over the finished face — the mint mark. */
     &__coin-sheen {
         position: absolute;

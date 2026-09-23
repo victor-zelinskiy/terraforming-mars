@@ -29,11 +29,11 @@
     arrival sinks under the shade while its target stays lit. Omitting it is
     the safe default.
   -->
-  <div v-if="tilePlacementState.active || remotePlacementState.active || oceanBeatState.coins.length > 0"
+  <div v-if="tilePlacementState.active || remotePlacementState.active || oceanBeatState.coins.length > 0 || groveBeatState.chips.length > 0"
        class="con-tileplace con-flight-to-board" aria-hidden="true"
        :data-tile-phase="tilePlacementState.active ? tilePlacementState.phase : undefined"
-       :data-echo="tilePlacementState.echoing ? '1' : undefined">
-    <!-- OCEAN ADJACENCY — the SHARED payout beat (oceanAdjacencyBeat.ts).
+       :data-law-wave="tilePlacementState.lawWave ? '1' : undefined">
+    <!-- OCEAN ADJACENCY — the SHARED payout beat (adjacencyPayoutBeat.ts).
          Deliberately OUTSIDE the tile-scene block: the very same water pays a
          Mars Nomads camp that merely MOVES onto the cell, and that hop has no
          tile proxy at all. One paying ocean → one local swell at the shared
@@ -50,6 +50,33 @@
       <div class="con-tileplace__oceancoin"
            :style="oceanCoinStyle(c)"
            :ref="(el) => setOceanCoinRef(c.id, el as HTMLElement | null)">
+        <div v-for="s in oceanSparks" :key="s" class="con-tileplace__coin-spark" :class="sparkClass(s)"></div>
+        <div class="con-tileplace__coin-ring"></div>
+        <div class="con-tileplace__coin-body">
+          <span class="con-tileplace__coin-value">+{{ c.amount }}</span>
+          <div class="con-tileplace__coin-sheen"></div>
+        </div>
+      </div>
+    </template>
+    <!-- GREENERY ADJACENCY — the LAW's own payout beat (Turmoil Redux,
+         «Forestry Support»): while that resolution stands enacted, every
+         greenery beside the placed tile pays. Physically the ocean's beat —
+         the shared edge wakes and the value condenses just inside the payer —
+         with the canopy's palette (`--grove`, the Ares wake's precedent) and
+         TWO chips per grove, because a grove pays a coin AND a plant. -->
+    <template v-for="g in groveBeatState.groves" :key="'grove-' + g.id">
+      <div class="con-tileplace__oceanpulse con-tileplace__oceanpulse--grove"
+           :style="oceanPulseStyle(g)"
+           :ref="(el) => setGrovePulseRef(g.id, el as HTMLElement | null)">
+        <div class="con-tileplace__oceanpulse-wash"></div>
+        <div class="con-tileplace__oceanpulse-ring"></div>
+      </div>
+    </template>
+    <template v-for="c in groveBeatState.chips" :key="'grovechip-' + c.id">
+      <div class="con-tileplace__oceancoin"
+           :class="'con-tileplace__oceancoin--' + c.kind"
+           :style="oceanCoinStyle(c)"
+           :ref="(el) => setGroveChipRef(c.id, el as HTMLElement | null)">
         <div v-for="s in oceanSparks" :key="s" class="con-tileplace__coin-spark" :class="sparkClass(s)"></div>
         <div class="con-tileplace__coin-ring"></div>
         <div class="con-tileplace__coin-body">
@@ -138,7 +165,8 @@ import {defineComponent} from 'vue';
 import {tilePlacementState, registerTilePlacementStage, BonusProxy, AresSourceWake} from '@/client/console/tilePlacement/consoleTilePlacement';
 import {
   oceanBeatState, registerOceanBeatStage, OceanCoinProxy, OceanStageEls,
-} from '@/client/console/tilePlacement/oceanAdjacencyBeat';
+  groveBeatState, registerGroveBeatStage, GrovePayerProxy, GroveChipProxy, GroveStageEls,
+} from '@/client/console/tilePlacement/adjacencyPayoutBeat';
 import {remotePlacementState, abortRemotePlacements} from '@/client/console/tilePlacement/consoleRemotePlacement';
 import {TileStageEls} from '@/client/console/tilePlacement/tilePlacementDirector';
 import {OCEAN_COIN_SPARKS} from '@/client/console/tilePlacement/tilePlacementModel';
@@ -161,6 +189,7 @@ export default defineComponent({
       tilePlacementState,
       remotePlacementState,
       oceanBeatState,
+      groveBeatState,
       unregister: undefined as (() => void) | undefined,
       unregisterOcean: undefined as (() => void) | undefined,
       bonusEls: new Map<number, HTMLElement>(),
@@ -171,6 +200,9 @@ export default defineComponent({
       /** Stable indices for the condensation particles (the director poses
        *  them deterministically — no randomness anywhere in the scene). */
       oceanSparks: Array.from({length: OCEAN_COIN_SPARKS}, (_, i) => i),
+      grovePulseEls: new Map<number, HTMLElement>(),
+      groveChipEls: new Map<number, HTMLElement>(),
+      unregisterGrove: undefined as (() => void) | undefined,
     };
   },
   computed: {
@@ -231,7 +263,21 @@ export default defineComponent({
      *  it stays proportional under board zoom and every display profile.
      *  Shared by the ocean coins and the Ares source wakes — both carry the
      *  same `{pulseAt, pulseSize}` staging geometry. */
-    oceanPulseStyle(c: OceanCoinProxy | AresSourceWake): Record<string, string> {
+    setGrovePulseRef(id: number, el: HTMLElement | null): void {
+      if (el === null) {
+        this.grovePulseEls.delete(id);
+      } else {
+        this.grovePulseEls.set(id, el);
+      }
+    },
+    setGroveChipRef(id: number, el: HTMLElement | null): void {
+      if (el === null) {
+        this.groveChipEls.delete(id);
+      } else {
+        this.groveChipEls.set(id, el);
+      }
+    },
+    oceanPulseStyle(c: OceanCoinProxy | AresSourceWake | GrovePayerProxy): Record<string, string> {
       return {
         left: `${Math.round(c.pulseAt.x - c.pulseSize / 2)}px`,
         top: `${Math.round(c.pulseAt.y - c.pulseSize / 2)}px`,
@@ -242,7 +288,7 @@ export default defineComponent({
     /** The coin is CSS-sized in rem (the exact size of the framework's M€
      *  chip) and self-centres via a negative margin — so the birth point is
      *  the only thing JS supplies, and TV scaling is free. */
-    oceanCoinStyle(c: OceanCoinProxy): Record<string, string> {
+    oceanCoinStyle(c: OceanCoinProxy | GroveChipProxy): Record<string, string> {
       return {left: `${Math.round(c.at.x)}px`, top: `${Math.round(c.at.y)}px`};
     },
     /** Mostly gold matter, with two cold highlights that keep the visual tie
@@ -364,10 +410,33 @@ export default defineComponent({
         return {pulses, coins};
       },
     });
+    // …and the GROVE stage, registered the same way and for the same reason:
+    // the beat bails unless BOTH arrays match its own lengths, so a
+    // half-mounted stage can never desync a canopy from the chips it pays.
+    this.unregisterGrove = registerGroveBeatStage({
+      els: (): GroveStageEls | undefined => {
+        const pulses: Array<HTMLElement> = [];
+        const chips: Array<HTMLElement> = [];
+        for (const g of groveBeatState.groves) {
+          const pulse = this.grovePulseEls.get(g.id);
+          if (pulse !== undefined && pulse.isConnected) {
+            pulses.push(pulse);
+          }
+        }
+        for (const c of groveBeatState.chips) {
+          const chip = this.groveChipEls.get(c.id);
+          if (chip !== undefined && chip.isConnected) {
+            chips.push(chip);
+          }
+        }
+        return {pulses, chips};
+      },
+    });
   },
   beforeUnmount() {
     this.unregister?.();
     this.unregisterOcean?.();
+    this.unregisterGrove?.();
     // Shell teardown / game switch mid-flight: every held tile must become
     // visible NOW (the hold set is module-level and would otherwise leak
     // into the next mounted board).

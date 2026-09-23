@@ -686,10 +686,16 @@ function resolutionPassiveFacts(player: IPlayer, space: Space, ctx: PlacementPre
     space,
     onMars: space.spaceType !== SpaceType.COLONY,
     placesTile: ctx.placesTile,
+    firesTilePassive: ctx.placesTile && player.game.phase !== Phase.SOLAR,
     grantsPlacementBonus: ctx.grantsPlacementBonus && player.game.phase !== Phase.SOLAR,
     countsAsCity: ctx.countsAsCity,
     facts: mine,
-    gain: (id, delta, description) => ({...gainFact(`redux-resolution-${id}`, 'placement-effect', enacted.text.name, delta), description}),
+    gain: (id, delta, description, opts) => ({
+      ...gainFact(`redux-resolution-${id}`, 'placement-effect', enacted.text.name, delta),
+      ...(description !== undefined ? {description} : {}),
+      ...(opts?.params !== undefined ? {params: opts.params} : {}),
+      ...(opts?.spaces !== undefined ? {spaces: opts.spaces} : {}),
+    }),
   });
 }
 

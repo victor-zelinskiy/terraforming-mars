@@ -1,5 +1,17 @@
 /*
- * THE OCEAN-ADJACENCY BEAT — "I built next to water, so THAT water paid me".
+ * THE ADJACENCY PAYOUT BEAT — "I built next to it, so THAT neighbour paid me".
+ *
+ * TWO MATERIALS, ONE PHYSICAL STATEMENT. The water pays by the engine's own
+ * rule; a GROVE pays only while an enacted resolution says so (Turmoil Redux,
+ * «Forestry Support»). Both are the same event — a neighbour answers the tile
+ * that just landed beside it — so they share this module's every mechanic
+ * (the shoreline pulse, the condensation, the handoff to the Resource
+ * Transfer Framework, the one-shot release discipline) and differ only in
+ * their MATERIAL: the palette in CSS (the Ares wake's precedent — one
+ * language, `--ares` / `--grove` repaint it) and WHAT condenses (the water
+ * yields one coin; a grove yields a coin AND a plant).
+ *
+ * THE OCEAN HALF, unchanged:
  *
  * ONE implementation, TWO callers. The server grants the M€ and names WHICH
  * neighbours paid (`thisPlayer.lastOceanBonus`) for every placement that runs
@@ -34,6 +46,7 @@
 
 import {reactive, nextTick} from 'vue';
 import {OceanAdjacencyBonusModel} from '@/common/models/OceanAdjacencyBonusModel';
+import {GreeneryAdjacencyBonusModel} from '@/common/models/GreeneryAdjacencyBonusModel';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {
   TileRect,
@@ -271,4 +284,248 @@ function measureHex(spaceId: string): TileRect | undefined {
 
 function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// ───────────────────────── THE GROVE HALF ──────────────────────────────────
+/*
+ * "I built next to a grove, so THAT grove paid me" — the law's adjacency
+ * (Turmoil Redux, «Forestry Support»). Physically the ocean's beat: the shared
+ * edge wakes, the value condenses just inside the payer, the chips ride the
+ * shared Resource Transfer Framework. Two things differ, both declared:
+ *  · the MATERIAL is the canopy — the SAME pulse element with the `--grove`
+ *    palette, the Ares wake's precedent (one physics, the colour in CSS);
+ *  · a grove pays TWO resources, so it condenses TWO chips, placed
+ *    symmetrically across the shore line so neither hides the other.
+ */
+
+/** One paying GROVE, staged: where its canopy wakes and which way the edge faces. */
+export type GrovePayerProxy = {
+  id: number,
+  /** The activation pulse's centre — nearer the shared edge. */
+  pulseAt: TransferPoint,
+  /** The pulse's box size (proportional to the grove hex, never fixed px). */
+  pulseSize: number,
+  /** Unit vector grove → placement (the light drifts along it). */
+  shore: TransferPoint,
+  /** How far back into the grove the pulse's light starts, in px. */
+  drift: number,
+};
+
+/** ONE chip condensing out of a grove — the rate's two halves, one element each. */
+export type GroveChipProxy = {
+  id: number,
+  /** The grove it condenses out of (its pulse's id). */
+  grove: number,
+  kind: 'megacredits' | 'plants',
+  amount: number,
+  /** The chip's birth point — just inside the canopy, off the shore line. */
+  at: TransferPoint,
+};
+
+/** The staged groves + chips the payout stage renders (empty = the beat is not up). */
+export const groveBeatState = reactive({
+  groves: [] as Array<GrovePayerProxy>,
+  chips: [] as Array<GroveChipProxy>,
+});
+
+export function isGroveBeatStaged(): boolean {
+  return groveBeatState.chips.length > 0;
+}
+
+/** The DOM the payout stage lends this beat (pulses index-aligned with `groves`, chips with `chips`). */
+export type GroveStageEls = {
+  pulses: ReadonlyArray<HTMLElement>,
+  chips: ReadonlyArray<HTMLElement>,
+};
+
+let groveStage: {els: () => GroveStageEls | undefined} | undefined;
+
+export function registerGroveBeatStage(handle: {els: () => GroveStageEls | undefined}): () => void {
+  groveStage = handle;
+  return () => {
+    if (groveStage === handle) {
+      groveStage = undefined;
+    }
+  };
+}
+
+export type GroveBeatOpts = {
+  /** The SERVER's own breakdown for THIS placement (already matched to it). */
+  bonus: GreeneryAdjacencyBonusModel,
+  /** The live rect of the hex that was placed on. */
+  tileRect: TileRect,
+  uiScale: number,
+  pace?: number,
+  alive: () => boolean,
+  /** Release the aggregated panel hold — called EXACTLY once, however the beat ends. */
+  release: () => void,
+};
+
+/**
+ * Play it. Degrades honestly at every step (no stage, unmeasurable hexes, an
+ * rAF stall): the hold is released and the reward is announced by its delta
+ * chips alone. Never rejects.
+ */
+export async function runGreeneryAdjacencyBeat(opts: GroveBeatOpts): Promise<void> {
+  let released = false;
+  const release = () => {
+    if (!released) {
+      released = true;
+      opts.release();
+    }
+  };
+  if (typeof document === 'undefined') {
+    release();
+    return;
+  }
+  const staged = buildGroveProxies(opts.bonus, opts.tileRect, opts.uiScale);
+  if (staged.chips.length === 0) {
+    release();
+    return;
+  }
+
+  await wait(motionMs(OCEAN_BEAT_BREATH_MS));
+  if (!opts.alive()) {
+    release();
+    return;
+  }
+  groveBeatState.groves = staged.groves;
+  groveBeatState.chips = staged.chips;
+  await nextTick(); // the stage mounts the pulses + chips
+  const els = groveStage?.els();
+  if (!opts.alive() || els === undefined ||
+      els.pulses.length !== staged.groves.length || els.chips.length !== staged.chips.length) {
+    groveBeatState.groves = [];
+    groveBeatState.chips = [];
+    release();
+    return;
+  }
+
+  // The cascade is the framework's OWN per-index wave stagger over the CHIPS,
+  // so every chip finishes forming exactly as its transfer is born on it; a
+  // grove's pulse rides the delay of its FIRST chip (the canopy wakes, then
+  // its two values gather out of the lit leaves).
+  const pace = opts.pace ?? 1;
+  const delays = staged.chips.map((_, i) => Math.round(motionMs(transferWaveDelayMs(i, staged.chips.length)) * pace));
+  const pulseDelays = staged.groves.map((g) => {
+    const first = staged.chips.findIndex((c) => c.grove === g.id);
+    return delays[first < 0 ? 0 : first] ?? 0;
+  });
+  playOceanActivation(els.pulses, {
+    delays: pulseDelays,
+    shores: staged.groves.map((g) => g.shore),
+    drifts: staged.groves.map((g) => g.drift),
+    pulseMs: motionMs(OCEAN_PULSE_MS),
+  });
+  playOceanCoinMaterialize(els.chips, {
+    delays,
+    leadMs: motionMs(OCEAN_COIN_LEAD_MS),
+    formMs: motionMs(OCEAN_COIN_FORM_MS),
+    sparks: OCEAN_COIN_SPARKS,
+  });
+  await wait(motionMs(oceanWaveLeadMs()));
+  if (!opts.alive()) {
+    groveBeatState.groves = [];
+    groveBeatState.chips = [];
+    release();
+    return;
+  }
+  playOceanCoinHandoff(els.chips, {delays, uiScale: opts.uiScale});
+
+  let arrived = 0;
+  await runResourceTransfers({
+    specs: staged.chips.map((c) => ({channel: 'stock' as const, resource: c.kind, amount: c.amount})),
+    origins: staged.chips.map((c) => c.at),
+    source: {point: {x: opts.tileRect.x + opts.tileRect.w / 2, y: opts.tileRect.y + opts.tileRect.h / 2}},
+    arrival: 'auto',
+    pace,
+    fromBoard: true,
+    // ONE aggregated release per RESOURCE family, only once every chip of this
+    // bonus has landed — the two counters tick together at the last touchdown.
+    onArrive: () => {
+      arrived++;
+      if (arrived >= staged.chips.length) {
+        release();
+      }
+    },
+  });
+  release(); // no-op when the arrivals already did it
+  groveBeatState.groves = [];
+  groveBeatState.chips = [];
+}
+
+/** Abort/unmount: drop the staged pieces and kill their tweens (idempotent). */
+export function abortGroveBeat(): void {
+  const els = groveStage?.els();
+  if (els !== undefined) {
+    killOceanTweens([...els.pulses, ...els.chips]);
+  }
+  groveBeatState.groves = [];
+  groveBeatState.chips = [];
+}
+
+/**
+ * Measure the paying groves and derive each piece's staging geometry. A grove
+ * whose hex isn't on screen is skipped — its share still rides the aggregated
+ * delta chips, so the money is never misreported, only its source is not
+ * illustrated. The two chips of one grove sit symmetrically ACROSS the shore
+ * line, so a coin never stands on its plant.
+ */
+export function buildGroveProxies(
+  bonus: GreeneryAdjacencyBonusModel,
+  tileRect: TileRect,
+  uiScale: number,
+): {groves: Array<GrovePayerProxy>, chips: Array<GroveChipProxy>} {
+  const lift = Math.round(OCEAN_COIN_LIFT_PX * uiScale);
+  const groves: Array<GrovePayerProxy> = [];
+  const chips: Array<GroveChipProxy> = [];
+  bonus.greenerySpaceIds.forEach((id, i) => {
+    const rect = measureHex(id);
+    if (rect === undefined) {
+      return;
+    }
+    const shore = oceanShoreDirection(rect, tileRect);
+    const centre = oceanEdgePoint(rect, tileRect, OCEAN_COIN_T, lift);
+    // Perpendicular to the shore: the two values gather side by side.
+    const spread = Math.round(rect.w * 0.2);
+    const perp = {x: -shore.y, y: shore.x};
+    groves.push({
+      id: i,
+      pulseAt: oceanEdgePoint(rect, tileRect, OCEAN_PULSE_T),
+      pulseSize: Math.round(rect.w * 0.66),
+      shore,
+      drift: Math.round(rect.w * OCEAN_PULSE_DRIFT),
+    });
+    const pair: ReadonlyArray<{kind: 'megacredits' | 'plants', amount: number, sign: number}> = [
+      {kind: 'megacredits', amount: bonus.perGreenery.megacredits, sign: -1},
+      {kind: 'plants', amount: bonus.perGreenery.plants, sign: 1},
+    ];
+    for (const p of pair) {
+      if (p.amount <= 0) {
+        continue;
+      }
+      chips.push({
+        id: chips.length,
+        grove: i,
+        kind: p.kind,
+        amount: p.amount,
+        at: {x: centre.x + perp.x * spread * p.sign, y: centre.y + perp.y * spread * p.sign},
+      });
+    }
+  });
+  return {groves, chips};
+}
+
+/**
+ * The SERVER's breakdown, accepted only when it names the space THIS
+ * transaction acted on and actually paid — the ocean's own acceptance rule,
+ * for the law's adjacency.
+ */
+export function greeneryBonusFor(
+  bonus: GreeneryAdjacencyBonusModel | undefined,
+  spaceId: string,
+): GreeneryAdjacencyBonusModel | undefined {
+  return bonus !== undefined && bonus.spaceId === spaceId &&
+    bonus.greenerySpaceIds.length > 0 &&
+    (bonus.megacredits > 0 || bonus.plants > 0) ? bonus : undefined;
 }

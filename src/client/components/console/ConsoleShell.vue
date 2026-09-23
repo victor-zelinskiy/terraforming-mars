@@ -1954,7 +1954,7 @@ import {
   unlockPlacementCell,
 } from '@/client/console/tilePlacement/placementFlow';
 import {abortRemotePlacements} from '@/client/console/tilePlacement/consoleRemotePlacement';
-import {abortOceanBeat} from '@/client/console/tilePlacement/oceanAdjacencyBeat';
+import {abortOceanBeat} from '@/client/console/tilePlacement/adjacencyPayoutBeat';
 import {abortNomadMove, nomadMoveState, nomadMoveHolding} from '@/client/console/nomads/consoleNomadMove';
 import ConsoleColonyBuildLayer from '@/client/components/console/colonyBuild/ConsoleColonyBuildLayer.vue';
 import {abortColonyBuild, armColonyBuild, isColonyBuildActive} from '@/client/console/colonyBuild/consoleColonyBuild';

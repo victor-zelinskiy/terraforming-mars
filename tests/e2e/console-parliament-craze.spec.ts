@@ -20,7 +20,7 @@ import {
  *   ① the Information effects list carries the LAW's row — first, marked
  *     «Принятая резолюция», with the card's own printed graphic;
  *   ② the placement pays the cell TWICE, as two waves IN TURN: the scene
- *     announces the echo (`data-echo`), and the steel counter passes through
+ *     announces its own wave (`data-law-wave`), and the steel counter passes through
  *     an intermediate value on its way from «before» to «before + 5»
  *     (2 printed + 2 echoed + the ruling Mars First's 1) — never one jump;
  *   ③ the LAW's own card: the viewer's action is suppressed, the resolution's
@@ -59,7 +59,7 @@ async function armProbe(page: Page): Promise<void> {
         t: performance.now(),
         src,
         phase: scene?.getAttribute('data-tile-phase') ?? '',
-        echo: scene?.getAttribute('data-echo') === '1',
+        echo: scene?.getAttribute('data-law-wave') === '1',
         steel: m === null ? undefined : Number(m[0]),
         toast: document.querySelector('.con-notif[data-notif-id$=":law"]') !== null,
       });
@@ -157,7 +157,7 @@ test.describe('Development Craze (RX10) · the law pays a placement twice, visib
     // The scene: watch for the ECHO and shoot it while it plays.
     let echoSeen = false;
     for (let i = 0; i < 200 && !echoSeen; i++) {
-      echoSeen = (await page.locator('.con-tileplace[data-echo="1"]').count()) > 0;
+      echoSeen = (await page.locator('.con-tileplace[data-law-wave="1"]').count()) > 0;
       if (!echoSeen) {
         await cinematicBeat(page, 50, 'polling the placement scene for the echo wave');
       }

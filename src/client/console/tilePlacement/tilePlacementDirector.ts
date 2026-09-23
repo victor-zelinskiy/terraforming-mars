@@ -37,7 +37,7 @@ export type TileStageEls = {
   /** The printed-bonus icon proxies (reward beat), in bonusProxies order. */
   bonusIcons: ReadonlyArray<HTMLElement>,
   /* NOTE: the OCEAN pieces are deliberately NOT here. The ocean payout is a
-   * SHARED beat (`oceanAdjacencyBeat.ts`) with its own stage registration,
+   * SHARED beat (`adjacencyPayoutBeat.ts`) with its own stage registration,
    * because the same water pays a Mars Nomads camp that merely MOVES onto the
    * cell — a hop that has no tile proxy for this handle to describe. */
   /** The Ares source-tile wake pulses (adjacency beat), in aresSources order. */

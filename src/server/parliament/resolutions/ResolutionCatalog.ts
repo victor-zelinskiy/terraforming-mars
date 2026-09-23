@@ -39,6 +39,7 @@ import {COLONIAL_AFFAIRS} from './unity/ColonialAffairs';
 import {COLONIZATION_FUNDING} from './unity/ColonizationFunding';
 import {COLONY_CONTEST} from './unity/ColonyContest';
 import {DEVELOPMENT_CRAZE} from './marsFirst/DevelopmentCraze';
+import {FORESTRY_SUPPORT} from './greens/ForestrySupport';
 
 /**
  * THE RETIRED IDS — iteration 0's DUMMY resolutions (a party, a quest, no
@@ -460,6 +461,8 @@ export const REDUX_RESOLUTION_CATALOG = new ResolutionCatalog([
   COLONY_CONTEST,
   // The first LIVE PASSIVE: a placement's bonuses paid a second time while the card stands enacted.
   DEVELOPMENT_CRAZE,
+  // …and the first law that INTRODUCES a bonus the engine has none of: greeneries pay their neighbours.
+  FORESTRY_SUPPORT,
   TEST_CHOICE,
   DEV_IMMEDIATE,
   DEV_PASSIVE,

@@ -36,7 +36,7 @@ import {ExternalDrawCause} from '../common/models/ExternalDrawPromptModel';
 import {RevealResultModel} from '../common/models/RevealResultModel';
 import {EnergyHeatConversionModel} from '../common/models/EnergyHeatConversionModel';
 import {OceanAdjacencyBonusModel} from '../common/models/OceanAdjacencyBonusModel';
-import {PlacementBonusEchoModel} from '../common/models/PlacementBonusEchoModel';
+import {PlacementLawPayoutModel} from '../common/models/PlacementLawPayoutModel';
 import {StartingSetupModel} from '../common/models/StartingSetupModel';
 import {AlliedParty} from '../common/turmoil/Types';
 import {IParty} from './turmoil/parties/IParty';
@@ -285,13 +285,13 @@ export interface IPlayer {
    */
   lastOceanBonus: OceanAdjacencyBonusModel | undefined;
   /**
-   * Transient (NOT serialized) snapshot of a placement whose bonuses the
-   * enacted resolution paid a SECOND time (Development Craze) — set by the
-   * passive that paid, serialized self-only in the player model, cleared at
-   * the start of the next input (Player.process). The premium placement scene
-   * plays it as a second wave from the same cell. See PlacementBonusEchoModel.
+   * Transient (NOT serialized) snapshot of WHAT THE ENACTED LAW PAID on a
+   * placement, beyond the engine's own bonuses — set by the passive that paid,
+   * serialized self-only in the player model, cleared at the start of the next
+   * input (Player.process). The premium placement scene plays it as the law's
+   * own wave from the same cell. See PlacementLawPayoutModel.
    */
-  lastPlacementBonusEcho: PlacementBonusEchoModel | undefined;
+  lastPlacementLawPayout: PlacementLawPayoutModel | undefined;
   /**
    * Transient (NOT serialized) snapshot of the start-of-game setup applied by
    * this player's corporation — its starting bonuses + the M€ paid for the

@@ -16,6 +16,7 @@ import type {Resource} from '../../../common/Resource';
 import type {EffectForecastFact, EffectForecastSource} from '../../../common/models/EffectForecastModel';
 import type {EffectForecastGrant, EffectForecastTile} from '../../cards/EffectForecastContext';
 import type {BoardFact, BoardFactDelta} from '../../../common/boards/BoardInformationFacts';
+import type {SpaceId} from '../../../common/Types';
 
 /**
  * The context an enacted resolution's effect step runs in. `influence` is
@@ -118,12 +119,31 @@ export type ResolutionPlacementContext = {
   onMars: boolean;
   /** A tile lands (a camp move / a marker pick places none — and runs no tile hook). */
   placesTile: boolean;
+  /**
+   * The engine will RUN the enacted passive's `onTilePlaced` for this
+   * placement: a tile actually lands AND the phase is not the World
+   * Government's (which grants no placement bonuses and fires no parliament
+   * hook at all). Derived once by the engine — a tile passive asks THIS, never
+   * a guess assembled from the flags around it.
+   */
+  firesTilePassive: boolean;
   /** The commit pays the cell's placement bonuses (no cover, not the World Government's phase). */
   grantsPlacementBonus: boolean;
   countsAsCity: boolean;
   /** The cell's own immediate GAIN facts for the placing player, as the preview computed them. */
   facts: ReadonlyArray<BoardFact>;
-  gain(id: string, delta: BoardFactDelta, description: string): BoardFact;
+  /**
+   * Build one fact OF THIS RESOLUTION: titled by its name (the law is the
+   * cause — without it the bonus does not exist), in the placement-effect
+   * section, with the law's own sentence. `params` fills that sentence's
+   * `${n}` slots (an arithmetic breakdown, the ocean fact's precedent);
+   * `spaces` names the CELLS that make the fact true, so the board lights
+   * exactly the neighbours that will pay.
+   */
+  gain(id: string, delta: BoardFactDelta, description?: string, opts?: {
+    params?: ReadonlyArray<string>;
+    spaces?: ReadonlyArray<SpaceId>;
+  }): BoardFact;
 };
 
 /**

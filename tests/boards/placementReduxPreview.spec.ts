@@ -11,6 +11,7 @@ import {TileType} from '../../src/common/TileType';
 import {MAX_OXYGEN_LEVEL} from '../../src/common/constants';
 import {ARCHITECTURE_AWARD_ID} from '../../src/server/parliament/resolutions/marsFirst/ArchitectureAward';
 import {DEVELOPMENT_CRAZE_ID} from '../../src/server/parliament/resolutions/marsFirst/DevelopmentCraze';
+import {FORESTRY_SUPPORT_ID} from '../../src/server/parliament/resolutions/greens/ForestrySupport';
 import {SpaceBonus} from '../../src/common/boards/SpaceBonus';
 import {SpaceType} from '../../src/common/boards/SpaceType';
 import {seatEnacted, seatResolution} from '../parliament/parliamentArrange';
@@ -146,6 +147,36 @@ describe('Turmoil Redux placement preview ↔ commit', () => {
     // Off Mars nothing is promised (the reserved areas print nothing to repeat either).
     const reserved = game.board.spaces.find((s) => s.spaceType === SpaceType.COLONY && s.tile === undefined)!;
     expect(boardCellPreview(player, reserved, 'city').immediateFacts.filter((f) => f.id.startsWith('redux-resolution-'))).deep.eq([]);
+  });
+
+  it("the enacted Forestry Support (a law that INTRODUCES an adjacency): the dossier states the groves' 2 M€ + 1 plant each and NAMES them — preview == commit", () => {
+    const parliament = game.parliament!;
+    seatEnacted(parliament, FORESTRY_SUPPORT_ID);
+    setOxygenLevel(game, MAX_OXYGEN_LEVEL); // no oxygen step: the Greens' own TR payout stays out of the numbers
+    // TWO groves beside a quiet cell, arranged (no bonuses, no hooks).
+    const cell = quietCell();
+    const free = game.board.getAdjacentSpaces(cell).filter((a) => a.spaceType === SpaceType.LAND && a.tile === undefined).slice(0, 2);
+    expect(free.length, 'the fixture needs two free land neighbours').eq(2);
+    for (const n of free) {
+      game.simpleAddTile(player, n, {tileType: TileType.GREENERY});
+    }
+    const preview = boardCellPreview(player, cell, 'greenery');
+    const law = mine(preview).filter((f) => f.id.startsWith('redux-resolution-greenery-adjacency'));
+    expect(law.length, 'one row per POOL').eq(2);
+    expect(law.every((f) => f.title === 'Forestry Support')).is.true;
+    expect(law[0].spaces, 'the paying groves are named, so the board lights them').deep.eq(free.map((n) => n.id));
+    expect(law[0].description).eq('Adjacent greeneries: ${0} × (${1} M€ + ${2} plants)');
+    expect(law[0].params).deep.eq(['2', '2', '1']);
+    // The law's own two rows; the 2 M€ beside them are the ruling Greens paying for the tile's TR step.
+    expect(sum(law, 'megacredits')).eq(4);
+    expect(sum(law, 'plants')).eq(2);
+    expect(sum(mine(preview), 'megacredits')).eq(6);
+    expect(sum(mine(preview), 'plants')).eq(2);
+    const mc = player.megaCredits;
+    const plants = player.plants;
+    place(cell);
+    expect(player.megaCredits - mc).eq(6);
+    expect(player.plants - plants).eq(2);
   });
 
   it('no Greens effect, no Greens payout: a Mars First government pays its steel per tile instead (a city draws a card too)', () => {

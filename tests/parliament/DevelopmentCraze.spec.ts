@@ -220,7 +220,7 @@ describe('DevelopmentCraze', () => {
       expect(crazeMarkers(game), 'ONE trigger of the resolution').has.length(1);
       expect(crazeMarkers(game)[0].trigger).eq('tile-placed');
       expect(crazeGains(game, Resource.STEEL), 'the second payout is recorded under the marker').eq(2);
-      expect(p1.lastPlacementBonusEcho).deep.eq({spaceId: cell.id, resolution: DEVELOPMENT_CRAZE_ID, printed: true});
+      expect(p1.lastPlacementLawPayout).deep.eq({spaceId: cell.id, resolution: DEVELOPMENT_CRAZE_ID, printed: true});
       expect(p1.lastOceanBonus, 'no ocean touched the cell').is.undefined;
       const line = game.gameLog.find((entry) => entry.message === '${0} receives the placement bonuses of the tile a second time — ${1}');
       expect(line?.data.find((d) => d.type === LogMessageDataType.RESOLUTION)?.value).eq(DEVELOPMENT_CRAZE_ID);
@@ -238,7 +238,7 @@ describe('DevelopmentCraze', () => {
       expect(p1.megaCredits, '2 M€ for the ocean, twice').eq(4);
       expect(crazeGains(game, Resource.MEGACREDITS)).eq(2);
       expect(p1.lastOceanBonus, 'the first wave\'s breakdown').deep.include({spaceId: shore!.id, megacredits: 2, perOcean: 2});
-      expect(p1.lastPlacementBonusEcho).deep.eq({
+      expect(p1.lastPlacementLawPayout).deep.eq({
         spaceId: shore!.id, resolution: DEVELOPMENT_CRAZE_ID, printed: true,
         ocean: {spaceId: shore!.id, oceanSpaceIds: [ocean.id], perOcean: 2, megacredits: 2},
       });
@@ -249,7 +249,7 @@ describe('DevelopmentCraze', () => {
       addCity(p1, bareLand(game, p1).id);
       runAllActions(game);
       expect(crazeMarkers(game)).deep.eq([]);
-      expect(p1.lastPlacementBonusEcho).is.undefined;
+      expect(p1.lastPlacementLawPayout).is.undefined;
       expect(game.gameLog.some((entry) => entry.message === '${0} receives the placement bonuses of the tile a second time — ${1}')).is.false;
     });
 
@@ -258,7 +258,7 @@ describe('DevelopmentCraze', () => {
       game.addCity(p1, game.board.getSpaceOrThrow(SpaceName.GANYMEDE_COLONY));
       runAllActions(game);
       expect(crazeMarkers(game)).deep.eq([]);
-      expect(p1.lastPlacementBonusEcho).is.undefined;
+      expect(p1.lastPlacementLawPayout).is.undefined;
     });
 
     it('a COVER (the tile landed on an existing tile) repeats only the adjacency — the engine paid no printed bonus, so none is invented', () => {
@@ -270,7 +270,7 @@ describe('DevelopmentCraze', () => {
       runAllActions(game);
       expect(p1.steel - before, 'nothing printed is repeated — only the ruling Mars First party steel').eq(1);
       expect(crazeMarkers(game)).deep.eq([]);
-      expect(p1.lastPlacementBonusEcho, 'no ocean either — nothing to echo').is.undefined;
+      expect(p1.lastPlacementLawPayout, 'no ocean either — nothing to echo').is.undefined;
       // …and told directly, the repeat reports the same honesty.
       expect(repeatPlacementBonuses(p1, cell, {coveringExistingTile: true})).is.undefined;
     });

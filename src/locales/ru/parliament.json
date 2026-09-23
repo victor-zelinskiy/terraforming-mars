@@ -691,5 +691,10 @@
   "${0} receives the placement bonuses of the tile a second time — ${1}": "${0} получает бонусы размещённого тайла второй раз — ${1}",
   "Development Craze pays the placement and adjacency bonuses of a tile you place on Mars a second time": "«Строительная лихорадка» платит бонусы размещения и соседства тайла на Марсе второй раз",
   "Enacted resolution: the placement bonuses are paid a second time": "Принятая резолюция: бонусы размещения выплачиваются второй раз",
-  "Enacted resolution: 2 M€ for a city you place on Mars": "Принятая резолюция: 2 M€ за город, который вы размещаете на Марсе"
+  "Enacted resolution: 2 M€ for a city you place on Mars": "Принятая резолюция: 2 M€ за город, который вы размещаете на Марсе",
+  "Forestry Support": "Поддержка лесничества",
+  "Greenery tiles pay 2 M€ and 1 plant when you place a tile next to them.": "Тайлы озеленения платят 2 M€ и 1 растение, когда вы размещаете тайл рядом с ними.",
+  "${0} gained ${1} ${2} and ${3} ${4} from ${5}: ${6} adjacent greenery(-ies)": "${0} получает ${1} ${2} и ${3} ${4} — ${5}: соседних озеленений ${6}",
+  "Adjacent greeneries: ${0} × (${1} M€ + ${2} plants)": "Соседние озеленения: ${0} × (${1} M€ + ${2} растения)",
+  "Forestry Support pays 2 M€ and 1 plant for every greenery next to a tile you place on Mars": "«Поддержка лесничества» платит 2 M€ и 1 растение за каждое озеленение рядом с тайлом, который вы размещаете на Марсе"
 }

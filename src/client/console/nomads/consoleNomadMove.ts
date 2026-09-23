@@ -70,7 +70,7 @@ import {
 } from '@/client/console/tilePlacement/consoleTilePlacement';
 import {
   abortOceanBeat, oceanBonusFor, runOceanAdjacencyBeat,
-} from '@/client/console/tilePlacement/oceanAdjacencyBeat';
+} from '@/client/console/tilePlacement/adjacencyPayoutBeat';
 import {OceanAdjacencyBonusModel} from '@/common/models/OceanAdjacencyBonusModel';
 import {boardCovered} from '@/client/console/tilePlacement/consoleRemotePlacement';
 import {PlacementBonus, TileRect, findSpace} from '@/client/console/tilePlacement/tilePlacementModel';
@@ -141,7 +141,7 @@ let pendingBonuses: ReadonlyArray<PlacementBonus> = [];
  * bonus «as if placing a special tile there», and `grantPlacementBonuses`
  * computes ocean adjacency for EVERY such grant — no tile required. So the
  * water pays a moving camp exactly as it pays a build, and it must be the
- * SAME beat (`oceanAdjacencyBeat`), never a silent counter tick.
+ * SAME beat (`adjacencyPayoutBeat`), never a silent counter tick.
  */
 let pendingOceanBonus: OceanAdjacencyBonusModel | undefined;
 /** The destination hex's live rect (captured at detect). */
@@ -446,7 +446,7 @@ export function seedNomadMoveRewardHold(): void {
  *      the field was not exhausted;
  *   3. THE WATER pays: every neighbouring ocean the SERVER says paid wakes at
  *      the shore it shares with the destination and condenses ONE M€ coin —
- *      the SAME shared beat a tile placement plays (`oceanAdjacencyBeat`),
+ *      the SAME shared beat a tile placement plays (`adjacencyPayoutBeat`),
  *      because the rule that granted it is the same rule.
  * A hop that collected nothing finishes IMMEDIATELY — not one extra frame.
  */
