@@ -89,6 +89,8 @@ describe('parliamentRewardBeat — the ledger of what the sitting still owes', (
       // colony bonus commits through its own counter — neither flies a rail chip.
       discard: outcome({kind: 'discard', amount: 1, card: CardName.BIRDS, colony: 'Pluto' as never}),
       colonyBonus: outcome({kind: 'colonyBonus', amount: 2, colony: 'Iapetus' as never, description: 'Pay 1 M€ less for cards this generation'}),
+      // Colony Contest's winner colony: built on the colonies screen (the sitting's own step) — no rail chip either.
+      colony: outcome({kind: 'colony', colony: 'Luna' as never}),
     };
     for (const kind of OUTCOME_KINDS) {
       const spec = waveSpecOf(sample[kind]);

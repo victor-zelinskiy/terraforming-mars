@@ -1,15 +1,15 @@
 /*
  * THE WINNER'S PART OF AN ENACTMENT, AS DATA (Turmoil Redux).
  *
- * Several resolutions give the player who WON the vote a tile on top of the
+ * Several resolutions give the player who WON the vote something on top of the
  * effect every participant receives: Aquifer Contest an ocean, Biodome Contest
- * a greenery that raises oxygen 1 step. The sentence lives in the catalog
- * (`text.winner`); the DATA lives here, so every surface that has to say «what
- * does the winner get, and what will it do to the table right now» reads ONE
- * declaration and the SAME rules the engine pays by — never a per-card table,
- * never a re-derived number:
+ * a greenery that raises oxygen 1 step, Colony Contest a COLONY built for free.
+ * The sentence lives in the catalog (`text.winner`); the DATA lives here, so
+ * every surface that has to say «what does the winner get, and what will it do
+ * to the table right now» reads ONE declaration and the SAME rules the engine
+ * pays by — never a per-card table, never a re-derived number:
  *
- *   · the TILE and the global parameter its OWN placement moves — exactly one
+ *   · a TILE and the global parameter its OWN placement moves — exactly one
  *     step: «places a greenery tile and raises Oxygen 1 step» is the greenery's
  *     own raise (`Game.addGreenery`), never a second one on top of it;
  *   · the Redux greenery revision's TR for the tile itself
@@ -17,11 +17,16 @@
  *     .onGreeneryPlaced` pays), which stands with oxygen at its maximum too;
  *   · the parameter's ROOM (`winnerParameterRoom`): a maxed oxygen no longer
  *     rises (the greenery still lands and still pays its own TR); no ocean
- *     left means no ocean at all.
+ *     left means no ocean at all;
+ *   · a COLONY moves no global parameter and has no room to read: it is ONE
+ *     standard build (`BuildColony`) on a tile the ordinary rules allow — the
+ *     tile's own BUILD BONUS is paid by the colony, no M€ change hands, no
+ *     trade fleet is spent. What the reading can honestly say before the pick
+ *     is only WHO builds; after it, WHERE the cube landed.
  *
- * Nothing here promises the CELL: its printed bonuses, its adjacency and the
- * reactions it sets off belong to the placement dossier (the one forecast of a
- * concrete cell) — a surface that has no cell yet names none of them.
+ * Nothing here promises the CELL or the TILE: its printed bonuses, its
+ * adjacency and the reactions it sets off belong to the placement dossier /
+ * the colony's own screen — a surface that has no cell yet names none of them.
  */
 import {MAX_OCEAN_TILES, MAX_OXYGEN_LEVEL, MAX_TEMPERATURE, OXYGEN_LEVEL_FOR_TEMPERATURE_BONUS} from '../constants';
 
@@ -31,15 +36,35 @@ export const REDUX_GREENERY_TILE_TR = 1;
 export type WinnerTileKind = 'greenery' | 'ocean';
 
 /** The winner's part: ONE tile, through the standard placement (no cost, no action spent). */
-export type WinnerRewardDeclaration = {
+export type WinnerTileReward = {
   kind: 'tile';
   tile: WinnerTileKind;
 };
 
+/**
+ * The winner's part: ONE COLONY, built for free through the standard build
+ * (Colony Contest, RX09) — the ordinary availability (an ACTIVE tile that is
+ * not full and holds none of the winner's cubes), the tile's own build bonus,
+ * no M€, no trade fleet, no action counted.
+ */
+export type WinnerColonyReward = {
+  kind: 'colony';
+};
+
+export type WinnerRewardDeclaration = WinnerTileReward | WinnerColonyReward;
+
+export function isWinnerTileReward(reward: WinnerRewardDeclaration): reward is WinnerTileReward {
+  return reward.kind === 'tile';
+}
+
 /** The global parameter a winner tile's own placement moves. */
 export type WinnerRewardParameter = 'oxygen' | 'oceans';
 
-export function winnerRewardParameter(reward: WinnerRewardDeclaration): WinnerRewardParameter {
+/** The parameter a winner TILE moves; a colony moves none. */
+export function winnerRewardParameter(reward: WinnerRewardDeclaration): WinnerRewardParameter | undefined {
+  if (!isWinnerTileReward(reward)) {
+    return undefined;
+  }
   return reward.tile === 'greenery' ? 'oxygen' : 'oceans';
 }
 
@@ -69,7 +94,7 @@ export type WinnerParameterRoom = {
   temperatureBonus: boolean;
 };
 
-export function winnerParameterRoom(reward: WinnerRewardDeclaration, table: WinnerRewardTable): WinnerParameterRoom {
+export function winnerParameterRoom(reward: WinnerTileReward, table: WinnerRewardTable): WinnerParameterRoom {
   if (reward.tile === 'greenery') {
     const current = table.oxygenLevel;
     const rises = current < MAX_OXYGEN_LEVEL;
@@ -107,7 +132,7 @@ export function winnerParameterRoom(reward: WinnerRewardDeclaration, table: Winn
  */
 export type WinnerRewardTr = {tile: number; parameter: number; temperature: number};
 
-export function winnerRewardTr(reward: WinnerRewardDeclaration, room: Pick<WinnerParameterRoom, 'rises' | 'tileAvailable' | 'temperatureBonus'>): WinnerRewardTr {
+export function winnerRewardTr(reward: WinnerTileReward, room: Pick<WinnerParameterRoom, 'rises' | 'tileAvailable' | 'temperatureBonus'>): WinnerRewardTr {
   if (!room.tileAvailable) {
     return {tile: 0, parameter: 0, temperature: 0};
   }

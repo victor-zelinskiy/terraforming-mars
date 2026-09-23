@@ -6,7 +6,8 @@ import {ParliamentEnactOutcomeModel, ParliamentModel, ParliamentPlayerModel, Par
 import {IClientResolution} from '@/common/parliament/IClientResolution';
 import {winnerRewardTrTotal} from '@/common/parliament/winnerReward';
 import {
-  winnerOutcomeOf, winnerRewardCaptionOf, winnerRewardReadingOf, winnerRewardRuleKey, winnerRewardSentenceOf, winnerRewardTableOf,
+  winnerOutcomeOf, winnerRewardCaptionOf, winnerRewardGlyph, winnerRewardReadingOf, winnerRewardRuleKey, winnerRewardSentenceOf, winnerRewardTableOf,
+  winnerTileLabelKey,
 } from '@/client/console/parliament/winnerRewardModel';
 import {enactedYieldsOf, voteYieldsOf, yieldIconOf} from '@/client/console/parliament/influenceYieldModel';
 import {resolutionAnnotations} from '@/client/console/parliament/parliamentAnnotations';
@@ -196,5 +197,75 @@ describe('winnerRewardModel', () => {
     expect(winner?.rows.map((r) => r.text)).deep.eq([biodome().text.winner, rule]);
     expect(blocks.find((b) => b.id === 'group:immediate')?.rows.map((r) => r.text)).deep.eq([biodome().text.effect]);
     expect(blocks.find((b) => b.id === 'group:quest')?.rows.map((r) => r.text)).deep.eq(['Place 2 greeneries']);
+  });
+});
+
+/*
+ * THE WINNER'S COLONY (Colony Contest, RX09) — the same reading for a part that is not a tile: no parameter, no room,
+ * no TR; before the pick only WHO builds, after it WHERE the cube landed (the tile's name); the verb is «build».
+ */
+const CONTEST_ID = 'RDX_UNITY_COLONY_CONTEST';
+const CONTEST = `${CONTEST_ID}#0`;
+
+function contest(): IClientResolution {
+  const resolution = getResolution(CONTEST_ID);
+  if (resolution === undefined) {
+    throw new Error('Colony Contest is not in the client manifest');
+  }
+  return resolution;
+}
+
+describe('winnerRewardModel — the winner\'s COLONY', () => {
+  it('the shipped catalog: RX09, 1 titanium per influence for everyone (stock, no cap), the winner\'s colony as data', () => {
+    const resolution = contest();
+    expect(resolution.code).eq('RX09');
+    expect(resolution.party).eq(PartyName.UNITY);
+    expect(resolution.scaled).deep.eq([{id: 'titanium', unit: {kind: 'stock', resource: Resource.TITANIUM}, perInfluence: 1, recipient: 'each'}]);
+    expect(resolution.winnerReward).deep.eq({kind: 'colony'});
+    expect(resolution.quest).deep.include({count: 2});
+  });
+
+  it('the readings carry NO parameter and no room: the rule alone off the table, «if you win» up for the vote, the fixed recipient while the phase resolves it', () => {
+    const resolution = contest();
+    expect(winnerRewardReadingOf(resolution, undefined, undefined)).deep.eq({reward: {kind: 'colony'}, context: 'reference'});
+    const voting = winnerRewardReadingOf(resolution, model({slots: [slot(CONTEST_ID)]}), table(5));
+    expect(voting).deep.eq({reward: {kind: 'colony'}, context: 'conditional'});
+    expect(winnerRewardCaptionOf(voting!, blue, String)).deep.eq({key: 'If you win'});
+    const pending = winnerRewardReadingOf(resolution, model({phase: {generation: 3, final: false, step: 'effects', winner: {instance: CONTEST, player: blue}, outcomes: []}}), table(5));
+    expect(pending).deep.eq({reward: {kind: 'colony'}, context: 'pending', recipient: blue});
+    expect(winnerRewardCaptionOf(pending!, blue, String)).deep.eq({key: 'You build it'});
+    expect(winnerRewardCaptionOf(pending!, red, (c) => c.toUpperCase())).deep.eq({key: 'Built by ${0}', params: ['BLUE']});
+    const neutral = winnerRewardReadingOf(resolution, model({phase: {generation: 3, final: false, step: 'effects', winner: {instance: CONTEST}, outcomes: []}}), table(5));
+    expect(neutral?.recipient).eq('neutral');
+    expect(winnerRewardCaptionOf(neutral!, blue, String)).deep.eq({key: 'Neutral winner — nobody builds it'});
+  });
+
+  it('the record: the tile the cube landed on («built»), the named skip of an empty table, history with its generation; the words read the same reading', () => {
+    const resolution = contest();
+    const built: ParliamentEnactOutcomeModel = {player: blue, step: 'colony', part: 'winner', kind: 'colony', colony: 'Luna' as never};
+    const applied = winnerRewardReadingOf(resolution, model({phase: {generation: 3, final: false, step: 'effects', winner: {instance: CONTEST, player: blue}, outcomes: [built]}}), table(5));
+    expect(applied).deep.eq({reward: {kind: 'colony'}, context: 'applied', recipient: blue, built: 'Luna'});
+    expect(winnerRewardCaptionOf(applied!, blue, String)).deep.eq({key: 'You built it'});
+    expect(winnerRewardCaptionOf(applied!, red, (c) => c.toUpperCase())).deep.eq({key: 'Built · ${0}', params: ['BLUE']});
+    const t = {text: (k: string) => `[${k}]`, params: (k: string, p: Array<string>) => `[${k}|${p.join(',')}]`};
+    expect(winnerRewardSentenceOf(applied!, blue, String, t)).deep.eq({caption: '[You built it]', detail: '[Colony · ${0}|[Luna]]'});
+    const skipped: ParliamentEnactOutcomeModel = {player: blue, step: 'colony', part: 'winner', kind: 'skipped', reason: 'No colony is available'};
+    const history = winnerRewardReadingOf(resolution, model({
+      lastPhase: {generation: 2, final: false, enacted: {instance: CONTEST, resolution: CONTEST_ID, party: PartyName.UNITY},
+        winner: {instance: CONTEST, resolution: CONTEST_ID, party: PartyName.UNITY, player: blue, votes: 1}, outcomes: [skipped]} as never,
+    }), table(5));
+    expect(history).deep.eq({reward: {kind: 'colony'}, context: 'applied', recipient: blue, generation: 2, skipped: 'No colony is available'});
+    expect(winnerRewardSentenceOf(history!, blue, String, t)).deep.eq({caption: '[Generation ${0}|2] · [No colony is available]', detail: ''});
+  });
+
+  it('the labels: «Colony», the `colony` glyph, the one qualification sentence under the winner block; the tile helpers are untouched', () => {
+    expect(winnerTileLabelKey({kind: 'colony'})).eq('Colony');
+    expect(winnerRewardGlyph({kind: 'colony'})).eq('colony');
+    expect(winnerRewardGlyph({kind: 'tile', tile: 'ocean'})).eq('ocean');
+    expect(winnerRewardRuleKey({kind: 'colony'})).to.match(/built for free/);
+    expect(winnerTileLabelKey({kind: 'tile', tile: 'greenery'})).eq('Greenery');
+    const blocks = resolutionAnnotations(CONTEST_ID);
+    expect(blocks.find((b) => b.id === 'group:winner')?.rows.map((r) => r.text)).deep.eq([contest().text.winner, winnerRewardRuleKey({kind: 'colony'})]);
+    expect(blocks.find((b) => b.id === 'group:quest')?.rows.map((r) => r.text)).deep.eq(['Build 2 colonies']);
   });
 });

@@ -172,12 +172,13 @@
         </span>
         <span v-if="pickerEffect !== undefined" class="con-rxpg__control"><span class="con-rxpg__ckey">{{ $t('No eligible card') }}</span><b data-rxpg-norecipient>{{ noRecipient ? '✓' : '—' }}</b></span>
         <template v-if="selected.winnerReward !== undefined">
-          <span class="con-rxpg__control">
+          <!-- A winner TILE reads its parameter's room; the winner's COLONY (Colony Contest) moves no parameter — its one control is the empty table. -->
+          <span v-if="selected.winnerReward.kind === 'tile'" class="con-rxpg__control">
             <span class="con-rxpg__ckey">{{ $t(selected.winnerReward.tile === 'greenery' ? 'Oxygen' : 'Oceans') }}</span>
             <b data-rxpg-table>{{ selected.winnerReward.tile === 'greenery' ? table.oxygen + '%' : table.oceans + '/9' }}</b>
             <span v-if="selected.winnerReward.tile === 'greenery'" class="con-rxpg__dim" data-rxpg-temperature>{{ table.temperature }}°C</span>
           </span>
-          <span v-if="family === 'winner-tile'" class="con-rxpg__control"><span class="con-rxpg__ckey">{{ $t('No legal cell') }}</span><b data-rxpg-nocell>{{ noCell ? '✓' : '—' }}</b></span>
+          <span v-if="family === 'winner-tile'" class="con-rxpg__control"><span class="con-rxpg__ckey">{{ $t(selected.winnerReward.kind === 'colony' ? 'No colony is available' : 'No legal cell') }}</span><b data-rxpg-nocell>{{ noCell ? '✓' : '—' }}</b></span>
         </template>
       </div>
       <!-- A LIVE SCENARIO: the real game this scenario boots (an engine-generated
@@ -1246,11 +1247,14 @@ export default defineComponent({
         if (this.family === 'winner-tile') {
           // THE WINNER'S PLACEMENT STANDS: every seat up to the winner (generation order) already has its plants.
           const winnerSeat = this.winner === 'neutral' ? undefined : this.winner;
+          // The winner's ask: a tile's cell (`space`), or the colony pick (`colony`) — the step key the driver would name.
+          const winnerAsk: {key: string, input: 'space' | 'colony'} = r.winnerReward?.kind === 'colony' ?
+            {key: 'colony', input: 'colony'} : {key: r.winnerReward?.kind === 'tile' ? r.winnerReward.tile : 'greenery', input: 'space'};
           return {
             ...base, rulingParty: r.party, enacted,
             phase: {
               generation: 3, final: false, step: 'effects', winner: {instance, player: owner},
-              pending: winnerSeat === undefined ? undefined : {player: TEST_PLAYERS[winnerSeat].color, key: 'greenery', input: 'space'},
+              pending: winnerSeat === undefined ? undefined : {player: TEST_PLAYERS[winnerSeat].color, ...winnerAsk},
               outcomes: this.supplyOutcomes.filter((o) => winnerSeat === undefined || SEATS.findIndex((i) => TEST_PLAYERS[i].color === o.player) <= winnerSeat),
             },
           };
@@ -1297,13 +1301,21 @@ export default defineComponent({
       }
       return out;
     },
-    /** The winner's TILE as the server records it: placed (its parameter before → after), or the named skip; nothing for a neutral winner. */
+    /**
+     * The winner's part as the server records it: a TILE placed (its parameter before → after) or the named skip;
+     * a COLONY built on a tile (Colony Contest) or the empty table's skip; nothing for a neutral winner.
+     */
     winnerOutcome(): ParliamentEnactOutcomeModel | undefined {
       const reward = this.selected?.winnerReward;
       if (reward === undefined || this.winner === 'neutral') {
         return undefined;
       }
       const player = TEST_PLAYERS[this.winner].color;
+      if (reward.kind === 'colony') {
+        return this.noCell ?
+          {player, step: 'colony', part: 'winner', kind: 'skipped', reason: 'No colony is available'} :
+          {player, step: 'colony', part: 'winner', kind: 'colony', colony: ColonyName.LUNA};
+      }
       if (this.noCell) {
         return {player, step: reward.tile, part: 'winner', kind: 'skipped', reason: reward.tile === 'greenery' ? 'No space can take a greenery' : 'No space can take an ocean'};
       }

@@ -24,7 +24,7 @@ import {SpaceBonus} from '../../src/common/boards/SpaceBonus';
 import {LogMessageDataType} from '../../src/common/logs/LogMessageDataType';
 import {resolutionInstanceId, RESOLUTION_CODE_PATTERN} from '../../src/common/parliament/ParliamentTypes';
 import {scaledAmount} from '../../src/common/parliament/influenceScaling';
-import {REDUX_GREENERY_TILE_TR, winnerParameterRoom, winnerRewardTr} from '../../src/common/parliament/winnerReward';
+import {REDUX_GREENERY_TILE_TR, winnerParameterRoom, winnerRewardTr, WinnerTileReward} from '../../src/common/parliament/winnerReward';
 import {MAX_OXYGEN_LEVEL, MAX_TEMPERATURE} from '../../src/common/constants';
 import {SelectSpace} from '../../src/server/inputs/SelectSpace';
 import {OrOptions} from '../../src/server/inputs/OrOptions';
@@ -144,7 +144,7 @@ describe('BiodomeContest', () => {
     });
 
     it('the winner reward as data: one greenery, ONE oxygen step (none at the maximum), the tile\'s own TR always', () => {
-      const reward = BIODOME_CONTEST.winnerReward!;
+      const reward = BIODOME_CONTEST.winnerReward as WinnerTileReward;
       const low = winnerParameterRoom(reward, {oxygenLevel: 5, temperature: -30, oceans: 0});
       expect(low).deep.include({parameter: 'oxygen', current: 5, resulting: 6, rises: true, tileAvailable: true, temperatureBonus: false});
       expect(winnerRewardTr(reward, low)).deep.eq({tile: REDUX_GREENERY_TILE_TR, parameter: 1, temperature: 0});
@@ -155,9 +155,10 @@ describe('BiodomeContest', () => {
       expect(max).deep.include({rises: false, resulting: MAX_OXYGEN_LEVEL, tileAvailable: true, temperatureBonus: false});
       expect(winnerRewardTr(reward, max)).deep.eq({tile: 1, parameter: 0, temperature: 0});
       // Aquifer's ocean reads the same way: no ocean left = no tile at all.
-      const ocean = winnerParameterRoom(AQUIFER_CONTEST.winnerReward!, {oxygenLevel: 0, temperature: -30, oceans: 9});
+      const aquifer = AQUIFER_CONTEST.winnerReward as WinnerTileReward;
+      const ocean = winnerParameterRoom(aquifer, {oxygenLevel: 0, temperature: -30, oceans: 9});
       expect(ocean).deep.include({parameter: 'oceans', rises: false, tileAvailable: false});
-      expect(winnerRewardTr(AQUIFER_CONTEST.winnerReward!, ocean)).deep.eq({tile: 0, parameter: 0, temperature: 0});
+      expect(winnerRewardTr(aquifer, ocean)).deep.eq({tile: 0, parameter: 0, temperature: 0});
     });
   });
 

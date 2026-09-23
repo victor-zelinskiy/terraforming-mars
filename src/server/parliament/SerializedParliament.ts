@@ -66,11 +66,12 @@ export type SerializedEnactOutcome = {
    * second half of Pluto's colony bonus — see `colony`) · `colonyBonus` a
    * colony bonus the chip language does not speak, paid through its own
    * counter (a discount, a loss, a science tag — see `description`) ·
-   * `ocean` / `greenery` the winner's tile · `skipped` nothing happened (see
-   * `reason`) · `reaction` the RULING PARTY's answer to this step's own change
-   * (see `party`).
+   * `ocean` / `greenery` the winner's tile · `colony` the winner's colony built
+   * for free (Colony Contest — `colony` names the tile) · `skipped` nothing
+   * happened (see `reason`) · `reaction` the RULING PARTY's answer to this
+   * step's own change (see `party`).
    */
-  kind: 'cardResource' | 'production' | 'stock' | 'cards' | 'discard' | 'colonyBonus' | 'ocean' | 'greenery' | 'skipped' | 'reaction';
+  kind: 'cardResource' | 'production' | 'stock' | 'cards' | 'discard' | 'colonyBonus' | 'ocean' | 'greenery' | 'colony' | 'skipped' | 'reaction';
   /**
    * THE COLONY whose printed bonus this record pays (Colonial Affairs: «gain
    * all your colony bonuses k times») — the ledger row the record belongs to

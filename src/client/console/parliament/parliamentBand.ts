@@ -70,8 +70,8 @@ export type BandChip =
   | {kind: 'reaction', party: ReduxParty, resource?: string, amount?: number}
   /** A part that paid nothing: what, how much it would have paid, and why — never a silent loss. */
   | {kind: 'skip', id: string, title: string, reason: string, amount?: number, unit?: string}
-  /** The winner's tile, waiting behind the door to the board. */
-  | {kind: 'tile', tile: 'ocean' | 'greenery'}
+  /** The winner's part: a tile waiting behind the door to the board, or the colony built in the sitting's own step. */
+  | {kind: 'tile', tile: 'ocean' | 'greenery' | 'colony'}
   /** The seats the phase is still waiting for. */
   | {kind: 'awaiting', seats: ReadonlyArray<Color>};
 
@@ -97,8 +97,8 @@ export type BandRewardReading = {
   yields: ReadonlyArray<InfluenceYield>;
   reactions: ReadonlyArray<{party: ReduxParty, resource?: string, amount?: number}>;
   skips: ReadonlyArray<{id: string, title: string, reason: string, amount?: number, unit?: string}>;
-  /** The winner's tile is this seat's and still to be placed. */
-  tile?: 'ocean' | 'greenery';
+  /** The winner's part: the tile still to be placed, or the colony still to be built (`colony`). */
+  tile?: 'ocean' | 'greenery' | 'colony';
   /** Nothing is paid to this seat: what remains instead (the passive that now stands / the action to take). */
   quiet?: {kicker: string, kind: 'passive' | 'action'};
   /** One word of state beside the kicker: «эта выплата» until every chip has landed, «получено» after. */

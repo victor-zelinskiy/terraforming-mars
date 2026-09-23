@@ -73,6 +73,7 @@ import {ARCHITECTURE_AWARD_ID} from '../../../src/server/parliament/resolutions/
 import {CENTRAL_POWER_GRID_ID} from '../../../src/server/parliament/resolutions/industrialists/CentralPowerGrid';
 import {resolutionCount} from '../../../src/server/parliament/resolutions/ResolutionCounts';
 import {SelectSpace} from '../../../src/server/inputs/SelectSpace';
+import {SelectColony} from '../../../src/server/inputs/SelectColony';
 import {OrOptions} from '../../../src/server/inputs/OrOptions';
 import {CLIMATE_RESEARCH_ID} from '../../../src/server/parliament/resolutions/greens/ClimateResearch';
 import {BIODOME_CONTEST_ID} from '../../../src/server/parliament/resolutions/greens/BiodomeContest';
@@ -468,6 +469,9 @@ function answerEffects(game: IGame, name: string): void {
         player.process({type: 'card', cards});
       } else if (wf instanceof SelectSpace) {
         player.process({type: 'space', spaceId: quietCellOf(game, wf).id});
+      } else if (wf instanceof SelectColony) {
+        // The winner's free colony (Colony Contest): the first tile the ordinary rules allow.
+        player.process({type: 'colony', colonyName: wf.colonies[0].name});
       } else if (wf instanceof OrOptions) {
         player.process({type: 'or', index: 0, response: {type: 'option'}});
       } else if (wf instanceof AndOptions && wf.cardResourceDistributionPrompt !== undefined) {

@@ -81,8 +81,8 @@ export type ResultsPayoutPart = {
   /** The unit is a PRODUCTION step (the console's production frame), not a stock gain. */
   production: boolean;
   amount?: number;
-  /** A winner's tile: which one. */
-  tile?: 'ocean' | 'greenery';
+  /** A winner's part: which tile — or `colony` for the colony built for free (its tile is `colony`). */
+  tile?: 'ocean' | 'greenery' | 'colony';
   /** The card a card resource landed on (one recipient). */
   card?: string;
   /**
@@ -194,7 +194,7 @@ export function resultsPayoutPart(outcome: ParliamentEnactOutcomeModel, index: n
   if (outcome.amount !== undefined) {
     part.amount = outcome.amount;
   }
-  if (outcome.kind === 'ocean' || outcome.kind === 'greenery') {
+  if (outcome.kind === 'ocean' || outcome.kind === 'greenery' || outcome.kind === 'colony') {
     part.tile = outcome.kind;
   }
   if (outcome.card !== undefined) {

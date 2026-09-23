@@ -40,6 +40,12 @@ export type RewardSurface =
    * delta-chip path of whatever counter it moved, and the ledger row names it.
    */
   | 'hud'
+  /**
+   * The COLONIES SCREEN — the tile the winner's cube lands on (Colony Contest):
+   * the screen stands INSIDE the sitting as its own step (the colonies frame
+   * in the stage's zone), and the cube is placed by that screen's build scene.
+   */
+  | 'colonies'
   | 'stage-plate'; // the sitting's own plate — a skip lives nowhere else
 
 /** WHERE the flight leaves from — the physical source the motion answers «where did this come from». */
@@ -61,7 +67,7 @@ export type RewardFlightSource =
 export type RewardUnit = 'production' | 'stock' | 'card-resource' | 'cards' | 'tile' | 'none';
 
 /** The sitting's stage the outcome is presented on (the flow's stage names — Э3). */
-export type RewardStage = 'reward' | 'choice' | 'take' | 'discard' | 'board';
+export type RewardStage = 'reward' | 'choice' | 'take' | 'discard' | 'board' | 'colonies';
 
 /** The reading component the stage binds to the record (Э5 binds names to components). */
 export type RewardReading = 'influence-yield' | 'winner-reward' | 'party-reaction' | 'colony-ledger' | 'skip-plate';
@@ -113,6 +119,14 @@ export const REWARD_ADDRESS: Readonly<Record<OutcomeKind, RewardAddress>> = {
   greenery: {
     kind: 'greenery', surface: 'board', source: 'none', unit: 'tile', stage: 'board', reading: 'winner-reward',
     skipTitle: 'Skipped: the winner\'s greenery',
+  },
+  // THE WINNER'S COLONY (Colony Contest): built for free on the colonies screen, hosted as the sitting's own step
+  // (`SittingRewardStep 'colony'` — the colonies FRAME in the stage's zone, «КОЛОНИИ»). The cube is placed by that
+  // screen's build scene, so nothing flies off the card; the record names the tile (`colony`). A skip names an empty
+  // table — no tile the ordinary rules let the winner build on.
+  colony: {
+    kind: 'colony', surface: 'colonies', source: 'none', unit: 'tile', stage: 'colonies', reading: 'winner-reward',
+    skipTitle: 'Skipped: the winner\'s colony',
   },
   // The ruling party's answer speaks the unit its RECORD carries (a production step is answered with production); 'stock' is the nominal default.
   reaction: {
@@ -248,9 +262,8 @@ export function rewardAddressOf(outcome: ParliamentEnactOutcomeModel, viewer: Co
  *   · `colonyTrack` (a colony's track marker moves) — surface `colonies`, source `carrier`, unit `none`,
  *     stage `reward` (the colonies screen is NOT opened — the reading names the colony and the step), skip
  *     «нет колонии в игре»; pose: a colony chip with its track step, the reward stays on the sitting.
- *   · `colonyToWinner` (the winner places a colony) — surface `colonies`, source `carrier`, unit `tile`,
- *     stage `choice` (the shared colony picker in the stage's zone, as the recipient picker), skip «нет
- *     свободного места»; pose: the winner chip + the picker embedded; the other seats' wait line.
+ *   · (`colonyToWinner` SHIPPED as `colony` — Colony Contest, RX09: surface `colonies`, unit `tile`, stage
+ *     `colonies`; the colonies SCREEN is the sitting's hosted step rather than a picker in the task host.)
  *   · `cityEveryone` (each player places a city) — surface `board`, source `carrier`, unit `tile`, stage
  *     `board` per seat IN TURN (the sitting yields to the board and comes back, the other seats wait —
  *     the winner-tile route generalized to every seat), skip «нет клетки под город»; pose: the board

@@ -20,6 +20,7 @@ import {REDUX_RESOLUTION_CATALOG} from '../../src/server/parliament/resolutions/
 import {hasImmediateSteps, immediateStepsOf, ResolutionDefinition} from '../../src/server/parliament/resolutions/IResolution';
 import {SerializedEnactOutcome} from '../../src/server/parliament/SerializedParliament';
 import {SelectCard} from '../../src/server/inputs/SelectCard';
+import {SelectColony} from '../../src/server/inputs/SelectColony';
 import {SelectSpace} from '../../src/server/inputs/SelectSpace';
 import {OrOptions} from '../../src/server/inputs/OrOptions';
 import {AndOptions} from '../../src/server/inputs/AndOptions';
@@ -39,6 +40,8 @@ import {HE3FusionPlant} from '../../src/server/cards/moon/HE3FusionPlant';
 import {Tardigrades} from '../../src/server/cards/base/Tardigrades';
 import {Trees} from '../../src/server/cards/base/Trees';
 import {Research} from '../../src/server/cards/base/Research';
+import {Luna} from '../../src/server/colonies/Luna';
+import {Callisto} from '../../src/server/colonies/Callisto';
 import {runAllActions} from '../TestingUtils';
 import {answerStandingGates, passToParliament, seatResolution, settleParliamentGates} from './parliamentArrange';
 
@@ -158,6 +161,10 @@ function enact(definition: ResolutionDefinition, opts: {influence: number; table
   let game: IGame = players[0];
   const seats = players.slice(1) as Array<TestPlayer>;
   game.phase = Phase.ACTION;
+  // THE COLONY TABLE IS ARRANGED, never dealt: a winner's part may BUILD (Colony Contest), and a dealt tile's own
+  // build bonus can ask a question of the ENGINE's (Europa's ocean, Titan's floater target — no resolution source, so
+  // the marker check would blame the card). The contract is read over tiles whose bonus is a plain production step.
+  game.colonies = [new Luna(), new Callisto()];
   const parliament = game.parliament!;
   seatResolution(parliament, 0, definition.id);
   const winner = opts.winner === 'player' ? seats[0] : undefined;
@@ -204,6 +211,9 @@ function enact(definition: ResolutionDefinition, opts: {influence: number; table
         player.process({type: 'card', cards});
       } else if (wf instanceof SelectSpace) {
         player.process({type: 'space', spaceId: wf.spaces[0].id});
+      } else if (wf instanceof SelectColony) {
+        // The winner's free colony (Colony Contest): the first tile the ordinary rules allow.
+        player.process({type: 'colony', colonyName: wf.colonies[0].name});
       } else if (wf instanceof OrOptions) {
         player.process({type: 'or', index: 0, response: {type: 'option'}});
       } else if (wf instanceof AndOptions && wf.cardResourceDistributionPrompt !== undefined) {

@@ -28,6 +28,7 @@ import {Phase} from '../../src/common/Phase';
 import {OrOptions} from '../../src/server/inputs/OrOptions';
 import {SelectOption} from '../../src/server/inputs/SelectOption';
 import {SelectSpace} from '../../src/server/inputs/SelectSpace';
+import {SelectColony} from '../../src/server/inputs/SelectColony';
 import {SelectCard} from '../../src/server/inputs/SelectCard';
 import {cast} from '../../src/common/utils/utils';
 import {maxOutOceans, runAllActions, setOxygenLevel, setTemperature} from '../TestingUtils';
@@ -472,6 +473,9 @@ describe('ParliamentPhase', () => {
             human.process({type: 'space', spaceId: wf.spaces[0].id});
           } else if (wf instanceof SelectCard) {
             human.process({type: 'card', cards: [wf.cards[0].name]});
+          } else if (wf instanceof SelectColony) {
+            // Colony Contest's winner builds a colony for free — the first tile the ordinary rules allow.
+            human.process({type: 'colony', colonyName: wf.colonies[0].name});
           } else {
             break;
           }

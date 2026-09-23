@@ -181,11 +181,15 @@ export type ParliamentEnactOutcomeModel = {
    * `cardResource` onto a card · `production` · `stock` into the supply · `cards`
    * drawn projects · `discard` a card thrown away (Pluto's second half) ·
    * `colonyBonus` a colony bonus paid through its own counter (a discount, a
-   * loss, a science tag) · `ocean` / `greenery` the winner's tile · `skipped` ·
-   * `reaction` the RULING PARTY's answer to this step's own change.
+   * loss, a science tag) · `ocean` / `greenery` the winner's tile · `colony`
+   * the winner's colony built for free (Colony Contest — see `colony`) ·
+   * `skipped` · `reaction` the RULING PARTY's answer to this step's own change.
    */
-  kind: 'cardResource' | 'production' | 'stock' | 'cards' | 'discard' | 'colonyBonus' | 'ocean' | 'greenery' | 'skipped' | 'reaction';
-  /** The COLONY whose printed bonus this record pays (Colonial Affairs) — the ledger row it belongs to. */
+  kind: 'cardResource' | 'production' | 'stock' | 'cards' | 'discard' | 'colonyBonus' | 'ocean' | 'greenery' | 'colony' | 'skipped' | 'reaction';
+  /**
+   * The COLONY whose printed bonus this record pays (Colonial Affairs) — the ledger row it belongs to;
+   * for the `colony` kind, the tile the winner's cube landed on.
+   */
   colony?: ColonyName;
   /** …how many times that bonus was paid in this one record (the resolution's multiplier k). */
   multiplier?: number;

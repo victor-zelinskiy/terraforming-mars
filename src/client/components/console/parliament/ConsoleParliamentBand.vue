@@ -121,7 +121,7 @@ import {parliamentRewardState, rewardLanded} from '@/client/console/parliament/p
 import {sittingMotion} from '@/client/console/parliament/sittingDirector';
 import {cardResourceKey} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {PartyReactionReading, partyReactionsOf, viewerHasSeat} from '@/client/console/parliament/partyReactionModel';
-import {WinnerRewardReading, winnerRewardReadingOf, winnerRewardTableOf} from '@/client/console/parliament/winnerRewardModel';
+import {WinnerRewardReading, winnerRewardGlyph, winnerRewardReadingOf, winnerRewardTableOf} from '@/client/console/parliament/winnerRewardModel';
 
 export default defineComponent({
   name: 'ConsoleParliamentBand',
@@ -251,7 +251,7 @@ export default defineComponent({
         skips: this.skips,
       };
       if (this.winnerReading !== undefined) {
-        out.tile = this.winnerReading.reward.tile;
+        out.tile = winnerRewardGlyph(this.winnerReading.reward);
       }
       if (yields.length === 0 && quiet !== undefined) {
         out.quiet = {kicker: quiet.kicker, kind: quiet.kind};

@@ -25,7 +25,7 @@ function outcome(over: Partial<ParliamentEnactOutcomeModel> & {kind: ParliamentE
  */
 describe('rewardAddress — the table', () => {
   it('has a row for EVERY outcome kind — and only for kinds (the union and the table are one)', () => {
-    expect(OUTCOME_KINDS.slice().sort()).deep.eq(['cardResource', 'cards', 'colonyBonus', 'discard', 'greenery', 'ocean', 'production', 'reaction', 'skipped', 'stock']);
+    expect(OUTCOME_KINDS.slice().sort()).deep.eq(['cardResource', 'cards', 'colony', 'colonyBonus', 'discard', 'greenery', 'ocean', 'production', 'reaction', 'skipped', 'stock']);
     for (const kind of OUTCOME_KINDS) {
       expect(REWARD_ADDRESS[kind].kind, kind).eq(kind);
     }
@@ -66,6 +66,14 @@ describe('rewardAddress — the table', () => {
     expect(REWARD_ADDRESS.colonyBonus.surface).eq('hud');
     expect(REWARD_ADDRESS.colonyBonus.source).eq('none');
     expect(REWARD_ADDRESS.colonyBonus.reading).eq('colony-ledger');
+    // COLONY CONTEST's kind: the winner's colony is built on the COLONIES SCREEN — hosted as the sitting's own step
+    // («КОЛОНИИ»), the cube placed by that screen's build scene (nothing flies off the card), read as the winner's part.
+    expect(REWARD_ADDRESS.colony.surface).eq('colonies');
+    expect(REWARD_ADDRESS.colony.source).eq('none');
+    expect(REWARD_ADDRESS.colony.unit).eq('tile');
+    expect(REWARD_ADDRESS.colony.stage).eq('colonies');
+    expect(REWARD_ADDRESS.colony.reading).eq('winner-reward');
+    expect(REWARD_ADDRESS.colony.skipTitle).eq('Skipped: the winner\'s colony');
   });
 
   it('a record that names its COLONY is born on its LEDGER ROW, never on the resolution\'s icon — the ledger is where the player read the bonus', () => {
@@ -104,7 +112,7 @@ describe('rewardAddress — the table', () => {
         expect(['card-icon', 'party-plaque'], `${kind}: a rail chip is born on a printed icon`).includes(row.source);
         expect(['production', 'stock'], `${kind}: a rail unit`).includes(row.unit);
       }
-      if (row.surface === 'board' || row.surface === 'stage-plate') {
+      if (row.surface === 'board' || row.surface === 'colonies' || row.surface === 'stage-plate') {
         expect(row.source, `${kind}: nothing flies off the card`).eq('none');
       }
     }
@@ -138,6 +146,14 @@ describe('rewardAddress — the delivery of a record', () => {
     const reaction = rewardAddressOf(outcome({kind: 'reaction', party: PartyName.GREENS, trigger: 'production-gain', production: Resource.MEGACREDITS, amount: 2}), 'blue');
     expect(reaction.address.source).eq('party-plaque');
     expect(reaction.payload).deep.eq({resource: 'megacredits', amount: 2, party: PartyName.GREENS});
+
+    // The winner's COLONY (Colony Contest): a tile unit with no amount — never a skip by its absence; the record names
+    // the tile the cube landed on, and it is born nowhere (the colonies screen's own build scene places it).
+    const colony = rewardAddressOf(outcome({kind: 'colony', colony: 'Luna' as never}), 'blue');
+    expect(colony.skipped).is.undefined;
+    expect(colony.source, 'a colony record names a tile, yet it is not a ledger row — nothing flies off the card').eq('none');
+    expect(colony.payload).deep.eq({colony: 'Luna'});
+    expect(colony.address.reading).eq('winner-reward');
   });
 
   it('a `skipped` record names its own reason; a paying kind that paid nothing is named by the address', () => {

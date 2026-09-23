@@ -37,6 +37,7 @@ import {CLIMATE_RESEARCH} from './greens/ClimateResearch';
 import {CLOUD_DEVELOPMENT} from './unity/CloudDevelopment';
 import {COLONIAL_AFFAIRS} from './unity/ColonialAffairs';
 import {COLONIZATION_FUNDING} from './unity/ColonizationFunding';
+import {COLONY_CONTEST} from './unity/ColonyContest';
 
 /**
  * THE RETIRED IDS — iteration 0's DUMMY resolutions (a party, a quest, no
@@ -448,6 +449,9 @@ export const REDUX_RESOLUTION_CATALOG = new ResolutionCatalog([
   COLONIAL_AFFAIRS,
   // A count over THE BOARD (space cities), not the tableau.
   COLONIZATION_FUNDING,
+  // The winner's part is a COLONY built for free (`winnerReward: {kind: 'colony'}`) — the colonies screen hosted as
+  // the sitting's own step.
+  COLONY_CONTEST,
   TEST_CHOICE,
   DEV_IMMEDIATE,
   DEV_PASSIVE,

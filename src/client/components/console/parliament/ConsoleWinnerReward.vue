@@ -1,8 +1,8 @@
 <template>
   <!--
     THE WINNER'S PART (Turmoil Redux) — ONE graphic block for a resolution's
-    winner tile, wherever a surface names it: the vote surface's own-effect
-    block, the fullscreen inspector's footer, the playground.
+    winner part, wherever a surface names it: the vote surface's own-effect
+    block, the fullscreen inspector's footer, the playground, the sitting's band.
 
     It stands APART from the influence readings on purpose: those are every
     player's numbers, this is one seat's tile — marked by the winner star and
@@ -13,23 +13,28 @@
     (oxygen 7 → 8 %, or «max» — no step) and the TR it is worth. The cell's
     bonuses are never promised here: that is the placement dossier's job.
 
+    The winner's COLONY (Colony Contest) is the same block with no parameter
+    line: before the pick the body is the colony tile and its label; once it
+    is built, the tile the cube landed on takes the parameter's place.
+
     Nothing here computes: the reading arrives from `winnerRewardModel.ts`
     (the common `winnerReward.ts` rules the engine pays by).
   -->
   <div class="con-wreward"
-       :class="['con-wreward--' + size, 'con-wreward--' + variant, 'con-wreward--' + reading.context, {
+       :class="['con-wreward--' + size, 'con-wreward--' + variant, 'con-wreward--' + reading.context, 'con-wreward--' + glyph, {
          'con-wreward--neutral': neutral,
          'con-wreward--skipped': reading.skipped !== undefined,
          'con-wreward--mine': mine,
        }]"
        data-winner-reward
        :data-winner-context="reading.context"
-       :data-winner-tile="reading.reward.tile"
+       :data-winner-tile="glyph"
        :data-winner-recipient="reading.recipient"
        :data-winner-rises="rises === undefined ? undefined : String(rises)"
        :data-winner-before="range?.from"
        :data-winner-after="range?.to"
        :data-winner-tr="trTotal"
+       :data-winner-built="reading.built"
        :data-winner-skipped="reading.skipped">
     <span v-if="variant !== 'inline'" class="con-wreward__head">
       <i class="con-wreward__star" aria-hidden="true"></i>
@@ -37,9 +42,9 @@
       <span v-if="caption !== ''" class="con-wreward__caption" data-winner-caption>{{ caption }}</span>
     </span>
     <span class="con-wreward__body">
-      <i class="con-wreward__tile" :class="'con-wreward__tile--' + reading.reward.tile" aria-hidden="true"></i>
+      <i class="con-wreward__tile" :class="'con-wreward__tile--' + glyph" aria-hidden="true"></i>
       <b class="con-wreward__name">{{ $t(tileLabel) }}</b>
-      <span class="con-wreward__param" :class="{'con-wreward__param--max': atMax}" data-winner-param>
+      <span v-if="reading.parameter !== undefined" class="con-wreward__param" :class="{'con-wreward__param--max': atMax}" data-winner-param>
         <i class="con-wreward__pico" :class="'con-wreward__pico--' + reading.parameter" aria-hidden="true"></i>
         <template v-if="range !== undefined && !atMax">
           <span class="con-wreward__from">{{ range.from }}{{ unit }}</span>
@@ -51,6 +56,10 @@
           <em class="con-wreward__max">{{ $t('Max.') }}</em>
         </template>
         <b v-else class="con-wreward__to">+1</b>
+      </span>
+      <!-- THE COLONY, once built: the tile the cube landed on stands where a tile's parameter would. -->
+      <span v-else-if="reading.built !== undefined" class="con-wreward__param con-wreward__param--built" data-winner-param>
+        <b class="con-wreward__to">{{ $t(reading.built) }}</b>
       </span>
       <span v-if="trTotal > 0" class="con-wreward__tr" data-winner-tr-total><b>+{{ trTotal }}</b><i class="con-wreward__tr-ico" aria-hidden="true"></i></span>
       <!-- INLINE (the vote block — its own label stands beside it): the caption rides the same line. -->
@@ -67,7 +76,7 @@ import {defineComponent, PropType} from 'vue';
 import {Color} from '@/common/Color';
 import {winnerRewardTrTotal} from '@/common/parliament/winnerReward';
 import {
-  WinnerRewardReading, winnerRewardCaptionOf, winnerParameterLabelKey, winnerTileLabelKey,
+  WinnerRewardReading, winnerRewardCaptionOf, winnerParameterLabelKey, winnerRewardGlyph, winnerTileLabelKey,
 } from '@/client/console/parliament/winnerRewardModel';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 
@@ -102,6 +111,10 @@ export default defineComponent({
     },
     mine(): boolean {
       return this.viewerColor !== undefined && this.reading.recipient === this.viewerColor;
+    },
+    /** The graphic the part draws: the tile kind, or `colony`. */
+    glyph(): 'greenery' | 'ocean' | 'colony' {
+      return winnerRewardGlyph(this.reading.reward);
     },
     tileLabel(): string {
       return winnerTileLabelKey(this.reading.reward);
@@ -160,7 +173,7 @@ export default defineComponent({
         if (tr.tile > 0) {
           terms.push(`${translateText('Greenery tile')} +${tr.tile}`);
         }
-        if (tr.parameter > 0) {
+        if (tr.parameter > 0 && r.parameter !== undefined) {
           terms.push(`${translateText(winnerParameterLabelKey(r.parameter))} +${tr.parameter}`);
         }
         if (tr.temperature > 0) {
