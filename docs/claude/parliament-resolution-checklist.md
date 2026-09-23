@@ -47,7 +47,12 @@ worklist:** сначала пиши карту, потом читай, что о
    только текст для журнала; детекция где угодно — только по маркеру.
 6. Резюмируемость: то, что шаг решил ДО вопроса (сколько должен, id интейка), хранится в `ctx.state` — повторный
    `run()` после reload не считает заново и не тянет заново (образцы `ANIMALS_OWED_KEY`, `INTAKE_KEY`).
-7. `passive?` — с обязательным `forecast` (закон честности прогноза); `action?` — с `preview`.
+7. `passive?` — с обязательным `forecast` (закон честности прогноза); `action?` — с `preview`. **Живой пассив
+   обязан объявить** (RX10): графику эффекта в `renderData` (`b.effect(...)` — одна отрисовка на лицо, список
+   эффектов и осмотр), `text.passive` (строка в списке эффектов Информации и стадия НАГРАДА), `forecast`
+   (прогноз розыгрыша), для тайлового хука — `placementFacts` (досье клетки: обещание = выплата) и мутации ТОЛЬКО
+   под источником резолюции (`withEffectSource` даёт маркер `effect-triggered` → карточка закона в нотификации
+   с осмотром резолюции). Гард: «a tile passive without its dossier twin».
 8. Ни слова о партиях: реакция правящей партии (Зелёные и т.д.) — данные `PartyEffectDefinition.reactions`,
    запись `kind:'reaction'` делает драйвер фазы из событий рекордера (Э1). Карта платит через `stock.add` /
    `production.add` с `from: {resolution: ID}` — этого достаточно.
@@ -174,6 +179,38 @@ ctx.report({kind: 'colony', colony: name}); // вид исхода colony: по�
 - **Нейтральный победитель** — записи нет (у записи есть место), тишины нет: чтение победителя называет его на ленте,
   в fullscreen и на стенде. Гард контракта отвечает на `SelectColony`; стол колоний в гарде аранжируется.
   Док: `docs/TURMOIL_REDUX_COLONY_CONTEST.md`.
+
+### Живой ПАССИВ — «бонусы размещения ×2» как повторная выдача (RX10, 2026-09-23)
+
+```ts
+passive: {
+  onTilePlaced(player, space, placement) {             // placement.coveringExistingTile — что движок УЖЕ заплатил
+    if (space.spaceType === SpaceType.COLONY) return;   // только Марс
+    repeatPlacementBonuses(player, space, placement);   // grantSpaceBonuses · grantOceanAdjacencyBonus · Ares — второй раз
+  },
+  placementFacts(ctx) { /* те же факты досье (printed / ocean) ещё раз под именем резолюции */ },
+  forecast(ctx) { /* deferred-факт без числа на каждый тайл на Марсе */ },
+},
+```
+
+- **Удвоить = выдать второй раз теми же входами движка**: бонусы клетки платятся ДО хука
+  (`Game.grantPlacementBonuses`: печатные → океанское соседство (`grantOceanAdjacencyBonus`, выделен) → Ares →
+  `ParliamentHandler.onTilePlaced(player, space, {coveringExistingTile})`). Правила не переписываются: что бонус
+  делает один раз, то делает и второй (карта — добор, ресурс на карту — вопрос холдеру, платный бонус — второе
+  предложение; неоплатимый счёт пропускается ПО ИМЕНИ в момент исполнения — `SelectPaymentDeferred.skipIfUnaffordable`,
+  общий страховочный шов и для Frontier Town / Jansson).
+- **Видимость пассива — четыре обязательства**: графика чипа (`emptyTile* : adjacencyBonus ×2` — словарь игры);
+  строка ЗАКОНА в списке эффектов Информации (`ConsolePartyEffectsStrip`: первая, кикер «Принятая резолюция»,
+  золотой шов правительства); **эхо** `lastPlacementBonusEcho` (self-only, как `lastOceanBonus`) → вторая волна
+  тех же иконок/той же воды после первой (`data-echo`, холд держит обе доли — счётчик тикает дважды); **карточка
+  закона** в нотификации — ответ принятой резолюции на СОБСТВЕННОЕ действие зрителя не подавляется
+  (`lawAnswerNotification`: чипы самого эффекта, `effectSource: {kind:'resolution'}`, hold X / CTA
+  `inspect-resolution` → `inspectParliament`, второго осмотра нет).
+- **Досье клетки честно** — `placementFacts` дублирует факты `printed-placement-bonus` / `ocean-adjacency-bonus`
+  под именем резолюции (`BoardInformationEngine.resolutionPassiveFacts`, после партийных фактов);
+  гард `placementReduxPreview.spec` § Development Craze: preview == commit.
+- Бюджет: юниты карты (17) + гард; клиентские юниты строки и карточки; ОДИН e2e (`console-parliament-craze`):
+  озеленение на клетке 2×сталь → эхо → карточка закона → осмотр. Док: `docs/TURMOIL_REDUX_DEVELOPMENT_CRAZE.md`.
 
 ### Бюджет проверки на карту (решение владельца 2026-09-23)
 

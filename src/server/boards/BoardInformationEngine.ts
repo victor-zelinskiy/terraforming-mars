@@ -188,6 +188,10 @@ export function boardCellPreview(
   // say this placement pays (its TR, its production steps) — so they come
   // after every fact that could move those pools.
   facts.push(...partyReactionFacts(player, space, ctx, facts));
+  // …and the ENACTED RESOLUTION's passive answers the placement through its
+  // own declared twin, fed the same facts (Development Craze repeats the
+  // cell's bonuses) — after the party facts, which it does not double.
+  facts.push(...resolutionPassiveFacts(player, space, ctx, facts));
   facts.push(...milestoneAwardFacts(player, space, ctx));
   // Deflection-zone protection is a function of the player's OWNED TILES
   // (`Board.spaceOwnedBy`) — a camp/claim marker neither activates nor breaks
@@ -659,6 +663,34 @@ function partyReactionFacts(player: IPlayer, space: Space, ctx: PlacementPreview
     }
   }
   return out;
+}
+
+/**
+ * THE ENACTED RESOLUTION's passive in the dossier (Turmoil Redux) — through
+ * the resolution's OWN twin (`ResolutionPassive.placementFacts`, co-located
+ * with the live hook), fed the facts this preview already states for the
+ * cell, so the promise and the payout stand on one reading. Nothing for a
+ * seat outside the parliament, nothing without a tile passive.
+ */
+function resolutionPassiveFacts(player: IPlayer, space: Space, ctx: PlacementPreviewContext, facts: ReadonlyArray<BoardFact>): Array<BoardFact> {
+  const parliament = player.game.parliament;
+  const enacted = parliament?.enactedDefinition();
+  const passive = enacted?.passive;
+  if (parliament === undefined || enacted === undefined || passive?.placementFacts === undefined || !parliament.participates(player)) {
+    return [];
+  }
+  const mine = facts.filter((f) => f.recipient.kind === 'current-player' && f.delta !== undefined && f.delta.direction === 'gain' &&
+    (f.timing === 'immediate' || f.timing === 'on-confirm'));
+  return passive.placementFacts({
+    player,
+    space,
+    onMars: space.spaceType !== SpaceType.COLONY,
+    placesTile: ctx.placesTile,
+    grantsPlacementBonus: ctx.grantsPlacementBonus && player.game.phase !== Phase.SOLAR,
+    countsAsCity: ctx.countsAsCity,
+    facts: mine,
+    gain: (id, delta, description) => ({...gainFact(`redux-resolution-${id}`, 'placement-effect', enacted.text.name, delta), description}),
+  });
 }
 
 // ---------------------------------------------------------------------------

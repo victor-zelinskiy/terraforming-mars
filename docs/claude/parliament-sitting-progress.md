@@ -2550,3 +2550,72 @@ M€ рисует монету без спрайта (чтение пробни�
 «ПАРЛАМЕНТ › ЗАСЕДАНИЕ › КОЛОНИИ», лента «получено · 2 → +2 · Колония · строите вы»), `02-target-pick` (пикер получателя на
 уровень глубже), `03-return` (заседание после ухода фрейма — уже на ОБНОВЛЕНИИ), `04-results` (итоги: «+2 [Ti] · Титан
 [колония]»), `05-europa-board` (стек уступил доске: размещение океана), `06-europa-return` (итоги с Европой).
+
+
+## Development Craze — RX10 (2026-09-23, промт `docs/claude/prompts/resolution-rx10-development-craze.md`)
+
+### Режим
+Экономный, коммит на блок, без пуша. Первая резолюция с ЖИВЫМ пассивом; бюджет проверки — юниты + гард, клиентские юниты
+строки/нотификации, РОВНО ОДИН e2e. Док карты `docs/TURMOIL_REDUX_DEVELOPMENT_CRAZE.md`; чеклист автора получил строку
+§1.7 и блок «Живой ПАССИВ».
+
+### Блок A — сервер (`c66792f12f`)
+- `DevelopmentCraze.ts`: сталь = влияние (шаг семейства), пассив `onTilePlaced` → `repeatPlacementBonuses` — те же входы
+  движка второй раз (`grantSpaceBonuses` · `grantOceanAdjacencyBonus` — выделен из `Game.grantPlacementBonuses`, один путь
+  на обе выдачи · `AresHandler.earnAdjacencyBonuses`), под источником резолюции; только Марс; эхо `lastPlacementBonusEcho`
+  (self-only, образец `lastOceanBonus`). `ResolutionPassive.onTilePlaced` получает `{coveringExistingTile}` из `Game`.
+- Платный бонус клетки (океан Hellas / температура Vastitas / колония Terra Cimmeria) при повторном предложении:
+  `SelectPaymentDeferred.skipIfUnaffordable` — проверка В МОМЕНТ ИСПОЛНЕНИЯ счёта (оба счёта в очереди до оплаты
+  первого — гард на выдаче не работает, проверено спеком), пропуск с именем; общий шов и для Frontier Town / Jansson.
+- Спек 17 юнитов; гард контракта, `ResolutionPassive`, `PartyForecast`, RX08/RX09, `placementPreviewConsistency`,
+  `MarsNomads`, `FrontierTown`, `SelectPaymentDeferred` — зелёные (211).
+
+### Блок B — видимость (`7b0d131479`)
+- Список эффектов: строка закона ПЕРВАЯ, кикер «Принятая резолюция» (`.con-pfx__law`), золотой шов правительства
+  (`--resolution`); графика — тот же `renderData`. `isRenderableNode` отбрасывает `null`-слот JSON (иначе prop-warning
+  `PremiumMechNode` ронял юнит).
+- Нотификация: `effectSource` = карта ∨ резолюция (одно поле), CTA `inspect-resolution` + `notificationBus.inspectResolution`
+  → `ConsoleShell.inspectParliament`; hold X на карточке — осмотр резолюции вместо журнала. **Открытие:** собственное
+  действие зрителя подавляется, а пассив срабатывает ВНУТРИ действия → `lawAnswerNotification`: ответ ЗАКОНА на своё
+  действие = одна карточка `passive-effect` (чипы только эффекта, строка самого эффекта, источник-резолюция).
+- Сцена размещения: `echoWaveFor` (чистая), `pendingEcho`, холд обеих долей, `runEchoWave` после первой волны
+  (`ECHO_WAVE_BREATH_MS` 320), свидетель `data-echo`; транспорт передаёт `lastPlacementBonusEcho`.
+- Юниты: `ConsolePartyEffectsStrip` (4), `notificationModel` (+4), `consoleTilePlacement` (+1) — 138 зелёных.
+
+### Блок C — арт (`c66792f12f`, попал в A по стейджу)
+`RX10.webp` + thumb; `make:cards` — манифест `hasPassive: true`.
+
+### Блок D — фикстура, ОДИН e2e, правки по кадрам, документы
+- Фикстура `parliament-craze-enacted` (stopAt `done`: RX10 принята, красный открывает 2-е поколение с 30 M€).
+- e2e `console-parliament-craze.spec.ts` (standard-1080): ① ЭФФЕКТЫ — строка закона первая, кикер, имя, графика;
+  ② LT-колесо → «Озеленение» → оплата → клетка 2×сталь по проводу (legal ∩ bonus) → `commitFocusedSpace`; пробник
+  (`MutationObserver` + `setInterval`): эхо объявлено на отрисованных кадрах, счётчик стали прошёл через промежуточное
+  значение (2 → 5 → 7), первая волна ДО эха; провод: +5 (2 + 2 + 1 партийная); ③ карточка закона: «Сработал эффект»,
+  «Принятая резолюция · Строительная лихорадка», «+2», «Зажать X Осмотреть»; ④ hold X → `dialog.con-zoom--parliament` с
+  лицом `rdx-mars-development-craze`, карточка ушла, закрытие.
+- Находки по кадрам и прогонам (все исправлены, кроме открытых):
+  1. Город вместо озеленения закрывает ЗАДАНИЕ председателя самой RX10 (плита «Открыть Парламент» держит цепочку
+     открытой — карточка закона ждала в PREPARING) и добирает карту Марс вперёд (ревил владеет экраном) — e2e берёт
+     озеленение; в игре карточка города придёт после закрытия цепочки (закон атомарной подачи).
+  2. Досье клетки печатало партийные факты, но не пассив резолюции (+2 обещано, +4 заплачено) → шов
+     `ResolutionPassive.placementFacts` (гард: тайловый пассив без досье-двойника падает), `resolutionPassiveFacts`
+     в `BoardInformationEngine`; `placementReduxPreview.spec` § Development Craze: preview == commit.
+  3. Глиф задания «город / спецтайл» печатал `empty_tile_special` — `EMPTY_TILE_SPECIAL` не был в карте иконок
+     премиального лица → `assets/tiles/special.png`.
+  4. Карточка закона говорила источник, но не «что»: добавлена строка самого эффекта (`lawLineEntries`).
+- Открытое: Ares + Redux — клиентская Ares-волна летит по новейшему гранту клетки (первый из двух не играется);
+  подвал осмотра резолюции печатает «ЭФФЕКТ ПАРТИИ · ДОСТУПЕН ВСЕМ» (глоссарий просит «эффект резолюции»); плита
+  источника ревила Марс вперёд говорит «Действие партии» о пассиве — существующие подачи, не трогал.
+
+### Прогоны (2026-09-23)
+
+| Что | Результат |
+| --- | --- |
+| mocha: `DevelopmentCraze` (17) · `ResolutionContract` · `ResolutionPassive` · `PartyEffects` · `PartyForecast` · RX08 · RX09 · `ParliamentPhase` · `placementReduxPreview` (+1) · `placementPreviewConsistency` · `placementEffectConsistency` · `MarsNomads` · `FrontierTown` · `SelectPaymentDeferred` · `e2eFixturesLoad` · `e2eDriverGuard` | зелёные |
+| mochapack: `ConsolePartyEffectsStrip` (4) · `notificationModel` (+4) · `consoleTilePlacement` (+1) · `tilePlacementModel` · `oceanAdjacencyBeat` | 138 зелёных |
+| `build:server` · `build:client` · `build:test` (оба дерева) · `lint:server` · `lint:i18n` · `lint:client` (vue-tsc) · `make:json` · `make:cards` · `make:css` | зелёные |
+| e2e `console-parliament-craze` · standard-1080 · свой сервер из `build/` (чужого watch не было) | ✓ 42 с (дважды на финальной сборке) |
+
+Кадры: `screenshots/parliament-craze/standard-1080/` — `01-effects-strip` (строка закона первой, кикер, золотой шов),
+`02-placement-echo` (момент эха: счётчик стали на промежуточном значении с дельта-чипом), `03-law-toast` (карточка закона
+с источником, строкой эффекта и «+2»), `04-inspect-resolution` (осмотр резолюции из карточки; глиф спецтайла в задании).

@@ -54,6 +54,7 @@ import {SpaceType} from '../../../../common/boards/SpaceType';
 import {ResolutionCode, ResolutionId} from '../../../../common/parliament/ParliamentTypes';
 import {InfluenceScaledEffect, scaledAmount} from '../../../../common/parliament/influenceScaling';
 import {PlacementBonusEchoModel} from '../../../../common/models/PlacementBonusEchoModel';
+import {BoardFact} from '../../../../common/boards/BoardInformationFacts';
 import {AresHandler} from '../../../ares/AresHandler';
 import {IPlayer} from '../../../IPlayer';
 import {Space} from '../../../boards/Space';
@@ -164,6 +165,23 @@ export const DEVELOPMENT_CRAZE: ResolutionDefinition = {
         return;
       }
       repeatPlacementBonuses(player, space, placement);
+    },
+    placementFacts(ctx) {
+      if (!ctx.onMars || !ctx.placesTile || !ctx.grantsPlacementBonus) {
+        return [];
+      }
+      // The SAME facts the dossier states for the cell — its printed bonuses
+      // and its ocean adjacency — once more, pool by pool: the promise IS the
+      // first payout, repeated, so it cannot disagree with the commit.
+      const again: Array<BoardFact> = [];
+      for (const fact of ctx.facts) {
+        const delta = fact.delta;
+        if (delta === undefined || (fact.category !== 'printed-placement-bonus' && fact.category !== 'ocean-adjacency-bonus')) {
+          continue;
+        }
+        again.push(ctx.gain(`echo-${fact.id}`, {...delta}, 'Enacted resolution: the placement bonuses are paid a second time'));
+      }
+      return again;
     },
     forecast(ctx) {
       const tiles = ctx.tiles.filter((tile) => !tile.offMars).reduce((sum, tile) => sum + tile.count, 0);

@@ -102,8 +102,21 @@
       <template v-if="impactBand === undefined && notification.variant === 'passive-effect' && notification.effectSource !== undefined">
         <div class="con-notif__line con-notif__source" :data-effect-source="notification.effectSource.kind">
           <span v-if="notification.effectSource.kind === 'resolution'" class="con-notif__dim" v-i18n>Enacted resolution</span>
-          <b class="con-notif__card">{{ $t(effectSourceName) }}</b>
+          <!-- The name is said ONCE: when the law's own line follows, its resolution chip names the card. -->
+          <b v-if="lawLineEntries.length === 0" class="con-notif__card">{{ $t(effectSourceName) }}</b>
         </div>
+        <!-- WHAT the law did, in the effect's own words (its journal line, the
+             leading actor dropped — the head's chip is the one identity
+             statement): «получает бонусы размещённого тайла второй раз». The
+             chips below say how much; this line says what. -->
+        <span v-if="notification.effectSource.kind === 'resolution' && lawLineEntries.length > 0"
+              class="con-notif__line con-notif__tokens con-notif__headline con-notif__lawline">
+          <JournalTokenRenderer
+            v-for="(tok, i) in lawLineEntries"
+            :key="i"
+            :token="tok"
+            :players="players" />
+        </span>
       </template>
 
       <!-- Coalesced burst. -->
@@ -480,6 +493,15 @@ export default defineComponent({
         return [];
       }
       return this.withoutLeadingActor(parseLocalizedLog(h));
+    },
+    /** The LAW's own line (a resolution-sourced passive card): the header when it is the effect's own journal
+     *  line — never the generic «Effect triggered» fallback, which the type label and the source already say. */
+    lawLineEntries(): ReadonlyArray<string | LogMessageData> {
+      const h = this.notification.header;
+      if (h === undefined || h.message === 'Effect triggered: ${0}') {
+        return [];
+      }
+      return this.headerEntries;
     },
     /** The prompt as text — a plain string or a tokenised `Message`. */
     promptText(): string {

@@ -689,5 +689,7 @@
   "Place 1 city or special tile": "Разместите 1 тайл города или спецтайл",
   "${0} has no influence — no steel from ${1}": "${0}: влияния нет — ${1} не даёт стали",
   "${0} receives the placement bonuses of the tile a second time — ${1}": "${0} получает бонусы размещённого тайла второй раз — ${1}",
-  "Development Craze pays the placement and adjacency bonuses of a tile you place on Mars a second time": "«Строительная лихорадка» платит бонусы размещения и соседства тайла на Марсе второй раз"
+  "Development Craze pays the placement and adjacency bonuses of a tile you place on Mars a second time": "«Строительная лихорадка» платит бонусы размещения и соседства тайла на Марсе второй раз",
+  "Enacted resolution: the placement bonuses are paid a second time": "Принятая резолюция: бонусы размещения выплачиваются второй раз",
+  "Enacted resolution: 2 M€ for a city you place on Mars": "Принятая резолюция: 2 M€ за город, который вы размещаете на Марсе"
 }

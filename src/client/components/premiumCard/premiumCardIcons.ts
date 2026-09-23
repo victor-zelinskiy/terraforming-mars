@@ -142,6 +142,9 @@ const ITEM_ICON_URL: Partial<Record<CardRenderItemType, string>> = {
   [CardRenderItemType.GREENERY]: `${TILES}/greenery_no_O2.png`,
   [CardRenderItemType.EMPTY_TILE]: `${TILES}/empty.png`,
   [CardRenderItemType.EMPTY_TILE_GOLDEN]: `${TILES}/adjacency_bonus.png`,
+  // The «special tile» glyph (`b.specialTile()` — a chairman quest's «city OR special tile»): the
+  // board's own special-tile art, never the raw item-type placeholder.
+  [CardRenderItemType.EMPTY_TILE_SPECIAL]: `${TILES}/special.png`,
   [CardRenderItemType.HAZARD_TILE]: `${TILES}/hazard.png`,
   [CardRenderItemType.COLONY_TILE]: `${TILES}/colony.png`,
 

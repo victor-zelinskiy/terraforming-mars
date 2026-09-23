@@ -288,6 +288,10 @@ function checkSeam(definition: ResolutionDefinition): Array<string> {
   if (definition.passive !== undefined && typeof definition.passive.forecast !== 'function') {
     failures.push(`${name}: a passive without a forecast`);
   }
+  // …and a TILE passive without its dossier twin lets the placement panel promise less than the commit pays.
+  if (definition.passive?.onTilePlaced !== undefined && typeof definition.passive.placementFacts !== 'function') {
+    failures.push(`${name}: a tile passive without its dossier twin (placementFacts)`);
+  }
   if (definition.action !== undefined && typeof definition.action.preview !== 'function') {
     failures.push(`${name}: an action without a preview`);
   }

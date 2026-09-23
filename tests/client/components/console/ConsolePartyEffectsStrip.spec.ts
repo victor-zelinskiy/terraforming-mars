@@ -57,7 +57,7 @@ function model(enacted: IClientResolution | undefined, heldParties: ReadonlyArra
     popularSupport: {},
     players: [seat({access: REDUX_PARTIES.map((party) => access(party, {ruling: party === ruling, hasEffect: heldParties.includes(party)}))})],
     deckSize: 0, discardSize: 0, neutralSupply: 0,
-  } as ParliamentModel;
+  } as unknown as ParliamentModel;
 }
 
 function make(parliament: ParliamentModel) {

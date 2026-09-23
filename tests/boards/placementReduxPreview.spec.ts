@@ -10,6 +10,9 @@ import {PartyName} from '../../src/common/turmoil/PartyName';
 import {TileType} from '../../src/common/TileType';
 import {MAX_OXYGEN_LEVEL} from '../../src/common/constants';
 import {ARCHITECTURE_AWARD_ID} from '../../src/server/parliament/resolutions/marsFirst/ArchitectureAward';
+import {DEVELOPMENT_CRAZE_ID} from '../../src/server/parliament/resolutions/marsFirst/DevelopmentCraze';
+import {SpaceBonus} from '../../src/common/boards/SpaceBonus';
+import {SpaceType} from '../../src/common/boards/SpaceType';
 import {seatEnacted, seatResolution} from '../parliament/parliamentArrange';
 import {Space} from '../../src/server/boards/Space';
 import {buildDossierRows} from '../../src/client/console/placementDossier';
@@ -113,6 +116,36 @@ describe('Turmoil Redux placement preview ↔ commit', () => {
     expect(player.terraformRating - trBefore).eq(3);
     expect(player.megaCredits - mcBefore).eq(6);
     expect(player.production.megacredits - mcProdBefore).eq(1);
+  });
+
+  it('the enacted Development Craze (a LIVE passive): the dossier states the cell\'s printed bonuses and its ocean adjacency TWICE, under the resolution\'s name — preview == commit', () => {
+    const parliament = game.parliament!;
+    seatEnacted(parliament, DEVELOPMENT_CRAZE_ID);
+    setOxygenLevel(game, 3);
+    const ocean = game.board.getAvailableSpacesForOcean(player)[0];
+    game.addOcean(player, ocean);
+    runAllActions(game);
+    // A cell printing steel, next to that ocean: both bonus families are on the table.
+    const space = game.board.getAvailableSpacesForGreenery(player).find((s) => s.bonus.includes(SpaceBonus.STEEL) &&
+      game.board.getAdjacentSpaces(s).some((a) => a.id === ocean.id));
+    const cell = space ?? game.board.getAvailableSpacesForGreenery(player).find((s) => s.bonus.includes(SpaceBonus.STEEL))!;
+    const printedSteel = cell.bonus.filter((b) => b === SpaceBonus.STEEL).length;
+    const oceanMc = game.board.oceanAdjacencyBonus(player, cell).megacredits;
+    const preview = boardCellPreview(player, cell, 'greenery');
+    const law = mine(preview).filter((f) => f.id.startsWith('redux-resolution-'));
+    expect(law.length, 'one echo fact per repeated bonus pool').eq(oceanMc > 0 ? 2 : 1);
+    expect(law.every((f) => f.title === 'Development Craze' && f.description === 'Enacted resolution: the placement bonuses are paid a second time')).is.true;
+    // Steel: printed + echoed + the ruling Mars First's 1 — the preview's sum IS the commit's delta.
+    expect(sum(mine(preview), 'steel')).eq(printedSteel * 2 + 1);
+    expect(sum(mine(preview), 'megacredits')).eq(oceanMc * 2);
+    const steel = player.steel;
+    const mc = player.megaCredits;
+    place(cell);
+    expect(player.steel - steel).eq(printedSteel * 2 + 1);
+    expect(player.megaCredits - mc).eq(oceanMc * 2);
+    // Off Mars nothing is promised (the reserved areas print nothing to repeat either).
+    const reserved = game.board.spaces.find((s) => s.spaceType === SpaceType.COLONY && s.tile === undefined)!;
+    expect(boardCellPreview(player, reserved, 'city').immediateFacts.filter((f) => f.id.startsWith('redux-resolution-'))).deep.eq([]);
   });
 
   it('no Greens effect, no Greens payout: a Mars First government pays its steel per tile instead (a city draws a card too)', () => {

@@ -15,6 +15,7 @@ import type {Space} from '../../boards/Space';
 import type {Resource} from '../../../common/Resource';
 import type {EffectForecastFact, EffectForecastSource} from '../../../common/models/EffectForecastModel';
 import type {EffectForecastGrant, EffectForecastTile} from '../../cards/EffectForecastContext';
+import type {BoardFact, BoardFactDelta} from '../../../common/boards/BoardInformationFacts';
 
 /**
  * The context an enacted resolution's effect step runs in. `influence` is
@@ -102,6 +103,30 @@ export type TilePlacementBonusContext = {
 };
 
 /**
+ * What a tile passive's DOSSIER twin reads (`ResolutionPassive.placementFacts`):
+ * the cell the player points at, the placement's shape — the same flags the
+ * party facts read — and the facts the preview ALREADY states for the cell
+ * for the placing player (its printed bonuses, its ocean adjacency), so a
+ * passive that repeats or answers them promises the very numbers the commit
+ * will pay. `gain` builds a fact of the resolution: titled by its name, in
+ * the placement-effect section, described by the rule.
+ */
+export type ResolutionPlacementContext = {
+  player: IPlayer;
+  space: Space;
+  /** The cell is on Mars (never a reserved area off Mars). */
+  onMars: boolean;
+  /** A tile lands (a camp move / a marker pick places none — and runs no tile hook). */
+  placesTile: boolean;
+  /** The commit pays the cell's placement bonuses (no cover, not the World Government's phase). */
+  grantsPlacementBonus: boolean;
+  countsAsCity: boolean;
+  /** The cell's own immediate GAIN facts for the placing player, as the preview computed them. */
+  facts: ReadonlyArray<BoardFact>;
+  gain(id: string, delta: BoardFactDelta, description: string): BoardFact;
+};
+
+/**
  * A PASSIVE effect while the resolution stands enacted — the SAME hook set
  * the party effects use, run for EVERY participant (an enacted resolution is
  * everyone's law), every mutation under the resolution's own event source.
@@ -110,6 +135,14 @@ export type TilePlacementBonusContext = {
  */
 export type ResolutionPassive = {
   onTilePlaced?(player: IPlayer, space: Space, placement: TilePlacementBonusContext): void;
+  /**
+   * The DOSSIER twin of `onTilePlaced` — what the passive will pay for the
+   * cell under the cursor, stated in the placement panel BEFORE the commit
+   * (the board's own honesty law: a tile hook without it lets the dossier
+   * promise less than the commit pays). MANDATORY beside `onTilePlaced`
+   * (the contract guard).
+   */
+  placementFacts?(ctx: ResolutionPlacementContext): Array<BoardFact>;
   onTerraformRatingGained?(player: IPlayer, steps: number): void;
   onProductionChanged?(player: IPlayer, resource: Resource, delta: number): void;
   forecast(ctx: ResolutionForecastContext): Array<EffectForecastFact>;

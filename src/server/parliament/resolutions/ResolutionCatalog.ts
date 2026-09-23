@@ -302,6 +302,11 @@ const DEV_PASSIVE: ResolutionDefinition = {
       }
       player.stock.add(Resource.MEGACREDITS, 2, {log: true, from: {resolution: DEV_PASSIVE_RESOLUTION_ID}});
     },
+    placementFacts(ctx) {
+      return ctx.onMars && ctx.placesTile && ctx.grantsPlacementBonus && ctx.countsAsCity ?
+        [ctx.gain('urban-charter', {icon: 'megacredits', amount: 2, direction: 'gain'}, 'Enacted resolution: 2 M€ for a city you place on Mars')] :
+        [];
+    },
     forecast(ctx) {
       const cities = ctx.tiles.filter((tile) => !tile.offMars && tile.countsAsCity).reduce((sum, tile) => sum + tile.count, 0);
       if (cities === 0) {
