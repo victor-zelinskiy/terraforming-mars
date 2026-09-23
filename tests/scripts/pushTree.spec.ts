@@ -7,11 +7,18 @@ import {pathToFileURL} from 'url';
  * with NOTHING to commit: a temporary file had been `git add`ed and then deleted from disk, leaving an
  * `AD` index entry — in neither HEAD nor the tree. Such a PHANTOM is dropped, UNTRACKED files never
  * block (a rebase and an amend do not touch them), and every REAL change still refuses the push — by name.
+ *
+ * It got stuck a second time, the mirror image: package.json staged at an OLDER version than the tip,
+ * while HEAD and the working tree already agreed on the newer one (`MM`, net change vs HEAD: zero). A
+ * STALE index entry like that is unstaged — it has nothing to commit, and the version amend would
+ * otherwise sweep the stale blob straight into the tip. It is only recognisable with the set of paths
+ * that really differ from HEAD, so the classifier takes it; a CONFLICT is never stale.
  */
 type Entry = {code: string, path: string};
+type Verdict = {phantoms: Array<Entry>, stale: Array<Entry>, untracked: Array<Entry>, blocking: Array<Entry>};
 type TreeModule = {
   parsePorcelainZ: (raw: string) => Array<Entry>,
-  classifyTree: (entries: Array<Entry>) => {phantoms: Array<Entry>, untracked: Array<Entry>, blocking: Array<Entry>},
+  classifyTree: (entries: Array<Entry>, netChanged?: Set<string>) => Verdict,
   describeBlocking: (entries: Array<Entry>, limit?: number) => string,
 };
 
@@ -43,8 +50,35 @@ describe('npm run push — the working tree, classified', () => {
     ]);
     expect(verdict.phantoms.map((e) => e.path)).deep.eq(['tmp.spec.ts']);
     expect(verdict.untracked.map((e) => e.path)).deep.eq(['scratch.txt']);
+    expect(verdict.stale, 'without the net-change set nothing is reclassified').deep.eq([]);
     expect(verdict.blocking.map((e) => e.path), 'a staged file on disk, a tracked file deleted or edited, a conflict — all real work')
       .deep.eq(['edited.ts', 'new-and-present.ts', 'tracked-then-deleted.ts', 'deleted.ts', 'conflicted.ts']);
+  });
+
+  it('a staged change the tree has already undone is STALE — it has nothing to commit, and an amend would sweep it in', async () => {
+    const {classifyTree} = await load();
+    const verdict = classifyTree([
+      {code: 'MM', path: 'package.json'},      // staged at the old version, tree back at HEAD's
+      {code: 'MM', path: 'package-lock.json'}, // in lockstep with it, same story
+      {code: 'MM', path: 'real-work.ts'},      // staged AND actually different from HEAD
+      {code: ' M', path: 'edited-only.ts'},
+      {code: ' D', path: 'nothing-staged.ts'}, // nothing in the index to be stale ABOUT
+    ], new Set(['real-work.ts', 'edited-only.ts']));
+    expect(verdict.stale.map((e) => e.path)).deep.eq(['package.json', 'package-lock.json']);
+    expect(verdict.blocking.map((e) => e.path)).deep.eq(['real-work.ts', 'edited-only.ts', 'nothing-staged.ts']);
+  });
+
+  it('an unmerged entry BLOCKS even when the tree happens to match HEAD — the merge is still owed a resolution', async () => {
+    const {classifyTree} = await load();
+    const netChanged = new Set<string>();
+    const verdict = classifyTree([
+      {code: 'UU', path: 'both-edited.ts'},
+      {code: 'AA', path: 'both-added.ts'},
+      {code: 'DD', path: 'both-deleted.ts'},
+      {code: 'DU', path: 'deleted-by-us.ts'},
+    ], netChanged);
+    expect(verdict.stale).deep.eq([]);
+    expect(verdict.blocking).has.length(4);
   });
 
   it('the refusal NAMES the files, capped', async () => {

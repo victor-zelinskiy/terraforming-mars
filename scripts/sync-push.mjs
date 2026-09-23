@@ -4,8 +4,8 @@
 // moment; that is normal, not an incident. Everything the situation needs is done
 // here so it does not have to live in a checklist someone has to remember:
 //
-//   tree check (stale index entries dropped, untracked files ignored, real changes named
-//   and refused — scripts/pushTree.mjs) → fetch → rebase → re-derive the version against the REMOTE
+//   tree check (stale index entries dropped or unstaged, untracked files ignored, real
+//   changes named and refused — scripts/pushTree.mjs) → fetch → rebase → re-derive the version against the REMOTE
 //   → amend the tip → push, retrying when the other clone slips in first.
 //
 // The version step is the point of the whole script. The pre-commit hook decides a
@@ -42,6 +42,23 @@ function run(args, env) {
     return true;
   } catch {
     return false;
+  }
+}
+
+/**
+ * Paths whose WORKING TREE content really differs from HEAD. A tracked file git reports as
+ * dirty but that is absent from this set carries a staged edit the tree has already undone:
+ * nothing to commit, and an amend away from being committed anyway. `undefined` when git
+ * cannot say (unborn HEAD, a broken repo) — the classifier then reclassifies nothing.
+ * @returns {Set<string>|undefined}
+ */
+function netChangedPaths() {
+  try {
+    const raw = execFileSync('git', ['diff', '--name-only', '--no-renames', '-z', 'HEAD'],
+      {cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore']});
+    return new Set(raw.split('\0').filter(Boolean));
+  } catch {
+    return undefined;
   }
 }
 
@@ -104,7 +121,7 @@ try {
 } catch {
   fail('could not read the working tree status');
 }
-const tree = classifyTree(parsePorcelainZ(porcelain));
+const tree = classifyTree(parsePorcelainZ(porcelain), netChangedPaths());
 for (const phantom of tree.phantoms) {
   // Staged, then deleted from disk: in neither HEAD nor the tree. Drop the stale index entry;
   // the content stays in the object store, so name the blob it can be recovered from.
@@ -114,6 +131,18 @@ for (const phantom of tree.phantoms) {
   }
   say(`dropped a stale index entry: ${phantom.path} (staged, then deleted from disk)` +
     (blob === undefined ? '' : ` — recover with: git show ${blob} > ${phantom.path}`));
+}
+for (const stale of tree.stale) {
+  // Staged, then undone on disk: the working tree already equals HEAD, so there is nothing to
+  // commit — and staged it would NOT stay harmless, since ensureFreeVersion's amend sweeps the
+  // whole index into the tip. That is how a push got stuck on package.json: the index still held
+  // the version from before an earlier amend, with HEAD and the tree agreeing on the newer one.
+  const blob = git(['rev-parse', `:${stale.path}`]);
+  if (!run(['restore', '--staged', '--', stale.path])) {
+    fail(`could not unstage the stale index entry ${stale.path}`);
+  }
+  say(`unstaged a stale index entry: ${stale.path} (staged, then undone on disk — the tree already matches HEAD)` +
+    (blob === undefined ? '' : ` — that staged content is still at: git show ${blob}`));
 }
 if (tree.blocking.length > 0) {
   fail('working tree has uncommitted changes — commit them first (never stash: the tree may hold work that is not yours):\n' +

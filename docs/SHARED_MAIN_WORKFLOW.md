@@ -16,11 +16,21 @@ lands first. There is nothing else to remember, and no checklist to follow by ha
 
 The tree check (`scripts/pushTree.mjs`, spec `tests/scripts/pushTree.spec.ts`) refuses
 only REAL uncommitted work — a modified, staged, deleted or conflicted tracked file — and
-names each one. Two things are not work and never block: an untracked file (a rebase and
-an amend never touch it) and a PHANTOM index entry (`AD` — a file `git add`ed and then
-deleted from disk, present in neither HEAD nor the tree), which the script drops itself,
-printing the blob id to recover it from. The latter once stopped a push with nothing to
-commit: a temporary spec had been staged and removed.
+names each one. Three things are not work and never block:
+
+- an **untracked** file — a rebase and an amend never touch it;
+- a **PHANTOM** index entry (`AD` — a file `git add`ed and then deleted from disk, present
+  in neither HEAD nor the tree), which the script drops itself. It once stopped a push with
+  nothing to commit: a temporary spec had been staged and removed;
+- a **STALE** index entry — something is staged, but the working tree already matches HEAD,
+  so the net change is zero. The script unstages it. This is what `package.json` kept doing:
+  the index held the version from before an earlier `commit --amend`, while HEAD and the tree
+  agreed on the newer one (`MM package.json` / `MM package-lock.json`, nothing to commit).
+  Leaving it staged was not merely noise — `ensureFreeVersion`'s amend sweeps the **whole
+  index** into the tip, so the push would have committed a silent version downgrade.
+
+Both auto-fixed entries print the blob id their staged content survives at, so nothing is
+lost; and a conflict is never auto-fixed, tree or no tree.
 
 Setup is automatic: `npm install` runs `prepare` → `scripts/setup-hooks.mjs`, which
 points git at `.githooks/` and sets `pull.rebase true`. A hook committed here is live
