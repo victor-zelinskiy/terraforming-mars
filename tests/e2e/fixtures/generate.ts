@@ -70,6 +70,7 @@ import {Predators} from '../../../src/server/cards/base/Predators';
 import {SmallAnimals} from '../../../src/server/cards/base/SmallAnimals';
 import {AQUIFER_CONTEST_ID} from '../../../src/server/parliament/resolutions/greens/AquiferContest';
 import {ARCHITECTURE_AWARD_ID} from '../../../src/server/parliament/resolutions/marsFirst/ArchitectureAward';
+import {DEVELOPMENT_CRAZE_ID} from '../../../src/server/parliament/resolutions/marsFirst/DevelopmentCraze';
 import {CENTRAL_POWER_GRID_ID} from '../../../src/server/parliament/resolutions/industrialists/CentralPowerGrid';
 import {resolutionCount} from '../../../src/server/parliament/resolutions/ResolutionCounts';
 import {SelectSpace} from '../../../src/server/inputs/SelectSpace';
@@ -1028,6 +1029,32 @@ const colonyContestTable = (stopAt: ParliamentStop): ParliamentFixtureSpec => ({
   },
 });
 parliamentFixture('parliament-colony-assembly', colonyContestTable('assembly'));
+
+// ── RX10 · DEVELOPMENT CRAZE (Mars First) — the first LIVE PASSIVE, ENACTED: the sitting is over, red (the seat
+//    that opens generation 2 — the seat the loader opens) won it with the free delegate and holds 30 M€, enough for a
+//    standard-project GREENERY on a cell with a printed bonus: the placement's bonuses are paid TWICE (the second
+//    wave, the law's card, its inspector). A greenery, not a city — a city would also complete the card's own chairman
+//    quest and draw Mars First's card. Blue at Agenda step 1, red at step 2 (a steel each at the enactment). ──
+parliamentFixture('parliament-craze-enacted', {
+  resolution: DEVELOPMENT_CRAZE_ID,
+  votes: [1],
+  agenda: [1, 2],
+  stopAt: 'done',
+  expect: (table) => {
+    const {game, p2, parliament} = table;
+    if (parliament.enacted !== resolutionInstanceId(DEVELOPMENT_CRAZE_ID, 0)) {
+      throw new Error(`the parliament-craze-enacted fixture expected Development Craze enacted, got ${parliament.enacted}`);
+    }
+    if (p2.megaCredits < 23) {
+      throw new Error(`the parliament-craze-enacted fixture expected red to afford a standard greenery, has ${p2.megaCredits} M€`);
+    }
+    const cell = game.board.getAvailableSpacesForGreenery(p2).find((s) => s.bonus.length > 0 && !game.board.getAdjacentSpaces(s).some((a) => a.tile !== undefined));
+    if (cell === undefined) {
+      throw new Error('the parliament-craze-enacted fixture expected a free greenery cell with a printed bonus and no tiled neighbour');
+    }
+    expectViewerOpensGeneration(table, p2, 'parliament-craze-enacted');
+  },
+});
 
 // ── RX03 · BIODOME CONTEST — a 2-seat table with the card alone in the first
 //    voting slot and blue's free delegate on it: blue at Agenda step 2
