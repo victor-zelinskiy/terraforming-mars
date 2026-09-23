@@ -717,5 +717,15 @@
   "lowered ${0} step(s)": "понижение на ${0} шаг(а)",
   "raised ${0} step(s)": "повышение на ${0} шаг(а)",
   "at its limit — no step": "на пределе: без шага",
-  "at its maximum — no step": "на максимуме: без шага"
+  "at its maximum — no step": "на максимуме: без шага",
+  "Every player gains 2 M€ per point of their influence and 2 M€ for each complete set of 5 TR they have over 15.": "Каждый игрок получает 2 M€ за каждое очко своего влияния и 2 M€ за каждый полный набор из 5 РТ сверх 15.",
+  "Raise your TR 3 steps": "Повысьте свой РТ на 3",
+  "over 15": "сверх 15",
+  "No TR sets and no influence": "Нет наборов РТ и нет влияния",
+  "${0} has no complete set of 5 TR over 15 (TR ${1}) and no influence — no M€ from ${2}": "${0}: нет полного набора из 5 РТ сверх 15 (РТ ${1}) и нет влияния — ${2} не даёт M€",
+  "${0} gained ${1} M€ from ${2}: ${3} set(s) of 5 TR over 15 (TR ${4}) × 2 + ${5} influence × 2 (${6} → ${7})": "${0} получает ${1} M€ — ${2}: ${3} {набор|набора|наборов} по 5 РТ сверх 15 (РТ ${4}) × 2 + влияние ${5} × 2 (${6} → ${7})",
+  "Counted by your terraform rating, not among cards": "Считается по вашему РТ, а не среди карт",
+  "Counted by your terraform rating, not on the board": "Считается по вашему РТ, а не на поле",
+  "${0} complete set(s) of 5 TR over 15": "${0} {полный набор|полных набора|полных наборов} по 5 РТ сверх 15",
+  "Only complete sets of 5 TR above 15 count: TR 20 is one set, TR 24 still one, TR 25 two. The remainder pays nothing; the threshold is the card's, whatever rating the game started at.": "Считаются только полные наборы по 5 РТ сверх 15: РТ 20 — один набор, РТ 24 — всё ещё один, РТ 25 — два. Остаток ничего не платит; порог принадлежит карте, с какого бы РТ ни началась партия."
 }

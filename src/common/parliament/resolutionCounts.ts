@@ -14,7 +14,7 @@
  * (or, off the table, this predicate), and every reading keeps the LIST of
  * counted cards so the number can always be explained.
  *
- * THREE KINDS OF COUNT, told apart by `resolutionCountKind` because the
+ * FOUR KINDS OF COUNT, told apart by `resolutionCountKind` because the
  * objects answer them differently:
  *   · CARDS — «for every Building card with a VP icon»: one card is ONE unit,
  *     however many tags or victory points it prints (Architecture Award);
@@ -30,7 +30,18 @@
  *     cell predicate here (`spaceCountVerdict`) is the stand's, pinned to the
  *     engine by spec. The next board count (Migration Funding's «city on
  *     Mars») is one more `BoardCountedTile` and one more branch, never a kind
- *     of its own.
+ *     of its own;
+ *   · THRESHOLD — «for each complete set of 5 TR over 15» (Generous Funding):
+ *     the count is not a number of THINGS but a number of FULL STEPS one
+ *     player METRIC stands above a threshold — `⌊max(0, value − over) / step⌋`.
+ *     There is no list to explain it with; what explains the number is the
+ *     BREAKDOWN of the value (`ResolutionCountModel.metric`: the value, the
+ *     threshold, the step, the full sets and the distance to the next one).
+ *     ONE function (`thresholdSets`) is the rule — the server's payout, the
+ *     reading and the stand all call it; the value itself is THE ENGINE's
+ *     (`player.terraformRating`), never rebuilt from its parts. The next
+ *     metric (the Budgets' production steps) is one more `ResolutionCountMetric`
+ *     and one more line in the server's reader.
  *
  * WHAT A CARD IS, for a count: its name, type, printed tags and VP
  * declaration — the facts `ICard` and `ClientCard` share. Played-event tags
@@ -68,6 +79,13 @@ export const RESOLUTION_COUNT_IDS = [
    * tableau: the Moon's tiles and a city on Mars are not space cities.
    */
   'spaceCities',
+  /**
+   * Generous Funding: the player's complete SETS of 5 terraform rating over
+   * 15 — a count over one player METRIC, by threshold and step (TR 15 → 0,
+   * 20 → 1, 24 → 1, 25 → 2, 30 → 3). The threshold is the CARD's constant,
+   * never the variant's starting rating.
+   */
+  'terraformRatingSets',
 ] as const;
 export type ResolutionCountId = typeof RESOLUTION_COUNT_IDS[number];
 
@@ -102,6 +120,14 @@ export type ResolutionCountTerm = {
 export type BoardCountedTile = 'spaceCity';
 
 /**
+ * WHICH player METRIC a THRESHOLD count reads: `terraformRating` — the
+ * player's TR as the engine keeps it (`player.terraformRating`). The family's
+ * next word (the Budgets' «steps of production») is one entry here and one
+ * line in the server's reader (`ResolutionCounts.metricValue`).
+ */
+export type ResolutionCountMetric = 'terraformRating';
+
+/**
  * WHAT a count id counts. `cards` — one unit per qualifying card; `tags` — the
  * printed occurrences of the listed tags, ADDED UP (the canonical tag count of
  * each, read in `RESOLUTION_TAG_COUNTING_MODE`). One tag is the ordinary case
@@ -109,12 +135,20 @@ export type BoardCountedTile = 'spaceCity';
  * Venus and Jovian tag») is the SAME kind with a longer list — a card
  * printing two of the listed tags is worth 2, whichever two they are.
  * `board` — the player's TILES of the named kind on the Mars board, one unit
- * per cell (Colonization Funding's space cities).
+ * per cell (Colonization Funding's space cities). `threshold` — the FULL
+ * STEPS of `step` a player metric stands above `over` (Generous Funding's
+ * «each complete set of 5 TR over 15»): one unit per full set, the remainder
+ * yields nothing.
  */
 export type ResolutionCountKind =
   | {kind: 'cards'}
   | {kind: 'tags', tags: ReadonlyArray<Tag>}
-  | {kind: 'board', tiles: BoardCountedTile};
+  | {kind: 'board', tiles: BoardCountedTile}
+  | {kind: 'threshold', metric: ResolutionCountMetric, over: number, step: number};
+
+/** Generous Funding's printed «5 TR over 15» — the threshold and the set. */
+export const TERRAFORM_RATING_SETS_OVER = 15;
+export const TERRAFORM_RATING_SETS_STEP = 5;
 
 export function resolutionCountKind(id: ResolutionCountId): ResolutionCountKind {
   switch (id) {
@@ -122,7 +156,53 @@ export function resolutionCountKind(id: ResolutionCountId): ResolutionCountKind 
   case 'powerTags': return {kind: 'tags', tags: [Tag.POWER]};
   case 'venusJovianTags': return {kind: 'tags', tags: [Tag.VENUS, Tag.JOVIAN]};
   case 'spaceCities': return {kind: 'board', tiles: 'spaceCity'};
+  case 'terraformRatingSets': return {kind: 'threshold', metric: 'terraformRating', over: TERRAFORM_RATING_SETS_OVER, step: TERRAFORM_RATING_SETS_STEP};
   }
+}
+
+/**
+ * THE ONE RULE of a threshold count: how many FULL steps of `step` `value`
+ * stands above `over` — `⌊max(0, value − over) / step⌋`. TR 15 → 0, 19 → 0,
+ * 20 → 1, 24 → 1, 25 → 2, 30 → 3. The server's payout, the client's reading
+ * and the stand's synthetic seats all divide HERE; nothing restates it.
+ */
+export function thresholdSets(value: number, over: number, step: number): number {
+  const size = Math.max(1, Math.floor(step));
+  return Math.floor(Math.max(0, Math.floor(value) - over) / size);
+}
+
+/**
+ * THE BREAKDOWN of a threshold count — what explains the number where no list
+ * can: the metric read, its value, the threshold, the step, the full sets it
+ * came to, and how far the value is from the NEXT full set («TR 24 · over 15 ·
+ * 1 full set · 1 to the next»). Frozen in the record at the enactment like a
+ * counted list; never recomputed from a later rating.
+ */
+export type ResolutionCountMetricModel = {
+  metric: ResolutionCountMetric;
+  value: number;
+  over: number;
+  step: number;
+  /** `thresholdSets(value, over, step)` — the same number as the model's `count`. */
+  sets: number;
+  /** How much more of the metric would complete one more set (always ≥ 1). */
+  toNext: number;
+};
+
+/**
+ * Count one player METRIC toward a threshold count `id` — the reading the
+ * server makes of the engine's value and the stand makes of a synthetic one.
+ * A non-threshold id counts nothing this way (the model says so with a zero,
+ * never a guess).
+ */
+export function countMetricToward(id: ResolutionCountId, value: number): ResolutionCountModel {
+  const kind = resolutionCountKind(id);
+  if (kind.kind !== 'threshold') {
+    return {id, count: 0, cards: []};
+  }
+  const sets = thresholdSets(value, kind.over, kind.step);
+  const toNext = kind.over + (sets + 1) * kind.step - Math.floor(value);
+  return {id, count: sets, cards: [], metric: {metric: kind.metric, value, over: kind.over, step: kind.step, sets, toNext}};
 }
 
 /** ONE tag's share of a multi-tag count («Venus 1 · Jovian 2»). */
@@ -156,6 +236,13 @@ export type ResolutionCountModel = {
    * count only (empty when nothing counted); absent on a card or tag count.
    */
   spaces?: ReadonlyArray<SpaceId>;
+  /**
+   * A THRESHOLD count: the breakdown of the metric that made it — the value,
+   * the threshold, the step, the full sets and the distance to the next one.
+   * There is no list on this kind (`cards` is empty, `spaces` absent); present
+   * on a threshold count only.
+   */
+  metric?: ResolutionCountMetricModel;
 };
 
 /** The cell facts a BOARD count reads (satisfied by the server's `Space` and by the stand's synthetic cells). */
@@ -178,6 +265,9 @@ export type SpaceCountVerdict = {counts: true} | {counts: false, reason: string}
 
 export function spaceCountVerdict(id: ResolutionCountId, space: CountedSpaceFacts): SpaceCountVerdict {
   const kind = resolutionCountKind(id);
+  if (kind.kind === 'threshold') {
+    return {counts: false, reason: 'Counted by your terraform rating, not on the board'};
+  }
   if (kind.kind !== 'board') {
     return {counts: false, reason: 'Counted among cards, not on the board'};
   }
@@ -280,6 +370,9 @@ export function cardCountVerdict(id: ResolutionCountId, card: CountedCardFacts, 
   case 'spaceCities':
     // A BOARD count: no card counts — the tiles do (`spaceCountVerdict`).
     return {counts: false, reason: 'Counted on the board, not among cards'};
+  case 'terraformRatingSets':
+    // A THRESHOLD count: no card counts — the player's rating does (`countMetricToward`).
+    return {counts: false, reason: 'Counted by your terraform rating, not among cards'};
   }
 }
 

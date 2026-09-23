@@ -6,7 +6,7 @@ import {CardResource} from '../CardResource';
 import {ColonyName} from '../colonies/ColonyName';
 import {ColonyTradeGrantModel} from './ColonyTradeManifestModel';
 import {Resource} from '../Resource';
-import {ResolutionCountModel} from '../parliament/resolutionCounts';
+import {ResolutionCountMetricModel, ResolutionCountModel} from '../parliament/resolutionCounts';
 import {ParameterMoveId} from '../parliament/parameterMove';
 import {PartyName} from '../turmoil/PartyName';
 import {Message} from '../logs/Message';
@@ -235,6 +235,8 @@ export type ParliamentEnactOutcomeModel = {
   countedByTag?: ReadonlyArray<{tag: Tag; count: number}>;
   /** A BOARD count: the CELLS counted at the enactment (a tile has no card — `counted` is empty, this list explains the number). */
   countedSpaces?: ReadonlyArray<SpaceId>;
+  /** A THRESHOLD count: the BREAKDOWN of the metric at the enactment (no list — the value, the threshold, the step and the sets explain the number). */
+  countedMetric?: ResolutionCountMetricModel;
   /** The formula's sum before the cap (above `amount` exactly when the cap bit). */
   uncapped?: number;
   /** `production` / `stock`: the value before and after. */

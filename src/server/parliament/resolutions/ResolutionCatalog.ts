@@ -41,6 +41,7 @@ import {COLONY_CONTEST} from './unity/ColonyContest';
 import {DEVELOPMENT_CRAZE} from './marsFirst/DevelopmentCraze';
 import {FORESTRY_SUPPORT} from './greens/ForestrySupport';
 import {GAS_EXPORT} from './reds/GasExport';
+import {GENEROUS_FUNDING} from './greens/GenerousFunding';
 
 /**
  * THE RETIRED IDS — iteration 0's DUMMY resolutions (a party, a quest, no
@@ -468,6 +469,8 @@ export const REDUX_RESOLUTION_CATALOG = new ResolutionCatalog([
   // The first law that changes THE WORLD instead of paying the table (`worldSteps` / `worldMoves`):
   // oxygen down, Venus up, and nobody is credited for either. Venus Next only.
   GAS_EXPORT,
+  // A count over ONE PLAYER METRIC by threshold and step (sets of 5 TR over 15), not over things.
+  GENEROUS_FUNDING,
   TEST_CHOICE,
   DEV_IMMEDIATE,
   DEV_PASSIVE,

@@ -387,6 +387,9 @@ describe('ColonyContest', () => {
       game.playerHasPassed(human);
       game.playerIsFinishedTakingActions();
       runAllActions(game);
+      // The bot's OWN turn (its seeded action deck) may well settle a colony of its own before the sitting — that is
+      // the bot's play, not the parliament's gift. The sitting must add exactly the human's cube on top of it.
+      const beforeSitting = [...colonyOf(game, ColonyName.LUNA).colonies];
       settleParliamentGates(game);
       const pick = cast(human.getWaitingFor(), SelectColony);
       expect(offerOf(pick).offered).deep.eq([ColonyName.LUNA]);
@@ -395,7 +398,7 @@ describe('ColonyContest', () => {
       settleParliamentGates(game);
       expect(parliament.phase).is.undefined;
       expect(parliament.lastPhase?.outcomes?.map((o) => o.player), 'every record is the human\'s').deep.eq([human.id, human.id]);
-      expect(colonyOf(game, ColonyName.LUNA).colonies).deep.eq([human.id]);
+      expect(colonyOf(game, ColonyName.LUNA).colonies).deep.eq([...beforeSitting, human.id]);
       expect(bot.titanium).eq(0);
       expect(getParliamentModel(game, human)?.players.find((p) => p.color === bot.color)?.participates, 'the bot takes no part').is.false;
     });

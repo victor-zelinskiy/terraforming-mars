@@ -648,9 +648,9 @@ describe('CentralPowerGrid', () => {
       const counts = model?.players.find((p) => p.color === p1.color)?.counts;
       expect(counts?.find((c) => c.id === 'powerTags')).deep.eq(
         {id: 'powerTags', count: 3, cards: [CardName.HE3_FUSION_PLANT, CardName.POWER_PLANT], units: [2, 1]});
-      // Every counted term of the catalog rides along — one model, every rule (Cloud Development's two-tag term and
-      // Colonization Funding's board count included).
-      expect(counts?.map((c) => c.id)).deep.eq(['buildingCardsWithNonNegativeVp', 'powerTags', 'venusJovianTags', 'spaceCities']);
+      // Every counted term of the catalog rides along — one model, every rule (Cloud Development's two-tag term,
+      // Colonization Funding's board count and Generous Funding's threshold count included).
+      expect(counts?.map((c) => c.id)).deep.eq(['buildingCardsWithNonNegativeVp', 'powerTags', 'venusJovianTags', 'spaceCities', 'terraformRatingSets']);
       expect(model?.players.find((p) => p.color === p2.color)?.counts?.find((c) => c.id === 'powerTags')).deep.eq(
         {id: 'powerTags', count: 0, cards: [], units: []});
       endGeneration(game);

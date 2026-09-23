@@ -8,6 +8,7 @@ import {ColonyName} from '../../common/colonies/ColonyName';
 import {Resource} from '../../common/Resource';
 import {BotParliamentMode, ParliamentPhaseStep, QuestDefinition, ResolutionInstanceId} from '../../common/parliament/ParliamentTypes';
 import {ParameterMoveId} from '../../common/parliament/parameterMove';
+import {ResolutionCountMetricModel} from '../../common/parliament/resolutionCounts';
 import type {EventTrigger} from '../../common/events/GameEvent';
 
 /** Bump when the shape changes incompatibly; older saves are refused explicitly. */
@@ -142,6 +143,13 @@ export type SerializedEnactOutcome = {
    * explains the number. Frozen here, never re-read from a later board.
    */
   countedSpaces?: Array<SpaceId>;
+  /**
+   * A THRESHOLD count (Generous Funding's sets of 5 TR over 15): the
+   * BREAKDOWN of the metric at the enactment — there is no list, so the value,
+   * the threshold, the step and the sets explain the number. Frozen here,
+   * never re-read from a later rating.
+   */
+  countedMetric?: ResolutionCountMetricModel;
   /** The formula's sum before the cap (above `amount` exactly when the cap bit). */
   uncapped?: number;
   /** `production` / `stock`: the value before and after the change. */

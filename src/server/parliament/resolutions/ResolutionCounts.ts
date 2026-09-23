@@ -28,11 +28,17 @@
  * The shared cell predicate (`spaceCountVerdict`) exists for the stand's
  * synthetic cells and is pinned to this reading by
  * `tests/parliament/ColonizationFunding.spec.ts`.
+ *
+ * A THRESHOLD count (Generous Funding's sets of 5 TR over 15) walks nothing:
+ * it reads ONE player metric off the engine (`player.terraformRating` — never
+ * rebuilt from its parts) and divides it by the shared rule
+ * (`countMetricToward` → `thresholdSets`), keeping the breakdown that
+ * explains the number where no list can.
  */
 import {CardName} from '../../../common/cards/CardName';
 import {
-  BoardCountedTile, cardCountUnits, countCardsToward, ResolutionCountId, ResolutionCountModel, resolutionCountKind,
-  RESOLUTION_COUNT_IDS, RESOLUTION_TAG_COUNTING_MODE,
+  BoardCountedTile, cardCountUnits, countCardsToward, countMetricToward, ResolutionCountId, ResolutionCountMetric, ResolutionCountModel,
+  resolutionCountKind, RESOLUTION_COUNT_IDS, RESOLUTION_TAG_COUNTING_MODE,
 } from '../../../common/parliament/resolutionCounts';
 import {Resource} from '../../../common/Resource';
 import {IPlayer} from '../../IPlayer';
@@ -51,9 +57,20 @@ function boardCountSpaces(player: IPlayer, tiles: BoardCountedTile): ReadonlyArr
   }
 }
 
-/** `player`'s count for `id`, with what made it: the cards (in play order), or the cells of a board count. */
+/** THE ENGINE'S OWN VALUE of a player metric — the number a threshold count divides (never rebuilt from its parts). */
+function metricValue(player: IPlayer, metric: ResolutionCountMetric): number {
+  switch (metric) {
+  case 'terraformRating': return player.terraformRating;
+  }
+}
+
+/** `player`'s count for `id`, with what made it: the cards (in play order), the cells of a board count, or the breakdown of a metric. */
 export function resolutionCount(player: IPlayer, id: ResolutionCountId): ResolutionCountModel {
   const kind = resolutionCountKind(id);
+  if (kind.kind === 'threshold') {
+    // ONE metric, THE shared division — the breakdown rides the model.
+    return countMetricToward(id, metricValue(player, kind.metric));
+  }
   if (kind.kind === 'board') {
     // THE CANONICAL NUMBER AND ITS CELLS, from the engine — never a walk of
     // this module's own over the board.

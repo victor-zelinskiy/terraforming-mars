@@ -22,7 +22,7 @@ import {Tag} from '@/common/cards/Tag';
 import {Resource} from '@/common/Resource';
 import {TileType} from '@/common/TileType';
 import {Color} from '@/common/Color';
-import {BoardCountedTile} from '@/common/parliament/resolutionCounts';
+import {BoardCountedTile, ResolutionCountMetric} from '@/common/parliament/resolutionCounts';
 
 export type MechIconSpec =
   | {kind: 'img', url: string, mod?: string}
@@ -77,14 +77,28 @@ export function tagIconUrl(tag: Tag): string {
  * SEVERAL printed tags added up («per Venus and Jovian tag» — the medallions
  * joined by the face's own «+», exactly as the card prints them), or a TILE
  * («per space city» — the city pictogram with the footnote spark, the very
- * drawing the face and the chairman quest print for one).
+ * drawing the face and the chairman quest print for one), or a player METRIC
+ * («per complete set of 5 TR over 15» — the rating badge the face prints for
+ * `b.tr()`, alone: the threshold and the step are the reading's words).
  * The rules that USE it are the parliament's (`influenceYieldModel`).
  */
 export type CountedObjectGlyph =
   | {kind: 'vp-card', tag: Tag}
   | {kind: 'tag', tag: Tag}
   | {kind: 'tags', tags: ReadonlyArray<Tag>}
-  | {kind: 'tile', tile: BoardCountedTile};
+  | {kind: 'tile', tile: BoardCountedTile}
+  | {kind: 'metric', metric: ResolutionCountMetric};
+
+/**
+ * The badge of a counted METRIC — the SAME asset the face's mechanics print
+ * for the render item (`b.tr()` → `CardRenderItemType.TR`), so the glyph of a
+ * reading and the graphic of the card can never draw two different ratings.
+ */
+export function countedMetricIconUrl(metric: ResolutionCountMetric): string {
+  switch (metric) {
+  case 'terraformRating': return `${RES}/tr.png`;
+  }
+}
 
 /**
  * The pictogram of a counted TILE — the SAME asset the face's mechanics print

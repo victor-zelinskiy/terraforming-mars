@@ -16,6 +16,9 @@ import {WorldParameterMove} from '@/common/parliament/parameterMove';
  *   counted-tags  — a COUNT of tags + influence (Central Power Grid);
  *   counted-board — a COUNT of the player's TILES on the board + influence (Colonization Funding's
  *                   space cities) — the instrument is a set of CELLS, not a tableau;
+ *   counted-metric — a COUNT of the full STEPS one player METRIC stands above a threshold + influence
+ *                   (Generous Funding's sets of 5 TR over 15) — the instrument is a single VALUE, and
+ *                   the scenarios are its thresholds (below, at, just over, a set short, several sets);
  *   distributed   — a card-resource payout LAID OUT over the player's holders, 0..N per card
  *                   (Cloud Development: floaters by Venus + Jovian tags + influence) — the count
  *                   is a term of it, the SPREAD is what the player works with;
@@ -26,7 +29,9 @@ import {WorldParameterMove} from '@/common/parliament/parameterMove';
  *   world-move    — the enactment moves the PLANET (Gas Export: oxygen −1, Venus +2, no TR for anybody) —
  *                   the instrument is the GLOBAL PARAMETERS, and the scenarios are their limits.
  */
-export const RESOLUTION_FAMILIES = ['influence', 'counted', 'counted-tags', 'counted-board', 'distributed', 'winner-tile', 'sequel', 'colony-bonuses', 'world-move'] as const;
+export const RESOLUTION_FAMILIES = [
+  'influence', 'counted', 'counted-tags', 'counted-board', 'counted-metric', 'distributed', 'winner-tile', 'sequel', 'colony-bonuses', 'world-move',
+] as const;
 export type ResolutionFamily = typeof RESOLUTION_FAMILIES[number];
 
 /** The declaration facts the family reads — what the server definition and the client manifest share. */
@@ -82,6 +87,7 @@ export function familyOf(facts: ResolutionFamilyFacts): ResolutionFamily {
     switch (resolutionCountKind(count.id).kind) {
     case 'tags': return 'counted-tags';
     case 'board': return 'counted-board';
+    case 'threshold': return 'counted-metric';
     case 'cards': return 'counted';
     }
   }

@@ -106,6 +106,14 @@ export function yieldCountPresentation(id: ResolutionCountId): YieldCountPresent
       ruleKey: 'A city tile on a reserved area off Mars counts — Ganymede Colony, Phobos Space Haven, Stanford Torus and the like. A city on Mars and the Moon\'s tiles do not count.',
       skipReasonKey: 'No space cities and no influence',
     };
+  case 'terraformRatingSets':
+    // A count over ONE player METRIC: the glyph is the rating badge the face prints — the threshold and the step are words.
+    return {
+      glyph: {kind: 'metric', metric: 'terraformRating'},
+      pluralKey: '${0} complete set(s) of 5 TR over 15',
+      ruleKey: 'Only complete sets of 5 TR above 15 count: TR 20 is one set, TR 24 still one, TR 25 two. The remainder pays nothing; the threshold is the card\'s, whatever rating the game started at.',
+      skipReasonKey: 'No TR sets and no influence',
+    };
   }
 }
 

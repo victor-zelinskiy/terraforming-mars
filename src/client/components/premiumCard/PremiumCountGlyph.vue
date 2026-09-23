@@ -18,12 +18,21 @@
         the physical card's «*» — a city on a reserved area OFF Mars). The
         same asset the mechanics print for `b.city()` and the same spark, so
         the reading cannot draw a different city than the card; a bare city
-        would read «every city you have», a card a fifth rule.
+        would read «every city you have», a card a fifth rule;
+      · `metric`  — «per complete SET of 5 TR over 15» (Generous Funding): the
+        rating badge the mechanics print for `b.tr()`, alone. The threshold
+        and the step are not drawn here (the face prints «5» inside the badge
+        and «over 15» under it; a reading prints the breakdown in words) — a
+        card would state a sixth rule, a number inside the badge would collide
+        with the value standing next to the glyph.
 
     All sit in the SAME square per medallion (`--pvpcard-size`), so a formula
     row, a reading and the Polygon keep one rhythm whichever object they count.
   -->
   <PremiumVpCardGlyph v-if="glyph.kind === 'vp-card'" :tag="glyph.tag" />
+  <span v-else-if="glyph.kind === 'metric'" class="pcglyph pcglyph--metric" :data-count-metric="glyph.metric" aria-hidden="true">
+    <span class="pcglyph__metric" :style="{backgroundImage: `url(${metricUrlOf(glyph.metric)})`}"></span>
+  </span>
   <span v-else-if="glyph.kind === 'tags'" class="pcglyph pcglyph--tags" :data-count-tags="glyph.tags.join(' ')" aria-hidden="true">
     <template v-for="(tag, i) in glyph.tags" :key="tag">
       <span v-if="i > 0" class="pcglyph__plus">+</span>
@@ -42,9 +51,9 @@
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
 import {Tag} from '@/common/cards/Tag';
-import {BoardCountedTile} from '@/common/parliament/resolutionCounts';
+import {BoardCountedTile, ResolutionCountMetric} from '@/common/parliament/resolutionCounts';
 import PremiumVpCardGlyph from './PremiumVpCardGlyph.vue';
-import {CountedObjectGlyph, countedTileIconUrl, tagIconUrl} from './premiumCardIcons';
+import {CountedObjectGlyph, countedMetricIconUrl, countedTileIconUrl, tagIconUrl} from './premiumCardIcons';
 
 export default defineComponent({
   name: 'PremiumCountGlyph',
@@ -58,6 +67,9 @@ export default defineComponent({
     },
     tileUrlOf(tile: BoardCountedTile): string {
       return countedTileIconUrl(tile);
+    },
+    metricUrlOf(metric: ResolutionCountMetric): string {
+      return countedMetricIconUrl(metric);
     },
   },
 });

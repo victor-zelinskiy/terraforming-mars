@@ -1459,6 +1459,23 @@
     align-self: auto;
   }
 }
+/* A PLAYER METRIC as a counted object («per complete set of 5 TR over 15» —
+   Generous Funding): the rating badge the mechanics print for `b.tr()`, in the
+   same square, nothing docked to it — the threshold and the step are words of
+   the reading, never a second drawing. */
+.pcglyph--metric {
+  .pcglyph__metric {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 94%;
+    height: 94%;
+    transform: translate(-50%, -50%);
+    background-size: contain;
+    background-position: center;
+    background-repeat: no-repeat;
+  }
+}
 
 /* secondary tag bubble (top-right) */
 .pcard-mi__bubble {
