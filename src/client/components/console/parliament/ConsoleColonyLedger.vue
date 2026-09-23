@@ -69,7 +69,7 @@
           <template v-if="row.bonus.kind === 'draw-discard' || (row.bonus.kind === 'hud' && row.bonus.resource === undefined)">
             <span class="con-cledger__eq" aria-hidden="true">=</span>
             <b class="con-cledger__num con-cledger__num--sum">{{ row.total }}</b>
-            <span class="con-cledger__times-word">{{ $t(timesKey) }}</span>
+            <span class="con-cledger__times-word">{{ timesWord(row.total) }}</span>
           </template>
           <template v-else>
             <span class="con-cledger__eq" aria-hidden="true">=</span>
@@ -77,9 +77,15 @@
             <i class="con-cledger__unit" :class="unitClass(row.bonus)" aria-hidden="true"></i>
           </template>
         </span>
-        <!-- THE STATE — only once the payout has run: the skip's reason, or the receipt. -->
-        <span v-if="rowState(row) === 'skipped'" class="con-cledger__state con-cledger__state--skipped" data-colony-row-reason>✕ {{ $t(row.skipped ?? 'Skipped') }}</span>
-        <span v-else-if="rowState(row) === 'received'" class="con-cledger__state con-cledger__state--received">✓ {{ $t('Received') }}</span>
+        <!-- THE STATE — only once the payout has run: the skip's reason, or the receipt. The cell is ALWAYS in the
+             row (empty while pending): the row is `display: contents` in a six-column grid, and a row one cell
+             short shifts every row after it by one cell (measured: «Миранда» printed at the end of Titan's line). -->
+        <span class="con-cledger__state"
+              :class="{'con-cledger__state--skipped': rowState(row) === 'skipped', 'con-cledger__state--received': rowState(row) === 'received'}"
+              :data-colony-row-reason="rowState(row) === 'skipped' ? '' : undefined">
+          <template v-if="rowState(row) === 'skipped'">✕ {{ $t(row.skipped ?? 'Skipped') }}</template>
+          <template v-else-if="rowState(row) === 'received'">✓ {{ $t('Received') }}</template>
+        </span>
       </div>
     </div>
     <!-- THE SUMS BY UNIT — what the ledger comes to (a skipped row adds nothing). -->
@@ -101,6 +107,9 @@ import {ColonyLedgerBonus, ColonyLedgerRow} from '@/common/parliament/colonyLedg
 import {COLONY_LEDGER_EMPTY, COLONY_LEDGER_TOTAL, ColonyLedgerReading} from '@/client/console/parliament/colonyLedgerModel';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {cardResourceKey} from '@/client/console/resourceTransfer/resourceTransferModel';
+import {translateText} from '@/client/directives/i18n';
+import {resolvePluralGroups} from '@/client/i18n/pluralForms';
+import {getPreferences} from '@/client/utils/PreferencesManager';
 
 type Sum = {key: string, text: string, unit: string, word?: string};
 
@@ -159,6 +168,10 @@ export default defineComponent({
   methods: {
     signed(amount: number): string {
       return amount > 0 ? `+${amount}` : String(amount);
+    },
+    /** «раз / раза / раз» for the row's count — the plural group of the key, resolved by the number printed beside it. */
+    timesWord(n: number): string {
+      return resolvePluralGroups(translateText(this.timesKey), getPreferences().lang, n);
     },
     /** The state the row reads in: a recorded skip, a landed payout, else pending. */
     rowState(row: ColonyLedgerRow): 'pending' | 'received' | 'skipped' {

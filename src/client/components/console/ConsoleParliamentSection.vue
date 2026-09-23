@@ -254,6 +254,14 @@ export default defineComponent({
        * effect. Cleared by the entrance's own end, which re-queues the walk.
        */
       fieldSettling: false,
+      /**
+       * THE LEDGER CAME BACK after a hosted step (Colonial Affairs): its rows now read what the step paid, and
+       * that reading is OWED a beat before the walk may leave the page — a ledger that flashes «получено» for one
+       * frame and turns into the renewal has not been read. Cleared by the read beat the walk plays for it.
+       */
+      ledgerReadOwed: false,
+      /** The step door as last PUBLISHED (post-flush) — what a pre-flush watcher may still read as «a step was open». */
+      stepOpenMirror: false,
       /** THE WALK is running (the director turning the sitting's pages) — a step that arrives meanwhile is picked up by its loop. */
       walking: false,
       /** A walk is queued for the next probe tick (idempotent). */
@@ -722,8 +730,14 @@ export default defineComponent({
      */
     'sittingStepOpen': {
       flush: 'post',
-      handler(on: boolean): void {
+      handler(on: boolean, was: boolean): void {
         this.publishStepDoor(on);
+        this.stepOpenMirror = on;
+        // The step left and the LEDGER returns under it: its updated rows are read for a beat before the walk goes on.
+        if (!on && was && this.sittingStage === 'reward' && this.sittingLedger !== undefined) {
+          this.ledgerReadOwed = true;
+          this.queueWalk();
+        }
       },
     },
     sceneHandedOver(on: boolean): void {
@@ -816,6 +830,7 @@ export default defineComponent({
     // A step's door already open at mount is published from the mounted DOM
     // (the watcher above cannot fire for a value that never changed).
     this.publishStepDoor(this.sittingStepOpen);
+    this.stepOpenMirror = this.sittingStepOpen;
     this.publishMidOffsets();
     if (this.sittingField) {
       parkParliamentForEnact(this.$refs.rootEl as HTMLElement | undefined);
@@ -1302,7 +1317,15 @@ export default defineComponent({
         return;
       }
       const key = this.sittingKey;
-      parliamentFlow.sittingPage = sittingStartPage(position, (stage) => sittingStagePlayed(key, stage));
+      // THE LEDGER'S READ IS OWED ACROSS A STEP CHANGE (Colonial Affairs): the last hosted step's answer carries the
+      // server straight to the adjourn gate, and the walk would re-seat past the reward page — the page whose ledger
+      // now reads what every step paid. A step that was open a flush ago (`stepOpenMirror` — the post-flush door
+      // watcher has not run yet) and is open no more seats the walk on the reward page first, like a tile's receipt.
+      const ledgerRead = this.sittingLedger !== undefined && this.stepOpenMirror && !this.sittingStepOpen;
+      if (ledgerRead) {
+        this.ledgerReadOwed = true;
+      }
+      parliamentFlow.sittingPage = sittingStartPage(position, (stage) => sittingStagePlayed(key, stage), ledgerRead);
       this.queueWalk();
     },
     // ── the director's walk ─────────────────────────────────────────────
@@ -1341,7 +1364,7 @@ export default defineComponent({
         return true;
       }
       if (stage === 'reward') {
-        return sittingRewardSettled(position) && !this.rewardPending && !parliamentRewardState.receiptShowing;
+        return sittingRewardSettled(position) && !this.rewardPending && !parliamentRewardState.receiptShowing && !this.ledgerReadOwed;
       }
       return false;
     },
@@ -1392,11 +1415,16 @@ export default defineComponent({
           }
           const key = this.sittingKey;
           const receipt = stage === 'reward' && parliamentRewardState.receiptShowing;
-          if (!sittingStagePlayed(key, stage) || receipt || (stage === 'reward' && this.rewardPending)) {
+          // The ledger's READ after a hosted step (Colonial Affairs): a beat of its own, like the tile's receipt.
+          const ledgerRead = stage === 'reward' && this.ledgerReadOwed;
+          if (!sittingStagePlayed(key, stage) || receipt || ledgerRead || (stage === 'reward' && this.rewardPending)) {
             notePlayedSittingStage(key, stage);
             await playSittingStage(stage, this.sittingBeatList, ctx, {compact: false});
             if (receipt) {
               parliamentRewardState.receiptShowing = false;
+            }
+            if (ledgerRead) {
+              this.ledgerReadOwed = false;
             }
           }
           if (!this.sittingUp) {

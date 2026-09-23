@@ -308,8 +308,29 @@ test.describe(`Colonial Affairs · ${PRESET.id}`, () => {
     const barLabels = (await page.locator('.con-cmdbar__label').allTextContents()).map((t) => t.trim()).join(' | ');
     expect(barLabels, `B is «Свернуть» past the commit, never a close (${barLabels})`).toMatch(/свернуть|minimi[sz]e/i);
     expect(barLabels).not.toMatch(/закрыть|^close$/i);
-    await expectParliamentFits(page, `${PRESET.id} discard`);
     await shoot(page, '06-discard');
+    try {
+      await expectParliamentFits(page, `${PRESET.id} discard`);
+    } catch (error) {
+      // Name the box the hand did not fit IN: the zone, the embed slot, the hand and every child of its frame.
+      const boxes = await page.evaluate((stage) => {
+        const read = (el: Element | null, label: string) => {
+          if (el === null) {
+            return `${label}: -`;
+          }
+          const r = el.getBoundingClientRect();
+          const cs = getComputedStyle(el);
+          return `${label}: ${Math.round(r.top)}..${Math.round(r.bottom)} h${Math.round(r.height)} sh${(el as HTMLElement).scrollHeight} ch${(el as HTMLElement).clientHeight} ${cs.display}/${cs.position}/${cs.overflowY}`;
+        };
+        const zone = document.querySelector('.con-sit__zone');
+        const hand = document.querySelector(`${stage} .con-hand`);
+        const frame = hand?.querySelector('.con-hand__frame') ?? null;
+        return [read(zone, 'zone'), read(document.querySelector(stage), 'embed'), read(hand, 'hand'), read(frame, 'frame'),
+          ...Array.from(frame?.children ?? []).map((c) => read(c, 'frame>' + c.className.split(' ')[0])),
+          ...Array.from(frame?.querySelectorAll('.con-hand__browse, .con-hand__stagewrap, .con-cards__strip, .con-hand__album') ?? []).map((c) => read(c, c.className.split(' ')[0]))].join('\n');
+      }, STAGE);
+      throw new Error(`${(error as Error).message}\n[hand boxes]\n${boxes}`);
+    }
     const handBefore = (await wireOf(request, playerId)).cardsInHand?.length ?? -1;
     await press(page, 'Enter', 600);
     await expect(page.locator('.con-discard-proxy'), 'the card physically leaves the hand for the pile').toHaveCount(1, {timeout: 15_000});
@@ -332,6 +353,10 @@ test.describe(`Colonial Affairs · ${PRESET.id}`, () => {
     const lastLedger = [...probe.samples].reverse().find((s) => s.stage === 'reward' && s.ledgerShown);
     expect(lastLedger, 'the ledger came back after the steps').not.toBe(undefined);
     expect(Object.entries(lastLedger!.rows).map(([colony, r]) => `${colony}:${r.state}`).sort(), 'every row received').toEqual(['Luna:received', 'Miranda:received', 'Pluto:received', 'Titan:received']);
+    // …and it was READ, not flashed: the ledger stood with every row received for a beat (the read beat, ≥ 1 s of task-clock samples).
+    const readSamples = probe.samples.filter((s) => s.stage === 'reward' && s.ledgerShown && Object.values(s.rows).every((r) => r.state === 'received'));
+    expect(readSamples.length, 'the finished ledger stood long enough to read').toBeGreaterThan(3);
+    expect(readSamples[readSamples.length - 1].t - readSamples[0].t, 'the read beat lasted').toBeGreaterThanOrEqual(900);
     const blueTiles = await page.locator(`.con-sit [data-sit-payout-seat="${before.thisPlayer.color}"] [data-sit-part-tile]`).allTextContents();
     expect(blueTiles.map((t) => t.trim()).join(' | '), 'the results panel groups blue\'s payouts by tile').toMatch(/Лун|Luna/);
     expect(blueTiles.length, 'four tiles lead their groups').toBe(4);

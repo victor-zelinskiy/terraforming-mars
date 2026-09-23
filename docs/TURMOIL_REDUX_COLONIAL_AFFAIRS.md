@@ -135,6 +135,12 @@ k раз. **Бонус колонии** — это печатная выгода
 Прогулка ждёт посадки карты на герой-слот (`fieldSettling`, `onDone` у `playParliamentEnactEnter`) и конца
 разворота тела (`stageEntering`), прежде чем измерять строку.
 
+**Реестр после шагов ЧИТАЕТСЯ.** Когда дверь шага закрывается на странице НАГРАДА при живом реестре, секция
+должна бит чтения (`ledgerReadOwed`): `mayLeave` держит страницу, прогулка играет бит наград, и `beatReward` без
+долга добавляет `LEDGER_READ_MS` (1.4 с), если реестр стоит в зоне без шага над ним. Ответ на последний шаг уносит
+сервер к воротам adjourn в том же ответе, и `enterServerStep` иначе пересадил бы прогулку мимо реестра — он читает
+зеркало двери (`stepOpenMirror`, пред-flush) и сажает прогулку на НАГРАДУ первой, как при квитанции тайла.
+
 **Шаг СБРОС — новый член стадии.** `SittingRewardStep` += `'discard'`, `SITTING_HOSTED_STEPS` += `'discard'`;
 `sittingAskOf` узнаёт сброс по структурному маркеру (`isDiscardPrompt(wf)` при источнике-резолюции; после
 `intake` / `space` / `distribution`); хвост крошки `sittingStageKey('reward', 'discard') = 'Discarding'` → «СБРОС»
@@ -203,7 +209,7 @@ k раз. **Бонус колонии** — это печатная выгода
 | `npm run build:test` · eslint (`lint:server`) · `vue-tsc` (`lint:client`) · `lint:i18n` · `make:css` · `make:json` | зелёные (блоки A–D) |
 | e2e `console-delta-chip-anchor` · standard-1080 / tv-4k / deck-handheld | ✓ 3/3 (36 с) после закона; до — 3 красных (таблица §6) |
 | e2e `console-hud-frame` + `console-rail-contract` | ✓ 5/5 (1.5 мин) |
-| e2e `console-parliament-colonial` · standard-1080 | см. журнал `docs/claude/parliament-sitting-progress.md` § RX07 — прогоны |
+| e2e `console-parliament-colonial` · standard-1080 (замороженная копия сборки, свой сервер) | ✓ 1/1, 58 с — все восемь пробников §5; подробности в журнале `docs/claude/parliament-sitting-progress.md` § RX07 |
 
 Бюджет проверки (решение владельца 2026-09-23): один новый e2e на новую механику, кадры нового на одном
 профиле; галерея и стенд не гоняются; позы галереи для реестра и сброса НЕ добавлены (по бюджету) — стенд

@@ -2279,6 +2279,111 @@ Deck полёт двух чипов короче 1.2-секундного `settl
 (5) Замечено по кадру Deck (не правилось): на шаге НАГРАДА освободившийся слот победителя в области подписан
 «В колоде нет резолюции другой партии» — текст пустого слота после обновления показывается и до него.
 
+## Colonial Affairs — RX07 (2026-09-22 → 23, промт `docs/claude/prompts/resolution-rx07-colonial-affairs.md`)
+
+### Режим
+Экономный: юниты + пробники §8 промта. Коммит на блок (A сервер и план шагов · B предподсчёт · C стадия НАГРАДА и
+шаг СБРОС · D закон якоря дельта-чипа · E фикстуры, e2e, документы), каждый зелёный по юнитам, `npm run lint`,
+`npm run build:test`, не пушить. Документ карты — `docs/TURMOIL_REDUX_COLONIAL_AFFAIRS.md`. С 2026-09-23 действует
+БЮДЖЕТ ПРОВЕРКИ владельца: один новый e2e на новую механику, кадры нового на одном профиле, галерея и стенд не
+гоняются — блок E сделан по нему (позы галереи не добавлены, e2e на standard-1080).
+
+### Блок A — сервер, план шагов на игрока, виды `discard` / `colonyBonus`, реестр в модели (`1a05d00ffe`)
+- `IResolution.immediateStepsFor?(player, parliament, game)` + `immediateStepsOf` (один читатель: драйвер, гард,
+  экспорт лица); ключи `colony:<tile>`, `colony:<tile>:<n>:draw|discard|reveal` детерминированы.
+- `InfluenceScaledEffect.influenceStep` (k = 2 + ⌊I/2⌋), единица `{kind: 'colonyBonuses'}`, записи с `multiplier` и
+  `colony`; гард формулы для множительной единицы читает `multiplier`.
+- Закон объединения: запас/производство ×k — одна запись; ресурс на карту — одна раскладка k (`AddResourcesToCards`,
+  `autoSelect: false`); добор — один приём k; Плутон — k пар, не объединяется. Пропуски названы с величиной.
+- `REWARD_ADDRESS` += `discard`, `colonyBonus`; `rewardFlightSourceOf` → `colony-row`; `IColony.colonyBonusGrant()`;
+  `ParliamentPlayerModel.colonyBonuses`; `DiscardCards` опция `colonyRepeat` (маркер, отличный от `colonyBonus`).
+- Спек `ColonialAffairs.spec.ts` (18 + семейство): таблица k, план, объединение, пары Плутона (колода не тянется до
+  ответа на сброс), reload посреди второй пары, пропуски, сообщество (Титания/Япет), каждый базовый тайл,
+  нейтральный победитель, задание, реестр модели, MarsBot. `ParliamentRenewal.spec` — стол сажается детерминированно
+  (у Союза теперь карта в каждой колоде).
+- 39 ключей `ru/parliament.json`; арт `RX07.webp`.
+
+### Блок B — предподсчёт: чтение `colony-ledger` (`812457e4b1`)
+- Чистый `common/parliament/colonyLedger.ts` (форма → чип повтора, строки × k, состояния по записям, суммы,
+  записанный множитель); `colonyLedgerModel.ts` (`colonyLedgerOf`: голосование — множитель + «×(k+1) при победе»;
+  принятие — записанный множитель); `ConsoleColonyLedger.vue` (`compact` / `normal` / `hero`, медальон планеты,
+  «карта → сброс» для Плутона, «Колоний нет» словами); `console_colony_ledger.less`.
+- Проводка: панель голосования (бюджет слов), подвал осмотра, стенд (семейство `colony-bonuses`, сценарий
+  `colonial-vote`), итоги по тайлу, правило бонуса колонии в аннотациях. `enactedYieldsOf` читает множитель.
+- 5 ключей.
+
+### Блок C — стадия НАГРАДА: реестр как тело, волны по строкам, шаг СБРОС (`cdb8813f4d`)
+- `sittingFieldOf(stage, step, pending, ledger) → {pose, stepOpen}` — поза и дверь два факта; с реестром поза
+  стоит всю страницу, дверь после волны. Секция: `sittingLedger`, `sittingStepOpen`, наблюдатель `flush: 'post'`
+  публикует `fieldStanding` И слот фрейма парламента (`setWorkspaceFrameSlot('parliament', …parliament-stage)`),
+  `fieldSettling` (прогулка ждёт посадки карты на герой-слот — `onDone` у `playParliamentEnactEnter/Fold`),
+  разрыв цикла прогулки на `stageEntering`, `sceneHandedOver = workspaceHostYieldsScene('parliament')` (вложенный
+  embed-фрейм больше не прячет секцию).
+- Зона — стек слоёв (`.con-sit__zone` grid 1×1: слот шага + панель реестра `v-show`, `playBodyFold` /
+  `playZoneLayerEnter`); `.con-sit__embed > .con-hand` растягивается как пикер/приём.
+- `beatReward`: долг делится по `delivery.source`; `ledgerRowGroups` — по тайлу в порядке сервера; ACTION COMMIT
+  карты → строки по очереди (`sittingMotion.colonyRow`, `ledgerBonusIconOrigins`, `LEDGER_ROW_GAP_MS`); строка
+  не на экране — холд отпускается. `landedColonies` в `ConsoleParliamentSitting` (по посадке, не по записи).
+- `SittingRewardStep 'discard'`, `SITTING_HOSTED_STEPS`, `sittingAskOf` по `isDiscardPrompt` + источник-резолюция,
+  `sittingStageKey → 'Discarding'` («Сброс» — канон глоссария, «Раскладка» тоже пришпилен),
+  `RESOLUTION_STEP_STAGES.handSelect`, оболочка называет стадию фрейма руки тем же словом; `discardIntent`:
+  источник «Резолюция», планета и «n из k» из `colonyRepeat`.
+- Спеки: `consoleSittingFlow` (сброс, `sittingFieldOf`), `consoleTaskRouter`, `discardIntent`,
+  `parliamentRewardBeat` (источник `colony-row`), `parliamentGlossary`.
+
+### Блок D — закон якоря дельта-чипа, R-23 / R-24 (`940120d375`)
+- ОДИН закон в `console.less` § THE DELTA-CHIP ANCHOR LAW: ① вне цифр, ② вне соседей, ③ внутри инструмента,
+  ④ rem. Четыре позы (цифры · угол · линия · линия чипов ленты), хозяин называет позу. Чернила запаса —
+  `.con-res__digits`; чип метки — прямой ребёнок ячейки; размеры чипов в rem (`zoom` TV снят); чип ленты под
+  швом (`--con-status-chip-drop` −.12 → +.04rem: на 4K цифры доходили до шва).
+- Пробник `console-delta-chip-anchor.spec.ts`: 8 потребителей × 3 профиля, синтетический чип, чернила `Range`,
+  скриншоты и `geometry.json` до/после. До: запас на цифрах 303 / 1952 / 303 px², метки 103 / 705 / 81, счёт РТ
+  12 / 189 / 18 (+55 вне рельсы на Deck), производство на рамке 48 / — / 20+120, лента 0.00rem / 22 px² / 0.03rem,
+  доп. ресурсы вне колонки 314 / 709 / 314. После: нули везде, зазоры 0.06–0.43rem, три профиля зелёные (36 с).
+  `console-hud-frame` + `console-rail-contract` — 5/5.
+- **R-23 · R-24 закрыты** (реестр полировки: единственная открытая строка без правки — теперь с законом и замером).
+
+### Блок E — фикстуры, e2e, документы
+- Фикстуры `parliament-colonial-vote` / `-assembly` (`FIXTURES=… npm run e2e:fixtures`): стол колоний
+  ПЕРЕСОБРАН (`game.colonies` = Луна (оба), Титан, Миранда, Плутон), синий — Atmo Collectors + Jovian Lanterns
+  (два держателя аэростатов → раскладка), рука дополнена; шаг Повестки 4 → влияние 3 → k = 3.
+- e2e `console-parliament-colonial.spec.ts` (standard-1080, восемь пробников §5 дока): реестр как тело · волна из
+  строки, тик на посадке, «получено» после · дельта-чип по закону · раскладка · приём трёх · приём одного · СБРОС
+  в зоне (крошка, заголовок, B «Свернуть», карта в сброс, следующий приём) · итоги по тайлу, лента, тело, стёрд.
+- Документы: `docs/TURMOIL_REDUX_COLONIAL_AFFAIRS.md`, этот журнал, чек-лист (§3 «Бонусы колоний»), глоссарий
+  (стадии + «СБРОС»), правила `console-ui.md` (законы 19–20), память.
+
+### Прогоны (2026-09-23)
+
+| Что | Результат |
+| --- | --- |
+| mocha: `ColonialAffairs` · `ResolutionContract` · `ParliamentRenewal` · `rewardAddress` · `colonyLedger` · `consoleSittingFlow` · `parliamentGlossary` · `parliamentLessOrder` · `parliamentResults` · `e2eFixturesLoad` · `e2eDriverGuard` | зелёные |
+| mochapack: `consoleTaskRouter` · `discardIntent` · `parliamentRewardBeat` · `sittingBeats` · `parliamentBand` · `colonyLedgerModel` · `voteInfoBudget` | зелёные |
+| `npm run build:test` · `lint:server` · `lint:client` · `lint:i18n` · `make:css` · `make:json` | зелёные |
+| e2e `console-delta-chip-anchor` · три профиля | ✓ 3/3 (36 с) |
+| e2e `console-hud-frame` · `console-rail-contract` | ✓ 5/5 |
+| e2e `console-parliament-colonial` · standard-1080 (замороженная копия сборки, свой сервер) | ✓ 1/1, 58 с — все восемь пробников: реестр как тело (4 строки, ×3, герой RX07) · волна из строки Луны, тик M€ на посадке, «получено» после тика · дельта-чип по закону во всех семплах · раскладка Титана в зоне · приём трёх (Миранда) · приём одного (Плутон) · СБРОС в зоне (заголовок «Плутон · 1 из 3», крошка «…› СБРОС», B «Свернуть», карта в сброс, второй приём) · реестр вернулся с четырьмя «получено» и был ПРОЧИТАН (бит чтения ≥ 0.9 с), итоги по четырём тайлам, лента без движения, тело не пустело, ничего не застряло, поколение 2, три записи `discard`, Луна 6 |
+
+Замечания к прогонам. (1) **Миранда платит карту**, не животное — бонус колонии есть третья строка тайла
+(`metadata.colony`); первый прогон e2e ждал пикер животных и получил приём трёх карт (кадр). (2) **Общая папка
+`build/` двух сессий**: соседняя сессия держит `webpack --watch` (dev-сборка) и переписывает `build/main.js` при
+каждом сохранении; e2e того же клона грузит `build/` и на dev-бандле консоль не поднимается (пустой `#app`, ни одной
+ошибки в консоли браузера — «TERRAFORMING MARS» и ничего). Три прогона подряд легли на этом. Решение: production-сборка
++ ЗАМОРОЖЕННАЯ копия `.e2e-frozen/build` (в `.git/info/exclude`) + свой сервер из копии
+(`cd .e2e-frozen && PORT=8150 node build/src/server/server.js` — статика читается относительно cwd) +
+`TM_E2E_SHARED_SERVER=1 BASE_URL=http://127.0.0.1:8150`. (3) Фикстуры сгенерированы при каталоге с RX08 (незакоммиченная
+работа соседней сессии) — в колоде лежит `RDX_UNITY_COLONIZATION_FUNDING`, сервер e2e обязан быть собран из
+текущего дерева, иначе `load-game` → 400. (4) Первый вариант пробника волны фильтровал чипы по спрайту ресурса — чип
+M€ рисует монету без спрайта (чтение пробника наград: «нет значка = M€»); чип после посадки ещё ВПИТЫВАЕТСЯ на
+рельсе, и «строка получена, а чип на экране» — это хвост посадки, не полёт (проверяется расстояние до рельсы).
+(5) **Реестр после последнего шага не читался** — ответ на последний сброс уносит сервер сразу к воротам adjourn,
+`sittingStepKey` меняется, `enterServerStep` пересаживал прогулку на первую несыгранную страницу (ОБНОВЛЕНИЕ) мимо
+реестра с четырьмя «получено». Исправлено битом ЧТЕНИЯ реестра: `ledgerReadOwed` (падение двери шага на странице
+НАГРАДА при живом реестре) держит `mayLeave`, прогулка играет бит наград с `LEDGER_READ_MS` (1.4 с) и только потом
+уходит; при смене шага сервера `enterServerStep` читает зеркало двери (`stepOpenMirror` — post-flush-наблюдатель
+ещё не сработал) и сажает прогулку на НАГРАДУ, как при квитанции тайла. Пробник требует ≥ 0.9 с семплов с
+четырьмя «получено».
+
 ## Colonization Funding — RX08 (2026-09-23, промт `docs/claude/prompts/resolution-rx08-colonization-funding.md`)
 
 ### Режим

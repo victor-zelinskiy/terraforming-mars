@@ -80,6 +80,13 @@ import {DEV_ACTION_RESOLUTION_ID, DEV_PASSIVE_RESOLUTION_ID} from '../../../src/
 import {CLOUD_DEVELOPMENT_ID} from '../../../src/server/parliament/resolutions/unity/CloudDevelopment';
 import {COLONIZATION_FUNDING_ID} from '../../../src/server/parliament/resolutions/unity/ColonizationFunding';
 import {SpaceName} from '../../../src/common/boards/SpaceName';
+import {COLONIAL_AFFAIRS_ID} from '../../../src/server/parliament/resolutions/unity/ColonialAffairs';
+import {IColony} from '../../../src/server/colonies/IColony';
+import {Luna} from '../../../src/server/colonies/Luna';
+import {Titan} from '../../../src/server/colonies/Titan';
+import {Miranda} from '../../../src/server/colonies/Miranda';
+import {Pluto} from '../../../src/server/colonies/Pluto';
+import {ColonyName} from '../../../src/common/colonies/ColonyName';
 import {AndOptions} from '../../../src/server/inputs/AndOptions';
 import {Dirigibles} from '../../../src/server/cards/venusNext/Dirigibles';
 import {JovianLanterns} from '../../../src/server/cards/colonies/JovianLanterns';
@@ -931,6 +938,55 @@ parliamentFixture('parliament-cloud-enact', cloudTable('effects', ({p1}) => {
     throw new Error(`the parliament-cloud-enact fixture expected blue's 4-floater layout over two holders, got ${ask?.constructor.name} ${JSON.stringify(meta)}`);
   }
 }));
+
+// ── RX07 · COLONIAL AFFAIRS (Unity — «gain all your colony bonuses 2 times + 1/2 influence»): the first
+//    resolution with a PLAN OF STEPS PER PLAYER and the first to host the hand's DISCARD as a step of the
+//    sitting. The card stands in the first voting slot with blue's free delegate on it; the table is
+//    ARRANGED (the dealt colonies are replaced): Luna (both seats — 2 M€ per cube), Titan (blue — a floater
+//    onto a card; blue holds TWO holders, Atmo Collectors + Jovian Lanterns → the shared DISTRIBUTION),
+//    Miranda (blue — its COLONY bonus is «draw 1 card»: ×k = ONE intake of k), Pluto (blue — «draw 1, then
+//    discard 1» ×k: k PAIRS, the take and the hand's discard hosted by the sitting in turn). Blue: Agenda
+//    step 4 (influence 2; winning → step 5 = influence 3 → k = 3): 6 M€ · 3 floaters · 3 cards · 3 pairs.
+//    Red: Luna only, influence 0 → k = 2 → 4 M€ (a wave, no ask). Blue's hand is stocked so the discard
+//    has an album to stand in. ──
+const colonialTable = (stopAt: ParliamentStop, expect?: (table: ParliamentTable) => void): ParliamentFixtureSpec => ({
+  resolution: COLONIAL_AFFAIRS_ID,
+  votes: [0],
+  agenda: [4, undefined],
+  stopAt,
+  arrange: ({game, p1, p2, parliament}) => {
+    seatResolution(parliament, 1, ARCHITECTURE_AWARD_ID);
+    seatResolution(parliament, 2, CENTRAL_POWER_GRID_ID);
+    const owned = (colony: IColony, owners: ReadonlyArray<TestPlayer>): IColony => {
+      colony.isActive = true;
+      colony.colonies = owners.map((p) => p.id);
+      return colony;
+    };
+    game.colonies = [owned(new Luna(), [p1, p2]), owned(new Titan(), [p1]), owned(new Miranda(), [p1]), owned(new Pluto(), [p1])];
+    p1.playedCards.push(new AtmoCollectors(), new JovianLanterns());
+    p1.cardsInHand.push(new Insulation(), new SecurityFleet());
+  },
+  expect: (table) => {
+    const {game, p1, p2} = table;
+    const names = game.colonies.map((c) => c.name);
+    if (JSON.stringify(names) !== JSON.stringify([ColonyName.LUNA, ColonyName.TITAN, ColonyName.MIRANDA, ColonyName.PLUTO])) {
+      throw new Error(`the parliament-colonial fixture (${stopAt}) expected the four arranged tiles, got ${names.join(', ')}`);
+    }
+    const blueCubes = game.colonies.filter((c) => c.colonies.includes(p1.id)).length;
+    const redCubes = game.colonies.filter((c) => c.colonies.includes(p2.id)).length;
+    if (blueCubes !== 4 || redCubes !== 1) {
+      throw new Error(`the parliament-colonial fixture (${stopAt}) expected blue on four tiles and red on Luna, got ${blueCubes} / ${redCubes}`);
+    }
+    if (p1.cardsInHand.length < 2) {
+      throw new Error(`the parliament-colonial fixture (${stopAt}) expected blue to hold a hand for Pluto's discard, got ${p1.cardsInHand.length}`);
+    }
+    expect?.(table);
+  },
+});
+// The vote: the face, the LEDGER in the vote panel (the multiplier by influence, a row per tile, «×4 if you win»).
+parliamentFixture('parliament-colonial-vote', colonialTable('vote'));
+// The sitting has just convened: the ASSEMBLY gate stands for both seats — the e2e walks the whole reward stage from here.
+parliamentFixture('parliament-colonial-assembly', colonialTable('assembly'));
 
 // ── RX03 · BIODOME CONTEST — a 2-seat table with the card alone in the first
 //    voting slot and blue's free delegate on it: blue at Agenda step 2

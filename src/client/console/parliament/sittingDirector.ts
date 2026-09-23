@@ -146,6 +146,8 @@ const REWARD_IMPULSE_MS = 460;
 const REWARD_WAVE_MS = 900;
 /** Between two LEDGER ROWS' waves (Colonial Affairs): the next tile pays only once the previous one's chips have landed. */
 const LEDGER_ROW_GAP_MS = 140;
+/** The LEDGER read after the last hosted step: four rows and their states, read before the page turns. */
+const LEDGER_READ_MS = 1400;
 /** The ruling party's answer leaves its plaque once the resolution's own chips have landed — surfaces in turn. */
 const REACTION_GAP_MS = 120;
 /** The winner's tile RECEIPT (the frame back from the board): the «received» pose is READ before the next step takes the page. */
@@ -877,6 +879,12 @@ function beatReward(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: numb
     // end, because the dwell is part of the beat's own timeline.
     if (root.querySelector('[data-parl-band-quiet]') !== null) {
       at += s(QUIET_REWARD_DWELL_MS) * k;
+    }
+    // …AND A LEDGER IS A READING TOO (Colonial Affairs): a row per tile with its state — when it stands in the zone
+    // with no hosted step over it (the steps are over, the rows read what they paid), the page dwells long enough
+    // to read four rows before the walk goes on.
+    if (root.querySelector('[data-sit-ledger]') !== null && root.querySelector('[data-sit-zone-step]') === null) {
+      at += s(LEDGER_READ_MS) * k;
     }
     return at;
   }
