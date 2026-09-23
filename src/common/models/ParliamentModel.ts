@@ -7,7 +7,7 @@ import {ColonyName} from '../colonies/ColonyName';
 import {ColonyTradeGrantModel} from './ColonyTradeManifestModel';
 import {Resource} from '../Resource';
 import {ResolutionCountModel} from '../parliament/resolutionCounts';
-import {WinnerRewardParameter} from '../parliament/winnerReward';
+import {ParameterMoveId} from '../parliament/parameterMove';
 import {PartyName} from '../turmoil/PartyName';
 import {Message} from '../logs/Message';
 import {PlayerInputType} from '../input/PlayerInputType';
@@ -171,10 +171,15 @@ export type ParliamentPhasePendingModel = {
  * its reason (an English i18n key) — no silent loss.
  */
 export type ParliamentEnactOutcomeModel = {
-  player: Color;
+  /**
+   * The seat the record belongs to — ABSENT on a WORLD record (`part: 'world'`):
+   * the enactment moved the PLANET, which belongs to no player and is read the
+   * same by every viewer.
+   */
+  player?: Color;
   step: string;
-  /** `effect` — everyone's part · `winner` — the winner's own part (absent on older saves). */
-  part?: 'effect' | 'winner';
+  /** `effect` — everyone's part · `world` — the table's own · `winner` — the winner's (absent on older saves). */
+  part?: 'effect' | 'world' | 'winner';
   /** The scaled effect's id (`InfluenceScaledEffect.id`) when the amount came from influence. */
   effect?: string;
   /**
@@ -183,9 +188,11 @@ export type ParliamentEnactOutcomeModel = {
    * `colonyBonus` a colony bonus paid through its own counter (a discount, a
    * loss, a science tag) · `ocean` / `greenery` the winner's tile · `colony`
    * the winner's colony built for free (Colony Contest — see `colony`) ·
-   * `skipped` · `reaction` the RULING PARTY's answer to this step's own change.
+   * `globalParameter` a WORLD move of a global parameter (see `parameter`;
+   * `amount` = the steps actually made, negative for a lowering) · `skipped` ·
+   * `reaction` the RULING PARTY's answer to this step's own change.
    */
-  kind: 'cardResource' | 'production' | 'stock' | 'cards' | 'discard' | 'colonyBonus' | 'ocean' | 'greenery' | 'colony' | 'skipped' | 'reaction';
+  kind: 'cardResource' | 'production' | 'stock' | 'cards' | 'discard' | 'colonyBonus' | 'ocean' | 'greenery' | 'colony' | 'globalParameter' | 'skipped' | 'reaction';
   /**
    * The COLONY whose printed bonus this record pays (Colonial Affairs) — the ledger row it belongs to;
    * for the `colony` kind, the tile the winner's cube landed on.
@@ -243,8 +250,10 @@ export type ParliamentEnactOutcomeModel = {
   drawn?: number;
   /** A card draw handed over as a mandatory intake — the intake's id. */
   intake?: number;
-  /** A winner tile: the global parameter its own placement moved, before and after (equal at the maximum). */
-  parameter?: {id: WinnerRewardParameter; before: number; after: number};
+  /** A winner tile, or a WORLD move: the global parameter that moved, before and after (equal at the limit). */
+  parameter?: {id: ParameterMoveId; before: number; after: number};
+  /** `globalParameter`: nobody was credited with a terraform rating for this move. */
+  unrewarded?: boolean;
 };
 
 export type ParliamentPhaseModel = {

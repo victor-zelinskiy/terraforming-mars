@@ -3,6 +3,7 @@ import {ICardRenderRoot} from '../../../common/cards/render/Types';
 import {QuestDefinition, ReduxParty, ResolutionCode, ResolutionId} from '../../../common/parliament/ParliamentTypes';
 import {InfluenceScaledEffect} from '../../../common/parliament/influenceScaling';
 import {WinnerRewardDeclaration} from '../../../common/parliament/winnerReward';
+import {WorldParameterMove} from '../../../common/parliament/parameterMove';
 import type {SerializedEnactOutcome} from '../SerializedParliament';
 import {ActionEffect} from '../../../common/models/ActionPreviewModel';
 import {Message} from '../../../common/logs/Message';
@@ -26,6 +27,12 @@ import type {SpaceId} from '../../../common/Types';
 export type EnactContext = {
   game: IGame;
   parliament: Parliament;
+  /**
+   * The seat the step runs for. In a WORLD step (`worldSteps`) there is no
+   * seat: this is the engine HANDLE (the first player in generation order),
+   * never the author of what the step does — a world step attributes nothing
+   * to it, and its records carry no player.
+   */
   player: IPlayer;
   /** The player who won the resolution, or undefined when the neutral player did. */
   winner: IPlayer | undefined;
@@ -188,6 +195,12 @@ export interface ResolutionDefinition {
     effect?: string;
     /** The WINNER-ONLY part of the enactment (`winnerSteps`) — its own block in the inspector. */
     winner?: string;
+    /**
+     * The part the enactment does to the TABLE, once and for nobody (`worldSteps`
+     * / `worldMoves`) — its own block in the inspector, never a clause of
+     * `effect`: what the law does to the planet is not what it pays a seat.
+     */
+    world?: string;
     passive?: string;
     action?: string;
     quest: string;
@@ -207,6 +220,15 @@ export interface ResolutionDefinition {
    * (what the tile is, which parameter its own placement moves).
    */
   winnerReward?: WinnerRewardDeclaration;
+  /**
+   * WHAT THE ENACTMENT DOES TO THE TABLE, as data (`parameterMove.ts`) — the
+   * global parameters a WORLD step moves and whether anybody is credited for
+   * them (Gas Export: oxygen −1, Venus +2, «no one gets the TR for this»).
+   * Exported to the manifest, so the vote reading, the sitting's stage, the
+   * results and the playground state the move from the same declaration
+   * `worldSteps` pays by. Declared BESIDE `worldSteps`, never instead of it.
+   */
+  worldMoves?: ReadonlyArray<WorldParameterMove>;
   /** Per-player immediate effect (every participating player, generation order). */
   immediateSteps?: ReadonlyArray<EnactStep>;
   /**
@@ -220,6 +242,24 @@ export interface ResolutionDefinition {
    * through `immediateStepsOf` — never the two fields by hand.
    */
   immediateStepsFor?: (player: IPlayer, parliament: Parliament, game: IGame) => ReadonlyArray<EnactStep>;
+  /**
+   * THE WORLD'S OWN PART — run ONCE PER ENACTMENT, not once per seat: after
+   * every participant's immediate steps and before the winner's. It has no
+   * player (the law lowered the oxygen, nobody did), so its records carry no
+   * seat and every viewer reads them; the driver hands the step a HANDLE
+   * player only because the engine's parameter API takes one (the precedent
+   * of the World Government, `SnowCover` and `MagneticFieldStimulationDelays`
+   * — the first player in generation order), and attributes nothing to them.
+   * Idempotent through the phase's own `applied` list, so a reload in the
+   * middle of an enactment never moves the planet twice.
+   *
+   * A world step obeys the SAME contract as any other: it MUTATES or it ASKS,
+   * and it reports exactly once — including the branch where the parameter is
+   * already at its limit and nothing happens (a skip NAMES itself; relying on
+   * the engine's own silent early return is the defect this comment exists
+   * to prevent).
+   */
+  worldSteps?: ReadonlyArray<EnactStep>;
   /** Winner-only effect (skipped for a neutral winner — rulebook FAQ p.18). */
   winnerSteps?: ReadonlyArray<EnactStep>;
   /** Passive effect while enacted (see {@link ResolutionPassive}) — the DEV passive example proves the seam. */
@@ -243,4 +283,9 @@ export function immediateStepsOf(definition: ResolutionDefinition, player: IPlay
 /** Does the definition pay every participant something at the enactment (a list or a plan)? */
 export function hasImmediateSteps(definition: ResolutionDefinition): boolean {
   return (definition.immediateSteps?.length ?? 0) > 0 || definition.immediateStepsFor !== undefined;
+}
+
+/** Does the enactment change the TABLE once, for nobody in particular? */
+export function hasWorldSteps(definition: ResolutionDefinition): boolean {
+  return (definition.worldSteps?.length ?? 0) > 0;
 }

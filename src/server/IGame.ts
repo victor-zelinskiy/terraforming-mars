@@ -58,6 +58,25 @@ export type SpaceBonusGrant =
   | {kind: 'draw'}
   | {kind: 'other'};
 
+/**
+ * HOW A PARAMETER RAISE PAYS ITS MOVER. `unrewarded: true` asks EXPLICITLY for
+ * the mode the World Government's phase has implicitly (`Phase.SOLAR`): the
+ * steps happen, but no terraform rating is granted to anybody, no track bonus
+ * is paid (the Venus 8 % card, the 16 % rating, the alt-track resources, the
+ * heat production of a temperature step) and a crossed threshold is claimed
+ * NEUTRALLY rather than by the mover. It is PARITY with that phase, not a
+ * stricter mode of its own — what the World Government still does (the ocean
+ * of 0 °C, Aphrodite's M€) an unrewarded move still does.
+ *
+ * The first caller is an enacted resolution that terraforms for nobody (Gas
+ * Export, RX12: «Terraform Venus 2 steps. No one gets the TR for this») — the
+ * political phase is `Phase.PARLIAMENT`, so without this flag the rating would
+ * silently go to whichever player handed the engine the call.
+ *
+ * A LOWERING ignores the flag: it never paid anything to begin with.
+ */
+export type ParameterMoveOptions = {unrewarded?: boolean};
+
 export interface IGame extends Logger {
   readonly id: GameId;
   readonly name: string;
@@ -230,11 +249,11 @@ export interface IGame extends Logger {
   worldGovernmentTerraformingInput(player: IPlayer): OrOptions;
   /* for World Government Advisor and Terra colony */
   temporarySolarPhase(player: IPlayer, cb: () => void): void;
-  increaseOxygenLevel(player: IPlayer, increments: -2 | -1 | 1 | 2): void;
+  increaseOxygenLevel(player: IPlayer, increments: -2 | -1 | 1 | 2, options?: ParameterMoveOptions): void;
   getOxygenLevel(): number;
-  increaseVenusScaleLevel(player: IPlayer, increments: -1 | 1 | 2 | 3): number;
+  increaseVenusScaleLevel(player: IPlayer, increments: -1 | 1 | 2 | 3, options?: ParameterMoveOptions): number;
   getVenusScaleLevel(): number;
-  increaseTemperature(player: IPlayer, increments: -2 | -1 | 1 | 2 | 3): undefined;
+  increaseTemperature(player: IPlayer, increments: -2 | -1 | 1 | 2 | 3, options?: ParameterMoveOptions): undefined;
   getTemperature(): number;
   getGeneration(): number;
   getPassedPlayers():ReadonlyArray<Color>;

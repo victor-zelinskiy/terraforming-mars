@@ -17,7 +17,7 @@ import {ParliamentEnactOutcomeModel, ParliamentPhaseSummaryModel} from '../../sr
 import {RESOLUTION_FAMILIES, familyOf} from '../../src/client/console/parliament/resolutionFamily';
 import {sittingBeats} from '../../src/client/console/parliament/sittingBeats';
 import {REDUX_RESOLUTION_CATALOG} from '../../src/server/parliament/resolutions/ResolutionCatalog';
-import {hasImmediateSteps, immediateStepsOf, ResolutionDefinition} from '../../src/server/parliament/resolutions/IResolution';
+import {hasImmediateSteps, hasWorldSteps, immediateStepsOf, ResolutionDefinition} from '../../src/server/parliament/resolutions/IResolution';
 import {SerializedEnactOutcome} from '../../src/server/parliament/SerializedParliament';
 import {SelectCard} from '../../src/server/inputs/SelectCard';
 import {SelectColony} from '../../src/server/inputs/SelectColony';
@@ -248,6 +248,11 @@ function recordsOf(run: Run, seat: PlayerId, step: string): Array<SerializedEnac
   return run.outcomes.filter((o) => o.player === seat && o.step === step && o.kind !== 'reaction');
 }
 
+/** The WORLD records of `step` — the ones that belong to no seat at all (`worldSteps`). */
+function worldRecordsOf(run: Run, step: string): Array<SerializedEnactOutcome> {
+  return run.outcomes.filter((o) => o.player === undefined && o.step === step);
+}
+
 function checkReporting(definition: ResolutionDefinition, run: Run, condition: {influence: number; tableau: string}): Array<string> {
   const failures: Array<string> = [];
   for (const seat of run.seats) {
@@ -262,6 +267,11 @@ function checkReporting(definition: ResolutionDefinition, run: Run, condition: {
         failures.push(`${label(definition)}: шаг '${step.key}' отчитался ${records.length} раза (место ${seat.id}) при влиянии ${condition.influence} / таблице '${condition.tableau}'`);
       }
     }
+    for (const step of definition.worldSteps ?? []) {
+      if (recordsOf(run, seat.id, step.key).length !== 0) {
+        failures.push(`${label(definition)}: мировой шаг '${step.key}' записан на место ${seat.id} — мировой ход не принадлежит никому`);
+      }
+    }
     for (const step of definition.winnerSteps ?? []) {
       const records = recordsOf(run, seat.id, step.key);
       if (seat.winner && records.length !== 1) {
@@ -270,6 +280,17 @@ function checkReporting(definition: ResolutionDefinition, run: Run, condition: {
       if (!seat.winner && records.length !== 0) {
         failures.push(`${label(definition)}: шаг победителя '${step.key}' отчитался у НЕ-победителя ${seat.id}`);
       }
+    }
+  }
+  // A WORLD STEP runs ONCE PER ENACTMENT, whoever won (a neutral winner
+  // included): exactly one record, and it names no seat.
+  for (const step of definition.worldSteps ?? []) {
+    const records = worldRecordsOf(run, step.key);
+    if (records.length !== 1) {
+      failures.push(`${label(definition)}: мировой шаг '${step.key}' дал ${records.length} мировых записей вместо одной при влиянии ${condition.influence} / таблице '${condition.tableau}'`);
+    }
+    if (records.some((o) => o.part !== 'world')) {
+      failures.push(`${label(definition)}: мировая запись шага '${step.key}' не помечена частью 'world'`);
     }
   }
   return failures;
@@ -301,7 +322,18 @@ function checkSeam(definition: ResolutionDefinition): Array<string> {
   if (definition.action !== undefined && (definition.text.action ?? '') === '') {
     failures.push(`${name}: an action without its declaration text (the REWARD stage reads it)`);
   }
-  const immediate = (hasImmediateSteps(definition) ? 1 : 0) + (definition.winnerSteps ?? []).length;
+  // THE WORLD'S PART is declared on THREE layers or on none: the data every
+  // surface reads (`worldMoves`), the steps that pay it, and the sentence the
+  // inspector prints. Two of the three is a card whose reading and whose
+  // payout can drift apart.
+  const worldMoves = (definition.worldMoves ?? []).length > 0;
+  if (worldMoves !== hasWorldSteps(definition)) {
+    failures.push(`${name}: worldMoves and worldSteps must be declared together (the reading and the payout are one declaration)`);
+  }
+  if (worldMoves && (definition.text.world ?? '') === '') {
+    failures.push(`${name}: a world part without its declaration text (the inspector reads it)`);
+  }
+  const immediate = (hasImmediateSteps(definition) ? 1 : 0) + (definition.worldSteps ?? []).length + (definition.winnerSteps ?? []).length;
   if (immediate === 0 && definition.passive === undefined && definition.action === undefined) {
     failures.push(`${name}: no immediate step, no passive, no action — the REWARD stage would be empty`);
   }
@@ -345,8 +377,10 @@ function checkNoSilentReward(definition: ResolutionDefinition, run: Run): Array<
   } as unknown as ParliamentPhaseSummaryModel;
   for (const seat of run.seats) {
     const viewer = seat.id as unknown as Color;
-    const own = outcomes.filter((o) => o.player === viewer && o.kind !== 'reaction');
-    const beats = sittingBeats(summary, viewer, 'live').filter((b) => b.kind === 'reward');
+    // A WORLD record belongs to no seat and is played by EVERY viewer: it is
+    // the seat's beat list too, and it must never be silent either.
+    const own = outcomes.filter((o) => (o.player === viewer || o.player === undefined) && o.kind !== 'reaction');
+    const beats = sittingBeats(summary, viewer, 'live').filter((b) => b.kind === 'reward' || b.kind === 'world');
     if (beats.length !== own.length) {
       failures.push(`${label(definition)}: у места ${seat.id} ${own.length} записей, но ${beats.length} бетов награды — запись без бета (тихая награда)`);
     }
@@ -359,6 +393,9 @@ function checkNoSilentReward(definition: ResolutionDefinition, run: Run): Array<
       const delivery = rewardAddressOf(outcome, viewer);
       if (!delivery.mine) {
         failures.push(`${label(definition)}: адрес записи '${outcome.step}' не считает её записью места ${seat.id}`);
+      }
+      if (beat.kind === 'world' && outcome.player !== undefined) {
+        failures.push(`${label(definition)}: мировой бет играет запись места ${outcome.player}`);
       }
       if (delivery.skipped !== undefined) {
         if (beat.skipped !== delivery.skipped) {

@@ -70,7 +70,13 @@ export type RewardUnit = 'production' | 'stock' | 'card-resource' | 'cards' | 't
 export type RewardStage = 'reward' | 'choice' | 'take' | 'discard' | 'board' | 'colonies';
 
 /** The reading component the stage binds to the record (Э5 binds names to components). */
-export type RewardReading = 'influence-yield' | 'winner-reward' | 'party-reaction' | 'colony-ledger' | 'skip-plate';
+/**
+ * `world-parameter` — a move of the PLANET the enactment made for nobody in
+ * particular (Gas Export: oxygen −1, Venus +2, no TR): the parameter line, and
+ * the scales on the board that actually show it. It is not the winner's
+ * reading: it belongs to no seat, so every viewer reads the same line.
+ */
+export type RewardReading = 'influence-yield' | 'winner-reward' | 'party-reaction' | 'colony-ledger' | 'world-parameter' | 'skip-plate';
 
 export type RewardAddress = {
   kind: OutcomeKind;
@@ -127,6 +133,15 @@ export const REWARD_ADDRESS: Readonly<Record<OutcomeKind, RewardAddress>> = {
   colony: {
     kind: 'colony', surface: 'colonies', source: 'none', unit: 'tile', stage: 'colonies', reading: 'winner-reward',
     skipTitle: 'Skipped: the winner\'s colony',
+  },
+  // A WORLD MOVE OF A GLOBAL PARAMETER (Gas Export, RX12): the enactment moves the planet for the whole
+  // table — nobody is paid and, when the law says so, nobody is credited. Nothing lands in a seat, so there
+  // is no rail chip: the sitting YIELDS to the board (the winner-tile grammar), the scale marker makes the
+  // step and the frame comes back. The impulse leaves the law's own printed graphic (`card-icon`). A move
+  // that cannot happen (the parameter already at the limit it is pushed towards) is NAMED, never silent.
+  globalParameter: {
+    kind: 'globalParameter', surface: 'board', source: 'card-icon', unit: 'none', stage: 'board', reading: 'world-parameter',
+    skipTitle: 'Skipped: the planet does not move',
   },
   // The ruling party's answer speaks the unit its RECORD carries (a production step is answered with production); 'stock' is the nominal default.
   reaction: {
@@ -227,9 +242,23 @@ export function rewardAddressOf(outcome: ParliamentEnactOutcomeModel, viewer: Co
   if (outcome.description !== undefined) {
     payload.description = outcome.description;
   }
-  const delivery: RewardDelivery = {address, source: rewardFlightSourceOf(outcome), mine: viewer !== undefined && outcome.player === viewer, payload};
+  // A WORLD RECORD belongs to NO seat (`player` absent) and therefore to every
+  // viewer: the planet moved for all of them, and the reading is the same one.
+  const world = outcome.player === undefined;
+  const delivery: RewardDelivery = {
+    address,
+    source: rewardFlightSourceOf(outcome),
+    mine: viewer !== undefined && (world || outcome.player === viewer),
+    payload,
+  };
   if (outcome.kind === 'skipped') {
     delivery.skipped = outcome.reason ?? address.skipTitle;
+  } else if (outcome.kind === 'globalParameter') {
+    // The steps actually made are the record's `amount` (negative LOWERS): a
+    // move that made none is a skip, and its own reason names why.
+    if ((outcome.amount ?? 0) === 0) {
+      delivery.skipped = outcome.reason ?? address.skipTitle;
+    }
   } else if (outcome.kind === 'colonyBonus') {
     // A HUD-side colony bonus pays its own counter: a LOSS (Titania) is a negative amount and still a payout —
     // only a bonus that came to nothing at all (0) is a skip.
@@ -252,10 +281,9 @@ export function rewardAddressOf(outcome: ParliamentEnactOutcomeModel, viewer: Co
  *     the WAVE BACKWARDS, rail → the card's icon), unit `stock`, stage `reward`, reading `influence-yield`
  *     with a loss tone (struck amount, amber), skip «ПРОПУЩЕНО · нечего терять»; pose: the reading with a
  *     minus and the rail's counter ticking DOWN on touchdown.
- *   · `globalParameter` (temperature / oxygen / oceans for everyone) — surface `board` (the scale marker),
- *     source `carrier`, unit `none`, stage `board` (the frame yields to the board like a winner tile),
- *     reading `winner-reward`'s parameter line («кислород 5 % → 6 %, +1 РТ каждому»), skip «на максимуме»;
- *     pose: the parameter line + the scale story on the board (the board-beat park presents it).
+ *   · (`globalParameter` SHIPPED — Gas Export, RX12: surface `board`, source `card-icon`, unit `none`,
+ *     stage `board`, reading `world-parameter`; the frame yields to the board like a winner tile and the
+ *     board-beat park plays the scale story. The record belongs to NO seat — every viewer reads it.)
  *   · `agendaStepAll` (every player advances one Agenda step) — surface `agenda`, source `carrier`, unit
  *     `none`, stage `reward`, reading a marker line per seat («Повестка 2 → 3»), never skipped (the track's
  *     end is «уже в конце трека», a line, not a plate); pose: every marker glides on the rail at once.

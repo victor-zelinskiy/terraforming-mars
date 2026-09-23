@@ -39,6 +39,14 @@ export type SittingBeatKind =
   | 'enact'
   /** ONE of the viewer's own outcomes: paid (its address), or skipped (its reason). */
   | 'reward'
+  /**
+   * ONE MOVE OF THE PLANET the enactment made for the whole table (Gas Export:
+   * oxygen −1, Venus +2). It belongs to no seat, so EVERY viewer plays it — and
+   * it plays where it happened: the sitting yields to the board, the scale
+   * marker makes the step, the frame comes back. A move that could not happen
+   * is the same beat with its reason on the plate (no silent loss).
+   */
+  | 'world'
   /** THE RENEWAL'S TACT, played from the server's journal: the losers leave, the deck turns over, the fresh resolutions are dealt (with the turn), support votes seat on them. */
   | 'renewal'
   /** Every free delegate returns to the lobby (the journal's last entries — the same tact). */
@@ -54,9 +62,9 @@ export type SittingBeat = {
   id: string;
   /** Play compact (half length, no dwell) — a passed stage on resume, everything in review. */
   compact: boolean;
-  /** `reward`: the viewer's record this beat presents. */
+  /** `reward` / `world`: the record this beat presents. */
   outcome?: ParliamentEnactOutcomeModel;
-  /** `reward`: the record paid nothing — the skip's reason (an i18n key), named on the plate. */
+  /** `reward` / `world`: the record paid nothing — the skip's reason (an i18n key), named on the plate. */
   skipped?: string;
   /** `enact`: the Agenda move that rides with it (the agenda beat's payload, kept here too for the director's convenience). */
   agenda?: ParliamentPhaseSummaryModel['agenda'];
@@ -71,7 +79,10 @@ export function sittingBeatStage(kind: SittingBeatKind): SittingStage {
   case 'agenda':
   case 'support':
   case 'enact': return 'enact';
-  case 'reward': return 'reward';
+  // The world's move is a beat OF THE REWARD PAGE: the page yields to the board for it and takes itself back.
+  case 'reward':
+  case 'world':
+    return 'reward';
   case 'renewal':
   case 'lobby': return 'renewal';
   case 'closing': return 'results';
@@ -112,11 +123,17 @@ export function sittingBeats(
   }
   push('enact', {agenda: summary.agenda});
   for (const outcome of summary.outcomes ?? []) {
-    if (viewer === undefined || outcome.player !== viewer || outcome.kind === 'reaction') {
+    if (viewer === undefined || outcome.kind === 'reaction') {
+      continue;
+    }
+    // A WORLD record belongs to no seat and is played by EVERY viewer; a seat's
+    // record only by that seat.
+    const world = outcome.player === undefined;
+    if (!world && outcome.player !== viewer) {
       continue;
     }
     const delivery = rewardAddressOf(outcome, viewer);
-    push('reward', {outcome, ...(delivery.skipped === undefined ? {} : {skipped: delivery.skipped})});
+    push(world ? 'world' : 'reward', {outcome, ...(delivery.skipped === undefined ? {} : {skipped: delivery.skipped})});
   }
   if (!summary.final) {
     // THE RENEWAL IS ITS JOURNAL: one beat for every physical event but the lobby's (a save from before the

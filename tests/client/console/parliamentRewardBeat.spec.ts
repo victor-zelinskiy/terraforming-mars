@@ -91,6 +91,8 @@ describe('parliamentRewardBeat — the ledger of what the sitting still owes', (
       colonyBonus: outcome({kind: 'colonyBonus', amount: 2, colony: 'Iapetus' as never, description: 'Pay 1 M€ less for cards this generation'}),
       // Colony Contest's winner colony: built on the colonies screen (the sitting's own step) — no rail chip either.
       colony: outcome({kind: 'colony', colony: 'Luna' as never}),
+      // Gas Export's WORLD move: the board's scale, no seat, no rail chip.
+      globalParameter: {step: 'oxygen', part: 'world', kind: 'globalParameter', amount: -1, parameter: {id: 'oxygen', before: 5, after: 4}, unrewarded: true},
     };
     for (const kind of OUTCOME_KINDS) {
       const spec = waveSpecOf(sample[kind]);

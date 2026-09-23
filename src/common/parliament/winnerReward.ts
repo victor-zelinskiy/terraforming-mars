@@ -28,7 +28,7 @@
  * adjacency and the reactions it sets off belong to the placement dossier /
  * the colony's own screen — a surface that has no cell yet names none of them.
  */
-import {MAX_OCEAN_TILES, MAX_OXYGEN_LEVEL, MAX_TEMPERATURE, OXYGEN_LEVEL_FOR_TEMPERATURE_BONUS} from '../constants';
+import {ParameterMoveId, ParameterTable, parameterRoom} from './parameterMove';
 
 /** The Turmoil Redux greenery revision (rulebook p.3): a greenery is worth 1 TR for the tile itself, on top of its oxygen. */
 export const REDUX_GREENERY_TILE_TR = 1;
@@ -57,8 +57,12 @@ export function isWinnerTileReward(reward: WinnerRewardDeclaration): reward is W
   return reward.kind === 'tile';
 }
 
-/** The global parameter a winner tile's own placement moves. */
-export type WinnerRewardParameter = 'oxygen' | 'oceans';
+/**
+ * The global parameter a winner TILE's own placement moves — a NARROWING of
+ * the shared `ParameterMoveId` (a tile can only ever move these two), so the
+ * winner's reading and a world move speak one vocabulary.
+ */
+export type WinnerRewardParameter = Extract<ParameterMoveId, 'oxygen' | 'oceans'>;
 
 /** The parameter a winner TILE moves; a colony moves none. */
 export function winnerRewardParameter(reward: WinnerRewardDeclaration): WinnerRewardParameter | undefined {
@@ -69,11 +73,7 @@ export function winnerRewardParameter(reward: WinnerRewardDeclaration): WinnerRe
 }
 
 /** The table facts the reading needs (the game model's globals). */
-export type WinnerRewardTable = {
-  oxygenLevel: number;
-  temperature: number;
-  oceans: number;
-};
+export type WinnerRewardTable = ParameterTable;
 
 /** What the tile's own placement does to its parameter RIGHT NOW. */
 export type WinnerParameterRoom = {
@@ -94,32 +94,23 @@ export type WinnerParameterRoom = {
   temperatureBonus: boolean;
 };
 
+/**
+ * THE WINNER TILE'S OWN MOVE, read through the SHARED model (`parameterMove
+ * .parameterRoom`) — one arithmetic for the tile and for a world move; this
+ * function only adds what belongs to a TILE (can it be placed at all).
+ */
 export function winnerParameterRoom(reward: WinnerTileReward, table: WinnerRewardTable): WinnerParameterRoom {
-  if (reward.tile === 'greenery') {
-    const current = table.oxygenLevel;
-    const rises = current < MAX_OXYGEN_LEVEL;
-    const resulting = rises ? current + 1 : current;
-    return {
-      parameter: 'oxygen',
-      current,
-      max: MAX_OXYGEN_LEVEL,
-      rises,
-      resulting,
-      tileAvailable: true,
-      temperatureBonus: rises && current < OXYGEN_LEVEL_FOR_TEMPERATURE_BONUS && resulting >= OXYGEN_LEVEL_FOR_TEMPERATURE_BONUS &&
-        table.temperature < MAX_TEMPERATURE,
-    };
-  }
-  const current = table.oceans;
-  const rises = current < MAX_OCEAN_TILES;
+  const parameter: WinnerRewardParameter = reward.tile === 'greenery' ? 'oxygen' : 'oceans';
+  const room = parameterRoom({parameter, steps: 1}, table);
   return {
-    parameter: 'oceans',
-    current,
-    max: MAX_OCEAN_TILES,
-    rises,
-    resulting: rises ? current + 1 : current,
-    tileAvailable: rises,
-    temperatureBonus: false,
+    parameter,
+    current: room.current,
+    max: room.max,
+    rises: room.moves,
+    resulting: room.resulting,
+    // A greenery always lands (a maxed oxygen only stops its raise); an ocean needs a tile left in the supply.
+    tileAvailable: parameter === 'oxygen' ? true : room.moves,
+    temperatureBonus: room.temperatureBonus,
   };
 }
 

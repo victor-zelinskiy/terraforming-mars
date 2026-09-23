@@ -61,7 +61,7 @@ import {SelectOption} from '../inputs/SelectOption';
 import {message} from '../logs/MessageBuilder';
 import {PlayerInput} from '../PlayerInput';
 import {Parliament, Slot, Vote} from './Parliament';
-import {EnactContext, EnactOutcome, EnactStep, hasImmediateSteps, immediateStepsOf} from './resolutions/IResolution';
+import {EnactContext, EnactOutcome, EnactStep, hasImmediateSteps, immediateStepsOf, ResolutionDefinition} from './resolutions/IResolution';
 import {
   EnactOutcomePart, SerializedDelegateOwner, SerializedEnactOutcome, SerializedPhaseProgress, SerializedPhaseSummary, SerializedRenewalEvent,
 } from './SerializedParliament';
@@ -495,80 +495,177 @@ export class ParliamentPhase {
     const winner = winnerId === undefined || winnerId === 'NEUTRAL' ? undefined : this.game.getPlayerById(winnerId);
     const players = parliament.participants(this.game);
     const winnerSteps = definition.winnerSteps ?? [];
-    if (!hasImmediateSteps(definition) && winnerSteps.length === 0) {
+    const worldSteps = definition.worldSteps ?? [];
+    if (!hasImmediateSteps(definition) && worldSteps.length === 0 && winnerSteps.length === 0) {
       // Nothing to walk: a passive or an action works from the ENACTED slot.
       return 'done';
     }
-    // EVERY seat is walked from the first on each entry: the per-seat keys make
-    // a finished seat a no-op, and a resumed save whose seat order moved (a
-    // clone with another first player) can never skip one. The index stays a
-    // progress marker only.
+    // THE WALK, IN THE CARD'S OWN ORDER. Every seat's own part first; then
+    // what the enactment does to the TABLE (once, for nobody); then the
+    // winner's. A world step must not run per seat — «reduce oxygen 1 step»
+    // inside the seat loop would lower it once per player.
+    //
+    // WHERE THE WINNER'S PART GOES. Historically it is walked INLINE with its
+    // seat (the winner picks its payout and is sent straight to the board,
+    // while the seats after it wait) — the shipped grammar of Aquifer /
+    // Biodome / Colony Contest, and nothing about a world part changes it. But
+    // an enactment that MOVES THE WORLD must have moved it before the winner
+    // puts a tile on that world: so a definition that declares `worldSteps`
+    // defers its winner part past them. The card's own declaration decides,
+    // and a card with no world part walks exactly as it always did.
+    const deferWinner = worldSteps.length > 0;
+    //
+    // EVERY pass is walked from the first entry each time: the idempotency
+    // keys make a finished step a no-op, and a resumed save whose seat order
+    // moved (a clone with another first player) can never skip one. The index
+    // stays a progress marker only.
     for (let index = 0; index < players.length; index++) {
       cursor.playerIndex = index;
       const player = players[index];
       // THE SEAT'S OWN STEPS — the static list, or the definition's per-player
       // PLAN (one step per colony tile the seat has a cube on): re-derived on
       // every entry from the same table, so a reload finds the same keys.
-      const immediate = immediateStepsOf(definition, player, parliament, this.game);
-      // WHICH PART each step belongs to rides every record it makes: the
-      // client tells «everyone's effect» from «the winner's part» by it,
-      // never by a step key.
-      const plan: Array<{step: EnactStep, part: EnactOutcomePart}> = [
-        ...immediate.map((step) => ({step, part: 'effect' as const})),
-        ...(winner !== undefined && winner.id === player.id ? winnerSteps.map((step) => ({step, part: 'winner' as const})) : []),
+      const plan: Array<{step: EnactStep, part: Exclude<EnactOutcomePart, 'world'>}> = [
+        ...immediateStepsOf(definition, player, parliament, this.game).map((step) => ({step, part: 'effect' as const})),
+        ...(!deferWinner && winner !== undefined && winner.id === player.id ? winnerSteps.map((step) => ({step, part: 'winner' as const})) : []),
       ];
       for (const {step, part} of plan) {
-        const key = `effect:${p.generation}:${instance}:${step.key}`;
-        if (this.seatApplied(player.id, key, `effect:${p.generation}:${instance}:${player.id}:${step.key}`)) {
-          continue;
+        if (this.runSeatStep(definition, instance, player, winner, step, part) === 'waiting') {
+          return 'waiting';
         }
-        const state = (p.effectState ??= {})[player.id] ??= {};
-        const ctx: EnactContext = {
-          game: this.game,
-          parliament,
-          player,
-          winner,
-          influence: parliament.influence(player),
-          source: {kind: 'resolution', id: definition.id, owner: player.color},
-          state,
-          report: (outcome) => this.recordOutcome(player, step.key, part, outcome),
-        };
-        const events = this.game.events;
-        // THE REACTION WINDOW opens with the step: the ruling party's answers
-        // to what the step changes are read off the recorder from here on
-        // (`readReactions`) and folded under the step's own record. A step
-        // RE-ENTERED (a reload inside its question) keeps the window it opened —
-        // the progress resumes exactly as it was saved.
-        if (cursor.scan?.player !== player.id || cursor.scan.key !== step.key) {
-          cursor.scan = {player: player.id, key: step.key, part, sinceEvent: events.sequence};
-        }
-        events.beginAction(player, ctx.source, {category: 'political-phase'});
-        try {
-          const prompt = step.run(ctx);
-          if (prompt === undefined) {
-            this.markSeatApplied(player.id, key);
-            this.readReactions();
-            continue;
-          }
-          // AN ASK: the step changed nothing; its prompt's answer will. The
-          // prompt is set INSIDE the scope so the answer's mutations keep the
-          // resolution's chain, and the game is saved so a reload rebuilds
-          // exactly this question.
-          cursor.pending = {player: player.id, key: step.key};
-          player.setWaitingFor(prompt, () => {
-            this.markSeatApplied(player.id, key);
-            cursor.pending = undefined;
-            this.readReactions();
-            this.continue();
-          });
-        } finally {
-          events.endScope();
-        }
-        this.game.save();
+      }
+    }
+    for (const step of worldSteps) {
+      if (this.runWorldStep(definition, instance, winner, step) === 'waiting') {
         return 'waiting';
       }
     }
+    if (deferWinner && winner !== undefined) {
+      for (const step of winnerSteps) {
+        if (this.runSeatStep(definition, instance, winner, winner, step, 'winner') === 'waiting') {
+          return 'waiting';
+        }
+      }
+    }
     return 'done';
+  }
+
+  /**
+   * ONE STEP OF ONE SEAT (the seat's own part, or the winner's). Returns
+   * `waiting` when the step ASKED — the caller stops the walk there.
+   */
+  private runSeatStep(
+    definition: ResolutionDefinition,
+    instance: ResolutionInstanceId,
+    player: IPlayer,
+    winner: IPlayer | undefined,
+    step: EnactStep,
+    part: Exclude<EnactOutcomePart, 'world'>,
+  ): 'waiting' | 'done' {
+    const p = this.progress;
+    const cursor = p.effects ?? (p.effects = {playerIndex: 0});
+    const key = `effect:${p.generation}:${instance}:${step.key}`;
+    if (this.seatApplied(player.id, key, `effect:${p.generation}:${instance}:${player.id}:${step.key}`)) {
+      return 'done';
+    }
+    const state = (p.effectState ??= {})[player.id] ??= {};
+    const ctx: EnactContext = {
+      game: this.game,
+      parliament: this.parliament,
+      player,
+      winner,
+      influence: this.parliament.influence(player),
+      source: {kind: 'resolution', id: definition.id, owner: player.color},
+      state,
+      report: (outcome) => this.recordOutcome(player, step.key, part, outcome),
+    };
+    const events = this.game.events;
+    // THE REACTION WINDOW opens with the step: the ruling party's answers
+    // to what the step changes are read off the recorder from here on
+    // (`readReactions`) and folded under the step's own record. A step
+    // RE-ENTERED (a reload inside its question) keeps the window it opened —
+    // the progress resumes exactly as it was saved.
+    if (cursor.scan?.player !== player.id || cursor.scan.key !== step.key) {
+      cursor.scan = {player: player.id, key: step.key, part, sinceEvent: events.sequence};
+    }
+    events.beginAction(player, ctx.source, {category: 'political-phase'});
+    try {
+      const prompt = step.run(ctx);
+      if (prompt === undefined) {
+        this.markSeatApplied(player.id, key);
+        this.readReactions();
+        return 'done';
+      }
+      // AN ASK: the step changed nothing; its prompt's answer will. The
+      // prompt is set INSIDE the scope so the answer's mutations keep the
+      // resolution's chain, and the game is saved so a reload rebuilds
+      // exactly this question.
+      cursor.pending = {player: player.id, key: step.key};
+      player.setWaitingFor(prompt, () => {
+        this.markSeatApplied(player.id, key);
+        cursor.pending = undefined;
+        this.readReactions();
+        this.continue();
+      });
+    } finally {
+      events.endScope();
+    }
+    this.game.save();
+    return 'waiting';
+  }
+
+  /**
+   * ONE WORLD STEP — the enactment's own change to the table, run ONCE per
+   * enactment (its key lives in `applied`, not in any seat's list) and
+   * attributed to NOBODY: the scope carries the resolution with no owner, the
+   * record carries no player, and the step is handed the first player in
+   * generation order purely as the engine's handle (the World Government's own
+   * precedent). No reaction window: the ruling party answers what happens to a
+   * PLAYER, and nothing here happens to one.
+   */
+  private runWorldStep(
+    definition: ResolutionDefinition,
+    instance: ResolutionInstanceId,
+    winner: IPlayer | undefined,
+    step: EnactStep,
+  ): 'waiting' | 'done' {
+    const p = this.progress;
+    const key = `world:${p.generation}:${instance}:${step.key}`;
+    if (this.applied(key)) {
+      return 'done';
+    }
+    const handle = this.game.playersInGenerationOrder[0];
+    const state = (p.worldState ??= {});
+    const ctx: EnactContext = {
+      game: this.game,
+      parliament: this.parliament,
+      player: handle,
+      winner,
+      influence: 0,
+      // NO `owner`: the law did this, not the handle it was given.
+      source: {kind: 'resolution', id: definition.id},
+      state,
+      report: (outcome) => this.recordWorldOutcome(step.key, outcome),
+    };
+    const events = this.game.events;
+    events.beginAction(undefined, ctx.source, {category: 'political-phase'});
+    try {
+      const prompt = step.run(ctx);
+      if (prompt === undefined) {
+        this.markApplied(key);
+        return 'done';
+      }
+      // A world step that ASKS is answered by the handle seat; the mark lands
+      // on the phase's own list all the same (one answer for the table).
+      handle.setWaitingFor(prompt, () => {
+        this.markApplied(key);
+        this.continue();
+      });
+    } finally {
+      events.endScope();
+    }
+    this.game.save();
+    return 'waiting';
   }
 
   /**
@@ -588,6 +685,23 @@ export class ParliamentPhase {
       return;
     }
     outcomes.push({player: player.id, step: stepKey, part, ...outcome});
+  }
+
+  /**
+   * A WORLD STEP'S RECORD — the same ledger, with NO seat: the planet moved,
+   * and it moved for everybody. One record per step key (a defensive re-run
+   * keeps the first), so a reload can never write the change down twice.
+   */
+  private recordWorldOutcome(stepKey: string, outcome: EnactOutcome): void {
+    const summary = this.parliament.phase?.summary;
+    if (summary === undefined) {
+      return;
+    }
+    const outcomes = (summary.outcomes ??= []);
+    if (outcomes.some((o) => o.player === undefined && o.step === stepKey)) {
+      return;
+    }
+    outcomes.push({step: stepKey, part: 'world', ...outcome});
   }
 
   /**

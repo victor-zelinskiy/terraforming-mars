@@ -7,7 +7,7 @@ import {CardResource} from '../../common/CardResource';
 import {ColonyName} from '../../common/colonies/ColonyName';
 import {Resource} from '../../common/Resource';
 import {BotParliamentMode, ParliamentPhaseStep, QuestDefinition, ResolutionInstanceId} from '../../common/parliament/ParliamentTypes';
-import {WinnerRewardParameter} from '../../common/parliament/winnerReward';
+import {ParameterMoveId} from '../../common/parliament/parameterMove';
 import type {EventTrigger} from '../../common/events/GameEvent';
 
 /** Bump when the shape changes incompatibly; older saves are refused explicitly. */
@@ -48,13 +48,20 @@ export type SerializedQuest = {
  * loss — the reason is an English i18n key).
  */
 export type SerializedEnactOutcome = {
-  player: PlayerId;
+  /**
+   * THE SEAT the record belongs to — ABSENT on a WORLD record (a `world` part):
+   * a move the enactment makes for the whole table (Gas Export lowers oxygen
+   * and raises Venus) belongs to no player and is never attributed to one, so
+   * every reading that filters by seat simply does not pick it up, and every
+   * viewer reads the same line.
+   */
+  player?: PlayerId;
   /** The step key that produced it. */
   step: string;
   /**
    * WHICH PART of the resolution produced it — the effect every participant
-   * receives, or the winner's own part — stamped by the driver from the list
-   * the step belongs to (absent on older saves).
+   * receives, the WORLD's own part, or the winner's — stamped by the driver
+   * from the list the step belongs to (absent on older saves).
    */
   part?: EnactOutcomePart;
   /** The scaled effect's id (`InfluenceScaledEffect.id`) when the amount came from influence. */
@@ -67,11 +74,13 @@ export type SerializedEnactOutcome = {
    * colony bonus the chip language does not speak, paid through its own
    * counter (a discount, a loss, a science tag — see `description`) ·
    * `ocean` / `greenery` the winner's tile · `colony` the winner's colony built
-   * for free (Colony Contest — `colony` names the tile) · `skipped` nothing
-   * happened (see `reason`) · `reaction` the RULING PARTY's answer to this
-   * step's own change (see `party`).
+   * for free (Colony Contest — `colony` names the tile) · `globalParameter` a
+   * WORLD move of a global parameter (Gas Export — see `parameter`, and
+   * `amount` = the steps actually made, negative for a lowering) · `skipped`
+   * nothing happened (see `reason`) · `reaction` the RULING PARTY's answer to
+   * this step's own change (see `party`).
    */
-  kind: 'cardResource' | 'production' | 'stock' | 'cards' | 'discard' | 'colonyBonus' | 'ocean' | 'greenery' | 'colony' | 'skipped' | 'reaction';
+  kind: 'cardResource' | 'production' | 'stock' | 'cards' | 'discard' | 'colonyBonus' | 'ocean' | 'greenery' | 'colony' | 'globalParameter' | 'skipped' | 'reaction';
   /**
    * THE COLONY whose printed bonus this record pays (Colonial Affairs: «gain
    * all your colony bonuses k times») — the ledger row the record belongs to
@@ -157,15 +166,26 @@ export type SerializedEnactOutcome = {
    */
   intake?: number;
   /**
-   * A winner TILE (`ocean` / `greenery`): the global parameter its own
-   * placement moved, read before and after — equal when the parameter was
-   * already at its maximum (a greenery still lands and pays its own TR).
+   * A winner TILE (`ocean` / `greenery`) or a WORLD move (`globalParameter`):
+   * the global parameter that moved, read before and after — equal when the
+   * parameter was already at the limit (a greenery still lands and pays its
+   * own TR; a world move that could not happen names itself in `reason`).
    */
-  parameter?: {id: WinnerRewardParameter; before: number; after: number};
+  parameter?: {id: ParameterMoveId; before: number; after: number};
+  /**
+   * `globalParameter`: NOBODY was credited with a terraform rating for this
+   * move (the law's own «no one gets the TR for this») — recorded so the
+   * reading never has to re-derive a rule from the card's text.
+   */
+  unrewarded?: boolean;
 };
 
-/** `effect` — everyone's part (`immediateSteps`); `winner` — the winner's (`winnerSteps`). */
-export type EnactOutcomePart = 'effect' | 'winner';
+/**
+ * `effect` — everyone's part (`immediateSteps`) · `world` — the part the
+ * enactment does to the TABLE, once, for nobody (`worldSteps`) · `winner` —
+ * the winner's (`winnerSteps`).
+ */
+export type EnactOutcomePart = 'effect' | 'world' | 'winner';
 
 /**
  * ONE PHYSICAL EVENT OF THE VOTING AREA'S RENEWAL (rulebook p.11–12; spec
@@ -270,6 +290,8 @@ export type SerializedPhaseProgress = {
   effects?: {playerIndex: number; pending?: {player: PlayerId; key: string}; scan?: {player: PlayerId; key: string; part: EnactOutcomePart; sinceEvent: number}};
   /** Free-form resumable state a resolution's multi-step effect keeps between its steps, per player. */
   effectState?: Record<PlayerId, Record<string, unknown>>;
+  /** …and the same for the enactment's WORLD steps, which belong to no seat (`worldSteps`). */
+  worldState?: Record<string, unknown>;
   /** The summary being assembled (copied to `lastPhase` when the phase completes). */
   summary?: SerializedPhaseSummary;
 };

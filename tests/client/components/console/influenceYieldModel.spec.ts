@@ -34,7 +34,7 @@ function model(players: Array<ParliamentPlayerModel>, over: Partial<ParliamentMo
 const resolution: IClientResolution = {
   id: 'RDX_TEST', module: 'turmoilRedux', party: PartyName.GREENS, copies: 1, compatibility: [], renderData: {rows: [], is: 'root'} as never,
   text: {name: 'Test', quest: 'q'}, quest: {goal: {kind: 'tr'}, count: 1}, questRenderData: {rows: [], is: 'root'} as never,
-  scaled: [ANIMALS], hasImmediate: true, hasWinnerEffect: false, hasPassive: false, hasAction: false,
+  scaled: [ANIMALS], hasImmediate: true, hasWorldEffect: false, hasWinnerEffect: false, hasPassive: false, hasAction: false,
 };
 
 describe('influenceYieldModel', () => {

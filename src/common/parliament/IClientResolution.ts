@@ -4,6 +4,7 @@ import {PartyActionId, QuestDefinition, ReduxParty, ResolutionCode, ResolutionId
 import {InfluenceScaledEffect} from './influenceScaling';
 import {PartyReaction} from './partyReactions';
 import {WinnerRewardDeclaration} from './winnerReward';
+import {WorldParameterMove} from './parameterMove';
 
 /**
  * The printed face of a resolution card, as shipped to the client through
@@ -26,6 +27,12 @@ export type IClientResolution = {
     effect?: string;
     /** The winner-only part of the enactment (the player who won the vote). */
     winner?: string;
+    /**
+     * The part the enactment does to the TABLE, once and for nobody (`worldSteps`
+     * / `worldMoves`) — its own block in the inspector, never a clause of
+     * `effect`: what the law does to the planet is not what it pays a seat.
+     */
+    world?: string;
     passive?: string;
     action?: string;
     quest: string;
@@ -48,7 +55,14 @@ export type IClientResolution = {
    * winner's step places. Absent = no winner part, or one not declared as data.
    */
   winnerReward?: WinnerRewardDeclaration;
+  /**
+   * The WORLD's part as data (`parameterMove.ts`) — the global parameters the
+   * enactment moves for the whole table, and whether anybody is credited for
+   * them. The same declaration `worldSteps` pays by.
+   */
+  worldMoves?: ReadonlyArray<WorldParameterMove>;
   hasImmediate: boolean;
+  hasWorldEffect: boolean;
   hasWinnerEffect: boolean;
   hasPassive: boolean;
   hasAction: boolean;

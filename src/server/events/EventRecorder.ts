@@ -776,20 +776,24 @@ export class EventRecorder {
   }
 
   /**
-   * Record a global-parameter raise (oxygen / temperature / oceans / venus) under
+   * Record a global-parameter CHANGE (oxygen / temperature / oceans / venus) under
    * the active scope, so the source card / action / standard project is attributed
    * the parameter steps it moved (the "who terraformed the planet" feed). The TR
    * itself is recorded separately by `recordTrDelta`. Tagged `global-parameter`
    * (analytics-only — excluded from the journal, which shows the TR + tile); the
    * `record()` chokepoint adds `passive-effect` automatically inside an effect scope.
    */
-  public recordGlobalParameterChange(player: IPlayer, parameter: GlobalParameter, steps: number): void {
-    if (steps <= 0) {
+  public recordGlobalParameterChange(player: IPlayer | undefined, parameter: GlobalParameter, steps: number): void {
+    if (steps === 0) {
       return;
     }
+    // `player: undefined` = NOBODY moved it in their own name: an enacted
+    // resolution that terraforms (or de-terraforms) the planet for the whole
+    // table. The scope's source still names the law; the event carries no
+    // player, so «who terraformed the planet» never credits a passer-by.
     this.record({
       type: 'global-parameter-changed',
-      player: player.color,
+      ...(player === undefined ? {} : {player: player.color}),
       impact: {globalParameter: {parameter, steps}},
       tags: ['global-parameter'],
     });

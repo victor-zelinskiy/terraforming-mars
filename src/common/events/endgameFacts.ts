@@ -235,6 +235,14 @@ function globalParameterFacts(events: ReadonlyArray<GameEvent>): Array<EndgameFa
   }
   const facts: Array<EndgameFact> = [];
   for (const [color, agg] of byPlayer) {
+    // A parameter change carries its SIGN (the Reds' agenda action lowers one),
+    // so a player's total can be zero or negative — «who terraformed the
+    // planet» has no story to tell about them, and one told anyway would rank
+    // a de-terraformer as a terraformer. The metrics themselves stay honest
+    // for whoever did raise something.
+    if (agg.total <= 0) {
+      continue;
+    }
     const top = [...agg.bySource.values()].sort((a, b) => b.steps - a.steps)[0];
     facts.push({
       id: `global:${color}`,

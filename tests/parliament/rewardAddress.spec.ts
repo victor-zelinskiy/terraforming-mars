@@ -25,7 +25,7 @@ function outcome(over: Partial<ParliamentEnactOutcomeModel> & {kind: ParliamentE
  */
 describe('rewardAddress — the table', () => {
   it('has a row for EVERY outcome kind — and only for kinds (the union and the table are one)', () => {
-    expect(OUTCOME_KINDS.slice().sort()).deep.eq(['cardResource', 'cards', 'colony', 'colonyBonus', 'discard', 'greenery', 'ocean', 'production', 'reaction', 'skipped', 'stock']);
+    expect(OUTCOME_KINDS.slice().sort()).deep.eq(['cardResource', 'cards', 'colony', 'colonyBonus', 'discard', 'globalParameter', 'greenery', 'ocean', 'production', 'reaction', 'skipped', 'stock']);
     for (const kind of OUTCOME_KINDS) {
       expect(REWARD_ADDRESS[kind].kind, kind).eq(kind);
     }
@@ -104,6 +104,10 @@ describe('rewardAddress — the table', () => {
     expect(REWARD_ADDRESS.cards.stage).eq('take');
     expect(REWARD_ADDRESS.ocean.stage).eq('board');
     expect(REWARD_ADDRESS.greenery.stage).eq('board');
+    // …and a WORLD move of a global parameter is the board's too (Gas Export): the sitting yields, the scale
+    // marker makes the step, the frame comes back — no seat, no rail, no chip in anybody's hands.
+    expect(REWARD_ADDRESS.globalParameter.stage).eq('board');
+    expect(REWARD_ADDRESS.globalParameter.unit).eq('none');
     // A rail chip is BORN on a printed icon (the carrier's mechanic, the ruling party's formula) and rides a rail unit;
     // what the board or the stage plate presents has no flight source of its own.
     for (const kind of OUTCOME_KINDS) {
@@ -113,7 +117,11 @@ describe('rewardAddress — the table', () => {
         expect(['production', 'stock'], `${kind}: a rail unit`).includes(row.unit);
       }
       if (row.surface === 'board' || row.surface === 'colonies' || row.surface === 'stage-plate') {
-        expect(row.source, `${kind}: nothing flies off the card`).eq('none');
+        // A TILE is placed by the board's own scene and a plate moves nothing — neither has a flight
+        // source. A WORLD PARAMETER MOVE is the exception ON PURPOSE: its impulse leaves the law's own
+        // printed graphic (the minus over the oxygen icon, the Venus dials) and reaches the scale, which
+        // is the only thing that answers «why did the marker move».
+        expect(row.source, `${kind}: nothing flies off the card`).eq(kind === 'globalParameter' ? 'card-icon' : 'none');
       }
     }
   });

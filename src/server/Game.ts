@@ -88,7 +88,7 @@ import {CorporationDeck, PreludeDeck, ProjectDeck, CeoDeck} from './cards/Deck';
 import {Logger} from './logs/Logger';
 import {addDays, stringToNumber} from './database/utils';
 import {Tag} from '../common/cards/Tag';
-import {IGame, Score, SpaceBonusGrant} from './IGame';
+import {IGame, ParameterMoveOptions, Score, SpaceBonusGrant} from './IGame';
 import {MarsBoard} from './boards/MarsBoard';
 import {UnderworldData} from './underworld/UnderworldData';
 import {UnderworldExpansion} from './underworld/UnderworldExpansion';
@@ -1702,14 +1702,17 @@ export class Game implements IGame, Logger {
   // the bot-turn script) — the claim is a beat of that action's story, never a
   // detached announcement. The parameter is a RESOURCE token (icon chip), not
   // an untranslatable raw string.
-  private claimScaleBonus(player: IPlayer, scale: 'venus' | 'oxygen' | 'temperature', step: number): void {
+  private claimScaleBonus(player: IPlayer, scale: 'venus' | 'oxygen' | 'temperature', step: number, neutral = false): void {
     const key = `${scale}-${step}`;
     if (this.scaleBonusClaims.has(key)) {
       return;
     }
     const parameter = scale === 'venus' ? GlobalParameter.VENUS :
       scale === 'oxygen' ? GlobalParameter.OXYGEN : GlobalParameter.TEMPERATURE;
-    const government = this.phase === Phase.SOLAR;
+    // NEUTRAL: nobody terraformed this threshold — the World Government's own
+    // phase, or a move asked for in its mode (`ParameterMoveOptions.unrewarded`:
+    // an enacted resolution that terraforms for no one).
+    const government = neutral || this.phase === Phase.SOLAR;
     this.scaleBonusClaims.set(key, government ? 'neutral' : player.color);
     if (government) {
       this.log('The ${0} scale bonus was passed by World Government terraforming', (b) => b.globalParameter(parameter));
@@ -1719,33 +1722,51 @@ export class Game implements IGame, Logger {
   }
 
   // Record claims for every scale-bonus threshold an increase just crossed.
-  private claimCrossedScaleBonuses(player: IPlayer, scale: 'venus' | 'oxygen' | 'temperature', from: number, to: number, steps: ReadonlyArray<number>): void {
+  private claimCrossedScaleBonuses(player: IPlayer, scale: 'venus' | 'oxygen' | 'temperature', from: number, to: number, steps: ReadonlyArray<number>, neutral = false): void {
     for (const step of steps) {
       if (from < step && to >= step) {
-        this.claimScaleBonus(player, scale, step);
+        this.claimScaleBonus(player, scale, step, neutral);
       }
     }
   }
 
-  public increaseOxygenLevel(player: IPlayer, increments: -2 | -1 | 1 | 2): void {
+  public increaseOxygenLevel(player: IPlayer, increments: -2 | -1 | 1 | 2, options?: ParameterMoveOptions): void {
     if (this.oxygenLevel >= constants.MAX_OXYGEN_LEVEL) {
       return undefined;
     }
+    const government = this.phase === Phase.SOLAR;
+    // The mover is credited unless the World Government's phase is running or
+    // the caller asked for that mode explicitly (`ParameterMoveOptions`).
+    const rewarded = !government && options?.unrewarded !== true;
 
     // PoliticalAgendas Reds P3 && Magnetic Field Stimulation Delays hook
     if (increments < 0) {
+      const before = this.oxygenLevel;
       this.oxygenLevel = Math.max(constants.MIN_OXYGEN_LEVEL, this.oxygenLevel + increments);
+      // A LOWERING IS A PARAMETER CHANGE LIKE ANY OTHER — recorded with its
+      // sign (`steps < 0`) so the stream, the aggregates and the endgame facts
+      // see the planet going backwards instead of nothing at all. Attributed
+      // to the player only when a player is behind it: a world move of an
+      // enacted resolution is the LAW's, and the scope carries the law.
+      const lowered = this.oxygenLevel - before;
+      if (lowered < 0) {
+        this.events.recordGlobalParameterChange(rewarded ? player : undefined, GlobalParameter.OXYGEN, lowered);
+      }
       return undefined;
     }
 
     // Literal typing makes |increments| a const
     const steps = Math.min(increments, constants.MAX_OXYGEN_LEVEL - this.oxygenLevel);
 
-    if (this.phase !== Phase.SOLAR) {
+    if (rewarded) {
       TurmoilHandler.onGlobalParameterIncrease(player, GlobalParameter.OXYGEN, steps);
       player.onGlobalParameterIncrease(GlobalParameter.OXYGEN, steps);
       player.increaseTerraformRating(steps, {global: true});
-      this.events.recordGlobalParameterChange(player, GlobalParameter.OXYGEN, steps);
+    }
+    // The World Government's phase keeps its historical silence; an
+    // explicitly UNREWARDED move still happened, and says so with no author.
+    if (!government) {
+      this.events.recordGlobalParameterChange(rewarded ? player : undefined, GlobalParameter.OXYGEN, steps);
     }
     if (this.oxygenLevel < constants.OXYGEN_LEVEL_FOR_TEMPERATURE_BONUS &&
       this.oxygenLevel + steps >= constants.OXYGEN_LEVEL_FOR_TEMPERATURE_BONUS) {
@@ -1755,11 +1776,13 @@ export class Game implements IGame, Logger {
         // action immediately (taking a Failed Action if it cannot resolve it)."
         automaFailedAction(this, 'temperature-maxed');
       } else {
-        this.increaseTemperature(player, 1);
+        // The 8 % step inherits the move's own mode: a raise nobody is
+        // credited for does not hand out a temperature rating either.
+        this.increaseTemperature(player, 1, options);
       }
     }
 
-    this.claimCrossedScaleBonuses(player, 'oxygen', this.oxygenLevel, this.oxygenLevel + steps, [constants.OXYGEN_LEVEL_FOR_TEMPERATURE_BONUS]);
+    this.claimCrossedScaleBonuses(player, 'oxygen', this.oxygenLevel, this.oxygenLevel + steps, [constants.OXYGEN_LEVEL_FOR_TEMPERATURE_BONUS], !rewarded);
 
     this.oxygenLevel += steps;
     this.maybeLogMarsIsTerraformed();
@@ -1773,21 +1796,29 @@ export class Game implements IGame, Logger {
     return this.oxygenLevel;
   }
 
-  public increaseVenusScaleLevel(player: IPlayer, increments: -1 | 1 | 2 | 3): number {
+  public increaseVenusScaleLevel(player: IPlayer, increments: -1 | 1 | 2 | 3, options?: ParameterMoveOptions): number {
     if (this.venusScaleLevel >= constants.MAX_VENUS_SCALE) {
       return 0;
     }
+    const government = this.phase === Phase.SOLAR;
+    const rewarded = !government && options?.unrewarded !== true;
 
     // PoliticalAgendas Reds P3 hook
     if (increments === -1) {
+      const before = this.venusScaleLevel;
       this.venusScaleLevel = Math.max(constants.MIN_VENUS_SCALE, this.venusScaleLevel + increments * 2);
+      // The lowering, with its sign — see `increaseOxygenLevel`.
+      const lowered = (this.venusScaleLevel - before) / 2;
+      if (lowered < 0) {
+        this.events.recordGlobalParameterChange(rewarded ? player : undefined, GlobalParameter.VENUS, lowered);
+      }
       return -1;
     }
 
     // Literal typing makes |increments| a const
     const steps = Math.min(increments, (constants.MAX_VENUS_SCALE - this.venusScaleLevel) / 2);
 
-    if (this.phase !== Phase.SOLAR) {
+    if (rewarded) {
       if (this.venusScaleLevel < constants.VENUS_LEVEL_FOR_CARD_BONUS &&
         this.venusScaleLevel + steps * 2 >= constants.VENUS_LEVEL_FOR_CARD_BONUS) {
         // MarsBot has no hand — the official Automa material never grants the bot
@@ -1848,7 +1879,9 @@ export class Game implements IGame, Logger {
       TurmoilHandler.onGlobalParameterIncrease(player, GlobalParameter.VENUS, steps);
       player.onGlobalParameterIncrease(GlobalParameter.VENUS, steps);
       player.increaseTerraformRating(steps, {global: true});
-      this.events.recordGlobalParameterChange(player, GlobalParameter.VENUS, steps);
+    }
+    if (!government) {
+      this.events.recordGlobalParameterChange(rewarded ? player : undefined, GlobalParameter.VENUS, steps);
     }
 
     // Check for Aphrodite corporation
@@ -1867,7 +1900,7 @@ export class Game implements IGame, Logger {
     const venusBonusSteps = this.gameOptions.altVenusBoard ?
       [constants.VENUS_LEVEL_FOR_CARD_BONUS, constants.VENUS_LEVEL_FOR_TR_BONUS, 18, 20, 22, 24, 26, 28, 30] :
       [constants.VENUS_LEVEL_FOR_CARD_BONUS, constants.VENUS_LEVEL_FOR_TR_BONUS];
-    this.claimCrossedScaleBonuses(player, 'venus', this.venusScaleLevel, this.venusScaleLevel + steps * 2, venusBonusSteps);
+    this.claimCrossedScaleBonuses(player, 'venus', this.venusScaleLevel, this.venusScaleLevel + steps * 2, venusBonusSteps, !rewarded);
 
     this.venusScaleLevel += steps * 2;
     this.maybeLogMarsIsTerraformed();
@@ -1879,20 +1912,28 @@ export class Game implements IGame, Logger {
     return this.venusScaleLevel;
   }
 
-  public increaseTemperature(player: IPlayer, increments: -2 | -1 | 1 | 2 | 3): undefined {
+  public increaseTemperature(player: IPlayer, increments: -2 | -1 | 1 | 2 | 3, options?: ParameterMoveOptions): undefined {
     if (this.temperature >= constants.MAX_TEMPERATURE) {
       return undefined;
     }
+    const government = this.phase === Phase.SOLAR;
+    const rewarded = !government && options?.unrewarded !== true;
 
     if (increments === -2 || increments === -1) {
+      const before = this.temperature;
       this.temperature = Math.max(constants.MIN_TEMPERATURE, this.temperature + increments * 2);
+      // The lowering, with its sign — see `increaseOxygenLevel`.
+      const lowered = (this.temperature - before) / 2;
+      if (lowered < 0) {
+        this.events.recordGlobalParameterChange(rewarded ? player : undefined, GlobalParameter.TEMPERATURE, lowered);
+      }
       return undefined;
     }
 
     // Literal typing makes |increments| a const
     const steps = Math.min(increments, (constants.MAX_TEMPERATURE - this.temperature) / 2);
 
-    if (this.phase !== Phase.SOLAR) {
+    if (rewarded) {
       // BONUS FOR HEAT PRODUCTION AT -20 and -24
       // MarsBot has no production: "If MarsBot raises the temperature to a bonus
       // step that gives a heat production (-24 C and -20 C), MarsBot gains 2 MC
@@ -1923,10 +1964,15 @@ export class Game implements IGame, Logger {
       player.onGlobalParameterIncrease(GlobalParameter.TEMPERATURE, steps);
       TurmoilHandler.onGlobalParameterIncrease(player, GlobalParameter.TEMPERATURE, steps);
       player.increaseTerraformRating(steps, {global: true});
-      this.events.recordGlobalParameterChange(player, GlobalParameter.TEMPERATURE, steps);
+    }
+    if (!government) {
+      this.events.recordGlobalParameterChange(rewarded ? player : undefined, GlobalParameter.TEMPERATURE, steps);
     }
 
-    // BONUS FOR OCEAN TILE AT 0
+    // BONUS FOR OCEAN TILE AT 0 — deliberately OUTSIDE the reward gate, exactly
+    // where the World Government's phase leaves it: the ocean of 0 °C is placed
+    // even by a move nobody is credited for (`unrewarded` is WGT parity, not a
+    // stricter mode of its own).
     if (this.temperature < constants.TEMPERATURE_FOR_OCEAN_BONUS && this.temperature + steps * 2 >= constants.TEMPERATURE_FOR_OCEAN_BONUS) {
       if (player.isMarsBot) {
         // The bonus terraforming action resolves immediately for MarsBot — its
@@ -1946,7 +1992,7 @@ export class Game implements IGame, Logger {
     }
 
     this.claimCrossedScaleBonuses(player, 'temperature', this.temperature, this.temperature + steps * 2,
-      [constants.TEMPERATURE_BONUS_FOR_HEAT_1, constants.TEMPERATURE_BONUS_FOR_HEAT_2, constants.TEMPERATURE_FOR_OCEAN_BONUS]);
+      [constants.TEMPERATURE_BONUS_FOR_HEAT_1, constants.TEMPERATURE_BONUS_FOR_HEAT_2, constants.TEMPERATURE_FOR_OCEAN_BONUS], !rewarded);
 
     this.temperature += steps * 2;
     this.maybeLogMarsIsTerraformed();

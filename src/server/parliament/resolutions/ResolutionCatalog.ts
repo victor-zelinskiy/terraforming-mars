@@ -40,6 +40,7 @@ import {COLONIZATION_FUNDING} from './unity/ColonizationFunding';
 import {COLONY_CONTEST} from './unity/ColonyContest';
 import {DEVELOPMENT_CRAZE} from './marsFirst/DevelopmentCraze';
 import {FORESTRY_SUPPORT} from './greens/ForestrySupport';
+import {GAS_EXPORT} from './reds/GasExport';
 
 /**
  * THE RETIRED IDS — iteration 0's DUMMY resolutions (a party, a quest, no
@@ -464,6 +465,9 @@ export const REDUX_RESOLUTION_CATALOG = new ResolutionCatalog([
   DEVELOPMENT_CRAZE,
   // …and the first law that INTRODUCES a bonus the engine has none of: greeneries pay their neighbours.
   FORESTRY_SUPPORT,
+  // The first law that changes THE WORLD instead of paying the table (`worldSteps` / `worldMoves`):
+  // oxygen down, Venus up, and nobody is credited for either. Venus Next only.
+  GAS_EXPORT,
   TEST_CHOICE,
   DEV_IMMEDIATE,
   DEV_PASSIVE,

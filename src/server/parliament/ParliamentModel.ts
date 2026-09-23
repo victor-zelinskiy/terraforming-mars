@@ -25,12 +25,19 @@ function colorOf(game: IGame, delegate: Delegate): Color | 'neutral' {
   return delegate === 'NEUTRAL' ? 'neutral' : game.getPlayerById(delegate).color;
 }
 
-/** The effect's recorded outcomes, players named by colour (the wire never carries a PlayerId). */
+/**
+ * The effect's recorded outcomes, players named by colour (the wire never
+ * carries a PlayerId). A WORLD record has no seat at all (`part: 'world'` —
+ * the planet moved for everybody) and travels with none.
+ */
 function outcomeModels(game: IGame, outcomes: ReadonlyArray<SerializedEnactOutcome> | undefined): Array<ParliamentEnactOutcomeModel> | undefined {
   if (outcomes === undefined || outcomes.length === 0) {
     return undefined;
   }
-  return outcomes.map((o) => ({...o, player: game.getPlayerById(o.player).color}));
+  return outcomes.map((o) => {
+    const {player, ...rest} = o;
+    return player === undefined ? {...rest} : {...rest, player: game.getPlayerById(player).color};
+  });
 }
 
 function enactedModel(parliament: Parliament, instance: ResolutionInstanceId): ParliamentEnactedModel {

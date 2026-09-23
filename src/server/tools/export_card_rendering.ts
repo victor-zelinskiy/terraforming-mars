@@ -24,7 +24,7 @@ import {globalInitialize} from '../globalInitialize';
 import {buildCardInformation, writeCardInfoArtifacts} from './cardInfo/buildCardInformation';
 import {buildBoardLayouts} from '../boards/boardLayoutExport';
 import {REDUX_RESOLUTION_CATALOG} from '../parliament/resolutions/ResolutionCatalog';
-import {hasImmediateSteps, ResolutionDefinition} from '../parliament/resolutions/IResolution';
+import {hasImmediateSteps, hasWorldSteps, ResolutionDefinition} from '../parliament/resolutions/IResolution';
 import {PARTY_EFFECTS, toClientPartyEffect} from '../parliament/parties/PartyEffects';
 import {REDUX_PARTIES, STARTER_QUEST} from '../../common/parliament/ParliamentTypes';
 import {IClientResolution, ParliamentCatalog} from '../../common/parliament/IClientResolution';
@@ -204,6 +204,7 @@ class ParliamentProcessor {
       ...(definition.code === undefined ? {} : {code: definition.code}),
       ...(definition.scaled === undefined ? {} : {scaled: [...definition.scaled]}),
       ...(definition.winnerReward === undefined ? {} : {winnerReward: {...definition.winnerReward}}),
+      ...(definition.worldMoves === undefined ? {} : {worldMoves: definition.worldMoves.map((move) => ({...move}))}),
       module: definition.module,
       party: definition.party,
       copies: definition.copies,
@@ -213,6 +214,7 @@ class ParliamentProcessor {
       quest: definition.quest,
       questRenderData: questRenderData(definition.quest),
       hasImmediate: hasImmediateSteps(definition),
+      hasWorldEffect: hasWorldSteps(definition),
       hasWinnerEffect: (definition.winnerSteps?.length ?? 0) > 0,
       hasPassive: definition.passive !== undefined,
       hasAction: definition.action !== undefined,
