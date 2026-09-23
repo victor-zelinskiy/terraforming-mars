@@ -112,6 +112,29 @@
           </div>
         </div>
 
+        <!-- ПЛАНЕТА — what the enactment did to the WORLD (Gas Export): one line, and only what is not
+             visible anywhere else. The scales themselves have already moved on the board (the sitting
+             stepped aside and came back for exactly that), so the line does not celebrate them: it states
+             the step and the fact nobody was credited for it. A move that could not happen carries its
+             own reason — the panel's law, and no silent loss. -->
+        <div v-if="results.planet !== undefined" class="con-sit__row con-sit__planet" data-sit-section="planet" data-sit-row="results-planet">
+          <span class="con-parl__chip-dim">{{ $t('The planet') }}</span>
+          <span class="con-sit__chips">
+            <span v-for="move in results.planet" :key="move.id" class="con-sit__chip con-sit__world"
+                  :class="{'con-sit__world--down': move.steps < 0, 'con-sit__world--blocked': move.skipped !== undefined}"
+                  data-sit-planet :data-sit-planet-param="move.parameter" :data-sit-planet-steps="move.steps">
+              <i class="con-sit__world-icon" :class="worldUnitClass(move.parameter)" aria-hidden="true"></i>
+              <span v-if="move.skipped !== undefined" class="con-parl__chip-dim">{{ $t(move.skipped) }}</span>
+              <template v-else>
+                <b>{{ move.before }}{{ worldSuffix(move.parameter) }}</b>
+                <span class="con-parl__chip-dim">→</span>
+                <b>{{ move.after }}{{ worldSuffix(move.parameter) }}</b>
+              </template>
+            </span>
+            <span v-if="planetUnrewarded" class="con-parl__chip-dim" data-sit-planet-notr>{{ $t('nobody gets the TR') }}</span>
+          </span>
+        </div>
+
         <!-- ② СТОЛ — the new resolutions with their parties, the support STOCK after the deal, the lobby. -->
         <div class="con-sit__table" data-sit-section="table">
           <span class="con-parl__chip-dim con-sit__section-kicker">{{ $t('The table') }}</span>
@@ -191,6 +214,8 @@ import {parliamentRewardState, rewardLanded} from '@/client/console/parliament/p
 import {sittingMotion} from '@/client/console/parliament/sittingDirector';
 import {playBodyFold, playZoneLayerEnter} from '@/client/console/parliament/parliamentStageMotion';
 import {ResultsPayoutPart, ResultsReading, resultsReadingOf} from '@/client/console/parliament/parliamentResultsModel';
+import {worldParameterUnit} from '@/client/console/parliament/worldMoveModel';
+import {ParameterMoveId} from '@/common/parliament/parameterMove';
 import {cardResourceKey} from '@/client/console/resourceTransfer/resourceTransferModel';
 
 export default defineComponent({
@@ -233,6 +258,10 @@ export default defineComponent({
     }
   },
   computed: {
+    /** Any of the planet's moves was made with nobody credited — the line says so ONCE, not per move. */
+    planetUnrewarded(): boolean {
+      return (this.results?.planet ?? []).some((move) => move.unrewarded && move.skipped === undefined && move.steps !== 0);
+    },
     resolution(): IClientResolution | undefined {
       const id = this.shownSummary?.enacted.resolution;
       return id === undefined ? undefined : getResolution(id);
@@ -318,6 +347,18 @@ export default defineComponent({
     colonyLeads(parts: ReadonlyArray<ResultsPayoutPart>, part: ResultsPayoutPart): boolean {
       const index = parts.indexOf(part);
       return index <= 0 || parts[index - 1].colony !== part.colony;
+    },
+    /** The parameter's own icon — the game's vocabulary, the same sprite the status strip prints. */
+    worldUnitClass(parameter: ParameterMoveId): string {
+      switch (parameter) {
+      case 'oxygen': return 'wgt-icon wgt-icon--oxygen';
+      case 'oceans': return 'wgt-icon wgt-icon--ocean';
+      case 'venus': return 'wgt-icon wgt-icon--venus';
+      case 'temperature': return 'wgt-icon wgt-icon--temperature';
+      }
+    },
+    worldSuffix(parameter: ParameterMoveId): string {
+      return worldParameterUnit(parameter);
     },
     planetClass(colony: string): string {
       return colony.replace(' ', '-') + '-background';

@@ -70,6 +70,7 @@ import {Color} from '@/common/Color';
 import {ReduxParty, ResolutionId, ResolutionInstanceId} from '@/common/parliament/ParliamentTypes';
 import {ParliamentEnactOutcomeModel, ParliamentPhaseSummaryModel} from '@/common/models/ParliamentModel';
 import {REWARD_ADDRESS, rewardAddressOf} from '@/common/parliament/rewardAddress';
+import {ParameterMoveId} from '@/common/parliament/parameterMove';
 
 /** ONE part of one seat's payout — an object and an amount, or a skip with its reason. */
 export type ResultsPayoutPart = {
@@ -159,12 +160,62 @@ export type ResultsTable = {
   noDelegate: ReadonlyArray<Color>;
 };
 
+/**
+ * ③ THE PLANET — what the enactment did to the WORLD, which belongs to no seat
+ * and therefore to no payout row (Gas Export: «кислород 5 → 4 %, Венера 10 →
+ * 14 %, РТ никому»). The panel's law stands: it prints only what is not
+ * visible anywhere else — the scales have already moved on the board, so the
+ * line states the STEP and the fact nobody was credited, never a celebration.
+ * A move that could not happen is here too, with its reason (no silent loss).
+ */
+export type ResultsPlanetMove = {
+  id: string;
+  parameter: ParameterMoveId;
+  before: number;
+  after: number;
+  /** Signed steps actually made (negative = lowered); 0 with a `skipped` reason. */
+  steps: number;
+  /** Nobody was credited with a terraform rating for the move. */
+  unrewarded: boolean;
+  /** The move did not happen: WHY (an English i18n key). */
+  skipped?: string;
+};
+
 export type ResultsReading = {
   payouts: ReadonlyArray<ResultsPayout>;
   /** NOBODY was paid: the resolution is a passive / an action, and the kicker says which. */
   quiet?: {kicker: string, kind: 'passive' | 'action'};
+  /** The WORLD's own part, when the enactment had one — never a seat's row. */
+  planet?: ReadonlyArray<ResultsPlanetMove>;
   table: ResultsTable;
 };
+
+/**
+ * THE WORLD RECORDS of a sitting as the planet line reads them — the records
+ * that name no seat. Pure; the order is the server's.
+ */
+export function resultsPlanetMoves(summary: ParliamentPhaseSummaryModel): Array<ResultsPlanetMove> {
+  const out: Array<ResultsPlanetMove> = [];
+  (summary.outcomes ?? []).forEach((outcome, index) => {
+    if (outcome.player !== undefined || outcome.parameter === undefined) {
+      return;
+    }
+    const move: ResultsPlanetMove = {
+      id: `world:${outcome.step}:${index}`,
+      parameter: outcome.parameter.id,
+      before: outcome.parameter.before,
+      after: outcome.parameter.after,
+      steps: outcome.amount ?? 0,
+      unrewarded: outcome.unrewarded === true,
+    };
+    const skipped = rewardAddressOf(outcome, undefined).skipped;
+    if (skipped !== undefined) {
+      move.skipped = skipped;
+    }
+    out.push(move);
+  });
+  return out;
+}
 
 /** The unit a record's chip speaks, and whether it is a production step. */
 function unitOf(outcome: ParliamentEnactOutcomeModel): {unit: string, production: boolean} {
@@ -184,9 +235,10 @@ function unitOf(outcome: ParliamentEnactOutcomeModel): {unit: string, production
 /** ONE record as a part of its seat's payout — the server's amount, or the skip the address names. */
 export function resultsPayoutPart(outcome: ParliamentEnactOutcomeModel, index: number): ResultsPayoutPart {
   const delivery = rewardAddressOf(outcome, outcome.player);
+  const owner = outcome.player ?? 'neutral';
   const {unit, production} = unitOf(outcome);
   const part: ResultsPayoutPart = {
-    id: `${outcome.player}:${outcome.step}:${outcome.part ?? ''}:${index}`,
+    id: `${owner}:${outcome.step}:${outcome.part ?? ''}:${index}`,
     kind: outcome.kind,
     unit,
     production,
@@ -244,7 +296,8 @@ export function resultsReadingOf(
     byPlayer.set(seat.player, []);
   }
   (summary.outcomes ?? []).forEach((outcome, index) => {
-    const parts = byPlayer.get(outcome.player);
+    // A WORLD record names no seat: it belongs to the planet line, never to a payout row.
+    const parts = outcome.player === undefined ? undefined : byPlayer.get(outcome.player);
     if (parts !== undefined) {
       parts.push(resultsPayoutPart(outcome, index));
     }
@@ -273,8 +326,13 @@ export function resultsReadingOf(
       noDelegate: seats.filter((seat) => !seat.lobby && seat.reserve <= 0).map((seat) => seat.player),
     },
   };
+  const planet = resultsPlanetMoves(summary);
+  if (planet.length > 0) {
+    reading.planet = planet;
+  }
   // A resolution that pays NOBODY: the rows would all be empty, so the section says what stands instead.
-  if (extras.quiet !== undefined && payouts.every((p) => p.parts.length === 0)) {
+  // A law that MOVED THE WORLD is not «quiet» — the planet line is its reading.
+  if (extras.quiet !== undefined && planet.length === 0 && payouts.every((p) => p.parts.length === 0)) {
     reading.quiet = extras.quiet;
   }
   return reading;

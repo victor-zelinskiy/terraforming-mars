@@ -1086,6 +1086,13 @@
         line-height: 1.1;
         /* The SECONDARY members give their width after the kicker and before anything printed on an object. */
         &--quiet, &--skip, &--await { flex: 1 1 0; min-width: 0; max-width: max-content; }
+        /* THE PLANET'S OWN MOVE. A RAISE nobody is credited for is a calm neutral statement — not a
+           celebration, because nobody earned it; a LOWERING takes the console's own LOSS register (the
+           amber of a struck amount), which is what tells the player at a glance that the world went
+           backwards. A move that could not happen is quiet, like every other named skip. */
+        &--world { flex: 1 1 0; min-width: 0; max-width: max-content; }
+        &--world-down .con-band__num { color: @con-amber; }
+        &--world-blocked { opacity: .78; }
     }
     &__text {
         display: block;

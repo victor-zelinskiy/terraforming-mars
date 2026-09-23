@@ -63,9 +63,20 @@ export type WinnerRewardReading = {
   generation?: number;
 };
 
-/** The table the reading needs, straight off the game model. */
-export function winnerRewardTableOf(game: {oxygenLevel: number, temperature: number, oceans: number} | undefined): WinnerRewardTable | undefined {
-  return game === undefined ? undefined : {oxygenLevel: game.oxygenLevel, temperature: game.temperature, oceans: game.oceans};
+/**
+ * The table the reading needs, straight off the game model — the SAME table a
+ * world move reads (`parameterMove.ParameterTable`), so the winner's tile and
+ * the law's own step are measured against one set of numbers. Venus is absent
+ * in a game without Venus Next, which is exactly what «a Venus move is
+ * impossible here» means.
+ */
+export function winnerRewardTableOf(game: {oxygenLevel: number, temperature: number, oceans: number, venusScaleLevel?: number} | undefined): WinnerRewardTable | undefined {
+  return game === undefined ? undefined : {
+    oxygenLevel: game.oxygenLevel,
+    temperature: game.temperature,
+    oceans: game.oceans,
+    ...(game.venusScaleLevel === undefined ? {} : {venusScaleLevel: game.venusScaleLevel}),
+  };
 }
 
 /**

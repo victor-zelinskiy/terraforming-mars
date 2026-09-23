@@ -44,6 +44,7 @@ import {Color} from '@/common/Color';
 import {ReduxParty, ResolutionId} from '@/common/parliament/ParliamentTypes';
 import {ParliamentPhaseSummaryModel} from '@/common/models/ParliamentModel';
 import {InfluenceYield} from '@/common/parliament/influenceScaling';
+import {ParameterMoveId} from '@/common/parliament/parameterMove';
 import {SittingRewardStep, SittingStage} from './consoleSittingFlow';
 import {SupportStatus} from './supportScene';
 
@@ -72,6 +73,13 @@ export type BandChip =
   | {kind: 'skip', id: string, title: string, reason: string, amount?: number, unit?: string}
   /** The winner's part: a tile waiting behind the door to the board, or the colony built in the sitting's own step. */
   | {kind: 'tile', tile: 'ocean' | 'greenery' | 'colony'}
+  /**
+   * THE WORLD'S OWN MOVE (Gas Export): what the law did to the PLANET — the
+   * parameter, where it stood, where it landed, and the fact that nobody was
+   * credited for it. It belongs to no seat, so it is the same chip for every
+   * viewer; a move that could not happen names its reason instead.
+   */
+  | {kind: 'world', parameter: ParameterMoveId, before: number, after: number, steps: number, unrewarded: boolean, skipped?: string}
   /** The seats the phase is still waiting for. */
   | {kind: 'awaiting', seats: ReadonlyArray<Color>};
 
@@ -99,6 +107,8 @@ export type BandRewardReading = {
   skips: ReadonlyArray<{id: string, title: string, reason: string, amount?: number, unit?: string}>;
   /** The winner's part: the tile still to be placed, or the colony still to be built (`colony`). */
   tile?: 'ocean' | 'greenery' | 'colony';
+  /** The WORLD's own part of the enactment — the planet's moves, in the server's order. */
+  world?: ReadonlyArray<{parameter: ParameterMoveId, before: number, after: number, steps: number, unrewarded: boolean, skipped?: string}>;
   /** Nothing is paid to this seat: what remains instead (the passive that now stands / the action to take). */
   quiet?: {kicker: string, kind: 'passive' | 'action'};
   /** One word of state beside the kicker: «эта выплата» until every chip has landed, «получено» after. */
@@ -340,6 +350,11 @@ function rewardLine(sitting: BandSitting): BandLine {
   if (reward.tile !== undefined) {
     chips.push({kind: 'tile', tile: reward.tile});
   }
+  // THE PLANET, after the seat's own part — the card's own order («каждому M€;
+  // затем кислород и Венера»), which the journal keeps too.
+  for (const move of reward.world ?? []) {
+    chips.push({kind: 'world', ...move});
+  }
   for (const skip of reward.skips) {
     chips.push({kind: 'skip', ...skip});
   }
@@ -361,7 +376,7 @@ function rewardLine(sitting: BandSitting): BandLine {
   }
   return {
     kicker: 'Your reward',
-    key: `reward:${sitting.rewardStep}:${reward.state ?? ''}:${reward.yields.length}:${reward.skips.length}`,
+    key: `reward:${sitting.rewardStep}:${reward.state ?? ''}:${reward.yields.length}:${reward.skips.length}:${(reward.world ?? []).length}`,
     chips,
     committed: true,
     ...(reward.yields.length === 0 && reward.quiet !== undefined ? {quiet: reward.quiet.kind} : {}),

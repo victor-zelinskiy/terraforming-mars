@@ -55,6 +55,7 @@ import {beginPanelRewardHold, releasePanelRewardHold} from '@/client/console/res
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {consoleParliamentUi} from './consoleParliamentFlow';
+import {enterWorldBeatSitting, seedWorldMoveBeat} from './parliamentWorldBeat';
 
 /** The rail's key for the terraform rating (the score cell) — the ONE key the transfer layer, the panel and the seeder share. */
 export const RATING_RAIL_KEY = 'rating';
@@ -358,9 +359,14 @@ export function seedParliamentRewardHold(before: PlayerViewModel | undefined, af
   if (key === '') {
     // No live phase: whatever the last sitting still owed is over.
     enterSitting('');
+    enterWorldBeatSitting('');
     return;
   }
   enterSitting(key);
+  // THE WORLD'S OWN MOVE rides the same block, and is the one record here that
+  // belongs to NO seat: every viewer owes the board its story (`parliamentWorldBeat.ts`).
+  enterWorldBeatSitting(key);
+  seedWorldMoveBeat(before, after);
   const tile = detectNewViewerTile(before, after);
   if (tile !== undefined && !consoleReducedMotionActive()) {
     parliamentRewardState.tileReceipt = {sitting: key, outcome: tile};

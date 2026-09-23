@@ -74,6 +74,21 @@
                                  variant="inline"
                                  :reasonElsewhere="true"
                                  data-parl-band-chip="tile" />
+            <!-- THE PLANET'S OWN MOVE: no seat, no chip in anybody's hands — the
+                 parameter, the step it made, and «РТ никому». A lowering is
+                 stated in the LOSS tone; nothing here celebrates. -->
+            <span v-else-if="chip.kind === 'world'" class="con-band__chip con-band__chip--world"
+                  :class="{'con-band__chip--world-down': chip.steps < 0, 'con-band__chip--world-blocked': chip.skipped !== undefined}"
+                  data-parl-band-chip="world" :data-parl-band-world="chip.parameter">
+              <i class="con-band__unit" :class="worldUnitClass(chip.parameter)" aria-hidden="true"></i>
+              <span v-if="chip.skipped !== undefined" class="con-band__text con-band__text--quiet">{{ $t(chip.skipped) }}</span>
+              <template v-else>
+                <b class="con-band__num">{{ chip.before }}{{ worldSuffix(chip.parameter) }}</b>
+                <span class="con-band__text con-band__text--dim">→</span>
+                <b class="con-band__num">{{ chip.after }}{{ worldSuffix(chip.parameter) }}</b>
+                <span v-if="chip.unrewarded" class="con-band__text con-band__text--quiet">{{ $t('nobody gets the TR') }}</span>
+              </template>
+            </span>
             <span v-else-if="chip.kind === 'skip'" class="con-band__chip con-band__chip--skip"
                   data-parl-band-chip="skip" data-sit-skip :data-sit-skip-amount="chip.amount">
               <span class="con-band__text con-band__text--dim">{{ $t('Skipped') }} · {{ $t(chip.title) }}</span>
@@ -122,6 +137,8 @@ import {sittingMotion} from '@/client/console/parliament/sittingDirector';
 import {cardResourceKey} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {PartyReactionReading, partyReactionsOf, viewerHasSeat} from '@/client/console/parliament/partyReactionModel';
 import {WinnerRewardReading, winnerRewardGlyph, winnerRewardReadingOf, winnerRewardTableOf} from '@/client/console/parliament/winnerRewardModel';
+import {worldMoveReadingOf, worldParameterUnit} from '@/client/console/parliament/worldMoveModel';
+import {ParameterMoveId} from '@/common/parliament/parameterMove';
 
 export default defineComponent({
   name: 'ConsoleParliamentBand',
@@ -253,6 +270,10 @@ export default defineComponent({
       if (this.winnerReading !== undefined) {
         out.tile = winnerRewardGlyph(this.winnerReading.reward);
       }
+      const world = this.worldMoves;
+      if (world.length > 0) {
+        out.world = world;
+      }
       if (yields.length === 0 && quiet !== undefined) {
         out.quiet = {kicker: quiet.kicker, kind: quiet.kind};
       }
@@ -261,6 +282,30 @@ export default defineComponent({
       }
       if (position?.waitingFor !== undefined) {
         out.waitingFor = position.waitingFor.player;
+      }
+      return out;
+    },
+    /**
+     * THE WORLD'S OWN MOVES, from the phase's records — the ones that name no
+     * seat. Read by every viewer alike; a move that could not happen carries
+     * its reason instead of an arrow (no silent loss).
+     */
+    worldMoves(): Array<{parameter: ParameterMoveId, before: number, after: number, steps: number, unrewarded: boolean, skipped?: string}> {
+      const outcomes = this.model?.phase?.outcomes ?? [];
+      const out: Array<{parameter: ParameterMoveId, before: number, after: number, steps: number, unrewarded: boolean, skipped?: string}> = [];
+      for (const reading of worldMoveReadingOf(this.resolution, winnerRewardTableOf(this.playerView.game), {enacted: true, outcomes})) {
+        const applied = reading.applied;
+        if (applied === undefined && reading.room === undefined) {
+          continue;
+        }
+        out.push({
+          parameter: reading.parameter,
+          before: applied?.before ?? reading.room?.current ?? 0,
+          after: applied?.after ?? reading.room?.resulting ?? 0,
+          steps: applied?.steps ?? reading.room?.applied ?? 0,
+          unrewarded: reading.unrewarded,
+          ...(reading.skipped === undefined ? {} : {skipped: reading.skipped}),
+        });
       }
       return out;
     },
@@ -332,6 +377,19 @@ export default defineComponent({
       return iconClassFor(bonus === 'tr' ? 'tr' : 'cards');
     },
     /** The icon of what a skipped record would have paid — the console's own sprite families. */
+    /** The parameter's own icon — the game's vocabulary, the same asset the HUD's status strip prints. */
+    worldUnitClass(parameter: ParameterMoveId): string {
+      switch (parameter) {
+      case 'oxygen': return 'wgt-icon wgt-icon--oxygen';
+      case 'oceans': return 'wgt-icon wgt-icon--ocean';
+      case 'venus': return 'wgt-icon wgt-icon--venus';
+      case 'temperature': return 'wgt-icon wgt-icon--temperature';
+      }
+    },
+    /** …and its unit suffix («5 %», «−30 °C», a bare count of oceans). */
+    worldSuffix(parameter: ParameterMoveId): string {
+      return worldParameterUnit(parameter);
+    },
     skipUnitClass(outcome: ParliamentEnactOutcomeModel): string {
       if (outcome.kind === 'skipped' || outcome.kind === 'production' || outcome.kind === 'stock' || outcome.kind === 'reaction') {
         const production = outcome.production;

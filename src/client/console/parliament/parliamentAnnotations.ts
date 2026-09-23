@@ -30,7 +30,6 @@
  * row as a PARAM is a display string and is translated HERE.
  */
 import {CardAnnotation, CardAnnotationKind} from '@/client/components/cardAnnotations/annotationModel';
-import {ParliamentModel} from '@/common/models/ParliamentModel';
 import {ReduxParty, ResolutionId} from '@/common/parliament/ParliamentTypes';
 import {IClientPartyEffect} from '@/common/parliament/IClientResolution';
 import {getPartyEffect, getResolution} from '@/client/parliament/ClientParliamentManifest';
@@ -38,6 +37,8 @@ import {Color} from '@/common/Color';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {accessReasonRows} from './consoleParliamentModel';
 import {InfluenceYield} from '@/common/parliament/influenceScaling';
+import {ParliamentEnactOutcomeModel, ParliamentModel} from '@/common/models/ParliamentModel';
+import {WorldMoveTable, worldMoveReadingOf, worldMoveSentenceOf} from './worldMoveModel';
 import {countedCellNames, countedContributions, yieldCountPresentation} from './influenceYieldModel';
 import {WinnerRewardReading, winnerRewardRuleKey, winnerRewardSentenceOf} from './winnerRewardModel';
 
@@ -130,6 +131,8 @@ export function resolutionAnnotations(
   yields?: ReadonlyArray<InfluenceYield>,
   /** The viewer's reading of the resolution's WINNER tile, when there is a table to read it over. */
   winner?: {reading: WinnerRewardReading | undefined, viewer: Color | undefined, nameOf: (color: Color) => string},
+  /** The table the WORLD's part is read against (and, once it happened, the server's own records). */
+  world?: {table: WorldMoveTable | undefined, enacted?: boolean, outcomes?: ReadonlyArray<ParliamentEnactOutcomeModel>},
 ): ReadonlyArray<CardAnnotation> {
   const resolution = getResolution(id);
   if (resolution === undefined) {
@@ -153,6 +156,22 @@ export function resolutionAnnotations(
       }
     }
     out.push(block('group:immediate', 'immediate', 'When enacted', rows, 0));
+  }
+  // THE WORLD'S PART — its own block, between everyone's effect and the
+  // winner's: what the law does to the PLANET belongs to no seat, so it can
+  // neither be a clause of «when enacted» nor a line of «for you». Its rows
+  // carry the live reading when there is a table to read against (Gas Export:
+  // «Кислород: 5 % → 4 %», «Венера: 10 % → 14 %, РТ никому»).
+  if (text.world !== undefined) {
+    const rows: Array<string | RowText> = [text.world];
+    for (const reading of worldMoveReadingOf(resolution, world?.table, {enacted: world?.enacted === true, outcomes: world?.outcomes})) {
+      if (reading.context === 'reference') {
+        continue;
+      }
+      const sentence = worldMoveSentenceOf(reading, {text: translateText, params: translateTextWithParams});
+      rows.push({text: '${0}: ${1}', params: [sentence.caption, sentence.detail]});
+    }
+    out.push(block('group:world', 'immediate', 'What it does to the planet', rows, 0.5));
   }
   if (text.winner !== undefined) {
     // A winner TILE's qualification — the detailed reading of the face's

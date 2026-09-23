@@ -1,6 +1,7 @@
 import {InfluenceScaledEffect} from '@/common/parliament/influenceScaling';
 import {resolutionCountKind} from '@/common/parliament/resolutionCounts';
 import {WinnerRewardDeclaration} from '@/common/parliament/winnerReward';
+import {WorldParameterMove} from '@/common/parliament/parameterMove';
 
 /*
  * WHICH FAMILY OF SCENARIOS A RESOLUTION READS — derived from its DECLARATION
@@ -21,15 +22,19 @@ import {WinnerRewardDeclaration} from '@/common/parliament/winnerReward';
  *   winner-tile   — a supply payout by influence + the WINNER's tile (Biodome Contest);
  *   sequel        — a second half that reads what the first half left behind (Climate Research);
  *   colony-bonuses — the player's COLONY BONUSES paid a number of times (Colonial Affairs: 2 + 1 per 2
- *                   influence) — the instrument is the LEDGER of the player's tiles, multiplied.
+ *                   influence) — the instrument is the LEDGER of the player's tiles, multiplied;
+ *   world-move    — the enactment moves the PLANET (Gas Export: oxygen −1, Venus +2, no TR for anybody) —
+ *                   the instrument is the GLOBAL PARAMETERS, and the scenarios are their limits.
  */
-export const RESOLUTION_FAMILIES = ['influence', 'counted', 'counted-tags', 'counted-board', 'distributed', 'winner-tile', 'sequel', 'colony-bonuses'] as const;
+export const RESOLUTION_FAMILIES = ['influence', 'counted', 'counted-tags', 'counted-board', 'distributed', 'winner-tile', 'sequel', 'colony-bonuses', 'world-move'] as const;
 export type ResolutionFamily = typeof RESOLUTION_FAMILIES[number];
 
 /** The declaration facts the family reads — what the server definition and the client manifest share. */
 export type ResolutionFamilyFacts = {
   scaled?: ReadonlyArray<InfluenceScaledEffect>;
   winnerReward?: WinnerRewardDeclaration;
+  /** The WORLD's part — the global parameters the enactment moves for the whole table. */
+  worldMoves?: ReadonlyArray<WorldParameterMove>;
 };
 
 /** The scaled part that reads a FIRST part's result (a sequel), if any. */
@@ -79,6 +84,11 @@ export function familyOf(facts: ResolutionFamilyFacts): ResolutionFamily {
     case 'board': return 'counted-board';
     case 'cards': return 'counted';
     }
+  }
+  // THE PLANET is the instrument when nothing more specific is: the scenarios of a world move are the
+  // parameters' own limits (a ceiling, a floor, a step that is cut), which no other family exercises.
+  if ((facts.worldMoves ?? []).length > 0) {
+    return 'world-move';
   }
   // A winner's TILE with no card to pick for everyone's part: the winner-tile family.
   return facts.winnerReward !== undefined && pickerEffectOf(facts) === undefined ? 'winner-tile' : 'influence';

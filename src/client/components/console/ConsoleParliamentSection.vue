@@ -164,6 +164,9 @@ import {
   parliamentRewardPending, parliamentRewardState, releaseParliamentRewards, takeTileReceipt,
 } from '@/client/console/parliament/parliamentRewardBeat';
 import {
+  parliamentWorldBeatState, runWorldMoveBeat, takeWorldReceipt, worldMoveOwed, worldReceiptOwed,
+} from '@/client/console/parliament/parliamentWorldBeat';
+import {
   sittingPageAuto, sittingPositionOf, SittingPosition, sittingPrimaryKey, sittingRewardSettled, SittingStage, sittingStageAt, sittingStageKey,
   sittingBodyOf, SittingBody, sittingStartPage, sittingWorkspacePhase, verdictStandsAt,
   parliamentSittingLive, SITTING_HOSTED_STEPS, sittingFieldOf,
@@ -1336,9 +1339,16 @@ export default defineComponent({
         return;
       }
       const receipt = takeTileReceipt(key);
-      parliamentFlow.sittingPage = sittingStartPage(position, played, receipt !== undefined);
+      // …and the WORLD's own receipt: the frame is back from the board and the
+      // reward page owes one read of the planet line before the walk goes on
+      // (the tile's receipt grammar, for a move that belongs to no seat).
+      const worldReceipt = takeWorldReceipt(key);
+      const worldOwed = worldReceipt !== undefined || worldMoveOwed(key);
+      parliamentFlow.sittingPage = sittingStartPage(position, played, receipt !== undefined || worldOwed);
+      const onReward = position.pages[parliamentFlow.sittingPage] === 'reward';
       // The receipt is READ on the reward page; a walk that cannot start there (the gate already answered) owes no read.
-      parliamentRewardState.receiptShowing = receipt !== undefined && position.pages[parliamentFlow.sittingPage] === 'reward';
+      parliamentRewardState.receiptShowing = receipt !== undefined && onReward;
+      parliamentWorldBeatState.receiptShowing = worldReceipt !== undefined && onReward;
     },
     /** A new server step: the walk re-seats on the step's first unplayed page and goes on. */
     enterServerStep(): void {
@@ -1361,7 +1371,9 @@ export default defineComponent({
       // must have been OPEN (`stepOpenMirror`): the frame is pushed the moment its prompt is admitted — in the very
       // update that brings the enactment — and a frame merely PUSHED must not skip the enactment's own beats.
       const hostedFrameStands = this.stepOpenMirror && this.stepFrameNested;
-      parliamentFlow.sittingPage = sittingStartPage(position, (stage) => sittingStagePlayed(key, stage), ledgerRead || hostedFrameStands);
+      // The WORLD's move (and the read of its result) is owed on the reward page too.
+      const worldOwed = worldMoveOwed(key) || worldReceiptOwed(key) || parliamentWorldBeatState.receiptShowing;
+      parliamentFlow.sittingPage = sittingStartPage(position, (stage) => sittingStagePlayed(key, stage), ledgerRead || hostedFrameStands || worldOwed);
       this.queueWalk();
     },
     // ── the director's walk ─────────────────────────────────────────────
@@ -1394,6 +1406,16 @@ export default defineComponent({
         },
       };
     },
+    /**
+     * MAY THE SITTING STEP ASIDE FOR THE PLANET right now? Only once nothing of
+     * this seat's is standing in the stage: the wave has landed, no ask of the
+     * viewer's is open, no hosted frame is still inside. The world's move is a
+     * beat of the sitting, never an interruption of the player's own work.
+     */
+    mayYieldForWorld(position: SittingPosition): boolean {
+      return sittingRewardSettled(position) && !this.rewardPending && !parliamentRewardState.receiptShowing &&
+        !this.ledgerReadOwed && !this.stepFrameNested && !this.sittingStepOpen;
+    },
     /** May the walk leave `stage` by itself? The enactment always; the reward once nothing of this seat's is open there. */
     mayLeave(stage: SittingStage, position: SittingPosition): boolean {
       if (stage === 'enact' || stage === 'renewal') {
@@ -1402,7 +1424,8 @@ export default defineComponent({
       if (stage === 'reward') {
         // …and never while a hosted FRAME still stands in the zone (the colonies' build chain after the pick).
         return sittingRewardSettled(position) && !this.rewardPending && !parliamentRewardState.receiptShowing && !this.ledgerReadOwed &&
-          !this.stepFrameNested;
+          // …and never while the PLANET's own move is still owed to the board, or its read to the page.
+          !worldMoveOwed(this.sittingKey) && !parliamentWorldBeatState.receiptShowing && !this.stepFrameNested;
       }
       return false;
     },
@@ -1455,7 +1478,9 @@ export default defineComponent({
           const receipt = stage === 'reward' && parliamentRewardState.receiptShowing;
           // The ledger's READ after a hosted step (Colonial Affairs): a beat of its own, like the tile's receipt.
           const ledgerRead = stage === 'reward' && this.ledgerReadOwed;
-          if (!sittingStagePlayed(key, stage) || receipt || ledgerRead || (stage === 'reward' && this.rewardPending)) {
+          // …and the PLANET's own read, once the frame is back from the board.
+          const worldRead = stage === 'reward' && parliamentWorldBeatState.receiptShowing;
+          if (!sittingStagePlayed(key, stage) || receipt || ledgerRead || worldRead || (stage === 'reward' && this.rewardPending)) {
             notePlayedSittingStage(key, stage);
             await playSittingStage(stage, this.sittingBeatList, ctx, {compact: false});
             if (receipt) {
@@ -1464,6 +1489,19 @@ export default defineComponent({
             if (ledgerRead) {
               this.ledgerReadOwed = false;
             }
+            if (worldRead) {
+              parliamentWorldBeatState.receiptShowing = false;
+            }
+          }
+          // THE WORLD MOVES ON THE BOARD, so the sitting steps aside for it —
+          // the winner-tile door's own grammar, driven by the walk instead of
+          // by a press (nobody chose this; the law did). The frame unmounts
+          // here, so the walk stops: the board-beat park tells the planet's
+          // story, the module puts the stack back, and the section's own mount
+          // re-queues the walk on the reward page with the receipt owed.
+          if (stage === 'reward' && worldMoveOwed(key) && this.mayYieldForWorld(position)) {
+            void runWorldMoveBeat(key);
+            break;
           }
           if (!this.sittingUp) {
             break;

@@ -493,10 +493,10 @@ type PgWinner = SeatIndex | 'neutral';
  * icon vs. cards that print the tag vs. CELLS of the board) — or a supply
  * resource by influence + the WINNER's tile.
  */
-type PgFamily = 'influence' | 'counted' | 'counted-tags' | 'counted-board' | 'distributed' | 'winner-tile' | 'sequel' | 'colony-bonuses';
+type PgFamily = 'influence' | 'counted' | 'counted-tags' | 'counted-board' | 'distributed' | 'winner-tile' | 'sequel' | 'colony-bonuses' | 'world-move';
 /** The table's global parameters a winner tile reads (oxygen %, temperature °C, oceans placed). */
-type PgTable = {oxygen: number, temperature: number, oceans: number};
-const DEFAULT_TABLE: PgTable = {oxygen: 5, temperature: -14, oceans: 3};
+type PgTable = {oxygen: number, temperature: number, oceans: number, venus: number};
+const DEFAULT_TABLE: PgTable = {oxygen: 5, temperature: -14, oceans: 3, venus: 10};
 
 /** A reproducible reading: the whole instrument at once. */
 type PgScenario = {
@@ -510,8 +510,8 @@ type PgScenario = {
   noRecipient: boolean,
   /** The chairman quest's race: each seat's progress and who completed it. */
   quest?: {progress: readonly [number, number], completedBy?: SeatIndex},
-  /** The winner-tile family: the table's parameters (absent = the default table). */
-  table?: PgTable,
+  /** The winner-tile and world-move families: the table's parameters (absent = the default table). */
+  table?: Partial<PgTable>,
   /** The winner-tile family: the general validator leaves the winner no legal cell. */
   noCell?: boolean,
   /** A LIVE scenario: the engine-generated fixture the A press boots as a real game. */
@@ -857,6 +857,27 @@ const SCENARIOS: ReadonlyArray<PgScenario> = [
   {key: 'funding-live-vote', family: 'counted-board', label: 'Live: the vote', viewer: 0,
     seats: [{agenda: 5, bonus: 0, cells: [GANYMEDE, PHOBOS], production: 3}, {agenda: 1, bonus: 0, cells: [], production: 1}], winner: 0, context: 'proposal', noRecipient: false,
     live: 'parliament-colonization-vote', liveNote: 'Colonization Funding up for the vote: your two space cities and influence 3 reach the maximum — one number, nothing left for a win to add'},
+  // ── RX12 · GAS EXPORT (the Reds — «M€ по влиянию; кислород −1, Венера +2, РТ никому»): the WORLD-MOVE
+  //    family. Its instrument is the GLOBAL PARAMETERS, so its scenarios are their LIMITS — the one place
+  //    a world move can fail to happen, and the one thing a reading has to be honest about.
+  {key: 'world-room', family: 'world-move', label: 'Room for both moves', viewer: 0,
+    seats: [{agenda: 3, bonus: 0}, {agenda: 1, bonus: 0}], winner: 0, context: 'proposal', noRecipient: false,
+    table: {oxygen: 5, venus: 10}},
+  {key: 'world-oxygen-max', family: 'world-move', label: 'Oxygen at its maximum — it is not reduced', viewer: 0,
+    seats: [{agenda: 3, bonus: 0}, {agenda: 1, bonus: 0}], winner: 0, context: 'proposal', noRecipient: false,
+    table: {oxygen: 14, venus: 10}},
+  {key: 'world-oxygen-min', family: 'world-move', label: 'Oxygen at its minimum — it cannot go lower', viewer: 0,
+    seats: [{agenda: 3, bonus: 0}, {agenda: 1, bonus: 0}], winner: 0, context: 'proposal', noRecipient: false,
+    table: {oxygen: 0, venus: 10}},
+  {key: 'world-venus-cut', family: 'world-move', label: 'Venus at 28% — only one step happens', viewer: 0,
+    seats: [{agenda: 3, bonus: 0}, {agenda: 1, bonus: 0}], winner: 0, context: 'proposal', noRecipient: false,
+    table: {oxygen: 5, venus: 28}},
+  {key: 'world-venus-max', family: 'world-move', label: 'Venus at its maximum — it is not terraformed', viewer: 0,
+    seats: [{agenda: 3, bonus: 0}, {agenda: 1, bonus: 0}], winner: 0, context: 'proposal', noRecipient: false,
+    table: {oxygen: 5, venus: 30}},
+  {key: 'world-neutral', family: 'world-move', label: 'A neutral winner — the world moves all the same', viewer: 0,
+    seats: [{agenda: 3, bonus: 0}, {agenda: 1, bonus: 0}], winner: 'neutral', context: 'proposal', noRecipient: false,
+    table: {oxygen: 5, venus: 10}},
 ];
 /** Each family's opening scenario. */
 const DEFAULT_SCENARIO_OF: Readonly<Record<PgFamily, number>> = {
@@ -868,6 +889,7 @@ const DEFAULT_SCENARIO_OF: Readonly<Record<PgFamily, number>> = {
   'winner-tile': SCENARIOS.findIndex((s) => s.key === 'tile-influence-3'),
   'sequel': SCENARIOS.findIndex((s) => s.key === 'seq-4-to-6'),
   'colony-bonuses': SCENARIOS.findIndex((s) => s.key === 'colonial-vote'),
+  'world-move': SCENARIOS.findIndex((s) => s.key === 'world-room'),
 };
 const DEFAULT_SCENARIO = DEFAULT_SCENARIO_OF.influence;
 
@@ -938,7 +960,7 @@ function scenarioState(index: number) {
     winner: s.winner,
     context: s.context,
     noRecipient: s.noRecipient,
-    table: {...(s.table ?? DEFAULT_TABLE)},
+    table: {...DEFAULT_TABLE, ...(s.table ?? {})},
     noCell: s.noCell === true,
   };
 }
@@ -994,7 +1016,8 @@ export default defineComponent({
     },
     annotations(): ReadonlyArray<CardAnnotation> {
       return this.selected === undefined ? [] :
-        resolutionAnnotations(this.selected.id, this.yields, {reading: this.winnerReading, viewer: this.viewerColor, nameOf: this.seatName});
+        resolutionAnnotations(this.selected.id, this.yields, {reading: this.winnerReading, viewer: this.viewerColor, nameOf: this.seatName},
+          {table: this.winnerTable});
     },
     /** The scenario family the selected resolution reads — from its DECLARATION (`resolutionFamily.ts`), never a table by id. */
     family(): PgFamily {
@@ -1002,7 +1025,7 @@ export default defineComponent({
     },
     /** The table the winner's tile reads (the scenario's parameters). */
     winnerTable(): WinnerRewardTable {
-      return {oxygenLevel: this.table.oxygen, temperature: this.table.temperature, oceans: this.table.oceans};
+      return {oxygenLevel: this.table.oxygen, temperature: this.table.temperature, oceans: this.table.oceans, venusScaleLevel: this.table.venus};
     },
     /** The winner's part of the selected resolution, read for this context by the ONE model. */
     winnerReading(): WinnerRewardReading | undefined {
