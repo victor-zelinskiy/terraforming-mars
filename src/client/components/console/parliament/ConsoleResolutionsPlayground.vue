@@ -641,6 +641,12 @@ type PgScenario = {
    * of the family reads it.
    */
   parameter?: ParameterMoveId,
+  /**
+   * The distributed family: the KINDS the scenario's holders take, so it is listed only for a law whose unit
+   * spans every one of them (Cloud Development's floater holders mean nothing to Medical Database's «data or
+   * microbe», and its two kinds of holder nothing to the floater card). Absent = every law of the family reads it.
+   */
+  holds?: ReadonlyArray<CardResource>,
   /** The winner-tile family: the general validator leaves the winner no legal cell. */
   noCell?: boolean,
   /** A LIVE scenario: the engine-generated fixture the A press boots as a real game. */
@@ -700,6 +706,26 @@ const CLOUD_TOURISM = CardName.CLOUD_TOURISM; // Venus + Jovian on ONE card, hol
 const IO_MINING = CardName.IO_MINING_INDUSTRIES; // Jovian, no floaters
 const AIR_SCRAPPING = CardName.AIR_SCRAPPING_EXPEDITION; // a Venus EVENT — face down once played
 const CELESTIC = CardName.CELESTIC; // corporation: a Venus tag, holds floaters
+/** The kind Cloud Development's holders take — the scenarios above are listed for a law whose unit spans it. */
+const FLOATER_HOLDERS: ReadonlyArray<CardResource> = [CardResource.FLOATER];
+
+/*
+ * THE DISTRIBUTED FAMILY OVER TWO KINDS (Medical Database: 1 data-or-microbe
+ * unit per science tag + influence, laid out over the holders of DATA and of
+ * MICROBES at once — each unit's kind is its card's). Real base cards for the
+ * microbe branch (the ordinary game's holders) and real Pathfinders cards for
+ * the data branch the premium scope has no card for: a holder that prints the
+ * counted tag, a holder that prints none, a card with TWO science tags, a
+ * science tag without storage, and a wild tag that is not a science tag.
+ */
+const RESEARCH = CardName.RESEARCH; // science + science — ONE card, TWO tags, holds nothing
+const GHG = CardName.GHG_PRODUCING_BACTERIA; // science + microbe, holds microbes
+const REGOLITH = CardName.REGOLITH_EATERS; // science + microbe, holds microbes
+const TARDIGRADES = CardName.TARDIGRADES; // microbe, holds microbes (1 VP per 4)
+const MARTIAN_CULTURE = CardName.MARTIAN_CULTURE; // Mars + Mars, holds DATA (1 VP per 2)
+const CRYPTOCURRENCY = CardName.CRYPTOCURRENCY; // power, holds DATA
+/** The kinds Medical Database's holders take — its scenarios are listed for a law whose unit spans both. */
+const MEDICAL_HOLDERS: ReadonlyArray<CardResource> = [CardResource.DATA, CardResource.MICROBE];
 
 /*
  * THE BOARD-COUNTED FAMILY's cells (Colonization Funding: 2 M€ production per
@@ -933,51 +959,80 @@ const SCENARIOS: ReadonlyArray<PgScenario> = [
     live: 'parliament-biodome-recap', liveNote: 'Generation 2: open the Parliament — the card moves into the government, your plants fly, the greenery is named'},
   // ── THE DISTRIBUTED FAMILY (Cloud Development: N = Venus tags + Jovian tags + influence, laid out over the
   //    player's floater holders — 0..N per card, the sum exactly N; N = 1 or ONE holder is the family's ordinary pick) ──
-  {key: 'cloud-zero', family: 'distributed', label: 'No Venus or Jovian tags and no influence', viewer: 0,
+  {key: 'cloud-zero', family: 'distributed', holds: FLOATER_HOLDERS, label: 'No Venus or Jovian tags and no influence', viewer: 0,
     seats: [{agenda: 0, bonus: 0, cards: [ATMO]}, {agenda: 3, bonus: 0, cards: [DIRIGIBLES]}], winner: 1, context: 'applied', noRecipient: false},
-  {key: 'cloud-influence-only', family: 'distributed', label: 'Influence alone', viewer: 0,
+  {key: 'cloud-influence-only', family: 'distributed', holds: FLOATER_HOLDERS, label: 'Influence alone', viewer: 0,
     seats: [{agenda: 3, bonus: 0, cards: [ATMO]}, {agenda: 1, bonus: 0, cards: [DIRIGIBLES]}], winner: 1, context: 'proposal', noRecipient: false},
-  {key: 'cloud-tags-only', family: 'distributed', label: 'Tags alone', viewer: 0,
+  {key: 'cloud-tags-only', family: 'distributed', holds: FLOATER_HOLDERS, label: 'Tags alone', viewer: 0,
     seats: [{agenda: 0, bonus: 0, cards: [DIRIGIBLES, JFS]}, {agenda: 1, bonus: 0, cards: []}], winner: 1, context: 'proposal', noRecipient: false},
   // Agenda 2 = influence 1; winning takes the marker to step 3 (influence 2): 2 tags + 1 → 3 becomes 2 + 2 → 4 — over TWO holders: the layout.
-  {key: 'cloud-layout', family: 'distributed', label: 'The layout — two holders', viewer: 0,
+  {key: 'cloud-layout', family: 'distributed', holds: FLOATER_HOLDERS, label: 'The layout — two holders', viewer: 0,
     seats: [{agenda: 2, bonus: 0, cards: [DIRIGIBLES, JFS]}, {agenda: 1, bonus: 0, cards: [ATMO]}], winner: 1, context: 'proposal', noRecipient: false},
   // Atmoscoop COUNTS (a Jovian tag) and holds nothing: 2 tags + 2 = 4, all onto the ONE holder — the ordinary pick, shown and confirmed.
-  {key: 'cloud-one-holder', family: 'distributed', label: 'One holder — the ordinary pick', viewer: 0,
+  {key: 'cloud-one-holder', family: 'distributed', holds: FLOATER_HOLDERS, label: 'One holder — the ordinary pick', viewer: 0,
     seats: [{agenda: 3, bonus: 0, cards: [DIRIGIBLES, ATMOSCOOP]}, {agenda: 1, bonus: 0, cards: []}], winner: 1, context: 'resolving', noRecipient: false},
-  {key: 'cloud-both-tags', family: 'distributed', label: 'One card with a Venus and a Jovian tag', viewer: 0,
+  {key: 'cloud-both-tags', family: 'distributed', holds: FLOATER_HOLDERS, label: 'One card with a Venus and a Jovian tag', viewer: 0,
     seats: [{agenda: 0, bonus: 0, cards: [CLOUD_TOURISM]}, {agenda: 1, bonus: 0, cards: []}], winner: 1, context: 'proposal', noRecipient: false},
   // Two tags and influence 2 are OWED — and forfeited, named with their size: a Jovian tag is not storage.
-  {key: 'cloud-no-holder', family: 'distributed', label: 'No card can hold floaters — the payout is named and forfeited', viewer: 0,
+  {key: 'cloud-no-holder', family: 'distributed', holds: FLOATER_HOLDERS, label: 'No card can hold floaters — the payout is named and forfeited', viewer: 0,
     seats: [{agenda: 3, bonus: 0, cards: [ATMOSCOOP, IO_MINING]}, {agenda: 1, bonus: 0, cards: [DIRIGIBLES]}], winner: 1, context: 'applied', noRecipient: false},
-  {key: 'cloud-event', family: 'distributed', label: 'A played event lies face down', viewer: 0,
+  {key: 'cloud-event', family: 'distributed', holds: FLOATER_HOLDERS, label: 'A played event lies face down', viewer: 0,
     seats: [{agenda: 0, bonus: 0, cards: [AIR_SCRAPPING, DIRIGIBLES]}, {agenda: 1, bonus: 0, cards: []}], winner: 1, context: 'proposal', noRecipient: false},
-  {key: 'cloud-wild', family: 'distributed', label: 'A wild tag is neither', viewer: 0,
+  {key: 'cloud-wild', family: 'distributed', holds: FLOATER_HOLDERS, label: 'A wild tag is neither', viewer: 0,
     seats: [{agenda: 3, bonus: 0, cards: [NOBEL, DIRIGIBLES]}, {agenda: 1, bonus: 0, cards: []}], winner: 1, context: 'proposal', noRecipient: false},
-  {key: 'cloud-corporation', family: 'distributed', label: 'Tags on a corporation and a project', viewer: 0,
+  {key: 'cloud-corporation', family: 'distributed', holds: FLOATER_HOLDERS, label: 'Tags on a corporation and a project', viewer: 0,
     seats: [{agenda: 0, bonus: 0, cards: [CELESTIC, DIRIGIBLES]}, {agenda: 1, bonus: 0, cards: []}], winner: 1, context: 'proposal', noRecipient: false},
-  {key: 'cloud-seats', family: 'distributed', label: 'Every player gets their own result', viewer: 0,
+  {key: 'cloud-seats', family: 'distributed', holds: FLOATER_HOLDERS, label: 'Every player gets their own result', viewer: 0,
     seats: [{agenda: 1, bonus: 0, cards: [DIRIGIBLES]}, {agenda: 8, bonus: 0, cards: [JFS, CLOUD_TOURISM, ATMO]}], winner: 0, context: 'applied', noRecipient: false},
   // Agenda 4 = influence 2; winning takes the marker to step 5 (influence 3) BEFORE the effect: 2 + 2 → 4 becomes 2 + 3 → 5.
-  {key: 'cloud-winner-agenda', family: 'distributed', label: 'The winner advances on the Agenda first', viewer: 0,
+  {key: 'cloud-winner-agenda', family: 'distributed', holds: FLOATER_HOLDERS, label: 'The winner advances on the Agenda first', viewer: 0,
     seats: [{agenda: 4, bonus: 0, cards: [DIRIGIBLES, JFS]}, {agenda: 3, bonus: 0, cards: []}], winner: 0, context: 'proposal', noRecipient: false},
-  {key: 'cloud-applied', family: 'distributed', label: 'Recorded result', viewer: 0,
+  {key: 'cloud-applied', family: 'distributed', holds: FLOATER_HOLDERS, label: 'Recorded result', viewer: 0,
     seats: [{agenda: 3, bonus: 0, cards: [DIRIGIBLES, JFS, ATMO]}, {agenda: 0, bonus: 0, cards: [ATMO]}], winner: 1, context: 'applied', noRecipient: false},
-  {key: 'cloud-spectator', family: 'distributed', label: 'Spectator — the formula alone', viewer: SPECTATOR,
+  {key: 'cloud-spectator', family: 'distributed', holds: FLOATER_HOLDERS, label: 'Spectator — the formula alone', viewer: SPECTATOR,
     seats: [{agenda: 3, bonus: 0, cards: [DIRIGIBLES, JFS]}, {agenda: 1, bonus: 0, cards: []}], winner: 0, context: 'proposal', noRecipient: false},
-  {key: 'cloud-quest-0', family: 'distributed', label: 'Chairman quest 0/2', viewer: 0,
+  {key: 'cloud-quest-0', family: 'distributed', holds: FLOATER_HOLDERS, label: 'Chairman quest 0/2', viewer: 0,
     seats: [{agenda: 3, bonus: 0, cards: [DIRIGIBLES]}, {agenda: 1, bonus: 0, cards: []}], winner: 0, context: 'applied', noRecipient: false, quest: {progress: [0, 0]}},
-  {key: 'cloud-quest-1', family: 'distributed', label: 'Chairman quest 1/2', viewer: 0,
+  {key: 'cloud-quest-1', family: 'distributed', holds: FLOATER_HOLDERS, label: 'Chairman quest 1/2', viewer: 0,
     seats: [{agenda: 3, bonus: 0, cards: [DIRIGIBLES]}, {agenda: 1, bonus: 0, cards: []}], winner: 0, context: 'applied', noRecipient: false, quest: {progress: [1, 0]}},
-  {key: 'cloud-quest-done', family: 'distributed', label: 'Chairman quest completed', viewer: 0,
+  {key: 'cloud-quest-done', family: 'distributed', holds: FLOATER_HOLDERS, label: 'Chairman quest completed', viewer: 0,
     seats: [{agenda: 3, bonus: 0, cards: [DIRIGIBLES]}, {agenda: 1, bonus: 0, cards: []}], winner: 0, context: 'applied', noRecipient: false, quest: {progress: [2, 1], completedBy: 0}},
   // ── LIVE (Cloud Development): real games from the engine-generated fixtures — a VENUS game, a FOUR-party table.
-  {key: 'cloud-live-vote', family: 'distributed', label: 'Live: the vote', viewer: 0,
+  {key: 'cloud-live-vote', family: 'distributed', holds: FLOATER_HOLDERS, label: 'Live: the vote', viewer: 0,
     seats: [{agenda: 2, bonus: 0, cards: [DIRIGIBLES, JFS]}, {agenda: 5, bonus: 0, cards: [ATMO]}], winner: 0, context: 'proposal', noRecipient: false,
     live: 'parliament-cloud-vote', liveNote: 'Cloud Development up for the vote on a four-party table: your floaters by Venus and Jovian tags plus influence, now and if you win'},
-  {key: 'cloud-live-layout', family: 'distributed', label: 'Live: the layout inside the sitting', viewer: 0,
+  {key: 'cloud-live-layout', family: 'distributed', holds: FLOATER_HOLDERS, label: 'Live: the layout inside the sitting', viewer: 0,
     seats: [{agenda: 2, bonus: 0, cards: [DIRIGIBLES, JFS]}, {agenda: 5, bonus: 0, cards: [ATMO]}], winner: 0, context: 'resolving', noRecipient: false,
     live: 'parliament-cloud-enact', liveNote: 'Your layout stands inside the enactment stage: 4 floaters over two holders, nothing placed until A'},
+  // ── THE DISTRIBUTED FAMILY OVER TWO KINDS (Medical Database: N = science tags + influence, laid out over the holders
+  //    of data AND of microbes — each unit's kind its card's, never a second question) ──
+  // Agenda 2 = influence 1; winning takes the marker to step 3 (influence 2): 3 tags + 1 → 4 becomes 3 + 2 → 5 — over
+  // a microbe holder AND a data holder: the layout lands both kinds at once.
+  {key: 'medical-mixed', family: 'distributed', holds: MEDICAL_HOLDERS, label: 'Holders of two kinds — the layout lands data and microbes at once', viewer: 0,
+    seats: [{agenda: 2, bonus: 0, cards: [RESEARCH, TARDIGRADES, MARTIAN_CULTURE]}, {agenda: 1, bonus: 0, cards: [GHG]}], winner: 1, context: 'proposal', noRecipient: false},
+  // The ordinary game: microbe holders alone — the layout reads exactly like Cloud Development's.
+  {key: 'medical-microbes', family: 'distributed', holds: MEDICAL_HOLDERS, label: 'Microbe holders alone — the ordinary layout', viewer: 0,
+    seats: [{agenda: 2, bonus: 0, cards: [GHG, REGOLITH]}, {agenda: 1, bonus: 0, cards: [TARDIGRADES]}], winner: 1, context: 'proposal', noRecipient: false},
+  {key: 'medical-data', family: 'distributed', holds: MEDICAL_HOLDERS, label: 'Data holders alone', viewer: 0,
+    seats: [{agenda: 2, bonus: 0, cards: [RESEARCH, MARTIAN_CULTURE, CRYPTOCURRENCY]}, {agenda: 1, bonus: 0, cards: []}], winner: 1, context: 'proposal', noRecipient: false},
+  {key: 'medical-research', family: 'distributed', holds: MEDICAL_HOLDERS, label: 'Two science tags on one card count twice', viewer: 0,
+    seats: [{agenda: 0, bonus: 0, cards: [RESEARCH, TARDIGRADES]}, {agenda: 1, bonus: 0, cards: []}], winner: 1, context: 'proposal', noRecipient: false},
+  {key: 'medical-wild', family: 'distributed', holds: MEDICAL_HOLDERS, label: 'A wild tag is not a science tag', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, cards: [NOBEL, TARDIGRADES]}, {agenda: 1, bonus: 0, cards: []}], winner: 1, context: 'proposal', noRecipient: false},
+  // Physics Complex COUNTS (a science tag) and holds science resources, not data or microbes: 2 tags + 2 = 4, all onto the ONE holder.
+  {key: 'medical-one-holder', family: 'distributed', holds: MEDICAL_HOLDERS, label: 'One holder — the ordinary pick', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, cards: [PHYSICS, GHG]}, {agenda: 1, bonus: 0, cards: []}], winner: 1, context: 'resolving', noRecipient: false},
+  // Three science tags and influence 2 are OWED — and forfeited, named with their size: a science tag is not storage.
+  {key: 'medical-no-holder', family: 'distributed', holds: MEDICAL_HOLDERS, label: 'No card can hold data or microbes — the payout is named and forfeited', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, cards: [RESEARCH, PHYSICS]}, {agenda: 1, bonus: 0, cards: [TARDIGRADES]}], winner: 1, context: 'applied', noRecipient: false},
+  {key: 'medical-zero', family: 'distributed', holds: MEDICAL_HOLDERS, label: 'No science tags and no influence', viewer: 0,
+    seats: [{agenda: 0, bonus: 0, cards: [TARDIGRADES]}, {agenda: 3, bonus: 0, cards: [GHG]}], winner: 1, context: 'applied', noRecipient: false},
+  {key: 'medical-applied', family: 'distributed', holds: MEDICAL_HOLDERS, label: 'Recorded result', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, cards: [RESEARCH, TARDIGRADES, MARTIAN_CULTURE]}, {agenda: 0, bonus: 0, cards: [GHG]}], winner: 1, context: 'applied', noRecipient: false},
+  // ── LIVE (Medical Database): the engine-generated fixture — a plain Redux game, blue's two science-tagged microbe holders.
+  {key: 'medical-live-layout', family: 'distributed', holds: MEDICAL_HOLDERS, label: 'Live: the layout inside the sitting', viewer: 0,
+    seats: [{agenda: 2, bonus: 0, cards: [GHG, REGOLITH]}, {agenda: 5, bonus: 0, cards: [TARDIGRADES]}], winner: 0, context: 'resolving', noRecipient: false,
+    live: 'parliament-medical-enact', liveNote: 'Your layout stands inside the enactment stage: 4 units over two microbe holders, nothing placed until you confirm'},
   /*
    * THE COLONY-BONUSES FAMILY (Colonial Affairs): each seat holds SYNTHETIC CUBES on real tiles of the
    * colony manifest — the server's registry shape — and the ledger multiplies them: a supply tile (Luna),
@@ -1367,11 +1422,16 @@ export default defineComponent({
       const s = SCENARIOS[this.scenario];
       return s !== undefined && s.live !== undefined && s.family === this.family ? s : undefined;
     },
-    /** The ACTIVE family's scenarios, with their global index — a parameter-limit scenario only for a law that moves that parameter. */
+    /**
+     * The ACTIVE family's scenarios, with their global index — a parameter-limit scenario only for a law that moves
+     * that parameter; a holders scenario only for a law whose unit spans every kind its holders take.
+     */
     scenarioList(): Array<{s: PgScenario, i: number}> {
       const moved = new Set((this.selected?.worldMoves ?? []).map((move) => move.parameter));
+      const kinds = this.spreadResources ?? [];
       return SCENARIOS.map((s, i) => ({s, i})).filter((entry) => entry.s.family === this.family &&
-        (entry.s.parameter === undefined || moved.has(entry.s.parameter)));
+        (entry.s.parameter === undefined || moved.has(entry.s.parameter)) &&
+        (entry.s.holds === undefined || entry.s.holds.every((kind) => kinds.includes(kind))));
     },
     /** The first scaled part that COUNTS the tableau — what the tableau rows explain. */
     countEffect(): InfluenceScaledEffect | undefined {
@@ -2126,10 +2186,19 @@ export default defineComponent({
     },
   },
   watch: {
-    /** Paging to a resolution of the OTHER family opens that family's own opening scenario. */
+    /**
+     * Paging to a resolution of the OTHER family opens that family's own opening scenario — or, within the same
+     * family, the first scenario the new law reads when the standing one is not its (a floater layout under the
+     * two-kind card).
+     */
     family(next: PgFamily): void {
       if (SCENARIOS[this.scenario]?.family !== next) {
         this.applyScenario(DEFAULT_SCENARIO_OF[next]);
+      }
+    },
+    scenarioList(next: Array<{s: PgScenario, i: number}>): void {
+      if (next.length > 0 && !next.some((entry) => entry.i === this.scenario)) {
+        this.applyScenario(next[0].i);
       }
     },
   },

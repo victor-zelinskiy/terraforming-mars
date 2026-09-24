@@ -838,7 +838,6 @@
   "Jovian Tax Rights up for the vote: your influence 3 is 3 titanium, your 4 colonies are +4 M€ production": "«Налогообложение Юпитера» на голосовании: ваше влияние 3 — это 3 титана, ваши 4 колонии — это +4 к производству M€",
   "Medical Database": "Медицинская база данных",
   "Add 1 data or microbe resource per science tag you have, plus 1 per influence, to your cards that can hold data or microbes. Each resource may go on a different card.": "Добавьте по 1 ресурсу данных или бактерии за каждую вашу метку науки и по 1 за каждое влияние на свои карты, принимающие данные или бактерии. Каждый ресурс можно положить на другую карту.",
-  "Play 2 science tags": "Разыграйте 2 метки науки",
   "No science tags and no influence": "Нет меток науки и нет влияния",
   "No card can hold data or microbes": "Нет карты, принимающей данные или бактерии",
   "No science tag": "Нет метки науки",
@@ -847,5 +846,12 @@
   "${0} has no science tags and no influence — no resources from ${1}": "${0}: нет меток науки и нет влияния — ${1} не даёт ресурсов",
   "${0} has no card that can hold data or microbes — ${1} resource(s) from ${2} are forfeited": "${0}: нет карты, принимающей данные или бактерии — ${2} не даёт ${1} {ресурс|ресурса|ресурсов}",
   "${0} placed ${1} resource(s) from ${2}: ${3} science tag(s) + ${4} influence": "${0} раскладывает ${1} {ресурс|ресурса|ресурсов} — ${2}: ${3} {метка|метки|меток} науки + влияние ${4}",
-  "no eligible card — the data or microbes would be forfeited": "нет подходящей карты — данные или бактерии пропадут"
+  "no eligible card — the data or microbes would be forfeited": "нет подходящей карты — данные или бактерии пропадут",
+  "Holders of two kinds — the layout lands data and microbes at once": "Держатели двух видов — раскладка кладёт данные и бактерии разом",
+  "Microbe holders alone — the ordinary layout": "Только держатели бактерий — обычная раскладка",
+  "Data holders alone": "Только держатели данных",
+  "Two science tags on one card count twice": "Две метки науки на одной карте дают 2",
+  "A wild tag is not a science tag": "Универсальная метка — не метка науки",
+  "No card can hold data or microbes — the payout is named and forfeited": "Нет карты, принимающей данные или бактерии — выплата названа и пропадает",
+  "Your layout stands inside the enactment stage: 4 units over two microbe holders, nothing placed until you confirm": "Ваша раскладка стоит внутри стадии принятия: 4 единицы на два держателя бактерий, до подтверждения ничего не положено"
 }
