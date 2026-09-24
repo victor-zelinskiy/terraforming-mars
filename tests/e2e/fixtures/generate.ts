@@ -82,6 +82,8 @@ import {BIODOME_CONTEST_ID} from '../../../src/server/parliament/resolutions/gre
 import {DEV_ACTION_RESOLUTION_ID, DEV_PASSIVE_RESOLUTION_ID} from '../../../src/server/parliament/resolutions/ResolutionCatalog';
 import {CLOUD_DEVELOPMENT_ID} from '../../../src/server/parliament/resolutions/unity/CloudDevelopment';
 import {GAS_EXPORT_ID} from '../../../src/server/parliament/resolutions/reds/GasExport';
+import {HEAT_CAPTURE_ID} from '../../../src/server/parliament/resolutions/reds/HeatCapture';
+import {NuclearPower} from '../../../src/server/cards/base/NuclearPower';
 import {COLONIZATION_FUNDING_ID} from '../../../src/server/parliament/resolutions/unity/ColonizationFunding';
 import {GENEROUS_FUNDING_ID} from '../../../src/server/parliament/resolutions/greens/GenerousFunding';
 import {SpaceName} from '../../../src/common/boards/SpaceName';
@@ -775,9 +777,13 @@ parliamentFixture('parliament-renewal-assembly', {
     architectureTable('assembly').arrange?.(table);
     const {parliament, p1, p2} = table;
     parliament.placeVote(p2, parliament.slots[1], 'reserve');
-    const greens = parliament.slots.findIndex((s) => parliament.resolutionOf(s.instance).party === PartyName.GREENS);
+    let greens = parliament.slots.findIndex((s) => parliament.resolutionOf(s.instance).party === PartyName.GREENS);
     if (greens < 0) {
-      throw new Error('the parliament-renewal-assembly fixture expected a Greens card on the table');
+      // THE DEAL IS NOT ASSUMED: the deck grows with every card shipped, and the seeded deal stopped putting a
+      // Greens card beside the winner once the Reds had two. Seat one (pool-consistent) in the slot the winner
+      // does not hold — WHICH Greens card the loser is, the e2e never reads.
+      seatResolution(parliament, 0, AQUIFER_CONTEST_ID);
+      greens = 0;
     }
     parliament.placeVote(p1, parliament.slots[greens], 'lobby');
     parliament.deck = [];
@@ -1165,6 +1171,58 @@ const gasExportTable = (stopAt: ParliamentStop): ParliamentFixtureSpec => ({
 });
 // The sitting has just convened: the ASSEMBLY gate stands for both seats — the e2e walks the world beat from here.
 parliamentFixture('parliament-gas-assembly', gasExportTable('assembly'));
+
+// ── RX14 · HEAT CAPTURE (the Reds — «2 M€ per influence; temperature −2, nobody's TR; 3 M€ off a Building
+//    tag while enacted»). Two moments of ONE journey:
+//    · the ASSEMBLY — the card alone in the first voting slot with blue's free delegate on it (blue at Agenda
+//      step 2 → influence 2 → 4 M€, red at step 1 → 2 M€), the temperature SET at −20 °C so the world step has
+//      room and crosses no bonus threshold on the way down (−24 °C is the heat step, claimed on the way UP);
+//    · ENACTED — the sitting is over, RED won it (the seat the loader opens in generation 2) and holds
+//      «Nuclear Power» (10 M€, a Building tag) in hand: the play composer must read 10 → 7 with the law named.
+parliamentFixture('parliament-heat-assembly', {
+  resolution: HEAT_CAPTURE_ID,
+  votes: [0],
+  agenda: [2, 1],
+  stopAt: 'assembly',
+  arrange: ({game}) => {
+    setTemperature(game, -20);
+  },
+  expect: ({game, parliament}) => {
+    if (game.getTemperature() !== -20) {
+      throw new Error(`the parliament-heat fixture expected the temperature at −20 °C, got ${game.getTemperature()}`);
+    }
+    if (!parliament.slots.some((slot) => slot.instance.startsWith(HEAT_CAPTURE_ID))) {
+      throw new Error('the parliament-heat fixture lost Heat Capture out of the voting area');
+    }
+  },
+});
+parliamentFixture('parliament-heat-enacted', {
+  resolution: HEAT_CAPTURE_ID,
+  votes: [1],
+  agenda: [1, 2],
+  stopAt: 'done',
+  arrange: ({game, p2}) => {
+    setTemperature(game, -20);
+    // The card the discount is read on: printed 10, a Building tag, no requirement, no question of its own.
+    p2.cardsInHand.push(new NuclearPower());
+  },
+  expect: (table) => {
+    const {p2, parliament} = table;
+    if (parliament.enacted !== resolutionInstanceId(HEAT_CAPTURE_ID, 0)) {
+      throw new Error(`the parliament-heat-enacted fixture expected Heat Capture enacted, got ${parliament.enacted}`);
+    }
+    if (!p2.cardsInHand.some((c) => c.name === CardName.NUCLEAR_POWER)) {
+      throw new Error('the parliament-heat-enacted fixture expected red to hold Nuclear Power');
+    }
+    if (p2.megaCredits < 10) {
+      throw new Error(`the parliament-heat-enacted fixture expected red to afford Nuclear Power even at its printed price, has ${p2.megaCredits} M€`);
+    }
+    if (p2.getCardCost(new NuclearPower()) !== 7) {
+      throw new Error(`the parliament-heat-enacted fixture expected the law to price Nuclear Power at 7, got ${p2.getCardCost(new NuclearPower())}`);
+    }
+    expectViewerOpensGeneration(table, p2, 'parliament-heat-enacted');
+  },
+});
 
 // ── RX03 · BIODOME CONTEST — a 2-seat table with the card alone in the first
 //    voting slot and blue's free delegate on it: blue at Agenda step 2
