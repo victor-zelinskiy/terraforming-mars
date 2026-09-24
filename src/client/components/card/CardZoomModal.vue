@@ -74,8 +74,8 @@
           the centre column, so neither this block's length nor the right-hand
           rules panel's width can push the card off the viewport centre.
         -->
-        <CardLoreAside v-if="loreVisible"
-                       :cardName="loreCardName"
+        <CardLoreAside v-if="loreModel !== undefined"
+                       :model="loreModel"
                        :nonce="settleNonce"
                        :closing="closing" />
         <!--
@@ -223,6 +223,9 @@ import {cssLengthPx} from '@/client/console/cssUnits';
 import {CardName} from '@/common/cards/CardName';
 import {ZoomCard, isBonusZoom, isMarsBotCorpZoom, isPartyEffectZoom, isResolutionZoom} from './cardZoomTypes';
 import {marsBotCorpInfo} from '@/common/automa/MarsBotCorpData';
+import {LoreModel, buildCardLoreModel} from '@/client/cards/cardLore';
+import {buildPartyLoreModel} from '@/client/cards/partyLore';
+import {translateLore} from '@/client/cards/loreTranslate';
 import CardZoomCard from './CardZoomCard.vue';
 import CardLoreAside from './CardLoreAside.vue';
 import CardAnnotationsLayer from '@/client/components/cardAnnotations/CardAnnotationsLayer.vue';
@@ -486,23 +489,39 @@ export default defineComponent({
         undefined :
         this.activeCard.name as CardName;
     },
-    /** The archive entry shows for real game cards — an Automa bonus entry is
-     *  not a card and has no lore; a MarsBot CORPORATION entry borrows the
-     *  ORIGINAL human corporation's archive entry (the official identity/art/
-     *  lore link of RB-B). */
-    loreVisible(): boolean {
-      // A parliament face (a resolution, a party's banner — Turmoil Redux) has
-      // no archive entry: the gutter stays empty rather than printing «Архивная
-      // запись отсутствует» beside every one of them.
-      return this.lore && !isBonusZoom(this.activeCard) && !isResolutionZoom(this.activeCard) && !isPartyEffectZoom(this.activeCard);
-    },
-    /** The archive-entry card: the entry's own name, or the bot corporation's
-     *  ORIGINAL card (behind `loreVisible`, never a bonus id). */
-    loreCardName(): CardName {
-      if (isMarsBotCorpZoom(this.activeCard)) {
-        return marsBotCorpInfo(this.activeCard.marsBotCorp).original;
+    /**
+     * THE ARCHIVE ENTRY OF THE SUBJECT ON STAGE — the viewer decides WHOSE lore
+     * the gutter holds and builds the block's model with that subject's own
+     * resolver; the block itself never branches on the subject.
+     *  - a real game card → its own entry;
+     *  - a MarsBot CORPORATION → the ORIGINAL human corporation's entry (the
+     *    official identity/art/lore link of RB-B);
+     *  - a Turmoil Redux PARTY → the faction's rulebook paragraph (`partyLore`);
+     *  - an Automa bonus entry is not a card and has no lore;
+     *  - a RESOLUTION lends the gutter to its PARTY column (`#aside`) — the
+     *    cell is taken, so no entry is offered.
+     * Undefined ⇔ no entry: the gutter stays empty rather than printing
+     * «Архивная запись отсутствует» beside a subject that never had one.
+     */
+    loreModel(): LoreModel | undefined {
+      if (!this.lore) {
+        return undefined;
       }
-      return this.activeCard.name as CardName;
+      const card = this.activeCard;
+      if (isBonusZoom(card) || isResolutionZoom(card)) {
+        return undefined;
+      }
+      if (isPartyEffectZoom(card)) {
+        return buildPartyLoreModel(card.partyEffect, translateLore);
+      }
+      if (isMarsBotCorpZoom(card)) {
+        return buildCardLoreModel(marsBotCorpInfo(card.marsBotCorp).original, translateLore);
+      }
+      return buildCardLoreModel(card.name as CardName, translateLore);
+    },
+    /** The archive entry is on stage — the fit reserves its column. */
+    loreVisible(): boolean {
+      return this.loreModel !== undefined;
     },
     /*
      * The midrow carries a flanking block (archive entry and/or rules panel).

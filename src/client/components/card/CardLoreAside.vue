@@ -1,9 +1,9 @@
 <template>
   <aside class="card-zoom-lore"
          :class="[
-           'card-zoom-lore--' + model.tier,
+           'card-zoom-lore--' + shown.tier,
            'card-zoom-lore--' + script,
-           {'card-zoom-lore--fallback': model.fallback, 'card-zoom-lore--in': revealed,
+           {'card-zoom-lore--fallback': shown.fallback, 'card-zoom-lore--in': revealed,
             'card-zoom-lore--closing': closing},
          ]"
          data-test="card-zoom-lore">
@@ -29,7 +29,7 @@
         and in both literary faces.
       -->
       <blockquote class="card-zoom-lore__quote" :lang="textLang">
-        <svg v-if="!model.fallback"
+        <svg v-if="!shown.fallback"
              class="card-zoom-lore__mark card-zoom-lore__mark--open"
              :viewBox="MARK_VIEWBOX" aria-hidden="true" focusable="false">
           <g v-for="dx in MARK_OFFSETS" :key="dx" :transform="`translate(${dx} 0)`">
@@ -37,8 +37,8 @@
             <path :d="MARK_TAIL" />
           </g>
         </svg>
-        <span class="card-zoom-lore__text">{{ model.text }}</span>
-        <svg v-if="!model.fallback"
+        <span class="card-zoom-lore__text">{{ shown.text }}</span>
+        <svg v-if="!shown.fallback"
              class="card-zoom-lore__mark card-zoom-lore__mark--close"
              :viewBox="MARK_VIEWBOX" aria-hidden="true" focusable="false">
           <g v-for="dx in MARK_OFFSETS" :key="dx" :transform="`translate(${dx} 0)`">
@@ -53,7 +53,7 @@
 
 <script lang="ts">
 /**
- * FULLSCREEN ARCHIVE ENTRY (the card's lore text).
+ * FULLSCREEN ARCHIVE ENTRY (the subject's lore text).
  *
  * A literary note in the LEFT gutter of the fullscreen card viewer,
  * deliberately NOT a panel: no frame, no head bar, no glass, no buttons, no
@@ -67,9 +67,13 @@
  * the Action Focus hero, a compact zoom, the rules panel, the statistics tab,
  * a tooltip, the journal, or the card face itself.
  *
- * All resolution (lore lookup, the `reimplements` borrow, localization, the
- * length tier) happens in the pure `@/client/cards/cardLore` model — this
- * component only presents it and owns the reveal choreography.
+ * THE BLOCK DOES NOT KNOW WHOSE LORE IT HOLDS. It receives a finished
+ * `LoreModel` (source · text · fallback · tier) and presents it; the HOST
+ * decides the subject and builds the model with that subject's resolver — a
+ * project card through `@/client/cards/cardLore` (lore lookup, the
+ * `reimplements` borrow, localization, the length tier), a Turmoil Redux party
+ * through `@/client/cards/partyLore`. One heading, one typography, one reveal
+ * choreography for every subject; no «if it is a party» branch in here, ever.
  *
  * CHOREOGRAPHY: the block is silent until the card has LANDED. The host passes
  * its settle `nonce` (bumped when the fullscreen card is stationary — open
@@ -78,18 +82,14 @@
  * different entries and never snaps a height change into view.
  */
 import {defineComponent, PropType} from 'vue';
-import {CardName} from '@/common/cards/CardName';
-import {buildCardLoreModel, CardLoreModel, LORE_FALLBACK_KEY, LORE_HEADING_KEY, loreScriptForLocale, LoreScript} from '@/client/cards/cardLore';
+import {LoreModel, LORE_FALLBACK_KEY, LORE_HEADING_KEY, loreScriptForLocale, LoreScript} from '@/client/cards/cardLore';
 import {translateText} from '@/client/directives/i18n';
 import {getPreferences} from '@/client/utils/PreferencesManager';
 
-/**
- * The lore corpus is PROSE, so it opts out of `translateText`'s "non-word"
- * guard — that guard is meant for card-render fragments (`x`, `3x`) and would
- * otherwise leave a whole archive entry that happens to be digits and a full
- * stop («42.» — AI Central) permanently untranslated.
- */
-const translateLore = (englishText: string): string => translateText(englishText, {translateNonWordText: true});
+/** Two models print the same thing — a rebuilt object is not a new entry. */
+function sameLore(a: LoreModel, b: LoreModel): boolean {
+  return a.text === b.text && a.source === b.source && a.fallback === b.fallback;
+}
 
 /*
  * The decorative quotation mark, drawn LOCALLY as two commas.
@@ -114,8 +114,8 @@ const MARK_OFFSETS: ReadonlyArray<number> = [0, 22];
 export default defineComponent({
   name: 'CardLoreAside',
   props: {
-    /** The card on the fullscreen stage. */
-    cardName: {type: String as PropType<CardName>, required: true},
+    /** The finished lore model of the subject on the fullscreen stage. */
+    model: {type: Object as PropType<LoreModel>, required: true},
     /** The viewer's settle signal — 0 while the card is in flight / closed. */
     nonce: {type: Number, default: 0},
     /** The close flight began: fade out at once, never lag the departing card. */
@@ -123,9 +123,9 @@ export default defineComponent({
   },
   data() {
     return {
-      /** The card whose entry is currently ON SCREEN. Swapped only while the
-       *  block is hidden, so two entries can never be visible at once. */
-      shownName: this.cardName as CardName,
+      /** The model currently ON SCREEN. Swapped only while the block is
+       *  hidden, so two entries can never be visible at once. */
+      shown: this.model as LoreModel,
       revealed: false,
     };
   },
@@ -144,9 +144,6 @@ export default defineComponent({
     MARK_OFFSETS(): ReadonlyArray<number> {
       return MARK_OFFSETS;
     },
-    model(): CardLoreModel {
-      return buildCardLoreModel(this.shownName, translateLore);
-    },
     heading(): string {
       return translateText(LORE_HEADING_KEY);
     },
@@ -162,12 +159,18 @@ export default defineComponent({
       if (lang === 'en') {
         return 'en';
       }
-      const englishKey = this.model.fallback ? LORE_FALLBACK_KEY : this.model.source;
-      return englishKey !== undefined && this.model.text === englishKey ? 'en' : lang;
+      const englishKey = this.shown.fallback ? LORE_FALLBACK_KEY : this.shown.source;
+      return englishKey !== undefined && this.shown.text === englishKey ? 'en' : lang;
     },
   },
   watch: {
-    cardName() {
+    model(next: LoreModel, previous: LoreModel) {
+      if (sameLore(next, previous)) {
+        // The host rebuilt the object around the same words (a re-render, a
+        // computed refreshed): adopt it in place — nothing to hide or reveal.
+        this.shown = next;
+        return;
+      }
       // A browse step re-points the viewer BEFORE the new card settles: hide
       // now (the OLD text fades out), swap + reveal on the settle nonce.
       this.revealed = false;
@@ -190,7 +193,7 @@ export default defineComponent({
         this.revealed = false;
         return;
       }
-      this.shownName = this.cardName;
+      this.shown = this.model;
       this.revealed = true;
     },
   },

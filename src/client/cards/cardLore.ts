@@ -60,7 +60,14 @@ export const LORE_SHORT_MAX = 65;
 /** Up to and including this many characters → `regular`; beyond → `extended`. */
 export const LORE_REGULAR_MAX = 170;
 
-export type CardLoreModel = {
+/**
+ * THE ARCHIVE BLOCK'S INTERFACE — what `CardLoreAside` renders, whoever the
+ * subject is. Built by a resolver per subject kind (a project card here, a
+ * Turmoil Redux party in `partyLore.ts`); the block itself never asks whose
+ * lore it holds, so every future subject joins by adding a resolver, never a
+ * branch inside the block.
+ */
+export type LoreModel = {
   /** The ENGLISH source sentence (the i18n key), or undefined when unknown. */
   source: string | undefined,
   /** The string to render. Never empty — falls back to the localized notice. */
@@ -135,7 +142,7 @@ export function resetLoreWarnings(): void {
  * client's `translateText` (injected so this module stays pure) — it maps the
  * English key to the active locale and returns the key itself for `en`.
  */
-export function buildCardLoreModel(name: CardName, translate: (englishText: string) => string): CardLoreModel {
+export function buildCardLoreModel(name: CardName, translate: (englishText: string) => string): LoreModel {
   const source = cardLoreSource(name);
   if (source === undefined) {
     warnMissingLore(name);

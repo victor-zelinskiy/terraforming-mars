@@ -26,7 +26,7 @@
         -->
         <div class="lore-playground__gutter">
           <CardLoreAside :key="`${state.key}-${lang}-${revealed}`"
-                         :cardName="state.card"
+                         :model="models[state.key]"
                          :nonce="revealed ? 1 : 0" />
           <span class="lore-playground__cardedge" aria-hidden="true"></span>
         </div>
@@ -51,10 +51,16 @@
  */
 import {defineComponent} from 'vue';
 import {CardName} from '@/common/cards/CardName';
+import {PartyName} from '@/common/turmoil/PartyName';
+import {ReduxParty} from '@/common/parliament/ParliamentTypes';
 import {PreferencesManager} from '@/client/utils/PreferencesManager';
+import {LoreModel, buildCardLoreModel} from '@/client/cards/cardLore';
+import {buildPartyLoreModel} from '@/client/cards/partyLore';
+import {translateLore} from '@/client/cards/loreTranslate';
 import CardLoreAside from '@/client/components/card/CardLoreAside.vue';
 
-type LoreState = {key: string, card: CardName, note: string};
+/** A stand cell: a project card's entry, or a Turmoil Redux party's paragraph. */
+type LoreState = {key: string, card: CardName, note: string} | {key: string, party: ReduxParty, note: string};
 
 const STATES: ReadonlyArray<LoreState> = [
   {key: 'short', card: CardName.AI_CENTRAL, note: '«Сорок два.» / “42.” — a one-line aphorism'},
@@ -69,6 +75,9 @@ const STATES: ReadonlyArray<LoreState> = [
   {key: 'extended · corp', card: CardName.SATURN_SYSTEMS, note: 'the longest corporate paragraph'},
   {key: 'extended · corp 2', card: CardName.MINING_GUILD, note: 'a latin corporate name inside Russian prose'},
   {key: 'fallback', card: 'A Card With No Archive Entry' as CardName, note: 'no entry — the honest notice'},
+  // The party corpus at both ends of its length — the same block, the other resolver.
+  {key: 'party · longest', party: PartyName.INDUSTRIALISTS, note: 'the longest party paragraph (Industrialists)'},
+  {key: 'party · shortest', party: PartyName.SCIENTISTS, note: 'the shortest party paragraph (Scientists)'},
 ];
 
 const LOCALES = [{code: 'ru', label: 'RU'}, {code: 'en', label: 'EN'}] as const;
@@ -93,6 +102,17 @@ export default defineComponent({
   computed: {
     states(): ReadonlyArray<LoreState> {
       return STATES;
+    },
+    /** One finished model per cell — rebuilt when the locale switches. */
+    models(): Record<string, LoreModel> {
+      void this.lang; // the dependency: the translator reads the locale outside reactivity
+      const out: Record<string, LoreModel> = {};
+      for (const state of STATES) {
+        out[state.key] = 'party' in state ?
+          buildPartyLoreModel(state.party, translateLore) :
+          buildCardLoreModel(state.card, translateLore);
+      }
+      return out;
     },
     LOCALES(): ReadonlyArray<{code: string, label: string}> {
       return LOCALES;

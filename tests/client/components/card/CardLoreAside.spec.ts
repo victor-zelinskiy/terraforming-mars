@@ -1,7 +1,11 @@
 import {expect} from 'chai';
 import {mount, VueWrapper} from '@vue/test-utils';
 import {CardName} from '@/common/cards/CardName';
+import {PartyName} from '@/common/turmoil/PartyName';
 import {PreferencesManager} from '@/client/utils/PreferencesManager';
+import {buildCardLoreModel, LoreModel} from '@/client/cards/cardLore';
+import {buildPartyLoreModel} from '@/client/cards/partyLore';
+import {translateLore} from '@/client/cards/loreTranslate';
 import CardLoreAside from '@/client/components/card/CardLoreAside.vue';
 import ruLore from '../../../../src/locales/ru/lore_texts.json';
 
@@ -18,8 +22,13 @@ function setupLocale(lang: string): void {
   (window as any)._translations = {...RU_LORE, ...RU_UI};
 }
 
+/** The model the fullscreen viewer hands the block for a project card. */
+function loreOf(cardName: CardName | string): LoreModel {
+  return buildCardLoreModel(cardName as CardName, translateLore);
+}
+
 function mountLore(cardName: CardName | string, nonce = 1): VueWrapper<any> {
-  return mount(CardLoreAside, {props: {cardName: cardName as CardName, nonce}});
+  return mount(CardLoreAside, {props: {model: loreOf(cardName), nonce}});
 }
 
 describe('CardLoreAside', () => {
@@ -153,6 +162,33 @@ describe('CardLoreAside', () => {
     expect(wrapper.find('.card-zoom-lore__text').text()).to.not.include('???');
   });
 
+  describe('the model is the interface — the block does not know its subject', () => {
+    it('presents a PARTY\'s paragraph exactly like a card\'s entry', () => {
+      // The host built the model with the party resolver; the block sees a
+      // LoreModel and nothing else — same heading, same marks, same tiers.
+      const party = mount(CardLoreAside, {props: {model: buildPartyLoreModel(PartyName.INDUSTRIALISTS, translateLore), nonce: 1}});
+      expect(party.find('.card-zoom-lore__label-text').text()).to.eq('ЗАПИСЬ ИЗ АРХИВА');
+      expect(party.find('.card-zoom-lore__text').text()).to.match(/^«Индустриалисты» отстаивают/);
+      expect(party.findAll('.card-zoom-lore__mark').length).to.eq(2);
+      expect(party.find('blockquote').attributes('lang')).to.eq('ru');
+      // Byte-identical chassis: the class set of a card's entry of the same tier.
+      const corporation = mountLore(CardName.SATURN_SYSTEMS);
+      expect(party.classes()).to.deep.eq(corporation.classes());
+      expect(party.classes()).to.include('card-zoom-lore--extended');
+    });
+
+    it('adopts a rebuilt model around the same words without hiding', async () => {
+      // A host's computed may hand a NEW object for the SAME entry (a
+      // re-render): that is not a browse step, so the block must not blink.
+      const wrapper = mountLore(CardName.HACKERS, 1);
+      await wrapper.vm.$nextTick();
+      expect(wrapper.classes()).to.include('card-zoom-lore--in');
+      await wrapper.setProps({model: loreOf(CardName.HACKERS)});
+      expect(wrapper.classes()).to.include('card-zoom-lore--in');
+      expect(wrapper.find('.card-zoom-lore__text').text()).to.include('Крайне неэтично');
+    });
+  });
+
   describe('reveal choreography', () => {
     it('stays hidden until the card has landed (nonce 0)', async () => {
       const wrapper = mountLore(CardName.HACKERS, 0);
@@ -166,7 +202,7 @@ describe('CardLoreAside', () => {
       expect(wrapper.find('.card-zoom-lore__text').text()).to.include('Крайне неэтично');
 
       // A browse step re-points the card BEFORE it settles.
-      await wrapper.setProps({cardName: CardName.AI_CENTRAL});
+      await wrapper.setProps({model: loreOf(CardName.AI_CENTRAL)});
       expect(wrapper.classes()).to.not.include('card-zoom-lore--in');
       expect(wrapper.find('.card-zoom-lore__text').text()).to.include('Крайне неэтично');
 
