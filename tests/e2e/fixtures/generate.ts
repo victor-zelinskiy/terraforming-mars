@@ -83,6 +83,7 @@ import {DEV_ACTION_RESOLUTION_ID, DEV_PASSIVE_RESOLUTION_ID} from '../../../src/
 import {CLOUD_DEVELOPMENT_ID} from '../../../src/server/parliament/resolutions/unity/CloudDevelopment';
 import {GAS_EXPORT_ID} from '../../../src/server/parliament/resolutions/reds/GasExport';
 import {HEAT_CAPTURE_ID} from '../../../src/server/parliament/resolutions/reds/HeatCapture';
+import {INDUSTRIALIST_BUDGET_ID} from '../../../src/server/parliament/resolutions/industrialists/IndustrialistBudget';
 import {NuclearPower} from '../../../src/server/cards/base/NuclearPower';
 import {COLONIZATION_FUNDING_ID} from '../../../src/server/parliament/resolutions/unity/ColonizationFunding';
 import {GENEROUS_FUNDING_ID} from '../../../src/server/parliament/resolutions/greens/GenerousFunding';
@@ -1223,6 +1224,48 @@ parliamentFixture('parliament-heat-enacted', {
     expectViewerOpensGeneration(table, p2, 'parliament-heat-enacted');
   },
 });
+
+// ── RX15 · INDUSTRIALIST BUDGET (the Industrialists — the first BUDGET: «lose 10 M€; gain 1 M€ per step of
+//    steel + titanium + energy production + influence; +4 M€ production»). Two moments of ONE journey, on one
+//    table: blue's track is steel 2 · titanium 1 · energy 2 (5 steps) at Agenda step 4 (influence 2), red's is
+//    empty at step 1.
+//    · the VOTE — the card in the first voting slot with blue's free delegate on it: the panel reads the LEVY
+//      first, «−10 → [steel] 2 + [titanium] 1 + [energy] 2 + [influence] 2 → +7 = −3», the win suffix «+1 · step
+//      5» (an influence step), the flat «+4 M€ production» with its horizon; the fullscreen prints the levy row
+//      and the breakdown by resource;
+//    · the ASSEMBLY — RED's delegate wins (blue keeps influence 2, so the sitting pays blue exactly the vote's
+//      numbers: −10, then +7, then +4 production — net −3), every seat passed, the assembly gate standing for
+//      both. The production phase has paid the income before the sitting: blue holds 40 + 20 = 60 M€ at the levy.
+function budgetTable(stopAt: 'vote' | 'assembly'): ParliamentFixtureSpec {
+  return {
+    resolution: INDUSTRIALIST_BUDGET_ID,
+    votes: [stopAt === 'vote' ? 0 : 1],
+    agenda: [4, 1],
+    stopAt,
+    arrange: ({p1}) => {
+      p1.production.add(Resource.STEEL, 2);
+      p1.production.add(Resource.TITANIUM, 1);
+      p1.production.add(Resource.ENERGY, 2);
+    },
+    expect: ({p1, p2, parliament}) => {
+      const count = resolutionCount(p1, 'steelTitaniumEnergyProduction');
+      if (count.count !== 5 || count.byResource?.map((entry) => entry.count).join(',') !== '2,1,2') {
+        throw new Error(`the parliament-budget fixture expected blue at steel 2 · titanium 1 · energy 2 = 5 steps, got ${JSON.stringify(count)}`);
+      }
+      if (resolutionCount(p2, 'steelTitaniumEnergyProduction').count !== 0) {
+        throw new Error('the parliament-budget fixture expected red without production steps');
+      }
+      if (p1.megaCredits < 10) {
+        throw new Error(`the parliament-budget fixture expected blue to afford the whole levy, has ${p1.megaCredits} M€`);
+      }
+      if (!parliament.slots.some((slot) => slot.instance.startsWith(INDUSTRIALIST_BUDGET_ID))) {
+        throw new Error('the parliament-budget fixture lost Industrialist Budget out of the voting area');
+      }
+    },
+  };
+}
+parliamentFixture('parliament-budget-vote', budgetTable('vote'));
+parliamentFixture('parliament-budget-assembly', budgetTable('assembly'));
 
 // ── RX03 · BIODOME CONTEST — a 2-seat table with the card alone in the first
 //    voting slot and blue's free delegate on it: blue at Agenda step 2

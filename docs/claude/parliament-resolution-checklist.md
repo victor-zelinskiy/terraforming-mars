@@ -58,6 +58,8 @@ worklist:** сначала пиши карту, потом читай, что о
    `cardDiscount(player, card)` в разборе цены (`getCardCostBreakdown` → `ParliamentHandler.cardDiscount`),
    источник-резолюция в `discounts` (никогда в остаток), отрисовка источника у всех потребителей разбора,
    `forecast` — двойник скидки есть сам разбор (факта не давать).
+   **ПЛАТА** (RX15, семейство БЮДЖЕТ) — `levy: {resource, amount, recipient: 'each'}` + общий шаг `levyStep(id, levy)`
+   ПЕРВЫМ в `immediateSteps`; `from: {resolution}` обязателен; частичная уплата и пустой запас названы (раздел RX15 ниже).
 8. Ни слова о партиях: реакция правящей партии (Зелёные и т.д.) — данные `PartyEffectDefinition.reactions`,
    запись `kind:'reaction'` делает драйвер фазы из событий рекордера (Э1). Карта платит через `stock.add` /
    `production.add` с `from: {resolution: ID}` — этого достаточно.
@@ -349,6 +351,43 @@ worldMoves: [{parameter: 'temperature', steps: -2, terraformRating: false}],   /
   фикстура всё равно строится, и аранжировка, предполагающая посев («ожидаю карту Зелёных на столе»), падает с
   ростом каталога: сажать нужную партию через `seatResolution`, не ждать её от посева. Док:
   `docs/TURMOIL_REDUX_HEAT_CAPTURE.md`.
+
+### ПЛАТА — семейство БЮДЖЕТ: объявление величины + общий шаг; счёт по ШАГАМ ПРОИЗВОДСТВА (RX15, 2026-09-24)
+
+```ts
+levy: {resource: Resource.MEGACREDITS, amount: 10, recipient: 'each'},          // объявление — `common/parliament/resolutionLevy.ts`
+scaled: [{id: 'megacredits', unit: {kind: 'stock', resource: MEGACREDITS}, perInfluence: 1, count: {id: 'steelTitaniumEnergyProduction', per: 1}, recipient: 'each'},
+         {id: 'production', unit: {kind: 'production', resource: MEGACREDITS}, base: 4, perInfluence: 0, recipient: 'each'}],   // плоская часть
+immediateSteps: [levyStep(ID, LEVY), MEGACREDITS_STEP, PRODUCTION_STEP],         // печатный порядок = исполняемый: плата ПЕРВОЙ
+// resolutionCountKind('steelTitaniumEnergyProduction') === {kind: 'production', resources: [STEEL, TITANIUM, ENERGY]}
+```
+
+- **ПЛАТА — объявление величины + общий шаг, `from: {resolution}` обязателен, частичная уплата названа.** Отрицательную
+  выдачу в `InfluenceScaledEffect` НЕ втискивать: `scaledAmount` и все чтения построены вокруг «сколько получено», а
+  `skipped` при `amount ≤ 0` превратил бы плату в «ничего не произошло». Плата — свой член `ResolutionDefinition.levy`
+  и ОДИН исполнитель `levyStep` (`ResolutionLevy.ts`): взятие ограничено запасом (`levyPaid`, никогда ниже нуля),
+  списание `stock.add(res, −paid, {from: {resolution}})` — без `from` движок пишет `logIllegalState`; недобор — запись
+  `stock` с отрицательным `amount`, `owed` и причиной НА платящей записи (не пропуск); пустой запас — названный
+  `skipped` с `owed`; оба всё равно получают выплату и производство — платёжеспособности карта не требует. Гард: плата
+  ↔ шаг объявлены вместе, шаг платы ПЕРВЫЙ, `checkLevy` сверяет `owed`, знак и `before − after`.
+- **Знак читает адрес, вида `stockLoss` нет**: `rewardAddressOf` — ноль есть пропуск, минус есть ПОТЕРЯ
+  (`RewardDelivery.direction: 'loss'`); `waveSpecOf` летит тем же рядом с `direction: 'loss'`. Физика — тот же конвейер
+  наоборот (`ResourceTransferSpec.direction`): чип рождается на строке рельсы, летит на ОТРИЦАТЕЛЬНУЮ плитку закона
+  (`resolveGainIconOrigins` выбирает тайл M€ по знаку), холд потерь отдельной картой (`stockLoss`), отрыв фиксируется на
+  старте (`launched`), прилёт — на посадке. В директоре плата летит ПЕРВОЙ, пауза дыхания, затем выдачи по одной.
+- **Счёт по шагам производства — двойник вида `tags` с разбивкой по ресурсам**: `ResolutionCountModel.byResource`,
+  в записи и чтении `countedByResource`, значения у `player.production` (никогда из карт; пола не изобретать —
+  движок сам держит сталь/титан/энергию ≥ 0, спек это закрепляет), стенд считает синтетический трек той же
+  `countProductionToward`; глиф `{kind: 'production', resources}` — производственная плашка с иконками через «+».
+- **Чтения — НЕТТО и два горизонта**: плата во главе плиты выплаты той же валюты, нетто в хвосте («−10 → … → +7 = −3»,
+  `levyNetEffectOf`); модель платы на три момента (`voteLevyOf` — по `ParliamentPlayerModel.stock`, `resolvingLevyOf`,
+  `enactedLevyOf` — по записи); нехватка — «−4 из 10» + нота панели (`levyShortNoteKey`); производство рядом с платой
+  несёт горизонт («платит со следующего поколения» — заседание идёт ПОСЛЕ фазы производства); плоская часть
+  (`yieldIsFlat`) печатает базу без кластера входов. Итоги: подписанные части, `owed`, нота недобора, строка нетто.
+- **Очерёдность поколения** (три утверждения спека): плата берётся из денег, УЖЕ включающих доход; +4 производства
+  впервые платят в следующем поколении; счёт от момента не зависит (фаза производства двигает запасы, не трек).
+- Следующий бюджет объявляет только суммы и список: `levy.amount` и `count` (по меткам — вид `tags`), шагов не пишет.
+  Док: `docs/TURMOIL_REDUX_INDUSTRIALIST_BUDGET.md`.
 
 ### Бюджет проверки на карту (решение владельца 2026-09-23)
 

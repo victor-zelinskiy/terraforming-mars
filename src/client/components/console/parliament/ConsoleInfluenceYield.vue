@@ -318,9 +318,14 @@ export default defineComponent({
     isFlat(effect: InfluenceScaledEffect): boolean {
       return yieldIsFlat(effect);
     },
-    /** A production part beside a levy carries its horizon: it first pays in the next generation. */
+    /**
+     * A production part beside a levy carries its horizon: it first pays in the next generation. A host that
+     * prints neither captions nor the formula and folds nothing (the sitting's one-line BAND) has no room
+     * for a caption-sized note — the panel, the inspector and the stand print it.
+     */
     horizonOn(group: Group): boolean {
-      return this.levy !== undefined && group.effect.unit.kind === 'production' && group.readings.length > 0;
+      return this.levy !== undefined && group.effect.unit.kind === 'production' && group.readings.length > 0 &&
+        (this.oneNumber || this.captions || this.formula);
     },
     /** One term of a production breakdown: the resource's sprite in the production plate. */
     productionUnitClass(resource: Resource): string {

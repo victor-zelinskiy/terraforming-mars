@@ -1121,7 +1121,10 @@
         align-items: center;
         flex-wrap: nowrap;
         gap: .5rem;
-        .con-iyield__reading { padding: .14rem .45rem .12rem; }
+        /* …and ONE reading is ONE line too: the block's own reading is a three-column grid, and a budget's
+           plate («−10 → [inputs] → +7 = −3») is five members — as a grid it broke into a second ROW the
+           39 px strip cut off (measured: the band showed «−10 → 2 + 1 + 2 + 2» and nothing after it). */
+        .con-iyield__reading { display: inline-flex; align-items: center; flex-wrap: nowrap; column-gap: .24rem; padding: .14rem .45rem .12rem; }
     }
     &__reaction.con-preact { padding: .08rem .35rem; }
 }
