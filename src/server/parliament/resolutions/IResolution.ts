@@ -190,6 +190,25 @@ export type ResolutionPassive = {
    * triggers, with no `effect-triggered` event to match it.
    */
   cardDiscount?(player: IPlayer, card: IProjectCard): number;
+  /**
+   * A BONUS ON THE VALUE of a payment resource (Metal Research: each unit of
+   * steel and titanium is worth 1 M€ more) — the M€ the law ADDS to what one
+   * unit of `resource` buys, 0 when it does not apply. Asked by the ONE value
+   * accessor (`Player.getSteelValue` / `getTitaniumValue`, through
+   * `ParliamentHandler.resourceValueBonus`) for every participant holding
+   * the law, ON THE READ: the player's serialized value field is NEVER
+   * written by a law (a write would have to be remembered, undone by a floor
+   * that knows nothing about whose unit it removes, and re-done on a reload
+   * — an invisible drift of the price). The bonus therefore stacks additively
+   * with the cards that raise the value, survives a save by construction, and
+   * leaves with the law the instant another card takes the ENACTED slot.
+   * Pure: it reads the player and the resource, never mutates, never logs.
+   *
+   * Its forecast twin is the RATE where the decision is made (the rail's
+   * value badge, the payment panel's «×N» — both read the model's live value),
+   * so `forecast` states nothing for it, as for `cardDiscount`.
+   */
+  resourceValueBonus?(player: IPlayer, resource: Resource): number;
   forecast(ctx: ResolutionForecastContext): Array<EffectForecastFact>;
 };
 

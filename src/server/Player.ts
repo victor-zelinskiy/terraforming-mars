@@ -226,7 +226,13 @@ export class Player implements IPlayer {
   public terraformRatingSources: Array<TRSourceEntry> = [];
 
 
-  // Resource values
+  // Resource values — the player's OWN value of one unit (the base plus the
+  // cards that raise it: Advanced Alloys and its kin), serialized as such.
+  // ONLY the accessors below read them (`getSteelValue` / `getTitaniumValue`):
+  // the enacted resolution's value bonus (Metal Research) is added THERE, on
+  // the read, and is never written into these fields — a law that wrote them
+  // would have to be remembered, undone and re-done on a reload. A raw read of
+  // a field anywhere else silently loses the law (`spendableMegacredits` once did).
   private titaniumValue: number = 3;
   private steelValue: number = 2;
   // Helion
@@ -481,8 +487,16 @@ export class Player implements IPlayer {
     return this.playedCards;
   }
 
+  /**
+   * What ONE titanium buys, in M€: the player's own value (the field — the
+   * base plus the cards that raise it) PLUS the enacted resolution's bonus,
+   * read at the query (Metal Research: +1 while the law stands; 0 otherwise,
+   * for MarsBot, for a seat outside the parliament). THE ONE READER of the
+   * field for a price: `payingAmount`, the affordability check, the model
+   * and every card that reads a value stand on this.
+   */
   public getTitaniumValue(): number {
-    return this.titaniumValue;
+    return this.titaniumValue + ParliamentHandler.resourceValueBonus(this, Resource.TITANIUM);
   }
 
   public increaseTitaniumValue(): void {
@@ -503,8 +517,9 @@ export class Player implements IPlayer {
     return [];
   }
 
+  /** What ONE steel buys, in M€ — the field plus the enacted resolution's bonus, as `getTitaniumValue`. */
   public getSteelValue(): number {
-    return this.steelValue;
+    return this.steelValue + ParliamentHandler.resourceValueBonus(this, Resource.STEEL);
   }
 
   public increaseSteelValue(): void {
@@ -966,7 +981,11 @@ export class Player implements IPlayer {
       total += this.availableHeat();
     }
     if (this.canUseTitaniumAsMegacredits) {
-      total += this.titanium * (this.titaniumValue - 1);
+      // THE ACCESSOR, never the field: the affordability check must agree
+      // with the price `payingAmount` charges — under a law that raises the
+      // value (Metal Research) a raw read here said «cannot afford» for a
+      // payment the price function accepted.
+      total += this.titanium * (this.getTitaniumValue() - 1);
     }
     return total;
   }
@@ -3022,6 +3041,8 @@ export class Player implements IPlayer {
       heat: this.heat,
       heatProduction: this.production.heat,
       // Resource values
+      // The FIELDS, deliberately: the player's own value. A law's bonus is
+      // read at the query, never saved (see the field declaration).
       titaniumValue: this.titaniumValue,
       steelValue: this.steelValue,
       // Helion

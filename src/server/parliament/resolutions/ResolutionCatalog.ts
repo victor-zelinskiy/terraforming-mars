@@ -47,6 +47,7 @@ import {INDUSTRIALIST_BUDGET} from './industrialists/IndustrialistBudget';
 import {JOINT_RESEARCH} from './scientists/JointResearch';
 import {JOVIAN_TAX_RIGHTS} from './unity/JovianTaxRights';
 import {MEDICAL_DATABASE} from './scientists/MedicalDatabase';
+import {METAL_RESEARCH} from './industrialists/MetalResearch';
 
 /**
  * THE RETIRED IDS — iteration 0's DUMMY resolutions (a party, a quest, no
@@ -491,6 +492,9 @@ export const REDUX_RESOLUTION_CATALOG = new ResolutionCatalog([
   // The distributing family over TWO KINDS of unit: the recipients are the holders of data AND of microbes at once,
   // and each unit's kind is its card's — never a second question (`AddResourcesToCards` over a list of kinds).
   MEDICAL_DATABASE,
+  // The first law that changes the VALUE OF A RESOURCE (steel 3, titanium 4 while it stands): a passive asked by the
+  // value ACCESSORS on the read — the player's serialized value field is never written by a law.
+  METAL_RESEARCH,
   TEST_CHOICE,
   DEV_IMMEDIATE,
   DEV_PASSIVE,

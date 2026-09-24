@@ -137,8 +137,9 @@ describe('JointResearch', () => {
       expect(JOINT_RESEARCH.levy).is.undefined;
       const dealt = REDUX_RESOLUTION_CATALOG.dealtInstances(() => true);
       expect(dealt.filter((i) => i === RESEARCH), 'one physical copy').has.length(1);
+      // The Scientists' deck grew after this card (Medical Database, RX18): the card is AMONG their dealt cards, not alone.
       expect(dealt.filter((i) => REDUX_RESOLUTION_CATALOG.ofInstance(i).party === PartyName.SCIENTISTS), 'the Scientists are in the deck now')
-        .deep.eq([RESEARCH]);
+        .includes(RESEARCH);
     });
 
     it('declares ONE part, and it is a LEVEL: up to 6 + influence cards in hand — never an amount', () => {

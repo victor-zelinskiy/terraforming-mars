@@ -221,6 +221,27 @@ export class ParliamentHandler {
     return amount > 0 ? {resolution: enacted.id, amount} : undefined;
   }
 
+  /**
+   * THE ENACTED RESOLUTION'S BONUS ON THE VALUE of `resource` for THIS seat
+   * (Metal Research: +1 M€ per unit of steel and titanium) — what ONE unit buys
+   * on top of the player's own value. Asked by the value accessors themselves
+   * (`Player.getSteelValue` / `getTitaniumValue`) ON THE READ, so the
+   * serialized value field is never written by a law and the bonus leaves with
+   * the law. 0 when no law with a value bonus stands, when it does not apply to
+   * this resource, or when the seat is outside the parliament (MarsBot never
+   * holds a law). A pure QUERY, like `cardDiscount`: no effect scope is
+   * opened — a value is read, nothing is paid here.
+   */
+  public static resourceValueBonus(player: IPlayer, resource: Resource): number {
+    const parliament = player.game?.parliament;
+    const enacted = parliament?.enactedDefinition();
+    const bonus = enacted?.passive?.resourceValueBonus;
+    if (parliament === undefined || enacted === undefined || bonus === undefined || !parliament.participates(player)) {
+      return 0;
+    }
+    return Math.max(0, bonus(player, resource));
+  }
+
   public static onCardPlayed(player: IPlayer, card: ICard): void {
     if (player.game?.parliament === undefined) {
       return;

@@ -852,5 +852,9 @@
   "Two science tags on one card count twice": "Две метки науки на одной карте дают 2",
   "A wild tag is not a science tag": "Универсальная метка — не метка науки",
   "No card can hold data or microbes — the payout is named and forfeited": "Нет карты, принимающей данные или бактерии — выплата названа и пропадает",
-  "Your layout stands inside the enactment stage: 4 units over two microbe holders, nothing placed until you confirm": "Ваша раскладка стоит внутри стадии принятия: 4 единицы на два держателя бактерий, до подтверждения ничего не положено"
+  "Your layout stands inside the enactment stage: 4 units over two microbe holders, nothing placed until you confirm": "Ваша раскладка стоит внутри стадии принятия: 4 единицы на два держателя бактерий, до подтверждения ничего не положено",
+  "Metal Research": "Исследование металлов",
+  "Gain 1 steel and 1 titanium for every point of your influence.": "Получите по 1 стали и 1 титану за каждое влияние.",
+  "Each unit of your steel and titanium is worth 1 M€ more.": "Каждая ваша единица стали и титана стоит на 1 M€ больше.",
+  "Raise your titanium production 1 step": "Повысьте производство титана на 1"
 }
