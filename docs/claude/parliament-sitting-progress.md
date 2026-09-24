@@ -2999,3 +2999,59 @@ cards». Одноимённое `EventImpact.cardsDiscarded` (нотификац
 `CardZoomModalLore.spec.ts` (партия → блок с моделью, резолюция → нет, бонус → нет, обзор шести партий, симметрия
 резерва). Стенд `?lorePlayground` получил две партийные ячейки (самая длинная / самая короткая). e2e не добавлялся.
 
+## Промт-фикс + аудит: значки ЗАДАНИЙ председателя по сканам (2026-09-24, промт `docs/claude/prompts/parliament-quest-icons-audit.md`)
+
+Вторая ошибка чтения скана за день (первая — RX16: «метка события» прочитана как «сброс»). **Язык значков** закреплён
+в спеке `docs/TURMOIL_REDUX_SPEC.md` § 4.1.1 и с этого дня — закон: КРУГ = метка, КВАДРАТ = ресурс, квадрат в
+коричневой рамке = производство, ГЕКС = тайл (сплошной коричневый без рисунка = ОСОБЫЙ), мини-гекс у города = «на
+Марсе», мини-круг с солнцем = «в космосе», жёлтый круг со стрелкой вниз = метка события. Следующая карта сверяется с
+таблицей § 4.1.1, а не с памятью.
+
+**RX10 Development Craze — исправлено.** Печатное задание — «разместите 1 ОСОБЫЙ тайл»; реализовано было
+`cityOrSpecial` — город закрывал задание, которого закрывать не должен.
+- `QuestGoal.tile`: `cityOrSpecial` → **`special`** (замена, не добавление: RX10 — единственный потребитель; Urban
+  Development придёт с тем же значком). `QuestTracker.tileMatches('special')` = на Марсе ∧ не город
+  (`Board.isCitySpace`: Столица и океанский город — города, у города свой вид) ∧ `isSpecialTile(tileType)`
+  (классификатор `common/TileType`: не озеленение, не океан, не опасная зона Ares, не MOON_*).
+- **Событие тайла несёт ДОСКУ**: `QuestEvent.tile.board: BoardType`, `ParliamentHandler.onTileAdded(…, board)`,
+  `Game.addTile` штампует `MARS`. Проверено, что реально приходит в репорт: только `Game.addTile` (Марс);
+  `MoonExpansion.addTile` в трекер не репортит вовсе, `AresHazards.putHazardAt` пишет `space.tile` напрямую,
+  переезд лагеря Mars Nomads тайла не кладёт. Но лунная клетка — тоже `LAND` и по признаку `spaceType !== COLONY`
+  читалась бы «на Марсе», поэтому контракт закрыт явно: событие с `board: MOON` даёт 0 для ВСЕХ марсианских видов,
+  а тот же ивент со штампом `MARS` засчитался бы — доска решает, не список типов.
+- Сноска — один глиф `b.specialTile` (было «город / особый»). Ключ «Place 1 city or special tile» удалён (никто
+  больше не просил), новый «Place 1 special tile» → «Разместите 1 особый тайл». `make:cards` перегенерил
+  `genfiles/parliament.json`.
+- Спеки `DevelopmentCraze.spec`: особый тайл закрывает; **город — НЕТ, Столица — нет**; озеленение и океан — нет;
+  лунная мина и Lunar Mine Urbanization — нет (+ контракт доски); опасная зона Ares — нет (и по типу не «особый»);
+  переезд Nomads — нет. `QuestTracker.spec` «matches every goal kind» получил матрицу тайлов
+  (greenery / city / spaceCity / special × Марс / резерв / Луна). Старая проверка лица ждала `[city, /, special]` —
+  теперь один `EMPTY_TILE_SPECIAL`.
+- e2e `console-parliament-craze` на закрытие задания не опирался (строит озеленение; шапка объясняла выбор через
+  «город закрыл бы задание») — поправлена шапка; фикстура `parliament-craze-enacted` перегенерена точечно
+  (сериализованное определение задания).
+
+**Аудит 16 сданных** (таблица в спеке § 4.1.1): одиннадцать непроверенных владельцем — Biodome Contest, Climate
+Research, Cloud Development, Colonial Affairs, Colonization Funding, Colony Contest, Forestry Support, Gas Export,
+Generous Funding, Heat Capture, Joint Research — совпадают со сканами; расхождение одно — RX10. **Каталог § 4.1**:
+Development Craze и Urban Development → «1 особый тайл»; **Mohole Contest «1 микроб» → «1 метка микроба»** (зелёный
+КРУГ — метка, не ресурс); заполнены пустые графы Underworld-строк (Legal Monopolies — 1 метка преступности: красный
+круг с портфелем = `assets/tags/crime.png`; Migration Underground и Peer Review — 3 подземных токена; Police Funding —
+2 метки Марса; UNMI Inspection — 2 метки Земли); список видов заданий § 3.4 переписан по языку значков (животное и
+микроб — метки, не ресурсы на картах). **Спорными остались** Live Experiments (жёлтый прямоугольник-«билет» с
+полосой ×2) и Trade Industries (значок торгового флота ×2 — действие не напечатано) — `Q-4`, решает владелец.
+
+**Ловушки этого дня.** (1) `isSpecialTile` считает Столицу «особым» тайлом (upstream-классификатор) — для задания
+она город: `!isCitySpace` стоит ПЕРЕД классификатором и закреплён спеком. (2) Ocean Farm / Ocean Sanctuary (Ares,
+кладутся НА океан) — особые тайлы и засчитываются; океанский город — город, нет. (3) Лунные клетки не `COLONY`:
+любой будущий репорт с Луны без штампа доски прошёл бы как марсианский.
+
+### Прогоны (2026-09-24)
+
+- Юниты: `DevelopmentCraze` · `QuestTracker` · `ChairmanQuestGate` · `PartyPresentation` · `ResolutionContract` ·
+  `Parliament` · `ParliamentModel` · `ParliamentPhase` — 167 passing.
+- `npm run make:cards` (`genfiles/parliament.json`: `"tile": "special"`), `npm run lint` (eslint · i18n · vue-tsc),
+  `npm run build:test` — зелёные.
+- Фикстура: `FIXTURES=parliament-craze-enacted npm run e2e:fixtures` — только она; e2e `console-parliament-craze`
+  (после `build:server` + `build:client`) — 1 passed, 42 с. Другие сюиты не гонялись.
+
