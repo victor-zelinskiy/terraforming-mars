@@ -228,7 +228,7 @@ test.describe('Generous Funding · standard-1080', () => {
     await expect(zoom.locator('.card-zoom-stage .pcard').first(), 'the resolution on the stage').toHaveClass(GENEROUS_CLASS);
     await expect.poll(() => readingsIn(page, 'dialog.con-zoom[open] [data-zoom-yield]'), {timeout: 10_000}).toEqual([estimateAtVote, forecastAtVote]);
     const rules = zoom.locator('.con-zoom-sidecol');
-    await expect(rules, 'the rule says what a set is').toContainText(/РТ 25 — два|TR 25 two/);
+    await expect(rules, 'the rule says what a set is').toContainText(/РТ 25 — два|TR 25 is 2/);
     await expect(rules, 'the breakdown behind the number').toContainText(/Учтены сейчас|Counted right now/);
     await expect(rules, 'the rating').toContainText(/РТ 24|TR 24/);
     await expect(rules, 'the threshold').toContainText(/порог 15|threshold 15/);

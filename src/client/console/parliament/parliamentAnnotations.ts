@@ -45,7 +45,7 @@ import {WinnerRewardReading, winnerRewardRuleKey, winnerRewardSentenceOf} from '
 export type RowText = {text: string, params?: ReadonlyArray<string>};
 
 /** The rule a «colony bonuses» effect stands on — the one sentence the inspector prints under it (an English key). */
-export const COLONY_BONUS_RULE_KEY = 'A colony bonus is the tile\'s printed bonus a cube\'s owner receives when somebody else trades there — never the trade income and never the building bonus. Pluto\'s draw-then-discard is paid one pair at a time.';
+export const COLONY_BONUS_RULE_KEY = 'A colony bonus is the bonus printed on the tile for your cube when another player trades there. Trade income and the build bonus do not count. Pluto\'s draw-then-discard is paid one pair at a time.';
 
 /**
  * A block's place in the panel: the SUBJECT's own rules first, then what
@@ -308,7 +308,7 @@ export function partyAnnotations(party: ReduxParty, model: ParliamentModel | und
   }
   // 4. THE REFERENCE — how a party effect is held: the whole rule, once.
   out.push(block('group:access', 'note', 'Access', [
-    'The ruling party\'s effect belongs to every player; a party with two of your delegates on its resolution gives its effect to you as well',
+    'The ruling party\'s effect is everyone\'s. A party with two of your delegates on its resolution gives you its effect too.',
   ], 3));
   return out;
 }

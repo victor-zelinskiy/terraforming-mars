@@ -261,7 +261,7 @@ const DEV_IMMEDIATE: ResolutionDefinition = {
     name: 'Reforestation Fund',
     // The timing is the inspector's block label («При принятии»), never a
     // prefix of the sentence — the label and the text must not say it twice.
-    effect: 'Every player gains 3 M€ and 1 plant.',
+    effect: 'Gain 3 M€ and 1 plant.',
     quest: 'Raise your plant production 2 steps',
   },
   quest: {goal: {kind: 'production', resource: Resource.PLANTS}, count: 2},
@@ -375,7 +375,7 @@ const DEV_COMPOUND: ResolutionDefinition = {
   }),
   text: {
     name: 'Interplanetary Reconstruction Accord',
-    effect: 'Every player gains 2 M€ for each plant, microbe and animal tag they have, up to 10 M€, and draws 1 card.',
+    effect: 'Gain 2 M€ per plant, microbe and animal tag you have (max 10 M€) and draw 1 card.',
     // The winner's part pays a kind the address table knows (`rewardAddress.ts`) — a
     // TR grant would be a kind with an address and no payer, which the table refuses.
     winner: 'Gain 2 M€.',
@@ -421,7 +421,7 @@ const DEV_SCIENCE: ResolutionDefinition = {
   }),
   text: {
     name: 'Open Research Charter',
-    effect: 'Every player draws 1 card for every 2 science tags they have, up to 3 cards.',
+    effect: 'Draw 1 card per 2 science tags you have. Max 3 cards.',
     quest: 'Play 2 science tags',
   },
   quest: {goal: {kind: 'tag', tag: Tag.SCIENCE}, count: 2},

@@ -117,13 +117,13 @@ const UNITY: PartyEffectDefinition = {
   party: PartyName.UNITY,
   actionId: 'unity-trade',
   text: {
-    rule: 'Action: trade for free once per generation. If you trade with a colony track this way, you may advance it 1 step before the trade.',
+    rule: 'Action: trade for free once per generation. You may advance the colony track 1 step first.',
     // The ACTION text states what the action DOES — ONCE, including the
     // track advance (no separate note restates it); its per-generation limit
     // is structural (`usesPerGeneration`) and every surface prints it beside
     // the live uses — a limit baked into the sentence reads twice.
-    action: 'Trade with a colony for free. Before the trade, you may advance its track marker 1 step.',
-    summary: 'Trade with a colony for free. Before the trade, you may advance its track 1 step.',
+    action: 'Trade with a colony for free. You may advance its track 1 step first.',
+    summary: 'Trade with a colony for free. You may advance its track 1 step first.',
   },
   // An ACTION-ONLY party: the passive graphic is empty by design (the face and
   // the compact formula merge both roots), and the printed row is the
@@ -144,9 +144,9 @@ const UNITY: PartyEffectDefinition = {
 const GREENS: PartyEffectDefinition = {
   party: PartyName.GREENS,
   text: {
-    rule: 'Effect: whenever you increase your terraform rating, gain 2 M€ per step. When you increase your plant or heat production 1 step, increase your M€ production 1 step as well.',
-    passive: 'Gain 2 M€ for each step your terraform rating increases. When your plant or heat production increases, your M€ production increases by the same number of steps.',
-    summary: '2 M€ for each TR step you gain. Raising your plant or heat production raises your M€ production by as many steps.',
+    rule: 'Effect: gain 2 M€ per TR step you gain. When you raise your plant or heat production, raise your M€ production as many steps.',
+    passive: '2 M€ per TR step you gain. Raising your plant or heat production raises your M€ production as many steps.',
+    summary: '2 M€ per TR step you gain. Raising your plant or heat production raises your M€ production as many steps.',
   },
   passiveRenderData: CardRenderer.builder((b) => {
     b.effect(undefined, (eb) => eb.tr(1).startEffect.megacredits(2)).br;
@@ -180,9 +180,9 @@ const SCIENTISTS: PartyEffectDefinition = {
     // The passive is stated as a RULE (what the effect grants), never as a
     // claim about the reader («you have…») — the inspector's «for you» block
     // is where access is read, and the two must not contradict each other.
-    rule: 'Effect: 1 extra wild tag when playing cards and actions. Action: add 2 data or 2 microbes to one of your cards that holds that resource, once per generation.',
-    passive: '+1 wild tag. It counts as any tag, except for awards and victory points.',
-    action: 'Add 2 data or 2 microbes to one of your cards that can hold that resource.',
+    rule: 'Effect: +1 wild tag. Action: add 2 data or 2 microbes to one of your cards, once per generation.',
+    passive: '+1 wild tag. It does not count for awards and VP.',
+    action: 'Add 2 data or 2 microbes to one of your cards that can hold them.',
     summary: '+1 wild tag (not for awards or VP). Action: 2 data or 2 microbes onto one of your cards.',
   },
   // The wild tag is a TAG (the face's round tag holder) in the effect frame —
@@ -194,7 +194,7 @@ const SCIENTISTS: PartyEffectDefinition = {
     b.effect(undefined, (eb) => eb.empty().startEffect.plus().tag(Tag.WILD)).br;
   }),
   actionRenderData: CardRenderer.builder((b) => {
-    b.action('Add 2 data or 2 microbes to one of your cards that holds that resource.', (ab) => ab.empty().startAction.resource(CardResource.DATA, 2).asterix().slash().resource(CardResource.MICROBE, 2).asterix());
+    b.action('Add 2 data or 2 microbes to one of your cards that can hold them.', (ab) => ab.empty().startAction.resource(CardResource.DATA, 2).asterix().slash().resource(CardResource.MICROBE, 2).asterix());
   }),
   wildTags() {
     return 1;
@@ -247,7 +247,7 @@ const SCIENTISTS: PartyEffectDefinition = {
 const MARS_FIRST: PartyEffectDefinition = {
   party: PartyName.MARS,
   text: {
-    rule: 'Effect: whenever you place a tile on Mars, gain 1 steel. If it is a city tile, also draw a card.',
+    rule: 'Effect: gain 1 steel per tile you place on Mars. A city tile also draws 1 card.',
     passive: 'Gain 1 steel whenever you place a tile on Mars. If it is a city tile, also draw 1 card.',
     summary: '1 steel for each tile you place on Mars; a city also draws 1 card.',
   },
@@ -273,10 +273,10 @@ const INDUSTRIALISTS: PartyEffectDefinition = {
   party: PartyName.INDUSTRIALISTS,
   actionId: 'industrialists-shift',
   text: {
-    rule: 'Action: decrease one of your productions 1 step to increase your M€ or energy production 2 steps, once per generation. You may decrease the production you increase.',
+    rule: 'Action: lower one of your productions 1 step to raise your M€ or energy production 2 steps, once per generation. It may be the same production.',
     // The one nuance the rulebook adds is part of the action itself (the
     // player's choice), so it lives in the sentence — never a separate note.
-    action: 'Decrease any of your productions 1 step and increase your M€ or energy production 2 steps. You may decrease the same production you increase.',
+    action: 'Lower one of your productions 1 step and raise your M€ or energy production 2 steps. It may be the same production.',
     summary: 'Action: lower any of your productions 1 step to raise your M€ or energy production 2 steps.',
   },
   passiveRenderData: CardRenderer.builder(() => {}),
@@ -347,16 +347,16 @@ const REDS: PartyEffectDefinition = {
   party: PartyName.REDS,
   actionId: 'reds-recycle',
   text: {
-    rule: 'Action: draw 2 cards, then discard 2 cards, once per generation. Gain 2 M€ for every plant, microbe and animal tag on the discarded cards.',
-    action: 'Draw 2 cards, then discard any 2 cards from your hand. Gain 2 M€ for each plant, microbe or animal tag on the discarded cards.',
-    summary: 'Action: draw 2 cards, then discard 2. 2 M€ for each plant, microbe or animal tag on the discarded cards.',
+    rule: 'Action: draw 2 cards, then discard 2 cards, once per generation. Gain 2 M€ per plant, microbe and animal tag discarded.',
+    action: 'Draw 2 cards, then discard any 2 cards from hand. Gain 2 M€ per plant, microbe and animal tag discarded.',
+    summary: 'Action: draw 2 cards, then discard 2. 2 M€ per plant, microbe and animal tag discarded.',
   },
   passiveRenderData: CardRenderer.builder(() => {}),
   actionRenderData: CardRenderer.builder((b) => {
     // The payout stands on its OWN line under the draw-and-discard (the
     // vertical space is the authored break): a row this long wraps on every
     // surface, and left to chance it split the M€ from its tags.
-    b.action('Draw 2 cards, then discard 2 cards. Gain 2 M€ per plant, microbe or animal tag discarded.', (ab) =>
+    b.action('Draw 2 cards, then discard 2 cards. Gain 2 M€ per plant, microbe and animal tag discarded.', (ab) =>
       ab.empty().startAction.cards(2).nbsp.minus().cards(2).vSpace(Size.SMALL).megacredits(2).slash().tag(Tag.PLANT).tag(Tag.MICROBE).tag(Tag.ANIMAL));
   }),
   canAct() {

@@ -207,7 +207,7 @@ export const CLIMATE_RESEARCH: ResolutionDefinition = {
   }),
   text: {
     name: 'Climate Research',
-    effect: 'Raise your heat production 1 step per point of your influence. Then draw 1 card for every full 3 steps of heat production you have.',
+    effect: 'Raise your heat production 1 step per influence. Then draw 1 card per 3 steps of heat production you have.',
     // The SAME key the printed generation-1 quest uses (`STARTER_QUEST_TEXT`) —
     // one sentence, one translation, one mechanism.
     quest: 'Raise your heat production 3 steps',

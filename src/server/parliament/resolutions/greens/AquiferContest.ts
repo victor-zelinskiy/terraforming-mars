@@ -131,7 +131,7 @@ const OCEAN_STEP: EnactStep = {
     // the generic sentence and leads with the tile); the source plate names
     // the resolution through `placementContext.source`.
     return new PlaceOceanTile(player, {
-      placementContext: committedPlacement('The winner of the vote places this ocean — the resolution is already enacted', SOURCE),
+      placementContext: committedPlacement('The winner of the vote places this ocean. The resolution is already enacted.', SOURCE),
     }).andThen((space) => {
       if (space !== undefined) {
         // The ocean IS its parameter's step: the count after the placement
@@ -159,7 +159,7 @@ export const AQUIFER_CONTEST: ResolutionDefinition = {
   }),
   text: {
     name: 'Aquifer Contest',
-    effect: 'Every player adds 1 animal per point of their influence to one of their cards that can hold animals.',
+    effect: 'Add 1 animal per influence to one of your cards that can hold animals.',
     winner: 'Place an ocean tile.',
     quest: 'Play a card with an animal tag',
   },

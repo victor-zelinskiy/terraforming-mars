@@ -5,7 +5,7 @@
   <div class="con-parl__stage-head">
     <div>
       <b class="con-parl__stage-title">{{ $t('You completed the chairman quest') }}</b>
-      <span class="con-parl__stage-sub">{{ $t('Every delegate of yours is on a resolution — choose which one gives a delegate up for the seat.') }}</span>
+      <span class="con-parl__stage-sub">{{ $t('All your delegates are on resolutions. Choose which one gives a delegate up for the seat.') }}</span>
     </div>
     <span class="con-parl__stage-nav" aria-hidden="true">◀ ▶</span>
   </div>

@@ -145,7 +145,7 @@ export const CENTRAL_POWER_GRID: ResolutionDefinition = {
   }),
   text: {
     name: 'Central Power Grid',
-    effect: 'Every player raises their M€ production by the number of their power tags in play, plus their influence. At most +5.',
+    effect: 'Raise your M€ production 1 step per power tag you have, plus 1 per influence. Max 5.',
     quest: 'Play 2 power tags',
   },
   quest: {goal: {kind: 'tag', tag: Tag.POWER}, count: 2},

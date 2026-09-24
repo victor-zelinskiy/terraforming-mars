@@ -76,16 +76,16 @@ describe('parliamentAnnotations — the fullscreen inspector\'s reading blocks',
 
   it('the edited party texts: what happens, how much, what the player chooses — the Reds and the Scientists in full', () => {
     expect(texts(resolutionPartyAnnotations(PartyName.REDS))).to.deep.eq([
-      'Draw 2 cards, then discard any 2 cards from your hand. Gain 2 M€ for each plant, microbe or animal tag on the discarded cards.',
+      'Draw 2 cards, then discard any 2 cards from hand. Gain 2 M€ per plant, microbe and animal tag discarded.',
     ]);
     const scientists = resolutionPartyAnnotations(PartyName.SCIENTISTS);
     expect(scientists.map((b) => b.labelKey), 'the effect and the action told apart').to.deep.eq(['Party effect', 'Party action']);
     expect(texts(scientists)).to.deep.eq([
-      '+1 wild tag. It counts as any tag, except for awards and victory points.',
-      'Add 2 data or 2 microbes to one of your cards that can hold that resource.',
+      '+1 wild tag. It does not count for awards and VP.',
+      'Add 2 data or 2 microbes to one of your cards that can hold them.',
     ]);
     expect(texts(resolutionPartyAnnotations(PartyName.INDUSTRIALISTS))).to.deep.eq([
-      'Decrease any of your productions 1 step and increase your M€ or energy production 2 steps. You may decrease the same production you increase.',
+      'Lower one of your productions 1 step and raise your M€ or energy production 2 steps. It may be the same production.',
     ]);
   });
 
@@ -149,7 +149,7 @@ describe('parliamentAnnotations — the fullscreen inspector\'s reading blocks',
     const immediate = resolutionAnnotations('RDX_DEV_IMMEDIATE');
     expect(immediate.map((b) => b.labelKey)).to.deep.eq(['When enacted', 'Chairman quest']);
     expect(immediate[0].kind).to.eq('immediate');
-    expect(texts([immediate[0]])).to.deep.eq(['Every player gains 3 M€ and 1 plant.']);
+    expect(texts([immediate[0]])).to.deep.eq(['Gain 3 M€ and 1 plant.']);
     const compound = resolutionAnnotations('RDX_DEV_COMPOUND');
     expect(compound.map((b) => b.labelKey), 'a multi-part effect keeps its parts apart').to.deep.eq(['When enacted', 'For the winner of the vote', 'Chairman quest']);
     expect(texts([compound[1]])).to.deep.eq(['Gain 2 M€.']);
@@ -173,8 +173,8 @@ describe('parliamentAnnotations — the fullscreen inspector\'s reading blocks',
     const bare = resolutionAnnotations(id);
     expect(bare.map((b) => b.labelKey), 'no viewer → no «for you»').to.deep.eq(['When enacted', 'Chairman quest']);
     expect(texts([bare[0]])).to.deep.eq([
-      'Every player raises their M€ production by the number of their cards in play with a building tag and a non-negative VP icon, plus their influence. At most +5.',
-      'A variable VP icon counts even at 0 VP; a card without a VP icon does not count.',
+      'Raise your M€ production 1 step per building card with a VP icon you have in play, plus 1 per influence. Max 5.',
+      'A card with a variable VP icon counts even at 0 VP. A card with a negative VP icon or no VP icon does not.',
     ]);
     expect(texts([bare[1]])).to.deep.eq(['Play 2 building tags']);
     const now: InfluenceYield = {effect, context: 'estimate', influence: 2, amount: 4, count: 2, counted: [CardName.ARTIFICIAL_LAKE, CardName.MINE]};
@@ -196,8 +196,8 @@ describe('parliamentAnnotations — the fullscreen inspector\'s reading blocks',
     const bare = resolutionAnnotations(id);
     expect(bare.map((b) => b.labelKey), 'no winner block — this card has no winner part').to.deep.eq(['When enacted', 'Chairman quest']);
     expect(texts([bare[0]])).to.deep.eq([
-      'Every player raises their M€ production by the number of their power tags in play, plus their influence. At most +5.',
-      'Every power tag counts, whatever the card scores: one card with two of them counts twice. A wild tag is not a power tag at an enactment, and energy production is not a tag.',
+      'Raise your M€ production 1 step per power tag you have, plus 1 per influence. Max 5.',
+      'Each power tag counts: a card with two power tags counts twice. Wild tags and energy production do not count.',
     ]);
     expect(texts([bare[1]])).to.deep.eq(['Play 2 power tags']);
     const now: InfluenceYield = {
@@ -223,8 +223,8 @@ describe('parliamentAnnotations — the fullscreen inspector\'s reading blocks',
     const bare = resolutionAnnotations(id);
     expect(bare.map((b) => b.labelKey), 'no winner block — this card has no winner part').to.deep.eq(['When enacted', 'Chairman quest']);
     expect(texts([bare[0]])).to.deep.eq([
-      'Every player raises their M€ production by 2 for each of their space cities, plus 1 per point of their influence. At most +6.',
-      'A city tile on a reserved area off Mars counts — Ganymede Colony, Phobos Space Haven, Stanford Torus and the like. A city on Mars and the Moon\'s tiles do not count.',
+      'Raise your M€ production 2 steps per space city you have, plus 1 per influence. Max 6.',
+      'A city on a reserved area off Mars counts: Ganymede Colony, Phobos Space Haven, Stanford Torus and the like. Cities on Mars and on the Moon do not.',
     ]);
     expect(texts([bare[1]])).to.deep.eq(['Place 1 space city']);
     // Two named reserved areas: the row lists them by the names the placement hints already print.
@@ -253,8 +253,8 @@ describe('parliamentAnnotations — the fullscreen inspector\'s reading blocks',
     const bare = resolutionAnnotations(id);
     expect(bare.map((b) => b.labelKey), 'no winner block — this card has no winner part').to.deep.eq(['When enacted', 'Chairman quest']);
     expect(texts([bare[0]])).to.deep.eq([
-      'Every player gains 2 M€ per point of their influence and 2 M€ for each complete set of 5 TR they have over 15.',
-      'Only complete sets of 5 TR above 15 count: TR 20 is one set, TR 24 still one, TR 25 two. The remainder pays nothing; the threshold is the card\'s, whatever rating the game started at.',
+      'Gain 2 M€ per influence and 2 M€ per full 5 TR you have above 15.',
+      'Each full 5 TR above 15 is one set: TR 20 is 1 set, TR 24 still 1, TR 25 is 2. The remainder pays nothing.',
     ]);
     expect(texts([bare[1]])).to.deep.eq(['Raise your TR 3 steps']);
     // The row is the breakdown of the VALUE: «TR 24 · threshold 15 · 1 complete set · 1 to the next set» — the server's numbers.

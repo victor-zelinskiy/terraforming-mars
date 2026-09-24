@@ -127,7 +127,7 @@ export const GENEROUS_FUNDING: ResolutionDefinition = {
   }),
   text: {
     name: 'Generous Funding',
-    effect: 'Every player gains 2 M€ per point of their influence and 2 M€ for each complete set of 5 TR they have over 15.',
+    effect: 'Gain 2 M€ per influence and 2 M€ per full 5 TR you have above 15.',
     quest: 'Raise your TR 3 steps',
   },
   quest: {goal: {kind: 'tr'}, count: GENEROUS_FUNDING_QUEST_STEPS},

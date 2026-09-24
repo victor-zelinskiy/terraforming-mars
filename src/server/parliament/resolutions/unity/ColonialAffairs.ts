@@ -603,7 +603,7 @@ export const COLONIAL_AFFAIRS: ResolutionDefinition = {
   }),
   text: {
     name: 'Colonial Affairs',
-    effect: 'Every player gains all of their colony bonuses 2 times, plus 1 more time per 2 points of their influence.',
+    effect: 'Gain all your colony bonuses 2 times, plus 1 more time per 2 influence.',
     quest: 'Play 2 space tags',
   },
   quest: {goal: {kind: 'tag', tag: Tag.SPACE}, count: 2},

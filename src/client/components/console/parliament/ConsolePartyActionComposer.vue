@@ -202,7 +202,7 @@
                 <span v-if="step.note !== undefined" class="con-pact__seq-note">{{ $t(step.note) }}</span>
               </span>
             </div>
-            <p class="con-pact__warn" data-unfold-item>{{ $t('The draw cannot be undone; discarding 2 cards after it is mandatory.') }}</p>
+            <p class="con-pact__warn" data-unfold-item>{{ $t('The draw cannot be undone. Discarding 2 cards after it is mandatory.') }}</p>
           </template>
 
           <!-- THE COMMIT ROW — reached by the d-pad, never by picking an option.

@@ -135,7 +135,7 @@ export const COLONIZATION_FUNDING: ResolutionDefinition = {
   }),
   text: {
     name: 'Colonization Funding',
-    effect: 'Every player raises their M€ production by 2 for each of their space cities, plus 1 per point of their influence. At most +6.',
+    effect: 'Raise your M€ production 2 steps per space city you have, plus 1 per influence. Max 6.',
     quest: 'Place 1 space city',
   },
   quest: {goal: {kind: 'tile', tile: 'spaceCity'}, count: 1},

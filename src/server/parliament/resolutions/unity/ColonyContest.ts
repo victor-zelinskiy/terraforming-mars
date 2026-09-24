@@ -114,7 +114,7 @@ const COLONY_STEP: EnactStep = {
     // answer reports WHERE the cube landed.
     const prompt = new BuildColony(player, {
       title: 'Select where to build the free colony',
-      placementContext: committedPlacement('The winner of the vote builds this colony — the resolution is already enacted', SOURCE),
+      placementContext: committedPlacement('The winner of the vote builds this colony. The resolution is already enacted.', SOURCE),
     }).andThen((colony) => {
       game.log('${0} built the free colony of ${1} on ${2}', (b) => b.player(player).resolution(COLONY_CONTEST_ID).colony(colony));
       ctx.report({kind: 'colony', colony: colony.name});

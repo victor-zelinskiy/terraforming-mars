@@ -387,7 +387,7 @@ describe('influenceYieldModel', () => {
     expect(presentation.glyph).deep.eq({kind: 'metric', metric: 'terraformRating'});
     expect(presentation.pluralKey).eq('${0} complete set(s) of 5 TR over 15');
     expect(presentation.skipReasonKey).eq('No TR sets and no influence');
-    expect(presentation.ruleKey).contains('TR 25 two');
+    expect(presentation.ruleKey).contains('TR 25 is 2');
     expect(presentation.ruleKey).contains('remainder pays nothing');
     // The other counts keep their objects — the family did not move.
     expect(yieldCountPresentation('spaceCities').glyph).deep.eq({kind: 'tile', tile: 'spaceCity'});

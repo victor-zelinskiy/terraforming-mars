@@ -8,7 +8,7 @@
   <section v-if="rows.length > 0" class="con-pfx" :aria-label="$t('Party effects')">
     <header class="con-pfx__head">
       <span class="con-pfx__kicker">{{ $t('Party effects') }}</span>
-      <span class="con-pfx__sub">{{ $t('Held through the Mars Parliament — the ruling party and every party with two of this player\'s delegates') }}</span>
+      <span class="con-pfx__sub">{{ $t('From the Parliament: the ruling party and every party with two of this player\'s delegates') }}</span>
     </header>
     <div class="con-pfx__row">
       <div v-for="row in rows" :key="row.key" class="con-pfx__item" :class="{'con-pfx__item--resolution': row.resolution !== undefined}" :data-party="row.party" :data-resolution="row.resolution" :style="{'--parl-accent': row.accent}">
@@ -110,7 +110,7 @@ export default defineComponent({
           renderRoot: enacted.renderData,
           emblem: partyEmblemUrl(enacted.party),
           accent: partyAccent(enacted.party),
-          reasons: [{key: 'Enacted resolution — its effect applies to every player', params: [], tone: 'holds'}],
+          reasons: [{key: 'Enacted resolution: its effect applies to every player', params: [], tone: 'holds'}],
           action: undefined,
         });
       }

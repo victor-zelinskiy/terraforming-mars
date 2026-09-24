@@ -209,7 +209,7 @@ describe('ColonyContest', () => {
       expect(prompt.title).eq('Select where to build the free colony');
       expect(prompt.placementContext).deep.eq({
         cancellable: false,
-        reason: 'The winner of the vote builds this colony — the resolution is already enacted',
+        reason: 'The winner of the vote builds this colony. The resolution is already enacted.',
         source: {kind: 'resolution', resolution: COLONY_CONTEST_ID},
       });
       expect(offerOf(prompt)).deep.eq({

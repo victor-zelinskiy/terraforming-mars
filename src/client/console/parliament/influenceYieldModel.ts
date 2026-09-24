@@ -80,14 +80,14 @@ export function yieldCountPresentation(id: ResolutionCountId): YieldCountPresent
     return {
       glyph: {kind: 'vp-card', tag: Tag.BUILDING},
       pluralKey: '${0} building card(s) with a VP icon',
-      ruleKey: 'A variable VP icon counts even at 0 VP; a card without a VP icon does not count.',
+      ruleKey: 'A card with a variable VP icon counts even at 0 VP. A card with a negative VP icon or no VP icon does not.',
       skipReasonKey: 'No qualifying cards and no influence',
     };
   case 'powerTags':
     return {
       glyph: {kind: 'tag', tag: Tag.POWER},
       pluralKey: '${0} power tag(s)',
-      ruleKey: 'Every power tag counts, whatever the card scores: one card with two of them counts twice. A wild tag is not a power tag at an enactment, and energy production is not a tag.',
+      ruleKey: 'Each power tag counts: a card with two power tags counts twice. Wild tags and energy production do not count.',
       skipReasonKey: 'No power tags and no influence',
     };
   case 'venusJovianTags':
@@ -95,7 +95,7 @@ export function yieldCountPresentation(id: ResolutionCountId): YieldCountPresent
     return {
       glyph: {kind: 'tags', tags: [Tag.VENUS, Tag.JOVIAN]},
       pluralKey: '${0} Venus and Jovian tag(s)',
-      ruleKey: 'Every Venus tag and every Jovian tag counts, one unit each: a card that prints both counts twice. A wild tag is neither at an enactment.',
+      ruleKey: 'Each Venus and Jovian tag counts: a card with both counts twice. Wild tags do not count.',
       skipReasonKey: 'No Venus or Jovian tags and no influence',
     };
   case 'spaceCities':
@@ -103,7 +103,7 @@ export function yieldCountPresentation(id: ResolutionCountId): YieldCountPresent
     return {
       glyph: {kind: 'tile', tile: 'spaceCity'},
       pluralKey: '${0} space city(-ies)',
-      ruleKey: 'A city tile on a reserved area off Mars counts — Ganymede Colony, Phobos Space Haven, Stanford Torus and the like. A city on Mars and the Moon\'s tiles do not count.',
+      ruleKey: 'A city on a reserved area off Mars counts: Ganymede Colony, Phobos Space Haven, Stanford Torus and the like. Cities on Mars and on the Moon do not.',
       skipReasonKey: 'No space cities and no influence',
     };
   case 'terraformRatingSets':
@@ -111,7 +111,7 @@ export function yieldCountPresentation(id: ResolutionCountId): YieldCountPresent
     return {
       glyph: {kind: 'metric', metric: 'terraformRating'},
       pluralKey: '${0} complete set(s) of 5 TR over 15',
-      ruleKey: 'Only complete sets of 5 TR above 15 count: TR 20 is one set, TR 24 still one, TR 25 two. The remainder pays nothing; the threshold is the card\'s, whatever rating the game started at.',
+      ruleKey: 'Each full 5 TR above 15 is one set: TR 20 is 1 set, TR 24 still 1, TR 25 is 2. The remainder pays nothing.',
       skipReasonKey: 'No TR sets and no influence',
     };
   }

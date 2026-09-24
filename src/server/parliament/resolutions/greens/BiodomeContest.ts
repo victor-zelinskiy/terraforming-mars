@@ -119,7 +119,7 @@ const GREENERY_STEP: EnactStep = {
     // title (the dossier leads with the tile); the resolution is the source
     // (`placementContext.source` — the plate, the dossier's chip, L3).
     const prompt = new PlaceGreeneryTile(player, 'greenery', {
-      placementContext: committedPlacement('The winner of the vote places this greenery — the resolution is already enacted', SOURCE),
+      placementContext: committedPlacement('The winner of the vote places this greenery. The resolution is already enacted.', SOURCE),
     }).andThen((space) => {
       if (space !== undefined) {
         ctx.report({kind: 'greenery', space: space.id, parameter: {id: 'oxygen', before: oxygenBefore, after: game.getOxygenLevel()}});
@@ -152,7 +152,7 @@ export const BIODOME_CONTEST: ResolutionDefinition = {
   text: {
     name: 'Biodome Contest',
     effect: 'Gain 2 plants for every point of your influence.',
-    winner: 'Place a greenery tile for free and raise oxygen 1 step, if it is not at its maximum yet.',
+    winner: 'Place a greenery tile for free. Raise oxygen 1 step if it is not at its maximum.',
     quest: 'Place 2 greeneries',
   },
   quest: {goal: {kind: 'tile', tile: 'greenery'}, count: 2},

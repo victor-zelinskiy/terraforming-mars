@@ -52,7 +52,7 @@ export const PARTY_MOMENT = 'party effect · to every player when enacted';
 /** …and of the suffix's words. */
 export const SUFFIX_IF_YOU_WIN = 'if you win';
 export const SUFFIX_STEP = 'step';
-export const SUFFIX_HINT = 'If you win the vote, your Agenda marker advances to step ${0} first — the effect pays out at that influence';
+export const SUFFIX_HINT = 'If you win, your Agenda marker moves to step ${0} first. The effect uses that influence.';
 
 /** «For you when enacted» — the panel's ONE reading. */
 export type VoteReadingVm = {

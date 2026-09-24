@@ -76,7 +76,7 @@ describe('ConsolePartyEffectsStrip — the enacted resolution\'s row', () => {
     expect(first.attributes('data-party')).eq(law.party);
     expect(first.find('.con-pfx__law').text()).eq('Enacted resolution');
     expect(first.find('.con-pfx__why b').text()).eq(law.text.name);
-    expect(first.find('.con-pfx__reason--holds').text()).eq('Enacted resolution — its effect applies to every player');
+    expect(first.find('.con-pfx__reason--holds').text()).eq('Enacted resolution: its effect applies to every player');
     expect(items[1].classes(), 'a party row is not the law').does.not.include('con-pfx__item--resolution');
     expect(items[1].find('.con-pfx__law').exists()).is.false;
   });

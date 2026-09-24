@@ -188,10 +188,10 @@ export function winnerRewardReadingOf(
  */
 export function winnerRewardRuleKey(reward: WinnerRewardDeclaration): string | undefined {
   if (!isWinnerTileReward(reward)) {
-    return 'The colony is built for free on any open tile without your cube; its build bonus is paid, no trade fleet is spent.';
+    return 'The colony is built for free on any open tile without your cube. Its build bonus is paid; no trade fleet is spent.';
   }
   return reward.tile === 'greenery' ?
-    'The greenery pays 1 TR for the tile itself and 1 TR for the oxygen step; with oxygen at its maximum, only the tile\'s TR.' :
+    '1 TR for the greenery and 1 TR for the oxygen step. At maximum oxygen, only the TR for the greenery.' :
     undefined;
 }
 

@@ -153,7 +153,7 @@ export const DEVELOPMENT_CRAZE: ResolutionDefinition = {
     name: 'Development Craze',
     effect: 'Gain 1 steel for every point of your influence.',
     // The block label says WHEN («Эффект, пока принята»); the sentence says WHAT.
-    passive: 'All placement and adjacency bonuses you get for placing tiles on Mars are paid twice.',
+    passive: 'Placement and adjacency bonuses of tiles you place on Mars are paid twice.',
     quest: 'Place 1 city or special tile',
   },
   quest: {goal: {kind: 'tile', tile: 'cityOrSpecial'}, count: 1},

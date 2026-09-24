@@ -107,7 +107,7 @@ test.describe(`Gas Export · ${PRESET.id}`, () => {
     await expect(rules).toContainText(/Кислород: 5% → 4%|Oxygen: 5% → 4%/);
     await expect(rules).toContainText(/Венера: 10% → 14%|Venus: 10% → 14%/);
     // …and WHO is credited is said ONCE, by the law's own sentence above the rows — never three times over.
-    await expect(rules).toContainText(/РТ за это не получает никто|No one gets the terraform rating for this/);
+    await expect(rules).toContainText(/РТ за это никто не получает|Nobody gains TR for this/);
     await shoot(page, '01b-inspect-world');
     await closeZoomViewer(page);
     await settle(page, {timeoutMs: 15_000});
