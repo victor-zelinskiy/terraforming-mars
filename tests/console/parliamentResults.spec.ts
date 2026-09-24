@@ -118,6 +118,22 @@ describe('parliamentResultsModel — the sitting\'s last reading, in two section
     expect(reading.payouts[0].parts[0].skipped?.title).eq('Skipped: cards');
   });
 
+  it('a LEVEL part at its target (Joint Research: a `target` record that owed nothing) reads CALMLY — «no draw needed» beside the reason, never «skipped»', () => {
+    const atTarget = outcome({
+      kind: 'skipped', amount: 0, stock: undefined, effect: 'draw', target: 9, total: {before: 11, after: 11}, reason: 'Already at the target hand size',
+    });
+    const reading = resultsReadingOf(summary({outcomes: [atTarget]}), [seat(BLUE)], SUPPORT);
+    const part = reading.payouts[0].parts[0];
+    expect(part.skipped, 'the server\'s reason still reads beside it').deep.eq({title: 'Resolution effect', reason: 'Already at the target hand size'});
+    expect(part.none, 'the calm phrase the band and the panel print').eq('no draw needed');
+    // A level part the DECK could not serve is a forfeit with its size — not the calm zero.
+    const short = resultsReadingOf(summary({outcomes: [outcome({kind: 'skipped', amount: 4, stock: undefined, effect: 'draw', target: 9, total: {before: 5, after: 5}, reason: 'The project deck is empty'})]}), [seat(BLUE)], SUPPORT);
+    expect(short.payouts[0].parts[0].none).is.undefined;
+    // …and an ordinary skip without a target is what it always was.
+    const plain = resultsReadingOf(summary({outcomes: [outcome({kind: 'skipped', amount: 0, stock: undefined, reason: 'No influence'})]}), [seat(BLUE)], SUPPORT);
+    expect(plain.payouts[0].parts[0].none).is.undefined;
+  });
+
   it('a resolution that pays NOBODY replaces the rows with what stands instead — never a column of empty rows', () => {
     const quiet = {kicker: 'Resolution effect', kind: 'passive' as const};
     const reading = resultsReadingOf(summary(), [seat(BLUE), seat(RED)], SUPPORT, {quiet});

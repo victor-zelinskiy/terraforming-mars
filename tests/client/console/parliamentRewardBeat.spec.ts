@@ -81,7 +81,7 @@ describe('parliamentRewardBeat — the ledger of what the sitting still owes', (
     expect(waveSpecOf(outcome({kind: 'production', production: Resource.ENERGY, amount: -1}))).deep.eq({channel: 'production', resource: 'energy', amount: 1, direction: 'loss'});
     expect(waveSpecOf(outcome({kind: 'reaction', party: PartyName.GREENS, stock: Resource.MEGACREDITS, amount: -2}))).is.undefined;
     // A gain carries no direction at all (the ordinary language, unchanged).
-    expect(waveSpecOf(outcome({kind: 'stock', stock: Resource.MEGACREDITS, amount: 7})).direction).is.undefined;
+    expect(waveSpecOf(outcome({kind: 'stock', stock: Resource.MEGACREDITS, amount: 7}))?.direction).is.undefined;
     // DETECT owes the loss like any rail record — with the address walked backwards.
     const before = view({generation: 3, outcomes: []});
     const after = view({generation: 3, outcomes: [outcome({kind: 'stock', step: 'levy', stock: Resource.MEGACREDITS, amount: -10, owed: 10})]});

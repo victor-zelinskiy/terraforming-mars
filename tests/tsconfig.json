@@ -1,7 +1,12 @@
 {
     "compilerOptions": {
         "outDir": "../build/tests",
-        "types": ["node", "mocha", "chai"]
+        "types": ["node", "mocha", "chai"],
+        // A MANDATORY GATE IS NEVER INCREMENTAL. The base config is incremental for the real builds; inherited
+        // here, `--noEmit` reused the root .tsbuildinfo and re-reported a spec's CACHED diagnostics until some
+        // unrelated model change happened to invalidate it — `parliamentRewardBeat.spec.ts` carried a TS2532 for
+        // a whole session of green `build:test` runs (2026-09-24). The e2e config below already says the same.
+        "incremental": false
     },
     "extends": "../tsconfig.json",
     "include": [

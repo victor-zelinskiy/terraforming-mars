@@ -84,6 +84,7 @@ import {CLOUD_DEVELOPMENT_ID} from '../../../src/server/parliament/resolutions/u
 import {GAS_EXPORT_ID} from '../../../src/server/parliament/resolutions/reds/GasExport';
 import {HEAT_CAPTURE_ID} from '../../../src/server/parliament/resolutions/reds/HeatCapture';
 import {INDUSTRIALIST_BUDGET_ID} from '../../../src/server/parliament/resolutions/industrialists/IndustrialistBudget';
+import {JOINT_RESEARCH_ID} from '../../../src/server/parliament/resolutions/scientists/JointResearch';
 import {NuclearPower} from '../../../src/server/cards/base/NuclearPower';
 import {COLONIZATION_FUNDING_ID} from '../../../src/server/parliament/resolutions/unity/ColonizationFunding';
 import {GENEROUS_FUNDING_ID} from '../../../src/server/parliament/resolutions/greens/GenerousFunding';
@@ -1266,6 +1267,68 @@ function budgetTable(stopAt: 'vote' | 'assembly'): ParliamentFixtureSpec {
 }
 parliamentFixture('parliament-budget-vote', budgetTable('vote'));
 parliamentFixture('parliament-budget-assembly', budgetTable('assembly'));
+
+// ── RX16 · JOINT RESEARCH — the first LEVEL: every seat draws UP TO 6 + influence
+//    cards in hand. Blue at Agenda 4 (influence 2 → target 8) with FIVE cards in
+//    hand (+3; winning → step 5 = influence 3 → target 9 → +4: the «+1 if you win ·
+//    step 5» suffix); red at Agenda 1 with NINE cards — at or above every target it
+//    can reach, so its zero names itself. The vote: blue's delegate leads it. The
+//    sitting: RED's delegate wins it (red's step 1 → 2 keeps influence 1 → target 7,
+//    hand 9 → nothing), so blue is paid exactly the vote's estimate. ──
+/** Bring a seat's hand to exactly `n` cards — the extras to the discard, the missing ones off the top of the deck. */
+function setHandTo(game: IGame, player: TestPlayer, n: number): void {
+  while (player.cardsInHand.length > n) {
+    const card = player.cardsInHand.pop();
+    if (card !== undefined) {
+      game.projectDeck.discard(card);
+    }
+  }
+  while (player.cardsInHand.length < n) {
+    player.cardsInHand.push(game.projectDeck.drawOrThrow(game));
+  }
+}
+function researchTable(stopAt: 'vote' | 'assembly' | 'effects', blueHand = 5): ParliamentFixtureSpec {
+  return {
+    resolution: JOINT_RESEARCH_ID,
+    votes: [stopAt === 'vote' ? 0 : 1],
+    agenda: [4, 1],
+    stopAt,
+    arrange: ({game, p1, p2}) => {
+      setHandTo(game, p1, blueHand);
+      setHandTo(game, p2, 9);
+    },
+    expect: ({p1, p2, parliament}) => {
+      if (p1.cardsInHand.length !== blueHand) {
+        throw new Error(`the parliament-research fixture expected blue with ${blueHand} cards in hand, got ${p1.cardsInHand.length}`);
+      }
+      if (p2.cardsInHand.length !== 9) {
+        throw new Error(`the parliament-research fixture expected red with 9 cards in hand, got ${p2.cardsInHand.length}`);
+      }
+      if (stopAt === 'vote' && !parliament.slots.some((slot) => slot.instance.startsWith(JOINT_RESEARCH_ID))) {
+        throw new Error('the parliament-research fixture lost Joint Research out of the voting area');
+      }
+      if (stopAt === 'effects') {
+        // The political phase STOPPED INSIDE blue's mandatory TAKE: target 8 (6 + influence 2), hand 5, three cards owed and withheld.
+        const ask = p1.getWaitingFor();
+        if (!(ask instanceof SelectCard) || ask.externalDrawPrompt === undefined) {
+          throw new Error(`the parliament-research-enact fixture expected blue's mandatory take, got ${ask?.constructor.name}`);
+        }
+        if (p1.cardsInHand.length !== 5 || p1.pendingCardIntakes.length !== 1 || p1.pendingCardIntakes[0].cards.length !== 3) {
+          throw new Error(`the parliament-research-enact fixture expected hand 5 and three owed cards, got ${p1.cardsInHand.length} / ${JSON.stringify(p1.pendingCardIntakes.map((i) => i.cards.length))}`);
+        }
+        if (parliament.phase?.step !== 'effects') {
+          throw new Error('the parliament-research-enact fixture expected the effects step');
+        }
+      }
+    },
+  };
+}
+parliamentFixture('parliament-research-vote', researchTable('vote'));
+parliamentFixture('parliament-research-assembly', researchTable('assembly'));
+parliamentFixture('parliament-research-enact', researchTable('effects'));
+// …and the VIEWER at its target: blue with NINE cards at target 8 — the sitting's reward beat reads the calm
+// zero («up to 8 · 9 in hand → no draw needed») on the band, and nothing flies.
+parliamentFixture('parliament-research-full', researchTable('assembly', 9));
 
 // ── RX03 · BIODOME CONTEST — a 2-seat table with the card alone in the first
 //    voting slot and blue's free delegate on it: blue at Agenda step 2

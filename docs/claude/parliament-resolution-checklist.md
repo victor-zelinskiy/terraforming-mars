@@ -389,6 +389,38 @@ immediateSteps: [levyStep(ID, LEVY), MEGACREDITS_STEP, PRODUCTION_STEP],        
 - Следующий бюджет объявляет только суммы и список: `levy.amount` и `count` (по меткам — вид `tags`), шагов не пишет.
   Док: `docs/TURMOIL_REDUX_INDUSTRIALIST_BUDGET.md`.
 
+### Величина-ПОРОГ — «добрать ДО», а не «выдать N»; задание-РАССТАВАНИЕ (RX16, 2026-09-24)
+
+```ts
+scaled: [{id: 'draw', unit: {kind: 'cards'}, base: 6, perInfluence: 1, upTo: {total: {kind: 'cards'}}, recipient: 'each'}],
+// scaledAmount(effect, I) === ЦЕЛЬ (6 + I); topUpAmount(effect, I, player.cardsInHand.length) === ВЫДАЧА = max(0, цель − уровень)
+ctx.report({kind: 'cards', effect, amount: owed, drawn: intake.count, intake: intake.id, influence, target, total: {before, after: before + intake.count}});
+ctx.report({kind: 'skipped', effect, amount: 0, influence, target, total: {before, after: before}, reason: 'Already at the target hand size'});
+quest: {goal: {kind: 'cardsDiscarded'}, count: 2},   // первое задание, считающее расставание
+```
+
+- **Эффект объявляет ЦЕЛЬ, выдача = цель − уровень, чтение несёт обе величины и уровень.** `InfluenceScaledEffect.upTo
+  {total}` говорит, что величина — уровень, и что считается текущим уровнем (рука = `{kind: 'cards'}`). `scaledAmount`
+  не раздваивается (даёт цель); ОДНА новая `topUpAmount` даёт выдачу для сервера, чтений (`levelYield` /
+  `fixedLevelYield`) и стенда. Запись: `target` (новый член) + `total {before, after}` (член последовательного
+  семейства ПЕРЕИСПОЛЬЗОВАН — второго члена уровня нет) + `amount` / `drawn`. Модель места несёт `hand` по
+  `declaresHandLevel`. Гард: выдача = `topUpAmount(…, total.before)`, `target` = декларация.
+- **Ноль — штатный исход, не пропуск «нет влияния»**: причина «Already at the target hand size»; клиент печатает «добор не
+  нужен» в слоте результата (`levelYieldIsNone`, `data-yield-none`) — без амбера и зачёркивания; чтение «до 9 [карта] ·
+  в руке 5 → +4 [карта]» (`__in--level`), голая цель без уровня невозможна по построению. Формула блока «до 6 [карта]
+  + 1 [карта] / [влияние]». Осмотр «Для вас» — цель · рука · добор словами + правило «рука считается на заседании».
+- **Рука — у движка в момент шага**, после фазы производства: опустошить руку до заседания — честная тактика, панель
+  читает ту же руку. Добор — `ExternalDrawIntake` (RX05), ничего своего; порядок мест = порядок карт колоды.
+- **Задание-расставание**: `QuestGoal {kind: 'cardsDiscarded'}`, точка репорта ОДНА — `Player.discardCardFromHand` →
+  `ParliamentHandler.onCardDiscarded`; чьё действие — `eligible` (свой корень, фаза действий, без источника-резолюции):
+  продажа патентов считается сама собой, розыгрыш карты — не сброс, чужой эффект / политическая фаза / резолюция — нет.
+  `questRender` — глиф сброса DSL (`b.discard(n)`).
+- **Семейство стенда `up-to`** (после реестра колоний, до счётов): панель «Карты в руке» с целью и добором той же функцией.
+- Ловушки: базовая колода стала ШЕСТИПАРТИЙНОЙ — стартовый правитель без карты в области поколения 1 отныне обычная
+  раздача (`ParliamentPhase.spec` § THE STARTING-RULE RULER переписан на литеральное правило); генерический спек фазы,
+  отвечающий `SelectCard` одной картой, зависает на взятии (взятие отвечать ЦЕЛИКОМ по `externalDrawPrompt`).
+  Док: `docs/TURMOIL_REDUX_JOINT_RESEARCH.md`.
+
 ### Бюджет проверки на карту (решение владельца 2026-09-23)
 
 Состав проверки определяется ОДНИМ вопросом: **что в карте ново?**

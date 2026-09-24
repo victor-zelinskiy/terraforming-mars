@@ -79,7 +79,10 @@
                   <b class="con-sit__part-colony-name">{{ $t(part.colony) }}</b>
                 </span>
                 <template v-if="part.skipped !== undefined">
-                  <span class="con-parl__chip-dim">{{ $t('Skipped') }} · {{ $t(part.skipped.title) }}</span>
+                  <!-- A LEVEL part at its target (Joint Research) is the rule working, not a skip: the calm
+                       phrase the band printed, then the server's reason. -->
+                  <span v-if="part.none !== undefined" class="con-parl__chip-dim" data-sit-part-none>{{ $t(part.none) }}</span>
+                  <span v-else class="con-parl__chip-dim">{{ $t('Skipped') }} · {{ $t(part.skipped.title) }}</span>
                   <span class="con-sit__part-reason">{{ $t(part.skipped.reason) }}</span>
                 </template>
                 <template v-else>

@@ -313,8 +313,10 @@ export function rewardAddressOf(outcome: ParliamentEnactOutcomeModel, viewer: Co
  *     `board` per seat IN TURN (the sitting yields to the board and comes back, the other seats wait —
  *     the winner-tile route generalized to every seat), skip «нет клетки под город»; pose: the board
  *     placement per seat, then the received line «Город · размещён».
- *   · `drawUpTo` («добор до N карт») — surface `hand`, source `deck`, unit `cards`, stage `take` (the
- *     embedded intake), reading `influence-yield` with the count RESOLVED by the record (never the formula's
- *     N — a hand of N takes nothing: a skip «рука уже полна», not a zero); pose: the intake with 0…N cards.
+ *   · (`drawUpTo` SHIPPED without a kind of its own — Joint Research, RX16: a LEVEL is the `cards` kind with
+ *     the record's own `target` and `total {before, after}` (the hand before and after); the count is RESOLVED
+ *     by the record (never the formula's target — a hand at the target takes nothing: a `skipped` named
+ *     «Already at the target hand size», read calmly as «no draw needed», never a forfeit); the stage is the
+ *     same embedded intake, and the reading prints target · level · payout on one line.)
  * Every row keeps the laws above: the record pays, the address only says where; a skip names itself.
  */

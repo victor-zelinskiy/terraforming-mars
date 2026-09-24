@@ -71,6 +71,7 @@ import {ReduxParty, ResolutionId, ResolutionInstanceId} from '@/common/parliamen
 import {ParliamentEnactOutcomeModel, ParliamentPhaseSummaryModel} from '@/common/models/ParliamentModel';
 import {REWARD_ADDRESS, rewardAddressOf} from '@/common/parliament/rewardAddress';
 import {ParameterMoveId} from '@/common/parliament/parameterMove';
+import {LEVEL_NONE_KEY} from './influenceYieldModel';
 
 /** ONE part of one seat's payout — an object and an amount, or a skip with its reason. */
 export type ResultsPayoutPart = {
@@ -101,6 +102,12 @@ export type ResultsPayoutPart = {
   colony?: string;
   /** A HUD-side colony bonus (`colonyBonus`): the tile's printed description IS the reading. */
   description?: string;
+  /**
+   * A LEVEL part's ZERO (Joint Research: a `target` record that paid nothing because the seat was already
+   * at its target): the CALM phrase the row prints instead of the skip label («no draw needed») — the rule
+   * working, never a skip; the server's reason still reads beside it.
+   */
+  none?: string;
   /**
    * A LEVY (a budget's «lose 10 M€»): `amount` is NEGATIVE — what left the seat — and this is what was OWED.
    * Above `−amount` exactly when the seat was short; the shortfall's reason is then `note`.
@@ -291,6 +298,11 @@ export function resultsPayoutPart(outcome: ParliamentEnactOutcomeModel, index: n
         REWARD_ADDRESS[outcome.kind].skipTitle,
       reason: delivery.skipped,
     };
+    // A LEVEL part at its target (a record with a `target` that owed nothing) is the rule working: the row
+    // says so calmly, in the same words the band and the panel use, and keeps the server's reason beside it.
+    if (outcome.kind === 'skipped' && outcome.target !== undefined && (outcome.amount ?? 0) === 0) {
+      part.none = LEVEL_NONE_KEY;
+    }
   }
   return part;
 }
