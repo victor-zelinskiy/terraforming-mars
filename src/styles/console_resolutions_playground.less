@@ -194,6 +194,28 @@
             inset 0 .12rem .2rem rgba(255, 224, 180, 0.22),
             0 .05rem .14rem rgba(0, 0, 0, 0.5);
     }
+    /* the colonies count: every seat's synthetic COLONY TABLE, one chip per CUBE — the planet disc, the seat's cube,
+       the tile's name; a cube past the cap keeps its place and is struck: counted, paying nothing */
+    &__colonies { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem .55rem; }
+    &__colony {
+        display: inline-flex; align-items: center; gap: .32rem;
+        padding: .16rem .6rem .16rem .26rem; border-radius: 1rem;
+        background: fade(@con-text, 6%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-text, 18%);
+        font-size: .72rem; letter-spacing: .03em; color: fade(@con-text, 90%);
+        &--past-cap {
+            color: fade(@con-text, 50%);
+            box-shadow: inset 0 0 0 .05rem fade(@con-amber, 42%);
+            .con-rxpg__colony-name { text-decoration: line-through; text-decoration-thickness: .06rem; }
+        }
+    }
+    &__colony-planet {
+        display: inline-block; width: 1.05rem; height: 1.05rem; border-radius: 50%; flex-shrink: 0;
+        /* The colony art was authored for the 150 px tile: re-seat it as a disc (the sprite class sets the image). */
+        background-size: cover !important;
+        background-position: center !important;
+        box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.22), 0 .05rem .14rem rgba(0, 0, 0, 0.5) !important;
+    }
     &__quest { align-self: stretch; max-width: 34rem; }
 
     /* 4. the shared picker */

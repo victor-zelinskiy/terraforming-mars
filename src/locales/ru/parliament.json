@@ -826,6 +826,14 @@
   "Each colony you have counts: two colonies on one tile count twice. A tile without your colony does not count.": "Считается каждая ваша колония: две колонии на одном тайле дают 2. Тайл без вашей колонии не считается.",
   "Counted by your colonies, not on the board": "Считается по вашим колониям, а не на поле",
   "Counted by your colonies, not among cards": "Считается по вашим колониям, а не среди карт",
-  "No colony counts right now": "Сейчас у вас нет ни одной колонии",
-  "No colony was counted at the enactment": "При принятии у вас не было ни одной колонии"
+  "No colony counts right now": "Сейчас колоний нет — считать нечего",
+  "No colony was counted at the enactment": "При принятии колоний не было — считать было нечего",
+  "Result by influence and by colonies": "Результат по влиянию и по колониям",
+  "Four colonies — the production below the maximum": "Четыре колонии — производство ниже максимума",
+  "No colonies — the titanium alone": "Колоний нет — только титан",
+  "One colony": "Одна колония",
+  "Exactly five colonies — the maximum reached": "Ровно пять колоний — максимум достигнут",
+  "Seven colonies — two past the maximum": "Семь колоний — две сверх максимума",
+  "Influence 0, three colonies — the production alone": "Влияние 0, три колонии — только производство",
+  "Jovian Tax Rights up for the vote: your influence 3 is 3 titanium, your 4 colonies are +4 M€ production": "«Налогообложение Юпитера» на голосовании: ваше влияние 3 — это 3 титана, ваши 4 колонии — это +4 к производству M€"
 }

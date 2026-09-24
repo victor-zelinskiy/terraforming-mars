@@ -315,6 +315,37 @@
               </div>
             </div>
           </div>
+          <!-- A COLONIES count (Jovian Tax Rights's «+1 M€ production per colony»): every seat's synthetic COLONY
+               TABLE — one chip per CUBE, by the tile's own name and planet, in the table's order (two cubes on one
+               tile are two chips) — the SHARED reader counts the list; a cube past the cap is marked: counted, and
+               paying nothing. No list of cards: a colony is a cube on a tile. -->
+          <div v-else-if="countEffect !== undefined && countKind === 'colonies'" class="con-rxpg__tableaus" data-rxpg-colonies>
+            <span class="con-rxpg__ckey">{{ $t('Colonies') }}</span>
+            <div v-for="row in colonyRows" :key="row.color"
+                 class="con-rxpg__tableau"
+                 :class="{'con-rxpg__tableau--viewer': row.viewer}"
+                 :data-rxpg-colonies-of="row.color"
+                 :data-rxpg-colonies-count="row.count">
+              <span class="con-rxpg__tableau-who">
+                <PlayerCube :color="row.color" :size="12" :glow="false" />
+                <span class="con-rxpg__seat-name">{{ $t(row.label) }}</span>
+                <PremiumCountGlyph v-if="countGlyph !== undefined" class="con-rxpg__tableau-glyph" :glyph="countGlyph" />
+                <b data-rxpg-count>{{ row.count }}</b>
+              </span>
+              <div class="con-rxpg__colonies">
+                <span v-for="cube in row.cubes" :key="cube.key"
+                      class="con-rxpg__colony"
+                      :class="{'con-rxpg__colony--past-cap': cube.pastCap}"
+                      :data-rxpg-colony="cube.name"
+                      :data-rxpg-past-cap="cube.pastCap ? 'true' : 'false'">
+                  <span class="con-rxpg__colony-planet" :class="planetClassOf(cube.name)" aria-hidden="true"></span>
+                  <PlayerCube :color="row.color" :size="9" :glow="false" />
+                  <span class="con-rxpg__colony-name">{{ $t(cube.name) }}</span>
+                </span>
+                <span v-if="row.cubes.length === 0" class="con-rxpg__dim">{{ $t('No colonies') }}</span>
+              </div>
+            </div>
+          </div>
           <!-- A PRODUCTION count (Industrialist Budget's steel + titanium + energy steps): every seat's synthetic
                TRACK, term by term — the SHARED reader adds them up, and a zero is listed, never dropped; beside it
                the SUPPLY the levy reads (what «lose 10 M€» can actually take). No list of cards: the explanation of
@@ -473,8 +504,8 @@ import {
 } from '@/common/parliament/influenceScaling';
 import {PartyReactionReading, partyReactionsOf} from '@/client/console/parliament/partyReactionModel';
 import {
-  cardCountUnits, cardCountVerdict, CardCountContext, countCardsToward, CountedSpaceFacts, countMetricToward, countProductionToward, countSpacesToward,
-  ResolutionCountByResource, ResolutionCountKind, ResolutionCountMetricModel, ResolutionCountModel, resolutionCountKind, spaceCountVerdict,
+  cardCountUnits, cardCountVerdict, CardCountContext, countCardsToward, countColoniesToward, CountedSpaceFacts, countMetricToward, countProductionToward,
+  countSpacesToward, ResolutionCountByResource, ResolutionCountKind, ResolutionCountMetricModel, ResolutionCountModel, resolutionCountKind, spaceCountVerdict,
 } from '@/common/parliament/resolutionCounts';
 import {LEVY_STEP_KEY, levyNothingReasonKey, levyPaid, LevyReading, levyShortReasonKey} from '@/common/parliament/resolutionLevy';
 import {SpaceId} from '@/common/Types';
@@ -1108,6 +1139,49 @@ const SCENARIOS: ReadonlyArray<PgScenario> = [
     seats: [{agenda: 4, bonus: 0, productions: {[Resource.STEEL]: 2, [Resource.TITANIUM]: 1, [Resource.ENERGY]: 2}, megacredits: 34},
       {agenda: 1, bonus: 0, productions: {}, megacredits: 20}], winner: 0, context: 'proposal', noRecipient: false,
     live: 'parliament-budget-vote', liveNote: 'Industrialist Budget up for the vote: 10 M€ first, then your 5 production steps and your influence 2 — net −3, and +1 more if you win'},
+  // ── THE COLONIES-COUNTED FAMILY (Jovian Tax Rights — titanium = influence beside «+1 M€ production per COLONY, max 5»:
+  //    the sixth count, the seat's CUBES on the colony tiles, counted by the shared reader over a list of tile names).
+  //    The instrument is the COLONY TABLE; the scenarios are the cube counts against the cap (none, one, several, at it,
+  //    past it) and the two INDEPENDENT skips — no influence still pays the production, no colony still pays the titanium. ──
+  // The reference reading: Luna ×2 + Titan + Miranda = 4 cubes, Agenda 5 = influence 3 → +3 titanium, +4 M€ production.
+  {key: 'jovian-four', family: 'counted-colonies', label: 'Four colonies — the production below the maximum', viewer: 0,
+    seats: [{agenda: 5, bonus: 0, colonies: [ColonyName.LUNA, ColonyName.LUNA, ColonyName.TITAN, ColonyName.MIRANDA]}, {agenda: 1, bonus: 0, colonies: [ColonyName.LUNA]}],
+    winner: 1, context: 'proposal', noRecipient: false},
+  // No cube at all: the titanium comes by influence, the production is a NAMED zero about colonies.
+  {key: 'jovian-none', family: 'counted-colonies', label: 'No colonies — the titanium alone', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, colonies: []}, {agenda: 1, bonus: 0, colonies: [ColonyName.CALLISTO]}], winner: 1, context: 'proposal', noRecipient: false},
+  {key: 'jovian-one', family: 'counted-colonies', label: 'One colony', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, colonies: [ColonyName.CERES]}, {agenda: 1, bonus: 0, colonies: []}], winner: 1, context: 'proposal', noRecipient: false},
+  {key: 'jovian-cap', family: 'counted-colonies', label: 'Exactly five colonies — the maximum reached', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, colonies: [ColonyName.LUNA, ColonyName.TITAN, ColonyName.MIRANDA, ColonyName.PLUTO, ColonyName.IO]}, {agenda: 1, bonus: 0, colonies: []}],
+    winner: 1, context: 'proposal', noRecipient: false},
+  // Seven cubes, two of them past the maximum: counted, dimmed, paying nothing — the reading says +5 and «max».
+  {key: 'jovian-over-cap', family: 'counted-colonies', label: 'Seven colonies — two past the maximum', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, colonies: [ColonyName.LUNA, ColonyName.LUNA, ColonyName.TITAN, ColonyName.TITAN, ColonyName.MIRANDA, ColonyName.PLUTO, ColonyName.IO]},
+      {agenda: 1, bonus: 0, colonies: []}], winner: 1, context: 'proposal', noRecipient: false},
+  // Influence 0 and three cubes: the titanium is skipped by ITS reason, the production comes — two parts, two reasons.
+  {key: 'jovian-no-influence', family: 'counted-colonies', label: 'Influence 0, three colonies — the production alone', viewer: 0,
+    seats: [{agenda: 0, bonus: 0, colonies: [ColonyName.LUNA, ColonyName.TITAN, ColonyName.TITAN]}, {agenda: 3, bonus: 0, colonies: []}],
+    winner: 1, context: 'applied', noRecipient: false},
+  {key: 'jovian-seats', family: 'counted-colonies', label: 'Every player gets their own result', viewer: 0,
+    seats: [{agenda: 1, bonus: 0, colonies: [ColonyName.LUNA, ColonyName.EUROPA]},
+      {agenda: 8, bonus: 0, colonies: [ColonyName.LUNA, ColonyName.CALLISTO, ColonyName.GANYMEDE, ColonyName.TRITON, ColonyName.ENCELADUS, ColonyName.IO]}],
+    winner: 0, context: 'applied', noRecipient: false},
+  {key: 'jovian-applied', family: 'counted-colonies', label: 'Recorded result', viewer: 0,
+    seats: [{agenda: 5, bonus: 0, colonies: [ColonyName.LUNA, ColonyName.LUNA, ColonyName.TITAN, ColonyName.MIRANDA]}, {agenda: 0, bonus: 0, colonies: [ColonyName.PLUTO]}],
+    winner: 1, context: 'applied', noRecipient: false},
+  {key: 'jovian-spectator', family: 'counted-colonies', label: 'Spectator — the formula alone', viewer: SPECTATOR,
+    seats: [{agenda: 3, bonus: 0, colonies: [ColonyName.LUNA]}, {agenda: 1, bonus: 0, colonies: []}], winner: 0, context: 'proposal', noRecipient: false},
+  {key: 'jovian-quest-0', family: 'counted-colonies', label: 'Chairman quest 0/2', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, colonies: [ColonyName.LUNA]}, {agenda: 1, bonus: 0, colonies: []}], winner: 0, context: 'applied', noRecipient: false, quest: {progress: [0, 0]}},
+  {key: 'jovian-quest-done', family: 'counted-colonies', label: 'Chairman quest completed', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, colonies: [ColonyName.LUNA]}, {agenda: 1, bonus: 0, colonies: []}], winner: 0, context: 'applied', noRecipient: false,
+    quest: {progress: [2, 1], completedBy: 0}},
+  // ── LIVE (Jovian Tax Rights): the engine-generated fixture — four cubes and Agenda 5 (influence 3), red's delegate beside.
+  {key: 'jovian-live-vote', family: 'counted-colonies', label: 'Live: the vote', viewer: 0,
+    seats: [{agenda: 5, bonus: 0, colonies: [ColonyName.LUNA, ColonyName.LUNA, ColonyName.TITAN, ColonyName.MIRANDA]}, {agenda: 1, bonus: 0, colonies: [ColonyName.LUNA]}],
+    winner: 0, context: 'proposal', noRecipient: false,
+    live: 'parliament-jovian-vote', liveNote: 'Jovian Tax Rights up for the vote: your influence 3 is 3 titanium, your 4 colonies are +4 M€ production'},
 ];
 /** Each family's opening scenario. */
 const DEFAULT_SCENARIO_OF: Readonly<Record<PgFamily, number>> = {
@@ -1117,7 +1191,7 @@ const DEFAULT_SCENARIO_OF: Readonly<Record<PgFamily, number>> = {
   'counted-board': SCENARIOS.findIndex((s) => s.key === 'funding-exact-cap'),
   'counted-metric': SCENARIOS.findIndex((s) => s.key === 'generous-one-set'),
   'counted-production': SCENARIOS.findIndex((s) => s.key === 'budget-net'),
-  'counted-colonies': SCENARIOS.findIndex((s) => s.key === 'influence-3'),
+  'counted-colonies': SCENARIOS.findIndex((s) => s.key === 'jovian-four'),
   'distributed': SCENARIOS.findIndex((s) => s.key === 'cloud-layout'),
   'winner-tile': SCENARIOS.findIndex((s) => s.key === 'tile-influence-3'),
   'sequel': SCENARIOS.findIndex((s) => s.key === 'seq-4-to-6'),
@@ -1181,6 +1255,9 @@ type LadderMark = {at: number, reached: boolean, threshold: boolean};
 type MetricRow = {color: Color, label: string, viewer: boolean, count: number, metric: ResolutionCountMetricModel, ladder: ReadonlyArray<LadderMark>, words: string};
 /** The production-counted family: a seat's synthetic TRACK term by term, the sum, and the supply the levy reads. */
 type ProductionRow = {color: Color, label: string, viewer: boolean, count: number, terms: ReadonlyArray<ResolutionCountByResource>, heldText: string | undefined};
+/** The colonies-counted family: one chip per CUBE of the seat's synthetic colony table (the tile, whether it stands past the cap), and the count. */
+type ColonyCube = {key: string, name: ColonyName, pastCap: boolean};
+type ColonyRow = {color: Color, label: string, viewer: boolean, count: number, cubes: ReadonlyArray<ColonyCube>};
 
 type SeatRow = {
   color: Color,
@@ -1317,6 +1394,7 @@ export default defineComponent({
       case 'counted-board': return 'Result by space cities and influence';
       case 'counted-metric': return 'Result by terraform rating and influence';
       case 'counted-production': return 'Result by production steps and influence, after the levy';
+      case 'counted-colonies': return 'Result by influence and by colonies';
       case 'distributed': return 'Result by tags and influence, laid out over your holders';
       case 'sequel': return 'Result by influence, then by production';
       case 'up-to': return 'Result by influence, up to a hand size';
@@ -1424,6 +1502,24 @@ export default defineComponent({
           terms: count.byResource ?? [],
           heldText: this.selected?.levy === undefined ? undefined : translateTextWithParams('M€ held: ${0}', [String(this.seats[i].megacredits ?? 20)]),
         };
+      });
+    },
+    /**
+     * Every seat's synthetic COLONY TABLE with the SHARED reader's count of it — one chip per CUBE, by the tile's name,
+     * in the table's order (two cubes on one tile are two chips); a cube past the effect's cap is marked: counted, and
+     * paying nothing. The number is `countColoniesToward`'s, never typed into the scenario.
+     */
+    colonyRows(): Array<ColonyRow> {
+      const effect = this.countEffect;
+      const term = effect?.count;
+      if (effect === undefined || term === undefined || this.countKind !== 'colonies') {
+        return [];
+      }
+      const cap = effect.cap;
+      return SEATS.map((i) => {
+        const count = countColoniesToward(term.id, this.seats[i].colonies ?? []);
+        const cubes = (count.colonies ?? []).map((name, k): ColonyCube => ({key: `${name}#${k}`, name, pastCap: cap !== undefined && (k + 1) * term.per > cap}));
+        return {color: TEST_PLAYERS[i].color, label: TEST_PLAYERS[i].label, viewer: this.viewerSeatIndex === i, count: count.count, cubes};
       });
     },
     metricRows(): Array<MetricRow> {
@@ -2172,9 +2268,18 @@ export default defineComponent({
       if (kind === 'production') {
         return countProductionToward(effect.count.id, this.seats[i].productions ?? {});
       }
+      // A COLONIES count reads the seat's synthetic colony TABLE — one tile name per cube — through the ONE shared
+      // reader; the list rides the model exactly as the server's does, so the reading can name the tiles.
+      if (kind === 'colonies') {
+        return countColoniesToward(effect.count.id, this.seats[i].colonies ?? []);
+      }
       const names = this.seats[i].cards ?? [];
       const cards = names.map((name) => getCard(name)).filter((card): card is NonNullable<typeof card> => card !== undefined);
       return countCardsToward(effect.count.id, cards, this.countContextOf(names));
+    },
+    /** The colony's planet disc — the colonies' own sprite classes (`Luna-background`), the ledger's rule. */
+    planetClassOf(colony: ColonyName): string {
+      return colony.replace(' ', '-') + '-background';
     },
     /**
      * What `effect` pays seat `i` AT THE ENACTMENT — the winner's Agenda step
