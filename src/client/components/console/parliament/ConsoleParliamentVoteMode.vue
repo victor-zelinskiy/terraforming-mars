@@ -58,6 +58,7 @@
                                            :captions="false"
                                            :oneNumber="true"
                                            :note="voteInfo.reading.note"
+                                           :levy="voteInfo.reading.levy"
                                            size="compact"
                                            data-parl-vote-yield
                                            data-parl-vote-reading />

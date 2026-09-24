@@ -98,6 +98,7 @@
           <ConsoleInfluenceYield v-if="zoomResolutionYields.length > 0"
                                  class="con-zoom__bar-yield"
                                  :yields="zoomResolutionYields"
+                                 :levy="zoomResolutionLevy"
                                  :formula="false"
                                  size="compact"
                                  data-zoom-yield />
@@ -164,7 +165,8 @@ import {WinnerRewardReading, winnerRewardReadingOf} from '@/client/console/parli
 import {CardAnnotation} from '@/client/components/cardAnnotations/annotationModel';
 import {resolutionAnnotations, resolutionPartyAnnotations} from '@/client/console/parliament/parliamentAnnotations';
 import {resolutionPartyContextKey, resolutionStatusOf, ResolutionStatusVm} from '@/client/console/parliament/resolutionInspectModel';
-import {enactedYieldsOf, voteYieldsOf} from '@/client/console/parliament/influenceYieldModel';
+import {enactedLevyOf, enactedYieldsOf, voteLevyOf, voteYieldsOf} from '@/client/console/parliament/influenceYieldModel';
+import {LevyReading} from '@/common/parliament/resolutionLevy';
 import {PartyReactionReading, partyReactionsOf, viewerHasSeat} from '@/client/console/parliament/partyReactionModel';
 import ConsolePartyReaction from '@/client/components/console/parliament/ConsolePartyReaction.vue';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
@@ -247,6 +249,16 @@ export default defineComponent({
       const model = this.zoomParliament;
       return model?.enacted?.resolution === id ? enactedYieldsOf(resolution, model, this.zoomViewer) : voteYieldsOf(resolution, model, this.zoomViewer);
     },
+    /** THE LEVY of the resolution on the stage (a budget) — read at the same moments as the yields. */
+    zoomResolutionLevy(): LevyReading | undefined {
+      const id = this.zoomResolutionId;
+      const resolution = id === undefined ? undefined : getResolution(id);
+      if (resolution === undefined || resolution.levy === undefined) {
+        return undefined;
+      }
+      const model = this.zoomParliament;
+      return model?.enacted?.resolution === id ? enactedLevyOf(resolution, model, this.zoomViewer) : voteLevyOf(resolution, model, this.zoomViewer);
+    },
     /** The RULING PARTY's answer to those readings — the viewer's seat only. */
     zoomResolutionReactions(): Array<PartyReactionReading> {
       const id = this.zoomResolutionId;
@@ -267,7 +279,7 @@ export default defineComponent({
       const id = this.zoomResolutionId;
       return id === undefined ? [] : resolutionAnnotations(id, this.zoomResolutionYields,
         {reading: this.zoomResolutionWinner, viewer: this.zoomViewer, nameOf: this.zoomNameOf},
-        {table: this.consoleCardZoom.parliament?.table?.()});
+        {table: this.consoleCardZoom.parliament?.table?.()}, this.zoomResolutionLevy);
     },
     zoomResolutionTier(): RulesLengthTier | undefined {
       const id = this.zoomResolutionId;

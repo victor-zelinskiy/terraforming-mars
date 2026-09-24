@@ -54,6 +54,7 @@
             <ConsoleInfluenceYield v-else-if="chip.kind === 'yield'"
                                    class="con-band__yield"
                                    :yields="chip.yields"
+                                   :levy="chip.levy"
                                    size="compact"
                                    :formula="false"
                                    :captions="false"
@@ -131,7 +132,8 @@ import {partyNameKey} from '@/client/console/parliament/partyNames';
 import {BandLine, BandQuest, BandRewardReading, BandSitting, BandStanding, parliamentBandLine} from '@/client/console/parliament/parliamentBand';
 import {chairmanQuestFlow} from '@/client/console/parliament/consoleChairmanQuest';
 import {quietRewardPoseOf, SittingPosition, SittingStage} from '@/client/console/parliament/consoleSittingFlow';
-import {enactedYieldsOf, resolvingYieldsOf} from '@/client/console/parliament/influenceYieldModel';
+import {enactedLevyOf, enactedYieldsOf, resolvingLevyOf, resolvingYieldsOf} from '@/client/console/parliament/influenceYieldModel';
+import {LevyReading} from '@/common/parliament/resolutionLevy';
 import {parliamentRewardState, rewardLanded} from '@/client/console/parliament/parliamentRewardBeat';
 import {sittingMotion} from '@/client/console/parliament/sittingDirector';
 import {cardResourceKey} from '@/client/console/resourceTransfer/resourceTransferModel';
@@ -236,6 +238,19 @@ export default defineComponent({
       }
       return enactedYieldsOf(resolution, this.model, this.viewerColor, {live: this.rewardResolving});
     },
+    /** THE LEVY a budget takes first — the same moments as `yields`: the estimate as «this payout», then the seat's record. */
+    levy(): LevyReading | undefined {
+      const resolution = this.resolution;
+      const position = this.position;
+      if (resolution === undefined || position === undefined || resolution.levy === undefined) {
+        return undefined;
+      }
+      const recorded = this.mine.length > 0 || position.step === 'adjourn' || position.step === 'done';
+      if (!recorded) {
+        return resolvingLevyOf(resolution, this.model, this.viewerColor);
+      }
+      return enactedLevyOf(resolution, this.model, this.viewerColor, {live: this.rewardResolving});
+    },
     /** A chip owed or in the air, or the seat's own step still standing: the reading then says «this payout». */
     rewardResolving(): boolean {
       void parliamentRewardState.owed.length;
@@ -267,6 +282,10 @@ export default defineComponent({
         reactions: this.reactions.map((r) => ({party: r.party, amount: r.amount})),
         skips: this.skips,
       };
+      const levy = this.levy;
+      if (levy !== undefined) {
+        out.levy = levy;
+      }
       if (this.winnerReading !== undefined) {
         out.tile = winnerRewardGlyph(this.winnerReading.reward);
       }

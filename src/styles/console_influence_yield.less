@@ -245,6 +245,51 @@
        by weight (it must survive desaturation), the Agenda step drawn as the
        rail's own node. Not a second reading: no kicker, no line, no beat. */
     &__result { display: inline-flex; align-items: center; gap: .34rem; min-width: 0; }
+    /* THE LEVY at the head of the plate (a budget's «lose 10 M€» FIRST): the loss tone — amber carried by
+       weight, no strike (it IS taken), no flash; a short seat's take says «of 10» beside it. */
+    &__levy {
+        display: inline-flex;
+        align-items: center;
+        gap: .16rem;
+        min-width: 0;
+        b { font-size: 1.12rem; font-weight: 800; font-variant-numeric: tabular-nums; color: fade(@con-amber, 96%); }
+        .con-iyield__unit { width: 1.08rem; height: 1.08rem; }
+    }
+    &__levy-of {
+        font-size: .5rem;
+        font-weight: 700;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+        color: fade(@con-amber, 82%);
+        white-space: nowrap;
+    }
+    &__arrow--levy { opacity: .55; }
+    /* THE NET at the tail — the day's balance: the plate's heaviest number after the payout, in the loss
+       tone when the seat ends poorer today, in the block's own ink when it does not. */
+    &__net {
+        display: inline-flex;
+        align-items: center;
+        gap: .16rem;
+        min-width: 0;
+        padding-left: .3rem;
+        border-left: .05rem solid rgba(255, 255, 255, 0.14);
+        b { font-size: 1.12rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+        .con-iyield__unit { width: 1.08rem; height: 1.08rem; }
+        &--minus b { color: fade(@con-amber, 96%); }
+    }
+    &__eq { font-size: .9rem; font-weight: 700; color: fade(@con-text, 55%); margin-right: .04rem; }
+    /* THE HORIZON under a production part beside a levy: a caption-sized note — next generation, never today. */
+    &__horizon {
+        grid-column: 1 / -1;
+        font-size: .5rem;
+        letter-spacing: .09em;
+        text-transform: uppercase;
+        color: fade(@con-text, 62%);
+        white-space: normal;
+        line-height: 1.15;
+    }
+    /* A production TERM of a breakdown («[steel] 2 + [titanium] 1 + [energy] 3») — the plate, smaller than the result's unit. */
+    &__unit--term { width: 1rem; height: 1rem; }
     &__suffix {
         .premium-tooltip(16rem);
         display: inline-flex;
@@ -290,8 +335,9 @@
         .con-iyield__group { flex-direction: row; align-items: center; }
         .con-iyield__group + .con-iyield__group::before { content: '·'; margin-right: .55rem; font-size: 1rem; font-weight: 700; color: fade(@con-text, 45%); }
         .con-iyield__readings { flex-wrap: nowrap; }
-        .con-iyield__reading { display: inline-flex; align-items: center; column-gap: .3rem; }
+        .con-iyield__reading { display: inline-flex; align-items: center; column-gap: .3rem; flex-wrap: wrap; row-gap: .1rem; }
         .con-iyield__note { flex-basis: 100%; }
+        .con-iyield__horizon { flex-basis: 100%; }
     }
 
     /* SIZES. */
@@ -308,6 +354,9 @@
         .con-iyield__in .con-iyield__glyph { --pvpcard-size: 1.08rem; }
         .con-iyield__caption { font-size: .5rem; }
         .con-iyield__who { font-size: .5rem; }
+        .con-iyield__levy b, .con-iyield__net b { font-size: 1.12rem; }
+        .con-iyield__unit--term { width: .95rem; height: .95rem; }
+        .con-iyield__horizon { font-size: .48rem; }
     }
     &--hero {
         gap: .5rem;
@@ -324,6 +373,12 @@
         .con-iyield__arrow { font-size: 1.5rem; }
         .con-iyield__caption { font-size: .64rem; }
         .con-iyield__who { font-size: .62rem; }
+        .con-iyield__levy b, .con-iyield__net b { font-size: 2.05rem; }
+        .con-iyield__levy .con-iyield__unit, .con-iyield__net .con-iyield__unit { width: 1.9rem; height: 1.9rem; }
+        .con-iyield__levy-of { font-size: .62rem; }
+        .con-iyield__eq { font-size: 1.4rem; }
+        .con-iyield__unit--term { width: 1.6rem; height: 1.6rem; }
+        .con-iyield__horizon { font-size: .64rem; }
     }
 }
 /* THE WINNER'S PART — the winner star, its own label and caption, the tile and

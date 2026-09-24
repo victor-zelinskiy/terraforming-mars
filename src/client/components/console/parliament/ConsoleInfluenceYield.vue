@@ -19,6 +19,16 @@
     `winSuffixesOf`), every effect's plate stands on ONE line, and the
     block's host supplies the caption (its kicker), so the plates print none.
 
+    THE LEVY (the Budgets — «lose 10 M€» FIRST): a card that TAKES before it
+    pays reads as ONE line, in the printed order, with the day's balance at
+    its end — «[−10 M€] → [inputs] → +7 M€ = −3 M€». The levy stands at the
+    HEAD of the plate of the payout in its own currency (`levy.payout`), the
+    net at its tail; a short seat's levy prints what would be taken «of 10».
+    A production part beside it carries its HORIZON («pays from the next
+    generation»): today's pocket and next generation's income are never one
+    sum. A FLAT part («+4 M€ production», a rate of 0 per influence) prints
+    its base alone — no inputs cluster claims the influence bought it.
+
     Nothing here computes: the numbers arrive from `influenceYieldModel.ts`
     (the client reading of the common `scaledAmount`), the icons are the
     console's own sprite families, the influence badge is the same asset the
@@ -26,6 +36,18 @@
   -->
   <div class="con-iyield" :class="['con-iyield--' + size, {'con-iyield--reference': readings.length === 0, 'con-iyield--parts': groups.length > 1, 'con-iyield--onenum': oneNumber}]" data-influence-yield>
     <span v-if="kicker !== undefined" class="con-iyield__kicker">{{ $t(kicker) }}</span>
+    <!-- A LEVY with no payout in its currency to net against stands alone, first — the printed order. -->
+    <div v-if="levy !== undefined && levyAlone" class="con-iyield__group con-iyield__group--levy" data-yield-effect="levy">
+      <div class="con-iyield__readings">
+        <div class="con-iyield__reading con-iyield__reading--levy" :data-yield-context="levy.context" data-yield-levy-alone>
+          <span class="con-iyield__levy" :class="{'con-iyield__levy--short': levy.short}" data-yield-levy :data-yield-levy-paid="levy.paid" :data-yield-levy-owed="levy.owed">
+            <b>−{{ levy.paid }}</b><i class="con-iyield__unit" :class="levyUnitClass"></i>
+            <small v-if="levy.short" class="con-iyield__levy-of">{{ ofText(levy.owed) }}</small>
+          </span>
+          <span v-if="captions && levy.note !== undefined" class="con-iyield__caption">{{ $t(levy.note) }}</span>
+        </div>
+      </div>
+    </div>
     <div v-for="group in groups" :key="group.effect.id" class="con-iyield__group" :data-yield-effect="group.effect.id">
       <!-- A SEQUENTIAL part states its own rule: «1 [card] / 3 [heat
            production]» — the divisor and the TOTAL it divides, never the
@@ -37,6 +59,14 @@
         <b class="con-iyield__num">{{ group.effect.sequel.per }}</b>
         <i class="con-iyield__unit" :class="totalClassOf(group.effect)"></i>
         <span class="con-iyield__who">{{ $t('For every player') }}</span>
+      </div>
+      <!-- A FLAT part states its base alone: «+4 [M€ production] · every player» — no rate per influence. -->
+      <div v-else-if="(formula || group.readings.length === 0) && isFlat(group.effect)" class="con-iyield__formula" data-yield-flat aria-hidden="true">
+        <b class="con-iyield__num">+{{ group.effect.base }}</b>
+        <i class="con-iyield__unit" :class="unitClassOf(group.effect)"></i>
+        <span class="con-iyield__who" :class="{'con-iyield__who--winner': group.effect.recipient === 'winner'}">
+          {{ $t(group.effect.recipient === 'winner' ? 'Winner of the vote' : 'For every player') }}
+        </span>
       </div>
       <div v-else-if="formula || group.readings.length === 0" class="con-iyield__formula" :data-yield-count-rate="group.effect.count?.per" aria-hidden="true">
         <!-- A COUNTED term at its OWN rate («2 [unit] / [city*] + 1 [unit] / [influence]» —
@@ -80,7 +110,17 @@
              :data-yield-total-before="y.total?.before"
              :data-yield-total-after="y.total?.after"
              :data-yield-delivered="y.delivered"
-             :data-yield-skipped="y.skipped">
+             :data-yield-skipped="y.skipped"
+             :data-yield-net="levyOn(group, y) ? netOf(y) : undefined">
+          <!-- THE LEVY at the HEAD of the plate: what leaves FIRST («−10 [M€]», «−4 [M€] of 10» for a short seat) —
+               in the printed order, before the inputs that earn the payout. -->
+          <template v-if="levyOn(group, y)">
+            <span class="con-iyield__levy" :class="{'con-iyield__levy--short': levy!.short}" data-yield-levy :data-yield-levy-paid="levy!.paid" :data-yield-levy-owed="levy!.owed">
+              <b>−{{ levy!.paid }}</b><i class="con-iyield__unit" :class="unitClassOf(group.effect)"></i>
+              <small v-if="levy!.short" class="con-iyield__levy-of">{{ ofText(levy!.owed) }}</small>
+            </span>
+            <span class="con-iyield__arrow con-iyield__arrow--levy" aria-hidden="true">→</span>
+          </template>
           <!-- THE INPUTS as one cluster: «[counted object] 2 + [influence] 2» — the
                count is the player's own (the server's), then the influence. -->
           <!-- A SEQUENTIAL reading shows the CHAIN: the total before the
@@ -92,13 +132,21 @@
             <span class="con-iyield__arrow" aria-hidden="true">→</span>
             <b data-yield-in="total-after">{{ y.total.after }}</b>
           </span>
-          <span v-else-if="y.influence !== undefined || y.count !== undefined" class="con-iyield__in">
+          <span v-else-if="(y.influence !== undefined || y.count !== undefined) && !isFlat(group.effect)" class="con-iyield__in">
             <!-- A count over SEVERAL tags reads TAG BY TAG («[Venus] 1 + [Jovian] 2 + [influence] 1»):
                  the breakdown the server recorded, each tag with its own medallion — never one
                  number the player has to take apart. A single-tag count keeps the one glyph. -->
             <template v-if="y.count !== undefined && y.countedByTag !== undefined && y.countedByTag.length > 1">
               <template v-for="entry in y.countedByTag" :key="entry.tag">
                 <PremiumCountGlyph class="con-iyield__glyph" :glyph="{kind: 'tag', tag: entry.tag}" /><b :data-yield-in="'tag:' + entry.tag">{{ entry.count }}</b>
+                <span class="con-iyield__plus" aria-hidden="true">+</span>
+              </template>
+            </template>
+            <!-- A count over PRODUCTION STEPS reads RESOURCE BY RESOURCE («[steel] 2 + [titanium] 1 + [energy] 3 +
+                 [influence] 2»): each term in its production plate, a zero listed — the twin of the tag breakdown. -->
+            <template v-else-if="y.count !== undefined && y.countedByResource !== undefined">
+              <template v-for="entry in y.countedByResource" :key="entry.resource">
+                <i class="con-iyield__unit con-iyield__unit--prod con-iyield__unit--term" :class="productionUnitClass(entry.resource)" aria-hidden="true"></i><b :data-yield-in="'production:' + entry.resource">{{ entry.count }}</b>
                 <span class="con-iyield__plus" aria-hidden="true">+</span>
               </template>
             </template>
@@ -117,11 +165,16 @@
             </template>
             <template v-if="y.influence !== undefined"><i class="con-iyield__inf"></i><b data-yield-in="influence">{{ y.influence }}</b></template>
           </span>
-          <span v-if="y.total !== undefined || y.influence !== undefined || y.count !== undefined" class="con-iyield__arrow" aria-hidden="true">→</span>
+          <span v-if="(y.total !== undefined || y.influence !== undefined || y.count !== undefined) && !isFlat(group.effect)" class="con-iyield__arrow" aria-hidden="true">→</span>
           <!-- A forfeited payout keeps its SIZE and says it did not land (✕ + struck amount); the caption names why.
                A capped sum says MAX beside the amount — the limit is part of the number, never a footnote. -->
           <span class="con-iyield__result">
             <span class="con-iyield__out" :class="{'con-iyield__out--lost': y.skipped !== undefined && (y.amount ?? 0) > 0}"><b>{{ outText(y) }}</b><i class="con-iyield__unit" :class="unitClassOf(group.effect)"></i><em v-if="atCap(y)" class="con-iyield__max">{{ $t('Max.') }}</em></span>
+            <!-- THE NET at the tail — the day's balance once the levy and the payout are both known:
+                 «= −3 [M€]». Signed, and in the loss tone when the seat ends poorer today. -->
+            <span v-if="levyOn(group, y)" class="con-iyield__net" :class="{'con-iyield__net--minus': netOf(y) < 0}" data-yield-net-line :data-yield-net-amount="netOf(y)">
+              <span class="con-iyield__eq" aria-hidden="true">=</span><b>{{ signedText(netOf(y)) }}</b><i class="con-iyield__unit" :class="unitClassOf(group.effect)"></i>
+            </span>
             <!-- THE WIN'S DIFFERENCE, as a suffix of this very number — tracked
                  caps, a quiet gold accent carried by weight, the Agenda step
                  as the rail's own node. Not a reading: no kicker, no line of
@@ -142,6 +195,9 @@
               </template>
             </span>
           </span>
+          <!-- THE HORIZON of a production part beside a levy: it first PAYS in the next generation — never
+               summed with the day's pocket. -->
+          <span v-if="horizonOn(group)" class="con-iyield__horizon" data-yield-horizon>{{ $t(horizonKey) }}</span>
           <span v-if="captions && captionOf(y) !== ''" class="con-iyield__caption">{{ captionOf(y) }}</span>
         </div>
       </div>
@@ -152,10 +208,12 @@
 
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
+import {Resource} from '@/common/Resource';
 import {InfluenceScaledEffect, InfluenceYield, yieldAtCap} from '@/common/parliament/influenceScaling';
+import {LevyReading} from '@/common/parliament/resolutionLevy';
 import {
-  METRIC_SETS_PLURAL_KEY, oneNumberYieldsOf, sequelTotalIcon, WinSuffix, winSuffixesOf, yieldCaptionOf, yieldCountPresentation, yieldIconOf,
-  yieldIsMultiplier, YieldCountGlyph, YieldIcon,
+  METRIC_SETS_PLURAL_KEY, oneNumberYieldsOf, PRODUCTION_HORIZON_KEY, sequelTotalIcon, WinSuffix, winSuffixesOf, yieldCaptionOf, yieldCountPresentation,
+  yieldIconOf, yieldIsFlat, yieldIsMultiplier, YieldCountGlyph, YieldIcon,
 } from '@/client/console/parliament/influenceYieldModel';
 import {SUFFIX_HINT, SUFFIX_IF_YOU_WIN, SUFFIX_STEP} from '@/client/console/parliament/voteInfoModel';
 import PremiumCountGlyph from '@/client/components/premiumCard/PremiumCountGlyph.vue';
@@ -192,6 +250,12 @@ export default defineComponent({
     kicker: {type: String as PropType<string | undefined>, default: undefined},
     /** An i18n key under the block — the honest «no recipient» note, never a promise. */
     note: {type: String as PropType<string | undefined>, default: undefined},
+    /**
+     * THE LEVY the card takes FIRST (a budget), read for the same seat and context as `yields`
+     * (`voteLevyOf` / `enactedLevyOf`): drawn at the head of the plate of the payout in its
+     * currency, with the net at the tail; alone when no such payout exists.
+     */
+    levy: {type: Object as PropType<LevyReading | undefined>, default: undefined},
   },
   computed: {
     groups(): Array<Group> {
@@ -219,8 +283,49 @@ export default defineComponent({
     suffixStepWord(): string {
       return SUFFIX_STEP;
     },
+    /** The levy has no payout of its currency among the groups to stand at the head of — it stands alone. */
+    levyAlone(): boolean {
+      const levy = this.levy;
+      return levy !== undefined && (levy.payout === undefined || !this.groups.some((g) => g.effect.id === levy.payout?.effectId && g.readings.length > 0));
+    },
+    /** The levy's own unit icon (a standalone plate) — the console's stock sprite of its resource. */
+    levyUnitClass(): string {
+      return this.levy === undefined ? '' : iconClassFor(this.levy.resource);
+    },
+    horizonKey(): string {
+      return PRODUCTION_HORIZON_KEY;
+    },
   },
   methods: {
+    /** The levy heads THIS group's readings: the group pays the levy's currency, and the reading is a number (never the reference). */
+    levyOn(group: Group, y: InfluenceYield): boolean {
+      const levy = this.levy;
+      return levy !== undefined && levy.payout !== undefined && levy.payout.effectId === group.effect.id && y.context !== 'reference';
+    },
+    /** The day's balance of ONE reading: its payout (0 when forfeited) minus what the levy takes. */
+    netOf(y: InfluenceYield): number {
+      const paid = this.levy?.paid ?? 0;
+      const payout = y.skipped !== undefined ? 0 : (y.amount ?? 0);
+      return payout - paid;
+    },
+    signedText(n: number): string {
+      return n > 0 ? `+${n}` : n < 0 ? `−${-n}` : '0';
+    },
+    /** «of 10» — the owed sum beside a short seat's take. */
+    ofText(owed: number): string {
+      return translateTextWithParams('of ${0}', [String(owed)]);
+    },
+    isFlat(effect: InfluenceScaledEffect): boolean {
+      return yieldIsFlat(effect);
+    },
+    /** A production part beside a levy carries its horizon: it first pays in the next generation. */
+    horizonOn(group: Group): boolean {
+      return this.levy !== undefined && group.effect.unit.kind === 'production' && group.readings.length > 0;
+    },
+    /** One term of a production breakdown: the resource's sprite in the production plate. */
+    productionUnitClass(resource: Resource): string {
+      return iconClassFor(resource);
+    },
     /** The counted object's glyph (a card with a VP icon, or a printed tag), undefined for an effect without a count term. */
     countGlyphOf(effect: InfluenceScaledEffect): YieldCountGlyph | undefined {
       return effect.count === undefined ? undefined : yieldCountPresentation(effect.count.id).glyph;

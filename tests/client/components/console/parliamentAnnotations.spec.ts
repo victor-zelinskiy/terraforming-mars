@@ -1,4 +1,6 @@
 import {expect} from 'chai';
+import {Resource} from '@/common/Resource';
+import {LevyReading} from '@/common/parliament/resolutionLevy';
 import {PartyName} from '@/common/turmoil/PartyName';
 import {ParliamentModel} from '@/common/models/ParliamentModel';
 import {REDUX_PARTIES} from '@/common/parliament/ParliamentTypes';
@@ -289,5 +291,44 @@ describe('parliamentAnnotations — the fullscreen inspector\'s reading blocks',
     }
     // The rules column is untouched either way.
     expect(resolutionAnnotations(GRID).map((b) => b.labelKey)).to.deep.eq(['When enacted', 'Chairman quest']);
+  });
+
+  it('a PRODUCTION-COUNTED effect behind a LEVY (Industrialist Budget): the qualification sentence, the LEVY row FIRST, then the breakdown by resource — a zero listed, never «no card»', () => {
+    const id = 'RDX_INDUSTRIALISTS_INDUSTRIALIST_BUDGET';
+    const effect = getResolution(id)?.scaled?.[0];
+    if (effect === undefined) {
+      throw new Error('Industrialist Budget declares no scaled effect');
+    }
+    const bare = resolutionAnnotations(id);
+    expect(bare.map((b) => b.labelKey), 'no winner block, no world block').to.deep.eq(['When enacted', 'Chairman quest']);
+    expect(texts([bare[0]])).to.deep.eq([
+      'Lose 10 M€. Then gain 1 M€ per step of steel, titanium and energy production you have, plus 1 per influence. Then raise your M€ production 4 steps.',
+      'Each step of steel, titanium and energy production counts, added up. Resources in your supply do not count.',
+    ]);
+    expect(texts([bare[1]])).to.deep.eq(['Raise your steel production 1 step']);
+    const track = [{resource: Resource.STEEL, count: 2}, {resource: Resource.TITANIUM, count: 0}, {resource: Resource.ENERGY, count: 3}];
+    const now: InfluenceYield = {effect, context: 'estimate', influence: 2, amount: 7, count: 5, counted: [], countedByResource: track};
+    const levy: LevyReading = {resource: Resource.MEGACREDITS, context: 'estimate', owed: 10, paid: 10, short: false, held: 34, payout: {effectId: 'megacredits', amount: 7}, net: -3};
+    const live = resolutionAnnotations(id, [now], undefined, undefined, levy);
+    expect(live.map((b) => b.labelKey)).to.deep.eq(['When enacted', 'For you', 'Chairman quest']);
+    // The printed order: the levy first, then what the payout was counted from.
+    expect(live[1].rows.map((r) => r.text)).to.deep.eq(['Levy: ${0} M€ first, then the payout', 'Counted right now: ${0}']);
+    expect(live[1].rows[0].params).to.deep.eq(['10']);
+    expect(live[1].rows[1].params?.[0]).to.eq('steel production 2 · titanium production 0 · energy production 3');
+    // A short seat's warning, in words; nothing on the track is a row of zeros — never «no card counts right now».
+    const short = resolutionAnnotations(id, [{...now, count: 0, amount: 2, countedByResource: track.map((t) => ({...t, count: 0}))}], undefined, undefined,
+      {...levy, paid: 4, short: true, net: -2, note: 'Not enough M€: the rest of the levy is not taken'});
+    expect(short[1].rows[0]).to.deep.include({text: 'Not enough M€ for the levy: ${0} of ${1} M€ would be taken', params: ['4', '10']});
+    expect(short[1].rows[1].params?.[0]).to.eq('steel production 0 · titanium production 0 · energy production 0');
+    expect(texts(short)).to.not.include('No card counts right now');
+    // Once recorded, both rows say so and print the RECORDED numbers — never today's track.
+    const recorded = resolutionAnnotations(id, [{...now, context: 'applied', amount: 9, influence: 3}], undefined, undefined,
+      {...levy, context: 'applied', payout: {effectId: 'megacredits', amount: 9}, net: -1});
+    expect(recorded[1].rows.map((r) => r.text)).to.deep.eq(['Levy taken: ${0} M€, then the payout', 'Counted at the enactment: ${0}']);
+    expect(recorded[1].rows[0].params).to.deep.eq(['10']);
+    const recordedShort = resolutionAnnotations(id, [{...now, context: 'applied'}], undefined, undefined, {...levy, context: 'applied', paid: 4, short: true});
+    expect(recordedShort[1].rows[0]).to.deep.include({text: 'Levy taken: ${0} of ${1} M€ — not enough M€', params: ['4', '10']});
+    // Without a levy reading (a spectator) the «for you» block carries the breakdown alone.
+    expect(resolutionAnnotations(id, [now])[1].rows.map((r) => r.text)).to.deep.eq(['Counted right now: ${0}']);
   });
 });

@@ -44,6 +44,7 @@ import {Color} from '@/common/Color';
 import {ReduxParty, ResolutionId} from '@/common/parliament/ParliamentTypes';
 import {ParliamentPhaseSummaryModel} from '@/common/models/ParliamentModel';
 import {InfluenceYield} from '@/common/parliament/influenceScaling';
+import {LevyReading} from '@/common/parliament/resolutionLevy';
 import {ParameterMoveId} from '@/common/parliament/parameterMove';
 import {SittingRewardStep, SittingStage} from './consoleSittingFlow';
 import {SupportStatus} from './supportScene';
@@ -65,8 +66,8 @@ export type BandChip =
   | {kind: 'count', key: string, amount: number}
   /** The Agenda step's own gift: the influence level it sets, or the bonus it hands over. */
   | {kind: 'agenda', to: number, level?: number, bonus?: 'tr' | 'card'}
-  /** The payout formula — the reward's reading, printed whole. */
-  | {kind: 'yield', yields: ReadonlyArray<InfluenceYield>}
+  /** The payout formula — the reward's reading, printed whole (with the LEVY a budget takes first, when there is one). */
+  | {kind: 'yield', yields: ReadonlyArray<InfluenceYield>, levy?: LevyReading}
   /** The ruling party's answer to a step of the payout. */
   | {kind: 'reaction', party: ReduxParty, resource?: string, amount?: number}
   /** A part that paid nothing: what, how much it would have paid, and why — never a silent loss. */
@@ -103,6 +104,8 @@ export type BandLine = {
 /** The reward's reading, as DATA — the one thing the band cannot derive from the summary alone. */
 export type BandRewardReading = {
   yields: ReadonlyArray<InfluenceYield>;
+  /** THE LEVY a budget takes FIRST — the viewer's own reading (recorded once the seat's record is in). */
+  levy?: LevyReading;
   reactions: ReadonlyArray<{party: ReduxParty, resource?: string, amount?: number}>;
   skips: ReadonlyArray<{id: string, title: string, reason: string, amount?: number, unit?: string}>;
   /** The winner's part: the tile still to be placed, or the colony still to be built (`colony`). */
@@ -342,7 +345,7 @@ function rewardLine(sitting: BandSitting): BandLine {
   const reward = sitting.reward;
   const chips: Array<BandChip> = [];
   if (reward.yields.length > 0) {
-    chips.push({kind: 'yield', yields: reward.yields});
+    chips.push({kind: 'yield', yields: reward.yields, ...(reward.levy === undefined ? {} : {levy: reward.levy})});
   }
   for (const reaction of reward.reactions) {
     chips.push({kind: 'reaction', ...reaction});

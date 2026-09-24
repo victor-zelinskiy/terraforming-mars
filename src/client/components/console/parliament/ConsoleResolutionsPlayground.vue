@@ -196,7 +196,7 @@
         <div class="con-rxpg__yieldcol">
           <!-- The PROPOSAL context reads the way the vote panel does — one number
                per effect, the win's difference as its suffix (the same model). -->
-          <ConsoleInfluenceYield v-if="yields.length > 0" :yields="yields" :oneNumber="context === 'proposal'" size="hero" :note="yieldNote" :kicker="contextLabel" data-rxpg-yield />
+          <ConsoleInfluenceYield v-if="yields.length > 0" :yields="yields" :levy="levy" :oneNumber="context === 'proposal'" size="hero" :note="yieldNote" :kicker="contextLabel" data-rxpg-yield />
           <p v-else class="con-rxpg__none" data-rxpg-yield-none>{{ $t('Not scaled by influence') }}</p>
           <!-- THE COLONY LEDGER (Colonial Affairs): the viewer's tiles the multiplier above multiplies — the
                same reading the vote panel, the inspector and the sitting print. -->
@@ -227,7 +227,7 @@
               <PlayerCube :color="row.color" :size="12" :glow="false" />
               <span class="con-rxpg__seat-name">{{ $t(row.label) }}</span>
               <i v-if="row.winner" class="con-rxpg__seat-star" aria-hidden="true"></i>
-              <ConsoleInfluenceYield :yields="row.yields" :formula="false" :oneNumber="context === 'proposal'" size="compact" />
+              <ConsoleInfluenceYield :yields="row.yields" :levy="row.levy" :formula="false" :oneNumber="context === 'proposal'" size="compact" />
               <span v-if="row.advance !== undefined" class="con-rxpg__seat-tag con-rxpg__seat-tag--agenda" data-rxpg-seat-advance>{{ row.advance }}</span>
               <span v-if="row.winnerPart && selected.text.winner !== undefined" class="con-rxpg__seat-tag con-rxpg__seat-tag--winner" data-rxpg-seat-winner-part>{{ $t(selected.text.winner) }}</span>
             </div>
@@ -455,7 +455,7 @@ import {
   cardCountUnits, cardCountVerdict, CardCountContext, countCardsToward, CountedSpaceFacts, countMetricToward, countProductionToward, countSpacesToward,
   ResolutionCountByResource, ResolutionCountKind, ResolutionCountMetricModel, ResolutionCountModel, resolutionCountKind, spaceCountVerdict,
 } from '@/common/parliament/resolutionCounts';
-import {LEVY_STEP_KEY, levyNothingReasonKey, levyPaid, levyShortReasonKey} from '@/common/parliament/resolutionLevy';
+import {LEVY_STEP_KEY, levyNothingReasonKey, levyPaid, LevyReading, levyShortReasonKey} from '@/common/parliament/resolutionLevy';
 import {SpaceId} from '@/common/Types';
 import {SpaceName} from '@/common/boards/SpaceName';
 import {SpaceType} from '@/common/boards/SpaceType';
@@ -497,8 +497,8 @@ import {resolutionZoomEntry} from '@/client/components/card/cardZoomTypes';
 import {resolutionAnnotations} from '@/client/console/parliament/parliamentAnnotations';
 import {resolutionStatusOf, ResolutionStatusVm} from '@/client/console/parliament/resolutionInspectModel';
 import {
-  countedMetricParts, enactedYieldsOf, noRecipientForecastKey, noRecipientReasonKey, resolvingYieldOf, sequelPresentation, sequelSourceOf,
-  voteYieldsOf, yieldCountPresentation, YieldCountGlyph,
+  countedMetricParts, enactedLevyOf, enactedYieldsOf, noRecipientForecastKey, noRecipientReasonKey, resolvingLevyOf, resolvingYieldOf, sequelPresentation,
+  sequelSourceOf, voteLevyOf, voteYieldsOf, yieldCountPresentation, YieldCountGlyph,
 } from '@/client/console/parliament/influenceYieldModel';
 import {choiceSourceView, PromptSourceView} from '@/client/console/promptSource';
 import {
@@ -1117,6 +1117,8 @@ type SeatRow = {
   viewer: boolean,
   winner: boolean,
   yields: ReadonlyArray<InfluenceYield>,
+  /** THE LEVY a budget takes from this seat first — the seat's own reading for the context. */
+  levy: LevyReading | undefined,
   advance: string | undefined,
   /** The context has reached the winner-only part of the enactment, and this seat is the winner. */
   winnerPart: boolean,
@@ -1189,7 +1191,7 @@ export default defineComponent({
     annotations(): ReadonlyArray<CardAnnotation> {
       return this.selected === undefined ? [] :
         resolutionAnnotations(this.selected.id, this.yields, {reading: this.winnerReading, viewer: this.viewerColor, nameOf: this.seatName},
-          {table: this.winnerTable});
+          {table: this.winnerTable}, this.levy);
     },
     /** The scenario family the selected resolution reads — from its DECLARATION (`resolutionFamily.ts`), never a table by id. */
     family(): PgFamily {
@@ -1745,10 +1747,15 @@ export default defineComponent({
           viewer: this.viewerSeatIndex === i,
           winner: this.winner === i,
           yields,
+          levy: this.levyFor(color),
           advance: this.advancedAt(i) ? translateTextWithParams('Agenda ${0} → ${1}', [String(this.seats[i].agenda), String(this.agendaAt(i))]) : undefined,
           winnerPart: r.hasWinnerEffect && this.winner === i && this.pastWinnerStep,
         };
       });
+    },
+    /** THE LEVY a budget takes from the viewer first — the ONE model the game reads, for the chosen context. */
+    levy(): LevyReading | undefined {
+      return this.levyFor(this.viewerColor);
     },
     // ── the picker ─────────────────────────────────────────────────────
     /** The viewer's payout at the enactment (the winner's step counted), or undefined for a spectator. */
@@ -1882,6 +1889,19 @@ export default defineComponent({
   methods: {
     partyNameKey(party: string): string {
       return partyNameKey(party);
+    },
+    /** The levy's reading for `color` in the chosen context — the vote's estimate, «this payout», or the synthetic record. */
+    levyFor(color: Color | undefined): LevyReading | undefined {
+      const r = this.selected;
+      if (r === undefined || r.levy === undefined || color === undefined) {
+        return undefined;
+      }
+      switch (this.context) {
+      case 'reference': return undefined;
+      case 'proposal': return voteLevyOf(r, this.model, color);
+      case 'resolving': return resolvingLevyOf(r, this.model, color);
+      case 'applied': return enactedLevyOf(r, this.model, color);
+      }
     },
     /** A production term's icon — the console's own sprite family (the production plate is the term's CSS). */
     productionUnitClass(resource: Resource): string {

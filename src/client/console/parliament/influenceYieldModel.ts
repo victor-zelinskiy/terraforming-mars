@@ -24,8 +24,10 @@ import {
 } from '@/common/parliament/influenceScaling';
 import {AGENDA_TRACK, influenceAtAgenda} from '@/common/parliament/ParliamentTypes';
 import {
-  countMetricToward, countOf, INDUSTRIAL_PRODUCTION_RESOURCES, ResolutionCountId, ResolutionCountMetric, ResolutionCountMetricModel,
+  countMetricToward, countOf, INDUSTRIAL_PRODUCTION_RESOURCES, ResolutionCountByResource, ResolutionCountId, ResolutionCountMetric,
+  ResolutionCountMetricModel,
 } from '@/common/parliament/resolutionCounts';
+import {LEVY_STEP_KEY, levyEstimate, levyNetEffectOf, levyRecorded, LevyReading, ResolutionLevy} from '@/common/parliament/resolutionLevy';
 import {Tag} from '@/common/cards/Tag';
 import {CountedObjectGlyph} from '@/client/components/premiumCard/premiumCardIcons';
 import {getSpecialCellInfo} from '@/client/components/board/specialCellInfo';
@@ -52,6 +54,26 @@ export function yieldIconOf(effect: InfluenceScaledEffect): YieldIcon {
 export function yieldIsMultiplier(effect: InfluenceScaledEffect): boolean {
   return effect.unit.kind === 'colonyBonuses';
 }
+
+/**
+ * A FLAT part — the same for every participant, influence does not touch it
+ * (Industrialist Budget's «+4 M€ production»): a rate of 0 per influence, no
+ * count, no sequel, a base. Its reading prints the base alone — an inputs
+ * cluster («[influence] 3 → +4») would claim the influence bought it.
+ */
+export function yieldIsFlat(effect: InfluenceScaledEffect): boolean {
+  return effect.perInfluence === 0 && effect.count === undefined && effect.sequel === undefined && (effect.base ?? 0) > 0;
+}
+
+/**
+ * THE HORIZON of a production part paid at the sitting: the sitting runs AFTER
+ * the generation's production phase, so a production step raised there first
+ * PAYS in the NEXT generation. Printed under a production reading wherever the
+ * same card also moves the seat's SUPPLY today (a budget: «−10 → +7 = −3»
+ * beside «+4 M€ production») — today's pocket and next generation's income
+ * are two horizons, never one sum.
+ */
+export const PRODUCTION_HORIZON_KEY = 'pays from the next generation';
 
 /**
  * HOW A COUNTED TERM IS DRAWN AND NAMED — one entry per count id: the glyph of
@@ -180,6 +202,29 @@ export function metricLabelKeyOf(metric: ResolutionCountMetric): string {
   }
 }
 
+/** The i18n key naming ONE term of a PRODUCTION count («steel production ${0}») — one key per standard resource. */
+export function productionCountLabelKeyOf(resource: Resource): string {
+  switch (resource) {
+  case Resource.MEGACREDITS: return 'M€ production ${0}';
+  case Resource.STEEL: return 'steel production ${0}';
+  case Resource.TITANIUM: return 'titanium production ${0}';
+  case Resource.PLANTS: return 'plant production ${0}';
+  case Resource.ENERGY: return 'energy production ${0}';
+  case Resource.HEAT: return 'heat production ${0}';
+  }
+}
+
+/**
+ * THE BREAKDOWN of a PRODUCTION count (Industrialist Budget's steel + titanium
+ * + energy steps), in words — the twin of the multi-tag breakdown, one term
+ * per listed resource with its steps, a zero included («steel production 2 ·
+ * titanium production 1 · energy production 3»). English keys with their
+ * params; the consumer translates and joins them.
+ */
+export function countedProductionParts(byResource: ReadonlyArray<ResolutionCountByResource>): Array<{key: string, params: ReadonlyArray<string>}> {
+  return byResource.map((entry) => ({key: productionCountLabelKeyOf(entry.resource), params: [String(entry.count)]}));
+}
+
 /** The i18n key of the SETS a threshold count came to («1 set»), with its plural groups — the reading's word beside the count. */
 export const METRIC_SETS_PLURAL_KEY = '${0} set(s)';
 
@@ -209,8 +254,9 @@ export function yieldCaptionOf(y: InfluenceYield): {key: string, params?: Readon
   switch (y.context) {
   // An effect that COUNTS the tableau — or DIVIDES a total that can still move
   // before the enactment — is a preliminary reading: it says so, conditionally.
-  case 'estimate': return y.effect.count !== undefined || y.effect.sequel !== undefined ?
-    {key: 'If enacted now'} : {key: 'By your current influence'};
+  // A FLAT part is nobody's number in particular: it says so too.
+  case 'estimate': return yieldIsFlat(y.effect) ? {key: 'The same for every player'} :
+    y.effect.count !== undefined || y.effect.sequel !== undefined ? {key: 'If enacted now'} : {key: 'By your current influence'};
   case 'forecast': return y.agendaStep === undefined ? {key: 'If you win the vote'} : {key: 'If you win — Agenda step ${0}', params: [String(y.agendaStep)]};
   case 'resolving': return y.skipped !== undefined ? {key: y.skipped} : {key: 'This payout'};
   case 'applied': return y.skipped !== undefined ? {key: y.skipped} : {key: 'Received'};
@@ -324,8 +370,9 @@ export function voteYieldsOf(resolution: IClientResolution, model: ParliamentMod
     // …with its per-tag breakdown, where the count is over several tags (Venus + Jovian): the reading names each.
     // …and its CELLS, where the count is over the board (Colonization Funding's space cities): the reading names each.
     // …and the BREAKDOWN of its metric, where the count is a threshold over one (Generous Funding's sets of TR).
+    // …and its per-resource STEPS, where the count is over the production track (Industrialist Budget).
     const counted: YieldCount | undefined = count === undefined ? undefined :
-      {count: count.count, cards: count.cards, units: count.units, byTag: count.byTag, spaces: count.spaces, metric: count.metric};
+      {count: count.count, cards: count.cards, units: count.units, byTag: count.byTag, spaces: count.spaces, metric: count.metric, byResource: count.byResource};
     const estimate = influenceYield(effect, 'estimate', seat.influence, counted);
     out.push(estimate);
     if (effect.recipient === 'each' || effect.recipient === 'winner') {
@@ -381,7 +428,7 @@ export function enactedYieldsOf(
     const recorded = applied === undefined ? undefined :
       {
         count: applied.count, counted: applied.counted, countedUnits: applied.countedUnits, countedByTag: applied.countedByTag,
-        countedSpaces: applied.countedSpaces, countedMetric: applied.countedMetric, uncapped: applied.uncapped,
+        countedSpaces: applied.countedSpaces, countedMetric: applied.countedMetric, countedByResource: applied.countedByResource, uncapped: applied.uncapped,
       };
     // A MULTIPLIER effect (the colony ledger): every record of the plan pays its own unit and carries the
     // multiplier beside it — the reading is the multiplier, never the first row's amount.
@@ -422,6 +469,83 @@ export function resolvingYieldsOf(resolution: IClientResolution, model: Parliame
   return voteYieldsOf(resolution, model, viewer)
     .filter((y) => y.context !== 'forecast')
     .map((y) => (y.context === 'estimate' ? {...y, context: 'resolving'} : y));
+}
+
+// ── THE LEVY (the Budgets: «lose 10 M€» first) ────────────────────────────────
+
+/**
+ * THE PAYOUT THE NET STANDS ON, read off a list of readings: the reading of
+ * the levy's net effect (`levyNetEffectOf`) in `context`, else any paying
+ * reading of it — a skipped reading pays 0. Undefined when the card pays
+ * nothing in the levy's currency, or when no reading of it has a number yet
+ * (a reference alone): the caller then reads the levy without a net rather
+ * than netting against an invented zero.
+ */
+function levyPayoutOf(levy: ResolutionLevy, resolution: IClientResolution, yields: ReadonlyArray<InfluenceYield>, context: InfluenceYieldContext): {effectId: string, amount: number} | undefined {
+  const effect = levyNetEffectOf(levy, resolution.scaled);
+  if (effect === undefined) {
+    return undefined;
+  }
+  const reading = yields.find((y) => y.effect.id === effect.id && y.context === context) ??
+    yields.find((y) => y.effect.id === effect.id && y.context !== 'reference' && y.context !== 'forecast');
+  if (reading === undefined) {
+    return undefined;
+  }
+  return {effectId: effect.id, amount: reading.skipped !== undefined ? 0 : (reading.amount ?? 0)};
+}
+
+/**
+ * The viewer's LEVY UP FOR THE VOTE: what the levy would take from the supply
+ * the seat holds NOW (the server model's `stock` — the same number the levy
+ * step will read), netted against the estimate of the payout in the same
+ * currency («−10 → +7 = −3»). A short seat reads its shortfall here, while it
+ * can still set money aside (the income of the production phase arrives
+ * BEFORE the sitting). No seat → no levy reading (the formula alone).
+ */
+export function voteLevyOf(resolution: IClientResolution, model: ParliamentModel | undefined, viewer: Color | undefined): LevyReading | undefined {
+  const levy = resolution.levy;
+  const seat = seatOf(model, viewer);
+  if (levy === undefined || seat === undefined) {
+    return undefined;
+  }
+  // A model without the supply (an older server) reads the levy as affordable — never an invented shortfall.
+  const held = seat.stock?.[levy.resource] ?? levy.amount;
+  return levyEstimate(levy, held, levyPayoutOf(levy, resolution, voteYieldsOf(resolution, model, viewer), 'estimate'));
+}
+
+/** The same reading as «this payout» — the sitting's reward page before the seat's record is in. */
+export function resolvingLevyOf(resolution: IClientResolution, model: ParliamentModel | undefined, viewer: Color | undefined): LevyReading | undefined {
+  const estimate = voteLevyOf(resolution, model, viewer);
+  return estimate === undefined ? undefined : {...estimate, context: 'resolving'};
+}
+
+/**
+ * The viewer's LEVY of an ENACTED resolution: what the server RECORDED for
+ * them (a `stock` record with the negative amount taken and `owed`, or the
+ * levy's own skip), netted against the recorded payout in the same currency —
+ * never recomputed from a later supply. Before the seat's record is in (the
+ * sitting still on an earlier seat) the estimate reads as «this payout».
+ */
+export function enactedLevyOf(
+  resolution: IClientResolution,
+  model: ParliamentModel | undefined,
+  viewer: Color | undefined,
+  opts?: {live?: boolean},
+): LevyReading | undefined {
+  const levy = resolution.levy;
+  if (levy === undefined || viewer === undefined) {
+    return undefined;
+  }
+  const context: 'resolving' | 'applied' = opts?.live === true ? 'resolving' : 'applied';
+  const outcomes = model?.phase?.outcomes ?? model?.lastPhase?.outcomes ?? [];
+  const record = outcomes.find((o) => o.player === viewer && o.step === LEVY_STEP_KEY && o.kind !== 'reaction');
+  if (record === undefined) {
+    return resolvingLevyOf(resolution, model, viewer);
+  }
+  // The recorded payout when it is in; the estimate of it while the seat's own steps are still running.
+  const payout = levyPayoutOf(levy, resolution, enactedYieldsOf(resolution, model, viewer, opts), context) ??
+    levyPayoutOf(levy, resolution, resolvingYieldsOf(resolution, model, viewer), 'resolving');
+  return levyRecorded(levy, record, context, payout);
 }
 
 /** The short name of a standard resource's production in a results line («M€ production +4»). */

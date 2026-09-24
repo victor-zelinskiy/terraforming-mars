@@ -3,15 +3,16 @@ import {Color} from '@/common/Color';
 import {CardName} from '@/common/cards/CardName';
 import {CardResource} from '@/common/CardResource';
 import {PartyName} from '@/common/turmoil/PartyName';
-import {ParliamentModel, ParliamentPlayerModel} from '@/common/models/ParliamentModel';
+import {ParliamentEnactedModel, ParliamentEnactOutcomeModel, ParliamentModel, ParliamentPhaseSummaryModel, ParliamentPlayerModel} from '@/common/models/ParliamentModel';
 import {IClientResolution} from '@/common/parliament/IClientResolution';
 import {InfluenceScaledEffect, scaledAmount, uncappedAmount, winnerForecastYield, yieldAtCap, yieldCapped} from '@/common/parliament/influenceScaling';
 import {Resource} from '@/common/Resource';
 import {Tag} from '@/common/cards/Tag';
 import {
-  cardResourcePluralKey, countedCellNames, countedContributions, countedMetricParts, enactedYieldsOf, METRIC_SETS_PLURAL_KEY, metricLabelKeyOf,
-  noRecipientNoteOf, oneNumberYieldsOf, productionResourceLabelKey, resolvingYieldOf, scaledEffectForCardResource, voteYieldsOf, winnerForecastCount,
-  winSuffixesOf, yieldCaptionOf, yieldCountPresentation, yieldIconOf,
+  cardResourcePluralKey, countedCellNames, countedContributions, countedMetricParts, countedProductionParts, enactedLevyOf, enactedYieldsOf,
+  METRIC_SETS_PLURAL_KEY, metricLabelKeyOf, noRecipientNoteOf, oneNumberYieldsOf, PRODUCTION_HORIZON_KEY, productionCountLabelKeyOf,
+  productionResourceLabelKey, resolvingLevyOf, resolvingYieldOf, scaledEffectForCardResource, voteLevyOf, voteYieldsOf, winnerForecastCount,
+  winSuffixesOf, yieldCaptionOf, yieldCountPresentation, yieldIconOf, yieldIsFlat,
 } from '@/client/console/parliament/influenceYieldModel';
 import {countMetricToward} from '@/common/parliament/resolutionCounts';
 import {SpaceId} from '@/common/Types';
@@ -491,5 +492,128 @@ describe('influenceYieldModel', () => {
     expect(countedMetricParts(breakdownOf(30)).map((p) => p.params[0])).deep.eq(['30', '15', '3', '5']);
     expect(metricLabelKeyOf('terraformRating')).eq('TR ${0}');
     expect(METRIC_SETS_PLURAL_KEY).eq('${0} set(s)');
+  });
+
+  // ── INDUSTRIALIST BUDGET (RX15): the LEVY first, a PRODUCTION count + influence, a FLAT production part ──
+  const BUDGET_ID = 'RDX_INDUSTRIALISTS_INDUSTRIALIST_BUDGET';
+  const TRACK = [{resource: Resource.STEEL, count: 2}, {resource: Resource.TITANIUM, count: 1}, {resource: Resource.ENERGY, count: 2}];
+  /** A seat of the budget's table: the production count the server carries, and the supply the levy reads (absent on an older server). */
+  function budgetSeat(color: Color, agenda: number, influence: number, held: number | undefined, count = 5): ParliamentPlayerModel {
+    const s = seat(color, agenda, influence);
+    s.counts = [{id: 'steelTitaniumEnergyProduction', count, cards: [], byResource: TRACK}];
+    if (held !== undefined) {
+      s.stock = {[Resource.MEGACREDITS]: held};
+    }
+    return s;
+  }
+
+  it('the shipped catalog declares Industrialist Budget as a LEVY of 10 M€ first, a PRODUCTION count + influence (no cap) and a FLAT +4 M€ production', () => {
+    const budget = getResolution(BUDGET_ID);
+    expect(budget?.code).eq('RX15');
+    expect(budget?.levy).deep.eq({resource: Resource.MEGACREDITS, amount: 10, recipient: 'each'});
+    const [mc, prod] = budget?.scaled ?? [];
+    expect(mc).deep.include({id: 'megacredits', perInfluence: 1, recipient: 'each'});
+    expect(mc.count).deep.eq({id: 'steelTitaniumEnergyProduction', per: 1});
+    expect(mc.cap).is.undefined;
+    expect(prod).deep.eq({id: 'production', unit: {kind: 'production', resource: Resource.MEGACREDITS}, base: 4, perInfluence: 0, recipient: 'each'});
+    expect(yieldIsFlat(prod)).is.true;
+    expect(yieldIsFlat(mc)).is.false;
+    expect(yieldIsFlat(ANIMALS)).is.false;
+    expect(yieldIconOf(prod)).deep.eq({family: 'resource', resource: Resource.MEGACREDITS, production: true});
+    const presentation = yieldCountPresentation('steelTitaniumEnergyProduction');
+    expect(presentation.glyph).deep.eq({kind: 'production', resources: [Resource.STEEL, Resource.TITANIUM, Resource.ENERGY]});
+    expect(presentation.pluralKey).eq('${0} step(s) of steel, titanium and energy production');
+    expect(presentation.skipReasonKey).eq('No steel, titanium or energy production and no influence');
+    expect(PRODUCTION_HORIZON_KEY).eq('pays from the next generation');
+  });
+
+  it('a production-counted vote reading: «[steel] 2 + [titanium] 1 + [energy] 2 + [influence] 2 → +7 M€» with the breakdown carried; the LEVY read from the seat\'s supply nets it — «−10 → +7 = −3» — and the win adds one; the flat part reads +4 for everybody', () => {
+    const budget = getResolution(BUDGET_ID)!;
+    const m = model([budgetSeat('blue' as Color, 4, 2, 34)]);
+    const yields = voteYieldsOf(budget, m, 'blue' as Color);
+    expect(yields.map((y) => `${y.effect.id}:${y.context}`)).deep.eq(['megacredits:estimate', 'megacredits:forecast', 'production:estimate']);
+    expect(yields[0]).deep.include({influence: 2, count: 5, amount: 7});
+    expect(yields[0].countedByResource).deep.eq(TRACK);
+    expect(yields[0].counted, 'no card is counted').deep.eq([]);
+    expect(yields[0].uncapped, 'no cap').is.undefined;
+    expect(yields[1]).deep.include({influence: 3, amount: 8, agendaStep: 5});
+    // THE FLAT PART: +4 whatever the influence — no forecast plate (the win changes nothing), a caption of its own.
+    expect(yields[2]).deep.include({amount: 4, influence: 2});
+    expect(yieldCaptionOf(yields[2])).deep.eq({key: 'The same for every player'});
+    expect(winSuffixesOf(yields)).deep.eq([{effectId: 'megacredits', delta: 1, agendaStep: 5, influence: 3, atCap: false}]);
+    // THE LEVY: what the supply of 34 can pay (all 10), netted against the estimate of the payout in M€.
+    expect(voteLevyOf(budget, m, 'blue' as Color)).deep.eq({
+      resource: Resource.MEGACREDITS, context: 'estimate', owed: 10, paid: 10, short: false, held: 34, payout: {effectId: 'megacredits', amount: 7}, net: -3,
+    });
+    // A seat that is not on the table reads no levy (the formula alone), as with the yields; no table — nothing.
+    expect(voteLevyOf(budget, m, 'red' as Color)).is.undefined;
+    expect(voteLevyOf(budget, undefined, 'blue' as Color)).is.undefined;
+    expect(voteLevyOf(resolution, m, 'blue' as Color), 'a card without a levy has no levy reading').is.undefined;
+  });
+
+  it('a SHORT seat reads its shortfall NOW: 4 M€ held → −4 of 10 with the note; 0 M€ → nothing to pay; a model without the supply reads the levy as affordable; «this payout» keeps the numbers', () => {
+    const budget = getResolution(BUDGET_ID)!;
+    const short = voteLevyOf(budget, model([budgetSeat('blue' as Color, 3, 2, 4)]), 'blue' as Color);
+    expect(short).deep.include({paid: 4, owed: 10, short: true, held: 4, net: 3, note: 'Not enough M€: the rest of the levy is not taken'});
+    const nothing = voteLevyOf(budget, model([budgetSeat('blue' as Color, 3, 2, 0)]), 'blue' as Color);
+    expect(nothing).deep.include({paid: 0, owed: 10, short: true, held: 0, net: 7, note: 'No M€ to pay the levy'});
+    const older = voteLevyOf(budget, model([budgetSeat('blue' as Color, 3, 2, undefined)]), 'blue' as Color);
+    expect(older).deep.include({paid: 10, short: false, held: 10, net: -3});
+    expect(older?.note).is.undefined;
+    // A payout of ZERO (no track, no influence) nets to the levy alone — the skipped reading pays nothing.
+    const zero = voteLevyOf(budget, model([budgetSeat('blue' as Color, 0, 0, 20, 0)]), 'blue' as Color);
+    expect(zero).deep.include({paid: 10, net: -10, payout: {effectId: 'megacredits', amount: 0}});
+    expect(resolvingLevyOf(budget, model([budgetSeat('blue' as Color, 3, 2, 4)]), 'blue' as Color)).deep.include({context: 'resolving', paid: 4, owed: 10, net: 3});
+  });
+
+  it('an enacted budget reads the RECORDED levy and payout — never today\'s supply: «−10 (owed 10) → +9 = −1»; a short record; a levy skipped for an empty supply; and, before the seat\'s record is in, the estimate as «this payout»', () => {
+    const budget = getResolution(BUDGET_ID)!;
+    const enacted: ParliamentEnactedModel = {instance: `${BUDGET_ID}#0`, resolution: BUDGET_ID, party: PartyName.INDUSTRIALISTS};
+    const phase = (outcomes: Array<ParliamentEnactOutcomeModel>): ParliamentPhaseSummaryModel => ({
+      generation: 3, final: false, winner: {instance: enacted.instance, resolution: BUDGET_ID, party: PartyName.INDUSTRIALISTS, votes: 2},
+      outcomes, support: [], enacted, refreshed: [], lobbyRefilled: [],
+    });
+    const recorded = [
+      {player: 'blue' as Color, step: 'levy', part: 'effect' as const, kind: 'stock' as const, stock: Resource.MEGACREDITS, amount: -10, owed: 10, before: 40, after: 30},
+      {player: 'blue' as Color, step: 'megacredits', part: 'effect' as const, effect: 'megacredits', kind: 'stock' as const, stock: Resource.MEGACREDITS, amount: 9, influence: 3, count: 6, counted: [], countedByResource: [{resource: Resource.STEEL, count: 2}, {resource: Resource.TITANIUM, count: 1}, {resource: Resource.ENERGY, count: 3}], before: 30, after: 39},
+      {player: 'blue' as Color, step: 'production', part: 'effect' as const, effect: 'production', kind: 'production' as const, production: Resource.MEGACREDITS, amount: 4, influence: 3, before: 0, after: 4},
+    ];
+    // Today's supply is 99 and the track has grown — the reading is the record.
+    const m = model([budgetSeat('blue' as Color, 5, 3, 99, 21)], {enacted, lastPhase: phase(recorded)});
+    const yields = enactedYieldsOf(budget, m, 'blue' as Color);
+    expect(yields[0]).deep.include({context: 'applied', amount: 9, influence: 3, count: 6});
+    expect(yields[0].countedByResource).deep.eq(recorded[1].countedByResource);
+    expect(yields[1]).deep.include({context: 'applied', amount: 4});
+    expect(enactedLevyOf(budget, m, 'blue' as Color)).deep.eq({
+      resource: Resource.MEGACREDITS, context: 'applied', owed: 10, paid: 10, short: false, payout: {effectId: 'megacredits', amount: 9}, net: -1,
+    });
+    expect(enactedLevyOf(budget, m, 'blue' as Color, {live: true})?.context).eq('resolving');
+    // A short record keeps its reason; a levy the empty supply skipped reads 0 taken with the levy's own reason.
+    const shortRecord = model([budgetSeat('blue' as Color, 5, 3, 99)], {enacted, lastPhase: phase([
+      {...recorded[0], amount: -4, owed: 10, before: 4, after: 0, reason: 'Not enough M€: the rest of the levy is not taken'},
+      {...recorded[1], amount: 5, before: 0, after: 5},
+    ])});
+    expect(enactedLevyOf(budget, shortRecord, 'blue' as Color)).deep.include({paid: 4, owed: 10, short: true, net: 1, note: 'Not enough M€: the rest of the levy is not taken'});
+    const emptyRecord = model([budgetSeat('blue' as Color, 5, 3, 99)], {enacted, lastPhase: phase([
+      {player: 'blue' as Color, step: 'levy', part: 'effect', kind: 'skipped', stock: Resource.MEGACREDITS, amount: 0, owed: 10, reason: 'No M€ to pay the levy'},
+      {...recorded[1], amount: 5, before: 0, after: 5},
+    ])});
+    expect(enactedLevyOf(budget, emptyRecord, 'blue' as Color)).deep.include({paid: 0, owed: 10, short: true, net: 5, note: 'No M€ to pay the levy'});
+    // No record for this seat yet: the estimate from its supply, read as «this payout».
+    const pending = model([budgetSeat('blue' as Color, 5, 3, 34)], {enacted, phase: {generation: 3, final: false, step: 'effects', outcomes: []}});
+    expect(enactedLevyOf(budget, pending, 'blue' as Color, {live: true})).deep.include({context: 'resolving', paid: 10, held: 34, net: -2});
+    // A seat off the table reads nothing.
+    expect(enactedLevyOf(budget, m, 'red' as Color)).is.undefined;
+  });
+
+  it('the production breakdown in words: «steel production 2 · titanium production 1 · energy production 3» — one key per resource, a zero included', () => {
+    expect(countedProductionParts([{resource: Resource.STEEL, count: 2}, {resource: Resource.TITANIUM, count: 0}, {resource: Resource.ENERGY, count: 3}])).deep.eq([
+      {key: 'steel production ${0}', params: ['2']},
+      {key: 'titanium production ${0}', params: ['0']},
+      {key: 'energy production ${0}', params: ['3']},
+    ]);
+    expect(productionCountLabelKeyOf(Resource.MEGACREDITS)).eq('M€ production ${0}');
+    expect(productionCountLabelKeyOf(Resource.PLANTS)).eq('plant production ${0}');
+    expect(productionCountLabelKeyOf(Resource.HEAT)).eq('heat production ${0}');
   });
 });

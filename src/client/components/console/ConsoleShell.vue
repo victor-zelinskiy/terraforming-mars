@@ -1074,6 +1074,7 @@
           <ConsoleInfluenceYield v-if="zoomResolutionYields.length > 0"
                                  class="con-zoom__bar-yield"
                                  :yields="zoomResolutionYields"
+                                 :levy="zoomResolutionLevy"
                                  :formula="false"
                                  size="compact"
                                  data-zoom-yield
@@ -1655,7 +1656,8 @@ import ConsoleWinnerReward from '@/client/components/console/parliament/ConsoleW
 import {WinnerRewardReading, winnerRewardReadingOf, winnerRewardTableOf} from '@/client/console/parliament/winnerRewardModel';
 import {WinnerRewardTable} from '@/common/parliament/winnerReward';
 import {ParliamentEnactOutcomeModel} from '@/common/models/ParliamentModel';
-import {enactedYieldsOf, voteYieldsOf} from '@/client/console/parliament/influenceYieldModel';
+import {enactedLevyOf, enactedYieldsOf, voteLevyOf, voteYieldsOf} from '@/client/console/parliament/influenceYieldModel';
+import {LevyReading} from '@/common/parliament/resolutionLevy';
 import {PartyReactionReading, partyReactionsOf, viewerHasSeat} from '@/client/console/parliament/partyReactionModel';
 import {buildParliamentView, voteForecastOf} from '@/client/console/parliament/consoleParliamentModel';
 import {footerFactsOf, voteFactsOf, VoteFactVm} from '@/client/console/parliament/voteInfoModel';
@@ -8629,7 +8631,7 @@ export default defineComponent({
       }
       if (isResolutionZoom(card)) {
         // The viewer's own readings ride along: the rules name the counted cards behind their number.
-        return resolutionAnnotations(card.resolution, this.zoomResolutionYields, this.zoomResolutionWinnerWords, this.zoomResolutionWorld);
+        return resolutionAnnotations(card.resolution, this.zoomResolutionYields, this.zoomResolutionWinnerWords, this.zoomResolutionWorld, this.zoomResolutionLevy);
       }
       if (isPartyEffectZoom(card)) {
         return partyAnnotations(card.partyEffect, this.game.parliament, this.thisPlayer.color, this.myTurn && this.awaitingInput);
@@ -8693,6 +8695,17 @@ export default defineComponent({
       const viewer = this.thisPlayer.color;
       return model?.enacted?.resolution === id ? enactedYieldsOf(resolution, model, viewer) : voteYieldsOf(resolution, model, viewer);
     },
+    /** THE LEVY of the resolution on the stage (a budget) — the vote's reading, or the enacted record; the same moments as the yields. */
+    zoomResolutionLevy(): LevyReading | undefined {
+      const id = this.zoomResolutionId;
+      const resolution = id === undefined ? undefined : getResolution(id);
+      if (resolution === undefined || resolution.levy === undefined) {
+        return undefined;
+      }
+      const model = this.game.parliament;
+      const viewer = this.thisPlayer.color;
+      return model?.enacted?.resolution === id ? enactedLevyOf(resolution, model, viewer) : voteLevyOf(resolution, model, viewer);
+    },
     /** The colony ledger of the resolution on the stage (Colonial Affairs) — the vote's reading, or the enacted record. */
     zoomResolutionLedger(): ColonyLedgerReading | undefined {
       const id = this.zoomResolutionId;
@@ -8745,7 +8758,7 @@ export default defineComponent({
       if (id === undefined || party === undefined) {
         return undefined;
       }
-      return denserRulesTier(rulesLengthTier(resolutionAnnotations(id, this.zoomResolutionYields, this.zoomResolutionWinnerWords, this.zoomResolutionWorld)),
+      return denserRulesTier(rulesLengthTier(resolutionAnnotations(id, this.zoomResolutionYields, this.zoomResolutionWinnerWords, this.zoomResolutionWorld, this.zoomResolutionLevy)),
         rulesLengthTier(resolutionPartyAnnotations(party)));
     },
     /**

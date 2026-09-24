@@ -39,8 +39,9 @@ import {accessReasonRows} from './consoleParliamentModel';
 import {InfluenceYield} from '@/common/parliament/influenceScaling';
 import {ParliamentEnactOutcomeModel, ParliamentModel} from '@/common/models/ParliamentModel';
 import {WorldMoveTable, worldMoveReadingOf, worldMoveSentenceOf} from './worldMoveModel';
-import {countedCellNames, countedContributions, countedMetricParts, yieldCountPresentation} from './influenceYieldModel';
+import {countedCellNames, countedContributions, countedMetricParts, countedProductionParts, yieldCountPresentation} from './influenceYieldModel';
 import {WinnerRewardReading, winnerRewardRuleKey, winnerRewardSentenceOf} from './winnerRewardModel';
+import {LevyReading} from '@/common/parliament/resolutionLevy';
 
 export type RowText = {text: string, params?: ReadonlyArray<string>};
 
@@ -133,6 +134,8 @@ export function resolutionAnnotations(
   winner?: {reading: WinnerRewardReading | undefined, viewer: Color | undefined, nameOf: (color: Color) => string},
   /** The table the WORLD's part is read against (and, once it happened, the server's own records). */
   world?: {table: WorldMoveTable | undefined, enacted?: boolean, outcomes?: ReadonlyArray<ParliamentEnactOutcomeModel>},
+  /** The viewer's reading of the LEVY a budget takes first (the estimate from their supply, or the record). */
+  levy?: LevyReading,
 ): ReadonlyArray<CardAnnotation> {
   const resolution = getResolution(id);
   if (resolution === undefined) {
@@ -199,9 +202,29 @@ export function resolutionAnnotations(
   // cards of the enactment once it is recorded (frozen), today's cards while
   // the card is up for the vote — each labelled by which one it is.
   const forYou: Array<RowText> = [];
-  const counted = (yields ?? []).find((y) => (y.counted !== undefined || y.countedSpaces !== undefined || y.countedMetric !== undefined) &&
+  // THE LEVY FIRST — the printed order: what leaves the viewer's supply before anything is paid. A short seat
+  // reads its shortfall here in words (the footer's plate prints the take); a whole take reads as the fact.
+  if (levy !== undefined) {
+    const applied = levy.context !== 'estimate';
+    if (levy.short) {
+      forYou.push(applied ?
+        {text: 'Levy taken: ${0} of ${1} M€ — not enough M€', params: [String(levy.paid), String(levy.owed)]} :
+        {text: 'Not enough M€ for the levy: ${0} of ${1} M€ would be taken', params: [String(levy.paid), String(levy.owed)]});
+    } else {
+      forYou.push(applied ?
+        {text: 'Levy taken: ${0} M€, then the payout', params: [String(levy.paid)]} :
+        {text: 'Levy: ${0} M€ first, then the payout', params: [String(levy.paid)]});
+    }
+  }
+  const counted = (yields ?? []).find((y) => (y.counted !== undefined || y.countedSpaces !== undefined || y.countedMetric !== undefined || y.countedByResource !== undefined) &&
     (y.context === 'estimate' || y.context === 'applied'));
-  if (counted?.countedMetric !== undefined) {
+  if (counted?.countedByResource !== undefined) {
+    // A PRODUCTION count (steel + titanium + energy steps): no list — the row is the BREAKDOWN by resource
+    // («steel production 2 · titanium production 1 · energy production 3»), a zero listed, frozen once recorded.
+    const applied = counted.context === 'applied';
+    const breakdown = countedProductionParts(counted.countedByResource).map((part) => translateTextWithParams(part.key, [...part.params])).join(' · ');
+    forYou.push({text: applied ? 'Counted at the enactment: ${0}' : 'Counted right now: ${0}', params: [breakdown]});
+  } else if (counted?.countedMetric !== undefined) {
     // A THRESHOLD count (sets of TR): there is no list — the row is the
     // BREAKDOWN of the value («TR 24 · threshold 15 · 1 complete set · 1 to
     // the next set»), the server's own numbers, frozen once recorded.

@@ -33,7 +33,8 @@ import {IClientResolution} from '@/common/parliament/IClientResolution';
 import {InfluenceYield} from '@/common/parliament/influenceScaling';
 import {ReduxParty} from '@/common/parliament/ParliamentTypes';
 import {ParliamentPartyVm, ParliamentSlotVm, voteAccessOf, VoteForecastVm} from './consoleParliamentModel';
-import {noRecipientCompactNoteOf, oneNumberYieldsOf, voteYieldsOf, WinSuffix, winSuffixesOf} from './influenceYieldModel';
+import {noRecipientCompactNoteOf, oneNumberYieldsOf, PRODUCTION_HORIZON_KEY, voteLevyOf, voteYieldsOf, WinSuffix, winSuffixesOf} from './influenceYieldModel';
+import {LevyReading, levyShortNoteKey} from '@/common/parliament/resolutionLevy';
 import {COLONY_LEDGER_EMPTY, COLONY_LEDGER_TOTAL, ColonyLedgerReading, colonyLedgerOf} from './colonyLedgerModel';
 import {PartyReactionReading, partyReactionsOf, viewerHasSeat} from './partyReactionModel';
 import {quietRewardPoseOf} from './quietRewardPose';
@@ -71,6 +72,12 @@ export type VoteReadingVm = {
    * rows the «×k» stands on, from the SERVER's registry. Undefined for every other resolution.
    */
   ledger?: ColonyLedgerReading;
+  /**
+   * THE LEVY (a budget: «lose 10 M€» first) — what it takes from the supply the viewer holds NOW, netted
+   * against the estimate of the payout in the same currency: the head and the tail of that payout's plate
+   * («−10 → +7 = −3»). A short seat's warning is the reading's `note`. Undefined for every other resolution.
+   */
+  levy?: LevyReading;
 };
 
 /** One side of a fact: a translatable key with params, or a RAW display string (a player's name), optionally with the leader's cube. */
@@ -153,6 +160,12 @@ export function voteReadingOf(
     note = note ?? noRecipientCompactNoteOf(effect, tableau);
   }
   const ledger = colonyLedgerOf(resolution, model, viewer);
+  // THE LEVY's warning — the seat holds less than the levy takes — is the panel's one honest note for a budget:
+  // the income of the production phase arrives BEFORE the sitting, so the viewer can still set money aside.
+  const levy = voteLevyOf(resolution, model, viewer);
+  if (levy !== undefined && levy.short) {
+    note = note ?? levyShortNoteKey(levy.resource);
+  }
   return {
     kicker: READING_KICKER_SEATED,
     yields,
@@ -161,6 +174,7 @@ export function voteReadingOf(
     reactions: partyReactionsOf(resolution, yields),
     note,
     ...(ledger === undefined ? {} : {ledger}),
+    ...(levy === undefined ? {} : {levy}),
   };
 }
 
@@ -345,6 +359,16 @@ export function voteInfoBudget(vm: VoteInfoVm, text: TextFn = IDENTITY): VoteInf
   }
   if (vm.reading.note !== undefined) {
     strings.push(text(vm.reading.note));
+  }
+  // THE LEVY's words: «of 10» beside a short seat's take, and the HORIZON under the production part beside it.
+  const levy = vm.reading.levy;
+  if (levy !== undefined) {
+    if (levy.short) {
+      strings.push(text('of ${0}', [String(levy.owed)]));
+    }
+    if (vm.reading.yields.some((y) => y.effect.unit.kind === 'production')) {
+      strings.push(text(PRODUCTION_HORIZON_KEY));
+    }
   }
   // THE COLONY LEDGER's words: the tiles' names (one each — the bonus, the multiplier and the total are
   // icons and numbers), the «no colonies» line, the sums' kicker.

@@ -2,7 +2,7 @@ import {expect} from 'chai';
 import {Color} from '@/common/Color';
 import {PartyName} from '@/common/turmoil/PartyName';
 import {Resource} from '@/common/Resource';
-import {ParliamentEnactOutcomeModel, ParliamentPhaseSummaryModel} from '@/common/models/ParliamentModel';
+import {ParliamentEnactedModel, ParliamentEnactOutcomeModel, ParliamentPhaseSummaryModel} from '@/common/models/ParliamentModel';
 import {ReduxParty} from '@/common/parliament/ParliamentTypes';
 import {ResultsSeat, resultsReadingOf} from '@/client/console/parliament/parliamentResultsModel';
 
@@ -242,5 +242,39 @@ describe('parliamentResultsModel — the sitting\'s last reading, in two section
     const reading = resultsReadingOf(summary({outcomes: [outcome({player: RED})]}), [seat(BLUE)], SUPPORT);
     expect(reading.payouts).lengthOf(1);
     expect(reading.payouts[0].parts).lengthOf(0);
+  });
+
+  it('a LEVY (Industrialist Budget) is a SIGNED supply part with its owed sum — never a skip; a short one carries its note; the seat\'s NET stands beside its parts', () => {
+    const BUDGET = 'RDX_INDUSTRIALISTS_INDUSTRIALIST_BUDGET';
+    const enacted: ParliamentEnactedModel = {instance: `${BUDGET}#0`, resolution: BUDGET, party: PartyName.INDUSTRIALISTS};
+    const reading = resultsReadingOf(summary({
+      enacted,
+      winner: {instance: enacted.instance, resolution: BUDGET, party: PartyName.INDUSTRIALISTS, votes: 2, player: BLUE, slot: 0},
+      outcomes: [
+        outcome({step: 'levy', stock: Resource.MEGACREDITS, amount: -10, owed: 10, before: 40, after: 30}),
+        outcome({step: 'megacredits', effect: 'megacredits', stock: Resource.MEGACREDITS, amount: 7, before: 30, after: 37}),
+        outcome({step: 'production', effect: 'production', kind: 'production', production: Resource.MEGACREDITS, stock: undefined, amount: 4}),
+        outcome({player: RED, step: 'levy', stock: Resource.MEGACREDITS, amount: -4, owed: 10, reason: 'Not enough M€: the rest of the levy is not taken', before: 4, after: 0}),
+        outcome({player: RED, step: 'megacredits', effect: 'megacredits', kind: 'skipped', stock: Resource.MEGACREDITS, amount: 0, reason: 'No steel, titanium or energy production and no influence'}),
+        outcome({player: RED, step: 'production', effect: 'production', kind: 'production', production: Resource.MEGACREDITS, stock: undefined, amount: 4}),
+      ],
+    }), [seat(BLUE), seat(RED)], SUPPORT);
+    const [blue, red] = reading.payouts;
+    expect(blue.parts.map((p) => [p.kind, p.amount, p.skipped === undefined])).to.deep.eq([['stock', -10, true], ['stock', 7, true], ['production', 4, true]]);
+    expect(blue.parts[0]).to.deep.include({unit: 'megacredits', production: false, owed: 10});
+    expect(blue.parts[0].note, 'a whole take has nothing to explain').is.undefined;
+    expect(blue.net, 'the day\'s balance: −10 + 7').to.deep.eq({unit: 'megacredits', amount: -3});
+    // Red: 4 of 10 taken with the shortfall's reason on the PAYING part, the payout a named skip — the net is the levy alone.
+    expect(red.parts[0]).to.deep.include({kind: 'stock', amount: -4, owed: 10, note: 'Not enough M€: the rest of the levy is not taken'});
+    expect(red.parts[0].skipped, 'a loss is never a skip').is.undefined;
+    expect(red.parts[1].skipped).to.deep.eq({title: 'Resolution effect', reason: 'No steel, titanium or energy production and no influence'});
+    expect(red.net).to.deep.eq({unit: 'megacredits', amount: -4});
+    // A seat that never lost anything has no net line: its parts read as they are.
+    const plain = resultsReadingOf(summary({outcomes: [outcome({amount: 2})]}), [seat(BLUE)], SUPPORT);
+    expect(plain.payouts[0].net).is.undefined;
+    // …and a levy skipped for an empty supply stays a skip with its own reason (the owed sum rides the part).
+    const empty = resultsReadingOf(summary({outcomes: [outcome({step: 'levy', kind: 'skipped', stock: Resource.MEGACREDITS, amount: 0, owed: 10, reason: 'No M€ to pay the levy'})]}), [seat(BLUE)], SUPPORT);
+    expect(empty.payouts[0].parts[0]).to.deep.include({kind: 'skipped', owed: 10, skipped: {title: 'Resolution effect', reason: 'No M€ to pay the levy'}});
+    expect(empty.payouts[0].net).is.undefined;
   });
 });

@@ -2,7 +2,8 @@ import {mount} from '@vue/test-utils';
 import {expect} from 'chai';
 import {Tag} from '@/common/cards/Tag';
 import PremiumCountGlyph from '@/client/components/premiumCard/PremiumCountGlyph.vue';
-import {countedMetricIconUrl, countedTileIconUrl} from '@/client/components/premiumCard/premiumCardIcons';
+import {Resource} from '@/common/Resource';
+import {countedMetricIconUrl, countedTileIconUrl, standardResourceIconUrl} from '@/client/components/premiumCard/premiumCardIcons';
 
 /**
  * THE COUNTED OBJECT's glyph (Turmoil Redux): ONE drawing per kind of count,
@@ -65,5 +66,21 @@ describe('PremiumCountGlyph', () => {
     const card = mount(PremiumCountGlyph, {props: {glyph: {kind: 'vp-card', tag: Tag.BUILDING}}, global: {mocks: {$t: (key: string) => key}}});
     expect(card.find('.pvpcard').exists()).to.eq(true);
     expect(card.find('.pcglyph--tile').exists()).to.eq(false);
+  });
+
+  it('a PRODUCTION count draws the resources joined by «+» INSIDE the production frame — the face\'s own sprites, in the face\'s order; no tag, no card, no spark', () => {
+    const wrapper = mount(PremiumCountGlyph, {props: {glyph: {kind: 'production', resources: [Resource.STEEL, Resource.TITANIUM, Resource.ENERGY]}}});
+    const glyph = wrapper.find('.pcglyph');
+    expect(glyph.exists()).to.eq(true);
+    expect(glyph.classes()).to.include('pcglyph--production');
+    expect(glyph.attributes('data-count-production')).to.eq('steel titanium energy');
+    const terms = wrapper.findAll('.pcglyph__res');
+    expect(terms.map((t) => t.attributes('data-count-resource'))).to.deep.eq(['steel', 'titanium', 'energy']);
+    expect(terms[0].attributes('style')).to.contain(standardResourceIconUrl(Resource.STEEL));
+    expect(terms[2].attributes('style')).to.contain(standardResourceIconUrl(Resource.ENERGY));
+    expect(wrapper.findAll('.pcglyph__plus').length, 'two joins for three terms').to.eq(2);
+    expect(wrapper.find('.pcglyph__tag').exists()).to.eq(false);
+    expect(wrapper.find('.pcglyph__spark').exists()).to.eq(false);
+    expect(wrapper.find('.pvpcard').exists()).to.eq(false);
   });
 });

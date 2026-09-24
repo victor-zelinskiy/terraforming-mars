@@ -101,6 +101,13 @@ export type ResultsPayoutPart = {
   colony?: string;
   /** A HUD-side colony bonus (`colonyBonus`): the tile's printed description IS the reading. */
   description?: string;
+  /**
+   * A LEVY (a budget's «lose 10 M€»): `amount` is NEGATIVE — what left the seat — and this is what was OWED.
+   * Above `−amount` exactly when the seat was short; the shortfall's reason is then `note`.
+   */
+  owed?: number;
+  /** A paying part's own reason (a short levy) — printed beside the amount, never a skip. */
+  note?: string;
   /** The part paid nothing: WHAT it was and WHY (both English i18n keys). */
   skipped?: {title: string, reason: string};
 };
@@ -108,6 +115,12 @@ export type ResultsPayoutPart = {
 export type ResultsPayout = {
   player: Color;
   parts: ReadonlyArray<ResultsPayoutPart>;
+  /**
+   * THE NET of the seat's own SUPPLY parts in one unit — a budget's «−10 → +7 = −3»: read only where the
+   * law both TOOK and PAID the same resource (the resolution's own parts, never the ruling party's answer),
+   * so the row says the day's balance the chips could not.
+   */
+  net?: {unit: string, amount: number};
 };
 
 /**
@@ -264,6 +277,13 @@ export function resultsPayoutPart(outcome: ParliamentEnactOutcomeModel, index: n
   if (outcome.description !== undefined) {
     part.description = outcome.description;
   }
+  if (outcome.owed !== undefined) {
+    part.owed = outcome.owed;
+  }
+  // A LOSS with a reason is a paying part that says why it took less (a short levy) — never a skip.
+  if (delivery.skipped === undefined && delivery.direction === 'loss' && outcome.reason !== undefined) {
+    part.note = outcome.reason;
+  }
   if (delivery.skipped !== undefined) {
     part.skipped = {
       title: outcome.kind === 'skipped' ?
@@ -273,6 +293,22 @@ export function resultsPayoutPart(outcome: ParliamentEnactOutcomeModel, index: n
     };
   }
   return part;
+}
+
+/**
+ * THE NET of a seat's own SUPPLY parts in ONE unit — present only where the law both TOOK (a levy: a negative
+ * `stock` part) and PAID that unit into the supply (a positive `stock` part of the resolution's own, never a
+ * reaction, never a skip): the balance the row states beside the parts. A seat that was levied and paid
+ * nothing in that unit (a named skip) nets the levy alone.
+ */
+export function netOfParts(parts: ReadonlyArray<ResultsPayoutPart>): {unit: string, amount: number} | undefined {
+  const supply = parts.filter((part) => part.kind === 'stock' && !part.production && part.skipped === undefined && part.amount !== undefined);
+  const loss = supply.find((part) => (part.amount ?? 0) < 0);
+  if (loss === undefined) {
+    return undefined;
+  }
+  const same = supply.filter((part) => part.unit === loss.unit);
+  return {unit: loss.unit, amount: same.reduce((sum, part) => sum + (part.amount ?? 0), 0)};
 }
 
 /**
@@ -302,7 +338,15 @@ export function resultsReadingOf(
       parts.push(resultsPayoutPart(outcome, index));
     }
   });
-  const payouts = seats.map((seat) => ({player: seat.player, parts: byPlayer.get(seat.player) ?? []}));
+  const payouts = seats.map((seat): ResultsPayout => {
+    const parts = byPlayer.get(seat.player) ?? [];
+    const payout: ResultsPayout = {player: seat.player, parts};
+    const net = netOfParts(parts);
+    if (net !== undefined) {
+      payout.net = net;
+    }
+    return payout;
+  });
   // What the SUPPORT STEP granted, per party — the freshness mark of the row below. Summed, never
   // assigned: one party gets at most one record today, and a reading may not depend on that.
   const gained = new Map<ReduxParty, number>();

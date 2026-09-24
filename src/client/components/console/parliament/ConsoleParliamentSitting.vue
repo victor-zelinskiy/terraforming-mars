@@ -98,8 +98,11 @@
                     <i class="con-sit__part-unit" :class="partUnitClass(part)" aria-hidden="true"></i>
                   </template>
                   <template v-else>
-                    <b>+{{ part.amount }}</b>
+                    <!-- Signed: a LEVY is a negative supply part («−10»), read with its sign, never as a skip;
+                         a short seat's take carries the shortfall's reason beside it. -->
+                    <b :class="{'con-sit__part-loss': (part.amount ?? 0) < 0}" :data-sit-part-amount="part.amount">{{ signedAmount(part.amount) }}</b>
                     <i class="con-sit__part-unit" :class="partUnitClass(part)" aria-hidden="true"></i>
+                    <span v-if="part.note !== undefined" class="con-sit__part-reason" data-sit-part-note>{{ $t(part.note) }}</span>
                     <!-- A payout SPREAD over several cards names each recipient with its share — the list is the
                          record's own (`cards`), never a recount; one recipient prints the sum alone. -->
                     <span v-if="part.cards !== undefined" class="con-sit__part-cards" data-sit-part-cards>
@@ -107,6 +110,12 @@
                     </span>
                   </template>
                 </template>
+              </span>
+              <!-- THE NET of a budget's supply parts («= −3 M€»): the day's balance the chips could not state. -->
+              <span v-if="row.net !== undefined" class="con-sit__net" :class="{'con-sit__net--minus': row.net.amount < 0}" data-sit-net :data-sit-net-amount="row.net.amount">
+                <span class="con-sit__net-eq" aria-hidden="true">=</span>
+                <b>{{ signedAmount(row.net.amount) }}</b>
+                <i class="con-sit__part-unit" :class="netUnitClass(row.net.unit)" aria-hidden="true"></i>
               </span>
             </span>
           </div>
@@ -365,7 +374,11 @@ export default defineComponent({
     },
     signedAmount(amount: number | undefined): string {
       const n = amount ?? 0;
-      return n > 0 ? `+${n}` : String(n);
+      return n > 0 ? `+${n}` : n < 0 ? `−${-n}` : '0';
+    },
+    /** The net's unit — a standard resource's stock sprite (a budget nets M€). */
+    netUnitClass(unit: string): string {
+      return iconClassFor(unit);
     },
     /** The icon family of a payout part — the console's own sprites, the production frame where it is production. */
     partUnitClass(part: ResultsPayoutPart): string {

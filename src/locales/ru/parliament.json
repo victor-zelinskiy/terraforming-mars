@@ -772,5 +772,19 @@
   "Nothing to pay — 0 M€": "Платить нечем — 0 M€",
   "No production and no influence": "Нет производства и нет влияния",
   "Production steps alone": "Только шаги производства",
-  "Industrialist Budget up for the vote: 10 M€ first, then your 5 production steps and your influence 2 — net −3, and +1 more if you win": "«Бюджет индустриалистов» на голосовании: сначала 10 M€, затем ваши 5 шагов производства и влияние 2 — итог −3, и ещё +1, если победите"
+  "Industrialist Budget up for the vote: 10 M€ first, then your 5 production steps and your influence 2 — net −3, and +1 more if you win": "«Бюджет индустриалистов» на голосовании: сначала 10 M€, затем ваши 5 шагов производства и влияние 2 — итог −3, и ещё +1, если победите",
+  "The same for every player": "Одинаково для каждого игрока",
+  "pays from the next generation": "платит со следующего поколения",
+  "${0} step(s) of steel, titanium and energy production": "${0} {шаг|шага|шагов} производства стали, титана и энергии",
+  "Each step of steel, titanium and energy production counts, added up. Resources in your supply do not count.": "Считается каждый шаг производства стали, титана и энергии, в сумме. Ресурсы в запасе не считаются.",
+  "M€ production ${0}": "производство M€ ${0}",
+  "steel production ${0}": "производство стали ${0}",
+  "titanium production ${0}": "производство титана ${0}",
+  "plant production ${0}": "производство растений ${0}",
+  "energy production ${0}": "производство энергии ${0}",
+  "heat production ${0}": "производство тепла ${0}",
+  "Levy: ${0} M€ first, then the payout": "Плата: сначала ${0} M€, затем выплата",
+  "Not enough M€ for the levy: ${0} of ${1} M€ would be taken": "Не хватает M€ на плату: будет взято ${0} из ${1} M€",
+  "Levy taken: ${0} M€, then the payout": "Плата взята: ${0} M€, затем выплата",
+  "Levy taken: ${0} of ${1} M€ — not enough M€": "Плата взята: ${0} из ${1} M€, не хватило M€"
 }
