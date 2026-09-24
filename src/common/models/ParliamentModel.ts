@@ -6,7 +6,7 @@ import {CardResource} from '../CardResource';
 import {ColonyName} from '../colonies/ColonyName';
 import {ColonyTradeGrantModel} from './ColonyTradeManifestModel';
 import {Resource} from '../Resource';
-import {ResolutionCountMetricModel, ResolutionCountModel} from '../parliament/resolutionCounts';
+import {ResolutionCountByResource, ResolutionCountMetricModel, ResolutionCountModel} from '../parliament/resolutionCounts';
 import {ParameterMoveId} from '../parliament/parameterMove';
 import {PartyName} from '../turmoil/PartyName';
 import {Message} from '../logs/Message';
@@ -101,6 +101,14 @@ export type ParliamentPlayerModel = {
    * the same reading.
    */
   production?: Readonly<Partial<Record<Resource, number>>>;
+  /**
+   * THE SEAT'S SUPPLY a LEVY of the catalog takes from (the Budgets' «lose 10
+   * M€» — `resolutionLevy.ts`): only the resources some declaration names;
+   * absent for a seat outside the parliament. The vote panel's net line and
+   * the stand read the seat's shortfall from THIS number — the same supply
+   * the levy step will read at the enactment.
+   */
+  stock?: Readonly<Partial<Record<Resource, number>>>;
   /**
    * THE SEAT'S COLONY LEDGER — every colony tile the seat has a cube on, in
    * the table's order, with the tile's PRINTED colony bonus as a grant
@@ -216,9 +224,15 @@ export type ParliamentEnactOutcomeModel = {
   resource?: CardResource;
   /** `production` (and its skip): the standard resource whose production the effect raises. */
   production?: Resource;
-  /** `stock` (and its skip): the standard resource the effect adds to the supply. */
+  /**
+   * `stock` (and its skip): the standard resource the effect adds to the
+   * supply — or TAKES from it: a LEVY (the Budgets' «lose 10 M€») is a `stock`
+   * record with a NEGATIVE `amount`, never a skip.
+   */
   stock?: Resource;
   amount?: number;
+  /** A LEVY: what was OWED beside `amount` (what was taken) — above `−amount` exactly when the seat was short (see `reason`). */
+  owed?: number;
   /** `cardResource`: the ONE card the whole amount landed on (absent when spread over several — see `cards`). */
   card?: CardName;
   /** `cardResource`: WHERE the units landed, card by card — every reader's list; one recipient is a list of one. */
@@ -237,6 +251,8 @@ export type ParliamentEnactOutcomeModel = {
   countedSpaces?: ReadonlyArray<SpaceId>;
   /** A THRESHOLD count: the BREAKDOWN of the metric at the enactment (no list — the value, the threshold, the step and the sets explain the number). */
   countedMetric?: ResolutionCountMetricModel;
+  /** A PRODUCTION count: each resource's own steps at the enactment («steel 2 · titanium 1 · energy 3») — frozen, never re-read. */
+  countedByResource?: ReadonlyArray<ResolutionCountByResource>;
   /** The formula's sum before the cap (above `amount` exactly when the cap bit). */
   uncapped?: number;
   /** `production` / `stock`: the value before and after. */

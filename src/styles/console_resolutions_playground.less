@@ -177,6 +177,23 @@
         &--threshold { border-radius: .4rem 0 0 .4rem; opacity: .8; }
     }
     &__metric-words { font-size: .66rem; letter-spacing: .03em; color: fade(@con-text, 82%); }
+    /* the production count: every seat's synthetic TRACK, term by term — each resource in its printed production plate */
+    &__prodterm {
+        display: inline-flex; align-items: center; gap: .28rem;
+        b { font-size: 1.15rem; font-weight: 800; letter-spacing: .02em; }
+    }
+    &__prodterm-unit {
+        display: inline-block; width: 1.25rem; height: 1.25rem; flex-shrink: 0;
+        border-radius: .2rem;
+        background-color: #6f4725;
+        background-size: 70% 70%;
+        background-repeat: no-repeat;
+        background-position: center;
+        box-shadow:
+            inset 0 0 0 .07rem rgba(214, 158, 96, 0.78),
+            inset 0 .12rem .2rem rgba(255, 224, 180, 0.22),
+            0 .05rem .14rem rgba(0, 0, 0, 0.5);
+    }
     &__quest { align-self: stretch; max-width: 34rem; }
 
     /* 4. the shared picker */

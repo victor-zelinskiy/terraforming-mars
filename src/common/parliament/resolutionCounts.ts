@@ -14,7 +14,7 @@
  * (or, off the table, this predicate), and every reading keeps the LIST of
  * counted cards so the number can always be explained.
  *
- * FOUR KINDS OF COUNT, told apart by `resolutionCountKind` because the
+ * FIVE KINDS OF COUNT, told apart by `resolutionCountKind` because the
  * objects answer them differently:
  *   · CARDS — «for every Building card with a VP icon»: one card is ONE unit,
  *     however many tags or victory points it prints (Architecture Award);
@@ -39,9 +39,18 @@
  *     threshold, the step, the full sets and the distance to the next one).
  *     ONE function (`thresholdSets`) is the rule — the server's payout, the
  *     reading and the stand all call it; the value itself is THE ENGINE's
- *     (`player.terraformRating`), never rebuilt from its parts. The next
- *     metric (the Budgets' production steps) is one more `ResolutionCountMetric`
- *     and one more line in the server's reader.
+ *     (`player.terraformRating`), never rebuilt from its parts;
+ *   · PRODUCTION — «for each step of steel, titanium and energy production
+ *     you have» (Industrialist Budget): the count is the SUM of the player's
+ *     production STEPS over a LIST of resources — the twin of TAGS, not of
+ *     THRESHOLD: what explains it is a BREAKDOWN BY TERM («steel 2 · titanium
+ *     1 · energy 3 = 6», `ResolutionCountModel.byResource`), exactly as a
+ *     multi-tag count explains itself tag by tag. The values are THE
+ *     ENGINE's (`player.production`), never assembled from cards; the stand
+ *     reads synthetic productions through the same function
+ *     (`countProductionToward`). The next budget's list (building + Mars
+ *     tags, plant + microbe + animal tags) is a TAG count — this kind is for
+ *     production only.
  *
  * WHAT A CARD IS, for a count: its name, type, printed tags and VP
  * declaration — the facts `ICard` and `ClientCard` share. Played-event tags
@@ -57,6 +66,7 @@ import {CardName} from '../cards/CardName';
 import {CardType} from '../cards/CardType';
 import {Tag} from '../cards/Tag';
 import {hasNonNegativeVictoryPointsIcon, VictoryPointsDeclaration, victoryPointsIconOf} from '../cards/victoryPointsIcon';
+import {Resource} from '../Resource';
 import {SpaceId} from '../Types';
 import {SpaceType} from '../boards/SpaceType';
 import {CITY_TILES, TileType} from '../TileType';
@@ -86,6 +96,13 @@ export const RESOLUTION_COUNT_IDS = [
    * never the variant's starting rating.
    */
   'terraformRatingSets',
+  /**
+   * Industrialist Budget: the player's STEPS of steel, titanium and energy
+   * PRODUCTION, added up — a count over the production track, never over the
+   * supply (the cubes in stock do not count) and never over cards (a card
+   * that raised the production is not what is counted, the steps are).
+   */
+  'steelTitaniumEnergyProduction',
 ] as const;
 export type ResolutionCountId = typeof RESOLUTION_COUNT_IDS[number];
 
@@ -138,17 +155,23 @@ export type ResolutionCountMetric = 'terraformRating';
  * per cell (Colonization Funding's space cities). `threshold` — the FULL
  * STEPS of `step` a player metric stands above `over` (Generous Funding's
  * «each complete set of 5 TR over 15»): one unit per full set, the remainder
- * yields nothing.
+ * yields nothing. `production` — the player's PRODUCTION STEPS of the listed
+ * resources, ADDED UP (Industrialist Budget's steel + titanium + energy): one
+ * unit per step, each resource's own total kept for the reading.
  */
 export type ResolutionCountKind =
   | {kind: 'cards'}
   | {kind: 'tags', tags: ReadonlyArray<Tag>}
   | {kind: 'board', tiles: BoardCountedTile}
-  | {kind: 'threshold', metric: ResolutionCountMetric, over: number, step: number};
+  | {kind: 'threshold', metric: ResolutionCountMetric, over: number, step: number}
+  | {kind: 'production', resources: ReadonlyArray<Resource>};
 
 /** Generous Funding's printed «5 TR over 15» — the threshold and the set. */
 export const TERRAFORM_RATING_SETS_OVER = 15;
 export const TERRAFORM_RATING_SETS_STEP = 5;
+
+/** Industrialist Budget's printed «[steel] + [titanium] + [energy]» production box — the list, in the face's order. */
+export const INDUSTRIAL_PRODUCTION_RESOURCES: ReadonlyArray<Resource> = [Resource.STEEL, Resource.TITANIUM, Resource.ENERGY];
 
 export function resolutionCountKind(id: ResolutionCountId): ResolutionCountKind {
   switch (id) {
@@ -157,6 +180,7 @@ export function resolutionCountKind(id: ResolutionCountId): ResolutionCountKind 
   case 'venusJovianTags': return {kind: 'tags', tags: [Tag.VENUS, Tag.JOVIAN]};
   case 'spaceCities': return {kind: 'board', tiles: 'spaceCity'};
   case 'terraformRatingSets': return {kind: 'threshold', metric: 'terraformRating', over: TERRAFORM_RATING_SETS_OVER, step: TERRAFORM_RATING_SETS_STEP};
+  case 'steelTitaniumEnergyProduction': return {kind: 'production', resources: INDUSTRIAL_PRODUCTION_RESOURCES};
   }
 }
 
@@ -208,6 +232,29 @@ export function countMetricToward(id: ResolutionCountId, value: number): Resolut
 /** ONE tag's share of a multi-tag count («Venus 1 · Jovian 2»). */
 export type ResolutionCountByTag = {tag: Tag; count: number};
 
+/** ONE resource's share of a production count («steel 2 · titanium 1 · energy 3») — the twin of `ResolutionCountByTag`. */
+export type ResolutionCountByResource = {resource: Resource; count: number};
+
+/**
+ * Count the player's PRODUCTION STEPS toward a production count `id` — the
+ * server's reading of the engine's track and the stand's reading of synthetic
+ * productions, through ONE function. `production` is the player's steps per
+ * resource (a resource the map does not name reads as 0). The engine keeps
+ * steel, titanium and energy production at 0 or above; nothing here floors
+ * them a second time — the sum is the sum of what the engine holds, and
+ * `tests/parliament/IndustrialistBudget.spec.ts` pins that it is never
+ * negative. A non-production id counts nothing this way (a zero, never a guess).
+ */
+export function countProductionToward(id: ResolutionCountId, production: Readonly<Partial<Record<Resource, number>>>): ResolutionCountModel {
+  const kind = resolutionCountKind(id);
+  if (kind.kind !== 'production') {
+    return {id, count: 0, cards: []};
+  }
+  const byResource: Array<ResolutionCountByResource> = kind.resources.map((resource) => ({resource, count: Math.floor(production[resource] ?? 0)}));
+  const count = byResource.reduce((sum, entry) => sum + entry.count, 0);
+  return {id, count, cards: [], byResource};
+}
+
 /**
  * ONE player's count for a term — the number, and what made it: the cards (in
  * play order) for a card or tag count, the CELLS for a board count. ONE model
@@ -230,6 +277,13 @@ export type ResolutionCountModel = {
    * Absent on a single-tag count (the sum IS the one tag) and on a card count.
    */
   byTag?: ReadonlyArray<ResolutionCountByTag>;
+  /**
+   * A PRODUCTION count: each listed resource's production steps, in the
+   * term's order — the breakdown a reading prints beside the sum («[steel]
+   * 2 + [titanium] 1 + [energy] 3»). Present on a production count only
+   * (every listed resource, a 0 included); `cards` is empty on it.
+   */
+  byResource?: ReadonlyArray<ResolutionCountByResource>;
   /**
    * A BOARD count: the cells that made it (their ids, in the board's order) —
    * the list that explains the number where no card can. Present on a board
@@ -267,6 +321,9 @@ export function spaceCountVerdict(id: ResolutionCountId, space: CountedSpaceFact
   const kind = resolutionCountKind(id);
   if (kind.kind === 'threshold') {
     return {counts: false, reason: 'Counted by your terraform rating, not on the board'};
+  }
+  if (kind.kind === 'production') {
+    return {counts: false, reason: 'Counted by your production, not on the board'};
   }
   if (kind.kind !== 'board') {
     return {counts: false, reason: 'Counted among cards, not on the board'};
@@ -373,6 +430,9 @@ export function cardCountVerdict(id: ResolutionCountId, card: CountedCardFacts, 
   case 'terraformRatingSets':
     // A THRESHOLD count: no card counts — the player's rating does (`countMetricToward`).
     return {counts: false, reason: 'Counted by your terraform rating, not among cards'};
+  case 'steelTitaniumEnergyProduction':
+    // A PRODUCTION count: no card counts — the player's production steps do (`countProductionToward`).
+    return {counts: false, reason: 'Counted by your production, not among cards'};
   }
 }
 

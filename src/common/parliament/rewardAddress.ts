@@ -164,8 +164,10 @@ export type RewardPayload = {
   card?: string;
   /** WHERE a `cardResource` landed, card by card — the whole list (one recipient is a list of one). */
   cards?: ReadonlyArray<{card: string; amount: number}>;
-  /** The amount actually paid — a skip carries the amount it would have paid, when the record knows it. */
+  /** The amount actually paid — NEGATIVE for a LOSS (a levy: what left the seat); a skip carries the amount it would have paid, when the record knows it. */
   amount?: number;
+  /** A LEVY: what was OWED beside the (negative) amount taken — above it exactly when the seat was short. */
+  owed?: number;
   /** The tile's own parameter, before and after (`ocean` / `greenery`). */
   parameter?: {id: string; before: number; after: number};
   /** The answering party (`reaction`). */
@@ -188,6 +190,13 @@ export type RewardDelivery = {
   source: RewardFlightSource;
   /** The record belongs to the viewer: a flight, a plate — else a line about another seat. */
   mine: boolean;
+  /**
+   * WHICH WAY THE WAVE FLIES. `gain` — the address as printed (source → surface: the card's icon → the rail).
+   * `loss` — a LEVY (a `stock` record with a negative amount): the SAME address walked BACKWARDS — the chip
+   * is born on the rail's row and lands on the card's own icon, and the counter ticks when the chip LEAVES
+   * (a departure is fixed at the start, an arrival at the touchdown). A loss is a payout, never a skip.
+   */
+  direction: 'gain' | 'loss';
   /** The outcome did NOT pay: the plate's reason (an English key) — a `skipped` record's own, or a zero payout of a paying kind. */
   skipped?: string;
   payload: RewardPayload;
@@ -227,6 +236,9 @@ export function rewardAddressOf(outcome: ParliamentEnactOutcomeModel, viewer: Co
   if (outcome.amount !== undefined) {
     payload.amount = outcome.amount;
   }
+  if (outcome.owed !== undefined) {
+    payload.owed = outcome.owed;
+  }
   if (outcome.parameter !== undefined) {
     payload.parameter = {id: outcome.parameter.id, before: outcome.parameter.before, after: outcome.parameter.after};
   }
@@ -245,10 +257,13 @@ export function rewardAddressOf(outcome: ParliamentEnactOutcomeModel, viewer: Co
   // A WORLD RECORD belongs to NO seat (`player` absent) and therefore to every
   // viewer: the planet moved for all of them, and the reading is the same one.
   const world = outcome.player === undefined;
+  // A LEVY is a rail record with a NEGATIVE amount — the address walked backwards (`direction: 'loss'`).
+  const loss = address.surface === 'rail' && outcome.kind !== 'reaction' && (outcome.amount ?? 0) < 0;
   const delivery: RewardDelivery = {
     address,
     source: rewardFlightSourceOf(outcome),
     mine: viewer !== undefined && (world || outcome.player === viewer),
+    direction: loss ? 'loss' : 'gain',
     payload,
   };
   if (outcome.kind === 'skipped') {
@@ -265,8 +280,9 @@ export function rewardAddressOf(outcome: ParliamentEnactOutcomeModel, viewer: Co
     if ((outcome.amount ?? 0) === 0) {
       delivery.skipped = address.skipTitle;
     }
-  } else if (address.unit !== 'tile' && address.unit !== 'none' && (outcome.amount ?? 0) <= 0) {
-    // A paying kind that paid nothing is a skip the record did not name — the address names it.
+  } else if (address.unit !== 'tile' && address.unit !== 'none' && (outcome.amount ?? 0) === 0) {
+    // A paying kind that paid nothing is a skip the record did not name — the address names it. A NEGATIVE
+    // amount is not «nothing»: it is a LOSS the seat suffered (a levy), read with its sign, never as a skip.
     delivery.skipped = address.skipTitle;
   }
   return delivery;
@@ -277,10 +293,11 @@ export function rewardAddressOf(outcome: ParliamentEnactOutcomeModel, viewer: Co
  * The table refuses an address without a payer, so none of these rows exists yet; the first card of a
  * kind adds the row TOGETHER with its payer, on this sketch (surface · source · unit · stage · reading ·
  * skip plate · the gallery pose it brings):
- *   · `stockLoss` (a budget: «every player loses N …») — surface `rail`, source `carrier` (the chip flies
- *     the WAVE BACKWARDS, rail → the card's icon), unit `stock`, stage `reward`, reading `influence-yield`
- *     with a loss tone (struck amount, amber), skip «ПРОПУЩЕНО · нечего терять»; pose: the reading with a
- *     minus and the rail's counter ticking DOWN on touchdown.
+ *   · (`stockLoss` SHIPPED without a kind of its own — Industrialist Budget, RX15: a LEVY is a `stock` record
+ *     with a NEGATIVE `amount` and its `owed`, the address walked BACKWARDS (`RewardDelivery.direction:
+ *     'loss'`) — the chip is born on the rail's row, lands on the card's own icon, and the counter ticks
+ *     when the chip LEAVES; a seat that held nothing records a `skipped` with the levy's own reason. The
+ *     reading is the levy line of the yield block («−10 → +7 = −3»), never a struck amount.)
  *   · (`globalParameter` SHIPPED — Gas Export, RX12: surface `board`, source `card-icon`, unit `none`,
  *     stage `board`, reading `world-parameter`; the frame yields to the board like a winner tile and the
  *     board-beat park plays the scale story. The record belongs to NO seat — every viewer reads it.)

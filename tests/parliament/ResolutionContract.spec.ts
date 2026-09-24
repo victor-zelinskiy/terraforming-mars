@@ -11,6 +11,7 @@ import {Phase} from '../../src/common/Phase';
 import {PlayerId} from '../../src/common/Types';
 import {AGENDA_TRACK, influenceAtAgenda} from '../../src/common/parliament/ParliamentTypes';
 import {scaledAmount, sequelAmount} from '../../src/common/parliament/influenceScaling';
+import {LEVY_STEP_KEY, levyDeclared, levyPaid} from '../../src/common/parliament/resolutionLevy';
 import {OUTCOME_KINDS, REWARD_ADDRESS, rewardAddressOf} from '../../src/common/parliament/rewardAddress';
 import {Color} from '../../src/common/Color';
 import {ParliamentEnactOutcomeModel, ParliamentPhaseSummaryModel} from '../../src/common/models/ParliamentModel';
@@ -333,6 +334,19 @@ function checkSeam(definition: ResolutionDefinition): Array<string> {
   if (worldMoves && (definition.text.world ?? '') === '') {
     failures.push(`${name}: a world part without its declaration text (the inspector reads it)`);
   }
+  // THE LEVY is declared on TWO layers or on none: the data every surface reads (`levy`) and the family's
+  // shared step, FIRST in the seat's own steps (the printed order is the executed order).
+  const steps = definition.immediateSteps ?? [];
+  const levyAt = steps.findIndex((step) => step.key === LEVY_STEP_KEY);
+  if (definition.levy !== undefined && !levyDeclared(definition.levy)) {
+    failures.push(`${name}: a levy must be a positive whole sum to every participant`);
+  }
+  if ((definition.levy !== undefined) !== (levyAt >= 0)) {
+    failures.push(`${name}: levy and the levy step must be declared together (the reading and the take are one declaration)`);
+  }
+  if (levyAt > 0) {
+    failures.push(`${name}: the levy step must come FIRST — the printed order is the executed order`);
+  }
   const immediate = (hasImmediateSteps(definition) ? 1 : 0) + (definition.worldSteps ?? []).length + (definition.winnerSteps ?? []).length;
   if (immediate === 0 && definition.passive === undefined && definition.action === undefined) {
     failures.push(`${name}: no immediate step, no passive, no action — the REWARD stage would be empty`);
@@ -404,8 +418,11 @@ function checkNoSilentReward(definition: ResolutionDefinition, run: Run): Array<
         if (LOCALE[delivery.skipped] === undefined) {
           failures.push(`${label(definition)}: плита пропуска шага '${outcome.step}' не переведена: «${delivery.skipped}»`);
         }
-      } else if (delivery.address.unit !== 'tile' && (delivery.payload.amount ?? 0) <= 0) {
+      } else if (delivery.address.unit !== 'tile' && (delivery.payload.amount ?? 0) === 0) {
+        // A NEGATIVE amount is a LOSS the seat suffered (a levy) — a payout read with its sign, never «nothing».
         failures.push(`${label(definition)}: запись '${outcome.step}' (${outcome.kind}) без величины и без причины — тихая награда`);
+      } else if (delivery.direction === 'loss' && (outcome.owed === undefined || outcome.owed < -(outcome.amount ?? 0))) {
+        failures.push(`${label(definition)}: потеря '${outcome.step}' (${outcome.amount}) не несёт «было должно» (owed) не меньше взятого`);
       }
     }
   }
@@ -440,6 +457,45 @@ function checkFormula(definition: ResolutionDefinition, run: Run): Array<string>
       if (record.kind === 'skipped' ? (paid !== 0 && paid !== expected) : paid !== expected) {
         failures.push(`${label(definition)}: часть '${effect.id}' заплатила ${paid}, декларация даёт ${expected} (влияние ${seat.influence}, счёт ${record.count ?? 0})`);
       }
+    }
+  }
+  return failures;
+}
+
+/**
+ * THE LEVY (the Budgets): a declared levy is paid by the family's ONE step, FIRST, for every seat — a `stock`
+ * record with the negative amount actually taken and `owed` = the declared sum (`levyPaid` bounds the take
+ * by the seat's supply; the guard's seats hold 20, so the whole sum is taken), or a `skipped` with the same
+ * `owed` when the seat held nothing. Never a positive amount, never a record without `owed`.
+ */
+function checkLevy(definition: ResolutionDefinition, run: Run): Array<string> {
+  const failures: Array<string> = [];
+  const levy = definition.levy;
+  if (levy === undefined) {
+    return failures;
+  }
+  for (const seat of run.seats) {
+    const record = recordsOf(run, seat.id, LEVY_STEP_KEY)[0];
+    if (record === undefined) {
+      failures.push(`${label(definition)}: плата не записана для места ${seat.id} при влиянии ${seat.influence}`);
+      continue;
+    }
+    if (record.owed !== levy.amount) {
+      failures.push(`${label(definition)}: запись платы несёт owed ${record.owed}, декларация даёт ${levy.amount}`);
+    }
+    if (record.stock !== levy.resource) {
+      failures.push(`${label(definition)}: запись платы названа в ${record.stock}, декларация берёт ${levy.resource}`);
+    }
+    const taken = record.kind === 'skipped' ? 0 : -(record.amount ?? 0);
+    const held = record.before ?? (record.kind === 'skipped' ? 0 : undefined);
+    if (record.kind === 'stock' && (record.amount ?? 0) >= 0) {
+      failures.push(`${label(definition)}: плата записана величиной ${record.amount} — потеря обязана быть отрицательной`);
+    }
+    if (held !== undefined && taken !== levyPaid(levy, held)) {
+      failures.push(`${label(definition)}: плата взяла ${taken} при запасе ${held}, арифметика семейства даёт ${levyPaid(levy, held)}`);
+    }
+    if (record.kind === 'stock' && record.before !== undefined && record.after !== undefined && record.before - record.after !== taken) {
+      failures.push(`${label(definition)}: запас ${record.before} → ${record.after} не сходится со взятым ${taken}`);
     }
   }
   return failures;
@@ -517,7 +573,7 @@ describe('ResolutionContract — the author\'s contract over the catalog', () =>
         for (const influence of INFLUENCES) {
           for (const tableau of Object.keys(TABLEAUS) as Array<TableauName>) {
             const run = enact(definition, {influence, tableau, winner: 'neutral'});
-            failures.push(...checkReporting(definition, run, {influence, tableau}), ...checkKinds(definition, run), ...checkFormula(definition, run));
+            failures.push(...checkReporting(definition, run, {influence, tableau}), ...checkKinds(definition, run), ...checkFormula(definition, run), ...checkLevy(definition, run));
           }
         }
         expect(failures, failures.join('\n')).deep.eq([]);
@@ -527,7 +583,7 @@ describe('ResolutionContract — the author\'s contract over the catalog', () =>
         const failures: Array<string> = [];
         for (const influence of [1, 3, 5]) {
           const run = enact(definition, {influence, tableau: 'saturated', winner: 'player'});
-          failures.push(...checkReporting(definition, run, {influence, tableau: 'saturated'}), ...checkKinds(definition, run), ...checkFormula(definition, run));
+          failures.push(...checkReporting(definition, run, {influence, tableau: 'saturated'}), ...checkKinds(definition, run), ...checkFormula(definition, run), ...checkLevy(definition, run));
         }
         expect(failures, failures.join('\n')).deep.eq([]);
       });
@@ -568,7 +624,7 @@ describe('ResolutionContract — the author\'s contract over the catalog', () =>
         for (const influence of [0, 3] as const) {
           for (const tableau of ['empty', 'saturated'] as const) {
             const run = enact(definition, {influence, tableau, winner: 'neutral'});
-            failures.push(...checkReporting(definition, run, {influence, tableau}), ...checkKinds(definition, run), ...checkFormula(definition, run));
+            failures.push(...checkReporting(definition, run, {influence, tableau}), ...checkKinds(definition, run), ...checkFormula(definition, run), ...checkLevy(definition, run));
           }
         }
         const withWinner = enact(definition, {influence: 3, tableau: 'saturated', winner: 'player', reload: true});

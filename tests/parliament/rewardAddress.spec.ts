@@ -175,4 +175,27 @@ describe('rewardAddress — the delivery of a record', () => {
     expect(nameless.skipped, 'a skip with no reason still names itself').eq('Skipped');
     expect(nameless.mine, 'no viewer — nobody\'s').is.false;
   });
+
+  it('a LEVY (Industrialist Budget, RX15) is a `stock` record with a NEGATIVE amount — the address walked BACKWARDS, a loss and never a skip; `owed` rides the payload', () => {
+    const levy = rewardAddressOf(outcome({kind: 'stock', stock: Resource.MEGACREDITS, amount: -10, owed: 10, before: 34, after: 24}), 'blue');
+    expect(levy.skipped, 'a loss is a payout the seat suffered, not «nothing happened»').is.undefined;
+    expect(levy.direction).eq('loss');
+    expect(levy.address, 'the SAME address as a gain — the rail, the card\'s icon, the reward page').eq(REWARD_ADDRESS.stock);
+    expect(levy.source).eq('card-icon');
+    expect(levy.payload).deep.eq({resource: 'megacredits', amount: -10, owed: 10});
+    // A SHORT seat: 4 of 10 taken — still a loss, with the shortfall's reason on the record itself.
+    const short = rewardAddressOf(outcome({kind: 'stock', stock: Resource.MEGACREDITS, amount: -4, owed: 10, reason: 'Not enough M€: the rest of the levy is not taken'}), 'blue');
+    expect(short.direction).eq('loss');
+    expect(short.skipped).is.undefined;
+    expect(short.payload).deep.eq({resource: 'megacredits', amount: -4, owed: 10});
+    // A seat that held NOTHING records the levy's own skip — its reason, the owed sum beside it.
+    const nothing = rewardAddressOf(outcome({kind: 'skipped', stock: Resource.MEGACREDITS, amount: 0, owed: 10, reason: 'No M€ to pay the levy'}), 'blue');
+    expect(nothing.skipped).eq('No M€ to pay the levy');
+    expect(nothing.direction).eq('gain');
+    expect(nothing.payload).deep.eq({resource: 'megacredits', amount: 0, owed: 10});
+    // Every gain reads `gain`; a reaction never reads as a loss whatever its sign.
+    expect(rewardAddressOf(outcome({kind: 'stock', stock: Resource.MEGACREDITS, amount: 7}), 'blue').direction).eq('gain');
+    expect(rewardAddressOf(outcome({kind: 'production', production: Resource.MEGACREDITS, amount: 4}), 'blue').direction).eq('gain');
+    expect(rewardAddressOf(outcome({kind: 'reaction', party: PartyName.GREENS, stock: Resource.MEGACREDITS, amount: -1}), 'blue').direction).eq('gain');
+  });
 });

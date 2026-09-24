@@ -8,7 +8,7 @@ import {ColonyName} from '../../common/colonies/ColonyName';
 import {Resource} from '../../common/Resource';
 import {BotParliamentMode, ParliamentPhaseStep, QuestDefinition, ResolutionInstanceId} from '../../common/parliament/ParliamentTypes';
 import {ParameterMoveId} from '../../common/parliament/parameterMove';
-import {ResolutionCountMetricModel} from '../../common/parliament/resolutionCounts';
+import {ResolutionCountByResource, ResolutionCountMetricModel} from '../../common/parliament/resolutionCounts';
 import type {EventTrigger} from '../../common/events/GameEvent';
 
 /** Bump when the shape changes incompatibly; older saves are refused explicitly. */
@@ -105,9 +105,20 @@ export type SerializedEnactOutcome = {
   resource?: CardResource;
   /** `production` (and its skip): the standard resource whose production the effect raises. */
   production?: Resource;
-  /** `stock` (and its skip): the standard resource the effect adds to the supply. */
+  /**
+   * `stock` (and its skip): the standard resource the effect adds to the
+   * supply — or TAKES from it: a LEVY (the Budgets' «lose 10 M€») is a `stock`
+   * record with a NEGATIVE `amount` (what actually left), never a skip.
+   */
   stock?: Resource;
   amount?: number;
+  /**
+   * A LEVY: what was OWED (the printed sum), beside `amount` (what was taken,
+   * negative). Above `−amount` exactly when the seat could not pay it all —
+   * the shortfall is then named in `reason` on the paying record itself; a
+   * seat that held nothing records a `skipped` with `owed` and `amount: 0`.
+   */
+  owed?: number;
   /** `cardResource`: the ONE card the whole amount landed on (absent when it was spread over several — see `cards`). */
   card?: CardName;
   /**
@@ -150,6 +161,13 @@ export type SerializedEnactOutcome = {
    * never re-read from a later rating.
    */
   countedMetric?: ResolutionCountMetricModel;
+  /**
+   * A PRODUCTION count (Industrialist Budget's steel + titanium + energy
+   * steps): each resource's own steps at the enactment, in the term's order —
+   * the breakdown the reading prints beside the sum. Frozen here, never
+   * re-read from a later production.
+   */
+  countedByResource?: Array<ResolutionCountByResource>;
   /** The formula's sum before the cap (above `amount` exactly when the cap bit). */
   uncapped?: number;
   /** `production` / `stock`: the value before and after the change. */

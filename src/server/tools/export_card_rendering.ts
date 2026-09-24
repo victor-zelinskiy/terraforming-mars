@@ -203,6 +203,7 @@ class ParliamentProcessor {
       // the client computes nothing about a resolution it cannot read here.
       ...(definition.code === undefined ? {} : {code: definition.code}),
       ...(definition.scaled === undefined ? {} : {scaled: [...definition.scaled]}),
+      ...(definition.levy === undefined ? {} : {levy: {...definition.levy}}),
       ...(definition.winnerReward === undefined ? {} : {winnerReward: {...definition.winnerReward}}),
       ...(definition.worldMoves === undefined ? {} : {worldMoves: definition.worldMoves.map((move) => ({...move}))}),
       module: definition.module,

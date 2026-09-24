@@ -87,7 +87,15 @@ export type CountedObjectGlyph =
   | {kind: 'tag', tag: Tag}
   | {kind: 'tags', tags: ReadonlyArray<Tag>}
   | {kind: 'tile', tile: BoardCountedTile}
-  | {kind: 'metric', metric: ResolutionCountMetric};
+  | {kind: 'metric', metric: ResolutionCountMetric}
+  /**
+   * PRODUCTION STEPS over a list of resources («per step of steel, titanium
+   * and energy production» — Industrialist Budget): the resources' own icons
+   * joined by «+» INSIDE the production frame the face prints for `b.production(…)`,
+   * so the reading and the card draw the same object. Bare cubes would read
+   * as the supply; a card as another rule.
+   */
+  | {kind: 'production', resources: ReadonlyArray<Resource>};
 
 /**
  * The badge of a counted METRIC — the SAME asset the face's mechanics print

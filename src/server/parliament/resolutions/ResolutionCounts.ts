@@ -34,11 +34,17 @@
  * rebuilt from its parts) and divides it by the shared rule
  * (`countMetricToward` → `thresholdSets`), keeping the breakdown that
  * explains the number where no list can.
+ *
+ * A PRODUCTION count (Industrialist Budget's steel + titanium + energy
+ * steps) walks nothing either: it reads the listed PRODUCTIONS off the engine
+ * (`player.production` — never assembled from the cards that raised them)
+ * and adds them up through the shared reader (`countProductionToward`),
+ * keeping each resource's own steps as the breakdown.
  */
 import {CardName} from '../../../common/cards/CardName';
 import {
-  BoardCountedTile, cardCountUnits, countCardsToward, countMetricToward, ResolutionCountId, ResolutionCountMetric, ResolutionCountModel,
-  resolutionCountKind, RESOLUTION_COUNT_IDS, RESOLUTION_TAG_COUNTING_MODE,
+  BoardCountedTile, cardCountUnits, countCardsToward, countMetricToward, countProductionToward, ResolutionCountId, ResolutionCountMetric,
+  ResolutionCountModel, resolutionCountKind, RESOLUTION_COUNT_IDS, RESOLUTION_TAG_COUNTING_MODE,
 } from '../../../common/parliament/resolutionCounts';
 import {Resource} from '../../../common/Resource';
 import {IPlayer} from '../../IPlayer';
@@ -70,6 +76,15 @@ export function resolutionCount(player: IPlayer, id: ResolutionCountId): Resolut
   if (kind.kind === 'threshold') {
     // ONE metric, THE shared division — the breakdown rides the model.
     return countMetricToward(id, metricValue(player, kind.metric));
+  }
+  if (kind.kind === 'production') {
+    // THE ENGINE'S OWN TRACK, resource by resource — the shared reader adds
+    // them up and keeps each one's steps for the reading.
+    const production: Partial<Record<Resource, number>> = {};
+    for (const resource of kind.resources) {
+      production[resource] = player.production.get(resource);
+    }
+    return countProductionToward(id, production);
   }
   if (kind.kind === 'board') {
     // THE CANONICAL NUMBER AND ITS CELLS, from the engine — never a walk of
@@ -111,6 +126,23 @@ export function declaredSequelProductions(catalog: ResolutionCatalog): Array<Res
       if (total?.kind === 'production' && !out.includes(total.resource)) {
         out.push(total.resource);
       }
+    }
+  }
+  return out;
+}
+
+/**
+ * Every SUPPLY a LEVY of `catalog` takes from (the Budgets' M€). The seat's
+ * model carries exactly these stocks — the inputs of the levies that exist,
+ * and nothing else: the vote panel's net line and the stand read the seat's
+ * shortfall from the same supply the levy step will read at the enactment.
+ */
+export function declaredLevyResources(catalog: ResolutionCatalog): Array<Resource> {
+  const out: Array<Resource> = [];
+  for (const definition of catalog.all()) {
+    const levy = definition.levy;
+    if (levy !== undefined && !out.includes(levy.resource)) {
+      out.push(levy.resource);
     }
   }
   return out;

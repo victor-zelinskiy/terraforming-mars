@@ -19,7 +19,7 @@ import {PARTY_EFFECTS} from './parties/PartyEffects';
 import {parliamentGateAwaiting} from './ParliamentPhase';
 import {SerializedEnactOutcome, SerializedPhaseSummary} from './SerializedParliament';
 import {Resource} from '../../common/Resource';
-import {declaredCountIds, declaredSequelProductions, declaresColonyBonuses, resolutionCount} from './resolutions/ResolutionCounts';
+import {declaredCountIds, declaredLevyResources, declaredSequelProductions, declaresColonyBonuses, resolutionCount} from './resolutions/ResolutionCounts';
 
 function colorOf(game: IGame, delegate: Delegate): Color | 'neutral' {
   return delegate === 'NEUTRAL' ? 'neutral' : game.getPlayerById(delegate).color;
@@ -209,6 +209,16 @@ function playerModel(game: IGame, parliament: Parliament, player: IPlayer): Parl
       reads[resource] = player.production.get(resource);
     }
     model.production = reads;
+  }
+  // …and the SUPPLY a LEVY takes from (the Budgets' M€): the same number the
+  // levy step will read, so the panel's shortfall warning and the payout agree.
+  const levied = participates ? declaredLevyResources(parliament.catalog) : [];
+  if (levied.length > 0) {
+    const reads: Partial<Record<Resource, number>> = {};
+    for (const resource of levied) {
+      reads[resource] = player.stock.get(resource);
+    }
+    model.stock = reads;
   }
   // …and the COLONY LEDGER a resolution paying «all your colony bonuses»
   // multiplies (Colonial Affairs): the tiles the seat has a cube on, in the

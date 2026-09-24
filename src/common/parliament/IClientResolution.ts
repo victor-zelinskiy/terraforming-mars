@@ -2,6 +2,7 @@ import {Expansion, GameModule} from '../cards/GameModule';
 import {ICardRenderRoot} from '../cards/render/Types';
 import {PartyActionId, QuestDefinition, ReduxParty, ResolutionCode, ResolutionId} from './ParliamentTypes';
 import {InfluenceScaledEffect} from './influenceScaling';
+import {ResolutionLevy} from './resolutionLevy';
 import {PartyReaction} from './partyReactions';
 import {WinnerRewardDeclaration} from './winnerReward';
 import {WorldParameterMove} from './parameterMove';
@@ -50,6 +51,12 @@ export type IClientResolution = {
    * computes the viewer's number from the one formula. Absent = nothing scales.
    */
   scaled?: ReadonlyArray<InfluenceScaledEffect>;
+  /**
+   * THE LEVY as data (`resolutionLevy.ts`) — the fixed sum every participant
+   * loses FIRST (the Budgets). The same declaration the shared levy step
+   * takes by; absent = nothing is taken.
+   */
+  levy?: ResolutionLevy;
   /**
    * The WINNER's tile as data (`winnerReward.ts`) — the same declaration the
    * winner's step places. Absent = no winner part, or one not declared as data.

@@ -2,6 +2,7 @@ import {Expansion, GameModule} from '../../../common/cards/GameModule';
 import {ICardRenderRoot} from '../../../common/cards/render/Types';
 import {QuestDefinition, ReduxParty, ResolutionCode, ResolutionId} from '../../../common/parliament/ParliamentTypes';
 import {InfluenceScaledEffect} from '../../../common/parliament/influenceScaling';
+import {ResolutionLevy} from '../../../common/parliament/resolutionLevy';
 import {WinnerRewardDeclaration} from '../../../common/parliament/winnerReward';
 import {WorldParameterMove} from '../../../common/parliament/parameterMove';
 import type {SerializedEnactOutcome} from '../SerializedParliament';
@@ -230,6 +231,16 @@ export interface ResolutionDefinition {
    * so a face, a vote surface, a picker and the payout can never disagree.
    */
   scaled?: ReadonlyArray<InfluenceScaledEffect>;
+  /**
+   * THE LEVY — a fixed sum every participant LOSES at the enactment BEFORE
+   * anything is paid (the Budgets' «Lose 10 M€», `resolutionLevy.ts`). Its
+   * step is the family's ONE shared executor (`levyStep`), declared FIRST in
+   * `immediateSteps` (the printed order is the executed order); the guard
+   * refuses a levy without its step and a levy step without its declaration.
+   * Exported to the manifest: the vote panel's net line, the sitting's
+   * reading, the results and the stand read the same sum the step takes.
+   */
+  levy?: ResolutionLevy;
   /**
    * The WINNER's part as data (`winnerReward.ts`) — the tile `winnerSteps`
    * places. Exported to the manifest, so the vote surface, the inspector, the

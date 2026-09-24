@@ -9,6 +9,7 @@ import {AQUIFER_CONTEST_ID} from '../../src/server/parliament/resolutions/greens
 import {ARCHITECTURE_AWARD_ID} from '../../src/server/parliament/resolutions/marsFirst/ArchitectureAward';
 import {CENTRAL_POWER_GRID_ID} from '../../src/server/parliament/resolutions/industrialists/CentralPowerGrid';
 import {COLONIZATION_FUNDING_ID} from '../../src/server/parliament/resolutions/unity/ColonizationFunding';
+import {HEAT_CAPTURE_ID} from '../../src/server/parliament/resolutions/reds/HeatCapture';
 import {DEV_COMPOUND_RESOLUTION_ID, DEV_SCIENCE_RESOLUTION_ID} from '../../src/server/parliament/resolutions/ResolutionCatalog';
 import {runAllActions} from '../TestingUtils';
 
@@ -114,9 +115,12 @@ export function quietResolutionOf(party: ReduxParty): ResolutionId {
   case PartyName.MARS: return ARCHITECTURE_AWARD_ID;
   case PartyName.INDUSTRIALISTS: return CENTRAL_POWER_GRID_ID;
   case PartyName.UNITY: return COLONIZATION_FUNDING_ID;
-  // The parties WITHOUT a real card yet seat their DEV substitutes (final polish D.2): a spec or a fixture
-  // of the first Reds / Scientists card starts from the table, not from this helper.
-  case PartyName.REDS: return DEV_COMPOUND_RESOLUTION_ID;
+  // The Reds: Heat Capture (M€ by influence, a world step that asks nobody, a passive — quiet for every seat and
+  // for the winner; Gas Export needs Venus). The day RX15 joined the deck the seeded deal put a Reds card in slot
+  // 0, and the DEV substitute that once stood here DRAWS — every generic phase spec stalled at its take.
+  case PartyName.REDS: return HEAT_CAPTURE_ID;
+  // The party WITHOUT a real card yet seats its DEV substitute (final polish D.2): a spec or a fixture of the
+  // first Scientists card starts from the table, not from this helper.
   case PartyName.SCIENTISTS: return DEV_SCIENCE_RESOLUTION_ID;
   default:
     throw new Error(`no resolution of ${party} exists yet, not even a DEV substitute — a spec cannot meet one in the voting area`);

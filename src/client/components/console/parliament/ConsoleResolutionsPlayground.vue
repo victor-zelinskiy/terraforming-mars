@@ -294,6 +294,31 @@
               </div>
             </div>
           </div>
+          <!-- A PRODUCTION count (Industrialist Budget's steel + titanium + energy steps): every seat's synthetic
+               TRACK, term by term — the SHARED reader adds them up, and a zero is listed, never dropped; beside it
+               the SUPPLY the levy reads (what «lose 10 M€» can actually take). No list of cards: the explanation of
+               a production count is its terms. -->
+          <div v-else-if="countEffect !== undefined && countKind === 'production'" class="con-rxpg__tableaus" data-rxpg-productions>
+            <span class="con-rxpg__ckey">{{ $t('Production steps') }}</span>
+            <div v-for="row in productionRows" :key="row.color"
+                 class="con-rxpg__tableau"
+                 :class="{'con-rxpg__tableau--viewer': row.viewer}"
+                 :data-rxpg-production-of="row.color">
+              <span class="con-rxpg__tableau-who">
+                <PlayerCube :color="row.color" :size="12" :glow="false" />
+                <span class="con-rxpg__seat-name">{{ $t(row.label) }}</span>
+                <PremiumCountGlyph v-if="countGlyph !== undefined" class="con-rxpg__tableau-glyph" :glyph="countGlyph" />
+                <b data-rxpg-count>{{ row.count }}</b>
+              </span>
+              <div class="con-rxpg__metric">
+                <span v-for="term in row.terms" :key="term.resource" class="con-rxpg__prodterm" :data-rxpg-production-term="term.resource" :data-rxpg-production-steps="term.count">
+                  <i class="con-rxpg__prodterm-unit" :class="productionUnitClass(term.resource)" aria-hidden="true"></i>
+                  <b>{{ term.count }}</b>
+                </span>
+                <span v-if="row.heldText !== undefined" class="con-rxpg__metric-words" data-rxpg-held>{{ row.heldText }}</span>
+              </div>
+            </div>
+          </div>
           <!-- A BOARD count (Colonization Funding's space cities): every seat's
                synthetic CELLS of the Mars board — the reserved areas off Mars by
                the names the board's information layer gives them, a city ON Mars,
@@ -427,9 +452,10 @@ import {
 } from '@/common/parliament/influenceScaling';
 import {PartyReactionReading, partyReactionsOf} from '@/client/console/parliament/partyReactionModel';
 import {
-  cardCountUnits, cardCountVerdict, CardCountContext, countCardsToward, CountedSpaceFacts, countMetricToward, countSpacesToward, ResolutionCountKind,
-  ResolutionCountMetricModel, ResolutionCountModel, resolutionCountKind, spaceCountVerdict,
+  cardCountUnits, cardCountVerdict, CardCountContext, countCardsToward, CountedSpaceFacts, countMetricToward, countProductionToward, countSpacesToward,
+  ResolutionCountByResource, ResolutionCountKind, ResolutionCountMetricModel, ResolutionCountModel, resolutionCountKind, spaceCountVerdict,
 } from '@/common/parliament/resolutionCounts';
+import {LEVY_STEP_KEY, levyNothingReasonKey, levyPaid, levyShortReasonKey} from '@/common/parliament/resolutionLevy';
 import {SpaceId} from '@/common/Types';
 import {SpaceName} from '@/common/boards/SpaceName';
 import {SpaceType} from '@/common/boards/SpaceType';
@@ -482,6 +508,7 @@ import {playedTargetPreviewFor, playedTargetResourceFor} from '@/client/console/
 import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
 import {translateMessage, translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {stepIndex} from '@/client/console/consoleRouter';
 
 /** The contexts a surface computes a yield for, in the order Y cycles them. */
@@ -518,6 +545,10 @@ type PgSeat = {
   cells?: ReadonlyArray<PgCell>,
   /** The metric-counted family: the seat's terraform rating (a synthetic VALUE), divided by the shared threshold rule. */
   tr?: number,
+  /** The production-counted family: the seat's production TRACK (synthetic steps per resource), added up by the shared reader. */
+  productions?: Readonly<Partial<Record<Resource, number>>>,
+  /** …and the SUPPLY the levy reads (a budget's «lose 10 M€» takes what the seat holds, never more). */
+  megacredits?: number,
   /** The colony-bonuses family: the tiles this seat has a cube on (the server's registry, synthesized from the colony manifest). */
   colonies?: ReadonlyArray<ColonyName>,
 };
@@ -529,7 +560,8 @@ type PgWinner = SeatIndex | 'neutral';
  * icon vs. cards that print the tag vs. CELLS of the board) — or a supply
  * resource by influence + the WINNER's tile.
  */
-type PgFamily = 'influence' | 'counted' | 'counted-tags' | 'counted-board' | 'counted-metric' | 'distributed' | 'winner-tile' | 'sequel' | 'colony-bonuses' | 'world-move';
+type PgFamily = 'influence' | 'counted' | 'counted-tags' | 'counted-board' | 'counted-metric' | 'counted-production' | 'distributed' | 'winner-tile' | 'sequel' |
+  'colony-bonuses' | 'world-move';
 /** The table's global parameters a winner tile reads (oxygen %, temperature °C, oceans placed). */
 type PgTable = {oxygen: number, temperature: number, oceans: number, venus: number};
 const DEFAULT_TABLE: PgTable = {oxygen: 5, temperature: -14, oceans: 3, venus: 10};
@@ -966,6 +998,51 @@ const SCENARIOS: ReadonlyArray<PgScenario> = [
   {key: 'generous-live-vote', family: 'counted-metric', label: 'Live: the vote', viewer: 0,
     seats: [{agenda: 4, bonus: 0, tr: 24}, {agenda: 1, bonus: 0, tr: 20}], winner: 0, context: 'proposal', noRecipient: false,
     live: 'parliament-generous-vote', liveNote: 'Generous Funding up for the vote: your TR 24 is one set and your influence 2 — +6, and +2 more if you win'},
+  // ── THE PRODUCTION-COUNTED FAMILY (Industrialist Budget — the first BUDGET: −10 M€ FIRST, then 1 M€ per step of
+  //    steel + titanium + energy production + influence, then +4 M€ production flat). The instrument is the seat's
+  //    production TRACK and the SUPPLY the levy reads; the scenarios are the levy's edges and the track's. ──
+  // The reference reading: 34 M€ held, steel 2 · titanium 1 · energy 2 = 5, Agenda 4 = influence 2 → −10 → +7 = −3; a win adds 1.
+  {key: 'budget-net', family: 'counted-production', label: 'Levy first, then the payout — net −3', viewer: 0,
+    seats: [{agenda: 4, bonus: 0, productions: {[Resource.STEEL]: 2, [Resource.TITANIUM]: 1, [Resource.ENERGY]: 2}, megacredits: 34},
+      {agenda: 1, bonus: 0, productions: {}, megacredits: 20}], winner: 0, context: 'proposal', noRecipient: false},
+  // 4 M€ held: the levy takes the 4 and says so; the payout still comes (steel 1 + energy 1 + influence 2 = +4) — net 0.
+  {key: 'budget-short', family: 'counted-production', label: 'Short of the levy — 4 M€', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, productions: {[Resource.STEEL]: 1, [Resource.ENERGY]: 1}, megacredits: 4},
+      {agenda: 1, bonus: 0, productions: {}, megacredits: 20}], winner: 1, context: 'proposal', noRecipient: false},
+  // 0 M€ held: nothing to take — a named skip of the levy; the payout and the production still come.
+  {key: 'budget-nothing', family: 'counted-production', label: 'Nothing to pay — 0 M€', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, productions: {[Resource.TITANIUM]: 2}, megacredits: 0},
+      {agenda: 1, bonus: 0, productions: {}, megacredits: 20}], winner: 1, context: 'applied', noRecipient: false},
+  // No production and no influence: the levy is taken, the payout is a named skip, the +4 production comes.
+  {key: 'budget-zero', family: 'counted-production', label: 'No production and no influence', viewer: 0,
+    seats: [{agenda: 0, bonus: 0, productions: {}, megacredits: 20}, {agenda: 3, bonus: 0, productions: {[Resource.STEEL]: 2}, megacredits: 20}],
+    winner: 1, context: 'applied', noRecipient: false},
+  {key: 'budget-influence-only', family: 'counted-production', label: 'Influence alone', viewer: 0,
+    seats: [{agenda: 5, bonus: 0, productions: {}, megacredits: 20}, {agenda: 1, bonus: 0, productions: {}, megacredits: 20}],
+    winner: 1, context: 'proposal', noRecipient: false},
+  {key: 'budget-production-only', family: 'counted-production', label: 'Production steps alone', viewer: 0,
+    seats: [{agenda: 0, bonus: 0, productions: {[Resource.STEEL]: 3, [Resource.TITANIUM]: 2, [Resource.ENERGY]: 1}, megacredits: 20},
+      {agenda: 1, bonus: 0, productions: {}, megacredits: 20}], winner: 1, context: 'proposal', noRecipient: false},
+  {key: 'budget-seats', family: 'counted-production', label: 'Every player gets their own result', viewer: 0,
+    seats: [{agenda: 1, bonus: 0, productions: {[Resource.STEEL]: 2, [Resource.ENERGY]: 1}, megacredits: 30},
+      {agenda: 8, bonus: 0, productions: {[Resource.TITANIUM]: 4}, megacredits: 7}], winner: 0, context: 'applied', noRecipient: false},
+  {key: 'budget-applied', family: 'counted-production', label: 'Recorded result', viewer: 0,
+    seats: [{agenda: 5, bonus: 0, productions: {[Resource.STEEL]: 2, [Resource.TITANIUM]: 1, [Resource.ENERGY]: 2}, megacredits: 34},
+      {agenda: 0, bonus: 0, productions: {[Resource.ENERGY]: 3}, megacredits: 12}], winner: 1, context: 'applied', noRecipient: false},
+  {key: 'budget-spectator', family: 'counted-production', label: 'Spectator — the formula alone', viewer: SPECTATOR,
+    seats: [{agenda: 3, bonus: 0, productions: {[Resource.STEEL]: 2}, megacredits: 34}, {agenda: 1, bonus: 0, productions: {}, megacredits: 20}],
+    winner: 0, context: 'proposal', noRecipient: false},
+  {key: 'budget-quest-0', family: 'counted-production', label: 'Chairman quest 0/1', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, productions: {[Resource.STEEL]: 2}, megacredits: 34}, {agenda: 1, bonus: 0, productions: {}, megacredits: 20}],
+    winner: 0, context: 'applied', noRecipient: false, quest: {progress: [0, 0]}},
+  {key: 'budget-quest-done', family: 'counted-production', label: 'Chairman quest completed', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, productions: {[Resource.STEEL]: 2}, megacredits: 34}, {agenda: 1, bonus: 0, productions: {}, megacredits: 20}],
+    winner: 0, context: 'applied', noRecipient: false, quest: {progress: [1, 0], completedBy: 0}},
+  // ── LIVE (Industrialist Budget): the engine-generated fixture — 5 steps and Agenda 4, a win adds one influence.
+  {key: 'budget-live-vote', family: 'counted-production', label: 'Live: the vote', viewer: 0,
+    seats: [{agenda: 4, bonus: 0, productions: {[Resource.STEEL]: 2, [Resource.TITANIUM]: 1, [Resource.ENERGY]: 2}, megacredits: 34},
+      {agenda: 1, bonus: 0, productions: {}, megacredits: 20}], winner: 0, context: 'proposal', noRecipient: false,
+    live: 'parliament-budget-vote', liveNote: 'Industrialist Budget up for the vote: 10 M€ first, then your 5 production steps and your influence 2 — net −3, and +1 more if you win'},
 ];
 /** Each family's opening scenario. */
 const DEFAULT_SCENARIO_OF: Readonly<Record<PgFamily, number>> = {
@@ -974,6 +1051,7 @@ const DEFAULT_SCENARIO_OF: Readonly<Record<PgFamily, number>> = {
   'counted-tags': SCENARIOS.findIndex((s) => s.key === 'grid-below-cap'),
   'counted-board': SCENARIOS.findIndex((s) => s.key === 'funding-exact-cap'),
   'counted-metric': SCENARIOS.findIndex((s) => s.key === 'generous-one-set'),
+  'counted-production': SCENARIOS.findIndex((s) => s.key === 'budget-net'),
   'distributed': SCENARIOS.findIndex((s) => s.key === 'cloud-layout'),
   'winner-tile': SCENARIOS.findIndex((s) => s.key === 'tile-influence-3'),
   'sequel': SCENARIOS.findIndex((s) => s.key === 'seq-4-to-6'),
@@ -1030,6 +1108,8 @@ type CellRow = {color: Color, label: string, viewer: boolean, count: number, cel
 /** One boundary of a threshold count's ladder (the threshold itself, then every full set), reached or not by the seat's value. */
 type LadderMark = {at: number, reached: boolean, threshold: boolean};
 type MetricRow = {color: Color, label: string, viewer: boolean, count: number, metric: ResolutionCountMetricModel, ladder: ReadonlyArray<LadderMark>, words: string};
+/** The production-counted family: a seat's synthetic TRACK term by term, the sum, and the supply the levy reads. */
+type ProductionRow = {color: Color, label: string, viewer: boolean, count: number, terms: ReadonlyArray<ResolutionCountByResource>, heldText: string | undefined};
 
 type SeatRow = {
   color: Color,
@@ -1163,6 +1243,7 @@ export default defineComponent({
       case 'counted-tags': return 'Result by tags and influence';
       case 'counted-board': return 'Result by space cities and influence';
       case 'counted-metric': return 'Result by terraform rating and influence';
+      case 'counted-production': return 'Result by production steps and influence, after the levy';
       case 'distributed': return 'Result by tags and influence, laid out over your holders';
       case 'sequel': return 'Result by influence, then by production';
       case 'colony-bonuses': return 'Result by influence, over your colony bonuses';
@@ -1249,6 +1330,28 @@ export default defineComponent({
      * the one the value has not reached yet) and the breakdown in words. The
      * number is `countMetricToward`'s, never typed into the scenario.
      */
+    /**
+     * Every seat's synthetic production TRACK with the SHARED reader's sum of it — each listed resource's steps
+     * (a zero listed, not dropped), the total the payout stands on, and the supply the levy reads. The number is
+     * `countProductionToward`'s, never typed into the scenario.
+     */
+    productionRows(): Array<ProductionRow> {
+      const term = this.countEffect?.count;
+      if (term === undefined || this.countKind !== 'production') {
+        return [];
+      }
+      return SEATS.map((i) => {
+        const count = countProductionToward(term.id, this.seats[i].productions ?? {});
+        return {
+          color: TEST_PLAYERS[i].color,
+          label: TEST_PLAYERS[i].label,
+          viewer: this.viewerSeatIndex === i,
+          count: count.count,
+          terms: count.byResource ?? [],
+          heldText: this.selected?.levy === undefined ? undefined : translateTextWithParams('M€ held: ${0}', [String(this.seats[i].megacredits ?? 20)]),
+        };
+      });
+    },
     metricRows(): Array<MetricRow> {
       const term = this.countEffect?.count;
       if (term === undefined || this.countKind !== 'threshold') {
@@ -1435,9 +1538,35 @@ export default defineComponent({
         },
       };
     },
+    /**
+     * THE LEVY's records (a budget): what the shared step takes FIRST from every seat — the supply bounded take
+     * as a negative `stock` amount with `owed` beside it (a short seat's reason on the record), or the named
+     * skip of a seat that held nothing. The server's order: before every payout.
+     */
+    levyOutcomes(): Array<ParliamentEnactOutcomeModel> {
+      const levy = this.selected?.levy;
+      const out: Array<ParliamentEnactOutcomeModel> = [];
+      if (levy === undefined) {
+        return out;
+      }
+      for (const i of SEATS) {
+        const held = this.seats[i].megacredits ?? 20;
+        const paid = levyPaid(levy, held);
+        const common = {player: TEST_PLAYERS[i].color, step: LEVY_STEP_KEY, part: 'effect' as const, stock: levy.resource, owed: levy.amount};
+        if (paid <= 0) {
+          out.push({...common, kind: 'skipped', amount: 0, reason: levyNothingReasonKey(levy.resource)});
+        } else if (paid < levy.amount) {
+          out.push({...common, kind: 'stock', amount: -paid, before: held, after: held - paid, reason: levyShortReasonKey(levy.resource)});
+        } else {
+          out.push({...common, kind: 'stock', amount: -paid, before: held, after: held - paid});
+        }
+      }
+      return out;
+    },
     /** The SUPPLY payouts (a `stock` unit) the server records — every seat's amount with the supply before and after, or its named skip. */
     supplyOutcomes(): Array<ParliamentEnactOutcomeModel> {
       const out: Array<ParliamentEnactOutcomeModel> = [];
+      const levy = this.selected?.levy;
       for (const effect of this.selected?.scaled ?? []) {
         if (effect.unit.kind !== 'stock') {
           continue;
@@ -1448,11 +1577,16 @@ export default defineComponent({
           if (payout === undefined) {
             continue;
           }
-          const before = 3 * (i + 1);
+          // Behind a LEVY of the same currency the payout lands on what the levy LEFT — the records chain.
+          const held = this.seats[i].megacredits ?? 20;
+          const before = levy !== undefined && levy.resource === resource ? held - levyPaid(levy, held) : 3 * (i + 1);
           const common = {
             player: TEST_PLAYERS[i].color, step: effect.id, part: 'effect' as const, effect: effect.id, stock: resource, amount: payout.amount, influence: payout.influence,
-            // A supply payout with a COUNT term (Generous Funding): the record carries the count and what explains it.
-            ...(payout.count === undefined ? {} : {count: payout.count.count, counted: payout.count.cards, countedMetric: payout.count.metric, uncapped: payout.uncapped}),
+            // A supply payout with a COUNT term (Generous Funding, the budgets): the record carries the count and what explains it.
+            ...(payout.count === undefined ? {} : {
+              count: payout.count.count, counted: payout.count.cards, countedMetric: payout.count.metric, countedByResource: payout.count.byResource,
+              uncapped: payout.uncapped,
+            }),
           };
           out.push(payout.skipped === undefined ?
             {...common, kind: 'stock', before, after: before + payout.amount} :
@@ -1495,6 +1629,8 @@ export default defineComponent({
       if (r === undefined) {
         return out;
       }
+      // THE LEVY FIRST — the printed order is the recorded order.
+      out.push(...this.levyOutcomes);
       out.push(...this.supplyOutcomes);
       const tile = this.winnerOutcome;
       if (tile !== undefined) {
@@ -1747,6 +1883,10 @@ export default defineComponent({
     partyNameKey(party: string): string {
       return partyNameKey(party);
     },
+    /** A production term's icon — the console's own sprite family (the production plate is the term's CSS). */
+    productionUnitClass(resource: Resource): string {
+      return iconClassFor(resource);
+    },
     vmOf(entry: IClientResolution): PremiumCardVM {
       return resolutionPremiumVm(entry);
     },
@@ -1830,6 +1970,12 @@ export default defineComponent({
       if (total !== undefined && total.kind === 'production') {
         model.production = {[total.resource]: this.seats[i].production ?? 0};
       }
+      // …and the SUPPLY a LEVY takes from (a budget's M€), the way the server model carries it: the seat's
+      // synthetic supply under the levy's own resource — what the shortfall warning and the net line read.
+      const levy = this.selected?.levy;
+      if (levy !== undefined) {
+        model.stock = {[levy.resource]: this.seats[i].megacredits ?? 20};
+      }
       // …and the COLONY LEDGER a «colony bonuses» part multiplies — the registry the server ships, built from
       // the colony manifest's printed bonuses (the same descriptors `IColony.colonyBonusGrant` reads).
       if (colonyBonusesEffectOf(this.selected ?? {}) !== undefined) {
@@ -1872,6 +2018,11 @@ export default defineComponent({
       // never typed into the scenario either; the scenario states the rating and the rule does the rest.
       if (kind === 'threshold') {
         return countMetricToward(effect.count.id, this.seats[i].tr ?? 20);
+      }
+      // A PRODUCTION count adds the seat's synthetic TRACK up through the ONE shared reader — the sum and its
+      // per-resource breakdown are the reader's, never typed into the scenario.
+      if (kind === 'production') {
+        return countProductionToward(effect.count.id, this.seats[i].productions ?? {});
       }
       const names = this.seats[i].cards ?? [];
       const cards = names.map((name) => getCard(name)).filter((card): card is NonNullable<typeof card> => card !== undefined);
@@ -1941,7 +2092,7 @@ export default defineComponent({
           fixedYield(effect, 'resolving', payout.amount, payout.influence,
             {
               count: payout.count.count, counted: payout.count.cards, countedUnits: payout.count.units, countedSpaces: payout.count.spaces,
-              countedMetric: payout.count.metric, uncapped: payout.uncapped,
+              countedMetric: payout.count.metric, countedByResource: payout.count.byResource, uncapped: payout.uncapped,
             }) :
           resolvingYieldOf(effect, payout.amount, this.model, TEST_PLAYERS[i].color);
       return payout.skipped === undefined ? reading : {...reading, skipped: payout.skipped};

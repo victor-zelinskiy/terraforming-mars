@@ -19,6 +19,10 @@ import {WorldParameterMove} from '@/common/parliament/parameterMove';
  *   counted-metric — a COUNT of the full STEPS one player METRIC stands above a threshold + influence
  *                   (Generous Funding's sets of 5 TR over 15) — the instrument is a single VALUE, and
  *                   the scenarios are its thresholds (below, at, just over, a set short, several sets);
+ *   counted-production — a COUNT of the player's PRODUCTION STEPS over a list of resources + influence,
+ *                   behind a LEVY (Industrialist Budget: −10 M€, then steel + titanium + energy steps) —
+ *                   the instrument is the production TRACK and the seat's SUPPLY the levy reads; the
+ *                   scenarios are the levy's edges (paid whole, short, nothing to pay) and the track's;
  *   distributed   — a card-resource payout LAID OUT over the player's holders, 0..N per card
  *                   (Cloud Development: floaters by Venus + Jovian tags + influence) — the count
  *                   is a term of it, the SPREAD is what the player works with;
@@ -30,7 +34,8 @@ import {WorldParameterMove} from '@/common/parliament/parameterMove';
  *                   the instrument is the GLOBAL PARAMETERS, and the scenarios are their limits.
  */
 export const RESOLUTION_FAMILIES = [
-  'influence', 'counted', 'counted-tags', 'counted-board', 'counted-metric', 'distributed', 'winner-tile', 'sequel', 'colony-bonuses', 'world-move',
+  'influence', 'counted', 'counted-tags', 'counted-board', 'counted-metric', 'counted-production', 'distributed', 'winner-tile', 'sequel', 'colony-bonuses',
+  'world-move',
 ] as const;
 export type ResolutionFamily = typeof RESOLUTION_FAMILIES[number];
 
@@ -88,6 +93,7 @@ export function familyOf(facts: ResolutionFamilyFacts): ResolutionFamily {
     case 'tags': return 'counted-tags';
     case 'board': return 'counted-board';
     case 'threshold': return 'counted-metric';
+    case 'production': return 'counted-production';
     case 'cards': return 'counted';
     }
   }

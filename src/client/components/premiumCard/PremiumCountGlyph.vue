@@ -24,7 +24,12 @@
         and the step are not drawn here (the face prints «5» inside the badge
         and «over 15» under it; a reading prints the breakdown in words) — a
         card would state a sixth rule, a number inside the badge would collide
-        with the value standing next to the glyph.
+        with the value standing next to the glyph;
+      · `production` — «per STEP of steel, titanium and energy PRODUCTION»
+        (Industrialist Budget): the resources' own icons joined by «+» inside
+        the brown production frame the mechanics print for `b.production(…)`.
+        Bare cubes would read as the SUPPLY (which does not count); a card as
+        a seventh rule.
 
     All sit in the SAME square per medallion (`--pvpcard-size`), so a formula
     row, a reading and the Polygon keep one rhythm whichever object they count.
@@ -32,6 +37,12 @@
   <PremiumVpCardGlyph v-if="glyph.kind === 'vp-card'" :tag="glyph.tag" />
   <span v-else-if="glyph.kind === 'metric'" class="pcglyph pcglyph--metric" :data-count-metric="glyph.metric" aria-hidden="true">
     <span class="pcglyph__metric" :style="{backgroundImage: `url(${metricUrlOf(glyph.metric)})`}"></span>
+  </span>
+  <span v-else-if="glyph.kind === 'production'" class="pcglyph pcglyph--production" :data-count-production="glyph.resources.join(' ')" aria-hidden="true">
+    <template v-for="(resource, i) in glyph.resources" :key="resource">
+      <span v-if="i > 0" class="pcglyph__plus">+</span>
+      <span class="pcglyph__res" :data-count-resource="resource" :style="{backgroundImage: `url(${resourceUrlOf(resource)})`}"></span>
+    </template>
   </span>
   <span v-else-if="glyph.kind === 'tags'" class="pcglyph pcglyph--tags" :data-count-tags="glyph.tags.join(' ')" aria-hidden="true">
     <template v-for="(tag, i) in glyph.tags" :key="tag">
@@ -51,9 +62,10 @@
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
 import {Tag} from '@/common/cards/Tag';
+import {Resource} from '@/common/Resource';
 import {BoardCountedTile, ResolutionCountMetric} from '@/common/parliament/resolutionCounts';
 import PremiumVpCardGlyph from './PremiumVpCardGlyph.vue';
-import {CountedObjectGlyph, countedMetricIconUrl, countedTileIconUrl, tagIconUrl} from './premiumCardIcons';
+import {CountedObjectGlyph, countedMetricIconUrl, countedTileIconUrl, standardResourceIconUrl, tagIconUrl} from './premiumCardIcons';
 
 export default defineComponent({
   name: 'PremiumCountGlyph',
@@ -70,6 +82,10 @@ export default defineComponent({
     },
     metricUrlOf(metric: ResolutionCountMetric): string {
       return countedMetricIconUrl(metric);
+    },
+    /** The SAME sprite the face prints inside its production box — the reading and the card draw one resource. */
+    resourceUrlOf(resource: Resource): string {
+      return standardResourceIconUrl(resource);
     },
   },
 });

@@ -43,6 +43,7 @@ import {FORESTRY_SUPPORT} from './greens/ForestrySupport';
 import {GAS_EXPORT} from './reds/GasExport';
 import {GENEROUS_FUNDING} from './greens/GenerousFunding';
 import {HEAT_CAPTURE} from './reds/HeatCapture';
+import {INDUSTRIALIST_BUDGET} from './industrialists/IndustrialistBudget';
 
 /**
  * THE RETIRED IDS — iteration 0's DUMMY resolutions (a party, a quest, no
@@ -475,6 +476,9 @@ export const REDUX_RESOLUTION_CATALOG = new ResolutionCatalog([
   // The first law that touches the ECONOMY of cards: a world step (temperature −2, no TR) and a passive
   // DISCOUNT (3 M€ off a Building tag) asked by the one price function and itemized under the law's source.
   HEAT_CAPTURE,
+  // The first BUDGET: a LEVY every participant pays FIRST (the family's shared declaration + step), then a payout
+  // by PRODUCTION STEPS (the fifth count kind) + influence, then a flat production part.
+  INDUSTRIALIST_BUDGET,
   TEST_CHOICE,
   DEV_IMMEDIATE,
   DEV_PASSIVE,

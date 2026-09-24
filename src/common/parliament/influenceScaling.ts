@@ -34,7 +34,7 @@ import {Resource} from '../Resource';
 import {Tag} from '../cards/Tag';
 import {SpaceId} from '../Types';
 import {AGENDA_TRACK, influenceAtAgenda} from './ParliamentTypes';
-import {ResolutionCountMetricModel, ResolutionCountTerm} from './resolutionCounts';
+import {ResolutionCountByResource, ResolutionCountMetricModel, ResolutionCountTerm} from './resolutionCounts';
 
 /** WHAT one unit of the yield is. */
 export type InfluenceYieldUnit =
@@ -171,6 +171,8 @@ export type InfluenceYield = {
   countedSpaces?: ReadonlyArray<SpaceId>;
   /** A THRESHOLD count: the BREAKDOWN of the metric (there is no list — the value, the threshold, the step, the sets explain the number). */
   countedMetric?: ResolutionCountMetricModel;
+  /** A PRODUCTION count: each resource's own steps («steel 2 · titanium 1 · energy 3») — the reading's breakdown, the twin of `countedByTag`. */
+  countedByResource?: ReadonlyArray<ResolutionCountByResource>;
   /** The formula's sum before the cap — above `amount` exactly when the cap bit. */
   uncapped?: number;
   /**
@@ -212,6 +214,8 @@ export type YieldCount = {
   spaces?: ReadonlyArray<SpaceId>,
   /** A threshold count's breakdown of the metric (what explains the number where no list can). */
   metric?: ResolutionCountMetricModel,
+  /** A production count's per-resource steps (the reading's breakdown). */
+  byResource?: ReadonlyArray<ResolutionCountByResource>,
 };
 
 function withCount(y: InfluenceYield, effect: InfluenceScaledEffect, count: YieldCount | undefined): InfluenceYield {
@@ -225,6 +229,9 @@ function withCount(y: InfluenceYield, effect: InfluenceScaledEffect, count: Yiel
     }
     if (count.byTag !== undefined) {
       y.countedByTag = count.byTag;
+    }
+    if (count.byResource !== undefined) {
+      y.countedByResource = count.byResource;
     }
     if (count.spaces !== undefined) {
       y.countedSpaces = count.spaces;
@@ -327,6 +334,7 @@ export function fixedYield(
   recorded?: {
     count?: number, counted?: ReadonlyArray<CardName>, countedUnits?: ReadonlyArray<number>,
     countedByTag?: ReadonlyArray<{tag: Tag, count: number}>, countedSpaces?: ReadonlyArray<SpaceId>, countedMetric?: ResolutionCountMetricModel,
+    countedByResource?: ReadonlyArray<ResolutionCountByResource>,
     uncapped?: number, targets?: ReadonlyArray<{card: CardName, amount: number}>,
   },
 ): InfluenceYield {
@@ -342,6 +350,9 @@ export function fixedYield(
   }
   if (recorded?.countedByTag !== undefined) {
     y.countedByTag = recorded.countedByTag;
+  }
+  if (recorded?.countedByResource !== undefined) {
+    y.countedByResource = recorded.countedByResource;
   }
   if (recorded?.countedSpaces !== undefined) {
     y.countedSpaces = recorded.countedSpaces;

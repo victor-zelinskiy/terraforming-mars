@@ -23,7 +23,9 @@ import {
   referenceYield, scaledAmount, sequelYield, winnerForecastYield, yieldAtCap, YieldCount,
 } from '@/common/parliament/influenceScaling';
 import {AGENDA_TRACK, influenceAtAgenda} from '@/common/parliament/ParliamentTypes';
-import {countMetricToward, countOf, ResolutionCountId, ResolutionCountMetric, ResolutionCountMetricModel} from '@/common/parliament/resolutionCounts';
+import {
+  countMetricToward, countOf, INDUSTRIAL_PRODUCTION_RESOURCES, ResolutionCountId, ResolutionCountMetric, ResolutionCountMetricModel,
+} from '@/common/parliament/resolutionCounts';
 import {Tag} from '@/common/cards/Tag';
 import {CountedObjectGlyph} from '@/client/components/premiumCard/premiumCardIcons';
 import {getSpecialCellInfo} from '@/client/components/board/specialCellInfo';
@@ -113,6 +115,15 @@ export function yieldCountPresentation(id: ResolutionCountId): YieldCountPresent
       pluralKey: '${0} complete set(s) of 5 TR over 15',
       ruleKey: 'Each full 5 TR above 15 is one set: TR 20 is 1 set, TR 24 still 1, TR 25 is 2. The remainder pays nothing.',
       skipReasonKey: 'No TR sets and no influence',
+    };
+  case 'steelTitaniumEnergyProduction':
+    // A count over PRODUCTION STEPS: the glyph is the production box the face prints — the three resources joined by «+»,
+    // in their brown frame (bare cubes would count the supply, a card would state another rule).
+    return {
+      glyph: {kind: 'production', resources: INDUSTRIAL_PRODUCTION_RESOURCES},
+      pluralKey: '${0} step(s) of steel, titanium and energy production',
+      ruleKey: 'Each step of steel, titanium and energy production counts, added up. Resources in your supply do not count.',
+      skipReasonKey: 'No steel, titanium or energy production and no influence',
     };
   }
 }
