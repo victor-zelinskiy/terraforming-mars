@@ -3046,6 +3046,62 @@ Development Craze и Urban Development → «1 особый тайл»; **Mohole
 кладутся НА океан) — особые тайлы и засчитываются; океанский город — город, нет. (3) Лунные клетки не `COLONY`:
 любой будущий репорт с Луны без штампа доски прошёл бы как марсианский.
 
+## RX17 · Jovian Tax Rights (Союз) — счётный член по КОЛОНИЯМ: число путём `Counter`, список тайлов (2026-09-24)
+
+Титан = влияние (шаг RX09 дословно) + «+1 пр. M€ за каждую колонию, не более 5». Ново одно: **шестой вид счётного члена
+— по КОЛОНИЯМ игрока** (кубики на тайлах колоний), первый счёт не по табло, не по доске и не по показателю. Полный
+документ — `docs/TURMOIL_REDUX_JOVIAN_TAX_RIGHTS.md`, промт — `docs/claude/prompts/resolution-rx17-jovian-tax-rights.md`.
+
+- **Блок A (`7e6cfaff66`).** `resolutionCountKind('colonies') === {kind: 'colonies'}`; число — ОБЩИЙ хелпер
+  `ColoniesHandler.coloniesOf(game, player)` (один элемент на кубик, порядок стола), на который переведены `Counter`
+  (countable «colonies») и `Player.getColoniesCount` — три читателя, одно правило. Объяснение — список тайлов в той же
+  модели (`ResolutionCountModel.colonies`; запись/модель `countedColonies`; чтение `InfluenceYield.countedColonies`).
+  Реестр RX07 не переиспользован: он по тайлам и про бонусы, счёт — по кубикам и не зависит от RX07 в каталоге. Карта:
+  потолок `cap: 5` на производственной части, `perInfluence: 0` (влияние в производство не входит), ноль колоний —
+  названный пропуск «No colonies» отдельно от «No influence»; задание — 2 метки Юпитера. Глиф `colony`, семейство
+  `counted-colonies`. Спек (21): счёт кубиков = Counter = getColoniesCount, 7 → +5 с `uncapped` 7, шаг колоний фазы не
+  двигает счёт, производство платит со следующего поколения, reload со списком, бот, модель.
+- **Блок B (`2525793bd1`).** Счётная часть со ставкой 0 за влияние — новый случай блока чтения: `yieldInfluenceEnters`
+  гейтит член формулы и вход чтения; горизонт обобщён с платы на «рядом с частью, выплачиваемой сегодня»
+  (`productionHorizonOn` — один предикат для блока, бюджета слов и осмотра); «Для вас» — «Луна ×2 · Титан»
+  (`countedColonyNames`), ноль — про колонии, не про карты. Клиентские юниты модели, осмотра, глифа; гард бюджета панели.
+- **Блок C (`2cbf2f9f09`).** Стенд: семейство `counted-colonies` — стол колоний места, чип на кубик (планета, кубик,
+  имя), кубик сверх потолка зачёркнут; сценарии кубиков против потолка и два независимых пропуска.
+- **Блок D.** Фикстуры `parliament-jovian-vote` / `-assembly` (синий: Луна ×2 · Титан · Миранда, Повестка 5 = влияние 3;
+  на заседании побеждает красный); ОДИН e2e `console-parliament-jovian.spec.ts` — панель: две строки с СВОИМИ входами
+  («[влияние] 3 → +3 титан», «[колония] 4 → +4 пр. M€ · платит со следующего поколения», без входа влияния у производства,
+  без суффикса — шаг 6 сохраняет влияние 3); осмотр: правило + «Учтены сейчас: Луна ×2 · Титан · Миранда»; заседание:
+  «+3» рождается в графике закона и садится на ячейку титана с тиком на касании, только затем «+4» в производственную
+  зону, запись `['titanium', 'production']` со списком, итоги «+3 · +4». Юнит блока `ConsoleInfluenceYield.spec.ts`
+  (формула без члена влияния, чтение без входа влияния, RX02 не тронут). Документы, чеклист, правило 4f.
+
+### Находки
+
+- **Имя карты уже переведено** в `turmoil_events.json` («Налогообложение Юпитера» — глобальное событие Turmoil): ключ
+  имени в `parliament.json` не добавлять, иначе `make:json` бросит дубликат.
+- **Глоссарий запрещает «у вас нет …»** (доступ читается «доступен · …»): «Для вас» при нуле колоний — «Сейчас колоний нет
+  — считать нечего».
+- **Fullscreen-осмотр рисует блок чтения с `formula: false`** — формулу печатает сама карта, поэтому утверждения о формуле
+  без члена влияния живут в юните компонента, не в e2e (первый прогон упал ровно на этом).
+- `isICardRenderText` не существует — строка «max 5» лица есть `CardRenderItem` типа `TEXT` (`isUppercase`).
+- В зоне голосования Повестка 5 → 6 сохраняет влияние 3: суффикса «если победите» у титана нет по построению — прогноз,
+  равный оценке, отбрасывается.
+
+### Прогоны (2026-09-24)
+
+| Что | Результат |
+| --- | --- |
+| `JovianTaxRights.spec` (21) · `ResolutionContract` (112) · `CentralPowerGrid` · `ColonyContest` · `ArchitectureAward` · `IndustrialistBudget` · `GenerousFunding` · `ColonialAffairs` · `ColonizationFunding` · `Counter` · `MicrogravityNutrition` · `UtopiaMarsBot` (242) · `Parliament` · `ParliamentModel` · `ParliamentPhase` · `rewardAddress` · `RetiredResolutions` · `QuestTracker` · `ChairmanQuestGate` · `PartyPresentation` · глоссарий · `e2eFixturesLoad` · `e2eDriverGuard` | зелёные |
+| клиентские юниты: `influenceYieldModel` (+4) · `parliamentAnnotations` (+1) · `PremiumCountGlyph` (+1) · `ConsoleInfluenceYield` (3, новый) · `voteInfoBudget` (гард каталога с RX17) · `voteInfoModel` | зелёные |
+| `npm run lint` · `build:test` (оба дерева) · `make:cards` · `make:json` · `build:server` · `make:css` · `build:client` | зелёные |
+| e2e `console-parliament-jovian` · standard-1080 · свой сервер из `build/` | ✓ 39,5 с |
+
+Кадры: `screenshots/parliament-jovian/standard-1080/` — `02-vote-two-lines` (панель: «[влияние] 3 → +3 [титан]» ·
+«[колония] 4 → +4 [пр. M€] · платит со следующего поколения»), `03-fullscreen-tiles` (правило «две колонии на одном тайле
+дают 2» + «Учтены сейчас: Луна ×2 · Титан · Миранда»), `06-production-lands` (рельса: титан 3 с чипом +3, производство
+M€ +4), `07-results` («player1 +3 [титан] +4 [пр. M€]»), `08-stand-over-cap` (стенд: семь кубиков, два зачёркнуты сверх
+потолка, чтение «7 → +5 · макс.»).
+
 ### Прогоны (2026-09-24)
 
 - Юниты: `DevelopmentCraze` · `QuestTracker` · `ChairmanQuestGate` · `PartyPresentation` · `ResolutionContract` ·

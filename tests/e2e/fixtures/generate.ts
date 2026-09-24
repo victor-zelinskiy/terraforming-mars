@@ -85,6 +85,7 @@ import {GAS_EXPORT_ID} from '../../../src/server/parliament/resolutions/reds/Gas
 import {HEAT_CAPTURE_ID} from '../../../src/server/parliament/resolutions/reds/HeatCapture';
 import {INDUSTRIALIST_BUDGET_ID} from '../../../src/server/parliament/resolutions/industrialists/IndustrialistBudget';
 import {JOINT_RESEARCH_ID} from '../../../src/server/parliament/resolutions/scientists/JointResearch';
+import {JOVIAN_TAX_RIGHTS_ID} from '../../../src/server/parliament/resolutions/unity/JovianTaxRights';
 import {NuclearPower} from '../../../src/server/cards/base/NuclearPower';
 import {COLONIZATION_FUNDING_ID} from '../../../src/server/parliament/resolutions/unity/ColonizationFunding';
 import {GENEROUS_FUNDING_ID} from '../../../src/server/parliament/resolutions/greens/GenerousFunding';
@@ -1267,6 +1268,50 @@ function budgetTable(stopAt: 'vote' | 'assembly'): ParliamentFixtureSpec {
 }
 parliamentFixture('parliament-budget-vote', budgetTable('vote'));
 parliamentFixture('parliament-budget-assembly', budgetTable('assembly'));
+
+// ── RX17 · JOVIAN TAX RIGHTS (Unity — «titanium = influence; +1 M€ production per colony, max 5»): the SIXTH count —
+//    the seat's CUBES on the colony tiles, the engine's own list. Blue: Agenda 5 (influence 3 — a win takes the marker
+//    to step 6, still influence 3, so the panel prints no win suffix), Luna ×2 + Titan + Miranda = 4 cubes; red: Luna
+//    alone, Agenda 1 (influence 1). Two moments:
+//    · the VOTE — the panel reads TWO lines: «[influence] 3 → +3 titanium» and «[colony] 4 → +4 M€ production · max 5»
+//      with its HORIZON («pays from the next generation») and NO influence input on the production line — influence is
+//      not a term of it; the fullscreen names the tiles («Луна ×2 · Титан · Миранда»);
+//    · the ASSEMBLY — RED's delegate wins (blue keeps influence 3, so the sitting pays blue exactly the vote's numbers:
+//      +3 titanium into the supply, then +4 M€ production), every seat passed, the assembly gate standing for both.
+function jovianTable(stopAt: 'vote' | 'assembly'): ParliamentFixtureSpec {
+  return {
+    resolution: JOVIAN_TAX_RIGHTS_ID,
+    votes: [stopAt === 'vote' ? 0 : 1],
+    agenda: [5, 1],
+    stopAt,
+    arrange: ({game, p1, p2}) => {
+      const owned = (colony: IColony, owners: ReadonlyArray<TestPlayer>): IColony => {
+        colony.isActive = true;
+        colony.colonies = owners.map((p) => p.id);
+        return colony;
+      };
+      // Blue holds TWO cubes on Luna (red's between them — the count is by cube, the list groups them «×2»).
+      game.colonies = [owned(new Luna(), [p1, p2, p1]), owned(new Titan(), [p1]), owned(new Miranda(), [p1]), owned(new Callisto(), [])];
+    },
+    expect: ({p1, p2, parliament}) => {
+      const count = resolutionCount(p1, 'colonies');
+      if (count.count !== 4 || count.colonies?.join(',') !== [ColonyName.LUNA, ColonyName.LUNA, ColonyName.TITAN, ColonyName.MIRANDA].join(',')) {
+        throw new Error(`the parliament-jovian fixture (${stopAt}) expected blue's four cubes (Luna ×2 · Titan · Miranda), got ${JSON.stringify(count)}`);
+      }
+      if (resolutionCount(p2, 'colonies').count !== 1) {
+        throw new Error(`the parliament-jovian fixture (${stopAt}) expected red on Luna alone`);
+      }
+      if (parliament.influence(p1) !== 3) {
+        throw new Error(`the parliament-jovian fixture (${stopAt}) expected blue at influence 3, got ${parliament.influence(p1)}`);
+      }
+      if (!parliament.slots.some((slot) => slot.instance.startsWith(JOVIAN_TAX_RIGHTS_ID))) {
+        throw new Error(`the parliament-jovian fixture (${stopAt}) lost Jovian Tax Rights out of the voting area`);
+      }
+    },
+  };
+}
+parliamentFixture('parliament-jovian-vote', jovianTable('vote'));
+parliamentFixture('parliament-jovian-assembly', jovianTable('assembly'));
 
 // ── RX16 · JOINT RESEARCH — the first LEVEL: every seat draws UP TO 6 + influence
 //    cards in hand. Blue at Agenda 4 (influence 2 → target 8) with FIVE cards in
