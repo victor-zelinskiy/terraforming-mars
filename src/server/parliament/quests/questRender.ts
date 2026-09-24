@@ -54,8 +54,9 @@ export function questRenderData(quest: QuestDefinition): ICardRenderRoot {
         case 'city':
           b.city({size: Size.SMALL});
           break;
-        case 'cityOrSpecial':
-          b.city({size: Size.SMALL}).slash().specialTile({size: Size.SMALL});
+        case 'special':
+          // The printed solid brown hex — ONE glyph, never «city / special».
+          b.specialTile({size: Size.SMALL});
           break;
         case 'spaceCity':
           b.city({size: Size.SMALL}).asterix();

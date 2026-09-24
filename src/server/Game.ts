@@ -2068,7 +2068,7 @@ export class Game implements IGame, Logger {
     // Part 4. Place the tile
     this.simpleAddTile(player, space, tile);
     // Turmoil Redux: the chairman quest sees the placement (eligibility is the tracker's).
-    ParliamentHandler.onTileAdded(player, space, tile);
+    ParliamentHandler.onTileAdded(player, space, tile, BoardType.MARS);
 
     // Part 5. Collect the bonuses
     if (this.phase !== Phase.SOLAR) {

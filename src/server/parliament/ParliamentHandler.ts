@@ -19,6 +19,7 @@ import {Resource} from '../../common/Resource';
 import {PartyName} from '../../common/turmoil/PartyName';
 import {Tile} from '../Tile';
 import {Space} from '../boards/Space';
+import {BoardType} from '../boards/BoardType';
 import {ICard} from '../cards/ICard';
 import {IProjectCard} from '../cards/IProjectCard';
 import {PartyActionPromptMeta} from '../../common/models/PlayerInputModel';
@@ -125,12 +126,12 @@ export class ParliamentHandler {
 
   // ───────────────────────── passive hooks ─────────────────────────
 
-  /** A tile landed on a space (any board, any phase) — the quest sees the placement. */
-  public static onTileAdded(player: IPlayer, space: Space, tile: Tile): void {
+  /** A tile landed on a space of `board` (any phase) — the quest sees the placement; the tracker judges the board. */
+  public static onTileAdded(player: IPlayer, space: Space, tile: Tile, board: BoardType): void {
     if (player.game?.parliament === undefined) {
       return;
     }
-    QuestTracker.report(player, {kind: 'tile', space, tileType: tile.tileType});
+    QuestTracker.report(player, {kind: 'tile', space, tileType: tile.tileType, board});
   }
 
   /**

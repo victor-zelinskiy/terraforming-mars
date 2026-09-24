@@ -613,8 +613,8 @@
   ],
   "discardPile": []
  },
- "createdTimeMs": 1790168037208,
- "currentSeed": 606248284103,
+ "createdTimeMs": 1790265460420,
+ "currentSeed": 609911415729,
  "deferredActions": [],
  "donePlayers": [],
  "draftRound": 1,
@@ -623,7 +623,7 @@
  "fundedAwards": [],
  "gagarinBase": [],
  "stJosephCathedrals": [],
- "gameAge": 44,
+ "gameAge": 39,
  "gameLog": [
   {
    "message": "First player this generation is ${0}",
@@ -633,7 +633,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1790168037208
+   "timestamp": 1790265460420
   },
   {
    "message": "Good luck ${0}!",
@@ -643,7 +643,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1790168037209,
+   "timestamp": 1790265460420,
    "playerId": "p-player1-id"
   },
   {
@@ -654,7 +654,7 @@
      "value": "red"
     }
    ],
-   "timestamp": 1790168037209,
+   "timestamp": 1790265460420,
    "playerId": "p-player2-id"
   },
   {
@@ -665,7 +665,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1790168037209,
+   "timestamp": 1790265460420,
    "type": 1
   },
   {
@@ -680,7 +680,7 @@
      "value": "Teractor"
     }
    ],
-   "timestamp": 1790168037209,
+   "timestamp": 1790265460420,
    "correlationId": 1,
    "parentId": 1,
    "role": "root-action",
@@ -698,7 +698,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1790168037209,
+   "timestamp": 1790265460421,
    "correlationId": 1,
    "parentId": 1,
    "role": "detail"
@@ -715,7 +715,7 @@
      "value": "Aridor"
     }
    ],
-   "timestamp": 1790168037210,
+   "timestamp": 1790265460421,
    "correlationId": 2,
    "parentId": 2,
    "role": "root-action",
@@ -733,7 +733,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1790168037210,
+   "timestamp": 1790265460421,
    "correlationId": 2,
    "parentId": 2,
    "role": "detail"
@@ -746,7 +746,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1790168037212,
+   "timestamp": 1790265460423,
    "type": 2,
    "correlationId": 5,
    "parentId": 5,
@@ -765,7 +765,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1790168037212,
+   "timestamp": 1790265460423,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -782,7 +782,7 @@
      "value": "RDX_MARS_DEVELOPMENT_CRAZE"
     }
    ],
-   "timestamp": 1790168037212,
+   "timestamp": 1790265460423,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -799,84 +799,9 @@
      "value": "3"
     }
    ],
-   "timestamp": 1790168037212,
+   "timestamp": 1790265460423,
    "correlationId": 5,
    "parentId": 6,
-   "role": "detail"
-  },
-  {
-   "message": "${0} gain ${1} neutral delegate(s) in Popular Support (${2}/${3})",
-   "data": [
-    {
-     "type": 8,
-     "value": "Unity"
-    },
-    {
-     "type": 1,
-     "value": "1"
-    },
-    {
-     "type": 1,
-     "value": "1"
-    },
-    {
-     "type": 1,
-     "value": "3"
-    }
-   ],
-   "timestamp": 1790168037212,
-   "correlationId": 5,
-   "parentId": 5,
-   "role": "detail"
-  },
-  {
-   "message": "${0} gain ${1} neutral delegate(s) in Popular Support (${2}/${3})",
-   "data": [
-    {
-     "type": 8,
-     "value": "Scientists"
-    },
-    {
-     "type": 1,
-     "value": "1"
-    },
-    {
-     "type": 1,
-     "value": "1"
-    },
-    {
-     "type": 1,
-     "value": "3"
-    }
-   ],
-   "timestamp": 1790168037212,
-   "correlationId": 5,
-   "parentId": 5,
-   "role": "detail"
-  },
-  {
-   "message": "${0} gain ${1} neutral delegate(s) in Popular Support (${2}/${3})",
-   "data": [
-    {
-     "type": 8,
-     "value": "Reds"
-    },
-    {
-     "type": 1,
-     "value": "1"
-    },
-    {
-     "type": 1,
-     "value": "1"
-    },
-    {
-     "type": 1,
-     "value": "3"
-    }
-   ],
-   "timestamp": 1790168037212,
-   "correlationId": 5,
-   "parentId": 5,
    "role": "detail"
   },
   {
@@ -899,7 +824,7 @@
      "value": "3"
     }
    ],
-   "timestamp": 1790168037212,
+   "timestamp": 1790265460423,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -924,7 +849,82 @@
      "value": "3"
     }
    ],
-   "timestamp": 1790168037212,
+   "timestamp": 1790265460423,
+   "correlationId": 5,
+   "parentId": 5,
+   "role": "detail"
+  },
+  {
+   "message": "${0} gain ${1} neutral delegate(s) in Popular Support (${2}/${3})",
+   "data": [
+    {
+     "type": 8,
+     "value": "Reds"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    },
+    {
+     "type": 1,
+     "value": "3"
+    }
+   ],
+   "timestamp": 1790265460423,
+   "correlationId": 5,
+   "parentId": 5,
+   "role": "detail"
+  },
+  {
+   "message": "${0} gain ${1} neutral delegate(s) in Popular Support (${2}/${3})",
+   "data": [
+    {
+     "type": 8,
+     "value": "Scientists"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    },
+    {
+     "type": 1,
+     "value": "3"
+    }
+   ],
+   "timestamp": 1790265460423,
+   "correlationId": 5,
+   "parentId": 5,
+   "role": "detail"
+  },
+  {
+   "message": "${0} gain ${1} neutral delegate(s) in Popular Support (${2}/${3})",
+   "data": [
+    {
+     "type": 8,
+     "value": "Unity"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    },
+    {
+     "type": 1,
+     "value": "3"
+    }
+   ],
+   "timestamp": 1790265460423,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -937,7 +937,7 @@
      "value": "RDX_MARS_DEVELOPMENT_CRAZE"
     }
    ],
-   "timestamp": 1790168037212,
+   "timestamp": 1790265460423,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -950,7 +950,7 @@
      "value": "Mars First"
     }
    ],
-   "timestamp": 1790168037212,
+   "timestamp": 1790265460423,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -964,10 +964,10 @@
     },
     {
      "type": 0,
-     "value": "Place 1 city or special tile"
+     "value": "Place 1 special tile"
     }
    ],
-   "timestamp": 1790168037212,
+   "timestamp": 1790265460423,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -1004,7 +1004,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1790168037213,
+   "timestamp": 1790265460424,
    "correlationId": 5,
    "parentId": 7,
    "role": "detail"
@@ -1041,7 +1041,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1790168037213,
+   "timestamp": 1790265460424,
    "correlationId": 5,
    "parentId": 9,
    "role": "detail"
@@ -1051,10 +1051,10 @@
    "data": [
     {
      "type": 16,
-     "value": "RDX_GREENS_BIODOME_CONTEST"
+     "value": "RDX_SCIENTISTS_JOINT_RESEARCH"
     }
    ],
-   "timestamp": 1790168037213,
+   "timestamp": 1790265460424,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -1064,96 +1064,10 @@
    "data": [
     {
      "type": 16,
-     "value": "RDX_INDUSTRIALISTS_CENTRAL_POWER_GRID"
-    }
-   ],
-   "timestamp": 1790168037213,
-   "correlationId": 5,
-   "parentId": 5,
-   "role": "detail"
-  },
-  {
-   "message": "Resolution ${0} enters the voting area",
-   "data": [
-    {
-     "type": 16,
-     "value": "RDX_UNITY_COLONIAL_AFFAIRS"
-    }
-   ],
-   "timestamp": 1790168037213,
-   "correlationId": 5,
-   "parentId": 5,
-   "role": "detail"
-  },
-  {
-   "message": "${0} neutral delegate(s) from ${1} Popular Support vote for ${2}",
-   "data": [
-    {
-     "type": 1,
-     "value": "1"
-    },
-    {
-     "type": 8,
-     "value": "Unity"
-    },
-    {
-     "type": 16,
-     "value": "RDX_UNITY_COLONIAL_AFFAIRS"
-    }
-   ],
-   "timestamp": 1790168037213,
-   "correlationId": 5,
-   "parentId": 5,
-   "role": "detail"
-  },
-  {
-   "message": "Resolution ${0} is revealed and discarded: its party is already represented",
-   "data": [
-    {
-     "type": 16,
-     "value": "RDX_UNITY_COLONIZATION_FUNDING"
-    }
-   ],
-   "timestamp": 1790168037213,
-   "correlationId": 5,
-   "parentId": 5,
-   "role": "detail"
-  },
-  {
-   "message": "Resolution ${0} is revealed and discarded: its party is already represented",
-   "data": [
-    {
-     "type": 16,
      "value": "RDX_UNITY_COLONY_CONTEST"
     }
    ],
-   "timestamp": 1790168037213,
-   "correlationId": 5,
-   "parentId": 5,
-   "role": "detail"
-  },
-  {
-   "message": "Resolution ${0} is revealed and discarded: its party is already represented",
-   "data": [
-    {
-     "type": 16,
-     "value": "RDX_MARS_ARCHITECTURE_AWARD"
-    }
-   ],
-   "timestamp": 1790168037213,
-   "correlationId": 5,
-   "parentId": 5,
-   "role": "detail"
-  },
-  {
-   "message": "The resolution deck is empty: the discard pile is reshuffled into a new deck of ${0}",
-   "data": [
-    {
-     "type": 1,
-     "value": "4"
-    }
-   ],
-   "timestamp": 1790168037213,
+   "timestamp": 1790265460424,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -1163,10 +1077,10 @@
    "data": [
     {
      "type": 16,
-     "value": "RDX_GREENS_AQUIFER_CONTEST"
+     "value": "RDX_GREENS_BIODOME_CONTEST"
     }
    ],
-   "timestamp": 1790168037213,
+   "timestamp": 1790265460424,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -1184,36 +1098,10 @@
     },
     {
      "type": 16,
-     "value": "RDX_GREENS_AQUIFER_CONTEST"
-    }
-   ],
-   "timestamp": 1790168037213,
-   "correlationId": 5,
-   "parentId": 5,
-   "role": "detail"
-  },
-  {
-   "message": "Resolution ${0} is revealed and discarded: its party is already represented",
-   "data": [
-    {
-     "type": 16,
-     "value": "RDX_GREENS_CLIMATE_RESEARCH"
-    }
-   ],
-   "timestamp": 1790168037213,
-   "correlationId": 5,
-   "parentId": 5,
-   "role": "detail"
-  },
-  {
-   "message": "Resolution ${0} is revealed and discarded: its party is already represented",
-   "data": [
-    {
-     "type": 16,
      "value": "RDX_GREENS_BIODOME_CONTEST"
     }
    ],
-   "timestamp": 1790168037213,
+   "timestamp": 1790265460424,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -1226,7 +1114,7 @@
      "value": "RDX_INDUSTRIALISTS_CENTRAL_POWER_GRID"
     }
    ],
-   "timestamp": 1790168037213,
+   "timestamp": 1790265460424,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -1247,7 +1135,54 @@
      "value": "RDX_INDUSTRIALISTS_CENTRAL_POWER_GRID"
     }
    ],
-   "timestamp": 1790168037213,
+   "timestamp": 1790265460424,
+   "correlationId": 5,
+   "parentId": 5,
+   "role": "detail"
+  },
+  {
+   "message": "Resolution ${0} is revealed and discarded: its party is already represented",
+   "data": [
+    {
+     "type": 16,
+     "value": "RDX_GREENS_CLIMATE_RESEARCH"
+    }
+   ],
+   "timestamp": 1790265460424,
+   "correlationId": 5,
+   "parentId": 5,
+   "role": "detail"
+  },
+  {
+   "message": "Resolution ${0} enters the voting area",
+   "data": [
+    {
+     "type": 16,
+     "value": "RDX_UNITY_COLONIAL_AFFAIRS"
+    }
+   ],
+   "timestamp": 1790265460424,
+   "correlationId": 5,
+   "parentId": 5,
+   "role": "detail"
+  },
+  {
+   "message": "${0} neutral delegate(s) from ${1} Popular Support vote for ${2}",
+   "data": [
+    {
+     "type": 1,
+     "value": "1"
+    },
+    {
+     "type": 8,
+     "value": "Unity"
+    },
+    {
+     "type": 16,
+     "value": "RDX_UNITY_COLONIAL_AFFAIRS"
+    }
+   ],
+   "timestamp": 1790265460424,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -1255,7 +1190,7 @@
   {
    "message": "Every player's free delegate returns to the lobby",
    "data": [],
-   "timestamp": 1790168037213,
+   "timestamp": 1790265460424,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -1268,7 +1203,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1790168037213,
+   "timestamp": 1790265460425,
    "type": 1
   },
   {
@@ -1279,7 +1214,7 @@
      "value": "red"
     }
    ],
-   "timestamp": 1790168037213
+   "timestamp": 1790265460425
   },
   {
    "message": "${0} ${1} ${2} card(s)",
@@ -1297,7 +1232,7 @@
      "value": "0"
     }
    ],
-   "timestamp": 1790168037214
+   "timestamp": 1790265460425
   },
   {
    "message": "${0} ${1} ${2} card(s)",
@@ -1315,7 +1250,7 @@
      "value": "0"
     }
    ],
-   "timestamp": 1790168037214
+   "timestamp": 1790265460425
   }
  ],
  "gameEvents": [
@@ -1618,7 +1553,7 @@
   "Builder",
   "Planner"
  ],
- "name": "Radiant Isotope Trace",
+ "name": "Radiant Laser Loop",
  "oxygenLevel": 0,
  "passedPlayers": [],
  "phase": "action",
@@ -1714,11 +1649,11 @@
    "beginner": false,
    "handicap": 0,
    "timer": {
-    "sumElapsed": 5,
-    "startedAt": 1790168037213,
+    "sumElapsed": 4,
+    "startedAt": 1790265460424,
     "running": false,
     "afterFirstAction": true,
-    "lastStoppedAt": 1790168037214
+    "lastStoppedAt": 1790265460425
    },
    "actionsTakenThisGame": 1,
    "victoryPointsByGeneration": [
@@ -1836,10 +1771,10 @@
    "handicap": 0,
    "timer": {
     "sumElapsed": 4,
-    "startedAt": 1790168037214,
+    "startedAt": 1790265460425,
     "running": true,
     "afterFirstAction": true,
-    "lastStoppedAt": 1790168037214
+    "lastStoppedAt": 1790265460425
    },
    "actionsTakenThisGame": 2,
    "victoryPointsByGeneration": [
@@ -2192,7 +2127,7 @@
   "version": 1,
   "slots": [
    {
-    "instance": "RDX_UNITY_COLONIAL_AFFAIRS#0",
+    "instance": "RDX_GREENS_BIODOME_CONTEST#0",
     "votes": [
      {
       "owner": "NEUTRAL",
@@ -2201,7 +2136,7 @@
     ]
    },
    {
-    "instance": "RDX_GREENS_AQUIFER_CONTEST#0",
+    "instance": "RDX_INDUSTRIALISTS_CENTRAL_POWER_GRID#0",
     "votes": [
      {
       "owner": "NEUTRAL",
@@ -2210,7 +2145,7 @@
     ]
    },
    {
-    "instance": "RDX_INDUSTRIALISTS_CENTRAL_POWER_GRID#0",
+    "instance": "RDX_UNITY_COLONIAL_AFFAIRS#0",
     "votes": [
      {
       "owner": "NEUTRAL",
@@ -2224,7 +2159,7 @@
    "definition": {
     "goal": {
      "kind": "tile",
-     "tile": "cityOrSpecial"
+     "tile": "special"
     },
     "count": 1
    },
@@ -2238,11 +2173,11 @@
   ],
   "voteSeq": 4,
   "popularSupport": {
-   "Unity": 0,
-   "Scientists": 1,
-   "Reds": 1,
    "Greens": 0,
-   "Industrialists": 0
+   "Industrialists": 0,
+   "Reds": 1,
+   "Scientists": 1,
+   "Unity": 0
   },
   "agenda": {
    "p-player1-id": 1,
@@ -2252,13 +2187,19 @@
   "grantedEffects": {},
   "partyActionUses": {},
   "resolutionActionUses": {},
-  "deck": [],
-  "discard": [
-   "RDX_UNITY_COLONIZATION_FUNDING#0",
-   "RDX_UNITY_COLONY_CONTEST#0",
+  "deck": [
    "RDX_MARS_ARCHITECTURE_AWARD#0",
-   "RDX_GREENS_CLIMATE_RESEARCH#0",
-   "RDX_GREENS_BIODOME_CONTEST#0"
+   "RDX_GREENS_AQUIFER_CONTEST#0",
+   "RDX_GREENS_FORESTRY_SUPPORT#0",
+   "RDX_UNITY_COLONIZATION_FUNDING#0",
+   "RDX_GREENS_GENEROUS_FUNDING#0",
+   "RDX_REDS_HEAT_CAPTURE#0",
+   "RDX_INDUSTRIALISTS_INDUSTRIALIST_BUDGET#0"
+  ],
+  "discard": [
+   "RDX_SCIENTISTS_JOINT_RESEARCH#0",
+   "RDX_UNITY_COLONY_CONTEST#0",
+   "RDX_GREENS_CLIMATE_RESEARCH#0"
   ],
   "lastPhase": {
    "generation": 1,
@@ -2271,13 +2212,13 @@
    },
    "support": [
     {
-     "party": "Unity",
+     "party": "Greens",
      "gained": 1,
      "total": 1,
      "reason": "absent"
     },
     {
-     "party": "Scientists",
+     "party": "Industrialists",
      "gained": 1,
      "total": 1,
      "reason": "absent"
@@ -2289,13 +2230,13 @@
      "reason": "absent"
     },
     {
-     "party": "Greens",
+     "party": "Scientists",
      "gained": 1,
      "total": 1,
      "reason": "lost"
     },
     {
-     "party": "Industrialists",
+     "party": "Unity",
      "gained": 1,
      "total": 1,
      "reason": "lost"
@@ -2304,15 +2245,15 @@
    "enacted": "RDX_MARS_DEVELOPMENT_CRAZE#0",
    "refreshed": [
     {
-     "instance": "RDX_UNITY_COLONIAL_AFFAIRS#0",
-     "neutralVotes": 1
-    },
-    {
-     "instance": "RDX_GREENS_AQUIFER_CONTEST#0",
+     "instance": "RDX_GREENS_BIODOME_CONTEST#0",
      "neutralVotes": 1
     },
     {
      "instance": "RDX_INDUSTRIALISTS_CENTRAL_POWER_GRID#0",
+     "neutralVotes": 1
+    },
+    {
+     "instance": "RDX_UNITY_COLONIAL_AFFAIRS#0",
      "neutralVotes": 1
     }
    ],
@@ -2361,60 +2302,38 @@
    "renewal": [
     {
      "kind": "leave",
-     "instance": "RDX_GREENS_BIODOME_CONTEST#0",
+     "instance": "RDX_SCIENTISTS_JOINT_RESEARCH#0",
      "slot": 1,
      "returned": []
     },
     {
      "kind": "leave",
-     "instance": "RDX_INDUSTRIALISTS_CENTRAL_POWER_GRID#0",
+     "instance": "RDX_UNITY_COLONY_CONTEST#0",
      "slot": 2,
      "returned": []
     },
     {
      "kind": "deal",
-     "instance": "RDX_UNITY_COLONIAL_AFFAIRS#0",
+     "instance": "RDX_GREENS_BIODOME_CONTEST#0",
      "slot": 0,
      "source": "deck"
     },
     {
      "kind": "support",
-     "party": "Unity",
-     "instance": "RDX_UNITY_COLONIAL_AFFAIRS#0",
+     "party": "Greens",
+     "instance": "RDX_GREENS_BIODOME_CONTEST#0",
      "count": 1
     },
     {
-     "kind": "reject",
-     "instance": "RDX_UNITY_COLONIZATION_FUNDING#0",
-     "slot": 1,
-     "reason": "party-in-area"
-    },
-    {
-     "kind": "reject",
-     "instance": "RDX_UNITY_COLONY_CONTEST#0",
-     "slot": 1,
-     "reason": "party-in-area"
-    },
-    {
-     "kind": "reject",
-     "instance": "RDX_MARS_ARCHITECTURE_AWARD#0",
-     "slot": 1,
-     "reason": "party-enacted"
-    },
-    {
-     "kind": "reshuffle",
-     "size": 4
-    },
-    {
      "kind": "deal",
-     "instance": "RDX_GREENS_AQUIFER_CONTEST#0",
+     "instance": "RDX_INDUSTRIALISTS_CENTRAL_POWER_GRID#0",
      "slot": 1,
-     "source": "reshuffled"
+     "source": "deck"
     },
     {
      "kind": "support",
-     "party": "Greens",
-     "instance": "RDX_GREENS_AQUIFER_CONTEST#0",
+     "party": "Industrialists",
+     "instance": "RDX_INDUSTRIALISTS_CENTRAL_POWER_GRID#0",
      "count": 1
     },
     {
@@ -2424,21 +2343,15 @@
      "reason": "party-in-area"
     },
     {
-     "kind": "reject",
-     "instance": "RDX_GREENS_BIODOME_CONTEST#0",
-     "slot": 2,
-     "reason": "party-in-area"
-    },
-    {
      "kind": "deal",
-     "instance": "RDX_INDUSTRIALISTS_CENTRAL_POWER_GRID#0",
+     "instance": "RDX_UNITY_COLONIAL_AFFAIRS#0",
      "slot": 2,
-     "source": "reshuffled"
+     "source": "deck"
     },
     {
      "kind": "support",
-     "party": "Industrialists",
-     "instance": "RDX_INDUSTRIALISTS_CENTRAL_POWER_GRID#0",
+     "party": "Unity",
+     "instance": "RDX_UNITY_COLONIAL_AFFAIRS#0",
      "count": 1
     },
     {
@@ -2447,8 +2360,8 @@
     }
    ],
    "discarded": [
-    "RDX_GREENS_BIODOME_CONTEST#0",
-    "RDX_INDUSTRIALISTS_CENTRAL_POWER_GRID#0"
+    "RDX_SCIENTISTS_JOINT_RESEARCH#0",
+    "RDX_UNITY_COLONY_CONTEST#0"
    ]
   },
   "phaseSeq": 1,
@@ -2464,13 +2377,13 @@
     },
     "support": [
      {
-      "party": "Unity",
+      "party": "Greens",
       "gained": 1,
       "total": 1,
       "reason": "absent"
      },
      {
-      "party": "Scientists",
+      "party": "Industrialists",
       "gained": 1,
       "total": 1,
       "reason": "absent"
@@ -2482,13 +2395,13 @@
       "reason": "absent"
      },
      {
-      "party": "Greens",
+      "party": "Scientists",
       "gained": 1,
       "total": 1,
       "reason": "lost"
      },
      {
-      "party": "Industrialists",
+      "party": "Unity",
       "gained": 1,
       "total": 1,
       "reason": "lost"
@@ -2497,15 +2410,15 @@
     "enacted": "RDX_MARS_DEVELOPMENT_CRAZE#0",
     "refreshed": [
      {
-      "instance": "RDX_UNITY_COLONIAL_AFFAIRS#0",
-      "neutralVotes": 1
-     },
-     {
-      "instance": "RDX_GREENS_AQUIFER_CONTEST#0",
+      "instance": "RDX_GREENS_BIODOME_CONTEST#0",
       "neutralVotes": 1
      },
      {
       "instance": "RDX_INDUSTRIALISTS_CENTRAL_POWER_GRID#0",
+      "neutralVotes": 1
+     },
+     {
+      "instance": "RDX_UNITY_COLONIAL_AFFAIRS#0",
       "neutralVotes": 1
      }
     ],
@@ -2554,60 +2467,38 @@
     "renewal": [
      {
       "kind": "leave",
-      "instance": "RDX_GREENS_BIODOME_CONTEST#0",
+      "instance": "RDX_SCIENTISTS_JOINT_RESEARCH#0",
       "slot": 1,
       "returned": []
      },
      {
       "kind": "leave",
-      "instance": "RDX_INDUSTRIALISTS_CENTRAL_POWER_GRID#0",
+      "instance": "RDX_UNITY_COLONY_CONTEST#0",
       "slot": 2,
       "returned": []
      },
      {
       "kind": "deal",
-      "instance": "RDX_UNITY_COLONIAL_AFFAIRS#0",
+      "instance": "RDX_GREENS_BIODOME_CONTEST#0",
       "slot": 0,
       "source": "deck"
      },
      {
       "kind": "support",
-      "party": "Unity",
-      "instance": "RDX_UNITY_COLONIAL_AFFAIRS#0",
+      "party": "Greens",
+      "instance": "RDX_GREENS_BIODOME_CONTEST#0",
       "count": 1
      },
      {
-      "kind": "reject",
-      "instance": "RDX_UNITY_COLONIZATION_FUNDING#0",
-      "slot": 1,
-      "reason": "party-in-area"
-     },
-     {
-      "kind": "reject",
-      "instance": "RDX_UNITY_COLONY_CONTEST#0",
-      "slot": 1,
-      "reason": "party-in-area"
-     },
-     {
-      "kind": "reject",
-      "instance": "RDX_MARS_ARCHITECTURE_AWARD#0",
-      "slot": 1,
-      "reason": "party-enacted"
-     },
-     {
-      "kind": "reshuffle",
-      "size": 4
-     },
-     {
       "kind": "deal",
-      "instance": "RDX_GREENS_AQUIFER_CONTEST#0",
+      "instance": "RDX_INDUSTRIALISTS_CENTRAL_POWER_GRID#0",
       "slot": 1,
-      "source": "reshuffled"
+      "source": "deck"
      },
      {
       "kind": "support",
-      "party": "Greens",
-      "instance": "RDX_GREENS_AQUIFER_CONTEST#0",
+      "party": "Industrialists",
+      "instance": "RDX_INDUSTRIALISTS_CENTRAL_POWER_GRID#0",
       "count": 1
      },
      {
@@ -2617,21 +2508,15 @@
       "reason": "party-in-area"
      },
      {
-      "kind": "reject",
-      "instance": "RDX_GREENS_BIODOME_CONTEST#0",
-      "slot": 2,
-      "reason": "party-in-area"
-     },
-     {
       "kind": "deal",
-      "instance": "RDX_INDUSTRIALISTS_CENTRAL_POWER_GRID#0",
+      "instance": "RDX_UNITY_COLONIAL_AFFAIRS#0",
       "slot": 2,
-      "source": "reshuffled"
+      "source": "deck"
      },
      {
       "kind": "support",
-      "party": "Industrialists",
-      "instance": "RDX_INDUSTRIALISTS_CENTRAL_POWER_GRID#0",
+      "party": "Unity",
+      "instance": "RDX_UNITY_COLONIAL_AFFAIRS#0",
       "count": 1
      },
      {
@@ -2640,8 +2525,8 @@
      }
     ],
     "discarded": [
-     "RDX_GREENS_BIODOME_CONTEST#0",
-     "RDX_INDUSTRIALISTS_CENTRAL_POWER_GRID#0"
+     "RDX_SCIENTISTS_JOINT_RESEARCH#0",
+     "RDX_UNITY_COLONY_CONTEST#0"
     ]
    }
   ],

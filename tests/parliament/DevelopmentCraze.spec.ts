@@ -37,7 +37,12 @@ import {allForecastFacts} from '../../src/common/models/EffectForecastModel';
 import {ImmigrantCity} from '../../src/server/cards/base/ImmigrantCity';
 import {SecurityFleet} from '../../src/server/cards/base/SecurityFleet';
 import {Tardigrades} from '../../src/server/cards/base/Tardigrades';
+import {MarsNomads} from '../../src/server/cards/promo/MarsNomads';
 import {ICard} from '../../src/server/cards/ICard';
+import {QuestTracker} from '../../src/server/parliament/quests/QuestTracker';
+import {BoardType} from '../../src/server/boards/BoardType';
+import {MoonExpansion} from '../../src/server/moon/MoonExpansion';
+import {AresHazards} from '../../src/server/ares/AresHazards';
 import {addCity, addGreenery, addOcean, runAllActions} from '../TestingUtils';
 import {cast} from '../../src/common/utils/utils';
 import {testAutomaGame} from '../automa/AutomaTestGame';
@@ -56,15 +61,18 @@ import {familyOf} from '../../src/client/console/parliament/resolutionFamily';
  * adjacency; a seat without the law is paid once; the doubling ENDS with the
  * law; a card-resource bonus asks twice; a pay-to-use bonus is offered twice
  * when affordable and NAMED as skipped when not; the forecast twin; the quest
- * counts a city and a special tile, never a greenery; MarsBot is never paid.
+ * counts a SPECIAL tile only — never a city (nor the Capital), a greenery, an
+ * ocean, a Moon tile, an Ares hazard or the Nomads' camp move; MarsBot is
+ * never paid.
  */
 const CRAZE = resolutionInstanceId(DEVELOPMENT_CRAZE_ID, 0);
 
-function reduxGame(options: {board?: BoardName, ares?: boolean} = {}): [IGame, TestPlayer, TestPlayer, Parliament] {
+function reduxGame(options: {board?: BoardName, ares?: boolean, moon?: boolean} = {}): [IGame, TestPlayer, TestPlayer, Parliament] {
   const [game, p1, p2] = testGame(2, {
     turmoilReduxExpansion: true, coloniesExtension: true,
     boardName: options.board ?? BoardName.THARSIS,
     aresExtension: options.ares === true,
+    moonExpansion: options.moon === true,
   });
   game.phase = Phase.ACTION;
   return [game, p1, p2, game.parliament!];
@@ -136,14 +144,15 @@ function resolutionFactsOf(player: IPlayer, card: ICard) {
 
 describe('DevelopmentCraze', () => {
   describe('the catalog entry', () => {
-    it('is RX10 of Mars First, ONE card: steel by influence for everyone, a LIVE passive with its forecast, the city-or-special quest', () => {
+    it('is RX10 of Mars First, ONE card: steel by influence for everyone, a LIVE passive with its forecast, the special-tile quest', () => {
       expect(REDUX_RESOLUTION_CATALOG.get(DEVELOPMENT_CRAZE_ID)).eq(DEVELOPMENT_CRAZE);
       expect(DEVELOPMENT_CRAZE_CODE).eq('RX10');
       expect(DEVELOPMENT_CRAZE_CODE).matches(RESOLUTION_CODE_PATTERN);
       expect(REDUX_RESOLUTION_CATALOG.byPrintedCode('RX10')).eq(DEVELOPMENT_CRAZE);
       expect(DEVELOPMENT_CRAZE.party).eq(PartyName.MARS);
       expect(DEVELOPMENT_CRAZE.compatibility, 'a base card').is.undefined;
-      expect(DEVELOPMENT_CRAZE.quest).deep.eq({goal: {kind: 'tile', tile: 'cityOrSpecial'}, count: 1});
+      expect(DEVELOPMENT_CRAZE.quest, 'the printed solid brown hex: ONE special tile, never «city or special»').deep.eq({goal: {kind: 'tile', tile: 'special'}, count: 1});
+      expect(DEVELOPMENT_CRAZE.text.quest).eq('Place 1 special tile');
       expect(DEVELOPMENT_CRAZE.scaled).deep.eq([DEVELOPMENT_CRAZE_STEEL]);
       expect(DEVELOPMENT_CRAZE.winnerSteps, 'no winner-only part').is.undefined;
       expect(DEVELOPMENT_CRAZE.passive, 'the live passive').is.not.undefined;
@@ -171,8 +180,9 @@ describe('DevelopmentCraze', () => {
       expect(isICardRenderItem(cause[0]) && cause[0].type === CardRenderItemType.EMPTY_TILE, 'the trigger: a placed tile').is.true;
       expect(isICardRenderItem(result[0]) && result[0].type === CardRenderItemType.ADJACENCY_BONUS, 'the result: the tile\'s bonus glyph').is.true;
       expect(isICardRenderItem(result[1]) && result[1].type === CardRenderItemType.TEXT && result[1].text === 'x2', '… doubled').is.true;
+      // The footnote: the printed solid brown hex as ONE glyph — never «city / special».
       const [quest] = questRenderData(DEVELOPMENT_CRAZE.quest).rows;
-      expect(quest.map((n) => isICardRenderItem(n) ? n.type : 'sym')).deep.eq([CardRenderItemType.CITY, 'sym', CardRenderItemType.EMPTY_TILE_SPECIAL]);
+      expect(quest.map((n) => isICardRenderItem(n) ? n.type : 'sym')).deep.eq([CardRenderItemType.EMPTY_TILE_SPECIAL]);
     });
   });
 
@@ -368,7 +378,7 @@ describe('DevelopmentCraze', () => {
     });
   });
 
-  describe('the chairman quest — place 1 city or special tile', () => {
+  describe('the chairman quest — place 1 SPECIAL tile (the printed solid brown hex)', () => {
     function placeAsAction(player: TestPlayer, place: () => void): void {
       const events = player.game.events;
       events.beginAction(player, {kind: 'card', card: CardName.IMMIGRANT_CITY, owner: player.color}, {category: 'card-play'});
@@ -390,18 +400,70 @@ describe('DevelopmentCraze', () => {
       return [game, p1, p2, parliament];
     }
 
-    it('a greenery moves no progress; a city on Mars completes it at once', () => {
-      const [, p1, p2, parliament] = enactCraze();
-      placeAsAction(p2, () => addGreenery(p2));
-      expect(parliament.questProgressOf(p2), 'a greenery is neither a city nor a special tile').eq(0);
-      placeAsAction(p1, () => addCity(p1));
-      expect(parliament.quest?.completedBy).eq(p1.id);
-    });
+    /** The card's quest OPEN on a fresh table with `options` — the tracker's edges alone are under test. */
+    function questOpen(options: {ares?: boolean, moon?: boolean} = {}): [IGame, TestPlayer, TestPlayer, Parliament] {
+      const [game, p1, p2, parliament] = reduxGame(options);
+      parliament.quest = {definition: DEVELOPMENT_CRAZE.quest, source: DEVELOPMENT_CRAZE_ID, generation: game.generation, progress: new Map()};
+      return [game, p1, p2, parliament];
+    }
 
-    it('a special tile completes it too', () => {
+    it('a special tile on Mars completes it at once', () => {
       const [game, p1, , parliament] = enactCraze();
       placeAsAction(p1, () => game.addTile(p1, bareLand(game, p1), {tileType: TileType.NUCLEAR_ZONE, card: CardName.NUCLEAR_ZONE}));
       expect(parliament.quest?.completedBy).eq(p1.id);
+    });
+
+    it('a city does NOT close it — nor does the Capital, a city with special art', () => {
+      const [game, p1, p2, parliament] = enactCraze();
+      placeAsAction(p1, () => addCity(p1));
+      expect(parliament.questProgressOf(p1), 'a city is its own goal, not a special tile').eq(0);
+      placeAsAction(p2, () => game.addTile(p2, bareLand(game, p2), {tileType: TileType.CAPITAL, card: CardName.CAPITAL}));
+      expect(parliament.questProgressOf(p2), 'the Capital is a city').eq(0);
+      expect(parliament.quest?.completedBy).is.undefined;
+    });
+
+    it('a greenery and an ocean move no progress', () => {
+      const [, p1, , parliament] = enactCraze();
+      placeAsAction(p1, () => addGreenery(p1));
+      placeAsAction(p1, () => addOcean(p1));
+      expect(parliament.questProgressOf(p1)).eq(0);
+    });
+
+    it('a Moon tile is not a tile on Mars — the BOARD rejects it, not the tile type', () => {
+      const [game, p1, , parliament] = questOpen({moon: true});
+      // The engine's own lunar placement — a plain mine and a lunar SPECIAL tile — reports nothing.
+      placeAsAction(p1, () => MoonExpansion.addTile(p1, 'm01', {tileType: TileType.MOON_MINE}));
+      placeAsAction(p1, () => MoonExpansion.addTile(p1, 'm02', {tileType: TileType.LUNAR_MINE_URBANIZATION, card: CardName.LUNAR_MINE_URBANIZATION}));
+      expect(parliament.questProgressOf(p1)).eq(0);
+      // The tracker's own contract, should a Moon report ever be wired: a lunar space is not a
+      // reserved area and would read as «on Mars» by space type alone — the board is what says no.
+      const lunar = MoonExpansion.moonData(game).moon.getSpaceOrThrow('m02');
+      expect(lunar.spaceType).not.eq(SpaceType.COLONY);
+      const goal = DEVELOPMENT_CRAZE.quest.goal;
+      expect(QuestTracker.match(goal, {kind: 'tile', space: lunar, tileType: TileType.LUNAR_MINE_URBANIZATION, board: BoardType.MOON})).eq(0);
+      expect(QuestTracker.match(goal, {kind: 'tile', space: lunar, tileType: TileType.LUNAR_MINE_URBANIZATION, board: BoardType.MARS}), 'the same event stamped Mars would count').eq(1);
+    });
+
+    it('an Ares hazard is nobody\'s placement: it never reaches the tracker, and would not read as special if it did', () => {
+      const [game, p1, , parliament] = questOpen({ares: true});
+      const space = bareLand(game, p1);
+      placeAsAction(p1, () => AresHazards.putHazardAt(game, space, TileType.DUST_STORM_MILD));
+      expect(parliament.questProgressOf(p1)).eq(0);
+      expect(QuestTracker.match(DEVELOPMENT_CRAZE.quest.goal, {kind: 'tile', space, tileType: TileType.DUST_STORM_MILD, board: BoardType.MARS})).eq(0);
+    });
+
+    it('moving the Mars Nomads camp places no tile: the move is not a placement', () => {
+      const [game, p1, , parliament] = questOpen();
+      const nomads = new MarsNomads();
+      p1.playedCards.push(nomads);
+      game.nomadSpace = bareLand(game, p1).id;
+      placeAsAction(p1, () => {
+        const move = cast(nomads.action(p1), SelectSpace);
+        expect(move.spaces.length, 'the camp has somewhere to go').greaterThan(0);
+        move.cb(move.spaces[0]);
+      });
+      expect(game.nomadSpace, 'the camp moved').not.eq(undefined);
+      expect(parliament.questProgressOf(p1)).eq(0);
     });
   });
 

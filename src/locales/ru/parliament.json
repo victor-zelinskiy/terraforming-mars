@@ -683,7 +683,7 @@
   "Development Craze": "Строительная лихорадка",
   "Gain 1 steel for every point of your influence.": "Получите по 1 стали за каждое влияние.",
   "Placement and adjacency bonuses of tiles you place on Mars are paid twice.": "Бонусы размещения и соседства за ваши тайлы на Марсе выплачиваются дважды.",
-  "Place 1 city or special tile": "Разместите 1 тайл города или особый тайл",
+  "Place 1 special tile": "Разместите 1 особый тайл",
   "${0} has no influence — no steel from ${1}": "${0}: влияния нет — ${1} не даёт стали",
   "${0} receives the placement bonuses of the tile a second time — ${1}": "${0} получает бонусы размещённого тайла второй раз — ${1}",
   "Development Craze pays the placement and adjacency bonuses of a tile you place on Mars a second time": "«Строительная лихорадка» платит бонусы размещения и соседства тайла на Марсе второй раз",

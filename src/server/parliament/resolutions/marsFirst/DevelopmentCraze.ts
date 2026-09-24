@@ -8,7 +8,8 @@
  *
  * Printed: «When enacted: Gain steel equal to your Influence. Effect: Double
  * all placement and adjacency bonuses you get for placing tiles on Mars.»
- * Chairman quest: place 1 city or special tile.
+ * Chairman quest: place 1 SPECIAL tile (the printed solid brown hex — a city
+ * does NOT close it; the same footnote returns on Urban Development).
  *
  * THE READINGS FIXED HERE:
  *  · STEEL: 1 × the player's influence for EVERY participant, into the supply,
@@ -154,9 +155,9 @@ export const DEVELOPMENT_CRAZE: ResolutionDefinition = {
     effect: 'Gain 1 steel for every point of your influence.',
     // The block label says WHEN («Эффект, пока принята»); the sentence says WHAT.
     passive: 'Placement and adjacency bonuses of tiles you place on Mars are paid twice.',
-    quest: 'Place 1 city or special tile',
+    quest: 'Place 1 special tile',
   },
-  quest: {goal: {kind: 'tile', tile: 'cityOrSpecial'}, count: 1},
+  quest: {goal: {kind: 'tile', tile: 'special'}, count: 1},
   scaled: [DEVELOPMENT_CRAZE_STEEL],
   immediateSteps: [STEEL_STEP],
   passive: {

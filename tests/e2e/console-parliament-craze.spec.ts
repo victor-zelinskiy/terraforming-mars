@@ -14,8 +14,9 @@ import {
  * ONE e2e on ONE profile (the card's verification budget). The card stands
  * ENACTED (fixture `parliament-craze-enacted`: red opens generation 2 with
  * 30 M€); the viewer builds a standard-project GREENERY on a cell printing two
- * steel (a greenery, not a city: a city would also complete the card's own
- * chairman quest and draw Mars First's card — two other flows over the one
+ * steel (a greenery closes nothing: the card's own chairman quest asks for a
+ * SPECIAL tile — a city does not close it either — and a special tile would
+ * seat the chairman and draw Mars First's card, two other flows over the one
  * under test), and the journey asserts the four things the owner asked to see:
  *   ① the Information effects list carries the LAW's row — first, marked
  *     «Принятая резолюция», with the card's own printed graphic;

@@ -4,7 +4,7 @@ import {TestPlayer} from '../TestPlayer';
 import {IGame} from '../../src/server/IGame';
 import {Game} from '../../src/server/Game';
 import {Parliament} from '../../src/server/parliament/Parliament';
-import {QuestTracker} from '../../src/server/parliament/quests/QuestTracker';
+import {QuestEvent, QuestTracker} from '../../src/server/parliament/quests/QuestTracker';
 import {Phase} from '../../src/common/Phase';
 import {Resource} from '../../src/common/Resource';
 import {CardName} from '../../src/common/cards/CardName';
@@ -17,6 +17,10 @@ import {EventSource} from '../../src/common/events/EventSource';
 import {CLIMATE_RESEARCH_ID} from '../../src/server/parliament/resolutions/greens/ClimateResearch';
 import {ARCHITECTURE_AWARD_ID} from '../../src/server/parliament/resolutions/marsFirst/ArchitectureAward';
 import {answerQuestGate} from './parliamentArrange';
+import {TileType} from '../../src/common/TileType';
+import {SpaceType} from '../../src/common/boards/SpaceType';
+import {Space} from '../../src/server/boards/Space';
+import {BoardType} from '../../src/server/boards/BoardType';
 
 function reduxGame(): [IGame, TestPlayer, TestPlayer, Parliament] {
   const [game, p1, p2] = testGame(2, {turmoilReduxExpansion: true, coloniesExtension: true});
@@ -148,6 +152,36 @@ describe('QuestTracker (the chairman quest)', () => {
     check({kind: 'cardsPlayed', cardType: 'event'}, {kind: 'cardsPlayed', cardType: CardType.EVENT}, 1);
     check({kind: 'cardsPlayed', cardType: 'event'}, {kind: 'cardsPlayed', cardType: CardType.AUTOMATED}, 0);
     check({kind: 'production', resource: Resource.STEEL}, {kind: 'production', resource: Resource.STEEL, amount: -1}, 0);
+    // TILES — the seated tile on a Mars land cell / a reserved area off Mars, stamped with its board.
+    const game = p1.game;
+    const land = game.board.getAvailableSpacesOnLand(p1)[0];
+    const reserved = game.board.spaces.find((s) => s.spaceType === SpaceType.COLONY)!;
+    const tile = (tileType: TileType, space: Space = land, board: BoardType = BoardType.MARS): QuestEvent =>
+      ({kind: 'tile', space: {...space, tile: {tileType}}, tileType, board});
+    check({kind: 'tile', tile: 'greenery'}, tile(TileType.GREENERY), 1);
+    check({kind: 'tile', tile: 'greenery'}, tile(TileType.CITY), 0);
+    check({kind: 'tile', tile: 'city'}, tile(TileType.CITY), 1);
+    check({kind: 'tile', tile: 'city'}, tile(TileType.CAPITAL), 1);
+    check({kind: 'tile', tile: 'city'}, tile(TileType.CITY, reserved), 0);
+    check({kind: 'tile', tile: 'spaceCity'}, tile(TileType.CITY, reserved), 1);
+    check({kind: 'tile', tile: 'spaceCity'}, tile(TileType.CITY), 0);
+    // SPECIAL (Development Craze, Urban Development): the printed solid brown hex — a special tile
+    // on Mars. Never a city (the Capital and an ocean city are cities), never a greenery or an
+    // ocean, never an Ares hazard; and never a Moon tile — the BOARD says no, not the tile type.
+    check({kind: 'tile', tile: 'special'}, tile(TileType.NUCLEAR_ZONE), 1);
+    check({kind: 'tile', tile: 'special'}, tile(TileType.OCEAN_FARM), 1);
+    check({kind: 'tile', tile: 'special'}, tile(TileType.CITY), 0);
+    check({kind: 'tile', tile: 'special'}, tile(TileType.CAPITAL), 0);
+    check({kind: 'tile', tile: 'special'}, tile(TileType.OCEAN_CITY), 0);
+    check({kind: 'tile', tile: 'special'}, tile(TileType.GREENERY), 0);
+    check({kind: 'tile', tile: 'special'}, tile(TileType.OCEAN), 0);
+    check({kind: 'tile', tile: 'special'}, tile(TileType.DUST_STORM_MILD), 0);
+    check({kind: 'tile', tile: 'special'}, tile(TileType.EROSION_SEVERE), 0);
+    check({kind: 'tile', tile: 'special'}, tile(TileType.NUCLEAR_ZONE, reserved), 0);
+    check({kind: 'tile', tile: 'special'}, tile(TileType.LUNAR_MINE_URBANIZATION, land, BoardType.MOON), 0);
+    check({kind: 'tile', tile: 'special'}, tile(TileType.NUCLEAR_ZONE, land, BoardType.MOON), 0);
+    check({kind: 'tile', tile: 'greenery'}, tile(TileType.GREENERY, land, BoardType.MOON), 0);
+    check({kind: 'tile', tile: 'city'}, tile(TileType.CITY, land, BoardType.MOON), 0);
     // Votes count toward the delegates quest through the handler.
     parliament.quest = {definition: {goal: {kind: 'delegates'}, count: 2}, source: ARCHITECTURE_AWARD_ID, generation: 1, progress: new Map()};
     const vote = p1.getActions().options.find((o) => (o as SelectParty).votePrompt !== undefined) as SelectParty;

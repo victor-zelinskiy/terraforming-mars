@@ -19,7 +19,7 @@ Development Craze — десятая настоящая резолюция и **
 | RU-название | «Строительная лихорадка» |
 | Арт | `assets/card-images/RX10.webp` (+ thumb) — `node scripts/import-card-art.mjs "<Mars Arts/Development Craze_art.png>" RX10` → `npm run make:cards` |
 | Файл | `src/server/parliament/resolutions/marsFirst/DevelopmentCraze.ts` |
-| Задание председателя | 1 город ИЛИ спецтайл на Марсе (`{goal: {kind: 'tile', tile: 'cityOrSpecial'}, count: 1}` — `QuestTracker` умел; глиф спецтайла на премиальном лице добавлен: `EMPTY_TILE_SPECIAL → assets/tiles/special.png`) |
+| Задание председателя | **1 ОСОБЫЙ тайл на Марсе** — сплошной коричневый гекс скана (`{goal: {kind: 'tile', tile: 'special'}, count: 1}`; вид `special` в `QuestTracker.tileMatches`: не город — Столица и океанский город тоже города, — не озеленение, не океан, не опасная зона Ares, не лунная плитка: событие тайла несёт ДОСКУ). До 2026-09-24 читалось «город ИЛИ спецтайл» (`cityOrSpecial`) — ошибка чтения скана, исправлена промтом `docs/claude/prompts/parliament-quest-icons-audit.md`; язык значков — `TURMOIL_REDUX_SPEC.md` § 4.1.1. Глиф спецтайла на премиальном лице: `EMPTY_TILE_SPECIAL → assets/tiles/special.png` |
 
 ## 2. Правило
 
@@ -127,8 +127,9 @@ and adjacency bonuses of a tile you place on Mars a second time»): клетка
 - Сервер (`tests/parliament/DevelopmentCraze.spec.ts`, 17): каталог/лицо; сталь по влиянию и пропуск; удвоение
   печатных и океанских под маркером резолюции с эхом; голая клетка — ни маркера, ни эха; вне Марса; покрытие —
   только соседство; чужой закон / без закона — один раз; прекращение при смене закона; микробы и карта дважды
-  (Arabia Terra); платный океан Hellas — второй счёт при деньгах, пропуск по имени без; прогноз; задание (город и
-  спецтайл, не озеленение); MarsBot. Плюс `ResolutionContract` (гард: passive → forecast, тайловый хук →
+  (Arabia Terra); платный океан Hellas — второй счёт при деньгах, пропуск по имени без; прогноз; задание (особый тайл;
+  НЕ город и не Столица, не озеленение/океан, не лунная плитка — доска решает, не опасная зона Ares, не переезд лагеря
+  Mars Nomads); MarsBot. Плюс `ResolutionContract` (гард: passive → forecast, тайловый хук →
   placementFacts), `ResolutionPassive` (DEV), `PartyForecast`, `placementReduxPreview` (+1), RX08/RX09.
 - Клиент: `ConsolePartyEffectsStrip.spec` (4), `notificationModel.spec` (+4: источник-карта/резолюция, карточка
   закона, пустой маркер), `consoleTilePlacement.spec` (+1: эхо удваивает холд, вторая волна, чужое эхо игнорируется).
@@ -136,12 +137,13 @@ and adjacency bonuses of a tile you place on Mars a second time»): клетка
   RX10 принята, красный открывает 2-е поколение с 30 M€): строка закона в ЭФФЕКТАХ → озеленение на клетке 2×сталь →
   эхо на кадрах, счётчик через промежуточное значение, +5 по проводу (2 + 2 + 1 партийная) → карточка закона →
   hold X → осмотр резолюции → закрыть. Кадры `screenshots/parliament-craze/standard-1080/01…04`.
-  Озеленение, а не город: город закрывает задание председателя самой RX10 (плита «Открыть Парламент» держит
-  цепочку открытой — карточка ждала в PREPARING) и добирает карту Марс вперёд (ревил владеет экраном).
+  Озеленение, а не особый тайл: особый тайл закрыл бы задание председателя самой RX10 (плита «Открыть Парламент» держит
+  цепочку открытой — карточка ждала в PREPARING) и добрал бы карту Марс вперёд (ревил владеет экраном). Город задание
+  НЕ закрывает (с 2026-09-24 — значок прочитан заново), озеленение — тем более.
 
 ## 6. Новые ключи i18n (`ru/parliament.json`, `ru/ui.json`)
 «Development Craze» · «Gain 1 steel for every point of your influence.» · «All placement and adjacency bonuses you get
-for placing tiles on Mars are paid twice.» · «Place 1 city or special tile» · «${0} has no influence — no steel from
+for placing tiles on Mars are paid twice.» · «Place 1 special tile» (до 2026-09-24 — «Place 1 city or special tile», ключ удалён) · «${0} has no influence — no steel from
 ${1}» · «${0} receives the placement bonuses of the tile a second time — ${1}» · «Development Craze pays the
 placement and adjacency bonuses of a tile you place on Mars a second time» · «Enacted resolution: the placement
 bonuses are paid a second time» · «Enacted resolution: 2 M€ for a city you place on Mars» (DEV) · три строки

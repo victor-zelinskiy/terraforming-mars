@@ -96,7 +96,12 @@ export function influenceAtAgenda(position: number): number {
 export type QuestGoal =
   | {kind: 'production', resource: Resource}
   | {kind: 'tag', tag: Tag}
-  | {kind: 'tile', tile: 'greenery' | 'city' | 'cityOrSpecial' | 'spaceCity'}
+  /**
+   * A tile the player places. `special` is the printed SOLID BROWN HEX — a
+   * special tile ON MARS, never a city (a city is its own goal), never a
+   * greenery or an ocean, never a Moon tile or an Ares hazard.
+   */
+  | {kind: 'tile', tile: 'greenery' | 'city' | 'special' | 'spaceCity'}
   | {kind: 'colony'}
   | {kind: 'tr'}
   | {kind: 'cardResource', resource: CardResource}

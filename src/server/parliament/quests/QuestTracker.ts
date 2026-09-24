@@ -16,10 +16,11 @@ import {Resource} from '../../../common/Resource';
 import {Tag} from '../../../common/cards/Tag';
 import {CardType} from '../../../common/cards/CardType';
 import {CardResource} from '../../../common/CardResource';
-import {TileType} from '../../../common/TileType';
+import {TileType, isSpecialTile} from '../../../common/TileType';
 import {SpaceType} from '../../../common/boards/SpaceType';
 import {Space} from '../../boards/Space';
 import {Board} from '../../boards/Board';
+import {BoardType} from '../../boards/BoardType';
 import {JournalActionCategory} from '../../../common/events/GameEvent';
 import {QuestGoal} from '../../../common/parliament/ParliamentTypes';
 import {ChairmanSeat} from './ChairmanSeat';
@@ -27,7 +28,16 @@ import {ChairmanSeat} from './ChairmanSeat';
 export type QuestEvent =
   | {kind: 'production'; resource: Resource; amount: number}
   | {kind: 'tag'; tags: ReadonlyArray<Tag>}
-  | {kind: 'tile'; space: Space; tileType: TileType}
+  /**
+   * A tile seated on a space. `board` names WHICH board: every tile goal is
+   * printed for Mars (a city / a special tile / a greenery «on Mars», a space
+   * city in Mars' reserved areas), so a lunar placement — whose spaces are
+   * `LAND` too and would read as «on Mars» by space type alone — is rejected
+   * by the board, not by a tile-type list that would rot with the next
+   * expansion. Today only `Game.addTile` (Mars) reports; the field keeps a
+   * future Moon report from silently counting.
+   */
+  | {kind: 'tile'; space: Space; tileType: TileType; board: BoardType}
   | {kind: 'colony'}
   | {kind: 'tr'; steps: number}
   | {kind: 'cardResource'; resource: CardResource | undefined; amount: number}
@@ -77,7 +87,7 @@ export class QuestTracker {
     case 'tag':
       return event.kind === 'tag' ? event.tags.filter((tag) => tag === goal.tag).length : 0;
     case 'tile':
-      return event.kind === 'tile' ? (QuestTracker.tileMatches(goal.tile, event.space, event.tileType) ? 1 : 0) : 0;
+      return event.kind === 'tile' ? (QuestTracker.tileMatches(goal.tile, event) ? 1 : 0) : 0;
     case 'colony':
       return event.kind === 'colony' ? 1 : 0;
     case 'tr':
@@ -98,7 +108,13 @@ export class QuestTracker {
     }
   }
 
-  private static tileMatches(kind: 'greenery' | 'city' | 'cityOrSpecial' | 'spaceCity', space: Space, tileType: TileType): boolean {
+  private static tileMatches(kind: Extract<QuestGoal, {kind: 'tile'}>['tile'], event: Extract<QuestEvent, {kind: 'tile'}>): boolean {
+    // The Moon is not Mars: no printed tile goal reads a lunar placement,
+    // whatever its space type says.
+    if (event.board !== BoardType.MARS) {
+      return false;
+    }
+    const {space, tileType} = event;
     const onMars = space.spaceType !== SpaceType.COLONY;
     const isCity = Board.isCitySpace(space);
     switch (kind) {
@@ -106,8 +122,12 @@ export class QuestTracker {
       return onMars && tileType === TileType.GREENERY;
     case 'city':
       return onMars && isCity;
-    case 'cityOrSpecial':
-      return onMars && (isCity || (tileType !== TileType.GREENERY && tileType !== TileType.OCEAN));
+    case 'special':
+      // The printed solid brown hex: a special tile on Mars — the game's own
+      // classifier (`isSpecialTile`: not a greenery, not an ocean, not a plain
+      // city, not a Moon tile, not an Ares hazard) minus the CITY family
+      // (Capital, an ocean city: cities, and a city is its own goal).
+      return onMars && !isCity && isSpecialTile(tileType);
     case 'spaceCity':
       return !onMars && isCity;
     }
