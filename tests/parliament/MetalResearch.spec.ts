@@ -26,6 +26,7 @@ import {PartyName} from '../../src/common/turmoil/PartyName';
 import {Phase} from '../../src/common/Phase';
 import {Resource} from '../../src/common/Resource';
 import {CardName} from '../../src/common/cards/CardName';
+import {CardResource} from '../../src/common/CardResource';
 import {Payment} from '../../src/common/inputs/Payment';
 import {LogMessageDataType} from '../../src/common/logs/LogMessageDataType';
 import {CardRenderItemType} from '../../src/common/cards/render/CardRenderItemType';
@@ -39,6 +40,7 @@ import {AdvancedAlloys} from '../../src/server/cards/base/AdvancedAlloys';
 import {Mine} from '../../src/server/cards/base/Mine';
 import {NuclearPower} from '../../src/server/cards/base/NuclearPower';
 import {SecurityFleet} from '../../src/server/cards/base/SecurityFleet';
+import {ModularFloodgates} from '../../src/server/cards/delta/ModularFloodgates';
 
 /**
  * METAL RESEARCH (Turmoil Redux, RX19) — steel = influence AND titanium =
@@ -370,6 +372,23 @@ describe('MetalResearch', () => {
       const forecast = effectForecastForPlay(p1, power, cardPlayPreview(p1, power));
       expect(forecast.discounts).deep.eq({base: 10, final: 10, items: [], other: 0});
       expect(allForecastFacts(forecast).filter((f) => f.source.kind === 'resolution'), 'no fact of the law on a play').deep.eq([]);
+    });
+
+    it('FLOODGATE STEEL is steel: the play forecast payment values and `payingAmount` read the law 3 for the steel stored on Modular Floodgates', () => {
+      const [, p1, , parliament] = enacted();
+      const floodgates = new ModularFloodgates();
+      floodgates.resourceCount = 2;
+      p1.playedCards.push(floodgates);
+      const mine = new Mine();
+      p1.cardsInHand.push(mine);
+      const forecast = effectForecastForPlay(p1, mine, cardPlayPreview(p1, mine));
+      expect(forecast.paymentValues).deep.eq([{
+        source: {kind: 'card', card: CardName.MODULAR_FLOODGATES, owner: p1.color},
+        resource: CardResource.STEEL, value: 3, count: 2,
+      }]);
+      expect(p1.payingAmount(Payment.of({floodgateSteel: 2}), {floodgateSteel: true}), '2 × 3').eq(6);
+      parliament.enacted = undefined;
+      expect(effectForecastForPlay(p1, mine, cardPlayPreview(p1, mine)).paymentValues[0].value).eq(2);
     });
 
     it('the passive\'s own forecast states nothing (its twin is the rate where the decision is made)', () => {

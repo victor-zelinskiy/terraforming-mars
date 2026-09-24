@@ -71,6 +71,21 @@ describe('railValueModel — MC badges', () => {
     expect(badges.standard.titanium?.text).to.eq('5');
   });
 
+  it('an ENACTED RESOLUTION that raises the value (Metal Research, RX19: steel 3, titanium 4) reaches the badges through the LIVE model value — no code of the law here', () => {
+    // The server's accessor adds the law's bonus on the read (`Player.getSteelValue` → `PublicPlayerModel.steelValue`);
+    // the badge restates the model, so «2 → 3» and «3 → 4» happen the moment the law is enacted, with no reload.
+    const underLaw = railMcBadges(fakePlayer({steelValue: 3, titaniumValue: 4}));
+    expect(underLaw.standard.steel?.text).to.eq('3');
+    expect(underLaw.standard.titanium?.text).to.eq('4');
+    // …and with Advanced Alloys beside it the badge reads the stacked 4 / 5 the server charges by.
+    const stacked = railMcBadges(fakePlayer({steelValue: 4, titaniumValue: 5}));
+    expect(stacked.standard.steel?.text).to.eq('4');
+    expect(stacked.standard.titanium?.text).to.eq('5');
+    // Luna Trade Federation under the law: the full 4 on a Space card, 4 − 1 = 3 anywhere else — both figures, the law's first.
+    const ltf = railMcBadges(fakePlayer({canUseTitaniumAsMegacredits: true, titaniumValue: 4}));
+    expect(ltf.standard.titanium?.text).to.eq('4/3');
+  });
+
   it('heat is tender only under the standing grant (Helion / Ambient)', () => {
     expect(railMcBadges(fakePlayer()).standard.heat).to.eq(undefined);
     const helion = railMcBadges(fakePlayer({canUseHeatAsMegaCredits: true}));

@@ -5,6 +5,7 @@ import {
   paymentCovers, paymentFromCounts, PaymentLane,
   paymentLanes, paymentOverpay, paymentTotal, PaymentPromptLike, projectCardPaymentOptions,
   projectCardPaymentPrompt, paymentUnitIcon,
+  rateFor,
 } from '@/client/console/paymentPlan';
 import {buildStandardProjectPaymentOptions, GENERIC_PAYMENT_ORDER} from '@/client/components/payment/paymentModelUtils';
 import {SPENDABLE_RESOURCES} from '@/common/inputs/Spendable';
@@ -51,6 +52,16 @@ describe('paymentPlan (T3 native payment math)', () => {
     const lanes = paymentLanes(prompt(10, {steel: true, titanium: true}), player({steelValue: 3, titaniumValue: 4}));
     expect(lanes.find((l) => l.unit === 'steel')?.rate).to.eq(3);
     expect(lanes.find((l) => l.unit === 'titanium')?.rate).to.eq(4);
+  });
+
+  it('an ENACTED RESOLUTION that raises the value (Metal Research, RX19) charges by the LIVE model value 3 / 4 — the same number the rail badge shows', () => {
+    const lanes = paymentLanes(prompt(10, {steel: true, titanium: true}), player({steelValue: 3, titaniumValue: 4}));
+    expect(lanes.find((l) => l.unit === 'steel')?.rate).to.eq(3);
+    expect(lanes.find((l) => l.unit === 'titanium')?.rate).to.eq(4);
+    expect(rateFor('steel', player({steelValue: 3}), {steel: true})).to.eq(3);
+    expect(rateFor('titanium', player({titaniumValue: 4}), {titanium: true})).to.eq(4);
+    // The Luna Trade Federation −1 applies AFTER the law's value: 4 − 1 = 3 outside a Space card.
+    expect(rateFor('titanium', player({titaniumValue: 4}), {lunaTradeFederationTitanium: true})).to.eq(3);
   });
 
   it('the Luna Trade Federation rule: LTF-only titanium pays 1 less', () => {
