@@ -469,6 +469,55 @@ ctx.report({kind: 'skipped', ..., amount: 0, reason: 'No colonies'});   // но�
   карта) — утверждения о формуле без влияния живут в юните `ConsoleInfluenceYield.spec.ts`, не в e2e; `isICardRenderText`
   нет — текстовая строка лица есть `CardRenderItem` типа `TEXT`. Док: `docs/TURMOIL_REDUX_JOVIAN_TAX_RIGHTS.md`.
 
+### Раскладка по НЕСКОЛЬКИМ видам — держатели объединяются, вид следует из карты, список из одного вида = прежнее поведение (RX18, 2026-09-24)
+
+```ts
+scaled: [{id: 'resources', unit: {kind: 'cardResource', resources: [CardResource.DATA, CardResource.MICROBE], spread: true},
+  perInfluence: 1, count: {id: 'scienceTags', per: 1}, recipient: 'each'}],
+// шаг: тот же общий `AddResourcesToCards`, но над СПИСКОМ видов
+const step = new AddResourcesToCards(player, MEDICAL_DATABASE_KINDS, owed, {autoSelect: false, cause: SOURCE, from: {resolution: ID},
+  pickTitle: message('Add ${0} resource(s) to one of your cards', …), distributeTitle: message('Place ${0} resource(s) on your cards', …)});
+if (step.getCards().length === 0) { ctx.report({kind: 'skipped', ..., resources: [...KINDS], amount: owed, reason: 'No card can hold data or microbes'}); }
+return step.andThen((placed) => {
+  const cards = placed.map((p) => ({card: p.card.name, amount: p.amount, resource: p.resource}));   // вид — ПРИНЯВШЕЙ карты
+  const kinds = new Set(cards.map((c) => c.resource));
+  ctx.report({kind: 'cardResource', ..., resources: [...KINDS], amount: owed, ...(kinds.size === 1 ? {resource: cards[0].resource} : {}), cards});
+  return undefined;
+}).execute();
+```
+
+- **`unit.resources` — СПИСОК везде**: один вид — список из одного (Aquifer, Cloud Development), второго вида объявления
+  нет. «Данные или бактерия» — не второй вопрос игроку: у карты ОДИН `resourceType`, поэтому множество получателей —
+  ОБЪЕДИНЕНИЕ держателей каждого вида (порядок табло, без дублей, `WARE` — держатель любого), а вид каждой единицы —
+  вид карты, которая её приняла (`ResourcePlacement.resource`; карта `WARE` журналится своим ресурсом — у неё счётчик,
+  а не вид).
+- **Общий слой над списком, не второй класс**: `AddResourcesToCard(player, kinds | kind | undefined)` и
+  `AddResourcesToCards(player, kinds | kind, N)` — `resourceTypes` список, геттер `resourceType` = один вид только для
+  списка из одного; хелперы `cardResourceKinds` / `holdsOneOf` / `holderResourceOf` / `holderResourceIcons` — одно
+  место. Старые вызывающие (Cyanobacteria, Communication Boom, RX06, RX07) — сигнатура прежняя, поведение байт-в-байт.
+- **Маркер**: один вид — `cardResource`; несколько — `cardResources` (порядок объявления) + `cardResourceByCard`
+  (вид каждого кандидата — его собственный); то же у `resourceGainPrompt` пик-формы (и у пика «любой ресурс»).
+  Клиент: лента-счётчик и «Ресурсы на этой карте» носят вид ЭТОЙ карты; источник-док ищет эффект по любому из видов
+  (`scaledEffectForCardResource(resolution, cardResources ?? cardResource)`).
+- **Запись**: `resources` (виды по объявлению — всегда, и у пропуска), `cards[].resource` (вид карты), `resource` —
+  только когда ВСЕ единицы легли одним видом (в обычной партии без карт данных — всегда `Microbe`, запись читается
+  как у RX06). Адрес: `RewardPayload.resources`, `cards[].resource`; полёт — чип носит вид СВОЕЙ карты
+  (`ResolutionPayoutTarget.resource`), запись без вида ни на записи, ни на карте не летит.
+- **Чтение единицы — одна отрисовка** «[данные] или [бактерия]» (`YieldIcon.resources`, `ConsoleYieldUnit`: один
+  вид — тот же голый `<i>`, несколько — через `.con-iyield__or`; ключ `or`); плита пропуска ленты и агрегат итогов —
+  `units`; у каждой карты списка итогов — значок её вида. Нота «нет получателя» — над держателями ЛЮБОГО из видов
+  (`holdsAnyOf`), `noRecipientReasonKey` / `noRecipientForecastKey` принимают список.
+- **Два пропуска**: N = 0 — «No science tags and no influence» (`amount: 0`); держателей ни одного вида —
+  «No card can hold data or microbes» с величиной.
+- **Стенд**: сценарий семейства `distributed` объявляет `holds` (виды его держателей) и показывается только закону,
+  чья единица покрывает их все; смена закона внутри семейства открывает первый сценарий нового закона. В премиум-скоупе
+  карт данных нет — смешанный случай живёт на стенде (реальные карты Pathfinders из манифеста), в юнитах — `fakeCard`
+  с `resourceType: DATA` (он не переживает reload: сценарии с сохранением — на реальных картах).
+- Ловушки: дубликат ключа в ОДНОМ файле локали ловит `npm run lint:i18n`, а не `make:json` (JSON.parse сворачивает
+  молча) — «No card can hold data or microbes» уже был отказом действия Учёных и разделяется; корневой комментарий в
+  `<template>` делает однокорневой компонент фрагментом; ресурс в строке журнала — токен `RESOURCE`, не строка;
+  стендовый e2e читает СОБРАННЫЙ бандл. Док: `docs/TURMOIL_REDUX_MEDICAL_DATABASE.md`.
+
 ### Бюджет проверки на карту (решение владельца 2026-09-23)
 
 Состав проверки определяется ОДНИМ вопросом: **что в карте ново?**

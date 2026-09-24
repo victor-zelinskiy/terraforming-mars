@@ -86,6 +86,8 @@ import {HEAT_CAPTURE_ID} from '../../../src/server/parliament/resolutions/reds/H
 import {INDUSTRIALIST_BUDGET_ID} from '../../../src/server/parliament/resolutions/industrialists/IndustrialistBudget';
 import {JOINT_RESEARCH_ID} from '../../../src/server/parliament/resolutions/scientists/JointResearch';
 import {JOVIAN_TAX_RIGHTS_ID} from '../../../src/server/parliament/resolutions/unity/JovianTaxRights';
+import {MEDICAL_DATABASE_ID} from '../../../src/server/parliament/resolutions/scientists/MedicalDatabase';
+import {GHGProducingBacteria} from '../../../src/server/cards/base/GHGProducingBacteria';
 import {NuclearPower} from '../../../src/server/cards/base/NuclearPower';
 import {COLONIZATION_FUNDING_ID} from '../../../src/server/parliament/resolutions/unity/ColonizationFunding';
 import {GENEROUS_FUNDING_ID} from '../../../src/server/parliament/resolutions/greens/GenerousFunding';
@@ -1312,6 +1314,50 @@ function jovianTable(stopAt: 'vote' | 'assembly'): ParliamentFixtureSpec {
 }
 parliamentFixture('parliament-jovian-vote', jovianTable('vote'));
 parliamentFixture('parliament-jovian-assembly', jovianTable('assembly'));
+
+// ── RX18 · MEDICAL DATABASE (the Scientists — «1 data or microbe resource per science tag + influence, each on any
+//    card»): the distributing family over TWO KINDS of unit — the recipients are the holders of data AND of microbes at
+//    once, and each unit's kind is its card's. A plain Redux game holds no data holder (data lives in Pathfinders / the
+//    Moon / Underworld), so blue's holders are two science-tagged MICROBE holders — GHG Producing Bacteria + Regolith
+//    Eaters: 2 science tags at Agenda 2 (influence 1; winning → step 3 = influence 2) → N = 4 over TWO holders → the
+//    shared DISTRIBUTION, its marker naming BOTH kinds (`cardResources`) and each holder's own (`cardResourceByCard`).
+//    Red: Tardigrades alone (no tag) at Agenda 5 (influence 3) → N = 3 onto ONE holder → the family's ordinary pick.
+//    The area: the Scientists / Mars First / the Industrialists — the Greens rule by the starting rule, no card. ──
+const medicalTable = (stopAt: ParliamentStop, expect?: (table: ParliamentTable) => void): ParliamentFixtureSpec => ({
+  resolution: MEDICAL_DATABASE_ID,
+  votes: [0],
+  agenda: [2, 5],
+  stopAt,
+  arrange: ({p1, p2, parliament}) => {
+    seatResolution(parliament, 1, ARCHITECTURE_AWARD_ID);
+    seatResolution(parliament, 2, CENTRAL_POWER_GRID_ID);
+    p1.playedCards.push(new GHGProducingBacteria(), new RegolithEaters());
+    p2.playedCards.push(new Tardigrades());
+  },
+  expect: (table) => {
+    const {p1, p2} = table;
+    const blue = resolutionCount(p1, 'scienceTags');
+    const red = resolutionCount(p2, 'scienceTags');
+    if (blue.count !== 2 || red.count !== 0) {
+      throw new Error(`the parliament-medical fixture (${stopAt}) expected blue's two science tags and none for red (a corporation with a science tag was dealt?), got ${blue.count} / ${red.count}`);
+    }
+    expect?.(table);
+  },
+});
+// The vote: the face «[data] OR [microbe] / [science tag] + [influence]», blue's reading «2 tags + 1 → 3 (+1 if you win)»
+// with the unit drawn as BOTH kinds joined by «or».
+parliamentFixture('parliament-medical-vote', medicalTable('vote'));
+// The political phase STOPPED INSIDE blue's LAYOUT: Medical Database won with blue's delegate (Agenda 2 → 3 = influence
+// 2), the phase asks BLUE to lay 4 units over GHG Producing Bacteria and Regolith Eaters — both microbe holders, the
+// marker still naming both kinds; red's single-holder pick (3 onto Tardigrades) follows.
+parliamentFixture('parliament-medical-enact', medicalTable('effects', ({p1}) => {
+  const ask = p1.getWaitingFor();
+  const meta = ask instanceof AndOptions ? ask.cardResourceDistributionPrompt : undefined;
+  if (meta === undefined || meta.amount !== 4 || meta.cards.length !== 2 || meta.cardResource !== undefined ||
+      JSON.stringify(meta.cardResources) !== JSON.stringify(['data', 'microbe'])) {
+    throw new Error(`the parliament-medical-enact fixture expected blue's 4-unit layout over two holders with both kinds on the marker, got ${ask?.constructor.name} ${JSON.stringify(meta)}`);
+  }
+}));
 
 // ── RX16 · JOINT RESEARCH — the first LEVEL: every seat draws UP TO 6 + influence
 //    cards in hand. Blue at Agenda 4 (influence 2 → target 8) with FIVE cards in

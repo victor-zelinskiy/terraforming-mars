@@ -1009,7 +1009,7 @@ const SCENARIOS: ReadonlyArray<PgScenario> = [
   // Agenda 2 = influence 1; winning takes the marker to step 3 (influence 2): 3 tags + 1 → 4 becomes 3 + 2 → 5 — over
   // a microbe holder AND a data holder: the layout lands both kinds at once.
   {key: 'medical-mixed', family: 'distributed', holds: MEDICAL_HOLDERS, label: 'Holders of two kinds — the layout lands data and microbes at once', viewer: 0,
-    seats: [{agenda: 2, bonus: 0, cards: [RESEARCH, TARDIGRADES, MARTIAN_CULTURE]}, {agenda: 1, bonus: 0, cards: [GHG]}], winner: 1, context: 'proposal', noRecipient: false},
+    seats: [{agenda: 2, bonus: 0, cards: [RESEARCH, GHG, MARTIAN_CULTURE]}, {agenda: 1, bonus: 0, cards: [TARDIGRADES]}], winner: 1, context: 'proposal', noRecipient: false},
   // The ordinary game: microbe holders alone — the layout reads exactly like Cloud Development's.
   {key: 'medical-microbes', family: 'distributed', holds: MEDICAL_HOLDERS, label: 'Microbe holders alone — the ordinary layout', viewer: 0,
     seats: [{agenda: 2, bonus: 0, cards: [GHG, REGOLITH]}, {agenda: 1, bonus: 0, cards: [TARDIGRADES]}], winner: 1, context: 'proposal', noRecipient: false},

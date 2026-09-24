@@ -444,7 +444,7 @@ Lobbyist/Politician/T. Politician — набор в `getCandidates` (`MilestoneA
 | Live Experiments | Scientists | data = влияние; **Д**: 6 M€ — сыграть карту без глобальных требований | Н, Д | 2 × «жёлтый билет» | B (действие), D |
 | Manufacturing Run | Industrialists | **Д**: 2 флоатера / 1 истребитель / 1 mech на карту; 2 раза, 3 при влиянии ≥2 | Д | 2 зелёные карты | A (без mech) |
 | Mars First Budget | Mars First | −12 M€; M€ = стройка+Марс + влияние; **каждый размещает город** (по часовой от первого) | Н, В | 2 метки Марса | D (метка Марса) |
-| Medical Database | Scientists | data или микроб на карту за науку + влияние | В | 2 метки науки | A |
+| Medical Database | Scientists | data или бактерия на карту за науку + влияние — единица ДВУХ ВИДОВ, вид по карте (`AddResourcesToCards` над списком видов) | В | 2 метки науки | **A · СДАНА RX18** |
 | Metal Research | Industrialists | сталь и титан = влияние; **П**: сталь и титан +1 M€ | Н, П | +1 пр. титана | A |
 | Migration Funding | Mars First | 2 M€ за город на Марсе + влияние (стек считается отдельно) | Н | 2 города на Марсе | A |
 | Migration Underground | Reds (UW) | … | — | 3 подземных токена | C |

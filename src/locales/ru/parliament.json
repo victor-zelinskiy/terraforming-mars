@@ -839,7 +839,6 @@
   "Medical Database": "Медицинская база данных",
   "Add 1 data or microbe resource per science tag you have, plus 1 per influence, to your cards that can hold data or microbes. Each resource may go on a different card.": "Добавьте по 1 ресурсу данных или бактерии за каждую вашу метку науки и по 1 за каждое влияние на свои карты, принимающие данные или бактерии. Каждый ресурс можно положить на другую карту.",
   "No science tags and no influence": "Нет меток науки и нет влияния",
-  "No card can hold data or microbes": "Нет карты, принимающей данные или бактерии",
   "No science tag": "Нет метки науки",
   "${0} science tag(s)": "${0} {метка|метки|меток} науки",
   "Each science tag counts: a card with two science tags counts twice. Wild tags do not count.": "Считается каждая метка науки: карта с двумя метками даёт 2. Универсальные метки не считаются.",

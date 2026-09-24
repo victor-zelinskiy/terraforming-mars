@@ -3111,3 +3111,66 @@ M€ +4), `07-results` («player1 +3 [титан] +4 [пр. M€]»), `08-stand-
 - Фикстура: `FIXTURES=parliament-craze-enacted npm run e2e:fixtures` — только она; e2e `console-parliament-craze`
   (после `build:server` + `build:client`) — 1 passed, 42 с. Другие сюиты не гонялись.
 
+
+## RX18 · Medical Database (Учёные) — раскладка по НЕСКОЛЬКИМ видам: держатели объединяются, вид следует из карты (2026-09-24)
+
+1 данные-или-бактерия за метку науки + влияние, каждая единица на любую свою карту. Ново одно: **единица ДВУХ ВИДОВ** —
+получатели собираются из держателей данных И бактерий сразу, а вид каждой единицы определяет КАРТА, принявшая её (не
+второй вопрос игроку). Полный документ — `docs/TURMOIL_REDUX_MEDICAL_DATABASE.md`, промт —
+`docs/claude/prompts/resolution-rx18-medical-database.md`.
+
+- **Блок A (`a4e884782e`).** `AddResourcesToCard` и `AddResourcesToCards` принимают `CardResource | ReadonlyArray<CardResource>`
+  (список из одного = прежнее поведение байт-в-байт; хелперы `cardResourceKinds` / `holdsOneOf` / `holderResourceOf` /
+  `holderResourceIcons` в одном месте); держатели — объединение по видам в порядке табло, `WARE` — держатель любого;
+  `ResourcePlacement.resource` — вид принявшей карты; маркеры: один вид — `cardResource`, несколько — `cardResources` +
+  `cardResourceByCard` (и у `resourceGainPrompt` пик-формы). `InfluenceYieldUnit.resource` → `resources` СПИСКОМ везде
+  (Aquifer, Cloud — списки из одного). Запись: `resources` (виды по объявлению), `cards[].resource`, `resource` только при
+  одном виде посадки; адрес — `RewardPayload.resources` / `cards[].resource`. Новый id счёта `scienceTags`
+  (`{kind: 'tags', tags: [SCIENCE]}`). Карта: шаг `resources`, два пропуска («No science tags and no influence» ·
+  «No card can hold data or microbes» с величиной), задание 2 метки науки, `compatibility` не объявлена. Спек (23) +
+  `AddResourcesToCards.spec` (+6) + `AddResourcesToCard.spec` (+1); RX06/RX07 теперь пишут вид на карту в список.
+- **Блок B (`22a165c32f`).** Единица из двух видов — ОДНА отрисовка «[данные] или [бактерия]»: `YieldIcon.resources`,
+  компонент `ConsoleYieldUnit` (один вид — тот же голый `<i>`, несколько — через `.con-iyield__or`, ключ `or`) во всех
+  слотах блока чтения, плита пропуска ленты (`units`), итоги (`units` + значок вида у каждой карты списка); полёт чипов
+  по виду СВОЕЙ карты (`ResolutionPayoutTarget.resource`; запись без вида не летит); нота «нет получателя» над
+  держателями любого вида (`holdsAnyOf`), `noRecipient*Key` над списком; шаг раскладки — лента-счётчик и «Ресурсы на
+  этой карте» носят вид ЭТОЙ карты, источник-док ищет эффект по любому виду; пик над списком читает вид кандидата.
+  Клиентский юнит `MedicalDatabaseReadings.spec.ts` (9).
+- **Блок C (`778cd9c24e`).** Стенд: сценарии `medical-*` семейства `distributed` (смешанный, только бактерии, только данные,
+  две метки на одной карте, универсальная метка, один держатель, нет держателя, ноль, запись, живой); сценарий несёт
+  `holds` и показывается только закону, чья единица покрывает его виды (RX06 ↔ RX18 не смешиваются); смена закона внутри
+  семейства открывает первый сценарий нового закона; `holdersAt(resources, i)` над манифестом (WARE включён).
+- **Блок D.** Арт `RX18.webp`; фикстуры `parliament-medical-vote` / `-enact` (синий: GHG Producing Bacteria + Regolith
+  Eaters, Повестка 2; красный: Tardigrades, Повестка 5; стол Учёные / Mars First / Индустриалисты); ОДИН e2e
+  `console-parliament-medical.spec.ts` (standard-1080): лицо «данные OR бактерия / наука + влияние», панель
+  «[наука] 2 + [влияние] 1 → +3 [данные] или [бактерия]» + суффикс, осмотр, раскладка внутри заседания — счётчики с
+  нуля, RB → «+1» с бактерией на ленте карты, **A на неполной раскладке не шлёт запрос** и строка статуса называет
+  остаток, RB + RT → 2/2, коммит одним запросом, два чипа `+2` с бактерией, капсулы 2/2, табло сервера; пик красного;
+  итоги; запись `resources: [Data, Microbe]`, `resource: Microbe`, список с видами. Стенд — отдельный describe.
+
+### Находки
+
+- **Дубликат ключа в ОДНОМ файле локали ловит `lint:i18n`, а не `make:json`** (JSON.parse сворачивает повтор молча):
+  «Play 2 science tags» и «No card can hold data or microbes» (отказ действия Учёных) уже были в `parliament.json` —
+  пропуск карты разделяет существующий перевод, своя строка не заводилась.
+- **Корневой комментарий в `<template>`** делает однокорневой компонент фрагментом (`html()` начинался с комментария) —
+  комментарий `ConsoleYieldUnit` живёт в `<script>`, один вид рендерится голым `<i>`.
+- **Журнал посадки несёт ресурс токеном `LogMessageDataType.RESOURCE`**, не `STRING`.
+- **`fakeCard` не переживает reload** (`Card [Data Vault] not found` в `Game.deserialize`) — сценарии с сохранением
+  строятся на реальных картах; виды маркера при этом всё равно оба.
+- **Стендовый e2e читает СОБРАННЫЙ бандл**: правка сценария после старта `build:client` дала красный «счёт 2 вместо 3» —
+  пересборка, не продукт.
+
+### Прогоны (2026-09-24/25)
+
+| Что | Результат |
+| --- | --- |
+| `MedicalDatabase.spec` (23) · `AddResourcesToCards` (11) · `AddResourcesToCard` (10) · `ResolutionContract` · `CloudDevelopment` · `AquiferContest` · `ColonialAffairs` · `CentralPowerGrid` · `rewardAddress` · `Parliament` · `ParliamentModel` · `ParliamentPhase` · `QuestTracker` · `ChairmanQuestGate` · `PartyPresentation` · `RetiredResolutions` · `Cyanobacteria` · `CommunicationBoom` · `Will` · `NobelLabs` · глоссарий · `e2eFixturesLoad` · `resolutionCounts` · `JovianTaxRights` (447) · `glyphLiteralGuard` | зелёные |
+| клиентские юниты: `MedicalDatabaseReadings` (9, новый) · `influenceYieldModel` · `consoleResolutionPayout` · `parliamentResults` · `voteInfoBudget` (гард каталога с RX18) · `ConsoleInfluenceYield` · `voteInfoModel` · `parliamentAnnotations` · `cardResourceDistribution` · `parliamentRewardBeat` | зелёные |
+| `npm run lint` · `build:test` (оба дерева) · `make:cards` · `make:json` · `build:server` · `make:css` · `build:client` | зелёные |
+| e2e `console-parliament-medical` · standard-1080 · свой сервер из `build/` | заседание ✓ (1 passed, 1,5 мин); стенд ✓ после пересборки клиента |
+
+Кадры: `screenshots/parliament-medical/standard-1080/` — `02-vote-reading` (панель: «[наука] 2 + [влияние] 1 → +3 [данные]
+или [бактерия]», «+1 если победите»), `05-incomplete-withheld` (раскладка 1 из 4: A не отправила, «Осталось разложить: 3»),
+`06-layout-ready` (2/2, ленты с бактерией, «Всё разложено»), `08-stand-mixed` (стенд: Research + GHG + Martian Culture —
+держатель бактерий и держатель данных, единица из двух видов).

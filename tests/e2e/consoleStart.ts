@@ -2304,7 +2304,7 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'hydro-terminal'
   'parliament-heat-assembly' | 'parliament-heat-enacted' |
   'parliament-budget-vote' | 'parliament-budget-assembly' |
   // RX17 Jovian Tax Rights: four cubes (Luna ×2 · Titan · Miranda) and influence 3 at the vote; red wins the assembly, blue is paid the vote's numbers.
-  'parliament-jovian-vote' | 'parliament-jovian-assembly' |
+  'parliament-jovian-vote' | 'parliament-jovian-assembly' | 'parliament-medical-vote' | 'parliament-medical-enact' |
   'parliament-research-vote' | 'parliament-research-assembly' | 'parliament-research-enact' | 'parliament-research-full' |
   'parliament-climate-vote' | 'parliament-climate-enact' | 'parliament-climate-recap' | 'parliament-climate-big' |
   'parliament-climate-vote-raise' | 'parliament-climate-cardstep' | 'parliament-biodome-nocell-assembly' | 'parliament-aquifer-assembly-six' | 'parliament-powergrid-vote-cap' |
