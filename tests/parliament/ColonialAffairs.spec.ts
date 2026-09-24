@@ -242,7 +242,7 @@ describe('ColonialAffairs', () => {
       const mine = outcomesOf(parliament, p1);
       expect(mine.map((o) => `${o.step}:${o.kind}:${o.amount}`)).deep.eq(['colony:Titan:cardResource:3', 'colony:Miranda:cards:3']);
       expect(mine[0]).deep.include({resource: CardResource.FLOATER, multiplier: 3, colony: ColonyName.TITAN});
-      expect(mine[0].cards).deep.eq([{card: CardName.DIRIGIBLES, amount: 2}, {card: CardName.ATMO_COLLECTORS, amount: 1}]);
+      expect(mine[0].cards).deep.eq([{card: CardName.DIRIGIBLES, amount: 2, resource: CardResource.FLOATER}, {card: CardName.ATMO_COLLECTORS, amount: 1, resource: CardResource.FLOATER}]);
       expect(mine[1]).deep.include({drawn: 3, multiplier: 3, colony: ColonyName.MIRANDA});
       expect(p1.cardsInHand.length).eq(3);
     });

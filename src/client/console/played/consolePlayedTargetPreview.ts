@@ -144,8 +144,11 @@ export function playedTargetPreviewFor(
     const from = model.resources ?? 0;
     const impacts: Array<PlayedTargetImpact> = [{
       label: 'Resources on this card',
+      // A pick over SEVERAL kinds (or any) names the kind THIS candidate takes — the marker's per-card map —
+      // before the pick's one kind: a data holder reads data, a microbe holder microbes.
       icon: onCard?.icon ??
         (step !== undefined && step.kind === 'input' ? step.cardResource : undefined) ??
+        input.resourceGainPrompt?.cardResourceByCard?.[name] ??
         input.resourceGainPrompt?.cardResource,
       from,
       to: Math.max(0, from + amount),

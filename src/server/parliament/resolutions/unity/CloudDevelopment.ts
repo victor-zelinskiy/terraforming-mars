@@ -78,7 +78,7 @@ export const CLOUD_DEVELOPMENT_CODE: ResolutionCode = 'RX06';
 /** THE FORMULA: 1 floater per Venus or Jovian tag + 1 per influence, spread over the player's holders, for every participant. */
 export const CLOUD_DEVELOPMENT_FLOATERS: InfluenceScaledEffect = {
   id: 'floaters',
-  unit: {kind: 'cardResource', resource: CardResource.FLOATER, spread: true},
+  unit: {kind: 'cardResource', resources: [CardResource.FLOATER], spread: true},
   perInfluence: 1,
   count: {id: 'venusJovianTags', per: 1},
   recipient: 'each',
@@ -146,7 +146,7 @@ const FLOATERS_STEP: EnactStep = {
     }).andThen((placed) => {
       ctx.game.log('${0} placed ${1} floater(s) from ${2}: ${3} Venus and Jovian tag(s) + ${4} influence', (b) =>
         b.player(player).number(owed).resolution(CLOUD_DEVELOPMENT_ID).number(counted.count).number(influence));
-      const cards = placed.map((p) => ({card: p.card.name, amount: p.amount}));
+      const cards = placed.map((p) => ({card: p.card.name, amount: p.amount, resource: p.resource}));
       ctx.report({
         kind: 'cardResource',
         ...recorded,

@@ -54,7 +54,7 @@
            influence (which is already inside that total). -->
       <div v-if="(formula || group.readings.length === 0) && group.effect.sequel !== undefined" class="con-iyield__formula" aria-hidden="true">
         <b class="con-iyield__num">1</b>
-        <i class="con-iyield__unit" :class="unitClassOf(group.effect)"></i>
+        <ConsoleYieldUnit :classes="unitClassesOf(group.effect)" />
         <span class="con-iyield__slash">/</span>
         <b class="con-iyield__num">{{ group.effect.sequel.per }}</b>
         <i class="con-iyield__unit" :class="totalClassOf(group.effect)"></i>
@@ -65,10 +65,10 @@
       <div v-else-if="(formula || group.readings.length === 0) && group.effect.upTo !== undefined" class="con-iyield__formula" data-yield-level aria-hidden="true">
         <span class="con-iyield__upto">{{ $t(upToWord) }}</span>
         <b class="con-iyield__num">{{ group.effect.base ?? 0 }}</b>
-        <i class="con-iyield__unit" :class="unitClassOf(group.effect)"></i>
+        <ConsoleYieldUnit :classes="unitClassesOf(group.effect)" />
         <span class="con-iyield__plus">+</span>
         <b class="con-iyield__num">{{ group.effect.perInfluence }}</b>
-        <i class="con-iyield__unit" :class="unitClassOf(group.effect)"></i>
+        <ConsoleYieldUnit :classes="unitClassesOf(group.effect)" />
         <span class="con-iyield__slash">/</span>
         <i class="con-iyield__inf"></i>
         <span class="con-iyield__who" :class="{'con-iyield__who--winner': group.effect.recipient === 'winner'}">
@@ -78,7 +78,7 @@
       <!-- A FLAT part states its base alone: «+4 [M€ production] · every player» — no rate per influence. -->
       <div v-else-if="(formula || group.readings.length === 0) && isFlat(group.effect)" class="con-iyield__formula" data-yield-flat aria-hidden="true">
         <b class="con-iyield__num">+{{ group.effect.base }}</b>
-        <i class="con-iyield__unit" :class="unitClassOf(group.effect)"></i>
+        <ConsoleYieldUnit :classes="unitClassesOf(group.effect)" />
         <span class="con-iyield__who" :class="{'con-iyield__who--winner': group.effect.recipient === 'winner'}">
           {{ $t(group.effect.recipient === 'winner' ? 'Winner of the vote' : 'For every player') }}
         </span>
@@ -90,7 +90,7 @@
              influence's rate for the count. -->
         <template v-if="countGlyphOf(group.effect) !== undefined && group.effect.count?.per !== group.effect.perInfluence">
           <b class="con-iyield__num">{{ group.effect.count?.per }}</b>
-          <i class="con-iyield__unit" :class="unitClassOf(group.effect)"></i>
+          <ConsoleYieldUnit :classes="unitClassesOf(group.effect)" />
           <span class="con-iyield__slash">/</span>
           <PremiumCountGlyph class="con-iyield__glyph" :glyph="countGlyphOf(group.effect)!" />
           <span v-if="influenceEnters(group.effect)" class="con-iyield__plus">+</span>
@@ -100,7 +100,7 @@
              would claim a term the card does not print. -->
         <template v-if="influenceEnters(group.effect)">
           <b class="con-iyield__num">{{ group.effect.perInfluence }}</b>
-          <i class="con-iyield__unit" :class="unitClassOf(group.effect)"></i>
+          <ConsoleYieldUnit :classes="unitClassesOf(group.effect)" />
           <span class="con-iyield__slash">/</span>
           <!-- A COUNTED term sharing the rate («1 [unit] / [counted object] + [influence]»):
                the counted object is exactly what the face prints — the card glyph
@@ -138,7 +138,7 @@
                in the printed order, before the inputs that earn the payout. -->
           <template v-if="levyOn(group, y)">
             <span class="con-iyield__levy" :class="{'con-iyield__levy--short': levy!.short}" data-yield-levy :data-yield-levy-paid="levy!.paid" :data-yield-levy-owed="levy!.owed">
-              <b>−{{ levy!.paid }}</b><i class="con-iyield__unit" :class="unitClassOf(group.effect)"></i>
+              <b>−{{ levy!.paid }}</b><ConsoleYieldUnit :classes="unitClassesOf(group.effect)" />
               <small v-if="levy!.short" class="con-iyield__levy-of">{{ ofText(levy!.owed) }}</small>
             </span>
             <span class="con-iyield__arrow con-iyield__arrow--levy" aria-hidden="true">→</span>
@@ -152,7 +152,7 @@
           <span v-if="y.target !== undefined && y.total !== undefined" class="con-iyield__in con-iyield__in--level">
             <span class="con-iyield__upto">{{ $t(upToWord) }}</span>
             <b data-yield-in="target">{{ y.target }}</b>
-            <i class="con-iyield__unit" :class="unitClassOf(group.effect)"></i>
+            <ConsoleYieldUnit :classes="unitClassesOf(group.effect)" />
             <span class="con-iyield__sep" aria-hidden="true">·</span>
             <span class="con-iyield__level" data-yield-in="level" :data-yield-level="y.total.before">{{ levelText(y.total.before) }}</span>
           </span>
@@ -207,11 +207,11 @@
             <!-- A LEVEL part at or above its target pays nothing, and says so CALMLY in the result's own slot —
                  the rule working, never a struck amount and never a forfeit. -->
             <span v-if="levelNone(y)" class="con-iyield__out con-iyield__out--none" data-yield-none><b>{{ $t(levelNoneKey(group.effect)) }}</b></span>
-            <span v-else class="con-iyield__out" :class="{'con-iyield__out--lost': y.skipped !== undefined && (y.amount ?? 0) > 0}"><b>{{ outText(y) }}</b><i class="con-iyield__unit" :class="unitClassOf(group.effect)"></i><em v-if="atCap(y)" class="con-iyield__max">{{ $t('Max.') }}</em></span>
+            <span v-else class="con-iyield__out" :class="{'con-iyield__out--lost': y.skipped !== undefined && (y.amount ?? 0) > 0}"><b>{{ outText(y) }}</b><ConsoleYieldUnit :classes="unitClassesOf(group.effect)" /><em v-if="atCap(y)" class="con-iyield__max">{{ $t('Max.') }}</em></span>
             <!-- THE NET at the tail — the day's balance once the levy and the payout are both known:
                  «= −3 [M€]». Signed, and in the loss tone when the seat ends poorer today. -->
             <span v-if="levyOn(group, y)" class="con-iyield__net" :class="{'con-iyield__net--minus': netOf(y) < 0}" data-yield-net-line :data-yield-net-amount="netOf(y)">
-              <span class="con-iyield__eq" aria-hidden="true">=</span><b>{{ signedText(netOf(y)) }}</b><i class="con-iyield__unit" :class="unitClassOf(group.effect)"></i>
+              <span class="con-iyield__eq" aria-hidden="true">=</span><b>{{ signedText(netOf(y)) }}</b><ConsoleYieldUnit :classes="unitClassesOf(group.effect)" />
             </span>
             <!-- THE WIN'S DIFFERENCE, as a suffix of this very number — tracked
                  caps, a quiet gold accent carried by weight, the Agenda step
@@ -224,7 +224,7 @@
                   :data-suffix-step="group.suffix.agendaStep"
                   :data-hint="suffixHint(group.suffix)">
               <b class="con-iyield__suffix-num">+{{ group.suffix.delta }}</b>
-              <i class="con-iyield__unit con-iyield__suffix-unit" :class="unitClassOf(group.effect)"></i>
+              <ConsoleYieldUnit :classes="unitClassesOf(group.effect)" extra="con-iyield__suffix-unit" />
               <span class="con-iyield__suffix-text">{{ $t(suffixWords) }}</span>
               <template v-if="group.suffix.agendaStep !== undefined">
                 <span class="con-iyield__suffix-sep" aria-hidden="true">·</span>
@@ -250,12 +250,13 @@ import {Resource} from '@/common/Resource';
 import {InfluenceScaledEffect, InfluenceYield, yieldAtCap} from '@/common/parliament/influenceScaling';
 import {LevyReading} from '@/common/parliament/resolutionLevy';
 import {
-  LEVEL_IN_HAND_KEY, LEVEL_UP_TO_KEY, levelPresentation, levelYieldIsNone, METRIC_SETS_PLURAL_KEY, oneNumberYieldsOf, PRODUCTION_HORIZON_KEY,
+  cardResourceIconKey, LEVEL_IN_HAND_KEY, LEVEL_UP_TO_KEY, levelPresentation, levelYieldIsNone, METRIC_SETS_PLURAL_KEY, oneNumberYieldsOf, PRODUCTION_HORIZON_KEY,
   productionHorizonOn, sequelTotalIcon, WinSuffix, winSuffixesOf, yieldCaptionOf, yieldCountPresentation, yieldIconOf, yieldInfluenceEnters, yieldIsFlat,
   yieldIsMultiplier, YieldCountGlyph, YieldIcon,
 } from '@/client/console/parliament/influenceYieldModel';
 import {SUFFIX_HINT, SUFFIX_IF_YOU_WIN, SUFFIX_STEP} from '@/client/console/parliament/voteInfoModel';
 import PremiumCountGlyph from '@/client/components/premiumCard/PremiumCountGlyph.vue';
+import ConsoleYieldUnit from '@/client/components/console/parliament/ConsoleYieldUnit.vue';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 
@@ -263,7 +264,7 @@ type Group = {effect: InfluenceScaledEffect, readings: Array<InfluenceYield>, su
 
 export default defineComponent({
   name: 'ConsoleInfluenceYield',
-  components: {PremiumCountGlyph},
+  components: {PremiumCountGlyph, ConsoleYieldUnit},
   props: {
     /** The readings to draw — one or more per scaled effect (the model groups them by effect). */
     yields: {type: Array as PropType<ReadonlyArray<InfluenceYield>>, required: true},
@@ -412,18 +413,29 @@ export default defineComponent({
     capText(effect: InfluenceScaledEffect): string {
       return effect.cap === undefined ? '' : translateTextWithParams('max ${0}', [String(effect.cap)]);
     },
-    unitClassOf(effect: InfluenceScaledEffect): string {
-      return this.iconClass(yieldIconOf(effect));
+    /**
+     * THE UNIT'S ICON CLASSES — one per kind: one for every ordinary unit, several for a unit of several kinds
+     * (Medical Database's «data or microbe»), which `ConsoleYieldUnit` draws as ONE unit joined by «or».
+     */
+    unitClassesOf(effect: InfluenceScaledEffect): Array<string> {
+      return this.iconClasses(yieldIconOf(effect));
     },
     /** The icon of the TOTAL a sequential part divides (the production frame included). */
     totalClassOf(effect: InfluenceScaledEffect): string {
       const term = effect.sequel;
       return term === undefined ? '' : this.iconClass(sequelTotalIcon(term));
     },
+    iconClasses(icon: YieldIcon): Array<string> {
+      if (icon.family === 'card-resource') {
+        return icon.resources.map((resource) => iconClassFor(cardResourceIconKey(resource)));
+      }
+      return [this.iconClass(icon)];
+    },
     iconClass(icon: YieldIcon): string {
       switch (icon.family) {
       case 'card-resource':
-        return iconClassFor(String(icon.resource).toLowerCase().replace(/\s+/g, '-'));
+        // A total over several kinds is not a thing; the first kind names a list of one.
+        return iconClassFor(cardResourceIconKey(icon.resources[0]));
       case 'resource':
         return iconClassFor(icon.resource) + (icon.production ? ' con-iyield__unit--prod' : '');
       case 'cards':

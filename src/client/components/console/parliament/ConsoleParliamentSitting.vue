@@ -104,12 +104,15 @@
                     <!-- Signed: a LEVY is a negative supply part («−10»), read with its sign, never as a skip;
                          a short seat's take carries the shortfall's reason beside it. -->
                     <b :class="{'con-sit__part-loss': (part.amount ?? 0) < 0}" :data-sit-part-amount="part.amount">{{ signedAmount(part.amount) }}</b>
-                    <i class="con-sit__part-unit" :class="partUnitClass(part)" aria-hidden="true"></i>
+                    <!-- A unit of SEVERAL kinds («data or microbe») draws as ONE unit joined by «or»; every other part its one icon. -->
+                    <ConsoleYieldUnit v-if="part.units !== undefined" :classes="partUnitClasses(part)" extra="con-sit__part-unit" />
+                    <i v-else class="con-sit__part-unit" :class="partUnitClass(part)" aria-hidden="true"></i>
                     <span v-if="part.note !== undefined" class="con-sit__part-reason" data-sit-part-note>{{ $t(part.note) }}</span>
                     <!-- A payout SPREAD over several cards names each recipient with its share — the list is the
-                         record's own (`cards`), never a recount; one recipient prints the sum alone. -->
+                         record's own (`cards`), never a recount; one recipient prints the sum alone. Where the kinds
+                         differ per card, each share wears its card's own icon. -->
                     <span v-if="part.cards !== undefined" class="con-sit__part-cards" data-sit-part-cards>
-                      <span v-for="entry in part.cards" :key="entry.card" class="con-sit__part-card" :data-sit-part-card="entry.card">{{ $t(entry.card) }} +{{ entry.amount }}</span>
+                      <span v-for="entry in part.cards" :key="entry.card" class="con-sit__part-card" :data-sit-part-card="entry.card" :data-sit-part-card-resource="entry.resource">{{ $t(entry.card) }} +{{ entry.amount }}<i v-if="part.units !== undefined && entry.resource !== undefined" class="con-sit__part-unit con-sit__part-unit--card" :class="cardResourceClass(entry.resource)" aria-hidden="true"></i></span>
                     </span>
                   </template>
                 </template>
@@ -215,6 +218,7 @@ import {IClientResolution} from '@/common/parliament/IClientResolution';
 import PlayerCube from '@/client/components/PlayerCube.vue';
 import {partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
+import ConsoleYieldUnit from '@/client/components/console/parliament/ConsoleYieldUnit.vue';
 import {conLogicalPx} from '@/client/console/consoleLayoutProfile';
 import {getResolution} from '@/client/parliament/ClientParliamentManifest';
 import {consoleParliamentUi} from '@/client/console/parliament/consoleParliamentFlow';
@@ -232,7 +236,7 @@ import {cardResourceKey} from '@/client/console/resourceTransfer/resourceTransfe
 
 export default defineComponent({
   name: 'ConsoleParliamentSitting',
-  components: {PlayerCube, ConsoleColonyLedger},
+  components: {PlayerCube, ConsoleColonyLedger, ConsoleYieldUnit},
   props: {
     /** Where the sitting stands on the server (`consoleSittingFlow.sittingPositionOf`). */
     position: {type: Object as PropType<SittingPosition>, required: true},
@@ -392,6 +396,14 @@ export default defineComponent({
         return iconClassFor(cardResourceKey(part.unit));
       }
       return iconClassFor(part.unit) + (part.production ? ' con-iyield__unit--prod' : '');
+    },
+    /** The icons of a part of SEVERAL kinds — one per kind, in the declared order. */
+    partUnitClasses(part: ResultsPayoutPart): Array<string> {
+      return (part.units ?? []).map((unit) => iconClassFor(cardResourceKey(unit)));
+    },
+    /** One recipient's own kind (a card-resource share). */
+    cardResourceClass(resource: string): string {
+      return iconClassFor(cardResourceKey(resource));
     },
   },
 });

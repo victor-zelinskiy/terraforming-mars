@@ -102,7 +102,18 @@ export type SerializedEnactOutcome = {
    */
   party?: PartyName;
   trigger?: EventTrigger;
+  /**
+   * `cardResource` (and its skip): the ONE kind of the units. Absent when the
+   * effect spans SEVERAL kinds and the landed units are not all of one — see
+   * `resources` for the kinds and `cards[].resource` for each card's own.
+   */
   resource?: CardResource;
+  /**
+   * `cardResource` (and its skip) of an effect over SEVERAL kinds (Medical
+   * Database's «data or microbe»): the kinds in the declared order — what the
+   * unit is named by where no single `resource` can.
+   */
+  resources?: Array<CardResource>;
   /** `production` (and its skip): the standard resource whose production the effect raises. */
   production?: Resource;
   /**
@@ -126,7 +137,7 @@ export type SerializedEnactOutcome = {
    * every consumer's reading (the stage, the results, the journal); a single
    * recipient is the list of one. Absent on older saves (then `card`).
    */
-  cards?: Array<{card: CardName; amount: number}>;
+  cards?: Array<{card: CardName; amount: number; resource?: CardResource}>;
   space?: SpaceId;
   /** `skipped`: why nothing happened (English i18n key). */
   reason?: string;

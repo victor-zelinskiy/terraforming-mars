@@ -119,7 +119,7 @@ describe('CloudDevelopment', () => {
       expect(CLOUD_DEVELOPMENT.compatibility).deep.eq(['venus']);
       expect(CLOUD_DEVELOPMENT.quest).deep.eq({goal: {kind: 'tag', tag: Tag.VENUS}, count: 2});
       expect(CLOUD_DEVELOPMENT.scaled).deep.eq([CLOUD_DEVELOPMENT_FLOATERS]);
-      expect(CLOUD_DEVELOPMENT_FLOATERS.unit).deep.eq({kind: 'cardResource', resource: CardResource.FLOATER, spread: true});
+      expect(CLOUD_DEVELOPMENT_FLOATERS.unit).deep.eq({kind: 'cardResource', resources: [CardResource.FLOATER], spread: true});
       expect(CLOUD_DEVELOPMENT_FLOATERS.count).deep.eq({id: 'venusJovianTags', per: 1});
       expect(CLOUD_DEVELOPMENT.winnerSteps, 'no winner-only part').is.undefined;
       expect(CLOUD_DEVELOPMENT_FLOATERS.cap, 'no cap').is.undefined;
@@ -267,7 +267,7 @@ describe('CloudDevelopment', () => {
       expect(floatersOn(p2, CardName.DIRIGIBLES)).eq(0);
       const outcome = outcomeOf(parliament, p2);
       expect(outcome).deep.include({kind: 'cardResource', resource: CardResource.FLOATER, amount: 1, card: CardName.ATMO_COLLECTORS, influence: 0, count: 1});
-      expect(outcome?.cards).deep.eq([{card: CardName.ATMO_COLLECTORS, amount: 1}]);
+      expect(outcome?.cards).deep.eq([{card: CardName.ATMO_COLLECTORS, amount: 1, resource: CardResource.FLOATER}]);
       expect(outcomeOf(parliament, p1)).deep.include({kind: 'skipped', reason: 'No card can hold floaters', amount: 1});
     });
 
@@ -286,7 +286,7 @@ describe('CloudDevelopment', () => {
       expect(outcome).deep.include({kind: 'cardResource', amount: 3, card: CardName.DIRIGIBLES, influence: 2, count: 1});
       expect(outcome?.counted).deep.eq([CardName.DIRIGIBLES]);
       expect(outcome?.countedByTag).deep.eq([{tag: Tag.VENUS, count: 1}, {tag: Tag.JOVIAN, count: 0}]);
-      expect(outcome?.cards).deep.eq([{card: CardName.DIRIGIBLES, amount: 3}]);
+      expect(outcome?.cards).deep.eq([{card: CardName.DIRIGIBLES, amount: 3, resource: CardResource.FLOATER}]);
     });
 
     it('N ≥ 2 over ≥ 2 holders: the DISTRIBUTION — the structural marker carries the faces, the sum and the VP table of every amount', () => {
@@ -352,7 +352,7 @@ describe('CloudDevelopment', () => {
       const outcome = outcomeOf(parliament, p1);
       expect(outcome).deep.include({kind: 'cardResource', resource: CardResource.FLOATER, amount: 3, influence: 1, count: 2, part: 'effect', effect: 'floaters'});
       expect(outcome?.card, 'spread over two cards: no single card').is.undefined;
-      expect(outcome?.cards).deep.eq([{card: CardName.FLOATING_HABS, amount: 2}, {card: CardName.ATMO_COLLECTORS, amount: 1}]);
+      expect(outcome?.cards).deep.eq([{card: CardName.FLOATING_HABS, amount: 2, resource: CardResource.FLOATER}, {card: CardName.ATMO_COLLECTORS, amount: 1, resource: CardResource.FLOATER}]);
       expect(outcome?.counted).deep.eq([CardName.FLOATING_HABS, CardName.DIRIGIBLES]);
       expect(outcome?.countedUnits).deep.eq([1, 1]);
       expect((parliament.phase?.summary?.outcomes ?? []).filter((o) => o.player === p1.id && o.step === 'floaters'), 'exactly one record').has.length(1);
@@ -369,7 +369,7 @@ describe('CloudDevelopment', () => {
       expect(floatersOn(p1, CardName.DIRIGIBLES)).eq(3);
       const outcome = outcomeOf(parliament, p1);
       expect(outcome?.card).eq(CardName.DIRIGIBLES);
-      expect(outcome?.cards).deep.eq([{card: CardName.DIRIGIBLES, amount: 3}]);
+      expect(outcome?.cards).deep.eq([{card: CardName.DIRIGIBLES, amount: 3, resource: CardResource.FLOATER}]);
     });
 
     it('a sum below N is refused with an InputError — the prompt stands, nothing is applied; so is a sum above N', () => {
@@ -506,7 +506,7 @@ describe('CloudDevelopment', () => {
       expect(live.parliament!.phase).is.undefined;
       const outcomes = live.parliament!.lastPhase!.outcomes!;
       expect(outcomes.filter((o) => o.player === p1.id && o.step === 'floaters')).has.length(1);
-      expect(outcomes.find((o) => o.player === p1.id && o.step === 'floaters')?.cards).deep.eq([{card: CardName.FLOATING_HABS, amount: 3}]);
+      expect(outcomes.find((o) => o.player === p1.id && o.step === 'floaters')?.cards).deep.eq([{card: CardName.FLOATING_HABS, amount: 3, resource: CardResource.FLOATER}]);
     });
 
     it('a reload inside the single PICK rebuilds it with the same amount; a reload BETWEEN two seats asks the second once', () => {
@@ -596,7 +596,7 @@ describe('CloudDevelopment', () => {
       expect(phase?.outcomes?.[0]).deep.include({
         player: p1.color, step: 'floaters', part: 'effect', effect: 'floaters', kind: 'cardResource', resource: 'Floater', amount: 3, influence: 1, count: 2,
       });
-      expect(phase?.outcomes?.[0].cards).deep.eq([{card: CardName.FLOATING_HABS, amount: 1}, {card: CardName.JOVIAN_LANTERNS, amount: 2}]);
+      expect(phase?.outcomes?.[0].cards).deep.eq([{card: CardName.FLOATING_HABS, amount: 1, resource: CardResource.FLOATER}, {card: CardName.JOVIAN_LANTERNS, amount: 2, resource: CardResource.FLOATER}]);
       expect(phase?.outcomes?.[0].countedByTag).deep.eq([{tag: Tag.VENUS, count: 1}, {tag: Tag.JOVIAN, count: 1}]);
     });
 

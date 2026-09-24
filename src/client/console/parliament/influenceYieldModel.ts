@@ -35,7 +35,12 @@ import {getSpecialCellInfo} from '@/client/components/board/specialCellInfo';
 
 /** The icon of the yield's unit — the same CSS families the chips use. */
 export type YieldIcon =
-  | {family: 'card-resource', resource: CardResource}
+  /**
+   * A card resource — the KINDS of the unit as a list, one kind being the
+   * list of one; several (Medical Database's «data or microbe») are drawn as
+   * ONE unit of several icons joined by «or», never as two lines.
+   */
+  | {family: 'card-resource', resources: ReadonlyArray<CardResource>}
   | {family: 'resource', resource: Resource, production: boolean}
   | {family: 'cards'}
   /** The COLONY tile — the unit of a «gain all your colony bonuses k times» effect is the multiplier over the ledger. */
@@ -43,12 +48,17 @@ export type YieldIcon =
 
 export function yieldIconOf(effect: InfluenceScaledEffect): YieldIcon {
   switch (effect.unit.kind) {
-  case 'cardResource': return {family: 'card-resource', resource: effect.unit.resource};
+  case 'cardResource': return {family: 'card-resource', resources: effect.unit.resources};
   case 'stock': return {family: 'resource', resource: effect.unit.resource, production: false};
   case 'production': return {family: 'resource', resource: effect.unit.resource, production: true};
   case 'cards': return {family: 'cards'};
   case 'colonyBonuses': return {family: 'colony'};
   }
+}
+
+/** The normalized icon key of a card resource (`'Microbe'` → `'microbe'`, `'Hydroelectric resource'` → `'hydroelectric-resource'`). */
+export function cardResourceIconKey(resource: CardResource): string {
+  return String(resource).toLowerCase().replace(/\s+/g, '-');
 }
 
 /** The effect's amount is a MULTIPLIER over the player's colony ledger (Colonial Affairs), not a count of a resource. */
@@ -183,6 +193,13 @@ export function yieldCountPresentation(id: ResolutionCountId): YieldCountPresent
       pluralKey: '${0} colony(-ies)',
       ruleKey: 'Each colony you have counts: two colonies on one tile count twice. A tile without your colony does not count.',
       skipReasonKey: 'No colonies',
+    };
+  case 'scienceTags':
+    return {
+      glyph: {kind: 'tag', tag: Tag.SCIENCE},
+      pluralKey: '${0} science tag(s)',
+      ruleKey: 'Each science tag counts: a card with two science tags counts twice. Wild tags do not count.',
+      skipReasonKey: 'No science tags and no influence',
     };
   }
 }
@@ -345,7 +362,7 @@ export function sequelTotalIcon(term: InfluenceSequelTerm): YieldIcon {
 /** The icon of a player TOTAL a term reads (a sequel's divisor, a level's current value) — the same families as the unit. */
 function totalIconOf(total: InfluenceYieldUnit): YieldIcon {
   switch (total.kind) {
-  case 'cardResource': return {family: 'card-resource', resource: total.resource};
+  case 'cardResource': return {family: 'card-resource', resources: total.resources};
   case 'stock': return {family: 'resource', resource: total.resource, production: false};
   case 'production': return {family: 'resource', resource: total.resource, production: true};
   case 'cards': return {family: 'cards'};
@@ -744,12 +761,21 @@ export function scaledEffectOf(resolution: IClientResolution | undefined, effect
   return resolution?.scaled?.find((e) => e.id === effectId);
 }
 
-/** The first scaled effect whose unit is the card resource the prompt adds — how a picker finds its rule. */
-export function scaledEffectForCardResource(resolution: IClientResolution | undefined, resourceIcon: string | undefined): InfluenceScaledEffect | undefined {
+/**
+ * The first scaled effect whose unit is (one of) the card resource(s) the
+ * prompt adds — how a picker finds its rule. The prompt names one icon
+ * (`cardResource`) or, over several kinds, the icons it spans
+ * (`cardResources`) — either matches an effect whose unit lists any of them.
+ */
+export function scaledEffectForCardResource(resolution: IClientResolution | undefined, resourceIcon: string | ReadonlyArray<string> | undefined): InfluenceScaledEffect | undefined {
   if (resolution?.scaled === undefined || resourceIcon === undefined) {
     return undefined;
   }
-  return resolution.scaled.find((e) => e.unit.kind === 'cardResource' && String(e.unit.resource).toLowerCase().replace(/\s+/g, '-') === resourceIcon);
+  const icons = typeof resourceIcon === 'string' ? [resourceIcon] : resourceIcon;
+  if (icons.length === 0) {
+    return undefined;
+  }
+  return resolution.scaled.find((e) => e.unit.kind === 'cardResource' && e.unit.resources.some((r) => icons.includes(cardResourceIconKey(r))));
 }
 
 export const YIELD_CONTEXTS: ReadonlyArray<InfluenceYieldContext> = ['reference', 'estimate', 'forecast', 'resolving', 'applied'];
@@ -831,12 +857,20 @@ export function noRecipientNoteOf(effect: InfluenceScaledEffect, tableau: Readon
   if (effect.unit.kind !== 'cardResource') {
     return undefined;
   }
-  const resource = effect.unit.resource;
-  const holder = tableau.some((card) => {
+  const resources = effect.unit.resources;
+  return holdsAnyOf(tableau, resources) ? undefined : noRecipientForecastKey(resources);
+}
+
+/**
+ * Does the tableau hold a card that can take ANY of `resources` — the card's
+ * own storage rule (`resourceType`, the WARE wildcard included), never a tag?
+ * The client twin of the server's holder law over a list of kinds.
+ */
+export function holdsAnyOf(tableau: ReadonlyArray<{name: CardName}>, resources: ReadonlyArray<CardResource>): boolean {
+  return tableau.some((card) => {
     const type = getCard(card.name)?.resourceType;
-    return type === resource || type === CardResource.WARE;
+    return type !== undefined && (resources.includes(type) || type === CardResource.WARE);
   });
-  return holder ? undefined : noRecipientForecastKey(resource);
 }
 
 /**
@@ -848,12 +882,25 @@ export function noRecipientCompactNoteOf(effect: InfluenceScaledEffect, tableau:
   if (effect.unit.kind !== 'cardResource' || noRecipientNoteOf(effect, tableau) === undefined) {
     return undefined;
   }
-  return noRecipientReasonKey(effect.unit.resource);
+  return noRecipientReasonKey(effect.unit.resources);
+}
+
+/** The ONE kind of a list of one (the ordinary card), undefined over several — the two-kind copy is its own. */
+function soleKindOf(resources: ReadonlyArray<CardResource>): CardResource | undefined {
+  return resources.length === 1 ? resources[0] : undefined;
+}
+
+/** The two-kind unit the copy names by both («data or microbe» — Medical Database); undefined for any other list. */
+function dataOrMicrobe(resources: ReadonlyArray<CardResource>): boolean {
+  return resources.length === 2 && resources.includes(CardResource.DATA) && resources.includes(CardResource.MICROBE);
 }
 
 /** The forecast note for a card resource with no holder («…would be forfeited»), named by resource where the copy exists. */
-export function noRecipientForecastKey(resource: CardResource): string {
-  switch (resource) {
+export function noRecipientForecastKey(resources: ReadonlyArray<CardResource>): string {
+  if (dataOrMicrobe(resources)) {
+    return 'no eligible card — the data or microbes would be forfeited';
+  }
+  switch (soleKindOf(resources)) {
   case CardResource.ANIMAL: return 'no eligible card — the animals would be forfeited';
   case CardResource.FLOATER: return 'no eligible card — the floaters would be forfeited';
   default: return 'no eligible card — the payout would be forfeited';
@@ -861,8 +908,11 @@ export function noRecipientForecastKey(resource: CardResource): string {
 }
 
 /** The SKIP reason for a card resource with no holder — the key the server's outcome record carries for the same case. */
-export function noRecipientReasonKey(resource: CardResource): string {
-  switch (resource) {
+export function noRecipientReasonKey(resources: ReadonlyArray<CardResource>): string {
+  if (dataOrMicrobe(resources)) {
+    return 'No card can hold data or microbes';
+  }
+  switch (soleKindOf(resources)) {
   case CardResource.ANIMAL: return 'No card can hold animals';
   case CardResource.FLOATER: return 'No card can hold floaters';
   case CardResource.MICROBE: return 'No card can hold microbes';

@@ -46,6 +46,7 @@ import {HEAT_CAPTURE} from './reds/HeatCapture';
 import {INDUSTRIALIST_BUDGET} from './industrialists/IndustrialistBudget';
 import {JOINT_RESEARCH} from './scientists/JointResearch';
 import {JOVIAN_TAX_RIGHTS} from './unity/JovianTaxRights';
+import {MEDICAL_DATABASE} from './scientists/MedicalDatabase';
 
 /**
  * THE RETIRED IDS — iteration 0's DUMMY resolutions (a party, a quest, no
@@ -487,6 +488,9 @@ export const REDUX_RESOLUTION_CATALOG = new ResolutionCatalog([
   // A count over the seat's COLONIES (the sixth count kind: cubes on the colony tiles, the engine's own list) beside
   // a plain titanium-by-influence part; the cap sits on the production part alone.
   JOVIAN_TAX_RIGHTS,
+  // The distributing family over TWO KINDS of unit: the recipients are the holders of data AND of microbes at once,
+  // and each unit's kind is its card's — never a second question (`AddResourcesToCards` over a list of kinds).
+  MEDICAL_DATABASE,
   TEST_CHOICE,
   DEV_IMMEDIATE,
   DEV_PASSIVE,

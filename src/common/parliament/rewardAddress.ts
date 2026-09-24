@@ -158,12 +158,14 @@ export const OUTCOME_KINDS: ReadonlyArray<OutcomeKind> = Object.keys(REWARD_ADDR
 
 /** What the outcome DELIVERS at its address — the chip's payload, resolved from the record (never recomputed). */
 export type RewardPayload = {
-  /** The standard resource (production / stock / a reaction) or the card resource (onto a card). */
+  /** The standard resource (production / stock / a reaction) or the card resource (onto a card) — the ONE kind. */
   resource?: string;
+  /** A card-resource effect over SEVERAL kinds («data or microbe»): the kinds in the declared order — the unit's name where `resource` cannot say it. */
+  resources?: ReadonlyArray<string>;
   /** The card the resource landed on (`cardResource`, one recipient). */
   card?: string;
-  /** WHERE a `cardResource` landed, card by card — the whole list (one recipient is a list of one). */
-  cards?: ReadonlyArray<{card: string; amount: number}>;
+  /** WHERE a `cardResource` landed, card by card — the whole list (one recipient is a list of one); `resource` is the kind THAT card took. */
+  cards?: ReadonlyArray<{card: string; amount: number; resource?: string}>;
   /** The amount actually paid — NEGATIVE for a LOSS (a levy: what left the seat); a skip carries the amount it would have paid, when the record knows it. */
   amount?: number;
   /** A LEVY: what was OWED beside the (negative) amount taken — above it exactly when the seat was short. */
@@ -223,15 +225,23 @@ export function rewardAddressOf(outcome: ParliamentEnactOutcomeModel, viewer: Co
   if (resource !== undefined) {
     payload.resource = String(resource);
   }
+  if (outcome.resources !== undefined && outcome.resources.length > 0) {
+    payload.resources = outcome.resources.map((r) => String(r));
+  }
   if (outcome.card !== undefined) {
     payload.card = outcome.card;
   }
   // THE LIST IS THE READING: a record that names its cards one by one is
   // read as that list; an older record with one `card` is the list of one.
+  // Each entry keeps the kind ITS card took (the record's own, else the ONE
+  // kind of the record) — a chip lands with its own icon, never the step's.
   if (outcome.cards !== undefined && outcome.cards.length > 0) {
-    payload.cards = outcome.cards.map((entry) => ({card: entry.card, amount: entry.amount}));
+    payload.cards = outcome.cards.map((entry) => {
+      const kind = entry.resource ?? outcome.resource;
+      return {card: entry.card, amount: entry.amount, ...(kind === undefined ? {} : {resource: String(kind)})};
+    });
   } else if (outcome.card !== undefined && (outcome.amount ?? 0) > 0) {
-    payload.cards = [{card: outcome.card, amount: outcome.amount ?? 0}];
+    payload.cards = [{card: outcome.card, amount: outcome.amount ?? 0, ...(outcome.resource === undefined ? {} : {resource: String(outcome.resource)})}];
   }
   if (outcome.amount !== undefined) {
     payload.amount = outcome.amount;

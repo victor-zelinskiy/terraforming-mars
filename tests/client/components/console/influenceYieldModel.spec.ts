@@ -26,7 +26,7 @@ import {getResolution} from '@/client/parliament/ClientParliamentManifest';
  * recorded outcome is shown as recorded (never recomputed), a live payout
  * shows the server's amount, and a viewer with no seat gets the formula alone.
  */
-const ANIMALS: InfluenceScaledEffect = {id: 'animals', unit: {kind: 'cardResource', resource: CardResource.ANIMAL}, perInfluence: 1, recipient: 'each'};
+const ANIMALS: InfluenceScaledEffect = {id: 'animals', unit: {kind: 'cardResource', resources: [CardResource.ANIMAL]}, perInfluence: 1, recipient: 'each'};
 
 function seat(color: Color, agenda: number, influence: number): ParliamentPlayerModel {
   return {color, participates: true, lobby: true, reserve: 6, onResolutions: 0, chairman: false, agenda, influence, access: [], partyActionUses: {}, resolutionActionUses: 0};
@@ -194,7 +194,7 @@ describe('influenceYieldModel', () => {
     const y = resolvingYieldOf(ANIMALS, 3, model([seat('blue' as Color, 5, 3)]), 'blue' as Color);
     expect(y).deep.include({context: 'resolving', amount: 3, influence: 3});
     expect(yieldCaptionOf(y)).deep.eq({key: 'This payout'});
-    expect(yieldIconOf(ANIMALS)).deep.eq({family: 'card-resource', resource: CardResource.ANIMAL});
+    expect(yieldIconOf(ANIMALS)).deep.eq({family: 'card-resource', resources: [CardResource.ANIMAL]});
   });
 
   // ── A TAG-COUNTED TERM (Central Power Grid: min(5, P + I)) ──

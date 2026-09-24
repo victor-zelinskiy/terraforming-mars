@@ -340,7 +340,7 @@
                          stored-resource capsule stays at its live count: nothing has landed yet, and it
                          ticks only when the chips do (`landedCardOf`). -->
                     <span v-if="isSpreadMode && spreadOnCard(entry.card.name) > 0" class="con-cards__pickband con-cards__pickband--spread" aria-hidden="true" data-spread-band>
-                      +{{ spreadOnCard(entry.card.name) }}<i class="con-cards__spread-icon" :class="spreadIconClass"></i>
+                      +{{ spreadOnCard(entry.card.name) }}<i class="con-cards__spread-icon" :class="spreadIconClassOf(entry.card.name)"></i>
                     </span>
                     <span v-else-if="isPicked(entry.card.name) && !trayPickBeat" class="con-cards__pickband" aria-hidden="true">✓ {{ $t('Card selected') }}</span>
                     <!-- P18: disabled candidates wear the state badge + the
@@ -994,7 +994,8 @@ export default defineComponent({
       if (id === undefined || meta === undefined || this.activeTask.kind !== 'cardSelect') {
         return undefined;
       }
-      const effect = scaledEffectForCardResource(getResolution(id), meta.cardResource);
+      // The pick names its ONE kind, or the kinds it spans — either finds the effect whose unit lists any of them.
+      const effect = scaledEffectForCardResource(getResolution(id), meta.cardResources ?? meta.cardResource);
       return effect === undefined ? undefined : resolvingYieldOf(effect, meta.amount, this.playerView.game.parliament, this.playerView.thisPlayer.color);
     },
     /**
@@ -1530,7 +1531,12 @@ export default defineComponent({
           selectBlueCardAction: false,
           showOwner: false,
           showSelectAll: false,
-          resourceGainPrompt: {amount: spread.amount, cardResource: spread.cardResource},
+          resourceGainPrompt: {
+            amount: spread.amount,
+            ...(spread.cardResource === undefined ? {} : {cardResource: spread.cardResource}),
+            ...(spread.cardResources === undefined ? {} : {cardResources: spread.cardResources}),
+            ...(spread.cardResourceByCard === undefined ? {} : {cardResourceByCard: spread.cardResourceByCard}),
+          },
           choiceContext: this.wf.choiceContext,
         };
       }
@@ -1573,11 +1579,6 @@ export default defineComponent({
       const meta = this.spreadMeta;
       return meta === undefined ? 0 : spreadVictoryPointsShift(meta, this.spread);
     },
-    /** The icon family of the distributed resource (a card resource is `card-resource-*`). */
-    spreadIconClass(): string {
-      const meta = this.spreadMeta;
-      return meta === undefined ? '' : iconClassFor(meta.cardResource);
-    },
     /** The picks store's key for the layout — its own, beside the picks' (a minimize → restore keeps both). */
     spreadStoreKey(): string {
       return `${this.resetKey}|spread`;
@@ -1613,9 +1614,11 @@ export default defineComponent({
         if (reading === undefined) {
           return [];
         }
+        // The icon is the kind THIS card takes — its own (a layout over several kinds), else the layout's one kind.
+        const icon = this.spreadResourceOf(entry.card.name);
         const out: Array<PlayedTargetImpact & {iconClass: string}> = [{
-          label: 'Resources on this card', icon: spread.cardResource, from: reading.resources.from, to: reading.resources.to,
-          static: reading.placed === 0, iconClass: iconClassFor(spread.cardResource),
+          label: 'Resources on this card', icon, from: reading.resources.from, to: reading.resources.to,
+          static: reading.placed === 0, iconClass: iconClassFor(icon),
         }];
         if (reading.vp !== undefined) {
           out.push({label: 'VP', from: reading.vp.from, to: reading.vp.to, static: reading.vp.from === reading.vp.to, iconClass: ''});
@@ -3086,6 +3089,18 @@ export default defineComponent({
     /** Units the layout has put on `card` so far (distribute mode). */
     spreadOnCard(card: string): number {
       return spreadOn(this.spread, card);
+    },
+    /**
+     * THE KIND `card` TAKES in the layout — the marker's per-card map (a layout over SEVERAL kinds: a data
+     * holder takes data, a microbe holder microbes), else the layout's ONE kind. Never the step's list.
+     */
+    spreadResourceOf(card: string): string | undefined {
+      const meta = this.spreadMeta;
+      return meta === undefined ? undefined : (meta.cardResourceByCard?.[card as CardName] ?? meta.cardResource);
+    },
+    /** The counter band's icon on `card` — the kind that card takes (`spreadResourceOf`). */
+    spreadIconClassOf(card: string): string {
+      return iconClassFor(this.spreadResourceOf(card));
     },
     /**
      * THE LAYOUT'S GESTURES: LB / RB move one unit on the focused card, RT pours

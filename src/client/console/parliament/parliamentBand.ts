@@ -71,7 +71,7 @@ export type BandChip =
   /** The ruling party's answer to a step of the payout. */
   | {kind: 'reaction', party: ReduxParty, resource?: string, amount?: number}
   /** A part that paid nothing: what, how much it would have paid, and why — never a silent loss. */
-  | {kind: 'skip', id: string, title: string, reason: string, amount?: number, unit?: string}
+  | {kind: 'skip', id: string, title: string, reason: string, amount?: number, unit?: string, units?: ReadonlyArray<string>}
   /** The winner's part: a tile waiting behind the door to the board, or the colony built in the sitting's own step. */
   | {kind: 'tile', tile: 'ocean' | 'greenery' | 'colony'}
   /**
@@ -107,7 +107,7 @@ export type BandRewardReading = {
   /** THE LEVY a budget takes FIRST — the viewer's own reading (recorded once the seat's record is in). */
   levy?: LevyReading;
   reactions: ReadonlyArray<{party: ReduxParty, resource?: string, amount?: number}>;
-  skips: ReadonlyArray<{id: string, title: string, reason: string, amount?: number, unit?: string}>;
+  skips: ReadonlyArray<{id: string, title: string, reason: string, amount?: number, unit?: string, units?: ReadonlyArray<string>}>;
   /** The winner's part: the tile still to be placed, or the colony still to be built (`colony`). */
   tile?: 'ocean' | 'greenery' | 'colony';
   /** The WORLD's own part of the enactment — the planet's moves, in the server's order. */

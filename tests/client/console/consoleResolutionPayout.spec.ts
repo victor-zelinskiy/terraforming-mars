@@ -57,18 +57,18 @@ describe('consoleResolutionPayout', () => {
   it('flies the viewer\'s own recorded payout onto the candidate they chose — a record naming ONE card is the list of one', () => {
     const before = view(parliament([]), pick);
     const after = view(parliament([paid(BLUE, CardName.PETS)]));
-    expect(detectResolutionPayout(before, after)).deep.eq({targets: [{card: CardName.PETS, amount: 2}], resource: 'animal', amount: 2, resolution: AQUIFER});
+    expect(detectResolutionPayout(before, after)).deep.eq({targets: [{card: CardName.PETS, amount: 2, resource: 'animal'}], resource: 'animal', amount: 2, resolution: AQUIFER});
   });
 
   it('a DISTRIBUTION flies one chip per recipient, in the record\'s order, and drops the cards that received nothing', () => {
     const before = view(parliament([]), spread);
     const after = view(parliament([laidOut(BLUE, [{card: CardName.ATMO_COLLECTORS, amount: 2}, {card: CardName.DIRIGIBLES, amount: 1}])]));
     expect(detectResolutionPayout(before, after)).deep.eq({
-      targets: [{card: CardName.ATMO_COLLECTORS, amount: 2}, {card: CardName.DIRIGIBLES, amount: 1}],
+      targets: [{card: CardName.ATMO_COLLECTORS, amount: 2, resource: 'floater'}, {card: CardName.DIRIGIBLES, amount: 1, resource: 'floater'}],
       resource: 'floater', amount: 3, resolution: CLOUD,
     });
     const oneOfTwo = view(parliament([laidOut(BLUE, [{card: CardName.DIRIGIBLES, amount: 3}, {card: CardName.ATMO_COLLECTORS, amount: 0}])]));
-    expect(detectResolutionPayout(before, oneOfTwo)?.targets, 'a zero stays home').deep.eq([{card: CardName.DIRIGIBLES, amount: 3}]);
+    expect(detectResolutionPayout(before, oneOfTwo)?.targets, 'a zero stays home').deep.eq([{card: CardName.DIRIGIBLES, amount: 3, resource: 'floater'}]);
     // A recipient the ask never offered means the record is not this ask's.
     const stranger = view(parliament([laidOut(BLUE, [{card: CardName.DIRIGIBLES, amount: 2}, {card: CardName.FLOATING_HABS, amount: 1}])]));
     expect(detectResolutionPayout(before, stranger)).is.undefined;

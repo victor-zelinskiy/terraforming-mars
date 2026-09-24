@@ -54,7 +54,7 @@ export const AQUIFER_CONTEST_CODE: ResolutionCode = 'RX01';
 /** THE FORMULA: 1 animal per point of influence, for every participant. */
 export const AQUIFER_CONTEST_ANIMALS: InfluenceScaledEffect = {
   id: 'animals',
-  unit: {kind: 'cardResource', resource: CardResource.ANIMAL},
+  unit: {kind: 'cardResource', resources: [CardResource.ANIMAL]},
   perInfluence: 1,
   recipient: 'each',
 };

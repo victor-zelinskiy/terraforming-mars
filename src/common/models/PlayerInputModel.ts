@@ -753,8 +753,26 @@ export type SelectProjectCardToPlayModel = BaseInputModel & {
  */
 export type ResourceGainPromptMeta = {
   amount: number;
-  /** Icon key of the card resource being added ('animal', 'microbe', …). */
+  /**
+   * Icon key of the card resource being added ('animal', 'microbe', …) — the
+   * ONE kind the pick adds. Absent when the pick spans SEVERAL kinds (Medical
+   * Database's «data or microbe» — see `cardResources`) or any resource: each
+   * unit's kind is then its card's (`cardResourceByCard`).
+   */
   cardResource?: string;
+  /**
+   * The kinds a pick over SEVERAL spans, in the declared order (icon keys) —
+   * the unit the reading names as «data or microbe». Absent for the ordinary
+   * one-kind pick (`cardResource` says it).
+   */
+  cardResources?: ReadonlyArray<string>;
+  /**
+   * Per candidate, the icon key of the kind THAT card takes — its own storage
+   * rule (a WARE holder reads as its own wildcard). Present when the pick
+   * spans several kinds or any resource; absent when `cardResource` holds
+   * for every candidate.
+   */
+  cardResourceByCard?: Partial<Record<CardName, string>>;
   /** Per-candidate VP reading; a card whose points the resource never moves is
    *  simply ABSENT (never a fabricated zero) — see {@link VictoryPointsDelta}. */
   vpBox?: Partial<Record<CardName, VictoryPointsDelta>>;
@@ -780,8 +798,21 @@ export type ResourceGainPromptMeta = {
 export type CardResourceDistributionMeta = {
   /** How many units are placed — the sum every answer must reach. */
   amount: number;
-  /** Icon key of the card resource ('floater', 'microbe', …). */
-  cardResource: string;
+  /**
+   * Icon key of the card resource ('floater', 'microbe', …) — the ONE kind the
+   * step spreads. Absent when the step spreads over holders of SEVERAL kinds
+   * (Medical Database's «data or microbe» — see `cardResources`): each unit's
+   * kind is then its card's (`cardResourceByCard`).
+   */
+  cardResource?: string;
+  /** The kinds a step over SEVERAL spreads, in the declared order (icon keys); absent for the one-kind step. */
+  cardResources?: ReadonlyArray<string>;
+  /**
+   * Per candidate, the icon key of the kind THAT card takes — its own storage
+   * rule (a WARE holder reads as its own wildcard). Present for a step over
+   * several kinds; absent when `cardResource` holds for every candidate.
+   */
+  cardResourceByCard?: Partial<Record<CardName, string>>;
   /** The candidates, in the `and`'s option order. */
   cards: ReadonlyArray<CardModel>;
   /** Per candidate, the VP reading for k = 1…amount (index k − 1). */

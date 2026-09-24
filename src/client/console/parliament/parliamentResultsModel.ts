@@ -80,6 +80,11 @@ export type ResultsPayoutPart = {
   kind: ParliamentEnactOutcomeModel['kind'];
   /** The unit the chip speaks: a resource / card-resource name, `cards`, or '' for a tile. */
   unit: string;
+  /**
+   * A card-resource part of SEVERAL kinds (Medical Database's «data or microbe») whose units did not all land in
+   * one kind — or its skip: the kinds in the declared order, drawn as ONE unit joined by «or»; `unit` is then ''.
+   */
+  units?: ReadonlyArray<string>;
   /** The unit is a PRODUCTION step (the console's production frame), not a stock gain. */
   production: boolean;
   amount?: number;
@@ -92,7 +97,7 @@ export type ResultsPayoutPart = {
    * over several (a distribution): the row then names each recipient with
    * its own share beside the sum; one recipient prints the sum alone.
    */
-  cards?: ReadonlyArray<{card: string, amount: number}>;
+  cards?: ReadonlyArray<{card: string, amount: number, resource?: string}>;
   /** The RULING PARTY's own answer — its emblem stands beside the amount. */
   party?: ReduxParty;
   /**
@@ -238,7 +243,7 @@ export function resultsPlanetMoves(summary: ParliamentPhaseSummaryModel): Array<
 }
 
 /** The unit a record's chip speaks, and whether it is a production step. */
-function unitOf(outcome: ParliamentEnactOutcomeModel): {unit: string, production: boolean} {
+function unitOf(outcome: ParliamentEnactOutcomeModel): {unit: string, units?: ReadonlyArray<string>, production: boolean} {
   if (outcome.production !== undefined) {
     return {unit: String(outcome.production), production: true};
   }
@@ -248,6 +253,10 @@ function unitOf(outcome: ParliamentEnactOutcomeModel): {unit: string, production
   if (outcome.resource !== undefined) {
     return {unit: String(outcome.resource), production: false};
   }
+  // A card-resource record over SEVERAL kinds with no one kind to name: the kinds, joined by «or» when drawn.
+  if (outcome.resources !== undefined && outcome.resources.length > 0) {
+    return {unit: '', units: outcome.resources.map((r) => String(r)), production: false};
+  }
   // A card thrown away (Pluto's second half) speaks the card unit too; a HUD-side colony bonus has none — its description reads.
   return {unit: outcome.kind === 'cards' || outcome.kind === 'discard' ? 'cards' : '', production: false};
 }
@@ -256,11 +265,12 @@ function unitOf(outcome: ParliamentEnactOutcomeModel): {unit: string, production
 export function resultsPayoutPart(outcome: ParliamentEnactOutcomeModel, index: number): ResultsPayoutPart {
   const delivery = rewardAddressOf(outcome, outcome.player);
   const owner = outcome.player ?? 'neutral';
-  const {unit, production} = unitOf(outcome);
+  const {unit, units, production} = unitOf(outcome);
   const part: ResultsPayoutPart = {
     id: `${owner}:${outcome.step}:${outcome.part ?? ''}:${index}`,
     kind: outcome.kind,
     unit,
+    ...(units === undefined ? {} : {units}),
     production,
   };
   if (outcome.amount !== undefined) {
@@ -273,7 +283,8 @@ export function resultsPayoutPart(outcome: ParliamentEnactOutcomeModel, index: n
     part.card = outcome.card;
   }
   if (delivery.payload.cards !== undefined && delivery.payload.cards.length > 1) {
-    part.cards = delivery.payload.cards.map((entry) => ({card: entry.card, amount: entry.amount}));
+    // Each recipient keeps the kind ITS card took — printed beside its share where the kinds differ.
+    part.cards = delivery.payload.cards.map((entry) => ({card: entry.card, amount: entry.amount, ...(entry.resource === undefined ? {} : {resource: entry.resource})}));
   }
   if (outcome.kind === 'reaction' && outcome.party !== undefined) {
     part.party = outcome.party as ReduxParty;

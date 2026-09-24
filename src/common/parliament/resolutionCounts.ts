@@ -121,6 +121,12 @@ export const RESOLUTION_COUNT_IDS = [
    * trades with is not theirs) and never over cards.
    */
   'colonies',
+  /**
+   * Medical Database: the SCIENCE TAGS the player has in play (a card gives
+   * every one it prints — Research is 2). The ordinary one-tag count of
+   * Central Power Grid over another tag.
+   */
+  'scienceTags',
 ] as const;
 export type ResolutionCountId = typeof RESOLUTION_COUNT_IDS[number];
 
@@ -203,6 +209,7 @@ export function resolutionCountKind(id: ResolutionCountId): ResolutionCountKind 
   case 'terraformRatingSets': return {kind: 'threshold', metric: 'terraformRating', over: TERRAFORM_RATING_SETS_OVER, step: TERRAFORM_RATING_SETS_STEP};
   case 'steelTitaniumEnergyProduction': return {kind: 'production', resources: INDUSTRIAL_PRODUCTION_RESOURCES};
   case 'colonies': return {kind: 'colonies'};
+  case 'scienceTags': return {kind: 'tags', tags: [Tag.SCIENCE]};
   }
 }
 
@@ -485,6 +492,16 @@ export function cardCountVerdict(id: ResolutionCountId, card: CountedCardFacts, 
   case 'colonies':
     // A COLONIES count: no card counts — the player's cubes on the colony tiles do (`countColoniesToward`).
     return {counts: false, reason: 'Counted by your colonies, not among cards'};
+  case 'scienceTags': {
+    // The one question of a tag count, over the science tag: printed, face up. A wild tag is not a science tag.
+    if (!cardTagsInPlay(card, ctx)) {
+      return {counts: false, reason: 'A played event is face down'};
+    }
+    if (!card.tags.includes(Tag.SCIENCE)) {
+      return {counts: false, reason: 'No science tag'};
+    }
+    return {counts: true};
+  }
   }
 }
 

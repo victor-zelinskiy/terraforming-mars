@@ -94,7 +94,7 @@
                   data-parl-band-chip="skip" data-sit-skip :data-sit-skip-amount="chip.amount">
               <span class="con-band__text con-band__text--dim">{{ $t('Skipped') }} · {{ $t(chip.title) }}</span>
               <span v-if="chip.amount !== undefined" class="con-band__lost con-iyield__out con-iyield__out--lost">
-                <b>✕ +{{ chip.amount }}</b><i class="con-iyield__unit" :class="chip.unit" aria-hidden="true"></i>
+                <b>✕ +{{ chip.amount }}</b><ConsoleYieldUnit :classes="chip.units ?? [chip.unit ?? '']" />
               </span>
               <span class="con-band__text con-band__text--quiet">{{ $t(chip.reason) }}</span>
             </span>
@@ -121,6 +121,7 @@ import {InfluenceYield} from '@/common/parliament/influenceScaling';
 import {REWARD_ADDRESS, rewardAddressOf} from '@/common/parliament/rewardAddress';
 import PlayerCube from '@/client/components/PlayerCube.vue';
 import ConsoleInfluenceYield from '@/client/components/console/parliament/ConsoleInfluenceYield.vue';
+import ConsoleYieldUnit from '@/client/components/console/parliament/ConsoleYieldUnit.vue';
 import ConsolePartyReaction from '@/client/components/console/parliament/ConsolePartyReaction.vue';
 import ConsoleWinnerReward from '@/client/components/console/parliament/ConsoleWinnerReward.vue';
 import {partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
@@ -144,7 +145,7 @@ import {ParameterMoveId} from '@/common/parliament/parameterMove';
 
 export default defineComponent({
   name: 'ConsoleParliamentBand',
-  components: {PlayerCube, ConsoleInfluenceYield, ConsolePartyReaction, ConsoleWinnerReward},
+  components: {PlayerCube, ConsoleInfluenceYield, ConsolePartyReaction, ConsoleWinnerReward, ConsoleYieldUnit},
   props: {
     view: {type: Object as PropType<ParliamentViewVm>, required: true},
     model: {type: Object as PropType<ParliamentModel | undefined>, default: undefined},
@@ -334,9 +335,9 @@ export default defineComponent({
      * by its address's title. A scaled effect's skip is already read in the
      * yields block, so it is not repeated.
      */
-    skips(): Array<{id: string, title: string, reason: string, amount?: number, unit?: string}> {
+    skips(): Array<{id: string, title: string, reason: string, amount?: number, unit?: string, units?: Array<string>}> {
       const scaledIds = new Set((this.resolution?.scaled ?? []).map((e) => e.id));
-      const out: Array<{id: string, title: string, reason: string, amount?: number, unit?: string}> = [];
+      const out: Array<{id: string, title: string, reason: string, amount?: number, unit?: string, units?: Array<string>}> = [];
       for (const outcome of this.mine) {
         const delivery = rewardAddressOf(outcome, this.viewerColor);
         if (delivery.skipped === undefined || (outcome.effect !== undefined && scaledIds.has(outcome.effect))) {
@@ -346,9 +347,12 @@ export default defineComponent({
           (outcome.part === 'winner' ? 'Reward for the winner of the vote' : 'Resolution effect') :
           REWARD_ADDRESS[outcome.kind].skipTitle;
         const amount = delivery.payload.amount;
+        // A card-resource skip over SEVERAL kinds («data or microbe») names its unit by both icons, joined by «or».
+        const units = outcome.resource === undefined && outcome.resources !== undefined && outcome.resources.length > 1 ?
+          outcome.resources.map((r) => iconClassFor(cardResourceKey(String(r)))) : undefined;
         out.push({
           id: `${outcome.step}:${outcome.part ?? ''}`, title, reason: delivery.skipped,
-          ...(amount !== undefined && amount > 0 ? {amount, unit: this.skipUnitClass(outcome)} : {}),
+          ...(amount !== undefined && amount > 0 ? {amount, unit: this.skipUnitClass(outcome), ...(units === undefined ? {} : {units})} : {}),
         });
       }
       return out;

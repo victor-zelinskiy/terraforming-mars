@@ -1,10 +1,25 @@
 /*
- * DISTRIBUTE N UNITS OF ONE CARD RESOURCE OVER THE PLAYER'S HOLDERS — the ONE
+ * DISTRIBUTE N UNITS OF A CARD RESOURCE OVER THE PLAYER'S HOLDERS — the ONE
  * shared step of the family («add 1 floater to any card per …, each resource
  * can go on a different card»), used by the project cards that spread a
  * payout (Cyanobacteria, Communication Boom) and by the Turmoil Redux
- * resolutions that do (Cloud Development, and the distributing cards after
- * it). One mechanism, two SHAPES of one step, decided here and nowhere else:
+ * resolutions that do (Cloud Development, Medical Database, and the
+ * distributing cards after them). One mechanism, two SHAPES of one step,
+ * decided here and nowhere else:
+ *
+ * THE KINDS ARE A LIST. The step takes one kind (every caller before Medical
+ * Database — the list of one, byte-identical behaviour) or SEVERAL («add 1
+ * data or microbe resource to any card…»): the holders are then the UNION of
+ * the holders of each kind, in tableau order, each once; the player lays the
+ * units out over them exactly as over one kind; and the KIND OF EVERY UNIT IS
+ * ITS CARD'S — a microbe holder takes microbes, a data holder data, a WARE
+ * holder its own wildcard (its state is a counter, not a kind — the journal
+ * names the card's resource). «Data or microbe» is therefore never a second
+ * question to the player: the choice is made by WHERE the unit is put, and
+ * the placement handed back names the kind beside the card and the amount.
+ * The marker carries the kind each holder takes (`cardResourceByCard`) and
+ * the kinds in their declared order (`cardResources`), so the layout's
+ * counters and the reading of every card show what would land on IT.
  *
  *  · there is something to DISTRIBUTE only with N ≥ 2 AND ≥ 2 holders: the
  *    step then asks the DISTRIBUTION prompt — an `AndOptions` of one
@@ -46,7 +61,7 @@ import {ChoiceContextSource} from '../../common/models/PlayerInputModel';
 import {message} from '../logs/MessageBuilder';
 import {From} from '../logs/From';
 import {cardsToModel} from '../models/ModelUtils';
-import {AddResourcesToCard} from './AddResourcesToCard';
+import {AddResourcesToCard, cardResourceKinds, holderResourceIcons, holderResourceOf, holdsOneOf} from './AddResourcesToCard';
 // Runtime-only calls (safe circular import: actionPreviews imports the
 // deferred actions at top level; these are late-bound reads at prompt time).
 import {cardResourceIcon, distributionVictoryPoints} from '../cards/actionPreviews';
@@ -70,21 +85,42 @@ export type Options = {
   log?: boolean;
 };
 
-/** WHERE the units landed: one entry per card that received any (in holder order). */
-export type ResourcePlacement = {card: ICard, amount: number};
+/**
+ * WHERE the units landed: one entry per card that received any (in holder
+ * order), with the KIND that card took — its own storage rule (`holderResourceOf`),
+ * which is the unit's kind where the step spans several.
+ */
+export type ResourcePlacement = {card: ICard, amount: number, resource: CardResource};
 
 export class AddResourcesToCards extends DeferredAction<ReadonlyArray<ResourcePlacement>> {
+  /** THE KINDS the step spreads — a list, one kind being the list of one (see the file comment). */
+  public readonly resourceTypes: ReadonlyArray<CardResource>;
+
   constructor(
     player: IPlayer,
-    public resourceType: CardResource,
+    resourceType: CardResource | ReadonlyArray<CardResource>,
     public count: number,
     public options: Options = {}) {
     super(player, Priority.GAIN_RESOURCE_OR_PRODUCTION);
+    const kinds = cardResourceKinds(resourceType) ?? [];
+    if (kinds.length === 0) {
+      throw new Error('AddResourcesToCards needs at least one card resource kind');
+    }
+    this.resourceTypes = kinds;
   }
 
-  /** The holders the step spreads over — the card's own storage rule (`getResourceCards`). */
+  /** The ONE kind the step spreads when it spreads exactly one (every caller before Medical Database); undefined over several. */
+  public get resourceType(): CardResource | undefined {
+    return this.resourceTypes.length === 1 ? this.resourceTypes[0] : undefined;
+  }
+
+  /**
+   * The holders the step spreads over — the card's own storage rule
+   * (`getResourceCards`'s law over the list: a holder of ANY of the kinds, the
+   * WARE wildcard included), in tableau order, each once.
+   */
   public getCards(): Array<ICard> {
-    return this.player.getResourceCards(this.resourceType);
+    return this.player.getResourceCards().filter((card) => holdsOneOf(card, this.resourceTypes));
   }
 
   /** Is there something to DISTRIBUTE at all — N ≥ 2 over ≥ 2 holders? Else the family's ordinary pick. */
@@ -103,8 +139,9 @@ export class AddResourcesToCards extends DeferredAction<ReadonlyArray<ResourcePl
     if (!this.distributes()) {
       // THE FAMILY'S ORDINARY PICK: one holder takes all N, or the one unit
       // goes to the chosen holder — the same `resourceGainPrompt` reading,
-      // the same `autoSelect` law, the same source dock.
-      return new AddResourcesToCard(this.player, this.resourceType, {
+      // the same `autoSelect` law, the same source dock. The pick spans the
+      // SAME list of kinds, so its candidates are these very holders.
+      return new AddResourcesToCard(this.player, this.resourceTypes, {
         count: this.count,
         autoSelect: this.options.autoSelect,
         cause: this.options.cause,
@@ -112,7 +149,7 @@ export class AddResourcesToCards extends DeferredAction<ReadonlyArray<ResourcePl
         title: this.options.pickTitle,
         log: this.options.log,
       }).andThen((card) => {
-        this.cb([{card, amount: this.count}]);
+        this.cb([placementOf(card, this.count)]);
         return undefined;
       }).execute();
     }
@@ -143,12 +180,18 @@ export class AddResourcesToCards extends DeferredAction<ReadonlyArray<ResourcePl
     // A TITLE, always: `AndOptions` defaults to '' and this prompt once shipped
     // with a blank header over a column of bare card names — the player was
     // asked to distribute something without being told what, or how many.
+    const one = this.resourceType;
     const and = new AndOptions(...options)
-      .setTitle(this.options.distributeTitle ?? message('Distribute ${0} ${1}', (b) => b.number(this.count).string(this.resourceType)));
-    // THE STRUCTURAL MARKER — the console's whole reading of this prompt.
+      .setTitle(this.options.distributeTitle ?? message('Distribute ${0} ${1}', (b) => b.number(this.count).string(one ?? 'resources')));
+    // THE STRUCTURAL MARKER — the console's whole reading of this prompt. ONE
+    // kind names itself; SEVERAL name the kinds in their order and the kind
+    // EACH holder takes, so no counter ever wears an icon its card would not.
     and.markCardResourceDistribution({
       amount: this.count,
-      cardResource: cardResourceIcon(this.resourceType),
+      ...(one !== undefined ? {cardResource: cardResourceIcon(one)} : {
+        cardResources: this.resourceTypes.map(cardResourceIcon),
+        cardResourceByCard: holderResourceIcons(cards),
+      }),
       cards: cardsToModel(this.player, cards, {showResources: true}),
       vpByAmount: distributionVictoryPoints(this.player, cards, this.count),
     });
@@ -158,7 +201,7 @@ export class AddResourcesToCards extends DeferredAction<ReadonlyArray<ResourcePl
     return and.andThen(() => {
       // VALIDATE FIRST, apply after: a wrong sum refuses the answer and the
       // prompt stands with nothing changed — never a partial payout.
-      const placements: Array<ResourcePlacement> = cards.map((card) => ({card, amount: map.get(card.name) ?? 0}));
+      const placements: Array<ResourcePlacement> = cards.map((card) => placementOf(card, map.get(card.name) ?? 0));
       const sum = placements.reduce((acc, p) => acc + p.amount, 0);
       if (sum !== this.count) {
         throw new InputError(`Expecting ${this.count} resources distributed, got ${sum}.`);
@@ -171,4 +214,14 @@ export class AddResourcesToCards extends DeferredAction<ReadonlyArray<ResourcePl
       return undefined;
     });
   }
+}
+
+/** ONE placement: the card, the amount, and the kind THE CARD took (never the step's list). */
+function placementOf(card: ICard, amount: number): ResourcePlacement {
+  const resource = holderResourceOf(card);
+  if (resource === undefined) {
+    // Unreachable through `getCards` (every candidate holds something); named rather than guessed.
+    throw new Error(`${card.name} holds no card resource`);
+  }
+  return {card, amount, resource};
 }

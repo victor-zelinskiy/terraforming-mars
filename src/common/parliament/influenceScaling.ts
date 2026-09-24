@@ -40,12 +40,17 @@ import {ResolutionCountByResource, ResolutionCountMetricModel, ResolutionCountTe
 /** WHAT one unit of the yield is. */
 export type InfluenceYieldUnit =
   /**
-   * A resource ONTO the player's own cards. `spread` is the printed «each
-   * resource can go on a different card» (Cloud Development): the amount is
-   * DISTRIBUTED over the holders through the shared distribution step, never
-   * paid onto one card. Absent = one payout onto ONE card (Aquifer Contest).
+   * A resource ONTO the player's own cards. `resources` is the KIND of the
+   * unit, as a LIST — one kind is the list of one (Aquifer Contest's animals,
+   * Cloud Development's floaters); several kinds (Medical Database's «data or
+   * microbe») mean the recipients are the holders of EITHER and each unit's
+   * kind is its card's — never a second question to the player. `spread` is
+   * the printed «each resource can go on a different card» (Cloud
+   * Development): the amount is DISTRIBUTED over the holders through the
+   * shared distribution step, never paid onto one card. Absent = one payout
+   * onto ONE card (Aquifer Contest).
    */
-  | {kind: 'cardResource', resource: CardResource, spread?: boolean}
+  | {kind: 'cardResource', resources: ReadonlyArray<CardResource>, spread?: boolean}
   | {kind: 'stock', resource: Resource}
   | {kind: 'production', resource: Resource}
   | {kind: 'cards'}
@@ -227,7 +232,7 @@ export type InfluenceYield = {
    * LANDED («Dirigibles +2 · Floating Habs +1») — the server's record, so the
    * reading can name the destinations without knowing the cards.
    */
-  targets?: ReadonlyArray<{card: CardName, amount: number}>;
+  targets?: ReadonlyArray<{card: CardName, amount: number, resource?: CardResource}>;
   /**
    * A SEQUENTIAL effect: the player total this reading divides, BEFORE and
    * AFTER the earlier effect moved it («heat production 4 → 6 → 2 cards»).
@@ -443,7 +448,7 @@ export function fixedYield(
     count?: number, counted?: ReadonlyArray<CardName>, countedUnits?: ReadonlyArray<number>,
     countedByTag?: ReadonlyArray<{tag: Tag, count: number}>, countedSpaces?: ReadonlyArray<SpaceId>, countedMetric?: ResolutionCountMetricModel,
     countedByResource?: ReadonlyArray<ResolutionCountByResource>, countedColonies?: ReadonlyArray<ColonyName>,
-    uncapped?: number, targets?: ReadonlyArray<{card: CardName, amount: number}>,
+    uncapped?: number, targets?: ReadonlyArray<{card: CardName, amount: number, resource?: CardResource}>,
   },
 ): InfluenceYield {
   const y: InfluenceYield = {effect, context, amount, influence};

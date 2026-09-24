@@ -230,7 +230,10 @@ export type ParliamentEnactOutcomeModel = {
    */
   party?: PartyName;
   trigger?: EventTrigger;
+  /** `cardResource` (and its skip): the ONE kind of the units — absent when an effect over several kinds landed units of more than one (see `resources`, `cards[].resource`). */
   resource?: CardResource;
+  /** `cardResource` of an effect over SEVERAL kinds («data or microbe»): the kinds in the declared order — the unit's name where `resource` cannot say it. */
+  resources?: ReadonlyArray<CardResource>;
   /** `production` (and its skip): the standard resource whose production the effect raises. */
   production?: Resource;
   /**
@@ -244,8 +247,11 @@ export type ParliamentEnactOutcomeModel = {
   owed?: number;
   /** `cardResource`: the ONE card the whole amount landed on (absent when spread over several — see `cards`). */
   card?: CardName;
-  /** `cardResource`: WHERE the units landed, card by card — every reader's list; one recipient is a list of one. */
-  cards?: ReadonlyArray<{card: CardName; amount: number}>;
+  /**
+   * `cardResource`: WHERE the units landed, card by card — every reader's list; one recipient is a list of one.
+   * `resource` is the kind THAT card took (its own storage rule) — the unit's kind where the effect spans several.
+   */
+  cards?: ReadonlyArray<{card: CardName; amount: number; resource?: CardResource}>;
   space?: SpaceId;
   reason?: string;
   influence?: number;

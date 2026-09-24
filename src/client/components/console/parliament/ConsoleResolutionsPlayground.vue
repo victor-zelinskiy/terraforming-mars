@@ -549,7 +549,7 @@ import {resolutionZoomEntry} from '@/client/components/card/cardZoomTypes';
 import {resolutionAnnotations} from '@/client/console/parliament/parliamentAnnotations';
 import {resolutionStatusOf, ResolutionStatusVm} from '@/client/console/parliament/resolutionInspectModel';
 import {
-  countedMetricParts, enactedLevyOf, enactedYieldsOf, LEVEL_NONE_KEY, levelPresentation, noRecipientForecastKey, noRecipientReasonKey, resolvingLevyOf,
+  cardResourceIconKey, countedMetricParts, enactedLevyOf, enactedYieldsOf, LEVEL_NONE_KEY, levelPresentation, noRecipientForecastKey, noRecipientReasonKey, resolvingLevyOf,
   resolvingYieldOf, sequelPresentation, sequelSourceOf, voteLevyOf, voteYieldsOf, yieldCountPresentation, YieldCountGlyph,
 } from '@/client/console/parliament/influenceYieldModel';
 import {choiceSourceView, PromptSourceView} from '@/client/console/promptSource';
@@ -1237,6 +1237,11 @@ type SeatPayout = {
 /** One card of a seat's synthetic tableau, with the shared predicate's verdict, what it contributed — and whether it can HOLD the payout (a distributed family's holder). */
 type TableauCardRow = {name: CardName, counts: boolean, reason: string, units: number, holds: boolean};
 
+/** THE KIND a holder takes — its own storage rule on the client manifest (a WARE holder its wildcard), the server's `holderResourceOf`. */
+function holderKindOf(name: CardName): CardResource | undefined {
+  return getCard(name)?.resourceType;
+}
+
 /** A layout's plainest even spread (the stand's recorded result): round-robin over the holders, in their order. */
 function spreadOver(holders: ReadonlyArray<CardName>, amount: number): Array<{card: CardName, amount: number}> {
   const laid = holders.map((card) => ({card, amount: 0}));
@@ -1419,7 +1424,7 @@ export default defineComponent({
       return SEATS.map((i) => {
         const names = this.seats[i].cards ?? [];
         const ctx = this.countContextOf(names);
-        const holdsResource = this.spreadResource;
+        const holdsResources = this.spreadResources;
         const cards: Array<TableauCardRow> = names.map((name) => {
           const card = getCard(name);
           if (card === undefined) {
@@ -1427,7 +1432,7 @@ export default defineComponent({
           }
           const verdict = cardCountVerdict(id, card, ctx);
           // A DISTRIBUTED payout lands on the cards that can HOLD it — a fact apart from the count.
-          const holds = holdsResource !== undefined && card.resourceType === holdsResource;
+          const holds = holdsResources !== undefined && card.resourceType !== undefined && (holdsResources.includes(card.resourceType) || card.resourceType === CardResource.WARE);
           // The units are the SHARED rule's too: one per card for a card
           // count, every printed occurrence for a tag count.
           return verdict.counts ?
@@ -1899,17 +1904,25 @@ export default defineComponent({
           if (payout === undefined) {
             continue;
           }
-          const common = {player: TEST_PLAYERS[i].color, step: effect.id, effect: effect.id, resource: effect.unit.resource, amount: payout.amount, influence: payout.influence};
+          // ONE kind names itself on the record; SEVERAL ride `resources` (the skip's name, the mixed landing's).
+          const kinds = effect.unit.resources;
+          const common = {
+            player: TEST_PLAYERS[i].color, step: effect.id, effect: effect.id, amount: payout.amount, influence: payout.influence,
+            ...(kinds.length === 1 ? {resource: kinds[0]} : {resources: kinds}),
+          };
           if (payout.skipped !== undefined) {
             out.push({...common, kind: 'skipped', reason: payout.skipped});
             continue;
           }
           if (effect.unit.spread === true) {
-            // THE DISTRIBUTION's record: the whole list of recipients (the stand lays the payout out evenly), the
-            // count's inputs beside it — a list of ONE names its card too, exactly as the server records it.
-            const laid = spreadOver(this.holdersAt(effect.unit.resource, i), payout.amount);
+            // THE DISTRIBUTION's record: the whole list of recipients (the stand lays the payout out evenly), each
+            // with the kind ITS card takes, the count's inputs beside it — a list of ONE names its card too, and the
+            // ONE kind only when every landed unit is of it, exactly as the server records it.
+            const laid = spreadOver(this.holdersAt(effect.unit.resources, i), payout.amount).map((entry) => ({...entry, resource: holderKindOf(entry.card)}));
+            const kinds = new Set(laid.map((entry) => entry.resource));
             out.push({
               ...common, kind: 'cardResource', cards: laid, ...(laid.length === 1 ? {card: laid[0].card} : {}),
+              ...(kinds.size === 1 ? {resource: laid[0].resource} : {resource: undefined}),
               count: payout.count?.count, counted: payout.count?.cards, countedUnits: payout.count?.units, countedByTag: payout.count?.byTag,
             });
             continue;
@@ -1936,7 +1949,7 @@ export default defineComponent({
     yieldNote(): string | undefined {
       const effect = this.pickerEffect;
       return effect !== undefined && effect.unit.kind === 'cardResource' && this.noRecipient && this.context === 'proposal' && this.viewerSeatIndex !== undefined ?
-        noRecipientForecastKey(effect.unit.resource) : undefined;
+        noRecipientForecastKey(effect.unit.resources) : undefined;
     },
     status(): ResolutionStatusVm | undefined {
       return this.selected === undefined ? undefined : resolutionStatusOf(this.selected.id, this.model, this.viewerColor);
@@ -1994,26 +2007,32 @@ export default defineComponent({
     sourceView(): PromptSourceView {
       return choiceSourceView({kind: 'resolution', resolution: this.selected?.id}) ?? {kindKey: 'Resolution', inspectable: false};
     },
-    resourceIcon(): string {
+    /** THE KINDS of the picker effect's unit — one for the ordinary card, several for Medical Database («data or microbe»). */
+    pickerKinds(): ReadonlyArray<CardResource> {
       const effect = this.pickerEffect;
-      return effect !== undefined && effect.unit.kind === 'cardResource' ? String(effect.unit.resource).toLowerCase().replace(/\s+/g, '-') : 'animal';
+      return effect !== undefined && effect.unit.kind === 'cardResource' ? effect.unit.resources : [CardResource.ANIMAL];
     },
-    /** The resource a DISTRIBUTED payout lands on (the picker effect's, when it is laid out), else undefined. */
-    spreadResource(): CardResource | undefined {
+    /** The ONE kind's icon key (the family's ordinary pick), undefined over several kinds — the marker then names each card's own. */
+    resourceIcon(): string | undefined {
+      const kinds = this.pickerKinds;
+      return kinds.length === 1 ? cardResourceIconKey(kinds[0]) : undefined;
+    },
+    /** The KINDS a DISTRIBUTED payout lands on (the picker effect's, when it is laid out), else undefined. */
+    spreadResources(): ReadonlyArray<CardResource> | undefined {
       const effect = this.pickerEffect;
-      return effect !== undefined && effect.unit.kind === 'cardResource' && effect.unit.spread === true ? effect.unit.resource : undefined;
+      return effect !== undefined && effect.unit.kind === 'cardResource' && effect.unit.spread === true ? effect.unit.resources : undefined;
     },
     /**
      * The picker's candidates: for a DISTRIBUTED payout the viewer's OWN holders from the scenario's tableau
      * (stored counts 0, 1, 2… so the readings differ per card); for the animal families the demo holders.
      */
     pickerHolders(): ReadonlyArray<{name: CardName, resources: number, per?: number}> {
-      const resource = this.spreadResource;
+      const resources = this.spreadResources;
       const viewer = this.viewerSeatIndex;
-      if (resource === undefined || viewer === undefined) {
+      if (resources === undefined || viewer === undefined) {
         return DEMO_HOLDERS;
       }
-      return this.holdersAt(resource, viewer).map((name, n) => ({name, resources: n}));
+      return this.holdersAt(resources, viewer).map((name, n) => ({name, resources: n}));
     },
     /**
      * THE LAYOUT the shared step would ask for — N ≥ 2 over ≥ 2 holders (below that the family's ordinary pick
@@ -2021,7 +2040,7 @@ export default defineComponent({
      * layout mode); the stand states the facts and hands over to the LIVE scenario for the surface.
      */
     pickerLayout(): {amount: number, holders: ReadonlyArray<{name: CardName, resources: number}>} | undefined {
-      if (this.spreadResource === undefined || this.pickerSkip !== undefined) {
+      if (this.spreadResources === undefined || this.pickerSkip !== undefined) {
         return undefined;
       }
       const amount = this.pickerYieldAmount;
@@ -2046,15 +2065,30 @@ export default defineComponent({
       }
       // The server's own ask (the family's pick title), numbered by the payout.
       const effect = this.pickerEffect;
-      const title: Message | string = effect?.unit.kind === 'cardResource' && effect.unit.resource === CardResource.ANIMAL ?
+      const one = effect?.unit.kind === 'cardResource' && effect.unit.resources.length === 1 ? effect.unit.resources[0] : undefined;
+      const title: Message | string = one === CardResource.ANIMAL ?
         {message: 'Add ${0} animal(s) to one of your cards', data: [{type: LogMessageDataType.RAW_STRING, value: String(amount)}]} :
-        effect?.unit.kind === 'cardResource' && effect.unit.resource === CardResource.FLOATER ?
+        one === CardResource.FLOATER ?
           {message: 'Add ${0} floater(s) to one of your cards', data: [{type: LogMessageDataType.RAW_STRING, value: String(amount)}]} :
-          translateText('Add resource to this card');
+          effect?.unit.kind === 'cardResource' && effect.unit.resources.length > 1 ?
+            {message: 'Add ${0} resource(s) to one of your cards', data: [{type: LogMessageDataType.RAW_STRING, value: String(amount)}]} :
+            translateText('Add resource to this card');
+      // The marker as the server would stamp it: ONE kind names itself; SEVERAL name the kinds and each holder's own.
+      const kinds = this.pickerKinds;
+      const byCard: Partial<Record<CardName, string>> = {};
+      for (const h of holders) {
+        const kind = holderKindOf(h.name);
+        if (kind !== undefined) {
+          byCard[h.name] = cardResourceIconKey(kind);
+        }
+      }
       return {
         type: 'card', title, buttonLabel: 'Add', cards, max: 1, min: 1,
         showOnlyInLearnerMode: false, selectBlueCardAction: false, showOwner: false, showSelectAll: false,
-        resourceGainPrompt: {amount, cardResource: this.resourceIcon, vpBox},
+        resourceGainPrompt: {
+          amount, vpBox,
+          ...(this.resourceIcon === undefined ? {cardResources: kinds.map(cardResourceIconKey), cardResourceByCard: byCard} : {cardResource: this.resourceIcon}),
+        },
         choiceContext: {source: {kind: 'resolution', resolution: this.selected?.id}, mode: 'reward'},
       } as SelectCardModel;
     },
@@ -2242,9 +2276,15 @@ export default defineComponent({
     countContextOf(names: ReadonlyArray<CardName>): CardCountContext {
       return {eventTagsInPlay: names.includes(CardName.ODYSSEY)};
     },
-    /** Seat `i`'s cards that can HOLD `resource` (the layout's candidates), in tableau order. */
-    holdersAt(resource: CardResource, i: SeatIndex): Array<CardName> {
-      return (this.seats[i].cards ?? []).filter((name) => getCard(name)?.resourceType === resource);
+    /**
+     * Seat `i`'s cards that can HOLD any of `resources` (the layout's candidates), in tableau order — the card's own
+     * storage rule over the list, the WARE wildcard included (the server's `holdsOneOf`, on the client manifest).
+     */
+    holdersAt(resources: ReadonlyArray<CardResource>, i: SeatIndex): Array<CardName> {
+      return (this.seats[i].cards ?? []).filter((name) => {
+        const type = getCard(name)?.resourceType;
+        return type !== undefined && (resources.includes(type) || type === CardResource.WARE);
+      });
     },
     /** Seat `i`'s count for the selected resolution's counted term (undefined when nothing is counted). */
     countAt(i: SeatIndex): ResolutionCountModel | undefined {
@@ -2332,8 +2372,8 @@ export default defineComponent({
           return {amount: 0, influence, count, uncapped, skipped: yieldCountPresentation(effect.count.id).skipReasonKey};
         }
         // A DISTRIBUTED payout with no holder is OWED and forfeited — named with its size (the server's own reason).
-        if (effect.unit.kind === 'cardResource' && ((this.noRecipient && this.viewerSeatIndex === i) || this.holdersAt(effect.unit.resource, i).length === 0)) {
-          return {amount, influence, count, uncapped, skipped: noRecipientReasonKey(effect.unit.resource)};
+        if (effect.unit.kind === 'cardResource' && ((this.noRecipient && this.viewerSeatIndex === i) || this.holdersAt(effect.unit.resources, i).length === 0)) {
+          return {amount, influence, count, uncapped, skipped: noRecipientReasonKey(effect.unit.resources)};
         }
         return {amount, influence, count, uncapped};
       }
@@ -2342,7 +2382,7 @@ export default defineComponent({
         return {amount: 0, influence, skipped: 'No influence'};
       }
       if (effect.unit.kind === 'cardResource' && this.noRecipient && this.viewerSeatIndex === i) {
-        return {amount, influence, skipped: noRecipientReasonKey(effect.unit.resource)};
+        return {amount, influence, skipped: noRecipientReasonKey(effect.unit.resources)};
       }
       return {amount, influence};
     },

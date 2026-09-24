@@ -58,14 +58,19 @@ export function carrierIconOrigin(spec: ResourceTransferSpec): TransferPoint | u
   return resolveGainIconOrigins(resolveActionCommitAnchors(card, undefined), [spec])[0];
 }
 
-/** ONE recipient of the payout, as the server recorded it. */
-export type ResolutionPayoutTarget = {card: CardName, amount: number};
+/**
+ * ONE recipient of the payout, as the server recorded it — with the KIND that
+ * card took (the record's own per card, else the record's one kind), as the
+ * normalized icon key (`animal`, `microbe`, `data`, …): a chip lands wearing
+ * its own card's kind, never the step's.
+ */
+export type ResolutionPayoutTarget = {card: CardName, amount: number, resource: string};
 
 export type ResolutionPayoutEvent = {
   /** WHERE it landed, card by card, in the record's order (one recipient is the list of one). */
   targets: ReadonlyArray<ResolutionPayoutTarget>;
-  /** The normalized card-resource icon key (`animal`, `microbe`, `floater`, …). */
-  resource: string;
+  /** The normalized card-resource icon key of the ONE kind of the payout (`animal`, `microbe`, `floater`, …) — absent when the units landed in several kinds (each target names its own). */
+  resource?: string;
   /** The whole amount paid (the sum of the targets). */
   amount: number;
   /** The resolution that paid (catalog id) — for diagnostics and the landing scope. */
@@ -128,12 +133,25 @@ function outcomesOf(view: PlayerViewModel | undefined, generation: number | unde
   return parl.lastPhase?.generation === generation ? parl.lastPhase.outcomes ?? [] : [];
 }
 
-/** The record's recipients — its list, or its one card as the list of one. */
+/**
+ * The record's recipients — its list, or its one card as the list of one —
+ * each with the kind ITS card took. A recipient whose kind the record cannot
+ * name (an older record over several kinds) is no target: nothing flies an
+ * icon it cannot vouch for.
+ */
 function targetsOf(outcome: ParliamentEnactOutcomeModel): Array<ResolutionPayoutTarget> {
+  const one = outcome.resource === undefined ? undefined : cardResourceKey(String(outcome.resource));
   if (outcome.cards !== undefined && outcome.cards.length > 0) {
-    return outcome.cards.filter((t) => t.amount > 0).map((t) => ({card: t.card, amount: t.amount}));
+    const out: Array<ResolutionPayoutTarget> = [];
+    for (const t of outcome.cards) {
+      const resource = t.resource === undefined ? one : cardResourceKey(String(t.resource));
+      if (t.amount > 0 && resource !== undefined) {
+        out.push({card: t.card, amount: t.amount, resource});
+      }
+    }
+    return out;
   }
-  return outcome.card !== undefined && (outcome.amount ?? 0) > 0 ? [{card: outcome.card, amount: outcome.amount ?? 0}] : [];
+  return outcome.card !== undefined && (outcome.amount ?? 0) > 0 && one !== undefined ? [{card: outcome.card, amount: outcome.amount ?? 0, resource: one}] : [];
 }
 
 /**
@@ -153,7 +171,7 @@ export function detectResolutionPayout(before: PlayerViewModel | undefined, afte
   const fresh = outcomesOf(after, generation).find((o) =>
     o.player === viewer && o.kind === 'cardResource' && (o.amount ?? 0) > 0 && targetsOf(o).length > 0 &&
     !old.some((p) => p.player === o.player && p.step === o.step));
-  if (fresh === undefined || fresh.resource === undefined) {
+  if (fresh === undefined) {
     return undefined;
   }
   // Every recipient must have been a candidate of the ask that stood — the chips land on what the player saw.
@@ -162,7 +180,12 @@ export function detectResolutionPayout(before: PlayerViewModel | undefined, afte
   if (targets.some((t) => !candidates.includes(t.card))) {
     return undefined;
   }
-  return {targets, resource: cardResourceKey(String(fresh.resource)), amount: fresh.amount ?? 0, resolution: source.resolution};
+  return {
+    targets,
+    ...(fresh.resource === undefined ? {} : {resource: cardResourceKey(String(fresh.resource))}),
+    amount: fresh.amount ?? 0,
+    resolution: source.resolution,
+  };
 }
 
 /** The read beat after the touchdown: the capsule's tick registers before the surface leaves. */
@@ -182,7 +205,8 @@ export async function runResolutionPayout(event: ResolutionPayoutEvent): Promise
   pickPayoutLanding.landed = {};
   // `runResourceTransfers` never rejects (its own wave safety releases every
   // touchdown), and the transport's abort battery closes the scope on a failure.
-  const specs: Array<ResourceTransferSpec> = event.targets.map((t) => ({channel: 'card-resource', resource: event.resource, amount: t.amount, targetCard: t.card}));
+  // Each chip wears the kind ITS card took (a data holder's chip is data, a microbe holder's a microbe).
+  const specs: Array<ResourceTransferSpec> = event.targets.map((t) => ({channel: 'card-resource', resource: t.resource, amount: t.amount, targetCard: t.card}));
   await runResourceTransfers({
     specs,
     // Born on the CARRIER CARD's own printed icon (the address table: a card

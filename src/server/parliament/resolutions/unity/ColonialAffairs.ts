@@ -285,7 +285,7 @@ function cardResourceStep(colony: IColony, grant: ColonyTradeGrantModel): EnactS
         pickTitle: pickTitleOf(resource, owed),
         distributeTitle: distributeTitleOf(resource, owed),
       }).andThen((placed) => {
-        const cards = placed.map((p) => ({card: p.card.name, amount: p.amount}));
+        const cards = placed.map((p) => ({card: p.card.name, amount: p.amount, resource: p.resource}));
         ctx.game.log('${0} placed ${1} resource(s): the ${2} colony bonus ×${3} from ${4}', (b) =>
           b.player(player).number(owed).colony(colony).number(k).resolution(COLONIAL_AFFAIRS_ID));
         ctx.report({
