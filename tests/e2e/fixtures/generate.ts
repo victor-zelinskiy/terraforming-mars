@@ -87,6 +87,7 @@ import {INDUSTRIALIST_BUDGET_ID} from '../../../src/server/parliament/resolution
 import {JOINT_RESEARCH_ID} from '../../../src/server/parliament/resolutions/scientists/JointResearch';
 import {JOVIAN_TAX_RIGHTS_ID} from '../../../src/server/parliament/resolutions/unity/JovianTaxRights';
 import {MEDICAL_DATABASE_ID} from '../../../src/server/parliament/resolutions/scientists/MedicalDatabase';
+import {METAL_RESEARCH_ID} from '../../../src/server/parliament/resolutions/industrialists/MetalResearch';
 import {GHGProducingBacteria} from '../../../src/server/cards/base/GHGProducingBacteria';
 import {NuclearPower} from '../../../src/server/cards/base/NuclearPower';
 import {COLONIZATION_FUNDING_ID} from '../../../src/server/parliament/resolutions/unity/ColonizationFunding';
@@ -1358,6 +1359,67 @@ parliamentFixture('parliament-medical-enact', medicalTable('effects', ({p1}) => 
     throw new Error(`the parliament-medical-enact fixture expected blue's 4-unit layout over two holders with both kinds on the marker, got ${ask?.constructor.name} ${JSON.stringify(meta)}`);
   }
 }));
+
+// ── RX19 · METAL RESEARCH (the Industrialists — «steel and titanium = influence; each unit of steel and titanium is
+//    worth 1 M€ more while enacted»). Two moments of ONE journey, the new mechanic being the VALUE:
+//    · the ASSEMBLY — the card alone in the first voting slot with blue's free delegate on it (blue at Agenda step 2 →
+//      influence 2 → 2 steel + 2 titanium, red at step 1 → 1 + 1); blue holds a little steel and titanium so the rail's
+//      value badges have rows to sit on: they must read «2» / «3» before the enactment and «3» / «4» the moment the law
+//      stands, on the same screen, with no reload and no press;
+//    · ENACTED — the sitting is over, RED won it (the seat the loader opens in generation 2) and holds «Nuclear Power»
+//      (10 M€, a Building tag — steel is accepted) with steel in the supply: the play composer's steel row must read
+//      «×3» and the price must stand at its printed 10 (a value is not a discount).
+parliamentFixture('parliament-metal-assembly', {
+  resolution: METAL_RESEARCH_ID,
+  votes: [0],
+  agenda: [2, 1],
+  stopAt: 'assembly',
+  arrange: ({p1, p2}) => {
+    p1.steel = 3;
+    p1.titanium = 2;
+    p2.steel = 2;
+    p2.titanium = 1;
+  },
+  expect: ({p1, parliament}) => {
+    if (!parliament.slots.some((slot) => slot.instance.startsWith(METAL_RESEARCH_ID))) {
+      throw new Error('the parliament-metal fixture lost Metal Research out of the voting area');
+    }
+    if (p1.getSteelValue() !== 2 || p1.getTitaniumValue() !== 3) {
+      throw new Error(`the parliament-metal-assembly fixture expected the base values before the enactment, got ${p1.getSteelValue()} / ${p1.getTitaniumValue()}`);
+    }
+  },
+});
+parliamentFixture('parliament-metal-enacted', {
+  resolution: METAL_RESEARCH_ID,
+  votes: [1],
+  agenda: [1, 2],
+  stopAt: 'done',
+  arrange: ({p2}) => {
+    // The card the value is read on: printed 10, a Building tag, no requirement, no question of its own.
+    p2.cardsInHand.push(new NuclearPower());
+    p2.steel = 4;
+    p2.titanium = 2;
+  },
+  expect: (table) => {
+    const {p2, parliament} = table;
+    if (parliament.enacted !== resolutionInstanceId(METAL_RESEARCH_ID, 0)) {
+      throw new Error(`the parliament-metal-enacted fixture expected Metal Research enacted, got ${parliament.enacted}`);
+    }
+    if (!p2.cardsInHand.some((c) => c.name === CardName.NUCLEAR_POWER)) {
+      throw new Error('the parliament-metal-enacted fixture expected red to hold Nuclear Power');
+    }
+    if (p2.getSteelValue() !== 3 || p2.getTitaniumValue() !== 4) {
+      throw new Error(`the parliament-metal-enacted fixture expected the law's 3 / 4, got ${p2.getSteelValue()} / ${p2.getTitaniumValue()}`);
+    }
+    if (p2.getCardCost(new NuclearPower()) !== 10) {
+      throw new Error(`the parliament-metal-enacted fixture expected the printed 10 (a value is not a discount), got ${p2.getCardCost(new NuclearPower())}`);
+    }
+    if (p2.steel < 4) {
+      throw new Error(`the parliament-metal-enacted fixture expected red to hold steel for the composer's row, has ${p2.steel}`);
+    }
+    expectViewerOpensGeneration(table, p2, 'parliament-metal-enacted');
+  },
+});
 
 // ── RX16 · JOINT RESEARCH — the first LEVEL: every seat draws UP TO 6 + influence
 //    cards in hand. Blue at Agenda 4 (influence 2 → target 8) with FIVE cards in
