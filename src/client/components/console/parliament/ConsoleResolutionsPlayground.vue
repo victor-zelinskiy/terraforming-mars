@@ -261,12 +261,45 @@
               </span>
             </div>
           </div>
+          <!-- A METRIC count (Generous Funding's sets of 5 TR over 15): every seat's
+               synthetic RATING, divided by the SHARED threshold rule — the ladder of
+               set boundaries the value has climbed, and the breakdown in words (value,
+               threshold, step, sets, distance to the next); the number above is the
+               sets. No list: the explanation of a threshold count is the arithmetic. -->
+          <div v-if="countEffect !== undefined && countKind === 'threshold'" class="con-rxpg__tableaus" data-rxpg-metrics>
+            <span class="con-rxpg__ckey">{{ $t('Terraform rating') }}</span>
+            <div v-for="row in metricRows" :key="row.color"
+                 class="con-rxpg__tableau"
+                 :class="{'con-rxpg__tableau--viewer': row.viewer}"
+                 :data-rxpg-metric-of="row.color">
+              <span class="con-rxpg__tableau-who">
+                <PlayerCube :color="row.color" :size="12" :glow="false" />
+                <span class="con-rxpg__seat-name">{{ $t(row.label) }}</span>
+                <PremiumCountGlyph v-if="countGlyph !== undefined" class="con-rxpg__tableau-glyph" :glyph="countGlyph" />
+                <b data-rxpg-count>{{ row.count }}</b>
+              </span>
+              <div class="con-rxpg__metric">
+                <span class="con-rxpg__metric-value" :data-rxpg-metric-value="row.metric.value">
+                  <PremiumCountGlyph v-if="countGlyph !== undefined" class="con-rxpg__metric-glyph" :glyph="countGlyph" />
+                  <b>{{ row.metric.value }}</b>
+                </span>
+                <span class="con-rxpg__ladder" aria-hidden="true">
+                  <span v-for="mark in row.ladder" :key="mark.at"
+                        class="con-rxpg__ladder-mark"
+                        :class="{'con-rxpg__ladder-mark--reached': mark.reached, 'con-rxpg__ladder-mark--threshold': mark.threshold}"
+                        :data-rxpg-ladder="mark.at"
+                        :data-rxpg-reached="mark.reached ? 'true' : 'false'">{{ mark.at }}</span>
+                </span>
+                <span class="con-rxpg__metric-words" data-rxpg-metric-words>{{ row.words }}</span>
+              </div>
+            </div>
+          </div>
           <!-- A BOARD count (Colonization Funding's space cities): every seat's
                synthetic CELLS of the Mars board — the reserved areas off Mars by
                the names the board's information layer gives them, a city ON Mars,
                an EMPTY area — each with the SHARED cell predicate's verdict (the
                engine's own rule, pinned by spec); the number above is these ticks. -->
-          <div v-if="countEffect !== undefined && countKind === 'board'" class="con-rxpg__tableaus" data-rxpg-cells>
+          <div v-else-if="countEffect !== undefined && countKind === 'board'" class="con-rxpg__tableaus" data-rxpg-cells>
             <span class="con-rxpg__ckey">{{ $t('Tiles on the board') }}</span>
             <div v-for="row in cellRows" :key="row.color"
                  class="con-rxpg__tableau"
@@ -394,8 +427,8 @@ import {
 } from '@/common/parliament/influenceScaling';
 import {PartyReactionReading, partyReactionsOf} from '@/client/console/parliament/partyReactionModel';
 import {
-  cardCountUnits, cardCountVerdict, CardCountContext, countCardsToward, CountedSpaceFacts, countSpacesToward, ResolutionCountKind, ResolutionCountModel,
-  resolutionCountKind, spaceCountVerdict,
+  cardCountUnits, cardCountVerdict, CardCountContext, countCardsToward, CountedSpaceFacts, countMetricToward, countSpacesToward, ResolutionCountKind,
+  ResolutionCountMetricModel, ResolutionCountModel, resolutionCountKind, spaceCountVerdict,
 } from '@/common/parliament/resolutionCounts';
 import {SpaceId} from '@/common/Types';
 import {SpaceName} from '@/common/boards/SpaceName';
@@ -437,8 +470,8 @@ import {resolutionZoomEntry} from '@/client/components/card/cardZoomTypes';
 import {resolutionAnnotations} from '@/client/console/parliament/parliamentAnnotations';
 import {resolutionStatusOf, ResolutionStatusVm} from '@/client/console/parliament/resolutionInspectModel';
 import {
-  enactedYieldsOf, noRecipientForecastKey, noRecipientReasonKey, resolvingYieldOf, sequelPresentation, sequelSourceOf, voteYieldsOf,
-  yieldCountPresentation, YieldCountGlyph,
+  countedMetricParts, enactedYieldsOf, noRecipientForecastKey, noRecipientReasonKey, resolvingYieldOf, sequelPresentation, sequelSourceOf,
+  voteYieldsOf, yieldCountPresentation, YieldCountGlyph,
 } from '@/client/console/parliament/influenceYieldModel';
 import {choiceSourceView, PromptSourceView} from '@/client/console/promptSource';
 import {
@@ -482,6 +515,8 @@ type PgSeat = {
   agenda: number, bonus: number, cards?: ReadonlyArray<CardName>, production?: number,
   /** The board-counted family: the seat's own cells of the Mars board (REAL cell ids), counted by the shared predicate. */
   cells?: ReadonlyArray<PgCell>,
+  /** The metric-counted family: the seat's terraform rating (a synthetic VALUE), divided by the shared threshold rule. */
+  tr?: number,
   /** The colony-bonuses family: the tiles this seat has a cube on (the server's registry, synthesized from the colony manifest). */
   colonies?: ReadonlyArray<ColonyName>,
 };
@@ -878,6 +913,40 @@ const SCENARIOS: ReadonlyArray<PgScenario> = [
   {key: 'world-neutral', family: 'world-move', label: 'A neutral winner — the world moves all the same', viewer: 0,
     seats: [{agenda: 3, bonus: 0}, {agenda: 1, bonus: 0}], winner: 'neutral', context: 'proposal', noRecipient: false,
     table: {oxygen: 5, venus: 10}},
+  // ── THE METRIC-COUNTED FAMILY (Generous Funding: 2 × (S + I), S = the complete SETS of 5 TR over 15 — one
+  //    VALUE per seat, divided by the shared threshold rule; the scenarios are the thresholds themselves) ──
+  {key: 'generous-zero', family: 'counted-metric', label: 'No TR sets and no influence', viewer: 0,
+    seats: [{agenda: 0, bonus: 0, tr: 15}, {agenda: 3, bonus: 0, tr: 20}], winner: 1, context: 'applied', noRecipient: false},
+  // The remainder pays nothing: TR 19 is four points over 15 and no set — influence 3 alone is +6.
+  {key: 'generous-influence-only', family: 'counted-metric', label: 'Influence alone', viewer: 0,
+    seats: [{agenda: 5, bonus: 0, tr: 19}, {agenda: 1, bonus: 0, tr: 20}], winner: 1, context: 'proposal', noRecipient: false},
+  {key: 'generous-sets-only', family: 'counted-metric', label: 'Sets alone', viewer: 0,
+    seats: [{agenda: 0, bonus: 0, tr: 30}, {agenda: 1, bonus: 0, tr: 15}], winner: 1, context: 'proposal', noRecipient: false},
+  // Agenda 4 = influence 2; winning takes the marker to step 5 (influence 3, the rating stands): 2 × (1 + 2) → +6 becomes +8.
+  {key: 'generous-one-set', family: 'counted-metric', label: 'One set — TR 24', viewer: 0,
+    seats: [{agenda: 4, bonus: 0, tr: 24}, {agenda: 1, bonus: 0, tr: 15}], winner: 0, context: 'proposal', noRecipient: false},
+  // 15 is the CARD's threshold, not the starting rating: a rating below it is zero sets, six points from the first.
+  {key: 'generous-below', family: 'counted-metric', label: 'Below the threshold — TR 14', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, tr: 14}, {agenda: 1, bonus: 0, tr: 20}], winner: 1, context: 'proposal', noRecipient: false},
+  {key: 'generous-two-sets', family: 'counted-metric', label: 'Exactly two sets — TR 25', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, tr: 25}, {agenda: 1, bonus: 0, tr: 20}], winner: 1, context: 'proposal', noRecipient: false},
+  // Agenda 5 = influence 3; winning takes the marker to step 6 — a TR step: the rating is 25 BEFORE the effect reads it (+8 → +10).
+  {key: 'generous-tr-step', family: 'counted-metric', label: 'A TR step of the Agenda counts first', viewer: 0,
+    seats: [{agenda: 5, bonus: 0, tr: 24}, {agenda: 1, bonus: 0, tr: 20}], winner: 0, context: 'proposal', noRecipient: false},
+  {key: 'generous-seats', family: 'counted-metric', label: 'Every player gets their own result', viewer: 0,
+    seats: [{agenda: 1, bonus: 0, tr: 20}, {agenda: 8, bonus: 0, tr: 31}], winner: 0, context: 'applied', noRecipient: false},
+  {key: 'generous-applied', family: 'counted-metric', label: 'Recorded result', viewer: 0,
+    seats: [{agenda: 5, bonus: 0, tr: 24}, {agenda: 0, bonus: 0, tr: 22}], winner: 1, context: 'applied', noRecipient: false},
+  {key: 'generous-spectator', family: 'counted-metric', label: 'Spectator — the formula alone', viewer: SPECTATOR,
+    seats: [{agenda: 3, bonus: 0, tr: 24}, {agenda: 1, bonus: 0, tr: 20}], winner: 0, context: 'proposal', noRecipient: false},
+  {key: 'generous-quest-0', family: 'counted-metric', label: 'Chairman quest 0/3', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, tr: 24}, {agenda: 1, bonus: 0, tr: 20}], winner: 0, context: 'applied', noRecipient: false, quest: {progress: [0, 0]}},
+  {key: 'generous-quest-done', family: 'counted-metric', label: 'Chairman quest completed', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, tr: 24}, {agenda: 1, bonus: 0, tr: 20}], winner: 0, context: 'applied', noRecipient: false, quest: {progress: [3, 1], completedBy: 0}},
+  // ── LIVE (Generous Funding): the engine-generated fixture — TR 24 and Agenda 4, one set and influence 2, a win adds one influence.
+  {key: 'generous-live-vote', family: 'counted-metric', label: 'Live: the vote', viewer: 0,
+    seats: [{agenda: 4, bonus: 0, tr: 24}, {agenda: 1, bonus: 0, tr: 20}], winner: 0, context: 'proposal', noRecipient: false,
+    live: 'parliament-generous-vote', liveNote: 'Generous Funding up for the vote: your TR 24 is one set and your influence 2 — +6, and +2 more if you win'},
 ];
 /** Each family's opening scenario. */
 const DEFAULT_SCENARIO_OF: Readonly<Record<PgFamily, number>> = {
@@ -885,7 +954,7 @@ const DEFAULT_SCENARIO_OF: Readonly<Record<PgFamily, number>> = {
   'counted': SCENARIOS.findIndex((s) => s.key === 'counted-below-cap'),
   'counted-tags': SCENARIOS.findIndex((s) => s.key === 'grid-below-cap'),
   'counted-board': SCENARIOS.findIndex((s) => s.key === 'funding-exact-cap'),
-  'counted-metric': SCENARIOS.findIndex((s) => s.key === 'influence-3'),
+  'counted-metric': SCENARIOS.findIndex((s) => s.key === 'generous-one-set'),
   'distributed': SCENARIOS.findIndex((s) => s.key === 'cloud-layout'),
   'winner-tile': SCENARIOS.findIndex((s) => s.key === 'tile-influence-3'),
   'sequel': SCENARIOS.findIndex((s) => s.key === 'seq-4-to-6'),
@@ -939,6 +1008,9 @@ type TableauRow = {color: Color, label: string, viewer: boolean, count: number, 
 /** One cell of a seat's synthetic board, with the shared cell predicate's verdict and the board layer's name for it. */
 type CellRowCell = {id: SpaceId, name: string, city: boolean, counts: boolean, reason: string};
 type CellRow = {color: Color, label: string, viewer: boolean, count: number, cells: ReadonlyArray<CellRowCell>};
+/** One boundary of a threshold count's ladder (the threshold itself, then every full set), reached or not by the seat's value. */
+type LadderMark = {at: number, reached: boolean, threshold: boolean};
+type MetricRow = {color: Color, label: string, viewer: boolean, count: number, metric: ResolutionCountMetricModel, ladder: ReadonlyArray<LadderMark>, words: string};
 
 type SeatRow = {
   color: Color,
@@ -1069,6 +1141,7 @@ export default defineComponent({
       case 'counted': return 'Result by cards and influence';
       case 'counted-tags': return 'Result by tags and influence';
       case 'counted-board': return 'Result by space cities and influence';
+      case 'counted-metric': return 'Result by terraform rating and influence';
       case 'distributed': return 'Result by tags and influence, laid out over your holders';
       case 'sequel': return 'Result by influence, then by production';
       case 'colony-bonuses': return 'Result by influence, over your colony bonuses';
@@ -1148,6 +1221,44 @@ export default defineComponent({
           cells,
         };
       });
+    },
+    /**
+     * Every seat's synthetic RATING with the SHARED threshold rule's reading of
+     * it — the ladder of set boundaries (the threshold, then every full set up to
+     * the one the value has not reached yet) and the breakdown in words. The
+     * number is `countMetricToward`'s, never typed into the scenario.
+     */
+    metricRows(): Array<MetricRow> {
+      const term = this.countEffect?.count;
+      if (term === undefined || this.countKind !== 'threshold') {
+        return [];
+      }
+      const rows: Array<MetricRow> = [];
+      for (const i of SEATS) {
+        const count = countMetricToward(term.id, this.seats[i].tr ?? 20);
+        const metric = count.metric;
+        if (metric === undefined) {
+          continue;
+        }
+        // The threshold itself, then each boundary a full set stands on, up to the first one NOT reached — at least
+        // three marks, so a low rating still shows where the sets begin.
+        const marks = Math.max(3, metric.sets + 2);
+        const ladder: Array<LadderMark> = [];
+        for (let n = 0; n < marks; n++) {
+          const at = metric.over + n * metric.step;
+          ladder.push({at, reached: metric.value >= at, threshold: n === 0});
+        }
+        rows.push({
+          color: TEST_PLAYERS[i].color,
+          label: TEST_PLAYERS[i].label,
+          viewer: this.viewerSeatIndex === i,
+          count: count.count,
+          metric,
+          ladder,
+          words: countedMetricParts(metric).map((part) => translateTextWithParams(part.key, [...part.params])).join(' · '),
+        });
+      }
+      return rows;
     },
     questMechanics(): MechanicsVM {
       return buildMechanics(this.selected?.questRenderData, PARLIAMENT_GRAPHIC);
@@ -1317,7 +1428,11 @@ export default defineComponent({
             continue;
           }
           const before = 3 * (i + 1);
-          const common = {player: TEST_PLAYERS[i].color, step: effect.id, part: 'effect' as const, effect: effect.id, stock: resource, amount: payout.amount, influence: payout.influence};
+          const common = {
+            player: TEST_PLAYERS[i].color, step: effect.id, part: 'effect' as const, effect: effect.id, stock: resource, amount: payout.amount, influence: payout.influence,
+            // A supply payout with a COUNT term (Generous Funding): the record carries the count and what explains it.
+            ...(payout.count === undefined ? {} : {count: payout.count.count, counted: payout.count.cards, countedMetric: payout.count.metric, uncapped: payout.uncapped}),
+          };
           out.push(payout.skipped === undefined ?
             {...common, kind: 'stock', before, after: before + payout.amount} :
             {...common, kind: 'skipped', reason: payout.skipped});
@@ -1395,7 +1510,8 @@ export default defineComponent({
             const before = this.seats[i].production ?? 0;
             const common = {
               player: TEST_PLAYERS[i].color, step: effect.id, part: 'effect' as const, effect: effect.id, production: resource, amount: payout.amount, influence: payout.influence,
-              count: payout.count?.count, counted: payout.count?.cards, countedUnits: payout.count?.units, countedSpaces: payout.count?.spaces, uncapped: payout.uncapped,
+              count: payout.count?.count, counted: payout.count?.cards, countedUnits: payout.count?.units, countedSpaces: payout.count?.spaces,
+              countedMetric: payout.count?.metric, uncapped: payout.uncapped,
             };
             out.push(payout.skipped === undefined ?
               {...common, kind: 'production', before, after: before + payout.amount} :
@@ -1727,8 +1843,14 @@ export default defineComponent({
       }
       // A BOARD count walks the seat's CELLS through the shared cell predicate — the same rule the
       // engine's reading is pinned to, never a number typed into the scenario.
-      if (resolutionCountKind(effect.count.id).kind === 'board') {
+      const kind = resolutionCountKind(effect.count.id).kind;
+      if (kind === 'board') {
         return countSpacesToward(effect.count.id, this.seats[i].cells ?? []);
+      }
+      // A THRESHOLD count divides the seat's synthetic VALUE by the ONE shared function — the number of sets is
+      // never typed into the scenario either; the scenario states the rating and the rule does the rest.
+      if (kind === 'threshold') {
+        return countMetricToward(effect.count.id, this.seats[i].tr ?? 20);
       }
       const names = this.seats[i].cards ?? [];
       const cards = names.map((name) => getCard(name)).filter((card): card is NonNullable<typeof card> => card !== undefined);
@@ -1796,7 +1918,10 @@ export default defineComponent({
         fixedSequelYield(effect, 'resolving', payout.amount, payout.total, {influence: payout.influence}) :
         payout.count !== undefined ?
           fixedYield(effect, 'resolving', payout.amount, payout.influence,
-            {count: payout.count.count, counted: payout.count.cards, countedUnits: payout.count.units, countedSpaces: payout.count.spaces, uncapped: payout.uncapped}) :
+            {
+              count: payout.count.count, counted: payout.count.cards, countedUnits: payout.count.units, countedSpaces: payout.count.spaces,
+              countedMetric: payout.count.metric, uncapped: payout.uncapped,
+            }) :
           resolvingYieldOf(effect, payout.amount, this.model, TEST_PLAYERS[i].color);
       return payout.skipped === undefined ? reading : {...reading, skipped: payout.skipped};
     },

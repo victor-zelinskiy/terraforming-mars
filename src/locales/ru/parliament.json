@@ -732,5 +732,13 @@
   "threshold ${0}": "порог ${0}",
   "${0} complete set(s)": "${0} {полный набор|полных набора|полных наборов}",
   "${0} to the next set": "до следующего ${0}",
-  "${0} set(s)": "${0} {набор|набора|наборов}"
+  "${0} set(s)": "${0} {набор|набора|наборов}",
+  "Result by terraform rating and influence": "Результат по рейтингу терраформирования и влиянию",
+  "Sets alone": "Только наборы",
+  "One set — TR 24": "Один набор — РТ 24",
+  "Below the threshold — TR 14": "Ниже порога — РТ 14",
+  "Exactly two sets — TR 25": "Ровно два набора — РТ 25",
+  "A TR step of the Agenda counts first": "Шаг РТ по Повестке считается первым",
+  "Chairman quest 0/3": "Задание председателя 0/3",
+  "Generous Funding up for the vote: your TR 24 is one set and your influence 2 — +6, and +2 more if you win": "«Щедрое вложение» на голосовании: ваш РТ 24 — один набор, влияние 2 — +6, и ещё +2, если победите"
 }

@@ -160,6 +160,23 @@
     }
     &__cell-name { max-width: 7rem; text-align: center; font-size: .62rem; font-weight: 600; line-height: 1.15; }
     &__cell--counted &__tcard-verdict { color: fade(@con-parl-mint, 96%); }
+    /* the metric count: every seat's synthetic RATING — the value, the ladder of set boundaries it has climbed, the breakdown in words */
+    &__metric { display: flex; flex-wrap: wrap; align-items: center; gap: .45rem .8rem; }
+    &__metric-value {
+        display: inline-flex; align-items: center; gap: .3rem;
+        b { font-size: 1.35rem; font-weight: 800; letter-spacing: .02em; }
+    }
+    &__metric-glyph { --pvpcard-size: 1.35rem; }
+    &__ladder { display: inline-flex; align-items: center; gap: .3rem; }
+    &__ladder-mark {
+        min-width: 2rem; padding: .18rem .35rem; border-radius: .4rem; text-align: center;
+        font-size: .68rem; font-weight: 700; letter-spacing: .04em; line-height: 1;
+        color: fade(@con-amber, 88%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-amber, 40%);
+        &--reached { color: fade(@con-parl-mint, 96%); box-shadow: inset 0 0 0 .08rem fade(@con-parl-mint, 70%); }
+        &--threshold { border-radius: .4rem 0 0 .4rem; opacity: .8; }
+    }
+    &__metric-words { font-size: .66rem; letter-spacing: .03em; color: fade(@con-text, 82%); }
     &__quest { align-self: stretch; max-width: 34rem; }
 
     /* 4. the shared picker */

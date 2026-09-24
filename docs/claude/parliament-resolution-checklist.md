@@ -285,6 +285,34 @@ ctx.report({kind: 'globalParameter', amount: room.applied, parameter: {id, befor
   `world`; итоги — строка ПЛАНЕТА (по закону панели: только шаг и то, чего шкалы сказать не могут); стенд —
   семейство `world-move` (сценарии = пределы параметров). Док: `docs/TURMOIL_REDUX_GAS_EXPORT.md`.
 
+### Счётный член по ПОКАЗАТЕЛЮ игрока (порог + шаг) — объяснение разбором величины, не списком (RX13, 2026-09-24)
+
+```ts
+scaled: [{id: 'megacredits', unit: {kind: 'stock', resource: MEGACREDITS}, perInfluence: 2,
+  count: {id: 'terraformRatingSets', per: 2}, recipient: 'each'}],          // потолка нет — `cap` не объявляется
+// resolutionCountKind('terraformRatingSets') === {kind: 'threshold', metric: 'terraformRating', over: 15, step: 5}
+```
+
+- **Вид `threshold`** в `resolutionCountKind` — четвёртый рядом с `cards` / `tags` / `board`: число = полные шаги
+  `step` одного показателя игрока над `over` (`thresholdSets` = `⌊max(0, value − over) / step⌋`) — **ОДНА функция**
+  для сервера, чтения и стенда. Что читается — слово из `ResolutionCountMetric` (`'terraformRating'`; следующее —
+  шаги производства для Бюджетов: одно слово, одна строка в `ResolutionCounts.metricValue`). Значение — у движка
+  (`player.terraformRating`), никогда из слагаемых; порог — константа карты, не стартовый РТ варианта.
+- **Объяснение числа — РАЗБОР ВЕЛИЧИНЫ в той же модели**: `ResolutionCountModel.metric` (`value · over · step · sets ·
+  toNext`), в записи и модели — `countedMetric`, в чтении — `InfluenceYield.countedMetric`. Списки (`cards`, `spaces`)
+  у этого вида пусты; второго типа модели нет. «Для вас» печатает разбор («РТ 24 · порог 15 · 1 полный набор · до
+  следующего 1»), ноль наборов — тоже разбор, никогда «ни одной карты».
+- **Глиф** — `CountedObjectGlyph {kind: 'metric', metric}`: значок РТ лица (`b.tr()`), без искры и без числа внутри.
+  Чтение: «[РТ] 24 → 1 набор + [влияние] 3 → +8 M€» (`data-yield-in="metric"` / `"count"`).
+- **Честный прогноз**: шаг Повестки победителя бывает шагом РТ, а рейтинг растёт ДО чтения эффекта
+  (`ChairmanSeat.advanceAgenda`) — `winnerForecastCount` считает прогноз счёта по РТ от `значение + 1` той же функцией.
+  Иначе панель обещает +8, а сервер платит +10.
+- **Стенд** — семейство `counted-metric`: место держит синтетический РТ (`PgSeat.tr`), число считает
+  `countMetricToward`; лестница границ наборов + разбор словами.
+- Спек-ловушка: фаза производства платит РТ монетами ДО заседания — деньги сверять с `before / after` записи, а не с
+  абсолютом. Бот: `terraformRating` у автома-игрока read-only — задавать его не надо, он и так не в парламенте.
+  Док: `docs/TURMOIL_REDUX_GENEROUS_FUNDING.md`.
+
 ### Бюджет проверки на карту (решение владельца 2026-09-23)
 
 Состав проверки определяется ОДНИМ вопросом: **что в карте ново?**
