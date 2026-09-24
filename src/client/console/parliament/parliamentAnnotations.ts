@@ -39,7 +39,9 @@ import {accessReasonRows} from './consoleParliamentModel';
 import {InfluenceYield} from '@/common/parliament/influenceScaling';
 import {ParliamentEnactOutcomeModel, ParliamentModel} from '@/common/models/ParliamentModel';
 import {WorldMoveTable, worldMoveReadingOf, worldMoveSentenceOf} from './worldMoveModel';
-import {countedCellNames, countedContributions, countedMetricParts, countedProductionParts, levelPresentation, yieldCountPresentation} from './influenceYieldModel';
+import {
+  countedCellNames, countedColonyNames, countedContributions, countedMetricParts, countedProductionParts, levelPresentation, yieldCountPresentation,
+} from './influenceYieldModel';
 import {WinnerRewardReading, winnerRewardRuleKey, winnerRewardSentenceOf} from './winnerRewardModel';
 import {LevyReading} from '@/common/parliament/resolutionLevy';
 
@@ -244,9 +246,20 @@ export function resolutionAnnotations(
       forYou.push({text: 'Target right now: ${0} cards in hand (6 + influence ${1}). ${2} in hand — ${3} to draw', params: [target, influence, before, String(level.amount ?? 0)]});
     }
   }
-  const counted = (yields ?? []).find((y) => (y.counted !== undefined || y.countedSpaces !== undefined || y.countedMetric !== undefined || y.countedByResource !== undefined) &&
-    (y.context === 'estimate' || y.context === 'applied'));
-  if (counted?.countedByResource !== undefined) {
+  const counted = (yields ?? []).find((y) => (y.counted !== undefined || y.countedSpaces !== undefined || y.countedMetric !== undefined || y.countedByResource !== undefined ||
+    y.countedColonies !== undefined) && (y.context === 'estimate' || y.context === 'applied'));
+  if (counted?.countedColonies !== undefined) {
+    // A COLONIES count (Jovian Tax Rights): the TILES the seat's cubes stand on, by the colonies' own names, two
+    // cubes on one tile as «×2» («Luna ×2 · Titan») — the record's own list, frozen once recorded. No cube is a
+    // calm zero about COLONIES, never «no card counts» (the count stands on tiles, not cards).
+    const applied = counted.context === 'applied';
+    const names = countedColonyNames(counted, (colony) => translateText(colony));
+    if (names.length > 0) {
+      forYou.push({text: applied ? 'Counted at the enactment: ${0}' : 'Counted right now: ${0}', params: [names.join(' · ')]});
+    } else {
+      forYou.push({text: applied ? 'No colony was counted at the enactment' : 'No colony counts right now'});
+    }
+  } else if (counted?.countedByResource !== undefined) {
     // A PRODUCTION count (steel + titanium + energy steps): no list — the row is the BREAKDOWN by resource
     // («steel production 2 · titanium production 1 · energy production 3»), a zero listed, frozen once recorded.
     const applied = counted.context === 'applied';

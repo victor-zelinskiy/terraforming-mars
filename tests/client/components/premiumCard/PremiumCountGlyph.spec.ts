@@ -3,7 +3,7 @@ import {expect} from 'chai';
 import {Tag} from '@/common/cards/Tag';
 import PremiumCountGlyph from '@/client/components/premiumCard/PremiumCountGlyph.vue';
 import {Resource} from '@/common/Resource';
-import {countedMetricIconUrl, countedTileIconUrl, standardResourceIconUrl} from '@/client/components/premiumCard/premiumCardIcons';
+import {countedColonyIconUrl, countedMetricIconUrl, countedTileIconUrl, standardResourceIconUrl} from '@/client/components/premiumCard/premiumCardIcons';
 
 /**
  * THE COUNTED OBJECT's glyph (Turmoil Redux): ONE drawing per kind of count,
@@ -82,5 +82,23 @@ describe('PremiumCountGlyph', () => {
     expect(wrapper.find('.pcglyph__tag').exists()).to.eq(false);
     expect(wrapper.find('.pcglyph__spark').exists()).to.eq(false);
     expect(wrapper.find('.pvpcard').exists()).to.eq(false);
+  });
+
+  it('a COLONY count draws the colony tile — the face\'s own asset for `b.colonies()` — alone: no spark, no number, no tag, no card', () => {
+    const wrapper = mount(PremiumCountGlyph, {props: {glyph: {kind: 'colony'}}});
+    const glyph = wrapper.find('.pcglyph');
+    expect(glyph.exists()).to.eq(true);
+    expect(glyph.classes()).to.include('pcglyph--colony');
+    expect(glyph.attributes('data-count-colony')).to.eq('');
+    const tile = wrapper.find('.pcglyph__colony');
+    expect(tile.exists()).to.eq(true);
+    expect(tile.attributes('style')).to.contain(countedColonyIconUrl());
+    expect(countedColonyIconUrl()).to.contain('tiles/colony.png');
+    expect(wrapper.find('.pcglyph__spark').exists()).to.eq(false);
+    expect(wrapper.find('.pcglyph__tile').exists()).to.eq(false);
+    expect(wrapper.find('.pcglyph__tag').exists()).to.eq(false);
+    expect(wrapper.find('.pcglyph__res').exists()).to.eq(false);
+    expect(wrapper.find('.pvpcard').exists()).to.eq(false);
+    expect(glyph.text().trim(), 'a cube is what is counted — no number inside the tile').to.eq('');
   });
 });

@@ -83,7 +83,8 @@
           {{ $t(group.effect.recipient === 'winner' ? 'Winner of the vote' : 'For every player') }}
         </span>
       </div>
-      <div v-else-if="formula || group.readings.length === 0" class="con-iyield__formula" :data-yield-count-rate="group.effect.count?.per" aria-hidden="true">
+      <div v-else-if="formula || group.readings.length === 0" class="con-iyield__formula" :data-yield-count-rate="group.effect.count?.per"
+           :data-yield-influence-term="influenceEnters(group.effect) ? 'true' : 'false'" aria-hidden="true">
         <!-- A COUNTED term at its OWN rate («2 [unit] / [city*] + 1 [unit] / [influence]» —
              Colonization Funding): both rates are stated, or the row would promise the
              influence's rate for the count. -->
@@ -92,20 +93,25 @@
           <i class="con-iyield__unit" :class="unitClassOf(group.effect)"></i>
           <span class="con-iyield__slash">/</span>
           <PremiumCountGlyph class="con-iyield__glyph" :glyph="countGlyphOf(group.effect)!" />
-          <span class="con-iyield__plus">+</span>
+          <span v-if="influenceEnters(group.effect)" class="con-iyield__plus">+</span>
         </template>
-        <b class="con-iyield__num">{{ group.effect.perInfluence }}</b>
-        <i class="con-iyield__unit" :class="unitClassOf(group.effect)"></i>
-        <span class="con-iyield__slash">/</span>
-        <!-- A COUNTED term sharing the rate («1 [unit] / [counted object] + [influence]»):
-             the counted object is exactly what the face prints — the card glyph
-             for a card count, the printed tag medallion for a tag count, the city
-             tile with its spark for a board count. -->
-        <template v-if="countGlyphOf(group.effect) !== undefined && group.effect.count?.per === group.effect.perInfluence">
-          <PremiumCountGlyph class="con-iyield__glyph" :glyph="countGlyphOf(group.effect)!" />
-          <span class="con-iyield__plus">+</span>
+        <!-- THE INFLUENCE TERM — absent where influence is not a term of the part at all («1 [M€ production] /
+             [colony]», Jovian Tax Rights: a rate of 0 per influence beside a count): a «+ 0 [unit] / [influence]»
+             would claim a term the card does not print. -->
+        <template v-if="influenceEnters(group.effect)">
+          <b class="con-iyield__num">{{ group.effect.perInfluence }}</b>
+          <i class="con-iyield__unit" :class="unitClassOf(group.effect)"></i>
+          <span class="con-iyield__slash">/</span>
+          <!-- A COUNTED term sharing the rate («1 [unit] / [counted object] + [influence]»):
+               the counted object is exactly what the face prints — the card glyph
+               for a card count, the printed tag medallion for a tag count, the city
+               tile with its spark for a board count. -->
+          <template v-if="countGlyphOf(group.effect) !== undefined && group.effect.count?.per === group.effect.perInfluence">
+            <PremiumCountGlyph class="con-iyield__glyph" :glyph="countGlyphOf(group.effect)!" />
+            <span class="con-iyield__plus">+</span>
+          </template>
+          <i class="con-iyield__inf"></i>
         </template>
-        <i class="con-iyield__inf"></i>
         <span v-if="group.effect.cap !== undefined" class="con-iyield__cap">{{ capText(group.effect) }}</span>
         <span class="con-iyield__who" :class="{'con-iyield__who--winner': group.effect.recipient === 'winner'}">
           {{ $t(group.effect.recipient === 'winner' ? 'Winner of the vote' : 'For every player') }}
@@ -188,9 +194,11 @@
             </template>
             <template v-else-if="y.count !== undefined && countGlyphOf(group.effect) !== undefined">
               <PremiumCountGlyph class="con-iyield__glyph" :glyph="countGlyphOf(group.effect)!" /><b data-yield-in="count">{{ y.count }}</b>
-              <span class="con-iyield__plus" aria-hidden="true">+</span>
+              <span v-if="influenceEnters(group.effect)" class="con-iyield__plus" aria-hidden="true">+</span>
             </template>
-            <template v-if="y.influence !== undefined"><i class="con-iyield__inf"></i><b data-yield-in="influence">{{ y.influence }}</b></template>
+            <!-- The influence input stands only where influence is a TERM of the part («[colony] 4 → +4»: Jovian Tax
+                 Rights's production prints no «+ [influence] 3» — the record carries the influence, the formula does not use it). -->
+            <template v-if="y.influence !== undefined && influenceEnters(group.effect)"><i class="con-iyield__inf"></i><b data-yield-in="influence">{{ y.influence }}</b></template>
           </span>
           <span v-if="(y.total !== undefined || y.influence !== undefined || y.count !== undefined) && !isFlat(group.effect)" class="con-iyield__arrow" aria-hidden="true">→</span>
           <!-- A forfeited payout keeps its SIZE and says it did not land (✕ + struck amount); the caption names why.
@@ -243,7 +251,8 @@ import {InfluenceScaledEffect, InfluenceYield, yieldAtCap} from '@/common/parlia
 import {LevyReading} from '@/common/parliament/resolutionLevy';
 import {
   LEVEL_IN_HAND_KEY, LEVEL_UP_TO_KEY, levelPresentation, levelYieldIsNone, METRIC_SETS_PLURAL_KEY, oneNumberYieldsOf, PRODUCTION_HORIZON_KEY,
-  sequelTotalIcon, WinSuffix, winSuffixesOf, yieldCaptionOf, yieldCountPresentation, yieldIconOf, yieldIsFlat, yieldIsMultiplier, YieldCountGlyph, YieldIcon,
+  productionHorizonOn, sequelTotalIcon, WinSuffix, winSuffixesOf, yieldCaptionOf, yieldCountPresentation, yieldIconOf, yieldInfluenceEnters, yieldIsFlat,
+  yieldIsMultiplier, YieldCountGlyph, YieldIcon,
 } from '@/client/console/parliament/influenceYieldModel';
 import {SUFFIX_HINT, SUFFIX_IF_YOU_WIN, SUFFIX_STEP} from '@/client/console/parliament/voteInfoModel';
 import PremiumCountGlyph from '@/client/components/premiumCard/PremiumCountGlyph.vue';
@@ -364,13 +373,19 @@ export default defineComponent({
       return yieldIsFlat(effect);
     },
     /**
-     * A production part beside a levy carries its horizon: it first pays in the next generation. A host that
-     * prints neither captions nor the formula and folds nothing (the sitting's one-line BAND) has no room
-     * for a caption-sized note — the panel, the inspector and the stand print it.
+     * A production part beside something paid TODAY — a levy, or a supply part of the same card (Jovian Tax
+     * Rights's titanium) — carries its horizon: it first pays in the next generation (`productionHorizonOn`, the
+     * one predicate the panel's word budget reads too). A host that prints neither captions nor the formula and
+     * folds nothing (the sitting's one-line BAND) has no room for a caption-sized note — the panel, the inspector
+     * and the stand print it.
      */
     horizonOn(group: Group): boolean {
-      return this.levy !== undefined && group.effect.unit.kind === 'production' && group.readings.length > 0 &&
+      return productionHorizonOn(this.groups.map((g) => g.effect), group.effect, this.levy !== undefined) && group.readings.length > 0 &&
         (this.oneNumber || this.captions || this.formula);
+    },
+    /** Influence is a TERM of this part (a rate above 0 per influence) — else the formula and the reading print no influence. */
+    influenceEnters(effect: InfluenceScaledEffect): boolean {
+      return yieldInfluenceEnters(effect);
     },
     /** One term of a production breakdown: the resource's sprite in the production plate. */
     productionUnitClass(resource: Resource): string {

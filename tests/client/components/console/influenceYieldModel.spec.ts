@@ -2,17 +2,18 @@ import {expect} from 'chai';
 import {Color} from '@/common/Color';
 import {CardName} from '@/common/cards/CardName';
 import {CardResource} from '@/common/CardResource';
+import {ColonyName} from '@/common/colonies/ColonyName';
 import {PartyName} from '@/common/turmoil/PartyName';
 import {ParliamentEnactedModel, ParliamentEnactOutcomeModel, ParliamentModel, ParliamentPhaseSummaryModel, ParliamentPlayerModel} from '@/common/models/ParliamentModel';
 import {IClientResolution} from '@/common/parliament/IClientResolution';
-import {InfluenceScaledEffect, scaledAmount, uncappedAmount, winnerForecastYield, yieldAtCap, yieldCapped} from '@/common/parliament/influenceScaling';
+import {InfluenceScaledEffect, InfluenceYield, scaledAmount, uncappedAmount, winnerForecastYield, yieldAtCap, yieldCapped} from '@/common/parliament/influenceScaling';
 import {Resource} from '@/common/Resource';
 import {Tag} from '@/common/cards/Tag';
 import {
-  cardResourcePluralKey, countedCellNames, countedContributions, countedMetricParts, countedProductionParts, enactedLevyOf, enactedYieldsOf,
-  METRIC_SETS_PLURAL_KEY, metricLabelKeyOf, noRecipientNoteOf, oneNumberYieldsOf, PRODUCTION_HORIZON_KEY, productionCountLabelKeyOf,
+  cardResourcePluralKey, countedCellNames, countedColonyNames, countedContributions, countedMetricParts, countedProductionParts, enactedLevyOf, enactedYieldsOf,
+  METRIC_SETS_PLURAL_KEY, metricLabelKeyOf, noRecipientNoteOf, oneNumberYieldsOf, PRODUCTION_HORIZON_KEY, productionCountLabelKeyOf, productionHorizonOn,
   productionResourceLabelKey, resolvingLevyOf, resolvingYieldOf, scaledEffectForCardResource, voteLevyOf, voteYieldsOf, winnerForecastCount,
-  winSuffixesOf, yieldCaptionOf, yieldCountPresentation, yieldIconOf, yieldIsFlat,
+  winSuffixesOf, yieldCaptionOf, yieldCountPresentation, yieldIconOf, yieldInfluenceEnters, yieldIsFlat,
 } from '@/client/console/parliament/influenceYieldModel';
 import {countMetricToward} from '@/common/parliament/resolutionCounts';
 import {SpaceId} from '@/common/Types';
@@ -615,5 +616,116 @@ describe('influenceYieldModel', () => {
     expect(productionCountLabelKeyOf(Resource.MEGACREDITS)).eq('M€ production ${0}');
     expect(productionCountLabelKeyOf(Resource.PLANTS)).eq('plant production ${0}');
     expect(productionCountLabelKeyOf(Resource.HEAT)).eq('heat production ${0}');
+  });
+
+  // ── JOVIAN TAX RIGHTS (RX17): titanium by influence beside a COLONIES count with a cap and NO influence term ──
+  const RIGHTS_ID = 'RDX_UNITY_JOVIAN_TAX_RIGHTS';
+  const TILES: ReadonlyArray<ColonyName> = [ColonyName.LUNA, ColonyName.LUNA, ColonyName.TITAN, ColonyName.MIRANDA];
+  /** A seat of the card's table: the colonies count the server carries — the number and the LIST of tiles, a name per cube. */
+  function rightsSeat(color: Color, agenda: number, influence: number, colonies: ReadonlyArray<ColonyName>): ParliamentPlayerModel {
+    const s = seat(color, agenda, influence);
+    s.counts = [{id: 'colonies', count: colonies.length, cards: [], colonies}];
+    return s;
+  }
+
+  it('the shipped catalog declares Jovian Tax Rights as titanium by influence (Colony Contest\'s formula) and +1 M€ production per COLONY, capped at 5, with influence NOT a term of it; the horizon stands on a supply part beside it', () => {
+    const rights = getResolution(RIGHTS_ID);
+    expect(rights?.code).eq('RX17');
+    expect(rights?.levy).is.undefined;
+    const [titanium, prod] = rights?.scaled ?? [];
+    expect(titanium).deep.eq({id: 'titanium', unit: {kind: 'stock', resource: Resource.TITANIUM}, perInfluence: 1, recipient: 'each'});
+    expect(prod).deep.eq({id: 'production', unit: {kind: 'production', resource: Resource.MEGACREDITS}, perInfluence: 0, count: {id: 'colonies', per: 1}, cap: 5, recipient: 'each'});
+    expect(yieldInfluenceEnters(titanium)).is.true;
+    expect(yieldInfluenceEnters(prod), 'a counted part at a rate of 0 per influence: no influence term in the formula or the reading').is.false;
+    expect(yieldIsFlat(prod), 'not flat either — it counts').is.false;
+    expect(yieldInfluenceEnters(ANIMALS)).is.true;
+    const presentation = yieldCountPresentation('colonies');
+    expect(presentation.glyph).deep.eq({kind: 'colony'});
+    expect(presentation.pluralKey).eq('${0} colony(-ies)');
+    expect(presentation.skipReasonKey).eq('No colonies');
+    // THE HORIZON: a production part beside a part that moves the supply TODAY (the titanium) — with or without a levy.
+    expect(productionHorizonOn(rights!.scaled!, prod, false)).is.true;
+    expect(productionHorizonOn(rights!.scaled!, titanium, false), 'the titanium is today\'s — no horizon on it').is.false;
+    const award = getResolution('RDX_MARS_ARCHITECTURE_AWARD')!;
+    expect(productionHorizonOn(award.scaled!, award.scaled![0], false), 'a production-only card has one horizon — nothing to tell apart').is.false;
+    const budget = getResolution(BUDGET_ID)!;
+    expect(productionHorizonOn(budget.scaled!, budget.scaled![1], true), 'the budget\'s production beside its levy').is.true;
+    expect(productionHorizonOn(budget.scaled!, budget.scaled![1], false), 'the budget\'s M€ payout is a supply part too').is.true;
+  });
+
+  it('a colonies-counted vote reading: «[colony] 4 → +4 M€ production» with the LIST carried and no forecast plate (the win changes nothing there); the titanium reads by influence with its win suffix; seven cubes hit the cap; none is a calm zero', () => {
+    const rights = getResolution(RIGHTS_ID)!;
+    const m = model([rightsSeat('blue' as Color, 4, 2, TILES)]);
+    const yields = voteYieldsOf(rights, m, 'blue' as Color);
+    expect(yields.map((y) => `${y.effect.id}:${y.context}`)).deep.eq(['titanium:estimate', 'titanium:forecast', 'production:estimate']);
+    expect(yields[0]).deep.include({influence: 2, amount: 2});
+    expect(yields[1]).deep.include({influence: 3, amount: 3, agendaStep: 5});
+    expect(yields[2]).deep.include({influence: 2, count: 4, amount: 4, uncapped: 4});
+    expect(yields[2].countedColonies).deep.eq(TILES);
+    expect(yields[2].counted, 'no card is counted').deep.eq([]);
+    expect(yieldCapped(yields[2])).is.false;
+    expect(yieldAtCap(yields[2])).is.false;
+    expect(yieldCaptionOf(yields[2])).deep.eq({key: 'If enacted now'});
+    expect(winSuffixesOf(yields)).deep.eq([{effectId: 'titanium', delta: 1, agendaStep: 5, influence: 3, atCap: false}]);
+    // SEVEN cubes: the cap bites — +5, the sum 7 kept, the MAX mark on; the titanium is untouched by it.
+    const seven = voteYieldsOf(rights, model([rightsSeat('blue' as Color, 4, 2, [...TILES, ColonyName.PLUTO, ColonyName.IO, ColonyName.IO])]), 'blue' as Color);
+    const prod7 = seven.find((y) => y.effect.id === 'production')!;
+    expect(prod7).deep.include({count: 7, amount: 5, uncapped: 7});
+    expect(yieldCapped(prod7)).is.true;
+    expect(yieldAtCap(prod7)).is.true;
+    expect(seven[0]).deep.include({amount: 2});
+    // NO cubes: zero, the rule working — the titanium still reads.
+    const none = voteYieldsOf(rights, model([rightsSeat('blue' as Color, 4, 2, [])]), 'blue' as Color);
+    expect(none.find((y) => y.effect.id === 'production')).deep.include({count: 0, amount: 0});
+    expect(none.find((y) => y.effect.id === 'production')?.countedColonies).deep.eq([]);
+    expect(none[0]).deep.include({amount: 2});
+    // A model without the count reads the formula alone for the production — never an invented zero.
+    const older = voteYieldsOf(rights, model([seat('blue' as Color, 4, 2)]), 'blue' as Color);
+    expect(older.find((y) => y.effect.id === 'production')?.context).eq('reference');
+    expect(older[0].context, 'the titanium needs no count').eq('estimate');
+  });
+
+  it('an enacted reading reads the RECORDED list and the recorded cap — never today\'s table; a skipped production keeps its «No colonies» reason and the titanium its own', () => {
+    const rights = getResolution(RIGHTS_ID)!;
+    const enacted: ParliamentEnactedModel = {instance: `${RIGHTS_ID}#0`, resolution: RIGHTS_ID, party: PartyName.UNITY};
+    const phase = (outcomes: Array<ParliamentEnactOutcomeModel>): ParliamentPhaseSummaryModel => ({
+      generation: 3, final: false, winner: {instance: enacted.instance, resolution: RIGHTS_ID, party: PartyName.UNITY, votes: 2},
+      outcomes, support: [], enacted, refreshed: [], lobbyRefilled: [],
+    });
+    const recorded: Array<ParliamentEnactOutcomeModel> = [
+      {player: 'blue' as Color, step: 'titanium', part: 'effect', effect: 'titanium', kind: 'stock', stock: Resource.TITANIUM, amount: 3, influence: 3, before: 0, after: 3},
+      {
+        player: 'blue' as Color, step: 'production', part: 'effect', effect: 'production', kind: 'production', production: Resource.MEGACREDITS, amount: 5, influence: 3,
+        count: 7, counted: [], countedColonies: [...TILES, ColonyName.PLUTO, ColonyName.IO, ColonyName.IO], uncapped: 7, before: 1, after: 6,
+      },
+    ];
+    // Today's table holds ONE cube — the reading is the record.
+    const m = model([rightsSeat('blue' as Color, 5, 3, [ColonyName.LUNA])], {enacted, lastPhase: phase(recorded)});
+    const yields = enactedYieldsOf(rights, m, 'blue' as Color);
+    expect(yields[0]).deep.include({context: 'applied', amount: 3, influence: 3});
+    expect(yields[1]).deep.include({context: 'applied', amount: 5, count: 7, uncapped: 7});
+    expect(yields[1].countedColonies).deep.eq(recorded[1].countedColonies);
+    expect(yieldAtCap(yields[1])).is.true;
+    // The zero-colonies skip and the no-influence skip, each with its own reason.
+    const skipped = model([rightsSeat('blue' as Color, 0, 0, [])], {enacted, lastPhase: phase([
+      {player: 'blue' as Color, step: 'titanium', part: 'effect', effect: 'titanium', kind: 'skipped', stock: Resource.TITANIUM, amount: 0, influence: 0, reason: 'No influence'},
+      {
+        player: 'blue' as Color, step: 'production', part: 'effect', effect: 'production', kind: 'skipped', production: Resource.MEGACREDITS, amount: 0, influence: 0,
+        count: 0, counted: [], countedColonies: [], uncapped: 0, reason: 'No colonies',
+      },
+    ])});
+    const skips = enactedYieldsOf(rights, skipped, 'blue' as Color);
+    expect(skips[0]).deep.include({skipped: 'No influence', amount: 0});
+    expect(skips[1]).deep.include({skipped: 'No colonies', amount: 0, count: 0});
+    expect(skips[1].countedColonies).deep.eq([]);
+    expect(yieldCaptionOf(skips[1])).deep.eq({key: 'No colonies'});
+    expect(yieldAtCap(skips[1]), 'a skip never stands at the cap').is.false;
+  });
+
+  it('the colony list in words: a name per tile, two cubes on one tile as «×2», in the table\'s order; nothing recorded reads as no names', () => {
+    const y: InfluenceYield = {effect: ANIMALS, context: 'estimate', countedColonies: [ColonyName.LUNA, ColonyName.LUNA, ColonyName.TITAN, ColonyName.IO, ColonyName.IO, ColonyName.IO]};
+    expect(countedColonyNames(y, (name) => name.toUpperCase())).deep.eq(['LUNA ×2', 'TITAN', 'IO ×3']);
+    expect(countedColonyNames({countedColonies: [ColonyName.TITAN]}, (name) => name)).deep.eq(['Titan']);
+    expect(countedColonyNames({}, (name) => name)).deep.eq([]);
   });
 });

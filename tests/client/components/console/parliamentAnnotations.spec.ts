@@ -1,5 +1,6 @@
 import {expect} from 'chai';
 import {Resource} from '@/common/Resource';
+import {ColonyName} from '@/common/colonies/ColonyName';
 import {LevyReading} from '@/common/parliament/resolutionLevy';
 import {PartyName} from '@/common/turmoil/PartyName';
 import {ParliamentModel} from '@/common/models/ParliamentModel';
@@ -330,5 +331,35 @@ describe('parliamentAnnotations — the fullscreen inspector\'s reading blocks',
     expect(recordedShort[1].rows[0]).to.deep.include({text: 'Levy taken: ${0} of ${1} M€ — not enough M€', params: ['4', '10']});
     // Without a levy reading (a spectator) the «for you» block carries the breakdown alone.
     expect(resolutionAnnotations(id, [now])[1].rows.map((r) => r.text)).to.deep.eq(['Counted right now: ${0}']);
+  });
+
+  it('a COLONIES-COUNTED effect (Jovian Tax Rights): the qualification sentence, then the TILES the cubes stand on — «Luna ×2 · Titan», never «no card»; no cube reads as a calm zero about colonies', () => {
+    const id = 'RDX_UNITY_JOVIAN_TAX_RIGHTS';
+    const effect = getResolution(id)?.scaled?.[1];
+    if (effect === undefined) {
+      throw new Error('Jovian Tax Rights declares no production effect');
+    }
+    const bare = resolutionAnnotations(id);
+    expect(bare.map((b) => b.labelKey), 'no winner block, no world block').to.deep.eq(['When enacted', 'Chairman quest']);
+    expect(texts([bare[0]])).to.deep.eq([
+      'Gain 1 titanium for every point of your influence. Raise your M€ production 1 step per colony you have. Max 5.',
+      'Each colony you have counts: two colonies on one tile count twice. A tile without your colony does not count.',
+    ]);
+    expect(texts([bare[1]])).to.deep.eq(['Play 2 Jovian tags']);
+    const now: InfluenceYield = {effect, context: 'estimate', influence: 2, amount: 3, count: 3, counted: [], countedColonies: [ColonyName.LUNA, ColonyName.LUNA, ColonyName.TITAN], uncapped: 3};
+    const live = resolutionAnnotations(id, [now]);
+    expect(live.map((b) => b.labelKey)).to.deep.eq(['When enacted', 'For you', 'Chairman quest']);
+    expect(live[1].rows.map((r) => r.text)).to.deep.eq(['Counted right now: ${0}']);
+    expect(live[1].rows[0].params?.[0]).to.eq('Luna ×2 · Titan');
+    // Zero cubes: the calm zero about COLONIES — never «no card counts» (the count stands on tiles, not cards).
+    const none = resolutionAnnotations(id, [{...now, count: 0, amount: 0, countedColonies: [], uncapped: 0}]);
+    expect(none[1].rows.map((r) => r.text)).to.deep.eq(['No colony counts right now']);
+    expect(texts(none)).to.not.include('No card counts right now');
+    // Once recorded, the row says so and prints the RECORDED list — never today's table.
+    const recorded = resolutionAnnotations(id, [{...now, context: 'applied'}]);
+    expect(recorded[1].rows.map((r) => r.text)).to.deep.eq(['Counted at the enactment: ${0}']);
+    expect(recorded[1].rows[0].params?.[0]).to.eq('Luna ×2 · Titan');
+    expect(resolutionAnnotations(id, [{...now, context: 'applied', count: 0, amount: 0, countedColonies: []}])[1].rows.map((r) => r.text))
+      .to.deep.eq(['No colony was counted at the enactment']);
   });
 });

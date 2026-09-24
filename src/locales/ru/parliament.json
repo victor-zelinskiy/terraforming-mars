@@ -825,5 +825,7 @@
   "${0} colony(-ies)": "${0} {колония|колонии|колоний}",
   "Each colony you have counts: two colonies on one tile count twice. A tile without your colony does not count.": "Считается каждая ваша колония: две колонии на одном тайле дают 2. Тайл без вашей колонии не считается.",
   "Counted by your colonies, not on the board": "Считается по вашим колониям, а не на поле",
-  "Counted by your colonies, not among cards": "Считается по вашим колониям, а не среди карт"
+  "Counted by your colonies, not among cards": "Считается по вашим колониям, а не среди карт",
+  "No colony counts right now": "Сейчас у вас нет ни одной колонии",
+  "No colony was counted at the enactment": "При принятии у вас не было ни одной колонии"
 }

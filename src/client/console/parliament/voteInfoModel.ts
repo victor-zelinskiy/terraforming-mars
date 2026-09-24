@@ -34,8 +34,8 @@ import {InfluenceYield} from '@/common/parliament/influenceScaling';
 import {ReduxParty} from '@/common/parliament/ParliamentTypes';
 import {ParliamentPartyVm, ParliamentSlotVm, voteAccessOf, VoteForecastVm} from './consoleParliamentModel';
 import {
-  LEVEL_IN_HAND_KEY, LEVEL_UP_TO_KEY, levelPresentation, levelYieldIsNone, noRecipientCompactNoteOf, oneNumberYieldsOf, PRODUCTION_HORIZON_KEY, voteLevyOf,
-  voteYieldsOf, WinSuffix, winSuffixesOf,
+  LEVEL_IN_HAND_KEY, LEVEL_UP_TO_KEY, levelPresentation, levelYieldIsNone, noRecipientCompactNoteOf, oneNumberYieldsOf, PRODUCTION_HORIZON_KEY,
+  productionHorizonOn, voteLevyOf, voteYieldsOf, WinSuffix, winSuffixesOf,
 } from './influenceYieldModel';
 import {LevyReading, levyShortNoteKey} from '@/common/parliament/resolutionLevy';
 import {COLONY_LEDGER_EMPTY, COLONY_LEDGER_TOTAL, ColonyLedgerReading, colonyLedgerOf} from './colonyLedgerModel';
@@ -363,15 +363,16 @@ export function voteInfoBudget(vm: VoteInfoVm, text: TextFn = IDENTITY): VoteInf
   if (vm.reading.note !== undefined) {
     strings.push(text(vm.reading.note));
   }
-  // THE LEVY's words: «of 10» beside a short seat's take, and the HORIZON under the production part beside it.
+  // THE LEVY's words: «of 10» beside a short seat's take…
   const levy = vm.reading.levy;
-  if (levy !== undefined) {
-    if (levy.short) {
-      strings.push(text('of ${0}', [String(levy.owed)]));
-    }
-    if (vm.reading.yields.some((y) => y.effect.unit.kind === 'production')) {
-      strings.push(text(PRODUCTION_HORIZON_KEY));
-    }
+  if (levy !== undefined && levy.short) {
+    strings.push(text('of ${0}', [String(levy.owed)]));
+  }
+  // …and the HORIZON under a production part that stands beside something paid TODAY (a levy, or a supply part
+  // of the same card) — the block's own predicate, so the budget counts exactly the note the block prints.
+  const effects = vm.reading.yields.map((y) => y.effect);
+  if (effects.some((effect) => productionHorizonOn(effects, effect, levy !== undefined))) {
+    strings.push(text(PRODUCTION_HORIZON_KEY));
   }
   // A LEVEL part's words: «up to» before the target, «in hand» beside the level, and the calm «no draw
   // needed» in the result's slot when the seat is at or above the target.

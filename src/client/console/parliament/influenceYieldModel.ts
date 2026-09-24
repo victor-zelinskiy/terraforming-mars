@@ -14,6 +14,7 @@
 import {Color} from '@/common/Color';
 import {CardName} from '@/common/cards/CardName';
 import {CardResource} from '@/common/CardResource';
+import {ColonyName} from '@/common/colonies/ColonyName';
 import {Resource} from '@/common/Resource';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {IClientResolution} from '@/common/parliament/IClientResolution';
@@ -66,14 +67,41 @@ export function yieldIsFlat(effect: InfluenceScaledEffect): boolean {
 }
 
 /**
+ * INFLUENCE IS A TERM of this part — a rate above 0 per influence. A COUNTED
+ * part at a rate of 0 (Jovian Tax Rights's «1 M€ production per colony»: the
+ * card prints no influence beside the colony) has no influence term at all:
+ * its formula prints no «+ 0 / [influence]» and its reading no «+ [influence]
+ * 3» — either would claim a term the card does not print. (A FLAT part is the
+ * other case of a zero rate; `yieldIsFlat` tells it apart by its base.)
+ */
+export function yieldInfluenceEnters(effect: InfluenceScaledEffect): boolean {
+  return effect.perInfluence !== 0;
+}
+
+/**
  * THE HORIZON of a production part paid at the sitting: the sitting runs AFTER
  * the generation's production phase, so a production step raised there first
  * PAYS in the NEXT generation. Printed under a production reading wherever the
  * same card also moves the seat's SUPPLY today (a budget: «−10 → +7 = −3»
- * beside «+4 M€ production») — today's pocket and next generation's income
- * are two horizons, never one sum.
+ * beside «+4 M€ production»; Jovian Tax Rights: titanium into the supply
+ * beside «+N M€ production») — today's pocket and next generation's income
+ * are two horizons, never one sum. A production-only card (Architecture
+ * Award) has one horizon and nothing to tell it apart from.
  */
 export const PRODUCTION_HORIZON_KEY = 'pays from the next generation';
+
+/**
+ * Does `effect` — one of the card's `effects` — carry the horizon note? A
+ * PRODUCTION part beside something paid TODAY: a levy the card takes, or a
+ * SUPPLY part of the same card. ONE predicate for the block, the panel's word
+ * budget and the inspector, so no host prints the note the other withholds.
+ */
+export function productionHorizonOn(effects: ReadonlyArray<InfluenceScaledEffect>, effect: InfluenceScaledEffect, levy: boolean): boolean {
+  if (effect.unit.kind !== 'production') {
+    return false;
+  }
+  return levy || effects.some((other) => other.id !== effect.id && other.unit.kind === 'stock');
+}
 
 /**
  * HOW A COUNTED TERM IS DRAWN AND NAMED — one entry per count id: the glyph of
@@ -186,6 +214,36 @@ export function countedCellNames(y: Pick<InfluenceYield, 'countedSpaces'>, nameO
     const cell = getSpecialCellInfo(id);
     return cell === undefined ? undefined : nameOf(cell.title);
   });
+}
+
+/**
+ * The counted COLONIES of a COLONIES count (Jovian Tax Rights), tile by tile
+ * — the list that explains the number where no card can. The record names a
+ * tile once PER CUBE, in the table's order (so a tile's cubes are adjacent);
+ * two cubes on one tile read as «Luna ×2», exactly as a card worth two units
+ * reads in `countedContributions`. Names arrive translated (a colony's name
+ * is its own i18n key, the ledger's `$t(row.colony)`).
+ */
+export function countedColonyNames(y: Pick<InfluenceYield, 'countedColonies'>, nameOf: (colony: ColonyName) => string): Array<string> {
+  const out: Array<string> = [];
+  let last: ColonyName | undefined;
+  let run = 0;
+  const flush = () => {
+    if (last !== undefined) {
+      out.push(run > 1 ? `${nameOf(last)} ×${run}` : nameOf(last));
+    }
+  };
+  for (const colony of y.countedColonies ?? []) {
+    if (colony === last) {
+      run++;
+      continue;
+    }
+    flush();
+    last = colony;
+    run = 1;
+  }
+  flush();
+  return out;
 }
 
 /**
