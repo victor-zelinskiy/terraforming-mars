@@ -42,6 +42,7 @@ import {DEVELOPMENT_CRAZE} from './marsFirst/DevelopmentCraze';
 import {FORESTRY_SUPPORT} from './greens/ForestrySupport';
 import {GAS_EXPORT} from './reds/GasExport';
 import {GENEROUS_FUNDING} from './greens/GenerousFunding';
+import {HEAT_CAPTURE} from './reds/HeatCapture';
 
 /**
  * THE RETIRED IDS — iteration 0's DUMMY resolutions (a party, a quest, no
@@ -471,6 +472,9 @@ export const REDUX_RESOLUTION_CATALOG = new ResolutionCatalog([
   GAS_EXPORT,
   // A count over ONE PLAYER METRIC by threshold and step (sets of 5 TR over 15), not over things.
   GENEROUS_FUNDING,
+  // The first law that touches the ECONOMY of cards: a world step (temperature −2, no TR) and a passive
+  // DISCOUNT (3 M€ off a Building tag) asked by the one price function and itemized under the law's source.
+  HEAT_CAPTURE,
   TEST_CHOICE,
   DEV_IMMEDIATE,
   DEV_PASSIVE,

@@ -737,5 +737,13 @@
   "Exactly two sets — TR 25": "Ровно два набора — РТ 25",
   "A TR step of the Agenda counts first": "Шаг РТ по Повестке считается первым",
   "Chairman quest 0/3": "Задание председателя 0/3",
-  "Generous Funding up for the vote: your TR 24 is one set and your influence 2 — +6, and +2 more if you win": "«Щедрое вложение» на голосовании: РТ 24 — один набор, влияние 2 — +6, и ещё +2, если победите"
+  "Generous Funding up for the vote: your TR 24 is one set and your influence 2 — +6, and +2 more if you win": "«Щедрое вложение» на голосовании: РТ 24 — один набор, влияние 2 — +6, и ещё +2, если победите",
+  "Heat Capture": "Улавливание тепла",
+  "The temperature is reduced 2 steps unless it is already at its maximum. Nobody loses or gains TR for this.": "Температура понижается на 2 шага, если она не на максимуме. РТ за это никто не теряет и не получает.",
+  "When you play a card with a building tag, you pay 3 M€ less for it.": "Когда вы разыгрываете карту с меткой строительства, вы платите за неё на 3 M€ меньше.",
+  "Temperature is at its maximum — ${0} does not reduce it": "Температура на максимуме — ${0} её не понижает",
+  "Temperature is already at its minimum — ${0} cannot reduce it": "Температура уже на минимуме — ${0} не может её понизить",
+  "Temperature is at its maximum — it is not reduced": "Температура на максимуме: не понижается",
+  "Temperature is already at its minimum": "Температура уже на минимуме",
+  "${0} reduced the temperature ${1} step(s) (${2}°C → ${3}°C)": "${0}: температура понижена на ${1} шаг(а) (${2}°C → ${3}°C)"
 }

@@ -20,8 +20,9 @@ import {PartyName} from '../../common/turmoil/PartyName';
 import {Tile} from '../Tile';
 import {Space} from '../boards/Space';
 import {ICard} from '../cards/ICard';
+import {IProjectCard} from '../cards/IProjectCard';
 import {PartyActionPromptMeta} from '../../common/models/PlayerInputModel';
-import {REDUX_PARTIES, ReduxParty} from '../../common/parliament/ParliamentTypes';
+import {REDUX_PARTIES, ReduxParty, ResolutionId} from '../../common/parliament/ParliamentTypes';
 import {REDUX_GREENERY_TILE_TR} from '../../common/parliament/winnerReward';
 import {Parliament, PARTY_ACTION_USES_PER_GENERATION, Slot} from './Parliament';
 import {PARTY_EFFECTS, partySource, redsDiscardPrompt} from './parties/PartyEffects';
@@ -197,6 +198,26 @@ export class ParliamentHandler {
       ParliamentHandler.enactedPassive(player, parliament, 'production-gain', (passive) => passive.onProductionChanged?.(player, resource, delta));
     }
     QuestTracker.report(player, {kind: 'production', resource, amount: delta});
+  }
+
+  /**
+   * THE ENACTED RESOLUTION'S DISCOUNT on playing `card` — what the law takes
+   * off the printed cost for THIS seat, with the law that takes it (so the
+   * price breakdown itemizes it under the resolution's source). Undefined when
+   * no law with a discount stands, when it does not apply to this card, or
+   * when the seat is outside the parliament (MarsBot never holds a law). A
+   * pure QUERY, unlike the hooks above: no effect scope is opened — the
+   * `discount-applied` event is the price function's own record at payment.
+   */
+  public static cardDiscount(player: IPlayer, card: IProjectCard): {resolution: ResolutionId, amount: number} | undefined {
+    const parliament = player.game?.parliament;
+    const enacted = parliament?.enactedDefinition();
+    const discount = enacted?.passive?.cardDiscount;
+    if (parliament === undefined || enacted === undefined || discount === undefined || !parliament.participates(player)) {
+      return undefined;
+    }
+    const amount = discount(player, card);
+    return amount > 0 ? {resolution: enacted.id, amount} : undefined;
   }
 
   public static onCardPlayed(player: IPlayer, card: ICard): void {

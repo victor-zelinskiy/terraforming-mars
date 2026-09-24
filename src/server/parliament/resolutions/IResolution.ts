@@ -13,6 +13,7 @@ import {IGame} from '../../IGame';
 import {PlayerInput} from '../../PlayerInput';
 import type {Parliament} from '../Parliament';
 import type {Space} from '../../boards/Space';
+import type {IProjectCard} from '../../cards/IProjectCard';
 import type {Resource} from '../../../common/Resource';
 import type {EffectForecastFact, EffectForecastSource} from '../../../common/models/EffectForecastModel';
 import type {EffectForecastGrant, EffectForecastTile} from '../../cards/EffectForecastContext';
@@ -172,6 +173,22 @@ export type ResolutionPassive = {
   placementFacts?(ctx: ResolutionPlacementContext): Array<BoardFact>;
   onTerraformRatingGained?(player: IPlayer, steps: number): void;
   onProductionChanged?(player: IPlayer, resource: Resource, delta: number): void;
+  /**
+   * A DISCOUNT on PLAYING `card` (Heat Capture: 3 M€ less on a Building tag) —
+   * the M€ the law takes off the printed cost, 0 when it does not apply. Asked
+   * by the ONE price function (`Player.getCardCostBreakdown`, through
+   * `ParliamentHandler.cardDiscount`) for every participant holding the law,
+   * and itemized there under the resolution's own source — never folded into
+   * the cardless remainder, so the payment head, the forecast's discount group,
+   * the `discount-applied` event and the journal all NAME the law. Pure: it
+   * reads the card and the player, never mutates, never logs.
+   *
+   * Its forecast twin IS that breakdown (`discountsOf` reads the same function
+   * at the same moment the price does), so `forecast` states nothing for it —
+   * a fact here would print the same 3 M€ a second time, in a group meant for
+   * triggers, with no `effect-triggered` event to match it.
+   */
+  cardDiscount?(player: IPlayer, card: IProjectCard): number;
   forecast(ctx: ResolutionForecastContext): Array<EffectForecastFact>;
 };
 

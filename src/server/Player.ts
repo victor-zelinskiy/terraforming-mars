@@ -1102,6 +1102,16 @@ export class Player implements IPlayer {
       discounts.push({source: {kind: 'party', name: PartyName.UNITY}, amount: 2});
     }
 
+    // Turmoil Redux: the ENACTED RESOLUTION's discount (Heat Capture's 3 M€
+    // off a Building tag) — the same seam the party policy above uses, and
+    // itemized under the LAW's own source, never the cardless remainder: a
+    // price that fell for no named reason is a silent loss of the explanation.
+    const law = ParliamentHandler.cardDiscount(this, card);
+    if (law !== undefined) {
+      cost -= law.amount;
+      discounts.push({source: {kind: 'resolution', id: law.resolution, owner: this.color}, amount: law.amount});
+    }
+
     return {base: card.cost, final: Math.max(cost, 0), discounts};
   }
 
