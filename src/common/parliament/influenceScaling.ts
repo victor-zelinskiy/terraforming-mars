@@ -82,6 +82,27 @@ export type InfluenceSequelTerm = {
   per: number;
 };
 
+/**
+ * A LEVEL term — the effect brings the player UP TO a level instead of paying
+ * an amount outright: «draw cards until you have 6 cards in hand + Influence»
+ * (Joint Research). The formula (`scaledAmount`) then yields the TARGET
+ * level; what is actually paid is the difference to the player's CURRENT
+ * level of the same total (`topUpAmount` = max(0, target − current)), read
+ * at the step from the engine (the hand as it stands) and never assumed. A
+ * player at or above the target is paid nothing — and that zero is the rule
+ * working, not a skip for want of influence: influence 0 still means a target
+ * of 6, and a hand of 2 still draws 4.
+ *
+ * A reading of a level effect carries all three numbers: the target
+ * (`InfluenceYield.target`), the level before and after (`total`) and the
+ * payout (`amount`) — «up to 9 · 5 in hand → +4». A surface that printed the
+ * target alone would promise «+9 cards».
+ */
+export type InfluenceLevelTerm = {
+  /** WHICH player total is the current level (the same unit vocabulary as `unit`): `cards` = the hand. */
+  total: InfluenceYieldUnit;
+};
+
 export type InfluenceScaledEffect = {
   /** Stable within the resolution — the outcome record and the UI key on it. */
   id: string;
@@ -102,6 +123,13 @@ export type InfluenceScaledEffect = {
    * {@link InfluenceSequelTerm}. Mutually exclusive with `count`.
    */
   sequel?: InfluenceSequelTerm;
+  /**
+   * A LEVEL part (absent = none): the formula is a level the player is
+   * brought UP TO, and the payout is the difference to their current level
+   * of `upTo.total` — see {@link InfluenceLevelTerm}. Mutually exclusive
+   * with `count` and `sequel`.
+   */
+  upTo?: InfluenceLevelTerm;
   /** A flat part paid regardless of influence (absent = 0). */
   base?: number;
   /**
@@ -147,6 +175,22 @@ export function sequelAmount(effect: InfluenceScaledEffect, total: number): numb
   return effect.cap === undefined ? raw : Math.min(effect.cap, raw);
 }
 
+/**
+ * The amount a LEVEL effect pays from `current` — the ONE formula for the
+ * top-up: max(0, target − current), the target being the ordinary formula's
+ * result. Shared by the server (the payout), the readings and the stand, so
+ * the number a surface prints can never disagree with the one the step
+ * draws. An effect without a level term pays its ordinary amount (a caller
+ * that mixes them up gets the formula, never a guess).
+ */
+export function topUpAmount(effect: InfluenceScaledEffect, influence: number, current: number, counted: number = 0): number {
+  const target = scaledAmount(effect, influence, counted);
+  if (effect.upTo === undefined) {
+    return target;
+  }
+  return Math.max(0, target - Math.max(0, Math.floor(current)));
+}
+
 export type InfluenceYieldContext = 'reference' | 'estimate' | 'forecast' | 'resolving' | 'applied';
 
 /**
@@ -188,6 +232,13 @@ export type InfluenceYield = {
    * is the server's own value, never `before + influence`.
    */
   total?: {before: number, after: number};
+  /**
+   * A LEVEL effect: the level the formula brings the player UP TO («6 +
+   * influence» cards in hand) — `total.before` is their level now, `amount`
+   * the difference paid, `total.after` the level reached. For a live or
+   * recorded reading it is the server's own target, never recomputed.
+   */
+  target?: number;
   /**
    * `resolving` / `applied` of a DRAW: what was actually dealt, when the
    * deck could not supply the whole amount. Absent = the full amount landed.
@@ -312,6 +363,55 @@ export function fixedSequelYield(
   opts?: {influence?: number, delivered?: number},
 ): InfluenceYield {
   const y: InfluenceYield = {effect, context, amount, total};
+  if (opts?.influence !== undefined) {
+    y.influence = opts.influence;
+  }
+  if (opts?.delivered !== undefined && opts.delivered !== amount) {
+    y.delivered = opts.delivered;
+  }
+  return y;
+}
+
+/**
+ * The reading of a LEVEL effect for a level that has NOT been topped up yet
+ * (an estimate / a forecast): `before` is the player's level now (the hand as
+ * the model carries it), the target is the formula's result at `influence`,
+ * and the amount is the ONE top-up division. A player at or above the target
+ * reads a zero with the level term's own reason — the rule working, never a
+ * lost payout.
+ */
+export function levelYield(
+  effect: InfluenceScaledEffect,
+  context: Exclude<InfluenceYieldContext, 'reference'>,
+  influence: number,
+  before: number,
+  opts?: {agendaStep?: number},
+): InfluenceYield {
+  const level = Math.max(0, Math.floor(before));
+  const target = scaledAmount(effect, influence);
+  const amount = topUpAmount(effect, influence, level);
+  const y: InfluenceYield = {effect, context, influence, amount, target, total: {before: level, after: level + amount}};
+  if (opts?.agendaStep !== undefined) {
+    y.agendaStep = opts.agendaStep;
+  }
+  return y;
+}
+
+/**
+ * A LEVEL reading the SERVER fixed — the target it computed, the level it
+ * read before and after its own draw, the amount it owed, and `delivered`
+ * when the deck could not supply it all. Nothing is recomputed from today's
+ * hand.
+ */
+export function fixedLevelYield(
+  effect: InfluenceScaledEffect,
+  context: 'resolving' | 'applied',
+  amount: number,
+  target: number,
+  total: {before: number, after: number},
+  opts?: {influence?: number, delivered?: number},
+): InfluenceYield {
+  const y: InfluenceYield = {effect, context, amount, target, total};
   if (opts?.influence !== undefined) {
     y.influence = opts.influence;
   }

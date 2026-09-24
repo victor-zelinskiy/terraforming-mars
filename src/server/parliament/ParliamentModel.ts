@@ -19,7 +19,7 @@ import {PARTY_EFFECTS} from './parties/PartyEffects';
 import {parliamentGateAwaiting} from './ParliamentPhase';
 import {SerializedEnactOutcome, SerializedPhaseSummary} from './SerializedParliament';
 import {Resource} from '../../common/Resource';
-import {declaredCountIds, declaredLevyResources, declaredSequelProductions, declaresColonyBonuses, resolutionCount} from './resolutions/ResolutionCounts';
+import {declaredCountIds, declaredLevyResources, declaredSequelProductions, declaresColonyBonuses, declaresHandLevel, resolutionCount} from './resolutions/ResolutionCounts';
 
 function colorOf(game: IGame, delegate: Delegate): Color | 'neutral' {
   return delegate === 'NEUTRAL' ? 'neutral' : game.getPlayerById(delegate).color;
@@ -229,6 +229,12 @@ function playerModel(game: IGame, parliament: Parliament, player: IPlayer): Parl
     model.colonyBonuses = game.colonies
       .filter((colony) => colony.colonies.includes(player.id))
       .map((colony) => ({colony: colony.name, grant: colony.colonyBonusGrant(), description: colony.metadata.colony.description}));
+  }
+  // …and the HAND a LEVEL part tops up (Joint Research's «until you have 6 +
+  // influence in hand»): the same count the step will read — cards withheld in
+  // a pending intake are not in the hand, exactly as the step sees it.
+  if (participates && declaresHandLevel(parliament.catalog)) {
+    model.hand = player.cardsInHand.length;
   }
   return model;
 }

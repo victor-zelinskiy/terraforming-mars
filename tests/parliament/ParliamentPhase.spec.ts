@@ -216,19 +216,26 @@ describe('ParliamentPhase', () => {
    * the ruler's plaque hides its support sockets (`ConsolePartyPlaque.vue`), so a default ruler that can
    * actually hold a delegate needs that rule re-read.
    */
-  it('THE STARTING-RULE RULER: with three parties in the deck the Greens always hold a generation-1 card and are never paid as absent', () => {
+  it('THE STARTING-RULE RULER is paid as absent EXACTLY when no generation-1 card is theirs — the base deck holds six parties since RX16, so the deal decides', () => {
     const [game, , , parliament] = reduxGame();
     expect(parliament.enacted, 'the ENACTED slot is empty before the first sitting').is.undefined;
     const ruler = parliament.rulingParty();
-    // A game WITHOUT Venus Next deals three parties (Greens, Mars First, the Industrialists), so the three
-    // generation-1 slots are those three and the starting ruler is always among them.
-    expect(parliament.partiesInVotingArea(), `the starting-rule ruler (${ruler}) is represented in a three-party area`).includes(ruler);
+    // The base deck once held three parties (Greens, Mars First, the Industrialists), so the three generation-1
+    // slots were always those three and the starting ruler was always represented. Since Joint Research (the
+    // Scientists' first card) the base deck holds SIX parties, and a generation-1 area without the Greens is an
+    // ordinary deal — the literal rule (the next spec) then pays them as ABSENT, and never otherwise.
+    const represented = parliament.partiesInVotingArea().includes(ruler);
     for (let i = 0; i < parliament.slots.length; i++) {
       quiet(parliament, i);
     }
     endGenerationThroughParliament(game);
     const paidAsAbsent = (parliament.lastPhase?.support ?? []).find((entry) => entry.party === ruler && entry.reason === 'absent');
-    expect(paidAsAbsent, `wave 1 paid the starting-rule ruler ${ruler}`).is.undefined;
+    if (represented) {
+      expect(paidAsAbsent, `wave 1 paid the starting-rule ruler ${ruler} although a card of theirs stood in the area`).is.undefined;
+    } else {
+      expect(paidAsAbsent, `wave 1 owed the starting-rule ruler ${ruler} the absent party's cube — no card of theirs stood in the area`)
+        .deep.include({party: ruler, reason: 'absent', gained: 1});
+    }
   });
 
   /*
@@ -472,7 +479,9 @@ describe('ParliamentPhase', () => {
           } else if (wf instanceof SelectSpace) {
             human.process({type: 'space', spaceId: wf.spaces[0].id});
           } else if (wf instanceof SelectCard) {
-            human.process({type: 'card', cards: [wf.cards[0].name]});
+            // A mandatory TAKE (Joint Research's top-up, Climate Research's draw) is answered WHOLE — one card
+            // at a time re-issues the remainder and would spend the guard's rounds on one seat's intake.
+            human.process({type: 'card', cards: wf.externalDrawPrompt !== undefined ? wf.cards.map((c) => c.name) : [wf.cards[0].name]});
           } else if (wf instanceof SelectColony) {
             // Colony Contest's winner builds a colony for free — the first tile the ordinary rules allow.
             human.process({type: 'colony', colonyName: wf.colonies[0].name});

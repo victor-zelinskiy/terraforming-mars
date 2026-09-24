@@ -181,6 +181,13 @@ export type SerializedEnactOutcome = {
    */
   total?: {before: number; after: number};
   /**
+   * A LEVEL effect (Joint Research's «draw until you have 6 + influence in
+   * hand»): the TARGET the formula brought the seat up to, beside `total`
+   * (the hand before and after) and `amount` (the difference owed). Frozen
+   * here: a reading never recomputes it from a later influence.
+   */
+  target?: number;
+  /**
    * `cards`: how many actually left the deck. Below `amount` only when the
    * deck (and its reshuffled discard) could not supply the whole draw — the
    * difference is what the player did NOT get, and it is never silent.

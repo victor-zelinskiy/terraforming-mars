@@ -158,6 +158,15 @@ export function declaresColonyBonuses(catalog: ResolutionCatalog): boolean {
   return catalog.all().some((definition) => (definition.scaled ?? []).some((effect) => effect.unit.kind === 'colonyBonuses'));
 }
 
+/**
+ * Does some resolution of `catalog` bring the seat's HAND up to a level
+ * (Joint Research's «draw until you have 6 + influence in hand»)? The seat's
+ * model then carries the hand size — the same count the step will read.
+ */
+export function declaresHandLevel(catalog: ResolutionCatalog): boolean {
+  return catalog.all().some((definition) => (definition.scaled ?? []).some((effect) => effect.upTo?.total.kind === 'cards'));
+}
+
 /** Every count id some resolution of `catalog` declares — what a player's model carries. */
 export function declaredCountIds(catalog: ResolutionCatalog): Array<ResolutionCountId> {
   const ids = new Set<ResolutionCountId>();

@@ -119,6 +119,15 @@ export type ParliamentPlayerModel = {
    * from the colonies model (the server's rule of what a colony bonus is).
    */
   colonyBonuses?: ReadonlyArray<ColonyLedgerEntryModel>;
+  /**
+   * THE SEAT'S HAND SIZE a LEVEL part of the catalog tops up (Joint
+   * Research's «draw until you have 6 + influence in hand»): present only
+   * while some declaration reads the hand; absent for a seat outside the
+   * parliament. Every surface computes the top-up from THIS number — the
+   * same count the step will read (cards withheld in a pending intake are
+   * not in it, exactly as the step sees the hand).
+   */
+  hand?: number;
   access: ReadonlyArray<PartyAccessModel>;
   partyActionUses: Partial<Record<PartyName, number>>;
   resolutionActionUses: number;
@@ -264,6 +273,12 @@ export type ParliamentEnactOutcomeModel = {
    * The server's own reading — never recomputed from today's production.
    */
   total?: {before: number; after: number};
+  /**
+   * A LEVEL effect (Joint Research's «until you have 6 + influence in hand»):
+   * the TARGET the seat was brought up to, beside `total` (the hand before
+   * and after) and `amount` (the difference owed). Recorded, never recomputed.
+   */
+  target?: number;
   /** `cards`: how many actually left the deck (below `amount` only when the deck ran out). */
   drawn?: number;
   /** A card draw handed over as a mandatory intake — the intake's id. */

@@ -82,6 +82,12 @@ export function questRenderData(quest: QuestDefinition): ICardRenderRoot {
       // never a text plate inside a graphic zone.
       b.cards(count, {secondaryTag: goal.cardType === 'active' ? AltSecondaryTag.BLUE : AltSecondaryTag.GREEN});
       return;
+    case 'cardsDiscarded':
+      // A card LEAVING the hand: the DSL's own discard glyph (the card with
+      // the down arrow), how many to throw away beside it — never the draw
+      // glyph (it would read as «take 2 cards»).
+      b.discard(count);
+      return;
     }
   });
 }

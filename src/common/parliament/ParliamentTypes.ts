@@ -101,7 +101,14 @@ export type QuestGoal =
   | {kind: 'tr'}
   | {kind: 'cardResource', resource: CardResource}
   | {kind: 'delegates'}
-  | {kind: 'cardsPlayed', cardType: 'automated' | 'active'};
+  | {kind: 'cardsPlayed', cardType: 'automated' | 'active'}
+  /**
+   * Cards the player DISCARDS FROM THEIR HAND by their own action (Joint
+   * Research: «discard 2 cards») — the first quest that counts a parting,
+   * not an acquisition. Selling patents discards the cards sold, so it
+   * counts by itself; playing a card is not a discard.
+   */
+  | {kind: 'cardsDiscarded'};
 
 export type QuestDefinition = {
   goal: QuestGoal;

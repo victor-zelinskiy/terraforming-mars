@@ -10,7 +10,7 @@ import {PlayerInput} from '../../src/server/PlayerInput';
 import {Phase} from '../../src/common/Phase';
 import {PlayerId} from '../../src/common/Types';
 import {AGENDA_TRACK, influenceAtAgenda} from '../../src/common/parliament/ParliamentTypes';
-import {scaledAmount, sequelAmount} from '../../src/common/parliament/influenceScaling';
+import {scaledAmount, sequelAmount, topUpAmount} from '../../src/common/parliament/influenceScaling';
 import {LEVY_STEP_KEY, levyDeclared, levyPaid} from '../../src/common/parliament/resolutionLevy';
 import {OUTCOME_KINDS, REWARD_ADDRESS, rewardAddressOf} from '../../src/common/parliament/rewardAddress';
 import {Color} from '../../src/common/Color';
@@ -446,10 +446,19 @@ function checkFormula(definition: ResolutionDefinition, run: Run): Array<string>
       }
       const expected = effect.sequel !== undefined ?
         (record.total === undefined ? undefined : sequelAmount(effect, record.total.after)) :
-        scaledAmount(effect, seat.influence, record.count ?? 0);
+        effect.upTo !== undefined ?
+          (record.total === undefined ? undefined : topUpAmount(effect, seat.influence, record.total.before)) :
+          scaledAmount(effect, seat.influence, record.count ?? 0);
       if (expected === undefined) {
-        failures.push(`${label(definition)}: последовательная часть '${effect.id}' не записала итог (total), из которого делила`);
+        failures.push(effect.upTo !== undefined ?
+          `${label(definition)}: часть-порог '${effect.id}' не записала уровень (total), от которого считала добор` :
+          `${label(definition)}: последовательная часть '${effect.id}' не записала итог (total), из которого делила`);
         continue;
+      }
+      // A LEVEL part records the TARGET it brought the seat up to — the formula's own number — beside the level:
+      // a reading that had to recompute it from a later influence would be the lie the declaration exists to prevent.
+      if (effect.upTo !== undefined && record.target !== scaledAmount(effect, seat.influence)) {
+        failures.push(`${label(definition)}: часть-порог '${effect.id}' записала цель ${record.target}, декларация даёт ${scaledAmount(effect, seat.influence)} (влияние ${seat.influence})`);
       }
       // A COLONY-BONUSES effect declares the MULTIPLIER: every record of the plan pays its own unit (2k M€, k
       // floaters, one card) and carries `multiplier: k` beside it — that is the declaration's number.
