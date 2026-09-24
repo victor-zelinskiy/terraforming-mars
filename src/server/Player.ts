@@ -733,17 +733,8 @@ export class Player implements IPlayer {
   }
 
   public getColoniesCount() {
-    if (!this.game.gameOptions.coloniesExtension) {
-      return 0;
-    }
-
-    let coloniesCount = 0;
-
-    this.game.colonies.forEach((colony) => {
-      coloniesCount += colony.colonies.filter((owner) => owner === this.id).length;
-    });
-
-    return coloniesCount;
+    // THE ONE reading of «each colony you have» — the behavior counter and the parliament's counted term read it too.
+    return ColoniesHandler.coloniesOf(this.game, this).length;
   }
 
   /**

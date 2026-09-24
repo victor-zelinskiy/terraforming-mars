@@ -815,5 +815,15 @@
   "Joint Research up for the vote: your hand against the target of 6 + influence, and the cards each result would draw": "«Совместные исследования» на голосовании: ваша рука против цели 6 + влияние и карты, которые даст каждый исход",
   "Your take stands inside the enactment stage: the target, the hand it was read against, the cards owed": "Ваше получение стоит внутри стадии принятия: цель, рука, от которой считали, причитающиеся карты",
   "target ${0}": "цель ${0}",
-  "${0} to draw": "добор ${0}"
+  "${0} to draw": "добор ${0}",
+  "Gain 1 titanium for every point of your influence. Raise your M€ production 1 step per colony you have. Max 5.": "Получите по 1 титану за каждое влияние. Повысьте производство M€ на 1 за каждую вашу колонию. Не более 5.",
+  "Play 2 Jovian tags": "Разыграйте 2 метки Юпитера",
+  "No colonies": "Колоний нет",
+  "${0} has no colonies — no ${1} production from ${2}": "${0}: колоний нет — производство ${1} от ${2} не растёт",
+  "${0} gained ${1} ${2} production from ${3}: 1 per colony, ${4} colony(-ies) = ${5}, limited to the maximum of ${1} (${6} → ${7})": "${0} повышает производство ${2} на ${1} — ${3}: по 1 за колонию, ${4} {колония|колонии|колоний} = ${5}, макс. ${1} (${6} → ${7})",
+  "${0} gained ${1} ${2} production from ${3}: 1 per colony, ${4} colony(-ies) (${5} → ${6})": "${0} повышает производство ${2} на ${1} — ${3}: по 1 за колонию, ${4} {колония|колонии|колоний} (${5} → ${6})",
+  "${0} colony(-ies)": "${0} {колония|колонии|колоний}",
+  "Each colony you have counts: two colonies on one tile count twice. A tile without your colony does not count.": "Считается каждая ваша колония: две колонии на одном тайле дают 2. Тайл без вашей колонии не считается.",
+  "Counted by your colonies, not on the board": "Считается по вашим колониям, а не на поле",
+  "Counted by your colonies, not among cards": "Считается по вашим колониям, а не среди карт"
 }

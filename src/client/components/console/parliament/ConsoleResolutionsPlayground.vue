@@ -583,8 +583,8 @@ type PgWinner = SeatIndex | 'neutral';
  * icon vs. cards that print the tag vs. CELLS of the board) — or a supply
  * resource by influence + the WINNER's tile.
  */
-type PgFamily = 'influence' | 'counted' | 'counted-tags' | 'counted-board' | 'counted-metric' | 'counted-production' | 'distributed' | 'winner-tile' | 'sequel' |
-  'colony-bonuses' | 'world-move' | 'up-to';
+type PgFamily = 'influence' | 'counted' | 'counted-tags' | 'counted-board' | 'counted-metric' | 'counted-production' | 'counted-colonies' | 'distributed' |
+  'winner-tile' | 'sequel' | 'colony-bonuses' | 'world-move' | 'up-to';
 /** The table's global parameters a winner tile reads (oxygen %, temperature °C, oceans placed). */
 type PgTable = {oxygen: number, temperature: number, oceans: number, venus: number};
 const DEFAULT_TABLE: PgTable = {oxygen: 5, temperature: -14, oceans: 3, venus: 10};
@@ -1117,6 +1117,7 @@ const DEFAULT_SCENARIO_OF: Readonly<Record<PgFamily, number>> = {
   'counted-board': SCENARIOS.findIndex((s) => s.key === 'funding-exact-cap'),
   'counted-metric': SCENARIOS.findIndex((s) => s.key === 'generous-one-set'),
   'counted-production': SCENARIOS.findIndex((s) => s.key === 'budget-net'),
+  'counted-colonies': SCENARIOS.findIndex((s) => s.key === 'influence-3'),
   'distributed': SCENARIOS.findIndex((s) => s.key === 'cloud-layout'),
   'winner-tile': SCENARIOS.findIndex((s) => s.key === 'tile-influence-3'),
   'sequel': SCENARIOS.findIndex((s) => s.key === 'seq-4-to-6'),

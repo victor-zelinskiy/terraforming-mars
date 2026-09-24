@@ -40,16 +40,24 @@
  * (`player.production` — never assembled from the cards that raised them)
  * and adds them up through the shared reader (`countProductionToward`),
  * keeping each resource's own steps as the breakdown.
+ *
+ * A COLONIES count (Jovian Tax Rights's «each colony you have») asks THE
+ * ENGINE for the list of the player's cubes on the colony tiles —
+ * `ColoniesHandler.coloniesOf`, the very reading the behavior counter
+ * (`Counter`) and `Player.getColoniesCount` stand on — and hands the tiles'
+ * names to the shared reader (`countColoniesToward`), so the number can be
+ * explained tile by tile. Nothing here walks the colony table itself.
  */
 import {CardName} from '../../../common/cards/CardName';
 import {
-  BoardCountedTile, cardCountUnits, countCardsToward, countMetricToward, countProductionToward, ResolutionCountId, ResolutionCountMetric,
-  ResolutionCountModel, resolutionCountKind, RESOLUTION_COUNT_IDS, RESOLUTION_TAG_COUNTING_MODE,
+  BoardCountedTile, cardCountUnits, countCardsToward, countColoniesToward, countMetricToward, countProductionToward, ResolutionCountId,
+  ResolutionCountMetric, ResolutionCountModel, resolutionCountKind, RESOLUTION_COUNT_IDS, RESOLUTION_TAG_COUNTING_MODE,
 } from '../../../common/parliament/resolutionCounts';
 import {Resource} from '../../../common/Resource';
 import {IPlayer} from '../../IPlayer';
 import {ICard} from '../../cards/ICard';
 import {Space} from '../../boards/Space';
+import {ColoniesHandler} from '../../colonies/ColoniesHandler';
 import type {ResolutionCatalog} from './ResolutionCatalog';
 
 function inPlay(card: ICard): boolean {
@@ -91,6 +99,12 @@ export function resolutionCount(player: IPlayer, id: ResolutionCountId): Resolut
     // this module's own over the board.
     const spaces = boardCountSpaces(player, kind.tiles);
     return {id, count: spaces.length, cards: [], spaces: spaces.map((space) => space.id)};
+  }
+  if (kind.kind === 'colonies') {
+    // THE ENGINE'S OWN LIST of the seat's colonies — one entry per cube, the
+    // reading the behavior counter and `Player.getColoniesCount` share — with
+    // the tiles' names kept for the reading. Nothing here walks the table.
+    return countColoniesToward(id, ColoniesHandler.coloniesOf(player.game, player).map((colony) => colony.name));
   }
   const tableau = player.tableau.filter(inPlay);
   const breakdown = countCardsToward(id, tableau, {eventTagsInPlay: player.tags.eventTagsInPlay()});

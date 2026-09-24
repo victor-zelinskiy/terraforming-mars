@@ -27,6 +27,31 @@ export class ColoniesHandler {
     return game.colonies.filter((colony) => colony.isActive && colony.visitor === undefined);
   }
 
+  /**
+   * THE PLAYER'S COLONIES — one entry per CUBE of theirs on a colony tile, in
+   * the table's order (a tile holding two of their cubes appears twice). This
+   * is THE ONE reading of «each colony you have»: the behavior counter
+   * (`Counter` — «colonies» countables), `Player.getColoniesCount` (awards,
+   * Microgravity Nutrition…) and the parliament's counted term (Jovian Tax
+   * Rights — «1 M€ production per colony», explained tile by tile) all stand
+   * on it, so none of them can drift from the others. A game without the
+   * Colonies expansion has no colonies.
+   */
+  public static coloniesOf(game: IGame, player: IPlayer): Array<IColony> {
+    if (!game.gameOptions.coloniesExtension) {
+      return [];
+    }
+    const out: Array<IColony> = [];
+    for (const colony of game.colonies) {
+      for (const owner of colony.colonies) {
+        if (owner === player.id) {
+          out.push(colony);
+        }
+      }
+    }
+    return out;
+  }
+
   public static maybeActivateColonies(game: IGame, card: ICard) {
     if (!game.gameOptions.coloniesExtension) {
       return;

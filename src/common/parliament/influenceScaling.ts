@@ -30,6 +30,7 @@
  */
 import {CardName} from '../cards/CardName';
 import {CardResource} from '../CardResource';
+import {ColonyName} from '../colonies/ColonyName';
 import {Resource} from '../Resource';
 import {Tag} from '../cards/Tag';
 import {SpaceId} from '../Types';
@@ -217,6 +218,8 @@ export type InfluenceYield = {
   countedMetric?: ResolutionCountMetricModel;
   /** A PRODUCTION count: each resource's own steps («steel 2 · titanium 1 · energy 3») — the reading's breakdown, the twin of `countedByTag`. */
   countedByResource?: ReadonlyArray<ResolutionCountByResource>;
+  /** A COLONIES count: WHICH tiles the counted cubes stand on (a name per cube — the list that explains the number where no card can). */
+  countedColonies?: ReadonlyArray<ColonyName>;
   /** The formula's sum before the cap — above `amount` exactly when the cap bit. */
   uncapped?: number;
   /**
@@ -267,6 +270,8 @@ export type YieldCount = {
   metric?: ResolutionCountMetricModel,
   /** A production count's per-resource steps (the reading's breakdown). */
   byResource?: ReadonlyArray<ResolutionCountByResource>,
+  /** A colonies count's tiles (a name per cube — the list that explains the number). */
+  colonies?: ReadonlyArray<ColonyName>,
 };
 
 function withCount(y: InfluenceYield, effect: InfluenceScaledEffect, count: YieldCount | undefined): InfluenceYield {
@@ -283,6 +288,9 @@ function withCount(y: InfluenceYield, effect: InfluenceScaledEffect, count: Yiel
     }
     if (count.byResource !== undefined) {
       y.countedByResource = count.byResource;
+    }
+    if (count.colonies !== undefined) {
+      y.countedColonies = count.colonies;
     }
     if (count.spaces !== undefined) {
       y.countedSpaces = count.spaces;
@@ -434,7 +442,7 @@ export function fixedYield(
   recorded?: {
     count?: number, counted?: ReadonlyArray<CardName>, countedUnits?: ReadonlyArray<number>,
     countedByTag?: ReadonlyArray<{tag: Tag, count: number}>, countedSpaces?: ReadonlyArray<SpaceId>, countedMetric?: ResolutionCountMetricModel,
-    countedByResource?: ReadonlyArray<ResolutionCountByResource>,
+    countedByResource?: ReadonlyArray<ResolutionCountByResource>, countedColonies?: ReadonlyArray<ColonyName>,
     uncapped?: number, targets?: ReadonlyArray<{card: CardName, amount: number}>,
   },
 ): InfluenceYield {
@@ -453,6 +461,9 @@ export function fixedYield(
   }
   if (recorded?.countedByResource !== undefined) {
     y.countedByResource = recorded.countedByResource;
+  }
+  if (recorded?.countedColonies !== undefined) {
+    y.countedColonies = recorded.countedColonies;
   }
   if (recorded?.countedSpaces !== undefined) {
     y.countedSpaces = recorded.countedSpaces;

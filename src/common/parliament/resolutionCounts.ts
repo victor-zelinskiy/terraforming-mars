@@ -14,7 +14,7 @@
  * (or, off the table, this predicate), and every reading keeps the LIST of
  * counted cards so the number can always be explained.
  *
- * FIVE KINDS OF COUNT, told apart by `resolutionCountKind` because the
+ * SIX KINDS OF COUNT, told apart by `resolutionCountKind` because the
  * objects answer them differently:
  *   · CARDS — «for every Building card with a VP icon»: one card is ONE unit,
  *     however many tags or victory points it prints (Architecture Award);
@@ -50,7 +50,17 @@
  *     reads synthetic productions through the same function
  *     (`countProductionToward`). The next budget's list (building + Mars
  *     tags, plant + microbe + animal tags) is a TAG count — this kind is for
- *     production only.
+ *     production only;
+ *   · COLONIES — «for each colony you have» (Jovian Tax Rights): the count
+ *     walks neither the tableau nor the Mars board nor a metric — it counts
+ *     the player's CUBES on the colony tiles, one unit per cube (two cubes
+ *     on one tile are 2). The server asks THE ENGINE for the list
+ *     (`ColoniesHandler.coloniesOf` — the very reading the behavior counter
+ *     and `Player.getColoniesCount` stand on) and this module keeps it as the
+ *     NAMES of the tiles (`ResolutionCountModel.colonies`, in the table's
+ *     order, a name repeated per cube) — the list that explains the number
+ *     where no card and no cell can. The stand counts a synthetic list of
+ *     tiles through the same function (`countColoniesToward`).
  *
  * WHAT A CARD IS, for a count: its name, type, printed tags and VP
  * declaration — the facts `ICard` and `ClientCard` share. Played-event tags
@@ -66,6 +76,7 @@ import {CardName} from '../cards/CardName';
 import {CardType} from '../cards/CardType';
 import {Tag} from '../cards/Tag';
 import {hasNonNegativeVictoryPointsIcon, VictoryPointsDeclaration, victoryPointsIconOf} from '../cards/victoryPointsIcon';
+import {ColonyName} from '../colonies/ColonyName';
 import {Resource} from '../Resource';
 import {SpaceId} from '../Types';
 import {SpaceType} from '../boards/SpaceType';
@@ -103,6 +114,13 @@ export const RESOLUTION_COUNT_IDS = [
    * that raised the production is not what is counted, the steps are).
    */
   'steelTitaniumEnergyProduction',
+  /**
+   * Jovian Tax Rights: the player's COLONIES — their cubes on the colony
+   * tiles, one unit per cube (two cubes on one tile are 2). A count over the
+   * colony table, never over the tiles themselves (a tile the player only
+   * trades with is not theirs) and never over cards.
+   */
+  'colonies',
 ] as const;
 export type ResolutionCountId = typeof RESOLUTION_COUNT_IDS[number];
 
@@ -157,14 +175,17 @@ export type ResolutionCountMetric = 'terraformRating';
  * «each complete set of 5 TR over 15»): one unit per full set, the remainder
  * yields nothing. `production` — the player's PRODUCTION STEPS of the listed
  * resources, ADDED UP (Industrialist Budget's steel + titanium + energy): one
- * unit per step, each resource's own total kept for the reading.
+ * unit per step, each resource's own total kept for the reading. `colonies`
+ * — the player's CUBES on the colony tiles (Jovian Tax Rights's «each colony
+ * you have»): one unit per cube, the tiles' names kept for the reading.
  */
 export type ResolutionCountKind =
   | {kind: 'cards'}
   | {kind: 'tags', tags: ReadonlyArray<Tag>}
   | {kind: 'board', tiles: BoardCountedTile}
   | {kind: 'threshold', metric: ResolutionCountMetric, over: number, step: number}
-  | {kind: 'production', resources: ReadonlyArray<Resource>};
+  | {kind: 'production', resources: ReadonlyArray<Resource>}
+  | {kind: 'colonies'};
 
 /** Generous Funding's printed «5 TR over 15» — the threshold and the set. */
 export const TERRAFORM_RATING_SETS_OVER = 15;
@@ -181,6 +202,7 @@ export function resolutionCountKind(id: ResolutionCountId): ResolutionCountKind 
   case 'spaceCities': return {kind: 'board', tiles: 'spaceCity'};
   case 'terraformRatingSets': return {kind: 'threshold', metric: 'terraformRating', over: TERRAFORM_RATING_SETS_OVER, step: TERRAFORM_RATING_SETS_STEP};
   case 'steelTitaniumEnergyProduction': return {kind: 'production', resources: INDUSTRIAL_PRODUCTION_RESOURCES};
+  case 'colonies': return {kind: 'colonies'};
   }
 }
 
@@ -256,6 +278,23 @@ export function countProductionToward(id: ResolutionCountId, production: Readonl
 }
 
 /**
+ * Count the player's COLONIES toward a colonies count `id` — the server's
+ * reading of the engine's list (`ColoniesHandler.coloniesOf`, one tile name
+ * per CUBE, in the table's order) and the stand's reading of a synthetic
+ * list, through ONE function: the number is the list's length, and the list
+ * itself rides the model so the number can always be explained tile by tile
+ * (a name repeated is two cubes on one tile). A non-colonies id counts
+ * nothing this way (a zero, never a guess).
+ */
+export function countColoniesToward(id: ResolutionCountId, colonies: ReadonlyArray<ColonyName>): ResolutionCountModel {
+  const kind = resolutionCountKind(id);
+  if (kind.kind !== 'colonies') {
+    return {id, count: 0, cards: []};
+  }
+  return {id, count: colonies.length, cards: [], colonies: [...colonies]};
+}
+
+/**
  * ONE player's count for a term — the number, and what made it: the cards (in
  * play order) for a card or tag count, the CELLS for a board count. ONE model
  * for every kind — a reading, a record and the stand all explain the number
@@ -297,6 +336,13 @@ export type ResolutionCountModel = {
    * on a threshold count only.
    */
   metric?: ResolutionCountMetricModel;
+  /**
+   * A COLONIES count: the tiles the player's cubes stand on (their names, in
+   * the table's order — a name repeated per cube) — the list that explains
+   * the number where no card and no cell can. Present on a colonies count
+   * only (empty when the player has none); `cards` is empty on it.
+   */
+  colonies?: ReadonlyArray<ColonyName>;
 };
 
 /** The cell facts a BOARD count reads (satisfied by the server's `Space` and by the stand's synthetic cells). */
@@ -324,6 +370,9 @@ export function spaceCountVerdict(id: ResolutionCountId, space: CountedSpaceFact
   }
   if (kind.kind === 'production') {
     return {counts: false, reason: 'Counted by your production, not on the board'};
+  }
+  if (kind.kind === 'colonies') {
+    return {counts: false, reason: 'Counted by your colonies, not on the board'};
   }
   if (kind.kind !== 'board') {
     return {counts: false, reason: 'Counted among cards, not on the board'};
@@ -433,6 +482,9 @@ export function cardCountVerdict(id: ResolutionCountId, card: CountedCardFacts, 
   case 'steelTitaniumEnergyProduction':
     // A PRODUCTION count: no card counts — the player's production steps do (`countProductionToward`).
     return {counts: false, reason: 'Counted by your production, not among cards'};
+  case 'colonies':
+    // A COLONIES count: no card counts — the player's cubes on the colony tiles do (`countColoniesToward`).
+    return {counts: false, reason: 'Counted by your colonies, not among cards'};
   }
 }
 

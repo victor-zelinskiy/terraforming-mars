@@ -23,6 +23,10 @@ import {WorldParameterMove} from '@/common/parliament/parameterMove';
  *                   behind a LEVY (Industrialist Budget: −10 M€, then steel + titanium + energy steps) —
  *                   the instrument is the production TRACK and the seat's SUPPLY the levy reads; the
  *                   scenarios are the levy's edges (paid whole, short, nothing to pay) and the track's;
+ *   counted-colonies — a COUNT of the player's COLONIES (their cubes on the colony tiles) beside a
+ *                   plain influence payout (Jovian Tax Rights: titanium = influence, +1 M€ production
+ *                   per colony, max 5) — the instrument is the COLONY TABLE, and the scenarios are the
+ *                   cube counts against the cap (none, one, several, at the cap, past it);
  *   distributed   — a card-resource payout LAID OUT over the player's holders, 0..N per card
  *                   (Cloud Development: floaters by Venus + Jovian tags + influence) — the count
  *                   is a term of it, the SPREAD is what the player works with;
@@ -37,8 +41,8 @@ import {WorldParameterMove} from '@/common/parliament/parameterMove';
  *                   positions against the target (empty, short by a few, at it, above it, at influence 0).
  */
 export const RESOLUTION_FAMILIES = [
-  'influence', 'counted', 'counted-tags', 'counted-board', 'counted-metric', 'counted-production', 'distributed', 'winner-tile', 'sequel', 'colony-bonuses',
-  'world-move', 'up-to',
+  'influence', 'counted', 'counted-tags', 'counted-board', 'counted-metric', 'counted-production', 'counted-colonies', 'distributed', 'winner-tile', 'sequel',
+  'colony-bonuses', 'world-move', 'up-to',
 ] as const;
 export type ResolutionFamily = typeof RESOLUTION_FAMILIES[number];
 
@@ -106,6 +110,7 @@ export function familyOf(facts: ResolutionFamilyFacts): ResolutionFamily {
     case 'board': return 'counted-board';
     case 'threshold': return 'counted-metric';
     case 'production': return 'counted-production';
+    case 'colonies': return 'counted-colonies';
     case 'cards': return 'counted';
     }
   }

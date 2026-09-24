@@ -262,6 +262,8 @@ export type ParliamentEnactOutcomeModel = {
   countedMetric?: ResolutionCountMetricModel;
   /** A PRODUCTION count: each resource's own steps at the enactment («steel 2 · titanium 1 · energy 3») — frozen, never re-read. */
   countedByResource?: ReadonlyArray<ResolutionCountByResource>;
+  /** A COLONIES count: the tiles the counted cubes stood on at the enactment (a name per cube) — frozen, never re-read from a later table. */
+  countedColonies?: ReadonlyArray<ColonyName>;
   /** The formula's sum before the cap (above `amount` exactly when the cap bit). */
   uncapped?: number;
   /** `production` / `stock`: the value before and after. */

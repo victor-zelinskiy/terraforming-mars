@@ -95,7 +95,24 @@ export type CountedObjectGlyph =
    * so the reading and the card draw the same object. Bare cubes would read
    * as the supply; a card as another rule.
    */
-  | {kind: 'production', resources: ReadonlyArray<Resource>};
+  | {kind: 'production', resources: ReadonlyArray<Resource>}
+  /**
+   * The player's COLONIES («1 M€ production per colony you have» — Jovian Tax
+   * Rights): the colony tile the face prints for `b.colonies()`, alone — a
+   * CUBE is what is counted, and the tile is its only drawing (a card would
+   * state another rule, a bare cube would read as a resource).
+   */
+  | {kind: 'colony'};
+
+/**
+ * The pictogram of a counted COLONY — the SAME asset the face's mechanics
+ * print for the render item (`b.colonies()` → `CardRenderItemType.COLONIES`),
+ * so the glyph of a reading and the graphic of the card can never draw two
+ * different colonies.
+ */
+export function countedColonyIconUrl(): string {
+  return `${TILES}/colony.png`;
+}
 
 /**
  * The badge of a counted METRIC — the SAME asset the face's mechanics print

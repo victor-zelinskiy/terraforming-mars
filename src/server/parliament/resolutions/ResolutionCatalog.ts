@@ -45,6 +45,7 @@ import {GENEROUS_FUNDING} from './greens/GenerousFunding';
 import {HEAT_CAPTURE} from './reds/HeatCapture';
 import {INDUSTRIALIST_BUDGET} from './industrialists/IndustrialistBudget';
 import {JOINT_RESEARCH} from './scientists/JointResearch';
+import {JOVIAN_TAX_RIGHTS} from './unity/JovianTaxRights';
 
 /**
  * THE RETIRED IDS — iteration 0's DUMMY resolutions (a party, a quest, no
@@ -483,6 +484,9 @@ export const REDUX_RESOLUTION_CATALOG = new ResolutionCatalog([
   // The Scientists' FIRST card, and the first value that is a LEVEL, not an amount: every seat draws UP TO
   // 6 + influence cards in hand (`upTo`) — the payout is the difference to the hand, zero being the rule working.
   JOINT_RESEARCH,
+  // A count over the seat's COLONIES (the sixth count kind: cubes on the colony tiles, the engine's own list) beside
+  // a plain titanium-by-influence part; the cap sits on the production part alone.
+  JOVIAN_TAX_RIGHTS,
   TEST_CHOICE,
   DEV_IMMEDIATE,
   DEV_PASSIVE,

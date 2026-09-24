@@ -1511,6 +1511,23 @@
     background-repeat: no-repeat;
   }
 }
+/* A COLONY as a counted object («per colony you have» — Jovian Tax Rights):
+   the colony tile the mechanics print for `b.colonies()`, in the same square,
+   nothing docked to it — a CUBE is what is counted and the tile is its only
+   drawing; a card would state another rule, a bare cube a resource. */
+.pcglyph--colony {
+  .pcglyph__colony {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 94%;
+    height: 94%;
+    transform: translate(-50%, -50%);
+    background-size: contain;
+    background-position: center;
+    background-repeat: no-repeat;
+  }
+}
 
 /* secondary tag bubble (top-right) */
 .pcard-mi__bubble {

@@ -168,6 +168,13 @@ export type SerializedEnactOutcome = {
    * re-read from a later production.
    */
   countedByResource?: Array<ResolutionCountByResource>;
+  /**
+   * A COLONIES count (Jovian Tax Rights's «each colony you have»): the tiles
+   * the counted cubes stood on at the enactment — a name per cube, in the
+   * table's order. `counted` is empty and this list explains the number.
+   * Frozen here, never re-read from a later colony table.
+   */
+  countedColonies?: Array<ColonyName>;
   /** The formula's sum before the cap (above `amount` exactly when the cap bit). */
   uncapped?: number;
   /** `production` / `stock`: the value before and after the change. */

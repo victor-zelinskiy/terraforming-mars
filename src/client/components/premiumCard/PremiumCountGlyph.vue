@@ -29,7 +29,11 @@
         (Industrialist Budget): the resources' own icons joined by «+» inside
         the brown production frame the mechanics print for `b.production(…)`.
         Bare cubes would read as the SUPPLY (which does not count); a card as
-        a seventh rule.
+        a seventh rule;
+      · `colony`  — «per COLONY you have» (Jovian Tax Rights): the colony tile
+        the mechanics print for `b.colonies()`, alone — a CUBE is what is
+        counted and the tile is its only drawing. A card would state an
+        eighth rule; a bare cube would read as a resource.
 
     All sit in the SAME square per medallion (`--pvpcard-size`), so a formula
     row, a reading and the Polygon keep one rhythm whichever object they count.
@@ -37,6 +41,9 @@
   <PremiumVpCardGlyph v-if="glyph.kind === 'vp-card'" :tag="glyph.tag" />
   <span v-else-if="glyph.kind === 'metric'" class="pcglyph pcglyph--metric" :data-count-metric="glyph.metric" aria-hidden="true">
     <span class="pcglyph__metric" :style="{backgroundImage: `url(${metricUrlOf(glyph.metric)})`}"></span>
+  </span>
+  <span v-else-if="glyph.kind === 'colony'" class="pcglyph pcglyph--colony" data-count-colony aria-hidden="true">
+    <span class="pcglyph__colony" :style="{backgroundImage: `url(${colonyUrl})`}"></span>
   </span>
   <span v-else-if="glyph.kind === 'production'" class="pcglyph pcglyph--production" :data-count-production="glyph.resources.join(' ')" aria-hidden="true">
     <template v-for="(resource, i) in glyph.resources" :key="resource">
@@ -65,13 +72,19 @@ import {Tag} from '@/common/cards/Tag';
 import {Resource} from '@/common/Resource';
 import {BoardCountedTile, ResolutionCountMetric} from '@/common/parliament/resolutionCounts';
 import PremiumVpCardGlyph from './PremiumVpCardGlyph.vue';
-import {CountedObjectGlyph, countedMetricIconUrl, countedTileIconUrl, standardResourceIconUrl, tagIconUrl} from './premiumCardIcons';
+import {CountedObjectGlyph, countedColonyIconUrl, countedMetricIconUrl, countedTileIconUrl, standardResourceIconUrl, tagIconUrl} from './premiumCardIcons';
 
 export default defineComponent({
   name: 'PremiumCountGlyph',
   components: {PremiumVpCardGlyph},
   props: {
     glyph: {type: Object as PropType<CountedObjectGlyph>, required: true},
+  },
+  computed: {
+    /** The SAME colony tile the face prints for `b.colonies()` — the reading and the card draw one colony. */
+    colonyUrl(): string {
+      return countedColonyIconUrl();
+    },
   },
   methods: {
     tagUrlOf(tag: Tag): string {

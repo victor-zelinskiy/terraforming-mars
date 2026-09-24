@@ -8,6 +8,7 @@ import {MoonExpansion} from '../moon/MoonExpansion';
 import {CardResource} from '../../common/CardResource';
 import {Space} from '../boards/Space';
 import {AutomaTargeting} from '../automa/AutomaTargeting';
+import {ColoniesHandler} from '../colonies/ColoniesHandler';
 import {once} from './Lazy';
 
 /**
@@ -173,13 +174,14 @@ export class Counter {
     }
 
     if (countable.colonies !== undefined) {
-      player.game.colonies.forEach((colony) => {
-        if (countable.all) {
+      if (countable.all) {
+        player.game.colonies.forEach((colony) => {
           sum += colony.colonies.length;
-        } else {
-          sum += colony.colonies.filter((colony) => colony === player.id).length;
-        }
-      });
+        });
+      } else {
+        // THE ONE reading of the player's own colonies (`Player.getColoniesCount` and the parliament's counted term share it).
+        sum += ColoniesHandler.coloniesOf(player.game, player).length;
+      }
     }
 
     if (countable.moon !== undefined) {

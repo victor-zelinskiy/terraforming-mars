@@ -147,6 +147,15 @@ export function yieldCountPresentation(id: ResolutionCountId): YieldCountPresent
       ruleKey: 'Each step of steel, titanium and energy production counts, added up. Resources in your supply do not count.',
       skipReasonKey: 'No steel, titanium or energy production and no influence',
     };
+  case 'colonies':
+    // A count over the player's COLONIES: the glyph is the colony tile the face prints for `b.colonies()` — a cube is what
+    // is counted and the tile is its only drawing. The list that explains the number is the tiles' names, one per cube.
+    return {
+      glyph: {kind: 'colony'},
+      pluralKey: '${0} colony(-ies)',
+      ruleKey: 'Each colony you have counts: two colonies on one tile count twice. A tile without your colony does not count.',
+      skipReasonKey: 'No colonies',
+    };
   }
 }
 
@@ -461,8 +470,12 @@ export function voteYieldsOf(resolution: IClientResolution, model: ParliamentMod
     // …and its CELLS, where the count is over the board (Colonization Funding's space cities): the reading names each.
     // …and the BREAKDOWN of its metric, where the count is a threshold over one (Generous Funding's sets of TR).
     // …and its per-resource STEPS, where the count is over the production track (Industrialist Budget).
+    // …and its TILES, where the count is over the seat's colonies (Jovian Tax Rights): the reading names each.
     const counted: YieldCount | undefined = count === undefined ? undefined :
-      {count: count.count, cards: count.cards, units: count.units, byTag: count.byTag, spaces: count.spaces, metric: count.metric, byResource: count.byResource};
+      {
+        count: count.count, cards: count.cards, units: count.units, byTag: count.byTag, spaces: count.spaces, metric: count.metric,
+        byResource: count.byResource, colonies: count.colonies,
+      };
     const estimate = influenceYield(effect, 'estimate', seat.influence, counted);
     out.push(estimate);
     if (effect.recipient === 'each' || effect.recipient === 'winner') {
@@ -529,7 +542,8 @@ export function enactedYieldsOf(
     const recorded = applied === undefined ? undefined :
       {
         count: applied.count, counted: applied.counted, countedUnits: applied.countedUnits, countedByTag: applied.countedByTag,
-        countedSpaces: applied.countedSpaces, countedMetric: applied.countedMetric, countedByResource: applied.countedByResource, uncapped: applied.uncapped,
+        countedSpaces: applied.countedSpaces, countedMetric: applied.countedMetric, countedByResource: applied.countedByResource,
+        countedColonies: applied.countedColonies, uncapped: applied.uncapped,
       };
     // A MULTIPLIER effect (the colony ledger): every record of the plan pays its own unit and carries the
     // multiplier beside it — the reading is the multiplier, never the first row's amount.
