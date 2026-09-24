@@ -63,7 +63,7 @@ describe('levelYieldModel (Joint Research)', () => {
     expect(draw.sequel, 'nothing is divided').is.undefined;
     expect(familyOf(r)).eq('up-to');
     expect(levelTotalIcon(draw.upTo!)).deep.eq({family: 'cards'});
-    expect(r.quest).deep.eq({goal: {kind: 'cardsDiscarded'}, count: 2});
+    expect(r.quest).deep.eq({goal: {kind: 'cardsPlayed', cardType: 'event'}, count: 2});
   });
 
   it('the ONE formula — the target at every influence, the top-up from every hand', () => {

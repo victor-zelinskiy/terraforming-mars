@@ -613,7 +613,7 @@
   ],
   "discardPile": []
  },
- "createdTimeMs": 1790256946328,
+ "createdTimeMs": 1790259186897,
  "currentSeed": 609911415729,
  "deferredActions": [],
  "donePlayers": [],
@@ -633,7 +633,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1790256946328
+   "timestamp": 1790259186897
   },
   {
    "message": "Good luck ${0}!",
@@ -643,7 +643,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1790256946328,
+   "timestamp": 1790259186897,
    "playerId": "p-player1-id"
   },
   {
@@ -654,7 +654,7 @@
      "value": "red"
     }
    ],
-   "timestamp": 1790256946328,
+   "timestamp": 1790259186897,
    "playerId": "p-player2-id"
   },
   {
@@ -665,7 +665,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1790256946328,
+   "timestamp": 1790259186897,
    "type": 1
   },
   {
@@ -680,7 +680,7 @@
      "value": "Teractor"
     }
    ],
-   "timestamp": 1790256946329,
+   "timestamp": 1790259186898,
    "correlationId": 1,
    "parentId": 1,
    "role": "root-action",
@@ -698,7 +698,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1790256946329,
+   "timestamp": 1790259186898,
    "correlationId": 1,
    "parentId": 1,
    "role": "detail"
@@ -715,7 +715,7 @@
      "value": "Aridor"
     }
    ],
-   "timestamp": 1790256946329,
+   "timestamp": 1790259186898,
    "correlationId": 2,
    "parentId": 2,
    "role": "root-action",
@@ -733,7 +733,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1790256946329,
+   "timestamp": 1790259186898,
    "correlationId": 2,
    "parentId": 2,
    "role": "detail"
@@ -746,7 +746,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1790256946330,
+   "timestamp": 1790259186899,
    "type": 2,
    "correlationId": 5,
    "parentId": 5,
@@ -765,7 +765,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1790256946330,
+   "timestamp": 1790259186899,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -782,7 +782,7 @@
      "value": "RDX_SCIENTISTS_JOINT_RESEARCH"
     }
    ],
-   "timestamp": 1790256946330,
+   "timestamp": 1790259186899,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -799,7 +799,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1790256946330,
+   "timestamp": 1790259186899,
    "correlationId": 5,
    "parentId": 6,
    "role": "detail"
@@ -824,7 +824,7 @@
      "value": "Greens"
     }
    ],
-   "timestamp": 1790256946330,
+   "timestamp": 1790259186899,
    "correlationId": 5,
    "parentId": 8,
    "role": "effect-result"
@@ -845,7 +845,7 @@
      "value": "tr"
     }
    ],
-   "timestamp": 1790256946330,
+   "timestamp": 1790259186899,
    "correlationId": 5,
    "parentId": 6,
    "role": "detail"
@@ -870,7 +870,7 @@
      "value": "3"
     }
    ],
-   "timestamp": 1790256946330,
+   "timestamp": 1790259186899,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -895,7 +895,7 @@
      "value": "3"
     }
    ],
-   "timestamp": 1790256946330,
+   "timestamp": 1790259186899,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -920,7 +920,7 @@
      "value": "3"
     }
    ],
-   "timestamp": 1790256946330,
+   "timestamp": 1790259186899,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -945,7 +945,7 @@
      "value": "3"
     }
    ],
-   "timestamp": 1790256946330,
+   "timestamp": 1790259186899,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -970,7 +970,7 @@
      "value": "3"
     }
    ],
-   "timestamp": 1790256946330,
+   "timestamp": 1790259186899,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -983,7 +983,7 @@
      "value": "RDX_SCIENTISTS_JOINT_RESEARCH"
     }
    ],
-   "timestamp": 1790256946330,
+   "timestamp": 1790259186899,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -996,7 +996,7 @@
      "value": "Scientists"
     }
    ],
-   "timestamp": 1790256946330,
+   "timestamp": 1790259186899,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -1010,10 +1010,10 @@
     },
     {
      "type": 0,
-     "value": "Discard 2 cards"
+     "value": "Play 2 event cards"
     }
    ],
-   "timestamp": 1790256946330,
+   "timestamp": 1790259186899,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -1030,7 +1030,7 @@
      "value": "3"
     }
    ],
-   "timestamp": 1790256946331,
+   "timestamp": 1790259186900,
    "correlationId": 5,
    "parentId": 10,
    "role": "detail"
@@ -1051,7 +1051,7 @@
      ]
     }
    ],
-   "timestamp": 1790256946331,
+   "timestamp": 1790259186900,
    "playerId": "p-player1-id",
    "correlationId": 5,
    "parentId": 10,
@@ -1085,7 +1085,7 @@
      "value": "5"
     }
    ],
-   "timestamp": 1790256946331,
+   "timestamp": 1790259186900,
    "correlationId": 5,
    "parentId": 10,
    "role": "detail"
@@ -1405,7 +1405,7 @@
   "Builder",
   "Planner"
  ],
- "name": "Binary Gravity Node",
+ "name": "Synthetic Mineral Wave",
  "oxygenLevel": 0,
  "passedPlayers": [],
  "phase": "parliament",
@@ -1520,10 +1520,10 @@
    "handicap": 0,
    "timer": {
     "sumElapsed": 1,
-    "startedAt": 1790256946330,
+    "startedAt": 1790259186899,
     "running": true,
     "afterFirstAction": true,
-    "lastStoppedAt": 1790256946330
+    "lastStoppedAt": 1790259186899
    },
    "actionsTakenThisGame": 1,
    "victoryPointsByGeneration": [],
@@ -1653,10 +1653,10 @@
    "handicap": 0,
    "timer": {
     "sumElapsed": 0,
-    "startedAt": 1790256946330,
+    "startedAt": 1790259186899,
     "running": false,
     "afterFirstAction": true,
-    "lastStoppedAt": 1790256946330
+    "lastStoppedAt": 1790259186899
    },
    "actionsTakenThisGame": 1,
    "victoryPointsByGeneration": [],
@@ -2006,7 +2006,8 @@
   "quest": {
    "definition": {
     "goal": {
-     "kind": "cardsDiscarded"
+     "kind": "cardsPlayed",
+     "cardType": "event"
     },
     "count": 2
    },

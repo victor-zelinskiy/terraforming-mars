@@ -12,6 +12,7 @@ import {CardRenderer} from '../../cards/render/CardRenderer';
 import {ICardRenderRoot} from '../../../common/cards/render/Types';
 import {Size} from '../../../common/cards/render/Size';
 import {AltSecondaryTag} from '../../../common/cards/render/AltSecondaryTag';
+import {Tag} from '../../../common/cards/Tag';
 import {Resource} from '../../../common/Resource';
 import {QuestDefinition, STARTER_QUEST} from '../../../common/parliament/ParliamentTypes';
 
@@ -75,18 +76,23 @@ export function questRenderData(quest: QuestDefinition): ICardRenderRoot {
       b.delegates(count);
       return;
     case 'cardsPlayed':
+      if (goal.cardType === 'event') {
+        // An EVENT card is what the PHYSICAL card prints for it: the EVENT
+        // TAG (the yellow disc with the down arrow), with the count — Joint
+        // Research's own footnote reads «2 × [event tag]». Never the «red
+        // card» band: a card-with-band would state a card TYPE nobody
+        // recognizes on the table, while the tag is the game's own word for
+        // an event. The goal is still matched by the card's TYPE (the tag is
+        // not in `card.tags`); the glyph is what the eye knows.
+        b.tag(Tag.EVENT, count);
+        return;
+      }
       // A card OF A TYPE: the card glyph with the type's header band (the
       // physical game's own «blue card» / «green card» icon — the premium
       // face draws the band from the secondary tag), one per card to play.
       // Never a draw-card icon alone (it would read as «take 2 cards») and
       // never a text plate inside a graphic zone.
       b.cards(count, {secondaryTag: goal.cardType === 'active' ? AltSecondaryTag.BLUE : AltSecondaryTag.GREEN});
-      return;
-    case 'cardsDiscarded':
-      // A card LEAVING the hand: the DSL's own discard glyph (the card with
-      // the down arrow), how many to throw away beside it — never the draw
-      // glyph (it would read as «take 2 cards»).
-      b.discard(count);
       return;
     }
   });

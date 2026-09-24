@@ -5,7 +5,7 @@
  *
  * Printed: «When enacted: Each player draws cards until they have 6 cards in
  * hand + Influence. (Draw no cards if you already had that number of cards
- * in hand, or more.)» Chairman quest: discard 2 cards.
+ * in hand, or more.)» Chairman quest: play 2 event cards (2 × the event tag).
  *
  * THE READINGS FIXED HERE:
  *  · THE FORMULA IS A TARGET. «6 + influence» is the hand size every
@@ -41,11 +41,14 @@
  *    a number (the intake's journal line is reserved for the recipient).
  *  · MarsBot takes no seat: nothing is drawn for it, and its hand is counted
  *    for nobody.
- *  · THE CHAIRMAN QUEST asks the player to DISCARD 2 cards from their hand by
- *    their OWN action — the patent sale counts by itself (it discards the
- *    cards sold), a card play is not a discard, a discard demanded by another
- *    player's effect or by a resolution is not the player's own (the shared
- *    tracker's eligibility rule, never a rule of this card).
+ *  · THE CHAIRMAN QUEST asks the player to PLAY 2 EVENT CARDS (the footnote
+ *    prints two event tags). It is a `cardsPlayed` goal by card TYPE — never
+ *    a tag goal: the event tag is not printed in `card.tags` in this engine
+ *    (it follows from `CardType.EVENT` in `Tags.count`), and the tracker is
+ *    handed `card.tags` at the play, so a tag goal would sit at zero forever.
+ *    Whose play it was is the shared tracker's eligibility rule (a play under
+ *    a resolution source or outside the action phase never counts), and this
+ *    card's own draw — a take, not a play — progresses nothing.
  *
  * THE STEP CONTRACT (IResolution.ts): the draw step is the one documented
  * exception the intake makes safe — it takes the cards off the deck and asks
@@ -150,9 +153,11 @@ export const JOINT_RESEARCH: ResolutionDefinition = {
   text: {
     name: 'Joint Research',
     effect: 'Draw cards until you have 6 cards in hand plus 1 per influence. If you already have that many or more, draw none.',
-    quest: 'Discard 2 cards',
+    quest: 'Play 2 event cards',
   },
-  quest: {goal: {kind: 'cardsDiscarded'}, count: 2},
+  // BY TYPE, never by tag: the event tag is not printed in `card.tags` in this engine (it follows from
+  // `CardType.EVENT`), so a `{kind: 'tag', tag: EVENT}` goal would never be reported.
+  quest: {goal: {kind: 'cardsPlayed', cardType: 'event'}, count: 2},
   scaled: [JOINT_RESEARCH_DRAW],
   immediateSteps: [DRAW_STEP],
 };

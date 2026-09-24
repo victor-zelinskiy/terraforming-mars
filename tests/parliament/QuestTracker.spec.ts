@@ -144,6 +144,9 @@ describe('QuestTracker (the chairman quest)', () => {
     check({kind: 'cardsPlayed', cardType: 'active'}, {kind: 'cardsPlayed', cardType: CardType.EVENT}, 0);
     check({kind: 'cardsPlayed', cardType: 'active'}, {kind: 'cardsPlayed', cardType: CardType.ACTIVE}, 1);
     check({kind: 'cardsPlayed', cardType: 'automated'}, {kind: 'cardsPlayed', cardType: CardType.AUTOMATED}, 1);
+    // An EVENT is a TYPE here (Joint Research): the event tag is never in `card.tags`, so only the type goal sees it.
+    check({kind: 'cardsPlayed', cardType: 'event'}, {kind: 'cardsPlayed', cardType: CardType.EVENT}, 1);
+    check({kind: 'cardsPlayed', cardType: 'event'}, {kind: 'cardsPlayed', cardType: CardType.AUTOMATED}, 0);
     check({kind: 'production', resource: Resource.STEEL}, {kind: 'production', resource: Resource.STEEL, amount: -1}, 0);
     // Votes count toward the delegates quest through the handler.
     parliament.quest = {definition: {goal: {kind: 'delegates'}, count: 2}, source: ARCHITECTURE_AWARD_ID, generation: 1, progress: new Map()};

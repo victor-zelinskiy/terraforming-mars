@@ -789,7 +789,7 @@
   "Levy taken: ${0} of ${1} M€ — not enough M€": "Плата взята: ${0} из ${1} M€, не хватило M€",
   "Joint Research": "Совместные исследования",
   "Draw cards until you have 6 cards in hand plus 1 per influence. If you already have that many or more, draw none.": "Возьмите карты, пока в руке не станет 6 карт плюс 1 за каждое влияние. Если в руке уже столько или больше, не берите ничего.",
-  "Discard 2 cards": "Сбросьте 2 карты",
+  "Play 2 event cards": "Разыграйте 2 карты события",
   "Already at the target hand size": "Рука уже не меньше цели",
   "${0} has ${1} card(s) in hand — at least ${2} already, so ${3} draws none": "${0}: в руке ${1} {карта|карты|карт} — уже не меньше ${2}, поэтому ${3} карт не даёт",
   "${0} draws ${1} card(s) from ${2}: up to ${3} card(s) in hand (6 + influence ${4}), had ${5}": "${0} берёт ${1} {карту|карты|карт} — ${2}: до ${3} {карты|карт|карт} в руке (6 + влияние ${4}), было ${5}",

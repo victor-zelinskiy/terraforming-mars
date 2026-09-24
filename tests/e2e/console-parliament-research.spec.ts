@@ -89,11 +89,22 @@ test.describe('Joint Research · standard-1080', () => {
       expect(await face.locator('.pcard__art img').getAttribute('src'), 'the 3:2 art is keyed by the printed code').toContain('RX16');
       expect(await face.locator('.pcard__party-emblem').getAttribute('src'), 'the Scientists\' emblem').toContain('scientists');
       await expect(face.locator('.pcard__quest-graphic'), 'the quest as a graphic').toHaveCount(1);
-      expect(await face.locator('.pcard__quest-graphic').evaluate((el) => {
-        const painted = Array.from(el.querySelectorAll<HTMLElement>('*')).some((node) => getComputedStyle(node).backgroundImage.includes('card-discard'));
-        const img = Array.from(el.querySelectorAll('img')).some((node) => node.src.includes('card-discard'));
-        return painted || img;
-      }), 'the quest is the card-with-a-down-arrow — a parting, never a draw').toBe(true);
+      // The footnote is what the PHYSICAL card prints: the EVENT TAG with the count («2 × [event]») — never a
+      // «red card» band, never a discard glyph (the yellow disc with the down arrow IS the event tag).
+      const questTags = face.locator('.pcard__quest-graphic .pcard-ic--tag');
+      const medallions = await questTags.count();
+      expect(medallions, 'the event tag medallion (one with the count, or one per card)').toBeGreaterThanOrEqual(1);
+      expect(await questTags.evaluateAll((els) => els.every((el) => getComputedStyle(el).backgroundImage.includes('event'))),
+        'the EVENT tag, by its own asset').toBe(true);
+      if (medallions === 1) {
+        await expect(face.locator('.pcard__quest-graphic'), 'with the count').toContainText('2');
+      } else {
+        expect(medallions, 'two tags, one per card').toBe(2);
+      }
+      expect(await face.locator('.pcard__quest-graphic').evaluate((el) =>
+        Array.from(el.querySelectorAll<HTMLElement>('*')).some((node) => getComputedStyle(node).backgroundImage.includes('card-discard')) ||
+        Array.from(el.querySelectorAll('img')).some((node) => node.src.includes('card-discard'))),
+      'never the discard glyph').toBe(false);
       await shoot(page, '01-face-quest');
 
       // ── THE VOTE MODE: «up to 8 [card] · 5 in hand → +3 · +1 if you win · step 5».

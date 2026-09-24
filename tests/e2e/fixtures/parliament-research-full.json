@@ -613,7 +613,7 @@
   ],
   "discardPile": []
  },
- "createdTimeMs": 1790257069171,
+ "createdTimeMs": 1790259186907,
  "currentSeed": 609911415729,
  "deferredActions": [],
  "donePlayers": [],
@@ -633,7 +633,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1790257069171
+   "timestamp": 1790259186907
   },
   {
    "message": "Good luck ${0}!",
@@ -643,7 +643,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1790257069171,
+   "timestamp": 1790259186908,
    "playerId": "p-player1-id"
   },
   {
@@ -654,7 +654,7 @@
      "value": "red"
     }
    ],
-   "timestamp": 1790257069171,
+   "timestamp": 1790259186908,
    "playerId": "p-player2-id"
   },
   {
@@ -665,7 +665,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1790257069171,
+   "timestamp": 1790259186908,
    "type": 1
   },
   {
@@ -680,7 +680,7 @@
      "value": "Teractor"
     }
    ],
-   "timestamp": 1790257069171,
+   "timestamp": 1790259186908,
    "correlationId": 1,
    "parentId": 1,
    "role": "root-action",
@@ -698,7 +698,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1790257069172,
+   "timestamp": 1790259186908,
    "correlationId": 1,
    "parentId": 1,
    "role": "detail"
@@ -715,7 +715,7 @@
      "value": "Aridor"
     }
    ],
-   "timestamp": 1790257069172,
+   "timestamp": 1790259186908,
    "correlationId": 2,
    "parentId": 2,
    "role": "root-action",
@@ -733,7 +733,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1790257069172,
+   "timestamp": 1790259186908,
    "correlationId": 2,
    "parentId": 2,
    "role": "detail"
@@ -746,7 +746,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1790257069172,
+   "timestamp": 1790259186909,
    "type": 2,
    "correlationId": 5,
    "parentId": 5,
@@ -765,7 +765,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1790257069172,
+   "timestamp": 1790259186909,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -782,7 +782,7 @@
      "value": "RDX_SCIENTISTS_JOINT_RESEARCH"
     }
    ],
-   "timestamp": 1790257069172,
+   "timestamp": 1790259186909,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -981,7 +981,7 @@
   "Builder",
   "Planner"
  ],
- "name": "Massive Pressure Loop",
+ "name": "Dense Laser Core",
  "oxygenLevel": 0,
  "passedPlayers": [],
  "phase": "parliament",
@@ -1085,10 +1085,10 @@
    "handicap": 0,
    "timer": {
     "sumElapsed": 1,
-    "startedAt": 1790257069172,
+    "startedAt": 1790259186909,
     "running": true,
     "afterFirstAction": true,
-    "lastStoppedAt": 1790257069172
+    "lastStoppedAt": 1790259186909
    },
    "actionsTakenThisGame": 1,
    "victoryPointsByGeneration": [],
@@ -1210,11 +1210,11 @@
    "beginner": false,
    "handicap": 0,
    "timer": {
-    "sumElapsed": 1,
-    "startedAt": 1790257069172,
+    "sumElapsed": 0,
+    "startedAt": 1790259186909,
     "running": true,
     "afterFirstAction": true,
-    "lastStoppedAt": 1790257069172
+    "lastStoppedAt": 1790259186909
    },
    "actionsTakenThisGame": 1,
    "victoryPointsByGeneration": [],

@@ -2,12 +2,17 @@
 
 **Статус: СДАНА 2026-09-24.** Первая карта Учёных и первая резолюция, чья величина — **УРОВЕНЬ, до которого
 доводят**, а не выдача: каждый участник добирает карты, пока в руке не станет 6 + влияние. Выдача у каждого своя,
-у части стола — ноль, и ноль здесь штатный исход. Плюс первый **вид задания председателя, считающий
-РАССТАВАНИЕ** (сбросить 2 карты), а не приобретение.
+у части стола — ноль, и ноль здесь штатный исход. Задание председателя — **разыграть 2 карты события**:
+цель по ТИПУ карты, потому что метка события в этом движке не лежит в `card.tags` (см. §3, ловушка).
 
 Печатный текст: *When enacted: Each player draws cards until they have 6 cards in hand + Influence. (Draw no
-cards if you already had that number of cards in hand, or more.)* Задание председателя: 2 × жёлтый кружок со
-стрелкой вниз. Дополнений не требует.
+cards if you already had that number of cards in hand, or more.)* Задание председателя: 2 × метка события
+(жёлтый кружок со стрелкой вниз — стандартная иконография события). Дополнений не требует.
+
+**Исправление 2026-09-24 (промт `docs/claude/prompts/resolution-rx16-quest-fix.md`):** первое чтение сноски как
+«сбросить 2 карты» было ошибкой постановки; вид задания `cardsDiscarded`, заведённый ради него, удалён целиком
+(`QuestGoal`, `QuestEvent`, `ParliamentHandler.onCardDiscarded`, вызов в `Player.discardCardFromHand`, ключ локали).
+Одноимённое поле нотификаций `EventImpact.cardsDiscarded` — другая сущность, не тронуто.
 
 Промт: `docs/claude/prompts/resolution-rx16-joint-research.md`. Файл карты:
 `src/server/parliament/resolutions/scientists/JointResearch.ts`.
@@ -33,7 +38,7 @@ cards if you already had that number of cards in hand, or more.)* Задание
 | Совместимость | нет: базовая карта |
 | RU-название | «Совместные исследования» |
 | Арт | `assets/card-images/RX16.webp` (+ thumb; 1536×1024) — `node scripts/import-card-art.mjs "<Mars Arts/Joint Research_art.png>" RX16` → `npm run make:cards` |
-| Задание председателя | сбросить 2 карты (`{goal: {kind: 'cardsDiscarded'}, count: 2}`; глиф сброса DSL `b.discard(2)` — карта со стрелкой вниз) |
+| Задание председателя | разыграть 2 карты события (`{goal: {kind: 'cardsPlayed', cardType: 'event'}, count: 2}`; сноска — `b.tag(Tag.EVENT, 2)`: метка события с числом, как на физической карте) |
 
 ## 2. Правило, как оно понято
 
@@ -65,29 +70,22 @@ cards if you already had that number of cards in hand, or more.)* Задание
 | Модель места | `ParliamentPlayerModel.hand` — только пока какая-то декларация читает руку (`declaresHandLevel`), тот же счёт, что прочтёт шаг |
 | Гард | `checkFormula`: у части-порога ожидаемая выдача = `topUpAmount(effect, влияние, total.before)`, `target` = `scaledAmount(effect, влияние)`; без `total` — названный провал |
 
-### Задание председателя — первое РАССТАВАНИЕ
+### Задание председателя — 2 карты события, по ТИПУ карты
 
-`QuestGoal {kind: 'cardsDiscarded'}` + `QuestEvent {kind: 'cardsDiscarded', amount}`. **Точка репорта одна** —
-`Player.discardCardFromHand` (единственная дверь, через которую карта покидает руку в сброс) →
-`ParliamentHandler.onCardDiscarded`; чьё это действие, решает `QuestTracker.eligible` (свой корень, фаза действий,
-без источника-резолюции). Разбор двенадцати вызовов `discardCardFromHand`:
+`QuestGoal {kind: 'cardsPlayed', cardType: 'event'}` — существующий вид «карты типа» расширен третьим типом.
+Репорт уже был: `ParliamentHandler.onCardPlayed` шлёт `{kind: 'cardsPlayed', cardType: card.type}`; в
+`QuestTracker.match` добавлена ветка `CardType.EVENT`. Правило Q5 действует само собой: розыгрыш под
+источником-резолюцией и всё вне своей фазы действий отсекает `QuestTracker.eligible`; собственный добор карты —
+взятие, не розыгрыш — задание не двигает.
 
-| Вызов | Считается? | Почему |
-| --- | --- | --- |
-| `SellPatentsStandardProject` | **да** | своё действие (стандартный проект открывает корень `standard-project`); продажа 2 карт закрывает задание сама |
-| `MarsUniversity` | **да** | своё решение внутри собственного розыгрыша (корень — розыгрыш игрока) |
-| `Musk`, `Stefan` (CEO) | **да** | действие игрока |
-| `CeresTechMarket`, `FocusedOrganization`, `Spire` | **да** | действие игрока |
-| `DiscardCards` (два вызова: авто при руке ≤ min и по ответу) — Ender, ProjectEden, SponsoredAcademies, бонус Плутона в СВОЕЙ торговле (`Colony.ts:510`) | **да** | корень — своё действие |
-| `DiscardCards` — эффект Плутона у ДРУГИХ игроков при чужой торговле (`Colony.ts:643`) | **нет** | корень — торгующий, `root.player !== player` |
-| `DiscardCards` — `ColonialAffairs` | **нет** | источник-резолюция на стеке (Q5) |
-| `DiscardCards` — `ParadigmBreakdown` (глобальное событие) | **нет** | корень `planetary-event`, не фаза действий |
-| `DiscardCards` — `OldMiningColony` (прелюдия старта) | **нет** в фазе прелюдий, **да** если сыграна в фазу действий | структурно: фаза |
-| `PartyEffects` — «Переработка» Красных (партийное ДЕЙСТВИЕ) | **да** | собственное действие в фазу действий под партийным источником (как голос делегатом для задания «делегаты») |
-| `IPlayer.ts` / `Player.ts` | объявление и определение | точка репорта |
+**Ловушка, из-за которой очевидный путь молча не работает.** Напрашивается `{kind: 'tag', tag: Tag.EVENT}` — вид
+по метке есть. Он никогда не засчитается: метка события не печатается в `card.tags`, она следует из ТИПА карты
+(`src/server/player/Tags.ts`: `if (target === Tag.EVENT && card.type === CardType.EVENT)`), а трекеру при розыгрыше
+отдают `card.tags`. Спек закрепляет: у `Asteroid` в `tags` нет `Tag.EVENT`, `match` по метке даёт 0, по типу — 1.
 
-Розыгрыш карты — не сброс (`playCard` руку покидает мимо этой двери). Спек Q-4 закрыт для этой карты: чтение
-«сбросить 2 карты из руки своим действием».
+**Сноска на лице** (`questRender.ts`): для `event` рисуется МЕТКА СОБЫТИЯ с числом (`b.tag(Tag.EVENT, count)`) —
+то, что напечатано на физической карте; ветки `active` / `automated` по-прежнему рисуют карту с цветной полосой
+типа. Карта с «красной полосой» называла бы тип, которого на столе никто не узнаёт; метка — слово самой игры.
 
 ## 4. Блок B — чтения: цель · уровень · выдача
 

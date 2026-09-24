@@ -242,21 +242,6 @@ export class ParliamentHandler {
     QuestTracker.report(player, {kind: 'colony'});
   }
 
-  /**
-   * A card LEFT the player's hand for the discard pile — reported from the
-   * ONE door a hand card leaves through (`Player.discardCardFromHand`: the
-   * patent sale, Mars University, a CEO's sale, a forced discard alike). The
-   * quest sees the parting; WHOSE action it was, and whether a resolution or
-   * a foreign effect demanded it, is the tracker's own eligibility rule
-   * (Joint Research's «discard 2 cards» counts only the player's own).
-   */
-  public static onCardDiscarded(player: IPlayer): void {
-    if (player.game?.parliament === undefined) {
-      return;
-    }
-    QuestTracker.report(player, {kind: 'cardsDiscarded', amount: 1});
-  }
-
   /** Extra wild tags a party effect grants (the Scientists), for `Tags.count`. */
   public static wildTags(player: IPlayer): number {
     const parliament = player.game?.parliament;

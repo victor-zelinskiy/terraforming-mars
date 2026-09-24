@@ -18,7 +18,9 @@ import {LogMessageDataType} from '../../src/common/logs/LogMessageDataType';
 import {SelectCard} from '../../src/server/inputs/SelectCard';
 import {getParliamentModel} from '../../src/server/parliament/ParliamentModel';
 import {QuestTracker} from '../../src/server/parliament/quests/QuestTracker';
-import {SellPatentsStandardProject} from '../../src/server/cards/base/standardProjects/SellPatentsStandardProject';
+import {Asteroid} from '../../src/server/cards/base/Asteroid';
+import {CardType} from '../../src/common/cards/CardType';
+import {Tag} from '../../src/common/cards/Tag';
 import {fakeCard, runAllActions} from '../TestingUtils';
 import {testAutomaGame} from '../automa/AutomaTestGame';
 import {IProjectCard} from '../../src/server/cards/IProjectCard';
@@ -37,8 +39,9 @@ import {EventSource} from '../../src/common/events/EventSource';
  * (withheld until taken, a reload inside the take draws nothing twice, a
  * short deck is named); seats draw in order; the record carries the target,
  * the hand before and after and the amount; and the chairman quest counts the
- * player's OWN discards — the patent sale included — never a card play, a
- * foreign demand, the political phase or a resolution's own effect.
+ * EVENT CARDS the player plays — by the card's TYPE, since the event tag is
+ * never in `card.tags` — never an automated / active card, a play under a
+ * resolution source, the political phase or this card's own take.
  */
 const RESEARCH = resolutionInstanceId(JOINT_RESEARCH_ID, 0);
 
@@ -149,9 +152,9 @@ describe('JointResearch', () => {
       expect(JOINT_RESEARCH_DRAW.sequel, 'nothing is divided').is.undefined;
     });
 
-    it('its chairman quest is the first PARTING: discard 2 cards', () => {
-      expect(JOINT_RESEARCH.quest).deep.eq({goal: {kind: 'cardsDiscarded'}, count: 2});
-      expect(JOINT_RESEARCH.text.quest).eq('Discard 2 cards');
+    it('its chairman quest is PLAY 2 EVENT CARDS — a card-type goal (the footnote prints two event tags)', () => {
+      expect(JOINT_RESEARCH.quest).deep.eq({goal: {kind: 'cardsPlayed', cardType: 'event'}, count: 2});
+      expect(JOINT_RESEARCH.text.quest).eq('Play 2 event cards');
     });
 
     it('the ONE formula: the target is 6 + influence, the payout is max(0, target − hand) — every control example of the brief', () => {
@@ -485,7 +488,7 @@ describe('JointResearch', () => {
     });
   });
 
-  describe('the chairman quest — discard 2 cards', () => {
+  describe('the chairman quest — play 2 event cards', () => {
     function enactedResearch(): [IGame, TestPlayer, TestPlayer, Parliament] {
       const [game, p1, p2, parliament] = stage();
       setHand(game, p1, 7);
@@ -493,84 +496,67 @@ describe('JointResearch', () => {
       endGeneration(game);
       runAllActions(game);
       settleParliamentGates(game);
-      expect(parliament.quest?.definition).deep.eq({goal: {kind: 'cardsDiscarded'}, count: 2});
+      expect(parliament.quest?.definition).deep.eq({goal: {kind: 'cardsPlayed', cardType: 'event'}, count: 2});
       expect(parliament.quest?.source).eq(JOINT_RESEARCH_ID);
       game.phase = Phase.ACTION;
       return [game, p1, p2, parliament];
     }
 
-    it('the tracker matches the parting by its amount, and nothing else', () => {
-      expect(QuestTracker.match({kind: 'cardsDiscarded'}, {kind: 'cardsDiscarded', amount: 2})).eq(2);
-      expect(QuestTracker.match({kind: 'cardsDiscarded'}, {kind: 'cardsDiscarded', amount: 1})).eq(1);
-      expect(QuestTracker.match({kind: 'cardsDiscarded'}, {kind: 'cardsPlayed', cardType: 'automated' as never})).eq(0);
-      expect(QuestTracker.match({kind: 'tag', tag: 'science' as never}, {kind: 'cardsDiscarded', amount: 2})).eq(0);
+    /** A card of `type` in the hand, playable at once (no cost, no requirement). */
+    function handCard(player: IPlayer, name: CardName, type: CardType): IProjectCard {
+      const card = fakeCard({name, type});
+      player.cardsInHand.push(card);
+      return card;
+    }
+
+    it('THE TRAP: the event tag is not printed in `card.tags` — a tag goal could never see an event; the goal matches the card\'s TYPE', () => {
+      // A real event: its tags are what it prints beside the event tag (space), never the event tag itself.
+      expect(new Asteroid().type).eq(CardType.EVENT);
+      expect(new Asteroid().tags, 'the event tag follows from the type, `Tags.count` adds it').not.includes(Tag.EVENT);
+      expect(QuestTracker.match({kind: 'tag', tag: Tag.EVENT}, {kind: 'tag', tags: new Asteroid().tags}), 'a tag goal sits at zero').eq(0);
+      // The type goal sees it — and nothing but an event.
+      expect(QuestTracker.match({kind: 'cardsPlayed', cardType: 'event'}, {kind: 'cardsPlayed', cardType: CardType.EVENT})).eq(1);
+      expect(QuestTracker.match({kind: 'cardsPlayed', cardType: 'event'}, {kind: 'cardsPlayed', cardType: CardType.AUTOMATED})).eq(0);
+      expect(QuestTracker.match({kind: 'cardsPlayed', cardType: 'event'}, {kind: 'cardsPlayed', cardType: CardType.ACTIVE})).eq(0);
+      expect(QuestTracker.match({kind: 'cardsPlayed', cardType: 'active'}, {kind: 'cardsPlayed', cardType: CardType.EVENT}), 'and an event is not an active card').eq(0);
     });
 
-    it('SELLING PATENTS discards the cards sold — two of them complete the quest by themselves, and the seat is offered', () => {
+    it('PLAYING two event cards completes it — one, then the second — and the seat is offered', () => {
       const [game, p1, , parliament] = enactedResearch();
       expect(parliament.questProgressOf(p1)).eq(0);
-      const sell = new SellPatentsStandardProject();
-      const ask = sell.action(p1);
-      const names = p1.cardsInHand.slice(0, 2).map((c) => c.name);
-      const before = p1.megaCredits;
-      // The standard project is the player's own action (its own root, the same category the live game opens).
-      game.events.beginAction(p1, {kind: 'standardProject', card: sell.name}, {category: 'standard-project'});
-      try {
-        ask.cb(p1.cardsInHand.slice(0, 2));
-      } finally {
-        game.events.endScope();
-      }
-      expect(p1.megaCredits).eq(before + 2);
-      expect(p1.cardsInHand.map((c) => c.name)).not.includes.members(names);
+      const first = handCard(p1, CardName.ASTEROID, CardType.EVENT);
+      asOwnAction(p1, () => p1.playCard(first));
+      expect(p1.cardsInHand.map((c) => c.name), 'the card left the hand').not.includes(CardName.ASTEROID);
+      expect(parliament.questProgressOf(p1)).eq(1);
+      expect(parliament.quest?.completedBy).is.undefined;
+      const second = handCard(p1, CardName.COMET, CardType.EVENT);
+      asOwnAction(p1, () => p1.playCard(second));
       expect(parliament.quest?.completedBy).eq(p1.id);
       answerQuestGate(game, p1);
       expect(parliament.chairman).eq(p1.id);
     });
 
-    it('the player\'s OWN discards count one by one — 1, then the second completes it', () => {
+    it('an AUTOMATED or an ACTIVE card is not an event — the type is what counts, not the play', () => {
       const [, p1, , parliament] = enactedResearch();
-      asOwnAction(p1, () => p1.discardCardFromHand(p1.cardsInHand[0]));
-      expect(parliament.questProgressOf(p1)).eq(1);
-      expect(parliament.quest?.completedBy).is.undefined;
-      asOwnAction(p1, () => p1.discardCardFromHand(p1.cardsInHand[0]));
-      expect(parliament.quest?.completedBy).eq(p1.id);
-    });
-
-    it('PLAYING a card is not a discard', () => {
-      const [, p1, , parliament] = enactedResearch();
-      const card = fakeCard({name: CardName.MICRO_MILLS});
-      p1.cardsInHand.push(card);
-      asOwnAction(p1, () => p1.playCard(card));
-      expect(p1.cardsInHand.map((c) => c.name), 'the card left the hand').not.includes(CardName.MICRO_MILLS);
-      expect(parliament.questProgressOf(p1), 'a play is not a parting').eq(0);
-    });
-
-    it('a discard demanded by ANOTHER player\'s effect is not the player\'s own action', () => {
-      const [, p1, p2, parliament] = enactedResearch();
-      asOwnAction(p2, () => {
-        p1.discardCardFromHand(p1.cardsInHand[0]);
-        p1.discardCardFromHand(p1.cardsInHand[0]);
-      });
-      expect(p1.cardsInHand).has.length(5);
+      asOwnAction(p1, () => p1.playCard(handCard(p1, CardName.MICRO_MILLS, CardType.AUTOMATED)));
+      asOwnAction(p1, () => p1.playCard(handCard(p1, CardName.BIRDS, CardType.ACTIVE)));
       expect(parliament.questProgressOf(p1)).eq(0);
-      expect(parliament.questProgressOf(p2), 'nor p2\'s: the cards were p1\'s').eq(0);
     });
 
-    it('a discard in the POLITICAL phase, or under a resolution\'s own source, never counts (decision Q5)', () => {
+    it('an event played under a RESOLUTION source, or outside the action phase, never counts (decision Q5)', () => {
       const [game, p1, , parliament] = enactedResearch();
+      asOwnAction(p1, () => p1.playCard(handCard(p1, CardName.ASTEROID, CardType.EVENT)), {kind: 'resolution', id: JOINT_RESEARCH_ID, owner: p1.color});
+      expect(parliament.questProgressOf(p1)).eq(0);
       game.phase = Phase.PARLIAMENT;
-      asOwnAction(p1, () => p1.discardCardFromHand(p1.cardsInHand[0]));
+      asOwnAction(p1, () => p1.playCard(handCard(p1, CardName.COMET, CardType.EVENT)));
       expect(parliament.questProgressOf(p1)).eq(0);
       game.phase = Phase.ACTION;
-      asOwnAction(p1, () => p1.discardCardFromHand(p1.cardsInHand[0]), {kind: 'resolution', id: JOINT_RESEARCH_ID, owner: p1.color});
-      expect(parliament.questProgressOf(p1)).eq(0);
-      // Outside any action at all: nothing either.
-      p1.discardCardFromHand(p1.cardsInHand[0]);
-      expect(parliament.questProgressOf(p1)).eq(0);
-      expect(p1.cardsInHand).has.length(4);
+      // A bare play needs no wrapper: `Player.playCard` opens the player's OWN root (`card-play`) — it IS their action.
+      p1.playCard(handCard(p1, CardName.DEIMOS_DOWN, CardType.EVENT));
+      expect(parliament.questProgressOf(p1), 'a plain play counts by itself').eq(1);
     });
 
-    it('THIS card\'s own draw never progresses the quest it brings', () => {
+    it('THIS card\'s own draw — a take, not a play — never progresses the quest it brings', () => {
       const [, p1, , parliament] = enactedResearch();
       expect(parliament.questProgressOf(p1)).eq(0);
     });

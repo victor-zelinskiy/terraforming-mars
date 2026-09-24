@@ -1808,8 +1808,6 @@ export class Player implements IPlayer {
     if (options?.log === true) {
       this.game.log('${0} discarded ${1}', (b) => b.player(this).card(card), {reservedFor: this});
     }
-    // THE ONE DOOR a hand card leaves through: the chairman quest counts the parting here (Joint Research).
-    ParliamentHandler.onCardDiscarded(this);
   }
 
   public availableHeat(): number {

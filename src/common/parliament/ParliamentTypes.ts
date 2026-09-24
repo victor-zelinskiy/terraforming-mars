@@ -101,14 +101,13 @@ export type QuestGoal =
   | {kind: 'tr'}
   | {kind: 'cardResource', resource: CardResource}
   | {kind: 'delegates'}
-  | {kind: 'cardsPlayed', cardType: 'automated' | 'active'}
   /**
-   * Cards the player DISCARDS FROM THEIR HAND by their own action (Joint
-   * Research: «discard 2 cards») — the first quest that counts a parting,
-   * not an acquisition. Selling patents discards the cards sold, so it
-   * counts by itself; playing a card is not a discard.
+   * Cards of a TYPE the player plays. An EVENT is a type here, never a tag:
+   * the event tag is not printed in `card.tags` in this engine — it follows
+   * from `CardType.EVENT` (`Tags.count`) — so a `{kind: 'tag', tag: EVENT}`
+   * quest would sit at zero forever (Joint Research: «play 2 event cards»).
    */
-  | {kind: 'cardsDiscarded'};
+  | {kind: 'cardsPlayed', cardType: 'automated' | 'active' | 'event'};
 
 export type QuestDefinition = {
   goal: QuestGoal;

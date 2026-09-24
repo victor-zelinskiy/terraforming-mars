@@ -32,9 +32,7 @@ export type QuestEvent =
   | {kind: 'tr'; steps: number}
   | {kind: 'cardResource'; resource: CardResource | undefined; amount: number}
   | {kind: 'delegates'; amount: number}
-  | {kind: 'cardsPlayed'; cardType: CardType}
-  /** Cards that LEFT the player's hand for the discard pile (`Player.discardCardFromHand` — the one door). */
-  | {kind: 'cardsDiscarded'; amount: number};
+  | {kind: 'cardsPlayed'; cardType: CardType};
 
 /** Roots that are NOT a player's own action: nothing under them progresses a quest. */
 const FOREIGN_ROOT_CATEGORIES: ReadonlySet<JournalActionCategory> = new Set<JournalActionCategory>([
@@ -92,13 +90,11 @@ export class QuestTracker {
       if (event.kind !== 'cardsPlayed') {
         return 0;
       }
+      // An EVENT is matched by its TYPE (Joint Research: «play 2 event cards»):
+      // the event tag is never in `card.tags`, so the tag goal could not see it.
       return (goal.cardType === 'active' && event.cardType === CardType.ACTIVE) ||
-        (goal.cardType === 'automated' && event.cardType === CardType.AUTOMATED) ? 1 : 0;
-    case 'cardsDiscarded':
-      // A PARTING: the cards the player threw away by their own action (the
-      // patent sale included). Whose action it was, and whether a resolution
-      // or a foreign effect demanded it, is `eligible`'s question, not this one's.
-      return event.kind === 'cardsDiscarded' ? Math.max(0, event.amount) : 0;
+        (goal.cardType === 'automated' && event.cardType === CardType.AUTOMATED) ||
+        (goal.cardType === 'event' && event.cardType === CardType.EVENT) ? 1 : 0;
     }
   }
 

@@ -389,14 +389,14 @@ immediateSteps: [levyStep(ID, LEVY), MEGACREDITS_STEP, PRODUCTION_STEP],        
 - Следующий бюджет объявляет только суммы и список: `levy.amount` и `count` (по меткам — вид `tags`), шагов не пишет.
   Док: `docs/TURMOIL_REDUX_INDUSTRIALIST_BUDGET.md`.
 
-### Величина-ПОРОГ — «добрать ДО», а не «выдать N»; задание-РАССТАВАНИЕ (RX16, 2026-09-24)
+### Величина-ПОРОГ — «добрать ДО», а не «выдать N»; задание по ТИПУ карты (RX16, 2026-09-24)
 
 ```ts
 scaled: [{id: 'draw', unit: {kind: 'cards'}, base: 6, perInfluence: 1, upTo: {total: {kind: 'cards'}}, recipient: 'each'}],
 // scaledAmount(effect, I) === ЦЕЛЬ (6 + I); topUpAmount(effect, I, player.cardsInHand.length) === ВЫДАЧА = max(0, цель − уровень)
 ctx.report({kind: 'cards', effect, amount: owed, drawn: intake.count, intake: intake.id, influence, target, total: {before, after: before + intake.count}});
 ctx.report({kind: 'skipped', effect, amount: 0, influence, target, total: {before, after: before}, reason: 'Already at the target hand size'});
-quest: {goal: {kind: 'cardsDiscarded'}, count: 2},   // первое задание, считающее расставание
+quest: {goal: {kind: 'cardsPlayed', cardType: 'event'}, count: 2},   // «2 карты события» — по ТИПУ, не по метке
 ```
 
 - **Эффект объявляет ЦЕЛЬ, выдача = цель − уровень, чтение несёт обе величины и уровень.** `InfluenceScaledEffect.upTo
@@ -411,10 +411,11 @@ quest: {goal: {kind: 'cardsDiscarded'}, count: 2},   // первое задан�
   + 1 [карта] / [влияние]». Осмотр «Для вас» — цель · рука · добор словами + правило «рука считается на заседании».
 - **Рука — у движка в момент шага**, после фазы производства: опустошить руку до заседания — честная тактика, панель
   читает ту же руку. Добор — `ExternalDrawIntake` (RX05), ничего своего; порядок мест = порядок карт колоды.
-- **Задание-расставание**: `QuestGoal {kind: 'cardsDiscarded'}`, точка репорта ОДНА — `Player.discardCardFromHand` →
-  `ParliamentHandler.onCardDiscarded`; чьё действие — `eligible` (свой корень, фаза действий, без источника-резолюции):
-  продажа патентов считается сама собой, розыгрыш карты — не сброс, чужой эффект / политическая фаза / резолюция — нет.
-  `questRender` — глиф сброса DSL (`b.discard(n)`).
+- **Задание «карты события» — по ТИПУ карты** (`cardsPlayed`, `cardType: 'event'`), никогда `{kind: 'tag', tag: EVENT}`:
+  метка события не печатается в `card.tags` (следует из `CardType.EVENT` в `Tags.count`), а трекеру при розыгрыше отдают
+  `card.tags` — задание по метке молча стоит на нуле. Сноска — метка события с числом (`b.tag(Tag.EVENT, n)`), как на
+  физической карте; жёлтый кружок со стрелкой вниз на сканах = МЕТКА СОБЫТИЯ, не «сброс». Первое чтение «сбросить
+  2 карты» (вид `cardsDiscarded`) было ошибкой постановки и удалено целиком.
 - **Семейство стенда `up-to`** (после реестра колоний, до счётов): панель «Карты в руке» с целью и добором той же функцией.
 - Ловушки: базовая колода стала ШЕСТИПАРТИЙНОЙ — стартовый правитель без карты в области поколения 1 отныне обычная
   раздача (`ParliamentPhase.spec` § THE STARTING-RULE RULER переписан на литеральное правило); генерический спек фазы,
