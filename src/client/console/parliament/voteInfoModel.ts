@@ -33,7 +33,10 @@ import {IClientResolution} from '@/common/parliament/IClientResolution';
 import {InfluenceYield} from '@/common/parliament/influenceScaling';
 import {ReduxParty} from '@/common/parliament/ParliamentTypes';
 import {ParliamentPartyVm, ParliamentSlotVm, voteAccessOf, VoteForecastVm} from './consoleParliamentModel';
-import {noRecipientCompactNoteOf, oneNumberYieldsOf, PRODUCTION_HORIZON_KEY, voteLevyOf, voteYieldsOf, WinSuffix, winSuffixesOf} from './influenceYieldModel';
+import {
+  LEVEL_IN_HAND_KEY, LEVEL_UP_TO_KEY, levelPresentation, levelYieldIsNone, noRecipientCompactNoteOf, oneNumberYieldsOf, PRODUCTION_HORIZON_KEY, voteLevyOf,
+  voteYieldsOf, WinSuffix, winSuffixesOf,
+} from './influenceYieldModel';
 import {LevyReading, levyShortNoteKey} from '@/common/parliament/resolutionLevy';
 import {COLONY_LEDGER_EMPTY, COLONY_LEDGER_TOTAL, ColonyLedgerReading, colonyLedgerOf} from './colonyLedgerModel';
 import {PartyReactionReading, partyReactionsOf, viewerHasSeat} from './partyReactionModel';
@@ -368,6 +371,18 @@ export function voteInfoBudget(vm: VoteInfoVm, text: TextFn = IDENTITY): VoteInf
     }
     if (vm.reading.yields.some((y) => y.effect.unit.kind === 'production')) {
       strings.push(text(PRODUCTION_HORIZON_KEY));
+    }
+  }
+  // A LEVEL part's words: «up to» before the target, «in hand» beside the level, and the calm «no draw
+  // needed» in the result's slot when the seat is at or above the target.
+  for (const y of vm.reading.yields) {
+    const term = y.effect.upTo;
+    if (term === undefined || y.target === undefined || y.total === undefined) {
+      continue;
+    }
+    strings.push(text(LEVEL_UP_TO_KEY), text(LEVEL_IN_HAND_KEY, [String(y.total.before)]));
+    if (levelYieldIsNone(y)) {
+      strings.push(text(levelPresentation(term).noneKey));
     }
   }
   // THE COLONY LEDGER's words: the tiles' names (one each — the bonus, the multiplier and the total are

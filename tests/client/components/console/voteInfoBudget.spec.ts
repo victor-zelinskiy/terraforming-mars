@@ -61,6 +61,10 @@ function seatFor(resolution: IClientResolution, agenda: number): ParliamentPlaye
     agenda, influence: influenceAtAgenda(agenda), access: [], partyActionUses: {}, resolutionActionUses: 0,
     counts, production,
   };
+  // A LEVEL term reads the seat's HAND (Joint Research): three cards — short of every target, so the plate prints a draw.
+  if ((resolution.scaled ?? []).some((e) => e.upTo?.total.kind === 'cards')) {
+    seatModel.hand = 3;
+  }
   // A «colony bonuses» term reads the seat's LEDGER: four tiles of four shapes — the most the panel is asked to hold.
   if ((resolution.scaled ?? []).some((e) => e.unit.kind === 'colonyBonuses')) {
     seatModel.colonyBonuses = [

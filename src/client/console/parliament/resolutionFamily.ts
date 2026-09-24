@@ -31,11 +31,14 @@ import {WorldParameterMove} from '@/common/parliament/parameterMove';
  *   colony-bonuses — the player's COLONY BONUSES paid a number of times (Colonial Affairs: 2 + 1 per 2
  *                   influence) — the instrument is the LEDGER of the player's tiles, multiplied;
  *   world-move    — the enactment moves the PLANET (Gas Export: oxygen −1, Venus +2, no TR for anybody) —
- *                   the instrument is the GLOBAL PARAMETERS, and the scenarios are their limits.
+ *                   the instrument is the GLOBAL PARAMETERS, and the scenarios are their limits;
+ *   up-to         — a LEVEL the player is brought up to (Joint Research: «draw until you have 6 + influence in
+ *                   hand») — the instrument is the seat's CURRENT LEVEL (the hand), and the scenarios are its
+ *                   positions against the target (empty, short by a few, at it, above it, at influence 0).
  */
 export const RESOLUTION_FAMILIES = [
   'influence', 'counted', 'counted-tags', 'counted-board', 'counted-metric', 'counted-production', 'distributed', 'winner-tile', 'sequel', 'colony-bonuses',
-  'world-move',
+  'world-move', 'up-to',
 ] as const;
 export type ResolutionFamily = typeof RESOLUTION_FAMILIES[number];
 
@@ -72,10 +75,19 @@ export function colonyBonusesEffectOf(facts: ResolutionFamilyFacts): InfluenceSc
   return facts.scaled?.find((effect) => effect.unit.kind === 'colonyBonuses');
 }
 
+/** The part that brings the player UP TO a level (a `upTo` term), if any. */
+export function levelEffectOf(facts: ResolutionFamilyFacts): InfluenceScaledEffect | undefined {
+  return facts.scaled?.find((effect) => effect.upTo !== undefined);
+}
+
 export function familyOf(facts: ResolutionFamilyFacts): ResolutionFamily {
   // THE COLONY LEDGER first: what is multiplied is the player's own tiles, an instrument no other family has.
   if (colonyBonusesEffectOf(facts) !== undefined) {
     return 'colony-bonuses';
+  }
+  // A LEVEL next: the instrument is the player's current level against a target, which no count reads.
+  if (levelEffectOf(facts) !== undefined) {
+    return 'up-to';
   }
   // A SEQUENTIAL resolution next: its second half reads what its first half
   // leaves behind, which is a different instrument from a count.

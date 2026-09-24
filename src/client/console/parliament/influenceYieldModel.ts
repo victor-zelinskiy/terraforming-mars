@@ -19,8 +19,8 @@ import {getCard} from '@/client/cards/ClientCardManifest';
 import {IClientResolution} from '@/common/parliament/IClientResolution';
 import {ParliamentModel, ParliamentPlayerModel, ParliamentEnactOutcomeModel} from '@/common/models/ParliamentModel';
 import {
-  fixedSequelYield, fixedYield, InfluenceScaledEffect, InfluenceSequelTerm, InfluenceYield, influenceYield, InfluenceYieldContext,
-  referenceYield, scaledAmount, sequelYield, winnerForecastYield, yieldAtCap, YieldCount,
+  fixedLevelYield, fixedSequelYield, fixedYield, InfluenceLevelTerm, InfluenceScaledEffect, InfluenceSequelTerm, InfluenceYield, influenceYield,
+  InfluenceYieldContext, InfluenceYieldUnit, levelYield, referenceYield, scaledAmount, sequelYield, winnerForecastYield, yieldAtCap, YieldCount,
 } from '@/common/parliament/influenceScaling';
 import {AGENDA_TRACK, influenceAtAgenda} from '@/common/parliament/ParliamentTypes';
 import {
@@ -255,8 +255,9 @@ export function yieldCaptionOf(y: InfluenceYield): {key: string, params?: Readon
   // An effect that COUNTS the tableau — or DIVIDES a total that can still move
   // before the enactment — is a preliminary reading: it says so, conditionally.
   // A FLAT part is nobody's number in particular: it says so too.
+  // …and so is a LEVEL part: the hand it is read against moves with every play and sale before the sitting.
   case 'estimate': return yieldIsFlat(y.effect) ? {key: 'The same for every player'} :
-    y.effect.count !== undefined || y.effect.sequel !== undefined ? {key: 'If enacted now'} : {key: 'By your current influence'};
+    y.effect.count !== undefined || y.effect.sequel !== undefined || y.effect.upTo !== undefined ? {key: 'If enacted now'} : {key: 'By your current influence'};
   case 'forecast': return y.agendaStep === undefined ? {key: 'If you win the vote'} : {key: 'If you win — Agenda step ${0}', params: [String(y.agendaStep)]};
   case 'resolving': return y.skipped !== undefined ? {key: y.skipped} : {key: 'This payout'};
   case 'applied': return y.skipped !== undefined ? {key: y.skipped} : {key: 'Received'};
@@ -271,13 +272,81 @@ export function yieldCaptionOf(y: InfluenceYield): {key: string, params?: Readon
  * CUBE where the rule means production.
  */
 export function sequelTotalIcon(term: InfluenceSequelTerm): YieldIcon {
-  switch (term.total.kind) {
-  case 'cardResource': return {family: 'card-resource', resource: term.total.resource};
-  case 'stock': return {family: 'resource', resource: term.total.resource, production: false};
-  case 'production': return {family: 'resource', resource: term.total.resource, production: true};
+  return totalIconOf(term.total);
+}
+
+/** The icon of a player TOTAL a term reads (a sequel's divisor, a level's current value) — the same families as the unit. */
+function totalIconOf(total: InfluenceYieldUnit): YieldIcon {
+  switch (total.kind) {
+  case 'cardResource': return {family: 'card-resource', resource: total.resource};
+  case 'stock': return {family: 'resource', resource: total.resource, production: false};
+  case 'production': return {family: 'resource', resource: total.resource, production: true};
   case 'cards': return {family: 'cards'};
   case 'colonyBonuses': return {family: 'colony'};
   }
+}
+
+// ── A LEVEL PART (Joint Research: «draw until you have 6 + influence in hand») ──
+
+/** The word before the target («up to 9 [cards]»). */
+export const LEVEL_UP_TO_KEY = 'up to';
+/** The seat's current level of the hand («5 in hand»), with its number. */
+export const LEVEL_IN_HAND_KEY = '${0} in hand';
+/** The result of a level part that pays nothing — the rule working, said calmly in the result's own slot. */
+export const LEVEL_NONE_KEY = 'no draw needed';
+
+/**
+ * HOW A LEVEL TERM IS NAMED — one entry per level unit, exactly as
+ * `sequelPresentation` names a sequel: the SERVER's own reason for the zero
+ * (a hand already at the target — the rule working, never a want of
+ * influence), the sentence that explains what the level is, and the words the
+ * reading prints beside the number. A surface that explains the zero reads
+ * the sentence the game would record, never one of its own.
+ */
+export function levelPresentation(term: InfluenceLevelTerm): {skipReasonKey: string, ruleKey: string, noneKey: string} {
+  if (term.total.kind === 'cards') {
+    return {
+      skipReasonKey: 'Already at the target hand size',
+      ruleKey: 'The hand is counted at the sitting, after the production phase. A hand already at the target draws nothing; the rest comes from the project deck.',
+      noneKey: LEVEL_NONE_KEY,
+    };
+  }
+  return {skipReasonKey: 'Nothing is owed', ruleKey: 'The current value is read at the sitting; only the difference to the target is paid.', noneKey: LEVEL_NONE_KEY};
+}
+
+/** The icon of the LEVEL a level part reads (the hand's cards). */
+export function levelTotalIcon(term: InfluenceLevelTerm): YieldIcon {
+  return totalIconOf(term.total);
+}
+
+/**
+ * The seat's CURRENT level for a level term — the server's own reading
+ * (`ParliamentPlayerModel.hand` for the hand, its production / supply for
+ * the other units), never a number found elsewhere. Undefined when the model
+ * does not carry it: the surface then falls back to the formula rather than
+ * inventing a zero.
+ */
+export function levelTotalOf(seat: ParliamentPlayerModel | undefined, term: InfluenceLevelTerm): number | undefined {
+  if (seat === undefined) {
+    return undefined;
+  }
+  switch (term.total.kind) {
+  case 'cards': return seat.hand;
+  case 'production': return seat.production?.[term.total.resource];
+  case 'stock': return seat.stock?.[term.total.resource];
+  default: return undefined;
+  }
+}
+
+/** A level reading whose top-up is ZERO — the rule working, marked with the level term's own reason. */
+function withLevelReason(y: InfluenceYield): InfluenceYield {
+  const term = y.effect.upTo;
+  return term !== undefined && (y.amount ?? 0) === 0 ? {...y, skipped: levelPresentation(term).skipReasonKey} : y;
+}
+
+/** The reading of a level part pays NOTHING — the seat is at or above the target (never a forfeited payout: that keeps its size). */
+export function levelYieldIsNone(y: InfluenceYield): boolean {
+  return y.effect.upTo !== undefined && y.target !== undefined && (y.amount ?? 0) === 0;
 }
 
 /**
@@ -359,6 +428,27 @@ export function voteYieldsOf(resolution: IClientResolution, model: ParliamentMod
       }
       continue;
     }
+    // A LEVEL part reads the seat's CURRENT level (the hand the server model
+    // carries) against the target the formula yields at the influence: the
+    // estimate now, and the «if you win» forecast at the raised target. A
+    // seat at or above the target reads its zero as the rule working.
+    const level = effect.upTo;
+    if (level !== undefined) {
+      const before = levelTotalOf(seat, level);
+      if (before === undefined) {
+        out.push(referenceYield(effect));
+        continue;
+      }
+      const estimate = withLevelReason(levelYield(effect, 'estimate', seat.influence, before));
+      out.push(estimate);
+      const step = Math.min(AGENDA_TRACK.length, Math.max(0, seat.agenda) + 1);
+      const winnerInfluence = influenceAtAgenda(step) + Math.max(0, seat.influence - influenceAtAgenda(seat.agenda));
+      const forecast = withLevelReason(levelYield(effect, 'forecast', winnerInfluence, before, {agendaStep: step}));
+      if (forecast.amount !== estimate.amount) {
+        out.push(forecast);
+      }
+      continue;
+    }
     // A counted term is the SERVER's count for this seat (number + cards). A
     // model that does not carry it gives no personal number — never an
     // invented zero.
@@ -417,6 +507,17 @@ export function enactedYieldsOf(
     // from today's production — and never from «before + influence».
     if (effect.sequel !== undefined && applied?.total !== undefined) {
       const reading = fixedSequelYield(effect, context, applied.amount ?? 0, applied.total, {
+        influence: applied.influence,
+        delivered: applied.drawn,
+      });
+      out.push(applied.kind === 'skipped' ? {...reading, skipped: applied.reason ?? 'Skipped'} : reading);
+      continue;
+    }
+    // A LEVEL part's record carries the TARGET it brought the seat up to and
+    // the hand before and after — the server's own numbers; a record from
+    // before the target travelled reads the level reached as the target.
+    if (effect.upTo !== undefined && applied?.total !== undefined) {
+      const reading = fixedLevelYield(effect, context, applied.amount ?? 0, applied.target ?? applied.total.after, applied.total, {
         influence: applied.influence,
         delivered: applied.drawn,
       });

@@ -39,7 +39,7 @@ import {accessReasonRows} from './consoleParliamentModel';
 import {InfluenceYield} from '@/common/parliament/influenceScaling';
 import {ParliamentEnactOutcomeModel, ParliamentModel} from '@/common/models/ParliamentModel';
 import {WorldMoveTable, worldMoveReadingOf, worldMoveSentenceOf} from './worldMoveModel';
-import {countedCellNames, countedContributions, countedMetricParts, countedProductionParts, yieldCountPresentation} from './influenceYieldModel';
+import {countedCellNames, countedContributions, countedMetricParts, countedProductionParts, levelPresentation, yieldCountPresentation} from './influenceYieldModel';
 import {WinnerRewardReading, winnerRewardRuleKey, winnerRewardSentenceOf} from './winnerRewardModel';
 import {LevyReading} from '@/common/parliament/resolutionLevy';
 
@@ -152,6 +152,11 @@ export function resolutionAnnotations(
       if (effect.count !== undefined) {
         rows.push(yieldCountPresentation(effect.count.id).ruleKey);
       }
+      // A LEVEL term's qualification — WHEN the hand is counted and what a hand
+      // already at the target means (the detailed reading of the face's spark).
+      if (effect.upTo !== undefined) {
+        rows.push(levelPresentation(effect.upTo).ruleKey);
+      }
       // THE COLONY LEDGER's qualification — what a colony bonus IS (the detailed reading of «all your colony
       // bonuses»), one sentence under the effect; the ledger itself reads in the footer.
       if (effect.unit.kind === 'colonyBonuses') {
@@ -214,6 +219,29 @@ export function resolutionAnnotations(
       forYou.push(applied ?
         {text: 'Levy taken: ${0} M€, then the payout', params: [String(levy.paid)]} :
         {text: 'Levy: ${0} M€ first, then the payout', params: [String(levy.paid)]});
+    }
+  }
+  // A LEVEL part (Joint Research): the target, the hand it was read against and the difference — the
+  // footer's plate in words, the zero named as the rule working. Today's hand while the card is up for
+  // the vote, the recorded numbers once enacted.
+  const level = (yields ?? []).find((y) => y.effect.upTo !== undefined && y.target !== undefined && y.total !== undefined &&
+    (y.context === 'estimate' || y.context === 'applied'));
+  if (level?.target !== undefined && level.total !== undefined) {
+    const applied = level.context === 'applied';
+    const influence = String(level.influence ?? 0);
+    const target = String(level.target);
+    const before = String(level.total.before);
+    if ((level.amount ?? 0) <= 0) {
+      forYou.push(applied ?
+        {text: 'Target at the enactment: ${0} cards in hand (6 + influence ${1}). Had ${2} — no draw was needed', params: [target, influence, before]} :
+        {text: 'Target right now: ${0} cards in hand (6 + influence ${1}). ${2} in hand — no draw needed', params: [target, influence, before]});
+    } else if (applied) {
+      const drawn = String(level.delivered ?? level.amount ?? 0);
+      forYou.push(level.delivered !== undefined && level.delivered < (level.amount ?? 0) ?
+        {text: 'Target at the enactment: ${0} cards in hand (6 + influence ${1}). Had ${2}, owed ${3}, the deck had ${4}', params: [target, influence, before, String(level.amount ?? 0), drawn]} :
+        {text: 'Target at the enactment: ${0} cards in hand (6 + influence ${1}). Had ${2}, drew ${3}', params: [target, influence, before, drawn]});
+    } else {
+      forYou.push({text: 'Target right now: ${0} cards in hand (6 + influence ${1}). ${2} in hand — ${3} to draw', params: [target, influence, before, String(level.amount ?? 0)]});
     }
   }
   const counted = (yields ?? []).find((y) => (y.counted !== undefined || y.countedSpaces !== undefined || y.countedMetric !== undefined || y.countedByResource !== undefined) &&

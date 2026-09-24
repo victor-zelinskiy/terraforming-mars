@@ -60,6 +60,21 @@
         <i class="con-iyield__unit" :class="totalClassOf(group.effect)"></i>
         <span class="con-iyield__who">{{ $t('For every player') }}</span>
       </div>
+      <!-- A LEVEL part states the TARGET it brings the player up to: «up to 6 [card] + 1 [card] / [influence]»
+           — the base is a hand size, never a number of cards paid. -->
+      <div v-else-if="(formula || group.readings.length === 0) && group.effect.upTo !== undefined" class="con-iyield__formula" data-yield-level aria-hidden="true">
+        <span class="con-iyield__upto">{{ $t(upToWord) }}</span>
+        <b class="con-iyield__num">{{ group.effect.base ?? 0 }}</b>
+        <i class="con-iyield__unit" :class="unitClassOf(group.effect)"></i>
+        <span class="con-iyield__plus">+</span>
+        <b class="con-iyield__num">{{ group.effect.perInfluence }}</b>
+        <i class="con-iyield__unit" :class="unitClassOf(group.effect)"></i>
+        <span class="con-iyield__slash">/</span>
+        <i class="con-iyield__inf"></i>
+        <span class="con-iyield__who" :class="{'con-iyield__who--winner': group.effect.recipient === 'winner'}">
+          {{ $t(group.effect.recipient === 'winner' ? 'Winner of the vote' : 'For every player') }}
+        </span>
+      </div>
       <!-- A FLAT part states its base alone: «+4 [M€ production] · every player» — no rate per influence. -->
       <div v-else-if="(formula || group.readings.length === 0) && isFlat(group.effect)" class="con-iyield__formula" data-yield-flat aria-hidden="true">
         <b class="con-iyield__num">+{{ group.effect.base }}</b>
@@ -99,10 +114,11 @@
       <div v-if="group.readings.length > 0" class="con-iyield__readings">
         <div v-for="y in group.readings" :key="y.context"
              class="con-iyield__reading"
-             :class="['con-iyield__reading--' + y.context, {'con-iyield__reading--skipped': y.skipped !== undefined, 'con-iyield__reading--max': atCap(y)}]"
+             :class="['con-iyield__reading--' + y.context, {'con-iyield__reading--skipped': y.skipped !== undefined && !levelNone(y), 'con-iyield__reading--none': levelNone(y), 'con-iyield__reading--max': atCap(y)}]"
              :data-yield-context="y.context"
              :data-yield-influence="y.influence"
              :data-yield-count="y.count"
+             :data-yield-target="y.target"
              :data-yield-metric="y.countedMetric?.value"
              :data-yield-uncapped="y.uncapped"
              :data-yield-max="atCap(y) ? 'true' : undefined"
@@ -123,10 +139,21 @@
           </template>
           <!-- THE INPUTS as one cluster: «[counted object] 2 + [influence] 2» — the
                count is the player's own (the server's), then the influence. -->
+          <!-- A LEVEL reading shows all three numbers on one line: the TARGET the
+               formula brings the player up to, the LEVEL they stand at, and the
+               difference — «up to 9 [card] · 5 in hand → +4 [card]». The target
+               alone would promise nine cards to a player owed four. -->
+          <span v-if="y.target !== undefined && y.total !== undefined" class="con-iyield__in con-iyield__in--level">
+            <span class="con-iyield__upto">{{ $t(upToWord) }}</span>
+            <b data-yield-in="target">{{ y.target }}</b>
+            <i class="con-iyield__unit" :class="unitClassOf(group.effect)"></i>
+            <span class="con-iyield__sep" aria-hidden="true">·</span>
+            <span class="con-iyield__level" data-yield-in="level" :data-yield-level="y.total.before">{{ levelText(y.total.before) }}</span>
+          </span>
           <!-- A SEQUENTIAL reading shows the CHAIN: the total before the
                earlier part moved it, the total after, and the result. The
                player never has to add the influence back in themselves. -->
-          <span v-if="y.total !== undefined" class="con-iyield__in con-iyield__in--seq">
+          <span v-else-if="y.total !== undefined" class="con-iyield__in con-iyield__in--seq">
             <i class="con-iyield__unit" :class="totalClassOf(group.effect)"></i>
             <b data-yield-in="total-before">{{ y.total.before }}</b>
             <span class="con-iyield__arrow" aria-hidden="true">→</span>
@@ -169,7 +196,10 @@
           <!-- A forfeited payout keeps its SIZE and says it did not land (✕ + struck amount); the caption names why.
                A capped sum says MAX beside the amount — the limit is part of the number, never a footnote. -->
           <span class="con-iyield__result">
-            <span class="con-iyield__out" :class="{'con-iyield__out--lost': y.skipped !== undefined && (y.amount ?? 0) > 0}"><b>{{ outText(y) }}</b><i class="con-iyield__unit" :class="unitClassOf(group.effect)"></i><em v-if="atCap(y)" class="con-iyield__max">{{ $t('Max.') }}</em></span>
+            <!-- A LEVEL part at or above its target pays nothing, and says so CALMLY in the result's own slot —
+                 the rule working, never a struck amount and never a forfeit. -->
+            <span v-if="levelNone(y)" class="con-iyield__out con-iyield__out--none" data-yield-none><b>{{ $t(levelNoneKey(group.effect)) }}</b></span>
+            <span v-else class="con-iyield__out" :class="{'con-iyield__out--lost': y.skipped !== undefined && (y.amount ?? 0) > 0}"><b>{{ outText(y) }}</b><i class="con-iyield__unit" :class="unitClassOf(group.effect)"></i><em v-if="atCap(y)" class="con-iyield__max">{{ $t('Max.') }}</em></span>
             <!-- THE NET at the tail — the day's balance once the levy and the payout are both known:
                  «= −3 [M€]». Signed, and in the loss tone when the seat ends poorer today. -->
             <span v-if="levyOn(group, y)" class="con-iyield__net" :class="{'con-iyield__net--minus': netOf(y) < 0}" data-yield-net-line :data-yield-net-amount="netOf(y)">
@@ -212,8 +242,8 @@ import {Resource} from '@/common/Resource';
 import {InfluenceScaledEffect, InfluenceYield, yieldAtCap} from '@/common/parliament/influenceScaling';
 import {LevyReading} from '@/common/parliament/resolutionLevy';
 import {
-  METRIC_SETS_PLURAL_KEY, oneNumberYieldsOf, PRODUCTION_HORIZON_KEY, sequelTotalIcon, WinSuffix, winSuffixesOf, yieldCaptionOf, yieldCountPresentation,
-  yieldIconOf, yieldIsFlat, yieldIsMultiplier, YieldCountGlyph, YieldIcon,
+  LEVEL_IN_HAND_KEY, LEVEL_UP_TO_KEY, levelPresentation, levelYieldIsNone, METRIC_SETS_PLURAL_KEY, oneNumberYieldsOf, PRODUCTION_HORIZON_KEY,
+  sequelTotalIcon, WinSuffix, winSuffixesOf, yieldCaptionOf, yieldCountPresentation, yieldIconOf, yieldIsFlat, yieldIsMultiplier, YieldCountGlyph, YieldIcon,
 } from '@/client/console/parliament/influenceYieldModel';
 import {SUFFIX_HINT, SUFFIX_IF_YOU_WIN, SUFFIX_STEP} from '@/client/console/parliament/voteInfoModel';
 import PremiumCountGlyph from '@/client/components/premiumCard/PremiumCountGlyph.vue';
@@ -295,8 +325,23 @@ export default defineComponent({
     horizonKey(): string {
       return PRODUCTION_HORIZON_KEY;
     },
+    upToWord(): string {
+      return LEVEL_UP_TO_KEY;
+    },
   },
   methods: {
+    /** A LEVEL reading at or above its target: nothing is paid, and the result slot says so calmly. */
+    levelNone(y: InfluenceYield): boolean {
+      return levelYieldIsNone(y);
+    },
+    /** The calm phrase of a level part's zero («no draw needed») — the level term's own word. */
+    levelNoneKey(effect: InfluenceScaledEffect): string {
+      return effect.upTo === undefined ? '' : levelPresentation(effect.upTo).noneKey;
+    },
+    /** «5 in hand» — the level the top-up is read against, in words beside the number. */
+    levelText(level: number): string {
+      return translateTextWithParams(LEVEL_IN_HAND_KEY, [String(level)]);
+    },
     /** The levy heads THIS group's readings: the group pays the levy's currency, and the reading is a number (never the reference). */
     levyOn(group: Group, y: InfluenceYield): boolean {
       const levy = this.levy;

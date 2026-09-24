@@ -261,6 +261,27 @@
               </span>
             </div>
           </div>
+          <!-- A LEVEL part (Joint Research's «up to 6 + influence in hand»): every seat's
+               synthetic HAND beside the target the formula yields for it and the top-up the
+               ONE division pays — the instrument of the family; a hand at or above the
+               target reads its calm zero here too. -->
+          <div v-if="levelEffect !== undefined" class="con-rxpg__tableaus" data-rxpg-hands>
+            <span class="con-rxpg__ckey">{{ $t('Cards in hand') }}</span>
+            <div v-for="row in handRows" :key="row.color"
+                 class="con-rxpg__tableau"
+                 :class="{'con-rxpg__tableau--viewer': row.viewer}"
+                 :data-rxpg-hand-of="row.color">
+              <span class="con-rxpg__tableau-who">
+                <PlayerCube :color="row.color" :size="12" :glow="false" />
+                <span class="con-rxpg__seat-name">{{ $t(row.label) }}</span>
+                <i class="con-rxpg__prodterm-unit" :class="cardsUnitClass" aria-hidden="true"></i>
+                <b data-rxpg-hand>{{ row.hand }}</b>
+              </span>
+              <div class="con-rxpg__metric">
+                <span class="con-rxpg__metric-words" data-rxpg-hand-words :data-rxpg-hand-target="row.target" :data-rxpg-hand-drawn="row.drawn">{{ handWords(row) }}</span>
+              </div>
+            </div>
+          </div>
           <!-- A METRIC count (Generous Funding's sets of 5 TR over 15): every seat's
                synthetic RATING, divided by the SHARED threshold rule — the ladder of
                set boundaries the value has climbed, and the breakdown in words (value,
@@ -440,7 +461,7 @@ import {PartyName} from '@/common/turmoil/PartyName';
 import {SelectCardModel} from '@/common/models/PlayerInputModel';
 import {ParliamentEnactOutcomeModel, ParliamentModel, ParliamentPlayerModel} from '@/common/models/ParliamentModel';
 import {IClientResolution} from '@/common/parliament/IClientResolution';
-import {colonyBonusesEffectOf, familyOf} from '@/client/console/parliament/resolutionFamily';
+import {colonyBonusesEffectOf, familyOf, levelEffectOf} from '@/client/console/parliament/resolutionFamily';
 import {ColonyName} from '@/common/colonies/ColonyName';
 import {ColonyBenefit} from '@/common/colonies/ColonyBenefit';
 import {ColonyTradeGrantModel} from '@/common/models/ColonyTradeManifestModel';
@@ -448,7 +469,7 @@ import {getColony} from '@/client/colonies/ClientColonyManifest';
 import {ColonyLedgerReading, colonyLedgerOf} from '@/client/console/parliament/colonyLedgerModel';
 import ConsoleColonyLedger from '@/client/components/console/parliament/ConsoleColonyLedger.vue';
 import {
-  fixedSequelYield, fixedYield, InfluenceScaledEffect, InfluenceYield, referenceYield, scaledAmount, sequelAmount, uncappedAmount,
+  fixedLevelYield, fixedSequelYield, fixedYield, InfluenceScaledEffect, InfluenceYield, referenceYield, scaledAmount, sequelAmount, topUpAmount, uncappedAmount,
 } from '@/common/parliament/influenceScaling';
 import {PartyReactionReading, partyReactionsOf} from '@/client/console/parliament/partyReactionModel';
 import {
@@ -497,8 +518,8 @@ import {resolutionZoomEntry} from '@/client/components/card/cardZoomTypes';
 import {resolutionAnnotations} from '@/client/console/parliament/parliamentAnnotations';
 import {resolutionStatusOf, ResolutionStatusVm} from '@/client/console/parliament/resolutionInspectModel';
 import {
-  countedMetricParts, enactedLevyOf, enactedYieldsOf, noRecipientForecastKey, noRecipientReasonKey, resolvingLevyOf, resolvingYieldOf, sequelPresentation,
-  sequelSourceOf, voteLevyOf, voteYieldsOf, yieldCountPresentation, YieldCountGlyph,
+  countedMetricParts, enactedLevyOf, enactedYieldsOf, LEVEL_NONE_KEY, levelPresentation, noRecipientForecastKey, noRecipientReasonKey, resolvingLevyOf,
+  resolvingYieldOf, sequelPresentation, sequelSourceOf, voteLevyOf, voteYieldsOf, yieldCountPresentation, YieldCountGlyph,
 } from '@/client/console/parliament/influenceYieldModel';
 import {choiceSourceView, PromptSourceView} from '@/client/console/promptSource';
 import {
@@ -551,6 +572,8 @@ type PgSeat = {
   megacredits?: number,
   /** The colony-bonuses family: the tiles this seat has a cube on (the server's registry, synthesized from the colony manifest). */
   colonies?: ReadonlyArray<ColonyName>,
+  /** The up-to family: the seat's HAND size (a synthetic count) the top-up is read against. */
+  hand?: number,
 };
 type PgWinner = SeatIndex | 'neutral';
 /**
@@ -561,7 +584,7 @@ type PgWinner = SeatIndex | 'neutral';
  * resource by influence + the WINNER's tile.
  */
 type PgFamily = 'influence' | 'counted' | 'counted-tags' | 'counted-board' | 'counted-metric' | 'counted-production' | 'distributed' | 'winner-tile' | 'sequel' |
-  'colony-bonuses' | 'world-move';
+  'colony-bonuses' | 'world-move' | 'up-to';
 /** The table's global parameters a winner tile reads (oxygen %, temperature °C, oceans placed). */
 type PgTable = {oxygen: number, temperature: number, oceans: number, venus: number};
 const DEFAULT_TABLE: PgTable = {oxygen: 5, temperature: -14, oceans: 3, venus: 10};
@@ -800,6 +823,48 @@ const SCENARIOS: ReadonlyArray<PgScenario> = [
   {key: 'seq-live-recap', family: 'sequel', label: 'Live: the results of the generation', viewer: 1,
     seats: [{agenda: 3, bonus: 0, production: 4}, {agenda: 1, bonus: 0, production: 2}], winner: 1, context: 'applied', noRecipient: false,
     live: 'parliament-climate-recap', liveNote: 'Generation 2: open the Parliament — the card moves into the government and the results name both halves'},
+  // ── THE UP-TO FAMILY (Joint Research: draw until you have 6 + influence cards in hand) ──
+  //    `hand` is the seat's hand BEFORE the enactment; the target is the formula's, the
+  //    payout the ONE top-up division. Test player A is the viewer; B wins unless the
+  //    scenario says otherwise (a winner's Agenda step would raise A's target).
+  {key: 'research-empty', family: 'up-to', label: 'Empty hand, influence 0 — six cards', viewer: 0,
+    seats: [{agenda: 0, bonus: 0, hand: 0}, {agenda: 3, bonus: 0, hand: 4}], winner: 1, context: 'proposal', noRecipient: false},
+  {key: 'research-influence-0', family: 'up-to', label: 'Hand 2, influence 0 — the target is still 6', viewer: 0,
+    seats: [{agenda: 0, bonus: 0, hand: 2}, {agenda: 3, bonus: 0, hand: 4}], winner: 1, context: 'proposal', noRecipient: false},
+  {key: 'research-short', family: 'up-to', label: 'Hand 5, influence 3 — four cards to the target of 9', viewer: 0,
+    seats: [{agenda: 5, bonus: 0, hand: 5}, {agenda: 1, bonus: 0, hand: 7}], winner: 1, context: 'proposal', noRecipient: false},
+  {key: 'research-at-6', family: 'up-to', label: 'Hand 6, influence 0 — at the target, no draw', viewer: 0,
+    seats: [{agenda: 0, bonus: 0, hand: 6}, {agenda: 3, bonus: 0, hand: 4}], winner: 1, context: 'proposal', noRecipient: false},
+  {key: 'research-at-9', family: 'up-to', label: 'Hand 9, influence 3 — at the target, no draw', viewer: 0,
+    seats: [{agenda: 5, bonus: 0, hand: 9}, {agenda: 1, bonus: 0, hand: 7}], winner: 1, context: 'proposal', noRecipient: false},
+  {key: 'research-above', family: 'up-to', label: 'Hand 12, influence 3 — above the target, no draw', viewer: 0,
+    seats: [{agenda: 5, bonus: 0, hand: 12}, {agenda: 1, bonus: 0, hand: 7}], winner: 1, context: 'proposal', noRecipient: false},
+  // Agenda 4 = influence 2; winning takes the marker to step 5 (influence 3) BEFORE the effect: the target 8 becomes 9.
+  {key: 'research-winner-agenda', family: 'up-to', label: 'The winner\'s Agenda step raises the target first', viewer: 0,
+    seats: [{agenda: 4, bonus: 0, hand: 5}, {agenda: 3, bonus: 0, hand: 4}], winner: 0, context: 'proposal', noRecipient: false},
+  {key: 'research-seats', family: 'up-to', label: 'Every player gets their own result', viewer: 0,
+    seats: [{agenda: 1, bonus: 0, hand: 5}, {agenda: 8, bonus: 0, hand: 9}], winner: 0, context: 'applied', noRecipient: false},
+  {key: 'research-neutral', family: 'up-to', label: 'Neutral winner — the effect still reaches everyone', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, hand: 4}, {agenda: 5, bonus: 0, hand: 10}], winner: 'neutral', context: 'applied', noRecipient: false},
+  {key: 'research-resolving', family: 'up-to', label: 'The chain being resolved', viewer: 0,
+    seats: [{agenda: 5, bonus: 0, hand: 5}, {agenda: 1, bonus: 0, hand: 7}], winner: 1, context: 'resolving', noRecipient: false},
+  {key: 'research-applied', family: 'up-to', label: 'Recorded result', viewer: 0,
+    seats: [{agenda: 5, bonus: 0, hand: 5}, {agenda: 1, bonus: 0, hand: 7}], winner: 1, context: 'applied', noRecipient: false},
+  {key: 'research-spectator', family: 'up-to', label: 'Spectator — the formula alone', viewer: SPECTATOR,
+    seats: [{agenda: 5, bonus: 0, hand: 5}, {agenda: 1, bonus: 0, hand: 7}], winner: 0, context: 'proposal', noRecipient: false},
+  {key: 'research-quest-0', family: 'up-to', label: 'Chairman quest 0/2', viewer: 0,
+    seats: [{agenda: 5, bonus: 0, hand: 5}, {agenda: 1, bonus: 0, hand: 7}], winner: 0, context: 'applied', noRecipient: false, quest: {progress: [0, 0]}},
+  {key: 'research-quest-1', family: 'up-to', label: 'Chairman quest 1/2 — partial progress', viewer: 0,
+    seats: [{agenda: 5, bonus: 0, hand: 5}, {agenda: 1, bonus: 0, hand: 7}], winner: 0, context: 'applied', noRecipient: false, quest: {progress: [1, 0]}},
+  {key: 'research-quest-done', family: 'up-to', label: 'Chairman quest completed', viewer: 0,
+    seats: [{agenda: 5, bonus: 0, hand: 5}, {agenda: 1, bonus: 0, hand: 7}], winner: 0, context: 'applied', noRecipient: false, quest: {progress: [2, 1], completedBy: 0}},
+  // ── LIVE (Joint Research): real games from the engine-generated fixtures.
+  {key: 'research-live-vote', family: 'up-to', label: 'Live: the vote', viewer: 0,
+    seats: [{agenda: 4, bonus: 0, hand: 5}, {agenda: 1, bonus: 0, hand: 9}], winner: 1, context: 'proposal', noRecipient: false,
+    live: 'parliament-research-vote', liveNote: 'Joint Research up for the vote: your hand against the target of 6 + influence, and the cards each result would draw'},
+  {key: 'research-live-enact', family: 'up-to', label: 'Live: the take', viewer: 0,
+    seats: [{agenda: 4, bonus: 0, hand: 5}, {agenda: 1, bonus: 0, hand: 9}], winner: 1, context: 'resolving', noRecipient: false,
+    live: 'parliament-research-enact', liveNote: 'Your take stands inside the enactment stage: the target, the hand it was read against, the cards owed'},
   // ── THE WINNER-TILE FAMILY (everyone's supply resource by influence + the winner's tile) ──
   // Test player A is the viewer; B wins unless the scenario says otherwise (a winner's Agenda step would move A's influence).
   {key: 'tile-influence-0', family: 'winner-tile', label: 'Influence 0 — nothing is paid', viewer: 0, seats: [{agenda: 0, bonus: 0}, {agenda: 5, bonus: 0}], winner: 1, context: 'applied', noRecipient: false},
@@ -1057,6 +1122,7 @@ const DEFAULT_SCENARIO_OF: Readonly<Record<PgFamily, number>> = {
   'sequel': SCENARIOS.findIndex((s) => s.key === 'seq-4-to-6'),
   'colony-bonuses': SCENARIOS.findIndex((s) => s.key === 'colonial-vote'),
   'world-move': SCENARIOS.findIndex((s) => s.key === 'world-room'),
+  'up-to': SCENARIOS.findIndex((s) => s.key === 'research-short'),
 };
 const DEFAULT_SCENARIO = DEFAULT_SCENARIO_OF.influence;
 
@@ -1087,7 +1153,11 @@ const SIZES = [
 ] as const;
 
 /** One seat's payout at the enactment: what it is owed, at which influence (and count), and why it does not land (if it does not). */
-type SeatPayout = {amount: number, influence: number, skipped?: string, count?: ResolutionCountModel, uncapped?: number, total?: {before: number, after: number}};
+type SeatPayout = {
+  amount: number, influence: number, skipped?: string, count?: ResolutionCountModel, uncapped?: number, total?: {before: number, after: number},
+  /** The up-to family: the LEVEL the formula brought the seat up to (beside `total` — the hand before and after). */
+  target?: number,
+};
 
 /** One card of a seat's synthetic tableau, with the shared predicate's verdict, what it contributed — and whether it can HOLD the payout (a distributed family's holder). */
 type TableauCardRow = {name: CardName, counts: boolean, reason: string, units: number, holds: boolean};
@@ -1248,6 +1318,7 @@ export default defineComponent({
       case 'counted-production': return 'Result by production steps and influence, after the levy';
       case 'distributed': return 'Result by tags and influence, laid out over your holders';
       case 'sequel': return 'Result by influence, then by production';
+      case 'up-to': return 'Result by influence, up to a hand size';
       case 'colony-bonuses': return 'Result by influence, over your colony bonuses';
       default: return 'Influence-scaled payout';
       }
@@ -1408,6 +1479,33 @@ export default defineComponent({
     /** The SEQUENTIAL part of the selected resolution (Climate Research's draw), if any. */
     sequelEffect(): InfluenceScaledEffect | undefined {
       return this.selected?.scaled?.find((e) => e.sequel !== undefined);
+    },
+    /** The LEVEL part of the selected resolution (Joint Research's top-up), if any. */
+    levelEffect(): InfluenceScaledEffect | undefined {
+      return levelEffectOf(this.selected ?? {});
+    },
+    /**
+     * THE HANDS of the up-to family: every seat's synthetic hand size beside the
+     * target the formula yields for it and the top-up the ONE division pays —
+     * the instrument of the family, so a scenario's numbers are never typed in.
+     */
+    handRows(): Array<{color: Color, label: string, viewer: boolean, hand: number, target: number, drawn: number}> {
+      const effect = this.levelEffect;
+      if (effect === undefined) {
+        return [];
+      }
+      return SEATS.map((i) => {
+        const hand = Math.max(0, this.seats[i].hand ?? 0);
+        const influence = this.influenceAt(i);
+        return {
+          color: TEST_PLAYERS[i].color, label: TEST_PLAYERS[i].label, viewer: this.viewerSeatIndex === i,
+          hand, target: scaledAmount(effect, influence), drawn: topUpAmount(effect, influence, hand),
+        };
+      });
+    },
+    /** The project-card sprite beside a seat's hand size (the same class the yield block's card unit wears). */
+    cardsUnitClass(): string {
+      return iconClassFor('cards');
     },
     /** The ruling party's ANSWER to the viewer's readings — the second law of the same enactment. */
     reactions(): Array<PartyReactionReading> {
@@ -1650,6 +1748,24 @@ export default defineComponent({
             const common = {
               player: TEST_PLAYERS[i].color, step: effect.id, part: 'effect' as const, effect: effect.id,
               amount: payout.amount, influence: payout.influence, total: payout.total,
+            };
+            out.push(payout.skipped === undefined ?
+              {...common, kind: 'cards' as const, drawn: payout.amount} :
+              {...common, kind: 'skipped' as const, reason: payout.skipped});
+          }
+          continue;
+        }
+        if (effect.upTo !== undefined) {
+          // THE LEVEL RECORD the server keeps: the target, the hand before and
+          // after, the amount owed — and the take that delivered it.
+          for (const i of SEATS) {
+            const payout = this.payoutAt(effect, i);
+            if (payout === undefined) {
+              continue;
+            }
+            const common = {
+              player: TEST_PLAYERS[i].color, step: effect.id, part: 'effect' as const, effect: effect.id,
+              amount: payout.amount, influence: payout.influence, total: payout.total, target: payout.target,
             };
             out.push(payout.skipped === undefined ?
               {...common, kind: 'cards' as const, drawn: payout.amount} :
@@ -1907,6 +2023,12 @@ export default defineComponent({
     productionUnitClass(resource: Resource): string {
       return iconClassFor(resource);
     },
+    /** «target 9 · 4 to draw» / «target 6 · no draw needed» — a seat's hand against its target, in words. */
+    handWords(row: {target: number, drawn: number}): string {
+      const target = translateTextWithParams('target ${0}', [String(row.target)]);
+      const drawn = row.drawn > 0 ? translateTextWithParams('${0} to draw', [String(row.drawn)]) : translateText(LEVEL_NONE_KEY);
+      return `${target} · ${drawn}`;
+    },
     vmOf(entry: IClientResolution): PremiumCardVM {
       return resolutionPremiumVm(entry);
     },
@@ -1996,6 +2118,11 @@ export default defineComponent({
       if (levy !== undefined) {
         model.stock = {[levy.resource]: this.seats[i].megacredits ?? 20};
       }
+      // …and the HAND a level part tops up (Joint Research), the way the server model carries it: the seat's
+      // synthetic hand size — what the target is read against.
+      if (this.levelEffect?.upTo?.total.kind === 'cards') {
+        model.hand = Math.max(0, this.seats[i].hand ?? 0);
+      }
       // …and the COLONY LEDGER a «colony bonuses» part multiplies — the registry the server ships, built from
       // the colony manifest's printed bonuses (the same descriptors `IColony.colonyBonusGrant` reads).
       if (colonyBonusesEffectOf(this.selected ?? {}) !== undefined) {
@@ -2074,6 +2201,19 @@ export default defineComponent({
           {amount: 0, influence, total, skipped: sequelPresentation(term).skipReasonKey} :
           {amount, influence, total};
       }
+      const level = effect.upTo;
+      if (level !== undefined) {
+        // A LEVEL part: the seat's synthetic hand against the target the formula
+        // yields, through the ONE top-up division — a hand at or above the
+        // target is the rule working, named by the term's own reason.
+        const before = Math.max(0, this.seats[i].hand ?? 0);
+        const target = scaledAmount(effect, influence);
+        const amount = topUpAmount(effect, influence, before);
+        const total = {before, after: before + amount};
+        return amount <= 0 ?
+          {amount: 0, influence, total, target, skipped: levelPresentation(level).skipReasonKey} :
+          {amount, influence, total, target};
+      }
       if (effect.count !== undefined) {
         // A COUNTED term: the seat's own count through the shared predicate, then the ONE formula.
         const count = this.countAt(i);
@@ -2106,15 +2246,17 @@ export default defineComponent({
       if (i === undefined || payout === undefined) {
         return referenceYield(effect);
       }
-      const reading = payout.total !== undefined ?
-        fixedSequelYield(effect, 'resolving', payout.amount, payout.total, {influence: payout.influence}) :
-        payout.count !== undefined ?
-          fixedYield(effect, 'resolving', payout.amount, payout.influence,
-            {
-              count: payout.count.count, counted: payout.count.cards, countedUnits: payout.count.units, countedSpaces: payout.count.spaces,
-              countedMetric: payout.count.metric, countedByResource: payout.count.byResource, uncapped: payout.uncapped,
-            }) :
-          resolvingYieldOf(effect, payout.amount, this.model, TEST_PLAYERS[i].color);
+      const reading = payout.target !== undefined && payout.total !== undefined ?
+        fixedLevelYield(effect, 'resolving', payout.amount, payout.target, payout.total, {influence: payout.influence}) :
+        payout.total !== undefined ?
+          fixedSequelYield(effect, 'resolving', payout.amount, payout.total, {influence: payout.influence}) :
+          payout.count !== undefined ?
+            fixedYield(effect, 'resolving', payout.amount, payout.influence,
+              {
+                count: payout.count.count, counted: payout.count.cards, countedUnits: payout.count.units, countedSpaces: payout.count.spaces,
+                countedMetric: payout.count.metric, countedByResource: payout.count.byResource, uncapped: payout.uncapped,
+              }) :
+            resolvingYieldOf(effect, payout.amount, this.model, TEST_PLAYERS[i].color);
       return payout.skipped === undefined ? reading : {...reading, skipped: payout.skipped};
     },
     // ── the pad ────────────────────────────────────────────────────────
