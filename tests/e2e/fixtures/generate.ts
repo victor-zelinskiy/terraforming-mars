@@ -83,6 +83,7 @@ import {DEV_ACTION_RESOLUTION_ID, DEV_PASSIVE_RESOLUTION_ID} from '../../../src/
 import {CLOUD_DEVELOPMENT_ID} from '../../../src/server/parliament/resolutions/unity/CloudDevelopment';
 import {GAS_EXPORT_ID} from '../../../src/server/parliament/resolutions/reds/GasExport';
 import {COLONIZATION_FUNDING_ID} from '../../../src/server/parliament/resolutions/unity/ColonizationFunding';
+import {GENEROUS_FUNDING_ID} from '../../../src/server/parliament/resolutions/greens/GenerousFunding';
 import {SpaceName} from '../../../src/common/boards/SpaceName';
 import {COLONIAL_AFFAIRS_ID} from '../../../src/server/parliament/resolutions/unity/ColonialAffairs';
 import {COLONY_CONTEST_ID} from '../../../src/server/parliament/resolutions/unity/ColonyContest';
@@ -896,6 +897,34 @@ const colonizationVote = (): ParliamentFixtureSpec => ({
   },
 });
 parliamentFixture('parliament-colonization-vote', colonizationVote());
+
+// ── RX13 · GENEROUS FUNDING (the Greens — «2 M€ per influence and per complete set of 5 TR over 15»): the first
+//    counter that reads ONE PLAYER METRIC by threshold and step. The vote: the card in the first voting slot with
+//    blue's free delegate on it; blue's rating is 24 — ONE complete set (nine over 15, four short of the second) —
+//    at Agenda step 4 (influence 2): the panel reads «[TR] 24 → 1 set + [influence] 2 → +6» with the win suffix
+//    «+2 · step 5» (an INFLUENCE step: the rating stands, the influence becomes 3 → +8 at the enactment). Red: TR 20
+//    (one set) at step 1 (influence 1) → +4. The card's ONE e2e walks from this vote through both passes into the
+//    sitting's reward stage: the +8 chip from the card's graphic onto the M€ cell of the rail. ──
+const generousVote = (): ParliamentFixtureSpec => ({
+  resolution: GENEROUS_FUNDING_ID,
+  votes: [0],
+  agenda: [4, 1],
+  stopAt: 'vote',
+  arrange: ({p1, p2}) => {
+    p1.terraformRating = 24;
+    p2.terraformRating = 20;
+  },
+  expect: ({p1, p2}) => {
+    const count = resolutionCount(p1, 'terraformRatingSets');
+    if (count.count !== 1 || count.metric?.value !== 24 || count.metric?.toNext !== 1) {
+      throw new Error(`the parliament-generous-vote fixture expected blue at TR 24 = one set, one short of the next, got ${JSON.stringify(count)}`);
+    }
+    if (resolutionCount(p2, 'terraformRatingSets').count !== 1) {
+      throw new Error('the parliament-generous-vote fixture expected red at TR 20 = one set');
+    }
+  },
+});
+parliamentFixture('parliament-generous-vote', generousVote());
 
 // ── RX06 · CLOUD DEVELOPMENT (Unity — a VENUS game: the card exists only with Venus Next, and it is the
 //    FOURTH party's first card). The card stands in the FIRST voting slot with blue's free delegate on it;

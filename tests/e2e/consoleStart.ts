@@ -2298,6 +2298,8 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'hydro-terminal'
   'parliament-powergrid-vote' | 'parliament-powergrid-recap' |
   // RX08 Colonization Funding: two space cities and influence 3 at the vote — the maximum, one number.
   'parliament-colonization-vote' |
+  // RX13 Generous Funding: TR 24 (one set of 5 over 15) and Agenda 4 at the vote — a win adds one influence, the rating stands.
+  'parliament-generous-vote' |
   'parliament-climate-vote' | 'parliament-climate-enact' | 'parliament-climate-recap' | 'parliament-climate-big' |
   'parliament-climate-vote-raise' | 'parliament-climate-cardstep' | 'parliament-biodome-nocell-assembly' | 'parliament-aquifer-assembly-six' | 'parliament-powergrid-vote-cap' |
   // RX07 Colonial Affairs: the arranged colony table (Luna · Titan · Miranda · Pluto) at the vote and at gate 1.
