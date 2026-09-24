@@ -424,6 +424,7 @@ import {
   factBeyondOwnEffect,
   forecastItemCard,
   forecastItemOwner,
+  forecastItemPoliticalSource,
   forecastMetaLine,
   forecastOrderBand,
 } from '@/client/console/effectForecastModel';
@@ -972,26 +973,45 @@ export default defineComponent({
     ftileCard(tile: ForecastTileVm): CardName | undefined {
       return forecastItemCard(tile.item);
     },
-    /** A PARTY- or RESOLUTION-sourced fact's emblem (Turmoil Redux) — the cardless source's own face. */
+    /**
+     * A PARTY- or RESOLUTION-sourced fact's emblem (Turmoil Redux) — the cardless
+     * source's own face; a DISCOUNT the law or a party's policy took off the
+     * price wears the same emblem (an enacted resolution's law lowering a
+     * Building card is the parliament's doing, and the tile says so).
+     */
     ftilePartyEmblem(tile: ForecastTileVm): string | undefined {
       const item = tile.item;
+      const political = forecastItemPoliticalSource(item);
+      if (political !== undefined) {
+        return this.politicalEmblem(political.kind === 'resolution' ? getResolution(political.id)?.party : political.name);
+      }
       if (item.kind !== 'fact') {
         return undefined;
       }
       const source = item.fact.source;
       if (source.kind === 'resolution') {
-        const party = getResolution(source.name)?.party;
-        return party === undefined ? undefined : partyEmblemUrl(party);
+        return this.politicalEmblem(getResolution(source.name)?.party);
       }
-      if (source.kind !== 'party') {
-        return undefined;
-      }
-      const party = source.name;
-      return (REDUX_PARTIES as ReadonlyArray<string>).includes(party) ? partyEmblemUrl(party as ReduxParty) : undefined;
+      return source.kind === 'party' ? this.politicalEmblem(source.name) : undefined;
+    },
+    politicalEmblem(party: string | undefined): string | undefined {
+      return party !== undefined && (REDUX_PARTIES as ReadonlyArray<string>).includes(party) ? partyEmblemUrl(party as ReduxParty) : undefined;
     },
     /** A cardless source's NAME key: a resolution resolves to its printed name through the parliament manifest. */
     fsourceName(source: {kind: string, name: string}): string {
       return source.kind === 'resolution' ? (getResolution(source.name)?.text.name ?? source.name) : source.name;
+    },
+    /**
+     * A political DISCOUNT's name key (the law's printed name through the
+     * manifest, a party's own name) — '' for a discount of a card. The tile's
+     * title, its canvas and the dossier's WHY all read this one answer.
+     */
+    fdiscountLawName(tile: ForecastTileVm): string {
+      const political = forecastItemPoliticalSource(tile.item);
+      if (political === undefined) {
+        return '';
+      }
+      return political.kind === 'resolution' ? (getResolution(political.id)?.text.name ?? political.id) : political.name;
     },
     detailPartyEmblem(): string | undefined {
       const tile = this.detailFTile;
@@ -1041,7 +1061,13 @@ export default defineComponent({
         return this.branchTitle(item.branchPos);
       default: {
         const name = this.ftileCard(tile);
-        return name === undefined ? translateText('Other discounts') : translateText(name);
+        if (name !== undefined) {
+          return translateText(name);
+        }
+        // A discount of the LAW / a party's policy is named, never «other»: the
+        // player must know WHY the price fell, not only that it did.
+        const law = this.fdiscountLawName(tile);
+        return law === '' ? translateText('Other discounts') : translateText(law);
       }
       }
     },
@@ -1063,7 +1089,8 @@ export default defineComponent({
       if (item.kind === 'branch-empty') {
         return translateText('Nothing will trigger');
       }
-      return translateText('Effect of this card');
+      const law = this.fdiscountLawName(tile);
+      return translateText(law === '' ? 'Effect of this card' : law);
     },
     ftileDesc(tile: ForecastTileVm): string {
       const entry = this.ftileEntry(tile);

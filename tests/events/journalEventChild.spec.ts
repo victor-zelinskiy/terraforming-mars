@@ -6,6 +6,7 @@ import {TileType} from '@/common/TileType';
 import {GameEvent} from '@/common/events/GameEvent';
 import {ColonyName} from '@/common/colonies/ColonyName';
 import {buildEventChildren, impactChips, JournalImpactChip} from '@/client/components/journal/journalEventChild';
+import {allResolutions} from '@/client/parliament/ClientParliamentManifest';
 
 function ev(partial: Partial<GameEvent> & {id: number; type: GameEvent['type']; correlationId: number}): GameEvent {
   return {generation: 1, phase: Phase.ACTION, visibility: 'analytics', impact: {}, ...partial} as GameEvent;
@@ -172,5 +173,22 @@ describe('journal event-driven children', () => {
     expect(discount[0]).to.deep.include({icon: 'megacredits', text: '−2'});
     const prod = impactChips({production: {energy: 1}});
     expect(prod[0]).to.deep.include({icon: 'energy', text: '+1', production: true});
+  });
+
+  it('a DISCOUNT of an enacted RESOLUTION (Turmoil Redux) is a discount row labelled by the law\'s printed name — never a bare id', () => {
+    const law = allResolutions().find((r) => r.copies > 0);
+    if (law === undefined) {
+      throw new Error('the catalog ships no dealt resolution');
+    }
+    const events: Array<GameEvent> = [
+      ev({id: 1, type: 'action', source: {kind: 'card', card: CardName.MINE, owner: 'red'}, player: 'red', correlationId: 1}),
+      ev({id: 2, type: 'discount-applied', source: {kind: 'resolution', id: law.id, owner: 'red'}, player: 'red', target: {card: CardName.MINE},
+        impact: {megacreditsSaved: 3}, correlationId: 1, parentId: 1}),
+    ];
+    const rows = buildEventChildren(events, 1, 'red');
+    expect(rows.length).to.eq(1);
+    expect(rows[0].bucket).to.eq('discount');
+    expect(rows[0].source).to.deep.eq({kind: 'label', label: law.text.name});
+    expect(rows[0].chips[0]).to.deep.include({icon: 'megacredits', text: '−3', saved: true});
   });
 });

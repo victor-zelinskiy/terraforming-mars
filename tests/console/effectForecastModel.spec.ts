@@ -1,5 +1,7 @@
 import {expect} from 'chai';
 import {CardName} from '@/common/cards/CardName';
+import {EventSource} from '@/common/events/EventSource';
+import {PartyName} from '@/common/turmoil/PartyName';
 import {CardResource} from '@/common/CardResource';
 import {Color} from '@/common/Color';
 import {ActionEffect} from '@/common/models/ActionPreviewModel';
@@ -22,6 +24,7 @@ import {
   forecastGroups,
   forecastItemCard,
   forecastItemOwner,
+  forecastItemPoliticalSource,
   forecastLayerAvailable,
   forecastMetaLine,
   forecastOrderBand,
@@ -538,6 +541,34 @@ describe('effectForecastModel', () => {
       expect(forecastMetaLine({kind: 'fact', key: 'd', group: 'later', fact: fact({certainty: 'unknown', effects: []})}).label).to.eq('Not calculated');
       expect(forecastMetaLine({kind: 'fact', key: 'e', group: 'no', fact: fact({certainty: 'no', effects: []})}).label).to.eq('Will not trigger');
       expect(forecastMetaLine({kind: 'other-discount', key: 'f', amount: 1, group: 'discounts'}).chips).to.have.length(0);
+    });
+  });
+
+  describe('a POLITICAL discount (Turmoil Redux) — the law / the party that lowered the price is a NAMED source', () => {
+    const law = {kind: 'resolution', id: 'RDX_TEST_LAW', owner: 'blue'} as const;
+    const policy = {kind: 'party', name: PartyName.UNITY} as const;
+
+    it('the discount group carries the resolution-sourced line as a discount item — never the cardless remainder', () => {
+      const f = forecast([], {discounts: {base: 10, final: 7, items: [{source: law, amount: 3}], other: 0}});
+      const discounts = forecastGroups(f, []).find((g) => g.id === 'discounts')!.items;
+      expect(discounts).to.deep.eq([{kind: 'discount', key: 'discount-0', source: law, amount: 3, group: 'discounts'}]);
+      expect(discountTail(f)).to.deep.eq({base: 10, final: 7, saved: 3});
+    });
+
+    it('the political source of a discount item: a resolution, a party — nothing for a card\'s discount or any other item', () => {
+      const item = (source: EventSource) => ({kind: 'discount', key: 'd', source, amount: 3, group: 'discounts'} as const);
+      expect(forecastItemPoliticalSource(item(law))).to.deep.eq(law);
+      expect(forecastItemPoliticalSource(item(policy))).to.deep.eq(policy);
+      expect(forecastItemPoliticalSource(item({kind: 'card', card: CardName.EARTH_CATAPULT, owner: 'blue'}))).to.be.undefined;
+      expect(forecastItemPoliticalSource(item({kind: 'corporation', card: CardName.TERACTOR, owner: 'blue'}))).to.be.undefined;
+      expect(forecastItemPoliticalSource({kind: 'other-discount', key: 'o', amount: 1, group: 'discounts'})).to.be.undefined;
+      expect(forecastItemPoliticalSource({kind: 'fact', key: 'f', fact: fact({}), group: 'receive'})).to.be.undefined;
+    });
+
+    it('a political discount has no source CARD and is the viewer\'s own (no owner plate)', () => {
+      const item = {kind: 'discount', key: 'd', source: law, amount: 3, group: 'discounts'} as const;
+      expect(forecastItemCard(item)).to.be.undefined;
+      expect(forecastItemOwner(item, 'blue')).to.eq('blue');
     });
   });
 });

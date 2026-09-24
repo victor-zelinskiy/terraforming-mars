@@ -553,6 +553,23 @@ export function forecastItemCard(item: ForecastItem): CardName | undefined {
   }
 }
 
+/**
+ * The CARDLESS POLITICAL source of a DISCOUNT item (Turmoil Redux): an
+ * enacted resolution's law (Heat Capture's 3 M€ off a Building tag) or a
+ * party's policy took M€ off the price. The explorer NAMES it — a resolution
+ * through the parliament manifest, a party by its name — instead of filing the
+ * line under «Other discounts»: a price that fell for no named reason is the
+ * silent loss this exists to prevent. Undefined for a card / corporation
+ * source (the tile is the card's own) and for every non-discount item.
+ */
+export function forecastItemPoliticalSource(item: ForecastItem): Extract<EventSource, {kind: 'resolution' | 'party'}> | undefined {
+  if (item.kind !== 'discount') {
+    return undefined;
+  }
+  const source = item.source;
+  return source.kind === 'resolution' || source.kind === 'party' ? source : undefined;
+}
+
 /** The seat that HOLDS the item's source (undefined when unknown). */
 export function forecastItemOwner(item: ForecastItem, viewer: Color): Color | undefined {
   switch (item.kind) {
