@@ -41,11 +41,28 @@ export type ResourceTransferSpec = {
    * `card-resource`.
    */
   resource: string;
-  /** Units transferred (always positive — the framework moves GAINS only). */
+  /** Units transferred — always positive; WHICH WAY they move is `direction`. */
   amount: number;
   /** `card-resource` only: the pre-selected host card the resource lands on. */
   targetCard?: CardName;
+  /**
+   * THE WAY THE CHIP FLIES. Absent / `gain` — the ordinary language: born on
+   * the source, landing on the panel row, the counter ticking on the
+   * touchdown. `loss` — the SAME language walked backwards (a parliament
+   * LEVY, «lose 10 M€»): the chip is born on the panel row, flies to the
+   * source (the law's own printed icon) and is absorbed there; the counter
+   * ticks the moment the chip LEAVES the row — a departure is fixed at the
+   * start, an arrival at the touchdown. The chip reads «−N». The panel hold
+   * of a loss is signed: the row keeps showing the pre-loss value until the
+   * departure (`heldStock` = gains held − losses held).
+   */
+  direction?: 'gain' | 'loss';
 };
+
+/** The signed amount a spec moves on its row: negative for a loss. */
+export function transferSignedAmount(spec: ResourceTransferSpec): number {
+  return spec.direction === 'loss' ? -spec.amount : spec.amount;
+}
 
 export type TransferPoint = {x: number, y: number};
 export type TransferRect = {x: number, y: number, w: number, h: number};
@@ -113,8 +130,9 @@ export function mergeTransferSpecs(specs: ReadonlyArray<ResourceTransferSpec>): 
     if (spec.amount <= 0) {
       continue;
     }
+    // A LOSS and a GAIN of one resource are two chips going two ways — never one summed chip.
     const existing = out.find((s) =>
-      s.channel === spec.channel && s.resource === spec.resource && s.targetCard === spec.targetCard);
+      s.channel === spec.channel && s.resource === spec.resource && s.targetCard === spec.targetCard && (s.direction ?? 'gain') === (spec.direction ?? 'gain'));
     if (existing !== undefined) {
       existing.amount += spec.amount;
     } else {

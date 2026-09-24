@@ -49,6 +49,30 @@ describe('consoleResourceTransfer (run lifecycle + the panel reward hold)', () =
       expect(heldStock('plants')).to.eq(3);
     });
 
+    it('a LOSS is held with its sign: the row keeps its pre-loss value until the chip leaves; a levy and a payout of one resource hold apart and release apart', () => {
+      const levy: ResourceTransferSpec = {channel: 'stock', resource: 'megacredits', amount: 10, direction: 'loss'};
+      const payout: ResourceTransferSpec = {channel: 'stock', resource: 'megacredits', amount: 7};
+      beginPanelRewardHold([levy, payout]);
+      expect(panelRewardHold.active).to.be.true;
+      // committed − held = the pre-sitting value: held = +7 − 10 = −3 → displayed = committed + 3.
+      expect(heldStock('megacredits')).to.eq(-3);
+      // The levy's release at its DEPARTURE moves the row by −10 (the payout still held).
+      releasePanelRewardHold(levy);
+      expect(heldStock('megacredits')).to.eq(7);
+      // A stray second release of the loss is harmless: it never becomes a phantom hold of the other sign.
+      releasePanelRewardHold(levy);
+      expect(heldStock('megacredits')).to.eq(7);
+      releasePanelRewardHold(payout);
+      expect(heldStock('megacredits')).to.eq(0);
+      expect(panelRewardHold.active).to.be.false;
+      // A production loss rides the production map the same way.
+      beginPanelRewardHold([{channel: 'production', resource: 'energy', amount: 2, direction: 'loss'}]);
+      expect(heldProduction('energy')).to.eq(-2);
+      expect(heldStock('energy')).to.eq(0);
+      clearPanelRewardHold();
+      expect(heldProduction('energy')).to.eq(0);
+    });
+
     it('clear drops everything at once (abort / safety)', () => {
       beginPanelRewardHold([{channel: 'stock', resource: 'heat', amount: 4}]);
       clearPanelRewardHold();

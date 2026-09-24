@@ -149,19 +149,28 @@ export function rewardBeatKey(outcome: ParliamentEnactOutcomeModel): RewardBeatK
  * The rail chip a record flies: a production / stock payout on its own row,
  * a party's answer on the row of what it paid. Undefined for every kind whose
  * address is not the rail (a card resource, cards, a tile, a skip) and for a
- * paying kind that paid nothing.
+ * paying kind that paid nothing. A LOSS (a levy: a `stock` / `production`
+ * record with a NEGATIVE amount) flies the same row BACKWARDS —
+ * `direction: 'loss'`, the amount as a size — and ticks the counter on
+ * departure; a reaction never flies a loss.
  */
 export function waveSpecOf(outcome: ParliamentEnactOutcomeModel): ResourceTransferSpec | undefined {
   const amount = outcome.amount ?? 0;
-  if (amount <= 0) {
+  if (amount === 0) {
     return undefined;
   }
+  const size = Math.abs(amount);
+  const direction: ResourceTransferSpec['direction'] | undefined = amount < 0 ? 'loss' : undefined;
+  const signed = (spec: ResourceTransferSpec): ResourceTransferSpec => (direction === undefined ? spec : {...spec, direction});
   switch (outcome.kind) {
   case 'production':
-    return outcome.production === undefined ? undefined : {channel: 'production', resource: String(outcome.production), amount};
+    return outcome.production === undefined ? undefined : signed({channel: 'production', resource: String(outcome.production), amount: size});
   case 'stock':
-    return outcome.stock === undefined ? undefined : {channel: 'stock', resource: String(outcome.stock), amount};
+    return outcome.stock === undefined ? undefined : signed({channel: 'stock', resource: String(outcome.stock), amount: size});
   case 'reaction':
+    if (amount < 0) {
+      return undefined;
+    }
     if (outcome.production !== undefined) {
       return {channel: 'production', resource: String(outcome.production), amount};
     }

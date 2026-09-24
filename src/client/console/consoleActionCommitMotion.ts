@@ -195,6 +195,11 @@ export function resolveGainIconOrigins(
     const r = el.getBoundingClientRect();
     return r.width > 4 ? {x: r.left + r.width / 2, y: r.top + r.height / 2} : undefined;
   };
+  // The M€ tiles of the graphic, in print order. A face can print SEVERAL: a budget's «−10 [M€]» beside its
+  // «1 [M€] / …» — the LOSS is born on / lands on the NEGATIVE tile, a gain on a non-negative one, so each
+  // chip answers «where did this come from» with the very number that caused it.
+  const mcTiles = Array.from(scope.querySelectorAll<HTMLElement>('.pcard-mi--mc'));
+  const printsNegative = (el: HTMLElement): boolean => /^[−-]/.test((el.textContent ?? '').trim());
   return specs.map((spec) => {
     if (spec.channel === 'production') {
       const inProd = prod !== null && prod !== undefined ?
@@ -203,8 +208,9 @@ export function resolveGainIconOrigins(
       return centerOf(inProd) ?? centerOf(prod ?? undefined);
     }
     if (spec.resource === 'megacredits') {
-      const mc = scope.querySelector<HTMLElement>('.pcard-mi--mc');
-      return centerOf(mc ?? undefined) ?? centerOf(icons.find((el) => iconMatches(el, 'megacredits')));
+      const wantNegative = spec.direction === 'loss';
+      const mc = mcTiles.find((el) => printsNegative(el) === wantNegative) ?? mcTiles[0];
+      return centerOf(mc) ?? centerOf(icons.find((el) => iconMatches(el, 'megacredits')));
     }
     return centerOf(icons.find((el) => iconMatches(el, spec.resource)));
   });

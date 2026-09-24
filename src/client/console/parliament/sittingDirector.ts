@@ -150,6 +150,8 @@ const LEDGER_ROW_GAP_MS = 140;
 const LEDGER_READ_MS = 1400;
 /** The ruling party's answer leaves its plaque once the resolution's own chips have landed — surfaces in turn. */
 const REACTION_GAP_MS = 120;
+/** A LEVY's breath (a budget): the loss has left the rail and landed on the law before the payout starts back — one paragraph, three parts in turn. */
+const LEVY_BREATH_MS = 260;
 /** The winner's tile RECEIPT (the frame back from the board): the «received» pose is READ before the next step takes the page. */
 const RECEIPT_DWELL_MS = 1500;
 /** A reward page that only READS (a resolution with no payout): long enough for the sentence to be read. */
@@ -853,11 +855,17 @@ function launchWave(runState: StageRun, rewards: ReadonlyArray<OwedReward>, sour
  * ring on the result icon — hands off to the WAVE: each chip is born on the
  * card's own icon of its unit, flies to its rail row and ticks the counter on
  * contact (the panel hold seeded with the record releases per touchdown, the
- * delta chip rides that transition). The ruling party's ANSWER (a `reaction`
- * record) leaves the party's plaque in the government AFTER the resolution's
- * own chips have landed — surfaces in turn. With nothing owed: the page's own
- * reveal (the reading rows cascade). A carrier that is not on screen releases
- * every hold at once — the counters tick, honestly late, never lost.
+ * delta chip rides that transition). A LEVY (a budget's «lose 10 M€» — a
+ * `loss` delivery) goes FIRST and the other way: its chip is born on the
+ * rail row, ticks the counter as it LEAVES, and lands on the law's own
+ * negative tile; then a breath; then the seat's GAINS one wave at a time in
+ * the server's order (the M€ payout, then the production step) — the three
+ * parts of one seat read as one paragraph, never on top of each other. The
+ * ruling party's ANSWER (a `reaction` record) leaves the party's plaque in
+ * the government AFTER the resolution's own chips have landed — surfaces in
+ * turn. With nothing owed: the page's own reveal (the reading rows cascade).
+ * A carrier that is not on screen releases every hold at once — the counters
+ * tick, honestly late, never lost.
  */
 function beatReward(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: number, runState: StageRun): number {
   const root = ctx.root;
@@ -892,6 +900,9 @@ function beatReward(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: numb
   // WHERE EACH RECORD LEAVES FROM (`rewardFlightSourceOf`): the carrier card's printed icon, a LEDGER ROW's
   // bonus cell (a record that names its colony — Colonial Affairs), the ruling party's plaque.
   const own = owed.filter((r) => r.delivery.source === 'card-icon');
+  // THE LOSSES (a levy) and THE GAINS of the carrier card, told apart by the address's direction.
+  const losses = own.filter((r) => r.delivery.direction === 'loss');
+  const gains = own.filter((r) => r.delivery.direction !== 'loss');
   const rows = ledgerRowGroups(owed.filter((r) => r.delivery.source === 'colony-row'));
   const reactions = owed.filter((r) => r.delivery.source === 'party-plaque');
   const release = (list: ReadonlyArray<OwedReward>) => list.forEach((r) => markRewardLanded(r));
@@ -969,7 +980,7 @@ function beatReward(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: numb
     // THE CARD FIXES FIRST (the one universal ACTION COMMIT): its impulse hands off to the wave — from the card's
     // own icons for a plain payout, from the LEDGER'S ROWS in turn for the colony bonuses (each row a wave of
     // its own), then the party's answer. Surfaces in turn: nothing of the next leaves before the previous landed.
-    const first = own[0] ?? rows[0]?.rewards[0];
+    const first = losses[0] ?? gains[0] ?? rows[0]?.rewards[0];
     tl.call(() => {
       if (runState.finished) {
         release(own);
@@ -988,13 +999,45 @@ function beatReward(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: numb
           const afterOwn = () => flyRows(0, () => {
             void nextTick(() => probeTick(flyReactions));
           });
-          if (own.length > 0) {
-            void launchWave(runState, own, card, cardSelector).then(() => {
-              void nextTick(() => probeTick(afterOwn));
+          // THE GAINS IN TURN: one wave per record in the server's order — the next leaves only once the
+          // previous one has landed. A run driven to its end («дожать») releases what is still to fly.
+          const flyGains = (index: number, then: () => void): void => {
+            const reward = gains[index];
+            if (reward === undefined) {
+              then();
+              return;
+            }
+            if (runState.finished) {
+              release(gains.slice(index));
+              then();
+              return;
+            }
+            void launchWave(runState, [reward], card, cardSelector).then(() => {
+              void nextTick(() => probeTick(() => flyGains(index + 1, then)));
             });
-          } else {
-            afterOwn();
+          };
+          const gainsThenRest = () => flyGains(0, afterOwn);
+          if (losses.length === 0) {
+            gainsThenRest();
+            return;
           }
+          // THE LEVY LEAVES FIRST — the chips leave the rail for the law's own tile (the counter ticks at the
+          // departure), then a BREATH, then the payout comes back: the printed order, one paragraph.
+          void launchWave(runState, losses, card, cardSelector).then(() => {
+            let fired = false;
+            const fire = () => {
+              if (!fired) {
+                fired = true;
+                void nextTick(() => probeTick(gainsThenRest));
+              }
+            };
+            const breath = scheduleParliamentBeat(LEVY_BREATH_MS, fire);
+            // «Дожать» skips the breath, never the gains: they release through `flyGains` itself.
+            runState.kills.push(() => {
+              breath.kill();
+              fire();
+            });
+          });
         },
         onSettled: () => {
           if (!handedOff) {
@@ -1010,9 +1053,11 @@ function beatReward(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: numb
       runState.kills.push(handle.kill);
     }, undefined, at);
     at += s(REWARD_IMPULSE_MS) * k;
-    if (own.length > 0) {
-      at += s(REWARD_WAVE_MS) * k;
+    // The levy's wave and its breath, then one wave per gain — in turn.
+    if (losses.length > 0) {
+      at += s(REWARD_WAVE_MS + LEVY_BREATH_MS) * k;
     }
+    at += s(REWARD_WAVE_MS) * k * gains.length;
     at += s(REWARD_WAVE_MS + LEDGER_ROW_GAP_MS) * k * rows.length;
     if (reactions.length > 0) {
       at += s(REACTION_GAP_MS + REWARD_WAVE_MS) * k;

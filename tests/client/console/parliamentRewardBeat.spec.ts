@@ -75,6 +75,23 @@ describe('parliamentRewardBeat — the ledger of what the sitting still owes', (
     expect(waveSpecOf(outcome({kind: 'skipped', reason: 'No influence', amount: 2}))).is.undefined;
   });
 
+  it('a LOSS (a levy: a negative stock / production record) flies its row BACKWARDS — the size as the amount, `direction: loss`; a reaction never flies a loss', () => {
+    expect(waveSpecOf(outcome({kind: 'stock', stock: Resource.MEGACREDITS, amount: -10, owed: 10}))).deep.eq({channel: 'stock', resource: 'megacredits', amount: 10, direction: 'loss'});
+    expect(waveSpecOf(outcome({kind: 'stock', stock: Resource.MEGACREDITS, amount: -4, owed: 10}))).deep.eq({channel: 'stock', resource: 'megacredits', amount: 4, direction: 'loss'});
+    expect(waveSpecOf(outcome({kind: 'production', production: Resource.ENERGY, amount: -1}))).deep.eq({channel: 'production', resource: 'energy', amount: 1, direction: 'loss'});
+    expect(waveSpecOf(outcome({kind: 'reaction', party: PartyName.GREENS, stock: Resource.MEGACREDITS, amount: -2}))).is.undefined;
+    // A gain carries no direction at all (the ordinary language, unchanged).
+    expect(waveSpecOf(outcome({kind: 'stock', stock: Resource.MEGACREDITS, amount: 7})).direction).is.undefined;
+    // DETECT owes the loss like any rail record — with the address walked backwards.
+    const before = view({generation: 3, outcomes: []});
+    const after = view({generation: 3, outcomes: [outcome({kind: 'stock', step: 'levy', stock: Resource.MEGACREDITS, amount: -10, owed: 10})]});
+    const owed = detectNewViewerRewards(before, after);
+    expect(owed.map((r) => r.key)).deep.eq(['blue:levy:effect:stock']);
+    expect(owed[0].delivery.direction).eq('loss');
+    expect(owed[0].delivery.source, 'the address\'s source is where the loss LANDS').eq('card-icon');
+    expect(owed[0].spec).deep.eq({channel: 'stock', resource: 'megacredits', amount: 10, direction: 'loss'});
+  });
+
   it('the wave and the ADDRESS agree: exactly the kinds addressed to the rail fly a rail chip, on the address\'s own unit', () => {
     const sample: Record<OutcomeKind, ParliamentEnactOutcomeModel> = {
       production: outcome({kind: 'production', production: Resource.HEAT, amount: 2}),

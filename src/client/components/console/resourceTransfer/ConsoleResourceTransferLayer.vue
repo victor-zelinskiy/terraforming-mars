@@ -28,9 +28,11 @@
       <div class="con-transfer__chip"
            :class="chipClass(f.spec)"
            :data-transfer-id="f.id"
+           :data-transfer-direction="f.spec.direction ?? 'gain'"
            :ref="(el) => setChipRef(f.id, el as HTMLElement | null)">
         <i v-if="!isMegacredits(f.spec)" class="con-transfer__icon" :class="iconClass(f.spec)"></i>
-        <span class="con-transfer__amt" :class="{'con-transfer__amt--mc': isMegacredits(f.spec)}">+{{ f.spec.amount }}</span>
+        <!-- A LOSS reads «−N»: the same token, the same seat, the sign of what actually happened. -->
+        <span class="con-transfer__amt" :class="{'con-transfer__amt--mc': isMegacredits(f.spec)}">{{ f.spec.direction === 'loss' ? '−' : '+' }}{{ f.spec.amount }}</span>
       </div>
       <div class="con-transfer__beat"
            :class="{'con-transfer__beat--production': f.spec.channel === 'production'}"
@@ -72,6 +74,8 @@ export default defineComponent({
         'con-transfer__chip--mc': this.isMegacredits(spec),
         'con-transfer__chip--production': spec.channel === 'production',
         'con-transfer__chip--cardres': spec.channel === 'card-resource',
+        // A LOSS leaves the panel for the source — the same token in the loss tone (quiet, never celebrated).
+        'con-transfer__chip--loss': spec.direction === 'loss',
       };
     },
     /** The game's ONE icon resolver — the chip shows the real resource art. */

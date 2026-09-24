@@ -44,6 +44,8 @@ export type TransferFlightOpts = {
 };
 
 export type TransferFlightHandles = {
+  /** Resolves at the LAUNCH — the chip is whole at its source and starts its arc (a LOSS releases its row here). Never after `touched`. */
+  launched: Promise<void>;
   /** Resolves at TOUCHDOWN (after the settle) — the commit/hold-release gate. */
   touched: Promise<void>;
   /** Resolves when the piece is fully done ('landed' = resting, hold mode). */
@@ -90,10 +92,16 @@ export function runTransferFlight(piece: TransferStagePiece, opts: TransferFligh
     autoAlpha: 0,
   });
 
+  let launchedResolve: () => void = () => {};
+  const launchedAt = new Promise<void>((resolve) => {
+    launchedResolve = resolve;
+  });
   const touched = guarded((done) => {
     const tl = gsap.timeline({delay: opts.delayMs / 1000, onComplete: done});
     // Materialize at the source — the chip is BORN there, never teleported in.
     tl.to(chip, {autoAlpha: 1, duration: popMs / 1000, ease: 'power1.out'}, 0);
+    // …and LEAVES it once whole: the launch is the end of the pop.
+    tl.call(() => launchedResolve(), undefined, popMs / 1000);
     // ONE progress tween drives the whole flight through the model's arc —
     // position, the bloom-then-approach scale and the unwinding tilt behave
     // as one physical object on one curve.
@@ -123,8 +131,10 @@ export function runTransferFlight(piece: TransferStagePiece, opts: TransferFligh
     }
     return absorbChip(piece, opts.to, motionMs(TRANSFER_BEAT_MS) * pace).then(() => 'done' as const);
   });
+  // A launch that never fired (a killed timeline, the guard's budget) resolves with the touchdown: never a hang.
+  const launched = Promise.race([launchedAt, touched]);
 
-  return {touched, finished};
+  return {launched, touched, finished};
 }
 
 /**

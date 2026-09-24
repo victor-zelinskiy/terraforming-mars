@@ -124,6 +124,18 @@ type PanelRewardHold = {
   production: Record<string, number>;
   /** Pending card-resource amounts by normalized icon key (the aux satellite). */
   cardRes: Record<string, number>;
+  /**
+   * Pending LOSSES (a parliament levy), kept apart from the gains: a loss is
+   * held as a POSITIVE amount here and read as a negative hold (displayed =
+   * committed − gains + losses — the row keeps its pre-loss value until the
+   * chip leaves it). Two maps, never one signed number: a gain's release
+   * clamps at zero from below and a loss's from above, and a stray second
+   * release of either can never turn into a phantom hold of the other sign
+   * (measured once with a single signed map: a late touchdown after a flush
+   * left the M€ row +10 above the truth until the next reset).
+   */
+  stockLoss: Record<string, number>;
+  productionLoss: Record<string, number>;
 };
 
 export const panelRewardHold = reactive<PanelRewardHold>({
@@ -131,12 +143,15 @@ export const panelRewardHold = reactive<PanelRewardHold>({
   stock: {},
   production: {},
   cardRes: {},
+  stockLoss: {},
+  productionLoss: {},
 });
 
 function holdMapFor(spec: ResourceTransferSpec): Record<string, number> {
+  const loss = spec.direction === 'loss';
   switch (spec.channel) {
-  case 'stock': return panelRewardHold.stock;
-  case 'production': return panelRewardHold.production;
+  case 'stock': return loss ? panelRewardHold.stockLoss : panelRewardHold.stock;
+  case 'production': return loss ? panelRewardHold.productionLoss : panelRewardHold.production;
   case 'card-resource': return panelRewardHold.cardRes;
   }
 }
@@ -203,6 +218,8 @@ export function clearPanelRewardHold(): void {
   panelRewardHold.stock = {};
   panelRewardHold.production = {};
   panelRewardHold.cardRes = {};
+  panelRewardHold.stockLoss = {};
+  panelRewardHold.productionLoss = {};
   panelRewardHold.active = false;
 }
 
@@ -210,15 +227,22 @@ function syncHoldActive(): void {
   panelRewardHold.active =
     Object.keys(panelRewardHold.stock).length > 0 ||
     Object.keys(panelRewardHold.production).length > 0 ||
-    Object.keys(panelRewardHold.cardRes).length > 0;
+    Object.keys(panelRewardHold.cardRes).length > 0 ||
+    Object.keys(panelRewardHold.stockLoss).length > 0 ||
+    Object.keys(panelRewardHold.productionLoss).length > 0;
 }
 
-/** Panel readers (ConsoleResourcePanel) — 0 when nothing is held. */
+/**
+ * Panel readers (ConsoleResourcePanel) — 0 when nothing is held. SIGNED: the
+ * gains held minus the losses held, so a row under a levy AND a payout
+ * (−10 held, +7 held → −3) shows its pre-sitting value until the first chip
+ * moves, then each release moves it by exactly that chip's amount.
+ */
 export function heldStock(resource: string): number {
-  return panelRewardHold.active ? (panelRewardHold.stock[resource] ?? 0) : 0;
+  return panelRewardHold.active ? (panelRewardHold.stock[resource] ?? 0) - (panelRewardHold.stockLoss[resource] ?? 0) : 0;
 }
 export function heldProduction(resource: string): number {
-  return panelRewardHold.active ? (panelRewardHold.production[resource] ?? 0) : 0;
+  return panelRewardHold.active ? (panelRewardHold.production[resource] ?? 0) - (panelRewardHold.productionLoss[resource] ?? 0) : 0;
 }
 export function heldCardResource(iconKey: string): number {
   return panelRewardHold.active ? (panelRewardHold.cardRes[iconKey] ?? 0) : 0;
@@ -375,14 +399,21 @@ export async function runResourceTransfers(run: ResourceTransferRun): Promise<vo
   }
   // Resolve each spec's destination NOW (the wave flies into real, settled
   // geometry); unresolvable ones release immediately and never fly.
-  const flights: Array<{spec: ResourceTransferSpec, to: TransferPoint, origin: TransferPoint | undefined}> = [];
-  for (const e of specEntries) {
-    const to = targetPointFor(e.spec);
-    if (to === undefined || (e.origin === undefined && sourceRect === undefined)) {
+  // A LOSS walks the same geometry BACKWARDS: its panel row is where it is
+  // BORN and the run's source (the origin icon, else the source's box) is
+  // where it lands — so `from` / `to` are fixed per spec, not per run.
+  const flights: Array<{spec: ResourceTransferSpec, from: TransferPoint, to: TransferPoint}> = [];
+  for (const [i, e] of specEntries.entries()) {
+    const row = targetPointFor(e.spec);
+    const sourcePoint = e.origin ?? run.source.point ??
+      (sourceRect === undefined ? undefined : sourceSpawnPoint(sourceRect, i, specEntries.length));
+    if (row === undefined || sourcePoint === undefined) {
       noteCardResourceLanding(e.spec); // degraded, but the amount HAS arrived
       run.onArrive?.(e.spec);
+    } else if (e.spec.direction === 'loss') {
+      flights.push({spec: e.spec, from: row, to: sourcePoint});
     } else {
-      flights.push({spec: e.spec, to, origin: e.origin});
+      flights.push({spec: e.spec, from: sourcePoint, to: row});
     }
   }
   if (flights.length === 0) {
@@ -406,8 +437,7 @@ export async function runResourceTransfers(run: ResourceTransferRun): Promise<vo
     id: ++flightSeq,
     spec: f.spec,
     to: f.to,
-    from: f.origin ?? run.source.point ??
-      sourceSpawnPoint(sourceRect ?? {x: 0, y: 0, w: 0, h: 0}, i, flights.length),
+    from: f.from,
     delayMs: Math.round(motionMs(transferWaveDelayMs(i, flights.length)) * pace),
     index: i,
   }));
@@ -452,13 +482,24 @@ export async function runResourceTransfers(run: ResourceTransferRun): Promise<vo
         hold: run.arrival === 'hold',
         pace,
       });
-      const touched = handles.touched.then(() => {
-        // THE CONTACT BEAT, in one place: the tally a card-standing host reads
-        // to tick its frozen counter, then the caller's own release.
-        noteCardResourceLanding(e.spec);
-        if (!safetyFired) {
+      const loss = e.spec.direction === 'loss';
+      // A LOSS is fixed at its DEPARTURE: the row's counter ticks the moment the chip leaves it.
+      let released = false;
+      const release = () => {
+        if (!released && !safetyFired) {
+          released = true;
           run.onArrive?.(e.spec);
         }
+      };
+      if (loss) {
+        void handles.launched.then(release);
+      }
+      const touched = handles.touched.then(() => {
+        // THE CONTACT BEAT, in one place: the tally a card-standing host reads
+        // to tick its frozen counter, then the caller's own release (a loss
+        // released at its launch; released here only if the launch never fired).
+        noteCardResourceLanding(e.spec);
+        release();
         // A hold-mode chip registers as RESTING synchronously with its
         // touchdown — the caller's commit/settle (which awaits the
         // touchdowns) can never race past an unregistered landed chip.
