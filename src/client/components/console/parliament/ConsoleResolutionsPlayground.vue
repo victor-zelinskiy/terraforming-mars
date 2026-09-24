@@ -455,6 +455,7 @@ import ConsolePartyReaction from '@/client/components/console/parliament/Console
 import ConsoleWinnerReward from '@/client/components/console/parliament/ConsoleWinnerReward.vue';
 import {WinnerRewardReading, winnerRewardReadingOf} from '@/client/console/parliament/winnerRewardModel';
 import {WinnerRewardTable} from '@/common/parliament/winnerReward';
+import {ParameterMoveId} from '@/common/parliament/parameterMove';
 import {Resource} from '@/common/Resource';
 import {apiUrl} from '@/client/utils/runtimeConfig';
 import {paths} from '@/common/app/paths';
@@ -547,6 +548,13 @@ type PgScenario = {
   quest?: {progress: readonly [number, number], completedBy?: SeatIndex},
   /** The winner-tile and world-move families: the table's parameters (absent = the default table). */
   table?: Partial<PgTable>,
+  /**
+   * The world-move family: the scenario exercises ONE parameter's limit, so it
+   * is listed only for a law that MOVES that parameter (Gas Export's oxygen
+   * ceiling means nothing to Heat Capture's temperature). Absent = every law
+   * of the family reads it.
+   */
+  parameter?: ParameterMoveId,
   /** The winner-tile family: the general validator leaves the winner no legal cell. */
   noCell?: boolean,
   /** A LIVE scenario: the engine-generated fixture the A press boots as a real game. */
@@ -892,27 +900,38 @@ const SCENARIOS: ReadonlyArray<PgScenario> = [
   {key: 'funding-live-vote', family: 'counted-board', label: 'Live: the vote', viewer: 0,
     seats: [{agenda: 5, bonus: 0, cells: [GANYMEDE, PHOBOS], production: 3}, {agenda: 1, bonus: 0, cells: [], production: 1}], winner: 0, context: 'proposal', noRecipient: false,
     live: 'parliament-colonization-vote', liveNote: 'Colonization Funding up for the vote: your two space cities and influence 3 reach the maximum — one number, nothing left for a win to add'},
-  // ── RX12 · GAS EXPORT (the Reds — «M€ по влиянию; кислород −1, Венера +2, РТ никому»): the WORLD-MOVE
-  //    family. Its instrument is the GLOBAL PARAMETERS, so its scenarios are their LIMITS — the one place
-  //    a world move can fail to happen, and the one thing a reading has to be honest about.
-  {key: 'world-room', family: 'world-move', label: 'Room for both moves', viewer: 0,
+  // ── RX12 · GAS EXPORT (the Reds — «M€ по влиянию; кислород −1, Венера +2, РТ никому») and RX14 · HEAT
+  //    CAPTURE (temperature −2): the WORLD-MOVE family. Its instrument is the GLOBAL PARAMETERS, so its
+  //    scenarios are their LIMITS — the one place a world move can fail to happen, and the one thing a
+  //    reading has to be honest about. A limit scenario names its PARAMETER and is listed only for a law
+  //    that moves it; the room, the neutral winner and the recorded result are every law's.
+  {key: 'world-room', family: 'world-move', label: 'Room for every move', viewer: 0,
     seats: [{agenda: 3, bonus: 0}, {agenda: 1, bonus: 0}], winner: 0, context: 'proposal', noRecipient: false,
-    table: {oxygen: 5, venus: 10}},
-  {key: 'world-oxygen-max', family: 'world-move', label: 'Oxygen at its maximum — it is not reduced', viewer: 0,
+    table: {oxygen: 5, venus: 10, temperature: -20}},
+  {key: 'world-oxygen-max', family: 'world-move', label: 'Oxygen at its maximum — it is not reduced', viewer: 0, parameter: 'oxygen',
     seats: [{agenda: 3, bonus: 0}, {agenda: 1, bonus: 0}], winner: 0, context: 'proposal', noRecipient: false,
     table: {oxygen: 14, venus: 10}},
-  {key: 'world-oxygen-min', family: 'world-move', label: 'Oxygen at its minimum — it cannot go lower', viewer: 0,
+  {key: 'world-oxygen-min', family: 'world-move', label: 'Oxygen at its minimum — it cannot go lower', viewer: 0, parameter: 'oxygen',
     seats: [{agenda: 3, bonus: 0}, {agenda: 1, bonus: 0}], winner: 0, context: 'proposal', noRecipient: false,
     table: {oxygen: 0, venus: 10}},
-  {key: 'world-venus-cut', family: 'world-move', label: 'Venus at 28% — only one step happens', viewer: 0,
+  {key: 'world-venus-cut', family: 'world-move', label: 'Venus at 28% — only one step happens', viewer: 0, parameter: 'venus',
     seats: [{agenda: 3, bonus: 0}, {agenda: 1, bonus: 0}], winner: 0, context: 'proposal', noRecipient: false,
     table: {oxygen: 5, venus: 28}},
-  {key: 'world-venus-max', family: 'world-move', label: 'Venus at its maximum — it is not terraformed', viewer: 0,
+  {key: 'world-venus-max', family: 'world-move', label: 'Venus at its maximum — it is not terraformed', viewer: 0, parameter: 'venus',
     seats: [{agenda: 3, bonus: 0}, {agenda: 1, bonus: 0}], winner: 0, context: 'proposal', noRecipient: false,
     table: {oxygen: 5, venus: 30}},
+  {key: 'world-temperature-max', family: 'world-move', label: 'Temperature at its maximum — it is not reduced', viewer: 0, parameter: 'temperature',
+    seats: [{agenda: 3, bonus: 0}, {agenda: 1, bonus: 0}], winner: 0, context: 'proposal', noRecipient: false,
+    table: {temperature: 8}},
+  {key: 'world-temperature-cut', family: 'world-move', label: 'Temperature at −28 °C — only one step happens', viewer: 0, parameter: 'temperature',
+    seats: [{agenda: 3, bonus: 0}, {agenda: 1, bonus: 0}], winner: 0, context: 'proposal', noRecipient: false,
+    table: {temperature: -28}},
+  {key: 'world-temperature-min', family: 'world-move', label: 'Temperature at its minimum — it cannot go lower', viewer: 0, parameter: 'temperature',
+    seats: [{agenda: 3, bonus: 0}, {agenda: 1, bonus: 0}], winner: 0, context: 'proposal', noRecipient: false,
+    table: {temperature: -30}},
   {key: 'world-neutral', family: 'world-move', label: 'A neutral winner — the world moves all the same', viewer: 0,
     seats: [{agenda: 3, bonus: 0}, {agenda: 1, bonus: 0}], winner: 'neutral', context: 'proposal', noRecipient: false,
-    table: {oxygen: 5, venus: 10}},
+    table: {oxygen: 5, venus: 10, temperature: -20}},
   // ── THE METRIC-COUNTED FAMILY (Generous Funding: 2 × (S + I), S = the complete SETS of 5 TR over 15 — one
   //    VALUE per seat, divided by the shared threshold rule; the scenarios are the thresholds themselves) ──
   {key: 'generous-zero', family: 'counted-metric', label: 'No TR sets and no influence', viewer: 0,
@@ -1113,9 +1132,11 @@ export default defineComponent({
       const s = SCENARIOS[this.scenario];
       return s !== undefined && s.live !== undefined && s.family === this.family ? s : undefined;
     },
-    /** The ACTIVE family's scenarios, with their global index. */
+    /** The ACTIVE family's scenarios, with their global index — a parameter-limit scenario only for a law that moves that parameter. */
     scenarioList(): Array<{s: PgScenario, i: number}> {
-      return SCENARIOS.map((s, i) => ({s, i})).filter((entry) => entry.s.family === this.family);
+      const moved = new Set((this.selected?.worldMoves ?? []).map((move) => move.parameter));
+      return SCENARIOS.map((s, i) => ({s, i})).filter((entry) => entry.s.family === this.family &&
+        (entry.s.parameter === undefined || moved.has(entry.s.parameter)));
     },
     /** The first scaled part that COUNTS the tableau — what the tableau rows explain. */
     countEffect(): InfluenceScaledEffect | undefined {
