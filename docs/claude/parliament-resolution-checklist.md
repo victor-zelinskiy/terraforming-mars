@@ -34,6 +34,8 @@ worklist:** сначала пиши карту, потом читай, что о
    `text` (`name`, `effect?`, `winner?`, `passive?`, `action?`, `quest`) — английские ключи локали, `quest`.
 2. `scaled: InfluenceScaledEffect[]` — КАЖДАЯ часть, чья величина зависит от влияния / счёта / итога
    (`unit ∈ {production, stock, cardResource, cards}`; `count` — по образцу RX02/RX04, `sequel` — по RX05,
+   **`level {total, direction}`** — величина есть УРОВЕНЬ, до которого игрока доводят (`'up'`, RX16) или срезают
+   (`'down'`, RX25) — ОДНА `levelAmount`, разделы RX16 и RX25 ниже;
    `cap` — «max N»; **`cardResource` с `spread: true`** — РАСПРЕДЕЛЕНИЕ по образцу RX06: игрок сам раскладывает
    N единиц по своим держателям). Из этой декларации клиент строит лицо, прогноз голосования, чтение стадии
    НАГРАДА, плиту пропуска и семейство сценариев «Полигона» (`familyOf(definition)`) — автору рисовать нечего.
@@ -400,22 +402,24 @@ immediateSteps: [levyStep(ID, LEVY), MEGACREDITS_STEP, PRODUCTION_STEP],        
 - Следующий бюджет объявляет только суммы и список: `levy.amount` и `count` (по меткам — вид `tags`), шагов не пишет.
   Док: `docs/TURMOIL_REDUX_INDUSTRIALIST_BUDGET.md`.
 
-### Величина-ПОРОГ — «добрать ДО», а не «выдать N»; задание по ТИПУ карты (RX16, 2026-09-24)
+### Величина-УРОВЕНЬ — «добрать ДО», а не «выдать N»; задание по ТИПУ карты (RX16, 2026-09-24; направление — RX25, ниже)
 
 ```ts
-scaled: [{id: 'draw', unit: {kind: 'cards'}, base: 6, perInfluence: 1, upTo: {total: {kind: 'cards'}}, recipient: 'each'}],
-// scaledAmount(effect, I) === ЦЕЛЬ (6 + I); topUpAmount(effect, I, player.cardsInHand.length) === ВЫДАЧА = max(0, цель − уровень)
+scaled: [{id: 'draw', unit: {kind: 'cards'}, base: 6, perInfluence: 1, level: {total: {kind: 'cards'}, direction: 'up'}, recipient: 'each'}],
+// scaledAmount(effect, I) === ЦЕЛЬ (6 + I); levelAmount(effect, I, player.cardsInHand.length) === ВЫДАЧА = max(0, цель − уровень)
 ctx.report({kind: 'cards', effect, amount: owed, drawn: intake.count, intake: intake.id, influence, target, total: {before, after: before + intake.count}});
 ctx.report({kind: 'skipped', effect, amount: 0, influence, target, total: {before, after: before}, reason: 'Already at the target hand size'});
 quest: {goal: {kind: 'cardsPlayed', cardType: 'event'}, count: 2},   // «2 карты события» — по ТИПУ, не по метке
 ```
 
-- **Эффект объявляет ЦЕЛЬ, выдача = цель − уровень, чтение несёт обе величины и уровень.** `InfluenceScaledEffect.upTo
-  {total}` говорит, что величина — уровень, и что считается текущим уровнем (рука = `{kind: 'cards'}`). `scaledAmount`
-  не раздваивается (даёт цель); ОДНА новая `topUpAmount` даёт выдачу для сервера, чтений (`levelYield` /
-  `fixedLevelYield`) и стенда. Запись: `target` (новый член) + `total {before, after}` (член последовательного
+- **Эффект объявляет ЦЕЛЬ, выдача = цель − уровень, чтение несёт обе величины и уровень.** `InfluenceScaledEffect.level
+  {total, direction}` говорит, что величина — уровень, что считается текущим уровнем (рука = `{kind: 'cards'}`) и в какую
+  сторону игрока двигают. `scaledAmount` не раздваивается (даёт цель); ОДНА `levelAmount` даёт величину для
+  сервера, чтений (`levelYield` / `fixedLevelYield`) и стенда, `levelAfter` применяет направление РОВНО ОДИН РАЗ.
+  Запись: `target` (новый член) + `total {before, after}` (член последовательного
   семейства ПЕРЕИСПОЛЬЗОВАН — второго члена уровня нет) + `amount` / `drawn`. Модель места несёт `hand` по
-  `declaresHandLevel`. Гард: выдача = `topUpAmount(…, total.before)`, `target` = декларация.
+  `declaresHandLevel` (и запасы по `declaredStockReads`). Гард: величина = `levelAmount(…, total.before)`, `target` =
+  декларация, `total.after` = `levelAfter(…)`.
 - **Ноль — штатный исход, не пропуск «нет влияния»**: причина «Already at the target hand size»; клиент печатает «добор не
   нужен» в слоте результата (`levelYieldIsNone`, `data-yield-none`) — без амбера и зачёркивания; чтение «до 9 [карта] ·
   в руке 5 → +4 [карта]» (`__in--level`), голая цель без уровня невозможна по построению. Формула блока «до 6 [карта]
@@ -427,7 +431,8 @@ quest: {goal: {kind: 'cardsPlayed', cardType: 'event'}, count: 2},   // «2 ка
   `card.tags` — задание по метке молча стоит на нуле. Сноска — метка события с числом (`b.tag(Tag.EVENT, n)`), как на
   физической карте; жёлтый кружок со стрелкой вниз на сканах = МЕТКА СОБЫТИЯ, не «сброс». Первое чтение «сбросить
   2 карты» (вид `cardsDiscarded`) было ошибкой постановки и удалено целиком.
-- **Семейство стенда `up-to`** (после реестра колоний, до счётов): панель «Карты в руке» с целью и добором той же функцией.
+- **Семейство стенда `level`** (после реестра колоний, до счётов; было `up-to` до RX25): панель уровней с целью
+  и величиной той же функцией; сценарии помечены `levelDirection` — сценарии добора не показываются под срезом.
 - Ловушки: базовая колода стала ШЕСТИПАРТИЙНОЙ — стартовый правитель без карты в области поколения 1 отныне обычная
   раздача (`ParliamentPhase.spec` § THE STARTING-RULE RULER переписан на литеральное правило); генерический спек фазы,
   отвечающий `SelectCard` одной картой, зависает на взятии (взятие отвечать ЦЕЛИКОМ по `externalDrawPrompt`).
@@ -711,6 +716,50 @@ action: {
 - **Задание `cardsPlayed: 'automated'`** — зелёная карта по ТИПУ; сброс этим действием — не розыгрыш (источник-резолюция
   на стеке и так режет Q5). Стенд: блок ДЕЙСТВИЕ (`IClientResolution.actionPreview` = `action.preview()` без места,
   синтетическая рука 0 / 1 / 4). Док: `docs/TURMOIL_REDUX_OPEN_IP_TRADE.md`.
+
+### Уровневой член имеет НАПРАВЛЕНИЕ — вверх (добор до нормы) и вниз (срез до нормы), одна арифметика (RX25, 2026-09-25)
+
+```ts
+scaled: [{id: 'plants', unit: {kind: 'stock', resource: PLANTS}, base: 2, perInfluence: 1,
+          level: {total: {kind: 'stock', resource: PLANTS}, direction: 'down'}, recipient: 'each'}],
+// scaledAmount(effect, I) === НОРМА (2 + I); levelAmount(effect, I, player.plants) === СКОЛЬКО УХОДИТ = max(0, уровень − норма)
+player.stock.add(PLANTS, -lost, {log: false, from: {resolution: ID}});   // защита НЕ спрашивается — закон не игрок
+ctx.report({kind: 'stock', effect, stock: PLANTS, amount: -lost, owed: lost, influence, target: limit, total: {before, after}, before, after});
+ctx.report({kind: 'skipped', effect, stock: PLANTS, amount: 0, influence, target: limit, total: {before, after: before}, reason: '… at or below the limit'});
+quest: {goal: {kind: 'delegates'}, count: 4},   // ПЕРВОЕ применение вида; сноска — ЦИФРА и ОДНА фигура
+```
+
+- **ОДИН член с направлением, никогда два поля.** `upTo` + `downTo` — две дороги к одному вопросу «привести
+  игрока к уровню»: общий уровень, общая цель, общая запись, общий ноль, общее семейство стенда — они разошлись бы
+  на первой же правке чтений, и молча. `InfluenceLevelTerm {total, direction}` + `levelAmount` / `levelAfter` /
+  `levelTakesAway`; RX16 мигрировал на `direction: 'up'` байт-в-байт (его юниты — те же контрольные примеры).
+- **Величина БЕЗ ЗНАКА, знак берёт АДРЕС.** `levelAmount` отвечает «на сколько», направление — «в какую
+  сторону», а запись с отрицательной величиной читается `rewardAddressOf` как `direction: 'loss'` — закон платы RX15
+  целиком. Своего вида «потеря запаса» нет и не нужно. Чтение печатает минус по ДЕКЛАРАЦИИ
+  (`levelTakesAway`), а не по знаку записи: иначе «отнимут 3» и «−з отнято» были бы разными числами.
+- **ЗАЩИТА РЕСУРСОВ НЕ ПРИМЕНЯЕТСЯ, и это правило.** Protected Habitats и родня защищают «from removal by
+  **other players**», и движок говорит это буквально: `isProtectedFrom(res, attacker)` = `attacker !== this && …`.
+  Резолюция — не игрок, поэтому гард не вызывается вовсе, и хуки чужой атаки (LawSuit, Crash Site Cleanup,
+  страховка) молчат по той же причине (`Stock.add` гейтит их по `isFromPlayer(from)`). Вызвать защиту «на
+  всякий случай» — значит изменить правило; оба факта закреплены отдельными спеками. `from: {resolution}`
+  обязателен даже при точном N (ловушка RX15: без него движок пишет `logIllegalState`). `owed` у среза всегда
+  равен взятому — недобор здесь невозможен по построению (гард всё равно требует этот член у любой потери).
+- **Слова среза — у термина, не у поверхности.** `levelPresentation(term)` отвечает словом перед целью
+  («до» / печатное «макс.»), фразой уровня («в руке N» / «у вас N»), причиной нуля, правилом и спокойной
+  фразой («добор не нужен» / «терять нечего»). Строка итогов берёт спокойную фразу у ДЕКЛАРАЦИИ
+  (`resultsPayoutPart(…, level)`) — по одной записи срез от добора не отличить.
+- **Предупреждение ДО голосования** (`levelLossNoteOf` → `note` панели) — только тому, кому есть что терять:
+  голосование — единственная защита от такого закона. Суффикса «+N при победе» у среза нет: победа ПОДНИМАЕТ
+  норму (то есть уменьшает потерю), а «+1» рядом с потерей читалось бы как «заберут больше».
+- **Лента не называет срез наградой** (`bandRewardTakes` → «Что вы теряете» + «Эта потеря» / «Отнято»), а итоги не
+  печатают нетто, пересказывающее свою единственную часть (`netOfParts` требует, чтобы закон в той же валюте ещё и платил).
+- **Подача — отток RX15 без единой строки своей хореографии**: чип рождается на строке ресурса, счётчик тикает НА
+  ОТРЫВЕ, чип садится на печатную иконку закона (`ICON_NEEDLES` знает все ресурсы, не только M€).
+- Ловушки: лицо по умолчанию ПОВТОРЯЕТ иконку (два листа читаются как «отнимут два растения») — нужен
+  `{digit: true}`, то же у сноски задания; `data-yield-level` занято дважды — направление едет на ГРУППЕ
+  (`data-yield-direction`); модель места везёт только ОБЪЯВЛЕННЫЕ запасы (`declaredStockReads` — бывший
+  `declaredLevyResources`), иначе панель голосования печатает 0 чтений (гард бюджета это и ловит).
+  Док: `docs/TURMOIL_REDUX_PLANT_BAN.md`.
 
 ### Бюджет проверки на карту (решение владельца 2026-09-23)
 
