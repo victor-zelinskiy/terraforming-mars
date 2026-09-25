@@ -171,6 +171,31 @@ describe('infoRoute — the Information workspace route model', () => {
   });
 
   // ── the «Кампания» zone — a GAME-shape fact, not a participant fact ───
+  it('the PARLIAMENT zone exists only in a parliament game, and only a HUMAN seat has a standing to read', () => {
+    // An ordinary game (the default ctx): no zone, no ring stop, every existing call site untouched.
+    expect(infoZonePresent('parliament', 'human')).to.eq(false);
+    expect(infoFocusRing('human')).to.not.include('parliament');
+    // A parliament game: the zone is PRESENT for everybody at the table — the bot included, which is
+    // what lets it say «MarsBot takes no part in the parliament» instead of vanishing…
+    expect(infoZonePresent('parliament', 'human', {parliament: true})).to.eq(true);
+    expect(infoZonePresent('parliament', 'bot', {parliament: true})).to.eq(true);
+    // …but only a human has a standing to OPEN: the bot's zone is a line, never a door (a cursor on it
+    // would advertise an A that does nothing — the command bar's honesty rule).
+    expect(infoRouteApplies('parliament', 'human')).to.eq(true);
+    expect(infoRouteApplies('parliament', 'bot')).to.eq(false);
+    expect(infoFocusRing('human', {parliament: true})).to.include('parliament');
+    expect(infoFocusRing('bot', {parliament: true})).to.not.include('parliament');
+    // The ring keeps the canonical order: the parliament follows the human pair and precedes the campaign.
+    const ring = infoFocusRing('human', {parliament: true, campaign: true});
+    expect(ring.indexOf('parliament')).to.be.greaterThan(ring.indexOf('effects'));
+    expect(ring.indexOf('parliament')).to.be.lessThan(ring.indexOf('campaign'));
+    // One B back to the summary, and the ring lands on the zone it was entered from.
+    expect(infoRouteBack('parliament')).to.eq('summary');
+    expect(infoZoneForRoute('parliament')).to.eq('parliament');
+    expect(infoRouteStage('parliament'), 'the crumb tail is the workspace’s own word').to.eq('Parliament');
+    expect(infoRoutePresentation('parliament', 'bot')).to.eq('fallback');
+  });
+
   it('the campaign zone exists only in campaign missions, for EVERY participant kind there', () => {
     // Ordinary game (the default ctx): no zone, no ring stop, existing
     // call sites untouched.

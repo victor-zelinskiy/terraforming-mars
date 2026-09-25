@@ -34,7 +34,11 @@ export interface PoliticalOps {
   chairman(): PoliticalDelegate | undefined;
   isChairman(player: IPlayer): boolean;
   influence(player: IPlayer): number;
-  addInfluenceBonus(player: IPlayer, bonus?: number): void;
+  /**
+   * `source` is the giver's NAME, for the engines that keep one (Redux lists
+   * what a player's influence is made of); classic Turmoil ignores it.
+   */
+  addInfluenceBonus(player: IPlayer, bonus?: number, source?: string): void;
   /** The card REQUIREMENT reading (Redux: ruling OR ≥2 own delegates; a card-granted effect never counts). */
   satisfiesPartyRequirement(player: IPlayer, party: PartyName): boolean;
   /** The EFFECT reading (Redux: ruling OR ≥2 own delegates OR granted by a card). */
@@ -82,8 +86,8 @@ export class ReduxPoliticalOps implements PoliticalOps {
   public influence(player: IPlayer): number {
     return this.parliament.influence(player);
   }
-  public addInfluenceBonus(player: IPlayer, bonus: number = 1): void {
-    this.parliament.addInfluenceBonus(player, bonus);
+  public addInfluenceBonus(player: IPlayer, bonus: number = 1, source?: string): void {
+    this.parliament.addInfluenceBonus(player, bonus, source);
   }
   public satisfiesPartyRequirement(player: IPlayer, party: PartyName): boolean {
     return this.parliament.satisfiesPartyRequirement(player, this.normalizeParty(party));
@@ -131,7 +135,8 @@ export class ClassicPoliticalOps implements PoliticalOps {
   public influence(player: IPlayer): number {
     return this.turmoil.getInfluence(player);
   }
-  public addInfluenceBonus(player: IPlayer, bonus: number = 1): void {
+  public addInfluenceBonus(player: IPlayer, bonus: number = 1, _source?: string): void {
+    // Classic Turmoil keeps a bare sum — the source has nowhere to live and nothing reads it.
     this.turmoil.addInfluenceBonus(player, bonus);
   }
   public satisfiesPartyRequirement(player: IPlayer, party: PartyName): boolean {

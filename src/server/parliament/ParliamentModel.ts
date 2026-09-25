@@ -210,6 +210,13 @@ function playerModel(game: IGame, parliament: Parliament, player: IPlayer): Parl
     partyActionUses,
     resolutionActionUses: parliament.resolutionActionUsesOf(player),
   };
+  // …and WHAT the seat's influence BEYOND THE TRACK is made of — one entry per
+  // giver, in the order it was given. Only for a seat that takes part, and only
+  // when there is something to name: «бонусы 0» is not a line that exists.
+  const sources = participates ? parliament.influenceSourcesOf(player) : [];
+  if (sources.length > 0) {
+    model.influenceSources = sources.map((entry) => (entry.source === undefined ? {amount: entry.amount} : {amount: entry.amount, source: entry.source}));
+  }
   // The counted terms of the catalog's effects, read from the seat's tableau
   // by the ONE shared predicate — every surface computes the seat's number
   // from these (never from a tag count of its own).

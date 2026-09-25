@@ -394,6 +394,14 @@ export type SerializedPendingAction =
    */
   | {kind: 'chairman-quest'; player: PlayerId};
 
+/**
+ * ONE entry of a player's influence beyond the Agenda track: how much, and WHO
+ * gave it. The source is a NAME (a card's, a colony's — the client translates
+ * it), never a sentence: the Information zone lists the sources of a number
+ * the player can otherwise only take on faith.
+ */
+export type SerializedInfluenceBonus = {amount: number; source?: string};
+
 export type SerializedParliament = {
   version: number;
   slots: Array<SerializedSlot>;
@@ -405,7 +413,13 @@ export type SerializedParliament = {
   voteSeq: number;
   popularSupport: Partial<Record<PartyName, number>>;
   agenda: Record<PlayerId, number>;
-  influenceBonus: Record<PlayerId, number>;
+  /**
+   * INFLUENCE BEYOND THE TRACK, per player, WITH the source of each entry —
+   * the twin of `grantedEffects`. An OLDER save carries the bare sum
+   * (`Record<PlayerId, number>`); it is read as one entry of no name, which is
+   * exactly what it was, and written back in the new shape.
+   */
+  influenceBonus: Record<PlayerId, number | Array<SerializedInfluenceBonus>>;
   grantedEffects: Record<PlayerId, Array<{party: PartyName; source: string}>>;
   partyActionUses: Record<PlayerId, Partial<Record<PartyName, number>>>;
   resolutionActionUses: Record<PlayerId, number>;

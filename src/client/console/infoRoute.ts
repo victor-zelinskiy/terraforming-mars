@@ -57,6 +57,14 @@ export type InfoRouteId =
   | 'actions'
   /** «Эффекты» — passive effects/discounts (humans only). */
   | 'effects'
+  /**
+   * «Парламент» — ONE seat's whole standing in the Mars Parliament (humans
+   * only, and only in a game that has one): what its influence is made of,
+   * where its Agenda marker stands, where its delegates are, and what every
+   * resolution on the table would pay IT. The workspace shows the parliament
+   * as a table; this is the same table read from one seat.
+   */
+  | 'parliament'
   /** «Кампания» — the full campaign overview (campaign missions only):
    *  the route, participants, legacy and mission history, read-only. */
   | 'campaign'
@@ -84,6 +92,7 @@ const INFO_ROUTE_PARENT: Record<InfoRouteId, InfoRouteId | undefined> = {
   extras: 'summary',
   actions: 'summary',
   effects: 'summary',
+  parliament: 'summary',
   campaign: 'summary',
   botScreen: 'summary',
   botBoard: 'botScreen',
@@ -115,6 +124,9 @@ export function infoRouteApplies(route: InfoRouteId, kind: InfoParticipantKind):
   switch (route) {
   case 'actions':
   case 'effects':
+  case 'parliament':
+    // MarsBot takes no part in the parliament (`BotParliamentMode`): there is no standing to read,
+    // so the zone states that in one line and the route does not apply.
     return kind === 'human';
   case 'botScreen':
   case 'botBoard':
@@ -174,6 +186,7 @@ const INFO_ROUTE_STAGE: Record<InfoRouteId, string> = {
   extras: 'Extra resources',
   actions: 'Actions',
   effects: 'Effects',
+  parliament: 'Parliament',
   // Dynamic: the campaign overview supplies its own tail (its nested
   // read-only layers name themselves — «Кампания · Миссия 2»).
   campaign: '',
@@ -198,7 +211,7 @@ export function infoRouteStage(route: InfoRouteId): string {
  * «botdoor» is the bot's entry into its internals screen — a ring stop
  * like every other zone (no dedicated button opens it any more).
  */
-export type InfoZoneId = 'extras' | 'vp' | 'played' | 'actions' | 'effects' | 'campaign' | 'botdoor';
+export type InfoZoneId = 'extras' | 'vp' | 'played' | 'actions' | 'effects' | 'parliament' | 'campaign' | 'botdoor';
 
 /**
  * Context of the zone table: the GAME shape (`campaign` — what exists in
@@ -207,7 +220,7 @@ export type InfoZoneId = 'extras' | 'vp' | 'played' | 'actions' | 'effects' | 'c
  * and no ghost plate). Optional everywhere with conservative defaults, so
  * an ordinary call site stays untouched.
  */
-export type InfoZoneContext = {campaign?: boolean, extras?: boolean};
+export type InfoZoneContext = {campaign?: boolean, extras?: boolean, parliament?: boolean};
 
 /** The summary layout: columns of zones, read left → right, top → bottom.
  *  (The old «Карты» readout zone is GONE — the HAND DOCK is the inspected
@@ -216,7 +229,7 @@ export const INFO_SUMMARY_COLUMNS: ReadonlyArray<ReadonlyArray<InfoZoneId>> = [
   ['extras'],
   ['vp'],
   ['played'],
-  ['actions', 'effects', 'campaign', 'botdoor'],
+  ['actions', 'effects', 'parliament', 'campaign', 'botdoor'],
 ];
 
 /** The detail route a zone opens, if any. */
@@ -226,6 +239,7 @@ const ZONE_ROUTE: Record<InfoZoneId, InfoRouteId | undefined> = {
   played: 'played',
   actions: 'actions',
   effects: 'effects',
+  parliament: 'parliament',
   campaign: 'campaign',
   botdoor: 'botScreen',
 };
@@ -250,6 +264,11 @@ export function infoZonePresent(zone: InfoZoneId, kind: InfoParticipantKind, ctx
   }
   if (zone === 'campaign') {
     return ctx.campaign === true;
+  }
+  // The parliament is a fact of the GAME (the Turmoil Redux expansion), so the zone exists for every
+  // participant of such a game — and for nobody elsewhere. The BOT's own fill is its one honest line.
+  if (zone === 'parliament') {
+    return ctx.parliament === true;
   }
   return true;
 }
@@ -333,6 +352,7 @@ export function infoZoneForRoute(route: InfoRouteId): InfoZoneId | undefined {
   case 'extras': return 'extras';
   case 'actions': return 'actions';
   case 'effects': return 'effects';
+  case 'parliament': return 'parliament';
   case 'campaign': return 'campaign';
   case 'botScreen':
   case 'botBoard':

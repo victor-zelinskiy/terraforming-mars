@@ -9,8 +9,8 @@ import {REDUX_RESOLUTION_CATALOG} from '../../src/server/parliament/resolutions/
 import {PARLIAMENT_SAVE_VERSION} from '../../src/server/parliament/SerializedParliament';
 import {PartyName} from '../../src/common/turmoil/PartyName';
 import {
-  PARLIAMENT_DELEGATES_PER_PLAYER, PARLIAMENT_NEUTRAL_DELEGATES, PARLIAMENT_VOTE_COST, PARLIAMENT_VOTING_SLOTS, REDUX_PARTIES, ReduxParty,
-  STARTER_QUEST,
+  influenceAtAgenda, PARLIAMENT_DELEGATES_PER_PLAYER, PARLIAMENT_NEUTRAL_DELEGATES, PARLIAMENT_VOTE_COST, PARLIAMENT_VOTING_SLOTS, REDUX_PARTIES,
+  ReduxParty, STARTER_QUEST,
 } from '../../src/common/parliament/ParliamentTypes';
 import {SelectParty} from '../../src/server/inputs/SelectParty';
 import {SelectPayment} from '../../src/server/inputs/SelectPayment';
@@ -258,6 +258,32 @@ describe('Parliament', () => {
       expect(copy.hasPartyEffect(restored.getPlayerById(p1.id), PartyName.MARS)).is.true;
       copy.assertLedger(restored);
       expect(restored.politics?.engine).eq('redux');
+    });
+
+    it('INFLUENCE BEYOND THE TRACK keeps its SOURCES — and an older save’s bare sum degrades to one nameless entry', () => {
+      const [game, p1, p2, parliament] = reduxGame();
+      parliament.addInfluenceBonus(p1, 1, 'Pallas');
+      parliament.addInfluenceBonus(p1, 2, 'Septem Tribus');
+      parliament.addInfluenceBonus(p2, 1);
+      expect(parliament.influenceBonusOf(p1), 'the rule adds the entries up').eq(3);
+      expect(parliament.influenceSourcesOf(p1).map((e) => [e.source, e.amount]), 'and keeps who gave what, in order')
+        .deep.eq([['Pallas', 1], ['Septem Tribus', 2]]);
+      expect(parliament.influenceSourcesOf(p2), 'a caller that names nobody still counts').deep.eq([{amount: 1}]);
+      // The influence itself is the track plus the entries.
+      expect(parliament.influence(p1)).eq(influenceAtAgenda(parliament.agendaOf(p1)) + 3);
+
+      const restored = Game.deserialize(structuredClone(game.serialize())).parliament!;
+      expect(restored.serialize().influenceBonus, 'the new shape survives the round trip').deep.eq(parliament.serialize().influenceBonus);
+      expect(restored.influenceSourcesOf(p1.id).map((e) => e.source)).deep.eq(['Pallas', 'Septem Tribus']);
+
+      // AN OLDER SAVE carries the bare sum: it reads as one entry of no name — exactly what it was.
+      const legacy = structuredClone(game.serialize());
+      (legacy.parliament!.influenceBonus as Record<string, unknown>)[p1.id] = 4;
+      (legacy.parliament!.influenceBonus as Record<string, unknown>)[p2.id] = 0;
+      const old = Game.deserialize(legacy).parliament!;
+      expect(old.influenceBonusOf(p1.id), 'the sum is unchanged').eq(4);
+      expect(old.influenceSourcesOf(p1.id), 'as one nameless entry').deep.eq([{amount: 4}]);
+      expect(old.influenceSourcesOf(p2.id), 'a zero names nothing at all').deep.eq([]);
     });
 
     it('refuses a save naming an unknown resolution or a newer version — explicitly, never as an empty slot', () => {

@@ -1076,6 +1076,7 @@
                                  class="con-zoom__bar-yield"
                                  :yields="zoomResolutionYields"
                                  :levy="zoomResolutionLevy"
+                                 :person="zoomResolutionPerson"
                                  :formula="false"
                                  size="compact"
                                  data-zoom-yield
@@ -1085,6 +1086,7 @@
           <ConsoleColonyLedger v-if="zoomResolutionLedger !== undefined"
                                class="con-zoom__bar-ledger"
                                :reading="zoomResolutionLedger"
+                               :person="zoomResolutionPerson"
                                size="compact"
                                data-zoom-ledger />
           <!-- …and what the party the resolution brings to power ANSWERS to
@@ -1110,6 +1112,7 @@
           <ConsoleTileGrant v-if="zoomResolutionGrant !== undefined && zoomResolutionGrant.context !== 'reference'"
                             class="con-zoom__bar-grant"
                             :reading="zoomResolutionGrant"
+                            :person="zoomResolutionPerson"
                             size="compact"
                             variant="chip"
                             data-zoom-grant />
@@ -1650,6 +1653,7 @@ import ConsoleResourcePanel from '@/client/components/console/ConsoleResourcePan
 import ConsoleColoniesSection, {ConsoleColonyPick} from '@/client/components/console/ConsoleColoniesSection.vue';
 import ConsoleParliamentSection from '@/client/components/console/ConsoleParliamentSection.vue';
 import {ParliamentInspectRequest} from '@/client/console/parliament/parliamentInspect';
+import {parliamentVoteSubject} from '@/client/console/parliament/consoleParliamentFlow';
 import {consoleParliamentUi} from '@/client/console/parliament/consoleParliamentFlow';
 import {parliamentSittingFlowBeat, parliamentSittingLive, sittingTailPlacementOf} from '@/client/console/parliament/consoleSittingFlow';
 import {partyAnnotations, resolutionAnnotations, resolutionPartyAnnotations} from '@/client/console/parliament/parliamentAnnotations';
@@ -1667,7 +1671,7 @@ import {WinnerRewardReading, winnerRewardReadingOf, winnerRewardTableOf} from '@
 import {TileGrantReading, tileGrantReadingOf} from '@/client/console/parliament/tileGrantModel';
 import {WinnerRewardTable} from '@/common/parliament/winnerReward';
 import {ParliamentEnactOutcomeModel} from '@/common/models/ParliamentModel';
-import {enactedLevyOf, enactedYieldsOf, voteLevyOf, voteYieldsOf} from '@/client/console/parliament/influenceYieldModel';
+import {enactedLevyOf, enactedYieldsOf, ReadingPerson, voteLevyOf, voteYieldsOf} from '@/client/console/parliament/influenceYieldModel';
 import {LevyReading} from '@/common/parliament/resolutionLevy';
 import {PartyReactionReading, partyReactionsOf, viewerHasSeat} from '@/client/console/parliament/partyReactionModel';
 import {buildParliamentView, voteForecastOf} from '@/client/console/parliament/consoleParliamentModel';
@@ -8705,7 +8709,7 @@ export default defineComponent({
     zoomResolutionReactions(): Array<PartyReactionReading> {
       const id = this.zoomResolutionId;
       const model = this.game.parliament;
-      if (id === undefined || !viewerHasSeat(model, this.thisPlayer.color)) {
+      if (id === undefined || !viewerHasSeat(model, this.zoomResolutionSubject)) {
         return [];
       }
       return partyReactionsOf(getResolution(id), this.zoomResolutionYields);
@@ -8726,8 +8730,28 @@ export default defineComponent({
         return [];
       }
       const model = this.game.parliament;
-      const viewer = this.thisPlayer.color;
+      const viewer = this.zoomResolutionSubject;
       return model?.enacted?.resolution === id ? enactedYieldsOf(resolution, model, viewer) : voteYieldsOf(resolution, model, viewer);
+    },
+    /**
+     * WHOSE numbers the inspector's footer reads — the SUBJECT the vote panel
+     * is on (`parliamentVoteSubject`), so X over a rival's reading opens the
+     * same seat's card rather than silently swapping back to the viewer's own.
+     * Outside the vote mode there is no subject but the viewer. The vote FACTS
+     * and the A verb below are never anybody's but the viewer's: the delegate
+     * being sent is theirs.
+     */
+    zoomResolutionSubject(): Color | undefined {
+      return parliamentVoteSubject(this.thisPlayer.color);
+    },
+    /** …and in which person its captions speak. */
+    zoomResolutionPerson(): ReadingPerson {
+      return this.zoomResolutionSubject === this.thisPlayer.color ? 'you' : 'they';
+    },
+    /** The SUBJECT's own name — the footer's kicker when the reading is not the viewer's. */
+    zoomResolutionSubjectName(): string | undefined {
+      const subject = this.zoomResolutionSubject;
+      return subject === undefined || subject === this.thisPlayer.color ? undefined : this.parliamentSeatName(subject);
     },
     /** THE LEVY of the resolution on the stage (a budget) — the vote's reading, or the enacted record; the same moments as the yields. */
     zoomResolutionLevy(): LevyReading | undefined {
@@ -8737,7 +8761,7 @@ export default defineComponent({
         return undefined;
       }
       const model = this.game.parliament;
-      const viewer = this.thisPlayer.color;
+      const viewer = this.zoomResolutionSubject;
       return model?.enacted?.resolution === id ? enactedLevyOf(resolution, model, viewer) : voteLevyOf(resolution, model, viewer);
     },
     /** The colony ledger of the resolution on the stage (Colonial Affairs) — the vote's reading, or the enacted record. */
@@ -8748,7 +8772,7 @@ export default defineComponent({
         return undefined;
       }
       const model = this.game.parliament;
-      return colonyLedgerOf(resolution, model, this.thisPlayer.color, {enacted: model?.enacted?.resolution === id});
+      return colonyLedgerOf(resolution, model, this.zoomResolutionSubject, {enacted: model?.enacted?.resolution === id});
     },
     /** A seat's display name for a parliament caption (the winner's recipient). */
     parliamentSeatName(): (color: Color) => string {
@@ -8761,7 +8785,7 @@ export default defineComponent({
     /** A TILE GRANTED BY THRESHOLD on the stage (Skyscrapers): the viewer's own reading over the live table (`tileGrantModel`). */
     zoomResolutionGrant(): TileGrantReading | undefined {
       const id = this.zoomResolutionId;
-      return id === undefined ? undefined : tileGrantReadingOf(getResolution(id), this.game.parliament, this.thisPlayer.color);
+      return id === undefined ? undefined : tileGrantReadingOf(getResolution(id), this.game.parliament, this.zoomResolutionSubject);
     },
     /** The same reading for the rules column's «for you» row. */
     zoomResolutionGrantWords(): {reading: TileGrantReading | undefined} {
@@ -12564,10 +12588,18 @@ export default defineComponent({
     /** The context of the summary zone table: the GAME shape (campaign
      *  missions) + the inspected SEAT's satellite presence — an empty
      *  extras column keeps no ring stop. */
-    infoZoneCtx(): {campaign: boolean, extras: boolean} {
+    /**
+     * ⚠️ THE GAME HALF OF THIS TABLE IS ANSWERED TWICE — here (the shell NAVIGATES
+     * the ring) and in `ConsoleInfoMode.zoneCtx` (the panel DRAWS it). They must
+     * carry the same terms or the cursor walks straight past a zone that is on
+     * screen: «ПАРЛАМЕНТ» shipped that way for exactly one run — drawn by the
+     * panel, invisible to the ring, so A could never reach it.
+     */
+    infoZoneCtx(): {campaign: boolean, extras: boolean, parliament: boolean} {
       return {
         campaign: this.playerView.game.gameOptions.campaign !== undefined,
         extras: this.infoExtrasChipList().length > 0,
+        parliament: this.playerView.game.parliament !== undefined,
       };
     },
     /**

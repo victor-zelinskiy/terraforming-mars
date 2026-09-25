@@ -160,6 +160,25 @@
             <div v-else class="con-info__empty">{{ $t('No passive effects') }}</div>
           </section>
 
+          <!-- «ПАРЛАМЕНТ» — a parliament game only: the seat's influence (the
+               number it votes with), where its Agenda marker stands, where
+               its delegates are, and the chairmanship when it holds it. The
+               whole standing is one A away. MarsBot's own fill is its one
+               honest line — the zone exists, the door does not. -->
+          <section v-if="parliamentReading !== undefined" class="con-info__zone con-info__zone--parliament"
+                   :class="zoneStateClass('parliament')" data-zone="parliament">
+            <h3 class="con-info__block-title">{{ $t('Parliament') }}</h3>
+            <template v-if="parliamentReading.participates">
+              <div class="con-info__stat-lines">
+                <div class="con-info__stat-line"><span>{{ $t('Influence') }}</span><b class="con-info__mint" data-parl-zone-influence>{{ parliamentReading.influence.total }}</b></div>
+                <div class="con-info__stat-line"><span>{{ $t('Agenda') }}</span><b>{{ parliamentZoneAgenda }}</b></div>
+                <div class="con-info__stat-line"><span>{{ $t('Delegates') }}</span><b>{{ parliamentZoneDelegates }}</b></div>
+                <div v-if="parliamentReading.chairman" class="con-info__stat-line"><span>{{ $t('Chairman') }}</span><b class="con-info__mint">{{ $t('yes') }}</b></div>
+              </div>
+            </template>
+            <div v-else class="con-info__empty" data-parl-zone-absent>{{ $t('MarsBot takes no part in the parliament') }}</div>
+          </section>
+
           <!-- «КАМПАНИЯ» — campaign missions only: the mission frame (with
                its board), the viewed seat's titles + TP as ONE visual
                statement with the scoring semantics AT the value (never
@@ -239,6 +258,13 @@
            (human cards / the bot's real pools). -->
       <div v-else-if="infoModeState.route === 'extras'" key="extras" class="con-info__exrhost" data-insp-slide>
         <ConsoleExtrasExplorer ref="extrasView" :playerView="playerView" />
+      </div>
+
+      <!-- ── «ПАРЛАМЕНТ» — ONE seat's whole standing (`seatParliamentReading`):
+           what its influence is made of, the Agenda, its delegates, and what
+           every resolution on the table would pay IT. -->
+      <div v-else-if="infoModeState.route === 'parliament'" key="parliament" class="con-info__scroll con-info__detail-scroll" data-insp-slide>
+        <ConsoleInfoParliament v-if="parliamentReading !== undefined" :reading="parliamentReading" />
       </div>
 
       <!-- ── «КАМПАНИЯ» — the full in-game campaign overview: the route
@@ -370,6 +396,9 @@ import ConsoleExtrasExplorer from '@/client/components/console/ConsoleExtrasExpl
 import ConsoleEffectsExplorer from '@/client/components/console/ConsoleEffectsExplorer.vue';
 import ConsolePartyEffectsStrip from '@/client/components/console/ConsolePartyEffectsStrip.vue';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {PARLIAMENT_AGENDA_STEPS} from '@/common/parliament/ParliamentTypes';
+import {seatParliamentReadingOf, SeatParliamentReadingVm} from '@/client/console/parliament/seatParliamentReading';
+import ConsoleInfoParliament from '@/client/components/console/ConsoleInfoParliament.vue';
 import {mapLabelKey} from '@/client/components/create/premium/createGameMeta';
 import {InfoExtrasChip, infoExtrasChips} from '@/client/console/infoExtrasChips';
 import {marsBotExtrasContext} from '@/client/components/console/marsBotRailModel';
@@ -403,7 +432,10 @@ const PLAYED_SUMMARY_LABEL: ReadonlyArray<{key: string, label: string}> = [
 
 export default defineComponent({
   name: 'ConsoleInfoMode',
-  components: {ConsoleCampaignOverview, ConsoleMarsBotSections, ConsolePlayedOverlay, ConsoleScoreExplorer, ConsoleExtrasExplorer, ConsoleEffectsExplorer, ConsolePartyEffectsStrip, ConsoleWsHead, GamepadGlyph},
+  components: {
+    ConsoleCampaignOverview, ConsoleMarsBotSections, ConsolePlayedOverlay, ConsoleScoreExplorer, ConsoleExtrasExplorer, ConsoleEffectsExplorer,
+    ConsoleInfoParliament, ConsolePartyEffectsStrip, ConsoleWsHead, GamepadGlyph,
+  },
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     myTurn: {type: Boolean, default: false},
@@ -800,6 +832,7 @@ export default defineComponent({
       case 'played': return 'Played cards';
       case 'actions': return 'Actions';
       case 'effects': return 'Effects';
+      case 'parliament': return 'Parliament';
       case 'campaign': return 'Campaign';
       case 'botdoor': return 'MarsBot screen';
       default: return '';
@@ -815,12 +848,45 @@ export default defineComponent({
         marsBotExtrasContext(this.playerView.game));
     },
     /** The zone-table context: game shape + the seat's satellite presence
-     *  (an empty extras column is no ring stop — same rule as the shell). */
-    zoneCtx(): {campaign: boolean, extras: boolean} {
+     *  (an empty extras column is no ring stop — same rule as the shell).
+     *  ⚠️ Its GAME terms must match `ConsoleShell.infoZoneCtx`, which navigates
+     *  the very ring this draws — see the warning there. */
+    zoneCtx(): {campaign: boolean, extras: boolean, parliament: boolean} {
       return {
         campaign: this.campaignContract !== undefined,
         extras: this.extrasChips.length > 0,
+        // A fact of the GAME, exactly like the campaign — not of the inspected seat.
+        parliament: this.playerView.game.parliament !== undefined,
       };
+    },
+    /**
+     * THE INSPECTED SEAT'S STANDING in the parliament — the zone's summary and
+     * its whole detail, from ONE model (`seatParliamentReadingOf`), read in the
+     * person of whoever is looking. Undefined outside a parliament game.
+     */
+    parliamentReading(): SeatParliamentReadingVm | undefined {
+      const model = this.playerView.game.parliament;
+      if (model === undefined) {
+        return undefined;
+      }
+      return seatParliamentReadingOf(model, this.viewed.color, this.viewed.tableau, {viewer: this.playerView.thisPlayer.color});
+    },
+    /** «шаг 5 / 12 · далее [РТ]» — the zone's one line about the Agenda. */
+    parliamentZoneAgenda(): string {
+      const reading = this.parliamentReading;
+      if (reading === undefined) {
+        return '';
+      }
+      return translateTextWithParams('${0} of ${1}', [String(reading.agenda.position), String(PARLIAMENT_AGENDA_STEPS)]);
+    },
+    /** «● лобби · резерв ×4 · на резолюциях 2» — compressed into the zone's one line. */
+    parliamentZoneDelegates(): string {
+      const reading = this.parliamentReading;
+      if (reading === undefined) {
+        return '';
+      }
+      const lobby = reading.delegates.lobby ? '●' : '○';
+      return `${lobby} · ${translateText('Reserve')} ${reading.delegates.reserve} · ${translateText('On resolutions')} ${reading.delegates.onResolutions}`;
     },
     /** The chip the summary ring stands on (clamped — the composition can
      *  shrink under the cursor on a seat switch). */

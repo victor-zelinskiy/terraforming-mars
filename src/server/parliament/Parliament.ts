@@ -113,7 +113,14 @@ export class Parliament {
   public voteSeq = 0;
   public popularSupport = new Map<ReduxParty, number>();
   public agenda = new Map<PlayerId, number>();
-  public influenceBonus = new Map<PlayerId, number>();
+  /**
+   * INFLUENCE BEYOND THE AGENDA TRACK, per player — the twin of
+   * `grantedEffects`: a LIST of entries, each with the source that gave it,
+   * so the Information zone can name what a number is made of instead of
+   * asking the player to take it on faith. An entry with no source is a
+   * nameless bonus (an older save, or a caller that does not name itself).
+   */
+  public influenceBonus = new Map<PlayerId, Array<{amount: number; source?: string}>>();
   public grantedEffects = new Map<PlayerId, Array<{party: ReduxParty; source: string}>>();
   public partyActionUses = new Map<PlayerId, Map<ReduxParty, number>>();
   public resolutionActionUses = new Map<PlayerId, number>();
@@ -451,15 +458,34 @@ export class Parliament {
     if (!this.participates(player)) {
       return 0;
     }
-    let influence = influenceAtAgenda(this.agendaOf(player)) + (this.influenceBonus.get(player.id) ?? 0);
+    let influence = influenceAtAgenda(this.agendaOf(player)) + this.influenceBonusOf(player);
     for (const card of player.tableau) {
       influence += card.getInfluenceBonus?.(player) ?? 0;
     }
     return influence;
   }
 
-  public addInfluenceBonus(player: IPlayer, bonus: number = 1): void {
-    this.influenceBonus.set(player.id, (this.influenceBonus.get(player.id) ?? 0) + bonus);
+  /** The SUM of a player's influence beyond the track (what the rule adds up). */
+  public influenceBonusOf(player: IPlayer | PlayerId): number {
+    const id = typeof player === 'string' ? player : player.id;
+    return (this.influenceBonus.get(id) ?? []).reduce((sum, entry) => sum + entry.amount, 0);
+  }
+
+  /** …and WHAT it is made of, in the order it was given (an entry keeps the name of whoever gave it). */
+  public influenceSourcesOf(player: IPlayer | PlayerId): ReadonlyArray<{amount: number; source?: string}> {
+    return this.influenceBonus.get(typeof player === 'string' ? player : player.id) ?? [];
+  }
+
+  /**
+   * `source` is the giver's NAME (a card's, a colony's) — optional, because the
+   * shared `PoliticalOps.addInfluenceBonus` is classic Turmoil's too and that
+   * engine keeps no sources. A nameless entry still counts; it just reads as
+   * «прочее» where the sources are listed.
+   */
+  public addInfluenceBonus(player: IPlayer, bonus: number = 1, source?: string): void {
+    const entries = this.influenceBonus.get(player.id) ?? [];
+    entries.push(source === undefined ? {amount: bonus} : {amount: bonus, source});
+    this.influenceBonus.set(player.id, entries);
   }
 
   /** Move the player's Agenda marker one step (if any is left) and report the step's bonus. */
@@ -678,7 +704,7 @@ export class Parliament {
       voteSeq: this.voteSeq,
       popularSupport: Object.fromEntries(this.popularSupport),
       agenda: Object.fromEntries(this.agenda),
-      influenceBonus: Object.fromEntries(this.influenceBonus),
+      influenceBonus: Object.fromEntries(Array.from(this.influenceBonus, ([player, entries]) => [player, entries.map((entry) => ({...entry}))])),
       grantedEffects: Object.fromEntries(Array.from(this.grantedEffects, ([player, grants]) => [player, grants.map((grant) => ({...grant}))])),
       partyActionUses,
       resolutionActionUses: Object.fromEntries(this.resolutionActionUses),
@@ -746,7 +772,13 @@ export class Parliament {
       }
     }
     parliament.agenda = playerMap(d.agenda);
-    parliament.influenceBonus = playerMap(d.influenceBonus);
+    // BOTH SHAPES: an older save's bare sum is ONE nameless entry — exactly what it was.
+    for (const [player, entry] of playerEntries(d.influenceBonus)) {
+      const entries = typeof entry === 'number' ?
+        (entry === 0 ? [] : [{amount: entry}]) :
+        entry.map((one) => (one.source === undefined ? {amount: one.amount} : {amount: one.amount, source: one.source}));
+      parliament.influenceBonus.set(player, entries);
+    }
     for (const [player, grants] of playerEntries(d.grantedEffects)) {
       parliament.grantedEffects.set(player, grants.filter((grant) => isReduxPartyName(grant.party)).map((grant) => ({party: grant.party as ReduxParty, source: grant.source})));
     }

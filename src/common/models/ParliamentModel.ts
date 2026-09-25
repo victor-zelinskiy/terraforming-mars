@@ -87,6 +87,16 @@ export type ParliamentPlayerModel = {
   agenda: number;
   influence: number;
   /**
+   * WHAT the influence BEYOND THE AGENDA TRACK is made of — one entry per
+   * giver («Паллада +1»), in the order it was given. Present only for a
+   * participating seat that HAS such a bonus: the Information zone lists the
+   * sources of a number the player can otherwise only take on faith, and a
+   * seat whose influence is the track's alone prints no «bonuses 0» line.
+   * `source` is a NAME (a card's, a colony's) the client translates; an entry
+   * without one is a nameless bonus (an older save).
+   */
+  influenceSources?: ReadonlyArray<{amount: number, source?: string}>;
+  /**
    * The seat's COUNTS for every counted term a resolution of the catalog
    * declares (`resolutionCounts.ts`) — the number and the cards, read from
    * the tableau by the server. Absent for a seat outside the parliament.
