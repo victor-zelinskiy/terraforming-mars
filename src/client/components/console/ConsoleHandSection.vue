@@ -457,6 +457,7 @@ import {ConsoleTagFilterOption, HandTagFilter} from '@/client/components/console
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {saleSummary} from '@/client/console/patentSale/patentSaleModel';
 import {DiscardIntent} from '@/client/console/cardDiscard/discardIntent';
+import {resolutionName} from '@/client/parliament/ClientParliamentManifest';
 
 export type ConsoleHandEntry = {
   card: CardModel,
@@ -803,6 +804,10 @@ export default defineComponent({
       }
       if (intent.partyName !== undefined) {
         return translateTextWithParams('Party action of ${0}', [translateText(intent.partyName)]);
+      }
+      // An enacted LAW asks (Open IP Trade's action): its printed name, never a bare «Резолюция».
+      if (intent.resolution !== undefined) {
+        return translateText(resolutionName(intent.resolution));
       }
       return translateText(intent.sourceKey);
     },

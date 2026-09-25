@@ -7,6 +7,7 @@ import {PartyReaction} from './partyReactions';
 import {WinnerRewardDeclaration} from './winnerReward';
 import {TileGrantDeclaration} from './tileGrant';
 import {WorldParameterMove} from './parameterMove';
+import {ActionEffect} from '../models/ActionPreviewModel';
 
 /**
  * The printed face of a resolution card, as shipped to the client through
@@ -81,6 +82,12 @@ export type IClientResolution = {
   hasWinnerEffect: boolean;
   hasPassive: boolean;
   hasAction: boolean;
+  /**
+   * The ACTION's result chips as the definition previews them with no seat asked (`ResolutionAction.preview()`):
+   * the RATE of the action (Open IP Trade: a card per card, 3 M€ per card, a card per card) — the stand's
+   * synthetic hand scales it; a live surface reads the server's own `viewer.resolutionAction.preview` instead.
+   */
+  actionPreview?: ReadonlyArray<ActionEffect>;
 };
 
 /** The printed PARTY EFFECT (the board's six banners), same pipeline. */

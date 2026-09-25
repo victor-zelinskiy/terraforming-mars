@@ -210,6 +210,7 @@
     "Discard 1 card": "Сбросьте 1 карту",
     "Discard ${0} cards": "Сбросьте ${0} карты",
     "Discard up to ${0} cards": "Сбросьте до ${0} карт",
+    "Discard any number of cards": "Сбросьте любое число карт",
     "Can be discarded": "Можно сбросить",
     "Colony bonus ${0} of ${1}": "Бонус колонии ${0} из ${1}",
     "Return to the discard": "Вернуться к сбросу",

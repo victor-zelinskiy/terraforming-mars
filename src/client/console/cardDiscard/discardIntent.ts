@@ -72,6 +72,8 @@ export type DiscardIntent = {
   colonyName?: string,
   /** The PARTY whose action demands it (Turmoil Redux) — an i18n key (the party name). */
   partyName?: string,
+  /** The enacted RESOLUTION whose action / effect demands it (Turmoil Redux) — its catalog id (the surface names it). */
+  resolution?: string,
   /** How many cards are picked right now (0 for a single-press pick). */
   picked: number,
   /** min === max === 1 → A answers in one press (no toggle-then-confirm). */
@@ -100,6 +102,10 @@ export function discardHeadline(meta: DiscardPromptMeta): {key: string, amount?:
   }
   if (meta.min === 0) {
     return {key: 'Discard up to ${0} cards', amount: meta.max};
+  }
+  // «Any number» (the sale's own form — Open IP Trade's action: 1 to the whole hand): the ask names no count.
+  if (meta.min === 1 && meta.max > 1) {
+    return {key: 'Discard any number of cards'};
   }
   return {key: 'Discard ${0} cards', amount: meta.min};
 }
@@ -157,6 +163,7 @@ export function deriveDiscardIntent(meta: DiscardPromptMeta, picked: number, pic
       {index: colony.index, total: colony.total},
     colonyName: colony?.colonyName,
     partyName: source?.kind === 'party' ? source.party : undefined,
+    resolution: source?.kind === 'resolution' ? source.resolution : undefined,
     picked,
     single: meta.min === 1 && meta.max === 1,
   };

@@ -454,7 +454,38 @@
           <div class="con-rxpg__texts">
             <p v-if="selected.text.effect !== undefined"><span class="con-rxpg__ckey">{{ $t('When enacted') }}</span> {{ $t(selected.text.effect) }}</p>
             <p v-if="selected.text.winner !== undefined" :class="{'con-rxpg__texts--winner': viewerIsWinner}"><span class="con-rxpg__ckey">{{ $t('For the winner of the vote') }}</span> {{ $t(selected.text.winner) }}</p>
+            <p v-if="selected.text.passive !== undefined"><span class="con-rxpg__ckey">{{ $t('Effect while enacted') }}</span> {{ $t(selected.text.passive) }}</p>
+            <p v-if="selected.text.action !== undefined"><span class="con-rxpg__ckey">{{ $t('Action while enacted') }}</span> {{ $t(selected.text.action) }}</p>
             <p><span class="con-rxpg__ckey">{{ $t('Chairman quest') }}</span> {{ $t(selected.text.quest) }}</p>
+          </div>
+          <!-- THE ACTION (Open IP Trade): shown the way a PARTY's action is — its printed row, its sentence, its
+               RATE (the manifest's `actionPreview`) — and read with a SYNTHETIC HAND (0 · 1 · 4 cards): the sum the
+               pick's own running summary prints, the refusal the empty hand meets. The address is the action
+               menu's, said once, the way the quiet reward's kicker says it. -->
+          <div v-if="selected.hasAction" class="con-rxpg__action" data-rxpg-action>
+            <div class="con-rxpg__action-head">
+              <span class="con-parl__kicker">{{ $t('Resolution action') }}</span>
+              <span class="con-rxpg__dim">{{ $t('Available in Card actions') }}</span>
+            </div>
+            <div class="con-rxpg__action-body">
+              <PremiumMechanicsPanel v-if="actionMechanics !== undefined && !actionMechanics.textOnly" class="con-rxpg__action-graphic" :mechanics="actionMechanics" />
+              <div class="con-rxpg__action-rate" data-rxpg-action-rate>
+                <ActionEffectChip v-for="(chip, i) in actionRate" :key="i" :effect="chip" />
+              </div>
+            </div>
+            <div class="con-rxpg__action-hand">
+              <span class="con-rxpg__ckey">{{ $t('Cards in hand') }}</span>
+              <button v-for="n in ACTION_HANDS" :key="n" type="button" class="con-rxpg__action-handbtn"
+                      :class="{'con-rxpg__action-handbtn--on': actionHand === n}" :data-rxpg-action-hand="n"
+                      @click="actionHand = n">{{ n }}</button>
+              <span v-if="actionHand === 0" class="con-rxpg__action-none" data-rxpg-action-none>{{ $t('Unavailable') }} · {{ $t('No cards in hand to discard') }}</span>
+              <span v-else class="con-rxpg__action-sum" data-rxpg-action-sum>
+                <b>{{ actionHand }}</b>
+                <i class="resource_icon resource_icon--cards con-rxpg__action-icon" aria-hidden="true"></i>
+                <span class="con-rxpg__action-arrow" aria-hidden="true">→</span>
+                <ActionEffectChip v-for="(chip, i) in actionSum" :key="i" :effect="chip" />
+              </span>
+            </div>
           </div>
         </div>
       </div>
@@ -546,6 +577,12 @@ import {getCard} from '@/client/cards/ClientCardManifest';
 import PremiumCard from '@/client/components/premiumCard/PremiumCard.vue';
 import {PremiumCardVM} from '@/client/components/premiumCard/premiumCardViewModel';
 import {PARLIAMENT_GRAPHIC, resolutionPremiumVm} from '@/client/components/premiumCard/resolutionPremiumVm';
+import {isICardRenderEffect} from '@/common/cards/render/Types';
+import {ActionEffect} from '@/common/models/ActionPreviewModel';
+import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
+
+/** The synthetic hands the action's reading is scaled with on the stand. */
+const ACTION_HANDS: ReadonlyArray<number> = [0, 1, 4];
 import {partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import PlayerCube from '@/client/components/PlayerCube.vue';
@@ -1457,7 +1494,7 @@ export default defineComponent({
   name: 'ConsoleResolutionsPlayground',
   components: {
     PremiumCard, GamepadGlyph, PlayerCube, ConsoleInfluenceYield, ConsoleColonyLedger, ConsoleResolutionStatus, ConsoleResolutionAside, ConsoleCardRulesPanel,
-    ConsoleSourceDock, ConsolePlayedTargetStep, PremiumMechanicsPanel, PremiumCountGlyph, ConsoleWinnerReward, ConsoleTileGrant, ConsolePartyReaction,
+    ConsoleSourceDock, ConsolePlayedTargetStep, PremiumMechanicsPanel, PremiumCountGlyph, ConsoleWinnerReward, ConsoleTileGrant, ConsolePartyReaction, ActionEffectChip,
   },
   props: {
     /** Inside the playground stand (the stand owns the chrome and the scroll). */
@@ -1475,6 +1512,9 @@ export default defineComponent({
       lockedCard: '',
       liveState: 'idle' as 'idle' | 'starting' | 'error',
       liveError: '',
+      ACTION_HANDS,
+      /** The synthetic HAND the action's reading is scaled with (the pick's «any number», at three sizes). */
+      actionHand: 1,
     };
   },
   computed: {
@@ -1501,6 +1541,24 @@ export default defineComponent({
     },
     selectedVm(): PremiumCardVM | undefined {
       return this.selected === undefined ? undefined : resolutionPremiumVm(this.selected);
+    },
+    /** The ACTION's printed row alone (the same rows the action menu's tile draws off the face). */
+    actionMechanics(): MechanicsVM | undefined {
+      const r = this.selected;
+      if (r === undefined || !r.hasAction) {
+        return undefined;
+      }
+      const rows = r.renderData.rows.filter((row) => row.some((item) => isICardRenderEffect(item)));
+      return buildMechanics(rows.length === 0 ? r.renderData : {...r.renderData, rows}, PARLIAMENT_GRAPHIC);
+    },
+    /** The action's RATE — the definition's own preview with no seat asked (the manifest). */
+    actionRate(): ReadonlyArray<ActionEffect> {
+      return this.selected?.actionPreview ?? [];
+    },
+    /** The rate scaled by the synthetic hand: what the pick's running summary would print for N cards. */
+    actionSum(): ReadonlyArray<ActionEffect> {
+      const n = this.actionHand;
+      return this.actionRate.filter((e) => e.direction === 'gain').map((e) => ({...e, amount: e.note === 'per card' ? e.amount * n : e.amount, note: undefined}));
     },
     annotations(): ReadonlyArray<CardAnnotation> {
       return this.selected === undefined ? [] :

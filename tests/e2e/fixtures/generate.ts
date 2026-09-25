@@ -84,6 +84,7 @@ import {CLOUD_DEVELOPMENT_ID} from '../../../src/server/parliament/resolutions/u
 import {GAS_EXPORT_ID} from '../../../src/server/parliament/resolutions/reds/GasExport';
 import {HEAT_CAPTURE_ID} from '../../../src/server/parliament/resolutions/reds/HeatCapture';
 import {MOHOLE_CONTEST_ID} from '../../../src/server/parliament/resolutions/greens/MoholeContest';
+import {OPEN_IP_TRADE_ID} from '../../../src/server/parliament/resolutions/scientists/OpenIpTrade';
 import {INDUSTRIALIST_BUDGET_ID} from '../../../src/server/parliament/resolutions/industrialists/IndustrialistBudget';
 import {JOINT_RESEARCH_ID} from '../../../src/server/parliament/resolutions/scientists/JointResearch';
 import {JOVIAN_TAX_RIGHTS_ID} from '../../../src/server/parliament/resolutions/unity/JovianTaxRights';
@@ -1301,6 +1302,35 @@ parliamentFixture('parliament-heat-enacted', {
       throw new Error(`the parliament-heat-enacted fixture expected the law to price Nuclear Power at 7, got ${p2.getCardCost(new NuclearPower())}`);
     }
     expectViewerOpensGeneration(table, p2, 'parliament-heat-enacted');
+  },
+});
+
+// ── RX24 · OPEN IP TRADE (the Scientists — the first resolution with an ACTION: «discard any number of cards; for
+//    each, gain 3 M€ and draw a card»): the law ENACTED (red's delegate won the sitting; its cards by influence were
+//    taken), generation 2 open on RED — the seat the loader opens — holding the action menu with a hand to pick from
+//    (the start's own cards, three arranged, the enactment's draw): the action's tile stands in «Действия карт», its
+//    pick on the real hand, the sale, the draw. ──
+parliamentFixture('parliament-openip-enacted', {
+  resolution: OPEN_IP_TRADE_ID,
+  votes: [1],
+  agenda: [1, 2],
+  stopAt: 'done',
+  arrange: ({p2}) => {
+    p2.cardsInHand.push(new Trees(), new Fish(), new AdaptedLichen());
+  },
+  expect: (table) => {
+    const {p2, parliament} = table;
+    if (parliament.enacted !== resolutionInstanceId(OPEN_IP_TRADE_ID, 0)) {
+      throw new Error(`the parliament-openip-enacted fixture expected Open IP Trade enacted, got ${parliament.enacted}`);
+    }
+    // The start flow's own hand + the three arranged + the enactment's draw: at least four to pick from.
+    if (p2.cardsInHand.length < 4) {
+      throw new Error(`the parliament-openip-enacted fixture expected red to hold at least 4 cards, holds ${p2.cardsInHand.length}`);
+    }
+    if (parliament.resolutionActionUsesLeft(p2) !== 1) {
+      throw new Error('the parliament-openip-enacted fixture expected the action unspent');
+    }
+    expectViewerOpensGeneration(table, p2, 'parliament-openip-enacted');
   },
 });
 

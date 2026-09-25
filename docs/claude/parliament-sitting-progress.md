@@ -3429,3 +3429,83 @@ steps: 2}`), и первая, где такой шаг НАГРАЖДАЕТСЯ:
   доезжала до сцены, и `beatReward` сбрасывал волну места как «не с чего лететь» (`landed` в ту же
   миллисекунду, что `take`). У RX12/RX14 это не ловили: их e2e проверяли запись, не чип. Теперь ход, который
   ещё предстоит, сажает на награду только если принятие уже сыграно; квитанция возврата — по-прежнему.
+
+## RX24 · Open IP Trade (Учёные) — ПЕРВОЕ ДЕЙСТВИЕ резолюции: член семейства партийных действий, один поток через workspace (2026-09-25)
+
+**RX24 Open IP Trade (Учёные) — СДАНА 2026-09-25.** Первая карта каталога с действием («сбросьте любое число карт;
+за каждую — 3 M€ и карта») и первая, у которой построен путь «действие резолюции → меню игрока → консоль». Тип
+`ResolutionAction` был объявлен давно и не использовался; DEV-пример мутировал прямо в `execute` (то есть тратил бы
+действие при выдаче меню). Путь построен как **член семейства партийных действий, не второй**: маркер
+`resolutionActionPrompt` (twin `partyActionPrompt`, на `toModel` четырёх инпутов — nesting-safe);
+`ParliamentHandler.resolutionActionOptions` рядом с `partyActionOptions` (участник · принятая карта с `action` ·
+`usesLeft > 0` · `canAct`), одна строка в `Player.getActions`; модель `viewer.resolutionAction: ResolutionActionModel`
+над общей базой `ParliamentActionModel` (партийная модель наследует ту же); `Parliament.resolutionActionUsesLeft` из
+`usesPerGeneration(player)`; счёт колеса — та же функция. **Контракт:** `execute(player, parliament, meta)` СТРОИТ промпт
+и ничего не меняет, ответ — коммит через общий `runResolutionAction` (область под `{kind: 'resolution', id, owner}`,
+категория `parliament`, строка журнала, `recordResolutionActionUse` ПРИ ОТВЕТЕ). Карта: добор = влияние через интейк
+(RX05/RX16), действие — `SelectCard` из руки `{min: 1, max: рука}` с `discardPrompt.exchange {3 M€ perCard, draw: 1}`
+(`exchange.draw` — новый член: вторая выплата картами), порядок сброс → M€ → `drawCard(N)` своим ходом (не интейк),
+источник раскрытия `{type: 'resolution'}`; задание «2 зелёные карты» = `cardsPlayed: 'automated'` (сброс — не
+розыгрыш, Q5 режет и так).
+
+**Клиент — ОДИН композер, ОДИН список источников, ОДИН поток.** `ParliamentActionSource = PartyActionSource |
+ResolutionActionSource` (`consoleCardActions.ts`; общая лестница `parliamentSourceStatus`, плитка закона с лицом в досье,
+эмблемой партии на плите, кикером «Действие резолюции» и печатным рядом действия — только рядом `b.action` лица; ключ
+`RESOLUTION_<id>`). `ConsolePartyActionComposer` НЕ скопирован — prop `resolution` → `kind === 'resolution'`: герой =
+`premium-card-face` закона; ВЫБОР = реальная рука как встроенный шаг РЯДОМ с героем (`con-pact__handzone--inline`) через
+hand-pick bridge с тремя новыми полями запроса — `hosted: {stage}` (рука встаёт шагом хоста, не оверлеем; хостимый пик
+НЕ прячет workspace — `handPickOverlays`), `leaving: 'sale'` (шелл не армирует сцену сброса), `gainPerCard.cards`
+(салебар «Выбрано: N · +3N M€ · +N карт · было → станет», `[data-hand-sale-cards]`; свап дискардного скина уступает
+салебару); `source.resolution` — L3 «Источник» открывает осмотр резолюции; заголовок сброса «Сбросьте любое число карт»
+(новая форма `min 1 / max > 1`), источник — имя закона. ПРОДАЖА = сцена патентной продажи, обобщённая:
+`armPatentSale({payoutPerCard, source, kicker})` (кикер терминала — имя закона), шелл ветвится по
+`patentSaleState.source` на `inserting` (снимает руку-шаг, workspace остаётся), `partyFlowOwed` держит, пока сцена
+активна; универсальный ACTION COMMIT фиксирует героя; хост клеймит добор под ключом закона (`onPartyConfirm(response,
+{expectedCards})`). ДОБОР = зона исхода того же композера; дверь — `beatMayStart` (вытягивание с HUD-стопки не
+стартует, пока сцена активна), каждая фаза продажи перезаряжает бит клейма (`rearmWorkspaceOutcomeBeat`), чтобы
+2,6-секундный страховочный таймер не открыл раскрытие поверх неначатого вытягивания; хвост крошки на добора —
+«ДОБОР КАРТ» (`focusKickerKey` читает клейм партийного композера — попутно чинит хвост Красных на их доборе).
+Завершение — падение клейма → `concludeFlow` → guarded conclusion. Дверь из Парламента — **Y «Действие резолюции»** на
+любой зоне обзора (закон — общий для стола, не плитка кольца; `parliamentCommands` контрол `inspect`,
+`resolutionActionRefusal`, спуск с карты правительства `armResolutionActionDescent`, `openParliamentResolutionAction`
+— тот же workspace вложенным шагом с субъектом-именем закона). Стенд «Полигон»: блок ДЕЙСТВИЕ — печатный ряд, ставка из
+манифеста (`IClientResolution.actionPreview` = `action.preview()` без места; сигнатура `preview(player?)`),
+синтетическая рука 0 / 1 / 4.
+
+**Тайминги** (e2e `console-parliament-openip`, standard-1080, пробник 40 мс): рука-шаг 17,2 с от старта → RT → сцена
+20,34 → чип «+6» рождён 21,68 у щели (y 979 при щели 987) → сел на ячейку M€ и счётчик тикнул 22,46 (ранних тиков 0)
+→ терминал ушёл 22,73 → вытягивание с колоды 22,79 → раскрытие в зоне 23,91 → взятие → рука −2 +2, M€ +6,
+`usesLeft 0`, плитка «Активирована». Пять кадров: `screenshots/parliament-openip/01-action-menu-law` (плитка закона
+рядом с действием Учёных, лицо в досье), `02-selection-two-picked` (крошка «› ВЫБОР», рука рядом с героем, «ВЫБРАНО: 2 ·
++6 · +2 · 50 → 56», две «СБРОШЕНА»), `03-sale-chip` («› ПРОДАЖА», чип +6 в полёте к рельсе, терминал с именем
+закона, стадия «СБРОШЕНО 2 · +6 · +2 · ВЫПОЛНЯЕТСЯ…»), `04-draw-in-the-stage` («› ДОБОР КАРТ», «Получены карты ·
+2» в зоне исхода, герой «0 из 1»), `05-tile-spent` (фильтр «Активированы», плитка закона).
+
+### Находки RX24
+
+- **Фикстура `done` открывается на p2**: первый игрок поколения 2 ротируется, `bootFixtureSeats` открывает
+  `playersInGenerationOrder[0]` — действующее место e2e красный (как у RX14/RX10); рука после `done` = рука старта +
+  аранжированные + добор принятия — ожидание «не меньше N», не «ровно».
+- **Хостимый hand-pick прятал workspace**: `<ConsoleCardActions v-show="!pickBridgeActive">` — bridge всегда считался
+  оверлеем; первый прогон показал пустую доску с баром выбора. Один предикат `handPickOverlays` (`hosted === undefined`).
+- **Субъект крошки** для партийного композера — `composer.party ?? cardName`: у закона печатал «УЧЕНЫЕ» (из чужого
+  `turmoil.json`, без Ё). Теперь `resolutionNameOf(resolution) ?? party ?? cardName` (и заголовок досье так же — печатал
+  сырой ключ `RESOLUTION_RDX_…`).
+- **Хвост крошки на доборе партийного композера** читал `outcomeFlow` (запись карточного композера) → «НАСТРОЙКА»; у
+  Красных то же (их e2e хвост добора не проверял). Ветка `partyOutcomeOn` → «ДОБОР КАРТ».
+- **Пробник: терминал продажи лежит в слое `pointer-events: none`** — `elementFromPoint` его никогда не отвечает, «видимость»
+  через хит-тест ложно отрицательна; для объекта такого слоя — только стилевая видимость (рект · opacity · display по
+  предкам). Цифры рельсы `.con-res__digits` во время тика содержат и дельта-чип («56+6») — парсить ведущее число.
+- **`preview` действия зовётся экспортером без места** — карта не должна читать игрока в ставке; живая сумма — на клиенте.
+- Heredoc в Bash длиннее ~6 КБ обрезается молча («unexpected EOF») — большие правки только через `python <temp.py>`.
+
+### Прогоны (2026-09-25)
+
+| Что | Итог |
+| --- | --- |
+| `tests/parliament/OpenIpTrade.spec.ts` | 23 passing |
+| `ResolutionContract` (RX24 + dev-примеры) · `PartyEffects` · `ParliamentModel` · `Parliament` · `QuestTracker` · `JointResearch` · `ClimateResearch` · `potentialActions` | 190 + 117 passing |
+| клиентские: `consoleCardActions` · `consoleParliamentModel` · `consolePatentSale` · `consoleWorkspaceOutcome` · `consoleHandPick` · `discardIntent` | 155 + 18 passing |
+| гарды: глоссарий · `e2eFixturesLoad` · `e2eDriverGuard` · `serverDerivedCacheGuard` | зелёные |
+| `lint:client` (vue-tsc) · `lint:i18n` · eslint по правленым файлам · `build:test` (обе ступени) · `make:cards` · `make:json` · `make:css` | зелёные |
+| e2e `console-parliament-openip` | 1 passed (34 с; пять прогонов до зелёного — см. находки) |

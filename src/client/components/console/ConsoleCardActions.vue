@@ -49,7 +49,7 @@
                      :wheelAnchor="repeat ? repeatCrumbEmblem.wheelAnchor : hostCrumb.wheelAnchor"
                      :context="repeat ? repeatCrumbContext : ''"
                      :subject="repeatStepCrumb !== undefined ? repeatStepCrumb.subject :
-                       (composer !== undefined ? (composer.party ?? composer.cardName) : '')"
+                       (composer !== undefined ? (resolutionNameOf(composer.resolution) ?? composer.party ?? composer.cardName) : '')"
                      :stage="repeatStepCrumb !== undefined ? repeatStepCrumb.stage :
                        (yieldedToStep ? steppedStage : (composer !== undefined ? focusKickerKey : ''))"
                      :stageRaw="repeatStepCrumb !== undefined ? false : (yieldedToStep ? false : focusKickerRaw)"
@@ -161,7 +161,7 @@
              `data-fit` is that step; everything below it is pure CSS. -->
         <aside class="con-cardactions__detail" v-if="focusedTile !== undefined"
                ref="detailEl" :data-fit="detailFit">
-          <div class="con-cardactions__detail-name">{{ $t(focusedTile.party ?? focusedTile.cardName) }}</div>
+          <div class="con-cardactions__detail-name">{{ $t(resolutionNameOf(focusedTile.resolutionAction) ?? focusedTile.party ?? focusedTile.cardName) }}</div>
           <div v-if="focusedTile.party !== undefined" class="con-cardactions__detail-variant">{{ $t('Party action') }}</div>
           <div v-if="focusedGroup !== undefined && focusedGroup.tiles.length > 1" class="con-cardactions__detail-variant">
             {{ $t('Option') }} {{ focusedTile.nodeIndex + 1 }} / {{ focusedGroup.tiles.length }}
@@ -1148,6 +1148,13 @@ export default defineComponent({
       // hence no source card, no banner, no second chip anywhere below.
       if (this.colonyStepHosted) {
         return this.colonyStepStage;
+      }
+      // A PARTY's / the LAW's drawn batch presents in the party composer's own
+      // zone (its claim, not the card composer's outcome record): the tail is
+      // the draw's — «ДОБОР КАРТ» — or the name the re-homed surface published.
+      if (this.partyOutcomeOn) {
+        const named = workspaceOutcomeState.phaseKey;
+        return named !== '' ? named : focusKicker('draw');
       }
       const kind = this.outcomeFlow?.kind;
       if (kind === 'deck-check') {

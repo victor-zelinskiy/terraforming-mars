@@ -220,6 +220,7 @@ class ParliamentProcessor {
       hasWinnerEffect: (definition.winnerSteps?.length ?? 0) > 0,
       hasPassive: definition.passive !== undefined,
       hasAction: definition.action !== undefined,
+      ...(definition.action === undefined ? {} : {actionPreview: [...definition.action.preview()]}),
     };
   }
 }

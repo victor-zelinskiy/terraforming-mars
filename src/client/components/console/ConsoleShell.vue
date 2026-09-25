@@ -3156,7 +3156,16 @@ export default defineComponent({
       // and the entrance heals only the outermost panel, so the track came back
       // shifted and cropped with nothing to re-fit it. This is the ONE fact the
       // director reads; the alternative is a second list of bridges to forget.
-      return this.handPickActive || this.repeatPickActive || this.sceneHandedOver;
+      return this.handPickOverlays || this.repeatPickActive || this.sceneHandedOver;
+    },
+    /**
+     * The hand pick OVERLAYS its composer (the composer hides, the hand stands
+     * over it) — every pick but a HOSTED one: the resolution action's
+     * selection stands INSIDE the composer's own zone beside its hero, so the
+     * workspace must stay on screen for the very step it hosts.
+     */
+    handPickOverlays(): boolean {
+      return this.handPickActive && consoleHandPickState.request?.hosted === undefined;
     },
     /**
      * The stage-reward pick is OUT (reactive read of the bridge state). While
@@ -6381,6 +6390,7 @@ export default defineComponent({
           icon: gain.icon,
           amount: gain.amount,
           current: (this.thisPlayer as unknown as Record<string, number>)[gain.icon],
+          cards: gain.cards,
         } : undefined,
         // The source-operation chip (a composer's target pick names WHY).
         context: pick?.source !== undefined ? {kicker: pick.source.kicker, card: pick.source.card} : undefined,

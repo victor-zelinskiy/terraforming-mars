@@ -39,6 +39,19 @@ describe('discardIntent', () => {
     expect(discardHeadline(meta({min: 0, max: 4}))).deep.eq({key: 'Discard up to ${0} cards', amount: 4});
   });
 
+  it('«any number» (1 to the whole hand — the sale\'s form, the resolution action\'s pick) names no count, and the LAW that asks is carried by id', () => {
+    const meta: DiscardPromptMeta = {min: 1, max: 5, source: {kind: 'resolution', resolution: 'RDX_SCIENTISTS_OPEN_IP_TRADE'},
+      exchange: {icon: 'megacredits', amount: 3, perCard: true, draw: 1}};
+    expect(discardHeadline(meta)).to.deep.eq({key: 'Discard any number of cards'});
+    expect(discardHeadline({min: 1, max: 1})).to.deep.eq({key: 'Discard 1 card'});
+    expect(discardHeadline({min: 2, max: 5})).to.deep.eq({key: 'Discard ${0} cards', amount: 2});
+    const intent = deriveDiscardIntent(meta, 2);
+    expect(intent.resolution).to.eq('RDX_SCIENTISTS_OPEN_IP_TRADE');
+    expect(intent.sourceKey).to.eq('Resolution');
+    expect(intent.exchange).to.deep.eq({icon: 'megacredits', amount: 6, perCard: true});
+    expect(deriveDiscardIntent({min: 1, max: 1, source: {kind: 'card', card: CardName.MARS_UNIVERSITY}}, 0).resolution).to.eq(undefined);
+  });
+
   it('resolves a per-card payout against the LIVE pick count', () => {
     const perCard = meta({min: 0, max: 5, exchange: {icon: 'megacredits', amount: 2, perCard: true}});
     expect(discardExchangeFor(perCard, 0)?.amount).eq(0);

@@ -98,8 +98,11 @@ export type ResolutionAction = {
   /** Ignoring uses — the parliament checks those. A refusal NAMES its reason (an English i18n key). */
   canAct(player: IPlayer): ResolutionActionAvailability;
   execute(player: IPlayer, parliament: Parliament, meta: ResolutionActionPromptMeta): PlayerInput;
-  /** Result chips for the workspace's action tile (`current → resulting` where the outcome is fixed). */
-  preview(player: IPlayer): ReadonlyArray<ActionEffect>;
+  /**
+   * Result chips for the workspace's action tile (`current → resulting` where the outcome is fixed). Asked WITHOUT a
+   * seat by the manifest exporter (the stand reads the RATE — Open IP Trade's «per card» — with a synthetic hand).
+   */
+  preview(player?: IPlayer): ReadonlyArray<ActionEffect>;
 };
 
 /**

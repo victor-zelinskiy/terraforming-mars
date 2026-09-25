@@ -55,7 +55,10 @@ worklist:** сначала пиши карту, потом читай, что о
    только текст для журнала; детекция где угодно — только по маркеру.
 6. Резюмируемость: то, что шаг решил ДО вопроса (сколько должен, id интейка), хранится в `ctx.state` — повторный
    `run()` после reload не считает заново и не тянет заново (образцы `ANIMALS_OWED_KEY`, `INTAKE_KEY`).
-7. `passive?` — с обязательным `forecast` (закон честности прогноза); `action?` — с `preview`. **Живой пассив
+7. `passive?` — с обязательным `forecast` (закон честности прогноза); `action?` — с `preview`. **ДЕЙСТВИЕ резолюции**
+   (RX24) — маркер `resolutionActionPrompt`, `execute(player, parliament, meta)` СТРОИТ промпт, ответ — через общий
+   `runResolutionAction` (учёт при ответе), источник в «Действиях карт» рядом с партийным, композер общий; раздел RX24
+   ниже. **Живой пассив
    обязан объявить** (RX10): графику эффекта в `renderData` (`b.effect(...)` — одна отрисовка на лицо, список
    эффектов и осмотр), `text.passive` (строка в списке эффектов Информации и стадия НАГРАДА), `forecast`
    (прогноз розыгрыша), для тайлового хука — `placementFacts` (досье клетки: обещание = выплата) и мутации ТОЛЬКО
@@ -665,6 +668,49 @@ winnerSteps: [winnerParameterStep(MOHOLE_CONTEST_ID, MOHOLE_CONTEST_TEMPERATURE)
 - **Итоги**: запись победителя — часть его строки (`ResultsPayoutPart.parameter` + `tr`), строка ПЛАНЕТА — только мировые
   записи. Стенд: сценарии с `parameter` показываются закону, чья часть победителя двигает этот параметр (сценарии
   кислорода RX03 помечены `parameter: 'oxygen'`). Док: `docs/TURMOIL_REDUX_MOHOLE_CONTEST.md`.
+
+### ДЕЙСТВИЕ резолюции — маркер `resolutionActionPrompt`, источник рядом с партийным, композер общий (RX24, 2026-09-25)
+
+```ts
+action: {
+  usesPerGeneration: () => 1,
+  canAct: (player) => player.cardsInHand.length > 0 ? {available: true} : {available: false, reason: 'No cards in hand to discard'},
+  execute: (player, parliament, meta) => new SelectCard(…, hand, {min: 1, max: hand.length})   // СТРОИТ промпт, ничего не меняет
+    .markDiscardPrompt({…, source: {kind: 'resolution', resolution: ID}, exchange: {icon: 'megacredits', amount: 3, perCard: true, draw: 1}})
+    .markResolutionActionPrompt(meta)                                                        // маркер — консоль читает ТОЛЬКО его
+    .andThen((cards) => { runResolutionAction(player, parliament, ID, () => tradePatents(player, cards)); return undefined; }),
+  preview: () => [{cost cards 1 'per card'}, {gain megacredits 3 'per card'}, {gain cards 1 'per card'}],   // ставка; зовётся и БЕЗ места (манифест)
+},
+```
+
+- **Действие резолюции — член семейства партийных действий, не второй путь.** Маркер `resolutionActionPrompt`
+  (twin `partyActionPrompt`, на `toModel` четырёх инпутов); `ParliamentHandler.resolutionActionOptions` рядом с
+  `partyActionOptions` (участник · принятая карта с `action` · `usesLeft > 0` · `canAct`), одна строка в
+  `Player.getActions`; модель `viewer.resolutionAction: ResolutionActionModel` (общая база `ParliamentActionModel`);
+  `Parliament.resolutionActionUsesLeft` из `usesPerGeneration(player)`; счёт колеса — та же функция.
+- **Контракт `execute(player, parliament, meta)`: промпт СТРОИТ, ответ ДЕЛАЕТ** — через общий `runResolutionAction`
+  (`resolutions/ResolutionAction.ts`: область под `{kind: 'resolution', id, owner}`, категория `parliament`, строка
+  журнала, `recordResolutionActionUse` ПРИ ОТВЕТЕ — промпт, построенный и не отвеченный, ничего не тратит). Мутировать
+  в `execute` — значит потратить действие при выдаче меню (dev-пример так и делал; переведён).
+- **Недоступно с причиной, не скрыто**: опция отсутствует в меню, причина — на модели (пустая рука — своя причина
+  `canAct`, потрачено — «This resolution action was already used this generation», бот — «MarsBot takes no part…»).
+  Сменился закон — `usesLeft` 0, модели нет.
+- **Клиент — ОДИН композер, ОДИН список источников**: `ParliamentActionSource = PartyActionSource | ResolutionActionSource`
+  (`consoleCardActions.ts`, `buildParliamentTile`, общая лестница `parliamentSourceStatus`, ключ `RESOLUTION_<id>`);
+  `ConsolePartyActionComposer` с prop `resolution` — герой = `premium-card-face` закона, ВЫБОР = реальная рука как
+  встроенный шаг рядом с героем (hand-pick bridge: `hosted`, `leaving: 'sale'`, `gainPerCard.cards`, `source.resolution`;
+  хостимый пик НЕ прячет workspace — `handPickOverlays`), ПРОДАЖА = сцена патентной продажи по ставке закона
+  (`armPatentSale({payoutPerCard, source, kicker})`), ДОБОР — зона исхода того же композера, дверь ПОСЛЕ посадки чипа
+  (`beatMayStart`, `rearmWorkspaceOutcomeBeat`). Дверь из Парламента — Y «Действие резолюции» на любой зоне обзора
+  (`resolutionActionRefusal`, `armResolutionActionDescent`). Второго компонента не бывает: обобщение ловят юниты и e2e
+  партийных.
+- **Сцена продажи патентов не вызывается как действие** — переиспользуются ФОРМА (мультивыбор на руке, салебар «N карт →
+  +3N M€ · +N карт») и СЦЕНА (терминал); источник, ставка и кикер приходят от вызывающего; шелл ветвится по
+  `patentSaleState.source` (кто закрывается на `inserting`). Добор при действии — обычный `drawCard` своего хода, не
+  внешний интейк; источник раскрытия `{type: 'resolution'}` в `CardDrawRevealSource`.
+- **Задание `cardsPlayed: 'automated'`** — зелёная карта по ТИПУ; сброс этим действием — не розыгрыш (источник-резолюция
+  на стеке и так режет Q5). Стенд: блок ДЕЙСТВИЕ (`IClientResolution.actionPreview` = `action.preview()` без места,
+  синтетическая рука 0 / 1 / 4). Док: `docs/TURMOIL_REDUX_OPEN_IP_TRADE.md`.
 
 ### Бюджет проверки на карту (решение владельца 2026-09-23)
 
