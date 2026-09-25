@@ -7,6 +7,7 @@ import {Tag} from '../../../common/cards/Tag';
 import {Turmoil} from '../Turmoil';
 import {IPlayer} from '../../IPlayer';
 import {Board} from '../../boards/Board';
+import {countCityTiers} from '../../boards/cityStack';
 import {CardRenderer} from '../../cards/render/CardRenderer';
 import {Size} from '../../../common/cards/render/Size';
 
@@ -75,9 +76,10 @@ export class Election extends GlobalEvent implements IGlobalEvent {
   public getScore(player: IPlayer, turmoil: Turmoil, game: IGame) {
     const score = player.tags.count(Tag.BUILDING, 'raw') + turmoil.getInfluence(player);
 
-    const cities = game.board.spaces.filter(
+    // A QUANTITY of the player's cities: a stacked city (Skyscrapers) counts every tier.
+    const cities = countCityTiers(game.board.spaces.filter(
       (space) => Board.isCitySpace(space) && space.player === player,
-    ).length;
+    ));
 
     return score + cities;
   }

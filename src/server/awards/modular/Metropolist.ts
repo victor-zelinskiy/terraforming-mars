@@ -5,6 +5,7 @@ export class Metropolist implements IAward {
   public readonly name = 'Metropolist';
   public readonly description = 'Own the most cities';
   public getScore(player: IPlayer): number {
-    return player.game.board.getCities(player).length;
+    // A QUANTITY of cities: a stacked city (Skyscrapers) counts every tier.
+    return player.game.board.countCities(player);
   }
 }

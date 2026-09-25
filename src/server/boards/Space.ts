@@ -22,6 +22,18 @@ export type Space = {
 
   /** The tile placed on top of the space. Could be a hazard tile. */
   tile?: Tile;
+  /**
+   * THE STACK (Turmoil Redux — Skyscrapers, RX20): how many CITY tiles stand
+   * on this cell, one on top of the other. Absent = one (every ordinary
+   * cell); present only from 2 up, and only on a city the same owner built
+   * a tier onto. The tiers are identical objects of ONE owner — the cell keeps
+   * its one `tile` (a Capital stays a Capital underneath) and counts its
+   * height here, never a second tile list. Read through `Board.tiersOf` /
+   * `Board.cityTiersOf`; a QUANTITY of cities sums it (`MarsBoard.countCities`),
+   * a PREDICATE about the cell («is this a city», «is it next to a city») never
+   * looks at it. An old save without the field reads as height 1.
+   */
+  stackHeight?: number;
   /** The player who owns this tile. Will show a token, even the neutral player */
   player?: IPlayer;
   /** The bonuses granted to a player for placing a tile on this space. */

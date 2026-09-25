@@ -5,6 +5,7 @@ import {InfluenceScaledEffect} from './influenceScaling';
 import {ResolutionLevy} from './resolutionLevy';
 import {PartyReaction} from './partyReactions';
 import {WinnerRewardDeclaration} from './winnerReward';
+import {TileGrantDeclaration} from './tileGrant';
 import {WorldParameterMove} from './parameterMove';
 
 /**
@@ -62,6 +63,13 @@ export type IClientResolution = {
    * winner's step places. Absent = no winner part, or one not declared as data.
    */
   winnerReward?: WinnerRewardDeclaration;
+  /**
+   * A TILE GRANTED BY THRESHOLD as data (`tileGrant.ts`) — Skyscrapers: one
+   * city tile for the winner and for every seat at or above the influence
+   * line, placed as a tier on the seat's own city. The same declaration the
+   * step decides by. Absent = no such part.
+   */
+  tileGrant?: TileGrantDeclaration;
   /**
    * The WORLD's part as data (`parameterMove.ts`) — the global parameters the
    * enactment moves for the whole table, and whether anybody is credited for

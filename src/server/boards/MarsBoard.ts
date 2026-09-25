@@ -8,6 +8,7 @@ import {AresHandler} from '../ares/AresHandler';
 import {CardName} from '../../common/cards/CardName';
 import {SpaceId} from '../../common/Types';
 import {oneWayDifference} from '../../common/utils/utils';
+import {countCityTiers} from './cityStack';
 import {Tile} from '../Tile';
 import {SpaceBonus} from '../../common/boards/SpaceBonus';
 import {PlacementIllegalReason, PlacementIllegalSpace} from '../../common/inputs/PlacementIllegalReason';
@@ -55,6 +56,43 @@ export class MarsBoard extends Board {
     return cities;
   }
 
+  /**
+   * THE QUANTITY OF CITIES — the one function every «how many cities» reads
+   * (Mayor, Metropolist, Constructor, the cities requirement, Vermin,
+   * Hospitals, Star Vegas, New Holland, Strong Society, Election, the
+   * `cities` countable, the player model). `getCities` stays the list of
+   * CELLS (a predicate's, an adjacency's, a filter's instrument); this sums
+   * the STACKS standing on them (Skyscrapers: two cities on one cell are two
+   * cities everywhere a number is asked — `Board.cityTiersOf`). Two sources of
+   * truth about the count must never exist: one panel saying «2 cities» while
+   * another says «1» is the defect this function prevents.
+   */
+  public countCities(player?: IPlayer, where: 'everywhere' | 'onmars' | 'offmars' = 'everywhere'): number {
+    const cities = where === 'onmars' ? this.getCitiesOnMars(player) :
+      where === 'offmars' ? this.getCitiesOffMars(player) : this.getCities(player);
+    return MarsBoard.countCityTiers(cities);
+  }
+
+  /** The cities standing on a LIST of cells — the stacks summed (the `nextToThis` countable's instrument; `cityStack.ts`). */
+  public static countCityTiers(spaces: ReadonlyArray<Space>): number {
+    return countCityTiers(spaces);
+  }
+
+  /**
+   * May a CITY TIER be built onto `space` by `player` (Skyscrapers)? The cell
+   * must carry the player's OWN city ON MARS — never another player's, never
+   * a reserved off-Mars city slot, never an empty cell. The one predicate the
+   * legal set, the commit (`Game.addCityTier`) and the reason pipeline share.
+   */
+  public static canStackCity(space: Space, player: IPlayer): boolean {
+    return space.spaceType !== SpaceType.COLONY && Board.isCitySpace(space) && space.player === player;
+  }
+
+  /** The cells a city tier may land on: the player's own cities on Mars (the stack's candidate set). */
+  public getAvailableSpacesForCityTier(player: IPlayer): ReadonlyArray<Space> {
+    return this.getCitiesOnMars(player).filter((space) => MarsBoard.canStackCity(space, player));
+  }
+
   public getGreeneries(player?: IPlayer): Array<Space> {
     let greeneries = this.spaces.filter((space) => Board.isGreenerySpace(space));
     if (player !== undefined) {
@@ -78,6 +116,7 @@ export class MarsBoard extends Board {
       const filtered = this.getAvailableSpacesForCity(player, undefined, oceanSpaces);
       return filtered;
     }
+    case 'city-tier': return this.getAvailableSpacesForCityTier(player);
     default: throw new Error('unknown type ' + type);
     }
   }
@@ -566,6 +605,13 @@ export class MarsBoard extends Board {
         return 'adjacent-to-city';
       }
       return 'unavailable';
+    }
+    // A CITY TIER (Skyscrapers) lands ON one of the player's own cities on
+    // Mars — an occupied cell is the requirement, not the blocker, so the
+    // ONE reason for every other cell is «not one of your cities on Mars»:
+    // an empty cell, another player's city, a reserved off-Mars slot alike.
+    if (placementType === 'city-tier') {
+      return 'not-your-city';
     }
     // Already-placed tiles. A REAL tile (non-hazard) always blocks placement →
     // 'occupied'. An Ares hazard is the exception: a PROTECTED hazard blocks

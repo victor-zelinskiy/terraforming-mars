@@ -25,7 +25,7 @@ function outcome(over: Partial<ParliamentEnactOutcomeModel> & {kind: ParliamentE
  */
 describe('rewardAddress — the table', () => {
   it('has a row for EVERY outcome kind — and only for kinds (the union and the table are one)', () => {
-    expect(OUTCOME_KINDS.slice().sort()).deep.eq(['cardResource', 'cards', 'colony', 'colonyBonus', 'discard', 'globalParameter', 'greenery', 'ocean', 'production', 'reaction', 'skipped', 'stock']);
+    expect(OUTCOME_KINDS.slice().sort()).deep.eq(['cardResource', 'cards', 'city', 'colony', 'colonyBonus', 'discard', 'globalParameter', 'greenery', 'ocean', 'production', 'reaction', 'skipped', 'stock']);
     for (const kind of OUTCOME_KINDS) {
       expect(REWARD_ADDRESS[kind].kind, kind).eq(kind);
     }
@@ -104,6 +104,11 @@ describe('rewardAddress — the table', () => {
     expect(REWARD_ADDRESS.cards.stage).eq('take');
     expect(REWARD_ADDRESS.ocean.stage).eq('board');
     expect(REWARD_ADDRESS.greenery.stage).eq('board');
+    // A CITY TIER (Skyscrapers) is the board's too — per seat in turn — and it is a TILE (an amount-less
+    // record is a payout, never a silent reward), read by the threshold grant's own reading.
+    expect(REWARD_ADDRESS.city.stage).eq('board');
+    expect(REWARD_ADDRESS.city.unit).eq('tile');
+    expect(REWARD_ADDRESS.city.reading).eq('tile-grant');
     // …and a WORLD move of a global parameter is the board's too (Gas Export): the sitting yields, the scale
     // marker makes the step, the frame comes back — no seat, no rail, no chip in anybody's hands.
     expect(REWARD_ADDRESS.globalParameter.stage).eq('board');

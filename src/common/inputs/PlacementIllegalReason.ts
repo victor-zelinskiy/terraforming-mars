@@ -56,6 +56,8 @@ export type PlacementIllegalReason =
   | 'not-adjacent-to-new-ocean'
   | 'has-hazard'
   | 'not-a-city'
+  // A city TIER (Skyscrapers) lands only on one of the player's own cities on Mars.
+  | 'not-your-city'
   | 'already-has-cathedral'
   | 'no-triangle-with-this-space'
   | 'breaks-current-triangle'
@@ -110,6 +112,7 @@ export const PLACEMENT_REASON_LABEL: Readonly<Record<PlacementIllegalReason, str
   'not-adjacent-to-new-ocean': 'Not adjacent to the placed ocean',
   'has-hazard': 'Hazard tile blocks placement',
   'not-a-city': 'Not a city tile',
+  'not-your-city': 'Not one of your cities on Mars',
   'already-has-cathedral': 'Already has a cathedral',
   'no-triangle-with-this-space': 'Not part of any valid triangle',
   'breaks-current-triangle': 'Not in a triangle with your prior picks',

@@ -10,6 +10,7 @@ import {Units} from '../../common/Units';
 import {hazardSeverity} from '../../common/AresTileType';
 import {sumTRSources, TR_SOURCES, TRSource} from '../../common/cards/TRSource';
 import {sum} from '../../common/utils/utils';
+import {cityTiersOf, tiersOf} from './cityStack';
 
 /**
  * The bonus costs to place a tile on a space. For instance, spending 6MC to place an ocean,
@@ -323,6 +324,21 @@ export abstract class Board {
     return space.tile !== undefined && CITY_TILES.has(space.tile.tileType);
   }
 
+  /**
+   * HOW MANY TILES stand on the cell — the city STACK's height (Skyscrapers:
+   * a tier built onto one's own city), 1 for any other tile, 0 for an empty
+   * cell (`cityStack.ts` — the one reader of `Space.stackHeight`): a quantity
+   * of tiles / cities sums this; a predicate about the cell never asks it.
+   */
+  public static tiersOf(space: Space): number {
+    return tiersOf(space);
+  }
+
+  /** HOW MANY CITIES stand on the cell: the stack's height for a city, 0 for anything else. */
+  public static cityTiersOf(space: Space): number {
+    return cityTiersOf(space);
+  }
+
   // Returns true when the space has an ocean tile or any derivative tiles (ocean city, wetlands)
   public static isOceanSpace(space: Space): boolean {
     return space.tile !== undefined && OCEAN_TILES.has(space.tile.tileType);
@@ -409,6 +425,11 @@ export abstract class Board {
         if (space.volcanic) {
           serialized.volcanic = true;
         }
+        // The stack is written only where one stands (2 up): a save from
+        // before the field and a cell with one tile look exactly alike.
+        if (space.stackHeight !== undefined && space.stackHeight > 1) {
+          serialized.stackHeight = space.stackHeight;
+        }
         return serialized;
       }),
     };
@@ -450,6 +471,11 @@ export abstract class Board {
     }
     if (serialized.volcanic !== undefined) {
       space.volcanic = serialized.volcanic;
+    }
+    // An old save without the field reads as height 1 (the field stays absent);
+    // a stack survives only on a cell that still carries its tile.
+    if (serialized.stackHeight !== undefined && serialized.stackHeight > 1 && space.tile !== undefined) {
+      space.stackHeight = serialized.stackHeight;
     }
     return space;
   }

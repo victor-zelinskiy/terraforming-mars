@@ -17,7 +17,7 @@ import {PlacementEffect} from '../../common/models/PlayerInputModel';
 
 const PLACEMENT_KINDS: ReadonlyArray<BoardPlacementKind> = [
   'land', 'ocean', 'greenery', 'city', 'away-from-cities', 'isolated',
-  'volcanic', 'upgradeable-ocean', 'upgradeable-ocean-new-holland',
+  'volcanic', 'upgradeable-ocean', 'upgradeable-ocean-new-holland', 'city-tier',
 ];
 
 const PLACEMENT_EFFECTS: ReadonlyArray<PlacementEffect> = ['tile', 'bonus-only', 'marker'];

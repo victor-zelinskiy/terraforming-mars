@@ -76,7 +76,13 @@ export type RewardStage = 'reward' | 'choice' | 'take' | 'discard' | 'board' | '
  * the scales on the board that actually show it. It is not the winner's
  * reading: it belongs to no seat, so every viewer reads the same line.
  */
-export type RewardReading = 'influence-yield' | 'winner-reward' | 'party-reaction' | 'colony-ledger' | 'world-parameter' | 'skip-plate';
+/**
+ * `tile-grant` — a TILE granted by THRESHOLD (Skyscrapers: the winner and every seat with influence ≥ 2
+ * place a city tier on their own city): the eligibility line, the stack the tier made, or the named
+ * reason the seat got none. It is not the winner's reading: several seats receive it, each by its own
+ * standing.
+ */
+export type RewardReading = 'influence-yield' | 'winner-reward' | 'party-reaction' | 'colony-ledger' | 'world-parameter' | 'tile-grant' | 'skip-plate';
 
 export type RewardAddress = {
   kind: OutcomeKind;
@@ -133,6 +139,16 @@ export const REWARD_ADDRESS: Readonly<Record<OutcomeKind, RewardAddress>> = {
   colony: {
     kind: 'colony', surface: 'colonies', source: 'none', unit: 'tile', stage: 'colonies', reading: 'winner-reward',
     skipTitle: 'Skipped: the winner\'s colony',
+  },
+  // A CITY TIER (Skyscrapers, RX20): the winner and every seat at or above the influence line each place ONE
+  // city tile ON TOP of a city they already own — the board scene builds the stack (a vertical descent, the
+  // counter ticking at contact), seat by seat IN TURN: the sitting yields to the board for the viewer's own
+  // tier and comes back with the receipt (the winner-tile route generalized to every eligible seat). The
+  // record names the cell and the stack it became. A skip names the rule that passed the seat over (below
+  // the line and not the winner) or the board that has no city of theirs on Mars.
+  city: {
+    kind: 'city', surface: 'board', source: 'none', unit: 'tile', stage: 'board', reading: 'tile-grant',
+    skipTitle: 'Skipped: the city tile',
   },
   // A WORLD MOVE OF A GLOBAL PARAMETER (Gas Export, RX12): the enactment moves the planet for the whole
   // table — nobody is paid and, when the law says so, nobody is credited. Nothing lands in a seat, so there
@@ -319,10 +335,10 @@ export function rewardAddressOf(outcome: ParliamentEnactOutcomeModel, viewer: Co
  *     «нет колонии в игре»; pose: a colony chip with its track step, the reward stays on the sitting.
  *   · (`colonyToWinner` SHIPPED as `colony` — Colony Contest, RX09: surface `colonies`, unit `tile`, stage
  *     `colonies`; the colonies SCREEN is the sitting's hosted step rather than a picker in the task host.)
- *   · `cityEveryone` (each player places a city) — surface `board`, source `carrier`, unit `tile`, stage
- *     `board` per seat IN TURN (the sitting yields to the board and comes back, the other seats wait —
- *     the winner-tile route generalized to every seat), skip «нет клетки под город»; pose: the board
- *     placement per seat, then the received line «Город · размещён».
+ *   · (`cityEveryone` SHIPPED as `city` — Skyscrapers, RX20: surface `board`, source `none`, unit `tile`,
+ *     stage `board` per seat IN TURN, reading `tile-grant`; the tile is a TIER on the seat's own city, the
+ *     board scene builds the stack, the record names the cell and its height, and the skip names the rule —
+ *     below the influence line and not the winner — or the board with no city of theirs on Mars.)
  *   · (`drawUpTo` SHIPPED without a kind of its own — Joint Research, RX16: a LEVEL is the `cards` kind with
  *     the record's own `target` and `total {before, after}` (the hand before and after); the count is RESOLVED
  *     by the record (never the formula's target — a hand at the target takes nothing: a `skipped` named

@@ -48,6 +48,7 @@ import {JOINT_RESEARCH} from './scientists/JointResearch';
 import {JOVIAN_TAX_RIGHTS} from './unity/JovianTaxRights';
 import {MEDICAL_DATABASE} from './scientists/MedicalDatabase';
 import {METAL_RESEARCH} from './industrialists/MetalResearch';
+import {SKYSCRAPERS} from './marsFirst/Skyscrapers';
 
 /**
  * THE RETIRED IDS — iteration 0's DUMMY resolutions (a party, a quest, no
@@ -495,6 +496,9 @@ export const REDUX_RESOLUTION_CATALOG = new ResolutionCatalog([
   // The first law that changes the VALUE OF A RESOURCE (steel 3, titanium 4 while it stands): a passive asked by the
   // value ACCESSORS on the read — the player's serialized value field is never written by a law.
   METAL_RESEARCH,
+  // The first recipients decided by a THRESHOLD (the winner + everyone with influence ≥ 2), and the first CITY STACK:
+  // one city tile each, placed as a TIER on the seat's own city on Mars — the cell pays nothing again, every tier scores.
+  SKYSCRAPERS,
   TEST_CHOICE,
   DEV_IMMEDIATE,
   DEV_PASSIVE,

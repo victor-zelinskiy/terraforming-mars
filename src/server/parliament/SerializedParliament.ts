@@ -75,13 +75,15 @@ export type SerializedEnactOutcome = {
    * colony bonus the chip language does not speak, paid through its own
    * counter (a discount, a loss, a science tag — see `description`) ·
    * `ocean` / `greenery` the winner's tile · `colony` the winner's colony built
-   * for free (Colony Contest — `colony` names the tile) · `globalParameter` a
-   * WORLD move of a global parameter (Gas Export — see `parameter`, and
-   * `amount` = the steps actually made, negative for a lowering) · `skipped`
-   * nothing happened (see `reason`) · `reaction` the RULING PARTY's answer to
-   * this step's own change (see `party`).
+   * for free (Colony Contest — `colony` names the tile) · `city` a CITY TIER
+   * built onto the seat's own city (Skyscrapers — `space` names the cell,
+   * `stackHeight` the stack it became) · `globalParameter` a WORLD move of a
+   * global parameter (Gas Export — see `parameter`, and `amount` = the steps
+   * actually made, negative for a lowering) · `skipped` nothing happened (see
+   * `reason`) · `reaction` the RULING PARTY's answer to this step's own change
+   * (see `party`).
    */
-  kind: 'cardResource' | 'production' | 'stock' | 'cards' | 'discard' | 'colonyBonus' | 'ocean' | 'greenery' | 'colony' | 'globalParameter' | 'skipped' | 'reaction';
+  kind: 'cardResource' | 'production' | 'stock' | 'cards' | 'discard' | 'colonyBonus' | 'ocean' | 'greenery' | 'colony' | 'city' | 'globalParameter' | 'skipped' | 'reaction';
   /**
    * THE COLONY whose printed bonus this record pays (Colonial Affairs: «gain
    * all your colony bonuses k times») — the ledger row the record belongs to
@@ -139,6 +141,8 @@ export type SerializedEnactOutcome = {
    */
   cards?: Array<{card: CardName; amount: number; resource?: CardResource}>;
   space?: SpaceId;
+  /** `city`: the cell's stack AFTER the tier landed («a stack of 2») — frozen with the record. */
+  stackHeight?: number;
   /** `skipped`: why nothing happened (English i18n key). */
   reason?: string;
   /** The influence the amount was computed from (a scaled effect). */

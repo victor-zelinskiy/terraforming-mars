@@ -1,6 +1,7 @@
 import {InfluenceScaledEffect} from '@/common/parliament/influenceScaling';
 import {resolutionCountKind} from '@/common/parliament/resolutionCounts';
 import {WinnerRewardDeclaration} from '@/common/parliament/winnerReward';
+import {TileGrantDeclaration} from '@/common/parliament/tileGrant';
 import {WorldParameterMove} from '@/common/parliament/parameterMove';
 
 /*
@@ -38,11 +39,15 @@ import {WorldParameterMove} from '@/common/parliament/parameterMove';
  *                   the instrument is the GLOBAL PARAMETERS, and the scenarios are their limits;
  *   up-to         — a LEVEL the player is brought up to (Joint Research: «draw until you have 6 + influence in
  *                   hand») — the instrument is the seat's CURRENT LEVEL (the hand), and the scenarios are its
- *                   positions against the target (empty, short by a few, at it, above it, at influence 0).
+ *                   positions against the target (empty, short by a few, at it, above it, at influence 0);
+ *   tile-grant    — a TILE granted by THRESHOLD (Skyscrapers: the winner and every seat with influence ≥ 2 place a
+ *                   city tier on their own city) — the instrument is the seat's ELIGIBILITY (the star, the influence
+ *                   line) and its CITIES ON MARS (the only legal destination), and the scenarios are their edges
+ *                   (below the line, on it, the winner under it, no city to build on, the stack recorded).
  */
 export const RESOLUTION_FAMILIES = [
   'influence', 'counted', 'counted-tags', 'counted-board', 'counted-metric', 'counted-production', 'counted-colonies', 'distributed', 'winner-tile', 'sequel',
-  'colony-bonuses', 'world-move', 'up-to',
+  'colony-bonuses', 'world-move', 'up-to', 'tile-grant',
 ] as const;
 export type ResolutionFamily = typeof RESOLUTION_FAMILIES[number];
 
@@ -50,6 +55,8 @@ export type ResolutionFamily = typeof RESOLUTION_FAMILIES[number];
 export type ResolutionFamilyFacts = {
   scaled?: ReadonlyArray<InfluenceScaledEffect>;
   winnerReward?: WinnerRewardDeclaration;
+  /** A TILE granted by threshold (Skyscrapers) — the recipients rule and the tile's one destination. */
+  tileGrant?: TileGrantDeclaration;
   /** The WORLD's part — the global parameters the enactment moves for the whole table. */
   worldMoves?: ReadonlyArray<WorldParameterMove>;
 };
@@ -85,7 +92,11 @@ export function levelEffectOf(facts: ResolutionFamilyFacts): InfluenceScaledEffe
 }
 
 export function familyOf(facts: ResolutionFamilyFacts): ResolutionFamily {
-  // THE COLONY LEDGER first: what is multiplied is the player's own tiles, an instrument no other family has.
+  // A TILE BY THRESHOLD first: the instrument is who qualifies and where the tile may go — no amount, no count.
+  if (facts.tileGrant !== undefined) {
+    return 'tile-grant';
+  }
+  // THE COLONY LEDGER next: what is multiplied is the player's own tiles, an instrument no other family has.
   if (colonyBonusesEffectOf(facts) !== undefined) {
     return 'colony-bonuses';
   }

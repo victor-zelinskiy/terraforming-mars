@@ -141,6 +141,9 @@ export function boardCellPreview(
     canAffordOptions?: CanAffordOptions}): BoardPlacementPreview {
   const board = player.game.board;
   const cleared = options?.cleared === true;
+  // A CITY TIER (Skyscrapers) lands on the player's own city: the cell is
+  // occupied by design, pays nothing again, and scores as a stack.
+  const stacking = kind === 'city-tier';
   const legalSpaces = cleared ? [] : legalSpacesForKind(player, kind, options?.canAffordOptions);
   const legal = cleared || legalSpaces.some((s) => s.id === space.id);
   // A cleared cell's tile is removed first → treat as an empty cell (grant the
@@ -153,12 +156,20 @@ export function boardCellPreview(
   // which mirrors the placed tile's `covers` field (a removed hazard never
   // sets it) — the flag the survey-family hooks read.
   const bonusesCovered = space.tile !== undefined && !cleared;
-  const ctx = previewContext(kind, options?.tileType, cleared, covering, bonusesCovered, options?.placementEffect);
+  const ctx = previewContext(kind, options?.tileType, cleared, covering, bonusesCovered, options?.placementEffect, stacking);
 
   const facts: Array<BoardFact> = [];
-  facts.push(...placementCostFacts(player, space, ctx, options?.canAffordOptions));
+  if (!stacking) {
+    // A tier is charged nothing of the cell (`Game.addTile` skips the Ares
+    // costs for it) — no cost line may promise a charge the commit skips.
+    facts.push(...placementCostFacts(player, space, ctx, options?.canAffordOptions));
+  }
   if (ctx.grantsPlacementBonus) {
     facts.push(...printedBonusFacts(space, ctx.bonusesCovered));
+  } else if (stacking) {
+    // NO SILENT LOSS: the cell's bonuses were collected by the first city —
+    // the tier says so out loud where an ordinary landing lists its rewards.
+    facts.push(rule('tier-no-bonus', 'placement-effect', 'No placement bonus', 'The cell\'s bonuses were collected by the first city. A tier pays nothing again — not the printed bonus, not the ocean adjacency.', 'neutral'));
   }
   facts.push(...placementEffectFacts(player, ctx));
   facts.push(...greeneryRevisionFacts(player, ctx));
@@ -174,8 +185,9 @@ export function boardCellPreview(
   // Ares adjacency is earned by a TILE, not by a placement bonus — `Game
   // .grantPlacementBonuses` gates it on `space.tile !== undefined`, and the
   // Mars Nomads ruling says the same ("adjacency bonuses are not placement
-  // bonuses"). A marker move earns none.
-  if (ctx.placesTile) {
+  // bonuses"). A marker move earns none; a city TIER earns none either (the
+  // first city on the cell already did).
+  if (ctx.placesTile && !ctx.stacking) {
     facts.push(...aresAdjacencyFacts(player, space));
   }
   // What the CARD that owns this placement does about THIS cell, and what every
@@ -205,8 +217,9 @@ export function boardCellPreview(
   }
   // A remove-and-replace placement ignores the cell's placement-restriction rules
   // (it places "regardless of placement rules"), so don't surface volcanic /
-  // reserved / restricted notes that no longer apply.
-  facts.push(...specialZoneFacts(player, space, {includePlacementRules: !cleared}));
+  // reserved / restricted notes that no longer apply — nor for a tier on an
+  // occupied cell, whose placement rules were settled by the first city.
+  facts.push(...specialZoneFacts(player, space, {includePlacementRules: !cleared && !stacking}));
 
   const preview = classifyPlacementFacts(stripRedundantSource(facts, options?.sourceCard), player, space.id, kind, legal);
   // What this pick PUTS DOWN — so the panel's "nothing else happens" line can
@@ -243,7 +256,7 @@ function headerFor(space: Space, status: BoardCellStatus): string {
   }
   switch (status.content) {
   case 'ocean': return 'Ocean';
-  case 'city': return 'City';
+  case 'city': return status.stackHeight !== undefined ? 'City stack' : 'City';
   case 'greenery': return 'Greenery';
   case 'special-tile': return 'Special tile';
   case 'hazard': {
@@ -360,6 +373,9 @@ function baseCellStatus(player: IPlayer, space: Space): BoardCellStatus {
     const external = !onMarsGrid(board, space);
     const special = isSpecialTile(tileType) || external;
     const countsAs = countsAsFor(tileType);
+    // A CITY STACK (Skyscrapers) names its height in the header — «Город ×2».
+    const tiers = Board.tiersOf(space);
+    const stack = tiers > 1 ? {stackHeight: tiers} : {};
     // Prefer the recorded SOURCE card (set by `behavior.city`/`behavior.tile`);
     // fall back to the canonical tile-type name for a special TileType, but NEVER
     // the generic 'city'/'ocean'/'greenery' pseudo-names (an ordinary CITY tile
@@ -375,7 +391,7 @@ function baseCellStatus(player: IPlayer, space: Space): BoardCellStatus {
     const content = Board.isCitySpace(space) ? 'city' :
       Board.isOceanSpace(space) ? 'ocean' :
         Board.isGreenerySpace(space) ? 'greenery' : 'special-tile';
-    return {content, ownerColor, tileLabel, special, countsAs, external};
+    return {content, ownerColor, tileLabel, special, countsAs, external, ...stack};
   }
   return {content: 'empty', spaceTypeLabel: spaceTypeLabel(space.spaceType)};
 }
@@ -649,7 +665,9 @@ function partyReactionFacts(player: IPlayer, space: Space, ctx: PlacementPreview
       });
     }
   }
-  if (parliament.hasPartyEffect(player, PartyName.MARS) && ctx.placesTile && ctx.grantsPlacementBonus &&
+  // The party answers A TILE PLACED on Mars (never a marker) — a city TIER
+  // (Skyscrapers) is one too, though the cell itself pays it nothing again.
+  if (parliament.hasPartyEffect(player, PartyName.MARS) && ctx.placesTile && ctx.firesTileTriggers &&
       player.game.phase !== Phase.SOLAR && space.spaceType !== SpaceType.COLONY) {
     out.push({
       ...gainFact('redux-mars-first-steel', 'placement-effect', 'Mars First', {icon: 'steel', amount: 1, direction: 'gain'}),
@@ -942,7 +960,17 @@ function existingTileScoringFacts(player: IPlayer, space: Space): Array<BoardFac
   }
   if (Board.isCitySpace(space) && ownerColor !== undefined) {
     const greeneries = board.getAdjacentSpaces(space).filter(Board.isGreenerySpace);
-    out.push(cityScoringFact('score-city', recipientFor(player, ownerColor), greeneries.length, false, greeneries.map((s) => s.id)));
+    const tiers = Board.cityTiersOf(space);
+    if (tiers > 1) {
+      // A CITY STACK (Skyscrapers): every tier scores the cell's adjacent
+      // greeneries on its own — one fact per tier, the same rows the score
+      // explorer prints, so the popover and the final breakdown agree.
+      for (let tier = 1; tier <= tiers; tier++) {
+        out.push(cityTierScoringFact(`score-city-tier-${tier}`, recipientFor(player, ownerColor), greeneries.length, tier, tiers, greeneries.map((s) => s.id)));
+      }
+    } else {
+      out.push(cityScoringFact('score-city', recipientFor(player, ownerColor), greeneries.length, false, greeneries.map((s) => s.id)));
+    }
   }
   // Special-tile own scoring — shown SEPARATELY from (and in addition to) the
   // city-greenery rule above. Capital ALSO counts as a city, so it gets BOTH.
@@ -1041,6 +1069,58 @@ function cityScoringFact(id: string, recipient: BoardFactRecipient, greeneries: 
 }
 
 /**
+ * ONE TIER of a city STACK (Skyscrapers) scoring the cell's adjacent
+ * greeneries on its own — the hover's per-tier row («Tier 2 of 2 scores for
+ * adjacent greeneries · +3 VP»), one per tier, so the popover reads the same
+ * rows the final score breakdown prints.
+ */
+function cityTierScoringFact(id: string, recipient: BoardFactRecipient, greeneries: number, tier: number, tiers: number, spaces: ReadonlyArray<SpaceId>): BoardFact {
+  const params = [String(tier), String(tiers)];
+  if (greeneries > 0) {
+    const fact = vpFact(id, 'city-greenery-scoring', 'Tier ${0} of ${1} scores for adjacent greeneries', recipient, 0, greeneries,
+      'Each tier of the stack scores +1 VP per adjacent greenery at game end, separately.');
+    return {...fact, params, ...(spaces.length > 0 ? {spaces} : {})};
+  }
+  return {
+    id,
+    category: 'city-greenery-scoring',
+    timing: 'endgame',
+    severity: 'info',
+    recipient,
+    title: 'Tier ${0} of ${1} scores for adjacent greeneries',
+    params,
+    description: 'No adjacent greeneries yet.',
+  };
+}
+
+/**
+ * The PLACEMENT preview of a city TIER (Skyscrapers): what the stack will
+ * score once the tier stands — the cell's adjacent greeneries once more, on
+ * top of what the stack scores today («2 tiers: 3 → 6 VP»). Honest at zero:
+ * a stack beside no greenery scores nothing for now.
+ */
+function cityTierPlacementFact(greeneries: ReadonlyArray<Space>, tiers: number): BoardFact {
+  const params = [String(tiers), String(tiers + 1)];
+  const spaces = greeneries.map((s) => s.id);
+  if (greeneries.length > 0) {
+    const fact = vpFact('place-city-tier', 'city-greenery-scoring', 'City stack: ${0} → ${1} tiers', {kind: 'current-player'},
+      greeneries.length * tiers, greeneries.length * (tiers + 1),
+      'The new tier scores +1 VP per adjacent greenery at game end, separately from the cities under it (and any greenery placed next to the stack later).');
+    return {...fact, params, spaces};
+  }
+  return {
+    id: 'place-city-tier',
+    category: 'city-greenery-scoring',
+    timing: 'endgame',
+    severity: 'info',
+    recipient: {kind: 'current-player'},
+    title: 'City stack: ${0} → ${1} tiers',
+    params,
+    description: 'No adjacent greeneries yet — every tier will score each greenery placed next to the stack later.',
+  };
+}
+
+/**
  * For a PLACEMENT preview: the endgame VP this placement creates, and for whom.
  * `tileType` (when known) identifies a COMPOSITE tile whose scoring its placement
  * `kind` can't convey — an `upgradeable-ocean` placement is Ocean City (counts as
@@ -1057,6 +1137,13 @@ function placementScoringFacts(player: IPlayer, space: Space, ctx: PlacementPrev
   // it counts as. A composite over-ocean tile that counts as a CITY scores for
   // adjacent greeneries exactly like a city.
   const {countsAsCity, countsAsGreenery} = ctx;
+  if (ctx.stacking) {
+    // A CITY TIER: the stack's scoring, not a fresh city's — the tile's own
+    // special VP (Capital's oceans) belongs to the base tile and stays as is.
+    const greeneries = board.getAdjacentSpaces(space).filter(Board.isGreenerySpace);
+    out.push(cityTierPlacementFact(greeneries, Board.cityTiersOf(space)));
+    return out;
+  }
   // The tile's OWN adjacency VP (Capital / Commercial District) — the same rule
   // the hover shows for an already-placed one.
   out.push(...specialTileAdjacencyVpFacts(board, space, ctx.tileType, {kind: 'current-player'}, 'place'));
@@ -1108,7 +1195,8 @@ function previewContext(
   cleared: boolean,
   covering: boolean,
   bonusesCovered: boolean,
-  placementEffect: PlacementEffect = 'tile'): PlacementPreviewContext {
+  placementEffect: PlacementEffect = 'tile',
+  stacking = false): PlacementPreviewContext {
   const placesTile = placementEffect === 'tile';
   const tile = placesTile ? placedTileType(kind, tileType) : undefined;
   return {
@@ -1121,8 +1209,11 @@ function previewContext(
     countsAsOcean: tile !== undefined && OCEAN_TILES.has(tile),
     countsAsGreenery: tile !== undefined && GREENERY_TILES.has(tile),
     placesTile,
-    grantsPlacementBonus: placementEffect !== 'marker',
+    // A city TIER pays the cell nothing again — `Game.addTile` with `stacking`
+    // never reaches `grantPlacementBonuses`.
+    grantsPlacementBonus: placementEffect !== 'marker' && !stacking,
     firesTileTriggers: placementEffect !== 'marker',
+    stacking,
   };
 }
 
@@ -1379,15 +1470,24 @@ function withHypotheticalTile<T>(player: IPlayer, space: Space, ctx: PlacementPr
   }
   const savedTile = space.tile;
   const savedPlayer = space.player;
+  const savedHeight = space.stackHeight;
   try {
-    space.tile = {tileType: tile, covers: ctx.covering ? savedTile : undefined};
-    // Mirrors `Game.simpleAddTile`: an ocean (and the two unowned special tiles)
-    // belongs to nobody, so it must NOT count towards the placer's tile awards.
-    space.player = UNOWNED_TILES.has(tile) ? undefined : player;
+    if (ctx.stacking) {
+      // Mirrors `Game.simpleAddCityTier`: the cell keeps its tile and its
+      // owner, its stack grows by one — Mayor and Metropolist count the tier.
+      space.stackHeight = Board.tiersOf(space) + 1;
+    } else {
+      space.tile = {tileType: tile, covers: ctx.covering ? savedTile : undefined};
+      // Mirrors `Game.simpleAddTile`: an ocean (and the two unowned special tiles)
+      // belongs to nobody, so it must NOT count towards the placer's tile awards.
+      space.player = UNOWNED_TILES.has(tile) ? undefined : player;
+      space.stackHeight = undefined;
+    }
     return read();
   } finally {
     space.tile = savedTile;
     space.player = savedPlayer;
+    space.stackHeight = savedHeight;
   }
 }
 
@@ -1975,6 +2075,7 @@ function placedTileType(kind: BoardPlacementKind, tileType: TileType | undefined
   case 'ocean': return TileType.OCEAN;
   case 'greenery': return TileType.GREENERY;
   case 'city':
+  case 'city-tier':
   case 'away-from-cities': return TileType.CITY;
   default: return undefined;
   }

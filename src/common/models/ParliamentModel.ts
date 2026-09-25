@@ -205,11 +205,13 @@ export type ParliamentEnactOutcomeModel = {
    * `colonyBonus` a colony bonus paid through its own counter (a discount, a
    * loss, a science tag) · `ocean` / `greenery` the winner's tile · `colony`
    * the winner's colony built for free (Colony Contest — see `colony`) ·
-   * `globalParameter` a WORLD move of a global parameter (see `parameter`;
-   * `amount` = the steps actually made, negative for a lowering) · `skipped` ·
-   * `reaction` the RULING PARTY's answer to this step's own change.
+   * `city` a CITY TIER built onto the seat's own city (Skyscrapers — see
+   * `space` and `stackHeight`) · `globalParameter` a WORLD move of a global
+   * parameter (see `parameter`; `amount` = the steps actually made, negative
+   * for a lowering) · `skipped` · `reaction` the RULING PARTY's answer to this
+   * step's own change.
    */
-  kind: 'cardResource' | 'production' | 'stock' | 'cards' | 'discard' | 'colonyBonus' | 'ocean' | 'greenery' | 'colony' | 'globalParameter' | 'skipped' | 'reaction';
+  kind: 'cardResource' | 'production' | 'stock' | 'cards' | 'discard' | 'colonyBonus' | 'ocean' | 'greenery' | 'colony' | 'city' | 'globalParameter' | 'skipped' | 'reaction';
   /**
    * The COLONY whose printed bonus this record pays (Colonial Affairs) — the ledger row it belongs to;
    * for the `colony` kind, the tile the winner's cube landed on.
@@ -253,6 +255,8 @@ export type ParliamentEnactOutcomeModel = {
    */
   cards?: ReadonlyArray<{card: CardName; amount: number; resource?: CardResource}>;
   space?: SpaceId;
+  /** `city`: the cell's stack AFTER the tier landed («a stack of 2») — frozen, never re-read from a later board. */
+  stackHeight?: number;
   reason?: string;
   influence?: number;
   /** A counted term (B) at the enactment, and the cards it counted — frozen, never re-read from a later tableau. */

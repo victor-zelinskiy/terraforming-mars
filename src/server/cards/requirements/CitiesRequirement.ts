@@ -10,6 +10,7 @@ import {RequirementType} from '../../../common/cards/RequirementType';
 export class CitiesRequirement extends InequalityRequirement {
   public readonly type = RequirementType.CITIES;
   public override getScore(player: IPlayer): number {
-    return player.game.board.getCities(this.all ? undefined : player).length;
+    // A QUANTITY of cities: a stacked city (Skyscrapers) counts every tier.
+    return player.game.board.countCities(this.all ? undefined : player);
   }
 }

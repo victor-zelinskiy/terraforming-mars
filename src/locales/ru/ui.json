@@ -869,6 +869,7 @@
     "Not adjacent to the placed ocean": "Не соседствует с размещённым океаном",
     "Hazard tile blocks placement": "Опасная зона блокирует размещение",
     "Not a city tile": "Не является городом",
+    "Not one of your cities on Mars": "Не ваш город на Марсе",
     "Already has a cathedral": "Уже есть собор",
     "Not part of any valid triangle": "Не входит ни в один допустимый треугольник",
     "Not in a triangle with your prior picks": "Не образует треугольник с предыдущими выборами",

@@ -605,6 +605,8 @@ type PgSeat = {
   colonies?: ReadonlyArray<ColonyName>,
   /** The up-to family: the seat's HAND size (a synthetic count) the top-up is read against. */
   hand?: number,
+  /** The tile-grant family: the seat's CITIES ON MARS (a synthetic count) — the tier's only legal destinations. */
+  marsCities?: number,
 };
 type PgWinner = SeatIndex | 'neutral';
 /**
@@ -615,7 +617,7 @@ type PgWinner = SeatIndex | 'neutral';
  * resource by influence + the WINNER's tile.
  */
 type PgFamily = 'influence' | 'counted' | 'counted-tags' | 'counted-board' | 'counted-metric' | 'counted-production' | 'counted-colonies' | 'distributed' |
-  'winner-tile' | 'sequel' | 'colony-bonuses' | 'world-move' | 'up-to';
+  'winner-tile' | 'sequel' | 'colony-bonuses' | 'world-move' | 'up-to' | 'tile-grant';
 /** The table's global parameters a winner tile reads (oxygen %, temperature °C, oceans placed). */
 type PgTable = {oxygen: number, temperature: number, oceans: number, venus: number};
 const DEFAULT_TABLE: PgTable = {oxygen: 5, temperature: -14, oceans: 3, venus: 10};
@@ -1237,6 +1239,27 @@ const SCENARIOS: ReadonlyArray<PgScenario> = [
     seats: [{agenda: 5, bonus: 0, colonies: [ColonyName.LUNA, ColonyName.LUNA, ColonyName.TITAN, ColonyName.MIRANDA]}, {agenda: 1, bonus: 0, colonies: [ColonyName.LUNA]}],
     winner: 0, context: 'proposal', noRecipient: false,
     live: 'parliament-jovian-vote', liveNote: 'Jovian Tax Rights up for the vote: your influence 3 is 3 titanium, your 4 colonies are +4 M€ production'},
+  // ── THE TILE-GRANT FAMILY (Skyscrapers: the winner and every seat with influence ≥ 2 place a city tier on their own city
+  //    on Mars) — the instrument is the seat's ELIGIBILITY and its CITIES ON MARS; the scenarios are their edges.
+  {key: 'stack-below-line', family: 'tile-grant', label: 'Influence 1 and not the winner — passed over by the rule', viewer: 0,
+    seats: [{agenda: 1, bonus: 0, marsCities: 1}, {agenda: 5, bonus: 0, marsCities: 1}], winner: 1, context: 'proposal', noRecipient: false},
+  {key: 'stack-on-line', family: 'tile-grant', label: 'Influence 2 — the tile without winning', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, marsCities: 1}, {agenda: 5, bonus: 0, marsCities: 2}], winner: 1, context: 'proposal', noRecipient: false},
+  // Agenda 0 = influence 0; winning takes the marker to step 1 (influence 1) — still below the line, the star alone decides.
+  {key: 'stack-winner-under-line', family: 'tile-grant', label: 'The winner below the line still receives it', viewer: 0,
+    seats: [{agenda: 0, bonus: 0, marsCities: 1}, {agenda: 3, bonus: 0, marsCities: 1}], winner: 0, context: 'proposal', noRecipient: false},
+  {key: 'stack-no-city', family: 'tile-grant', label: 'No city on Mars — the tile is named and skipped', viewer: 0,
+    seats: [{agenda: 5, bonus: 0, marsCities: 0}, {agenda: 3, bonus: 0, marsCities: 1}], winner: 1, context: 'applied', noRecipient: false, noCell: true},
+  {key: 'stack-resolving', family: 'tile-grant', label: 'Your placement stands — the tier onto your city', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, marsCities: 1}, {agenda: 5, bonus: 0, marsCities: 1}], winner: 1, context: 'resolving', noRecipient: false},
+  {key: 'stack-recorded', family: 'tile-grant', label: 'Recorded result — a stack of 2', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, marsCities: 1}, {agenda: 1, bonus: 0, marsCities: 1}], winner: 0, context: 'applied', noRecipient: false},
+  {key: 'stack-neutral', family: 'tile-grant', label: 'Neutral winner — the line alone decides', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, marsCities: 1}, {agenda: 1, bonus: 0, marsCities: 1}], winner: 'neutral', context: 'applied', noRecipient: false},
+  {key: 'stack-spectator', family: 'tile-grant', label: 'Spectator — the rule alone', viewer: SPECTATOR,
+    seats: [{agenda: 3, bonus: 0, marsCities: 1}, {agenda: 1, bonus: 0, marsCities: 1}], winner: 0, context: 'proposal', noRecipient: false},
+  {key: 'stack-quest-1', family: 'tile-grant', label: 'Chairman quest 1/2', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, marsCities: 1}, {agenda: 1, bonus: 0, marsCities: 1}], winner: 0, context: 'applied', noRecipient: false, quest: {progress: [1, 0]}},
 ];
 /** Each family's opening scenario. */
 const DEFAULT_SCENARIO_OF: Readonly<Record<PgFamily, number>> = {
@@ -1253,6 +1276,7 @@ const DEFAULT_SCENARIO_OF: Readonly<Record<PgFamily, number>> = {
   'colony-bonuses': SCENARIOS.findIndex((s) => s.key === 'colonial-vote'),
   'world-move': SCENARIOS.findIndex((s) => s.key === 'world-room'),
   'up-to': SCENARIOS.findIndex((s) => s.key === 'research-short'),
+  'tile-grant': SCENARIOS.findIndex((s) => s.key === 'stack-on-line'),
 };
 const DEFAULT_SCENARIO = DEFAULT_SCENARIO_OF.influence;
 

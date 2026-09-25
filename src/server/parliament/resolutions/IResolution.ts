@@ -4,6 +4,7 @@ import {QuestDefinition, ReduxParty, ResolutionCode, ResolutionId} from '../../.
 import {InfluenceScaledEffect} from '../../../common/parliament/influenceScaling';
 import {ResolutionLevy} from '../../../common/parliament/resolutionLevy';
 import {WinnerRewardDeclaration} from '../../../common/parliament/winnerReward';
+import {TileGrantDeclaration} from '../../../common/parliament/tileGrant';
 import {WorldParameterMove} from '../../../common/parliament/parameterMove';
 import type {SerializedEnactOutcome} from '../SerializedParliament';
 import {ActionEffect} from '../../../common/models/ActionPreviewModel';
@@ -110,6 +111,15 @@ export type ResolutionForecastContext = {
  */
 export type TilePlacementBonusContext = {
   coveringExistingTile: boolean;
+  /**
+   * The tile is a CITY TIER built onto the player's own city (Skyscrapers,
+   * `Game.addCityTier`): the engine paid NO placement bonus of the cell at
+   * all — not the printed one, not the ocean adjacency, not an Ares
+   * neighbour — so a passive that REPEATS what the engine paid has nothing
+   * to repeat, while a passive that answers «a city tile was placed on
+   * Mars» answers as for any city.
+   */
+  stacked?: boolean;
 };
 
 /**
@@ -267,6 +277,16 @@ export interface ResolutionDefinition {
    * (what the tile is, which parameter its own placement moves).
    */
   winnerReward?: WinnerRewardDeclaration;
+  /**
+   * A TILE GRANTED BY THRESHOLD, as data (`tileGrant.ts`) — Skyscrapers: the
+   * winner and every participant with at least N influence each receive one
+   * city tile, placed as a TIER on their own existing city on Mars. Paid by
+   * ONE immediate step for every seat (eligible or not — an ineligible seat
+   * records a named skip). Exported to the manifest, so the vote reading, the
+   * sitting's stage, the results and the stand read the same recipients rule
+   * the step decides by.
+   */
+  tileGrant?: TileGrantDeclaration;
   /**
    * WHAT THE ENACTMENT DOES TO THE TABLE, as data (`parameterMove.ts`) — the
    * global parameters a WORLD step moves and whether anybody is credited for

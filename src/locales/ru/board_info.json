@@ -103,6 +103,13 @@
   "Does not change placement here.": "Не влияет на это размещение.",
   "A tile placed next to an ocean grants M€ to the player who places it.": "Тайл рядом с океаном приносит M€ тому, кто его ставит.",
   "No adjacent greeneries yet.": "Пока нет соседних озеленений.",
+  "City stack": "Стопка городов",
+  "Tier ${0} of ${1} scores for adjacent greeneries": "Ярус ${0} из ${1} приносит очки за соседние озеленения",
+  "Each tier of the stack scores +1 VP per adjacent greenery at game end, separately.": "Каждый ярус стопки отдельно приносит +1 ПО за каждое соседнее озеленение в конце игры.",
+  "City stack: ${0} → ${1} tiers": "Стопка городов: ${0} → ${1} яруса",
+  "The new tier scores +1 VP per adjacent greenery at game end, separately from the cities under it (and any greenery placed next to the stack later).": "Новый ярус отдельно от городов под ним приносит +1 ПО за каждое соседнее озеленение в конце игры (и за размещённые рядом позже).",
+  "No adjacent greeneries yet — every tier will score each greenery placed next to the stack later.": "Соседних озеленений пока нет — каждый ярус принесёт очки за озеленения, размещённые рядом позже.",
+  "The cell's bonuses were collected by the first city. A tier pays nothing again — not the printed bonus, not the ocean adjacency.": "Бонусы клетки уже собрал первый город. Ярус ничего не платит повторно — ни печатный бонус, ни соседство с океаном.",
   "Cancel construction": "Отменить строительство",
   "Scores +1 VP per adjacent greenery at game end (and any placed next to it later).": "+1 ПО за каждое соседнее озеленение в конце игры (и за размещённые рядом позже).",
 

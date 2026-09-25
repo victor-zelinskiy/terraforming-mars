@@ -85,7 +85,8 @@ export class Vermin extends ActionCard implements IProjectCard, IActionCard {
 
   public override getVictoryPoints(player: IPlayer) {
     if (player.game.verminInEffect) {
-      return -1 * player.game.board.getCities(player).length;
+      // A QUANTITY of cities: a stacked city (Skyscrapers) is penalized per tier.
+      return -1 * player.game.board.countCities(player);
     }
     return 0;
   }

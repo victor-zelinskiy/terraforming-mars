@@ -45,7 +45,8 @@ export class NewHolland extends Card implements IProjectCard {
   }
 
   public override bespokeCanPlay(player: IPlayer): boolean {
-    return player.game.board.getCitiesOnMars().length >= 4;
+    // A QUANTITY of cities on Mars: a stacked city (Skyscrapers) counts every tier.
+    return player.game.board.countCities(undefined, 'onmars') >= 4;
   }
 }
 

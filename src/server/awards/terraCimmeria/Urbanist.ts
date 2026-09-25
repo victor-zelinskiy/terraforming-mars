@@ -13,15 +13,19 @@ export class Urbanist implements IAward {
 
     player.game.board.spaces.forEach((space) => {
       if (Board.isCitySpace(space) && space.player?.id === player.id) {
-        // Victory points for greenery tiles adjacent to cities
+        // Victory points for greenery tiles adjacent to cities. A city STACK
+        // (Skyscrapers) scores its adjacent greeneries once PER TIER — the
+        // same reading `calculateVictoryPoints` makes; the tile's own card
+        // VP (Capital's oceans, Red City) belongs to the base tile alone.
+        const tiers = Board.cityTiersOf(space);
         switch (space.tile?.tileType) {
         case TileType.CITY:
         case TileType.OCEAN_CITY:
         case TileType.NEW_HOLLAND:
-          score += this.countGreeneries(player, space);
+          score += this.countGreeneries(player, space) * tiers;
           break;
         case TileType.CAPITAL:
-          score += this.countGreeneries(player, space) + this.getVictoryPoints(player, space);
+          score += this.countGreeneries(player, space) * tiers + this.getVictoryPoints(player, space);
           break;
         case TileType.RED_CITY:
           score += this.getVictoryPoints(player, space);

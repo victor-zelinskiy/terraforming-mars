@@ -613,7 +613,7 @@ export class Server {
       cardCost: player.cardCost,
       cardDiscount: player.colonies.cardDiscount,
       cardsInHandNbr: player.cardsInHand.length,
-      citiesCount: game.board.getCities(player).length,
+      citiesCount: game.board.countCities(player),
       coloniesCount: player.getColoniesCount(),
       color: player.color,
       energy: player.energy,
@@ -859,6 +859,9 @@ export class Server {
       }
       if (space.coOwner !== undefined) {
         model.coOwner = space.coOwner.color;
+      }
+      if (space.stackHeight !== undefined && space.stackHeight > 1) {
+        model.stackHeight = space.stackHeight;
       }
 
       return model;

@@ -25,7 +25,7 @@ import {PlacementIllegalReason} from '../inputs/PlacementIllegalReason';
 /** Mirrors `src/server/boards/PlacementType.ts` (kept in common so models + client share it). */
 export type BoardPlacementKind =
   'land' | 'ocean' | 'greenery' | 'city' | 'away-from-cities' | 'isolated' |
-  'volcanic' | 'upgradeable-ocean' | 'upgradeable-ocean-new-holland';
+  'volcanic' | 'upgradeable-ocean' | 'upgradeable-ocean-new-holland' | 'city-tier';
 
 /**
  * WHO receives a fact's effect. The single most important field — the UI groups
@@ -174,6 +174,13 @@ export type BoardCellStatus = {
    *  scoring even when it `countsAs` a city/ocean; the UI suppresses those facts
    *  and shows an "external area" note instead. (`countsAs` ≠ "scores".) */
   external?: boolean;
+  /**
+   * THE CITY STACK (Turmoil Redux — Skyscrapers): how many city tiles stand
+   * on this cell, one on top of the other. Present only from 2 up — the
+   * popover names the height and lists each tier's own scoring; an ordinary
+   * city carries no field.
+   */
+  stackHeight?: number;
 };
 
 /** One player's Asteroid-Deflection-Zone plant-protection status. */

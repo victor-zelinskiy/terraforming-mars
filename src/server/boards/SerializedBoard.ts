@@ -23,4 +23,6 @@ export interface SerializedSpace {
   undergroundResources?: UndergroundResourceToken;
   excavator?: PlayerId;
   coOwner?: PlayerId;
+  /** The city stack's height (Skyscrapers) — written only from 2 up; absent = 1 (every save before the field). */
+  stackHeight?: number;
 }

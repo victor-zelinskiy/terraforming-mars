@@ -25,4 +25,11 @@ export type SpaceModel = {
 
   undergroundResource?: UndergroundResourceToken;
   excavator?: Color;
+  /**
+   * THE CITY STACK (Turmoil Redux — Skyscrapers): how many city tiles stand
+   * on this cell. Present only from 2 up (an ordinary city carries none) —
+   * the board draws the lower tiers under the top tile and a counter on the
+   * cell, so the stack reads without a cursor.
+   */
+  stackHeight?: number;
 }

@@ -6,6 +6,7 @@ export class Constructor implements IAward {
   public readonly description = 'Have the most Colonies and Cities combined';
 
   public getScore(player: IPlayer): number {
-    return player.getColoniesCount() + player.game.board.getCities(player).length;
+    // A QUANTITY of cities: a stacked city (Skyscrapers) counts every tier.
+    return player.getColoniesCount() + player.game.board.countCities(player);
   }
 }

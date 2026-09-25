@@ -2022,19 +2022,39 @@ export class Game implements IGame, Logger {
 
   // addTile applies to the Mars board, but not the Moon board, see MoonExpansion.addTile for placing
   // a tile on The Moon.
+  //
+  // `options.stacking` (Turmoil Redux — Skyscrapers, RX20): the tile is a CITY
+  // TIER built ONTO the player's own city on Mars. The cell keeps its tile and
+  // raises its stack (`Space.stackHeight`); no fee of the cell is charged and
+  // NO placement bonus of the cell is paid a second time — neither its printed
+  // bonus nor its ocean adjacency nor an Ares neighbour: the first city already
+  // collected everything the cell pays (the ordinary cover path would still pay
+  // the ocean adjacency, which is why the tier does not walk it). What DOES fire
+  // is everything that answers «a city tile was placed»: the quest tracker, the
+  // party passives and the enacted law (told `stacked`), every card's
+  // `onTilePlaced` (Tharsis Republic, Pets, Immigrant City, Rover Construction),
+  // the MarsBot corporation, and the recorder's own `tile-placed` event.
   public addTile(
     player: IPlayer,
     space: Space,
-    tile: Tile): void {
+    tile: Tile,
+    options?: {stacking?: boolean}): void {
+    const stacking = options?.stacking === true;
     // Part 1, basic validation checks.
 
-    // Land claim a player can claim land for themselves
-    if (space.player !== undefined && space.player !== player) {
-      throw new Error('This space is land claimed by ' + space.player.name);
-    }
+    if (stacking) {
+      if (tile.tileType !== TileType.CITY || !MarsBoard.canStackCity(space, player)) {
+        throw new Error('A city tier can only be built onto your own city on Mars: ' + space.id);
+      }
+    } else {
+      // Land claim a player can claim land for themselves
+      if (space.player !== undefined && space.player !== player) {
+        throw new Error('This space is land claimed by ' + space.player.name);
+      }
 
-    if (!MarsBoard.canCover(space, tile)) {
-      throw new Error('Selected space is occupied: ' + space.id);
+      if (!MarsBoard.canCover(space, tile)) {
+        throw new Error('Selected space is occupied: ' + space.id);
+      }
     }
 
     // Oceans are not subject to Ares adjacency production penalties (nor is
@@ -2042,15 +2062,17 @@ export class Game implements IGame, Logger {
     // preview, so what the panel promises is what this charges.
     const subjectToHazardAdjacency = AresHandler.subjectToHazardAdjacency(player, tile.tileType);
 
-    AresHandler.ifAres(this, () => {
-      AresHandler.assertCanPay(player, space, subjectToHazardAdjacency);
-    });
+    if (!stacking) {
+      AresHandler.ifAres(this, () => {
+        AresHandler.assertCanPay(player, space, subjectToHazardAdjacency);
+      });
 
-    // Part 2. Collect additional fees.
-    // Adjacency costs are before the hellas ocean tile because this is a mandatory cost.
-    AresHandler.ifAres(this, () => {
-      AresHandler.payAdjacencyAndHazardCosts(player, space, subjectToHazardAdjacency);
-    });
+      // Part 2. Collect additional fees.
+      // Adjacency costs are before the hellas ocean tile because this is a mandatory cost.
+      AresHandler.ifAres(this, () => {
+        AresHandler.payAdjacencyAndHazardCosts(player, space, subjectToHazardAdjacency);
+      });
+    }
 
     TurmoilHandler.resolveTilePlacementCosts(player);
 
@@ -2061,17 +2083,27 @@ export class Game implements IGame, Logger {
     // print that rule — the human Arcadian Communities and MarsBot's own C18
     // — and both take the SAME payout below, asked here because seating the
     // tile overwrites the very `space.player` that answers the question.
-    const arcadianCommunityBonus = space.player === player &&
+    // A tier stands on a CITY, never on a marker: nothing to pay.
+    const arcadianCommunityBonus = !stacking && space.player === player &&
       (player.tableau.has(CardName.ARCADIAN_COMMUNITIES) ||
        AutomaCorporations.buildOnOwnMarkerPays(this, player, space));
 
     // Part 4. Place the tile
-    this.simpleAddTile(player, space, tile);
+    if (stacking) {
+      this.simpleAddCityTier(player, space);
+    } else {
+      this.simpleAddTile(player, space, tile);
+    }
     // Turmoil Redux: the chairman quest sees the placement (eligibility is the tracker's).
     ParliamentHandler.onTileAdded(player, space, tile, BoardType.MARS);
 
     // Part 5. Collect the bonuses
-    if (this.phase !== Phase.SOLAR) {
+    if (stacking) {
+      // The cell pays nothing again — but the parliament hears of a city
+      // placed on Mars (the party passives; the enacted law, which is told
+      // the placement is a TIER so it repeats no bonus that was not paid).
+      ParliamentHandler.onTilePlaced(player, space, {coveringExistingTile: true, stacked: true});
+    } else if (this.phase !== Phase.SOLAR) {
       this.grantPlacementBonuses(player, space, coveringExistingTile, arcadianCommunityBonus);
 
       AresHandler.ifAres(this, (aresData) => {
@@ -2140,11 +2172,31 @@ export class Game implements IGame, Logger {
     // After the cards, so the corporation sees a finished placement.
     AutomaCorporations.onTilePlaced(this, player, space);
 
-    if (initialTileType !== undefined) {
+    if (initialTileType !== undefined && !stacking) {
       AresHandler.ifAres(this, () => {
         AresHandler.grantBonusForRemovingHazard(player, initialTileType);
       });
     }
+  }
+
+  /**
+   * A CITY TIER onto the player's own city on Mars (Turmoil Redux —
+   * Skyscrapers): the stack on `space` grows by one. Validated, placed and
+   * fanned out by `addTile` with `stacking` — see its header for what the
+   * tier pays (nothing of the cell) and what it fires (everything that
+   * answers a city tile placed).
+   */
+  public addCityTier(player: IPlayer, space: Space): void {
+    this.addTile(player, space, {tileType: TileType.CITY}, {stacking: true});
+  }
+
+  /** The stack grows: the cell keeps its tile and its owner, its height goes up by one; logged and recorded as a city placed. */
+  private simpleAddCityTier(player: IPlayer, space: Space): void {
+    const tiers = Board.tiersOf(space) + 1;
+    space.stackHeight = tiers;
+    this.log('${0} built a city tile on top of their city — a stack of ${1} · ${2}', (b) =>
+      b.player(player).number(tiers).space(space));
+    this.events.recordTilePlaced(player, space, TileType.CITY);
   }
 
   public triggerForAllCards(f: (cardOwner: IPlayer, card: ICard) => void) {
@@ -2215,6 +2267,8 @@ export class Game implements IGame, Logger {
 
   public simpleAddTile(player: IPlayer, space: Space, tile: Tile) {
     space.tile = tile;
+    // A fresh tile object on the cell is one tile: whatever stack stood here is gone with the tile it stood on.
+    space.stackHeight = undefined;
     if (tile.tileType === TileType.OCEAN ||
       tile.tileType === TileType.MARTIAN_NATURE_WONDERS ||
       tile.tileType === TileType.REY_SKYWALKER) {
@@ -2402,6 +2456,7 @@ export class Game implements IGame, Logger {
     const space = this.board.getSpaceOrThrow(spaceId);
     space.tile = undefined;
     space.player = undefined;
+    space.stackHeight = undefined;
   }
 
   /**

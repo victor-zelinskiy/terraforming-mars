@@ -263,7 +263,14 @@ export interface IGame extends Logger {
    * This only applies to the Mars board. See MoonExpansion.addTile for placing
    * a tile on The Moon.
    */
-  addTile(player: IPlayer, space: Space, tile: Tile): void;
+  addTile(player: IPlayer, space: Space, tile: Tile, options?: {stacking?: boolean}): void;
+  /**
+   * A CITY TIER onto the player's own city on Mars (Turmoil Redux —
+   * Skyscrapers): the cell's stack grows by one. Validated and fanned out by
+   * `addTile` with `stacking` — the cell pays nothing again, every hook that
+   * answers «a city tile was placed» fires.
+   */
+  addCityTier(player: IPlayer, space: Space): void;
   /**
    * Add `tile` to `space` for `player` without triggering any effects.
    *

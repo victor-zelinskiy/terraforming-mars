@@ -63,8 +63,15 @@ export type CardVictoryPointsDetail = {
 /** One city's own contribution to the `city` category (1 VP per adjacent
  *  greenery, any owner) — `points` may honestly be 0. `cardName` is the
  *  card whose tile this is (Ganymede Colony, Capital, …), absent for a
- *  plain standard city. */
-export type CityVpDetail = {spaceId: string, points: number, cardName?: string};
+ *  plain standard city.
+ *
+ *  A CITY STACK (Turmoil Redux — Skyscrapers) is one row PER TIER on the
+ *  same cell: each tier scores the cell's adjacent greeneries on its own,
+ *  so a stack of 2 beside 3 greeneries is two rows of 3 — never one row of
+ *  6 «from nowhere». `tier` (1-based, the base first) and `tiers` (the
+ *  stack's height) are present only on a stacked cell; the base tier keeps
+ *  the cell's card name, a tier above it is a plain city. */
+export type CityVpDetail = {spaceId: string, points: number, cardName?: string, tier?: number, tiers?: number};
 
 /**
  * The KIND of source that raised a player's terraform rating directly (i.e. NOT

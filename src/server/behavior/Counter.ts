@@ -7,6 +7,7 @@ import {Countable, CountableUnits} from './Countable';
 import {MoonExpansion} from '../moon/MoonExpansion';
 import {CardResource} from '../../common/CardResource';
 import {Space} from '../boards/Space';
+import {countCityTiers} from '../boards/cityStack';
 import {AutomaTargeting} from '../automa/AutomaTargeting';
 import {ColoniesHandler} from '../colonies/ColoniesHandler';
 import {once} from './Lazy';
@@ -102,17 +103,20 @@ export class Counter {
     };
 
     if (countable.cities !== undefined) {
+      // A QUANTITY of cities («per city», «per city next to this»): a stacked
+      // city (Skyscrapers) counts every tier — the cells are the instrument,
+      // the stacks standing on them are the number.
       const p = (countable.all === false) ? player : undefined;
       switch (countable.cities.where) {
       case 'offmars':
-        sum += maybeAdjacentSpaces(game.board.getCitiesOffMars(p)).length;
+        sum += countCityTiers(maybeAdjacentSpaces(game.board.getCitiesOffMars(p)));
         break;
       case 'onmars':
-        sum += maybeAdjacentSpaces(game.board.getCitiesOnMars(p)).length;
+        sum += countCityTiers(maybeAdjacentSpaces(game.board.getCitiesOnMars(p)));
         break;
       case 'everywhere':
       default:
-        sum += maybeAdjacentSpaces(game.board.getCities(p)).length;
+        sum += countCityTiers(maybeAdjacentSpaces(game.board.getCities(p)));
       }
     }
 

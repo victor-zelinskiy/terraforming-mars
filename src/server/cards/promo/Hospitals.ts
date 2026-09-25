@@ -112,7 +112,7 @@ export class Hospitals extends Card implements IProjectCard, IActionCard {
         'Choose a card to remove 1 disease.', cards, {amount: -1})] :
       [];
     return actionPreviews.singleBranch(this, player, steps, [
-      actionPreviews.stockGain(player, Resource.MEGACREDITS, player.game.board.getCities().length),
+      actionPreviews.stockGain(player, Resource.MEGACREDITS, player.game.board.countCities()),
     ]);
   }
 
@@ -131,7 +131,8 @@ export class Hospitals extends Card implements IProjectCard, IActionCard {
       [...diseaseCards])
       .andThen(([card]) => {
         player.removeResourceFrom(card, 1);
-        player.stock.add(Resource.MEGACREDITS, (game.board.getCities()).length, {log: true});
+        // A QUANTITY of cities in play: a stacked city (Skyscrapers) pays per tier.
+        player.stock.add(Resource.MEGACREDITS, game.board.countCities(), {log: true});
         return undefined;
       });
   }

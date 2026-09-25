@@ -211,7 +211,7 @@ export function calculateVictoryPoints(player: IPlayer) {
 
   // Apply the Vermin penalty to other players. Vermin owner is penalized by the card itself.
   if (player.game.verminInEffect && playerOwnsVermin === false) {
-    const cities = player.game.board.getCities(player).length;
+    const cities = player.game.board.countCities(player);
     builder.setVictoryPoints('victoryPoints', cities * -1, CardName.VERMIN, undefined, 'penalty');
     negativeVP -= cities;
   }
@@ -243,16 +243,26 @@ export function calculateVictoryPoints(player: IPlayer) {
     // Victory points for greenery tiles adjacent to cities
     if (Board.isCitySpace(space) && Board.spaceOwnedBy(space, player)) {
       const adjacent = player.game.board.getAdjacentSpaces(space);
-      let cityPoints = 0;
-      for (const adj of adjacent) {
-        if (Board.isGreenerySpace(adj)) {
+      const greeneries = adjacent.filter(Board.isGreenerySpace).length;
+      // A CITY STACK (Skyscrapers) scores its adjacent greeneries ONCE PER
+      // TIER — «each city in the stack scores VP from adjacent greeneries
+      // separately» — and explains itself with one row per tier, so a stack
+      // of 2 beside 3 greeneries reads as two rows of 3, never 6 from nowhere.
+      const tiers = Board.cityTiersOf(space);
+      for (let tier = 1; tier <= tiers; tier++) {
+        for (let i = 0; i < greeneries; i++) {
           builder.setVictoryPoints('city', 1);
-          cityPoints++;
         }
+        // Every owned city gets a row — a 0-greenery city is an honest 0.
+        // The tile's own card names the city (Ganymede Colony, Capital, …);
+        // a tier above the base is a plain city tile.
+        cityEntries.push({
+          spaceId: space.id,
+          points: greeneries,
+          cardName: tier === 1 ? space.tile?.card : undefined,
+          ...(tiers > 1 ? {tier, tiers} : {}),
+        });
       }
-      // Every owned city gets a row — a 0-greenery city is an honest 0.
-      // The tile's own card names the city (Ganymede Colony, Capital, …).
-      cityEntries.push({spaceId: space.id, points: cityPoints, cardName: space.tile?.card});
     }
   });
   builder.setCityDetails(cityEntries);

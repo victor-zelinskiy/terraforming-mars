@@ -108,6 +108,12 @@ const STEEL_STEP: EnactStep = {
  */
 export function repeatPlacementBonuses(player: IPlayer, space: Space, placement: TilePlacementBonusContext): PlacementLawPayoutModel | undefined {
   const game = player.game;
+  if (placement.stacked === true) {
+    // A city TIER (Skyscrapers): the engine paid the cell nothing — its
+    // bonuses were collected by the first city — so there is nothing to
+    // pay a second time. Never invent a payout the first placement made.
+    return undefined;
+  }
   const printed = !placement.coveringExistingTile;
   const printedPaid = printed && space.bonus.length > 0;
   const oceanPaid = game.board.oceanAdjacencyBonus(player, space).megacredits > 0;
