@@ -2303,6 +2303,8 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'hydro-terminal'
   'parliament-generous-vote' |
   // RX14 Heat Capture: the assembly (temperature −20 °C, blue's delegate) and the law ENACTED with red holding Nuclear Power (10 → 7).
   'parliament-heat-assembly' | 'parliament-heat-enacted' |
+  // RX23 Mohole Contest: the assembly at −4 °C with blue's delegate — the winner's two steps reach 0 °C and the ocean follows inside the sitting.
+  'parliament-mohole-assembly' |
   'parliament-budget-vote' | 'parliament-budget-assembly' |
   // RX17 Jovian Tax Rights: four cubes (Luna ×2 · Titan · Miranda) and influence 3 at the vote; red wins the assembly, blue is paid the vote's numbers.
   'parliament-jovian-vote' | 'parliament-jovian-assembly' | 'parliament-medical-vote' | 'parliament-medical-enact' | 'parliament-metal-assembly' | 'parliament-metal-enacted' |

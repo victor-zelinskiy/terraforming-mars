@@ -83,6 +83,7 @@ import {DEV_ACTION_RESOLUTION_ID, DEV_PASSIVE_RESOLUTION_ID} from '../../../src/
 import {CLOUD_DEVELOPMENT_ID} from '../../../src/server/parliament/resolutions/unity/CloudDevelopment';
 import {GAS_EXPORT_ID} from '../../../src/server/parliament/resolutions/reds/GasExport';
 import {HEAT_CAPTURE_ID} from '../../../src/server/parliament/resolutions/reds/HeatCapture';
+import {MOHOLE_CONTEST_ID} from '../../../src/server/parliament/resolutions/greens/MoholeContest';
 import {INDUSTRIALIST_BUDGET_ID} from '../../../src/server/parliament/resolutions/industrialists/IndustrialistBudget';
 import {JOINT_RESEARCH_ID} from '../../../src/server/parliament/resolutions/scientists/JointResearch';
 import {JOVIAN_TAX_RIGHTS_ID} from '../../../src/server/parliament/resolutions/unity/JovianTaxRights';
@@ -1230,6 +1231,34 @@ parliamentFixture('parliament-gas-assembly', gasExportTable('assembly'));
 //      room and crosses no bonus threshold on the way down (−24 °C is the heat step, claimed on the way UP);
 //    · ENACTED — the sitting is over, RED won it (the seat the loader opens in generation 2) and holds
 //      «Nuclear Power» (10 M€, a Building tag) in hand: the play composer must read 10 → 7 with the law named.
+// ── RX23 · MOHOLE CONTEST (the Greens — «3 heat per influence; the WINNER raises the temperature 2 steps»): the
+//    first winner part that is a DIRECT STEP of a parameter, REWARDED (the winner's TR, the track's bonuses, the
+//    0 °C ocean as the winner's own placement inside the sitting). The card alone in the first voting slot with
+//    blue's free delegate on it (blue at Agenda step 2 → step 3 = influence 2 → 6 heat; red at step 1 → 3 heat),
+//    the temperature SET at −4 °C so the winner's two steps reach 0 °C and the engine's ocean follows — the one
+//    e2e walks the heat wave, the marker's glide with the TR chip, and the ocean placed without leaving the
+//    sitting's flow. Oceans left: the fixture's default (none placed).
+parliamentFixture('parliament-mohole-assembly', {
+  resolution: MOHOLE_CONTEST_ID,
+  votes: [0],
+  agenda: [2, 1],
+  stopAt: 'assembly',
+  arrange: ({game}) => {
+    setTemperature(game, -4);
+  },
+  expect: ({game, parliament}) => {
+    if (game.getTemperature() !== -4) {
+      throw new Error(`the parliament-mohole fixture expected the temperature at −4 °C, got ${game.getTemperature()}`);
+    }
+    if (game.board.getOceanSpaces().length !== 0) {
+      throw new Error('the parliament-mohole fixture expected no ocean on Mars yet');
+    }
+    if (!parliament.slots.some((slot) => slot.instance.startsWith(MOHOLE_CONTEST_ID))) {
+      throw new Error('the parliament-mohole fixture lost Mohole Contest out of the voting area');
+    }
+  },
+});
+
 parliamentFixture('parliament-heat-assembly', {
   resolution: HEAT_CAPTURE_ID,
   votes: [0],

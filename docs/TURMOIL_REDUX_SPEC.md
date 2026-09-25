@@ -449,7 +449,7 @@ Lobbyist/Politician/T. Politician — набор в `getCandidates` (`MilestoneA
 | Migration Funding | Mars First | 2 M€ за город на Марсе + влияние (стек считается отдельно — счёт-ВЕЛИЧИНА `marsCityTiers`, мера `tiers`, число = `countCities`; НЕ назначения RX20 `marsCities`) | Н | 2 города на Марсе | **A · СДАНА RX21** |
 | Migration Underground | Reds (UW) | … | — | 3 подземных токена | C |
 | Mining Incentives | Industrialists | всем +1 пр. титана (плоская часть, форма RX15); +1 пр. стали за влияние (форма RX05) — новых механик нет; влияние 0 пропускает ТОЛЬКО сталь | Н | +1 пр. стали | **A · СДАНА RX22** |
-| Mohole Contest | Greens | 3 тепла/влияние; ★ температура +2 | Н, ★ | 1 метка микроба | A |
+| Mohole Contest | Greens | 3 тепла/влияние; ★ температура +2 — часть победителя ШАГОМ ПАРАМЕТРА (`winnerReward {kind: 'parameter'}`, общий `winnerParameterStep`), НАГРАЖДАЕМЫМ: +1 РТ за шаг, бонусы шкалы, океан на 0 °C как своё размещение внутри заседания (не `unrewarded` RX12) | Н, ★ | 1 метка микроба | **A · СДАНА RX23** |
 | Open IP Trade | Scientists | карты = влияние; **Д**: сбросить любое число карт → 3 M€ и карта за каждую | Н, Д | 2 зелёные карты | A |
 | Peer Review | Scientists (UW) | … | — | 3 подземных токена | C |
 | Plant Ban | Reds | потерять все растения кроме 2 + влияние | Н | 4 делегата | A |

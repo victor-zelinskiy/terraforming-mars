@@ -180,7 +180,13 @@
             <b data-rxpg-table>{{ selected.winnerReward.tile === 'greenery' ? table.oxygen + '%' : table.oceans + '/9' }}</b>
             <span v-if="selected.winnerReward.tile === 'greenery'" class="con-rxpg__dim" data-rxpg-temperature>{{ table.temperature }}°C</span>
           </span>
-          <span v-if="family === 'winner-tile'" class="con-rxpg__control"><span class="con-rxpg__ckey">{{ $t(selected.winnerReward.kind === 'colony' ? 'No colony is available' : 'No legal cell') }}</span><b data-rxpg-nocell>{{ noCell ? '✓' : '—' }}</b></span>
+          <!-- A DIRECT STEP of a parameter (Mohole Contest): the parameter it raises, and the oceans left (the 0 °C ocean needs a tile). -->
+          <span v-else-if="selected.winnerReward.kind === 'parameter'" class="con-rxpg__control">
+            <span class="con-rxpg__ckey">{{ $t('Temperature') }}</span>
+            <b data-rxpg-table>{{ table.temperature }}°C</b>
+            <span class="con-rxpg__dim" data-rxpg-oceans>{{ table.oceans }}/9</span>
+          </span>
+          <span v-if="family === 'winner-tile' && selected.winnerReward.kind !== 'parameter'" class="con-rxpg__control"><span class="con-rxpg__ckey">{{ $t(selected.winnerReward.kind === 'colony' ? 'No colony is available' : 'No legal cell') }}</span><b data-rxpg-nocell>{{ noCell ? '✓' : '—' }}</b></span>
         </template>
       </div>
       <!-- A LIVE SCENARIO: the real game this scenario boots (an engine-generated
@@ -552,7 +558,7 @@ import {TileGrantReading, tileGrantReadingOf} from '@/client/console/parliament/
 import {
   TILE_GRANT_NO_DESTINATION_REASON, TILE_GRANT_NOT_ELIGIBLE_REASON, tileGrantCountId, tileGrantEligibility, tileGrantStepKey,
 } from '@/common/parliament/tileGrant';
-import {WinnerRewardTable} from '@/common/parliament/winnerReward';
+import {WinnerRewardTable, winnerParameterRoom, winnerRewardParameter} from '@/common/parliament/winnerReward';
 import {ParameterMoveId} from '@/common/parliament/parameterMove';
 import {Resource} from '@/common/Resource';
 import {apiUrl} from '@/client/utils/runtimeConfig';
@@ -972,21 +978,35 @@ const SCENARIOS: ReadonlyArray<PgScenario> = [
   {key: 'tile-winner-view', family: 'winner-tile', label: 'The winner\'s view of the placement', viewer: 0, seats: [{agenda: 4, bonus: 0}, {agenda: 3, bonus: 0}], winner: 0, context: 'resolving', noRecipient: false},
   {key: 'tile-other-view', family: 'winner-tile', label: 'Another player\'s view of the placement', viewer: 1, seats: [{agenda: 4, bonus: 0}, {agenda: 3, bonus: 0}], winner: 0, context: 'resolving', noRecipient: false},
   {key: 'tile-neutral', family: 'winner-tile', label: 'Neutral winner — the plants still reach everyone', viewer: 0, seats: [{agenda: 3, bonus: 0}, {agenda: 5, bonus: 0}], winner: 'neutral', context: 'applied', noRecipient: false},
-  {key: 'tile-oxygen-low', family: 'winner-tile', label: 'Oxygen below the maximum', viewer: 0, seats: [{agenda: 3, bonus: 0}, {agenda: 1, bonus: 0}], winner: 0, context: 'proposal', noRecipient: false, table: {oxygen: 5, temperature: -14, oceans: 3}},
-  {key: 'tile-oxygen-max', family: 'winner-tile', label: 'Oxygen at its maximum — the tile still pays its TR', viewer: 0, seats: [{agenda: 3, bonus: 0}, {agenda: 1, bonus: 0}], winner: 0, context: 'proposal', noRecipient: false, table: {oxygen: 14, temperature: -4, oceans: 5}},
-  {key: 'tile-threshold', family: 'winner-tile', label: 'The 8 % step raises the temperature too', viewer: 0, seats: [{agenda: 3, bonus: 0}, {agenda: 1, bonus: 0}], winner: 0, context: 'proposal', noRecipient: false, table: {oxygen: 7, temperature: -10, oceans: 3}},
+  {key: 'tile-oxygen-low', family: 'winner-tile', parameter: 'oxygen', label: 'Oxygen below the maximum', viewer: 0, seats: [{agenda: 3, bonus: 0}, {agenda: 1, bonus: 0}], winner: 0, context: 'proposal', noRecipient: false, table: {oxygen: 5, temperature: -14, oceans: 3}},
+  {key: 'tile-oxygen-max', family: 'winner-tile', parameter: 'oxygen', label: 'Oxygen at its maximum — the tile still pays its TR', viewer: 0, seats: [{agenda: 3, bonus: 0}, {agenda: 1, bonus: 0}], winner: 0, context: 'proposal', noRecipient: false, table: {oxygen: 14, temperature: -4, oceans: 5}},
+  {key: 'tile-threshold', family: 'winner-tile', parameter: 'oxygen', label: 'The 8 % step raises the temperature too', viewer: 0, seats: [{agenda: 3, bonus: 0}, {agenda: 1, bonus: 0}], winner: 0, context: 'proposal', noRecipient: false, table: {oxygen: 7, temperature: -10, oceans: 3}},
   {key: 'tile-no-cell', family: 'winner-tile', label: 'No legal cell — the greenery is named and skipped', viewer: 0, seats: [{agenda: 3, bonus: 0}, {agenda: 1, bonus: 0}], winner: 0, context: 'applied', noRecipient: false, noCell: true},
-  {key: 'tile-recorded', family: 'winner-tile', label: 'Recorded result', viewer: 0, seats: [{agenda: 3, bonus: 0}, {agenda: 5, bonus: 0}], winner: 0, context: 'applied', noRecipient: false, table: {oxygen: 7, temperature: -10, oceans: 3}},
+  {key: 'tile-recorded', family: 'winner-tile', parameter: 'oxygen', label: 'Recorded result', viewer: 0, seats: [{agenda: 3, bonus: 0}, {agenda: 5, bonus: 0}], winner: 0, context: 'applied', noRecipient: false, table: {oxygen: 7, temperature: -10, oceans: 3}},
   {key: 'tile-quest-0', family: 'winner-tile', label: 'Chairman quest 0/2', viewer: 0, seats: [{agenda: 3, bonus: 0}, {agenda: 1, bonus: 0}], winner: 0, context: 'applied', noRecipient: false, quest: {progress: [0, 0]}},
   {key: 'tile-quest-1', family: 'winner-tile', label: 'Chairman quest 1/2', viewer: 0, seats: [{agenda: 3, bonus: 0}, {agenda: 1, bonus: 0}], winner: 0, context: 'applied', noRecipient: false, quest: {progress: [1, 0]}},
   {key: 'tile-quest-done', family: 'winner-tile', label: 'Chairman quest completed', viewer: 0, seats: [{agenda: 3, bonus: 0}, {agenda: 1, bonus: 0}], winner: 0, context: 'applied', noRecipient: false, quest: {progress: [2, 1], completedBy: 0}},
   // ── LIVE: real games from the engine-generated fixtures (the readings above mirror each table).
+  // ── THE WINNER'S DIRECT STEP (Mohole Contest: 3 heat per influence; the winner raises the temperature 2 steps —
+  //    REWARDED, unlike a world move): the instrument is the TEMPERATURE TRACK, and the scenarios are its edges —
+  //    far from the ceiling, one step from it, at it, a raise through −24 °C (the heat production), a raise to
+  //    0 °C (an ocean follows). Listed only under a law whose winner part moves the temperature. ──
+  {key: 'step-far', family: 'winner-tile', parameter: 'temperature', label: 'Temperature far from the maximum — two steps, +2 TR', viewer: 0,
+    seats: [{agenda: 3, bonus: 0}, {agenda: 1, bonus: 0}], winner: 0, context: 'proposal', noRecipient: false, table: {temperature: -20, oceans: 3}},
+  {key: 'step-cut', family: 'winner-tile', parameter: 'temperature', label: 'One step from the maximum — one step happens', viewer: 0,
+    seats: [{agenda: 3, bonus: 0}, {agenda: 1, bonus: 0}], winner: 0, context: 'proposal', noRecipient: false, table: {temperature: 6, oceans: 3}},
+  {key: 'step-max', family: 'winner-tile', parameter: 'temperature', label: 'Temperature at its maximum — the step is named and skipped', viewer: 0,
+    seats: [{agenda: 3, bonus: 0}, {agenda: 1, bonus: 0}], winner: 0, context: 'applied', noRecipient: false, table: {temperature: 8, oceans: 3}},
+  {key: 'step-heat', family: 'winner-tile', parameter: 'temperature', label: 'A raise through −24 °C — the heat production step too', viewer: 0,
+    seats: [{agenda: 3, bonus: 0}, {agenda: 1, bonus: 0}], winner: 0, context: 'proposal', noRecipient: false, table: {temperature: -26, oceans: 3}},
+  {key: 'step-ocean', family: 'winner-tile', parameter: 'temperature', label: 'A raise to 0 °C — an ocean follows', viewer: 0,
+    seats: [{agenda: 3, bonus: 0}, {agenda: 1, bonus: 0}], winner: 0, context: 'proposal', noRecipient: false, table: {temperature: -4, oceans: 3}},
   {key: 'live-vote', family: 'winner-tile', label: 'Live: the vote', viewer: 0, seats: [{agenda: 2, bonus: 0}, {agenda: 5, bonus: 0}], winner: 0, context: 'proposal', noRecipient: false,
     live: 'parliament-biodome-vote', liveNote: 'Biodome Contest up for the vote: your plants now and if you win, the winner\'s greenery at 5 % oxygen'},
-  {key: 'live-enact', family: 'winner-tile', label: 'Live: the winner places the greenery', viewer: 0, seats: [{agenda: 2, bonus: 0}, {agenda: 5, bonus: 0}], winner: 0, context: 'resolving', noRecipient: false,
+  {key: 'live-enact', family: 'winner-tile', parameter: 'oxygen', label: 'Live: the winner places the greenery', viewer: 0, seats: [{agenda: 2, bonus: 0}, {agenda: 5, bonus: 0}], winner: 0, context: 'resolving', noRecipient: false,
     table: {oxygen: 7, temperature: -2, oceans: 0}, live: 'parliament-biodome-enact',
     liveNote: 'Your placement stands: 7 % → 8 % raises the temperature to 0 °C and grants a free ocean; a cell with a card bonus is legal'},
-  {key: 'live-maxed', family: 'winner-tile', label: 'Live: oxygen at its maximum', viewer: 0, seats: [{agenda: 2, bonus: 0}, {agenda: 5, bonus: 0}], winner: 0, context: 'resolving', noRecipient: false,
+  {key: 'live-maxed', family: 'winner-tile', parameter: 'oxygen', label: 'Live: oxygen at its maximum', viewer: 0, seats: [{agenda: 2, bonus: 0}, {agenda: 5, bonus: 0}], winner: 0, context: 'resolving', noRecipient: false,
     table: {oxygen: 14, temperature: -10, oceans: 0}, live: 'parliament-biodome-maxed', liveNote: 'Your placement stands with oxygen at 14 %: the tile pays its own TR only'},
   {key: 'live-nocell', family: 'winner-tile', label: 'Live: no legal cell', viewer: 0, seats: [{agenda: 2, bonus: 0}, {agenda: 5, bonus: 0}], winner: 0, context: 'proposal', noRecipient: false, noCell: true,
     live: 'parliament-biodome-nocell', liveNote: 'Pass to end the generation: every land cell is taken, the greenery is named and skipped, the plants still land'},
@@ -1522,7 +1542,10 @@ export default defineComponent({
      * that parameter; a holders scenario only for a law whose unit spans every kind its holders take.
      */
     scenarioList(): Array<{s: PgScenario, i: number}> {
-      const moved = new Set((this.selected?.worldMoves ?? []).map((move) => move.parameter));
+      // The parameters a law MOVES: its world moves, and the one its winner's part moves (a tile's own step, a
+      // direct step) — a scenario of one parameter's edges is listed only under a law that touches it.
+      const winnerMoves = this.selected?.winnerReward === undefined ? undefined : winnerRewardParameter(this.selected.winnerReward);
+      const moved = new Set<ParameterMoveId>([...(this.selected?.worldMoves ?? []).map((move) => move.parameter), ...(winnerMoves === undefined ? [] : [winnerMoves])]);
       const kinds = this.spreadResources ?? [];
       const countId = this.countEffect?.count?.id;
       return SCENARIOS.map((s, i) => ({s, i})).filter((entry) => entry.s.family === this.family &&
@@ -1889,14 +1912,18 @@ export default defineComponent({
           // THE WINNER'S PLACEMENT STANDS: every seat up to the winner (generation order) already has its plants.
           const winnerSeat = this.winner === 'neutral' ? undefined : this.winner;
           // The winner's ask: a tile's cell (`space`), or the colony pick (`colony`) — the step key the driver would name.
+          // A DIRECT STEP asks nothing (it mutates): the winner's record is already in beside its own supply part.
           const winnerAsk: {key: string, input: 'space' | 'colony'} = r.winnerReward?.kind === 'colony' ?
             {key: 'colony', input: 'colony'} : {key: r.winnerReward?.kind === 'tile' ? r.winnerReward.tile : 'greenery', input: 'space'};
+          const step = r.winnerReward?.kind === 'parameter';
+          const seatOutcomes = this.supplyOutcomes.filter((o) => winnerSeat === undefined || SEATS.findIndex((i) => TEST_PLAYERS[i].color === o.player) <= winnerSeat);
+          const stepOutcome = step ? this.winnerOutcome : undefined;
           return {
             ...base, rulingParty: r.party, enacted,
             phase: {
               generation: 3, final: false, step: 'effects', winner: {instance, player: owner},
-              pending: winnerSeat === undefined ? undefined : {player: TEST_PLAYERS[winnerSeat].color, ...winnerAsk},
-              outcomes: this.supplyOutcomes.filter((o) => winnerSeat === undefined || SEATS.findIndex((i) => TEST_PLAYERS[i].color === o.player) <= winnerSeat),
+              pending: winnerSeat === undefined || step ? undefined : {player: TEST_PLAYERS[winnerSeat].color, ...winnerAsk},
+              outcomes: stepOutcome === undefined ? seatOutcomes : [...seatOutcomes, stepOutcome],
             },
           };
         }
@@ -1991,6 +2018,14 @@ export default defineComponent({
         return this.noCell ?
           {player, step: 'colony', part: 'winner', kind: 'skipped', reason: 'No colony is available'} :
           {player, step: 'colony', part: 'winner', kind: 'colony', colony: ColonyName.LUNA};
+      }
+      if (reward.kind === 'parameter') {
+        // THE DIRECT STEP (Mohole Contest): the shared room decides the steps made — the ceiling's cut, or the
+        // named skip at the maximum — and the record carries the TR the step paid (one per step made).
+        const room = winnerParameterRoom(reward, this.winnerTable);
+        return room.applied === 0 ?
+          {player, step: reward.parameter, part: 'winner', kind: 'skipped', amount: 0, parameter: {id: reward.parameter, before: room.current, after: room.current}, reason: 'Temperature is at its maximum — it is not raised'} :
+          {player, step: reward.parameter, part: 'winner', kind: 'globalParameter', amount: room.applied, parameter: {id: reward.parameter, before: room.current, after: room.resulting}, tr: room.applied};
       }
       if (this.noCell) {
         return {player, step: reward.tile, part: 'winner', kind: 'skipped', reason: reward.tile === 'greenery' ? 'No space can take a greenery' : 'No space can take an ocean'};
