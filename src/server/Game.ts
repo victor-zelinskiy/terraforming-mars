@@ -109,6 +109,7 @@ import {BoardName} from '../common/boards/BoardName';
 import {SpaceType} from '../common/boards/SpaceType';
 import {ICard} from './cards/ICard';
 import {generateGameName} from './GameName';
+import {sanitizeEscapeVelocityOptions} from '@/common/game/escapeVelocity';
 
 // Can be overridden by tests
 let createGameLog: () => Array<LogMessage> = () => [];
@@ -2570,6 +2571,9 @@ export class Game implements IGame, Logger {
   public static deserialize(d: SerializedGame): Game {
     const gameOptions = d.gameOptions;
     gameOptions.boardName = normalizeBoardName(gameOptions.boardName);
+    if (gameOptions.escapeVelocity !== undefined) {
+      gameOptions.escapeVelocity = sanitizeEscapeVelocityOptions(gameOptions.escapeVelocity);
+    }
     const players = d.players.map((element) => Player.deserialize(element));
     const first = players.find((player) => player.id === d.first);
     if (first === undefined) {
