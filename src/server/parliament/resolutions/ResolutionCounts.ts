@@ -25,9 +25,14 @@
  * all: it asks THE ENGINE — `MarsBoard.getCitiesOffMars(player)`, the very
  * function the Cosmic Settler award and the behavior counter stand on — for
  * the number AND the cells, so nothing here restates what a space city is.
- * The shared cell predicate (`spaceCountVerdict`) exists for the stand's
- * synthetic cells and is pinned to this reading by
- * `tests/parliament/ColonizationFunding.spec.ts`.
+ * A board count of the `tiers` MEASURE (Migration Funding's cities on Mars,
+ * «each city in a stack counts separately») takes its NUMBER from the
+ * engine's quantity (`MarsBoard.countCities`, the function every «how many
+ * cities» sums the stacks with) and its CELLS from the engine's list, each
+ * with its height — never the list's length. The shared cell predicate
+ * (`spaceCountVerdict`) exists for the stand's synthetic cells and is pinned
+ * to these readings by `tests/parliament/ColonizationFunding.spec.ts` and
+ * `tests/parliament/MigrationFunding.spec.ts`.
  *
  * A THRESHOLD count (Generous Funding's sets of 5 TR over 15) walks nothing:
  * it reads ONE player metric off the engine (`player.terraformRating` — never
@@ -50,13 +55,14 @@
  */
 import {CardName} from '../../../common/cards/CardName';
 import {
-  BoardCountedTile, cardCountUnits, countCardsToward, countColoniesToward, countMetricToward, countProductionToward, ResolutionCountId,
-  ResolutionCountMetric, ResolutionCountModel, resolutionCountKind, RESOLUTION_COUNT_IDS, RESOLUTION_TAG_COUNTING_MODE,
+  BoardCountedTile, BoardCountMeasure, cardCountUnits, countCardsToward, countColoniesToward, countMetricToward, countProductionToward,
+  ResolutionCountId, ResolutionCountMetric, ResolutionCountModel, resolutionCountKind, RESOLUTION_COUNT_IDS, RESOLUTION_TAG_COUNTING_MODE,
 } from '../../../common/parliament/resolutionCounts';
 import {Resource} from '../../../common/Resource';
 import {tileGrantCountId} from '../../../common/parliament/tileGrant';
 import {IPlayer} from '../../IPlayer';
 import {ICard} from '../../cards/ICard';
+import {Board} from '../../boards/Board';
 import {Space} from '../../boards/Space';
 import {ColoniesHandler} from '../../colonies/ColoniesHandler';
 import type {ResolutionCatalog} from './ResolutionCatalog';
@@ -65,12 +71,34 @@ function inPlay(card: ICard): boolean {
   return !(card.name === CardName.PHARMACY_UNION && card.isDisabled === true);
 }
 
-/** THE ENGINE'S OWN LIST of `player`'s tiles of `tiles` kind on the Mars board — the canonical reading of a board count. */
-function boardCountSpaces(player: IPlayer, tiles: BoardCountedTile): ReadonlyArray<Space> {
+/**
+ * THE ENGINE'S OWN LIST of `player`'s tiles of `tiles` kind on the Mars board
+ * — the cells that explain a board count, whichever measure weighs them.
+ */
+function boardCountSpaces(player: IPlayer, tiles: BoardCountedTile, measure: BoardCountMeasure): ReadonlyArray<Space> {
   switch (tiles) {
   case 'spaceCity': return player.game.board.getCitiesOffMars(player);
-  // THE VERY LIST a city tier is offered (Skyscrapers): the seat's own cities on Mars, a cell once.
-  case 'marsCity': return player.game.board.getAvailableSpacesForCityTier(player);
+  case 'marsCity':
+    // A cell once: THE VERY LIST a city tier is offered (Skyscrapers) — the seat's own cities on Mars as
+    // DESTINATIONS. A tier apiece: the seat's cities on Mars as the engine's own list of CELLS (Migration
+    // Funding) — the same cells today, but the quantity's list, not the placement's.
+    return measure === 'cells' ? player.game.board.getAvailableSpacesForCityTier(player) : player.game.board.getCitiesOnMars(player);
+  }
+}
+
+/**
+ * THE ENGINE'S OWN QUANTITY of `player`'s tiles of `tiles` kind — the number a
+ * board count of the `tiers` measure pays by (`MarsBoard.countCities`, the
+ * one function Mayor, Metropolist, the countables and the requirement sum the
+ * stacks with). NEVER the length of the cell list: without a stack the two
+ * agree on every board, and the day someone builds a tier they part —
+ * `tests/parliament/MigrationFunding.spec.ts` pins that they part by exactly
+ * the stack.
+ */
+function boardCountQuantity(player: IPlayer, tiles: BoardCountedTile): number {
+  switch (tiles) {
+  case 'spaceCity': return player.game.board.countCities(player, 'offmars');
+  case 'marsCity': return player.game.board.countCities(player, 'onmars');
   }
 }
 
@@ -99,9 +127,15 @@ export function resolutionCount(player: IPlayer, id: ResolutionCountId): Resolut
   }
   if (kind.kind === 'board') {
     // THE CANONICAL NUMBER AND ITS CELLS, from the engine — never a walk of
-    // this module's own over the board.
-    const spaces = boardCountSpaces(player, kind.tiles);
-    return {id, count: spaces.length, cards: [], spaces: spaces.map((space) => space.id)};
+    // this module's own over the board. The MEASURE decides the number: a
+    // cell once (the list's length), or the stacks summed — the engine's own
+    // quantity, with each cell's height beside it for the reading.
+    const spaces = boardCountSpaces(player, kind.tiles, kind.measure);
+    const ids = spaces.map((space) => space.id);
+    if (kind.measure === 'tiers') {
+      return {id, count: boardCountQuantity(player, kind.tiles), cards: [], spaces: ids, tiers: spaces.map((space) => Board.tiersOf(space))};
+    }
+    return {id, count: spaces.length, cards: [], spaces: ids};
   }
   if (kind.kind === 'colonies') {
     // THE ENGINE'S OWN LIST of the seat's colonies — one entry per cube, the

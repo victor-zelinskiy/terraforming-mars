@@ -176,7 +176,7 @@ describe('resolutionCounts', () => {
     const greenery = {id: '37' as const, spaceType: SpaceType.LAND, tile: {tileType: TileType.GREENERY}};
 
     it('is a count over the BOARD, and the cells answer it — each «does not count» names its reason', () => {
-      expect(resolutionCountKind(BOARD)).deep.eq({kind: 'board', tiles: 'spaceCity'});
+      expect(resolutionCountKind(BOARD)).deep.eq({kind: 'board', tiles: 'spaceCity', measure: 'cells'});
       expect(spaceCountVerdict(BOARD, ganymede)).deep.eq({counts: true});
       expect(spaceCountVerdict(BOARD, oceanCity), 'every city tile kind counts, as the engine\'s own city predicate reads it').deep.eq({counts: true});
       expect(spaceCountVerdict(BOARD, emptyArea)).deep.eq({counts: false, reason: 'No city tile here'});
@@ -208,7 +208,7 @@ describe('resolutionCounts', () => {
      */
     it('marsCities — the destinations of a granted tier: a city on Mars, a cell once whatever its stack; a space city is off Mars', () => {
       const MARS = 'marsCities' as const;
-      expect(resolutionCountKind(MARS)).deep.eq({kind: 'board', tiles: 'marsCity'});
+      expect(resolutionCountKind(MARS)).deep.eq({kind: 'board', tiles: 'marsCity', measure: 'cells'});
       expect(spaceCountVerdict(MARS, marsCity)).deep.eq({counts: true});
       expect(spaceCountVerdict(MARS, marsCapital), 'every city tile kind counts').deep.eq({counts: true});
       expect(spaceCountVerdict(MARS, {...marsCity, stackHeight: 3} as typeof marsCity), 'a stack is ONE destination').deep.eq({counts: true});
@@ -219,6 +219,33 @@ describe('resolutionCounts', () => {
       expect(countSpacesToward(MARS, [marsCity, ganymede, emptyArea, marsCapital, greenery, phobos])).deep.eq({id: MARS, count: 2, cards: [], spaces: ['35', '36']});
       expect(cardCountVerdict(MARS, new ArtificialLake(), FACE_DOWN)).deep.eq({counts: false, reason: 'Counted on the board, not among cards'});
       expect(countCardsToward(MARS, [new ArtificialLake(), new HE3FusionPlant()], FACE_DOWN)).deep.eq({id: MARS, count: 0, cards: []});
+    });
+
+    /*
+     * THE SAME TILE AS A QUANTITY (Migration Funding, RX21): the `tiers`
+     * MEASURE — the cells are the destinations' cells, the verdicts are the
+     * same, and only the WEIGHT differs: a stack of 3 is 3, and the model keeps
+     * each cell's height beside it. Without a stack the two counts agree —
+     * which is why the declaration, not the id, says which one it is.
+     */
+    it('marsCityTiers — the quantity of cities on Mars: the same cells and verdicts as the destinations, weighed by the stack; the two counts part by exactly the stacks', () => {
+      const TIERS = 'marsCityTiers' as const;
+      expect(resolutionCountKind(TIERS)).deep.eq({kind: 'board', tiles: 'marsCity', measure: 'tiers'});
+      expect(resolutionCountKind('marsCities')).deep.eq({kind: 'board', tiles: 'marsCity', measure: 'cells'});
+      const stacked = {...marsCity, stackHeight: 3};
+      expect(spaceCountVerdict(TIERS, stacked)).deep.eq({counts: true});
+      expect(spaceCountVerdict(TIERS, marsCapital), 'every city tile kind counts').deep.eq({counts: true});
+      expect(spaceCountVerdict(TIERS, ganymede)).deep.eq({counts: false, reason: 'Off Mars — a space city'});
+      expect(spaceCountVerdict(TIERS, greenery)).deep.eq({counts: false, reason: 'No city tile here'});
+      const cells = [stacked, ganymede, emptyArea, marsCapital, greenery, phobos];
+      expect(countSpacesToward(TIERS, cells)).deep.eq({id: TIERS, count: 4, cards: [], spaces: ['35', '36'], tiers: [3, 1]});
+      expect(countSpacesToward('marsCities', cells), 'the destinations: a cell once, no heights').deep.eq({id: 'marsCities', count: 2, cards: [], spaces: ['35', '36']});
+      expect(countSpacesToward(TIERS, [marsCity, marsCapital]), 'without a stack the two agree').deep.eq({id: TIERS, count: 2, cards: [], spaces: ['35', '36'], tiers: [1, 1]});
+      expect(countSpacesToward(TIERS, [])).deep.eq({id: TIERS, count: 0, cards: [], spaces: [], tiers: []});
+      expect(cardCountVerdict(TIERS, new ArtificialLake(), FACE_DOWN)).deep.eq({counts: false, reason: 'Counted on the board, not among cards'});
+      expect(countCardsToward(TIERS, [new ArtificialLake(), new HE3FusionPlant()], FACE_DOWN)).deep.eq({id: TIERS, count: 0, cards: []});
+      // `spaceCities` is the `cells` measure: a space city can carry no stack, and a height there is ignored.
+      expect(countSpacesToward(BOARD, [{...ganymede, stackHeight: 2}])).deep.eq({id: BOARD, count: 1, cards: [], spaces: ['01']});
     });
   });
 });

@@ -47,8 +47,9 @@ import {INDUSTRIALIST_BUDGET} from './industrialists/IndustrialistBudget';
 import {JOINT_RESEARCH} from './scientists/JointResearch';
 import {JOVIAN_TAX_RIGHTS} from './unity/JovianTaxRights';
 import {MEDICAL_DATABASE} from './scientists/MedicalDatabase';
-import {MINING_INCENTIVES} from './industrialists/MiningIncentives';
 import {METAL_RESEARCH} from './industrialists/MetalResearch';
+import {MIGRATION_FUNDING} from './marsFirst/MigrationFunding';
+import {MINING_INCENTIVES} from './industrialists/MiningIncentives';
 import {SKYSCRAPERS} from './marsFirst/Skyscrapers';
 
 /**
@@ -497,6 +498,9 @@ export const REDUX_RESOLUTION_CATALOG = new ResolutionCatalog([
   // The first law that changes the VALUE OF A RESOURCE (steel 3, titanium 4 while it stands): a passive asked by the
   // value ACCESSORS on the read — the player's serialized value field is never written by a law.
   METAL_RESEARCH,
+  // A count over THE BOARD by QUANTITY (the `tiers` measure): 2 M€ per city on Mars, a tier of a stack apiece — the
+  // engine's own `countCities`, never the cell list's length (which is Skyscrapers' count of destinations).
+  MIGRATION_FUNDING,
   // The SIMPLEST shape the family has: two ordinary production parts (a flat titanium step for everyone and a steel
   // step by influence), no new mechanism at all — and the law that influence 0 skips only the part that asks for it.
   MINING_INCENTIVES,

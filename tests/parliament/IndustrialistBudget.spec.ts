@@ -667,7 +667,7 @@ describe('IndustrialistBudget', () => {
     it('the earlier count kinds read as before beside the new one (cards, tags, board, threshold)', () => {
       expect(resolutionCountKind('buildingCardsWithNonNegativeVp')).deep.eq({kind: 'cards'});
       expect(resolutionCountKind('powerTags')).deep.eq({kind: 'tags', tags: ['power' as never]});
-      expect(resolutionCountKind('spaceCities')).deep.eq({kind: 'board', tiles: 'spaceCity'});
+      expect(resolutionCountKind('spaceCities')).deep.eq({kind: 'board', tiles: 'spaceCity', measure: 'cells'});
       expect(resolutionCountKind('terraformRatingSets').kind).eq('threshold');
       const [, p1] = reduxGame();
       p1.terraformRating = 24;

@@ -268,6 +268,8 @@ export type ParliamentEnactOutcomeModel = {
   countedByTag?: ReadonlyArray<{tag: Tag; count: number}>;
   /** A BOARD count: the CELLS counted at the enactment (a tile has no card — `counted` is empty, this list explains the number). */
   countedSpaces?: ReadonlyArray<SpaceId>;
+  /** A BOARD count of the `tiers` measure: each counted cell's stack height (aligned with `countedSpaces`) — how «4 from 3 cells» explains itself. */
+  countedTiers?: ReadonlyArray<number>;
   /** A THRESHOLD count: the BREAKDOWN of the metric at the enactment (no list — the value, the threshold, the step and the sets explain the number). */
   countedMetric?: ResolutionCountMetricModel;
   /** A PRODUCTION count: each resource's own steps at the enactment («steel 2 · titanium 1 · energy 3») — frozen, never re-read. */

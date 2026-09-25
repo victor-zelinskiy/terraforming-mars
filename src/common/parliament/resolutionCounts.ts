@@ -28,9 +28,16 @@
  *     The server asks THE ENGINE for the number (`MarsBoard.getCitiesOffMars`,
  *     the function the awards and the behavior counter already stand on); the
  *     cell predicate here (`spaceCountVerdict`) is the stand's, pinned to the
- *     engine by spec. The next board count (Migration Funding's «city on
- *     Mars») is one more `BoardCountedTile` and one more branch, never a kind
- *     of its own;
+ *     engine by spec. A board count is of ONE OF TWO MEASURES, and the
+ *     declaration says which (`BoardCountMeasure`): `cells` — a cell is one
+ *     unit whatever stands on it (the space cities; Skyscrapers' DESTINATIONS
+ *     of a tier, where a stack is one place to land); `tiers` — the STACKS
+ *     are summed (Migration Funding's «2 M€ per city on Mars — each city in a
+ *     stack counts separately»: a cell of height 2 is 2). Same cells, same
+ *     predicate, a different weight — and the model keeps each cell's height
+ *     beside it (`ResolutionCountModel.tiers`) so «4 from 3 cells» explains
+ *     itself. The weight is never guessed from the id: two ids over the same
+ *     tile (`marsCities` / `marsCityTiers`) differ in this one word;
  *   · THRESHOLD — «for each complete set of 5 TR over 15» (Generous Funding):
  *     the count is not a number of THINGS but a number of FULL STEPS one
  *     player METRIC stands above a threshold — `⌊max(0, value − over) / step⌋`.
@@ -80,7 +87,8 @@ import {ColonyName} from '../colonies/ColonyName';
 import {Resource} from '../Resource';
 import {SpaceId} from '../Types';
 import {SpaceType} from '../boards/SpaceType';
-import {CITY_TILES, TileType} from '../TileType';
+import {cityTiersOf, StackedCell} from '../boards/cityStack';
+import {CITY_TILES} from '../TileType';
 
 export const RESOLUTION_COUNT_IDS = [
   /** Architecture Award: own cards in play that print a building tag AND a non-negative VP icon. */
@@ -136,6 +144,15 @@ export const RESOLUTION_COUNT_IDS = [
    * go — and that a seat with none gains nothing.
    */
   'marsCities',
+  /**
+   * Migration Funding: the player's CITIES ON MARS as a QUANTITY — the same
+   * cells as `marsCities`, but «each city in a stack counts separately»: a
+   * cell of height 2 is 2. The engine's own number (`MarsBoard.countCities
+   * (player, 'onmars')`, the function Mayor, Metropolist and the countables
+   * stand on), never the length of the cell list; the list rides the model
+   * with each cell's height beside it. A space city is not on Mars.
+   */
+  'marsCityTiers',
 ] as const;
 export type ResolutionCountId = typeof RESOLUTION_COUNT_IDS[number];
 
@@ -165,11 +182,28 @@ export type ResolutionCountTerm = {
  * WHAT a BOARD count counts among the player's tiles on the Mars board:
  * `spaceCity` — a city tile on a reserved area OFF Mars (`SpaceType.COLONY`);
  * `marsCity` — a city tile of theirs ON Mars (any cell that is not such an
- * area), counted per CELL — a stack of two is one city here (Skyscrapers:
- * the destinations of a granted tier). The family's next word is one entry
- * here, one branch in `spaceCountVerdict`, one line in the server's reader.
+ * area). WHICH cells count is this word's; HOW MUCH a cell weighs is the
+ * measure's (`BoardCountMeasure`). The family's next word is one entry here,
+ * one branch in `spaceCountVerdict`, one line in the server's reader.
  */
 export type BoardCountedTile = 'spaceCity' | 'marsCity';
+
+/**
+ * HOW MUCH one counted cell weighs — the ONE word that tells the two board
+ * counts over the same tile apart, and the reason neither can be mistaken
+ * for the other by reading the id alone:
+ *   · `cells` — a cell is ONE unit whatever stands on it. The space cities
+ *     (no stack can stand off Mars); Skyscrapers' DESTINATIONS of a tier
+ *     (`marsCities`): a stack is one place to land, however tall;
+ *   · `tiers` — the STACKS are summed (`marsCityTiers`, Migration Funding's
+ *     «each city in a stack counts separately»): a cell of height 2 is 2, and
+ *     the number is the engine's quantity of cities (`MarsBoard.countCities`),
+ *     never the list's length. The model keeps each cell's height beside the
+ *     cell (`ResolutionCountModel.tiers`), so «4 from 3 cells» explains itself.
+ * Without stacks the two measures agree on every board — which is exactly why
+ * the declaration must say which one it is, and the specs pin the divergence.
+ */
+export type BoardCountMeasure = 'cells' | 'tiers';
 
 /**
  * WHICH player METRIC a THRESHOLD count reads: `terraformRating` — the
@@ -186,8 +220,10 @@ export type ResolutionCountMetric = 'terraformRating';
  * (Central Power Grid); a term over several tags (Cloud Development's «per
  * Venus and Jovian tag») is the SAME kind with a longer list — a card
  * printing two of the listed tags is worth 2, whichever two they are.
- * `board` — the player's TILES of the named kind on the Mars board, one unit
- * per cell (Colonization Funding's space cities). `threshold` — the FULL
+ * `board` — the player's TILES of the named kind on the Mars board, weighed
+ * by the declared MEASURE: one unit per cell (Colonization Funding's space
+ * cities, Skyscrapers' destinations) or the stacks summed (Migration
+ * Funding's cities on Mars, a tier apiece). `threshold` — the FULL
  * STEPS of `step` a player metric stands above `over` (Generous Funding's
  * «each complete set of 5 TR over 15»): one unit per full set, the remainder
  * yields nothing. `production` — the player's PRODUCTION STEPS of the listed
@@ -199,7 +235,7 @@ export type ResolutionCountMetric = 'terraformRating';
 export type ResolutionCountKind =
   | {kind: 'cards'}
   | {kind: 'tags', tags: ReadonlyArray<Tag>}
-  | {kind: 'board', tiles: BoardCountedTile}
+  | {kind: 'board', tiles: BoardCountedTile, measure: BoardCountMeasure}
   | {kind: 'threshold', metric: ResolutionCountMetric, over: number, step: number}
   | {kind: 'production', resources: ReadonlyArray<Resource>}
   | {kind: 'colonies'};
@@ -216,12 +252,15 @@ export function resolutionCountKind(id: ResolutionCountId): ResolutionCountKind 
   case 'buildingCardsWithNonNegativeVp': return {kind: 'cards'};
   case 'powerTags': return {kind: 'tags', tags: [Tag.POWER]};
   case 'venusJovianTags': return {kind: 'tags', tags: [Tag.VENUS, Tag.JOVIAN]};
-  case 'spaceCities': return {kind: 'board', tiles: 'spaceCity'};
+  case 'spaceCities': return {kind: 'board', tiles: 'spaceCity', measure: 'cells'};
   case 'terraformRatingSets': return {kind: 'threshold', metric: 'terraformRating', over: TERRAFORM_RATING_SETS_OVER, step: TERRAFORM_RATING_SETS_STEP};
   case 'steelTitaniumEnergyProduction': return {kind: 'production', resources: INDUSTRIAL_PRODUCTION_RESOURCES};
   case 'colonies': return {kind: 'colonies'};
   case 'scienceTags': return {kind: 'tags', tags: [Tag.SCIENCE]};
-  case 'marsCities': return {kind: 'board', tiles: 'marsCity'};
+  // THE TWO COUNTS OVER ONE TILE, told apart by the measure and nothing else: the destinations of a tier
+  // (a cell once) and the quantity of cities (the stacks summed).
+  case 'marsCities': return {kind: 'board', tiles: 'marsCity', measure: 'cells'};
+  case 'marsCityTiers': return {kind: 'board', tiles: 'marsCity', measure: 'tiers'};
   }
 }
 
@@ -349,6 +388,14 @@ export type ResolutionCountModel = {
    */
   spaces?: ReadonlyArray<SpaceId>;
   /**
+   * A BOARD count of the `tiers` MEASURE (Migration Funding): what each listed
+   * cell contributed (aligned with `spaces`) — the height of its stack, 1 for
+   * a single city. The twin of `units` for cards: without it a count of 4
+   * over 3 cells reads as a bug. Absent on the `cells` measure, where every
+   * cell is worth exactly 1 whatever stands on it.
+   */
+  tiers?: ReadonlyArray<number>;
+  /**
    * A THRESHOLD count: the breakdown of the metric that made it — the value,
    * the threshold, the step, the full sets and the distance to the next one.
    * There is no list on this kind (`cards` is empty, `spaces` absent); present
@@ -364,11 +411,16 @@ export type ResolutionCountModel = {
   colonies?: ReadonlyArray<ColonyName>;
 };
 
-/** The cell facts a BOARD count reads (satisfied by the server's `Space` and by the stand's synthetic cells). */
-export type CountedSpaceFacts = {
+/**
+ * The cell facts a BOARD count reads (satisfied by the server's `Space` and by
+ * the stand's synthetic cells): which cell, what kind, what stands on it — and
+ * how tall the stack is (`stackHeight`, absent = 1: the server's own field, read
+ * through the shared `cityStack` arithmetic), which only the `tiers` measure
+ * weighs.
+ */
+export type CountedSpaceFacts = StackedCell & {
   id: SpaceId;
   spaceType: SpaceType;
-  tile?: {tileType: TileType};
 };
 
 /**
@@ -406,9 +458,10 @@ export function spaceCountVerdict(id: ResolutionCountId, space: CountedSpaceFact
     }
     return {counts: true};
   case 'marsCity':
-    // THE ENGINE'S RULE (`MarsBoard.canStackCity`): a city tile on a cell that is not a reserved area off
-    // Mars. The owner is the caller's business (the cells handed in are the player's own); the stack's
-    // height is not — a cell is one destination however tall it stands.
+    // THE ENGINE'S RULE (`MarsBoard.canStackCity` / `getCitiesOnMars`): a city tile on a cell that is not a
+    // reserved area off Mars. The owner is the caller's business (the cells handed in are the player's own);
+    // the stack's height is the MEASURE's, not the verdict's — the cell counts either way, and
+    // `countSpacesToward` weighs it (once, or per tier).
     if (space.spaceType === SpaceType.COLONY) {
       return {counts: false, reason: 'Off Mars — a space city'};
     }
@@ -419,13 +472,28 @@ export function spaceCountVerdict(id: ResolutionCountId, space: CountedSpaceFact
   }
 }
 
-/** Count `spaces` (the owner's cells) toward a BOARD count `id` — the stand's reading of synthetic cells. */
+/**
+ * Count `spaces` (the owner's cells) toward a BOARD count `id` — the stand's
+ * reading of synthetic cells, and the ONE place the MEASURE weighs a cell:
+ * `cells` — the number is the list's length; `tiers` — the stacks are summed
+ * through the shared `cityStack` arithmetic (the very function the engine's
+ * `MarsBoard.countCities` sums by), and each cell's height rides beside it.
+ * The server's own reading (`ResolutionCounts.resolutionCount`) takes its
+ * number from the engine directly; `tests/parliament/MigrationFunding.spec.ts`
+ * pins the two together over a corpus of boards.
+ */
 export function countSpacesToward(id: ResolutionCountId, spaces: Iterable<CountedSpaceFacts>): ResolutionCountModel {
+  const kind = resolutionCountKind(id);
   const counted: Array<SpaceId> = [];
+  const tiers: Array<number> = [];
   for (const space of spaces) {
     if (spaceCountVerdict(id, space).counts) {
       counted.push(space.id);
+      tiers.push(cityTiersOf(space));
     }
+  }
+  if (kind.kind === 'board' && kind.measure === 'tiers') {
+    return {id, count: tiers.reduce((sum, n) => sum + n, 0), cards: [], spaces: counted, tiers};
   }
   return {id, count: counted.length, cards: [], spaces: counted};
 }
@@ -516,6 +584,7 @@ export function cardCountVerdict(id: ResolutionCountId, card: CountedCardFacts, 
     // A COLONIES count: no card counts — the player's cubes on the colony tiles do (`countColoniesToward`).
     return {counts: false, reason: 'Counted by your colonies, not among cards'};
   case 'marsCities':
+  case 'marsCityTiers':
     // A BOARD count: no card counts — the player's cities on Mars do (`spaceCountVerdict`).
     return {counts: false, reason: 'Counted on the board, not among cards'};
   case 'scienceTags': {

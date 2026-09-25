@@ -540,7 +540,7 @@ describe('JovianTaxRights', () => {
     it('the earlier count kinds read as before beside the new one (cards, tags, board, threshold, production)', () => {
       expect(resolutionCountKind('buildingCardsWithNonNegativeVp')).deep.eq({kind: 'cards'});
       expect(resolutionCountKind('powerTags')).deep.eq({kind: 'tags', tags: ['power' as never]});
-      expect(resolutionCountKind('spaceCities')).deep.eq({kind: 'board', tiles: 'spaceCity'});
+      expect(resolutionCountKind('spaceCities')).deep.eq({kind: 'board', tiles: 'spaceCity', measure: 'cells'});
       expect(resolutionCountKind('terraformRatingSets').kind).eq('threshold');
       expect(resolutionCountKind('steelTitaniumEnergyProduction').kind).eq('production');
       const [game, p1] = reduxGame();

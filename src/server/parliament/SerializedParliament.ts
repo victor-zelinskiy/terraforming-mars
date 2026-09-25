@@ -170,6 +170,13 @@ export type SerializedEnactOutcome = {
    */
   countedSpaces?: Array<SpaceId>;
   /**
+   * A BOARD count of the `tiers` measure (Migration Funding's cities on Mars,
+   * a tier apiece): what each cell of `countedSpaces` contributed — the height
+   * of its stack (aligned with it, 1 for a single city). Frozen here; absent
+   * on a count where every cell is worth 1, and on older saves.
+   */
+  countedTiers?: Array<number>;
+  /**
    * A THRESHOLD count (Generous Funding's sets of 5 TR over 15): the
    * BREAKDOWN of the metric at the enactment — there is no list, so the value,
    * the threshold, the step and the sets explain the number. Frozen here,

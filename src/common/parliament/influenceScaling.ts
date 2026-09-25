@@ -219,6 +219,8 @@ export type InfluenceYield = {
   countedByTag?: ReadonlyArray<{tag: Tag, count: number}>;
   /** A BOARD count: WHICH cells were counted (a tile has no card — the list that explains the number is of cells). */
   countedSpaces?: ReadonlyArray<SpaceId>;
+  /** …and, on the `tiers` measure, what EACH cell contributed (its stack's height, aligned with `countedSpaces`). */
+  countedTiers?: ReadonlyArray<number>;
   /** A THRESHOLD count: the BREAKDOWN of the metric (there is no list — the value, the threshold, the step, the sets explain the number). */
   countedMetric?: ResolutionCountMetricModel;
   /** A PRODUCTION count: each resource's own steps («steel 2 · titanium 1 · energy 3») — the reading's breakdown, the twin of `countedByTag`. */
@@ -271,6 +273,8 @@ export type YieldCount = {
   byTag?: ReadonlyArray<{tag: Tag, count: number}>,
   /** A board count's cells (the list that explains the number where no card can). */
   spaces?: ReadonlyArray<SpaceId>,
+  /** …and each cell's stack height on the `tiers` measure (aligned with `spaces`). */
+  tiers?: ReadonlyArray<number>,
   /** A threshold count's breakdown of the metric (what explains the number where no list can). */
   metric?: ResolutionCountMetricModel,
   /** A production count's per-resource steps (the reading's breakdown). */
@@ -299,6 +303,9 @@ function withCount(y: InfluenceYield, effect: InfluenceScaledEffect, count: Yiel
     }
     if (count.spaces !== undefined) {
       y.countedSpaces = count.spaces;
+    }
+    if (count.tiers !== undefined) {
+      y.countedTiers = count.tiers;
     }
     if (count.metric !== undefined) {
       y.countedMetric = count.metric;
@@ -446,7 +453,8 @@ export function fixedYield(
   influence?: number,
   recorded?: {
     count?: number, counted?: ReadonlyArray<CardName>, countedUnits?: ReadonlyArray<number>,
-    countedByTag?: ReadonlyArray<{tag: Tag, count: number}>, countedSpaces?: ReadonlyArray<SpaceId>, countedMetric?: ResolutionCountMetricModel,
+    countedByTag?: ReadonlyArray<{tag: Tag, count: number}>, countedSpaces?: ReadonlyArray<SpaceId>, countedTiers?: ReadonlyArray<number>,
+    countedMetric?: ResolutionCountMetricModel,
     countedByResource?: ReadonlyArray<ResolutionCountByResource>, countedColonies?: ReadonlyArray<ColonyName>,
     uncapped?: number, targets?: ReadonlyArray<{card: CardName, amount: number, resource?: CardResource}>,
   },
@@ -472,6 +480,9 @@ export function fixedYield(
   }
   if (recorded?.countedSpaces !== undefined) {
     y.countedSpaces = recorded.countedSpaces;
+  }
+  if (recorded?.countedTiers !== undefined) {
+    y.countedTiers = recorded.countedTiers;
   }
   if (recorded?.countedMetric !== undefined) {
     y.countedMetric = recorded.countedMetric;

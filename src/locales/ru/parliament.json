@@ -886,5 +886,18 @@
   "${0} city(-ies) on Mars": "${0} {город|города|городов} на Марсе",
   "A city of yours on Mars counts once, whatever the height of its stack. A city off Mars does not.": "Ваш город на Марсе считается один раз, какой бы высоты ни была стопка. Город вне Марса не считается.",
   "Off Mars — a space city": "Вне Марса — космический город",
-  "Result by the vote and the influence line": "Результат по голосованию и линии влияния"
+  "Result by the vote and the influence line": "Результат по голосованию и линии влияния",
+  "Migration Funding": "Финансирование миграции",
+  "Gain 2 M€ per city you have on Mars, plus 2 per influence. Each city in a stack counts separately.": "Получите по 2 M€ за каждый ваш город на Марсе и по 2 за каждое влияние. Каждый город в стопке считается отдельно.",
+  "No cities on Mars and no influence": "Нет городов на Марсе и нет влияния",
+  "${0} has no city on Mars and no influence — no ${1} from ${2}": "${0}: нет городов на Марсе и нет влияния — ${2} не даёт ${1}",
+  "${0} gained ${1} ${2} from ${3}: ${4} city(-ies) on Mars × 2 + ${5} influence × 2 (${6} → ${7})": "${0} получает ${1} ${2} — ${3}: ${4} {город|города|городов} на Марсе × 2 + влияние ${5} × 2 (${6} → ${7})",
+  "Each city of yours on Mars counts: a stack of two counts twice. A city off Mars does not count.": "Считается каждый ваш город на Марсе: стопка из двух даёт 2. Город вне Марса не считается.",
+  "${0} cell(s)": "${0} {клетка|клетки|клеток}",
+  "Result by cities on Mars and influence": "Результат по городам на Марсе и влиянию",
+  "Three cities, no stack": "Три города, без стопки",
+  "A stack of 2 — four cities on three cells": "Стопка из 2: четыре города на трёх клетках",
+  "A space city beside does not count": "Космический город рядом не считается",
+  "Recorded result — the stack in the record": "Записанный результат: стопка в записи",
+  "Migration Funding up for the vote: your four cities on Mars — one of them a stack of 2 — and influence 3 are 14 M€": "«Финансирование миграции» на голосовании: четыре ваших города на Марсе, один из них стопка из 2, и влияние 3 дают 14 M€"
 }

@@ -137,7 +137,7 @@ describe('ColonizationFunding', () => {
       expect(COLONIZATION_FUNDING_PRODUCTION.recipient).eq(CENTRAL_POWER_GRID_PRODUCTION.recipient);
       expect(COLONIZATION_FUNDING_PRODUCTION.count).deep.eq({id: 'spaceCities', per: 2});
       expect(COLONIZATION_FUNDING_PRODUCTION.cap).eq(6);
-      expect(resolutionCountKind('spaceCities')).deep.eq({kind: 'board', tiles: 'spaceCity'});
+      expect(resolutionCountKind('spaceCities')).deep.eq({kind: 'board', tiles: 'spaceCity', measure: 'cells'});
       expect(familyOf(COLONIZATION_FUNDING), 'the stand opens the board-count family from the declaration alone').eq('counted-board');
     });
 
