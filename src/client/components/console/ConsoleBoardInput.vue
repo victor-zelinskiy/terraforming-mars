@@ -503,7 +503,15 @@ export default defineComponent({
         // remove-and-replace marker Kaguya Tech / Lunar Mine Urbanization
         // set). It is what licenses the hero to read a tile→tile diff as a
         // placement at all, and it opens the scene with the removal beat.
-        armTilePlacement({spaceId: this.spaceId, replacing: this.isClearedTarget(this.spaceId)});
+        // …and whether the tile is a CITY TIER onto the player's own city is
+        // the server's declaration too (`placementType: 'city-tier'` —
+        // Skyscrapers): it licenses the hero to read a stack growing as a
+        // landing, and selects the crane descent over the ordinary flight.
+        armTilePlacement({
+          spaceId: this.spaceId,
+          replacing: this.isClearedTarget(this.spaceId),
+          stacking: this.playerinput.placementType === 'city-tier',
+        });
       }
       this.onsave({type: 'space', spaceId: this.spaceId});
     },

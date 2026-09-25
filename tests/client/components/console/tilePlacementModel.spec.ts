@@ -13,6 +13,9 @@ import {
   departureLiftPx, departingCubePose,
   TILE_DEPART_MS, TILE_DEPART_LIFT, TILE_DEPART_FADE_T,
   TILE_DEPART_REVEAL_T, TILE_DEPART_REVEAL_MS, TILE_DEPART_BREATH_MS,
+  stackLandingRect, tierHoverPoint, tierDescentScaleAt, dustMoteVector,
+  STACK_SCALE, STACK_STEP_PX, TIER_HOVER_LIFT, TIER_CRUISE_SCALE, TIER_DUST_MOTES,
+  TIER_APPROACH_MS, TIER_HOVER_MS, TIER_DESCENT_MS, TIER_CONTACT_MS, TIER_SETTLE_MS,
 } from '@/client/console/tilePlacement/tilePlacementModel';
 import {
   holdRemoteReveal, releaseRemoteReveal, isRemoteRevealHeld, clearRemoteRevealHolds, heldPrevTileOf,
@@ -129,6 +132,102 @@ describe('tilePlacementModel (pure math of the placement hero scene)', () => {
         expect(verifyPlacement(onGreenery, same, '05', {replacing: true})).to.be.undefined;
         expect(verifyPlacement(onGreenery, same, '05')).to.be.undefined;
       });
+    });
+
+    describe('a DECLARED city TIER (Skyscrapers — the third case)', () => {
+      const city = [space('05', {tileType: TileType.CITY, color: 'red'}), space('06')];
+      const stacked = [space('05', {tileType: TileType.CITY, color: 'red', stackHeight: 2}), space('06')];
+
+      it('reads the same city one tier taller as a landing and reports the stack before and after', () => {
+        expect(verifyPlacement(city, stacked, '05', {stacking: true})).to.deep.eq({
+          tileType: TileType.CITY, color: 'red', stacks: {from: 1, to: 2},
+        });
+        const taller = [space('05', {tileType: TileType.CITY, color: 'red', stackHeight: 3}), space('06')];
+        expect(verifyPlacement(stacked, taller, '05', {stacking: true})?.stacks).to.deep.eq({from: 2, to: 3});
+      });
+
+      it('WITHOUT the declaration the same diff is refused — the prompt kind is the licence', () => {
+        expect(verifyPlacement(city, stacked, '05')).to.be.undefined;
+        expect(verifyPlacement(city, stacked, '05', {replacing: true})).to.be.undefined;
+      });
+
+      it('only a stack that grew by EXACTLY one, on a CITY, is a tier', () => {
+        const jumped = [space('05', {tileType: TileType.CITY, color: 'red', stackHeight: 3}), space('06')];
+        expect(verifyPlacement(city, jumped, '05', {stacking: true})).to.be.undefined;
+        expect(verifyPlacement(city, city, '05', {stacking: true})).to.be.undefined;
+        const grove = [space('05', {tileType: TileType.GREENERY, color: 'red'}), space('06')];
+        const groveStack = [space('05', {tileType: TileType.GREENERY, color: 'red', stackHeight: 2}), space('06')];
+        expect(verifyPlacement(grove, groveStack, '05', {stacking: true})).to.be.undefined;
+      });
+
+      it('a Capital stacks too (a city tile in every rule) and keeps its own art', () => {
+        const capital = [space('05', {tileType: TileType.CAPITAL, color: 'red'})];
+        const capitalStack = [space('05', {tileType: TileType.CAPITAL, color: 'red', stackHeight: 2})];
+        expect(verifyPlacement(capital, capitalStack, '05', {stacking: true})).to.deep.eq({
+          tileType: TileType.CAPITAL, color: 'red', stacks: {from: 1, to: 2},
+        });
+      });
+
+      it('the silent paint carries the stack: the displayed cell grows to the server\'s height', () => {
+        const displayed = [space('05', {tileType: TileType.CITY, color: 'red'})];
+        applySpacePreview(displayed, [space('05', {tileType: TileType.CITY, color: 'red', stackHeight: 2})], '05');
+        expect(displayed[0].stackHeight).to.eq(2);
+        expect(displayed[0].tileType).to.eq(TileType.CITY);
+      });
+    });
+  });
+
+  describe('the TIER descent (the crane, not the arc)', () => {
+    const hex = {x: 100, y: 200, w: 46, h: 51};
+
+    it('lands where the board paints the stack\'s top tile: the whole pile scaled to fit the hex, lifted one step per lower tier', () => {
+      const two = stackLandingRect(hex, 2);
+      expect(two.w).to.be.closeTo(46 * STACK_SCALE, 0.001);
+      expect(two.h).to.be.closeTo(51 * STACK_SCALE, 0.001);
+      expect(two.x).to.be.closeTo(100 + (46 - two.w) / 2, 0.001);
+      expect(two.y).to.be.closeTo(200 + (51 - two.h) / 2 - STACK_STEP_PX, 0.001);
+      // Under board zoom the step scales with the live hex (the board's px ride its transform).
+      const zoomed = stackLandingRect({x: 0, y: 0, w: 92, h: 102}, 2);
+      expect(zoomed.y).to.be.closeTo((102 - 102 * STACK_SCALE) / 2 - STACK_STEP_PX * 2, 0.001);
+      // The drawn height is capped where the board caps it (three tiers): a taller stack lifts no further.
+      expect(stackLandingRect(hex, 5).y).to.eq(stackLandingRect(hex, 3).y);
+      expect(stackLandingRect(hex, 1).y).to.be.closeTo(200 + (51 - two.h) / 2, 0.001);
+    });
+
+    it('hangs straight above the landing — same centre x, lifted by the landing\'s own height', () => {
+      const landing = stackLandingRect(hex, 2);
+      const hover = tierHoverPoint(landing);
+      expect(hover.x).to.be.closeTo(landing.x + landing.w / 2, 0.001);
+      expect(hover.y).to.be.closeTo(landing.y + landing.h / 2 - landing.h * TIER_HOVER_LIFT, 0.001);
+      expect(hover.y).to.be.lessThan(landing.y);
+    });
+
+    it('is lowered INTO the board\'s scale: monotone from the carried size to exactly 1 at contact', () => {
+      expect(tierDescentScaleAt(0)).to.eq(TIER_CRUISE_SCALE);
+      let last = tierDescentScaleAt(0);
+      for (let q = 0.05; q <= 1.0001; q += 0.05) {
+        const s = tierDescentScaleAt(q);
+        expect(s).to.be.at.most(last + 1e-9);
+        last = s;
+      }
+      expect(tierDescentScaleAt(1)).to.eq(1);
+    });
+
+    it('the whole landing stays a beat, not a scene: swing + hang + lowering + contact + settle under 1.3 s', () => {
+      expect(TIER_APPROACH_MS + TIER_HOVER_MS + TIER_DESCENT_MS + TIER_CONTACT_MS + TIER_SETTLE_MS).to.be.lessThan(1300);
+    });
+
+    it('the dust bursts OUTWARD around the hex on deterministic vectors, sized from the hex — never fixed px', () => {
+      const motes = Array.from({length: TIER_DUST_MOTES}, (_, i) => dustMoteVector(i, TIER_DUST_MOTES, 46));
+      expect(new Set(motes.map((m) => `${m.dx.toFixed(2)},${m.dy.toFixed(2)}`)).size, 'no two motes share a vector').to.eq(TIER_DUST_MOTES);
+      for (const m of motes) {
+        expect(Math.hypot(m.dx, m.dy)).to.be.greaterThan(46 * 0.1);
+        expect(Math.hypot(m.dx, m.dy)).to.be.lessThan(46 * 0.5);
+      }
+      const bigger = dustMoteVector(0, TIER_DUST_MOTES, 92);
+      expect(Math.hypot(bigger.dx, bigger.dy)).to.be.closeTo(2 * Math.hypot(motes[0].dx, motes[0].dy), 0.001);
+      // Replays identically.
+      expect(dustMoteVector(3, TIER_DUST_MOTES, 46)).to.deep.eq(motes[3]);
     });
   });
 

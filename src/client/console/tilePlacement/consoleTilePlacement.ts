@@ -45,6 +45,24 @@
  *   are just captured a frame later, because they do not exist until the
  *   removal uncovers them. Contract: docs/claude/console/tile-replacement.md.
  *
+ *   A CITY TIER (Turmoil Redux — Skyscrapers: "a city tile placed on top of
+ *   your existing city") is the THIRD legal case of the same arm, declared
+ *   the same way: the prompt's `placementType: 'city-tier'` licenses
+ *   `verifyPlacement` to read a same-tile diff whose STACK grew by one as a
+ *   landing (`stacks`). The scene is a different landing, not a prefix: the
+ *   tier swings over the site with its horizontal speed dying out, HANGS
+ *   while the base takes the load (the real cell reacts through
+ *   `cityStackScene` — contour tight, the standing tile settling, the counter
+ *   appearing at «×1»), comes STRAIGHT DOWN like a block on a crane, and
+ *   CONTACTS: the real tile paints AND the counter ticks «×2» in that frame,
+ *   a dust ring bursts from under the tier, the cell jolts once, the seam
+ *   under the new tier shows as the dust settles, and the owner cube drops
+ *   onto the new top. The cell PAYS NOTHING again (no printed bonus, no
+ *   adjacency — the server's own reading), so there is no reward beat and
+ *   nothing is captured or held: the dossier said so before the press, the
+ *   sitting's receipt says so after. Reduced motion / an unmeasurable board:
+ *   the paint with its tick, one short beat.
+ *
  * Ownership map:
  *   - phases / geometry / bonus extraction → tilePlacementModel (pure);
  *   - GSAP work on the stage              → tilePlacementDirector;
@@ -84,7 +102,10 @@ import {
   OCEAN_PULSE_MS, OCEAN_SPLASH_MS,
   oceanEdgePoint, oceanShoreDirection,
   PlacementLawWave, lawWaveFor, LAW_WAVE_BREATH_MS,
+  TIER_APPROACH_MS, TIER_HOVER_MS, TIER_DESCENT_MS, TIER_CONTACT_MS, TIER_DUST_MS, TIER_SETTLE_MS,
+  stackLandingRect, tierHoverPoint,
 } from '@/client/console/tilePlacement/tilePlacementModel';
+import {beginStackLoad, stackContact, clearStackScene} from '@/client/console/tilePlacement/cityStackScene';
 import {
   setPlacementHiddenTiles, clearPlacementHiddenTiles,
 } from '@/client/components/board/placementRenderState';
@@ -103,6 +124,7 @@ import {
   placeBonusProxies, playBonusPreLift, playBonusHandoff, killTileTweens,
   playAresSourcePulses, playCoverSplash,
   placeDepartProxy, playTileDeparture,
+  playTierApproach, playTierDescent, playStackDust,
 } from '@/client/console/tilePlacement/tilePlacementDirector';
 import {
   runResourceTransfers, abortResourceTransfers, beginPanelRewardHold, releasePanelRewardHold, clearPanelRewardHold,
@@ -161,6 +183,10 @@ export const tilePlacementState = reactive({
   /** The owner marker standing on that doomed tile — it leaves ON it, so the
    *  proxy carries a twin posed for the live hex. */
   departingCube: undefined as DepartingCubePose | undefined,
+  /** A CITY TIER (Skyscrapers): the stack's height before and after — set at
+   *  detect (server-proven), it selects the crane descent over the ordinary
+   *  landing and is what the counter ticks between. Undefined otherwise. */
+  stack: undefined as {from: number, to: number} | undefined,
   aresExtension: false,
   /** The printed stock-bonus icons that rise + pay out after the commit. */
   bonusProxies: [] as Array<BonusProxy>,
@@ -210,6 +236,9 @@ let bonusHoldSeeded = false;
  *  `hiddenTiles` marker). Only such an arm may read a tile→tile diff as a
  *  placement — see `verifyPlacement`. */
 let armedReplacing = false;
+/** The armed pick is a DECLARED city TIER (the prompt's `placementType:
+ *  'city-tier'`). Only such an arm may read a stack growing as a landing. */
+let armedStacking = false;
 /** TRUE while THIS transaction is the one hiding the armed cell's tile
  *  (the removal window). Released the moment the new tile paints. */
 let clearedCellHeld = false;
@@ -299,6 +328,9 @@ export function armTilePlacement(opts: {
    *  `hiddenTiles` names it): the tile standing there is removed before the
    *  new one is placed, so the scene opens with the departure beat. */
   replacing?: boolean,
+  /** The prompt DECLARED a city TIER (`placementType: 'city-tier'`): the tile
+   *  lands ON TOP of the player's own city — the crane descent, no bonus. */
+  stacking?: boolean,
 }): void {
   // A confirm that lands while Planet Focus is still GROWING the board
   // snaps the transition to its settled state NOW — the detect measures the
@@ -320,6 +352,8 @@ export function armTilePlacement(opts: {
   landedColor = undefined;
   cubeHeld = false;
   armedReplacing = opts.replacing === true;
+  armedStacking = opts.stacking === true;
+  clearStackScene();
   tilePlacementState.active = true;
   tilePlacementState.phase = 'armed';
   tilePlacementState.nonce++;
@@ -328,6 +362,7 @@ export function armTilePlacement(opts: {
   tilePlacementState.coveredTile = undefined;
   tilePlacementState.departingTile = undefined;
   tilePlacementState.departingCube = undefined;
+  tilePlacementState.stack = undefined;
   tilePlacementState.bonusProxies = [];
   tilePlacementState.aresSources = [];
   tilePlacementState.reducedMotion = consoleReducedMotionActive();
@@ -372,21 +407,34 @@ export function detectTilePlacement(
   }
   const spaceId = tilePlacementState.spaceId;
   const landed = prevSpaces !== undefined && newSpaces !== undefined ?
-    verifyPlacement(prevSpaces, newSpaces, spaceId, {replacing: armedReplacing}) : undefined;
+    verifyPlacement(prevSpaces, newSpaces, spaceId, {replacing: armedReplacing, stacking: armedStacking}) : undefined;
   if (landed === undefined) {
     abortTilePlacement();
     return undefined;
   }
   tilePlacementState.tileType = landed.tileType;
   tilePlacementState.coveredTile = landed.covers;
+  tilePlacementState.stack = landed.stacks;
   tilePlacementState.aresExtension = opts?.aresExtension === true;
   landedColor = landed.color;
+  hexRect = measureBoardHexRect(spaceId);
+  if (landed.stacks !== undefined) {
+    // A CITY TIER pays the cell NOTHING again — no printed bonus, no water,
+    // no neighbour, no law's wave (the server's own reading: the first city
+    // collected them). Nothing is captured, nothing is held: the tier's whole
+    // statement is the stack it builds, and the dossier / the receipt say so.
+    pendingBonuses = [];
+    tilePlacementState.bonusProxies = [];
+    pendingOceanBonus = undefined;
+    pendingLawWave = undefined;
+    pendingAresFlights = [];
+    return {spaceId};
+  }
   // The cell is still UNCOVERED on the displayed board — capture the hex +
   // every printed stock icon's live rect now (post pan/zoom truth). The
   // reward beat replays these exact positions over the placed tile.
   // An OCEAN COVER grants no printed bonuses (the server skipped them:
   // `coveringExistingTile`) — flying them would be a lie about money.
-  hexRect = measureBoardHexRect(spaceId);
   const space = prevSpaces !== undefined ? findSpace(prevSpaces, spaceId) : undefined;
   pendingBonuses = landed.covers === undefined && space !== undefined ? placementBonuses(space.bonus) : [];
   if (landed.replaces !== undefined) {
@@ -430,9 +478,12 @@ export function runTilePlacement(
 ): Promise<void> {
   return new Promise<void>((resolve) => {
     runResolve = resolve;
+    // The budget covers the LONGEST landing this transaction may play: the ordinary flight, or a city
+    // tier's swing + hang + lowering + contact + settle (the crane is slower than the arc by design).
+    const longest = Math.max(TILE_FLIGHT_MS + TILE_SETTLE_MS, TIER_APPROACH_MS + TIER_HOVER_MS + TIER_DESCENT_MS + TIER_CONTACT_MS + TIER_SETTLE_MS);
     sceneSafety = window.setTimeout(() => {
       freeRunGate(); // rAF stall — force the gate open, degrade gracefully
-    }, motionMs(TILE_FLIGHT_MS + TILE_SETTLE_MS) + 3000);
+    }, motionMs(longest) + 3000);
     void executeApproach(prevSpaces, newSpaces).finally(() => freeRunGate());
   });
 }
@@ -454,9 +505,14 @@ async function executeApproach(
     applySpacePreview(prevSpaces, newSpaces, tilePlacementState.spaceId);
   };
 
+  const stack = tilePlacementState.stack;
   if (tilePlacementState.reducedMotion || hexRect === undefined || typeof document === 'undefined') {
     // Reduced / unmeasurable: the tile appears in place with a short
-    // controlled beat — same commit semantics, no proxies.
+    // controlled beat — same commit semantics, no proxies. A city tier keeps
+    // its one informational beat: the counter ticks at the paint.
+    if (stack !== undefined) {
+      stackContact(tilePlacementState.spaceId as SpaceId);
+    }
     paintRealTile();
     tilePlacementState.phase = 'landed';
     await wait(tilePlacementState.reducedMotion ? TILE_REDUCED_MS : 60);
@@ -464,6 +520,10 @@ async function executeApproach(
   }
   await nextTick(); // the layer mounts the proxy
   if (!tilePlacementState.active) {
+    return;
+  }
+  if (stack !== undefined) {
+    await runTierDescent(hexRect, stack.to, paintRealTile);
     return;
   }
   if (departing) {
@@ -541,6 +601,87 @@ async function executeApproach(
     cubeHeld = false;
     dropCubeForHeroPlacement(tilePlacementState.spaceId as SpaceId);
   }
+}
+
+/**
+ * THE CITY TIER'S LANDING (Turmoil Redux — Skyscrapers): the third legal case
+ * of the arm, a different landing rather than a prefix to the ordinary one.
+ *
+ * Choreography, in the project's own physical grammar:
+ *   1. THE SWING — the proxy (sized to where the board will paint the new
+ *      TOP tile: the stack's lifted rect, `stackLandingRect`) leaves the
+ *      supply and swings over the site on one low arc, its horizontal speed
+ *      dying out, and hangs straight above the stack (`tierHoverPoint`);
+ *   2. THE BASE TAKES THE LOAD — the real cell reacts (`cityStackScene`
+ *      `loading`: the contour tightens, the standing tile settles a pixel and
+ *      compresses to the stack's scale, the counter appears at its current
+ *      height «×1»); the owner cube is held (it is about to be covered); only
+ *      this cell moves — a neighbour never blinks;
+ *   3. THE LOWERING — straight down, x fixed, the tier lowered INTO the
+ *      board's scale, the ground shadow tightening to contact;
+ *   4. CONTACT — dense and short: the thickness compresses, one quiet
+ *      brightness pass, a damped settle; in THAT synchronous turn the real
+ *      tile paints (the stack is now N+1: the tier under, the top lifted) and
+ *      the counter ticks «×2» (`stackContact`) — never before (a lie), never
+ *      later (cause and effect come apart); the dust ring bursts from under
+ *      the tier and the cell jolts once;
+ *   5. SETTLE — the proxy dissolves onto the painted top tile, the cube drops
+ *      onto the new top, the dust falls and the seam under the tier shows.
+ *
+ * Degrades at every step: no stage / no proxy → the paint with its tick and
+ * one short beat; an abort mid-descent clears the cell's load state (its
+ * counter would otherwise lie) and rests the cube.
+ */
+async function runTierDescent(hex: TileRect, tiers: number, paintRealTile: () => void): Promise<void> {
+  const spaceId = tilePlacementState.spaceId as SpaceId;
+  const els = stage?.els();
+  const ui = conUiScale();
+  const landing = stackLandingRect(hex, tiers);
+  const hover = tierHoverPoint(landing);
+  if (els === undefined || !placeTileProxy(els, {hex: landing, from: tableSupplyPoint(ui)})) {
+    stackContact(spaceId);
+    paintRealTile();
+    tilePlacementState.phase = 'landed';
+    await wait(60);
+    return;
+  }
+  // 1. The swing — over the site, speed dying out.
+  await playTierApproach(els, {landing, hover, from: tableSupplyPoint(ui), approachMs: motionMs(TIER_APPROACH_MS)});
+  if (!tilePlacementState.active) {
+    return;
+  }
+  // 2. The base takes the load — the real cell's own beat; the cube is about to be covered.
+  beginStackLoad(spaceId);
+  if (landedColor !== undefined) {
+    holdCubeForHeroPlacement(spaceId);
+    cubeHeld = true;
+  }
+  await wait(motionMs(TIER_HOVER_MS));
+  if (!tilePlacementState.active) {
+    return;
+  }
+  // 3 + 4. The lowering and the contact.
+  await playTierDescent(els, {landing, hover, uiScale: ui, descentMs: motionMs(TIER_DESCENT_MS), contactMs: motionMs(TIER_CONTACT_MS)});
+  if (!tilePlacementState.active) {
+    return;
+  }
+  // THE FRAME OF CONTACT: the real stack paints under the settled proxy and
+  // the counter ticks to the new height in this very synchronous turn.
+  stackContact(spaceId);
+  paintRealTile();
+  tilePlacementState.phase = 'landed';
+  playStackDust(els, {hex, uiScale: ui, dustMs: motionMs(TIER_DUST_MS)});
+  await nextTick();
+  await disposeTileProxy(els, motionMs(110));
+  if (!tilePlacementState.active) {
+    return;
+  }
+  // 5. The settle: the cube drops onto the new top while the dust falls.
+  if (cubeHeld) {
+    cubeHeld = false;
+    dropCubeForHeroPlacement(spaceId);
+  }
+  await wait(motionMs(TIER_SETTLE_MS));
 }
 
 /**
@@ -954,6 +1095,10 @@ export function abortTilePlacement(): void {
   tilePlacementState.lawWave = false;
   hexRect = undefined;
   armedReplacing = false;
+  armedStacking = false;
+  // A cell caught mid-load must not be left «loading» (its counter would lie) or «contact» (its jolt would replay).
+  clearStackScene();
+  tilePlacementState.stack = undefined;
   tilePlacementState.active = false;
   tilePlacementState.phase = 'failed';
   tilePlacementState.bonusProxies = [];
@@ -993,6 +1138,10 @@ function finish(): void {
   tilePlacementState.lawWave = false;
   hexRect = undefined;
   armedReplacing = false;
+  armedStacking = false;
+  // The tier has settled: the cell's contact state (the tick, the jolt) has played — release it.
+  clearStackScene();
+  tilePlacementState.stack = undefined;
   tilePlacementState.active = false;
   tilePlacementState.phase = 'done';
   tilePlacementState.bonusProxies = [];

@@ -30,8 +30,10 @@
         :size="12"
         :animate-in="cubePhase === 'dropping'"></player-cube>
       <!-- The stack's COUNTER: the height, named — «two» and «three» must be told apart at a glance,
-           never guessed from the pile's thickness. Lower-left, the owner cube's mirror. -->
-      <span v-if="stackHeight > 1 && !placementCleared" class="board-stack__count" data-stack-count>×{{ stackHeight }}</span>
+           never guessed from the pile's thickness. Lower-left, the owner cube's mirror. While a tier
+           HANGS over this cell (the landing scene's `loading`) it already shows the current height
+           («×1»), so the tick at contact reads 1 → 2 — the frame the real tile paints. -->
+      <span v-if="(stackHeight > 1 || stackLoading) && !placementCleared" class="board-stack__count" data-stack-count>×{{ stackHeight }}</span>
       <template v-if="space.gagarin !== undefined">
         <div v-if="space.gagarin === 0" class='gagarin'></div>
         <div v-else class='gagarin visited'></div>
@@ -79,6 +81,7 @@ import {placementRenderState} from '@/client/components/board/placementRenderSta
 import {isRemoteRevealHeld, heldPrevTileOf} from '@/client/console/tilePlacement/remoteRevealHold';
 import {nomadCellHidden, nomadGhostAt} from '@/client/console/nomads/consoleNomadMove';
 import {observeCube, cubePhase as cubePhaseForSpace, CubePhase} from '@/client/components/board/cubeDropState';
+import {stackLoadingAt, stackContactAt} from '@/client/console/tilePlacement/cityStackScene';
 import {clearActiveMarker, observeMarkerPlacement} from '@/client/components/board/markerPlacementAnimation';
 
 type Data = {
@@ -219,7 +222,19 @@ export default defineComponent({
       if (this.stackHeight > 1 && !this.placementCleared) {
         css += ' board-space--stack';
       }
+      // THE LANDING SCENE's two states of this cell (cityStackScene): a tier hangs over it — the base
+      // takes the load; a tier just touched down — the counter ticks and the cell jolts once.
+      if (this.stackLoading) {
+        css += ' board-space--stack-loading';
+      }
+      if (stackContactAt(this.space.id)) {
+        css += ' board-space--stack-contact';
+      }
       return css;
+    },
+    /** A city tier is descending onto THIS cell (the landing scene's `loading`). */
+    stackLoading(): boolean {
+      return stackLoadingAt(this.space.id);
     },
     /** The city STACK's height (Skyscrapers) — 1 for any ordinary cell. */
     stackHeight(): number {

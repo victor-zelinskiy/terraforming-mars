@@ -21,6 +21,7 @@ import {
   TileRect, TileFlightProfile, OWN_FLIGHT_PROFILE,
   tileFlightPlan, tileFlightPoint, tileScaleAt, tileTiltAt, tileShadowAt,
   TILE_SETTLE_PX, TILE_TOUCH_MS,
+  TIER_CRUISE_SCALE, tierDescentScaleAt, dustMoteVector,
 } from '@/client/console/tilePlacement/tilePlacementModel';
 import {TransferPoint} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {transferWaveDelayMs} from '@/client/console/resourceTransfer/resourceTransferModel';
@@ -51,6 +52,9 @@ export type TileStageEls = {
   /** The thickness underlay INSIDE the departing proxy (release decompresses
    *  it — the exact inverse of the landing's contact squash). */
   departEdge: HTMLElement | undefined,
+  /** The DUST ring of a city-tier touchdown (Skyscrapers): the motes around
+   *  the hex, posed by the director at contact. Absent → no dust. */
+  dust?: HTMLElement | undefined,
 };
 
 function guarded(run: (done: () => void) => void, budgetMs: number): Promise<void> {
@@ -346,6 +350,144 @@ export function playTileFlight(els: TileStageEls, opts: TileFlightOpts): Promise
       tl.to(els.shadow, {autoAlpha: 0.5, duration: 0.12, ease: 'power1.out'}, touchAt);
     }
   }, opts.flightMs + opts.settleMs + 400);
+}
+
+export type TierApproachOpts = {
+  /** Where the board will paint the new top tile (the stack's lifted rect) — the proxy is sized to it. */
+  landing: TileRect,
+  /** The point the tier hangs at — straight above the landing. */
+  hover: TransferPoint,
+  from: TransferPoint,
+  approachMs: number,
+};
+
+/**
+ * THE SWING (awaited) — a city tier arrives like a block on a crane: from
+ * the supply it swings over the site on one low arc with its HORIZONTAL
+ * SPEED DYING OUT (a decelerating ease, never the ordinary landing's
+ * in-out), stays large and close to the camera (it has not been lowered
+ * yet), unwinds its carried tilt, and comes to rest hanging over the
+ * stack. The ground shadow parks under the landing, wide and faint.
+ * Resolves with the tier hanging — the caller lets the base take the load.
+ */
+export function playTierApproach(els: TileStageEls, opts: TierApproachOpts): Promise<void> {
+  const plan = tileFlightPlan(opts.from, opts.hover);
+  return guarded((done) => {
+    const tl = gsap.timeline({onComplete: done});
+    tl.to(els.tile, {autoAlpha: 1, duration: Math.min(0.14, opts.approachMs / 3000), ease: 'power1.out'}, 0);
+    if (els.shadow !== undefined) {
+      tl.to(els.shadow, {autoAlpha: 0.6, duration: 0.2, ease: 'power1.out'}, 0.05);
+    }
+    const prog = {q: 0};
+    tl.to(prog, {
+      q: 1,
+      duration: opts.approachMs / 1000,
+      ease: 'power2.out', // the swing loses its speed as it reaches the site
+      onUpdate: () => {
+        const p = tileFlightPoint(plan, prog.q);
+        // Carried large the whole way: the lowering, not the swing, brings it into the board's scale.
+        const scale = OWN_FLIGHT_PROFILE.startScale - (OWN_FLIGHT_PROFILE.startScale - TIER_CRUISE_SCALE) * Math.min(1, prog.q * 1.4);
+        gsap.set(els.tile, {
+          x: p.x - opts.landing.w / 2,
+          y: p.y - opts.landing.h / 2,
+          scale,
+          rotation: tileTiltAt(prog.q),
+        });
+        if (els.shadow !== undefined) {
+          const sh = tileShadowAt(0);
+          gsap.set(els.shadow, {scale: sh.scale, autoAlpha: Math.min(1, prog.q * 5) * sh.alpha});
+        }
+      },
+    }, 0);
+  }, opts.approachMs + 400);
+}
+
+export type TierDescentOpts = {
+  landing: TileRect,
+  hover: TransferPoint,
+  uiScale: number,
+  descentMs: number,
+  contactMs: number,
+};
+
+/**
+ * THE LOWERING + THE CONTACT (awaited) — straight down, x fixed on the
+ * stack's centre: the tier is lowered INTO the board's scale (large →
+ * exactly the landing rect), the ground shadow tightens from hover to
+ * contact, and at the bottom it CONTACTS — dense and short: the thickness
+ * compresses 3 → 1 px, one quiet brightness pass crosses the face, a
+ * microscopic damped settle ends the motion. No bounce. Resolves at rest;
+ * the caller paints the real tile (and ticks the counter) at that instant.
+ */
+export function playTierDescent(els: TileStageEls, opts: TierDescentOpts): Promise<void> {
+  const cx = opts.landing.x + opts.landing.w / 2;
+  const cy = opts.landing.y + opts.landing.h / 2;
+  const settlePx = Math.max(1.5, Math.round(TILE_SETTLE_PX * 0.6 * opts.uiScale));
+  return guarded((done) => {
+    const tl = gsap.timeline({onComplete: done});
+    const prog = {q: 0};
+    tl.to(prog, {
+      q: 1,
+      duration: opts.descentMs / 1000,
+      ease: 'power1.inOut', // a controlled lowering — it neither drops nor floats
+      onUpdate: () => {
+        const y = opts.hover.y + (cy - opts.hover.y) * prog.q;
+        gsap.set(els.tile, {
+          x: cx - opts.landing.w / 2,
+          y: y - opts.landing.h / 2,
+          scale: tierDescentScaleAt(prog.q),
+          rotation: 0,
+        });
+        if (els.shadow !== undefined) {
+          const sh = tileShadowAt(prog.q);
+          gsap.set(els.shadow, {scale: sh.scale, autoAlpha: sh.alpha});
+        }
+      },
+    }, 0);
+    const touchAt = opts.descentMs / 1000;
+    if (els.edge !== undefined) {
+      tl.to(els.edge, {y: 1, duration: 0.09, ease: 'power2.out'}, touchAt);
+    }
+    if (els.touch !== undefined) {
+      tl.to(els.touch, {autoAlpha: 0.26, duration: (opts.contactMs * 0.3) / 1000, ease: 'power1.in'}, touchAt);
+      tl.to(els.touch, {autoAlpha: 0, duration: (opts.contactMs * 0.7) / 1000, ease: 'power1.out'});
+    }
+    // The settle: the mass is felt once — down and back, damped, never a bounce.
+    tl.to(els.tile, {y: `+=${settlePx}`, duration: 0.06, ease: 'power1.out'}, touchAt);
+    tl.to(els.tile, {y: `-=${settlePx}`, duration: Math.max(0.08, opts.contactMs / 1000 - 0.06), ease: 'power2.out'}, touchAt + 0.06);
+    if (els.shadow !== undefined) {
+      tl.to(els.shadow, {autoAlpha: 0.5, duration: 0.1, ease: 'power1.out'}, touchAt);
+    }
+  }, opts.descentMs + opts.contactMs + 400);
+}
+
+/**
+ * THE DUST (fire-and-forget) — the contact squeezes a ring of dust out from
+ * under the tier: a few motes burst outward along the hex's perimeter, rise
+ * a hair, and fall back, fading as they settle. Deterministic angles (the
+ * model's), sized from the live hex — never fixed px, never confetti.
+ */
+export function playStackDust(els: TileStageEls, opts: {hex: TileRect, uiScale: number, dustMs: number}): void {
+  const dust = els.dust;
+  if (dust === undefined) {
+    return;
+  }
+  const motes = Array.from(dust.querySelectorAll<HTMLElement>('.con-tileplace__dust-mote'));
+  const ms = opts.dustMs / 1000;
+  gsap.set(dust, {
+    width: opts.hex.w, height: opts.hex.h,
+    x: opts.hex.x, y: opts.hex.y,
+    autoAlpha: 1,
+  });
+  motes.forEach((mote, i) => {
+    const v = dustMoteVector(i, motes.length, opts.hex.w);
+    gsap.set(mote, {x: 0, y: opts.hex.h * 0.12, scale: 0.6, autoAlpha: 0, transformOrigin: 'center center'});
+    gsap.timeline({delay: (i % 3) * 0.012})
+      .to(mote, {autoAlpha: 0.85, duration: ms * 0.12, ease: 'power1.out'}, 0)
+      .to(mote, {x: v.dx, y: v.dy - v.rise, scale: 1, duration: ms * 0.42, ease: 'power2.out'}, 0)
+      .to(mote, {y: v.dy + v.rise * 0.6, autoAlpha: 0, scale: 0.7, duration: ms * 0.5, ease: 'power1.in'}, ms * 0.42);
+  });
+  gsap.to(dust, {autoAlpha: 0, duration: 0.05, delay: ms + 0.05});
 }
 
 /**
@@ -653,6 +795,9 @@ export function killTileTweens(els: TileStageEls): void {
   const withChildren = [...els.aresPulses];
   if (els.splash !== undefined) {
     withChildren.push(els.splash);
+  }
+  if (els.dust !== undefined) {
+    withChildren.push(els.dust);
   }
   withChildren.forEach((el) => {
     gsap.killTweensOf(el);

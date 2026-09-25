@@ -26,6 +26,7 @@ import {Resource} from '@/common/Resource';
 import {resetAresGrantClaims} from '@/client/console/tilePlacement/aresAdjacencyFlights';
 import {placementRenderState} from '@/client/components/board/placementRenderState';
 import {cubePhase} from '@/client/components/board/cubeDropState';
+import {beginStackLoad, clearStackScene, stackSceneState} from '@/client/console/tilePlacement/cityStackScene';
 
 /**
  * A measurable board cell — JSDOM reports every rect as 0x0, so the scene's
@@ -548,6 +549,99 @@ describe('consoleTilePlacement (the animation transaction)', () => {
       expect(detectTilePlacement(p2, n2)).to.deep.eq({spaceId: '06'});
       expect(tilePlacementState.departingTile).to.be.undefined;
       expect(tilePlacementState.departingCube).to.be.undefined;
+      await runTilePlacement(p2, n2);
+      await endTilePlacement();
+    });
+  });
+
+  describe('the city tier (a declared stack — Skyscrapers, the third case)', () => {
+    let teardown: (() => void) | undefined;
+
+    afterEach(() => {
+      teardown?.();
+      teardown = undefined;
+      clearStackScene();
+    });
+
+    const cityToStack = (bonus: Array<SpaceBonus> = []) => ({
+      prev: [space('05', {bonus, tileType: TileType.CITY, color: 'red'})],
+      next: [space('05', {bonus, tileType: TileType.CITY, color: 'red', stackHeight: 2})],
+    });
+
+    it('an arm that declares the tier STAGES the stack — and captures no bonus, holds nothing', () => {
+      teardown = boardCell('05', {bonusIcons: 2});
+      armTilePlacement({spaceId: '05', stacking: true});
+      const {prev, next} = cityToStack([SpaceBonus.STEEL, SpaceBonus.PLANT]);
+      expect(detectTilePlacement(prev, next, {oceanBonus: {spaceId: '05', oceanSpaceIds: ['06'], perOcean: 2, megacredits: 2} as OceanAdjacencyBonusModel}))
+        .to.deep.eq({spaceId: '05'});
+      expect(tilePlacementState.stack).to.deep.eq({from: 1, to: 2});
+      expect(tilePlacementState.tileType).to.eq(TileType.CITY);
+      // The cell pays NOTHING again: not the printed icons under the first city, not the water beside it.
+      expect(tilePlacementState.bonusProxies).to.have.length(0);
+      expect(tilePlacementRewardsSettling()).to.be.false;
+      seedTilePlacementRewardHold();
+      expect(heldStock('steel')).to.eq(0);
+      expect(heldStock('plants')).to.eq(0);
+      expect(heldStock('megacredits')).to.eq(0);
+    });
+
+    it('an UNDECLARED stack growing still aborts — the prompt kind is the licence', async () => {
+      teardown = boardCell('05');
+      armTilePlacement({spaceId: '05'});
+      const {prev, next} = cityToStack();
+      expect(detectTilePlacement(prev, next)).to.be.undefined;
+      expect(isTilePlacementActive()).to.be.false;
+      await settle(5);
+    });
+
+    it('the paint carries the height and ticks the counter IN THAT FRAME; the contact state is released at the end', async () => {
+      teardown = boardCell('05');
+      armTilePlacement({spaceId: '05', stacking: true});
+      const {prev, next} = cityToStack();
+      detectTilePlacement(prev, next);
+      expect(stackSceneState.contact, 'nothing ticks before the server-proven landing').to.be.undefined;
+      await runTilePlacement(prev, next);
+      // The displayed cell now carries the stack (the silent under-proxy paint)…
+      expect(prev[0].stackHeight).to.eq(2);
+      expect(prev[0].tileType).to.eq(TileType.CITY);
+      // …and the cell is in CONTACT (the counter's tick, the jolt) until the scene settles.
+      expect(stackSceneState.contact).to.eq('05');
+      expect(stackSceneState.loading).to.be.undefined;
+      expect(tilePlacementState.phase).to.eq('landed');
+      await endTilePlacement();
+      expect(isTilePlacementActive()).to.be.false;
+      expect(stackSceneState.contact, 'released — the jolt never replays on the next paint').to.be.undefined;
+      expect(tilePlacementState.stack).to.be.undefined;
+    });
+
+    it('an abort mid-scene clears the cell\'s load state and never strands the cube', async () => {
+      teardown = boardCell('05');
+      armTilePlacement({spaceId: '05', stacking: true});
+      const {prev, next} = cityToStack();
+      detectTilePlacement(prev, next);
+      beginStackLoad('05' as SpaceId); // as the descent would, the moment the tier hangs
+      abortTilePlacement();
+      expect(stackSceneState.loading).to.be.undefined;
+      expect(stackSceneState.contact).to.be.undefined;
+      expect(tilePlacementState.stack).to.be.undefined;
+      expect(cubePhase('05' as SpaceId)).to.not.eq('hidden');
+      await settle(5);
+    });
+
+    it('the staging does not leak into the NEXT, ordinary placement', async () => {
+      teardown = boardCell('05');
+      armTilePlacement({spaceId: '05', stacking: true});
+      const {prev, next} = cityToStack();
+      detectTilePlacement(prev, next);
+      await runTilePlacement(prev, next);
+      await endTilePlacement();
+      await settle(5);
+      armTilePlacement({spaceId: '06'});
+      const p2 = [space('06')];
+      const n2 = [space('06', {tileType: TileType.CITY, color: 'red'})];
+      expect(detectTilePlacement(p2, n2)).to.deep.eq({spaceId: '06'});
+      expect(tilePlacementState.stack).to.be.undefined;
+      // A same-tile height change on THIS ordinary arm is refused — the licence was the previous arm's.
       await runTilePlacement(p2, n2);
       await endTilePlacement();
     });

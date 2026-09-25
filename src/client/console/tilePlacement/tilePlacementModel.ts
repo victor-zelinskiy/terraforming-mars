@@ -33,7 +33,7 @@ import {PlacementLawPayoutModel} from '@/common/models/PlacementLawPayoutModel';
 import {GreeneryAdjacencyBonusModel} from '@/common/models/GreeneryAdjacencyBonusModel';
 import {OceanAdjacencyBonusModel} from '@/common/models/OceanAdjacencyBonusModel';
 import {SpaceModel} from '@/common/models/SpaceModel';
-import {TileType, HAZARD_TILES} from '@/common/TileType';
+import {TileType, CITY_TILES, HAZARD_TILES} from '@/common/TileType';
 import {ResourceTransferSpec, TransferPoint} from '@/client/console/resourceTransfer/resourceTransferModel';
 
 /**
@@ -230,6 +230,85 @@ export const TILE_DEPART_BREATH_MS = 130;
  *  itself (post pan/zoom truth), with a floor so a tiny board still reads. */
 export function departureLiftPx(hex: TileRect): number {
   return Math.max(16, Math.round(hex.h * TILE_DEPART_LIFT));
+}
+
+/**
+ * THE CITY TIER — the THIRD legal case of the arm (Turmoil Redux — Skyscrapers:
+ * «a city tile placed on top of your existing city»). The prompt DECLARES it
+ * (`placementType: 'city-tier'`), so `verifyPlacement` may read a same-tile
+ * diff whose STACK grew by one as a placement; without the declaration a
+ * height change is refused exactly like any unexplained tile→tile change.
+ *
+ * The scene is NOT the ordinary landing: a tier arrives like a block on a
+ * crane — it swings over the site with its horizontal speed dying out, HANGS
+ * for a breath while the base takes the load (the real cell reacts:
+ * `cityStackScene`), then comes STRAIGHT DOWN onto the top of the stack.
+ * Contact is dense and short (the thickness compresses, one dust ring around
+ * the hex, one micro-jolt of the whole cell), the counter ticks «1 → 2» IN
+ * THAT FRAME (the real tile paints at the touchdown), and the dust settles
+ * while the seam under the new tier shows. No printed bonus, no adjacency,
+ * no reward beat — the dossier said so before the press, the sitting's
+ * receipt says so after.
+ */
+/** Supply → the hover point over the site: the swing, decelerating. */
+export const TIER_APPROACH_MS = 380;
+/** The tier hangs; the base takes the load (the real cell's own beat). */
+export const TIER_HOVER_MS = 130;
+/** The vertical descent onto the stack — a crane, not a drop. */
+export const TIER_DESCENT_MS = 360;
+/** The contact: compression + the surface-acceptance pass, inside the settle window. */
+export const TIER_CONTACT_MS = 160;
+/** The dust ring's whole life (burst → fall → gone). */
+export const TIER_DUST_MS = 460;
+/** After the touchdown: the dust falls, the seam shows, the cube drops onto the new top. */
+export const TIER_SETTLE_MS = 220;
+/** How high over the LANDING the tier hangs, as a fraction of the landing rect's height. */
+export const TIER_HOVER_LIFT = 0.95;
+/** The carried scale while it swings in and hangs (close to the camera, then lowered INTO the board's scale). */
+export const TIER_CRUISE_SCALE = 1.14;
+/** Dust motes around the hex perimeter — a burst, not confetti. */
+export const TIER_DUST_MOTES = 8;
+/**
+ * THE STACK'S OWN GEOMETRY, mirrored from `board.less` (`@stack-step` /
+ * `@stack-scale`): a stacked cell scales its whole pile to fit the hex and
+ * lifts the top tile one step per lower tier. The landing rect of a tier is
+ * therefore NOT the hex — it is where the board will paint the new top tile.
+ * ⚠ Change one, change both.
+ */
+export const STACK_STEP_PX = 3.5;
+export const STACK_SCALE = 0.86;
+/** The board cell's authored height (board px) — the step scales with the live hex. */
+const BOARD_HEX_H_PX = 51;
+
+/** Where the board paints the TOP tile of a stack of `tiers` on the live hex `hex` — the tier's landing rect. */
+export function stackLandingRect(hex: TileRect, tiers: number): TileRect {
+  const w = hex.w * STACK_SCALE;
+  const h = hex.h * STACK_SCALE;
+  const step = STACK_STEP_PX * (hex.h / BOARD_HEX_H_PX);
+  return {
+    x: hex.x + (hex.w - w) / 2,
+    y: hex.y + (hex.h - h) / 2 - step * Math.max(0, Math.min(3, tiers) - 1),
+    w,
+    h,
+  };
+}
+
+/** The point the tier HANGS at before the descent: straight above the landing's centre. */
+export function tierHoverPoint(landing: TileRect): TransferPoint {
+  return {x: landing.x + landing.w / 2, y: landing.y + landing.h / 2 - landing.h * TIER_HOVER_LIFT};
+}
+
+/** The tier's scale through the DESCENT (q 0..1): from the carried size down to exactly 1 at contact — monotone. */
+export function tierDescentScaleAt(q: number): number {
+  const k = clamp(0, 1, q);
+  return TIER_CRUISE_SCALE - (TIER_CRUISE_SCALE - 1) * easeInOut(k);
+}
+
+/** A dust mote's burst vector around the hex: deterministic angles, alternating reach so the ring never reads as a stamp. */
+export function dustMoteVector(i: number, count: number, hexW: number): {dx: number, dy: number, rise: number} {
+  const angle = (i / Math.max(1, count)) * Math.PI * 2 - Math.PI / 2;
+  const reach = hexW * (i % 2 === 0 ? 0.42 : 0.3);
+  return {dx: Math.cos(angle) * reach, dy: Math.sin(angle) * reach * 0.55, rise: hexW * 0.08};
 }
 
 /**
@@ -516,12 +595,22 @@ export function verifyPlacement(
      * mistaken for a placement.
      */
     replacing?: boolean,
+    /**
+     * The prompt DECLARED this cell a CITY-TIER target (`placementType:
+     * 'city-tier'` — Skyscrapers). Only then may a same-tile diff whose STACK
+     * grew by exactly one be read as «a tier landed on the stack»; without
+     * the declaration a height change is refused like any other unexplained
+     * change, so a server correction can never be mistaken for a landing.
+     */
+    stacking?: boolean,
   },
 ): {
   tileType: TileType,
   color: Color | undefined,
   covers?: TileType,
   replaces?: {tileType: TileType, color: Color | undefined},
+  /** A city TIER: the stack's height before and after (the counter's «1 → 2»). */
+  stacks?: {from: number, to: number},
 } | undefined {
   const prev = findSpace(prevSpaces, spaceId);
   const next = findSpace(newSpaces, spaceId);
@@ -532,6 +621,12 @@ export function verifyPlacement(
     return undefined;
   }
   if (prev.tileType !== undefined) {
+    if (opts?.stacking === true && prev.tileType === next.tileType && CITY_TILES.has(next.tileType)) {
+      // A DECLARED tier: the same city, one tier taller — the third legal case.
+      const from = prev.stackHeight ?? 1;
+      const to = next.stackHeight ?? 1;
+      return to === from + 1 ? {tileType: next.tileType, color: next.color, stacks: {from, to}} : undefined;
+    }
     if (prev.tileType === next.tileType) {
       return undefined; // nothing changed on the cell — no placement to show
     }
@@ -630,5 +725,10 @@ export function applySpacePreview(
   }
   if (next.rotated !== undefined) {
     prev.rotated = next.rotated;
+  }
+  // The city STACK's height rides the same silent paint: the board draws the
+  // new tier under the settled proxy and the counter ticks in that frame.
+  if (next.stackHeight !== undefined) {
+    prev.stackHeight = next.stackHeight;
   }
 }

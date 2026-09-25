@@ -130,6 +130,12 @@
         <div class="con-tileplace__splash-wash"></div>
         <div class="con-tileplace__splash-ring"></div>
       </div>
+      <!-- A CITY TIER's touchdown (Skyscrapers) — the dust the contact squeezes out from
+           under the tier: a few motes around the hex, burst → rise → fall (the director
+           poses them from the model's deterministic angles). Only a tier lands with dust. -->
+      <div v-if="tilePlacementState.stack !== undefined" ref="dust" class="con-tileplace__dust">
+        <div v-for="m in dustMotes" :key="'dust-' + m" class="con-tileplace__dust-mote"></div>
+      </div>
     </template>
     <!-- The REMOTE flight (another player's / the bot's placement) — its
          OWN proxy set, so a remote landing can overlap the own
@@ -169,7 +175,7 @@ import {
 } from '@/client/console/tilePlacement/adjacencyPayoutBeat';
 import {remotePlacementState, abortRemotePlacements} from '@/client/console/tilePlacement/consoleRemotePlacement';
 import {TileStageEls} from '@/client/console/tilePlacement/tilePlacementDirector';
-import {OCEAN_COIN_SPARKS} from '@/client/console/tilePlacement/tilePlacementModel';
+import {OCEAN_COIN_SPARKS, TIER_DUST_MOTES} from '@/client/console/tilePlacement/tilePlacementModel';
 import {tileCssClassOf} from '@/client/components/board/BoardSpaceTile.vue';
 import PlayerCube from '@/client/components/PlayerCube.vue';
 
@@ -200,6 +206,8 @@ export default defineComponent({
       /** Stable indices for the condensation particles (the director poses
        *  them deterministically — no randomness anywhere in the scene). */
       oceanSparks: Array.from({length: OCEAN_COIN_SPARKS}, (_, i) => i),
+      /** The dust motes of a city tier's touchdown — stable indices, deterministic angles. */
+      dustMotes: Array.from({length: TIER_DUST_MOTES}, (_, i) => i),
       grovePulseEls: new Map<number, HTMLElement>(),
       groveChipEls: new Map<number, HTMLElement>(),
       unregisterGrove: undefined as (() => void) | undefined,
@@ -361,6 +369,7 @@ export default defineComponent({
           splash: this.$refs.splash as HTMLElement | undefined,
           depart: connected(this.$refs.depart as HTMLElement | undefined),
           departEdge: connected(this.$refs.departEdge as HTMLElement | undefined),
+          dust: connected(this.$refs.dust as HTMLElement | undefined),
         };
       },
       remoteEls: (): TileStageEls | undefined => {

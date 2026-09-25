@@ -1062,6 +1062,47 @@
 		bottom: calc(14px + @stack-step * (var(--stack-n, 2) - 1));
 	}
 }
+/* ── THE TIER'S LANDING on the real cell (the console scene's two states, `cityStackScene`) ──
+   LOADING — a tier hangs over this cell: the base TAKES THE LOAD. The contour tightens a hair, the
+   standing tile settles one pixel and compresses to the stack's scale (so the paint at contact, which
+   turns it into the lower tier at that very scale, moves nothing), the counter appears at «×1».
+   Only this cell reacts — a neighbour never moves (the motion-taste law: no traffic light).
+   CONTACT — the tier touched down: the whole cell takes ONE micro-jolt and the counter TICKS to its
+   new number in the frame the model changed. One-shot keyframes; reduced motion keeps the number. */
+.board-space--stack-loading {
+	> [class*="board-space-tile--"] {
+		transform: translateY(1px) scale(@stack-scale);
+		transform-origin: 50% 50%;
+		transition: transform calc(220ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
+	}
+	&::before {
+		transform: scale(0.965);
+		transition: transform calc(200ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1) !important;
+	}
+}
+.board-space--stack-contact {
+	animation: board-stack-jolt calc(180ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1) 1;
+	> .board-stack__count {
+		animation: board-stack-tick calc(240ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1) 1;
+	}
+}
+@keyframes board-stack-jolt {
+	0% { transform: translateY(0); }
+	40% { transform: translateY(1.2px); } /* keep-px: board px-space */
+	100% { transform: translateY(0); }
+}
+@keyframes board-stack-tick {
+	0% { transform: scale(1); }
+	35% { transform: scale(1.38); }
+	100% { transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+	.board-space--stack-contact,
+	.board-space--stack-contact > .board-stack__count { animation: none; }
+	.board-space--stack-loading > [class*="board-space-tile--"],
+	.board-space--stack-loading::before { transition: none; }
+}
+
 .board-stack__count {
 	position: absolute;
 	left: 5px; /* keep-px: the owner cube's mirror (its `right: 7px`) */

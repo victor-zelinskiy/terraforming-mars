@@ -226,6 +226,33 @@
         box-shadow: 0 0 .45rem rgba(120, 220, 250, 0.45);
     }
 
+    /* ── A CITY TIER's touchdown (Skyscrapers): the dust ────────────────────
+       The contact squeezes a ring of dust from under the tier: a few warm
+       grey motes around the hex, burst → rise a hair → fall, fading as they
+       settle. The box is posed on the live hex by the director; the motes
+       start at its centre and travel the model's deterministic vectors. */
+    &__dust {
+        position: fixed;
+        top: 0;
+        left: 0;
+        opacity: 0;
+        visibility: hidden; /* the director poses + wakes it at contact */
+        pointer-events: none;
+    }
+    &__dust-mote {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: .3rem;
+        height: .3rem;
+        margin: -.15rem 0 0 -.15rem;
+        border-radius: 50%;
+        background: radial-gradient(50% 50% at 50% 50%, rgba(236, 222, 200, 0.95) 0%, rgba(178, 150, 118, 0.7) 55%, transparent 80%);
+        opacity: 0;
+        visibility: hidden;
+        will-change: transform, opacity;
+    }
+
     /* The coin: rem-sized (so it grows with the TV profile exactly like the
        transfer chip) and self-centred on its birth point via a negative
        margin — the director only animates transform/opacity. */
@@ -362,6 +389,7 @@
     .con-tileplace__shadow,
     .con-tileplace__oceanpulse,
     .con-tileplace__splash,
+    .con-tileplace__dust,
     .con-tileplace__coin-spark,
     .con-tileplace__coin-sheen { display: none; }
 }

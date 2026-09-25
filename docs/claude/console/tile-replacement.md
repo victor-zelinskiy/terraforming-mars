@@ -94,6 +94,58 @@ reduced motion, an abort mid-lift — the removal window is opened/closed by
 `abortTilePlacement`. A cell may never be left "cleared" (its new tile would be
 blanked) and a refused placement must put the doomed tile back.
 
+## The THIRD case: a CITY TIER (Turmoil Redux — Skyscrapers, RX20)
+
+`Skyscrapers` places a city tile **on top of the player's own city** — a stack
+(`Space.stackHeight`, one field, one owner, one tile object). The prompt declares
+it (`placementType: 'city-tier'`), `ConsoleBoardInput.saveData` arms with
+`stacking: true`, and `verifyPlacement(prev, next, id, {stacking})` reads a
+same-tile diff whose stack grew by **exactly one** as a landing (`stacks: {from,
+to}`) — an undeclared height change is refused exactly like an undeclared type
+change. Nothing about the removal beat is reused: this is a different **landing**,
+not a prefix.
+
+```
+[picking]     the city STANDS (it is the base); the dossier already says «No placement bonus»
+   ↓ A
+[approaching] THE SWING — the proxy (sized to the stack's LIFTED top rect,
+              `stackLandingRect`) leaves the supply on one low arc, horizontal
+              speed dying out (power2.out), carried large, and HANGS straight
+              over the stack (`tierHoverPoint`, TIER_APPROACH_MS)
+              THE LOAD — `cityStackScene.loading`: the real cell's contour
+              tightens, its tile settles 1 px and compresses to @stack-scale,
+              the counter APPEARS at «×1»; the owner cube is held (TIER_HOVER_MS)
+              THE LOWERING — straight down, x fixed, lowered INTO the board's
+              scale, the shadow tightening (TIER_DESCENT_MS, power1.inOut)
+              CONTACT — edge 3 → 1 px, one brightness pass, a damped settle,
+              NO bounce (TIER_CONTACT_MS)
+[landed]      in the SAME synchronous turn: the real tile paints (the base
+              becomes the lower tier at the scale it already stood at, the top
+              tile appears lifted under the proxy) AND `stackContact` — the
+              counter ticks «×2» with its one-shot pop, the cell jolts 1.2 px;
+              the DUST ring bursts from under the tier (`playStackDust`); the
+              proxy dissolves; the cube drops onto the new top (TIER_SETTLE_MS)
+[done]        NO reward beat: nothing captured, nothing held — the receipt on
+              the sitting says «no cell bonus», the journal line names the stack
+```
+
+Measured on the real board (e2e `console-parliament-skyscrapers`): see the spec's
+sampler for the vertical-descent proof (the tier's x stays on the stack's centre
+through the whole lowering; its y is monotone; the counter's text changes in the
+same sample the top tile paints).
+
+**Why the real cell is CSS, not GSAP.** The board's own stack look is a
+`transform` on the top tile (`.board-space--stack`: lift + scale). A GSAP tween
+on that same element would fight it at the paint; `cityStackScene` is a two-flag
+reactive state the cell renders as classes, so the load (`--stack-loading`) and
+the contact (`--stack-contact`) are transitions and one-shot keyframes on the
+cell's OWN rules, and the frame of contact is one synchronous write (`stackContact`
++ `applySpacePreview`). Reduced motion / no stage: the paint with its tick.
+
+**Geometry is mirrored, not shared.** `STACK_STEP_PX` / `STACK_SCALE` in the model
+duplicate `@stack-step` / `@stack-scale` in `board.less` (the proxy must land where
+the board will paint) — change one, change both; the model spec pins the numbers.
+
 ## Where else this shape appears
 
 The engine's tile→tile replacements are a **closed set**: the two cards above, plus
