@@ -448,7 +448,7 @@ Lobbyist/Politician/T. Politician — набор в `getCandidates` (`MilestoneA
 | Metal Research | Industrialists | сталь и титан = влияние; **П**: сталь и титан +1 M€ — ценность на ЧТЕНИИ аксессора (`resourceValueBonus`), поле игрока не пишется | Н, П | +1 пр. титана | **A · СДАНА RX19** |
 | Migration Funding | Mars First | 2 M€ за город на Марсе + влияние (стек считается отдельно) | Н | 2 города на Марсе | A |
 | Migration Underground | Reds (UW) | … | — | 3 подземных токена | C |
-| Mining Incentives | Industrialists | всем +1 пр. титана; +1 пр. стали за влияние | Н | +1 пр. стали | A |
+| Mining Incentives | Industrialists | всем +1 пр. титана (плоская часть, форма RX15); +1 пр. стали за влияние (форма RX05) — новых механик нет; влияние 0 пропускает ТОЛЬКО сталь | Н | +1 пр. стали | **A · СДАНА RX22** |
 | Mohole Contest | Greens | 3 тепла/влияние; ★ температура +2 | Н, ★ | 1 метка микроба | A |
 | Open IP Trade | Scientists | карты = влияние; **Д**: сбросить любое число карт → 3 M€ и карта за каждую | Н, Д | 2 зелёные карты | A |
 | Peer Review | Scientists (UW) | … | — | 3 подземных токена | C |
