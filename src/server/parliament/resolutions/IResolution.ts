@@ -18,6 +18,7 @@ import type {Parliament} from '../Parliament';
 import type {Space} from '../../boards/Space';
 import type {IProjectCard} from '../../cards/IProjectCard';
 import type {Resource} from '../../../common/Resource';
+import type {Tag} from '../../../common/cards/Tag';
 import type {EffectForecastFact, EffectForecastSource} from '../../../common/models/EffectForecastModel';
 import type {EffectForecastGrant, EffectForecastTile} from '../../cards/EffectForecastContext';
 import type {BoardFact, BoardFactDelta} from '../../../common/boards/BoardInformationFacts';
@@ -241,6 +242,31 @@ export type ResolutionPassive = {
    * so `forecast` states nothing for it, as for `cardDiscount`.
    */
   resourceValueBonus?(player: IPlayer, resource: Resource): number;
+  /**
+   * EXTRA TAGS the law grants WHILE IT STANDS (R&D Funding: «when taking
+   * actions, you have additional Science tags equal to your Influence») — how
+   * many of `tag` this seat holds ON TOP of the printed ones, 0 when the law
+   * does not touch that tag. `influence` is the seat's influence RIGHT NOW,
+   * handed in by the dispatcher (the enactment's `ctx.influence` for a live
+   * hook) so a card never re-derives the number the parliament already knows.
+   *
+   * WHERE IT IS ASKED, and why exactly there: `Tags.count` (and its siblings
+   * `multipleCount` / `distinctCount` / `playerHas`) inside the SUBSTITUTION
+   * modes, beside the wild tag — because the printed sentence says «WHEN
+   * TAKING ACTIONS». So a card requirement, an action's gate and a behaviour
+   * counter see it; an AWARD does not (`'award'` counts printed tags), the
+   * RAW count does not (the tag zone keeps printing the printed truth, and
+   * `ParliamentHandler.tagBonuses` states the addition separately), and a
+   * MILESTONE does not either — claiming a milestone records an achievement,
+   * it is not an action taken (the decision is pinned by its own spec).
+   *
+   * Like `cardDiscount` and `resourceValueBonus`, a pure QUERY: it reads the
+   * player and the tag, never mutates, never logs, and NEVER counts for a
+   * bot or a seat outside the parliament (the dispatcher's own gate). Its
+   * forecast twin is the tag zone's own addition badge, so `forecast` states
+   * no fact for it.
+   */
+  tagBonus?(player: IPlayer, tag: Tag, influence: number): number;
   forecast(ctx: ResolutionForecastContext): Array<EffectForecastFact>;
 };
 

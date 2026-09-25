@@ -1,7 +1,7 @@
 import {CorporationCard} from '../corporation/CorporationCard';
 import {IPlayer} from '../../IPlayer';
 import {Tag} from '../../../common/cards/Tag';
-import {IActionCard, ICard, isIActionCard, isIHasCheckLoops} from '../ICard';
+import {repeatableActionCards} from '../repeatableActions';
 import {SelectCard} from '../../inputs/SelectCard';
 import {CardName} from '../../../common/cards/CardName';
 import {CardRenderer} from '../render/CardRenderer';
@@ -34,28 +34,8 @@ export class Viron extends CorporationCard implements ICorporationCard {
     });
   }
 
-  // This matches Viron.getActionCards.
-  private getActionCards(player: IPlayer): Array<IActionCard & ICard> {
-    const result = [];
-    for (const playedCard of player.tableau) {
-      if (playedCard === this) {
-        continue;
-      }
-      if (!isIActionCard(playedCard)) {
-        continue;
-      }
-      if (isIHasCheckLoops(playedCard) && playedCard.getCheckLoops() >= 2) {
-        continue;
-      }
-      if (player.actionsThisGeneration.has(playedCard.name) && playedCard.canAct(player)) {
-        result.push(playedCard);
-      }
-    }
-    return result;
-  }
-
   public canAct(player: IPlayer): boolean {
-    return this.getActionCards(player).length > 0 && !player.actionsThisGeneration.has(this.name);
+    return repeatableActionCards(player, this).length > 0 && !player.actionsThisGeneration.has(this.name);
   }
   public actionUnavailableReason() {
     return actionReason.ruleReason('No other action card to copy');
@@ -66,7 +46,7 @@ export class Viron extends CorporationCard implements ICorporationCard {
   // tiles in the confirmation modal, instead of a follow-up prompt. (The re-run
   // action's own prompts arrive after the batch, on their normal surfaces.)
   public actionPreview(player: IPlayer): ActionPreview {
-    const cards = this.getActionCards(player);
+    const cards = repeatableActionCards(player, this);
     const steps = cards.length > 0 ?
       [actionPreviews.selectCardStep(player, 'Perform again an action from a played card', 'Take action', cards, {repeatAction: true})] :
       [];
@@ -74,14 +54,14 @@ export class Viron extends CorporationCard implements ICorporationCard {
   }
 
   public action(player: IPlayer) {
-    if (this.getActionCards(player).length === 0 ) {
+    if (repeatableActionCards(player, this).length === 0 ) {
       return undefined;
     }
 
     return new SelectCard(
       'Perform again an action from a played card',
       'Take action',
-      this.getActionCards(player))
+      repeatableActionCards(player, this))
       .andThen(([card]) => {
         // Analytics: a `copied-action` scope so the copied card's impact is
         // attributed to VIRON (the copying corporation), forming the chain

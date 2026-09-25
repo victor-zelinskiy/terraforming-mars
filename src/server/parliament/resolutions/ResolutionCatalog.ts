@@ -52,6 +52,7 @@ import {MIGRATION_FUNDING} from './marsFirst/MigrationFunding';
 import {MINING_INCENTIVES} from './industrialists/MiningIncentives';
 import {MOHOLE_CONTEST} from './greens/MoholeContest';
 import {OPEN_IP_TRADE} from './scientists/OpenIpTrade';
+import {RD_FUNDING} from './scientists/RdFunding';
 import {PLANT_BAN} from './reds/PlantBan';
 import {runResolutionAction} from './ResolutionAction';
 import {SKYSCRAPERS} from './marsFirst/Skyscrapers';
@@ -524,6 +525,10 @@ export const REDUX_RESOLUTION_CATALOG = new ResolutionCatalog([
   // The MIRROR of Joint Research, and what made the level member carry a DIRECTION: every seat is cut DOWN to
   // 2 + influence plants — one declaration, one arithmetic, the loss read by the address as a levy's is.
   PLANT_BAN,
+  // The first law with NO ENACTMENT: a passive that raises a TAG COUNT while it stands (science tags = influence,
+  // «when taking actions» — asked by the counting function, never written into the player), and an action that is
+  // Viron's mechanism under the law's source (the ONE shared list of repeatable card actions).
+  RD_FUNDING,
   // The first recipients decided by a THRESHOLD (the winner + everyone with influence ≥ 2), and the first CITY STACK:
   // one city tile each, placed as a TIER on the seat's own city on Mars — the cell pays nothing again, every tier scores.
   SKYSCRAPERS,

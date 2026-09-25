@@ -18,6 +18,7 @@ import {message} from '../logs/MessageBuilder';
 import {Resource} from '../../common/Resource';
 import {PartyName} from '../../common/turmoil/PartyName';
 import {Tile} from '../Tile';
+import {ALL_TAGS, Tag} from '../../common/cards/Tag';
 import {Space} from '../boards/Space';
 import {BoardType} from '../boards/BoardType';
 import {ICard} from '../cards/ICard';
@@ -293,6 +294,59 @@ export class ParliamentHandler {
       return;
     }
     QuestTracker.report(player, {kind: 'colony'});
+  }
+
+  /**
+   * THE ENACTED RESOLUTION'S EXTRA TAGS of `tag` for THIS seat (R&D Funding:
+   * Science tags equal to your influence) — what the law ADDS to the printed
+   * count, 0 when no law with a tag bonus stands, when it does not touch this
+   * tag, or when the seat is outside the parliament (MarsBot never holds a
+   * law). A pure QUERY, like `cardDiscount` and `resourceValueBonus`: no
+   * effect scope is opened, nothing is paid, nothing is written — the count
+   * is simply read higher while the law stands, and falls back the instant
+   * another card takes the ENACTED slot.
+   *
+   * Asked by `Tags.count` beside {@link wildTags}, in the SUBSTITUTION modes
+   * only (the printed «when taking actions»), and never in `'award'`,
+   * `'raw'` or `'milestone'` — see the hook's own doc in `IResolution.ts`.
+   *
+   * ONE HAZARD WORTH NAMING: the influence it hands the hook is
+   * `Parliament.influence`, which walks the tableau for `getInfluenceBonus`.
+   * No card in this fork implements that hook today; one that derived
+   * influence FROM A TAG COUNT would close a cycle here, and would have to
+   * read the printed count (`'raw'`) instead.
+   */
+  public static tagBonus(player: IPlayer, tag: Tag): number {
+    const parliament = player.game?.parliament;
+    const enacted = parliament?.enactedDefinition();
+    const bonus = enacted?.passive?.tagBonus;
+    if (parliament === undefined || enacted === undefined || bonus === undefined || !parliament.participates(player)) {
+      return 0;
+    }
+    return Math.max(0, bonus(player, tag, parliament.influence(player)));
+  }
+
+  /**
+   * …and the SAME additions as a LIST, for the surfaces that must STATE them
+   * (the console's МЕТКИ zone prints «+N» beside the printed digit and names
+   * the law). One entry per tag the standing law raises, in `ALL_TAGS` order;
+   * empty when nothing raises anything. Deliberately built from the same one
+   * function the counts read — a zone that computed its own «+N» would be a
+   * second reading of the rule, free to drift from the price of a card.
+   */
+  public static tagBonuses(player: IPlayer): Array<{tag: Tag, amount: number, resolution: ResolutionId}> {
+    const enacted = player.game?.parliament?.enactedDefinition();
+    if (enacted?.passive?.tagBonus === undefined) {
+      return [];
+    }
+    const entries: Array<{tag: Tag, amount: number, resolution: ResolutionId}> = [];
+    for (const tag of ALL_TAGS) {
+      const amount = ParliamentHandler.tagBonus(player, tag);
+      if (amount > 0) {
+        entries.push({tag, amount, resolution: enacted.id});
+      }
+    }
+    return entries;
   }
 
   /** Extra wild tags a party effect grants (the Scientists), for `Tags.count`. */

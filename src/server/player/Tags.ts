@@ -115,6 +115,15 @@ export class Tags {
         // tag, it counts when playing cards and actions, never for awards.
         tagCount += ParliamentHandler.wildTags(this.player);
       }
+      // Turmoil Redux: the ENACTED LAW's extra tags (R&D Funding: Science
+      // tags equal to your influence). It lives HERE, beside the wild tag,
+      // because the printed sentence is «when taking actions» — MINUS the
+      // milestone mode: claiming a milestone records an achievement, it is
+      // not an action taken. `extraScienceTags` above is the WRONG seam for
+      // it — that one is unconditional and would reach the awards.
+      if (mode === 'default') {
+        tagCount += ParliamentHandler.tagBonus(this.player, tag);
+      }
     }
 
     // Habitat Marte hook
@@ -220,6 +229,15 @@ export class Tags {
       }
     }
 
+    // Turmoil Redux: the enacted law's extra tags, on the same «when taking
+    // actions» rule as in `count` — the default mode only (the behaviour
+    // Counter's reading), never a milestone's and never an award's.
+    if (mode === 'default') {
+      for (const tag of tags) {
+        tagCount += ParliamentHandler.tagBonus(this.player, tag);
+      }
+    }
+
     if (tags.includes(Tag.SCIENCE)) {
       tagCount += this.extraScienceTags;
     }
@@ -292,6 +310,18 @@ export class Tags {
     if (this.extraJovianTags > 0) {
       uniqueTags.add(Tag.JOVIAN);
     }
+    // Turmoil Redux: a tag the enacted law grants SHOWS like a printed one
+    // while the player takes actions — the same rule (and the same one
+    // reading) as in `count`, so the mode gate is the same: the action
+    // phase's `'default'` only. `globalEvent` returns just below, before the
+    // wild tags; a milestone's diversity counts what is printed.
+    if (mode === 'default') {
+      for (const tag of ALL_TAGS) {
+        if (ParliamentHandler.tagBonus(this.player, tag) > 0) {
+          uniqueTags.add(tag);
+        }
+      }
+    }
 
     // Global events occur outside the action phase. Stop counting here, before wild tags apply.
     if (mode === 'globalEvent') {
@@ -316,6 +346,10 @@ export class Tags {
     let distinctCount = 0;
     tags.forEach((tag) => {
       if (this.count(tag, 'raw') > 0) {
+        distinctCount++;
+      } else if (ParliamentHandler.tagBonus(this.player, tag) > 0) {
+        // Turmoil Redux: the enacted law's tag SHOWS here like a printed one
+        // — the same shape as legacy Turmoil's Scientists hook just below.
         distinctCount++;
       } else if (tag === Tag.SCIENCE) {
         if (this.player.hasTurmoilScienceTagBonus) {

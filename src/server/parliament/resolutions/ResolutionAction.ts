@@ -19,13 +19,20 @@ export function resolutionActionSource(resolution: ResolutionId, player: IPlayer
   return {kind: 'resolution', id: resolution, owner: player.color};
 }
 
-export function runResolutionAction(player: IPlayer, parliament: Parliament, resolution: ResolutionId, mutate: () => void): void {
+/**
+ * `mutate`'s own return value comes back out: an action whose work ENDS in the
+ * commit returns nothing (Open IP Trade), while an action that hands the seat
+ * a FOLLOW-UP prompt returns it (R&D Funding's copied card action asks its own
+ * questions) — the prompt is built inside the scope on purpose, so the copied
+ * action's stamp rides it.
+ */
+export function runResolutionAction<T>(player: IPlayer, parliament: Parliament, resolution: ResolutionId, mutate: () => T): T {
   const events = player.game.events;
   events.beginAction(player, resolutionActionSource(resolution, player), {category: 'parliament'});
   try {
     player.game.log('${0} used the action of ${1}', (b) => b.player(player).resolution(resolution));
     parliament.recordResolutionActionUse(player);
-    mutate();
+    return mutate();
   } finally {
     events.endScope();
   }

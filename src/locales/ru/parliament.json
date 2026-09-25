@@ -988,5 +988,12 @@
   "The winner's Agenda step raises the limit first": "Шаг Повестки победителя сначала поднимает норму",
   "Every player is cut by their own limit": "Каждого срезают по его собственной норме",
   "Plant Ban up for the vote: your plants against the limit of 2 + influence, and what each result would take": "«Запрет на растения» на голосовании: ваши растения против нормы 2 + влияние и то, сколько заберёт каждый исход",
-  "Your loss stands inside the enactment stage: the limit, the plants it was read against, the chips leaving the rail": "Ваша потеря стоит внутри стадии принятия: норма, растения, от которых считали, и чипы, уходящие с рельсы"
+  "Your loss stands inside the enactment stage: the limit, the plants it was read against, the chips leaving the rail": "Ваша потеря стоит внутри стадии принятия: норма, растения, от которых считали, и чипы, уходящие с рельсы",
+  "R&D Funding": "Финансирование исследований",
+  "When taking actions, you have additional science tags equal to your influence.": "Совершая действия, добавляйте к своим меткам науки по 1 за каждое влияние.",
+  "Use an action on one of your cards a second time this generation.": "Используйте действие одной из ваших карт второй раз в этом поколении.",
+  "Play 2 blue cards": "Разыграйте 2 синие карты",
+  "Use an action on one of your cards a second time (R&D Funding)": "Используйте действие одной из ваших карт второй раз (Финансирование исследований)",
+  "Choose the card action to use again": "Выберите действие карты для повтора",
+  "${0} used ${1} action a second time with ${2}": "${0} использует действие карты ${1} второй раз — ${2}"
 }

@@ -3,7 +3,7 @@ import {Card} from '../Card';
 import {CardType} from '../../../common/cards/CardType';
 import {IPlayer} from '../../IPlayer';
 import {CardName} from '../../../common/cards/CardName';
-import {IActionCard, ICard, isIActionCard, isIHasCheckLoops} from '../ICard';
+import {repeatableActionCards} from '../repeatableActions';
 import {SelectCard} from '../../inputs/SelectCard';
 import {CardRenderer} from '../render/CardRenderer';
 import {ActionPreview} from '../../../common/models/ActionPreviewModel';
@@ -33,33 +33,12 @@ export class ProjectInspection extends Card implements IProjectCard {
     });
   }
 
-  // This matches Viron.getActionCards.
-  private getActionCards(player: IPlayer): Array<IActionCard & ICard> {
-    const result = [];
-
-    for (const playedCard of player.tableau) {
-      if (playedCard === this) {
-        continue;
-      }
-      if (!isIActionCard(playedCard)) {
-        continue;
-      }
-      if (isIHasCheckLoops(playedCard) && playedCard.getCheckLoops() >= 2) {
-        continue;
-      }
-      if (player.actionsThisGeneration.has(playedCard.name) && playedCard.canAct(player)) {
-        result.push(playedCard);
-      }
-    }
-    return result;
-  }
-
   public override bespokeCanPlay(player: IPlayer): boolean {
-    return this.getActionCards(player).length > 0;
+    return repeatableActionCards(player, this).length > 0;
   }
 
   public unplayableReason(player: IPlayer): UnplayableReason | undefined {
-    if (this.getActionCards(player).length === 0) {
+    if (repeatableActionCards(player, this).length === 0) {
       return reason.targetReason('No card action used this generation to use again');
     }
     return undefined;
@@ -70,7 +49,7 @@ export class ProjectInspection extends Card implements IProjectCard {
   // the play modal, instead of a follow-up prompt. (The re-run action's own
   // prompts arrive after the batch, on their normal surfaces.)
   public cardPlayPreview(player: IPlayer): ActionPreview {
-    const cards = this.getActionCards(player);
+    const cards = repeatableActionCards(player, this);
     const step = cards.length > 0 ?
       actionPreviews.selectCardStep(player, 'Perform an action from a played card again', 'Take action', cards, {repeatAction: true}) :
       undefined;
@@ -78,11 +57,11 @@ export class ProjectInspection extends Card implements IProjectCard {
   }
 
   public override bespokePlay(player: IPlayer) {
-    const actionCards = this.getActionCards(player);
+    const actionCards = repeatableActionCards(player, this);
     if (actionCards.length === 0 ) {
       return undefined;
     }
-    return new SelectCard<IActionCard & ICard>(
+    return new SelectCard(
       'Perform an action from a played card again',
       'Take action',
       actionCards)
