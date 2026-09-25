@@ -861,6 +861,15 @@ export type SelectCardModel = BaseInputModel & {
   showSelectAll: boolean;
   /** See {@link ResourceGainPromptMeta}. */
   resourceGainPrompt?: ResourceGainPromptMeta;
+  /**
+   * STRUCTURAL «this pick chooses WHICH ALREADY-USED CARD ACTION runs a second
+   * time» (Turmoil Redux — R&D Funding's action; Viron's and Project
+   * Inspection's own form). The candidates are the player's OWN PLAYED cards
+   * and nothing leaves their tableau, which is what makes it a different
+   * surface from every card pick that SPENDS something: a repeat is chosen on
+   * the table, not out of the hand.
+   */
+  repeatActionPrompt?: boolean;
   // OPTIONAL relevant-but-unpickable candidates shown DISABLED (greyed, with a
   // reason on each card's `disabledReason`) — separate from the selectable
   // `cards` so the server never validates/accepts them. The premium picker

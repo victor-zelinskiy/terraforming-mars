@@ -153,6 +153,7 @@ export abstract class BasePlayerInput<T> implements PlayerInput {
   public venusBonusPrompt: VenusBonusPromptMeta | undefined;
   public spendHeatPrompt: SpendHeatPromptMeta | undefined;
   public discardPrompt: DiscardPromptMeta | undefined;
+  public repeatActionPrompt: boolean | undefined;
   public deckPickPrompt: DeckPickPromptMeta | undefined;
   public draftPrompt: DraftPromptMeta | undefined;
   public finalGreeneryPrompt: FinalGreeneryPromptMeta | undefined;
@@ -263,6 +264,16 @@ export abstract class BasePlayerInput<T> implements PlayerInput {
    *  See {@link DiscardPromptMeta} and `inputs/discardPrompt.ts` for factories. */
   public markDiscardPrompt(meta: DiscardPromptMeta): this {
     this.discardPrompt = meta;
+    return this;
+  }
+
+  /** Mark this `SelectCard` as the pick of AN ALREADY-USED CARD ACTION TO RUN
+   *  AGAIN (chainable) — the candidates are the player's own played cards and
+   *  none of them leaves the tableau. The console draws a repeat on the TABLE,
+   *  never in the hand's own surfaces, and it can only tell the two apart from
+   *  this marker: both are `SelectCard`s of cards the player owns. */
+  public markRepeatActionPrompt(): this {
+    this.repeatActionPrompt = true;
     return this;
   }
 

@@ -151,7 +151,7 @@
         <!-- THE RESOLUTION'S STAGE BETWEEN STEPS: the pick was refused or
              taken back and nothing is in flight — the rule stands, B returns.
              (A pick that is still to open sees this for one flush only.) -->
-        <div v-else-if="kind === 'resolution'" class="con-pact__surface" data-unfold-surface>
+        <div v-else-if="kind === 'resolution' && tableauTargets.length === 0" class="con-pact__surface" data-unfold-surface>
           <p class="con-pact__rule" data-unfold-item>{{ ruleText }}</p>
           <p v-if="refusal !== ''" class="con-pact__warn" data-unfold-item>{{ refusal }}</p>
         </div>
@@ -235,6 +235,33 @@
                   </span>
                 </button>
                 <span v-if="scientistsTargets.length === 0" class="con-pact__none">{{ $t('Choose the resource first') }}</span>
+              </div>
+            </div>
+          </template>
+
+          <!-- A LAW WHOSE DECISION IS ON THE TABLE (R&D Funding: which
+               already-used action runs a second time). A repeat is chosen
+               among the player's OWN PLAYED cards and nothing leaves the
+               tableau, so it belongs in THIS stage's decision column — the
+               same premium-face grammar the Scientists' target row uses —
+               and never in the hand's surfaces, where every pick SPENDS
+               what it touches. -->
+          <template v-if="kind === 'resolution'">
+            <p class="con-pact__rule" data-unfold-item>{{ ruleText }}</p>
+            <div class="con-pact__row" data-unfold-item data-pact-row="0"
+                 :class="{'con-pact__row--focus': cursorRow === 0, 'con-pact__row--answered': picks[0] !== undefined, 'con-pact__row--open': picks[0] === undefined}">
+              <span class="con-pact__row-head">
+                <span class="con-pact__row-mark" aria-hidden="true">{{ picks[0] !== undefined ? '✓' : '1' }}</span>
+                <span class="con-pact__row-kicker">{{ $t('Card action') }}</span>
+              </span>
+              <div class="con-pact__cards">
+                <button v-for="(target, i) in tableauTargets" :key="target.name" type="button" class="con-pact__card"
+                        :class="{'con-pact__card--cursor': cursorRow === 0 && cursor[0] === i, 'con-pact__card--picked': picks[0] === i}"
+                        :data-pact-card="target.name"
+                        :data-zoom-slot="target.name"
+                        @click="pickAt(0, i)">
+                  <ConsoleCardFaceLite class="con-pact__card-face" :name="target.name" :card="target" :lightweight="true" />
+                </button>
               </div>
             </div>
           </template>
@@ -604,6 +631,27 @@ export default defineComponent({
         vp: branch.model.resourceGainPrompt?.vpBox?.[card.name],
       }));
     },
+    /**
+     * THE LAW'S CANDIDATES ON THE TABLE — the player's own played cards the
+     * law's nested prompt offers. Read from the prompt's STRUCTURAL marker
+     * (`repeatActionPrompt`), never from its title and never by guessing that
+     * a card pick without a discard marker must be a tableau one: a future
+     * law whose decision is also made on the table joins by marking its own
+     * prompt, and nothing else here changes.
+     */
+    tableauTargets(): ReadonlyArray<CardModel> {
+      const entry = this.entry;
+      if (this.kind !== 'resolution' || entry === undefined || entry.model.type !== 'card') {
+        return [];
+      }
+      return entry.model.repeatActionPrompt === true ? entry.model.cards : [];
+    },
+    /** The prompt's own A-verb for a table decision («Take action»), as the server wrote it. */
+    tableauLabel(): string {
+      const entry = this.entry;
+      const label = entry?.model.type === 'card' ? entry.model.buttonLabel : '';
+      return typeof label === 'string' && label !== '' ? label : 'Confirm';
+    },
     redsSequence(): ReadonlyArray<{chip: ActionEffect, note?: string}> {
       const entry = this.entry;
       const meta = entry !== undefined && entry.model.type === 'option' ? (entry.model as {metadata?: {effects?: ReadonlyArray<ActionEffect>}}).metadata : undefined;
@@ -627,6 +675,7 @@ export default defineComponent({
       switch (this.kind) {
       case 'industrialists': return 2;
       case 'scientists': return 2;
+      case 'resolution': return this.tableauTargets.length > 0 ? 1 : 0;
       default: return 0;
       }
     },
@@ -638,6 +687,7 @@ export default defineComponent({
         switch (this.kind) {
         case 'industrialists': return this.industrialistsRows[row]?.items.length ?? 0;
         case 'scientists': return row === 0 ? this.scientistsBranches.length : this.scientistsTargets.length;
+        case 'resolution': return row === 0 ? this.tableauTargets.length : 0;
         default: return 0;
         }
       };
@@ -650,6 +700,7 @@ export default defineComponent({
       case 'industrialists': return this.picks[0] !== undefined && this.picks[1] !== undefined;
       case 'scientists': return this.picks[0] !== undefined && this.picks[1] !== undefined;
       case 'reds': return true;
+      case 'resolution': return this.tableauTargets.length > 0 && this.picks[0] !== undefined;
       default: return false;
       }
     },
@@ -658,6 +709,8 @@ export default defineComponent({
       case 'industrialists': return 'Shift';
       case 'scientists': return 'Add';
       case 'reds': return 'Draw 2 cards';
+      // The law's own verb, as the server wrote it on the prompt («Take action»).
+      case 'resolution': return this.tableauLabel;
       default: return 'Confirm';
       }
     },
@@ -677,7 +730,7 @@ export default defineComponent({
       if (this.submitting || this.saleLive) {
         return [{control: 'confirm', label: 'Performing…', enabled: false}];
       }
-      if (this.kind === 'resolution') {
+      if (this.kind === 'resolution' && this.tableauTargets.length === 0) {
         // Between steps (the pick refused or gone): the way back is the only verb.
         return [{control: 'secondary', label: 'Inspect'}, {control: 'back', label: 'Back'}];
       }
@@ -849,7 +902,8 @@ export default defineComponent({
      * player decided is lost to a transport error.
      */
     submitting(now: boolean, was: boolean): void {
-      if (was && !now && this.kind === 'resolution' && !this.outcomeOn && !this.saleLive && !this.pickOpen) {
+      if (was && !now && this.kind === 'resolution' && this.tableauTargets.length === 0 &&
+          !this.outcomeOn && !this.saleLive && !this.pickOpen) {
         void this.$nextTick(() => this.openResolutionPick(this.salePicked));
       }
     },
@@ -860,7 +914,7 @@ export default defineComponent({
     this.cursorRow = this.decisionRows === 0 ? this.ctaRow : 0;
     // THE LAW'S FIRST STEP IS THE PICK: the real hand stands up as a step of
     // this stage the moment the stage is on screen.
-    if (this.kind === 'resolution' && !this.outcomeOn && !this.saleLive) {
+    if (this.kind === 'resolution' && this.tableauTargets.length === 0 && !this.outcomeOn && !this.saleLive) {
       void this.$nextTick(() => this.openResolutionPick([]));
     }
   },
@@ -897,7 +951,9 @@ export default defineComponent({
         }
         return;
       }
-      if (this.kind === 'resolution') {
+      if (this.kind === 'resolution' && this.tableauTargets.length === 0) {
+        // The law's decision is somewhere else (the hand's own surface owns
+        // the bar) or already gone — only the way back is ours.
         switch (consoleActionOf(intent)) {
         case 'inspect':
           this.$emit('inspect', this.party);
@@ -1073,6 +1129,10 @@ export default defineComponent({
       }
       case 'reds':
         return redsResponse(this.bridge);
+      case 'resolution': {
+        const target = this.tableauTargets[this.picks[0] ?? -1];
+        return target === undefined ? undefined : resolutionActionResponse(this.bridge, [target.name]);
+      }
       default:
         return undefined;
       }

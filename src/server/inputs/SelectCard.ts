@@ -106,6 +106,12 @@ export class SelectCard<T extends ICard> extends BasePlayerInput<ReadonlyArray<T
     if (this.discardPrompt !== undefined) {
       model.discardPrompt = this.discardPrompt;
     }
+    // The REPEAT marker rides here for the same reason: the pick of an action
+    // to run again is routinely NESTED (a resolution's action sits inside the
+    // action menu's OrOptions), and the top-level decoration never reaches it.
+    if (this.repeatActionPrompt === true) {
+      model.repeatActionPrompt = true;
+    }
     // Same reasoning for the DECK-PICK marker: a keep-some / buy-some prompt is
     // routinely nested (Venus Orbital Survey offers the free Venus cards and the
     // paid rest as two branches of one decision), and stripped of the marker the

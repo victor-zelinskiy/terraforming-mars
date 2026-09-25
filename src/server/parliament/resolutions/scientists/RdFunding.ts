@@ -124,6 +124,9 @@ const RD_FUNDING_ACTION: ResolutionAction = {
       'Take action',
       cards)
       .markChoiceContext({source: SOURCE, trigger: 'Resolution action', mode: 'effect-choice'})
+      // The DECISION IS ON THE TABLE, not in the hand — the one structural
+      // signal the console tells a repeat from a spend by.
+      .markRepeatActionPrompt()
       .markResolutionActionPrompt(meta)
       .andThen(([card]) => {
         if (card === undefined) {

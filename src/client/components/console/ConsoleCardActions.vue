@@ -2927,7 +2927,14 @@ export default defineComponent({
         // THE LAW DRAWS INTO THIS STAGE TOO (Open IP Trade: a card per card
         // discarded) — claimed under the law's key, sized by the pick the
         // composer just handed in; the pull waits for the sale's chip.
-        claimWorkspaceOutcome('card-actions', comp.cardName, ['draw'], 0, Math.max(1, detail?.expectedCards ?? 1));
+        // ONLY when the commit actually promises cards: a law whose action
+        // draws none (R&D Funding repeats a card action) would leave an
+        // ORPHAN claim, suppressing the standalone presenter for a batch
+        // that never comes. The composer's own detail is what knows.
+        const expected = detail?.expectedCards ?? 0;
+        if (expected > 0) {
+          claimWorkspaceOutcome('card-actions', comp.cardName, ['draw'], 0, expected);
+        }
       } else if (comp.party === PartyName.REDS) {
         const source = this.parliamentActionSources.find((s) => !isResolutionActionSource(s) && s.party === comp.party);
         const draw = source?.preview.find((e) => e.direction === 'gain' && e.icon === 'cards')?.amount ?? 2;
