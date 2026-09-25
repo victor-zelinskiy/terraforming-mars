@@ -146,6 +146,80 @@ describe('ConsoleResourcePanel — МЕТКИ tag matrix', () => {
 });
 
 /**
+ * THE ADDITION A STANDING LAW MAKES (Turmoil Redux — R&D Funding: Science tags
+ * equal to your influence). The zone keeps printing the PRINTED count: the
+ * addition is a second, differently-shaped number beside it, and the law that
+ * grants it is NAMED in the open (the console has one detail surface and no
+ * hover popovers, so a «+2» whose author only a tooltip knew would be a bonus
+ * from nowhere).
+ */
+describe('ConsoleResourcePanel — the law tag addition', () => {
+  const LAW = 'RDX_SCIENTISTS_RD_FUNDING';
+  // The unit runner mounts with no locale loaded, so a translated string IS
+  // its English key here (the RU wording is the locale file's own guard).
+  const LAW_NAME = 'R&D Funding';
+
+  function mountWithLaw(amount: number, tag: Tag = Tag.SCIENCE) {
+    return mountWith({[Tag.SCIENCE]: 2} as Partial<Record<Tag, number>>, BASE_GAME_TAGS,
+      {tagBonuses: [{tag, amount, resolution: LAW}]});
+  }
+
+  it('prints «+N» BESIDE the printed digit, never instead of it', () => {
+    const w = mountWithLaw(2);
+    const cell = w.find('[data-tag-cell="science"]');
+    expect(cell.find('.con-tagmx__num').text(), 'the printed count stands').to.eq('2');
+    expect(cell.find('.con-tagmx__bonus').text()).to.eq('+2');
+  });
+
+  it('no other cell carries one, and no cell carries one without a law', () => {
+    const w = mountWithLaw(2);
+    expect(w.find('[data-tag-cell="space"] .con-tagmx__bonus').exists()).to.be.false;
+    expect(w.findAll('.con-tagmx__bonus')).to.have.length(1);
+
+    const plain = mountWith({[Tag.SCIENCE]: 2} as Partial<Record<Tag, number>>);
+    expect(plain.findAll('.con-tagmx__bonus')).to.have.length(0);
+    expect(plain.find('[data-tag-bonus-law]').exists()).to.be.false;
+  });
+
+  it('NAMES the law in the head, where it costs the matrix no vertical room', () => {
+    const w = mountWithLaw(2);
+    const note = w.find('[data-tag-bonus-law]');
+    expect(note.exists()).to.be.true;
+    expect(note.text()).to.eq(LAW_NAME);
+  });
+
+  it('the cell own sentence carries the addition and its source', () => {
+    const w = mountWithLaw(2);
+    const label = w.find('[data-tag-cell="science"]').attributes('aria-label') ?? '';
+    expect(label).to.contain('2');
+    expect(label, 'the law is named, never a bare «+2»').to.contain(LAW_NAME);
+  });
+
+  it('the bot seat never shows one — MarsBot takes no seat in the parliament', () => {
+    // The SAME model, inspected as the bot: the bot branch fills the cells
+    // from its printed tracks, which carry no addition at all.
+    const w = mount(ConsoleResourcePanel, {
+      global: globalConfig.global,
+      props: {
+        player: fakePlayer({[Tag.SCIENCE]: 2} as Partial<Record<Tag, number>>,
+          {tagBonuses: [{tag: Tag.SCIENCE, amount: 2, resolution: LAW}]}),
+        gameTags: BASE_GAME_TAGS as Array<Tag>,
+        own: false,
+        automa: {
+          difficulty: 'normal',
+          tracks: [{tags: [Tag.SCIENCE], position: 2, maxPosition: 18, layout: [], regressed: []}],
+          actionDeckSize: 10, bonusDeckSize: 7,
+          bonusDiscard: [], recurringBonusCards: [], destroyedBonusCards: [],
+          playedPile: [], floaters: 0, shippingStorage: {},
+        } as never,
+      },
+    });
+    expect(w.findAll('.con-tagmx__bonus')).to.have.length(0);
+    expect(w.find('[data-tag-bonus-law]').exists()).to.be.false;
+  });
+});
+
+/**
  * The INSPECTED-PLAYER context (Information Workspace, Y): while the mode is
  * open the shell overrides the rail's `player` to the inspected seat and
  * passes `own` / `vpHidden`. The VP cell must follow the SEAT's rules: the

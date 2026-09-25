@@ -995,5 +995,6 @@
   "Play 2 blue cards": "Разыграйте 2 синие карты",
   "Use an action on one of your cards a second time (R&D Funding)": "Используйте действие одной из ваших карт второй раз (Финансирование исследований)",
   "Choose the card action to use again": "Выберите действие карты для повтора",
-  "${0} used ${1} action a second time with ${2}": "${0} использует действие карты ${1} второй раз — ${2}"
+  "${0} used ${1} action a second time with ${2}": "${0} использует действие карты ${1} второй раз — ${2}",
+  "+${0} from the law «${1}»": "+${0} от закона «${1}»"
 }

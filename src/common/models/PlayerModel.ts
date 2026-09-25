@@ -22,6 +22,27 @@ import {PlacementLawPayoutModel} from './PlacementLawPayoutModel';
 import {StartingSetupModel} from './StartingSetupModel';
 import {ColonyTradeManifestModel} from './ColonyTradeManifestModel';
 import {PotentialActionsModel} from './PotentialActionsModel';
+import {ResolutionId} from '../parliament/ParliamentTypes';
+
+/**
+ * A TAG COUNT ADDITION THAT IS NOT PRINTED ANYWHERE — how many more of `tag`
+ * the seat has than its cards show, while a standing rule says so (Turmoil
+ * Redux, R&D Funding: Science tags equal to your influence).
+ *
+ * It rides its OWN field and never touches `tags`, which stays the PRINTED
+ * count (`Tags.countAllTags` — `'raw'`): a zone that folded the addition into
+ * the digit would leave the player unable to tell «what I have played» from
+ * «what will be counted right now», and the two answer different questions
+ * (an award counts the printed one, a card requirement the raised one). The
+ * source is NAMED, so the addition can never appear as a bonus from nowhere.
+ */
+export type TagBonusModel = {
+  tag: Tag;
+  /** Always > 0 — an entry that adds nothing is simply absent. */
+  amount: number;
+  /** The standing law that grants it, named where the addition is inspected. */
+  resolution: ResolutionId;
+};
 
 export interface ViewModel {
   game: GameModel;
@@ -158,6 +179,12 @@ export type PublicPlayerModel = {
   canUseTitaniumAsMegacredits: boolean;
   canUsePlantsAsMegacredits: boolean;
   tags: Record<Tag, number>
+  /**
+   * The per-tag ADDITIONS a standing rule grants this seat on top of `tags`
+   * (see {@link TagBonusModel}). Empty in every game without such a law —
+   * which is every game outside Turmoil Redux, and most of those.
+   */
+  tagBonuses: ReadonlyArray<TagBonusModel>;
   terraformRating: number;
   timer: TimerModel;
   titanium: number;

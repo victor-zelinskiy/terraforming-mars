@@ -174,6 +174,13 @@
         <div class="con-tagmx__head">
           <span class="con-tagmx__title">{{ $t('Tags') }}</span>
           <span class="con-tagmx__rule" aria-hidden="true"></span>
+          <!-- THE SOURCE of the «+N» additions below, named where it costs no
+               vertical room (the head row is fixed height; the matrix grid
+               owns every pixel under it). The console has ONE detail surface
+               and no hover popovers, so the name stands in the open for as
+               long as the law does — a green «+2» with no author would be a
+               bonus from nowhere. -->
+          <span v-if="tagBonusLaw !== ''" class="con-tagmx__lawnote" data-tag-bonus-law>{{ tagBonusLaw }}</span>
         </div>
         <div class="con-tagmx__grid">
           <div v-for="t in matrixEntries" :key="t.tag"
@@ -211,6 +218,14 @@
             </span>
             <span class="con-tagmx__numwrap">
               <span class="con-tagmx__num">{{ t.na ? '—' : t.count }}</span>
+              <!-- THE ADDITION a standing law makes, beside the printed digit
+                   and never instead of it: the player must be able to read
+                   «what I have played» and «what is counted right now» at the
+                   same time. It appears only while the law stands, and the
+                   cell's own hint names the law (`bonusHint`). -->
+              <span v-if="t.bonus !== undefined"
+                    class="con-tagmx__bonus"
+                    :data-tag-bonus="t.tag">+{{ t.bonus.amount }}</span>
             </span>
             <!-- The tag's ±N chip is a BADGE on the cell's own corner (over the medallion's shoulder — the
                  delta-chip anchor law): the count line below is too narrow on every profile to stand a
@@ -317,6 +332,15 @@ import {MarsBotModel} from '@/common/models/MarsBotModel';
 import {Tag as CardTag} from '@/common/cards/Tag';
 import Tag from '@/client/components/Tag.vue';
 import {consoleTagEntries, ConsoleTagCell, ConsoleTagEntry, NO_TAG_CELL} from '@/client/components/console/consoleTagMatrix';
+import {resolutionName} from '@/client/parliament/ClientParliamentManifest';
+import {ResolutionId} from '@/common/parliament/ParliamentTypes';
+
+/**
+ * ONE МЕТКИ cell as the matrix renders it: the count, whether a bot track
+ * serves it at all (`na` — a dash, never a lying 0), and the ADDITION a
+ * standing law makes to it right now.
+ */
+type ConsoleTagMatrixCell = {tag: ConsoleTagCell, count: number, na: boolean, bonus?: {amount: number, resolution: string}};
 import {marsBotStandardRows, marsBotTagEntries, MarsBotExtrasContext} from '@/client/components/console/marsBotRailModel';
 import AnimatedMetricValue from '@/client/components/feedback/AnimatedMetricValue.vue';
 import ConsoleVpBadge from '@/client/components/console/ConsoleVpBadge.vue';
@@ -591,7 +615,17 @@ export default defineComponent({
       // The no-tag cell rides its OWN server field (Tags.numberOfCardsWithNoTags),
       // which the staged override doesn't carry — a corporation is a card like
       // any other and lands in it the moment the server counts it.
-      return consoleTagEntries(this.gameTags, this.effectivePlayer.tags, this.effectivePlayer.noTagsCount);
+      return consoleTagEntries(
+        this.gameTags, this.effectivePlayer.tags, this.effectivePlayer.noTagsCount, this.effectivePlayer.tagBonuses);
+    },
+    /**
+     * The standing law behind the «+N» additions in the matrix, named. Empty
+     * when nothing adds anything (every game without such a law) and for the
+     * bot seat, which holds no law. One law stands at a time, so one name.
+     */
+    tagBonusLaw(): string {
+      const bonus = this.matrixEntries.find((e) => e.bonus !== undefined)?.bonus;
+      return bonus === undefined ? '' : translateText(resolutionName(bonus.resolution as ResolutionId));
     },
     /** The dedicated MarsBot presentation is active (inspecting the bot seat). */
     botMode(): boolean {
@@ -604,12 +638,14 @@ export default defineComponent({
      * its printed tracks (position = the engine's tag count); `na` marks a
      * cell no bot track serves (wild / no-tag) — rendered as a dash.
      */
-    matrixEntries(): Array<{tag: ConsoleTagCell, count: number, na: boolean}> {
+    matrixEntries(): Array<ConsoleTagMatrixCell> {
       if (this.automa !== undefined) {
+        // MarsBot holds no law (it takes no seat in the parliament), so a bot
+        // cell can never carry an addition.
         return marsBotTagEntries(this.gameTags, this.automa)
           .map((e) => ({tag: e.tag, count: e.count ?? 0, na: e.count === undefined}));
       }
-      return this.tagEntries.map((e) => ({tag: e.tag, count: e.count, na: false}));
+      return this.tagEntries.map((e) => ({tag: e.tag, count: e.count, na: false, bonus: e.bonus}));
     },
     /**
      * Card-accumulated resources, in first-appearance order — the SAME
@@ -866,9 +902,25 @@ export default defineComponent({
      * spelled-out label instead («Карты без меток: 3»). A bot cell no track
      * serves says so instead of lying a number.
      */
-    cellAria(entry: {tag: ConsoleTagCell, count: number, na: boolean}): string {
+    cellAria(entry: ConsoleTagMatrixCell): string {
       const name = this.$t(entry.tag === NO_TAG_CELL ? 'Cards with no tags' : entry.tag);
-      return entry.na ? name + ': ' + this.$t('not tracked') : name + ': ' + entry.count;
+      if (entry.na) {
+        return name + ': ' + this.$t('not tracked');
+      }
+      const printed = name + ': ' + entry.count;
+      // The addition NAMES its source — a number that appeared from nowhere is
+      // exactly the thing this rail must never show.
+      return entry.bonus === undefined ? printed : printed + ' · ' + this.bonusNote(entry.bonus);
+    },
+    /**
+     * «+2 от закона «Финансирование исследований»» — the one sentence the
+     * addition is read by, in the hint and in the aria label alike.
+     */
+    bonusNote(bonus: {amount: number, resolution: string}): string {
+      return translateTextWithParams('+${0} from the law «${1}»', [
+        String(bonus.amount),
+        translateText(resolutionName(bonus.resolution as ResolutionId)),
+      ]);
     },
     /**
      * The MC badge's full accessible sentence: per fact «Сталь: 1 ед. = 3 M€

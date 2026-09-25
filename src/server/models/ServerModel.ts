@@ -25,6 +25,7 @@ import {milestoneThreshold} from '../milestones/IMilestone';
 import {FundedAwardModel, AwardScore} from '../../common/models/FundedAwardModel';
 import {getTurmoilModel} from '../models/TurmoilModel';
 import {getParliamentModel} from '../parliament/ParliamentModel';
+import {ParliamentHandler} from '../parliament/ParliamentHandler';
 import {parliamentGateAwaiting} from '../parliament/ParliamentPhase';
 import {GameModel} from '../../common/models/GameModel';
 import {MarsBotModel} from '../../common/models/MarsBotModel';
@@ -670,6 +671,9 @@ export class Server {
       canUseTitaniumAsMegacredits: player.canUseTitaniumAsMegacredits,
       canUsePlantsAsMegacredits: player.canUsePlantsAsMegacredits,
       tags: player.tags.countAllTags(),
+      // The PRINTED count above, and what a standing law ADDS to it, side by
+      // side — never one number folded into the other.
+      tagBonuses: ParliamentHandler.tagBonuses(player),
       terraformRating: player.terraformRating,
       timer: player.timer.serialize(),
       titanium: player.titanium,

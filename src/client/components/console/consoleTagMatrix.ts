@@ -25,6 +25,7 @@
  */
 
 import {Tag} from '@/common/cards/Tag';
+import {TagBonusModel} from '@/common/models/PlayerModel';
 
 /**
  * The one matrix cell that is NOT a tag: cards played with no printed tag.
@@ -40,7 +41,16 @@ export type ConsoleTagCell = Tag | typeof NO_TAG_CELL;
 
 export interface ConsoleTagEntry {
   tag: ConsoleTagCell;
+  /** The PRINTED count — what the cards show, and what an award will count. */
   count: number;
+  /**
+   * What a standing rule ADDS to it right now (`PublicPlayerModel.tagBonuses`
+   * — Turmoil Redux's R&D Funding: Science tags by influence), and WHICH rule.
+   * Absent when nothing adds anything, which is the normal case. The matrix
+   * prints the two apart: `count` is the truth about the tableau, `bonus` the
+   * truth about this moment, and folding them would answer neither question.
+   */
+  bonus?: {amount: number, resolution: string};
 }
 
 /** Canonical display order — fixed for the whole game, never resorted. */
@@ -86,9 +96,16 @@ export function consoleTagEntries(
   gameTags: ReadonlyArray<Tag> | undefined,
   counts: Partial<Record<Tag, number>> | undefined,
   noTagsCount?: number,
+  bonuses?: ReadonlyArray<TagBonusModel>,
 ): Array<ConsoleTagEntry> {
-  return consoleAvailableTags(gameTags).map((tag) => ({
-    tag,
-    count: (tag === NO_TAG_CELL ? noTagsCount : counts?.[tag]) ?? 0,
-  }));
+  const byTag = new Map<Tag, TagBonusModel>((bonuses ?? []).map((b) => [b.tag, b]));
+  return consoleAvailableTags(gameTags).map((tag) => {
+    // The no-tag counter is the ABSENCE of a tag — no rule can raise it.
+    const bonus = tag === NO_TAG_CELL ? undefined : byTag.get(tag);
+    return {
+      tag,
+      count: (tag === NO_TAG_CELL ? noTagsCount : counts?.[tag]) ?? 0,
+      ...(bonus !== undefined && bonus.amount > 0 ? {bonus: {amount: bonus.amount, resolution: bonus.resolution}} : {}),
+    };
+  });
 }

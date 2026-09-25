@@ -4196,6 +4196,23 @@ each(@players, {
         height: .05rem;
         background: linear-gradient(90deg, fade(@con-cyan, 30%), transparent);
     }
+    /* The law behind the «+N» cells, in the head row — zero vertical cost
+       (the grid below keeps every pixel it had) and the same mint as the
+       additions it explains. It yields first: a long law name ellipsises in
+       its OWN box, never pushing the title. */
+    &__lawnote {
+        flex: 0 1 auto;
+        min-width: 0;
+        max-width: max-content;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: .58rem;
+        letter-spacing: .06rem;
+        text-transform: uppercase;
+        font-weight: 700;
+        color: @con-mint;
+    }
 
     &__grid {
         display: grid;
@@ -4309,8 +4326,24 @@ each(@players, {
     &__numwrap {
         position: relative;   /* the tag delta-chip anchor */
         display: inline-flex;
+        align-items: baseline;
         justify-content: center;
+        gap: .12rem;
         margin-top: .15rem;
+    }
+    /* THE ADDITION a standing law makes — beside the printed digit, never in
+       place of it, and unmistakably a different KIND of number: smaller,
+       mint, with its own «+». The printed count keeps its weight and colour,
+       so «what I have played» and «what is counted right now» read as two
+       facts at a glance. It carries no layout of its own when absent. */
+    &__bonus {
+        font-size: calc(var(--ct-num) * .72);
+        line-height: 1;
+        font-weight: 700;
+        letter-spacing: 0;
+        font-variant-numeric: tabular-nums;
+        color: @con-mint;
+        text-shadow: 0 0 .3rem fade(@con-mint, 45%);
     }
     &__num {
         font-size: var(--ct-num);

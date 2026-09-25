@@ -24,6 +24,7 @@ import {BoardType} from '../boards/BoardType';
 import {ICard} from '../cards/ICard';
 import {IProjectCard} from '../cards/IProjectCard';
 import {PartyActionPromptMeta, ResolutionActionPromptMeta} from '../../common/models/PlayerInputModel';
+import {TagBonusModel} from '../../common/models/PlayerModel';
 import {REDUX_PARTIES, ReduxParty, ResolutionId} from '../../common/parliament/ParliamentTypes';
 import {REDUX_GREENERY_TILE_TR} from '../../common/parliament/winnerReward';
 import {Parliament, PARTY_ACTION_USES_PER_GENERATION, Slot} from './Parliament';
@@ -334,14 +335,19 @@ export class ParliamentHandler {
    * function the counts read — a zone that computed its own «+N» would be a
    * second reading of the rule, free to drift from the price of a card.
    */
-  public static tagBonuses(player: IPlayer): Array<{tag: Tag, amount: number, resolution: ResolutionId}> {
-    const enacted = player.game?.parliament?.enactedDefinition();
-    if (enacted?.passive?.tagBonus === undefined) {
+  public static tagBonuses(player: IPlayer): Array<TagBonusModel> {
+    const parliament = player.game?.parliament;
+    const enacted = parliament?.enactedDefinition();
+    const bonus = enacted?.passive?.tagBonus;
+    if (parliament === undefined || enacted === undefined || bonus === undefined || !parliament.participates(player)) {
       return [];
     }
-    const entries: Array<{tag: Tag, amount: number, resolution: ResolutionId}> = [];
+    // ONE influence read for the whole list (the per-tag query would walk the
+    // tableau once per tag while building a model for every seat).
+    const influence = parliament.influence(player);
+    const entries: Array<TagBonusModel> = [];
     for (const tag of ALL_TAGS) {
-      const amount = ParliamentHandler.tagBonus(player, tag);
+      const amount = Math.max(0, bonus(player, tag, influence));
       if (amount > 0) {
         entries.push({tag, amount, resolution: enacted.id});
       }

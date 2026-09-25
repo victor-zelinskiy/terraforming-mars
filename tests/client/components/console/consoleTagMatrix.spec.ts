@@ -98,4 +98,44 @@ describe('consoleTagMatrix', () => {
   it('the full pool yields the full canonical order (max-expansion game)', () => {
     expect(consoleAvailableTags(ALL_PRINTED)).to.deep.eq(CONSOLE_TAG_ORDER);
   });
+
+  describe('the ADDITION a standing law makes', () => {
+    const LAW = 'RDX_SCIENTISTS_RD_FUNDING';
+
+    it('rides its own field and never touches the printed count', () => {
+      const entries = consoleTagEntries(
+        BASE_GAME_TAGS, {[Tag.SCIENCE]: 2} as Partial<Record<Tag, number>>, 0,
+        [{tag: Tag.SCIENCE, amount: 3, resolution: LAW}]);
+      const science = entries.find((e) => e.tag === Tag.SCIENCE)!;
+      expect(science.count, 'the printed count is untouched').to.eq(2);
+      expect(science.bonus).to.deep.eq({amount: 3, resolution: LAW});
+    });
+
+    it('is absent from every tag the law does not raise, and from the whole matrix without a law', () => {
+      const entries = consoleTagEntries(
+        BASE_GAME_TAGS, {[Tag.SCIENCE]: 2, [Tag.SPACE]: 1} as Partial<Record<Tag, number>>, 0,
+        [{tag: Tag.SCIENCE, amount: 1, resolution: LAW}]);
+      expect(entries.find((e) => e.tag === Tag.SPACE)?.bonus).to.be.undefined;
+      expect(entries.filter((e) => e.bonus !== undefined)).to.have.length(1);
+
+      for (const none of [undefined, []]) {
+        const plain = consoleTagEntries(BASE_GAME_TAGS, {[Tag.SCIENCE]: 2} as Partial<Record<Tag, number>>, 0, none);
+        expect(plain.every((e) => e.bonus === undefined), 'no law, no addition').to.be.true;
+      }
+    });
+
+    it('an entry that adds nothing is no entry at all — a «+0» is never drawn', () => {
+      const entries = consoleTagEntries(
+        BASE_GAME_TAGS, {} as Partial<Record<Tag, number>>, 0,
+        [{tag: Tag.SCIENCE, amount: 0, resolution: LAW}]);
+      expect(entries.find((e) => e.tag === Tag.SCIENCE)?.bonus).to.be.undefined;
+    });
+
+    it('the no-tag counter can never carry one — it counts the ABSENCE of a tag', () => {
+      const entries = consoleTagEntries(
+        BASE_GAME_TAGS, {} as Partial<Record<Tag, number>>, 3,
+        [{tag: NO_TAG_CELL, amount: 2, resolution: LAW}] as never);
+      expect(entries.find((e) => e.tag === NO_TAG_CELL)?.bonus).to.be.undefined;
+    });
+  });
 });

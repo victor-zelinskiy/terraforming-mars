@@ -12,6 +12,7 @@ import {OPEN_IP_TRADE_ID} from '../../src/server/parliament/resolutions/scientis
 import {METAL_RESEARCH_ID} from '../../src/server/parliament/resolutions/industrialists/MetalResearch';
 import {REDUX_RESOLUTION_CATALOG} from '../../src/server/parliament/resolutions/ResolutionCatalog';
 import {ParliamentHandler} from '../../src/server/parliament/ParliamentHandler';
+import {Server} from '../../src/server/models/ServerModel';
 import {getParliamentModel} from '../../src/server/parliament/ParliamentModel';
 import {repeatableActionCards} from '../../src/server/cards/repeatableActions';
 import {endGenerationThroughParliament, seatResolution, settleParliamentGates} from './parliamentArrange';
@@ -301,6 +302,21 @@ describe('RdFunding', () => {
       expect(ParliamentHandler.tagBonuses(p1)).deep.eq([{tag: Tag.SCIENCE, amount: 2, resolution: RD_FUNDING_ID}]);
       setInfluence(parliament, p1, 0);
       expect(ParliamentHandler.tagBonuses(p1), 'influence 0 states nothing').is.empty;
+    });
+
+    it('…and the PLAYER MODEL carries it beside the printed counts, never inside them', () => {
+      const [, p1, p2, parliament] = enacted();
+      p1.playedCards.push(new Research());
+      setInfluence(parliament, p1, 2);
+      setInfluence(parliament, p2, 0);
+
+      const model = Server.getPlayer(p1, true);
+      expect(model.tags[Tag.SCIENCE], 'the printed count is the printed count').eq(2);
+      expect(model.tagBonuses).deep.eq([{tag: Tag.SCIENCE, amount: 2, resolution: RD_FUNDING_ID}]);
+      expect(Server.getPlayer(p2, true).tagBonuses, 'a seat at influence 0 states nothing').is.empty;
+
+      parliament.enacted = resolutionInstanceId(METAL_RESEARCH_ID, 0);
+      expect(Server.getPlayer(p1, true).tagBonuses, 'and the addition leaves with the law').is.empty;
     });
   });
 
