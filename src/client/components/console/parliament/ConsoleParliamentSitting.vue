@@ -88,8 +88,19 @@
                 <template v-else>
                   <img v-if="part.party !== undefined" class="con-sit__emblem" :src="emblemUrl(part.party)" alt="" />
                   <i v-if="part.tile !== undefined" class="con-sit__door-tile" :class="'con-sit__door-tile--' + part.tile" aria-hidden="true"></i>
+                  <!-- THE WINNER'S OWN STEP OF A PARAMETER (Mohole Contest): the parameter's icon, the step it made
+                       (the scales already moved on the board — the row states the step) and the TR it paid the seat. -->
+                  <template v-if="part.parameter !== undefined">
+                    <i class="con-sit__world-icon" :class="worldUnitClass(part.parameter.id)" aria-hidden="true"></i>
+                    <span class="con-sit__world" data-sit-part-parameter :data-sit-part-param="part.parameter.id" :data-sit-part-steps="part.amount">
+                      <b>{{ part.parameter.before }}{{ worldSuffix(part.parameter.id) }}</b>
+                      <span class="con-parl__chip-dim">→</span>
+                      <b>{{ part.parameter.after }}{{ worldSuffix(part.parameter.id) }}</b>
+                    </span>
+                    <b v-if="part.tr !== undefined && part.tr > 0" class="con-sit__part-stack" data-sit-part-tr>{{ trLabel(part.tr) }}</b>
+                  </template>
                   <!-- A CITY TIER (Skyscrapers): the stack the cell became, the record's own height. -->
-                  <b v-if="part.stack !== undefined" class="con-sit__part-stack" data-sit-part-stack>×{{ part.stack }}</b>
+                  <b v-else-if="part.stack !== undefined" class="con-sit__part-stack" data-sit-part-stack>×{{ part.stack }}</b>
                   <!-- A HUD-side colony bonus reads by its printed description, signed where it prints an amount (a loss is negative). -->
                   <template v-else-if="part.kind === 'colonyBonus'">
                     <b v-if="part.unit !== ''">{{ signedAmount(part.amount) }}</b>
@@ -233,6 +244,7 @@ import {sittingMotion} from '@/client/console/parliament/sittingDirector';
 import {playBodyFold, playZoneLayerEnter} from '@/client/console/parliament/parliamentStageMotion';
 import {ResultsPayoutPart, ResultsReading, resultsReadingOf} from '@/client/console/parliament/parliamentResultsModel';
 import {worldParameterUnit} from '@/client/console/parliament/worldMoveModel';
+import {translateTextWithParams} from '@/client/directives/i18n';
 import {ParameterMoveId} from '@/common/parliament/parameterMove';
 import {cardResourceKey} from '@/client/console/resourceTransfer/resourceTransferModel';
 
@@ -377,6 +389,10 @@ export default defineComponent({
     },
     worldSuffix(parameter: ParameterMoveId): string {
       return worldParameterUnit(parameter);
+    },
+    /** «РТ +N» — the winner's own step's rating, in the one phrase every winner reading prints. */
+    trLabel(tr: number): string {
+      return translateTextWithParams('TR +${0}', [String(tr)]);
     },
     planetClass(colony: string): string {
       return colony.replace(' ', '-') + '-background';

@@ -17,6 +17,11 @@
     line: before the pick the body is the colony tile and its label; once it
     is built, the tile the cube landed on takes the parameter's place.
 
+    The winner's DIRECT STEP (Mohole Contest: the temperature 2 steps) is the
+    same block with the parameter's own icon for a tile: the range it makes
+    (−20 → −16 °C, or «max»), the TR per step, and — in the note — what the
+    track pays on the way (the heat production, the ocean of 0 °C).
+
     Nothing here computes: the reading arrives from `winnerRewardModel.ts`
     (the common `winnerReward.ts` rules the engine pays by).
   -->
@@ -55,7 +60,7 @@
           <b class="con-wreward__to">{{ range?.to }}{{ unit }}</b>
           <em class="con-wreward__max">{{ $t('Max.') }}</em>
         </template>
-        <b v-else class="con-wreward__to">+1</b>
+        <b v-else class="con-wreward__to">+{{ declaredSteps }}</b>
       </span>
       <!-- THE COLONY, once built: the tile the cube landed on stands where a tile's parameter would. -->
       <span v-else-if="reading.built !== undefined" class="con-wreward__param con-wreward__param--built" data-winner-param>
@@ -76,7 +81,8 @@ import {defineComponent, PropType} from 'vue';
 import {Color} from '@/common/Color';
 import {winnerRewardTrTotal} from '@/common/parliament/winnerReward';
 import {
-  WinnerRewardReading, winnerRewardCaptionOf, winnerParameterLabelKey, winnerRewardGlyph, winnerTileLabelKey,
+  WinnerRewardGlyph, WinnerRewardReading, winnerParameterLabelKey, winnerParameterMaxNoteKey, winnerParameterUnit, winnerRewardCaptionOf,
+  winnerRewardGlyph, winnerStepFollowUps, winnerTileLabelKey,
 } from '@/client/console/parliament/winnerRewardModel';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 
@@ -112,15 +118,19 @@ export default defineComponent({
     mine(): boolean {
       return this.viewerColor !== undefined && this.reading.recipient === this.viewerColor;
     },
-    /** The graphic the part draws: the tile kind, or `colony`. */
-    glyph(): 'greenery' | 'ocean' | 'colony' {
+    /** The graphic the part draws: the tile kind, `colony`, or the parameter of a direct step. */
+    glyph(): WinnerRewardGlyph {
       return winnerRewardGlyph(this.reading.reward);
     },
     tileLabel(): string {
       return winnerTileLabelKey(this.reading.reward);
     },
     unit(): string {
-      return this.reading.parameter === 'oxygen' ? '%' : '';
+      return this.reading.parameter === undefined ? '' : winnerParameterUnit(this.reading.parameter);
+    },
+    /** The steps the part ASKS for, off the table (a tile: 1; a direct step: its declared count). */
+    declaredSteps(): number {
+      return this.reading.reward.kind === 'parameter' ? this.reading.reward.steps : 1;
     },
     /** from → to: the live room, or the recorded step. */
     range(): {from: number, to: number} | undefined {
@@ -158,7 +168,7 @@ export default defineComponent({
       const text = caption.params === undefined ? translateText(caption.key) : translateTextWithParams(caption.key, [...caption.params]);
       return this.reading.generation === undefined ? text : `${translateTextWithParams('Generation ${0}', [String(this.reading.generation)])} · ${text}`;
     },
-    /** What the TR is made of — or why the parameter does not move. */
+    /** What the TR is made of — or why the parameter does not move — and what the track pays on the way. */
     note(): string {
       const r = this.reading;
       if (this.neutral || r.skipped !== undefined) {
@@ -182,11 +192,18 @@ export default defineComponent({
       }
       const breakdown = terms.length > 1 || (terms.length === 1 && tr?.tile !== undefined && tr.tile > 0) ?
         translateTextWithParams('TR: ${0}', [terms.join(' · ')]) : '';
-      if (this.atMax && r.parameter === 'oxygen') {
-        const max = translateText('Oxygen is at its maximum — no step');
-        return breakdown === '' ? max : `${max} · ${breakdown}`;
+      const lines: Array<string> = [];
+      if (this.atMax && r.parameter !== undefined && r.parameter !== 'oceans') {
+        lines.push(translateText(winnerParameterMaxNoteKey(r.parameter)));
       }
-      return breakdown;
+      if (breakdown !== '') {
+        lines.push(breakdown);
+      }
+      // A direct step: the track's own bonuses on the way — the heat production, the ocean of 0 °C.
+      for (const follow of winnerStepFollowUps(r)) {
+        lines.push(follow.params === undefined ? translateText(follow.key) : translateTextWithParams(follow.key, [...follow.params]));
+      }
+      return lines.join(' · ');
     },
   },
 });

@@ -240,6 +240,14 @@ export type SerializedEnactOutcome = {
    * reading never has to re-derive a rule from the card's text.
    */
   unrewarded?: boolean;
+  /**
+   * `globalParameter` of the WINNER's own step (Mohole Contest, RX23): the
+   * terraform rating the step paid the winner, measured around the engine's
+   * call (a card hook that adds to it counts). Absent on a world move and on
+   * a skip — «the TR went to the winner» is a recorded fact, never a rule
+   * re-derived from the declaration.
+   */
+  tr?: number;
 };
 
 /**

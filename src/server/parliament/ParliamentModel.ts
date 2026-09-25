@@ -125,6 +125,19 @@ export function getParliamentModel(game: IGame, viewer?: IPlayer): ParliamentMod
       if (input !== undefined) {
         phase.pending.input = input;
       }
+    } else if (p.step === 'effects' && p.effects?.scan !== undefined) {
+      // A STEP'S DEFERRED TAIL IS ASKING (the 0 °C ocean of the winner's temperature step — Mohole Contest;
+      // Europa's ocean under the winner's colony; the floaters of Titan's bonus): the step itself MUTATED
+      // (no `pending`), the engine's own follow-up now waits for the seat the step ran for — the reaction
+      // window (`scan`) names that seat and that step. Published under the same `pending`, so every other
+      // seat reads the honest wait («blue is placing») and the seat itself reads a step of the sitting, never
+      // an ask from nowhere. A gate prompt is never a tail (the step would not be `effects`); a stale menu of
+      // the harness has no place here either — only a prompt that is not the phase's own gate counts.
+      const asked = game.getPlayerById(p.effects.scan.player);
+      const wf = asked.getWaitingFor();
+      if (wf !== undefined && wf.parliamentPhasePrompt === undefined) {
+        phase.pending = {player: asked.color, key: p.effects.scan.key, input: wf.type};
+      }
     }
     const outcomes = outcomeModels(game, p.summary?.outcomes);
     if (outcomes !== undefined) {

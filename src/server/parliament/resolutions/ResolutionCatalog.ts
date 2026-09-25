@@ -50,6 +50,7 @@ import {MEDICAL_DATABASE} from './scientists/MedicalDatabase';
 import {METAL_RESEARCH} from './industrialists/MetalResearch';
 import {MIGRATION_FUNDING} from './marsFirst/MigrationFunding';
 import {MINING_INCENTIVES} from './industrialists/MiningIncentives';
+import {MOHOLE_CONTEST} from './greens/MoholeContest';
 import {SKYSCRAPERS} from './marsFirst/Skyscrapers';
 
 /**
@@ -504,6 +505,9 @@ export const REDUX_RESOLUTION_CATALOG = new ResolutionCatalog([
   // The SIMPLEST shape the family has: two ordinary production parts (a flat titanium step for everyone and a steel
   // step by influence), no new mechanism at all — and the law that influence 0 skips only the part that asks for it.
   MINING_INCENTIVES,
+  // The first winner part that is a DIRECT STEP of a global parameter (the temperature, 2 steps) — REWARDED, unlike a
+  // world move: the winner's TR, the track's bonuses, and the 0 °C ocean as its own placement inside the sitting.
+  MOHOLE_CONTEST,
   // The first recipients decided by a THRESHOLD (the winner + everyone with influence ≥ 2), and the first CITY STACK:
   // one city tile each, placed as a TIER on the seat's own city on Mars — the cell pays nothing again, every tier scores.
   SKYSCRAPERS,

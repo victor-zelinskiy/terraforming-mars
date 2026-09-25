@@ -7,7 +7,7 @@ import {IClientResolution} from '@/common/parliament/IClientResolution';
 import {winnerRewardTrTotal} from '@/common/parliament/winnerReward';
 import {
   winnerOutcomeOf, winnerRewardCaptionOf, winnerRewardGlyph, winnerRewardReadingOf, winnerRewardRuleKey, winnerRewardSentenceOf, winnerRewardTableOf,
-  winnerTileLabelKey,
+  winnerStepFollowUps, winnerTileLabelKey,
 } from '@/client/console/parliament/winnerRewardModel';
 import {enactedYieldsOf, voteYieldsOf, yieldIconOf} from '@/client/console/parliament/influenceYieldModel';
 import {resolutionAnnotations} from '@/client/console/parliament/parliamentAnnotations';
@@ -197,6 +197,116 @@ describe('winnerRewardModel', () => {
     expect(winner?.rows.map((r) => r.text)).deep.eq([biodome().text.winner, rule]);
     expect(blocks.find((b) => b.id === 'group:immediate')?.rows.map((r) => r.text)).deep.eq([biodome().text.effect]);
     expect(blocks.find((b) => b.id === 'group:quest')?.rows.map((r) => r.text)).deep.eq(['Place 2 greeneries']);
+  });
+});
+
+/*
+ * THE WINNER'S DIRECT STEP OF A PARAMETER (Mohole Contest, RX23) — the temperature 2 steps, no tile: the same reading
+ * a tile's parameter has (the room, the ceiling's cut named, the TR per step) plus what the track pays on the way
+ * (the heat production of −24 / −20 °C) and whether an ocean follows at 0 °C — all from the ONE shared room; the record
+ * carries the steps made and the TR the engine paid; the verb is «raise».
+ */
+const MOHOLE_ID = 'RDX_GREENS_MOHOLE_CONTEST';
+const MOHOLE = `${MOHOLE_ID}#0`;
+
+function mohole(): IClientResolution {
+  const resolution = getResolution(MOHOLE_ID);
+  if (resolution === undefined) {
+    throw new Error('Mohole Contest is not in the client manifest');
+  }
+  return resolution;
+}
+
+describe('winnerRewardModel — the winner\'s DIRECT STEP of a parameter', () => {
+  const tableAt = (temperature: number, oceans = 3) => ({oxygenLevel: 5, temperature, oceans});
+
+  it('the shipped catalog: RX23, 3 heat per influence for everyone (stock, no cap), the winner\'s temperature step as data — the third kind', () => {
+    const resolution = mohole();
+    expect(resolution.code).eq('RX23');
+    expect(resolution.party).eq(PartyName.GREENS);
+    expect(resolution.scaled).deep.eq([{id: 'heat', unit: {kind: 'stock', resource: Resource.HEAT}, perInfluence: 3, recipient: 'each'}]);
+    expect(resolution.winnerReward).deep.eq({kind: 'parameter', parameter: 'temperature', steps: 2});
+    expect(resolution.worldMoves, 'the step is the winner\'s, never the world\'s').is.undefined;
+    expect(winnerTileLabelKey(resolution.winnerReward!)).eq('Temperature');
+    expect(winnerRewardGlyph(resolution.winnerReward!)).eq('temperature');
+    expect(winnerRewardRuleKey(resolution.winnerReward!)).is.a('string');
+  });
+
+  it('no table: the rule alone (reference), with the parameter named', () => {
+    const r = winnerRewardReadingOf(mohole(), undefined, undefined)!;
+    expect(r).deep.include({context: 'reference', parameter: 'temperature'});
+    expect(r.room).is.undefined;
+    expect(winnerRewardCaptionOf(r, blue, String)).is.undefined;
+  });
+
+  it('up for the vote: «if you win» — two steps, +2 TR; one step from the ceiling — one step, +1; at it — no step, no TR', () => {
+    const far = winnerRewardReadingOf(mohole(), model({slots: [slot(MOHOLE_ID)]}), tableAt(-20))!;
+    expect(far.context).eq('conditional');
+    expect(far.room).deep.include({current: -20, resulting: -16, applied: 2, rises: true, heatProductionBonus: 0, oceanBonus: false});
+    expect(far.tr).deep.eq({tile: 0, parameter: 2, temperature: 0});
+    expect(winnerRewardCaptionOf(far, blue, String)).deep.eq({key: 'If you win'});
+    const cut = winnerRewardReadingOf(mohole(), model({slots: [slot(MOHOLE_ID)]}), tableAt(6))!;
+    expect(cut.room).deep.include({current: 6, resulting: 8, applied: 1, rises: true});
+    expect(winnerRewardTrTotal(cut.tr!)).eq(1);
+    const max = winnerRewardReadingOf(mohole(), model({slots: [slot(MOHOLE_ID)]}), tableAt(8))!;
+    expect(max.room).deep.include({current: 8, resulting: 8, applied: 0, rises: false, tileAvailable: true});
+    expect(winnerRewardTrTotal(max.tr!)).eq(0);
+  });
+
+  it('what the TRACK pays on the way is read from the same room: the −24 °C heat production, the ocean of 0 °C (while a tile is left)', () => {
+    const heat = winnerRewardReadingOf(mohole(), model({slots: [slot(MOHOLE_ID)]}), tableAt(-26))!;
+    expect(heat.room).deep.include({resulting: -22, heatProductionBonus: 1, oceanBonus: false});
+    expect(winnerStepFollowUps(heat)).deep.eq([{key: 'heat production ${0}', params: ['+1']}]);
+    const ocean = winnerRewardReadingOf(mohole(), model({slots: [slot(MOHOLE_ID)]}), tableAt(-4))!;
+    expect(ocean.room).deep.include({resulting: 0, oceanBonus: true});
+    expect(winnerStepFollowUps(ocean)).deep.eq([{key: 'an ocean follows at 0 °C'}]);
+    expect(winnerStepFollowUps(winnerRewardReadingOf(mohole(), model({slots: [slot(MOHOLE_ID)]}), tableAt(-4, 9))!), 'no ocean left').deep.eq([]);
+    expect(winnerStepFollowUps(winnerRewardReadingOf(biodome(), model({slots: [slot(BIODOME_ID)]}), table(7, -10))!), 'a tile has none of these').deep.eq([]);
+  });
+
+  it('the phase resolving it: «you raise it» / «raised by X»; the RECORD: the steps made and the TR the engine paid; a named skip; a neutral winner', () => {
+    const phase = (player: Color | 'neutral', outcomes: Array<ParliamentEnactOutcomeModel> = []) => model({
+      enacted: {instance: MOHOLE, resolution: MOHOLE_ID, party: PartyName.GREENS},
+      phase: {generation: 2, final: false, step: 'effects', winner: {instance: MOHOLE, player}, outcomes},
+    });
+    const pending = winnerRewardReadingOf(mohole(), phase(blue), tableAt(-20))!;
+    expect(pending).deep.include({context: 'pending', recipient: blue});
+    expect(winnerRewardCaptionOf(pending, blue, String)).deep.eq({key: 'You raise it'});
+    expect(winnerRewardCaptionOf(pending, red, (c) => `name-${c}`)).deep.eq({key: 'Raised by ${0}', params: ['name-blue']});
+    const made: ParliamentEnactOutcomeModel = {player: blue, step: 'temperature', part: 'winner', kind: 'globalParameter', amount: 2, parameter: {id: 'temperature', before: -20, after: -16}, tr: 2};
+    const applied = winnerRewardReadingOf(mohole(), phase(blue, [made]), tableAt(-16))!;
+    expect(applied).deep.include({context: 'applied', recipient: blue});
+    expect(applied.placed).deep.eq({before: -20, after: -16});
+    expect(applied.tr, 'the TR is the RECORD\'s — what the engine paid').deep.eq({tile: 0, parameter: 2, temperature: 0});
+    expect(applied.room, 'history is never re-measured against today\'s table').is.undefined;
+    expect(winnerRewardCaptionOf(applied, blue, String)).deep.eq({key: 'You raised it'});
+    expect(winnerRewardCaptionOf(applied, red, (c) => c)).deep.eq({key: 'Raised · ${0}', params: ['blue']});
+    // A hook that added to the rating counts: the record's `tr` outranks the steps.
+    const hooked = winnerRewardReadingOf(mohole(), phase(blue, [{...made, tr: 3}]), tableAt(-16))!;
+    expect(hooked.tr?.parameter).eq(3);
+    const skipped = winnerRewardReadingOf(mohole(), phase(blue, [
+      {player: blue, step: 'temperature', part: 'winner', kind: 'skipped', amount: 0, reason: 'Temperature is at its maximum — it is not raised', parameter: {id: 'temperature', before: 8, after: 8}},
+    ]), tableAt(8))!;
+    expect(skipped.skipped).eq('Temperature is at its maximum — it is not raised');
+    expect(winnerRewardCaptionOf(skipped, blue, String)).deep.eq({key: 'Temperature is at its maximum — it is not raised'});
+    const neutral = winnerRewardReadingOf(mohole(), phase('neutral'), tableAt(-20))!;
+    expect(neutral).deep.include({context: 'applied', recipient: 'neutral'});
+    expect(winnerRewardCaptionOf(neutral, blue, String)).deep.eq({key: 'Neutral winner — nobody raises it'});
+  });
+
+  it('the «for you» words read the SAME reading: the range in °C, the TR, the track\'s bonuses; the ceiling named; the inspector\'s rule under the winner block', () => {
+    const t = {text: (k: string) => k, params: (k: string, p: Array<string>) => k.replace('${0}', p[0]).replace('${1}', p[1] ?? '')};
+    const far = winnerRewardReadingOf(mohole(), model({slots: [slot(MOHOLE_ID)]}), tableAt(-26))!;
+    expect(winnerRewardSentenceOf(far, blue, String, t)).deep.eq({caption: 'If you win', detail: 'temperature -26 → -22 °C; TR +2; heat production +1'});
+    const ocean = winnerRewardReadingOf(mohole(), model({slots: [slot(MOHOLE_ID)]}), tableAt(-4))!;
+    expect(winnerRewardSentenceOf(ocean, blue, String, t)?.detail).eq('temperature -4 → 0 °C; TR +2; an ocean follows at 0 °C');
+    const max = winnerRewardReadingOf(mohole(), model({slots: [slot(MOHOLE_ID)]}), tableAt(8))!;
+    expect(winnerRewardSentenceOf(max, blue, String, t)).deep.eq({caption: 'If you win', detail: 'temperature at its maximum — no step'});
+    const blocks = resolutionAnnotations(MOHOLE_ID);
+    const winner = blocks.find((b) => b.id === 'group:winner');
+    expect(winner?.rows.map((r) => r.text)).deep.eq([mohole().text.winner, winnerRewardRuleKey(mohole().winnerReward!)]);
+    expect(blocks.find((b) => b.id === 'group:world'), 'no world block — the step is the winner\'s').is.undefined;
+    expect(blocks.find((b) => b.id === 'group:quest')?.rows.map((r) => r.text)).deep.eq(['Play a card with a microbe tag']);
   });
 });
 

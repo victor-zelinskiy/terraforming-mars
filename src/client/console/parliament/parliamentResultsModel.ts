@@ -92,6 +92,14 @@ export type ResultsPayoutPart = {
   tile?: 'ocean' | 'greenery' | 'colony' | 'city';
   /** A CITY TIER (Skyscrapers): the stack the cell became — the record's own height, printed «×N» beside the tile. */
   stack?: number;
+  /**
+   * THE WINNER'S OWN STEP OF A PARAMETER (Mohole Contest): the parameter it raised, before and after — the
+   * seat's row states it (the scales already moved on the board; the row says the step and what it paid),
+   * never the planet line, which belongs to a move nobody made.
+   */
+  parameter?: {id: ParameterMoveId, before: number, after: number};
+  /** …and the terraform rating that step paid the seat (the record's own, measured by the engine). */
+  tr?: number;
   /** The card a card resource landed on (one recipient). */
   card?: string;
   /**
@@ -283,6 +291,12 @@ export function resultsPayoutPart(outcome: ParliamentEnactOutcomeModel, index: n
   }
   if (outcome.kind === 'city' && outcome.stackHeight !== undefined) {
     part.stack = outcome.stackHeight;
+  }
+  if (outcome.kind === 'globalParameter' && outcome.parameter !== undefined) {
+    part.parameter = {id: outcome.parameter.id, before: outcome.parameter.before, after: outcome.parameter.after};
+    if (outcome.tr !== undefined) {
+      part.tr = outcome.tr;
+    }
   }
   if (outcome.card !== undefined) {
     part.card = outcome.card;

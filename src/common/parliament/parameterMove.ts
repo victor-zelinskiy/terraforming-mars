@@ -24,7 +24,7 @@
 import {
   MAX_OCEAN_TILES, MAX_OXYGEN_LEVEL, MAX_TEMPERATURE, MAX_VENUS_SCALE,
   MIN_OXYGEN_LEVEL, MIN_TEMPERATURE, MIN_VENUS_SCALE,
-  OXYGEN_LEVEL_FOR_TEMPERATURE_BONUS,
+  OXYGEN_LEVEL_FOR_TEMPERATURE_BONUS, TEMPERATURE_BONUS_FOR_HEAT_1, TEMPERATURE_BONUS_FOR_HEAT_2, TEMPERATURE_FOR_OCEAN_BONUS,
 } from '../constants';
 
 /** Every global parameter a resolution can move — the winner's tile moves two of them, a world move any. */
@@ -100,6 +100,17 @@ export type ParameterRoom = {
   resulting: number;
   /** A RAISE of oxygen through 8 % sets the temperature off one step too (while it can). */
   temperatureBonus: boolean;
+  /**
+   * A RAISE of the temperature through −24 °C / −20 °C pays the mover a heat
+   * production step apiece (`Game.increaseTemperature`): how many of the two
+   * this move crosses. 0 for every other parameter and for every lowering.
+   */
+  heatProductionBonus: number;
+  /**
+   * A RAISE of the temperature that reaches 0 °C places an ocean (the engine's
+   * own follow-up, outside any reward gate) — while an ocean tile is left.
+   */
+  oceanBonus: boolean;
 };
 
 /**
@@ -117,6 +128,10 @@ export function parameterRoom(move: {parameter: ParameterMoveId; steps: number},
   // that prints «−0» and an `Object.is` comparison in a spec both deserve 0.
   const applied = (steps >= 0 ? Math.min(steps, Math.floor(room)) : -Math.min(-steps, Math.floor(room))) + 0;
   const resulting = current + applied * size;
+  // The temperature track's own thresholds — crossed only by a RAISE (a lowering re-arms them; the engine
+  // claims each once): the two heat-production steps and the ocean of 0 °C.
+  const raisesTemperature = parameter === 'temperature' && applied > 0;
+  const crosses = (threshold: number): boolean => raisesTemperature && current < threshold && resulting >= threshold;
   return {
     parameter,
     current,
@@ -130,6 +145,8 @@ export function parameterRoom(move: {parameter: ParameterMoveId; steps: number},
     temperatureBonus: parameter === 'oxygen' && applied > 0 &&
       current < OXYGEN_LEVEL_FOR_TEMPERATURE_BONUS && resulting >= OXYGEN_LEVEL_FOR_TEMPERATURE_BONUS &&
       table.temperature < MAX_TEMPERATURE,
+    heatProductionBonus: [TEMPERATURE_BONUS_FOR_HEAT_1, TEMPERATURE_BONUS_FOR_HEAT_2].filter(crosses).length,
+    oceanBonus: crosses(TEMPERATURE_FOR_OCEAN_BONUS) && table.oceans < MAX_OCEAN_TILES,
   };
 }
 

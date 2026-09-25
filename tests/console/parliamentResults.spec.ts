@@ -83,6 +83,28 @@ describe('parliamentResultsModel — the sitting\'s last reading, in two section
     expect(reading.planet?.[0]).deep.include({parameter: 'oxygen', steps: 0, skipped: 'Oxygen is at its maximum — it is not reduced'});
   });
 
+  /* Mohole Contest (RX23): the WINNER's own step of a parameter is the winner's record — the seat's row states the
+   * step and the rating it paid; the planet line stays what it is, a move nobody made. */
+  it('the WINNER’s own step of a parameter is a part of the winner’s row — the parameter, before → after, the TR — and never the planet line', () => {
+    const reading = resultsReadingOf(summary({outcomes: [
+      outcome({step: 'heat', kind: 'stock', stock: Resource.HEAT, amount: 6}),
+      outcome({step: 'temperature', part: 'winner', kind: 'globalParameter', amount: 2, stock: undefined, parameter: {id: 'temperature', before: -20, after: -16}, tr: 2}),
+    ]}), [seat(BLUE), seat(RED)], SUPPORT);
+    expect(reading.planet, 'no world record — no planet line').is.undefined;
+    const parts = reading.payouts[0].parts;
+    expect(parts.map((p) => p.kind)).deep.eq(['stock', 'globalParameter']);
+    expect(parts[1]).deep.include({amount: 2, tr: 2, unit: '', production: false});
+    expect(parts[1].parameter).deep.eq({id: 'temperature', before: -20, after: -16});
+    expect(parts[1].skipped, 'a step that moved is paid, never a skip').is.undefined;
+    expect(reading.payouts[1].parts, 'the other seat has no part of it').deep.eq([]);
+    // At the ceiling the step is a NAMED skip on the winner's row, under the winner's own title.
+    const maxed = resultsReadingOf(summary({outcomes: [
+      outcome({step: 'temperature', part: 'winner', kind: 'skipped', amount: 0, stock: undefined, reason: 'Temperature is at its maximum — it is not raised', parameter: {id: 'temperature', before: 8, after: 8}}),
+    ]}), [seat(BLUE)], SUPPORT);
+    expect(maxed.payouts[0].parts[0].skipped).deep.eq({title: 'Reward for the winner of the vote', reason: 'Temperature is at its maximum — it is not raised'});
+    expect(maxed.planet).is.undefined;
+  });
+
   it('a law that MOVED THE WORLD is never «quiet», even when it paid no seat', () => {
     const quiet = {kicker: 'Effect while enacted', kind: 'passive' as const};
     const world = {step: 'venus', part: 'world', kind: 'globalParameter', amount: 2, unrewarded: true,

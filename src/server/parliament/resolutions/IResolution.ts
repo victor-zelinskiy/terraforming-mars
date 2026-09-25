@@ -272,9 +272,14 @@ export interface ResolutionDefinition {
   levy?: ResolutionLevy;
   /**
    * The WINNER's part as data (`winnerReward.ts`) — the tile `winnerSteps`
-   * places. Exported to the manifest, so the vote surface, the inspector, the
-   * results and the playground read the same declaration the step pays by
-   * (what the tile is, which parameter its own placement moves).
+   * places, the colony it builds, or the PARAMETER STEP it makes (Mohole
+   * Contest: the temperature 2 steps, rewarded — paid by the family's shared
+   * `winnerParameterStep(id, reward)`, which a card lists in `winnerSteps`
+   * under the key `winnerParameterStepKey(reward)`; the guard refuses the
+   * declaration without its step). Exported to the manifest, so the vote
+   * surface, the inspector, the results and the playground read the same
+   * declaration the step pays by (what the tile is, which parameter moves,
+   * by how many steps).
    */
   winnerReward?: WinnerRewardDeclaration;
   /**

@@ -41,6 +41,7 @@
  * nothing about the game, touches no DOM. Spec: `tests/console/parliamentBand.spec.ts`.
  */
 import {Color} from '@/common/Color';
+import type {WinnerRewardGlyph} from './winnerRewardModel';
 import {ReduxParty, ResolutionId} from '@/common/parliament/ParliamentTypes';
 import {ParliamentPhaseSummaryModel} from '@/common/models/ParliamentModel';
 import {InfluenceYield} from '@/common/parliament/influenceScaling';
@@ -72,8 +73,8 @@ export type BandChip =
   | {kind: 'reaction', party: ReduxParty, resource?: string, amount?: number}
   /** A part that paid nothing: what, how much it would have paid, and why — never a silent loss. */
   | {kind: 'skip', id: string, title: string, reason: string, amount?: number, unit?: string, units?: ReadonlyArray<string>}
-  /** The winner's part: a tile waiting behind the door to the board, or the colony built in the sitting's own step. */
-  | {kind: 'tile', tile: 'ocean' | 'greenery' | 'colony'}
+  /** The winner's part: a tile waiting behind the door to the board, the colony built in the sitting's own step, or the parameter the winner's own step raises. */
+  | {kind: 'tile', tile: WinnerRewardGlyph}
   /**
    * A TILE GRANTED BY THRESHOLD (Skyscrapers): the viewer's own standing — theirs by the vote or the
    * influence line, the destinations it may land on, the stack once it did. The band component draws it
@@ -114,8 +115,8 @@ export type BandRewardReading = {
   levy?: LevyReading;
   reactions: ReadonlyArray<{party: ReduxParty, resource?: string, amount?: number}>;
   skips: ReadonlyArray<{id: string, title: string, reason: string, amount?: number, unit?: string, units?: ReadonlyArray<string>}>;
-  /** The winner's part: the tile still to be placed, or the colony still to be built (`colony`). */
-  tile?: 'ocean' | 'greenery' | 'colony';
+  /** The winner's part: the tile still to be placed, the colony still to be built (`colony`), or the parameter the winner's step raises. */
+  tile?: WinnerRewardGlyph;
   /** A tile granted by threshold (Skyscrapers): the viewer's own tier — pending, or placed (never a skip: the skip chip says that). */
   grant?: 'city';
   /** The WORLD's own part of the enactment — the planet's moves, in the server's order. */

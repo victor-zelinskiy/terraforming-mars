@@ -297,10 +297,17 @@ export type ParliamentEnactOutcomeModel = {
   drawn?: number;
   /** A card draw handed over as a mandatory intake — the intake's id. */
   intake?: number;
-  /** A winner tile, or a WORLD move: the global parameter that moved, before and after (equal at the limit). */
+  /** A winner tile, a winner's STEP, or a WORLD move: the global parameter that moved, before and after (equal at the limit). */
   parameter?: {id: ParameterMoveId; before: number; after: number};
-  /** `globalParameter`: nobody was credited with a terraform rating for this move. */
+  /** `globalParameter` of a WORLD move: nobody was credited with a terraform rating for this move. */
   unrewarded?: boolean;
+  /**
+   * `globalParameter` of the WINNER's own step (Mohole Contest): the terraform
+   * rating the step paid the winner — measured around the engine's call, so a
+   * card hook that adds to it is counted honestly. Absent on a world move
+   * (which credits nobody) and on a skip.
+   */
+  tr?: number;
 };
 
 export type ParliamentPhaseModel = {

@@ -450,6 +450,10 @@
         &--ocean { background-image: url(./assets/tiles/ocean.png); }
         /* The winner COLONY (Colony Contest): the colony tile, the same glyph the face and the quest print. */
         &--colony { background-image: url(./assets/tiles/colony.png); }
+        /* A DIRECT STEP of a parameter (Mohole Contest): no tile — the parameter's own icon, the HUD's sprite. */
+        &--temperature { background-image: url(./assets/global-parameters/temperature.png); }
+        &--oxygen { background-image: url(./assets/global-parameters/oxygen.png); }
+        &--venus { background-image: url(./assets/global-parameters/venus.png); }
     }
     &__name { font-size: .86rem; font-weight: 700; color: @con-text; white-space: nowrap; }
     &__param {
@@ -470,6 +474,8 @@
         background-position: center;
         &--oxygen { background-image: url(./assets/global-parameters/oxygen.png); }
         &--oceans { background-image: url(./assets/tiles/ocean.png); }
+        &--temperature { background-image: url(./assets/global-parameters/temperature.png); }
+        &--venus { background-image: url(./assets/global-parameters/venus.png); }
     }
     &__from { font-size: .8rem; color: fade(@con-text, 76%); }
     &__arrow { font-size: .78rem; color: fade(@con-text, 58%); }

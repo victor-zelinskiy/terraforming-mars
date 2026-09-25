@@ -3,9 +3,9 @@
  *
  * `influenceYieldModel.ts` turns everyone's influence-scaled part into the
  * viewer's number; this module turns the WINNER's part (`IClientResolution
- * .winnerReward` — the declaration the winner's step pays: a tile, or a
- * colony built for free) into what a surface may honestly say about it, for
- * the moment the surface stands in:
+ * .winnerReward` — the declaration the winner's step pays: a tile, a colony
+ * built for free, or a DIRECT STEP of a global parameter) into what a surface
+ * may honestly say about it, for the moment the surface stands in:
  *
  *   reference   — no table at all (the menu's inspector, the playground's
  *                 catalog): the tile and its one parameter step, nothing more;
@@ -27,33 +27,48 @@
  * `parameter`, no room and no TR — before the pick it can only say WHO builds,
  * after it WHERE the cube landed (`built`, the tile's name). The cell of a tile
  * is never named before it is chosen: its bonuses, its adjacency and the
- * reactions it sets off are the placement dossier's. Pure: no Vue, no DOM, no
- * i18n — English keys and numbers; `ConsoleWinnerReward.vue` renders.
+ * reactions it sets off are the placement dossier's.
+ *
+ * A PARAMETER STEP (Mohole Contest: the temperature 2 steps) is read like a
+ * tile's parameter — the room on the live table, the ceiling's cut named, the
+ * TR per step — plus what the TRACK pays the winner on the way (the heat
+ * production of −24 / −20 °C) and whether an OCEAN follows at 0 °C: all from
+ * the ONE shared room (`winnerParameterRoom` → `parameterRoom`), never a second
+ * arithmetic. The step is REWARDED — its TR is the winner's, and the record
+ * carries the rating the engine actually paid (`tr`).
+ *
+ * Pure: no Vue, no DOM, no i18n — English keys and numbers;
+ * `ConsoleWinnerReward.vue` renders.
  */
 import {Color} from '@/common/Color';
 import {SpaceId} from '@/common/Types';
 import {IClientResolution} from '@/common/parliament/IClientResolution';
 import {ParliamentEnactOutcomeModel, ParliamentModel} from '@/common/models/ParliamentModel';
 import {resolutionIdOf} from '@/common/parliament/ParliamentTypes';
+import {parameterStepSize} from '@/common/parliament/parameterMove';
 import {
-  isWinnerTileReward, WinnerParameterRoom, winnerParameterRoom, WinnerRewardDeclaration, WinnerRewardParameter, winnerRewardParameter,
-  WinnerRewardTable, WinnerRewardTr, winnerRewardTr,
+  isWinnerParameterMover, isWinnerParameterReward, WinnerParameterRoom, winnerParameterRoom, WinnerRewardDeclaration,
+  WinnerRewardParameter, winnerRewardParameter, WinnerRewardTable, WinnerRewardTr, winnerRewardTr, WinnerStepParameter,
 } from '@/common/parliament/winnerReward';
+import {worldParameterLabelKey, worldParameterUnit} from './worldMoveModel';
 
 export type WinnerRewardContext = 'reference' | 'conditional' | 'pending' | 'applied';
+
+/** The graphic the part draws — a tile kind, `colony`, or the parameter a direct step raises (the class / data suffix every renderer keys on). */
+export type WinnerRewardGlyph = 'greenery' | 'ocean' | 'colony' | WinnerStepParameter;
 
 export type WinnerRewardReading = {
   reward: WinnerRewardDeclaration;
   context: WinnerRewardContext;
-  /** A TILE's global parameter; absent for a colony (it moves none). */
+  /** A TILE's global parameter, or a direct step's; absent for a colony (it moves none). */
   parameter?: WinnerRewardParameter;
-  /** conditional / pending: the parameter's room on the LIVE table (a tile). */
+  /** conditional / pending: the parameter's room on the LIVE table (a tile, a step). */
   room?: WinnerParameterRoom;
-  /** The TR the tile is worth — live (conditional / pending) or as it landed (applied). */
+  /** The TR the part is worth — live (conditional / pending) or as it landed (applied). */
   tr?: WinnerRewardTr;
   /** pending / applied: who places it — a seat's colour, or 'neutral' (nobody does). */
   recipient?: Color | 'neutral';
-  /** applied: the tile landed — the parameter as the server read it before and after. */
+  /** applied: the tile landed / the step was made — the parameter as the server read it before and after. */
   placed?: {space?: SpaceId; before: number; after: number};
   /** applied (a colony): the tile the winner's cube landed on — the colony's name (an English key). */
   built?: string;
@@ -90,7 +105,7 @@ export function winnerOutcomeOf(outcomes: ReadonlyArray<ParliamentEnactOutcomeMo
     outcomes?.find((o) => o.part === undefined && (o.kind === 'ocean' || o.kind === 'greenery' || o.kind === 'colony'));
 }
 
-/** The reading's head: the declaration and — for a tile — its parameter. */
+/** The reading's head: the declaration and — for a tile or a step — its parameter. */
 function headOf(reward: WinnerRewardDeclaration): Pick<WinnerRewardReading, 'reward' | 'parameter'> {
   const parameter = winnerRewardParameter(reward);
   return parameter === undefined ? {reward} : {reward, parameter};
@@ -112,7 +127,7 @@ function appliedReading(
   if (outcome.kind === 'skipped') {
     return {...base, skipped: outcome.reason ?? 'Skipped'};
   }
-  if (!isWinnerTileReward(reward)) {
+  if (!isWinnerParameterMover(reward)) {
     // The colony: the record names the tile the cube landed on — nothing else is measured.
     return outcome.colony === undefined ? base : {...base, built: outcome.colony};
   }
@@ -121,13 +136,24 @@ function appliedReading(
     // An older record: the tile landed, its parameter reading was not kept.
     return {...base, placed: {space: outcome.space, before: 0, after: 0}};
   }
+  if (isWinnerParameterReward(reward)) {
+    // THE STEP: the steps actually made are the record's own (`amount` — the values are the arithmetic's
+    // twin), and the TR is what the engine PAID the winner (`tr`), never re-derived from the declaration.
+    const made = outcome.amount ?? Math.max(0, (recorded.after - recorded.before) / parameterStepSize(reward.parameter));
+    const tr = winnerRewardTr(reward, {applied: made, tileAvailable: true, temperatureBonus: false});
+    return {
+      ...base,
+      placed: {before: recorded.before, after: recorded.after},
+      tr: outcome.tr === undefined ? tr : {...tr, parameter: outcome.tr},
+    };
+  }
   const rose = recorded.after > recorded.before;
   return {
     ...base,
     placed: {space: outcome.space, before: recorded.before, after: recorded.after},
     // The TR the tile brought, by the same rule the live reading uses — the
     // tile's own and the step it ACTUALLY made (the 8 % step is the journal's).
-    tr: winnerRewardTr(reward, {rises: rose, tileAvailable: true, temperatureBonus: false}),
+    tr: winnerRewardTr(reward, {applied: rose ? 1 : 0, tileAvailable: true, temperatureBonus: false}),
   };
 }
 
@@ -149,9 +175,9 @@ export function winnerRewardReadingOf(
   if (model === undefined || table === undefined) {
     return {...head, context: 'reference'};
   }
-  // A TILE reads its parameter's room on the live table; a colony has no room to read.
+  // A TILE or a STEP reads its parameter's room on the live table; a colony has no room to read.
   const live = (): Pick<WinnerRewardReading, 'room' | 'tr'> => {
-    if (!isWinnerTileReward(reward)) {
+    if (!isWinnerParameterMover(reward)) {
       return {};
     }
     const room = winnerParameterRoom(reward, table);
@@ -187,12 +213,67 @@ export function winnerRewardReadingOf(
  * part follows the base rules untouched.
  */
 export function winnerRewardRuleKey(reward: WinnerRewardDeclaration): string | undefined {
-  if (!isWinnerTileReward(reward)) {
+  switch (reward.kind) {
+  case 'colony':
     return 'The colony is built for free on any open tile without your cube. Its build bonus is paid; no trade fleet is spent.';
+  case 'parameter':
+    return 'The winner raises it as a player would: 1 TR per step, the track\'s own bonuses, and the ocean of 0 °C as a placement of their own.';
+  case 'tile':
+    return reward.tile === 'greenery' ?
+      '1 TR for the greenery and 1 TR for the oxygen step. At maximum oxygen, only the TR for the greenery.' :
+      undefined;
   }
-  return reward.tile === 'greenery' ?
-    '1 TR for the greenery and 1 TR for the oxygen step. At maximum oxygen, only the TR for the greenery.' :
-    undefined;
+}
+
+/** «at its maximum — no step», per parameter (English keys) — the sentence's own clause and the block's note. */
+export function winnerParameterMaxKey(parameter: WinnerRewardParameter): string {
+  switch (parameter) {
+  case 'oxygen': return 'oxygen at its maximum — no step';
+  case 'temperature': return 'temperature at its maximum — no step';
+  case 'venus': return 'Venus at its maximum — no step';
+  case 'oceans': return 'No ocean tile is left';
+  }
+}
+
+/** «Oxygen is at its maximum — no step», per parameter (English keys) — the block's note, a sentence on its own. */
+export function winnerParameterMaxNoteKey(parameter: WinnerRewardParameter): string {
+  switch (parameter) {
+  case 'oxygen': return 'Oxygen is at its maximum — no step';
+  case 'temperature': return 'Temperature is at its maximum — no step';
+  case 'venus': return 'Venus is at its maximum — no step';
+  case 'oceans': return 'No ocean tile is left';
+  }
+}
+
+/** The parameter's range as a sentence («temperature −20 → −16 °C»), per parameter (English keys with two params). */
+export function winnerParameterRangeKey(parameter: WinnerRewardParameter): string {
+  switch (parameter) {
+  case 'oxygen': return 'oxygen ${0} → ${1} %';
+  case 'oceans': return 'oceans ${0} → ${1}';
+  case 'temperature': return 'temperature ${0} → ${1} °C';
+  case 'venus': return 'Venus ${0} → ${1} %';
+  }
+}
+
+/**
+ * WHAT THE TRACK PAYS ON THE WAY (a direct step of the temperature): the heat
+ * production steps and the 0 °C ocean — the sentence's extra clauses, from the
+ * live room (nothing is known of them once recorded: the record is the step's).
+ * English keys with their params; empty where nothing follows.
+ */
+export function winnerStepFollowUps(reading: WinnerRewardReading): Array<{key: string, params?: ReadonlyArray<string>}> {
+  const room = reading.room;
+  if (room === undefined || !isWinnerParameterReward(reading.reward)) {
+    return [];
+  }
+  const out: Array<{key: string, params?: ReadonlyArray<string>}> = [];
+  if (room.heatProductionBonus > 0) {
+    out.push({key: 'heat production ${0}', params: [`+${room.heatProductionBonus}`]});
+  }
+  if (room.oceanBonus) {
+    out.push({key: 'an ocean follows at 0 °C'});
+  }
+  return out;
 }
 
 /**
@@ -218,9 +299,10 @@ export function winnerRewardSentenceOf(
   if (reading.skipped !== undefined || reading.recipient === 'neutral') {
     return {caption: lead, detail: ''};
   }
-  if (!isWinnerTileReward(reading.reward)) {
+  if (!isWinnerParameterMover(reading.reward)) {
     return {caption: lead, detail: reading.built === undefined ? '' : t.params('Colony · ${0}', [t.text(reading.built)])};
   }
+  const parameter = reading.parameter ?? 'oxygen';
   const range = reading.placed !== undefined && (reading.placed.before !== 0 || reading.placed.after !== 0) ?
     {from: reading.placed.before, to: reading.placed.after} :
     reading.room === undefined ? undefined : {from: reading.room.current, to: reading.room.resulting};
@@ -229,11 +311,9 @@ export function winnerRewardSentenceOf(
     parts.push(t.text('No ocean tile is left'));
   } else if (range !== undefined) {
     if (range.to > range.from) {
-      parts.push(reading.parameter === 'oxygen' ?
-        t.params('oxygen ${0} → ${1} %', [String(range.from), String(range.to)]) :
-        t.params('oceans ${0} → ${1}', [String(range.from), String(range.to)]));
-    } else if (reading.parameter === 'oxygen') {
-      parts.push(t.text('oxygen at its maximum — no step'));
+      parts.push(t.params(winnerParameterRangeKey(parameter), [String(range.from), String(range.to)]));
+    } else if (parameter !== 'oceans') {
+      parts.push(t.text(winnerParameterMaxKey(parameter)));
     }
   }
   const tr = reading.tr;
@@ -243,7 +323,7 @@ export function winnerRewardSentenceOf(
       terms.push(`${t.text('for the tile')} +${tr.tile}`);
     }
     if (tr.parameter > 0) {
-      terms.push(`${t.text(reading.parameter === 'oxygen' ? 'for oxygen' : 'for oceans')} +${tr.parameter}`);
+      terms.push(`${t.text(winnerParameterTrKey(parameter))} +${tr.parameter}`);
     }
     if (tr.temperature > 0) {
       terms.push(`${t.text('for temperature')} +${tr.temperature}`);
@@ -251,39 +331,71 @@ export function winnerRewardSentenceOf(
     const total = t.params('TR +${0}', [String(tr.tile + tr.parameter + tr.temperature)]);
     parts.push(terms.length > 1 || tr.tile > 0 ? `${total} (${terms.join(', ')})` : total);
   }
+  // …and what the TRACK pays on the way (a direct step): the heat production, the ocean of 0 °C.
+  for (const follow of winnerStepFollowUps(reading)) {
+    parts.push(follow.params === undefined ? t.text(follow.key) : t.params(follow.key, [...follow.params]));
+  }
   return {caption: lead, detail: parts.join('; ')};
 }
 
-/** The part's own name (English key): the tile's, or «Colony». */
-export function winnerTileLabelKey(reward: WinnerRewardDeclaration): string {
-  if (!isWinnerTileReward(reward)) {
-    return 'Colony';
+/** «for oxygen» / «for oceans» / «for temperature» / «for Venus» — the TR term's own word (English keys). */
+export function winnerParameterTrKey(parameter: WinnerRewardParameter): string {
+  switch (parameter) {
+  case 'oxygen': return 'for oxygen';
+  case 'oceans': return 'for oceans';
+  case 'temperature': return 'for temperature';
+  case 'venus': return 'for Venus';
   }
-  return reward.tile === 'greenery' ? 'Greenery' : 'Ocean';
 }
 
-/** The graphic the part draws — the tile kind, or `colony` (the class / data suffix every renderer keys on). */
-export function winnerRewardGlyph(reward: WinnerRewardDeclaration): 'greenery' | 'ocean' | 'colony' {
-  return isWinnerTileReward(reward) ? reward.tile : 'colony';
+/** The part's own name (English key): the tile's, «Colony», or the parameter a direct step raises. */
+export function winnerTileLabelKey(reward: WinnerRewardDeclaration): string {
+  switch (reward.kind) {
+  case 'colony': return 'Colony';
+  case 'parameter': return worldParameterLabelKey(reward.parameter);
+  case 'tile': return reward.tile === 'greenery' ? 'Greenery' : 'Ocean';
+  }
 }
 
-/** The parameter's own name (English key). */
+/** The graphic the part draws — the tile kind, `colony`, or the parameter of a direct step (the class / data suffix every renderer keys on). */
+export function winnerRewardGlyph(reward: WinnerRewardDeclaration): WinnerRewardGlyph {
+  switch (reward.kind) {
+  case 'tile': return reward.tile;
+  case 'colony': return 'colony';
+  case 'parameter': return reward.parameter;
+  }
+}
+
+/** The parameter's own name (English key) — the ONE vocabulary the world reading prints too. */
 export function winnerParameterLabelKey(parameter: WinnerRewardParameter): string {
-  return parameter === 'oxygen' ? 'Oxygen' : 'Oceans';
+  return worldParameterLabelKey(parameter);
+}
+
+/** The unit suffix the parameter's numbers carry («5 %», «−30 °C», a bare count of oceans). */
+export function winnerParameterUnit(parameter: WinnerRewardParameter): string {
+  return worldParameterUnit(parameter);
 }
 
 /**
  * The CAPTION of a reading — WHICH question it answers, as an English key
- * with its params: «if you win», «you place it» / «you build it», «placed by
- * X», «neutral winner», a skip's reason. `nameOf` resolves a seat's display
- * name. A colony is BUILT, a tile PLACED — the verb follows the declaration.
+ * with its params: «if you win», «you place it» / «you build it» / «you raise
+ * it», «placed by X», «neutral winner», a skip's reason. `nameOf` resolves a
+ * seat's display name. A colony is BUILT, a tile PLACED, a parameter RAISED —
+ * the verb follows the declaration.
  */
 export function winnerRewardCaptionOf(
   reading: WinnerRewardReading,
   viewer: Color | undefined,
   nameOf: (color: Color) => string,
 ): {key: string, params?: ReadonlyArray<string>} | undefined {
-  const colony = !isWinnerTileReward(reading.reward);
+  const verb = reading.reward.kind;
+  const neutral = (): string => {
+    switch (verb) {
+    case 'colony': return 'Neutral winner — nobody builds it';
+    case 'parameter': return 'Neutral winner — nobody raises it';
+    case 'tile': return 'Neutral winner — nobody places it';
+    }
+  };
   switch (reading.context) {
   case 'reference':
     return undefined;
@@ -291,22 +403,23 @@ export function winnerRewardCaptionOf(
     return {key: 'If you win'};
   case 'pending':
     if (reading.recipient === 'neutral' || reading.recipient === undefined) {
-      return {key: colony ? 'Neutral winner — nobody builds it' : 'Neutral winner — nobody places it'};
+      return {key: neutral()};
     }
     if (reading.recipient === viewer) {
-      return {key: colony ? 'You build it' : 'You place it'};
+      return {key: verb === 'colony' ? 'You build it' : verb === 'parameter' ? 'You raise it' : 'You place it'};
     }
-    return {key: colony ? 'Built by ${0}' : 'Placed by ${0}', params: [nameOf(reading.recipient)]};
+    return {key: verb === 'colony' ? 'Built by ${0}' : verb === 'parameter' ? 'Raised by ${0}' : 'Placed by ${0}', params: [nameOf(reading.recipient)]};
   case 'applied':
     if (reading.recipient === 'neutral' || reading.recipient === undefined) {
-      return {key: colony ? 'Neutral winner — nobody builds it' : 'Neutral winner — nobody places it'};
+      return {key: neutral()};
     }
     if (reading.skipped !== undefined) {
       return {key: reading.skipped};
     }
     if (reading.recipient === viewer) {
-      return {key: colony ? 'You built it' : 'You placed it'};
+      return {key: verb === 'colony' ? 'You built it' : verb === 'parameter' ? 'You raised it' : 'You placed it'};
     }
-    return {key: colony ? 'Built · ${0}' : 'Placed · ${0}', params: [nameOf(reading.recipient)]};
+    return {key: verb === 'colony' ? 'Built · ${0}' : verb === 'parameter' ? 'Raised · ${0}' : 'Placed · ${0}', params: [nameOf(reading.recipient)]};
   }
 }
+

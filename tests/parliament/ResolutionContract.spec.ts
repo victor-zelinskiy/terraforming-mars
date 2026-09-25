@@ -13,6 +13,8 @@ import {AGENDA_TRACK, influenceAtAgenda} from '../../src/common/parliament/Parli
 import {scaledAmount, sequelAmount, topUpAmount} from '../../src/common/parliament/influenceScaling';
 import {LEVY_STEP_KEY, levyDeclared, levyPaid} from '../../src/common/parliament/resolutionLevy';
 import {OUTCOME_KINDS, REWARD_ADDRESS, rewardAddressOf} from '../../src/common/parliament/rewardAddress';
+import {isWinnerParameterReward, winnerParameterStepKey} from '../../src/common/parliament/winnerReward';
+import {parameterStepSize} from '../../src/common/parliament/parameterMove';
 import {Color} from '../../src/common/Color';
 import {ParliamentEnactOutcomeModel, ParliamentPhaseSummaryModel} from '../../src/common/models/ParliamentModel';
 import {RESOLUTION_FAMILIES, familyOf} from '../../src/client/console/parliament/resolutionFamily';
@@ -351,6 +353,23 @@ function checkSeam(definition: ResolutionDefinition): Array<string> {
   if (immediate === 0 && definition.passive === undefined && definition.action === undefined) {
     failures.push(`${name}: no immediate step, no passive, no action — the REWARD stage would be empty`);
   }
+  // THE WINNER'S PARAMETER STEP (Mohole Contest) is declared on TWO layers or on none: the data every surface
+  // reads (`winnerReward: {kind: 'parameter'}`) and the family's SHARED step under the key the declaration
+  // derives (`winnerParameterStepKey`) — a card that pays a direct step by a step of its own would be the second
+  // executor the declaration exists to prevent. The sentence (`text.winner`) rides with it.
+  const reward = definition.winnerReward;
+  const winnerKeys = (definition.winnerSteps ?? []).map((step) => step.key);
+  if (reward !== undefined && isWinnerParameterReward(reward)) {
+    if (!Number.isInteger(reward.steps) || reward.steps <= 0) {
+      failures.push(`${name}: a winner parameter step must ask for a positive whole number of steps`);
+    }
+    if (!winnerKeys.includes(winnerParameterStepKey(reward))) {
+      failures.push(`${name}: winnerReward {kind: 'parameter'} without its shared step '${winnerParameterStepKey(reward)}' in winnerSteps (the reading and the payout are one declaration)`);
+    }
+    if ((definition.text.winner ?? '') === '') {
+      failures.push(`${name}: a winner parameter step without its declaration text (the inspector reads it)`);
+    }
+  }
   return failures;
 }
 
@@ -369,6 +388,49 @@ function checkKinds(definition: ResolutionDefinition, run: Run): Array<string> {
     }
   }
   failures.push(...checkNoSilentReward(definition, run));
+  failures.push(...checkWinnerParameterRecord(definition, run));
+  return failures;
+}
+
+/**
+ * THE WINNER'S PARAMETER STEP IS REWARDED, AND ITS RECORD IS THE ENGINE'S (Mohole Contest, RX23): the
+ * winner's record of the shared step names the declared parameter, carries the steps ACTUALLY made
+ * (before → after, in the parameter's own step size), is never flagged `unrewarded` (that is a WORLD
+ * move's flag — a winner credited with nothing would be the trap the declaration exists to prevent),
+ * and states the TR the step paid. A skip names its reason; a moving record names its rating.
+ */
+function checkWinnerParameterRecord(definition: ResolutionDefinition, run: Run): Array<string> {
+  const failures: Array<string> = [];
+  const reward = definition.winnerReward;
+  if (reward === undefined || !isWinnerParameterReward(reward)) {
+    return failures;
+  }
+  const key = winnerParameterStepKey(reward);
+  for (const seat of run.seats.filter((s) => s.winner)) {
+    for (const record of recordsOf(run, seat.id, key)) {
+      if (record.kind !== 'globalParameter' && record.kind !== 'skipped') {
+        failures.push(`${label(definition)}: запись шага победителя '${key}' имеет вид '${record.kind}' вместо globalParameter / skipped`);
+        continue;
+      }
+      if (record.parameter?.id !== reward.parameter) {
+        failures.push(`${label(definition)}: запись шага победителя '${key}' не называет параметр '${reward.parameter}'`);
+        continue;
+      }
+      if (record.unrewarded === true) {
+        failures.push(`${label(definition)}: шаг победителя '${key}' помечен unrewarded — победитель ЛИШЁН РТ (это флаг мирового хода, не награды)`);
+      }
+      const made = (record.parameter.after - record.parameter.before) / parameterStepSize(reward.parameter);
+      if ((record.amount ?? 0) !== made) {
+        failures.push(`${label(definition)}: запись шага победителя '${key}' несёт ${record.amount} шагов, параметр прошёл ${made}`);
+      }
+      if (made > reward.steps || made < 0) {
+        failures.push(`${label(definition)}: шаг победителя '${key}' прошёл ${made} шагов при объявленных ${reward.steps}`);
+      }
+      if (record.kind === 'globalParameter' && (record.tr === undefined || record.tr < made)) {
+        failures.push(`${label(definition)}: запись шага победителя '${key}' не несёт РТ победителя (tr ${record.tr}) при ${made} сделанных шагах`);
+      }
+    }
+  }
   return failures;
 }
 

@@ -533,16 +533,23 @@ export class ParliamentPhase {
         if (this.runSeatStep(definition, instance, player, winner, step, part) === 'waiting') {
           return 'waiting';
         }
+        // A MUTATING step's deferred TAIL runs — and may wait — BEFORE the next step is walked, exactly as
+        // an asking step's tail is drained before the answer's `continue` goes on: the 0 °C ocean the
+        // winner's temperature step sets off (Mohole Contest) is the WINNER's placement, made while the
+        // seats after it wait — never a question that surfaces once everybody else has been paid.
+        if (this.drainDeferred() === 'waiting') {
+          return 'waiting';
+        }
       }
     }
     for (const step of worldSteps) {
-      if (this.runWorldStep(definition, instance, winner, step) === 'waiting') {
+      if (this.runWorldStep(definition, instance, winner, step) === 'waiting' || this.drainDeferred() === 'waiting') {
         return 'waiting';
       }
     }
     if (deferWinner && winner !== undefined) {
       for (const step of winnerSteps) {
-        if (this.runSeatStep(definition, instance, winner, winner, step, 'winner') === 'waiting') {
+        if (this.runSeatStep(definition, instance, winner, winner, step, 'winner') === 'waiting' || this.drainDeferred() === 'waiting') {
           return 'waiting';
         }
       }
