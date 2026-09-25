@@ -30,9 +30,12 @@ function revealSourceFromContext(player: IPlayer): CardDrawRevealSource | undefi
     return {type: 'card', cardName: source.card};
   case 'colony':
     return {type: 'colony', colonyName: source.name};
-  // Turmoil Redux: a party action (the Reds' recycle) names its party.
+  // Turmoil Redux: a party action (the Reds' recycle) names its party; the
+  // enacted resolution's action (Open IP Trade) names the law.
   case 'party':
     return {type: 'party', party: source.name};
+  case 'resolution':
+    return {type: 'resolution', resolution: source.id};
   default:
     return undefined;
   }

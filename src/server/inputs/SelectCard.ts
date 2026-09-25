@@ -147,6 +147,10 @@ export class SelectCard<T extends ICard> extends BasePlayerInput<ReadonlyArray<T
     if (this.partyActionPrompt !== undefined) {
       model.partyActionPrompt = this.partyActionPrompt;
     }
+    // …and the ENACTED RESOLUTION'S action (Open IP Trade's discard pick), the party action's twin.
+    if (this.resolutionActionPrompt !== undefined) {
+      model.resolutionActionPrompt = this.resolutionActionPrompt;
+    }
     // THE ORDER-AWARE PRELUDE VERDICT rides this input's own toModel, and is
     // recomputed on EVERY serialization on purpose.
     //

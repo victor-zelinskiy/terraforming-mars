@@ -2805,13 +2805,15 @@ export class Player implements IPlayer {
       }
     });
 
-    // Turmoil Redux: the vote and the party actions (Unity's free trade
-    // rides the colony trade action above). PRESENCE is availability.
+    // Turmoil Redux: the vote, the party actions (Unity's free trade
+    // rides the colony trade action above) and the ENACTED RESOLUTION'S
+    // action — one family. PRESENCE is availability.
     const vote = ParliamentHandler.voteOption(this);
     if (vote !== undefined) {
       action.options.push(vote);
     }
     action.options.push(...ParliamentHandler.partyActionOptions(this));
+    action.options.push(...ParliamentHandler.resolutionActionOptions(this));
 
     // End turn — never on a bonus action (there is no turn slot to give up).
     if (!bonusAction &&

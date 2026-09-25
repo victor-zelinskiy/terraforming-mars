@@ -8,6 +8,7 @@ import {TileGrantDeclaration} from '../../../common/parliament/tileGrant';
 import {WorldParameterMove} from '../../../common/parliament/parameterMove';
 import type {SerializedEnactOutcome} from '../SerializedParliament';
 import {ActionEffect} from '../../../common/models/ActionPreviewModel';
+import {ResolutionActionPromptMeta} from '../../../common/models/PlayerInputModel';
 import {Message} from '../../../common/logs/Message';
 import {EventSource} from '../../../common/events/EventSource';
 import {IPlayer} from '../../IPlayer';
@@ -75,11 +76,29 @@ export type EnactStep = {
 
 export type ResolutionActionAvailability = {available: true} | {available: false; reason: string | Message};
 
+/**
+ * THE ACTION OF AN ENACTED RESOLUTION (Open IP Trade: «discard any number of
+ * cards; for each, gain 3 M€ and draw a card») — the PARTY ACTION's twin and a
+ * member of the same family (`PartyEffectDefinition.actionInput`): the action
+ * menu nests its prompt beside the party actions (`ParliamentHandler.
+ * resolutionActionOptions`), the console lists it as a source of «Действия
+ * карт» beside them, and the Parliament's government is its second door.
+ *
+ * THE COMMIT CONTRACT of every action in this fork: `execute` BUILDS the one
+ * prompt the menu nests and changes NOTHING; answering the prompt is the
+ * commit, and the answer runs through `runResolutionAction` (the root scope
+ * under the resolution's source, the journal header, the USE recorded — never
+ * at the prompt's issue). `meta` is the structural marker the console reads
+ * the prompt by (never its title); `execute` stamps it on the prompt it
+ * returns and on every prompt it nests. Held by PARTICIPANTS only, while the
+ * card stands enacted: another law takes the slot → the action is gone.
+ */
 export type ResolutionAction = {
   usesPerGeneration(player: IPlayer): number;
-  /** Ignoring uses — the parliament checks those. */
+  /** Ignoring uses — the parliament checks those. A refusal NAMES its reason (an English i18n key). */
   canAct(player: IPlayer): ResolutionActionAvailability;
-  execute(player: IPlayer): PlayerInput | undefined;
+  execute(player: IPlayer, parliament: Parliament, meta: ResolutionActionPromptMeta): PlayerInput;
+  /** Result chips for the workspace's action tile (`current → resulting` where the outcome is fixed). */
   preview(player: IPlayer): ReadonlyArray<ActionEffect>;
 };
 

@@ -10,7 +10,7 @@ import {Color} from '../../common/Color';
 import {PlayerId} from '../../common/Types';
 import {
   ParliamentModel, ParliamentPhaseModel, ParliamentPhaseSummaryModel, ParliamentPlayerModel, ParliamentRenewalEventModel, ParliamentSlotModel,
-  PartyAccessModel, PartyActionModel, VoteOptionModel, VoteProjectionModel, ParliamentEnactedModel, ParliamentEnactOutcomeModel,
+  PartyAccessModel, PartyActionModel, ResolutionActionModel, VoteOptionModel, VoteProjectionModel, ParliamentEnactedModel, ParliamentEnactOutcomeModel,
 } from '../../common/models/ParliamentModel';
 import {PartyName} from '../../common/turmoil/PartyName';
 import {PARTY_EFFECT_DELEGATES, REDUX_PARTIES, ReduxParty, ResolutionInstanceId} from '../../common/parliament/ParliamentTypes';
@@ -168,6 +168,10 @@ export function getParliamentModel(game: IGame, viewer?: IPlayer): ParliamentMod
       vote: voteModel(game, parliament, viewer),
       partyActions: partyActionModels(parliament, viewer),
     };
+    const resolutionAction = resolutionActionModel(parliament, viewer);
+    if (resolutionAction !== undefined) {
+      model.viewer.resolutionAction = resolutionAction;
+    }
   }
   return model;
 }
@@ -298,13 +302,57 @@ function projectVote(game: IGame, parliament: Parliament, viewer: IPlayer, slot:
   return projection;
 }
 
-/** How many party actions the player could take right now (the action menu's own verdict, turn-independent). */
+/**
+ * How many actions of the Parliament the player could take right now — the
+ * party actions and the enacted resolution's action alike (the action menu's
+ * own verdict, turn-independent): the wheel's count of actions reads this.
+ */
 export function availablePartyActionCount(player: IPlayer): number {
   const parliament = player.game?.parliament;
   if (parliament === undefined) {
     return 0;
   }
-  return partyActionModels(parliament, player).filter((action) => action.available).length;
+  const parties = partyActionModels(parliament, player).filter((action) => action.available).length;
+  return parties + (resolutionActionModel(parliament, player)?.available === true ? 1 : 0);
+}
+
+/**
+ * THE ENACTED RESOLUTION'S ACTION for the viewer (Turmoil Redux — Open IP
+ * Trade): the party action model's twin. Undefined while no enacted law has
+ * an action; otherwise the same verdict ladder as a party's — access (the
+ * seat participates), the uses left, the action's own gate with its reason.
+ */
+function resolutionActionModel(parliament: Parliament, viewer: IPlayer): ResolutionActionModel | undefined {
+  const enacted = parliament.enactedDefinition();
+  const action = enacted?.action;
+  if (enacted === undefined || action === undefined) {
+    return undefined;
+  }
+  const hasAccess = parliament.participates(viewer);
+  const usesLeft = parliament.resolutionActionUsesLeft(viewer);
+  let available = hasAccess && usesLeft > 0;
+  let reason: ResolutionActionModel['reason'] = '';
+  if (!hasAccess) {
+    reason = 'MarsBot takes no part in the parliament';
+  } else if (usesLeft <= 0) {
+    reason = 'This resolution action was already used this generation';
+  } else {
+    const verdict = action.canAct(viewer);
+    if (verdict.available === false) {
+      available = false;
+      reason = verdict.reason;
+    }
+  }
+  return {
+    resolution: enacted.id,
+    party: enacted.party,
+    hasAccess,
+    usesLeft,
+    usesPerGeneration: action.usesPerGeneration(viewer),
+    available,
+    reason,
+    preview: action.preview(viewer),
+  };
 }
 
 function partyActionModels(parliament: Parliament, viewer: IPlayer): Array<PartyActionModel> {

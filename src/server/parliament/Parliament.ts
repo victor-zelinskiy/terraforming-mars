@@ -494,6 +494,20 @@ export class Parliament {
     return this.resolutionActionUses.get(player.id) ?? 0;
   }
 
+  /**
+   * The uses of the ENACTED resolution's action the seat has left this
+   * generation — 0 when no enacted law has an action (the party action's
+   * `partyActionUsesLeft`, for the law). The limit is the action's own
+   * declaration (`usesPerGeneration`), reset at the generation boundary.
+   */
+  public resolutionActionUsesLeft(player: IPlayer): number {
+    const action = this.enactedDefinition()?.action;
+    if (action === undefined) {
+      return 0;
+    }
+    return Math.max(0, action.usesPerGeneration(player) - this.resolutionActionUsesOf(player));
+  }
+
   public recordResolutionActionUse(player: IPlayer): void {
     this.resolutionActionUses.set(player.id, this.resolutionActionUsesOf(player) + 1);
   }

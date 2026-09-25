@@ -22,7 +22,7 @@ import {Space} from '../boards/Space';
 import {BoardType} from '../boards/BoardType';
 import {ICard} from '../cards/ICard';
 import {IProjectCard} from '../cards/IProjectCard';
-import {PartyActionPromptMeta} from '../../common/models/PlayerInputModel';
+import {PartyActionPromptMeta, ResolutionActionPromptMeta} from '../../common/models/PlayerInputModel';
 import {REDUX_PARTIES, ReduxParty, ResolutionId} from '../../common/parliament/ParliamentTypes';
 import {REDUX_GREENERY_TILE_TR} from '../../common/parliament/winnerReward';
 import {Parliament, PARTY_ACTION_USES_PER_GENERATION, Slot} from './Parliament';
@@ -122,6 +122,37 @@ export class ParliamentHandler {
       options.push(definition.actionInput(player, parliament, meta));
     }
     return options;
+  }
+
+  /**
+   * THE ENACTED RESOLUTION'S ACTION the player may take right now (Turmoil
+   * Redux — Open IP Trade) — the party actions' twin, one option beside them:
+   * a resolution with an action stands enacted, the seat participates, a use
+   * is left this generation, the action's own gate is open. Its prompt is the
+   * definition's own (`action.execute`), stamped with the structural marker
+   * the console reads it by (`resolutionActionPrompt`). PRESENCE is
+   * availability — the reasons live on the model (`ParliamentModel.viewer.
+   * resolutionAction`), so a blocked action is shown disabled, never hidden.
+   */
+  public static resolutionActionOptions(player: IPlayer): Array<PlayerInput> {
+    const parliament = player.game?.parliament;
+    const enacted = parliament?.enactedDefinition();
+    const action = enacted?.action;
+    if (parliament === undefined || enacted === undefined || action === undefined || !parliament.participates(player)) {
+      return [];
+    }
+    const usesLeft = parliament.resolutionActionUsesLeft(player);
+    if (usesLeft <= 0 || action.canAct(player).available === false) {
+      return [];
+    }
+    const meta: ResolutionActionPromptMeta = {
+      resolution: enacted.id,
+      party: enacted.party,
+      stage: 'choose',
+      usesLeft,
+      usesPerGeneration: action.usesPerGeneration(player),
+    };
+    return [action.execute(player, parliament, meta)];
   }
 
   // ───────────────────────── passive hooks ─────────────────────────

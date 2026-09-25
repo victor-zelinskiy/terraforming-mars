@@ -46,6 +46,9 @@ export class SelectOption extends BasePlayerInput<undefined> {
     if (this.partyActionPrompt !== undefined) {
       model.partyActionPrompt = this.partyActionPrompt;
     }
+    if (this.resolutionActionPrompt !== undefined) {
+      model.resolutionActionPrompt = this.resolutionActionPrompt;
+    }
     return model;
   }
   public process(response: InputResponse): PlayerInput | undefined {

@@ -928,5 +928,18 @@
   "One step from the maximum — one step happens": "Один шаг до максимума: происходит один шаг",
   "Temperature at its maximum — the step is named and skipped": "Температура на максимуме: шаг назван и пропущен",
   "A raise through −24 °C — the heat production step too": "Подъём через −24 °C: и шаг производства тепла",
-  "A raise to 0 °C — an ocean follows": "Подъём до 0 °C: следует океан"
+  "A raise to 0 °C — an ocean follows": "Подъём до 0 °C: следует океан",
+  "Open IP Trade": "Открытая торговля патентами",
+  "Draw 1 card per influence.": "Возьмите по 1 карте за каждое влияние.",
+  "Discard any number of cards. For each card discarded, gain 3 M€ and draw a card.": "Сбросьте любое число карт. За каждую сброшенную карту получите 3 M€ и возьмите карту.",
+  "Play 2 green cards": "Разыграйте 2 зелёные карты",
+  "${0} has no influence — no cards from ${1}": "${0}: влияния нет — ${1} не даёт карт",
+  "${0} draws ${1} card(s) from ${2}: 1 per point of influence, influence ${3}": "${0} берёт ${1} {карту|карты|карт} — ${2}: по 1 за каждое влияние, влияние ${3}",
+  "${0} used the action of ${1}": "${0} использует действие резолюции ${1}",
+  "${0} discarded ${1} card(s) for ${2}: gains ${3} M€ and draws ${4} card(s)": "${0} сбрасывает ${1} {карту|карты|карт} — ${2}: получает ${3} M€ и берёт ${4} {карту|карты|карт}",
+  "Discard any number of cards (Open IP Trade)": "Сбросьте любое число карт (Открытая торговля патентами)",
+  "Discard at least 1 card": "Сбросьте хотя бы 1 карту",
+  "This resolution action was already used this generation": "Действие этой резолюции в этом поколении уже использовано",
+  "Spend 2 M€ to gain 1 heat (Foundry Subsidy)": "Потратьте 2 M€ и получите 1 тепло (Литейная субсидия)",
+  "Sale": "Продажа"
 }

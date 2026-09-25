@@ -40,6 +40,9 @@ export class OrOptions extends OptionsInput<undefined> {
     if (this.partyActionPrompt !== undefined) {
       model.partyActionPrompt = this.partyActionPrompt;
     }
+    if (this.resolutionActionPrompt !== undefined) {
+      model.resolutionActionPrompt = this.resolutionActionPrompt;
+    }
     return model;
   }
 

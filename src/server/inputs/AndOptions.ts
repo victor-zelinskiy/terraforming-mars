@@ -22,6 +22,9 @@ export class AndOptions extends OptionsInput<undefined> {
     if (this.partyActionPrompt !== undefined) {
       model.partyActionPrompt = this.partyActionPrompt;
     }
+    if (this.resolutionActionPrompt !== undefined) {
+      model.resolutionActionPrompt = this.resolutionActionPrompt;
+    }
     // A DISTRIBUTION of a card resource over several cards (the shared
     // `AddResourcesToCards` step): the marker is the console's whole reading
     // of this `and` — the faces, the sum, the VP of every amount — and it must

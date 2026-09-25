@@ -51,6 +51,8 @@ import {METAL_RESEARCH} from './industrialists/MetalResearch';
 import {MIGRATION_FUNDING} from './marsFirst/MigrationFunding';
 import {MINING_INCENTIVES} from './industrialists/MiningIncentives';
 import {MOHOLE_CONTEST} from './greens/MoholeContest';
+import {OPEN_IP_TRADE} from './scientists/OpenIpTrade';
+import {runResolutionAction} from './ResolutionAction';
 import {SKYSCRAPERS} from './marsFirst/Skyscrapers';
 
 /**
@@ -351,11 +353,17 @@ const DEV_ACTION: ResolutionDefinition = {
   action: {
     usesPerGeneration: () => 1,
     canAct: (player) => player.canAfford(2) ? {available: true} : {available: false, reason: 'Not enough M€'},
-    execute: (player) => {
-      player.stock.deduct(Resource.MEGACREDITS, 2);
-      player.stock.add(Resource.HEAT, 1, {log: true, from: {resolution: DEV_ACTION_RESOLUTION_ID}});
-      return undefined;
-    },
+    // THE COMMIT CONTRACT (IResolution.ts): the prompt changes nothing; its
+    // answer is the commit, through the family's one funnel.
+    execute: (player, parliament, meta) => new SelectOption('Spend 2 M€ to gain 1 heat (Foundry Subsidy)', 'Perform')
+      .markResolutionActionPrompt(meta)
+      .andThen(() => {
+        runResolutionAction(player, parliament, DEV_ACTION_RESOLUTION_ID, () => {
+          player.stock.deduct(Resource.MEGACREDITS, 2);
+          player.stock.add(Resource.HEAT, 1, {log: true, from: {resolution: DEV_ACTION_RESOLUTION_ID}});
+        });
+        return undefined;
+      }),
     preview: () => [
       {direction: 'cost', icon: 'megacredits', amount: 2},
       {direction: 'gain', icon: 'heat', amount: 1},
@@ -508,6 +516,10 @@ export const REDUX_RESOLUTION_CATALOG = new ResolutionCatalog([
   // The first winner part that is a DIRECT STEP of a global parameter (the temperature, 2 steps) — REWARDED, unlike a
   // world move: the winner's TR, the track's bonuses, and the 0 °C ocean as its own placement inside the sitting.
   MOHOLE_CONTEST,
+  // The first REAL ACTION of a resolution (the dev example proved the seam): «discard any number of cards; 3 M€ and a
+  // card for each» — the party actions' twin in the action menu, the console's action workspace and the Parliament's
+  // government door; plus a draw by influence at the enactment through the shared intake.
+  OPEN_IP_TRADE,
   // The first recipients decided by a THRESHOLD (the winner + everyone with influence ≥ 2), and the first CITY STACK:
   // one city tile each, placed as a TIER on the seat's own city on Mars — the cell pays nothing again, every tier scores.
   SKYSCRAPERS,

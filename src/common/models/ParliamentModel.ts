@@ -158,9 +158,14 @@ export type VoteOptionModel = {
   projections: ReadonlyArray<VoteProjectionModel>;
 };
 
-export type PartyActionModel = {
-  id: PartyActionId;
-  party: ReduxParty;
+/**
+ * What EVERY action of the Mars Parliament tells its viewer — a party's action
+ * and the enacted resolution's action alike (Turmoil Redux): access, the uses
+ * left this generation, the server's verdict with its reason, the result
+ * chips. One shape, so the action menu's tile, the Parliament's plaque and
+ * the composer read a party and a resolution by the same fields.
+ */
+export type ParliamentActionModel = {
   hasAccess: boolean;
   usesLeft: number;
   usesPerGeneration: number;
@@ -168,6 +173,24 @@ export type PartyActionModel = {
   reason: string | Message;
   /** Server-computed result chips (`current → resulting` where known). */
   preview: ReadonlyArray<ActionEffect>;
+};
+
+export type PartyActionModel = ParliamentActionModel & {
+  id: PartyActionId;
+  party: ReduxParty;
+};
+
+/**
+ * THE ENACTED RESOLUTION'S ACTION for the viewer (Open IP Trade's «discard any
+ * number of cards; 3 M€ and a card for each») — the party action's twin, a
+ * member of the same family. `hasAccess`: the viewer participates and the
+ * enacted card has an action (a spectator, MarsBot and a table whose law has
+ * no action all read `false`). Present only while a resolution with an
+ * action stands enacted.
+ */
+export type ResolutionActionModel = ParliamentActionModel & {
+  resolution: ResolutionId;
+  party: ReduxParty;
 };
 
 export type ParliamentPhasePendingModel = {
@@ -415,5 +438,7 @@ export type ParliamentModel = {
   viewer?: {
     vote: VoteOptionModel;
     partyActions: ReadonlyArray<PartyActionModel>;
+    /** The enacted resolution's action — absent while no enacted law has one (see {@link ResolutionActionModel}). */
+    resolutionAction?: ResolutionActionModel;
   };
 };

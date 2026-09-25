@@ -3,7 +3,7 @@ import {Message} from '../common/logs/Message';
 import {PlayerInputType} from '../common/input/PlayerInputType';
 import {InputResponse} from '../common/inputs/InputResponse';
 import {IPlayer} from './IPlayer';
-import {PlayerInputModel, StartGamePromptMeta, BonusActionPromptMeta, AwardFundingPromptMeta, ChoiceContext, ColonyBonusCollectMeta, DeckPickPromptMeta, DiscardPromptMeta, DraftPromptMeta, FinalGreeneryPromptMeta, PlacementContext, ResourceGainPromptMeta, CardResourceDistributionMeta, VenusBonusPromptMeta, SpendHeatPromptMeta, VotePromptMeta, VotePaymentMeta, PartyActionPromptMeta, ParliamentPhaseMarker, ChairmanQuestPromptMeta} from '../common/models/PlayerInputModel';
+import {PlayerInputModel, StartGamePromptMeta, BonusActionPromptMeta, AwardFundingPromptMeta, ChoiceContext, ColonyBonusCollectMeta, DeckPickPromptMeta, DiscardPromptMeta, DraftPromptMeta, FinalGreeneryPromptMeta, PlacementContext, ResourceGainPromptMeta, CardResourceDistributionMeta, VenusBonusPromptMeta, SpendHeatPromptMeta, VotePromptMeta, VotePaymentMeta, PartyActionPromptMeta, ResolutionActionPromptMeta, ParliamentPhaseMarker, ChairmanQuestPromptMeta} from '../common/models/PlayerInputModel';
 import {BotAttackPromptMeta} from '../common/models/BotAttackPromptModel';
 import {ExternalDrawTakeMeta} from '../common/models/ExternalDrawPromptModel';
 import {DeltaBonusPromptMeta} from '../common/models/DeltaBonusPromptModel';
@@ -164,6 +164,7 @@ export abstract class BasePlayerInput<T> implements PlayerInput {
   public votePrompt: VotePromptMeta | undefined;
   public votePayment: VotePaymentMeta | undefined;
   public partyActionPrompt: PartyActionPromptMeta | undefined;
+  public resolutionActionPrompt: ResolutionActionPromptMeta | undefined;
   public parliamentPhasePrompt: ParliamentPhaseMarker | undefined;
   public chairmanQuestPrompt: ChairmanQuestPromptMeta | undefined;
   public cardResourceDistributionPrompt: CardResourceDistributionMeta | undefined;
@@ -368,6 +369,15 @@ export abstract class BasePlayerInput<T> implements PlayerInput {
    *  it. See {@link PartyActionPromptMeta}. */
   public markPartyActionPrompt(meta: PartyActionPromptMeta): this {
     this.partyActionPrompt = meta;
+    return this;
+  }
+
+  /** Mark this prompt as the ENACTED RESOLUTION'S ACTION (chainable): which
+   *  resolution, which stage of it. Built by the resolution's own `action.execute`
+   *  through `ParliamentHandler.resolutionActionOptions` — the party action's
+   *  twin. See {@link ResolutionActionPromptMeta}. */
+  public markResolutionActionPrompt(meta: ResolutionActionPromptMeta): this {
+    this.resolutionActionPrompt = meta;
     return this;
   }
 

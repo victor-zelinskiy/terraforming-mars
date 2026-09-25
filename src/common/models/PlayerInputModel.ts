@@ -325,6 +325,13 @@ export type DiscardPromptMeta = {
      * tag; the live header counts the picked cards' tags.
      */
     perTag?: ReadonlyArray<Tag>,
+    /**
+     * A SECOND payout IN CARDS, per card thrown (Open IP Trade's action —
+     * Turmoil Redux: «for each card discarded, gain 3 M€ AND draw a card»):
+     * how many cards come back for each one that goes. The live header prints
+     * it beside the `icon` payout («−3 → +9 M€ · +3 cards»).
+     */
+    draw?: number,
   };
   /**
    * Pluto's "draw 1, then discard 1" sequencing. Present ONLY on a colony-bonus
@@ -490,6 +497,27 @@ export type PartyActionPromptMeta = {
 }
 
 /**
+ * EXPLICIT marker that a prompt IS the ACTION OF THE ENACTED RESOLUTION
+ * (Turmoil Redux — Open IP Trade's «discard any number of cards; 3 M€ and a
+ * card for each»): the party action's twin (`PartyActionPromptMeta`), a member
+ * of the SAME family — the action menu nests it beside the party actions, the
+ * console lists it as a source of «Действия карт» beside them, and the
+ * Parliament's government is its second door. `stage` is the beat: `choose` —
+ * the ONE pre-commit pick hosted in the action workspace (nothing has changed
+ * yet; the answer is the commit). Serialized on the input's own `toModel`
+ * (nesting-safe), never centrally. The console finds the prompt BY THIS
+ * MARKER, never by its title.
+ */
+export type ResolutionActionPromptMeta = {
+  /** The enacted resolution whose action this is (its catalog id). */
+  resolution: string;
+  party: PartyName;
+  stage: 'choose';
+  usesLeft: number;
+  usesPerGeneration: number;
+}
+
+/**
  * EXPLICIT marker that a `SelectOption` is one of the two GATES of the Mars
  * Parliament's political phase (Turmoil Redux): `assembly` — every
  * participant confirms the verdict and the enactment BEFORE the enacted
@@ -611,6 +639,9 @@ export type BaseInputModel = {
   /** Explicit "this prompt is a Turmoil Redux PARTY ACTION" marker (see
    *  {@link PartyActionPromptMeta}). Serialized on the input's own `toModel`. */
   partyActionPrompt?: PartyActionPromptMeta;
+  /** Explicit "this prompt is the ENACTED RESOLUTION'S ACTION" marker (see
+   *  {@link ResolutionActionPromptMeta}). Serialized on the input's own `toModel`. */
+  resolutionActionPrompt?: ResolutionActionPromptMeta;
   /** Explicit "this SelectOption is a GATE of the political phase" marker (see
    *  {@link ParliamentPhasePromptMeta}). Serialized centrally in
    *  ServerModel.getWaitingFor: a gate is always the TOP-LEVEL prompt. */
