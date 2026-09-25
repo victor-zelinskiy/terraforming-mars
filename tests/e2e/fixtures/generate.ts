@@ -431,7 +431,8 @@ function write(name: string, game: IGame): void {
 // The dev loader opens the FIRST seat of the generation order: blue (p1) in
 // generation 1, the seat that opened generation 2 in a `done` fixture.
 
-type ParliamentTable = {game: IGame; p1: TestPlayer; p2: TestPlayer; parliament: Parliament};
+/** `seats` is EVERY seat in generation order; `p1` / `p2` are its first two, named for the two-seat tables most fixtures are. */
+type ParliamentTable = {game: IGame; p1: TestPlayer; p2: TestPlayer; seats: ReadonlyArray<TestPlayer>; parliament: Parliament};
 
 type ParliamentStop = 'vote' | 'assembly' | 'effects' | 'adjourn' | 'done';
 
@@ -439,12 +440,12 @@ type ParliamentFixtureSpec = {
   /** The contested card, seated in `slot` (0 by default — closest to the government). */
   resolution?: ResolutionId;
   slot?: number;
-  /** Lobby votes on the contested card, by seat (0 = blue, 1 = red). */
-  votes?: ReadonlyArray<0 | 1>;
-  /** The Agenda step per seat (blue, red); `undefined` leaves the start. */
-  agenda?: [number | undefined, number | undefined];
-  /** M€ per seat (blue, red); 40 / 30 unless said otherwise. */
-  megacredits?: [number, number];
+  /** Lobby votes on the contested card, by seat index (0 = blue, 1 = red, …). */
+  votes?: ReadonlyArray<number>;
+  /** The Agenda step per seat, in seat order; `undefined` leaves the start. */
+  agenda?: ReadonlyArray<number | undefined>;
+  /** M€ per seat, in seat order; 40 for the first, 30 for every other unless said otherwise. */
+  megacredits?: ReadonlyArray<number>;
   /** The rest of the table: tableau, production, the globals, other votes, a seat's pass. */
   arrange?: (table: ParliamentTable) => void;
   stopAt: ParliamentStop;
@@ -452,23 +453,26 @@ type ParliamentFixtureSpec = {
   expect?: (table: ParliamentTable) => void;
   /** The game's options beyond the Redux table (a VENUS game for a card that exists only with Venus Next). */
   options?: Partial<TestGameOptions>;
+  /** How many seats sit at the table (2 unless the fixture is ABOUT the number of seats). */
+  players?: number;
 };
 
-function reduxTable(name: string, options: Partial<TestGameOptions> = {}): ParliamentTable {
-  const [game, p1, p2] = testGame(2, {
+function reduxTable(name: string, options: Partial<TestGameOptions> = {}, count = 2): ParliamentTable {
+  const [game, ...seats] = testGame(count, {
     skipInitialCardSelection: false, coloniesExtension: true, turmoilReduxExpansion: true,
     startingCorporations: 1,
     ...options,
   });
+  const [p1, p2] = seats;
   if (!(p1.getWaitingFor() instanceof SelectInitialCards)) {
     throw new Error(`${name}: expected SelectInitialCards, got ${p1.getWaitingFor()?.constructor.name}`);
   }
-  answerStartFlow(game, [p1, p2]);
+  answerStartFlow(game, seats);
   const parliament = game.parliament;
   if (parliament === undefined || parliament.slots.length !== 3) {
     throw new Error(`the ${name} fixture has no voting area`);
   }
-  return {game, p1, p2, parliament};
+  return {game, p1, p2, seats, parliament};
 }
 
 /** A quiet cell for a placement the builder answers itself — no printed bonus, no neighbour — so a landing stays legible on screen. */
@@ -513,9 +517,8 @@ function answerEffects(game: IGame, name: string): void {
 }
 
 function parliamentFixture(name: string, spec: ParliamentFixtureSpec): ParliamentTable {
-  const table = reduxTable(name, spec.options);
-  const {game, p1, p2, parliament} = table;
-  const seats = [p1, p2] as const;
+  const table = reduxTable(name, spec.options, spec.players);
+  const {game, seats, parliament} = table;
   const slot = spec.slot ?? 0;
   if (spec.resolution !== undefined) {
     seatResolution(parliament, slot, spec.resolution);
@@ -528,9 +531,10 @@ function parliamentFixture(name: string, spec: ParliamentFixtureSpec): Parliamen
       parliament.agenda.set(seats[i].id, step);
     }
   });
-  const [blueMc, redMc] = spec.megacredits ?? [40, 30];
-  p1.megaCredits = blueMc;
-  p2.megaCredits = redMc;
+  const money = spec.megacredits ?? [40, 30];
+  seats.forEach((player, i) => {
+    player.megaCredits = money[i] ?? 30;
+  });
   spec.arrange?.(table);
   runAllActions(game);
   if (spec.stopAt !== 'vote') {
@@ -1376,6 +1380,39 @@ function budgetTable(stopAt: 'vote' | 'assembly'): ParliamentFixtureSpec {
 }
 parliamentFixture('parliament-budget-vote', budgetTable('vote'));
 parliamentFixture('parliament-budget-assembly', budgetTable('assembly'));
+// …and the SAME vote at a FULL table — SIX seats, the worst case of the LEDGER OF OUTCOMES (the row of
+// chips under the reading: six seats × two parts each, the levy netted into the first). Every seat is
+// genuinely different, so the row has something to compare: Agenda steps 4 · 1 · 6 · 2 · 8 · 3 and
+// production tracks from five steps down to none. One seat holds 4 M€ — less than the levy owes — so its
+// chip reads the honest shortfall's net, and the panel's own warning has a seat to speak for.
+parliamentFixture('parliament-budget-vote-six', {
+  ...budgetTable('vote'),
+  players: 6,
+  agenda: [4, 1, 6, 2, 8, 3],
+  megacredits: [40, 30, 25, 18, 12, 4],
+  arrange: ({seats}) => {
+    const [blue, , yellow, green, black] = seats;
+    blue.production.add(Resource.STEEL, 2);
+    blue.production.add(Resource.TITANIUM, 1);
+    blue.production.add(Resource.ENERGY, 2);
+    yellow.production.add(Resource.ENERGY, 3);
+    green.production.add(Resource.STEEL, 1);
+    black.production.add(Resource.TITANIUM, 2);
+    black.production.add(Resource.ENERGY, 1);
+  },
+  expect: ({seats, parliament}) => {
+    if (seats.length !== 6) {
+      throw new Error(`the parliament-budget-vote-six fixture expected six seats, got ${seats.length}`);
+    }
+    const steps = seats.map((player) => resolutionCount(player, 'steelTitaniumEnergyProduction').count);
+    if (new Set(steps).size < 4) {
+      throw new Error(`the six-seat budget fixture needs seats that read DIFFERENTLY, got steps ${steps.join(',')}`);
+    }
+    if (!parliament.slots.some((slot) => slot.instance.startsWith(INDUSTRIALIST_BUDGET_ID))) {
+      throw new Error('the six-seat budget fixture lost Industrialist Budget out of the voting area');
+    }
+  },
+});
 
 // ── RX17 · JOVIAN TAX RIGHTS (Unity — «titanium = influence; +1 M€ production per colony, max 5»): the SIXTH count —
 //    the seat's CUBES on the colony tiles, the engine's own list. Blue: Agenda 5 (influence 3 — a win takes the marker

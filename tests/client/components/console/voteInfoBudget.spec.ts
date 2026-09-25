@@ -12,9 +12,12 @@ import {influenceAtAgenda} from '@/common/parliament/ParliamentTypes';
 import {allResolutions, getPartyEffect} from '@/client/parliament/ClientParliamentManifest';
 import {ParliamentPartyVm, ParliamentSlotVm, voteForecastOf} from '@/client/console/parliament/consoleParliamentModel';
 import {
-  PARTY_MOMENT, SUFFIX_HINT, SUFFIX_IF_YOU_WIN, SUFFIX_STEP, READING_KICKER_SEATED, READING_KICKER_SPECTATOR, VOTE_INFO_LIMITS, VOTE_KICKER, voteFactsOf,
-  voteInfoBudget, voteInfoOf, VoteInfoVm,
+  PARTY_MOMENT, SUFFIX_HINT, SUFFIX_IF_YOU_WIN, SUFFIX_STEP, READING_KICKER_RIVAL, READING_KICKER_SEATED, READING_KICKER_SPECTATOR, suffixHintKey,
+  suffixWinKey, TextFn, VOTE_INFO_LIMITS, VOTE_KICKER, voteFactsOf, voteInfoBudget, voteInfoOf, VoteInfoVm,
 } from '@/client/console/parliament/voteInfoModel';
+import {levelPresentation} from '@/client/console/parliament/influenceYieldModel';
+import {colonyLedgerEmptyKey} from '@/client/console/parliament/colonyLedgerModel';
+import {tileGrantCaptionOf, tileGrantDetailOf} from '@/client/console/parliament/tileGrantModel';
 import ruParliament from '@/locales/ru/parliament.json';
 import ruConsole from '@/locales/ru/console.json';
 import ruUi from '@/locales/ru/ui.json';
@@ -108,7 +111,15 @@ function tableFor(resolution: IClientResolution, agenda: number, edge: boolean, 
   return {model, slot, party, projection};
 }
 
-function panelFor(resolution: IClientResolution, agenda: number, edge: boolean, winning: boolean, viewer: Color | undefined = BLUE): VoteInfoVm {
+/**
+ * The panel as it stands for a SUBJECT: the viewer's own reading by default,
+ * another seat's when `rival` is given. The vote half is the viewer's either
+ * way — that is the law the ceiling is held against.
+ */
+function panelFor(
+  resolution: IClientResolution, agenda: number, edge: boolean, winning: boolean,
+  viewer: Color | undefined = BLUE, rival?: {name: string},
+): VoteInfoVm {
   const {model, slot, party} = tableFor(resolution, agenda, edge, winning);
   const mineBefore = slot.viewerVotes;
   const facts = voteFactsOf({
@@ -116,44 +127,96 @@ function panelFor(resolution: IClientResolution, agenda: number, edge: boolean, 
     mineBefore, mineAfter: mineBefore + 1, nameOf: (c) => c,
   });
   return voteInfoOf({
-    slot, resolution, model, viewer, tableau: [], name: resolution.text.name, winning: false,
+    slot, resolution, model, subject: viewer, rival, tableau: [], name: resolution.text.name, winning: false,
     source: 'reserve', cost: 5, facts, numbers: {votesBefore: slot.totalVotes, votesAfter: slot.totalVotes + 1, mineBefore, mineAfter: mineBefore + 1},
   });
 }
 
 type Offence = string;
 
+/**
+ * THE SUBJECTS the panel is read for: the viewer's own reading, and ANOTHER
+ * SEAT's (the bumpers' side step). The ceiling is the SAME for both — a
+ * rival's name stands exactly where «вас» stood, so the third person may not
+ * cost the panel a single word more.
+ */
+const SUBJECTS: ReadonlyArray<{label: string, rival?: {name: string}}> = [
+  {label: ''},
+  {label: ', for another seat', rival: {name: 'Анна'}},
+];
+
 function offencesOf(resolution: IClientResolution, opts: {dealt: boolean}): Array<Offence> {
   const out: Array<Offence> = [];
   for (const [agenda, influence] of AGENDA_FOR_INFLUENCE) {
     for (const winning of [true, false]) {
       for (const edge of [true, false]) {
-        const vm = panelFor(resolution, agenda, edge, winning);
-        const b = voteInfoBudget(vm, ru);
-        const where = `${resolution.text.name} (${resolution.code ?? resolution.id}) @ influence ${influence}${winning ? ', winning' : ''}${edge ? ', on the edge' : ''}`;
-        if (opts.dealt ? b.readings !== VOTE_INFO_LIMITS.readings : b.readings > VOTE_INFO_LIMITS.readings) {
-          out.push(`${where}: readings ${b.readings} (must be ${opts.dealt ? '' : '≤ '}${VOTE_INFO_LIMITS.readings})`);
-        }
-        if (vm.reading.yields.some((y) => y.context === 'forecast')) {
-          out.push(`${where}: a forecast PLATE on the panel — the win's difference is a suffix`);
-        }
-        const factLimit = edge ? VOTE_INFO_LIMITS.factsOnEdge : VOTE_INFO_LIMITS.facts;
-        if (b.facts > factLimit) {
-          out.push(`${where}: facts ${b.facts} (≤ ${factLimit})`);
-        }
-        if (b.kickers > VOTE_INFO_LIMITS.kickers) {
-          out.push(`${where}: kickers ${b.kickers} (≤ ${VOTE_INFO_LIMITS.kickers})`);
-        }
-        if (b.words > VOTE_INFO_LIMITS.words) {
-          out.push(`${where}: words ${b.words} (≤ ${VOTE_INFO_LIMITS.words})`);
-        }
-        if (b.moment > VOTE_INFO_LIMITS.momentWords) {
-          out.push(`${where}: the party box's line of moment ${b.moment} words (≤ ${VOTE_INFO_LIMITS.momentWords})`);
+        for (const subject of SUBJECTS) {
+          const vm = panelFor(resolution, agenda, edge, winning, BLUE, subject.rival);
+          const b = voteInfoBudget(vm, ru);
+          const where = `${resolution.text.name} (${resolution.code ?? resolution.id}) @ influence ${influence}${winning ? ', winning' : ''}${edge ? ', on the edge' : ''}${subject.label}`;
+          if (opts.dealt ? b.readings !== VOTE_INFO_LIMITS.readings : b.readings > VOTE_INFO_LIMITS.readings) {
+            out.push(`${where}: readings ${b.readings} (must be ${opts.dealt ? '' : '≤ '}${VOTE_INFO_LIMITS.readings})`);
+          }
+          if (vm.reading.yields.some((y) => y.context === 'forecast')) {
+            out.push(`${where}: a forecast PLATE on the panel — the win's difference is a suffix`);
+          }
+          const factLimit = edge ? VOTE_INFO_LIMITS.factsOnEdge : VOTE_INFO_LIMITS.facts;
+          if (b.facts > factLimit) {
+            out.push(`${where}: facts ${b.facts} (≤ ${factLimit})`);
+          }
+          if (b.kickers > VOTE_INFO_LIMITS.kickers) {
+            out.push(`${where}: kickers ${b.kickers} (≤ ${VOTE_INFO_LIMITS.kickers})`);
+          }
+          if (b.words > VOTE_INFO_LIMITS.words) {
+            out.push(`${where}: words ${b.words} (≤ ${VOTE_INFO_LIMITS.words})`);
+          }
+          if (b.moment > VOTE_INFO_LIMITS.momentWords) {
+            out.push(`${where}: the party box's line of moment ${b.moment} words (≤ ${VOTE_INFO_LIMITS.momentWords})`);
+          }
+          // A reading about ANOTHER SEAT may not keep a second-person phrase anywhere: the subject is
+          // named once, by the kicker, and «вы»/«ваш» below it would be about the wrong player.
+          if (subject.rival !== undefined) {
+            const second = secondPersonIn(vm, ru);
+            if (second.length > 0) {
+              out.push(`${where}: a second-person phrase in a rival's reading — ${second.join(' · ')}`);
+            }
+          }
         }
       }
     }
   }
   return out;
+}
+
+/** Every RU line the panel prints for a reading, checked for the second person («вы», «ваш», «ваших», …). */
+function secondPersonIn(vm: VoteInfoVm, text: TextFn): Array<string> {
+  const lines: Array<string> = [text(vm.reading.kicker, vm.reading.subject === undefined ? undefined : ['Анна'])];
+  if (vm.reading.note !== undefined) {
+    lines.push(text(vm.reading.note));
+  }
+  for (const y of vm.reading.yields) {
+    const term = y.effect.level;
+    if (term !== undefined && y.total !== undefined) {
+      const words = levelPresentation(term, vm.reading.person);
+      lines.push(text(words.levelKey, [String(y.total.before)]), text(words.wordKey), text(words.noneKey));
+    }
+  }
+  if (vm.reading.suffixes.length > 0) {
+    lines.push(text(suffixWinKey(vm.reading.person)), text(suffixHintKey(vm.reading.person), ['3']));
+  }
+  if (vm.reading.ledger !== undefined) {
+    lines.push(text(colonyLedgerEmptyKey(vm.reading.person)));
+  }
+  const grant = vm.reading.grant;
+  if (grant !== undefined) {
+    for (const part of [tileGrantCaptionOf(grant, vm.reading.person), tileGrantDetailOf(grant, vm.reading.person)]) {
+      if (part !== undefined) {
+        lines.push(text(part.key, part.params === undefined ? undefined : [...part.params]));
+      }
+    }
+  }
+  // (no `` — JS word boundaries are ASCII-only and never fire beside a Cyrillic letter)
+  return lines.filter((line) => /(^|\s|«)(вы|ваш|ваша|ваше|ваши|ваших|вас|вам|вами)(\s|,|:|»|$)/i.test(line));
 }
 
 describe('voteInfoBudget — the vote panel never overloads again', () => {
@@ -175,7 +238,9 @@ describe('voteInfoBudget — the vote panel never overloads again', () => {
   });
 
   it('the words are counted in the language the player reads — every key the panel prints has its RU line', () => {
-    const keys = [READING_KICKER_SEATED, READING_KICKER_SPECTATOR, VOTE_KICKER, PARTY_MOMENT, SUFFIX_IF_YOU_WIN, SUFFIX_STEP, SUFFIX_HINT,
+    const keys = [READING_KICKER_SEATED, READING_KICKER_RIVAL, READING_KICKER_SPECTATOR, VOTE_KICKER, PARTY_MOMENT, SUFFIX_IF_YOU_WIN, SUFFIX_STEP, SUFFIX_HINT,
+      suffixWinKey('they'), suffixHintKey('they'), colonyLedgerEmptyKey('they'), '${0} theirs', 'Theirs at influence ${0} — win or not',
+      'Only if they win — influence ${0} is below ${1}', 'cities on Mars: ${0}',
       'from the lobby · free', 'from the reserve', 'Leader', 'Winning', 'Party effect', 'effect is yours', '${0} of ${1}', 'yes', 'no', 'you',
       'no leader yet', 'the neutral player', 'you (earlier delegate)', 'No card can hold animals', 'No card can hold this resource'];
     const missing = keys.filter((k) => RU[k] === undefined);

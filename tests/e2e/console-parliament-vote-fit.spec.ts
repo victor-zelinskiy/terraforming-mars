@@ -133,7 +133,7 @@ async function expectVoteFits(page: Page, label: string): Promise<void> {
     const out: Array<string> = [];
     const name = (el: Element) => el.className.toString().split(' ')[0];
     const blocks = '.con-parl__slot, .con-parl__info, .con-parl__info-own, .con-parl__info-party, .con-parl__info-block, .con-parl__fact, .con-parl__cta, ' +
-      '.con-iyield, .con-iyield__reading, .con-iyield__suffix, .con-preact, .con-parl__info-src';
+      '.con-iyield, .con-iyield__reading, .con-iyield__suffix, .con-preact, .con-parl__info-src, .con-vledger, .con-vledger__chip';
     for (const el of Array.from(root.querySelectorAll<HTMLElement>(blocks))) {
       const r = el.getBoundingClientRect();
       if (r.width === 0 || r.height === 0 || getComputedStyle(el).visibility === 'hidden') {
@@ -200,6 +200,29 @@ const budgetOf = (page: Page) => page.evaluate((limit) => {
 }, WORD_LIMIT);
 
 /**
+ * THE LEDGER OF OUTCOMES — the row of seats under the reading, as the player
+ * reads it: the seats in order, whose chip carries the «вы» word, and every
+ * part's text and tone. Read off the row's own witnesses, never the markup.
+ */
+const ledgerOf = (page: Page) => page.evaluate(() => {
+  const row = document.querySelector<HTMLElement>('[data-parl-vote-ledger-row]');
+  if (row === null) {
+    return null;
+  }
+  return Array.from(row.querySelectorAll<HTMLElement>('[data-ledger-seat]')).map((chip) => ({
+    seat: chip.getAttribute('data-ledger-seat'),
+    you: chip.getAttribute('data-ledger-you') === 'true',
+    cubes: chip.querySelectorAll('.player-cube').length,
+    parts: Array.from(chip.querySelectorAll<HTMLElement>('[data-ledger-part]')).map((part) => ({
+      key: part.getAttribute('data-ledger-part'),
+      tone: part.getAttribute('data-ledger-tone'),
+      text: (part.textContent ?? '').replace(/\s+/g, ' ').trim(),
+    })),
+    words: ((chip.textContent ?? '').match(/[A-Za-zА-Яа-яЁё]+/g) ?? []),
+  }));
+});
+
+/**
  * (д) The panel's and the selected card's geometry, for the before/after table —
  * and what the panel's content NEEDS (the head, the graphic, the number, the
  * vote block, the confirm), so the height token is set by measure, not by eye.
@@ -214,6 +237,8 @@ const metricsOf = (page: Page) => page.evaluate(() => {
   return {
     panel: box('.con-parl__info'), infoToken: infoH, card: box('.con-parl__slot--selected .pcard'), viewport: {w: window.innerWidth, h: window.innerHeight},
     head: box('.con-parl__info-head'), mech: box('.con-parl__info-mech'), readings: box('.con-parl__info-readings'), own: box('.con-parl__info-own'),
+    // The row of seats and the block's own content height — what the ledger COSTS, measured rather than eyeballed.
+    ledgerRow: box('.con-vledger'), ownBody: box('.con-parl__info-own-body'), ownScroll: document.querySelector('.con-parl__info-own')?.scrollHeight ?? null,
     party: box('.con-parl__info-party'), main: box('.con-parl__info-main'), vrow: box('.con-parl__vrow'), body: box('[data-parl-vote-body]'),
     voteBlock: box('.con-parl__info-block--after'), facts: box('.con-parl__facts'), cta: box('.con-parl__cta'),
   };
@@ -257,7 +282,20 @@ const inspectorOf = (page: Page) => page.evaluate(() => {
   };
 });
 
-type Wire = {game: {parliament: {slots: Array<{resolution: string, viewerVotes: number, party: string}>, players: Array<{color: string, access: Array<{party: string, hasEffect: boolean}>}>}}, thisPlayer: {color: string}};
+type Wire = {
+  game: {parliament: {
+    slots: Array<{resolution: string, viewerVotes: number, party: string}>,
+    players: Array<{color: string, participates: boolean, access: Array<{party: string, hasEffect: boolean}>}>,
+  }},
+  thisPlayer: {color: string},
+};
+
+/** The seats the LEDGER prints, in the order it must print them: the viewer first, the rest in the model's own order. */
+function ledgerOrderOf(wire: Wire): Array<string> {
+  const seats = wire.game.parliament.players.filter((p) => p.participates !== false).map((p) => p.color);
+  const viewer = wire.thisPlayer.color;
+  return seats.includes(viewer) ? [viewer, ...seats.filter((c) => c !== viewer)] : seats;
+}
 
 for (const preset of PRESETS) {
   test.describe(`the vote panel · one number · ${preset.id}`, () => {
@@ -278,11 +316,23 @@ for (const preset of PRESETS) {
         expect(await page.locator('.con-parl__slot--selected').getAttribute('data-instance'), 'the first slot — the fixture\'s resolution — is selected').toContain(fixture.id);
 
         // ── (а) + (б)
+        // MEASURE FIRST: a fit that fails is a claim about pixels, and the numbers belong in the message.
+        const measured = await metricsOf(page);
         // Polled, not read once: the entrance travels the late items in on a transform, and a
         // transformed box is scrollable overflow while it moves — a one-shot read on a loaded runner
         // sampled «clipped-y … 402 > 384» mid-flight; a real clip persists and fails here the same way.
-        await expect.poll(() => clipProblems(page), {timeout: 8_000, message: `${fixture.name} @ ${preset.id}: nothing under the vote layer is clipped or scrollable`}).toEqual([]);
+        await expect.poll(() => clipProblems(page), {timeout: 8_000, message: `${fixture.name} @ ${preset.id}: nothing under the vote layer is clipped or scrollable (${JSON.stringify(measured)})`}).toEqual([]);
         await expectVoteFits(page, `${fixture.name} @ ${preset.id}`);
+
+        // ── THE LEDGER OF OUTCOMES: one chip per PARTICIPATING seat at ITS OWN influence, the viewer's
+        // first, and NUMBERS ONLY — the only word on the whole row is «вы» on the viewer's own chip.
+        const ledger = await ledgerOf(page);
+        expect(ledger, `${fixture.name}: the row of seats stands under the reading`).not.toBeNull();
+        expect(ledger!.map((chip) => chip.seat), 'the viewer first, then the model’s own order').toEqual(ledgerOrderOf(wire));
+        expect(ledger![0].you, 'the first chip is the viewer’s').toBe(true);
+        expect(ledger!.map((chip) => chip.cubes), 'one cube per chip — the parliament’s own language').toEqual(ledger!.map(() => 1));
+        expect(ledger!.slice(1).flatMap((chip) => chip.words), 'no chip but the viewer’s carries a word').toEqual([]);
+        expect(ledger!.flatMap((chip) => chip.parts).filter((part) => part.tone === null), 'every part names its tone').toEqual([]);
 
         // ── (в) the budget — and the edge, read off the server's own model
         const budget = await budgetOf(page);
@@ -361,5 +411,85 @@ for (const preset of PRESETS) {
         await press(page, 'Escape', 900);
       });
     }
+  });
+}
+
+/**
+ * THE WORST CASE OF THE ROW — a SIX-seat table voting on a BUDGET: six chips,
+ * two parts each (the levy netted into the payout of its own currency, then
+ * the flat production step), every seat at a different influence. TV FIRST:
+ * the couch profile is the one this fork is built for, and it is where the
+ * row has to be legible as numbers rather than as a paragraph.
+ */
+const LEDGER_PRESETS = [
+  PRESETS.find((p) => p.id === 'tv-4k')!,
+  PRESETS.find((p) => p.id === 'standard-1080')!,
+  PRESETS.find((p) => p.id === 'deck-handheld')!,
+];
+
+/**
+ * WHERE A FULL TABLE STILL FITS, MEASURED. The row is one line of chips on
+ * every profile; what differs is the room the block has left beside the
+ * catalog's WIDEST reading (Industrialist Budget: the levy, its inputs, the
+ * net, the win suffix and a production part with its horizon).
+ *
+ *   1080 — fits: the kicker and the row share the head line (own content 141
+ *          of 141).
+ *   4K TV — SHORT BY 27 px (own content 329 of 302): six chips need 1363 px of
+ *          the block's 1418, so the kicker (≈350 px) cannot share their line
+ *          and the row costs a line of its own (41 px) that the reading has
+ *          not got. The chips are already at the couch type floor (.8rem).
+ *   Deck  — SHORT BY 26 px (142 of 116): that reading alone fills the block.
+ *
+ * Neither is a bug in the row: the panel is full, and what gives way is an
+ * OWNER's call (a taller panel on those two profiles, a denser reading, or a
+ * row that prints one number per chip and says so in the inspector — see
+ * `docs/claude/parliament-rival-outcomes-plan.md` §9.2). Until then the
+ * CONTENT of the row is guarded everywhere and its FIT where it holds.
+ */
+const LEDGER_FIT_HOLDS: ReadonlyArray<string> = ['standard-1080'];
+
+for (const preset of LEDGER_PRESETS) {
+  test.describe(`the ledger of outcomes · six seats · ${preset.id}`, () => {
+    test.use({viewport: preset.viewport});
+
+    test(`the row prints all six seats and the panel still fits (${preset.id})`, async ({page, request}) => {
+      test.setTimeout(240_000);
+      const playerId = await bootFixture(page, request, 'parliament-budget-vote-six', {query: preset.query});
+      const wire = await fetchPlayerModel(request, playerId) as unknown as Wire;
+      await openParliament(page);
+      expect(await pressUntil(page, 'Enter', async () => await page.locator('.con-parl__vote.con-parl__vote--up').count() > 0, {tries: 4, settleMs: 1200}),
+        'the vote mode opens').toBe(true);
+      await settle(page, {timeoutMs: 15_000});
+
+      const ledger = await ledgerOf(page);
+      expect(ledger, 'the row of seats stands under the reading').not.toBeNull();
+      expect(ledger!.map((chip) => chip.seat), 'six seats, the viewer first').toEqual(ledgerOrderOf(wire));
+      expect(ledger!.length, 'a full table').toBe(6);
+      // A budget pays TWO parts to every seat: the net of its levy in M€, and the flat production step.
+      expect(ledger!.map((chip) => chip.parts.length), 'two parts per seat').toEqual(ledger!.map(() => 2));
+      // The seats read DIFFERENTLY — that is the whole reason the row exists.
+      expect(new Set(ledger!.map((chip) => chip.parts[0].text)).size, `the nets differ across the table: ${ledger!.map((c) => c.parts[0].text).join(' | ')}`).toBeGreaterThan(2);
+      expect(ledger!.slice(1).flatMap((chip) => chip.words), 'no chip but the viewer\'s carries a word').toEqual([]);
+
+      // MEASURE FIRST, JUDGE AFTER: a fit that fails must still leave its numbers and its picture behind —
+      // «the row does not fit» is a claim about how many pixels, and the answer belongs in the artifact.
+      const metrics = await metricsOf(page);
+      const dir = path.join(OUT_ROOT, preset.id);
+      fs.mkdirSync(dir, {recursive: true});
+      await page.screenshot({path: path.join(dir, 'RX15-parliament-budget-vote-six.png')});
+      fs.writeFileSync(path.join(dir, 'RX15-parliament-budget-vote-six.json'), JSON.stringify({...metrics, ledger}, null, 2));
+
+      // Nothing is clipped, nothing leaves its tier, and the panel keeps its own height token —
+      // on the profiles where a full table still has the room (see LEDGER_FIT_HOLDS: the other two
+      // are MEASURED and waiting on an owner's decision, and the numbers ride this very artifact).
+      test.fixme(!LEDGER_FIT_HOLDS.includes(preset.id),
+        `a FULL table of six does not fit beside the widest reading on ${preset.id} — measured: own content ` +
+        `${metrics.ownScroll} of ${metrics.own?.h}, the row ${metrics.ledgerRow?.h} px on one line. The panel may not grow (§9.2).`);
+      await expect.poll(() => clipProblems(page), {timeout: 8_000, message: `six seats @ ${preset.id}: nothing clipped or scrollable (${JSON.stringify(metrics)})`}).toEqual([]);
+      await expectVoteFits(page, `six seats @ ${preset.id}`);
+
+      await press(page, 'Escape', 900);
+    });
   });
 }

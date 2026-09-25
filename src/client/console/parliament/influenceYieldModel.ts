@@ -33,6 +33,16 @@ import {LEVY_STEP_KEY, levyEstimate, levyNetEffectOf, levyRecorded, LevyReading,
 import {Tag} from '@/common/cards/Tag';
 import {CountedObjectGlyph} from '@/client/components/premiumCard/premiumCardIcons';
 import {getSpecialCellInfo} from '@/client/components/board/specialCellInfo';
+import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
+
+/**
+ * WHOSE reading a surface is drawing — the VIEWER's own («у вас 7», «если
+ * победите») or ANOTHER SEAT's («в запасе 7», «если победит»). One word
+ * threaded through every model that has a second-person phrase, so a reading
+ * about a rival can never keep a «вы» somewhere its author forgot to look.
+ * The subject itself is named ONCE, by the block's kicker — never twice.
+ */
+export type ReadingPerson = 'you' | 'they';
 
 /** The icon of the yield's unit — the same CSS families the chips use. */
 export type YieldIcon =
@@ -60,6 +70,36 @@ export function yieldIconOf(effect: InfluenceScaledEffect): YieldIcon {
 /** The normalized icon key of a card resource (`'Microbe'` → `'microbe'`, `'Hydroelectric resource'` → `'hydroelectric-resource'`). */
 export function cardResourceIconKey(resource: CardResource): string {
   return String(resource).toLowerCase().replace(/\s+/g, '-');
+}
+
+/**
+ * THE UNIT'S CSS CLASSES — one per kind, several for a unit of several kinds
+ * (Medical Database's «data or microbe», drawn as ONE unit joined by «or»).
+ * The ONE mapping every surface that draws a yield's unit reads: the reading
+ * block, the ledger of outcomes, anything that comes after — a second copy is
+ * how one of them starts drawing a different icon for the same effect.
+ */
+export function yieldIconClasses(icon: YieldIcon): Array<string> {
+  if (icon.family === 'card-resource') {
+    return icon.resources.map((resource) => iconClassFor(cardResourceIconKey(resource)));
+  }
+  return [yieldIconClass(icon)];
+}
+
+/** The ONE class of a unit of one kind (a total's icon, the first kind of a list). */
+export function yieldIconClass(icon: YieldIcon): string {
+  switch (icon.family) {
+  case 'card-resource':
+    // A total over several kinds is not a thing; the first kind names a list of one.
+    return iconClassFor(cardResourceIconKey(icon.resources[0]));
+  case 'resource':
+    return iconClassFor(icon.resource) + (icon.production ? ' con-iyield__unit--prod' : '');
+  case 'cards':
+    return iconClassFor('cards');
+  case 'colony':
+    // The colony TILE, the console's own sprite (the same asset the card faces print for a colony).
+    return 'con-iyield__unit--colony';
+  }
 }
 
 /** The effect's amount is a MULTIPLIER over the player's colony ledger (Colonial Affairs), not a count of a resource. */
@@ -418,6 +458,8 @@ export const LEVEL_MAX_KEY = 'max';
 export const LEVEL_IN_HAND_KEY = '${0} in hand';
 /** The seat's current level of a SUPPLY the cut reads («7 of yours»), with its number. */
 export const LEVEL_IN_SUPPLY_KEY = '${0} of yours';
+/** …and the same level of ANOTHER seat's supply — the reading's third person (the subject is named by the kicker). */
+export const LEVEL_IN_SUPPLY_THIRD_KEY = '${0} theirs';
 /** The result of a TOP-UP that pays nothing — the rule working, said calmly in the result's own slot. */
 export const LEVEL_NONE_KEY = 'no draw needed';
 /** The result of a CUT that takes nothing — the same calm slot, in the cut's own words. */
@@ -449,14 +491,15 @@ export type LevelPresentation = {
   noteKey?: string;
 };
 
-export function levelPresentation(term: InfluenceLevelTerm): LevelPresentation {
+export function levelPresentation(term: InfluenceLevelTerm, person: ReadingPerson = 'you'): LevelPresentation {
+  const supply = person === 'they' ? LEVEL_IN_SUPPLY_THIRD_KEY : LEVEL_IN_SUPPLY_KEY;
   // A CUT: the target is what the player KEEPS, so every word is about what LEAVES — never
   // «you will have 4», which answers a question nobody asked of a law that takes.
   if (term.direction === 'down') {
     if (term.total.kind === 'stock' && term.total.resource === Resource.PLANTS) {
       return {
         wordKey: LEVEL_MAX_KEY,
-        levelKey: LEVEL_IN_SUPPLY_KEY,
+        levelKey: supply,
         skipReasonKey: 'Plants already at or below the limit',
         ruleKey: 'The plants are counted at the sitting, after the production phase. Everything above the limit is taken; a player at or below it loses nothing, and no card protects against this.',
         noneKey: LEVEL_NONE_LOSS_KEY,
@@ -465,7 +508,7 @@ export function levelPresentation(term: InfluenceLevelTerm): LevelPresentation {
     }
     return {
       wordKey: LEVEL_MAX_KEY,
-      levelKey: LEVEL_IN_SUPPLY_KEY,
+      levelKey: supply,
       skipReasonKey: 'Already at or below the limit',
       ruleKey: 'The current value is read at the sitting; everything above the limit is taken.',
       noneKey: LEVEL_NONE_LOSS_KEY,
@@ -483,7 +526,7 @@ export function levelPresentation(term: InfluenceLevelTerm): LevelPresentation {
   }
   return {
     wordKey: LEVEL_UP_TO_KEY,
-    levelKey: LEVEL_IN_SUPPLY_KEY,
+    levelKey: supply,
     skipReasonKey: 'Nothing is owed',
     ruleKey: 'The current value is read at the sitting; only the difference to the target is paid.',
     noneKey: LEVEL_NONE_KEY,

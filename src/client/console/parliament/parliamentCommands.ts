@@ -33,6 +33,13 @@ export type ParliamentCommandsInput = {
    * whole flow: it is past the commit and there is no level to go back to.
    */
   quest?: {done: boolean};
+  /**
+   * THE VOTE MODE'S ROW OF SEATS has somebody else on it — LB/RB then move the
+   * SUBJECT of the reading along it («ИГРОКИ», the console's own word for that
+   * jump everywhere else). A table of one seat advertises nothing: the bar
+   * never offers a verb that would do nothing.
+   */
+  voteSubjects?: number;
 };
 
 /** The law's verb: advertised whenever an enacted resolution has an action — lit only when it can be taken now. */
@@ -96,8 +103,17 @@ export function parliamentCommandsOf(input: ParliamentCommandsInput): Array<Cons
   switch (parliamentFlow.stage) {
   case 'browse':
     return browseCommands(input, back);
-  case 'vote':
-    return [{control: 'confirm', label: 'Send the delegate', enabled: input.canVoteNow, highlight: input.canVoteNow}, {control: 'secondary', label: 'Inspect'}, back];
+  case 'vote': {
+    const cmds: Array<ConsoleCommand> = [
+      {control: 'confirm', label: 'Send the delegate', enabled: input.canVoteNow, highlight: input.canVoteNow},
+      {control: 'secondary', label: 'Inspect'},
+    ];
+    if ((input.voteSubjects ?? 0) > 1) {
+      cmds.push({control: 'bumperL', control2: 'bumperR', label: 'Players'});
+    }
+    cmds.push(back);
+    return cmds;
+  }
   case 'seat':
     return [{control: 'confirm', label: 'Take the delegate', highlight: true}, {control: 'secondary', label: 'Inspect'}, {control: 'back', label: 'Minimize'}];
   case 'sitting': {

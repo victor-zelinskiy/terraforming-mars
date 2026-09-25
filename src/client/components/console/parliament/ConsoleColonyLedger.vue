@@ -104,7 +104,8 @@
 import {defineComponent, PropType} from 'vue';
 import ConsoleInfluenceYield from '@/client/components/console/parliament/ConsoleInfluenceYield.vue';
 import {ColonyLedgerBonus, ColonyLedgerRow} from '@/common/parliament/colonyLedger';
-import {COLONY_LEDGER_EMPTY, COLONY_LEDGER_TOTAL, ColonyLedgerReading} from '@/client/console/parliament/colonyLedgerModel';
+import {colonyLedgerEmptyKey, COLONY_LEDGER_TOTAL, ColonyLedgerReading} from '@/client/console/parliament/colonyLedgerModel';
+import {ReadingPerson} from '@/client/console/parliament/influenceYieldModel';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {cardResourceKey} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {translateText} from '@/client/directives/i18n';
@@ -122,6 +123,8 @@ export default defineComponent({
     size: {type: String as PropType<'compact' | 'normal' | 'hero'>, default: 'normal'},
     /** An i18n key over the block (the stage prints none — the band is its kicker). */
     kicker: {type: String as PropType<string | undefined>, default: undefined},
+    /** WHOSE ledger this is — the viewer's own, or another seat's (its one second-person phrase follows). */
+    person: {type: String as PropType<ReadingPerson>, default: 'you'},
     /** The row whose wave is in the air right now (the stage marks exactly one). */
     activeColony: {type: String as PropType<string | undefined>, default: undefined},
     /**
@@ -132,7 +135,7 @@ export default defineComponent({
   },
   computed: {
     emptyKey(): string {
-      return COLONY_LEDGER_EMPTY;
+      return colonyLedgerEmptyKey(this.person);
     },
     totalKey(): string {
       return COLONY_LEDGER_TOTAL;

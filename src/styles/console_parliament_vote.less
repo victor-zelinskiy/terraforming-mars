@@ -174,6 +174,31 @@
         overflow: hidden;
         .con-parl__info-kicker { color: @con-cyan; opacity: .95; }
     }
+    /* ANOTHER SEAT'S READING — the block drops the «mine» register outright (cyan means «my number,
+       before the commit» everywhere in this console, and a rival's number wearing it is the one
+       mistake this whole surface exists to prevent). A quiet neutral frame, and the subject named by
+       its CUBE and its name in the kicker — never by the colour of the box. */
+    &__info-own--rival {
+        background: rgba(255, 255, 255, 0.035);
+        box-shadow: inset 0 0 0 .06rem rgba(255, 255, 255, 0.22);
+        .con-parl__info-kicker { color: fade(@con-text, 86%); opacity: 1; }
+    }
+    /* The kicker's own line: the words, the subject's cube, its NAME. The name is a display string of
+       unknown length — it gets its own inline box with the ellipsis, because text-overflow never
+       paints on a flex box itself. */
+    &__info-kicker { display: inline-flex; align-items: center; gap: .26rem; min-width: 0; max-width: 100%; }
+    &__info-kicker-cube { flex-shrink: 0; }
+    &__info-kicker-name {
+        display: inline-block;
+        max-width: 11rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        vertical-align: bottom;
+        font-weight: 700;
+        letter-spacing: .08em;
+        color: fade(@con-text, 96%);
+    }
     &__info-own-body { flex: 1 1 auto; min-height: 0; min-width: 0; display: flex; align-items: center; gap: .9rem; }
     /* THE READING ROW: the reading (grows) and, at its right, THE PARTY BOX — the card's party as a
        graphic: its emblem inside its printed formula and one quiet line of moment. The row takes the
@@ -223,6 +248,27 @@
     }
     &__info-yield { max-width: 100%; }
     &__info-reaction { max-width: 100%; }
+    /* THE HEAD LINE of the reading block: the kicker at its left, the LEDGER OF OUTCOMES at its right.
+       They share a line because that is the only room the block has (see the component) — and when they
+       cannot, the row wraps underneath on its own, left-aligned, by flex alone. */
+    &__info-own-head {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: .12rem .6rem;
+        min-width: 0;
+        flex-shrink: 0;
+    }
+    &__info-ledger-row { flex: 0 1 auto; min-width: 0; }
+    /* A DENSE BLOCK GIVES THE WIDTH TO THE NUMBERS — the Deck's trade (below), applied wherever the
+       block carries MORE THAN ONE reading: the formula graphic steps aside and the card right above
+       the panel prints the very same graphic, larger. Measured at 1080 with the row of seats standing:
+       a one-reading block is 77–84 px of graphic against 59 px of readings and has room to spare, while
+       Climate's two-link chain with both «если победит» suffixes wrapped to 106 px in the 692 px left
+       beside the graphic and overran the block by 7 px («clipped-y con-parl__info-own 148 > 141»).
+       Without the graphic the same two plates have 880 px and fit. */
+    &__info-own--dense .con-parl__info-mech { display: none; }
     /* THE VOTE — the source line over the facts. */
     &__info-block {
         display: flex;
@@ -322,6 +368,14 @@ html.con-profile-handheld .con-parl {
     &__info-party-formula { --con-pformula-zoom: calc(0.52 * var(--con-ui-scale, 1)); }
     &__info-party-when { font-size: .5rem; white-space: normal; text-align: center; line-height: 1.15; }
     &__info-readings { column-gap: .35rem; row-gap: .15rem; }
+    /* HANDHELD — THE GRAPHIC STEPS ASIDE FOR THE LEDGER. The Deck's info block has no vertical
+       slack at all (the readings already stand taller than the formula graphic), so the row of
+       seats takes the graphic's place: the card right above the panel prints the very same
+       graphic, larger — the same trade the one-number panel already makes here. */
+    /* (the second half is written out: a second `&` inside a nested block repeats the WHOLE parent
+       selector — `html.con-profile-handheld .con-parl__… html.con-profile-handheld .con-parl__…` — and
+       matches nothing.) */
+    &__info-own--ledger .con-parl__info-mech { display: none; }
     &__info-block { gap: .12rem; padding: .18rem .4rem .2rem; }
     &__info-kicker { font-size: .5rem; }
     &__facts { gap: .1rem; }
@@ -382,4 +436,113 @@ html.con-profile-handheld .con-parl__info-own--yields {
     .con-iyield__plus { margin: 0; }
     .con-iyield__arrow { font-size: .85rem; }
     .con-iyield__max { font-size: .42rem; padding: .1rem .2rem .08rem; margin-left: .1rem; }
+}
+
+/* ══ THE LEDGER OF OUTCOMES (`ConsoleVoteLedger`) — the vote panel's row of SEATS.
+   One chip per participating seat: its cube and what the selected card pays IT at
+   ITS own influence. The row is NUMBERS — the answer to «кому выгоднее» in zero
+   presses — never a second reading: no kicker, no captions, no «если победит», and
+   the only word on it is «вы» on the viewer's own chip, which stands first. ══ */
+.con-vledger {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .2rem .34rem;
+    min-width: 0;
+    max-width: 100%;
+    font-family: @con-font-read;
+    line-height: 1;
+
+    &__chip {
+        display: inline-flex;
+        align-items: center;
+        gap: .2rem;
+        min-width: 0;
+        padding: .1rem .34rem .12rem .26rem;
+        border-radius: .35rem;
+        background: rgba(255, 255, 255, 0.035);
+        box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.08);
+        white-space: nowrap;
+        /* THE VIEWER'S OWN chip carries the panel's «mine» register (the reading block's cyan),
+           so a rival's chip can never be read as the player's own. */
+        &--you { background: fade(@con-cyan, 9%); box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 45%); }
+    }
+    &__you { font-size: .48rem; letter-spacing: .12em; text-transform: uppercase; font-weight: 700; color: fade(@con-cyan, 92%); }
+    /* A seat this card pays nothing at all: a dash, never a bare cube (which reads as «unknown»). */
+    &__none { font-size: .72rem; color: fade(@con-text, 45%); }
+    &__part {
+        display: inline-flex;
+        align-items: center;
+        gap: .08rem;
+        /* The tones are the readings' own, word for word: mint arrives, amber leaves, a STRUCK
+           amber is computed-and-forfeited, gold is the winner's alone, a real zero is quiet. */
+        b { font-size: .76rem; font-weight: 700; font-variant-numeric: tabular-nums; color: fade(@con-text, 92%); }
+        &--gain b { color: fade(@con-parl-mint, 96%); }
+        &--loss b { color: fade(@con-amber, 96%); }
+        &--lost b { color: fade(@con-amber, 94%); text-decoration: line-through; text-decoration-thickness: .07rem; }
+        &--quiet { opacity: .55; }
+        &--winner b { color: fade(@con-parl-gold, 94%); }
+        &--winner::before {
+            content: '';
+            display: inline-block;
+            width: .6rem;
+            height: .6rem;
+            margin-right: .04rem;
+            background: url(./assets/misc/vote-winner.svg) center / contain no-repeat;
+        }
+        /* The unit rides a step UNDER the digit: the row is read as numbers, and a full-size sprite beside
+           every one of them is what turned six seats into three wrapped lines (measured at 4K: a chip of
+           330 px, four to a line of 1418 — «clipped-y con-parl__info-own 373 > 302»). */
+        .con-iyield__unit { width: .8rem; height: .8rem; }
+    }
+    &__tile {
+        display: inline-block;
+        width: .95rem;
+        height: .95rem;
+        flex-shrink: 0;
+        background: url(./assets/tiles/city.png) center / contain no-repeat;
+    }
+}
+
+/* ── the HANDHELD ladder: the row stands where the formula graphic did (see `&__info-own--ledger`),
+   so it has the graphic's width and can afford two lines of chips at the profile's caps size. ── */
+html.con-profile-handheld .con-vledger {
+    gap: .12rem .2rem;
+    &__chip { gap: .12rem; padding: .04rem .22rem .06rem .18rem; }
+    &__you { font-size: .42rem; }
+    &__part {
+        b { font-size: .62rem; }
+        .con-iyield__unit { width: .66rem; height: .66rem; }
+        &--winner::before { width: .5rem; height: .5rem; }
+    }
+    &__tile { width: .72rem; height: .72rem; }
+}
+
+/* ── the TV ladder: read from the couch — the numbers carry it, so they take the .8rem floor's step. ── */
+/* ── the TV ladder. The couch type floor is .8rem and the numbers sit ON it: a full table of six seats
+   has to stand on ONE line of the 1418 px the block gives it (measured — at 1.05rem digits beside
+   1.15rem sprites a chip was 330 px and four of them filled the line, wrapping the rest out of a panel
+   that may not grow), and a number read from a sofa is carried by weight and tracking, not by size. ── */
+html.con-profile-tv .con-vledger {
+    gap: .18rem .3rem;
+    &__chip { gap: .16rem; padding: .08rem .3rem .1rem .22rem; }
+    &__you { font-size: .68rem; }
+    &__part {
+        b { font-size: .8rem; }
+        .con-iyield__unit { width: .85rem; height: .85rem; }
+        &--winner::before { width: .7rem; height: .7rem; }
+    }
+    &__tile { width: .95rem; height: .95rem; }
+}
+
+/* ── THE SUBJECT'S CHIP — whose reading stands in the block above. The row and the block can never say
+   two different things about that, so the cursor lives on the very chip the reading is about. ── */
+.con-vledger__chip--subject {
+    background: rgba(255, 255, 255, 0.075);
+    box-shadow: inset 0 0 0 .07rem rgba(255, 255, 255, 0.5);
+}
+/* The viewer's own chip keeps the «mine» register even while it is the cursor. */
+.con-vledger__chip--you.con-vledger__chip--subject {
+    background: fade(@con-cyan, 12%);
+    box-shadow: inset 0 0 0 .07rem fade(@con-cyan, 70%);
 }

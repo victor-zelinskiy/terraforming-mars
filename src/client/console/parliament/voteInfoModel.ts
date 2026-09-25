@@ -35,10 +35,10 @@ import {ReduxParty} from '@/common/parliament/ParliamentTypes';
 import {ParliamentPartyVm, ParliamentSlotVm, voteAccessOf, VoteForecastVm} from './consoleParliamentModel';
 import {
   levelLossNoteOf, levelPresentation, levelYieldIsNone, noRecipientCompactNoteOf, oneNumberYieldsOf, PRODUCTION_HORIZON_KEY,
-  productionHorizonOn, voteLevyOf, voteYieldsOf, WinSuffix, winSuffixesOf,
+  productionHorizonOn, ReadingPerson, voteLevyOf, voteYieldsOf, WinSuffix, winSuffixesOf,
 } from './influenceYieldModel';
 import {LevyReading, levyShortNoteKey} from '@/common/parliament/resolutionLevy';
-import {COLONY_LEDGER_EMPTY, COLONY_LEDGER_TOTAL, ColonyLedgerReading, colonyLedgerOf} from './colonyLedgerModel';
+import {colonyLedgerEmptyKey, COLONY_LEDGER_TOTAL, ColonyLedgerReading, colonyLedgerOf} from './colonyLedgerModel';
 import {PartyReactionReading, partyReactionsOf, viewerHasSeat} from './partyReactionModel';
 import {quietRewardPoseOf} from './quietRewardPose';
 import {TileGrantReading, tileGrantCaptionOf, tileGrantDetailOf, tileGrantLabelKey, tileGrantReadingOf} from './tileGrantModel';
@@ -50,19 +50,47 @@ import {TileGrantReading, tileGrantCaptionOf, tileGrantDetailOf, tileGrantLabelK
  * words the sitting's REWARD stage prints later: the graphic under it is the effect, not a payout.
  */
 export const READING_KICKER_SEATED = 'For you when enacted';
+/**
+ * …and the kicker of ANOTHER SEAT's reading: the subject is named ONCE, here,
+ * by its cube and its display name («ДЛЯ ▮ АННА ПРИ ПРИНЯТИИ»). Everything
+ * below speaks in the third person and repeats no name — one panel, one
+ * reading, one subject.
+ */
+export const READING_KICKER_RIVAL = 'For ${0} when enacted';
 export const READING_KICKER_SPECTATOR = 'When enacted';
+/** «ВАШ ГОЛОС» is the VIEWER's, at every subject: A always sends the viewer's own delegate. */
 export const VOTE_KICKER = 'Your vote';
 /** The party box's one line of moment (the graphic beside the reading — not a kicker, not a reading). */
 export const PARTY_MOMENT = 'party effect · to every player when enacted';
 /** …and of the suffix's words. */
 export const SUFFIX_IF_YOU_WIN = 'if you win';
+/** The same suffix about ANOTHER seat (the subject is the kicker's, never the suffix's). */
+export const SUFFIX_IF_THEY_WIN = 'if they win';
 export const SUFFIX_STEP = 'step';
 export const SUFFIX_HINT = 'If you win, your Agenda marker moves to step ${0} first. The effect uses that influence.';
+export const SUFFIX_HINT_THEIRS = 'If they win, the Agenda marker moves to step ${0} first. The effect uses that influence.';
+
+/** The suffix's words for a reading of `person` — one place, so the panel and the inspector cannot drift. */
+export function suffixWinKey(person: ReadingPerson): string {
+  return person === 'they' ? SUFFIX_IF_THEY_WIN : SUFFIX_IF_YOU_WIN;
+}
+
+export function suffixHintKey(person: ReadingPerson): string {
+  return person === 'they' ? SUFFIX_HINT_THEIRS : SUFFIX_HINT;
+}
 
 /** «For you when enacted» — the panel's ONE reading. */
 export type VoteReadingVm = {
   /** English i18n key over the block: personal for a seat, plain for a spectator / a card that scales nothing. */
   kicker: string;
+  /**
+   * WHOSE reading this is. `you` — the viewer's own (the panel's «mine»
+   * register: the cyan frame, «у вас 7», «если победите»); `they` — another
+   * seat's, named by `subject` and spoken of in the third person throughout.
+   */
+  person: ReadingPerson;
+  /** The SUBJECT when it is not the viewer: its cube and its display name (a raw string, never a key). */
+  subject?: {color: Color, name: string};
   /** ONE reading per scaled effect — the estimate; never a forecast plate. Empty for a spectator or a card that scales nothing. */
   yields: ReadonlyArray<InfluenceYield>;
   /** What the win adds, per effect whose number it raises — a suffix of the reading above, never a reading. */
@@ -149,13 +177,33 @@ export type VoteInfoVm = {
 export function voteReadingOf(
   resolution: IClientResolution | undefined,
   model: ParliamentModel | undefined,
-  viewer: Color | undefined,
+  /**
+   * THE SUBJECT — whose outcome this reading is about. The functions below take
+   * a COLOUR and have never known which of them is «me»: that is `rival`'s job.
+   */
+  subject: Color | undefined,
   tableau: ReadonlyArray<{name: CardName}>,
+  /**
+   * Present when the subject is NOT the viewer. The reading then speaks in the
+   * third person throughout — one flag, so no phrase can be left in the second
+   * person by omission. `name` is the subject's display name FOR THE KICKER,
+   * and only where this block is the one that names it: inside a surface that
+   * already says whose standing it shows (the Information zone's «ИНФОРМАЦИЯ ›
+   * Анна › ПАРЛАМЕНТ») the name is omitted and the kicker stays plain — a
+   * subject named twice is the same noise as a subject named nowhere.
+   */
+  rival?: {name?: string},
 ): VoteReadingVm {
-  const none: VoteReadingVm = {kicker: READING_KICKER_SPECTATOR, yields: [], suffixes: [], reactions: [], note: undefined};
-  if (resolution === undefined || !viewerHasSeat(model, viewer)) {
+  const person: ReadingPerson = rival === undefined ? 'you' : 'they';
+  const none: VoteReadingVm = {kicker: READING_KICKER_SPECTATOR, person, yields: [], suffixes: [], reactions: [], note: undefined};
+  if (resolution === undefined || !viewerHasSeat(model, subject)) {
     return none;
   }
+  const viewer = subject;
+  const named: VoteReadingVm = rival?.name === undefined || rival.name === '' || subject === undefined ?
+    {...none, kicker: READING_KICKER_SPECTATOR} :
+    {...none, kicker: READING_KICKER_RIVAL, subject: {color: subject, name: rival.name}};
+  const seated = rival === undefined ? {...none, kicker: READING_KICKER_SEATED} : named;
   const all = voteYieldsOf(resolution, model, viewer);
   const yields = oneNumberYieldsOf(all).filter((y) => y.context !== 'reference');
   const grantReading = tileGrantReadingOf(resolution, model, viewer);
@@ -163,7 +211,7 @@ export function voteReadingOf(
   if (yields.length === 0) {
     // A tile granted by threshold pays no number, but it is the seat's OWN reading all the same.
     if (grant !== undefined) {
-      return {...none, kicker: READING_KICKER_SEATED, grant};
+      return {...seated, grant};
     }
     // Nothing to pay at the enactment: a passive / an action reads under the quiet reward's kicker
     // (what the card gives while enacted); a card with neither keeps the spectator's plain heading.
@@ -186,7 +234,7 @@ export function voteReadingOf(
   // A seat at or below the limit is told nothing: there is no warning to give.
   note = note ?? levelLossNoteOf(yields);
   return {
-    kicker: READING_KICKER_SEATED,
+    ...seated,
     yields,
     suffixes: winSuffixesOf(all),
     // The answer follows the number the panel SHOWS — the estimate, never the folded forecast.
@@ -299,7 +347,15 @@ export type VoteInfoInput = {
   slot: ParliamentSlotVm;
   resolution: IClientResolution | undefined;
   model: ParliamentModel | undefined;
-  viewer: Color | undefined;
+  /**
+   * WHOSE outcome the reading is about — the viewer unless the player moved
+   * the subject along the row of seats. The VOTE half of the panel is never
+   * about anybody but the viewer, at any subject.
+   */
+  subject: Color | undefined;
+  /** Present when the subject is not the viewer: its display name (the kicker's). */
+  rival?: {name: string};
+  /** The SUBJECT's public tableau — the holder law is read for the seat the reading is about. */
   tableau: ReadonlyArray<{name: CardName}>;
   /** The resolution's name (English key) and the winning flag as the mode shows them. */
   name: string;
@@ -316,7 +372,7 @@ export function voteInfoOf(input: VoteInfoInput): VoteInfoVm {
     name: input.name,
     party: input.slot.party,
     winning: input.winning,
-    reading: voteReadingOf(input.resolution, input.model, input.viewer, input.tableau),
+    reading: voteReadingOf(input.resolution, input.model, input.subject, input.tableau, input.rival),
     vote: {
       kicker: VOTE_KICKER,
       source: input.source,
@@ -356,6 +412,9 @@ export const VOTE_INFO_LIMITS = {kickers: 3, readings: 1, facts: 2, factsOnEdge:
 
 const IDENTITY: TextFn = (key, params) => (params ?? []).reduce<string>((acc, p, i) => acc.split('${' + i + '}').join(p), key);
 
+/** The ONE word a subject's display name is worth to the budget (it stands exactly where «вас» stood). */
+const NAME_TOKEN = 'N';
+
 /** Words in a rendered string — runs of letters (a digit, an icon or a glyph is not a word). */
 export function countWords(rendered: string): number {
   return (rendered.match(/[A-Za-zА-Яа-яЁё][A-Za-zА-Яа-яЁё'’-]*/g) ?? []).length;
@@ -367,9 +426,13 @@ export function countWords(rendered: string): number {
  * reads; without one the English keys are counted.
  */
 export function voteInfoBudget(vm: VoteInfoVm, text: TextFn = IDENTITY): VoteInfoBudget {
-  const strings: Array<string> = [text(vm.reading.kicker)];
+  const person = vm.reading.person;
+  // THE SUBJECT'S NAME IS NOT PANEL COPY. «ДЛЯ ▮ АННА ПРИ ПРИНЯТИИ» costs exactly what «ДЛЯ ВАС ПРИ
+  // ПРИНЯТИИ» costs — the name stands where «вас» stood — so the ceiling is held against ONE token
+  // and a two-word display name cannot fail the whole catalog for a seat that happens to be at the table.
+  const strings: Array<string> = [text(vm.reading.kicker, vm.reading.subject === undefined ? undefined : [NAME_TOKEN])];
   for (const suffix of vm.reading.suffixes) {
-    strings.push(text(SUFFIX_IF_YOU_WIN));
+    strings.push(text(suffixWinKey(person)));
     if (suffix.agendaStep !== undefined) {
       strings.push(text(SUFFIX_STEP));
     }
@@ -399,7 +462,7 @@ export function voteInfoBudget(vm: VoteInfoVm, text: TextFn = IDENTITY): VoteInf
     if (term === undefined || y.target === undefined || y.total === undefined) {
       continue;
     }
-    const words = levelPresentation(term);
+    const words = levelPresentation(term, person);
     strings.push(text(words.wordKey), text(words.levelKey, [String(y.total.before)]));
     if (levelYieldIsNone(y)) {
       strings.push(text(words.noneKey));
@@ -410,7 +473,7 @@ export function voteInfoBudget(vm: VoteInfoVm, text: TextFn = IDENTITY): VoteInf
   const ledger = vm.reading.ledger;
   if (ledger !== undefined) {
     if (ledger.empty) {
-      strings.push(text(COLONY_LEDGER_EMPTY));
+      strings.push(text(colonyLedgerEmptyKey(person)));
     } else {
       strings.push(...ledger.rows.map((row) => text(row.colony)), text(COLONY_LEDGER_TOTAL));
     }
@@ -420,11 +483,11 @@ export function voteInfoBudget(vm: VoteInfoVm, text: TextFn = IDENTITY): VoteInf
   const grant = vm.reading.grant;
   if (grant !== undefined) {
     strings.push(text(tileGrantLabelKey(grant.grant)));
-    const caption = tileGrantCaptionOf(grant);
+    const caption = tileGrantCaptionOf(grant, person);
     if (caption !== undefined) {
       strings.push(text(caption.key, caption.params === undefined ? undefined : [...caption.params]));
     }
-    const detail = tileGrantDetailOf(grant);
+    const detail = tileGrantDetailOf(grant, person);
     if (detail !== undefined) {
       strings.push(text(detail.key, detail.params === undefined ? undefined : [...detail.params]));
     }

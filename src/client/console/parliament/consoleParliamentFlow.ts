@@ -149,6 +149,15 @@ function freshFlow() {
     voteEntering: false,
     /** The vote mode is folding back — its layer stays visible for the phrase. */
     voteLeaving: false,
+    /**
+     * WHOSE outcome the vote panel's big reading is about — the SUBJECT, moved
+     * by the bumpers along the row of seats (undefined = the viewer's own).
+     * It is a READING, never a decision: A always sends the VIEWER's delegate
+     * to the SELECTED card, whatever the subject is. It survives ◀ ▶ (the
+     * player compares what one seat gets on each of the three proposals) and
+     * is reset by the mode's own boundaries — open, commit, close.
+     */
+    voteSubject: undefined as Color | undefined,
     /** The vote's numbers at the submit (undefined = not sent yet). */
     voteSnapshot: undefined as VoteSnapshot | undefined,
     /** The bench keeps painting the source cube until its proxy stands over it. */
@@ -281,6 +290,22 @@ export function parliamentCrumbCommitted(questLive = false): boolean {
 /** The stage's CONTENT identity — a submit keeps the stage it left on screen (busy). */
 export function parliamentStageKind(): ParliamentStage {
   return parliamentFlow.stage === 'submitting' ? parliamentFlow.stageBeforeSubmit : parliamentFlow.stage;
+}
+
+/**
+ * THE SUBJECT every vote surface reads for — the ONE answer, so the panel, the
+ * command bar and the fullscreen inspector can never disagree about whose
+ * number is on screen. Outside the vote mode there is no subject but the
+ * viewer: a subject left standing would follow the player into the overview.
+ */
+export function parliamentVoteSubject(viewer: Color | undefined): Color | undefined {
+  return parliamentVoteUp() ? (parliamentFlow.voteSubject ?? viewer) : viewer;
+}
+
+/** The subject is another seat — what makes the reading speak in the third person and drop the «mine» register. */
+export function parliamentSubjectIsRival(viewer: Color | undefined): boolean {
+  const subject = parliamentVoteSubject(viewer);
+  return subject !== undefined && subject !== viewer;
 }
 
 /** The vote mode stands over the overview. */

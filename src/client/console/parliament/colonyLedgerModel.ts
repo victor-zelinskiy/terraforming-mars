@@ -17,7 +17,7 @@ import {ParliamentEnactOutcomeModel, ParliamentModel, ParliamentPlayerModel} fro
 import {InfluenceScaledEffect, InfluenceYield} from '@/common/parliament/influenceScaling';
 import {ColonyLedgerRow, ColonyLedgerTotals, colonyLedgerRows, colonyLedgerTotals, recordedMultiplierOf} from '@/common/parliament/colonyLedger';
 import {colonyBonusesEffectOf} from './resolutionFamily';
-import {enactedYieldsOf, voteYieldsOf} from './influenceYieldModel';
+import {enactedYieldsOf, ReadingPerson, voteYieldsOf} from './influenceYieldModel';
 
 export type ColonyLedgerReading = {
   effect: InfluenceScaledEffect;
@@ -95,4 +95,11 @@ export function colonyLedgerOf(
 /** The i18n keys of the ledger's own words — one place, the glossary's. */
 export const COLONY_LEDGER_KICKER = 'Colony bonuses';
 export const COLONY_LEDGER_EMPTY = 'You have no colonies';
+/** …and the same emptiness about ANOTHER seat — the subject is named by the block's kicker, never twice. */
+export const COLONY_LEDGER_EMPTY_THIRD = 'No colonies';
 export const COLONY_LEDGER_TOTAL = 'Total';
+
+/** WHICH emptiness this reading prints — the ledger's one second-person phrase. */
+export function colonyLedgerEmptyKey(person: ReadingPerson = 'you'): string {
+  return person === 'they' ? COLONY_LEDGER_EMPTY_THIRD : COLONY_LEDGER_EMPTY;
+}

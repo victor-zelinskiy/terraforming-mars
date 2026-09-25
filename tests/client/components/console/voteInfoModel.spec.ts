@@ -239,7 +239,7 @@ describe('voteInfoModel — the panel', () => {
     const slot = slotVm({resolutionId: CLIMATE, resolution: shipped(CLIMATE), instance: `${CLIMATE}#0`, projection: projection()});
     const m = model([seat(2, {production: {[Resource.HEAT]: 4}})]);
     const vm = voteInfoOf({
-      slot, resolution: shipped(CLIMATE), model: m, viewer: BLUE, tableau: [], name: 'Climate Research', winning: false,
+      slot, resolution: shipped(CLIMATE), model: m, subject: BLUE, tableau: [], name: 'Climate Research', winning: false,
       source: 'reserve', cost: 5, facts: facts(slot, partyVm()), numbers: {votesBefore: 0, votesAfter: 1, mineBefore: 0, mineAfter: 1},
     });
     expect(vm.vote).deep.include({source: 'reserve', cost: 5});
@@ -254,7 +254,7 @@ describe('voteInfoModel — the panel', () => {
   it('a lobby delegate is free whatever cost the caller passes', () => {
     const slot = slotVm({projection: projection()});
     const vm = voteInfoOf({
-      slot, resolution: shipped(AQUIFER), model: model([seat(1)]), viewer: BLUE, tableau: TABLEAU_WITH_FISH, name: 'Aquifer Contest', winning: true,
+      slot, resolution: shipped(AQUIFER), model: model([seat(1)]), subject: BLUE, tableau: TABLEAU_WITH_FISH, name: 'Aquifer Contest', winning: true,
       source: 'lobby', cost: 5, facts: facts(slot, partyVm()), numbers: {votesBefore: 0, votesAfter: 1, mineBefore: 0, mineAfter: 1},
     });
     expect(vm.vote.cost).eq(0);

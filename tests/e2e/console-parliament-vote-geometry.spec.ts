@@ -83,6 +83,26 @@ function sizeChanges(samples: ReadonlyArray<GeoSample>): Array<string> {
   return out;
 }
 
+/** …and every box keeps its PLACE as well — a subject that shifts the row is as wrong as one that resizes it. */
+function positionChanges(samples: ReadonlyArray<GeoSample>): Array<string> {
+  const base = samples[0]?.boxes ?? {};
+  const out: Array<string> = [];
+  const seen = new Set<string>();
+  samples.forEach((s, i) => {
+    for (const key of Object.keys(base)) {
+      const b = s.boxes[key];
+      if (b === undefined || seen.has(key)) {
+        continue;
+      }
+      if (Math.abs(b.x - base[key].x) > 0.5 || Math.abs(b.y - base[key].y) > 0.5) {
+        seen.add(key);
+        out.push(`${key}: ${base[key].x},${base[key].y} → ${b.x},${b.y} @${i} (${Math.round(s.t - samples[0].t)} ms)`);
+      }
+    }
+  });
+  return out;
+}
+
 async function voteAndSample(page: Page, label: string): Promise<{changes: Array<string>, samples: number, flights: boolean}> {
   await armGeometryProbe(page);
   await press(page, 'Enter', 200);
@@ -109,6 +129,19 @@ for (const preset of PRESETS) {
       expect(await pressUntil(page, 'Enter', async () => await page.locator('.con-parl__vote--up').count() > 0, {tries: 4, settleMs: 1200}), 'the vote mode opens').toBe(true);
       await settle(page, {timeoutMs: 20_000});
       await expect(page.locator('[data-parl-cta-cost]')).toHaveAttribute('data-cost-kind', 'free');
+      // ── THE SUBJECT MOVES AND NOTHING ELSE DOES. LB/RB read another seat's outcome in the same
+      //    block: the three cards, the panel, the party box and the confirm plate keep their boxes to
+      //    the pixel — only the READING's own content may change (чужие исходы, ярус 2).
+      await armGeometryProbe(page);
+      await press(page, 'KeyE', 700);
+      await press(page, 'KeyE', 700);
+      await press(page, 'KeyQ', 700);
+      const walk = await readGeometry(page);
+      const walked = walk.samples.filter((sample) => Object.keys(sample.boxes).some((k) => k.startsWith('card:')));
+      expect(walked.length, 'the sampler saw the subject walk').toBeGreaterThan(20);
+      expect(sizeChanges(walked), `${preset.id}: moving the subject moves nothing but the reading`).toEqual([]);
+      expect(positionChanges(walked), `${preset.id}: …and nothing SHIFTS either`).toEqual([]);
+
       const lobby = await voteAndSample(page, `${preset.id} lobby`);
       expect(lobby.samples, 'the sampler saw the mode').toBeGreaterThan(20);
       expect(lobby.flights, 'the delegate flew').toBe(true);

@@ -31,6 +31,7 @@ import {IClientResolution} from '@/common/parliament/IClientResolution';
 import {ParliamentEnactOutcomeModel, ParliamentModel, ParliamentPlayerModel} from '@/common/models/ParliamentModel';
 import {resolutionIdOf} from '@/common/parliament/ParliamentTypes';
 import {TileGrantDeclaration, TileGrantEligibility, tileGrantCountId, tileGrantEligibility, tileGrantStepKey} from '@/common/parliament/tileGrant';
+import {ReadingPerson} from './influenceYieldModel';
 
 export type TileGrantContext = 'reference' | 'conditional' | 'pending' | 'applied';
 
@@ -187,13 +188,20 @@ export function tileGrantRecipientsKey(grant: TileGrantDeclaration): {key: strin
  * its params: the viewer's standing at the vote, the fixed answer while the
  * phase resolves, the record once it is in. Undefined off the table.
  */
-export function tileGrantCaptionOf(reading: TileGrantReading): {key: string, params?: ReadonlyArray<string>} | undefined {
+export function tileGrantCaptionOf(reading: TileGrantReading, person: ReadingPerson = 'you'): {key: string, params?: ReadonlyArray<string>} | undefined {
   const line = String(reading.grant.recipients.influenceAtLeast);
   const influence = String(reading.influence ?? 0);
   switch (reading.context) {
   case 'reference':
     return undefined;
   case 'conditional':
+    // The VOTE's two standings, in the person of the seat the block is about — the subject itself is
+    // named once, by the kicker above, so neither line repeats it.
+    if (person === 'they') {
+      return reading.eligibility === 'influence' ?
+        {key: 'Theirs at influence ${0} — win or not', params: [influence]} :
+        {key: 'Only if they win — influence ${0} is below ${1}', params: [influence, line]};
+    }
     return reading.eligibility === 'influence' ?
       {key: 'Yours at influence ${0} — win or not', params: [influence]} :
       {key: 'Only if you win — influence ${0} is below ${1}', params: [influence, line]};
@@ -219,7 +227,7 @@ export function tileGrantCaptionOf(reading: TileGrantReading): {key: string, par
  * the stack once it landed («a stack of 2»). English key + params; undefined
  * when there is nothing to add.
  */
-export function tileGrantDetailOf(reading: TileGrantReading): {key: string, params?: ReadonlyArray<string>} | undefined {
+export function tileGrantDetailOf(reading: TileGrantReading, person: ReadingPerson = 'you'): {key: string, params?: ReadonlyArray<string>} | undefined {
   if (reading.context === 'applied') {
     const stack = reading.placed?.stackHeight;
     return reading.skipped !== undefined || stack === undefined ? undefined : {key: 'a stack of ${0}', params: [String(stack)]};
@@ -227,7 +235,13 @@ export function tileGrantDetailOf(reading: TileGrantReading): {key: string, para
   if (reading.context === 'reference' || reading.cities === undefined) {
     return undefined;
   }
-  return reading.cities === 0 ? {key: 'No city on Mars to build on'} : {key: 'your cities on Mars: ${0}', params: [String(reading.cities)]};
+  // «Городов на Марсе нет» is already impersonal — only the count names an owner.
+  if (reading.cities === 0) {
+    return {key: 'No city on Mars to build on'};
+  }
+  return person === 'they' ?
+    {key: 'cities on Mars: ${0}', params: [String(reading.cities)]} :
+    {key: 'your cities on Mars: ${0}', params: [String(reading.cities)]};
 }
 
 /**
@@ -238,13 +252,14 @@ export function tileGrantDetailOf(reading: TileGrantReading): {key: string, para
 export function tileGrantSentenceOf(
   reading: TileGrantReading,
   t: {text: (key: string) => string, params: (key: string, params: Array<string>) => string},
+  person: ReadingPerson = 'you',
 ): {caption: string, detail: string} | undefined {
-  const caption = tileGrantCaptionOf(reading);
+  const caption = tileGrantCaptionOf(reading, person);
   if (caption === undefined) {
     return undefined;
   }
   const say = (part: {key: string, params?: ReadonlyArray<string>}) => part.params === undefined ? t.text(part.key) : t.params(part.key, [...part.params]);
   const lead = reading.generation === undefined ? say(caption) : `${t.params('Generation ${0}', [String(reading.generation)])} · ${say(caption)}`;
-  const detail = tileGrantDetailOf(reading);
+  const detail = tileGrantDetailOf(reading, person);
   return {caption: lead, detail: detail === undefined ? '' : say(detail)};
 }

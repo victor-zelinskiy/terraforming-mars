@@ -255,11 +255,11 @@ import {Resource} from '@/common/Resource';
 import {InfluenceScaledEffect, InfluenceYield, levelTakesAway as yieldTakesAway, yieldAtCap} from '@/common/parliament/influenceScaling';
 import {LevyReading} from '@/common/parliament/resolutionLevy';
 import {
-  cardResourceIconKey, LEVEL_IN_HAND_KEY, LEVEL_UP_TO_KEY, levelPresentation, levelYieldIsNone, METRIC_SETS_PLURAL_KEY, oneNumberYieldsOf, PRODUCTION_HORIZON_KEY,
-  productionHorizonOn, sequelTotalIcon, WinSuffix, winSuffixesOf, yieldCaptionOf, yieldCountPresentation, yieldIconOf, yieldInfluenceEnters, yieldIsFlat,
-  yieldIsMultiplier, YieldCountGlyph, YieldIcon,
+  LEVEL_IN_HAND_KEY, LEVEL_UP_TO_KEY, levelPresentation, levelYieldIsNone, METRIC_SETS_PLURAL_KEY, oneNumberYieldsOf, PRODUCTION_HORIZON_KEY,
+  productionHorizonOn, ReadingPerson, sequelTotalIcon, WinSuffix, winSuffixesOf, yieldCaptionOf, yieldCountPresentation, yieldIconClass, yieldIconClasses,
+  yieldIconOf, yieldInfluenceEnters, yieldIsFlat, yieldIsMultiplier, YieldCountGlyph, YieldIcon,
 } from '@/client/console/parliament/influenceYieldModel';
-import {SUFFIX_HINT, SUFFIX_IF_YOU_WIN, SUFFIX_STEP} from '@/client/console/parliament/voteInfoModel';
+import {SUFFIX_STEP, suffixHintKey, suffixWinKey} from '@/client/console/parliament/voteInfoModel';
 import PremiumCountGlyph from '@/client/components/premiumCard/PremiumCountGlyph.vue';
 import ConsoleYieldUnit from '@/client/components/console/parliament/ConsoleYieldUnit.vue';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
@@ -301,6 +301,12 @@ export default defineComponent({
      * currency, with the net at the tail; alone when no such payout exists.
      */
     levy: {type: Object as PropType<LevyReading | undefined>, default: undefined},
+    /**
+     * WHOSE reading this is — the viewer's own («если победите», «у вас 7») or
+     * another seat's («если победит», «в запасе 7»). The SUBJECT itself is
+     * named by the host's kicker; the block never repeats it.
+     */
+    person: {type: String as PropType<ReadingPerson>, default: 'you'},
   },
   computed: {
     groups(): Array<Group> {
@@ -323,7 +329,7 @@ export default defineComponent({
       return this.groups.flatMap((g) => g.readings);
     },
     suffixWords(): string {
-      return SUFFIX_IF_YOU_WIN;
+      return suffixWinKey(this.person);
     },
     suffixStepWord(): string {
       return SUFFIX_STEP;
@@ -351,7 +357,7 @@ export default defineComponent({
     },
     /** The calm phrase of a level part's zero («no draw needed» / «nothing to lose») — the level term's own word. */
     levelNoneKey(effect: InfluenceScaledEffect): string {
-      return effect.level === undefined ? '' : levelPresentation(effect.level).noneKey;
+      return effect.level === undefined ? '' : levelPresentation(effect.level, this.person).noneKey;
     },
     /** The part TAKES instead of paying (a level term going down) — the minus and the loss tone follow the DECLARATION, never the record's sign. */
     takesAway(effect: InfluenceScaledEffect): boolean {
@@ -359,11 +365,11 @@ export default defineComponent({
     },
     /** The word before the TARGET — «up to» for a top-up, the card's printed «max» for a cut. */
     levelWord(effect: InfluenceScaledEffect): string {
-      return effect.level === undefined ? LEVEL_UP_TO_KEY : levelPresentation(effect.level).wordKey;
+      return effect.level === undefined ? LEVEL_UP_TO_KEY : levelPresentation(effect.level, this.person).wordKey;
     },
     /** «5 in hand» / «7 of yours» — the level the move is read against, in the term's own words. */
     levelText(effect: InfluenceScaledEffect, level: number): string {
-      const key = effect.level === undefined ? LEVEL_IN_HAND_KEY : levelPresentation(effect.level).levelKey;
+      const key = effect.level === undefined ? LEVEL_IN_HAND_KEY : levelPresentation(effect.level, this.person).levelKey;
       return translateTextWithParams(key, [String(level)]);
     },
     /** The levy heads THIS group's readings: the group pays the levy's currency, and the reading is a number (never the reference). */
@@ -439,25 +445,12 @@ export default defineComponent({
       const term = effect.sequel;
       return term === undefined ? '' : this.iconClass(sequelTotalIcon(term));
     },
+    /** The unit's classes — the ONE mapping (`yieldIconClasses`), shared with every other surface that draws a unit. */
     iconClasses(icon: YieldIcon): Array<string> {
-      if (icon.family === 'card-resource') {
-        return icon.resources.map((resource) => iconClassFor(cardResourceIconKey(resource)));
-      }
-      return [this.iconClass(icon)];
+      return yieldIconClasses(icon);
     },
     iconClass(icon: YieldIcon): string {
-      switch (icon.family) {
-      case 'card-resource':
-        // A total over several kinds is not a thing; the first kind names a list of one.
-        return iconClassFor(cardResourceIconKey(icon.resources[0]));
-      case 'resource':
-        return iconClassFor(icon.resource) + (icon.production ? ' con-iyield__unit--prod' : '');
-      case 'cards':
-        return iconClassFor('cards');
-      case 'colony':
-        // The colony TILE, the console's own sprite (the same asset the card faces print for a colony).
-        return 'con-iyield__unit--colony';
-      }
+      return yieldIconClass(icon);
     },
     outText(y: InfluenceYield): string {
       const amount = y.amount ?? 0;
@@ -486,7 +479,7 @@ export default defineComponent({
     },
     /** The suffix's one-phrase explanation (the premium tooltip; a step-less forecast explains nothing more than it says). */
     suffixHint(suffix: WinSuffix): string | undefined {
-      return suffix.agendaStep === undefined ? undefined : translateTextWithParams(SUFFIX_HINT, [String(suffix.agendaStep)]);
+      return suffix.agendaStep === undefined ? undefined : translateTextWithParams(suffixHintKey(this.person), [String(suffix.agendaStep)]);
     },
   },
 });

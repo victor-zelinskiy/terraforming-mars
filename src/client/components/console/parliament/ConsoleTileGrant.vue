@@ -63,6 +63,7 @@ import {defineComponent, PropType} from 'vue';
 import {
   TileGrantReading, tileGrantCaptionOf, tileGrantDetailOf, tileGrantLabelKey, tileGrantRecipientsKey, tileGrantWhereKey,
 } from '@/client/console/parliament/tileGrantModel';
+import {ReadingPerson} from '@/client/console/parliament/influenceYieldModel';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 
 export default defineComponent({
@@ -71,6 +72,8 @@ export default defineComponent({
     reading: {type: Object as PropType<TileGrantReading>, required: true},
     /** `compact` in a footer / a vote block, `normal` in a panel, `hero` on a stage. */
     size: {type: String as PropType<'compact' | 'normal' | 'hero'>, default: 'normal'},
+    /** WHOSE standing this is — the viewer's own, or another seat's (the caption follows). */
+    person: {type: String as PropType<ReadingPerson>, default: 'you'},
     /**
      * `block` — the head and the body (a panel, the playground); `chip` — the head over the body, two
      * lines (the fullscreen footer's plate); `inline` — the body and the caption on ONE line, for a host
@@ -108,7 +111,7 @@ export default defineComponent({
       return tileGrantWhereKey(this.reading.grant);
     },
     caption(): string {
-      const caption = this.reading.skipped !== undefined && this.reasonElsewhere ? {key: 'Skipped'} : tileGrantCaptionOf(this.reading);
+      const caption = this.reading.skipped !== undefined && this.reasonElsewhere ? {key: 'Skipped'} : tileGrantCaptionOf(this.reading, this.person);
       if (caption === undefined) {
         return '';
       }
@@ -116,7 +119,7 @@ export default defineComponent({
       return this.reading.generation === undefined ? text : `${translateTextWithParams('Generation ${0}', [String(this.reading.generation)])} · ${text}`;
     },
     detail(): string {
-      const detail = tileGrantDetailOf(this.reading);
+      const detail = tileGrantDetailOf(this.reading, this.person);
       if (detail === undefined) {
         return '';
       }

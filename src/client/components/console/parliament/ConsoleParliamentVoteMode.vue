@@ -30,7 +30,7 @@
         <transition name="con-parl-xfade">
           <!-- Always MOUNTED (the layer hides it): the press that opens the mode
                then moves the cards and lifts the surface — it builds nothing. -->
-          <div v-if="voteInfo !== undefined" :key="voteInfo.instance" class="con-parl__info-body" data-parl-vote-body>
+          <div v-if="voteInfo !== undefined" :key="voteInfo.instance + ':' + (voteSubject ?? '')" class="con-parl__info-body" data-parl-vote-body>
             <div class="con-parl__info-head" data-parl-vote-item>
               <img class="con-parl__info-emblem" :src="emblemUrl(voteInfo.party)" alt="" />
               <b class="con-parl__info-name">{{ $t(voteInfo.name) }}</b>
@@ -46,11 +46,40 @@
                  (registry example 4: the reading stood alone in a half-empty
                  plate; the words are the inspector's). -->
             <div class="con-parl__info-main">
-              <div class="con-parl__info-own" :class="{'con-parl__info-own--yields': voteInfo.reading.yields.length > 0 || voteInfo.reading.grant !== undefined}" data-parl-vote-item data-parl-info="own">
-                <span class="con-parl__info-kicker" data-parl-kicker="reading" data-parl-vote-late>{{ $t(voteInfo.reading.kicker) }}</span>
+              <div class="con-parl__info-own"
+                   :class="{
+                     'con-parl__info-own--yields': voteInfo.reading.yields.length > 0 || voteInfo.reading.grant !== undefined,
+                     'con-parl__info-own--ledger': voteLedger.length > 0,
+                     'con-parl__info-own--dense': voteLedger.length > 0 && voteInfo.reading.yields.length > 1,
+                     'con-parl__info-own--rival': voteInfo.reading.subject !== undefined,
+                   }"
+                   data-parl-vote-item data-parl-info="own" :data-parl-subject="voteSubject">
+                <!-- THE HEAD LINE — the kicker and, at its right end, THE LEDGER OF OUTCOMES.
+                     THE KICKER NAMES THE SUBJECT, ONCE: «ДЛЯ ВАС ПРИ ПРИНЯТИИ», or another seat by its
+                     CUBE and its name. Everything below speaks in the third person and repeats no name —
+                     and the block drops the cyan «mine» register, so a rival's number can never be read
+                     as the player's own. The row
+                     rides this line because it is the block's only strip with room: measured at 4K, a
+                     row of its own costs 41 px and the block's tallest readings leave 12 («clipped-y
+                     con-parl__info-own 332 > 302»). Where the line cannot hold both, flex-wrap drops
+                     the row underneath — no magic number decides it. -->
+                <div class="con-parl__info-own-head">
+                  <span class="con-parl__info-kicker" data-parl-kicker="reading" data-parl-vote-late :data-parl-kicker-subject="voteInfo.reading.subject?.color">
+                    <template v-if="voteInfo.reading.subject !== undefined">
+                      <span>{{ subjectKicker.before }}</span>
+                      <span class="con-parl__socket con-parl__socket--small con-parl__info-kicker-cube">
+                        <PlayerCube :color="voteInfo.reading.subject.color" :size="cubePx(11)" :glow="false" />
+                      </span>
+                      <b class="con-parl__info-kicker-name" data-parl-kicker-name>{{ voteInfo.reading.subject.name }}</b>
+                      <span>{{ subjectKicker.after }}</span>
+                    </template>
+                    <template v-else>{{ $t(voteInfo.reading.kicker) }}</template>
+                  </span>
+                  <ConsoleVoteLedger class="con-parl__info-ledger-row" :chips="voteLedger" :subject="voteSubject" :cubeLogicalPx="11" />
+                </div>
                 <div class="con-parl__info-own-body">
                   <PremiumMechanicsPanel v-if="ownMechanics !== undefined" class="con-parl__info-mech" :mechanics="ownMechanics" />
-                  <div v-if="voteInfo.reading.yields.length > 0 || voteInfo.reading.grant !== undefined" class="con-parl__info-readings" data-parl-vote-late>
+                  <div v-if="voteInfo.reading.yields.length > 0 || voteInfo.reading.grant !== undefined || voteLedger.length > 0" class="con-parl__info-readings" data-parl-vote-late>
                     <ConsoleInfluenceYield v-if="voteInfo.reading.yields.length > 0"
                                            class="con-parl__info-yield"
                                            :yields="voteInfo.reading.yields"
@@ -60,6 +89,7 @@
                                            :oneNumber="true"
                                            :note="voteInfo.reading.note"
                                            :levy="voteInfo.reading.levy"
+                                           :person="voteInfo.reading.person"
                                            size="compact"
                                            data-parl-vote-yield
                                            data-parl-vote-reading />
@@ -74,6 +104,7 @@
                     <ConsoleColonyLedger v-if="voteInfo.reading.ledger !== undefined"
                                          class="con-parl__info-ledger"
                                          :reading="voteInfo.reading.ledger"
+                                         :person="voteInfo.reading.person"
                                          size="compact"
                                          data-parl-vote-ledger />
                     <!-- A TILE GRANTED BY THRESHOLD (Skyscrapers): the viewer's own standing — theirs at this
@@ -81,6 +112,7 @@
                     <ConsoleTileGrant v-if="voteInfo.reading.grant !== undefined"
                                       class="con-parl__info-grant"
                                       :reading="voteInfo.reading.grant"
+                                      :person="voteInfo.reading.person"
                                       size="compact"
                                       variant="inline"
                                       data-parl-vote-grant />
@@ -161,6 +193,7 @@
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
 import {Color} from '@/common/Color';
+import {CardName} from '@/common/cards/CardName';
 import {Message} from '@/common/logs/Message';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {ParliamentModel} from '@/common/models/ParliamentModel';
@@ -169,6 +202,7 @@ import {PARLIAMENT_VOTE_COST, ReduxParty} from '@/common/parliament/ParliamentTy
 import ConsoleInfluenceYield from '@/client/components/console/parliament/ConsoleInfluenceYield.vue';
 import ConsoleColonyLedger from '@/client/components/console/parliament/ConsoleColonyLedger.vue';
 import ConsoleTileGrant from '@/client/components/console/parliament/ConsoleTileGrant.vue';
+import ConsoleVoteLedger from '@/client/components/console/parliament/ConsoleVoteLedger.vue';
 import ConsolePartyReaction from '@/client/components/console/parliament/ConsolePartyReaction.vue';
 import ConsolePartyFormula from '@/client/components/console/parliament/ConsolePartyFormula.vue';
 import ConsoleVoteFactRow from '@/client/components/console/parliament/ConsoleVoteFactRow.vue';
@@ -189,7 +223,9 @@ import {translateMessage, translateText} from '@/client/directives/i18n';
 import {offTurnReason} from '@/client/console/offTurnReason';
 import {probeTick} from '@/client/console/probeTick';
 import {getResolution} from '@/client/parliament/ClientParliamentManifest';
-import {parliamentFlow, parliamentRootEl, parliamentVoteInFlight, parliamentVoteUp} from '@/client/console/parliament/consoleParliamentFlow';
+import {
+  parliamentFlow, parliamentRootEl, parliamentVoteInFlight, parliamentVoteSubject, parliamentVoteUp,
+} from '@/client/console/parliament/consoleParliamentFlow';
 import {fitParliamentCards, freezeParliamentFit} from '@/client/console/parliament/parliamentCardFit';
 import {
   dropFlight, dropFlightsWithPrefix, flightEl, nextFlightId, pushCubeFlight, registerFlightHandle, VOTE_FLIGHT_MS,
@@ -203,6 +239,7 @@ import {
   VoteForecastVm, voteResponse, voteVerbOf, VoteVerbVm,
 } from '@/client/console/parliament/consoleParliamentModel';
 import {PARTY_MOMENT, voteFactsOf, VoteFactsVm, voteInfoOf, VoteInfoVm} from '@/client/console/parliament/voteInfoModel';
+import {LedgerChipVm, voteLedgerOf} from '@/client/console/parliament/voteLedgerModel';
 import {BenchSource, voteSourceOf, winningShownOf} from '@/client/console/parliament/parliamentVoteView';
 import {ParliamentInspectRequest, slotFaceOf} from '@/client/console/parliament/parliamentInspect';
 
@@ -224,7 +261,10 @@ type CtaCost = {kind: 'free' | 'cost' | 'none', amount: number};
  */
 export default defineComponent({
   name: 'ConsoleParliamentVoteMode',
-  components: {ConsoleInfluenceYield, ConsoleColonyLedger, ConsoleTileGrant, ConsolePartyFormula, ConsolePartyReaction, ConsoleVoteFactRow, PlayerCube, GamepadGlyph, PremiumMechanicsPanel},
+  components: {
+    ConsoleInfluenceYield, ConsoleColonyLedger, ConsoleTileGrant, ConsoleVoteLedger, ConsolePartyFormula, ConsolePartyReaction, ConsoleVoteFactRow,
+    PlayerCube, GamepadGlyph, PremiumMechanicsPanel,
+  },
   props: {
     view: {type: Object as PropType<ParliamentViewVm>, required: true},
     model: {type: Object as PropType<ParliamentModel | undefined>, default: undefined},
@@ -288,8 +328,9 @@ export default defineComponent({
         slot,
         resolution: slot.resolution ?? getResolution(slot.resolutionId),
         model: this.model,
-        viewer: this.viewerColor,
-        tableau: this.playerView.thisPlayer.tableau,
+        subject: this.voteSubject,
+        rival: this.subjectIsRival ? {name: this.nameOf(this.voteSubject)} : undefined,
+        tableau: this.subjectTableau,
         name: resolutionTitleOf(this.view, slot.resolutionId),
         winning: winningShownOf(slot),
         source: this.benchSource,
@@ -297,6 +338,59 @@ export default defineComponent({
         facts: this.voteFacts,
         numbers: this.voteNumbers,
       });
+    },
+    /**
+     * THE LEDGER OF OUTCOMES — what the selected card pays EVERY participating
+     * seat at its own influence, the viewer's chip first (`voteLedgerModel`).
+     * The tableaux are the PUBLIC ones the view already carries: the holder
+     * law («no card can hold animals») is read per seat, exactly as for the
+     * viewer.
+     */
+    /**
+     * THE SUBJECT of the big reading — the viewer unless the player moved it
+     * along the row of seats with the bumpers. A READING, never a decision:
+     * «ВАШ ГОЛОС», the price and A are the viewer's at every subject.
+     */
+    voteSubject(): Color | undefined {
+      return parliamentVoteSubject(this.viewerColor);
+    },
+    /** The subject is ANOTHER seat: the reading speaks in the third person and drops the «mine» register. */
+    subjectIsRival(): boolean {
+      const subject = this.voteSubject;
+      return subject !== undefined && subject !== this.viewerColor;
+    },
+    /** The SUBJECT's public tableau — the holder law is read for the seat the reading is about. */
+    subjectTableau(): ReadonlyArray<{name: CardName}> {
+      const subject = this.voteSubject;
+      if (subject === undefined || subject === this.viewerColor) {
+        return this.playerView.thisPlayer.tableau;
+      }
+      return this.playerView.players.find((p) => p.color === subject)?.tableau ?? [];
+    },
+    voteLedger(): ReadonlyArray<LedgerChipVm> {
+      const slot = this.voteSlot;
+      if (slot === undefined) {
+        return [];
+      }
+      return voteLedgerOf({
+        resolution: slot.resolution ?? getResolution(slot.resolutionId),
+        model: this.model,
+        viewer: this.viewerColor,
+        players: this.playerView.players,
+      });
+    },
+    /**
+     * THE RIVAL KICKER's words, split around the name: the key's own `${0}`
+     * slot is where the CUBE and the NAME stand, so the line reads «ДЛЯ ▮ АННА
+     * ПРИ ПРИНЯТИИ» in whatever word order the language puts them.
+     */
+    subjectKicker(): {before: string, after: string} {
+      const rendered = translateText(this.voteInfo?.reading.kicker ?? '');
+      const at = rendered.indexOf('${0}');
+      if (at === -1) {
+        return {before: rendered, after: ''};
+      }
+      return {before: rendered.slice(0, at), after: rendered.slice(at + 4)};
     },
     /** The selected card's printed graphic — the reading's formula, beside the number. */
     ownMechanics(): MechanicsVM | undefined {
@@ -487,6 +581,9 @@ export default defineComponent({
       const before = measureVoteRects(root, {press, viewer: this.viewerColor, mode: 'browse'});
       killParliamentVoteMotion(root);
       f.voteSnapshot = undefined;
+      // The mode always OPENS on the viewer's own reading — a subject left over from a previous
+      // visit would greet the player with somebody else's number under their own delegate.
+      this.resetSubject();
       f.sourceHold = undefined;
       f.sourceLeaving = undefined;
       f.zone = 'voting';
@@ -518,6 +615,7 @@ export default defineComponent({
       this.clearLanding();
       freezeParliamentFit(false);
       f.voteSnapshot = undefined;
+      this.resetSubject();
       f.sourceHold = undefined;
       f.sourceLeaving = undefined;
       f.voteEntering = false;
@@ -546,8 +644,15 @@ export default defineComponent({
         });
       });
     },
-    /** The vote mode's own verbs: ◀ ▶ select, A sends, X inspects the selected card (B — the section's, folds back). */
+    /** The vote mode's own verbs: ◀ ▶ select, LB/RB move the SUBJECT, A sends, X inspects (B — the section's, folds back). */
     handleIntent(intent: GamepadIntent): void {
+      // LB/RB — «ИГРОКИ»: the subject of the READING walks the row of seats, the
+      // viewer's chip being its home. It is a side step, not a level: ◀ ▶ keep
+      // their meaning, the selection keeps its card, and A keeps its delegate.
+      if (intent.kind === 'press' && (intent.button === 'bumperL' || intent.button === 'bumperR')) {
+        this.cycleSubject(intent.button === 'bumperR' ? 1 : -1);
+        return;
+      }
       if (intent.kind === 'nav') {
         if (intent.dir === 'left') {
           this.selectVoteSlot(parliamentFlow.slotIndex - 1);
@@ -608,6 +713,26 @@ export default defineComponent({
       };
       this.$emit('inspect', request);
     },
+    /**
+     * MOVE THE SUBJECT one seat along the LEDGER's own order (the viewer first,
+     * then the model's) — the very row the panel prints, so the cursor and the
+     * chips can never disagree. The walk WRAPS: the row is a ring of seats, not
+     * a list with edges, and the viewer's own chip is always one step away.
+     */
+    cycleSubject(step: number): void {
+      const order = this.voteLedger.map((chip) => chip.color);
+      if (order.length < 2) {
+        return;
+      }
+      const at = Math.max(0, order.indexOf(this.voteSubject ?? order[0]));
+      const next = order[(at + step + order.length) % order.length];
+      // The viewer's own seat is stored as «no subject»: one state for «this is my reading».
+      parliamentFlow.voteSubject = next === this.viewerColor ? undefined : next;
+    },
+    /** The reading is the VIEWER's again — the mode's own boundaries (open, commit, close) and a seat that left the table. */
+    resetSubject(): void {
+      parliamentFlow.voteSubject = undefined;
+    },
     /** Select the vote mode's card (the d-pad inside the mode, the viewer's paging). */
     selectVoteSlot(index: number): void {
       // The crumb stays «Голосование»: the selection is named by the surface, never by the head line.
@@ -659,6 +784,9 @@ export default defineComponent({
         return;
       }
       const source = this.benchSource === 'none' ? 'lobby' : this.benchSource;
+      // THE COMMIT BOUNDARY is the viewer's own: the cube, the counters and «Делегат поставлен» are
+      // about them, so the reading comes home before the beat that shows it.
+      this.resetSubject();
       parliamentFlow.voteSnapshot = {votes: slot.totalVotes, mine: slot.viewerVotes, leader: slot.leader, winning: slot.isWinning, winner: this.winningSlot?.instance, source};
       // FROM THE PRESS TO THE FLOW'S END nothing but text, the confirm's state and the cube's flight may change:
       // the card fit is FROZEN (a re-fit under the flight jumped the scene it measured — § Б5).

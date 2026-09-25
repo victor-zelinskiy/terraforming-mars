@@ -65,7 +65,31 @@ const CANON: Record<string, string> = {
   'You placed it — the winner of the vote': 'Размещено вами — победитель голосования',
   'You placed it — influence ${0}': 'Размещено вами — влияние ${0}',
   'Only if you win — influence ${0} is below ${1}': 'Только если победите: влияние ${0} меньше ${1}',
+  // ЧУЖИЕ ИСХОДЫ: the same conditions about ANOTHER seat — the condition word never changes («если
+  // победит», never «при победе»), and the subject is named ONCE, by the reading's kicker.
+  'if they win': 'если победит',
+  'Only if they win — influence ${0} is below ${1}': 'Только если победит: влияние ${0} меньше ${1}',
 };
+
+/**
+ * THE THIRD-PERSON FAMILY — every key a reading about ANOTHER SEAT prints.
+ * Their RU lines may not carry the second person anywhere: the panel names
+ * the subject once, in the kicker, and a «вы» below it would be a sentence
+ * about the wrong player standing under somebody else's cube.
+ */
+const THIRD_PERSON_KEYS: ReadonlyArray<string> = [
+  'For ${0} when enacted',
+  'if they win',
+  'If they win, the Agenda marker moves to step ${0} first. The effect uses that influence.',
+  '${0} theirs',
+  'No colonies',
+  'Theirs at influence ${0} — win or not',
+  'Only if they win — influence ${0} is below ${1}',
+  'cities on Mars: ${0}',
+];
+
+/** The second person in RU (no `` — JS word boundaries are ASCII-only and never fire beside Cyrillic). */
+const SECOND_PERSON = /(^|\s|«)(вы|вас|вам|вами|ваш|ваша|ваше|ваши|ваших|ваше?му|вашей)(\s|,|:|;|»|\.|$)/i;
 
 /** Retired forms — none may survive in a RU value of the parliament's own file. */
 const BANNED: ReadonlyArray<{pattern: RegExp, why: string}> = [
@@ -127,6 +151,13 @@ describe('parliament glossary — one word per concept (static guard)', () => {
       }
     }
     expect(hits, 'retired forms').to.deep.equal([]);
+  });
+
+  it('a reading about ANOTHER SEAT keeps no second-person phrase — the subject is named once, by the kicker', () => {
+    const missing = THIRD_PERSON_KEYS.filter((key) => ru[key] === undefined);
+    expect(missing, 'every third-person key has its RU line').to.deep.equal([]);
+    const offenders = THIRD_PERSON_KEYS.filter((key) => SECOND_PERSON.test(ru[key] ?? '')).map((key) => `${key}: «${ru[key]}»`);
+    expect(offenders, 'a rival’s reading speaks of «вы»').to.deep.equal([]);
   });
 
   it('retired keys are neither translated nor referenced', () => {

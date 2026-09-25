@@ -2026,7 +2026,42 @@ export async function focusInfoZone(page: Page, zone: string): Promise<boolean> 
     }
     return document.querySelector('.con-info__zone--focused')?.getAttribute('data-zone') ?? '';
   });
-  return await walkFocusUntil(page, async () => await at() === zone, at, 12, 400);
+  const hit = async () => await at() === zone;
+  // ⚠️ THE SUMMARY RING IS A GRID, NOT A LINE (`infoRoute.infoZoneNavigate`: ◀ ▶ move between
+  // COLUMNS, ▲ ▼ within one), so `walkFocusUntil` — a 1-D primitive — can only ever reach the FIRST
+  // focusable row of each column. That was invisible while the only deep stop was the bot's
+  // `botdoor` (alone in its column for a BOT seat); «Эффекты», «ПАРЛАМЕНТ» and «Кампания» sit under
+  // «Действия» in the HUMAN column and were unreachable by a horizontal walk, which reports the
+  // CONSEQUENCE («the ring never reached it») rather than the cause. Sweep both axes: climb to the
+  // column's top, walk it down, then step sideways and turn around at the wall.
+  const step = async (key: 'ArrowUp' | 'ArrowDown' | 'ArrowLeft' | 'ArrowRight'): Promise<boolean> => {
+    const before = await at();
+    await press(page, key, 360);
+    return await at() !== before;
+  };
+  let dir: 'ArrowRight' | 'ArrowLeft' = 'ArrowRight';
+  for (let column = 0; column < 10; column++) {
+    for (let up = 0; up < 5 && !await hit(); up++) {
+      if (!await step('ArrowUp')) {
+        break;
+      }
+    }
+    for (let down = 0; down < 6 && !await hit(); down++) {
+      if (!await step('ArrowDown')) {
+        break;
+      }
+    }
+    if (await hit()) {
+      return true;
+    }
+    if (!await step(dir)) {
+      dir = dir === 'ArrowRight' ? 'ArrowLeft' : 'ArrowRight';
+      if (!await step(dir)) {
+        break;
+      }
+    }
+  }
+  return await hit();
 }
 
 /**
@@ -2308,6 +2343,8 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'hydro-terminal'
   // RX24 Open IP Trade: the law ENACTED, blue opening generation 2 with four cards in hand and the action unspent.
   'parliament-openip-enacted' |
   'parliament-budget-vote' | 'parliament-budget-assembly' |
+  // …the SAME budget vote at a SIX-seat table — the worst case of the LEDGER OF OUTCOMES (six chips × two parts).
+  'parliament-budget-vote-six' |
   // RX17 Jovian Tax Rights: four cubes (Luna ×2 · Titan · Miranda) and influence 3 at the vote; red wins the assembly, blue is paid the vote's numbers.
   'parliament-jovian-vote' | 'parliament-jovian-assembly' | 'parliament-medical-vote' | 'parliament-medical-enact' | 'parliament-metal-assembly' | 'parliament-metal-enacted' |
   // RX20 Skyscrapers: blue's city-tier prompt standing (one city, one greenery beside it), and the sitting over with two stacks of 2 on the board.

@@ -158,7 +158,7 @@ describe('voteInfoModel — the ledger in the vote panel', () => {
     };
     const party: ParliamentPartyVm = {party: PartyName.UNITY, effect: undefined, rule: '', support: 0, inArea: true, ruling: false, access: undefined, actionId: undefined, action: undefined};
     const facts = voteFactsOf({slot, party, viewer: BLUE, forecast: voteForecastOf(slot, BLUE, table.viewer!.vote), snapshot: undefined, landed: false, mineBefore: 0, mineAfter: 1, nameOf: (c) => c});
-    const vm = voteInfoOf({slot, resolution, model: table, viewer: BLUE, tableau: [], name: resolution.text.name, winning: false, source: 'lobby', cost: 0, facts, numbers: {votesBefore: 1, votesAfter: 2, mineBefore: 0, mineAfter: 1}});
+    const vm = voteInfoOf({slot, resolution, model: table, subject: BLUE, tableau: [], name: resolution.text.name, winning: false, source: 'lobby', cost: 0, facts, numbers: {votesBefore: 1, votesAfter: 2, mineBefore: 0, mineAfter: 1}});
     const budget = voteInfoBudget(vm);
     expect(budget.readings).eq(1);
     expect(budget.words).is.at.most(VOTE_INFO_LIMITS.words);

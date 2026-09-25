@@ -573,7 +573,16 @@ export default defineComponent({
         resolutionAction: this.resolutionActionState,
         sitting: {primary: this.sittingPrimary, inspect: this.sittingInspectable, back: this.sittingBack},
         quest: this.questCommands,
+        voteSubjects: this.voteSubjectCount,
       });
+    },
+    /**
+     * HOW MANY SEATS the vote mode's row of outcomes carries — what makes LB/RB
+     * («ИГРОКИ») a real verb. The bot never counts: it takes no part in the
+     * parliament, so there is no reading of it to move to.
+     */
+    voteSubjectCount(): number {
+      return (this.model?.players ?? []).filter((p) => p.participates).length;
     },
     /** X on the sitting inspects the enacted resolution — the object every stage is about. */
     sittingInspectable(): boolean {
