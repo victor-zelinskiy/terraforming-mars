@@ -2,7 +2,7 @@ import {expect} from 'chai';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {ParliamentEnactOutcomeModel} from '@/common/models/ParliamentModel';
 import {
-  detectNewWorldMoves, enterWorldBeatSitting, parliamentWorldBeatState, resetParliamentWorldBeat, runWorldMoveBeat,
+  detectNewWorldMoves, enterWorldBeatSitting, isPlanetRecord, parliamentWorldBeatState, resetParliamentWorldBeat, runWorldMoveBeat,
   seedWorldMoveBeat, takeWorldReceipt, worldMoveOwed, worldReceiptOwed,
 } from '@/client/console/parliament/parliamentWorldBeat';
 import {enterWorkspace, resetWorkspaceStack, stackYieldedToBoard, workspaceStackState} from '@/client/console/consoleWorkspaceStack';
@@ -114,5 +114,45 @@ describe('parliamentWorldBeat — the sitting steps aside for the planet', () =>
     expect(await runWorldMoveBeat('3:1'), 'no root to yield').is.false;
     expect(parliamentWorldBeatState.away).is.false;
     expect(worldReceiptOwed('3:1'), 'a beat that could not play owes no read either').is.false;
+  });
+
+  /*
+   * THE WINNER'S OWN STEP OF A PARAMETER (Mohole Contest, RX23) is a PLANET record too — the same beat, in
+   * the rewarded tone: every viewer plays it, and while the winner's OWN placement (the ocean of 0 °C)
+   * stands on the board the frame does not come back — the placement's end resumes the stack.
+   */
+  describe('the winner\'s own step of a parameter', () => {
+    const winnerStep = (over: Partial<ParliamentEnactOutcomeModel> = {}): ParliamentEnactOutcomeModel =>
+      ({player: BLUE, step: 'temperature', part: 'winner', kind: 'globalParameter', amount: 2, parameter: {id: 'temperature', before: -20, after: -16}, tr: 2, ...over}) as ParliamentEnactOutcomeModel;
+
+    it('DETECT: the winner\'s step is a planet record, for the winner AND for every other viewer; a tile or a skip is not', () => {
+      expect(isPlanetRecord(winnerStep())).is.true;
+      expect(isPlanetRecord(world('oxygen'))).is.true;
+      expect(isPlanetRecord({player: BLUE, step: 'ocean', part: 'winner', kind: 'ocean'} as ParliamentEnactOutcomeModel), 'a tile\'s trip is the placement\'s').is.false;
+      expect(isPlanetRecord(winnerStep({kind: 'skipped', amount: 0})), 'a named skip moves nothing').is.false;
+      expect(isPlanetRecord({player: BLUE, step: 'heat', part: 'effect', kind: 'stock'} as ParliamentEnactOutcomeModel)).is.false;
+      expect(detectNewWorldMoves(view(3, []), view(3, [winnerStep()])).map((o) => `${o.player}:${o.step}`)).deep.eq(['blue:temperature']);
+      expect(detectNewWorldMoves(view(3, [], 'red'), view(3, [winnerStep()], 'red')).map((o) => o.step), 'the other seat plays it too').deep.eq(['temperature']);
+      expect(detectNewWorldMoves(view(3, [winnerStep()]), view(3, [winnerStep()])), 'known already').deep.eq([]);
+    });
+
+    it('RUN with the board still BUSY (the 0 °C ocean stands): the frame stays aside and the receipt is owed all the same', async () => {
+      enterWorkspace('parliament');
+      enterWorldBeatSitting('3:1');
+      seedWorldMoveBeat(view(3, []), view(3, [winnerStep()]));
+      expect(await runWorldMoveBeat('3:1', {boardBusy: () => true})).is.true;
+      expect(parliamentWorldBeatState.away).is.false;
+      expect(stackYieldedToBoard(), 'the placement\'s own end brings the frame back, not the beat').is.true;
+      expect(workspaceStackState.frames).has.length(0);
+      expect(worldReceiptOwed('3:1'), 'the read is owed for when it does').is.true;
+      expect(takeWorldReceipt('3:1')?.map((o) => o.step)).deep.eq(['temperature']);
+      // …and with the board free the beat resumes the stack itself, as for a world move.
+      resetWorkspaceStack();
+      enterWorkspace('parliament');
+      seedWorldMoveBeat(view(3, []), view(3, [winnerStep({step: 'venus'})]));
+      expect(await runWorldMoveBeat('3:1', {boardBusy: () => false})).is.true;
+      expect(stackYieldedToBoard()).is.false;
+      expect(workspaceStackState.frames).has.length(1);
+    });
   });
 });

@@ -29,6 +29,18 @@
  * that never came back would be a far worse lie than a missed glide. The beat
  * NEVER replays: a sitting's world records are owed once, and a reload (no
  * `before` view) owes nothing at all.
+ *
+ * THE WINNER'S OWN STEP OF A PARAMETER (Mohole Contest, RX23) is the SAME
+ * beat in another tone: its record names a seat and is REWARDED, so the
+ * park's story carries the marker's glide AND the winner's TR chip (the HUD's
+ * own delta chip — the standard presentation of a rating that moved), and
+ * every viewer plays it (the planet moved for all of them). Two things differ
+ * from a world move, both structural: the record is the WINNER's (the band
+ * reads it through the winner block, the results in the winner's row — never
+ * the planet line), and the step may set off a placement of the winner's OWN
+ * (the ocean of 0 °C): while THAT stands the frame does not come back — the
+ * board still has the seat's business, and the placement's own end resumes
+ * the stack.
  */
 import {reactive} from 'vue';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
@@ -58,16 +70,28 @@ function phaseOf(view: PlayerViewModel | undefined): ParliamentPhaseModel | unde
   return view?.game.parliament?.phase;
 }
 
-/** The structural identity of a world record — it has no seat, so its step is its name. */
-function worldKey(outcome: ParliamentEnactOutcomeModel): string {
-  return `world:${outcome.step}`;
+/**
+ * A PLANET RECORD — a move of a global parameter the sitting shows on the
+ * board: the world's own (no seat, `part: 'world'`) or the WINNER's step of a
+ * parameter (a seat, `part: 'winner'`, `kind: 'globalParameter'` — Mohole
+ * Contest). A tile's record (`ocean` / `greenery`) is not one: its board trip
+ * is the placement's.
+ */
+export function isPlanetRecord(outcome: ParliamentEnactOutcomeModel): boolean {
+  return outcome.kind === 'globalParameter' && (outcome.player === undefined ? outcome.part === 'world' : outcome.part === 'winner');
+}
+
+/** The structural identity of a planet record — the seat (none for the world) and the step. */
+function planetKey(outcome: ParliamentEnactOutcomeModel): string {
+  return `${outcome.player ?? 'world'}:${outcome.step}`;
 }
 
 /**
- * DETECT (pure): the WORLD records this response added to the live phase —
+ * DETECT (pure): the PLANET records this response added to the live phase —
  * present in `after`, absent from `before` (same generation). A world record
- * names no seat, so every viewer detects the same ones. A first view (no
- * `before`) or a new generation adds nothing: a reload replays nothing.
+ * names no seat and the winner's step names the winner, and EVERY viewer
+ * detects both (the planet moved for all of them). A first view (no `before`)
+ * or a new generation adds nothing: a reload replays nothing.
  */
 export function detectNewWorldMoves(before: PlayerViewModel | undefined, after: PlayerViewModel): Array<ParliamentEnactOutcomeModel> {
   const phase = phaseOf(after);
@@ -75,8 +99,8 @@ export function detectNewWorldMoves(before: PlayerViewModel | undefined, after: 
   if (phase === undefined || was === undefined || was.generation !== phase.generation) {
     return [];
   }
-  const known = new Set((was.outcomes ?? []).filter((o) => o.player === undefined).map(worldKey));
-  return (phase.outcomes ?? []).filter((o) => o.player === undefined && o.part === 'world' && !known.has(worldKey(o)));
+  const known = new Set((was.outcomes ?? []).filter(isPlanetRecord).map(planetKey));
+  return (phase.outcomes ?? []).filter((o) => isPlanetRecord(o) && !known.has(planetKey(o)));
 }
 
 /** A new sitting drops whatever the old one still owed. */
@@ -153,7 +177,16 @@ function waitForStoryQuiet(): Promise<void> {
  * marked shown all the same — the scales have moved and the results' planet
  * line still states it. A beat that cannot play is never a beat that repeats.
  */
-export async function runWorldMoveBeat(sitting: string): Promise<boolean> {
+export async function runWorldMoveBeat(sitting: string, opts: {
+  /**
+   * THE BOARD STILL HAS THIS SEAT'S BUSINESS once the story is quiet — the
+   * placement the winner's step set off (the ocean of 0 °C, Mohole Contest):
+   * the frame then stays aside, and the placement's own end brings it back
+   * (`resumeYieldedStackOverQuietBoard`), the receipt read then. Asked at the
+   * end of the story, never at its start.
+   */
+  boardBusy?: () => boolean;
+} = {}): Promise<boolean> {
   if (!worldMoveOwed(sitting)) {
     return false;
   }
@@ -166,7 +199,7 @@ export async function runWorldMoveBeat(sitting: string): Promise<boolean> {
     await waitForStoryQuiet();
   } finally {
     parliamentWorldBeatState.away = false;
-    if (stackYieldedToBoard()) {
+    if (stackYieldedToBoard() && opts.boardBusy?.() !== true) {
       resumeStackFromBoard();
     }
     parliamentWorldBeatState.receipt = {sitting, moves};

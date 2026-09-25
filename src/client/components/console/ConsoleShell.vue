@@ -1650,7 +1650,7 @@ import ConsoleColoniesSection, {ConsoleColonyPick} from '@/client/components/con
 import ConsoleParliamentSection from '@/client/components/console/ConsoleParliamentSection.vue';
 import {ParliamentInspectRequest} from '@/client/console/parliament/parliamentInspect';
 import {consoleParliamentUi} from '@/client/console/parliament/consoleParliamentFlow';
-import {parliamentSittingFlowBeat, parliamentSittingLive} from '@/client/console/parliament/consoleSittingFlow';
+import {parliamentSittingFlowBeat, parliamentSittingLive, sittingTailPlacementOf} from '@/client/console/parliament/consoleSittingFlow';
 import {partyAnnotations, resolutionAnnotations, resolutionPartyAnnotations} from '@/client/console/parliament/parliamentAnnotations';
 import {resolutionPartyContextKey, resolutionStatusOf, ResolutionStatusVm} from '@/client/console/parliament/resolutionInspectModel';
 import {getResolution} from '@/client/parliament/ClientParliamentManifest';
@@ -5486,9 +5486,16 @@ export default defineComponent({
      */
     parliamentPlacementDoorClosed(): boolean {
       const wf = this.playerView.waitingFor;
-      return wf?.type === 'space' && promptSourceResolution(wf) !== undefined &&
-        this.game.phase === Phase.PARLIAMENT && this.game.parliament?.phase !== undefined &&
-        consoleParliamentUi.stageStanding && !consoleParliamentUi.boardDoorOpen;
+      const phase = this.game.parliament?.phase;
+      if (wf?.type !== 'space' || this.game.phase !== Phase.PARLIAMENT || phase === undefined) {
+        return false;
+      }
+      // The ENGINE'S TAIL of the seat's own step (the 0 °C ocean of the winner's temperature step — Mohole
+      // Contest) stands behind the SAME door: admitted the moment it arrives, it took the screen before the
+      // step's own wave had flown (the section unmounted under it and flushed the wave unplayed). The
+      // difference is WHO opens the door — the sitting's walk, once its page is quiet, never a press.
+      const own = promptSourceResolution(wf) !== undefined || sittingTailPlacementOf(wf, phase, this.thisPlayer?.color);
+      return own && consoleParliamentUi.stageStanding && !consoleParliamentUi.boardDoorOpen;
     },
     /**
      * Server-driven placement (SelectSpace) or a client-side board picker.

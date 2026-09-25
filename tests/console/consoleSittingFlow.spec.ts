@@ -7,7 +7,7 @@ import {PlayerViewModel} from '../../src/common/models/PlayerModel';
 import {
   parliamentSittingFlowBeat, parliamentSittingLive, quietRewardPoseOf, SITTING_HOSTED_STEPS, SITTING_SUBJECT_KEY, sittingAskOf, sittingAtLastPage,
   sittingBodyOf, sittingFieldOf, sittingPageAuto, sittingPagesOf, sittingPositionOf, sittingPrimaryKey, sittingRewardSettled, sittingStageAt,
-  sittingStageKey, sittingStartPage, sittingWorkspacePhase, verdictStandsAt,
+  sittingStageKey, sittingStartPage, sittingTailPlacementOf, sittingWorkspacePhase, verdictStandsAt,
 } from '../../src/client/console/parliament/consoleSittingFlow';
 import {backVerbFor} from '../../src/client/console/consoleWorkspaceFlow';
 import {AQUIFER_CONTEST_ID} from '../../src/server/parliament/resolutions/greens/AquiferContest';
@@ -274,9 +274,35 @@ describe('consoleSittingFlow — the political phase as ONE flow (v2)', () => {
     it('the winner\'s tile is placed ONLY by the player\'s press: the placement step offers «К полю» and nothing turns the page by itself', () => {
       const placement = sittingPositionOf(model(phase({step: 'effects', pending: {player: BLUE, key: 'k', input: 'space'}})), tile(), BLUE)!;
       expect(placement.rewardStep).eq('placement');
+      expect(placement.tail).is.undefined;
       expect(sittingPrimaryKey(placement, 1)).eq('Onto the board');
       expect(sittingRewardSettled(placement)).is.false;
       expect(sittingStageKey('reward', placement.rewardStep)).eq('Placement');
+    });
+
+    /* Mohole Contest (RX23): the winner's temperature step reaches 0 °C and the ENGINE asks the winner for the
+     * ocean — a placement with no resolution source, which the server's position names as the step's own ask. */
+    it('the engine\'s TAIL of the seat\'s own step (the 0 °C ocean) is the seat\'s placement too — by the server\'s position and the prompt\'s type, never a title — with NO door: it holds the page and offers nothing to press', () => {
+      const ocean = (): PlayerInputModel =>
+        ({type: 'space', title: 'Select space for ocean from temperature increase', buttonLabel: 'Select', spaces: [],
+          placementContext: {cancellable: false, source: {kind: 'system', name: 'Temperature bonus step'}}} as unknown as PlayerInputModel);
+      expect(sittingAskOf(ocean()), 'no resolution source: not an ask of the resolution\'s').is.undefined;
+      expect(sittingTailPlacementOf(ocean(), phase({step: 'effects', pending: {player: BLUE, key: 'temperature', input: 'space'}}), BLUE)).is.true;
+      const tail = sittingPositionOf(model(phase({step: 'effects', pending: {player: BLUE, key: 'temperature', input: 'space'}})), ocean(), BLUE)!;
+      expect(tail.rewardStep).eq('placement');
+      expect(tail.tail).is.true;
+      expect(sittingPrimaryKey(tail, 1), 'admitted like any board placement — nothing to press').is.undefined;
+      expect(sittingRewardSettled(tail), 'a step is owed until it is placed').is.false;
+      expect(sittingStageKey('reward', tail.rewardStep)).eq('Placement');
+      // The OTHER seat reads the honest wait on the winner's placement.
+      const other = sittingPositionOf(model(phase({step: 'effects', pending: {player: BLUE, key: 'temperature', input: 'space'}})), undefined, RED)!;
+      expect(other.rewardStep).eq('waiting');
+      expect(other.waitingFor).deep.eq({player: BLUE, input: 'space'});
+      // Not a tail: the position names ANOTHER seat, another kind of ask, or another step of the phase.
+      expect(sittingTailPlacementOf(ocean(), phase({step: 'effects', pending: {player: RED, key: 'temperature', input: 'space'}}), BLUE)).is.false;
+      expect(sittingTailPlacementOf(ocean(), phase({step: 'effects', pending: {player: BLUE, key: 'k', input: 'card'}}), BLUE)).is.false;
+      expect(sittingTailPlacementOf(ocean(), phase({step: 'adjourn', pending: {player: BLUE, key: 'temperature', input: 'space'}}), BLUE)).is.false;
+      expect(sittingTailPlacementOf(tile(), phase({step: 'effects', pending: {player: BLUE, key: 'ocean', input: 'space'}}), BLUE), 'the resolution\'s own tile is a DOOR, never a tail').is.false;
     });
   });
 

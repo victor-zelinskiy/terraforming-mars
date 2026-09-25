@@ -134,6 +134,15 @@ export type SittingPosition = {
   rewardStep: SittingRewardStep;
   /** The seat the effects are asking right now, when it is somebody else — and what kind of answer. */
   waitingFor?: {player: Color, input?: PlayerInputType};
+  /**
+   * The viewer's placement is the ENGINE's own follow-up of the seat's own step (the 0 °C ocean the winner's
+   * temperature step set off — Mohole Contest), not a question the resolution raised: the server names this
+   * seat as asked at that step (`pending`) and the prompt is a board placement with no resolution source. It
+   * stands behind the SAME door as the resolution's own tile (a placement admitted at once took the screen
+   * before the step's wave had flown) — but the sitting's WALK opens that door once its page is quiet, never
+   * a press — and it holds the reward page exactly as the tile would (a step is owed until it is placed).
+   */
+  tail?: boolean;
 };
 
 /** The viewer's own resolution-sourced ask, by its structural markers — never a title. */
@@ -162,6 +171,21 @@ export function sittingAskOf(wf: PlayerInputModel | undefined): 'choice' | 'dist
     return 'distribution';
   }
   return 'choice';
+}
+
+/**
+ * A PLACEMENT THAT IS THE STEP'S OWN TAIL — the engine's follow-up of a step of THIS seat's (the ocean of
+ * 0 °C after the winner's temperature step; Europa's ocean under the winner's colony): the prompt carries
+ * no resolution source, but the server's position names this seat as the one its step is asking
+ * (`phase.pending`, published from the driver's own step window), and the ask is a board placement.
+ * Structural on both sides — the position and the prompt's type — never a title.
+ */
+export function sittingTailPlacementOf(wf: PlayerInputModel | undefined, phase: ParliamentPhaseModel | undefined, viewer: Color | undefined): boolean {
+  if (wf === undefined || phase === undefined || viewer === undefined || wf.type !== 'space' || promptSourceResolution(wf) !== undefined) {
+    return false;
+  }
+  const pending = phase.pending;
+  return phase.step === 'effects' && pending !== undefined && pending.player === viewer && pending.input === 'space';
 }
 
 /** The viewer's gate prompt, if it stands: the server's own marker. */
@@ -238,7 +262,8 @@ export function sittingPositionOf(
   const gate: ParliamentPhaseStage | undefined = phase.step === 'assembly' || phase.step === 'adjourn' ? phase.step : undefined;
   const gateStanding = gate !== undefined && sittingGatePromptOf(wf) === gate;
   const awaiting = phase.awaiting ?? [];
-  const ask = sittingAskOf(wf);
+  const tail = sittingTailPlacementOf(wf, phase, viewer);
+  const ask = sittingAskOf(wf) ?? (tail ? 'placement' : undefined);
   const pending = phase.pending;
   const waitingFor = phase.step === 'effects' && pending !== undefined && pending.player !== viewer ?
     {player: pending.player, input: pending.input} : undefined;
@@ -266,6 +291,7 @@ export function sittingPositionOf(
     awaiting,
     rewardStep,
     waitingFor,
+    ...(tail ? {tail: true} : {}),
   };
 }
 
@@ -415,7 +441,9 @@ export function sittingPrimaryKey(position: SittingPosition, page: number): stri
   case 'verdict':
     return position.gate === 'assembly' && position.gateStanding ? 'Continue' : undefined;
   case 'reward':
-    return position.rewardStep === 'placement' ? 'Onto the board' : undefined;
+    // The resolution's own tile waits behind the door for the player's press; the engine's TAIL (the 0 °C
+    // ocean of the winner's step) waits behind it for the WALK — nothing to press.
+    return position.rewardStep === 'placement' && position.tail !== true ? 'Onto the board' : undefined;
   case 'results':
     return position.gate === 'adjourn' && position.gateStanding ? 'Close the sitting' : undefined;
   default:

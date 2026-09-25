@@ -1371,8 +1371,12 @@ export default defineComponent({
       // must have been OPEN (`stepOpenMirror`): the frame is pushed the moment its prompt is admitted — in the very
       // update that brings the enactment — and a frame merely PUSHED must not skip the enactment's own beats.
       const hostedFrameStands = this.stepOpenMirror && this.stepFrameNested;
-      // The WORLD's move (and the read of its result) is owed on the reward page too.
-      const worldOwed = worldMoveOwed(key) || worldReceiptOwed(key) || parliamentWorldBeatState.receiptShowing;
+      // The WORLD's move (and the read of its result) is owed on the reward page too — a move STILL TO PLAY only
+      // once the enactment has played: seated straight on the reward page at the step's ENTRY, the walk skipped
+      // ПРИНЯТИЕ (the enacted card never reached the hero slot) and the seat's wave was released as «nothing to
+      // fly from» — measured on Mohole Contest (the same step change Gas Export / Heat Capture arrive by). An
+      // unplayed enactment starts the walk anyway, and the reward page follows it by itself.
+      const worldOwed = (worldMoveOwed(key) && sittingStagePlayed(key, 'enact')) || worldReceiptOwed(key) || parliamentWorldBeatState.receiptShowing;
       parliamentFlow.sittingPage = sittingStartPage(position, (stage) => sittingStagePlayed(key, stage), ledgerRead || hostedFrameStands || worldOwed);
       this.queueWalk();
     },
@@ -1413,7 +1417,11 @@ export default defineComponent({
      * beat of the sitting, never an interruption of the player's own work.
      */
     mayYieldForWorld(position: SittingPosition): boolean {
-      return sittingRewardSettled(position) && !this.rewardPending && !parliamentRewardState.receiptShowing &&
+      // …or the seat's own step set off a placement on the board (the ocean of 0 °C — a TAIL, never a door):
+      // the planet's story and that placement share ONE trip to the board, so the frame steps aside now and
+      // the placement takes over there (`runWorldMoveBeat` leaves the stack aside while the board is busy).
+      const settled = sittingRewardSettled(position) || (position.rewardStep === 'placement' && position.tail === true);
+      return settled && !this.rewardPending && !parliamentRewardState.receiptShowing &&
         !this.ledgerReadOwed && !this.stepFrameNested && !this.sittingStepOpen;
     },
     /** May the walk leave `stage` by itself? The enactment always; the reward once nothing of this seat's is open there. */
@@ -1493,6 +1501,15 @@ export default defineComponent({
               parliamentWorldBeatState.receiptShowing = false;
             }
           }
+          // THE ENGINE'S TAIL of the seat's own step (the 0 °C ocean the winner's temperature step set off —
+          // Mohole Contest) stands behind the same door as the winner's tile, and the WALK opens it — once
+          // the page is quiet (the wave landed, nothing hosted, nothing still to read) — never a press: the
+          // shell's `placementActive` edge then yields the stack, or the planet beat below does first and the
+          // placement takes over on the board (one trip for the glide and the ocean).
+          if (stage === 'reward' && position.rewardStep === 'placement' && position.tail === true && !this.rewardPending &&
+              !parliamentRewardState.receiptShowing && !this.ledgerReadOwed && !this.stepFrameNested && !this.sittingStepOpen) {
+            consoleParliamentUi.boardDoorOpen = true;
+          }
           // THE WORLD MOVES ON THE BOARD, so the sitting steps aside for it —
           // the winner-tile door's own grammar, driven by the walk instead of
           // by a press (nobody chose this; the law did). The frame unmounts
@@ -1500,7 +1517,7 @@ export default defineComponent({
           // story, the module puts the stack back, and the section's own mount
           // re-queues the walk on the reward page with the receipt owed.
           if (stage === 'reward' && worldMoveOwed(key) && this.mayYieldForWorld(position)) {
-            void runWorldMoveBeat(key);
+            void runWorldMoveBeat(key, {boardBusy: () => this.pv.waitingFor?.type === 'space'});
             break;
           }
           if (!this.sittingUp) {
