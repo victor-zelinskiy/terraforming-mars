@@ -2313,6 +2313,8 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'hydro-terminal'
   // RX20 Skyscrapers: blue's city-tier prompt standing (one city, one greenery beside it), and the sitting over with two stacks of 2 on the board.
   'parliament-skyscrapers-enact' | 'parliament-skyscrapers-stacked' |
   'parliament-research-vote' | 'parliament-research-assembly' | 'parliament-research-enact' | 'parliament-research-full' |
+  // RX25 Plant Ban: the vote with SEVEN plants against a limit of 4 (influence 2), and gate 1 with the supply still whole.
+  'parliament-ban-vote' | 'parliament-ban-assembly' |
   'parliament-climate-vote' | 'parliament-climate-enact' | 'parliament-climate-recap' | 'parliament-climate-big' |
   'parliament-climate-vote-raise' | 'parliament-climate-cardstep' | 'parliament-biodome-nocell-assembly' | 'parliament-aquifer-assembly-six' | 'parliament-powergrid-vote-cap' |
   // RX07 Colonial Affairs: the arranged colony table (Luna · Titan · Miranda · Pluto) at the vote and at gate 1.

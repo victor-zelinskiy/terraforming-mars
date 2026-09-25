@@ -370,6 +370,11 @@ export function netOfParts(parts: ReadonlyArray<ResultsPayoutPart>): {unit: stri
     return undefined;
   }
   const same = supply.filter((part) => part.unit === loss.unit);
+  // …and only where the law also PAID that unit: a net that restates the single part it is made of
+  // («−3 · = −3» — Plant Ban, whose whole payout is the cut) is a second voice saying nothing new.
+  if (!same.some((part) => (part.amount ?? 0) > 0)) {
+    return undefined;
+  }
   return {unit: loss.unit, amount: same.reduce((sum, part) => sum + (part.amount ?? 0), 0)};
 }
 

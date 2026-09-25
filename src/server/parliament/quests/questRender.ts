@@ -74,7 +74,9 @@ export function questRenderData(quest: QuestDefinition): ICardRenderRoot {
       b.resource(goal.resource, count);
       return;
     case 'delegates':
-      b.delegates(count);
+      // A DIGIT beside ONE figure, as the physical footnote prints it (Plant Ban: «4 [delegate]») — four
+      // silhouettes in a row would be counted rather than read.
+      b.delegates(count, {digit: true});
       return;
     case 'cardsPlayed':
       if (goal.cardType === 'event') {

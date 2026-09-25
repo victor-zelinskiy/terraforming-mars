@@ -18,7 +18,7 @@
         <span class="con-band__kicker" data-parl-band-crumb>{{ $t(line.kicker) }}</span>
         <span v-if="stateKey !== undefined"
               class="con-band__state"
-              :class="{'con-band__state--received': stateKey === 'Received'}"
+              :class="{'con-band__state--received': stateKey === 'Received' || stateKey === 'Taken'}"
               :data-parl-band-state="stateKey">{{ $t(stateKey) }}</span>
         <span class="con-band__chips">
           <template v-for="(chip, index) in line.chips" :key="index">
@@ -140,7 +140,9 @@ import {conLogicalPx} from '@/client/console/consoleLayoutProfile';
 import {getResolution} from '@/client/parliament/ClientParliamentManifest';
 import {parliamentPlayerName, ParliamentViewVm, resolutionTitleOf} from '@/client/console/parliament/consoleParliamentModel';
 import {partyNameKey} from '@/client/console/parliament/partyNames';
-import {BandLine, BandQuest, BandRewardReading, BandSitting, BandStanding, parliamentBandLine} from '@/client/console/parliament/parliamentBand';
+import {
+  BandLine, BandQuest, BandRewardReading, BandRewardState, bandRewardTakes, BandSitting, BandStanding, parliamentBandLine,
+} from '@/client/console/parliament/parliamentBand';
 import {chairmanQuestFlow} from '@/client/console/parliament/consoleChairmanQuest';
 import {quietRewardPoseOf, SittingPosition, SittingStage} from '@/client/console/parliament/consoleSittingFlow';
 import {enactedLevyOf, enactedYieldsOf, resolvingLevyOf, resolvingYieldsOf} from '@/client/console/parliament/influenceYieldModel';
@@ -382,7 +384,7 @@ export default defineComponent({
      * выплата» while the numbers are what the law is about to pay, «получено»
      * once every chip has landed. Absent everywhere else.
      */
-    stateKey(): 'This payout' | 'Received' | undefined {
+    stateKey(): BandRewardState | undefined {
       const position = this.position;
       if (position === undefined || !this.sittingUp || this.stage !== 'reward') {
         return undefined;
@@ -391,7 +393,13 @@ export default defineComponent({
         return undefined;
       }
       const recorded = this.mine.length > 0 || position.step === 'adjourn' || position.step === 'done';
-      return !recorded || this.rewardResolving ? 'This payout' : 'Received';
+      const live = !recorded || this.rewardResolving;
+      // A CUT keeps the same two moments and names them its own way — «эта потеря» while the
+      // chips are still leaving, «отнято» once they are gone: never «получено».
+      if (bandRewardTakes(this.yields)) {
+        return live ? 'This loss' : 'Taken';
+      }
+      return live ? 'This payout' : 'Received';
     },
   },
   methods: {

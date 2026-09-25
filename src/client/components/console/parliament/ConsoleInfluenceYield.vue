@@ -48,7 +48,10 @@
         </div>
       </div>
     </div>
-    <div v-for="group in groups" :key="group.effect.id" class="con-iyield__group" :data-yield-effect="group.effect.id">
+    <!-- WHICH WAY a level part moves the seat is a property of the EFFECT, so it rides the group — the formula
+         row is absent whenever a reading stands, and a reading must still be able to say «this one takes». -->
+    <div v-for="group in groups" :key="group.effect.id" class="con-iyield__group"
+         :data-yield-effect="group.effect.id" :data-yield-direction="group.effect.level?.direction">
       <!-- A SEQUENTIAL part states its own rule: «1 [card] / 3 [heat
            production]» — the divisor and the TOTAL it divides, never the
            influence (which is already inside that total). -->

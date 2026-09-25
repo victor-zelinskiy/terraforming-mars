@@ -136,9 +136,12 @@ export const PLANT_BAN: ResolutionDefinition = {
   copies: 1,
   // THE FACE as printed: «max 2 [plant] + [influence]» — the number is the
   // LIMIT the player keeps, which is why the word «max» stands before it and
-  // not a «−»: nothing on this face is an amount taken.
+  // not a «−»: nothing on this face is an amount taken. The 2 is a DIGIT
+  // (`{digit: true}`), as the card prints it — the renderer's default for a
+  // small amount is a chain of icons, and two leaves side by side read as
+  // «two plants are taken», which is the one thing this face must not say.
   renderData: CardRenderer.builder((b) => {
-    b.text('max', Size.LARGE).plants(PLANT_BAN_LIMIT_BASE).plus().influence();
+    b.text('max', Size.LARGE).plants(PLANT_BAN_LIMIT_BASE, {digit: true}).plus().influence();
   }),
   text: {
     name: 'Plant Ban',

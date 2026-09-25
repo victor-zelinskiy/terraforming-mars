@@ -44,7 +44,7 @@ import {Color} from '@/common/Color';
 import type {WinnerRewardGlyph} from './winnerRewardModel';
 import {ReduxParty, ResolutionId} from '@/common/parliament/ParliamentTypes';
 import {ParliamentPhaseSummaryModel} from '@/common/models/ParliamentModel';
-import {InfluenceYield} from '@/common/parliament/influenceScaling';
+import {InfluenceYield, levelTakesAway} from '@/common/parliament/influenceScaling';
 import {LevyReading} from '@/common/parliament/resolutionLevy';
 import {ParameterMoveId} from '@/common/parliament/parameterMove';
 import {SittingRewardStep, SittingStage} from './consoleSittingFlow';
@@ -108,6 +108,23 @@ export type BandLine = {
   quiet?: 'passive' | 'action';
 };
 
+/**
+ * ONE WORD OF STATE beside the reward's kicker. A payout is «эта выплата»
+ * then «получено»; a CUT is «эта потеря» then «отнято» — thanking the
+ * player for a loss is the one thing this slot must never do.
+ */
+export type BandRewardState = 'This payout' | 'Received' | 'This loss' | 'Taken';
+
+/**
+ * THIS SEAT'S OWN PART IS A CUT: every reading of it TAKES (Plant Ban). Read
+ * off the DECLARATION the readings carry, never off a record's sign — the band
+ * states the line before the first chip has left.
+ */
+export function bandRewardTakes(yields: ReadonlyArray<InfluenceYield>): boolean {
+  return yields.length > 0 && yields.every((y) => levelTakesAway(y.effect));
+}
+
+
 /** The reward's reading, as DATA — the one thing the band cannot derive from the summary alone. */
 export type BandRewardReading = {
   yields: ReadonlyArray<InfluenceYield>;
@@ -123,8 +140,8 @@ export type BandRewardReading = {
   world?: ReadonlyArray<{parameter: ParameterMoveId, before: number, after: number, steps: number, unrewarded: boolean, skipped?: string}>;
   /** Nothing is paid to this seat: what remains instead (the passive that now stands / the action to take). */
   quiet?: {kicker: string, kind: 'passive' | 'action'};
-  /** One word of state beside the kicker: «эта выплата» until every chip has landed, «получено» after. */
-  state?: 'This payout' | 'Received';
+  /** One word of state beside the kicker: «эта выплата» until every chip has landed, «получено» after — or the CUT's own pair. */
+  state?: BandRewardState;
   /** The effects are asking ANOTHER seat. */
   waitingFor?: Color;
 };
@@ -390,7 +407,9 @@ function rewardLine(sitting: BandSitting): BandLine {
     chips.push({kind: 'awaiting', seats: sitting.awaiting});
   }
   return {
-    kicker: 'Your reward',
+    // A CUT IS NOT A REWARD, and the line that carries it may not call itself one: the same slot
+    // names what LEAVES («Что вы теряете»), decided by the DECLARATION the readings carry.
+    kicker: bandRewardTakes(reward.yields) ? 'What you lose' : 'Your reward',
     key: `reward:${sitting.rewardStep}:${reward.state ?? ''}:${reward.yields.length}:${reward.skips.length}:${(reward.world ?? []).length}:${reward.grant ?? ''}`,
     chips,
     committed: true,

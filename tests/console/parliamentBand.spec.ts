@@ -3,7 +3,7 @@ import {Color} from '@/common/Color';
 import {PartyName} from '@/common/turmoil/PartyName';
 import {ParliamentPhaseSummaryModel} from '@/common/models/ParliamentModel';
 import {
-  BandChip, BandContext, BandRewardReading, BandSitting, parliamentBandLine,
+  BandChip, BandContext, BandRewardReading, bandRewardTakes, BandSitting, parliamentBandLine,
 } from '@/client/console/parliament/parliamentBand';
 
 /*
@@ -133,7 +133,7 @@ describe('parliamentBand — the reading band says the REASON, in objects', () =
         stage: 'reward',
         rewardStep: 'received',
         reward: {
-          yields: [{context: 'applied'} as never],
+          yields: [{context: 'applied', effect: {id: 'x', unit: {kind: 'cards'}, perInfluence: 1, recipient: 'each'}} as never],
           reactions: [{party: PartyName.GREENS, amount: 1}],
           skips: [{id: 's', title: 'Skipped: cards', reason: 'The deck is empty'}],
           state: 'Received',
@@ -141,6 +141,25 @@ describe('parliamentBand — the reading band says the REASON, in objects', () =
       });
       expect(band.kicker).eq('Your reward');
       expect(kinds(band.chips)).deep.eq(['yield', 'reaction', 'skip']);
+    });
+    /*
+     * A CUT IS NOT A REWARD (Plant Ban, RX25): the band's kicker names what LEAVES. Decided by the
+     * DECLARATION the readings carry, never by a record's sign — the line stands before the first
+     * chip has left the rail.
+     */
+    it('a part that TAKES renames the line — «что вы теряете», never «ваша награда»', () => {
+      const cut = {id: 'plants', unit: {kind: 'stock', resource: 'plants'}, base: 2, perInfluence: 1,
+        level: {total: {kind: 'stock', resource: 'plants'}, direction: 'down'}, recipient: 'each'};
+      const band = line({
+        stage: 'reward', rewardStep: 'received',
+        reward: {yields: [{context: 'applied', amount: 3, effect: cut} as never], reactions: [], skips: []},
+      });
+      expect(band.kicker).eq('What you lose');
+      expect(bandRewardTakes([{context: 'applied', effect: cut} as never])).is.true;
+      // …and a payout of the very same shape keeps the reward's word: the direction is the only difference.
+      const topUp = {...cut, level: {total: {kind: 'cards'}, direction: 'up'}};
+      expect(bandRewardTakes([{context: 'applied', effect: topUp} as never])).is.false;
+      expect(bandRewardTakes([]), 'a line with no reading of its own is not a loss').is.false;
     });
     it('a QUIET resolution names what remains instead — and never the card\'s own wording (the government prints that)', () => {
       const band = line({stage: 'reward', rewardStep: 'received', reward: {...NO_REWARD, quiet: {kicker: 'Resolution action', kind: 'action'}}});
@@ -158,7 +177,7 @@ describe('parliamentBand — the reading band says the REASON, in objects', () =
         stage: 'reward',
         rewardStep: 'received',
         reward: {
-          yields: [{context: 'applied'} as never],
+          yields: [{context: 'applied', effect: {id: 'x', unit: {kind: 'cards'}, perInfluence: 1, recipient: 'each'}} as never],
           reactions: [],
           skips: [],
           world: [
