@@ -747,8 +747,12 @@ export function buildCityFacts(cities: ReadonlyArray<CityVpDetail> | undefined):
     .slice()
     .sort((a, c) => c.points - a.points)
     .map((c): ScoreFactRow => ({
-      key: `city:${c.spaceId}`,
-      label: c.cardName ?? 'City',
+      // A city STACK (Skyscrapers) is one row PER TIER on the same cell — each names its tier, so «two
+      // contributions from one cell» reads as the rule (every tier scores separately), never as a duplicate.
+      key: `city:${c.spaceId}:${c.tier ?? 1}`,
+      ...(c.tiers === undefined ?
+        {label: c.cardName ?? 'City'} :
+        {label: 'City · tier ${0} of ${1}', params: [c.tier ?? 1, c.tiers]}),
       value: c.points,
       note: c.points > 0 ?
         {label: '${0} adjacent greeneries × 1 VP', params: [c.points]} :

@@ -1,5 +1,16 @@
 <template>
-  <div v-if="space !== undefined" :class="mainClass" :data_space_id="space.id">
+  <div v-if="space !== undefined" :class="mainClass" :style="stackStyle" :data_space_id="space.id" :data-stack-height="stackHeight > 1 ? stackHeight : undefined">
+    <!-- THE CITY STACK (Turmoil Redux — Skyscrapers): the LOWER TIERS paint under
+         the top tile, each one stepped down, so the stack reads by its silhouette
+         (a pile of tokens); the counter below names the height outright. Drawn
+         inside the hex (never onto a neighbour) — the whole pile is scaled to fit
+         the cell, the top tile rides the lift. At most two lower tiers are drawn;
+         the counter is the truth for any height. -->
+    <div v-for="k in tierLayers" :key="'tier-' + k"
+         class="board-space board-stack__tier"
+         :class="tierArtClass"
+         :style="{'--stack-k': k}"
+         data-stack-tier></div>
     <board-space-tile
       :space="space"
       :aresExtension="aresExtension"
@@ -18,6 +29,9 @@
         :color="space.color"
         :size="12"
         :animate-in="cubePhase === 'dropping'"></player-cube>
+      <!-- The stack's COUNTER: the height, named — «two» and «three» must be told apart at a glance,
+           never guessed from the pile's thickness. Lower-left, the owner cube's mirror. -->
+      <span v-if="stackHeight > 1 && !placementCleared" class="board-stack__count" data-stack-count>×{{ stackHeight }}</span>
       <template v-if="space.gagarin !== undefined">
         <div v-if="space.gagarin === 0" class='gagarin'></div>
         <div v-else class='gagarin visited'></div>
@@ -52,7 +66,7 @@
 
 import {defineComponent} from 'vue';
 import Bonus from '@/client/components/Bonus.vue';
-import BoardSpaceTile from '@/client/components/board/BoardSpaceTile.vue';
+import BoardSpaceTile, {tileCssClassOf} from '@/client/components/board/BoardSpaceTile.vue';
 import PlayerCube from '@/client/components/PlayerCube.vue';
 import NomadToken from '@/client/components/NomadToken.vue';
 import UndergroundToken from '@/client/components/underworld/UndergroundToken.vue';
@@ -202,7 +216,35 @@ export default defineComponent({
     mainClass(): string {
       let css = 'board-space board-space-' + this.space?.id.toString();
       css += ' board-space-selectable';
+      if (this.stackHeight > 1 && !this.placementCleared) {
+        css += ' board-space--stack';
+      }
       return css;
+    },
+    /** The city STACK's height (Skyscrapers) — 1 for any ordinary cell. */
+    stackHeight(): number {
+      return this.space.stackHeight ?? 1;
+    },
+    /** The lower tiers drawn under the top tile, nearest first (`--stack-k` 1 = right under it); at most two. */
+    tierLayers(): ReadonlyArray<number> {
+      if (this.stackHeight <= 1 || this.placementCleared || this.tileView !== 'show') {
+        return [];
+      }
+      const drawn = Math.min(2, this.stackHeight - 1);
+      return Array.from({length: drawn}, (_, i) => i + 1);
+    },
+    /** The lower tiers wear the TOP tile's own art (a stack is one owner's identical cities). */
+    tierArtClass(): string {
+      const tileType = this.space.tileType;
+      if (tileType === undefined) {
+        return '';
+      }
+      const suffix = tileCssClassOf(tileType, this.aresExtension);
+      return suffix === '' ? '' : 'board-space-tile--' + suffix;
+    },
+    /** `--stack-n` drives the lift of the top tile and the step of every tier (board px, under the board's zoom). */
+    stackStyle(): Record<string, string> {
+      return this.stackHeight > 1 ? {'--stack-n': String(Math.min(3, this.stackHeight))} : {};
     },
     // True while this occupied cell is a remove-and-replace placement target
     // OR a console remote-placement reveal hold (the committed tile is hidden

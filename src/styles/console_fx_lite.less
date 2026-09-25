@@ -60,6 +60,13 @@ html.console-native.con-fx-lite {
         display: none;
     }
 
+    /* ── A city STACK's seam (Skyscrapers): the shadow gradient down every lower
+       tier becomes one flat tint — the step and the counter STAY: they are the
+       information, the shadow was the decoration. */
+    .board-space--stack > .board-stack__tier::before {
+        background: rgba(6, 4, 10, 0.42);
+    }
+
     /* ── The shade's focus vignette — a second full-opening gradient layer
        whose opacity animates while aiming on the wheel. The flat shade
        (the dim itself) stays: modality must stay readable. */

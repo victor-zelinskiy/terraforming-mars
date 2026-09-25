@@ -116,6 +116,8 @@ const KIND_TITLE: Partial<Record<BoardPlacementKind, string>> = {
   'ocean': 'Ocean',
   'upgradeable-ocean': 'Ocean',
   'upgradeable-ocean-new-holland': 'Ocean',
+  // A CITY TIER (Skyscrapers): the tile lands on top of the player's own city — the stack grows.
+  'city-tier': 'City tier',
 };
 
 /**
@@ -221,7 +223,8 @@ export function placementIdentity(opts: {
 export function swatchForKind(kind: BoardPlacementKind | undefined): TileType | undefined {
   switch (kind) {
   case 'greenery': return TileType.GREENERY;
-  case 'city': return TileType.CITY;
+  case 'city':
+  case 'city-tier': return TileType.CITY;
   case 'ocean': return TileType.OCEAN;
   default: return undefined;
   }

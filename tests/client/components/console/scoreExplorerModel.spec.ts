@@ -357,6 +357,14 @@ describe('scoreExplorerModel — the victory-points exploration levels', () => {
     expect(cities.rows[1].label, 'a plain city keeps the honest generic name').to.eq('City');
     expect(cities.rows[1].note?.label).to.eq('no adjacent greeneries');
     expect(buildCityFacts(undefined).emptyKey).to.eq('No cities on the board');
+    // A city STACK (Skyscrapers): one row per tier on the same cell, each naming its tier — two honest contributions.
+    const stack = buildCityFacts([
+      {spaceId: '20', points: 3, cardName: 'Capital', tier: 1, tiers: 2},
+      {spaceId: '20', points: 3, tier: 2, tiers: 2},
+    ]);
+    expect(stack.rows.map((r) => r.key)).to.deep.eq(['city:20:1', 'city:20:2']);
+    expect(stack.rows[0]).to.deep.include({label: 'City · tier ${0} of ${1}', params: [1, 2], value: 3});
+    expect(stack.rows[1]).to.deep.include({label: 'City · tier ${0} of ${1}', params: [2, 2], value: 3});
     expect(buildGreeneryFacts(b).rows[0].params).to.deep.eq([4]);
     const hydro = buildHydroFacts(b, {isBot: false, deltaPosition: 11});
     expect(hydro.rows[0], 'the position is a context row — no value cell').to.deep.include({label: 'Track position: ${0}'});

@@ -8,6 +8,8 @@
         <div class="board-cell-popover__head-top">
           <span class="board-cell-popover__status" :class="'board-cell-popover__status--' + status.content"></span>
           <span class="board-cell-popover__title" v-i18n>{{ headerTitle }}</span>
+          <!-- A city STACK (Skyscrapers): its height, named beside the title — the same «×N» the cell wears. -->
+          <b v-if="status.stackHeight !== undefined" class="board-cell-popover__stack" data-popover-stack>×{{ status.stackHeight }}</b>
           <span v-if="ownerColor !== undefined" class="board-cell-popover__owner-dot" :class="'player_bg_color_' + ownerColor"></span>
           <span v-if="ownerName !== undefined" class="board-cell-popover__owner" v-i18n>{{ ownerName }}</span>
         </div>
@@ -372,6 +374,19 @@ export default defineComponent({
   color: #eaf4fd;
   letter-spacing: 0.01em;
   overflow-wrap: anywhere;
+}
+// The city STACK's height beside the title (Skyscrapers) — the cell's own «×N» pill, at the popover's scale.
+.board-cell-popover__stack {
+  flex: 0 0 auto;
+  padding: 1px 6px;
+  border-radius: 7px;
+  font-family: 'Prototype', sans-serif;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: #f6f9ff;
+  background: rgba(8, 12, 22, 0.94);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.62);
 }
 .board-cell-popover__owner-dot {
   flex: 0 0 auto;

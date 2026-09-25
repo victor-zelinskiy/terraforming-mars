@@ -88,6 +88,8 @@ import {JOINT_RESEARCH_ID} from '../../../src/server/parliament/resolutions/scie
 import {JOVIAN_TAX_RIGHTS_ID} from '../../../src/server/parliament/resolutions/unity/JovianTaxRights';
 import {MEDICAL_DATABASE_ID} from '../../../src/server/parliament/resolutions/scientists/MedicalDatabase';
 import {METAL_RESEARCH_ID} from '../../../src/server/parliament/resolutions/industrialists/MetalResearch';
+import {SKYSCRAPERS_ID} from '../../../src/server/parliament/resolutions/marsFirst/Skyscrapers';
+import {Board} from '../../../src/server/boards/Board';
 import {GHGProducingBacteria} from '../../../src/server/cards/base/GHGProducingBacteria';
 import {NuclearPower} from '../../../src/server/cards/base/NuclearPower';
 import {COLONIZATION_FUNDING_ID} from '../../../src/server/parliament/resolutions/unity/ColonizationFunding';
@@ -1418,6 +1420,94 @@ parliamentFixture('parliament-metal-enacted', {
       throw new Error(`the parliament-metal-enacted fixture expected red to hold steel for the composer's row, has ${p2.steel}`);
     }
     expectViewerOpensGeneration(table, p2, 'parliament-metal-enacted');
+  },
+});
+
+// ── RX20 · SKYSCRAPERS (Mars First — «the winner of the vote and every seat with influence ≥ 2 each gain a city tile,
+//    placed on top of their own city on Mars»). The new mechanic is the CITY STACK and the tier's landing:
+//    · ENACT — the sitting stands at the effects step with BLUE's tier prompt live: blue's delegate won the card (Agenda
+//      2 → step 3 → influence 2), blue owns ONE city on Mars with ONE greenery beside it (the tier's preview promises
+//      «1 → 2 tiers · 1 → 2 VP», the endgame breakdown two city contributions on one cell); red at Agenda 1 (influence
+//      1, not the winner) is passed over BY THE RULE — its city is no candidate for anyone;
+//    · STACKED — the sitting is over and both seats built a tier (red at Agenda 3 → influence 2): the board shows two
+//      stacks of 2, blue's beside two greeneries — the stack's own look, on every profile, and the score breakdown.
+/** A quiet land cell for a city with `greeneries` empty land neighbours (no printed bonus, no ocean or tile beside it). */
+function stackSite(game: IGame, player: TestPlayer, greeneries: number, taken: ReadonlySet<string>): {city: Space, groves: Array<Space>} {
+  for (const city of game.board.getAvailableSpacesForCity(player)) {
+    if (city.bonus.length > 0 || taken.has(city.id) || city.id === game.board.noctisCitySpaceId) {
+      continue;
+    }
+    const around = game.board.getAdjacentSpaces(city);
+    if (around.some((a) => a.tile !== undefined || a.spaceType === SpaceType.OCEAN || taken.has(a.id))) {
+      continue;
+    }
+    const groves = around.filter((a) => a.spaceType === SpaceType.LAND && a.bonus.length === 0).slice(0, greeneries);
+    if (groves.length === greeneries) {
+      return {city, groves};
+    }
+  }
+  throw new Error(`no quiet site with ${greeneries} greenery neighbours for ${player.color}`);
+}
+function seatStackSites(game: IGame, p1: TestPlayer, p2: TestPlayer, blueGroves: number): void {
+  const taken = new Set<string>();
+  const blue = stackSite(game, p1, blueGroves, taken);
+  blue.city.tile = {tileType: TileType.CITY};
+  blue.city.player = p1;
+  taken.add(blue.city.id);
+  for (const grove of blue.groves) {
+    grove.tile = {tileType: TileType.GREENERY};
+    grove.player = p1;
+    taken.add(grove.id);
+  }
+  for (const a of game.board.getAdjacentSpaces(blue.city)) {
+    taken.add(a.id);
+  }
+  const red = stackSite(game, p2, 0, taken);
+  red.city.tile = {tileType: TileType.CITY};
+  red.city.player = p2;
+}
+parliamentFixture('parliament-skyscrapers-enact', {
+  resolution: SKYSCRAPERS_ID,
+  votes: [0],
+  agenda: [2, 1],
+  stopAt: 'effects',
+  arrange: ({game, p1, p2}) => seatStackSites(game, p1, p2, 1),
+  expect: ({game, p1, p2, parliament}) => {
+    const ask = p1.getWaitingFor();
+    if (!(ask instanceof SelectSpace) || ask.placementType !== 'city-tier' || ask.placementContext?.source?.resolution !== SKYSCRAPERS_ID) {
+      throw new Error(`the parliament-skyscrapers-enact fixture expected blue's city-tier placement, got ${ask?.constructor.name}`);
+    }
+    if (ask.spaces.length !== 1 || game.board.countCities(p1) !== 1 || game.board.countCities(p2) !== 1) {
+      throw new Error('the parliament-skyscrapers-enact fixture expected ONE city per seat and blue\'s one candidate');
+    }
+    if (game.board.getAdjacentSpaces(ask.spaces[0]).filter(Board.isGreenerySpace).length !== 1) {
+      throw new Error('the parliament-skyscrapers-enact fixture expected one greenery beside blue\'s city');
+    }
+    if (parliament.phase?.step !== 'effects' || parliament.influence(p1) !== 2 || parliament.influence(p2) !== 1) {
+      throw new Error(`the parliament-skyscrapers-enact fixture expected the effects step at influence 2 / 1, got ${parliament.phase?.step} · ${parliament.influence(p1)} / ${parliament.influence(p2)}`);
+    }
+  },
+});
+parliamentFixture('parliament-skyscrapers-stacked', {
+  resolution: SKYSCRAPERS_ID,
+  votes: [0],
+  agenda: [2, 3],
+  stopAt: 'done',
+  arrange: ({game, p1, p2}) => seatStackSites(game, p1, p2, 2),
+  expect: (table) => {
+    const {game, p1, p2, parliament} = table;
+    const stacks = game.board.spaces.filter((s) => (s.stackHeight ?? 1) > 1);
+    if (stacks.length !== 2 || game.board.countCities(p1) !== 2 || game.board.countCities(p2) !== 2) {
+      throw new Error(`the parliament-skyscrapers-stacked fixture expected two stacks of 2, got ${stacks.map((s) => `${s.id}:${s.stackHeight}`).join(',')}`);
+    }
+    const tiers = parliament.lastPhase?.outcomes?.filter((o) => o.kind === 'city') ?? [];
+    if (tiers.length !== 2) {
+      throw new Error(`the parliament-skyscrapers-stacked fixture expected two city records, got ${tiers.length}`);
+    }
+    if (p1.getVictoryPoints().city !== 4) {
+      throw new Error(`the parliament-skyscrapers-stacked fixture expected blue's stack beside two greeneries to score 4, got ${p1.getVictoryPoints().city}`);
+    }
+    expectViewerOpensGeneration(table, p2, 'parliament-skyscrapers-stacked');
   },
 });
 

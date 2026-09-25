@@ -1018,6 +1018,78 @@
 	z-index: 3;
 }
 
+/* ── THE CITY STACK (Turmoil Redux — Skyscrapers) ─────────────────────────
+   More than one city tile on one cell. The stack must read WITHOUT a cursor:
+     · SILHOUETTE — the lower tiers (`.board-stack__tier`, the same city art)
+       paint under the top tile, each stepped DOWN by one tier step, so the
+       pile shows its thickness like a stack of tokens; a dark seam on every
+       lower tier is the shadow the tile above casts on it;
+     · NUMBER — `.board-stack__count` names the height («×2»), lower-left,
+       the owner cube's mirror; «two» and «three» are told apart by the digit,
+       never by the pile's thickness;
+     · THE HEX DOES NOT GROW — the whole pile is scaled to fit the 46×51 cell
+       and the lift is vertical, inside the cell: nothing reaches a neighbour;
+     · the OWNER CUBE rides the top tile's lift.
+   Board px-space (inside the `--board-scale` transform): keep-px throughout.
+   `--stack-n` (2..3, the drawn height) and `--stack-k` (1 = the tier right
+   under the top) come from BoardSpace.vue. The seam is a gradient, never a
+   `filter` (dead under the console paint baseline); fx-lite flattens it. */
+@stack-step: 3.5px; /* keep-px: one tier's visible thickness */
+@stack-scale: 0.86;
+.board-space--stack {
+	> [class*="board-space-tile--"] {
+		transform: translateY(calc(-@stack-step * (var(--stack-n, 2) - 1))) scale(@stack-scale);
+		transform-origin: 50% 50%;
+	}
+	> .board-stack__tier {
+		/* Below the top tile in paint order: its own stacking context, so its rim never shows through the tile above. */
+		z-index: 0;
+		pointer-events: none;
+		transform: translateY(calc(-@stack-step * (var(--stack-n, 2) - 1) + @stack-step * var(--stack-k, 1))) scale(@stack-scale);
+		transform-origin: 50% 50%;
+		/* The seam: only the tier's LOWER STRIP shows under the tile above — a shadowed face with one lit
+		   lip at its bottom edge, so the strip reads as the thickness of a token, not as a dark line. */
+		&::before {
+			content: '';
+			position: absolute;
+			inset: 0;
+			z-index: 1;
+			pointer-events: none;
+			background: linear-gradient(to bottom, rgba(6, 4, 10, 0.58) 0%, rgba(6, 4, 10, 0.5) 86%, rgba(255, 236, 206, 0.22) 100%);
+		}
+	}
+	> .player-cube.board-owner-cube {
+		bottom: calc(14px + @stack-step * (var(--stack-n, 2) - 1));
+	}
+}
+.board-stack__count {
+	position: absolute;
+	left: 5px; /* keep-px: the owner cube's mirror (its `right: 7px`) */
+	bottom: 13px; /* keep-px */
+	z-index: 3;
+	min-width: 16px; /* keep-px */
+	height: 11px; /* keep-px */
+	padding: 0 3px; /* keep-px */
+	box-sizing: border-box;
+	border-radius: 6px; /* keep-px */
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	font-family: 'Prototype', 'Ubuntu', sans-serif;
+	font-size: 8px; /* keep-px */
+	font-weight: 700;
+	line-height: 1;
+	letter-spacing: 0.02em;
+	color: #f6f9ff;
+	background: rgba(8, 12, 22, 0.94);
+	/* The state survives desaturation by its rim's WEIGHT — a box-shadow, never a filter. */
+	box-shadow:
+		inset 0 0 0 1px rgba(255, 255, 255, 0.72),
+		0 1px 2px rgba(0, 0, 0, 0.6);
+	pointer-events: none;
+	white-space: nowrap;
+}
+
 .board-cube {
 	position: absolute;
 	width: 21px;
