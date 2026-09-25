@@ -87,6 +87,7 @@ import {MOHOLE_CONTEST_ID} from '../../../src/server/parliament/resolutions/gree
 import {OPEN_IP_TRADE_ID} from '../../../src/server/parliament/resolutions/scientists/OpenIpTrade';
 import {INDUSTRIALIST_BUDGET_ID} from '../../../src/server/parliament/resolutions/industrialists/IndustrialistBudget';
 import {JOINT_RESEARCH_ID} from '../../../src/server/parliament/resolutions/scientists/JointResearch';
+import {PLANT_BAN_ID} from '../../../src/server/parliament/resolutions/reds/PlantBan';
 import {JOVIAN_TAX_RIGHTS_ID} from '../../../src/server/parliament/resolutions/unity/JovianTaxRights';
 import {MEDICAL_DATABASE_ID} from '../../../src/server/parliament/resolutions/scientists/MedicalDatabase';
 import {METAL_RESEARCH_ID} from '../../../src/server/parliament/resolutions/industrialists/MetalResearch';
@@ -1674,6 +1675,47 @@ parliamentFixture('parliament-research-enact', researchTable('effects'));
 // …and the VIEWER at its target: blue with NINE cards at target 8 — the sitting's reward beat reads the calm
 // zero («up to 8 · 9 in hand → no draw needed») on the band, and nothing flies.
 parliamentFixture('parliament-research-full', researchTable('assembly', 9));
+
+// ── RX25 · PLANT BAN — the LEVEL pointed DOWN: every seat is cut to 2 + influence
+//    plants. Blue at Agenda 3 (influence 2 → limit 4) with SEVEN plants (−3 — the
+//    panel has to say so BEFORE the vote, which is the only defence against this
+//    law); red at Agenda 1 (influence 1 → limit 3) with TWO — already under its
+//    limit, so its zero names itself. The vote: blue's delegate leads it. The
+//    sitting: RED's delegate wins it, so blue keeps influence 2 and is cut by
+//    exactly the number the vote panel promised. ──
+function banTable(stopAt: 'vote' | 'assembly'): ParliamentFixtureSpec {
+  return {
+    resolution: PLANT_BAN_ID,
+    votes: [stopAt === 'vote' ? 0 : 1],
+    agenda: [3, 1],
+    stopAt,
+    arrange: ({p1, p2}) => {
+      p1.plants = 7;
+      p2.plants = 2;
+    },
+    expect: ({p1, p2, parliament}) => {
+      if (stopAt === 'vote') {
+        if (p1.plants !== 7 || p2.plants !== 2) {
+          throw new Error(`the parliament-ban-vote fixture expected 7 / 2 plants before the sitting, got ${p1.plants} / ${p2.plants}`);
+        }
+        if (!parliament.slots.some((slot) => slot.instance.startsWith(PLANT_BAN_ID))) {
+          throw new Error('the parliament-ban-vote fixture lost Plant Ban out of the voting area');
+        }
+        return;
+      }
+      // The ASSEMBLY gate stands BEFORE the effects, so the plants are still untouched — the
+      // client's own walk is what plays the cut, and that walk is the spec's subject.
+      if (parliament.phase?.step !== 'assembly') {
+        throw new Error(`the parliament-ban-assembly fixture expected the assembly gate, got ${parliament.phase?.step}`);
+      }
+      if (p1.plants !== 7) {
+        throw new Error(`the parliament-ban-assembly fixture expected blue to still hold 7 plants at the gate, got ${p1.plants}`);
+      }
+    },
+  };
+}
+parliamentFixture('parliament-ban-vote', banTable('vote'));
+parliamentFixture('parliament-ban-assembly', banTable('assembly'));
 
 // ── RX03 · BIODOME CONTEST — a 2-seat table with the card alone in the first
 //    voting slot and blue's free delegate on it: blue at Agenda step 2

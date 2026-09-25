@@ -65,6 +65,12 @@ function seatFor(resolution: IClientResolution, agenda: number): ParliamentPlaye
   if ((resolution.scaled ?? []).some((e) => e.level?.total.kind === 'cards')) {
     seatModel.hand = 3;
   }
+  // …or a SUPPLY (Plant Ban's plants): twelve — above every limit the card can reach, so the plate prints a
+  // LOSS and the panel prints its warning. The worst case is what the budget is measured against.
+  const stockLevel = (resolution.scaled ?? []).map((e) => e.level?.total).find((total) => total?.kind === 'stock');
+  if (stockLevel?.kind === 'stock') {
+    seatModel.stock = {[stockLevel.resource]: 12};
+  }
   // A «colony bonuses» term reads the seat's LEDGER: four tiles of four shapes — the most the panel is asked to hold.
   if ((resolution.scaled ?? []).some((e) => e.unit.kind === 'colonyBonuses')) {
     seatModel.colonyBonuses = [

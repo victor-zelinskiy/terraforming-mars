@@ -965,48 +965,83 @@ const SCENARIOS: ReadonlyArray<PgScenario> = [
   {key: 'seq-live-recap', family: 'sequel', label: 'Live: the results of the generation', viewer: 1,
     seats: [{agenda: 3, bonus: 0, production: 4}, {agenda: 1, bonus: 0, production: 2}], winner: 1, context: 'applied', noRecipient: false,
     live: 'parliament-climate-recap', liveNote: 'Generation 2: open the Parliament — the card moves into the government and the results name both halves'},
-  // ── THE UP-TO FAMILY (Joint Research: draw until you have 6 + influence cards in hand) ──
+  // ── THE LEVEL FAMILY, DIRECTION UP (Joint Research: draw until you have 6 + influence cards in hand) ──
   //    `hand` is the seat's hand BEFORE the enactment; the target is the formula's, the
-  //    payout the ONE top-up division. Test player A is the viewer; B wins unless the
+  //    payout the ONE level division. Test player A is the viewer; B wins unless the
   //    scenario says otherwise (a winner's Agenda step would raise A's target).
-  {key: 'research-empty', family: 'level', label: 'Empty hand, influence 0 — six cards', viewer: 0,
+  //    `levelDirection` keeps these under the law that goes UP: a cut's instrument is a
+  //    supply, and a draw's numbers would read as a lie under it.
+  {key: 'research-empty', family: 'level', levelDirection: 'up', label: 'Empty hand, influence 0 — six cards', viewer: 0,
     seats: [{agenda: 0, bonus: 0, hand: 0}, {agenda: 3, bonus: 0, hand: 4}], winner: 1, context: 'proposal', noRecipient: false},
-  {key: 'research-influence-0', family: 'level', label: 'Hand 2, influence 0 — the target is still 6', viewer: 0,
+  {key: 'research-influence-0', family: 'level', levelDirection: 'up', label: 'Hand 2, influence 0 — the target is still 6', viewer: 0,
     seats: [{agenda: 0, bonus: 0, hand: 2}, {agenda: 3, bonus: 0, hand: 4}], winner: 1, context: 'proposal', noRecipient: false},
-  {key: 'research-short', family: 'level', label: 'Hand 5, influence 3 — four cards to the target of 9', viewer: 0,
+  {key: 'research-short', family: 'level', levelDirection: 'up', label: 'Hand 5, influence 3 — four cards to the target of 9', viewer: 0,
     seats: [{agenda: 5, bonus: 0, hand: 5}, {agenda: 1, bonus: 0, hand: 7}], winner: 1, context: 'proposal', noRecipient: false},
-  {key: 'research-at-6', family: 'level', label: 'Hand 6, influence 0 — at the target, no draw', viewer: 0,
+  {key: 'research-at-6', family: 'level', levelDirection: 'up', label: 'Hand 6, influence 0 — at the target, no draw', viewer: 0,
     seats: [{agenda: 0, bonus: 0, hand: 6}, {agenda: 3, bonus: 0, hand: 4}], winner: 1, context: 'proposal', noRecipient: false},
-  {key: 'research-at-9', family: 'level', label: 'Hand 9, influence 3 — at the target, no draw', viewer: 0,
+  {key: 'research-at-9', family: 'level', levelDirection: 'up', label: 'Hand 9, influence 3 — at the target, no draw', viewer: 0,
     seats: [{agenda: 5, bonus: 0, hand: 9}, {agenda: 1, bonus: 0, hand: 7}], winner: 1, context: 'proposal', noRecipient: false},
-  {key: 'research-above', family: 'level', label: 'Hand 12, influence 3 — above the target, no draw', viewer: 0,
+  {key: 'research-above', family: 'level', levelDirection: 'up', label: 'Hand 12, influence 3 — above the target, no draw', viewer: 0,
     seats: [{agenda: 5, bonus: 0, hand: 12}, {agenda: 1, bonus: 0, hand: 7}], winner: 1, context: 'proposal', noRecipient: false},
   // Agenda 4 = influence 2; winning takes the marker to step 5 (influence 3) BEFORE the effect: the target 8 becomes 9.
-  {key: 'research-winner-agenda', family: 'level', label: 'The winner\'s Agenda step raises the target first', viewer: 0,
+  {key: 'research-winner-agenda', family: 'level', levelDirection: 'up', label: 'The winner\'s Agenda step raises the target first', viewer: 0,
     seats: [{agenda: 4, bonus: 0, hand: 5}, {agenda: 3, bonus: 0, hand: 4}], winner: 0, context: 'proposal', noRecipient: false},
-  {key: 'research-seats', family: 'level', label: 'Every player gets their own result', viewer: 0,
+  {key: 'research-seats', family: 'level', levelDirection: 'up', label: 'Every player gets their own result', viewer: 0,
     seats: [{agenda: 1, bonus: 0, hand: 5}, {agenda: 8, bonus: 0, hand: 9}], winner: 0, context: 'applied', noRecipient: false},
-  {key: 'research-neutral', family: 'level', label: 'Neutral winner — the effect still reaches everyone', viewer: 0,
+  {key: 'research-neutral', family: 'level', levelDirection: 'up', label: 'Neutral winner — the effect still reaches everyone', viewer: 0,
     seats: [{agenda: 3, bonus: 0, hand: 4}, {agenda: 5, bonus: 0, hand: 10}], winner: 'neutral', context: 'applied', noRecipient: false},
-  {key: 'research-resolving', family: 'level', label: 'The chain being resolved', viewer: 0,
+  {key: 'research-resolving', family: 'level', levelDirection: 'up', label: 'The chain being resolved', viewer: 0,
     seats: [{agenda: 5, bonus: 0, hand: 5}, {agenda: 1, bonus: 0, hand: 7}], winner: 1, context: 'resolving', noRecipient: false},
-  {key: 'research-applied', family: 'level', label: 'Recorded result', viewer: 0,
+  {key: 'research-applied', family: 'level', levelDirection: 'up', label: 'Recorded result', viewer: 0,
     seats: [{agenda: 5, bonus: 0, hand: 5}, {agenda: 1, bonus: 0, hand: 7}], winner: 1, context: 'applied', noRecipient: false},
-  {key: 'research-spectator', family: 'level', label: 'Spectator — the formula alone', viewer: SPECTATOR,
+  {key: 'research-spectator', family: 'level', levelDirection: 'up', label: 'Spectator — the formula alone', viewer: SPECTATOR,
     seats: [{agenda: 5, bonus: 0, hand: 5}, {agenda: 1, bonus: 0, hand: 7}], winner: 0, context: 'proposal', noRecipient: false},
-  {key: 'research-quest-0', family: 'level', label: 'Chairman quest 0/2', viewer: 0,
+  {key: 'research-quest-0', family: 'level', levelDirection: 'up', label: 'Chairman quest 0/2', viewer: 0,
     seats: [{agenda: 5, bonus: 0, hand: 5}, {agenda: 1, bonus: 0, hand: 7}], winner: 0, context: 'applied', noRecipient: false, quest: {progress: [0, 0]}},
-  {key: 'research-quest-1', family: 'level', label: 'Chairman quest 1/2 — partial progress', viewer: 0,
+  {key: 'research-quest-1', family: 'level', levelDirection: 'up', label: 'Chairman quest 1/2 — partial progress', viewer: 0,
     seats: [{agenda: 5, bonus: 0, hand: 5}, {agenda: 1, bonus: 0, hand: 7}], winner: 0, context: 'applied', noRecipient: false, quest: {progress: [1, 0]}},
-  {key: 'research-quest-done', family: 'level', label: 'Chairman quest completed', viewer: 0,
+  {key: 'research-quest-done', family: 'level', levelDirection: 'up', label: 'Chairman quest completed', viewer: 0,
     seats: [{agenda: 5, bonus: 0, hand: 5}, {agenda: 1, bonus: 0, hand: 7}], winner: 0, context: 'applied', noRecipient: false, quest: {progress: [2, 1], completedBy: 0}},
   // ── LIVE (Joint Research): real games from the engine-generated fixtures.
-  {key: 'research-live-vote', family: 'level', label: 'Live: the vote', viewer: 0,
+  {key: 'research-live-vote', family: 'level', levelDirection: 'up', label: 'Live: the vote', viewer: 0,
     seats: [{agenda: 4, bonus: 0, hand: 5}, {agenda: 1, bonus: 0, hand: 9}], winner: 1, context: 'proposal', noRecipient: false,
     live: 'parliament-research-vote', liveNote: 'Joint Research up for the vote: your hand against the target of 6 + influence, and the cards each result would draw'},
-  {key: 'research-live-enact', family: 'level', label: 'Live: the take', viewer: 0,
+  {key: 'research-live-enact', family: 'level', levelDirection: 'up', label: 'Live: the take', viewer: 0,
     seats: [{agenda: 4, bonus: 0, hand: 5}, {agenda: 1, bonus: 0, hand: 9}], winner: 1, context: 'resolving', noRecipient: false,
     live: 'parliament-research-enact', liveNote: 'Your take stands inside the enactment stage: the target, the hand it was read against, the cards owed'},
+  // ── THE LEVEL FAMILY, DIRECTION DOWN (Plant Ban: lose all plants except 2 + influence) ──
+  //    `plants` is the seat's supply BEFORE the enactment; the LIMIT is the formula's and what
+  //    LEAVES is the same ONE division, pointed down. The edges the reading has to survive are
+  //    the mirror of the draw's: nothing to take, exactly at the limit, one above it, and a
+  //    supply well above a limit that influence 0 does not shrink away.
+  {key: 'ban-none', family: 'level', levelDirection: 'down', label: 'No plants, influence 0 — the limit is 2, nothing to lose', viewer: 0,
+    seats: [{agenda: 0, bonus: 0, plants: 0}, {agenda: 3, bonus: 0, plants: 6}], winner: 1, context: 'proposal', noRecipient: false},
+  {key: 'ban-at-limit', family: 'level', levelDirection: 'down', label: 'Exactly at the limit — 4 plants, influence 2', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, plants: 4}, {agenda: 1, bonus: 0, plants: 6}], winner: 1, context: 'proposal', noRecipient: false},
+  {key: 'ban-one-above', family: 'level', levelDirection: 'down', label: 'One above the limit — 5 plants, influence 2', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, plants: 5}, {agenda: 1, bonus: 0, plants: 6}], winner: 1, context: 'proposal', noRecipient: false},
+  {key: 'ban-influence-0', family: 'level', levelDirection: 'down', label: 'Plenty of plants, influence 0 — the limit is still 2', viewer: 0,
+    seats: [{agenda: 0, bonus: 0, plants: 9}, {agenda: 3, bonus: 0, plants: 6}], winner: 1, context: 'proposal', noRecipient: false},
+  {key: 'ban-influence-3', family: 'level', levelDirection: 'down', label: 'Plenty of plants, influence 3 — the limit is 5', viewer: 0,
+    seats: [{agenda: 5, bonus: 0, plants: 9}, {agenda: 1, bonus: 0, plants: 6}], winner: 1, context: 'proposal', noRecipient: false},
+  // Agenda 4 = influence 2; winning takes the marker to step 5 (influence 3) BEFORE the effect: the limit 4 becomes 5.
+  {key: 'ban-winner-agenda', family: 'level', levelDirection: 'down', label: 'The winner\'s Agenda step raises the limit first', viewer: 0,
+    seats: [{agenda: 4, bonus: 0, plants: 9}, {agenda: 3, bonus: 0, plants: 6}], winner: 0, context: 'proposal', noRecipient: false},
+  {key: 'ban-seats', family: 'level', levelDirection: 'down', label: 'Every player is cut by their own limit', viewer: 0,
+    seats: [{agenda: 1, bonus: 0, plants: 9}, {agenda: 8, bonus: 0, plants: 12}], winner: 0, context: 'applied', noRecipient: false},
+  {key: 'ban-resolving', family: 'level', levelDirection: 'down', label: 'The chain being resolved', viewer: 0,
+    seats: [{agenda: 5, bonus: 0, plants: 9}, {agenda: 1, bonus: 0, plants: 6}], winner: 1, context: 'resolving', noRecipient: false},
+  {key: 'ban-applied', family: 'level', levelDirection: 'down', label: 'Recorded result', viewer: 0,
+    seats: [{agenda: 5, bonus: 0, plants: 9}, {agenda: 1, bonus: 0, plants: 6}], winner: 1, context: 'applied', noRecipient: false},
+  {key: 'ban-spectator', family: 'level', levelDirection: 'down', label: 'Spectator — the formula alone', viewer: SPECTATOR,
+    seats: [{agenda: 5, bonus: 0, plants: 9}, {agenda: 1, bonus: 0, plants: 6}], winner: 0, context: 'proposal', noRecipient: false},
+  // ── LIVE (Plant Ban): real games from the engine-generated fixtures.
+  {key: 'ban-live-vote', family: 'level', levelDirection: 'down', label: 'Live: the vote', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, plants: 7}, {agenda: 1, bonus: 0, plants: 2}], winner: 0, context: 'proposal', noRecipient: false,
+    live: 'parliament-ban-vote', liveNote: 'Plant Ban up for the vote: your plants against the limit of 2 + influence, and what each result would take'},
+  {key: 'ban-live-enact', family: 'level', levelDirection: 'down', label: 'Live: the loss', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, plants: 7}, {agenda: 1, bonus: 0, plants: 2}], winner: 0, context: 'applied', noRecipient: false,
+    live: 'parliament-ban-enact', liveNote: 'Your loss stands inside the enactment stage: the limit, the plants it was read against, the chips leaving the rail'},
   // ── THE WINNER-TILE FAMILY (everyone's supply resource by influence + the winner's tile) ──
   // Test player A is the viewer; B wins unless the scenario says otherwise (a winner's Agenda step would move A's influence).
   {key: 'tile-influence-0', family: 'winner-tile', label: 'Influence 0 — nothing is paid', viewer: 0, seats: [{agenda: 0, bonus: 0}, {agenda: 5, bonus: 0}], winner: 1, context: 'applied', noRecipient: false},

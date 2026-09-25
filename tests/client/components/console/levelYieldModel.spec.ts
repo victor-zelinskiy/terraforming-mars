@@ -51,12 +51,12 @@ function drawEffect(): InfluenceScaledEffect {
 }
 
 describe('levelYieldModel (Joint Research)', () => {
-  it('the catalog ships ONE level part: up to 6 + influence cards in hand — and the family is up-to', () => {
+  it('the level part of Joint Research goes UP — to 6 + influence cards in hand — and its family is the level one', () => {
     const r = research();
     expect(r.code).eq('RX16');
     expect(r.party).eq(PartyName.SCIENTISTS);
     const draw = drawEffect();
-    expect(draw.level).deep.eq({total: {kind: 'cards'}});
+    expect(draw.level).deep.eq({total: {kind: 'cards'}, direction: 'up'});
     expect(draw.base).eq(6);
     expect(draw.perInfluence).eq(1);
     expect(draw.count, 'nothing is counted').is.undefined;
