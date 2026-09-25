@@ -13,7 +13,7 @@ import {GENEROUS_FUNDING_MEGACREDITS} from '../../src/server/parliament/resoluti
 import {ARCHITECTURE_AWARD_ID} from '../../src/server/parliament/resolutions/marsFirst/ArchitectureAward';
 import {REDUX_RESOLUTION_CATALOG} from '../../src/server/parliament/resolutions/ResolutionCatalog';
 import {answerQuestGate, endGenerationThroughParliament, passToParliament, seatEnacted, seatResolution, settleParliamentGates} from './parliamentArrange';
-import {declaredCountIds, declaredLevyResources, resolutionCount} from '../../src/server/parliament/resolutions/ResolutionCounts';
+import {declaredCountIds, declaredStockReads, resolutionCount} from '../../src/server/parliament/resolutions/ResolutionCounts';
 import {questRenderData} from '../../src/server/parliament/quests/questRender';
 import {PartyName} from '../../src/common/turmoil/PartyName';
 import {Phase} from '../../src/common/Phase';
@@ -162,7 +162,7 @@ describe('IndustrialistBudget', () => {
       expect(familyOf(INDUSTRIALIST_BUDGET), 'the stand opens the production-count family from the declaration alone').eq('counted-production');
       // The catalog's models: the count id and the levied supply are declared by this card.
       expect(declaredCountIds(REDUX_RESOLUTION_CATALOG)).includes('steelTitaniumEnergyProduction');
-      expect(declaredLevyResources(REDUX_RESOLUTION_CATALOG)).deep.eq([Resource.MEGACREDITS]);
+      expect(declaredStockReads(REDUX_RESOLUTION_CATALOG), 'the M€ the levy takes is one of the supplies the seat model carries').includes(Resource.MEGACREDITS);
     });
 
     it('the face prints «−10 [M€] · [4 M€ production]» and «1 [M€] / [steel + titanium + energy production] + [influence]»; the quest graphic is «+1 steel production»', () => {
@@ -645,10 +645,11 @@ describe('IndustrialistBudget', () => {
       const model = getParliamentModel(game, p2);
       const one = model?.players.find((p) => p.color === p1.color);
       expect(one?.counts?.find((c) => c.id === 'steelTitaniumEnergyProduction')).deep.eq({id: 'steelTitaniumEnergyProduction', count: 6, cards: [], byResource: breakdownOf(2, 1, 3)});
-      expect(one?.stock).deep.eq({[Resource.MEGACREDITS]: 34});
+      // The seat's supplies are every stock a RESOLUTION reads (the levy's M€, Plant Ban's plants) — the levy's own is asserted by name.
+      expect(one?.stock).to.include({[Resource.MEGACREDITS]: 34});
       const two = model?.players.find((p) => p.color === p2.color);
       expect(two?.counts?.find((c) => c.id === 'steelTitaniumEnergyProduction')).deep.eq({id: 'steelTitaniumEnergyProduction', count: 0, cards: [], byResource: breakdownOf(0, 0, 0)});
-      expect(two?.stock).deep.eq({[Resource.MEGACREDITS]: 4});
+      expect(two?.stock).to.include({[Resource.MEGACREDITS]: 4});
       endGeneration(game);
       runAllActions(game);
       settleParliamentGates(game);

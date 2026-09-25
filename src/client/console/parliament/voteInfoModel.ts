@@ -34,7 +34,7 @@ import {InfluenceYield} from '@/common/parliament/influenceScaling';
 import {ReduxParty} from '@/common/parliament/ParliamentTypes';
 import {ParliamentPartyVm, ParliamentSlotVm, voteAccessOf, VoteForecastVm} from './consoleParliamentModel';
 import {
-  LEVEL_IN_HAND_KEY, LEVEL_UP_TO_KEY, levelPresentation, levelYieldIsNone, noRecipientCompactNoteOf, oneNumberYieldsOf, PRODUCTION_HORIZON_KEY,
+  levelLossNoteOf, levelPresentation, levelYieldIsNone, noRecipientCompactNoteOf, oneNumberYieldsOf, PRODUCTION_HORIZON_KEY,
   productionHorizonOn, voteLevyOf, voteYieldsOf, WinSuffix, winSuffixesOf,
 } from './influenceYieldModel';
 import {LevyReading, levyShortNoteKey} from '@/common/parliament/resolutionLevy';
@@ -181,6 +181,10 @@ export function voteReadingOf(
   if (levy !== undefined && levy.short) {
     note = note ?? levyShortNoteKey(levy.resource);
   }
+  // A LEVEL that CUTS (Plant Ban) warns the seat that HAS something to lose — the vote is the only
+  // defence this law leaves, so its price has to stand on the panel BEFORE the vote, not in the results.
+  // A seat at or below the limit is told nothing: there is no warning to give.
+  note = note ?? levelLossNoteOf(yields);
   return {
     kicker: READING_KICKER_SEATED,
     yields,
@@ -387,16 +391,18 @@ export function voteInfoBudget(vm: VoteInfoVm, text: TextFn = IDENTITY): VoteInf
   if (effects.some((effect) => productionHorizonOn(effects, effect, levy !== undefined))) {
     strings.push(text(PRODUCTION_HORIZON_KEY));
   }
-  // A LEVEL part's words: «up to» before the target, «in hand» beside the level, and the calm «no draw
-  // needed» in the result's slot when the seat is at or above the target.
+  // A LEVEL part's words: the term's own word before the target («up to» / «max»), its own phrase beside
+  // the level («in hand» / «of yours»), and the calm «no draw needed» / «nothing to lose» in the
+  // result's slot when the seat is already at the level.
   for (const y of vm.reading.yields) {
-    const term = y.effect.upTo;
+    const term = y.effect.level;
     if (term === undefined || y.target === undefined || y.total === undefined) {
       continue;
     }
-    strings.push(text(LEVEL_UP_TO_KEY), text(LEVEL_IN_HAND_KEY, [String(y.total.before)]));
+    const words = levelPresentation(term);
+    strings.push(text(words.wordKey), text(words.levelKey, [String(y.total.before)]));
     if (levelYieldIsNone(y)) {
-      strings.push(text(levelPresentation(term).noneKey));
+      strings.push(text(words.noneKey));
     }
   }
   // THE COLONY LEDGER's words: the tiles' names (one each — the bonus, the multiplier and the total are

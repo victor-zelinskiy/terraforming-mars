@@ -19,7 +19,7 @@ import {PARTY_EFFECTS} from './parties/PartyEffects';
 import {parliamentGateAwaiting} from './ParliamentPhase';
 import {SerializedEnactOutcome, SerializedPhaseSummary} from './SerializedParliament';
 import {Resource} from '../../common/Resource';
-import {declaredCountIds, declaredLevyResources, declaredSequelProductions, declaresColonyBonuses, declaresHandLevel, resolutionCount} from './resolutions/ResolutionCounts';
+import {declaredCountIds, declaredSequelProductions, declaredStockReads, declaresColonyBonuses, declaresHandLevel, resolutionCount} from './resolutions/ResolutionCounts';
 
 function colorOf(game: IGame, delegate: Delegate): Color | 'neutral' {
   return delegate === 'NEUTRAL' ? 'neutral' : game.getPlayerById(delegate).color;
@@ -227,12 +227,14 @@ function playerModel(game: IGame, parliament: Parliament, player: IPlayer): Parl
     }
     model.production = reads;
   }
-  // …and the SUPPLY a LEVY takes from (the Budgets' M€): the same number the
-  // levy step will read, so the panel's shortfall warning and the payout agree.
-  const levied = participates ? declaredLevyResources(parliament.catalog) : [];
-  if (levied.length > 0) {
+  // …and every SUPPLY a resolution READS of the seat — what a LEVY takes from
+  // (the Budgets' M€) and what a LEVEL is measured against (Plant Ban's
+  // plants): the same numbers the steps will read, so the panel's shortfall
+  // warning, its cut forecast and the payout agree.
+  const read = participates ? declaredStockReads(parliament.catalog) : [];
+  if (read.length > 0) {
     const reads: Partial<Record<Resource, number>> = {};
-    for (const resource of levied) {
+    for (const resource of read) {
       reads[resource] = player.stock.get(resource);
     }
     model.stock = reads;

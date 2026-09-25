@@ -160,8 +160,8 @@ export function resolutionAnnotations(
       }
       // A LEVEL term's qualification — WHEN the hand is counted and what a hand
       // already at the target means (the detailed reading of the face's spark).
-      if (effect.upTo !== undefined) {
-        rows.push(levelPresentation(effect.upTo).ruleKey);
+      if (effect.level !== undefined) {
+        rows.push(levelPresentation(effect.level).ruleKey);
       }
       // THE COLONY LEDGER's qualification — what a colony bonus IS (the detailed reading of «all your colony
       // bonuses»), one sentence under the effect; the ledger itself reads in the footer.
@@ -235,14 +235,29 @@ export function resolutionAnnotations(
   // A LEVEL part (Joint Research): the target, the hand it was read against and the difference — the
   // footer's plate in words, the zero named as the rule working. Today's hand while the card is up for
   // the vote, the recorded numbers once enacted.
-  const level = (yields ?? []).find((y) => y.effect.upTo !== undefined && y.target !== undefined && y.total !== undefined &&
+  const level = (yields ?? []).find((y) => y.effect.level !== undefined && y.target !== undefined && y.total !== undefined &&
     (y.context === 'estimate' || y.context === 'applied'));
   if (level?.target !== undefined && level.total !== undefined) {
     const applied = level.context === 'applied';
     const influence = String(level.influence ?? 0);
     const target = String(level.target);
     const before = String(level.total.before);
-    if ((level.amount ?? 0) <= 0) {
+    const moved = String(level.amount ?? 0);
+    // A CUT (Plant Ban) says the same three numbers the other way round: the LIMIT, what the seat has,
+    // and what LEAVES. Never «you will be left with 4» — the player is asking how much is taken, and the
+    // rule's own qualification (no card protects against it) is already stated above with the effect.
+    if (level.effect.level?.direction === 'down') {
+      const base = String(level.effect.base ?? 0);
+      if ((level.amount ?? 0) <= 0) {
+        forYou.push(applied ?
+          {text: 'Plant limit at the enactment: ${0} (${1} + influence ${2}). Had ${3} — nothing was taken', params: [target, base, influence, before]} :
+          {text: 'Plant limit right now: ${0} (${1} + influence ${2}). You have ${3} — nothing to lose', params: [target, base, influence, before]});
+      } else {
+        forYou.push(applied ?
+          {text: 'Plant limit at the enactment: ${0} (${1} + influence ${2}). Had ${3}, lost ${4}', params: [target, base, influence, before, moved]} :
+          {text: 'Plant limit right now: ${0} (${1} + influence ${2}). You have ${3} — ${4} would be taken', params: [target, base, influence, before, moved]});
+      }
+    } else if ((level.amount ?? 0) <= 0) {
       forYou.push(applied ?
         {text: 'Target at the enactment: ${0} cards in hand (6 + influence ${1}). Had ${2} — no draw was needed', params: [target, influence, before]} :
         {text: 'Target right now: ${0} cards in hand (6 + influence ${1}). ${2} in hand — no draw needed', params: [target, influence, before]});

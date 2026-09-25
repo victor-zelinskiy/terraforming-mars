@@ -47,7 +47,7 @@ import {WorldParameterMove} from '@/common/parliament/parameterMove';
  */
 export const RESOLUTION_FAMILIES = [
   'influence', 'counted', 'counted-tags', 'counted-board', 'counted-metric', 'counted-production', 'counted-colonies', 'distributed', 'winner-tile', 'sequel',
-  'colony-bonuses', 'world-move', 'up-to', 'tile-grant',
+  'colony-bonuses', 'world-move', 'level', 'tile-grant',
 ] as const;
 export type ResolutionFamily = typeof RESOLUTION_FAMILIES[number];
 
@@ -86,9 +86,9 @@ export function colonyBonusesEffectOf(facts: ResolutionFamilyFacts): InfluenceSc
   return facts.scaled?.find((effect) => effect.unit.kind === 'colonyBonuses');
 }
 
-/** The part that brings the player UP TO a level (a `upTo` term), if any. */
+/** The part that brings the player UP TO a level (a `level` term), if any. */
 export function levelEffectOf(facts: ResolutionFamilyFacts): InfluenceScaledEffect | undefined {
-  return facts.scaled?.find((effect) => effect.upTo !== undefined);
+  return facts.scaled?.find((effect) => effect.level !== undefined);
 }
 
 export function familyOf(facts: ResolutionFamilyFacts): ResolutionFamily {
@@ -102,7 +102,7 @@ export function familyOf(facts: ResolutionFamilyFacts): ResolutionFamily {
   }
   // A LEVEL next: the instrument is the player's current level against a target, which no count reads.
   if (levelEffectOf(facts) !== undefined) {
-    return 'up-to';
+    return 'level';
   }
   // A SEQUENTIAL resolution next: its second half reads what its first half
   // leaves behind, which is a different instrument from a count.

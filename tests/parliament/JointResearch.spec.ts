@@ -13,7 +13,7 @@ import {PartyName} from '../../src/common/turmoil/PartyName';
 import {Phase} from '../../src/common/Phase';
 import {CardName} from '../../src/common/cards/CardName';
 import {resolutionInstanceId, RESOLUTION_CODE_PATTERN} from '../../src/common/parliament/ParliamentTypes';
-import {scaledAmount, topUpAmount} from '../../src/common/parliament/influenceScaling';
+import {scaledAmount, levelAmount} from '../../src/common/parliament/influenceScaling';
 import {LogMessageDataType} from '../../src/common/logs/LogMessageDataType';
 import {SelectCard} from '../../src/server/inputs/SelectCard';
 import {getParliamentModel} from '../../src/server/parliament/ParliamentModel';
@@ -145,7 +145,7 @@ describe('JointResearch', () => {
     it('declares ONE part, and it is a LEVEL: up to 6 + influence cards in hand — never an amount', () => {
       expect(JOINT_RESEARCH.scaled).deep.eq([JOINT_RESEARCH_DRAW]);
       expect(JOINT_RESEARCH_DRAW).deep.eq({
-        id: 'draw', unit: {kind: 'cards'}, base: 6, perInfluence: 1, upTo: {total: {kind: 'cards'}}, recipient: 'each',
+        id: 'draw', unit: {kind: 'cards'}, base: 6, perInfluence: 1, level: {total: {kind: 'cards'}, direction: 'up'}, recipient: 'each',
       });
       expect(JOINT_RESEARCH_HAND_BASE).eq(6);
       expect(JOINT_RESEARCH_DRAW.cap, 'no ceiling').is.undefined;
@@ -166,11 +166,11 @@ describe('JointResearch', () => {
       ];
       for (const [hand, influence, target, drawn] of cases) {
         expect(scaledAmount(JOINT_RESEARCH_DRAW, influence), `influence ${influence} → target`).eq(target);
-        expect(topUpAmount(JOINT_RESEARCH_DRAW, influence, hand), `hand ${hand} at influence ${influence}`).eq(drawn);
+        expect(levelAmount(JOINT_RESEARCH_DRAW, influence, hand), `hand ${hand} at influence ${influence}`).eq(drawn);
       }
       // A nonsense level reads as an empty hand; an effect without a level term pays its formula.
-      expect(topUpAmount(JOINT_RESEARCH_DRAW, 1, -3)).eq(7);
-      expect(topUpAmount({...JOINT_RESEARCH_DRAW, upTo: undefined}, 2, 5), 'no level term — the formula alone').eq(8);
+      expect(levelAmount(JOINT_RESEARCH_DRAW, 1, -3)).eq(7);
+      expect(levelAmount({...JOINT_RESEARCH_DRAW, level: undefined}, 2, 5), 'no level term — the formula alone').eq(8);
     });
   });
 

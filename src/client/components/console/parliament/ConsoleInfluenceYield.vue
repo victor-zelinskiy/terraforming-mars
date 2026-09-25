@@ -60,10 +60,12 @@
         <i class="con-iyield__unit" :class="totalClassOf(group.effect)"></i>
         <span class="con-iyield__who">{{ $t('For every player') }}</span>
       </div>
-      <!-- A LEVEL part states the TARGET it brings the player up to: «up to 6 [card] + 1 [card] / [influence]»
-           — the base is a hand size, never a number of cards paid. -->
-      <div v-else-if="(formula || group.readings.length === 0) && group.effect.upTo !== undefined" class="con-iyield__formula" data-yield-level aria-hidden="true">
-        <span class="con-iyield__upto">{{ $t(upToWord) }}</span>
+      <!-- A LEVEL part states the TARGET it brings the player to: «up to 6 [card] + 1 [card] / [influence]»,
+           «max 2 [plant] + 1 [plant] / [influence]» — the base is a LEVEL, never a number paid or taken. The
+           word before it is the term's own (the card's printed «max» for a cut). -->
+      <div v-else-if="(formula || group.readings.length === 0) && group.effect.level !== undefined" class="con-iyield__formula"
+           data-yield-level :data-yield-level-direction="group.effect.level.direction" aria-hidden="true">
+        <span class="con-iyield__upto">{{ $t(levelWord(group.effect)) }}</span>
         <b class="con-iyield__num">{{ group.effect.base ?? 0 }}</b>
         <ConsoleYieldUnit :classes="unitClassesOf(group.effect)" />
         <span class="con-iyield__plus">+</span>
@@ -150,11 +152,11 @@
                difference — «up to 9 [card] · 5 in hand → +4 [card]». The target
                alone would promise nine cards to a player owed four. -->
           <span v-if="y.target !== undefined && y.total !== undefined" class="con-iyield__in con-iyield__in--level">
-            <span class="con-iyield__upto">{{ $t(upToWord) }}</span>
+            <span class="con-iyield__upto">{{ $t(levelWord(group.effect)) }}</span>
             <b data-yield-in="target">{{ y.target }}</b>
             <ConsoleYieldUnit :classes="unitClassesOf(group.effect)" />
             <span class="con-iyield__sep" aria-hidden="true">·</span>
-            <span class="con-iyield__level" data-yield-in="level" :data-yield-level="y.total.before">{{ levelText(y.total.before) }}</span>
+            <span class="con-iyield__level" data-yield-in="level" :data-yield-level="y.total.before">{{ levelText(group.effect, y.total.before) }}</span>
           </span>
           <!-- A SEQUENTIAL reading shows the CHAIN: the total before the
                earlier part moved it, the total after, and the result. The
@@ -207,7 +209,7 @@
             <!-- A LEVEL part at or above its target pays nothing, and says so CALMLY in the result's own slot —
                  the rule working, never a struck amount and never a forfeit. -->
             <span v-if="levelNone(y)" class="con-iyield__out con-iyield__out--none" data-yield-none><b>{{ $t(levelNoneKey(group.effect)) }}</b></span>
-            <span v-else class="con-iyield__out" :class="{'con-iyield__out--lost': y.skipped !== undefined && (y.amount ?? 0) > 0}"><b>{{ outText(y) }}</b><ConsoleYieldUnit :classes="unitClassesOf(group.effect)" /><em v-if="atCap(y)" class="con-iyield__max">{{ $t('Max.') }}</em></span>
+            <span v-else class="con-iyield__out" :class="{'con-iyield__out--lost': y.skipped !== undefined && (y.amount ?? 0) > 0, 'con-iyield__out--loss': takesAway(group.effect)}"><b>{{ outText(y) }}</b><ConsoleYieldUnit :classes="unitClassesOf(group.effect)" /><em v-if="atCap(y)" class="con-iyield__max">{{ $t('Max.') }}</em></span>
             <!-- THE NET at the tail — the day's balance once the levy and the payout are both known:
                  «= −3 [M€]». Signed, and in the loss tone when the seat ends poorer today. -->
             <span v-if="levyOn(group, y)" class="con-iyield__net" :class="{'con-iyield__net--minus': netOf(y) < 0}" data-yield-net-line :data-yield-net-amount="netOf(y)">
@@ -247,7 +249,7 @@
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
 import {Resource} from '@/common/Resource';
-import {InfluenceScaledEffect, InfluenceYield, yieldAtCap} from '@/common/parliament/influenceScaling';
+import {InfluenceScaledEffect, InfluenceYield, levelTakesAway as yieldTakesAway, yieldAtCap} from '@/common/parliament/influenceScaling';
 import {LevyReading} from '@/common/parliament/resolutionLevy';
 import {
   cardResourceIconKey, LEVEL_IN_HAND_KEY, LEVEL_UP_TO_KEY, levelPresentation, levelYieldIsNone, METRIC_SETS_PLURAL_KEY, oneNumberYieldsOf, PRODUCTION_HORIZON_KEY,
@@ -344,13 +346,22 @@ export default defineComponent({
     levelNone(y: InfluenceYield): boolean {
       return levelYieldIsNone(y);
     },
-    /** The calm phrase of a level part's zero («no draw needed») — the level term's own word. */
+    /** The calm phrase of a level part's zero («no draw needed» / «nothing to lose») — the level term's own word. */
     levelNoneKey(effect: InfluenceScaledEffect): string {
-      return effect.upTo === undefined ? '' : levelPresentation(effect.upTo).noneKey;
+      return effect.level === undefined ? '' : levelPresentation(effect.level).noneKey;
     },
-    /** «5 in hand» — the level the top-up is read against, in words beside the number. */
-    levelText(level: number): string {
-      return translateTextWithParams(LEVEL_IN_HAND_KEY, [String(level)]);
+    /** The part TAKES instead of paying (a level term going down) — the minus and the loss tone follow the DECLARATION, never the record's sign. */
+    takesAway(effect: InfluenceScaledEffect): boolean {
+      return yieldTakesAway(effect);
+    },
+    /** The word before the TARGET — «up to» for a top-up, the card's printed «max» for a cut. */
+    levelWord(effect: InfluenceScaledEffect): string {
+      return effect.level === undefined ? LEVEL_UP_TO_KEY : levelPresentation(effect.level).wordKey;
+    },
+    /** «5 in hand» / «7 of yours» — the level the move is read against, in the term's own words. */
+    levelText(effect: InfluenceScaledEffect, level: number): string {
+      const key = effect.level === undefined ? LEVEL_IN_HAND_KEY : levelPresentation(effect.level).levelKey;
+      return translateTextWithParams(key, [String(level)]);
     },
     /** The levy heads THIS group's readings: the group pays the levy's currency, and the reading is a number (never the reference). */
     levyOn(group: Group, y: InfluenceYield): boolean {
@@ -459,7 +470,9 @@ export default defineComponent({
       if (y.delivered !== undefined && y.delivered < amount) {
         return '+' + y.delivered + ' / ' + amount;
       }
-      return '+' + amount;
+      // A CUT reads with its MINUS: the declaration says which way it goes, so
+      // the same magnitude is «−3» here and «3 would be taken» in the sentence.
+      return (yieldTakesAway(y.effect) ? '−' : '+') + amount;
     },
     captionOf(y: InfluenceYield): string {
       const caption = yieldCaptionOf(y);

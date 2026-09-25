@@ -10,9 +10,9 @@
  * THE READINGS FIXED HERE:
  *  · THE FORMULA IS A TARGET. «6 + influence» is the hand size every
  *    participant is brought UP TO, each by their own influence — never a
- *    number of cards paid outright. The declaration says so (`upTo`), so the
+ *    number of cards paid outright. The declaration says so (`level`), so the
  *    one formula (`scaledAmount`) yields the target and the ONE top-up
- *    division (`topUpAmount` = max(0, target − hand)) yields the payout, on
+ *    division (`levelAmount` = max(0, target − hand)) yields the payout, on
  *    the server, in every reading and on the stand alike. A surface that
  *    printed the target alone would promise «+9 cards» to a player who is
  *    owed four.
@@ -58,7 +58,7 @@
 import {CardRenderer} from '../../../cards/render/CardRenderer';
 import {PartyName} from '../../../../common/turmoil/PartyName';
 import {ResolutionCode, ResolutionId} from '../../../../common/parliament/ParliamentTypes';
-import {InfluenceScaledEffect, scaledAmount, topUpAmount} from '../../../../common/parliament/influenceScaling';
+import {InfluenceScaledEffect, levelAmount, scaledAmount} from '../../../../common/parliament/influenceScaling';
 import {ExternalDrawIntake} from '../../../deferredActions/ExternalDrawIntake';
 import {EnactStep, ResolutionDefinition} from '../IResolution';
 
@@ -69,15 +69,15 @@ export const JOINT_RESEARCH_HAND_BASE = 6;
 
 /**
  * THE LEVEL: every participant is brought up to 6 + influence cards in hand.
- * `base` + `perInfluence` yield the TARGET; `upTo` says the payout is the
- * difference to the hand.
+ * `base` + `perInfluence` yield the TARGET; the `level` term — direction
+ * `up` — says the payout is the difference to the hand.
  */
 export const JOINT_RESEARCH_DRAW: InfluenceScaledEffect = {
   id: 'draw',
   unit: {kind: 'cards'},
   base: JOINT_RESEARCH_HAND_BASE,
   perInfluence: 1,
-  upTo: {total: {kind: 'cards'}},
+  level: {total: {kind: 'cards'}, direction: 'up'},
   recipient: 'each',
 };
 
@@ -105,7 +105,7 @@ const DRAW_STEP: EnactStep = {
     // THE HAND AS THE ENGINE KEEPS IT — never a projection, never a count
     // that includes cards still owed in another intake.
     const before = player.cardsInHand.length;
-    const owed = topUpAmount(effect, influence, before);
+    const owed = levelAmount(effect, influence, before);
     if (owed <= 0) {
       // THE PARENTHESIS: at or above the target already. Named as the rule
       // working — with the hand and the target it was read against.

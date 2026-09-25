@@ -3,7 +3,7 @@ import {Color} from '@/common/Color';
 import {PartyName} from '@/common/turmoil/PartyName';
 import {ParliamentModel, ParliamentPlayerModel} from '@/common/models/ParliamentModel';
 import {IClientResolution} from '@/common/parliament/IClientResolution';
-import {InfluenceScaledEffect, fixedLevelYield, levelYield, scaledAmount, topUpAmount} from '@/common/parliament/influenceScaling';
+import {InfluenceScaledEffect, fixedLevelYield, levelYield, scaledAmount, levelAmount} from '@/common/parliament/influenceScaling';
 import {
   enactedYieldsOf, LEVEL_IN_HAND_KEY, LEVEL_NONE_KEY, LEVEL_UP_TO_KEY, levelPresentation, levelTotalIcon, levelTotalOf, levelYieldIsNone, voteYieldsOf,
   winSuffixesOf, yieldCaptionOf,
@@ -56,13 +56,13 @@ describe('levelYieldModel (Joint Research)', () => {
     expect(r.code).eq('RX16');
     expect(r.party).eq(PartyName.SCIENTISTS);
     const draw = drawEffect();
-    expect(draw.upTo).deep.eq({total: {kind: 'cards'}});
+    expect(draw.level).deep.eq({total: {kind: 'cards'}});
     expect(draw.base).eq(6);
     expect(draw.perInfluence).eq(1);
     expect(draw.count, 'nothing is counted').is.undefined;
     expect(draw.sequel, 'nothing is divided').is.undefined;
-    expect(familyOf(r)).eq('up-to');
-    expect(levelTotalIcon(draw.upTo!)).deep.eq({family: 'cards'});
+    expect(familyOf(r)).eq('level');
+    expect(levelTotalIcon(draw.level!)).deep.eq({family: 'cards'});
     expect(r.quest).deep.eq({goal: {kind: 'cardsPlayed', cardType: 'event'}, count: 2});
   });
 
@@ -71,12 +71,12 @@ describe('levelYieldModel (Joint Research)', () => {
     const cases: Array<[number, number, number, number]> = [[5, 3, 9, 4], [9, 3, 9, 0], [2, 0, 6, 4], [0, 0, 6, 6], [6, 0, 6, 0], [12, 3, 9, 0], [9, 5, 11, 2]];
     for (const [hand, influence, target, drawn] of cases) {
       expect(scaledAmount(draw, influence), `influence ${influence}`).eq(target);
-      expect(topUpAmount(draw, influence, hand), `hand ${hand} at influence ${influence}`).eq(drawn);
+      expect(levelAmount(draw, influence, hand), `hand ${hand} at influence ${influence}`).eq(drawn);
     }
   });
 
   it('the seat\'s level is the SERVER\'s hand, and a model that does not carry it gives no number', () => {
-    const term = drawEffect().upTo!;
+    const term = drawEffect().level!;
     expect(levelTotalOf(seat({hand: 5}), term)).eq(5);
     expect(levelTotalOf(seat(), term), 'never an invented zero').is.undefined;
     expect(levelTotalOf(undefined, term)).is.undefined;
@@ -184,7 +184,7 @@ describe('levelYieldModel (Joint Research)', () => {
   });
 
   it('the words of the reading exist in the RU dictionary, and the skip reason is the server\'s own', () => {
-    const term = drawEffect().upTo!;
+    const term = drawEffect().level!;
     const presentation = levelPresentation(term);
     expect(presentation.skipReasonKey).eq('Already at the target hand size');
     expect(presentation.noneKey).eq(LEVEL_NONE_KEY);

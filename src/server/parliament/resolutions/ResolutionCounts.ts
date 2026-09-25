@@ -183,17 +183,29 @@ export function declaredSequelProductions(catalog: ResolutionCatalog): Array<Res
 }
 
 /**
- * Every SUPPLY a LEVY of `catalog` takes from (the Budgets' M€). The seat's
- * model carries exactly these stocks — the inputs of the levies that exist,
- * and nothing else: the vote panel's net line and the stand read the seat's
- * shortfall from the same supply the levy step will read at the enactment.
+ * Every SUPPLY some resolution of `catalog` READS of a seat — what a LEVY
+ * takes from (the Budgets' M€) and what a LEVEL is measured against (Plant
+ * Ban's plants). The seat's model carries exactly these stocks, the inputs of
+ * the rules that exist and nothing else: the vote panel's shortfall warning,
+ * its cut forecast and the stand all read the seat's supply from the very
+ * number the step will read at the enactment.
  */
-export function declaredLevyResources(catalog: ResolutionCatalog): Array<Resource> {
+export function declaredStockReads(catalog: ResolutionCatalog): Array<Resource> {
   const out: Array<Resource> = [];
+  const add = (resource: Resource) => {
+    if (!out.includes(resource)) {
+      out.push(resource);
+    }
+  };
   for (const definition of catalog.all()) {
-    const levy = definition.levy;
-    if (levy !== undefined && !out.includes(levy.resource)) {
-      out.push(levy.resource);
+    if (definition.levy !== undefined) {
+      add(definition.levy.resource);
+    }
+    for (const effect of definition.scaled ?? []) {
+      const total = effect.level?.total;
+      if (total?.kind === 'stock') {
+        add(total.resource);
+      }
     }
   }
   return out;
@@ -210,12 +222,12 @@ export function declaresColonyBonuses(catalog: ResolutionCatalog): boolean {
 }
 
 /**
- * Does some resolution of `catalog` bring the seat's HAND up to a level
- * (Joint Research's «draw until you have 6 + influence in hand»)? The seat's
- * model then carries the hand size — the same count the step will read.
+ * Does some resolution of `catalog` read the seat's HAND as a level (Joint
+ * Research's «draw until you have 6 + influence in hand»)? The seat's model
+ * then carries the hand size — the same count the step will read.
  */
 export function declaresHandLevel(catalog: ResolutionCatalog): boolean {
-  return catalog.all().some((definition) => (definition.scaled ?? []).some((effect) => effect.upTo?.total.kind === 'cards'));
+  return catalog.all().some((definition) => (definition.scaled ?? []).some((effect) => effect.level?.total.kind === 'cards'));
 }
 
 /** Every count id some resolution of `catalog` declares — what a player's model carries. */

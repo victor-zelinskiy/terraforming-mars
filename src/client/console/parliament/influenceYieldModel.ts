@@ -21,7 +21,8 @@ import {IClientResolution} from '@/common/parliament/IClientResolution';
 import {ParliamentModel, ParliamentPlayerModel, ParliamentEnactOutcomeModel} from '@/common/models/ParliamentModel';
 import {
   fixedLevelYield, fixedSequelYield, fixedYield, InfluenceLevelTerm, InfluenceScaledEffect, InfluenceSequelTerm, InfluenceYield, influenceYield,
-  InfluenceYieldContext, InfluenceYieldUnit, levelYield, referenceYield, scaledAmount, sequelYield, winnerForecastYield, yieldAtCap, YieldCount,
+  InfluenceYieldContext, InfluenceYieldUnit, levelTakesAway, levelYield, referenceYield, scaledAmount, sequelYield, winnerForecastYield, yieldAtCap,
+  YieldCount,
 } from '@/common/parliament/influenceScaling';
 import {AGENDA_TRACK, influenceAtAgenda} from '@/common/parliament/ParliamentTypes';
 import {
@@ -377,10 +378,11 @@ export function yieldCaptionOf(y: InfluenceYield): {key: string, params?: Readon
   // A FLAT part is nobody's number in particular: it says so too.
   // …and so is a LEVEL part: the hand it is read against moves with every play and sale before the sitting.
   case 'estimate': return yieldIsFlat(y.effect) ? {key: 'The same for every player'} :
-    y.effect.count !== undefined || y.effect.sequel !== undefined || y.effect.upTo !== undefined ? {key: 'If enacted now'} : {key: 'By your current influence'};
+    y.effect.count !== undefined || y.effect.sequel !== undefined || y.effect.level !== undefined ? {key: 'If enacted now'} : {key: 'By your current influence'};
   case 'forecast': return y.agendaStep === undefined ? {key: 'If you win the vote'} : {key: 'If you win — Agenda step ${0}', params: [String(y.agendaStep)]};
-  case 'resolving': return y.skipped !== undefined ? {key: y.skipped} : {key: 'This payout'};
-  case 'applied': return y.skipped !== undefined ? {key: y.skipped} : {key: 'Received'};
+  // A CUT is not «received»: the same slot names what LEFT, or the row would thank the player for a loss.
+  case 'resolving': return y.skipped !== undefined ? {key: y.skipped} : {key: levelTakesAway(y.effect) ? 'This loss' : 'This payout'};
+  case 'applied': return y.skipped !== undefined ? {key: y.skipped} : {key: levelTakesAway(y.effect) ? 'Taken' : 'Received'};
   case 'reference': return undefined;
   }
 }
@@ -406,14 +408,26 @@ function totalIconOf(total: InfluenceYieldUnit): YieldIcon {
   }
 }
 
-// ── A LEVEL PART (Joint Research: «draw until you have 6 + influence in hand») ──
+// ── A LEVEL PART (Joint Research tops the hand UP to 6 + influence; Plant Ban cuts the supply DOWN to 2 + influence) ──
 
-/** The word before the target («up to 9 [cards]»). */
+/** The word before the target of a TOP-UP («up to 9 [cards]»). */
 export const LEVEL_UP_TO_KEY = 'up to';
+/** The word before the target of a CUT («max 4 [plant]») — the word the card itself prints. */
+export const LEVEL_MAX_KEY = 'max';
 /** The seat's current level of the hand («5 in hand»), with its number. */
 export const LEVEL_IN_HAND_KEY = '${0} in hand';
-/** The result of a level part that pays nothing — the rule working, said calmly in the result's own slot. */
+/** The seat's current level of a SUPPLY the cut reads («7 of yours»), with its number. */
+export const LEVEL_IN_SUPPLY_KEY = '${0} of yours';
+/** The result of a TOP-UP that pays nothing — the rule working, said calmly in the result's own slot. */
 export const LEVEL_NONE_KEY = 'no draw needed';
+/** The result of a CUT that takes nothing — the same calm slot, in the cut's own words. */
+export const LEVEL_NONE_LOSS_KEY = 'nothing to lose';
+/**
+ * THE PANEL'S WARNING to a seat a CUT would take from: the vote is the only
+ * defence against this law, so the price has to be legible BEFORE the vote,
+ * not after the enactment. Shown only where there is something to lose.
+ */
+export const LEVEL_LOSS_NOTE_KEY = 'Everything above the limit is taken';
 
 /**
  * HOW A LEVEL TERM IS NAMED — one entry per level unit, exactly as
@@ -423,15 +437,57 @@ export const LEVEL_NONE_KEY = 'no draw needed';
  * reading prints beside the number. A surface that explains the zero reads
  * the sentence the game would record, never one of its own.
  */
-export function levelPresentation(term: InfluenceLevelTerm): {skipReasonKey: string, ruleKey: string, noneKey: string} {
+export type LevelPresentation = {
+  /** The word before the TARGET — «up to» for a top-up, «max» for a cut (the word the card prints). */
+  wordKey: string;
+  /** The seat's current level beside the target, with its number («5 in hand», «7 of yours»). */
+  levelKey: string;
+  skipReasonKey: string;
+  ruleKey: string;
+  noneKey: string;
+  /** The panel's honest warning where the term TAKES and the seat has something to lose (a cut only). */
+  noteKey?: string;
+};
+
+export function levelPresentation(term: InfluenceLevelTerm): LevelPresentation {
+  // A CUT: the target is what the player KEEPS, so every word is about what LEAVES — never
+  // «you will have 4», which answers a question nobody asked of a law that takes.
+  if (term.direction === 'down') {
+    if (term.total.kind === 'stock' && term.total.resource === Resource.PLANTS) {
+      return {
+        wordKey: LEVEL_MAX_KEY,
+        levelKey: LEVEL_IN_SUPPLY_KEY,
+        skipReasonKey: 'Plants already at or below the limit',
+        ruleKey: 'The plants are counted at the sitting, after the production phase. Everything above the limit is taken; a player at or below it loses nothing, and no card protects against this.',
+        noneKey: LEVEL_NONE_LOSS_KEY,
+        noteKey: LEVEL_LOSS_NOTE_KEY,
+      };
+    }
+    return {
+      wordKey: LEVEL_MAX_KEY,
+      levelKey: LEVEL_IN_SUPPLY_KEY,
+      skipReasonKey: 'Already at or below the limit',
+      ruleKey: 'The current value is read at the sitting; everything above the limit is taken.',
+      noneKey: LEVEL_NONE_LOSS_KEY,
+      noteKey: LEVEL_LOSS_NOTE_KEY,
+    };
+  }
   if (term.total.kind === 'cards') {
     return {
+      wordKey: LEVEL_UP_TO_KEY,
+      levelKey: LEVEL_IN_HAND_KEY,
       skipReasonKey: 'Already at the target hand size',
       ruleKey: 'The hand is counted at the sitting, after the production phase. A hand already at the target draws nothing; the rest comes from the project deck.',
       noneKey: LEVEL_NONE_KEY,
     };
   }
-  return {skipReasonKey: 'Nothing is owed', ruleKey: 'The current value is read at the sitting; only the difference to the target is paid.', noneKey: LEVEL_NONE_KEY};
+  return {
+    wordKey: LEVEL_UP_TO_KEY,
+    levelKey: LEVEL_IN_SUPPLY_KEY,
+    skipReasonKey: 'Nothing is owed',
+    ruleKey: 'The current value is read at the sitting; only the difference to the target is paid.',
+    noneKey: LEVEL_NONE_KEY,
+  };
 }
 
 /** The icon of the LEVEL a level part reads (the hand's cards). */
@@ -460,13 +516,25 @@ export function levelTotalOf(seat: ParliamentPlayerModel | undefined, term: Infl
 
 /** A level reading whose top-up is ZERO — the rule working, marked with the level term's own reason. */
 function withLevelReason(y: InfluenceYield): InfluenceYield {
-  const term = y.effect.upTo;
+  const term = y.effect.level;
   return term !== undefined && (y.amount ?? 0) === 0 ? {...y, skipped: levelPresentation(term).skipReasonKey} : y;
 }
 
-/** The reading of a level part pays NOTHING — the seat is at or above the target (never a forfeited payout: that keeps its size). */
+/** The reading of a level part MOVES NOTHING — the seat is already at the level (never a forfeited payout: that keeps its size). */
 export function levelYieldIsNone(y: InfluenceYield): boolean {
-  return y.effect.upTo !== undefined && y.target !== undefined && (y.amount ?? 0) === 0;
+  return y.effect.level !== undefined && y.target !== undefined && (y.amount ?? 0) === 0;
+}
+
+/**
+ * THE PANEL'S WARNING ABOUT A CUT, read off the readings the panel already
+ * shows: the first level part that TAKES and would take something from this
+ * seat. A seat at or below the limit gets no note — there is nothing to warn
+ * about, and a warning nobody needs is noise that teaches players to ignore
+ * the slot. Undefined for every other card.
+ */
+export function levelLossNoteOf(yields: ReadonlyArray<InfluenceYield>): string | undefined {
+  const cut = yields.find((y) => y.effect.level?.direction === 'down' && y.context === 'estimate' && (y.amount ?? 0) > 0);
+  return cut?.effect.level === undefined ? undefined : levelPresentation(cut.effect.level).noteKey;
 }
 
 /**
@@ -552,7 +620,7 @@ export function voteYieldsOf(resolution: IClientResolution, model: ParliamentMod
     // carries) against the target the formula yields at the influence: the
     // estimate now, and the «if you win» forecast at the raised target. A
     // seat at or above the target reads its zero as the rule working.
-    const level = effect.upTo;
+    const level = effect.level;
     if (level !== undefined) {
       const before = levelTotalOf(seat, level);
       if (before === undefined) {
@@ -640,7 +708,7 @@ export function enactedYieldsOf(
     // A LEVEL part's record carries the TARGET it brought the seat up to and
     // the hand before and after — the server's own numbers; a record from
     // before the target travelled reads the level reached as the target.
-    if (effect.upTo !== undefined && applied?.total !== undefined) {
+    if (effect.level !== undefined && applied?.total !== undefined) {
       const reading = fixedLevelYield(effect, context, applied.amount ?? 0, applied.target ?? applied.total.after, applied.total, {
         influence: applied.influence,
         delivered: applied.drawn,

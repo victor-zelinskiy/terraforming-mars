@@ -52,6 +52,7 @@ import {MIGRATION_FUNDING} from './marsFirst/MigrationFunding';
 import {MINING_INCENTIVES} from './industrialists/MiningIncentives';
 import {MOHOLE_CONTEST} from './greens/MoholeContest';
 import {OPEN_IP_TRADE} from './scientists/OpenIpTrade';
+import {PLANT_BAN} from './reds/PlantBan';
 import {runResolutionAction} from './ResolutionAction';
 import {SKYSCRAPERS} from './marsFirst/Skyscrapers';
 
@@ -496,7 +497,7 @@ export const REDUX_RESOLUTION_CATALOG = new ResolutionCatalog([
   // by PRODUCTION STEPS (the fifth count kind) + influence, then a flat production part.
   INDUSTRIALIST_BUDGET,
   // The Scientists' FIRST card, and the first value that is a LEVEL, not an amount: every seat draws UP TO
-  // 6 + influence cards in hand (`upTo`) — the payout is the difference to the hand, zero being the rule working.
+  // 6 + influence cards in hand (`level`) — the payout is the difference to the hand, zero being the rule working.
   JOINT_RESEARCH,
   // A count over the seat's COLONIES (the sixth count kind: cubes on the colony tiles, the engine's own list) beside
   // a plain titanium-by-influence part; the cap sits on the production part alone.
@@ -520,6 +521,9 @@ export const REDUX_RESOLUTION_CATALOG = new ResolutionCatalog([
   // card for each» — the party actions' twin in the action menu, the console's action workspace and the Parliament's
   // government door; plus a draw by influence at the enactment through the shared intake.
   OPEN_IP_TRADE,
+  // The MIRROR of Joint Research, and what made the level member carry a DIRECTION: every seat is cut DOWN to
+  // 2 + influence plants — one declaration, one arithmetic, the loss read by the address as a levy's is.
+  PLANT_BAN,
   // The first recipients decided by a THRESHOLD (the winner + everyone with influence ≥ 2), and the first CITY STACK:
   // one city tile each, placed as a TIER on the seat's own city on Mars — the cell pays nothing again, every tier scores.
   SKYSCRAPERS,

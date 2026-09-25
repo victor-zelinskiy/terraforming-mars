@@ -71,7 +71,21 @@ import {ReduxParty, ResolutionId, ResolutionInstanceId} from '@/common/parliamen
 import {ParliamentEnactOutcomeModel, ParliamentPhaseSummaryModel} from '@/common/models/ParliamentModel';
 import {REWARD_ADDRESS, rewardAddressOf} from '@/common/parliament/rewardAddress';
 import {ParameterMoveId} from '@/common/parliament/parameterMove';
-import {LEVEL_NONE_KEY} from './influenceYieldModel';
+import {InfluenceLevelTerm} from '@/common/parliament/influenceScaling';
+import {getResolution} from '@/client/parliament/ClientParliamentManifest';
+import {LEVEL_NONE_KEY, levelPresentation} from './influenceYieldModel';
+
+/**
+ * The LEVEL term of `effect` as the enacted resolution declares it — the card's
+ * own word, looked up through the client manifest (never a table by id).
+ * Undefined for every record that is not a level part's.
+ */
+function levelTermOf(resolution: ResolutionId, effect: string | undefined): InfluenceLevelTerm | undefined {
+  if (effect === undefined) {
+    return undefined;
+  }
+  return getResolution(resolution)?.scaled?.find((e) => e.id === effect)?.level;
+}
 
 /** ONE part of one seat's payout — an object and an amount, or a skip with its reason. */
 export type ResultsPayoutPart = {
@@ -271,8 +285,14 @@ function unitOf(outcome: ParliamentEnactOutcomeModel): {unit: string, units?: Re
   return {unit: outcome.kind === 'cards' || outcome.kind === 'discard' ? 'cards' : '', production: false};
 }
 
-/** ONE record as a part of its seat's payout — the server's amount, or the skip the address names. */
-export function resultsPayoutPart(outcome: ParliamentEnactOutcomeModel, index: number): ResultsPayoutPart {
+/**
+ * ONE record as a part of its seat's payout — the server's amount, or the skip
+ * the address names. `level` is the DECLARATION of the level term this record
+ * belongs to, where it belongs to one: the calm phrase of a zero is the term's
+ * own («no draw needed» for a top-up, «nothing to lose» for a cut), and a
+ * record cannot say which it was — only the card can.
+ */
+export function resultsPayoutPart(outcome: ParliamentEnactOutcomeModel, index: number, level?: InfluenceLevelTerm): ResultsPayoutPart {
   const delivery = rewardAddressOf(outcome, outcome.player);
   const owner = outcome.player ?? 'neutral';
   const {unit, units, production} = unitOf(outcome);
@@ -331,7 +351,7 @@ export function resultsPayoutPart(outcome: ParliamentEnactOutcomeModel, index: n
     // A LEVEL part at its target (a record with a `target` that owed nothing) is the rule working: the row
     // says so calmly, in the same words the band and the panel use, and keeps the server's reason beside it.
     if (outcome.kind === 'skipped' && outcome.target !== undefined && (outcome.amount ?? 0) === 0) {
-      part.none = LEVEL_NONE_KEY;
+      part.none = level === undefined ? LEVEL_NONE_KEY : levelPresentation(level).noneKey;
     }
   }
   return part;
@@ -377,7 +397,9 @@ export function resultsReadingOf(
     // A WORLD record names no seat: it belongs to the planet line, never to a payout row.
     const parts = outcome.player === undefined ? undefined : byPlayer.get(outcome.player);
     if (parts !== undefined) {
-      parts.push(resultsPayoutPart(outcome, index));
+      // The level term this record belongs to, by the ENACTED card's own declaration: a zero speaks the
+      // term's words, and only the declaration knows whether the level was topped up or cut down to.
+      parts.push(resultsPayoutPart(outcome, index, levelTermOf(summary.winner.resolution, outcome.effect)));
     }
   });
   const payouts = seats.map((seat): ResultsPayout => {

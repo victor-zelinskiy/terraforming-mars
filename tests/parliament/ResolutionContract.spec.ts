@@ -10,7 +10,7 @@ import {PlayerInput} from '../../src/server/PlayerInput';
 import {Phase} from '../../src/common/Phase';
 import {PlayerId} from '../../src/common/Types';
 import {AGENDA_TRACK, influenceAtAgenda} from '../../src/common/parliament/ParliamentTypes';
-import {scaledAmount, sequelAmount, topUpAmount} from '../../src/common/parliament/influenceScaling';
+import {levelAfter, levelAmount, levelTakesAway, scaledAmount, sequelAmount} from '../../src/common/parliament/influenceScaling';
 import {LEVY_STEP_KEY, levyDeclared, levyPaid} from '../../src/common/parliament/resolutionLevy';
 import {OUTCOME_KINDS, REWARD_ADDRESS, rewardAddressOf} from '../../src/common/parliament/rewardAddress';
 import {isWinnerParameterReward, winnerParameterStepKey} from '../../src/common/parliament/winnerReward';
@@ -508,23 +508,33 @@ function checkFormula(definition: ResolutionDefinition, run: Run): Array<string>
       }
       const expected = effect.sequel !== undefined ?
         (record.total === undefined ? undefined : sequelAmount(effect, record.total.after)) :
-        effect.upTo !== undefined ?
-          (record.total === undefined ? undefined : topUpAmount(effect, seat.influence, record.total.before)) :
+        effect.level !== undefined ?
+          (record.total === undefined ? undefined : levelAmount(effect, seat.influence, record.total.before)) :
           scaledAmount(effect, seat.influence, record.count ?? 0);
       if (expected === undefined) {
-        failures.push(effect.upTo !== undefined ?
-          `${label(definition)}: часть-порог '${effect.id}' не записала уровень (total), от которого считала добор` :
+        failures.push(effect.level !== undefined ?
+          `${label(definition)}: часть-порог '${effect.id}' не записала уровень (total), от которого считала величину` :
           `${label(definition)}: последовательная часть '${effect.id}' не записала итог (total), из которого делила`);
         continue;
       }
-      // A LEVEL part records the TARGET it brought the seat up to — the formula's own number — beside the level:
-      // a reading that had to recompute it from a later influence would be the lie the declaration exists to prevent.
-      if (effect.upTo !== undefined && record.target !== scaledAmount(effect, seat.influence)) {
-        failures.push(`${label(definition)}: часть-порог '${effect.id}' записала цель ${record.target}, декларация даёт ${scaledAmount(effect, seat.influence)} (влияние ${seat.influence})`);
+      if (effect.level !== undefined) {
+        // A LEVEL part records the TARGET it brought the seat to — the formula's own number — beside the level:
+        // a reading that had to recompute it from a later influence would be the lie the declaration exists to prevent.
+        if (record.target !== scaledAmount(effect, seat.influence)) {
+          failures.push(`${label(definition)}: часть-порог '${effect.id}' записала цель ${record.target}, декларация даёт ${scaledAmount(effect, seat.influence)} (влияние ${seat.influence})`);
+        }
+        // …and the LEVEL IT LEFT: the direction applied ONCE. A cut that recorded `after` above `before`
+        // (or a top-up below it) would read as the opposite law in every surface downstream.
+        const after = record.total === undefined ? undefined : levelAfter(effect, record.total.before, expected);
+        if (record.total !== undefined && record.total.after !== after) {
+          failures.push(`${label(definition)}: часть-порог '${effect.id}' записала уровень после ${record.total.after}, направление '${effect.level.direction}' даёт ${after}`);
+        }
       }
       // A COLONY-BONUSES effect declares the MULTIPLIER: every record of the plan pays its own unit (2k M€, k
       // floaters, one card) and carries `multiplier: k` beside it — that is the declaration's number.
-      const paid = effect.unit.kind === 'colonyBonuses' ? (record.multiplier ?? record.amount ?? 0) : (record.amount ?? 0);
+      // A CUT records its magnitude NEGATIVE (the address reads the sign): the declaration's number is its size.
+      const paid = effect.unit.kind === 'colonyBonuses' ? (record.multiplier ?? record.amount ?? 0) :
+        levelTakesAway(effect) ? -(record.amount ?? 0) : (record.amount ?? 0);
       if (record.kind === 'skipped' ? (paid !== 0 && paid !== expected) : paid !== expected) {
         failures.push(`${label(definition)}: часть '${effect.id}' заплатила ${paid}, декларация даёт ${expected} (влияние ${seat.influence}, счёт ${record.count ?? 0})`);
       }
