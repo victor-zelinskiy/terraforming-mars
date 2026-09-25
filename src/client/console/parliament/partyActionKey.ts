@@ -11,9 +11,11 @@
  * (`consoleCardActions`) both read it, and neither may import the other.
  */
 import {PartyName} from '@/common/turmoil/PartyName';
-import {ReduxParty} from '@/common/parliament/ParliamentTypes';
+import {ReduxParty, ResolutionId} from '@/common/parliament/ParliamentTypes';
 
 export const PARTY_TILE_PREFIX = 'PARTY_';
+/** …and the ENACTED RESOLUTION'S action stands under its own prefix (Open IP Trade — the party action's twin). */
+export const RESOLUTION_TILE_PREFIX = 'RESOLUTION_';
 
 /** The tile / claim KEY of a party (a DOM address + focus id; never a CardName lookup). */
 export function partyTileKey(party: ReduxParty | PartyName): string {
@@ -23,4 +25,14 @@ export function partyTileKey(party: ReduxParty | PartyName): string {
 /** The party behind a key, or undefined for a card's. */
 export function partyOfTileKey(key: string): ReduxParty | undefined {
   return key.startsWith(PARTY_TILE_PREFIX) ? key.substring(PARTY_TILE_PREFIX.length) as ReduxParty : undefined;
+}
+
+/** The tile / claim KEY of the enacted resolution's ACTION (a DOM address + focus id; never a manifest lookup). */
+export function resolutionTileKey(resolution: ResolutionId): string {
+  return RESOLUTION_TILE_PREFIX + resolution;
+}
+
+/** The resolution behind a key, or undefined for a card's / a party's. */
+export function resolutionOfTileKey(key: string): ResolutionId | undefined {
+  return key.startsWith(RESOLUTION_TILE_PREFIX) ? key.substring(RESOLUTION_TILE_PREFIX.length) : undefined;
 }

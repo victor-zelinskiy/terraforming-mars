@@ -103,7 +103,7 @@
         <span class="con-hand__discard-sep" aria-hidden="true">·</span>
         <span class="con-hand__discard-src">{{ discardSource }}</span>
         <span v-if="discard.sequence !== undefined" class="con-hand__discard-seq">{{ discardSequence }}</span>
-        <span v-if="discard.exchange !== undefined" class="con-hand__discard-swap">
+        <span v-if="discard.exchange !== undefined && selectPayout === undefined" class="con-hand__discard-swap">
           <b class="con-hand__discard-out">−{{ Math.max(1, discard.picked) }}</b>
           <i class="resource_icon resource_icon--cards con-hand__discard-icon" aria-hidden="true"></i>
           <span class="con-hand__discard-arrow" aria-hidden="true">→</span>
@@ -143,6 +143,12 @@
         <span class="con-hand__salebar-item con-hand__salebar-item--gain" :class="{'con-hand__salebar-item--zero': pickCount === 0}">
           <b class="con-hand__salebar-num">+{{ pickGain }}</b>
           <i :class="payoutIconClass" class="con-hand__salebar-mc" aria-hidden="true"></i>
+        </span>
+        <!-- The SECOND payout, in cards (Open IP Trade: a card back per card
+             discarded) — the same running arithmetic, its own icon. -->
+        <span v-if="pickCardGain > 0 || (selectPayout.cards ?? 0) > 0" class="con-hand__salebar-item con-hand__salebar-item--gain" :class="{'con-hand__salebar-item--zero': pickCount === 0}" data-hand-sale-cards>
+          <b class="con-hand__salebar-num">+{{ pickCardGain }}</b>
+          <i class="resource_icon resource_icon--cards con-hand__salebar-mc" aria-hidden="true"></i>
         </span>
         <span v-if="selectPayout.current !== undefined" class="con-hand__salebar-item con-hand__salebar-item--total" :class="{'con-hand__salebar-item--zero': pickCount === 0}">
           <i :class="payoutIconClass" class="con-hand__salebar-mc" aria-hidden="true"></i>
@@ -493,8 +499,10 @@ export type ConsoleHandSelectMode = {
    *  the staged / SRR-hosted cards, so the section's own total would lie). */
   total?: number,
   /** Live per-picked-card payout (Public Plans: +1 M€ each) — renders the
-   *  sale-bar-style running summary (count · +gain · before → after). */
-  payout?: {icon: string, amount: number, current?: number},
+   *  sale-bar-style running summary (count · +gain · before → after). `cards`:
+   *  a second payout IN CARDS per picked card (Open IP Trade: «3 карты → +9 M€
+   *  · +3 карты»), printed beside the first. */
+  payout?: {icon: string, amount: number, current?: number, cards?: number},
   /** The OPERATION this pick serves (a composer's target pick): a kicker
    *  i18n key + the source card name (i18n key). Rendered as a header chip so
    *  the player never loses WHY they are choosing here. */
@@ -829,7 +837,7 @@ export default defineComponent({
       return name !== undefined ? this.selectReason(name) : '';
     },
     /** Multi-pick payout summary (present only for a paying client pick). */
-    selectPayout(): {icon: string, amount: number, current?: number} | undefined {
+    selectPayout(): {icon: string, amount: number, current?: number, cards?: number} | undefined {
       return this.select?.payout;
     },
     pickCount(): number {
@@ -837,6 +845,10 @@ export default defineComponent({
     },
     pickGain(): number {
       return this.pickCount * (this.selectPayout?.amount ?? 0);
+    },
+    /** The second payout in CARDS for the current pick (0 when the pick pays none). */
+    pickCardGain(): number {
+      return this.pickCount * (this.selectPayout?.cards ?? 0);
     },
     payoutIconClass(): string {
       return iconClassFor(this.selectPayout?.icon ?? 'megacredits');

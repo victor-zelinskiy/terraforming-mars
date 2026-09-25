@@ -153,7 +153,7 @@ import {ConsoleCommand} from '@/client/console/consoleCommandModel';
 import {backLabelForVerb, backVerbFor} from '@/client/console/consoleWorkspaceFlow';
 import {
   AgendaMove, agendaViewOf, AgendaVm, buildParliamentView, emptyParliamentView, ParliamentPartyVm, ParliamentPromptBridge, ParliamentSlotVm, ParliamentTileVm,
-  ParliamentViewVm, parliamentPromptBridge, partyActionStateOf, PartyActionStateVm, partyStateOf, PartyStateVm, seatResponse,
+  ParliamentViewVm, parliamentPromptBridge, partyActionStateOf, PartyActionStateVm, partyStateOf, PartyStateVm, resolutionActionStateOf, seatResponse,
 } from '@/client/console/parliament/consoleParliamentModel';
 import {
   consoleParliamentUi, notePlayedSittingStage, parliamentCrumbCommitted, parliamentCrumbStage, parliamentCrumbSubject, ParliamentStage,
@@ -190,7 +190,8 @@ import {fitParliamentCards, freezeParliamentFit} from '@/client/console/parliame
 import {parliamentCommandsOf} from '@/client/console/parliament/parliamentCommands';
 import {ParliamentInspectRequest} from '@/client/console/parliament/parliamentInspect';
 import {
-  armPartyActionDescent, navigateParliamentZones, parliamentBrowseInspectRequest, parliamentEnactedInspectRequest, partyActionRefusal,
+  armPartyActionDescent, armResolutionActionDescent, navigateParliamentZones, parliamentBrowseInspectRequest, parliamentEnactedInspectRequest, partyActionRefusal,
+  resolutionActionRefusal,
 } from '@/client/console/parliament/parliamentNavigation';
 import {BenchSource, benchSourceOf, benchWarnOf} from '@/client/console/parliament/parliamentVoteView';
 import {
@@ -229,7 +230,7 @@ export default defineComponent({
     myTurn: {type: Boolean, default: false},
     awaitingInput: {type: Boolean, default: false},
   },
-  emits: ['close', 'submit', 'notice', 'inspect', 'open-action', 'flow-complete', 'collapse', 'to-board'],
+  emits: ['close', 'submit', 'notice', 'inspect', 'open-action', 'open-resolution-action', 'flow-complete', 'collapse', 'to-board'],
   data() {
     return {
       /** The seat / sitting stage is folding back — its DOM stays for the leave beat. */
@@ -519,6 +520,10 @@ export default defineComponent({
     partyActionStates(): Array<PartyActionStateVm> {
       return this.view.parties.map((p) => partyActionStateOf(p, this.canActNow));
     },
+    /** THE ENACTED RESOLUTION'S ACTION for the viewer (Open IP Trade) — the server's own verdict, the party state's twin. */
+    resolutionActionState(): PartyActionStateVm {
+      return resolutionActionStateOf(this.pv.game.parliament?.viewer?.resolutionAction, this.canActNow);
+    },
     agendaVm(): AgendaVm {
       return agendaViewOf(this.view);
     },
@@ -565,6 +570,7 @@ export default defineComponent({
         view: this.view,
         canVoteNow: this.canVoteNow,
         partyActionStates: this.partyActionStates,
+        resolutionAction: this.resolutionActionState,
         sitting: {primary: this.sittingPrimary, inspect: this.sittingInspectable, back: this.sittingBack},
         quest: this.questCommands,
       });
@@ -1040,6 +1046,12 @@ export default defineComponent({
         }
         return;
       }
+      // Y — THE ENACTED RESOLUTION'S ACTION (Open IP Trade): the law's own door into the one execution point,
+      // from wherever the player stands in the browse layer (the law belongs to the whole table).
+      if (intent.kind === 'press' && consoleActionOf(intent) === 'fullscreen') {
+        this.openResolutionAction();
+        return;
+      }
       switch (consoleActionOf(intent)) {
       case 'primary':
         this.primary();
@@ -1262,6 +1274,27 @@ export default defineComponent({
       }
       armPartyActionDescent(this.$refs.rootEl as HTMLElement | undefined, party);
       this.$emit('open-action', party);
+    },
+    /**
+     * THE ENACTED RESOLUTION'S ACTION from the government (Open IP Trade) —
+     * the party door's twin: the law's card is the descent's origin; a closed
+     * door names its reason (the server's own, the state's word).
+     */
+    openResolutionAction(): void {
+      const action = this.pv.game.parliament?.viewer?.resolutionAction;
+      const state = this.resolutionActionState;
+      if (action === undefined || state.kind === 'none') {
+        this.$emit('notice', translateText('The enacted resolution has no action of its own'));
+        return;
+      }
+      const offered = this.bridge.resolutionAction !== undefined && this.bridge.resolutionAction.resolution === action.resolution;
+      const refusal = resolutionActionRefusal(state, offered, this.awaitingInput);
+      if (refusal !== undefined) {
+        this.$emit('notice', refusal);
+        return;
+      }
+      armResolutionActionDescent(this.$refs.rootEl as HTMLElement | undefined);
+      this.$emit('open-resolution-action', {resolution: action.resolution, party: action.party});
     },
     // ── the seat / sitting stage phrase ─────────────────────────────────
     openStage(stage: ParliamentStage): void {

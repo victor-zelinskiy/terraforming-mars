@@ -13,6 +13,11 @@ export type ParliamentCommandsInput = {
   canVoteNow: boolean;
   partyActionStates: ReadonlyArray<PartyActionStateVm>;
   /**
+   * THE ENACTED RESOLUTION'S ACTION (Open IP Trade) — the party action's twin, on its own verb (Y) from every
+   * browse zone: the law belongs to the whole table, not to one tile of the ring. `none` = no enacted law has one.
+   */
+  resolutionAction?: PartyActionStateVm;
+  /**
    * THE SITTING's own verbs (`consoleSittingFlow`): the A label for the page
    * (undefined = A does nothing here — a hosted step owns the bar, a wait pose
    * has nothing to press), whether X inspects an object on this page, and the
@@ -30,14 +35,27 @@ export type ParliamentCommandsInput = {
   quest?: {done: boolean};
 };
 
+/** The law's verb: advertised whenever an enacted resolution has an action — lit only when it can be taken now. */
+function resolutionActionCommand(input: ParliamentCommandsInput): ConsoleCommand | undefined {
+  const state = input.resolutionAction;
+  if (state === undefined || state.kind === 'none') {
+    return undefined;
+  }
+  return {control: 'inspect', label: 'Resolution action', enabled: state.kind === 'available', highlight: state.kind === 'available'};
+}
+
 /** The browse layer's verbs depend on the focused ZONE (one bar, one contract). */
 function browseCommands(input: ParliamentCommandsInput, back: ConsoleCommand): Array<ConsoleCommand> {
+  const law = resolutionActionCommand(input);
   // The retired `government` zone reads as the ruler's tile (a restored stack may still name it).
   switch (parliamentFlow.zone === 'government' ? 'ruler' : parliamentFlow.zone) {
   case 'voting': {
     const cmds: Array<ConsoleCommand> = [];
     if (input.view.slots.length > 0) {
       cmds.push({control: 'confirm', label: 'Open the vote', enabled: true, highlight: input.canVoteNow});
+    }
+    if (law !== undefined) {
+      cmds.push(law);
     }
     if (input.view.enacted !== undefined) {
       cmds.push({control: 'stickR', label: 'Inspect the enacted resolution'});
@@ -61,6 +79,9 @@ function browseCommands(input: ParliamentCommandsInput, back: ConsoleCommand): A
     }
     // X is ONE verb across the parliament (glossary §5): «ОСМОТРЕТЬ», never the name of what it opens.
     cmds.push({control: 'secondary', label: 'Inspect'});
+    if (law !== undefined) {
+      cmds.push(law);
+    }
     if (input.view.enacted !== undefined) {
       cmds.push({control: 'stickR', label: 'Inspect the enacted resolution'});
     }

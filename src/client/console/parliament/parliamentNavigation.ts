@@ -101,6 +101,30 @@ export function partyActionRefusal(state: PartyActionStateVm, offered: boolean, 
   return offered ? undefined : translateText('This option is no longer offered');
 }
 
+/**
+ * WHY the enacted resolution's action cannot be taken right now (Open IP Trade — the party refusal's twin): the
+ * server's own reason, the state's word, or «no longer offered»; undefined when the door opens.
+ */
+export function resolutionActionRefusal(state: PartyActionStateVm, offered: boolean, awaitingInput: boolean): string | undefined {
+  if (state.kind !== 'available') {
+    return state.reason !== undefined ? reasonText(state.reason) :
+      translateText(state.kind === 'used' ? 'This resolution action was already used this generation' :
+        (state.kind === 'not-now' ? (awaitingInput ? 'Finish your current action first' : 'Not your turn') : 'The enacted resolution has no action of its own'));
+  }
+  return offered ? undefined : translateText('This option is no longer offered');
+}
+
+/** The enacted resolution's CARD in the government is the descent's origin — the action workspace unfolds from its rect. */
+export function armResolutionActionDescent(root: HTMLElement | undefined): void {
+  const card = root?.querySelector<HTMLElement>('.con-parl__gov-card .pcard') ?? root?.querySelector<HTMLElement>('.con-parl__gov-card');
+  const rect = card?.getBoundingClientRect();
+  if (rect !== undefined && rect.width > 0) {
+    armDescendOrigin('action-browse', {x: rect.left + rect.width / 2, y: rect.top + rect.height / 2});
+    armDescendRect('action-slot', rect);
+    armActionFocusOrigin(rect);
+  }
+}
+
 /** The pressed plaque is the descent's origin — the action workspace unfolds from its rect (the ruler's tile in the government included). */
 export function armPartyActionDescent(root: HTMLElement | undefined, party: ReduxParty): void {
   const plaque = root?.querySelector<HTMLElement>(`.con-parl__party[data-party="${party}"] .con-pseal`);

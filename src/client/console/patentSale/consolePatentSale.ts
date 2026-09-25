@@ -61,6 +61,8 @@ export type SaleFlight = {
   name: CardName,
 };
 
+export type PatentSaleSource = 'standard-project' | 'resolution';
+
 export const patentSaleState = reactive({
   /** TRUE from arm until finish/abort — the transaction lock. */
   active: false,
@@ -70,6 +72,16 @@ export const patentSaleState = reactive({
   cards: [] as Array<CardName>,
   /** M€ the terminal pays out (client math, verified by the commit). */
   payout: 0,
+  /**
+   * WHO runs the terminal: the standard project (1 M€ per card, the hand's
+   * own sale mode) or the enacted RESOLUTION's action (Open IP Trade: 3 M€
+   * per card, a step of the action workspace) — the SAME scene, the caller's
+   * rate and kicker. The shell's phase watcher reads it to know whose flow
+   * closes when the stack enters the terminal.
+   */
+  source: 'standard-project' as PatentSaleSource,
+  /** The terminal's printed kicker (an i18n key). */
+  kicker: 'Patent sale',
   /** The card proxies that physically fly (capped — a big sale is a pile). */
   flights: [] as Array<SaleFlight>,
   reducedMotion: false,
@@ -129,7 +141,14 @@ registerAnimationHoldSupplier('patent-sale', patentSaleHolding);
  * insert → processing). Sets `active` synchronously so the input gate
  * closes immediately (no double submit) and the poll guard is live.
  */
-export function armPatentSale(opts: {cards: ReadonlyArray<CardName>}): void {
+export function armPatentSale(opts: {
+  cards: ReadonlyArray<CardName>,
+  /** The M€ each card pays (the standard project's flat rate by default). */
+  payoutPerCard?: number,
+  source?: PatentSaleSource,
+  /** The terminal's kicker (an i18n key — «Patent sale» by default). */
+  kicker?: string,
+}): void {
   clearTimers();
   claimed = false;
   capturedSources = captureSources(opts.cards);
@@ -137,7 +156,9 @@ export function armPatentSale(opts: {cards: ReadonlyArray<CardName>}): void {
   patentSaleState.phase = 'gathering';
   patentSaleState.nonce++;
   patentSaleState.cards = [...opts.cards];
-  patentSaleState.payout = sellPatentsPayout(opts.cards.length);
+  patentSaleState.payout = opts.payoutPerCard === undefined ? sellPatentsPayout(opts.cards.length) : opts.payoutPerCard * opts.cards.length;
+  patentSaleState.source = opts.source ?? 'standard-project';
+  patentSaleState.kicker = opts.kicker ?? 'Patent sale';
   patentSaleState.flights = capturedSources.map((s) => ({id: s.id, name: s.name}));
   patentSaleState.reducedMotion = consoleReducedMotionActive();
   // A submit the server never answers (dropped / errored before the

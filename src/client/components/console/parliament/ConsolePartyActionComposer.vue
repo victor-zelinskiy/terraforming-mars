@@ -9,16 +9,26 @@
     beat — so the two doors can never disagree about limits, availability or
     what the commit does.
 
-    It never titles itself: the host's breadcrumb already names the party and
-    the stage. What it draws is the SOURCE (the party's plaque — the hero a
-    card action shows as its card, and the carried object of the descent) and
-    the DECISION column: the rows the server's own nested prompt asks, each
-    option with its `current → resulting` reading, the TOTAL of the whole
-    operation once every decision is made, and the commit row. A CHOICE IS A
-    PRESS: the cursor selects nothing, A on an option picks it, the commit is a
-    second deliberate press on the confirm row — and the row itself shows
-    whether it can be pressed (its readiness ring, one dot per decision), so no
-    sentence elsewhere has to explain a dim button.
+    …AND THE ENACTED RESOLUTION'S ACTION (Open IP Trade — RX24), the party
+    action's twin: the SOURCE is the law's own face instead of a party's
+    plaque, the DECISION is the pick on the REAL HAND standing as a step of
+    this very stage («› ОТКРЫТАЯ ТОРГОВЛЯ ПАТЕНТАМИ › ВЫБОР»), the commit
+    feeds the picked cards to the trade terminal («› ПРОДАЖА» — the sale's own
+    scene, the chip landing on the rail), and the cards it pays come off the
+    HUD pile into the OUTCOME zone («› ДОБОР КАРТ») only once the chip has
+    landed — one press, several effects, the surfaces in turn. No second
+    component: one hero column, one decision column, one zone, one crumb.
+
+    It never titles itself: the host's breadcrumb already names the source and
+    the stage. What it draws is the SOURCE (the party's plaque or the law's
+    face — the hero a card action shows as its card, and the carried object of
+    the descent) and the DECISION column: the rows the server's own nested
+    prompt asks, each option with its `current → resulting` reading, the TOTAL
+    of the whole operation once every decision is made, and the commit row. A
+    CHOICE IS A PRESS: the cursor selects nothing, A on an option picks it, the
+    commit is a second deliberate press on the confirm row — and the row itself
+    shows whether it can be pressed (its readiness ring, one dot per decision),
+    so no sentence elsewhere has to explain a dim button.
 
     Past the commit the stage keeps the flow: the Reds' draw claims its batch
     into the OUTCOME zone here (the execution beat pulls the cards off the HUD
@@ -31,12 +41,13 @@
        :class="['con-pact--' + kind, {
          'con-pact--submitting': submitting,
          'con-pact--colonies': kind === 'unity',
-         'con-pact--handstep': handStep && kind !== 'unity',
+         'con-pact--handstep': handStep && kind !== 'unity' && kind !== 'resolution',
          'con-pact--outcome': outcomeOn,
          'con-pact--result': result !== undefined,
+         'con-pact--sale': saleStage,
        }]"
-       :data-party="party" :data-pact="kind" :data-pact-phase="phase"
-       role="region" :aria-label="$t('Party action')">
+       :data-party="party" :data-pact="kind" :data-pact-phase="phase" :data-resolution="resolution"
+       role="region" :aria-label="$t(kind === 'resolution' ? 'Resolution action' : 'Party action')">
     <!-- The UNITY door: nothing to compose — the colony workspace stands here
          as a step of the host (`card-actions ⊃ colonies`), the trade's own
          confirm is the single commit. The zone is the whole room. -->
@@ -46,15 +57,18 @@
          teleported here as a step of this flow (`card-actions ⊃ hand`).
          Comparing every card is the step's whole job, so it owns the room;
          the crumb above carries the context. -->
-    <div v-else-if="handStep" class="con-pact__handzone" data-embed-slot="action-hand"></div>
+    <div v-else-if="handStep && kind !== 'resolution'" class="con-pact__handzone" data-embed-slot="action-hand"></div>
 
     <template v-else>
-      <!-- ── THE SOURCE column — the party's plaque, the hero a card action
-           would show as its card. Its children are identical in every phase
-           (setup · outcome · result), which is what keeps its geometry stable. -->
+      <!-- ── THE SOURCE column — the party's plaque, or the LAW's face: the
+           hero a card action would show as its card. Its children are identical
+           in every phase (setup · sale · outcome · result), which is what keeps
+           its geometry stable. -->
       <aside class="con-pact__source">
-        <div class="con-pact__hero" data-action-focus-card>
-          <ConsolePartyPlaque :party="party" size="hero" :formula="true" />
+        <div class="con-pact__hero" :class="{'con-pact__hero--bill': kind === 'resolution'}" data-action-focus-card
+             :data-zoom-slot="kind === 'resolution' ? 'resolution:' + resolution : undefined">
+          <premium-card-face v-if="kind === 'resolution' && resolutionVm !== undefined" :vmOverride="resolutionVm" :lightweight="true" :inert="true" />
+          <ConsolePartyPlaque v-else :party="party" size="hero" :formula="true" />
         </div>
         <span class="con-pact__uses">{{ usesText }}</span>
       </aside>
@@ -77,12 +91,38 @@
           </div>
         </div>
 
-        <!-- THE OUTCOME ZONE (the Reds' draw): the teleport target the shell's
-             ONE reveal overlay re-homes into. Rendered from the CLAIM (submit
-             time), so it exists before the batch can land; until the cards
-             arrive it carries the PREPARED STAGE of the execution beat — the
-             same chassis and the same layout engine the arriving surface
-             uses, so the batch flies straight into its final rects. -->
+        <!-- THE SELECTION STEP of the resolution's action — the REAL hand,
+             teleported here as a step of this flow (`card-actions ⊃ hand`)
+             beside the hero: the picked cards will leave from these very
+             slots into the terminal. -->
+        <div v-else-if="kind === 'resolution' && handStep" class="con-pact__handzone con-pact__handzone--inline" data-embed-slot="action-hand"></div>
+
+        <!-- THE SALE STAGE of the resolution's action: the cards are feeding
+             the terminal (the sale's own scene, app-level) and the chip is on
+             its way to the rail. What the stage reads is the operation as
+             committed — the honest count, the rate, the beat in flight. -->
+        <div v-else-if="kind === 'resolution' && saleStage" class="con-pact__sale" data-outcome-zone data-pact-sale>
+          <div class="con-pact__sale-row" data-outcome-item>
+            <span class="con-pact__result-kicker">{{ $t('Cards discarded') }}</span>
+            <b class="con-pact__result-num">{{ saleCards }}</b>
+            <i class="resource_icon resource_icon--cards con-pact__result-icon" aria-hidden="true"></i>
+          </div>
+          <div class="con-pact__sale-row" data-outcome-item>
+            <ActionEffectChip v-for="(chip, k) in saleChips" :key="k" :effect="chip" />
+          </div>
+          <div class="con-pact__beatstatus con-ws-stage-status" role="status">
+            <span class="con-pact__spin" aria-hidden="true"></span>
+            <span>{{ $t('Performing…') }}</span>
+          </div>
+        </div>
+
+        <!-- THE OUTCOME ZONE (the Reds' draw, the law's draw): the teleport
+             target the shell's ONE reveal overlay re-homes into. Rendered from
+             the CLAIM (submit time), so it exists before the batch can land;
+             until the cards arrive it carries the PREPARED STAGE of the
+             execution beat — the same chassis and the same layout engine the
+             arriving surface uses, so the batch flies straight into its final
+             rects. -->
         <div v-else-if="outcomeOn"
              ref="outcomeZone"
              class="con-pact__revealzone"
@@ -106,6 +146,14 @@
               <span>{{ $t(beatStalled ? 'Drawing cards…' : 'Card draw') }}</span>
             </div>
           </div>
+        </div>
+
+        <!-- THE RESOLUTION'S STAGE BETWEEN STEPS: the pick was refused or
+             taken back and nothing is in flight — the rule stands, B returns.
+             (A pick that is still to open sees this for one flush only.) -->
+        <div v-else-if="kind === 'resolution'" class="con-pact__surface" data-unfold-surface>
+          <p class="con-pact__rule" data-unfold-item>{{ ruleText }}</p>
+          <p v-if="refusal !== ''" class="con-pact__warn" data-unfold-item>{{ refusal }}</p>
         </div>
 
         <!-- ── THE CONFIGURATION SURFACE — the pressed object's own deeper
@@ -229,10 +277,10 @@
       </div>
     </template>
 
-    <!-- THE FLIGHT LAYER of the execution beat (the Reds): one physical card
-         object per drawn card, from the HUD pile onward — a face is empty
-         until the answer names it, which is why the flight can start at the
-         confirm instead of waiting on the server. -->
+    <!-- THE FLIGHT LAYER of the execution beat (the Reds, the law): one
+         physical card object per drawn card, from the HUD pile onward — a face
+         is empty until the answer names it, which is why the flight can start
+         at the confirm instead of waiting on the server. -->
     <div v-if="beatFlightOn" class="con-pact__fly" aria-hidden="true">
       <div v-for="(face, i) in beatFaces" :key="'bp' + i" class="con-deal-proxy" ref="batchProxies">
         <div class="con-deal-proxy__flip" ref="batchFlips">
@@ -258,7 +306,7 @@ import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {SelectCardModel} from '@/common/models/PlayerInputModel';
 import {ActionEffect, VictoryPointsDelta} from '@/common/models/ActionPreviewModel';
 import {InputResponse} from '@/common/inputs/InputResponse';
-import {PartyActionId, ReduxParty} from '@/common/parliament/ParliamentTypes';
+import {PartyActionId, ReduxParty, ResolutionId} from '@/common/parliament/ParliamentTypes';
 import {ConsoleCommand} from '@/client/console/consoleCommandModel';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
@@ -266,9 +314,12 @@ import {buildOrItems, ConsoleOrItem} from '@/client/console/consoleOrChoice';
 import {translateMessage, translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {
-  industrialistsResponse, parliamentPromptBridge, ParliamentPromptBridge, redsResponse, scientistsResponse,
+  industrialistsResponse, parliamentPromptBridge, ParliamentPromptBridge, redsResponse, resolutionActionResponse, scientistsResponse,
 } from '@/client/console/parliament/consoleParliamentModel';
-import {partyTileKey} from '@/client/console/parliament/partyActionKey';
+import {partyTileKey, resolutionTileKey} from '@/client/console/parliament/partyActionKey';
+import {getResolution} from '@/client/parliament/ClientParliamentManifest';
+import {PremiumCardVM} from '@/client/components/premiumCard/premiumCardViewModel';
+import {resolutionPremiumVm} from '@/client/components/premiumCard/resolutionPremiumVm';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
@@ -276,7 +327,7 @@ import ConsolePartyPlaque from '@/client/components/console/parliament/ConsolePa
 import ConsoleWsStageHead from '@/client/components/console/foundation/ConsoleWsStageHead.vue';
 import {
   markWorkspaceOutcomeArrivalDone, markWorkspaceOutcomeArrivalFlown, markWorkspaceOutcomeBeatDone, markWorkspaceOutcomePresenting,
-  setWorkspaceOutcomeSlot, workspaceClaimsDrawReveal, workspaceOutcomeBeatPending, workspaceOutcomeState,
+  rearmWorkspaceOutcomeBeat, setWorkspaceOutcomeSlot, workspaceClaimsDrawReveal, workspaceOutcomeBeatPending, workspaceOutcomeState,
 } from '@/client/console/consoleWorkspaceOutcome';
 import {ActionCommitKind, actionCommitState, armActionCommit, markActionCommitSettled} from '@/client/console/consoleActionCommit';
 import {
@@ -291,14 +342,21 @@ import {ParliamentBeat, scheduleParliamentBeat} from '@/client/console/parliamen
 import {armOutcomeOrigin, playConfigRelease, playOutcomeContent, playOutcomePhase, resetOutcomeOrigin} from '@/client/console/consoleActionOutcomeMotion';
 import {mergeTransferSpecs, ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState';
+import {enterConsoleHandPick} from '@/client/console/consoleHandPick';
+import {armPatentSale, patentSaleState} from '@/client/console/patentSale/consolePatentSale';
 
-export type PartyComposerKind = 'industrialists' | 'scientists' | 'reds' | 'unity';
+export type PartyComposerKind = 'industrialists' | 'scientists' | 'reds' | 'unity' | 'resolution';
 
 /** The Reds' closing beat — what the mandatory discard paid (read once, then the flow leaves). */
 export type PartyActionResult = {
   discarded: number;
   payout: number;
   tags: number;
+};
+
+/** What the RESOLUTION's confirm hands up beside the response: how many cards the draw will bring (the claim's count). */
+export type PartyConfirmDetail = {
+  expectedCards: number;
 };
 
 export function partyComposerKind(party: ReduxParty): PartyComposerKind {
@@ -329,6 +387,9 @@ const REDS_FALLBACK: ReadonlyArray<ActionEffect> = [
   {direction: 'gain', icon: 'megacredits', amount: 2, note: 'per tag'},
 ];
 
+/** The law's rate when the marker carries none (the printed card: 3 M€ and a card per card). */
+const RESOLUTION_SALE_FALLBACK = {megacredits: 3, cards: 1};
+
 function asElements(ref: unknown): Array<HTMLElement> {
   if (Array.isArray(ref)) {
     return ref.filter((el): el is HTMLElement => el instanceof HTMLElement);
@@ -342,9 +403,11 @@ export default defineComponent({
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     party: {type: String as PropType<ReduxParty>, required: true},
+    /** The ENACTED RESOLUTION whose action this stage composes (undefined = a party's action; `party` is then its author). */
+    resolution: {type: String as PropType<ResolutionId | undefined>, default: undefined},
     /** The host has SUBMITTED — the stage is the executing beat, input is absorbed. */
     submitting: {type: Boolean, default: false},
-    /** The hand stands as a step of this flow (the Reds' discard) — the zone is the room. */
+    /** The hand stands as a step of this flow (the Reds' discard, the law's selection) — the zone is the room. */
     handStep: {type: Boolean, default: false},
     /** The closing beat (the Reds' payout), or undefined. */
     result: {type: Object as PropType<PartyActionResult | undefined>, default: undefined},
@@ -355,6 +418,7 @@ export default defineComponent({
       // The module stores the string-path watchers below read through `this`.
       workspaceOutcomeState,
       actionCommitState,
+      patentSaleState,
       /** The cursor's row (decision rows first, the commit row last). */
       cursorRow: 0,
       /** Per-row cursor position. */
@@ -362,6 +426,14 @@ export default defineComponent({
       /** Per-row PICK (undefined = unanswered). */
       picks: [undefined, undefined] as Array<number | undefined>,
       commitHandle: undefined as ActionCommitMotionHandle | undefined,
+      // ── the resolution's selection ──
+      /** The cards the law's pick handed in (the sale's honest count; re-seeded on a refused submit). */
+      saleCards: 0,
+      salePicked: [] as Array<CardName>,
+      /** The pick is standing on the hand (between its open and its answer / cancel). */
+      pickOpen: false,
+      /** WHY the pick could not open (the prompt left before it did) — read on the surface, never invented. */
+      refusal: '',
       // ── the execution beat (the Reds' draw) ──
       beatFaces: [] as Array<string>,
       beatFlightOn: false,
@@ -375,39 +447,98 @@ export default defineComponent({
   },
   computed: {
     kind(): PartyComposerKind {
-      return partyComposerKind(this.party);
+      return this.resolution !== undefined ? 'resolution' : partyComposerKind(this.party);
     },
     bridge(): ParliamentPromptBridge {
       return parliamentPromptBridge(this.playerView.waitingFor);
     },
     actionId(): PartyActionId | undefined {
-      return ACTION_ID_OF[this.party];
+      return this.kind === 'resolution' ? undefined : ACTION_ID_OF[this.party];
+    },
+    /** The KEY this stage claims and commits under — the party's, or the law's. */
+    sourceKey(): string {
+      return this.resolution !== undefined ? resolutionTileKey(this.resolution) : partyTileKey(this.party);
     },
     /** The server's own nested prompt for this action (undefined = no longer offered). */
     entry() {
+      if (this.kind === 'resolution') {
+        const law = this.bridge.resolutionAction;
+        return law !== undefined && law.resolution === this.resolution ? law : undefined;
+      }
       const id = this.actionId;
       return id === undefined ? undefined : this.bridge.actions[id];
     },
     /** The server's verdict on this action (uses, availability) — the Parliament model. */
     liveAction() {
-      return this.playerView.game.parliament?.viewer?.partyActions.find((a) => a.party === this.party);
+      const viewer = this.playerView.game.parliament?.viewer;
+      if (this.kind === 'resolution') {
+        const law = viewer?.resolutionAction;
+        return law !== undefined && law.resolution === this.resolution ? law : undefined;
+      }
+      return viewer?.partyActions.find((a) => a.party === this.party);
     },
-    phase(): 'setup' | 'outcome' | 'discard' | 'result' {
+    /** The law's face — the hero of the resolution's stage (the same VM the government's card draws). */
+    resolutionVm(): PremiumCardVM | undefined {
+      const id = this.resolution;
+      const resolution = id === undefined ? undefined : getResolution(id);
+      return resolution === undefined ? undefined : resolutionPremiumVm(resolution);
+    },
+    /** The law's printed action sentence (its own words, the one rule the stage may state). */
+    ruleText(): string {
+      const id = this.resolution;
+      const resolution = id === undefined ? undefined : getResolution(id);
+      return resolution?.text.action === undefined ? '' : translateText(resolution.text.action);
+    },
+    phase(): 'setup' | 'select' | 'sale' | 'outcome' | 'discard' | 'result' {
       if (this.result !== undefined) {
         return 'result';
+      }
+      if (this.kind === 'resolution') {
+        if (this.handStep) {
+          return 'select';
+        }
+        if (this.saleStage) {
+          return 'sale';
+        }
+        return this.outcomeOn ? 'outcome' : 'setup';
       }
       if (this.handStep) {
         return 'discard';
       }
       return this.outcomeOn ? 'outcome' : 'setup';
     },
-    /** THIS workspace claimed the party action's drawn batch (the Reds' draw). */
+    /** THIS workspace claimed the action's drawn batch (the Reds' draw, the law's draw). */
     outcomeOn(): boolean {
-      return this.kind === 'reds' && workspaceOutcomeState.host === 'card-actions' &&
-        workspaceOutcomeState.sourceCard === partyTileKey(this.party);
+      return (this.kind === 'reds' || this.kind === 'resolution') && workspaceOutcomeState.host === 'card-actions' &&
+        workspaceOutcomeState.sourceCard === this.sourceKey;
+    },
+    /** The sale's scene is running for THIS action (the terminal takes the cards, the chip flies). */
+    saleLive(): boolean {
+      return this.kind === 'resolution' && patentSaleState.active && patentSaleState.source === 'resolution';
+    },
+    /** The resolution's stage is its SALE: sent and not yet answered, or the scene still playing. */
+    saleStage(): boolean {
+      return this.kind === 'resolution' && (this.submitting || this.saleLive);
+    },
+    /** The law's rate — from the prompt's own discard marker, never a client rule (the printed card is the fallback). */
+    saleRate(): {megacredits: number, cards: number} {
+      const exchange = this.entry?.model.type === 'card' ? this.entry.model.discardPrompt?.exchange : undefined;
+      return {
+        megacredits: exchange?.amount ?? RESOLUTION_SALE_FALLBACK.megacredits,
+        cards: exchange?.draw ?? RESOLUTION_SALE_FALLBACK.cards,
+      };
+    },
+    /** What the committed sale pays, as chips — read while the terminal works. */
+    saleChips(): ReadonlyArray<ActionEffect> {
+      const rate = this.saleRate;
+      return [
+        {direction: 'gain', icon: 'megacredits', amount: rate.megacredits * this.saleCards},
+        {direction: 'gain', icon: 'cards', amount: rate.cards * this.saleCards},
+      ];
     },
     usesText(): string {
-      const marker = this.entry?.model.partyActionPrompt;
+      const model = this.entry?.model;
+      const marker = model === undefined ? undefined : (this.kind === 'resolution' ? model.resolutionActionPrompt : model.partyActionPrompt);
       const live = this.liveAction;
       const left = marker?.usesLeft ?? live?.usesLeft;
       const per = marker?.usesPerGeneration ?? live?.usesPerGeneration;
@@ -533,6 +664,7 @@ export default defineComponent({
     /** THE ONE COMMAND CONTRACT — handed UP to the host's bar. */
     commands(): Array<ConsoleCommand> {
       if (this.kind === 'unity' || this.handStep) {
+        // The hosted step owns the bar (the hand's own pick verbs, the colony trade's).
         return [];
       }
       if (this.result !== undefined) {
@@ -542,8 +674,12 @@ export default defineComponent({
         // The embedded reveal owns the bar while the batch is on stage.
         return [];
       }
-      if (this.submitting) {
+      if (this.submitting || this.saleLive) {
         return [{control: 'confirm', label: 'Performing…', enabled: false}];
+      }
+      if (this.kind === 'resolution') {
+        // Between steps (the pick refused or gone): the way back is the only verb.
+        return [{control: 'secondary', label: 'Inspect'}, {control: 'back', label: 'Back'}];
       }
       const confirm: ConsoleCommand = {control: 'confirm', label: this.ctaLabel, enabled: this.complete, highlight: this.complete && this.kind !== 'reds'};
       if (this.kind === 'reds') {
@@ -585,6 +721,15 @@ export default defineComponent({
     beatStalled(): boolean {
       return this.beatLanded && !workspaceOutcomeState.answerIn;
     },
+    /**
+     * THE DRAW WAITS FOR THE SALE (the law): one response carries the sale's
+     * proof AND the drawn cards, and the surfaces go IN TURN — the pull off the
+     * pile may not start while the terminal still works and the chip is still
+     * in the air. A party's draw has no sale to wait for.
+     */
+    beatMayStart(): boolean {
+      return this.outcomePendingBeat && !(this.kind === 'resolution' && (this.saleLive || this.submitting));
+    },
   },
   watch: {
     commands: {
@@ -596,7 +741,7 @@ export default defineComponent({
     },
     /** The prompt moved on before the commit (the action was spent elsewhere / the turn ended): the stage folds. */
     entry(entry: unknown): void {
-      if (entry === undefined && !this.submitting && !this.outcomeOn && !this.handStep && this.result === undefined) {
+      if (entry === undefined && !this.submitting && !this.outcomeOn && !this.handStep && this.result === undefined && !this.saleLive) {
         this.$emit('cancel');
       }
     },
@@ -606,10 +751,11 @@ export default defineComponent({
       flush: 'post' as const,
       handler(on: boolean, was: boolean): void {
         setWorkspaceOutcomeSlot(on ? '[data-embed-slot="workspace-reveal"]' : '');
-        if (on && was !== true) {
+        if (on && was !== true && this.kind !== 'resolution') {
           // SETUP → OUTCOME as the same phrase one level deeper: the decision
           // content lets go on the spot, the zone unfolds from the rect the
-          // surface stood in.
+          // surface stood in. (The law's stage plays this turn at its sale's
+          // end instead — see `saleLive`.)
           playConfigRelease(this.$refs.rootEl as HTMLElement | undefined);
           void this.$nextTick(() => playOutcomePhase(this.$refs.rootEl as HTMLElement | undefined, () => { /* settled */ }));
         }
@@ -625,12 +771,16 @@ export default defineComponent({
      * THE EXECUTION BEAT — launched at CONFIRM, delayed by the commit's handoff
      * window (the pull starts as the impulse lands on the printed card icon and
      * the HUD pile answers). The batch is ARMED at once so the prepared stage
-     * stands with its slots before anything moves.
+     * stands with its slots before anything moves. The law's stage arms the
+     * batch here too, but its pull waits for the sale (`beatMayStart`).
      */
     outcomePendingBeat(on: boolean) {
       if (on) {
         this.clearBeatDelay();
         this.armBeatBatch();
+        if (this.kind === 'resolution') {
+          return;
+        }
         this.beatDelay = scheduleParliamentBeat(COMMIT_HANDOFF_AT_MS, () => {
           this.beatDelay = undefined;
           void this.$nextTick(() => this.beginBeatFlight());
@@ -638,6 +788,28 @@ export default defineComponent({
       } else {
         this.clearBeatDelay();
         this.handOffBeatBatch();
+      }
+    },
+    /** THE SALE IS OVER — the chip has landed, the terminal retracted: NOW the draw's pull starts. */
+    beatMayStart(may: boolean): void {
+      if (may && this.kind === 'resolution' && !this.beatFlightOn) {
+        // SALE → DRAW as the same phrase one level deeper: the sale's reading
+        // lets go, the zone unfolds where it stood.
+        playConfigRelease(this.$refs.rootEl as HTMLElement | undefined);
+        void this.$nextTick(() => {
+          playOutcomePhase(this.$refs.rootEl as HTMLElement | undefined, () => { /* settled */ });
+          this.beginBeatFlight();
+        });
+      }
+    },
+    /**
+     * THE SALE OWNS ITS OWN TIME: every phase it enters re-arms the execution
+     * beat, so the batch cannot present over a pull that has not started
+     * because a slow server outlasted the beat's backstop.
+     */
+    'patentSaleState.phase'(): void {
+      if (this.saleLive && this.outcomeOn) {
+        rearmWorkspaceOutcomeBeat();
       }
     },
     beatCount(n: number) {
@@ -671,11 +843,26 @@ export default defineComponent({
       this.commitHandle?.kill();
       this.commitHandle = undefined;
     },
+    /**
+     * THE LAW'S SUBMIT WAS GIVEN BACK (refused / lost) with no batch claimed: the
+     * pick re-opens on the hand with the previous selection, so nothing the
+     * player decided is lost to a transport error.
+     */
+    submitting(now: boolean, was: boolean): void {
+      if (was && !now && this.kind === 'resolution' && !this.outcomeOn && !this.saleLive && !this.pickOpen) {
+        void this.$nextTick(() => this.openResolutionPick(this.salePicked));
+      }
+    },
   },
   mounted() {
     // A one-row action (the Reds' confirm) opens ON its commit row; a
     // configurable one opens on its first decision.
     this.cursorRow = this.decisionRows === 0 ? this.ctaRow : 0;
+    // THE LAW'S FIRST STEP IS THE PICK: the real hand stands up as a step of
+    // this stage the moment the stage is on screen.
+    if (this.kind === 'resolution' && !this.outcomeOn && !this.saleLive) {
+      void this.$nextTick(() => this.openResolutionPick([]));
+    }
   },
   beforeUnmount() {
     this.clearBeatDelay();
@@ -701,7 +888,7 @@ export default defineComponent({
     },
     /** The host routes every intent here while the stage stands. */
     handleIntent(intent: GamepadIntent): void {
-      if (this.submitting || this.kind === 'unity' || this.handStep || this.outcomeOn) {
+      if (this.submitting || this.kind === 'unity' || this.handStep || this.outcomeOn || this.saleLive) {
         return;
       }
       if (this.result !== undefined) {
@@ -709,6 +896,18 @@ export default defineComponent({
           this.$emit('result-done');
         }
         return;
+      }
+      if (this.kind === 'resolution') {
+        switch (consoleActionOf(intent)) {
+        case 'inspect':
+          this.$emit('inspect', this.party);
+          return;
+        case 'back':
+          this.$emit('cancel');
+          return;
+        default:
+          return;
+        }
       }
       if (intent.kind === 'nav') {
         this.navigate(intent.dir);
@@ -823,17 +1022,22 @@ export default defineComponent({
         this.$emit('cancel');
         return;
       }
+      const plan = this.commitPlanFor();
+      this.playCommitBeat(plan.kind, plan.specs, plan.kind === 'draw' ? pulseDeckPile : undefined);
+      this.$emit('confirm', response);
+    },
+    /** The universal ACTION COMMIT beat on the hero (the plaque or the law's face), measured now. */
+    playCommitBeat(kind: ActionCommitKind, specs: Array<ResourceTransferSpec>, onHandoff?: () => void): void {
       const root = this.$refs.rootEl as HTMLElement | undefined;
       armOutcomeOrigin(root);
-      const plan = this.commitPlanFor();
       const wrap = root?.querySelector<HTMLElement>('.con-pact__hero') ?? undefined;
       const anchors = wrap !== undefined ? resolveActionCommitAnchors(wrap, undefined) : undefined;
-      const origins = anchors !== undefined ? resolveGainIconOrigins(anchors, plan.specs) : plan.specs.map(() => undefined);
+      const origins = anchors !== undefined ? resolveGainIconOrigins(anchors, specs) : specs.map(() => undefined);
       const srcRect = wrap?.getBoundingClientRect();
       armActionCommit({
-        sourceCard: partyTileKey(this.party) as CardName,
-        kind: plan.kind,
-        specs: plan.specs,
+        sourceCard: this.sourceKey as CardName,
+        kind,
+        specs,
         origins,
         sourcePoint: srcRect !== undefined && srcRect.width > 4 ?
           {x: srcRect.left + srcRect.width / 2, y: srcRect.top + srcRect.height * 0.6} : undefined,
@@ -842,12 +1046,11 @@ export default defineComponent({
         cardWrapEl: wrap,
         ctaEl: root?.querySelector<HTMLElement>('.con-pact__cta') ?? undefined,
         actionNode: undefined,
-        kind: plan.kind,
-        firstResource: plan.specs[0]?.resource,
-        onHandoff: plan.kind === 'draw' ? pulseDeckPile : undefined,
+        kind,
+        firstResource: specs[0]?.resource,
+        onHandoff,
         onSettled: markActionCommitSettled,
       });
-      this.$emit('confirm', response);
     },
     response(): InputResponse | undefined {
       switch (this.kind) {
@@ -874,9 +1077,85 @@ export default defineComponent({
         return undefined;
       }
     },
-    // ── THE EXECUTION BEAT (the Reds' draw) — the card composer's beat, ported:
-    //    N physical cards leave the HUD pile into N prepared slots and hand
-    //    over to the embedded reveal that lands in the same zone. ──
+    // ── THE LAW'S SELECTION — the real hand as a step of this stage ──
+    /**
+     * Hand the pick to the HAND SECTION (the console's one hand-pick bridge):
+     * the hand mounts in THIS stage's zone beside the hero (`hosted`), in the
+     * sale's own form (any number, the running sum «N карт → +3N M€ · +N карт»
+     * from the server's own rate), marked as the discard it is, and leaving
+     * through the terminal rather than the discard tray at the confirm.
+     */
+    openResolutionPick(preselected: ReadonlyArray<CardName>): void {
+      const entry = this.entry;
+      const id = this.resolution;
+      if (entry === undefined || entry.model.type !== 'card' || id === undefined) {
+        this.refusal = translateText('This option is no longer offered');
+        return;
+      }
+      const model = entry.model;
+      const reasons: Record<string, string> = {};
+      for (const d of model.disabledCards ?? []) {
+        reasons[d.name] = d.disabledReason !== undefined ? this.textOf(d.disabledReason) : '';
+      }
+      const rate = this.saleRate;
+      const name = getResolution(id)?.text.name ?? id;
+      this.refusal = '';
+      this.pickOpen = true;
+      enterConsoleHandPick({
+        title: model.title,
+        buttonLabel: model.buttonLabel || 'Discard',
+        selectable: model.cards.map((c) => c.name),
+        reasons,
+        min: model.min ?? 1,
+        max: model.max ?? model.cards.length,
+        selected: preselected,
+        gainPerCard: {icon: 'megacredits', amount: rate.megacredits, cards: rate.cards},
+        // The RAW marker: the one discard skin (the ask, the source) — its own
+        // swap line yields to the running sum above.
+        discard: model.discardPrompt,
+        // The context chip names the LAW; L3 opens its own inspector.
+        source: {kicker: 'Resolution action', card: name as CardName, resolution: id},
+        hosted: {stage: 'Selection'},
+        leaving: 'sale',
+      }, (cards) => {
+        this.pickOpen = false;
+        this.commitResolution(cards);
+      }, () => {
+        this.pickOpen = false;
+        this.$emit('cancel');
+      });
+    },
+    /**
+     * THE LAW'S COMMIT — the pick answered: the picked cards' live slots are
+     * captured NOW (the hand is still on screen) and the SALE's scene starts at
+     * once (they lift, flip and feed the terminal; the terminal works through
+     * the round trip; the chip comes out only on the server's proof), the
+     * universal commit beat fixes the hero, and the response goes up — the
+     * host claims the draw under the law's key so the batch presents HERE.
+     */
+    commitResolution(cards: ReadonlyArray<CardName>): void {
+      if (this.submitting || cards.length === 0) {
+        return;
+      }
+      const response = resolutionActionResponse(this.bridge, cards);
+      if (response === undefined) {
+        this.refusal = translateText('This option is no longer offered');
+        return;
+      }
+      const rate = this.saleRate;
+      const id = this.resolution;
+      const name = id === undefined ? undefined : getResolution(id)?.text.name;
+      this.salePicked = [...cards];
+      this.saleCards = cards.length;
+      armPatentSale({cards, payoutPerCard: rate.megacredits, source: 'resolution', kicker: name ?? 'Resolution action'});
+      this.playCommitBeat('generic', []);
+      const detail: PartyConfirmDetail = {expectedCards: rate.cards * cards.length};
+      this.$emit('confirm', response, detail);
+    },
+    // ── THE EXECUTION BEAT (the Reds' draw, the law's draw) — the card
+    //    composer's beat, ported: N physical cards leave the HUD pile into N
+    //    prepared slots and hand over to the embedded reveal that lands in the
+    //    same zone. ──
     armBeatBatch(): void {
       const named = workspaceOutcomeState.answerIn ? this.beatRevealedNames : [];
       const count = named.length > 0 ? named.length : Math.max(1, workspaceOutcomeState.expectedCards);

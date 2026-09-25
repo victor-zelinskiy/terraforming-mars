@@ -456,6 +456,7 @@
  * shell) carries the whole contract — this overlay has NO footer of its own,
  * so B never reads two conflicting labels. Priority drawn > result > viewer.
  */
+import {resolutionName} from '@/client/parliament/ClientParliamentManifest';
 import {defineComponent, PropType} from 'vue';
 import Card from '@/client/components/card/CardFace.vue';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
@@ -832,6 +833,10 @@ export default defineComponent({
       if (s.type === 'party') {
         // Turmoil Redux: the party action that drew them (the Reds' recycle).
         return {name: translateTextWithParams('Party action of ${0}', [translateText(s.party)]), inspectable: false};
+      }
+      if (s.type === 'resolution') {
+        // Turmoil Redux: the enacted resolution's action drew them (Open IP Trade) — the law's own name.
+        return {name: translateText(resolutionName(s.resolution)), inspectable: false};
       }
       return undefined;
     },

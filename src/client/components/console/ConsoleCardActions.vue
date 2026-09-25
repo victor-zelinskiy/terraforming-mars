@@ -185,7 +185,13 @@
                  face and replays the one-shot SYNC PULSE — the dossier
                  visibly answers the cursor on the right (the browse ⇄ detail
                  link the descend phrase later deepens). -->
-            <div v-if="focusedTile.party === undefined" class="con-cardactions__detail-card" :key="focusedTile.cardName">
+            <!-- THE ENACTED RESOLUTION's action (Turmoil Redux): the law's own face — the same
+                 VM the government's card and the composer's hero draw. -->
+            <div v-if="focusedTile.resolutionAction !== undefined" class="con-cardactions__detail-bill" :key="focusedTile.cardName">
+              <premium-card-face v-if="focusedResolutionVm !== undefined" :vmOverride="focusedResolutionVm" :lightweight="true" :inert="true" />
+              <span class="con-cardactions__detail-uses">{{ sourceUsesText(focusedTile) }}</span>
+            </div>
+            <div v-else-if="focusedTile.party === undefined" class="con-cardactions__detail-card" :key="focusedTile.cardName">
               <!-- The LIVE model, so the face's own capsule states the stored
                    count instead of a printed 0 (see ConsoleCardFaceLite). -->
               <ConsoleCardFaceLite :name="focusedTile.cardName" :card="focusedCardModel" />
@@ -195,7 +201,7 @@
             <div v-else class="con-cardactions__detail-party" :key="focusedTile.cardName" :style="{'--parl-accent': partyAccentOf(focusedTile.party)}">
               <img class="con-cardactions__detail-emblem" :src="partyEmblemOf(focusedTile.party)" alt="" />
               <ConsolePartyFormula class="con-cardactions__detail-formula" :party="focusedTile.party" size="wide" />
-              <span class="con-cardactions__detail-uses">{{ partyUsesText(focusedTile) }}</span>
+              <span class="con-cardactions__detail-uses">{{ sourceUsesText(focusedTile) }}</span>
             </div>
           </div>
 
@@ -306,12 +312,15 @@
             <!-- The CARD PLATE — the group's identity header: reading order
                  is source first, action second. For an «или» card it spans
                  BOTH slots, visibly uniting the alternatives. -->
-            <div class="con-cardactions__plate" :class="{'con-cardactions__plate--party': group.party !== undefined}">
+            <div class="con-cardactions__plate" :class="{'con-cardactions__plate--party': group.party !== undefined || group.resolutionAction !== undefined}">
               <img v-if="group.party !== undefined" class="con-cardactions__plate-emblem" :src="partyEmblemOf(group.party)" alt="" />
+              <!-- THE LAW's plate (Turmoil Redux): its author's seal, its own kicker, its printed name. -->
+              <img v-else-if="group.resolutionParty !== undefined" class="con-cardactions__plate-emblem" :src="partyEmblemOf(group.resolutionParty)" alt="" />
               <span v-if="group.party !== undefined" class="con-cardactions__plate-kicker">{{ $t('Party action') }}</span>
-              <span class="con-cardactions__plate-name">{{ $t(group.party ?? group.cardName) }}</span>
-              <span v-if="group.party !== undefined && group.tiles[0] !== undefined" class="con-cardactions__plate-chip con-cardactions__plate-chip--uses">
-                <b>{{ partyUsesText(group.tiles[0]) }}</b>
+              <span v-else-if="group.resolutionAction !== undefined" class="con-cardactions__plate-kicker">{{ $t('Resolution action') }}</span>
+              <span class="con-cardactions__plate-name">{{ $t(group.party ?? resolutionNameOf(group.resolutionAction) ?? group.cardName) }}</span>
+              <span v-if="(group.party !== undefined || group.resolutionAction !== undefined) && group.tiles[0] !== undefined" class="con-cardactions__plate-chip con-cardactions__plate-chip--uses">
+                <b>{{ sourceUsesText(group.tiles[0]) }}</b>
               </span>
               <span v-if="group.cardResource !== undefined" class="con-cardactions__plate-chip">
                 <i class="con-cardactions__res-icon" :class="resIconClass(group.cardResource.type)" aria-hidden="true"></i>
@@ -339,7 +348,8 @@
                    ]"
                    :ref="focusKey === tile.key ? 'focused' : undefined"
                    :data-action-card="tile.cardName"
-                   :data-action-party="tile.party">
+                   :data-action-party="tile.party"
+                   :data-action-resolution="tile.resolutionAction">
                 <!-- The «или» joint rides the shared edge with the sibling
                      button to the left, anchored to the CANVAS centre. -->
                 <div v-if="tile.joinLeft" class="con-cardactions__or con-cardactions__or--joint" aria-hidden="true">{{ $t('or') }}</div>
@@ -378,6 +388,12 @@
                   <div class="con-cardactions__canvas">
                     <div v-if="tile.party !== undefined" class="con-cardactions__graphic con-cardactions__graphic--party">
                       <ConsolePartyFormula :party="tile.party" :renderRoot="tile.node.renderRoot" size="compact" />
+                    </div>
+                    <!-- THE LAW's action row — the printed formula off the face, the action row alone
+                         (the enactment's row is not this tile's business). -->
+                    <div v-else-if="tile.resolutionAction !== undefined" class="con-cardactions__graphic card-container" v-i18n v-strip-action-prefix>
+                      <CardRenderData v-if="tile.node.renderRoot !== undefined" :renderData="tile.node.renderRoot" />
+                      <span v-else class="con-cardactions__graphic-text">{{ tile.node.text }}</span>
                     </div>
                     <div v-else class="con-cardactions__graphic card-container" v-i18n v-strip-action-prefix>
                       <CardRenderEffectBoxComponent v-if="tile.node.actionNode !== undefined" :effectData="tile.node.actionNode" />
@@ -473,6 +489,7 @@
                                     class="con-cardactions__pact"
                                     :playerView="playerView"
                                     :party="composer.party"
+                                    :resolution="composer.resolution"
                                     :submitting="partySubmitting"
                                     :handStep="handStepHosted"
                                     :result="partyResult"
@@ -546,9 +563,11 @@ import {
   actionDescTier,
   actionWorkspaceRestorePlan,
   buildConsoleActionsModel,
-  buildPartyTile,
-  PartyActionSource,
+  buildParliamentTile,
+  isResolutionActionSource,
+  ParliamentActionSource,
   partyOfTileKey,
+  resolutionOfTileKey,
   branchScopeForNode,
   consoleCardActionsUi,
   cycleAvailability,
@@ -606,14 +625,18 @@ import {
 import {DeltaRewardDraft, deltaRewardClaimPlan} from '@/client/console/hydroFlow/deltaRewardEntry';
 import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState';
 import ConsoleActionComposer, {ComposerOutcome} from '@/client/components/console/ConsoleActionComposer.vue';
-import ConsolePartyActionComposer, {PartyActionResult} from '@/client/components/console/parliament/ConsolePartyActionComposer.vue';
+import ConsolePartyActionComposer, {PartyActionResult, PartyConfirmDetail} from '@/client/components/console/parliament/ConsolePartyActionComposer.vue';
 import ConsolePartyFormula from '@/client/components/console/parliament/ConsolePartyFormula.vue';
 import {PartyName} from '@/common/turmoil/PartyName';
-import {partyActionOf, ReduxParty} from '@/common/parliament/ParliamentTypes';
+import {partyActionOf, ReduxParty, ResolutionId} from '@/common/parliament/ParliamentTypes';
 import {InputResponse} from '@/common/inputs/InputResponse';
-import {partyEffectZoomEntry} from '@/client/components/card/cardZoomTypes';
+import {partyEffectZoomEntry, resolutionZoomEntry} from '@/client/components/card/cardZoomTypes';
 import {partyAccent, partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
-import {getPartyEffect} from '@/client/parliament/ClientParliamentManifest';
+import {getPartyEffect, getResolution} from '@/client/parliament/ClientParliamentManifest';
+import {PremiumCardVM} from '@/client/components/premiumCard/premiumCardViewModel';
+import {resolutionPremiumVm} from '@/client/components/premiumCard/resolutionPremiumVm';
+import {isPatentSaleActive} from '@/client/console/patentSale/consolePatentSale';
+import {ICardRenderRoot, isICardRenderEffect} from '@/common/cards/render/Types';
 import {parliamentPromptBridge} from '@/client/console/parliament/consoleParliamentModel';
 import {beginPartyColonyTrade} from '@/client/console/colonyTrade/colonyTradeEntry';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
@@ -658,11 +681,22 @@ const CHOICE_KIND_LABEL: Record<'card' | 'player' | 'or' | 'payment' | 'spendHea
 /** Scroll step for the right-stick list scroll (mirrors the shell). */
 const SCROLL_STEP_PX = 40;
 
+/**
+ * The ACTION rows of a resolution's face (the rows drawn by `b.action(...)`)
+ * — the tile's canvas draws the action alone, never the enactment's row above
+ * it. A face with no action row keeps its whole formula (an honest fallback).
+ */
+function actionRowsOf(root: ICardRenderRoot): ICardRenderRoot {
+  const rows = root.rows.filter((row) => row.some((item) => isICardRenderEffect(item)));
+  return rows.length === 0 ? root : {...root, rows};
+}
+
 /** The focus stage's draft identity — the ONE flow-draft type
  *  (consoleActionFlow.ActionFlowDraft): card + variant (+ the Viron repeat
  *  prefix / outer restore context). */
 /** The open stage: a card's action (`cardName` + variant) or a PARTY's (`party` set; `cardName` is then the party's tile key). */
-type ComposerContext = ActionFlowDraft & {party?: ReduxParty};
+/** …or the ENACTED RESOLUTION's action (`resolution` set beside its party; `cardName` is then the law's tile key). */
+type ComposerContext = ActionFlowDraft & {party?: ReduxParty, resolution?: ResolutionId};
 
 /** How long a party submit may stay unanswered before the stage gives the player back their hands. */
 const PARTY_SUBMIT_SAFETY_MS = 6000;
@@ -948,7 +982,7 @@ export default defineComponent({
      * printed graphic is the manifest's action rows. A party whose effect the
      * player lacks is not an action of theirs and is not listed.
      */
-    partyActionSources(): Array<PartyActionSource> {
+    parliamentActionSources(): Array<ParliamentActionSource> {
       const viewer = this.playerView.game.parliament?.viewer;
       if (viewer === undefined || this.repeat) {
         return [];
@@ -959,7 +993,7 @@ export default defineComponent({
       // payment path marked with the Unity party (`metadata.party`).
       const trade = findTradeColonyContext(this.playerView.waitingFor);
       const unityOffered = trade !== undefined && trade.paymentOptions.some((o) => o.metadata?.party === PartyName.UNITY);
-      const out: Array<PartyActionSource> = [];
+      const out: Array<ParliamentActionSource> = [];
       for (const action of viewer.partyActions) {
         if (!action.hasAccess) {
           continue;
@@ -980,14 +1014,42 @@ export default defineComponent({
           preview: action.preview,
         });
       }
+      // THE ENACTED RESOLUTION'S ACTION (Open IP Trade): the law's own verdict
+      // (`viewer.resolutionAction`), its face's printed action row, offered
+      // exactly when the live menu carries the option with its marker. A seat
+      // outside the parliament holds no law and is not listed.
+      const law = viewer.resolutionAction;
+      if (law !== undefined && law.hasAccess) {
+        const resolution = getResolution(law.resolution);
+        out.push({
+          resolution: law.resolution,
+          party: law.party,
+          name: resolution?.text.name ?? law.resolution,
+          renderRoot: resolution === undefined ? undefined : actionRowsOf(resolution.renderData),
+          rule: resolution?.text.action ?? '',
+          usesLeft: law.usesLeft,
+          usesPerGeneration: law.usesPerGeneration,
+          available: law.available,
+          reason: law.reason,
+          offered: bridge.resolutionAction !== undefined && bridge.resolutionAction.resolution === law.resolution,
+          awaitingInput: this.playerView.waitingFor !== undefined,
+          preview: law.preview,
+        });
+      }
       return out;
+    },
+    /** The focused law's FACE (the dossier's hero for a resolution tile). */
+    focusedResolutionVm(): PremiumCardVM | undefined {
+      const id = this.focusedTile?.resolutionAction;
+      const resolution = id === undefined ? undefined : getResolution(id);
+      return resolution === undefined ? undefined : resolutionPremiumVm(resolution);
     },
     model(): ConsoleActionsModel {
       // The packed focus rows must mirror the CSS grid's live column count
       // (handheld collapses to one group per row) — reactive via the layout
       // profile store.
       const columns = consoleLayoutState.profile === 'handheld' ? 1 : 2;
-      return buildConsoleActionsModel(this.entries, this.previewMap, this.cardResources, this.activeFilter, this.repeatAvailability, columns, this.partyActionSources);
+      return buildConsoleActionsModel(this.entries, this.previewMap, this.cardResources, this.activeFilter, this.repeatAvailability, columns, this.parliamentActionSources);
     },
     /** Re-fetch previews when anything availability-relevant changes. */
     /**
@@ -1072,6 +1134,11 @@ export default defineComponent({
       }
       if (this.partyResult !== undefined) {
         return 'Result';
+      }
+      // THE LAW's SALE (Open IP Trade): between the pick's answer and the chip's
+      // landing the stage is the terminal's — «› ПРОДАЖА» — then the draw's.
+      if (this.composer?.resolution !== undefined && this.partyCommitted && (this.partySubmitting || isPatentSaleActive())) {
+        return 'Sale';
       }
       // A colony step HOSTED here: the crumb's tail is the STEP'S OWN, handed
       // up by the section (the embedded surface never titles itself — rule 5).
@@ -1276,7 +1343,9 @@ export default defineComponent({
         // «pending» beat before that is machine time, not a destination.
         // A hosted hand step (the Reds' discard) is the party flow's own
         // interactive result: B there means «свернуть», never «отмена».
-        resultUp: workspaceOutcomeState.stage === 'presenting' || this.revealVerdictUp || this.handStepHosted,
+        resultUp: workspaceOutcomeState.stage === 'presenting' || this.revealVerdictUp ||
+          // The Reds' hosted discard is past the commit; the law's hosted SELECTION is before it (B = back).
+          (this.handStepHosted && this.composer?.resolution === undefined),
         terminal: this.revealVerdictUp,
         // The party flow's closing beat (the payout read): a beat, never a
         // destination — B is swallowed, A lets the flow leave early.
@@ -1511,7 +1580,7 @@ export default defineComponent({
           this.partyDiscardAge = this.playerView.game.gameAge;
         } else if (was) {
           setWorkspaceFrameSlot('card-actions', this.unityStepHosted ? '[data-embed-slot="action-colonies"]' : '');
-          if (this.composer?.party !== undefined && this.partyFlow?.stage === 'committed') {
+          if (this.composer?.party !== undefined && this.composer.resolution === undefined && this.partyFlow?.stage === 'committed') {
             this.awaitPartyResult();
           }
         }
@@ -1561,6 +1630,16 @@ export default defineComponent({
           void this.$nextTick(() => this.concludeFlow());
         }
       },
+    },
+    /**
+     * THE LAW'S BATCH WAS TAKEN (Open IP Trade): the claim released, the sale
+     * long settled — the flow owes nothing more and LEAVES through the one
+     * guarded conclusion (the Reds' flow ends through its payout beat instead).
+     */
+    'partyOutcomeOn'(live: boolean, was: boolean) {
+      if (was && !live && this.composer?.resolution !== undefined && this.partyFlow?.stage === 'committed') {
+        void this.$nextTick(() => this.concludeFlow());
+      }
     },
     'drawSignal': {
       immediate: true,
@@ -1686,8 +1765,10 @@ export default defineComponent({
       // around an action the menu already lists as used — looked up in the
       // SOURCES, since the grid's own view filters a used action out; a fresh
       // door needs the action offered.
-      const resumeSource = openWith.resume === true ? this.partyActionSources.find((s) => s.party === openWith.party) : undefined;
-      const tile = resumeSource !== undefined ? buildPartyTile(resumeSource) : this.model.tiles.find((t) => t.party === openWith.party);
+      const resumeSource = openWith.resume === true ?
+        this.parliamentActionSources.find((s) => !isResolutionActionSource(s) && s.party === openWith.party) : undefined;
+      const tile = resumeSource !== undefined ? buildParliamentTile(resumeSource) : this.model.tiles.find((t) =>
+        openWith.resolution !== undefined ? t.resolutionAction === openWith.resolution : (t.party === openWith.party && t.resolutionAction === undefined));
       if (tile === undefined || (tile.status !== 'available' && openWith.resume !== true)) {
         // The action is no longer offered (or the window closed between the
         // press and this mount) — the honest degrade is the way back with the
@@ -1723,6 +1804,7 @@ export default defineComponent({
       const draft = consoleCardActionsUi.draft;
       const stagedReturn = consoleCardActionsUi.stagedReturn;
       const draftParty = draft === undefined ? undefined : partyOfTileKey(draft.cardName);
+      const draftResolution = draft === undefined ? undefined : resolutionOfTileKey(draft.cardName);
       const plan = actionWorkspaceRestorePlan({
         repeat: this.repeat,
         collapsed: this.collapsed,
@@ -1730,8 +1812,10 @@ export default defineComponent({
         hostedHand: workspaceFrameHost('hand') === 'card-actions',
         draft,
         draftEntryExists: draft !== undefined && (draftParty !== undefined ?
-          this.partyActionSources.some((source) => source.party === draftParty) :
-          this.entries.some((e) => e.cardName === draft.cardName)),
+          this.parliamentActionSources.some((source) => !isResolutionActionSource(source) && source.party === draftParty) :
+          (draftResolution !== undefined ?
+            this.parliamentActionSources.some((source) => isResolutionActionSource(source) && source.resolution === draftResolution) :
+            this.entries.some((e) => e.cardName === draft.cardName))),
         stagedReturn,
         stagedEntryExists: stagedReturn !== undefined && this.entries.some((e) => e.cardName === stagedReturn.cardName),
         claimHost: workspaceOutcomeState.host,
@@ -1754,16 +1838,21 @@ export default defineComponent({
         // confirm remains the single commit. Nothing is re-submitted.
         // A PARTY draft re-seats the party composer (the Reds' discard step
         // coming back from a park) — its key names the party.
-        this.composer = {cardName: plan.composer.cardName, nodeIndex: plan.composer.nodeIndex, party: partyOfTileKey(plan.composer.cardName)};
+        this.composer = {
+          cardName: plan.composer.cardName, nodeIndex: plan.composer.nodeIndex,
+          party: partyOfTileKey(plan.composer.cardName) ?? this.partyFlow?.party,
+          resolution: resolutionOfTileKey(plan.composer.cardName),
+        };
       } else if (plan.kind === 'seat-outcome') {
         // The committed stage re-opens as before: same card, same variant,
         // same phase; the prompt is still routed here and the execution beat
         // is not owed again (`stage === 'presenting'` already).
         const party = partyOfTileKey(plan.composer.cardName);
-        this.composer = {cardName: plan.composer.cardName, nodeIndex: plan.composer.nodeIndex, party};
-        // A party's drawn batch presents in the PARTY composer's own zone —
-        // the card composer's outcome record stays undefined for it.
-        if (party === undefined) {
+        const resolution = resolutionOfTileKey(plan.composer.cardName);
+        this.composer = {cardName: plan.composer.cardName, nodeIndex: plan.composer.nodeIndex, party: party ?? this.partyFlow?.party, resolution};
+        // A party's (or the law's) drawn batch presents in the PARTY composer's
+        // own zone — the card composer's outcome record stays undefined for it.
+        if (party === undefined && resolution === undefined) {
           this.outcomeFlow = {kind: plan.outcome};
         }
       } else if (plan.kind === 'fold-step') {
@@ -2110,7 +2199,7 @@ export default defineComponent({
         this.shake(tile.key);
         return;
       }
-      if (tile.party !== undefined) {
+      if (tile.party !== undefined || tile.resolutionAction !== undefined) {
         this.openPartyAction(tile);
         return;
       }
@@ -2312,6 +2401,14 @@ export default defineComponent({
     inspectFocused(): void {
       const tile = this.focusedTile;
       if (tile === undefined) {
+        return;
+      }
+      if (tile.resolutionAction !== undefined) {
+        // The LAW — the same fullscreen inspector the Parliament's R3 opens, lifted from the dossier's face.
+        openConsoleCardZoom([resolutionZoomEntry(tile.resolutionAction)], 0, undefined, undefined, {
+          contextLabel: 'Card actions',
+          origin: slotZoomOrigin(() => this.$refs.browseEl as HTMLElement | undefined, () => tile.cardName),
+        });
         return;
       }
       if (tile.party !== undefined) {
@@ -2719,8 +2816,13 @@ export default defineComponent({
     partyAccentOf(party: ReduxParty): string {
       return partyAccent(party);
     },
-    partyUsesText(tile: ConsoleActionTile): string {
-      const source = this.partyActionSources.find((s) => s.party === tile.party);
+    /** The law's printed name (an i18n key) for its plate — never the catalog id. */
+    resolutionNameOf(id: ResolutionId | undefined): string | undefined {
+      return id === undefined ? undefined : (getResolution(id)?.text.name ?? id);
+    },
+    sourceUsesText(tile: ConsoleActionTile): string {
+      const source = this.parliamentActionSources.find((s) => isResolutionActionSource(s) ?
+        s.resolution === tile.resolutionAction : (tile.resolutionAction === undefined && s.party === tile.party));
       if (source === undefined) {
         return '';
       }
@@ -2734,7 +2836,8 @@ export default defineComponent({
      * standing as a step of this one, the trade's own confirm the single commit.
      */
     openPartyAction(tile: ConsoleActionTile, opts?: {preselected?: boolean}): void {
-      const party = tile.party;
+      const party = tile.party ?? tile.resolutionParty;
+      const resolution = tile.resolutionAction;
       if (party === undefined) {
         return;
       }
@@ -2757,6 +2860,18 @@ export default defineComponent({
       // the frame subject is the navigation truth, and the party flow record
       // is what the shell's conclusion policy reads («this workspace still
       // owes the Reds' discard»).
+      // THE ENACTED RESOLUTION'S ACTION (Open IP Trade): the same stage, the
+      // law's face as its hero, its printed name as the crumb's subject, the
+      // pick on the real hand as its first step (the composer opens it).
+      if (resolution !== undefined) {
+        if (!this.repeat) {
+          consoleCardActionsUi.draft = {cardName: tile.cardName, nodeIndex: 0};
+          consoleCardActionsUi.partyFlow = {party, resolution, stage: 'setup'};
+          setWorkspaceFrameSubject('card-actions', this.resolutionNameOf(resolution) ?? resolution);
+        }
+        this.composer = {cardName: tile.cardName, nodeIndex: 0, party, resolution};
+        return;
+      }
       const actionId = partyActionOf(party);
       if (!this.repeat && actionId !== undefined) {
         consoleCardActionsUi.draft = {cardName: tile.cardName, nodeIndex: 0};
@@ -2782,7 +2897,7 @@ export default defineComponent({
       this.partyCommands = [...cmds];
     },
     /** The party composer's confirm: the server's own nested response, submitted by the shell. */
-    onPartyConfirm(response: InputResponse): void {
+    onPartyConfirm(response: InputResponse, detail?: PartyConfirmDetail): void {
       const comp = this.composer;
       if (comp?.party === undefined || this.partySubmitting) {
         return;
@@ -2801,8 +2916,13 @@ export default defineComponent({
       // attributes the batch to the party (`{type: 'party'}`), so no standalone
       // presenter can take it for even a frame. The count is the action's own
       // printed draw (the server's preview chip), never a guess.
-      if (comp.party === PartyName.REDS) {
-        const source = this.partyActionSources.find((s) => s.party === comp.party);
+      if (comp.resolution !== undefined) {
+        // THE LAW DRAWS INTO THIS STAGE TOO (Open IP Trade: a card per card
+        // discarded) — claimed under the law's key, sized by the pick the
+        // composer just handed in; the pull waits for the sale's chip.
+        claimWorkspaceOutcome('card-actions', comp.cardName, ['draw'], 0, Math.max(1, detail?.expectedCards ?? 1));
+      } else if (comp.party === PartyName.REDS) {
+        const source = this.parliamentActionSources.find((s) => !isResolutionActionSource(s) && s.party === comp.party);
         const draw = source?.preview.find((e) => e.direction === 'gain' && e.icon === 'cards')?.amount ?? 2;
         claimWorkspaceOutcome('card-actions', comp.cardName, ['draw'], 0, draw);
       }

@@ -30,7 +30,7 @@ import {ActionEffect} from '@/common/models/ActionPreviewModel';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {ICardRenderRoot} from '@/common/cards/render/Types';
 import {
-  ParliamentModel, ParliamentPlayerModel, PartyAccessModel, PartyActionModel, VoteOptionModel, VoteProjectionModel,
+  ParliamentModel, ParliamentPlayerModel, PartyAccessModel, PartyActionModel, ResolutionActionModel, VoteOptionModel, VoteProjectionModel,
 } from '@/common/models/ParliamentModel';
 import {IClientPartyEffect, IClientResolution} from '@/common/parliament/IClientResolution';
 import {
@@ -699,12 +699,17 @@ export type ParliamentPromptBridge = {
   vote: {menuIndex: number, model: SelectPartyModel} | undefined;
   /** The party actions, by id — each the nested prompt carrying `partyActionPrompt`. */
   actions: Partial<Record<PartyActionId, {menuIndex: number, model: PlayerInputModel}>>;
+  /**
+   * THE ENACTED RESOLUTION'S ACTION (Open IP Trade's discard pick) — the nested prompt carrying
+   * `resolutionActionPrompt`, the party actions' twin. Found by the marker, never by its title.
+   */
+  resolutionAction: {menuIndex: number, model: PlayerInputModel, resolution: ResolutionId} | undefined;
   /** A stand-alone `SelectParty` for the chairman seat (`votePrompt.source === 'chairman-seat'`). */
   seat: SelectPartyModel | undefined;
 };
 
 export function parliamentPromptBridge(wf: PlayerInputModel | undefined): ParliamentPromptBridge {
-  const bridge: ParliamentPromptBridge = {vote: undefined, actions: {}, seat: undefined};
+  const bridge: ParliamentPromptBridge = {vote: undefined, actions: {}, resolutionAction: undefined, seat: undefined};
   if (wf === undefined) {
     return bridge;
   }
@@ -723,8 +728,49 @@ export function parliamentPromptBridge(wf: PlayerInputModel | undefined): Parlia
     if (marker !== undefined) {
       bridge.actions[marker.actionId] = {menuIndex: index, model: option};
     }
+    const law = option.resolutionActionPrompt;
+    if (law !== undefined) {
+      bridge.resolutionAction = {menuIndex: index, model: option, resolution: law.resolution};
+    }
   });
   return bridge;
+}
+
+/**
+ * The enacted resolution's ACTION (Open IP Trade): the hand pick's answer, wrapped into the menu branch the
+ * prompt stands in — byte-identical to what the historical radio UI would have sent.
+ */
+export function resolutionActionResponse(bridge: ParliamentPromptBridge, cards: ReadonlyArray<CardName>): InputResponse | undefined {
+  const entry = bridge.resolutionAction;
+  if (entry === undefined || entry.model.type !== 'card') {
+    return undefined;
+  }
+  return {type: 'or', index: entry.menuIndex, response: {type: 'card', cards: [...cards]}};
+}
+
+/**
+ * The enacted RESOLUTION'S ACTION's state for the viewer — the party action state's twin, read off the server's own
+ * model (`ParliamentModel.viewer.resolutionAction`: access, uses, availability + reason). `canActNow` is the execution
+ * gate and only ever turns an available action into «not now».
+ */
+export function resolutionActionStateOf(action: ResolutionActionModel | undefined, canActNow: boolean): PartyActionStateVm {
+  if (action === undefined) {
+    return {kind: 'none', label: '', reason: undefined, usesLeft: 0, usesPerGeneration: 0};
+  }
+  const base = {usesLeft: action.usesLeft, usesPerGeneration: action.usesPerGeneration};
+  if (!action.hasAccess) {
+    return {kind: 'no-access', label: 'No access', reason: action.reason, ...base};
+  }
+  if (action.usesLeft <= 0) {
+    return {kind: 'used', label: 'Already used', reason: undefined, ...base};
+  }
+  if (!action.available) {
+    return {kind: 'blocked', label: 'Unavailable', reason: action.reason, ...base};
+  }
+  if (!canActNow) {
+    return {kind: 'not-now', label: 'Not now', reason: undefined, ...base};
+  }
+  return {kind: 'available', label: 'Available', reason: undefined, ...base};
 }
 
 export function voteResponse(bridge: ParliamentPromptBridge, party: PartyName): InputResponse | undefined {

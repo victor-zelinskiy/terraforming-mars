@@ -333,6 +333,7 @@
                                   @notice="showNotice($event)"
                                   @inspect="inspectParliament($event)"
                                   @open-action="openParliamentPartyAction($event)"
+                                  @open-resolution-action="openParliamentResolutionAction($event)"
                                   @flow-complete="onParliamentFlowComplete($event)"
                                   @to-board="openParliamentBoardDoor()"
                                   @collapse="collapseWorkspace()"
@@ -1653,7 +1654,7 @@ import {consoleParliamentUi} from '@/client/console/parliament/consoleParliament
 import {parliamentSittingFlowBeat, parliamentSittingLive, sittingTailPlacementOf} from '@/client/console/parliament/consoleSittingFlow';
 import {partyAnnotations, resolutionAnnotations, resolutionPartyAnnotations} from '@/client/console/parliament/parliamentAnnotations';
 import {resolutionPartyContextKey, resolutionStatusOf, ResolutionStatusVm} from '@/client/console/parliament/resolutionInspectModel';
-import {getResolution} from '@/client/parliament/ClientParliamentManifest';
+import {getResolution, resolutionName} from '@/client/parliament/ClientParliamentManifest';
 import ConsoleResolutionAside from '@/client/components/console/parliament/ConsoleResolutionAside.vue';
 import ConsoleResolutionStatus from '@/client/components/console/parliament/ConsoleResolutionStatus.vue';
 import ConsoleZoomVoteFacts from '@/client/components/console/parliament/ConsoleZoomVoteFacts.vue';
@@ -6961,6 +6962,11 @@ export default defineComponent({
       if (flow.stage === 'result') {
         return true;
       }
+      // THE LAW'S SALE (Open IP Trade): the terminal is still working or the
+      // chip still flying — the workspace stays for the draw that follows.
+      if (flow.resolution !== undefined && flow.stage === 'committed' && isPatentSaleActive()) {
+        return true;
+      }
       const marker = this.playerView.waitingFor?.partyActionPrompt;
       return flow.stage === 'committed' && marker !== undefined && marker.stage === 'discard' && marker.party === flow.party;
     },
@@ -9830,6 +9836,15 @@ export default defineComponent({
      */
     'patentSaleState.phase'(phase: string) {
       if (phase === 'inserting') {
+        // THE RESOLUTION ACTION'S sale (Open IP Trade): the hand STEP has given
+        // the cards away — the step leaves, the action workspace STAYS for the
+        // terminal's payout and the draw that follows in its own zone.
+        if (patentSaleState.source === 'resolution') {
+          if (workspaceFrameHost('hand') === 'card-actions' && workspaceStackTop()?.kind === 'hand') {
+            leaveWorkspace();
+          }
+          return;
+        }
         // The hand has physically given the cards away — the WHOLE flow closes
         // in one splice (std-projects host included: no flash of the parent
         // list between the sale and the payout chip landing on the rail).
@@ -10662,7 +10677,15 @@ export default defineComponent({
         const idx = this.handEntries.findIndex((e) => selectable.has(e.card.name));
         this.consoleState.handIndex = idx !== -1 ? idx : 0;
         if (!workspaceFrameMounted('hand')) {
-          void this.openHandWithReveal({overlay: true});
+          // A HOSTED pick (the resolution action's selection — Turmoil Redux)
+          // stands as a STEP of the workspace that asked, in its published
+          // zone beside the hero; its stage name is handed up at once. Every
+          // other pick overlays the composer that hides itself underneath.
+          const hosted = consoleHandPickState.request?.hosted;
+          void this.openHandWithReveal({overlay: hosted === undefined});
+          if (hosted !== undefined && workspaceFrameHost('hand') !== undefined) {
+            setWorkspaceFrameStage('hand', hosted.stage);
+          }
         } else {
           void this.$nextTick(() => {
             (this.$refs.handSection as InstanceType<typeof ConsoleHandSection> | undefined)?.ensureSelectedVisible();
@@ -10681,6 +10704,13 @@ export default defineComponent({
       // The play-composer pick stays in the hand it descended from (that frame
       // is not an overlay); only a hand the PICK stood up goes away again.
       if (workspaceFrameIsOverlay('hand')) {
+        leaveWorkspace();
+        return;
+      }
+      // A HOSTED pick that left through the SALE keeps its hand on screen: the
+      // terminal's proxies lift off these very slots, and the step leaves at
+      // the stack's insertion (the sale's phase watcher). A cancel leaves now.
+      if (workspaceFrameHost('hand') === 'card-actions' && workspaceStackTop()?.kind === 'hand' && !isPatentSaleActive()) {
         leaveWorkspace();
       }
     },
@@ -13729,6 +13759,26 @@ export default defineComponent({
       pushWorkspaceFrame({
         kind: 'card-actions',
         subject: party,
+        stage: focusKicker('setup'),
+        phase: 'configure',
+        serves: [],
+        anchor: {type: 'always'},
+      });
+    },
+    /**
+     * THE ENACTED RESOLUTION'S ACTION FROM THE PARLIAMENT (Open IP Trade) —
+     * the party door's twin: the same action workspace nested inside the
+     * Parliament, opened DIRECTLY on the law's stage («⚖ ПАРЛАМЕНТ › ОТКРЫТАЯ
+     * ТОРГОВЛЯ ПАТЕНТАМИ › ВЫБОР»), the same prompt, the same commit, the same
+     * ending back in the Parliament.
+     */
+    openParliamentResolutionAction(target: {resolution: string, party: ReduxParty}): void {
+      this.deferShellTask();
+      resetCardActionsFilter();
+      consoleCardActionsUi.openWith = {party: target.party, resolution: target.resolution};
+      pushWorkspaceFrame({
+        kind: 'card-actions',
+        subject: resolutionName(target.resolution),
         stage: focusKicker('setup'),
         phase: 'configure',
         serves: [],
@@ -19024,7 +19074,9 @@ export default defineComponent({
       // The viewer NAMES its role — console-wide inspection grammar: X reads
       // the current object, L3 reads the source that produced it. One verb for
       // every host (the colony step used to carry a second copy of this).
-      openConsoleCardZoom([{name}], 0, undefined, undefined, {statusLabel: 'Source'});
+      // A LAW that asked (the resolution action's pick) opens its own inspector.
+      const resolution = this.handPickActive ? consoleHandPickState.request?.source?.resolution : undefined;
+      openConsoleCardZoom(resolution !== undefined ? [resolutionZoomEntry(resolution)] : [{name}], 0, undefined, undefined, {statusLabel: 'Source'});
     },
     /**
      * X mid-placement — the card that is placing this tile, fullscreen. The
@@ -19087,7 +19139,12 @@ export default defineComponent({
         if (req === undefined || picked.length < req.min || picked.length > req.max) {
           return;
         }
-        this.armDiscardScene([...picked]);
+        // A pick that leaves through the trade terminal (the resolution action's
+        // sale) arms the sale's own scene in its resolve — the discard tray's
+        // scene would fight it over the same cards.
+        if (req.leaving !== 'sale') {
+          this.armDiscardScene([...picked]);
+        }
         resolveConsoleHandPick([...picked]);
         return;
       }

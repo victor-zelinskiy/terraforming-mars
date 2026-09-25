@@ -36,7 +36,7 @@ import {CardDrawRevealSource} from '@/common/models/CardDrawRevealModel';
 import type {ZoomOrigin} from '@/client/console/consoleCardZoom';
 import type {WorkspaceFrameKind} from '@/client/console/consoleWorkspaceStack';
 import {workspaceFrameKnown} from '@/client/console/consoleWorkspaceStack';
-import {partyTileKey} from '@/client/console/parliament/partyActionKey';
+import {partyTileKey, resolutionTileKey} from '@/client/console/parliament/partyActionKey';
 
 /**
  * Which workspace holds the claim. A closed union on purpose: every host needs
@@ -333,6 +333,28 @@ export function markWorkspaceOutcomeAnswerIn(): void {
 export function markWorkspaceOutcomeBeatDone(): void {
   clearBeat();
   workspaceOutcomeState.beatDone = true;
+}
+
+/**
+ * RE-ARM the execution beat: a stage of the claim that owns its OWN minimum
+ * time before the batch may present (the resolution action's sale — the cards
+ * feed the terminal and the chip lands BEFORE the draw is pulled) restarts
+ * the beat and its backstop, so a sale longer than the backstop cannot let
+ * the batch present over a pull that has not started. A no-op without a claim.
+ */
+export function rearmWorkspaceOutcomeBeat(): void {
+  if (workspaceOutcomeState.sourceCard === '') {
+    return;
+  }
+  clearBeat();
+  workspaceOutcomeState.beatDone = false;
+  if (typeof setTimeout === 'function') {
+    beatTimer = setTimeout(() => {
+      markWorkspaceOutcomeBeatDone();
+    }, BEAT_SAFETY_MS);
+  } else {
+    workspaceOutcomeState.beatDone = true;
+  }
 }
 
 /** Is the execution beat still playing? */
@@ -701,6 +723,11 @@ export function workspaceClaimsDrawReveal(source: CardDrawRevealSource | undefin
   // server's attribution and the claim's key are one name.
   if (source.type === 'party') {
     return partyTileKey(source.party) === workspaceOutcomeState.sourceCard;
+  }
+  // THE ENACTED RESOLUTION'S action drew (Open IP Trade): the server names the
+  // law, the action centre's stage claims under the law's own key.
+  if (source.type === 'resolution') {
+    return resolutionTileKey(source.resolution) === workspaceOutcomeState.sourceCard;
   }
   if (source.type !== 'card') {
     return false;

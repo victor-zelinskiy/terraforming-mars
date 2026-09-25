@@ -24,6 +24,7 @@ import {reactive} from 'vue';
 import {CardName} from '@/common/cards/CardName';
 import {Message} from '@/common/logs/Message';
 import {DiscardPromptMeta, SelectCardModel} from '@/common/models/PlayerInputModel';
+import {ResolutionId} from '@/common/parliament/ParliamentTypes';
 
 export type ConsoleHandPickRequest = {
   /** The server prompt title (i18n key / Message) — names the ask. */
@@ -40,12 +41,30 @@ export type ConsoleHandPickRequest = {
   /** Selection preserved from a previous visit (multi re-open = «Изменить»). */
   selected: ReadonlyArray<CardName>;
   /** Live per-card payout (Public Plans: +1 M€ per revealed card) — drives the
-   *  hand section's sale-bar-style running summary. */
-  gainPerCard?: {icon: string, amount: number};
+   *  hand section's sale-bar-style running summary. `cards`: a SECOND payout
+   *  in cards per card (Open IP Trade: +3 M€ AND +1 card per card discarded). */
+  gainPerCard?: {icon: string, amount: number, cards?: number};
+  /**
+   * The pick stands as a STEP of the workspace that asked (its published zone —
+   * `card-actions ⊃ hand`), never as an overlay over a hidden composer: the
+   * resolution action's pick, whose hero stays beside the hand. `stage` is the
+   * step's crumb tail (an i18n key), handed up the moment the hand opens.
+   */
+  hosted?: {stage: string};
+  /**
+   * WHICH cinematic takes the picked cards out of the hand at the confirm:
+   * the discard tray (default — a discard's own leaving) or the SALE's trade
+   * terminal (Open IP Trade: the cards feed the terminal, the terminal pays).
+   * A sale arms its own scene; the shell must not arm the discard's over it.
+   */
+  leaving?: 'discard' | 'sale';
   /** The OPERATION this pick belongs to (the source card being played /
    *  activated + a kicker i18n key, e.g. 'Action setup') — the pick surface
-   *  shows it so the player never loses WHY they are choosing a target. */
-  source?: {kicker: string, card: CardName};
+   *  shows it so the player never loses WHY they are choosing a target.
+   *  `resolution`: the source is an enacted LAW (Open IP Trade's action) —
+   *  `card` then carries the law's printed name (an i18n key) for the chip,
+   *  and L3 opens the resolution's own inspector, never a card's. */
+  source?: {kicker: string, card: CardName, resolution?: ResolutionId};
   /**
    * The server's DISCARD marker, when this pick is a discard from hand (a
    * discard nested in an OrOptions branch — Mars University — or a composer

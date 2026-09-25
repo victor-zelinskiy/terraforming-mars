@@ -5,6 +5,7 @@ import {
   markWorkspaceOutcomeArrivalDone,
   markWorkspaceOutcomeArrivalFlown,
   markWorkspaceOutcomeBeatDone,
+  rearmWorkspaceOutcomeBeat,
   markWorkspaceOutcomePresenting,
   outcomeHostConcludesFlow,
   releaseWorkspaceOutcome,
@@ -52,6 +53,27 @@ describe('consoleWorkspaceOutcome — the EMBEDDED claim', () => {
     claimWorkspaceOutcome('card-actions', AI_CENTRAL, ['draw', 'pick']);
     expect(workspaceClaimsDrawReveal(cardSource(AI_CENTRAL))).to.eq(true);
     expect(workspaceClaimsDrawReveal(cardSource(RESTRICTED))).to.eq(false);
+  });
+
+  it('a RESOLUTION-sourced batch (Turmoil Redux — Open IP Trade\'s draw) is claimed under the law\'s key, and only that law', () => {
+    claimWorkspaceOutcome('card-actions', 'RESOLUTION_RDX_SCIENTISTS_OPEN_IP_TRADE', ['draw'], 0, 3);
+    expect(workspaceClaimsDrawReveal({type: 'resolution', resolution: 'RDX_SCIENTISTS_OPEN_IP_TRADE'} as CardDrawRevealSource), 'the law\'s own draw').to.eq(true);
+    expect(workspaceClaimsDrawReveal({type: 'resolution', resolution: 'RDX_GREENS_AQUIFER_CONTEST'} as CardDrawRevealSource), 'another law\'s draw is not ours').to.eq(false);
+    expect(workspaceClaimsDrawReveal({type: 'party', party: 'Scientists'} as CardDrawRevealSource), 'the law\'s party is not the law').to.eq(false);
+    expect(workspaceClaimsDrawReveal(cardSource(AI_CENTRAL)), 'a card draw is not the law\'s draw').to.eq(false);
+  });
+
+  it('a stage that owns its own minimum time RE-ARMS the execution beat (the sale before the draw): the beat is pending again until it is marked done', () => {
+    claimWorkspaceOutcome('card-actions', 'RESOLUTION_RDX_SCIENTISTS_OPEN_IP_TRADE', ['draw'], 0, 3);
+    markWorkspaceOutcomeBeatDone();
+    expect(workspaceOutcomeBeatPending()).to.eq(false);
+    rearmWorkspaceOutcomeBeat();
+    expect(workspaceOutcomeBeatPending(), 'pending again').to.eq(true);
+    markWorkspaceOutcomeBeatDone();
+    expect(workspaceOutcomeBeatPending()).to.eq(false);
+    resetWorkspaceOutcome();
+    rearmWorkspaceOutcomeBeat();
+    expect(workspaceOutcomeBeatPending(), 'a no-op without a claim').to.eq(false);
   });
 
   it('a PARTY-sourced batch (Turmoil Redux — the Reds draw) is claimed under the party key, and only that party', () => {

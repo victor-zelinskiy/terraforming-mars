@@ -23,8 +23,12 @@ import {
   stepActionRows,
   ConsoleActionGroup,
   PartyActionSource,
+  ResolutionActionSource,
+  isResolutionActionSource,
   partyOfTileKey,
   partyTileKey,
+  resolutionOfTileKey,
+  resolutionTileKey,
 } from '@/client/console/consoleCardActions';
 import {PartyName} from '@/common/turmoil/PartyName';
 import {consoleRepeatPickUi} from '@/client/console/consoleRepeatPickUi';
@@ -643,6 +647,62 @@ describe('consoleCardActions model', () => {
       expect(model.tiles.map((t) => t.choiceKinds)).to.deep.eq([['or'], ['card']]);
       expect(partyOfTileKey(model.tiles[0].cardName)).to.eq(PartyName.INDUSTRIALISTS);
       expect(partyOfTileKey('Fine')).to.eq(undefined);
+    });
+  });
+
+  describe('the enacted resolution\'s action as a source (Turmoil Redux — Open IP Trade)', () => {
+    const LAW = 'RDX_SCIENTISTS_OPEN_IP_TRADE';
+    const law = (over: Partial<ResolutionActionSource> = {}): ResolutionActionSource => ({
+      resolution: LAW, party: PartyName.SCIENTISTS, name: 'Open IP Trade', renderRoot: undefined,
+      rule: 'Discard any number of cards. For each card discarded, gain 3 M€ and draw a card.', usesLeft: 1, usesPerGeneration: 1,
+      available: true, reason: '', offered: true, awaitingInput: true,
+      preview: [effect('cost', 'cards', 1), effect('gain', 'megacredits', 3), effect('gain', 'cards', 1)], ...over,
+    });
+    const FILTER = {availability: 'all', activation: 'all'} as const;
+
+    it('stands beside the cards and the party actions as its own group, keyed on the LAW — its party is the seal, never the source', () => {
+      const model = buildConsoleActionsModel([entry('A', 'available', ['use'])], NO_PREVIEWS, NO_RESOURCES, FILTER, undefined, 2, [
+        {party: PartyName.REDS, actionId: 'reds-recycle', renderRoot: undefined, rule: 'Draw 2, discard 2', usesLeft: 1, usesPerGeneration: 1,
+          available: true, reason: '', offered: true, awaitingInput: true, preview: []},
+        law(),
+      ]);
+      expect(model.groups.map((g) => g.key)).to.deep.eq(['A', partyTileKey(PartyName.REDS), resolutionTileKey(LAW)]);
+      const group = model.groups[2];
+      expect(group.party, 'a law is not a party group').to.eq(undefined);
+      expect(group.resolutionAction).to.eq(LAW);
+      expect(group.resolutionParty).to.eq(PartyName.SCIENTISTS);
+      const tile = model.tiles.find((t) => t.resolutionAction === LAW);
+      expect(tile?.party, 'a law tile is not a party tile').to.eq(undefined);
+      expect(tile?.resolutionParty).to.eq(PartyName.SCIENTISTS);
+      expect(tile?.status).to.eq('available');
+      expect(tile?.choiceKinds, 'the pick it asks: cards from the hand').to.deep.eq(['card']);
+      expect(tile?.costEffects.length).to.eq(1);
+      expect(tile?.gainEffects.length).to.eq(2);
+      expect(tile?.rules?.summary).to.eq(law().rule);
+      expect(resolutionOfTileKey(tile!.cardName)).to.eq(LAW);
+      expect(partyOfTileKey(tile!.cardName), 'the two key families never collide').to.eq(undefined);
+      expect(resolutionOfTileKey(partyTileKey(PartyName.REDS))).to.eq(undefined);
+      expect(model.availableTiles).to.eq(3);
+    });
+
+    it('the same status ladder as a party: used → ACTIVATED with its own reason, refused → the server\'s reason, off-turn → NOT NOW', () => {
+      const used = buildConsoleActionsModel([], NO_PREVIEWS, NO_RESOURCES, {availability: 'all', activation: 'activated'}, undefined, 2, [law({usesLeft: 0})]);
+      expect(used.tiles[0].status).to.eq('activated');
+      expect(used.tiles[0].reason?.message).to.eq('This resolution action was already used this generation');
+      const blocked = buildConsoleActionsModel([], NO_PREVIEWS, NO_RESOURCES, FILTER, undefined, 2, [law({available: false, reason: 'No cards in hand to discard'})]);
+      expect(blocked.tiles[0].status).to.eq('rules');
+      expect(blocked.tiles[0].reason?.message).to.eq('No cards in hand to discard');
+      const notNow = buildConsoleActionsModel([], NO_PREVIEWS, NO_RESOURCES, FILTER, undefined, 2, [law({offered: false, awaitingInput: false})]);
+      expect(notNow.tiles[0].status).to.eq('soft');
+      expect(notNow.tiles[0].blocker?.tone).to.eq('warning');
+    });
+
+    it('never lists the law in REPEAT mode, and tells its source kind apart from a party\'s', () => {
+      const model = buildConsoleActionsModel([entry('A', 'available', ['use'])], NO_PREVIEWS, NO_RESOURCES, FILTER, {candidates: new Set(), used: new Set()}, 2, [law()]);
+      expect(model.groups.map((g) => g.key)).to.deep.eq(['A']);
+      expect(isResolutionActionSource(law())).to.eq(true);
+      expect(isResolutionActionSource({party: PartyName.REDS, actionId: 'reds-recycle', renderRoot: undefined, rule: '', usesLeft: 1, usesPerGeneration: 1,
+        available: true, reason: '', offered: true, awaitingInput: true, preview: []})).to.eq(false);
     });
   });
 

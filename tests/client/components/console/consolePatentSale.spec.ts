@@ -119,3 +119,27 @@ describe('consolePatentSale (the animation transaction)', () => {
     expect(detectPatentSale(viewWithHand([]))).to.deep.eq({payout: SELL_PATENTS_RATE});
   });
 });
+
+describe('consolePatentSale — the enacted resolution\'s action runs the SAME terminal at its own rate (Open IP Trade)', () => {
+  afterEach(async () => {
+    abortPatentSale();
+    await settle(5);
+  });
+
+  it('the standard project keeps its flat rate and kicker by default', () => {
+    armPatentSale({cards: [CardName.TREES, CardName.FISH]});
+    expect(patentSaleState.payout).to.eq(2 * SELL_PATENTS_RATE);
+    expect(patentSaleState.source).to.eq('standard-project');
+    expect(patentSaleState.kicker).to.eq('Patent sale');
+  });
+
+  it('a resolution arms the terminal with its own rate, source and kicker — the payout is the rate times the cards, verified by the commit', async () => {
+    armPatentSale({cards: [CardName.TREES, CardName.FISH, CardName.BIRDS], payoutPerCard: 3, source: 'resolution', kicker: 'Open IP Trade'});
+    expect(patentSaleState.payout).to.eq(9);
+    expect(patentSaleState.source).to.eq('resolution');
+    expect(patentSaleState.kicker).to.eq('Open IP Trade');
+    await settle(15);
+    expect(detectPatentSale(viewWithHand([])), 'the server removed every sold card').to.deep.eq({payout: 9});
+    expect(detectPatentSale(viewWithHand([])), 'one-shot').to.be.undefined;
+  });
+});

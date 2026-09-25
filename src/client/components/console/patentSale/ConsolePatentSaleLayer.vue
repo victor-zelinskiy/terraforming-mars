@@ -38,7 +38,7 @@
          from this terminal's slit: one visual language of receiving
          resources, sale and card play alike. -->
     <div ref="terminal" class="con-sale-hero__terminal">
-      <span class="con-sale-hero__kicker" v-i18n>Patent sale</span>
+      <span class="con-sale-hero__kicker">{{ $t(patentSaleState.kicker) }}</span>
       <div ref="slit" class="con-sale-hero__slit">
         <div ref="scan" class="con-sale-hero__scan"></div>
       </div>

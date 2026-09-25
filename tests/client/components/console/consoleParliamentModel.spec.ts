@@ -1,12 +1,17 @@
 import {expect} from 'chai';
 import {Color} from '@/common/Color';
+import {CardName} from '@/common/cards/CardName';
 import {PartyName} from '@/common/turmoil/PartyName';
 import {ParliamentModel, PartyAccessModel, PartyActionModel, VoteOptionModel} from '@/common/models/ParliamentModel';
 import {ReduxParty} from '@/common/parliament/ParliamentTypes';
 import {
   accessReasonRows, agendaViewOf, buildParliamentView, offeredPartyActions, ParliamentPartyVm, ParliamentSlotVm, parliamentPromptBridge,
-  partyActionStateOf, partyFormulaRender, partyStateOf, voteAccessOf, voteForecastOf, voteForecastRows, voteVerbOf,
+  partyActionStateOf, partyFormulaRender, partyStateOf, resolutionActionResponse, resolutionActionStateOf, voteAccessOf, voteForecastOf, voteForecastRows, voteVerbOf,
 } from '@/client/console/parliament/consoleParliamentModel';
+import {parliamentCommandsOf} from '@/client/console/parliament/parliamentCommands';
+import {parliamentFlow, resetParliamentFlow} from '@/client/console/parliament/consoleParliamentFlow';
+import {emptyParliamentView} from '@/client/console/parliament/consoleParliamentModel';
+import {ResolutionActionModel} from '@/common/models/ParliamentModel';
 import {getPartyEffect} from '@/client/parliament/ClientParliamentManifest';
 import {PlayerInputModel} from '@/common/models/PlayerInputModel';
 
@@ -296,5 +301,55 @@ describe('consoleParliamentModel — «send the delegate» from the fullscreen i
   it('no verb at all for a seat outside the parliament or without a vote option', () => {
     expect(voteVerbOf({...base, participates: false})).to.eq(undefined);
     expect(voteVerbOf({...base, tile: undefined})).to.eq(undefined);
+  });
+});
+
+describe('consoleParliamentModel — the enacted resolution\'s ACTION (Turmoil Redux — Open IP Trade)', () => {
+  const LAW = 'RDX_SCIENTISTS_OPEN_IP_TRADE';
+  const marker = {resolution: LAW, party: PartyName.SCIENTISTS, stage: 'choose', usesLeft: 1, usesPerGeneration: 1};
+  const menu = {
+    type: 'or', title: 'Take action', buttonLabel: '', options: [
+      {type: 'option', title: 'x', buttonLabel: '', partyActionPrompt: {party: PartyName.REDS, actionId: 'reds-recycle', stage: 'confirm', usesLeft: 1, usesPerGeneration: 1}},
+      {type: 'card', title: 'Discard any number of cards (Open IP Trade)', buttonLabel: 'Discard', cards: [{name: 'Trees'}, {name: 'Fish'}], min: 1, max: 2,
+        resolutionActionPrompt: marker, discardPrompt: {min: 1, max: 2, source: {kind: 'resolution', resolution: LAW}, exchange: {icon: 'megacredits', amount: 3, perCard: true, draw: 1}}},
+    ],
+  } as unknown as PlayerInputModel;
+  const action = (over: Partial<ResolutionActionModel> = {}): ResolutionActionModel => ({
+    resolution: LAW, party: PartyName.SCIENTISTS, hasAccess: true, usesLeft: 1, usesPerGeneration: 1, available: true, reason: '', preview: [], ...over,
+  });
+
+  afterEach(() => resetParliamentFlow());
+
+  it('the bridge finds the law\'s prompt BY ITS MARKER beside the party actions, and its response is the pick wrapped into that branch', () => {
+    const bridge = parliamentPromptBridge(menu);
+    expect(bridge.resolutionAction).to.deep.include({menuIndex: 1, resolution: LAW});
+    expect([...offeredPartyActions(bridge)], 'the party actions are untouched').to.deep.eq(['reds-recycle']);
+    expect(resolutionActionResponse(bridge, ['Trees' as CardName])).to.deep.eq({type: 'or', index: 1, response: {type: 'card', cards: ['Trees']}});
+    expect(parliamentPromptBridge(undefined).resolutionAction).to.eq(undefined);
+    expect(resolutionActionResponse(parliamentPromptBridge(undefined), ['Trees' as CardName]), 'no prompt, no response').to.eq(undefined);
+  });
+
+  it('the state ladder is the party action\'s: none → no access → used → blocked (the server\'s reason) → not now → available', () => {
+    expect(resolutionActionStateOf(undefined, true).kind).to.eq('none');
+    expect(resolutionActionStateOf(action({hasAccess: false, available: false}), true).kind).to.eq('no-access');
+    expect(resolutionActionStateOf(action({usesLeft: 0, available: false}), true)).to.deep.include({kind: 'used', usesLeft: 0, usesPerGeneration: 1});
+    expect(resolutionActionStateOf(action({available: false, reason: 'No cards in hand to discard'}), true)).to.deep.include({kind: 'blocked', reason: 'No cards in hand to discard'});
+    expect(resolutionActionStateOf(action(), false).kind).to.eq('not-now');
+    expect(resolutionActionStateOf(action(), true).kind).to.eq('available');
+  });
+
+  it('the browse bar advertises the law\'s own verb (Y) from every zone — lit only when it can be taken now, absent when no enacted law has one', () => {
+    const view = emptyParliamentView();
+    const base = {view, canVoteNow: true, partyActionStates: []};
+    parliamentFlow.stage = 'browse';
+    for (const zone of ['ruler', 'parties', 'voting'] as const) {
+      parliamentFlow.zone = zone;
+      const lit = parliamentCommandsOf({...base, resolutionAction: resolutionActionStateOf(action(), true)}).find((c) => c.control === 'inspect');
+      expect(lit, zone).to.deep.include({label: 'Resolution action', enabled: true, highlight: true});
+      const dim = parliamentCommandsOf({...base, resolutionAction: resolutionActionStateOf(action({usesLeft: 0, available: false}), true)}).find((c) => c.control === 'inspect');
+      expect(dim, zone).to.deep.include({label: 'Resolution action', enabled: false});
+      expect(parliamentCommandsOf({...base, resolutionAction: resolutionActionStateOf(undefined, true)}).some((c) => c.control === 'inspect'), zone).to.eq(false);
+      expect(parliamentCommandsOf(base).some((c) => c.control === 'inspect'), zone).to.eq(false);
+    }
   });
 });

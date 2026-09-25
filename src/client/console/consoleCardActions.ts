@@ -48,8 +48,8 @@ import {ActionBranchScope, branchMetricTokens} from '@/client/components/actions
 import {resourceScoring, accumulatedVp} from '@/client/components/additionalResources/additionalResources';
 import {AVAILABILITY_BLOCKERS, turnGateBlocker} from '@/common/availability/AvailabilityBlocker';
 import {ICardRenderRoot} from '@/common/cards/render/Types';
-import {PartyActionId, ReduxParty} from '@/common/parliament/ParliamentTypes';
-import {partyOfTileKey, partyTileKey} from '@/client/console/parliament/partyActionKey';
+import {PartyActionId, ReduxParty, ResolutionId} from '@/common/parliament/ParliamentTypes';
+import {partyOfTileKey, partyTileKey, resolutionOfTileKey, resolutionTileKey} from '@/client/console/parliament/partyActionKey';
 
 type GroupNode = ActionGroup['nodes'][number];
 
@@ -138,6 +138,15 @@ export type ConsoleActionTile = {
    */
   party?: ReduxParty;
   partyAction?: PartyActionId;
+  /**
+   * THE ENACTED RESOLUTION'S ACTION (Turmoil Redux — Open IP Trade): the
+   * source is a LAW, the party action's twin. `cardName` carries the
+   * resolution's tile KEY (`resolutionTileKey`); `resolutionParty` is the
+   * party whose seal the plate wears. Every card-shaped reader answers
+   * nothing for it, exactly as for a party.
+   */
+  resolutionAction?: ResolutionId;
+  resolutionParty?: ReduxParty;
 };
 
 /**
@@ -160,6 +169,9 @@ export type ConsoleActionGroup = {
   isCorporation: boolean;
   /** The source is a PARTY (Turmoil Redux) — the plate draws its emblem, never a card name. */
   party?: ReduxParty;
+  /** The source is the ENACTED RESOLUTION's action (Turmoil Redux) — the plate draws its party's seal and the law's name. */
+  resolutionAction?: ResolutionId;
+  resolutionParty?: ReduxParty;
   /** Card-level status (the best of its variants — drives the group badge). */
   status: ActionStatus;
   /** The SERVER-side card status (`entry.state.status`) — the SORT key.
@@ -449,7 +461,7 @@ export const consoleCardActionsUi = reactive({
    * composer and the SAME server prompt; the Parliament's simply skips the
    * browse layer, which it never showed. Consumed by the mount that seats it.
    */
-  openWith: undefined as {party: ReduxParty, resume?: boolean} | undefined,
+  openWith: undefined as {party: ReduxParty, resolution?: ResolutionId, resume?: boolean} | undefined,
   /**
    * THE PARTY FLOW this workspace owns (Turmoil Redux) — set when a party's
    * composer opens, advanced at its commit, cleared when the flow ends.
@@ -464,8 +476,11 @@ export const consoleCardActionsUi = reactive({
 /** The stage a party action's flow is in — see `consoleCardActionsUi.partyFlow`. */
 export type ConsolePartyFlow = {
   party: ReduxParty;
-  actionId: PartyActionId;
-  /** `setup` — composing; `committed` — sent (the Reds' draw is out, the discard owed); `result` — the closing beat. */
+  /** A PARTY's action — or, with `resolution`, the enacted LAW's action (the same family: one record, one policy). */
+  actionId?: PartyActionId;
+  resolution?: ResolutionId;
+  /** `setup` — composing; `committed` — sent (the Reds' draw is out, the discard owed; the law's sale and draw in
+   *  flight); `result` — the closing beat. */
   stage: 'setup' | 'committed' | 'result';
   /** The viewer's M€ at the commit (or at a resume) — the payout beat reads the difference. Module state, so a
    *  park / a reload-resume (which remount the workspace) do not lose it. */
@@ -959,9 +974,12 @@ export function branchScopeForNode(
  * player HOLDS are ever listed — the menu is a list of the player's actions,
  * never a catalog of every party's.
  */
-export type PartyActionSource = {
-  party: ReduxParty;
-  actionId: PartyActionId;
+/**
+ * What EVERY source of the Parliament shares — a party's action and the
+ * enacted resolution's action alike: the printed graphic, the rule, the
+ * uses, the server's verdict, the execution gate, the preview.
+ */
+export type ParliamentActionSourceBase = {
   /** The action's printed graphic — the manifest's action rows (the same nodes the face draws). */
   renderRoot: ICardRenderRoot | undefined;
   /** English i18n key — the action's own sentence. */
@@ -980,9 +998,34 @@ export type PartyActionSource = {
   preview: ReadonlyArray<ActionEffect>;
 };
 
-/** The party KEY helpers live in `parliament/partyActionKey.ts` (the claim
+export type PartyActionSource = ParliamentActionSourceBase & {
+  party: ReduxParty;
+  actionId: PartyActionId;
+};
+
+/**
+ * THE ENACTED RESOLUTION'S ACTION as a source of the same grid (Turmoil Redux
+ * — Open IP Trade): built from `ParliamentModel.viewer.resolutionAction` and
+ * the manifest's face; offered exactly when the live menu carries the option
+ * with `resolutionActionPrompt`. `name` is the law's printed name (an i18n
+ * key) — the plate and the crumb print it, never the catalog id.
+ */
+export type ResolutionActionSource = ParliamentActionSourceBase & {
+  resolution: ResolutionId;
+  party: ReduxParty;
+  name: string;
+};
+
+/** ONE list of the Parliament's sources — a party's action or the enacted law's. */
+export type ParliamentActionSource = PartyActionSource | ResolutionActionSource;
+
+export function isResolutionActionSource(source: ParliamentActionSource): source is ResolutionActionSource {
+  return (source as ResolutionActionSource).resolution !== undefined;
+}
+
+/** The party / resolution KEY helpers live in `parliament/partyActionKey.ts` (the claim
  *  predicate reads them too); re-exported here for the action-centre callers. */
-export {partyOfTileKey, partyTileKey};
+export {partyOfTileKey, partyTileKey, resolutionOfTileKey, resolutionTileKey};
 
 /** The pre-submit choices a party action asks (the composer's rows) — structural, per action. */
 function partyChoiceKinds(actionId: PartyActionId): ReadonlyArray<'card' | 'or'> {
@@ -993,13 +1036,18 @@ function partyChoiceKinds(actionId: PartyActionId): ReadonlyArray<'card' | 'or'>
   }
 }
 
-export function buildPartyTile(source: PartyActionSource): ConsoleActionTile {
+/**
+ * The STATUS LADDER every source of the Parliament reads by — used up this
+ * generation, refused by its own gate (the server's reason), gated by the
+ * window (not the player's turn / a decision owed), else available.
+ */
+function parliamentSourceStatus(source: ParliamentActionSourceBase, usedKey: string): {status: ActionStatus, reason: ConsoleActionReason | undefined, blocker: AvailabilityBlocker | undefined} {
   let status: ActionStatus;
   let reason: ConsoleActionReason | undefined;
   let blocker: AvailabilityBlocker | undefined;
   if (source.usesLeft <= 0) {
     status = 'activated';
-    reason = reasonFrom('This party action was already used this generation', []);
+    reason = reasonFrom(usedKey, []);
     blocker = AVAILABILITY_BLOCKERS.DOMAIN;
   } else if (!source.available) {
     status = 'rules';
@@ -1013,6 +1061,11 @@ export function buildPartyTile(source: PartyActionSource): ConsoleActionTile {
   } else {
     status = 'available';
   }
+  return {status, reason, blocker};
+}
+
+export function buildPartyTile(source: PartyActionSource): ConsoleActionTile {
+  const {status, reason, blocker} = parliamentSourceStatus(source, 'This party action was already used this generation');
   const key = partyTileKey(source.party);
   return {
     key: key + '#0',
@@ -1041,6 +1094,45 @@ export function buildPartyTile(source: PartyActionSource): ConsoleActionTile {
 }
 
 /**
+ * The enacted RESOLUTION'S action as a tile: the law's printed action row on
+ * the canvas, the same status ladder a party reads by, the pick it asks
+ * (a card selection from the hand — Open IP Trade's discard).
+ */
+export function buildResolutionTile(source: ResolutionActionSource): ConsoleActionTile {
+  const {status, reason, blocker} = parliamentSourceStatus(source, 'This resolution action was already used this generation');
+  const key = resolutionTileKey(source.resolution);
+  return {
+    key: key + '#0',
+    cardName: key as CardName,
+    nodeIndex: 0,
+    node: {key: key + '#0', actionNode: undefined, renderRoot: source.renderRoot, text: source.renderRoot === undefined ? source.rule : undefined},
+    status,
+    usedThisGen: source.usesLeft <= 0,
+    branch: undefined,
+    costEffects: source.preview.filter((e) => e.direction === 'cost'),
+    gainEffects: source.preview.filter((e) => e.direction === 'gain'),
+    variableCost: [],
+    variableGain: [],
+    variableChoice: [],
+    hasChoices: true,
+    choiceKinds: ['card'],
+    reason,
+    blocker,
+    variantTotal: 1,
+    cardResource: undefined,
+    isCorporation: false,
+    rules: {lines: [{kind: 'rule', text: source.rule}], summary: source.rule, curated: false},
+    resolutionAction: source.resolution,
+    resolutionParty: source.party,
+  };
+}
+
+/** The tile of a Parliament source, whichever kind it is. */
+export function buildParliamentTile(source: ParliamentActionSource): ConsoleActionTile {
+  return isResolutionActionSource(source) ? buildResolutionTile(source) : buildPartyTile(source);
+}
+
+/**
  * Build the whole console action-center model from the SHARED desktop entries
  * (already annotated with availability state), the per-card previews (lazily
  * fetched — a card with no preview yet shows the DSL graphic + card-level
@@ -1055,8 +1147,9 @@ export function buildConsoleActionsModel(
   /** The browse grid's column count (handheld collapses to 1) — the packed
    *  focus rows MUST mirror the CSS profile or the d-pad drifts off-screen. */
   layoutColumns: 1 | 2 = 2,
-  /** The PARTY actions the player holds (Turmoil Redux) — sources beside the cards; never in repeat mode. */
-  partyActions: ReadonlyArray<PartyActionSource> = [],
+  /** The Parliament's sources the player holds (Turmoil Redux) — the party actions and the enacted law's action,
+   *  beside the cards; never in repeat mode. */
+  parliamentActions: ReadonlyArray<ParliamentActionSource> = [],
 ): ConsoleActionsModel {
   const repeatMode = repeat !== undefined;
   // Build every group + its variant tiles (unfiltered), then status-sort.
@@ -1089,13 +1182,16 @@ export function buildConsoleActionsModel(
   // same grid — same status bands, same filters, same facets), never in the
   // repeat pick: a party action is not a card action anyone can copy.
   if (!repeatMode) {
-    for (const source of partyActions) {
-      const tile = buildPartyTile(source);
+    for (const source of parliamentActions) {
+      const tile = buildParliamentTile(source);
+      const resolution = isResolutionActionSource(source);
       groups.push({
-        key: partyTileKey(source.party),
+        key: tile.cardName,
         cardName: tile.cardName,
         isCorporation: false,
-        party: source.party,
+        party: resolution ? undefined : source.party,
+        resolutionAction: resolution ? source.resolution : undefined,
+        resolutionParty: resolution ? source.party : undefined,
         status: tile.status,
         sortStatus: tile.status,
         usedThisGen: tile.usedThisGen,

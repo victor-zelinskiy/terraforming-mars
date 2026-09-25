@@ -318,3 +318,56 @@ html.con-profile-tv .con-pfx {
     &__law { font-size: .7rem; }
     &__why { font-size: .88rem; b { font-size: 1rem; } }
 }
+
+/* ══ THE ENACTED RESOLUTION'S ACTION — the law as the stage's SOURCE ═══════
+   (Open IP Trade, RX24): the same composer chassis, the law's FACE in the
+   hero column, and the DECISION column hosting the real hand as the
+   selection step, then the sale's reading, then the draw's zone. The main
+   column must own the whole stage height: the hand album fits itself to
+   the room it is given. */
+.con-pact--resolution {
+    align-content: stretch;
+    grid-template-rows: minmax(0, 1fr);
+    grid-template-columns: minmax(11rem, 13.5rem) minmax(0, 1fr);
+    --con-pact-bill-zoom: calc(0.44 * var(--con-ui-scale, 1));
+    .con-pact__source { min-height: 0; }
+    .con-pact__hero--bill {
+        justify-content: center;
+        > .pcard { zoom: var(--con-pact-bill-zoom); flex: 0 0 auto; }
+    }
+    .con-pact__main { flex: 1; min-height: 0; }
+    .con-pact__handzone--inline {
+        flex: 1;
+        min-height: 0;
+        min-width: 0;
+        display: flex;
+        align-items: stretch;
+        > .con-hand { flex: 1 1 auto; min-width: 0; min-height: 0; max-height: 100%; }
+    }
+    /* THE SALE'S READING — the operation as committed, while the terminal works. */
+    .con-pact__sale {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: flex-start;
+        gap: .6rem;
+        flex: 1;
+        min-height: 0;
+        padding: .8rem 1rem;
+        border-radius: .6rem;
+        background: rgba(255, 255, 255, 0.025);
+        box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.06);
+    }
+    .con-pact__sale-row { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
+    .con-pact__rule { margin: 0; font-size: .82rem; line-height: 1.35; opacity: .9; }
+}
+.con-cardactions__pact.con-pact--resolution { padding: .1rem .1rem 0; }
+/* The law's dossier hero in the action menu's detail column: the face, whole, at the plaque's width. */
+.con-cardactions__detail-bill {
+    display: flex; flex-direction: column; align-items: center; gap: .4rem; padding: .3rem 0 .5rem;
+    > .pcard { zoom: calc(0.42 * var(--con-ui-scale, 1)); }
+}
+html.con-profile-handheld .con-pact--resolution {
+    grid-template-columns: minmax(8rem, 9.5rem) minmax(0, 1fr);
+    --con-pact-bill-zoom: calc(0.32 * var(--con-ui-scale, 1));
+}
