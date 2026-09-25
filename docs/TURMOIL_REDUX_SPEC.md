@@ -457,7 +457,7 @@ Lobbyist/Politician/T. Politician — набор в `getCandidates` (`MilestoneA
 | R&D Funding | Scientists | **П**: +науч. метки = влияние при действиях; **Д**: повторить действие своей карты | П, Д | 2 синие карты | B |
 | Reds Budget | Reds | −10 M€; M€ = космос+Марс + влияние; каждому Agenda +1 | Н | 2 метки космоса | A |
 | Scientists Budget | Scientists | −10 M€; M€ = наука + влияние; каждому 2 карты | Н | 2 метки науки | A |
-| Skyscrapers | Mars First | ★ и все с влиянием ≥2 кладут город **на свой город** (стек) | В(стек) | 2 города на Марсе | B |
+| Skyscrapers | Mars First | ★ и все с влиянием ≥2 кладут город **на свой город** — СТОПКА: `Space.stackHeight`, ОДНА величина `countCities` (ярусы), ПО за ярус; тайл ПО ПОРОГУ (`tileGrant`, счёт назначений `marsCities`) | В(стек) | 2 города на Марсе | **A · СДАНА RX20** |
 | Sponsored Projects | Scientists | карты = влияние; +1 ресурс на каждую карту с ресурсами | Н | 4 data | D (эффект A) |
 | Tax Breaks | Industrialists | +1 пр. M€ за тип ресурса карт + влияние (max 5) | Н | 2 mech | D (эффект A) |
 | Trade Industries | Unity | **Д**: 12 M€ (можно титаном, скидка 2×влияние) → +1 флот | Д | 2 × «флот» | D (`Q-4`) |
@@ -845,7 +845,8 @@ leak detector, `ConsoleStatusStrip`, сателлит, `infoRoute`, `cardAvailab
   «Продажа патентов» (`cardName: undefined`, `consoleQuickModel.ts:258-290`) и тайл гидросети, а не
   карточный грид действий — подтверждает зону действий в workspace парламента (§6.3-5).
 - **Доска**: одна плитка на клетку (`Space.tile`, `SpaceModel.tileType`, `BoardSpaceTile.vue`) —
-  стек городов Skyscrapers требует новое поле модели и второй слой рендера (подтверждён статус B).
+  стек городов Skyscrapers требует новое поле модели и второй слой рендера — **сдано RX20** (`Space.stackHeight`,
+  `.board-stack__tier` под верхним тайлом, счётчик «×N», третий случай арма посадки).
 
 ---
 

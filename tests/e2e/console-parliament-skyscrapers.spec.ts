@@ -3,7 +3,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {
   bootFixtureSeats, closeZoomViewer, commitFocusedSpace, fetchPlayerModel, openMandatoryAnnounce, openZoomViewer, placementState, press,
-  pressUntil, settle, walkToSpace,
+  pressUntil, sendPlayerInput, settle, walkToSpace,
 } from './consoleStart';
 import {answerGateAs, armLeakWitness, mandatoryPlate, parliament, strandedReports, turnTo, waitSittingAtRest} from './parliamentDrive';
 
@@ -231,7 +231,13 @@ test.describe(`Skyscrapers · ${PRESET.id}`, () => {
       w.__sky = {samples, stop: () => window.clearInterval(timer)};
     }, city);
     await commitOnCity(page, city);
-    await page.waitForTimeout(2500);
+    // THE SCENE'S END is a STATE the sampler itself reads: the stack at 2, the proxy gone, the cell's states and
+    // the dust released — held for a run of samples (the settled frame the report picks is a frame at rest).
+    await expect.poll(async () => await page.evaluate(() => {
+      const w = window as unknown as {__sky: {samples: Array<{height?: string, landing: boolean, loading: boolean, contact: boolean, dust: boolean}>}};
+      const tail = w.__sky.samples.slice(-12);
+      return tail.length === 12 && tail.every((s) => s.height === '2' && !s.landing && !s.loading && !s.contact && !s.dust);
+    }), {timeout: 30_000, message: 'the scene comes to rest on a stack of 2'}).toBe(true);
     const samples = await page.evaluate(() => {
       const w = window as unknown as {__sky: {samples: Array<Record<string, unknown>>, stop: () => void}};
       w.__sky.stop();
@@ -246,9 +252,12 @@ test.describe(`Skyscrapers · ${PRESET.id}`, () => {
     const count2At = first((s) => s.count === '×2');
     const dustAt = first((s) => s.dust);
     const landingAt = first((s) => s.landing);
-    console.log(`[skyscrapers] ${samples.length} samples over ${samples[samples.length - 1]?.t}ms\n` +
-      samples.map((s) => `${s.t} land:${s.landing ? 1 : 0}@${Math.round(s.lx)},${Math.round(s.ly)} cnt:${s.count ?? '-'} h:${s.height ?? '-'} ` +
-        `load:${s.loading ? 1 : 0} con:${s.contact ? 1 : 0} dust:${s.dust ? 1 : 0}`).join('\n'));
+    // The trail: one line per sample, attached to the report (read it when a claim below fails); the console gets the beats only.
+    const trail = samples.map((s) => `${s.t} land:${s.landing ? 1 : 0}@${Math.round(s.lx)},${Math.round(s.ly)} cnt:${s.count ?? '-'} h:${s.height ?? '-'} ` +
+      `load:${s.loading ? 1 : 0} con:${s.contact ? 1 : 0} dust:${s.dust ? 1 : 0}`).join('\n');
+    await test.info().attach('skyscrapers-scene-trail', {body: trail, contentType: 'text/plain'});
+    const at = (i: number) => i < 0 ? '—' : `${samples[i].t}ms`;
+    console.log(`[skyscrapers] ${samples.length} samples over ${samples[samples.length - 1]?.t}ms · fly ${at(landingAt)} · load ${at(loadingAt)} (×1 ${at(count1At)}) · contact ${at(contactAt)} (×2 ${at(count2At)}, h2 ${at(height2At)}, dust ${at(dustAt)})`);
     // A dead sampler must fail loudly rather than pass every claim vacuously.
     expect(samples.length, 'the in-page sampler never ran').toBeGreaterThan(30);
     // THE STAGE IS VISIBLE: the target cell is on screen and the tier physically flew (the source and the destination both seen).
@@ -355,6 +364,28 @@ test.describe(`Skyscrapers · ${PRESET.id}`, () => {
     for (let i = 0; i < 6 && await page.locator('.con-info, .con-vpx').count() > 0; i++) {
       await press(page, 'Escape', 700);
     }
+
+    // ── THE CELL'S INSPECTION (board home, L3): the stack's own header and ONE scoring row per tier. The new
+    //    generation's research purchase stands over the board — answered over the API for both seats (the
+    //    purchase is not the subject), so the board home is idle and L3 is the inspection.
+    for (const seat of [playerId, red]) {
+      const wire = await fetchPlayerModel(request, seat) as unknown as {waitingFor?: {type?: string, promptId?: string}};
+      if (wire.waitingFor?.type === 'card') {
+        await sendPlayerInput(request, seat, {type: 'card', cards: [], promptId: wire.waitingFor.promptId} as never);
+      }
+    }
+    await expect.poll(async () => await page.locator('dialog[open]').count(), {timeout: 30_000, message: 'the purchase leaves the screen'}).toBe(0);
+    await settle(page, {timeoutMs: 30_000});
+    expect(await pressUntil(page, 'KeyC', async () => await page.locator('.con-board--inspecting').count() > 0, {tries: 4, settleMs: 700}), 'L3 opens the board inspection').toBe(true);
+    await walkToSpace(page, city);
+    const cellPanel = page.locator('.con-context');
+    await expect.poll(async () => (await cellPanel.innerText().catch(() => '')).replace(/\s+/g, ' '), {timeout: 15_000, message: 'the inspection names the stack'})
+      .toMatch(/стопка городов|city stack/i); // (`innerText` renders the kicker's CSS uppercase)
+    const panelText = (await cellPanel.innerText()).replace(/\s+/g, ' ');
+    expect(panelText, 'one scoring row per tier').toMatch(/(Ярус|Tier) 1 (из|of) 2/);
+    expect(panelText).toMatch(/(Ярус|Tier) 2 (из|of) 2/);
+    await shoot(page, '10-cell-inspection');
+    await press(page, 'Escape', 600);
     expect(await strandedReports(page), 'nothing stranded').toEqual([]);
   });
 });

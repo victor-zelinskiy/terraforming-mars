@@ -127,6 +127,15 @@ export const RESOLUTION_COUNT_IDS = [
    * Central Power Grid over another tag.
    */
   'scienceTags',
+  /**
+   * Skyscrapers: the player's CITIES ON MARS — a city tile of theirs on a
+   * cell of the Mars board that is not a reserved area off Mars. A count over
+   * the BOARD of DESTINATIONS: a cell counts ONCE whatever the height of its
+   * stack (the tier lands on a city, not on a tier), and a space city is not
+   * on Mars. Not a payout term: what it explains is where a granted tile may
+   * go — and that a seat with none gains nothing.
+   */
+  'marsCities',
 ] as const;
 export type ResolutionCountId = typeof RESOLUTION_COUNT_IDS[number];
 
@@ -154,11 +163,13 @@ export type ResolutionCountTerm = {
 
 /**
  * WHAT a BOARD count counts among the player's tiles on the Mars board:
- * `spaceCity` — a city tile on a reserved area OFF Mars (`SpaceType.COLONY`).
- * The family's next word is `marsCity` (Migration Funding) — one entry here,
- * one branch in `spaceCountVerdict`, one line in the server's reader.
+ * `spaceCity` — a city tile on a reserved area OFF Mars (`SpaceType.COLONY`);
+ * `marsCity` — a city tile of theirs ON Mars (any cell that is not such an
+ * area), counted per CELL — a stack of two is one city here (Skyscrapers:
+ * the destinations of a granted tier). The family's next word is one entry
+ * here, one branch in `spaceCountVerdict`, one line in the server's reader.
  */
-export type BoardCountedTile = 'spaceCity';
+export type BoardCountedTile = 'spaceCity' | 'marsCity';
 
 /**
  * WHICH player METRIC a THRESHOLD count reads: `terraformRating` — the
@@ -210,6 +221,7 @@ export function resolutionCountKind(id: ResolutionCountId): ResolutionCountKind 
   case 'steelTitaniumEnergyProduction': return {kind: 'production', resources: INDUSTRIAL_PRODUCTION_RESOURCES};
   case 'colonies': return {kind: 'colonies'};
   case 'scienceTags': return {kind: 'tags', tags: [Tag.SCIENCE]};
+  case 'marsCities': return {kind: 'board', tiles: 'marsCity'};
   }
 }
 
@@ -393,6 +405,17 @@ export function spaceCountVerdict(id: ResolutionCountId, space: CountedSpaceFact
       return {counts: false, reason: 'No city tile here'};
     }
     return {counts: true};
+  case 'marsCity':
+    // THE ENGINE'S RULE (`MarsBoard.canStackCity`): a city tile on a cell that is not a reserved area off
+    // Mars. The owner is the caller's business (the cells handed in are the player's own); the stack's
+    // height is not — a cell is one destination however tall it stands.
+    if (space.spaceType === SpaceType.COLONY) {
+      return {counts: false, reason: 'Off Mars — a space city'};
+    }
+    if (space.tile === undefined || !CITY_TILES.has(space.tile.tileType)) {
+      return {counts: false, reason: 'No city tile here'};
+    }
+    return {counts: true};
   }
 }
 
@@ -492,6 +515,9 @@ export function cardCountVerdict(id: ResolutionCountId, card: CountedCardFacts, 
   case 'colonies':
     // A COLONIES count: no card counts — the player's cubes on the colony tiles do (`countColoniesToward`).
     return {counts: false, reason: 'Counted by your colonies, not among cards'};
+  case 'marsCities':
+    // A BOARD count: no card counts — the player's cities on Mars do (`spaceCountVerdict`).
+    return {counts: false, reason: 'Counted on the board, not among cards'};
   case 'scienceTags': {
     // The one question of a tag count, over the science tag: printed, face up. A wild tag is not a science tag.
     if (!cardTagsInPlay(card, ctx)) {

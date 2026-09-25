@@ -43,6 +43,7 @@ import {
   countedCellNames, countedColonyNames, countedContributions, countedMetricParts, countedProductionParts, levelPresentation, yieldCountPresentation,
 } from './influenceYieldModel';
 import {WinnerRewardReading, winnerRewardRuleKey, winnerRewardSentenceOf} from './winnerRewardModel';
+import {TILE_GRANT_RULE_KEY, TileGrantReading, tileGrantSentenceOf} from './tileGrantModel';
 import {LevyReading} from '@/common/parliament/resolutionLevy';
 
 export type RowText = {text: string, params?: ReadonlyArray<string>};
@@ -138,6 +139,8 @@ export function resolutionAnnotations(
   world?: {table: WorldMoveTable | undefined, enacted?: boolean, outcomes?: ReadonlyArray<ParliamentEnactOutcomeModel>},
   /** The viewer's reading of the LEVY a budget takes first (the estimate from their supply, or the record). */
   levy?: LevyReading,
+  /** The viewer's reading of a TILE GRANTED BY THRESHOLD (Skyscrapers) — their standing, their destinations, their record. */
+  grant?: {reading: TileGrantReading | undefined},
 ): ReadonlyArray<CardAnnotation> {
   const resolution = getResolution(id);
   if (resolution === undefined) {
@@ -164,6 +167,11 @@ export function resolutionAnnotations(
       if (effect.unit.kind === 'colonyBonuses') {
         rows.push(COLONY_BONUS_RULE_KEY);
       }
+    }
+    // A TILE GRANTED BY THRESHOLD's qualification — what a tier IS for the score, that the cell pays no
+    // bonus again, and that a seat with no city gains nothing (the detailed reading of the face's «STACK» row).
+    if (resolution.tileGrant !== undefined) {
+      rows.push(TILE_GRANT_RULE_KEY);
     }
     out.push(block('group:immediate', 'immediate', 'When enacted', rows, 0));
   }
@@ -309,6 +317,17 @@ export function resolutionAnnotations(
   if (winner !== undefined && reading !== undefined && reading.context !== 'reference') {
     const sentence = winnerRewardSentenceOf(reading, winner.viewer, winner.nameOf,
       {text: translateText, params: translateTextWithParams});
+    if (sentence !== undefined) {
+      forYou.push(sentence.detail === '' ?
+        {text: '${0}', params: [sentence.caption]} :
+        {text: '${0}: ${1}', params: [sentence.caption, sentence.detail]});
+    }
+  }
+  // …AND THE VIEWER'S OWN STANDING ON A TILE GRANTED BY THRESHOLD, in words — the footer's chip read out:
+  // «yours at influence 2 — win or not: your cities on Mars: 1», «you placed it — influence 2: a stack of 2».
+  const grantReading = grant?.reading;
+  if (grantReading !== undefined && grantReading.context !== 'reference') {
+    const sentence = tileGrantSentenceOf(grantReading, {text: translateText, params: translateTextWithParams});
     if (sentence !== undefined) {
       forYou.push(sentence.detail === '' ?
         {text: '${0}', params: [sentence.caption]} :

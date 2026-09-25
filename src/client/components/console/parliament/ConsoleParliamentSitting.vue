@@ -88,6 +88,8 @@
                 <template v-else>
                   <img v-if="part.party !== undefined" class="con-sit__emblem" :src="emblemUrl(part.party)" alt="" />
                   <i v-if="part.tile !== undefined" class="con-sit__door-tile" :class="'con-sit__door-tile--' + part.tile" aria-hidden="true"></i>
+                  <!-- A CITY TIER (Skyscrapers): the stack the cell became, the record's own height. -->
+                  <b v-if="part.stack !== undefined" class="con-sit__part-stack" data-sit-part-stack>×{{ part.stack }}</b>
                   <!-- A HUD-side colony bonus reads by its printed description, signed where it prints an amount (a loss is negative). -->
                   <template v-else-if="part.kind === 'colonyBonus'">
                     <b v-if="part.unit !== ''">{{ signedAmount(part.amount) }}</b>

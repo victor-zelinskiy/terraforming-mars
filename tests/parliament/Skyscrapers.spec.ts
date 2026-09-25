@@ -13,7 +13,12 @@ import {repeatPlacementBonuses} from '../../src/server/parliament/resolutions/ma
 import {REDUX_RESOLUTION_CATALOG} from '../../src/server/parliament/resolutions/ResolutionCatalog';
 import {SerializedEnactOutcome} from '../../src/server/parliament/SerializedParliament';
 import {answerGate, endGenerationThroughParliament, seatEnacted, seatResolution, settleParliamentGates} from './parliamentArrange';
-import {tileGrantEligibility} from '../../src/common/parliament/tileGrant';
+import {
+  TILE_GRANT_NO_DESTINATION_REASON, TILE_GRANT_NOT_ELIGIBLE_REASON, tileGrantEligibility, tileGrantStepKey,
+} from '../../src/common/parliament/tileGrant';
+import {countSpacesToward} from '../../src/common/parliament/resolutionCounts';
+import {declaredCountIds, resolutionCount} from '../../src/server/parliament/resolutions/ResolutionCounts';
+import {getParliamentModel} from '../../src/server/parliament/ParliamentModel';
 import {familyOf} from '../../src/client/console/parliament/resolutionFamily';
 import {SelectSpace} from '../../src/server/inputs/SelectSpace';
 import {Space} from '../../src/server/boards/Space';
@@ -438,6 +443,64 @@ describe('Skyscrapers', () => {
       const outcomes = live.parliament!.lastPhase!.outcomes!;
       expect(outcomes.filter((o) => o.step === SKYSCRAPERS_STEP_KEY && o.kind === 'city')).has.length(2);
       expect(outcomes.filter((o) => o.player === p1.id && o.step === SKYSCRAPERS_STEP_KEY && o.kind !== 'reaction')).has.length(1);
+    });
+  });
+
+  describe('the model', () => {
+    it('the step key and the skip reasons are the DECLARATION\'s (`tileGrantStepKey`, the two reasons) — no per-card table on the client', () => {
+      expect(SKYSCRAPERS_STEP_KEY).eq(tileGrantStepKey(SKYSCRAPERS_GRANT));
+      expect(SKYSCRAPERS_STEP_KEY).eq('city-tier');
+      expect(NOT_ELIGIBLE_REASON).eq(TILE_GRANT_NOT_ELIGIBLE_REASON);
+      expect(NO_CITY_ON_MARS_REASON).eq(TILE_GRANT_NO_DESTINATION_REASON);
+    });
+
+    it('the seat model carries the DESTINATIONS as a board count (`marsCities`): the very cells the step offers — a cell once whatever its stack; a space city and another\'s city are not in it', () => {
+      const [game, p1, p2] = stage();
+      expect(declaredCountIds(REDUX_RESOLUTION_CATALOG), 'the grant declares its count').includes('marsCities');
+      const mine = seatCity(game, p1);
+      mine.stackHeight = 2;
+      const theirs = seatCity(game, p2);
+      const ganymede = game.board.getSpaceOrThrow(SpaceName.GANYMEDE_COLONY);
+      ganymede.tile = {tileType: TileType.CITY};
+      ganymede.player = p1;
+      const count = (player: TestPlayer) => getParliamentModel(game, player)?.players.find((p) => p.color === player.color)?.counts?.find((c) => c.id === 'marsCities');
+      expect(count(p1)).deep.eq({id: 'marsCities', count: 1, cards: [], spaces: [mine.id]});
+      expect(count(p1)?.spaces, 'the count IS the candidate list').deep.eq(game.board.getAvailableSpacesForType(p1, 'city-tier').map((s) => s.id));
+      expect(count(p2)).deep.eq({id: 'marsCities', count: 1, cards: [], spaces: [theirs.id]});
+      expect(resolutionCount(p1, 'marsCities')).deep.eq({id: 'marsCities', count: 1, cards: [], spaces: [mine.id]});
+    });
+
+    it('PARITY: the shared cell predicate (the stand\'s) agrees with the engine\'s candidate list over a corpus of boards', () => {
+      const corpus: Array<(game: IGame, p1: TestPlayer, p2: TestPlayer) => void> = [
+        () => {},
+        (game, p1) => {
+          seatCity(game, p1);
+        },
+        (game, p1) => {
+          seatCity(game, p1).stackHeight = 3;
+          seatCity(game, p1);
+        },
+        (game, p1, p2) => {
+          seatCity(game, p1);
+          seatCity(game, p2);
+          const ganymede = game.board.getSpaceOrThrow(SpaceName.GANYMEDE_COLONY);
+          ganymede.tile = {tileType: TileType.CITY};
+          ganymede.player = p1;
+        },
+        (game, p1) => {
+          const city = seatCity(game, p1);
+          greeneryBeside(game, city, 2);
+        },
+      ];
+      for (const arrange of corpus) {
+        const [game, p1, p2] = stage();
+        arrange(game, p1, p2);
+        const own = game.board.spaces.filter((s) => s.player === p1);
+        const stand = countSpacesToward('marsCities', own);
+        const engine = game.board.getAvailableSpacesForType(p1, 'city-tier').map((s) => s.id);
+        expect(stand.spaces, `board #${corpus.indexOf(arrange)}`).deep.eq(engine);
+        expect(stand.count).eq(engine.length);
+      }
     });
   });
 

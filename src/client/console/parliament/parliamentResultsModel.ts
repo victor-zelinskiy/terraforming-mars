@@ -88,8 +88,10 @@ export type ResultsPayoutPart = {
   /** The unit is a PRODUCTION step (the console's production frame), not a stock gain. */
   production: boolean;
   amount?: number;
-  /** A winner's part: which tile — or `colony` for the colony built for free (its tile is `colony`). */
-  tile?: 'ocean' | 'greenery' | 'colony';
+  /** A winner's part: which tile — or `colony` for the colony built for free (its tile is `colony`); a granted tier's `city`. */
+  tile?: 'ocean' | 'greenery' | 'colony' | 'city';
+  /** A CITY TIER (Skyscrapers): the stack the cell became — the record's own height, printed «×N» beside the tile. */
+  stack?: number;
   /** The card a card resource landed on (one recipient). */
   card?: string;
   /**
@@ -276,8 +278,11 @@ export function resultsPayoutPart(outcome: ParliamentEnactOutcomeModel, index: n
   if (outcome.amount !== undefined) {
     part.amount = outcome.amount;
   }
-  if (outcome.kind === 'ocean' || outcome.kind === 'greenery' || outcome.kind === 'colony') {
+  if (outcome.kind === 'ocean' || outcome.kind === 'greenery' || outcome.kind === 'colony' || outcome.kind === 'city') {
     part.tile = outcome.kind;
+  }
+  if (outcome.kind === 'city' && outcome.stackHeight !== undefined) {
+    part.stack = outcome.stackHeight;
   }
   if (outcome.card !== undefined) {
     part.card = outcome.card;

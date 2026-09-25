@@ -116,6 +116,12 @@
                                size="compact"
                                variant="chip"
                                data-zoom-winner />
+          <ConsoleTileGrant v-if="zoomResolutionGrant !== undefined && zoomResolutionGrant.context !== 'reference'"
+                            class="con-zoom__bar-grant"
+                            :reading="zoomResolutionGrant"
+                            size="compact"
+                            variant="chip"
+                            data-zoom-grant />
           <span v-if="zoomSelected" class="con-zoom__state">✓ {{ $t('Card selected') }}</span>
           <button v-if="zoomSelectable" type="button" class="con-zoom__btn con-zoom__btn--select" @click="zoomToggleSelect">
             <GamepadGlyph control="confirm" />
@@ -160,8 +166,10 @@ import ConsoleResolutionAside from '@/client/components/console/parliament/Conso
 import ConsoleResolutionStatus from '@/client/components/console/parliament/ConsoleResolutionStatus.vue';
 import ConsoleInfluenceYield from '@/client/components/console/parliament/ConsoleInfluenceYield.vue';
 import ConsoleWinnerReward from '@/client/components/console/parliament/ConsoleWinnerReward.vue';
+import ConsoleTileGrant from '@/client/components/console/parliament/ConsoleTileGrant.vue';
 import {translateText} from '@/client/directives/i18n';
 import {WinnerRewardReading, winnerRewardReadingOf} from '@/client/console/parliament/winnerRewardModel';
+import {TileGrantReading, tileGrantReadingOf} from '@/client/console/parliament/tileGrantModel';
 import {CardAnnotation} from '@/client/components/cardAnnotations/annotationModel';
 import {resolutionAnnotations, resolutionPartyAnnotations} from '@/client/console/parliament/parliamentAnnotations';
 import {resolutionPartyContextKey, resolutionStatusOf, ResolutionStatusVm} from '@/client/console/parliament/resolutionInspectModel';
@@ -183,7 +191,7 @@ export default defineComponent({
   name: 'ConsoleMenuZoomHost',
   components: {
     CardZoomModal, CardZoomCard, GamepadGlyph, ConsoleCardRulesPanel, ConsoleResolutionAside, ConsoleResolutionStatus,
-    ConsoleInfluenceYield, ConsoleWinnerReward, ConsolePartyReaction,
+    ConsoleInfluenceYield, ConsoleWinnerReward, ConsoleTileGrant, ConsolePartyReaction,
   },
   data() {
     return {
@@ -275,11 +283,16 @@ export default defineComponent({
     zoomNameOf(): (color: Color) => string {
       return this.consoleCardZoom.parliament?.nameOf ?? ((color: Color) => translateText(color));
     },
+    /** A TILE GRANTED BY THRESHOLD on the stage (Skyscrapers): the opener's own reading over its table. */
+    zoomResolutionGrant(): TileGrantReading | undefined {
+      const id = this.zoomResolutionId;
+      return id === undefined ? undefined : tileGrantReadingOf(getResolution(id), this.zoomParliament, this.zoomViewer);
+    },
     zoomResolutionAnnotations(): ReadonlyArray<CardAnnotation> {
       const id = this.zoomResolutionId;
       return id === undefined ? [] : resolutionAnnotations(id, this.zoomResolutionYields,
         {reading: this.zoomResolutionWinner, viewer: this.zoomViewer, nameOf: this.zoomNameOf},
-        {table: this.consoleCardZoom.parliament?.table?.()}, this.zoomResolutionLevy);
+        {table: this.consoleCardZoom.parliament?.table?.()}, this.zoomResolutionLevy, {reading: this.zoomResolutionGrant});
     },
     zoomResolutionTier(): RulesLengthTier | undefined {
       const id = this.zoomResolutionId;
@@ -287,7 +300,7 @@ export default defineComponent({
       return id === undefined || party === undefined ? undefined :
         denserRulesTier(rulesLengthTier(resolutionAnnotations(id, this.zoomResolutionYields,
           {reading: this.zoomResolutionWinner, viewer: this.zoomViewer, nameOf: this.zoomNameOf},
-          {table: this.consoleCardZoom.parliament?.table?.()})),
+          {table: this.consoleCardZoom.parliament?.table?.()}, this.zoomResolutionLevy, {reading: this.zoomResolutionGrant})),
         rulesLengthTier(resolutionPartyAnnotations(party)));
     },
     zoomRulesCardName(): CardName | undefined {

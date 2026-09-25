@@ -171,6 +171,8 @@
           <b :data-rxpg-winner="winnerColor ?? 'neutral'">{{ winnerLabel }}</b>
         </span>
         <span v-if="pickerEffect !== undefined" class="con-rxpg__control"><span class="con-rxpg__ckey">{{ $t('No eligible card') }}</span><b data-rxpg-norecipient>{{ noRecipient ? '✓' : '—' }}</b></span>
+        <!-- The tile-grant family: the viewer's DESTINATIONS — their cities on Mars, counted by the shared cell predicate. -->
+        <span v-if="family === 'tile-grant'" class="con-rxpg__control"><span class="con-rxpg__ckey">{{ $t('Cities on Mars') }}</span><b data-rxpg-cities>{{ viewerCities }}</b></span>
         <template v-if="selected.winnerReward !== undefined">
           <!-- A winner TILE reads its parameter's room; the winner's COLONY (Colony Contest) moves no parameter — its one control is the empty table. -->
           <span v-if="selected.winnerReward.kind === 'tile'" class="con-rxpg__control">
@@ -213,6 +215,13 @@
                                size="normal"
                                variant="block"
                                data-rxpg-winner-block />
+          <!-- A TILE GRANTED BY THRESHOLD (Skyscrapers) — the viewer's standing, its destinations, its
+               record: the same model the vote block, the band and the fullscreen read. -->
+          <ConsoleTileGrant v-if="grantReading !== undefined"
+                            :reading="grantReading"
+                            size="normal"
+                            variant="block"
+                            data-rxpg-grant-block />
           <ConsoleResolutionStatus v-if="status !== undefined" class="con-rxpg__status" :status="status" :viewerColor="viewerColor" />
           <!-- EVERY SEAT by its OWN influence — the rule «each player gets
                their own number», read through the same model per seat; the
@@ -531,7 +540,12 @@ import PlayerCube from '@/client/components/PlayerCube.vue';
 import ConsoleInfluenceYield from '@/client/components/console/parliament/ConsoleInfluenceYield.vue';
 import ConsolePartyReaction from '@/client/components/console/parliament/ConsolePartyReaction.vue';
 import ConsoleWinnerReward from '@/client/components/console/parliament/ConsoleWinnerReward.vue';
+import ConsoleTileGrant from '@/client/components/console/parliament/ConsoleTileGrant.vue';
 import {WinnerRewardReading, winnerRewardReadingOf} from '@/client/console/parliament/winnerRewardModel';
+import {TileGrantReading, tileGrantReadingOf} from '@/client/console/parliament/tileGrantModel';
+import {
+  TILE_GRANT_NO_DESTINATION_REASON, TILE_GRANT_NOT_ELIGIBLE_REASON, tileGrantCountId, tileGrantEligibility, tileGrantStepKey,
+} from '@/common/parliament/tileGrant';
 import {WinnerRewardTable} from '@/common/parliament/winnerReward';
 import {ParameterMoveId} from '@/common/parliament/parameterMove';
 import {Resource} from '@/common/Resource';
@@ -605,8 +619,6 @@ type PgSeat = {
   colonies?: ReadonlyArray<ColonyName>,
   /** The up-to family: the seat's HAND size (a synthetic count) the top-up is read against. */
   hand?: number,
-  /** The tile-grant family: the seat's CITIES ON MARS (a synthetic count) — the tier's only legal destinations. */
-  marsCities?: number,
 };
 type PgWinner = SeatIndex | 'neutral';
 /**
@@ -742,6 +754,9 @@ const TORUS: PgCell = {id: SpaceName.STANFORD_TORUS, spaceType: SpaceType.COLONY
 const DAWN: PgCell = {id: SpaceName.DAWN_CITY, spaceType: SpaceType.COLONY, tile: {tileType: TileType.CITY}};
 const PHOBOS_EMPTY: PgCell = {id: SpaceName.PHOBOS_SPACE_HAVEN, spaceType: SpaceType.COLONY};
 const MARS_CITY: PgCell = {id: '35', spaceType: SpaceType.LAND, tile: {tileType: TileType.CITY}};
+/* The tile-grant family (Skyscrapers): a second city on Mars, a greenery (never a destination), a space city (off Mars). */
+const MARS_CITY_2: PgCell = {id: '42', spaceType: SpaceType.LAND, tile: {tileType: TileType.CITY}};
+const MARS_GREENERY: PgCell = {id: '36', spaceType: SpaceType.LAND, tile: {tileType: TileType.GREENERY}};
 
 const SCENARIOS: ReadonlyArray<PgScenario> = [
   // Step 0 of the Agenda: influence 0 — the step asks nothing and names the skip.
@@ -1242,24 +1257,25 @@ const SCENARIOS: ReadonlyArray<PgScenario> = [
   // ── THE TILE-GRANT FAMILY (Skyscrapers: the winner and every seat with influence ≥ 2 place a city tier on their own city
   //    on Mars) — the instrument is the seat's ELIGIBILITY and its CITIES ON MARS; the scenarios are their edges.
   {key: 'stack-below-line', family: 'tile-grant', label: 'Influence 1 and not the winner — passed over by the rule', viewer: 0,
-    seats: [{agenda: 1, bonus: 0, marsCities: 1}, {agenda: 5, bonus: 0, marsCities: 1}], winner: 1, context: 'proposal', noRecipient: false},
+    seats: [{agenda: 1, bonus: 0, cells: [MARS_CITY, MARS_GREENERY]}, {agenda: 5, bonus: 0, cells: [MARS_CITY_2]}], winner: 1, context: 'proposal', noRecipient: false},
   {key: 'stack-on-line', family: 'tile-grant', label: 'Influence 2 — the tile without winning', viewer: 0,
-    seats: [{agenda: 3, bonus: 0, marsCities: 1}, {agenda: 5, bonus: 0, marsCities: 2}], winner: 1, context: 'proposal', noRecipient: false},
+    seats: [{agenda: 3, bonus: 0, cells: [MARS_CITY, GANYMEDE]}, {agenda: 5, bonus: 0, cells: [MARS_CITY_2, MARS_CITY]}], winner: 1, context: 'proposal', noRecipient: false},
   // Agenda 0 = influence 0; winning takes the marker to step 1 (influence 1) — still below the line, the star alone decides.
   {key: 'stack-winner-under-line', family: 'tile-grant', label: 'The winner below the line still receives it', viewer: 0,
-    seats: [{agenda: 0, bonus: 0, marsCities: 1}, {agenda: 3, bonus: 0, marsCities: 1}], winner: 0, context: 'proposal', noRecipient: false},
+    seats: [{agenda: 0, bonus: 0, cells: [MARS_CITY]}, {agenda: 3, bonus: 0, cells: [MARS_CITY_2]}], winner: 0, context: 'proposal', noRecipient: false},
+  // Ganymede is a SPACE city — off Mars, never a destination: the seat reads «no city on Mars» with a city on the table.
   {key: 'stack-no-city', family: 'tile-grant', label: 'No city on Mars — the tile is named and skipped', viewer: 0,
-    seats: [{agenda: 5, bonus: 0, marsCities: 0}, {agenda: 3, bonus: 0, marsCities: 1}], winner: 1, context: 'applied', noRecipient: false, noCell: true},
+    seats: [{agenda: 5, bonus: 0, cells: [GANYMEDE, MARS_GREENERY]}, {agenda: 3, bonus: 0, cells: [MARS_CITY_2]}], winner: 1, context: 'applied', noRecipient: false},
   {key: 'stack-resolving', family: 'tile-grant', label: 'Your placement stands — the tier onto your city', viewer: 0,
-    seats: [{agenda: 3, bonus: 0, marsCities: 1}, {agenda: 5, bonus: 0, marsCities: 1}], winner: 1, context: 'resolving', noRecipient: false},
+    seats: [{agenda: 3, bonus: 0, cells: [MARS_CITY]}, {agenda: 5, bonus: 0, cells: [MARS_CITY_2]}], winner: 1, context: 'resolving', noRecipient: false},
   {key: 'stack-recorded', family: 'tile-grant', label: 'Recorded result — a stack of 2', viewer: 0,
-    seats: [{agenda: 3, bonus: 0, marsCities: 1}, {agenda: 1, bonus: 0, marsCities: 1}], winner: 0, context: 'applied', noRecipient: false},
+    seats: [{agenda: 3, bonus: 0, cells: [MARS_CITY]}, {agenda: 1, bonus: 0, cells: [MARS_CITY_2]}], winner: 0, context: 'applied', noRecipient: false},
   {key: 'stack-neutral', family: 'tile-grant', label: 'Neutral winner — the line alone decides', viewer: 0,
-    seats: [{agenda: 3, bonus: 0, marsCities: 1}, {agenda: 1, bonus: 0, marsCities: 1}], winner: 'neutral', context: 'applied', noRecipient: false},
+    seats: [{agenda: 3, bonus: 0, cells: [MARS_CITY]}, {agenda: 1, bonus: 0, cells: [MARS_CITY_2]}], winner: 'neutral', context: 'applied', noRecipient: false},
   {key: 'stack-spectator', family: 'tile-grant', label: 'Spectator — the rule alone', viewer: SPECTATOR,
-    seats: [{agenda: 3, bonus: 0, marsCities: 1}, {agenda: 1, bonus: 0, marsCities: 1}], winner: 0, context: 'proposal', noRecipient: false},
+    seats: [{agenda: 3, bonus: 0, cells: [MARS_CITY]}, {agenda: 1, bonus: 0, cells: [MARS_CITY_2]}], winner: 0, context: 'proposal', noRecipient: false},
   {key: 'stack-quest-1', family: 'tile-grant', label: 'Chairman quest 1/2', viewer: 0,
-    seats: [{agenda: 3, bonus: 0, marsCities: 1}, {agenda: 1, bonus: 0, marsCities: 1}], winner: 0, context: 'applied', noRecipient: false, quest: {progress: [1, 0]}},
+    seats: [{agenda: 3, bonus: 0, cells: [MARS_CITY]}, {agenda: 1, bonus: 0, cells: [MARS_CITY_2]}], winner: 0, context: 'applied', noRecipient: false, quest: {progress: [1, 0]}},
 ];
 /** Each family's opening scenario. */
 const DEFAULT_SCENARIO_OF: Readonly<Record<PgFamily, number>> = {
@@ -1375,7 +1391,7 @@ export default defineComponent({
   name: 'ConsoleResolutionsPlayground',
   components: {
     PremiumCard, GamepadGlyph, PlayerCube, ConsoleInfluenceYield, ConsoleColonyLedger, ConsoleResolutionStatus, ConsoleResolutionAside, ConsoleCardRulesPanel,
-    ConsoleSourceDock, ConsolePlayedTargetStep, PremiumMechanicsPanel, PremiumCountGlyph, ConsoleWinnerReward, ConsolePartyReaction,
+    ConsoleSourceDock, ConsolePlayedTargetStep, PremiumMechanicsPanel, PremiumCountGlyph, ConsoleWinnerReward, ConsoleTileGrant, ConsolePartyReaction,
   },
   props: {
     /** Inside the playground stand (the stand owns the chrome and the scroll). */
@@ -1423,7 +1439,7 @@ export default defineComponent({
     annotations(): ReadonlyArray<CardAnnotation> {
       return this.selected === undefined ? [] :
         resolutionAnnotations(this.selected.id, this.yields, {reading: this.winnerReading, viewer: this.viewerColor, nameOf: this.seatName},
-          {table: this.winnerTable}, this.levy);
+          {table: this.winnerTable}, this.levy, {reading: this.grantReading});
     },
     /** The scenario family the selected resolution reads — from its DECLARATION (`resolutionFamily.ts`), never a table by id. */
     family(): PgFamily {
@@ -1440,6 +1456,15 @@ export default defineComponent({
         return undefined;
       }
       return winnerRewardReadingOf(r, this.model, this.context === 'reference' ? undefined : this.winnerTable);
+    },
+    /** A tile granted by threshold (Skyscrapers): the viewer's reading — the vote block's, the band's and the fullscreen's one model. */
+    grantReading(): TileGrantReading | undefined {
+      return this.selected?.tileGrant === undefined ? undefined : tileGrantReadingOf(this.selected, this.model, this.viewerColor);
+    },
+    /** The viewer's DESTINATIONS on the stand — their cities on Mars by the shared cell predicate («—» for a spectator). */
+    viewerCities(): string {
+      const i = this.viewerSeatIndex;
+      return i === undefined ? '—' : String(this.countAt(i)?.count ?? 0);
     },
     /** The ACTIVE scenario when it boots a real game. */
     liveScenario(): PgScenario | undefined {
@@ -1488,6 +1513,7 @@ export default defineComponent({
       case 'sequel': return 'Result by influence, then by production';
       case 'up-to': return 'Result by influence, up to a hand size';
       case 'colony-bonuses': return 'Result by influence, over your colony bonuses';
+      case 'tile-grant': return 'Result by the vote and the influence line';
       default: return 'Influence-scaled payout';
       }
     },
@@ -1789,6 +1815,18 @@ export default defineComponent({
       }
       if (this.context === 'resolving') {
         const asked = this.viewerColor;
+        if (this.family === 'tile-grant' && r.tileGrant !== undefined) {
+          // THE VIEWER'S PLACEMENT STANDS (the seats go in turn): every seat before the viewer already has its record.
+          const askedIndex = this.viewerSeatIndex;
+          return {
+            ...base, rulingParty: r.party, enacted,
+            phase: {
+              generation: 3, final: false, step: 'effects', winner: {instance, player: owner},
+              pending: asked === undefined ? undefined : {player: asked, key: tileGrantStepKey(r.tileGrant), input: 'space'},
+              outcomes: this.grantOutcomes.filter((o) => askedIndex !== undefined && SEATS.findIndex((i) => TEST_PLAYERS[i].color === o.player) < askedIndex),
+            },
+          };
+        }
         if (this.family === 'winner-tile') {
           // THE WINNER'S PLACEMENT STANDS: every seat up to the winner (generation order) already has its plants.
           const winnerSeat = this.winner === 'neutral' ? undefined : this.winner;
@@ -1908,6 +1946,34 @@ export default defineComponent({
         {player, step: 'ocean', part: 'winner', kind: 'skipped', reason: 'No ocean tile is left'} :
         {player, step: 'ocean', part: 'winner', kind: 'ocean', space: '35', parameter: {id: 'oceans', before, after: before + 1}};
     },
+    /**
+     * THE GRANT's records (Skyscrapers): every seat in the walk's order — the tier on one of its cities (a stack
+     * of 2), or the named skip: the rule that passed the seat over, or no city on Mars to build on.
+     */
+    grantOutcomes(): Array<ParliamentEnactOutcomeModel> {
+      const grant = this.selected?.tileGrant;
+      const out: Array<ParliamentEnactOutcomeModel> = [];
+      if (grant === undefined) {
+        return out;
+      }
+      const step = tileGrantStepKey(grant);
+      for (const i of SEATS) {
+        const player = TEST_PLAYERS[i].color;
+        const influence = this.influenceAt(i);
+        const common = {player, step, part: 'effect' as const, influence};
+        if (tileGrantEligibility(grant, {winner: this.winner === i, influence}) === 'none') {
+          out.push({...common, kind: 'skipped', reason: TILE_GRANT_NOT_ELIGIBLE_REASON});
+          continue;
+        }
+        const cell = this.countAt(i)?.spaces?.[0];
+        if (cell === undefined) {
+          out.push({...common, kind: 'skipped', reason: TILE_GRANT_NO_DESTINATION_REASON});
+          continue;
+        }
+        out.push({...common, kind: 'city', space: cell, stackHeight: 2});
+      }
+      return out;
+    },
     /** The record the server would keep for this enactment's scaled part — every seat's payout, or its named skip. */
     appliedOutcomes(): Array<ParliamentEnactOutcomeModel> {
       const r = this.selected;
@@ -1922,6 +1988,7 @@ export default defineComponent({
       if (tile !== undefined) {
         out.push(tile);
       }
+      out.push(...this.grantOutcomes);
       for (const effect of r.scaled ?? []) {
         if (effect.sequel !== undefined) {
           // THE DRAW's record: the amount, the total it was divided from
@@ -2382,33 +2449,37 @@ export default defineComponent({
     /** Seat `i`'s count for the selected resolution's counted term (undefined when nothing is counted). */
     countAt(i: SeatIndex): ResolutionCountModel | undefined {
       const effect = this.countEffect;
-      if (effect?.count === undefined) {
+      const grant = this.selected?.tileGrant;
+      // A TILE GRANTED BY THRESHOLD counts its DESTINATIONS (the seat's cities on Mars) — the same per-seat
+      // count the server model carries, through the same readers.
+      const id = effect?.count?.id ?? (grant === undefined ? undefined : tileGrantCountId(grant));
+      if (id === undefined) {
         return undefined;
       }
       // A BOARD count walks the seat's CELLS through the shared cell predicate — the same rule the
       // engine's reading is pinned to, never a number typed into the scenario.
-      const kind = resolutionCountKind(effect.count.id).kind;
+      const kind = resolutionCountKind(id).kind;
       if (kind === 'board') {
-        return countSpacesToward(effect.count.id, this.seats[i].cells ?? []);
+        return countSpacesToward(id, this.seats[i].cells ?? []);
       }
       // A THRESHOLD count divides the seat's synthetic VALUE by the ONE shared function — the number of sets is
       // never typed into the scenario either; the scenario states the rating and the rule does the rest.
       if (kind === 'threshold') {
-        return countMetricToward(effect.count.id, this.seats[i].tr ?? 20);
+        return countMetricToward(id, this.seats[i].tr ?? 20);
       }
       // A PRODUCTION count adds the seat's synthetic TRACK up through the ONE shared reader — the sum and its
       // per-resource breakdown are the reader's, never typed into the scenario.
       if (kind === 'production') {
-        return countProductionToward(effect.count.id, this.seats[i].productions ?? {});
+        return countProductionToward(id, this.seats[i].productions ?? {});
       }
       // A COLONIES count reads the seat's synthetic colony TABLE — one tile name per cube — through the ONE shared
       // reader; the list rides the model exactly as the server's does, so the reading can name the tiles.
       if (kind === 'colonies') {
-        return countColoniesToward(effect.count.id, this.seats[i].colonies ?? []);
+        return countColoniesToward(id, this.seats[i].colonies ?? []);
       }
       const names = this.seats[i].cards ?? [];
       const cards = names.map((name) => getCard(name)).filter((card): card is NonNullable<typeof card> => card !== undefined);
-      return countCardsToward(effect.count.id, cards, this.countContextOf(names));
+      return countCardsToward(id, cards, this.countContextOf(names));
     },
     /** The colony's planet disc — the colonies' own sprite classes (`Luna-background`), the ledger's rule. */
     planetClassOf(colony: ColonyName): string {

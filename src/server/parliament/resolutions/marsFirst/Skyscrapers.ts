@@ -54,7 +54,9 @@ import {Size} from '../../../../common/cards/render/Size';
 import {PartyName} from '../../../../common/turmoil/PartyName';
 import {TileType} from '../../../../common/TileType';
 import {ResolutionCode, ResolutionId} from '../../../../common/parliament/ParliamentTypes';
-import {TileGrantDeclaration, tileGrantEligibility} from '../../../../common/parliament/tileGrant';
+import {
+  TILE_GRANT_NO_DESTINATION_REASON, TILE_GRANT_NOT_ELIGIBLE_REASON, TileGrantDeclaration, tileGrantEligibility, tileGrantStepKey,
+} from '../../../../common/parliament/tileGrant';
 import {ChoiceContextSource} from '../../../../common/models/PlayerInputModel';
 import {createMarsSelectSpace} from '../../../boards/marsSelectSpaceHelper';
 import {committedPlacement} from '../../../inputs/placementContext';
@@ -74,12 +76,12 @@ export const SKYSCRAPERS_GRANT: TileGrantDeclaration = {
   recipients: {winner: true, influenceAtLeast: SKYSCRAPERS_INFLUENCE_LINE},
 };
 
-/** The step's key — the record's name on every surface. */
-export const SKYSCRAPERS_STEP_KEY = 'city-tier';
+/** The step's key — the record's name on every surface, derived from the declaration (`tileGrantStepKey`). */
+export const SKYSCRAPERS_STEP_KEY = tileGrantStepKey(SKYSCRAPERS_GRANT);
 
-/** The skips' reasons — English keys; the stage plate translates them. */
-export const NOT_ELIGIBLE_REASON = 'Below 2 influence and not the winner of the vote';
-export const NO_CITY_ON_MARS_REASON = 'No city on Mars to build on';
+/** The skips' reasons — the declaration's own (English keys; the stage plate translates them). */
+export const NOT_ELIGIBLE_REASON = TILE_GRANT_NOT_ELIGIBLE_REASON;
+export const NO_CITY_ON_MARS_REASON = TILE_GRANT_NO_DESTINATION_REASON;
 
 /** WHO asks — the same source on the placement, its dossier and every skip. */
 const SOURCE: ChoiceContextSource = {kind: 'resolution', resolution: SKYSCRAPERS_ID};

@@ -247,6 +247,19 @@ describe('parliamentResultsModel — the sitting\'s last reading, in two section
     expect(parts.every((p) => p.skipped === undefined), 'a loss is a payout, never a skip').is.true;
   });
 
+  it('a CITY TIER (Skyscrapers) carries its tile and the STACK the cell became — «×2» beside the city glyph, no amount; its skip names the rule', () => {
+    const reading = resultsReadingOf(summary({outcomes: [
+      outcome({step: 'city-tier', kind: 'city', stock: undefined, amount: undefined, space: '35', stackHeight: 2, influence: 2}),
+      outcome({player: RED, step: 'city-tier', kind: 'skipped', stock: undefined, amount: undefined, influence: 1, reason: 'Below 2 influence and not the winner of the vote'}),
+    ]}), [seat(BLUE), seat(RED)], SUPPORT);
+    const part = reading.payouts[0].parts[0];
+    expect(part).deep.include({kind: 'city', tile: 'city', stack: 2, unit: ''});
+    expect(part.amount).is.undefined;
+    expect(part.skipped).is.undefined;
+    expect(reading.payouts[1].parts[0].skipped).deep.eq({title: 'Resolution effect', reason: 'Below 2 influence and not the winner of the vote'});
+    expect(reading.payouts[1].parts[0].stack).is.undefined;
+  });
+
   it('the RULING PARTY\'s own answer keeps its party — the emblem stands beside the amount', () => {
     const reading = resultsReadingOf(
       summary({outcomes: [outcome({kind: 'reaction', party: PartyName.GREENS, amount: 1, stock: Resource.MEGACREDITS})]}),

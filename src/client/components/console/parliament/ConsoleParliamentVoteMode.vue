@@ -46,12 +46,13 @@
                  (registry example 4: the reading stood alone in a half-empty
                  plate; the words are the inspector's). -->
             <div class="con-parl__info-main">
-              <div class="con-parl__info-own" :class="{'con-parl__info-own--yields': voteInfo.reading.yields.length > 0}" data-parl-vote-item data-parl-info="own">
+              <div class="con-parl__info-own" :class="{'con-parl__info-own--yields': voteInfo.reading.yields.length > 0 || voteInfo.reading.grant !== undefined}" data-parl-vote-item data-parl-info="own">
                 <span class="con-parl__info-kicker" data-parl-kicker="reading" data-parl-vote-late>{{ $t(voteInfo.reading.kicker) }}</span>
                 <div class="con-parl__info-own-body">
                   <PremiumMechanicsPanel v-if="ownMechanics !== undefined" class="con-parl__info-mech" :mechanics="ownMechanics" />
-                  <div v-if="voteInfo.reading.yields.length > 0" class="con-parl__info-readings" data-parl-vote-late>
-                    <ConsoleInfluenceYield class="con-parl__info-yield"
+                  <div v-if="voteInfo.reading.yields.length > 0 || voteInfo.reading.grant !== undefined" class="con-parl__info-readings" data-parl-vote-late>
+                    <ConsoleInfluenceYield v-if="voteInfo.reading.yields.length > 0"
+                                           class="con-parl__info-yield"
                                            :yields="voteInfo.reading.yields"
                                            :suffixes="voteInfo.reading.suffixes"
                                            :formula="false"
@@ -75,6 +76,14 @@
                                          :reading="voteInfo.reading.ledger"
                                          size="compact"
                                          data-parl-vote-ledger />
+                    <!-- A TILE GRANTED BY THRESHOLD (Skyscrapers): the viewer's own standing — theirs at this
+                         influence or only by winning — and the cities on Mars the tier may land on. -->
+                    <ConsoleTileGrant v-if="voteInfo.reading.grant !== undefined"
+                                      class="con-parl__info-grant"
+                                      :reading="voteInfo.reading.grant"
+                                      size="compact"
+                                      variant="inline"
+                                      data-parl-vote-grant />
                   </div>
                 </div>
               </div>
@@ -159,6 +168,7 @@ import {SelectPaymentModel, VotePaymentMeta} from '@/common/models/PlayerInputMo
 import {PARLIAMENT_VOTE_COST, ReduxParty} from '@/common/parliament/ParliamentTypes';
 import ConsoleInfluenceYield from '@/client/components/console/parliament/ConsoleInfluenceYield.vue';
 import ConsoleColonyLedger from '@/client/components/console/parliament/ConsoleColonyLedger.vue';
+import ConsoleTileGrant from '@/client/components/console/parliament/ConsoleTileGrant.vue';
 import ConsolePartyReaction from '@/client/components/console/parliament/ConsolePartyReaction.vue';
 import ConsolePartyFormula from '@/client/components/console/parliament/ConsolePartyFormula.vue';
 import ConsoleVoteFactRow from '@/client/components/console/parliament/ConsoleVoteFactRow.vue';
@@ -214,7 +224,7 @@ type CtaCost = {kind: 'free' | 'cost' | 'none', amount: number};
  */
 export default defineComponent({
   name: 'ConsoleParliamentVoteMode',
-  components: {ConsoleInfluenceYield, ConsoleColonyLedger, ConsolePartyFormula, ConsolePartyReaction, ConsoleVoteFactRow, PlayerCube, GamepadGlyph, PremiumMechanicsPanel},
+  components: {ConsoleInfluenceYield, ConsoleColonyLedger, ConsoleTileGrant, ConsolePartyFormula, ConsolePartyReaction, ConsoleVoteFactRow, PlayerCube, GamepadGlyph, PremiumMechanicsPanel},
   props: {
     view: {type: Object as PropType<ParliamentViewVm>, required: true},
     model: {type: Object as PropType<ParliamentModel | undefined>, default: undefined},

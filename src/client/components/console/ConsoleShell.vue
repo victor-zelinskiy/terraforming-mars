@@ -1104,6 +1104,14 @@
                                size="compact"
                                variant="chip"
                                data-zoom-winner />
+          <!-- A TILE GRANTED BY THRESHOLD (Skyscrapers) — the viewer's own standing while it is up for the
+               vote, the fixed answer while it resolves, the record once it is in (its own block, like the winner's). -->
+          <ConsoleTileGrant v-if="zoomResolutionGrant !== undefined && zoomResolutionGrant.context !== 'reference'"
+                            class="con-zoom__bar-grant"
+                            :reading="zoomResolutionGrant"
+                            size="compact"
+                            variant="chip"
+                            data-zoom-grant />
           <!-- THE PROVENANCE PLATE (opened from «Разыграно»): the hero card
                would otherwise read like any other inspected card. The plate
                leads the bar and states WHOSE table it lies on, in WHICH
@@ -1653,7 +1661,9 @@ import ConsoleInfluenceYield from '@/client/components/console/parliament/Consol
 import ConsoleColonyLedger from '@/client/components/console/parliament/ConsoleColonyLedger.vue';
 import {ColonyLedgerReading, colonyLedgerOf} from '@/client/console/parliament/colonyLedgerModel';
 import ConsoleWinnerReward from '@/client/components/console/parliament/ConsoleWinnerReward.vue';
+import ConsoleTileGrant from '@/client/components/console/parliament/ConsoleTileGrant.vue';
 import {WinnerRewardReading, winnerRewardReadingOf, winnerRewardTableOf} from '@/client/console/parliament/winnerRewardModel';
+import {TileGrantReading, tileGrantReadingOf} from '@/client/console/parliament/tileGrantModel';
 import {WinnerRewardTable} from '@/common/parliament/winnerReward';
 import {ParliamentEnactOutcomeModel} from '@/common/models/ParliamentModel';
 import {enactedLevyOf, enactedYieldsOf, voteLevyOf, voteYieldsOf} from '@/client/console/parliament/influenceYieldModel';
@@ -2207,6 +2217,7 @@ export default defineComponent({
     ConsoleInfluenceYield,
     ConsoleColonyLedger,
     ConsoleWinnerReward,
+    ConsoleTileGrant,
     ConsoleInfoMode,
     ConsoleCardRulesPanel,
     ConsoleInspectSide,
@@ -8631,7 +8642,7 @@ export default defineComponent({
       }
       if (isResolutionZoom(card)) {
         // The viewer's own readings ride along: the rules name the counted cards behind their number.
-        return resolutionAnnotations(card.resolution, this.zoomResolutionYields, this.zoomResolutionWinnerWords, this.zoomResolutionWorld, this.zoomResolutionLevy);
+        return resolutionAnnotations(card.resolution, this.zoomResolutionYields, this.zoomResolutionWinnerWords, this.zoomResolutionWorld, this.zoomResolutionLevy, this.zoomResolutionGrantWords);
       }
       if (isPartyEffectZoom(card)) {
         return partyAnnotations(card.partyEffect, this.game.parliament, this.thisPlayer.color, this.myTurn && this.awaitingInput);
@@ -8724,6 +8735,15 @@ export default defineComponent({
     zoomResolutionWinnerWords(): {reading: WinnerRewardReading | undefined, viewer: Color | undefined, nameOf: (color: Color) => string} {
       return {reading: this.zoomResolutionWinner, viewer: this.thisPlayer.color, nameOf: this.parliamentSeatName};
     },
+    /** A TILE GRANTED BY THRESHOLD on the stage (Skyscrapers): the viewer's own reading over the live table (`tileGrantModel`). */
+    zoomResolutionGrant(): TileGrantReading | undefined {
+      const id = this.zoomResolutionId;
+      return id === undefined ? undefined : tileGrantReadingOf(getResolution(id), this.game.parliament, this.thisPlayer.color);
+    },
+    /** The same reading for the rules column's «for you» row. */
+    zoomResolutionGrantWords(): {reading: TileGrantReading | undefined} {
+      return {reading: this.zoomResolutionGrant};
+    },
     /**
      * The WORLD's part of the resolution on the stage, read over the live
      * table — and, once the sitting has made it, over the server's own
@@ -8758,7 +8778,7 @@ export default defineComponent({
       if (id === undefined || party === undefined) {
         return undefined;
       }
-      return denserRulesTier(rulesLengthTier(resolutionAnnotations(id, this.zoomResolutionYields, this.zoomResolutionWinnerWords, this.zoomResolutionWorld, this.zoomResolutionLevy)),
+      return denserRulesTier(rulesLengthTier(resolutionAnnotations(id, this.zoomResolutionYields, this.zoomResolutionWinnerWords, this.zoomResolutionWorld, this.zoomResolutionLevy, this.zoomResolutionGrantWords)),
         rulesLengthTier(resolutionPartyAnnotations(party)));
     },
     /**

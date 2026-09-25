@@ -194,6 +194,14 @@ export function yieldCountPresentation(id: ResolutionCountId): YieldCountPresent
       ruleKey: 'Each colony you have counts: two colonies on one tile count twice. A tile without your colony does not count.',
       skipReasonKey: 'No colonies',
     };
+  case 'marsCities':
+    // A count over the BOARD of DESTINATIONS (Skyscrapers): the city tile the face prints — a cell once, whatever its stack.
+    return {
+      glyph: {kind: 'tile', tile: 'marsCity'},
+      pluralKey: '${0} city(-ies) on Mars',
+      ruleKey: 'A city of yours on Mars counts once, whatever the height of its stack. A city off Mars does not.',
+      skipReasonKey: 'No city on Mars to build on',
+    };
   case 'scienceTags':
     return {
       glyph: {kind: 'tag', tag: Tag.SCIENCE},

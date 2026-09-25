@@ -38,6 +38,10 @@ worklist:** сначала пиши карту, потом читай, что о
    N единиц по своим держателям). Из этой декларации клиент строит лицо, прогноз голосования, чтение стадии
    НАГРАДА, плиту пропуска и семейство сценариев «Полигона» (`familyOf(definition)`) — автору рисовать нечего.
 3. `winnerReward?` — часть победителя как ДАННЫЕ (`winnerReward.ts`: какой тайл, какой параметр двигает).
+   **`tileGrant?`** (RX20) — тайл ПО ПОРОГУ как ДАННЫЕ (`tileGrant.ts`: тайл, куда, получатели = победитель +
+   линия влияния); из него выводятся предикат получателей, ключ шага, счёт назначений и семейство `tile-grant`.
+   **СТОПКА городов — высота на клетке, ПО за каждый ярус, надстройка = третий законный случай арма посадки**;
+   раздел RX20 ниже.
 4. `immediateSteps` / `winnerSteps` — шаги. КАЖДЫЙ шаг **либо мутирует, либо спрашивает** (`EnactStep`:
    вернул `undefined` — всё сделал; вернул промпт — ничего не менял, изменит ответ). В ЛЮБОЙ ветке — включая
    «ничего не сделал» — шаг вызывает `ctx.report(outcome)` **ровно один раз** с `kind` из таблицы адресов;
@@ -550,6 +554,45 @@ scaled: [DEVELOPMENT_CRAZE_STEEL /* дословно */, JOVIAN_TAX_RIGHTS_TITAN
 - Бюджет: юниты карты (27) + гард; клиентские юниты (чтения 6, бейдж +1, рейт +1); ОДИН e2e (`console-parliament-metal`:
   бейджи «2» / «3» → осмотр → ворота → две записи → **бейджи «3» / «4» на том же экране** → итоги; принятая: сервер 3 / 4,
   цена 10, строка закона, шапка «10» без «сэкономлено», строка стали «×3»). Док: `docs/TURMOIL_REDUX_METAL_RESEARCH.md`.
+
+### Тайл ПО ПОРОГУ + СТОПКА городов — высота на клетке, ярус = третий случай посадки (RX20, 2026-09-25)
+
+```ts
+tileGrant: {tile: 'city', placement: 'own-city', recipients: {winner: true, influenceAtLeast: 2}},   // ДАННЫЕ, не ветка
+// шаг (один, немедленный, у каждого места):
+const eligibility = tileGrantEligibility(GRANT, {winner: ctx.winner?.id === player.id, influence: ctx.influence});
+if (eligibility === 'none') { ctx.report({kind: 'skipped', influence, reason: TILE_GRANT_NOT_ELIGIBLE_REASON}); return undefined; }
+const cities = game.board.getAvailableSpacesForType(player, 'city-tier');   // ОДИН валидатор = кандидаты = счёт назначений
+if (cities.length === 0) { ctx.report({kind: 'skipped', influence, reason: TILE_GRANT_NO_DESTINATION_REASON}); return undefined; }
+return createMarsSelectSpace(player, title, cities, {placementType: 'city-tier', tileType: TileType.CITY, placementContext: committedPlacement(…, SOURCE)})
+  .andThen((space) => { game.addCityTier(player, space); ctx.report({kind: 'city', influence, space: space.id, stackHeight: Board.tiersOf(space)}); return undefined; });
+```
+
+- **Стопка = ОДНО поле клетки** (`Space.stackHeight`, отсутствие = 1, сериализуется от 2), тайл на клетке один. Никакого
+  массива тайлов. **ОДНА функция величины** `MarsBoard.countCities` (сумма ярусов) — все «сколько городов» на ней
+  (Mayor, Metropolist, Constructor, Landlord, Urbanist, Counter, CitiesRequirement, Vermin, Hospitals, StarVegas, NewHolland,
+  StrongSociety, Election, модель игрока); **предикаты читают клетку** и на высоту не умножаются. Арифметика ярусов —
+  `boards/cityStack.ts` без зависимостей (цикл `Counter → MarsBoard → Board`). ПО — по ярусам, строка `CityVpDetail` на ярус.
+- **Ярус кладёт `Game.addTile(…, {stacking: true})`** — клетка НЕ платит второй раз (печатный бонус, океан, Ares),
+  триггеры «город размещён» и партийные пассивы срабатывают (`onTilePlaced(…, {stacked: true})`), RX10 не повторяет.
+  Тип размещения `city-tier`: кандидаты = свои города на Марсе, причина `not-your-city`, досье «Стопка городов: 1 → 2
+  яруса» + «Без бонуса размещения», выбор показывается и при одном кандидате.
+- **Объявление даёт всё остальное**: `tileGrantEligibility` (звезда безусловна) — ОДИН предикат для шага и клиента;
+  `tileGrantStepKey` — ключ шага и записи; `tileGrantCountId` → седьмой вид счёта `marsCities` (`BoardCountedTile
+  'marsCity'`, клетка ОДИН раз какой бы высоты ни была стопка; сервер отдаёт список кандидатов шага, стенд считает
+  клетки тем же `spaceCountVerdict` — паритет корпусом досок); причины пропусков — константы рядом с объявлением.
+  Вид исхода `city` (адрес: доска, стадия `board`, чтение `tile-grant`), семейство стенда `tile-grant`.
+- **ОДНА модель чтения** `tileGrantModel.ts` (двойник `winnerRewardModel`: reference / conditional / pending / applied) и
+  ОДНА графика `ConsoleTileGrant.vue`; читают: панель голосования (`reading.grant`, без числа, бюджет считает его
+  чтением), осмотр (чип бара + «Для вас» + правило стопки под эффектом), лента (чип `grant` только для яруса,
+  который должен или лёг; пропуск читает чип пропуска), итоги (часть `city` + «×N»), стенд. Квитанция: `city` —
+  тайл доски, как тайл победителя (`detectNewViewerTile`).
+- **Сцена**: арм с `stacking`, `verifyPlacement` принимает рост стопки ровно на 1, `cityStackScene` — два флага =
+  классы клетки, контакт — один синхронный ход (`stackContact` + покраска), бонусы не летят. Док:
+  `docs/claude/console/tile-replacement.md` § третий случай.
+- Бюджет: юниты карты (19) + стопки (26) + чтения (10) + счёт; ОДИН e2e (`console-parliament-skyscrapers`: честный
+  промпт, досье, L3, сцена по in-page сэмплам с «×2» в одном сэмпле с высотой 2, серверная правда, итоги с «×2»,
+  разбор счёта — две строки на клетку, осмотр клетки — ряд на ярус). Док: `docs/TURMOIL_REDUX_SKYSCRAPERS.md`.
 
 ### Бюджет проверки на карту (решение владельца 2026-09-23)
 

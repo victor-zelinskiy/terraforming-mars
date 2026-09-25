@@ -224,9 +224,10 @@ export function detectNewViewerRewards(before: PlayerViewModel | undefined, afte
 }
 
 /**
- * DETECT (pure): the viewer's WINNER TILE this response recorded (an `ocean` /
- * `greenery` record of theirs that was not there before) — the board scene
- * placed it; the sitting owes its receipt on the way back.
+ * DETECT (pure): the viewer's BOARD TILE this response recorded (an `ocean` /
+ * `greenery` record of theirs — the winner's tile — or a `city` record, the
+ * tier a threshold grant placed on their own city) that was not there before:
+ * the board scene placed it; the sitting owes its receipt on the way back.
  */
 export function detectNewViewerTile(before: PlayerViewModel | undefined, after: PlayerViewModel): ParliamentEnactOutcomeModel | undefined {
   const viewer = after.thisPlayer?.color;
@@ -236,7 +237,7 @@ export function detectNewViewerTile(before: PlayerViewModel | undefined, after: 
     return undefined;
   }
   const known = new Set((was.outcomes ?? []).map(rewardBeatKey));
-  return (phase.outcomes ?? []).find((o) => o.player === viewer && (o.kind === 'ocean' || o.kind === 'greenery') && !known.has(rewardBeatKey(o)));
+  return (phase.outcomes ?? []).find((o) => o.player === viewer && (o.kind === 'ocean' || o.kind === 'greenery' || o.kind === 'city') && !known.has(rewardBeatKey(o)));
 }
 
 /** The section takes the tile's receipt for THIS sitting (once); undefined when none is owed. */

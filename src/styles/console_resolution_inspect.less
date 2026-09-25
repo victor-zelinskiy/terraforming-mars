@@ -535,6 +535,15 @@ html.con-profile-tv .con-zoom__flip-pos b { font-size: 1.1rem; }
    the influence plates. The rules column's «for you» row carries the same reading
    in words on every profile, so the footer drops the chip here. */
 html.con-profile-handheld .con-zoom__bar-winner { display: none; }
+/* …and a TILE GRANTED BY THRESHOLD (Skyscrapers): the same chip grammar as the winner's — content-sized,
+   never wrapping, its kicker hidden beside the vote's fact rows, dropped on the Deck (the «for you» row reads it). */
+.con-zoom__bar-grant { align-self: center; flex-shrink: 0; white-space: nowrap; }
+.con-zoom__bar:has(> .con-zoom__bar-vote) .con-zoom__bar-grant {
+    position: relative;
+    .con-tgrant__label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+    .con-tgrant__caption { padding-left: 0; border-left: 0; }
+}
+html.con-profile-handheld .con-zoom__bar-grant { display: none; }
 /* …and the ruling party's answer, the same content-sized chip grammar. The
    Deck's footer has no width for it either — the rules column's «for you» row
    carries the same reading in words on every profile. */

@@ -17,6 +17,8 @@
  * becomes — that is the placement dossier's, once the seat points at one.
  */
 
+import {ResolutionCountId} from './resolutionCounts';
+
 /** WHO receives the tile: the winner of the vote always, and every participant at or above the influence line. */
 export type TileGrantRecipients = {
   winner: true;
@@ -45,3 +47,32 @@ export function tileGrantEligibility(grant: TileGrantDeclaration, seat: {winner:
   }
   return seat.influence >= grant.recipients.influenceAtLeast ? 'influence' : 'none';
 }
+
+/**
+ * THE COUNT that explains WHERE the tile may go — the seat's legal
+ * destinations as a board count the server model carries per seat
+ * (`ParliamentPlayerModel.counts`), read by the same cell predicate the
+ * stand uses. A grant onto the seat's own city counts their cities on Mars;
+ * the number is the destinations (a cell once, whatever its stack), and a
+ * zero is the honest «nothing lands».
+ */
+export function tileGrantCountId(grant: TileGrantDeclaration): ResolutionCountId {
+  switch (grant.placement) {
+  case 'own-city': return 'marsCities';
+  }
+}
+
+/**
+ * THE STEP KEY the grant's record is filed under — derived from the
+ * declaration, so the server's step and every client reading of «the viewer's
+ * record of the grant» name the same thing without a per-card table.
+ */
+export function tileGrantStepKey(grant: TileGrantDeclaration): string {
+  switch (grant.placement) {
+  case 'own-city': return `${grant.tile}-tier`;
+  }
+}
+
+/** The skips' reasons — English keys the stage plate translates; the server records them, every reading prints them. */
+export const TILE_GRANT_NOT_ELIGIBLE_REASON = 'Below 2 influence and not the winner of the vote';
+export const TILE_GRANT_NO_DESTINATION_REASON = 'No city on Mars to build on';

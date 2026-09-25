@@ -75,6 +75,15 @@
                                  variant="inline"
                                  :reasonElsewhere="true"
                                  data-parl-band-chip="tile" />
+            <!-- A TILE GRANTED BY THRESHOLD (Skyscrapers): the viewer's own tier — theirs by the vote or the
+                 line, its destinations, the stack it became. A skipped seat reads its skip chip instead. -->
+            <ConsoleTileGrant v-else-if="chip.kind === 'grant' && grantReading !== undefined"
+                              class="con-band__grant"
+                              :reading="grantReading"
+                              size="compact"
+                              variant="inline"
+                              :reasonElsewhere="true"
+                              data-parl-band-chip="grant" />
             <!-- THE PLANET'S OWN MOVE: no seat, no chip in anybody's hands — the
                  parameter, the step it made, and «РТ никому». A lowering is
                  stated in the LOSS tone; nothing here celebrates. -->
@@ -124,6 +133,7 @@ import ConsoleInfluenceYield from '@/client/components/console/parliament/Consol
 import ConsoleYieldUnit from '@/client/components/console/parliament/ConsoleYieldUnit.vue';
 import ConsolePartyReaction from '@/client/components/console/parliament/ConsolePartyReaction.vue';
 import ConsoleWinnerReward from '@/client/components/console/parliament/ConsoleWinnerReward.vue';
+import ConsoleTileGrant from '@/client/components/console/parliament/ConsoleTileGrant.vue';
 import {partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {conLogicalPx} from '@/client/console/consoleLayoutProfile';
@@ -140,12 +150,13 @@ import {sittingMotion} from '@/client/console/parliament/sittingDirector';
 import {cardResourceKey} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {PartyReactionReading, partyReactionsOf, viewerHasSeat} from '@/client/console/parliament/partyReactionModel';
 import {WinnerRewardReading, winnerRewardGlyph, winnerRewardReadingOf, winnerRewardTableOf} from '@/client/console/parliament/winnerRewardModel';
+import {TileGrantReading, tileGrantReadingOf} from '@/client/console/parliament/tileGrantModel';
 import {worldMoveReadingOf, worldParameterUnit} from '@/client/console/parliament/worldMoveModel';
 import {ParameterMoveId} from '@/common/parliament/parameterMove';
 
 export default defineComponent({
   name: 'ConsoleParliamentBand',
-  components: {PlayerCube, ConsoleInfluenceYield, ConsolePartyReaction, ConsoleWinnerReward, ConsoleYieldUnit},
+  components: {PlayerCube, ConsoleInfluenceYield, ConsolePartyReaction, ConsoleWinnerReward, ConsoleTileGrant, ConsoleYieldUnit},
   props: {
     view: {type: Object as PropType<ParliamentViewVm>, required: true},
     model: {type: Object as PropType<ParliamentModel | undefined>, default: undefined},
@@ -273,6 +284,11 @@ export default defineComponent({
     winnerReading(): WinnerRewardReading | undefined {
       return winnerRewardReadingOf(this.resolution, this.model, winnerRewardTableOf(this.playerView.game));
     },
+    /** A tile granted by threshold (Skyscrapers): the viewer's own reading — the same model the vote block and the inspector read. */
+    grantReading(): TileGrantReading | undefined {
+      const reading = tileGrantReadingOf(this.resolution, this.model, this.viewerColor);
+      return reading === undefined || reading.context === 'reference' ? undefined : reading;
+    },
     /** The reward's reading as the band's own data (the model orders it, this builds it). */
     reward(): BandRewardReading {
       const position = this.position;
@@ -289,6 +305,10 @@ export default defineComponent({
       }
       if (this.winnerReading !== undefined) {
         out.tile = winnerRewardGlyph(this.winnerReading.reward);
+      }
+      // A SKIPPED grant reads as its skip chip (the record's reason) — the grant chip is for a tier owed or placed.
+      if (this.grantReading !== undefined && this.grantReading.skipped === undefined) {
+        out.grant = this.grantReading.grant.tile;
       }
       const world = this.worldMoves;
       if (world.length > 0) {
@@ -367,7 +387,7 @@ export default defineComponent({
       if (position === undefined || !this.sittingUp || this.stage !== 'reward') {
         return undefined;
       }
-      if (this.yields.length === 0 && this.mine.length === 0 && this.winnerReading === undefined) {
+      if (this.yields.length === 0 && this.mine.length === 0 && this.winnerReading === undefined && this.grantReading === undefined) {
         return undefined;
       }
       const recorded = this.mine.length > 0 || position.step === 'adjourn' || position.step === 'done';

@@ -179,6 +179,20 @@ describe('parliamentBand — the reading band says the REASON, in objects', () =
       expect(kinds(band.chips)).deep.eq(['world']);
       expect(band.chips[0]).deep.include({skipped: 'Oxygen is at its maximum — it is not reduced'});
     });
+    /*
+     * A TILE GRANTED BY THRESHOLD (Skyscrapers, RX20) is its own member of the
+     * line — after the winner's tile, before the planet — for a tier OWED or
+     * PLACED; a seat the rule passed over reads its skip chip instead (the band
+     * component withholds the grant for a skipped record).
+     */
+    it('a tile granted by threshold rides the reward line as its own chip, in the tile\'s place', () => {
+      const band = line({stage: 'reward', rewardStep: 'placement', reward: {...NO_REWARD, grant: 'city'}});
+      expect(kinds(band.chips)).deep.eq(['grant']);
+      expect(band.chips[0]).deep.eq({kind: 'grant', tile: 'city'});
+      expect(band.key, 'the grant is part of the line\'s identity').not.eq(line({stage: 'reward', rewardStep: 'placement'}).key);
+      const withWorld = line({stage: 'reward', rewardStep: 'received', reward: {...NO_REWARD, tile: 'greenery', grant: 'city', world: [{parameter: 'oxygen', before: 5, after: 6, steps: 1, unrewarded: false}]}});
+      expect(kinds(withWorld.chips)).deep.eq(['tile', 'grant', 'world']);
+    });
     it('a wait on ANOTHER seat is the line, and a seat with nothing at all still reads', () => {
       expect(kinds(line({stage: 'reward', reward: {...NO_REWARD, waitingFor: RED}}).chips)).deep.eq(['awaiting']);
       const empty = line({stage: 'reward', rewardStep: 'received'});

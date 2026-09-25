@@ -134,6 +134,7 @@ export function countedMetricIconUrl(metric: ResolutionCountMetric): string {
 export function countedTileIconUrl(tile: BoardCountedTile): string {
   switch (tile) {
   case 'spaceCity': return `${TILES}/city.png`;
+  case 'marsCity': return `${TILES}/city.png`;
   }
 }
 

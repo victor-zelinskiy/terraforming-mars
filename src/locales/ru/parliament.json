@@ -867,5 +867,22 @@
   "Place the city tile on top of one of your cities on Mars": "Разместите тайл города поверх одного из своих городов на Марсе",
   "The resolution is enacted: this city tile must be placed on top of one of your cities on Mars.": "Резолюция принята: этот тайл города обязательно размещается поверх одного из ваших городов на Марсе.",
   "Skipped: the city tile": "Пропущено: тайл города",
-  "${0} built a city tile on top of their city — a stack of ${1} · ${2}": "${0} строит тайл города поверх своего города — стопка из ${1} · ${2}"
+  "${0} built a city tile on top of their city — a stack of ${1} · ${2}": "${0} строит тайл города поверх своего города — стопка из ${1} · ${2}",
+  "City tile": "Тайл города",
+  "on top of your own city on Mars": "поверх своего города на Марсе",
+  "For the winner of the vote and everyone at influence ${0} or more": "Победителю голосования и каждому с влиянием от ${0}",
+  "Yours at influence ${0} — win or not": "Ваш при влиянии ${0} — и без победы",
+  "Only if you win — influence ${0} is below ${1}": "Только если победите: влияние ${0} меньше ${1}",
+  "You place it — the winner of the vote": "Размещаете вы — победитель голосования",
+  "You place it — influence ${0}": "Размещаете вы — влияние ${0}",
+  "Not yours — influence ${0} is below ${1} and you did not win": "Не ваш: влияние ${0} меньше ${1}, голосование не выиграно",
+  "You placed it — the winner of the vote": "Размещено вами — победитель голосования",
+  "You placed it — influence ${0}": "Размещено вами — влияние ${0}",
+  "a stack of ${0}": "стопка из ${0}",
+  "your cities on Mars: ${0}": "ваших городов на Марсе: ${0}",
+  "Each city in the stack scores its adjacent greeneries separately. The cell pays no placement bonus again. A player with no city on Mars gains nothing.": "Каждый город в стопке отдельно приносит ПО за соседние озеленения. Клетка повторно бонус размещения не платит. Игрок без города на Марсе не получает ничего.",
+  "${0} city(-ies) on Mars": "${0} {город|города|городов} на Марсе",
+  "A city of yours on Mars counts once, whatever the height of its stack. A city off Mars does not.": "Ваш город на Марсе считается один раз, какой бы высоты ни была стопка. Город вне Марса не считается.",
+  "Off Mars — a space city": "Вне Марса — космический город",
+  "Result by the vote and the influence line": "Результат по голосованию и линии влияния"
 }

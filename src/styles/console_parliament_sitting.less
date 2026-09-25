@@ -322,7 +322,10 @@
         &--ocean { background: #2c7dd6; }
         /* The winner's COLONY (Colony Contest): the colony tile glyph, never a coloured square. */
         &--colony { border-radius: 0; box-shadow: none; background: url(./assets/tiles/colony.png) center / contain no-repeat; }
+        /* A CITY TIER (Skyscrapers): the city tile glyph — the stack it became reads «×N» beside it. */
+        &--city { border-radius: 0; box-shadow: none; background: url(./assets/tiles/city.png) center / contain no-repeat; }
     }
+    &__part-stack { font-size: .86rem; font-weight: 700; color: @con-parl-mint; }
 }
 
 /* THE RESULTS PANEL TAKES THE AGENDA TRACK WHOLE, ON EVERY PROFILE. The stage grows out of the body by

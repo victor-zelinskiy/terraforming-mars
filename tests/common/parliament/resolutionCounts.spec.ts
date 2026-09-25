@@ -198,5 +198,27 @@ describe('resolutionCounts', () => {
       expect(cardCountUnits(BOARD, new PowerPlant(), {eventTagsInPlay: true})).eq(0);
       expect(countCardsToward(BOARD, [new ArtificialLake(), new HE3FusionPlant()], FACE_DOWN)).deep.eq({id: BOARD, count: 0, cards: []});
     });
+
+    /*
+     * THE TWIN over the OTHER half of the board (Skyscrapers, RX20): a city
+     * tile of the player's on a cell that is NOT a reserved area — the
+     * DESTINATIONS of a granted tier. A cell counts once whatever its stack;
+     * every city tile kind counts (the engine's own city predicate); a
+     * greenery, an empty area and a space city each name why not.
+     */
+    it('marsCities — the destinations of a granted tier: a city on Mars, a cell once whatever its stack; a space city is off Mars', () => {
+      const MARS = 'marsCities' as const;
+      expect(resolutionCountKind(MARS)).deep.eq({kind: 'board', tiles: 'marsCity'});
+      expect(spaceCountVerdict(MARS, marsCity)).deep.eq({counts: true});
+      expect(spaceCountVerdict(MARS, marsCapital), 'every city tile kind counts').deep.eq({counts: true});
+      expect(spaceCountVerdict(MARS, {...marsCity, stackHeight: 3} as typeof marsCity), 'a stack is ONE destination').deep.eq({counts: true});
+      expect(spaceCountVerdict(MARS, ganymede)).deep.eq({counts: false, reason: 'Off Mars — a space city'});
+      expect(spaceCountVerdict(MARS, oceanCity)).deep.eq({counts: false, reason: 'Off Mars — a space city'});
+      expect(spaceCountVerdict(MARS, emptyArea)).deep.eq({counts: false, reason: 'Off Mars — a space city'});
+      expect(spaceCountVerdict(MARS, greenery)).deep.eq({counts: false, reason: 'No city tile here'});
+      expect(countSpacesToward(MARS, [marsCity, ganymede, emptyArea, marsCapital, greenery, phobos])).deep.eq({id: MARS, count: 2, cards: [], spaces: ['35', '36']});
+      expect(cardCountVerdict(MARS, new ArtificialLake(), FACE_DOWN)).deep.eq({counts: false, reason: 'Counted on the board, not among cards'});
+      expect(countCardsToward(MARS, [new ArtificialLake(), new HE3FusionPlant()], FACE_DOWN)).deep.eq({id: MARS, count: 0, cards: []});
+    });
   });
 });

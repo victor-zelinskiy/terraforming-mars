@@ -58,6 +58,13 @@ const CANON: Record<string, string> = {
   'Enacted resolution': 'Принятая резолюция',
   // «Итоги: честность»: the one lobby fact the delegates ledger does not state out loud.
   'Without a free delegate': 'Без свободного делегата',
+  // Skyscrapers (RX20): a tile granted by THRESHOLD speaks the winner tile's own two forms — «размещаете вы»
+  // before, «размещено вами» after — with the reason it is the viewer's beside it (glossary §6).
+  'You place it — the winner of the vote': 'Размещаете вы — победитель голосования',
+  'You place it — influence ${0}': 'Размещаете вы — влияние ${0}',
+  'You placed it — the winner of the vote': 'Размещено вами — победитель голосования',
+  'You placed it — influence ${0}': 'Размещено вами — влияние ${0}',
+  'Only if you win — influence ${0} is below ${1}': 'Только если победите: влияние ${0} меньше ${1}',
 };
 
 /** Retired forms — none may survive in a RU value of the parliament's own file. */

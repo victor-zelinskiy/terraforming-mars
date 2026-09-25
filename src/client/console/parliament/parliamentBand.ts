@@ -75,6 +75,12 @@ export type BandChip =
   /** The winner's part: a tile waiting behind the door to the board, or the colony built in the sitting's own step. */
   | {kind: 'tile', tile: 'ocean' | 'greenery' | 'colony'}
   /**
+   * A TILE GRANTED BY THRESHOLD (Skyscrapers): the viewer's own standing — theirs by the vote or the
+   * influence line, the destinations it may land on, the stack once it did. The band component draws it
+   * from the reading it computes; a viewer whose record is a SKIP reads the skip chip instead.
+   */
+  | {kind: 'grant', tile: 'city'}
+  /**
    * THE WORLD'S OWN MOVE (Gas Export): what the law did to the PLANET — the
    * parameter, where it stood, where it landed, and the fact that nobody was
    * credited for it. It belongs to no seat, so it is the same chip for every
@@ -110,6 +116,8 @@ export type BandRewardReading = {
   skips: ReadonlyArray<{id: string, title: string, reason: string, amount?: number, unit?: string, units?: ReadonlyArray<string>}>;
   /** The winner's part: the tile still to be placed, or the colony still to be built (`colony`). */
   tile?: 'ocean' | 'greenery' | 'colony';
+  /** A tile granted by threshold (Skyscrapers): the viewer's own tier — pending, or placed (never a skip: the skip chip says that). */
+  grant?: 'city';
   /** The WORLD's own part of the enactment — the planet's moves, in the server's order. */
   world?: ReadonlyArray<{parameter: ParameterMoveId, before: number, after: number, steps: number, unrewarded: boolean, skipped?: string}>;
   /** Nothing is paid to this seat: what remains instead (the passive that now stands / the action to take). */
@@ -353,6 +361,9 @@ function rewardLine(sitting: BandSitting): BandLine {
   if (reward.tile !== undefined) {
     chips.push({kind: 'tile', tile: reward.tile});
   }
+  if (reward.grant !== undefined) {
+    chips.push({kind: 'grant', tile: reward.grant});
+  }
   // THE PLANET, after the seat's own part — the card's own order («каждому M€;
   // затем кислород и Венера»), which the journal keeps too.
   for (const move of reward.world ?? []) {
@@ -379,7 +390,7 @@ function rewardLine(sitting: BandSitting): BandLine {
   }
   return {
     kicker: 'Your reward',
-    key: `reward:${sitting.rewardStep}:${reward.state ?? ''}:${reward.yields.length}:${reward.skips.length}:${(reward.world ?? []).length}`,
+    key: `reward:${sitting.rewardStep}:${reward.state ?? ''}:${reward.yields.length}:${reward.skips.length}:${(reward.world ?? []).length}:${reward.grant ?? ''}`,
     chips,
     committed: true,
     ...(reward.yields.length === 0 && reward.quiet !== undefined ? {quiet: reward.quiet.kind} : {}),

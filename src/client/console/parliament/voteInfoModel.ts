@@ -41,6 +41,7 @@ import {LevyReading, levyShortNoteKey} from '@/common/parliament/resolutionLevy'
 import {COLONY_LEDGER_EMPTY, COLONY_LEDGER_TOTAL, ColonyLedgerReading, colonyLedgerOf} from './colonyLedgerModel';
 import {PartyReactionReading, partyReactionsOf, viewerHasSeat} from './partyReactionModel';
 import {quietRewardPoseOf} from './quietRewardPose';
+import {TileGrantReading, tileGrantCaptionOf, tileGrantDetailOf, tileGrantLabelKey, tileGrantReadingOf} from './tileGrantModel';
 
 /**
  * English i18n keys of the reading's kicker (the panel's ONLY heading over the reading): the seated
@@ -81,6 +82,11 @@ export type VoteReadingVm = {
    * («−10 → +7 = −3»). A short seat's warning is the reading's `note`. Undefined for every other resolution.
    */
   levy?: LevyReading;
+  /**
+   * A TILE GRANTED BY THRESHOLD (Skyscrapers): the viewer's standing at the vote — theirs at their
+   * influence or only by winning, and the cities on Mars it may land on. Undefined for every other resolution.
+   */
+  grant?: TileGrantReading;
 };
 
 /** One side of a fact: a translatable key with params, or a RAW display string (a player's name), optionally with the leader's cube. */
@@ -152,7 +158,13 @@ export function voteReadingOf(
   }
   const all = voteYieldsOf(resolution, model, viewer);
   const yields = oneNumberYieldsOf(all).filter((y) => y.context !== 'reference');
+  const grantReading = tileGrantReadingOf(resolution, model, viewer);
+  const grant = grantReading === undefined || grantReading.context === 'reference' ? undefined : grantReading;
   if (yields.length === 0) {
+    // A tile granted by threshold pays no number, but it is the seat's OWN reading all the same.
+    if (grant !== undefined) {
+      return {...none, kicker: READING_KICKER_SEATED, grant};
+    }
     // Nothing to pay at the enactment: a passive / an action reads under the quiet reward's kicker
     // (what the card gives while enacted); a card with neither keeps the spectator's plain heading.
     const quiet = quietRewardPoseOf(resolution);
@@ -178,6 +190,7 @@ export function voteReadingOf(
     note,
     ...(ledger === undefined ? {} : {ledger}),
     ...(levy === undefined ? {} : {levy}),
+    ...(grant === undefined ? {} : {grant}),
   };
 }
 
@@ -396,6 +409,20 @@ export function voteInfoBudget(vm: VoteInfoVm, text: TextFn = IDENTITY): VoteInf
       strings.push(...ledger.rows.map((row) => text(row.colony)), text(COLONY_LEDGER_TOTAL));
     }
   }
+  // A TILE GRANTED BY THRESHOLD's words: the tile, the viewer's standing and their destinations (the inline
+  // row prints no head and no «where» — the arrow onto the base city and the card's own graphic say it).
+  const grant = vm.reading.grant;
+  if (grant !== undefined) {
+    strings.push(text(tileGrantLabelKey(grant.grant)));
+    const caption = tileGrantCaptionOf(grant);
+    if (caption !== undefined) {
+      strings.push(text(caption.key, caption.params === undefined ? undefined : [...caption.params]));
+    }
+    const detail = tileGrantDetailOf(grant);
+    if (detail !== undefined) {
+      strings.push(text(detail.key, detail.params === undefined ? undefined : [...detail.params]));
+    }
+  }
   strings.push(text(vm.vote.kicker));
   if (vm.vote.source === 'lobby') {
     strings.push(text('from the lobby · free'));
@@ -413,7 +440,8 @@ export function voteInfoBudget(vm: VoteInfoVm, text: TextFn = IDENTITY): VoteInf
   const contexts = new Set(vm.reading.yields.filter((y) => y.context !== 'reference').map((y) => y.context));
   return {
     kickers: 2,
-    readings: contexts.size,
+    // A grant is ONE reading of its own (the seat's standing) where no number is paid.
+    readings: contexts.size + (grant !== undefined ? 1 : 0),
     facts: vm.vote.facts.length,
     words: countWords(strings.join(' ')),
     // The party box beside the reading prints a GRAPHIC (the emblem in the printed formula) and one

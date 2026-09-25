@@ -13,7 +13,7 @@ import {
 } from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {activeAnimationHoldLabels, isAnimationHoldActive} from '@/client/components/presentation/animationHold';
 import {
-  detectAgendaBonus, detectNewViewerRewards, flushParliamentRewards, markAgendaBonusLanded, markRewardLanded, parliamentParksReveal,
+  detectAgendaBonus, detectNewViewerRewards, detectNewViewerTile, flushParliamentRewards, markAgendaBonusLanded, markRewardLanded, parliamentParksReveal,
   parliamentRewardDiag, parliamentRewardPending, parliamentRewardState, RATING_RAIL_KEY, releaseParliamentRewards, resetParliamentRewards,
   rewardBeatKey, rewardLanded, seedParliamentRewardHold, sittingKeyOf, takeAgendaBonus, takeOwedRewards, waveSpecOf,
 } from '@/client/console/parliament/parliamentRewardBeat';
@@ -90,6 +90,17 @@ describe('parliamentRewardBeat — the ledger of what the sitting still owes', (
     expect(owed[0].delivery.direction).eq('loss');
     expect(owed[0].delivery.source, 'the address\'s source is where the loss LANDS').eq('card-icon');
     expect(owed[0].spec).deep.eq({channel: 'stock', resource: 'megacredits', amount: 10, direction: 'loss'});
+  });
+
+  it('DETECT the viewer\'s BOARD TILE: a `city` record (Skyscrapers\' tier) owes its receipt like the winner\'s ocean / greenery — a known record, a skip or another seat\'s tier does not', () => {
+    const before = view({generation: 3, outcomes: []});
+    const tier = outcome({kind: 'city', step: 'city-tier', space: '35' as never, stackHeight: 2});
+    expect(detectNewViewerTile(before, view({generation: 3, outcomes: [tier]}))).deep.eq(tier);
+    expect(detectNewViewerTile(before, view({generation: 3, outcomes: [outcome({kind: 'greenery', step: 'greenery', part: 'winner'})]}))?.kind).eq('greenery');
+    expect(detectNewViewerTile(view({generation: 3, outcomes: [tier]}), view({generation: 3, outcomes: [tier]})), 'already known').is.undefined;
+    expect(detectNewViewerTile(before, view({generation: 3, outcomes: [outcome({kind: 'skipped', step: 'city-tier', reason: 'No city on Mars to build on'})]}))).is.undefined;
+    expect(detectNewViewerTile(before, view({generation: 3, outcomes: [tier]}, RED)), 'another seat\'s tier is not the viewer\'s').is.undefined;
+    expect(detectNewViewerTile(view({generation: 2, outcomes: []}), view({generation: 3, outcomes: [tier]})), 'a new generation is a new sitting — the first view seeds nothing').is.undefined;
   });
 
   it('the wave and the ADDRESS agree: exactly the kinds addressed to the rail fly a rail chip, on the address\'s own unit', () => {

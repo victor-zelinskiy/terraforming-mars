@@ -54,6 +54,7 @@ import {
   ResolutionCountMetric, ResolutionCountModel, resolutionCountKind, RESOLUTION_COUNT_IDS, RESOLUTION_TAG_COUNTING_MODE,
 } from '../../../common/parliament/resolutionCounts';
 import {Resource} from '../../../common/Resource';
+import {tileGrantCountId} from '../../../common/parliament/tileGrant';
 import {IPlayer} from '../../IPlayer';
 import {ICard} from '../../cards/ICard';
 import {Space} from '../../boards/Space';
@@ -68,6 +69,8 @@ function inPlay(card: ICard): boolean {
 function boardCountSpaces(player: IPlayer, tiles: BoardCountedTile): ReadonlyArray<Space> {
   switch (tiles) {
   case 'spaceCity': return player.game.board.getCitiesOffMars(player);
+  // THE VERY LIST a city tier is offered (Skyscrapers): the seat's own cities on Mars, a cell once.
+  case 'marsCity': return player.game.board.getAvailableSpacesForCityTier(player);
   }
 }
 
@@ -189,6 +192,11 @@ export function declaredCountIds(catalog: ResolutionCatalog): Array<ResolutionCo
       if (effect.count !== undefined) {
         ids.add(effect.count.id);
       }
+    }
+    // A TILE GRANTED BY THRESHOLD counts its DESTINATIONS (Skyscrapers: the seat's cities on Mars) — the
+    // same per-seat count, so every reading of «where would it go» stands on the server's cells.
+    if (definition.tileGrant !== undefined) {
+      ids.add(tileGrantCountId(definition.tileGrant));
     }
   }
   return RESOLUTION_COUNT_IDS.filter((id) => ids.has(id));
