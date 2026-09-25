@@ -2298,6 +2298,7 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'hydro-terminal'
   'parliament-powergrid-vote' | 'parliament-powergrid-recap' |
   // RX08 Colonization Funding: two space cities and influence 3 at the vote — the maximum, one number.
   'parliament-colonization-vote' |
+  'parliament-migration-vote' |
   // RX13 Generous Funding: TR 24 (one set of 5 over 15) and Agenda 4 at the vote — a win adds one influence, the rating stands.
   'parliament-generous-vote' |
   // RX14 Heat Capture: the assembly (temperature −20 °C, blue's delegate) and the law ENACTED with red holding Nuclear Power (10 → 7).

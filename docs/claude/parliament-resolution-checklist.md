@@ -41,7 +41,8 @@ worklist:** сначала пиши карту, потом читай, что о
    **`tileGrant?`** (RX20) — тайл ПО ПОРОГУ как ДАННЫЕ (`tileGrant.ts`: тайл, куда, получатели = победитель +
    линия влияния); из него выводятся предикат получателей, ключ шага, счёт назначений и семейство `tile-grant`.
    **СТОПКА городов — высота на клетке, ПО за каждый ярус, надстройка = третий законный случай арма посадки**;
-   раздел RX20 ниже.
+   раздел RX20 ниже. **Счёт по полю бывает ДВУХ РОДОВ — назначения (клетка раз) и величина (сумма ярусов); объявление
+   обязано показывать, который это** (`resolutionCountKind(...).measure`: `cells` | `tiers`); раздел RX21 ниже.
 4. `immediateSteps` / `winnerSteps` — шаги. КАЖДЫЙ шаг **либо мутирует, либо спрашивает** (`EnactStep`:
    вернул `undefined` — всё сделал; вернул промпт — ничего не менял, изменит ответ). В ЛЮБОЙ ветке — включая
    «ничего не сделал» — шаг вызывает `ctx.report(outcome)` **ровно один раз** с `kind` из таблицы адресов;
@@ -593,6 +594,39 @@ return createMarsSelectSpace(player, title, cities, {placementType: 'city-tier',
 - Бюджет: юниты карты (19) + стопки (26) + чтения (10) + счёт; ОДИН e2e (`console-parliament-skyscrapers`: честный
   промпт, досье, L3, сцена по in-page сэмплам с «×2» в одном сэмпле с высотой 2, серверная правда, итоги с «×2»,
   разбор счёта — две строки на клетку, осмотр клетки — ряд на ярус). Док: `docs/TURMOIL_REDUX_SKYSCRAPERS.md`.
+
+### Счёт по полю ДВУХ РОДОВ — назначения (клетка раз) и ВЕЛИЧИНА (сумма ярусов); объявление несёт меру (RX21, 2026-09-25)
+
+```ts
+scaled: [{id: 'megacredits', unit: {kind: 'stock', resource: MEGACREDITS}, perInfluence: 2, count: {id: 'marsCityTiers', per: 2}, recipient: 'each'}],   // потолка нет
+// resolutionCountKind('marsCityTiers') === {kind: 'board', tiles: 'marsCity', measure: 'tiers'}   — ВЕЛИЧИНА: стопка из 2 = 2
+// resolutionCountKind('marsCities')    === {kind: 'board', tiles: 'marsCity', measure: 'cells'}   — НАЗНАЧЕНИЯ RX20: клетка раз
+const counted = resolutionCount(player, 'marsCityTiers');   // число = MarsBoard.countCities(player, 'onmars'), клетки + высоты рядом
+ctx.report({kind: 'stock', effect, stock: MEGACREDITS, influence, count, counted: [], countedSpaces, countedTiers, amount, before, after});
+ctx.report({kind: 'skipped', ..., amount: 0, reason: 'No cities on Mars and no influence'});   // свой пропуск, не «No influence»
+```
+
+- **Ловушка, ради которой раздел написан**: `marsCities` (RX20) читает ТЕ ЖЕ клетки и считает каждую ОДИН раз (куда можно
+  положить ярус). Без стопок оба счёта равны на любой доске и расходятся ровно на стопку — молчаливая ошибка. Поэтому у
+  величины СВОЙ id, а вид `board` несёт `measure` (`BoardCountMeasure = 'cells' | 'tiers'`): `cells` — длина списка клеток,
+  `tiers` — число даёт ДВИЖОК (`MarsBoard.countCities`), никогда `.length`. Гард: спек «THE DIVERGENCE» (3 против 4 на одном
+  столе, одни и те же `spaces`).
+- **Объяснение числа — клетки С ВЫСОТАМИ**: `ResolutionCountModel.tiers` (столбец, выровненный со `spaces` — двойник `units` у
+  карт), в записи/модели `countedTiers`, в чтении `InfluenceYield.countedTiers`; клетка в списке ОДИН раз, никогда по разу
+  на ярус. `CountedSpaceFacts` несёт `stackHeight` (то же поле, что у серверного `Space`); арифметика ярусов ОДНА —
+  `common/boards/cityStack.ts` (серверный `boards/cityStack.ts` — типизированная дверь к ней): ею считают и `countCities`
+  движка, и `countSpacesToward` стенда. Паритет по корпусу досок — спек (клетки, число И высоты).
+- **Чтения**: «Для вас» печатает клетку с весом — «Ноктис ×2» (счётчик самой доски и тот же «×n», что у карт и колоний);
+  безымянные клетки — число и то, что делает его больше клеток: «4 города на Марсе · 3 клетки · стопка из 2» (ключи
+  `${0} cell(s)`, `a stack of ${0}` — последний RX20); без стопки — число одно. Глиф — тот же тайл города БЕЗ искры
+  (`countedTileSpark`: искра — знак космического города; глиф `marsCities` RX20 потерял её тем же ходом). Формула при
+  равных ставках — «2 [M€] / [город] + [влияние]», без строки потолка.
+- **Стенд**: сценарий семейства `counted-board` объявляет `counts` (id счёта) и показывается только закону с этим счётом
+  (клетки RX08 с производством — не про RX21); синтетическая клетка знает `stackHeight`, ряд рисует «×N» на тайле, число
+  ряда — `countSpacesToward`.
+- Бюджет: юниты карты (18) + гард; `resolutionCounts` (+1); клиентские юниты (чтения +4, «Для вас» +1, глиф +1); ОДИН e2e
+  (`console-parliament-migration`: панель голосования печатает 4 при трёх клетках, fullscreen объясняет «3 клетки ·
+  стопка из 2», волна M€ в рельсу с тиком на посадке, запись с `countedTiers`). Док: `docs/TURMOIL_REDUX_MIGRATION_FUNDING.md`.
 
 ### Бюджет проверки на карту (решение владельца 2026-09-23)
 

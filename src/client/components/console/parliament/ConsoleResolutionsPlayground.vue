@@ -403,7 +403,10 @@
                      :class="{'con-rxpg__cell--counted': cell.counts}"
                      :data-rxpg-cell="cell.id"
                      :data-rxpg-counts="cell.counts ? 'true' : 'false'">
-                  <span class="con-rxpg__cell-tile" :class="{'con-rxpg__cell-tile--empty': !cell.city}" :style="cell.city ? {backgroundImage: `url(${cityTileUrl})`} : undefined"></span>
+                  <span class="con-rxpg__cell-tile" :class="{'con-rxpg__cell-tile--empty': !cell.city}" :style="cell.city ? {backgroundImage: `url(${cityTileUrl})`} : undefined">
+                    <!-- A STACK (Skyscrapers): the board's own «×N» counter — and what the `tiers` measure weighs the cell by. -->
+                    <b v-if="cell.tiers > 1" class="con-rxpg__cell-stack" :data-rxpg-cell-tiers="cell.tiers">×{{ cell.tiers }}</b>
+                  </span>
                   <span class="con-rxpg__cell-name">{{ cell.name }}</span>
                   <span class="con-rxpg__tcard-verdict">{{ cellVerdictOf(cell) }}</span>
                 </div>
@@ -513,11 +516,14 @@ import {
 } from '@/common/parliament/influenceScaling';
 import {PartyReactionReading, partyReactionsOf} from '@/client/console/parliament/partyReactionModel';
 import {
-  cardCountUnits, cardCountVerdict, CardCountContext, countCardsToward, countColoniesToward, CountedSpaceFacts, countMetricToward, countProductionToward,
-  countSpacesToward, ResolutionCountByResource, ResolutionCountKind, ResolutionCountMetricModel, ResolutionCountModel, resolutionCountKind, spaceCountVerdict,
+  BoardCountMeasure, cardCountUnits, cardCountVerdict, CardCountContext, countCardsToward, countColoniesToward, CountedSpaceFacts, countMetricToward,
+  countProductionToward, countSpacesToward, ResolutionCountByResource, ResolutionCountId, ResolutionCountKind, ResolutionCountMetricModel, ResolutionCountModel,
+  resolutionCountKind, spaceCountVerdict,
 } from '@/common/parliament/resolutionCounts';
+import {cityTiersOf} from '@/common/boards/cityStack';
 import {LEVY_STEP_KEY, levyNothingReasonKey, levyPaid, LevyReading, levyShortReasonKey} from '@/common/parliament/resolutionLevy';
 import {SpaceId} from '@/common/Types';
+import {BoardName} from '@/common/boards/BoardName';
 import {SpaceName} from '@/common/boards/SpaceName';
 import {SpaceType} from '@/common/boards/SpaceType';
 import {CITY_TILES, TileType} from '@/common/TileType';
@@ -661,6 +667,13 @@ type PgScenario = {
    * microbe», and its two kinds of holder nothing to the floater card). Absent = every law of the family reads it.
    */
   holds?: ReadonlyArray<CardResource>,
+  /**
+   * A counted family over the BOARD: the count the scenario's cells are laid out for, so it is listed only for a
+   * law whose counted term is that very id (Colonization Funding's space cities and their production mean nothing
+   * to Migration Funding's cities on Mars, and a stack on Mars nothing to the space cities). Absent = every law of
+   * the family reads it.
+   */
+  counts?: ResolutionCountId,
   /** The winner-tile family: the general validator leaves the winner no legal cell. */
   noCell?: boolean,
   /** A LIVE scenario: the engine-generated fixture the A press boots as a real game. */
@@ -757,6 +770,13 @@ const MARS_CITY: PgCell = {id: '35', spaceType: SpaceType.LAND, tile: {tileType:
 /* The tile-grant family (Skyscrapers): a second city on Mars, a greenery (never a destination), a space city (off Mars). */
 const MARS_CITY_2: PgCell = {id: '42', spaceType: SpaceType.LAND, tile: {tileType: TileType.CITY}};
 const MARS_GREENERY: PgCell = {id: '36', spaceType: SpaceType.LAND, tile: {tileType: TileType.GREENERY}};
+/*
+ * The `tiers` measure (Migration Funding: 2 M€ per city on Mars, a tier apiece): a third city, and a STACK of two on
+ * Noctis City — a cell the board layer names, so the reading can say «Noctis City ×2» — counted through the SAME
+ * predicate and the shared stack arithmetic (`countSpacesToward` → `cityTiersOf`), never a number typed in.
+ */
+const MARS_CITY_3: PgCell = {id: '47', spaceType: SpaceType.LAND, tile: {tileType: TileType.CITY}};
+const MARS_STACK_NOCTIS: PgCell = {id: SpaceName.NOCTIS_CITY, spaceType: SpaceType.LAND, tile: {tileType: TileType.CITY}, stackHeight: 2};
 
 const SCENARIOS: ReadonlyArray<PgScenario> = [
   // Step 0 of the Agenda: influence 0 — the step asks nothing and names the skip.
@@ -1060,46 +1080,72 @@ const SCENARIOS: ReadonlyArray<PgScenario> = [
     winner: 0, context: 'proposal', noRecipient: false},
   // ── THE BOARD-COUNTED FAMILY (Colonization Funding: min(6, 2 × S + I), S = the player's SPACE CITIES —
   //    CELLS of the board, never cards; the stand counts them by the shared cell predicate) ──
-  {key: 'funding-zero', family: 'counted-board', label: 'No space cities and no influence', viewer: 0,
+  {key: 'funding-zero', family: 'counted-board', counts: 'spaceCities', label: 'No space cities and no influence', viewer: 0,
     seats: [{agenda: 0, bonus: 0, cells: [MARS_CITY], production: 2}, {agenda: 3, bonus: 0, cells: [GANYMEDE], production: 1}], winner: 1, context: 'applied', noRecipient: false},
   // Influence pays on its own: no space city and influence 3 is +3 — an input of 0 cities, never an empty place.
-  {key: 'funding-influence-only', family: 'counted-board', label: 'Influence alone', viewer: 0,
+  {key: 'funding-influence-only', family: 'counted-board', counts: 'spaceCities', label: 'Influence alone', viewer: 0,
     seats: [{agenda: 5, bonus: 0, cells: [], production: 3}, {agenda: 1, bonus: 0, cells: [GANYMEDE], production: 0}], winner: 1, context: 'proposal', noRecipient: false},
-  {key: 'funding-cities-only', family: 'counted-board', label: 'Space cities alone', viewer: 0,
+  {key: 'funding-cities-only', family: 'counted-board', counts: 'spaceCities', label: 'Space cities alone', viewer: 0,
     seats: [{agenda: 0, bonus: 0, cells: [GANYMEDE, PHOBOS], production: 1}, {agenda: 1, bonus: 0, cells: [], production: 0}], winner: 1, context: 'proposal', noRecipient: false},
   // Agenda 2 = influence 1; winning takes the marker to step 3 (influence 2): 2 × 1 + 1 → +3 becomes 2 + 2 → +4.
-  {key: 'funding-below-cap', family: 'counted-board', label: 'Below the maximum', viewer: 0,
+  {key: 'funding-below-cap', family: 'counted-board', counts: 'spaceCities', label: 'Below the maximum', viewer: 0,
     seats: [{agenda: 2, bonus: 0, cells: [GANYMEDE], production: 4}, {agenda: 1, bonus: 0, cells: [], production: 0}], winner: 1, context: 'proposal', noRecipient: false},
-  {key: 'funding-exact-cap', family: 'counted-board', label: 'Exactly +6', viewer: 0,
+  {key: 'funding-exact-cap', family: 'counted-board', counts: 'spaceCities', label: 'Exactly +6', viewer: 0,
     seats: [{agenda: 3, bonus: 0, cells: [GANYMEDE, PHOBOS], production: 6}, {agenda: 1, bonus: 0, cells: [], production: 0}], winner: 1, context: 'proposal', noRecipient: false},
   // Two cities and influence 3: 7 owed, 6 paid — the cap bounds the SUM.
-  {key: 'funding-over-cap', family: 'counted-board', label: 'Over the maximum', viewer: 0,
+  {key: 'funding-over-cap', family: 'counted-board', counts: 'spaceCities', label: 'Over the maximum', viewer: 0,
     seats: [{agenda: 5, bonus: 0, cells: [GANYMEDE, PHOBOS], production: 10}, {agenda: 1, bonus: 0, cells: [], production: 0}], winner: 1, context: 'proposal', noRecipient: false},
-  {key: 'funding-mars-city', family: 'counted-board', label: 'A city on Mars does not count', viewer: 0,
+  {key: 'funding-mars-city', family: 'counted-board', counts: 'spaceCities', label: 'A city on Mars does not count', viewer: 0,
     seats: [{agenda: 3, bonus: 0, cells: [GANYMEDE, MARS_CITY], production: 2}, {agenda: 1, bonus: 0, cells: [], production: 0}], winner: 1, context: 'proposal', noRecipient: false},
-  {key: 'funding-empty-area', family: 'counted-board', label: 'An empty reserved area counts nothing', viewer: 0,
+  {key: 'funding-empty-area', family: 'counted-board', counts: 'spaceCities', label: 'An empty reserved area counts nothing', viewer: 0,
     seats: [{agenda: 3, bonus: 0, cells: [GANYMEDE, PHOBOS_EMPTY], production: 2}, {agenda: 1, bonus: 0, cells: [], production: 0}], winner: 1, context: 'proposal', noRecipient: false},
-  {key: 'funding-venus-area', family: 'counted-board', label: 'A Venus reserved area counts like the base ones', viewer: 0,
+  {key: 'funding-venus-area', family: 'counted-board', counts: 'spaceCities', label: 'A Venus reserved area counts like the base ones', viewer: 0,
     seats: [{agenda: 0, bonus: 0, cells: [DAWN, TORUS], production: 2}, {agenda: 1, bonus: 0, cells: [], production: 0}], winner: 1, context: 'proposal', noRecipient: false},
-  {key: 'funding-seats', family: 'counted-board', label: 'Every player gets their own result', viewer: 0,
+  {key: 'funding-seats', family: 'counted-board', counts: 'spaceCities', label: 'Every player gets their own result', viewer: 0,
     seats: [{agenda: 1, bonus: 0, cells: [GANYMEDE], production: 3}, {agenda: 8, bonus: 0, cells: [PHOBOS, TORUS], production: -2}], winner: 0, context: 'applied', noRecipient: false},
   // Agenda 4 = influence 2; winning takes the marker to step 5 (influence 3) BEFORE the effect: 2 + 2 → +4 becomes 2 + 3 → +5.
-  {key: 'funding-winner-agenda', family: 'counted-board', label: 'The winner advances on the Agenda first', viewer: 0,
+  {key: 'funding-winner-agenda', family: 'counted-board', counts: 'spaceCities', label: 'The winner advances on the Agenda first', viewer: 0,
     seats: [{agenda: 4, bonus: 0, cells: [GANYMEDE], production: 5}, {agenda: 3, bonus: 0, cells: [], production: 0}], winner: 0, context: 'proposal', noRecipient: false},
-  {key: 'funding-negative-production', family: 'counted-board', label: 'Negative production rises the ordinary way', viewer: 0,
+  {key: 'funding-negative-production', family: 'counted-board', counts: 'spaceCities', label: 'Negative production rises the ordinary way', viewer: 0,
     seats: [{agenda: 3, bonus: 0, cells: [GANYMEDE], production: -3}, {agenda: 1, bonus: 0, cells: [], production: 0}], winner: 1, context: 'applied', noRecipient: false},
-  {key: 'funding-applied', family: 'counted-board', label: 'Recorded result', viewer: 0,
+  {key: 'funding-applied', family: 'counted-board', counts: 'spaceCities', label: 'Recorded result', viewer: 0,
     seats: [{agenda: 5, bonus: 0, cells: [GANYMEDE, PHOBOS], production: 8}, {agenda: 0, bonus: 0, cells: [MARS_CITY], production: 1}], winner: 1, context: 'applied', noRecipient: false},
-  {key: 'funding-spectator', family: 'counted-board', label: 'Spectator — the formula alone', viewer: SPECTATOR,
+  {key: 'funding-spectator', family: 'counted-board', counts: 'spaceCities', label: 'Spectator — the formula alone', viewer: SPECTATOR,
     seats: [{agenda: 3, bonus: 0, cells: [GANYMEDE]}, {agenda: 1, bonus: 0, cells: []}], winner: 0, context: 'proposal', noRecipient: false},
-  {key: 'funding-quest-0', family: 'counted-board', label: 'Chairman quest 0/1', viewer: 0,
+  {key: 'funding-quest-0', family: 'counted-board', counts: 'spaceCities', label: 'Chairman quest 0/1', viewer: 0,
     seats: [{agenda: 3, bonus: 0, cells: [GANYMEDE], production: 2}, {agenda: 1, bonus: 0, cells: [], production: 0}], winner: 0, context: 'applied', noRecipient: false, quest: {progress: [0, 0]}},
-  {key: 'funding-quest-done', family: 'counted-board', label: 'Chairman quest completed', viewer: 0,
+  {key: 'funding-quest-done', family: 'counted-board', counts: 'spaceCities', label: 'Chairman quest completed', viewer: 0,
     seats: [{agenda: 3, bonus: 0, cells: [GANYMEDE], production: 2}, {agenda: 1, bonus: 0, cells: [], production: 0}], winner: 0, context: 'applied', noRecipient: false, quest: {progress: [1, 0], completedBy: 0}},
   // ── LIVE (Colonization Funding): the engine-generated fixture — two space cities and influence 3, the maximum.
-  {key: 'funding-live-vote', family: 'counted-board', label: 'Live: the vote', viewer: 0,
+  {key: 'funding-live-vote', family: 'counted-board', counts: 'spaceCities', label: 'Live: the vote', viewer: 0,
     seats: [{agenda: 5, bonus: 0, cells: [GANYMEDE, PHOBOS], production: 3}, {agenda: 1, bonus: 0, cells: [], production: 1}], winner: 0, context: 'proposal', noRecipient: false,
     live: 'parliament-colonization-vote', liveNote: 'Colonization Funding up for the vote: your two space cities and influence 3 reach the maximum — one number, nothing left for a win to add'},
+  // ── RX21 · MIGRATION FUNDING (Mars First — «2 M€ per city on Mars + influence; each city in a stack counts
+  //    separately»): the SAME family over the `tiers` MEASURE. The instrument is the seat's cities ON MARS, so the
+  //    scenarios are the stack's edges: none, cities without a stack, a stack (4 from 3 cells), a space city beside
+  //    (off Mars — not counted), the recorded result, the live vote. No cap: the card prints none.
+  {key: 'migration-zero', family: 'counted-board', counts: 'marsCityTiers', label: 'No cities on Mars and no influence', viewer: 0,
+    seats: [{agenda: 0, bonus: 0, cells: [GANYMEDE]}, {agenda: 3, bonus: 0, cells: [MARS_CITY_2]}], winner: 1, context: 'applied', noRecipient: false},
+  {key: 'migration-influence-only', family: 'counted-board', counts: 'marsCityTiers', label: 'Influence alone', viewer: 0,
+    seats: [{agenda: 5, bonus: 0, cells: []}, {agenda: 1, bonus: 0, cells: [MARS_CITY_2]}], winner: 1, context: 'proposal', noRecipient: false},
+  {key: 'migration-three-cities', family: 'counted-board', counts: 'marsCityTiers', label: 'Three cities, no stack', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, cells: [MARS_CITY, MARS_CITY_2, MARS_CITY_3]}, {agenda: 1, bonus: 0, cells: []}], winner: 1, context: 'proposal', noRecipient: false},
+  {key: 'migration-stack', family: 'counted-board', counts: 'marsCityTiers', label: 'A stack of 2 — four cities on three cells', viewer: 0,
+    seats: [{agenda: 5, bonus: 0, cells: [MARS_CITY, MARS_CITY_2, MARS_STACK_NOCTIS]}, {agenda: 1, bonus: 0, cells: [MARS_CITY_3]}], winner: 1, context: 'proposal', noRecipient: false},
+  {key: 'migration-space-city', family: 'counted-board', counts: 'marsCityTiers', label: 'A space city beside does not count', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, cells: [MARS_CITY, MARS_CITY_2, GANYMEDE]}, {agenda: 1, bonus: 0, cells: [PHOBOS]}], winner: 1, context: 'proposal', noRecipient: false},
+  {key: 'migration-seats', family: 'counted-board', counts: 'marsCityTiers', label: 'Every player gets their own result', viewer: 0,
+    seats: [{agenda: 1, bonus: 0, cells: [MARS_STACK_NOCTIS]}, {agenda: 8, bonus: 0, cells: [MARS_CITY, MARS_CITY_2]}], winner: 0, context: 'applied', noRecipient: false},
+  {key: 'migration-applied', family: 'counted-board', counts: 'marsCityTiers', label: 'Recorded result — the stack in the record', viewer: 0,
+    seats: [{agenda: 5, bonus: 0, cells: [MARS_CITY, MARS_CITY_2, MARS_STACK_NOCTIS]}, {agenda: 0, bonus: 0, cells: [GANYMEDE]}], winner: 1, context: 'applied', noRecipient: false},
+  {key: 'migration-spectator', family: 'counted-board', counts: 'marsCityTiers', label: 'Spectator — the formula alone', viewer: SPECTATOR,
+    seats: [{agenda: 3, bonus: 0, cells: [MARS_CITY]}, {agenda: 1, bonus: 0, cells: []}], winner: 0, context: 'proposal', noRecipient: false},
+  {key: 'migration-quest-1', family: 'counted-board', counts: 'marsCityTiers', label: 'Chairman quest 1/2', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, cells: [MARS_CITY]}, {agenda: 1, bonus: 0, cells: []}], winner: 0, context: 'applied', noRecipient: false, quest: {progress: [1, 0]}},
+  // ── LIVE (Migration Funding): the engine-generated fixture — three city cells, one a stack of 2 (4 cities), influence 3 → 14 M€.
+  {key: 'migration-live-vote', family: 'counted-board', counts: 'marsCityTiers', label: 'Live: the vote', viewer: 0,
+    seats: [{agenda: 5, bonus: 0, cells: [MARS_CITY, MARS_CITY_2, MARS_STACK_NOCTIS]}, {agenda: 1, bonus: 0, cells: [MARS_CITY_3]}], winner: 0, context: 'proposal', noRecipient: false,
+    live: 'parliament-migration-vote', liveNote: 'Migration Funding up for the vote: your four cities on Mars — one of them a stack of 2 — and influence 3 are 14 M€'},
   // ── RX12 · GAS EXPORT (the Reds — «M€ по влиянию; кислород −1, Венера +2, РТ никому») and RX14 · HEAT
   //    CAPTURE (temperature −2): the WORLD-MOVE family. Its instrument is the GLOBAL PARAMETERS, so its
   //    scenarios are their LIMITS — the one place a world move can fail to happen, and the one thing a
@@ -1347,8 +1393,8 @@ function spreadOver(holders: ReadonlyArray<CardName>, amount: number): Array<{ca
 }
 type TableauRow = {color: Color, label: string, viewer: boolean, count: number, cards: ReadonlyArray<TableauCardRow>};
 
-/** One cell of a seat's synthetic board, with the shared cell predicate's verdict and the board layer's name for it. */
-type CellRowCell = {id: SpaceId, name: string, city: boolean, counts: boolean, reason: string};
+/** One cell of a seat's synthetic board, with the shared cell predicate's verdict, the board layer's name for it, and its stack's height. */
+type CellRowCell = {id: SpaceId, name: string, city: boolean, counts: boolean, reason: string, tiers: number};
 type CellRow = {color: Color, label: string, viewer: boolean, count: number, cells: ReadonlyArray<CellRowCell>};
 /** One boundary of a threshold count's ladder (the threshold itself, then every full set), reached or not by the seat's value. */
 type LadderMark = {at: number, reached: boolean, threshold: boolean};
@@ -1478,9 +1524,11 @@ export default defineComponent({
     scenarioList(): Array<{s: PgScenario, i: number}> {
       const moved = new Set((this.selected?.worldMoves ?? []).map((move) => move.parameter));
       const kinds = this.spreadResources ?? [];
+      const countId = this.countEffect?.count?.id;
       return SCENARIOS.map((s, i) => ({s, i})).filter((entry) => entry.s.family === this.family &&
         (entry.s.parameter === undefined || moved.has(entry.s.parameter)) &&
-        (entry.s.holds === undefined || entry.s.holds.every((kind) => kinds.includes(kind))));
+        (entry.s.holds === undefined || entry.s.holds.every((kind) => kinds.includes(kind))) &&
+        (entry.s.counts === undefined || entry.s.counts === countId));
     },
     /** The first scaled part that COUNTS the tableau — what the tableau rows explain. */
     countEffect(): InfluenceScaledEffect | undefined {
@@ -1496,6 +1544,12 @@ export default defineComponent({
       const count = this.countEffect?.count;
       return count === undefined ? undefined : resolutionCountKind(count.id).kind;
     },
+    /** HOW a board count weighs a cell — once, or its stack's height (the declaration's word, never guessed from the id). */
+    countMeasure(): BoardCountMeasure | undefined {
+      const count = this.countEffect?.count;
+      const kind = count === undefined ? undefined : resolutionCountKind(count.id);
+      return kind?.kind === 'board' ? kind.measure : undefined;
+    },
     /** The city pictogram a counted cell draws — the mechanics' own asset (the same one the count glyph prints). */
     cityTileUrl(): string {
       return countedTileIconUrl('spaceCity');
@@ -1505,7 +1559,7 @@ export default defineComponent({
       switch (this.family) {
       case 'counted': return 'Result by cards and influence';
       case 'counted-tags': return 'Result by tags and influence';
-      case 'counted-board': return 'Result by space cities and influence';
+      case 'counted-board': return this.countMeasure === 'tiers' ? 'Result by cities on Mars and influence' : 'Result by space cities and influence';
       case 'counted-metric': return 'Result by terraform rating and influence';
       case 'counted-production': return 'Result by production steps and influence, after the levy';
       case 'counted-colonies': return 'Result by influence and by colonies';
@@ -1571,22 +1625,26 @@ export default defineComponent({
       }
       const id = effect.count.id;
       return SEATS.map((i) => {
-        const cells = (this.seats[i].cells ?? []).map((cell): CellRowCell => {
+        const own = this.seats[i].cells ?? [];
+        const cells = own.map((cell): CellRowCell => {
           const verdict = spaceCountVerdict(id, cell);
-          const info = getSpecialCellInfo(cell.id);
+          // The stand's cells are THARSIS ids: the board layer names Noctis City and the mountains only for a board.
+          const info = getSpecialCellInfo(cell.id, BoardName.THARSIS);
           return {
             id: cell.id,
             name: info === undefined ? '#' + cell.id : translateText(info.title),
             city: cell.tile !== undefined && CITY_TILES.has(cell.tile.tileType),
             counts: verdict.counts,
             reason: verdict.counts ? '' : verdict.reason,
+            tiers: cityTiersOf(cell),
           };
         });
         return {
           color: TEST_PLAYERS[i].color,
           label: TEST_PLAYERS[i].label,
           viewer: this.viewerSeatIndex === i,
-          count: cells.filter((cell) => cell.counts).length,
+          // The number is the SHARED reader's — the ticks on the `cells` measure, the stacks summed on `tiers`.
+          count: countSpacesToward(id, own).count,
           cells,
         };
       });
@@ -1908,8 +1966,8 @@ export default defineComponent({
             player: TEST_PLAYERS[i].color, step: effect.id, part: 'effect' as const, effect: effect.id, stock: resource, amount: payout.amount, influence: payout.influence,
             // A supply payout with a COUNT term (Generous Funding, the budgets): the record carries the count and what explains it.
             ...(payout.count === undefined ? {} : {
-              count: payout.count.count, counted: payout.count.cards, countedMetric: payout.count.metric, countedByResource: payout.count.byResource,
-              uncapped: payout.uncapped,
+              count: payout.count.count, counted: payout.count.cards, countedSpaces: payout.count.spaces, countedTiers: payout.count.tiers,
+              countedMetric: payout.count.metric, countedByResource: payout.count.byResource, uncapped: payout.uncapped,
             }),
           };
           out.push(payout.skipped === undefined ?
@@ -2039,7 +2097,7 @@ export default defineComponent({
             const common = {
               player: TEST_PLAYERS[i].color, step: effect.id, part: 'effect' as const, effect: effect.id, production: resource, amount: payout.amount, influence: payout.influence,
               count: payout.count?.count, counted: payout.count?.cards, countedUnits: payout.count?.units, countedSpaces: payout.count?.spaces,
-              countedMetric: payout.count?.metric, uncapped: payout.uncapped,
+              countedTiers: payout.count?.tiers, countedMetric: payout.count?.metric, uncapped: payout.uncapped,
             };
             out.push(payout.skipped === undefined ?
               {...common, kind: 'production', before, after: before + payout.amount} :
@@ -2564,7 +2622,7 @@ export default defineComponent({
             fixedYield(effect, 'resolving', payout.amount, payout.influence,
               {
                 count: payout.count.count, counted: payout.count.cards, countedUnits: payout.count.units, countedSpaces: payout.count.spaces,
-                countedMetric: payout.count.metric, countedByResource: payout.count.byResource, uncapped: payout.uncapped,
+                countedTiers: payout.count.tiers, countedMetric: payout.count.metric, countedByResource: payout.count.byResource, uncapped: payout.uncapped,
               }) :
             resolvingYieldOf(effect, payout.amount, this.model, TEST_PLAYERS[i].color);
       return payout.skipped === undefined ? reading : {...reading, skipped: payout.skipped};

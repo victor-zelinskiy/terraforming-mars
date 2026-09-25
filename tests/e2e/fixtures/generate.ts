@@ -88,6 +88,7 @@ import {JOINT_RESEARCH_ID} from '../../../src/server/parliament/resolutions/scie
 import {JOVIAN_TAX_RIGHTS_ID} from '../../../src/server/parliament/resolutions/unity/JovianTaxRights';
 import {MEDICAL_DATABASE_ID} from '../../../src/server/parliament/resolutions/scientists/MedicalDatabase';
 import {METAL_RESEARCH_ID} from '../../../src/server/parliament/resolutions/industrialists/MetalResearch';
+import {MIGRATION_FUNDING_ID} from '../../../src/server/parliament/resolutions/marsFirst/MigrationFunding';
 import {SKYSCRAPERS_ID} from '../../../src/server/parliament/resolutions/marsFirst/Skyscrapers';
 import {Board} from '../../../src/server/boards/Board';
 import {GHGProducingBacteria} from '../../../src/server/cards/base/GHGProducingBacteria';
@@ -911,6 +912,48 @@ const colonizationVote = (): ParliamentFixtureSpec => ({
   },
 });
 parliamentFixture('parliament-colonization-vote', colonizationVote());
+
+// ── RX21 · MIGRATION FUNDING (Mars First — «2 M€ per city on Mars + influence; each city in a stack counts
+//    separately»): the first count paid by a QUANTITY the engine sums (the `tiers` measure). The vote: blue at
+//    Agenda step 5 (influence 3) with THREE city cells on Mars, one of them a STACK of 2 — four cities →
+//    (4 + 3) × 2 = 14: the panel reads «[city] 4 + [influence] 3 → +14» (no cap, no win suffix — the next step is a
+//    TR step) and the fullscreen explains the four as «3 cells · a stack of 2». Red: step 1, one city → +4. The
+//    card's ONE e2e walks from this vote through both passes into the sitting's reward stage. ──
+/** A quiet city cell for `player` — no printed bonus, no tile or ocean beside it, not Noctis City — placed silently, outside any effect. */
+function quietCity(game: IGame, player: TestPlayer): Space {
+  const cell = game.board.getAvailableSpacesForCity(player).find((s) => s.bonus.length === 0 && s.id !== game.board.noctisCitySpaceId &&
+    !game.board.getAdjacentSpaces(s).some((a) => a.tile !== undefined || a.spaceType === SpaceType.OCEAN));
+  if (cell === undefined) {
+    throw new Error(`no quiet city cell for ${player.color}`);
+  }
+  cell.tile = {tileType: TileType.CITY};
+  cell.player = player;
+  return cell;
+}
+parliamentFixture('parliament-migration-vote', {
+  resolution: MIGRATION_FUNDING_ID,
+  votes: [0],
+  agenda: [5, 1],
+  stopAt: 'vote',
+  arrange: ({game, p1, p2}) => {
+    quietCity(game, p1);
+    quietCity(game, p1).stackHeight = 2;
+    quietCity(game, p1);
+    quietCity(game, p2);
+  },
+  expect: ({game, p1, p2}) => {
+    const count = resolutionCount(p1, 'marsCityTiers');
+    if (count.count !== 4 || count.spaces?.length !== 3 || JSON.stringify([...(count.tiers ?? [])].sort()) !== JSON.stringify([1, 1, 2])) {
+      throw new Error(`the parliament-migration-vote fixture expected blue's four cities on three cells, got ${JSON.stringify(count)}`);
+    }
+    if (resolutionCount(p1, 'marsCities').count !== 3 || game.board.countCities(p1, 'onmars') !== 4) {
+      throw new Error('the parliament-migration-vote fixture expected the destinations at 3 and the quantity at 4');
+    }
+    if (resolutionCount(p2, 'marsCityTiers').count !== 1) {
+      throw new Error('the parliament-migration-vote fixture expected red with one city on Mars');
+    }
+  },
+});
 
 // ── RX13 · GENEROUS FUNDING (the Greens — «2 M€ per influence and per complete set of 5 TR over 15»): the first
 //    counter that reads ONE PLAYER METRIC by threshold and step. The vote: the card in the first voting slot with

@@ -154,9 +154,18 @@
         &--counted { box-shadow: inset 0 0 0 .08rem fade(@con-parl-mint, 70%); }
     }
     &__cell-tile {
+        position: relative;
         width: 1.9rem; height: 2.2rem;
         background-size: contain; background-position: center; background-repeat: no-repeat;
         &--empty { border-radius: .3rem; box-shadow: inset 0 0 0 .05rem fade(@con-text, 30%); }
+    }
+    /* a STACK's height — the board's own «×N» counter, on the tile's lower-left corner as on the cell */
+    &__cell-stack {
+        position: absolute; left: -.35rem; bottom: -.15rem;
+        padding: 0 .22rem; border-radius: .3rem;
+        font-size: .58rem; font-weight: 800; line-height: 1.5; letter-spacing: .02em;
+        color: @con-text; background: @con-glass;
+        box-shadow: inset 0 0 0 .05rem fade(@con-amber, 60%);
     }
     &__cell-name { max-width: 7rem; text-align: center; font-size: .62rem; font-weight: 600; line-height: 1.15; }
     &__cell--counted &__tcard-verdict { color: fade(@con-parl-mint, 96%); }

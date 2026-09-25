@@ -36,9 +36,8 @@ const OUT_ROOT = path.resolve('screenshots', 'parliament-skyscrapers');
 const PRESET = {id: 'standard-1080', viewport: {width: 1920, height: 1080}, query: '&consoleProfile=auto'} as const;
 const SKY_ID = 'RDX_MARS_SKYSCRAPERS';
 const SKY_CLASS = /rdx-mars-skyscrapers/;
-/** TileType.CITY / TileType.GREENERY (`common/TileType`). */
+/** TileType.CITY (`common/TileType`). */
 const CITY = 2;
-const GREENERY = 0;
 
 async function shoot(page: Page, name: string): Promise<void> {
   const dir = path.join(OUT_ROOT, PRESET.id);

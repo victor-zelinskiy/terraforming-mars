@@ -446,7 +446,7 @@ Lobbyist/Politician/T. Politician — набор в `getCandidates` (`MilestoneA
 | Mars First Budget | Mars First | −12 M€; M€ = стройка+Марс + влияние; **каждый размещает город** (по часовой от первого) | Н, В | 2 метки Марса | D (метка Марса) |
 | Medical Database | Scientists | data или бактерия на карту за науку + влияние — единица ДВУХ ВИДОВ, вид по карте (`AddResourcesToCards` над списком видов) | В | 2 метки науки | **A · СДАНА RX18** |
 | Metal Research | Industrialists | сталь и титан = влияние; **П**: сталь и титан +1 M€ — ценность на ЧТЕНИИ аксессора (`resourceValueBonus`), поле игрока не пишется | Н, П | +1 пр. титана | **A · СДАНА RX19** |
-| Migration Funding | Mars First | 2 M€ за город на Марсе + влияние (стек считается отдельно) | Н | 2 города на Марсе | A |
+| Migration Funding | Mars First | 2 M€ за город на Марсе + влияние (стек считается отдельно — счёт-ВЕЛИЧИНА `marsCityTiers`, мера `tiers`, число = `countCities`; НЕ назначения RX20 `marsCities`) | Н | 2 города на Марсе | **A · СДАНА RX21** |
 | Migration Underground | Reds (UW) | … | — | 3 подземных токена | C |
 | Mining Incentives | Industrialists | всем +1 пр. титана (плоская часть, форма RX15); +1 пр. стали за влияние (форма RX05) — новых механик нет; влияние 0 пропускает ТОЛЬКО сталь | Н | +1 пр. стали | **A · СДАНА RX22** |
 | Mohole Contest | Greens | 3 тепла/влияние; ★ температура +2 | Н, ★ | 1 метка микроба | A |
