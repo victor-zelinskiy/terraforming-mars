@@ -787,6 +787,8 @@
   "Not enough M€ for the levy: ${0} of ${1} M€ would be taken": "Не хватает M€ на плату: будет взято ${0} из ${1} M€",
   "Levy taken: ${0} M€, then the payout": "Плата взята: ${0} M€, затем выплата",
   "Levy taken: ${0} of ${1} M€ — not enough M€": "Плата взята: ${0} из ${1} M€, не хватило M€",
+  "Mining Incentives": "Стимулы добычи",
+  "Raise your titanium production 1 step. Then raise your steel production 1 step per influence.": "Повысьте производство титана на 1. Затем повысьте производство стали на 1 за каждое влияние.",
   "Joint Research": "Совместные исследования",
   "Draw cards until you have 6 cards in hand plus 1 per influence. If you already have that many or more, draw none.": "Возьмите карты, пока в руке не станет 6 карт плюс 1 за каждое влияние. Если в руке уже столько или больше, не берите ничего.",
   "Play 2 event cards": "Разыграйте 2 карты события",
