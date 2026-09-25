@@ -3,7 +3,7 @@ import {expect} from 'chai';
 import {Tag} from '@/common/cards/Tag';
 import PremiumCountGlyph from '@/client/components/premiumCard/PremiumCountGlyph.vue';
 import {Resource} from '@/common/Resource';
-import {countedColonyIconUrl, countedMetricIconUrl, countedTileIconUrl, standardResourceIconUrl} from '@/client/components/premiumCard/premiumCardIcons';
+import {countedColonyIconUrl, countedMetricIconUrl, countedTileIconUrl, countedTileSpark, standardResourceIconUrl} from '@/client/components/premiumCard/premiumCardIcons';
 
 /**
  * THE COUNTED OBJECT's glyph (Turmoil Redux): ONE drawing per kind of count,
@@ -30,6 +30,21 @@ describe('PremiumCountGlyph', () => {
     expect(spark.exists()).to.eq(true);
     expect(spark.classes()).to.include('pcard-sym--asterix');
     // A tile glyph carries no tag and no card silhouette.
+    expect(wrapper.find('.pcglyph__tag').exists()).to.eq(false);
+    expect(wrapper.find('.pvpcard').exists()).to.eq(false);
+  });
+
+  it('a TILE count over a city ON MARS (Migration Funding, Skyscrapers\' destinations) draws the same city pictogram BARE — no spark: the spark is the space city\'s footnote', () => {
+    const wrapper = mount(PremiumCountGlyph, {props: {glyph: {kind: 'tile', tile: 'marsCity'}}});
+    const glyph = wrapper.find('.pcglyph');
+    expect(glyph.exists()).to.eq(true);
+    expect(glyph.classes()).to.include('pcglyph--tile');
+    expect(glyph.attributes('data-count-tile')).to.eq('marsCity');
+    expect(wrapper.find('.pcglyph__tile').attributes('style')).to.contain(countedTileIconUrl('marsCity'));
+    expect(countedTileIconUrl('marsCity'), 'one city asset for both tiles').to.eq(countedTileIconUrl('spaceCity'));
+    expect(wrapper.find('.pcglyph__spark').exists()).to.eq(false);
+    expect(countedTileSpark('marsCity')).to.eq(false);
+    expect(countedTileSpark('spaceCity')).to.eq(true);
     expect(wrapper.find('.pcglyph__tag').exists()).to.eq(false);
     expect(wrapper.find('.pvpcard').exists()).to.eq(false);
   });

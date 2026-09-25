@@ -138,6 +138,20 @@ export function countedTileIconUrl(tile: BoardCountedTile): string {
   }
 }
 
+/**
+ * Does the counted TILE carry the face's footnote spark (`.pcard-sym--asterix`)?
+ * The spark is the physical card's «*» — the SPACE city's mark (a city on a
+ * reserved area off Mars); a city ON Mars prints bare (Migration Funding,
+ * Skyscrapers), and a spark on it would read as the other rule. The glyph
+ * draws exactly what the face draws.
+ */
+export function countedTileSpark(tile: BoardCountedTile): boolean {
+  switch (tile) {
+  case 'spaceCity': return true;
+  case 'marsCity': return false;
+  }
+}
+
 /** Standard-resource icon (production requirements, reserve units). */
 const STANDARD_RESOURCE_URL: Readonly<Record<Resource, string>> = {
   [Resource.MEGACREDITS]: `${RES}/megacredit.png`,

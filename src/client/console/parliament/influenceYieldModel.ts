@@ -202,6 +202,14 @@ export function yieldCountPresentation(id: ResolutionCountId): YieldCountPresent
       ruleKey: 'A city of yours on Mars counts once, whatever the height of its stack. A city off Mars does not.',
       skipReasonKey: 'No city on Mars to build on',
     };
+  case 'marsCityTiers':
+    // The SAME tile as a QUANTITY (Migration Funding): the city the face prints, bare — and a stack counts per tier.
+    return {
+      glyph: {kind: 'tile', tile: 'marsCity'},
+      pluralKey: '${0} city(-ies) on Mars',
+      ruleKey: 'Each city of yours on Mars counts: a stack of two counts twice. A city off Mars does not count.',
+      skipReasonKey: 'No cities on Mars and no influence',
+    };
   case 'scienceTags':
     return {
       glyph: {kind: 'tag', tag: Tag.SCIENCE},
@@ -239,6 +247,26 @@ export function countedCellNames(y: Pick<InfluenceYield, 'countedSpaces'>, nameO
     const cell = getSpecialCellInfo(id);
     return cell === undefined ? undefined : nameOf(cell.title);
   });
+}
+
+/** One counted cell of a board count: the board layer's name for it (or none) and what it contributed (its stack's height, 1 for a single city). */
+export type CountedCellEntry = {name: string | undefined, tiers: number};
+
+/**
+ * The counted CELLS of a board count WITH what each contributed — the
+ * `tiers` measure's list (Migration Funding: «each city in a stack counts
+ * separately»). The name is the board information layer's, as in
+ * `countedCellNames`; the height is the record's own column (`countedTiers`,
+ * aligned with the cells), 1 where the record carries none (a `cells`
+ * measure, or an older record).
+ */
+export function countedCellEntries(y: Pick<InfluenceYield, 'countedSpaces' | 'countedTiers'>, nameOf: (key: string) => string): Array<CountedCellEntry> {
+  return countedCellNames(y, nameOf).map((name, i) => ({name, tiers: Math.max(1, y.countedTiers?.[i] ?? 1)}));
+}
+
+/** The name of a counted cell with its weight, the way a card («Fusion Power ×2») or a colony («Luna ×2») reads: «Noctis City ×2». */
+export function countedCellLabel(entry: CountedCellEntry & {name: string}): string {
+  return entry.tiers > 1 ? `${entry.name} ×${entry.tiers}` : entry.name;
 }
 
 /**
@@ -556,7 +584,7 @@ export function voteYieldsOf(resolution: IClientResolution, model: ParliamentMod
     // …and its TILES, where the count is over the seat's colonies (Jovian Tax Rights): the reading names each.
     const counted: YieldCount | undefined = count === undefined ? undefined :
       {
-        count: count.count, cards: count.cards, units: count.units, byTag: count.byTag, spaces: count.spaces, metric: count.metric,
+        count: count.count, cards: count.cards, units: count.units, byTag: count.byTag, spaces: count.spaces, tiers: count.tiers, metric: count.metric,
         byResource: count.byResource, colonies: count.colonies,
       };
     const estimate = influenceYield(effect, 'estimate', seat.influence, counted);
@@ -625,8 +653,8 @@ export function enactedYieldsOf(
     const recorded = applied === undefined ? undefined :
       {
         count: applied.count, counted: applied.counted, countedUnits: applied.countedUnits, countedByTag: applied.countedByTag,
-        countedSpaces: applied.countedSpaces, countedMetric: applied.countedMetric, countedByResource: applied.countedByResource,
-        countedColonies: applied.countedColonies, uncapped: applied.uncapped,
+        countedSpaces: applied.countedSpaces, countedTiers: applied.countedTiers, countedMetric: applied.countedMetric,
+        countedByResource: applied.countedByResource, countedColonies: applied.countedColonies, uncapped: applied.uncapped,
       };
     // A MULTIPLIER effect (the colony ledger): every record of the plan pays its own unit and carries the
     // multiplier beside it — the reading is the multiplier, never the first row's amount.

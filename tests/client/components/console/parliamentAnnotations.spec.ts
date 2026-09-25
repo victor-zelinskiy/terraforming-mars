@@ -247,6 +247,49 @@ describe('parliamentAnnotations — the fullscreen inspector\'s reading blocks',
     expect(texts([resolutionAnnotations(id, [{...now, count: 0, countedSpaces: [], amount: 3, uncapped: 3}])[1]])).to.deep.eq(['No tile counts right now']);
   });
 
+  it('a BOARD-COUNTED effect of the `tiers` measure (Migration Funding): the rule of the stack; a named stack reads «×2»; unnamed cells read the number, then the cells and each stack that make it exceed them', () => {
+    const id = 'RDX_MARSFIRST_MIGRATION_FUNDING';
+    const effect = getResolution(id)?.scaled?.[0];
+    if (effect === undefined) {
+      throw new Error('Migration Funding declares no scaled effect');
+    }
+    const bare = resolutionAnnotations(id);
+    expect(bare.map((b) => b.labelKey), 'no winner block — this card has no winner part').to.deep.eq(['When enacted', 'Chairman quest']);
+    expect(texts([bare[0]])).to.deep.eq([
+      'Gain 2 M€ per city you have on Mars, plus 2 per influence. Each city in a stack counts separately.',
+      'Each city of yours on Mars counts: a stack of two counts twice. A city off Mars does not count.',
+    ]);
+    expect(texts([bare[1]])).to.deep.eq(['Place 2 city tiles on Mars']);
+    // Every counted cell named: the list, the stack with its weight — the board's own «×2». (The names are the board layer's
+    // and, without a board, only the reserved areas carry one — Noctis City and the mountains are Tharsis's — so the
+    // named case is exercised over the areas; on Mars itself the ordinary cells read by number, the next case.)
+    const now: InfluenceYield = {effect, context: 'estimate', influence: 3, amount: 12, count: 3, counted: [], countedSpaces: ['01', '02'], countedTiers: [2, 1]};
+    const named = resolutionAnnotations(id, [now]);
+    expect(named.map((b) => b.labelKey)).to.deep.eq(['When enacted', 'For you', 'Chairman quest']);
+    expect(named[1].rows[0].text).to.eq('Counted right now: ${0}');
+    expect(named[1].rows[0].params?.[0]).to.eq('Ganymede Colony ×2 · Phobos Space Haven');
+    // Unnamed cells with a stack: the number, then what makes it exceed the cells — how many cells, and the stack.
+    const unnamed = resolutionAnnotations(id, [{...now, count: 4, amount: 14, countedSpaces: ['35', '42', '47'], countedTiers: [1, 1, 2]}]);
+    expect(unnamed[1].rows[0].text).to.eq('Counted right now: ${0}');
+    expect(unnamed[1].rows[0].params?.[0]).to.match(/^4 /);
+    expect(unnamed[1].rows[0].params?.[0]).to.match(/ · 3 cell/);
+    expect(unnamed[1].rows[0].params?.[0]).to.match(/ · a stack of 2$/);
+    expect(unnamed[1].rows[0].params?.[0]).to.not.contain('47');
+    // A named stack among unnamed cells is named; two stacks are two entries.
+    const mixed = resolutionAnnotations(id, [{...now, count: 6, amount: 18, countedSpaces: ['35', '01', '42'], countedTiers: [1, 2, 3]}]);
+    expect(mixed[1].rows[0].params?.[0]).to.match(/^6 .* · 3 cell.* · Ganymede Colony ×2 · a stack of 3$/);
+    // No stack among unnamed cells: the number alone — nothing to explain beyond the rule sentence.
+    const plain = resolutionAnnotations(id, [{...now, count: 3, amount: 12, countedSpaces: ['35', '42', '47'], countedTiers: [1, 1, 1]}]);
+    expect(plain[1].rows[0].params?.[0]).to.match(/^3 /);
+    expect(plain[1].rows[0].params?.[0]).to.not.contain('cell');
+    // The record reads the same way, frozen; nothing counted — said in the object's own terms (a tile, never «no card»).
+    const applied = resolutionAnnotations(id, [{...now, context: 'applied', count: 4, amount: 14, countedSpaces: ['01', '35', '42'], countedTiers: [2, 1, 1]}]);
+    expect(applied[1].rows[0].text).to.eq('Counted at the enactment: ${0}');
+    expect(applied[1].rows[0].params?.[0]).to.match(/^4 .* · 3 cell.* · Ganymede Colony ×2$/);
+    expect(texts([resolutionAnnotations(id, [{...now, context: 'applied', count: 0, amount: 6, countedSpaces: [], countedTiers: []}])[1]])).to.deep.eq(['No tile was counted at the enactment']);
+    expect(texts([resolutionAnnotations(id, [{...now, count: 0, amount: 6, countedSpaces: [], countedTiers: []}])[1]])).to.deep.eq(['No tile counts right now']);
+  });
+
   it('a THRESHOLD-COUNTED effect (Generous Funding): its own qualification sentence, and the BREAKDOWN of the rating behind the number — never a list, never «no card»', () => {
     const id = 'RDX_GREENS_GENEROUS_FUNDING';
     const effect = getResolution(id)?.scaled?.[0];

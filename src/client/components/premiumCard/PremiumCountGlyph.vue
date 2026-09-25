@@ -18,7 +18,10 @@
         the physical card's «*» — a city on a reserved area OFF Mars). The
         same asset the mechanics print for `b.city()` and the same spark, so
         the reading cannot draw a different city than the card; a bare city
-        would read «every city you have», a card a fifth rule;
+        would read «every city you have», a card a fifth rule. And «per CITY
+        ON MARS» (Migration Funding, Skyscrapers' destinations) IS the bare
+        city — the spark there would read as the space city's rule
+        (`countedTileSpark` decides, per tile);
       · `metric`  — «per complete SET of 5 TR over 15» (Generous Funding): the
         rating badge the mechanics print for `b.tr()`, alone. The threshold
         and the step are not drawn here (the face prints «5» inside the badge
@@ -59,7 +62,8 @@
   </span>
   <span v-else-if="glyph.kind === 'tile'" class="pcglyph pcglyph--tile" :data-count-tile="glyph.tile" aria-hidden="true">
     <span class="pcglyph__tile" :style="{backgroundImage: `url(${tileUrlOf(glyph.tile)})`}"></span>
-    <span class="pcard-sym pcard-sym--asterix pcglyph__spark">*</span>
+    <!-- The footnote spark is the SPACE city's mark; a city ON Mars prints bare (`countedTileSpark`) — the glyph draws what the face draws. -->
+    <span v-if="sparkOf(glyph.tile)" class="pcard-sym pcard-sym--asterix pcglyph__spark">*</span>
   </span>
   <span v-else class="pcglyph" :data-count-tag="glyph.tag" aria-hidden="true">
     <span class="pcglyph__tag" :style="{backgroundImage: `url(${tagUrlOf(glyph.tag)})`}"></span>
@@ -72,7 +76,7 @@ import {Tag} from '@/common/cards/Tag';
 import {Resource} from '@/common/Resource';
 import {BoardCountedTile, ResolutionCountMetric} from '@/common/parliament/resolutionCounts';
 import PremiumVpCardGlyph from './PremiumVpCardGlyph.vue';
-import {CountedObjectGlyph, countedColonyIconUrl, countedMetricIconUrl, countedTileIconUrl, standardResourceIconUrl, tagIconUrl} from './premiumCardIcons';
+import {CountedObjectGlyph, countedColonyIconUrl, countedMetricIconUrl, countedTileIconUrl, countedTileSpark, standardResourceIconUrl, tagIconUrl} from './premiumCardIcons';
 
 export default defineComponent({
   name: 'PremiumCountGlyph',
@@ -92,6 +96,9 @@ export default defineComponent({
     },
     tileUrlOf(tile: BoardCountedTile): string {
       return countedTileIconUrl(tile);
+    },
+    sparkOf(tile: BoardCountedTile): boolean {
+      return countedTileSpark(tile);
     },
     metricUrlOf(metric: ResolutionCountMetric): string {
       return countedMetricIconUrl(metric);

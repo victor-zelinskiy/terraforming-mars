@@ -10,12 +10,13 @@ import {InfluenceScaledEffect, InfluenceYield, scaledAmount, uncappedAmount, win
 import {Resource} from '@/common/Resource';
 import {Tag} from '@/common/cards/Tag';
 import {
-  cardResourcePluralKey, countedCellNames, countedColonyNames, countedContributions, countedMetricParts, countedProductionParts, enactedLevyOf, enactedYieldsOf,
+  cardResourcePluralKey, countedCellEntries, countedCellLabel, countedCellNames, countedColonyNames, countedContributions, countedMetricParts,
+  countedProductionParts, enactedLevyOf, enactedYieldsOf,
   METRIC_SETS_PLURAL_KEY, metricLabelKeyOf, noRecipientNoteOf, oneNumberYieldsOf, PRODUCTION_HORIZON_KEY, productionCountLabelKeyOf, productionHorizonOn,
   productionResourceLabelKey, resolvingLevyOf, resolvingYieldOf, scaledEffectForCardResource, voteLevyOf, voteYieldsOf, winnerForecastCount,
   winSuffixesOf, yieldCaptionOf, yieldCountPresentation, yieldIconOf, yieldInfluenceEnters, yieldIsFlat,
 } from '@/client/console/parliament/influenceYieldModel';
-import {countMetricToward} from '@/common/parliament/resolutionCounts';
+import {countMetricToward, resolutionCountKind} from '@/common/parliament/resolutionCounts';
 import {SpaceId} from '@/common/Types';
 import {getResolution} from '@/client/parliament/ClientParliamentManifest';
 
@@ -364,6 +365,101 @@ describe('influenceYieldModel', () => {
     const names = countedCellNames({countedSpaces: ['01', '02', '69', '75']}, (key) => `t:${key}`);
     expect(names).deep.eq(['t:Ganymede Colony', 't:Phobos Space Haven', 't:Stanford Torus', undefined]);
     expect(countedCellNames({countedSpaces: undefined}, (key) => key)).deep.eq([]);
+  });
+
+  // ── A BOARD-COUNTED TERM of the `tiers` MEASURE (Migration Funding: 2 × (C + I), C = the CITIES ON MARS, a tier of a stack apiece) ──
+  const MIGRATION_MEGACREDITS: InfluenceScaledEffect = {
+    id: 'megacredits', unit: {kind: 'stock', resource: Resource.MEGACREDITS}, perInfluence: 2,
+    count: {id: 'marsCityTiers', per: 2}, recipient: 'each',
+  };
+  const migration = {...resolution, id: 'RDX_MIGRATION', scaled: [MIGRATION_MEGACREDITS]};
+  /** A seat whose cities on Mars stand on `spaces` with the stack heights `tiers` — the count the server model carries (the number is the heights' sum). */
+  const withMarsCities = (s: ParliamentPlayerModel, spaces: Array<SpaceId>, tiers: Array<number>): ParliamentPlayerModel =>
+    ({...s, counts: [{id: 'marsCityTiers', count: tiers.reduce((sum, n) => sum + n, 0), cards: [], spaces, tiers}]});
+
+  it('the shipped catalog declares Migration Funding as a BOARD count of the `tiers` measure at the influence\'s own rate (2 per city + 2 per influence), uncapped, into the supply, for every player', () => {
+    const card = getResolution('RDX_MARSFIRST_MIGRATION_FUNDING');
+    expect(card?.code).eq('RX21');
+    expect(card?.party).eq(PartyName.MARS);
+    expect(card?.scaled).deep.eq([MIGRATION_MEGACREDITS]);
+    expect(card?.hasWinnerEffect, 'no winner-only part').is.false;
+    expect(card?.compatibility, 'a base card').deep.eq([]);
+    expect(yieldIconOf(MIGRATION_MEGACREDITS)).deep.eq({family: 'resource', resource: Resource.MEGACREDITS, production: false});
+    // THE DECLARATION tells the two counts over one tile apart — the measure, never the id's spelling.
+    expect(resolutionCountKind('marsCityTiers')).deep.eq({kind: 'board', tiles: 'marsCity', measure: 'tiers'});
+    expect(resolutionCountKind('marsCities')).deep.eq({kind: 'board', tiles: 'marsCity', measure: 'cells'});
+    // The counted object is the TILE, bare (the spark is the space city's) — never a card glyph.
+    const presentation = yieldCountPresentation('marsCityTiers');
+    expect(presentation.glyph).deep.eq({kind: 'tile', tile: 'marsCity'});
+    expect(presentation.pluralKey).eq('${0} city(-ies) on Mars');
+    expect(presentation.skipReasonKey).eq('No cities on Mars and no influence');
+    expect(presentation.ruleKey).contains('stack of two counts twice');
+    expect(presentation.ruleKey).contains('off Mars does not count');
+    // Skyscrapers' count of DESTINATIONS keeps its own words beside it.
+    expect(yieldCountPresentation('marsCities').glyph).deep.eq({kind: 'tile', tile: 'marsCity'});
+    expect(yieldCountPresentation('marsCities').skipReasonKey).eq('No city on Mars to build on');
+    expect(yieldCountPresentation('spaceCities').glyph).deep.eq({kind: 'tile', tile: 'spaceCity'});
+  });
+
+  it('a tiers-measured vote reading: «[city] 4 + [influence] 3 → +14», the CELLS and their HEIGHTS carried — four from three cells; no cap mark; influence alone pays', () => {
+    // Agenda 5 = influence 3; the next step (6) is a TR step: ONE number.
+    const blue = withMarsCities(seat('blue' as Color, 5, 3), ['35', '31', '42'], [1, 2, 1]);
+    const yields = voteYieldsOf(migration, model([blue]), 'blue' as Color);
+    expect(yields.map((y) => y.context)).deep.eq(['estimate']);
+    expect(yields[0]).deep.include({influence: 3, count: 4, amount: 14});
+    expect(yields[0].countedSpaces, 'three cells').deep.eq(['35', '31', '42']);
+    expect(yields[0].countedTiers, 'the heights explain «4 from 3 cells»').deep.eq([1, 2, 1]);
+    expect(yields[0].counted, 'no card in the list').deep.eq([]);
+    expect(yields[0].uncapped, 'no cap declared — no sum beside the amount').is.undefined;
+    expect(yieldAtCap(yields[0])).is.false;
+    expect(winSuffixesOf(yields)).deep.eq([]);
+    // Influence alone: no city on Mars and influence 3 reads +6 — an input of 0 cities, never an empty place.
+    const [alone] = voteYieldsOf(migration, model([withMarsCities(seat('red' as Color, 5, 3), [], [])]), 'red' as Color);
+    expect(alone).deep.include({influence: 3, count: 0, amount: 6});
+    expect(alone.countedSpaces).deep.eq([]);
+    expect(alone.countedTiers).deep.eq([]);
+    // A win at step 3 (influence 1 → 2): the forecast carries the same cells and heights.
+    const growing = voteYieldsOf(migration, model([withMarsCities(seat('red' as Color, 2, 1), ['35'], [2])]), 'red' as Color);
+    expect(growing[0]).deep.include({influence: 1, count: 2, amount: 6});
+    expect(growing[1]).deep.include({context: 'forecast', influence: 2, count: 2, amount: 8, agendaStep: 3});
+    expect(growing[1].countedTiers).deep.eq([2]);
+    expect(winSuffixesOf(growing)).deep.eq([{effectId: 'megacredits', delta: 2, agendaStep: 3, influence: 2, atCap: false}]);
+    expect(scaledAmount(MIGRATION_MEGACREDITS, 3, 4)).eq(14);
+  });
+
+  it('an enacted tiers count reads the RECORDED cells and heights, never today\'s board; a record of the `cells` measure carries no heights', () => {
+    const blue = withMarsCities(seat('blue' as Color, 12, 5), ['35', '31', '42', '47'], [1, 3, 1, 1]);
+    const m = model([blue], {
+      lastPhase: {
+        generation: 3, final: false, winner: {instance: 'RDX_MIGRATION#0', resolution: 'RDX_MIGRATION', party: PartyName.MARS, votes: 1},
+        outcomes: [{
+          player: 'blue' as Color, step: 'megacredits', effect: 'megacredits', kind: 'stock', stock: Resource.MEGACREDITS,
+          amount: 10, influence: 1, count: 4, counted: [], countedSpaces: ['35', '31', '42'], countedTiers: [1, 2, 1], before: 20, after: 30,
+        }],
+        support: [], enacted: {instance: 'RDX_MIGRATION#0', resolution: 'RDX_MIGRATION', party: PartyName.MARS}, refreshed: [], lobbyRefilled: [],
+      },
+    });
+    const [y] = enactedYieldsOf(migration, m, 'blue' as Color);
+    expect(y).deep.include({context: 'applied', amount: 10, influence: 1, count: 4});
+    expect(y.countedSpaces, 'the cells of the enactment, not the four of today').deep.eq(['35', '31', '42']);
+    expect(y.countedTiers, 'the heights of the enactment').deep.eq([1, 2, 1]);
+    expect(yieldCaptionOf(y)).deep.eq({key: 'Received'});
+    // Colonization Funding's own readings carry no heights — the `cells` measure has none.
+    const funded = voteYieldsOf(funding, model([withCities(seat('blue' as Color, 5, 3), ['01', '02'])]), 'blue' as Color);
+    expect(funded[0].countedSpaces).deep.eq(['01', '02']);
+    expect(funded[0].countedTiers).is.undefined;
+  });
+
+  it('a counted cell reads with its weight — «Noctis City ×2» — the way a card or a colony worth two does; an unnamed cell keeps its height and no name', () => {
+    // The names are the board layer's: without a board only the reserved areas are named (Noctis City and the mountains
+    // are Tharsis's), so an ordinary Mars cell reads as unnamed here and the row prints the number instead.
+    const entries = countedCellEntries({countedSpaces: ['01', '02', '31'], countedTiers: [2, 1, 3]}, (key) => `t:${key}`);
+    expect(entries).deep.eq([{name: 't:Ganymede Colony', tiers: 2}, {name: 't:Phobos Space Haven', tiers: 1}, {name: undefined, tiers: 3}]);
+    expect(countedCellLabel({name: 't:Noctis City', tiers: 2})).eq('t:Noctis City ×2');
+    expect(countedCellLabel({name: 't:Ganymede Colony', tiers: 1})).eq('t:Ganymede Colony');
+    expect(countedCellEntries({countedSpaces: ['01', '75'], countedTiers: undefined}, (key) => key), 'no column → every cell is worth 1').deep.eq(
+      [{name: 'Ganymede Colony', tiers: 1}, {name: undefined, tiers: 1}]);
+    expect(countedCellEntries({countedSpaces: undefined, countedTiers: undefined}, (key) => key)).deep.eq([]);
   });
 
   // ── A THRESHOLD-COUNTED TERM (Generous Funding: 2 × (S + I), S = the complete SETS of 5 TR over 15) ──

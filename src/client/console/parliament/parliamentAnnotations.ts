@@ -40,7 +40,8 @@ import {InfluenceYield} from '@/common/parliament/influenceScaling';
 import {ParliamentEnactOutcomeModel, ParliamentModel} from '@/common/models/ParliamentModel';
 import {WorldMoveTable, worldMoveReadingOf, worldMoveSentenceOf} from './worldMoveModel';
 import {
-  countedCellNames, countedColonyNames, countedContributions, countedMetricParts, countedProductionParts, levelPresentation, yieldCountPresentation,
+  CountedCellEntry, countedCellEntries, countedCellLabel, countedColonyNames, countedContributions, countedMetricParts, countedProductionParts, levelPresentation,
+  yieldCountPresentation,
 } from './influenceYieldModel';
 import {WinnerRewardReading, winnerRewardRuleKey, winnerRewardSentenceOf} from './winnerRewardModel';
 import {TILE_GRANT_RULE_KEY, TileGrantReading, tileGrantSentenceOf} from './tileGrantModel';
@@ -281,18 +282,34 @@ export function resolutionAnnotations(
     const breakdown = countedMetricParts(counted.countedMetric).map((part) => translateTextWithParams(part.key, [...part.params])).join(' · ');
     forYou.push({text: applied ? 'Counted at the enactment: ${0}' : 'Counted right now: ${0}', params: [breakdown]});
   } else if (counted?.countedSpaces !== undefined) {
-    // A BOARD count (space cities): the CELLS, by the names the board's own
-    // information layer gives the reserved areas. A cell that layer does not
-    // name is never christened here — the row prints the NUMBER instead and
-    // the rule sentence above says what was counted.
+    // A BOARD count (space cities, cities on Mars): the CELLS, by the names the
+    // board's own information layer gives them (the reserved areas, Noctis
+    // City, the named mountains). A cell that layer does not name is never
+    // christened here — the row prints the NUMBER instead and the rule
+    // sentence above says what was counted. On the `tiers` measure a cell
+    // reads with its weight («Noctis City ×2» — the board's own stack
+    // counter), and where the cells go unnamed the number is followed by
+    // what makes it exceed the cells: how many cells, and each stack
+    // («4 cities on Mars · 3 cells · a stack of 2») — the row where the
+    // player checks that the card does not lie.
     const applied = counted.context === 'applied';
-    const cells = countedCellNames(counted, (key) => translateText(key));
-    const named = cells.filter((cell): cell is string => cell !== undefined);
-    if (cells.length > 0 && named.length === cells.length) {
-      forYou.push({text: applied ? 'Counted at the enactment: ${0}' : 'Counted right now: ${0}', params: [named.join(' · ')]});
-    } else if (cells.length > 0 && counted.effect.count !== undefined) {
-      const plural = translateTextWithParams(yieldCountPresentation(counted.effect.count.id).pluralKey, [String(cells.length)]);
-      forYou.push({text: applied ? 'Counted at the enactment: ${0}' : 'Counted right now: ${0}', params: [plural]});
+    const entries = countedCellEntries(counted, (key) => translateText(key));
+    const named = entries.filter((entry): entry is CountedCellEntry & {name: string} => entry.name !== undefined);
+    const key = applied ? 'Counted at the enactment: ${0}' : 'Counted right now: ${0}';
+    if (entries.length > 0 && named.length === entries.length) {
+      forYou.push({text: key, params: [named.map(countedCellLabel).join(' · ')]});
+    } else if (entries.length > 0 && counted.effect.count !== undefined) {
+      const total = counted.count ?? entries.length;
+      const parts = [translateTextWithParams(yieldCountPresentation(counted.effect.count.id).pluralKey, [String(total)])];
+      if (total > entries.length) {
+        parts.push(translateTextWithParams('${0} cell(s)', [String(entries.length)]));
+        for (const entry of entries) {
+          if (entry.tiers > 1) {
+            parts.push(entry.name === undefined ? translateTextWithParams('a stack of ${0}', [String(entry.tiers)]) : countedCellLabel({name: entry.name, tiers: entry.tiers}));
+          }
+        }
+      }
+      forYou.push({text: key, params: [parts.join(' · ')]});
     } else if ((counted.count ?? 0) === 0) {
       forYou.push({text: applied ? 'No tile was counted at the enactment' : 'No tile counts right now'});
     }
