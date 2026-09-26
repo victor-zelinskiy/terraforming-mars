@@ -471,9 +471,15 @@
               <PremiumMechanicsPanel v-if="actionMechanics !== undefined && !actionMechanics.textOnly" class="con-rxpg__action-graphic" :mechanics="actionMechanics" />
               <div class="con-rxpg__action-rate" data-rxpg-action-rate>
                 <ActionEffectChip v-for="(chip, i) in actionRate" :key="i" :effect="chip" />
+                <span v-if="actionRate.length === 0" class="con-rxpg__dim" data-rxpg-action-norate>{{ $t('The result is the copied card own') }}</span>
               </div>
             </div>
-            <div class="con-rxpg__action-hand">
+            <!-- THE SYNTHETIC HAND belongs to an action whose rate is PER CARD FROM
+                 HAND (Open IP Trade). A law whose action has no rate at all — R&D
+                 Funding repeats a card action, so what it pays is the copied card's
+                 own, unknown until one is picked — has nothing to multiply, and a
+                 «0 карт → недоступно» reading there would state somebody else's rule. -->
+            <div v-if="actionRate.length > 0" class="con-rxpg__action-hand">
               <span class="con-rxpg__ckey">{{ $t('Cards in hand') }}</span>
               <button v-for="n in ACTION_HANDS" :key="n" type="button" class="con-rxpg__action-handbtn"
                       :class="{'con-rxpg__action-handbtn--on': actionHand === n}" :data-rxpg-action-hand="n"

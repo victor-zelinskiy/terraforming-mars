@@ -110,6 +110,15 @@
         &--picked { background: rgba(95, 227, 180, 0.14); box-shadow: inset 0 0 0 .08rem @con-parl-mint; }
         &--picked&--cursor { box-shadow: inset 0 0 0 .08rem @con-parl-mint, 0 0 0 .1rem @con-cyan; }
     }
+    /* A SHORT LIST GETS BIGGER FACES. The decision column is one band wide;
+       a row of one or two thumbnails at the crowded size is a postage stamp
+       in an ocean. The count is published by the host (`data-pact-cards`) —
+       a decision's candidate list is data, so the size follows it rather
+       than a per-surface override. Four or more keep the crowded size, which
+       is what makes them all fit on one line. */
+    &__cards[data-pact-cards="1"] &__card,
+    &__cards[data-pact-cards="2"] &__card,
+    &__cards[data-pact-cards="3"] &__card { --con-pact-card-zoom: calc(0.46 * var(--con-ui-scale, 1)); }
     &__card-face { zoom: var(--con-pact-card-zoom); }
     &__card-delta { display: inline-flex; align-items: center; gap: .3rem; font-size: .74rem; b { font-variant-numeric: tabular-nums; } em { font-style: normal; font-size: .62rem; color: @con-parl-gold; } }
     &__none { font-size: .74rem; opacity: .6; }

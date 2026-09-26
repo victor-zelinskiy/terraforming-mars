@@ -31,6 +31,8 @@ import {addCity, maxOutOceans, runAllActions, setOxygenLevel, setTemperature, se
 import {SelectCard} from '../../../src/server/inputs/SelectCard';
 import {PartyName} from '../../../src/common/turmoil/PartyName';
 import {Tardigrades} from '../../../src/server/cards/base/Tardigrades';
+import {Research} from '../../../src/server/cards/base/Research';
+import {Tag} from '../../../src/common/cards/Tag';
 import {Trees} from '../../../src/server/cards/base/Trees';
 import {Fish} from '../../../src/server/cards/base/Fish';
 import {IGame} from '../../../src/server/IGame';
@@ -85,6 +87,9 @@ import {GAS_EXPORT_ID} from '../../../src/server/parliament/resolutions/reds/Gas
 import {HEAT_CAPTURE_ID} from '../../../src/server/parliament/resolutions/reds/HeatCapture';
 import {MOHOLE_CONTEST_ID} from '../../../src/server/parliament/resolutions/greens/MoholeContest';
 import {OPEN_IP_TRADE_ID} from '../../../src/server/parliament/resolutions/scientists/OpenIpTrade';
+import {RD_FUNDING_ID} from '../../../src/server/parliament/resolutions/scientists/RdFunding';
+import {repeatableActionCards} from '../../../src/server/cards/repeatableActions';
+import {ParliamentHandler} from '../../../src/server/parliament/ParliamentHandler';
 import {INDUSTRIALIST_BUDGET_ID} from '../../../src/server/parliament/resolutions/industrialists/IndustrialistBudget';
 import {JOINT_RESEARCH_ID} from '../../../src/server/parliament/resolutions/scientists/JointResearch';
 import {PLANT_BAN_ID} from '../../../src/server/parliament/resolutions/reds/PlantBan';
@@ -449,6 +454,13 @@ type ParliamentFixtureSpec = {
   /** The rest of the table: tableau, production, the globals, other votes, a seat's pass. */
   arrange?: (table: ParliamentTable) => void;
   stopAt: ParliamentStop;
+  /**
+   * The table AFTER the sitting closed — for a fixture whose subject is the
+   * generation the law now stands in (a card action already spent this
+   * generation, a production already taken). `arrange` cannot say it: the
+   * generation boundary is what clears `actionsThisGeneration`.
+   */
+  after?: (table: ParliamentTable) => void;
   /** Refuse the fixture unless the reached state is the one it promises (the name tells the reader what to expect). */
   expect?: (table: ParliamentTable) => void;
   /** The game's options beyond the Redux table (a VENUS game for a card that exists only with Venus Next). */
@@ -567,6 +579,8 @@ function parliamentFixture(name: string, spec: ParliamentFixtureSpec): Parliamen
       throw new Error(`${name}: no completed political phase`);
     }
   }
+  spec.after?.(table);
+  runAllActions(game);
   spec.expect?.(table);
   write(name, game);
   return table;
@@ -1336,6 +1350,55 @@ parliamentFixture('parliament-openip-enacted', {
       throw new Error('the parliament-openip-enacted fixture expected the action unspent');
     }
     expectViewerOpensGeneration(table, p2, 'parliament-openip-enacted');
+  },
+});
+
+// ── RX26 · R&D FUNDING (the Scientists — the first law with NO enactment: «when taking actions you have
+//    additional Science tags equal to your Influence» + «use an action on one of your cards a second time»):
+//    the law ENACTED (red's delegate won the sitting), generation 2 open on RED — the seat the loader opens —
+//    at influence 2, so the МЕТКИ zone reads the printed science count with a «+2» beside it and names the law;
+//    and red's Tardigrades already carries a microbe from an action spent THIS generation, so the law's action
+//    has exactly one honest candidate to repeat. ──
+parliamentFixture('parliament-rdfunding-enacted', {
+  resolution: RD_FUNDING_ID,
+  votes: [1],
+  agenda: [1, 3],
+  stopAt: 'done',
+  arrange: ({p2}) => {
+    // Two printed science tags, so the zone shows a real count for the addition to stand beside.
+    p2.playedCards.push(new Research());
+  },
+  after: ({game, p2}) => {
+    // The repeat's candidate: an action USED in the generation that is now open
+    // (the boundary the sitting just crossed is what cleared the previous one).
+    const tardigrades = new Tardigrades();
+    p2.playedCards.push(tardigrades);
+    tardigrades.action(p2);
+    runAllActions(game);
+    p2.actionsThisGeneration.add(tardigrades.name);
+  },
+  expect: (table) => {
+    const {p2, parliament} = table;
+    if (parliament.enacted !== resolutionInstanceId(RD_FUNDING_ID, 0)) {
+      throw new Error(`the parliament-rdfunding-enacted fixture expected R&D Funding enacted, got ${parliament.enacted}`);
+    }
+    const influence = parliament.influence(p2);
+    if (influence < 1) {
+      throw new Error(`the parliament-rdfunding-enacted fixture expected red to hold influence, has ${influence}`);
+    }
+    if (ParliamentHandler.tagBonus(p2, Tag.SCIENCE) !== influence) {
+      throw new Error('the parliament-rdfunding-enacted fixture expected the science addition to equal the influence');
+    }
+    if (p2.tags.count(Tag.SCIENCE, 'raw') < 1) {
+      throw new Error('the parliament-rdfunding-enacted fixture expected red to hold a PRINTED science tag too');
+    }
+    if (repeatableActionCards(p2).length !== 1) {
+      throw new Error(`the parliament-rdfunding-enacted fixture expected exactly one action to repeat, got ${repeatableActionCards(p2).length}`);
+    }
+    if (parliament.resolutionActionUsesLeft(p2) !== 1) {
+      throw new Error('the parliament-rdfunding-enacted fixture expected the law action unspent');
+    }
+    expectViewerOpensGeneration(table, p2, 'parliament-rdfunding-enacted');
   },
 });
 

@@ -174,14 +174,15 @@
         <div class="con-tagmx__head">
           <span class="con-tagmx__title">{{ $t('Tags') }}</span>
           <span class="con-tagmx__rule" aria-hidden="true"></span>
-          <!-- THE SOURCE of the «+N» additions below, named where it costs no
-               vertical room (the head row is fixed height; the matrix grid
-               owns every pixel under it). The console has ONE detail surface
-               and no hover popovers, so the name stands in the open for as
-               long as the law does — a green «+2» with no author would be a
-               bonus from nowhere. -->
-          <span v-if="tagBonusLaw !== ''" class="con-tagmx__lawnote" data-tag-bonus-law>{{ tagBonusLaw }}</span>
         </div>
+        <!-- THE SOURCE of the «+N» additions below. The console has ONE detail
+             surface and no hover popovers, so the name stands in the open for
+             as long as the law does — a mint «+2» with no author would be a
+             bonus from nowhere, and the shared mint is what ties the two. It
+             takes its own line because the head's is already spent: squeezed
+             in beside «МЕТКИ» the name ellipsised to «ФИНАНСИРОВ…» at 1080,
+             which names nothing. The line exists only while such a law does. -->
+        <div v-if="tagBonusLaw !== ''" class="con-tagmx__lawnote" data-tag-bonus-law>{{ tagBonusLaw }}</div>
         <div class="con-tagmx__grid">
           <div v-for="t in matrixEntries" :key="t.tag"
                class="con-tagmx__cell"

@@ -4196,20 +4196,27 @@ each(@players, {
         height: .05rem;
         background: linear-gradient(90deg, fade(@con-cyan, 30%), transparent);
     }
-    /* The law behind the «+N» cells, in the head row — zero vertical cost
-       (the grid below keeps every pixel it had) and the same mint as the
-       additions it explains. It yields first: a long law name ellipsises in
-       its OWN box, never pushing the title. */
+    /* The law behind the «+N» cells — its own line under the head, in the
+       same mint as the additions it explains (the colour is what ties the
+       two). One line, ellipsis in its OWN box, and it exists only while such
+       a law stands: the grid below is a flex child that re-solves its rows
+       into whatever height is left, so the line costs the matrix nothing it
+       cannot absorb. */
     &__lawnote {
-        flex: 0 1 auto;
+        flex: 0 0 auto;
         min-width: 0;
-        max-width: max-content;
+        max-width: 100%;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
-        font-size: .58rem;
-        letter-spacing: .06rem;
-        text-transform: uppercase;
+        margin: -.25rem 0 .35rem;
+        font-size: .55rem;
+        line-height: 1.1;
+        /* A NAME, not a label: sentence case (the law's own printed name) is
+           ~20 % narrower than tracked caps and is what lets «Финансирование
+           исследований» stand whole in a 190 px rail — the caps form cut it
+           to «ФИНАНСИРОВАНИЕ ИССЛ…», which identifies a law only by luck. */
+        letter-spacing: 0;
         font-weight: 700;
         color: @con-mint;
     }

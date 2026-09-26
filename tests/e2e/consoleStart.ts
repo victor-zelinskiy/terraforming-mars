@@ -2342,6 +2342,7 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'hydro-terminal'
   'parliament-mohole-assembly' |
   // RX24 Open IP Trade: the law ENACTED, blue opening generation 2 with four cards in hand and the action unspent.
   'parliament-openip-enacted' |
+  'parliament-rdfunding-enacted' |
   'parliament-budget-vote' | 'parliament-budget-assembly' |
   // …the SAME budget vote at a SIX-seat table — the worst case of the LEDGER OF OUTCOMES (six chips × two parts).
   'parliament-budget-vote-six' |

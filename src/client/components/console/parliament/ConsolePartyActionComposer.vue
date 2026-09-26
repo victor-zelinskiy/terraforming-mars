@@ -221,7 +221,7 @@
                 <span class="con-pact__row-mark" aria-hidden="true">{{ picks[1] !== undefined ? '✓' : '2' }}</span>
                 <span class="con-pact__row-kicker">{{ $t('Target card') }}</span>
               </span>
-              <div class="con-pact__cards">
+              <div class="con-pact__cards" :data-pact-cards="scientistsTargets.length">
                 <button v-for="(target, i) in scientistsTargets" :key="target.card.name" type="button" class="con-pact__card"
                         :class="{'con-pact__card--cursor': cursorRow === 1 && cursor[1] === i, 'con-pact__card--picked': picks[1] === i}"
                         :data-pact-card="target.card.name"
@@ -254,7 +254,7 @@
                 <span class="con-pact__row-mark" aria-hidden="true">{{ picks[0] !== undefined ? '✓' : '1' }}</span>
                 <span class="con-pact__row-kicker">{{ $t('Card action') }}</span>
               </span>
-              <div class="con-pact__cards">
+              <div class="con-pact__cards" :data-pact-cards="tableauTargets.length">
                 <button v-for="(target, i) in tableauTargets" :key="target.name" type="button" class="con-pact__card"
                         :class="{'con-pact__card--cursor': cursorRow === 0 && cursor[0] === i, 'con-pact__card--picked': picks[0] === i}"
                         :data-pact-card="target.name"
