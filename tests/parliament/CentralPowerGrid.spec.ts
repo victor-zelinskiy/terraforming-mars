@@ -20,7 +20,7 @@ import {CardType} from '../../src/common/cards/CardType';
 import {Tag} from '../../src/common/cards/Tag';
 import {resolutionInstanceId, RESOLUTION_CODE_PATTERN} from '../../src/common/parliament/ParliamentTypes';
 import {scaledAmount, uncappedAmount} from '../../src/common/parliament/influenceScaling';
-import {RESOLUTION_TAG_COUNTING_MODE} from '../../src/common/parliament/resolutionCounts';
+import {RESOLUTION_COUNT_IDS, RESOLUTION_TAG_COUNTING_MODE} from '../../src/common/parliament/resolutionCounts';
 import {LogMessageDataType} from '../../src/common/logs/LogMessageDataType';
 import {getParliamentModel} from '../../src/server/parliament/ParliamentModel';
 import {ParliamentPhase} from '../../src/server/parliament/ParliamentPhase';
@@ -651,7 +651,9 @@ describe('CentralPowerGrid', () => {
       // Every counted term of the catalog rides along — one model, every rule (Cloud Development's two-tag term,
       // Colonization Funding's board count, Generous Funding's threshold count, Industrialist Budget's production count
       // Jovian Tax Rights's colonies count and Medical Database's science-tag count included).
-      expect(counts?.map((c) => c.id)).deep.eq(['buildingCardsWithNonNegativeVp', 'powerTags', 'venusJovianTags', 'spaceCities', 'terraformRatingSets', 'steelTitaniumEnergyProduction', 'colonies', 'scienceTags']);
+      // Derived from the catalog on purpose: every counted term a resolution declares rides the model, and a
+      // new resolution's term must appear here without this list being edited by hand.
+      expect(counts?.map((c) => c.id)).deep.eq([...RESOLUTION_COUNT_IDS]);
       expect(model?.players.find((p) => p.color === p2.color)?.counts?.find((c) => c.id === 'powerTags')).deep.eq(
         {id: 'powerTags', count: 0, cards: [], units: []});
       endGeneration(game);
