@@ -340,11 +340,13 @@ describe('parliamentResultsModel — the sitting\'s last reading, in two section
     expect(blue.parts[0]).to.deep.include({unit: 'megacredits', production: false, owed: 10});
     expect(blue.parts[0].note, 'a whole take has nothing to explain').is.undefined;
     expect(blue.net, 'the day\'s balance: −10 + 7').to.deep.eq({unit: 'megacredits', amount: -3});
-    // Red: 4 of 10 taken with the shortfall's reason on the PAYING part, the payout a named skip — the net is the levy alone.
+    // Red: 4 of 10 taken with the shortfall's reason on the PAYING part, the payout a named skip.
     expect(red.parts[0]).to.deep.include({kind: 'stock', amount: -4, owed: 10, note: 'Not enough M€: the rest of the levy is not taken'});
     expect(red.parts[0].skipped, 'a loss is never a skip').is.undefined;
     expect(red.parts[1].skipped).to.deep.eq({title: 'Resolution effect', reason: 'No steel, titanium or energy production and no influence'});
-    expect(red.net).to.deep.eq({unit: 'megacredits', amount: -4});
+    // RX25: a net that would only restate its single supply part («−4 · = −4») is a second voice saying nothing
+    // new — with the payout in that unit a named skip, the levy stands alone and no net line is printed.
+    expect(red.net).is.undefined;
     // A seat that never lost anything has no net line: its parts read as they are.
     const plain = resultsReadingOf(summary({outcomes: [outcome({amount: 2})]}), [seat(BLUE)], SUPPORT);
     expect(plain.payouts[0].net).is.undefined;

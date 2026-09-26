@@ -410,7 +410,7 @@ export function resultsPayoutPart(outcome: ParliamentEnactOutcomeModel, index: n
  * THE NET of a seat's own SUPPLY parts in ONE unit — present only where the law both TOOK (a levy: a negative
  * `stock` part) and PAID that unit into the supply (a positive `stock` part of the resolution's own, never a
  * reaction, never a skip): the balance the row states beside the parts. A seat that was levied and paid
- * nothing in that unit (a named skip) nets the levy alone.
+ * nothing in that unit (a named skip) has NO net line — it would only restate the levy (RX25, Plant Ban).
  */
 export function netOfParts(parts: ReadonlyArray<ResultsPayoutPart>): {unit: string, amount: number} | undefined {
   const supply = parts.filter((part) => part.kind === 'stock' && !part.production && part.skipped === undefined && part.amount !== undefined);
