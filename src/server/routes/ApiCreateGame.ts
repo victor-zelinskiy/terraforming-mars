@@ -9,6 +9,7 @@ import {gameOptionsFromNewGameConfig} from '../game/newGameConfigToOptions';
 import {Cloner} from '../database/Cloner';
 import {Game} from '../Game';
 import {GameOptions} from '../game/GameOptions';
+import {CEO_CARDS_DEALT_PER_PLAYER} from '../../common/constants';
 import {Player} from '../Player';
 import {Server} from '../models/ServerModel';
 import {NewGameConfig} from '../../common/game/NewGameConfig';
@@ -69,6 +70,24 @@ export class ApiCreateGame extends Handler {
 
   // TODO(kberg): much of this code can be moved outside of handler, and that
   // would be better.
+  /**
+   * A custom list must be able to deal every player their starting cards (upstream 64641f602a).
+   * Returns the bad-request message naming the minimum size, or undefined when every list is large enough.
+   */
+  public static customListError(gameReq: NewGameConfig): string | undefined {
+    const playerCount = gameReq.players.length;
+    const check = (list: ReadonlyArray<unknown> | undefined, perPlayerCount: number, type: string): string | undefined => {
+      if (list === undefined) {
+        return undefined;
+      }
+      const required = playerCount * perPlayerCount;
+      return list.length > 0 && list.length < required ? `Must select at least ${required} ${type}` : undefined;
+    };
+    return check(gameReq.customCorporationsList, gameReq.startingCorporations, 'corporations') ??
+      check(gameReq.customPreludes, gameReq.startingPreludes, 'preludes') ??
+      check(gameReq.customCeos, Math.max(gameReq.startingCeos ?? 0, CEO_CARDS_DEALT_PER_PLAYER), 'CEOs');
+  }
+
   public override post(req: Request, res: Response, ctx: Context): Promise<void> {
     return new Promise((resolve) => {
       if (this.quotaHandler.measure(ctx) === false) {
@@ -84,6 +103,12 @@ export class ApiCreateGame extends Handler {
       req.once('end', async () => {
         try {
           const gameReq = JSON.parse(body) as NewGameConfig;
+          const listError = ApiCreateGame.customListError(gameReq);
+          if (listError !== undefined) {
+            responses.badRequest(req, res, listError);
+            resolve();
+            return;
+          }
           const gameId = safeCast(generateRandomId('g'), isGameId);
           const spectatorId = safeCast(generateRandomId('s'), isSpectatorId);
           const players = gameReq.players.map((p) => {
