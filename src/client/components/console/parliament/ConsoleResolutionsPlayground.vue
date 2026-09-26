@@ -730,6 +730,11 @@ type PgScenario = {
   counts?: ResolutionCountId,
   /** The winner-tile family: the general validator leaves the winner no legal cell. */
   noCell?: boolean,
+  /**
+   * A law that DRAWS (a flat `cards` part): the project deck has nothing left, so the draw records its own NAMED
+   * skip and the rest of the card pays exactly as it would. Absent = the deck delivers the whole amount.
+   */
+  emptyDeck?: boolean,
   /** A LIVE scenario: the engine-generated fixture the A press boots as a real game. */
   live?: string,
   /** …and what that game stops on (an English key), when the label is not enough. */
@@ -832,6 +837,15 @@ const MARS_GREENERY: PgCell = {id: '36', spaceType: SpaceType.LAND, tile: {tileT
 const MARS_CITY_3: PgCell = {id: '47', spaceType: SpaceType.LAND, tile: {tileType: TileType.CITY}};
 const MARS_STACK_NOCTIS: PgCell = {id: SpaceName.NOCTIS_CITY, spaceType: SpaceType.LAND, tile: {tileType: TileType.CITY}, stackHeight: 2};
 
+/**
+ * The server's own words for a draw the project deck could not start at all
+ * (`ExternalDrawIntake.open` returned nothing — Joint Research, Open IP Trade,
+ * Scientists Budget all record it). The stand reproduces the RECORD, so it
+ * repeats the server's key rather than coining a second sentence for one shelf;
+ * `ScientistsBudgetReadings.spec` pins the two against each other.
+ */
+const DECK_EMPTY_REASON = 'The project deck is empty';
+
 const SCENARIOS: ReadonlyArray<PgScenario> = [
   // Step 0 of the Agenda: influence 0 — the step asks nothing and names the skip.
   {key: 'influence-0', family: 'influence', label: 'Influence 0 — nothing is paid', viewer: 0, seats: [{agenda: 0, bonus: 0}, {agenda: 5, bonus: 0}], winner: 1, context: 'resolving', noRecipient: false},
@@ -870,51 +884,91 @@ const SCENARIOS: ReadonlyArray<PgScenario> = [
   {key: 'counted-quest-done', family: 'counted', label: 'Chairman quest completed', viewer: 0,
     seats: [{agenda: 3, bonus: 0, cards: [LAKE], production: 2}, {agenda: 1, bonus: 0, cards: [MINE], production: 0}], winner: 0, context: 'applied', noRecipient: false, quest: {progress: [2, 1], completedBy: 0}},
   // ── THE TAG-COUNTED FAMILY (min(cap, P + I), P = the player's power TAGS) ──
-  {key: 'grid-zero', family: 'counted-tags', label: 'No power tags and no influence', viewer: 0,
+  {key: 'grid-zero', family: 'counted-tags', counts: 'powerTags', label: 'No power tags and no influence', viewer: 0,
     seats: [{agenda: 0, bonus: 0, cards: [PHOTOSYNTHESIS, NOBEL], production: 2}, {agenda: 3, bonus: 0, cards: [PLANT_P], production: 1}], winner: 1, context: 'applied', noRecipient: false},
-  {key: 'grid-influence-only', family: 'counted-tags', label: 'Influence alone', viewer: 0,
+  {key: 'grid-influence-only', family: 'counted-tags', counts: 'powerTags', label: 'Influence alone', viewer: 0,
     seats: [{agenda: 3, bonus: 0, cards: [PHOTOSYNTHESIS], production: 3}, {agenda: 1, bonus: 0, cards: [PLANT_P], production: 0}], winner: 1, context: 'proposal', noRecipient: false},
-  {key: 'grid-tags-only', family: 'counted-tags', label: 'Power tags alone', viewer: 0,
+  {key: 'grid-tags-only', family: 'counted-tags', counts: 'powerTags', label: 'Power tags alone', viewer: 0,
     seats: [{agenda: 0, bonus: 0, cards: [PLANT_P, SOLAR_P], production: 1}, {agenda: 1, bonus: 0, cards: [], production: 0}], winner: 1, context: 'proposal', noRecipient: false},
   // Agenda 2 = influence 1; winning takes the marker to step 3 (influence 2): 2 + 1 → +3 becomes 2 + 2 → +4, both below the cap.
-  {key: 'grid-below-cap', family: 'counted-tags', label: 'Below the maximum', viewer: 0,
+  {key: 'grid-below-cap', family: 'counted-tags', counts: 'powerTags', label: 'Below the maximum', viewer: 0,
     seats: [{agenda: 2, bonus: 0, cards: [PLANT_P, SOLAR_P, PHOTOSYNTHESIS], production: 4}, {agenda: 1, bonus: 0, cards: [], production: 0}], winner: 1, context: 'proposal', noRecipient: false},
-  {key: 'grid-exact-cap', family: 'counted-tags', label: 'Exactly +5', viewer: 0,
+  {key: 'grid-exact-cap', family: 'counted-tags', counts: 'powerTags', label: 'Exactly +5', viewer: 0,
     seats: [{agenda: 3, bonus: 0, cards: [PLANT_P, SOLAR_P, FUSION_P], production: 6}, {agenda: 1, bonus: 0, cards: [], production: 0}], winner: 1, context: 'proposal', noRecipient: false},
-  {key: 'grid-over-cap', family: 'counted-tags', label: 'Over the maximum', viewer: 0,
+  {key: 'grid-over-cap', family: 'counted-tags', counts: 'powerTags', label: 'Over the maximum', viewer: 0,
     seats: [{agenda: 5, bonus: 0, cards: [PLANT_P, SOLAR_P, FUSION_P, TAPPING], production: 10}, {agenda: 1, bonus: 0, cards: [], production: 0}], winner: 1, context: 'proposal', noRecipient: false},
   // ONE card, TWO tags: the whole difference from Architecture Award, on the stand.
-  {key: 'grid-multi-tag', family: 'counted-tags', label: 'One card with two power tags', viewer: 0,
+  {key: 'grid-multi-tag', family: 'counted-tags', counts: 'powerTags', label: 'One card with two power tags', viewer: 0,
     seats: [{agenda: 0, bonus: 0, cards: [HE3, PLANT_P], production: 2}, {agenda: 1, bonus: 0, cards: [], production: 0}], winner: 1, context: 'proposal', noRecipient: false},
-  {key: 'grid-sources', family: 'counted-tags', label: 'Tags on a corporation, a prelude and a project', viewer: 0,
+  {key: 'grid-sources', family: 'counted-tags', counts: 'powerTags', label: 'Tags on a corporation, a prelude and a project', viewer: 0,
     seats: [{agenda: 0, bonus: 0, cards: [THORGATE, POWERGEN, PLANT_P], production: 1}, {agenda: 1, bonus: 0, cards: [], production: 0}], winner: 1, context: 'proposal', noRecipient: false},
-  {key: 'grid-no-vp', family: 'counted-tags', label: 'A power card without a VP icon counts', viewer: 0,
+  {key: 'grid-no-vp', family: 'counted-tags', counts: 'powerTags', label: 'A power card without a VP icon counts', viewer: 0,
     seats: [{agenda: 0, bonus: 0, cards: [PLANT_P, FUSION_P, PHOTOSYNTHESIS], production: 3}, {agenda: 1, bonus: 0, cards: [], production: 0}], winner: 1, context: 'proposal', noRecipient: false},
-  {key: 'grid-negative-vp', family: 'counted-tags', label: 'A power card with a negative VP icon counts', viewer: 0,
+  {key: 'grid-negative-vp', family: 'counted-tags', counts: 'powerTags', label: 'A power card with a negative VP icon counts', viewer: 0,
     seats: [{agenda: 0, bonus: 0, cards: [TAPPING, SOLAR_P], production: 3}, {agenda: 1, bonus: 0, cards: [], production: 0}], winner: 1, context: 'proposal', noRecipient: false},
-  {key: 'grid-wild', family: 'counted-tags', label: 'A wild tag is not a power tag', viewer: 0,
+  {key: 'grid-wild', family: 'counted-tags', counts: 'powerTags', label: 'A wild tag is not a power tag', viewer: 0,
     seats: [{agenda: 3, bonus: 0, cards: [NOBEL, PLANT_P], production: 2}, {agenda: 1, bonus: 0, cards: [], production: 0}], winner: 1, context: 'proposal', noRecipient: false},
   // The SAME tableau read at the enactment: a wild tag counts for the player's
   // own actions, never for this — the number the proposal showed is the number paid.
-  {key: 'grid-own-turn', family: 'counted-tags', label: 'Looked at on your own turn — the enactment counts the same', viewer: 0,
+  {key: 'grid-own-turn', family: 'counted-tags', counts: 'powerTags', label: 'Looked at on your own turn — the enactment counts the same', viewer: 0,
     seats: [{agenda: 3, bonus: 0, cards: [NOBEL, PLANT_P], production: 2}, {agenda: 1, bonus: 0, cards: [], production: 0}], winner: 1, context: 'resolving', noRecipient: false},
-  {key: 'grid-seats', family: 'counted-tags', label: 'Every player gets their own result', viewer: 0,
+  {key: 'grid-seats', family: 'counted-tags', counts: 'powerTags', label: 'Every player gets their own result', viewer: 0,
     seats: [{agenda: 1, bonus: 0, cards: [PLANT_P, PHOTOSYNTHESIS], production: 3}, {agenda: 8, bonus: 0, cards: [HE3, SOLAR_P, FUSION_P, TAPPING], production: -2}], winner: 0, context: 'applied', noRecipient: false},
   // Agenda 4 = influence 2; winning takes the marker to step 5 (influence 3) BEFORE the effect: 2 + 2 -> 4 becomes 2 + 3 -> 5.
-  {key: 'grid-winner-agenda', family: 'counted-tags', label: 'The winner advances on the Agenda first', viewer: 0,
+  {key: 'grid-winner-agenda', family: 'counted-tags', counts: 'powerTags', label: 'The winner advances on the Agenda first', viewer: 0,
     seats: [{agenda: 4, bonus: 0, cards: [PLANT_P, SOLAR_P], production: 5}, {agenda: 3, bonus: 0, cards: [], production: 0}], winner: 0, context: 'proposal', noRecipient: false},
-  {key: 'grid-negative-production', family: 'counted-tags', label: 'Negative production rises the ordinary way', viewer: 0,
+  {key: 'grid-negative-production', family: 'counted-tags', counts: 'powerTags', label: 'Negative production rises the ordinary way', viewer: 0,
     seats: [{agenda: 3, bonus: 0, cards: [PLANT_P, SOLAR_P], production: -3}, {agenda: 1, bonus: 0, cards: [], production: 0}], winner: 1, context: 'applied', noRecipient: false},
-  {key: 'grid-high-production', family: 'counted-tags', label: 'Production 8 becomes 13 — the cap bounds the increase', viewer: 0,
+  {key: 'grid-high-production', family: 'counted-tags', counts: 'powerTags', label: 'Production 8 becomes 13 — the cap bounds the increase', viewer: 0,
     seats: [{agenda: 5, bonus: 0, cards: [HE3, SOLAR_P, FUSION_P], production: 8}, {agenda: 1, bonus: 0, cards: [], production: 0}], winner: 1, context: 'applied', noRecipient: false},
-  {key: 'grid-applied', family: 'counted-tags', label: 'Recorded result', viewer: 0,
+  {key: 'grid-applied', family: 'counted-tags', counts: 'powerTags', label: 'Recorded result', viewer: 0,
     seats: [{agenda: 3, bonus: 0, cards: [HE3, PLANT_P, PHOTOSYNTHESIS], production: 8}, {agenda: 0, bonus: 0, cards: [TAPPING], production: 1}], winner: 1, context: 'applied', noRecipient: false},
-  {key: 'grid-quest-0', family: 'counted-tags', label: 'Chairman quest 0/2', viewer: 0,
+  {key: 'grid-quest-0', family: 'counted-tags', counts: 'powerTags', label: 'Chairman quest 0/2', viewer: 0,
     seats: [{agenda: 3, bonus: 0, cards: [PLANT_P], production: 2}, {agenda: 1, bonus: 0, cards: [], production: 0}], winner: 0, context: 'applied', noRecipient: false, quest: {progress: [0, 0]}},
-  {key: 'grid-quest-1', family: 'counted-tags', label: 'Chairman quest 1/2', viewer: 0,
+  {key: 'grid-quest-1', family: 'counted-tags', counts: 'powerTags', label: 'Chairman quest 1/2', viewer: 0,
     seats: [{agenda: 3, bonus: 0, cards: [PLANT_P], production: 2}, {agenda: 1, bonus: 0, cards: [], production: 0}], winner: 0, context: 'applied', noRecipient: false, quest: {progress: [1, 0]}},
-  {key: 'grid-quest-done', family: 'counted-tags', label: 'Chairman quest completed', viewer: 0,
+  {key: 'grid-quest-done', family: 'counted-tags', counts: 'powerTags', label: 'Chairman quest completed', viewer: 0,
     seats: [{agenda: 3, bonus: 0, cards: [PLANT_P], production: 2}, {agenda: 1, bonus: 0, cards: [], production: 0}], winner: 0, context: 'applied', noRecipient: false, quest: {progress: [2, 1], completedBy: 0}},
+  // ── THE SAME FAMILY, A LEVIED LAW (Scientists Budget — the second BUDGET: −10 M€ FIRST, then 1 M€ per SCIENCE
+  //    tag + influence, then 2 cards flat). The instrument is the same tableau read for ANOTHER tag, plus the
+  //    SUPPLY the levy reads and the DECK the two cards come off. `counts` keeps these apart from the power law's:
+  //    a power tableau under a science count reads zero on every card, and would teach the rule backwards. ──
+  // The reference reading: Research (2 tags) + GHG bacteria (1) = 3, Agenda 4 = influence 2, 34 M€ → −10 → +5 = −5, and 2 cards.
+  {key: 'sci-budget-net', family: 'counted-tags', counts: 'scienceTags', label: 'Levy first, then the payout — net −5, and 2 cards', viewer: 0,
+    seats: [{agenda: 4, bonus: 0, cards: [RESEARCH, GHG], production: 0, megacredits: 34},
+      {agenda: 1, bonus: 0, cards: [], production: 0, megacredits: 20}], winner: 0, context: 'proposal', noRecipient: false},
+  // ONE card, TWO science tags — and a wild tag that is none of them at an enactment.
+  {key: 'sci-budget-tags-only', family: 'counted-tags', counts: 'scienceTags', label: 'Science tags alone — one card prints two', viewer: 0,
+    seats: [{agenda: 0, bonus: 0, cards: [RESEARCH, PHYSICS, NOBEL], production: 0, megacredits: 20},
+      {agenda: 1, bonus: 0, cards: [], production: 0, megacredits: 20}], winner: 1, context: 'proposal', noRecipient: false},
+  // No science tag and no influence: the payout is a NAMED skip while the levy is still taken and the cards still come.
+  {key: 'sci-budget-zero', family: 'counted-tags', counts: 'scienceTags', label: 'No science tags and no influence — the cards still come', viewer: 0,
+    seats: [{agenda: 0, bonus: 0, cards: [PLANT_P, NOBEL], production: 0, megacredits: 20},
+      {agenda: 3, bonus: 0, cards: [RESEARCH], production: 0, megacredits: 20}], winner: 1, context: 'applied', noRecipient: false},
+  // 4 M€ held: the levy takes the 4 and says so; the payout and the cards still come.
+  {key: 'sci-budget-short', family: 'counted-tags', counts: 'scienceTags', label: 'Short of the levy — 4 M€', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, cards: [GHG], production: 0, megacredits: 4},
+      {agenda: 1, bonus: 0, cards: [], production: 0, megacredits: 20}], winner: 1, context: 'proposal', noRecipient: false},
+  // 0 M€ held: nothing to take — a named skip of the levy; the card asks no solvency.
+  {key: 'sci-budget-nothing', family: 'counted-tags', counts: 'scienceTags', label: 'Nothing to pay — 0 M€', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, cards: [RESEARCH], production: 0, megacredits: 0},
+      {agenda: 1, bonus: 0, cards: [], production: 0, megacredits: 20}], winner: 1, context: 'applied', noRecipient: false},
+  // THE DECK IS EMPTY: the money moves exactly as before and the two cards are a NAMED skip — never a silent zero.
+  {key: 'sci-budget-empty-deck', family: 'counted-tags', counts: 'scienceTags', label: 'The project deck is empty — the cards are named, the money is not touched', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, cards: [RESEARCH], production: 0, megacredits: 34},
+      {agenda: 1, bonus: 0, cards: [], production: 0, megacredits: 20}], winner: 1, context: 'applied', noRecipient: false, emptyDeck: true},
+  {key: 'sci-budget-seats', family: 'counted-tags', counts: 'scienceTags', label: 'Every player gets their own result', viewer: 0,
+    seats: [{agenda: 1, bonus: 0, cards: [GHG], production: 0, megacredits: 30},
+      {agenda: 8, bonus: 0, cards: [RESEARCH, PHYSICS], production: 0, megacredits: 7}], winner: 0, context: 'applied', noRecipient: false},
+  {key: 'sci-budget-applied', family: 'counted-tags', counts: 'scienceTags', label: 'Recorded result', viewer: 0,
+    seats: [{agenda: 5, bonus: 0, cards: [RESEARCH, GHG], production: 0, megacredits: 34},
+      {agenda: 0, bonus: 0, cards: [PHYSICS], production: 0, megacredits: 12}], winner: 1, context: 'applied', noRecipient: false},
+  {key: 'sci-budget-spectator', family: 'counted-tags', counts: 'scienceTags', label: 'Spectator — the formula alone', viewer: SPECTATOR,
+    seats: [{agenda: 3, bonus: 0, cards: [RESEARCH], production: 0, megacredits: 34},
+      {agenda: 1, bonus: 0, cards: [], production: 0, megacredits: 20}], winner: 0, context: 'proposal', noRecipient: false},
+  {key: 'sci-budget-quest-done', family: 'counted-tags', counts: 'scienceTags', label: 'Chairman quest completed', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, cards: [RESEARCH], production: 0, megacredits: 34},
+      {agenda: 1, bonus: 0, cards: [], production: 0, megacredits: 20}], winner: 0, context: 'applied', noRecipient: false, quest: {progress: [2, 1], completedBy: 0}},
   // ── THE SEQUENTIAL FAMILY (Climate Research: +1 heat production per influence,
   //    THEN 1 card per full 3 steps of the heat production that leaves behind) ──
   //    `production` is the seat's HEAT production before the enactment. Test
@@ -1533,6 +1587,7 @@ function scenarioState(index: number) {
     noRecipient: s.noRecipient,
     table: {...DEFAULT_TABLE, ...(s.table ?? {})},
     noCell: s.noCell === true,
+    emptyDeck: s.emptyDeck === true,
   };
 }
 
@@ -1686,7 +1741,8 @@ export default defineComponent({
     resultHeading(): string {
       switch (this.family) {
       case 'counted': return 'Result by cards and influence';
-      case 'counted-tags': return 'Result by tags and influence';
+      // A LEVIED law of the same family (Scientists Budget) names the plate the payout lands on.
+      case 'counted-tags': return this.selected?.levy === undefined ? 'Result by tags and influence' : 'Result by tags and influence, after the levy';
       case 'counted-board': return this.countMeasure === 'tiers' ? 'Result by cities on Mars and influence' : 'Result by space cities and influence';
       case 'counted-metric': return 'Result by terraform rating and influence';
       case 'counted-production': return 'Result by production steps and influence, after the levy';
@@ -2260,6 +2316,27 @@ export default defineComponent({
             out.push(payout.skipped === undefined ?
               {...common, kind: 'production', before, after: before + payout.amount} :
               {...common, kind: 'skipped', reason: payout.skipped});
+          }
+          continue;
+        }
+        if (effect.unit.kind === 'cards') {
+          // A PLAIN DRAW (Scientists Budget's flat 2, Open IP Trade's 1 per influence — neither a level nor a
+          // sequel): what was owed, and what the deck actually delivered. An EMPTY deck is the draw's own NAMED
+          // skip, and nothing else on the card moves because of it.
+          for (const i of SEATS) {
+            const payout = this.payoutAt(effect, i);
+            if (payout === undefined) {
+              continue;
+            }
+            const common = {
+              player: TEST_PLAYERS[i].color, step: effect.id, part: 'effect' as const, effect: effect.id,
+              amount: payout.amount, influence: payout.influence,
+            };
+            out.push(payout.skipped !== undefined ?
+              {...common, kind: 'skipped' as const, reason: payout.skipped} :
+              this.emptyDeck ?
+                {...common, kind: 'skipped' as const, drawn: 0, reason: DECK_EMPTY_REASON} :
+                {...common, kind: 'cards' as const, drawn: payout.amount});
           }
           continue;
         }

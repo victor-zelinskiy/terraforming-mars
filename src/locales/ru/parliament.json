@@ -1002,5 +1002,10 @@
   "Lose 10 M€. Then gain 1 M€ per science tag you have, plus 1 per influence. Then draw 2 cards.": "Потеряйте 10 M€. Затем получите 1 M€ за каждую свою метку науки и 1 за каждое влияние. Затем возьмите 2 карты.",
   "${0} has no science tags and no influence — no M€ from ${1}": "${0}: нет меток науки и нет влияния — ${1} не даёт M€",
   "${0} gained ${1} M€ from ${2}: ${3} science tag(s) + ${4} influence (${5} → ${6})": "${0} получает ${1} M€ — ${2}: ${3} {метка|метки|меток} науки + влияние ${4} (${5} → ${6})",
-  "${0} draws ${1} card(s) from ${2}: 2 for every player": "${0} берёт ${1} {карту|карты|карт} — ${2}: по 2 каждому игроку"
+  "${0} draws ${1} card(s) from ${2}: 2 for every player": "${0} берёт ${1} {карту|карты|карт} — ${2}: по 2 каждому игроку",
+  "Result by tags and influence, after the levy": "Результат по меткам и влиянию, после платы",
+  "Levy first, then the payout — net −5, and 2 cards": "Сначала плата, потом выплата — итого −5 и 2 карты",
+  "Science tags alone — one card prints two": "Только метки науки — на одной карте их две",
+  "No science tags and no influence — the cards still come": "Нет меток науки и нет влияния — карты всё равно приходят",
+  "The project deck is empty — the cards are named, the money is not touched": "Колода проектов пуста — недобор назван, деньги не затронуты"
 }

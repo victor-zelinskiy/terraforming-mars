@@ -773,7 +773,16 @@ export function enactedYieldsOf(
     if (applied !== undefined && applied.kind === 'skipped' && (!yieldIsMultiplier(effect) || applied.colony === undefined)) {
       out.push({...fixedYield(effect, context, paid ?? 0, applied.influence, recorded), skipped: applied.reason ?? 'Skipped'});
     } else if (applied !== undefined && paid !== undefined) {
-      out.push(fixedYield(effect, context, paid, applied.influence, recorded));
+      const reading = fixedYield(effect, context, paid, applied.influence, recorded);
+      // A PLAIN DRAW (no level, no sequel — Scientists Budget's flat 2, Open IP
+      // Trade's 1 per influence) that the deck could not fill: what was OWED is
+      // the amount, what LANDED is `delivered` («+1 / 2»). Without it a short
+      // deck reads as a payout in full — a silent loss of exactly the kind the
+      // level and sequel branches above already refuse.
+      if (effect.unit.kind === 'cards' && applied.drawn !== undefined && applied.drawn < paid) {
+        reading.delivered = applied.drawn;
+      }
+      out.push(reading);
     } else {
       out.push(referenceYield(effect));
     }

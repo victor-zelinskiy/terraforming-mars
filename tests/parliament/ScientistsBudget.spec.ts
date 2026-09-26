@@ -1,4 +1,6 @@
 import {expect} from 'chai';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import {testGame} from '../TestGame';
 import {TestPlayer} from '../TestPlayer';
 import {IGame} from '../../src/server/IGame';
@@ -563,6 +565,30 @@ describe('ScientistsBudget', () => {
       p2.playCard(new Research());
       runAllActions(game);
       expect(parliament.chairman).eq(p1.id);
+    });
+  });
+
+  describe('the stand — the scenarios a tag-counted law opens', () => {
+    /*
+     * THE STAND IS DERIVED FROM THE DECLARATION, but a COUNTED family's
+     * scenarios carry a TABLEAU, and a tableau is only legible under the count
+     * it was laid out for: Central Power Grid's power cards read ZERO on every
+     * row under a science law, teaching the rule backwards. So every scenario
+     * of the tag-counted family declares WHICH count it belongs to
+     * (`counts: '<id>'`, the filter the board-counted family already uses) —
+     * the rule, not the two ids, is what this guard keeps.
+     */
+    const STAND = path.join(__dirname, '..', '..', 'src', 'client', 'components', 'console', 'parliament', 'ConsoleResolutionsPlayground.vue');
+
+    it('every scenario of the tag-counted family names the count its tableau is laid out for', () => {
+      const source = fs.readFileSync(STAND, 'utf8');
+      const scenarios = source.split('\n').filter((line) => line.includes("family: 'counted-tags'"));
+      expect(scenarios.length, 'the family has scenarios at all').is.greaterThan(0);
+      const unnamed = scenarios.filter((line) => !line.includes("counts: '")).map((line) => line.trim().slice(0, 60));
+      expect(unnamed, 'a tag scenario without its count shows one law another law\'s tableau').deep.eq([]);
+      expect(scenarios.filter((line) => line.includes("counts: 'scienceTags'")).length,
+        'this card opens its own: the levy\'s edges, the tag count\'s, and the empty deck').is.greaterThan(4);
+      expect(source, 'the empty deck is one of them, and it is the DRAW that is named').includes('emptyDeck: true');
     });
   });
 
