@@ -142,6 +142,17 @@ export class InMemoryDatabase implements IDatabase {
     this.sessions.delete(sessionId);
     return Promise.resolve();
   }
+  deleteExpiredSessions(): Promise<number> {
+    const now = Date.now();
+    let deleted = 0;
+    for (const [id, session] of this.sessions) {
+      if (session.expirationTimeMillis <= now) {
+        this.sessions.delete(id);
+        deleted++;
+      }
+    }
+    return Promise.resolve(deleted);
+  }
   getSessions(): Promise<Array<Session>> {
     const now = this.clock.now();
     return Promise.resolve(Array.from(this.sessions.values()).filter((e) => e.expirationTimeMillis > now));

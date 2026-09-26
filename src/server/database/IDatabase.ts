@@ -151,6 +151,11 @@ export interface IDatabase {
     getSessions(): Promise<Array<Session>>;
 
     /**
+     * Remove every expired session, returning how many were removed.
+     */
+    deleteExpiredSessions(): Promise<number>;
+
+    /**
      * Campaign mode (docs/CAMPAIGN_MODE_ARCHITECTURE.md §2.5): the campaign
      * document store — one small JSON blob per campaign, upserted whole.
      * Follows the `session` table precedent (the other non-game entity).

@@ -52,6 +52,11 @@ const metrics = {
     help: 'Number of games deleted because they are too old',
     registers: [prometheus.register],
   }),
+  expiredSessionsDeleted: new prometheus.Counter({
+    name: 'expired_sessions_deleted',
+    help: 'Number of expired sessions deleted from storage',
+    registers: [prometheus.register],
+  }),
   gamesInMemory: new prometheus.Gauge({
     name: 'games_in_memory',
     help: 'Number of games currently loaded in memory',
@@ -377,6 +382,8 @@ export class GameLoader implements IGameLoader {
     }
     metrics.gamesPurged.inc(purgedGames.length);
     await database.compressCompletedGames();
+    const prunedSessions = await database.deleteExpiredSessions();
+    metrics.expiredSessionsDeleted.inc(prunedSessions);
   }
 }
 
