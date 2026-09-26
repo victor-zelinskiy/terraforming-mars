@@ -2366,6 +2366,8 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'hydro-terminal'
   'parliament-colony-assembly' |
   // RX10 Development Craze ENACTED: red opens generation 2 with 30 M€ — a standard city on a bonus cell pays its bonuses twice.
   'parliament-craze-enacted' |
+  // RX30 Urban Development ENACTED: red opens generation 2 holding a Mine — a Building tag, so the law answers the play with a card.
+  'parliament-urban-enacted' |
   'parliament-forestry-enacted' |
   // RX12 Gas Export: a Venus table at gate 1, oxygen 5 % and Venus 10 % — the world's own move plays from here.
   'parliament-gas-assembly' |

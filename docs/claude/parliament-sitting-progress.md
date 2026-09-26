@@ -3755,3 +3755,43 @@ post-flush, `consoleCardActionsUi.billZone`, шелл держит хост «н
 | регрессия e2e `console-parliament-openip` · `-rdfunding` · `-actions` | см. итог прогона в отчёте |
 | `e2eDriverGuard` · `e2eFixturesLoad` · `parliamentGlossary` · `promptMarkerGuard` | 103 passing |
 | клиент: `consoleMandatoryGate` (+1) · `surfaceMotionModel` (+1) | 19 · 26 passing |
+
+## RX30 «Городское развитие» (Urban Development, Марс вперёд) — 2026-09-26
+
+Выдача и задание — копия RX10 (сталь по влиянию, «1 особый тайл», тот же ключ). **Новое одно: второй
+РЕАКТИВНЫЙ канал пассива резолюции — закон, отвечающий на РОЗЫГРЫШ КАРТЫ.** Карта — `docs/TURMOIL_REDUX_URBAN_DEVELOPMENT.md`.
+
+Что открыто в общем слое (аддитивно, ничего не переименовано): `ResolutionPassive.onCardPlayed` рядом с
+`onTilePlaced` + обязательный твин `cardPlayedForecast`; канал `'card-played'` у общего диспетчера
+`ParliamentHandler.enactedPassive` и его вызов в `ParliamentHandler.onCardPlayed` — ПЕРЕД репортами задания,
+как на остальных каналах; шаг **2.5** внутри `effectForecast.cardPlayedFacts` (после политики Turmoil, до
+чужих табло) — зеркало живого веера обязано совпасть по порядку, а общий `forecast` приклеивает факты в конец.
+Гард контракта отказывает живому хуку без твина.
+
+Решённые развилки: **каждая метка, а не карта** (прецедент Point Luna, `Tags.cardTagCount`; апстримная `mp02`
+считает «раз за карту» — расхождение записано в спек, `mp02` не тронута); **синхронно, не через `defer`**
+(добор ничего не спрашивает, карта обязана быть в руке до конца розыгрыша — как платит `mp02` в той же точке);
+**обычный `drawCard`**, не `ExternalDrawIntake` (это свой ход); пустая колода названа.
+
+### Прогоны (2026-09-26)
+
+| Что | Итог |
+| --- | --- |
+| `tests/parliament/UrbanDevelopment.spec.ts` (новый, 21) | зелёный |
+| `tests/parliament/**` · `tests/models/**` · `tests/turmoil/**` | 1458 passing, 1 красный **ЧУЖОЙ** (`CentralPowerGrid` § счёт-ид `earthVenusJovianTags` из незавершённого RX29 в том же клоне) |
+| `npx tsc -p tests/e2e/tsconfig.json` | в моих файлах чисто; единственная ошибка — чужой `console-parliament-unity.spec.ts` (RX29 не добавил свою фикстуру в `FixtureName`) |
+| `build:test` (дерево mocha) | красный ЧУЖИМ RX29 (`parliamentRewardBeat.spec` § вид `colonyTrack`); моих ошибок нет |
+| `npm run make:cards` · `make:css` · `build:server` · `build:client` | зелёные |
+| `npm run make:json` | красный **ДО МОИХ ПРАВОК** — чужая строка-тождество `"${0} → ${1}": "${0} → ${1}"` (RX29). Мои 5 ключей уникальны и не тождественны; `assets/locales/ru.json` пишется ДО этого броска, поэтому рантайм-локаль актуальна |
+| `e2eDriverGuard` · `e2eFixturesLoad` (фикстура `parliament-urban-enacted`) | 99 passing |
+| e2e `console-parliament-urban` (standard-1080) | 1 passed (2,1 мин) — замороженная копия `build/` (`.e2e-frozen-rx30/`), свой сервер :8161 |
+
+Кадры (`screenshots/parliament-urban/`): `00-effects-strip` — строка закона в «ЭФФЕКТАХ» с графикой
+`[метка строительства] : [карта]`; `01-play-confirmation` — «Сработает» в подтверждении розыгрыша «Шахты»;
+`02-forecast-law` — слой R3, плитка «Городское развитие» под «ВЫ ПОЛУЧИТЕ» с эмблемой «Марс вперёд» и «+1 взять»;
+`03-reveal-names-the-law` — пришедшая карта с подписью «ИСТОЧНИК · Городское развитие».
+
+Наблюдения на будущее (не правил — общий слой, чужие правки рядом): плитка факта закона в слое R3 рисует
+эмблему партии, но не графику правила (так же у RX10 — `ftileEffectNode` для источника-резолюции пуст);
+в строке «ЭФФЕКТОВ» `buildMechanics` поднимает эффект-бокс НАД печатной строкой, поэтому порядок на плашке
+обратный порядку на лице (общая грамматика премиального лица, одинаковая для всех законов с пассивом).
