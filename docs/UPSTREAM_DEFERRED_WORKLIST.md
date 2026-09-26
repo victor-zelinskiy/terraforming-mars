@@ -319,5 +319,13 @@ a frontier module, RU would orphan); every desktop/info-panel/log-panel/mobile c
   typed, TTL'd localStorage wrapper; worth adopting if console persistence grows beyond the
   create-game settings.
 
-**Baseline note:** `tests/database/Cloner.spec.ts` («solo game preserved», board
-deep-equal) is red at `da771a6b0c`, before this audit — pre-existing, not introduced here.
+**Baseline reds, triaged and fixed after this audit (2026-09-26):** of the 9 failures the full
+suite showed, 8 were red at `da771a6b0c` before any of this. Real defects fixed in code: the
+`coloniesExtension` gate in `ColoniesHandler.coloniesOf` zeroed every colony count in specs
+that seat a tile without the flag (ColonialRepresentation, SoilStudies ×3, VenusAllies);
+`space.stackHeight = undefined` created an own key that a reload omits, so a live board and
+the same board reloaded differed in shape (Cloner). Outdated specs updated: CentralPowerGrid
+now derives the counted terms from `RESOLUTION_COUNT_IDS` (it was three terms behind);
+the RX15 «levy nets alone» expectation was superseded by RX25's «no net that restates one
+part» (spec + docblock). `effectForecastParity` only times out under machine load.
+Full suite after the fixes: 13041 passing, 0 failing.
