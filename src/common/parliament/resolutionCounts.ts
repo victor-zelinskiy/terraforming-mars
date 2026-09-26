@@ -112,6 +112,12 @@ export const RESOLUTION_COUNT_IDS = [
    */
   'earthVenusJovianTags',
   /**
+   * Greens Budget: the PLANT, MICROBE and ANIMAL tags the player has in play,
+   * added up — the same three-tag form as Unity Budget's (a card printing two
+   * of them is worth 2), read with the per-tag breakdown.
+   */
+  'plantMicrobeAnimalTags',
+  /**
    * Colonization Funding: the player's SPACE CITIES — city tiles on the
    * reserved areas off Mars (Ganymede Colony, Phobos Space Haven, Stanford
    * Torus, the Venus and Pathfinders areas). A count over the BOARD, not the
@@ -284,6 +290,7 @@ export function resolutionCountKind(id: ResolutionCountId): ResolutionCountKind 
   case 'powerTags': return {kind: 'tags', tags: [Tag.POWER]};
   case 'venusJovianTags': return {kind: 'tags', tags: [Tag.VENUS, Tag.JOVIAN]};
   case 'earthVenusJovianTags': return {kind: 'tags', tags: [Tag.EARTH, Tag.VENUS, Tag.JOVIAN]};
+  case 'plantMicrobeAnimalTags': return {kind: 'tags', tags: [Tag.PLANT, Tag.MICROBE, Tag.ANIMAL]};
   case 'spaceCities': return {kind: 'board', tiles: 'spaceCity', measure: 'cells'};
   case 'terraformRatingSets': return {kind: 'threshold', metric: 'terraformRating', over: TERRAFORM_RATING_SETS_OVER, step: TERRAFORM_RATING_SETS_STEP};
   case 'steelTitaniumEnergyProduction': return {kind: 'production', resources: INDUSTRIAL_PRODUCTION_RESOURCES};
@@ -617,6 +624,19 @@ export function cardCountVerdict(id: ResolutionCountId, card: CountedCardFacts, 
     }
     if (!card.tags.includes(Tag.EARTH) && !card.tags.includes(Tag.VENUS) && !card.tags.includes(Tag.JOVIAN)) {
       return {counts: false, reason: 'No Earth, Venus or Jovian tag'};
+    }
+    return {counts: true};
+  }
+  case 'plantMicrobeAnimalTags': {
+    // The same one question, over the three biological tags: prints a plant,
+    // a microbe OR an animal tag, face up. A card that HOLDS animals or
+    // microbes answers by what it PRINTS (Pets: one animal tag, whatever it
+    // stores) — storage is the payout's business, not the count's.
+    if (!cardTagsInPlay(card, ctx)) {
+      return {counts: false, reason: 'A played event is face down'};
+    }
+    if (!card.tags.includes(Tag.PLANT) && !card.tags.includes(Tag.MICROBE) && !card.tags.includes(Tag.ANIMAL)) {
+      return {counts: false, reason: 'No plant, microbe or animal tag'};
     }
     return {counts: true};
   }

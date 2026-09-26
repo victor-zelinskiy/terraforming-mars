@@ -42,6 +42,7 @@ import {DEVELOPMENT_CRAZE} from './marsFirst/DevelopmentCraze';
 import {FORESTRY_SUPPORT} from './greens/ForestrySupport';
 import {GAS_EXPORT} from './reds/GasExport';
 import {GENEROUS_FUNDING} from './greens/GenerousFunding';
+import {GREENS_BUDGET} from './greens/GreensBudget';
 import {HEAT_CAPTURE} from './reds/HeatCapture';
 import {INDUSTRIALIST_BUDGET} from './industrialists/IndustrialistBudget';
 import {JOINT_RESEARCH} from './scientists/JointResearch';
@@ -498,6 +499,10 @@ export const REDUX_RESOLUTION_CATALOG = new ResolutionCatalog([
   GAS_EXPORT,
   // A count over ONE PLAYER METRIC by threshold and step (sets of 5 TR over 15), not over things.
   GENEROUS_FUNDING,
+  // The FIFTH BUDGET, assembled whole: the shared levy (−10 M€), a count over THREE tags (plant + microbe + animal)
+  // + influence, and TWO flat payouts onto ONE card each (2 animals, then 3 microbes — Aquifer Contest's picker,
+  // twice) — the first law that asks ONE seat two questions in a row. «To any card» is one card, never a layout.
+  GREENS_BUDGET,
   // The first law that touches the ECONOMY of cards: a world step (temperature −2, no TR) and a passive
   // DISCOUNT (3 M€ off a Building tag) asked by the one price function and itemized under the law's source.
   HEAT_CAPTURE,

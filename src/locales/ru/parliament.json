@@ -1102,5 +1102,20 @@
   "${0} gained ${1} M€ from ${2}: ${3} blue card(s) + ${4} influence (${5} → ${6})": "${0} получает ${1} M€ — ${2}: ${3} {синяя карта|синие карты|синих карт} + влияние ${4} (${5} → ${6})",
   "Blue cards alone — influence 0": "Только синие карты — влияние 0",
   "Blue, green and an event side by side — only the blue ones count": "Синие, зелёная и событие рядом — считаются только синие",
-  "A corporation and a prelude are not blue cards": "Корпорация и подготовка — не синие карты"
+  "A corporation and a prelude are not blue cards": "Корпорация и подготовка — не синие карты",
+  "Greens Budget": "Бюджет Зелёных",
+  "Lose 10 M€. Then gain 1 M€ per plant, microbe and animal tag you have, plus 1 per influence. Then add 2 animals to one of your cards and 3 microbes to one of your cards.": "Потеряйте 10 M€. Затем получите 1 M€ за каждую свою метку растений, бактерий и животных и 1 за каждое влияние. Затем добавьте 2 животных на одну свою карту и 3 бактерии на одну свою карту.",
+  "Play 2 plant tags": "Разыграйте 2 метки растений",
+  "No plant, microbe or animal tags and no influence": "Нет меток растений, бактерий и животных и нет влияния",
+  "No plant, microbe or animal tag": "Нет метки растений, бактерий или животных",
+  "${0} plant, microbe and animal tag(s)": "${0} {метка|метки|меток} растений, бактерий и животных",
+  "Each plant, microbe and animal tag counts: a card with two of them counts twice. Wild tags do not count.": "Считается каждая метка растений, бактерий и животных: карта с двумя из них даёт 2. Универсальные метки не считаются.",
+  "${0} has no plant, microbe or animal tags and no influence — no M€ from ${1}": "${0}: нет меток растений, бактерий и животных и нет влияния — ${1} не даёт M€",
+  "${0} gained ${1} M€ from ${2}: ${3} plant, microbe and animal tag(s) + ${4} influence (${5} → ${6})": "${0} получает ${1} M€ — ${2}: ${3} {метка|метки|меток} растений, бактерий и животных + влияние ${4} (${5} → ${6})",
+  "${0} has no card that can hold microbes — ${1} microbe(s) from ${2} are forfeited": "${0}: нет карты, принимающей бактерии — ${2} не даёт ${1} {бактерию|бактерии|бактерий}",
+  "Levy first, then the payout — net −5; 2 animals and 3 microbes onto a card": "Сначала плата, потом выплата — итого −5; 2 животных и 3 бактерии на карту",
+  "No plant, microbe or animal tags and no influence — and no card to hold the portions": "Нет меток растений, бактерий и животных и нет влияния — и нет карты под раздачи",
+  "One card with two of the three tags counts twice": "Одна карта с двумя из трёх меток даёт 2",
+  "No card can hold animals — the 2 animals are named and forfeited, the microbes land": "Нет карты, принимающей животных — 2 животных названы и пропадают, бактерии садятся",
+  "No card can hold microbes — the 3 microbes are named and forfeited, the animals land": "Нет карты, принимающей бактерии — 3 бактерии названы и пропадают, животные садятся"
 }
