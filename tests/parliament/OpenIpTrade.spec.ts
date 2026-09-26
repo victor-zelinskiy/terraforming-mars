@@ -11,7 +11,7 @@ import {
 } from '../../src/server/parliament/resolutions/scientists/OpenIpTrade';
 import {ARCHITECTURE_AWARD_ID} from '../../src/server/parliament/resolutions/marsFirst/ArchitectureAward';
 import {REDUX_RESOLUTION_CATALOG} from '../../src/server/parliament/resolutions/ResolutionCatalog';
-import {answerQuestGate, endGenerationThroughParliament, seatEnacted, seatResolution, settleParliamentGates} from './parliamentArrange';
+import {answerQuestGate, endGenerationThroughParliament, quietWinnerIndex, seatEnacted, seatQuiet, seatResolution, settleParliamentGates} from './parliamentArrange';
 import {PartyName} from '../../src/common/turmoil/PartyName';
 import {Phase} from '../../src/common/Phase';
 import {CardName} from '../../src/common/cards/CardName';
@@ -413,9 +413,12 @@ describe('OpenIpTrade', () => {
       actionOption(p1)!.process({type: 'card', cards: [p1.cardsInHand[0].name]});
       runAllActions(game);
       expect(parliament.resolutionActionUsesLeft(p1)).eq(0);
-      // Nobody votes: the quiet slot wins, the government changes hands — so seat a Scientists card the phase keeps
-      // (the enacted one stays enacted only if a card of ITS party wins; here we only need the boundary).
-      parliament.placeVote(p1, parliament.slots[0], 'lobby');
+      // A QUIET card wins the sitting and the government changes hands — here we only need the boundary. The deal is
+      // seeded and shifts with every card the catalog gains (RX28 put a card that ASKS into slot 0), so the slot is
+      // found, never assumed.
+      const index = quietWinnerIndex(parliament);
+      seatQuiet(parliament, index);
+      parliament.placeVote(p1, parliament.slots[index], 'lobby');
       endGenerationThroughParliament(game);
       settleParliamentGates(game);
       for (const seat of [p1, p2]) {

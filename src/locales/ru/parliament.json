@@ -1007,5 +1007,15 @@
   "Levy first, then the payout — net −5, and 2 cards": "Сначала плата, потом выплата — итого −5 и 2 карты",
   "Science tags alone — one card prints two": "Только метки науки — на одной карте их две",
   "No science tags and no influence — the cards still come": "Нет меток науки и нет влияния — карты всё равно приходят",
-  "The project deck is empty — the cards are named, the money is not touched": "Колода проектов пуста — недобор назван, деньги не затронуты"
+  "The project deck is empty — the cards are named, the money is not touched": "Колода проектов пуста — недобор назван, деньги не затронуты",
+  "Trade Industries": "Торговая индустрия",
+  "Pay 12 M€ to gain an extra trade fleet. You may pay with titanium, and the price is 2 M€ less per influence.": "Заплатите 12 M€ и получите дополнительный торговый флот. Можно платить титаном; цена ниже на 2 M€ за каждое влияние.",
+  "Trade 2 times": "Совершите 2 торговли",
+  "Your trade fleet is already at its maximum": "У вас уже максимум торговых флотов",
+  "Need ${0} M€ for the trade fleet, you can pay ${1}": "Нужно ${0} M€ на торговый флот — вы можете заплатить ${1}",
+  "Pay ${0} M€ for an extra trade fleet (Trade Industries)": "Заплатите ${0} M€ за дополнительный торговый флот (Торговая индустрия)",
+  "Buy fleet": "Купить флот",
+  "Select how to pay ${0} M€ for the trade fleet": "Выберите, как заплатить ${0} M€ за торговый флот",
+  "${0} gains a trade fleet from ${1} for ${2} M€ (${3} − ${4} for influence ${5}): fleets ${6} → ${7}": "${0} получает торговый флот — ${1} — за ${2} M€ (${3} − ${4} за влияние ${5}): флотов ${6} → ${7}",
+  "titanium accepted": "можно титаном"
 }

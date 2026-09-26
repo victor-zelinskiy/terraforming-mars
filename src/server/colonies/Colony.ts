@@ -146,6 +146,11 @@ export abstract class Colony implements IColony {
     * @param decreaseTrackAfterTrade when false, the track does not decrease after trading.
     */
   public trade(player: IPlayer, tradeOptions: TradeOptions = {}, bonusTradeOffset = 0): void {
+    // Turmoil Redux: the chairman quest (trades performed) — reported at the
+    // one door every trade enters by, BEFORE the track question: the fee is
+    // paid and the fleet committed by now, so the trade is a fact whichever
+    // way the player answers about the track.
+    ParliamentHandler.onTrade(player);
     const tradeOffset = player.colonies.tradeOffset + bonusTradeOffset;
     const maxPossibleTrackPosition = Math.min(this.trackPosition + tradeOffset, MAX_COLONY_TRACK_POSITION);
     const steps = maxPossibleTrackPosition - this.trackPosition;

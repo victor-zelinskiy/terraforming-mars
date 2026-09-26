@@ -46,6 +46,11 @@ export class SelectPayment extends BasePlayerInput<Payment> {
     if (this.votePayment !== undefined) {
       model.votePayment = this.votePayment;
     }
+    // …and the RESOLUTION-ACTION marker of a paid action's bill (Trade
+    // Industries), for the same reason.
+    if (this.resolutionActionPrompt !== undefined) {
+      model.resolutionActionPrompt = this.resolutionActionPrompt;
+    }
     return model;
   }
 

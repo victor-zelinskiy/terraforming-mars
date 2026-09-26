@@ -7,7 +7,7 @@ import {CardName} from '../../common/cards/CardName';
 import {Message} from '../../common/logs/Message';
 import {message} from '../logs/MessageBuilder';
 import {Units} from '../../common/Units';
-import {ChoiceContextSource, SelectPaymentModel, VotePaymentMeta} from '../../common/models/PlayerInputModel';
+import {ChoiceContextSource, ResolutionActionPromptMeta, SelectPaymentModel, VotePaymentMeta} from '../../common/models/PlayerInputModel';
 
 export type Options = {
   canUseSteel?: boolean;
@@ -43,6 +43,13 @@ export type Options = {
   atMost?: boolean;
   /** This bill settles a Turmoil Redux VOTE from the reserve (see {@link VotePaymentMeta}). */
   votePayment?: VotePaymentMeta;
+  /**
+   * This bill is the PRICE of an enacted resolution's action (Trade
+   * Industries — see {@link ResolutionActionPromptMeta}, stage `pay`): the
+   * console hosts it as the next stage of the action's own flow, found by
+   * this marker, never by the title.
+   */
+  resolutionAction?: ResolutionActionPromptMeta;
   /**
    * A PAY-TO-USE placement bonus (the Hellas ocean, Vastitas' temperature,
    * Terra Cimmeria's colony) can be offered a SECOND time (Frontier Town,
@@ -131,6 +138,9 @@ export class SelectPaymentDeferred extends DeferredAction<Payment> {
       }, this.options.reserveUnits);
     if (this.options.votePayment !== undefined) {
       select.markVotePayment(this.options.votePayment);
+    }
+    if (this.options.resolutionAction !== undefined) {
+      select.markResolutionActionPrompt(this.options.resolutionAction);
     }
     return this.options.cause === undefined ?
       select :

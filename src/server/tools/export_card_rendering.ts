@@ -221,6 +221,7 @@ class ParliamentProcessor {
       hasPassive: definition.passive !== undefined,
       hasAction: definition.action !== undefined,
       ...(definition.action === undefined ? {} : {actionPreview: [...definition.action.preview()]}),
+      ...(definition.actionBill === undefined ? {} : {actionBill: {...definition.actionBill}}),
     };
   }
 }

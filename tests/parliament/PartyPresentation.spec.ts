@@ -58,6 +58,11 @@ describe('party presentation (Turmoil Redux UI)', () => {
     expect(blue).to.contain('"amount":2');
     expect(blue).to.not.contain('blue cards');
     expect(JSON.stringify(questRenderData({goal: {kind: 'cardsPlayed', cardType: 'automated'}, count: 2}))).to.contain('"secondaryTag":"green"');
+    // TRADES performed (Trade Industries): the TRADE glyph with a digit — one figure, never the fleet marker.
+    const trade = JSON.stringify(questRenderData({goal: {kind: 'trade'}, count: 2}));
+    expect(trade).to.contain(`"type":"${CardRenderItemType.TRADE}"`);
+    expect(trade).to.contain('"showDigit":true');
+    expect(trade).to.not.contain(`"type":"${CardRenderItemType.TRADE_FLEET}"`);
   });
 
   it('the Unity trade path carries its PARTY marker — the structural identity the console locks the trade to', () => {

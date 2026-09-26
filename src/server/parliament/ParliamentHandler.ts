@@ -298,6 +298,21 @@ export class ParliamentHandler {
   }
 
   /**
+   * A TRADE was performed — `Colony.trade`, the ONE door every trade goes
+   * through (the trade action however it was paid, a card's own trade action,
+   * the Unity party's free trade): the chairman quest (Trade Industries:
+   * «trade 2 times»). The tracker's eligibility does the judging — a bot's
+   * trade (no seat), a trade under a resolution's source (decision Q5) and a
+   * trade outside the action phase never count.
+   */
+  public static onTrade(player: IPlayer): void {
+    if (player.game?.parliament === undefined) {
+      return;
+    }
+    QuestTracker.report(player, {kind: 'trade'});
+  }
+
+  /**
    * THE ENACTED RESOLUTION'S EXTRA TAGS of `tag` for THIS seat (R&D Funding:
    * Science tags equal to your influence) — what the law ADDS to the printed
    * count, 0 when no law with a tag bonus stands, when it does not touch this

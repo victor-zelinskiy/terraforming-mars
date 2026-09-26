@@ -7,6 +7,7 @@ import {PartyReaction} from './partyReactions';
 import {WinnerRewardDeclaration} from './winnerReward';
 import {TileGrantDeclaration} from './tileGrant';
 import {WorldParameterMove} from './parameterMove';
+import {ResolutionActionBill} from './actionBill';
 import {ActionEffect} from '../models/ActionPreviewModel';
 
 /**
@@ -88,6 +89,15 @@ export type IClientResolution = {
    * synthetic hand scales it; a live surface reads the server's own `viewer.resolutionAction.preview` instead.
    */
   actionPreview?: ReadonlyArray<ActionEffect>;
+  /**
+   * THE ACTION'S BILL as data (`actionBill.ts`) — a PAID action's printed
+   * price, the discount per point of influence and whether titanium pays
+   * (Trade Industries). The same declaration the server prices the action by
+   * (`actionBillPrice`), so the tile, the composer's price line and the
+   * stand read the very number the bill will charge. Absent for an action
+   * that costs nothing.
+   */
+  actionBill?: ResolutionActionBill;
 };
 
 /** The printed PARTY EFFECT (the board's six banners), same pipeline. */

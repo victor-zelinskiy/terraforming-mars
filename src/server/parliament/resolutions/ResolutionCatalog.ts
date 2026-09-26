@@ -57,6 +57,7 @@ import {PLANT_BAN} from './reds/PlantBan';
 import {runResolutionAction} from './ResolutionAction';
 import {SCIENTISTS_BUDGET} from './scientists/ScientistsBudget';
 import {SKYSCRAPERS} from './marsFirst/Skyscrapers';
+import {TRADE_INDUSTRIES} from './unity/TradeIndustries';
 
 /**
  * THE RETIRED IDS — iteration 0's DUMMY resolutions (a party, a quest, no
@@ -536,6 +537,10 @@ export const REDUX_RESOLUTION_CATALOG = new ResolutionCatalog([
   // The first recipients decided by a THRESHOLD (the winner + everyone with influence ≥ 2), and the first CITY STACK:
   // one city tile each, placed as a TIER on the seat's own city on Mars — the cell pays nothing again, every tier scores.
   SKYSCRAPERS,
+  // The first action that COSTS something («pay 12 M€ to gain an extra trade fleet — titanium accepted, 2 M€ off per
+  // influence»): the bill declared as data and priced by ONE function, PAY-THEN-GAIN through the family's paid funnel
+  // (the use and the fleet wait in the bill's andThen); and the ninth quest kind — TRADES performed (decision Q-4).
+  TRADE_INDUSTRIES,
   TEST_CHOICE,
   DEV_IMMEDIATE,
   DEV_PASSIVE,

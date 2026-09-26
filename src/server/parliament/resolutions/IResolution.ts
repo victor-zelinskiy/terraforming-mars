@@ -6,6 +6,7 @@ import {ResolutionLevy} from '../../../common/parliament/resolutionLevy';
 import {WinnerRewardDeclaration} from '../../../common/parliament/winnerReward';
 import {TileGrantDeclaration} from '../../../common/parliament/tileGrant';
 import {WorldParameterMove} from '../../../common/parliament/parameterMove';
+import {ResolutionActionBill} from '../../../common/parliament/actionBill';
 import type {SerializedEnactOutcome} from '../SerializedParliament';
 import {ActionEffect} from '../../../common/models/ActionPreviewModel';
 import {ResolutionActionPromptMeta} from '../../../common/models/PlayerInputModel';
@@ -385,6 +386,16 @@ export interface ResolutionDefinition {
   /** Passive effect while enacted (see {@link ResolutionPassive}) — the DEV passive example proves the seam. */
   passive?: ResolutionPassive;
   action?: ResolutionAction;
+  /**
+   * THE ACTION'S BILL as data (`actionBill.ts`) — Trade Industries: «pay
+   * 12 M€ … you can pay with titanium … a discount equal to 2 times your
+   * Influence». Declared BESIDE `action`, never instead of it: the action's
+   * gate, the bill it defers, its preview chips and every client reading
+   * price it through the ONE function (`actionBillPrice`), so «shown as 6,
+   * charged as 8» is not expressible. Exported to the manifest for the
+   * tile's price line and the stand. Absent for an action that costs nothing.
+   */
+  actionBill?: ResolutionActionBill;
 }
 
 /**

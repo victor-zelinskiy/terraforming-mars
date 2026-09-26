@@ -97,6 +97,14 @@ export function questRenderData(quest: QuestDefinition): ICardRenderRoot {
       // never a text plate inside a graphic zone.
       b.cards(count, {secondaryTag: goal.cardType === 'active' ? AltSecondaryTag.BLUE : AltSecondaryTag.GREEN});
       return;
+    case 'trade':
+      // The TRADE glyph — the black fleet-with-arrow the footnote prints
+      // («2 [trade]», Trade Industries) — with a DIGIT beside ONE figure, as
+      // the delegates' footnote does. Never the fleet marker (the light
+      // triangle the same card's rule prints for «gain a fleet»): the quest
+      // is about trading, not about owning ships — decision Q-4.
+      b.trade({amount: count, digit: true});
+      return;
     }
   });
 }

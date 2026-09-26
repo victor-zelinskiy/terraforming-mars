@@ -504,7 +504,10 @@ export type PartyActionPromptMeta = {
  * console lists it as a source of «Действия карт» beside them, and the
  * Parliament's government is its second door. `stage` is the beat: `choose` —
  * the ONE pre-commit pick hosted in the action workspace (nothing has changed
- * yet; the answer is the commit). Serialized on the input's own `toModel`
+ * yet; the answer is the commit); `pay` — the BILL of a paid action (Trade
+ * Industries), the `SelectPayment` the commit deferred: the player said yes,
+ * nothing is granted until it is settled, and the action workspace hosts it
+ * as the flow's next stage. Serialized on the input's own `toModel`
  * (nesting-safe), never centrally. The console finds the prompt BY THIS
  * MARKER, never by its title.
  */
@@ -512,7 +515,7 @@ export type ResolutionActionPromptMeta = {
   /** The enacted resolution whose action this is (its catalog id). */
   resolution: string;
   party: PartyName;
-  stage: 'choose';
+  stage: 'choose' | 'pay';
   usesLeft: number;
   usesPerGeneration: number;
 }

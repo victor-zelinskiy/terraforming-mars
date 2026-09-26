@@ -152,6 +152,10 @@ describe('QuestTracker (the chairman quest)', () => {
     check({kind: 'cardsPlayed', cardType: 'event'}, {kind: 'cardsPlayed', cardType: CardType.EVENT}, 1);
     check({kind: 'cardsPlayed', cardType: 'event'}, {kind: 'cardsPlayed', cardType: CardType.AUTOMATED}, 0);
     check({kind: 'production', resource: Resource.STEEL}, {kind: 'production', resource: Resource.STEEL, amount: -1}, 0);
+    // A TRADE performed (Trade Industries): one deed, one point — never a colony built, never a fleet owned.
+    check({kind: 'trade'}, {kind: 'trade'}, 1);
+    check({kind: 'trade'}, {kind: 'colony'}, 0);
+    check({kind: 'colony'}, {kind: 'trade'}, 0);
     // TILES — the seated tile on a Mars land cell / a reserved area off Mars, stamped with its board.
     const game = p1.game;
     const land = game.board.getAvailableSpacesOnLand(p1)[0];

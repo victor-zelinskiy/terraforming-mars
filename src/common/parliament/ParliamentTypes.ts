@@ -112,7 +112,18 @@ export type QuestGoal =
    * from `CardType.EVENT` (`Tags.count`) — so a `{kind: 'tag', tag: EVENT}`
    * quest would sit at zero forever (Joint Research: «play 2 event cards»).
    */
-  | {kind: 'cardsPlayed', cardType: 'automated' | 'active' | 'event'};
+  | {kind: 'cardsPlayed', cardType: 'automated' | 'active' | 'event'}
+  /**
+   * TRADES the player performs (Trade Industries: «trade 2 times» — the
+   * footnote's black fleet-with-arrow glyph, decision Q-4). A trade is an
+   * ACT of the seat's own turn — through the trade action, a card's action,
+   * the Unity party's free trade — never the fleet count: «own N fleets»
+   * would be the one quest about a STATE among eight about a deed, and a
+   * fleet is rare enough that «gain 2 fleets in one generation» would sit at
+   * zero forever. Reported by `Colony.trade` (the one door every trade goes
+   * through), judged by the tracker's usual eligibility.
+   */
+  | {kind: 'trade'};
 
 export type QuestDefinition = {
   goal: QuestGoal;

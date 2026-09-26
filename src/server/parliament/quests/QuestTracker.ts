@@ -42,7 +42,9 @@ export type QuestEvent =
   | {kind: 'tr'; steps: number}
   | {kind: 'cardResource'; resource: CardResource | undefined; amount: number}
   | {kind: 'delegates'; amount: number}
-  | {kind: 'cardsPlayed'; cardType: CardType};
+  | {kind: 'cardsPlayed'; cardType: CardType}
+  /** A TRADE performed (`Colony.trade` — the one door every trade goes through, the Unity free trade included). */
+  | {kind: 'trade'};
 
 /** Roots that are NOT a player's own action: nothing under them progresses a quest. */
 const FOREIGN_ROOT_CATEGORIES: ReadonlySet<JournalActionCategory> = new Set<JournalActionCategory>([
@@ -105,6 +107,13 @@ export class QuestTracker {
       return (goal.cardType === 'active' && event.cardType === CardType.ACTIVE) ||
         (goal.cardType === 'automated' && event.cardType === CardType.AUTOMATED) ||
         (goal.cardType === 'event' && event.cardType === CardType.EVENT) ? 1 : 0;
+    case 'trade':
+      // A trade is a DEED of the seat's turn (Trade Industries: «trade 2
+      // times»): whoever paid for it — M€, energy, titanium, the Unity
+      // party's free trade, a card's own action — it is one trade. What is
+      // NOT one is decided upstream by `eligible`: a bot's, one under a
+      // resolution source, one outside the action phase.
+      return event.kind === 'trade' ? 1 : 0;
     }
   }
 
