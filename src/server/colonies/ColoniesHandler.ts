@@ -38,9 +38,8 @@ export class ColoniesHandler {
    * Colonies expansion has no colonies.
    */
   public static coloniesOf(game: IGame, player: IPlayer): Array<IColony> {
-    if (!game.gameOptions.coloniesExtension) {
-      return [];
-    }
+    // No extension gate: without Colonies the table is simply empty, and a gate here
+    // silently zeroed every colony count in specs that seat a tile without the flag.
     const out: Array<IColony> = [];
     for (const colony of game.colonies) {
       for (const owner of colony.colonies) {
