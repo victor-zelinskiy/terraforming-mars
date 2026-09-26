@@ -164,7 +164,7 @@ import {
   parliamentRewardPending, parliamentRewardState, releaseParliamentRewards, takeTileReceipt,
 } from '@/client/console/parliament/parliamentRewardBeat';
 import {
-  parliamentWorldBeatState, runWorldMoveBeat, takeWorldReceipt, worldMoveOwed, worldReceiptOwed,
+  parliamentWorldBeatState, runTrackMoveBeat, runWorldMoveBeat, takeWorldReceipt, trackMoveOwed, worldMoveOwed, worldReceiptOwed,
 } from '@/client/console/parliament/parliamentWorldBeat';
 import {
   sittingPageAuto, sittingPositionOf, SittingPosition, sittingPrimaryKey, sittingRewardSettled, SittingStage, sittingStageAt, sittingStageKey,
@@ -1559,7 +1559,16 @@ export default defineComponent({
           // story, the module puts the stack back, and the section's own mount
           // re-queues the walk on the reward page with the receipt owed.
           if (stage === 'reward' && worldMoveOwed(key) && this.mayYieldForWorld(position)) {
-            void runWorldMoveBeat(key, {boardBusy: () => this.pv.waitingFor?.type === 'space'});
+            if (trackMoveOwed(key)) {
+              // THE COLONY TABLE MOVES ON THE COLONIES SCREEN (Unity Budget), so the sitting HOSTS that screen
+              // as its own SHOW step — the winner's-colony frame, pushed by the record instead of a question.
+              // The frame stands in the stage zone (`stepFrameNested` opens the field), the wave rolls over
+              // every track, the frame leaves by itself, and its departure re-queues this walk on the reward
+              // page with the colonies line owed a read. The walk stops here for exactly that.
+              void runTrackMoveBeat(key);
+            } else {
+              void runWorldMoveBeat(key, {boardBusy: () => this.pv.waitingFor?.type === 'space'});
+            }
             break;
           }
           if (!this.sittingUp) {

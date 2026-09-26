@@ -48,6 +48,7 @@ import {ColonyTradeManifestModel} from '@/common/models/ColonyTradeManifestModel
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
+import {consoleFxLiteState} from '@/client/console/consoleFxLite';
 import {drawnCardsState} from '@/client/components/drawnCards/drawnCardsState';
 import {translateText} from '@/client/directives/i18n';
 import {
@@ -58,7 +59,7 @@ import {motionMs} from '@/client/components/motion/motionTokens';
 import {
   ColonyTradeTargets, benefitCardCount, colonyTradeHeldSpecs, incomeTransferSpecs,
   ownBonusTransferSpecs, viewerBonusCubes,
-  trackAdvancePlan, trackGlidePlan, TrackGlidePlan, TRACK_SETTLE_MS,
+  trackAdvancePlan, trackGlidePlan, TrackGlidePlan, TRACK_SETTLE_MS, trackWavePlan, TrackWavePlan,
 } from '@/client/console/colonyTrade/colonyTradeModel';
 
 /**
@@ -294,6 +295,12 @@ export function colonyPayoutPending(): boolean {
  * and `settle` (pure decoration).
  */
 export function isColonyTradeInputLocked(): boolean {
+  // A LAW'S WAVE over every track (Unity Budget) owns the moment exactly as a trade's glide does: the
+  // colonies stand as a SHOW step of the sitting, nothing is asked, and a press there could only open a
+  // trade over a moving marker or fold the sitting under its own beat. Bounded by the wave's net.
+  if (colonyTrackWaveState.active) {
+    return true;
+  }
   if (!colonyTradeState.active) {
     return false;
   }
@@ -325,6 +332,12 @@ registerAnimationHoldSupplier('colony-trade', colonyTradeHolding);
  * the colony (cubes, visitor, name) passes through untouched.
  */
 export function presentedColonyModel(colony: ColonyModel): ColonyModel {
+  // A LAW'S SHOW STEP holds every tile it has not yet moved on screen (the wave below) — the same freeze,
+  // for the whole table: the value moves only through the glide.
+  const held = heldTrackPositions.get(colony.name);
+  if (held !== undefined) {
+    return {...colony, trackPosition: held};
+  }
   if (!colonyTradeState.trackHold || colony.name !== colonyTradeState.colonyName) {
     return colony;
   }
@@ -1147,3 +1160,193 @@ export function resetColonyTrade(): void {
 function pause(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
+
+// ── THE WAVE: every colony track at once (Turmoil Redux — Unity Budget, RX29) ─
+
+/*
+ * A LAW MOVES THE WHOLE TABLE. «Advance each colony track 2 steps» is a WORLD
+ * step of the sitting: the server has already moved every tile when the view
+ * arrives, and the sitting hosts the colonies screen as its own SHOW step so
+ * the player watches the programme roll over every world. Three things live
+ * here, in the trade module on purpose — the marker's physics is ONE
+ * mechanism (the trade's advance leg, generalized to N tiles and a stagger),
+ * and the tile reads its presented position through the ONE helper above:
+ *
+ *   · HELD POSITIONS — while the show has not yet moved a tile on screen, its
+ *     marker stays where it STOOD (`presentedColonyModel` reads the hold),
+ *     exactly as the traded tile stays pre-reset under `trackHold`. Released
+ *     tile by tile, on each landing — the value moves ONLY through the glide;
+ *   · THE WAVE STATE — the moves, a nonce the layer runs on, which tiles are
+ *     mid-glide (their resting marker dims) and where each just settled (its
+ *     one-shot glow, and the trade cell's «reward comes alive»);
+ *   · THE REQUEST — a promise that resolves when every marker has landed and
+ *     the table has been read, bounded by its own named net (the scene is a
+ *     beat of the sitting, never a gate on the game).
+ *
+ * The plan (`trackWavePlan`) is pure: the breath, the stagger, the two
+ * countable steps, the read. Reduced motion and the fx-lite preset play the
+ * short form — the markers still arrive one after another, without impulses.
+ */
+
+/** A HELD track position per tile: the presented marker until the wave moves it. Reactive — the tiles read it. */
+const heldTrackPositions = reactive(new Map<ColonyName, number>());
+
+/** HOLD every listed tile at its BEFORE position (the model already carries the after). */
+export function holdColonyTracks(holds: ReadonlyArray<{colony: ColonyName, position: number}>): void {
+  for (const hold of holds) {
+    heldTrackPositions.set(hold.colony, hold.position);
+  }
+}
+
+/** The tile's marker may show the model's own position again (its glide landed). */
+export function releaseColonyTrack(colony: ColonyName): void {
+  heldTrackPositions.delete(colony);
+}
+
+/** Every hold released at once — the wave's end, or a scene that could not play. */
+export function releaseColonyTracks(): void {
+  heldTrackPositions.clear();
+}
+
+/** The held position of `colony`, if the show still holds it. */
+export function heldColonyTrackPosition(colony: ColonyName): number | undefined {
+  return heldTrackPositions.get(colony);
+}
+
+export type ColonyTrackWaveMove = {colony: ColonyName, before: number, after: number};
+
+export const colonyTrackWaveState = reactive({
+  /** A wave is on stage (the hold the transport and the notifications wait on). */
+  active: false,
+  /** Bumped when the wave should run — the layer measures and animates. */
+  nonce: 0,
+  moves: [] as Array<ColonyTrackWaveMove>,
+  /** The short form (reduced motion / fx-lite): the markers arrive in order, without impulses. */
+  reduced: false,
+  /** The tiles whose marker proxy is mid-glide (their resting marker dims). */
+  gliding: {} as Record<string, boolean>,
+  /** One-shot: the cell a tile's marker just settled on (its glow; the trade cell's morph) — absent when none. */
+  settled: {} as Record<string, number>,
+  /** How the last wave ended (`landed` · `net` · `no standing table` · …) — a diagnostic for the probes. */
+  lastFinish: '',
+});
+
+/** The wave's own readiness facts (`__conReady`): whether one is on stage, and how the last one ended. */
+export function colonyTrackWaveDiag(): {active: boolean, tiles: number, lastFinish: string} {
+  return {active: colonyTrackWaveState.active, tiles: colonyTrackWaveState.moves.length, lastFinish: colonyTrackWaveState.lastFinish};
+}
+
+let waveResolver: (() => void) | undefined;
+let waveNetId = 0;
+let waveGlowId = 0;
+
+/**
+ * The wave's own net, PAST the plan's whole length AND past the layer's own
+ * wait for a standing table (6 s — the table is being hosted while this waits):
+ * a table that never stands (the frame left early, a tile with no track) can
+ * never hold the sitting — the scene is a beat, never a gate on the game.
+ */
+const TRACK_WAVE_NET_MS = 8_000;
+
+/** How long the last landing's glow is kept before the one-shots are cleared (cosmetic — the wave is already over). */
+const TRACK_WAVE_GLOW_MS = 900;
+
+/** The plan the layer runs — from the requested moves, in the short form when the wave is. */
+export function colonyTrackWavePlan(): TrackWavePlan | undefined {
+  if (!colonyTrackWaveState.active || colonyTrackWaveState.moves.length === 0) {
+    return undefined;
+  }
+  return trackWavePlan(colonyTrackWaveState.moves, {reduced: colonyTrackWaveState.reduced});
+}
+
+/**
+ * RUN the wave over `moves` (the server's list, in the table's order) and
+ * resolve when every marker has landed and the table has been read. The
+ * tiles are expected to be HELD at their before positions by the caller
+ * (`holdColonyTracks`) — each landing releases its own tile. Resolves at once
+ * for an empty list.
+ */
+export function requestColonyTrackWave(moves: ReadonlyArray<ColonyTrackWaveMove>, opts: {reduced?: boolean} = {}): Promise<void> {
+  if (moves.length === 0) {
+    return Promise.resolve();
+  }
+  // A wave already on stage ends here (impossible in one sitting, idempotent all the same). A wave that is NOT
+  // on stage must not be «finished»: the caller has just placed the holds this wave will release tile by tile.
+  if (colonyTrackWaveState.active) {
+    finishColonyTrackWave('re-request');
+  }
+  const reduced = opts.reduced ?? (consoleReducedMotionActive() || consoleFxLiteState.enabled);
+  const plan = trackWavePlan(moves, {reduced});
+  colonyTrackWaveState.moves = moves.map((move) => ({colony: move.colony, before: move.before, after: move.after}));
+  colonyTrackWaveState.reduced = reduced;
+  colonyTrackWaveState.gliding = {};
+  colonyTrackWaveState.settled = {};
+  colonyTrackWaveState.active = true;
+  colonyTrackWaveState.nonce++;
+  tradeLog('track wave', moves.length, 'tiles', reduced ? '(short form)' : '');
+  return new Promise<void>((resolve) => {
+    waveResolver = resolve;
+    waveNetId = setTimeout(() => finishColonyTrackWave('net'), motionMs(plan.totalMs + TRACK_WAVE_NET_MS)) as unknown as number;
+  });
+}
+
+/** The layer: this tile's marker proxy started (or stopped) gliding — the resting marker dims meanwhile. */
+export function noteColonyTrackWaveGliding(colony: ColonyName, on: boolean): void {
+  if (!colonyTrackWaveState.active) {
+    return;
+  }
+  colonyTrackWaveState.gliding = {...colonyTrackWaveState.gliding, [colony]: on};
+}
+
+/**
+ * The layer: this tile's marker LANDED on `cell` — the hold is released under
+ * the settled proxy (the real marker paints on the landed cell, the «4/7»
+ * readout flips, the trade cell morphs), and the one-shot glow is armed. A
+ * tile at the end of its track lands where it stood: released, no glow.
+ */
+export function noteColonyTrackWaveLanded(colony: ColonyName, cell: number, moved: boolean): void {
+  releaseColonyTrack(colony);
+  if (!colonyTrackWaveState.active) {
+    return;
+  }
+  colonyTrackWaveState.gliding = {...colonyTrackWaveState.gliding, [colony]: false};
+  if (moved) {
+    colonyTrackWaveState.settled = {...colonyTrackWaveState.settled, [colony]: cell};
+  }
+}
+
+/**
+ * THE WAVE IS OVER (every marker landed and the table read — or the net
+ * fired, or the scene could not stand): every hold is released, the stage
+ * clears, the request resolves. Idempotent.
+ */
+export function finishColonyTrackWave(why = 'landed'): void {
+  if (waveNetId !== 0) {
+    clearTimeout(waveNetId);
+    waveNetId = 0;
+  }
+  if (!colonyTrackWaveState.active) {
+    // No wave on stage: the holds are somebody else's (the beat's, placed BEFORE its request) — never released here.
+    return;
+  }
+  releaseColonyTracks();
+  tradeLog('track wave finished:', why);
+  colonyTrackWaveState.lastFinish = why;
+  colonyTrackWaveState.active = false;
+  colonyTrackWaveState.gliding = {};
+  colonyTrackWaveState.moves = [];
+  // The last landing's glow finishes on its own; the one-shots are cleared after it (cosmetic, never a gate).
+  if (waveGlowId !== 0) {
+    clearTimeout(waveGlowId);
+  }
+  waveGlowId = setTimeout(() => {
+    waveGlowId = 0;
+    colonyTrackWaveState.settled = {};
+  }, motionMs(TRACK_WAVE_GLOW_MS)) as unknown as number;
+  const resolve = waveResolver;
+  waveResolver = undefined;
+  resolve?.();
+}
+
+/** The wave is a scene beat — notifications queue, the transport's view apply waits, mandatory surfaces wait. */
+registerAnimationHoldSupplier('colony-track-wave', () => colonyTrackWaveState.active);

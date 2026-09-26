@@ -257,6 +257,16 @@ export function runColonyTrackGlide(args: {
   cells: ReadonlyArray<RectLike>,
   perCellMs: number,
   reduced: boolean,
+  /**
+   * A REST between the cells (BASE ms; 0 = the trade's continuous rail
+   * rhythm). A law that advances every track «2 steps» (Unity Budget) wants
+   * the two steps COUNTABLE — step, a beat, step — never one longer slide.
+   */
+  pauseMs?: number,
+  /** The glide starts this many BASE ms after the call — the wave's stagger, one tile after another. */
+  delayMs?: number,
+  /** The glide's first frame (after `delayMs`) — the moment THIS marker's resting twin may dim. */
+  onStart?: () => void,
   onCellPassed: (i: number) => void,
   onLanded: () => void,
 }): TradeDirectorHandle {
@@ -267,10 +277,15 @@ export function runColonyTrackGlide(args: {
     y: r.top + r.height / 2 - size / 2,
   });
   const start = poseAt(fromRect);
-  gsap.set(marker, {width: size, height: size, x: start.x, y: start.y, scale: 1, autoAlpha: 1});
+  // Born INVISIBLE on its cell: a staggered leg must not paint a second marker beside the resting one
+  // while it waits its turn — the proxy appears exactly when its leg starts.
+  gsap.set(marker, {width: size, height: size, x: start.x, y: start.y, scale: 1, autoAlpha: (args.delayMs ?? 0) > 0 ? 0 : 1});
 
-  const tl = gsap.timeline({onComplete: args.onLanded});
-  if (reduced || cells.length === 0) {
+  const tl = gsap.timeline({onComplete: args.onLanded, delay: s(args.delayMs ?? 0), onStart: () => {
+    gsap.set(marker, {autoAlpha: 1});
+    args.onStart?.();
+  }});
+  if (reduced) {
     const last = cells.length > 0 ? poseAt(cells[cells.length - 1]) : start;
     tl.to(marker, {x: last.x, y: last.y, duration: s(120), ease: 'power2.out'}, 0);
     tl.call(() => {
@@ -283,13 +298,21 @@ export function runColonyTrackGlide(args: {
   tl.to(marker, {scale: 1.35, duration: s(140), ease: 'power2.out'}, 0);
   tl.to(marker, {scale: 1.12, duration: s(110), ease: 'power2.inOut'}, s(140));
 
+  if (cells.length === 0) {
+    // THE END OF THE TRACK: the marker charges and finds nowhere to go — it settles back where it stood,
+    // and the surface NAMES it («трек на максимуме»). Nothing pretends to have moved.
+    tl.to(marker, {scale: 1, duration: s(200), ease: 'power2.inOut'}, s(260));
+    return {kill: () => tl.kill()};
+  }
+
   let at = s(260);
+  const pause = s(args.pauseMs ?? 0);
   cells.forEach((cell, i) => {
     const pose = poseAt(cell);
     const step = s(args.perCellMs);
     tl.to(marker, {x: pose.x, y: pose.y, duration: step, ease: 'power1.inOut'}, at);
     tl.call(() => args.onCellPassed(i), undefined, at + step * 0.6);
-    at += step;
+    at += step + (i < cells.length - 1 ? pause : 0);
   });
 
   // The landing snap: decisive, no overshoot past the cell.

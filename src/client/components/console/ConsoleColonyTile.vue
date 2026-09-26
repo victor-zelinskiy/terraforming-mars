@@ -149,7 +149,7 @@ import {ColonyModel} from '@/common/models/ColonyModel';
 import {ColonyMetadata} from '@/common/colonies/ColonyMetadata';
 import {getColony} from '@/client/colonies/ClientColonyManifest';
 import {effectiveTradePosition, rewardAtPosition, TradeRewardAt} from '@/client/components/colonies/colonyTradePlan';
-import {colonyTradeState, presentedColonyModel} from '@/client/console/colonyTrade/consoleColonyTrade';
+import {colonyTrackWaveState, colonyTradeState, presentedColonyModel} from '@/client/console/colonyTrade/consoleColonyTrade';
 import {CUBE_STATIC_SIZE} from '@/client/console/colonyBuild/colonyBuildModel';
 import BenefitGlyph from '@/client/components/colonies/BenefitGlyph.vue';
 import ColonyFleetIcon from '@/client/components/colonies/ColonyFleetIcon.vue';
@@ -197,13 +197,17 @@ export default defineComponent({
     presented(): ColonyModel {
       return presentedColonyModel(this.colony);
     },
-    /** The traded colony's marker proxy is mid-glide (the static dot yields). */
+    /** The traded colony's marker proxy is mid-glide (the static dot yields) — or this tile's, in a law's WAVE over the whole table. */
     markerGliding(): boolean {
-      return colonyTradeState.phase === 'glide' && colonyTradeState.colonyName === this.colony.name;
+      return (colonyTradeState.phase === 'glide' && colonyTradeState.colonyName === this.colony.name) ||
+        colonyTrackWaveState.gliding[this.colony.name] === true;
     },
-    /** One-shot: the cell the reset marker just landed on (settle glow). */
+    /** One-shot: the cell the reset marker just landed on (settle glow) — the trade's, or the wave's for this tile. */
     settledCell(): number {
-      return colonyTradeState.colonyName === this.colony.name ? colonyTradeState.settledCell : -1;
+      if (colonyTradeState.colonyName === this.colony.name) {
+        return colonyTradeState.settledCell;
+      }
+      return colonyTrackWaveState.settled[this.colony.name] ?? -1;
     },
     /** One-shot: the «ТОРГОВАТЬ» readout settles WITH the landed marker. */
     rewardSettled(): boolean {

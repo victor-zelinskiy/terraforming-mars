@@ -23,6 +23,7 @@
 
 import {CardName} from '@/common/cards/CardName';
 import {Color} from '@/common/Color';
+import {ColonyName} from '@/common/colonies/ColonyName';
 import {ColonyBenefit} from '@/common/colonies/ColonyBenefit';
 import {ColonyTradeRevealRole, ColonyTradeRevealSegment} from '@/common/models/CardDrawRevealModel';
 import {ColonyTradeGrantModel, ColonyTradeManifestModel} from '@/common/models/ColonyTradeManifestModel';
@@ -339,4 +340,91 @@ export function trackAdvancePlan(from: number, to: number): TrackGlidePlan | und
     path.push(p);
   }
   return {from, to, path, perCellMs: glideCellMs(path.length), settleMs: TRACK_SETTLE_MS};
+}
+
+// ── the WAVE: every track at once, one tile after another ─────────────────────
+
+/**
+ * THE WAVE (Unity Budget, RX29 — «advance each colony track 2 steps»): the
+ * SAME glide as the advance leg, played for EVERY tile of the table in turn.
+ *
+ * The choreography the owner asked for, as data:
+ *   · the scene BREATHES first — the table stands still for a beat, so the
+ *     player sees where every marker starts;
+ *   · a WAVE, not a volley — the tiles start one after another with a small
+ *     stagger, top to bottom in the table's order: a programme rolling over
+ *     every world, never a glitch of markers jumping at once;
+ *   · each marker CHARGES, then steps, rests, steps, then settles — the two
+ *     steps are countable («два»), not one slide;
+ *   · a track at its END makes no step and is named — its leg has no cells;
+ *   · after the last landing the scene is READ for a beat before it leaves.
+ * Reduced motion (and the fx-lite preset) keeps the wave's ORDER and the
+ * landings, and drops the impulses: the markers arrive, one after another,
+ * in the short form.
+ */
+export type TrackWaveLeg = {
+  colony: ColonyName;
+  from: number;
+  to: number;
+  /** The cells the marker passes THROUGH, in glide order (empty for a track at its end). */
+  path: ReadonlyArray<number>;
+  /** When this tile's marker starts, from the wave's start (BASE ms — the breath included). */
+  startAtMs: number;
+  perCellMs: number;
+  /** The rest between the two steps (BASE ms). */
+  pauseMs: number;
+};
+
+export type TrackWavePlan = {
+  legs: ReadonlyArray<TrackWaveLeg>;
+  /** The wave's whole length (BASE ms): the breath, the last leg's start, its glide, the settle and the read. */
+  totalMs: number;
+};
+
+/** The scene breathes: the table stands still before the first marker moves. */
+export const TRACK_WAVE_BREATH_MS = 760;
+/** One tile after another. */
+export const TRACK_WAVE_STAGGER_MS = 260;
+/** One step of a marker — slower than the trade's rail rhythm: this is a reading, not a reset. */
+export const TRACK_WAVE_CELL_MS = 220;
+/** The rest between the two steps — «два», not one slide. */
+export const TRACK_WAVE_PAUSE_MS = 150;
+/** The charge before the first step, and the settle after the last (the director's own timings). */
+const TRACK_WAVE_CHARGE_MS = 260;
+const TRACK_WAVE_SETTLE_MS = 180;
+/** After the last landing: the table is read before the scene leaves. */
+export const TRACK_WAVE_READ_MS = 900;
+/** The short form's breath and stagger (reduced motion / fx-lite) — the order stays legible, the wait does not. */
+const TRACK_WAVE_REDUCED_BREATH_MS = 240;
+const TRACK_WAVE_REDUCED_STAGGER_MS = 90;
+
+/** ONE leg's own length (BASE ms): the charge, the steps with their rests, the settle. */
+function legLengthMs(leg: TrackWaveLeg): number {
+  const steps = leg.path.length;
+  if (steps === 0) {
+    return TRACK_WAVE_CHARGE_MS + TRACK_WAVE_SETTLE_MS;
+  }
+  return TRACK_WAVE_CHARGE_MS + steps * leg.perCellMs + (steps - 1) * leg.pauseMs + TRACK_WAVE_SETTLE_MS;
+}
+
+/**
+ * The wave over `moves` (the server's list, in the table's order). A leg per
+ * tile — a track at its end gets a leg with NO cells (the marker charges and
+ * settles back, and the surface names it); the plan never invents motion.
+ */
+export function trackWavePlan(moves: ReadonlyArray<{colony: ColonyName, before: number, after: number}>, opts: {reduced: boolean}): TrackWavePlan {
+  const breath = opts.reduced ? TRACK_WAVE_REDUCED_BREATH_MS : TRACK_WAVE_BREATH_MS;
+  const stagger = opts.reduced ? TRACK_WAVE_REDUCED_STAGGER_MS : TRACK_WAVE_STAGGER_MS;
+  const legs: Array<TrackWaveLeg> = moves.map((move, index) => {
+    const path: Array<number> = [];
+    for (let p = move.before + 1; p <= move.after; p++) {
+      path.push(p);
+    }
+    return {
+      colony: move.colony, from: move.before, to: move.after, path,
+      startAtMs: breath + index * stagger, perCellMs: TRACK_WAVE_CELL_MS, pauseMs: TRACK_WAVE_PAUSE_MS,
+    };
+  });
+  const last = legs.reduce((max, leg) => Math.max(max, leg.startAtMs + legLengthMs(leg)), breath);
+  return {legs, totalMs: last + TRACK_WAVE_READ_MS};
 }

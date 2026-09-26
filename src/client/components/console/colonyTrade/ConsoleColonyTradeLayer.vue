@@ -32,6 +32,10 @@
       </div>
     </div>
     <div v-if="markerVisible" class="con-coltrade-marker" ref="marker"></div>
+    <!-- THE WAVE'S MARKERS (a law advancing every track — Unity Budget): one proxy per tile, the same chip as
+         the trade's, each stepping its own rail in turn. -->
+    <div v-for="(name, i) in waveMarkers" :key="'wave|' + waveNonce + '|' + name"
+         class="con-coltrade-marker" :ref="(el) => setWaveMarkerRef(el, i)"></div>
   </div>
 </template>
 
@@ -47,11 +51,12 @@ import {probeTick} from '@/client/console/probeTick';
 import {currentRevealEvent, DrawnCardEntry} from '@/client/components/drawnCards/drawnCardsState';
 import {preloadPremiumCardArt} from '@/client/cards/cardArt';
 import {
-  colonyPayoutPending, colonyTradeClaimsReveal, colonyTradeGlidePlan, colonyTradeState,
-  finishColonyTrackAdvance, finishColonyTrackReset, isColonyTradeRevealStaged,
-  markColonyTradeZoomReady, registerColonyTradeZoomOrigin, setColonyTradeBeat,
+  colonyPayoutPending, colonyTrackWavePlan, colonyTrackWaveState, colonyTradeClaimsReveal, colonyTradeGlidePlan, colonyTradeState,
+  finishColonyTrackAdvance, finishColonyTrackReset, finishColonyTrackWave, isColonyTradeRevealStaged,
+  markColonyTradeZoomReady, noteColonyTrackWaveGliding, noteColonyTrackWaveLanded, registerColonyTradeZoomOrigin, setColonyTradeBeat,
   setColonyTradeCardScene, stageColonyTradeReveal, tradeLog,
 } from '@/client/console/colonyTrade/consoleColonyTrade';
+import {TRACK_WAVE_READ_MS} from '@/client/console/colonyTrade/colonyTradeModel';
 import {
   TRADE_COVER_FLIGHT_MS, TRADE_COVER_LIFT_MS, TRADE_FRAME_MS, TRADE_LIFTOFF_AT_F,
   tradeCoverPlan, TradeCoverPlanEntry,
@@ -184,15 +189,25 @@ function honestlyVisible(el: HTMLElement): boolean {
  */
 const TRACK_STANDING_WAIT_MS = 2_000;
 
+/**
+ * THE WAVE'S OWN STANDING NET (a law's show step — Unity Budget). Its request is made the moment the colonies frame
+ * is PUSHED: the host's door is published post-flush, the section mounts and fits, its entry cascade unfolds
+ * (~1.3 s) inside the sitting's body swap (400 ms) — the trade's 2 s net expired inside that entrance and the
+ * whole table was released at once (measured: every marker landed in one sample). Bounded all the same.
+ */
+const TRACK_WAVE_STANDING_WAIT_MS = 6_000;
+
 function waitForStandingTrack(
   resolveCells: () => Array<HTMLElement | null>,
   deadlineMs: number,
+  /** The scene this wait serves is still on (the trade's transaction by default; a law's wave names its own). */
+  alive: () => boolean = () => colonyTradeState.active,
 ): Promise<Array<DOMRect> | undefined> {
   return new Promise((done) => {
     const start = performance.now();
     let last = '';
     const poll = () => {
-      if (!colonyTradeState.active) {
+      if (!alive()) {
         done(undefined);
         return;
       }
@@ -269,8 +284,18 @@ type SceneCtx = {
   /** The marker glide's own timeline + cell-pulse timers (transaction-lived). */
   glideHandles: Array<TradeDirectorHandle>,
   glideTimers: Array<ReturnType<typeof setTimeout>>,
+  /** A law's WAVE over every track (its own lifetime — a trade's teardown never kills it, nor it a trade's). */
+  waveHandles: Array<TradeDirectorHandle>,
+  waveTimers: Array<ReturnType<typeof setTimeout>>,
 };
-const ctx: SceneCtx = {handles: [], timers: [], glideHandles: [], glideTimers: []};
+const ctx: SceneCtx = {handles: [], timers: [], glideHandles: [], glideTimers: [], waveHandles: [], waveTimers: []};
+
+function clearWave(): void {
+  ctx.waveHandles.forEach((h) => h.kill());
+  ctx.waveHandles = [];
+  ctx.waveTimers.forEach((t) => clearTimeout(t));
+  ctx.waveTimers = [];
+}
 
 /** Reset the COVER cycle only — the marker keeps its own. */
 function clearCovers(): void {
@@ -294,11 +319,19 @@ export default defineComponent({
   data() {
     return {
       colonyTradeState,
+      // The wave's state is MIRRORED here for the string-path watcher below: a `'x.y'` watcher resolves `this.x`,
+      // and a module record that is not in `data()` is simply never watched (the wave's nonce once bumped into
+      // silence, and the wave ended on its net without a single marker moving).
+      colonyTrackWaveState,
       covers: [] as Array<CoverCard>,
       coverNonce: 0,
       proxyRefs: [] as Array<HTMLElement | null>,
       flipRefs: [] as Array<HTMLElement | null>,
       markerVisible: false,
+      /** The wave's proxies, one per tile (the tiles' names, in the plan's order) — and the wave they belong to. */
+      waveMarkers: [] as Array<string>,
+      waveNonce: 0,
+      waveMarkerRefs: [] as Array<HTMLElement | null>,
     };
   },
   computed: {
@@ -340,6 +373,15 @@ export default defineComponent({
     'colonyTradeState.glideNonce'(): void {
       void this.runTrackGlide();
     },
+    // A LAW'S WAVE over every track (Unity Budget): the same mechanism, N markers, a stagger.
+    'colonyTrackWaveState.nonce'(): void {
+      void this.runTrackWave();
+    },
+    'colonyTrackWaveState.active'(active: boolean): void {
+      if (!active) {
+        this.teardownWave();
+      }
+    },
     // The transaction unwound (abort / ceiling) — drop every actor at once.
     'colonyTradeState.active'(active: boolean): void {
       if (!active) {
@@ -355,6 +397,7 @@ export default defineComponent({
   beforeUnmount() {
     registerColonyTradeZoomOrigin(undefined);
     this.teardown();
+    this.teardownWave();
   },
   methods: {
     setProxyRef(el: unknown, i: number): void {
@@ -365,6 +408,9 @@ export default defineComponent({
     },
     proxyEls(): Array<HTMLElement> {
       return this.proxyRefs.filter((el): el is HTMLElement => el !== null);
+    },
+    setWaveMarkerRef(el: unknown, i: number): void {
+      this.waveMarkerRefs[i] = (el as HTMLElement | null) ?? null;
     },
 
     /** CLAIM the batch synchronously (the veil must precede the first paint). */
@@ -795,6 +841,101 @@ export default defineComponent({
       // The next payout raises its OWN lift-off cue — inheriting this one
       // would dissolve the stage before its first card had moved.
       clearColonyPayoutLiftOff();
+    },
+
+    // ── THE WAVE — every track at once, one tile after another (Unity Budget, RX29) ──
+    //    The SAME glide as the advance leg, run for every tile of the plan with its own
+    //    stagger: the layer measures every cell of every leg, waits for the WHOLE table to
+    //    stand (the colonies screen was just hosted — its entrance is still unfolding),
+    //    then lets each leg go at its own start. A leg with no cells (a track at its end)
+    //    charges and settles back; the surface names it. The last landing is READ for a
+    //    beat before the wave is declared over — the sitting takes the frame down then.
+    async runTrackWave(): Promise<void> {
+      const plan = colonyTrackWavePlan();
+      if (plan === undefined || plan.legs.length === 0) {
+        finishColonyTrackWave('no plan');
+        return;
+      }
+      // The overview tile's strip — the wave plays on the hosted grid, never on a focus stage.
+      const cellEl = (name: string, pos: number) => pickAnchor([
+        `[data-test="con-colony-${name}"] [data-colony-track-cell="${cssEscape(`${name}#${pos}`)}"]`,
+      ]);
+      const legs = plan.legs;
+      const alive = () => colonyTrackWaveState.active;
+      const standing = await waitForStandingTrack(
+        () => legs.flatMap((leg) => [cellEl(leg.colony, leg.from), ...leg.path.map((pos) => cellEl(leg.colony, pos))]),
+        colonyTrackWaveState.reduced ? 0 : motionMs(TRACK_WAVE_STANDING_WAIT_MS),
+        alive,
+      );
+      if (!alive()) {
+        return;
+      }
+      if (standing === undefined) {
+        // No visible table within the net (the frame left, a tile with no track) — release honestly, fly nothing.
+        tradeLog('track wave skipped — no standing visible table');
+        finishColonyTrackWave('no standing table');
+        return;
+      }
+      this.waveNonce = colonyTrackWaveState.nonce;
+      this.waveMarkerRefs = [];
+      this.waveMarkers = legs.map((leg) => String(leg.colony));
+      await this.$nextTick();
+      if (!alive()) {
+        return;
+      }
+      const markers = this.waveMarkerRefs;
+      if (markers.length < legs.length || markers.some((el) => el === null)) {
+        finishColonyTrackWave('no markers');
+        return;
+      }
+      let cursor = 0;
+      let landed = 0;
+      legs.forEach((leg, i) => {
+        const fromRect = standing[cursor];
+        const cells = standing.slice(cursor + 1, cursor + 1 + leg.path.length);
+        cursor += 1 + leg.path.length;
+        const cellEls = leg.path.map((pos) => cellEl(leg.colony, pos));
+        const marker = markers[i] as HTMLElement;
+        ctx.waveHandles.push(runColonyTrackGlide({
+          marker,
+          fromRect: fromRect as RectLike,
+          cells: cells as ReadonlyArray<RectLike>,
+          perCellMs: leg.perCellMs,
+          pauseMs: leg.pauseMs,
+          delayMs: leg.startAtMs,
+          reduced: colonyTrackWaveState.reduced,
+          onStart: () => noteColonyTrackWaveGliding(leg.colony, true),
+          onCellPassed: (k) => {
+            // The passed cell's one impulse — the cell itself, and only it (the neighbours stand still).
+            const cell = cellEls[k];
+            if (cell !== null && cell !== undefined && !colonyTrackWaveState.reduced) {
+              cell.classList.add('con-coltile__track-cell--sweep');
+              ctx.waveTimers.push(setTimeout(() => cell.classList.remove('con-coltile__track-cell--sweep'), motionMs(360)));
+            }
+          },
+          onLanded: () => {
+            // Release THIS tile's hold under the settled proxy (the real marker paints on the landed cell, the
+            // trade cell morphs and glows), then dissolve the proxy over it.
+            noteColonyTrackWaveLanded(leg.colony, leg.to, leg.path.length > 0);
+            gsap.to(marker, {autoAlpha: 0, duration: motionMs(220) / 1000, ease: 'power1.out'});
+            landed++;
+            if (landed === legs.length) {
+              // THE READ: the table is looked at for a beat before the scene is declared over.
+              ctx.waveHandles.push({kill: gsap.delayedCall(motionMs(TRACK_WAVE_READ_MS) / 1000, () => finishColonyTrackWave('landed')).kill});
+            }
+          },
+        }));
+      });
+    },
+
+    teardownWave(): void {
+      clearWave();
+      const els = this.waveMarkerRefs.filter((el): el is HTMLElement => el !== null);
+      if (els.length > 0) {
+        gsap.set(els, {autoAlpha: 0});
+      }
+      this.waveMarkers = [];
+      this.waveMarkerRefs = [];
     },
   },
 });

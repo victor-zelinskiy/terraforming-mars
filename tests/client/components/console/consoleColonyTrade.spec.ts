@@ -18,6 +18,7 @@ import {
   markColonyTradeZoomReady, noticeColonyTradeCommit, notifyColonyTradeTrackCommitted,
   presentedColonyModel, resetColonyTrade, runColonyTradeRewards, seedColonyTradeRewardHold,
   setColonyTradeCardScene, stageColonyTradeReveal,
+  colonyTrackWaveState, finishColonyTrackWave, requestColonyTrackWave,
 } from '@/client/console/colonyTrade/consoleColonyTrade';
 
 function manifest(over: Partial<ColonyTradeManifestModel> = {}): ColonyTradeManifestModel {
@@ -434,6 +435,19 @@ describe('consoleColonyTrade', () => {
       colonyTradeState.reducedMotion = true;
       // Reduced motion runs no cover flight — the modal keeps its own entrance.
       expect(colonyTradeWillDressReveal(7, tradeSource)).to.eq(false);
+    });
+  });
+
+  describe('the TRACK WAVE (the show step of a law) owns the moment like the glide of a trade', () => {
+    it('locks the pad and empties the bar while the wave is on stage, and lets go the moment it ends', async () => {
+      expect(isColonyTradeInputLocked(), 'nothing on stage').to.eq(false);
+      const done = requestColonyTrackWave([{colony: ColonyName.LUNA, before: 2, after: 4}], {reduced: true});
+      expect(colonyTrackWaveState.active).to.eq(true);
+      expect(isColonyTradeInputLocked(), 'a wave on stage: no trade, no fold under the beat').to.eq(true);
+      finishColonyTrackWave('spec');
+      await done;
+      expect(colonyTrackWaveState.active).to.eq(false);
+      expect(isColonyTradeInputLocked(), 'the wave ended: the pad belongs to the player again').to.eq(false);
     });
   });
 });

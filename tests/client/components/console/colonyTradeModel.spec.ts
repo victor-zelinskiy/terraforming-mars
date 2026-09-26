@@ -7,7 +7,7 @@ import {Resource} from '@/common/Resource';
 import {ColonyTradeManifestModel} from '@/common/models/ColonyTradeManifestModel';
 import {
   benefitCardCount, benefitTransferSpec, colonyTradeHeldSpecs, incomeTransferSpecs,
-  ownBonusTransferSpecs, revealWaveForIndex, trackAdvancePlan, trackGlidePlan, TRADE_COVER_STAGGER_MS,
+  ownBonusTransferSpecs, revealWaveForIndex, trackAdvancePlan, trackGlidePlan, trackWavePlan, TRACK_WAVE_BREATH_MS, TRACK_WAVE_READ_MS, TRACK_WAVE_STAGGER_MS, TRADE_COVER_STAGGER_MS,
   TRADE_FAN_LEAD_MS, TRADE_FAN_STAGGER_MS, TRADE_WAVE_GAP_MS,
   tradeCoverPlan, tradeCoverPlanBudgetMs, tradeRoleForIndex, viewerBonusCubes,
 } from '@/client/console/colonyTrade/colonyTradeModel';
@@ -167,5 +167,42 @@ describe('colonyTradeModel', () => {
     // No advance (no offset card, or a capped track) → no invented motion.
     expect(trackAdvancePlan(3, 3)).eq(undefined);
     expect(trackAdvancePlan(3, 2)).eq(undefined);
+  });
+
+  /*
+   * THE WAVE (Unity Budget, RX29): the advance leg for EVERY tile in turn —
+   * the scene breathes, the tiles start one after another in the table's
+   * order, each marker's two steps are countable, a track at its end gets a
+   * leg with NO cells (named, never moved), and the plan's length ends with
+   * the read. The short form keeps the order and shortens the waits.
+   */
+  it('the WAVE: a breath, a stagger in the table\'s order, two countable steps per tile, an empty leg for a track at its end, the read at the end', () => {
+    const plan = trackWavePlan([
+      {colony: ColonyName.LUNA, before: 2, after: 4},
+      {colony: ColonyName.CALLISTO, before: 5, after: 6},
+      {colony: ColonyName.IO, before: 6, after: 6},
+    ], {reduced: false});
+    expect(plan.legs.map((leg) => leg.colony)).deep.eq([ColonyName.LUNA, ColonyName.CALLISTO, ColonyName.IO]);
+    const [luna, callisto, io] = plan.legs;
+    expect(luna.path, 'two steps, cell by cell').deep.eq([3, 4]);
+    expect(callisto.path, 'one honest step to the end').deep.eq([6]);
+    expect(io.path, 'a track at its end: no cell to step to').deep.eq([]);
+    expect(luna.startAtMs, 'the scene breathes first').eq(TRACK_WAVE_BREATH_MS);
+    expect(callisto.startAtMs - luna.startAtMs, 'one tile after another').eq(TRACK_WAVE_STAGGER_MS);
+    expect(io.startAtMs - callisto.startAtMs).eq(TRACK_WAVE_STAGGER_MS);
+    expect(luna.pauseMs, 'a rest between the two steps').to.be.greaterThan(0);
+    expect(luna.perCellMs).to.be.greaterThan(0);
+    // The plan ends after the LAST landing plus the read — never before the longest leg is over.
+    const lunaEnd = luna.startAtMs + 260 + 2 * luna.perCellMs + luna.pauseMs + 180;
+    expect(plan.totalMs).to.be.greaterThanOrEqual(lunaEnd + TRACK_WAVE_READ_MS);
+    expect(plan.totalMs).to.be.greaterThanOrEqual(io.startAtMs + TRACK_WAVE_READ_MS);
+    // The short form: the same order, shorter waits.
+    const short = trackWavePlan([{colony: ColonyName.LUNA, before: 2, after: 4}, {colony: ColonyName.CERES, before: 1, after: 3}], {reduced: true});
+    expect(short.legs.map((leg) => leg.colony)).deep.eq([ColonyName.LUNA, ColonyName.CERES]);
+    expect(short.legs[0].startAtMs).to.be.lessThan(TRACK_WAVE_BREATH_MS);
+    expect(short.legs[1].startAtMs - short.legs[0].startAtMs).to.be.lessThan(TRACK_WAVE_STAGGER_MS);
+    expect(short.totalMs).to.be.lessThan(plan.totalMs);
+    // An empty table plans nothing but the breath and the read.
+    expect(trackWavePlan([], {reduced: false}).legs).deep.eq([]);
   });
 });

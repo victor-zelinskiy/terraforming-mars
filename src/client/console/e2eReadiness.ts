@@ -34,6 +34,7 @@ import {InputEchoSnapshot, inputEchoSnapshot} from '@/client/console/inputEcho';
 import {parliamentRewardDiag} from '@/client/console/parliament/parliamentRewardBeat';
 import {boardCardBonusDiag} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
 import {consoleCardActionsUi} from '@/client/console/consoleCardActions';
+import {colonyTrackWaveDiag} from '@/client/console/colonyTrade/consoleColonyTrade';
 
 export type ConsoleReadinessSnapshot = {
   input: InputEchoSnapshot;
@@ -50,6 +51,8 @@ export type ConsoleReadinessSnapshot = {
   cardBonus: ReturnType<typeof boardCardBonusDiag>;
   /** The action workspace's PARTY FLOW record (Turmoil Redux) — what a party's / a law's action still owes. */
   partyFlow: {party: string, resolution?: string, stage: string, fleetBefore?: number} | undefined;
+  /** A law's WAVE over every colony track (Turmoil Redux, Unity Budget) — on stage, and how the last one ended. */
+  colonyTrackWave: ReturnType<typeof colonyTrackWaveDiag>;
   at: number;
 };
 
@@ -63,6 +66,7 @@ export function consoleReadinessSnapshot(): ConsoleReadinessSnapshot {
     notificationsSettled: notificationsSettled(),
     parliamentReward: parliamentRewardDiag(),
     cardBonus: boardCardBonusDiag(),
+    colonyTrackWave: colonyTrackWaveDiag(),
     partyFlow: consoleCardActionsUi.partyFlow === undefined ? undefined : {
       party: consoleCardActionsUi.partyFlow.party, resolution: consoleCardActionsUi.partyFlow.resolution,
       stage: consoleCardActionsUi.partyFlow.stage, fleetBefore: consoleCardActionsUi.partyFlow.fleetBefore,
