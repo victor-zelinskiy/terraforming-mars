@@ -20,6 +20,10 @@ export enum AltSecondaryTag {
 
   NO_PLANETARY_TAG = 'no_planetary_tag',
   WILD_RESOURCE = 'wild-resource',
+  // Fork: «payable with TITANIUM» — the M€ price of a Parliament bill
+  // wears the titanium corner (Trade Industries: pay 12 M€, titanium
+  // accepted). Both renderers draw it as the corner bubble on the M€ square.
+  TITANIUM = 'titanium',
 
   // used in Faraday CEO
   DIVERSE = 'diverse',

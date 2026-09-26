@@ -19,6 +19,7 @@ import {CardName} from '../../src/common/cards/CardName';
 import {MAX_FLEET_SIZE} from '../../src/common/constants';
 import {resolutionInstanceId, RESOLUTION_CODE_PATTERN} from '../../src/common/parliament/ParliamentTypes';
 import {CardRenderItemType} from '../../src/common/cards/render/CardRenderItemType';
+import {AltSecondaryTag} from '../../src/common/cards/render/AltSecondaryTag';
 import {Payment} from '../../src/common/inputs/Payment';
 import {SelectOption} from '../../src/server/inputs/SelectOption';
 import {SelectPayment} from '../../src/server/inputs/SelectPayment';
@@ -159,10 +160,12 @@ describe('TradeIndustries', () => {
       expect(familyOf(TRADE_INDUSTRIES)).eq('influence');
     });
 
-    it('the face prints the ACTION row alone — the price with the influence beside it, then the fleet marker', () => {
+    it('the face prints the ACTION row alone — the price in its titanium corner with the influence beside it, then the fleet marker', () => {
       const face = JSON.stringify(TRADE_INDUSTRIES.renderData);
       expect(face).to.contain(`"type":"${CardRenderItemType.MEGACREDITS}"`);
       expect(face).to.contain('"amount":12');
+      // «You can pay for this with titanium» is ON the face — the corner bubble of the M€ square — not only in the sentence.
+      expect(face, 'the titanium corner on the price').to.contain(`"secondaryTag":"${AltSecondaryTag.TITANIUM}"`);
       expect(face).to.contain(`"type":"${CardRenderItemType.INFLUENCE}"`);
       expect(face).to.contain(`"type":"${CardRenderItemType.TRADE_FLEET}"`);
       expect(face, 'the fleet marker, never the trade glyph, in the RULE').to.not.contain(`"type":"${CardRenderItemType.TRADE}"`);

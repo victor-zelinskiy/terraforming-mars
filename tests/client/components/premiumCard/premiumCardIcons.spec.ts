@@ -33,8 +33,8 @@ describe('premiumCardIcons.mechItemIcon', () => {
     expect(mechItemIcon(itemNode(CardRenderItemType.TRADE))).to.deep.equal({kind: 'img', url: 'assets/tiles/trade.png'});
   });
 
-  it('trade fleet is the trade canvas inverted', () => {
-    expect(mechItemIcon(itemNode(CardRenderItemType.TRADE_FLEET))).to.deep.equal({kind: 'img', url: 'assets/tiles/trade.png', mod: 'invert'});
+  it('trade fleet is the trade canvas PRE-INVERTED — an asset, never a filter (the console strips every filter)', () => {
+    expect(mechItemIcon(itemNode(CardRenderItemType.TRADE_FLEET))).to.deep.equal({kind: 'img', url: 'assets/tiles/trade-fleet.png'});
   });
 
   it('corporation + self-replicating use the generic premium card cover', () => {

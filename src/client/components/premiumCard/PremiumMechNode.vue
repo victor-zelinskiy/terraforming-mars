@@ -66,8 +66,19 @@
 
   <!-- EFFECT / ACTION frame -->
   <span v-else-if="effectNode !== undefined" class="pcard-effect" :class="{'pcard-effect--action': effectKind === 'action', 'pcard-effect--standing': effectKind !== 'action' && effect.cause.length === 0}">
-    <span v-if="effect.cause.length > 0" class="pcard-effect__part">
-      <PremiumMechNode v-for="(child, ci) in effect.cause" :key="'c' + ci" :node="child" />
+    <!-- A part with an authored VERTICAL SPACE folds into LINES in the DOM
+         (`partLines`) — a column of rows, never a 100%-basis spacer: a
+         wrapping row's max-content is the sum of its items, so the spacer
+         left a shrink-to-fit host as wide as the single-line layout. -->
+    <span v-if="effect.cause.length > 0" class="pcard-effect__part" :class="{'pcard-effect__part--lines': causeLines.length > 1}">
+      <template v-if="causeLines.length > 1">
+        <span v-for="(line, li) in causeLines" :key="'cl' + li" class="pcard-effect__line">
+          <PremiumMechNode v-for="(child, ci) in line" :key="ci" :node="child" />
+        </span>
+      </template>
+      <template v-else>
+        <PremiumMechNode v-for="(child, ci) in effect.cause" :key="'c' + ci" :node="child" />
+      </template>
     </span>
     <!-- A STANDING MODIFIER (an EFFECT with no cause — a discount, an extra
          tag, an influence bonus) prints its result alone inside the effect
@@ -75,8 +86,15 @@
          result reads as a trigger whose condition went missing. An ACTION
          keeps its arrow whatever it costs — «→ result» IS a free action. -->
     <PremiumMechNode v-if="effect.delimiter !== undefined && (effectKind === 'action' || effect.cause.length > 0)" :node="effect.delimiter" />
-    <span class="pcard-effect__part">
-      <PremiumMechNode v-for="(child, ci) in effect.result" :key="'r' + ci" :node="child" />
+    <span class="pcard-effect__part" :class="{'pcard-effect__part--lines': resultLines.length > 1}">
+      <template v-if="resultLines.length > 1">
+        <span v-for="(line, li) in resultLines" :key="'rl' + li" class="pcard-effect__line">
+          <PremiumMechNode v-for="(child, ci) in line" :key="ci" :node="child" />
+        </span>
+      </template>
+      <template v-else>
+        <PremiumMechNode v-for="(child, ci) in effect.result" :key="'r' + ci" :node="child" />
+      </template>
     </span>
   </span>
 
@@ -112,7 +130,7 @@ import {
   isICardRenderSymbol,
   isICardRenderTile,
 } from '@/common/cards/render/Types';
-import {effectKindOf, effectParts, EffectParts, itemRepeats, renderableNodes} from './mechanicsModel';
+import {effectKindOf, effectParts, EffectParts, itemRepeats, partLines, renderableNodes} from './mechanicsModel';
 import {mechItemIcon, MechIconSpec, tagIconUrl, tileIcon, TileIconSpec} from './premiumCardIcons';
 import {translateText} from '@/client/directives/i18n';
 import {Color} from '@/common/Color';
@@ -322,6 +340,10 @@ export default defineComponent({
       if (secondary === AltSecondaryTag.FLOATER) {
         return 'assets/resources/floater.png';
       }
+      if (secondary === AltSecondaryTag.TITANIUM) {
+        // «payable with titanium» — the titanium corner on a Parliament bill's M€ price (Trade Industries).
+        return 'assets/resources/titanium.png';
+      }
       if (secondary === AltSecondaryTag.DIVERSE) {
         // «a card with a NEW tag» (Faraday) — the diverse-tag marker.
         return 'assets/tags/diverse.png';
@@ -390,6 +412,14 @@ export default defineComponent({
     effect(): EffectParts {
       const node = this.effectNode;
       return node === undefined ? {cause: [], delimiter: undefined, result: []} : effectParts(node);
+    },
+    /** The cause's authored lines (a VERTICAL SPACE is a structural break — see `partLines`). */
+    causeLines(): Array<Array<ItemType>> {
+      return partLines(this.effect.cause);
+    },
+    /** The result's authored lines. */
+    resultLines(): Array<Array<ItemType>> {
+      return partLines(this.effect.result);
     },
     effectKind(): 'effect' | 'action' {
       const node = this.effectNode;

@@ -621,7 +621,7 @@ import {getCard} from '@/client/cards/ClientCardManifest';
 import PremiumCard from '@/client/components/premiumCard/PremiumCard.vue';
 import {PremiumCardVM} from '@/client/components/premiumCard/premiumCardViewModel';
 import {PARLIAMENT_GRAPHIC, resolutionPremiumVm} from '@/client/components/premiumCard/resolutionPremiumVm';
-import {isICardRenderEffect} from '@/common/cards/render/Types';
+import {actionRowsOf} from '@/client/console/parliament/actionRows';
 import {ActionEffect} from '@/common/models/ActionPreviewModel';
 import {ActionBillPrice, actionBillPrice} from '@/common/parliament/actionBill';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
@@ -1688,14 +1688,13 @@ export default defineComponent({
     selectedVm(): PremiumCardVM | undefined {
       return this.selected === undefined ? undefined : resolutionPremiumVm(this.selected);
     },
-    /** The ACTION's printed row alone (the same rows the action menu's tile draws off the face). */
+    /** The ACTION's printed box alone — the ONE cut the action menu's tile makes off the face (`actionRowsOf`). */
     actionMechanics(): MechanicsVM | undefined {
       const r = this.selected;
       if (r === undefined || !r.hasAction) {
         return undefined;
       }
-      const rows = r.renderData.rows.filter((row) => row.some((item) => isICardRenderEffect(item)));
-      return buildMechanics(rows.length === 0 ? r.renderData : {...r.renderData, rows}, PARLIAMENT_GRAPHIC);
+      return buildMechanics(actionRowsOf(r.renderData), PARLIAMENT_GRAPHIC);
     },
     /** The action's RATE — the definition's own preview with no seat asked (the manifest). */
     actionRate(): ReadonlyArray<ActionEffect> {

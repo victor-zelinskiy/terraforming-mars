@@ -471,9 +471,11 @@ export function mechItemIcon(item: ICardRenderItem): MechIconSpec | undefined {
     return tag === undefined ? {kind: 'vpCard'} : {kind: 'vpCard', tag};
   }
   case CardRenderItemType.TRADE_FLEET:
-    // Same trade canvas as TRADE, inverted — the fork's fleet marker (mirrors
-    // the legacy `filter: invert(1)` on card-resource-trade-fleet).
-    return {kind: 'img', url: `${TILES}/trade.png`, mod: 'invert'};
+    // The trade canvas INVERTED — the fork's fleet marker — as a PRE-INVERTED
+    // asset (the one the fleet chip flies too): the console strips every
+    // `filter`, so a `mod: 'invert'` drew the marker as the plain TRADE glyph
+    // on every console face, and «trade» and «fleet» read as one symbol.
+    return {kind: 'img', url: `${TILES}/trade-fleet.png`};
   case CardRenderItemType.TRADE_DISCOUNT:
     // A light value token (the −N reduction rides `amountInside`).
     return {kind: 'token'};

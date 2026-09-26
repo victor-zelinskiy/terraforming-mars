@@ -264,8 +264,19 @@
     &__plate-emblem { width: 1.3rem; height: 1.3rem; object-fit: contain; flex-shrink: 0; }
     &__plate-kicker { font-size: .56rem; letter-spacing: .12em; text-transform: uppercase; opacity: .6; flex-shrink: 0; }
     &__plate-chip--uses { b { font-size: .66rem; } }
+    /* THE PARTY FORMULA IS PX ART LIKE EVERY FORMULA ON THIS STAGE: the
+       graphic's own zoom (`ui-scale`, and the TV ladder's 1.32× couch
+       enlargement over it — `console_tv.less`) is the ONE zoom law of the
+       stage, so the formula adds a CONSTANT and no scale term of its own:
+       28 px premium icons ≈ the card tiles' 30 px sprites on every profile.
+       A scale term here STACKS with the graphic's — the old `0.52 × ui-scale`
+       drew 14 px glyphs at 1080 (the Unity «→ ▲» unreadable from the sofa)
+       and squared the ui-scale at 4K, where the tile was fit-limited instead.
+       A wide or two-line formula (Industrialists, Reds) is fitted INTO the
+       stage by `useActionCanvasFit` like every other, never authored smaller
+       for all. */
     &__graphic--party {
-        --con-pformula-zoom: calc(0.52 * var(--con-ui-scale, 1));
+        --con-pformula-zoom: 1;
         .con-pformula__mech .pcard__mech { padding: 0; }
     }
     &__tile--party .con-cardactions__canvas { justify-content: center; }
@@ -430,9 +441,14 @@ html.con-profile-handheld .con-pact--resolution {
     --con-pact-bill-zoom: calc(0.32 * var(--con-ui-scale, 1));
 }
 
-/* THE FLEET CHIP (Trade Industries' gain, `icon: 'trade-fleet'`): the trade canvas PRE-INVERTED as an asset — the
-   console strips `filter` permanently, and the legacy `card-resource-trade-fleet` rule (invert(1) under
-   `.card-container`) never reaches a chip, so the tile's «1 → 2» read with no glyph at all. One asset, every chip. */
+/* THE FLEET MARKER (Trade Industries: `tradeFleet()` on the face, `icon: 'trade-fleet'` on the chip): the trade
+   canvas PRE-INVERTED as an asset — the console strips `filter` permanently, so the legacy
+   `card-resource-trade-fleet` rule (invert(1) under `.card-container`) drew the plain TRADE glyph on the action
+   tile, and never reached a chip at all (the tile's «1 → 2» read with no glyph). One asset, every surface —
+   the premium face reads the same asset straight from `premiumCardIcons`. */
 .action-effect-chip__icon.card-resource-trade-fleet {
     background: url(./assets/tiles/trade-fleet.png) center / contain no-repeat;
+}
+html.console-native .card-container .card-resource-trade-fleet {
+    background-image: url(./assets/tiles/trade-fleet.png);
 }

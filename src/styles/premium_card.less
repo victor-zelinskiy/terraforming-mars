@@ -1197,10 +1197,6 @@
   width: calc(var(--pcard-mech-icon) * 0.62);
   height: calc(var(--pcard-mech-icon) * 0.62);
 }
-/* trade FLEET — the trade canvas inverted (mirrors legacy filter: invert(1)). */
-.pcard-ic--invert {
-  filter: invert(1) drop-shadow(0 1px 1px rgba(0, 0, 0, 0.5));
-}
 .pcard-mi__digit {
   font-size: var(--pcard-mech-font);
   color: #f3e9d2;
@@ -1785,6 +1781,23 @@
   align-items: center;
   justify-content: center;
   gap: 2px 4px;
+}
+/* A VERTICAL SPACE inside a part is an authored LINE BREAK, and the break is
+   STRUCTURAL (`partLines`): the part becomes a column of `__line` rows. A
+   100%-basis spacer (`.pcard-sym--vspace`, still what a PLAIN row uses)
+   folds a wrapping row only where the host is already fixed-width — a
+   wrapping flex row's max-content is the SUM of its items, so in a
+   shrink-to-fit host (the action tile, the party plaque) the Reds' formula
+   measured 343 px for 135 px of content, two lines centred in a
+   single-line box. */
+.pcard-effect__part--lines { flex-direction: column; }
+.pcard-effect__line {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 2px 4px;
+  min-width: 0;
 }
 /* A plate-bearing effect («ГЛОБАЛЬНЫЕ ПАРАМЕТРЫ : +/- 2») is a short label rule
    — keep it on ONE compact row. The plate + its value never break internally;

@@ -50,6 +50,7 @@
 import {CardRenderer} from '../../../cards/render/CardRenderer';
 import {PartyName} from '../../../../common/turmoil/PartyName';
 import {Size} from '../../../../common/cards/render/Size';
+import {AltSecondaryTag} from '../../../../common/cards/render/AltSecondaryTag';
 import {MAX_FLEET_SIZE} from '../../../../common/constants';
 import {ResolutionCode, ResolutionId} from '../../../../common/parliament/ParliamentTypes';
 import {ActionBillPrice, actionBillPrice, ResolutionActionBill} from '../../../../common/parliament/actionBill';
@@ -166,10 +167,12 @@ export const TRADE_INDUSTRIES: ResolutionDefinition = {
   party: PartyName.UNITY,
   copies: 1,
   // THE FACE as printed: the ACTION row alone — «12 M€ [influence] → [fleet]»,
-  // the influence beside the price (what discounts it), the fleet as the
-  // fork's own marker; the titanium clause is the sentence's, not the row's.
+  // the price wearing the TITANIUM CORNER (the scan's «you can pay for this
+  // with titanium»: a secondary tag on the M€ square, drawn by both
+  // renderers as the corner bubble), the influence beside it (what
+  // discounts it), the fleet as the fork's own marker.
   renderData: CardRenderer.builder((b) => {
-    b.action(undefined, (ab) => ab.megacredits(TRADE_INDUSTRIES_BILL.amount).influence({size: Size.SMALL}).startAction.tradeFleet());
+    b.action(undefined, (ab) => ab.megacredits(TRADE_INDUSTRIES_BILL.amount, {secondaryTag: AltSecondaryTag.TITANIUM}).influence({size: Size.SMALL}).startAction.tradeFleet());
   }),
   text: {
     name: 'Trade Industries',

@@ -636,7 +636,7 @@ import {getPartyEffect, getResolution} from '@/client/parliament/ClientParliamen
 import {PremiumCardVM} from '@/client/components/premiumCard/premiumCardViewModel';
 import {resolutionPremiumVm} from '@/client/components/premiumCard/resolutionPremiumVm';
 import {isPatentSaleActive} from '@/client/console/patentSale/consolePatentSale';
-import {ICardRenderRoot, isICardRenderEffect} from '@/common/cards/render/Types';
+import {actionRowsOf} from '@/client/console/parliament/actionRows';
 import {parliamentPromptBridge, resolutionBillOf} from '@/client/console/parliament/consoleParliamentModel';
 import {beginPartyColonyTrade} from '@/client/console/colonyTrade/colonyTradeEntry';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
@@ -680,16 +680,6 @@ const CHOICE_KIND_LABEL: Record<'card' | 'player' | 'or' | 'payment' | 'spendHea
 
 /** Scroll step for the right-stick list scroll (mirrors the shell). */
 const SCROLL_STEP_PX = 40;
-
-/**
- * The ACTION rows of a resolution's face (the rows drawn by `b.action(...)`)
- * — the tile's canvas draws the action alone, never the enactment's row above
- * it. A face with no action row keeps its whole formula (an honest fallback).
- */
-function actionRowsOf(root: ICardRenderRoot): ICardRenderRoot {
-  const rows = root.rows.filter((row) => row.some((item) => isICardRenderEffect(item)));
-  return rows.length === 0 ? root : {...root, rows};
-}
 
 /** The focus stage's draft identity — the ONE flow-draft type
  *  (consoleActionFlow.ActionFlowDraft): card + variant (+ the Viron repeat

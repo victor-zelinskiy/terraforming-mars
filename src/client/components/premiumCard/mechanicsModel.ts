@@ -110,6 +110,27 @@ export function renderableNodes(row: ReadonlyArray<ItemType>): Array<ItemType> {
   return row.filter(isRenderableNode);
 }
 
+/**
+ * A part's authored LINES: split at every VERTICAL SPACE (`vSpace()` — the
+ * DSL's block-level break), empty lines dropped. The premium effect frame
+ * renders each line as its own row, because a wrapping flex row's
+ * max-content is the SUM of its items: a 100%-basis spacer folds the row
+ * only where the host is already fixed-width, and in a shrink-to-fit host
+ * (the action tile, the party plaque) the Reds' formula measured 343 px for
+ * 135 px of content — two lines centred in a single-line box.
+ */
+export function partLines(nodes: ReadonlyArray<ItemType>): Array<Array<ItemType>> {
+  const lines: Array<Array<ItemType>> = [[]];
+  for (const node of nodes) {
+    if (isICardRenderSymbol(node) && node.type === CardRenderSymbolType.VSPACE) {
+      lines.push([]);
+    } else {
+      lines[lines.length - 1].push(node);
+    }
+  }
+  return lines.filter((line) => line.length > 0);
+}
+
 /* ── OR-marker classification (see buildMechanics) ──────────────────── */
 
 function isSpacerNode(node: ItemType): boolean {

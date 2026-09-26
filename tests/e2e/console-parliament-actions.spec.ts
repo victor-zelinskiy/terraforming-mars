@@ -168,6 +168,50 @@ async function expectComposerFits(page: Page, label: string): Promise<void> {
   expect(problems, `${label}: the party action composer fits`).toEqual([]);
 }
 
+/**
+ * THE PARTY TILES ARE LEGIBLE AND FIT: every party formula stands INSIDE its
+ * fixed canvas, and its smallest full-size glyph is no smaller than the fit
+ * engine's own floor (28 px premium icons × MIN_FIT 0.62, in ui-scale px).
+ * The tile once drew 14 px glyphs at 1080 — the ui-scale applied TWICE
+ * (the graphic's zoom over the formula's own) squared the scale, so a 4K
+ * tile was fit-limited while the Unity «→ ▲» was unreadable from the sofa.
+ */
+async function expectPartyTilesLegible(page: Page, label: string): Promise<void> {
+  const report = await page.evaluate(() => {
+    const out: Array<string> = [];
+    const root = document.querySelector<HTMLElement>('.con-root');
+    const scale = (root === null ? NaN : Number.parseFloat(getComputedStyle(root).getPropertyValue('--con-ui-scale'))) || 1;
+    const tiles = Array.from(document.querySelectorAll<HTMLElement>('.con-cardactions__tile[data-action-party]'));
+    if (tiles.length === 0) {
+      out.push('no party tile on screen');
+    }
+    for (const tile of tiles) {
+      const party = tile.getAttribute('data-action-party') ?? '?';
+      const canvas = tile.querySelector<HTMLElement>('.con-cardactions__canvas');
+      const graphic = tile.querySelector<HTMLElement>('.con-cardactions__graphic--party');
+      if (canvas === null || graphic === null) {
+        out.push(`${party}: no canvas / party graphic`);
+        continue;
+      }
+      const c = canvas.getBoundingClientRect();
+      const g = graphic.getBoundingClientRect();
+      if (g.left < c.left - 1 || g.right > c.right + 1 || g.top < c.top - 1 || g.bottom > c.bottom + 1) {
+        const fit = graphic.style.getPropertyValue('--act-fit') || 'unset';
+        out.push(`${party}: the formula runs past its canvas (${Math.round(g.width)}×${Math.round(g.height)} in ${Math.round(c.width)}×${Math.round(c.height)}, --act-fit ${fit})`);
+      }
+      const icons = Array.from(graphic.querySelectorAll<HTMLElement>('.pcard-ic:not(.pcard-ic--sm)'))
+        .map((el) => el.getBoundingClientRect().height).filter((h) => h > 0);
+      const floor = 28 * 0.62 * scale - 1;
+      const smallest = icons.length === 0 ? 0 : Math.min(...icons);
+      if (smallest < floor) {
+        out.push(`${party}: smallest glyph ${Math.round(smallest)}px under the ${Math.round(floor)}px floor (ui-scale ${scale})`);
+      }
+    }
+    return out;
+  });
+  expect(report, `${label}: the party tiles are legible and fit`).toEqual([]);
+}
+
 /** Walk the Parliament's parties row onto `party` (positive witness on every step). */
 async function focusParty(page: Page, party: string): Promise<void> {
   const partyFocused = () => page.evaluate(() => document.querySelector('.con-parl__party--focus')?.getAttribute('data-party') ?? '');
@@ -204,6 +248,18 @@ for (const preset of [
       await expect(parliament(page)).toBeVisible();
       await expect(page.locator('.con-parl__party--focus[data-party="Scientists"]'), 'the focus is on the party the player came from').toHaveCount(1);
     });
+
+    test(`the action menu's party tiles are legible and fit their canvas (${preset.id})`, async ({page, request}) => {
+      test.setTimeout(180_000);
+      await bootFixtureSeats(page, request, 'parliament-actions', {query: preset.query});
+      await openCardActions(page);
+      await expect(page.locator('.con-cardactions__tile[data-action-party]'), 'the four party actions stand in the action menu').toHaveCount(4);
+      await settle(page, {timeoutMs: 10_000});
+      await expectPartyTilesLegible(page, preset.id);
+      const dir = path.resolve('screenshots', 'parliament-actions', preset.id);
+      fs.mkdirSync(dir, {recursive: true});
+      await page.screenshot({path: path.join(dir, '00-action-menu-parties.png')});
+    });
   });
 }
 
@@ -226,6 +282,7 @@ test.describe('parliament · party actions', () => {
     await expect(page.locator('.con-cardactions__tile[data-action-party]'), 'the four party actions stand in the action menu').toHaveCount(4);
     await focusPartyTile(page, 'Industrialists');
     await shoot(page, '01-action-menu-parties');
+    await expectPartyTilesLegible(page, 'standard-1080');
     const before = (await seatOf(request, playerId)).seat;
     await openPartyComposer(page, 'industrialists');
     const crumb = (await crumbText(page)).toUpperCase();
