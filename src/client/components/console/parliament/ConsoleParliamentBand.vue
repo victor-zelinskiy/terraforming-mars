@@ -99,6 +99,27 @@
                 <span v-if="chip.unrewarded" class="con-band__text con-band__text--quiet">{{ $t('nobody gets the TR') }}</span>
               </template>
             </span>
+            <!-- THE COLONY TABLE'S OWN MOVE (Unity Budget): no seat, no chip in anybody's hands — the declared
+                 steps, then every tile with its marker before → after; a track at its end is NAMED on its own
+                 member («на максимуме»), never dropped. Nothing here celebrates: it is a budget programme. -->
+            <span v-else-if="chip.kind === 'tracks'" class="con-band__chip con-band__chip--tracks"
+                  :class="{'con-band__chip--tracks-blocked': chip.skipped !== undefined}"
+                  data-parl-band-chip="tracks" :data-parl-band-tracks="chip.steps">
+              <span v-if="chip.skipped !== undefined" class="con-band__text con-band__text--quiet">{{ $t(chip.skipped) }}</span>
+              <template v-else>
+                <span class="con-band__text con-band__text--dim">{{ tracksLabel(chip.steps) }}</span>
+                <span v-for="tile in chip.tiles" :key="tile.colony" class="con-band__track" :class="{'con-band__track--max': tile.atMax}"
+                      data-parl-band-track :data-parl-band-track-colony="tile.colony" :data-parl-band-track-steps="tile.steps">
+                  <span class="con-band__planet" :class="planetClass(tile.colony)" aria-hidden="true"></span>
+                  <span v-if="tile.atMax" class="con-band__text con-band__text--quiet">{{ $t('track at its maximum') }}</span>
+                  <template v-else>
+                    <b class="con-band__num">{{ tile.before }}</b>
+                    <span class="con-band__text con-band__text--dim">→</span>
+                    <b class="con-band__num">{{ tile.after }}</b>
+                  </template>
+                </span>
+              </template>
+            </span>
             <span v-else-if="chip.kind === 'skip'" class="con-band__chip con-band__chip--skip"
                   data-parl-band-chip="skip" data-sit-skip :data-sit-skip-amount="chip.amount">
               <span class="con-band__text con-band__text--dim">{{ $t('Skipped') }} · {{ $t(chip.title) }}</span>
@@ -154,6 +175,8 @@ import {PartyReactionReading, partyReactionsOf, viewerHasSeat} from '@/client/co
 import {WinnerRewardReading, winnerRewardGlyph, winnerRewardReadingOf, winnerRewardTableOf} from '@/client/console/parliament/winnerRewardModel';
 import {TileGrantReading, tileGrantReadingOf} from '@/client/console/parliament/tileGrantModel';
 import {worldMoveReadingOf, worldParameterUnit} from '@/client/console/parliament/worldMoveModel';
+import {COLONY_TRACK_SUMMARY_KEY, ColonyTrackMoveChip, colonyTrackChipsOf, colonyTrackReadingOf} from '@/client/console/parliament/colonyTrackModel';
+import {translateTextWithParams} from '@/client/directives/i18n';
 import {ParameterMoveId} from '@/common/parliament/parameterMove';
 
 export default defineComponent({
@@ -316,6 +339,10 @@ export default defineComponent({
       if (world.length > 0) {
         out.world = world;
       }
+      const tracks = this.trackMoves;
+      if (tracks !== undefined) {
+        out.tracks = tracks;
+      }
       if (yields.length === 0 && quiet !== undefined) {
         out.quiet = {kicker: quiet.kicker, kind: quiet.kind};
       }
@@ -350,6 +377,20 @@ export default defineComponent({
         });
       }
       return out;
+    },
+    /**
+     * THE COLONY TABLE'S OWN MOVE (Unity Budget), from the phase's record — the
+     * one that names no seat. Read by every viewer alike, once the server has
+     * recorded it: before that the line has nothing honest to print (the
+     * table is still to move), and the declaration reads on the card itself.
+     */
+    trackMoves(): {steps: number, tiles: ReadonlyArray<ColonyTrackMoveChip>, skipped?: string} | undefined {
+      const outcomes = this.model?.phase?.outcomes ?? [];
+      const reading = colonyTrackReadingOf(this.resolution, undefined, {enacted: true, outcomes});
+      if (reading === undefined || reading.context !== 'applied') {
+        return undefined;
+      }
+      return {steps: reading.advance.steps, tiles: colonyTrackChipsOf(reading), ...(reading.skipped === undefined ? {} : {skipped: reading.skipped})};
     },
     /**
      * THE SKIPS — every record of the viewer's that paid nothing, named: a
@@ -440,6 +481,14 @@ export default defineComponent({
     /** …and its unit suffix («5 %», «−30 °C», a bare count of oceans). */
     worldSuffix(parameter: ParameterMoveId): string {
       return worldParameterUnit(parameter);
+    },
+    /** «Все треки колоний +2» — the ONE sentence of the colony table's part. */
+    tracksLabel(steps: number): string {
+      return translateTextWithParams(COLONY_TRACK_SUMMARY_KEY, [String(steps)]);
+    },
+    /** A tile's planet medallion — the colonies' own background class (the results panel prints the same). */
+    planetClass(colony: string): string {
+      return colony.replace(' ', '-') + '-background';
     },
     skipUnitClass(outcome: ParliamentEnactOutcomeModel): string {
       if (outcome.kind === 'skipped' || outcome.kind === 'production' || outcome.kind === 'stock' || outcome.kind === 'reaction') {

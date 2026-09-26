@@ -1093,6 +1093,20 @@
         &--world { flex: 1 1 0; min-width: 0; max-width: max-content; }
         &--world-down .con-band__num { color: @con-amber; }
         &--world-blocked { opacity: .78; }
+        /* THE COLONY TABLE'S OWN MOVE (Unity Budget): the one sentence, then a member per tile — the planet
+           medallion and «3 → 5», or the named end of the track. Calm, like the planet's line: a budget
+           programme rolled over every world, nothing to celebrate. */
+        &--tracks { flex: 1 1 0; min-width: 0; max-width: max-content; gap: .34rem; }
+        &--tracks-blocked { opacity: .78; }
+    }
+    &__track {
+        display: inline-flex; align-items: center; gap: .18rem; flex-shrink: 0;
+        &--max { opacity: .78; }
+    }
+    &__planet {
+        display: inline-block; width: .92rem; height: .92rem; border-radius: 50%; flex-shrink: 0;
+        background-size: cover; background-position: center;
+        box-shadow: 0 0 0 .05rem rgba(200, 220, 240, 0.35), 0 .05rem .18rem rgba(0, 0, 0, 0.55);
     }
     &__text {
         display: block;

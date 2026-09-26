@@ -38,6 +38,8 @@ import {
   productionHorizonOn, ReadingPerson, voteLevyOf, voteYieldsOf, WinSuffix, winSuffixesOf,
 } from './influenceYieldModel';
 import {LevyReading, levyShortNoteKey} from '@/common/parliament/resolutionLevy';
+import {ColonyTrackAdvance} from '@/common/parliament/colonyTrackAdvance';
+import {COLONY_TRACK_SUMMARY_KEY} from './colonyTrackModel';
 import {colonyLedgerEmptyKey, COLONY_LEDGER_TOTAL, ColonyLedgerReading, colonyLedgerOf} from './colonyLedgerModel';
 import {PartyReactionReading, partyReactionsOf, viewerHasSeat} from './partyReactionModel';
 import {quietRewardPoseOf} from './quietRewardPose';
@@ -115,6 +117,11 @@ export type VoteReadingVm = {
    * influence or only by winning, and the cities on Mars it may land on. Undefined for every other resolution.
    */
   grant?: TileGrantReading;
+  /**
+   * THE COLONY TABLE's part (Unity Budget): «every colony track +2» — a line that depends on nothing of the
+   * seat's and never enters the net; the tiles themselves read in the inspector. Undefined for every other resolution.
+   */
+  tracks?: ColonyTrackAdvance;
 };
 
 /** One side of a fact: a translatable key with params, or a RAW display string (a player's name), optionally with the leader's cube. */
@@ -233,6 +240,7 @@ export function voteReadingOf(
   // defence this law leaves, so its price has to stand on the panel BEFORE the vote, not in the results.
   // A seat at or below the limit is told nothing: there is no warning to give.
   note = note ?? levelLossNoteOf(yields);
+  const tracks = resolution.trackAdvance;
   return {
     ...seated,
     yields,
@@ -243,6 +251,7 @@ export function voteReadingOf(
     ...(ledger === undefined ? {} : {ledger}),
     ...(levy === undefined ? {} : {levy}),
     ...(grant === undefined ? {} : {grant}),
+    ...(tracks === undefined ? {} : {tracks}),
   };
 }
 
@@ -467,6 +476,11 @@ export function voteInfoBudget(vm: VoteInfoVm, text: TextFn = IDENTITY): VoteInf
     if (levelYieldIsNone(y)) {
       strings.push(text(words.noneKey));
     }
+  }
+  // THE COLONY TABLE's one line (Unity Budget): «every colony track +2».
+  const tracks = vm.reading.tracks;
+  if (tracks !== undefined) {
+    strings.push(text(COLONY_TRACK_SUMMARY_KEY, [String(tracks.steps)]));
   }
   // THE COLONY LEDGER's words: the tiles' names (one each — the bonus, the multiplier and the total are
   // icons and numbers), the «no colonies» line, the sums' kicker.

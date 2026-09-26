@@ -8848,7 +8848,7 @@ export default defineComponent({
      * records (`worldMoveModel`): «Кислород: 5 % → 4 %», «Венера: 10 % →
      * 14 %, РТ никому».
      */
-    zoomResolutionWorld(): {table: WinnerRewardTable | undefined, enacted: boolean, outcomes: ReadonlyArray<ParliamentEnactOutcomeModel> | undefined} {
+    zoomResolutionWorld(): {table: WinnerRewardTable | undefined, enacted: boolean, outcomes: ReadonlyArray<ParliamentEnactOutcomeModel> | undefined, colonies: ReadonlyArray<ColonyModel>} {
       const id = this.zoomResolutionId;
       const model = this.game.parliament;
       const enacted = id !== undefined && model?.enacted?.resolution === id;
@@ -8858,6 +8858,8 @@ export default defineComponent({
         table: winnerRewardTableOf(this.game),
         enacted,
         outcomes: enacted ? (phase?.outcomes ?? summary?.outcomes) : undefined,
+        // …and the COLONY TABLE, for a law that advances its tracks (Unity Budget — `colonyTrackModel`).
+        colonies: this.game.colonies,
       };
     },
     /** The WINNER's tile of the resolution on the stage, read over the live table (`winnerRewardModel`). */

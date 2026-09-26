@@ -74,6 +74,31 @@ describe('parliamentResultsModel — the sitting\'s last reading, in two section
     expect(reading.planet?.every((m) => m.skipped === undefined)).is.true;
   });
 
+  /*
+   * КОЛОНИИ (Unity Budget, RX29) — the COLONY TABLE's own part: no seat's row; each tile's step, a tile
+   * at the end of its track NAMED; a table with no tile carries its reason; and a law that moved the
+   * table is never «quiet».
+   */
+  it('the COLONY TABLE’s move is its own line — every tile, the end of a track named, never a seat’s row', () => {
+    const reading = resultsReadingOf(summary({outcomes: [
+      outcome({}),
+      {step: 'colonyTracks', part: 'world', kind: 'colonyTrack', amount: 2, tracks: [
+        {colony: 'Luna', before: 3, after: 5}, {colony: 'Io', before: 6, after: 6},
+      ]} as ParliamentEnactOutcomeModel,
+    ]}), [seat(BLUE)], SUPPORT, {quiet: {kicker: 'x', kind: 'passive'}});
+    expect(reading.payouts[0].parts.map((p) => p.kind), 'the seat’s row carries only the seat’s own record').deep.eq(['stock']);
+    expect(reading.tracks?.steps).eq(2);
+    expect(reading.tracks?.tiles.map((t) => `${t.colony}:${t.before}→${t.after}:${t.steps}:${t.atMax}`)).deep.eq(['Luna:3→5:2:false', 'Io:6→6:0:true']);
+    expect(reading.tracks?.skipped).is.undefined;
+    expect(reading.planet, 'the planet line is not the colony table’s').is.undefined;
+    expect(reading.quiet, 'a law that moved the table is not quiet').is.undefined;
+    const skipped = resultsReadingOf(summary({outcomes: [
+      {step: 'colonyTracks', part: 'world', kind: 'skipped', amount: 2, tracks: [], reason: 'No colony tile is in play'} as ParliamentEnactOutcomeModel,
+    ]}), [seat(BLUE)], SUPPORT);
+    expect(skipped.tracks).deep.include({steps: 2, skipped: 'No colony tile is in play'});
+    expect(skipped.tracks?.tiles).deep.eq([]);
+  });
+
   it('…and a world move that did NOT happen is on the line too, with its reason', () => {
     const reading = resultsReadingOf(summary({outcomes: [
       {step: 'oxygen', part: 'world', kind: 'skipped', amount: 0, unrewarded: true,

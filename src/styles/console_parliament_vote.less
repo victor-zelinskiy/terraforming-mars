@@ -261,6 +261,17 @@
         flex-shrink: 0;
     }
     &__info-ledger-row { flex: 0 1 auto; min-width: 0; }
+    /* THE COLONY TABLE's one line (Unity Budget): the colony tile glyph and «all colony tracks +2» — a law's
+       own line beside the seat's reading, in the same quiet register as a caption. */
+    &__info-tracks {
+        display: inline-flex; align-items: center; gap: .3rem; max-width: 100%; min-width: 0;
+        font-family: @con-font-read; font-size: .74rem; letter-spacing: .02em; opacity: .9; white-space: nowrap;
+    }
+    &__info-tracks-icon {
+        display: inline-block; width: 1.05rem; height: .78rem; flex-shrink: 0; border-radius: .16rem;
+        background: linear-gradient(90deg, rgba(120, 200, 255, 0.85) 0 34%, rgba(20, 32, 48, 0.9) 34% 100%);
+        box-shadow: inset 0 0 0 .05rem rgba(200, 220, 240, 0.4);
+    }
     /* A DENSE BLOCK GIVES THE WIDTH TO THE NUMBERS — the Deck's trade (below), applied wherever the
        block carries MORE THAN ONE reading: the formula graphic steps aside and the card right above
        the panel prints the very same graphic, larger. Measured at 1080 with the row of seats standing:

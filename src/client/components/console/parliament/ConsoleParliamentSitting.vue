@@ -163,6 +163,29 @@
           </span>
         </div>
 
+        <!-- КОЛОНИИ — what the enactment did to the COLONY TABLE (Unity Budget): one line, each tile's marker
+             before → after. The markers themselves have already glided on the colonies screen (the sitting
+             hosted it for exactly that), so the line does not replay them: it states the step, and names the
+             one thing the screen cannot keep saying — a track at its end did not move. No silent loss. -->
+        <div v-if="results.tracks !== undefined" class="con-sit__row con-sit__tracks" data-sit-section="tracks" data-sit-row="results-tracks" :data-sit-tracks-steps="results.tracks.steps">
+          <span class="con-parl__chip-dim">{{ $t('Colony tracks') }}</span>
+          <span class="con-sit__chips">
+            <span v-if="results.tracks.skipped !== undefined" class="con-parl__chip-dim" data-sit-tracks-skipped>{{ $t(results.tracks.skipped) }}</span>
+            <span v-for="tile in results.tracks.tiles" v-else :key="tile.id" class="con-sit__chip con-sit__track"
+                  :class="{'con-sit__track--max': tile.atMax}"
+                  data-sit-track :data-sit-track-colony="tile.colony" :data-sit-track-steps="tile.steps">
+              <span class="con-sit__part-planet" :class="planetClass(tile.colony)" aria-hidden="true"></span>
+              <b class="con-sit__part-colony-name">{{ $t(tile.colony) }}</b>
+              <span v-if="tile.atMax" class="con-parl__chip-dim">{{ $t('track at its maximum') }}</span>
+              <template v-else>
+                <b>{{ tile.before }}</b>
+                <span class="con-parl__chip-dim">→</span>
+                <b>{{ tile.after }}</b>
+              </template>
+            </span>
+          </span>
+        </div>
+
         <!-- ② СТОЛ — the new resolutions with their parties, the support STOCK after the deal, the lobby. -->
         <div class="con-sit__table" data-sit-section="table">
           <span class="con-parl__chip-dim con-sit__section-kicker">{{ $t('The table') }}</span>

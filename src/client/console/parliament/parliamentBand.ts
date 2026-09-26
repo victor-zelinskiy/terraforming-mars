@@ -47,6 +47,7 @@ import {ParliamentPhaseSummaryModel} from '@/common/models/ParliamentModel';
 import {InfluenceYield, levelTakesAway} from '@/common/parliament/influenceScaling';
 import {LevyReading} from '@/common/parliament/resolutionLevy';
 import {ParameterMoveId} from '@/common/parliament/parameterMove';
+import {ColonyTrackMoveChip} from './colonyTrackModel';
 import {SittingRewardStep, SittingStage} from './consoleSittingFlow';
 import {SupportStatus} from './supportScene';
 
@@ -88,6 +89,13 @@ export type BandChip =
    * viewer; a move that could not happen names its reason instead.
    */
   | {kind: 'world', parameter: ParameterMoveId, before: number, after: number, steps: number, unrewarded: boolean, skipped?: string}
+  /**
+   * THE COLONY TABLE'S OWN MOVE (Unity Budget): what the law did to EVERY colony track — the declared
+   * steps, and each tile with its marker before and after (a tile at the end of its track is named, never
+   * dropped). It belongs to no seat, so it is the same chip for every viewer; a table with no tile at all
+   * names its reason instead.
+   */
+  | {kind: 'tracks', steps: number, tiles: ReadonlyArray<ColonyTrackMoveChip>, skipped?: string}
   /** The seats the phase is still waiting for. */
   | {kind: 'awaiting', seats: ReadonlyArray<Color>};
 
@@ -138,6 +146,8 @@ export type BandRewardReading = {
   grant?: 'city';
   /** The WORLD's own part of the enactment — the planet's moves, in the server's order. */
   world?: ReadonlyArray<{parameter: ParameterMoveId, before: number, after: number, steps: number, unrewarded: boolean, skipped?: string}>;
+  /** The COLONY TABLE's own part of the enactment (Unity Budget) — every track's move, in the server's order. */
+  tracks?: {steps: number, tiles: ReadonlyArray<ColonyTrackMoveChip>, skipped?: string};
   /** Nothing is paid to this seat: what remains instead (the passive that now stands / the action to take). */
   quiet?: {kicker: string, kind: 'passive' | 'action'};
   /** One word of state beside the kicker: «эта выплата» until every chip has landed, «получено» after — or the CUT's own pair. */
@@ -387,6 +397,10 @@ function rewardLine(sitting: BandSitting): BandLine {
   for (const move of reward.world ?? []) {
     chips.push({kind: 'world', ...move});
   }
+  // …AND THE COLONY TABLE, in the same place of the card's order («каждому M€; затем все треки колоний»).
+  if (reward.tracks !== undefined) {
+    chips.push({kind: 'tracks', ...reward.tracks});
+  }
   for (const skip of reward.skips) {
     chips.push({kind: 'skip', ...skip});
   }
@@ -410,7 +424,7 @@ function rewardLine(sitting: BandSitting): BandLine {
     // A CUT IS NOT A REWARD, and the line that carries it may not call itself one: the same slot
     // names what LEAVES («Что вы теряете»), decided by the DECLARATION the readings carry.
     kicker: bandRewardTakes(reward.yields) ? 'What you lose' : 'Your reward',
-    key: `reward:${sitting.rewardStep}:${reward.state ?? ''}:${reward.yields.length}:${reward.skips.length}:${(reward.world ?? []).length}:${reward.grant ?? ''}`,
+    key: `reward:${sitting.rewardStep}:${reward.state ?? ''}:${reward.yields.length}:${reward.skips.length}:${(reward.world ?? []).length}:${reward.tracks?.tiles.length ?? ''}:${reward.grant ?? ''}`,
     chips,
     committed: true,
     ...(reward.yields.length === 0 && reward.quiet !== undefined ? {quiet: reward.quiet.kind} : {}),

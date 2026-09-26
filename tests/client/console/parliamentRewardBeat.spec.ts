@@ -123,6 +123,8 @@ describe('parliamentRewardBeat — the ledger of what the sitting still owes', (
       city: outcome({kind: 'city', space: '05' as never, stackHeight: 2}),
       // Gas Export's WORLD move: the board's scale, no seat, no rail chip.
       globalParameter: {step: 'oxygen', part: 'world', kind: 'globalParameter', amount: -1, parameter: {id: 'oxygen', before: 5, after: 4}, unrewarded: true},
+      // Unity Budget's WORLD step over the colony table: the colonies screen's own wave, no seat, no rail chip.
+      colonyTrack: {step: 'colonyTracks', part: 'world', kind: 'colonyTrack', amount: 2, tracks: [{colony: 'Luna' as never, before: 2, after: 4}]},
     };
     for (const kind of OUTCOME_KINDS) {
       const spec = waveSpecOf(sample[kind]);

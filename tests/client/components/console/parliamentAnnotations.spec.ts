@@ -143,6 +143,31 @@ describe('parliamentAnnotations — the fullscreen inspector\'s reading blocks',
     }
   });
 
+  /*
+   * THE COLONY TABLE'S BLOCK (Unity Budget, RX29): the world block, headed by what it moves, printing the
+   * law's sentence and — against a live table — every tile's marker, a tile at the end of its track named.
+   */
+  it('a law that advances the colony tracks reads its own block: the declaration alone without a table, every tile against a live one', () => {
+    const id = 'RDX_UNITY_UNITY_BUDGET';
+    const reference = resolutionAnnotations(id, undefined, undefined, {table: undefined});
+    const block = reference.find((b) => b.id === 'group:world');
+    expect(block?.labelKey).eq('What it does to the colony table');
+    expect(block?.rows.map((r) => r.text)).deep.eq(['Advance every colony track 2 steps.']);
+    const colonies = [
+      {name: ColonyName.LUNA, trackPosition: 3, isActive: true, colonies: [], visitor: undefined},
+      {name: ColonyName.IO, trackPosition: 6, isActive: true, colonies: [], visitor: undefined},
+      {name: ColonyName.MIRANDA, trackPosition: 1, isActive: false, colonies: [], visitor: undefined},
+    ];
+    const live = resolutionAnnotations(id, undefined, undefined, {table: undefined, colonies}).find((b) => b.id === 'group:world');
+    expect(live?.rows.map((r) => r.text)).deep.eq(['Advance every colony track 2 steps.', '${0}: ${1}', '${0}: ${1}']);
+    expect(live?.rows.slice(1).map((r) => r.params)).deep.eq([['Luna', '3 → 5'], ['Io', 'track at its maximum']]);
+    // The record outranks the table: the server's own list.
+    const applied = resolutionAnnotations(id, undefined, undefined, {table: undefined, colonies, enacted: true, outcomes: [
+      {step: 'colonyTracks', part: 'world', kind: 'colonyTrack', amount: 2, tracks: [{colony: ColonyName.LUNA, before: 2, after: 4}]},
+    ]}).find((b) => b.id === 'group:world');
+    expect(applied?.rows.slice(1).map((r) => r.params)).deep.eq([['Luna', '2 → 4']]);
+  });
+
   it('a delegate quest names what the player does (the Reds\' dev example)', () => {
     const quest = resolutionAnnotations('RDX_DEV_COMPOUND').find((b) => b.labelKey === 'Chairman quest');
     expect(quest === undefined ? [] : texts([quest])).to.deep.eq(['Send 4 delegates to resolutions']);

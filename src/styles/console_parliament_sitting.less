@@ -210,6 +210,13 @@
            the geometry probe sees, never a silent overlap and never a cut row. */
         grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
         grid-template-rows: auto;
+        /* THE PLACEMENT IS EXPLICIT: the payouts head column 1, the world's lines (ПЛАНЕТА, КОЛОНИИ) stand
+           UNDER them in the same column, and the table spans every row of column 2 — so the panel is as
+           tall as the TALLER COLUMN, never the sum of two. Auto-placed, the colonies line fell beside the
+           payouts and pushed the table into a second row: 274 px on a 265 px tier at 1080 (measured by
+           `expectParliamentFits` on the Unity Budget's results). */
+        grid-auto-rows: auto;
+        grid-auto-flow: row;
         align-content: start;
         gap: .4rem .9rem;
         padding: .55rem .8rem;
@@ -223,6 +230,7 @@
        spent HERE, on the rows' own air: the payouts are what the panel exists for. */
     &__payouts {
         grid-column: 1;
+        grid-row: 1;
         display: flex;
         flex-direction: column;
         gap: .32rem;
@@ -286,6 +294,7 @@
     /* (2) СТОЛ — what changed and is already out of sight. */
     &__table {
         grid-column: 2;
+        grid-row: 1 / span 3;
         display: flex;
         flex-direction: column;
         gap: .22rem;
@@ -302,6 +311,12 @@
     &__world-icon { display: inline-block; width: 1rem; height: 1rem; background-size: contain; background-repeat: no-repeat; background-position: center; flex-shrink: 0; }
     &__world--down b { color: @con-amber; }
     &__world--blocked { opacity: .78; }
+    /* КОЛОНИИ — the colony table's own line (Unity Budget): a member per tile, the planet medallion, the name,
+       «3 → 5» — or the named end of the track, quiet like every other named skip. */
+    &__track { gap: .26rem; }
+    &__track--max { opacity: .78; }
+    /* The world's lines stand UNDER THE PAYOUTS, in their column (the table owns the other one whole). */
+    &__planet, &__tracks { grid-column: 1; }
     &__support-places { display: inline-flex; align-items: center; gap: .1rem; flex-shrink: 0; }
     &__support-place {
         width: .72rem; height: .72rem; border-radius: .15rem;

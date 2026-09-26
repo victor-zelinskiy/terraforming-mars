@@ -99,6 +99,13 @@
                                           :withCaption="false"
                                           size="compact"
                                           data-parl-vote-reaction />
+                    <!-- THE COLONY TABLE (Unity Budget): the law's own line — it depends on nothing of the
+                         seat's and never enters the net; the tiles read in the inspector. -->
+                    <span v-if="voteInfo.reading.tracks !== undefined" class="con-parl__info-tracks" data-parl-vote-tracks
+                          :data-parl-vote-tracks-steps="voteInfo.reading.tracks.steps">
+                      <i class="con-parl__info-tracks-icon" aria-hidden="true"></i>
+                      <span>{{ tracksLabel(voteInfo.reading.tracks.steps) }}</span>
+                    </span>
                     <!-- THE COLONY LEDGER (Colonial Affairs): the tiles the «×k» above multiplies — the
                          SERVER's registry, one row per tile, the sums; «no colonies» in words. -->
                     <ConsoleColonyLedger v-if="voteInfo.reading.ledger !== undefined"
@@ -219,7 +226,8 @@ import {conLogicalPx} from '@/client/console/consoleLayoutProfile';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {ParliamentBeat, scheduleParliamentBeat} from '@/client/console/parliament/parliamentBeat';
 import {descendWorkspaceFrame, foldWorkspaceFrame, setWorkspaceFramePhase, workspaceFrameHasNested} from '@/client/console/consoleWorkspaceStack';
-import {translateMessage, translateText} from '@/client/directives/i18n';
+import {translateMessage, translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {COLONY_TRACK_SUMMARY_KEY} from '@/client/console/parliament/colonyTrackModel';
 import {offTurnReason} from '@/client/console/offTurnReason';
 import {probeTick} from '@/client/console/probeTick';
 import {getResolution} from '@/client/parliament/ClientParliamentManifest';
@@ -536,6 +544,10 @@ export default defineComponent({
     freezeParliamentFit(false);
   },
   methods: {
+    /** «Все треки колоний +2» — the colony table's one line (Unity Budget). */
+    tracksLabel(steps: number): string {
+      return translateTextWithParams(COLONY_TRACK_SUMMARY_KEY, [String(steps)]);
+    },
     cubePx(logical: number): number {
       return conLogicalPx(logical);
     },

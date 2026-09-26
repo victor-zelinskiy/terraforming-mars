@@ -190,6 +190,28 @@ describe('parliamentBand — the reading band says the REASON, in objects', () =
       expect(band.chips[1]).deep.include({kind: 'world', parameter: 'oxygen', before: 5, after: 4, steps: -1, unrewarded: true});
       expect(band.chips[2]).deep.include({kind: 'world', parameter: 'venus', steps: 2});
     });
+    /*
+     * THE COLONY TABLE IS A MEMBER OF THE SAME LINE TOO (Unity Budget, RX29) —
+     * the declared steps and a member per tile, a tile at the end of its
+     * track named on its own member; a table with no tile carries its reason.
+     */
+    it('the COLONY TABLE’s own move rides the reward line after the seat’s part — one chip, every tile inside it', () => {
+      const band = line({
+        stage: 'reward', rewardStep: 'received',
+        reward: {...NO_REWARD, yields: [{context: 'applied', effect: {id: 'x', unit: {kind: 'stock', resource: 'megacredits'}, perInfluence: 1, recipient: 'each'}} as never],
+          tracks: {steps: 2, tiles: [
+            {colony: 'Luna' as never, before: 3, after: 5, steps: 2, atMax: false},
+            {colony: 'Io' as never, before: 6, after: 6, steps: 0, atMax: true},
+          ]}},
+      });
+      expect(kinds(band.chips)).deep.eq(['yield', 'tracks']);
+      expect(band.chips[1]).deep.include({kind: 'tracks', steps: 2});
+      expect((band.chips[1] as {tiles: ReadonlyArray<{colony: string, atMax: boolean}>}).tiles.map((t) => `${t.colony}:${t.atMax}`)).deep.eq(['Luna:false', 'Io:true']);
+      const skipped = line({stage: 'reward', rewardStep: 'received', reward: {...NO_REWARD, tracks: {steps: 2, tiles: [], skipped: 'No colony tile is in play'}}});
+      expect(kinds(skipped.chips)).deep.eq(['tracks']);
+      expect(skipped.chips[0]).deep.include({skipped: 'No colony tile is in play'});
+      expect(skipped.key).not.eq(band.key);
+    });
     it('a world move that could NOT happen carries its reason on the same chip', () => {
       const band = line({
         stage: 'reward', rewardStep: 'received',

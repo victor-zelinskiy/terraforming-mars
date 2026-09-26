@@ -39,6 +39,8 @@ import {accessReasonRows} from './consoleParliamentModel';
 import {InfluenceYield} from '@/common/parliament/influenceScaling';
 import {ParliamentEnactOutcomeModel, ParliamentModel} from '@/common/models/ParliamentModel';
 import {WorldMoveTable, worldMoveReadingOf, worldMoveSentenceOf} from './worldMoveModel';
+import {colonyTrackReadingOf, colonyTrackTileSentenceOf} from './colonyTrackModel';
+import {ColonyModel} from '@/common/models/ColonyModel';
 import {
   CountedCellEntry, countedCellEntries, countedCellLabel, countedColonyNames, countedContributions, countedMetricParts, countedProductionParts, levelPresentation,
   yieldCountPresentation,
@@ -136,8 +138,11 @@ export function resolutionAnnotations(
   yields?: ReadonlyArray<InfluenceYield>,
   /** The viewer's reading of the resolution's WINNER tile, when there is a table to read it over. */
   winner?: {reading: WinnerRewardReading | undefined, viewer: Color | undefined, nameOf: (color: Color) => string},
-  /** The table the WORLD's part is read against (and, once it happened, the server's own records). */
-  world?: {table: WorldMoveTable | undefined, enacted?: boolean, outcomes?: ReadonlyArray<ParliamentEnactOutcomeModel>},
+  /**
+   * The table the WORLD's part is read against (and, once it happened, the server's own records) — the
+   * planet's globals, and the COLONY TABLE for a law that advances its tracks (Unity Budget).
+   */
+  world?: {table: WorldMoveTable | undefined, enacted?: boolean, outcomes?: ReadonlyArray<ParliamentEnactOutcomeModel>, colonies?: ReadonlyArray<ColonyModel>},
   /** The viewer's reading of the LEVY a budget takes first (the estimate from their supply, or the record). */
   levy?: LevyReading,
   /** The viewer's reading of a TILE GRANTED BY THRESHOLD (Skyscrapers) — their standing, their destinations, their record. */
@@ -183,6 +188,19 @@ export function resolutionAnnotations(
   // «Кислород: 5 % → 4 %», «Венера: 10 % → 14 %, РТ никому»).
   if (text.world !== undefined) {
     const rows: Array<string | RowText> = [text.world];
+    // THE COLONY TABLE's part (Unity Budget): the same block, headed by what it moves — every tile with its
+    // marker «3 → 5», a tile at the end of its track NAMED («трек на максимуме»); the declaration alone
+    // where there is no table to read against.
+    const tracks = colonyTrackReadingOf(resolution, world?.colonies, {enacted: world?.enacted === true, outcomes: world?.outcomes});
+    if (tracks !== undefined) {
+      if (tracks.skipped !== undefined) {
+        rows.push(tracks.skipped);
+      }
+      for (const tile of tracks.tiles) {
+        const sentence = colonyTrackTileSentenceOf(tile, {text: translateText, params: translateTextWithParams});
+        rows.push({text: '${0}: ${1}', params: [sentence.caption, sentence.detail]});
+      }
+    }
     const moves = worldMoveReadingOf(resolution, world?.table, {enacted: world?.enacted === true, outcomes: world?.outcomes});
     // WHO IS CREDITED is said ONCE — the law's own sentence above these rows
     // already says it. A row carries it only when the moves DISAGREE (a future
@@ -195,7 +213,8 @@ export function resolutionAnnotations(
       const sentence = worldMoveSentenceOf(reading, {text: translateText, params: translateTextWithParams}, {credit});
       rows.push({text: '${0}: ${1}', params: [sentence.caption, sentence.detail]});
     }
-    out.push(block('group:world', 'immediate', 'What it does to the planet', rows, 0.5));
+    const heading = moves.length === 0 && tracks !== undefined ? 'What it does to the colony table' : 'What it does to the planet';
+    out.push(block('group:world', 'immediate', heading, rows, 0.5));
   }
   if (text.winner !== undefined) {
     // A winner TILE's qualification — the detailed reading of the face's

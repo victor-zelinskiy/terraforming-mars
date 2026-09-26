@@ -71,6 +71,8 @@ import {ReduxParty, ResolutionId, ResolutionInstanceId} from '@/common/parliamen
 import {ParliamentEnactOutcomeModel, ParliamentPhaseSummaryModel} from '@/common/models/ParliamentModel';
 import {REWARD_ADDRESS, rewardAddressOf} from '@/common/parliament/rewardAddress';
 import {ParameterMoveId} from '@/common/parliament/parameterMove';
+import {ColonyName} from '@/common/colonies/ColonyName';
+import {colonyTrackRecordOf, colonyTrackTilesOf} from './colonyTrackModel';
 import {InfluenceLevelTerm} from '@/common/parliament/influenceScaling';
 import {getResolution} from '@/client/parliament/ClientParliamentManifest';
 import {LEVEL_NONE_KEY, levelPresentation} from './influenceYieldModel';
@@ -230,14 +232,61 @@ export type ResultsPlanetMove = {
   skipped?: string;
 };
 
+/**
+ * ④ THE COLONY TABLE — what the enactment did to EVERY colony track (Unity Budget: «Луна 3 → 5, Ио: трек
+ * на максимуме»), which belongs to no seat and therefore to no payout row. The markers have already
+ * glided on the colonies screen (the sitting hosted it for exactly that), so the line states each tile's
+ * step and the one fact the screen cannot keep saying — that a tile at its end did not move. A table
+ * with no tile at all is here too, with its reason (no silent loss).
+ */
+export type ResultsTrackMove = {
+  id: string;
+  colony: ColonyName;
+  before: number;
+  after: number;
+  /** The steps actually made — 0 for a tile whose track stood at its end. */
+  steps: number;
+  atMax: boolean;
+};
+
+export type ResultsTracks = {
+  /** The declared steps («+2»). */
+  steps: number;
+  tiles: ReadonlyArray<ResultsTrackMove>;
+  /** The advance did not happen at all: WHY (an English i18n key). */
+  skipped?: string;
+};
+
 export type ResultsReading = {
   payouts: ReadonlyArray<ResultsPayout>;
   /** NOBODY was paid: the resolution is a passive / an action, and the kicker says which. */
   quiet?: {kicker: string, kind: 'passive' | 'action'};
   /** The WORLD's own part, when the enactment had one — never a seat's row. */
   planet?: ReadonlyArray<ResultsPlanetMove>;
+  /** The COLONY TABLE's own part (Unity Budget), when the enactment had one — never a seat's row. */
+  tracks?: ResultsTracks;
   table: ResultsTable;
 };
+
+/**
+ * THE COLONY TRACK RECORD of a sitting as the colonies line reads it — the
+ * record that names no seat. Pure; the order of the tiles is the server's.
+ */
+export function resultsTrackMoves(summary: ParliamentPhaseSummaryModel): ResultsTracks | undefined {
+  const record = colonyTrackRecordOf(summary.outcomes);
+  if (record === undefined) {
+    return undefined;
+  }
+  const tiles = colonyTrackTilesOf(record).map((tile, index): ResultsTrackMove => ({
+    id: `tracks:${tile.colony}:${index}`, colony: tile.colony, before: tile.before, after: tile.after, steps: tile.steps, atMax: tile.atMax,
+  }));
+  const out: ResultsTracks = {steps: record.amount ?? 0, tiles};
+  const skipped = rewardAddressOf(record, undefined).skipped;
+  if (skipped !== undefined) {
+    out.skipped = skipped;
+  }
+  return out;
+}
 
 /**
  * THE WORLD RECORDS of a sitting as the planet line reads them — the records
@@ -443,9 +492,13 @@ export function resultsReadingOf(
   if (planet.length > 0) {
     reading.planet = planet;
   }
+  const tracks = resultsTrackMoves(summary);
+  if (tracks !== undefined) {
+    reading.tracks = tracks;
+  }
   // A resolution that pays NOBODY: the rows would all be empty, so the section says what stands instead.
-  // A law that MOVED THE WORLD is not «quiet» — the planet line is its reading.
-  if (extras.quiet !== undefined && planet.length === 0 && payouts.every((p) => p.parts.length === 0)) {
+  // A law that MOVED THE WORLD — the planet, or the colony table — is not «quiet»: that line is its reading.
+  if (extras.quiet !== undefined && planet.length === 0 && tracks === undefined && payouts.every((p) => p.parts.length === 0)) {
     reading.quiet = extras.quiet;
   }
   return reading;
