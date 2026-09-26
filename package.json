@@ -1,6 +1,6 @@
 {
   "name": "terraforming-mars",
-  "version": "1.2.972",
+  "version": "1.2.973",
   "description": "Terraforming Mars Game",
   "engines": {
     "node": ">=24.20.0 <25"

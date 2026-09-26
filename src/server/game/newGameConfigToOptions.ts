@@ -10,6 +10,7 @@
 // never reach GameOptions.
 
 import {BoardNameType, NewGameConfig} from '../../common/game/NewGameConfig';
+import {sanitizeEscapeVelocityOptions} from '../../common/game/escapeVelocity';
 import {isRandomBoardOption} from '../boards/randomBoard';
 import {GameOptions} from './GameOptions';
 
@@ -41,7 +42,9 @@ export function gameOptionsFromNewGameConfig(gameReq: NewGameConfig, requestedBo
     customProjectCards: gameReq.customProjectCards ?? [],
     customBonusCards: gameReq.customBonusCards ?? [],
     draftVariant: gameReq.draftVariant,
-    escapeVelocity: gameReq.escapeVelocity,
+    // A cleared form field arrives as an empty string; scoring over the threshold then
+    // divides by it (upstream 33008e2922) — every invalid value falls back to its default.
+    escapeVelocity: gameReq.escapeVelocity === undefined ? undefined : sanitizeEscapeVelocityOptions(gameReq.escapeVelocity),
     fastModeOption: gameReq.fastModeOption,
     testMode: gameReq.testMode ?? false,
     includedCards: gameReq.includedCards,
