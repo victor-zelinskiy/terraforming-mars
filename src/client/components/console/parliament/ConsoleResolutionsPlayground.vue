@@ -822,6 +822,17 @@ const PHOTOSYNTHESIS = CardName.ARTIFICIAL_PHOTOSYNTHESIS; // science, +2 energy
 const NOBEL = CardName.NOBEL_PRIZE; // a WILD tag — never a power tag at an enactment
 
 /*
+ * THE SAME FAMILY OVER THE CITY TAG (Urban Research: one CARD per city tag,
+ * the money by influence alone) — real cards chosen for what THIS count must
+ * be told apart from: the three CITY counts of the catalog that are all over
+ * the BOARD. A tag is printed on a card, so what is listed here is a city tag
+ * on a project, one on a PRELUDE, ONE card printing TWO of them, a building
+ * card that prints none, and the wild tag.
+ */
+const LUNA_CITY = CardName.LUNA_ECUMENOPOLIS; // city + city + moon — ONE card, TWO city tags
+const SETTLEMENT = CardName.EARLY_SETTLEMENT; // a PRELUDE with a city tag
+
+/*
  * THE DISTRIBUTED FAMILY's tableaus (Cloud Development: floaters by Venus +
  * Jovian tags + influence, LAID OUT over the player's holders) — real Venus
  * Next / Colonies / Prelude 2 cards chosen for what the layout must tell apart
@@ -1046,6 +1057,40 @@ const SCENARIOS: ReadonlyArray<PgScenario> = [
     seats: [{agenda: 3, bonus: 0, cards: [LUNA_GOV], production: 0, megacredits: 34},
       {agenda: 1, bonus: 0, cards: [], production: 0, megacredits: 20}], winner: 1, context: 'proposal', noRecipient: false,
     tracks: [{colony: ColonyName.CERES, position: 5}, {colony: ColonyName.LUNA, position: 2}]},
+  // ── URBAN RESEARCH (RX31): the same tag-counted family under a FOURTH count — the CITY TAGS of the tableau — and the
+  //    first law whose DRAW is what the count sizes («1 card per city tag»), beside money that is influence alone.
+  //    The two halves are independent, so the stand shows each one's zero on its own: no tag → the cards are a
+  //    NAMED skip and the M€ still come; influence 0 → the M€ are a named skip and the cards still come. ⚠ What is
+  //    counted is the printed MEDALLION: the catalog's other three city counts are over the BOARD, and no tableau
+  //    of cells belongs here. ──
+  {key: 'urban-research-net', family: 'counted-tags', counts: 'cityTags', label: 'A card per city tag, 2 M€ per influence — two halves, two numbers', viewer: 0,
+    seats: [{agenda: 4, bonus: 0, cards: [CAPITAL, CRATER], production: 0},
+      {agenda: 1, bonus: 0, cards: [], production: 0}], winner: 0, context: 'proposal', noRecipient: false},
+  // ONE card, TWO city tags — and influence 0: three cards all the same, while the money is a named skip.
+  {key: 'urban-research-two-tags', family: 'counted-tags', counts: 'cityTags', label: 'One card with two city tags — influence buys no cards', viewer: 0,
+    seats: [{agenda: 0, bonus: 0, cards: [LUNA_CITY, CAPITAL], production: 0},
+      {agenda: 1, bonus: 0, cards: [], production: 0}], winner: 1, context: 'proposal', noRecipient: false},
+  {key: 'urban-research-prelude', family: 'counted-tags', counts: 'cityTags', label: 'A city tag on a prelude counts like any other', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, cards: [SETTLEMENT, CAPITAL], production: 0},
+      {agenda: 1, bonus: 0, cards: [], production: 0}], winner: 1, context: 'proposal', noRecipient: false},
+  {key: 'urban-research-wild', family: 'counted-tags', counts: 'cityTags', label: 'A wild tag is not a city tag', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, cards: [NOBEL, CAPITAL], production: 0},
+      {agenda: 1, bonus: 0, cards: [], production: 0}], winner: 1, context: 'proposal', noRecipient: false},
+  {key: 'urban-research-no-tags', family: 'counted-tags', counts: 'cityTags', label: 'No city tags — the M€ still come', viewer: 0,
+    seats: [{agenda: 5, bonus: 0, cards: [MINE, NOBEL], production: 0},
+      {agenda: 1, bonus: 0, cards: [CAPITAL], production: 0}], winner: 1, context: 'applied', noRecipient: false},
+  {key: 'urban-research-empty-deck', family: 'counted-tags', counts: 'cityTags', label: 'The project deck is empty — the cards are named, the money is not touched', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, cards: [CAPITAL, CRATER], production: 0},
+      {agenda: 1, bonus: 0, cards: [], production: 0}], winner: 1, context: 'applied', noRecipient: false, emptyDeck: true},
+  {key: 'urban-research-seats', family: 'counted-tags', counts: 'cityTags', label: 'Every player gets their own result', viewer: 0,
+    seats: [{agenda: 1, bonus: 0, cards: [CAPITAL], production: 0},
+      {agenda: 8, bonus: 0, cards: [LUNA_CITY, SETTLEMENT], production: 0}], winner: 0, context: 'applied', noRecipient: false},
+  {key: 'urban-research-applied', family: 'counted-tags', counts: 'cityTags', label: 'Recorded result', viewer: 0,
+    seats: [{agenda: 5, bonus: 0, cards: [CAPITAL, CRATER], production: 0},
+      {agenda: 0, bonus: 0, cards: [MINE], production: 0}], winner: 1, context: 'applied', noRecipient: false},
+  {key: 'urban-research-quest-done', family: 'counted-tags', counts: 'cityTags', label: 'Chairman quest completed', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, cards: [CAPITAL], production: 0},
+      {agenda: 1, bonus: 0, cards: [], production: 0}], winner: 0, context: 'applied', noRecipient: false, quest: {progress: [1, 0], completedBy: 0}},
   // ── THE SEQUENTIAL FAMILY (Climate Research: +1 heat production per influence,
   //    THEN 1 card per full 3 steps of the heat production that leaves behind) ──
   //    `production` is the seat's HEAT production before the enactment. Test
@@ -2437,6 +2482,10 @@ export default defineComponent({
             const common = {
               player: TEST_PLAYERS[i].color, step: effect.id, part: 'effect' as const, effect: effect.id,
               amount: payout.amount, influence: payout.influence,
+              // …and, when the DRAW is a COUNTED one (Urban Research: a card per city tag), the inputs that
+              // explain the number — the very columns a supply payout's record carries. A flat draw has no
+              // count and writes none of them.
+              count: payout.count?.count, counted: payout.count?.cards, countedUnits: payout.count?.units,
             };
             out.push(payout.skipped !== undefined ?
               {...common, kind: 'skipped' as const, reason: payout.skipped} :
