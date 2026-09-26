@@ -19,7 +19,9 @@ import {scaledAmount} from '../../src/common/parliament/influenceScaling';
 import {RESOLUTION_TAG_COUNTING_MODE} from '../../src/common/parliament/resolutionCounts';
 import {resolutionCount} from '../../src/server/parliament/resolutions/ResolutionCounts';
 import {SelectCard} from '../../src/server/inputs/SelectCard';
+import {IProjectCard} from '../../src/server/cards/IProjectCard';
 import {SelectSpace} from '../../src/server/inputs/SelectSpace';
+import {SelectColony} from '../../src/server/inputs/SelectColony';
 import {AndOptions} from '../../src/server/inputs/AndOptions';
 import {InputError} from '../../src/server/inputs/InputError';
 import {cast} from '../../src/common/utils/utils';
@@ -169,11 +171,16 @@ describe('CloudDevelopment', () => {
         for (const seat of live.playersInGenerationOrder) {
           const wf = seat.getWaitingFor();
           if (wf instanceof SelectCard) {
-            seat.process({type: 'card', cards: [wf.cards[0].name]});
+            // A TAKE is answered WHOLE (the external-draw intake hands over every card it withheld);
+            // an ordinary pick takes one. Told apart by the marker — answering a take with one card stalls the sitting.
+            const take = (wf as SelectCard<IProjectCard>).externalDrawPrompt !== undefined;
+            seat.process({type: 'card', cards: take ? wf.cards.map((c) => c.name) : [wf.cards[0].name]});
           } else if (wf instanceof AndOptions && wf.cardResourceDistributionPrompt !== undefined) {
             seat.process({type: 'and', responses: wf.options.map((_, i) => ({type: 'amount', amount: i === 0 ? wf.cardResourceDistributionPrompt!.amount : 0}))});
           } else if (wf instanceof SelectSpace) {
             seat.process({type: 'space', spaceId: wf.spaces[0].id});
+          } else if (wf instanceof SelectColony) {
+            seat.process({type: 'colony', colonyName: wf.colonies[0].name});
           }
           runAllActions(live);
         }

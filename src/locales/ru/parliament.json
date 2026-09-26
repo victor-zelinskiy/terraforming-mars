@@ -997,5 +997,10 @@
   "Choose the card action to use again": "Выберите действие карты для повтора",
   "${0} used ${1} action a second time with ${2}": "${0} использует действие карты ${1} второй раз — ${2}",
   "+${0} from the law «${1}»": "+${0} от закона «${1}»",
-  "The result is the copied card own": "Результат — у повторяемой карты свой"
+  "The result is the copied card own": "Результат — у повторяемой карты свой",
+  "Scientists Budget": "Бюджет учёных",
+  "Lose 10 M€. Then gain 1 M€ per science tag you have, plus 1 per influence. Then draw 2 cards.": "Потеряйте 10 M€. Затем получите 1 M€ за каждую свою метку науки и 1 за каждое влияние. Затем возьмите 2 карты.",
+  "${0} has no science tags and no influence — no M€ from ${1}": "${0}: нет меток науки и нет влияния — ${1} не даёт M€",
+  "${0} gained ${1} M€ from ${2}: ${3} science tag(s) + ${4} influence (${5} → ${6})": "${0} получает ${1} M€ — ${2}: ${3} {метка|метки|меток} науки + влияние ${4} (${5} → ${6})",
+  "${0} draws ${1} card(s) from ${2}: 2 for every player": "${0} берёт ${1} {карту|карты|карт} — ${2}: по 2 каждому игроку"
 }
