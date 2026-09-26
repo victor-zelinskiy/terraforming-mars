@@ -3756,6 +3756,32 @@ post-flush, `consoleCardActionsUi.billZone`, шелл держит хост «н
 | `e2eDriverGuard` · `e2eFixturesLoad` · `parliamentGlossary` · `promptMarkerGuard` | 103 passing |
 | клиент: `consoleMandatoryGate` (+1) · `surfaceMotionModel` (+1) | 19 · 26 passing |
 
+## Аудит визуала действий Redux (2026-09-26) — плитки и короткие описания
+
+Запрос владельца после RX28: на графике Trade Industries нет титана; у Союза глиф мелкий; у R&D Funding на плитке
+элементы не действия. Итог — три закона (чеклист § 11): плитка рисует только бокс `→` (`actionRowsOf`, общий для
+плитки и стенда; DSL кладёт `b.effect` и `b.action` в одну строку — фильтр по строкам не отделял пассив), титановый
+уголок на M€ (`AltSecondaryTag.TITANIUM`, оба рендерера), партийная формула под ОДНИМ законом зума — закон у
+ГРАФИКА (`ui-scale`, на TV `1.32 × ui-scale`), формула добавляет константу `1` (старое `0.52 × ui-scale`
+складывалось с зумом графика: 14 px на 1080, квадрат на 4K). Пробник вскрыл четвёртый: `vSpace` внутри бокса —
+спейсер `flex-basis: 100%` не сжимает max-content обёртывающего ряда, формула Красных мерила 343 px при 135 px
+содержимого → строки в DOM (`partLines`). Побочно: маркер флота в консоли был неотличим от глифа торговли
+(срезанный `filter`) — оба рендерера на `trade-fleet.png`. Описание RX26 — «своих карт».
+
+### Прогоны (2026-09-26)
+
+| Что | Итог |
+| --- | --- |
+| `tests/console/actionRows.spec.ts` (новый, 5) · `TradeIndustries` · `PartyPresentation` · `ResolutionContract` · `RdFunding` | 242 passing |
+| клиент: `premiumCardIcons` · `resolutionPremiumFace` · `consoleCardActions` · `ConsolePartyActionComposerBill` | 91 passing, 1 красный **до аудита** — `resolutionPremiumFace` § клауза победителя у Skyscrapers (`voteWinner` на лице при `hasWinnerEffect=false`, манифест не менялся; с RX20) |
+| `npm run lint` · `make:cards` · `make:json` · `make:css` | зелёные |
+| `build:test` | красный ЧУЖИМ незавершённым RX29 в том же клоне (`rewardAddress.ts` / `influenceYieldModel.ts`, вид `colonyTrack`); в моих файлах ошибок нет; e2e-дерево — зелёное |
+| e2e `console-parliament-tradeind` · `-rdfunding` (standard-1080) | 2 passed (1,1 мин) — замороженная копия `build/` (`.e2e-frozen-audit/`), свой сервер :8151 |
+| e2e `console-parliament-actions` (1080 · tv-4k · deck-handheld; +2 теста плиток `expectPartyTilesLegible`) | **5 passed** (2,0 мин) после закона зума и строк; первый прогон вскрыл оба дефекта (фит упирался в пол 0,62) |
+| e2e `console-parliament-tradeind` · `-rdfunding` · `-openip` (финальная сборка) | 3 passed (1,6 мин) |
+| клиент: `PremiumMechNodeLines` (новый, 3) · `PremiumCard` · `premiumCardViewModel` · `resolutionPremiumFace` · `premiumCardIcons` · `consoleCardActions` | 183 passing (+ базлайн Skyscrapers) |
+| e2e `console-parliament-stability` · `-gallery` (формула Красных на плашках) | STABILITY_RESULT |
+
 ## RX29 «Бюджет Союза» (2026-09-26) — четвёртый БЮДЖЕТ и первый МИРОВОЙ шаг по столу колоний
 
 Док: `docs/TURMOIL_REDUX_UNITY_BUDGET.md`. Печатное: «Потеряйте 12 M€. Получите M€ = метки Земли + Венеры +
@@ -3861,29 +3887,3 @@ post-flush, `consoleCardActionsUi.billZone`, шелл держит хост «н
 эмблему партии, но не графику правила (так же у RX10 — `ftileEffectNode` для источника-резолюции пуст);
 в строке «ЭФФЕКТОВ» `buildMechanics` поднимает эффект-бокс НАД печатной строкой, поэтому порядок на плашке
 обратный порядку на лице (общая грамматика премиального лица, одинаковая для всех законов с пассивом).
-
-## Аудит визуала действий Redux (2026-09-26) — плитки и короткие описания
-
-Запрос владельца после RX28: на графике Trade Industries нет титана; у Союза глиф мелкий; у R&D Funding на плитке
-элементы не действия. Итог — три закона (чеклист § 11): плитка рисует только бокс `→` (`actionRowsOf`, общий для
-плитки и стенда; DSL кладёт `b.effect` и `b.action` в одну строку — фильтр по строкам не отделял пассив), титановый
-уголок на M€ (`AltSecondaryTag.TITANIUM`, оба рендерера), партийная формула под ОДНИМ законом зума — закон у
-ГРАФИКА (`ui-scale`, на TV `1.32 × ui-scale`), формула добавляет константу `1` (старое `0.52 × ui-scale`
-складывалось с зумом графика: 14 px на 1080, квадрат на 4K). Пробник вскрыл четвёртый: `vSpace` внутри бокса —
-спейсер `flex-basis: 100%` не сжимает max-content обёртывающего ряда, формула Красных мерила 343 px при 135 px
-содержимого → строки в DOM (`partLines`). Побочно: маркер флота в консоли был неотличим от глифа торговли
-(срезанный `filter`) — оба рендерера на `trade-fleet.png`. Описание RX26 — «своих карт».
-
-### Прогоны (2026-09-26)
-
-| Что | Итог |
-| --- | --- |
-| `tests/console/actionRows.spec.ts` (новый, 5) · `TradeIndustries` · `PartyPresentation` · `ResolutionContract` · `RdFunding` | 242 passing |
-| клиент: `premiumCardIcons` · `resolutionPremiumFace` · `consoleCardActions` · `ConsolePartyActionComposerBill` | 91 passing, 1 красный **до аудита** — `resolutionPremiumFace` § клауза победителя у Skyscrapers (`voteWinner` на лице при `hasWinnerEffect=false`, манифест не менялся; с RX20) |
-| `npm run lint` · `make:cards` · `make:json` · `make:css` | зелёные |
-| `build:test` | красный ЧУЖИМ незавершённым RX29 в том же клоне (`rewardAddress.ts` / `influenceYieldModel.ts`, вид `colonyTrack`); в моих файлах ошибок нет; e2e-дерево — зелёное |
-| e2e `console-parliament-tradeind` · `-rdfunding` (standard-1080) | 2 passed (1,1 мин) — замороженная копия `build/` (`.e2e-frozen-audit/`), свой сервер :8151 |
-| e2e `console-parliament-actions` (1080 · tv-4k · deck-handheld; +2 теста плиток `expectPartyTilesLegible`) | **5 passed** (2,0 мин) после закона зума и строк; первый прогон вскрыл оба дефекта (фит упирался в пол 0,62) |
-| e2e `console-parliament-tradeind` · `-rdfunding` · `-openip` (финальная сборка) | 3 passed (1,6 мин) |
-| клиент: `PremiumMechNodeLines` (новый, 3) · `PremiumCard` · `premiumCardViewModel` · `resolutionPremiumFace` · `premiumCardIcons` · `consoleCardActions` | 183 passing (+ базлайн Skyscrapers) |
-| e2e `console-parliament-stability` · `-gallery` (формула Красных на плашках) | `stability` — passed; `gallery` — 117 / 126 на СМЕШАННОЙ сборке (клиент с чужим незакоммиченным RX29/RX30 против сервера уровня RX28): 9 красных — FAMILIES ×6 (кикер награды действия «Правящая партия» вместо «Действие, пока принята») и SITTING в `reduced` ×3 (стадия `renewal` пропущена, сразу `results`) — обе на поверхностях чужих правок (`voteInfoModel`, `ConsoleParliamentVoteMode`, `parliamentWorldBeat`, `ConsoleParliamentSitting`); мои файлы ни кикер, ни ход заседания не производят |
