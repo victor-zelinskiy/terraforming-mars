@@ -5,6 +5,7 @@ import {TestPlayer} from '../../TestPlayer';
 import {testGame} from '../../TestGame';
 import {IGame} from '../../../src/server/IGame';
 import {OrOptions} from '../../../src/server/inputs/OrOptions';
+import {SelectOption} from '../../../src/server/inputs/SelectOption';
 import {SelectPayment} from '../../../src/server/inputs/SelectPayment';
 import {Payment} from '../../../src/common/inputs/Payment';
 import {IceAsteroid} from '../../../src/server/cards/base/IceAsteroid';
@@ -122,13 +123,22 @@ describe('NeptunianPowerConsultants', () => {
     runAllActions(game);
 
     // ... and only then is the player asked to pay, twice in a row.
-    const firstOffer = cast(player.popWaitingFor(), OrOptions);
-    firstOffer.options[0].cb(Payment.of({megacredits: 5}));
-    runAllActions(game);
+    // Fork shape: the paid branch is a LEAF option whose 5 M€ ride SelectPaymentDeferred.
+    // An ocean space's placement bonus may have granted steel, in which case the dial
+    // genuinely opens (steel may be used) — answer it in M€ so the arithmetic stays 5+5.
+    const acceptOffer = () => {
+      const offer = cast(player.popWaitingFor(), OrOptions);
+      cast(offer.options[0], SelectOption).cb(undefined);
+      runAllActions(game);
+      const dial = player.getWaitingFor();
+      if (dial instanceof SelectPayment) {
+        dial.cb(Payment.of({megacredits: 5}));
+        runAllActions(game);
+      }
+    };
+    acceptOffer();
 
-    const secondOffer = cast(player.popWaitingFor(), OrOptions);
-    secondOffer.options[0].cb(Payment.of({megacredits: 5}));
-    runAllActions(game);
+    acceptOffer();
 
     expect(card.resourceCount).eq(2);
     expect(player.megaCredits).eq(10);

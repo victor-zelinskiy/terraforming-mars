@@ -201,7 +201,8 @@ describe('Flooding', () => {
     // The Flooding player chooses before the Neptunian Power Consultants player does.
     cast(player2.popWaitingFor(), undefined);
     const orOptions = cast(player.popWaitingFor(), OrOptions);
-    cast(orOptions.options[0], SelectPlayer).cb(player2);
+    // Fork shape: one flat leaf option per adjacent owner (player2 is the only one), then the skip.
+    cast(orOptions.options[0], SelectOption).cb(undefined);
     expect(player2.megaCredits).to.eq(4);
 
     // Which leaves player2 unable to use Neptunian Power Consultants.

@@ -9,7 +9,7 @@ import {TileType} from '../../../src/common/TileType';
 import {cast} from '../../../src/common/utils/utils';
 import {NeptunianPowerConsultants} from '../../../src/server/cards/promo/NeptunianPowerConsultants';
 import {OrOptions} from '../../../src/server/inputs/OrOptions';
-import {Payment} from '../../../src/common/inputs/Payment';
+import {SelectOption} from '../../../src/server/inputs/SelectOption';
 
 describe('Polaris', () => {
   let card: Polaris;
@@ -74,7 +74,10 @@ describe('Polaris', () => {
     expect(player.megaCredits).to.eq(5);
 
     const orOptions = cast(player.popWaitingFor(), OrOptions);
-    orOptions.options[0].cb(Payment.of({megacredits: 5}));
+    // Fork shape: the paid branch is a leaf option; the 5 M€ ride SelectPaymentDeferred,
+    // which auto-pays when M€ is the only way to pay.
+    cast(orOptions.options[0], SelectOption).cb(undefined);
+    runAllActions(game);
 
     expect(neptunianPowerConsultants.resourceCount).to.eq(1);
     expect(player.production.energy).to.eq(1);
