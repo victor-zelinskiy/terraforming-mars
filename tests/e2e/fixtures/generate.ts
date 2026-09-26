@@ -113,6 +113,8 @@ import {SpaceName} from '../../../src/common/boards/SpaceName';
 import {COLONIAL_AFFAIRS_ID} from '../../../src/server/parliament/resolutions/unity/ColonialAffairs';
 import {COLONY_CONTEST_ID} from '../../../src/server/parliament/resolutions/unity/ColonyContest';
 import {UNITY_BUDGET_ID} from '../../../src/server/parliament/resolutions/unity/UnityBudget';
+import {GREENS_BUDGET_ID} from '../../../src/server/parliament/resolutions/greens/GreensBudget';
+import {CardResource} from '../../../src/common/CardResource';
 import {IColony} from '../../../src/server/colonies/IColony';
 import {Luna} from '../../../src/server/colonies/Luna';
 import {Titan} from '../../../src/server/colonies/Titan';
@@ -1294,6 +1296,42 @@ const unityBudgetTable = (stopAt: ParliamentStop): ParliamentFixtureSpec => ({
 // The sitting has just convened: the ASSEMBLY gate stands for both seats — the e2e walks the colony-table beat from here.
 parliamentFixture('parliament-unity-assembly', unityBudgetTable('assembly'));
 
+// ── RX34 · GREENS BUDGET (the Greens — «lose 10 M€; M€ = plant + microbe + animal tags + influence; each player adds
+//    2 animals to any card and 3 microbes to any card»): the FIFTH budget, and the first law that asks ONE seat TWO
+//    questions in a row. The card alone in the first voting slot with blue's free delegate on it: blue at Agenda step 2
+//    (influence 1; winning → step 3 = influence 2) holding Fish + Pets (two animal holders — the first pick is a real
+//    choice), Tardigrades + GHG Producing Bacteria (two microbe holders — so is the second) and Trees (a plant tag that
+//    holds nothing): animal 2 + microbe 2 + plant 1 = 5 → +7 after the levy of 10 (net −3); red at step 1 → +1, no
+//    holder of either kind — both portions NAMED and forfeited, no question asked of it.
+const greensBudgetTable = (stopAt: ParliamentStop): ParliamentFixtureSpec => ({
+  resolution: GREENS_BUDGET_ID,
+  votes: [0],
+  agenda: [2, 1],
+  stopAt,
+  arrange: ({p1}) => {
+    p1.playedCards.push(new Fish(), new Pets(), new Tardigrades(), new GHGProducingBacteria(), new Trees());
+  },
+  expect: ({p1, p2, parliament}) => {
+    const count = resolutionCount(p1, 'plantMicrobeAnimalTags');
+    if (count.count !== 5 || count.byTag?.map((entry) => entry.count).join(',') !== '1,2,2') {
+      throw new Error(`the parliament-greens fixture (${stopAt}) expected blue at plant 1 · microbe 2 · animal 2 = 5, got ${JSON.stringify(count)}`);
+    }
+    if (p1.getResourceCards(CardResource.ANIMAL).length !== 2 || p1.getResourceCards(CardResource.MICROBE).length !== 2) {
+      throw new Error(`the parliament-greens fixture (${stopAt}) expected blue to hold two animal holders and two microbe holders`);
+    }
+    if (p2.getResourceCards(CardResource.ANIMAL).length !== 0 || p2.getResourceCards(CardResource.MICROBE).length !== 0) {
+      throw new Error(`the parliament-greens fixture (${stopAt}) expected red without a holder of either kind`);
+    }
+    if (!parliament.slots.some((slot) => slot.instance.startsWith(GREENS_BUDGET_ID))) {
+      throw new Error('the parliament-greens fixture lost Greens Budget out of the voting area');
+    }
+  },
+});
+// The vote: the panel reads the net line, the three-tag breakdown and the two portions as rows of their own.
+parliamentFixture('parliament-greens-vote', greensBudgetTable('vote'));
+// The sitting has just convened: the ASSEMBLY gate stands for both seats — the e2e walks the two picks from here.
+parliamentFixture('parliament-greens-assembly', greensBudgetTable('assembly'));
+
 // ── RX14 · HEAT CAPTURE (the Reds — «2 M€ per influence; temperature −2, nobody's TR; 3 M€ off a Building
 //    tag while enacted»). Two moments of ONE journey:
 //    · the ASSEMBLY — the card alone in the first voting slot with blue's free delegate on it (blue at Agenda
@@ -1374,44 +1412,6 @@ parliamentFixture('parliament-heat-enacted', {
   },
 });
 
-// ── RX24 · OPEN IP TRADE (the Scientists — the first resolution with an ACTION: «discard any number of cards; for
-//    each, gain 3 M€ and draw a card»): the law ENACTED (red's delegate won the sitting; its cards by influence were
-//    taken), generation 2 open on RED — the seat the loader opens — holding the action menu with a hand to pick from
-//    (the start's own cards, three arranged, the enactment's draw): the action's tile stands in «Действия карт», its
-//    pick on the real hand, the sale, the draw. ──
-parliamentFixture('parliament-openip-enacted', {
-  resolution: OPEN_IP_TRADE_ID,
-  votes: [1],
-  agenda: [1, 2],
-  stopAt: 'done',
-  arrange: ({p2}) => {
-    p2.cardsInHand.push(new Trees(), new Fish(), new AdaptedLichen());
-  },
-  expect: (table) => {
-    const {p2, parliament} = table;
-    if (parliament.enacted !== resolutionInstanceId(OPEN_IP_TRADE_ID, 0)) {
-      throw new Error(`the parliament-openip-enacted fixture expected Open IP Trade enacted, got ${parliament.enacted}`);
-    }
-    // The start flow's own hand + the three arranged + the enactment's draw: at least four to pick from.
-    if (p2.cardsInHand.length < 4) {
-      throw new Error(`the parliament-openip-enacted fixture expected red to hold at least 4 cards, holds ${p2.cardsInHand.length}`);
-    }
-    if (parliament.resolutionActionUsesLeft(p2) !== 1) {
-      throw new Error('the parliament-openip-enacted fixture expected the action unspent');
-    }
-    expectViewerOpensGeneration(table, p2, 'parliament-openip-enacted');
-  },
-});
-
-// ── RX28 · TRADE INDUSTRIES (Unity — the first PAID action: «pay 12 M€ to gain an extra trade fleet; titanium
-//    accepted, 2 M€ off per influence»): the law ENACTED (red's delegate won the sitting), generation 2 open on RED —
-//    the seat the loader opens — at influence 2 (the price reads 12 − 4 = 8), with titanium in the supply so the bill
-//    offers the lane, one fleet, and the action unspent. ──
-parliamentFixture('parliament-tradeind-enacted', {
-  resolution: TRADE_INDUSTRIES_ID,
-  votes: [1],
-  agenda: [1, 2],
-  stopAt: 'done',
 // ── RX33 · WATER EXPORT (the Reds — «2 M€ per influence; the FIRST PLAYER removes 1 ocean tile from the board;
 //    3 M€ off an Earth / Venus / Jovian tag while enacted»). The first world step that ASKS. Two moments of ONE journey:
 //    · the ASSEMBLY — the card alone in the first voting slot with blue's free delegate on it (blue at Agenda step 2
@@ -1472,6 +1472,44 @@ parliamentFixture('parliament-water-enacted', {
   },
 });
 
+// ── RX24 · OPEN IP TRADE (the Scientists — the first resolution with an ACTION: «discard any number of cards; for
+//    each, gain 3 M€ and draw a card»): the law ENACTED (red's delegate won the sitting; its cards by influence were
+//    taken), generation 2 open on RED — the seat the loader opens — holding the action menu with a hand to pick from
+//    (the start's own cards, three arranged, the enactment's draw): the action's tile stands in «Действия карт», its
+//    pick on the real hand, the sale, the draw. ──
+parliamentFixture('parliament-openip-enacted', {
+  resolution: OPEN_IP_TRADE_ID,
+  votes: [1],
+  agenda: [1, 2],
+  stopAt: 'done',
+  arrange: ({p2}) => {
+    p2.cardsInHand.push(new Trees(), new Fish(), new AdaptedLichen());
+  },
+  expect: (table) => {
+    const {p2, parliament} = table;
+    if (parliament.enacted !== resolutionInstanceId(OPEN_IP_TRADE_ID, 0)) {
+      throw new Error(`the parliament-openip-enacted fixture expected Open IP Trade enacted, got ${parliament.enacted}`);
+    }
+    // The start flow's own hand + the three arranged + the enactment's draw: at least four to pick from.
+    if (p2.cardsInHand.length < 4) {
+      throw new Error(`the parliament-openip-enacted fixture expected red to hold at least 4 cards, holds ${p2.cardsInHand.length}`);
+    }
+    if (parliament.resolutionActionUsesLeft(p2) !== 1) {
+      throw new Error('the parliament-openip-enacted fixture expected the action unspent');
+    }
+    expectViewerOpensGeneration(table, p2, 'parliament-openip-enacted');
+  },
+});
+
+// ── RX28 · TRADE INDUSTRIES (Unity — the first PAID action: «pay 12 M€ to gain an extra trade fleet; titanium
+//    accepted, 2 M€ off per influence»): the law ENACTED (red's delegate won the sitting), generation 2 open on RED —
+//    the seat the loader opens — at influence 2 (the price reads 12 − 4 = 8), with titanium in the supply so the bill
+//    offers the lane, one fleet, and the action unspent. ──
+parliamentFixture('parliament-tradeind-enacted', {
+  resolution: TRADE_INDUSTRIES_ID,
+  votes: [1],
+  agenda: [1, 2],
+  stopAt: 'done',
   arrange: ({p2}) => {
     p2.titanium = 2;
   },

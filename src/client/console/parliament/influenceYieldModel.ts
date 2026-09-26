@@ -210,6 +210,15 @@ export function yieldCountPresentation(id: ResolutionCountId): YieldCountPresent
       ruleKey: 'Each Earth, Venus and Jovian tag counts: a card with two of them counts twice. Wild tags do not count.',
       skipReasonKey: 'No Earth, Venus or Jovian tags and no influence',
     };
+  case 'plantMicrobeAnimalTags':
+    // ONE term over THREE tags (Greens Budget): the medallions joined by «+» in the order the FACE prints them
+    // (animal · plant · microbe on the scan); the breakdown lists them in the printed RULE's order.
+    return {
+      glyph: {kind: 'tags', tags: [Tag.ANIMAL, Tag.PLANT, Tag.MICROBE]},
+      pluralKey: '${0} plant, microbe and animal tag(s)',
+      ruleKey: 'Each plant, microbe and animal tag counts: a card with two of them counts twice. Wild tags do not count.',
+      skipReasonKey: 'No plant, microbe or animal tags and no influence',
+    };
   case 'spaceCities':
     // A count over the BOARD: the glyph is the city tile with the footnote spark — the face's own «space city».
     return {

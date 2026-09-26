@@ -874,6 +874,17 @@ const CRYPTOCURRENCY = CardName.CRYPTOCURRENCY; // power, holds DATA
 const MEDICAL_HOLDERS: ReadonlyArray<CardResource> = [CardResource.DATA, CardResource.MICROBE];
 
 /*
+ * THE GREENS BUDGET's tableaus (RX34: 1 M€ per plant, microbe and animal tag + influence behind a levy of 10;
+ * then 2 animals and 3 microbes onto ONE card each) — real base cards chosen for what the count and the two
+ * pickers must tell apart: a holder of each kind that prints its tag, a plant tag that holds nothing, one card
+ * printing TWO of the three tags (two units, one animal holder), and the wild tag that is none of them.
+ */
+const FISH = CardName.FISH; // animal, holds animals (1 VP each)
+const PETS = CardName.PETS; // earth + animal, holds animals (1 VP per 2)
+const TREES = CardName.TREES; // plant — counts, holds nothing
+const ECO_ZONE = CardName.ECOLOGICAL_ZONE; // animal + plant — ONE card, TWO of the three; holds animals
+
+/*
  * THE BOARD-COUNTED FAMILY's cells (Colonization Funding: 2 M€ production per
  * SPACE CITY + influence, max 6) — REAL cells of the Mars board, counted by the
  * SHARED cell predicate the engine's reading is pinned to: the two base
@@ -1091,6 +1102,44 @@ const SCENARIOS: ReadonlyArray<PgScenario> = [
     seats: [{agenda: 3, bonus: 0, cards: [LUNA_GOV], production: 0, megacredits: 34},
       {agenda: 1, bonus: 0, cards: [], production: 0, megacredits: 20}], winner: 1, context: 'proposal', noRecipient: false,
     tracks: [{colony: ColonyName.CERES, position: 5}, {colony: ColonyName.LUNA, position: 2}]},
+  // ── GREENS BUDGET (RX34): the same tag-counted family under a FIFTH count (plant + microbe + animal, a card printing
+  //    two of them worth 2), a LEVY of 10, and TWO flat portions onto ONE card each (2 animals, then 3 microbes —
+  //    Aquifer Contest's picker twice, never a layout). Each portion has its OWN zero: no holder of THAT kind is
+  //    named with the portion's size while the other one lands. Fish (animal) + Tardigrades (microbe) + Trees
+  //    (plant) = 3, Agenda 4 = influence 2, 34 M€ → −10 → +5 = −5. ──
+  {key: 'greens-budget-net', family: 'counted-tags', counts: 'plantMicrobeAnimalTags', label: 'Levy first, then the payout — net −5; 2 animals and 3 microbes onto a card', viewer: 0,
+    seats: [{agenda: 4, bonus: 0, cards: [FISH, TARDIGRADES, TREES], production: 0, megacredits: 34},
+      {agenda: 1, bonus: 0, cards: [], production: 0, megacredits: 20}], winner: 0, context: 'proposal', noRecipient: false},
+  // None of the three tags and no influence — and no card to hold either portion: three zeros, each named as itself.
+  {key: 'greens-budget-zero', family: 'counted-tags', counts: 'plantMicrobeAnimalTags', label: 'No plant, microbe or animal tags and no influence — and no card to hold the portions', viewer: 0,
+    seats: [{agenda: 0, bonus: 0, cards: [NOBEL], production: 0, megacredits: 20},
+      {agenda: 3, bonus: 0, cards: [FISH], production: 0, megacredits: 20}], winner: 1, context: 'applied', noRecipient: false},
+  // ONE card printing TWO of the three (Ecological Zone: animal + plant) counts twice — and holds the animals.
+  {key: 'greens-budget-two-tags', family: 'counted-tags', counts: 'plantMicrobeAnimalTags', label: 'One card with two of the three tags counts twice', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, cards: [ECO_ZONE, TARDIGRADES], production: 0, megacredits: 34},
+      {agenda: 1, bonus: 0, cards: [], production: 0, megacredits: 20}], winner: 1, context: 'proposal', noRecipient: false},
+  // NO ANIMAL HOLDER: the 2 animals are a NAMED skip with their size; the 3 microbes still land.
+  {key: 'greens-budget-no-animal-holder', family: 'counted-tags', counts: 'plantMicrobeAnimalTags', label: 'No card can hold animals — the 2 animals are named and forfeited, the microbes land', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, cards: [TARDIGRADES, TREES], production: 0, megacredits: 34},
+      {agenda: 1, bonus: 0, cards: [], production: 0, megacredits: 20}], winner: 1, context: 'applied', noRecipient: false},
+  // NO MICROBE HOLDER: the mirror — the 3 microbes are named and forfeited, the 2 animals land.
+  {key: 'greens-budget-no-microbe-holder', family: 'counted-tags', counts: 'plantMicrobeAnimalTags', label: 'No card can hold microbes — the 3 microbes are named and forfeited, the animals land', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, cards: [FISH, TREES], production: 0, megacredits: 34},
+      {agenda: 1, bonus: 0, cards: [], production: 0, megacredits: 20}], winner: 1, context: 'applied', noRecipient: false},
+  // 4 M€ held: the levy takes the 4 and says so; the payout and both portions still come.
+  {key: 'greens-budget-short', family: 'counted-tags', counts: 'plantMicrobeAnimalTags', label: 'Short of the levy — 4 M€', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, cards: [FISH, TARDIGRADES], production: 0, megacredits: 4},
+      {agenda: 1, bonus: 0, cards: [], production: 0, megacredits: 20}], winner: 1, context: 'proposal', noRecipient: false},
+  // Influence 3 against influence 0: the money follows it, the portions do not — 2 and 3 for both seats.
+  {key: 'greens-budget-seats', family: 'counted-tags', counts: 'plantMicrobeAnimalTags', label: 'Every player gets their own result', viewer: 0,
+    seats: [{agenda: 5, bonus: 0, cards: [FISH, TARDIGRADES], production: 0, megacredits: 30},
+      {agenda: 0, bonus: 0, cards: [PETS, GHG], production: 0, megacredits: 12}], winner: 0, context: 'applied', noRecipient: false},
+  {key: 'greens-budget-applied', family: 'counted-tags', counts: 'plantMicrobeAnimalTags', label: 'Recorded result', viewer: 0,
+    seats: [{agenda: 5, bonus: 0, cards: [ECO_ZONE, GHG], production: 0, megacredits: 34},
+      {agenda: 0, bonus: 0, cards: [TREES], production: 0, megacredits: 12}], winner: 1, context: 'applied', noRecipient: false},
+  {key: 'greens-budget-quest-done', family: 'counted-tags', counts: 'plantMicrobeAnimalTags', label: 'Chairman quest completed', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, cards: [FISH, TARDIGRADES], production: 0, megacredits: 34},
+      {agenda: 1, bonus: 0, cards: [], production: 0, megacredits: 20}], winner: 0, context: 'applied', noRecipient: false, quest: {progress: [2, 1], completedBy: 0}},
   // ── URBAN RESEARCH (RX31): the same tag-counted family under a FOURTH count — the CITY TAGS of the tableau — and the
   //    first law whose DRAW is what the count sizes («1 card per city tag»), beside money that is influence alone.
   //    The two halves are independent, so the stand shows each one's zero on its own: no tag → the cards are a
@@ -1488,6 +1537,21 @@ const SCENARIOS: ReadonlyArray<PgScenario> = [
   {key: 'world-temperature-min', family: 'world-move', label: 'Temperature at its minimum — it cannot go lower', viewer: 0, parameter: 'temperature',
     seats: [{agenda: 3, bonus: 0}, {agenda: 1, bonus: 0}], winner: 0, context: 'proposal', noRecipient: false,
     table: {temperature: -30}},
+  // ── RX33 · WATER EXPORT (the Reds — «M€ по влиянию; первый игрок снимает 1 океан»): the world part is a
+  //    REMOVAL, so its edges are the OCEAN COUNT's — the card's own clause (at the maximum), nothing to remove,
+  //    exactly one to remove — listed only for a law that takes a tile off the board (`parameter: 'oceans'`).
+  {key: 'world-oceans-max', family: 'world-move', label: 'Oceans at their maximum — nothing is removed', viewer: 0, parameter: 'oceans',
+    seats: [{agenda: 3, bonus: 0}, {agenda: 1, bonus: 0}], winner: 0, context: 'proposal', noRecipient: false,
+    table: {oceans: 9}},
+  {key: 'world-oceans-none', family: 'world-move', label: 'No ocean on the board — nothing to remove', viewer: 0, parameter: 'oceans',
+    seats: [{agenda: 3, bonus: 0}, {agenda: 1, bonus: 0}], winner: 0, context: 'proposal', noRecipient: false,
+    table: {oceans: 0}},
+  {key: 'world-oceans-one', family: 'world-move', label: 'One ocean to remove — influence 3', viewer: 0, parameter: 'oceans',
+    seats: [{agenda: 3, bonus: 0}, {agenda: 1, bonus: 0}], winner: 0, context: 'proposal', noRecipient: false,
+    table: {oceans: 1}},
+  {key: 'world-oceans-one-quiet', family: 'world-move', label: 'One ocean to remove — influence 0', viewer: 0, parameter: 'oceans',
+    seats: [{agenda: 0, bonus: 0}, {agenda: 5, bonus: 0}], winner: 1, context: 'proposal', noRecipient: false,
+    table: {oceans: 1}},
   {key: 'world-neutral', family: 'world-move', label: 'A neutral winner — the world moves all the same', viewer: 0,
     seats: [{agenda: 3, bonus: 0}, {agenda: 1, bonus: 0}], winner: 'neutral', context: 'proposal', noRecipient: false,
     table: {oxygen: 5, venus: 10, temperature: -20}},
@@ -1537,21 +1601,6 @@ const SCENARIOS: ReadonlyArray<PgScenario> = [
     seats: [{agenda: 3, bonus: 0, productions: {[Resource.STEEL]: 1, [Resource.ENERGY]: 1}, megacredits: 4},
       {agenda: 1, bonus: 0, productions: {}, megacredits: 20}], winner: 1, context: 'proposal', noRecipient: false},
   // 0 M€ held: nothing to take — a named skip of the levy; the payout and the production still come.
-  // ── RX33 · WATER EXPORT (the Reds — «M€ по влиянию; первый игрок снимает 1 океан»): the world part is a
-  //    REMOVAL, so its edges are the OCEAN COUNT's — the card's own clause (at the maximum), nothing to remove,
-  //    exactly one to remove — listed only for a law that takes a tile off the board (`parameter: 'oceans'`).
-  {key: 'world-oceans-max', family: 'world-move', label: 'Oceans at their maximum — nothing is removed', viewer: 0, parameter: 'oceans',
-    seats: [{agenda: 3, bonus: 0}, {agenda: 1, bonus: 0}], winner: 0, context: 'proposal', noRecipient: false,
-    table: {oceans: 9}},
-  {key: 'world-oceans-none', family: 'world-move', label: 'No ocean on the board — nothing to remove', viewer: 0, parameter: 'oceans',
-    seats: [{agenda: 3, bonus: 0}, {agenda: 1, bonus: 0}], winner: 0, context: 'proposal', noRecipient: false,
-    table: {oceans: 0}},
-  {key: 'world-oceans-one', family: 'world-move', label: 'One ocean to remove — influence 3', viewer: 0, parameter: 'oceans',
-    seats: [{agenda: 3, bonus: 0}, {agenda: 1, bonus: 0}], winner: 0, context: 'proposal', noRecipient: false,
-    table: {oceans: 1}},
-  {key: 'world-oceans-one-quiet', family: 'world-move', label: 'One ocean to remove — influence 0', viewer: 0, parameter: 'oceans',
-    seats: [{agenda: 0, bonus: 0}, {agenda: 5, bonus: 0}], winner: 1, context: 'proposal', noRecipient: false,
-    table: {oceans: 1}},
   {key: 'budget-nothing', family: 'counted-production', label: 'Nothing to pay — 0 M€', viewer: 0,
     seats: [{agenda: 3, bonus: 0, productions: {[Resource.TITANIUM]: 2}, megacredits: 0},
       {agenda: 1, bonus: 0, productions: {}, megacredits: 20}], winner: 1, context: 'applied', noRecipient: false},
