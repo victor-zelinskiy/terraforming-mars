@@ -904,6 +904,19 @@ const MARS_STACK_NOCTIS: PgCell = {id: SpaceName.NOCTIS_CITY, spaceType: SpaceTy
  * repeats the server's key rather than coining a second sentence for one shelf;
  * `ScientistsBudgetReadings.spec` pins the two against each other.
  */
+/*
+ * THE COUNTED FAMILY UNDER A COUNT BY TYPE (Vertical Integration: 1 M€ per
+ * BLUE project card in play + influence) — real cards chosen for the only
+ * question this count asks and for everything the TYPE rules out by itself: a
+ * green card, an event, a corporation and a prelude, none of them blue
+ * however many tags or victory points they print. There is no «×2» row here —
+ * a card has no second blueness, so the list of names IS the number.
+ */
+const AI_CENTRAL = CardName.AI_CENTRAL; // ACTIVE — blue, science + building
+const DEV_CENTER = CardName.DEVELOPMENT_CENTER; // ACTIVE — blue, a second one
+const MEDIA = CardName.MEDIA_GROUP; // ACTIVE — blue with no building tag at all
+const HYDROGEN = CardName.IMPORTED_HYDROGEN; // EVENT — a played event is never blue
+
 const DECK_EMPTY_REASON = 'The project deck is empty';
 
 const SCENARIOS: ReadonlyArray<PgScenario> = [
@@ -918,31 +931,52 @@ const SCENARIOS: ReadonlyArray<PgScenario> = [
   {key: 'applied', family: 'influence', label: 'Recorded payout', viewer: 0, seats: [{agenda: 4, bonus: 0}, {agenda: 0, bonus: 0}], winner: 0, context: 'applied', noRecipient: false},
   {key: 'spectator', family: 'influence', label: 'Spectator — the formula alone', viewer: SPECTATOR, seats: [{agenda: 5, bonus: 0}, {agenda: 3, bonus: 0}], winner: 0, context: 'proposal', noRecipient: false},
   // ── THE COUNTED FAMILY (min(cap, B + I)) ──
-  {key: 'counted-zero', family: 'counted', label: 'No qualifying cards and no influence', viewer: 0,
+  {key: 'counted-zero', family: 'counted', counts: 'buildingCardsWithNonNegativeVp', label: 'No qualifying cards and no influence', viewer: 0,
     seats: [{agenda: 0, bonus: 0, cards: [MINE, COMBUSTORS, TUNDRA], production: 2}, {agenda: 3, bonus: 0, cards: [LAKE], production: 1}], winner: 1, context: 'applied', noRecipient: false},
-  {key: 'counted-influence-only', family: 'counted', label: 'Influence alone', viewer: 0,
+  {key: 'counted-influence-only', family: 'counted', counts: 'buildingCardsWithNonNegativeVp', label: 'Influence alone', viewer: 0,
     seats: [{agenda: 3, bonus: 0, cards: [MINE, STRONGHOLD], production: 3}, {agenda: 1, bonus: 0, cards: [CRATER], production: 0}], winner: 1, context: 'proposal', noRecipient: false},
-  {key: 'counted-cards-only', family: 'counted', label: 'Cards alone', viewer: 0,
+  {key: 'counted-cards-only', family: 'counted', counts: 'buildingCardsWithNonNegativeVp', label: 'Cards alone', viewer: 0,
     seats: [{agenda: 0, bonus: 0, cards: [LAKE, PHYSICS, MINE], production: 1}, {agenda: 1, bonus: 0, cards: [], production: 0}], winner: 1, context: 'proposal', noRecipient: false},
-  {key: 'counted-below-cap', family: 'counted', label: 'Below the maximum', viewer: 0,
+  {key: 'counted-below-cap', family: 'counted', counts: 'buildingCardsWithNonNegativeVp', label: 'Below the maximum', viewer: 0,
     seats: [{agenda: 3, bonus: 0, cards: [LAKE, CRATER, COMBUSTORS], production: 4}, {agenda: 1, bonus: 0, cards: [MINE], production: 0}], winner: 1, context: 'proposal', noRecipient: false},
-  {key: 'counted-exact-cap', family: 'counted', label: 'Exactly +5', viewer: 0,
+  {key: 'counted-exact-cap', family: 'counted', counts: 'buildingCardsWithNonNegativeVp', label: 'Exactly +5', viewer: 0,
     seats: [{agenda: 3, bonus: 0, cards: [LAKE, CRATER, ELEVATOR, TUNDRA], production: 6}, {agenda: 1, bonus: 0, cards: [MINE], production: 0}], winner: 1, context: 'proposal', noRecipient: false},
-  {key: 'counted-over-cap', family: 'counted', label: 'Over the maximum', viewer: 0,
+  {key: 'counted-over-cap', family: 'counted', counts: 'buildingCardsWithNonNegativeVp', label: 'Over the maximum', viewer: 0,
     seats: [{agenda: 5, bonus: 0, cards: [LAKE, CRATER, ELEVATOR, PHYSICS, STRONGHOLD], production: 10}, {agenda: 1, bonus: 0, cards: [MINE], production: 0}], winner: 1, context: 'proposal', noRecipient: false},
-  {key: 'counted-seats', family: 'counted', label: 'Every player gets their own result', viewer: 0,
+  {key: 'counted-seats', family: 'counted', counts: 'buildingCardsWithNonNegativeVp', label: 'Every player gets their own result', viewer: 0,
     seats: [{agenda: 1, bonus: 0, cards: [LAKE, MINE], production: 3}, {agenda: 8, bonus: 0, cards: [CRATER, ELEVATOR, CAPITAL, COMBUSTORS], production: -2}], winner: 0, context: 'applied', noRecipient: false},
   // Agenda 4 = influence 2; winning takes the marker to step 5 (influence 3) BEFORE the effect: 2 + 2 → 4 becomes 2 + 3 → 5.
-  {key: 'counted-winner-agenda', family: 'counted', label: 'The winner advances on the Agenda first', viewer: 0,
+  {key: 'counted-winner-agenda', family: 'counted', counts: 'buildingCardsWithNonNegativeVp', label: 'The winner advances on the Agenda first', viewer: 0,
     seats: [{agenda: 4, bonus: 0, cards: [LAKE, PHYSICS], production: 5}, {agenda: 3, bonus: 0, cards: [MINE], production: 0}], winner: 0, context: 'proposal', noRecipient: false},
-  {key: 'counted-applied', family: 'counted', label: 'Recorded result', viewer: 0,
+  {key: 'counted-applied', family: 'counted', counts: 'buildingCardsWithNonNegativeVp', label: 'Recorded result', viewer: 0,
     seats: [{agenda: 3, bonus: 0, cards: [LAKE, CRATER, MINE], production: 8}, {agenda: 0, bonus: 0, cards: [STRONGHOLD], production: 1}], winner: 1, context: 'applied', noRecipient: false},
-  {key: 'counted-quest-0', family: 'counted', label: 'Chairman quest 0/2', viewer: 0,
+  {key: 'counted-quest-0', family: 'counted', counts: 'buildingCardsWithNonNegativeVp', label: 'Chairman quest 0/2', viewer: 0,
     seats: [{agenda: 3, bonus: 0, cards: [LAKE], production: 2}, {agenda: 1, bonus: 0, cards: [MINE], production: 0}], winner: 0, context: 'applied', noRecipient: false, quest: {progress: [0, 0]}},
-  {key: 'counted-quest-1', family: 'counted', label: 'Chairman quest 1/2', viewer: 0,
+  {key: 'counted-quest-1', family: 'counted', counts: 'buildingCardsWithNonNegativeVp', label: 'Chairman quest 1/2', viewer: 0,
     seats: [{agenda: 3, bonus: 0, cards: [LAKE], production: 2}, {agenda: 1, bonus: 0, cards: [MINE], production: 0}], winner: 0, context: 'applied', noRecipient: false, quest: {progress: [1, 0]}},
-  {key: 'counted-quest-done', family: 'counted', label: 'Chairman quest completed', viewer: 0,
+  {key: 'counted-quest-done', family: 'counted', counts: 'buildingCardsWithNonNegativeVp', label: 'Chairman quest completed', viewer: 0,
     seats: [{agenda: 3, bonus: 0, cards: [LAKE], production: 2}, {agenda: 1, bonus: 0, cards: [MINE], production: 0}], winner: 0, context: 'applied', noRecipient: false, quest: {progress: [2, 1], completedBy: 0}},
+  // ── VERTICAL INTEGRATION (RX32): the card-counted family under a count by TYPE — «1 M€ per BLUE project card
+  //    you have in play + influence», no cap. The scenarios are the TYPE's own edges: only blue counts, and a
+  //    green card, an event, a corporation and a prelude are ruled out by the type alone, whatever they print.
+  //    `counts` keeps these tableaus apart from the VP-card law's above: a blue card with no VP icon reads as
+  //    zero under Architecture Award, and Artificial Lake as zero here. ──
+  {key: 'vertint-zero', family: 'counted', counts: 'blueCards', label: 'No blue cards and no influence', viewer: 0,
+    seats: [{agenda: 0, bonus: 0, cards: [MINE, HYDROGEN], production: 0}, {agenda: 3, bonus: 0, cards: [AI_CENTRAL], production: 0}], winner: 1, context: 'applied', noRecipient: false},
+  {key: 'vertint-influence-only', family: 'counted', counts: 'blueCards', label: 'Influence alone', viewer: 0,
+    seats: [{agenda: 5, bonus: 0, cards: [MINE, LAKE], production: 0}, {agenda: 1, bonus: 0, cards: [], production: 0}], winner: 1, context: 'proposal', noRecipient: false},
+  {key: 'vertint-cards-only', family: 'counted', counts: 'blueCards', label: 'Blue cards alone — influence 0', viewer: 0,
+    seats: [{agenda: 0, bonus: 0, cards: [AI_CENTRAL, DEV_CENTER], production: 0}, {agenda: 1, bonus: 0, cards: [], production: 0}], winner: 1, context: 'proposal', noRecipient: false},
+  {key: 'vertint-mixed', family: 'counted', counts: 'blueCards', label: 'Blue, green and an event side by side — only the blue ones count', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, cards: [AI_CENTRAL, MINE, HYDROGEN, MEDIA], production: 0}, {agenda: 1, bonus: 0, cards: [], production: 0}], winner: 1, context: 'proposal', noRecipient: false},
+  {key: 'vertint-sources', family: 'counted', counts: 'blueCards', label: 'A corporation and a prelude are not blue cards', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, cards: [THORGATE, POWERGEN, DEV_CENTER], production: 0}, {agenda: 1, bonus: 0, cards: [], production: 0}], winner: 1, context: 'proposal', noRecipient: false},
+  {key: 'vertint-seats', family: 'counted', counts: 'blueCards', label: 'Every player gets their own result', viewer: 0,
+    seats: [{agenda: 1, bonus: 0, cards: [AI_CENTRAL, MINE], production: 0}, {agenda: 8, bonus: 0, cards: [AI_CENTRAL, DEV_CENTER, MEDIA], production: 0}], winner: 0, context: 'applied', noRecipient: false},
+  {key: 'vertint-applied', family: 'counted', counts: 'blueCards', label: 'Recorded result', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, cards: [AI_CENTRAL, DEV_CENTER, MINE], production: 0}, {agenda: 0, bonus: 0, cards: [HYDROGEN], production: 0}], winner: 1, context: 'applied', noRecipient: false},
+  {key: 'vertint-quest-done', family: 'counted', counts: 'blueCards', label: 'Chairman quest completed', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, cards: [AI_CENTRAL], production: 0}, {agenda: 1, bonus: 0, cards: [], production: 0}], winner: 0, context: 'applied', noRecipient: false, quest: {progress: [2, 1], completedBy: 0}},
   // ── THE TAG-COUNTED FAMILY (min(cap, P + I), P = the player's power TAGS) ──
   {key: 'grid-zero', family: 'counted-tags', counts: 'powerTags', label: 'No power tags and no influence', viewer: 0,
     seats: [{agenda: 0, bonus: 0, cards: [PHOTOSYNTHESIS, NOBEL], production: 2}, {agenda: 3, bonus: 0, cards: [PLANT_P], production: 1}], winner: 1, context: 'applied', noRecipient: false},
