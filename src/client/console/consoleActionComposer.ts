@@ -387,12 +387,19 @@ export type RepeatComposed = {
  * action's own responses]` — byte-identical to the desktop `submitRepeatActionBatch`
  * tail (the inner card's activate is NOT re-wrapped). Reuses `buildActionBatch`
  * with the card pick as the whole prefix.
+ *
+ * `pick` replaces that first response for a door whose pick answers a LIVE
+ * server prompt rather than riding behind an activate: an enacted resolution's
+ * action is offered as a branch of the action MENU, so its card pick must be
+ * wrapped in that branch (`{type:'or', index, response}`). Everything after it
+ * — the copied action's own composed answers — is identical either way, which
+ * is the whole reason this is one function.
  */
-export function repeatActionResponses(chosenCard: CardName, composed: RepeatComposed): Array<unknown> {
+export function repeatActionResponses(chosenCard: CardName, composed: RepeatComposed, pick?: unknown): Array<unknown> {
   return buildActionBatch({
     performPath: [],
     cardName: chosenCard,
-    prefix: [{type: 'card' as const, cards: [chosenCard]}],
+    prefix: [pick ?? {type: 'card' as const, cards: [chosenCard]}],
     branchIndex: composed.branchIndex,
     preResponses: composed.preResponses,
     optionResponse: composed.optionResponse,

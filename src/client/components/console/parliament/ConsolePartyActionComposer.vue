@@ -151,7 +151,7 @@
         <!-- THE RESOLUTION'S STAGE BETWEEN STEPS: the pick was refused or
              taken back and nothing is in flight — the rule stands, B returns.
              (A pick that is still to open sees this for one flush only.) -->
-        <div v-else-if="kind === 'resolution' && tableauTargets.length === 0" class="con-pact__surface" data-unfold-surface>
+        <div v-else-if="kind === 'resolution' && repeatPrompt === undefined" class="con-pact__surface" data-unfold-surface>
           <p class="con-pact__rule" data-unfold-item>{{ ruleText }}</p>
           <p v-if="refusal !== ''" class="con-pact__warn" data-unfold-item>{{ refusal }}</p>
         </div>
@@ -239,30 +239,40 @@
             </div>
           </template>
 
-          <!-- A LAW WHOSE DECISION IS ON THE TABLE (R&D Funding: which
-               already-used action runs a second time). A repeat is chosen
-               among the player's OWN PLAYED cards and nothing leaves the
-               tableau, so it belongs in THIS stage's decision column — the
-               same premium-face grammar the Scientists' target row uses —
-               and never in the hand's surfaces, where every pick SPENDS
-               what it touches. -->
+          <!-- A LAW WHOSE DECISION IS A REPEAT (R&D Funding: which already-used
+               action runs a second time) shows it as a SLOT — exactly as
+               Viron's own composer does. «Which of my used actions» is a
+               question this console already answers with ONE surface: the
+               ДЕЙСТВИЯ КАРТ list in repeat mode (the shared pick bridge,
+               `consoleRepeatPick`), where the action is chosen AND composed.
+               Drawing a second, law-only picker here would be a fourth
+               interface for a question that has three consumers and one
+               answer. -->
           <template v-if="kind === 'resolution'">
             <p class="con-pact__rule" data-unfold-item>{{ ruleText }}</p>
             <div class="con-pact__row" data-unfold-item data-pact-row="0"
-                 :class="{'con-pact__row--focus': cursorRow === 0, 'con-pact__row--answered': picks[0] !== undefined, 'con-pact__row--open': picks[0] === undefined}">
+                 :class="{'con-pact__row--focus': cursorRow === 0, 'con-pact__row--answered': repeatResult !== undefined, 'con-pact__row--open': repeatResult === undefined}">
               <span class="con-pact__row-head">
-                <span class="con-pact__row-mark" aria-hidden="true">{{ picks[0] !== undefined ? '✓' : '1' }}</span>
-                <span class="con-pact__row-kicker">{{ $t('Card action') }}</span>
+                <span class="con-pact__row-mark" aria-hidden="true">{{ repeatResult !== undefined ? '✓' : '1' }}</span>
+                <span class="con-pact__row-kicker">{{ $t('Action to repeat') }}</span>
               </span>
-              <div class="con-pact__cards" :data-pact-cards="tableauTargets.length">
-                <button v-for="(target, i) in tableauTargets" :key="target.name" type="button" class="con-pact__card"
-                        :class="{'con-pact__card--cursor': cursorRow === 0 && cursor[0] === i, 'con-pact__card--picked': picks[0] === i}"
-                        :data-pact-card="target.name"
-                        :data-zoom-slot="target.name"
-                        @click="pickAt(0, i)">
-                  <ConsoleCardFaceLite class="con-pact__card-face" :name="target.name" :card="target" :lightweight="true" />
-                </button>
-              </div>
+              <!-- The FILLED slot is the SHARED chassis `.con-composer__repeatpick`
+                   — the very plate Viron's composer draws, so «what I am about to
+                   repeat» looks identical whichever door asked. This surface adds
+                   only the empty state and the cursor ring. -->
+              <button type="button" class="con-pact__repeatslot"
+                      :class="{'con-composer__repeatpick': repeatResult !== undefined, 'con-pact__repeatslot--cursor': cursorRow === 0}"
+                      data-pact-repeat-slot
+                      @click="openRepeatPick()">
+                <template v-if="repeatResult !== undefined">
+                  <span class="con-composer__repeatpick-graphic card-container" v-i18n v-strip-action-prefix>
+                    <CardRenderEffectBoxComponent v-if="repeatNode !== undefined && repeatNode.actionNode !== undefined" :effectData="repeatNode.actionNode" />
+                    <CardRenderData v-else-if="repeatNode !== undefined && repeatNode.renderRoot !== undefined" :renderData="repeatNode.renderRoot" />
+                  </span>
+                  <span class="con-composer__repeatpick-name" data-pact-repeat-name>{{ $t(repeatResult.chosenCard) }}</span>
+                </template>
+                <span v-else class="con-pact__repeatslot-empty">{{ $t('Choose an action to repeat') }}…</span>
+              </button>
             </div>
           </template>
 
@@ -338,6 +348,10 @@ import {ConsoleCommand} from '@/client/console/consoleCommandModel';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {buildOrItems, ConsoleOrItem} from '@/client/console/consoleOrChoice';
+import {ActionGroup, playerActionGroups} from '@/client/components/actions/actionExtraction';
+import {stripNodeOr} from '@/client/components/actions/actionBranchView';
+import {repeatActionResponses} from '@/client/console/consoleActionComposer';
+import {enterConsoleRepeatPick, ConsoleRepeatPickResult} from '@/client/console/consoleRepeatPick';
 import {translateMessage, translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {
@@ -350,6 +364,8 @@ import {resolutionPremiumVm} from '@/client/components/premiumCard/resolutionPre
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
+import CardRenderEffectBoxComponent from '@/client/components/card/CardRenderEffectBoxComponent.vue';
+import CardRenderData from '@/client/components/card/CardRenderData.vue';
 import ConsolePartyPlaque from '@/client/components/console/parliament/ConsolePartyPlaque.vue';
 import ConsoleWsStageHead from '@/client/components/console/foundation/ConsoleWsStageHead.vue';
 import {
@@ -397,6 +413,7 @@ export function partyComposerKind(party: ReduxParty): PartyComposerKind {
 }
 
 type IndustrialistsRow = {label: string, emptyKey: string, items: ReadonlyArray<ConsoleOrItem>};
+type GroupNode = ActionGroup['nodes'][number];
 type ScientistsBranch = {icon: string, amount: number, model: SelectCardModel};
 type ScientistsTarget = {card: CardModel, icon: string, from: number, to: number, vp: VictoryPointsDelta | undefined};
 
@@ -426,7 +443,10 @@ function asElements(ref: unknown): Array<HTMLElement> {
 
 export default defineComponent({
   name: 'ConsolePartyActionComposer',
-  components: {ActionEffectChip, GamepadGlyph, ConsoleCardFaceLite, ConsolePartyPlaque, ConsoleWsStageHead},
+  components: {
+    ActionEffectChip, GamepadGlyph, ConsoleCardFaceLite, ConsolePartyPlaque, ConsoleWsStageHead,
+    CardRenderEffectBoxComponent, CardRenderData,
+  },
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     party: {type: String as PropType<ReduxParty>, required: true},
@@ -452,6 +472,9 @@ export default defineComponent({
       cursor: [0, 0] as Array<number>,
       /** Per-row PICK (undefined = unanswered). */
       picks: [undefined, undefined] as Array<number | undefined>,
+      /** The law's repeat, as the SHARED pick bridge resolved it (the chosen
+       *  action + its composed pre-selects). Undefined = the slot is empty. */
+      repeatResult: undefined as ConsoleRepeatPickResult | undefined,
       commitHandle: undefined as ActionCommitMotionHandle | undefined,
       // ── the resolution's selection ──
       /** The cards the law's pick handed in (the sale's honest count; re-seeded on a refused submit). */
@@ -632,19 +655,28 @@ export default defineComponent({
       }));
     },
     /**
-     * THE LAW'S CANDIDATES ON THE TABLE — the player's own played cards the
-     * law's nested prompt offers. Read from the prompt's STRUCTURAL marker
-     * (`repeatActionPrompt`), never from its title and never by guessing that
-     * a card pick without a discard marker must be a tableau one: a future
-     * law whose decision is also made on the table joins by marking its own
-     * prompt, and nothing else here changes.
+     * THE LAW'S REPEAT PROMPT — the nested `SelectCard` asking WHICH already-used
+     * action runs again. Read from the prompt's STRUCTURAL marker
+     * (`repeatActionPrompt`), never from its title and never by guessing that a
+     * card pick without a discard marker must be a repeat: a future law whose
+     * decision is also a repeat joins by marking its own prompt.
      */
-    tableauTargets(): ReadonlyArray<CardModel> {
+    repeatPrompt(): SelectCardModel | undefined {
       const entry = this.entry;
       if (this.kind !== 'resolution' || entry === undefined || entry.model.type !== 'card') {
-        return [];
+        return undefined;
       }
-      return entry.model.repeatActionPrompt === true ? entry.model.cards : [];
+      return entry.model.repeatActionPrompt === true ? entry.model : undefined;
+    },
+    /** The chosen action's own render node — the graphic the filled slot draws (Viron's derivation). */
+    repeatNode(): GroupNode | undefined {
+      const result = this.repeatResult;
+      if (result === undefined) {
+        return undefined;
+      }
+      const group = playerActionGroups([{name: result.chosenCard} as CardModel])[0];
+      const node = group?.nodes[result.nodeIndex] ?? group?.nodes[0];
+      return node !== undefined ? stripNodeOr(node) : undefined;
     },
     /** The prompt's own A-verb for a table decision («Take action»), as the server wrote it. */
     tableauLabel(): string {
@@ -675,7 +707,7 @@ export default defineComponent({
       switch (this.kind) {
       case 'industrialists': return 2;
       case 'scientists': return 2;
-      case 'resolution': return this.tableauTargets.length > 0 ? 1 : 0;
+      case 'resolution': return this.repeatPrompt !== undefined ? 1 : 0;
       default: return 0;
       }
     },
@@ -687,7 +719,9 @@ export default defineComponent({
         switch (this.kind) {
         case 'industrialists': return this.industrialistsRows[row]?.items.length ?? 0;
         case 'scientists': return row === 0 ? this.scientistsBranches.length : this.scientistsTargets.length;
-        case 'resolution': return row === 0 ? this.tableauTargets.length : 0;
+        // The law's row is a DOOR, not a list: left/right have nowhere to go,
+        // and A opens the shared pick (see `rowOpensPick`).
+        case 'resolution': return 0;
         default: return 0;
         }
       };
@@ -700,7 +734,7 @@ export default defineComponent({
       case 'industrialists': return this.picks[0] !== undefined && this.picks[1] !== undefined;
       case 'scientists': return this.picks[0] !== undefined && this.picks[1] !== undefined;
       case 'reds': return true;
-      case 'resolution': return this.tableauTargets.length > 0 && this.picks[0] !== undefined;
+      case 'resolution': return this.repeatPrompt !== undefined && this.repeatResult !== undefined;
       default: return false;
       }
     },
@@ -730,7 +764,7 @@ export default defineComponent({
       if (this.submitting || this.saleLive) {
         return [{control: 'confirm', label: 'Performing…', enabled: false}];
       }
-      if (this.kind === 'resolution' && this.tableauTargets.length === 0) {
+      if (this.kind === 'resolution' && this.repeatPrompt === undefined) {
         // Between steps (the pick refused or gone): the way back is the only verb.
         return [{control: 'secondary', label: 'Inspect'}, {control: 'back', label: 'Back'}];
       }
@@ -739,7 +773,7 @@ export default defineComponent({
         confirm.tone = 'danger';
       }
       const run: Array<ConsoleCommand> = [confirm, {control: 'secondary', label: 'Inspect'}];
-      if (this.cursorRow < this.ctaRow && this.rowLength(this.cursorRow) > 0) {
+      if (this.cursorRow < this.ctaRow && (this.rowLength(this.cursorRow) > 0 || this.rowOpensPick(this.cursorRow))) {
         run.unshift({control: 'confirm', label: 'Select'});
         run.splice(1, 1);
       }
@@ -902,7 +936,7 @@ export default defineComponent({
      * player decided is lost to a transport error.
      */
     submitting(now: boolean, was: boolean): void {
-      if (was && !now && this.kind === 'resolution' && this.tableauTargets.length === 0 &&
+      if (was && !now && this.kind === 'resolution' && this.repeatPrompt === undefined &&
           !this.outcomeOn && !this.saleLive && !this.pickOpen) {
         void this.$nextTick(() => this.openResolutionPick(this.salePicked));
       }
@@ -914,7 +948,7 @@ export default defineComponent({
     this.cursorRow = this.decisionRows === 0 ? this.ctaRow : 0;
     // THE LAW'S FIRST STEP IS THE PICK: the real hand stands up as a step of
     // this stage the moment the stage is on screen.
-    if (this.kind === 'resolution' && this.tableauTargets.length === 0 && !this.outcomeOn && !this.saleLive) {
+    if (this.kind === 'resolution' && this.repeatPrompt === undefined && !this.outcomeOn && !this.saleLive) {
       void this.$nextTick(() => this.openResolutionPick([]));
     }
   },
@@ -951,7 +985,7 @@ export default defineComponent({
         }
         return;
       }
-      if (this.kind === 'resolution' && this.tableauTargets.length === 0) {
+      if (this.kind === 'resolution' && this.repeatPrompt === undefined) {
         // The law's decision is somewhere else (the hand's own surface owns
         // the bar) or already gone — only the way back is ours.
         switch (consoleActionOf(intent)) {
@@ -973,6 +1007,8 @@ export default defineComponent({
       case 'primary':
         if (this.cursorRow >= this.ctaRow) {
           this.commit();
+        } else if (this.rowOpensPick(this.cursorRow)) {
+          this.openRepeatPick();
         } else {
           this.pickAt(this.cursorRow, this.cursor[this.cursorRow]);
         }
@@ -1108,7 +1144,7 @@ export default defineComponent({
         onSettled: markActionCommitSettled,
       });
     },
-    response(): InputResponse | undefined {
+    response(): InputResponse | ReadonlyArray<InputResponse> | undefined {
       switch (this.kind) {
       case 'industrialists': {
         const rows = this.industrialistsRows;
@@ -1130,12 +1166,63 @@ export default defineComponent({
       case 'reds':
         return redsResponse(this.bridge);
       case 'resolution': {
-        const target = this.tableauTargets[this.picks[0] ?? -1];
-        return target === undefined ? undefined : resolutionActionResponse(this.bridge, [target.name]);
+        const result = this.repeatResult;
+        if (result === undefined) {
+          return undefined;
+        }
+        // The head answers the LIVE prompt inside its menu branch; the tail is
+        // the copied action's own composed answers, built by the same function
+        // a card's repeat builds them with.
+        const pick = resolutionActionResponse(this.bridge, [result.chosenCard]);
+        if (pick === undefined) {
+          return undefined;
+        }
+        const batch = repeatActionResponses(result.chosenCard, result.composed, pick) as Array<InputResponse>;
+        return batch.length === 1 ? batch[0] : batch;
       }
       default:
         return undefined;
       }
+    },
+    /** A decision row that is a DOOR to a shared pick surface, not a list to walk. */
+    rowOpensPick(row: number): boolean {
+      return this.kind === 'resolution' && row === 0 && this.repeatPrompt !== undefined;
+    },
+    /**
+     * Hand the law's repeat to the ДЕЙСТВИЯ КАРТ surface in repeat mode — the
+     * SAME bridge Viron, Project Inspection and the Hydronetwork use: the
+     * player chooses ONE already-used action (A = «Выбрать», never
+     * «Выполнить») and composes its pre-selects there; the result lands back
+     * in this slot and rides THIS stage's own confirm. This composer stays
+     * MOUNTED (the shell hides it with `v-show`), so the callback survives and
+     * so does everything the player has already decided here.
+     */
+    openRepeatPick(): void {
+      const model = this.repeatPrompt;
+      const id = this.resolution;
+      if (model === undefined || id === undefined || this.submitting) {
+        return;
+      }
+      const disabled = (model.disabledCards ?? []).map((d) => ({
+        name: d.name,
+        reason: d.disabledReason !== undefined ? this.textOf(d.disabledReason) : '',
+      }));
+      const prior = this.repeatResult;
+      enterConsoleRepeatPick({
+        title: model.title,
+        buttonLabel: model.buttonLabel || 'Take action',
+        candidates: model.cards.map((c) => c.name),
+        disabled,
+        // A NON-CARD source: the law is in nobody's tableau. The crumb of a
+        // hosted pick comes from the stack («ДЕЙСТВИЯ КАРТ › <закон> › ПОВТОР
+        // ДЕЙСТВИЯ»), so the label is only the standalone fallback.
+        source: {kicker: 'Resolution action', label: getResolution(id)?.text.name ?? id},
+        prior: prior === undefined ? undefined : {chosenCard: prior.chosenCard, nodeIndex: prior.nodeIndex},
+      }, (result) => {
+        this.repeatResult = result;
+        // Land on the CTA — the slot is filled, the action is ready to perform.
+        this.cursorRow = this.ctaRow;
+      });
     },
     // ── THE LAW'S SELECTION — the real hand as a step of this stage ──
     /**

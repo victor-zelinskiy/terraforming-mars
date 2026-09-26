@@ -48,8 +48,12 @@ export type ConsoleRepeatPickRequest = {
    *  the pick surface names it so the player never loses WHY they are choosing.
    *  `label` (i18n key) overrides the breadcrumb text for a NON-card source
    *  (the Hydronetwork's stage 7 — the fork presents it as a systemic module,
-   *  never as the lore «Delta Project» card name). */
-  source: {kicker: string, card: CardName, label?: string};
+   *  never as the lore «Delta Project» card name).
+   *  `card` is ABSENT when the copier is not a card in anybody's tableau (an
+   *  enacted resolution's action — R&D Funding): such a source states itself
+   *  through `label`, and the crumb of a HOSTED pick comes from the stack
+   *  anyway, so the field is only ever the standalone fallback. */
+  source: {kicker: string, card?: CardName, label?: string};
   /** A previous pick preserved for a «change» re-open (pre-focus the grid). */
   prior?: {chosenCard: CardName, nodeIndex: number};
 };

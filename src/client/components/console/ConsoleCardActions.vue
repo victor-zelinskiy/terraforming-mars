@@ -962,7 +962,7 @@ export default defineComponent({
       if (request === undefined) {
         return '';
       }
-      return request.source.label !== undefined ? 'Repeat action' : request.source.card;
+      return request.source.label !== undefined ? 'Repeat action' : (request.source.card ?? 'Repeat action');
     },
     /** The repeat availability: selectable candidates + used-this-gen (activation). */
     repeatAvailability(): RepeatAvailability | undefined {
@@ -2904,7 +2904,7 @@ export default defineComponent({
       this.partyCommands = [...cmds];
     },
     /** The party composer's confirm: the server's own nested response, submitted by the shell. */
-    onPartyConfirm(response: InputResponse, detail?: PartyConfirmDetail): void {
+    onPartyConfirm(response: InputResponse | ReadonlyArray<InputResponse>, detail?: PartyConfirmDetail): void {
       const comp = this.composer;
       if (comp?.party === undefined || this.partySubmitting) {
         return;

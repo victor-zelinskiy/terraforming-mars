@@ -6,20 +6,27 @@ import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {PlayerInputModel, SelectCardModel} from '@/common/models/PlayerInputModel';
 import {CardName} from '@/common/cards/CardName';
 import {PartyName} from '@/common/turmoil/PartyName';
+import {
+  cancelConsoleRepeatPick, consoleRepeatPickState, resetConsoleRepeatPick, resolveConsoleRepeatPick,
+} from '@/client/console/consoleRepeatPick';
+import {resetWorkspaceStack} from '@/client/console/consoleWorkspaceStack';
 
 /**
- * THE LAW WHOSE DECISION IS ON THE TABLE (Turmoil Redux — R&D Funding: which
- * already-used card action runs a second time).
+ * THE LAW WHOSE DECISION IS A REPEAT (Turmoil Redux — R&D Funding: «use an
+ * action on one of your cards a second time»).
  *
- * Open IP Trade's decision is made in the HAND: its cards LEAVE, so the pick
- * belongs to the hand's own surface, hosted as a step of this stage. A REPEAT
- * spends nothing and touches only cards already on the table, so it stands in
- * this stage's own decision column — the premium-face grammar the Scientists'
- * target row uses.
+ * «Which of my already-used actions» is a question this console answers with
+ * ONE surface — the ДЕЙСТВИЯ КАРТ list in repeat mode, reached through the
+ * shared pick bridge (`consoleRepeatPick`), which Viron, Project Inspection
+ * and the Hydronetwork already use. So the law's stage shows the repeat as a
+ * SLOT, exactly as Viron's own composer does, and drawing a law-only picker
+ * here would be a fourth interface for a question with one answer.
  *
- * These specs pin the seam that tells the two apart: the prompt's STRUCTURAL
- * marker (`repeatActionPrompt`), never its title and never «a card pick with
- * no discard marker must be a tableau one».
+ * These specs pin: the slot (never a list), the door (A opens the shared
+ * bridge, with a NON-CARD source — a law is in nobody's tableau), the filled
+ * slot, «a choice is not a commit», and the wire form — the head answers the
+ * LIVE prompt inside its menu branch and the tail is the copied action's own
+ * composed answers.
  */
 const LAW = 'RDX_SCIENTISTS_RD_FUNDING';
 
@@ -62,61 +69,115 @@ function playerView(wf: PlayerInputModel | undefined): PlayerViewModel {
 
 function mountLaw(wf: PlayerInputModel | undefined) {
   return mount(ConsolePartyActionComposer, {
-    // `premium-card-face` is registered globally by the app entry, not by the
-    // unit runner's local Vue — the hero's own rendering is not the subject.
-    global: {...globalConfig.global, stubs: {'premium-card-face': true}},
+    // `premium-card-face` and `v-strip-action-prefix` are registered globally by
+    // the app entry, not by the unit runner's local Vue — the hero's and the
+    // action graphic's own rendering is not the subject here. (`v-i18n` comes
+    // from the i18n plugin the shared config already installs.)
+    global: {
+      ...globalConfig.global,
+      stubs: {'premium-card-face': true},
+      directives: {...globalConfig.global.directives, 'strip-action-prefix': {}},
+    },
     props: {playerView: playerView(wf), party: PartyName.SCIENTISTS, resolution: LAW},
   });
 }
 
-describe('ConsolePartyActionComposer — a law whose decision is on the TABLE', () => {
-  it('draws the candidates as premium faces in the stage own decision column', () => {
+/** The pick bridge, answered the way `ConsoleCardActions` answers it in repeat mode. */
+const NOTHING_COMPOSED = {branchIndex: -1, preResponses: [], optionResponse: undefined, stepResponses: []};
+
+describe('ConsolePartyActionComposer — a law whose decision is a REPEAT', () => {
+  afterEach(() => {
+    // Module state is bundle-shared in mochapack: a bridge left open (and the
+    // frame it pushed) would follow every later spec.
+    resetConsoleRepeatPick();
+    resetWorkspaceStack();
+  });
+
+  it('shows the repeat as a SLOT — never a picker of its own', () => {
     const w = mountLaw(menu(repeatPrompt([CardName.TARDIGRADES, CardName.REGOLITH_EATERS])));
-    const cards = w.findAll('.con-pact__card');
-    expect(cards).to.have.length(2);
-    expect(cards.map((c) => c.attributes('data-pact-card')))
-      .to.deep.eq([CardName.TARDIGRADES, CardName.REGOLITH_EATERS]);
+    expect(w.find('[data-pact-repeat-slot]').exists(), 'the slot stands').to.be.true;
+    expect(w.findAll('.con-pact__card'), 'and no second list of candidates').to.have.length(0);
+    expect(w.find('.con-pact__repeatslot-empty').exists(), 'empty, it invites').to.be.true;
     // The law's face is still the hero: the source column never changes shape.
     expect(w.find('.con-pact__hero--bill').exists()).to.be.true;
-    // …and the pick is SHOWN even though the decision has a single row.
-    expect(w.find('[data-pact-row="0"]').exists()).to.be.true;
+    expect(w.find('[data-pact-cta]').attributes('data-pact-ready'), 'nothing is pre-answered').to.be.undefined;
   });
 
-  it('shows the pick even with ONE candidate — no hidden target', () => {
+  it('A on the slot opens the SHARED bridge, with the law as a NON-CARD source', async () => {
+    const w = mountLaw(menu(repeatPrompt([CardName.TARDIGRADES, CardName.REGOLITH_EATERS])));
+    await w.find('[data-pact-repeat-slot]').trigger('click');
+    expect(consoleRepeatPickState.active, 'the shared pick is out').to.be.true;
+    const request = consoleRepeatPickState.request!;
+    expect(request.candidates, 'it carries the server\'s own candidates')
+      .to.deep.eq([CardName.TARDIGRADES, CardName.REGOLITH_EATERS]);
+    expect(request.buttonLabel, 'and the prompt\'s own verb').to.eq('Take action');
+    expect(request.source.card, 'a law is in nobody\'s tableau').to.be.undefined;
+    expect(request.source.label, 'so it states itself by name').to.eq('R&D Funding');
+    expect(w.emitted('confirm'), 'opening the pick commits nothing').to.be.undefined;
+  });
+
+  it('the resolved pick FILLS the slot and only then arms the commit', async () => {
     const w = mountLaw(menu(repeatPrompt([CardName.TARDIGRADES])));
-    expect(w.findAll('.con-pact__card')).to.have.length(1);
-    expect(w.find('[data-pact-cta]').attributes('data-pact-ready'), 'and nothing is pre-answered').to.be.undefined;
-  });
-
-  it('the commit is a SECOND deliberate press: not ready until a card is picked', async () => {
-    const w = mountLaw(menu(repeatPrompt([CardName.TARDIGRADES, CardName.REGOLITH_EATERS])));
-    expect(w.find('[data-pact-cta]').attributes('data-pact-ready')).to.be.undefined;
-    await w.findAll('.con-pact__card')[1].trigger('click');
+    await w.find('[data-pact-repeat-slot]').trigger('click');
+    resolveConsoleRepeatPick({chosenCard: CardName.TARDIGRADES, nodeIndex: 0, composed: NOTHING_COMPOSED});
+    await w.vm.$nextTick();
+    expect(w.find('[data-pact-repeat-name]').text(), 'the slot names what will repeat').to.eq(CardName.TARDIGRADES);
+    expect(w.find('[data-pact-repeat-slot]').classes(), 'and wears the shared chassis')
+      .to.include('con-composer__repeatpick');
     expect(w.find('[data-pact-cta]').attributes('data-pact-ready')).to.eq('');
-    expect(w.emitted('confirm'), 'picking is not committing').to.be.undefined;
+    expect(w.emitted('confirm'), 'filling the slot is still not committing').to.be.undefined;
   });
 
-  it('commits the PICKED card, wrapped in the menu branch the prompt stands in', async () => {
-    const w = mountLaw(menu(repeatPrompt([CardName.TARDIGRADES, CardName.REGOLITH_EATERS])));
-    await w.findAll('.con-pact__card')[1].trigger('click');
+  it('a CANCELLED pick leaves the stage exactly as it was — the slot empty, the flow alive', async () => {
+    const w = mountLaw(menu(repeatPrompt([CardName.TARDIGRADES])));
+    await w.find('[data-pact-repeat-slot]').trigger('click');
+    cancelConsoleRepeatPick();
+    await w.vm.$nextTick();
+    expect(consoleRepeatPickState.active).to.be.false;
+    expect(w.find('[data-pact-repeat-slot]').exists(), 'the stage is still standing').to.be.true;
+    expect(w.find('.con-pact__repeatslot-empty').exists(), 'with the slot empty').to.be.true;
+    expect(w.emitted('cancel'), 'and the flow was never cancelled').to.be.undefined;
+  });
+
+  it('commits the pick inside the menu branch — a lone answer stays ONE response', async () => {
+    const w = mountLaw(menu(repeatPrompt([CardName.TARDIGRADES])));
+    await w.find('[data-pact-repeat-slot]').trigger('click');
+    resolveConsoleRepeatPick({chosenCard: CardName.TARDIGRADES, nodeIndex: 0, composed: NOTHING_COMPOSED});
+    await w.vm.$nextTick();
     await w.find('[data-pact-cta]').trigger('click');
     const emitted = w.emitted('confirm');
     expect(emitted).to.have.length(1);
     expect(emitted![0][0]).to.deep.eq({
-      type: 'or', index: 0, response: {type: 'card', cards: [CardName.REGOLITH_EATERS]},
+      type: 'or', index: 0, response: {type: 'card', cards: [CardName.TARDIGRADES]},
     });
     // NO expected-cards detail: a repeat draws nothing, so the host raises no
     // draw claim for it (an orphan claim would suppress the presenter).
     expect(emitted![0][1]).to.be.undefined;
   });
 
-  it('a prompt WITHOUT the marker is not a table decision — the stage stays between steps', () => {
+  it('…and takes the copied action own composed answers with it, as a BATCH', async () => {
+    const w = mountLaw(menu(repeatPrompt([CardName.REGOLITH_EATERS])));
+    await w.find('[data-pact-repeat-slot]').trigger('click');
+    resolveConsoleRepeatPick({
+      chosenCard: CardName.REGOLITH_EATERS,
+      nodeIndex: 0,
+      composed: {branchIndex: 1, preResponses: [], optionResponse: undefined, stepResponses: []},
+    });
+    await w.vm.$nextTick();
+    await w.find('[data-pact-cta]').trigger('click');
+    expect(w.emitted('confirm')![0][0]).to.deep.eq([
+      {type: 'or', index: 0, response: {type: 'card', cards: [CardName.REGOLITH_EATERS]}},
+      {type: 'or', index: 1, response: {type: 'option'}},
+    ]);
+  });
+
+  it('a prompt WITHOUT the marker is no repeat — the stage stays between steps', () => {
     const w = mountLaw(menu(repeatPrompt([CardName.TARDIGRADES], false)));
-    expect(w.findAll('.con-pact__card')).to.have.length(0);
+    expect(w.find('[data-pact-repeat-slot]').exists()).to.be.false;
     expect(w.find('.con-pact__rule').exists(), 'the law states its rule and waits').to.be.true;
   });
 
-  it('hands the host a real command contract — the verb, the source, the way back', async () => {
+  it('hands the host a real command contract — the door verb, the source, the way back', async () => {
     const w = mountLaw(menu(repeatPrompt([CardName.TARDIGRADES])));
     await w.vm.$nextTick();
     const batches = w.emitted('commands');
@@ -124,5 +185,6 @@ describe('ConsolePartyActionComposer — a law whose decision is on the TABLE', 
     const last = batches![batches!.length - 1][0] as Array<{control: string, label: string}>;
     expect(last.map((c) => c.control)).to.include('confirm');
     expect(last.map((c) => c.control)).to.include('back');
+    expect(last.map((c) => c.label), 'the row is a DOOR: A selects, it does not perform').to.include('Select');
   });
 });

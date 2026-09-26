@@ -15,10 +15,12 @@ import {
  *     to read «what I have played» and «what is counted right now» at once,
  *     and a «+2» whose author lived only in a tooltip would be a bonus from
  *     nowhere (this console has no hover popovers).
- *   · THE ACTION IS A DECISION ON THE TABLE. Open IP Trade's pick is made in
- *     the HAND (its cards leave); a repeat spends nothing and touches only
- *     cards already on the table, so the candidates stand in the law's own
- *     stage as premium faces, and the commit is a SECOND deliberate press.
+ *   · THE ACTION IS A SLOT, AND THE PICK IS THE SHARED ONE. «Which of my
+ *     already-used actions» has ONE surface in this console — the ДЕЙСТВИЯ
+ *     КАРТ list in repeat mode, reached through the bridge Viron, Project
+ *     Inspection and the Hydronetwork already use. The law's stage shows the
+ *     repeat as a slot, A opens that list, the chosen action lands back in the
+ *     slot, and the commit is a SECOND deliberate press on the law's own CTA.
  *   · THE REPEAT REALLY RUNS. The picked card's action happens a second time
  *     and its result is on the card (Tardigrades: one microbe → two).
  *   · THE USE IS SPENT. The law's tile leaves the default view and reads as
@@ -112,41 +114,59 @@ test.describe(`R&D Funding · ${PRESET.id}`, () => {
     expect((await cell.getAttribute('aria-label') ?? ''), 'the cell\'s own sentence names the law too').toMatch(/Финансирование исследований/i);
     await shoot(page, '01-tag-zone-addition');
 
-    // ── ② THE LAW'S STAGE: the candidates stand on the TABLE, inside the law's own stage.
+    // ── ② THE LAW'S STAGE: the repeat is a SLOT, empty and inviting.
     await openCardActions(page);
     await expect(page.locator('.con-cardactions__plate', {hasText: /Финансирование исследований/i}), 'the plate names the law').toHaveCount(1);
     await focusLawTile(page);
     await settle(page, {timeoutMs: 10_000});
     expect(await pressUntil(page, 'Enter', async () => await page.locator('.con-pact--resolution').count() > 0, {tries: 3, settleMs: 1100}),
       'A opens the law\'s stage').toBeTruthy();
-    const candidate = page.locator(`.con-pact--resolution .con-pact__card[data-pact-card="${REPEATED}"]`);
-    await expect(candidate, 'the used action stands as a candidate in the stage itself').toHaveCount(1, {timeout: 20_000});
+    const slot = page.locator('.con-pact--resolution [data-pact-repeat-slot]');
+    await expect(slot, 'the repeat stands as a SLOT').toHaveCount(1, {timeout: 20_000});
+    await expect(page.locator('.con-pact--resolution .con-pact__card'), 'and never as a picker of its own').toHaveCount(0);
     await expect(page.locator('.con-pact--resolution .con-pact__hero--bill .pcard'), 'the law\'s face is the hero').toBeVisible();
     await expect(page.locator('.con-pact--resolution .con-pact__handzone'), 'the hand is NOT the decision here — nothing is spent').toHaveCount(0);
     await settle(page, {timeoutMs: 15_000});
     const crumb = (await crumbText(page)).toUpperCase();
     expect(crumb, `one crumb: the menu, the law, the stage (${crumb})`).toContain('ДЕЙСТВИЯ КАРТ');
     expect(crumb).toContain('ФИНАНСИРОВАНИЕ ИССЛЕДОВАНИЙ');
-    await shoot(page, '02-repeat-candidates');
+    expect(await page.locator('[data-pact-cta][data-pact-ready]').count(), 'an empty slot arms nothing').toBe(0);
+    await shoot(page, '02-repeat-slot-empty');
 
-    // ── ③ A PICKS, a SECOND press COMMITS — the choice is never the commit.
-    expect(await page.locator('[data-pact-cta][data-pact-ready]').count(), 'nothing is pre-answered').toBe(0);
-    expect(await pressUntil(page, 'Enter', async () => await page.locator('.con-pact__card--picked').count() > 0, {tries: 4, settleMs: 500}),
-      'A picks the card').toBeTruthy();
-    await expect(page.locator('[data-pact-cta][data-pact-ready]'), 'and only then is the commit ready').toHaveCount(1);
-    await shoot(page, '03-candidate-picked');
+    // ── ③ A ON THE SLOT opens the SHARED pick: the ДЕЙСТВИЯ КАРТ list in repeat
+    //     mode stands OVER the law's stage (two roots — the source is hidden,
+    //     never unmounted), and the candidate is in THAT list.
+    expect(await pressUntil(page, 'Enter', async () => await page.locator('.con-cardactions').count() === 2, {tries: 4, settleMs: 900}),
+      'A opens the shared repeat pick').toBeTruthy();
+    await expect(page.locator('.con-cardactions').nth(1).locator(`[data-action-card="${REPEATED}"]`),
+      'the used action is a candidate in the shared list').toHaveCount(1, {timeout: 20_000});
+    await settle(page, {timeoutMs: 15_000});
+    const pickCrumb = (await crumbText(page)).toUpperCase();
+    expect(pickCrumb, `the crumb only GAINS a tail (${pickCrumb})`).toContain('ФИНАНСИРОВАНИЕ ИССЛЕДОВАНИЙ');
+    await shoot(page, '03-shared-repeat-pick');
+
+    // ── ④ THE CHOICE LANDS IN THE SLOT — A = «Выбрать», never «Выполнить».
+    expect(await pressUntil(page, 'Enter',
+      async () => await page.locator('.con-cardactions').count() === 1 && await page.locator('[data-pact-repeat-name]').count() === 1,
+      {tries: 6, settleMs: 900}), 'the pick resolves back into the law\'s slot').toBeTruthy();
+    expect(resourcesOf(await wireOf(request, playerId), REPEATED),
+      'and nothing was performed by choosing').toBe(microbesBefore);
+    await expect(page.locator('[data-pact-cta][data-pact-ready]'), 'only now is the commit ready').toHaveCount(1);
+    await shoot(page, '04-slot-filled');
+
+    // ── ⑤ THE SECOND PRESS COMMITS.
     expect(await pressUntil(page, 'Enter',
       async () => (await wireOf(request, playerId)).game.parliament?.viewer?.resolutionAction?.usesLeft === 0,
-      {tries: 4, settleMs: 900}), 'the second press commits and spends the use').toBeTruthy();
+      {tries: 4, settleMs: 900}), 'the law\'s own CTA commits and spends the use').toBeTruthy();
 
-    // ── ④ THE REPEAT RAN: the card's action happened a second time.
+    // ── ⑥ THE REPEAT RAN: the card's action happened a second time.
     await expect.poll(async () => resourcesOf(await wireOf(request, playerId), REPEATED), {timeout: 60_000,
       message: 'the picked action ran AGAIN'}).toBe(microbesBefore + 1);
     await waitForBoardHome(page, 40);
     await settle(page, {timeoutMs: 20_000});
-    await shoot(page, '04-repeat-done');
+    await shoot(page, '05-repeat-done');
 
-    // ── ⑤ THE USE IS SPENT, and the tag addition is untouched by any of it.
+    // ── ⑦ THE USE IS SPENT, and the tag addition is untouched by any of it.
     const after = await wireOf(request, playerId);
     expect(after.game.parliament?.viewer?.resolutionAction).toMatchObject({usesLeft: 0, available: false});
     expect(after.thisPlayer.tags.science, 'the PRINTED count never moved').toBe(printed);
@@ -156,6 +176,6 @@ test.describe(`R&D Funding · ${PRESET.id}`, () => {
     expect(await pressUntil(page, 'Period', async () => await page.locator(`.con-cardactions__tile--activated[data-action-resolution="${LAW}"]`).count() > 0, {tries: 3, settleMs: 700}),
       'RT shows the activated actions: the law\'s tile is there, spent').toBeTruthy();
     await settle(page, {timeoutMs: 10_000});
-    await shoot(page, '05-tile-spent');
+    await shoot(page, '06-tile-spent');
   });
 });

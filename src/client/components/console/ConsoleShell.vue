@@ -14519,8 +14519,17 @@ export default defineComponent({
      * awaiting handoff, no claim: a party action never draws into its stage
      * (the Reds' draw presents as the ordinary reveal once the flow has left).
      */
-    onCardActionsSubmitParty(response: InputResponse): void {
-      submitInput(response);
+    onCardActionsSubmitParty(response: InputResponse | ReadonlyArray<InputResponse>): void {
+      // A BATCH when the commit carries more than its own answer: an enacted
+      // resolution's repeat takes the copied action's composed pre-selects
+      // with it (`[<the menu branch's card pick>, ...the copy's own answers]`),
+      // exactly as a card's repeat does behind its activate. One response is
+      // still one submit — the batch route is the same funnel, not a second.
+      if (Array.isArray(response)) {
+        this.submitBatch(response);
+      } else {
+        submitInput(response as InputResponse);
+      }
       // AWAITING HANDOFF — the same resolution a card action's batch rides: the
       // server's answer decides the next scene. A claimed draw (the Reds) stays
       // IN-FRAME as the workspace's own next stage; a plain reward (the

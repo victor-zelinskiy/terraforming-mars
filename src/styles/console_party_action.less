@@ -119,6 +119,29 @@
     &__cards[data-pact-cards="1"] &__card,
     &__cards[data-pact-cards="2"] &__card,
     &__cards[data-pact-cards="3"] &__card { --con-pact-card-zoom: calc(0.46 * var(--con-ui-scale, 1)); }
+    /* THE REPEAT SLOT — a DOOR to the shared pick surface, not a list. Empty it
+       is an invitation; filled it wears the SHARED `.con-composer__repeatpick`
+       chassis (Viron's own plate), so this rule adds only the button reset, the
+       empty plate and the cursor ring. */
+    &__repeatslot {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        border: 0;
+        color: inherit;
+        font: inherit;
+        text-align: left;
+        cursor: pointer;
+        &:not(.con-composer__repeatpick) {
+            padding: .65rem 1rem;
+            border-radius: .6rem;
+            background: rgba(255, 255, 255, .04);
+            box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, .12);
+        }
+        &--cursor { box-shadow: inset 0 0 0 .1rem @con-cyan; }
+        &--cursor.con-composer__repeatpick { box-shadow: inset 0 0 0 .08rem @con-parl-mint, 0 0 0 .1rem @con-cyan; }
+    }
+    &__repeatslot-empty { font-size: .92rem; color: fade(@con-text, 62%); }
     &__card-face { zoom: var(--con-pact-card-zoom); }
     &__card-delta { display: inline-flex; align-items: center; gap: .3rem; font-size: .74rem; b { font-variant-numeric: tabular-nums; } em { font-style: normal; font-size: .62rem; color: @con-parl-gold; } }
     &__none { font-size: .74rem; opacity: .6; }
