@@ -31,6 +31,7 @@ import {
 } from '@/common/parliament/resolutionCounts';
 import {LEVY_STEP_KEY, levyEstimate, levyNetEffectOf, levyRecorded, LevyReading, ResolutionLevy} from '@/common/parliament/resolutionLevy';
 import {Tag} from '@/common/cards/Tag';
+import {CardType} from '@/common/cards/CardType';
 import {CountedObjectGlyph} from '@/client/components/premiumCard/premiumCardIcons';
 import {getSpecialCellInfo} from '@/client/components/board/specialCellInfo';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
@@ -276,6 +277,17 @@ export function yieldCountPresentation(id: ResolutionCountId): YieldCountPresent
       pluralKey: '${0} city tag(s)',
       ruleKey: 'Each city tag on your cards counts: a card with two city tags counts twice. Wild tags do not count, and a city on the board is not a tag.',
       skipReasonKey: 'No city tags',
+    };
+  case 'blueCards':
+    // A count by the card's TYPE — the card cover wearing its BLUE band, the
+    // very glyph the face prints and the chairman quest repeats. The rule
+    // says out loud what the type excludes, because «blue» is the one word
+    // the engine's own counters (Tycoon, Celebrity) read as «blue or green».
+    return {
+      glyph: {kind: 'type-card', cardType: CardType.ACTIVE},
+      pluralKey: '${0} blue card(s)',
+      ruleKey: 'Each blue (active) project card in play counts once, whatever it prints. Green cards, events, preludes, CEOs and your corporation do not count.',
+      skipReasonKey: 'No blue cards and no influence',
     };
   }
 }

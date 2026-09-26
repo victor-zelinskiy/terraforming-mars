@@ -1507,6 +1507,25 @@
     background-repeat: no-repeat;
   }
 }
+/* A CARD OF A TYPE as a counted object («per blue project card you have in
+   play» — Vertical Integration): the card cover the mechanics print for
+   `b.cards(…)`, in the same square, wearing the face's OWN band modifier
+   (.pcard-ic--type-blue / --type-green, whose ::before tint and ::after band
+   are shares of this box) — one drawing of a blue card on the face and in
+   every reading. Nothing is docked to it: the TYPE is the whole rule. */
+.pcglyph--type-card {
+  .pcglyph__card {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 100%;
+    height: 100%;
+    transform: translate(-50%, -50%);
+    background-size: contain;
+    background-position: center;
+    background-repeat: no-repeat;
+  }
+}
 /* A COLONY as a counted object («per colony you have» — Jovian Tax Rights):
    the colony tile the mechanics print for `b.colonies()`, in the same square,
    nothing docked to it — a CUBE is what is counted and the tile is its only

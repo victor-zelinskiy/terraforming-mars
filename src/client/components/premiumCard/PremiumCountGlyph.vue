@@ -36,7 +36,13 @@
       · `colony`  — «per COLONY you have» (Jovian Tax Rights): the colony tile
         the mechanics print for `b.colonies()`, alone — a CUBE is what is
         counted and the tile is its only drawing. A card would state an
-        eighth rule; a bare cube would read as a resource.
+        eighth rule; a bare cube would read as a resource;
+      · `type-card` — «per BLUE PROJECT CARD you have in play» (Vertical
+        Integration): the card cover wearing its TYPE's header band, the very
+        item the mechanics print for `b.cards(n, {secondaryTag: BLUE})` and
+        the physical game's own «blue card». The `vp-card` above would demand
+        a tag and a VP plate this rule never asks for; a tag medallion would
+        state a rule about tags; a bare cover would read «per card you have».
 
     All sit in the SAME square per medallion (`--pvpcard-size`), so a formula
     row, a reading and the Polygon keep one rhythm whichever object they count.
@@ -60,6 +66,10 @@
       <span class="pcglyph__tag" :data-count-tag="tag" :style="{backgroundImage: `url(${tagUrlOf(tag)})`}"></span>
     </template>
   </span>
+  <span v-else-if="glyph.kind === 'type-card'" class="pcglyph pcglyph--type-card" :data-count-card-type="glyph.cardType" aria-hidden="true">
+    <!-- The band is the face's OWN modifier class (`.pcard-ic--type-blue`), on the face's own cover — one drawing of a blue card. -->
+    <span class="pcglyph__card" :class="`pcard-ic--${bandOf(glyph.cardType)}`" :style="{backgroundImage: `url(${cardCoverUrl})`}"></span>
+  </span>
   <span v-else-if="glyph.kind === 'tile'" class="pcglyph pcglyph--tile" :data-count-tile="glyph.tile" aria-hidden="true">
     <span class="pcglyph__tile" :style="{backgroundImage: `url(${tileUrlOf(glyph.tile)})`}"></span>
     <!-- The footnote spark is the SPACE city's mark; a city ON Mars prints bare (`countedTileSpark`) — the glyph draws what the face draws. -->
@@ -74,9 +84,13 @@
 import {defineComponent, PropType} from 'vue';
 import {Tag} from '@/common/cards/Tag';
 import {Resource} from '@/common/Resource';
+import {CardType} from '@/common/cards/CardType';
 import {BoardCountedTile, ResolutionCountMetric} from '@/common/parliament/resolutionCounts';
 import PremiumVpCardGlyph from './PremiumVpCardGlyph.vue';
-import {CountedObjectGlyph, countedColonyIconUrl, countedMetricIconUrl, countedTileIconUrl, countedTileSpark, standardResourceIconUrl, tagIconUrl} from './premiumCardIcons';
+import {
+  cardTypeBandMod, CountedObjectGlyph, countedCardCoverUrl, countedColonyIconUrl, countedMetricIconUrl, countedTileIconUrl, countedTileSpark,
+  standardResourceIconUrl, tagIconUrl,
+} from './premiumCardIcons';
 
 export default defineComponent({
   name: 'PremiumCountGlyph',
@@ -88,6 +102,10 @@ export default defineComponent({
     /** The SAME colony tile the face prints for `b.colonies()` — the reading and the card draw one colony. */
     colonyUrl(): string {
       return countedColonyIconUrl();
+    },
+    /** The SAME cover the face prints for `b.cards(…)` — the reading and the card draw one card. */
+    cardCoverUrl(): string {
+      return countedCardCoverUrl();
     },
   },
   methods: {
@@ -102,6 +120,10 @@ export default defineComponent({
     },
     metricUrlOf(metric: ResolutionCountMetric): string {
       return countedMetricIconUrl(metric);
+    },
+    /** The SAME band modifier the face's own card glyph wears — never a second palette. */
+    bandOf(cardType: CardType.ACTIVE | CardType.AUTOMATED): string {
+      return cardTypeBandMod(cardType);
     },
     /** The SAME sprite the face prints inside its production box — the reading and the card draw one resource. */
     resourceUrlOf(resource: Resource): string {

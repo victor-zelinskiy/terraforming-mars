@@ -1068,5 +1068,16 @@
   "One card with two city tags — influence buys no cards": "Одна карта с двумя метками города — влияние карт не покупает",
   "A city tag on a prelude counts like any other": "Метка города на подготовке считается как любая другая",
   "A wild tag is not a city tag": "Универсальная метка — не метка города",
-  "No city tags — the M€ still come": "Нет меток города — M€ всё равно приходят"
+  "No city tags — the M€ still come": "Нет меток города — M€ всё равно приходят",
+  "Vertical Integration": "Вертикальная интеграция",
+  "Gain 1 M€ per blue card you have in play, plus 1 per influence.": "Получите 1 M€ за каждую свою синюю карту в игре и ещё 1 за каждое влияние.",
+  "No blue cards and no influence": "Нет синих карт и нет влияния",
+  "Not a blue card": "Не синяя карта",
+  "${0} blue card(s)": "${0} {синяя карта|синие карты|синих карт}",
+  "Each blue (active) project card in play counts once, whatever it prints. Green cards, events, preludes, CEOs and your corporation do not count.": "Каждая синяя (активная) карта проекта в игре считается один раз, что бы на ней ни было напечатано. Зелёные карты, события, подготовки, директора и ваша корпорация не считаются.",
+  "${0} has no blue cards and no influence — no M€ from ${1}": "${0}: нет синих карт и нет влияния — ${1} не даёт M€",
+  "${0} gained ${1} M€ from ${2}: ${3} blue card(s) + ${4} influence (${5} → ${6})": "${0} получает ${1} M€ — ${2}: ${3} {синяя карта|синие карты|синих карт} + влияние ${4} (${5} → ${6})",
+  "Blue cards alone — influence 0": "Только синие карты — влияние 0",
+  "Blue, green and an event side by side — only the blue ones count": "Синие, зелёная и событие рядом — считаются только синие",
+  "A corporation and a prelude are not blue cards": "Корпорация и подготовка — не синие карты"
 }

@@ -61,6 +61,7 @@ import {TRADE_INDUSTRIES} from './unity/TradeIndustries';
 import {UNITY_BUDGET} from './unity/UnityBudget';
 import {URBAN_DEVELOPMENT} from './marsFirst/UrbanDevelopment';
 import {URBAN_RESEARCH} from './marsFirst/UrbanResearch';
+import {VERTICAL_INTEGRATION} from './industrialists/VerticalIntegration';
 
 /**
  * THE RETIRED IDS — iteration 0's DUMMY resolutions (a party, a quest, no
@@ -558,6 +559,11 @@ export const REDUX_RESOLUTION_CATALOG = new ResolutionCatalog([
   // count is over TAGS: the three city counts already in the catalog are all over the BOARD, and any of them here
   // would pay a different rule's number in silence.
   URBAN_RESEARCH,
+  // The SMALLEST card of the family and the proof the declaration is enough: the formula is Scientists Budget's
+  // without its levy and its draw, the quest is R&D Funding's object and key. New is one question in the shared
+  // count — the card's TYPE («every blue project card»), a CARDS count like Architecture Award's, one card one
+  // unit. ⚠ Tycoon and Celebrity count blue AND green; either of them here would pay another rule's number.
+  VERTICAL_INTEGRATION,
   TEST_CHOICE,
   DEV_IMMEDIATE,
   DEV_PASSIVE,

@@ -591,9 +591,19 @@ describe('UnityBudget', () => {
       expect(outcomes[0]).deep.include({kind: 'stock', amount: -12, owed: 12});
       expect(outcomes[1]).deep.include({kind: 'stock', amount: 3, count: 2, influence: 1});
       expect(human.megaCredits, '−12 and (2 + I 1) on top of the production phase\'s income').eq(cash + income - 12 + 3);
-      // The bot's tile moved with the table — the track is the tile's, not the bot's; nothing reached the bot under the law.
-      expect(colonyOf(game, ColonyName.LUNA).trackPosition).eq(2 + GENERATION_STEP + 2);
-      expect(colonyOf(game, ColonyName.CALLISTO).trackPosition).eq(1 + GENERATION_STEP + 2);
+      // The bot's tile moved with the table — the track is the tile's, not the bot's; nothing reached the bot
+      // under the law. ⚠ READ OFF THE RECORD, never off an arranged number plus a sum: this bot's own turn is
+      // seeded and SHIFTS WITH THE CATALOG'S SIZE (RX32 was the first to move it — it made the bot flip a card
+      // that builds a colony, which raises a track of its own before the sitting convenes). The claim is «two
+      // steps for every tile», and the record is what states it.
+      const moves = outcomes[2].tracks ?? [];
+      expect(moves.map((m) => m.colony), 'every tile in play, in the table\'s order').deep.eq([ColonyName.LUNA, ColonyName.CALLISTO]);
+      for (const move of moves) {
+        expect(move.after - move.before, `${move.colony} advanced by the law's two steps`).eq(2);
+        expect(colonyOf(game, move.colony).trackPosition, `${move.colony} stands where the record says`).eq(move.after);
+      }
+      expect(moves.find((m) => m.colony === ColonyName.LUNA)?.before, 'the bot\'s own tile: arranged at 2, plus the generation step')
+        .eq(2 + GENERATION_STEP);
       expect(game.events.events.filter((e) => e.player === bot.color && e.source?.kind === 'resolution'),
         'nothing reached the bot under the resolution').is.empty;
       const model = getParliamentModel(game, human);

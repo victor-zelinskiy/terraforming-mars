@@ -18,6 +18,7 @@ import {CardRenderItemType} from '@/common/cards/render/CardRenderItemType';
 import {ICardRenderItem, ICardRenderTile} from '@/common/cards/render/Types';
 import {CardResource} from '@/common/CardResource';
 import {GameModule} from '@/common/cards/GameModule';
+import {CardType} from '@/common/cards/CardType';
 import {Tag} from '@/common/cards/Tag';
 import {Resource} from '@/common/Resource';
 import {TileType} from '@/common/TileType';
@@ -102,7 +103,31 @@ export type CountedObjectGlyph =
    * CUBE is what is counted, and the tile is its only drawing (a card would
    * state another rule, a bare cube would read as a resource).
    */
-  | {kind: 'colony'};
+  | {kind: 'colony'}
+  /**
+   * A CARD OF A TYPE («1 M€ for each BLUE project card you have in play» —
+   * Vertical Integration): the card cover wearing the type's header band, the
+   * physical game's own «blue card» / «green card» glyph and the very item
+   * the chairman quests print (`b.cards(n, {secondaryTag: BLUE})`). A tag
+   * medallion would state a rule about tags; a bare cover would read «per
+   * card you have»; the VP card would ask for an icon nobody asked for.
+   */
+  | {kind: 'type-card', cardType: CardType.ACTIVE | CardType.AUTOMATED};
+
+/**
+ * THE COVER a card glyph is drawn on, and the BAND modifier its TYPE wears —
+ * the SAME asset and the SAME class the face's mechanics print for
+ * `b.cards(n, {secondaryTag: BLUE})` (see `CardRenderItemType.CARDS` below),
+ * so a counted «blue card» and the card's own graphic can never draw two
+ * different blue cards.
+ */
+export function countedCardCoverUrl(): string {
+  return `${RES}/card.webp`;
+}
+
+export function cardTypeBandMod(cardType: CardType.ACTIVE | CardType.AUTOMATED): string {
+  return cardType === CardType.ACTIVE ? 'type-blue' : 'type-green';
+}
 
 /**
  * The pictogram of a counted COLONY — the SAME asset the face's mechanics
@@ -457,12 +482,12 @@ export function mechItemIcon(item: ICardRenderItem): MechIconSpec | undefined {
     // «blue card» / «green card» glyph, never a text plate and never a
     // bubble. A plain draw keeps the bare cover.
     if (item.secondaryTag === AltSecondaryTag.BLUE) {
-      return {kind: 'img', url: `${RES}/card.webp`, mod: 'type-blue'};
+      return {kind: 'img', url: countedCardCoverUrl(), mod: cardTypeBandMod(CardType.ACTIVE)};
     }
     if (item.secondaryTag === AltSecondaryTag.GREEN) {
-      return {kind: 'img', url: `${RES}/card.webp`, mod: 'type-green'};
+      return {kind: 'img', url: countedCardCoverUrl(), mod: cardTypeBandMod(CardType.AUTOMATED)};
     }
-    return {kind: 'img', url: `${RES}/card.webp`};
+    return {kind: 'img', url: countedCardCoverUrl()};
   case CardRenderItemType.VP_CARD: {
     // «A card with a VP icon» (and the tag it prints): the composed glyph —
     // cover, tag medallion, VP plate — never a bare tag.

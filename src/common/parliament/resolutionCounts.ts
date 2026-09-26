@@ -17,7 +17,11 @@
  * SIX KINDS OF COUNT, told apart by `resolutionCountKind` because the
  * objects answer them differently:
  *   · CARDS — «for every Building card with a VP icon»: one card is ONE unit,
- *     however many tags or victory points it prints (Architecture Award);
+ *     however many tags or victory points it prints (Architecture Award).
+ *     WHAT qualifies is the id's own question, and it need not be about tags
+ *     at all: «for every blue project card» asks the card's TYPE and nothing
+ *     else (Vertical Integration). The unit stays the card either way — there
+ *     is no «twice as blue», so a card count carries no `units` column;
  *   · TAGS — «for each Power tag you have»: one card contributes EVERY
  *     matching tag it prints, so a two-power-tag card is 2 (Central Power
  *     Grid). The card list still explains the number — with the card's own
@@ -168,6 +172,18 @@ export const RESOLUTION_COUNT_IDS = [
    * number. A tag is printed on a card; a tile stands on a cell.
    */
   'cityTags',
+  /**
+   * Vertical Integration: the BLUE PROJECT CARDS the player has in play — a
+   * count over the card's TYPE, the first one that asks it. One card is ONE
+   * unit (the kind is CARDS, Architecture Award's), and the only question is
+   * `CardType.ACTIVE`: no tag, no VP icon, no cost. A corporation, a prelude,
+   * a CEO, an event and a green card are not blue — the type says so by
+   * itself, so nothing here restates what they are.
+   * ⚠ The engine's «blue» counters are not this one: Tycoon (the milestone)
+   * and Celebrity (the award) count `ACTIVE || AUTOMATED` — blue AND green.
+   * A formula close enough to this one to break it in silence.
+   */
+  'blueCards',
 ] as const;
 export type ResolutionCountId = typeof RESOLUTION_COUNT_IDS[number];
 
@@ -280,6 +296,9 @@ export function resolutionCountKind(id: ResolutionCountId): ResolutionCountKind 
   // …and the count over the same WORD that is not over the board at all: the printed city MEDALLIONS of the
   // tableau, the twin of `scienceTags`. Neither board count above is a substitute for it.
   case 'cityTags': return {kind: 'tags', tags: [Tag.CITY]};
+  // A count by the card's TYPE: the kind is CARDS (one card, one unit — a card has no «two bluenesses»),
+  // exactly as Architecture Award's is; only the question differs.
+  case 'blueCards': return {kind: 'cards'};
   }
 }
 
@@ -639,6 +658,13 @@ export function cardCountVerdict(id: ResolutionCountId, card: CountedCardFacts, 
     }
     return {counts: true};
   }
+  case 'blueCards':
+    // THE ONE QUESTION of a count by TYPE: is this card blue? No tag is
+    // asked, no VP icon, no cost — and the tag-activity rule is not asked
+    // either (`cardTagsInPlay` is about a played EVENT's TAGS; a card's type
+    // is visible face down, and an event is already not `ACTIVE`). A
+    // corporation, a prelude, a CEO and a green card fail here by type alone.
+    return card.type === CardType.ACTIVE ? {counts: true} : {counts: false, reason: 'Not a blue card'};
   }
 }
 
