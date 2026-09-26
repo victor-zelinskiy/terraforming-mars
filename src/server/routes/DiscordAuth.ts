@@ -15,6 +15,7 @@ export class DiscordAuth extends Handler {
     const url = ctx.url;
     const code = url.searchParams.get('code');
     if (code === null) {
+      responses.badRequest(_req, res, 'missing code parameter');
       return;
     }
     const discordUser = await getDiscordUser(code);
