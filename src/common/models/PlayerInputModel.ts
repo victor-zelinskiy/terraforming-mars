@@ -1015,10 +1015,16 @@ export type SelectSpaceModel = BaseInputModel & {
  *     cannot take advantage of it").
  *   - `'marker'` — nothing is granted at all; the cell is claimed or marked
  *     (Land Claim, an Arcadian Communities marker, a St. Joseph cathedral).
+ *   - `'remove'` — the tile STANDING on the cell is taken OFF the board and
+ *     nothing lands (Water Export's «the First Player removes 1 ocean tile»,
+ *     the Reds' party action, the Dry Deserts event). Nothing is granted: the
+ *     cell's bonuses were paid at the placement and are not returned, nobody
+ *     loses TR, and the parameter the tile counted for drops by one. The
+ *     console reads it to arm the DEPARTURE scene instead of a landing.
  * The placement preview reads it so it can never promise what the commit
  * suppresses.
  */
-export type PlacementEffect = 'tile' | 'bonus-only' | 'marker';
+export type PlacementEffect = 'tile' | 'bonus-only' | 'marker' | 'remove';
 
 /**
  * OPTIONAL conversion context for a SelectAmount whose semantics are "spend X

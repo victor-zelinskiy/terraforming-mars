@@ -17,10 +17,10 @@ import {PlacementEffect} from '../../common/models/PlayerInputModel';
 
 const PLACEMENT_KINDS: ReadonlyArray<BoardPlacementKind> = [
   'land', 'ocean', 'greenery', 'city', 'away-from-cities', 'isolated',
-  'volcanic', 'upgradeable-ocean', 'upgradeable-ocean-new-holland', 'city-tier',
+  'volcanic', 'upgradeable-ocean', 'upgradeable-ocean-new-holland', 'city-tier', 'ocean-removal',
 ];
 
-const PLACEMENT_EFFECTS: ReadonlyArray<PlacementEffect> = ['tile', 'bonus-only', 'marker'];
+const PLACEMENT_EFFECTS: ReadonlyArray<PlacementEffect> = ['tile', 'bonus-only', 'marker', 'remove'];
 
 const CARD_NAMES: ReadonlySet<string> = new Set(Object.values(CardName));
 

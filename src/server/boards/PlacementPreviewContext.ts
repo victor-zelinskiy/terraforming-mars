@@ -74,4 +74,12 @@ export type PlacementPreviewContext = {
    * first landing) fires nothing, so no trigger fact may be promised for it.
    */
   firesTileTriggers: boolean;
+  /**
+   * The pick TAKES THE STANDING TILE OFF the cell (`placementEffect: 'remove'`
+   * — Water Export's «the First Player removes 1 ocean tile»): nothing lands,
+   * nothing is granted, no trigger fires; what the preview may state is the
+   * departure itself — the parameter that drops, the rating nobody loses, the
+   * scoring that recounts. Every other flag is false for such a pick.
+   */
+  removesTile: boolean;
 };

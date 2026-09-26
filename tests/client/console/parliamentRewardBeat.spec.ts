@@ -125,6 +125,8 @@ describe('parliamentRewardBeat — the ledger of what the sitting still owes', (
       globalParameter: {step: 'oxygen', part: 'world', kind: 'globalParameter', amount: -1, parameter: {id: 'oxygen', before: 5, after: 4}, unrewarded: true},
       // Unity Budget's WORLD step over the colony table: the colonies screen's own wave, no seat, no rail chip.
       colonyTrack: {step: 'colonyTracks', part: 'world', kind: 'colonyTrack', amount: 2, tracks: [{colony: 'Luna' as never, before: 2, after: 4}]},
+      // Water Export's WORLD removal: the tile lifts off the board (the shared departure scene), no seat, no rail chip.
+      tileRemoved: {step: 'oceanRemoval', part: 'world', kind: 'tileRemoved', amount: -1, space: '10' as never, parameter: {id: 'oceans', before: 1, after: 0}},
     };
     for (const kind of OUTCOME_KINDS) {
       const spec = waveSpecOf(sample[kind]);

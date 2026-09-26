@@ -62,6 +62,7 @@ import {UNITY_BUDGET} from './unity/UnityBudget';
 import {URBAN_DEVELOPMENT} from './marsFirst/UrbanDevelopment';
 import {URBAN_RESEARCH} from './marsFirst/UrbanResearch';
 import {VERTICAL_INTEGRATION} from './industrialists/VerticalIntegration';
+import {WATER_EXPORT} from './reds/WaterExport';
 
 /**
  * THE RETIRED IDS — iteration 0's DUMMY resolutions (a party, a quest, no
@@ -564,6 +565,11 @@ export const REDUX_RESOLUTION_CATALOG = new ResolutionCatalog([
   // count — the card's TYPE («every blue project card»), a CARDS count like Architecture Award's, one card one
   // unit. ⚠ Tycoon and Celebrity count blue AND green; either of them here would pay another rule's number.
   VERTICAL_INTEGRATION,
+  // The first law that TAKES TERRAFORMING BACK: a supply payout by influence (Gas Export's row), a WORLD step
+  // that ASKS — the first player picks the ocean tile that leaves the board (`tileRemoval`, the shared step
+  // over `Game.removeTile`; MarsBot never holds the choice) — and Heat Capture's discount hook over three tags,
+  // once per card.
+  WATER_EXPORT,
   TEST_CHOICE,
   DEV_IMMEDIATE,
   DEV_PASSIVE,

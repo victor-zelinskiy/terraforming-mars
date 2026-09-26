@@ -13,6 +13,7 @@ import {AGENDA_TRACK, influenceAtAgenda} from '../../src/common/parliament/Parli
 import {levelAfter, levelAmount, levelTakesAway, scaledAmount, sequelAmount} from '../../src/common/parliament/influenceScaling';
 import {LEVY_STEP_KEY, levyDeclared, levyPaid} from '../../src/common/parliament/resolutionLevy';
 import {COLONY_TRACK_STEP_KEY, colonyTrackAdvanceDeclared} from '../../src/common/parliament/colonyTrackAdvance';
+import {TILE_REMOVAL_STEP_KEY, tileRemovalDeclared} from '../../src/common/parliament/tileRemoval';
 import {OUTCOME_KINDS, REWARD_ADDRESS, rewardAddressOf} from '../../src/common/parliament/rewardAddress';
 import {isWinnerParameterReward, winnerParameterStepKey} from '../../src/common/parliament/winnerReward';
 import {parameterStepSize} from '../../src/common/parliament/parameterMove';
@@ -336,13 +337,16 @@ function checkSeam(definition: ResolutionDefinition): Array<string> {
   // payout can drift apart.
   // …and the COLONY TABLE's part (Unity Budget, RX29) is a world part of the same shape: the data every surface
   // reads (`trackAdvance`), the family's ONE shared step under its own key, and the sentence.
+  // …and a TILE TAKEN OFF THE BOARD (Water Export, RX33) is a world part of the same shape again: the data every
+  // surface reads (`tileRemoval`), the family's ONE shared step under its own key, and the sentence.
   const worldMoves = (definition.worldMoves ?? []).length > 0;
   const trackAdvance = definition.trackAdvance !== undefined;
+  const tileRemoval = definition.tileRemoval !== undefined;
   const worldKeys = (definition.worldSteps ?? []).map((step) => step.key);
-  if ((worldMoves || trackAdvance) !== hasWorldSteps(definition)) {
-    failures.push(`${name}: worldMoves / trackAdvance and worldSteps must be declared together (the reading and the payout are one declaration)`);
+  if ((worldMoves || trackAdvance || tileRemoval) !== hasWorldSteps(definition)) {
+    failures.push(`${name}: worldMoves / trackAdvance / tileRemoval and worldSteps must be declared together (the reading and the payout are one declaration)`);
   }
-  if ((worldMoves || trackAdvance) && (definition.text.world ?? '') === '') {
+  if ((worldMoves || trackAdvance || tileRemoval) && (definition.text.world ?? '') === '') {
     failures.push(`${name}: a world part without its declaration text (the inspector reads it)`);
   }
   if (trackAdvance && !colonyTrackAdvanceDeclared(definition.trackAdvance)) {
@@ -350,6 +354,12 @@ function checkSeam(definition: ResolutionDefinition): Array<string> {
   }
   if (trackAdvance !== worldKeys.includes(COLONY_TRACK_STEP_KEY)) {
     failures.push(`${name}: trackAdvance and the shared colony track step '${COLONY_TRACK_STEP_KEY}' must be declared together (the reading and the move are one declaration)`);
+  }
+  if (tileRemoval && !tileRemovalDeclared(definition.tileRemoval)) {
+    failures.push(`${name}: a tile removal must name a tile the family can remove and an executor it can ask`);
+  }
+  if (tileRemoval !== worldKeys.includes(TILE_REMOVAL_STEP_KEY)) {
+    failures.push(`${name}: tileRemoval and the shared tile removal step '${TILE_REMOVAL_STEP_KEY}' must be declared together (the reading and the removal are one declaration)`);
   }
   // THE LEVY is declared on TWO layers or on none: the data every surface reads (`levy`) and the family's
   // shared step, FIRST in the seat's own steps (the printed order is the executed order).

@@ -15,4 +15,13 @@ export type PlacementType =
    * again (its printed bonus and its ocean adjacency were collected when the
    * first city landed) — `Game.addCityTier`.
    */
-  'city-tier';
+  'city-tier' |
+  /**
+   * AN OCEAN REMOVAL (Turmoil Redux — Water Export: «the First Player removes
+   * 1 ocean tile from the board»): the pick names a PLAIN ocean tile that
+   * leaves the board — the legal cells are exactly the plain oceans
+   * (`getOceanSpaces({upgradedOceans: false})`, the filter `RemoveOceanTile`
+   * reads). Nothing lands and nothing is granted; the prompt says so through
+   * `placementEffect: 'remove'`.
+   */
+  'ocean-removal';

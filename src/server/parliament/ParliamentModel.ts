@@ -35,8 +35,13 @@ function outcomeModels(game: IGame, outcomes: ReadonlyArray<SerializedEnactOutco
     return undefined;
   }
   return outcomes.map((o) => {
-    const {player, ...rest} = o;
-    return player === undefined ? {...rest} : {...rest, player: game.getPlayerById(player).color};
+    const {player, chosenBy, ...rest} = o;
+    const model: ParliamentEnactOutcomeModel = player === undefined ? {...rest} : {...rest, player: game.getPlayerById(player).color};
+    // WHO CHOSE (a world removal's executor) is a fact of the record, named by colour like every seat on the wire.
+    if (chosenBy !== undefined) {
+      model.actor = game.getPlayerById(chosenBy).color;
+    }
+    return model;
   });
 }
 

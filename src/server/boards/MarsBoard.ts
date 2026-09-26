@@ -111,6 +111,9 @@ export class MarsBoard extends Board {
     case 'isolated': return this.getAvailableIsolatedSpaces(player, canAffordOptions);
     case 'volcanic': return this.getAvailableVolcanicSpaces(player, canAffordOptions);
     case 'upgradeable-ocean': return this.getOceanSpaces({upgradedOceans: false});
+    // A REMOVAL picks a plain ocean tile to take OFF the board — the very
+    // filter `RemoveOceanTile` reads (an upgraded ocean is never removed).
+    case 'ocean-removal': return this.getOceanSpaces({upgradedOceans: false});
     case 'upgradeable-ocean-new-holland': {
       const oceanSpaces = this.getOceanSpaces({upgradedOceans: false});
       const filtered = this.getAvailableSpacesForCity(player, undefined, oceanSpaces);
@@ -588,7 +591,9 @@ export class MarsBoard extends Board {
     // the generic "has a tile → occupied" check, otherwise a perfectly valid base
     // ocean that's merely off-limits for ANOTHER reason (New Holland next to a
     // city) would wrongly read as "already occupied".
-    if (placementType === 'upgradeable-ocean' || placementType === 'upgradeable-ocean-new-holland') {
+    // An OCEAN REMOVAL (Water Export) reads the same way: a plain ocean tile is
+    // what the pick REQUIRES, and only an upgraded one is «occupied».
+    if (placementType === 'upgradeable-ocean' || placementType === 'upgradeable-ocean-new-holland' || placementType === 'ocean-removal') {
       // No ocean tile to build on: an empty ocean reserve, or a land / colony cell.
       if (space.tile === undefined || !Board.isOceanSpace(space)) {
         return 'requires-ocean-tile';

@@ -9,6 +9,7 @@ import {Resource} from '../Resource';
 import {ResolutionCountByResource, ResolutionCountMetricModel, ResolutionCountModel} from '../parliament/resolutionCounts';
 import {ParameterMoveId} from '../parliament/parameterMove';
 import {ColonyTrackMove} from '../parliament/colonyTrackAdvance';
+import {TileType} from '../TileType';
 import {PartyName} from '../turmoil/PartyName';
 import {Message} from '../logs/Message';
 import {PlayerInputType} from '../input/PlayerInputType';
@@ -246,7 +247,7 @@ export type ParliamentEnactOutcomeModel = {
    * `tracks`; `amount` = the steps declared) · `skipped` · `reaction` the
    * RULING PARTY's answer to this step's own change.
    */
-  kind: 'cardResource' | 'production' | 'stock' | 'cards' | 'discard' | 'colonyBonus' | 'ocean' | 'greenery' | 'colony' | 'city' | 'globalParameter' | 'colonyTrack' | 'skipped' | 'reaction';
+  kind: 'cardResource' | 'production' | 'stock' | 'cards' | 'discard' | 'colonyBonus' | 'ocean' | 'greenery' | 'colony' | 'city' | 'globalParameter' | 'colonyTrack' | 'tileRemoved' | 'skipped' | 'reaction';
   /**
    * The COLONY whose printed bonus this record pays (Colonial Affairs) — the ledger row it belongs to;
    * for the `colony` kind, the tile the winner's cube landed on.
@@ -345,6 +346,17 @@ export type ParliamentEnactOutcomeModel = {
    * (which credits nobody) and on a skip.
    */
   tr?: number;
+  /**
+   * `tileRemoved` (Water Export): the tile that LEFT the cell `space` names —
+   * frozen with the record (the cell may carry a new tile by the time it is read).
+   */
+  tile?: TileType;
+  /**
+   * `tileRemoved`: WHO CHOSE the cell — the first player the printed rule
+   * names (the nearest human when that seat was MarsBot). A fact of the
+   * choice, never the record's owner: `player` stays absent on a world record.
+   */
+  actor?: Color;
 };
 
 export type ParliamentPhaseModel = {

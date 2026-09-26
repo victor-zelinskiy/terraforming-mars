@@ -67,6 +67,27 @@ import {
 } from './SerializedParliament';
 import {ChairmanSeat} from './quests/ChairmanSeat';
 
+/**
+ * THE HANDLE OF A WORLD STEP — the seat the engine's parameter API is handed
+ * and, when the step ASKS, the seat that answers: the first player in
+ * generation order (the World Government's own precedent — `SnowCover`,
+ * `MagneticFieldStimulationDelays`, Dry Deserts' «First Player»), which is
+ * also who the printed rule of Water Export names by POSITION.
+ *
+ * MARSBOT NEVER HOLDS IT. The bot is a full seat of `playersInGenerationOrder`
+ * and can be first — but it takes no decision at the Parliament's table (it
+ * does not participate) and the Automa has no rule for «which ocean to
+ * remove»; a prompt sent to it is a sitting that never moves. So the right
+ * PASSES to the nearest human in generation order (a project decision,
+ * pinned by its own spec — `docs/TURMOIL_REDUX_WATER_EXPORT.md` § the bot).
+ * A mutating world step attributes nothing to the handle either way, so the
+ * shift changes nothing for the parameter moves that came before.
+ */
+export function worldStepHandle(game: IGame): IPlayer {
+  const order = game.playersInGenerationOrder;
+  return order.find((player) => player.isMarsBot !== true) ?? order[0];
+}
+
 export class ParliamentPhase {
   /** The sitting's journal root, captured at the convening — the summary carries it from the first step on. */
   private rootId: number | undefined = undefined;
@@ -627,8 +648,9 @@ export class ParliamentPhase {
    * attributed to NOBODY: the scope carries the resolution with no owner, the
    * record carries no player, and the step is handed the first player in
    * generation order purely as the engine's handle (the World Government's own
-   * precedent). No reaction window: the ruling party answers what happens to a
-   * PLAYER, and nothing here happens to one.
+   * precedent — `worldStepHandle`, which is also the seat a world step that
+   * ASKS is answered by). No reaction window: the ruling party answers what
+   * happens to a PLAYER, and nothing here happens to one.
    */
   private runWorldStep(
     definition: ResolutionDefinition,
@@ -641,7 +663,7 @@ export class ParliamentPhase {
     if (this.applied(key)) {
       return 'done';
     }
-    const handle = this.game.playersInGenerationOrder[0];
+    const handle = worldStepHandle(this.game);
     const state = (p.worldState ??= {});
     const ctx: EnactContext = {
       game: this.game,
@@ -662,10 +684,20 @@ export class ParliamentPhase {
         this.markApplied(key);
         return 'done';
       }
-      // A world step that ASKS is answered by the handle seat; the mark lands
-      // on the phase's own list all the same (one answer for the table).
+      // A world step that ASKS (Water Export: «the First Player removes 1
+      // ocean tile») is answered by the HANDLE seat — the executor the printed
+      // rule names by position; the mark lands on the phase's own list all
+      // the same (one answer for the table). The ask is PUBLISHED as the
+      // phase's pending question (`effects.pending`, the seat step's own
+      // door), so every other seat reads the honest wait («blue is choosing a
+      // cell») and the executor's own sitting reads a step of the sitting —
+      // never an ask from nowhere. The game is saved so a reload rebuilds
+      // exactly this question for exactly this seat.
+      const cursor = p.effects ?? (p.effects = {playerIndex: 0});
+      cursor.pending = {player: handle.id, key: step.key};
       handle.setWaitingFor(prompt, () => {
         this.markApplied(key);
+        cursor.pending = undefined;
         this.continue();
       });
     } finally {

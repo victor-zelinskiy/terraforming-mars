@@ -8,6 +8,7 @@ import {WinnerRewardDeclaration} from './winnerReward';
 import {TileGrantDeclaration} from './tileGrant';
 import {WorldParameterMove} from './parameterMove';
 import {ColonyTrackAdvance} from './colonyTrackAdvance';
+import {TileRemovalDeclaration} from './tileRemoval';
 import {ResolutionActionBill} from './actionBill';
 import {ActionEffect} from '../models/ActionPreviewModel';
 
@@ -85,6 +86,13 @@ export type IClientResolution = {
    * Budget). The same declaration the shared world step pays by.
    */
   trackAdvance?: ColonyTrackAdvance;
+  /**
+   * A TILE the enactment TAKES OFF THE BOARD as data (`tileRemoval.ts`) —
+   * Water Export: the first player removes one ocean tile, once, for nobody.
+   * The same declaration the shared world step pays by; the executor it names
+   * is the one the vote reading prints before the vote.
+   */
+  tileRemoval?: TileRemovalDeclaration;
   hasImmediate: boolean;
   hasWorldEffect: boolean;
   hasWinnerEffect: boolean;

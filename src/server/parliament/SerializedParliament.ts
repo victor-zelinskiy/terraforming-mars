@@ -9,6 +9,7 @@ import {Resource} from '../../common/Resource';
 import {BotParliamentMode, ParliamentPhaseStep, QuestDefinition, ResolutionInstanceId} from '../../common/parliament/ParliamentTypes';
 import {ParameterMoveId} from '../../common/parliament/parameterMove';
 import {ColonyTrackMove} from '../../common/parliament/colonyTrackAdvance';
+import {TileType} from '../../common/TileType';
 import {ResolutionCountByResource, ResolutionCountMetricModel} from '../../common/parliament/resolutionCounts';
 import type {EventTrigger} from '../../common/events/GameEvent';
 
@@ -82,11 +83,13 @@ export type SerializedEnactOutcome = {
    * global parameter (Gas Export — see `parameter`, and `amount` = the steps
    * actually made, negative for a lowering) · `colonyTrack` a WORLD move of
    * EVERY colony track (Unity Budget — see `tracks`, and `amount` = the steps
-   * declared) · `skipped` nothing happened (see
+   * declared) · `tileRemoved` a WORLD removal of a tile from the board (Water
+   * Export — see `space`, `tile`, `actor`, and `parameter` = the ocean count
+   * before and after, `amount` = −1) · `skipped` nothing happened (see
    * `reason`) · `reaction` the RULING PARTY's answer to this step's own change
    * (see `party`).
    */
-  kind: 'cardResource' | 'production' | 'stock' | 'cards' | 'discard' | 'colonyBonus' | 'ocean' | 'greenery' | 'colony' | 'city' | 'globalParameter' | 'colonyTrack' | 'skipped' | 'reaction';
+  kind: 'cardResource' | 'production' | 'stock' | 'cards' | 'discard' | 'colonyBonus' | 'ocean' | 'greenery' | 'colony' | 'city' | 'globalParameter' | 'colonyTrack' | 'tileRemoved' | 'skipped' | 'reaction';
   /**
    * THE COLONY whose printed bonus this record pays (Colonial Affairs: «gain
    * all your colony bonuses k times») — the ledger row the record belongs to
@@ -258,6 +261,22 @@ export type SerializedEnactOutcome = {
    * re-derived from the declaration.
    */
   tr?: number;
+  /**
+   * `tileRemoved`: the tile that LEFT the cell named by `space` (an ocean —
+   * the only tile the family removes today), frozen with the record so the
+   * reading never re-reads a cell that may carry a new tile by now.
+   */
+  tile?: TileType;
+  /**
+   * `tileRemoved`: WHO CHOSE the cell — the executor the printed rule names
+   * («the First Player»), or the nearest human when that seat was MarsBot.
+   * NOT the record's owner: a world record belongs to no seat (`player`
+   * stays absent, every viewer reads it); the chooser is a fact of the
+   * choice. Published to the client as `actor` (a colour, like every seat on
+   * the wire) — named differently here so a serialized record still spreads
+   * into the model shape with only `player` re-coloured.
+   */
+  chosenBy?: PlayerId;
 };
 
 /**

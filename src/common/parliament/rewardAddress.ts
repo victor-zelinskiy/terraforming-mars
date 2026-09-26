@@ -87,7 +87,13 @@ export type RewardStage = 'reward' | 'choice' | 'take' | 'discard' | 'board' | '
  * «advance each colony track 2 steps»): the list of tiles with their markers before and after, and the
  * colonies screen where the markers actually glide. It belongs to no seat: every viewer reads the same list.
  */
-export type RewardReading = 'influence-yield' | 'winner-reward' | 'party-reaction' | 'colony-ledger' | 'world-parameter' | 'world-tracks' | 'tile-grant' | 'skip-plate';
+/**
+ * `world-removal` — a TILE the enactment TOOK OFF the board for nobody in particular (Water Export: «the
+ * First Player removes 1 ocean tile»): the cell it left, the ocean count before and after, who chose the
+ * cell — and the board where the tile actually lifts away. It belongs to no seat: every viewer plays and
+ * reads the same departure.
+ */
+export type RewardReading = 'influence-yield' | 'winner-reward' | 'party-reaction' | 'colony-ledger' | 'world-parameter' | 'world-tracks' | 'world-removal' | 'tile-grant' | 'skip-plate';
 
 export type RewardAddress = {
   kind: OutcomeKind;
@@ -174,6 +180,17 @@ export const REWARD_ADDRESS: Readonly<Record<OutcomeKind, RewardAddress>> = {
     kind: 'colonyTrack', surface: 'colonies', source: 'none', unit: 'none', stage: 'colonies', reading: 'world-tracks',
     skipTitle: 'Skipped: the colony tracks do not move',
   },
+  // A TILE REMOVED FROM THE BOARD (Water Export, RX33): the enactment takes an ocean OFF the planet for
+  // the whole table — nobody is paid, nobody loses a rating, and the executor the printed rule names («the
+  // First Player») only CHOOSES the cell (`actor`). Nothing lands in a seat, so there is no rail chip: the
+  // sitting YIELDS to the board (the world-move grammar), the tile LIFTS AWAY from its cell in the shared
+  // departure scene (every viewer's — a removal is a board event, never the chooser's private beat), the
+  // count on the HUD drops, and the frame comes back with the receipt. A removal that cannot happen — the
+  // oceans at their maximum (the card's own clause), or no plain ocean on the board — is NAMED, never silent.
+  tileRemoved: {
+    kind: 'tileRemoved', surface: 'board', source: 'none', unit: 'tile', stage: 'board', reading: 'world-removal',
+    skipTitle: 'Skipped: no ocean is removed',
+  },
   // The ruling party's answer speaks the unit its RECORD carries (a production step is answered with production); 'stock' is the nominal default.
   reaction: {
     kind: 'reaction', surface: 'rail', source: 'party-plaque', unit: 'stock', stage: 'reward', reading: 'party-reaction',
@@ -213,6 +230,9 @@ export type RewardPayload = {
   multiplier?: number;
   /** `colonyBonus`: the tile's printed description of the bonus (an English key of the colony's own). */
   description?: string;
+  /** `tileRemoved`: the cell the tile left (the board scene's own address), and who chose it. */
+  space?: string;
+  actor?: string;
 };
 
 export type RewardDelivery = {
@@ -300,6 +320,12 @@ export function rewardAddressOf(outcome: ParliamentEnactOutcomeModel, viewer: Co
   if (outcome.description !== undefined) {
     payload.description = outcome.description;
   }
+  if (outcome.space !== undefined) {
+    payload.space = outcome.space;
+  }
+  if (outcome.actor !== undefined) {
+    payload.actor = String(outcome.actor);
+  }
   // A WORLD RECORD belongs to NO seat (`player` absent) and therefore to every
   // viewer: the planet moved for all of them, and the reading is the same one.
   const world = outcome.player === undefined;
@@ -324,6 +350,11 @@ export function rewardAddressOf(outcome: ParliamentEnactOutcomeModel, viewer: Co
     // The whole table moved as one: a tile at the end of its track is named IN the list, never a skip of the
     // record; only a table with no tile in play at all (an empty list) is one, and its own reason names it.
     if ((outcome.tracks ?? []).length === 0) {
+      delivery.skipped = outcome.reason ?? address.skipTitle;
+    }
+  } else if (outcome.kind === 'tileRemoved') {
+    // A removal names the CELL the tile left: a record with no cell removed nothing, and its own reason says why.
+    if (outcome.space === undefined) {
       delivery.skipped = outcome.reason ?? address.skipTitle;
     }
   } else if (outcome.kind === 'colonyBonus') {

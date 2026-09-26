@@ -7,6 +7,7 @@ import {WinnerRewardDeclaration} from '../../../common/parliament/winnerReward';
 import {TileGrantDeclaration} from '../../../common/parliament/tileGrant';
 import {WorldParameterMove} from '../../../common/parliament/parameterMove';
 import {ColonyTrackAdvance} from '../../../common/parliament/colonyTrackAdvance';
+import {TileRemovalDeclaration} from '../../../common/parliament/tileRemoval';
 import {ResolutionActionBill} from '../../../common/parliament/actionBill';
 import type {SerializedEnactOutcome} from '../SerializedParliament';
 import {ActionEffect} from '../../../common/models/ActionPreviewModel';
@@ -415,6 +416,21 @@ export interface ResolutionDefinition {
    * the move from the same declaration the step pays by.
    */
   trackAdvance?: ColonyTrackAdvance;
+  /**
+   * A TILE THE ENACTMENT TAKES OFF THE BOARD, as data (`tileRemoval.ts`) —
+   * Water Export: «if oceans are not at maximum, the First Player removes 1
+   * ocean tile from the board». The FIRST world part that ASKS: the executor
+   * the printed rule names by POSITION picks the cell, and the driver routes
+   * the prompt to that seat (the first player in generation order — the
+   * nearest human when that seat is MarsBot). Paid by the family's ONE shared
+   * step (`tileRemovalStep(id, declaration)`, listed in `worldSteps` under
+   * `TILE_REMOVAL_STEP_KEY`; the guard refuses the declaration without its
+   * step and the step without its declaration) through the engine's own
+   * removal (`Game.removeTile`). Exported to the manifest, so the vote
+   * reading, the inspector, the sitting's scene, the results and the stand
+   * state the removal from the same declaration the step pays by.
+   */
+  tileRemoval?: TileRemovalDeclaration;
   /** Per-player immediate effect (every participating player, generation order). */
   immediateSteps?: ReadonlyArray<EnactStep>;
   /**

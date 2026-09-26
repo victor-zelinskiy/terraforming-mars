@@ -158,6 +158,19 @@ export function boardCellPreview(
   const bonusesCovered = space.tile !== undefined && !cleared;
   const ctx = previewContext(kind, options?.tileType, cleared, covering, bonusesCovered, options?.placementEffect, stacking);
 
+  if (ctx.removesTile) {
+    // A REMOVAL is its own reading: nothing is paid, placed, triggered or
+    // scored FOR the picker — every fact is the departing tile's. The cost,
+    // bonus, adjacency, trigger and zone families below all describe a tile
+    // ARRIVING and would promise what the commit never does.
+    const preview = classifyPlacementFacts(tileRemovalFacts(player, space, ctx), player, space.id, kind, legal);
+    preview.placesTile = false;
+    if (!legal) {
+      preview.illegalReason = board.illegalReasonFor(player, kind as PlacementType, space);
+    }
+    return preview;
+  }
+
   const facts: Array<BoardFact> = [];
   if (!stacking) {
     // A tier is charged nothing of the cell (`Game.addTile` skips the Ares
@@ -1198,6 +1211,7 @@ function previewContext(
   placementEffect: PlacementEffect = 'tile',
   stacking = false): PlacementPreviewContext {
   const placesTile = placementEffect === 'tile';
+  const removesTile = placementEffect === 'remove';
   const tile = placesTile ? placedTileType(kind, tileType) : undefined;
   return {
     kind,
@@ -1210,11 +1224,59 @@ function previewContext(
     countsAsGreenery: tile !== undefined && GREENERY_TILES.has(tile),
     placesTile,
     // A city TIER pays the cell nothing again — `Game.addTile` with `stacking`
-    // never reaches `grantPlacementBonuses`.
-    grantsPlacementBonus: placementEffect !== 'marker' && !stacking,
-    firesTileTriggers: placementEffect !== 'marker',
+    // never reaches `grantPlacementBonuses`. A REMOVAL grants nothing either:
+    // the cell's bonuses were paid at the placement and are not returned.
+    grantsPlacementBonus: placementEffect !== 'marker' && !removesTile && !stacking,
+    firesTileTriggers: placementEffect !== 'marker' && !removesTile,
     stacking,
+    removesTile,
   };
+}
+
+/**
+ * WHAT A REMOVAL DOES (`placementEffect: 'remove'` — Water Export's «the
+ * First Player removes 1 ocean tile»): the facts of a tile LEAVING the cell,
+ * read from the same rule sources the commit will act by — never a guess.
+ *  · the ocean count drops by one (it is read off the board, `Game.removeTile`
+ *    moves nothing else), so the parameter's own line reads current → current − 1;
+ *  · NOBODY loses a terraform rating (a rating is never taken back), and the
+ *    cell's printed bonuses are not returned — stated out loud, because a
+ *    silent removal is exactly the defect;
+ *  · the special tiles that SCORE PER ADJACENT OCEAN (Capital) lose one point
+ *    for their owner at the end — the same predicate `specialTileAdjacencyVpFacts`
+ *    counts on the way in, walked over the neighbours on the way out.
+ * Only for a cell that carries a plain ocean: any other cell is not a legal pick
+ * and gets its illegal reason instead.
+ */
+function tileRemovalFacts(player: IPlayer, space: Space, ctx: PlacementPreviewContext): Array<BoardFact> {
+  if (!ctx.removesTile || space.tile?.tileType !== TileType.OCEAN) {
+    return [];
+  }
+  const game = player.game;
+  const board = game.board;
+  const out: Array<BoardFact> = [];
+  const current = board.getOceanSpaces().length;
+  out.push({
+    id: 'remove-ocean', category: 'placement-effect', timing: 'immediate', severity: 'warning', recipient: {kind: 'nobody'},
+    title: 'The ocean tile leaves the board',
+    description: 'The ocean count drops by one. The cell\'s bonuses are not returned; an ocean placed here later pays them again.',
+    delta: {icon: 'ocean', amount: 1, direction: 'cost', current, resulting: current - 1},
+  });
+  out.push(rule('remove-ocean-no-tr', 'placement-effect', 'Nobody loses TR',
+    'The player who placed the ocean keeps the terraform rating it paid.', 'nobody'));
+  // The neighbours that SCORE PER ADJACENT OCEAN — their owner is one point poorer at the end.
+  for (const neighbour of board.getAdjacentSpaces(space)) {
+    if (neighbour.tile?.tileType !== TileType.CAPITAL || neighbour.player === undefined) {
+      continue;
+    }
+    const oceans = board.getAdjacentSpaces(neighbour).filter(Board.isOceanSpace).length;
+    out.push({
+      ...vpFact(`remove-capital-${neighbour.id}`, 'future-scoring', 'Capital loses an adjacent ocean', {kind: 'tile-owner', color: neighbour.player.color},
+        oceans, oceans - 1, 'Capital scores +1 VP per adjacent ocean at game end — one fewer once this tile is gone.'),
+      spaces: [neighbour.id],
+    });
+  }
+  return out;
 }
 
 /**
