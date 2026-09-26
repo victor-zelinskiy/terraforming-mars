@@ -586,6 +586,7 @@ import {ParliamentEnactOutcomeModel, ParliamentModel, ParliamentPlayerModel} fro
 import {IClientResolution} from '@/common/parliament/IClientResolution';
 import {colonyBonusesEffectOf, familyOf, levelEffectOf} from '@/client/console/parliament/resolutionFamily';
 import {ColonyName} from '@/common/colonies/ColonyName';
+import {ColonyModel} from '@/common/models/ColonyModel';
 import {ColonyBenefit} from '@/common/colonies/ColonyBenefit';
 import {ColonyTradeGrantModel} from '@/common/models/ColonyTradeManifestModel';
 import {getColony} from '@/client/colonies/ClientColonyManifest';
@@ -775,6 +776,11 @@ type PgScenario = {
    * skip and the rest of the card pays exactly as it would. Absent = the deck delivers the whole amount.
    */
   emptyDeck?: boolean,
+  /**
+   * A law that advances EVERY COLONY TRACK (Unity Budget): the stand's synthetic table — each tile with its marker's
+   * position — so the inspector reads every tile's step, and a track at its end reads as named (never moved).
+   */
+  tracks?: ReadonlyArray<{colony: ColonyName, position: number}>,
   /** A LIVE scenario: the engine-generated fixture the A press boots as a real game. */
   live?: string,
   /** …and what that game stops on (an English key), when the label is not enough. */
@@ -846,6 +852,9 @@ const FLOATER_HOLDERS: ReadonlyArray<CardResource> = [CardResource.FLOATER];
  */
 const RESEARCH = CardName.RESEARCH; // science + science — ONE card, TWO tags, holds nothing
 const GHG = CardName.GHG_PRODUCING_BACTERIA; // science + microbe, holds microbes
+const LUNA_GOV = CardName.LUNA_GOVERNOR; // earth + earth — ONE card, TWO tags (Unity Budget's count)
+const LANTERNS = CardName.JOVIAN_LANTERNS; // jovian
+const EARTH_OFFICE = CardName.EARTH_OFFICE; // earth
 const REGOLITH = CardName.REGOLITH_EATERS; // science + microbe, holds microbes
 const TARDIGRADES = CardName.TARDIGRADES; // microbe, holds microbes (1 VP per 4)
 const MARTIAN_CULTURE = CardName.MARTIAN_CULTURE; // Mars + Mars, holds DATA (1 VP per 2)
@@ -1009,6 +1018,34 @@ const SCENARIOS: ReadonlyArray<PgScenario> = [
   {key: 'sci-budget-quest-done', family: 'counted-tags', counts: 'scienceTags', label: 'Chairman quest completed', viewer: 0,
     seats: [{agenda: 3, bonus: 0, cards: [RESEARCH], production: 0, megacredits: 34},
       {agenda: 1, bonus: 0, cards: [], production: 0, megacredits: 20}], winner: 0, context: 'applied', noRecipient: false, quest: {progress: [2, 1], completedBy: 0}},
+  // ── UNITY BUDGET (RX29): the same tag-counted family under a THIRD count (Earth + Venus + Jovian, a card printing two of
+  //    them worth 2), a LEVY of 12, and the COLONY TABLE's own part — every track +2 (`tracks`: the stand's synthetic table;
+  //    the inspector reads each tile's marker «3 → 5», a track at its end is NAMED). Luna Governor (2 Earth) + Jovian
+  //    Lanterns (1) = 3, Agenda 4 = influence 2, 34 M€ → −12 → +5 = −7. ──
+  {key: 'unity-budget-net', family: 'counted-tags', counts: 'earthVenusJovianTags', label: 'Levy first, then the payout — net −7; every colony track +2', viewer: 0,
+    seats: [{agenda: 4, bonus: 0, cards: [LUNA_GOV, LANTERNS], production: 0, megacredits: 34},
+      {agenda: 1, bonus: 0, cards: [], production: 0, megacredits: 20}], winner: 0, context: 'proposal', noRecipient: false,
+    tracks: [{colony: ColonyName.LUNA, position: 2}, {colony: ColonyName.CALLISTO, position: 3}, {colony: ColonyName.CERES, position: 4}]},
+  // None of the three tags and no influence: the payout is a NAMED skip — the levy is still taken, the table still moves.
+  {key: 'unity-budget-zero', family: 'counted-tags', counts: 'earthVenusJovianTags', label: 'No Earth, Venus or Jovian tags and no influence — the tracks still move', viewer: 0,
+    seats: [{agenda: 0, bonus: 0, cards: [GHG, NOBEL], production: 0, megacredits: 20},
+      {agenda: 3, bonus: 0, cards: [LUNA_GOV], production: 0, megacredits: 20}], winner: 1, context: 'applied', noRecipient: false,
+    tracks: [{colony: ColonyName.LUNA, position: 2}, {colony: ColonyName.CALLISTO, position: 3}]},
+  // FOUR tags across the three: two on one card, one each on two more — and a wild tag that is none of them.
+  {key: 'unity-budget-four-tags', family: 'counted-tags', counts: 'earthVenusJovianTags', label: 'Four tags across Earth, Venus and Jovian — one card prints two', viewer: 0,
+    seats: [{agenda: 0, bonus: 0, cards: [LUNA_GOV, LANTERNS, EARTH_OFFICE, NOBEL], production: 0, megacredits: 20},
+      {agenda: 1, bonus: 0, cards: [], production: 0, megacredits: 20}], winner: 1, context: 'proposal', noRecipient: false,
+    tracks: [{colony: ColonyName.LUNA, position: 2}, {colony: ColonyName.CALLISTO, position: 3}]},
+  // A track at its END: the marker does not move, and the reading names it — never a silent nothing.
+  {key: 'unity-budget-track-max', family: 'counted-tags', counts: 'earthVenusJovianTags', label: 'A track at its maximum does not move — and says so', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, cards: [LUNA_GOV], production: 0, megacredits: 34},
+      {agenda: 1, bonus: 0, cards: [], production: 0, megacredits: 20}], winner: 1, context: 'proposal', noRecipient: false,
+    tracks: [{colony: ColonyName.IO, position: 6}, {colony: ColonyName.LUNA, position: 2}, {colony: ColonyName.CALLISTO, position: 3}]},
+  // A track ONE step short of its end makes one honest step.
+  {key: 'unity-budget-track-short', family: 'counted-tags', counts: 'earthVenusJovianTags', label: 'A track one step short of its maximum makes one step', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, cards: [LUNA_GOV], production: 0, megacredits: 34},
+      {agenda: 1, bonus: 0, cards: [], production: 0, megacredits: 20}], winner: 1, context: 'proposal', noRecipient: false,
+    tracks: [{colony: ColonyName.CERES, position: 5}, {colony: ColonyName.LUNA, position: 2}]},
   // ── THE SEQUENTIAL FAMILY (Climate Research: +1 heat production per influence,
   //    THEN 1 card per full 3 steps of the heat production that leaves behind) ──
   //    `production` is the seat's HEAT production before the enactment. Test
@@ -1725,7 +1762,15 @@ export default defineComponent({
     annotations(): ReadonlyArray<CardAnnotation> {
       return this.selected === undefined ? [] :
         resolutionAnnotations(this.selected.id, this.yields, {reading: this.winnerReading, viewer: this.viewerColor, nameOf: this.seatName},
-          {table: this.winnerTable}, this.levy, {reading: this.grantReading});
+          {table: this.winnerTable, colonies: this.standColonies}, this.levy, {reading: this.grantReading});
+    },
+    /**
+     * THE STAND'S COLONY TABLE for a law that advances every track (Unity Budget): the scenario's tiles with their
+     * marker positions, as live `ColonyModel`s — the inspector reads each tile's step through the ONE shared room.
+     */
+    standColonies(): ReadonlyArray<ColonyModel> | undefined {
+      const tracks = SCENARIOS[this.scenario]?.tracks;
+      return tracks === undefined ? undefined : tracks.map((t) => ({name: t.colony, trackPosition: t.position, isActive: true, colonies: [], visitor: undefined}));
     },
     /** The scenario family the selected resolution reads — from its DECLARATION (`resolutionFamily.ts`), never a table by id. */
     family(): PgFamily {

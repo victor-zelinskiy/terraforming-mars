@@ -110,12 +110,16 @@ import {GENEROUS_FUNDING_ID} from '../../../src/server/parliament/resolutions/gr
 import {SpaceName} from '../../../src/common/boards/SpaceName';
 import {COLONIAL_AFFAIRS_ID} from '../../../src/server/parliament/resolutions/unity/ColonialAffairs';
 import {COLONY_CONTEST_ID} from '../../../src/server/parliament/resolutions/unity/ColonyContest';
+import {UNITY_BUDGET_ID} from '../../../src/server/parliament/resolutions/unity/UnityBudget';
 import {IColony} from '../../../src/server/colonies/IColony';
 import {Luna} from '../../../src/server/colonies/Luna';
 import {Titan} from '../../../src/server/colonies/Titan';
 import {Europa} from '../../../src/server/colonies/Europa';
 import {Callisto} from '../../../src/server/colonies/Callisto';
 import {Miranda} from '../../../src/server/colonies/Miranda';
+import {Ceres} from '../../../src/server/colonies/Ceres';
+import {Io} from '../../../src/server/colonies/Io';
+import {LunaGovernor} from '../../../src/server/cards/colonies/LunaGovernor';
 import {Pluto} from '../../../src/server/colonies/Pluto';
 import {ColonyName} from '../../../src/common/colonies/ColonyName';
 import {AndOptions} from '../../../src/server/inputs/AndOptions';
@@ -1247,6 +1251,46 @@ const gasExportTable = (stopAt: ParliamentStop): ParliamentFixtureSpec => ({
 });
 // The sitting has just convened: the ASSEMBLY gate stands for both seats — the e2e walks the world beat from here.
 parliamentFixture('parliament-gas-assembly', gasExportTable('assembly'));
+
+// ── RX29 · UNITY BUDGET (Unity — «lose 12 M€; M€ = Earth + Venus + Jovian tags + influence; every colony track +2»):
+//    the FOURTH budget and the first law that moves the COLONY TABLE. The card alone in the first voting slot with
+//    blue's free delegate on it: blue at Agenda step 2 (winning → step 3 = influence 2) with Luna Governor (2 Earth) +
+//    Jovian Lanterns (1) → +5 after the levy of 12 (net −7); red at step 1 → +1. The TABLE is arranged so the wave shows
+//    every case, and it is arranged BEFORE the generation ends: the generation's own step moves every active track +1
+//    ahead of the sitting (`Colony.endGeneration`), so the arranged 1 · 3 · 4 · 6 stand at 2 · 4 · 5 · 6 when the law
+//    reads them → 4 · 6 · 6 · 6: Luna two steps, Callisto two steps to the end, Ceres ONE honest step, Io at its
+//    maximum (named, never moved). No cube on any tile: the track is the tile's.
+const unityBudgetTable = (stopAt: ParliamentStop): ParliamentFixtureSpec => ({
+  resolution: UNITY_BUDGET_ID,
+  votes: [0],
+  agenda: [2, 1],
+  stopAt,
+  arrange: ({game, p1}) => {
+    const tile = (colony: IColony, track: number): IColony => {
+      colony.isActive = true;
+      colony.colonies = [];
+      colony.trackPosition = track;
+      return colony;
+    };
+    game.colonies = [tile(new Luna(), 1), tile(new Callisto(), 3), tile(new Ceres(), 4), tile(new Io(), 6)];
+    p1.playedCards.push(new LunaGovernor(), new JovianLanterns());
+  },
+  expect: ({game, p1, parliament}) => {
+    const positions = game.colonies.map((c) => `${c.name}:${c.trackPosition}`);
+    const expected = [`${ColonyName.LUNA}:2`, `${ColonyName.CALLISTO}:4`, `${ColonyName.CERES}:5`, `${ColonyName.IO}:6`];
+    if (JSON.stringify(positions) !== JSON.stringify(expected)) {
+      throw new Error(`the parliament-unity fixture (${stopAt}) expected the table at ${expected.join(', ')} after the generation's own step, got ${positions.join(', ')}`);
+    }
+    if (!p1.tableau.has(CardName.LUNA_GOVERNOR) || !p1.tableau.has(CardName.JOVIAN_LANTERNS)) {
+      throw new Error(`the parliament-unity fixture (${stopAt}) expected blue to hold Luna Governor and Jovian Lanterns`);
+    }
+    if (!parliament.slots.some((slot) => slot.instance.startsWith(UNITY_BUDGET_ID))) {
+      throw new Error('the parliament-unity fixture lost Unity Budget out of the voting area');
+    }
+  },
+});
+// The sitting has just convened: the ASSEMBLY gate stands for both seats — the e2e walks the colony-table beat from here.
+parliamentFixture('parliament-unity-assembly', unityBudgetTable('assembly'));
 
 // ── RX14 · HEAT CAPTURE (the Reds — «2 M€ per influence; temperature −2, nobody's TR; 3 M€ off a Building
 //    tag while enacted»). Two moments of ONE journey:

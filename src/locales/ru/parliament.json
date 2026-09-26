@@ -1049,5 +1049,10 @@
   "Urban Development": "Городское развитие",
   "After you play a Building tag, draw a card.": "После розыгрыша метки строительства возьмите карту.",
   "${0} played ${1} building tag(s) and draws ${2} card(s) from ${3}": "${0} разыгрывает ${1} {метку|метки|меток} строительства и берёт ${2} {карту|карты|карт} — ${3}",
-  "Urban Development draws a card for every building tag you play": "«Городское развитие» даёт карту за каждую разыгранную вами метку строительства"
+  "Urban Development draws a card for every building tag you play": "«Городское развитие» даёт карту за каждую разыгранную вами метку строительства",
+  "Levy first, then the payout — net −7; every colony track +2": "Сначала плата, потом выплата — итого −7; все треки колоний +2",
+  "No Earth, Venus or Jovian tags and no influence — the tracks still move": "Нет меток Земли, Венеры и Юпитера и нет влияния — треки всё равно двигаются",
+  "Four tags across Earth, Venus and Jovian — one card prints two": "Четыре метки Земли, Венеры и Юпитера — на одной карте их две",
+  "A track at its maximum does not move — and says so": "Трек на максимуме не двигается — и это названо",
+  "A track one step short of its maximum makes one step": "Трек за шаг до максимума делает один шаг"
 }

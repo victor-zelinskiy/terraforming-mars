@@ -92,6 +92,9 @@ worklist:** сначала пиши карту, потом читай, что о
    общую воронку `runPaidResolutionAction` (учёт использования и выдача — в `andThen` счёта; маркер стадии `pay`); лицо: цена
    носит ТИТАНОВЫЙ УГОЛОК (`megacredits(12, {secondaryTag: AltSecondaryTag.TITANIUM})`, оба рендерера); плитка меню рисует
    ТОЛЬКО бокс `→` лица (`actionRowsOf`, § 11); раздел RX28 ниже.
+   **МИРОВОЙ ШАГ ПО СТОЛУ КОЛОНИЙ** (RX29) — объявление `trackAdvance: {steps}` + общий шаг `colonyTrackStep(id, advance)` в
+   `worldSteps` (все активные тайлы, раз за принятие, запись `colonyTrack` без места с `tracks`), `text.world`; показ — заседание
+   хостит экран колоний как шаг-ПОКАЗ через мост RX09 и волной двигает все маркеры на общем глайде торговли; раздел RX29 ниже.
 8. Ни слова о партиях: реакция правящей партии (Зелёные и т.д.) — данные `PartyEffectDefinition.reactions`,
    запись `kind:'reaction'` делает драйвер фазы из событий рекордера (Э1). Карта платит через `stock.add` /
    `production.add` с `from: {resolution: ID}` — этого достаточно.
@@ -986,6 +989,50 @@ execute: (player, parliament, meta) => new SelectOption(message('Pay ${0} M€ �
   `onTaskSubmit` не закрывает слои под счётом закона, ответ ждут следующим ответом (`awaitFleetResult`), `partyFlowOwed`
   держит workspace от коммита до такта, `flowCommitted` глушит `cancel` композера.
   Док: `docs/TURMOIL_REDUX_TRADE_INDUSTRIES.md`.
+
+### МИРОВОЙ ШАГ ПО СТОЛУ КОЛОНИЙ — объявление + общий шаг; показ = шаг-ПОКАЗ на мосту RX09 и волна на общем глайде (RX29, 2026-09-26)
+
+```ts
+levy: {resource: Resource.MEGACREDITS, amount: 12, recipient: 'each'},                          // RX15, без правок
+scaled: [{id: 'megacredits', unit: {kind: 'stock', resource: MEGACREDITS}, perInfluence: 1, count: {id: 'earthVenusJovianTags', per: 1}, recipient: 'each'}],
+trackAdvance: {steps: 2},                                                                       // common/parliament/colonyTrackAdvance.ts
+immediateSteps: [levyStep(ID, LEVY), MEGACREDITS_STEP],                                          // печатный порядок, на каждое место
+worldSteps: [colonyTrackStep(ID, {steps: 2})],                                                   // ОДИН раз за принятие — никогда в immediateSteps
+text: {..., world: 'Advance every colony track 2 steps.'},
+// запись: {kind: 'colonyTrack', amount: 2, tracks: [{colony, before, after}]} — без места; стол без тайлов — skipped
+```
+
+- **ТРЕК — СВОЙСТВО ТАЙЛА, поэтому шаг МИРОВОЙ.** В `immediateSteps` он дал бы 2 × N на N участников — гард
+  контракта этого не поймает (запись есть у каждого места), ловит только спек на трёх местах. Двигаются все
+  АКТИВНЫЕ тайлы через `Colony.increaseTrack` (тот же клип `MAX_COLONY_TRACK_POSITION`, что у конца поколения и
+  торговли); неактивный тайл не двигается и в записи не стоит — как его оставляет `Colony.endGeneration`.
+- **Потолок назван В СПИСКЕ, а не пропуском записи**: тайл на максимуме — `before === after`; за шаг до
+  максимума — один честный шаг. Одна арифметика `colonyTrackRoom` для шага, чтений и стенда. Пропуск — только у
+  стола без единого активного тайла (`NO_COLONY_TRACK_REASON`).
+- **Ловушка спека и фикстуры: конец поколения двигает активные треки на 1 ДО заседания.** Трек, выставленный на
+  N, закон читает на N + 1 — считать `before` от этого.
+- **Мировая часть теперь ДВУХ видов**: гард требует `worldSteps` ⇔ (`worldMoves` ∨ `trackAdvance`), объявление ↔
+  общий шаг под `COLONY_TRACK_STEP_KEY`, `text.world` — все три слоя или ни одного.
+- **Адрес `colonyTrack`** = `colonies · none · none · стадия colonies · чтение world-tracks`: экран колоний
+  ОТКРЫВАЕТСЯ (заказ владельца; эскиз таблицы говорил обратное и переписан в строку SHIPPED). Чтения
+  (`colonyTrackModel.ts`, моменты как у мирового хода): чип ленты `tracks` (член на тайл), строка итогов
+  «Треки колоний», блок осмотра «Что делает со столом колоний» (шелл отдаёт `game.colonies`), строка панели
+  голосования «Все треки колоний +2» (в нетто не входит).
+- **Показ = шаг-ПОКАЗ: тот же фрейм колоний, что у RX09, но пушится ЗАПИСЬЮ, а не вопросом.** Планетарный бет
+  (`parliamentWorldBeat`) замечает записи `colonyTrack` рядом с планетарными; в обходе заседания тот же гейт
+  `mayYieldForWorld` (волна места села, ничего не спрашивается, фрейм не вложен) → `runTrackMoveBeat`: HOLD
+  (`holdColonyTracks` → `presentedColonyModel` читает удержание первым) → HOST (`pushWorkspaceFrame({kind:
+  'colonies', stage: 'Colonies', serves: [], anchor: {type: 'always'}})` — `stepFrameNested` открывает поле, дверь
+  публикует слот, крошка непрерывна, `nested-step` держит заседание) → WAVE (`requestColonyTrackWave` → слой
+  торговли `runTrackWave` на ОДНОМ `runColonyTrackGlide` с `delayMs`/`pauseMs`/`onStart`; посадка снимает
+  удержание своего тайла, ячейка отзывается) → LEAVE (`leaveWorkspace()` своей рукой — якорь `always`, шелловый
+  `settleColonyFollowUp` его не трогает) → RECEIPT (`receiptShowing` — страница награды читает строку).
+  Reduced motion / fx-lite — короткая форма (порядок и посадки без импульсов). Холд `colony-track-wave`, сеть
+  `totalMs + 1800`; стол, который не встал, — честный выход без полёта.
+- **Не строить второй директор.** Плечо волны = `trackAdvancePlan`-подобный путь вправо; `trackWavePlan` — чистые
+  тайминги (вдох 760 · стаггер 260 · шаг 220 · пауза 150 · чтение 900). Обобщение глайда: задержка, пауза между
+  клетками, старт (прокси рождается невидимым при задержке), ветка пустого пути (заряд — осадка на месте).
+  Док: `docs/TURMOIL_REDUX_UNITY_BUDGET.md`.
 
 ## 8. Рецепт одной строкой
 

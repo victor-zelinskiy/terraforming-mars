@@ -2331,6 +2331,8 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'hydro-terminal'
   'parliament-biodome-vote' | 'parliament-biodome-enact' | 'parliament-biodome-maxed' | 'parliament-biodome-recap' |
   'parliament-biodome-nocell' | 'parliament-biodome-neutral' |
   'parliament-powergrid-vote' | 'parliament-powergrid-recap' |
+  // RX29 Unity Budget: the enact frame — four colony tiles (Luna · Callisto · Ceres · Io at the maximum) for the wave.
+  'parliament-unity-assembly' |
   // RX08 Colonization Funding: two space cities and influence 3 at the vote — the maximum, one number.
   'parliament-colonization-vote' |
   'parliament-migration-vote' |

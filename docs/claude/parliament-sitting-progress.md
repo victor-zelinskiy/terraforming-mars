@@ -3756,6 +3756,72 @@ post-flush, `consoleCardActionsUi.billZone`, шелл держит хост «н
 | `e2eDriverGuard` · `e2eFixturesLoad` · `parliamentGlossary` · `promptMarkerGuard` | 103 passing |
 | клиент: `consoleMandatoryGate` (+1) · `surfaceMotionModel` (+1) | 19 · 26 passing |
 
+## RX29 «Бюджет Союза» (2026-09-26) — четвёртый БЮДЖЕТ и первый МИРОВОЙ шаг по столу колоний
+
+Док: `docs/TURMOIL_REDUX_UNITY_BUDGET.md`. Печатное: «Потеряйте 12 M€. Получите M€ = метки Земли + Венеры +
+Юпитера + влияние. Продвиньте каждый трек колонии на 2». Задание — 2 метки Земли. Промт владельца:
+`docs/claude/prompts/resolution-rx29-unity-budget.md`.
+
+**Сборка + ОДНО объявление.** Плата = `levy` RX15 без правок; счёт = новый id `earthVenusJovianTags` формы RX06
+(три метки, `countedByTag`); треки = **`trackAdvance: {steps: 2}`** (`common/parliament/colonyTrackAdvance.ts`,
+одна арифметика `colonyTrackRoom`) + ОДИН общий мировой шаг `colonyTrackStep(id, advance)`
+(`ResolutionColonyTrack.ts`): все активные тайлы через `Colony.increaseTrack`, раз за принятие, запись
+`{kind: 'colonyTrack', amount, tracks: [{colony, before, after}]}` без места; неактивный тайл не двигается и в
+записи не стоит (как у конца поколения); стол без тайлов — названный пропуск. Новый вид записи `colonyTrack` +
+строка адреса (`colonies · none · none · colonies · world-tracks`; эскиз «экран НЕ открывается» переписан по заказу
+владельца), `IClientResolution.trackAdvance`, гард: мировая часть = `worldMoves` ∨ `trackAdvance`, объявление ↔ шаг
+под `COLONY_TRACK_STEP_KEY`.
+
+**Ловушка спека:** конец поколения двигает активные треки на 1 ДО заседания — `before` записи это учитывает
+(`GENERATION_STEP` в спеке и в фикстуре).
+
+**Чтения** (`colonyTrackModel.ts`): чип ленты `tracks` (член на тайл, «трек на максимуме» словом), строка итогов
+«Треки колоний», блок осмотра «Что делает со столом колоний» (шелл отдаёт `game.colonies`), строка панели
+голосования «Все треки колоний +2» (в бюджете слов). Стенд: пять сценариев под `counts: 'earthVenusJovianTags'`
+с синтетическим столом `tracks` (нетто, ноль, четыре метки, максимум, за шаг до максимума).
+
+**Сцена — шаг-ПОКАЗ на мосту RX09, без вопроса.** `parliamentWorldBeat` замечает записи `colonyTrack` рядом с
+планетарными; в `runWalk` тот же гейт `mayYieldForWorld` → `runTrackMoveBeat`: HOLD (`holdColonyTracks` →
+`presentedColonyModel` читает удержание первым — значение движется только глайдом) → HOST
+(`pushWorkspaceFrame({kind: 'colonies', stage: 'Colonies', serves: [], anchor: 'always'})` на Парламент;
+`stepFrameNested` открывает поле, дверь публикует слот, крошка `ПАРЛАМЕНТ › ЗАСЕДАНИЕ › КОЛОНИИ`, `nested-step`
+держит) → WAVE (`requestColonyTrackWave` в модуле торговли → слой `runTrackWave` на ОДНОМ `runColonyTrackGlide`,
+обобщённом `delayMs`/`pauseMs`/`onStart` + ветка пустого пути; посадка снимает удержание своего тайла, ячейка
+«ТОРГОВАТЬ» отзывается) → LEAVE (`leaveWorkspace()` своей рукой — якорь `always`, шелловый `settleColonyFollowUp`
+его не трогает) → RECEIPT (`receiptShowing`). Тайминги `trackWavePlan`: вдох 760 · стаггер 260 · шаг 220 · пауза
+150 · чтение 900; короткая форма (reduced / fx-lite) — порядок и посадки без импульсов. Холд `colony-track-wave`,
+сеть `totalMs + 8000` (над своей сетью ожидания стола 6 с — стол монтируется и раскладывается уже ПОСЛЕ запроса).
+
+**После первых прогонов e2e (все находки структурные, см. док § 5):** ① `finishColonyTrackWave` снимал ВСЕ
+удержания до проверки `active` — маркеры прыгали на `after` в первом кадре; ② сеть стоящего стола у торговли (2 с)
+истекала внутри входа секции — у волны своя (6 с); ③ строковый вотчер `'colonyTrackWaveState.nonce'` молчал без
+зеркала в `data()` слоя; ④ строка «Треки колоний» в итогах авторасстановкой уводила «Стол» во второй ряд грида
+(274 px на ярусе 265 в 1080) — раскладка `.con-sit__results` теперь явная (выплаты `grid-row: 1`, мировые строки
+под ними, стол `grid-row: 1 / span 3`), высота панели = больший столбец. **Пад на показе:** фрейм колоний на
+вершине отдавал шеллу обычные глаголы секции (A = торговля над движущимся маркером, B = свернуть заседание под его
+тактом) — `isColonyTradeInputLocked()` = true, пока `colonyTrackWaveState.active` (тот же замок, что у глайда
+торговли; юнит `consoleColonyTrade` § волна; e2e держит «панель пуста, пока маркер в воздухе» и «на итогах глаголы
+вернулись»).
+
+**Общие файлы, которые пришлось тронуть (одна строка каждый):** `ConsoleShell.vue` (`zoomResolutionWorld` отдаёт
+`game.colonies`), `ConsoleParliamentSection.vue` (ветка `trackMoveOwed` в `runWalk`), `consoleColonyTrade.ts` /
+`colonyTradeDirector.ts` / `ConsoleColonyTradeLayer.vue` (обобщение глайда и волна — по заказу), локаль, гард
+контракта (мировая часть двух видов).
+
+### Прогоны (2026-09-26)
+
+| Что | Итог |
+| --- | --- |
+| `tests/parliament/UnityBudget.spec.ts` | 20 passing |
+| `ResolutionContract` · `rewardAddress` · `ScientistsBudget` · `GasExport` · `ColonyContest` · `CloudDevelopment` · `IndustrialistBudget` | 133 + 192 passing |
+| `colonyTrackModel` (8) · `parliamentBand` (+1) · `parliamentResults` (+1) · `sittingBeats` · `consoleSittingFlow` · `parliamentNoTimers` · `parliamentGlossary` · `parliamentLessOrder` | 102 passing, 1 фейл — **красный до RX29** (`parliamentResults` § LEVY-нетто RX15: `netOfParts` не тронут, мой дифф аддитивен) |
+| клиент: `parliamentAnnotations` (+1) · `voteInfoBudget` · `voteInfoModel` · `influenceYieldModel` | 84 passing, 1 фейл — **чужой** (`voteInfoBudget`: Trade Industries RX28 @ influence 5 «for another seat: readings 0» — незавершённая правка соседа) |
+| клиент: `colonyTradeModel` (+1 волна) · `consoleColonyTrade` (+1 замок пада) · `parliamentRewardBeat` (вид `colonyTrack` в исчерпывающей выборке) | 54 passing |
+| `npm run lint:client` · `build:test` (обе ступени) · `make:cards` · `make:json` · `make:css` | зелёные |
+| фикстура `parliament-unity-assembly` | сгенерирована (стол 2 · 4 · 5 · 6 после шага поколения), `e2eFixturesLoad` 93 passing |
+| e2e `console-parliament-unity` (standard-1080) | зелёный 5/5 на тихой машине (`--repeat-each=4` + одиночный, ~39 с каждый); 1 красный из 6 — сразу после сборки mochapack на той же машине: фрейм колоний ушёл раньше чтения крошки (②), не воспроизвёлся; с тех пор сообщения ② несут `__conReady().colonyTrackWave` |
+| `npm run lint` (eslint + i18n + vue-tsc) · `build:test` (обе ступени) · `make:json` — повторно после замка пада и раскладки итогов | зелёные |
+
 ## RX30 «Городское развитие» (Urban Development, Марс вперёд) — 2026-09-26
 
 Выдача и задание — копия RX10 (сталь по влиянию, «1 особый тайл», тот же ключ). **Новое одно: второй
