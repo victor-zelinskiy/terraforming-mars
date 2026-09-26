@@ -2344,6 +2344,9 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'hydro-terminal'
   'parliament-openip-enacted' |
   'parliament-rdfunding-enacted' |
   'parliament-budget-vote' | 'parliament-budget-assembly' |
+  // RX27 Scientists Budget: the SECOND budget — 3 printed science tags and influence 2 at the vote (−10 → +5 = −5, and 2 cards);
+  // red wins the assembly, so blue is paid the vote's numbers and takes its two cards.
+  'parliament-scibudget-vote' | 'parliament-scibudget-assembly' |
   // …the SAME budget vote at a SIX-seat table — the worst case of the LEDGER OF OUTCOMES (six chips × two parts).
   'parliament-budget-vote-six' |
   // RX17 Jovian Tax Rights: four cubes (Luna ×2 · Titan · Miranda) and influence 3 at the vote; red wins the assembly, blue is paid the vote's numbers.

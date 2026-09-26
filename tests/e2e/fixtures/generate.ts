@@ -91,6 +91,7 @@ import {RD_FUNDING_ID} from '../../../src/server/parliament/resolutions/scientis
 import {repeatableActionCards} from '../../../src/server/cards/repeatableActions';
 import {ParliamentHandler} from '../../../src/server/parliament/ParliamentHandler';
 import {INDUSTRIALIST_BUDGET_ID} from '../../../src/server/parliament/resolutions/industrialists/IndustrialistBudget';
+import {SCIENTISTS_BUDGET_ID} from '../../../src/server/parliament/resolutions/scientists/ScientistsBudget';
 import {JOINT_RESEARCH_ID} from '../../../src/server/parliament/resolutions/scientists/JointResearch';
 import {PLANT_BAN_ID} from '../../../src/server/parliament/resolutions/reds/PlantBan';
 import {JOVIAN_TAX_RIGHTS_ID} from '../../../src/server/parliament/resolutions/unity/JovianTaxRights';
@@ -100,6 +101,7 @@ import {MIGRATION_FUNDING_ID} from '../../../src/server/parliament/resolutions/m
 import {SKYSCRAPERS_ID} from '../../../src/server/parliament/resolutions/marsFirst/Skyscrapers';
 import {Board} from '../../../src/server/boards/Board';
 import {GHGProducingBacteria} from '../../../src/server/cards/base/GHGProducingBacteria';
+import {NobelPrize} from '../../../src/server/cards/prelude2/NobelPrize';
 import {NuclearPower} from '../../../src/server/cards/base/NuclearPower';
 import {COLONIZATION_FUNDING_ID} from '../../../src/server/parliament/resolutions/unity/ColonizationFunding';
 import {GENEROUS_FUNDING_ID} from '../../../src/server/parliament/resolutions/greens/GenerousFunding';
@@ -1476,6 +1478,45 @@ parliamentFixture('parliament-budget-vote-six', {
     }
   },
 });
+
+// ── RX27 · SCIENTISTS BUDGET (the SECOND budget — «−10 M€; 1 M€ per science tag + influence; each player draws 2»):
+//    the card in the FIRST voting slot. Blue: Agenda step 4 (influence 2; winning → step 5 = 3), 40 M€, and a
+//    tableau that makes the TAG rule read — Research prints TWO science tags, GHG Producing Bacteria one, Nobel
+//    Prize a WILD tag that is none at an enactment: 3 tags. Red: Agenda step 1 (influence 1), no science tag.
+//    Two moments:
+//    · the VOTE — the panel prints the LEVY at the head of the M€ plate, «−10 → [science] 3 + [influence] 2
+//      → +5 = −5» with the win suffix «+1 · step 5», and the 2 CARDS as a row of their own («the same for
+//      every player» — no forecast, no influence cluster, never added to the money);
+//    · the ASSEMBLY — RED's delegate wins (blue keeps influence 2, so the sitting pays blue exactly the vote's
+//      numbers: −10, then +5, then the two cards to take), every seat passed, the assembly gate standing for both.
+function scientistsBudgetTable(stopAt: 'vote' | 'assembly'): ParliamentFixtureSpec {
+  return {
+    resolution: SCIENTISTS_BUDGET_ID,
+    votes: [stopAt === 'vote' ? 0 : 1],
+    agenda: [4, 1],
+    stopAt,
+    arrange: ({p1}) => {
+      p1.playedCards.push(new Research(), new GHGProducingBacteria(), new NobelPrize());
+    },
+    expect: ({p1, p2, parliament}) => {
+      const count = resolutionCount(p1, 'scienceTags');
+      if (count.count !== 3 || count.cards.length !== 2) {
+        throw new Error(`the parliament-scibudget fixture expected blue at 3 printed science tags from 2 cards, got ${JSON.stringify(count)}`);
+      }
+      if (resolutionCount(p2, 'scienceTags').count !== 0) {
+        throw new Error('the parliament-scibudget fixture expected red without a science tag');
+      }
+      if (p1.megaCredits < 10) {
+        throw new Error(`the parliament-scibudget fixture expected blue to afford the whole levy, has ${p1.megaCredits} M€`);
+      }
+      if (!parliament.slots.some((slot) => slot.instance.startsWith(SCIENTISTS_BUDGET_ID))) {
+        throw new Error('the parliament-scibudget fixture lost Scientists Budget out of the voting area');
+      }
+    },
+  };
+}
+parliamentFixture('parliament-scibudget-vote', scientistsBudgetTable('vote'));
+parliamentFixture('parliament-scibudget-assembly', scientistsBudgetTable('assembly'));
 
 // ── RX17 · JOVIAN TAX RIGHTS (Unity — «titanium = influence; +1 M€ production per colony, max 5»): the SIXTH count —
 //    the seat's CUBES on the colony tiles, the engine's own list. Blue: Agenda 5 (influence 3 — a win takes the marker
