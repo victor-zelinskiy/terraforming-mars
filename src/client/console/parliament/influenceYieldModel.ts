@@ -201,6 +201,14 @@ export function yieldCountPresentation(id: ResolutionCountId): YieldCountPresent
       ruleKey: 'Each Venus and Jovian tag counts: a card with both counts twice. Wild tags do not count.',
       skipReasonKey: 'No Venus or Jovian tags and no influence',
     };
+  case 'earthVenusJovianTags':
+    // ONE term over THREE tags (Unity Budget): the three medallions joined by «+», as the face prints them.
+    return {
+      glyph: {kind: 'tags', tags: [Tag.EARTH, Tag.VENUS, Tag.JOVIAN]},
+      pluralKey: '${0} Earth, Venus and Jovian tag(s)',
+      ruleKey: 'Each Earth, Venus and Jovian tag counts: a card with two of them counts twice. Wild tags do not count.',
+      skipReasonKey: 'No Earth, Venus or Jovian tags and no influence',
+    };
   case 'spaceCities':
     // A count over the BOARD: the glyph is the city tile with the footnote spark — the face's own «space city».
     return {

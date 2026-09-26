@@ -25,7 +25,7 @@ function outcome(over: Partial<ParliamentEnactOutcomeModel> & {kind: ParliamentE
  */
 describe('rewardAddress — the table', () => {
   it('has a row for EVERY outcome kind — and only for kinds (the union and the table are one)', () => {
-    expect(OUTCOME_KINDS.slice().sort()).deep.eq(['cardResource', 'cards', 'city', 'colony', 'colonyBonus', 'discard', 'globalParameter', 'greenery', 'ocean', 'production', 'reaction', 'skipped', 'stock']);
+    expect(OUTCOME_KINDS.slice().sort()).deep.eq(['cardResource', 'cards', 'city', 'colony', 'colonyBonus', 'colonyTrack', 'discard', 'globalParameter', 'greenery', 'ocean', 'production', 'reaction', 'skipped', 'stock']);
     for (const kind of OUTCOME_KINDS) {
       expect(REWARD_ADDRESS[kind].kind, kind).eq(kind);
     }
@@ -113,6 +113,13 @@ describe('rewardAddress — the table', () => {
     // marker makes the step, the frame comes back — no seat, no rail, no chip in anybody's hands.
     expect(REWARD_ADDRESS.globalParameter.stage).eq('board');
     expect(REWARD_ADDRESS.globalParameter.unit).eq('none');
+    // …and a WORLD move of EVERY COLONY TRACK (Unity Budget) is the COLONIES screen's: hosted as the sitting's own
+    // SHOW step (the RX09 frame, opened by the record and not by a question), the markers glide, the frame leaves —
+    // no seat, no rail, no chip, nothing flying off the card.
+    expect(REWARD_ADDRESS.colonyTrack.stage).eq('colonies');
+    expect(REWARD_ADDRESS.colonyTrack.surface).eq('colonies');
+    expect(REWARD_ADDRESS.colonyTrack.unit).eq('none');
+    expect(REWARD_ADDRESS.colonyTrack.reading).eq('world-tracks');
     // A rail chip is BORN on a printed icon (the carrier's mechanic, the ruling party's formula) and rides a rail unit;
     // what the board or the stage plate presents has no flight source of its own.
     for (const kind of OUTCOME_KINDS) {

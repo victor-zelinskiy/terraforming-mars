@@ -207,6 +207,7 @@ class ParliamentProcessor {
       ...(definition.winnerReward === undefined ? {} : {winnerReward: {...definition.winnerReward}}),
       ...(definition.tileGrant === undefined ? {} : {tileGrant: {...definition.tileGrant, recipients: {...definition.tileGrant.recipients}}}),
       ...(definition.worldMoves === undefined ? {} : {worldMoves: definition.worldMoves.map((move) => ({...move}))}),
+      ...(definition.trackAdvance === undefined ? {} : {trackAdvance: {...definition.trackAdvance}}),
       module: definition.module,
       party: definition.party,
       copies: definition.copies,

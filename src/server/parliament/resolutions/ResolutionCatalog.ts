@@ -58,6 +58,7 @@ import {runResolutionAction} from './ResolutionAction';
 import {SCIENTISTS_BUDGET} from './scientists/ScientistsBudget';
 import {SKYSCRAPERS} from './marsFirst/Skyscrapers';
 import {TRADE_INDUSTRIES} from './unity/TradeIndustries';
+import {UNITY_BUDGET} from './unity/UnityBudget';
 
 /**
  * THE RETIRED IDS — iteration 0's DUMMY resolutions (a party, a quest, no
@@ -541,6 +542,10 @@ export const REDUX_RESOLUTION_CATALOG = new ResolutionCatalog([
   // influence»): the bill declared as data and priced by ONE function, PAY-THEN-GAIN through the family's paid funnel
   // (the use and the fleet wait in the bill's andThen); and the ninth quest kind — TRADES performed (decision Q-4).
   TRADE_INDUSTRIES,
+  // The FOURTH BUDGET, and the first law that moves the COLONY TABLE: the shared levy (−12 M€), a count over THREE
+  // tags (Earth + Venus + Jovian) + influence, and «advance each colony track 2 steps» — a WORLD step (every tile in
+  // play, once, for nobody) declared as data (`trackAdvance`) and paid by the family's shared `colonyTrackStep`.
+  UNITY_BUDGET,
   TEST_CHOICE,
   DEV_IMMEDIATE,
   DEV_PASSIVE,

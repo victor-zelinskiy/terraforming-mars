@@ -12,6 +12,7 @@ import {PlayerId} from '../../src/common/Types';
 import {AGENDA_TRACK, influenceAtAgenda} from '../../src/common/parliament/ParliamentTypes';
 import {levelAfter, levelAmount, levelTakesAway, scaledAmount, sequelAmount} from '../../src/common/parliament/influenceScaling';
 import {LEVY_STEP_KEY, levyDeclared, levyPaid} from '../../src/common/parliament/resolutionLevy';
+import {COLONY_TRACK_STEP_KEY, colonyTrackAdvanceDeclared} from '../../src/common/parliament/colonyTrackAdvance';
 import {OUTCOME_KINDS, REWARD_ADDRESS, rewardAddressOf} from '../../src/common/parliament/rewardAddress';
 import {isWinnerParameterReward, winnerParameterStepKey} from '../../src/common/parliament/winnerReward';
 import {parameterStepSize} from '../../src/common/parliament/parameterMove';
@@ -329,12 +330,22 @@ function checkSeam(definition: ResolutionDefinition): Array<string> {
   // surface reads (`worldMoves`), the steps that pay it, and the sentence the
   // inspector prints. Two of the three is a card whose reading and whose
   // payout can drift apart.
+  // …and the COLONY TABLE's part (Unity Budget, RX29) is a world part of the same shape: the data every surface
+  // reads (`trackAdvance`), the family's ONE shared step under its own key, and the sentence.
   const worldMoves = (definition.worldMoves ?? []).length > 0;
-  if (worldMoves !== hasWorldSteps(definition)) {
-    failures.push(`${name}: worldMoves and worldSteps must be declared together (the reading and the payout are one declaration)`);
+  const trackAdvance = definition.trackAdvance !== undefined;
+  const worldKeys = (definition.worldSteps ?? []).map((step) => step.key);
+  if ((worldMoves || trackAdvance) !== hasWorldSteps(definition)) {
+    failures.push(`${name}: worldMoves / trackAdvance and worldSteps must be declared together (the reading and the payout are one declaration)`);
   }
-  if (worldMoves && (definition.text.world ?? '') === '') {
+  if ((worldMoves || trackAdvance) && (definition.text.world ?? '') === '') {
     failures.push(`${name}: a world part without its declaration text (the inspector reads it)`);
+  }
+  if (trackAdvance && !colonyTrackAdvanceDeclared(definition.trackAdvance)) {
+    failures.push(`${name}: a colony track advance must ask for a positive whole number of steps`);
+  }
+  if (trackAdvance !== worldKeys.includes(COLONY_TRACK_STEP_KEY)) {
+    failures.push(`${name}: trackAdvance and the shared colony track step '${COLONY_TRACK_STEP_KEY}' must be declared together (the reading and the move are one declaration)`);
   }
   // THE LEVY is declared on TWO layers or on none: the data every surface reads (`levy`) and the family's
   // shared step, FIRST in the seat's own steps (the printed order is the executed order).

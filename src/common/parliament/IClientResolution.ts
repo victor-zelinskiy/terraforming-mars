@@ -7,6 +7,7 @@ import {PartyReaction} from './partyReactions';
 import {WinnerRewardDeclaration} from './winnerReward';
 import {TileGrantDeclaration} from './tileGrant';
 import {WorldParameterMove} from './parameterMove';
+import {ColonyTrackAdvance} from './colonyTrackAdvance';
 import {ResolutionActionBill} from './actionBill';
 import {ActionEffect} from '../models/ActionPreviewModel';
 
@@ -78,6 +79,12 @@ export type IClientResolution = {
    * them. The same declaration `worldSteps` pays by.
    */
   worldMoves?: ReadonlyArray<WorldParameterMove>;
+  /**
+   * The COLONY TABLE's part as data (`colonyTrackAdvance.ts`) — every colony
+   * track advances this many steps at the enactment, once, for nobody (Unity
+   * Budget). The same declaration the shared world step pays by.
+   */
+  trackAdvance?: ColonyTrackAdvance;
   hasImmediate: boolean;
   hasWorldEffect: boolean;
   hasWinnerEffect: boolean;

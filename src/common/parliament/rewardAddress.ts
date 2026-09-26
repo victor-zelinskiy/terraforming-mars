@@ -82,7 +82,12 @@ export type RewardStage = 'reward' | 'choice' | 'take' | 'discard' | 'board' | '
  * reason the seat got none. It is not the winner's reading: several seats receive it, each by its own
  * standing.
  */
-export type RewardReading = 'influence-yield' | 'winner-reward' | 'party-reaction' | 'colony-ledger' | 'world-parameter' | 'tile-grant' | 'skip-plate';
+/**
+ * `world-tracks` — a move of EVERY COLONY TRACK the enactment made for nobody in particular (Unity Budget:
+ * «advance each colony track 2 steps»): the list of tiles with their markers before and after, and the
+ * colonies screen where the markers actually glide. It belongs to no seat: every viewer reads the same list.
+ */
+export type RewardReading = 'influence-yield' | 'winner-reward' | 'party-reaction' | 'colony-ledger' | 'world-parameter' | 'world-tracks' | 'tile-grant' | 'skip-plate';
 
 export type RewardAddress = {
   kind: OutcomeKind;
@@ -159,6 +164,16 @@ export const REWARD_ADDRESS: Readonly<Record<OutcomeKind, RewardAddress>> = {
     kind: 'globalParameter', surface: 'board', source: 'card-icon', unit: 'none', stage: 'board', reading: 'world-parameter',
     skipTitle: 'Skipped: the planet does not move',
   },
+  // A WORLD MOVE OF EVERY COLONY TRACK (Unity Budget, RX29): the enactment advances the whole colony table —
+  // the tiles with no cube on them and the bot's alike — for nobody. Nothing lands in a seat, so there is no
+  // rail chip: the sitting HOSTS the colonies screen as its own SHOW step (the RX09 frame, opened by the law
+  // rather than by a question), the markers glide in a wave, and the frame leaves by itself. The record
+  // belongs to NO seat — every viewer plays and reads it. A track at its end is named IN the list (before ===
+  // after), never a skip of the whole; only a table with no tile in play at all is one.
+  colonyTrack: {
+    kind: 'colonyTrack', surface: 'colonies', source: 'none', unit: 'none', stage: 'colonies', reading: 'world-tracks',
+    skipTitle: 'Skipped: the colony tracks do not move',
+  },
   // The ruling party's answer speaks the unit its RECORD carries (a production step is answered with production); 'stock' is the nominal default.
   reaction: {
     kind: 'reaction', surface: 'rail', source: 'party-plaque', unit: 'stock', stage: 'reward', reading: 'party-reaction',
@@ -190,6 +205,8 @@ export type RewardPayload = {
   parameter?: {id: string; before: number; after: number};
   /** The answering party (`reaction`). */
   party?: string;
+  /** EVERY colony track the enactment advanced (`colonyTrack`): the tile and its marker before and after (equal at the end of the track). */
+  tracks?: ReadonlyArray<{colony: string; before: number; after: number}>;
   /** The COLONY whose printed bonus this record pays (Colonial Affairs) — the ledger row it belongs to. */
   colony?: string;
   /** …how many times that bonus was paid in this one record (the resolution's multiplier k). */
@@ -271,6 +288,9 @@ export function rewardAddressOf(outcome: ParliamentEnactOutcomeModel, viewer: Co
   if (outcome.party !== undefined) {
     payload.party = outcome.party;
   }
+  if (outcome.tracks !== undefined) {
+    payload.tracks = outcome.tracks.map((move) => ({colony: String(move.colony), before: move.before, after: move.after}));
+  }
   if (outcome.colony !== undefined) {
     payload.colony = outcome.colony;
   }
@@ -298,6 +318,12 @@ export function rewardAddressOf(outcome: ParliamentEnactOutcomeModel, viewer: Co
     // The steps actually made are the record's `amount` (negative LOWERS): a
     // move that made none is a skip, and its own reason names why.
     if ((outcome.amount ?? 0) === 0) {
+      delivery.skipped = outcome.reason ?? address.skipTitle;
+    }
+  } else if (outcome.kind === 'colonyTrack') {
+    // The whole table moved as one: a tile at the end of its track is named IN the list, never a skip of the
+    // record; only a table with no tile in play at all (an empty list) is one, and its own reason names it.
+    if ((outcome.tracks ?? []).length === 0) {
       delivery.skipped = outcome.reason ?? address.skipTitle;
     }
   } else if (outcome.kind === 'colonyBonus') {
@@ -330,9 +356,12 @@ export function rewardAddressOf(outcome: ParliamentEnactOutcomeModel, viewer: Co
  *   · `agendaStepAll` (every player advances one Agenda step) — surface `agenda`, source `carrier`, unit
  *     `none`, stage `reward`, reading a marker line per seat («Повестка 2 → 3»), never skipped (the track's
  *     end is «уже в конце трека», a line, not a plate); pose: every marker glides on the rail at once.
- *   · `colonyTrack` (a colony's track marker moves) — surface `colonies`, source `carrier`, unit `none`,
- *     stage `reward` (the colonies screen is NOT opened — the reading names the colony and the step), skip
- *     «нет колонии в игре»; pose: a colony chip with its track step, the reward stays on the sitting.
+ *   · (`colonyTrack` SHIPPED — Unity Budget, RX29: surface `colonies`, source `none`, unit `none`, stage
+ *     `colonies`, reading `world-tracks`. The sketch said «the colonies screen is NOT opened»; the owner's
+ *     order for the first card of the kind was the opposite — the sitting HOSTS the colonies screen as a SHOW
+ *     step (the RX09 frame, opened by the record, no question asked) and every marker glides in a wave. The
+ *     record belongs to no seat, keeps every tile's marker before and after, and a tile at its end is named
+ *     in the list; the skip is a table with no tile in play.)
  *   · (`colonyToWinner` SHIPPED as `colony` — Colony Contest, RX09: surface `colonies`, unit `tile`, stage
  *     `colonies`; the colonies SCREEN is the sitting's hosted step rather than a picker in the task host.)
  *   · (`cityEveryone` SHIPPED as `city` — Skyscrapers, RX20: surface `board`, source `none`, unit `tile`,

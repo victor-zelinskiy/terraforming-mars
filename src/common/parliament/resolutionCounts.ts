@@ -102,6 +102,12 @@ export const RESOLUTION_COUNT_IDS = [
    */
   'venusJovianTags',
   /**
+   * Unity Budget: the EARTH, VENUS and JOVIAN tags the player has in play,
+   * added up — one term over THREE tags (a card printing two of them is worth
+   * 2), read with a per-tag breakdown like Cloud Development's two.
+   */
+  'earthVenusJovianTags',
+  /**
    * Colonization Funding: the player's SPACE CITIES — city tiles on the
    * reserved areas off Mars (Ganymede Colony, Phobos Space Haven, Stanford
    * Torus, the Venus and Pathfinders areas). A count over the BOARD, not the
@@ -252,6 +258,7 @@ export function resolutionCountKind(id: ResolutionCountId): ResolutionCountKind 
   case 'buildingCardsWithNonNegativeVp': return {kind: 'cards'};
   case 'powerTags': return {kind: 'tags', tags: [Tag.POWER]};
   case 'venusJovianTags': return {kind: 'tags', tags: [Tag.VENUS, Tag.JOVIAN]};
+  case 'earthVenusJovianTags': return {kind: 'tags', tags: [Tag.EARTH, Tag.VENUS, Tag.JOVIAN]};
   case 'spaceCities': return {kind: 'board', tiles: 'spaceCity', measure: 'cells'};
   case 'terraformRatingSets': return {kind: 'threshold', metric: 'terraformRating', over: TERRAFORM_RATING_SETS_OVER, step: TERRAFORM_RATING_SETS_STEP};
   case 'steelTitaniumEnergyProduction': return {kind: 'production', resources: INDUSTRIAL_PRODUCTION_RESOURCES};
@@ -568,6 +575,17 @@ export function cardCountVerdict(id: ResolutionCountId, card: CountedCardFacts, 
     }
     if (!card.tags.includes(Tag.VENUS) && !card.tags.includes(Tag.JOVIAN)) {
       return {counts: false, reason: 'No Venus or Jovian tag'};
+    }
+    return {counts: true};
+  }
+  case 'earthVenusJovianTags': {
+    // The same one question, over three tags: prints an Earth, a Venus OR a
+    // Jovian tag, face up. Which of them (or how many) is the UNITS' business.
+    if (!cardTagsInPlay(card, ctx)) {
+      return {counts: false, reason: 'A played event is face down'};
+    }
+    if (!card.tags.includes(Tag.EARTH) && !card.tags.includes(Tag.VENUS) && !card.tags.includes(Tag.JOVIAN)) {
+      return {counts: false, reason: 'No Earth, Venus or Jovian tag'};
     }
     return {counts: true};
   }

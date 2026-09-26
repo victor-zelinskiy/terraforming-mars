@@ -6,6 +6,7 @@ import {ResolutionLevy} from '../../../common/parliament/resolutionLevy';
 import {WinnerRewardDeclaration} from '../../../common/parliament/winnerReward';
 import {TileGrantDeclaration} from '../../../common/parliament/tileGrant';
 import {WorldParameterMove} from '../../../common/parliament/parameterMove';
+import {ColonyTrackAdvance} from '../../../common/parliament/colonyTrackAdvance';
 import {ResolutionActionBill} from '../../../common/parliament/actionBill';
 import type {SerializedEnactOutcome} from '../SerializedParliament';
 import {ActionEffect} from '../../../common/models/ActionPreviewModel';
@@ -350,6 +351,17 @@ export interface ResolutionDefinition {
    * `worldSteps` pays by. Declared BESIDE `worldSteps`, never instead of it.
    */
   worldMoves?: ReadonlyArray<WorldParameterMove>;
+  /**
+   * WHAT THE ENACTMENT DOES TO THE COLONY TABLE, as data (`colonyTrackAdvance.ts`)
+   * — Unity Budget: «advance each colony track 2 steps», every tile in play,
+   * once, for nobody. Paid by the family's ONE shared step
+   * (`colonyTrackStep(id, advance)`, listed in `worldSteps` under
+   * `COLONY_TRACK_STEP_KEY`; the guard refuses the declaration without its
+   * step and the step without its declaration). Exported to the manifest, so
+   * the vote reading, the sitting's scene, the results and the stand state
+   * the move from the same declaration the step pays by.
+   */
+  trackAdvance?: ColonyTrackAdvance;
   /** Per-player immediate effect (every participating player, generation order). */
   immediateSteps?: ReadonlyArray<EnactStep>;
   /**

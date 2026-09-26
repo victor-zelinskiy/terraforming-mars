@@ -8,6 +8,7 @@ import {ColonyName} from '../../common/colonies/ColonyName';
 import {Resource} from '../../common/Resource';
 import {BotParliamentMode, ParliamentPhaseStep, QuestDefinition, ResolutionInstanceId} from '../../common/parliament/ParliamentTypes';
 import {ParameterMoveId} from '../../common/parliament/parameterMove';
+import {ColonyTrackMove} from '../../common/parliament/colonyTrackAdvance';
 import {ResolutionCountByResource, ResolutionCountMetricModel} from '../../common/parliament/resolutionCounts';
 import type {EventTrigger} from '../../common/events/GameEvent';
 
@@ -79,11 +80,13 @@ export type SerializedEnactOutcome = {
    * built onto the seat's own city (Skyscrapers — `space` names the cell,
    * `stackHeight` the stack it became) · `globalParameter` a WORLD move of a
    * global parameter (Gas Export — see `parameter`, and `amount` = the steps
-   * actually made, negative for a lowering) · `skipped` nothing happened (see
+   * actually made, negative for a lowering) · `colonyTrack` a WORLD move of
+   * EVERY colony track (Unity Budget — see `tracks`, and `amount` = the steps
+   * declared) · `skipped` nothing happened (see
    * `reason`) · `reaction` the RULING PARTY's answer to this step's own change
    * (see `party`).
    */
-  kind: 'cardResource' | 'production' | 'stock' | 'cards' | 'discard' | 'colonyBonus' | 'ocean' | 'greenery' | 'colony' | 'city' | 'globalParameter' | 'skipped' | 'reaction';
+  kind: 'cardResource' | 'production' | 'stock' | 'cards' | 'discard' | 'colonyBonus' | 'ocean' | 'greenery' | 'colony' | 'city' | 'globalParameter' | 'colonyTrack' | 'skipped' | 'reaction';
   /**
    * THE COLONY whose printed bonus this record pays (Colonial Affairs: «gain
    * all your colony bonuses k times») — the ledger row the record belongs to
@@ -234,6 +237,13 @@ export type SerializedEnactOutcome = {
    * own TR; a world move that could not happen names itself in `reason`).
    */
   parameter?: {id: ParameterMoveId; before: number; after: number};
+  /**
+   * `colonyTrack` (and its skip): EVERY colony tile in play with its track
+   * marker before and after the advance — equal for a tile whose track stood
+   * at its end (named by the reading, never a silent early return). Frozen
+   * here: a later trade never rewrites what the law moved.
+   */
+  tracks?: Array<ColonyTrackMove>;
   /**
    * `globalParameter`: NOBODY was credited with a terraform rating for this
    * move (the law's own «no one gets the TR for this») — recorded so the
