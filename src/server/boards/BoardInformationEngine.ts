@@ -1481,13 +1481,18 @@ function withHypotheticalTile<T>(player: IPlayer, space: Space, ctx: PlacementPr
       // Mirrors `Game.simpleAddTile`: an ocean (and the two unowned special tiles)
       // belongs to nobody, so it must NOT count towards the placer's tile awards.
       space.player = UNOWNED_TILES.has(tile) ? undefined : player;
-      space.stackHeight = undefined;
+      delete space.stackHeight;
     }
     return read();
   } finally {
     space.tile = savedTile;
     space.player = savedPlayer;
-    space.stackHeight = savedHeight;
+    // Restore the KEY, not just the value: an absent stackHeight must stay absent (the shape a reload produces).
+    if (savedHeight === undefined) {
+      delete space.stackHeight;
+    } else {
+      space.stackHeight = savedHeight;
+    }
   }
 }
 

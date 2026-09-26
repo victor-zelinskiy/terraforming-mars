@@ -2269,7 +2269,9 @@ export class Game implements IGame, Logger {
   public simpleAddTile(player: IPlayer, space: Space, tile: Tile) {
     space.tile = tile;
     // A fresh tile object on the cell is one tile: whatever stack stood here is gone with the tile it stood on.
-    space.stackHeight = undefined;
+    // Removed rather than set to undefined: an absent key IS height 1 (the serializer omits it), and a key that
+    // merely holds undefined makes a live cell differ in shape from the same cell reloaded.
+    delete space.stackHeight;
     if (tile.tileType === TileType.OCEAN ||
       tile.tileType === TileType.MARTIAN_NATURE_WONDERS ||
       tile.tileType === TileType.REY_SKYWALKER) {
@@ -2457,7 +2459,7 @@ export class Game implements IGame, Logger {
     const space = this.board.getSpaceOrThrow(spaceId);
     space.tile = undefined;
     space.player = undefined;
-    space.stackHeight = undefined;
+    delete space.stackHeight;
   }
 
   /**
