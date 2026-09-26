@@ -438,5 +438,4 @@ describe('ApiCreateGame', () => {
     expect(res.statusCode).eq(statusCode.badRequest);
     expect(res.content).contains('at least 6 CEOs');
   });
-
 });
