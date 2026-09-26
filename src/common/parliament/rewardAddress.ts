@@ -230,7 +230,7 @@ export type RewardPayload = {
   multiplier?: number;
   /** `colonyBonus`: the tile's printed description of the bonus (an English key of the colony's own). */
   description?: string;
-  /** `tileRemoved`: the cell the tile left (the board scene's own address), and who chose it. */
+  /** The CELL a record names (the board scene's own address): `tileRemoved` the one the tile left, a placement the one it took — and who chose it. */
   space?: string;
   actor?: string;
 };

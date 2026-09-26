@@ -25,7 +25,7 @@ function outcome(over: Partial<ParliamentEnactOutcomeModel> & {kind: ParliamentE
  */
 describe('rewardAddress — the table', () => {
   it('has a row for EVERY outcome kind — and only for kinds (the union and the table are one)', () => {
-    expect(OUTCOME_KINDS.slice().sort()).deep.eq(['cardResource', 'cards', 'city', 'colony', 'colonyBonus', 'colonyTrack', 'discard', 'globalParameter', 'greenery', 'ocean', 'production', 'reaction', 'skipped', 'stock']);
+    expect(OUTCOME_KINDS.slice().sort()).deep.eq(['cardResource', 'cards', 'city', 'colony', 'colonyBonus', 'colonyTrack', 'discard', 'globalParameter', 'greenery', 'ocean', 'production', 'reaction', 'skipped', 'stock', 'tileRemoved']);
     for (const kind of OUTCOME_KINDS) {
       expect(REWARD_ADDRESS[kind].kind, kind).eq(kind);
     }
@@ -161,7 +161,9 @@ describe('rewardAddress — the delivery of a record', () => {
     const ocean = rewardAddressOf(outcome({kind: 'ocean', part: 'winner', space: '03', parameter: {id: 'oceans', before: 2, after: 3}}), 'blue');
     expect(ocean.address.surface).eq('board');
     expect(ocean.skipped, 'a tile has no amount and is never a skip by its absence').is.undefined;
-    expect(ocean.payload).deep.eq({parameter: {id: 'oceans', before: 2, after: 3}});
+    // RX33: a record that names a CELL carries it in the payload — the board scene addresses
+    // the cell, and a placement names one exactly as a removal does.
+    expect(ocean.payload).deep.eq({parameter: {id: 'oceans', before: 2, after: 3}, space: '03'});
 
     const reaction = rewardAddressOf(outcome({kind: 'reaction', party: PartyName.GREENS, trigger: 'production-gain', production: Resource.MEGACREDITS, amount: 2}), 'blue');
     expect(reaction.address.source).eq('party-plaque');
