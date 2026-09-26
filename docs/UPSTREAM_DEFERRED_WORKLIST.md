@@ -252,3 +252,72 @@ host — invisible in a local run. 5.110.1 may or may not be the fix. Verify aga
 embedded-server path (`docs/EMBEDDED_SERVER.md`) on a second machine before bumping.
 Other bumps in that window (webpack-cli, markdown-it 15.0.1, uuid, css-loader,
 browserslist) are ordinary and can ride a normal dependency pass.
+
+---
+
+## E. Upstream 2026-09-01 → 2026-09-25 (`81ca5a9915..9f68b8e204`, 72 commits)
+
+**Taken (server rules / priorities / fixes):** Pioneer4 pointed at the wrong milestone
+(`1071167794`); New Partner discards the prelude it does not play (`3b3206043c`);
+`MAYBE_BLOCK_ATTACK` — choosing to block an attack resolves first (`3490c4b75c`, plus the
+removal of the unused `LOSE_AS_MUCH_AS_POSSIBLE`); the Neptunian Power Consultants chain —
+affordability evaluated at resolve time, `BEFORE_OPPONENT_TRIGGER` for Flooding's attack,
+owner-vs-opponent priority, Polaris income first (`55ef86d537`, `9ea0132db2`,
+`162ad68291`, `3dc079b4e1`); Underworld temperature bonuses vs asteroid-like attacks
+(`509415838b`); Martian Nature Wonders' cubes no longer block Research Outpost
+(`16d2bb8152`); Chimera / Odyssey handling in Agronomist, Planetologist and Curator
+(`4652713c9a`, `bb39927cc3`); `bespokePlayBefore` + Solar Storm (`818f1fa169`); Reds
+compatibility for spend-to-raise actions (`2b0c4a5580`); escape-velocity sanitizing on
+load (`0e91ad3fe7`); SelectPaymentDeferred tests (`1c74218341`); small typing/cleanup
+commits (`c5728d32c1`, `1717517bf3`, `fd8f1ddf73`); non-RU locale realignments
+(`d0d9c43fa7`, `caded0f08c`).
+
+**Adapted by hand (the upstream form sits on the declined route refactors):** Discord
+missing-code → 400 (`6c71f61180`); periodic deletion of expired sessions on every backend
++ the in-memory test double + a GameLoader counter, minus MetricsDelegate (`aa7eed2e68`);
+escape-velocity sanitizing on CREATE placed in `newGameConfigToOptions` so campaign
+creation shares it (`33008e2922`); custom card-list size validation answering
+`responses.badRequest` and resolving the route's body promise (`64641f602a`).
+
+**Merge notes worth remembering.** Flooding, Neptunian and Solar Storm are fork-reworked:
+the resolutions keep our premium prompt shapes (flat leaf options with metadata, the
+choice-context marker, `isProtectedFrom` / `losesHalfFrom` asked about the PERPETRATOR)
+and apply upstream's ordering/lazy-evaluation on top. The Executor's new per-unit spend
+loop keeps Floodgate steel in `available` and reserves only on-board steel for the
+Reds-tax check. Three imported upstream specs drove upstream's nested
+`SelectPlayer`/`SelectPayment` shapes and were adapted, not the code
+(`upstream-spec-encodes-upstream-rules`).
+
+**Declined:** `9960c15601` (removes `Deck.shuffle(cardsOnTop)` — that IS our dev
+«Guaranteed cards» mechanism and what the e2e deals rely on); `c604f60dcf` (drops an
+old-save migration — we keep saves loadable); `f27d37ad2a` and `942080257e` (dead-key
+removal / «gain»→«add» prompt titles — locale-wide conflicts for no functional gain, and
+RU would orphan); `9e120cc0a6` (helper move conflicting inside two hooked cards);
+`5cfa3f9382` (a required `ViewModel.color` for the deleted desktop client); the Turmoil
+policy wording cleanups (`d0058fb825`, `ce8670f339`, `6dbb55db00` — English KEY changes on
+a frontier module, RU would orphan); every desktop/info-panel/log-panel/mobile commit.
+
+### Needs its own iteration
+
+- **`8d3eecab04` — custom corporation / prelude / CEO lists become THE deck** (today they are
+  stacked on top of the full deck, so Merger / Board of Directors draw outside the list).
+  A real rule fix, but it changes what our testMode deal sizes and the e2e
+  «custom corporations = cards on top» assumption see; must be re-validated against
+  `devGuaranteedCards`, the fixture generator and `console-prompt-admission`.
+- **Request-body hardening chain** — `385ce97500` (413 on oversized bodies),
+  `d8f76c3ff0` (stop reading past the limit), `70b3f7cab2` (settle when the body never
+  arrives), `7104d48dbd` (MockRequest buffers), `4e44770214`. Genuine hardening, but it is
+  built on `readBody.ts` + `RouteError` (§D2/§D4) — port together with the route refactor.
+- **`79ffa23390` — vestigial tiles replaced by cubes** (`SpaceCube`, `BoardSpaceCube.vue`,
+  30 files, server + board client). Touches the board rendering we reworked; the server
+  half (`SpaceModel.cube`, `Game.ts`) is separable.
+- **Mocha 12 (`61498afa85`) + parallel `test:server` (`ec88393cac`)** — our runner goes
+  through `run-tests.mjs` with collected-count floors and the bundle-shared module-state
+  rules; parallelism needs its own verification. `npm audit` today: jsdiff DoS via mocha's
+  `diff`, `serialize-javascript` ≤7.0.4 — a dependency pass, likely cleared by the same bump.
+- `LocalStorageStore` / `SafeLocalStorage` (`a557945ce3`, `f9962ba4ad`, …) — a namespaced,
+  typed, TTL'd localStorage wrapper; worth adopting if console persistence grows beyond the
+  create-game settings.
+
+**Baseline note:** `tests/database/Cloner.spec.ts` («solo game preserved», board
+deep-equal) is red at `da771a6b0c`, before this audit — pre-existing, not introduced here.
