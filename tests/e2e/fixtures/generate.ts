@@ -88,6 +88,7 @@ import {HEAT_CAPTURE_ID} from '../../../src/server/parliament/resolutions/reds/H
 import {MOHOLE_CONTEST_ID} from '../../../src/server/parliament/resolutions/greens/MoholeContest';
 import {OPEN_IP_TRADE_ID} from '../../../src/server/parliament/resolutions/scientists/OpenIpTrade';
 import {RD_FUNDING_ID} from '../../../src/server/parliament/resolutions/scientists/RdFunding';
+import {TRADE_INDUSTRIES_ID, tradeIndustriesPrice} from '../../../src/server/parliament/resolutions/unity/TradeIndustries';
 import {repeatableActionCards} from '../../../src/server/cards/repeatableActions';
 import {ParliamentHandler} from '../../../src/server/parliament/ParliamentHandler';
 import {INDUSTRIALIST_BUDGET_ID} from '../../../src/server/parliament/resolutions/industrialists/IndustrialistBudget';
@@ -1352,6 +1353,43 @@ parliamentFixture('parliament-openip-enacted', {
       throw new Error('the parliament-openip-enacted fixture expected the action unspent');
     }
     expectViewerOpensGeneration(table, p2, 'parliament-openip-enacted');
+  },
+});
+
+// ── RX28 · TRADE INDUSTRIES (Unity — the first PAID action: «pay 12 M€ to gain an extra trade fleet; titanium
+//    accepted, 2 M€ off per influence»): the law ENACTED (red's delegate won the sitting), generation 2 open on RED —
+//    the seat the loader opens — at influence 2 (the price reads 12 − 4 = 8), with titanium in the supply so the bill
+//    offers the lane, one fleet, and the action unspent. ──
+parliamentFixture('parliament-tradeind-enacted', {
+  resolution: TRADE_INDUSTRIES_ID,
+  votes: [1],
+  agenda: [1, 2],
+  stopAt: 'done',
+  arrange: ({p2}) => {
+    p2.titanium = 2;
+  },
+  expect: (table) => {
+    const {p2, parliament} = table;
+    if (parliament.enacted !== resolutionInstanceId(TRADE_INDUSTRIES_ID, 0)) {
+      throw new Error(`the parliament-tradeind-enacted fixture expected Trade Industries enacted, got ${parliament.enacted}`);
+    }
+    const price = tradeIndustriesPrice(p2);
+    if (price.price !== 8 || price.influence !== 2) {
+      throw new Error(`the parliament-tradeind-enacted fixture expected red to pay 8 at influence 2, got ${JSON.stringify(price)}`);
+    }
+    if (p2.titanium < 1) {
+      throw new Error('the parliament-tradeind-enacted fixture expected red to hold titanium (the bill must offer the lane)');
+    }
+    if (p2.colonies.getFleetSize() !== 1) {
+      throw new Error(`the parliament-tradeind-enacted fixture expected one fleet, got ${p2.colonies.getFleetSize()}`);
+    }
+    if (parliament.resolutionActionUsesLeft(p2) !== 1) {
+      throw new Error('the parliament-tradeind-enacted fixture expected the law action unspent');
+    }
+    if (!p2.canAfford({cost: price.price, titanium: true})) {
+      throw new Error('the parliament-tradeind-enacted fixture expected red to afford the fleet');
+    }
+    expectViewerOpensGeneration(table, p2, 'parliament-tradeind-enacted');
   },
 });
 

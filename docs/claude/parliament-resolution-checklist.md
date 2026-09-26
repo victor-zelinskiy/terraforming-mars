@@ -78,6 +78,9 @@ worklist:** сначала пиши карту, потом читай, что о
    `forecast` — двойник есть сама надбавка в зоне меток (факта не давать); раздел RX26 ниже.
    **ПЛАТА** (RX15, семейство БЮДЖЕТ) — `levy: {resource, amount, recipient: 'each'}` + общий шаг `levyStep(id, levy)`
    ПЕРВЫМ в `immediateSteps`; `from: {resolution}` обязателен; частичная уплата и пустой запас названы (раздел RX15 ниже).
+   **ПЛАТНОЕ ДЕЙСТВИЕ резолюции** (RX28) — счёт как данные `actionBill: {amount, discountPerInfluence, titanium}`, скидка
+   ОДНОЙ функцией `actionBillPrice` (её читают `canAct`, счёт, превью, плитка, композер, стенд), ПЛАТИ-ПОТОМ-ПОЛУЧАЙ через
+   общую воронку `runPaidResolutionAction` (учёт использования и выдача — в `andThen` счёта; маркер стадии `pay`); раздел RX28 ниже.
 8. Ни слова о партиях: реакция правящей партии (Зелёные и т.д.) — данные `PartyEffectDefinition.reactions`,
    запись `kind:'reaction'` делает драйвер фазы из событий рекордера (Э1). Карта платит через `stock.add` /
    `production.add` с `from: {resolution: ID}` — этого достаточно.
@@ -931,6 +934,47 @@ immediateSteps: [levyStep(ID, LEVY), MEGACREDITS_STEP, DRAW_STEP],              
   expect})` в `tests/e2e/fixtures/generate.ts`; `FIXTURES=parliament-<name>-vote,… npm run e2e:fixtures`;
   `tests/console/e2eFixturesLoad.spec.ts` проверит загрузку и ворота.
 - [ ] Сценарии «Полигона» выводятся из семейства (`familyOf`); ручной сценарий — только для правила-исключения.
+
+### ПЛАТНОЕ действие — счёт как данные, скидка ОДНОЙ функцией, ПЛАТИ-ПОТОМ-ПОЛУЧАЙ (RX28, 2026-09-26)
+
+```ts
+actionBill: {amount: 12, discountPerInfluence: 2, titanium: true},   // common/parliament/actionBill.ts — экспорт в манифест
+// цена: actionBillPrice(bill, parliament.influence(player)) → {printed, influence, discount, price}; пол ноль
+execute: (player, parliament, meta) => new SelectOption(message('Pay ${0} M€ …', price), 'Buy fleet')
+  .withMetadata({kind: 'generic', icon: 'megacredits', amount: price, effects: preview(player)})
+  .markChoiceContext({source: SOURCE, …}).markResolutionActionPrompt(meta)
+  .andThen(() => { runPaidResolutionAction(player, parliament, ID, {amount, canUseTitanium, title, meta}, () => grant(player)); return undefined; }),
+```
+
+- **Цена считается в ОДНОМ месте** — `actionBillPrice` над объявлением; сервер читает её в `canAct` (отказ НАЗЫВАЕТ цену и
+  средства: «Need ${0} M€ …, you can pay ${1}» — M€ + титан по курсу движка), в `execute` (сумма счёта перечитана в момент
+  ответа), в `preview(player)` (чип `−price · current → resulting`, базис `Влияние: I · Скидка: D`, нота «titanium accepted»);
+  клиент читает манифест (`IClientResolution.actionBill`) той же функцией — строка композера «Цена 8 M€ — печатные 12 минус 4
+  за влияние 2» и сценарии стенда (влияние 0 / 3 / 6, титан есть / нет, средств не хватает — с серверной причиной).
+- **ПЛАТИ, ПОТОМ ПОЛУЧАЙ** — `runPaidResolutionAction` (`resolutions/ResolutionAction.ts`): ответ открывает корень под
+  источником закона и ВНУТРИ откладывает `SelectPaymentDeferred` (`canUseTitanium` движка, `cause` — резолюция, маркер
+  `resolutionAction: {…meta, stage: 'pay'}`); заголовок, `recordResolutionActionUse` и мутация — в `andThen` счёта. Reload
+  внутри счёта = ничего не произошло (очередь не сериализуется): действие предлагается снова. Цена 0 — счёт закрывается
+  сам; место без титана списывается в M€ без промпта.
+- **Молчаливый потолок движка — это гейт**: `increaseFleetSize` упирается в `MAX_FLEET_SIZE` без слова → `canAct` называет
+  «уже максимум» вместо продажи воздуха.
+- **Клиент — тот же композер, три стадии**: `confirmPrompt` (тип `option` в помеченной ветке; A = глагол сервера),
+  `billStanding` (`resolutionBillOf(wf)` — верхний `payment` с маркером стадии `pay`; вычисляется из того же `playerView`, что
+  и `entry`, иначе вотчер «запись меню ушла» закроет стадию раньше, чем счёт увидится), результат `PartyActionResult.fleet`.
+  Хост: `billStepHosted` → крошка «ОПЛАТА», ответ со счётом не завершает флоу, уход счёта / автосписание → `beginFleetResult`
+  (модель против `flow.fleetBefore` / `mcBefore` / `titaniumBefore`, записанных при коммите по `PartyConfirmDetail.fleet`).
+  Шелл: `taskEmbedTarget` → `[data-embed-slot="action-bill"]` (только у не-припаркованного фрейма), `partyFlowOwed` держит
+  workspace, пока счёт стоит. Плитка: `bill` в источнике → продолжение «Оплата».
+- **Задание «совершить N торговель»** — `{kind: 'trade'}`; репорт `ParliamentHandler.onTrade` из `Colony.trade` (единственная
+  дверь: действие торговли любой оплатой, действие карты, бесплатная торговля Союза); `eligible` отсекает бота, источник-резолюцию
+  и чужую фазу; сноска — `b.trade({amount: N, digit: true})` (глиф ТОРГОВЛИ с цифрой, никогда маркер флота).
+- **Четыре ловушки общего слоя для ЛЮБОГО хостимого промпта после коммита действия резолюции** (док § 4.1): ответ, лишь
+  откладывающий промпт, не двигает `gameAge` (ответ узнают по СТРУКТУРЕ — маркер стадии `pay`; ожидание шелла отвечает
+  `step`, никогда `dismiss`); промпт с `resolutionActionPrompt` — не «вопрос резолюции» для ворот анонса (`isResolutionAsk`);
+  зону телепорта публикует хозяин post-flush (`consoleCardActionsUi.billZone`), шелл держит хост «нигде» до публикации;
+  `onTaskSubmit` не закрывает слои под счётом закона, ответ ждут следующим ответом (`awaitFleetResult`), `partyFlowOwed`
+  держит workspace от коммита до такта, `flowCommitted` глушит `cancel` композера.
+  Док: `docs/TURMOIL_REDUX_TRADE_INDUSTRIES.md`.
 
 ## 8. Рецепт одной строкой
 

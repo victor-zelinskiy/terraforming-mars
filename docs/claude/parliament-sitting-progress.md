@@ -3687,3 +3687,71 @@ hand-pick bridge с тремя новыми полями запроса — `hos
 [влияние] 2 → +5 = −5 · +1 если победите · шаг 5» и «+2 [карта]» ОТДЕЛЬНОЙ строкой; чипы мест
 «ВЫ −5 +2» / «−9 +2»), `04-reward-settled` (после трёх тактов: рейка 55 с «+5», лента «ВАША НАГРАДА ·
 ЭТА ВЫПЛАТА» с тем же нетто и добором, стадия — взятие двух карт с «L3 Источник»).
+
+---
+
+## RX28 «Торговая индустрия» (2026-09-26) — первое ПЛАТНОЕ действие резолюции, задание «торговля»
+
+Док: `docs/TURMOIL_REDUX_TRADE_INDUSTRIES.md`. Печатное: «Действие: заплатите 12 M€ и получите
+дополнительный торговый флот; можно титаном; скидка 2 × влияние». Задание — совершить 2 торговли
+(`Q-4` по этой карте закрыт: значок сноски ≠ значок флота в правиле; задания — совершение, не состояние;
+«2 флота за поколение» мертво).
+
+**Цена — ОДНА функция над объявлением.** `actionBill: {amount, discountPerInfluence, titanium}` как
+данные (экспорт в манифест), `actionBillPrice(bill, influence)` в `common/parliament/actionBill.ts`;
+её читают `canAct` (отказ называет цену и средства с титаном по курсу), счёт (сумма перечитана при
+ответе), `preview(player)` (чип `−8 · 20 → 12`, базис «Влияние: 2 · Скидка: 4», нота «можно титаном»),
+плитка (чип сервера как есть), композер (строка «Цена 8 M€ — печатные 12 минус 4 за влияние 2» из
+манифеста и живого влияния) и стенд (влияние 0/3/6, титан есть/нет, средств не хватает).
+
+**ПЛАТИ-ПОТОМ-ПОЛУЧАЙ — вторая воронка семейства.** `runPaidResolutionAction` открывает корень под
+источником закона и ВНУТРИ откладывает `SelectPaymentDeferred` (титан движка, `cause` — резолюция,
+маркер `resolutionActionPrompt` стадии `pay`, переносимый `SelectPayment.toModel`); заголовок,
+`recordResolutionActionUse` и флот (`increaseFleetSize` — вызов Huan / `addTradeFleet`) ждут в `andThen`.
+Reload внутри счёта = ничего не произошло, действие предлагается снова. Полный флот — гейт с причиной.
+
+**Клиент — тот же композер, три стадии.** ЦЕНА (`confirmPrompt`, A = глагол сервера «Купить флот»,
+ответ `{type: 'or', index, response: {type: 'option'}}` + detail `{fleet: true}`) → ОПЛАТА (`resolutionBillOf`
+— верхний `payment` по маркеру; хост оплаты телепортирован шеллом в `[data-embed-slot="action-bill"]`,
+`partyFlowOwed` держит workspace, крошка «ОПЛАТА») → РЕЗУЛЬТАТ (`PartyActionResult.fleet {from, to, paid}`
+— корабль `ColonyFleetIcon`, «Оплачено» M€/титан или «бесплатно»; `beginFleetResult` против записей
+коммита `fleetBefore` / `mcBefore` / `titaniumBefore`).
+
+**Ловушка, пойманная e2e с первого прогона:** ответ, который лишь ОТКЛАДЫВАЕТ счёт, ничего не
+логирует, а `gameAge++` на сервере — только после ПОЛНОСТЬЮ разрешённого действия; хост снимал
+`submitting` по смене `gameAge` — стадия стояла «Выполняется…» (ветка продажи) поверх собственного счёта
+до 6-секундной страховки. Починено структурно: приход счёта ЭТОГО закона — это и есть ответ
+(`billStepHosted` rising edge → `clearPartySubmit`), ветка счёта в шаблоне раньше продажи, `saleStage`
+исключает стоящий счёт.
+
+**Задание `trade`** — девятый вид: репорт `ParliamentHandler.onTrade` из `Colony.trade` (единственная
+дверь; бесплатная торговля Союза включительно), `eligible` отсекает бота (его `botTrade` в
+`Colony.trade` и не заходит), источник-резолюцию, чужую фазу; сноска — `b.trade({amount: 2, digit: true})`.
+
+**Ещё три ловушки общего слоя, вскрытые тем же e2e** (док карты § 4.1): ворота анонса считали счёт
+«вопросом резолюции» по `choiceContext.source` (→ `isResolutionAsk`: маркер `resolutionActionPrompt` = своё
+действие); цель телепорта из промпта не существовала в патче прихода счёта (→ зона публикуется композером
+post-flush, `consoleCardActionsUi.billZone`, шелл держит хост «нигде» до публикации); `onTaskSubmit` закрывал
+слои под счётом (→ исключение `partyBillStanding`), а такт результата ждёт СЛЕДУЮЩИЙ ответ
+(`awaitFleetResult`, `partyFlowOwed` от коммита до такта, `flowCommitted` в композере).
+
+**Смежная правка чужого спека:** рост каталога сдвинул посевную раздачу — `OpenIpTrade.spec`
+«граница поколения» встал на спрашивающей карте в слоте 0; переведён на `quietWinnerIndex` +
+`seatQuiet` (как RX27 чинил `CloudDevelopment.spec`).
+
+### Прогоны (2026-09-26)
+
+| Что | Итог |
+| --- | --- |
+| `tests/parliament/TradeIndustries.spec.ts` | 26 passing |
+| `tests/parliament/*.spec.ts` (вся папка) | 932 passing, 1 фейл — **красный до RX27** (`CentralPowerGrid` § модель, `declaredCountIds`) |
+| `ResolutionContract` · `OpenIpTrade` · `RdFunding` · `QuestTracker` · `PartyPresentation` · `Parliament` · `PartyEffects` · `ParliamentModel` | 265 passing |
+| `Huan` · `Colony` · `Colonies` · `TradeEnvoys` · `TitanFloatingLaunchPad` · `TradeAdvance` · `e2eFixturesLoad` | 131 passing |
+| `parliamentGlossary` · `e2eFixturesLoad` · `promptMarkerGuard` | 96 passing |
+| клиент: `ConsolePartyActionComposerBill` (7) · `…Repeat` · `consoleParliamentModel` (+2) · `consoleCardActions` (+1) | 100 passing |
+| `npm run lint` (eslint + i18n + vue-tsc) · `build:test` (обе ступени) · `make:cards` · `make:json` | зелёные |
+| фикстура `parliament-tradeind-enacted` | сгенерирована (`phase=action gen=2`), загружается |
+| e2e `console-parliament-tradeind` (standard-1080) | **1 passed** (1,2 мин) после четырёх правок общего слоя; кадры `screenshots/parliament-tradeind/01…06` |
+| регрессия e2e `console-parliament-openip` · `-rdfunding` · `-actions` | см. итог прогона в отчёте |
+| `e2eDriverGuard` · `e2eFixturesLoad` · `parliamentGlossary` · `promptMarkerGuard` | 103 passing |
+| клиент: `consoleMandatoryGate` (+1) · `surfaceMotionModel` (+1) | 19 · 26 passing |

@@ -2343,6 +2343,8 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'hydro-terminal'
   // RX24 Open IP Trade: the law ENACTED, blue opening generation 2 with four cards in hand and the action unspent.
   'parliament-openip-enacted' |
   'parliament-rdfunding-enacted' |
+  // RX28 Trade Industries: the law ENACTED, red opening generation 2 at influence 2 (the fleet costs 8) with titanium to pay.
+  'parliament-tradeind-enacted' |
   'parliament-budget-vote' | 'parliament-budget-assembly' |
   // RX27 Scientists Budget: the SECOND budget — 3 printed science tags and influence 2 at the vote (−10 → +5 = −5, and 2 cards);
   // red wins the assembly, so blue is paid the vote's numbers and takes its two cards.
