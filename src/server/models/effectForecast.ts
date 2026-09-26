@@ -93,6 +93,41 @@ function reactorsOf(owner: IPlayer, active: IPlayer, card: ICard): Array<ICard> 
   return out;
 }
 
+/**
+ * TURMOIL REDUX — the ENACTED RESOLUTION's passive answers the acting seat's
+ * PLAY through its own card-played twin (`ResolutionPassive.cardPlayedForecast`
+ * — Urban Development draws a card per Building tag). It is asked from INSIDE
+ * the fan-out, at the position the live hook occupies, not appended to the end
+ * like the grant/tile twin (`resolutionFacts`): this module is a mirror of the
+ * live walk, and a mirror that reorders is not one. Nothing while no law with
+ * a card-played passive stands, and never for a seat outside the parliament.
+ */
+function resolutionCardPlayedFacts(player: IPlayer, card: ICard): Array<EffectForecastFact> {
+  const parliament = player.game.parliament;
+  const enacted = parliament?.enactedDefinition();
+  const passive = enacted?.passive;
+  if (parliament === undefined || enacted === undefined || passive === undefined ||
+      passive.onCardPlayed === undefined || !parliament.participates(player)) {
+    return [];
+  }
+  const source = (channel: EffectForecastSource['channel']): EffectForecastSource =>
+    ({kind: 'resolution', name: enacted.id, owner: player.color, channel});
+  if (passive.cardPlayedForecast === undefined) {
+    // Unreachable while the contract guard stands (it refuses the live hook
+    // without its twin) — and stated honestly all the same, as for a card.
+    return [forecast.unknown(source('card-played'), 'The enacted resolution reacts to the play, but its result is not described')];
+  }
+  return passive.cardPlayedForecast({
+    player,
+    card,
+    source,
+    exact: (factSource, effects, title, opts) => forecast.exact(factSource, effects, title, opts),
+    stockGain: (resource, amount) => stockGain(player, resource, amount),
+    productionChange: (resource, delta) => productionChange(player, resource, delta),
+    drawGain: (count) => drawGain(count),
+  });
+}
+
 function cardPlayedFacts(player: IPlayer, card: ICard, ctx: EffectForecastContext): Array<EffectForecastFact> {
   const game = player.game;
   const facts: Array<EffectForecastFact> = [];
@@ -115,6 +150,11 @@ function cardPlayedFacts(player: IPlayer, card: ICard, ctx: EffectForecastContex
       (PartyHooks.shouldApplyPolicy(player, PartyName.GREENS, 'gp03') || PartyHooks.shouldApplyPolicy(player, PartyName.MARS, 'mp02'))) {
     facts.push(forecast.unknown(ruleSource('Ruling party policy', player), 'The ruling party\'s policy reacts to card plays'));
   }
+
+  // 2.5. THE ENACTED RESOLUTION (Turmoil Redux) — the law answers the play
+  //      exactly where `ParliamentHandler.onCardPlayed` stands in the live
+  //      walk: after the Turmoil policy, before the other seats' tableaus.
+  facts.push(...resolutionCardPlayedFacts(player, card));
 
   // 3. Every seat's tableau, in generation order (`onCardPlayedByAnyPlayer`).
   for (const somePlayer of game.playersInGenerationOrder) {

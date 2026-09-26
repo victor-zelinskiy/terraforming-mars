@@ -89,6 +89,7 @@ import {MOHOLE_CONTEST_ID} from '../../../src/server/parliament/resolutions/gree
 import {OPEN_IP_TRADE_ID} from '../../../src/server/parliament/resolutions/scientists/OpenIpTrade';
 import {RD_FUNDING_ID} from '../../../src/server/parliament/resolutions/scientists/RdFunding';
 import {TRADE_INDUSTRIES_ID, tradeIndustriesPrice} from '../../../src/server/parliament/resolutions/unity/TradeIndustries';
+import {URBAN_DEVELOPMENT_ID, urbanDevelopmentCards} from '../../../src/server/parliament/resolutions/marsFirst/UrbanDevelopment';
 import {repeatableActionCards} from '../../../src/server/cards/repeatableActions';
 import {ParliamentHandler} from '../../../src/server/parliament/ParliamentHandler';
 import {INDUSTRIALIST_BUDGET_ID} from '../../../src/server/parliament/resolutions/industrialists/IndustrialistBudget';
@@ -1390,6 +1391,36 @@ parliamentFixture('parliament-tradeind-enacted', {
       throw new Error('the parliament-tradeind-enacted fixture expected red to afford the fleet');
     }
     expectViewerOpensGeneration(table, p2, 'parliament-tradeind-enacted');
+  },
+});
+
+// ── RX30 · URBAN DEVELOPMENT (Mars First — the first law that answers A CARD BEING PLAYED: «after you play a
+//    Building tag, draw a card»): the law ENACTED (red's delegate won the sitting), generation 2 open on RED — the
+//    seat the loader opens — holding a MINE in hand: 4 M€, a Building tag, a production step and no question of its
+//    own, so the whole card play is the law's answer and nothing else. ──
+parliamentFixture('parliament-urban-enacted', {
+  resolution: URBAN_DEVELOPMENT_ID,
+  votes: [1],
+  agenda: [1, 2],
+  stopAt: 'done',
+  arrange: ({p2}) => {
+    p2.cardsInHand.push(new Mine());
+  },
+  expect: (table) => {
+    const {p2, parliament} = table;
+    if (parliament.enacted !== resolutionInstanceId(URBAN_DEVELOPMENT_ID, 0)) {
+      throw new Error(`the parliament-urban-enacted fixture expected Urban Development enacted, got ${parliament.enacted}`);
+    }
+    if (!p2.cardsInHand.some((c) => c.name === CardName.MINE)) {
+      throw new Error('the parliament-urban-enacted fixture expected red to hold the Mine');
+    }
+    if (p2.megaCredits < p2.getCardCost(new Mine())) {
+      throw new Error(`the parliament-urban-enacted fixture expected red to afford the Mine, has ${p2.megaCredits} M€`);
+    }
+    if (urbanDevelopmentCards(p2, new Mine()) !== 1) {
+      throw new Error('the parliament-urban-enacted fixture expected the Mine to be worth exactly one card');
+    }
+    expectViewerOpensGeneration(table, p2, 'parliament-urban-enacted');
   },
 });
 

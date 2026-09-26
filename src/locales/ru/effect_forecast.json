@@ -65,5 +65,6 @@
     "This card reacts to the gain, but its result is not described": "Карта реагирует на приход, но её результат не описан",
     "This card reacts to the tile placement, but its result is not described": "Карта реагирует на размещение тайла, но её результат не описан",
     "MarsBot's corporation reacts to this play, but its result is not described": "Корпорация MarsBot реагирует на этот розыгрыш, но её результат не описан",
+    "The enacted resolution reacts to the play, but its result is not described": "Принятая резолюция реагирует на розыгрыш, но её результат не описан",
     "MarsBot's corporation reacts to the tile placement, but its result is not described": "Корпорация MarsBot реагирует на размещение тайла, но её результат не описан"
 }

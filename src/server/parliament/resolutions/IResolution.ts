@@ -18,6 +18,7 @@ import {IGame} from '../../IGame';
 import {PlayerInput} from '../../PlayerInput';
 import type {Parliament} from '../Parliament';
 import type {Space} from '../../boards/Space';
+import type {ICard} from '../../cards/ICard';
 import type {IProjectCard} from '../../cards/IProjectCard';
 import type {Resource} from '../../../common/Resource';
 import type {Tag} from '../../../common/cards/Tag';
@@ -128,6 +129,25 @@ export type ResolutionForecastContext = {
 };
 
 /**
+ * What a CARD-PLAYED passive's forecast twin reads (`ResolutionPassive.
+ * cardPlayedForecast`) — the seat holding the law (which is the seat playing:
+ * the law answers your OWN play) and the very card it is about, plus the same
+ * builders the other twin gets, so a resolution file still imports no engine
+ * module. The card is handed in whole because the reading is the card's
+ * (Urban Development counts its Building TAGS, one card apiece), not the
+ * operation's grants.
+ */
+export type ResolutionCardPlayedContext = {
+  player: IPlayer;
+  card: ICard;
+  source(channel: EffectForecastSource['channel']): EffectForecastSource;
+  exact(source: EffectForecastSource, effects: ReadonlyArray<ActionEffect>, title: string, opts?: {id?: string}): EffectForecastFact;
+  stockGain(resource: Resource, amount: number): ActionEffect;
+  productionChange(resource: Resource, delta: number): ActionEffect;
+  drawGain(count: number): ActionEffect;
+};
+
+/**
  * What the engine knows about the placement whose bonuses it just paid, told
  * to the `onTilePlaced` hook (`Game.grantPlacementBonuses` runs it AFTER the
  * cell's printed bonuses and the adjacency bonuses). `coveringExistingTile`:
@@ -207,6 +227,39 @@ export type ResolutionPassive = {
    * (the contract guard).
    */
   placementFacts?(ctx: ResolutionPlacementContext): Array<BoardFact>;
+  /**
+   * A CARD WAS PLAYED by this seat (Urban Development: «after you play a
+   * Building tag, draw a card») — the second REACTIVE channel of the family,
+   * beside {@link onTilePlaced} and unlike the pure QUERIES below
+   * (`cardDiscount` / `resourceValueBonus` / `tagBonus`, which are read and
+   * never fire): it MUTATES, so every mutation carries the resolution's own
+   * event source — the dispatcher opens it (`ParliamentHandler.onCardPlayed`
+   * → `enactedPassive`, channel `card-played`), never the hook.
+   *
+   * WHERE IT STANDS in the play's fan-out, and why exactly there:
+   * `Player.onCardPlayed` walks its own tableau → the Turmoil policy hook →
+   * THE PARLIAMENT → every seat's tableau → Pathfinders → the bot's
+   * corporation. The law answers where the law is asked; a hook that moved
+   * would change what the deck hands out and in what order.
+   *
+   * Its twin {@link cardPlayedForecast} is MANDATORY (the contract guard
+   * refuses one without the other): a live hook with no forecast is a silent
+   * lie — the player would commit a play whose real answer nobody stated.
+   */
+  onCardPlayed?(player: IPlayer, card: ICard): void;
+  /**
+   * The FORECAST twin of `onCardPlayed`: what the law will pay for THIS play,
+   * stated in the play's own confirmation. A separate twin, not a clause of
+   * {@link forecast}, for the same reason the tile passive has
+   * `placementFacts`: `forecast` is handed the operation's GRANTS and TILES
+   * and knows nothing about the card, and its facts are appended AFTER the
+   * whole fan-out — not where the law actually fires. The pair mirrors the
+   * card family's own (`onCardPlayed` ↔ `cardPlayedForecast`).
+   *
+   * Read-only by contract, like every forecast: no draw, no defer, no log
+   * (the purity spec serializes the game before and after).
+   */
+  cardPlayedForecast?(ctx: ResolutionCardPlayedContext): Array<EffectForecastFact>;
   onTerraformRatingGained?(player: IPlayer, steps: number): void;
   onProductionChanged?(player: IPlayer, resource: Resource, delta: number): void;
   /**

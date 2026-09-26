@@ -59,6 +59,7 @@ import {SCIENTISTS_BUDGET} from './scientists/ScientistsBudget';
 import {SKYSCRAPERS} from './marsFirst/Skyscrapers';
 import {TRADE_INDUSTRIES} from './unity/TradeIndustries';
 import {UNITY_BUDGET} from './unity/UnityBudget';
+import {URBAN_DEVELOPMENT} from './marsFirst/UrbanDevelopment';
 
 /**
  * THE RETIRED IDS — iteration 0's DUMMY resolutions (a party, a quest, no
@@ -546,6 +547,10 @@ export const REDUX_RESOLUTION_CATALOG = new ResolutionCatalog([
   // tags (Earth + Venus + Jovian) + influence, and «advance each colony track 2 steps» — a WORLD step (every tile in
   // play, once, for nobody) declared as data (`trackAdvance`) and paid by the family's shared `colonyTrackStep`.
   UNITY_BUDGET,
+  // Development Craze's steel and Development Craze's quest, and one new thing: the family's SECOND reactive passive —
+  // a law that answers A CARD BEING PLAYED («after you play a Building tag, draw a card»), counted PER TAG the way the
+  // engine has always counted a tag effect (Point Luna), with its own forecast twin standing where the hook fires.
+  URBAN_DEVELOPMENT,
   TEST_CHOICE,
   DEV_IMMEDIATE,
   DEV_PASSIVE,

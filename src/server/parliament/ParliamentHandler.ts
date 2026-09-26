@@ -174,7 +174,7 @@ export class ParliamentHandler {
   private static enactedPassive(
     player: IPlayer,
     parliament: Parliament,
-    channel: 'tile-placed' | 'tr-increase' | 'production-gain',
+    channel: 'tile-placed' | 'tr-increase' | 'production-gain' | 'card-played',
     run: (passive: ResolutionPassive) => void,
   ): void {
     const enacted = parliament.enactedDefinition();
@@ -275,10 +275,18 @@ export class ParliamentHandler {
     return Math.max(0, bonus(player, resource));
   }
 
+  /**
+   * A CARD WAS PLAYED by `player` — the chairman quest (tags played, card
+   * types played) and, since Urban Development, the ENACTED LAW's own answer
+   * to the play. The law goes FIRST, as it does on the other channels (the
+   * effects act, then the quest records what happened).
+   */
   public static onCardPlayed(player: IPlayer, card: ICard): void {
-    if (player.game?.parliament === undefined) {
+    const parliament = player.game?.parliament;
+    if (parliament === undefined) {
       return;
     }
+    ParliamentHandler.enactedPassive(player, parliament, 'card-played', (passive) => passive.onCardPlayed?.(player, card));
     QuestTracker.report(player, {kind: 'tag', tags: card.tags});
     QuestTracker.report(player, {kind: 'cardsPlayed', cardType: card.type});
   }

@@ -317,6 +317,10 @@ function checkSeam(definition: ResolutionDefinition): Array<string> {
   if (definition.passive?.onTilePlaced !== undefined && typeof definition.passive.placementFacts !== 'function') {
     failures.push(`${name}: a tile passive without its dossier twin (placementFacts)`);
   }
+  // …and a CARD-PLAYED passive without its twin lets the play's confirmation promise nothing the law will pay.
+  if (definition.passive?.onCardPlayed !== undefined && typeof definition.passive.cardPlayedForecast !== 'function') {
+    failures.push(`${name}: a card-played passive without its forecast twin (cardPlayedForecast)`);
+  }
   if (definition.action !== undefined && typeof definition.action.preview !== 'function') {
     failures.push(`${name}: an action without a preview`);
   }

@@ -1041,5 +1041,9 @@
   "${0} gained ${1} M€ from ${2}: ${3} Earth, Venus and Jovian tag(s) + ${4} influence (${5} → ${6})": "${0} получает ${1} M€ — ${2}: ${3} {метка|метки|меток} Земли, Венеры и Юпитера + влияние ${4} (${5} → ${6})",
   "No colony tile is in play — ${0} advances no track": "Ни один тайл колонии не в игре — ${0} не продвигает треки",
   "${0} advanced the ${1} colony track ${2} step(s) (${3} → ${4})": "${0} продвигает трек колонии ${1} на ${2} {шаг|шага|шагов} (${3} → ${4})",
-  "The ${0} colony track is at its maximum — ${1} does not advance it": "Трек колонии ${0} на максимуме — ${1} его не продвигает"
+  "The ${0} colony track is at its maximum — ${1} does not advance it": "Трек колонии ${0} на максимуме — ${1} его не продвигает",
+  "Urban Development": "Городское развитие",
+  "After you play a Building tag, draw a card.": "После розыгрыша метки строительства возьмите карту.",
+  "${0} played ${1} building tag(s) and draws ${2} card(s) from ${3}": "${0} разыгрывает ${1} {метку|метки|меток} строительства и берёт ${2} {карту|карты|карт} — ${3}",
+  "Urban Development draws a card for every building tag you play": "«Городское развитие» даёт карту за каждую разыгранную вами метку строительства"
 }
