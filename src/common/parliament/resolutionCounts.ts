@@ -159,6 +159,15 @@ export const RESOLUTION_COUNT_IDS = [
    * with each cell's height beside it. A space city is not on Mars.
    */
   'marsCityTiers',
+  /**
+   * Urban Research: the CITY TAGS the player has in play (a card printing two
+   * is 2) — the ordinary one-tag count of Central Power Grid over the city
+   * medallion. ⚠ NOT a city on the board: `spaceCities`, `marsCities` and
+   * `marsCityTiers` above all count TILES, and grabbing one of them for «for
+   * every city tag you have» does not fail — it quietly pays another rule's
+   * number. A tag is printed on a card; a tile stands on a cell.
+   */
+  'cityTags',
 ] as const;
 export type ResolutionCountId = typeof RESOLUTION_COUNT_IDS[number];
 
@@ -268,6 +277,9 @@ export function resolutionCountKind(id: ResolutionCountId): ResolutionCountKind 
   // (a cell once) and the quantity of cities (the stacks summed).
   case 'marsCities': return {kind: 'board', tiles: 'marsCity', measure: 'cells'};
   case 'marsCityTiers': return {kind: 'board', tiles: 'marsCity', measure: 'tiers'};
+  // …and the count over the same WORD that is not over the board at all: the printed city MEDALLIONS of the
+  // tableau, the twin of `scienceTags`. Neither board count above is a substitute for it.
+  case 'cityTags': return {kind: 'tags', tags: [Tag.CITY]};
   }
 }
 
@@ -612,6 +624,18 @@ export function cardCountVerdict(id: ResolutionCountId, card: CountedCardFacts, 
     }
     if (!card.tags.includes(Tag.SCIENCE)) {
       return {counts: false, reason: 'No science tag'};
+    }
+    return {counts: true};
+  }
+  case 'cityTags': {
+    // The same one question over the city tag — asked of the CARD, which is
+    // the whole difference from the three board counts above: a city tile on
+    // the board has no card and is never an answer here.
+    if (!cardTagsInPlay(card, ctx)) {
+      return {counts: false, reason: 'A played event is face down'};
+    }
+    if (!card.tags.includes(Tag.CITY)) {
+      return {counts: false, reason: 'No city tag'};
     }
     return {counts: true};
   }

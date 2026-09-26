@@ -266,6 +266,17 @@ export function yieldCountPresentation(id: ResolutionCountId): YieldCountPresent
       ruleKey: 'Each science tag counts: a card with two science tags counts twice. Wild tags do not count.',
       skipReasonKey: 'No science tags and no influence',
     };
+  case 'cityTags':
+    // The printed city MEDALLION, never the city TILE the two board counts
+    // above draw: the rule says so out loud, because the two are one word.
+    // The skip is the count's alone — Urban Research's draw has no influence
+    // term, so «and no influence» would name a term the card does not print.
+    return {
+      glyph: {kind: 'tag', tag: Tag.CITY},
+      pluralKey: '${0} city tag(s)',
+      ruleKey: 'Each city tag on your cards counts: a card with two city tags counts twice. Wild tags do not count, and a city on the board is not a tag.',
+      skipReasonKey: 'No city tags',
+    };
   }
 }
 

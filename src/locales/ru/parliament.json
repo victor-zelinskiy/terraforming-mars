@@ -1054,5 +1054,19 @@
   "No Earth, Venus or Jovian tags and no influence — the tracks still move": "Нет меток Земли, Венеры и Юпитера и нет влияния — треки всё равно двигаются",
   "Four tags across Earth, Venus and Jovian — one card prints two": "Четыре метки Земли, Венеры и Юпитера — на одной карте их две",
   "A track at its maximum does not move — and says so": "Трек на максимуме не двигается — и это названо",
-  "A track one step short of its maximum makes one step": "Трек за шаг до максимума делает один шаг"
+  "A track one step short of its maximum makes one step": "Трек за шаг до максимума делает один шаг",
+  "Urban Research": "Городские исследования",
+  "Draw 1 card for every city tag you have. Then gain 2 M€ per point of influence.": "Возьмите 1 карту за каждую свою метку города. Затем получите 2 M€ за каждое влияние.",
+  "Play 1 city tag": "Разыграйте 1 метку города",
+  "No city tags": "Нет меток города",
+  "No city tag": "Нет метки города",
+  "${0} city tag(s)": "${0} {метка|метки|меток} города",
+  "Each city tag on your cards counts: a card with two city tags counts twice. Wild tags do not count, and a city on the board is not a tag.": "Считается каждая метка города на ваших картах: карта с двумя метками даёт 2. Универсальные метки не считаются, а город на поле — не метка.",
+  "${0} has no city tags — no cards from ${1}": "${0}: нет меток города — ${1} не даёт карт",
+  "${0} draws ${1} card(s) from ${2}: 1 per city tag, ${3} city tag(s)": "${0} берёт ${1} {карту|карты|карт} — ${2}: по 1 за метку города, ${3} {метка|метки|меток} города",
+  "A card per city tag, 2 M€ per influence — two halves, two numbers": "Карта за метку города, 2 M€ за влияние — две половины, два числа",
+  "One card with two city tags — influence buys no cards": "Одна карта с двумя метками города — влияние карт не покупает",
+  "A city tag on a prelude counts like any other": "Метка города на подготовке считается как любая другая",
+  "A wild tag is not a city tag": "Универсальная метка — не метка города",
+  "No city tags — the M€ still come": "Нет меток города — M€ всё равно приходят"
 }

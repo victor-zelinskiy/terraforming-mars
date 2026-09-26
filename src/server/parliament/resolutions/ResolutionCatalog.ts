@@ -60,6 +60,7 @@ import {SKYSCRAPERS} from './marsFirst/Skyscrapers';
 import {TRADE_INDUSTRIES} from './unity/TradeIndustries';
 import {UNITY_BUDGET} from './unity/UnityBudget';
 import {URBAN_DEVELOPMENT} from './marsFirst/UrbanDevelopment';
+import {URBAN_RESEARCH} from './marsFirst/UrbanResearch';
 
 /**
  * THE RETIRED IDS — iteration 0's DUMMY resolutions (a party, a quest, no
@@ -551,6 +552,12 @@ export const REDUX_RESOLUTION_CATALOG = new ResolutionCatalog([
   // a law that answers A CARD BEING PLAYED («after you play a Building tag, draw a card»), counted PER TAG the way the
   // engine has always counted a tag effect (Point Luna), with its own forecast twin standing where the hook fires.
   URBAN_DEVELOPMENT,
+  // The family's two halves put together and nothing else: a COUNTED term over the tableau (the city tags, a twin
+  // of the science tags) and the shared external-draw intake — but combined for the first time, so the AMOUNT of a
+  // draw is a count («1 card per city tag»), where `cards` had only ever been flat, a level or sequential. ⚠ Its
+  // count is over TAGS: the three city counts already in the catalog are all over the BOARD, and any of them here
+  // would pay a different rule's number in silence.
+  URBAN_RESEARCH,
   TEST_CHOICE,
   DEV_IMMEDIATE,
   DEV_PASSIVE,
