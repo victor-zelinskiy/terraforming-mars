@@ -80,6 +80,8 @@
  */
 import {reactive} from 'vue';
 import {ConsoleTask, TaskKind} from '@/client/console/consoleTaskRouter';
+import {PlayerInputModel} from '@/common/models/PlayerInputModel';
+import {promptSourceResolution} from '@/client/console/promptSource';
 
 /**
  * The FLOW-scoped mandatory action kinds — workspace flows the player must
@@ -242,11 +244,27 @@ const RESOLUTION_ASK_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>([
 ]);
 
 /**
+ * AN ENACTED RESOLUTION'S ASK — the prompt the SITTING raises for a seat (the
+ * payout's recipient pick, the winner's ocean), always announced. Its
+ * structural source is the resolution (`promptSourceResolution`) — BUT a
+ * prompt of the resolution's own ACTION is not the sitting's ask: it is the
+ * player's own move, a member of the party-action family (`resolutionActionPrompt`
+ * — the menu's pick at stage `choose`, the BILL a paid action defers at stage
+ * `pay`), and it carries the law as its `cause` only so the surface can name
+ * it. Announcing that bill held the payment host closed behind a chip while
+ * the player stood in the very stage it belongs to (Trade Industries).
+ */
+export function isResolutionAsk(wf: PlayerInputModel | undefined): boolean {
+  return promptSourceResolution(wf) !== undefined && wf?.resolutionActionPrompt === undefined;
+}
+
+/**
  * Is this task an INTERRUPTIVE mandatory prompt (→ announce, don't auto-open)?
  * `forcedReaction` = the viewer's status is an off-turn forced reaction
  * (`actionLabelForPlayer(...) === 'forcedaction'`), computed by the shell.
  * `resolutionPrompt` = an enacted resolution raised it (the server's own
- * source marker — `promptSourceResolution`).
+ * source marker — `isResolutionAsk`, never the raw source: a prompt of the
+ * law's own ACTION is the player's move).
  */
 export function isInterruptiveMandatoryTask(task: ConsoleTask | undefined, forcedReaction: boolean, resolutionPrompt = false): boolean {
   if (task === undefined) {

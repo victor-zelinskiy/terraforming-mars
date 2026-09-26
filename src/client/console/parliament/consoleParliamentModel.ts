@@ -24,7 +24,7 @@ import {Color} from '@/common/Color';
 import {Message} from '@/common/logs/Message';
 import {CardName} from '@/common/cards/CardName';
 import {PartyName} from '@/common/turmoil/PartyName';
-import {PlayerInputModel, SelectPartyModel} from '@/common/models/PlayerInputModel';
+import {PlayerInputModel, SelectPartyModel, SelectPaymentModel} from '@/common/models/PlayerInputModel';
 import {InputResponse} from '@/common/inputs/InputResponse';
 import {ActionEffect} from '@/common/models/ActionPreviewModel';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
@@ -746,6 +746,32 @@ export function resolutionActionResponse(bridge: ParliamentPromptBridge, cards: 
     return undefined;
   }
   return {type: 'or', index: entry.menuIndex, response: {type: 'card', cards: [...cards]}};
+}
+
+/**
+ * The enacted resolution's ACTION as a bare CONFIRM (Trade Industries: «buy a fleet» — the price is a bill the
+ * answer raises, never a pick): the option answered inside its menu branch.
+ */
+export function resolutionActionConfirmResponse(bridge: ParliamentPromptBridge): InputResponse | undefined {
+  const entry = bridge.resolutionAction;
+  if (entry === undefined || entry.model.type !== 'option') {
+    return undefined;
+  }
+  return {type: 'or', index: entry.menuIndex, response: {type: 'option'}};
+}
+
+/**
+ * THE BILL of the enacted resolution's action (Trade Industries): the top-level `SelectPayment` the confirm
+ * deferred, carrying the action's own marker at stage `pay` — the server's structural marker, never a title.
+ * The action workspace hosts it as the flow's next stage; the shell teleports the payment host into that zone
+ * and the flow's conclusion holds on it (the fleet is not granted until it is settled).
+ */
+export function resolutionBillOf(wf: PlayerInputModel | undefined): {resolution: ResolutionId, model: SelectPaymentModel} | undefined {
+  if (wf === undefined || wf.type !== 'payment') {
+    return undefined;
+  }
+  const marker = wf.resolutionActionPrompt;
+  return marker !== undefined && marker.stage === 'pay' ? {resolution: marker.resolution, model: wf as SelectPaymentModel} : undefined;
 }
 
 /**

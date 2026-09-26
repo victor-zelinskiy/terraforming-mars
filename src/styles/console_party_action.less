@@ -392,6 +392,32 @@ html.con-profile-tv .con-pfx {
     }
     .con-pact__sale-row { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
     .con-pact__rule { margin: 0; font-size: .82rem; line-height: 1.35; opacity: .9; }
+    /* THE PRICE of a confirm (Trade Industries): the server's chips under the
+       rule, the arithmetic line under them — one reading, one function. */
+    .con-pact__price { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
+    .con-pact__price-line { margin: 0; font-size: .74rem; line-height: 1.3; opacity: .72; letter-spacing: .01em; }
+    /* THE BILL STAGE: the price recap above, the payment host in the zone below (embed rule 4 — a real box). */
+    .con-pact__billstage {
+        display: flex;
+        flex-direction: column;
+        gap: .6rem;
+        flex: 1;
+        min-height: 0;
+        min-width: 0;
+    }
+    .con-pact__billhead { flex: 0 0 auto; padding: .1rem .2rem 0; }
+    .con-pact__billzone {
+        flex: 1;
+        min-height: 0;
+        min-width: 0;
+        display: flex;
+        align-items: stretch;
+        > .con-task-host--embedded { flex: 1 1 auto; min-width: 0; min-height: 0; }
+    }
+    /* THE FLEET'S CLOSING BEAT: the ship in the viewer's livery between the counts. */
+    .con-pact__result-row--fleet { gap: .55rem; }
+    .con-pact__fleeticon { width: 1.7rem; height: 1.7rem; flex: 0 0 auto; }
+    .con-pact__result-arrow { opacity: .55; font-size: 1rem; }
 }
 .con-cardactions__pact.con-pact--resolution { padding: .1rem .1rem 0; }
 /* The law's dossier hero in the action menu's detail column: the face, whole, at the plaque's width. */
@@ -402,4 +428,11 @@ html.con-profile-tv .con-pfx {
 html.con-profile-handheld .con-pact--resolution {
     grid-template-columns: minmax(8rem, 9.5rem) minmax(0, 1fr);
     --con-pact-bill-zoom: calc(0.32 * var(--con-ui-scale, 1));
+}
+
+/* THE FLEET CHIP (Trade Industries' gain, `icon: 'trade-fleet'`): the trade canvas PRE-INVERTED as an asset — the
+   console strips `filter` permanently, and the legacy `card-resource-trade-fleet` rule (invert(1) under
+   `.card-container`) never reaches a chip, so the tile's «1 → 2» read with no glyph at all. One asset, every chip. */
+.action-effect-chip__icon.card-resource-trade-fleet {
+    background: url(./assets/tiles/trade-fleet.png) center / contain no-repeat;
 }

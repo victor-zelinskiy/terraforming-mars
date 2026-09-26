@@ -75,20 +75,38 @@
 
       <!-- ── THE DECISION column ── -->
       <div class="con-pact__main">
-        <!-- THE CLOSING BEAT (the Reds): what the discard paid, read once. -->
+        <!-- THE CLOSING BEAT: what the Reds' discard paid — or, for a PAID law
+             (Trade Industries), the fleet that arrived and what left for it —
+             read once, then the flow leaves. -->
         <div v-if="result !== undefined" class="con-pact__result" data-outcome-zone data-pact-result>
-          <div class="con-pact__result-row" data-outcome-item>
-            <span class="con-pact__result-kicker">{{ $t('Cards discarded') }}</span>
-            <b class="con-pact__result-num">{{ result.discarded }}</b>
-            <i class="resource_icon resource_icon--cards con-pact__result-icon" aria-hidden="true"></i>
-          </div>
-          <div class="con-pact__result-row con-pact__result-row--pay" data-outcome-item>
-            <template v-if="result.payout > 0">
-              <ActionEffectChip :effect="payoutChip" />
-              <span class="con-pact__result-note">{{ translateParams('for ${0} tag(s)', [String(result.tags)]) }}</span>
-            </template>
-            <span v-else class="con-pact__result-none">{{ $t('No plant, microbe or animal tags among the discarded cards — no M€') }}</span>
-          </div>
+          <template v-if="result.fleet !== undefined">
+            <div class="con-pact__result-row con-pact__result-row--fleet" data-outcome-item data-pact-result-fleet>
+              <span class="con-pact__result-kicker">{{ $t('Trade fleet gained') }}</span>
+              <ColonyFleetIcon class="con-pact__fleeticon" :color="viewerColor" :free="true" />
+              <b class="con-pact__result-num" data-pact-fleet-from>{{ result.fleet.from }}</b>
+              <span class="con-pact__result-arrow" aria-hidden="true">→</span>
+              <b class="con-pact__result-num" data-pact-fleet-to>{{ result.fleet.to }}</b>
+            </div>
+            <div class="con-pact__result-row con-pact__result-row--pay" data-outcome-item>
+              <span class="con-pact__result-kicker">{{ $t('Paid') }}</span>
+              <ActionEffectChip v-for="(chip, k) in paidChips" :key="k" :effect="chip" />
+              <span v-if="paidChips.length === 0" class="con-pact__result-note">{{ $t('free') }}</span>
+            </div>
+          </template>
+          <template v-else>
+            <div class="con-pact__result-row" data-outcome-item>
+              <span class="con-pact__result-kicker">{{ $t('Cards discarded') }}</span>
+              <b class="con-pact__result-num">{{ result.discarded }}</b>
+              <i class="resource_icon resource_icon--cards con-pact__result-icon" aria-hidden="true"></i>
+            </div>
+            <div class="con-pact__result-row con-pact__result-row--pay" data-outcome-item>
+              <template v-if="result.payout > 0">
+                <ActionEffectChip :effect="payoutChip" />
+                <span class="con-pact__result-note">{{ translateParams('for ${0} tag(s)', [String(result.tags)]) }}</span>
+              </template>
+              <span v-else class="con-pact__result-none">{{ $t('No plant, microbe or animal tags among the discarded cards — no M€') }}</span>
+            </div>
+          </template>
         </div>
 
         <!-- THE SELECTION STEP of the resolution's action — the REAL hand,
@@ -96,6 +114,21 @@
              beside the hero: the picked cards will leave from these very
              slots into the terminal. -->
         <div v-else-if="kind === 'resolution' && handStep" class="con-pact__handzone con-pact__handzone--inline" data-embed-slot="action-hand"></div>
+
+        <!-- THE BILL STAGE of a PAID law's action (Trade Industries): the
+             player said yes, and the price is the flow's NEXT stage — the
+             shell's payment host teleports into this zone («› ОПЛАТА»), the
+             price it settles stated above it in the server's own chips. The
+             fleet is granted only once the bill is settled; the stage stays
+             until then (the flow owes it). Before the sale's branch: the
+             bill's arrival is the commit's answer, whatever `submitting` says. -->
+        <div v-else-if="kind === 'resolution' && billStanding" class="con-pact__billstage" data-outcome-zone data-pact-bill>
+          <div class="con-pact__sale-row con-pact__billhead" data-outcome-item>
+            <span class="con-pact__result-kicker">{{ $t('Price') }}</span>
+            <ActionEffectChip v-for="(chip, k) in priceChips" :key="k" :effect="chip" />
+          </div>
+          <div class="con-pact__billzone" data-embed-slot="action-bill"></div>
+        </div>
 
         <!-- THE SALE STAGE of the resolution's action: the cards are feeding
              the terminal (the sale's own scene, app-level) and the chip is on
@@ -151,7 +184,7 @@
         <!-- THE RESOLUTION'S STAGE BETWEEN STEPS: the pick was refused or
              taken back and nothing is in flight — the rule stands, B returns.
              (A pick that is still to open sees this for one flush only.) -->
-        <div v-else-if="kind === 'resolution' && repeatPrompt === undefined" class="con-pact__surface" data-unfold-surface>
+        <div v-else-if="kind === 'resolution' && repeatPrompt === undefined && confirmPrompt === undefined" class="con-pact__surface" data-unfold-surface>
           <p class="con-pact__rule" data-unfold-item>{{ ruleText }}</p>
           <p v-if="refusal !== ''" class="con-pact__warn" data-unfold-item>{{ refusal }}</p>
         </div>
@@ -248,7 +281,7 @@
                Drawing a second, law-only picker here would be a fourth
                interface for a question that has three consumers and one
                answer. -->
-          <template v-if="kind === 'resolution'">
+          <template v-if="kind === 'resolution' && repeatPrompt !== undefined">
             <p class="con-pact__rule" data-unfold-item>{{ ruleText }}</p>
             <div class="con-pact__row" data-unfold-item data-pact-row="0"
                  :class="{'con-pact__row--focus': cursorRow === 0, 'con-pact__row--answered': repeatResult !== undefined, 'con-pact__row--open': repeatResult === undefined}">
@@ -274,6 +307,22 @@
                 <span v-else class="con-pact__repeatslot-empty">{{ $t('Choose an action to repeat') }}…</span>
               </button>
             </div>
+          </template>
+
+          <!-- A LAW WHOSE DECISION IS A CONFIRM WITH A PRICE (Trade Industries:
+               «pay 12 M€ to gain an extra trade fleet»): nothing to pick — the
+               stage states the PRICE FOR THIS SEAT in the server's own chips
+               (the discount taken, the influence and the discount as its
+               basis, titanium accepted) and the arithmetic behind it from the
+               same one function the bill will charge by. A commits; the bill
+               follows as the next stage of this very flow. -->
+          <template v-else-if="kind === 'resolution' && confirmPrompt !== undefined">
+            <p class="con-pact__rule" data-unfold-item>{{ ruleText }}</p>
+            <div class="con-pact__price" data-unfold-item data-pact-price>
+              <span class="con-pact__row-kicker">{{ $t('Price') }}</span>
+              <ActionEffectChip v-for="(chip, k) in priceChips" :key="k" :effect="chip" />
+            </div>
+            <p v-if="priceLine !== ''" class="con-pact__price-line" data-unfold-item data-pact-price-line>{{ priceLine }}</p>
           </template>
 
           <!-- REDS — the sequence as graphics: draw → discard → M€ per tag. The
@@ -336,11 +385,13 @@
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
 import {PartyName} from '@/common/turmoil/PartyName';
+import {Color} from '@/common/Color';
 import {Message} from '@/common/logs/Message';
 import {CardName} from '@/common/cards/CardName';
 import {CardModel} from '@/common/models/CardModel';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
-import {SelectCardModel} from '@/common/models/PlayerInputModel';
+import {SelectCardModel, SelectOptionModel} from '@/common/models/PlayerInputModel';
+import {ActionBillPrice, actionBillPrice} from '@/common/parliament/actionBill';
 import {ActionEffect, VictoryPointsDelta} from '@/common/models/ActionPreviewModel';
 import {InputResponse} from '@/common/inputs/InputResponse';
 import {PartyActionId, ReduxParty, ResolutionId} from '@/common/parliament/ParliamentTypes';
@@ -355,9 +406,11 @@ import {enterConsoleRepeatPick, ConsoleRepeatPickResult} from '@/client/console/
 import {translateMessage, translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {
-  industrialistsResponse, parliamentPromptBridge, ParliamentPromptBridge, redsResponse, resolutionActionResponse, scientistsResponse,
+  industrialistsResponse, parliamentPromptBridge, ParliamentPromptBridge, redsResponse, resolutionActionConfirmResponse, resolutionActionResponse,
+  resolutionBillOf, scientistsResponse,
 } from '@/client/console/parliament/consoleParliamentModel';
 import {partyTileKey, resolutionTileKey} from '@/client/console/parliament/partyActionKey';
+import {consoleCardActionsUi} from '@/client/console/consoleCardActions';
 import {getResolution} from '@/client/parliament/ClientParliamentManifest';
 import {PremiumCardVM} from '@/client/components/premiumCard/premiumCardViewModel';
 import {resolutionPremiumVm} from '@/client/components/premiumCard/resolutionPremiumVm';
@@ -367,6 +420,7 @@ import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCar
 import CardRenderEffectBoxComponent from '@/client/components/card/CardRenderEffectBoxComponent.vue';
 import CardRenderData from '@/client/components/card/CardRenderData.vue';
 import ConsolePartyPlaque from '@/client/components/console/parliament/ConsolePartyPlaque.vue';
+import ColonyFleetIcon from '@/client/components/colonies/ColonyFleetIcon.vue';
 import ConsoleWsStageHead from '@/client/components/console/foundation/ConsoleWsStageHead.vue';
 import {
   markWorkspaceOutcomeArrivalDone, markWorkspaceOutcomeArrivalFlown, markWorkspaceOutcomeBeatDone, markWorkspaceOutcomePresenting,
@@ -390,16 +444,29 @@ import {armPatentSale, patentSaleState} from '@/client/console/patentSale/consol
 
 export type PartyComposerKind = 'industrialists' | 'scientists' | 'reds' | 'unity' | 'resolution';
 
-/** The Reds' closing beat — what the mandatory discard paid (read once, then the flow leaves). */
+/**
+ * The closing beat — what the Reds' mandatory discard paid (read once, then
+ * the flow leaves), or, for a PAID law's action (Trade Industries), the
+ * FLEET that arrived and what was paid for it once the bill was settled.
+ */
 export type PartyActionResult = {
   discarded: number;
   payout: number;
   tags: number;
+  /** A fleet arrived: the count before and after, and what left the rail for it. */
+  fleet?: {from: number, to: number, paid: {megacredits: number, titanium: number}};
 };
 
-/** What the RESOLUTION's confirm hands up beside the response: how many cards the draw will bring (the claim's count). */
+/**
+ * What the RESOLUTION's confirm hands up beside the response: how many cards
+ * the draw will bring (the claim's count), and whether the action BUYS A
+ * FLEET (the host then records the fleets and the titanium at the commit and
+ * plays the fleet's closing beat once the bill is settled, instead of
+ * concluding on the answer).
+ */
 export type PartyConfirmDetail = {
   expectedCards: number;
+  fleet?: boolean;
 };
 
 export function partyComposerKind(party: ReduxParty): PartyComposerKind {
@@ -444,7 +511,7 @@ function asElements(ref: unknown): Array<HTMLElement> {
 export default defineComponent({
   name: 'ConsolePartyActionComposer',
   components: {
-    ActionEffectChip, GamepadGlyph, ConsoleCardFaceLite, ConsolePartyPlaque, ConsoleWsStageHead,
+    ActionEffectChip, GamepadGlyph, ConsoleCardFaceLite, ConsolePartyPlaque, ConsoleWsStageHead, ColonyFleetIcon,
     CardRenderEffectBoxComponent, CardRenderData,
   },
   props: {
@@ -539,13 +606,16 @@ export default defineComponent({
       const resolution = id === undefined ? undefined : getResolution(id);
       return resolution?.text.action === undefined ? '' : translateText(resolution.text.action);
     },
-    phase(): 'setup' | 'select' | 'sale' | 'outcome' | 'discard' | 'result' {
+    phase(): 'setup' | 'select' | 'sale' | 'pay' | 'outcome' | 'discard' | 'result' {
       if (this.result !== undefined) {
         return 'result';
       }
       if (this.kind === 'resolution') {
         if (this.handStep) {
           return 'select';
+        }
+        if (this.billStanding) {
+          return 'pay';
         }
         if (this.saleStage) {
           return 'sale';
@@ -566,9 +636,92 @@ export default defineComponent({
     saleLive(): boolean {
       return this.kind === 'resolution' && patentSaleState.active && patentSaleState.source === 'resolution';
     },
-    /** The resolution's stage is its SALE: sent and not yet answered, or the scene still playing. */
+    /** The resolution's stage is its SALE: sent and not yet answered, or the scene still playing — never while its BILL stands. */
     saleStage(): boolean {
-      return this.kind === 'resolution' && (this.submitting || this.saleLive);
+      return this.kind === 'resolution' && !this.billStanding && (this.submitting || this.saleLive);
+    },
+    /**
+     * THE LAW'S CONFIRM (Trade Industries: «buy a fleet» — a bare option whose
+     * answer raises a BILL): the decision is a press, never a pick. Read from
+     * the prompt's TYPE inside the marked menu branch — the marker says it is
+     * the law's; the shape says what it asks.
+     */
+    confirmPrompt(): SelectOptionModel | undefined {
+      const entry = this.entry;
+      if (this.kind !== 'resolution' || entry === undefined || entry.model.type !== 'option') {
+        return undefined;
+      }
+      return entry.model as SelectOptionModel;
+    },
+    /**
+     * THE LAW'S BILL STANDS — the payment the confirm deferred, for THIS law
+     * (the server's marker at stage `pay`, never a title). Derived from the
+     * same prop the menu entry is derived from, so the two never disagree
+     * inside one flush (the entry leaves in the very tick the bill arrives).
+     */
+    billStanding(): boolean {
+      const bill = resolutionBillOf(this.playerView.waitingFor);
+      return this.kind === 'resolution' && bill !== undefined && bill.resolution === this.resolution;
+    },
+    /**
+     * THE PRICE FOR THIS SEAT by the manifest's declared bill and the seat's
+     * live influence — the ONE function the server prices the action by, so
+     * the arithmetic line under the chips can never disagree with the chip's
+     * own amount. Undefined for a law whose action costs nothing.
+     */
+    billPrice(): ActionBillPrice | undefined {
+      const id = this.resolution;
+      const bill = id === undefined ? undefined : getResolution(id)?.actionBill;
+      if (bill === undefined) {
+        return undefined;
+      }
+      const me = this.viewerColor;
+      const seat = this.playerView.game.parliament?.players.find((p) => p.color === me);
+      return actionBillPrice(bill, seat?.influence ?? 0);
+    },
+    /** The server's own result chips for THIS seat — the discounted price against the rail, the fleet it buys. */
+    priceChips(): ReadonlyArray<ActionEffect> {
+      return this.liveAction?.preview ?? [];
+    },
+    /** The arithmetic behind the price, in words: «printed − discount for influence N», or the free case. */
+    priceLine(): string {
+      const price = this.billPrice;
+      if (price === undefined) {
+        return '';
+      }
+      return price.price > 0 ?
+        translateTextWithParams('Price ${0} M€ — the printed ${1} less ${2} for influence ${3}', [String(price.price), String(price.printed), String(price.discount), String(price.influence)]) :
+        translateTextWithParams('Free — influence ${0} covers the printed ${1} M€', [String(price.influence), String(price.printed)]);
+    },
+    /** THIS stage's flow is past its commit (the host's record — module state, so a park does not lose it). */
+    flowCommitted(): boolean {
+      const flow = consoleCardActionsUi.partyFlow;
+      if (flow === undefined || flow.stage === 'setup') {
+        return false;
+      }
+      return this.resolution !== undefined ? flow.resolution === this.resolution : flow.party === this.party && flow.resolution === undefined;
+    },
+    /** The action BUYS A FLEET — the server's own gain chip says so (the host plays the fleet beat for it). */
+    gainsFleet(): boolean {
+      return this.priceChips.some((chip) => chip.direction === 'gain' && chip.icon === 'trade-fleet');
+    },
+    viewerColor(): Color {
+      return this.playerView.thisPlayer.color;
+    },
+    /** What the settled bill took, as cost chips (zeros omitted; nothing at all reads «free»). */
+    paidChips(): ReadonlyArray<ActionEffect> {
+      const paid = this.result?.fleet?.paid;
+      if (paid === undefined) {
+        return [];
+      }
+      const chips: Array<ActionEffect> = [];
+      if (paid.megacredits > 0) {
+        chips.push({direction: 'cost', icon: 'megacredits', amount: paid.megacredits});
+      }
+      if (paid.titanium > 0) {
+        chips.push({direction: 'cost', icon: 'titanium', amount: paid.titanium});
+      }
+      return chips;
     },
     /** The law's rate — from the prompt's own discard marker, never a client rule (the printed card is the fallback). */
     saleRate(): {megacredits: number, cards: number} {
@@ -678,10 +831,10 @@ export default defineComponent({
       const node = group?.nodes[result.nodeIndex] ?? group?.nodes[0];
       return node !== undefined ? stripNodeOr(node) : undefined;
     },
-    /** The prompt's own A-verb for a table decision («Take action»), as the server wrote it. */
+    /** The prompt's own A-verb for a table decision («Take action») or a confirm («Buy fleet»), as the server wrote it. */
     tableauLabel(): string {
       const entry = this.entry;
-      const label = entry?.model.type === 'card' ? entry.model.buttonLabel : '';
+      const label = entry !== undefined && (entry.model.type === 'card' || entry.model.type === 'option') ? entry.model.buttonLabel : '';
       return typeof label === 'string' && label !== '' ? label : 'Confirm';
     },
     redsSequence(): ReadonlyArray<{chip: ActionEffect, note?: string}> {
@@ -734,7 +887,9 @@ export default defineComponent({
       case 'industrialists': return this.picks[0] !== undefined && this.picks[1] !== undefined;
       case 'scientists': return this.picks[0] !== undefined && this.picks[1] !== undefined;
       case 'reds': return true;
-      case 'resolution': return this.repeatPrompt !== undefined && this.repeatResult !== undefined;
+      case 'resolution':
+        // A repeat needs its slot filled; a confirm is complete by standing.
+        return this.repeatPrompt !== undefined ? this.repeatResult !== undefined : this.confirmPrompt !== undefined;
       default: return false;
       }
     },
@@ -750,8 +905,8 @@ export default defineComponent({
     },
     /** THE ONE COMMAND CONTRACT — handed UP to the host's bar. */
     commands(): Array<ConsoleCommand> {
-      if (this.kind === 'unity' || this.handStep) {
-        // The hosted step owns the bar (the hand's own pick verbs, the colony trade's).
+      if (this.kind === 'unity' || this.handStep || this.billStanding) {
+        // The hosted step owns the bar (the hand's own pick verbs, the colony trade's, the payment's lanes).
         return [];
       }
       if (this.result !== undefined) {
@@ -764,7 +919,7 @@ export default defineComponent({
       if (this.submitting || this.saleLive) {
         return [{control: 'confirm', label: 'Performing…', enabled: false}];
       }
-      if (this.kind === 'resolution' && this.repeatPrompt === undefined) {
+      if (this.kind === 'resolution' && this.repeatPrompt === undefined && this.confirmPrompt === undefined) {
         // Between steps (the pick refused or gone): the way back is the only verb.
         return [{control: 'secondary', label: 'Inspect'}, {control: 'back', label: 'Back'}];
       }
@@ -826,9 +981,18 @@ export default defineComponent({
         this.$emit('commands', cmds);
       },
     },
-    /** The prompt moved on before the commit (the action was spent elsewhere / the turn ended): the stage folds. */
+    /**
+     * The prompt moved on BEFORE the commit (the action was spent elsewhere /
+     * the turn ended): the stage folds. PAST the commit the entry's departure
+     * is the ordinary course of the flow (the action is spent, so the menu no
+     * longer lists it) and its ending belongs to the HOST — the closing beat,
+     * the one guarded conclusion — never to a cancel from here: the paid
+     * law's bill left together with its menu entry, and this watcher folded
+     * the stage under the fleet beat the host was about to play.
+     */
     entry(entry: unknown): void {
-      if (entry === undefined && !this.submitting && !this.outcomeOn && !this.handStep && this.result === undefined && !this.saleLive) {
+      if (entry === undefined && !this.submitting && !this.outcomeOn && !this.handStep && !this.billStanding && !this.flowCommitted &&
+          this.result === undefined && !this.saleLive) {
         this.$emit('cancel');
       }
     },
@@ -936,10 +1100,28 @@ export default defineComponent({
      * player decided is lost to a transport error.
      */
     submitting(now: boolean, was: boolean): void {
-      if (was && !now && this.kind === 'resolution' && this.repeatPrompt === undefined &&
-          !this.outcomeOn && !this.saleLive && !this.pickOpen) {
+      if (was && !now && this.kind === 'resolution' && this.repeatPrompt === undefined && this.confirmPrompt === undefined &&
+          !this.billStanding && !this.outcomeOn && !this.saleLive && !this.pickOpen) {
         void this.$nextTick(() => this.openResolutionPick(this.salePicked));
       }
+    },
+    /**
+     * THE BILL ZONE is published by ITS OWNER, post-flush (embed rule 4): the
+     * shell's payment host teleports into it, and a `<Teleport>` in the shell
+     * is patched BEFORE this subtree in the flush the bill arrives in — a
+     * target named from the prompt alone did not exist yet, and Vue dropped
+     * the host outright. Retracted the moment the bill leaves (and on unmount).
+     */
+    billStanding: {
+      immediate: true,
+      flush: 'post' as const,
+      handler(on: boolean): void {
+        if (on) {
+          consoleCardActionsUi.billZone = '.con-pact--resolution [data-embed-slot="action-bill"]';
+        } else if (consoleCardActionsUi.billZone !== '') {
+          consoleCardActionsUi.billZone = '';
+        }
+      },
     },
   },
   mounted() {
@@ -948,7 +1130,8 @@ export default defineComponent({
     this.cursorRow = this.decisionRows === 0 ? this.ctaRow : 0;
     // THE LAW'S FIRST STEP IS THE PICK: the real hand stands up as a step of
     // this stage the moment the stage is on screen.
-    if (this.kind === 'resolution' && this.repeatPrompt === undefined && !this.outcomeOn && !this.saleLive) {
+    if (this.kind === 'resolution' && this.repeatPrompt === undefined && this.confirmPrompt === undefined && !this.billStanding &&
+        !this.outcomeOn && !this.saleLive) {
       void this.$nextTick(() => this.openResolutionPick([]));
     }
   },
@@ -957,6 +1140,11 @@ export default defineComponent({
     this.abortBeatFlight();
     this.commitHandle?.kill();
     this.commitHandle = undefined;
+    // Retract the bill zone before it unmounts (a stale selector teleports the
+    // payment host into a detached node — embed rule 4).
+    if (consoleCardActionsUi.billZone !== '') {
+      consoleCardActionsUi.billZone = '';
+    }
     resetOutcomeOrigin();
     // Retract OUR zone before it unmounts (a stale selector teleports the
     // next batch into a detached node — embed rule 4).
@@ -976,7 +1164,7 @@ export default defineComponent({
     },
     /** The host routes every intent here while the stage stands. */
     handleIntent(intent: GamepadIntent): void {
-      if (this.submitting || this.kind === 'unity' || this.handStep || this.outcomeOn || this.saleLive) {
+      if (this.submitting || this.kind === 'unity' || this.handStep || this.billStanding || this.outcomeOn || this.saleLive) {
         return;
       }
       if (this.result !== undefined) {
@@ -985,7 +1173,7 @@ export default defineComponent({
         }
         return;
       }
-      if (this.kind === 'resolution' && this.repeatPrompt === undefined) {
+      if (this.kind === 'resolution' && this.repeatPrompt === undefined && this.confirmPrompt === undefined) {
         // The law's decision is somewhere else (the hand's own surface owns
         // the bar) or already gone — only the way back is ours.
         switch (consoleActionOf(intent)) {
@@ -1116,6 +1304,11 @@ export default defineComponent({
       }
       const plan = this.commitPlanFor();
       this.playCommitBeat(plan.kind, plan.specs, plan.kind === 'draw' ? pulseDeckPile : undefined);
+      if (this.kind === 'resolution' && this.confirmPrompt !== undefined) {
+        const detail: PartyConfirmDetail = {expectedCards: 0, fleet: this.gainsFleet};
+        this.$emit('confirm', response, detail);
+        return;
+      }
       this.$emit('confirm', response);
     },
     /** The universal ACTION COMMIT beat on the hero (the plaque or the law's face), measured now. */
@@ -1166,6 +1359,9 @@ export default defineComponent({
       case 'reds':
         return redsResponse(this.bridge);
       case 'resolution': {
+        if (this.confirmPrompt !== undefined) {
+          return resolutionActionConfirmResponse(this.bridge);
+        }
         const result = this.repeatResult;
         if (result === undefined) {
           return undefined;

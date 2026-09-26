@@ -209,6 +209,16 @@ export type AwaitingResolution =
   | {kind: 'hold'}
   /** The answer produced a reveal result — continue the scene as a PHASE. */
   | {kind: 'phase'}
+  /**
+   * The answer is a STEP the held workspace hosts itself (Turmoil Redux —
+   * Trade Industries: the confirm's answer is the BILL, standing as the flow's
+   * next stage inside the same composer). Decisive on its own, like a reveal:
+   * an answer that only DEFERS a prompt moves no game age (the action is not
+   * fully resolved until the prompt is answered), so the fingerprint alone
+   * would hold the stage for the whole safety window and then DISMISS it —
+   * closing the very frame the step stands in.
+   */
+  | {kind: 'step'}
   /** The answer moved the game on with no follow-up surface — dismiss. */
   | {kind: 'dismiss'};
 
@@ -220,11 +230,14 @@ export type AwaitingResolution =
  */
 export function resolveAwaiting(
   aw: AwaitingHandoff,
-  view: {gameAge: number, undoCount: number, revealArrived: boolean},
+  view: {gameAge: number, undoCount: number, revealArrived: boolean, stepArrived?: boolean},
   now: number,
 ): AwaitingResolution {
   if (view.revealArrived) {
     return {kind: 'phase'};
+  }
+  if (view.stepArrived === true) {
+    return {kind: 'step'};
   }
   if (view.gameAge !== aw.gameAge || view.undoCount !== aw.undoCount) {
     return {kind: 'dismiss'};

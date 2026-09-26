@@ -637,7 +637,7 @@ import {PremiumCardVM} from '@/client/components/premiumCard/premiumCardViewMode
 import {resolutionPremiumVm} from '@/client/components/premiumCard/resolutionPremiumVm';
 import {isPatentSaleActive} from '@/client/console/patentSale/consolePatentSale';
 import {ICardRenderRoot, isICardRenderEffect} from '@/common/cards/render/Types';
-import {parliamentPromptBridge} from '@/client/console/parliament/consoleParliamentModel';
+import {parliamentPromptBridge, resolutionBillOf} from '@/client/console/parliament/consoleParliamentModel';
 import {beginPartyColonyTrade} from '@/client/console/colonyTrade/colonyTradeEntry';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
@@ -778,6 +778,9 @@ export default defineComponent({
       /** The view's age while the discard step stood — its ANSWER is the next age (see `awaitPartyResult`). */
       partyDiscardAge: undefined as number | undefined,
       partyResultAwaitTimer: undefined as number | undefined,
+      /** A PAID law's bill left the stage (its answer submitted): the fleet beat waits for the ANSWER — see `awaitFleetResult`. */
+      fleetResultAwaitTimer: undefined as number | undefined,
+      fleetAwaitAge: undefined as number | undefined,
       /**
        * THE IN-FRAME OUTCOME STAGE of a confirmed action (undefined = the
        * configuration surface owns the column). What the action PRODUCED:
@@ -1034,6 +1037,7 @@ export default defineComponent({
           offered: bridge.resolutionAction !== undefined && bridge.resolutionAction.resolution === law.resolution,
           awaitingInput: this.playerView.waitingFor !== undefined,
           preview: law.preview,
+          ...(resolution?.actionBill === undefined ? {} : {bill: resolution.actionBill}),
         });
       }
       return out;
@@ -1131,6 +1135,11 @@ export default defineComponent({
       if (this.handStepHosted) {
         const stage = workspaceFrameStage('hand');
         return stage !== '' ? stage : 'Card discard';
+      }
+      // THE LAW'S BILL (Trade Industries): the payment host stands in the
+      // stage's own zone — the tail is the payment's one word.
+      if (this.billStepHosted) {
+        return 'Payment';
       }
       if (this.partyResult !== undefined) {
         return 'Result';
@@ -1379,6 +1388,20 @@ export default defineComponent({
     handStepHosted(): boolean {
       return !this.repeat && workspaceFrameHost('hand') === 'card-actions';
     },
+    /**
+     * THE LAW'S BILL STANDS IN THIS STAGE (Trade Industries): the composer's
+     * law is the one the server's payment names (its marker at stage `pay`),
+     * and the flow is past its commit. The shell teleports the payment host
+     * into the composer's zone on the same predicate; the crumb names it.
+     */
+    billStepHosted(): boolean {
+      const law = this.composer?.resolution;
+      if (law === undefined || this.repeat) {
+        return false;
+      }
+      const bill = resolutionBillOf(this.playerView.waitingFor);
+      return bill !== undefined && bill.resolution === law && this.partyCommitted;
+    },
     /** The party flow this workspace owns (module state — the shell's conclusion reads it). */
     partyFlow() {
       return consoleCardActionsUi.partyFlow;
@@ -1553,6 +1576,10 @@ export default defineComponent({
       if (this.partyResultAwaitTimer !== undefined && age !== this.partyDiscardAge) {
         this.beginPartyResult();
       }
+      // The BILL's ANSWER landed (the fleet is in the model now, or was refused) — the fleet beat reads it.
+      if (this.fleetResultAwaitTimer !== undefined && age !== this.fleetAwaitAge) {
+        this.beginFleetResult();
+      }
       if (this.partySubmitting && age !== this.partySubmittedAge) {
         this.clearPartySubmit();
         // The Reds' draw is answered by the CARDS: the claim raised at the
@@ -1562,7 +1589,36 @@ export default defineComponent({
         if (this.partyOutcomeOn) {
           return;
         }
+        // A PAID law (Trade Industries): the answer raised the BILL — the flow
+        // owes it and hosts it here; or the seat was auto-charged (no lane to
+        // choose) and the fleet is already in the model — its closing beat.
+        if (this.billStepHosted) {
+          return;
+        }
+        if (this.composer?.resolution !== undefined && this.partyFlow?.fleetBefore !== undefined) {
+          this.beginFleetResult();
+          return;
+        }
         void this.$nextTick(() => this.concludeFlow());
+      }
+    },
+    /**
+     * THE BILL ARRIVED (Trade Industries): the answer to the commit IS the
+     * bill — a structural fact, read off the server's own marker, never off
+     * `gameAge`: an answer that only DEFERS a payment logs nothing, so the
+     * age does not move, and the stage would have stood «Выполняется…» over
+     * its own next step until the 6 s safety gave the commit back. THE BILL
+     * LEFT: settled — the fleet is in the model and the closing beat reads it
+     * — or refused / moved on, in which case there is nothing to read and the
+     * flow ends the honest way.
+     */
+    'billStepHosted'(on: boolean, was: boolean): void {
+      if (on && !was && this.partySubmitting) {
+        this.clearPartySubmit();
+        return;
+      }
+      if (was && !on && this.composer?.resolution !== undefined && this.partyFlow?.stage === 'committed') {
+        this.awaitFleetResult();
       }
     },
     /**
@@ -1928,6 +1984,9 @@ export default defineComponent({
     }
     if (this.partyResultTimer !== undefined) {
       window.clearTimeout(this.partyResultTimer);
+    }
+    if (this.fleetResultAwaitTimer !== undefined) {
+      window.clearTimeout(this.fleetResultAwaitTimer);
     }
     if (this.partyResultAwaitTimer !== undefined) {
       window.clearTimeout(this.partyResultAwaitTimer);
@@ -2917,6 +2976,14 @@ export default defineComponent({
       if (flow !== undefined && flow.party === comp.party) {
         flow.stage = 'committed';
         flow.mcBefore = this.partyMcBefore;
+        // A PAID law's commit BUYS A FLEET (the composer read it off the
+        // server's own gain chip): the counts the closing beat will read
+        // against once the bill is settled — module state, so a park or a
+        // resume between the commit and the settlement does not lose them.
+        if (detail?.fleet === true) {
+          flow.fleetBefore = this.thisPlayer.fleetSize;
+          flow.titaniumBefore = this.thisPlayer.titanium;
+        }
       }
       // THE REDS DRAW INTO THIS STAGE. The claim is raised SYNCHRONOUSLY, before
       // the response can land, keyed on the party's own key — the server
@@ -3008,6 +3075,59 @@ export default defineComponent({
         return;
       }
       this.concludeFlow();
+    },
+    /**
+     * THE FLEET'S CLOSING BEAT (Trade Industries): the bill was settled — the
+     * fleet count moved in the model — and the stage reads it for one beat
+     * (the fleet that arrived, what left the rail for it: the M€ and the
+     * titanium, measured against the commit's own record), then the flow
+     * leaves through its ONE guarded ending. No fleet arrived (the bill was
+     * refused / the prompt moved on): nothing to read, the flow leaves at once.
+     */
+    /**
+     * THE BILL LEFT THE STAGE — but its ANSWER rides the NEXT response: the
+     * transport takes the prompt down at the submit, before the server has
+     * granted anything, so read at the bill's departure the model still shows
+     * the fleet count from before the commit and the beat would conclude the
+     * flow as «no fleet arrived» on the very press that buys it. So the beat
+     * waits for the age to move past the one the bill stood at (or begins at
+     * once when it already has), on a short net — the Reds' `awaitPartyResult`,
+     * for the fleet.
+     */
+    awaitFleetResult(): void {
+      if (this.partyResult !== undefined || this.fleetResultAwaitTimer !== undefined) {
+        return;
+      }
+      const flow = consoleCardActionsUi.partyFlow;
+      if (flow !== undefined && flow.fleetBefore !== undefined && this.thisPlayer.fleetSize > flow.fleetBefore) {
+        this.beginFleetResult();
+        return;
+      }
+      this.fleetAwaitAge = this.playerView.game.gameAge;
+      this.fleetResultAwaitTimer = window.setTimeout(() => this.beginFleetResult(), PARTY_RESULT_AWAIT_MS);
+    },
+    beginFleetResult(): void {
+      if (this.fleetResultAwaitTimer !== undefined) {
+        window.clearTimeout(this.fleetResultAwaitTimer);
+        this.fleetResultAwaitTimer = undefined;
+      }
+      const flow = consoleCardActionsUi.partyFlow;
+      if (flow === undefined || this.partyResult !== undefined) {
+        return;
+      }
+      const from = flow.fleetBefore ?? this.thisPlayer.fleetSize;
+      const to = this.thisPlayer.fleetSize;
+      if (to <= from) {
+        void this.$nextTick(() => this.concludeFlow());
+        return;
+      }
+      flow.stage = 'result';
+      const paid = {
+        megacredits: Math.max(0, (flow.mcBefore ?? this.partyMcBefore) - this.thisPlayer.megacredits),
+        titanium: Math.max(0, (flow.titaniumBefore ?? this.thisPlayer.titanium) - this.thisPlayer.titanium),
+      };
+      this.partyResult = {discarded: 0, payout: 0, tags: 0, fleet: {from, to, paid}};
+      this.partyResultTimer = window.setTimeout(() => this.finishPartyResult(), PARTY_RESULT_BEAT_MS);
     },
     clearPartySubmit(): void {
       if (this.partySubmitTimer !== undefined) {

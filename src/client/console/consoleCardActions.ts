@@ -50,6 +50,7 @@ import {AVAILABILITY_BLOCKERS, turnGateBlocker} from '@/common/availability/Avai
 import {ICardRenderRoot} from '@/common/cards/render/Types';
 import {PartyActionId, ReduxParty, ResolutionId} from '@/common/parliament/ParliamentTypes';
 import {partyOfTileKey, partyTileKey, resolutionOfTileKey, resolutionTileKey} from '@/client/console/parliament/partyActionKey';
+import {ResolutionActionBill} from '@/common/parliament/actionBill';
 
 type GroupNode = ActionGroup['nodes'][number];
 
@@ -471,6 +472,17 @@ export const consoleCardActionsUi = reactive({
    * that started it is still standing (or parked).
    */
   partyFlow: undefined as ConsolePartyFlow | undefined,
+  /**
+   * THE BILL ZONE of a paid law's stage (Turmoil Redux — Trade Industries):
+   * the selector of the composer's `[data-embed-slot="action-bill"]`, published
+   * by the composer POST-FLUSH once the zone is in the DOM and retracted by
+   * it on the way out (embed rule 4). The shell's payment host teleports into
+   * it — and a selector computed from the prompt alone was the bug: the
+   * shell's `<Teleport>` is patched BEFORE the composer's subtree in the very
+   * flush the bill arrives in, so a target named at once did not exist yet
+   * and Vue dropped the host outright (a payment nobody could see or answer).
+   */
+  billZone: '',
 });
 
 /** The stage a party action's flow is in — see `consoleCardActionsUi.partyFlow`. */
@@ -485,6 +497,14 @@ export type ConsolePartyFlow = {
   /** The viewer's M€ at the commit (or at a resume) — the payout beat reads the difference. Module state, so a
    *  park / a reload-resume (which remount the workspace) do not lose it. */
   mcBefore?: number;
+  /**
+   * A PAID law's commit (Trade Industries — the fleet is the gain): the viewer's fleets and titanium at the
+   * commit, so the closing beat can state what arrived and what left once the bill is settled. Present only
+   * for a commit whose composer promised a fleet; its presence is what tells the host to play the fleet beat
+   * instead of concluding on the answer.
+   */
+  fleetBefore?: number;
+  titaniumBefore?: number;
 };
 
 /** The composer's half of the staged return — taken exactly once, and only by
@@ -1014,6 +1034,11 @@ export type ResolutionActionSource = ParliamentActionSourceBase & {
   resolution: ResolutionId;
   party: ReduxParty;
   name: string;
+  /**
+   * The action's BILL as the manifest declares it (Trade Industries: 12 M€, 2 M€ off per influence, titanium
+   * accepted) — the tile then names its continuation as a PAYMENT, never a card pick. Absent for a free action.
+   */
+  bill?: ResolutionActionBill;
 };
 
 /** ONE list of the Parliament's sources — a party's action or the enacted law's. */
@@ -1096,11 +1121,16 @@ export function buildPartyTile(source: PartyActionSource): ConsoleActionTile {
 /**
  * The enacted RESOLUTION'S action as a tile: the law's printed action row on
  * the canvas, the same status ladder a party reads by, the pick it asks
- * (a card selection from the hand — Open IP Trade's discard).
+ * (a card selection from the hand — Open IP Trade's discard) or the BILL it
+ * raises (Trade Industries' fleet — the continuation is a payment). The
+ * PRICE the tile prints is the server's own cost chip (`preview`): priced
+ * for THIS seat with the discount taken, the influence and the discount as
+ * its basis — never a client arithmetic.
  */
 export function buildResolutionTile(source: ResolutionActionSource): ConsoleActionTile {
   const {status, reason, blocker} = parliamentSourceStatus(source, 'This resolution action was already used this generation');
   const key = resolutionTileKey(source.resolution);
+  const paid = source.bill !== undefined;
   return {
     key: key + '#0',
     cardName: key as CardName,
@@ -1115,7 +1145,7 @@ export function buildResolutionTile(source: ResolutionActionSource): ConsoleActi
     variableGain: [],
     variableChoice: [],
     hasChoices: true,
-    choiceKinds: ['card'],
+    choiceKinds: paid ? ['payment'] : ['card'],
     reason,
     blocker,
     variantTotal: 1,

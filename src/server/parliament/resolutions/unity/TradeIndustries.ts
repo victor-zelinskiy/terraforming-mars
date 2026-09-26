@@ -138,8 +138,10 @@ const TRADE_INDUSTRIES_ACTION: ResolutionAction = {
       });
   },
   // THE PRICE AS THE SEAT SEES IT: the discounted sum against the seat's M€
-  // (the influence behind the discount as the chip's basis), and the fleet
-  // it buys. Without a seat (the manifest) — the printed sum, no discount.
+  // — the influence and the discount it bought as the chip's basis, so the
+  // tile reads «−8 M€ · influence 2 · discount 4» under the printed 12 —
+  // and the fleet it buys. Without a seat (the manifest) — the printed sum,
+  // no discount.
   preview(player) {
     const price = player === undefined ? actionBillPrice(TRADE_INDUSTRIES_BILL, 0) : tradeIndustriesPrice(player);
     const cost: ActionEffect = {direction: 'cost', icon: 'megacredits', amount: price.price, note: 'titanium accepted'};
@@ -148,7 +150,7 @@ const TRADE_INDUSTRIES_ACTION: ResolutionAction = {
       const current = player.spendableMegacredits();
       cost.current = current;
       cost.resulting = Math.max(0, current - price.price);
-      cost.basis = [{count: price.influence, label: 'Influence'}];
+      cost.basis = [{count: price.influence, label: 'Influence'}, {count: price.discount, label: 'Discount'}];
       const fleets = player.colonies.getFleetSize();
       fleet.current = fleets;
       fleet.resulting = Math.min(MAX_FLEET_SIZE, fleets + 1);

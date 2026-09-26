@@ -6,7 +6,8 @@ import {ParliamentModel, PartyAccessModel, PartyActionModel, VoteOptionModel} fr
 import {ReduxParty} from '@/common/parliament/ParliamentTypes';
 import {
   accessReasonRows, agendaViewOf, buildParliamentView, offeredPartyActions, ParliamentPartyVm, ParliamentSlotVm, parliamentPromptBridge,
-  partyActionStateOf, partyFormulaRender, partyStateOf, resolutionActionResponse, resolutionActionStateOf, voteAccessOf, voteForecastOf, voteForecastRows, voteVerbOf,
+  partyActionStateOf, partyFormulaRender, partyStateOf, resolutionActionConfirmResponse, resolutionActionResponse, resolutionActionStateOf, resolutionBillOf,
+  voteAccessOf, voteForecastOf, voteForecastRows, voteVerbOf,
 } from '@/client/console/parliament/consoleParliamentModel';
 import {parliamentCommandsOf} from '@/client/console/parliament/parliamentCommands';
 import {parliamentFlow, resetParliamentFlow} from '@/client/console/parliament/consoleParliamentFlow';
@@ -336,6 +337,41 @@ describe('consoleParliamentModel — the enacted resolution\'s ACTION (Turmoil R
     expect(resolutionActionStateOf(action({available: false, reason: 'No cards in hand to discard'}), true)).to.deep.include({kind: 'blocked', reason: 'No cards in hand to discard'});
     expect(resolutionActionStateOf(action(), false).kind).to.eq('not-now');
     expect(resolutionActionStateOf(action(), true).kind).to.eq('available');
+  });
+
+  it('a law whose action is a CONFIRM (Trade Industries) answers its branch with a bare option; a card pick never answers as one, and vice versa', () => {
+    const PAID = 'RDX_UNITY_TRADE_INDUSTRIES';
+    const paidMenu = {
+      type: 'or', title: 'Take action', buttonLabel: '', options: [
+        {type: 'option', title: 'pass', buttonLabel: ''},
+        {type: 'option', title: 'Pay 8 M€ for an extra trade fleet (Trade Industries)', buttonLabel: 'Buy fleet',
+          resolutionActionPrompt: {resolution: PAID, party: PartyName.UNITY, stage: 'choose', usesLeft: 1, usesPerGeneration: 1}},
+      ],
+    } as unknown as PlayerInputModel;
+    const bridge = parliamentPromptBridge(paidMenu);
+    expect(bridge.resolutionAction).to.deep.include({menuIndex: 1, resolution: PAID});
+    expect(resolutionActionConfirmResponse(bridge)).to.deep.eq({type: 'or', index: 1, response: {type: 'option'}});
+    expect(resolutionActionResponse(bridge, ['Trees' as CardName]), 'a confirm is not a pick').to.eq(undefined);
+    expect(resolutionActionConfirmResponse(parliamentPromptBridge(menu)), 'a pick is not a confirm').to.eq(undefined);
+    expect(resolutionActionConfirmResponse(parliamentPromptBridge(undefined))).to.eq(undefined);
+  });
+
+  it('THE BILL of a paid law is found by its marker at stage `pay` on a top-level payment — never by its title, never a vote\'s bill, never a pick', () => {
+    const PAID = 'RDX_UNITY_TRADE_INDUSTRIES';
+    const payment = (over: Record<string, unknown>) => ({
+      type: 'payment', title: 'Select how to pay 8 M€ for the trade fleet', buttonLabel: 'Pay', amount: 8, paymentOptions: {titanium: true}, ...over,
+    } as unknown as PlayerInputModel);
+    const ours = payment({resolutionActionPrompt: {resolution: PAID, party: PartyName.UNITY, stage: 'pay', usesLeft: 1, usesPerGeneration: 1}});
+    expect(resolutionBillOf(ours)).to.deep.include({resolution: PAID});
+    expect(resolutionBillOf(ours)?.model.amount).to.eq(8);
+    expect(resolutionBillOf(payment({votePayment: {party: PartyName.UNITY, cost: 5}})), 'the vote\'s bill is not a law\'s').to.eq(undefined);
+    expect(resolutionBillOf(payment({})), 'a plain payment with the same title').to.eq(undefined);
+    expect(resolutionBillOf(payment({resolutionActionPrompt: {resolution: PAID, party: PartyName.UNITY, stage: 'choose', usesLeft: 1, usesPerGeneration: 1}})),
+      'the marker at the wrong stage').to.eq(undefined);
+    expect(resolutionBillOf(menu), 'the menu is not a bill').to.eq(undefined);
+    expect(resolutionBillOf(undefined)).to.eq(undefined);
+    // …and a standing bill registers NOTHING on the bridge: the menu is gone with it.
+    expect(parliamentPromptBridge(ours).resolutionAction).to.eq(undefined);
   });
 
   it('the browse bar advertises the law\'s own verb (Y) from every zone — lit only when it can be taken now, absent when no enacted law has one', () => {

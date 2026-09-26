@@ -697,6 +697,25 @@ describe('consoleCardActions model', () => {
       expect(notNow.tiles[0].blocker?.tone).to.eq('warning');
     });
 
+    it('a PAID law (Trade Industries) prints the server\'s own priced chip — discount taken, the basis carried — and names its continuation a PAYMENT', () => {
+      const PAID = 'RDX_UNITY_TRADE_INDUSTRIES';
+      const priced: ActionEffect = {direction: 'cost', icon: 'megacredits', amount: 8, current: 20, resulting: 12, note: 'titanium accepted',
+        basis: [{count: 2, label: 'Influence'}, {count: 4, label: 'Discount'}]};
+      const model = buildConsoleActionsModel([], NO_PREVIEWS, NO_RESOURCES, FILTER, undefined, 2, [
+        law({resolution: PAID, party: PartyName.UNITY, name: 'Trade Industries', rule: 'Pay 12 M€ to gain an extra trade fleet.',
+          bill: {amount: 12, discountPerInfluence: 2, titanium: true},
+          preview: [priced, {direction: 'gain', icon: 'trade-fleet', amount: 1, current: 1, resulting: 2}]}),
+      ]);
+      const tile = model.tiles.find((t) => t.resolutionAction === PAID)!;
+      expect(tile.costEffects, 'the priced chip as the server sent it — never re-priced here').to.deep.eq([priced]);
+      expect(tile.gainEffects.map((e) => e.icon)).to.deep.eq(['trade-fleet']);
+      expect(tile.choiceKinds, 'the continuation is the bill').to.deep.eq(['payment']);
+      expect(tile.status).to.eq('available');
+      // A free law's continuation is still its pick.
+      const free = buildConsoleActionsModel([], NO_PREVIEWS, NO_RESOURCES, FILTER, undefined, 2, [law()]);
+      expect(free.tiles[0].choiceKinds).to.deep.eq(['card']);
+    });
+
     it('never lists the law in REPEAT mode, and tells its source kind apart from a party\'s', () => {
       const model = buildConsoleActionsModel([entry('A', 'available', ['use'])], NO_PREVIEWS, NO_RESOURCES, FILTER, {candidates: new Set(), used: new Set()}, 2, [law()]);
       expect(model.groups.map((g) => g.key)).to.deep.eq(['A']);

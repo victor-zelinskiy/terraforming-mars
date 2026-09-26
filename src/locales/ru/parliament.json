@@ -1017,5 +1017,14 @@
   "Buy fleet": "Купить флот",
   "Select how to pay ${0} M€ for the trade fleet": "Выберите, как заплатить ${0} M€ за торговый флот",
   "${0} gains a trade fleet from ${1} for ${2} M€ (${3} − ${4} for influence ${5}): fleets ${6} → ${7}": "${0} получает торговый флот — ${1} — за ${2} M€ (${3} − ${4} за влияние ${5}): флотов ${6} → ${7}",
-  "titanium accepted": "можно титаном"
+  "titanium accepted": "можно титаном",
+  "Price": "Цена",
+  "Price ${0} M€ — the printed ${1} less ${2} for influence ${3}": "Цена ${0} M€ — печатные ${1} минус ${2} за влияние ${3}",
+  "Free — influence ${0} covers the printed ${1} M€": "Бесплатно — влияние ${0} покрывает печатные ${1} M€",
+  "Trade fleet gained": "Торговый флот получен",
+  "With titanium": "С титаном",
+  "Without titanium": "Без титана",
+  "M€ only": "только M€",
+  "Means": "Средства",
+  "Enough": "Хватает"
 }

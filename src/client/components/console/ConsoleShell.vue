@@ -1674,7 +1674,7 @@ import {ParliamentEnactOutcomeModel} from '@/common/models/ParliamentModel';
 import {enactedLevyOf, enactedYieldsOf, ReadingPerson, voteLevyOf, voteYieldsOf} from '@/client/console/parliament/influenceYieldModel';
 import {LevyReading} from '@/common/parliament/resolutionLevy';
 import {PartyReactionReading, partyReactionsOf, viewerHasSeat} from '@/client/console/parliament/partyReactionModel';
-import {buildParliamentView, voteForecastOf} from '@/client/console/parliament/consoleParliamentModel';
+import {buildParliamentView, resolutionBillOf, voteForecastOf} from '@/client/console/parliament/consoleParliamentModel';
 import {footerFactsOf, voteFactsOf, VoteFactVm} from '@/client/console/parliament/voteInfoModel';
 import ConsolePartyReaction from '@/client/components/console/parliament/ConsolePartyReaction.vue';
 import {InfluenceYield} from '@/common/parliament/influenceScaling';
@@ -2088,8 +2088,7 @@ import {
   markMandatoryBeatPresented,
   noteMandatoryBeatIdentity,
   resetMandatoryGate,
-  setMandatoryGateHeld,
-} from '@/client/console/consoleMandatoryGate';
+  setMandatoryGateHeld, isResolutionAsk} from '@/client/console/consoleMandatoryGate';
 import {
   AdmissionSignals,
   PromptSurface,
@@ -4537,6 +4536,14 @@ export default defineComponent({
       if (this.parliamentStageTask && !consoleParliamentUi.fieldStanding && !this.consoleState.task.deferred) {
         return true;
       }
+      // …and a PAID LAW'S BILL (Trade Industries) belongs inside the action
+      // workspace's own stage: held until the composer has published its zone
+      // (post-flush, one tick after the bill arrives) — never a standalone
+      // band that then teleports away.
+      if (this.hostTask?.kind === 'payment' && this.partyBillStanding && !workspaceFrameParked('card-actions') &&
+          consoleCardActionsUi.billZone === '' && !this.consoleState.task.deferred) {
+        return true;
+      }
       return this.taskBelongsToWorkspace &&
         (workspaceOutcomeState.embedSlot === '' || workspaceOutcomeBeatPending());
     },
@@ -4601,6 +4608,17 @@ export default defineComponent({
       // step zone («› ОПЛАТА») instead of replacing the screen it belongs to.
       if (this.pendingClientPayment !== undefined && workspaceFrameMounted('standard-projects')) {
         return '.con-stdp [data-embed-slot="stdp-step"]';
+      }
+      // A PAID LAW'S BILL (Turmoil Redux — Trade Industries: «pay 12 M€ to
+      // gain an extra trade fleet»): the confirm the player pressed in the
+      // action workspace deferred this payment, so it is the NEXT STAGE of
+      // that very flow («› ОПЛАТА») and the party composer hosts it in its
+      // own zone — found by the server's marker (`resolutionActionPrompt` at
+      // stage `pay`), never a title. A PARKED workspace has no zone on
+      // screen: the host then rises on its own, and the restore re-homes it.
+      if (this.hostTask?.kind === 'payment' && this.partyBillStanding && !workspaceFrameParked('card-actions') &&
+          consoleCardActionsUi.billZone !== '') {
+        return consoleCardActionsUi.billZone;
       }
       // A PAID VOTE's bill (Turmoil Redux — the delegate from the reserve):
       // the vote step hosts it in its own zone, so paying is one more row of
@@ -5048,8 +5066,10 @@ export default defineComponent({
         forcedReaction: this.viewerForcedReaction,
         // An ENACTED RESOLUTION's ask (Turmoil Redux) is always announced: the
         // plate names the resolution, A opens the choice (the payout pick in
-        // the Parliament, the winner's ocean on the board).
-        resolutionPrompt: promptSourceResolution(wf) !== undefined,
+        // the Parliament, the winner's ocean on the board). A prompt of the
+        // law's own ACTION (the bill of Trade Industries) is the player's own
+        // move and is never announced — `isResolutionAsk` tells the two apart.
+        resolutionPrompt: isResolutionAsk(wf),
         flows: this.mandatoryFlowBeats,
       });
     },
@@ -6961,6 +6981,20 @@ export default defineComponent({
         !this.admits('followUp');
     },
     /**
+     * THE BILL OF THE LAW THIS WORKSPACE COMMITTED stands in `view` (Turmoil
+     * Redux — Trade Industries): the party flow record names the law, the
+     * server's top-level payment carries that law's marker at stage `pay`, and
+     * the action workspace is on screen to host it. Read by the awaiting
+     * handoff's resolution (the answer is a STEP, never a dismiss) — inside the
+     * `playerView` watcher `this.playerView` IS the incoming view.
+     */
+    partyBillStanding(): boolean {
+      const flow = consoleCardActionsUi.partyFlow;
+      const bill = resolutionBillOf(this.playerView.waitingFor);
+      return flow !== undefined && flow.resolution !== undefined && bill !== undefined && bill.resolution === flow.resolution &&
+        workspaceFrameMounted('card-actions');
+    },
+    /**
      * THE ACTION WORKSPACE'S PARTY FLOW STILL OWES SOMETHING (Turmoil Redux):
      * the Reds' mandatory discard — the server's own `partyActionPrompt`
      * marker at stage `discard`, for the party this workspace committed —
@@ -6979,6 +7013,23 @@ export default defineComponent({
       // THE LAW'S SALE (Open IP Trade): the terminal is still working or the
       // chip still flying — the workspace stays for the draw that follows.
       if (flow.resolution !== undefined && flow.stage === 'committed' && isPatentSaleActive()) {
+        return true;
+      }
+      // THE LAW'S BILL (Trade Industries): the payment the commit deferred
+      // stands — the server's marker at stage `pay`, for the law this
+      // workspace committed — and the fleet waits on it.
+      if (flow.resolution !== undefined && flow.stage === 'committed' && resolutionBillOf(this.playerView.waitingFor)?.resolution === flow.resolution) {
+        return true;
+      }
+      // …AND A PAID LAW'S FLOW OWES ITS CLOSING BEAT from the commit to the
+      // beat: the bill's answer rides the next response (the transport takes
+      // the prompt down at the submit), so between the submit and the answer
+      // NOTHING structural says «still in flight» — and the answer that ENDS
+      // THE TURN (the fleet was the seat's last action) left the workspace on
+      // the spot, before the host's own watcher could play the beat. The
+      // record carries `fleetBefore` from the commit; the host's own bounded
+      // await (`awaitFleetResult`) ends the flow honestly when no fleet came.
+      if (flow.resolution !== undefined && flow.stage === 'committed' && flow.fleetBefore !== undefined) {
         return true;
       }
       const marker = this.playerView.waitingFor?.partyActionPrompt;
@@ -11030,6 +11081,15 @@ export default defineComponent({
             gameAge: newView.game.gameAge,
             undoCount: newView.game.undoCount,
             revealArrived: lr !== undefined && `${lr.action}|${lr.revealed.name}` !== this.dismissedRevealKey,
+            // A PAID LAW'S BILL (Turmoil Redux — Trade Industries): the answer to
+            // the party composer's confirm is the payment it deferred, hosted
+            // as the flow's next stage in the very composer that is holding
+            // the stage. Structural (the server's marker for the law this
+            // workspace committed), and decisive on its own — the deferral
+            // moves no game age, so without it the stage would sit «in flight»
+            // for the whole safety window and then be DISMISSED under the
+            // bill it hosts.
+            stepArrived: this.partyBillStanding,
           }, typeof performance !== 'undefined' ? performance.now() : Date.now());
           if (resolution.kind !== 'hold') {
             // An outcome CLAIMED by an open workspace stays IN-FRAME: the
@@ -11047,7 +11107,8 @@ export default defineComponent({
             // so the claim itself is the verdict and `reconcileWorkspaceOutcome`
             // settles it a tick later — closing here on a guess is what handed
             // the batch to the full-bleed band in the first place.
-            const claimedInFrame = (resolution.kind === 'phase' &&
+            const claimedInFrame = resolution.kind === 'step' ||
+              (resolution.kind === 'phase' &&
               consoleActionComposerUi.revealClaim !== '' &&
               lr !== undefined && lr.action === consoleActionComposerUi.revealClaim) ||
               workspaceClaimsDrawReveal(currentRevealEvent()?.source) ||
@@ -16624,7 +16685,14 @@ export default defineComponent({
       // question a play's own card asked is a stage of that play, not the end
       // of the screen it was made in (the discard it opens, and the card that
       // discard buys, are still inside this workspace).
-      if (!this.taskBelongsToWorkspace && this.effectDecisionEmbedTarget === undefined) {
+      //
+      // …and for a PAID LAW'S BILL (Turmoil Redux — Trade Industries): the
+      // payment is the next stage of the action committed in the action
+      // workspace, hosted in its own zone; its answer brings the fleet the
+      // stage still has to read. Closing the layers at the submit tore that
+      // workspace down under the bill (the flow record went with it), and
+      // the fleet arrived with nothing on screen saying so.
+      if (!this.taskBelongsToWorkspace && this.effectDecisionEmbedTarget === undefined && !this.partyBillStanding) {
         closeConsoleLayers();
       }
       this.consoleState.task.deferred = false;

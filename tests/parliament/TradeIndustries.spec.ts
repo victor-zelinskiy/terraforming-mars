@@ -196,7 +196,7 @@ describe('TradeIndustries', () => {
         expect(price).deep.eq(actionBillPrice(TRADE_INDUSTRIES_BILL, influence));
         const preview = TRADE_INDUSTRIES.action!.preview(p1);
         expect(preview[0]).deep.include({direction: 'cost', icon: 'megacredits', amount: price.price, current: 20, resulting: 20 - price.price, note: 'titanium accepted'});
-        expect(preview[0].basis).deep.eq([{count: influence, label: 'Influence'}]);
+        expect(preview[0].basis).deep.eq([{count: influence, label: 'Influence'}, {count: price.discount, label: 'Discount'}]);
         expect(preview[1]).deep.include({direction: 'gain', icon: TRADE_FLEET_ICON, amount: 1, current: 1, resulting: 2});
         const option = actionOption(p1)!;
         expect(textOf(option.title)).deep.eq({key: 'Pay ${0} M€ for an extra trade fleet (Trade Industries)', params: [String(price.price)]});

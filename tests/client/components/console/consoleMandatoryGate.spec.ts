@@ -1,6 +1,7 @@
 import {expect} from 'chai';
 import {
   isInterruptiveMandatoryTask,
+  isResolutionAsk,
   mandatoryBeatFor,
   isMandatoryBeatHeld,
   isMandatoryBeatPresented,
@@ -254,5 +255,23 @@ describe('consoleMandatoryGate (the mandatory announcement gate)', () => {
       noteMandatoryBeatIdentity(draft.key);
       expect(isMandatoryBeatPresented(draft)).to.be.true;
     });
+  });
+});
+
+describe('consoleMandatoryGate — an enacted resolution\'s ASK vs the law\'s own ACTION (Turmoil Redux)', () => {
+  const LAW = 'RDX_UNITY_TRADE_INDUSTRIES';
+  const sourced = (over: Record<string, unknown>) => ({
+    type: 'payment', title: 'x', buttonLabel: '', amount: 8, paymentOptions: {},
+    choiceContext: {source: {kind: 'resolution', resolution: LAW}, mode: 'effect-choice'}, ...over,
+  } as never);
+
+  it('the sitting\'s ask (a resolution-sourced prompt) is announced; the law\'s own ACTION — the bill of a paid action — never is', () => {
+    expect(isResolutionAsk(sourced({})), 'the sitting\'s ask').to.be.true;
+    expect(isResolutionAsk(sourced({resolutionActionPrompt: {resolution: LAW, party: 'unity', stage: 'pay', usesLeft: 1, usesPerGeneration: 1}})),
+      'the bill of the law\'s action is the player\'s own move').to.be.false;
+    expect(isResolutionAsk(sourced({resolutionActionPrompt: {resolution: LAW, party: 'unity', stage: 'choose', usesLeft: 1, usesPerGeneration: 1}})),
+      'so is its pick').to.be.false;
+    expect(isResolutionAsk({type: 'payment', title: 'x', buttonLabel: '', amount: 8, paymentOptions: {}} as never), 'a plain payment').to.be.false;
+    expect(isResolutionAsk(undefined)).to.be.false;
   });
 });

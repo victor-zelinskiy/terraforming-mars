@@ -118,6 +118,19 @@ describe('surfaceMotionModel (the pure transition vocabulary)', () => {
         .to.deep.eq({kind: 'dismiss'});
     });
 
+    it('a hosted STEP in the answer (a paid law\'s bill) resolves at once — never a dismiss, whatever the fingerprint says', () => {
+      // The deferral moves no game age: the fingerprint alone would hold, then dismiss on expiry.
+      expect(resolveAwaiting(aw, {gameAge: 40, undoCount: 2, revealArrived: false, stepArrived: true}, 10_100))
+        .to.deep.eq({kind: 'step'});
+      expect(resolveAwaiting(aw, {gameAge: 41, undoCount: 2, revealArrived: false, stepArrived: true}, 10_100))
+        .to.deep.eq({kind: 'step'});
+      // A reveal still outranks it (a phase carries the source card across).
+      expect(resolveAwaiting(aw, {gameAge: 40, undoCount: 2, revealArrived: true, stepArrived: true}, 10_100))
+        .to.deep.eq({kind: 'phase'});
+      expect(resolveAwaiting(aw, {gameAge: 40, undoCount: 2, revealArrived: false, stepArrived: false}, 10_100))
+        .to.deep.eq({kind: 'hold'});
+    });
+
     it('a lost response expires into a dismiss (never a stuck shell)', () => {
       const late = aw.startedAt + AWAITING_SAFETY_MS + 1;
       expect(awaitingExpired(aw, late)).to.be.true;

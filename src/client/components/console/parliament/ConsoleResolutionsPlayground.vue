@@ -479,7 +479,7 @@
                  Funding repeats a card action, so what it pays is the copied card's
                  own, unknown until one is picked — has nothing to multiply, and a
                  «0 карт → недоступно» reading there would state somebody else's rule. -->
-            <div v-if="actionRate.length > 0" class="con-rxpg__action-hand">
+            <div v-if="actionPerCard" class="con-rxpg__action-hand">
               <span class="con-rxpg__ckey">{{ $t('Cards in hand') }}</span>
               <button v-for="n in ACTION_HANDS" :key="n" type="button" class="con-rxpg__action-handbtn"
                       :class="{'con-rxpg__action-handbtn--on': actionHand === n}" :data-rxpg-action-hand="n"
@@ -491,6 +491,43 @@
                 <span class="con-rxpg__action-arrow" aria-hidden="true">→</span>
                 <ActionEffectChip v-for="(chip, i) in actionSum" :key="i" :effect="chip" />
               </span>
+            </div>
+            <!-- A PRICED action (Trade Industries: «pay 12 M€ … a discount equal to 2 times your Influence»):
+                 the BILL as the manifest declares it, priced by the ONE function the server charges by, read at
+                 three influences (0 · 3 · 6 — the last one free), with and without titanium to pay, and with the
+                 means short: the refusal names the price and what the seat can pay — the server's own sentence. -->
+            <div v-if="selected.actionBill !== undefined" class="con-rxpg__action-bill" data-rxpg-action-bill>
+              <div class="con-rxpg__action-hand">
+                <span class="con-rxpg__ckey">{{ $t('Influence') }}</span>
+                <button v-for="n in BILL_INFLUENCES" :key="n" type="button" class="con-rxpg__action-handbtn"
+                        :class="{'con-rxpg__action-handbtn--on': billInfluence === n}" :data-rxpg-bill-influence="n"
+                        @click="billInfluence = n">{{ n }}</button>
+                <span class="con-rxpg__action-sum" data-rxpg-bill-price>
+                  <span>{{ billPrice.printed }} − {{ billPrice.discount }} =</span>
+                  <b>{{ billPrice.price }}</b>
+                  <i class="resource_icon resource_icon--megacredits con-rxpg__action-icon" aria-hidden="true"></i>
+                  <span v-if="billPrice.price === 0" class="con-rxpg__dim" data-rxpg-bill-free>{{ $t('free') }}</span>
+                </span>
+              </div>
+              <div class="con-rxpg__action-hand">
+                <span class="con-rxpg__ckey">{{ $t('Titanium') }}</span>
+                <button type="button" class="con-rxpg__action-handbtn" :class="{'con-rxpg__action-handbtn--on': billTitanium}" data-rxpg-bill-titanium="yes"
+                        @click="billTitanium = true">{{ $t('With titanium') }}</button>
+                <button type="button" class="con-rxpg__action-handbtn" :class="{'con-rxpg__action-handbtn--on': !billTitanium}" data-rxpg-bill-titanium="no"
+                        @click="billTitanium = false">{{ $t('Without titanium') }}</button>
+                <span class="con-rxpg__dim" data-rxpg-bill-lanes>{{ $t(billTitanium && selected.actionBill.titanium ? 'titanium accepted' : 'M€ only') }}</span>
+              </div>
+              <div class="con-rxpg__action-hand">
+                <span class="con-rxpg__ckey">{{ $t('Means') }}</span>
+                <button type="button" class="con-rxpg__action-handbtn" :class="{'con-rxpg__action-handbtn--on': !billShort}" data-rxpg-bill-means="enough"
+                        @click="billShort = false">{{ $t('Enough') }}</button>
+                <button type="button" class="con-rxpg__action-handbtn" :class="{'con-rxpg__action-handbtn--on': billShort}" data-rxpg-bill-means="short"
+                        @click="billShort = true">{{ $t('Short') }}</button>
+                <span v-if="billShort && billPrice.price > 0" class="con-rxpg__action-none" data-rxpg-bill-none>
+                  {{ $t('Unavailable') }} · {{ billShortReason }}
+                </span>
+                <span v-else class="con-rxpg__dim" data-rxpg-bill-ok>{{ $t('Available in Card actions') }}</span>
+              </div>
             </div>
           </div>
         </div>
@@ -586,10 +623,13 @@ import {PremiumCardVM} from '@/client/components/premiumCard/premiumCardViewMode
 import {PARLIAMENT_GRAPHIC, resolutionPremiumVm} from '@/client/components/premiumCard/resolutionPremiumVm';
 import {isICardRenderEffect} from '@/common/cards/render/Types';
 import {ActionEffect} from '@/common/models/ActionPreviewModel';
+import {ActionBillPrice, actionBillPrice} from '@/common/parliament/actionBill';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
 
 /** The synthetic hands the action's reading is scaled with on the stand. */
 const ACTION_HANDS: ReadonlyArray<number> = [0, 1, 4];
+/** The influences a PRICED action is read at: nothing off, half off, everything off (the fleet for free). */
+const BILL_INFLUENCES: ReadonlyArray<number> = [0, 3, 6];
 import {partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import PlayerCube from '@/client/components/PlayerCube.vue';
@@ -1616,6 +1656,11 @@ export default defineComponent({
       ACTION_HANDS,
       /** The synthetic HAND the action's reading is scaled with (the pick's «any number», at three sizes). */
       actionHand: 1,
+      BILL_INFLUENCES,
+      /** A PRICED action's scenarios: the influence the bill is read at, titanium in the supply, the means short. */
+      billInfluence: 3,
+      billTitanium: true,
+      billShort: false,
     };
   },
   computed: {
@@ -1655,6 +1700,23 @@ export default defineComponent({
     /** The action's RATE — the definition's own preview with no seat asked (the manifest). */
     actionRate(): ReadonlyArray<ActionEffect> {
       return this.selected?.actionPreview ?? [];
+    },
+    /** The rate is PER CARD FROM HAND (Open IP Trade) — the synthetic hand belongs to it alone. */
+    actionPerCard(): boolean {
+      return this.actionRate.some((e) => e.note === 'per card');
+    },
+    /** THE BILL priced at the chosen influence — the same function the server charges by (`actionBillPrice`). */
+    billPrice(): ActionBillPrice {
+      const bill = this.selected?.actionBill ?? {amount: 0, discountPerInfluence: 0, titanium: false};
+      return actionBillPrice(bill, this.billInfluence);
+    },
+    /** What a SHORT seat can pay in the refusal's own sentence: one M€ less than the price. */
+    billShortFunds(): number {
+      return Math.max(0, this.billPrice.price - 1);
+    },
+    /** The refusal a SHORT seat meets — the server's own sentence, priced by the same function. */
+    billShortReason(): string {
+      return translateTextWithParams('Need ${0} M€ for the trade fleet, you can pay ${1}', [String(this.billPrice.price), String(this.billShortFunds)]);
     },
     /** The rate scaled by the synthetic hand: what the pick's running summary would print for N cards. */
     actionSum(): ReadonlyArray<ActionEffect> {
