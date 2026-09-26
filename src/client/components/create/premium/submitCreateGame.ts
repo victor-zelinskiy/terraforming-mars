@@ -14,9 +14,10 @@ type SimplePlayer = {id: string, color: Color};
  * the loading curtain. Shared by the desktop Mission Control screen AND the
  * console-native create flow so the two can never drift.
  *
- * On failure the shared state carries the inline error (`createGameState.error`)
- * and `creating` drops back to false; on success the page navigates away (the
- * deliberate reload at the game boundary), so `creating` stays raised.
+ * On failure the shared state carries the inline error (`createGameState.error`) —
+ * the SERVER's own reason when it sent one, so a refused setup names itself instead of
+ * asking for a blind retry — and `creating` drops back to false; on success the page
+ * navigates away (the deliberate reload at the game boundary), so `creating` stays raised.
  */
 export async function submitPremiumCreateGame(): Promise<boolean> {
   createGameState.error = '';
@@ -38,7 +39,12 @@ export async function submitPremiumCreateGame(): Promise<boolean> {
     } catch {
       json = undefined;
     }
-    if (!res.ok || json === undefined || !Array.isArray(json.players) || json.players.length === 0) {
+    if (!res.ok) {
+      // The server answers a refusal with its reason in the body; carry it so the
+      // panel can name WHY instead of asking for a blind retry.
+      throw new Error(text || 'create-failed');
+    }
+    if (json === undefined || !Array.isArray(json.players) || json.players.length === 0) {
       throw new Error('create-failed');
     }
     const creator = json.players.find((p) => p.color === creatorColor) ?? json.players[0];
@@ -49,9 +55,13 @@ export async function submitPremiumCreateGame(): Promise<boolean> {
     // Deliberate reload at the game boundary — covered by the curtain (P10).
     navigateWithCurtain(paths.PLAYER + '?id=' + encodeURIComponent(creator.id), 'expedition');
     return true;
-  } catch {
+  } catch (err) {
     createGameState.creating = false;
-    createGameState.error = 'Could not create the game. Please try again.';
+    const message = err instanceof Error ? err.message : '';
+    // Server-side blockers arrive as English reason strings — surface the specific one
+    // when it looks like one, else the generic retry line (same rule as the campaign submit).
+    createGameState.error = message.length > 0 && message.length < 200 && !message.includes('fetch') && message !== 'create-failed' ?
+      message : 'Could not create the game. Please try again.';
     return false;
   }
 }

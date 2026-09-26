@@ -276,8 +276,7 @@ commits (`c5728d32c1`, `1717517bf3`, `fd8f1ddf73`); non-RU locale realignments
 missing-code → 400 (`6c71f61180`); periodic deletion of expired sessions on every backend
 + the in-memory test double + a GameLoader counter, minus MetricsDelegate (`aa7eed2e68`);
 escape-velocity sanitizing on CREATE placed in `newGameConfigToOptions` so campaign
-creation shares it (`33008e2922`); custom card-list size validation answering
-`responses.badRequest` and resolving the route's body promise (`64641f602a`).
+creation shares it (`33008e2922`).
 
 **Merge notes worth remembering.** Flooding, Neptunian and Solar Storm are fork-reworked:
 the resolutions keep our premium prompt shapes (flat leaf options with metadata, the
@@ -289,7 +288,12 @@ Reds-tax check. Three imported upstream specs drove upstream's nested
 (`upstream-spec-encodes-upstream-rules`).
 
 **Declined:** `9960c15601` (removes `Deck.shuffle(cardsOnTop)` — that IS our dev
-«Guaranteed cards» mechanism and what the e2e deals rely on); `c604f60dcf` (drops an
+«Guaranteed cards» mechanism and what the e2e deals rely on); **`64641f602a`** (refuses a
+custom corporation / prelude / CEO list smaller than players × starting cards — it is
+upstream's COMPANION to `9960c15601`: only once the list IS the pool can a short one deal
+short. Here the list rides the top of the deck and never restricts the deal, so a one-card
+list is the normal shape of the dev guarantee. Taken by mistake in this window and reverted
+after it refused every launch with guaranteed cards on; a spec now pins the fork semantics); `c604f60dcf` (drops an
 old-save migration — we keep saves loadable); `f27d37ad2a` and `942080257e` (dead-key
 removal / «gain»→«add» prompt titles — locale-wide conflicts for no functional gain, and
 RU would orphan); `9e120cc0a6` (helper move conflicting inside two hooked cards);

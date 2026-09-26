@@ -383,59 +383,75 @@ describe('ApiCreateGame', () => {
     expect(second).to.deep.eq(first);
   });
 
-  // Upstream 64641f602a, driven through our scaffolding (a body arrives as one data chunk).
-  async function postConfig(config: object) {
+  // A custom list in THIS fork is `Deck.shuffle(cardsOnTop)` — named cards ride the top of
+  // the deck, the rest of the deck follows. It never restricts the deal, so a list shorter
+  // than players x starting cards is legitimate: it is how the dev «guaranteed cards» switch
+  // forces one card into the first hand. Upstream 64641f602a refuses such a list, because
+  // upstream (9960c15601, declined here) made the list the whole pool instead.
+  it('a custom corporation list shorter than the deal is accepted and rides the top of the deck', async () => {
     const post = scaffolding.post(apiCreateGame, res);
     const emit = Promise.resolve().then(() => {
-      req.emitter.emit('data', JSON.stringify(config));
+      const newGameConfig: NewGameConfig = {
+        players: [
+          {name: 'a', color: 'red', beginner: false, handicap: 0, first: true},
+          {name: 'b', color: 'blue', beginner: false, handicap: 0, first: false},
+        ],
+        expansions: {
+          corpera: true, promo: false, venus: false, colonies: false,
+          prelude: false, prelude2: false, turmoil: false, community: false,
+          ares: false, moon: false, pathfinders: false, ceo: false,
+          starwars: false, underworld: false, deltaProject: false, turmoilRedux: false,
+        },
+        board: BoardName.THARSIS,
+        seed: 0.2718,
+        randomFirstPlayer: false,
+        clonedGamedId: undefined,
+        undoOption: false,
+        showTimers: false,
+        testMode: false,
+        fastModeOption: false,
+        showOtherPlayersVP: false,
+        aresExtremeVariant: false,
+        politicalAgendasExtension: 'Standard',
+        solarPhaseOption: false,
+        removeNegativeGlobalEventsOption: false,
+        modularMA: false,
+        draftVariant: false,
+        initialDraft: false,
+        preludeDraftVariant: false,
+        ceosDraftVariant: false,
+        startingCorporations: 2,
+        shuffleMapOption: false,
+        randomMA: RandomMAOptionType.NONE,
+        includeFanMA: false,
+        soloTR: false,
+        // ONE name for a two-player game dealt two corporations each: four short of
+        // upstream's minimum, and exactly what the dev guarantee sends.
+        customCorporationsList: [CardName.TERACTOR],
+        bannedCards: [],
+        includedCards: [],
+        customColoniesList: [],
+        customPreludes: [],
+        requiresMoonTrackCompletion: false,
+        requiresVenusTrackCompletion: false,
+        moonStandardProjectVariant: false,
+        moonStandardProjectVariant1: false,
+        altVenusBoard: false,
+        escapeVelocity: undefined,
+        twoCorpsVariant: false,
+        customCeos: [],
+        startingCeos: 0,
+        startingPreludes: 0,
+      };
+      req.emitter.emit('data', JSON.stringify(newGameConfig));
       req.emitter.emit('end');
     });
     await Promise.all(([emit, post]));
-  }
 
-  const twoPlayers = [{name: 'a', color: 'red'}, {name: 'b', color: 'blue'}];
-
-  it('rejects a custom corporation list smaller than players × starting corporations', async () => {
-    await postConfig({
-      players: twoPlayers,
-      startingCorporations: 2,
-      customCorporationsList: [CardName.CREDICOR, CardName.ECOLINE, CardName.HELION],
-      customPreludes: [],
-    });
-    expect(res.statusCode).eq(statusCode.badRequest);
-    expect(res.content).contains('at least 4 corporations');
-  });
-
-  it('accepts a custom corporation list of exactly players × starting corporations', async () => {
-    await postConfig({
-      players: twoPlayers,
-      startingCorporations: 2,
-      customCorporationsList: [CardName.CREDICOR, CardName.ECOLINE, CardName.HELION, CardName.INVENTRIX],
-      customPreludes: [],
-    });
-    expect(res.statusCode).not.eq(statusCode.badRequest);
-  });
-
-  it('rejects a custom prelude list smaller than players × starting preludes', async () => {
-    await postConfig({
-      players: twoPlayers,
-      startingPreludes: 4,
-      customCorporationsList: [],
-      customPreludes: [CardName.ALLIED_BANK, CardName.AQUIFER_TURBINES, CardName.BIOFUELS, CardName.BIOLAB, CardName.BIOSPHERE_SUPPORT, CardName.BUSINESS_EMPIRE, CardName.DOME_FARMING],
-    });
-    expect(res.statusCode).eq(statusCode.badRequest);
-    expect(res.content).contains('at least 8 preludes');
-  });
-
-  it('rejects a custom CEO list smaller than players × CEOs dealt', async () => {
-    await postConfig({
-      players: twoPlayers,
-      startingCeos: 1,
-      customCorporationsList: [],
-      customPreludes: [],
-      customCeos: [CardName.FLOYD, CardName.HAL9000, CardName.KAREN, CardName.GORDON, CardName.ULRICH],
-    });
-    expect(res.statusCode).eq(statusCode.badRequest);
-    expect(res.content).contains('at least 6 CEOs');
+    expect(res.statusCode).eq(statusCode.ok);
+    const model = JSON.parse(res.content) as SimpleGameModel;
+    const game = await scaffolding.ctx.gameLoader.getGame(model.id);
+    const dealt = game!.players[0].dealtCorporationCards.map((c) => c.name);
+    expect(dealt).contains(CardName.TERACTOR);
   });
 });
