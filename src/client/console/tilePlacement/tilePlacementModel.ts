@@ -700,6 +700,41 @@ export function detectFreshPlacements(
   return out;
 }
 
+/** One tile the response took OFF a cell (TILED → EMPTY) — the removal scene's unit of work. */
+export type FreshRemoval = {
+  spaceId: SpaceId;
+  /** The tile that LEFT — the departure proxy's art. */
+  tileType: TileType;
+  /** Its owner, when it had one (an ocean never does) — the cube leaves ON the tile. */
+  color: Color | undefined;
+};
+
+/**
+ * Every TILED → EMPTY removal in this response, in board order — the diff the
+ * shared REMOVAL scene presents: a tile taken off the board (Water Export's
+ * ocean, the Reds' party action, the Dry Deserts event), for the chooser and
+ * every observer alike. HAZARDS are excluded — a hazard's disappearance keeps
+ * the board's own language, exactly as its materialization does. A cell whose
+ * tile CHANGED (a cover, a remove-and-replace) is not a removal: those are
+ * placements with their own scenes. Index-aligned like `detectFreshPlacements`.
+ */
+export function detectFreshRemovals(
+  prevSpaces: ReadonlyArray<SpaceModel>,
+  newSpaces: ReadonlyArray<SpaceModel>,
+): Array<FreshRemoval> {
+  const out: Array<FreshRemoval> = [];
+  const len = Math.min(prevSpaces.length, newSpaces.length);
+  for (let i = 0; i < len; i++) {
+    const prev = prevSpaces[i];
+    const next = newSpaces[i];
+    if (prev.id !== next.id || prev.tileType === undefined || next.tileType !== undefined || HAZARD_TILES.has(prev.tileType)) {
+      continue;
+    }
+    out.push({spaceId: prev.id, tileType: prev.tileType, color: prev.color});
+  }
+  return out;
+}
+
 /**
  * The targeted counterpart of `applyTilePlacementPreview` (the shared
  * board framework): copy JUST the armed space's fresh tile onto the

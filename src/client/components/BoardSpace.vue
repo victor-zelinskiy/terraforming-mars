@@ -271,9 +271,13 @@ export default defineComponent({
     showBonus(): boolean {
       // A held OCEAN COVER keeps painting the covered water (never the bare
       // hex), so the printed bonuses stay hidden exactly as they were under
-      // the real ocean.
-      const clearedToBareHex = this.placementCleared && heldPrevTileOf(this.space.id) === undefined;
-      return this.space.tileType === undefined || this.tileView === 'hide' || clearedToBareHex;
+      // the real ocean — and so does a REMOVAL in flight (an EMPTY committed
+      // cell still painting the tile that is about to lift): the bonuses
+      // surface only once the tile has gone.
+      if (this.placementCleared && heldPrevTileOf(this.space.id) !== undefined) {
+        return false;
+      }
+      return this.space.tileType === undefined || this.tileView === 'hide' || this.placementCleared;
     },
     // Cube reveal phase for this space (`hidden` during the tile placement
     // animation, `dropping` while the cube lands, `rest` otherwise). PlayerCube

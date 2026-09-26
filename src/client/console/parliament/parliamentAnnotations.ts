@@ -39,6 +39,7 @@ import {accessReasonRows} from './consoleParliamentModel';
 import {InfluenceYield} from '@/common/parliament/influenceScaling';
 import {ParliamentEnactOutcomeModel, ParliamentModel} from '@/common/models/ParliamentModel';
 import {WorldMoveTable, worldMoveReadingOf, worldMoveSentenceOf} from './worldMoveModel';
+import {tileRemovalReadingOf, tileRemovalSentenceOf} from './tileRemovalModel';
 import {colonyTrackReadingOf, colonyTrackTileSentenceOf} from './colonyTrackModel';
 import {ColonyModel} from '@/common/models/ColonyModel';
 import {
@@ -142,7 +143,13 @@ export function resolutionAnnotations(
    * The table the WORLD's part is read against (and, once it happened, the server's own records) — the
    * planet's globals, and the COLONY TABLE for a law that advances its tracks (Unity Budget).
    */
-  world?: {table: WorldMoveTable | undefined, enacted?: boolean, outcomes?: ReadonlyArray<ParliamentEnactOutcomeModel>, colonies?: ReadonlyArray<ColonyModel>},
+  world?: {
+    table: WorldMoveTable | undefined, enacted?: boolean, outcomes?: ReadonlyArray<ParliamentEnactOutcomeModel>, colonies?: ReadonlyArray<ColonyModel>,
+    /** The BOARD for a law that takes a tile off it (Water Export): the ocean count and how many are plain — `tileRemovalTableOf`. */
+    removal?: {oceans: number, removableOceans?: number},
+    /** …and the seats' names, so the record can say who chose the cell. */
+    nameOf?: (color: Color) => string,
+  },
   /** The viewer's reading of the LEVY a budget takes first (the estimate from their supply, or the record). */
   levy?: LevyReading,
   /** The viewer's reading of a TILE GRANTED BY THRESHOLD (Skyscrapers) — their standing, their destinations, their record. */
@@ -211,6 +218,14 @@ export function resolutionAnnotations(
         continue;
       }
       const sentence = worldMoveSentenceOf(reading, {text: translateText, params: translateTextWithParams}, {credit});
+      rows.push({text: '${0}: ${1}', params: [sentence.caption, sentence.detail]});
+    }
+    // A TILE TAKEN OFF THE BOARD (Water Export): the same block, the ocean count as it stands («Океаны: 3 → 2»),
+    // the named edge («на максимуме», «нет океана»), or the record — the cell it left and who chose; the
+    // declaration alone where there is no board to read against.
+    const removal = tileRemovalReadingOf(resolution, world?.removal, {enacted: world?.enacted === true, outcomes: world?.outcomes});
+    if (removal !== undefined && removal.context !== 'reference') {
+      const sentence = tileRemovalSentenceOf(removal, {text: translateText, params: translateTextWithParams}, world?.nameOf);
       rows.push({text: '${0}: ${1}', params: [sentence.caption, sentence.detail]});
     }
     const heading = moves.length === 0 && tracks !== undefined ? 'What it does to the colony table' : 'What it does to the planet';

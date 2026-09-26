@@ -39,6 +39,7 @@ import {
 } from './influenceYieldModel';
 import {LevyReading, levyShortNoteKey} from '@/common/parliament/resolutionLevy';
 import {ColonyTrackAdvance} from '@/common/parliament/colonyTrackAdvance';
+import {TileRemovalDeclaration} from '@/common/parliament/tileRemoval';
 import {COLONY_TRACK_SUMMARY_KEY} from './colonyTrackModel';
 import {colonyLedgerEmptyKey, COLONY_LEDGER_TOTAL, ColonyLedgerReading, colonyLedgerOf} from './colonyLedgerModel';
 import {PartyReactionReading, partyReactionsOf, viewerHasSeat} from './partyReactionModel';
@@ -122,6 +123,12 @@ export type VoteReadingVm = {
    * seat's and never enters the net; the tiles themselves read in the inspector. Undefined for every other resolution.
    */
   tracks?: ColonyTrackAdvance;
+  /**
+   * A TILE TAKEN OFF THE BOARD (Water Export): «the first player removes 1 ocean tile» — the TABLE's part,
+   * with no recipient: it stands in its own strip beside the seat's reading, never inside «for you», and
+   * never enters the net. Undefined for every other resolution.
+   */
+  removal?: TileRemovalDeclaration;
 };
 
 /** One side of a fact: a translatable key with params, or a RAW display string (a player's name), optionally with the leader's cube. */
@@ -241,6 +248,7 @@ export function voteReadingOf(
   // A seat at or below the limit is told nothing: there is no warning to give.
   note = note ?? levelLossNoteOf(yields);
   const tracks = resolution.trackAdvance;
+  const removal = resolution.tileRemoval;
   return {
     ...seated,
     yields,
@@ -252,6 +260,7 @@ export function voteReadingOf(
     ...(levy === undefined ? {} : {levy}),
     ...(grant === undefined ? {} : {grant}),
     ...(tracks === undefined ? {} : {tracks}),
+    ...(removal === undefined ? {} : {removal}),
   };
 }
 

@@ -118,6 +118,8 @@ const KIND_TITLE: Partial<Record<BoardPlacementKind, string>> = {
   'upgradeable-ocean-new-holland': 'Ocean',
   // A CITY TIER (Skyscrapers): the tile lands on top of the player's own city — the stack grows.
   'city-tier': 'City tier',
+  // AN OCEAN REMOVAL (Water Export): the pick names the ocean that LEAVES the board.
+  'ocean-removal': 'Ocean',
 };
 
 /**

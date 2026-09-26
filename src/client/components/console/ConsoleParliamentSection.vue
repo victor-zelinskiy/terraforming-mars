@@ -456,7 +456,8 @@ export default defineComponent({
         }
       }
       const step = SITTING_HOSTED_STEPS.has(p.rewardStep) && !this.sittingStepOpen ? 'received' : p.rewardStep;
-      return sittingStageKey(this.sittingStage, step);
+      const wf = this.pv.waitingFor;
+      return sittingStageKey(this.sittingStage, step, wf?.type === 'space' && wf.placementEffect === 'remove');
     },
     /** The sitting's identity for the session's memory of played stages (`generation:seq`). */
     sittingKey(): string {
@@ -1567,7 +1568,15 @@ export default defineComponent({
               // page with the colonies line owed a read. The walk stops here for exactly that.
               void runTrackMoveBeat(key);
             } else {
-              void runWorldMoveBeat(key, {boardBusy: () => this.pv.waitingFor?.type === 'space'});
+              // A beat the stack REFUSED (no root that steps aside) is over at once — the records are marked
+              // shown, the results' planet line states the move — and the walk must go on from here: it once
+              // stood on the reward page for good, waiting for a remount that never came (an observer whose
+              // sitting stood over its start root, Water Export's ocean).
+              void runWorldMoveBeat(key, {boardBusy: () => this.pv.waitingFor?.type === 'space'}).then((played) => {
+                if (!played && parliamentFlow.stage === 'sitting') {
+                  this.queueWalk();
+                }
+              });
             }
             break;
           }

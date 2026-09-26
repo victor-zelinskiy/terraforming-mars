@@ -497,6 +497,12 @@ export default defineComponent({
       const effect = this.playerinput.placementEffect ?? 'tile';
       if (effect === 'bonus-only') {
         armNomadMove({toSpaceId: this.spaceId});
+      } else if (effect === 'remove') {
+        // A REMOVAL (Water Export's ocean, the Reds' action): nothing lands, so
+        // there is no hero to arm. The tile's DEPARTURE is a BOARD EVENT every
+        // viewer sees alike — the shared remote-placement scene stages it from
+        // the response's own diff (`stageRemotePlacements` → the removal
+        // branch), for the chooser and the observers through one path.
       } else if (effect !== 'marker') {
         // …and WHETHER the cell already carries a tile that this placement
         // REMOVES first is the server's declaration too (`hiddenTiles` — the

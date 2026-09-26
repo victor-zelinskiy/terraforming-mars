@@ -1668,6 +1668,7 @@ import {ColonyLedgerReading, colonyLedgerOf} from '@/client/console/parliament/c
 import ConsoleWinnerReward from '@/client/components/console/parliament/ConsoleWinnerReward.vue';
 import ConsoleTileGrant from '@/client/components/console/parliament/ConsoleTileGrant.vue';
 import {WinnerRewardReading, winnerRewardReadingOf, winnerRewardTableOf} from '@/client/console/parliament/winnerRewardModel';
+import {tileRemovalTableOf} from '@/client/console/parliament/tileRemovalModel';
 import {TileGrantReading, tileGrantReadingOf} from '@/client/console/parliament/tileGrantModel';
 import {WinnerRewardTable} from '@/common/parliament/winnerReward';
 import {ParliamentEnactOutcomeModel} from '@/common/models/ParliamentModel';
@@ -8848,7 +8849,7 @@ export default defineComponent({
      * records (`worldMoveModel`): «Кислород: 5 % → 4 %», «Венера: 10 % →
      * 14 %, РТ никому».
      */
-    zoomResolutionWorld(): {table: WinnerRewardTable | undefined, enacted: boolean, outcomes: ReadonlyArray<ParliamentEnactOutcomeModel> | undefined, colonies: ReadonlyArray<ColonyModel>} {
+    zoomResolutionWorld(): {table: WinnerRewardTable | undefined, enacted: boolean, outcomes: ReadonlyArray<ParliamentEnactOutcomeModel> | undefined, colonies: ReadonlyArray<ColonyModel>, removal: {oceans: number, removableOceans: number} | undefined, nameOf: (color: Color) => string} {
       const id = this.zoomResolutionId;
       const model = this.game.parliament;
       const enacted = id !== undefined && model?.enacted?.resolution === id;
@@ -8860,6 +8861,9 @@ export default defineComponent({
         outcomes: enacted ? (phase?.outcomes ?? summary?.outcomes) : undefined,
         // …and the COLONY TABLE, for a law that advances its tracks (Unity Budget — `colonyTrackModel`).
         colonies: this.game.colonies,
+        // …and the BOARD, for a law that takes a tile off it (Water Export — `tileRemovalModel`): the ocean count and the plain ones.
+        removal: tileRemovalTableOf(this.game.spaces),
+        nameOf: (color: Color) => this.playerView.players.find((p) => p.color === color)?.name ?? String(color),
       };
     },
     /** The WINNER's tile of the resolution on the stage, read over the live table (`winnerRewardModel`). */
@@ -16912,7 +16916,12 @@ export default defineComponent({
         // finds the Parliament gone (the winner's tile took the screen with no
         // stack to resume, a reload) re-enters it at the server's step. A
         // parked sitting is the same sitting: it comes back as it was.
-        if (!this.restoreParkedWorkspace('parliament') && !workspaceFrameKnown('parliament')) {
+        // A sitting merely ASIDE for the board (yielded) is not gone either:
+        // the placement's own end brings it back at the same depth, once the
+        // board's story is quiet — a fresh frame stood up here would cover
+        // the board in the very frame the removed ocean (Water Export) lifts
+        // off it, and the scene would degrade under it.
+        if (!stackYieldedToBoard() && !this.restoreParkedWorkspace('parliament') && !workspaceFrameKnown('parliament')) {
           enterWorkspace('parliament', {anchor: {type: 'phase', phase: Phase.PARLIAMENT}});
         }
         return;
@@ -16923,7 +16932,8 @@ export default defineComponent({
         // external draw stands its own workspace up. Idempotent via the frame
         // guard (a raced double press finds the frame known).
         if (externalDrawResolutionOf(externalDrawTakeOf(this.playerView.waitingFor)) !== undefined) {
-          if (!this.restoreParkedWorkspace('parliament') && !workspaceFrameKnown('parliament')) {
+          // (A yielded sitting comes back by itself — same reason as the gate above.)
+          if (!stackYieldedToBoard() && !this.restoreParkedWorkspace('parliament') && !workspaceFrameKnown('parliament')) {
             enterWorkspace('parliament', {anchor: {type: 'phase', phase: Phase.PARLIAMENT}});
           }
           return;

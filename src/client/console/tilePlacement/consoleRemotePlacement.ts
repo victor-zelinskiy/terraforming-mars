@@ -52,8 +52,9 @@ import {consoleReducedMotionActive} from '@/client/console/composables/useConsol
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {
-  FreshPlacement, detectFreshPlacements, OWN_FLIGHT_PROFILE, REMOTE_FLIGHT_PROFILE,
+  FreshPlacement, detectFreshPlacements, detectFreshRemovals, OWN_FLIGHT_PROFILE, REMOTE_FLIGHT_PROFILE,
   TILE_FLIGHT_MS, TILE_SETTLE_MS, TileRect,
+  TILE_DEPART_MS, TILE_DEPART_SCALE, TILE_DEPART_TILT_DEG, TILE_DEPART_FADE_T, TILE_DEPART_BREATH_MS, departureLiftPx,
   OCEAN_PULSE_MS, OCEAN_BEAT_BREATH_MS, OCEAN_COIN_LIFT_PX, OCEAN_COIN_T, OCEAN_PULSE_T, OCEAN_PULSE_DRIFT,
   OCEAN_SPLASH_MS, oceanEdgePoint, oceanShoreDirection,
 } from '@/client/console/tilePlacement/tilePlacementModel';
@@ -65,13 +66,14 @@ import {AresAdjacencyGrantModel} from '@/common/models/AresAdjacencyGrantModel';
 import {
   placeTileProxy, playTileFlight, disposeTileProxy, killTileTweens,
   playAresSourcePulses, playCoverSplash, seatTileProxy,
+  placeDepartProxy, playTileDeparture,
 } from '@/client/console/tilePlacement/tilePlacementDirector';
 import {boardSpaceEpoch, waitBoardGeometryStable} from '@/client/console/boardSpaceGeometry';
 import {
   tilePlacementState, tileStageRemoteEls, measureBoardHexRect, tableSupplyPoint, AresSourceWake,
 } from '@/client/console/tilePlacement/consoleTilePlacement';
 import {
-  holdRemoteReveal, releaseRemoteReveal, isRemoteRevealHeld, clearRemoteRevealHolds,
+  holdRemoteReveal, releaseRemoteReveal, isRemoteRevealHeld, clearRemoteRevealHolds, markCellVacated,
 } from '@/client/console/tilePlacement/remoteRevealHold';
 import {
   holdCubeForHeroPlacement, dropCubeForHeroPlacement, restCubeForHeroPlacement,
@@ -134,6 +136,9 @@ export const remotePlacementState = reactive({
   /** The CURRENT flight's tile art (one remote flight at a time — the
    *  queue is sequential, so one proxy set suffices). */
   tileType: undefined as TileType | undefined,
+  /** The tile a REMOVAL takes OFF the cell (Water Export's ocean): the
+   *  departure proxy's art — set for the lift, cleared once it is gone. */
+  departingTile: undefined as TileType | undefined,
   aresExtension: false,
   /** The VIEWER's own tiles answering the current remote placement (the
    *  Ares owner-income beat) — staged wakes, empty otherwise. */
@@ -142,6 +147,13 @@ export const remotePlacementState = reactive({
 });
 
 type RemoteEvent = FreshPlacement & {
+  /**
+   * The tile LEAVES the cell instead of landing on it (a REMOVAL — Water
+   * Export's ocean, the Reds' action): `tileType` is then the departing
+   * tile's art, the held cell keeps painting it until the proxy takes it
+   * over, and the drain LIFTS instead of flying. No income, no cube drop.
+   */
+  removal?: boolean,
   aresExtension: boolean,
   /** TRUE = the VIEWER's own tile that never went through a SelectSpace
    *  (an auto-placed reserved-slot city) — it departs from the viewer's
@@ -223,7 +235,15 @@ export function stageRemotePlacements(
   if (prevSpaces === undefined || newSpaces === undefined) {
     return;
   }
-  stageRemoteTileEvents(detectFreshPlacements(prevSpaces, newSpaces), opts);
+  // …and every tile the response TOOK OFF a cell (Water Export's ocean, the
+  // Reds' action): the same queue, the same watchable-board wait, the same
+  // stage — a LIFT instead of a flight. A removal is a board event: the
+  // chooser's own answer and an observer's poll stage it through this one
+  // path, so nobody sees a silent pop-out.
+  stageRemoteTileEvents([
+    ...detectFreshPlacements(prevSpaces, newSpaces),
+    ...detectFreshRemovals(prevSpaces, newSpaces).map((r) => ({...r, removal: true})),
+  ], opts);
 }
 
 /**
@@ -232,7 +252,7 @@ export function stageRemotePlacements(
  * same synchronous block as the mutation that commits the tiles.
  */
 export function stageRemoteTileEvents(
-  events: ReadonlyArray<FreshPlacement>,
+  events: ReadonlyArray<FreshPlacement & {removal?: boolean}>,
   opts?: RemoteStageOpts,
 ): void {
   if (events.length === 0 || typeof window === 'undefined' || !consoleModeState.enabled) {
@@ -251,6 +271,20 @@ export function stageRemoteTileEvents(
     }
     if (isRemoteRevealHeld(e.spaceId) || queue.some((q) => q.spaceId === e.spaceId)) {
       continue; // already staged (a poll/submit double-report of one tile)
+    }
+    if (e.removal === true) {
+      // A REMOVAL: the committed cell is EMPTY, so the hold keeps painting the
+      // tile that LEFT until the departure proxy takes it over 1:1 — the
+      // player must never see the tile vanish before it lifts. Nothing is
+      // paid to anybody (no income hold), and the cube — if the tile had one —
+      // leaves on the proxy.
+      holdRemoteReveal(e.spaceId, e.tileType);
+      if (e.color !== undefined) {
+        holdCubeForHeroPlacement(e.spaceId);
+      }
+      queue.push({...e, aresExtension: opts?.aresExtension === true, own: false, income: []});
+      queued = true;
+      continue;
     }
     // A cover placement keeps painting the PREVIOUS tile (the ocean) while
     // held — a blank cell under an arriving Ocean City would erase water
@@ -312,6 +346,7 @@ export function abortRemotePlacements(): void {
   remotePlacementState.active = false;
   remotePlacementState.waitingForBoard = false;
   remotePlacementState.tileType = undefined;
+  remotePlacementState.departingTile = undefined;
   remotePlacementState.aresSources = [];
   clearStageSafety();
 }
@@ -328,10 +363,14 @@ async function drainQueue(): Promise<void> {
     while (queue.length > 0 && epoch === myEpoch) {
       const ev = queue[0];
       try {
-        await flyRemote(ev, myEpoch);
+        if (ev.removal === true) {
+          await liftRemote(ev, myEpoch);
+        } else {
+          await flyRemote(ev, myEpoch);
+        }
       } finally {
         if (epoch === myEpoch) {
-          // Whatever happened, the COMMITTED tile must be visible.
+          // Whatever happened, the COMMITTED cell must be visible (a tile, or the bare hex it became).
           releaseRemoteReveal(ev.spaceId);
           queue.shift();
         }
@@ -342,9 +381,84 @@ async function drainQueue(): Promise<void> {
       draining = false;
       remotePlacementState.active = false;
       remotePlacementState.tileType = undefined;
+      remotePlacementState.departingTile = undefined;
       clearStageSafety();
     }
   }
+}
+
+/**
+ * THE LIFT — a REMOVAL's scene (Water Export's ocean, the Reds' action): the
+ * departure half of the remove-and-replace beat, on the shared remote stage,
+ * for every viewer alike. Waits for a watchable board and stable geometry
+ * exactly as a flight does, then:
+ *   1. the departure proxy is posed 1:1 over the held cell and the hold is
+ *      RELEASED in the same synchronous turn — the real cell paints the bare
+ *      hex under a proxy that looks exactly like the tile that stood there
+ *      (the `con-deal-hold` swap discipline: nothing is seen to change);
+ *   2. the tile UNSEATS and rises away — thickness edge decompressing, a
+ *      small tip, dissolving on the way out (`playTileDeparture`), its owner
+ *      cube (if any) held on the cell until the tile is gone;
+ *   3. the vacated cell SETTLES once (`markCellVacated` → the board's own
+ *      one-shot class) — a loss, no celebration; only this cell reacts.
+ * Degrades to an instant reveal wherever the stage cannot stand (no board,
+ * no proxy): the cell is never left hidden.
+ */
+async function liftRemote(ev: RemoteEvent, myEpoch: number): Promise<void> {
+  remotePlacementState.waitingForBoard = boardCovered();
+  try {
+    await awaitWatchableBoard(myEpoch);
+  } finally {
+    remotePlacementState.waitingForBoard = false;
+  }
+  if (epoch !== myEpoch) {
+    return;
+  }
+  await waitBoardGeometryStable({alive: () => epoch === myEpoch});
+  if (epoch !== myEpoch) {
+    return;
+  }
+  const hex = measureBoardHexRect(ev.spaceId);
+  if (hex === undefined) {
+    degradeReveal(ev);
+    return;
+  }
+  remotePlacementState.active = true;
+  remotePlacementState.tileType = ev.tileType;
+  remotePlacementState.departingTile = ev.tileType;
+  remotePlacementState.aresExtension = ev.aresExtension;
+  remotePlacementState.nonce++;
+  await nextTick(); // the layer mounts the departure proxy
+  if (epoch !== myEpoch) {
+    return;
+  }
+  const els = tileStageRemoteEls();
+  if (els === undefined || !placeDepartProxy(els, hex)) {
+    remotePlacementState.departingTile = undefined;
+    degradeReveal(ev);
+    return;
+  }
+  // THE SWAP: the proxy stands 1:1 over the tile, so the real cell may blank
+  // NOW — nothing is seen to change until the proxy starts to move.
+  releaseRemoteReveal(ev.spaceId);
+  await playTileDeparture(els, {
+    hex,
+    liftPx: departureLiftPx(hex),
+    departMs: motionMs(TILE_DEPART_MS),
+    fadeAt: TILE_DEPART_FADE_T,
+    tiltDeg: TILE_DEPART_TILT_DEG,
+    scale: TILE_DEPART_SCALE,
+  });
+  if (epoch !== myEpoch) {
+    return;
+  }
+  // The vacated cell settles once; the cube (if the tile had one) is gone with the tile.
+  markCellVacated(ev.spaceId);
+  if (ev.color !== undefined) {
+    restCubeForHeroPlacement(ev.spaceId);
+  }
+  remotePlacementState.departingTile = undefined;
+  await wait(motionMs(TILE_DEPART_BREATH_MS));
 }
 
 async function flyRemote(ev: RemoteEvent, myEpoch: number): Promise<void> {
@@ -558,6 +672,13 @@ function awaitWatchableBoard(myEpoch: number): Promise<void> {
       if (epoch !== myEpoch || !boardCovered() || Date.now() > deadline) {
         // The board is back (or we gave up): let the workspace's own leave
         // finish before the tile flies into the space it just vacated.
+        // The SETTLE is the scene's own lead-in on a board the player can see,
+        // not the wait for a covered one — so the hold stands from here: the
+        // board-beat drain (the scales' story, the HUD's ocean count) waits
+        // for the tile's landing / departure instead of ticking in the gap
+        // before it (measured on Water Export's observer: 0/9 read a beat
+        // before the ocean lifted).
+        remotePlacementState.waitingForBoard = false;
         window.setTimeout(done, epoch === myEpoch ? motionMs(BOARD_SETTLE_MS) : 0);
         return;
       }

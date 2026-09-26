@@ -4,7 +4,8 @@
        favor of the premium board-cell hover popover (which already shows this info). -->
   <div :class="klass"
        :style="placementStyle"
-       data-test="tile"/>
+       data-test="tile"
+       @animationend="onAnimationEnd"/>
 </template>
 
 <script lang="ts">
@@ -23,7 +24,7 @@ import {
   observeTilePlacement,
 } from '@/client/components/board/tilePlacementAnimation';
 import {placementRenderState} from '@/client/components/board/placementRenderState';
-import {isRemoteRevealHeld, heldPrevTileOf} from '@/client/console/tilePlacement/remoteRevealHold';
+import {isRemoteRevealHeld, heldPrevTileOf, cellVacatedNonce, clearCellVacated} from '@/client/console/tilePlacement/remoteRevealHold';
 
 const tileTypeToCssClass: Record<TileType, string> = {
   [TileType.OCEAN]: 'ocean',
@@ -191,6 +192,22 @@ export default defineComponent({
     },
     klass(): string {
       let css = 'board-space';
+      // A REMOVAL IN FLIGHT (console remote reveal hold on an EMPTY committed
+      // cell — Water Export's ocean, the Reds' action): the tile has already
+      // left the model, but the player must see it LIFT, not vanish. Until the
+      // departure proxy takes it over the cell keeps painting the tile that
+      // stood there — the held previous tile's own art.
+      if (this.tileType === undefined && this.placementCleared) {
+        const heldPrev = heldPrevTileOf(this.space.id);
+        const prevClass = heldPrev === undefined ? '' : tileCssClassOf(heldPrev, this.aresExtension);
+        if (prevClass !== '') {
+          return css + ' board-space-tile--' + prevClass;
+        }
+      }
+      // …and once the tile HAS lifted, the vacated cell settles once (a one-shot the scene marks).
+      if (this.tileType === undefined && cellVacatedNonce(this.space.id) !== undefined) {
+        css += ' board-space-tile--vacated';
+      }
       if (this.tileType !== undefined) {
         // A held OCEAN COVER (console remote reveal hold with a previous
         // tile): the committed cover tile stays hidden, but the cell must
@@ -329,6 +346,12 @@ export default defineComponent({
     }
   },
   methods: {
+    /** The vacated cell's settle ended — the one-shot mark is cleared so it can play again another day. */
+    onAnimationEnd(e: AnimationEvent) {
+      if (e.animationName === 'board-space-vacated') {
+        clearCellVacated(this.space.id);
+      }
+    },
     refreshPlacement() {
       if (this.placementTimer !== null) {
         clearTimeout(this.placementTimer);

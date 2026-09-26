@@ -126,6 +126,25 @@
                   </div>
                 </div>
               </div>
+              <!-- THE LAW'S OWN COLUMN — what the card does to the TABLE and what it does WHILE ENACTED, in two
+                   quiet rows OUTSIDE «для вас»: the world part has no recipient (the first player removes an
+                   ocean for everybody; it never enters the seat's net, and it may cost a Capital a point), and
+                   the standing effect is everybody's law. Data-driven: the column stands for a declaration that
+                   takes a tile off the board (`reading.removal`); the passive row rides it when the card has one. -->
+              <div v-if="voteInfo.reading.removal !== undefined" class="con-parl__info-law" data-parl-vote-item data-parl-info="law" data-parl-vote-late>
+                <div class="con-parl__info-law-row con-parl__info-law-row--world" data-parl-vote-world>
+                  <span class="con-parl__info-kicker con-parl__info-law-kicker">{{ $t('The table') }}</span>
+                  <span class="con-parl__info-law-line">
+                    <i class="wgt-icon wgt-icon--ocean con-parl__info-law-icon" aria-hidden="true"></i>
+                    <span class="con-parl__info-law-text">{{ $t(removalSummaryKey) }}</span>
+                  </span>
+                  <span class="con-parl__info-law-note" data-parl-vote-world-note>{{ $t(removalNoteKey) }}</span>
+                </div>
+                <div v-if="lawPassiveText !== undefined" class="con-parl__info-law-row con-parl__info-law-row--passive" data-parl-vote-passive>
+                  <span class="con-parl__info-kicker con-parl__info-law-kicker">{{ $t('Effect while enacted') }}</span>
+                  <span class="con-parl__info-law-text">{{ $t(lawPassiveText) }}</span>
+                </div>
+              </div>
               <div class="con-parl__info-party" data-parl-vote-item data-parl-info="party-effect" :data-party="voteInfo.party">
                 <ConsolePartyFormula class="con-parl__info-party-formula" :party="voteInfo.party" :emblem="true" size="compact" />
                 <span class="con-parl__info-party-when" data-parl-vote-late>{{ $t(partyMoment) }}</span>
@@ -228,6 +247,7 @@ import {ParliamentBeat, scheduleParliamentBeat} from '@/client/console/parliamen
 import {descendWorkspaceFrame, foldWorkspaceFrame, setWorkspaceFramePhase, workspaceFrameHasNested} from '@/client/console/consoleWorkspaceStack';
 import {translateMessage, translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {COLONY_TRACK_SUMMARY_KEY} from '@/client/console/parliament/colonyTrackModel';
+import {TILE_REMOVAL_COST_NOTE_KEY, TILE_REMOVAL_SUMMARY_KEY} from '@/client/console/parliament/tileRemovalModel';
 import {offTurnReason} from '@/client/console/offTurnReason';
 import {probeTick} from '@/client/console/probeTick';
 import {getResolution} from '@/client/parliament/ClientParliamentManifest';
@@ -406,6 +426,19 @@ export default defineComponent({
       const resolution = slot === undefined ? undefined : (slot.resolution ?? getResolution(slot.resolutionId));
       const own = resolution === undefined ? undefined : buildMechanics(resolution.renderData, PARLIAMENT_GRAPHIC);
       return own === undefined || own.textOnly ? undefined : own;
+    },
+    /** The selected card's STANDING effect (its `text.passive`) — the law column's second row (undefined without one). */
+    lawPassiveText(): string | undefined {
+      const slot = this.voteSlot;
+      const resolution = slot === undefined ? undefined : (slot.resolution ?? getResolution(slot.resolutionId));
+      return resolution?.text.passive;
+    },
+    /** The world part's one sentence and its honest footnote (the removal family's own keys). */
+    removalSummaryKey(): string {
+      return TILE_REMOVAL_SUMMARY_KEY;
+    },
+    removalNoteKey(): string {
+      return TILE_REMOVAL_COST_NOTE_KEY;
     },
     /**
      * THE VOTE'S NUMBERS: before the submit, the live model and its

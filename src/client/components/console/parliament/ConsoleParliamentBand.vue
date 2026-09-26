@@ -176,6 +176,7 @@ import {WinnerRewardReading, winnerRewardGlyph, winnerRewardReadingOf, winnerRew
 import {TileGrantReading, tileGrantReadingOf} from '@/client/console/parliament/tileGrantModel';
 import {worldMoveReadingOf, worldParameterUnit} from '@/client/console/parliament/worldMoveModel';
 import {COLONY_TRACK_SUMMARY_KEY, ColonyTrackMoveChip, colonyTrackChipsOf, colonyTrackReadingOf} from '@/client/console/parliament/colonyTrackModel';
+import {tileRemovalChipOf, tileRemovalReadingOf, tileRemovalTableOf} from '@/client/console/parliament/tileRemovalModel';
 import {translateTextWithParams} from '@/client/directives/i18n';
 import {ParameterMoveId} from '@/common/parliament/parameterMove';
 
@@ -375,6 +376,14 @@ export default defineComponent({
           unrewarded: reading.unrewarded,
           ...(reading.skipped === undefined ? {} : {skipped: reading.skipped}),
         });
+      }
+      // …and a TILE TAKEN OFF THE BOARD (Water Export): the ocean count as the planet's own chip — the
+      // record's before → after once the first player has chosen, the live room while the question stands,
+      // or the named edge (the maximum, nothing to remove).
+      const removal = tileRemovalReadingOf(this.resolution, tileRemovalTableOf(this.playerView.game.spaces), {enacted: true, outcomes});
+      const chip = removal === undefined ? undefined : tileRemovalChipOf(removal);
+      if (chip !== undefined) {
+        out.push(chip);
       }
       return out;
     },

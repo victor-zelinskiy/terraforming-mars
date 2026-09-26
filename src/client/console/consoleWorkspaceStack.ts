@@ -1516,16 +1516,33 @@ const boardYielded: Array<WorkspaceFrame> = [];
  * The board is taking the screen. If the root DECLARES that it yields (see
  * `yieldsToBoard`), step aside and report `true`; otherwise report `false` and
  * let the caller finish the flow the way it always has.
+ *
+ * …AND A YIELDING FLOW STANDING OVER A SURVIVING PHASE ROOT YIELDS AS A WHOLE.
+ * `enterWorkspace` is lateral and never nests, so the sitting of generation 1
+ * stands OVER the start workspace of a seat whose corporation's first action
+ * still waits behind the political phase — the stack reads [start, parliament]
+ * and the root's word alone said «no». For the winner's TILE that «no» tore the
+ * sitting down (`goBoardHome`) and the gate re-entered it fresh after the
+ * landing; for a WORLD move (Water Export's ocean leaving the board) there is
+ * no re-entry — the story played to a covered board, the walk stood still on
+ * the reward page, and the tile vanished under the 20 s ceiling. The TOP
+ * frame's declaration counts too: the whole stack steps aside and comes back
+ * at the same depth, exactly as a lone sitting does.
  */
 export function yieldStackToBoard(): boolean {
   if (boardYielded.length > 0) {
     return true; // already aside — a second placement inside the same step
   }
-  const root = workspaceStackState.frames[0];
-  if (root === undefined || workspaceKindSpec(root.kind).yieldsToBoard !== true) {
+  const frames = workspaceStackState.frames;
+  const root = frames[0];
+  const top = frames[frames.length - 1];
+  if (root === undefined || top === undefined) {
     return false;
   }
-  boardYielded.push(...workspaceStackState.frames.splice(0));
+  if (workspaceKindSpec(root.kind).yieldsToBoard !== true && workspaceKindSpec(top.kind).yieldsToBoard !== true) {
+    return false;
+  }
+  boardYielded.push(...frames.splice(0));
   return true;
 }
 

@@ -51,3 +51,29 @@ export function heldPrevTileOf(spaceId: string): TileType | undefined {
 export function clearRemoteRevealHolds(): void {
   held.clear();
 }
+
+/*
+ * THE VACATED CELL — a REMOVAL's one-shot settle (Water Export's ocean, the
+ * Reds' action). Once the departure proxy has lifted the tile away, the bare
+ * hex it left «оседает»: a short, quiet contact beat on THAT cell alone
+ * (`board-space--vacated` — a CSS one-shot the cell renders), no neighbour
+ * reacts, nothing is celebrated. Keyed by a nonce so the same cell can settle
+ * again in a later generation; the board reads it, the scene writes it.
+ */
+const vacated = reactive(new Map<string, number>());
+let vacatedNonce = 0;
+
+/** The tile has lifted off `spaceId`: the cell plays its settle once. */
+export function markCellVacated(spaceId: string): void {
+  vacated.set(spaceId, ++vacatedNonce);
+}
+
+/** The settle's nonce for the cell (undefined = never vacated / already cleared). */
+export function cellVacatedNonce(spaceId: string): number | undefined {
+  return vacated.get(spaceId);
+}
+
+/** The settle ended (the cell's own `animationend`), or a teardown: the mark is gone. */
+export function clearCellVacated(spaceId: string): void {
+  vacated.delete(spaceId);
+}

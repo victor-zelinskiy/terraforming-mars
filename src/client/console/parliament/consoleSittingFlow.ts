@@ -389,7 +389,7 @@ export function sittingRewardSettled(position: SittingPosition): boolean {
  * «ПАРЛАМЕНТ › ЗАСЕДАНИЕ › ВЫБОР» while the picker stands. One word each,
  * never echoing the root's noun (`consoleWorkspaceHeader` grammar).
  */
-export function sittingStageKey(stage: SittingStage, rewardStep: SittingRewardStep): string {
+export function sittingStageKey(stage: SittingStage, rewardStep: SittingRewardStep, removal = false): string {
   switch (stage) {
   case 'verdict': return 'Verdict';
   case 'enact': return 'Enactment';
@@ -400,7 +400,9 @@ export function sittingStageKey(stage: SittingStage, rewardStep: SittingRewardSt
     case 'intake': return 'Intake';
     case 'discard': return 'Discarding';
     case 'colony': return 'Colonies';
-    case 'placement': return 'Placement';
+    // A board step that TAKES a tile off (Water Export's ocean — the server's `placementEffect: 'remove'`)
+    // is the same door and the same pose as the winner's tile, but the tail must not promise a placement.
+    case 'placement': return removal ? 'Removal' : 'Placement';
     default: return 'Reward';
     }
   case 'renewal': return 'Renewal';

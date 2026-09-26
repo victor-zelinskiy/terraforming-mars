@@ -78,6 +78,8 @@ import {
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {probeTick} from '@/client/console/probeTick';
 import {isColonyTrackRecord} from './colonyTrackModel';
+import {isTileRemovalRecord} from './tileRemovalModel';
+import {boardCovered, isRemotePlacementActive} from '@/client/console/tilePlacement/consoleRemotePlacement';
 import {consoleParliamentUi} from './consoleParliamentFlow';
 import {holdColonyTracks, releaseColonyTracks, requestColonyTrackWave} from '@/client/console/colonyTrade/consoleColonyTrade';
 
@@ -119,9 +121,19 @@ function planetKey(outcome: ParliamentEnactOutcomeModel): string {
   return `${outcome.player ?? 'world'}:${outcome.step}`;
 }
 
-/** A record this beat OWES a story for: the planet's move, or the colony table's (Unity Budget). */
+/**
+ * A BOARD RECORD — a story told on the board: the planet's move, or a TILE
+ * TAKEN OFF the board (Water Export — the removal scene plays on the very cell
+ * the tile leaves). Both yield the sitting to the board; the colony table's
+ * move is hosted instead (`runTrackMoveBeat`).
+ */
+function isBoardRecord(outcome: ParliamentEnactOutcomeModel): boolean {
+  return isPlanetRecord(outcome) || isTileRemovalRecord(outcome);
+}
+
+/** A record this beat OWES a story for: the planet's move, a tile's removal, or the colony table's (Unity Budget). */
 function isWorldStoryRecord(outcome: ParliamentEnactOutcomeModel): boolean {
-  return isPlanetRecord(outcome) || isColonyTrackRecord(outcome);
+  return isBoardRecord(outcome) || isColonyTrackRecord(outcome);
 }
 
 /**
@@ -165,11 +177,29 @@ export function enterWorldBeatSitting(key: string): void {
  */
 export function seedWorldMoveBeat(before: PlayerViewModel | undefined, after: PlayerViewModel): void {
   const fresh = detectNewWorldMoves(before, after);
-  const owed = consoleReducedMotionActive() ? fresh.filter(isColonyTrackRecord) : fresh;
-  if (owed.length === 0) {
+  const wanted = consoleReducedMotionActive() ? fresh.filter(isColonyTrackRecord) : fresh;
+  if (wanted.length === 0) {
     return;
   }
-  parliamentWorldBeatState.owed.push(...owed);
+  // A TILE'S REMOVAL plays on the board THE MOMENT the response applies when
+  // the board is already the screen (the chooser is standing on it for the
+  // pick — the stack yielded; a viewer who parked the sitting to look at the
+  // board): the shared removal scene lifts the tile in that very frame, so
+  // the record owes no trip — a second yield would leave the frame for a
+  // story already told and come straight back. Such a record goes to the
+  // RECEIPT (the reward page reads its line when the sitting is back); a
+  // removal arriving under a covered board is owed the trip like a scale.
+  const inPlace = wanted.filter((o) => isTileRemovalRecord(o) && !boardCovered());
+  if (inPlace.length > 0) {
+    const receipt = parliamentWorldBeatState.receipt;
+    parliamentWorldBeatState.receipt = receipt !== undefined && receipt.sitting === parliamentWorldBeatState.sitting ?
+      {sitting: receipt.sitting, moves: [...receipt.moves, ...inPlace]} :
+      {sitting: parliamentWorldBeatState.sitting, moves: inPlace};
+  }
+  const owed = wanted.filter((o) => !inPlace.includes(o));
+  if (owed.length > 0) {
+    parliamentWorldBeatState.owed.push(...owed);
+  }
 }
 
 /** Does this sitting still owe the board a world move — or the colonies screen the table's? */
@@ -212,7 +242,10 @@ function waitForStoryQuiet(): Promise<void> {
       // watchable rising edge, and this loop is the guard for the edge that
       // was already true when the frame stepped aside.
       drainBoardBeatsIfDue();
-      if (!boardBeatStoryPending() || Date.now() - started > WORLD_STORY_MAX_MS) {
+      // …and a TILE'S DEPARTURE (Water Export) is a story of the board too: the
+      // shared removal scene queues it under a covered board and lifts the tile
+      // the moment the frame steps aside — the frame waits it out like a glide.
+      if ((!boardBeatStoryPending() && !isRemotePlacementActive()) || Date.now() - started > WORLD_STORY_MAX_MS) {
         resolve();
         return;
       }
@@ -246,7 +279,7 @@ export async function runWorldMoveBeat(sitting: string, opts: {
   if (!worldMoveOwed(sitting)) {
     return false;
   }
-  const moves = takeOwed(isPlanetRecord);
+  const moves = takeOwed(isBoardRecord);
   if (moves.length === 0) {
     return false;
   }

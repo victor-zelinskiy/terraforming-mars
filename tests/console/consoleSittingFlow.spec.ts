@@ -136,6 +136,10 @@ describe('consoleSittingFlow — the political phase as ONE flow (v2)', () => {
       expect(sittingAskOf(spread)).eq('distribution');
       expect(sittingStageKey('reward', 'distribution')).eq('Distribution');
       expect(sittingStageKey('reward', 'choice')).eq('Choice');
+      // The board door's tail says what the board step DOES: a tile placed, or a tile TAKEN OFF (Water Export).
+      expect(sittingStageKey('reward', 'placement')).eq('Placement');
+      expect(sittingStageKey('reward', 'placement', true)).eq('Removal');
+      expect(sittingStageKey('reward', 'choice', true), 'the removal flag names only the board step').eq('Choice');
       expect(sittingAskOf({type: 'card', title: 'Select a card to keep', buttonLabel: 'Keep', cards: []} as unknown as PlayerInputModel), 'no resolution source').is.undefined;
       expect(sittingAskOf(undefined)).is.undefined;
       const p = sittingPositionOf(model(phase({step: 'effects', pending: {player: BLUE, key: 'k', input: 'card'}})), pick(), BLUE)!;

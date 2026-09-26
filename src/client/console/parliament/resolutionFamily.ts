@@ -3,6 +3,7 @@ import {resolutionCountKind} from '@/common/parliament/resolutionCounts';
 import {WinnerRewardDeclaration} from '@/common/parliament/winnerReward';
 import {TileGrantDeclaration} from '@/common/parliament/tileGrant';
 import {WorldParameterMove} from '@/common/parliament/parameterMove';
+import {TileRemovalDeclaration} from '@/common/parliament/tileRemoval';
 
 /*
  * WHICH FAMILY OF SCENARIOS A RESOLUTION READS — derived from its DECLARATION
@@ -59,6 +60,8 @@ export type ResolutionFamilyFacts = {
   tileGrant?: TileGrantDeclaration;
   /** The WORLD's part — the global parameters the enactment moves for the whole table. */
   worldMoves?: ReadonlyArray<WorldParameterMove>;
+  /** The WORLD's part as a REMOVAL — a tile the first player takes off the board (Water Export). */
+  tileRemoval?: TileRemovalDeclaration;
 };
 
 /** The scaled part that reads a FIRST part's result (a sequel), if any. */
@@ -127,7 +130,9 @@ export function familyOf(facts: ResolutionFamilyFacts): ResolutionFamily {
   }
   // THE PLANET is the instrument when nothing more specific is: the scenarios of a world move are the
   // parameters' own limits (a ceiling, a floor, a step that is cut), which no other family exercises.
-  if ((facts.worldMoves ?? []).length > 0) {
+  // …and a REMOVAL is the planet's part too (Water Export: an ocean leaves the board): its scenarios are the
+  // ocean count's own edges — at the maximum (the card's clause), none to remove, exactly one to remove.
+  if ((facts.worldMoves ?? []).length > 0 || facts.tileRemoval !== undefined) {
     return 'world-move';
   }
   // A winner's TILE with no card to pick for everyone's part: the winner-tile family.

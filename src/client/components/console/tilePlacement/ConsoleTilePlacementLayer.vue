@@ -144,6 +144,14 @@
          the pose/direction carries the provenance. -->
     <template v-if="remotePlacementState.active">
       <div ref="remoteShadow" class="con-tileplace__shadow"></div>
+      <!-- THE DEPARTING TILE of a REMOVAL (Water Export's ocean, the Reds' action —
+           a board event every viewer sees alike): the twin of the tile taken OFF
+           the cell, posed 1:1 over it by the director as the real cell blanks,
+           then lifted away. The same anatomy as the own hero's departure. -->
+      <div v-if="remoteDepartArtClass !== ''" ref="remoteDepart" class="con-tileplace__tile con-tileplace__tile--depart con-tileplace__tile--remote">
+        <div ref="remoteDepartEdge" class="con-tileplace__edge" :class="remoteDepartArtClass"></div>
+        <div class="con-tileplace__art" :class="remoteDepartArtClass"></div>
+      </div>
       <div v-if="remoteArtClass !== ''" ref="remoteTile" class="con-tileplace__tile con-tileplace__tile--remote">
         <div class="con-tileplace__edge" :class="remoteArtClass"></div>
         <div class="con-tileplace__art" :class="remoteArtClass"></div>
@@ -224,6 +232,15 @@ export default defineComponent({
     },
     remoteArtClass(): string {
       const t = remotePlacementState.tileType;
+      if (t === undefined) {
+        return '';
+      }
+      const suffix = tileCssClassOf(t, remotePlacementState.aresExtension);
+      return suffix === '' ? '' : 'board-space-tile--' + suffix;
+    },
+    /** The tile a REMOVAL takes off the cell for everybody (the remote stage's departure — Water Export's ocean). */
+    remoteDepartArtClass(): string {
+      const t = remotePlacementState.departingTile;
       if (t === undefined) {
         return '';
       }
@@ -392,10 +409,10 @@ export default defineComponent({
           bonusIcons: [],
           aresPulses,
           splash: this.$refs.remoteSplash as HTMLElement | undefined,
-          // A remote placement has no removal beat of its own (see
-          // consoleRemotePlacement) — nothing departs on this stage.
-          depart: undefined,
-          departEdge: undefined,
+          // A REMOVAL departs on this stage (Water Export's ocean — the shared
+          // scene, every viewer's); a placement never does.
+          depart: connected(this.$refs.remoteDepart as HTMLElement | undefined),
+          departEdge: connected(this.$refs.remoteDepartEdge as HTMLElement | undefined),
         };
       },
     });

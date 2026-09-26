@@ -2340,6 +2340,9 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'hydro-terminal'
   'parliament-generous-vote' |
   // RX14 Heat Capture: the assembly (temperature −20 °C, blue's delegate) and the law ENACTED with red holding Nuclear Power (10 → 7).
   'parliament-heat-assembly' | 'parliament-heat-enacted' |
+  // RX33 Water Export: the assembly with ONE plain ocean on the board and blue (the first player) holding the delegate —
+  // the first world step that ASKS; and the law ENACTED (the ocean gone) with red holding Miranda Resort (12 → 9).
+  'parliament-water-assembly' | 'parliament-water-enacted' |
   // RX23 Mohole Contest: the assembly at −4 °C with blue's delegate — the winner's two steps reach 0 °C and the ocean follows inside the sitting.
   'parliament-mohole-assembly' |
   // RX24 Open IP Trade: the law ENACTED, blue opening generation 2 with four cards in hand and the action unspent.

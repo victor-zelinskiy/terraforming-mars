@@ -108,6 +108,21 @@ describe('parliamentWorldBeat — the sitting steps aside for the planet', () =>
     expect(await runWorldMoveBeat('3:1'), 'nothing owed — nothing happens').is.false;
   });
 
+  it('RUN over a SURVIVING PHASE ROOT ([start, parliament] — a seat whose first action waits behind the phase): the WHOLE stack steps aside and comes back at depth 2', async () => {
+    enterWorkspace('start', {anchor: {type: 'phase', phase: 'start'}});
+    enterWorkspace('parliament');
+    expect(workspaceStackState.frames.map((f) => f.kind), 'the sitting stands OVER the start root').deep.eq(['start', 'parliament']);
+    enterWorldBeatSitting('1:1');
+    seedWorldMoveBeat(view(1, []), view(1, [{step: 'oceanRemoval', part: 'world', kind: 'tileRemoved', amount: -1, tile: 1, space: '10', parameter: {id: 'oceans', before: 1, after: 0}} as unknown as ParliamentEnactOutcomeModel]));
+    expect(worldMoveOwed('1:1'), "a tile's removal is a board record the sitting owes").is.true;
+    const run = runWorldMoveBeat('1:1');
+    expect(stackYieldedToBoard(), "the root's «no» no longer decides — the top frame yields and takes the root with it").is.true;
+    expect(workspaceStackState.frames, 'both frames are off screen while the tile leaves').has.length(0);
+    expect(await run).is.true;
+    expect(workspaceStackState.frames.map((f) => f.kind), 'and both come back, same order, same depth').deep.eq(['start', 'parliament']);
+    expect(takeWorldReceipt('1:1')?.map((o) => o.step)).deep.eq(['oceanRemoval']);
+  });
+
   it('a stack that cannot step aside owes nothing and stands nothing down', async () => {
     enterWorldBeatSitting('3:1');
     seedWorldMoveBeat(view(3, []), view(3, [world('oxygen')]));

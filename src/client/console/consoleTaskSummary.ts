@@ -186,10 +186,15 @@ function compositeKicker(wf: PlayerInputModel | undefined): string {
  * MARKER and no tile, so labelling it «размещение тайла» over a prompt that
  * literally reads «выберите место для выкладывания своего маркера» names the
  * wrong object. One key covers both non-tile effects — what moves is a marker
- * either way; only `'tile'` places a tile.
+ * either way; only `'tile'` places a tile. A REMOVAL (`'remove'` — Water
+ * Export's «the First Player removes 1 ocean tile») is the third object: the
+ * pick names a tile that LEAVES, and the kicker says so.
  */
 export function placementKicker(wf: PlayerInputModel | undefined): string {
   const effect = (wf as {placementEffect?: PlacementEffect} | undefined)?.placementEffect;
+  if (effect === 'remove') {
+    return 'Tile removal';
+  }
   return effect === undefined || effect === 'tile' ? 'Tile placement' : 'Marker placement';
 }
 

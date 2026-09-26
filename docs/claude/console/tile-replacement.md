@@ -152,14 +152,31 @@ The engine's tile→tile replacements are a **closed set**: the two cards above,
 the Ares ocean covers, which already have their own splash. Nothing else in
 `src/server` writes a tile over a tile.
 
-Two adjacent, still-unanimated shapes — the departure primitive
-(`placeDepartProxy` / `playTileDeparture`) is what they would reuse:
+One adjacent shape is now CLOSED, one is still open — the departure primitive
+(`placeDepartProxy` / `playTileDeparture`) is what both reuse:
 
-- **A pure REMOVAL** (tile → nothing): `RemoveOceanTile` (Turmoil Reds action, the
-  Dry Deserts global event) and the two hazard removals (World Government's
-  "remove an unprotected hazard", Eris). The player picks a tile and it simply
-  stops existing — today's silent pop-out is the same class of defect this beat
-  fixes, and the lift half already exists.
+- **A pure REMOVAL** (tile → nothing) — **SHIPPED with Water Export (RX33,
+  2026-09-26)**, on the REMOTE stage, for every viewer alike. The commit path
+  never held anything: the tile's disappearance is a diff the shared
+  `stageRemotePlacements` now reads beside the fresh placements
+  (`detectFreshRemovals` — TILED → EMPTY, hazards excluded), queued through the
+  same watchable-board wait and drained by `liftRemote`: the cell keeps painting
+  the tile that LEFT (`holdRemoteReveal(space, prevTile)` on an EMPTY committed
+  cell — `BoardSpaceTile.klass` paints the held art, `BoardSpace.showBonus` keeps
+  the bonuses under it), the departure proxy is posed 1:1 over it and the hold is
+  released in the same synchronous turn, the tile unseats and rises away
+  (`playTileDeparture`), and the vacated hex settles once (`markCellVacated` →
+  `board-space-tile--vacated`, a compositor-only one-shot the cell clears on its
+  own `animationend`). The chooser's own answer and an observer's poll go through
+  the ONE path — so the Reds' party action and the Dry Deserts event got the same
+  frame for free. The parliament's world beat treats the record as a board story
+  (`isBoardRecord`): a removal arriving under a covered sitting yields the frame
+  and waits out the lift (`isRemotePlacementActive`); one arriving on a watchable
+  board (the chooser standing on it for the pick) plays in place and goes
+  straight to the receipt. **Still open in the same family**: the two HAZARD
+  removals (World Government's «remove an unprotected hazard», Eris) keep the
+  board's own language — `detectFreshRemovals` excludes hazards on purpose, as
+  `detectFreshPlacements` does.
 - **A REMOTE remove-and-replace** (an opponent plays Kaguya Tech): the observer
   still gets the silent swap. `detectFreshPlacements` skips tile→tile, and the
   remote stage deliberately declares `depart: undefined`. Wiring it up means a

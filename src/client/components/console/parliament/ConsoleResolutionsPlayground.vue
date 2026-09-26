@@ -1537,6 +1537,21 @@ const SCENARIOS: ReadonlyArray<PgScenario> = [
     seats: [{agenda: 3, bonus: 0, productions: {[Resource.STEEL]: 1, [Resource.ENERGY]: 1}, megacredits: 4},
       {agenda: 1, bonus: 0, productions: {}, megacredits: 20}], winner: 1, context: 'proposal', noRecipient: false},
   // 0 M€ held: nothing to take — a named skip of the levy; the payout and the production still come.
+  // ── RX33 · WATER EXPORT (the Reds — «M€ по влиянию; первый игрок снимает 1 океан»): the world part is a
+  //    REMOVAL, so its edges are the OCEAN COUNT's — the card's own clause (at the maximum), nothing to remove,
+  //    exactly one to remove — listed only for a law that takes a tile off the board (`parameter: 'oceans'`).
+  {key: 'world-oceans-max', family: 'world-move', label: 'Oceans at their maximum — nothing is removed', viewer: 0, parameter: 'oceans',
+    seats: [{agenda: 3, bonus: 0}, {agenda: 1, bonus: 0}], winner: 0, context: 'proposal', noRecipient: false,
+    table: {oceans: 9}},
+  {key: 'world-oceans-none', family: 'world-move', label: 'No ocean on the board — nothing to remove', viewer: 0, parameter: 'oceans',
+    seats: [{agenda: 3, bonus: 0}, {agenda: 1, bonus: 0}], winner: 0, context: 'proposal', noRecipient: false,
+    table: {oceans: 0}},
+  {key: 'world-oceans-one', family: 'world-move', label: 'One ocean to remove — influence 3', viewer: 0, parameter: 'oceans',
+    seats: [{agenda: 3, bonus: 0}, {agenda: 1, bonus: 0}], winner: 0, context: 'proposal', noRecipient: false,
+    table: {oceans: 1}},
+  {key: 'world-oceans-one-quiet', family: 'world-move', label: 'One ocean to remove — influence 0', viewer: 0, parameter: 'oceans',
+    seats: [{agenda: 0, bonus: 0}, {agenda: 5, bonus: 0}], winner: 1, context: 'proposal', noRecipient: false,
+    table: {oceans: 1}},
   {key: 'budget-nothing', family: 'counted-production', label: 'Nothing to pay — 0 M€', viewer: 0,
     seats: [{agenda: 3, bonus: 0, productions: {[Resource.TITANIUM]: 2}, megacredits: 0},
       {agenda: 1, bonus: 0, productions: {}, megacredits: 20}], winner: 1, context: 'applied', noRecipient: false},
@@ -1841,7 +1856,7 @@ export default defineComponent({
     annotations(): ReadonlyArray<CardAnnotation> {
       return this.selected === undefined ? [] :
         resolutionAnnotations(this.selected.id, this.yields, {reading: this.winnerReading, viewer: this.viewerColor, nameOf: this.seatName},
-          {table: this.winnerTable, colonies: this.standColonies}, this.levy, {reading: this.grantReading});
+          {table: this.winnerTable, colonies: this.standColonies, removal: {oceans: this.table.oceans}, nameOf: this.seatName}, this.levy, {reading: this.grantReading});
     },
     /**
      * THE STAND'S COLONY TABLE for a law that advances every track (Unity Budget): the scenario's tiles with their
@@ -1889,7 +1904,9 @@ export default defineComponent({
       // The parameters a law MOVES: its world moves, and the one its winner's part moves (a tile's own step, a
       // direct step) — a scenario of one parameter's edges is listed only under a law that touches it.
       const winnerMoves = this.selected?.winnerReward === undefined ? undefined : winnerRewardParameter(this.selected.winnerReward);
-      const moved = new Set<ParameterMoveId>([...(this.selected?.worldMoves ?? []).map((move) => move.parameter), ...(winnerMoves === undefined ? [] : [winnerMoves])]);
+      // …and a law that TAKES A TILE OFF the board (Water Export) moves the ocean count — its edges are listed for it.
+      const removes: Array<ParameterMoveId> = this.selected?.tileRemoval === undefined ? [] : ['oceans'];
+      const moved = new Set<ParameterMoveId>([...(this.selected?.worldMoves ?? []).map((move) => move.parameter), ...(winnerMoves === undefined ? [] : [winnerMoves]), ...removes]);
       const kinds = this.spreadResources ?? [];
       const countId = this.countEffect?.count?.id;
       return SCENARIOS.map((s, i) => ({s, i})).filter((entry) => entry.s.family === this.family &&

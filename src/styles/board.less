@@ -429,6 +429,25 @@
 	background-image: none;
 }
 
+// A cell a tile has just LEFT (a removal — Water Export's ocean, the Reds'
+// action): once the departure proxy has lifted the tile away, the bare hex
+// «оседает» — one short, quiet contact beat on THIS cell alone (a loss: no
+// glow, no colour, no neighbour reacts). Compositor-only (transform/opacity),
+// one-shot; the marker is cleared on `animationend` (BoardSpaceTile) so the
+// same cell can settle again another generation. Honours reduced motion.
+.board-space > .board-space-tile--vacated {
+	animation: board-space-vacated calc(420ms * var(--motion-scale, 1)) cubic-bezier(0.2, 0.7, 0.2, 1) both;
+	transform-origin: 50% 62%;
+}
+@keyframes board-space-vacated {
+	0% { transform: translateY(-1.5px) scale(1.012); opacity: 0.82; }
+	55% { transform: translateY(0.6px) scale(0.994); opacity: 1; }
+	100% { transform: translateY(0) scale(1); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+	.board-space > .board-space-tile--vacated { animation: none; }
+}
+
 // ── Placement mode: HOVERED legal cell ────────────────────────────────
 //
 // Strongest state in the whole system — outline goes near-white amber,

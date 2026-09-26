@@ -225,6 +225,31 @@
     }
     &__info-party-formula { --con-pformula-zoom: calc(0.74 * var(--con-ui-scale, 1)); max-width: 100%; }
     &__info-party-when { font-size: .5rem; letter-spacing: .12em; text-transform: uppercase; color: fade(@con-parl-gold, 88%); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+    /* THE LAW'S OWN COLUMN (Water Export): two quiet rows beside the seat's reading — what the card does to
+       the TABLE (no recipient: outside «для вас» by construction) and what it does WHILE ENACTED. The same
+       quiet register as the party box (a neutral plate, the gold hairline), one fixed width so the reading
+       beside it keeps one geometry per card; the text wraps inside its rows, never past the column. */
+    &__info-law {
+        flex: 0 0 15rem;
+        width: 15rem;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        gap: .32rem;
+        min-width: 0;
+        min-height: 0;
+        padding: .35rem .6rem .4rem;
+        border-radius: .55rem;
+        background: rgba(0, 0, 0, 0.3);
+        box-shadow: inset 0 0 0 .05rem fade(@con-parl-gold, 32%);
+        overflow: hidden;
+    }
+    &__info-law-row { display: flex; flex-direction: column; gap: .12rem; min-width: 0; }
+    &__info-law-kicker { color: fade(@con-parl-gold, 88%); opacity: 1; }
+    &__info-law-line { display: flex; align-items: center; gap: .3rem; min-width: 0; }
+    &__info-law-icon { flex-shrink: 0; width: 1.05rem; height: 1.05rem; }
+    &__info-law-text { font-family: @con-font-read; font-size: .74rem; line-height: 1.2; letter-spacing: .01em; color: fade(@con-text, 94%); min-width: 0; }
+    &__info-law-note { font-family: @con-font-read; font-size: .62rem; line-height: 1.2; color: fade(@con-text, 66%); min-width: 0; }
     &__info-mech {
         .con-parl-mech-vars();
         zoom: var(--con-parl-info-mech-zoom);
@@ -374,6 +399,10 @@ html.con-profile-handheld .con-parl {
        (measured — «+1 ЕСЛИ ПОБЕДИТЕ · ШАГ ③» overran a 485 px plate by 24 px beside a 10.5rem box) and
        its line of moment wraps to two lines instead of a fourth-rung type size. */
     &__info-party { flex-basis: 9rem; width: 9rem; padding: .2rem .4rem .25rem; gap: .15rem; }
+    /* The law column yields on the Deck the same way the party box does: a narrower plate, tighter rows. */
+    &__info-law { flex-basis: 10.5rem; width: 10.5rem; padding: .2rem .4rem .25rem; gap: .18rem; }
+    &__info-law-text { font-size: .62rem; }
+    &__info-law-note { font-size: .54rem; }
     /* .52: a two-row formula is 75 px here and the box's 107 px hold it with the two-line moment
        (at .56 it was 81 and the moment lost 3 px of its second line). */
     &__info-party-formula { --con-pformula-zoom: calc(0.52 * var(--con-ui-scale, 1)); }

@@ -27,7 +27,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {testGame, TestGameOptions} from '../../TestGame';
 import {TestPlayer} from '../../TestPlayer';
-import {addCity, maxOutOceans, runAllActions, setOxygenLevel, setTemperature, setVenusScaleLevel} from '../../TestingUtils';
+import {addCity, addOcean, maxOutOceans, runAllActions, setOxygenLevel, setTemperature, setVenusScaleLevel} from '../../TestingUtils';
 import {SelectCard} from '../../../src/server/inputs/SelectCard';
 import {PartyName} from '../../../src/common/turmoil/PartyName';
 import {Tardigrades} from '../../../src/server/cards/base/Tardigrades';
@@ -105,6 +105,8 @@ import {Board} from '../../../src/server/boards/Board';
 import {GHGProducingBacteria} from '../../../src/server/cards/base/GHGProducingBacteria';
 import {NobelPrize} from '../../../src/server/cards/prelude2/NobelPrize';
 import {NuclearPower} from '../../../src/server/cards/base/NuclearPower';
+import {MirandaResort} from '../../../src/server/cards/base/MirandaResort';
+import {WATER_EXPORT_ID} from '../../../src/server/parliament/resolutions/reds/WaterExport';
 import {COLONIZATION_FUNDING_ID} from '../../../src/server/parliament/resolutions/unity/ColonizationFunding';
 import {GENEROUS_FUNDING_ID} from '../../../src/server/parliament/resolutions/greens/GenerousFunding';
 import {SpaceName} from '../../../src/common/boards/SpaceName';
@@ -1410,6 +1412,66 @@ parliamentFixture('parliament-tradeind-enacted', {
   votes: [1],
   agenda: [1, 2],
   stopAt: 'done',
+// ── RX33 · WATER EXPORT (the Reds — «2 M€ per influence; the FIRST PLAYER removes 1 ocean tile from the board;
+//    3 M€ off an Earth / Venus / Jovian tag while enacted»). The first world step that ASKS. Two moments of ONE journey:
+//    · the ASSEMBLY — the card alone in the first voting slot with blue's free delegate on it (blue at Agenda step 2
+//      → influence 2 → 4 M€, red at step 1 → 2 M€), ONE ocean of red's on the board (a plain one, on a cell with a
+//      bonus — the bonus stays paid); BLUE is the first player of the generation, so the removal is BLUE's question
+//      and RED watches the tile leave over the poll;
+//    · ENACTED — the sitting is over (the fixture answered blue's pick itself, the ocean is gone), RED won it (the
+//      seat the loader opens in generation 2) and holds «Miranda Resort» (12 M€, a Jovian tag) in hand: the play
+//      composer must read 12 → 9 with the law named.
+parliamentFixture('parliament-water-assembly', {
+  resolution: WATER_EXPORT_ID,
+  votes: [0],
+  agenda: [2, 1],
+  stopAt: 'assembly',
+  arrange: ({p2}) => {
+    addOcean(p2);
+  },
+  expect: ({game, p1, parliament}) => {
+    if (game.board.getOceanSpaces().length !== 1 || game.board.getOceanSpaces({upgradedOceans: false}).length !== 1) {
+      throw new Error(`the parliament-water fixture expected exactly one plain ocean on the board, got ${game.board.getOceanSpaces().length}`);
+    }
+    if (game.playersInGenerationOrder[0].id !== p1.id) {
+      throw new Error('the parliament-water fixture expected BLUE to be the first player — the seat the printed rule names');
+    }
+    if (!parliament.slots.some((slot) => slot.instance.startsWith(WATER_EXPORT_ID))) {
+      throw new Error('the parliament-water fixture lost Water Export out of the voting area');
+    }
+  },
+});
+parliamentFixture('parliament-water-enacted', {
+  resolution: WATER_EXPORT_ID,
+  votes: [1],
+  agenda: [1, 2],
+  stopAt: 'done',
+  arrange: ({p2}) => {
+    addOcean(p2);
+    // The card the discount is read on: printed 12, a Jovian tag, no requirement, no question of its own.
+    p2.cardsInHand.push(new MirandaResort());
+  },
+  expect: (table) => {
+    const {game, p2, parliament} = table;
+    if (parliament.enacted !== resolutionInstanceId(WATER_EXPORT_ID, 0)) {
+      throw new Error(`the parliament-water-enacted fixture expected Water Export enacted, got ${parliament.enacted}`);
+    }
+    if (game.board.getOceanSpaces().length !== 0) {
+      throw new Error('the parliament-water-enacted fixture expected the ocean to be gone (the fixture answers the first player\'s pick)');
+    }
+    if (!p2.cardsInHand.some((c) => c.name === CardName.MIRANDA_RESORT)) {
+      throw new Error('the parliament-water-enacted fixture expected red to hold Miranda Resort');
+    }
+    if (p2.megaCredits < 12) {
+      throw new Error(`the parliament-water-enacted fixture expected red to afford Miranda Resort even at its printed price, has ${p2.megaCredits} M€`);
+    }
+    if (p2.getCardCost(new MirandaResort()) !== 9) {
+      throw new Error(`the parliament-water-enacted fixture expected the law to price Miranda Resort at 9, got ${p2.getCardCost(new MirandaResort())}`);
+    }
+    expectViewerOpensGeneration(table, p2, 'parliament-water-enacted');
+  },
+});
+
   arrange: ({p2}) => {
     p2.titanium = 2;
   },
