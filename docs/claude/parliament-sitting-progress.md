@@ -4052,3 +4052,57 @@ RX02), три аддитивные строки в `resolutionCounts.ts` (спи
 | `tsc src` · `build:test` | mocha-ступень красна ТОЛЬКО в чужом `GreensBudget.spec.ts` (RX34 соседа); e2e-ступень зелёная |
 | `eslint --no-cache` (50 изменённых файлов) · `npm run lint` | чисто · см. отчёт |
 | `make:json` · `make:cards` (RX33 в манифесте, арт + тамб) · `make:css` · `build:server` · `build:client` | зелёные |
+
+## RX34 «Бюджет Зелёных» (Greens Budget, Зелёные) — 2026-09-27 — пятый БЮДЖЕТ, два вопроса одному месту
+
+Док: `docs/TURMOIL_REDUX_GREENS_BUDGET.md`. Печатное: «Потеряйте 10 M€. Получите M€ = метки растений +
+бактерий + животных + влияние. Каждый игрок добавляет 2 животных на любую карту и 3 бактерии на любую карту».
+Задание — 2 метки растений. Промт владельца: `docs/claude/prompts/resolution-rx34-greens-budget.md`.
+
+**Сборка целиком — общие модули потребовали ровно три строки.** Плата = `levy` + `levyStep` RX15 без правок; счёт
+= новый id `plantMicrobeAnimalTags` формы RX29 (список, `resolutionCountKind`, ветка предиката в
+`resolutionCounts.ts` + запись `yieldCountPresentation`); раздачи = пикер RX01 (`AddResourcesToCard`,
+`autoSelect: false`) дважды, одной локальной фабрикой `portionStep` — величина в `ctx.state[<key>Owed]`, запись в
+`andThen`. Порядок печатный: `[levy, megacredits, animals, microbes]`.
+
+**Ловушка формулировки обойдена:** «to any card» — ОДНА карта (RX01), не раскладка RX06: `spread` не объявлен,
+`familyOf` = `counted-tags`, две порции — два независимых выбора среди держателей СВОЕГО вида.
+
+**Ново: ДВА ВОПРОСА ОДНОМУ МЕСТУ подряд — драйвер выдержал без правок.** Ключи идемпотентности
+`…:<player>:animals` / `…:microbes`: второй промпт — после ответа на первый; следующее место ждёт оба; reload
+МЕЖДУ выборами перестраивает второй (`effects.pending.key === 'microbes'`), животные лежат ровно раз, первый
+не возвращается; reload ВНУТРИ каждого — тот же вопрос с той же величиной; повторный ответ отвергается. На
+консоли второй пикер встаёт в ту же зону ТОЛЬКО после посадки фишки первой порции — ни кадра, где держатель
+животных и держатель бактерий стоят рядом (e2e-пробник по task-clock).
+
+**Четыре разных нуля, каждый назван:** частичная плата с `owed` (RX15) · «нет меток и влияния» (новый ключ) ·
+«нет карты, принимающей животных» с величиной 2 (RX01) · «…бактерии» с величиной 3 (RX18). Влияние в раздачи не
+входит (влияние 0 и 5 → 2 и 3).
+
+**Чтения — только композиция:** нетто на выплате M€ (порции не слагаемые); разбор по трём меткам (`countedByTag`
+в порядке правила: растения · бактерии · животные; медальоны на лице и в глифе — в порядке СКАНА: животное ·
+растение · бактерия); порции — плоские строки без прогноза и без влияния; пометка панели называет ПЕРВЫЙ вид, что
+некуда положить; чужая колонка ленты — «✕ 2» / «✕ 3» у места без держателей. Стенд: девять сценариев под
+`counts: 'plantMicrobeAnimalTags'`.
+
+**Итоги заседания НЕ называют карту одиночной раздачи** (`parts.cards` строится только для раскладки из ≥2 карт —
+поведение RX01, не трогал): строка читает «+2 [животное] · +3 [бактерия]», сама карта — на табло. e2e проверяет
+табло через сервер и капсулы кандидатов через пробник, а не строку итогов.
+
+### Прогоны (2026-09-27)
+
+| Что | Итог |
+| --- | --- |
+| `tests/parliament/GreensBudget.spec.ts` (новый, 23) | зелёный |
+| `ResolutionContract` (RX34: 6/6 с первого запуска) · `ScientistsBudget` · `UnityBudget` · `IndustrialistBudget` · `AquiferContest` · `CloudDevelopment` · `CentralPowerGrid` · `resolutionCounts` · `rewardAddress` | 372 passing |
+| `parliamentGlossary` · `e2eFixturesLoad` · `e2eDriverGuard` | 109 passing |
+| mochapack: `GreensBudgetReadings` (новый, 7) · `ScientistsBudgetReadings` · `voteInfoBudget` · `parliamentAnnotations` · `resolutionPremiumFace` · `influenceYieldModel` | 88 passing, 2 красных **ЧУЖИХ и известных** (`voteInfoBudget` — RX28/RX26/RX18 «for another seat: readings 0», журнал RX29; `resolutionPremiumFace` § победитель у Skyscrapers, журнал RX32) — RX34 в списках не назван |
+| `make:json` · `make:cards` (RX34 в манифесте, арт 1536×1024 + тамб) · `make:css` · `build:server` · `build:client` | зелёные |
+| фикстуры `parliament-greens-vote` / `parliament-greens-assembly` (растения 1 · бактерии 2 · животные 2 = 5; красный без держателей) | сгенерированы точечно (`FIXTURES=…`) |
+| e2e `console-parliament-greens` (standard-1080, ~46 с) | зелёный; две правки САМОГО спека по дороге: посадка фишки = первый кадр покоя (`landingIndex`, как у RX15 — последний кадр включает поглощение), и строка итогов не называет карту одиночной раздачи (см. выше) |
+| `npm run lint` | `lint:server`: единственная ошибка — чужая `tests/routes/ApiCreateGame.spec.ts` (`padded-blocks`, уже в HEAD, журнал RX32); `lint:i18n` · `lint:client` — см. отчёт |
+| `build:test` (обе ступени) | первый прогон назвал три типовые ошибки в моём спеке (`SelectCard<T>` без аргумента, `IPlayer` бота в хелперах `TestPlayer`) — исправлены; повторный — см. отчёт |
+
+**Общий слой не тронут:** `levyStep`, `ResolutionLevy.ts`, `AddResourcesToCard`, `Tags.ts`, `ParliamentPhase.ts`,
+заседание, пикер — ни строки. Кадры приёмки — `screenshots/parliament-greens/standard-1080/` (02 панель
+голосования · 05/06 два пикера подряд · 07 итоги с четырьмя частями).
