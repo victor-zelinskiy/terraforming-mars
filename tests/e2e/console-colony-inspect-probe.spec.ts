@@ -10,9 +10,9 @@ import {bootSeededGame, cinematicBeat, press, settle} from './consoleStart';
  * own screen) and prints the composition's numbers beside the screenshots.
  *
  *   · X on a tile opens the DOSSIER — not the trade stage: the archive entry
- *     (the colony's own lore) with the ACT BLOCK at the side column's foot
- *     (the act's name, the verdict as information, the totals, every payment
- *     path), the planet disc carried from the tile's medallion at a hero
+ *     (the colony's own lore) with the ACT BLOCK right under it (the act's
+ *     name, the verdict as information, the totals — never the payment
+ *     paths), the planet disc carried from the tile's medallion at a hero
  *     size, the trade-track instrument, the rules panel with the three
  *     printed rules only;
  *   · the crumb reads «КОЛОНИИ › <colony> › ОСМОТР»;
@@ -63,7 +63,9 @@ function newGameConfig(seed = 0.42) {
     customCorporationsList: [],
     bannedCards: [],
     includedCards: [],
-    customColoniesList: ['Pluto', 'Luna', 'Triton', 'Callisto'],
+    // Solo deals FOUR (players + 2, +1 for ≤2 players) — exactly this list, so
+    // every name here is in the game before the setup's «remove a colony».
+    customColoniesList: ['Pluto', 'Luna', 'Europa', 'Callisto'],
     customPreludes: [],
     requiresMoonTrackCompletion: false,
     requiresVenusTrackCompletion: false,
@@ -119,12 +121,14 @@ type Composition = {
   crumb: string,
   planetW: number,
   lore: string,
+  loreTop: number,
   loreSeat: 'side' | 'inline' | 'none',
   loreFallback: boolean,
   cells: number,
   berths: number,
   kinds: Array<string>,
-  act: {kind: string, verdict: string, gains: Array<string>, payRows: number, offRows: number, top: number},
+  act: {kind: string, verdict: string, gains: Array<string>, top: number, bottom: number},
+  rulesBox: {top: number, bottom: number},
   loreBottom: number,
   rulesScroll: number,
   past: Array<string>,
@@ -163,13 +167,17 @@ async function composition(page: Page): Promise<Composition> {
         kind: (document.querySelector('.con-colinspect__act-kind')?.textContent ?? '').trim().toUpperCase(),
         verdict: (document.querySelector('.con-colinspect__act .con-colinspect__verdict')?.textContent ?? '').replace(/\s+/g, ' ').trim(),
         gains: Array.from(document.querySelectorAll('.con-colinspect__gain')).map((g) => (g.textContent ?? '').replace(/\s+/g, ' ').trim()),
-        payRows: document.querySelectorAll('.con-colinspect__act .con-colinspect__payrow').length,
-        offRows: document.querySelectorAll('.con-colinspect__act .con-colinspect__payrow--off').length,
         top: Math.round(document.querySelector('.con-colinspect__act')?.getBoundingClientRect().top ?? 0),
+        bottom: Math.round(document.querySelector('.con-colinspect__act')?.getBoundingClientRect().bottom ?? 0),
       },
+      rulesBox: {
+        top: Math.round(document.querySelector('.con-colinspect__rules')?.getBoundingClientRect().top ?? 0),
+        bottom: Math.round(document.querySelector('.con-colinspect__rules')?.getBoundingClientRect().bottom ?? 0),
+      },
+      loreTop: Math.round(Array.from(document.querySelectorAll('.con-colinspect__lore .card-zoom-lore')).find(visible)?.getBoundingClientRect().top ?? 0),
       loreBottom: Math.round(Array.from(document.querySelectorAll('.con-colinspect__lore .card-zoom-lore')).find(visible)?.getBoundingClientRect().bottom ?? 0),
       rulesScroll: rules === null ? -1 : Math.max(0, rules.scrollHeight - rules.clientHeight),
-      past: sr === undefined ? [] : Array.from(document.querySelectorAll('.con-colinspect__lore--side, .con-colinspect__act, .con-colinspect__act .con-colinspect__payrow, .con-colinspect__hero, .con-colinspect__rules, .con-colinspect .con-colfocus__berth'))
+      past: sr === undefined ? [] : Array.from(document.querySelectorAll('.con-colinspect__lore--side, .con-colinspect__act, .con-colinspect__gain, .con-colinspect__hero, .con-colinspect__rules, .con-colinspect .con-colfocus__berth'))
         .filter((el) => {
           const r = el.getBoundingClientRect();
           if (r.width === 0 && r.height === 0) {
@@ -267,12 +275,16 @@ test('colony dossier: X opens the read, B folds back, A enters the act (TV 4K)',
   expect(open.act.kind, 'the act block names the act').toBe('ТОРГОВЛЯ');
   expect(open.act.verdict.length, 'the verdict is stated').toBeGreaterThan(3);
   expect(open.act.gains.length, 'what the player receives').toBeGreaterThanOrEqual(1);
-  expect(open.act.payRows, 'every payment path is listed').toBeGreaterThanOrEqual(2);
-  // Whether a path is REFUSED depends on the deal (test mode fills the purse,
-  // so all three usually stand); the row shape is the unit spec's claim.
-  console.log('── refused payment paths ──', open.act.offRows, 'of', open.act.payRows);
   expect(open.loreSeat, 'the archive entry stands in the side column on the TV').toBe('side');
   expect(open.act.top, 'the act block sits BELOW the archive entry').toBeGreaterThan(open.loreBottom);
+  // THE TWO WINGS HANG LEVEL: the lore + act group and the rules panel are
+  // both centred on the column, so their vertical centres agree within a
+  // few percent of the surface (a top-pinned panel + a foot-pinned block
+  // left the middle-left and the lower-right empty).
+  const leftMid = (open.loreTop + open.act.bottom) / 2;
+  const rightMid = (open.rulesBox.top + open.rulesBox.bottom) / 2;
+  console.log('── wings ──', JSON.stringify({leftMid: Math.round(leftMid), rightMid: Math.round(rightMid), surfaceH: open.room.surfaceH}));
+  expect(Math.abs(leftMid - rightMid), 'the wings are centred on the same axis').toBeLessThan(open.room.surfaceH * 0.12);
   // NO SCROLL ON THE TV: the rules panel fits the room by design.
   expect(open.rulesScroll, 'the rules panel must not scroll at 4K').toBe(0);
   // The planet at a hero size: at least 600 device px on the 4K panel (the
@@ -360,6 +372,45 @@ test('colony dossier: X opens the read, B folds back, A enters the act (TV 4K)',
   expect(tilePlanet, 'the tile\'s medallion is lit again').toBe('0.97');
 });
 
+test('colony dossier: a TILE glyph in a rule renders whole (Europa\'s ocean, TV 4K)', async ({page, request}) => {
+  test.setTimeout(420_000);
+  // Europa's construction grant is «place an ocean» — a `.tile` glyph, whose
+  // base rule (40×46, a fixed background-size, margins) lost its left half
+  // inside the 32 px glyph box on the owner's 4K screen.
+  await bootSeededGame(page, request, await createGame(request), {buy: 2, keepColony: 'Europa'});
+  await settle(page);
+  await openColonies(page);
+  await focusTile(page, 'Europa');
+  await press(page, 'KeyX', 2400);
+  expect(await page.locator('.con-colinspect').count(), 'the dossier did not open').toBe(1);
+  await shoot(page, '08-europa-ocean-4k');
+  const glyph = await page.evaluate(() => {
+    const box = document.querySelector('.con-colinspect__group--build .con-colinspect__glyph');
+    const tile = box?.querySelector('.benefit-glyph__tile');
+    if (box === null || box === undefined || tile === null || tile === undefined) {
+      return null;
+    }
+    const b = box.getBoundingClientRect();
+    const t = tile.getBoundingClientRect();
+    return {
+      box: {l: Math.round(b.left), t: Math.round(b.top), r: Math.round(b.right), b: Math.round(b.bottom)},
+      tile: {l: Math.round(t.left), t: Math.round(t.top), r: Math.round(t.right), b: Math.round(t.bottom), w: Math.round(t.width), h: Math.round(t.height)},
+      art: getComputedStyle(tile).backgroundImage.includes('ocean'),
+    };
+  });
+  console.log('── the ocean glyph ──', JSON.stringify(glyph));
+  expect(glyph, 'Europa\'s build rule carries the ocean tile glyph').not.toBeNull();
+  if (glyph !== null) {
+    expect(glyph.art, 'the ocean art is painted').toBe(true);
+    expect(glyph.tile.w, 'the tile has a real width').toBeGreaterThanOrEqual(20);
+    // WHOLE: the tile's box lies inside the glyph's clip box on every side.
+    expect(glyph.tile.l, 'not clipped on the left').toBeGreaterThanOrEqual(glyph.box.l - 1);
+    expect(glyph.tile.r, 'not clipped on the right').toBeLessThanOrEqual(glyph.box.r + 1);
+    expect(glyph.tile.t, 'not clipped at the top').toBeGreaterThanOrEqual(glyph.box.t - 1);
+    expect(glyph.tile.b, 'not clipped at the bottom').toBeLessThanOrEqual(glyph.box.b + 1);
+  }
+});
+
 test('colony dossier: the composition holds at 1080p and on the Deck', async ({page, request}) => {
   test.setTimeout(420_000);
   await bootSeededGame(page, request, await createGame(request), {buy: 2, keepColony: 'Luna'});
@@ -401,7 +452,7 @@ test('colony dossier: the composition holds at 1080p and on the Deck', async ({p
     expect(c.past, `${p.name}: nothing paints past the surface`).toEqual([]);
     expect(c.loreFallback, `${p.name}: the archive entry stands`).toBe(false);
     expect(c.act.kind, `${p.name}: the act block stands`).toBe('ТОРГОВЛЯ');
-    expect(c.act.payRows, `${p.name}: the payment paths are listed`).toBeGreaterThanOrEqual(2);
+    expect(c.act.gains.length, `${p.name}: what the player receives`).toBeGreaterThanOrEqual(1);
     if (p.name === 'tv-1080') {
       // The TV's second profile fits too; the Deck's rules may scroll (it
       // has the scroll area for exactly that).

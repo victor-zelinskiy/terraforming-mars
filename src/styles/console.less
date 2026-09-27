@@ -20790,20 +20790,22 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
             inset 0 -.05rem 0 0 fade(@con-cyan, 6%);
     }
 
-    /* ═══ SIDE — the archive entry above, the act's reading at the foot ═══
-       A flex column: the lore is top-aligned (its heading level with the
-       planet's upper third for EVERY colony), the act block sits on the
-       column's foot (`margin-top: auto`) — the composition uses the height
-       it has instead of leaving the lower-left corner empty. The lore is
-       FLAVOUR: on a starved host it yields (min-height 0 + clip) before a
-       single payment row does. */
+    /* ═══ SIDE — the archive entry with the act's reading under it ═══
+       ONE GROUP, centred on the column (the planet's axis): the two wings
+       — this group and the rules panel — hang at the same height beside the
+       hero, so the surface reads as one composition instead of four blocks
+       pinned to four corners (a top-pinned lore + a foot-pinned act left the
+       middle of the column and the foot of the rules column empty at 4K).
+       The lore is FLAVOUR: on a starved host it yields (min-height 0 + clip)
+       before the act does. */
     &__side {
         grid-area: side;
         min-width: 0;
         min-height: 0;
         display: flex;
         flex-direction: column;
-        gap: .9rem;
+        justify-content: center;
+        gap: 1.1rem;
     }
     /* The archive entry, in the SAME block the card viewer draws. The block
        is `pointer-events: none` and panel-less by contract; here it only
@@ -20814,7 +20816,6 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         flex: 0 1 auto;
         min-height: 0;
         overflow: hidden;
-        padding-top: 1.6rem;
 
         .card-zoom-lore {
             width: 100%;
@@ -20830,11 +20831,11 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
 
     /* ── THE ACT BLOCK — «ТОРГОВЛЯ»: what A leads to, as a READING. The
        rules panel's material (one family of panels on this surface), the
-       act's tone on its name. It states the verdict, the totals, the card
-       targets and every payment path; it decides nothing. ── */
+       act's tone on its name. It states the verdict, the totals and the
+       card targets; it decides nothing, and it does not list the payment
+       paths — those are the stage's configuration. ── */
     &__act {
         flex: 0 0 auto;
-        margin-top: auto;
         min-width: 0;
         display: flex;
         flex-direction: column;
@@ -21020,40 +21021,6 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         background: @con-mint;
         box-shadow: 0 0 .4rem fade(@con-mint, 70%);
     }
-    /* Payment paths — every one, affordable and not (a strict table). */
-    &__paytable {
-        display: flex;
-        flex-direction: column;
-        gap: .22rem;
-    }
-    &__payrow {
-        display: grid;
-        grid-template-columns: 1.3rem 1fr auto;
-        align-items: center;
-        column-gap: .5rem;
-        min-height: 1.75rem;
-        padding: 0 .55rem;
-        border-radius: .35rem;
-        background: rgba(255, 255, 255, 0.03);
-        box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.06);
-        font-size: .7rem;
-
-        &--off {
-            .con-colinspect__payrow-title { color: @con-text-dim; }
-            .con-colinspect__payrow-icon { opacity: .55; }
-        }
-    }
-    &__payrow-icon {
-        width: 1.15rem;
-        height: 1.15rem;
-        background-size: contain;
-        background-repeat: no-repeat;
-        background-position: center;
-    }
-    &__payrow-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
-    &__payrow-delta { font-weight: 800; color: @con-mint; font-variant-numeric: tabular-nums; white-space: nowrap; }
-    &__payrow-reason { font-size: .62rem; color: @con-amber; white-space: nowrap; }
-
     /* ═══ HERO — the colony as a physical object ═══ */
     &__hero {
         grid-area: hero;
@@ -21151,13 +21118,14 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
        is a safety net for a starved host, never the design. ═══ */
     &__rules {
         grid-area: rules;
-        /* HUGS its content: three printed rules are ~half of a 4K column,
-           and a panel stretched over the other half read as a half-empty
-           box (measured on both TV profiles). The panel ends where the rules
-           end — like the archive block beside it; the surface's own ground
-           is the air. `max-height` keeps the scroll area a real safety net
-           on a starved host. */
-        align-self: start;
+        /* HUGS its content and hangs CENTRED on the column: three printed
+           rules are ~half of a 4K column, and a panel stretched over the
+           other half read as a half-empty box, a top-pinned one left the
+           foot of the column empty (both measured on the TV profiles). Centred
+           it is the right wing of the composition, level with the lore + act
+           group on the left. `max-height` keeps the scroll area a real
+           safety net on a starved host. */
+        align-self: center;
         max-height: 100%;
         min-width: 0;
         min-height: 0;
@@ -21255,6 +21223,20 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         overflow: hidden;
         zoom: calc(1.3 * var(--con-ui-scale, 1));
         .benefit-glyph__num { display: none; }
+        /* A TILE glyph (ocean / venus / hazard) can't be tamed with `scale()`:
+           the base `.tile` is 40×46 with a FIXED background-size and 5–10px
+           margins, so inside this 32px box the ocean lost its left half
+           (Europa's «Разместите 1 океан», measured at 4K). The berths' own
+           fix: explicit dimensions, a MATCHING background-size, zero margin. */
+        .benefit-glyph__tile {
+            transform: none;
+            width: 26px; /* keep-px: inside the zoom */
+            height: 30px; /* keep-px */
+            background-size: 26px 30px;
+            background-repeat: no-repeat;
+            background-position: center;
+            margin: 0;
+        }
     }
     /* THE READING FACE — the standard reading body, not the dense floor: the
        rules are one of the dossier's three jobs. */

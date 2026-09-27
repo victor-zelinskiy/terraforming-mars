@@ -46,8 +46,8 @@ function mountDossier(props: Record<string, unknown> = {}, stubs: Record<string,
  * THE COLONY DOSSIER — one composition, two hosts. What this spec owns: the
  * zones stand (the archive entry from the colony's OWN metadata, the shared
  * trade-track instrument with its anchors, the three printed rules, the act
- * block with the verdict-as-information, the totals and every payment
- * path), the host-agnostic shell strip, and the verbs (B leaves; A ALWAYS
+ * block with the verdict-as-information and the totals — never the payment
+ * paths, which are the stage's), the host-agnostic shell strip, and the verbs (B leaves; A ALWAYS
  * goes on — the dossier never gates the act; the right stick and ↑/↓ scroll
  * the rules). The geometry is the e2e probe's.
  */
@@ -127,11 +127,9 @@ describe('ConsoleColonyInspect', () => {
     expect(owners[1].classes()).to.not.include('con-colinspect__owner--you');
   });
 
-  it('the ACT BLOCK sits in the side column: the act\'s name, the verdict as information, the totals, EVERY payment path', () => {
+  it('the ACT BLOCK sits in the side column: the act\'s name, the verdict as information, the totals — and NO payment table', () => {
     const w = mountDossier({
       actIntent: 'trade', actionAvailable: false, blockReason: 'Not your turn to take any actions', blockTone: 'warning',
-      paymentOptions: [{title: 'Pay 9 M€', metadata: {icon: 'megacredits', resource: {current: 20, resulting: 11}}}],
-      disabledPayments: [{title: 'Pay 3 energy', reason: 'Not enough energy'}],
     });
     const act = w.find('.con-colinspect__side .con-colinspect__act');
     expect(act.exists(), 'the act block lives in the side column').to.eq(true);
@@ -151,12 +149,10 @@ describe('ConsoleColonyInspect', () => {
     expect(gains[0].find('.con-colinspect__gain-glyph--prod').exists(), 'stock, not production').to.eq(false);
     // No payment is dialed here — no `current → resulting` is claimed on a gain.
     expect(gains[0].text()).to.not.contain('→');
-    // EVERY payment path, affordable and not.
-    const rows = act.findAll('.con-colinspect__payrow');
-    expect(rows.length).to.eq(2);
-    expect(rows[0].find('.con-colinspect__payrow-delta').text()).to.eq('20 → 11');
-    expect(rows[1].classes()).to.include('con-colinspect__payrow--off');
-    expect(rows[1].find('.con-colinspect__payrow-reason').text()).to.eq('Not enough energy');
+    // The payment paths are the STAGE's configuration, never the dossier's:
+    // a card can add paths without limit, and a growing list crowds the lore.
+    expect(act.find('.con-colinspect__paytable').exists()).to.eq(false);
+    expect(act.find('.con-colinspect__payrow').exists()).to.eq(false);
   });
 
   it('an OFFERED act reads its verb in the mint register; a BUILD reads the next berth\'s grant in the production frame', () => {
@@ -172,8 +168,6 @@ describe('ConsoleColonyInspect', () => {
     const gain = build.find('.con-colinspect__gain');
     expect(gain.find('.con-colinspect__gain-amount').text()).to.eq('+2');
     expect(gain.find('.con-colinspect__gain-glyph--prod').exists(), 'production is framed').to.eq(true);
-    // A build has no payment table (the standard project prices it).
-    expect(build.find('.con-colinspect__paytable').exists()).to.eq(false);
   });
 
   it('EMBEDDED strips the shell: no head, no band marker, no motion id (embed rule 1)', () => {
@@ -185,9 +179,8 @@ describe('ConsoleColonyInspect', () => {
     expect(root.classes()).to.include('con-colinspect--embedded');
   });
 
-  it('STANDALONE (the journal door) draws its own head; history keeps the level\'s income and drops the verdict + payments', () => {
-    const w = mountDossier({embedded: false, readonly: true, hostRoot: 'Journal',
-      paymentOptions: [{title: 'Pay 9 M€', metadata: {icon: 'megacredits', resource: {current: 20, resulting: 11}}}]});
+  it('STANDALONE (the journal door) draws its own head; history keeps the level\'s income and drops the verdict', () => {
+    const w = mountDossier({embedded: false, readonly: true, hostRoot: 'Journal', actionAvailable: true});
     const root = w.find('.con-colinspect');
     expect(root.classes()).to.include('con-ws');
     expect(root.attributes('data-motion-surface')).to.eq('colony-inspect');
@@ -197,13 +190,12 @@ describe('ConsoleColonyInspect', () => {
     expect(head.find('.con-wshead__subject').text()).to.eq('Luna');
     expect(head.find('.con-wshead__step').text()).to.eq('Inspection');
     // History is read-only: the income at the current level still reads, but
-    // there is no verdict and no payment table to plan with.
+    // there is no verdict to plan with.
     const act = w.find('.con-colinspect__act');
     expect(act.exists()).to.eq(true);
     expect(act.find('.con-colinspect__act-label').text()).to.eq('On the current level');
     expect(act.find('.con-colinspect__gain-amount').text()).to.eq('+8');
     expect(act.find('.con-colinspect__verdict').exists()).to.eq(false);
-    expect(act.find('.con-colinspect__paytable').exists()).to.eq(false);
   });
 
   it('B leaves; A ALWAYS goes on — the dossier never gates the act (the stage carries the refusal); history never enters', () => {

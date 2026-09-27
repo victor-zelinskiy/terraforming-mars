@@ -238,8 +238,6 @@
                                 :blockReason="inspectBlockReason"
                                 :blockTone="inspectBlockTone"
                                 :pickLabel="pick !== undefined ? pick.labelKey : ''"
-                                :paymentOptions="tradePaymentOptions"
-                                :disabledPayments="tradeDisabledPayments"
                                 @enter="$emit('inspect-enter')"
                                 @cancel="closeFocus()" />
         </transition>

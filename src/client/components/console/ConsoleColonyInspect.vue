@@ -16,13 +16,16 @@
     one press from acting, WHAT THE ACT WOULD GIVE AND COST. Four zones, no
     scroll on the TV (the composition's whole budget is «fits at 4K and 1080»):
 
-      SIDE (left)     above — the ARCHIVE ENTRY (the SAME block the card viewer
-                      and the party inspect use, fed by colonyLore.ts);
-                      below, at the column's foot — the ACT'S READING: the
-                      server's verdict AS INFORMATION (never a gate), what the
-                      player receives at the current level, where a card
-                      resource lands, and EVERY payment path with its own
-                      `current → resulting` or refusal.
+      SIDE (left)     the ARCHIVE ENTRY (the SAME block the card viewer and
+                      the party inspect use, fed by colonyLore.ts) with the
+                      ACT'S READING right under it: the server's verdict AS
+                      INFORMATION (never a gate), what the player receives at
+                      the current level and where a card resource lands. The
+                      payment paths are deliberately NOT here — they are the
+                      trade stage's own configuration (and a card can add
+                      paths without limit; a list that grows crowds the lore).
+                      The two stand as ONE group centred on the planet's axis,
+                      mirrored by the rules panel on the right.
       PLANET (centre) the colony as a physical object: the disc at the size
                       the room allows, the state + the fleet under it, and the
                       TRADE-TRACK INSTRUMENT — the exact component the trade
@@ -84,8 +87,7 @@
           <!-- THE ACT'S READING — what A leads to. The verdict is the
                SERVER's (tone and reason), stated as a fact beside the act's
                name; the reward is the reward package every colony surface
-               shares; the payment table is EVERY path, affordable and not.
-               History (the journal) keeps only the level's income. -->
+               shares. History (the journal) keeps only the level's income. -->
           <section v-if="showAct"
                    class="con-colinspect__act"
                    :class="'con-colinspect__act--' + actIntent"
@@ -141,22 +143,6 @@
               <p v-if="actIntent !== 'build' && offsetSteps > 0" class="con-colinspect__note con-colinspect__note--gain">
                 {{ $t('Your trade advances the track first') }} <b>+{{ offsetSteps }}</b>
               </p>
-            </div>
-
-            <!-- ОПЛАТА — every path, with the server's own numbers. -->
-            <div v-if="paymentRows.length > 0" class="con-colinspect__act-sec con-colinspect__act-sec--pay">
-              <span class="con-colinspect__act-label">{{ $t('Payment') }}</span>
-              <div class="con-colinspect__paytable">
-                <div v-for="(row, i) in paymentRows" :key="i"
-                     class="con-colinspect__payrow"
-                     :class="{'con-colinspect__payrow--off': !row.available}">
-                  <i v-if="row.iconClass !== ''" class="con-colinspect__payrow-icon" :class="row.iconClass" aria-hidden="true"></i>
-                  <span v-else class="con-colinspect__payrow-icon" aria-hidden="true"></span>
-                  <span class="con-colinspect__payrow-title">{{ row.title }}</span>
-                  <span v-if="row.available" class="con-colinspect__payrow-delta">{{ row.preview }}</span>
-                  <span v-else class="con-colinspect__payrow-reason">{{ row.reason }}</span>
-                </div>
-              </div>
             </div>
           </section>
         </aside>
@@ -285,7 +271,6 @@ import {ColonyName} from '@/common/colonies/ColonyName';
 import {Color} from '@/common/Color';
 import {CardModel} from '@/common/models/CardModel';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
-import {DisabledOptionModel, SelectOptionModel} from '@/common/models/PlayerInputModel';
 import {ColonyTradeFollowUpModel, ColonyTradePreviewModel} from '@/common/models/ColonyTradePreviewModel';
 import {getColony} from '@/client/colonies/ClientColonyManifest';
 import {buildColonyLoreModel} from '@/client/colonies/colonyLore';
@@ -299,8 +284,7 @@ import {
 import {presentedColonyModel} from '@/client/console/colonyTrade/consoleColonyTrade';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
-import {translateMessage, translateText, translateTextWithParams, translateCardName} from '@/client/directives/i18n';
-import {Message} from '@/common/logs/Message';
+import {translateText, translateTextWithParams, translateCardName} from '@/client/directives/i18n';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
@@ -313,16 +297,8 @@ import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScr
 import ConsolePlanetDisc from '@/client/components/console/ConsolePlanetDisc.vue';
 import ConsoleColonyTrackInstrument, {ColonyTrackBonusMath} from '@/client/components/console/ConsoleColonyTrackInstrument.vue';
 
-function textOf(v: string | Message | undefined): string {
-  if (v === undefined) {
-    return '';
-  }
-  return typeof v === 'string' ? translateText(v) : translateMessage(v);
-}
-
 type Benefit = {type: ColonyBenefit, quantity: ReadonlyArray<number>, resource?: unknown};
 type CardTargetLine = {card: string, iconClass: string, before: number, after: number};
-type PayRow = {iconClass: string, title: string, preview: string, reason: string, available: boolean};
 
 /** One d-pad / stick step of the rules panel (logical px; scaled by the profile). */
 const SCROLL_STEP_PX = 140;
@@ -348,8 +324,8 @@ export default defineComponent({
     embedded: {type: Boolean, default: false},
     /** The crumb root of the STANDALONE host (the journal door). */
     hostRoot: {type: String, default: 'Journal'},
-    /** READ-ONLY history (the journal door): no verdict, no payment table,
-     *  no target planning — and no A. The level's income still reads. */
+    /** READ-ONLY history (the journal door): no verdict, no target planning
+     *  — and no A. The level's income still reads. */
     readonly: {type: Boolean, default: false},
     /** The act A leads to (the workspace door): names the block, picks the reward. */
     actIntent: {type: String as PropType<ColonyFocusIntent>, default: 'trade'},
@@ -361,8 +337,6 @@ export default defineComponent({
     blockTone: {type: String as PropType<'warning' | 'danger'>, default: 'danger'},
     /** A pick's DISPLAY label («Build» / «Select»), for the verdict. */
     pickLabel: {type: String, default: ''},
-    paymentOptions: {type: Array as PropType<ReadonlyArray<SelectOptionModel>>, default: () => []},
-    disabledPayments: {type: Array as PropType<ReadonlyArray<DisabledOptionModel>>, default: () => []},
   },
   emits: ['cancel', 'enter'],
   data() {
@@ -567,35 +541,6 @@ export default defineComponent({
     },
     lostCount(): number {
       return this.actFollowUps.filter((f) => f.kind === 'cardTarget' && f.lost).length;
-    },
-    /** EVERY payment path — affordable with `current → resulting`, the rest
-     *  disabled with the server reason (the full picture, never hidden). */
-    paymentRows(): Array<PayRow> {
-      if (this.readonly) {
-        return [];
-      }
-      const rows: Array<PayRow> = [];
-      for (const option of this.paymentOptions) {
-        const meta = option.metadata;
-        const res = meta?.resource;
-        rows.push({
-          iconClass: meta?.icon !== undefined ? iconClassFor(meta.icon) : '',
-          title: textOf(option.title),
-          preview: res !== undefined ? `${res.current} → ${res.resulting}` : '',
-          reason: '',
-          available: true,
-        });
-      }
-      for (const disabled of this.disabledPayments) {
-        rows.push({
-          iconClass: disabled.metadata?.icon !== undefined ? iconClassFor(disabled.metadata.icon) : '',
-          title: textOf(disabled.title),
-          preview: '',
-          reason: textOf(disabled.reason),
-          available: false,
-        });
-      }
-      return rows;
     },
   },
   watch: {

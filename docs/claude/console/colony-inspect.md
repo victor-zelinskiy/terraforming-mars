@@ -63,8 +63,8 @@ strips the shell — frame plate, `ConsoleWsHead`, `con-ws` marker,
 | **X on a journal colony row** | the shell, over the journal drawer; standalone band (`.con-ws-stage-band()` + plate + `ConsoleWsHead`) | `ЖУРНАЛ › ЛУНА › ОСМОТР` | close (back to the journal) | — (history is read-only; the bar offers B only) |
 
 The workspace door is what the brief asked for; the journal door keeps its
-read-only semantics (`readonly`: no verdict, no payment, no target planning —
-history, not planning) but gains the whole new composition for free.
+read-only semantics (`readonly`: no verdict, no target planning — history,
+not planning) but gains the whole new composition for free.
 
 ### 2.2 The composition — LORE + THE ACT · PLANET · RULES
 The fullscreen card viewer's three-zone grammar, transposed to a colony. The
@@ -74,53 +74,58 @@ AND COST. Four zones, and the whole budget is «fits at 4K and 1080 with no
 scroll»:
 
 ```
- ✦ ЗАПИСЬ ИЗ АРХИВА ──◇     ┌──────────────────┐      § ПРАВИЛА
-   ❝                        │                  │   ┌────────────────────────┐
-   Наш собственный          │     PLANET       │   │ СТРОИТЕЛЬСТВО  [glyph]  │
-   спутник — естественные   │   min(22rem,     │   │  Повысьте доход на 2    │
-   ворота между богатствами │    50cqh)        │   │                         │
-   Земли и остальной        │                  │   │ ТОРГОВЫЙ ДОХОД [glyph]  │
-   Солнечной системой       └──────────────────┘   │  Получите N M€          │
-                        ❞     ● АКТИВНА · флот      │                         │
-                                                    │ БОНУС ВЛАДЕЛЬЦА [glyph] │
- ┌────────────────────────┐   ТОРГОВЫЙ ТРЕК         │  Получите 2 M€          │
- │ ТОРГОВЛЯ  ⏳ не ваш ход│  ┌─┬─┬─┬─┬─┬─┬─┐        │  ● admin ×2 → +4        │
- │ ВЫ ПОЛУЧИТЕ            │  │1│2│4│7│…│…│…│        │  ● Bo → +2              │
- │  +8 [M€]               │  └─┴─┴─┴─┴─┴─┴─┘        │                         │
- │ ОПЛАТА                 │  [berth][berth][berth]  │  маркер возвращается…   │
- │  [M€] 9 M€    20 → 11  │   + owner-bonus lane    └────────────────────────┘
- │  [⚡] 3 энергии  ✕ нет │
- └────────────────────────┘
+                            ┌──────────────────┐
+ ✦ ЗАПИСЬ ИЗ АРХИВА ──◇     │                  │      § ПРАВИЛА
+   ❝                        │     PLANET       │   ┌────────────────────────┐
+   Наш собственный          │   min(22rem,     │   │ СТРОИТЕЛЬСТВО  [glyph]  │
+   спутник — естественные   │    50cqh)        │   │  Повысьте доход на 2    │
+   ворота между богатствами │                  │   │                         │
+   Земли и остальной        └──────────────────┘   │ ТОРГОВЫЙ ДОХОД [glyph]  │
+   Солнечной системой         ● АКТИВНА · флот      │  Получите N M€          │
+                        ❞                           │                         │
+ ┌────────────────────────┐                        │ БОНУС ВЛАДЕЛЬЦА [glyph] │
+ │ ТОРГОВЛЯ  ⏳ не ваш ход│   ТОРГОВЫЙ ТРЕК         │  Получите 2 M€          │
+ │ ВЫ ПОЛУЧИТЕ            │  ┌─┬─┬─┬─┬─┬─┬─┐        │  ● admin ×2 → +4        │
+ │  +8 [M€]               │  │1│2│4│7│…│…│…│        │  ● Bo → +2              │
+ └────────────────────────┘  └─┴─┴─┴─┴─┴─┴─┘        │  маркер возвращается…   │
+                             [berth][berth][berth]  └────────────────────────┘
+                              + owner-bonus lane
+   (the two wings — lore + act, and the rules — hang CENTRED on the column)
 ```
 
-- **LEFT — the SIDE column: the archive entry above, the ACT BLOCK at the
-  foot.** The lore is the SAME block as the fullscreen viewer
+- **LEFT — the SIDE column: the archive entry with the ACT BLOCK right
+  under it, the two centred as one group.** The lore is the SAME block as the fullscreen viewer
   (`CardLoreAside`, warm ivory / muted gold, upright Literata, the two drawn
   quotation marks, no panel, no border). A third resolver hands it the model:
   `src/client/colonies/colonyLore.ts` → `buildColonyLoreModel(name, translate)`
   — the same `LoreModel` a card or a Redux party builds, the same length
   ladder. The block reveals on its settle `nonce` once the dossier's own
   entrance has stopped moving (words last — the descend grammar's order).
-  Under it, on the column's foot (`margin-top: auto`), the **ACT BLOCK
-  «ТОРГОВЛЯ»** (`.con-colinspect__act`, the rules panel's material — one
-  family of panels on the surface — with the act's name in the pre-commit
-  cyan): what A leads to, as a READING. Its parts, top to bottom: the act's
-  NAME beside the server's VERDICT stated as information in the
-  `AvailabilityBlocker` register («● Доступна торговля» / «⏳ Сейчас не ваш
-  ход» / «✕ Нет свободного флота») — it gates nothing; «ВЫ ПОЛУЧИТЕ» — the
-  totals from the ONE reward derivation every colony surface shares
-  (`tradeOutcome` → `colonyRewardPackage`: the track's income at the level
-  the act reads PLUS the viewer's own settlements' bonuses, merged per type
-  and destination — «+8 M€» for Luna at level 3 with two own cubes, never
-  «+4» and «+2 ×2» in two places), with the card targets under a card
-  destination and the honest «ресурс пропадёт» when there is none; and
-  «ОПЛАТА» — EVERY payment path, the affordable ones with the server's own
-  `current → resulting`, the refused ones with their reason. No payment is
-  dialed here, so no `current → resulting` is claimed on a GAIN — the stage
-  owns that once a path is chosen. A BUILD names the block «СТРОИТЕЛЬСТВО»
-  and reads the next free berth's grant (in the production frame when it is
-  production); a pick names it with the pick's own verb. The journal door
-  keeps only «НА ТЕКУЩЕМ УРОВНЕ» + the totals (history plans nothing).
+  Right under it, the **ACT BLOCK «ТОРГОВЛЯ»** (`.con-colinspect__act`, the
+  rules panel's material — one family of panels on the surface — with the
+  act's name in the pre-commit cyan): what A leads to, as a READING. Its
+  parts, top to bottom: the act's NAME beside the server's VERDICT stated as
+  information in the `AvailabilityBlocker` register («● Доступна торговля» /
+  «⏳ Сейчас не ваш ход» / «✕ Нет свободного флота») — it gates nothing;
+  «ВЫ ПОЛУЧИТЕ» — the totals from the ONE reward derivation every colony
+  surface shares (`tradeOutcome` → `colonyRewardPackage`: the track's
+  income at the level the act reads PLUS the viewer's own settlements'
+  bonuses, merged per type and destination — «+8 M€» for Luna at level 3
+  with two own cubes, never «+4» and «+2 ×2» in two places), with the card
+  targets under a card destination and the honest «ресурс пропадёт» when
+  there is none. No payment is dialed here, so no `current → resulting` is
+  claimed on a GAIN — the stage owns that once a path is chosen. **The
+  payment paths are deliberately NOT listed** (iteration 3): they are the
+  trade stage's own configuration, and a card can add paths without limit —
+  a list that grows crowds the archive entry above it. A BUILD names the
+  block «СТРОИТЕЛЬСТВО» and reads the next free berth's grant (in the
+  production frame when it is production); a pick names it with the pick's
+  own verb. The journal door keeps only «НА ТЕКУЩЕМ УРОВНЕ» + the totals
+  (history plans nothing).
+  **The lore and the act block are ONE GROUP, centred on the column** — the
+  left wing; the rules panel is the right wing, centred the same way. Four
+  blocks pinned to four corners read as four things; two wings level with
+  the hero read as one composition.
 - **CENTRE — the colony as a physical object.** The planet disc at
   `min(22rem, 50cqh)` (the hero column is a size container, so the disc is
   sized against the room it actually has: 852 device px at 4K, 435 at
@@ -240,7 +245,9 @@ nothing, and A only re-routes into the stage the grid's A would have opened.
 | tile medallion | 3.1 (was 2.7) | the head row grows with it; the mid band gives the .4rem back |
 | columns | `minmax(16rem, 1fr) · minmax(24rem, 32rem) · minmax(18rem, 1.15fr)` | side (lore + the act block) · centre · rules; the side carries payment rows now, so it is no longer the narrowest column. Below 60 rem of host width (`@container colinspect-host` — NAMED on the frame, and a SIZE container so `cqh` resolves against the host's room; an unnamed query resolves against the nearest container, which for the planet is the hero column itself) the SIDE moves UNDER THE RULES (`max-height: 62cqh`, the lore yields first, the payment rows last) and the hero keeps the whole height (the instrument alone needs ~13rem; a row under the hero left an 80 px planet on the Deck) |
 | rules type | `--con-t-read` (was `-sm`) | the rules are one of the dossier's three jobs; the panel affords it because it carries only the three printed rules |
-| act block | `.con-colinspect__act` at the side column's foot | the amount (`__gain-amount`, 1.3rem / `--con-t-section` on TV) is the block's loudest voice; payment rows are `--con-hit-min` tall on TV |
+| act block | `.con-colinspect__act` under the lore, the two centred as one group (`justify-content: center` on the side column) | the amount (`__gain-amount`, 1.35rem / `--con-t-section` on TV) is the block's loudest voice; the coin is 1.25rem at zoom 1 so the number leads |
+| rules panel | hugs its content, `align-self: center` | the right wing, level with the left one; a stretched panel read half-empty, a top-pinned one left the column's foot empty |
+| tile glyph in a rule | `.benefit-glyph__tile` inside `__glyph`: 26×30 px, matching `background-size`, zero margin | the base `.tile` is 40×46 with fixed background-size + margins — inside the 32 px glyph box the ocean lost its left half (Europa, 4K) |
 
 ## 6 · Where things live
 
@@ -307,3 +314,18 @@ Iteration 2 (the shipped composition — lore + act block · planet · rules onl
   claim); ⑤ the rAF planet sampler starved to two frames on a loaded runner
   and judged «one planet at rest» on a mid-crossfade frame (→ a
   `setInterval` sampler with a liveness floor).
+- **Iteration 3 (the owner's review of the Europa 4K screenshot):** ① the
+  ocean glyph in «Разместите 1 океан» was cut in half — the base `.tile`
+  (40×46, fixed background-size, margins) inside the 32 px glyph box (→ the
+  berths' own tile fix, explicit 26×30 + matching background-size); ② the
+  payment table was REDUNDANT here — the trade stage is where a path is
+  chosen, and a card can add paths until the list crowds the lore (→ gone
+  from the dossier; the act block is name · verdict · «ВЫ ПОЛУЧИТЕ»); ③ a
+  top-pinned rules panel left the column's foot empty and read inorganic
+  (→ both wings centred on the column: lore + act as one group on the left,
+  the rules on the right; the probe asserts their centres agree within 12 %
+  of the surface). Measured after: 4K — left wing centre 1144 = right wing
+  centre 1144 (surface 1772), rules panel 592 → 1696, act block 1366 → 1708;
+  1080 — 566 = 566; Europa's ocean glyph 68×78 px fully inside its 83 px box
+  (`08-europa-ocean-4k.png`); the Deck unchanged (rules scroll 195, the
+  archive entry the scroll's last block, the act block whole under it).
