@@ -17,7 +17,7 @@ import {bootFixture, closeZoomViewer, fetchPlayerModel, openQuickWheel, openZoom
  *   (б) every block stands inside the viewport and inside its tier;
  *   (в) the BUDGET by the panel's own witnesses: ONE reading, no forecast plate,
  *       the win's difference as a suffix (the expected deltas per fixture), two
- *       kickers, two facts (three on the edge this delegate crosses), ≤ 28 words
+ *       kickers, two facts (three on the edge this delegate crosses), ≤ 30 words
  *       — and nothing the panel gave up (the printed sentences, the party, the
  *       quest, the delegate count, the winner's tile) is on it;
  *   (г) X opens the inspector with the whole forecast (every estimate the panel
@@ -67,7 +67,8 @@ const PRESETS = [
   {id: 'deck-handheld', viewport: {width: 1280, height: 800}, query: '&consoleProfile=handheld'},
 ] as const;
 
-const WORD_LIMIT = 28;
+/** The panel's word ceiling — the same number `VOTE_INFO_LIMITS.words` holds the whole catalog to. */
+const WORD_LIMIT = 30;
 
 const parliament = (page: Page) => page.locator('.con-parl');
 

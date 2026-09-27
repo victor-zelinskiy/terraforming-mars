@@ -101,7 +101,10 @@
   - `panelFactsOf(facts)` — лидер, побеждает, + доступ только при `tone === 'gain'` (ребро).
   - `voteInfoOf(input)` → `VoteInfoVm {instance, name, party, winning, reading, vote: {kicker, source, cost, facts, all, numbers}}`.
   - `voteFactRowsOf({all, numbers}, text)` — строки блока «Ваш голос» осмотра (ключи `'${0}: ${1} → ${2}'` без слов).
-  - `voteInfoBudget(vm, text)` → `{kickers, readings, facts, words}`; `VOTE_INFO_LIMITS = {kickers: 3, readings: 1, facts: 2, factsOnEdge: 3, words: 28}`;
+  - `voteInfoBudget(vm, text)` → `{kickers, readings, facts, words}`; `VOTE_INFO_LIMITS = {kickers: 3, readings: 1, facts: 2, factsOnEdge: 3, words: 30}`;
+    Потолок слов был 28 до RX18 («Медицинская база»): нота «Ни одна карта не хранит данные или бактерии» — 8 слов,
+    и при влиянии 0 на границе панель стоит 30. Решение владельца (2026-09-27): двигаем потолок, не ноту —
+    ключ общий с отказом действия Учёных, а суффикс «если победите · шаг» стоит ровно там, где победа меняет число.
     `countWords` — цепочки букв (цифры, иконки, глифы — не слова); `text` — реальный словарь (гард передаёт RU).
 - **`influenceYieldModel.ts`**: `WinSuffix {effectId, delta, agendaStep, influence, atCap}`, `winSuffixesOf(yields)`
   (forecast − estimate того же эффекта, > 0), `oneNumberYieldsOf`, `noRecipientCompactNoteOf`. Никакого пересчёта
@@ -159,14 +162,14 @@
   графика без «для вас»; компактная заметка; факты: снимок/полёт/посадка, ребро доступа, строки осмотра, бюджет),
   **`voteInfoBudget.spec.ts`** — весь каталог (`copies > 0`, dev-примеры отдельно) × влияние {0, 1, 2, 5} (Agenda 0/1/3/12)
   × {побеждает, нет} × {ребро, нет}: `readings === 1`, ни одной forecast-плитки, `facts ≤ 2 (+1)`, `kickers ≤ 3`,
-  `words ≤ 28` по РЕАЛЬНОМУ RU-словарю (импорт `@/locales/ru/*.json`, как в `placementDossier.spec`); провал печатает
+  `words ≤ 30` по РЕАЛЬНОМУ RU-словарю (импорт `@/locales/ru/*.json`, как в `placementDossier.spec`); провал печатает
   имя резолюции и превышение; плюс проверка, что каждый ключ панели имеет RU-строку. `influenceYieldModel.spec`
   (`winSuffixesOf` / `oneNumberYieldsOf`), `parliamentAnnotations.spec` (блок «Ваш голос»).
 - **e2e** `tests/e2e/console-parliament-vote-fit.spec.ts` — 7 фикстур (RX01–RX05 `*-vote`, `climate-vote-raise`,
   `powergrid-vote-cap`) × 3 профиля (`test.use({viewport})`, `--workers=1`): (а) пробник обрезания по всем элементам
   `.con-parl__vote` (кроме поддеревьев `.pcard` и 1×1 скрытых подписей) — ни `scrollHeight/Width > client + 1` при
   `overflow ≠ visible`, ни одного `overflow: auto|scroll`; (б) все блоки в вьюпорте и внутри своего яруса; (в) бюджет
-  по свидетелям + ожидаемые суффиксы по фикстуре + «ничего убранного нет на панели» + слова ≤ 28 + карта больше
+  по свидетелям + ожидаемые суффиксы по фикстуре + «ничего убранного нет на панели» + слова ≤ 30 + карта больше
   обзорной на ≥ 15 %; (г) X → осмотр: estimate-плиток столько же, forecast-плиток столько, сколько суффиксов, четыре
   строки «Ваш голос», RB/LB листают, B закрывает, подпись панели (текст + свидетели) не изменилась; (д) скриншоты
   `screenshots/parliament-vote-fit/<preset>/<RX>-<fixture>.png` и метрики `*.json`. Пробники — DOM-чтения, без rAF.

@@ -94,7 +94,10 @@ describe('PremiumCard — the face of a resolution (the bill)', () => {
       expect(wrapper.findAll('.pcard-mech-group').length, `${resolution.id}: its effect`).to.be.greaterThan(0);
       expect(wrapper.find('.pcard__quest-graphic').exists(), `${resolution.id}: its quest`).to.eq(true);
       expect(wrapper.find('.pcard__quest-text').exists(), `${resolution.id}: no sentence`).to.eq(false);
-      // THE WINNER'S CLAUSE is set apart by the row's own structure — exactly where the card declares a winner part.
+      // THE WINNER'S CLAUSE is set apart by the row's own structure — exactly where the card declares a
+      // winner-ONLY part (`winnerSteps`). A row that names the winner BESIDE another recipient
+      // (Skyscrapers: «★ [influence] 2+») lists who receives the effect above it and is not one
+      // player's part, so it takes no gold: `isWinnerClause` in mechanicsModel.ts.
       expect(wrapper.findAll('.pcard-mech-group--winner').length, `${resolution.id}: the winner's clause`).to.eq(resolution.hasWinnerEffect ? 1 : 0);
     }
   });

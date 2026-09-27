@@ -16,6 +16,7 @@ import {
   suffixWinKey, TextFn, VOTE_INFO_LIMITS, VOTE_KICKER, voteFactsOf, voteInfoBudget, voteInfoOf, VoteInfoVm,
 } from '@/client/console/parliament/voteInfoModel';
 import {levelPresentation} from '@/client/console/parliament/influenceYieldModel';
+import {QUIET_REWARD_KICKER, quietRewardPoseOf} from '@/client/console/parliament/quietRewardPose';
 import {colonyLedgerEmptyKey} from '@/client/console/parliament/colonyLedgerModel';
 import {tileGrantCaptionOf, tileGrantDetailOf} from '@/client/console/parliament/tileGrantModel';
 import ruParliament from '@/locales/ru/parliament.json';
@@ -28,11 +29,14 @@ import ruTurmoil from '@/locales/ru/turmoil.json';
  * rule the overload cannot come back through»). For EVERY resolution the game
  * deals, at every influence a table can give the viewer, winning or not, on the
  * edge of the party effect or not, the panel under the cards is held to:
- *   · ONE reading (the estimate; the win's difference is its suffix, never a plate);
+ *   · ONE reading (the estimate; the win's difference is its suffix, never a plate) — or NONE
+ *     for a resolution that pays nothing at the enactment (a passive, an action: RX26, RX28),
+ *     which reads under the quiet reward's own kicker and never under a bare heading;
  *   · TWO facts — three on the edge this delegate crosses;
  *   · at most THREE kickers (it prints two);
- *   · at most 28 WORDS, counted in the language the player reads (the real RU
- *     dictionary), with every honest note included.
+ *   · at most 30 WORDS, counted in the language the player reads (the real RU
+ *     dictionary), with every honest note included (28 until RX18 — the no-holder
+ *     note of a two-kind unit costs the densest panel two more).
  * A failure names the resolution and what it exceeded — the worklist of the next
  * card. The never-dealt dev examples run apart, at the same ceilings, so the
  * dev stand cannot ship a composition the game would refuse.
@@ -135,6 +139,16 @@ function panelFor(
 type Offence = string;
 
 /**
+ * Does the ENACTMENT pay THIS seat anything? The same two declarations the panel reads before it
+ * composes a reading: a scaled term (a number per influence) or a tile granted by threshold. A card
+ * with neither (a passive, an action) pays at the enactment nothing to read — the graphic and the
+ * quiet reward's kicker are the whole of it.
+ */
+function paysAtEnactment(resolution: IClientResolution): boolean {
+  return (resolution.scaled ?? []).length > 0 || resolution.tileGrant !== undefined;
+}
+
+/**
  * THE SUBJECTS the panel is read for: the viewer's own reading, and ANOTHER
  * SEAT's (the bumpers' side step). The ceiling is the SAME for both — a
  * rival's name stands exactly where «вас» stood, so the third person may not
@@ -154,8 +168,20 @@ function offencesOf(resolution: IClientResolution, opts: {dealt: boolean}): Arra
           const vm = panelFor(resolution, agenda, edge, winning, BLUE, subject.rival);
           const b = voteInfoBudget(vm, ru);
           const where = `${resolution.text.name} (${resolution.code ?? resolution.id}) @ influence ${influence}${winning ? ', winning' : ''}${edge ? ', on the edge' : ''}${subject.label}`;
-          if (opts.dealt ? b.readings !== VOTE_INFO_LIMITS.readings : b.readings > VOTE_INFO_LIMITS.readings) {
-            out.push(`${where}: readings ${b.readings} (must be ${opts.dealt ? '' : '≤ '}${VOTE_INFO_LIMITS.readings})`);
+          // A DEALT card owes the seat EXACTLY the reading its own declaration promises: one where the
+          // enactment pays this seat (a scaled term, or a tile granted by threshold), none where it pays
+          // nothing at all — and a card that pays nothing has to say what it DOES give (the quiet reward's
+          // kicker), so «no reading» can never become «no heading».
+          const owed = paysAtEnactment(resolution) ? VOTE_INFO_LIMITS.readings : 0;
+          if (opts.dealt ? b.readings !== owed : b.readings > VOTE_INFO_LIMITS.readings) {
+            out.push(`${where}: readings ${b.readings} (must be ${opts.dealt ? '' : '≤ '}${opts.dealt ? owed : VOTE_INFO_LIMITS.readings})`);
+          }
+          if (opts.dealt && owed === 0) {
+            const quiet = quietRewardPoseOf(resolution);
+            const kicker = quiet === undefined ? undefined : QUIET_REWARD_KICKER[quiet.kind];
+            if (kicker === undefined || vm.reading.kicker !== kicker) {
+              out.push(`${where}: a card that pays nothing at the enactment must read under the quiet reward's kicker, not «${vm.reading.kicker}»`);
+            }
           }
           if (vm.reading.yields.some((y) => y.context === 'forecast')) {
             out.push(`${where}: a forecast PLATE on the panel — the win's difference is a suffix`);
@@ -239,6 +265,7 @@ describe('voteInfoBudget — the vote panel never overloads again', () => {
 
   it('the words are counted in the language the player reads — every key the panel prints has its RU line', () => {
     const keys = [READING_KICKER_SEATED, READING_KICKER_RIVAL, READING_KICKER_SPECTATOR, VOTE_KICKER, PARTY_MOMENT, SUFFIX_IF_YOU_WIN, SUFFIX_STEP, SUFFIX_HINT,
+      QUIET_REWARD_KICKER.passive, QUIET_REWARD_KICKER.action,
       suffixWinKey('they'), suffixHintKey('they'), colonyLedgerEmptyKey('they'), '${0} theirs', 'Theirs at influence ${0} — win or not',
       'Only if they win — influence ${0} is below ${1}', 'cities on Mars: ${0}',
       'from the lobby · free', 'from the reserve', 'Leader', 'Winning', 'Party effect', 'effect is yours', '${0} of ${1}', 'yes', 'no', 'you',

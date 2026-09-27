@@ -426,7 +426,11 @@ export type VoteInfoBudget = {
 };
 
 /** The ceilings `voteInfoBudget.spec.ts` holds every resolution of the catalog to. */
-export const VOTE_INFO_LIMITS = {kickers: 3, readings: 1, facts: 2, factsOnEdge: 3, words: 28, momentWords: 5} as const;
+// 30 since RX18 (Medical Database): a seat with science tags and NO card that can hold data or
+// microbes reads the no-holder note (8 words, shared verbatim with the Scientists' action refusal)
+// on top of a full panel — at influence 0 on the edge that is 30. The ceiling moved rather than the
+// note, because the alternative was dropping «если победите · шаг» exactly where the win changes the number.
+export const VOTE_INFO_LIMITS = {kickers: 3, readings: 1, facts: 2, factsOnEdge: 3, words: 30, momentWords: 5} as const;
 
 const IDENTITY: TextFn = (key, params) => (params ?? []).reduce<string>((acc, p, i) => acc.split('${' + i + '}').join(p), key);
 

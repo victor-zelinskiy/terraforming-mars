@@ -85,10 +85,13 @@ function openPick(onResolve: (r: unknown) => void = () => undefined): void {
   }, onResolve, () => undefined);
 }
 
+// `premium-card-face` (the enacted resolution's own face) is an ASYNC GLOBAL registered in
+// main.ts — a static import would pull the premium face into the console chunk — so a unit
+// mount has to stub it or every render warns (the warn handler fails the spec).
 function factory(repeat: boolean) {
   return mount(ConsoleCardActions, {
     ...globalConfig,
-    global: {...globalConfig.global, stubs: {GamepadGlyph: GlyphStub}},
+    global: {...globalConfig.global, stubs: {'GamepadGlyph': GlyphStub, 'premium-card-face': true}},
     props: {playerView: playerView(), repeat},
     attachTo: document.body,
   });

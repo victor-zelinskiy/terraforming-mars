@@ -44,10 +44,13 @@ function playerView(): any {
   };
 }
 
+// `premium-card-face` (the enacted resolution's own face) is an ASYNC GLOBAL registered in
+// main.ts — a static import would pull the premium face into the console chunk — so a unit
+// mount has to stub it or every render warns (the warn handler fails the spec).
 function factory() {
   return mount(ConsoleCardActions, {
     ...globalConfig,
-    global: {...globalConfig.global, stubs: {GamepadGlyph: GlyphStub}},
+    global: {...globalConfig.global, stubs: {'GamepadGlyph': GlyphStub, 'premium-card-face': true}},
     props: {playerView: playerView()},
     attachTo: document.body,
   });
@@ -298,7 +301,7 @@ describe('ConsoleCardActions — the browse ⇄ ACTION FOCUS flow', () => {
     }, () => { /* resolve unused — this is a render/focus test */ });
     const w = mount(ConsoleCardActions, {
       ...globalConfig,
-      global: {...globalConfig.global, stubs: {GamepadGlyph: GlyphStub}},
+      global: {...globalConfig.global, stubs: {'GamepadGlyph': GlyphStub, 'premium-card-face': true}},
       props: {playerView: view, repeat: true},
       attachTo: document.body,
     });
@@ -325,7 +328,7 @@ describe('ConsoleCardActions — the browse ⇄ ACTION FOCUS flow', () => {
 
     const w2 = mount(ConsoleCardActions, {
       ...globalConfig,
-      global: {...globalConfig.global, stubs: {GamepadGlyph: GlyphStub}},
+      global: {...globalConfig.global, stubs: {'GamepadGlyph': GlyphStub, 'premium-card-face': true}},
       props: {playerView: playerView(), contextPlayer: {color: 'red', name: 'Rival'} as any},
       attachTo: document.body,
     });
@@ -384,7 +387,7 @@ describe('ConsoleCardActions — the browse ⇄ ACTION FOCUS flow', () => {
     view.waitingFor = undefined;
     const w2 = mount(ConsoleCardActions, {
       ...globalConfig,
-      global: {...globalConfig.global, stubs: {GamepadGlyph: GlyphStub}},
+      global: {...globalConfig.global, stubs: {'GamepadGlyph': GlyphStub, 'premium-card-face': true}},
       props: {playerView: view},
       attachTo: document.body,
     });
@@ -443,7 +446,7 @@ describe('ConsoleCardActions — the browse ⇄ ACTION FOCUS flow', () => {
       view.players = [{color: 'blue', name: 'Me', tableau: [{name: CARD, resources: 2}]}];
       const w = mount(ConsoleCardActions, {
         ...globalConfig,
-        global: {...globalConfig.global, stubs: {GamepadGlyph: GlyphStub}},
+        global: {...globalConfig.global, stubs: {'GamepadGlyph': GlyphStub, 'premium-card-face': true}},
         props: {playerView: view},
         attachTo: document.body,
       });

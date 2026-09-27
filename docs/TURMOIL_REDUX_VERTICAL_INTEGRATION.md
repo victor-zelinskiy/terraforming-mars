@@ -116,7 +116,7 @@ corporation do not count»* — потому что «синяя» и есть �
 | `tests/parliament/VerticalIntegration.spec.ts` (20) | зелёный |
 | `tests/parliament/**` (вся сюита, гард контракта включительно) | 1041 passing |
 | `tests/client/components/console/VerticalIntegrationReadings.spec.ts` (8) | зелёный |
-| `premiumCard/**` + все `*Readings` + `influenceYieldModel` + модели парламента | 284 passing, 1 красный ЧУЖОЙ (`resolutionPremiumFace` § клаузула победителя у RDX_MARS_SKYSCRAPERS — воспроизводится и БЕЗ этой карты) |
+| `premiumCard/**` + все `*Readings` + `influenceYieldModel` + модели парламента | 284 passing, 1 красный ЧУЖОЙ (`resolutionPremiumFace` § клаузула победителя у RDX_MARS_SKYSCRAPERS — воспроизводится и БЕЗ этой карты; **починен 2026-09-27** — золото берёт только ряд, где звезда — ЕДИНСТВЕННЫЙ маркер получателя, `isWinnerClause` в `mechanicsModel.ts`) |
 | `npm run lint` | чисто в моих файлах; единственная ошибка — чужая `tests/routes/ApiCreateGame.spec.ts` (`padded-blocks`), уже в HEAD |
 | `npm run lint:i18n`, `npm run lint:client` (vue-tsc) | зелёные |
 | `npm run build:test` (обе ступени) | зелёный |

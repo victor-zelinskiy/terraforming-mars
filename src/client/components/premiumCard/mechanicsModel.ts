@@ -64,10 +64,14 @@ export type MechGroup = {
    */
   orJoin?: boolean;
   /**
-   * The row carries the VOTE-WINNER mark (Turmoil Redux): it is the clause of
-   * a resolution that belongs to the winner of the vote alone — a structural
-   * fact of the printed row, so a face can set that clause apart from the part
-   * every player receives without reading anything but the DSL.
+   * The row is the WINNER'S CLAUSE (Turmoil Redux): it carries the vote-winner
+   * mark and NOTHING ELSE that names a recipient — the part of a resolution
+   * that belongs to the winner of the vote ALONE. A structural fact of the
+   * printed row, so a face can set that clause apart from the part every player
+   * receives without reading anything but the DSL. A row that lists the winner
+   * BESIDE another recipient (Skyscrapers: «★ [influence] 2+») is a list of
+   * recipients, not one player's part, and is deliberately NOT one — see
+   * `isWinnerClause`.
    */
   winnerRow?: boolean;
 };
@@ -203,6 +207,22 @@ function emptyCauseEffect(nodes: ReadonlyArray<ItemType>): ICardRenderEffect | u
 /** The VOTE-WINNER mark (Turmoil Redux) — the star that closes the winner's own clause of a resolution. */
 function isVoteWinnerMark(node: ItemType): boolean {
   return node !== undefined && typeof node !== 'string' && isICardRenderItem(node) && node.type === CardRenderItemType.VOTE_WINNER;
+}
+
+/** The INFLUENCE mark — beside the winner's star it turns the row into a list of RECIPIENTS. */
+function isInfluenceMark(node: ItemType): boolean {
+  return node !== undefined && typeof node !== 'string' && isICardRenderItem(node) && node.type === CardRenderItemType.INFLUENCE;
+}
+
+/**
+ * Is this row THE WINNER'S CLAUSE — the part of a bill that is ONE player's? The star alone says so
+ * (Aquifer / Biodome / Mohole / Colony Contest: «[ocean] ★»). An INFLUENCE mark beside it does not:
+ * that row lists WHO RECEIVES the effect above it (Skyscrapers: «★ [influence] 2+» — the winner AND
+ * every seat at the line), and ruling it off in the chair's gold would promise one player a part
+ * several players take. Structural, from the printed row alone — no card ever names itself here.
+ */
+function isWinnerClause(nodes: ReadonlyArray<ItemType>): boolean {
+  return nodes.some(isVoteWinnerMark) && !nodes.some(isInfluenceMark);
 }
 
 /** Does this group draw a TAG item — the trigger signal of the Viral-Enhancers
@@ -665,7 +685,7 @@ export function buildMechanics(renderData: CardComponent | undefined, options: B
     if (pendingOr || leadingOr) {
       group.orJoin = true;
     }
-    if (effectiveNodes.some(isVoteWinnerMark)) {
+    if (isWinnerClause(effectiveNodes)) {
       group.winnerRow = true;
     }
     pendingOr = trailingOr;
