@@ -1,7 +1,7 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootSeededGame, press} from './consoleStart';
+import {bootSeededGame, cinematicBeat, press, settle} from './consoleStart';
 
 /**
  * THE COLONY DOSSIER PROBE — X = «Осмотреть» in the colony workspace
@@ -10,13 +10,17 @@ import {bootSeededGame, press} from './consoleStart';
  * own screen) and prints the composition's numbers beside the screenshots.
  *
  *   · X on a tile opens the DOSSIER — not the trade stage: the archive entry
- *     (the colony's own lore), the planet disc carried from the tile's
- *     medallion at a hero size, the trade-track instrument, the rules panel;
+ *     (the colony's own lore) with the ACT BLOCK at the side column's foot
+ *     (the act's name, the verdict as information, the totals, every payment
+ *     path), the planet disc carried from the tile's medallion at a hero
+ *     size, the trade-track instrument, the rules panel with the three
+ *     printed rules only;
  *   · the crumb reads «КОЛОНИИ › <colony> › ОСМОТР»;
- *   · B folds back to the grid; A ENTERS the action — the trade stage takes
- *     the dossier's place with the planet carried (one planet on screen at
- *     every sampled frame);
- *   · nothing paints past the surface, nothing scrolls but the rules panel.
+ *   · B folds back to the grid; A («К торговле», never gated) goes ON — the
+ *     trade stage takes the dossier's place with the planet carried (one
+ *     planet on screen at every sampled frame);
+ *   · nothing paints past the surface, and on the TV (4K and 1080) the rules
+ *     panel does NOT scroll — the composition fits by design; the Deck may.
  *
  * Evidence lands in screenshots/colony-inspect/.
  */
@@ -115,10 +119,13 @@ type Composition = {
   crumb: string,
   planetW: number,
   lore: string,
+  loreSeat: 'side' | 'inline' | 'none',
   loreFallback: boolean,
   cells: number,
   berths: number,
   kinds: Array<string>,
+  act: {kind: string, verdict: string, gains: Array<string>, payRows: number, offRows: number, top: number},
+  loreBottom: number,
   rulesScroll: number,
   past: Array<string>,
   planetsOnScreen: number,
@@ -140,16 +147,34 @@ async function composition(page: Page): Promise<Composition> {
       stage: document.querySelector('.con-colfocus') !== null,
       crumb: (document.querySelector('.con-colonies .con-wshead')?.textContent ?? '').replace(/\s+/g, ' ').trim(),
       planetW: planet === null ? 0 : Math.round(planet.getBoundingClientRect().width),
-      lore: (document.querySelector('.con-colinspect .card-zoom-lore__text')?.textContent ?? '').trim(),
+      lore: (Array.from(document.querySelectorAll('.con-colinspect .card-zoom-lore__text')).find(visible)?.textContent ?? '').trim(),
+      loreSeat: (['side', 'inline'] as const).find((seat) => {
+        const el = document.querySelector(`.con-colinspect__lore--${seat}`);
+        return el !== null && visible(el);
+      }) ?? 'none',
       loreFallback: document.querySelector('.con-colinspect .card-zoom-lore--fallback') !== null,
       cells: document.querySelectorAll('.con-colinspect .con-colfocus__xcell').length,
       berths: document.querySelectorAll('.con-colinspect .con-colfocus__berth').length,
       // The chips are CSS-uppercased; read them the way the eye does.
-      kinds: Array.from(document.querySelectorAll('.con-colinspect__kind')).map((k) => (k.textContent ?? '').trim().toUpperCase()),
+      kinds: Array.from(document.querySelectorAll('.con-colinspect__rules .con-colinspect__kind')).map((k) => (k.textContent ?? '').trim().toUpperCase()),
+      // THE ACT BLOCK — the lower-left corner is no longer empty: its name,
+      // the verdict, what the player receives and how many payment paths.
+      act: {
+        kind: (document.querySelector('.con-colinspect__act-kind')?.textContent ?? '').trim().toUpperCase(),
+        verdict: (document.querySelector('.con-colinspect__act .con-colinspect__verdict')?.textContent ?? '').replace(/\s+/g, ' ').trim(),
+        gains: Array.from(document.querySelectorAll('.con-colinspect__gain')).map((g) => (g.textContent ?? '').replace(/\s+/g, ' ').trim()),
+        payRows: document.querySelectorAll('.con-colinspect__act .con-colinspect__payrow').length,
+        offRows: document.querySelectorAll('.con-colinspect__act .con-colinspect__payrow--off').length,
+        top: Math.round(document.querySelector('.con-colinspect__act')?.getBoundingClientRect().top ?? 0),
+      },
+      loreBottom: Math.round(Array.from(document.querySelectorAll('.con-colinspect__lore .card-zoom-lore')).find(visible)?.getBoundingClientRect().bottom ?? 0),
       rulesScroll: rules === null ? -1 : Math.max(0, rules.scrollHeight - rules.clientHeight),
-      past: sr === undefined ? [] : Array.from(document.querySelectorAll('.con-colinspect__lore, .con-colinspect__hero, .con-colinspect__rules, .con-colinspect .con-colfocus__berth'))
+      past: sr === undefined ? [] : Array.from(document.querySelectorAll('.con-colinspect__lore--side, .con-colinspect__act, .con-colinspect__act .con-colinspect__payrow, .con-colinspect__hero, .con-colinspect__rules, .con-colinspect .con-colfocus__berth'))
         .filter((el) => {
           const r = el.getBoundingClientRect();
+          if (r.width === 0 && r.height === 0) {
+            return false; // a closed seat (display: none) is nowhere, not past
+          }
           return r.bottom > sr.bottom + 1 || r.right > sr.right + 1 || r.left < sr.left - 1 || r.top < sr.top - 1;
         })
         .map((el) => el.className),
@@ -165,12 +190,47 @@ async function composition(page: Page): Promise<Composition> {
   });
 }
 
+/**
+ * Count the LIT planets on screen every 40 ms for `windowMs` — on a TASK
+ * clock (`setInterval`), never rAF: headless Chromium drives rAF off the
+ * compositor, and a loaded runner starved the hand-off sampler to two frames.
+ * The result is read with `takePlanetSamples`; a dead sampler fails its floor.
+ */
+async function armPlanetSampler(page: Page, windowMs: number): Promise<void> {
+  await page.evaluate((limit) => {
+    const w = window as unknown as {__planets?: Array<number>, __planetTimer?: number};
+    if (w.__planetTimer !== undefined) {
+      window.clearInterval(w.__planetTimer);
+    }
+    w.__planets = [];
+    const t0 = performance.now();
+    w.__planetTimer = window.setInterval(() => {
+      const n = Array.from(document.querySelectorAll('.con-planet')).filter((el) => {
+        const r = el.getBoundingClientRect();
+        const cs = getComputedStyle(el);
+        return r.width > 2 && Number(cs.opacity) > 0.05 && cs.visibility !== 'hidden';
+      }).length;
+      w.__planets?.push(n);
+      if (performance.now() - t0 >= limit) {
+        window.clearInterval(w.__planetTimer);
+        w.__planetTimer = undefined;
+      }
+    }, 40);
+  }, windowMs);
+}
+
+async function takePlanetSamples(page: Page, floor: number): Promise<Array<number>> {
+  const samples = await page.evaluate(() => (window as unknown as {__planets?: Array<number>}).__planets ?? []);
+  expect(samples.length, `the planet sampler is alive (${samples.length} samples)`).toBeGreaterThanOrEqual(floor);
+  return samples;
+}
+
 test.use({viewport: {width: 3840, height: 2160}, deviceScaleFactor: 1});
 
 test('colony dossier: X opens the read, B folds back, A enters the act (TV 4K)', async ({page, request}) => {
   test.setTimeout(420_000);
   await bootSeededGame(page, request, await createGame(request), {buy: 2, keepColony: 'Luna'});
-  await page.waitForTimeout(1500);
+  await settle(page);
   await openColonies(page);
   await focusTile(page, 'Luna');
   await shoot(page, '00-overview-4k');
@@ -181,29 +241,13 @@ test('colony dossier: X opens the read, B folds back, A enters the act (TV 4K)',
   expect(barBefore, 'the grid advertises «Осмотреть»').toMatch(/Осмотреть/);
 
   // ── X → the dossier. Sample the planets on screen through the entrance. ──
-  await page.evaluate(() => {
-    const w = window as unknown as {__planets?: Array<number>};
-    w.__planets = [];
-    const t0 = performance.now();
-    const tick = () => {
-      const n = Array.from(document.querySelectorAll('.con-planet')).filter((el) => {
-        const r = el.getBoundingClientRect();
-        const cs = getComputedStyle(el);
-        return r.width > 2 && Number(cs.opacity) > 0.05 && cs.visibility !== 'hidden';
-      }).length;
-      w.__planets?.push(n);
-      if (performance.now() - t0 < 1800) {
-        requestAnimationFrame(tick);
-      }
-    };
-    requestAnimationFrame(tick);
-  });
+  await armPlanetSampler(page, 2200);
   await page.keyboard.press('KeyX');
-  await page.waitForTimeout(300);
+  await cinematicBeat(page, 300, 'the dossier mid-unfold — the opening frame');
   await shoot(page, '01-inspect-opening-4k');
-  await page.waitForTimeout(2000);
+  await cinematicBeat(page, 2000, 'the entrance + the late reveal wave — the planet sampler\'s window');
   await shoot(page, '02-inspect-settled-4k');
-  const entryPlanets = await page.evaluate(() => (window as unknown as {__planets?: Array<number>}).__planets ?? []);
+  const entryPlanets = await takePlanetSamples(page, 12);
 
   const open = await composition(page);
   console.log('── the dossier (4K) ──', JSON.stringify(open, null, 2));
@@ -214,7 +258,23 @@ test('colony dossier: X opens the read, B folds back, A enters the act (TV 4K)',
   expect(open.lore.length, 'the archive entry is on screen').toBeGreaterThan(20);
   expect(open.cells, 'the seven-cell instrument').toBe(7);
   expect(open.berths, 'the three berths').toBe(3);
-  expect(open.kinds, 'the rules groups').toEqual(expect.arrayContaining(['СТРОИТЕЛЬСТВО', 'ТОРГОВЫЙ ДОХОД', 'БОНУС ВЛАДЕЛЬЦА', 'ФЛОТ', 'ДОСТУПНОСТЬ']));
+  // The rules panel: the THREE printed rules and nothing else — the fleet is
+  // on the status line, the availability is in the act block.
+  expect(open.kinds, 'the rules groups').toEqual(['СТРОИТЕЛЬСТВО', 'ТОРГОВЫЙ ДОХОД', 'БОНУС ВЛАДЕЛЬЦА']);
+  // The act block stands in the lower-left: its name, a verdict, the totals,
+  // every payment path (the seeded solo game has one affordable M€ path and
+  // the energy / titanium paths refused with a reason).
+  expect(open.act.kind, 'the act block names the act').toBe('ТОРГОВЛЯ');
+  expect(open.act.verdict.length, 'the verdict is stated').toBeGreaterThan(3);
+  expect(open.act.gains.length, 'what the player receives').toBeGreaterThanOrEqual(1);
+  expect(open.act.payRows, 'every payment path is listed').toBeGreaterThanOrEqual(2);
+  // Whether a path is REFUSED depends on the deal (test mode fills the purse,
+  // so all three usually stand); the row shape is the unit spec's claim.
+  console.log('── refused payment paths ──', open.act.offRows, 'of', open.act.payRows);
+  expect(open.loreSeat, 'the archive entry stands in the side column on the TV').toBe('side');
+  expect(open.act.top, 'the act block sits BELOW the archive entry').toBeGreaterThan(open.loreBottom);
+  // NO SCROLL ON THE TV: the rules panel fits the room by design.
+  expect(open.rulesScroll, 'the rules panel must not scroll at 4K').toBe(0);
   // The planet at a hero size: at least 600 device px on the 4K panel (the
   // art's ceiling is ~1100; the composition targets ~800).
   expect(open.planetW, 'the planet disc at hero size').toBeGreaterThanOrEqual(760);
@@ -227,7 +287,13 @@ test('colony dossier: X opens the read, B folds back, A enters the act (TV 4K)',
   // ── The bar: A = the act's verb, B back. ──
   const barOpen = (await page.locator('.con-cmdbar').textContent().catch(() => '')) ?? '';
   console.log('── bar on the dossier ──', barOpen.replace(/\s+/g, ' ').trim());
-  expect(barOpen).toMatch(/Торговать/);
+  // A LEADS ON — «К торговле», never «Торговать», and never disabled.
+  expect(barOpen).toMatch(/К торговле/);
+  const aDisabled = await page.evaluate(() => {
+    const btns = Array.from(document.querySelectorAll('.con-cmdbar [class*="disabled"], .con-cmdbar [aria-disabled="true"]'));
+    return btns.map((b) => (b.textContent ?? '').replace(/\s+/g, ' ').trim()).filter((t) => /К торговле/.test(t));
+  });
+  expect(aDisabled, 'A is never disabled on the dossier').toEqual([]);
   expect(barOpen).toMatch(/Назад/);
 
   // ── ↓ scrolls the rules panel (and nothing else). ──
@@ -256,30 +322,13 @@ test('colony dossier: X opens the read, B folds back, A enters the act (TV 4K)',
   // ── X again, then A → the trade stage takes the dossier's place. ──
   await press(page, 'KeyX', 2200);
   expect(await page.locator('.con-colinspect').count()).toBe(1);
-  await page.evaluate(() => {
-    const w = window as unknown as {__planets?: Array<number>, __both?: number};
-    w.__planets = [];
-    w.__both = 0;
-    const t0 = performance.now();
-    const tick = () => {
-      const lit = Array.from(document.querySelectorAll('.con-planet')).filter((el) => {
-        const r = el.getBoundingClientRect();
-        const cs = getComputedStyle(el);
-        return r.width > 2 && Number(cs.opacity) > 0.05 && cs.visibility !== 'hidden';
-      });
-      w.__planets?.push(lit.length);
-      if (performance.now() - t0 < 1800) {
-        requestAnimationFrame(tick);
-      }
-    };
-    requestAnimationFrame(tick);
-  });
+  await armPlanetSampler(page, 2400);
   await page.keyboard.press('Enter');
-  await page.waitForTimeout(260);
+  await cinematicBeat(page, 260, 'the hand-off mid-flight — the cross-fade frame');
   await shoot(page, '04-handoff-mid-4k');
-  await page.waitForTimeout(2200);
+  await cinematicBeat(page, 2200, 'the stage settles after the hand-off — the planet sampler\'s window');
   await shoot(page, '05-stage-after-handoff-4k');
-  const handoffPlanets = await page.evaluate(() => (window as unknown as {__planets?: Array<number>}).__planets ?? []);
+  const handoffPlanets = await takePlanetSamples(page, 12);
   console.log('── planets per frame (hand-off) ──', handoffPlanets.join(''));
   const after = await composition(page);
   expect(after.dossier, 'the dossier left').toBe(false);
@@ -314,7 +363,7 @@ test('colony dossier: X opens the read, B folds back, A enters the act (TV 4K)',
 test('colony dossier: the composition holds at 1080p and on the Deck', async ({page, request}) => {
   test.setTimeout(420_000);
   await bootSeededGame(page, request, await createGame(request), {buy: 2, keepColony: 'Luna'});
-  await page.waitForTimeout(1500);
+  await settle(page);
   await openColonies(page);
   await focusTile(page, 'Luna');
   await press(page, 'KeyX', 2400);
@@ -326,7 +375,22 @@ test('colony dossier: the composition holds at 1080p and on the Deck', async ({p
   ];
   for (const p of profiles) {
     await page.setViewportSize({width: p.w, height: p.h});
-    await page.waitForTimeout(1600);
+    // The profile switch re-fits the whole surface: wait on STATE — two
+    // consecutive agreeing samples of the geometry the assertions read.
+    await settle(page);
+    let prev = '';
+    for (let i = 0; i < 40; i++) {
+      const now = await page.evaluate(() => JSON.stringify([
+        document.querySelector('.con-colinspect__planet')?.getBoundingClientRect().width,
+        document.querySelector('.con-colinspect__rules')?.getBoundingClientRect().height,
+        document.querySelector('.con-colinspect__act')?.getBoundingClientRect().top,
+      ]));
+      if (now === prev) {
+        break;
+      }
+      prev = now;
+      await cinematicBeat(page, 120, 'the profile re-fit — two agreeing samples end the wait');
+    }
     await shoot(page, `07-profile-${p.name}`);
     const c = await composition(page);
     console.log(`── profile ${p.name} (${p.w}×${p.h}) ──`, JSON.stringify({...c, lore: c.lore.slice(0, 40) + '…'}));
@@ -336,5 +400,18 @@ test('colony dossier: the composition holds at 1080p and on the Deck', async ({p
     expect(c.planetW, `${p.name}: the planet keeps a hero size`).toBeGreaterThanOrEqual(p.minPlanet);
     expect(c.past, `${p.name}: nothing paints past the surface`).toEqual([]);
     expect(c.loreFallback, `${p.name}: the archive entry stands`).toBe(false);
+    expect(c.act.kind, `${p.name}: the act block stands`).toBe('ТОРГОВЛЯ');
+    expect(c.act.payRows, `${p.name}: the payment paths are listed`).toBeGreaterThanOrEqual(2);
+    if (p.name === 'tv-1080') {
+      // The TV's second profile fits too; the Deck's rules may scroll (it
+      // has the scroll area for exactly that).
+      expect(c.rulesScroll, 'the rules panel must not scroll at 1080p').toBe(0);
+      expect(c.loreSeat, '1080p: the archive entry in the side column').toBe('side');
+    } else {
+      // The narrow host: the archive entry moves INTO the rules scroll — the
+      // side column is the act block alone, never a one-line clip of lore.
+      expect(c.loreSeat, 'Deck: the archive entry inside the rules scroll').toBe('inline');
+      expect(c.lore.length, 'Deck: the whole entry is in the DOM').toBeGreaterThan(20);
+    }
   }
 });

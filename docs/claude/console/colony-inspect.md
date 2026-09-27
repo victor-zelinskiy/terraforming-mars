@@ -31,6 +31,25 @@ rendering the same instrument — never by a second dossier.
   name («Our own moon is the natural gate…»); the console had no place for it
   and no data for it.
 
+**Iteration 2 (2026-09-27, the owner's review of the 4K screenshots):**
+
+- **The rules panel scrolled at 4K while the lower-left quarter of the
+  surface was EMPTY.** Seven groups (build + seats, trade + «СЕЙЧАС», bonus +
+  owners, fleet, availability + payment rows, targets, the track note) stood
+  in one column; the payment rows were cut off under a 297 px overflow, and
+  the lore column had nothing under the archive entry.
+- **The panel restated the instrument.** A seats row beside the berths, a
+  «СЕЙЧАС +4» line beside the highlighted cell, the fleet group beside the
+  orbit and the status line — three places for one fact each.
+- **Rules and planning were one bag.** «ДОСТУПНОСТЬ» (a verdict about THIS
+  player's turn and purse) and «КУДА ПОПАДУТ РЕСУРСЫ» (the shared preview)
+  stood under «§ ПРАВИЛА» as though they were printed on the tile.
+- **A was gated.** The bar's «Торговать» was disabled whenever the server did
+  not offer the trade — but the dossier does not validate the act; it reads.
+  The stage is where the refusal belongs, with its reason.
+- **The right stick did nothing.** `handleIntent` handled only `nav` and
+  `press`; the stick's `scroll` intents fell through.
+
 ## 2 · The decisions
 
 ### 2.1 ONE dossier, TWO hosts
@@ -47,35 +66,61 @@ The workspace door is what the brief asked for; the journal door keeps its
 read-only semantics (`readonly`: no verdict, no payment, no target planning —
 history, not planning) but gains the whole new composition for free.
 
-### 2.2 The composition — LORE · PLANET · RULES
-The fullscreen card viewer's three-zone grammar, transposed to a colony:
+### 2.2 The composition — LORE + THE ACT · PLANET · RULES
+The fullscreen card viewer's three-zone grammar, transposed to a colony. The
+dossier has three jobs — the LORE, the RULES and the BIG ART — and, since the
+player is one press from acting, a fourth reading: WHAT THE ACT WOULD GIVE
+AND COST. Four zones, and the whole budget is «fits at 4K and 1080 with no
+scroll»:
 
 ```
  ✦ ЗАПИСЬ ИЗ АРХИВА ──◇     ┌──────────────────┐      § ПРАВИЛА
    ❝                        │                  │   ┌────────────────────────┐
-   Наш собственный          │     PLANET       │   │ ПОСТРОЙКА   [glyph]     │
+   Наш собственный          │     PLANET       │   │ СТРОИТЕЛЬСТВО  [glyph]  │
    спутник — естественные   │   min(22rem,     │   │  Повысьте доход на 2    │
-   ворота между богатствами │    50cqh)        │   │  места 1/3              │
+   ворота между богатствами │    50cqh)        │   │                         │
    Земли и остальной        │                  │   │ ТОРГОВЫЙ ДОХОД [glyph]  │
    Солнечной системой       └──────────────────┘   │  Получите N M€          │
-                        ❞     ● АКТИВНА · флот      │  сейчас +4 M€ · поз. 3  │
+                        ❞     ● АКТИВНА · флот      │                         │
                                                     │ БОНУС ВЛАДЕЛЬЦА [glyph] │
-                             ТОРГОВЫЙ ТРЕК          │  +2 M€ · admin ×2 → +4  │
-                            ┌─┬─┬─┬─┬─┬─┬─┐         │ ФЛОТ                    │
-                            │1│2│4│7│…│…│…│         │  здесь стоит ваш флот   │
-                            └─┴─┴─┴─┴─┴─┴─┘         │ ДОСТУПНОСТЬ             │
-                            [berth][berth][berth]   │  ⏳ не ваш ход          │
-                             + owner-bonus lane     │  оплата: 9 M€ · 3 ⚡    │
-                                                    └────────────────────────┘
+ ┌────────────────────────┐   ТОРГОВЫЙ ТРЕК         │  Получите 2 M€          │
+ │ ТОРГОВЛЯ  ⏳ не ваш ход│  ┌─┬─┬─┬─┬─┬─┬─┐        │  ● admin ×2 → +4        │
+ │ ВЫ ПОЛУЧИТЕ            │  │1│2│4│7│…│…│…│        │  ● Bo → +2              │
+ │  +8 [M€]               │  └─┴─┴─┴─┴─┴─┴─┘        │                         │
+ │ ОПЛАТА                 │  [berth][berth][berth]  │  маркер возвращается…   │
+ │  [M€] 9 M€    20 → 11  │   + owner-bonus lane    └────────────────────────┘
+ │  [⚡] 3 энергии  ✕ нет │
+ └────────────────────────┘
 ```
 
-- **LEFT — the archive entry.** The SAME block as the fullscreen viewer
+- **LEFT — the SIDE column: the archive entry above, the ACT BLOCK at the
+  foot.** The lore is the SAME block as the fullscreen viewer
   (`CardLoreAside`, warm ivory / muted gold, upright Literata, the two drawn
   quotation marks, no panel, no border). A third resolver hands it the model:
   `src/client/colonies/colonyLore.ts` → `buildColonyLoreModel(name, translate)`
   — the same `LoreModel` a card or a Redux party builds, the same length
   ladder. The block reveals on its settle `nonce` once the dossier's own
   entrance has stopped moving (words last — the descend grammar's order).
+  Under it, on the column's foot (`margin-top: auto`), the **ACT BLOCK
+  «ТОРГОВЛЯ»** (`.con-colinspect__act`, the rules panel's material — one
+  family of panels on the surface — with the act's name in the pre-commit
+  cyan): what A leads to, as a READING. Its parts, top to bottom: the act's
+  NAME beside the server's VERDICT stated as information in the
+  `AvailabilityBlocker` register («● Доступна торговля» / «⏳ Сейчас не ваш
+  ход» / «✕ Нет свободного флота») — it gates nothing; «ВЫ ПОЛУЧИТЕ» — the
+  totals from the ONE reward derivation every colony surface shares
+  (`tradeOutcome` → `colonyRewardPackage`: the track's income at the level
+  the act reads PLUS the viewer's own settlements' bonuses, merged per type
+  and destination — «+8 M€» for Luna at level 3 with two own cubes, never
+  «+4» and «+2 ×2» in two places), with the card targets under a card
+  destination and the honest «ресурс пропадёт» when there is none; and
+  «ОПЛАТА» — EVERY payment path, the affordable ones with the server's own
+  `current → resulting`, the refused ones with their reason. No payment is
+  dialed here, so no `current → resulting` is claimed on a GAIN — the stage
+  owns that once a path is chosen. A BUILD names the block «СТРОИТЕЛЬСТВО»
+  and reads the next free berth's grant (in the production frame when it is
+  production); a pick names it with the pick's own verb. The journal door
+  keeps only «НА ТЕКУЩЕМ УРОВНЕ» + the totals (history plans nothing).
 - **CENTRE — the colony as a physical object.** The planet disc at
   `min(22rem, 50cqh)` (the hero column is a size container, so the disc is
   sized against the room it actually has: 852 device px at 4K, 435 at
@@ -85,20 +130,21 @@ The fullscreen card viewer's three-zone grammar, transposed to a colony:
   guard bars, the return stop, the three berths with their latches and the
   owner-bonus lane — the exact object the trade stage draws, because it is
   the same component (§2.3).
-- **RIGHT — the rules.** The cold-cyan reading panel of the card viewer
-  (`.con-zoom-rules` grammar: «§ ПРАВИЛА» head, one GROUP per rule with a
-  colour-coded kind chip, sentences in the reading face at the reading
-  tokens). Groups, in the order a player asks: ПОСТРОЙКА (the grant + the
-  seats) · ТОРГОВЫЙ ДОХОД (the printed rule + what a trade reads RIGHT NOW,
-  with the standing offset) · БОНУС ВЛАДЕЛЬЦА (the printed rule + WHO
-  receives what — the instrument shows the mechanism, the panel the
-  recipients: two panels share a subject only when they answer different
-  questions) · ФЛОТ · ДОСТУПНОСТЬ (interactive door only: the server's
-  verdict with its `AvailabilityBlocker` tone + every payment path,
-  affordable and not) · КУДА ПОПАДУТ РЕСУРСЫ (interactive door only, when a
-  card resource is in play) · the track rule as a muted closing note. The
-  panel scrolls INSIDE its column (d-pad ↑/↓ → `scrollByPx`); nothing else
-  on the dossier ever scrolls.
+- **RIGHT — the rules, and ONLY the rules.** The cold-cyan reading panel of
+  the card viewer (`.con-zoom-rules` grammar: «§ ПРАВИЛА» head, one GROUP
+  per rule with a colour-coded kind chip, sentences in the reading face at
+  the STANDARD reading token `--con-t-read`, glyphs at 1.3×). Three
+  groups — the three lines printed on the physical tile: СТРОИТЕЛЬСТВО ·
+  ТОРГОВЫЙ ДОХОД · БОНУС ВЛАДЕЛЬЦА (the printed rule + WHO receives what,
+  the viewer's own row marked — the instrument shows the mechanism, the
+  panel the recipients: two panels share a subject only when they answer
+  different questions) · the track rule as a muted closing note. NOTHING the
+  instrument or the status line already says is restated: no seats row (the
+  berths), no «СЕЙЧАС» (the lit cell), no fleet group (the orbit + the fleet
+  line under the planet), no availability and no targets (the act block).
+  That is what makes the panel FIT on both TV profiles; the scroll area under
+  it is a safety net for a starved host (the Deck), reached by ↑/↓ AND the
+  right stick (`scroll` intents → `scrollByPx`), never the design.
 
 **Hierarchy is typographic.** The name lives in the crumb (the line's
 brightest voice) and nowhere in the body; «ЗАПИСЬ ИЗ АРХИВА» and «§ ПРАВИЛА»
@@ -152,8 +198,8 @@ eleven and fails the moment one loses its sentence or its translation.
 | where | A | B | X | ↑/↓ |
 | --- | --- | --- | --- | --- |
 | grid (browse) | act (trade / build / pick — descends into the stage) | close | **inspect** → the dossier | d-pad over the tiles |
-| dossier (workspace door) | **enter the action**: labelled with the act verb («Торговать» / «Построить» / the pick's label), `enabled` = the server offers it — a blocked colony keeps the verb DISABLED and the reason stands in the ДОСТУПНОСТЬ group (never hidden, never a notice) | back to the grid | — | scroll the rules panel |
-| dossier (journal door) | — | close | — | scroll the rules panel |
+| dossier (workspace door) | **go on** — «К торговле» / «К строительству» / «К выбору» (`To trade` / `To building` / `To selection`), ALWAYS enabled: the dossier does not validate the act, the STAGE does — its verdict stands in the act block as information, and the stage carries the refusal with its reason | back to the grid | — | ↑/↓ and the right stick scroll the rules panel (a safety net; the TV never needs it) |
+| dossier (journal door) | — | close | — | ↑/↓ and the right stick scroll the rules panel |
 
 A dossier is READ-ONLY by construction: it submits nothing, it captures
 nothing, and A only re-routes into the stage the grid's A would have opened.
@@ -192,7 +238,9 @@ nothing, and A only re-routes into the stage the grid's A would have opened.
 | dossier planet | `min(22rem, 50cqh)` | 852 dp at 4K — the art's 1024² is ~1:1 there, the resolution ceiling the import script documents; the hero column is `container-type: size`, and the surface's ONE row is `minmax(0, 1fr)` (an `auto` row sizes by the rules panel's content and `cqh` then reads 28rem instead of the room) |
 | stage hero planet | 10.9 / 13.6 (TV) | unchanged; `.con-planet--lit` |
 | tile medallion | 3.1 (was 2.7) | the head row grows with it; the mid band gives the .4rem back |
-| columns | `minmax(13rem, 1fr) · minmax(24rem, 34rem) · minmax(18rem, 1.15fr)` | lore · centre · rules; below 60 rem of host width (`@container colinspect-host` — NAMED on the frame: an unnamed query resolves against the nearest container, which for the planet is the hero column itself) the lore moves UNDER THE RULES and the hero keeps the whole height (the instrument alone needs ~13rem; a lore row under the hero left an 80 px planet on the Deck) |
+| columns | `minmax(16rem, 1fr) · minmax(24rem, 32rem) · minmax(18rem, 1.15fr)` | side (lore + the act block) · centre · rules; the side carries payment rows now, so it is no longer the narrowest column. Below 60 rem of host width (`@container colinspect-host` — NAMED on the frame, and a SIZE container so `cqh` resolves against the host's room; an unnamed query resolves against the nearest container, which for the planet is the hero column itself) the SIDE moves UNDER THE RULES (`max-height: 62cqh`, the lore yields first, the payment rows last) and the hero keeps the whole height (the instrument alone needs ~13rem; a row under the hero left an 80 px planet on the Deck) |
+| rules type | `--con-t-read` (was `-sm`) | the rules are one of the dossier's three jobs; the panel affords it because it carries only the three printed rules |
+| act block | `.con-colinspect__act` at the side column's foot | the amount (`__gain-amount`, 1.3rem / `--con-t-section` on TV) is the block's loudest voice; payment rows are `--con-hit-min` tall on TV |
 
 ## 6 · Where things live
 
@@ -210,11 +258,21 @@ nothing, and A only re-routes into the stage the grid's A would have opened.
 
 ## 7 · Verified on screen (2026-09-27, `tests/e2e/console-colony-inspect-probe.spec.ts`)
 
+Iteration 1 (the first composition, superseded):
+
 | profile | surface | hero column | planet | rules overflow | notes |
 | --- | --- | --- | --- | --- | --- |
-| TV 4K (3840×2160) | 1772 px | 1704 px | **852 px** | 297 px (scrolls on ↓) | crumb «КОЛОНИИ › ЛУНА › ОСМОТР»; bar «A Торговать · B Назад»; grid bar «A Выбрать · X Осмотреть · B На поле» |
+| TV 4K (3840×2160) | 1772 px | 1704 px | **852 px** | 297 px (scrolled on ↓) | bar «A Торговать · B Назад» — A disabled when not offered |
 | TV 1080 (1920×1080) | 904 | 870 | 435 | 0 | — |
-| Deck (1280×800) | 646 | 612 | 220 | 348 | the narrow host: the archive entry under the rules, the hero keeps the whole height |
+| Deck (1280×800) | 646 | 612 | 220 | 348 | the archive entry under the rules |
+
+Iteration 2 (the shipped composition — lore + act block · planet · rules only):
+
+| profile | surface | hero column | planet | rules panel | rules overflow | archive seat | act block | notes |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| TV 4K (3840×2160) | 1772 px | 1704 px | **852 px** | 1104 px (hugs) | **0** | side | «ТОРГОВЛЯ · ● Доступна торговля · ВЫ ПОЛУЧИТЕ +2 M€ · ОПЛАТА ×3 (500 → 497 / 497 / 491)», top at 1162 px, below the entry (1097) | crumb «КОЛОНИИ › ЛУНА › ОСМОТР»; bar «A К торговле · B Назад»; grid bar «A Выбрать · X Осмотреть · B На поле» |
+| TV 1080 (1920×1080) | 904 | 870 | 435 | 447 (hugs) | **0** | side | same, top at 716 | — |
+| Deck (1280×800) | 646 | 612 | 220 | 332 (stretched) | 333 (scrolls; the archive entry is the scroll's last block) | inline | same, top at 462 | the narrow host: the rules take the row, the act block stands under them whole |
 
 - **One planet per frame** through the whole entrance (`1111…`) and through the
   hand-off (`1111…` — the dossier's disc goes dark the instant the stage's
@@ -235,3 +293,17 @@ nothing, and A only re-routes into the stage the grid's A would have opened.
 - A pre-existing translation error surfaced by the rules panel:
   `Gain n M€` (Luna's trade income) read «Повысьте производство M€ на X» —
   the key is used by that one description only and now reads «Получите X M€».
+- **Iteration 2 — what the screen found that the code did not:** ① a rules
+  panel STRETCHED over the column read as a half-empty box on both TV
+  profiles once it carried only the three rules (→ it hugs its content,
+  `align-self: start; max-height: 100%`, the narrow host stretches it back);
+  ② the act block's coin was drawn at ~70 px beside a 52 px «+2» (→ the glyph
+  at 1.25rem, zoom 1 — the number leads); ③ on the Deck the capped side
+  column clipped the archive entry to ONE line («Наша собственная Луна —
+  есте-») — a cut archive entry is worse than one a scroll reaches (→ the
+  entry's second seat inside the rules scroll, the container query picks
+  one); ④ the probe assumed a REFUSED payment path exists — test mode fills
+  the purse, so all three stand (→ logged, the row shape is the unit spec's
+  claim); ⑤ the rAF planet sampler starved to two frames on a loaded runner
+  and judged «one planet at rest» on a mid-crossfade frame (→ a
+  `setInterval` sampler with a liveness floor).

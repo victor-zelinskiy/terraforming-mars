@@ -6623,17 +6623,20 @@ export default defineComponent({
     /**
      * THE ACT BEHIND THE DOSSIER'S A (X = «Осмотреть»): the same derivation
      * the grid's A makes — a server SelectColony pick outranks the trade —
-     * with its DISPLAY verb and whether the server offers it for the
-     * inspected colony. The bar reads it; `onColonyInspectEnter` acts on it.
+     * with the verb that LEADS ON («К торговле» / «К постройке» / «К выбору»)
+     * and whether the server offers it for the inspected colony. The bar
+     * reads the verb; `available` is INFORMATION the dossier states beside
+     * the act's name — never a gate on A (the dossier reads, the stage
+     * decides and carries the refusal). `onColonyInspectEnter` acts on it.
      */
     colonyInspectAct(): {intent: ColonyFocusIntent, label: string, available: boolean} {
       const name = this.colonyFocus.colonyName;
       const pick = this.colonyPick;
       if (pick !== undefined) {
         const intent: ColonyFocusIntent = pick.buttonLabel === 'Build' ? 'build' : 'pick';
-        return {intent, label: pick.labelKey, available: name !== '' && pick.selectable.includes(name)};
+        return {intent, label: intent === 'build' ? 'To building' : 'To selection', available: name !== '' && pick.selectable.includes(name)};
       }
-      return {intent: 'trade', label: 'Trade', available: name !== '' && this.tradeableColonyNames.includes(name)};
+      return {intent: 'trade', label: 'To trade', available: name !== '' && this.tradeableColonyNames.includes(name)};
     },
     /** The descended-into colony is live-tradeable (the stage's CTA verbs). */
     colonyFocusTradeable(): boolean {
@@ -8260,14 +8263,14 @@ export default defineComponent({
         }
         const intent = this.colonyFocus.intent;
         if (intent === 'inspect') {
-          // THE DOSSIER: A ENTERS the act the grid's A would have opened —
-          // labelled with the act's own verb, enabled only when the server
-          // offers it (the reason stands in the dossier's ДОСТУПНОСТЬ group —
-          // a blocked act is shown disabled, never hidden); B folds back to
-          // the grid. Nothing on the dossier submits.
+          // THE DOSSIER: A goes ON into the act the grid's A would have
+          // opened — «К торговле» — ALWAYS enabled: the dossier does not
+          // validate the act, the stage does (its verdict stands in the
+          // dossier's act block as information). B folds back to the grid.
+          // Nothing on the dossier submits.
           const act = this.colonyInspectAct;
           return [
-            {control: 'confirm', label: act.label, enabled: act.available, highlight: act.available},
+            {control: 'confirm', label: act.label, highlight: true},
             {control: 'back', label: 'Back'},
           ];
         }
@@ -15365,15 +15368,16 @@ export default defineComponent({
       return kinds;
     },
     /**
-     * A ON THE DOSSIER — enter the act. The section performs the HAND-OFF (the
-     * stage takes the dossier's place with the planet, the track and the
-     * berths carried over); the shell only decides WHICH act, from the same
-     * server truth the grid's A reads, and refuses while a transaction owns
-     * the moment.
+     * A ON THE DOSSIER — go on into the act. The section performs the
+     * HAND-OFF (the stage takes the dossier's place with the planet, the
+     * track and the berths carried over); the shell only decides WHICH act,
+     * from the same server truth the grid's A reads. NEVER gated on the act
+     * being offerable — the stage states the refusal with its reason; the
+     * only refusal here is a transaction already owning the moment.
      */
     onColonyInspectEnter(): void {
       const act = this.colonyInspectAct;
-      if (!act.available || !this.colonyFocus.open || this.colonyFocus.intent !== 'inspect') {
+      if (!this.colonyFocus.open || this.colonyFocus.intent !== 'inspect') {
         return;
       }
       if (isTradeFleetActive() || colonyTradeState.active || isColonyBuildActive()) {

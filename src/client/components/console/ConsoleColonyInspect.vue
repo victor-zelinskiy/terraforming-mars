@@ -6,25 +6,34 @@
       · INSIDE the colony workspace (`embedded`): the X stage of the colonies
         section, in the very region the trade stage opens in. The host draws
         the crumb («КОЛОНИИ › ЛУНА › ОСМОТР»); B folds back to the grid; A
-        ENTERS the action — the trade / build / pick stage for this colony,
-        with the planet, the track and the berths physically carried over.
+        goes ON — «К торговле» — into the trade / build / pick stage for this
+        colony, with the planet, the track and the berths physically carried
+        over. A is NEVER gated here: the dossier reads, the stage decides.
       · OVER the journal (standalone): a band surface with its own head
         («ЖУРНАЛ › ЛУНА › ОСМОТР»), read-only history — B closes it.
 
-    COMPOSITION — the fullscreen card viewer's three-zone grammar:
+    THE JOB: the LORE, the RULES and the BIG ART — and, since the player is
+    one press from acting, WHAT THE ACT WOULD GIVE AND COST. Four zones, no
+    scroll on the TV (the composition's whole budget is «fits at 4K and 1080»):
 
-      LORE (left)     the archive entry — the SAME block the card viewer and
-                      the party inspect use (CardLoreAside), fed by the colony
-                      resolver (colonyLore.ts): warm ivory, no panel.
+      SIDE (left)     above — the ARCHIVE ENTRY (the SAME block the card viewer
+                      and the party inspect use, fed by colonyLore.ts);
+                      below, at the column's foot — the ACT'S READING: the
+                      server's verdict AS INFORMATION (never a gate), what the
+                      player receives at the current level, where a card
+                      resource lands, and EVERY payment path with its own
+                      `current → resulting` or refusal.
       PLANET (centre) the colony as a physical object: the disc at the size
                       the room allows, the state + the fleet under it, and the
                       TRADE-TRACK INSTRUMENT — the exact component the trade
                       stage resolves on — pinned to the column's foot.
-      RULES (right)   the cold-cyan reading panel: one group per rule, kind
-                      chips, sentences in the reading face. The instrument
-                      draws the MECHANISM (the rate × the seated cubes); this
-                      panel names the RECIPIENTS — two panels share a subject
-                      only when they answer different questions.
+      RULES (right)   the cold-cyan reading panel: the THREE printed rules of
+                      the tile (construction, trade income, owner bonus) in
+                      the reading face, the recipients under the bonus, and
+                      the track rule in one sentence. NOTHING the instrument
+                      already draws is restated here (seats, the live reading,
+                      the fleet) — two surfaces share a subject only when
+                      they answer different questions.
 
     READ-ONLY by construction: it submits nothing and captures nothing; A only
     re-routes into the stage the grid's A would have opened. Button hints live
@@ -61,9 +70,95 @@
              arrive as a finished rectangle). -->
         <span class="con-colinspect__edge" data-unfold-edge aria-hidden="true"></span>
 
-        <!-- ═══ LORE — the archive entry ═══ -->
-        <aside class="con-colinspect__lore" data-unfold-late>
-          <CardLoreAside :model="loreModel" :nonce="loreNonce" />
+        <!-- ═══ SIDE — the archive entry above, the act's reading below ═══ -->
+        <aside class="con-colinspect__side">
+          <!-- The archive entry has TWO seats and ONE is shown (the host's
+               width decides, in CSS): here, at the top of the side column;
+               on a narrow host inside the rules panel's scroll, after the
+               rules — a starved column clipped it to one line, and a cut
+               archive entry is worse than one a scroll reaches. -->
+          <div class="con-colinspect__lore con-colinspect__lore--side" data-unfold-late>
+            <CardLoreAside :model="loreModel" :nonce="loreNonce" />
+          </div>
+
+          <!-- THE ACT'S READING — what A leads to. The verdict is the
+               SERVER's (tone and reason), stated as a fact beside the act's
+               name; the reward is the reward package every colony surface
+               shares; the payment table is EVERY path, affordable and not.
+               History (the journal) keeps only the level's income. -->
+          <section v-if="showAct"
+                   class="con-colinspect__act"
+                   :class="'con-colinspect__act--' + actIntent"
+                   :aria-label="$t(actTitleKey)"
+                   data-unfold-late>
+            <div class="con-colinspect__act-head">
+              <span class="con-colinspect__act-kind">{{ $t(actTitleKey) }}</span>
+              <span v-if="!readonly"
+                    class="con-colinspect__verdict"
+                    :class="actionAvailable ? 'con-colinspect__verdict--ok' :
+                      (blockTone === 'warning' ? 'con-colinspect__verdict--notnow' : 'con-colinspect__verdict--no')">
+                <template v-if="actionAvailable">
+                  <span class="con-colinspect__verdict-dot" aria-hidden="true"></span>
+                  <span>{{ $t(verdictKey) }}</span>
+                </template>
+                <template v-else>
+                  <span aria-hidden="true">{{ blockTone === 'warning' ? '⏳' : '✕' }}</span>
+                  <span>{{ blockReason !== '' ? $t(blockReason) : $t('Trade unavailable') }}</span>
+                </template>
+              </span>
+            </div>
+
+            <!-- ВЫ ПОЛУЧИТЕ — the totals at the level the act reads. -->
+            <div class="con-colinspect__act-sec con-colinspect__act-sec--gain">
+              <span class="con-colinspect__act-label">{{ $t(readonly ? 'On the current level' : 'You receive') }}</span>
+              <template v-for="total in rewardTotals" :key="total.key">
+                <div class="con-colinspect__gain">
+                  <b class="con-colinspect__gain-amount">+{{ total.amount }}</b>
+                  <span class="con-colinspect__gain-glyph" :class="{'con-colinspect__gain-glyph--prod': total.production}">
+                    <i v-if="total.icon !== undefined" :class="rewardIconClass(total.icon)" aria-hidden="true"></i>
+                    <span v-else class="con-colinspect__gain-label">{{ $t(total.label ?? '') }}</span>
+                  </span>
+                  <em v-if="total.cardDestination && cardTargetLines.length > 0" class="con-colinspect__gain-dest">
+                    {{ $t(cardTargetLines.length > 1 ? 'To these cards:' : 'To this card:') }}
+                  </em>
+                  <em v-else-if="total.destinationKey !== undefined" class="con-colinspect__gain-dest">{{ $t(total.destinationKey) }}</em>
+                </div>
+                <!-- …and the cards themselves, under the total they explain
+                     (the shared preview's own before → after). -->
+                <div v-if="total.cardDestination && cardTargetLines.length > 0" class="con-colinspect__gain-cards">
+                  <span v-for="line in cardTargetLines" :key="line.card" class="con-colinspect__gain-card">
+                    <i v-if="line.iconClass !== ''" :class="line.iconClass" aria-hidden="true"></i>
+                    <span class="con-colinspect__gain-card-name">{{ cardLabel(line.card) }}</span>
+                    <em>{{ line.before }} → {{ line.after }}</em>
+                  </span>
+                </div>
+              </template>
+              <p v-if="rewardTotals.length === 0" class="con-colinspect__muted">{{ $t('No reward at this level') }}</p>
+              <div v-if="lostCount > 0" class="con-colinspect__lost">
+                <span aria-hidden="true">!</span>
+                <span>{{ $t('Resource will be lost — no card') }}</span>
+              </div>
+              <p v-if="actIntent !== 'build' && offsetSteps > 0" class="con-colinspect__note con-colinspect__note--gain">
+                {{ $t('Your trade advances the track first') }} <b>+{{ offsetSteps }}</b>
+              </p>
+            </div>
+
+            <!-- ОПЛАТА — every path, with the server's own numbers. -->
+            <div v-if="paymentRows.length > 0" class="con-colinspect__act-sec con-colinspect__act-sec--pay">
+              <span class="con-colinspect__act-label">{{ $t('Payment') }}</span>
+              <div class="con-colinspect__paytable">
+                <div v-for="(row, i) in paymentRows" :key="i"
+                     class="con-colinspect__payrow"
+                     :class="{'con-colinspect__payrow--off': !row.available}">
+                  <i v-if="row.iconClass !== ''" class="con-colinspect__payrow-icon" :class="row.iconClass" aria-hidden="true"></i>
+                  <span v-else class="con-colinspect__payrow-icon" aria-hidden="true"></span>
+                  <span class="con-colinspect__payrow-title">{{ row.title }}</span>
+                  <span v-if="row.available" class="con-colinspect__payrow-delta">{{ row.preview }}</span>
+                  <span v-else class="con-colinspect__payrow-reason">{{ row.reason }}</span>
+                </div>
+              </div>
+            </div>
+          </section>
         </aside>
 
         <!-- ═══ HERO — the colony as a physical object ═══ -->
@@ -93,9 +188,9 @@
                   :class="colony.isActive ? 'con-colinspect__state--on' : 'con-colinspect__state--off'">
               {{ $t(colony.isActive ? 'Active colony' : 'Not active yet') }}
             </span>
-            <span v-if="visitorLine !== ''" class="con-colinspect__fleetline">
+            <span class="con-colinspect__fleetline" :class="{'con-colinspect__fleetline--none': colony.visitor === undefined}">
               <ColonyFleetIcon v-if="colony.visitor !== undefined" :color="colony.visitor" />
-              <span>{{ visitorLine }}</span>
+              <span>{{ colony.visitor === undefined ? $t('No trade fleet here') : visitorLine }}</span>
             </span>
           </div>
           <!-- THE INSTRUMENT — the resting object: no latch, no settle, no
@@ -111,7 +206,7 @@
                                         :viewerColor="viewerColor" />
         </section>
 
-        <!-- ═══ RULES — the reading panel ═══ -->
+        <!-- ═══ RULES — the reading panel: the tile's three printed rules ═══ -->
         <aside class="con-colinspect__rules" data-unfold-item :aria-label="$t('Rules')">
           <div class="con-colinspect__rules-head" data-unfold-late>
             <span class="con-colinspect__rules-mark" aria-hidden="true">§</span>
@@ -119,7 +214,7 @@
           </div>
           <ConsoleScrollArea ref="scroll" class="con-colinspect__rules-scroll" axis="y">
             <div class="con-colinspect__rules-body">
-              <!-- ПОСТРОЙКА — the placement grant + the seats. -->
+              <!-- ПОСТРОЙКА — the placement grant (the berths draw the seats). -->
               <section class="con-colinspect__group con-colinspect__group--build" data-unfold-late>
                 <span class="con-colinspect__kind">{{ $t('Construction') }}</span>
                 <div class="con-colinspect__line">
@@ -128,19 +223,9 @@
                   </span>
                   <p class="con-colinspect__text" v-i18n>{{ metadata.build.description }}</p>
                 </div>
-                <div class="con-colinspect__meta">
-                  <span class="con-colinspect__seats" aria-hidden="true">
-                    <span v-for="idx in [0, 1, 2]" :key="idx"
-                          class="con-colinspect__seat"
-                          :class="{'con-colinspect__seat--taken': colony.colonies[idx] !== undefined}">
-                      <PlayerCube v-if="colony.colonies[idx] !== undefined" :color="colony.colonies[idx]" :size="14" />
-                    </span>
-                  </span>
-                  <span class="con-colinspect__meta-text">{{ $t('Free slots') }}: {{ 3 - colony.colonies.length }}</span>
-                </div>
               </section>
 
-              <!-- ТОРГОВЫЙ ДОХОД — the printed rule + what a trade reads NOW. -->
+              <!-- ТОРГОВЫЙ ДОХОД — the printed rule (the instrument shows the level). -->
               <section class="con-colinspect__group con-colinspect__group--trade" data-unfold-late>
                 <span class="con-colinspect__kind">{{ $t('Trade income') }}</span>
                 <div class="con-colinspect__line">
@@ -149,20 +234,6 @@
                   </span>
                   <p class="con-colinspect__text" v-i18n>{{ metadata.trade.description }}</p>
                 </div>
-                <div class="con-colinspect__now">
-                  <span class="con-colinspect__now-label">{{ $t('Now') }}</span>
-                  <span v-if="rewardNow.quantity > 0" class="con-colinspect__now-value">
-                    <b>+{{ rewardNow.quantity }}</b>
-                    <span class="con-colinspect__now-glyph">
-                      <BenefitGlyph :benefit="tradeBenefitNow" :idx="effectivePosition" :cardResource="metadata.cardResource" />
-                    </span>
-                  </span>
-                  <span v-else class="con-colinspect__muted">{{ $t('No reward at this level') }}</span>
-                  <span class="con-colinspect__now-pos">{{ $t('Trade track') }} {{ effectivePosition + 1 }}/{{ trackMax + 1 }}</span>
-                </div>
-                <p v-if="offsetSteps > 0" class="con-colinspect__note con-colinspect__note--gain">
-                  {{ $t('Your trade advances the track first') }} <b>+{{ offsetSteps }}</b>
-                </p>
               </section>
 
               <!-- БОНУС ВЛАДЕЛЬЦА — the printed rule + WHO receives what. -->
@@ -174,75 +245,16 @@
                   </span>
                   <p class="con-colinspect__text" v-i18n>{{ metadata.colony.description }}</p>
                 </div>
-                <div v-for="owner in owners" :key="owner.color" class="con-colinspect__owner">
-                  <span :class="'con-status__dot player_bg_color_' + owner.color" aria-hidden="true"></span>
-                  <span class="con-colinspect__owner-name">{{ owner.name }}</span>
-                  <em v-if="owner.count > 1" class="con-colinspect__owner-mult">×{{ owner.count }}</em>
-                  <b v-if="bonusQty > 0" class="con-colinspect__owner-total">+{{ owner.count * bonusQty }}</b>
-                </div>
-                <p v-if="owners.length === 0" class="con-colinspect__muted">{{ $t('No colonies built here yet') }}</p>
-              </section>
-
-              <!-- ФЛОТ — who is parked here. -->
-              <section class="con-colinspect__group con-colinspect__group--fleet" data-unfold-late>
-                <span class="con-colinspect__kind">{{ $t('Fleet') }}</span>
-                <div class="con-colinspect__line con-colinspect__line--fleet">
-                  <ColonyFleetIcon v-if="colony.visitor !== undefined" :color="colony.visitor" />
-                  <p class="con-colinspect__text" :class="{'con-colinspect__text--muted': colony.visitor === undefined}">
-                    {{ colony.visitor === undefined ? $t('No trade fleet here') : visitorLine }}
-                  </p>
-                </div>
-              </section>
-
-              <!-- ДОСТУПНОСТЬ — the interactive door only: the server's own
-                   verdict on the act A would enter, with its tone, and every
-                   payment path — affordable AND not (the full picture, never
-                   hidden). History (the journal) has no verdict. -->
-              <section v-if="!readonly" class="con-colinspect__group con-colinspect__group--avail" data-unfold-late>
-                <span class="con-colinspect__kind">{{ $t('Availability') }}</span>
-                <div class="con-colinspect__verdict"
-                     :class="actionAvailable ? 'con-colinspect__verdict--ok' :
-                       (blockTone === 'warning' ? 'con-colinspect__verdict--notnow' : 'con-colinspect__verdict--no')">
-                  <template v-if="actionAvailable">
-                    <span class="con-colinspect__verdict-dot" aria-hidden="true"></span>
-                    <span>{{ $t(verdictKey) }}</span>
-                  </template>
-                  <template v-else>
-                    <span aria-hidden="true">{{ blockTone === 'warning' ? '⏳' : '✕' }}</span>
-                    <span>{{ blockReason !== '' ? $t(blockReason) : $t('Trade unavailable') }}</span>
-                  </template>
-                </div>
-                <div v-if="paymentRows.length > 0" class="con-colinspect__paytable">
-                  <div v-for="(row, i) in paymentRows" :key="i"
-                       class="con-colinspect__payrow"
-                       :class="{'con-colinspect__payrow--off': !row.available}">
-                    <i v-if="row.iconClass !== ''" class="con-colinspect__payrow-icon" :class="row.iconClass" aria-hidden="true"></i>
-                    <span class="con-colinspect__payrow-title">{{ row.title }}</span>
-                    <span v-if="row.available" class="con-colinspect__payrow-delta">{{ row.preview }}</span>
-                    <span v-else class="con-colinspect__payrow-reason">{{ row.reason }}</span>
+                <div class="con-colinspect__owners">
+                  <div v-for="owner in owners" :key="owner.color"
+                       class="con-colinspect__owner"
+                       :class="{'con-colinspect__owner--you': owner.color === viewerColor}">
+                    <span :class="'con-status__dot player_bg_color_' + owner.color" aria-hidden="true"></span>
+                    <span class="con-colinspect__owner-name">{{ owner.name }}</span>
+                    <em v-if="owner.count > 1" class="con-colinspect__owner-mult">×{{ owner.count }}</em>
+                    <b v-if="bonusQty > 0" class="con-colinspect__owner-total">+{{ owner.count * bonusQty }}</b>
                   </div>
-                </div>
-              </section>
-
-              <!-- КУДА ПОПАДУТ РЕСУРСЫ — the shared server preview's truth
-                   (interactive door only; the journal is history, not planning). -->
-              <section v-if="!readonly && (targetRows.length > 0 || lostCount > 0)"
-                       class="con-colinspect__group con-colinspect__group--targets" data-unfold-late>
-                <span class="con-colinspect__kind">{{ $t('Where the resources go') }}</span>
-                <div v-for="(row, i) in targetRows" :key="'t' + i" class="con-colinspect__target">
-                  <span class="con-colinspect__target-role">{{ $t(row.roleLabel) }}</span>
-                  <template v-if="row.cards.length > 0">
-                    <span v-for="card in row.cards" :key="card.name" class="con-colinspect__target-card">
-                      <i v-if="row.iconClass !== ''" :class="row.iconClass" aria-hidden="true"></i>
-                      <span>{{ cardLabel(card.name) }}</span>
-                      <b>{{ card.resources ?? 0 }} → {{ (card.resources ?? 0) + row.amount }}</b>
-                    </span>
-                  </template>
-                  <span v-else class="con-colinspect__target-auto">{{ $t('Chosen when trading') }}</span>
-                </div>
-                <div v-for="i in lostCount" :key="'l' + i" class="con-colinspect__lost">
-                  <span aria-hidden="true">!</span>
-                  <span>{{ $t('No eligible card — this resource would not be added') }}</span>
+                  <p v-if="owners.length === 0" class="con-colinspect__muted">{{ $t('No colonies built here yet') }}</p>
                 </div>
               </section>
 
@@ -252,6 +264,10 @@
               <p class="con-colinspect__note con-colinspect__note--rule" data-unfold-late>
                 {{ $t('The marker returns to the built-colony count after a trade and advances each generation') }}
               </p>
+              <!-- The archive entry's NARROW-HOST seat (see the side column). -->
+              <div class="con-colinspect__lore con-colinspect__lore--inline" data-unfold-late>
+                <CardLoreAside :model="loreModel" :nonce="loreNonce" />
+              </div>
             </div>
           </ConsoleScrollArea>
         </aside>
@@ -270,13 +286,16 @@ import {Color} from '@/common/Color';
 import {CardModel} from '@/common/models/CardModel';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {DisabledOptionModel, SelectOptionModel} from '@/common/models/PlayerInputModel';
-import {ColonyTradePreviewModel} from '@/common/models/ColonyTradePreviewModel';
+import {ColonyTradeFollowUpModel, ColonyTradePreviewModel} from '@/common/models/ColonyTradePreviewModel';
 import {getColony} from '@/client/colonies/ClientColonyManifest';
 import {buildColonyLoreModel} from '@/client/colonies/colonyLore';
 import {LoreModel} from '@/client/cards/cardLore';
 import {translateLore} from '@/client/cards/loreTranslate';
 import {fetchColonyTradePreview} from '@/client/components/colonies/colonyTradePreviewFetch';
-import {colonyOwnerCounts, effectiveTradePosition, rewardAtPosition, TradeRewardAt} from '@/client/components/colonies/colonyTradePlan';
+import {
+  colonyOwnerCounts, colonyRewardPackage, describeBenefit, effectiveTradePosition, isCardDestination,
+  rewardDestinationKey, RewardTotal, tradeOutcome,
+} from '@/client/components/colonies/colonyTradePlan';
 import {presentedColonyModel} from '@/client/console/colonyTrade/consoleColonyTrade';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
@@ -288,7 +307,6 @@ import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {ColonyFocusIntent, setColonyFocusStage} from '@/client/console/consoleColoniesModel';
 import BenefitGlyph from '@/client/components/colonies/BenefitGlyph.vue';
 import ColonyFleetIcon from '@/client/components/colonies/ColonyFleetIcon.vue';
-import PlayerCube from '@/client/components/PlayerCube.vue';
 import CardLoreAside from '@/client/components/card/CardLoreAside.vue';
 import ConsoleWsHead from '@/client/components/console/foundation/ConsoleWsHead.vue';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
@@ -303,16 +321,16 @@ function textOf(v: string | Message | undefined): string {
 }
 
 type Benefit = {type: ColonyBenefit, quantity: ReadonlyArray<number>, resource?: unknown};
-type TargetRow = {roleLabel: string, iconClass: string, amount: number, cards: ReadonlyArray<CardModel>};
+type CardTargetLine = {card: string, iconClass: string, before: number, after: number};
 type PayRow = {iconClass: string, title: string, preview: string, reason: string, available: boolean};
 
-/** One d-pad step of the rules panel (logical px; scaled by the profile). */
+/** One d-pad / stick step of the rules panel (logical px; scaled by the profile). */
 const SCROLL_STEP_PX = 140;
 
 export default defineComponent({
   name: 'ConsoleColonyInspect',
   components: {
-    BenefitGlyph, ColonyFleetIcon, PlayerCube, CardLoreAside, ConsoleWsHead, ConsoleScrollArea,
+    BenefitGlyph, ColonyFleetIcon, CardLoreAside, ConsoleWsHead, ConsoleScrollArea,
     ConsolePlanetDisc, ConsoleColonyTrackInstrument,
   },
   props: {
@@ -331,11 +349,11 @@ export default defineComponent({
     /** The crumb root of the STANDALONE host (the journal door). */
     hostRoot: {type: String, default: 'Journal'},
     /** READ-ONLY history (the journal door): no verdict, no payment table,
-     *  no target planning — and no A. */
+     *  no target planning — and no A. The level's income still reads. */
     readonly: {type: Boolean, default: false},
-    /** The act A would ENTER (the workspace door): decides the verdict's word. */
+    /** The act A leads to (the workspace door): names the block, picks the reward. */
     actIntent: {type: String as PropType<ColonyFocusIntent>, default: 'trade'},
-    /** That act is genuinely offerable HERE (server truth). */
+    /** That act is genuinely offerable HERE (server truth) — INFORMATION, not a gate. */
     actionAvailable: {type: Boolean, default: false},
     /** The honest reason when it is not ('' when available). */
     blockReason: {type: String, default: ''},
@@ -380,9 +398,6 @@ export default defineComponent({
     offsetSteps(): number {
       return Math.max(0, this.effectivePosition - this.markerPosition);
     },
-    rewardNow(): TradeRewardAt {
-      return rewardAtPosition(this.metadata, this.effectivePosition);
-    },
     tradeBenefitNow(): Benefit {
       const t = this.metadata.trade;
       const resource = Array.isArray(t.resource) ? t.resource[this.effectivePosition] : t.resource;
@@ -419,6 +434,13 @@ export default defineComponent({
         return player !== undefined ? participantDisplayName(player) : color;
       });
     },
+    /** The viewer's own settlements here — each pays the colony bonus. */
+    ownColonyCount(): number {
+      if (this.viewerColor === undefined) {
+        return 0;
+      }
+      return this.colony.colonies.filter((c) => c === this.viewerColor).length;
+    },
     /** The multiplier row the instrument draws — the same rule as the stage:
      *  the viewer's own stake when they stand here, else the largest holder;
      *  only when the count genuinely changes the number. */
@@ -444,6 +466,22 @@ export default defineComponent({
       }
       return translateText('Trade fleet currently here');
     },
+    /** The act block stands on the interactive door always; the journal keeps
+     *  the level's income only when the colony is in play (a catalog tile —
+     *  not in this game — has no level to read). */
+    showAct(): boolean {
+      return !this.readonly || this.colony.isActive || this.colony.colonies.length > 0;
+    },
+    /** The act's NAME on the block («ТОРГОВЛЯ» / «ПОСТРОЙКА» / the pick's verb). */
+    actTitleKey(): string {
+      if (this.actIntent === 'build') {
+        return 'Construction';
+      }
+      if (this.actIntent === 'pick' && this.pickLabel !== '') {
+        return this.pickLabel;
+      }
+      return 'Trading';
+    },
     /** The verdict's word when the act IS offerable — the act's own verb. */
     verdictKey(): string {
       if (this.actIntent === 'build') {
@@ -454,15 +492,94 @@ export default defineComponent({
       }
       return 'Trade available';
     },
+    /**
+     * WHAT THE PLAYER RECEIVES — the ONE reward derivation every colony
+     * surface shares (`tradeOutcome` → `colonyRewardPackage`): the track's
+     * income at the level the act reads PLUS the viewer's own settlements'
+     * bonuses, merged per type and destination. No payment is chosen yet, so
+     * no `current → resulting` is claimed — the stage owns that once a path
+     * is dialed. A BUILD reads the placement grant of the next free berth.
+     */
+    rewardTotals(): ReadonlyArray<RewardTotal> {
+      if (this.actIntent === 'build') {
+        const b = this.metadata.build;
+        const resource = Array.isArray(b.resource) ? b.resource[this.nextBuildSlot] : b.resource;
+        const per = describeBenefit(b.type, b.quantity[this.nextBuildSlot] ?? 0, typeof resource === 'string' ? resource : undefined, this.metadata);
+        if (per === undefined || per.amount <= 0) {
+          return [];
+        }
+        return [{
+          key: 'build',
+          icon: per.icon,
+          label: per.label,
+          amount: per.amount,
+          production: per.production,
+          destinationKey: rewardDestinationKey(b.type),
+          cardDestination: isCardDestination(b.type),
+        }];
+      }
+      const outcome = tradeOutcome({
+        metadata: this.metadata,
+        rewardPosition: this.effectivePosition,
+        payments: [],
+        ownColonyCount: this.ownColonyCount,
+        flatBonuses: this.preview?.flatBonuses,
+        stocks: {},
+        production: {},
+      });
+      return colonyRewardPackage({
+        gains: outcome.gains,
+        metadata: this.metadata,
+        colony: this.colony,
+        viewer: this.viewerColor,
+      }).totals;
+    },
+    /** The follow-ups of the act A leads to (the shared server preview). */
+    actFollowUps(): ReadonlyArray<ColonyTradeFollowUpModel> {
+      if (this.preview === undefined) {
+        return [];
+      }
+      return this.actIntent === 'build' ? (this.preview.buildFollowUps ?? []) : this.preview.followUps;
+    },
+    /** WHERE a card resource lands — one line per PHYSICAL card, amounts
+     *  merged (an income and a bonus aimed at the same card are one row). */
+    cardTargetLines(): Array<CardTargetLine> {
+      const lines = new Map<string, CardTargetLine>();
+      for (const followUp of this.actFollowUps) {
+        if (followUp.kind !== 'cardTarget' || followUp.lost) {
+          continue;
+        }
+        const iconClass = followUp.resource !== undefined ?
+          iconClassFor(followUp.resource.toString().toLowerCase().replace(/ /g, '-')) + ' con-colinspect__gain-card-icon' : '';
+        const cards: ReadonlyArray<CardModel> = followUp.pick?.cards ??
+          (followUp.auto !== undefined ? [{name: followUp.auto, resources: this.autoTargetResources(followUp.auto)} as CardModel] : []);
+        for (const card of cards) {
+          const before = card.resources ?? 0;
+          const line = lines.get(card.name);
+          if (line === undefined) {
+            lines.set(card.name, {card: card.name, iconClass, before, after: before + followUp.amount});
+          } else {
+            line.after += followUp.amount;
+          }
+        }
+      }
+      return [...lines.values()];
+    },
+    lostCount(): number {
+      return this.actFollowUps.filter((f) => f.kind === 'cardTarget' && f.lost).length;
+    },
     /** EVERY payment path — affordable with `current → resulting`, the rest
      *  disabled with the server reason (the full picture, never hidden). */
     paymentRows(): Array<PayRow> {
+      if (this.readonly) {
+        return [];
+      }
       const rows: Array<PayRow> = [];
       for (const option of this.paymentOptions) {
         const meta = option.metadata;
         const res = meta?.resource;
         rows.push({
-          iconClass: meta?.icon !== undefined ? iconClassFor(meta.icon) + ' con-colinspect__pay-icon' : '',
+          iconClass: meta?.icon !== undefined ? iconClassFor(meta.icon) : '',
           title: textOf(option.title),
           preview: res !== undefined ? `${res.current} → ${res.resulting}` : '',
           reason: '',
@@ -471,7 +588,7 @@ export default defineComponent({
       }
       for (const disabled of this.disabledPayments) {
         rows.push({
-          iconClass: disabled.metadata?.icon !== undefined ? iconClassFor(disabled.metadata.icon) + ' con-colinspect__pay-icon' : '',
+          iconClass: disabled.metadata?.icon !== undefined ? iconClassFor(disabled.metadata.icon) : '',
           title: textOf(disabled.title),
           preview: '',
           reason: textOf(disabled.reason),
@@ -479,27 +596,6 @@ export default defineComponent({
         });
       }
       return rows;
-    },
-    targetRows(): Array<TargetRow> {
-      const rows: Array<TargetRow> = [];
-      for (const followUp of this.preview?.followUps ?? []) {
-        if (followUp.kind !== 'cardTarget' || followUp.lost) {
-          continue;
-        }
-        const iconClass = followUp.resource !== undefined ?
-          iconClassFor(followUp.resource.toString().toLowerCase().replace(/ /g, '-')) + ' con-colinspect__target-icon' : '';
-        rows.push({
-          roleLabel: followUp.role === 'tradeReward' ? 'Trade reward' : 'Colony bonus',
-          iconClass,
-          amount: followUp.amount,
-          cards: followUp.pick?.cards ??
-            (followUp.auto !== undefined ? [{name: followUp.auto, resources: this.autoTargetResources(followUp.auto)} as CardModel] : []),
-        });
-      }
-      return rows;
-    },
-    lostCount(): number {
-      return (this.preview?.followUps ?? []).filter((f) => f.kind === 'cardTarget' && f.lost).length;
     },
   },
   watch: {
@@ -511,6 +607,9 @@ export default defineComponent({
     /** Localized card name, tolerating a `Name:variant` id (drops the suffix). */
     cardLabel(name: string): string {
       return translateCardName(name);
+    },
+    rewardIconClass(icon: string): string {
+      return iconClassFor(icon) + ' con-colinspect__gain-icon';
     },
     async loadPreview(): Promise<void> {
       this.preview = undefined;
@@ -529,17 +628,26 @@ export default defineComponent({
       const card = viewer?.tableau.find((c) => c.name === cardName);
       return card?.resources ?? 0;
     },
+    /** The rules panel's one scroll path (↑/↓ and the right stick alike). */
+    scrollRules(dy: number): void {
+      const scroll = this.$refs.scroll as {scrollByPx?: (dy: number) => void} | undefined;
+      scroll?.scrollByPx?.(Math.sign(dy) * SCROLL_STEP_PX * conUiScale());
+    },
     /**
-     * The pad, while the dossier owns it: ↑/↓ scroll the rules panel, B
-     * leaves (the host decides where to — the grid, or the journal), A ENTERS
-     * the action — only when it is genuinely offered (the bar shows the verb
-     * disabled otherwise, and the reason stands in the ДОСТУПНОСТЬ group).
+     * The pad, while the dossier owns it: ↑/↓ and the right stick scroll the
+     * rules panel (a safety net — the composition fits on the TV without
+     * one), B leaves (the host decides where to — the grid, or the journal),
+     * A goes ON into the act's stage. A is never gated by the dossier: the
+     * verdict stands here as information, the stage carries the refusal.
      */
     handleIntent(intent: GamepadIntent): void {
+      if (intent.kind === 'scroll') {
+        this.scrollRules(intent.dy);
+        return;
+      }
       if (intent.kind === 'nav') {
         if (intent.dir === 'up' || intent.dir === 'down') {
-          const scroll = this.$refs.scroll as {scrollByPx?: (dy: number) => void} | undefined;
-          scroll?.scrollByPx?.((intent.dir === 'down' ? 1 : -1) * SCROLL_STEP_PX * conUiScale());
+          this.scrollRules(intent.dir === 'down' ? 1 : -1);
         }
         return;
       }
@@ -551,7 +659,7 @@ export default defineComponent({
         this.$emit('cancel');
         return;
       }
-      if (action === 'primary' && !this.readonly && this.actionAvailable) {
+      if (action === 'primary' && !this.readonly) {
         this.$emit('enter');
       }
     },

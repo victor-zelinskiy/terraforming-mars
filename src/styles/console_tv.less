@@ -997,7 +997,9 @@ html.con-profile-tv {
     }
     /* The COLONY DOSSIER (X = «Осмотреть») — couch typography; the geometry
        is rem (the planet is sized against the room by `cqh`) and scales
-       with the profile, so only the type and the chips move. */
+       with the profile, so only the type and the chips move. The rules
+       body reads at the standard reading size (the token, re-tuned above);
+       the act block's amount is the block's loudest voice. */
     .con-colinspect {
         &__rules-title { font-size: var(--con-t-caption); }
         &__rules-mark { font-size: var(--con-t-section); }
@@ -1005,17 +1007,19 @@ html.con-profile-tv {
         &__state { font-size: var(--con-t-floor); }
         &__fleetline { font-size: var(--con-t-caption); }
         &__fleetline .colony-fleet-icon { width: 1.7rem; height: 1.7rem; }
-        &__meta-text { font-size: var(--con-t-floor); }
-        &__now-label { font-size: var(--con-t-floor); }
-        &__now-pos { font-size: var(--con-t-floor); }
         &__note { font-size: var(--con-t-floor); }
         &__owner { font-size: var(--con-t-secondary); }
         &__muted { font-size: var(--con-t-caption); }
+        &__act-kind { font-size: var(--con-t-caption); }
+        &__act-label { font-size: var(--con-t-floor); }
+        &__gain-amount { font-size: var(--con-t-section); }
+        &__gain-label { font-size: var(--con-t-secondary); }
+        &__gain-dest { font-size: var(--con-t-caption); }
+        &__gain-card { font-size: var(--con-t-caption); }
+        &__lost { font-size: var(--con-t-caption); }
         &__verdict { font-size: var(--con-t-secondary); }
         &__payrow { min-height: var(--con-hit-min); font-size: var(--con-t-caption); }
         &__payrow-reason { font-size: var(--con-t-floor); }
-        &__target-role { font-size: var(--con-t-floor); }
-        &__target-card, &__target-auto, &__lost { font-size: var(--con-t-caption); }
         &__orbit { width: 3.6rem; height: 3.6rem; }
         &__orbit .colony-fleet-icon { width: 2.7rem; height: 2.7rem; }
     }

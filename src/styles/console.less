@@ -20730,34 +20730,42 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         min-height: 0;
         display: flex;
     }
-    /* THE NARROW-HOST QUERY CONTAINER — the frame, NAMED. A container query
-       cannot restyle its own container, and an unnamed query resolves against
-       the NEAREST container: for the planet that is the hero column (a size
-       container, ≤34rem wide), so the «narrow» planet size applied on a 4K
-       band (measured: 480 px where the room allowed 850). The frame is an
-       ancestor of every rule below and is only ever as wide as the host. */
+    /* THE HOST QUERY CONTAINER — the frame, NAMED, on BOTH axes. A container
+       query cannot restyle its own container, and an unnamed query resolves
+       against the NEAREST container: for the planet that is the hero column
+       (a size container, ≤34rem wide), so the «narrow» planet size applied
+       on a 4K band (measured: 480 px where the room allowed 850). The frame
+       is an ancestor of every rule below and is only ever as wide as the
+       host. SIZE (not inline-size) so the narrow layout can cap the side
+       column against the ROOM (`cqh`) — a percentage `max-height` in an
+       `auto` grid row resolves against nothing. The frame's own size comes
+       from outside on both axes (an absolute root / a flexed column), so
+       size containment costs it nothing. */
     &__frame {
-        container: colinspect-host / inline-size;
+        container: colinspect-host / size;
     }
 
     /* ── THE SURFACE — the three-column stage. The same material and the
        same edge as the trade stage: one system, read from the plane first.
-       A SIZE container, so the planet can be sized against the room it
-       really has (`cqh`) instead of a guess. ── */
+       ── */
     &__surface {
         position: relative;
         flex: 1 1 auto;
         min-width: 0;
         min-height: 0;
         display: grid;
-        grid-template-columns: minmax(13rem, 1fr) minmax(24rem, 34rem) minmax(18rem, 1.15fr);
+        /* SIDE (lore + the act's reading) · HERO (the planet + the
+           instrument, capped where the 1024² art is ~1:1 on 4K) · RULES.
+           The side carries payment rows now, so it is no longer the
+           narrowest column. */
+        grid-template-columns: minmax(16rem, 1fr) minmax(24rem, 32rem) minmax(18rem, 1.15fr);
         /* ONE row that FILLS the band: `auto` sizes the row by the tallest
-           column's content (the rules panel — ~28rem) and only then stretches,
-           and a SIZE container contributes nothing — so `cqh` inside the hero
-           read the content height, not the room (measured: a 560 px disc on
-           a 4K band that had 1700 px). `minmax(0, 1fr)` is the room itself. */
+           column's content and only then stretches, and a SIZE container
+           contributes nothing — so `cqh` inside the hero read the content
+           height, not the room (measured: a 560 px disc on a 4K band that
+           had 1700 px). `minmax(0, 1fr)` is the room itself. */
         grid-template-rows: minmax(0, 1fr);
-        grid-template-areas: 'lore hero rules';
+        grid-template-areas: 'side hero rules';
         column-gap: 1.2rem;
         padding: .85rem 1.1rem .85rem 1.2rem;
         border-radius: .6rem;
@@ -20766,9 +20774,6 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
             radial-gradient(ellipse 70% 50% at 78% 96%, rgba(30, 56, 84, 0.20), transparent 70%),
             rgba(10, 17, 26, 0.95);
         box-shadow: 0 .9rem 2.6rem rgba(0, 0, 0, 0.34);
-        /* The lore column and the hero share a top line: the archive's heading
-           and the planet's upper limb are level; the rules panel takes the
-           whole height beside them. */
         align-items: stretch;
     }
     /* THE EDGE — brought up after the opening, DIRECTIONAL (see the stage). */
@@ -20785,25 +20790,269 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
             inset 0 -.05rem 0 0 fade(@con-cyan, 6%);
     }
 
-    /* ═══ LORE — the archive entry, in the SAME block the card viewer draws ═══
-       The block is `pointer-events: none` and panel-less by contract; here it
-       only gets a ROOM: the column's width (its own width token is the card
-       viewer's gutter) and a hugging height (its constant frame is tied to
-       the card's zoom, which does not exist here). Top-aligned so «ЗАПИСЬ ИЗ
-       АРХИВА» sits on the planet's upper third for EVERY colony. */
-    &__lore {
-        grid-area: lore;
-        align-self: start;
-        justify-self: end;
-        width: 100%;
+    /* ═══ SIDE — the archive entry above, the act's reading at the foot ═══
+       A flex column: the lore is top-aligned (its heading level with the
+       planet's upper third for EVERY colony), the act block sits on the
+       column's foot (`margin-top: auto`) — the composition uses the height
+       it has instead of leaving the lower-left corner empty. The lore is
+       FLAVOUR: on a starved host it yields (min-height 0 + clip) before a
+       single payment row does. */
+    &__side {
+        grid-area: side;
         min-width: 0;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        gap: .9rem;
+    }
+    /* The archive entry, in the SAME block the card viewer draws. The block
+       is `pointer-events: none` and panel-less by contract; here it only
+       gets a ROOM: the column's width (its own width token is the card
+       viewer's gutter) and a hugging height (its constant frame is tied to
+       the card's zoom, which does not exist here). */
+    &__lore {
+        flex: 0 1 auto;
+        min-height: 0;
+        overflow: hidden;
         padding-top: 1.6rem;
 
         .card-zoom-lore {
             width: 100%;
             height: auto;
         }
+        /* The narrow-host seat inside the rules panel: closed on a wide host. */
+        &--inline {
+            display: none;
+            padding-top: .4rem;
+            border-top: .05rem solid rgba(120, 155, 190, 0.12);
+        }
     }
+
+    /* ── THE ACT BLOCK — «ТОРГОВЛЯ»: what A leads to, as a READING. The
+       rules panel's material (one family of panels on this surface), the
+       act's tone on its name. It states the verdict, the totals, the card
+       targets and every payment path; it decides nothing. ── */
+    &__act {
+        flex: 0 0 auto;
+        margin-top: auto;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: .7rem;
+        padding: .8rem .95rem .9rem;
+        border-radius: .8rem;
+        background:
+            linear-gradient(180deg,
+                rgba(15, 24, 36, 0.97) 0%,
+                rgba(9, 15, 24, 0.965) 30%,
+                rgba(6, 11, 19, 0.96) 100%);
+        box-shadow:
+            inset 0 0 0 .05rem fade(@con-cyan, 24%),
+            inset 0 .05rem 0 rgba(214, 236, 255, 0.09),
+            0 1.1rem 2.8rem rgba(0, 0, 0, 0.55);
+    }
+    &__act-head {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: .45rem .7rem;
+        min-width: 0;
+    }
+    /* The act's NAME — the kind chip's grammar, one step louder (it is the
+       block's title), in the pre-commit cyan; a build in the cube's cold plate. */
+    &__act-kind {
+        display: inline-flex;
+        align-items: center;
+        padding: .18rem .7rem;
+        border-radius: .35rem;
+        background: fade(@con-cyan, 16%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 45%);
+        color: #cfe9ff;
+        font-size: .68rem;
+        font-weight: 800;
+        letter-spacing: .12rem;
+        text-transform: uppercase;
+        white-space: nowrap;
+    }
+    &__act--build &__act-kind {
+        background: rgba(150, 180, 210, 0.12);
+        box-shadow: inset 0 0 0 .05rem rgba(150, 180, 210, 0.4);
+        color: fade(@con-text, 92%);
+    }
+    &__act-sec {
+        display: flex;
+        flex-direction: column;
+        gap: .35rem;
+        min-width: 0;
+    }
+    &__act-label {
+        font-size: .58rem;
+        font-weight: 800;
+        letter-spacing: .1rem;
+        text-transform: uppercase;
+        color: @con-text-dim;
+    }
+    &__act-sec--gain &__act-label { color: fade(@con-mint, 85%); }
+    /* One total: «+4 [M€]» — the amount is the loudest thing in the block. */
+    &__gain {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: .3rem .55rem;
+        min-width: 0;
+    }
+    &__gain-amount {
+        font-size: 1.35rem;
+        font-weight: 800;
+        line-height: 1;
+        color: @con-mint;
+        font-variant-numeric: tabular-nums;
+    }
+    /* The glyph sits BESIDE the number, never over it: the number leads
+       (the first pass drew a 70 px coin next to a 52 px «+2» on 4K). */
+    &__gain-glyph {
+        display: inline-flex;
+        align-items: center;
+        zoom: var(--con-ui-scale, 1);
+
+        /* PRODUCTION is a different thing from stock, and the board says so
+           with a frame — the same brown plate the stage's rail borrows. */
+        &--prod {
+            padding: .1rem .22rem;
+            border-radius: .2rem;
+            background: rgba(190, 120, 70, 0.28);
+            box-shadow: inset 0 0 0 .05rem rgba(255, 190, 140, 0.45);
+        }
+    }
+    &__gain-icon {
+        display: inline-block;
+        width: 1.25rem;
+        height: 1.25rem;
+        flex-shrink: 0;
+        background-repeat: no-repeat;
+        background-position: center;
+        background-size: contain !important;
+    }
+    &__gain-label {
+        font-size: .82rem;
+        font-weight: 700;
+        color: fade(@con-text, 92%);
+    }
+    &__gain-dest {
+        font-style: normal;
+        font-size: .68rem;
+        color: @con-text-dim;
+    }
+    /* …and where a card resource lands: one chip per physical card. */
+    &__gain-cards {
+        display: flex;
+        flex-wrap: wrap;
+        gap: .3rem;
+        min-width: 0;
+    }
+    &__gain-card {
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+        max-width: 100%;
+        padding: .2rem .55rem;
+        border-radius: .4rem;
+        background: rgba(255, 255, 255, 0.05);
+        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 30%);
+        font-size: .68rem;
+
+        em { font-style: normal; color: @con-mint; font-weight: 800; font-variant-numeric: tabular-nums; }
+    }
+    &__gain-card-icon {
+        width: 1rem;
+        height: 1rem;
+        flex-shrink: 0;
+        background-size: contain;
+        background-repeat: no-repeat;
+        background-position: center;
+    }
+    &__gain-card-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
+    &__lost {
+        display: flex;
+        align-items: center;
+        gap: .4rem;
+        font-size: .66rem;
+        color: @con-amber;
+
+        span[aria-hidden] { font-weight: 800; }
+    }
+    &__note {
+        margin: 0;
+        font-size: .64rem;
+        line-height: 1.3;
+        color: @con-text-dim;
+
+        &--gain { color: fade(@con-mint, 85%); b { color: @con-mint; font-variant-numeric: tabular-nums; } }
+        &--rule {
+            .con-read-text(450);
+            padding-top: .5rem;
+            border-top: .05rem solid rgba(120, 155, 190, 0.12);
+        }
+    }
+    &__muted { margin: 0; font-size: .68rem; font-weight: 600; color: @con-text-dim; }
+
+    /* The verdict — INFORMATION beside the act's name, in the availability's
+       own register (never colour alone). */
+    &__verdict {
+        display: inline-flex;
+        align-items: center;
+        gap: .45rem;
+        min-width: 0;
+        padding: .3rem .6rem;
+        border-radius: .45rem;
+        font-size: .7rem;
+        font-weight: 700;
+
+        &--ok { background: fade(@con-mint, 10%); box-shadow: inset 0 0 0 .05rem fade(@con-mint, 40%); color: @con-mint; }
+        &--no { background: fade(@con-red, 10%); box-shadow: inset 0 0 0 .05rem fade(@con-red, 40%); color: #ffb0a6; }
+        &--notnow { background: fade(@con-amber, 10%); box-shadow: inset 0 0 0 .05rem fade(@con-amber, 45%); color: #ffe6b0; }
+    }
+    &__verdict-dot {
+        flex: 0 0 auto;
+        width: .45rem;
+        height: .45rem;
+        border-radius: 50%;
+        background: @con-mint;
+        box-shadow: 0 0 .4rem fade(@con-mint, 70%);
+    }
+    /* Payment paths — every one, affordable and not (a strict table). */
+    &__paytable {
+        display: flex;
+        flex-direction: column;
+        gap: .22rem;
+    }
+    &__payrow {
+        display: grid;
+        grid-template-columns: 1.3rem 1fr auto;
+        align-items: center;
+        column-gap: .5rem;
+        min-height: 1.75rem;
+        padding: 0 .55rem;
+        border-radius: .35rem;
+        background: rgba(255, 255, 255, 0.03);
+        box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.06);
+        font-size: .7rem;
+
+        &--off {
+            .con-colinspect__payrow-title { color: @con-text-dim; }
+            .con-colinspect__payrow-icon { opacity: .55; }
+        }
+    }
+    &__payrow-icon {
+        width: 1.15rem;
+        height: 1.15rem;
+        background-size: contain;
+        background-repeat: no-repeat;
+        background-position: center;
+    }
+    &__payrow-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
+    &__payrow-delta { font-weight: 800; color: @con-mint; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    &__payrow-reason { font-size: .62rem; color: @con-amber; white-space: nowrap; }
 
     /* ═══ HERO — the colony as a physical object ═══ */
     &__hero {
@@ -20872,14 +21121,17 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         &--on { background: fade(@con-mint, 12%); box-shadow: inset 0 0 0 .05rem fade(@con-mint, 45%); color: @con-mint; }
         &--off { background: rgba(120, 140, 160, 0.12); box-shadow: inset 0 0 0 .05rem rgba(160, 180, 200, 0.28); color: @con-text-dim; }
     }
+    /* The fleet line — the one place the fleet is stated in words (the orbit
+       shows the ship itself; no rules group repeats it). */
     &__fleetline {
         display: inline-flex;
         align-items: center;
         gap: .4rem;
         font-size: .7rem;
-        color: @con-text-dim;
+        color: fade(@con-text, 88%);
 
         .colony-fleet-icon { width: 1.25rem; height: 1.25rem; }
+        &--none { color: @con-text-dim; }
     }
     /* THE INSTRUMENT — pinned to the column's foot: the planet above, the
        game object below, the status line between; the composition uses the
@@ -20892,10 +21144,21 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     }
 
     /* ═══ RULES — the reading panel (the card viewer's `.con-zoom-rules`
-       grammar: a head, groups with kind chips, the reading face). ═══ */
+       grammar: a head, groups with kind chips, the reading face). Only the
+       tile's PRINTED rules live here; the instrument draws the mechanism
+       (seats, the level, the guard rail) and the act block carries the
+       planning — so the panel FITS on the TV, and the scroll area under it
+       is a safety net for a starved host, never the design. ═══ */
     &__rules {
         grid-area: rules;
-        align-self: stretch;
+        /* HUGS its content: three printed rules are ~half of a 4K column,
+           and a panel stretched over the other half read as a half-empty
+           box (measured on both TV profiles). The panel ends where the rules
+           end — like the archive block beside it; the surface's own ground
+           is the air. `max-height` keeps the scroll area a real safety net
+           on a starved host. */
+        align-self: start;
+        max-height: 100%;
         min-width: 0;
         min-height: 0;
         display: flex;
@@ -20939,18 +21202,17 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     &__rules-body {
         display: flex;
         flex-direction: column;
-        gap: .85rem;
-        padding: .85rem 1rem 1rem;
+        gap: 1.05rem;
+        padding: .95rem 1.05rem 1.05rem;
     }
     &__group {
         display: flex;
         flex-direction: column;
-        gap: .38rem;
+        gap: .45rem;
     }
     /* The kind chip — COLOUR-CODED like the card viewer's: a build is the
        cube's cold plate, the trade income the mint gain, the owner bonus the
-       amber of «за каждую торговлю», the fleet neutral, the availability the
-       verdict's own tone. */
+       amber of «за каждую торговлю». */
     &__kind {
         display: inline-flex;
         align-items: center;
@@ -20976,19 +21238,12 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         box-shadow: inset 0 0 0 .05rem fade(@con-amber, 48%);
         color: #f2e3bb;
     }
-    &__group--fleet &__kind {
-        background: rgba(150, 180, 210, 0.1);
-        box-shadow: inset 0 0 0 .05rem rgba(150, 180, 210, 0.3);
-        color: fade(@con-text, 86%);
-    }
     /* A rule LINE: the printed glyph beside its sentence. */
     &__line {
         display: flex;
         align-items: center;
-        gap: .6rem;
+        gap: .7rem;
         min-width: 0;
-
-        &--fleet .colony-fleet-icon { flex: 0 0 auto; width: 1.4rem; height: 1.4rem; }
     }
     &__glyph {
         display: inline-flex;
@@ -20998,232 +21253,68 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         width: 32px; /* keep-px: the glyph's own sprite box, scaled by zoom */
         height: 32px; /* keep-px */
         overflow: hidden;
-        zoom: calc(1.1 * var(--con-ui-scale, 1));
+        zoom: calc(1.3 * var(--con-ui-scale, 1));
         .benefit-glyph__num { display: none; }
     }
+    /* THE READING FACE — the standard reading body, not the dense floor: the
+       rules are one of the dossier's three jobs. */
     &__text {
         .con-read-text(450);
         margin: 0;
         min-width: 0;
-        font-size: calc(var(--con-t-read-sm, .82rem) * var(--con-read-scale, 1));
+        font-size: calc(var(--con-t-read, .95rem) * var(--con-read-scale, 1));
         line-height: var(--con-read-lh, 1.45);
         color: fade(@con-text, 96%);
 
         &--muted { color: @con-text-dim; }
     }
-    /* Under a rule: the seats / the free count. */
-    &__meta {
-        display: flex;
-        align-items: center;
-        gap: .5rem;
-        min-width: 0;
-    }
-    &__seats { display: inline-flex; gap: .22rem; }
-    &__seat {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 1.15rem;
-        height: 1.05rem;
-        border-radius: .25rem;
-        background: rgba(255, 255, 255, 0.05);
-        box-shadow: inset 0 0 0 .05rem fade(@con-text, 18%);
-
-        &--taken { box-shadow: inset 0 0 0 .07rem fade(@con-cyan, 50%); }
-        .player-cube { zoom: var(--con-ui-scale, 1); }
-    }
-    &__meta-text {
-        font-size: .64rem;
-        font-weight: 700;
-        letter-spacing: .03rem;
-        color: @con-text-dim;
-        font-variant-numeric: tabular-nums;
-    }
-    /* «СЕЙЧАС +4 [icon] · трек 3/7» — what a trade reads right now. */
-    &__now {
-        display: flex;
-        align-items: center;
-        flex-wrap: wrap;
-        gap: .3rem .55rem;
-        min-width: 0;
-        padding: .3rem .55rem;
-        border-radius: .4rem;
-        background: fade(@con-mint, 7%);
-        box-shadow: inset .07rem 0 0 0 fade(@con-mint, 45%);
-    }
-    &__now-label {
-        font-size: .58rem;
-        font-weight: 800;
-        letter-spacing: .1rem;
-        text-transform: uppercase;
-        color: fade(@con-mint, 85%);
-    }
-    &__now-value {
-        display: inline-flex;
-        align-items: center;
-        gap: .3rem;
-
-        b { font-size: 1.05rem; font-weight: 800; color: @con-mint; font-variant-numeric: tabular-nums; line-height: 1; }
-    }
-    &__now-glyph {
-        display: inline-flex;
-        zoom: calc(.9 * var(--con-ui-scale, 1));
-        .benefit-glyph__num { display: none; }
-    }
-    &__now-pos {
-        margin-left: auto;
-        font-size: .62rem;
-        font-weight: 700;
-        color: @con-text-dim;
-        font-variant-numeric: tabular-nums;
-        white-space: nowrap;
-    }
-    &__note {
-        margin: 0;
-        font-size: .64rem;
-        line-height: 1.3;
-        color: @con-text-dim;
-
-        &--gain { color: fade(@con-mint, 85%); b { color: @con-mint; font-variant-numeric: tabular-nums; } }
-        &--rule {
-            .con-read-text(450);
-            padding-top: .5rem;
-            border-top: .05rem solid rgba(120, 155, 190, 0.12);
-        }
-    }
     /* The recipients: dot · name · ×n · the total they take per trade. */
+    &__owners {
+        display: flex;
+        flex-direction: column;
+        gap: .28rem;
+        padding-left: .15rem;
+    }
     &__owner {
         display: flex;
         align-items: center;
-        gap: .4rem;
+        gap: .45rem;
         min-width: 0;
-        font-size: .74rem;
+        font-size: .78rem;
+
+        &--you .con-colinspect__owner-name { color: #cfe9ff; }
     }
     &__owner-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
     &__owner-mult { font-style: normal; color: @con-text-dim; font-weight: 700; font-variant-numeric: tabular-nums; }
     &__owner-total { margin-left: auto; color: @con-mint; font-weight: 800; font-variant-numeric: tabular-nums; }
-    &__muted { margin: 0; font-size: .68rem; font-weight: 600; color: @con-text-dim; }
 
-    /* The verdict — the availability's own tone (never colour alone). */
-    &__verdict {
-        display: flex;
-        align-items: center;
-        gap: .45rem;
-        padding: .4rem .6rem;
-        border-radius: .45rem;
-        font-size: .74rem;
-        font-weight: 700;
-
-        &--ok { background: fade(@con-mint, 10%); box-shadow: inset 0 0 0 .05rem fade(@con-mint, 40%); color: @con-mint; }
-        &--no { background: fade(@con-red, 10%); box-shadow: inset 0 0 0 .05rem fade(@con-red, 40%); color: #ffb0a6; }
-        &--notnow { background: fade(@con-amber, 10%); box-shadow: inset 0 0 0 .05rem fade(@con-amber, 45%); color: #ffe6b0; }
-    }
-    &__verdict-dot {
-        flex: 0 0 auto;
-        width: .45rem;
-        height: .45rem;
-        border-radius: 50%;
-        background: @con-mint;
-        box-shadow: 0 0 .4rem fade(@con-mint, 70%);
-    }
-    /* Payment paths — every one, affordable and not (a strict table). */
-    &__paytable {
-        display: flex;
-        flex-direction: column;
-        gap: .2rem;
-    }
-    &__payrow {
-        display: grid;
-        grid-template-columns: 1.3rem 1fr auto;
-        align-items: center;
-        column-gap: .5rem;
-        min-height: 1.7rem;
-        padding: 0 .5rem;
-        border-radius: .35rem;
-        background: rgba(255, 255, 255, 0.03);
-        box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.06);
-        font-size: .68rem;
-
-        &--off {
-            opacity: .72;
-            .con-colinspect__payrow-title { color: @con-text-dim; }
-        }
-    }
-    &__payrow-icon,
-    &__pay-icon {
-        width: 1.1rem;
-        height: 1.1rem;
-        background-size: contain;
-        background-repeat: no-repeat;
-        background-position: center;
-    }
-    &__payrow-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
-    &__payrow-delta { font-weight: 800; color: @con-mint; font-variant-numeric: tabular-nums; white-space: nowrap; }
-    &__payrow-reason { font-size: .6rem; color: @con-amber; white-space: nowrap; }
-    /* Where a card resource lands — the server preview's truth. */
-    &__target {
-        display: flex;
-        align-items: center;
-        flex-wrap: wrap;
-        gap: .4rem;
-        min-width: 0;
-    }
-    &__target-role {
-        font-size: .58rem;
-        font-weight: 700;
-        letter-spacing: .06rem;
-        text-transform: uppercase;
-        color: @con-text-dim;
-        min-width: 6rem;
-    }
-    &__target-icon {
-        width: 1rem;
-        height: 1rem;
-        background-size: contain;
-        background-repeat: no-repeat;
-        background-position: center;
-    }
-    &__target-card {
-        display: inline-flex;
-        align-items: center;
-        gap: .35rem;
-        padding: .2rem .5rem;
-        border-radius: .4rem;
-        background: rgba(255, 255, 255, 0.05);
-        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 30%);
-        font-size: .65rem;
-
-        b { color: @con-mint; font-variant-numeric: tabular-nums; }
-    }
-    &__target-auto { font-size: .65rem; color: @con-text-dim; }
-    &__lost {
-        display: flex;
-        align-items: center;
-        gap: .4rem;
-        font-size: .65rem;
-        color: @con-amber;
-
-        span[aria-hidden] { font-weight: 800; }
-    }
-
-    /* ── NARROW HOST (an embedded pick zone on the Deck, a short band): the
-       archive entry drops UNDER the hero column, the rules keep their side.
-       The lore is flavour — it yields room before the instrument does. ── */
     /* ── NARROW HOST (the Deck, an embedded pick zone): the HERO keeps the
-       whole height (the instrument alone needs ~13rem of it, so a lore row
-       under the hero left the planet 80 px and the archive entry painting
-       over the berths — measured at 1280×800); the archive entry moves UNDER
-       THE RULES, which scroll by design and can spare the rows. ── */
+       whole height (the instrument alone needs ~13rem of it, so a row under
+       the hero left the planet 80 px — measured at 1280×800); the RULES
+       take the row and scroll (their design's safety net is the design
+       here), the ARCHIVE ENTRY moves INTO that scroll after the rules (its
+       side seat closes — a capped side column clipped it to one line), and
+       the SIDE under the rules is the act block alone, capped against the
+       room so the rules keep at least their head and a group. ── */
     @container colinspect-host (max-width: 60rem) {
         &__surface {
             grid-template-columns: minmax(0, 1.3fr) minmax(16rem, 1fr);
             grid-template-rows: minmax(0, 1fr) auto;
             grid-template-areas:
                 'hero rules'
-                'hero lore';
+                'hero side';
             row-gap: .5rem;
         }
-        &__lore { padding-top: 0; }
+        &__rules {
+            align-self: stretch;
+            max-height: none;
+        }
+        &__side {
+            max-height: 62cqh;
+            overflow: hidden;
+        }
+        &__lore--side { display: none; }
+        &__lore--inline { display: block; }
         &__planet { --con-planet-size: min(12rem, 36cqh); }
     }
 }
