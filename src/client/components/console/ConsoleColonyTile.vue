@@ -29,7 +29,10 @@
               colony.visitor !== undefined ? ['con-coltile__planet-berth--occupied', 'fleet-hue--' + colony.visitor] : [],
               {'con-coltile__planet-berth--docking': justDocked},
             ]">
-        <span class="con-coltile__planet" :class="planetClass" aria-hidden="true"></span>
+        <!-- THE ONE planet grammar (ConsolePlanetDisc): the art as a cover disc,
+             the light painted by the disc itself. The tile keeps the quiet
+             dress (no rim) — the medallion is a thumbnail, not a hero. -->
+        <ConsolePlanetDisc class="con-coltile__planet" :colony="colony.name" />
         <!-- The DOCK SLOT is the STABLE, PIXEL-PERFECT landing anchor of the
              trade-launch cinematic (`data-fleet-berth`, ALWAYS rendered, even
              empty): the flying fleet proxy docks EXACTLY here at this slot's
@@ -155,6 +158,7 @@ import BenefitGlyph from '@/client/components/colonies/BenefitGlyph.vue';
 import ColonyFleetIcon from '@/client/components/colonies/ColonyFleetIcon.vue';
 import ConsoleFlipValue from '@/client/components/console/ConsoleFlipValue.vue';
 import PlayerCube from '@/client/components/PlayerCube.vue';
+import ConsolePlanetDisc from '@/client/components/console/ConsolePlanetDisc.vue';
 
 export type ConsoleColonyTileStatus = {
   kind: 'ok' | 'blocked' | 'inactive' | 'none',
@@ -165,7 +169,7 @@ type TrackCell = {index: number, marker: boolean, effective: boolean, passed: bo
 
 export default defineComponent({
   name: 'ConsoleColonyTile',
-  components: {BenefitGlyph, ColonyFleetIcon, ConsoleFlipValue, PlayerCube},
+  components: {BenefitGlyph, ColonyFleetIcon, ConsoleFlipValue, PlayerCube, ConsolePlanetDisc},
   props: {
     colony: {type: Object as PropType<ColonyModel>, required: true},
     /** The viewer's standing trade offset (Trading Colony etc.). */
@@ -212,9 +216,6 @@ export default defineComponent({
     /** One-shot: the «ТОРГОВАТЬ» readout settles WITH the landed marker. */
     rewardSettled(): boolean {
       return this.settledCell >= 0;
-    },
-    planetClass(): string {
-      return this.colony.name.replace(' ', '-') + '-background';
     },
     // BenefitGlyph expects a quantity ARRAY; the colony bonus is a scalar.
     buildBenefit(): {type: ColonyMetadata['build']['type'], quantity: ReadonlyArray<number>, resource?: unknown} {

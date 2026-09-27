@@ -8,6 +8,9 @@ export class Enceladus extends Colony {
   constructor() {
     super({
       name: ColonyName.ENCELADUS,
+      // The tile's printed flavour line (the physical colony tile, under the
+      // name) — the console dossier's archive entry. English IS the i18n key.
+      lore: 'This Saturn moon is relatively dense, compared to the other ice moons, and may have a liquid ocean underneath its surface.',
       cardResource: CardResource.MICROBE,
       build: {
         description: 'Add 3 microbes to ANY card',

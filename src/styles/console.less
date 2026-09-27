@@ -18179,8 +18179,6 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
    with the desktop surfaces now — defined in `colony_fleet.less`. The console
    tile's planet-berth ring/dock read the same `--fleet-*` vars (set by the
    `fleet-hue--<color>` class on the berth). Console-specific sizing only: */
-/* The inspect dossier gives the fleet a touch more presence than a chip. */
-.con-colinspect__fleet-line .colony-fleet-icon { width: 1.5rem; height: 1.5rem; }
 
 /* ── Console Colonies screen ─────────────────────────────────────── */
 .con-colonies {
@@ -18778,38 +18776,11 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         align-items: center;
         gap: .45rem;
     }
-    /* THE HERO PLANET — the stage's visual anchor: the same round art the
-       tile carries, GROWN, with a restrained key light, a thin lit rim and a
-       depth shadow (never a loud hologram, never a decorative giant). */
+    /* THE HERO PLANET — the stage's visual anchor: the shared planet disc
+       (ConsolePlanetDisc, `--lit`: key light, terminator, atmosphere rim),
+       GROWN. The host owns only the size and the orbital berth. */
     &__planet {
-        position: relative;
-        width: 10.9rem;
-        height: 10.9rem;
-        border-radius: 50%;
-        background-size: cover;
-        background-position: center;
-        box-shadow:
-            inset -1.3rem -1.5rem 2.6rem rgba(0, 0, 0, 0.64),
-            inset .45rem .55rem 1.7rem rgba(180, 220, 255, 0.15),
-            0 0 2.6rem fade(@con-cyan, 15%),
-            0 .8rem 2.2rem rgba(0, 0, 0, 0.58);
-    }
-    /* The key light — a soft top-left sheen riding OVER the art. */
-    &__planet-light {
-        position: absolute;
-        inset: 0;
-        border-radius: 50%;
-        background: radial-gradient(circle at 30% 26%, rgba(220, 240, 255, 0.20), transparent 46%);
-        pointer-events: none;
-    }
-    /* The atmosphere rim: one hairline of lit edge so the sphere reads as an
-       object in space and not as a pasted circle. */
-    &__planet-rim {
-        position: absolute;
-        inset: -.12rem;
-        border-radius: 50%;
-        box-shadow: inset 0 0 0 .07rem fade(@con-cyan, 26%);
-        pointer-events: none;
+        --con-planet-size: 10.9rem;
     }
     /* THE ORBITAL BERTH — the fleet's live landing anchor while the stage is
        up (the same data key the tile's dock carries). Sits on the planet's
@@ -18824,11 +18795,17 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         align-items: center;
         justify-content: center;
         border-radius: 50%;
-        background: rgba(8, 14, 22, 0.85);
-        box-shadow: inset 0 0 0 .05rem fade(@con-text, 25%), 0 .15rem .5rem rgba(0, 0, 0, 0.5);
+        /* EMPTY: a whisper of a ring (the landing anchor is measured, never
+           painted as a dark disc on the lit sphere's limb); OCCUPIED: the
+           docked ship's own plate in the owner's hue. */
+        background: transparent;
+        box-shadow: inset 0 0 0 .05rem fade(@con-text, 14%);
 
         .colony-fleet-icon { width: 1.9rem; height: 1.9rem; }
-        &--occupied { box-shadow: inset 0 0 0 .08rem var(--fleet-fill, fade(@con-cyan, 60%)), 0 0 .8rem var(--fleet-glow, fade(@con-cyan, 25%)); }
+        &--occupied {
+            background: rgba(8, 14, 22, 0.85);
+            box-shadow: inset 0 0 0 .08rem var(--fleet-fill, fade(@con-cyan, 60%)), 0 0 .8rem var(--fleet-glow, fade(@con-cyan, 25%)), 0 .15rem .5rem rgba(0, 0, 0, 0.5);
+        }
         /* Arrival acknowledgment: the berth ring flares once as the flown
            proxy hands off to the real docked ship (one-shot, owner-hue). */
         &--just-docked {
@@ -20336,7 +20313,7 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         display: flex;
         align-items: center;
         gap: .6rem;
-        height: 2.9rem;
+        height: 3.2rem;
     }
     &__name {
         flex: 1;
@@ -20406,22 +20383,13 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
                 drop-shadow(0 0 .2rem var(--fleet-glow));
         }
     }
-    /* Planet art — the manifest `.<Name>-background` supplies the IMAGE, but
-       its legacy per-planet `background-size` / `background-position` (tuned
-       for the big 150–300px legacy tile) + the rectangular `inset` glow read
-       WRONG in a 40px round medallion (Europa showed a square rim). Force a
-       centred cover fill + a clean round rim (`!important` beats every legacy
-       per-planet override regardless of cascade order). */
+    /* THE MEDALLION is the shared planet disc (ConsolePlanetDisc / `.con-planet`):
+       the art as a cover disc, the light painted by the disc itself. Grown
+       with the regenerated 1024² art (2.7 → 3rem); the head row grew with it.
+       The occupied-berth owner ring below is the one host-owned dress. */
     &__planet {
-        flex: 0 0 auto;
-        width: 2.7rem;
-        height: 2.7rem;
-        border-radius: 50%;
-        background-size: cover !important;
-        background-position: center !important;
-        box-shadow: inset 0 0 0 .05rem fade(@con-text, 30%), 0 .05rem .2rem rgba(0, 0, 0, 0.5) !important;
-        opacity: 0.95;
-        pointer-events: none;
+        --con-planet-size: 3rem;
+        opacity: 0.97;
     }
 
     /* ── Build slots (owner cubes) + the live track, one band. ────── */
@@ -20431,7 +20399,7 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         display: flex;
         align-items: center;
         gap: .7rem;
-        margin-top: .4rem;
+        margin-top: .25rem;
     }
     &__build {
         display: flex;
@@ -20543,7 +20511,7 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         flex: 0 0 auto;
         display: flex;
         gap: .5rem;
-        margin-top: .4rem;
+        margin-top: .25rem;
     }
     &__cell {
         flex: 1;
@@ -20648,243 +20616,521 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     &__status-idle { min-height: .4rem; }
 }
 
-/* ── X = «Осмотреть»: the full colony dossier ─────────────────────── */
-.con-colinspect {
-    z-index: 11500;
+/* ═══ THE PLANET DISC (ConsolePlanetDisc) — ONE grammar for every colony planet ═══
+   The art (`assets/colonies-planets/<key>.webp`, `scripts/import-planet-art.mjs`)
+   is a clean 1024² alpha disc: no baked light, no halo, no vignette. The disc
+   is therefore `cover` + `center` inside a round box, and THIS block paints the
+   light — a key sheen top-left, an inset terminator bottom-right, a soft depth
+   drop — once, for the tile's medallion, the trade stage's hero and the
+   dossier's centrepiece alike. `--con-planet-size` is the host's; `--lit` adds
+   the atmosphere rim + the outer cyan glow (a hero, not a thumbnail).
 
-    &__frame {
-        width: min(56rem, 100%);
+   `!important` on the geometry, deliberately: the legacy `.<Name>-background`
+   rules in colonies.less still carry per-planet `background-size` /
+   `background-position` / coloured inset glows for the community art that has
+   not been regenerated — on a console disc every one of them is wrong. */
+.con-planet {
+    --con-planet-size: 3rem;
+    position: relative;
+    flex: 0 0 auto;
+    width: var(--con-planet-size);
+    height: var(--con-planet-size);
+    border-radius: 50%;
+    background-size: cover !important;
+    background-position: center !important;
+    background-repeat: no-repeat !important;
+    /* The LIMB: a hair of lit edge (the art's own limb is clean — this is the
+       thin atmosphere every real photograph of a moon shows) + the depth
+       drop that seats the sphere on the surface behind it. Scaled by the
+       disc's own size, so a 3rem medallion and a 20rem hero read as the same
+       material at the same distance. */
+    box-shadow:
+        inset 0 0 0 .05rem rgba(214, 236, 255, 0.16),
+        0 calc(var(--con-planet-size) * .06) calc(var(--con-planet-size) * .16) rgba(0, 0, 0, 0.55) !important;
+    pointer-events: none;
+
+    /* THE KEY LIGHT — a soft top-left sheen riding OVER the art. */
+    &__light {
+        position: absolute;
+        inset: 0;
+        border-radius: 50%;
+        background: radial-gradient(circle at 31% 27%, rgba(220, 240, 255, 0.17), transparent 47%);
+        pointer-events: none;
     }
-    &__head {
+    /* THE TERMINATOR — the sphere's own shadow, bottom-right, painted as a
+       gradient (never a filter): a circle enlarging becomes a body with mass. */
+    &__terminator {
+        position: absolute;
+        inset: 0;
+        border-radius: 50%;
+        /* Centred on the KEY LIGHT and growing outward: the far limb darkens
+           smoothly (a lit sphere). A gradient centred on the dark side reads
+           as a blob painted onto the disc — measured on the dossier's 800 px
+           Luna, where the first cut showed a distinct dark circle. */
+        background: radial-gradient(circle at 31% 27%, transparent 48%, rgba(0, 0, 0, 0.16) 66%, rgba(0, 0, 0, 0.5) 100%);
+        pointer-events: none;
+    }
+    /* THE ATMOSPHERE RIM — one hairline of lit cyan edge, sitting just OUTSIDE
+       the limb so the sphere reads as an object in space (lit surfaces only). */
+    &__rim {
+        position: absolute;
+        inset: -.12rem;
+        border-radius: 50%;
+        box-shadow:
+            inset 0 0 0 .07rem fade(@con-cyan, 26%),
+            0 0 calc(var(--con-planet-size) * .14) fade(@con-cyan, 16%);
+        pointer-events: none;
+    }
+    &--lit {
+        box-shadow:
+            inset 0 0 0 .05rem rgba(214, 236, 255, 0.2),
+            0 0 calc(var(--con-planet-size) * .22) fade(@con-cyan, 13%),
+            0 calc(var(--con-planet-size) * .07) calc(var(--con-planet-size) * .2) rgba(0, 0, 0, 0.58) !important;
+    }
+    &--lit &__light {
+        background: radial-gradient(circle at 30% 26%, rgba(220, 240, 255, 0.22), transparent 46%);
+    }
+}
+
+/* ═══ THE COLONY DOSSIER (ConsoleColonyInspect) — X = «Осмотреть» ═══
+   ONE composition, two hosts (docs/claude/console/colony-inspect.md):
+   EMBEDDED in the colony workspace's stagewrap (the region the trade stage
+   opens in; the host draws the crumb) and STANDALONE over the journal (its
+   own band + plate + head). Three zones, the fullscreen card viewer's
+   grammar: the ARCHIVE ENTRY (left, warm ivory, no panel) · the PLANET with
+   the trade-track instrument (centre) · the RULES panel (right, cold cyan,
+   the reading face). The name lives in the crumb and nowhere in the body. */
+.con-colinspect {
+    /* EMBEDDED: the same room the focus stage takes — the whole stagewrap. */
+    position: absolute;
+    inset: 0;
+    display: flex;
+    min-width: 0;
+    min-height: 0;
+
+    /* STANDALONE (the journal door): a full workspace SCREEN in the band, on
+       the stage-surface plate, above the journal drawer it was opened from. */
+    &--standalone {
+        .con-ws-stage-band();
+        z-index: 11500;
+        flex-direction: column;
+    }
+    &--standalone &__frame {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        gap: .45rem;
+        padding: .75rem var(--con-stage-x, 1.1rem) .6rem 1.1rem;
+        .con-stage-surface();
+    }
+    &--embedded &__frame {
+        flex: 1 1 auto;
+        min-width: 0;
+        min-height: 0;
+        display: flex;
+    }
+    /* THE NARROW-HOST QUERY CONTAINER — the frame, NAMED. A container query
+       cannot restyle its own container, and an unnamed query resolves against
+       the NEAREST container: for the planet that is the hero column (a size
+       container, ≤34rem wide), so the «narrow» planet size applied on a 4K
+       band (measured: 480 px where the room allowed 850). The frame is an
+       ancestor of every rule below and is only ever as wide as the host. */
+    &__frame {
+        container: colinspect-host / inline-size;
+    }
+
+    /* ── THE SURFACE — the three-column stage. The same material and the
+       same edge as the trade stage: one system, read from the plane first.
+       A SIZE container, so the planet can be sized against the room it
+       really has (`cqh`) instead of a guess. ── */
+    &__surface {
+        position: relative;
+        flex: 1 1 auto;
+        min-width: 0;
+        min-height: 0;
+        display: grid;
+        grid-template-columns: minmax(13rem, 1fr) minmax(24rem, 34rem) minmax(18rem, 1.15fr);
+        /* ONE row that FILLS the band: `auto` sizes the row by the tallest
+           column's content (the rules panel — ~28rem) and only then stretches,
+           and a SIZE container contributes nothing — so `cqh` inside the hero
+           read the content height, not the room (measured: a 560 px disc on
+           a 4K band that had 1700 px). `minmax(0, 1fr)` is the room itself. */
+        grid-template-rows: minmax(0, 1fr);
+        grid-template-areas: 'lore hero rules';
+        column-gap: 1.2rem;
+        padding: .85rem 1.1rem .85rem 1.2rem;
+        border-radius: .6rem;
+        background:
+            radial-gradient(ellipse 46% 70% at 10% 24%, rgba(46, 84, 122, 0.26), transparent 72%),
+            radial-gradient(ellipse 70% 50% at 78% 96%, rgba(30, 56, 84, 0.20), transparent 70%),
+            rgba(10, 17, 26, 0.95);
+        box-shadow: 0 .9rem 2.6rem rgba(0, 0, 0, 0.34);
+        /* The lore column and the hero share a top line: the archive's heading
+           and the planet's upper limb are level; the rules panel takes the
+           whole height beside them. */
+        align-items: stretch;
+    }
+    /* THE EDGE — brought up after the opening, DIRECTIONAL (see the stage). */
+    &__edge {
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        pointer-events: none;
+        z-index: 4;
+        box-shadow:
+            inset 0 .06rem 0 0 fade(@con-cyan, 30%),
+            inset .05rem 0 0 0 fade(@con-cyan, 17%),
+            inset -.05rem 0 0 0 fade(@con-cyan, 10%),
+            inset 0 -.05rem 0 0 fade(@con-cyan, 6%);
+    }
+
+    /* ═══ LORE — the archive entry, in the SAME block the card viewer draws ═══
+       The block is `pointer-events: none` and panel-less by contract; here it
+       only gets a ROOM: the column's width (its own width token is the card
+       viewer's gutter) and a hugging height (its constant frame is tied to
+       the card's zoom, which does not exist here). Top-aligned so «ЗАПИСЬ ИЗ
+       АРХИВА» sits on the planet's upper third for EVERY colony. */
+    &__lore {
+        grid-area: lore;
+        align-self: start;
+        justify-self: end;
+        width: 100%;
+        min-width: 0;
+        padding-top: 1.6rem;
+
+        .card-zoom-lore {
+            width: 100%;
+            height: auto;
+        }
+    }
+
+    /* ═══ HERO — the colony as a physical object ═══ */
+    &__hero {
+        grid-area: hero;
+        container-type: size;
+        min-width: 0;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: .55rem;
+    }
+    &__planetwrap {
+        flex: 0 0 auto;
+        display: flex;
+        justify-content: center;
+        padding-top: .35rem;
+    }
+    /* THE DISC — as large as the room allows, capped where the 1024² art is
+       ~1:1 on a 4K panel (the resolution ceiling `import-planet-art.mjs`
+       documents). Half the column's height is the planet; the instrument and
+       the status line share the rest. */
+    &__planet {
+        --con-planet-size: min(22rem, 50cqh);
+    }
+    /* THE ORBITAL BERTH — the fleet's live landing anchor while the dossier is
+       up (the same data key the tile's dock and the stage's orbit carry). */
+    &__orbit {
+        position: absolute;
+        right: calc(var(--con-planet-size) * .02);
+        bottom: calc(var(--con-planet-size) * .06);
+        width: 3.1rem;
+        height: 3.1rem;
         display: flex;
         align-items: center;
-        gap: .9rem;
-        margin-bottom: .6rem;
-    }
-    &__planet {
-        width: 3.8rem;
-        height: 3.8rem;
+        justify-content: center;
         border-radius: 50%;
-        background-size: cover !important;
-        background-position: center !important;
-        box-shadow: inset 0 0 0 .05rem fade(@con-text, 25%), 0 .1rem .4rem rgba(0, 0, 0, 0.5) !important;
-        flex: 0 0 auto;
+        /* EMPTY: a whisper of a ring on the limb — a dark filled disc there read
+           as a blot on an 800 px planet. OCCUPIED: the docked ship's own plate. */
+        background: transparent;
+        box-shadow: inset 0 0 0 .05rem fade(@con-text, 14%);
+
+        .colony-fleet-icon { width: 2.3rem; height: 2.3rem; }
+        &--occupied {
+            background: rgba(8, 14, 22, 0.86);
+            box-shadow: inset 0 0 0 .08rem var(--fleet-fill, fade(@con-cyan, 60%)), 0 0 .8rem var(--fleet-glow, fade(@con-cyan, 25%)), 0 .15rem .5rem rgba(0, 0, 0, 0.5);
+        }
     }
-    &__head-text { flex: 1; min-width: 0; }
-    &__desc {
-        margin-top: .2rem;
-        font-size: .75rem;
-        color: @con-text-dim;
+    &__status {
+        flex: 0 0 auto;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: .45rem .9rem;
+        min-height: 1.4rem;
     }
     &__state {
-        padding: .2rem .7rem;
+        padding: .16rem .7rem;
         border-radius: 49.95rem;
-        font-size: .65rem;
-        font-weight: 700;
-        letter-spacing: .07rem;
-        text-transform: uppercase;
-        white-space: nowrap;
-
-        &--on {
-            color: @con-mint;
-            box-shadow: inset 0 0 0 .05rem fade(@con-mint, 50%);
-        }
-        &--off {
-            color: @con-text-dim;
-            box-shadow: inset 0 0 0 .05rem fade(@con-text, 25%);
-        }
-    }
-
-    &__main {
-        display: grid;
-        grid-template-columns: minmax(15rem, 5fr) minmax(0, 7fr);
-        gap: 1.1rem;
-        overflow-y: auto;
-        min-height: 0;
-        padding-bottom: .3rem;
-        .con-scrollbars();
-    }
-    &__section-title {
-        font-size: .675rem;
+        font-size: .64rem;
         font-weight: 700;
         letter-spacing: .1rem;
         text-transform: uppercase;
-        color: @con-cyan;
-        margin-bottom: .4rem;
-    }
 
-    /* ── The trade track — a STRICT grid table:
-       [position | quantity | reward glyph | status tag]. ───────────── */
-    &__track-table {
-        display: flex;
-        flex-direction: column;
-        gap: .2rem;
+        &--on { background: fade(@con-mint, 12%); box-shadow: inset 0 0 0 .05rem fade(@con-mint, 45%); color: @con-mint; }
+        &--off { background: rgba(120, 140, 160, 0.12); box-shadow: inset 0 0 0 .05rem rgba(160, 180, 200, 0.28); color: @con-text-dim; }
     }
-    &__track-row {
-        display: grid;
-        grid-template-columns: 1.5rem 1.7rem 2.8rem 1fr;
-        align-items: center;
-        column-gap: .5rem;
-        height: 2.1rem;
-        padding: 0 .6rem;
-        border-radius: .4rem;
-        background: rgba(255, 255, 255, 0.025);
-        box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.05);
-
-        &--marker {
-            background: fade(@con-cyan, 10%);
-            box-shadow: inset 0 0 0 .075rem fade(@con-cyan, 60%);
-        }
-        &--effective {
-            background: fade(@con-mint, 8%);
-            box-shadow: inset 0 0 0 .075rem fade(@con-mint, 50%);
-        }
-    }
-    &__track-num {
-        font-size: .75rem;
-        font-weight: 800;
-        color: @con-text-dim;
-        font-variant-numeric: tabular-nums;
-
-        .con-colinspect__track-row--marker & { color: @con-cyan; }
-        .con-colinspect__track-row--effective & { color: @con-mint; }
-    }
-    &__track-qty {
-        font-size: .85rem;
-        font-weight: 800;
-        color: @con-mint;
-        text-align: center;
-        font-variant-numeric: tabular-nums;
-    }
-    /* The reward glyph is CLAMPED inside the row: a fixed-height flex cell
-       (icons can be ~40px natural — the row is 42px) scaled down so the glyph
-       + its quantity badge never spill past the row's rounded border. */
-    &__track-glyph {
+    &__fleetline {
         display: inline-flex;
         align-items: center;
-        justify-content: flex-start;
-        height: 100%;
-        overflow: hidden;
+        gap: .4rem;
+        font-size: .7rem;
+        color: @con-text-dim;
 
-        .benefit-glyph { zoom: calc(0.78 * var(--con-ui-scale, 1)); }
-        /* The quantity is the dedicated `track-qty` column — hide the glyph's
-           own `×N` badge (no double-read + no vertical spill). */
-        .benefit-glyph__num { display: none; }
+        .colony-fleet-icon { width: 1.25rem; height: 1.25rem; }
     }
-    &__track-tag {
-        justify-self: end;
-        font-size: .55rem;
-        font-weight: 700;
-        letter-spacing: .06rem;
-        text-transform: uppercase;
-        color: @con-cyan;
-        white-space: nowrap;
-
-        &--eff { color: @con-mint; }
-        &--void { visibility: hidden; }
-    }
-    &__note {
-        margin-top: .4rem;
-        font-size: .65rem;
-        color: @con-cyan;
-
-        &--muted { color: @con-text-dim; }
+    /* THE INSTRUMENT — pinned to the column's foot: the planet above, the
+       game object below, the status line between; the composition uses the
+       height it has instead of huddling at the top. */
+    &__instrument {
+        margin-top: auto;
+        width: 100%;
+        min-width: 0;
+        padding-top: .6rem;
     }
 
-    &__info {
+    /* ═══ RULES — the reading panel (the card viewer's `.con-zoom-rules`
+       grammar: a head, groups with kind chips, the reading face). ═══ */
+    &__rules {
+        grid-area: rules;
+        align-self: stretch;
+        min-width: 0;
+        min-height: 0;
         display: flex;
         flex-direction: column;
-        gap: .7rem;
-        min-width: 0;
+        border-radius: .8rem;
+        background:
+            linear-gradient(180deg,
+                rgba(15, 24, 36, 0.97) 0%,
+                rgba(9, 15, 24, 0.965) 30%,
+                rgba(6, 11, 19, 0.96) 100%);
+        box-shadow:
+            inset 0 0 0 .05rem fade(@con-cyan, 24%),
+            inset 0 .05rem 0 rgba(214, 236, 255, 0.09),
+            0 1.1rem 2.8rem rgba(0, 0, 0, 0.55);
+        overflow: hidden;
     }
-    &__block {
-        padding: .6rem .7rem;
-        border-radius: .5rem;
-        background: rgba(255, 255, 255, 0.035);
-        box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.08);
+    &__rules-head {
+        display: flex;
+        align-items: center;
+        gap: .55rem;
+        padding: .7rem 1rem .55rem;
+        border-bottom: .05rem solid fade(@con-cyan, 20%);
+        flex-shrink: 0;
     }
-    &__benefit {
+    &__rules-mark {
+        color: fade(@con-cyan, 85%);
+        font-size: 1.1rem;
+        line-height: 1;
+    }
+    &__rules-title {
+        font-size: .7rem;
+        letter-spacing: .12rem;
+        text-transform: uppercase;
+        color: @con-text-dim;
+        font-weight: 700;
+    }
+    &__rules-scroll {
+        flex: 1;
+        min-height: 0;
+    }
+    &__rules-body {
+        display: flex;
+        flex-direction: column;
+        gap: .85rem;
+        padding: .85rem 1rem 1rem;
+    }
+    &__group {
+        display: flex;
+        flex-direction: column;
+        gap: .38rem;
+    }
+    /* The kind chip — COLOUR-CODED like the card viewer's: a build is the
+       cube's cold plate, the trade income the mint gain, the owner bonus the
+       amber of «за каждую торговлю», the fleet neutral, the availability the
+       verdict's own tone. */
+    &__kind {
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+        align-self: flex-start;
+        padding: .14rem .6rem;
+        border-radius: .35rem;
+        background: fade(@con-cyan, 12%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 30%);
+        color: fade(@con-text, 92%);
+        font-size: .6rem;
+        font-weight: 700;
+        letter-spacing: .09rem;
+        text-transform: uppercase;
+    }
+    &__group--trade &__kind {
+        background: fade(@con-mint, 12%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-mint, 50%);
+        color: #bdf3dc;
+    }
+    &__group--bonus &__kind {
+        background: fade(@con-amber, 11%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-amber, 48%);
+        color: #f2e3bb;
+    }
+    &__group--fleet &__kind {
+        background: rgba(150, 180, 210, 0.1);
+        box-shadow: inset 0 0 0 .05rem rgba(150, 180, 210, 0.3);
+        color: fade(@con-text, 86%);
+    }
+    /* A rule LINE: the printed glyph beside its sentence. */
+    &__line {
         display: flex;
         align-items: center;
         gap: .6rem;
+        min-width: 0;
+
+        &--fleet .colony-fleet-icon { flex: 0 0 auto; width: 1.4rem; height: 1.4rem; }
     }
-    &__benefit-glyph {
+    &__glyph {
         display: inline-flex;
-        zoom: calc(1.25 * var(--con-ui-scale, 1));
-        flex: 0 0 auto;
-        min-width: 2.2rem;
+        align-items: center;
         justify-content: center;
+        flex: 0 0 auto;
+        width: 32px; /* keep-px: the glyph's own sprite box, scaled by zoom */
+        height: 32px; /* keep-px */
+        overflow: hidden;
+        zoom: calc(1.1 * var(--con-ui-scale, 1));
+        .benefit-glyph__num { display: none; }
     }
-    &__benefit-desc {
-        font-size: .7rem;
-        color: @con-text;
+    &__text {
+        .con-read-text(450);
+        margin: 0;
+        min-width: 0;
+        font-size: calc(var(--con-t-read-sm, .82rem) * var(--con-read-scale, 1));
+        line-height: var(--con-read-lh, 1.45);
+        color: fade(@con-text, 96%);
+
+        &--muted { color: @con-text-dim; }
     }
-    &__slots {
+    /* Under a rule: the seats / the free count. */
+    &__meta {
         display: flex;
         align-items: center;
-        gap: .4rem;
-        margin-top: .5rem;
+        gap: .5rem;
+        min-width: 0;
     }
-    &__slot {
-        position: relative;
+    &__seats { display: inline-flex; gap: .22rem; }
+    &__seat {
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        width: 1.5rem;
-        height: 1.3rem;
-        border-radius: .3rem;
+        width: 1.15rem;
+        height: 1.05rem;
+        border-radius: .25rem;
         background: rgba(255, 255, 255, 0.05);
         box-shadow: inset 0 0 0 .05rem fade(@con-text, 18%);
 
-        &--taken { box-shadow: inset 0 0 0 .075rem fade(@con-cyan, 50%); }
-        /* The seated settlement marker — the same premium 3D PlayerCube token
-           as the colonies grid (px content → the ui-scale zoom channel). */
+        &--taken { box-shadow: inset 0 0 0 .07rem fade(@con-cyan, 50%); }
         .player-cube { zoom: var(--con-ui-scale, 1); }
     }
-    &__slots-label {
-        margin-left: .3rem;
-        font-size: .65rem;
+    &__meta-text {
+        font-size: .64rem;
         font-weight: 700;
+        letter-spacing: .03rem;
         color: @con-text-dim;
         font-variant-numeric: tabular-nums;
     }
+    /* «СЕЙЧАС +4 [icon] · трек 3/7» — what a trade reads right now. */
+    &__now {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: .3rem .55rem;
+        min-width: 0;
+        padding: .3rem .55rem;
+        border-radius: .4rem;
+        background: fade(@con-mint, 7%);
+        box-shadow: inset .07rem 0 0 0 fade(@con-mint, 45%);
+    }
+    &__now-label {
+        font-size: .58rem;
+        font-weight: 800;
+        letter-spacing: .1rem;
+        text-transform: uppercase;
+        color: fade(@con-mint, 85%);
+    }
+    &__now-value {
+        display: inline-flex;
+        align-items: center;
+        gap: .3rem;
+
+        b { font-size: 1.05rem; font-weight: 800; color: @con-mint; font-variant-numeric: tabular-nums; line-height: 1; }
+    }
+    &__now-glyph {
+        display: inline-flex;
+        zoom: calc(.9 * var(--con-ui-scale, 1));
+        .benefit-glyph__num { display: none; }
+    }
+    &__now-pos {
+        margin-left: auto;
+        font-size: .62rem;
+        font-weight: 700;
+        color: @con-text-dim;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+    }
+    &__note {
+        margin: 0;
+        font-size: .64rem;
+        line-height: 1.3;
+        color: @con-text-dim;
+
+        &--gain { color: fade(@con-mint, 85%); b { color: @con-mint; font-variant-numeric: tabular-nums; } }
+        &--rule {
+            .con-read-text(450);
+            padding-top: .5rem;
+            border-top: .05rem solid rgba(120, 155, 190, 0.12);
+        }
+    }
+    /* The recipients: dot · name · ×n · the total they take per trade. */
     &__owner {
         display: flex;
         align-items: center;
         gap: .4rem;
-        margin-top: .4rem;
-        font-size: .7rem;
+        min-width: 0;
+        font-size: .74rem;
     }
-    &__owner-mult {
-        color: @con-text-dim;
-        font-weight: 700;
-    }
-    &__fleet-line {
-        display: flex;
-        align-items: center;
-        gap: .5rem;
-        margin-bottom: .4rem;
-        font-size: .7rem;
+    &__owner-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
+    &__owner-mult { font-style: normal; color: @con-text-dim; font-weight: 700; font-variant-numeric: tabular-nums; }
+    &__owner-total { margin-left: auto; color: @con-mint; font-weight: 800; font-variant-numeric: tabular-nums; }
+    &__muted { margin: 0; font-size: .68rem; font-weight: 600; color: @con-text-dim; }
 
-        &--muted { color: @con-text-dim; font-size: .65rem; }
-    }
+    /* The verdict — the availability's own tone (never colour alone). */
     &__verdict {
         display: flex;
         align-items: center;
-        gap: .4rem;
-        font-size: .725rem;
+        gap: .45rem;
+        padding: .4rem .6rem;
+        border-radius: .45rem;
+        font-size: .74rem;
         font-weight: 700;
 
-        &--ok { color: @con-mint; }
-        &--no { color: #ffc9c4; }
+        &--ok { background: fade(@con-mint, 10%); box-shadow: inset 0 0 0 .05rem fade(@con-mint, 40%); color: @con-mint; }
+        &--no { background: fade(@con-red, 10%); box-shadow: inset 0 0 0 .05rem fade(@con-red, 40%); color: #ffb0a6; }
+        &--notnow { background: fade(@con-amber, 10%); box-shadow: inset 0 0 0 .05rem fade(@con-amber, 45%); color: #ffe6b0; }
     }
-
-    /* Payment paths — the same strict table treatment as the track. */
+    &__verdict-dot {
+        flex: 0 0 auto;
+        width: .45rem;
+        height: .45rem;
+        border-radius: 50%;
+        background: @con-mint;
+        box-shadow: 0 0 .4rem fade(@con-mint, 70%);
+    }
+    /* Payment paths — every one, affordable and not (a strict table). */
     &__paytable {
         display: flex;
         flex-direction: column;
         gap: .2rem;
-        margin-top: .5rem;
     }
     &__payrow {
         display: grid;
@@ -20896,10 +21142,10 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         border-radius: .35rem;
         background: rgba(255, 255, 255, 0.03);
         box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.06);
-        font-size: .675rem;
+        font-size: .68rem;
 
         &--off {
-            opacity: 0.62;
+            opacity: .72;
             .con-colinspect__payrow-title { color: @con-text-dim; }
         }
     }
@@ -20911,33 +21157,19 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         background-repeat: no-repeat;
         background-position: center;
     }
-    &__payrow-title {
-        min-width: 0;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
-    &__payrow-delta {
-        font-weight: 800;
-        color: @con-mint;
-        font-variant-numeric: tabular-nums;
-        white-space: nowrap;
-    }
-    &__payrow-reason {
-        font-size: .6rem;
-        color: #ffc9c4;
-        white-space: nowrap;
-    }
-
+    &__payrow-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
+    &__payrow-delta { font-weight: 800; color: @con-mint; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    &__payrow-reason { font-size: .6rem; color: @con-amber; white-space: nowrap; }
+    /* Where a card resource lands — the server preview's truth. */
     &__target {
         display: flex;
         align-items: center;
         flex-wrap: wrap;
         gap: .4rem;
-        margin-top: .4rem;
+        min-width: 0;
     }
     &__target-role {
-        font-size: .575rem;
+        font-size: .58rem;
         font-weight: 700;
         letter-spacing: .06rem;
         text-transform: uppercase;
@@ -20961,24 +21193,38 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 30%);
         font-size: .65rem;
 
-        b {
-            color: @con-mint;
-            font-variant-numeric: tabular-nums;
-        }
+        b { color: @con-mint; font-variant-numeric: tabular-nums; }
     }
-    &__target-auto {
-        font-size: .65rem;
-        color: @con-text-dim;
-    }
+    &__target-auto { font-size: .65rem; color: @con-text-dim; }
     &__lost {
         display: flex;
         align-items: center;
         gap: .4rem;
-        margin-top: .4rem;
         font-size: .65rem;
         color: @con-amber;
 
         span[aria-hidden] { font-weight: 800; }
+    }
+
+    /* ── NARROW HOST (an embedded pick zone on the Deck, a short band): the
+       archive entry drops UNDER the hero column, the rules keep their side.
+       The lore is flavour — it yields room before the instrument does. ── */
+    /* ── NARROW HOST (the Deck, an embedded pick zone): the HERO keeps the
+       whole height (the instrument alone needs ~13rem of it, so a lore row
+       under the hero left the planet 80 px and the archive entry painting
+       over the berths — measured at 1280×800); the archive entry moves UNDER
+       THE RULES, which scroll by design and can spare the rows. ── */
+    @container colinspect-host (max-width: 60rem) {
+        &__surface {
+            grid-template-columns: minmax(0, 1.3fr) minmax(16rem, 1fr);
+            grid-template-rows: minmax(0, 1fr) auto;
+            grid-template-areas:
+                'hero rules'
+                'hero lore';
+            row-gap: .5rem;
+        }
+        &__lore { padding-top: 0; }
+        &__planet { --con-planet-size: min(12rem, 36cqh); }
     }
 }
 
@@ -34911,14 +35157,16 @@ html.con-profile-handheld {
         &__cell { height: 1.9rem; padding: .2rem .45rem; }
         &__status { padding-top: .3rem; font-size: .625rem; }
     }
+    /* The COLONY DOSSIER on the handheld: the planet is sized by the room
+       (`cqh`, the narrow-host query lays the archive entry under the hero)
+       — only the type steps down. (The former fixed-width frame + 3.1rem
+       medallion belonged to the old table dossier and silently shrank the
+       disc to 62 px on the Deck.) */
     .con-colinspect {
-        &__frame { width: min(54rem, 96vw); }
-        &__planet { width: 3.1rem; height: 3.1rem; }
-        &__desc { font-size: .675rem; }
-        &__main { gap: .8rem; }
-        &__track-row { height: 1.9rem; }
-        &__benefit-desc { font-size: .65rem; }
-        &__block { padding: .5rem .6rem; }
+        &__rules-body { gap: .6rem; padding: .6rem .7rem .7rem; }
+        &__text { font-size: calc(.78rem * var(--con-read-scale, 1)); }
+        &__owner { font-size: .68rem; }
+        &__payrow { min-height: 1.5rem; font-size: .62rem; }
     }
     .con-trade {
         &__frame { width: min(50.5rem, 96vw); }

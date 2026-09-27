@@ -155,10 +155,36 @@ export function armColonyFocusQuickExit(): void {
   quickExitArmed = true;
 }
 
+/**
+ * ONE-SHOT: the next focus ENTER is a HAND-OFF from the DOSSIER to the ACTION
+ * stage of the same colony (A on «Осмотреть»). Two things differ from a
+ * fresh descent from the grid, and both are about ONE object on screen:
+ *  · the LEAVING surface (the dossier) lets go with a short quiet recession —
+ *    no fold into the tile, no grid breathing back, no planet flying home:
+ *    the planet is about to be carried INTO the stage, so its browse twin
+ *    stays dark and the browse layer stays parked;
+ *  · the ENTERING surface (the stage) unfolds from the dossier's rect and
+ *    FLIPs the planet / track / berths from the dossier's live rects (armed
+ *    by the section), while the fold HOME stays the TILE's rect — B from the
+ *    stage still folds into the tile the whole flow opened from.
+ */
+let handoffEnterArmed = false;
+let handoffLeaveArmed = false;
+
+export function armColonyFocusHandoff(): void {
+  // Two latches, one per hook: the dossier's leave and the stage's enter fire
+  // in the same tick in an order Vue does not promise, so each consumes its
+  // own instead of racing for one flag.
+  handoffEnterArmed = true;
+  handoffLeaveArmed = true;
+}
+
 /** Game-switch / unmount boundary. */
 export function resetColonyFocusMotion(): void {
   unfoldedFrom = undefined;
   quickExitArmed = false;
+  handoffEnterArmed = false;
+  handoffLeaveArmed = false;
 }
 
 // ── element resolution ──────────────────────────────────────────────────────
@@ -213,11 +239,11 @@ function heroPlanetOf(el: Element): HTMLElement | null {
  *  into a SPHERE APPROACHING: the key light drifts a touch against the body
  *  (parallax) and the lit rim only exists once there is a sphere to rim. */
 function planetLightOf(el: Element): HTMLElement | null {
-  return heroPlanetOf(el)?.querySelector<HTMLElement>('.con-colfocus__planet-light') ?? null;
+  return heroPlanetOf(el)?.querySelector<HTMLElement>('.con-planet__light') ?? null;
 }
 
 function planetRimOf(el: Element): HTMLElement | null {
-  return heroPlanetOf(el)?.querySelector<HTMLElement>('.con-colfocus__planet-rim') ?? null;
+  return heroPlanetOf(el)?.querySelector<HTMLElement>('.con-planet__rim') ?? null;
 }
 
 function heroTrackOf(el: Element): HTMLElement | null {
@@ -276,9 +302,16 @@ export function colonyFocusEnterHook(el: Element, done: () => void): void {
   const tilePlanet = tilePlanetOf(el);
 
   const tile = tileOf(el);
+  // A HAND-OFF (dossier → stage) unfolds from the DOSSIER's rect (armed by the
+  // section) but keeps the TILE as the fold home; a fresh descent takes both
+  // from the tile.
+  const handoff = handoffEnterArmed;
+  handoffEnterArmed = false;
   const tileRect = takeDescendRect(TILE_KEY) ?? descendRectOf(tile);
-  const tileRadius = descendRadiusOf(tile);
-  unfoldedFrom = tileRect === undefined ? undefined : {rect: tileRect, radius: tileRadius};
+  const tileRadius = handoff ? undefined : descendRadiusOf(tile);
+  if (!handoff || unfoldedFrom === undefined) {
+    unfoldedFrom = tileRect === undefined ? undefined : {rect: tileRect, radius: tileRadius};
+  }
 
   if (consoleReducedMotionActive()) {
     guardedDescend(el, 160, done, (finish) => {
@@ -327,25 +360,29 @@ export function colonyFocusEnterHook(el: Element, done: () => void): void {
     //    not a screen-wide dim: a full-surface fade before a descent is a
     //    modal's backdrop, and it is what makes the next beat read as "another
     //    screen arriving" instead of "this object opening".
-    if (tile !== null) {
+    if (tile !== null && !handoff) {
       tl.fromTo(tile,
         {scale: 1, transformOrigin: '50% 50%'},
         {scale: 1.022, duration: s(COMMIT_MS), ease: 'power2.out'}, 0);
     }
-    const neighbours = neighbourTilesOf(el);
+    const neighbours = handoff ? [] : neighbourTilesOf(el);
     if (neighbours.length > 0) {
       tl.to(neighbours, {opacity: 0.42, duration: s(NEIGHBOUR_DIM_MS), ease: 'power1.out'}, 0);
     }
     // 1. RELEASE — the pressed tile's own content dissolves where it stands,
-    //    ON the lift, so the two are one gesture rather than two.
-    descendRelease(tl, content, s(RELEASE_MS), s(50));
+    //    ON the lift, so the two are one gesture rather than two. (On a
+    //    hand-off the tile was released by the dossier's own entrance and the
+    //    grid is parked — nothing of it is on screen to release or recede.)
+    if (!handoff) {
+      descendRelease(tl, content, s(RELEASE_MS), s(50));
+    }
     // 2. The grid RECEDES INTO the press point. The tile's planet goes dark
     //    INSTANTLY: the flying hero planet IS that planet now (one physical
     //    object, never a double image).
     if (tilePlanet !== null) {
       gsap.set(tilePlanet, {opacity: 0});
     }
-    if (browse !== null) {
+    if (browse !== null && !handoff) {
       descendRecede(tl, browse, pressPoint, s(BROWSE_OUT_MS), s(COMMIT_MS - 40));
     }
     // 3. UNFOLD — the stage surface opens FROM the tile's rect; the carried
@@ -669,6 +706,11 @@ export function colonyFocusLeaveHook(el: Element, done: () => void): void {
   unfoldedFrom = undefined;
   const quick = quickExitArmed;
   quickExitArmed = false;
+  // The dossier leaving INTO the stage (A on «Осмотреть»): the enter of the
+  // stage is armed as a hand-off, and this leave must neither restore the
+  // browse layer nor fly the planet home — the stage is carrying it.
+  const handingOff = handoffLeaveArmed;
+  handoffLeaveArmed = false;
 
   // The tile's content comes back with the layer (it was released, not moved)
   // — restoring it now is invisible: the grid is still receded.
@@ -676,6 +718,25 @@ export function colonyFocusLeaveHook(el: Element, done: () => void): void {
     gsap.set(content, {clearProps: 'transform,opacity,visibility'});
   }
 
+  // THE HAND-OFF EXIT — the dossier steps back under the stage that takes its
+  // place: a short recession, the browse layer stays parked, the tile's
+  // planet stays dark (`unfoldedFrom` — the fold home — is kept for the
+  // stage's own B). Restoring the browse here would flash the grid between
+  // two surfaces that both stand over it.
+  if (handingOff) {
+    unfoldedFrom = home;
+    guardedDescend(el, 240, done, (finish) => {
+      return gsap.to(el, {
+        autoAlpha: 0,
+        scale: 0.992,
+        transformOrigin: '50% 50%',
+        duration: s(170),
+        ease: 'power2.in',
+        onComplete: finish,
+      });
+    });
+    return;
+  }
   if (consoleReducedMotionActive()) {
     guardedDescend(el, 140, done, (finish) => {
       restoreBrowse(el);

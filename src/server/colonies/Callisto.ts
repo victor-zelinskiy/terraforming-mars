@@ -7,6 +7,9 @@ export class Callisto extends Colony {
   constructor() {
     super({
       name: ColonyName.CALLISTO,
+      // The tile's printed flavour line (the physical colony tile, under the
+      // name) — the console dossier's archive entry. English IS the i18n key.
+      lore: 'Close to Mercury in size, this Jupiter moon consists of 40% ice and 60% rock.',
       build: {
         description: 'Gain 1 energy production',
         type: ColonyBenefit.GAIN_PRODUCTION,

@@ -261,6 +261,7 @@
                                 @trade-confirm="onColonyTradeComposerConfirm($event)"
                                 @build-confirm="onColonyBuildConfirm($event)"
                                 @flow-complete="onColonyFlowComplete"
+                                @inspect-enter="onColonyInspectEnter()"
                              @pick-confirm="onColonyPickConfirm()" />
         </Teleport>
       </transition>
@@ -459,13 +460,15 @@
                 @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
                 @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
       <ConsoleColonyInspect v-if="colonyInspectModel !== undefined"
+                            ref="journalInspect"
                             :colony="colonyInspectModel"
                             :players="playerView.players"
                             :viewerColor="thisPlayer.color"
                             :playerId="playerView.id"
                             :tradeOffset="thisPlayer.colonyTradeOffset ?? 0"
+                            hostRoot="Journal"
                             :readonly="true"
-                            :tradeable="false" />
+                            @cancel="closeColonyInspect()" />
     </transition>
 
     <!-- «Разыграно» (X from the board home) — the console-native played-cards
@@ -6617,6 +6620,21 @@ export default defineComponent({
     colonyFocusOpen(): boolean {
       return workspaceFrameMounted('colonies') && this.colonyFocus.open;
     },
+    /**
+     * THE ACT BEHIND THE DOSSIER'S A (X = «Осмотреть»): the same derivation
+     * the grid's A makes — a server SelectColony pick outranks the trade —
+     * with its DISPLAY verb and whether the server offers it for the
+     * inspected colony. The bar reads it; `onColonyInspectEnter` acts on it.
+     */
+    colonyInspectAct(): {intent: ColonyFocusIntent, label: string, available: boolean} {
+      const name = this.colonyFocus.colonyName;
+      const pick = this.colonyPick;
+      if (pick !== undefined) {
+        const intent: ColonyFocusIntent = pick.buttonLabel === 'Build' ? 'build' : 'pick';
+        return {intent, label: pick.labelKey, available: name !== '' && pick.selectable.includes(name)};
+      }
+      return {intent: 'trade', label: 'Trade', available: name !== '' && this.tradeableColonyNames.includes(name)};
+    },
     /** The descended-into colony is live-tradeable (the stage's CTA verbs). */
     colonyFocusTradeable(): boolean {
       return this.colonyFocus.colonyName !== '' && this.colonyPick === undefined &&
@@ -8241,6 +8259,18 @@ export default defineComponent({
           ];
         }
         const intent = this.colonyFocus.intent;
+        if (intent === 'inspect') {
+          // THE DOSSIER: A ENTERS the act the grid's A would have opened —
+          // labelled with the act's own verb, enabled only when the server
+          // offers it (the reason stands in the dossier's ДОСТУПНОСТЬ group —
+          // a blocked act is shown disabled, never hidden); B folds back to
+          // the grid. Nothing on the dossier submits.
+          const act = this.colonyInspectAct;
+          return [
+            {control: 'confirm', label: act.label, enabled: act.available, highlight: act.available},
+            {control: 'back', label: 'Back'},
+          ];
+        }
         if (intent === 'build') {
           // A BUILD THAT COMPOSES speaks the trade's grammar: its placement
           // bonus needs a card, so A opens that decision and X commits. With
@@ -8593,9 +8623,13 @@ export default defineComponent({
             // availability and its blocked reason on screen — so the label
             // names the press, not a destination it cannot promise
             // («К строительству» over a colony that refuses the build read as
-            // a commitment). There is no separate «Осмотреть» either: the
-            // stage the overview opens IS the dossier.
+            // a commitment). «Осмотреть» (X) is a DIFFERENT verb: it opens the
+            // read-only dossier, never the act.
             {control: 'confirm', label: 'Select'},
+            // X = «Осмотреть» — the DOSSIER (ConsoleColonyInspect): a read of
+            // the colony, for ANY colony, whether or not the pick accepts it.
+            // It is not a second name for A: A enters the act, X reads.
+            {control: 'secondary', label: 'Inspect'},
             // The pick is OWED BY A CARD → the console-wide source verb.
             ...(this.colonyEmbedSourceCard !== undefined ?
               [{control: 'stickL' as GlyphControl, label: 'Inspect the source'}] : []),
@@ -8607,6 +8641,9 @@ export default defineComponent({
           // verb, one destination, and the stage owns both the action and the
           // reason it may be impossible.
           {control: 'confirm', label: 'Select'},
+          // X = «Осмотреть» — the dossier, read-only, for any colony (a
+          // blocked trade is a reason on the dossier, never a hidden verb).
+          {control: 'secondary', label: 'Inspect'},
           ...(this.colonyEmbedSourceCard !== undefined ?
             [{control: 'stickL' as GlyphControl, label: 'Inspect the source'}] : []),
           // B: «свернуть» is right for a step a COMMITTED host owns — the
@@ -13612,11 +13649,15 @@ export default defineComponent({
         // HOME (the main field context only — never mid-placement, never
         // inside an inspection mode) X opens the «Разыграно» tableau.
         //
-        // THE COLONIES OVERVIEW HAS NO X. Both verbs led to the same place —
-        // the focused colony's stage — so «Осмотреть» was a second name for
-        // «Выбрать», and the bar advertised a choice that did not exist. One
-        // press, one destination; the stage is the dossier AND the action.
-        if (this.consoleState.section === 'hand') {
+        // THE COLONIES OVERVIEW: X opens the DOSSIER (ConsoleColonyInspect —
+        // the archive entry, the planet with the trade-track instrument, the
+        // rules), read-only and for ANY colony; A enters the act. The two
+        // verbs lead to two different surfaces now, so the bar's choice is
+        // real (an earlier iteration had dropped X because both led to the
+        // same stage).
+        if (this.consoleState.section === 'colonies') {
+          this.enterColonyFocus('inspect');
+        } else if (this.consoleState.section === 'hand') {
           this.zoomHandCard();
         } else if (onBoard && !this.placementActive &&
             !this.consoleState.inspecting && !this.consoleState.scaleInspecting) {
@@ -15323,6 +15364,24 @@ export default defineComponent({
       }
       return kinds;
     },
+    /**
+     * A ON THE DOSSIER — enter the act. The section performs the HAND-OFF (the
+     * stage takes the dossier's place with the planet, the track and the
+     * berths carried over); the shell only decides WHICH act, from the same
+     * server truth the grid's A reads, and refuses while a transaction owns
+     * the moment.
+     */
+    onColonyInspectEnter(): void {
+      const act = this.colonyInspectAct;
+      if (!act.available || !this.colonyFocus.open || this.colonyFocus.intent !== 'inspect') {
+        return;
+      }
+      if (isTradeFleetActive() || colonyTradeState.active || isColonyBuildActive()) {
+        return;
+      }
+      const section = this.$refs.coloniesSection as InstanceType<typeof ConsoleColoniesSection> | undefined;
+      section?.enterFocusFromInspect(act.intent);
+    },
     enterColonyFocus(intent: ColonyFocusIntent): void {
       if (this.coloniesForRail.length === 0 || this.colonyFocus.open) {
         return;
@@ -15572,23 +15631,17 @@ export default defineComponent({
       this.journalColonyInspect = undefined;
       consoleColoniesUi.inspectOpen = false;
     },
-    /** The JOURNAL dossier owns the pad while open: ↑/↓ scroll, B/X close.
-     *  (Pinned to its one colony — no paging, no trade bridge.) */
+    /** The JOURNAL dossier owns the pad while open: the dossier itself
+     *  scrolls its rules panel (↑/↓) and emits `cancel` on B; X — the verb
+     *  that opened it — closes it too. (Pinned to its one colony — no paging,
+     *  no trade bridge: history is read-only.) */
     handleColonyInspectIntent(intent: GamepadIntent): void {
-      if (intent.kind === 'nav') {
-        if (intent.dir === 'up' || intent.dir === 'down') {
-          const scroller = document.querySelector<HTMLElement>('.con-colinspect .con-colinspect__main');
-          scroller?.scrollBy({top: intent.dir === 'down' ? 140 : -140, behavior: 'smooth'});
-        }
-        return;
-      }
-      if (intent.kind !== 'press') {
-        return;
-      }
-      const a = consoleActionOf(intent);
-      if (a === 'back' || a === 'inspect') {
+      if (intent.kind === 'press' && consoleActionOf(intent) === 'inspect') {
         this.closeColonyInspect();
+        return;
       }
+      const dossier = this.$refs.journalInspect as InstanceType<typeof ConsoleColonyInspect> | undefined;
+      dossier?.handleIntent(intent);
     },
     /**
      * The FOCUS STAGE's ONE confirm: the trade and-response + every

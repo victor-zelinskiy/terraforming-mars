@@ -7,6 +7,9 @@ export class Ceres extends Colony {
   constructor() {
     super({
       name: ColonyName.CERES,
+      // The tile's printed flavour line (the physical colony tile, under the
+      // name) — the console dossier's archive entry. English IS the i18n key.
+      lore: 'This dwarf planet, composed of rock and ice, is estimated to compose 30% of the entire asteroid belt mass.',
       build: {
         description: 'Gain 1 steel production',
         type: ColonyBenefit.GAIN_PRODUCTION,

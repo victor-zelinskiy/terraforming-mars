@@ -7,6 +7,9 @@ export class Luna extends Colony {
   constructor() {
     super({
       name: ColonyName.LUNA,
+      // The tile's printed flavour line (the physical colony tile, under the
+      // name) — the console dossier's archive entry. English IS the i18n key.
+      lore: 'Our own moon is the natural gate between the riches of Earth and the solar system beyond.',
       build: {
         description: 'Gain 2 M€ production',
         type: ColonyBenefit.GAIN_PRODUCTION,

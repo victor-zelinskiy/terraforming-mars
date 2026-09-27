@@ -237,6 +237,22 @@ export function setColonyFocusStage(stage: string): void {
   }
 }
 
+/**
+ * A from the DOSSIER (`intent === 'inspect'`): the same colony, the ACT
+ * intent — the trade / build / pick stage takes the dossier's place with the
+ * planet, the track and the berths carried over (the section arms the
+ * hand-off rects and the motion module plays it). A read that turns into an
+ * act is one continuous object, never a fold-and-reopen; and it is a SWITCH,
+ * not a new descent: the stage stays open, only the verb changes.
+ */
+export function switchColonyFocusIntent(intent: ColonyFocusIntent): void {
+  if (!colonyFocusState.open || colonyFocusState.intent === intent) {
+    return;
+  }
+  colonyFocusState.intent = intent;
+  colonyFocusState.committing = false;
+}
+
 /** Leave the stage — back at the browse surface (B, or the confirm fold). */
 export function closeColonyFocus(): void {
   colonyFocusState.open = false;

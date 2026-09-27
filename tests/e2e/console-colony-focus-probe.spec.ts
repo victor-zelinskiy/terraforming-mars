@@ -296,11 +296,10 @@ test('colony focus: inspect composition + build cube docking', async ({page, req
   await openColonies(page);
   await focusTile(page, 'Luna');
 
-  // ── THE DOSSIER — the ONE stage (A descends; it is the dossier AND the
-  //    action). THE COLONIES OVERVIEW HAS NO X any more: «Осмотреть» and
-  //    «Выбрать» led to the same place, so the bar advertised a choice that
-  //    did not exist (ConsoleShell.handleSectionIntent, case 'inspect') —
-  //    a spec pressing KeyX here probes a door the product removed.
+  // ── THE STAGE in its inspect MODE — A on a colony the server does not
+  //    offer a trade for descends into the action stage, which then carries
+  //    the honest verdict. (X is a DIFFERENT door since 2026-09-27: the
+  //    read-only DOSSIER — `console-colony-inspect-probe.spec.ts` drives it.)
   await armSampler(page, 2200);
   await page.keyboard.press('Enter');
   await page.waitForTimeout(2400);
@@ -394,7 +393,7 @@ test('colony focus: inspect composition + build cube docking', async ({page, req
   // ── THE PROTECTION, after the fact: re-enter the colony we just built on
   //    and read the guard rail. This is the physical statement the iteration
   //    is judged on — position 1 is HELD and the stop has moved to 2.
-  //    A descends into the ONE stage (the overview has no X — see above). ──
+  //    A descends into the action stage (X would open the dossier). ──
   await openColonies(page);
   await focusTile(page, 'Luna');
   await press(page, 'Enter', 2400);

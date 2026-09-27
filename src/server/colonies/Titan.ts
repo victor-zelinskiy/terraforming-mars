@@ -8,6 +8,9 @@ export class Titan extends Colony {
   constructor() {
     super({
       name: ColonyName.TITAN,
+      // The tile's printed flavour line (the physical colony tile, under the
+      // name) — the console dossier's archive entry. English IS the i18n key.
+      lore: 'The largest moon of Saturn has a dense atmosphere and liquid oceans of methane.',
       cardResource: CardResource.FLOATER,
       build: {
         description: 'Add 3 floaters to ANY card',

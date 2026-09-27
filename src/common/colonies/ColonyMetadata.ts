@@ -19,6 +19,16 @@ export type ColonyMetadata = Readonly<{
   trade: Benefit<Array<number>, OneOrArray<Resource>>, // Default is [1,1,1,1,1,1,1]
   colony: Benefit<number, Resource>, // Default is 1
   cardResource?: CardResource,
+  /**
+   * The tile's printed flavour line — the sentence under the name on the
+   * physical colony tile («Our own moon is the natural gate…»). The console
+   * dossier's archive entry (`src/client/colonies/colonyLore.ts`). English IS
+   * the i18n key; the Russian lives in `src/locales/<lang>/lore_texts.json`.
+   * Co-located with the colony (never a central table) so an upstream change
+   * to the colony lands in the same diff. Optional: a colony without one
+   * renders the honest «no archive entry» fallback.
+   */
+  lore?: string,
   expansion: Expansion | undefined,
 
   /**
@@ -51,6 +61,7 @@ export type InputColonyMetadata = {
   trade: InputBenefit<ColonyMetadata['trade']>,
   colony: InputBenefit<ColonyMetadata['colony']>,
   cardResource?: CardResource,
+  lore?: string,
   expansion?: Expansion,
 } & Partial<{
   shouldIncreaseTrack: ColonyMetadata['shouldIncreaseTrack'],

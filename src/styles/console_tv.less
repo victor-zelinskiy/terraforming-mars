@@ -995,11 +995,29 @@ html.con-profile-tv {
         &__rail-name { font-size: var(--con-t-body); }
         &__rail-reason { font-size: var(--con-t-secondary); }
     }
+    /* The COLONY DOSSIER (X = «Осмотреть») — couch typography; the geometry
+       is rem (the planet is sized against the room by `cqh`) and scales
+       with the profile, so only the type and the chips move. */
     .con-colinspect {
-        &__frame { width: min(62rem, 94vw); }
-        &__name { font-size: 1.6rem; }
-        &__row { font-size: var(--con-t-secondary); }
-        &__fleet-line .colony-fleet-icon { width: 1.9rem; height: 1.9rem; }
+        &__rules-title { font-size: var(--con-t-caption); }
+        &__rules-mark { font-size: var(--con-t-section); }
+        &__kind { font-size: var(--con-t-floor); }
+        &__state { font-size: var(--con-t-floor); }
+        &__fleetline { font-size: var(--con-t-caption); }
+        &__fleetline .colony-fleet-icon { width: 1.7rem; height: 1.7rem; }
+        &__meta-text { font-size: var(--con-t-floor); }
+        &__now-label { font-size: var(--con-t-floor); }
+        &__now-pos { font-size: var(--con-t-floor); }
+        &__note { font-size: var(--con-t-floor); }
+        &__owner { font-size: var(--con-t-secondary); }
+        &__muted { font-size: var(--con-t-caption); }
+        &__verdict { font-size: var(--con-t-secondary); }
+        &__payrow { min-height: var(--con-hit-min); font-size: var(--con-t-caption); }
+        &__payrow-reason { font-size: var(--con-t-floor); }
+        &__target-role { font-size: var(--con-t-floor); }
+        &__target-card, &__target-auto, &__lost { font-size: var(--con-t-caption); }
+        &__orbit { width: 3.6rem; height: 3.6rem; }
+        &__orbit .colony-fleet-icon { width: 2.7rem; height: 2.7rem; }
     }
     /* The COLONY FOCUS STAGE (iteration 3) — couch typography; the geometry
        is rem and scales with the profile, only the type + hit targets move. */
@@ -1008,7 +1026,7 @@ html.con-profile-tv {
            of the trade scene — real physical presence, the payment/result
            surfaces stay supporting instruments. */
         &__hero { flex-basis: 16.5rem; }
-        &__planet { width: 13.6rem; height: 13.6rem; }
+        &__planet { --con-planet-size: 13.6rem; }
         &__xtrack { height: 7.4rem; min-height: 6.2rem; }
         &__berths { height: 6.3rem; min-height: 5.2rem; }
         &__desc { font-size: var(--con-t-caption); -webkit-line-clamp: 5; }

@@ -2,7 +2,10 @@
 
 `ConsoleColonyFocusStage.vue` + `consoleColonyFocusMotion.ts` + the
 `.con-colfocus` block in `console.less`. The workspace's DEEPER state for ONE
-colony, reached from the tile grid by A (act) or X (inspect). The crumb above
+colony, reached from the tile grid by A (act). *(Since 2026-09-27 X opens the
+read-only DOSSIER instead — `colony-inspect.md`; A on the dossier HANDS OFF
+into this stage with the planet / track / berths carried, and the stage's
+`inspect` mode is what a blocked act still presents.)* The crumb above
 already says «КОЛОНИИ › <колония> › <ЭТАП>», so the stage never titles itself.
 
 This document is the contract for the iteration-3 rework. What it replaced —
@@ -483,6 +486,8 @@ One scene, genuinely different priorities:
 | Concern | File |
 | --- | --- |
 | Markup + state | `src/client/components/console/ConsoleColonyFocusStage.vue` |
+| The TRADE-TRACK INSTRUMENT (track · marker rail · stop · berths · owner-bonus lane) — **shared with the dossier** (2026-09-27, `docs/claude/console/colony-inspect.md`); the stage passes what it PRESENTS (`markerPosition` / `effectivePosition`) and its beats (`latchCell` / `settledCell` / `buildPreview`) | `src/client/components/console/ConsoleColonyTrackInstrument.vue` |
+| The PLANET DISC (art as a cover disc + the light) — shared with the tile and the dossier; the stage owns only `--con-planet-size` and the orbital berth | `src/client/components/console/ConsolePlanetDisc.vue`, `.con-planet` in `console.less` |
 | Entrance / fold choreography | `src/client/console/consoleColonyFocusMotion.ts` |
 | Styles | `src/styles/console.less` (`.con-colfocus`), `console_tv.less` |
 | The reset rule (pure) | `src/client/components/colonies/colonyTradePlan.ts` |

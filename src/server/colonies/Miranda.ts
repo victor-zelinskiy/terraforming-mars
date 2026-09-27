@@ -8,6 +8,9 @@ export class Miranda extends Colony {
   constructor() {
     super({
       name: ColonyName.MIRANDA,
+      // The tile's printed flavour line (the physical colony tile, under the
+      // name) — the console dossier's archive entry. English IS the i18n key.
+      lore: 'This mysterious moon of Uranus features some of the strangest landscapes in the solar system, including the largest vertical drop known to man.',
       cardResource: CardResource.ANIMAL,
 
       build: {

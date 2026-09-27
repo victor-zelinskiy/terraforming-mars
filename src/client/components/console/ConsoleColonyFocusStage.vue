@@ -100,11 +100,11 @@
                them. (Resource rewards still leave their own printed value —
                those ARE the value moving; a card is a thing the colony hands
                over.) -->
-          <div class="con-colfocus__planet" :class="planetClass"
-               data-colony-focus-planet
-               :data-colony-card-source="colony.name" aria-hidden="true">
-            <span class="con-colfocus__planet-light" aria-hidden="true"></span>
-            <span class="con-colfocus__planet-rim" aria-hidden="true"></span>
+          <ConsolePlanetDisc class="con-colfocus__planet"
+                             :colony="colony.name"
+                             :lit="true"
+                             data-colony-focus-planet
+                             :data-colony-card-source="colony.name">
             <!-- The ORBITAL BERTH — the live landing anchor of the trade
                  fleet while the stage is up (same data key as the tile's
                  dock; the directors prefer the stage's match). -->
@@ -117,10 +117,10 @@
                   aria-hidden="true">
               <ColonyFleetIcon v-if="colony.visitor !== undefined" :color="colony.visitor" />
             </span>
-          </div>
+          </ConsolePlanetDisc>
           <span class="con-colfocus__state" :class="colony.isActive ? 'con-colfocus__state--on' : 'con-colfocus__state--off'"
                 data-unfold-late>
-            {{ $t(colony.isActive ? 'Active' : 'Not active yet') }}
+            {{ $t(colony.isActive ? 'Active colony' : 'Not active yet') }}
           </span>
         </div>
         <!-- WHAT THIS COLONY IS, in the vocabulary of what is happening. On a
@@ -214,147 +214,23 @@
            somebody else's trade has no track to read and nothing to configure;
            the payout zone below takes this whole area (see `bonusMode`). -->
       <div v-if="!bonusMode" class="con-colfocus__main" ref="mainEl">
-        <!-- ── THE EXPANDED TRADE TRACK. One big cell per position with its
-             reward; the MARKER RAIL underneath carries a real seat per cell —
-             the seat is the glide anchor, so the flying marker is exactly the
-             size of the resting one and lands on it, not beside it. ── -->
-        <section class="con-colfocus__trackzone"
-                 :style="{'--stop-col': resetPosition, '--ghost-col': resetPositionAfterBuild}">
-          <header class="con-colfocus__zonehead" data-unfold-late>
-            <span class="con-colfocus__sec-title">{{ $t('Trade track') }}</span>
-            <span v-if="offsetSteps > 0" class="con-colfocus__tracknote-adv">
-              {{ $t('Your trade advances the track first') }} <b>+{{ offsetSteps }}</b>
-            </span>
-          </header>
-
-          <!-- THE TRACK AND THE BERTHS SHARE ONE 7-COLUMN GRID. Berth `i` sits
-               under track cell `i` because that is literally the rule: an
-               occupied berth PROTECTS that position — the marker can never
-               return past it. The reset number is therefore never written
-               anywhere; it is where the guard rail stops. -->
-          <div class="con-colfocus__xtrack" data-colony-focus-track>
-            <div v-for="cell in trackCells" :key="cell.index"
-                 class="con-colfocus__xcell"
-                 :class="{
-                   'con-colfocus__xcell--marker': cell.marker,
-                   'con-colfocus__xcell--effective': cell.effective,
-                   'con-colfocus__xcell--passed': cell.passed,
-                   'con-colfocus__xcell--protected': cell.index < resetPosition,
-                   'con-colfocus__xcell--latching': cell.index === latchCell,
-                   'con-colfocus__xcell--willprotect': buildPreview && cell.index === resetPosition,
-                   'con-colfocus__xcell--settled': cell.index === settledCell,
-                 }">
-              <span class="con-colfocus__xcell-num">{{ cell.index + 1 }}</span>
-              <!-- THE CARD LAUNCH CELL: a card payout physically separates
-                   from the CARD BACK printed on the REWARD cell — the exact
-                   glyph whose number the player just read — never from
-                   «somewhere in the planet's area». Post-commit (when the
-                   covers actually measure) the EFFECTIVE flag has already
-                   collapsed with the spent offer, and the frozen MARKER cell
-                   (presentedColonyModel holds the pre-reset position) IS the
-                   cell the reward was paid at — so both flags anchor. -->
-              <span class="con-colfocus__xcell-body"
-                    :data-colony-card-cell="(cell.effective || cell.marker) ? colony.name : undefined">
-                <span class="con-colfocus__xcell-glyph">
-                  <BenefitGlyph :benefit="tradeBenefitAt(cell.index)" :idx="cell.index" :cardResource="metadata.cardResource" />
-                </span>
-                <b v-if="cell.quantity > 0" class="con-colfocus__xcell-qty">{{ cell.quantity }}</b>
-                <span v-else class="con-colfocus__xcell-void">—</span>
-              </span>
-              <!-- THE MARKER RAIL SEAT — the glide's landing geometry. -->
-              <span class="con-colfocus__xcell-rail" aria-hidden="true">
-                <span class="con-colfocus__xcell-seat"
-                      :data-colony-track-cell="colony.name + '#' + cell.index"></span>
-                <!-- The GUARD: this position is held by a colony below. -->
-                <span class="con-colfocus__xcell-guard"></span>
-              </span>
-            </div>
-
-            <!-- THE STOP — the mechanical end of the return travel. It rides
-                 `--stop-col`, so building a colony SLIDES it one cell right
-                 (transform only) instead of re-rendering a new marker.
-                 WORDLESS on purpose (iteration 4): the bracket + the anchor
-                 under a real cell ARE the reading — a «ВОЗВРАТ» caption on
-                 the scale (and a berth-row caption beside it) restated what
-                 the graphic already draws. -->
-            <span class="con-colfocus__stop" aria-hidden="true"></span>
-            <span v-if="buildPreview && resetPositionAfterBuild !== resetPosition"
-                  class="con-colfocus__stop con-colfocus__stop--ghost" aria-hidden="true"></span>
-          </div>
-
-          <!-- THE BERTHS — the physical foundation of the first three
-               positions. There is deliberately nothing under cells 4…7: no
-               colony can ever protect them, and the empty span says so. -->
-          <div class="con-colfocus__berths" data-colony-focus-slots data-unfold-item>
-            <div v-for="idx in [0, 1, 2]" :key="idx"
-                 class="con-colfocus__berth"
-                 :class="{
-                   'con-colfocus__berth--taken': colony.colonies[idx] !== undefined,
-                   'con-colfocus__berth--mine': colony.colonies[idx] === viewerColor,
-                   'con-colfocus__berth--dest': buildPreview && idx === nextBuildSlot,
-                   'con-colfocus__berth--latching': idx === latchCell,
-                 }">
-              <!-- The LATCH: an occupied berth is physically bolted to the
-                   track cell above it. -->
-              <span class="con-colfocus__berth-latch" aria-hidden="true"></span>
-              <span class="con-colfocus__berth-seat"
-                    :data-colony-build-slot="colony.name + '#' + idx"
-                    data-colony-build-seat
-                    :data-colony-bonus-source="colony.colonies[idx] !== undefined ? colony.name : undefined">
-                <PlayerCube v-if="colony.colonies[idx] !== undefined" :color="colony.colonies[idx]" :size="44" />
-                <BenefitGlyph v-else :benefit="buildBenefit" :idx="idx" :cardResource="metadata.cardResource" />
-              </span>
-              <!-- Only an OCCUPIED berth has something to say: an empty seat
-                   already reads as empty, and «Свободное место» in a
-                   one-column box could only ever be clipped. -->
-              <span v-if="colony.colonies[idx] !== undefined" class="con-colfocus__berth-name" data-unfold-late>
-                {{ ownerNameAt(idx) }}
-              </span>
-            </div>
-            <!-- THE OWNER BONUS — the CONTINUATION of the ownership row, not a
-                 card parked in the middle of the scene. It takes exactly the
-                 span the berths do not: from past the third berth to the end
-                 of the track, so «who stands here» and «what standing here
-                 pays» are one horizontal statement, read left to right off the
-                 same baseline.
-
-                 It states the MECHANISM, and only the mechanism: the rate, and
-                 — when a holder has more than one seat here — the arithmetic
-                 drawn from the REAL tokens (`rate × the cubes you can see =
-                 total`). WHO receives how much is the summary rail's sentence;
-                 neither panel repeats the other's job. -->
-            <div class="con-colfocus__ownerbonus"
-                 :class="{'con-colfocus__ownerbonus--math': bonusMath !== undefined}"
-                 :data-colony-bonus-source="owners.length === 0 ? colony.name : undefined">
-              <span class="con-colfocus__ob-label" data-unfold-late>{{ $t('Owner bonus') }}</span>
-              <!-- The BONUS card's own launch anchor — the bonus cover
-                   separates from THIS zone's printed card, a beat after the
-                   income wave (the two origins stay distinguishable). -->
-              <span class="con-colfocus__ob-value" :data-colony-bonus-cell="colony.name">
-                <b v-if="focusedBonusQty > 0">{{ focusedBonusQty }}</b>
-                <span class="con-colfocus__rglyph con-colfocus__rglyph--lg">
-                  <BenefitGlyph :benefit="colonyBenefit" :idx="0" :cardResource="metadata.cardResource" />
-                </span>
-              </span>
-              <template v-if="bonusMath !== undefined">
-                <span class="con-colfocus__ob-op" aria-hidden="true">×</span>
-                <!-- The multiplier is not a number the player has to trust —
-                     it is the very cubes seated in the berths to the left. -->
-                <span class="con-colfocus__ob-tokens">
-                  <PlayerCube v-for="n in bonusMath.count" :key="n" :color="bonusMath.color" :size="20" />
-                </span>
-                <span class="con-colfocus__ob-op" aria-hidden="true">=</span>
-                <span class="con-colfocus__ob-total">
-                  <b>{{ bonusMath.total }}</b>
-                  <span class="con-colfocus__rglyph con-colfocus__rglyph--lg">
-                    <BenefitGlyph :benefit="colonyBenefit" :idx="0" :cardResource="metadata.cardResource" />
-                  </span>
-                </span>
-              </template>
-              <span class="con-colfocus__ob-note" data-unfold-late>{{ $t('Each trade here') }}</span>
-            </div>
-          </div>
-        </section>
+        <!-- ── THE TRADE-TRACK INSTRUMENT — the expanded 7-cell track with its
+             marker rail, the return stop, the three berths and the owner-bonus
+             lane: ONE component, shared with the dossier (X = «Осмотреть»), so
+             the object the action resolves on and the object the player reads
+             are the same DOM (ConsoleColonyTrackInstrument). The stage passes
+             what it PRESENTS (the frozen marker, the pinned offset) and its
+             transient beats (the latch, the settle, the build preview). ── -->
+        <ConsoleColonyTrackInstrument :colony="colony"
+                                      :metadata="metadata"
+                                      :markerPosition="markerPosition"
+                                      :effectivePosition="effectivePosition"
+                                      :ownerNames="ownerNames"
+                                      :bonusMath="bonusMath"
+                                      :viewerColor="viewerColor"
+                                      :latchCell="latchCell"
+                                      :settledCell="settledCell"
+                                      :buildPreview="buildPreview" />
 
         <!-- ── THE ACTION CONFIGURATION — adaptive by mode: never an empty
              «СПОСОБ ОПЛАТЫ» skeleton when there is nothing to choose. ── -->
@@ -868,8 +744,6 @@ import {
   tradeNotices,
   tradeOutcome,
   TradeOutcomeChip,
-  trackResetAfterBuild,
-  trackResetPosition,
   tradeSteps,
   buildSteps,
   buildNotices,
@@ -902,6 +776,8 @@ import {
   armOutcomeOriginFrom, playConfigRelease, playOutcomePhase, playOutcomeContent,
 } from '@/client/console/consoleActionOutcomeMotion';
 import BenefitGlyph from '@/client/components/colonies/BenefitGlyph.vue';
+import ConsoleColonyTrackInstrument from '@/client/components/console/ConsoleColonyTrackInstrument.vue';
+import ConsolePlanetDisc from '@/client/components/console/ConsolePlanetDisc.vue';
 import ColonyFleetIcon from '@/client/components/colonies/ColonyFleetIcon.vue';
 import PlayerCube from '@/client/components/PlayerCube.vue';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
@@ -998,21 +874,11 @@ type HeldView = {
   tradeOffset: number,
 };
 
-type TrackCell = {
-  index: number,
-  quantity: number,
-  marker: boolean,
-  effective: boolean,
-  passed: boolean,
-  /** The cell the marker falls back to after a trade (= built colonies). */
-  reset: boolean,
-};
-
 export default defineComponent({
   name: 'ConsoleColonyFocusStage',
   components: {
     BenefitGlyph, ColonyFleetIcon, PlayerCube, ConsoleScrollArea, ConsolePaymentPanel,
-    ConsolePlayedTargetStep, ConsoleCardFaceLite,
+    ConsolePlayedTargetStep, ConsoleCardFaceLite, ConsoleColonyTrackInstrument, ConsolePlanetDisc,
   },
   props: {
     colony: {type: Object as PropType<ColonyModel>, required: true},
@@ -1314,9 +1180,6 @@ export default defineComponent({
     metadata(): ColonyMetadata {
       return getColony(this.colony.name);
     },
-    planetClass(): string {
-      return this.colony.name.replace(' ', '-') + '-background';
-    },
     presented(): ColonyModel {
       return presentedColonyModel(this.colony);
     },
@@ -1332,9 +1195,6 @@ export default defineComponent({
       const offset = this.colony.isActive ? this.presentedOffset : 0;
       return effectiveTradePosition(this.presented, this.metadata, offset);
     },
-    offsetSteps(): number {
-      return Math.max(0, this.effectivePosition - this.markerPosition);
-    },
     /** The marker's DISPLAYED position — the presented one, so a committed
      *  reset stays frozen behind the transaction and only the glide moves it
      *  (the same `presentedColonyModel` the overview tile reads). */
@@ -1344,20 +1204,6 @@ export default defineComponent({
     /** How many colonies stand here — the ONE number the reset rule reads. */
     builtCount(): number {
       return this.colony.colonies.length;
-    },
-    /**
-     * THE RULE, as a number: after a trade the track falls back to the
-     * BUILT-COLONY COUNT (`Colony.trade()` → `trackPosition = colonies.length`).
-     * The return base is therefore an index into the very same track, which is
-     * why the stage can draw it as an anchor under a real cell instead of
-     * explaining it in prose.
-     */
-    resetPosition(): number {
-      return trackResetPosition(this.colony, this.metadata);
-    },
-    /** Where the base would move if a colony were built here right now. */
-    resetPositionAfterBuild(): number {
-      return trackResetAfterBuild(this.colony, this.metadata);
     },
     /** The build preview is LIVE (build intent, genuinely offerable). */
     buildPreview(): boolean {
@@ -1415,22 +1261,6 @@ export default defineComponent({
     settledCell(): number {
       return this.colonyTradeState.colonyName === this.colony.name ? this.colonyTradeState.settledCell : -1;
     },
-    trackCells(): Array<TrackCell> {
-      const marker = this.markerPosition;
-      const reset = this.resetPosition;
-      const cells: Array<TrackCell> = [];
-      for (let i = 0; i <= this.trackMax; i++) {
-        cells.push({
-          index: i,
-          quantity: this.metadata.trade.quantity[i] ?? 0,
-          marker: i === marker,
-          effective: i === this.effectivePosition && this.effectivePosition !== marker,
-          passed: i < marker,
-          reset: i === reset,
-        });
-      }
-      return cells;
-    },
     buildBenefit(): {type: ColonyBenefit, quantity: ReadonlyArray<number>, resource?: unknown} {
       const b = this.metadata.build;
       return {type: b.type, quantity: b.quantity, resource: Array.isArray(b.resource) ? b.resource[0] : b.resource};
@@ -1450,6 +1280,10 @@ export default defineComponent({
     },
     buildLost(): boolean {
       return this.benefitResourceLost(this.metadata.build.type);
+    },
+    /** The names seated in the three berths — the instrument's prop. */
+    ownerNames(): Array<string> {
+      return [0, 1, 2].map((idx) => this.ownerNameAt(idx));
     },
     owners(): Array<{color: Color, count: number, name: string}> {
       return colonyOwnerCounts(this.colony).map((owner) => {

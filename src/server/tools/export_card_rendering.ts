@@ -248,6 +248,8 @@ class ColoniesProcessor {
       build: metadata.build,
       trade: metadata.trade,
       colony: metadata.colony,
+      // The tile's printed flavour line (the console dossier's archive entry).
+      lore: metadata.lore,
       shouldIncreaseTrack: metadata.shouldIncreaseTrack,
       expansion: metadata.expansion,
     };

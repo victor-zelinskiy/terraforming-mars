@@ -215,10 +215,38 @@
         <!-- ── THE COLONY FOCUS STAGE — the same frame, one level deeper.
              The descend hooks unfold it from the pressed tile's rect; the
              planet medallion is the carried subject. -->
+        <!-- ── THE COLONY DOSSIER (X = «Осмотреть») — the read of ONE colony, in
+             the same region, opened with the same descend phrase (the same
+             hooks: it publishes the marks they read). A on it ENTERS the act:
+             the stage below takes its place with the planet / track / berths
+             carried over (`enterFocusFromInspect` — a hand-off, not a
+             fold-and-reopen). Its own transition wrapper, so the two surfaces
+             may overlap for exactly that beat. ── -->
         <transition :css="false"
                     @enter="onFocusEnter" @leave="onFocusLeave"
                     @enter-cancelled="onFocusEnterCancelled" @leave-cancelled="onFocusLeaveCancelled">
-          <ConsoleColonyFocusStage v-if="focusState.open && focusColonyModel !== undefined"
+          <ConsoleColonyInspect v-if="focusState.open && focusState.intent === 'inspect' && focusColonyModel !== undefined"
+                                ref="inspectStage"
+                                :embedded="true"
+                                :colony="focusColonyModel"
+                                :players="players"
+                                :viewerColor="viewerColor"
+                                :playerId="catalog ? '' : playerId"
+                                :tradeOffset="tradeOffset"
+                                :actIntent="inspectActIntent"
+                                :actionAvailable="inspectActionAvailable"
+                                :blockReason="inspectBlockReason"
+                                :blockTone="inspectBlockTone"
+                                :pickLabel="pick !== undefined ? pick.labelKey : ''"
+                                :paymentOptions="tradePaymentOptions"
+                                :disabledPayments="tradeDisabledPayments"
+                                @enter="$emit('inspect-enter')"
+                                @cancel="closeFocus()" />
+        </transition>
+        <transition :css="false"
+                    @enter="onFocusEnter" @leave="onFocusLeave"
+                    @enter-cancelled="onFocusEnterCancelled" @leave-cancelled="onFocusLeaveCancelled">
+          <ConsoleColonyFocusStage v-if="focusState.open && focusState.intent !== 'inspect' && focusColonyModel !== undefined"
                                    ref="focusStage"
                                    :colony="focusColonyModel"
                                    :intent="focusState.intent"
@@ -272,7 +300,7 @@ import {SelectOptionModel, OrOptionsModel} from '@/common/models/PlayerInputMode
 import {ColonyTradePreviewModel} from '@/common/models/ColonyTradePreviewModel';
 import {
   colonyGridLayout, colonyGridCols, ColonyGridLayout, ColonyFocusIntent,
-  colonyFleetBerth, colonyFocusState, openColonyFocus, closeColonyFocus,
+  colonyFleetBerth, colonyFocusState, openColonyFocus, closeColonyFocus, switchColonyFocusIntent,
 } from '@/client/console/consoleColoniesModel';
 import {workspaceOutcomeState, setWorkspaceOutcomeSlot, workspaceOutcomeClaimed} from '@/client/console/consoleWorkspaceOutcome';
 import {
@@ -296,6 +324,7 @@ import ConsoleWsHead from '@/client/components/console/foundation/ConsoleWsHead.
 import ConsoleColonyFleetBar, {ColonyFleetChip} from '@/client/components/console/ConsoleColonyFleetBar.vue';
 import ConsoleColonyTile, {ConsoleColonyTileStatus} from '@/client/components/console/ConsoleColonyTile.vue';
 import ConsoleColonyFocusStage from '@/client/components/console/ConsoleColonyFocusStage.vue';
+import ConsoleColonyInspect from '@/client/components/console/ConsoleColonyInspect.vue';
 import ColonyFleetIcon from '@/client/components/colonies/ColonyFleetIcon.vue';
 import BenefitGlyph from '@/client/components/colonies/BenefitGlyph.vue';
 import PlayerCube from '@/client/components/PlayerCube.vue';
@@ -314,6 +343,7 @@ import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {
   armColonyFocusOrigin,
+  armColonyFocusHandoff,
   playColonyStepEntry,
   colonyFocusEnterHook,
   colonyFocusLeaveHook,
@@ -376,7 +406,7 @@ const COMPLETION_SETTLE_MS = 300;
 
 export default defineComponent({
   name: 'ConsoleColoniesSection',
-  components: {ConsoleWsHead, ConsoleColonyFleetBar, ConsoleColonyTile, ConsoleColonyFocusStage, ColonyFleetIcon, BenefitGlyph, PlayerCube},
+  components: {ConsoleWsHead, ConsoleColonyFleetBar, ConsoleColonyTile, ConsoleColonyFocusStage, ConsoleColonyInspect, ColonyFleetIcon, BenefitGlyph, PlayerCube},
   props: {
     colonies: {type: Array as PropType<ReadonlyArray<ColonyModel>>, required: true},
     index: {type: Number, required: true},
@@ -426,7 +456,7 @@ export default defineComponent({
      */
     embedded: {type: Boolean, default: false},
   },
-  emits: ['trade-confirm', 'build-confirm', 'pick-confirm', 'flow-complete'],
+  emits: ['trade-confirm', 'build-confirm', 'pick-confirm', 'flow-complete', 'inspect-enter'],
   data() {
     return {
       /** The trade-launch controller — drives the launching-ship hide. */
@@ -684,6 +714,45 @@ export default defineComponent({
         return this.pick !== undefined && this.pick.selectable.includes(model.name);
       }
       return false;
+    },
+    /**
+     * THE ACT BEHIND THE DOSSIER'S A — the same derivation the grid's A makes
+     * (`confirmColonySelection`): a server SelectColony pick outranks the
+     * trade; without a pick the act is the trade.
+     */
+    inspectActIntent(): ColonyFocusIntent {
+      if (this.pick !== undefined) {
+        return this.pick.buttonLabel === 'Build' ? 'build' : 'pick';
+      }
+      return 'trade';
+    },
+    /** …and whether it is genuinely offerable for the inspected colony (the
+     *  stage's own `focusActionAvailable`, asked about the dossier's act). */
+    inspectActionAvailable(): boolean {
+      const model = this.focusColonyModel;
+      if (model === undefined) {
+        return false;
+      }
+      if (this.inspectActIntent === 'trade') {
+        return this.pick === undefined && this.tradeable.includes(model.name);
+      }
+      return this.pick !== undefined && this.pick.selectable.includes(model.name);
+    },
+    inspectBlockReason(): string {
+      const model = this.focusColonyModel;
+      if (this.inspectActionAvailable || model === undefined) {
+        return '';
+      }
+      if (this.pick !== undefined) {
+        return this.inspectActIntent === 'trade' ? 'Trade unavailable' : this.pickReasonFor(model.name);
+      }
+      return this.reasonFor(model);
+    },
+    inspectBlockTone(): 'warning' | 'danger' {
+      if (this.inspectActionAvailable || this.pick !== undefined || this.focusColonyModel === undefined) {
+        return 'danger';
+      }
+      return this.blockerFor(this.focusColonyModel)?.tone ?? 'danger';
     },
     focusBlockReason(): string {
       if (this.focusActionAvailable) {
@@ -1238,10 +1307,43 @@ export default defineComponent({
     onFocusConfirm(payload: ColonyTradeConfirmPayload): void {
       this.$emit('trade-confirm', payload);
     },
-    /** The shell routes the pad here while the focus stage is open. */
+    /** The shell routes the pad here while the focus stage — the action
+     *  stage OR the dossier — is open. */
     handleFocusIntent(intent: GamepadIntent): void {
+      if (this.focusState.intent === 'inspect') {
+        const dossier = this.$refs.inspectStage as InstanceType<typeof ConsoleColonyInspect> | undefined;
+        dossier?.handleIntent(intent);
+        return;
+      }
       const stage = this.$refs.focusStage as InstanceType<typeof ConsoleColonyFocusStage> | undefined;
       stage?.handleIntent(intent);
+    },
+    /**
+     * A ON THE DOSSIER — ENTER THE ACT. The same colony, the act intent; the
+     * stage takes the dossier's place as a HAND-OFF: the descend registers are
+     * armed from the DOSSIER's live rects (its surface, its planet, its track,
+     * its berths), so the stage's own enter hook FLIPs the three identities
+     * out of the dossier instead of out of the (parked) tile, while the
+     * dossier steps back underneath. The fold home stays the tile's rect —
+     * B from the stage still folds into the tile the flow opened from.
+     */
+    enterFocusFromInspect(intent: ColonyFocusIntent): void {
+      if (!this.focusState.open || this.focusState.intent !== 'inspect' || intent === 'inspect') {
+        return;
+      }
+      const root = this.$el as HTMLElement | null | undefined;
+      const dossier = root?.querySelector<HTMLElement>('.con-colinspect');
+      const surface = dossier?.querySelector<HTMLElement>('.con-colinspect__surface');
+      const planet = dossier?.querySelector<HTMLElement>('[data-colony-focus-planet]');
+      const track = dossier?.querySelector<HTMLElement>('[data-colony-focus-track]');
+      const slots = dossier?.querySelector<HTMLElement>('[data-colony-focus-slots]');
+      const rectOf = (node: HTMLElement | null | undefined) => {
+        const r = node?.getBoundingClientRect();
+        return r === undefined || r.width < 10 ? undefined : {left: r.left, top: r.top, width: r.width, height: r.height};
+      };
+      armColonyFocusOrigin(rectOf(surface), rectOf(planet), rectOf(track), rectOf(slots));
+      armColonyFocusHandoff();
+      switchColonyFocusIntent(intent);
     },
     /** The shell ACCEPTED a stage confirm — pin the stage's presentation
      *  across the commit boundary (see the stage's `holdPresentation`). */

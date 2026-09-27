@@ -19,3 +19,9 @@ export function getColony(name: ColonyName): ColonyMetadata {
   }
   return metadata;
 }
+
+/** The metadata of a colony that may not be in the manifest (a lookup by an
+ *  untrusted name — the lore resolver, a journal chip). `getColony` throws. */
+export function findColony(name: string): ColonyMetadata | undefined {
+  return colonies.get(name as ColonyName);
+}

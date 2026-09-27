@@ -14,6 +14,7 @@ import {
   colonyWorkspaceBackVerb,
   consoleColoniesUi,
   resetConsoleColoniesUi,
+  switchColonyFocusIntent,
 } from '@/client/console/consoleColoniesModel';
 import {ColonyName} from '@/common/colonies/ColonyName';
 
@@ -108,6 +109,19 @@ describe('consoleColoniesModel — the COLONY WORKSPACE model', () => {
     it('the stage name is ignored while browsing (no phantom tail)', () => {
       setColonyFocusStage('Trading');
       expect(colonyFocusState.stage).to.eq('');
+    });
+
+    it('A on the dossier SWITCHES the open stage to the act intent — never a second descent', () => {
+      openColonyFocus(ColonyName.PLUTO, 'inspect');
+      switchColonyFocusIntent('trade');
+      expect(colonyFocusState.open).to.eq(true);
+      expect(colonyFocusState.colonyName).to.eq(ColonyName.PLUTO);
+      expect(colonyFocusState.intent).to.eq('trade');
+      // …and it is a no-op while browsing (nothing to switch) and for the same intent.
+      closeColonyFocus();
+      switchColonyFocusIntent('build');
+      expect(colonyFocusState.open).to.eq(false);
+      expect(colonyFocusState.intent).to.eq('trade');
     });
 
     it('carries every intent — build and pick descend too (nothing commits from the overview)', () => {

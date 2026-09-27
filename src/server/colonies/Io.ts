@@ -7,6 +7,9 @@ export class Io extends Colony {
   constructor() {
     super({
       name: ColonyName.IO,
+      // The tile's printed flavour line (the physical colony tile, under the
+      // name) — the console dossier's archive entry. English IS the i18n key.
+      lore: "Jupiter's innermost Galilean moon features 400 active volcanoes, and is the most dense moon in the solar system.",
       build: {
         description: 'Gain 1 heat production',
         type: ColonyBenefit.GAIN_PRODUCTION,
