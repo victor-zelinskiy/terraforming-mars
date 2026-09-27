@@ -1,7 +1,41 @@
 import {expect} from 'chai';
 import {runLeakDetection, leakDetectorState, stopConsoleLeakDetector, setConsoleTaskDeferred, setConsoleTaskSpacePlacement} from '@/client/console/consoleLeakDetector';
-import {setMandatoryGateHeld} from '@/client/console/consoleMandatoryGate';
+import {setMandatoryGateHeld, resetMandatoryGate} from '@/client/console/consoleMandatoryGate';
+import {expireActiveAnimationHolds, resetAnimationHoldsForTest} from '@/client/components/presentation/animationHold';
+import {resetGovScaleFocus} from '@/client/console/consoleGovScaleFocus';
+import {resetConsoleHandPick} from '@/client/console/consoleHandPick';
+import {resetWorkspaceStack} from '@/client/console/consoleWorkspaceStack';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
+
+/*
+ * «UNSERVED» IS ONLY A FACT ONCE NOTHING ELSE CLAIMS THE FOREGROUND. Every
+ * early exit in `runLeakDetection` — an animation hold, the Government-Support
+ * scale beat, the announce gate, a live hand pick, the deferred / space-placement
+ * mirrors, a parked workspace stack — is BUNDLE-SHARED module state in mochapack.
+ * A sibling's cinematic still running when these blocks start would disarm the
+ * guard and read as «not stranded», so each case ESTABLISHES the idle foreground
+ * instead of assuming it (the cases themselves are synchronous, so nothing can
+ * re-arm a claim between this hook and the assertion).
+ *
+ * `resetAnimationHoldsForTest` drops MANUAL holds only — a SUPPLIER mirrors its
+ * own flow, so the flows are reset by name and `expireActiveAnimationHolds` then
+ * neutralises anything left true here. `idleForeground` ends with that expiry;
+ * `clearForeground` (the afterEach) ends with the reset that drops it again, so
+ * no expiry ever reaches a sibling.
+ */
+function clearForeground(): void {
+  stopConsoleLeakDetector(); // the streak, the stranded state, both mirrors
+  setMandatoryGateHeld(false);
+  resetMandatoryGate();
+  resetGovScaleFocus();
+  resetConsoleHandPick();
+  resetWorkspaceStack();
+  resetAnimationHoldsForTest();
+}
+function idleForeground(): void {
+  clearForeground();
+  expireActiveAnimationHolds();
+}
 
 /*
  * A view with a `handSelect` prompt (candidate already in hand) — a SHELL-
@@ -19,17 +53,8 @@ function handSelectView(): PlayerViewModel {
 }
 
 describe('consoleLeakDetector — stranded-guard debounce', () => {
-  // stopConsoleLeakDetector() resets the module-level streak + stranded state.
-  // Reset the shared gate mirror too — the stranded checks rely on
-  // isMandatoryGateHeld()===false, and module state is bundle-shared in mochapack.
-  beforeEach(() => {
-    stopConsoleLeakDetector();
-    setMandatoryGateHeld(false);
-  });
-  afterEach(() => {
-    stopConsoleLeakDetector();
-    setMandatoryGateHeld(false);
-  });
+  beforeEach(idleForeground);
+  afterEach(clearForeground);
 
   it('does NOT flag stranded on a SINGLE unserved pass (kills transition flashes)', () => {
     runLeakDetection(handSelectView());
@@ -64,16 +89,8 @@ describe('consoleLeakDetector — stranded-guard debounce', () => {
 });
 
 describe('consoleLeakDetector — a DEFERRED task is never stranded', () => {
-  // Reset the shared gate mirror too — the stranded checks rely on
-  // isMandatoryGateHeld()===false, and module state is bundle-shared in mochapack.
-  beforeEach(() => {
-    stopConsoleLeakDetector();
-    setMandatoryGateHeld(false);
-  });
-  afterEach(() => {
-    stopConsoleLeakDetector();
-    setMandatoryGateHeld(false);
-  });
+  beforeEach(idleForeground);
+  afterEach(clearForeground);
 
   /*
    * A task the player set aside with B (deferred) has NO serving DOM node while
@@ -141,14 +158,8 @@ function finalGreeneryView(): PlayerViewModel {
 }
 
 describe('consoleLeakDetector — a nested-space placement is never stranded', () => {
-  beforeEach(() => {
-    stopConsoleLeakDetector();
-    setMandatoryGateHeld(false);
-  });
-  afterEach(() => {
-    stopConsoleLeakDetector();
-    setMandatoryGateHeld(false);
-  });
+  beforeEach(idleForeground);
+  afterEach(clearForeground);
 
   it('WOULD strand the final-greenery choice while no surface is mounted (the bug)', () => {
     const view = finalGreeneryView();

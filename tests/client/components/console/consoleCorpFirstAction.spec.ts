@@ -1,8 +1,11 @@
 import {expect} from 'chai';
 import {taskFor, SHELL_SECTION_KINDS, NATIVE_KINDS, taskServedByHost, corpFirstActionInStartFlow} from '@/client/console/consoleTaskRouter';
-import {runLeakDetection, leakDetectorState} from '@/client/console/consoleLeakDetector';
-import {beginAnimationHold, isAnimationHoldActive, resetAnimationHoldsForTest} from '@/client/components/presentation/animationHold';
+import {runLeakDetection, leakDetectorState, stopConsoleLeakDetector} from '@/client/console/consoleLeakDetector';
+import {beginAnimationHold, expireActiveAnimationHolds, isAnimationHoldActive, resetAnimationHoldsForTest} from '@/client/components/presentation/animationHold';
 import {setMandatoryGateHeld, resetMandatoryGate} from '@/client/console/consoleMandatoryGate';
+import {resetGovScaleFocus} from '@/client/console/consoleGovScaleFocus';
+import {resetConsoleHandPick} from '@/client/console/consoleHandPick';
+import {resetWorkspaceStack} from '@/client/console/consoleWorkspaceStack';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 
 /**
@@ -45,17 +48,40 @@ const startFlowView = () => corpActionView({generation: 1});
 const midGameView = () => corpActionView({generation: 3});
 
 describe('corporation first action (console routing)', () => {
-  // Module state (animation holds + the mandatory gate) is BUNDLE-SHARED in
-  // mochapack — the leak detector now consults isAnimationHoldActive() and the
-  // gate, so clear any stray state a sibling spec may have left, each case.
+  // EVERY foreground claim the detector consults is BUNDLE-SHARED module state in
+  // mochapack, and «this prompt has NO serving surface» is only a fact once none of
+  // them is up — so this spec ESTABLISHES that, it does not assume it. Clearing two
+  // of them was not enough: a sibling's cinematic that is still running when this
+  // block starts makes `runLeakDetection` return at its first early exit, and all
+  // four stranded assertions read `undefined` (seen only on a loaded machine, where
+  // a release timer lands a spec file late — exactly the order-dependent verdict
+  // bundleSetup.ts exists to forbid).
+  //
+  // `resetAnimationHoldsForTest` drops MANUAL holds only — a SUPPLIER mirrors its
+  // flow's own state, so each flow is reset by name first and `expireActiveAnimationHolds`
+  // then neutralises anything left true that this spec has no handle on. The afterEach
+  // reset clears that expiry again, so nothing of it reaches a sibling.
+  function clearForegroundClaims(): void {
+    resetGovScaleFocus();
+    resetConsoleHandPick();
+    resetWorkspaceStack();
+    stopConsoleLeakDetector(); // the deferred + space-placement mirrors
+    // `held` is a SHELL-OWNED mirror that `resetMandatoryGate` deliberately leaves
+    // alone (only the shell's own unmount clears it) — so it has to be cleared by
+    // name. Calling the reset alone, as this spec used to, cleared the two beat keys
+    // and left the one flag the detector actually reads: any sibling that mounted the
+    // shell with a held beat silenced every stranded assertion below.
+    setMandatoryGateHeld(false);
+    resetMandatoryGate();
+    resetAnimationHoldsForTest();
+  }
   beforeEach(() => {
-    resetAnimationHoldsForTest();
-    resetMandatoryGate();
+    clearForegroundClaims();
+    // …and whatever is still true with no handle here. The expiry lives only for
+    // this test — the afterEach reset clears it before the next spec runs.
+    expireActiveAnimationHolds();
   });
-  afterEach(() => {
-    resetAnimationHoldsForTest();
-    resetMandatoryGate();
-  });
+  afterEach(clearForegroundClaims);
 
   it('routes the untitled corp-action OrOptions by its structural marker, never the host', () => {
     const view = startFlowView();

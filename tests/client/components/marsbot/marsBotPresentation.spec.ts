@@ -37,6 +37,7 @@ import {isBotStagingActive, resetBotStaging} from '@/client/components/marsbot/m
 import {botTurnReviewState, closeBotTurnReview, resetBotTurnReview} from '@/client/components/marsbot/botTurnReviewState';
 import {dismiss, notificationState, resetNotifications, acknowledgeFlowHoldingCards, notificationFlowHoldSupplier} from '@/client/components/notifications/notificationState';
 import {isMandatoryPromptsHeld, registerFlowHoldSupplier, resetPresentationLeases} from '@/client/components/presentation/presentationFlow';
+import {expireActiveAnimationHolds, resetAnimationHoldsForTest} from '@/client/components/presentation/animationHold';
 import {closeRevealViewer, revealViewerState} from '@/client/components/notifications/revealViewerState';
 import {drawnCardsState} from '@/client/components/drawnCards/drawnCardsState';
 
@@ -109,10 +110,19 @@ describe('marsBotPresentation (notification-first turns)', () => {
     // Module state is bundle-shared — another spec may have overridden the
     // flow-hold supplier; this suite needs the REAL one.
     registerFlowHoldSupplier(notificationFlowHoldSupplier);
+    // …and a CRITICAL ANIMATION blocks notification delivery by contract, so a
+    // cinematic a sibling left running would strand every queue this suite asserts
+    // on («expected [] to deeply equal [...]» — nothing delivered, on a loaded
+    // machine only). `resetAnimationHoldsForTest` drops the MANUAL holds; a
+    // SUPPLIER mirrors its own flow, so the expiry neutralises what is left true.
+    // The afterEach reset clears that expiry, so none of it reaches a sibling.
+    resetAnimationHoldsForTest();
+    expireActiveAnimationHolds();
   });
 
   afterEach(() => {
     closeBotTurnReview();
+    resetAnimationHoldsForTest();
   });
 
   describe('archive', () => {

@@ -26,7 +26,19 @@ import {
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-describe('animationHold (the critical-animation registry)', () => {
+describe('animationHold (the critical-animation registry)', function() {
+  // REAL timers, deliberately: the ceiling under test IS a `setTimeout`, so the
+  // cases that exercise it wait out a 20 ms ceiling with a 45 ms sleep. What they
+  // assert is the ceiling's BEHAVIOUR, never how promptly this machine wakes a
+  // timer — and the whole client suite is one process with several thousand live
+  // components, where a loaded box starves the event loop well past mocha's 2 s
+  // default. A verdict that flips with machine load is not a test, so these get
+  // room; a real hang still fails, just later. Same treatment, same reason, as
+  // `consolePlayedHero.spec.ts` / `boardBeatPark.spec.ts` — raise the harness
+  // ceiling, never the assertion.
+  // eslint-disable-next-line no-invalid-this
+  this.timeout(15_000);
+
   beforeEach(() => {
     resetAnimationHoldsForTest();
     resetPresentationLeases();
