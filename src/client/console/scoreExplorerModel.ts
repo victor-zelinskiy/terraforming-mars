@@ -294,7 +294,7 @@ export function buildScoreOverview(live: LiveScoreModel, b: VictoryPointsBreakdo
 
 // ── level 2: the terraform-rating provenance ───────────────────────────────
 
-export type TrRowFlavor = 'base' | 'handicap' | 'param' | 'hazard' | 'source' | 'residual';
+export type TrRowFlavor = 'base' | 'handicap' | 'param' | 'hazard' | 'greenery' | 'source' | 'residual';
 
 export type TrProvenanceRow = {
   key: string;
@@ -319,10 +319,11 @@ export type TrProvenanceModel = {
 
 /**
  * The full honest TR story: starting rating, handicap, the four parameters,
- * hazard cleanup, then every DIRECT source the server attributed (cards,
- * corporations, parties, global events), oldest-generation first inside
- * equal amounts. A `legacyUnknown` residual renders as its own honest row —
- * never reconstructed, never hidden.
+ * hazard cleanup, the greenery tiles' own TR (Turmoil Redux — the point a
+ * greenery used to score at the end, paid at placement), then every DIRECT
+ * source the server attributed (cards, corporations, parties, global
+ * events), oldest-generation first inside equal amounts. A `legacyUnknown`
+ * residual renders as its own honest row — never reconstructed, never hidden.
  */
 export function buildTrProvenance(b: VictoryPointsBreakdown, isBot: boolean): TrProvenanceModel {
   const tr = b.terraformRatingBreakdown;
@@ -345,6 +346,9 @@ export function buildTrProvenance(b: VictoryPointsBreakdown, isBot: boolean): Tr
   }
   if ((tr.hazards ?? 0) !== 0) {
     rows.push({key: 'hazards', label: 'Hazard cleanup', value: tr.hazards ?? 0, flavor: 'hazard', running: 0});
+  }
+  if ((tr.greeneries ?? 0) !== 0) {
+    rows.push({key: 'greeneries', label: 'Greenery tiles', value: tr.greeneries ?? 0, flavor: 'greenery', running: 0});
   }
   const entries = tr.cardEntries ?? [];
   for (const e of entries) {

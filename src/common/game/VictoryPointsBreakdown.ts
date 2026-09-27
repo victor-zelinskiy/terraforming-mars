@@ -86,7 +86,12 @@ export type TRSourceType =
   | 'venusTrackBonus' | 'legacyUnknown' | 'other'
   // TR from clearing a hazard zone (cleanup-by-building + the planetary
   // dust-storm-removal event) — its OWN diegetic VP segment, never expansion-named.
-  | 'ares-hazard';
+  | 'ares-hazard'
+  // Turmoil Redux — the greenery revision: the TILE itself pays 1 TR when
+  // placed and scores no victory point of its own at the end. The points a
+  // greenery used to be worth live HERE now, so the tile keeps its OWN segment
+  // (like a hazard cleanup) instead of dissolving into «Cards & effects».
+  | 'greenery-tile';
 
 export type TRSourceEntry = {
   sourceType: TRSourceType;
@@ -106,10 +111,13 @@ export type TRSourceEntry = {
  * any residual is surfaced as a `legacyUnknown` entry inside `cardEntries`.
  *
  * `hazards` is TR from clearing hazard zones (Ares) — split OUT of `cards` into
- * its own segment so it reads as a distinct, diegetic source.
+ * its own segment so it reads as a distinct, diegetic source. `greeneries` is
+ * the same split for the Turmoil Redux greenery revision: the TR the greenery
+ * TILES themselves paid at placement (the points the tiles used to score at
+ * the end), never a card's doing.
  *
  * Invariant: baseRating + handicap + temperature + oxygen + oceans + venus +
- * cards + hazards === terraformRating, and Σ cardEntries.amount === cards.
+ * cards + hazards + greeneries === terraformRating, and Σ cardEntries.amount === cards.
  */
 export type TerraformRatingBreakdown = {
   base: number; // = baseRating + handicap (back-compat)
@@ -125,6 +133,8 @@ export type TerraformRatingBreakdown = {
   cards: number; // direct card / effect TR; Σ cardEntries
   cardEntries?: ReadonlyArray<TRSourceEntry>;
   hazards?: number; // Ares — TR from clearing hazard zones (own segment; 0/absent when no Ares)
+  /** Turmoil Redux — TR the greenery TILES paid at placement (own segment; 0/absent without the parliament). */
+  greeneries?: number;
 };
 
 /**

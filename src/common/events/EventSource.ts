@@ -18,6 +18,14 @@ import {PartyName} from '../turmoil/PartyName';
 export type ColonyBenefitRole = 'build' | 'trade' | 'colonyBonus';
 
 /**
+ * A rule of the Mars Parliament (Turmoil Redux) that the player knows BY ITS
+ * OWN NAME: `greenery-tile` is the greenery revision — the tile itself pays
+ * 1 TR when placed and scores no VP of its own at the end. The journal, the
+ * notification cause and the TR breakdown all call it «Greenery tile».
+ */
+export type ParliamentRule = 'greenery-tile';
+
+/**
  * Serializable projection of the server-side `From` type (src/server/logs/From.ts).
  *
  * Describes WHAT caused a {@link GameEvent}: a card, a corporation, a standard
@@ -55,9 +63,11 @@ export type EventSource =
   /**
    * The Mars Parliament itself as a RULE source (Turmoil Redux): the greenery
    * TR revision, an Agenda step bonus, the chairman's seat. Nothing a card or a
-   * party did — the political rulebook did.
+   * party did — the political rulebook did. `rule` names the ONE revision that
+   * has a name of its own for the player (the greenery tile's TR reads «Тайл
+   * озеленения», never «Марсианский парламент»); absent, the institution speaks.
    */
-  | {kind: 'parliament'}
+  | {kind: 'parliament'; rule?: ParliamentRule}
   | {kind: 'globalParameter'; parameter: GlobalParameter}
   /**
    * A MarsBot BONUS CARD (Automa). Recorded at the moment the card RESOLVES,
@@ -97,6 +107,10 @@ export function sourceKey(source: EventSource | undefined): string {
     return `${source.kind}:${source.parameter}`;
   case 'bonusCard':
     return `${source.kind}:${source.bonusCard}`;
+  // A named rule is its own engine piece (every greenery's tile TR groups
+  // together); the bare institution stays one key.
+  case 'parliament':
+    return source.rule === undefined ? source.kind : `${source.kind}:${source.rule}`;
   default:
     return source.kind;
   }
@@ -112,6 +126,6 @@ export function isCorporationSource(source: EventSource | undefined): source is 
  * parliament's rules. Every surface that used to equate «no card name» with
  * «a bare rule» asks this instead of `kind === 'rule'`.
  */
-export function isPoliticalSource(source: EventSource | undefined): source is {kind: 'party'; name: PartyName; owner?: Color} | {kind: 'resolution'; id: string; owner?: Color} | {kind: 'parliament'} {
+export function isPoliticalSource(source: EventSource | undefined): source is {kind: 'party'; name: PartyName; owner?: Color} | {kind: 'resolution'; id: string; owner?: Color} | {kind: 'parliament'; rule?: ParliamentRule} {
   return source !== undefined && (source.kind === 'party' || source.kind === 'resolution' || source.kind === 'parliament');
 }

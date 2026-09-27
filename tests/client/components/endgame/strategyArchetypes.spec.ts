@@ -104,6 +104,22 @@ describe('strategyArchetypes (rework §4–§20)', () => {
     expect(profiles.red).to.be.undefined;
   });
 
+  it('detects CITIES & GREENERY from the board\'s points in BOTH greenery rulesets (the tiles\' TR under Turmoil Redux counts)', () => {
+    // Classic: the greeneries score in the board category itself.
+    const classic = pl('red', 90, {board: 14, strategyInput: si({})});
+    expect(buildStrategyProfiles(ctx([classic, pl('blue', 80)])).red?.all.find((d) => d.archetype === 'cityGreenery')?.vpContribution).to.eq(14);
+    // Turmoil Redux: the same tiles paid their TR at placement — the category
+    // holds only the city adjacency, the tiles sit in the rating's own segment.
+    const redux = pl('red', 90, {board: 3, strategyInput: si({})});
+    redux.breakdown = {total: 90, terraformRatingBreakdown: {base: 20, temperature: 0, oxygen: 0, oceans: 0, venus: 0, cards: 0, greeneries: 11}} as never;
+    const line = buildStrategyProfiles(ctx([redux, pl('blue', 80)])).red?.all.find((d) => d.archetype === 'cityGreenery');
+    expect(line, 'the board line is read through the tiles\' TR').to.not.be.undefined;
+    expect(line!.vpContribution).to.eq(14);
+    // A genuinely small board stays below the threshold under either rule.
+    const small = pl('red', 90, {board: 3, strategyInput: si({})});
+    expect(buildStrategyProfiles(ctx([small, pl('blue', 80)])).red?.all.some((d) => d.archetype === 'cityGreenery')).to.eq(false);
+  });
+
   it('evidence chips carry real numbers + a localized unit label', () => {
     const w = pl('red', 90, {cards: 30, strategyInput: si({cardVp: cardVp({animal: 14}), resourceTotals: {animals: 16, microbes: 0, floaters: 0, animalCards: 3, microbeCards: 0, floaterCards: 0}})});
     const profiles = buildStrategyProfiles(ctx([w, pl('blue', 80)]));

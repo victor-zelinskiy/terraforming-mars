@@ -4,6 +4,15 @@ The endgame beat where a player turns leftover plants into greeneries, one at a
 time, until they choose to stop. Console-native surface `ConsoleFinalGreenery.vue`
 (`.con-finale`), pure model `src/client/console/finalGreenery/finalGreeneryModel.ts`.
 
+**What a final greenery is worth depends on the ruleset, and the screen states
+neither** (it names the cost and the room, never the yield — the dossier does):
+classic, 1 VP for the tile at the count; Turmoil Redux (project decision Q-3),
++1 TR for the tile itself through the same `Game.addGreenery` →
+`ParliamentHandler.onGreeneryPlaced` path every greenery takes, no oxygen (it is
+maxed by then), no VP. The board dossier reads «+1 РТ · Тайл озеленения» for it
+like for any other greenery, and the TR lands in the «Тайлы озеленения» segment
+of the score.
+
 ## Why it is not just another optional decision
 
 Structurally this prompt is an ordinary two-branch `OrOptions` and the console

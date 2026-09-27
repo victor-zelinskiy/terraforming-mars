@@ -1,6 +1,6 @@
 {
   "Removal": "Снятие",
-  "The Mars Parliament: vote with delegates on resolutions, gain party effects, complete chairman quests and advance your Agenda. Requires Colonies.": "Марсианский парламент: голосуйте делегатами за резолюции, получайте эффекты партий, выполняйте задания председателя и продвигайте Повестку. Требует «Колонии».",
+  "The Mars Parliament: vote with delegates on resolutions, gain party effects, complete chairman quests and advance your Agenda. A greenery pays 2 TR (the oxygen and the tile itself) and scores no VP of its own; cities still score their adjacent greeneries. Requires Colonies.": "Марсианский парламент: голосуйте делегатами за резолюции, получайте эффекты партий, выполняйте задания председателя и продвигайте Повестку. Озеленение даёт 2 РТ (за кислород и за сам тайл) и не приносит ПО само по себе. Города по-прежнему получают ПО за соседние озеленения. Требует «Колонии».",
   "Inspect the enacted resolution": "Осмотреть принятую",
   "Turmoil Redux requires Colonies": "Turmoil Redux требует дополнение «Колонии»",
   "An enabled expansion requires another one": "Включённое дополнение требует другого дополнения",
@@ -117,6 +117,7 @@
   "The Unity action was already used this generation": "Действие Союза в этом поколении уже использовано",
   "${0} gained ${1} ${2} for placing a greenery": "${0} получает ${1} ${2} за размещение озеленения",
   "Greenery tile": "Тайл озеленения",
+  "Greenery tiles": "Тайлы озеленения",
   "Agenda track": "Трек Повестки",
   "${0} advanced the chairman quest to ${1}/${2}": "${0} продвигает задание председателя: ${1}/${2}",
   "${0} completed the chairman quest": "${0} выполняет задание председателя",

@@ -155,6 +155,11 @@ export const FINAL_SCORING_SEGMENTS: ReadonlyArray<SegMeta> = [
   // Omitting it made the reveal's TR (and total) under-count by this amount in
   // Ares games — diverging from the authoritative `breakdown.total`.
   {key: 'tr-hazards', group: 'tr', label: 'Hazard cleanup', penalty: false, value: (b) => b.terraformRatingBreakdown.hazards ?? 0},
+  // Turmoil Redux — the greenery revision: the TILES paid their TR at placement
+  // instead of scoring a VP each at the end. The points the «Greenery» group
+  // used to hold live here, under their own name — never inside «Cards &
+  // effects». Zero (and dropped) without the parliament.
+  {key: 'tr-greeneries', group: 'tr', label: 'Greenery tiles', penalty: false, value: (b) => b.terraformRatingBreakdown.greeneries ?? 0},
   {key: 'tr-cards', group: 'tr', label: 'Cards & effects', penalty: false, value: (b) => b.terraformRatingBreakdown.cards},
   {key: 'greenery', group: 'greenery', label: 'Greenery', penalty: false, value: (b) => b.greenery},
   {key: 'city', group: 'city', label: 'Cities', penalty: false, value: (b) => b.city},

@@ -69,6 +69,13 @@ const CANON: Record<string, string> = {
   // победит», never «при победе»), and the subject is named ONCE, by the reading's kicker.
   'if they win': 'если победит',
   'Only if they win — influence ${0} is below ${1}': 'Только если победит: влияние ${0} меньше ${1}',
+  // THE GREENERY REVISION: the tile's own TR is named after the TILE everywhere it is
+  // attributed — one placement («Тайл озеленения»: the journal row, the notification's cause,
+  // the dossier's reason, the winner reward's note) and the aggregate in the score
+  // («Тайлы озеленения»: the TR segment of the ceremony, the live score and the provenance).
+  // Never «Марсианский парламент» for a tile the player just laid.
+  'Greenery tile': 'Тайл озеленения',
+  'Greenery tiles': 'Тайлы озеленения',
 };
 
 /**

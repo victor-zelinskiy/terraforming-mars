@@ -47,6 +47,13 @@ import {ParameterMoveId, ParameterTable, parameterRoom} from './parameterMove';
 /** The Turmoil Redux greenery revision (rulebook p.3): a greenery is worth 1 TR for the tile itself, on top of its oxygen. */
 export const REDUX_GREENERY_TILE_TR = 1;
 
+/**
+ * The ONE name the tile's TR carries everywhere it is attributed — the
+ * player's TR source entry (`sourceName`, an i18n key), the placement dossier's
+ * reason row, the winner reward's note. «Тайл озеленения» in the RU glossary.
+ */
+export const GREENERY_TILE_TR_SOURCE_NAME = 'Greenery tile';
+
 export type WinnerTileKind = 'greenery' | 'ocean';
 
 /** The winner's part: ONE tile, through the standard placement (no cost, no action spent). */

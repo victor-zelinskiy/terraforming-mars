@@ -14,6 +14,7 @@ import {AwardScorer} from '../awards/AwardScorer';
 import {AutomaScoring} from '../automa/AutomaScoring';
 import {CardName} from '../../common/cards/CardName';
 import {CardVictoryPointsKind, CardVpMechanics, CardVpUnit, CityVpDetail, TerraformRatingBreakdown, TRSourceEntry} from '../../common/game/VictoryPointsBreakdown';
+import {GREENERY_TILE_TR_SOURCE_NAME} from '../../common/parliament/winnerReward';
 import {Counter} from '../behavior/Counter';
 
 // The clean standard starting terraform rating. NEVER a fallback bucket for
@@ -53,8 +54,11 @@ export function computeTerraformRatingBreakdown(player: IPlayer): TerraformRatin
       }
     }
   }
-  // Ares hazard-clearing TR is split OUT of `cards` into its own segment.
+  // Ares hazard-clearing TR is split OUT of `cards` into its own segment — and
+  // so is the Turmoil Redux greenery revision's tile TR (`greeneries`): the
+  // points a greenery used to score at the end, paid at placement instead.
   let hazards = 0;
+  let greeneries = 0;
   const cardEntries: Array<TRSourceEntry> = [];
   for (const e of byKey.values()) {
     if (e.amount === 0) {
@@ -62,21 +66,24 @@ export function computeTerraformRatingBreakdown(player: IPlayer): TerraformRatin
     }
     if (e.sourceType === 'ares-hazard') {
       hazards += e.amount;
+    } else if (isGreeneryTileSource(e)) {
+      greeneries += e.amount;
     } else {
       cardEntries.push(e);
     }
   }
 
-  let cards = player.terraformRatingFromCards - hazards;
+  let cards = player.terraformRatingFromCards - hazards - greeneries;
   const baseRating = STARTING_TERRAFORM_RATING;
   // The "TR Boost" handicap chosen at game creation is added to the rating at
   // setup via setTerraformRating (Game.ts), bypassing every bucket — surface it
   // EXPLICITLY as the Handicap ("Фора") sub-part, not the unattributed residual.
   const handicap = player.handicap;
 
-  // Reconcile: anything not explained by base/handicap/params/cards/hazards is a
-  // legacy unattributed source (old saves). Fold it INTO cards (NOT base) as a row.
-  const residual = player.terraformRating - baseRating - handicap - temperature - oxygen - oceans - venus - cards - hazards;
+  // Reconcile: anything not explained by base/handicap/params/cards/hazards/
+  // greeneries is a legacy unattributed source (old saves). Fold it INTO cards
+  // (NOT base) as a row.
+  const residual = player.terraformRating - baseRating - handicap - temperature - oxygen - oceans - venus - cards - hazards - greeneries;
   if (residual !== 0) {
     cards += residual;
     cardEntries.push({sourceType: 'legacyUnknown', sourceName: 'Other / untracked sources', amount: residual});
@@ -94,7 +101,18 @@ export function computeTerraformRatingBreakdown(player: IPlayer): TerraformRatin
     cards,
     cardEntries,
     hazards,
+    greeneries,
   };
+}
+
+/**
+ * The greenery revision's tile TR (Turmoil Redux). A save written before the
+ * segment existed attributed the same rule as `other` under the same stored
+ * key — that is a server-side attribution key, never a rendered title, so the
+ * old entries keep reading as the tile's rather than dissolving into cards.
+ */
+function isGreeneryTileSource(e: TRSourceEntry): boolean {
+  return e.sourceType === 'greenery-tile' || (e.sourceType === 'other' && e.sourceName === GREENERY_TILE_TR_SOURCE_NAME);
 }
 
 // Classify how a played card earns its victory points, for the "from cards"

@@ -26,7 +26,7 @@ import {IProjectCard} from '../cards/IProjectCard';
 import {PartyActionPromptMeta, ResolutionActionPromptMeta} from '../../common/models/PlayerInputModel';
 import {TagBonusModel} from '../../common/models/PlayerModel';
 import {REDUX_PARTIES, ReduxParty, ResolutionId} from '../../common/parliament/ParliamentTypes';
-import {REDUX_GREENERY_TILE_TR} from '../../common/parliament/winnerReward';
+import {GREENERY_TILE_TR_SOURCE_NAME, REDUX_GREENERY_TILE_TR} from '../../common/parliament/winnerReward';
 import {Parliament, PARTY_ACTION_USES_PER_GENERATION, Slot} from './Parliament';
 import {PARTY_EFFECTS, partySource, redsDiscardPrompt} from './parties/PartyEffects';
 import {QuestTracker} from './quests/QuestTracker';
@@ -401,8 +401,11 @@ export class ParliamentHandler {
     if (game?.parliament === undefined) {
       return;
     }
-    game.events.withSource({kind: 'parliament'}, () => {
-      player.increaseTerraformRating(REDUX_GREENERY_TILE_TR, {trAttribution: {sourceType: 'other', sourceName: 'Greenery tile'}});
+    // The tile is a NAMED rule: the journal row, the notification's cause and
+    // the score's TR segment all read «Greenery tile» — never the institution
+    // («Mars Parliament») for a tile the player just laid.
+    game.events.withSource({kind: 'parliament', rule: 'greenery-tile'}, () => {
+      player.increaseTerraformRating(REDUX_GREENERY_TILE_TR, {trAttribution: {sourceType: 'greenery-tile', sourceName: GREENERY_TILE_TR_SOURCE_NAME}});
       game.log('${0} gained ${1} ${2} for placing a greenery', (b) => b.player(player).number(REDUX_GREENERY_TILE_TR).tr());
     });
   }

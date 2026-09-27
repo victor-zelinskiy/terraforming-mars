@@ -33,7 +33,9 @@ export const PREMIUM_EXPANSIONS: ReadonlyArray<PremiumExpansionMeta> = [
   // Delta Project is surfaced under its in-game name, "Hydronetworks" → «Гидросети».
   {id: 'deltaProject', labelKey: 'Hydronetworks', descKey: 'A competitive module with a shared progress track: spend energy and meet tag requirements to advance, earn bonuses and race for victory points.'},
   // Turmoil Redux — the Mars Parliament. Requires Colonies (the creator says so before launch).
-  {id: 'turmoilRedux', labelKey: 'Turmoil Redux', descKey: 'The Mars Parliament: vote with delegates on resolutions, gain party effects, complete chairman quests and advance your Agenda. Requires Colonies.'},
+  // The greenery revision is a rule of the whole game, not of the parliament's screens — the
+  // one place the player reads the rules of an expansion before choosing it names it.
+  {id: 'turmoilRedux', labelKey: 'Turmoil Redux', descKey: 'The Mars Parliament: vote with delegates on resolutions, gain party effects, complete chairman quests and advance your Agenda. A greenery pays 2 TR (the oxygen and the tile itself) and scores no VP of its own; cities still score their adjacent greeneries. Requires Colonies.'},
 ];
 
 /** Expansions another expansion depends on (the creator blocks the launch and names the missing one). */

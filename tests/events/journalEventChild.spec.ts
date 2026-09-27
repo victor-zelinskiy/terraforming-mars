@@ -5,7 +5,7 @@ import {CardResource} from '@/common/CardResource';
 import {TileType} from '@/common/TileType';
 import {GameEvent} from '@/common/events/GameEvent';
 import {ColonyName} from '@/common/colonies/ColonyName';
-import {buildEventChildren, impactChips, JournalImpactChip} from '@/client/components/journal/journalEventChild';
+import {buildEventChildren, impactChips, JournalImpactChip, parliamentSourceLabel} from '@/client/components/journal/journalEventChild';
 import {allResolutions} from '@/client/parliament/ClientParliamentManifest';
 
 function ev(partial: Partial<GameEvent> & {id: number; type: GameEvent['type']; correlationId: number}): GameEvent {
@@ -190,5 +190,21 @@ describe('journal event-driven children', () => {
     expect(rows[0].bucket).to.eq('discount');
     expect(rows[0].source).to.deep.eq({kind: 'label', label: law.text.name});
     expect(rows[0].chips[0]).to.deep.include({icon: 'megacredits', text: '−3', saved: true});
+  });
+
+  it('the greenery revision\'s TR (Turmoil Redux) is a row named «Greenery tile» — the institution speaks only for a rule with no name of its own', () => {
+    const events: Array<GameEvent> = [
+      ev({id: 1, type: 'action', source: {kind: 'standardProject', card: CardName.CONVERT_PLANTS}, player: 'red', correlationId: 1}),
+      ev({id: 2, type: 'tr-changed', source: {kind: 'parliament', rule: 'greenery-tile'}, player: 'red', impact: {tr: 1}, correlationId: 1, parentId: 1}),
+      ev({id: 3, type: 'tr-changed', source: {kind: 'parliament'}, player: 'red', impact: {tr: 1}, correlationId: 1, parentId: 1}),
+    ];
+    const rows = buildEventChildren(events, 1, 'red');
+    expect(rows.map((r) => r.source), 'two sources, never merged into one «parliament» row').to.deep.eq([
+      {kind: 'label', label: 'Greenery tile'},
+      {kind: 'label', label: 'Mars Parliament'},
+    ]);
+    expect(rows[0].chips[0]).to.deep.include({icon: 'tr', text: '+1'});
+    expect(parliamentSourceLabel({kind: 'parliament', rule: 'greenery-tile'})).to.eq('Greenery tile');
+    expect(parliamentSourceLabel({kind: 'parliament'})).to.eq('Mars Parliament');
   });
 });

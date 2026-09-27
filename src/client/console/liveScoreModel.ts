@@ -80,17 +80,27 @@ export type LiveScoreOptions = {
   hasDelta: boolean;
   /** FINAL campaign mission: «Титулы» is a real category from generation 1. */
   hasTitles?: boolean;
+  /**
+   * Turmoil Redux (the Mars Parliament) is at the table. Its greenery
+   * revision moves the tile's point INTO the terraform rating (paid at
+   * placement — the «Greenery tiles» TR sub-line), so «Озеленение» is not a
+   * category of this game at all: absent, never an honest 0 nobody can score.
+   */
+  hasParliament?: boolean;
 };
 
 /** Category keys that exist for every game (honest 0 when unscored). */
 const CORE_CATEGORIES: ReadonlySet<ConsoleEndgameCategoryKey> =
-  new Set(['tr', 'milestones', 'awards', 'greenery', 'city', 'cards']);
+  new Set(['tr', 'milestones', 'awards', 'city', 'cards']);
 
 function categoryPresent(key: ConsoleEndgameCategoryKey, value: number, opts: LiveScoreOptions): boolean {
   if (CORE_CATEGORIES.has(key)) {
     return true;
   }
   switch (key) {
+  // A core category everywhere but under the parliament, where the rule that
+  // scored it is gone (a non-zero value can only be a legacy save's — kept).
+  case 'greenery': return opts.hasParliament !== true || value !== 0;
   case 'moon': return opts.hasMoon || value !== 0;
   case 'tracks': return opts.hasPathfinders || value !== 0;
   case 'delta': return opts.hasDelta || value !== 0;

@@ -6,7 +6,10 @@ import {PlaceGreeneryTile} from '../../../deferredActions/PlaceGreeneryTile';
 import {StandardProjectPlacement} from '../../../deferredActions/StandardProjectPlacement';
 import {Payment} from '../../../../common/inputs/Payment';
 import * as actionReason from '../../actionReasons';
+import * as preview from '../../actionPreviews';
 import {UnplayableReason} from '../../../../common/cards/UnplayableReason';
+import {ActionEffect} from '../../../../common/models/ActionPreviewModel';
+import {REDUX_GREENERY_TILE_TR} from '../../../../common/parliament/winnerReward';
 
 export class GreeneryStandardProject extends StandardProjectCard {
   constructor() {
@@ -52,6 +55,15 @@ export class GreeneryStandardProject extends StandardProjectCard {
   // Legacy committed path.
   actionEssence(player: IPlayer): void {
     player.game.defer(new PlaceGreeneryTile(player));
+  }
+
+  // Turmoil Redux — the greenery revision (rulebook p.3): the TILE itself pays
+  // 1 TR on top of the oxygen step, the same constant `ParliamentHandler
+  // .onGreeneryPlaced` pays at the commit. Without it the row promised only the
+  // oxygen chip, and with oxygen maxed read «no effect» while the project still
+  // paid 1 TR. Co-located with `payAndExecute` below, like the city's production.
+  public standardProjectPreviewEffects(player: IPlayer): ReadonlyArray<ActionEffect> {
+    return player.game.parliament !== undefined ? [preview.trGain(player, REDUX_GREENERY_TILE_TR)] : [];
   }
 
   // Co-located with the pay-on-commit override below — the same fact, declared.

@@ -23,6 +23,7 @@ import {CardName} from '@/common/cards/CardName';
 import type {EndgameFact} from '@/common/events/endgameFacts';
 import type {InsightContext, InsightParam, EvidenceChip} from '@/client/components/endgame/insightEngine';
 import type {EndgameCategoryKey} from '@/client/components/endgame/endgameModel';
+import {boardPointsOf} from '@/client/components/endgame/boardPoints';
 import {Color} from '@/common/Color';
 import {
   ARCHETYPE_LABEL, ARCHETYPE_ENGINE_TEXT, type CorporationArchetype, corporationProfile,
@@ -118,6 +119,11 @@ function playerOf(ctx: InsightContext, color: Color) {
 }
 function categoryVp(ctx: InsightContext, color: Color, key: EndgameCategoryKey): number {
   return playerOf(ctx, color)?.categories[key] ?? 0;
+}
+/** The board's points for a corporation's story — `boardPointsOf`: the category plus the greenery tiles' own TR (Turmoil Redux). */
+function boardPoints(ctx: InsightContext, color: Color): number {
+  const p = playerOf(ctx, color);
+  return p === undefined ? 0 : boardPointsOf(p);
 }
 function corpFactFor(ctx: InsightContext, color: Color, corp: CardName): EndgameFact | undefined {
   return (ctx.facts ?? []).find((f) => f.type === 'corporationImpact' && f.player === color && f.sourceCard === corp);
@@ -563,14 +569,15 @@ const ach = (id: string, tier: CorporationAchievementTier, chips: Array<Evidence
   ({id, title, description: title, tier, placementHint: hintFor(tier), evidenceChips: chips});
 
 const CORP_RULE_OVERRIDES: Partial<Record<CardName, CorporationRuleOverride>> = {
-  // Ecoline — greenery / board engine (§13). Its story is board VP, not the corp's own events.
+  // Ecoline — greenery / board engine (§13). Its story is the board's points, not the corp's
+  // own events — `boardPoints`, so a Turmoil Redux greenery engine (tiles paid as TR) still reads.
   [CardName.ECOLINE]: {
     signal: (ctx, color, _p, f, base) => {
-      const board = categoryVp(ctx, color, 'board');
+      const board = boardPoints(ctx, color);
       return {...base, impact: clamp01(board / 32 * 0.7 + m(f, 'totalMeasuredValue') / 30 * 0.3), converted: board >= 10};
     },
     achievements: (ctx, color) => {
-      const board = categoryVp(ctx, color, 'board');
+      const board = boardPoints(ctx, color);
       const t: CorporationAchievementTier | undefined = board >= 22 ? 'gold' : board >= 12 ? 'silver' : board >= 6 ? 'bronze' : undefined;
       return t !== undefined ? [ach('ecolineBoard', t, [chipN(board, 'good', 'VP')], 'Greened the planet')] : [];
     },
@@ -578,12 +585,12 @@ const CORP_RULE_OVERRIDES: Partial<Record<CardName, CorporationRuleOverride>> = 
   // Tharsis Republic — city / board economy (§13).
   [CardName.THARSIS_REPUBLIC]: {
     signal: (ctx, color, _p, f, base) => {
-      const board = categoryVp(ctx, color, 'board');
+      const board = boardPoints(ctx, color);
       const saved = m(f, 'passiveSaved') + m(f, 'passiveProduction');
       return {...base, impact: clamp01(board / 30 * 0.55 + saved / 24 * 0.45), converted: board >= 8};
     },
     achievements: (ctx, color) => {
-      const board = categoryVp(ctx, color, 'board');
+      const board = boardPoints(ctx, color);
       const t: CorporationAchievementTier | undefined = board >= 22 ? 'gold' : board >= 12 ? 'silver' : board >= 6 ? 'bronze' : undefined;
       return t !== undefined ? [ach('cityNetwork', t, [chipN(board, 'good', 'VP')], 'Ran the city economy')] : [];
     },

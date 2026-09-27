@@ -39,7 +39,7 @@ function breakdown(partial: Partial<VictoryPointsBreakdown>): VictoryPointsBreak
   };
   const merged = {...base, ...partial};
   const trb = merged.terraformRatingBreakdown;
-  merged.terraformRatingBreakdown = {...trb, base: merged.terraformRating - (trb.temperature + trb.oxygen + trb.oceans + trb.venus + trb.cards + (trb.hazards ?? 0))};
+  merged.terraformRatingBreakdown = {...trb, base: merged.terraformRating - (trb.temperature + trb.oxygen + trb.oceans + trb.venus + trb.cards + (trb.hazards ?? 0) + (trb.greeneries ?? 0))};
   if (merged.victoryPoints !== 0 && merged.detailsCards.length === 0) {
     merged.detailsCards = [{cardName: 'TestFixed', victoryPoint: merged.victoryPoints, kind: 'fixed'}];
   }
@@ -65,6 +65,33 @@ describe('liveScoreModel — the live Information score over the endgame categor
     const model = buildLiveScoreModel(b, OPTS);
     expect(catSum(model)).to.eq(b.total).and.to.eq(51);
     expect(model.total).to.eq(51);
+  });
+
+  // TURMOIL REDUX — the greenery revision: the tiles pay their TR at placement
+  // and score no VP of their own, so «Озеленение» is not a category of the game
+  // and the tiles' TR is a NAMED sub-line of the rating.
+  it('under the parliament «Greenery» is ABSENT (not an honest 0) and the tiles\' TR is its own named sub-line', () => {
+    const b = breakdown({
+      terraformRating: 30, city: 3, victoryPoints: 7,
+      terraformRatingBreakdown: {base: 20, temperature: 2, oxygen: 4, oceans: 0, venus: 0, cards: 0, greeneries: 4},
+    });
+    const redux = buildLiveScoreModel(b, {...OPTS, hasParliament: true});
+    expect(redux.categories.map((c) => c.key), 'no greenery category at the table').to.deep.eq(['tr', 'milestones', 'awards', 'city', 'cards']);
+    expect(catSum(redux), 'Σ categories ≡ total with the tiles inside the rating').to.eq(b.total).and.to.eq(40);
+    const tr = redux.categories.find((c) => c.key === 'tr')!;
+    expect(tr.value).to.eq(30);
+    expect(tr.subs.find((s) => s.key === 'tr-greeneries'), 'the tiles as a sub-line, named after the tiles').to.deep.eq({key: 'tr-greeneries', label: 'Greenery tiles', value: 4});
+    expect(tr.subs.some((s) => s.key === 'tr-cards'), 'nothing under «Cards & effects» that the tiles paid').to.eq(false);
+    // Without the parliament the same breakdown keeps the classic honest 0.
+    const classic = buildLiveScoreModel(b, OPTS);
+    expect(classic.categories.some((c) => c.key === 'greenery' && c.value === 0)).to.eq(true);
+  });
+
+  it('a legacy save that still carries greenery VP under the parliament keeps the category (never hides points)', () => {
+    const b = breakdown({terraformRating: 22, greenery: 2});
+    const model = buildLiveScoreModel(b, {...OPTS, hasParliament: true});
+    expect(model.categories.find((c) => c.key === 'greenery')?.value).to.eq(2);
+    expect(catSum(model)).to.eq(b.total);
   });
 
   it('categories keep the CEREMONY order — cards last among positives, penalties after', () => {

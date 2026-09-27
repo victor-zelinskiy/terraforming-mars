@@ -6,8 +6,25 @@ import {GlobalParameter} from '@/common/GlobalParameter';
 import {tileTypeToString} from '@/common/TileType';
 import {GameEvent} from '@/common/events/GameEvent';
 import {EventImpact} from '@/common/events/EventImpact';
-import {EventSource, sourceKey} from '@/common/events/EventSource';
+import {EventSource, ParliamentRule, sourceKey} from '@/common/events/EventSource';
 import {resolutionName} from '@/client/parliament/ClientParliamentManifest';
+import {GREENERY_TILE_TR_SOURCE_NAME} from '@/common/parliament/winnerReward';
+
+/**
+ * The NAME of a parliament-sourced event (Turmoil Redux), shared by the journal
+ * row and the notification's cause line: a rule the player knows by its own
+ * name speaks for itself — the greenery revision's TR is «Greenery tile», the
+ * same word the TR breakdown and the placement dossier use — and everything
+ * else the rulebook does reads as the institution.
+ */
+export function parliamentSourceLabel(source: {kind: 'parliament'; rule?: ParliamentRule}): string {
+  switch (source.rule) {
+  case 'greenery-tile':
+    return GREENERY_TILE_TR_SOURCE_NAME;
+  default:
+    return 'Mars Parliament';
+  }
+}
 
 /**
  * PURE formatter that turns the structured {@link GameEvent}s of ONE correlation
@@ -167,11 +184,11 @@ function sourceToChild(source: EventSource | undefined): JournalChildSource {
   case 'party':
     return {kind: 'label', label: source.name};
   // Turmoil Redux: an enacted resolution names itself; the parliament's own
-  // rules (the greenery TR, an Agenda bonus) read as the institution.
+  // rules read as the institution — except the one with a name of its own.
   case 'resolution':
     return {kind: 'label', label: resolutionName(source.id)};
   case 'parliament':
-    return {kind: 'label', label: 'Mars Parliament'};
+    return {kind: 'label', label: parliamentSourceLabel(source)};
   default:
     return {kind: 'none'};
   }

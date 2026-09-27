@@ -176,6 +176,22 @@ describe('corporation audit (Iteration 17 §2)', () => {
     expect(names).to.not.include(CardName.SEPTUM_TRIBUS);
   });
 
+  it('Ecoline\'s story reads the board\'s POINTS in both greenery rulesets — the tiles\' TR under Turmoil Redux counts as board', () => {
+    // Classic: 14 board VP → «Greened the planet» (silver at 12+).
+    const classic = mk([pl('red', 'N', 80, [CardName.ECOLINE], {isWinner: true, categories: {board: 14}}), pl('blue', 'V', 70, [CardName.HELION])], []);
+    const classicAch = impactFor(classic, 'red')!.achievements.find((a) => a.id === 'ecolineBoard');
+    expect(classicAch?.tier).to.eq('silver');
+    // Turmoil Redux: the same greeneries paid 11 TR at placement and the category
+    // holds only the 3 city-adjacency points — the corporation's story must not vanish.
+    const reduxPlayer = pl('red', 'N', 80, [CardName.ECOLINE], {isWinner: true, categories: {board: 3}});
+    reduxPlayer.breakdown = {total: 80, detailsAwards: [], detailsMilestones: [],
+      terraformRatingBreakdown: {base: 20, temperature: 0, oxygen: 0, oceans: 0, venus: 0, cards: 0, greeneries: 11}} as never;
+    const redux = mk([reduxPlayer, pl('blue', 'V', 70, [CardName.HELION])], []);
+    const reduxAch = impactFor(redux, 'red')!.achievements.find((a) => a.id === 'ecolineBoard');
+    expect(reduxAch?.tier, 'the same tier for the same tiles').to.eq('silver');
+    expect(reduxAch?.evidenceChips[0]?.v, 'the chip carries the board\'s points, tiles included').to.eq('14');
+  });
+
   it('the marquee corporations with bespoke logic are tagged specific', () => {
     const audit = buildCorporationAudit();
     const specific = new Set(audit.filter((e) => e.ruleStatus === 'specific').map((e) => e.corporationName));

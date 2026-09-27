@@ -642,6 +642,7 @@ export default defineComponent({
         hasPathfinders: game.pathfinders !== undefined,
         hasDelta: game.gameOptions.expansions.deltaProject === true,
         hasTitles: game.gameOptions.campaign?.final === true,
+        hasParliament: game.parliament !== undefined,
       });
     },
     /** The summary bar's positive segments (a penalty subtracts — it is

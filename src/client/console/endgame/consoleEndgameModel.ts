@@ -229,6 +229,9 @@ export const TR_SUB_LABEL: Readonly<Record<string, string>> = {
   'tr-oceans': 'Oceans',
   'tr-venus': 'Venus',
   'tr-hazards': 'Hazard cleanup',
+  // Turmoil Redux — the greenery tiles' own TR (the revision), named as the
+  // tiles, never folded into «Cards & effects».
+  'tr-greeneries': 'Greenery tiles',
 };
 
 // ── the builder ────────────────────────────────────────────────────────────

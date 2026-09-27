@@ -59,7 +59,7 @@ function breakdown(partial: Partial<VictoryPointsBreakdown>): VictoryPointsBreak
   // the displayed rating, and the cards segments read detailsCards.
   if (partial.terraformRatingBreakdown === undefined) {
     const trb = merged.terraformRatingBreakdown;
-    merged.terraformRatingBreakdown = {...trb, base: merged.terraformRating - (trb.temperature + trb.oxygen + trb.oceans + trb.venus + trb.cards + (trb.hazards ?? 0))};
+    merged.terraformRatingBreakdown = {...trb, base: merged.terraformRating - (trb.temperature + trb.oxygen + trb.oceans + trb.venus + trb.cards + (trb.hazards ?? 0) + (trb.greeneries ?? 0))};
   }
   if (merged.victoryPoints !== 0 && merged.detailsCards.length === 0) {
     merged.detailsCards = [{cardName: 'TestFixed', victoryPoint: merged.victoryPoints, kind: 'fixed'}];
@@ -196,6 +196,28 @@ describe('scoreExplorerModel — the victory-points exploration levels', () => {
     const bot = buildTrProvenance(b, true);
     expect(bot.total).to.eq(30);
     expect(bot.rows.find((r) => r.flavor === 'source')?.label).to.eq('Track actions');
+  });
+
+  it('TR provenance: the greenery tiles\' TR (Turmoil Redux) is its OWN row in the tiles\' green — beside the hazard cleanup, before the cards', () => {
+    const b = breakdown({
+      terraformRating: 31,
+      terraformRatingBreakdown: {
+        base: 20, baseRating: 20, handicap: 0,
+        temperature: 2, oxygen: 4, oceans: 0, venus: 0, cards: 2, hazards: 0, greeneries: 3,
+        cardEntries: [{sourceType: 'card', sourceName: 'Bribed Committee', sourceCardId: 'Bribed Committee', amount: 2, generation: 4}],
+      },
+    });
+    const model = buildTrProvenance(b, false);
+    expect(model.total, 'Σ rows ≡ TR').to.eq(31);
+    expect(model.rows.map((r) => r.flavor)).to.deep.eq(['base', 'param', 'param', 'greenery', 'source']);
+    const tiles = model.rows.find((r) => r.flavor === 'greenery')!;
+    expect(tiles.label, 'named after the tiles, the glossary\'s word').to.eq('Greenery tiles');
+    expect(tiles.value).to.eq(3);
+    expect(tiles.cardId, 'no card chip — the tiles are nobody\'s card').to.eq(undefined);
+    expect(model.rows[model.rows.length - 1].running).to.eq(31);
+    // Absent without the parliament: a classic breakdown has no such row.
+    const classic = buildTrProvenance(breakdown({terraformRating: 24, terraformRatingBreakdown: {base: 20, temperature: 0, oxygen: 4, oceans: 0, venus: 0, cards: 0}}), false);
+    expect(classic.rows.some((r) => r.flavor === 'greenery')).to.eq(false);
   });
 
   // ── level 2: the cards hub ───────────────────────────────────────────────

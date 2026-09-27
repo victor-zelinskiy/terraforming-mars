@@ -122,6 +122,9 @@ function trScale(b: VictoryPointsBreakdown): VPScale {
     {key: 'tr.venus', accent: 'venus', label: 'Venus', value: tr.venus},
     // Ares — diegetic, never expansion-named («Очистка опасных зон»). 0/absent → filtered.
     {key: 'tr.hazards', accent: 'tr-hazards', label: 'Hazard cleanup', value: tr.hazards ?? 0},
+    // Turmoil Redux — the greenery tiles' own TR (the revision). 0/absent → filtered;
+    // without it the bar's Σ segments under-counted the rating by exactly this.
+    {key: 'tr.greeneries', accent: 'greenery', label: 'Greenery tiles', value: tr.greeneries ?? 0},
     {key: 'tr.cards', accent: 'tr-cards', label: directTrLabel, value: tr.cards},
   ]);
   // base can fall slightly negative on heavy TR loss — clamp the SEGMENT for

@@ -338,7 +338,9 @@ const STYLE_DETAIL: Readonly<Record<string, StyleDetail>> = {
     why: 'A card engine hides much of its scoring off the visible board.',
   },
   'Board Builder': {
-    explanation: 'This player built on the planet — cities and greenery driving board points.',
+    // Generic over both greenery rulesets (a tile scores at the end, or paid
+    // its TR at placement under Turmoil Redux) — «points», never «board VP».
+    explanation: 'This player built on the planet: cities and greenery turned into points.',
     why: 'Board presence is visible, defensible scoring that also moves oxygen.',
   },
   'Economy Engine': {
@@ -461,7 +463,9 @@ export function buildStyleDetail(ctx: InsightContext, color: Color, style: strin
 
 const STRATEGY_TERM_EXPLANATION: Partial<Record<StrategyArchetype, {explanation: string; why?: string}>> = {
   cityGreenery: {
-    explanation: 'This line scored on the board: city tiles, greenery and the adjacency bonuses between them at the final count.',
+    // Generic over both greenery rulesets: «every tile laid was worth points»
+    // holds whether a greenery scores at the end or paid its TR at placement.
+    explanation: 'This line scored on the board: greenery tiles, city tiles and the adjacency between them. Every tile laid was worth points.',
     why: 'Board scoring is visible and hard to take away — and it raises oxygen along the way.',
   },
   globalParams: {

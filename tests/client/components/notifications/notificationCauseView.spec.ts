@@ -44,6 +44,10 @@ describe('notificationCauseView (the «почему» grammar)', () => {
       [{kind: 'spaceBonus'}, 'Cell bonus'],
       [{kind: 'oceanBonus'}, 'Ocean bonus'],
       [{kind: 'payment'}, 'Payment'],
+      // Turmoil Redux: the institution for a rule with no name of its own, the
+      // TILE for the greenery revision's TR (the journal's word, the glossary's).
+      [{kind: 'parliament'}, 'Mars Parliament'],
+      [{kind: 'parliament', rule: 'greenery-tile'}, 'Greenery tile'],
       [{kind: 'action', category: 'solar-phase'}, 'Solar phase'],
     ];
     for (const [origin, expectedName] of rendered) {

@@ -47,6 +47,17 @@ describe('victoryPointsModel', () => {
     expect(tr.positiveTotal).eq(28);
   });
 
+  it('carries the greenery tiles\' own TR (Turmoil Redux) as a named segment so the bar still sums to the rating', () => {
+    const model = buildVictoryPointsModel(breakdown({
+      terraformRating: 30,
+      terraformRatingBreakdown: {base: 20, temperature: 2, oxygen: 4, oceans: 0, venus: 0, cards: 0, greeneries: 4},
+    }), NO_EXPANSIONS);
+    const tr = model.scales.find((s) => s.key === 'tr')!;
+    expect(tr.segments.map((s) => s.key)).to.eql(['tr.base', 'tr.temperature', 'tr.oxygen', 'tr.greeneries']);
+    expect(tr.segments.find((s) => s.key === 'tr.greeneries')?.label).eq('Greenery tiles');
+    expect(tr.total).eq(30);
+  });
+
   it('splits card VP into resource / conditional / fixed / penalty segments', () => {
     const model = buildVictoryPointsModel(breakdown({
       victoryPoints: 7,

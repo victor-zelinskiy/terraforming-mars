@@ -47,6 +47,7 @@ import type {
   EndgameParameter,
   EndgamePlayerScore,
 } from '@/client/components/endgame/endgameModel';
+import {greeneryTilesTrOf} from '@/client/components/endgame/boardPoints';
 
 // ─────────────────────────────────────────────────────────────────────────
 // Types
@@ -1071,8 +1072,10 @@ function metric(f: EndgameFact, k: string): number {
 function hasCard(ctx: InsightContext, color: Color, card: CardName): boolean {
   return (ctx.playerCards?.[color] ?? []).includes(card);
 }
+/** The board's points for a strategy reading: the context's `board` category plus the greenery tiles' own TR (Turmoil Redux — `boardPoints.ts`). */
 function boardVp(ctx: InsightContext, color: Color): number {
-  return ctx.categories.find((c) => c.key === 'board')?.values[color] ?? 0;
+  const category = ctx.categories.find((c) => c.key === 'board')?.values[color] ?? 0;
+  return category + greeneryTilesTrOf(ctx.players.find((x) => x.color === color)?.breakdown);
 }
 
 // ── Economy as FUEL for a plan (rework §13 — no internal "value" metric) + underdog win ──
@@ -2283,7 +2286,9 @@ const ARCHETYPE_INSIGHT_TEXT: Readonly<Record<StrategyArchetype, ArchetypeText>>
     support: 'Colony trades supported ${0}’s plan with a regular flow of resources.',
   },
   cityGreenery: {
-    win: 'Cities and greenery worked as one for ${0}: board presence scored through adjacency and the final count.',
+    // Generic over both greenery rulesets: a tile is points whether it scores
+    // at the end (classic) or paid its TR at placement (Turmoil Redux).
+    win: 'Cities and greenery worked as one for ${0}: every tile laid became points, and the adjacency between them added more.',
     lost: '${0} built on the board, but the city-and-greenery network came up short on points.',
     support: 'A growing board added solid, visible points to ${0}’s game.',
   },

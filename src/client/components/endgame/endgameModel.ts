@@ -260,6 +260,10 @@ export function automaCardsTotal(b: VictoryPointsBreakdown): number {
   return a === undefined ? 0 : a.mcToVp + a.neuralInstance + a.cardVp + a.corpVp;
 }
 
+// The board's points for a STRATEGY reading (the category plus the greenery
+// tiles' own TR under Turmoil Redux) is `boardPoints.ts` — a leaf module every
+// insight layer reads without importing this one.
+
 function categoryValue(b: VictoryPointsBreakdown, key: EndgameCategoryKey): number {
   switch (key) {
   case 'tr': return b.terraformRating;

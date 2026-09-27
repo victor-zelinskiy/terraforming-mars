@@ -421,6 +421,7 @@ export default defineComponent({
         hasPathfinders: game.pathfinders !== undefined,
         hasDelta: game.gameOptions.expansions.deltaProject === true,
         hasTitles: game.gameOptions.campaign?.final === true,
+        hasParliament: game.parliament !== undefined,
       });
     },
     explorerCtx(): ScoreExplorerContext {

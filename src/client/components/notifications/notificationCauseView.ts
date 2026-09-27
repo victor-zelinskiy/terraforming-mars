@@ -2,7 +2,7 @@ import {TileType, tileTypeToString} from '@/common/TileType';
 import {GlobalParameter} from '@/common/GlobalParameter';
 import {EventTrigger, JournalActionCategory} from '@/common/events/GameEvent';
 import {bonusCardInfo} from '@/common/automa/BonusCardData';
-import {JournalImpactChip} from '@/client/components/journal/journalEventChild';
+import {JournalImpactChip, parliamentSourceLabel} from '@/client/components/journal/journalEventChild';
 import {ViewerImpactCause, ViewerImpactMeta} from './notificationSemantics';
 import {resolutionName} from '@/client/parliament/ClientParliamentManifest';
 
@@ -169,11 +169,12 @@ export function causeLineOf(cause: ViewerImpactCause): NotificationCauseLine | u
   case 'payment':
     return line('Source', 'Payment');
   // Turmoil Redux: an enacted resolution names itself (the catalog's name
-  // key); the parliament's own rules read as the institution.
+  // key); the parliament's own rules read as the institution, except the one
+  // the player knows by name (the greenery tile's TR — the journal's word).
   case 'resolution':
     return line('Source', resolutionName(origin.id));
   case 'parliament':
-    return line('Source', 'Mars Parliament');
+    return line('Source', parliamentSourceLabel(origin));
   case 'system':
     // 'system' is folded into the action fallback by the semantics layer —
     // reaching here means an unattributed delta slipped through. No line;

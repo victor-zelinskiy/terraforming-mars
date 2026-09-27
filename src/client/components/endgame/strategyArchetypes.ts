@@ -24,6 +24,7 @@ import type {ColonyName} from '@/common/colonies/ColonyName';
 import type {EndgameFact, FactType} from '@/common/events/endgameFacts';
 import type {InsightContext, InsightFamily, EvidenceChip} from '@/client/components/endgame/insightEngine';
 import type {EndgamePlayerScore} from '@/client/components/endgame/endgameModel';
+import {boardPointsOf} from '@/client/components/endgame/boardPoints';
 import type {CardVpBySource, CardVpSource, VpConfidence} from '@/client/components/endgame/cardScoreContribution';
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -286,7 +287,9 @@ const detectColonyTrade: Detector = (p, si, ctx) => {
 };
 
 const detectCityGreenery: Detector = (p, _si, ctx) => {
-  const boardVp = categoryVp(p, 'board');
+  // The board's points in BOTH rulesets: the category, plus the TR the
+  // greenery tiles paid at placement under Turmoil Redux (`boardPointsOf`).
+  const boardVp = boardPointsOf(p);
   if (boardVp < 12) {
     return undefined;
   }

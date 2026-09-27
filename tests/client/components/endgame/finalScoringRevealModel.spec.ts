@@ -31,7 +31,7 @@ function breakdown(partial: Partial<VictoryPointsBreakdown>): VictoryPointsBreak
   // Mirror production: base is the reconciling remainder so the TR sub-parts
   // always sum to terraformRating.
   const trb = merged.terraformRatingBreakdown;
-  merged.terraformRatingBreakdown = {...trb, base: merged.terraformRating - (trb.temperature + trb.oxygen + trb.oceans + trb.venus + trb.cards + (trb.hazards ?? 0))};
+  merged.terraformRatingBreakdown = {...trb, base: merged.terraformRating - (trb.temperature + trb.oxygen + trb.oceans + trb.venus + trb.cards + (trb.hazards ?? 0) + (trb.greeneries ?? 0))};
   // Mirror production: detailsCards sums to victoryPoints (cards derive from kinds).
   if (merged.victoryPoints !== 0 && merged.detailsCards.length === 0) {
     merged.detailsCards = [{cardName: 'TestFixed', victoryPoint: merged.victoryPoints, kind: 'fixed'}];
@@ -111,6 +111,29 @@ describe('finalScoringRevealModel', () => {
     const sum = reveal.segments.reduce((acc, s) => acc + (s.values['red'] ?? 0), 0);
     expect(sum).to.eq(39);
     expect(reveal.players.find((p) => p.color === 'red')?.finalTotal).to.eq(39);
+  });
+
+  it('Turmoil Redux: the greenery tiles\' own TR is its NAMED segment, the «Greenery» group is gone, and the sums still meet the total', () => {
+    // The greenery revision: the tiles paid their TR at placement and score no
+    // VP at the end — the same points, told in the rating under their own name.
+    const a = player('red', 'A', {
+      terraformRating: 30,
+      terraformRatingBreakdown: {base: 20, temperature: 2, oxygen: 4, oceans: 0, venus: 0, cards: 0, greeneries: 4},
+      greenery: 0, city: 3, victoryPoints: 7,
+    }); // TR 30 (20 + 2 + 4 oxygen + 4 tiles) + 3 city + 7 cards = 40
+    const reveal = buildFinalScoringRevealModel(model([a, player('blue', 'B', {terraformRating: 20})]), ['red', 'blue']);
+    const trSegs = reveal.segments.filter((s) => s.group === 'tr');
+    const tiles = trSegs.find((s) => s.key === 'tr-greeneries');
+    expect(tiles, 'the tiles as a segment of the rating').is.not.undefined;
+    expect(tiles?.label).to.eq('Greenery tiles');
+    expect(tiles?.values['red']).to.eq(4);
+    expect(trSegs.map((s) => s.key).indexOf('tr-greeneries'), 'ordered beside the hazard cleanup, before the cards').to.be.lessThan(trSegs.map((s) => s.key).indexOf('tr-cards') === -1 ? Infinity : trSegs.map((s) => s.key).indexOf('tr-cards'));
+    expect(trSegs.some((s) => s.key === 'tr-cards'), 'nothing under «Cards & effects» that the tiles paid').to.eq(false);
+    expect(reveal.groups.some((g) => g.key === 'greenery'), 'no «Greenery» group to reveal').to.eq(false);
+    expect(reveal.groups.find((g) => g.key === 'tr')?.values['red']).to.eq(30);
+    const sum = reveal.segments.reduce((acc, s) => acc + (s.values['red'] ?? 0), 0);
+    expect(sum).to.eq(40);
+    expect(reveal.players.find((p) => p.color === 'red')?.finalTotal).to.eq(40);
   });
 
   it('splits TR into its sub-parts (reusing terraformRatingBreakdown), grouped under "tr"', () => {

@@ -18,7 +18,7 @@ import {Phase} from '../../common/Phase';
 import {Resource} from '../../common/Resource';
 import * as constants from '../../common/constants';
 import {PartyName} from '../../common/turmoil/PartyName';
-import {REDUX_GREENERY_TILE_TR} from '../../common/parliament/winnerReward';
+import {GREENERY_TILE_TR_SOURCE_NAME, REDUX_GREENERY_TILE_TR} from '../../common/parliament/winnerReward';
 import {GREENS_MEGACREDITS_PER_TR} from '../parliament/parties/PartyEffects';
 import {
   BoardCellInfo,
@@ -633,7 +633,7 @@ function greeneryRevisionFacts(player: IPlayer, ctx: PlacementPreviewContext): A
   return [{
     ...gainFact('redux-greenery-tile-tr', 'placement-effect', 'Terraform rating',
       {icon: 'tr', amount: REDUX_GREENERY_TILE_TR, direction: 'gain', current, resulting: current + REDUX_GREENERY_TILE_TR}),
-    reason: 'Greenery tile',
+    reason: GREENERY_TILE_TR_SOURCE_NAME,
   }];
 }
 

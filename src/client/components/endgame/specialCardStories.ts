@@ -1,6 +1,7 @@
 import type {Color} from '@/common/Color';
 import type {EndgameFact} from '@/common/events/endgameFacts';
 import type {InsightCandidate, InsightContext, InsightParam} from '@/client/components/endgame/insightEngine';
+import {greeneryTilesTrOf} from '@/client/components/endgame/boardPoints';
 
 /*
  * SPECIAL CARD STORY REGISTRY (Iteration 8).
@@ -33,8 +34,10 @@ function facts(ctx: InsightContext, type: EndgameFact['type']): ReadonlyArray<En
 function name(ctx: InsightContext, color: Color): string {
   return ctx.players.find((p) => p.color === color)?.name ?? '';
 }
+/** The board's points for a strategy reading: the context's `board` category plus the greenery tiles' own TR (Turmoil Redux — `boardPoints.ts`). */
 function boardVp(ctx: InsightContext, color: Color): number {
-  return ctx.categories.find((c) => c.key === 'board')?.values[color] ?? 0;
+  const category = ctx.categories.find((c) => c.key === 'board')?.values[color] ?? 0;
+  return category + greeneryTilesTrOf(ctx.players.find((x) => x.color === color)?.breakdown);
 }
 const metric = (f: EndgameFact, k: string): number => f.metrics[k] ?? 0;
 const duelBonus = (ctx: InsightContext): number => (ctx.mode === 'duel' ? 0.85 : 0);
