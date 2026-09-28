@@ -475,7 +475,7 @@ export type VoteForecastVm = {
  * A forecast describes the CURRENT distribution: it never promises the
  * generation's outcome (other players still vote).
  */
-export function voteForecastOf(slot: ParliamentSlotVm, viewer: Color | undefined, vote: VoteOptionModel | undefined): VoteForecastVm | undefined {
+export function voteForecastOf(slot: ParliamentSlotVm, viewer: Color | undefined, vote: VoteOptionModel | undefined, count = 1): VoteForecastVm | undefined {
   const projection = slot.projection;
   if (projection === undefined || viewer === undefined || vote === undefined) {
     return undefined;
@@ -489,7 +489,8 @@ export function voteForecastOf(slot: ParliamentSlotVm, viewer: Color | undefined
     votesBefore: slot.totalVotes,
     votesAfter: projection.votesAfter,
     viewerVotesBefore: slot.viewerVotes,
-    viewerVotesAfter: slot.viewerVotes + 1,
+    // `count` delegates at once for a GRANT (the server projected the same count — `pendingDelegateGrantCount`).
+    viewerVotesAfter: slot.viewerVotes + Math.max(1, count),
     leaderBefore: slot.leader,
     leaderAfter,
     leadChange,
@@ -706,15 +707,29 @@ export type ParliamentPromptBridge = {
   resolutionAction: {menuIndex: number, model: PlayerInputModel, resolution: ResolutionId} | undefined;
   /** A stand-alone `SelectParty` for the chairman seat (`votePrompt.source === 'chairman-seat'`). */
   seat: SelectPartyModel | undefined;
+  /**
+   * A stand-alone `SelectParty` of a DELEGATE GRANT (`votePrompt.source ===
+   * 'grant'` — Turmoil Redux, the Venus tile): a game effect hands the viewer
+   * `count` delegates for ONE resolution. Not the vote (no menu branch, no
+   * price, mandatory) — the vote MODE serves it, hosted inside the workspace
+   * the effect came from. `printed` is what the source printed when the
+   * reserve fell short (equal to `count` otherwise).
+   */
+  grant: {model: SelectPartyModel, count: number, printed: number} | undefined;
 };
 
 export function parliamentPromptBridge(wf: PlayerInputModel | undefined): ParliamentPromptBridge {
-  const bridge: ParliamentPromptBridge = {vote: undefined, actions: {}, resolutionAction: undefined, seat: undefined};
+  const bridge: ParliamentPromptBridge = {vote: undefined, actions: {}, resolutionAction: undefined, seat: undefined, grant: undefined};
   if (wf === undefined) {
     return bridge;
   }
   if (wf.type === 'party' && wf.votePrompt?.source === 'chairman-seat') {
     bridge.seat = wf;
+    return bridge;
+  }
+  if (wf.type === 'party' && wf.votePrompt?.source === 'grant') {
+    const count = Math.max(1, wf.votePrompt.count ?? 1);
+    bridge.grant = {model: wf, count, printed: Math.max(count, wf.votePrompt.printed ?? count)};
     return bridge;
   }
   if (wf.type !== 'or') {
@@ -808,6 +823,14 @@ export function voteResponse(bridge: ParliamentPromptBridge, party: PartyName): 
 
 export function seatResponse(bridge: ParliamentPromptBridge, party: PartyName): InputResponse | undefined {
   if (bridge.seat === undefined || !bridge.seat.parties.includes(party)) {
+    return undefined;
+  }
+  return {type: 'party', partyName: party};
+}
+
+/** A delegate GRANT's answer — the stand-alone party prompt, byte-identical to the historical radio UI. */
+export function grantResponse(bridge: ParliamentPromptBridge, party: PartyName): InputResponse | undefined {
+  if (bridge.grant === undefined || !bridge.grant.model.parties.includes(party)) {
     return undefined;
   }
   return {type: 'party', partyName: party};

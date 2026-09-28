@@ -205,6 +205,24 @@
 
     /* THE FIELD — the body and, over it, the vote mode's layer. */
     &__field { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; }
+    /* EMBEDDED AS A STEP (the Redux Venus's delegate grant inside the colonies):
+       the host's zone is the room — no frame insets of its own (the zone
+       already stands inside the host's frame), and the DELEGATES ZONE keeps
+       the head line's right edge in a toolbar of its own (the bench is the
+       physical source of every cube that flies; the crumb is the host's). */
+    &--embedded {
+        padding: 0;
+        width: 100%;
+        align-self: stretch;
+    }
+    &__toolbar {
+        flex-shrink: 0;
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        min-height: 0;
+        padding: 0 .1rem .1rem;
+    }
     &__body {
         flex: 1;
         min-height: 0;

@@ -24,8 +24,10 @@ const BASE_COLONIES: ReadonlyArray<ColonyName> = [
   ColonyName.CALLISTO, ColonyName.CERES, ColonyName.ENCELADUS, ColonyName.EUROPA,
   ColonyName.GANYMEDE, ColonyName.IO, ColonyName.LUNA, ColonyName.MIRANDA,
   ColonyName.PLUTO, ColonyName.TITAN, ColonyName.TRITON,
-  // Turmoil Redux — the replacement tiles print the base tile's line.
+  // Turmoil Redux — the replacement tiles print the base tile's line; the
+  // Venus addition prints its own (the retired community tile had none).
   ColonyName.PLUTO_REDUX,
+  ColonyName.VENUS_REDUX,
 ];
 
 /*

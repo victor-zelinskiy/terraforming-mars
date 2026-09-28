@@ -16,6 +16,13 @@ export interface IColonyTrader {
    * (the Turmoil Redux Pluto) may be legal through this path alone.
    */
   readonly bonusTradeOffset?: number;
+  /**
+   * The M€ this path TAKES as the fee before the income is read — the second
+   * term a colony's rule may judge by (`TradeTerms.feeMegacredits`: the Redux
+   * Venus's «extra 4 M€» at its 1st position is 4 M€ on top of THIS). Absent
+   * = 0: a path paid in energy, titanium or a card leaves the M€ alone.
+   */
+  readonly feeMegacredits?: number;
   /** OPTIONAL premium-UI metadata for the trade-payment picker (resource icon +
    *  cost + current→resulting). Standard-resource traders supply it; card
    *  traders may omit it (text fallback). */

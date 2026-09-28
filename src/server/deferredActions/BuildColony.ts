@@ -73,15 +73,15 @@ export class BuildColony extends DeferredAction<IColony> {
       return 'You already have a colony here';
     }
     // The only remaining playable-filter rejections are TR-affordability ones
-    // the client can't compute: building Venus/Europa raises a global parameter
-    // and Leavitt raises TR directly, so the player must afford that TR gain
-    // (the Reds tax, when in effect). Which parameter is obvious from the tile.
-    if (colony.name === ColonyName.VENUS || colony.name === ColonyName.EUROPA || colony.name === ColonyName.LEAVITT) {
+    // the client can't compute: building Europa raises a global parameter and
+    // Leavitt raises TR directly, so the player must afford that TR gain (the
+    // Reds tax, when in effect). Which parameter is obvious from the tile.
+    if (colony.name === ColonyName.EUROPA || colony.name === ColonyName.LEAVITT) {
       return 'Cannot afford the TR increase to build here';
     }
     // Unreachable for the rule-driven list (the branches above are exhaustive
-    // over getPlayableColonies' filters, and Venus/Europa/Leavitt are the whole
-    // set of TR-costed colonies). It only fires when the CALLER passed a custom
+    // over getPlayableColonies' filters, and Europa/Leavitt are the whole set
+    // of TR-costed colonies). It only fires when the CALLER passed a custom
     // `colonies` subset, where the exclusion is that card's own rule and this
     // deferred action genuinely cannot name it — so it states no cause it hasn't
     // verified rather than guessing one.

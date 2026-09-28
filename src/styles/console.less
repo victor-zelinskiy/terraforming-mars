@@ -18472,6 +18472,38 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
             max-height: 100%;
         }
     }
+    /* ── THE PARLIAMENT'S VOTE STEP (Turmoil Redux — the Venus tile's
+       delegates): the REAL Parliament in its vote mode owns the whole central
+       area, teleported here as a hosted frame. Above the focus stage (which
+       may still stand under it, folding on its own schedule) — the zone is
+       the room, never a panel beside the planet. ── */
+    &__embed--parliament {
+        flex-direction: column;
+        pointer-events: auto;
+        z-index: 5;
+        animation: con-colfocus-outcome-in calc(300ms * var(--motion-scale, 1)) ease-out both;
+    }
+    &__parlhost {
+        flex: 1 1 auto;
+        min-width: 0;
+        min-height: 0;
+        display: flex;
+
+        > .con-parl {
+            flex: 1 1 auto;
+            min-width: 0;
+            min-height: 0;
+            max-height: 100%;
+        }
+    }
+    /* The step's zone LEAVES with the short dissolve its guest plays inside it. */
+    &__embed--parliament.con-colonies-parlstep-leave-active {
+        transition: opacity calc(240ms * var(--motion-scale, 1)) ease-out;
+        animation: none;
+    }
+    &__embed--parliament.con-colonies-parlstep-leave-to {
+        opacity: 0;
+    }
     /* ── «СБРОШЕННЫЕ» — the resolution's discard seat: ONE spot (the
        stagewrap's lower-left corner) that survives the focus ⇄ discard
        recompositions; the cinematic's tray teleports into the anchor. ── */
@@ -20534,10 +20566,51 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     }
     &__cell-label {
         flex: 1;
+        /* The VALUE never yields (a cut glyph is a lie about the reward); the
+           label does, by an ellipsis in its OWN box — a composite income
+           («[Venus] + 2 [floaters]») is the widest value the cell meets. */
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
         font-size: .575rem;
         font-weight: 700;
         letter-spacing: .07rem;
         text-transform: uppercase;
+        color: @con-text-dim;
+    }
+    /* THE FIXED PART OF A COMPOSITE INCOME (the Redux Venus prints «[Venus] +
+       [the bonus under the marker]»): an inline-flex box like the reward's —
+       as a bare span the block-level `.benefit-glyph` (width: 100%) took the
+       whole value's width and the «+» wrapped under the label, pushing the
+       marker's bonus out of the 2.5rem cell (shipped once, 2026-09-28). The
+       Venus TILE sprite is 60×40 px; give it an explicit small box (the build
+       slot's own recipe for a tile glyph) so it reads at the resource icon's
+       weight instead of a planet-sized oval. */
+    &__cell-fixed {
+        display: inline-flex;
+        align-items: center;
+        gap: .12rem;
+        flex-shrink: 0;
+
+        /* Sized so «ТОРГОВАТЬ» still fits beside «[Venus] + [bonus]» at 1080
+           (measured: the label had 99 screen px and needed ~110 with a 42px
+           oval — the ellipsis the rule above allows, but on the DEFAULT
+           reading of every Venus tile it is a defect, not a yield). */
+        .benefit-glyph__tile {
+            transform: none;
+            width: 34px; /* keep-px: inside the zoomed __cell-value */
+            height: 23px; /* keep-px */
+            background-size: 34px 23px; /* keep-px */
+            background-repeat: no-repeat;
+            background-position: center;
+            margin: 0;
+        }
+    }
+    &__cell-plus {
+        font-size: 13px; /* keep-px: inside the zoomed __cell-value */
+        font-weight: 800;
+        line-height: 1;
         color: @con-text-dim;
     }
     &__cell-value {
@@ -21236,6 +21309,14 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
             background-repeat: no-repeat;
             background-position: center;
             margin: 0;
+        }
+        /* The VENUS sprite is a 3:2 oval (60×40), not a hex: the hex box
+           above squashes it into a blob (the Redux Venus's fixed «+1 step»
+           line). Keep its aspect inside the same 32px box. */
+        .benefit-glyph__tile.venus-tile {
+            width: 32px; /* keep-px */
+            height: 22px; /* keep-px */
+            background-size: 32px 22px;
         }
     }
     /* THE READING FACE — the standard reading body, not the dense floor: the

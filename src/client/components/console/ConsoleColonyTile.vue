@@ -113,6 +113,13 @@
            :class="{'con-coltile__cell--reward-settled': rewardSettled}">
         <span class="con-coltile__cell-label">{{ $t('Trade') }}</span>
         <span class="con-coltile__cell-value" :data-colony-trade-source="colony.name">
+          <!-- The FIXED part of the income (the Redux Venus: «[Venus] + X») stands
+               BEFORE the marker's bonus, exactly as the tile prints it; it never
+               changes with the marker, so it is outside the crossfade. -->
+          <span v-if="tradeFixedBenefit !== undefined" class="con-coltile__cell-fixed" data-colony-trade-fixed>
+            <BenefitGlyph :benefit="tradeFixedBenefit" :idx="0" :cardResource="metadata.cardResource" />
+            <span class="con-coltile__cell-plus" aria-hidden="true">+</span>
+          </span>
           <transition name="con-coltrade-reward" mode="out-in">
             <span class="con-coltile__cell-reward" :key="effectivePosition">
               <span v-if="reward.quantity > 1" class="con-coltile__cell-num">{{ reward.quantity }}</span>
@@ -149,7 +156,7 @@
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
 import {ColonyModel} from '@/common/models/ColonyModel';
-import {ColonyMetadata, tradeBenefitAt} from '@/common/colonies/ColonyMetadata';
+import {ColonyMetadata, tradeBenefitAt, tradeFixedIncome} from '@/common/colonies/ColonyMetadata';
 import {ColonyBenefit} from '@/common/colonies/ColonyBenefit';
 import {getColony} from '@/client/colonies/ClientColonyManifest';
 import {effectiveTradePosition, rewardAtPosition, TradeRewardAt} from '@/client/components/colonies/colonyTradePlan';
@@ -227,6 +234,11 @@ export default defineComponent({
     tradeBenefit(): {type: ColonyBenefit, quantity: ReadonlyArray<number>, resource?: unknown} {
       const income = tradeBenefitAt(this.metadata, this.effectivePosition);
       return {type: income.type, quantity: this.metadata.trade.quantity, resource: income.resource};
+    },
+    /** The FIXED part every trade here pays before the marker's bonus (the Redux Venus's step) — undefined for a tile without one. */
+    tradeFixedBenefit(): {type: ColonyBenefit, quantity: ReadonlyArray<number>, resource?: unknown} | undefined {
+      const fixed = tradeFixedIncome(this.metadata);
+      return fixed === undefined ? undefined : {type: fixed.type, quantity: [fixed.quantity], resource: fixed.resource};
     },
     colonyBenefit(): {type: ColonyMetadata['colony']['type'], quantity: ReadonlyArray<number>, resource?: unknown} {
       const c = this.metadata.colony;

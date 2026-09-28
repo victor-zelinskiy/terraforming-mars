@@ -172,8 +172,10 @@
                     <span class="con-parl__socket con-parl__socket--small">
                       <PlayerCube v-if="viewerColor !== undefined" :color="viewerColor" :size="cubePx(12)" :glow="false" />
                     </span>
-                    <span class="con-parl__info-src-text" data-parl-vote-late>
-                      <template v-if="voteInfo.vote.source === 'lobby'">{{ $t('from the lobby · free') }}</template>
+                    <span class="con-parl__info-src-text" data-parl-vote-late :data-parl-vote-count="voteInfo.vote.count">
+                      <!-- A delegate GRANT: «×2 из резерва · бесплатно» — the count, the place, no price. -->
+                      <template v-if="voteInfo.vote.grant">{{ grantSourceText }}</template>
+                      <template v-else-if="voteInfo.vote.source === 'lobby'">{{ $t('from the lobby · free') }}</template>
                       <template v-else>
                         <span>{{ $t('from the reserve') }}</span>
                         <span class="con-parl__info-src-sep" aria-hidden="true">·</span>
@@ -259,11 +261,11 @@ import {
   dropFlight, dropFlightsWithPrefix, flightEl, nextFlightId, pushCubeFlight, registerFlightHandle, VOTE_FLIGHT_MS,
 } from '@/client/console/parliament/parliamentFlights';
 import {
-  killParliamentVoteMotion, measureVoteRects, parkParliamentBody, playParliamentVoteEnter, playParliamentVoteLeave, Rect,
+  emptyVoteRects, killParliamentVoteMotion, measureVoteRects, parkParliamentBody, playParliamentVoteEnter, playParliamentVoteLeave, Rect,
   restoreParliamentBody, runDelegateCubeFlight,
 } from '@/client/console/parliament/consoleParliamentVoteMotion';
 import {
-  ParliamentPromptBridge, parliamentPlayerName, ParliamentSlotVm, ParliamentTileVm, ParliamentViewVm, resolutionTitleOf, voteForecastOf,
+  grantResponse, ParliamentPromptBridge, parliamentPlayerName, ParliamentSlotVm, ParliamentTileVm, ParliamentViewVm, resolutionTitleOf, voteForecastOf,
   VoteForecastVm, voteResponse, voteVerbOf, VoteVerbVm,
 } from '@/client/console/parliament/consoleParliamentModel';
 import {PARTY_MOMENT, voteFactsOf, VoteFactsVm, voteInfoOf, VoteInfoVm} from '@/client/console/parliament/voteInfoModel';
@@ -342,9 +344,24 @@ export default defineComponent({
     sceneHandedOver(): boolean {
       return workspaceFrameHasNested('parliament');
     },
+    /**
+     * THE DELEGATES THIS PRESS SENDS: one for the vote; a GRANT's count while
+     * its prompt stands, and — past the submit, when that prompt is gone — the
+     * count the SNAPSHOT remembered (the landing flies exactly that many).
+     */
+    voteCount(): number {
+      return parliamentFlow.voteSnapshot?.count ?? this.bridge.grant?.count ?? 1;
+    },
+    /** The vote mode serves a DELEGATE GRANT (Turmoil Redux — the Venus tile), not the player's vote. */
+    grantUp(): boolean {
+      return this.bridge.grant !== undefined;
+    },
+    grantSourceText(): string {
+      return translateTextWithParams('${0} from the reserve · free', ['×' + String(this.voteCount)]);
+    },
     voteForecast(): VoteForecastVm | undefined {
       const slot = this.voteSlot;
-      return slot === undefined ? undefined : voteForecastOf(slot, this.viewerColor, this.model?.viewer?.vote);
+      return slot === undefined ? undefined : voteForecastOf(slot, this.viewerColor, this.model?.viewer?.vote, this.voteCount);
     },
     /** The SELECTED card's reading — the info surface (`voteInfoModel` decides; this renders). */
     voteInfo(): VoteInfoVm | undefined {
@@ -365,6 +382,8 @@ export default defineComponent({
         cost: this.ctaCost.amount,
         facts: this.voteFacts,
         numbers: this.voteNumbers,
+        // A grant's block keeps saying «ваши делегаты» through the landing (the prompt is gone by then, the snapshot remembers).
+        grant: this.grantUp || (parliamentFlow.voteSnapshot?.count ?? 1) > 1 ? {count: this.voteCount} : undefined,
       });
     },
     /**
@@ -455,13 +474,14 @@ export default defineComponent({
       if (parliamentFlow.stage === 'landed' && snap !== undefined) {
         return {votesBefore: snap.votes, votesAfter: slot.totalVotes, mineBefore: snap.mine, mineAfter: slot.viewerVotes};
       }
+      const count = this.voteCount;
       if (snap !== undefined) {
-        return {votesBefore: snap.votes, votesAfter: snap.votes + 1, mineBefore: snap.mine, mineAfter: snap.mine + 1};
+        return {votesBefore: snap.votes, votesAfter: snap.votes + count, mineBefore: snap.mine, mineAfter: snap.mine + count};
       }
       const f = this.voteForecast;
       return {
-        votesBefore: slot.totalVotes, votesAfter: f?.votesAfter ?? slot.totalVotes + 1,
-        mineBefore: slot.viewerVotes, mineAfter: slot.viewerVotes + 1,
+        votesBefore: slot.totalVotes, votesAfter: f?.votesAfter ?? slot.totalVotes + count,
+        mineBefore: slot.viewerVotes, mineAfter: slot.viewerVotes + count,
       };
     },
     /** THIS VOTE's consequences — every fact as current → projected (`voteFactsOf`; the panel prints two, the inspector all). */
@@ -482,13 +502,14 @@ export default defineComponent({
       });
     },
     ctaText(): string {
+      const several = this.voteCount > 1;
       switch (parliamentFlow.stage) {
       case 'submitting': return translateText('Performing…');
       case 'paying': return translateText('Pay for the delegate');
       // «placed» only once the cube has landed — the answer's arrival is not the delegate's.
-      case 'landed': return translateText(this.voteInFlight ? 'Performing…' : 'Delegate placed');
+      case 'landed': return translateText(this.voteInFlight ? 'Performing…' : (several ? 'Delegates placed' : 'Delegate placed'));
       default:
-        return this.canVoteNow ? translateText('Send the delegate') : this.voteBlockedText;
+        return this.canVoteNow ? translateText(several ? 'Send the delegates' : 'Send the delegate') : this.voteBlockedText;
       }
     },
     voteBlockedText(): string {
@@ -512,7 +533,8 @@ export default defineComponent({
       if (source === 'none') {
         return {kind: 'none', amount: 0};
       }
-      if (source === 'lobby') {
+      // A delegate GRANT's cubes are free wherever they leave from.
+      if (source === 'lobby' || this.grantUp) {
         return {kind: 'free', amount: 0};
       }
       return {kind: 'cost', amount: this.votePayment?.cost ?? this.voteTile?.cost ?? PARLIAMENT_VOTE_COST};
@@ -559,7 +581,7 @@ export default defineComponent({
         const f = parliamentFlow;
         f.slotIndex = idx;
         f.zone = 'voting';
-        f.voteSnapshot = {votes: slot.totalVotes, mine: slot.viewerVotes, leader: slot.leader, winning: slot.isWinning, winner: this.winningSlot?.instance, source: 'reserve'};
+        f.voteSnapshot = {votes: slot.totalVotes, mine: slot.viewerVotes, leader: slot.leader, winning: slot.isWinning, winner: this.winningSlot?.instance, source: 'reserve', count: 1};
         f.stageBeforeSubmit = 'vote';
         f.stage = 'paying';
         descendWorkspaceFrame('parliament', 'Voting', 'Payment');
@@ -572,11 +594,44 @@ export default defineComponent({
       },
     },
   },
+  mounted() {
+    // ARMED BEFORE THE FIRST RENDER (`armGrantVoteFlow` — a delegate grant
+    // hosted inside another workspace): the section mounted straight into the
+    // vote pose, so the entrance is played from here, FRESH — no overview to
+    // recede, every carried object surfaces in place.
+    if (parliamentFlow.stage === 'vote' && parliamentFlow.voteEntering) {
+      this.playFreshEntrance();
+    }
+  },
   beforeUnmount() {
     this.clearLanding();
     freezeParliamentFit(false);
   },
   methods: {
+    /** The FRESH entrance of a mode armed before the mount (see `mounted`). */
+    playFreshEntrance(): void {
+      const f = parliamentFlow;
+      void this.$nextTick(() => {
+        const root = parliamentRootEl();
+        const selected = this.view.slots[f.slotIndex];
+        if (root === undefined || selected === undefined) {
+          f.voteEntering = false;
+          return;
+        }
+        fitParliamentCards();
+        playParliamentVoteEnter({
+          root,
+          before: emptyVoteRects(),
+          selected: selected.instance,
+          fromViewer: false,
+          instant: false,
+          fresh: true,
+          done: () => {
+            f.voteEntering = false;
+          },
+        });
+      });
+    },
     /** «Все треки колоний +2» — the colony table's one line (Unity Budget). */
     tracksLabel(steps: number): string {
       return translateTextWithParams(COLONY_TRACK_SUMMARY_KEY, [String(steps)]);
@@ -631,6 +686,8 @@ export default defineComponent({
       this.resetSubject();
       f.sourceHold = undefined;
       f.sourceLeaving = undefined;
+      f.sourceHoldCount = 0;
+      f.sourceLeavingCount = 0;
       f.zone = 'voting';
       f.stage = 'vote';
       f.voteEntering = true;
@@ -828,15 +885,22 @@ export default defineComponent({
         this.$emit('notice', this.voteBlockedText);
         return;
       }
-      const source = this.benchSource === 'none' ? 'lobby' : this.benchSource;
+      // A GRANT's cubes leave the RESERVE, however the bench reads otherwise (the lobby's cube is the free vote and stays).
+      const grant = this.bridge.grant;
+      const source = grant !== undefined ? 'reserve' : (this.benchSource === 'none' ? 'lobby' : this.benchSource);
       // THE COMMIT BOUNDARY is the viewer's own: the cube, the counters and «Делегат поставлен» are
       // about them, so the reading comes home before the beat that shows it.
       this.resetSubject();
-      parliamentFlow.voteSnapshot = {votes: slot.totalVotes, mine: slot.viewerVotes, leader: slot.leader, winning: slot.isWinning, winner: this.winningSlot?.instance, source};
+      parliamentFlow.voteSnapshot = {
+        votes: slot.totalVotes, mine: slot.viewerVotes, leader: slot.leader, winning: slot.isWinning, winner: this.winningSlot?.instance, source,
+        count: grant?.count ?? 1,
+      };
       // FROM THE PRESS TO THE FLOW'S END nothing but text, the confirm's state and the cube's flight may change:
       // the card fit is FROZEN (a re-fit under the flight jumped the scene it measured — § Б5).
       freezeParliamentFit(true);
-      this.$emit('send', {response: voteResponse(this.bridge, slot.party), from: 'vote'});
+      // The grant answers its own stand-alone prompt; the vote answers its branch of the action menu.
+      const response = grant !== undefined ? grantResponse(this.bridge, slot.party) : voteResponse(this.bridge, slot.party);
+      this.$emit('send', {response, from: 'vote'});
     },
     /** The server answered while the BILL stood: the paid delegate lands — or the payment was refused / the prompt moved on. */
     answerWhilePaying(): void {
@@ -883,26 +947,62 @@ export default defineComponent({
       if (mine.length === 0) {
         return false;
       }
-      const seq = Math.max(...mine.map((vote) => vote.seq));
+      // THE CUBES THAT JUST ARRIVED — the viewer's newest on the card, as many
+      // as the answer added (a vote: one; a grant: its count — capped by what
+      // the model actually shows, never by what the prompt promised). They fly
+      // IN PLACEMENT ORDER, one after another, off the top of the reserve.
+      const arrived = Math.max(1, Math.min(slot.viewerVotes - snap.mine, snap.count));
+      const seqs = mine.map((vote) => vote.seq).sort((a, b) => b - a).slice(0, arrived).reverse();
       f.stage = 'landed';
       setWorkspaceFramePhase('parliament', 'committed');
-      this.landingHold = beginAnimationHold('parliament-vote-landing', {maxHoldMs: 4000});
-      f.flightSeq = seq;
-      // The bench keeps painting the source cube until the proxy stands over
-      // it, and keeps its WORDS until the cube has visibly left.
+      this.landingHold = beginAnimationHold('parliament-vote-landing', {maxHoldMs: 4000 + 1200 * (seqs.length - 1)});
+      f.landedSeqs = [];
+      f.flightSeq = seqs[0];
+      f.pendingSeqs = seqs.slice(1);
+      // The bench keeps painting the source cubes until each proxy stands over
+      // its own, and keeps its WORDS until each has visibly left.
       f.sourceHold = snap.source;
       f.sourceLeaving = snap.source;
+      f.sourceHoldCount = seqs.length;
+      f.sourceLeavingCount = seqs.length;
       void this.$nextTick(() => {
-        if (!this.flyDelegate(seq, me)) {
-          f.sourceHold = undefined;
-          f.sourceLeaving = undefined;
-          f.flightSeq = undefined;
-          this.beginLanding(seq);
-        }
+        this.flyDelegates(seqs, 0, me);
       });
       return true;
     },
-    flyDelegate(seq: number, color: Color): boolean {
+    /** Fly the cube at `index` of `seqs`; the landing of each starts the next, the last one begins the landed READ. */
+    flyDelegates(seqs: ReadonlyArray<number>, index: number, color: Color): void {
+      const f = parliamentFlow;
+      const seq = seqs[index];
+      const last = index === seqs.length - 1;
+      if (seq === undefined) {
+        this.beginLanding(seqs[seqs.length - 1] ?? 0);
+        return;
+      }
+      f.flightSeq = seq;
+      f.pendingSeqs = seqs.slice(index + 1);
+      const next = () => {
+        f.landedSeqs = [...f.landedSeqs, seq];
+        if (last) {
+          this.beginLanding(seq);
+        } else {
+          this.flyDelegates(seqs, index + 1, color);
+        }
+      };
+      if (!this.flyDelegate(seq, color, next)) {
+        // No flight (reduced motion, nothing measurable): the cubes are simply there.
+        f.sourceHold = undefined;
+        f.sourceLeaving = undefined;
+        f.sourceHoldCount = 0;
+        f.sourceLeavingCount = 0;
+        f.flightSeq = undefined;
+        f.pendingSeqs = [];
+        f.landedSeqs = [...seqs];
+        this.beginLanding(seqs[seqs.length - 1]);
+      }
+    },
+    /** One cube's flight — `onLanded` is the caller's continuation (the next cube, or the landed read). */
+    flyDelegate(seq: number, color: Color, onLanded: () => void): boolean {
       const root = parliamentRootEl();
       const f = parliamentFlow;
       if (root === undefined || typeof window === 'undefined' || consoleReducedMotionActive()) {
@@ -937,8 +1037,10 @@ export default defineComponent({
           dropFlight(id);
           f.sourceHold = undefined;
           f.sourceLeaving = undefined;
+          f.sourceHoldCount = 0;
+          f.sourceLeavingCount = 0;
           f.flightSeq = undefined;
-          this.beginLanding(seq);
+          onLanded();
           return;
         }
         const handle = runDelegateCubeFlight({
@@ -947,16 +1049,24 @@ export default defineComponent({
           to,
           durationMs: VOTE_FLIGHT_MS,
           onLifted: () => {
-            // The proxy stands exactly over the source cube: the source may vanish now.
-            f.sourceHold = undefined;
+            // The proxy stands exactly over the source cube: THAT cube may vanish now (the next one, if any, stays).
+            f.sourceHoldCount = Math.max(0, f.sourceHoldCount - 1);
+            if (f.sourceHoldCount === 0) {
+              f.sourceHold = undefined;
+            }
           },
           onDeparted: () => {
             // The cube has visibly left its place: the socket's note / the stack's count may say so now.
-            f.sourceLeaving = undefined;
+            f.sourceLeavingCount = Math.max(0, f.sourceLeavingCount - 1);
+            if (f.sourceLeavingCount === 0) {
+              f.sourceLeaving = undefined;
+            }
           },
           onLanded: () => {
             f.flightSeq = undefined;
-            this.beginLanding(seq);
+            this.flightHold?.release();
+            this.flightHold = undefined;
+            onLanded();
             probeTick(() => dropFlight(id));
           },
         });
@@ -967,6 +1077,10 @@ export default defineComponent({
     },
     beginLanding(seq: number): void {
       parliamentFlow.landedSeq = seq;
+      if (!parliamentFlow.landedSeqs.includes(seq)) {
+        parliamentFlow.landedSeqs = [...parliamentFlow.landedSeqs, seq];
+      }
+      parliamentFlow.pendingSeqs = [];
       this.flightHold?.release();
       this.flightHold = undefined;
       this.landingBeat?.kill();
@@ -999,9 +1113,13 @@ export default defineComponent({
       this.landingHold = undefined;
       const f = parliamentFlow;
       f.landedSeq = undefined;
+      f.landedSeqs = [];
       f.flightSeq = undefined;
+      f.pendingSeqs = [];
       f.sourceHold = undefined;
       f.sourceLeaving = undefined;
+      f.sourceHoldCount = 0;
+      f.sourceLeavingCount = 0;
     },
   },
 });

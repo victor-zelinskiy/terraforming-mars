@@ -67,6 +67,8 @@ const ROWS: Array<{row: string, wf: any, hand?: Array<string>, srr?: Array<strin
   {row: 'spend heat', wf: {type: 'and', title: 'Spend 6 heat', options: [], spendHeatPrompt: {amount: 6}}, kicker: 'Spend heat'},
   // The Parliament's chairman-seat pick (Turmoil Redux) — routed on the vote marker, never the title.
   {row: 'parliament seat pick', wf: {type: 'party', title: 'Select party', votePrompt: {source: 'chairman-seat', cost: 0}}, kicker: 'Parliament'},
+  // A DELEGATE GRANT (Turmoil Redux — the Venus tile): the same input type, its own marker; the plate names the Parliament, A opens the vote.
+  {row: 'parliament delegate grant', wf: {type: 'party', title: 'Add 2 delegates to a resolution', votePrompt: {source: 'grant', cost: 0, count: 2, printed: 2}}, kicker: 'Parliament'},
   // The sitting's gates (Turmoil Redux) — routed on the phase marker; the plate names the Parliament, A opens the sitting.
   {row: 'parliament assembly gate', wf: {type: 'option', title: 'The Mars Parliament of generation 2 is in session: the verdict', parliamentPhasePrompt: {stage: 'assembly', generation: 2, final: false, seq: 1, awaiting: ['blue']}}, kicker: 'Parliament'},
   {row: 'parliament adjourn gate', wf: {type: 'option', title: 'The Mars Parliament of generation 2 adjourns', parliamentPhasePrompt: {stage: 'adjourn', generation: 2, final: false, seq: 1, awaiting: []}}, kicker: 'Parliament'},

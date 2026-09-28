@@ -15,7 +15,6 @@ import {Iapetus} from '../cards/community/Iapetus';
 import {Mercury} from '../cards/community/Mercury';
 import {Hygiea} from '../cards/community/Hygiea';
 import {Titania} from '../cards/community/Titania';
-import {Venus} from '../cards/community/Venus';
 import {Leavitt} from '../cards/community/Leavitt';
 import {Pallas} from '../cards/community/Pallas';
 import {GameModule} from '../../common/cards/GameModule';
@@ -24,6 +23,7 @@ import {Deimos} from './Deimos';
 import {Terra} from '../cards/community/Terra';
 import {Kuiper} from '../cards/community/Kuiper';
 import {PlutoRedux} from './PlutoRedux';
+import {VenusRedux} from './VenusRedux';
 // import {LeavittII} from '../cards/pathfinders/LeavittII';
 
 export interface IColonyFactory<T> {
@@ -50,7 +50,6 @@ export const COMMUNITY_COLONIES_TILES: Array<IColonyFactory<Colony>> = [
   {colonyName: ColonyName.MERCURY, Factory: Mercury},
   {colonyName: ColonyName.HYGIEA, Factory: Hygiea},
   {colonyName: ColonyName.TITANIA, Factory: Titania},
-  {colonyName: ColonyName.VENUS, Factory: Venus},
   {colonyName: ColonyName.LEAVITT, Factory: Leavitt},
   {colonyName: ColonyName.PALLAS, Factory: Pallas},
   {colonyName: ColonyName.DEIMOS, Factory: Deimos},
@@ -64,12 +63,14 @@ export const PATHFINDERS_COLONIES_TILES: Array<IColonyFactory<Colony>> = [
 ];
 
 /**
- * Turmoil Redux REPLACEMENT tiles. Never dealt beside the base tile of the
- * same name: `ColonyDealer` swaps each in for its namesake
- * (`TURMOIL_REDUX_REPLACEMENTS`) when the expansion is on.
+ * Turmoil Redux tiles: a REPLACEMENT is never dealt beside the base tile of
+ * the same name (`ColonyDealer` swaps it in for its namesake —
+ * `TURMOIL_REDUX_REPLACEMENTS`); an ADDITION (the Venus tile, whose community
+ * namesake was retired) joins the pool with the expansion.
  */
 export const TURMOIL_REDUX_COLONIES_TILES: Array<IColonyFactory<Colony>> = [
   {colonyName: ColonyName.PLUTO_REDUX, Factory: PlutoRedux},
+  {colonyName: ColonyName.VENUS_REDUX, Factory: VenusRedux},
 ];
 
 export const ALL_COLONIES_TILES = [...BASE_COLONIES_TILES, ...COMMUNITY_COLONIES_TILES, ...PATHFINDERS_COLONIES_TILES, ...TURMOIL_REDUX_COLONIES_TILES];

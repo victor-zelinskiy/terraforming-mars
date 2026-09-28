@@ -17,6 +17,8 @@ export type ColonyTradeNoteKind =
   | 'copyTrade'
   | 'placeOcean'
   | 'placeDelegates'
+  /** Turmoil Redux: the delegates go onto a RESOLUTION (the Parliament's vote step opens after the confirm). */
+  | 'placeDelegatesOnResolution'
   | 'placeHazard'
   | 'wgt';
 

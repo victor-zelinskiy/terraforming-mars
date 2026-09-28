@@ -40,6 +40,13 @@ export type ParliamentCommandsInput = {
    * never offers a verb that would do nothing.
    */
   voteSubjects?: number;
+  /**
+   * THE VOTE MODE SERVES A DELEGATE GRANT (Turmoil Redux — the Venus tile's
+   * «add 2 delegates to a resolution»): `count` delegates go at once (the verb
+   * says «delegates»), and B is «Свернуть» — the grant is mandatory and past
+   * the commit of the flow that paid it, there is no browse layer to fold to.
+   */
+  grant?: {count: number};
 };
 
 /** The law's verb: advertised whenever an enacted resolution has an action — lit only when it can be taken now. */
@@ -104,14 +111,15 @@ export function parliamentCommandsOf(input: ParliamentCommandsInput): Array<Cons
   case 'browse':
     return browseCommands(input, back);
   case 'vote': {
+    const grant = input.grant;
     const cmds: Array<ConsoleCommand> = [
-      {control: 'confirm', label: 'Send the delegate', enabled: input.canVoteNow, highlight: input.canVoteNow},
+      {control: 'confirm', label: grant !== undefined && grant.count > 1 ? 'Send the delegates' : 'Send the delegate', enabled: input.canVoteNow, highlight: input.canVoteNow},
       {control: 'secondary', label: 'Inspect'},
     ];
     if ((input.voteSubjects ?? 0) > 1) {
       cmds.push({control: 'bumperL', control2: 'bumperR', label: 'Players'});
     }
-    cmds.push(back);
+    cmds.push(grant !== undefined ? {control: 'back', label: 'Minimize'} : back);
     return cmds;
   }
   case 'seat':

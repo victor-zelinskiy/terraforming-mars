@@ -8,9 +8,11 @@ import {
   colonyTradeAsksCardTargets,
   colonyTradeDrawsCards,
   colonyTradeMayDrawCards,
+  describeBenefit,
   effectiveTradePosition,
   freeTradeFleets,
   rewardAtPosition,
+  rewardDestinationKey,
   tradeNotices,
   tradeOutcome,
   tradeSteps,
@@ -499,5 +501,60 @@ describe('colonyRewardPackage', () => {
     const pkg = colonyRewardPackage({gains: out.gains, metadata: IO, colony: colony([]), viewer: 'red'});
     expect(pkg.others).to.deep.eq([]);
     expect(pkg.totals[0]).to.include({amount: 4, current: 5, resulting: 9});
+  });
+});
+
+describe('a FIXED trade income beside the marker\'s bonus (the Redux Venus)', () => {
+  const VENUS_REDUX_META: ColonyMetadata = colonyMetadata({
+    name: ColonyName.VENUS_REDUX,
+    cardResource: CardResource.FLOATER,
+    build: {description: 'Add 2 delegates to a resolution', type: ColonyBenefit.PLACE_DELEGATES_ON_RESOLUTION, quantity: [2, 2, 2]},
+    trade: {
+      description: 'Increase Venus 1 step and gain the bonus under the marker',
+      type: [
+        ColonyBenefit.LOSE_RESOURCES, ColonyBenefit.LOSE_RESOURCES,
+        ColonyBenefit.ADD_RESOURCES_TO_CARD, ColonyBenefit.ADD_RESOURCES_TO_CARD, ColonyBenefit.ADD_RESOURCES_TO_CARD,
+        ColonyBenefit.PLACE_DELEGATES_ON_RESOLUTION, ColonyBenefit.PLACE_DELEGATES_ON_RESOLUTION,
+      ],
+      quantity: [4, 0, 1, 1, 2, 1, 2],
+      resource: Resource.MEGACREDITS,
+      fixed: {description: 'Increase Venus 1 step', type: ColonyBenefit.INCREASE_VENUS_SCALE, quantity: 1},
+    },
+    colony: {description: 'Draw 1 card and then discard 1 card', type: ColonyBenefit.DRAW_CARDS_AND_DISCARD_ONE},
+    shouldIncreaseTrack: 'ask',
+  });
+  const args = {metadata: VENUS_REDUX_META, payments: [], ownColonyCount: 0, stocks: {megacredits: 10}, production: {}};
+
+  it('the fixed step is the FIRST gain at every position — the printed order, the paid order', () => {
+    for (const position of [0, 1, 2, 5, 6]) {
+      const out = tradeOutcome({...args, rewardPosition: position});
+      expect(out.gains[0], `position ${position + 1}`).to.include({icon: 'venus', amount: 1, source: 'track'});
+    }
+  });
+
+  it('the empty 2nd position is a ZERO income: the fixed step alone, no cost row', () => {
+    const out = tradeOutcome({...args, rewardPosition: 1});
+    expect(out.cost).to.deep.eq([]);
+    expect(out.gains).to.have.lengthOf(1);
+  });
+
+  it('the 1st position is a LEVY: −4 M€ as a cost with the honest before → after', () => {
+    const out = tradeOutcome({...args, rewardPosition: 0});
+    expect(out.cost).to.deep.eq([{direction: 'cost', icon: 'megacredits', amount: 4, current: 10, resulting: 6, note: undefined}]);
+  });
+
+  it('the delegate positions read as a labelled reward with its destination', () => {
+    const out = tradeOutcome({...args, rewardPosition: 6});
+    expect(out.gains[1]).to.include({label: 'Delegates to a resolution', amount: 2, benefit: ColonyBenefit.PLACE_DELEGATES_ON_RESOLUTION});
+    expect(rewardDestinationKey(ColonyBenefit.PLACE_DELEGATES_ON_RESOLUTION)).to.eq('To a resolution');
+    expect(describeBenefit(ColonyBenefit.PLACE_DELEGATES_ON_RESOLUTION, 2, undefined, VENUS_REDUX_META)).to.deep.eq({amount: 2, label: 'Delegates to a resolution'});
+  });
+
+  it('the notice for the delegates names the Parliament step', () => {
+    const preview = {
+      colonyName: ColonyName.VENUS_REDUX, track: {current: 6, effective: 6, steps: 0, willAsk: false}, rewardQuantity: 2,
+      followUps: [{kind: 'note', role: 'tradeReward', note: 'placeDelegatesOnResolution'}],
+    } as unknown as ColonyTradePreviewModel;
+    expect(tradeNotices(preview)).to.deep.eq([{kind: 'afterConfirm', note: 'After confirming: add delegates to a resolution'}]);
   });
 });

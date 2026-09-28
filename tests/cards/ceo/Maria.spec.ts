@@ -5,7 +5,6 @@ import {TestPlayer} from '../../TestPlayer';
 import {testGame} from '../../TestGame';
 import {SelectColony} from '../../../src/server/inputs/SelectColony';
 import {Maria} from '../../../src/server/cards/ceos/Maria';
-import {Venus} from '../../../src/server/cards/community/Venus';
 import {Celestic} from '../../../src/server/cards/venusNext/Celestic';
 import {IapetusII} from '../../../src/server/cards/pathfinders/IapetusII';
 import {CollegiumCopernicus} from '../../../src/server/cards/pathfinders/CollegiumCopernicus';
@@ -61,33 +60,33 @@ describe('Maria', () => {
     expect(selectColony.colonies).has.length(4);
   });
 
-  it('Takes action - chooses Venus which cannot be activated', () => {
-    const venus = new Venus();
+  it('Takes action - chooses Titan which cannot be activated', () => {
+    const titan = new Titan();
     game.discardedColonies = [];
-    game.discardedColonies.push(venus);
+    game.discardedColonies.push(titan);
     cast(card.action(player), undefined);
     runAllActions(player.game);
     const selectColony = cast(player.popWaitingFor(), SelectColony);
-    selectColony?.cb(venus);
+    selectColony?.cb(titan);
 
-    expect(game.colonies).includes(venus);
-    expect(venus.isActive).is.false;
-    expect(venus.colonies).is.empty;
+    expect(game.colonies).includes(titan);
+    expect(titan.isActive).is.false;
+    expect(titan.colonies).is.empty;
   });
 
-  it('Takes action - chooses Venus, which is activated', () => {
+  it('Takes action - chooses Titan, which is activated', () => {
     player2.playedCards.push(new Celestic());
-    const venus = new Venus();
+    const titan = new Titan();
     game.discardedColonies = [];
-    game.discardedColonies.push(venus);
+    game.discardedColonies.push(titan);
     cast(card.action(player), undefined);
     runAllActions(player.game);
     const selectColony = cast(player.popWaitingFor(), SelectColony);
-    selectColony?.cb(venus);
+    selectColony?.cb(titan);
 
-    expect(game.colonies).includes(venus);
-    expect(venus.isActive).is.true;
-    expect(venus.colonies).is.not.empty;
+    expect(game.colonies).includes(titan);
+    expect(titan.isActive).is.true;
+    expect(titan.colonies).is.not.empty;
   });
 
   it('Takes action - chooses Ieptus II, which is not activated', () => {

@@ -460,9 +460,20 @@ export type FinalGreeneryPromptMeta = {
  * of the action menu), never detected from the title.
  */
 export type VotePromptMeta = {
-  /** `chairman-seat`: not a vote — the new chairman picks which OWN resolution gives up a delegate for the seat (cost 0). */
-  source: 'lobby' | 'reserve' | 'chairman-seat';
+  /**
+   * `chairman-seat`: not a vote — the new chairman picks which OWN resolution gives up a delegate for the seat (cost 0).
+   * `grant`: not the action either — a GAME EFFECT hands the player delegates
+   * to add to ONE resolution (the Turmoil Redux Venus tile: «Add 2 delegates
+   * to a resolution»). They come from the reserve, cost nothing, and the
+   * prompt is mandatory: the effect already happened, only the address is
+   * asked. `count` is how many this prompt places; `printed` what the source
+   * printed when the reserve could not cover it (the shortfall is named, never
+   * silent). The GIVER rides `choiceContext.source` (a colony, a card).
+   */
+  source: 'lobby' | 'reserve' | 'chairman-seat' | 'grant';
   cost: number;
+  count?: number;
+  printed?: number;
 }
 
 /**

@@ -16,8 +16,10 @@
        are the server's projections, a submit is the byte-identical response.
        Anatomy and history: docs/TURMOIL_REDUX_PARLIAMENT_V6.md; the sitting:
        docs/TURMOIL_REDUX_PARLIAMENT_SITTING.md, the v2 rework above. -->
-  <section class="con-parl con-ws"
+  <section class="con-parl"
            :class="{
+             'con-ws': !embedded,
+             'con-parl--embedded': embedded,
              'con-parl--handed-over': sceneHandedOver,
              'con-parl--stage': stagePanelUp,
              'con-parl--vote': voteUp,
@@ -44,7 +46,14 @@
            :data-parl-unfolding="stageEntering ? '' : undefined"
            :data-parl-leaving="leaving ? '' : undefined"
            data-motion-panel>
-    <ConsoleWsHead class="con-parl__head"
+    <!-- EMBEDDED (a step of another workspace — the delegate grant of the Redux
+         Venus, hosted inside the colonies): the host draws the crumb (embed
+         rule 5) and this surface hands its stage UP; only the DELEGATES ZONE
+         stays — the bench is the physical SOURCE of every cube that flies, so
+         it keeps its place at the head line's right edge, in a toolbar of its
+         own. Never a second header. -->
+    <ConsoleWsHead v-if="!embedded"
+                   class="con-parl__head"
                    root="Parliament"
                    emblem="parliament"
                    wheelAnchor="parliament"
@@ -56,6 +65,9 @@
         <ConsoleParliamentSeats :view="view" :viewerColor="viewerColor" :benchSource="benchSource" :benchWarn="benchWarn" />
       </template>
     </ConsoleWsHead>
+    <div v-else class="con-parl__toolbar" data-parl-toolbar>
+      <ConsoleParliamentSeats :view="view" :viewerColor="viewerColor" :benchSource="benchSource" :benchWarn="benchWarn" />
+    </div>
 
     <!-- THE FIELD — the overview's body and, over it, the vote mode's layer. -->
     <div class="con-parl__field" ref="fieldEl">
@@ -156,7 +168,7 @@ import {
   ParliamentViewVm, parliamentPromptBridge, partyActionStateOf, PartyActionStateVm, partyStateOf, PartyStateVm, resolutionActionStateOf, seatResponse,
 } from '@/client/console/parliament/consoleParliamentModel';
 import {
-  consoleParliamentUi, notePlayedSittingStage, parliamentCrumbCommitted, parliamentCrumbStage, parliamentCrumbSubject, ParliamentStage,
+  armGrantVoteFlow, consoleParliamentUi, notePlayedSittingStage, parliamentCrumbCommitted, parliamentCrumbStage, parliamentCrumbSubject, ParliamentStage,
   parliamentFlow, parliamentSittingUp, parliamentStageKind, parliamentStageUp, parliamentVoteUp, pulseParliamentChair, resetParliamentFlow,
   setParliamentRootEl, sittingSessionKnown, sittingStagePlayed,
 } from '@/client/console/parliament/consoleParliamentFlow';
@@ -229,6 +241,13 @@ export default defineComponent({
     leaving: {type: Boolean, default: false},
     myTurn: {type: Boolean, default: false},
     awaitingInput: {type: Boolean, default: false},
+    /**
+     * HOSTED AS A STEP of another workspace (the embed contract, rule 1): the
+     * shell strips the frame, the header and the `con-ws` marker; the crumb is
+     * the host's (this surface hands its stage UP — «КОЛОНИИ › ВЕНЕРА ›
+     * ГОЛОСОВАНИЕ»); logic, state and the submit path are untouched.
+     */
+    embedded: {type: Boolean, default: false},
   },
   emits: ['close', 'submit', 'notice', 'inspect', 'open-action', 'open-resolution-action', 'flow-complete', 'collapse', 'to-board'],
   data() {
@@ -497,11 +516,32 @@ export default defineComponent({
         this.view.parties.find((p) => p.party === this.view.rulingParty) :
         this.view.parties[parliamentFlow.partyIndex];
     },
+    /**
+     * The vote's tile (the server's option as the workspace projects it) — or,
+     * while a DELEGATE GRANT stands (the Redux Venus's «add 2 delegates to a
+     * resolution»), the grant's own reading: available (the prompt IS the
+     * availability), from the reserve, free. Never the action menu's vote, which
+     * is a different question the server answers separately.
+     */
     voteTile(): ParliamentTileVm | undefined {
+      if (this.bridge.grant !== undefined) {
+        return {
+          id: 'vote', party: undefined, label: 'Vote', available: true, reason: '',
+          usesLeft: undefined, usesPerGeneration: undefined, preview: [], source: 'reserve', cost: 0,
+        };
+      }
       return this.view.tiles.find((t) => t.id === 'vote');
     },
-    /** The bench's marked source: the place the next delegate leaves, or none when there is nothing to send. */
+    /**
+     * The bench's marked source: the place the next delegate leaves, or none
+     * when there is nothing to send. A GRANT's cubes leave the RESERVE (the
+     * lobby's cube is the generation's free vote and is never a bonus's to
+     * spend), whatever the vote's own source would be.
+     */
     benchSource(): BenchSource {
+      if (this.bridge.grant !== undefined && parliamentFlow.voteSnapshot === undefined) {
+        return (this.view.viewer?.reserve ?? 0) > 0 ? 'reserve' : 'none';
+      }
       return benchSourceOf(this.view, parliamentFlow.voteSnapshot);
     },
     benchWarn(): boolean {
@@ -512,6 +552,12 @@ export default defineComponent({
       return this.myTurn && this.awaitingInput;
     },
     canVoteNow(): boolean {
+      // A DELEGATE GRANT is the very decision the server is waiting on: the
+      // «finish your current action first» gate (`canActNow`) describes THIS
+      // prompt, so it can never be the reason the prompt cannot be answered.
+      if (this.bridge.grant !== undefined) {
+        return true;
+      }
       return this.bridge.vote !== undefined && this.canActNow;
     },
     partyStates(): Array<PartyStateVm> {
@@ -562,6 +608,20 @@ export default defineComponent({
     crumbStage(): string {
       return parliamentCrumbStage(this.sittingTail, this.questTail);
     },
+    /**
+     * WHAT THIS FRAME PUBLISHES TO THE STACK'S CRUMB. Standalone, the mode is
+     * the SUBJECT («ПАРЛАМЕНТ › ГОЛОСОВАНИЕ») and a stage is its tail. HOSTED,
+     * the subject belongs to the host's carried object (the colony that paid
+     * the delegates) and this surface is only ever a STAGE of that flow: it
+     * publishes no subject and hands its name up as the tail — «КОЛОНИИ ›
+     * ВЕНЕРА › ГОЛОСОВАНИЕ», the root and the card never restarting.
+     */
+    frameCrumb(): {subject: string, stage: string} {
+      if (this.embedded) {
+        return {subject: '', stage: this.crumbStage !== '' ? this.crumbStage : this.crumbSubject};
+      }
+      return {subject: this.crumbSubject, stage: this.crumbStage};
+    },
     crumbCommitted(): boolean {
       return parliamentCrumbCommitted(chairmanQuestFlow.live);
     },
@@ -575,6 +635,7 @@ export default defineComponent({
         sitting: {primary: this.sittingPrimary, inspect: this.sittingInspectable, back: this.sittingBack},
         quest: this.questCommands,
         voteSubjects: this.voteSubjectCount,
+        grant: this.bridge.grant === undefined ? undefined : {count: this.bridge.grant.count},
       });
     },
     /**
@@ -641,16 +702,12 @@ export default defineComponent({
         consoleParliamentUi.commands = [...cmds];
       },
     },
-    'crumbSubject': {
+    'frameCrumb': {
       immediate: true,
-      handler(subject: string): void {
-        setWorkspaceFrameSubject('parliament', subject);
-      },
-    },
-    'crumbStage': {
-      immediate: true,
-      handler(stage: string): void {
-        setWorkspaceFrameStage('parliament', stage);
+      deep: true,
+      handler(crumb: {subject: string, stage: string}): void {
+        setWorkspaceFrameSubject('parliament', crumb.subject);
+        setWorkspaceFrameStage('parliament', crumb.stage);
       },
     },
     /** The vote mode's PAYMENT zone — published once the mode's DOM stands (post-flush: a teleport into a zone not yet rendered drops its content). */
@@ -857,6 +914,35 @@ export default defineComponent({
           parliamentFlow.slotIndex = idx >= 0 ? idx : 0;
           parliamentFlow.zone = 'voting';
           this.openStage('seat');
+        }
+      },
+    },
+    /**
+     * A DELEGATE GRANT is MANDATORY too (Turmoil Redux — the Venus tile): the
+     * vote mode opens on it as soon as it stands. At SETUP (the section
+     * mounting FOR the grant — hosted inside the colonies, or re-entered after
+     * a reload) the mode is ARMED before the first render, so the surface is
+     * born in its vote pose and the overview never shows (`armGrantVoteFlow` →
+     * the mode's own `mounted` plays the fresh entrance). Arriving LATER, over
+     * a standing overview, it opens with the ordinary phrase — the cards FLIP
+     * out of the table into the row. The mode opens on the card the viewer's
+     * own delegates already stand on (the likeliest address), else the first.
+     */
+    'bridge.grant': {
+      immediate: true,
+      handler(grant: ParliamentPromptBridge['grant']): void {
+        if (grant === undefined || parliamentFlow.stage !== 'browse') {
+          return;
+        }
+        const parties = grant.model.parties;
+        const candidates = this.view.slots.map((slot, i) => ({slot, i})).filter(({slot}) => parties.includes(slot.party));
+        const own = candidates.filter(({slot}) => slot.viewerVotes > 0).sort((a, b) => b.slot.viewerVotes - a.slot.viewerVotes)[0];
+        const idx = own?.i ?? candidates[0]?.i ?? 0;
+        const mode = this.voteMode();
+        if (mode === undefined) {
+          armGrantVoteFlow(idx);
+        } else {
+          mode.openVote({index: idx});
         }
       },
     },
@@ -1124,6 +1210,14 @@ export default defineComponent({
           return;
         }
         if (f.stage === 'vote') {
+          // A DELEGATE GRANT is mandatory and stands past the commit of the
+          // flow that paid it: there is no browse layer to fold back to — B
+          // is «Свернуть», the whole hosting stack parks (the board-home
+          // card is the way back). The player's own vote folds home.
+          if (this.bridge.grant !== undefined) {
+            this.$emit('collapse');
+            return;
+          }
           this.voteMode()?.closeVote();
           return;
         }

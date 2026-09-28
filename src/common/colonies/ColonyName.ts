@@ -18,7 +18,10 @@ export enum ColonyName {
     MERCURY = 'Mercury',
     HYGIEA = 'Hygiea',
     TITANIA = 'Titania',
-    VENUS = 'Venus',
+    // (The community «Venus» tile was RETIRED on 2026-09-28 in favour of the
+    // Turmoil Redux Venus below. Its name is not reused: an old save that still
+    // holds `'Venus'` is the retired tile, and the deserializer drops it with
+    // a warning instead of silently turning it into a tile with other rules.)
     LEAVITT = 'Leavitt',
     PALLAS = 'Pallas',
     DEIMOS = 'Deimos',
@@ -34,6 +37,11 @@ export enum ColonyName {
     // dealt beside the tile it replaces. The printed name is still «PLUTO» —
     // the suffix is the tile's IDENTITY (enum, i18n key, art alias), not its face.
     PLUTO_REDUX = 'Pluto Redux',
+    // …and the Turmoil Redux ADDITION: a tile with no base twin, dealt only
+    // when the expansion (and Venus Next — it terraforms Venus) is on. The
+    // same identity scheme as Pluto's on purpose — the suffix is the enum,
+    // the i18n key and the art alias; the printed face still reads «VENUS».
+    VENUS_REDUX = 'Venus Redux',
 
     // WHEN ADDING A NEW COLONY, ADD IT TO AllColonies.ts
 }

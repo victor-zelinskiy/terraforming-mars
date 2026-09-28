@@ -133,8 +133,13 @@ export type ParliamentZone = 'voting' | 'government' | 'ruler' | 'parties';
  */
 export type ParliamentStage = 'browse' | 'vote' | 'seat' | 'quest' | 'submitting' | 'paying' | 'landed' | 'sitting';
 
-/** The vote's numbers at the SUBMIT — the mode reads these until the delegate has landed (and the source the delegate leaves from). */
-export type VoteSnapshot = {votes: number, mine: number, leader: Color | 'neutral' | undefined, winning: boolean, winner: string | undefined, source: 'lobby' | 'reserve'};
+/**
+ * The vote's numbers at the SUBMIT — the mode reads these until the delegate
+ * has landed (and the source the delegate leaves from). `count` is how many
+ * cubes the press sends: one for the vote, a delegate GRANT's count (the Redux
+ * Venus's two) — read at the landing, when the prompt that said so is gone.
+ */
+export type VoteSnapshot = {votes: number, mine: number, leader: Color | 'neutral' | undefined, winning: boolean, winner: string | undefined, source: 'lobby' | 'reserve', count: number};
 
 function freshFlow() {
   return {
@@ -164,10 +169,23 @@ function freshFlow() {
     sourceHold: undefined as 'lobby' | 'reserve' | undefined,
     /** …and the bench's WORDS (the lobby's note, the reserve's count) follow the cube only once it has visibly left its place. */
     sourceLeaving: undefined as 'lobby' | 'reserve' | undefined,
-    /** The vote that just landed (its `seq`) — the cube the landing beat animates. */
+    /**
+     * HOW MANY cubes the bench still paints / still counts for the viewer
+     * (`sourceHold` / `sourceLeaving` are the PLACE; these are the number). A
+     * vote sends one; a delegate GRANT (the Redux Venus) sends up to two, one
+     * flight after another, and the reserve stack must keep every cube that
+     * has not yet been lifted.
+     */
+    sourceHoldCount: 0,
+    sourceLeavingCount: 0,
+    /** The vote that just landed (its `seq`) — the cube the landing beat animates (the LAST of a grant's). */
     landedSeq: undefined as number | undefined,
+    /** …and every cube landed by the current flow (a grant lands several; the ribbon marks each). */
+    landedSeqs: [] as Array<number>,
     /** The vote whose cube is IN FLIGHT (hidden on the ribbon until the handoff). */
     flightSeq: undefined as number | undefined,
+    /** The cubes of the current flow that have NOT flown yet (hidden on the ribbon — they still stand on the bench). */
+    pendingSeqs: [] as Array<number>,
     /** The chair just received its delegate (the seat pick's landing) — the government's chair mark flashes (cleared by the flash's own `animationend`). */
     chairPulse: false,
     /** The chairman QUEST block answers once (its reading beat) — the same one-shot grammar as the chair's. */
@@ -201,6 +219,29 @@ export const BODY_SWAP_MS = 400;
 
 export function resetParliamentFlow(): void {
   Object.assign(parliamentFlow, freshFlow());
+}
+
+/**
+ * ARM THE VOTE MODE BEFORE THE FIRST RENDER — a DELEGATE GRANT (the Redux
+ * Venus's «add 2 delegates to a resolution») hosted INSIDE another workspace:
+ * the section mounts straight into its vote pose (the slots teleport into the
+ * vote row on the first paint, the overview never shows), and the mode plays
+ * its FRESH entrance from `mounted` (`voteEntering` stands until it has).
+ * Pure state: the frame's crumb is the host's business (the door pushed the
+ * frame with its stage already named), so nothing here touches the stack.
+ */
+export function armGrantVoteFlow(slotIndex: number): void {
+  const f = parliamentFlow;
+  f.zone = 'voting';
+  f.slotIndex = Math.max(0, slotIndex);
+  f.stage = 'vote';
+  f.voteEntering = true;
+  f.voteSnapshot = undefined;
+  f.voteSubject = undefined;
+  f.sourceHold = undefined;
+  f.sourceLeaving = undefined;
+  f.sourceHoldCount = 0;
+  f.sourceLeavingCount = 0;
 }
 
 /** The chairman's delegate has landed on the seat mark: it flashes once (a CSS one-shot; the government clears the flag on `animationend`). */

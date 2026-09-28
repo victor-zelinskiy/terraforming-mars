@@ -5,7 +5,7 @@ import {TestPlayer} from '../../TestPlayer';
 import {testGame} from '../../TestGame';
 import {SelectColony} from '../../../src/server/inputs/SelectColony';
 import {Prospecting} from '../../../src/server/cards/underworld/Prospecting';
-import {Venus} from '../../../src/server/cards/community/Venus';
+import {Titan} from '../../../src/server/colonies/Titan';
 import {Celestic} from '../../../src/server/cards/venusNext/Celestic';
 import {cast} from '../../../src/common/utils/utils';
 
@@ -42,23 +42,23 @@ describe('Prospecting', () => {
     expect(player.megaCredits).eq(0);
   });
 
-  it('Venus cannot be activated, so is not selectable', () => {
-    const venus = new Venus();
-    game.discardedColonies.push(venus);
+  it('Titan cannot be activated, so is not selectable', () => {
+    const titan = new Titan();
+    game.discardedColonies.push(titan);
     cast(card.play(player), undefined);
     runAllActions(player.game);
     const selectColony = cast(player.popWaitingFor(), SelectColony);
-    expect(selectColony.colonies).to.not.contain(venus);
+    expect(selectColony.colonies).to.not.contain(titan);
   });
 
-  it('Venus can be activated, so is not selectable', () => {
+  it('Titan can be activated, so is not selectable', () => {
     player.playedCards.push(new Celestic());
-    const venus = new Venus();
+    const titan = new Titan();
     game.discardedColonies = [];
-    game.discardedColonies.push(venus);
+    game.discardedColonies.push(titan);
     cast(card.play(player), undefined);
     runAllActions(player.game);
     const selectColony = cast(player.popWaitingFor(), SelectColony);
-    expect(selectColony.colonies).to.contain(venus);
+    expect(selectColony.colonies).to.contain(titan);
   });
 });

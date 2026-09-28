@@ -68,6 +68,12 @@ export type ColonyTradeManifestModel = {
    * instead of a glide.
    */
   postTradeTrackPosition: number;
+  /**
+   * The FIXED part of the income — paid on every trade here BEFORE the
+   * marker's bonus (`ColonyMetadata.trade.fixed`: the Redux Venus's «terraform
+   * Venus 1 step»). Present only for a tile that prints one.
+   */
+  tradeIncomeFixed?: ColonyTradeGrantModel;
   tradeIncome: ColonyTradeGrantModel;
   /**
    * The per-cube colony bonus grant, present when colony bonuses are given

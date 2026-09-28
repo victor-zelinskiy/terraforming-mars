@@ -589,3 +589,15 @@ describe('consoleTaskRouter (CTS-2 coverage)', () => {
     });
   });
 });
+
+describe('followUpStepStage — a DELEGATE GRANT is a step of the flow that paid it (Turmoil Redux — the Venus tile)', () => {
+  it('a `party` prompt is a step ONLY by the grant marker: the chairman seat is nobody\'s step', () => {
+    const grant = {type: 'party', title: 'Add 2 delegates to a resolution', buttonLabel: 'Add', parties: [], votePrompt: {source: 'grant', cost: 0, count: 2}} as unknown as PlayerInputModel;
+    const seat = {type: 'party', title: 'Select party', buttonLabel: 'Take', parties: [], votePrompt: {source: 'chairman-seat', cost: 0}} as unknown as PlayerInputModel;
+    expect(followUpStepStage('party')).to.eq(undefined);
+    expect(followUpStepStage('party', seat)).to.eq(undefined);
+    // The same word the Parliament prints for its own vote mode — the hosted step and the standalone screen name one place.
+    expect(followUpStepStage('party', grant)).to.eq('Voting');
+    expect(taskFor({waitingFor: grant} as unknown as PlayerViewModel)?.kind).to.eq('party');
+  });
+});

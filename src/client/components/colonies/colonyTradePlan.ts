@@ -26,7 +26,7 @@
 import {CardName} from '@/common/cards/CardName';
 import {ColonyBenefit} from '@/common/colonies/ColonyBenefit';
 import {ColonyName} from '@/common/colonies/ColonyName';
-import {ColonyMetadata, tradeBenefitAt, tradeBenefitTypes} from '@/common/colonies/ColonyMetadata';
+import {ColonyMetadata, tradeBenefitAt, tradeBenefitTypes, tradeFixedIncome} from '@/common/colonies/ColonyMetadata';
 import {ColonyModel} from '@/common/models/ColonyModel';
 import {Color} from '@/common/Color';
 import {InputResponse} from '@/common/inputs/InputResponse';
@@ -123,6 +123,7 @@ const NOTE_TEXT: Record<string, string> = {
   copyTrade: 'After confirming: choose a colony to copy its trade income',
   placeOcean: 'After confirming: place an ocean tile',
   placeDelegates: 'After confirming: place delegates',
+  placeDelegatesOnResolution: 'After confirming: add delegates to a resolution',
   placeHazard: 'After confirming: place a hazard tile',
   wgt: 'After confirming: place an ocean tile',
 };
@@ -554,6 +555,12 @@ export function tradeOutcome(args: TradeOutcomeArgs): {cost: Array<TradeOutcomeC
     case ColonyBenefit.GAIN_SCIENCE_TAGS_AND_CLONE_TAG:
       gains.push({...tag, direction: 'gain', label: 'Science tag', amount: type === ColonyBenefit.GAIN_SCIENCE_TAGS_AND_CLONE_TAG ? 2 : 1, note});
       return;
+    case ColonyBenefit.PLACE_DELEGATES_ON_RESOLUTION:
+      // Turmoil Redux: the delegates are a REWARD the player will address in
+      // the Parliament's vote step (hosted inside the workspace) — a chip with
+      // the count, so «ВЫ ПОЛУЧИТЕ» names it like every other payout.
+      gains.push({...tag, direction: 'gain', label: 'Delegates to a resolution', amount: quantity, note});
+      return;
     default:
       // Board / turmoil follow-ups (ocean, delegates, hazards, WGT) surface
       // as "after confirming" notices — no chip here.
@@ -561,6 +568,12 @@ export function tradeOutcome(args: TradeOutcomeArgs): {cost: Array<TradeOutcomeC
     }
   };
 
+  // THE FIXED PART FIRST — the printed order («Terraform Venus 1 step, AND gain
+  // the bonus indicated by the marker») is the paid order and the read order.
+  const fixed = tradeFixedIncome(args.metadata);
+  if (fixed !== undefined) {
+    pushBenefit(fixed.type, fixed.quantity, typeof fixed.resource === 'string' ? fixed.resource : undefined);
+  }
   const reward = rewardAtPosition(args.metadata, args.rewardPosition);
   pushBenefit(reward.type, reward.quantity, reward.resource);
 
@@ -616,6 +629,8 @@ export function rewardDestinationKey(benefit: ColonyBenefit | undefined): string
     return 'To your hand';
   case ColonyBenefit.STEAL_RESOURCES:
     return 'Taken from an opponent';
+  case ColonyBenefit.PLACE_DELEGATES_ON_RESOLUTION:
+    return 'To a resolution';
   default:
     return undefined;
   }
@@ -825,6 +840,8 @@ export function describeBenefit(
     return {amount: 1, label: 'Science tag'};
   case ColonyBenefit.GAIN_SCIENCE_TAGS_AND_CLONE_TAG:
     return {amount: 2, label: 'Science tag'};
+  case ColonyBenefit.PLACE_DELEGATES_ON_RESOLUTION:
+    return {amount, label: 'Delegates to a resolution'};
   default:
     // A board / turmoil follow-up has no per-owner amount worth printing.
     return undefined;

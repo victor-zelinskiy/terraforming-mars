@@ -5,7 +5,7 @@ import {PartyName} from '@/common/turmoil/PartyName';
 import {ParliamentModel, PartyAccessModel, PartyActionModel, VoteOptionModel} from '@/common/models/ParliamentModel';
 import {ReduxParty} from '@/common/parliament/ParliamentTypes';
 import {
-  accessReasonRows, agendaViewOf, buildParliamentView, offeredPartyActions, ParliamentPartyVm, ParliamentSlotVm, parliamentPromptBridge,
+  accessReasonRows, agendaViewOf, buildParliamentView, grantResponse, offeredPartyActions, ParliamentPartyVm, ParliamentSlotVm, parliamentPromptBridge,
   partyActionStateOf, partyFormulaRender, partyStateOf, resolutionActionConfirmResponse, resolutionActionResponse, resolutionActionStateOf, resolutionBillOf,
   voteAccessOf, voteForecastOf, voteForecastRows, voteVerbOf,
 } from '@/client/console/parliament/consoleParliamentModel';
@@ -387,5 +387,56 @@ describe('consoleParliamentModel — the enacted resolution\'s ACTION (Turmoil R
       expect(parliamentCommandsOf({...base, resolutionAction: resolutionActionStateOf(undefined, true)}).some((c) => c.control === 'inspect'), zone).to.eq(false);
       expect(parliamentCommandsOf(base).some((c) => c.control === 'inspect'), zone).to.eq(false);
     }
+  });
+});
+
+describe('consoleParliamentModel — the DELEGATE GRANT bridge (Turmoil Redux — the Venus tile)', () => {
+  const me = 'blue' as Color;
+  const grant = {
+    type: 'party', title: 'Add 2 delegates to a resolution', buttonLabel: 'Add', parties: [PartyName.REDS, PartyName.GREENS],
+    votePrompt: {source: 'grant', cost: 0, count: 2, printed: 2},
+  } as unknown as PlayerInputModel;
+
+  it('a stand-alone party prompt marked `grant` is the bridge\'s GRANT — never the vote, never the seat', () => {
+    const bridge = parliamentPromptBridge(grant);
+    expect(bridge.grant).to.deep.eq({model: grant, count: 2, printed: 2});
+    expect(bridge.vote).to.eq(undefined);
+    expect(bridge.seat).to.eq(undefined);
+  });
+
+  it('a grant the reserve could not cover keeps both numbers (the shortfall is named, never silent)', () => {
+    const short = {...grant, votePrompt: {source: 'grant', cost: 0, count: 1, printed: 2}} as unknown as PlayerInputModel;
+    expect(parliamentPromptBridge(short).grant).to.deep.include({count: 1, printed: 2});
+    // A marker without a count is one delegate.
+    const bare = {...grant, votePrompt: {source: 'grant', cost: 0}} as unknown as PlayerInputModel;
+    expect(parliamentPromptBridge(bare).grant).to.deep.include({count: 1, printed: 1});
+  });
+
+  it('its answer is the PLAIN party response, and only for a party the prompt offers', () => {
+    const bridge = parliamentPromptBridge(grant);
+    expect(grantResponse(bridge, PartyName.REDS)).to.deep.eq({type: 'party', partyName: PartyName.REDS});
+    expect(grantResponse(bridge, PartyName.UNITY)).to.eq(undefined);
+    expect(grantResponse(parliamentPromptBridge(undefined), PartyName.REDS)).to.eq(undefined);
+  });
+
+  it('the forecast counts the grant\'s cubes, and the bar speaks in the plural with «Свернуть» for B', () => {
+    const slot: ParliamentSlotVm = {
+      instance: 'RDX_REDS_1#0', resolutionId: 'RDX_REDS_1', resolution: undefined, party: PartyName.REDS,
+      votes: [], totalVotes: 0, leader: undefined, leaderVotes: 0, isWinning: false, tiePriority: 2, viewerVotes: 0,
+      projection: {instance: 'RDX_REDS_1#0', votesAfter: 2, leaderAfter: me, viewerLeads: true, becomesWinning: true, unlocksEffect: true, unlocksRequirement: true},
+    };
+    const f = voteForecastOf(slot, me, {available: true, reason: '', source: 'reserve', cost: 0, projections: []}, 2);
+    expect(f?.viewerVotesAfter).to.eq(2);
+    expect(f?.votesAfter).to.eq(2);
+    resetParliamentFlow();
+    parliamentFlow.stage = 'vote';
+    const cmds = parliamentCommandsOf({view: emptyParliamentView(), canVoteNow: true, partyActionStates: [], grant: {count: 2}});
+    expect(cmds.find((c) => c.control === 'confirm')?.label).to.eq('Send the delegates');
+    expect(cmds.find((c) => c.control === 'back')?.label).to.eq('Minimize');
+    const one = parliamentCommandsOf({view: emptyParliamentView(), canVoteNow: true, partyActionStates: [], grant: {count: 1}});
+    expect(one.find((c) => c.control === 'confirm')?.label).to.eq('Send the delegate');
+    const vote = parliamentCommandsOf({view: emptyParliamentView(), canVoteNow: true, partyActionStates: []});
+    expect(vote.find((c) => c.control === 'back')?.label).to.eq('Back');
+    resetParliamentFlow();
   });
 });

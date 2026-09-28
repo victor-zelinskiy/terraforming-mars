@@ -18,6 +18,36 @@ export type TradeOptions = {
 export type ColonyBonusOrdinal = {index: number, total: number};
 
 /**
+ * WHAT THE PATH A TRADE IS PAID BY BRINGS TO THE COLONY'S OWN JUDGEMENT —
+ * everything a tile's rule about the player may depend on that is not the
+ * player's state alone:
+ *  · `bonusTradeOffset` — the extra track step the path grants before the
+ *    income is read (the Unity action's +1, Trade Advance): a refusal at the
+ *    low positions can lift when the reach is longer (the Redux Pluto);
+ *  · `feeMegacredits` — the M€ the path will TAKE as the fee before the
+ *    income is read: 0 for a path paid in energy / titanium / a card, 0 once
+ *    the fee is paid (`Colony.trade` runs after it). The Redux Venus's «if
+ *    you do not have the EXTRA 4 M€» is judged over this — a player with 10 M€
+ *    can pay a 9 M€ fee OR the 4 M€ the 1st position takes, never both, and a
+ *    fee paid into a refusal is the one outcome the offer must never allow.
+ * The OFFER is judged by the best usable path (the longest reach, the
+ * cheapest M€ fee), the chosen path re-judges at the submit — the same two
+ * moments the offset already had.
+ */
+export type TradeTerms = {
+  bonusTradeOffset?: number;
+  feeMegacredits?: number;
+};
+
+/** The terms in full — a bare number is the historical «bonusTradeOffset only» call. */
+export function tradeTermsOf(terms: number | TradeTerms | undefined): Required<TradeTerms> {
+  if (typeof terms === 'number') {
+    return {bonusTradeOffset: terms, feeMegacredits: 0};
+  }
+  return {bonusTradeOffset: terms?.bonusTradeOffset ?? 0, feeMegacredits: terms?.feeMegacredits ?? 0};
+}
+
+/**
  * THE REACH OF ONE TRADE — how far this player's trade offset carries the
  * marker before the income is read, and which of those positions the colony
  * LETS this player read (`tradeIncomeBlockedReason`). `Colony.trade` executes
@@ -75,16 +105,17 @@ export interface IColony {
    * the low positions needs a card that can hold data), or `undefined` when
    * they may. An English i18n key. A colony without such a rule never
    * refuses (the base class). READ-ONLY; co-located in the colony's own file,
-   * never a central table.
+   * never a central table. `terms` is what the paying path brings to the
+   * judgement (the M€ it takes as the fee — the Redux Venus's «extra 4 M€»).
    */
-  tradeIncomeBlockedReason(player: IPlayer, position: number): string | undefined;
+  tradeIncomeBlockedReason(player: IPlayer, position: number, terms?: TradeTerms): string | undefined;
   /**
    * The reach of a trade by this player here (see {@link TradeTrackPlan}) —
    * the offset's arithmetic and the colony's per-position refusals folded
-   * into one plan. `bonusTradeOffset` is the extra step a payment path
-   * grants (the Unity action, Trade Advance).
+   * into one plan. `terms` are the paying path's (see {@link TradeTerms}); a
+   * bare number is the extra step alone.
    */
-  tradeTrackPlan(player: IPlayer, bonusTradeOffset?: number): TradeTrackPlan;
+  tradeTrackPlan(player: IPlayer, terms?: number | TradeTerms): TradeTrackPlan;
   /**
    * Why THIS player may not trade here at all right now, or `undefined` when
    * a trade can legally read its income somewhere within the offset's reach.
@@ -92,7 +123,7 @@ export interface IColony {
    * `ColoniesHandler.openColonies`' question, and the player's fleet / fee is
    * `player.colonies.tradeBlockedReason()`'s.
    */
-  tradeBlockedReason(player: IPlayer, bonusTradeOffset?: number): string | undefined;
+  tradeBlockedReason(player: IPlayer, terms?: number | TradeTerms): string | undefined;
   /**
    * `ordinal` = WHICH of this recipient's cubes on this colony is resolving
    * (1-based) out of how many they own. Each cube resolves separately and in

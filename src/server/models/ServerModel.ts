@@ -606,7 +606,7 @@ export class Server {
     const canAdvanceDelta = inActionSelection &&
       (potential !== undefined ? potential.hydroAdvance > 0 : potentialHydroAdvance(player));
     const colonyTradeBlocks: Array<ColonyTradeBlockModel> = game.gameOptions.coloniesExtension ?
-      ColoniesHandler.blockedColonies(game, player, player.colonies.bestBonusTradeOffset())
+      ColoniesHandler.blockedColonies(game, player, player.colonies.bestTradeTerms())
         .map(({colony, reason}) => ({colony: colony.name, reason})) :
       [];
     const model: PublicPlayerModel = {

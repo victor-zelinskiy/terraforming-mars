@@ -337,6 +337,13 @@ export function shellTaskOnSurface(task: ConsoleTask | undefined, ctx: ShellSurf
  * not a step of the play (it needs the hand's own browse layer, which the
  * play's descent has parked; see `servedPromptHolds` in `concludeWorkspaceFlow`).
  */
+/**
+ * The crumb tail of a hosted DELEGATE GRANT step — the Parliament's own word
+ * for its vote mode (`parliamentCrumbSubject`), so the hosted step and the
+ * standalone screen name the same place.
+ */
+export const DELEGATE_GRANT_STEP_STAGE = 'Voting';
+
 const FOLLOW_UP_STEP_STAGES: Partial<Record<TaskKind, string>> = {
   // The name `ConsoleColoniesSection` publishes UP for an embedded pick (its
   // `embeddedCrumb` default) and the one `openColoniesForPrompt` pushes — ONE
@@ -386,6 +393,14 @@ export function followUpStepStage(kind: TaskKind | undefined, wf?: PlayerInputMo
       return 'Distribution';
     }
     return RESOLUTION_STEP_STAGES[kind];
+  }
+  // A DELEGATE GRANT (Turmoil Redux — the Venus tile's «add 2 delegates to a
+  // resolution», `votePrompt.source === 'grant'`): the Parliament's VOTE step
+  // opens INSIDE the flow that paid it («КОЛОНИИ › ВЕНЕРА › ГОЛОСОВАНИЕ»), under
+  // the same word the Parliament itself uses for the mode. Keyed on the
+  // marker: the chairman-seat pick is the same input type and nobody's step.
+  if (kind === 'party' && wf?.votePrompt?.source === 'grant') {
+    return DELEGATE_GRANT_STEP_STAGE;
   }
   return FOLLOW_UP_STEP_STAGES[kind];
 }

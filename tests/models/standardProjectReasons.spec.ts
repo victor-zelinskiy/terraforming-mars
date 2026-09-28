@@ -163,10 +163,9 @@ describe('standardProjectReasons', () => {
     it('never claims a colony blocker while one is genuinely buildable', () => {
       const [game, player] = testGame(2, {coloniesExtension: true});
       player.megaCredits = 100;
-      // Leave exactly one colony open (skip Venus/Europa/Leavitt — those add a
+      // Leave exactly one colony open (skip Europa/Leavitt — those add a
       // TR-affordability check the fixture doesn't control).
-      const open = game.colonies.find((c) => c.name !== ColonyName.VENUS &&
-        c.name !== ColonyName.EUROPA && c.name !== ColonyName.LEAVITT);
+      const open = game.colonies.find((c) => c.name !== ColonyName.EUROPA && c.name !== ColonyName.LEAVITT);
       expect(open, 'fixture needs one plain colony').is.not.undefined;
       game.colonies.forEach((colony) => {
         colony.isActive = true;

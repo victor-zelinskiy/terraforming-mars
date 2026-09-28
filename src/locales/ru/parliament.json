@@ -1118,5 +1118,19 @@
   "No plant, microbe or animal tags and no influence — and no card to hold the portions": "Нет меток растений, бактерий и животных и нет влияния — и нет карты под раздачи",
   "One card with two of the three tags counts twice": "Одна карта с двумя из трёх меток даёт 2",
   "No card can hold animals — the 2 animals are named and forfeited, the microbes land": "Нет карты, принимающей животных — 2 животных названы и пропадают, бактерии садятся",
-  "No card can hold microbes — the 3 microbes are named and forfeited, the animals land": "Нет карты, принимающей бактерии — 3 бактерии названы и пропадают, животные садятся"
+  "No card can hold microbes — the 3 microbes are named and forfeited, the animals land": "Нет карты, принимающей бактерии — 3 бактерии названы и пропадают, животные садятся",
+  "Add 1 delegate to a resolution": "Добавьте 1 делегата на резолюцию",
+  "Add ${0} delegates to a resolution": "Добавьте ${0} {делегата|делегатов|делегатов} на резолюцию",
+  "${0} added ${1} delegate(s) from the reserve to ${2}": "${0} добавляет ${1} {делегата|делегатов|делегатов} из резерва на ${2}",
+  "${0} cannot add delegates to a resolution: this game has no Mars Parliament": "${0} не может добавить делегатов на резолюцию: в этой партии нет Марсианского парламента",
+  "${0} takes no part in the Mars Parliament: no delegates to add": "${0} не участвует в Марсианском парламенте: делегатов добавить нельзя",
+  "${0} cannot add delegates to a resolution: no resolution is up for a vote": "${0} не может добавить делегатов на резолюцию: ни одна резолюция не на голосовании",
+  "${0} cannot add delegates to a resolution: all their delegates are in play": "${0} не может добавить делегатов на резолюцию: все делегаты уже в игре",
+  "${0} has only ${1} of the ${2} delegates in reserve": "${0} имеет в резерве лишь ${1} из ${2} делегатов",
+  "Your delegates": "Ваши делегаты",
+  "${0} from the reserve · free": "${0} из резерва · бесплатно",
+  "Send the delegates": "Отправить делегатов",
+  "Delegates placed": "Делегаты поставлены",
+  "Return to the vote": "Вернуться к голосованию",
+  "Add delegates to a resolution": "Добавьте делегатов на резолюцию"
 }

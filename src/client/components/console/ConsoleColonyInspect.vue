@@ -211,9 +211,18 @@
                 </div>
               </section>
 
-              <!-- ТОРГОВЫЙ ДОХОД — the printed rule (the instrument shows the level). -->
+              <!-- ТОРГОВЫЙ ДОХОД — the printed rule (the instrument shows the level).
+                   A tile with a FIXED part (the Redux Venus: «terraform Venus 1
+                   step, AND …») prints it as its own line FIRST — the printed
+                   order, and the paid one. -->
               <section class="con-colinspect__group con-colinspect__group--trade" data-unfold-late>
                 <span class="con-colinspect__kind">{{ $t('Trade income') }}</span>
+                <div v-if="tradeFixedBenefit !== undefined" class="con-colinspect__line con-colinspect__line--fixed" data-colinspect-fixed>
+                  <span class="con-colinspect__glyph">
+                    <BenefitGlyph :benefit="tradeFixedBenefit" :idx="0" :cardResource="metadata.cardResource" />
+                  </span>
+                  <p class="con-colinspect__text" v-i18n>{{ tradeFixedDescription }}</p>
+                </div>
                 <div class="con-colinspect__line">
                   <span class="con-colinspect__glyph">
                     <BenefitGlyph :benefit="tradeBenefitNow" :idx="effectivePosition" :cardResource="metadata.cardResource" />
@@ -265,7 +274,7 @@
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
 import {ColonyModel} from '@/common/models/ColonyModel';
-import {ColonyMetadata, tradeBenefitAt} from '@/common/colonies/ColonyMetadata';
+import {ColonyMetadata, tradeBenefitAt, tradeFixedIncome} from '@/common/colonies/ColonyMetadata';
 import {ColonyBenefit} from '@/common/colonies/ColonyBenefit';
 import {ColonyName} from '@/common/colonies/ColonyName';
 import {Color} from '@/common/Color';
@@ -375,6 +384,14 @@ export default defineComponent({
     tradeBenefitNow(): Benefit {
       const income = tradeBenefitAt(this.metadata, this.effectivePosition);
       return {type: income.type, quantity: this.metadata.trade.quantity, resource: income.resource};
+    },
+    /** The FIXED part of the trade income, paid on every trade before the marker's bonus (undefined for a tile without one). */
+    tradeFixedBenefit(): Benefit | undefined {
+      const fixed = tradeFixedIncome(this.metadata);
+      return fixed === undefined ? undefined : {type: fixed.type, quantity: [fixed.quantity], resource: fixed.resource};
+    },
+    tradeFixedDescription(): string {
+      return tradeFixedIncome(this.metadata)?.description ?? '';
     },
     nextBuildSlot(): number {
       return Math.min(this.colony.colonies.length, 2);

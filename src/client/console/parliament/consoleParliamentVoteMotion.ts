@@ -133,6 +133,11 @@ function instanceOf(slot: HTMLElement): string {
   return slot.getAttribute('data-instance') ?? '';
 }
 
+/** No rect to FLIP from — the FRESH entrance's snapshot (every carried object surfaces in place). */
+export function emptyVoteRects(): VoteRectSnapshot {
+  return {plate: undefined, plateRadius: undefined, press: undefined, faces: new Map(), labels: new Map(), tallies: new Map(), cubes: new Map(), surface: undefined};
+}
+
 /**
  * Measure every carried object where it stands RIGHT NOW. Called by the
  * section immediately before the teleport that changes the layout (both
@@ -243,6 +248,14 @@ export type VoteEnterArgs = {
   fromViewer: boolean;
   /** The vote mode is being REBUILT (a reload around a bill): no motion, just the pose. */
   instant: boolean;
+  /**
+   * The mode is the surface's FIRST pose (a delegate grant hosted inside
+   * another workspace — the section mounted straight into the vote): there is
+   * no overview to recede and no old rect to FLIP from, so the receders are
+   * parked at once and every card, the surface and its words simply SURFACE
+   * in place — the same cascade, minus the departures.
+   */
+  fresh?: boolean;
   done: () => void;
 };
 
@@ -296,11 +309,12 @@ export function playParliamentVoteEnter(args: VoteEnterArgs): void {
 
   guardedDescend(root, totalMs, done, (finish) => {
     const tl = gsap.timeline({onComplete: finish});
-    if (args.fromViewer) {
+    if (args.fromViewer || args.fresh === true) {
       // Entered FROM THE VIEWER the overview was never on screen (the viewer's
       // veil covered it): it is PARKED before the first paint, so the veil
       // lifts onto the vote scene and the card flies into it — never onto a
-      // flash of the overview receding.
+      // flash of the overview receding. A FRESH mode (hosted grant) is the
+      // same: the section mounted into the vote, nothing recedes.
       for (const el of receders) {
         descendParkLayer(el);
       }

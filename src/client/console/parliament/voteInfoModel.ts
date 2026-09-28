@@ -63,6 +63,8 @@ export const READING_KICKER_RIVAL = 'For ${0} when enacted';
 export const READING_KICKER_SPECTATOR = 'When enacted';
 /** «ВАШ ГОЛОС» is the VIEWER's, at every subject: A always sends the viewer's own delegate. */
 export const VOTE_KICKER = 'Your vote';
+/** «ВАШИ ДЕЛЕГАТЫ» — a delegate GRANT's block (the Redux Venus): not a vote, the effect's own delegates. */
+export const GRANT_KICKER = 'Your delegates';
 /** The party box's one line of moment (the graphic beside the reading — not a kicker, not a reading). */
 export const PARTY_MOMENT = 'party effect · to every player when enacted';
 /** …and of the suffix's words. */
@@ -178,6 +180,10 @@ export type VoteInfoVm = {
     source: 'lobby' | 'reserve' | 'none';
     /** Its price in M€ (0 from the lobby). */
     cost: number;
+    /** How many delegates this press sends — 1 for the vote, a grant's count (the Redux Venus's two). */
+    count: number;
+    /** A DELEGATE GRANT, not the vote: free, from the reserve, mandatory. */
+    grant: boolean;
     /** The panel's facts: the leader, the winning state, and the party effect ONLY on its edge. */
     facts: ReadonlyArray<VoteFactVm>;
     /** Every fact — the inspector's full reading. */
@@ -382,6 +388,12 @@ export type VoteInfoInput = {
   cost: number;
   facts: VoteFactsVm;
   numbers: VoteNumbersVm;
+  /**
+   * A DELEGATE GRANT (Turmoil Redux — the Venus tile): `count` delegates from
+   * the reserve, free, no vote of the player's own — the block's kicker and
+   * its source line say so instead of «ВАШ ГОЛОС · из резерва · 5 M€».
+   */
+  grant?: {count: number};
 };
 
 export function voteInfoOf(input: VoteInfoInput): VoteInfoVm {
@@ -392,9 +404,11 @@ export function voteInfoOf(input: VoteInfoInput): VoteInfoVm {
     winning: input.winning,
     reading: voteReadingOf(input.resolution, input.model, input.subject, input.tableau, input.rival),
     vote: {
-      kicker: VOTE_KICKER,
+      kicker: input.grant !== undefined ? GRANT_KICKER : VOTE_KICKER,
       source: input.source,
-      cost: input.source === 'reserve' ? input.cost : 0,
+      cost: input.grant !== undefined ? 0 : (input.source === 'reserve' ? input.cost : 0),
+      count: input.grant?.count ?? 1,
+      grant: input.grant !== undefined,
       facts: panelFactsOf(input.facts),
       all: input.facts,
       numbers: input.numbers,

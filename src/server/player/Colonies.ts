@@ -4,7 +4,7 @@ import {ColoniesHandler} from '../colonies/ColoniesHandler';
 import {AndOptions} from '../inputs/AndOptions';
 import {CanAffordOptions, IPlayer} from '../IPlayer';
 import {ENERGY_TRADE_COST, MC_TRADE_COST, TITANIUM_TRADE_COST} from '../../common/constants';
-import {IColony} from '../colonies/IColony';
+import {IColony, TradeTerms} from '../colonies/IColony';
 import {SelectPaymentDeferred} from '../deferredActions/SelectPaymentDeferred';
 import {Resource} from '../../common/Resource';
 import {TradeWithTitanFloatingLaunchPad} from '../cards/colonies/TitanFloatingLaunchPad';
@@ -73,12 +73,12 @@ export class Colonies {
       return 'No trade fleet available';
     }
     const game = this.player.game;
-    const reach = this.bestBonusTradeOffset();
-    if (ColoniesHandler.tradeableColonies(game, this.player, reach).length === 0) {
+    const terms = this.bestTradeTerms();
+    if (ColoniesHandler.tradeableColonies(game, this.player, terms).length === 0) {
       // An open colony that REFUSES this player (the Turmoil Redux Pluto with
       // no card to hold its data) is named by its own reason — «no colony
       // available» would hide a tile that is plainly on the table.
-      const refused = ColoniesHandler.blockedColonies(game, this.player, reach);
+      const refused = ColoniesHandler.blockedColonies(game, this.player, terms);
       return refused.length > 0 ? refused[0].reason : 'No colony available to trade with';
     }
     return undefined;
@@ -91,13 +91,34 @@ export class Colonies {
    * chosen path re-judges at the submit (`tradeWithColony`).
    */
   public bestBonusTradeOffset(): number {
-    let best = 0;
+    return this.bestTradeTerms().bonusTradeOffset;
+  }
+
+  /**
+   * THE BEST TERMS ANY USABLE PATH OFFERS — the longest reach and the
+   * cheapest M€ fee, each over the paths the player can actually take. What
+   * the OFFER is judged by (`tradeColonyPick`, `colonyTradeBlocks`), so a
+   * colony that only a costless path leaves legal (the Redux Venus's 1st
+   * position needs 4 M€ ON TOP of the fee — a player with 10 M€ and 3 energy
+   * has them through energy, not through M€) is not refused up front; the
+   * CHOSEN path re-judges at the submit with its own terms.
+   */
+  public bestTradeTerms(): Required<TradeTerms> {
+    let bonusTradeOffset = 0;
+    let feeMegacredits: number | undefined;
     for (const handler of this.tradeHandlers()) {
       if (handler.canUse()) {
-        best = Math.max(best, handler.bonusTradeOffset ?? 0);
+        bonusTradeOffset = Math.max(bonusTradeOffset, handler.bonusTradeOffset ?? 0);
+        const fee = handler.feeMegacredits ?? 0;
+        feeMegacredits = feeMegacredits === undefined ? fee : Math.min(feeMegacredits, fee);
       }
     }
-    return best;
+    return {bonusTradeOffset, feeMegacredits: feeMegacredits ?? 0};
+  }
+
+  /** The terms ONE path brings to a colony's judgement (see `TradeTerms`). */
+  public static termsOf(handler: IColonyTrader): Required<TradeTerms> {
+    return {bonusTradeOffset: handler.bonusTradeOffset ?? 0, feeMegacredits: handler.feeMegacredits ?? 0};
   }
 
   public coloniesTradeAction(): AndOptions | undefined {
@@ -162,7 +183,7 @@ export class Colonies {
     if (!this.tradeHandlers().some((handler) => handler.canUse())) {
       return 0; // a free fleet and an open colony, but nothing to pay the fee with
     }
-    const colonies = ColoniesHandler.tradeableColonies(this.player.game, this.player, this.bestBonusTradeOffset()).length;
+    const colonies = ColoniesHandler.tradeableColonies(this.player.game, this.player, this.bestTradeTerms()).length;
     return Math.min(colonies, this.freeTradeFleets());
   }
 
@@ -206,20 +227,21 @@ export class Colonies {
     }
     howToPayForTrade.setDisabledOptions(disabledPayments);
 
-    // The OFFER reaches as far as the longest usable path does (the Unity
-    // +1); a colony refusing the player at every reach is DISABLED with its
-    // reason, never dropped.
-    const reach = Math.max(0, ...handlers.filter((h) => h.canUse()).map((h) => h.bonusTradeOffset ?? 0));
-    const selectColony = ColoniesHandler.tradeColonyPick(player, 'Select colony tile for trade', 'trade', reach)
+    // The OFFER is judged by the BEST usable path (the Unity +1's reach, the
+    // cheapest M€ fee — the same list the options above were built from); a
+    // colony refusing the player at every reach is DISABLED with its reason,
+    // never dropped.
+    const selectColony = ColoniesHandler.tradeColonyPick(player, 'Select colony tile for trade', 'trade', this.bestTradeTerms())
       .andThen((colony) => {
         if (selected === undefined) {
           throw new Error(`Unexpected condition: no trade funding source selected when trading with ${colony.name}.`);
         }
         // The CHOSEN path may reach less than the offer did (M€ where only
-        // the Unity step lifted the Redux Pluto's refusal): re-judged by the
-        // chosen path BEFORE anything is paid — a named rejection, never a
-        // fee paid into nothing.
-        const refusal = colony.tradeBlockedReason(player, selected.bonusTradeOffset ?? 0);
+        // the Unity step lifted the Redux Pluto's refusal), or TAKE the M€ the
+        // colony needs on top (the Redux Venus's 1st position): re-judged by
+        // the chosen path BEFORE anything is paid — a named rejection, never
+        // a fee paid into nothing.
+        const refusal = colony.tradeBlockedReason(player, Colonies.termsOf(selected));
         if (refusal !== undefined) {
           throw new InputError(refusal);
         }
@@ -254,9 +276,6 @@ export class Colonies {
           return false;
         }
         if (!allowDuplicate && colony.colonies.includes(this.player.id)) {
-          return false;
-        }
-        if (colony.name === ColonyName.VENUS && !this.player.canAfford({...options, tr: {venus: 1}})) {
           return false;
         }
         if (colony.name === ColonyName.EUROPA && !this.player.canAfford({...options, tr: {oceans: 1}})) {
@@ -507,6 +526,18 @@ export class TradeWithMegacredits implements IColonyTrader {
   /** The effective M€ trade fee (discounts applied) — read by the trade
    *  preview (`colonyTradePreview.ts`) so the cost math never forks. */
   public get cost(): number {
+    return this.tradeCost;
+  }
+
+  /**
+   * The M€ this path TAKES (`TradeTerms.feeMegacredits`) — the whole fee, on
+   * purpose: a Helion may settle part of it in heat, but the offer must hold
+   * for EVERY mix the payment prompt then allows, and only «M€ ≥ fee + extra»
+   * guarantees the extra is still there after any of them. Judging by the
+   * cheapest mix instead would let a player pay the fee in M€ and meet the
+   * colony's refusal AFTER it — the one outcome the terms exist to prevent.
+   */
+  public get feeMegacredits(): number {
     return this.tradeCost;
   }
 

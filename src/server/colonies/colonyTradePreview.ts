@@ -41,8 +41,10 @@ export function buildColonyTradePreview(player: IPlayer, colony: IColony): Colon
 
   // ── Track advance — THE SAME PLAN Colony.trade() executes (its reach, its
   //    refusals, its ask decision), read here without moving anything. The
-  //    default preview = the farthest legal step. ───────────────────────────
-  const plan = colony.tradeTrackPlan(player);
+  //    default preview = the farthest legal step, judged with the cheapest M€
+  //    fee any usable path takes (the Redux Venus's «extra 4 M€» is over the
+  //    fee) — the offset itself stays the default path's (0), as before. ────
+  const plan = colony.tradeTrackPlan(player, {feeMegacredits: player.colonies.bestTradeTerms().feeMegacredits});
   const steps = plan.steps;
   const effective = plan.current + steps;
   const willAsk = plan.ask;
@@ -191,6 +193,11 @@ function benefitFollowUp(
 
   case ColonyBenefit.PLACE_DELEGATES:
     return note(role, 'placeDelegates');
+
+  case ColonyBenefit.PLACE_DELEGATES_ON_RESOLUTION:
+    // Turmoil Redux: the Parliament's own step opens after the confirm (the
+    // vote, hosted inside the colony workspace) — never pre-collected.
+    return note(role, 'placeDelegatesOnResolution');
 
   case ColonyBenefit.PLACE_HAZARD_TILE:
     return note(role, 'placeHazard');

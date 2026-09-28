@@ -24,8 +24,8 @@ import {SendDelegateToArea} from '../deferredActions/SendDelegateToArea';
 import {IGame} from '../IGame';
 import {Turmoil} from '../turmoil/Turmoil';
 import {SerializedColony} from '../SerializedColony';
-import {ColonyBonusOrdinal, IColony, TradeOptions, TradeTrackPlan} from './IColony';
-import {ColonyMetadata, colonyMetadata, InputColonyMetadata, tradeBenefitAt} from '../../common/colonies/ColonyMetadata';
+import {ColonyBonusOrdinal, IColony, TradeOptions, TradeTerms, tradeTermsOf, TradeTrackPlan} from './IColony';
+import {ColonyMetadata, colonyMetadata, InputColonyMetadata, tradeBenefitAt, tradeFixedIncome} from '../../common/colonies/ColonyMetadata';
 import {ColonyName} from '../../common/colonies/ColonyName';
 import {ColonyBenefitRole} from '../../common/events/EventSource';
 import {CardDrawRevealSource, ColonyTradeRevealTag} from '../../common/models/CardDrawRevealModel';
@@ -39,6 +39,7 @@ import {CardName} from '../../common/cards/CardName';
 import {GlobalParameter} from '@/common/GlobalParameter';
 import {colonySource} from '../inputs/choiceContext';
 import {ParliamentHandler} from '../parliament/ParliamentHandler';
+import {PlaceDelegatesOnResolution} from '../parliament/PlaceDelegatesOnResolution';
 
 export abstract class Colony implements IColony {
   // Players can't build colonies on Miranda until someone has played an Animal card.
@@ -198,7 +199,7 @@ export abstract class Colony implements IColony {
   }
 
   /** The base colony refuses nobody — a colony with a rule of its own overrides this in its own file. */
-  public tradeIncomeBlockedReason(_player: IPlayer, _position: number): string | undefined {
+  public tradeIncomeBlockedReason(_player: IPlayer, _position: number, _terms?: TradeTerms): string | undefined {
     return undefined;
   }
 
@@ -212,9 +213,10 @@ export abstract class Colony implements IColony {
     return `${income.type}|${income.resource ?? ''}`;
   }
 
-  public tradeTrackPlan(player: IPlayer, bonusTradeOffset = 0): TradeTrackPlan {
+  public tradeTrackPlan(player: IPlayer, termsIn: number | TradeTerms = 0): TradeTrackPlan {
+    const terms = tradeTermsOf(termsIn);
     const current = this.trackPosition;
-    const tradeOffset = player.colonies.tradeOffset + bonusTradeOffset;
+    const tradeOffset = player.colonies.tradeOffset + terms.bonusTradeOffset;
     const max = Math.min(current + tradeOffset, MAX_COLONY_TRACK_POSITION);
     const reach = max - current;
 
@@ -230,15 +232,16 @@ export abstract class Colony implements IColony {
       candidates = Array.from({length: reach + 1}, (_, step) => step);
     }
 
-    // …minus the landings this colony refuses THIS player (its own rule).
-    const legal = candidates.filter((step) => this.tradeIncomeBlockedReason(player, current + step) === undefined);
+    // …minus the landings this colony refuses THIS player (its own rule,
+    // judged with what the paying path brings — the fee it takes).
+    const legal = candidates.filter((step) => this.tradeIncomeBlockedReason(player, current + step, terms) === undefined);
     if (legal.length === 0) {
       // Nothing in reach may be traded: the refusal at the FARTHEST reach is
       // the reason (the rules' «you could only go up to the 5th position»).
       const farthest = candidates[candidates.length - 1];
       return {
         current, max, steps: farthest, minSteps: farthest, ask: false,
-        blockedReason: this.tradeIncomeBlockedReason(player, current + farthest),
+        blockedReason: this.tradeIncomeBlockedReason(player, current + farthest, terms),
       };
     }
     const minSteps = legal[0];
@@ -249,8 +252,8 @@ export abstract class Colony implements IColony {
     return {current, max, steps, minSteps, ask: legal.length > 1 && kinds.size > 1};
   }
 
-  public tradeBlockedReason(player: IPlayer, bonusTradeOffset = 0): string | undefined {
-    return this.tradeTrackPlan(player, bonusTradeOffset).blockedReason;
+  public tradeBlockedReason(player: IPlayer, terms: number | TradeTerms = 0): string | undefined {
+    return this.tradeTrackPlan(player, terms).blockedReason;
   }
 
   /**
@@ -298,8 +301,11 @@ export abstract class Colony implements IColony {
 
   private handleTrade(player: IPlayer, options: TradeOptions) {
     // The income at the position the marker stands on NOW — kind, amount and
-    // resource resolved together (the Redux Pluto pays data low, cards high).
+    // resource resolved together (the Redux Pluto pays data low, cards high)
+    // — and the FIXED part every trade here pays before it (the Redux Venus:
+    // «Terraform Venus 1 step, AND gain the bonus indicated by the marker»).
     const income = tradeBenefitAt(this.metadata, this.trackPosition);
+    const fixed = tradeFixedIncome(this.metadata);
 
     // Build the ATOMIC reward manifest of this trade BEFORE granting anything.
     // Every value is the authoritative plan the grants execute against: the
@@ -332,6 +338,7 @@ export abstract class Colony implements IColony {
         generation: game.generation,
         preTradeTrackPosition: this.trackPosition,
         postTradeTrackPosition: willDecrease ? this.colonies.length : this.trackPosition,
+        ...(fixed !== undefined ? {tradeIncomeFixed: this.tradeGrantModel(fixed.type, fixed.quantity, fixed.resource)} : {}),
         tradeIncome: this.tradeGrantModel(income.type, income.quantity, income.resource),
         colonyBonus: this.colonies.length > 0 ?
           this.tradeGrantModel(this.metadata.colony.type, this.metadata.colony.quantity, this.metadata.colony.resource) :
@@ -341,6 +348,13 @@ export abstract class Colony implements IColony {
       this.activeTradeId = tradeId;
     }
 
+    // THE PRINTED ORDER IS THE PAID ORDER (and the journal's): the fixed part
+    // first — «terraform Venus 1 step» — then the marker's bonus. Both are
+    // this trade's income (`'trade'`), so a draw among them still binds to
+    // the trade's own reveal transaction.
+    if (fixed !== undefined) {
+      this.giveBonus(player, fixed.type, fixed.quantity, fixed.resource, false, 'trade');
+    }
     this.giveBonus(player, income.type, income.quantity, income.resource, false, 'trade');
 
     // !== false because default is true.
@@ -666,6 +680,14 @@ export abstract class Colony implements IColony {
       });
       break;
 
+    case ColonyBenefit.PLACE_DELEGATES_ON_RESOLUTION:
+      // Turmoil Redux (the Venus tile): the delegates go from the reserve onto
+      // ONE resolution of the voting area — the Parliament's own step, which
+      // names itself when it cannot be taken (no vote, no delegate left,
+      // a seat outside the parliament). The colony is the prompt's cause.
+      action = new PlaceDelegatesOnResolution(player, quantity, colonySource(this.name));
+      break;
+
     case ColonyBenefit.GIVE_MC_PER_DELEGATE:
       Turmoil.ifTurmoil(game, (turmoil) => {
         const partyDelegateCount = sum(turmoil.parties.map((party) => party.delegates.get(player)));
@@ -710,16 +732,28 @@ export abstract class Colony implements IColony {
       }
       break;
 
-    case ColonyBenefit.INCREASE_VENUS_SCALE:
-      game.increaseVenusScaleLevel(player, quantity as 3|2|1);
-      game.log('${0} raised ${1} ${2} {step|steps}', (b) => b.player(player).globalParameter(GlobalParameter.VENUS).number(quantity));
+    case ColonyBenefit.INCREASE_VENUS_SCALE: {
+      // The steps ACTUALLY made, never the printed number: the Redux Venus
+      // pays this on every trade, and a scale at its maximum is the one case
+      // the payout comes to nothing — which the journal then SAYS.
+      const raised = game.increaseVenusScaleLevel(player, quantity as 3|2|1);
+      if (raised > 0) {
+        game.log('${0} raised ${1} ${2} {step|steps}', (b) => b.player(player).globalParameter(GlobalParameter.VENUS).number(raised));
+      } else {
+        game.log('${0} cannot raise ${1}: it is already at its maximum', (b) => b.player(player).globalParameter(GlobalParameter.VENUS));
+      }
       break;
+    }
 
     case ColonyBenefit.LOSE_RESOURCES:
       if (resource === undefined) {
         throw new Error('Resource cannot be undefined');
       }
-      player.stock.deduct(resource, Math.min(player.stock.get(resource), quantity), {log: true});
+      // A position that prints NOTHING (the Redux Venus's 2nd) is a zero of
+      // this kind — nothing is taken and nothing is journaled.
+      if (quantity > 0) {
+        player.stock.deduct(resource, Math.min(player.stock.get(resource), quantity), {log: true});
+      }
       break;
 
     case ColonyBenefit.OPPONENT_DISCARD:

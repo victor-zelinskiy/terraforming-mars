@@ -112,6 +112,26 @@
       <span class="tile venus-tile benefit-glyph__tile"></span>
     </template>
 
+    <!-- LOSE_RESOURCES — a LEVY: the resource icon with a MINUS (the Redux
+         Venus's «−4 M€» at its 1st position). A levy of ZERO is the tile's
+         printed EMPTY position: nothing is drawn but a quiet dash — an icon
+         with no number would read as a gain. -->
+    <template v-else-if="benefit.type === BG.LOSE_RESOURCES">
+      <template v-if="quantity > 0">
+        <span class="benefit-glyph__icon resource"
+              :class="resourceClassFromBenefit"></span>
+        <span class="benefit-glyph__num benefit-glyph__num--loss">−{{ quantity }}</span>
+      </template>
+      <span v-else class="benefit-glyph__void" aria-hidden="true">—</span>
+    </template>
+
+    <!-- PLACE_DELEGATES_ON_RESOLUTION — Turmoil Redux: a delegate token
+         (the Parliament's own cube silhouette) with the count. -->
+    <template v-else-if="benefit.type === BG.PLACE_DELEGATES_ON_RESOLUTION">
+      <span class="benefit-glyph__delegate"></span>
+      <span v-if="quantity > 1" class="benefit-glyph__num">×{{ quantity }}</span>
+    </template>
+
     <!-- PLACE_OCEAN_TILE — ocean tile glyph. -->
     <template v-else-if="benefit.type === BG.PLACE_OCEAN_TILE">
       <span class="tile ocean-tile benefit-glyph__tile"></span>

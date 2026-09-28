@@ -252,6 +252,7 @@
                                 :players="playerView.players"
                                 :viewerColor="thisPlayer.color"
                                 :dockedColony="tradeFleetState.dockedColonyName"
+                                :grantColony="colonyGrantColony"
                                 :tradeOffset="thisPlayer.colonyTradeOffset ?? 0"
                                 :tradePaymentOptions="tradeColonyContext !== undefined ? tradeColonyContext.paymentOptions : []"
                                 :tradeDisabledPayments="tradeColonyContext !== undefined ? tradeColonyContext.disabledPayments : []"
@@ -320,14 +321,22 @@
            (`surfaceLeaveHook` on the live element — the director's own section dissolve), never by a
            `v-if`/`v-show` race whose semantics decide whether anything animates at all; the section
            latches its last coherent view on the `leaving` prop and reads nothing live until it unmounts. -->
+      <!-- HOSTED AS A STEP (the Redux Venus's delegate grant — the Parliament's
+           vote step standing INSIDE the colonies that paid it): the SAME
+           instance is teleported into the host's zone and wears its embedded
+           dress (`embedded` strips the frame, the head, `con-ws` and the motion
+           id — the colonies' own pattern, one screen above). One instance, one
+           input path, one submit funnel — never a copy. -->
+      <Teleport :to="parliamentEmbedTeleportTo" :disabled="!parliamentEmbedActive">
       <transition :css="false" appear
                   @enter="surfaceEnterHook" @leave="surfaceLeaveHook" @after-leave="onParliamentAfterLeave"
                   @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="onParliamentLeaveCancelled">
         <ConsoleParliamentSection v-if="parliamentMounted"
-                                  data-motion-surface="section"
+                                  :data-motion-surface="parliamentEmbedActive ? undefined : 'section'"
                                   ref="parliamentSection"
                                   :playerView="playerView"
                                   :leaving="parliamentLeaving"
+                                  :embedded="parliamentEmbedActive"
                                   :myTurn="myTurn"
                                   :awaitingInput="awaitingInput"
                                   @submit="submitParliament($event)"
@@ -340,6 +349,7 @@
                                   @collapse="collapseWorkspace()"
                                   @close="leaveWorkspace()" />
       </transition>
+      </Teleport>
 
       <!-- THE ACTION WORKSPACE («Действия карт») — the console-native
            blue-card action center as an ABSOLUTE child of .con-main filling
@@ -1762,6 +1772,7 @@ import {
   workspaceStackTopAxis,
   FrameAnchor,
   WorkspaceFrameKind,
+  workspaceStackDepth,
 } from '@/client/console/consoleWorkspaceStack';
 import {acceptsInput, isCommitted, workspaceConclusionFor} from '@/client/console/consoleWorkspaceFlow';
 import {installConsoleReadinessProbe} from '@/client/console/e2eReadiness';
@@ -1902,7 +1913,7 @@ import {consoleReducedMotionActive} from '@/client/console/composables/useConsol
 import {currentRevealEvent, drawnCardsState, markRevealPresented, revealPresented, serverRevealConsumed, untakenNameMultiset} from '@/client/components/drawnCards/drawnCardsState';
 import {energyConversionState} from '@/client/components/feedback/energyConversionTransition';
 import {revealViewerState} from '@/client/components/notifications/revealViewerState';
-import {ConsoleTask, TaskKind, taskFor, taskMinimizable, taskServedByHost, shellTaskOnSurface, followUpStepStage, promptOutranksStartScene, NATIVE_COMPOSITE_KINDS, SCENE_KINDS, SECTION_SERVED_KINDS, SHELL_SECTION_KINDS, corpFirstActionInStartFlow} from '@/client/console/consoleTaskRouter';
+import {ConsoleTask, TaskKind, taskFor, taskMinimizable, taskServedByHost, shellTaskOnSurface, followUpStepStage, promptOutranksStartScene, NATIVE_COMPOSITE_KINDS, SCENE_KINDS, SECTION_SERVED_KINDS, SHELL_SECTION_KINDS, corpFirstActionInStartFlow, DELEGATE_GRANT_STEP_STAGE} from '@/client/console/consoleTaskRouter';
 import ConsoleSpendHeat from '@/client/components/console/ConsoleSpendHeat.vue';
 import ConsoleVenusBonus from '@/client/components/console/ConsoleVenusBonus.vue';
 import ConsoleBotAttack from '@/client/components/console/ConsoleBotAttack.vue';
@@ -2176,6 +2187,8 @@ const OWED_CONCLUSION_FORCE_MS = 8000;
  * beat — every hold in this console is bounded and named.
  */
 const PARLIAMENT_LEAVE_NET_MS = 900;
+/** A HOSTED Parliament step's leave — a dissolve in place inside its host's zone (the embed contract strips the band phrase). */
+const PARLIAMENT_STEP_LEAVE_MS = 240;
 
 /**
  * WHICH PROMPTS A CARD PLAY'S CLAIM ANSWERS FOR — the card questions its own
@@ -2195,6 +2208,15 @@ const PARLIAMENT_LEAVE_NET_MS = 900;
  */
 const PLAY_CLAIMED_TASK_KINDS: ReadonlySet<TaskKind> =
   new Set<TaskKind>(['deckSelect', 'cardSelect', 'payment']);
+
+/** DEV DIAG (`__conColonyDiag().doorTrace`): the last prompt-routed door decisions, newest last. */
+const doorTrace: Array<string> = [];
+function traceDoor(line: string): void {
+  doorTrace.push(line);
+  if (doorTrace.length > 40) {
+    doorTrace.shift();
+  }
+}
 
 export default defineComponent({
   name: 'ConsoleShell',
@@ -2321,6 +2343,9 @@ export default defineComponent({
       handDeliveryState,
       /** The Parliament section's leave is in flight: the frame is out of the stack, the section still mounted (v3 В1). */
       parliamentLeaving: false,
+      /** The zone the Parliament was hosted in, LATCHED for its leave: the frame pops first, and a leaving step
+       *  re-rendered as a standalone band (`con-ws`, its own head) is the flash the embed contract forbids. */
+      parliamentEmbedLatch: '',
       /** …and its bounded net: a leave that never reports back may not latch the surface for the session. */
       parliamentLeaveNet: undefined as number | undefined,
       patentSaleState,
@@ -4238,6 +4263,22 @@ export default defineComponent({
     /** …and the section stays MOUNTED through its leave (v3 В1): presence, or the leave still playing over the latched surface. */
     parliamentMounted(): boolean {
       return this.parliamentShown || this.parliamentLeaving;
+    },
+    /**
+     * THE PARLIAMENT AS A HOSTED STEP — the zone of the frame below it (the
+     * colonies' `[data-embed-slot="colonies-parliament"]` for the Redux
+     * Venus's delegate grant). `undefined` = the Parliament stands in its own
+     * band, as it always did. The stack's teleport chain, nothing more.
+     */
+    parliamentEmbedTarget(): string | undefined {
+      return workspaceFrameTarget('parliament');
+    },
+    parliamentEmbedActive(): boolean {
+      return this.parliamentEmbedTarget !== undefined || (this.parliamentLeaving && this.parliamentEmbedLatch !== '');
+    },
+    /** The teleport target — the live zone, or the latched one while a hosted step is still dissolving. */
+    parliamentEmbedTeleportTo(): string {
+      return this.parliamentEmbedTarget ?? (this.parliamentLeaving && this.parliamentEmbedLatch !== '' ? this.parliamentEmbedLatch : 'body');
     },
     /** PRESENCE IS THE STACK (invariant 1) — the workspace's ONE v-if. */
     draftWorkspaceMounted(): boolean {
@@ -6999,7 +7040,9 @@ export default defineComponent({
      */
     followUpStepOwed(): boolean {
       const task = taskFor(this.playerView);
-      return task !== undefined && followUpStepStage(task.kind) !== undefined &&
+      // With the prompt itself: a step-shaped follow-up may be one by its
+      // MARKER (the delegate grant's `votePrompt`), not only by its kind.
+      return task !== undefined && followUpStepStage(task.kind, this.playerView.waitingFor) !== undefined &&
         !this.consoleState.task.deferred && frameServing(task.kind) === undefined &&
         !this.admits('followUp');
     },
@@ -7074,7 +7117,7 @@ export default defineComponent({
     },
     /** The crumb tail an OWED step already carries (see `followUpStepOwed`). */
     followUpStepStageKey(): string {
-      return (this.followUpStepOwed ? followUpStepStage(taskFor(this.playerView)?.kind) : undefined) ?? '';
+      return (this.followUpStepOwed ? followUpStepStage(taskFor(this.playerView)?.kind, this.playerView.waitingFor) : undefined) ?? '';
     },
     /**
      * The colony FOLLOW-UP is still running: the prompt itself, the armed
@@ -7088,7 +7131,27 @@ export default defineComponent({
       return this.colonyPromptRaw || this.colonyTradeState.active ||
         this.tradeFleetState.active || isColonyBuildActive() ||
         workspaceOutcomeState.host === 'colonies' ||
-        this.colonyResolutionLive;
+        this.colonyResolutionLive ||
+        this.colonyGrantStepLive || workspaceFrameHost('parliament') === 'colonies';
+    },
+    /**
+     * A COLONY'S OWN DELEGATE GRANT STANDS (Turmoil Redux — the Redux Venus:
+     * «add 2 delegates to a resolution» on the build, ×1 / ×2 on a trade). The
+     * server names the giver (`choiceContext.source.kind === 'colony'`) on the
+     * grant-marked party prompt, so the prompt is a STEP of the colony flow
+     * that paid it — the frame may not hand the screen back while it stands
+     * (the follow-up ended one response early and the vote rose over an empty
+     * stack), and it stays through the vote's landing while the Parliament's
+     * step is hosted inside the colonies (the second term above).
+     */
+    colonyGrantStepLive(): boolean {
+      const wf = this.playerView.waitingFor;
+      return wf?.votePrompt?.source === 'grant' && wf.choiceContext?.source.kind === 'colony';
+    },
+    /** The colony the standing delegate grant NAMES (the crumb's carried object while the vote is its step; '' = none). */
+    colonyGrantColony(): string {
+      const source = this.playerView.waitingFor?.choiceContext?.source;
+      return this.colonyGrantStepLive && typeof source?.name === 'string' ? source.name : '';
     },
     /**
      * The zone the colonies section is TELEPORTED into — published by the
@@ -10076,6 +10139,7 @@ export default defineComponent({
     // isn't left with NO surface (the stranded guard). Respects an explicit
     // defer (the player chose to inspect the board).
     consoleForegroundBusy(busy: boolean, wasBusy: boolean): void {
+      traceDoor('busy ' + String(wasBusy) + '->' + String(busy) + ' deferred=' + String(this.consoleState.task.deferred) + ' gate=' + String(this.taskGateHeld) + ' task=' + (taskFor(this.playerView)?.kind ?? '-') + ' wf=' + (this.playerView.waitingFor?.type ?? '-'));
       // Don't auto-open an interruptive task that is still GATED (announced,
       // not yet opened via B) — it waits for the player's press, not for the
       // foreground to clear (consoleMandatoryGate).
@@ -10154,11 +10218,17 @@ export default defineComponent({
      * A re-show (a restore, a board yield coming back) clears the latch — the flag can never outlive its
      * own leave, and a leave that never starts is bounded by a named net.
      */
+    parliamentEmbedTarget(target: string | undefined): void {
+      if (target !== undefined) {
+        this.parliamentEmbedLatch = target;
+      }
+    },
     parliamentShown(shown: boolean, was: boolean): void {
       window.clearTimeout(this.parliamentLeaveNet);
       this.parliamentLeaveNet = undefined;
       if (shown) {
         this.parliamentLeaving = false;
+        this.parliamentEmbedLatch = this.parliamentEmbedTarget ?? '';
         return;
       }
       const el = (this.$refs.parliamentSection as {$el?: unknown} | undefined)?.$el;
@@ -10172,8 +10242,22 @@ export default defineComponent({
         this.parliamentLeaveNet = undefined;
         el.dataset.motionVariant = 'headless';
         this.parliamentLeaving = false;
+        this.parliamentEmbedLatch = '';
       };
       this.parliamentLeaveNet = window.setTimeout(release, PARLIAMENT_LEAVE_NET_MS);
+      // A HOSTED step carries no motion id (the embed contract strips it), so the
+      // director's hook would release at once and the surface would vanish in
+      // one frame inside its host's zone. Its leave is a short dissolve in place
+      // — the same beat the host's zone plays around it — never a band phrase.
+      if (el.dataset.motionSurface === undefined) {
+        if (consoleReducedMotionActive() || typeof el.animate !== 'function') {
+          release();
+          return;
+        }
+        el.animate([{opacity: 1}, {opacity: 0}], {duration: motionMs(PARLIAMENT_STEP_LEAVE_MS), easing: 'ease-out', fill: 'forwards'})
+          .finished.then(release, release);
+        return;
+      }
       surfaceLeaveHook(el, release);
     },
     // THE EXTERNAL-DRAW WORKSPACE'S FRAME — the draft's lifecycle contract:
@@ -11422,6 +11506,7 @@ export default defineComponent({
           // as a still-running effect waits here; `consoleForegroundBusy`'s own
           // watcher opens it the moment that effect is finished.
           const shellTask = this.shellTask;
+          traceDoor('identity wf=' + (this.playerView.waitingFor?.type ?? '-') + ' shellTask=' + (shellTask?.kind ?? '-') + ' deferred=' + String(this.consoleState.task.deferred) + ' followUp=' + String(this.admits('followUp')) + ' section=' + String(this.admits('section')) + ' depth=' + workspaceStackDepth());
           if (shellTask !== undefined && !this.consoleState.task.deferred && this.admits('followUp')) {
             this.openShellTaskSurface(shellTask);
           }
@@ -14002,6 +14087,14 @@ export default defineComponent({
         }
         return;
       }
+      // A HOSTED STEP (the delegate grant's vote inside the colonies): the step
+      // LEAVES — one level — and the host goes on with its own ending (its owed
+      // conclusion re-fires the moment `nested` falls). Never the lateral
+      // conclusion, which would take the host down with it.
+      if (workspaceFrameHost('parliament') !== undefined && workspaceFrameAnchor('parliament')?.type === 'prompt') {
+        popWorkspaceFrame();
+        return;
+      }
       this.concludeWorkspaceFlowOrOwe('parliament');
     },
     /** B: one calm step toward the console home (never destructive). */
@@ -15292,8 +15385,16 @@ export default defineComponent({
      * `stdpConclusionSignal` watcher re-asks as those holds fall.
      */
     endStdProjectsFlow(): void {
-      resetStdProjectsFlow();
-      this.concludeWorkspaceFlow('standard-projects');
+      traceDoor('stdp-end depth=' + workspaceStackDepth() + ' wf=' + (this.playerView.waitingFor?.type ?? '-') + ' owed=' + String(this.followUpStepOwed) + ' nested=' + String(workspaceFrameHasNested('standard-projects')));
+      // CONCLUDE FIRST, RESET ON DISMISS. A held conclusion (a step still
+      // standing inside — the Redux Venus's delegate vote after the build) is
+      // re-asked by the `stdpConclusionSignal` watcher when that step lets
+      // go, and that watcher reads `stdProjectsFlowLive()` first: a record
+      // reset here left the flow idle, the re-ask returned early, and the
+      // finished project stood in its browse list for good.
+      if (this.concludeWorkspaceFlow('standard-projects')) {
+        resetStdProjectsFlow();
+      }
     },
     submitInnerOption(found: {options: ReadonlyArray<unknown>, path: ReadonlyArray<number>} | undefined, targetTitle: string): boolean {
       if (found === undefined) {
@@ -15610,6 +15711,17 @@ export default defineComponent({
           // ends the flow instead of stranding the parent list on screen).
           this.endStdProjectsFlow();
         }
+        return;
+      }
+      // A STEP THIS FLOW HOSTS OR STILL OWES (the Redux Venus's delegate grant:
+      // the Parliament's vote step standing inside these colonies, or its door
+      // held behind the build's own beat): the ending routes through the ONE
+      // guarded conclusion — it holds on `nested-step` / `owed-step` and
+      // re-fires the moment the step leaves, so the colonies leave WITH the
+      // whole result read and never before their step has been answered.
+      if (workspaceFrameIndex('colonies') === 0 &&
+          (workspaceFrameHasNested('colonies') || (this.followUpStepOwed && workspaceHostForStep() === 'colonies'))) {
+        this.concludeWorkspaceFlowOrOwe('colonies');
         return;
       }
       // An embedded host normally CONTINUES the sequence (a played card's own
@@ -16867,6 +16979,7 @@ export default defineComponent({
       });
     },
     openShellTaskSurface(task: ConsoleTask): void {
+      traceDoor('open:' + task.kind + ' depth=' + workspaceStackDepth() + ' host=' + (workspaceHostForStep() ?? '-') + ' wf=' + (this.playerView.waitingFor?.type ?? '-') + ' grant=' + String(this.playerView.waitingFor?.votePrompt?.source === 'grant'));
       // Already standing where this is answered — nothing to open, and above
       // all no lateral move: the colonies teleported into a live flow must not
       // have their host's chrome swapped out from under them. Only the cursor
@@ -16948,6 +17061,32 @@ export default defineComponent({
         return;
       }
       if (task.kind === 'party') {
+        // A DELEGATE GRANT (Turmoil Redux — the Redux Venus's «add 2 delegates
+        // to a resolution»): the Parliament's VOTE STEP stands INSIDE the flow
+        // that paid it — the colonies the player just built on or traded with
+        // — as a hosted frame in that workspace's own zone («КОЛОНИИ › ВЕНЕРА ›
+        // ГОЛОСОВАНИЕ»), past its commit (B = «Свернуть»). A grant met with no
+        // live flow to host it (a reload, a resumed session) opens the
+        // Parliament on its own, where the mode serves it just the same.
+        if (this.playerView.waitingFor?.votePrompt?.source === 'grant') {
+          const host = workspaceHostForStep();
+          traceDoor('party-grant host=' + (host ?? '-') + ' parlHost=' + (workspaceFrameHost('parliament') ?? '-') + ' known=' + String(workspaceFrameKnown('parliament')));
+          if (host !== undefined && host !== 'parliament') {
+            if (workspaceFrameHost('parliament') === host) {
+              return; // already standing where it is answered (idempotent)
+            }
+            setWorkspaceFramePhase(host, 'committed');
+            pushWorkspaceFrame({
+              kind: 'parliament', subject: '', stage: DELEGATE_GRANT_STEP_STAGE, phase: 'committed',
+              serves: ['party'], anchor: {type: 'prompt', promptType: 'party'},
+              // The Unity door's trade (parliament ⊃ card-actions ⊃ colonies) meets a
+              // Parliament frame already below: the step NESTS a second one rather
+              // than re-entering — and tearing down — the flow it stands inside.
+              nest: workspaceFrameKnown('parliament'),
+            });
+            return;
+          }
+        }
         // The chairman's seat pick (Turmoil Redux) — the PROMPT brought the
         // player to the Parliament; the frame hands the screen back on its own
         // once the seat is filled.
@@ -17336,6 +17475,7 @@ export default defineComponent({
      * the intake aims at a still-covered dock.
      */
     concludeWorkspaceFlow(kind: WorkspaceFrameKind, servedPromptHolds = true): boolean {
+      traceDoor('conclude ' + kind + ' depth=' + workspaceStackDepth() + ' wf=' + (this.playerView.waitingFor?.type ?? '-') + ' owed=' + String(this.followUpStepOwed) + ' host=' + (workspaceHostForStep() ?? '-'));
       if (!workspaceFrameKnown(kind)) {
         return true; // already gone (a second, idempotent report) — nothing to end
       }
@@ -19508,6 +19648,13 @@ export default defineComponent({
       trail: hydroFlowTrail(),
     });
     (window as unknown as Record<string, unknown>).__conColonyDiag = () => ({
+      doorTrace: [...doorTrace],
+      admitsFollowUp: this.admits('followUp'),
+      admitsSection: this.admits('section'),
+      shellTaskKind: this.shellTask?.kind ?? null,
+      gateHeld: this.taskGateHeld,
+      busy: this.consoleForegroundBusy,
+      signals: this.rawAdmissionSignals,
       // THE STACK IS THE SNAPSHOT — one ordered list instead of five flags that
       // had to be read together and could disagree.
       stack: workspaceStackState.frames.map((f) => ({

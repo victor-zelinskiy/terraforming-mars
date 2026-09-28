@@ -85,6 +85,17 @@
     "Add n data to ANY card; at the last two positions draw 2 or 3 cards instead": "Добавьте X единиц данных на любую карту; на двух последних позициях вместо этого доберите 2 или 3 карты",
     "No card of yours can hold the data this trade pays": "Ни одна ваша карта не примет данные с этой торговли",
 
+    "Venus Redux": "Венера",
+    "Add 2 delegates to a resolution": "Добавьте 2 делегатов на резолюцию",
+    "Increase Venus 1 step and gain the bonus under the marker": "Продвиньте трек Венеры на 1 шаг и получите бонус под маркером",
+    "Not enough M€ for the 4 M€ the 1st position takes on top of the trade fee": "Не хватает 4 M€, которые 1-я позиция берёт сверх платы за торговлю",
+    "No card of yours can hold the floaters this trade pays": "Ни одна ваша карта не примет аэростаты с этой торговли",
+    "After confirming: add delegates to a resolution": "После подтверждения: добавьте делегатов на резолюцию",
+    "To a resolution": "На резолюцию",
+    "Delegates to a resolution": "Делегаты на резолюцию",
+    "Venus 1 step on every trade": "Венера +1 шаг за каждую торговлю",
+    "${0} cannot raise ${1}: it is already at its maximum": "${0} не может повысить ${1}: параметр уже на максимуме",
+
     "Titan": "Титан",
     "Add 3 floaters to ANY card": "Добавьте 3 аэростата на любую карту",
     "Add n floaters to ANY card": "Добавьте X аэростатов на любую карту",

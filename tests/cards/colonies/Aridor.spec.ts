@@ -5,7 +5,7 @@ import {Predators} from '../../../src/server/cards/base/Predators';
 import {ResearchOutpost} from '../../../src/server/cards/base/ResearchOutpost';
 import {Aridor} from '../../../src/server/cards/colonies/Aridor';
 import {IGame} from '../../../src/server/IGame';
-import {Venus} from '../../../src/server/cards/community/Venus';
+import {Titan} from '../../../src/server/colonies/Titan';
 import {Celestic} from '../../../src/server/cards/venusNext/Celestic';
 import {Tag} from '../../../src/common/cards/Tag';
 import {Player} from '../../../src/server/Player';
@@ -71,33 +71,33 @@ describe('Aridor', () => {
   });
 
 
-  it('initialAction - chooses Venus which cannot be activated', () => {
-    const venus = new Venus();
-    game.discardedColonies.push(venus);
+  it('initialAction - chooses Titan which cannot be activated', () => {
+    const titan = new Titan();
+    game.discardedColonies.push(titan);
     player.defer(card.initialAction(player));
     runAllActions(game);
     const playerInput = cast(player.popWaitingFor(), SelectColony);
-    expect(playerInput?.colonies).contains(venus);
+    expect(playerInput?.colonies).contains(titan);
 
-    playerInput?.cb(venus);
+    playerInput?.cb(titan);
 
-    expect(game.colonies).includes(venus);
-    expect(venus.isActive).is.false;
+    expect(game.colonies).includes(titan);
+    expect(titan.isActive).is.false;
   });
 
-  it('initialAction - chooses Venus, which is activated', () => {
+  it('initialAction - chooses Titan, which is activated', () => {
     player2.playedCards.push(new Celestic());
-    const venus = new Venus();
-    game.discardedColonies.push(venus);
+    const titan = new Titan();
+    game.discardedColonies.push(titan);
     player.defer(card.initialAction(player));
     runAllActions(game);
     const playerInput = cast(player.popWaitingFor(), SelectColony);
-    expect(playerInput?.colonies).contains(venus);
+    expect(playerInput?.colonies).contains(titan);
 
-    playerInput?.cb(venus);
+    playerInput?.cb(titan);
 
-    expect(game.colonies).includes(venus);
-    expect(venus.isActive).is.true;
+    expect(game.colonies).includes(titan);
+    expect(titan.isActive).is.true;
   });
 
   it('serialization test for Player with Aridor', () => {

@@ -20,7 +20,6 @@ import {Europa} from '../../src/server/colonies/Europa';
 import {ColonyName} from '../../src/common/colonies/ColonyName';
 import {ColonyDeserializer} from '../../src/server/colonies/ColonyDeserializer';
 import {testGame} from '../TestGame';
-import {Venus} from '../../src/server/cards/community/Venus';
 import {PartyName} from '../../src/common/turmoil/PartyName';
 import {L1TradeTerminal} from '../../src/server/cards/prelude2/L1TradeTerminal';
 import {Mercury} from '../../src/server/cards/community/Mercury';
@@ -268,26 +267,6 @@ describe('Colony', () => {
     luna.addColony(player4);
     expect(luna.isFull()).to.be.true;
     expect(isBuildColonyStandardProjectAvailable(player)).to.be.false;
-  });
-
-  it('Should let players build on Venus when Reds are in power.', () => {
-    [game, player, player2] = testGame(2, {coloniesExtension: true, venusNextExtension: true, turmoilExtension: true});
-    const venus = new Venus();
-    game.colonies = [venus];
-    game.colonies.push(venus);
-    venus.isActive = true;
-
-    player.megaCredits = 17;
-
-    expect(isBuildColonyStandardProjectAvailable(player)).to.be.true;
-
-    setRulingParty(game, PartyName.REDS);
-
-    expect(isBuildColonyStandardProjectAvailable(player)).to.be.false;
-
-    player.megaCredits = 20;
-
-    expect(isBuildColonyStandardProjectAvailable(player)).to.be.true;
   });
 
   it('Should let players build on Europa when Reds are in power.', () => {

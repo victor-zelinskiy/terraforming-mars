@@ -37,7 +37,7 @@
                  'con-parl__slot--target': (flow.stage === 'seat' || (flow.stage === 'submitting' && flow.stageBeforeSubmit === 'seat')) && flow.slotIndex === i,
                  'con-parl__slot--candidate': flow.stage === 'seat' && seatCandidates.includes(i),
                  'con-parl__slot--mine': tallyOf(slot, i).leader !== undefined && tallyOf(slot, i).leader === viewerColor,
-                 'con-parl__slot--landed': flow.landedSeq !== undefined && slot.votes.some((v) => v.seq === flow.landedSeq),
+                 'con-parl__slot--landed': flow.landedSeq !== undefined && slot.votes.some((v) => v.seq === flow.landedSeq || flow.landedSeqs.includes(v.seq)),
                }"
                :style="{'--parl-accent': partyAccent(slot.party)}"
                :data-instance="slot.instance"
@@ -79,16 +79,16 @@
             <div class="con-parl__ribbon" :class="{'con-parl__ribbon--dense': slot.votes.length > DENSE_RIBBON}" :data-votes="slot.totalVotes" :data-parl-vote-ribbon="slotsCarried && flow.slotIndex === i ? '' : undefined">
               <template v-if="slot.votes.length <= DENSE_RIBBON">
                 <span v-for="vote in slot.votes" :key="vote.seq" class="con-parl__vote-cube"
-                      :class="{'con-parl__vote-cube--landed': vote.seq === flow.landedSeq, 'con-parl__vote-cube--hidden': vote.seq === flow.flightSeq || holds.hiddenCubes.has(slot.instance + '#' + vote.seq)}"
+                      :class="{'con-parl__vote-cube--landed': vote.seq === flow.landedSeq || flow.landedSeqs.includes(vote.seq), 'con-parl__vote-cube--hidden': vote.seq === flow.flightSeq || flow.pendingSeqs.includes(vote.seq) || holds.hiddenCubes.has(slot.instance + '#' + vote.seq)}"
                       :data-seq="vote.seq"
-                      :data-landed="vote.seq === flow.landedSeq ? '' : undefined">
+                      :data-landed="vote.seq === flow.landedSeq || flow.landedSeqs.includes(vote.seq) ? '' : undefined">
                   <PlayerCube v-if="vote.owner !== 'neutral'" :color="vote.owner" :size="cubePx(RIBBON_CUBE)" />
                   <PlayerCube v-else color="neutral" steel :size="cubePx(RIBBON_CUBE)" />
                 </span>
               </template>
               <template v-else>
                 <span v-for="group in ribbonGroups(slot)" :key="group.owner" class="con-parl__vote-stack"
-                      :class="{'con-parl__vote-stack--landed': group.hasSeq(flow.landedSeq)}"
+                      :class="{'con-parl__vote-stack--landed': group.hasSeq(flow.landedSeq) || flow.landedSeqs.some((seq) => group.hasSeq(seq))}"
                       :data-seq="group.seqs[group.seqs.length - 1]">
                   <PlayerCube v-if="group.owner !== 'neutral'" :color="group.owner" :size="cubePx(RIBBON_CUBE)" />
                   <PlayerCube v-else color="neutral" steel :size="cubePx(RIBBON_CUBE)" />

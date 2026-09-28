@@ -20,11 +20,30 @@ type Benefit<S, T, K = ColonyBenefit> = {
   resource?: T;
 }
 
+/**
+ * THE FIXED PART of a trade income — paid on EVERY trade, whatever the marker
+ * says, BEFORE the marker's own bonus. The Turmoil Redux Venus prints exactly
+ * this shape: «Terraform Venus 1 step, AND gain the bonus indicated by the
+ * colony marker» — the tile's TRADE INCOME line reads «[Venus] + X», a constant
+ * beside a per-position bonus. Declared as DATA (never a per-colony hook) so
+ * the client draws it from the same metadata the server pays it from: the
+ * tile's trade cell, the dossier's rule line and the reward package all read
+ * `trade.fixed` and can never disagree with `Colony.handleTrade`. One benefit,
+ * because the printed rule names one; a tile that needs two fixed parts
+ * declares the second here as a list — not as a second hook.
+ */
+export type FixedTradeIncome = Readonly<{
+  description: string,
+  type: ColonyBenefit,
+  quantity: number,
+  resource?: Resource,
+}>;
+
 export type ColonyMetadata = Readonly<{
   module?: GameModule; // TODO(kberg): attach gameModule to the server colonies themselves.
   name: ColonyName;
   build: Benefit<Array<number>, Resource>, // Default is [1,1,1]
-  trade: Benefit<Array<number>, OneOrArray<Resource>, OneOrArray<ColonyBenefit>>, // Default is [1,1,1,1,1,1,1]
+  trade: Benefit<Array<number>, OneOrArray<Resource>, OneOrArray<ColonyBenefit>> & {fixed?: FixedTradeIncome}, // Default is [1,1,1,1,1,1,1]
   colony: Benefit<number, Resource>, // Default is 1
   cardResource?: CardResource,
   /**
@@ -66,7 +85,7 @@ export type InputColonyMetadata = {
   module?: ColonyMetadata['module'],
   name: ColonyMetadata['name'];
   build: InputBenefit<ColonyMetadata['build']>,
-  trade: InputBenefit<ColonyMetadata['trade']>,
+  trade: InputBenefit<ColonyMetadata['trade']> & {fixed?: FixedTradeIncome},
   colony: InputBenefit<ColonyMetadata['colony']>,
   cardResource?: CardResource,
   lore?: string,
@@ -119,6 +138,15 @@ export function tradeBenefitAt(metadata: ColonyMetadata, position: number): Trad
     quantity: trade.quantity[pos] ?? 0,
     resource,
   };
+}
+
+/**
+ * The FIXED part of the trade income — what EVERY trade here pays before the
+ * marker's bonus (see {@link FixedTradeIncome}); undefined for a tile whose
+ * whole income is the marker's. The one reading, beside `tradeBenefitAt`.
+ */
+export function tradeFixedIncome(metadata: ColonyMetadata): FixedTradeIncome | undefined {
+  return metadata.trade.fixed;
 }
 
 /** Every DISTINCT kind the trade track pays, in track order (one entry for a uniform track). */

@@ -529,6 +529,17 @@ function kindSummary(
     return {kickerKey: 'First corporation action', ask: 'Take your corporation action', returnKey: 'Return to the decision'};
 
   case 'party':
+    // A DELEGATE GRANT (Turmoil Redux — the Venus tile's «add 2 delegates to a
+    // resolution»): the Parliament's vote step, hosted inside the workspace
+    // that paid it; the server's title carries the count.
+    if (wf?.votePrompt?.source === 'grant') {
+      return {
+        kickerKey: 'Parliament',
+        ask: ask(wf, 'Add delegates to a resolution'),
+        returnKey: 'Return to the vote',
+        openKey: 'Open the vote',
+      };
+    }
     // The Mars Parliament's chairman seat (Turmoil Redux): the quest is done
     // and every delegate stands on a resolution — one of them gives a delegate
     // up. Served inside the Parliament workspace.

@@ -16,7 +16,6 @@ export const COLONY_DESCRIPTIONS = {
   [ColonyName.MERCURY]: 'Production',
   [ColonyName.HYGIEA]: 'Attack',
   [ColonyName.TITANIA]: 'VP',
-  [ColonyName.VENUS]: 'Venus',
   [ColonyName.LEAVITT]: 'Science',
   [ColonyName.PALLAS]: 'Politics',
   [ColonyName.LEAVITT_II]: 'Science & Clone Tags',
@@ -25,4 +24,5 @@ export const COLONY_DESCRIPTIONS = {
   [ColonyName.TERRA]: 'World Government',
   [ColonyName.KUIPER]: 'Asteroids',
   [ColonyName.PLUTO_REDUX]: 'Data & Cards',
+  [ColonyName.VENUS_REDUX]: 'Venus & Delegates',
 } satisfies Record<ColonyName, string>;

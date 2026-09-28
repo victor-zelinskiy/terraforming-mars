@@ -28,4 +28,14 @@ export enum ColonyBenefit {
     DRAW_EARTH_CARD,
     WGT_RAISE_GLOBAL_PARAMETER,
     GAIN_MC_FOR_EARTH_TAGS,
+    /**
+     * Turmoil Redux — «Add n delegates to a RESOLUTION»: the delegates go from
+     * the player's reserve onto ONE resolution in the voting area (the Redux
+     * Venus tile: two per settlement, one or two at the top of the track).
+     * Deliberately NOT `PLACE_DELEGATES`: that one seats delegates in a classic
+     * Turmoil PARTY (Pallas) — a different table, a different ledger, and a
+     * game has one of the two political engines, never both. Appended LAST:
+     * the enum is numeric and exported to `genfiles/colonies.json`.
+     */
+    PLACE_DELEGATES_ON_RESOLUTION,
 }

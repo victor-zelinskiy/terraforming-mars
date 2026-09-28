@@ -13,6 +13,7 @@ import {
   PartyAccessModel, PartyActionModel, ResolutionActionModel, VoteOptionModel, VoteProjectionModel, ParliamentEnactedModel, ParliamentEnactOutcomeModel,
 } from '../../common/models/ParliamentModel';
 import {PartyName} from '../../common/turmoil/PartyName';
+import {VotePromptMeta} from '../../common/models/PlayerInputModel';
 import {PARTY_EFFECT_DELEGATES, REDUX_PARTIES, ReduxParty, ResolutionInstanceId} from '../../common/parliament/ParliamentTypes';
 import {Delegate, Parliament, PARTY_ACTION_USES_PER_GENERATION, Slot} from './Parliament';
 import {PARTY_EFFECTS} from './parties/PartyEffects';
@@ -270,17 +271,32 @@ function playerModel(game: IGame, parliament: Parliament, player: IPlayer): Parl
   return model;
 }
 
-/** What ONE more delegate of the viewer would do on each slot — a pure re-run of the leader / winner rules on a copy. */
+/**
+ * What the viewer's NEXT delegates would do on each slot — a pure re-run of
+ * the leader / winner rules on a copy. ONE delegate for the vote; while a
+ * GRANT stands (the Redux Venus's «add 2 delegates to a resolution» — the
+ * viewer's pending `votePrompt` of source `grant`) as many as the grant
+ * places, so the vote step's forecast reads the cubes that will actually land.
+ */
 function voteModel(game: IGame, parliament: Parliament, viewer: IPlayer): VoteOptionModel {
   const availability = parliament.canVote(viewer);
-  const projections: Array<VoteProjectionModel> = parliament.slots.map((slot) => projectVote(game, parliament, viewer, slot));
+  const count = pendingDelegateGrantCount(viewer);
+  const projections: Array<VoteProjectionModel> = parliament.slots.map((slot) => projectVote(game, parliament, viewer, slot, count));
   if (availability.ok) {
     return {available: true, reason: '', source: availability.source, cost: availability.cost, projections};
   }
   return {available: false, reason: availability.reason, source: availability.source, cost: availability.cost, projections};
 }
 
-function projectVote(game: IGame, parliament: Parliament, viewer: IPlayer, slot: Slot): VoteProjectionModel {
+/** The delegates the viewer's pending prompt PLACES — 1 unless a delegate grant stands (`PlaceDelegatesOnResolution`). */
+function pendingDelegateGrantCount(viewer: IPlayer): number {
+  // The marker lives on `BasePlayerInput`; the interface the player hands out
+  // does not declare it (the same read `ServerModel.detectWaitingForKind` makes).
+  const meta = (viewer.getWaitingFor() as {votePrompt?: VotePromptMeta} | undefined)?.votePrompt;
+  return meta?.source === 'grant' ? Math.max(1, meta.count ?? 1) : 1;
+}
+
+function projectVote(game: IGame, parliament: Parliament, viewer: IPlayer, slot: Slot, count = 1): VoteProjectionModel {
   // A throwaway parliament over copied slots: the rules run on the copy, the
   // live state is untouched.
   const copy = new Parliament(parliament.botMode, parliament.catalog);
@@ -291,11 +307,13 @@ function projectVote(game: IGame, parliament: Parliament, viewer: IPlayer, slot:
   if (target === undefined) {
     throw new Error('slot vanished');
   }
-  target.votes.push({owner: viewer.id, seq: ++copy.voteSeq});
+  for (let i = 0; i < count; i++) {
+    target.votes.push({owner: viewer.id, seq: ++copy.voteSeq});
+  }
   const leader = copy.leaderOf(target);
   const winner = copy.winner();
   const before = parliament.access(viewer, parliament.resolutionOf(slot.instance).party);
-  const afterVotes = parliament.votesOf(viewer, slot) + 1;
+  const afterVotes = parliament.votesOf(viewer, slot) + count;
   const projection: VoteProjectionModel = {
     instance: slot.instance,
     votesAfter: target.votes.length,

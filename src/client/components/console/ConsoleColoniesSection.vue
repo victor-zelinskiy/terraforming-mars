@@ -79,7 +79,7 @@
         <div class="con-colonies__browse"
              :class="{
                'con-colonies__browse--parked': focusState.open,
-               'con-colonies__browse--yield': revealEmbedPresenting || handStepHosted || (resolutionUi.discardStage && !resolutionParked),
+               'con-colonies__browse--yield': revealEmbedPresenting || handStepHosted || parliamentStepHosted || (resolutionUi.discardStage && !resolutionParked),
              }">
           <!-- The premium tile grid. The scroller + `margin: auto` wrapper is
                the anti-clip contract: content centres when it fits and scrolls
@@ -196,6 +196,20 @@
         <div v-if="handStepHosted" class="con-colonies__embed con-colonies__embed--hand">
           <div class="con-colonies__handhost" data-embed-slot="colonies-hand"></div>
         </div>
+
+        <!-- ── THE PARLIAMENT'S VOTE STEP (Turmoil Redux — the Venus tile pays
+             DELEGATES: two per settlement, one or two at the top of its
+             track). The whole central area belongs to the REAL Parliament in
+             its vote mode — the three resolutions, the forecast, the bench the
+             cubes fly off — teleported here as a hosted frame, one instance.
+             The crumb reads «КОЛОНИИ › ВЕНЕРА › ГОЛОСОВАНИЕ»: the step hands
+             its stage UP, the colony stays the subject. The zone LEAVES with a
+             short dissolve (the step's own leave plays inside it). -->
+        <transition name="con-colonies-parlstep">
+          <div v-if="parliamentStepHosted" class="con-colonies__embed con-colonies__embed--parliament" data-colonies-parliament-step>
+            <div class="con-colonies__parlhost" data-embed-slot="colonies-parliament"></div>
+          </div>
+        </transition>
 
         <!-- ── «СБРОШЕННЫЕ» — the resolution's discard seat, at SECTION level
              so it holds ONE spot through the focus ⇄ discard recompositions.
@@ -447,6 +461,8 @@ export default defineComponent({
      *  the focused colony's trade preview, so the stage's candidate sets and
      *  captures are re-judged against CURRENT truth (never a stale pick). */
     viewVersion: {type: String, default: ''},
+    /** The colony whose DELEGATE GRANT is standing (the Redux Venus) — the crumb's subject while the Parliament's vote is hosted here. */
+    grantColony: {type: String, default: ''},
     /**
      * A STEP of another workspace (rule 1 — host-agnostic): the shell chrome
      * (frame plate, ConsoleWsHead, `con-ws` marker) comes off; grid, fit,
@@ -457,6 +473,8 @@ export default defineComponent({
   emits: ['trade-confirm', 'build-confirm', 'pick-confirm', 'flow-complete', 'inspect-enter'],
   data() {
     return {
+      /** The grant's colony, LATCHED for the hosted vote's whole life: the prompt moves on at the submit while the cubes still fly. */
+      grantSubject: '',
       /** The trade-launch controller — drives the launching-ship hide. */
       tradeFleetState,
       /** The reward transaction + build hero — the auto-fold watchers'
@@ -518,6 +536,14 @@ export default defineComponent({
     // the EMBEDDED PAYOUT (post-commit — amber): «КОЛОНИИ › ПЛУТОН › ДОБОР
     // КАРТ». Stable context before the mutable stage; only the tail moves.
     crumbSubject(): string {
+      // THE HOSTED VOTE (a colony's delegate grant) is the build's / the trade's
+      // continuation: the carried object survives into the step — «КОЛОНИИ ›
+      // ВЕНЕРА › ГОЛОСОВАНИЕ» — by the giver the SERVER names on the grant
+      // marker, latched past the submit (the prompt is gone while the cubes
+      // land), never by a memory of the last focus (folded a beat earlier).
+      if (this.parliamentStepHosted && (this.grantColony !== '' || this.grantSubject !== '')) {
+        return this.grantColony !== '' ? this.grantColony : this.grantSubject;
+      }
       if (this.focusState.open && this.focusState.colonyName !== '') {
         return this.focusState.colonyName;
       }
@@ -533,6 +559,12 @@ export default defineComponent({
       if (this.handStepHosted) {
         const stage = workspaceFrameStage('hand');
         return stage !== '' ? stage : 'Discarding a card';
+      }
+      // …and THE NESTED PARLIAMENT STEP the same way: «КОЛОНИИ › ВЕНЕРА ›
+      // ГОЛОСОВАНИЕ» — the Parliament hands its stage up, the tail only moves forward.
+      if (this.parliamentStepHosted) {
+        const stage = workspaceFrameStage('parliament');
+        return stage !== '' ? stage : 'Voting';
       }
       // The PAYOUT REVEAL is the deeper step — while it presents (over the
       // focus stage or over the grid alike) the tail names IT: «… › ПЛУТОН ›
@@ -603,12 +635,20 @@ export default defineComponent({
     crumbCommitted(): boolean {
       return this.focusState.committing || this.tradeFleetState.active ||
         (this.tradeState.active && !this.resolutionParked) ||
-        this.revealEmbedActive || this.handStepHosted;
+        this.revealEmbedActive || this.handStepHosted || this.parliamentStepHosted;
     },
     // ── The nested HAND STEP (the resolution's mandatory discard) ──────────
     /** The hand workspace is standing INSIDE us as a step of the resolution. */
     handStepHosted(): boolean {
       return workspaceFrameHost('hand') === 'colonies';
+    },
+    /**
+     * The PARLIAMENT is standing INSIDE us as a step (Turmoil Redux — the Venus
+     * tile's delegates: the vote mode, hosted, in the same full-stage zone the
+     * hand's discard takes).
+     */
+    parliamentStepHosted(): boolean {
+      return workspaceFrameHost('parliament') === 'colonies';
     },
     /**
      * THE FRAME SLOT — the teleport target we publish for the hand step
@@ -620,6 +660,17 @@ export default defineComponent({
      */
     handSlotSelector(): string {
       return this.handStepHosted ? '[data-embed-slot="colonies-hand"]' : '';
+    },
+    /**
+     * THE ONE SLOT this frame publishes for whatever frame stands on it — the
+     * hand's discard or the Parliament's vote step, each its own full-stage
+     * zone (a frame hosts one step at a time; the stack says which).
+     */
+    frameSlotSelector(): string {
+      if (this.parliamentStepHosted) {
+        return '[data-embed-slot="colonies-parliament"]';
+      }
+      return this.handSlotSelector;
     },
     /** The discard cinematic's tray is standing in our seat right now. */
     trayStanding(): boolean {
@@ -888,6 +939,19 @@ export default defineComponent({
     },
   },
   watch: {
+    grantColony: {
+      immediate: true,
+      handler(name: string): void {
+        if (name !== '') {
+          this.grantSubject = name;
+        }
+      },
+    },
+    parliamentStepHosted(hosted: boolean): void {
+      if (!hosted) {
+        this.grantSubject = '';
+      }
+    },
     index() {
       void this.$nextTick(() => this.scrollSelectedIntoView());
     },
@@ -952,9 +1016,10 @@ export default defineComponent({
         setWorkspaceOutcomeSlot(selector);
       },
     },
-    // The HAND STEP's teleport target — same law, the STACK channel: the
-    // frame below publishes the zone the frame above teleports into.
-    handSlotSelector: {
+    // The HOSTED STEP's teleport target (the hand's discard, the Parliament's
+    // vote) — same law, the STACK channel: the frame below publishes the zone
+    // the frame above teleports into.
+    frameSlotSelector: {
       flush: 'post',
       handler(selector: string): void {
         setWorkspaceFrameSlot('colonies', selector);
@@ -1418,11 +1483,11 @@ export default defineComponent({
         }
       });
     }
-    // Same for the hand step's frame slot (a restore mid-discard).
-    if (this.handStepHosted) {
+    // Same for a hosted step's frame slot (a restore mid-discard, a restore mid-vote).
+    if (this.frameSlotSelector !== '') {
       void this.$nextTick(() => {
-        if (this.handStepHosted) {
-          setWorkspaceFrameSlot('colonies', this.handSlotSelector);
+        if (this.frameSlotSelector !== '') {
+          setWorkspaceFrameSlot('colonies', this.frameSlotSelector);
         }
       });
     }

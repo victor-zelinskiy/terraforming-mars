@@ -1,8 +1,7 @@
 import {IGame} from '../IGame';
-import {IColony} from './IColony';
+import {IColony, TradeTerms} from './IColony';
 import {ColonyName} from '../../common/colonies/ColonyName';
 import {ICard} from '../cards/ICard';
-import {Tag} from '../../common/cards/Tag';
 import {SelectColony} from '../inputs/SelectColony';
 import {IPlayer} from '../IPlayer';
 import {inplaceRemove} from '../../common/utils/utils';
@@ -37,16 +36,16 @@ export class ColoniesHandler {
    * low positions can lift when the reach is longer, so the question is asked
    * per player AND per path — never for the table alone.
    */
-  public static tradeableColonies(game: IGame, player: IPlayer, bonusTradeOffset = 0): Array<IColony> {
+  public static tradeableColonies(game: IGame, player: IPlayer, terms: number | TradeTerms = 0): Array<IColony> {
     return ColoniesHandler.openColonies(game)
-      .filter((colony) => colony.tradeBlockedReason(player, bonusTradeOffset) === undefined);
+      .filter((colony) => colony.tradeBlockedReason(player, terms) === undefined);
   }
 
   /** The open colonies that REFUSE `player` right now, each with its reason (the complement of `tradeableColonies`). */
-  public static blockedColonies(game: IGame, player: IPlayer, bonusTradeOffset = 0): Array<{colony: IColony, reason: string}> {
+  public static blockedColonies(game: IGame, player: IPlayer, terms: number | TradeTerms = 0): Array<{colony: IColony, reason: string}> {
     const out: Array<{colony: IColony, reason: string}> = [];
     for (const colony of ColoniesHandler.openColonies(game)) {
-      const reason = colony.tradeBlockedReason(player, bonusTradeOffset);
+      const reason = colony.tradeBlockedReason(player, terms);
       if (reason !== undefined) {
         out.push({colony, reason});
       }
@@ -58,12 +57,13 @@ export class ColoniesHandler {
    * A «which colony to trade with» pick for `player`: the tradeable colonies
    * selectable, the refused ones DISABLED with their reason (never dropped —
    * a tile that silently vanished from the picker is the one the player asks
-   * about). The caller chains its own `andThen`.
+   * about). The caller chains its own `andThen`. `terms` are the paying
+   * path's (the extra step, the M€ fee) — a bare number is the step alone.
    */
-  public static tradeColonyPick(player: IPlayer, title: string | Message, buttonLabel: string, bonusTradeOffset = 0): SelectColony {
+  public static tradeColonyPick(player: IPlayer, title: string | Message, buttonLabel: string, terms: number | TradeTerms = 0): SelectColony {
     const game = player.game;
-    const select = new SelectColony(title, buttonLabel, ColoniesHandler.tradeableColonies(game, player, bonusTradeOffset));
-    select.disabledColonies = ColoniesHandler.blockedColonies(game, player, bonusTradeOffset);
+    const select = new SelectColony(title, buttonLabel, ColoniesHandler.tradeableColonies(game, player, terms));
+    select.disabledColonies = ColoniesHandler.blockedColonies(game, player, terms);
     return select;
   }
 
@@ -119,9 +119,6 @@ export class ColoniesHandler {
       if (card.name === CardName.MARTIAN_EXPRESS) {
         return true;
       }
-    }
-    if (colony.name === ColonyName.VENUS && card.tags.includes(Tag.VENUS) && card.resourceType !== undefined) {
-      return true;
     }
     return false;
   }

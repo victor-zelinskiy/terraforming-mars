@@ -147,13 +147,14 @@ export default defineComponent({
         const base = Math.max(0, p.reserve - pendingReturns + (pendingLobby ? 1 : 0));
         // The viewer's places keep PAINTING the delegate that is leaving until
         // its proxy stands over it (`sourceHold`), and keep SAYING its count
-        // until it has visibly left (`sourceLeaving`).
+        // until it has visibly left (`sourceLeaving`) — by the NUMBER still to
+        // leave (a grant sends up to two, one flight after another).
         const mine = p.color === me;
         return {
           color: p.color, name: p.name,
           lobby: (p.lobby && !pendingLobby) || (mine && parliamentFlow.sourceHold === 'lobby'),
-          reserve: base + (mine && parliamentFlow.sourceLeaving === 'reserve' ? 1 : 0),
-          reserveCubes: base + (mine && parliamentFlow.sourceHold === 'reserve' ? 1 : 0),
+          reserve: base + (mine && parliamentFlow.sourceLeaving === 'reserve' ? Math.max(1, parliamentFlow.sourceLeavingCount) : 0),
+          reserveCubes: base + (mine && parliamentFlow.sourceHold === 'reserve' ? Math.max(1, parliamentFlow.sourceHoldCount) : 0),
           chairman: p.chairman,
           incoming: pendingReturns,
         };
