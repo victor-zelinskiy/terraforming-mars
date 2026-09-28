@@ -21330,12 +21330,17 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         gap: .7rem;
         min-width: 0;
     }
+    /* ONE GLYPH COLUMN for the whole panel — the three printed rules keep one
+       text edge, so a COMPOSITE income («[Венера] + [бонус]») cannot push its own
+       sentence out of line with the two above it. The column is the widest
+       member's box, declared by the panel (`--pair` widens the token once). */
     &__glyph {
         display: inline-flex;
         align-items: center;
         justify-content: center;
+        gap: 3px; /* keep-px: inside the zoom */
         flex: 0 0 auto;
-        width: 32px; /* keep-px: the glyph's own sprite box, scaled by zoom */
+        width: var(--con-colinspect-glyph-w, 32px); /* keep-px: the glyph's own sprite box, scaled by zoom */
         height: 32px; /* keep-px */
         overflow: hidden;
         zoom: calc(1.3 * var(--con-ui-scale, 1));
@@ -21363,6 +21368,26 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
             background-size: 32px 22px;
         }
     }
+    /* The COMPOSITE income's pair: the fixed part, a «+», the marker's part —
+       the tile's own grammar. The panel widens its ONE glyph column to hold it. */
+    &__glyph-part {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex: 0 0 auto;
+        width: 32px; /* keep-px */
+        height: 32px; /* keep-px */
+    }
+    &__glyph-plus {
+        flex: 0 0 auto;
+        font-size: 15px; /* keep-px: inside the zoom */
+        font-weight: 800;
+        line-height: 1;
+        color: fade(@con-text-dim, 85%);
+    }
+    /* (A modifier the panel binds, never a `:has()` — the console keeps presence flags
+       in markup so no selector re-runs a subtree's style recalc.) */
+    &__rules-body--pairglyph { --con-colinspect-glyph-w: 79px; /* keep-px: 32 + 3 + 12 + 3 + 32 */ }
     /* THE READING FACE — the standard reading body, not the dense floor: the
        rules are one of the dossier's three jobs. */
     &__text {

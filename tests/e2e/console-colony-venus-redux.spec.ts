@@ -164,8 +164,14 @@ test('Venus Redux — the reading: the tile and the dossier state the COMPOSITE 
     const t = (el: Element | null | undefined) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
     return {
       crumb: t(document.querySelector('.con-colonies .con-wshead')),
-      fixed: t(document.querySelector('[data-colinspect-fixed]')),
+      // ONE trade-income line: the printed sentence + the COMPOSITE glyph pair.
+      tradeLines: document.querySelectorAll('.con-colinspect__group--trade .con-colinspect__line').length,
+      fixed: t(document.querySelector('.con-colinspect__group--trade .con-colinspect__text')),
       fixedGlyph: document.querySelector('[data-colinspect-fixed] .benefit-glyph')?.getAttribute('data-bg-type') ?? '',
+      pairGlyphs: document.querySelectorAll('.con-colinspect__glyph--pair .benefit-glyph').length,
+      // The DUPLICATION guard: how many rule lines in the whole panel say «продвиньте трек Венеры».
+      venusSentences: Array.from(document.querySelectorAll('.con-colinspect__rules .con-colinspect__text'))
+        .filter((el) => /продвиньте трек венеры/i.test((el.textContent ?? ''))).length,
       verdict: t(document.querySelector('.con-colinspect__act .con-colinspect__verdict')),
       verdictClass: document.querySelector('.con-colinspect__act .con-colinspect__verdict')?.className ?? '',
       gains: Array.from(document.querySelectorAll('.con-colinspect__gain')).map(t),
@@ -179,8 +185,11 @@ test('Venus Redux — the reading: the tile and the dossier state the COMPOSITE 
   });
   console.log('── dossier ──', JSON.stringify(dossier, null, 2));
   expect(dossier.crumb).toMatch(/КОЛОНИИ.*ВЕНЕРА.*ОСМОТР/i);
+  expect(dossier.tradeLines, 'the printed trade rule is ONE line, never the fixed part repeated beside it').toBe(1);
   expect(dossier.fixed, 'the dossier states the fixed Venus step in the TRADE INCOME group').toMatch(/Венер/);
-  expect(dossier.fixedGlyph).toBe(String(ColonyBenefit.INCREASE_VENUS_SCALE));
+  expect(dossier.fixedGlyph, 'the composite pair opens with the Venus step').toBe(String(ColonyBenefit.INCREASE_VENUS_SCALE));
+  expect(dossier.pairGlyphs, 'the pair draws BOTH halves — the fixed step and the marker’s bonus').toBe(2);
+  expect(dossier.venusSentences, 'the Venus step is stated ONCE in the rules panel').toBe(1);
   expect(dossier.verdictClass, 'a zero income is not a refusal').not.toContain('con-colinspect__verdict--no');
   const L = String(ColonyBenefit.LOSE_RESOURCES);
   const F = String(ColonyBenefit.ADD_RESOURCES_TO_CARD);

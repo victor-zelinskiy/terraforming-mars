@@ -77,7 +77,11 @@
                register (the sign lives on the glyph's badge, which this box
                hides, so the cell states it itself). -->
           <b v-if="cell.quantity > 0" class="con-colfocus__xcell-qty" :class="{'con-colfocus__xcell-qty--levy': cell.levy}">{{ cell.levy ? '−' : '' }}{{ cell.quantity }}</b>
-          <span v-else class="con-colfocus__xcell-void">—</span>
+          <!-- ONE mark for one nothing: a printed EMPTY position is a levy of zero,
+               and `BenefitGlyph` already draws its quiet dash in the glyph's own box
+               (an icon with no number would read as a gain). A second dash under it
+               made the empty 2nd Venus cell say «nothing» twice. -->
+          <span v-else-if="!cell.levy" class="con-colfocus__xcell-void">—</span>
         </span>
         <!-- THE MARKER RAIL SEAT — the glide's landing geometry. -->
         <span class="con-colfocus__xcell-rail" aria-hidden="true">

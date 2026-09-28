@@ -409,7 +409,12 @@ export type TradeOutcomeChip = {
  * WHO PAID a gain: the colony's TRACK (the trade income), one of the VIEWER's
  * own settlements here, or a card that pays on every trade (Venus Trade Hub).
  */
-export type RewardSourceKind = 'track' | 'ownColony' | 'card';
+/** `trackFixed` = the part a tile pays on EVERY trade, whatever the marker's position
+ *  (`ColonyMetadata.trade.fixed` — the Redux Venus's «Продвиньте трек Венеры на 1 шаг»);
+ *  `track` = the part the marker's position decides. Two sources, because the breakdown
+ *  printed «Торговый трек» twice for one composite income and the player could not tell
+ *  which line was which. */
+export type RewardSourceKind = 'track' | 'trackFixed' | 'ownColony' | 'card';
 
 export type TradeOutcomeArgs = {
   metadata: ColonyMetadata;
@@ -572,7 +577,9 @@ export function tradeOutcome(args: TradeOutcomeArgs): {cost: Array<TradeOutcomeC
   // the bonus indicated by the marker») is the paid order and the read order.
   const fixed = tradeFixedIncome(args.metadata);
   if (fixed !== undefined) {
+    source = 'trackFixed';
     pushBenefit(fixed.type, fixed.quantity, typeof fixed.resource === 'string' ? fixed.resource : undefined);
+    source = 'track';
   }
   const reward = rewardAtPosition(args.metadata, args.rewardPosition);
   pushBenefit(reward.type, reward.quantity, reward.resource);

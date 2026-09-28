@@ -525,11 +525,18 @@ describe('a FIXED trade income beside the marker\'s bonus (the Redux Venus)', ()
   });
   const args = {metadata: VENUS_REDUX_META, payments: [], ownColonyCount: 0, stocks: {megacredits: 10}, production: {}};
 
-  it('the fixed step is the FIRST gain at every position — the printed order, the paid order', () => {
+  it('the fixed step is the FIRST gain at every position — the printed order, the paid order — and it is its OWN source', () => {
     for (const position of [0, 1, 2, 5, 6]) {
       const out = tradeOutcome({...args, rewardPosition: position});
-      expect(out.gains[0], `position ${position + 1}`).to.include({icon: 'venus', amount: 1, source: 'track'});
+      // `trackFixed`, never `track`: the breakdown prints one row per source, and
+      // two rows both reading «Торговый трек» said nothing about which was which.
+      expect(out.gains[0], `position ${position + 1}`).to.include({icon: 'venus', amount: 1, source: 'trackFixed'});
     }
+  });
+
+  it('a composite income is TWO track sources — the fixed part and the marker’s — never one repeated', () => {
+    const out = tradeOutcome({...args, rewardPosition: 2});
+    expect(out.gains.map((g) => g.source)).to.deep.eq(['trackFixed', 'track']);
   });
 
   it('the empty 2nd position is a ZERO income: the fixed step alone, no cost row', () => {

@@ -13,7 +13,9 @@ import {openParliament, PARLIAMENT_PRESETS} from './parliamentDrive';
  * slot at its LARGEST zoom; the five opposition tiles are read too.
  *
  * Fit = the formula's box lies INSIDE its plaque's box and nothing in it is
- * scroll-cut — on the 1080 and the 4K profiles. Evidence → screenshots/parliament-reds/.
+ * scroll-cut, and the party's NAME is whole — on all three profiles (the Deck's
+ * government block is the shortest room the shared tile is measured from).
+ * Evidence → screenshots/parliament-reds/.
  */
 
 const OUT = path.resolve('screenshots', 'parliament-reds');
@@ -31,6 +33,9 @@ type PlaqueFit = {
   spill: {left: number, right: number, top: number, bottom: number};
   /** The formula's own scroll cut (positive = content wider than its box). */
   cut: {x: number, y: number};
+  /** The party's NAME is rendered whole — never an ellipsis, never a clipped second line. */
+  name: string;
+  nameCut: boolean;
 };
 
 async function plaqueFits(page: Page): Promise<Array<PlaqueFit>> {
@@ -38,9 +43,15 @@ async function plaqueFits(page: Page): Promise<Array<PlaqueFit>> {
     const out: Array<PlaqueFit> = [];
     const read = (plaque: Element, zone: 'ruler' | 'row') => {
       const party = plaque.getAttribute('data-party') ?? '?';
+      const nameEl = plaque.querySelector<HTMLElement>('.con-pseal__name');
+      const name = (nameEl?.textContent ?? '').trim();
+      // A cut name reads as an ellipsis when the line does not wrap and as a lost
+      // second line when it does — both are the same defect, so both are asked.
+      const nameCut = nameEl !== null &&
+        (nameEl.scrollWidth > nameEl.clientWidth + 1 || nameEl.scrollHeight > nameEl.clientHeight + 1);
       const formula = plaque.querySelector<HTMLElement>('.con-pseal__formula');
       if (formula === null) {
-        out.push({party, zone, formula: false, spill: {left: 0, right: 0, top: 0, bottom: 0}, cut: {x: 0, y: 0}});
+        out.push({party, zone, formula: false, spill: {left: 0, right: 0, top: 0, bottom: 0}, cut: {x: 0, y: 0}, name, nameCut});
         return;
       }
       const p = plaque.getBoundingClientRect();
@@ -50,6 +61,7 @@ async function plaqueFits(page: Page): Promise<Array<PlaqueFit>> {
         party, zone, formula: true,
         spill: {left: r(p.left - f.left), right: r(f.right - p.right), top: r(p.top - f.top), bottom: r(f.bottom - p.bottom)},
         cut: {x: formula.scrollWidth - formula.clientWidth, y: formula.scrollHeight - formula.clientHeight},
+        name, nameCut,
       });
     };
     const ruler = document.querySelector('[data-parl-ruler-slot] .con-pseal[data-party]');
@@ -61,7 +73,7 @@ async function plaqueFits(page: Page): Promise<Array<PlaqueFit>> {
   });
 }
 
-for (const preset of PARLIAMENT_PRESETS.filter((p) => p.id !== 'deck-handheld')) {
+for (const preset of PARLIAMENT_PRESETS) {
   test.describe(`the ruling party's plaque (${preset.id})`, () => {
     test.use({viewport: preset.viewport});
 
@@ -79,6 +91,13 @@ for (const preset of PARLIAMENT_PRESETS.filter((p) => p.id !== 'deck-handheld'))
       expect(ruler?.party, 'the Reds rule by the enacted Heat Capture').toBe('Reds');
       expect(ruler?.formula, 'the ruler\'s plaque prints its action graphic').toBe(true);
       expect(fits.filter((f) => f.zone === 'row').length, 'the five opposition tiles').toBe(5);
+      // THE PARTY'S NAME IS NEVER CUT. The tile's layout answers its own box width
+      // (the foot joins the name's line only where both fit), and the 1080 box is
+      // narrower than the TV's: side by side there it truncated every name.
+      for (const fit of fits) {
+        expect(fit.nameCut, `${fit.zone} ${fit.party}: the party's name is cut («${fit.name}»)`).toBe(false);
+        expect(fit.name.length, `${fit.zone} ${fit.party}: the party names itself`).toBeGreaterThan(2);
+      }
       for (const fit of fits) {
         if (!fit.formula) {
           continue;

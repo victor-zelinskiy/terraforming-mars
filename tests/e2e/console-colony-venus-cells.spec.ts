@@ -53,6 +53,8 @@ type CellFit = {
   reward: string;
   qty: string;
   levy: boolean;
+  /** How many «nothing» marks the cell draws — a printed empty position says it ONCE. */
+  voids: number;
   /** Overflow of the cell's content past its own box (positive = cut), px. */
   cut: {x: number, y: number};
   /** The fixed line and the quantity lie inside the cell's box. */
@@ -89,6 +91,7 @@ async function instrumentCells(page: Page): Promise<Array<CellFit>> {
         reward: cell.querySelector('.con-colfocus__xcell-glyph .benefit-glyph')?.getAttribute('data-bg-type') ?? '',
         qty: (qty?.textContent ?? '').trim(),
         levy: qty?.classList.contains('con-colfocus__xcell-qty--levy') ?? false,
+        voids: cell.querySelectorAll('.benefit-glyph__void, .con-colfocus__xcell-void').length,
         cut: {x: cell.scrollWidth - cell.clientWidth, y: cell.scrollHeight - cell.clientHeight},
         inside: parts.every((el) => within(el.getBoundingClientRect(), box)),
       };
@@ -139,6 +142,7 @@ for (const preset of PARLIAMENT_PRESETS.filter((p) => p.id !== 'deck-handheld'))
       expect(cells[0].qty, 'the levy reads as a LOSS').toBe('−4');
       expect(cells[0].levy, 'the levy wears its own register').toBe(true);
       expect(cells[1].qty, 'the empty 2nd position prints no number').toBe('');
+      expect(cells[1].voids, 'ONE mark for one nothing — the glyph’s own dash, never a second below it').toBe(1);
     });
   });
 }

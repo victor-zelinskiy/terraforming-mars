@@ -199,7 +199,8 @@
             <span class="con-colinspect__rules-title">{{ $t('Rules') }}</span>
           </div>
           <ConsoleScrollArea ref="scroll" class="con-colinspect__rules-scroll" axis="y">
-            <div class="con-colinspect__rules-body">
+            <div class="con-colinspect__rules-body"
+                 :class="{'con-colinspect__rules-body--pairglyph': tradeFixedBenefit !== undefined}">
               <!-- ПОСТРОЙКА — the placement grant (the berths draw the seats). -->
               <section class="con-colinspect__group con-colinspect__group--build" data-unfold-late>
                 <span class="con-colinspect__kind">{{ $t('Construction') }}</span>
@@ -211,21 +212,27 @@
                 </div>
               </section>
 
-              <!-- ТОРГОВЫЙ ДОХОД — the printed rule (the instrument shows the level).
-                   A tile with a FIXED part (the Redux Venus: «terraform Venus 1
-                   step, AND …») prints it as its own line FIRST — the printed
-                   order, and the paid one. -->
+              <!-- ТОРГОВЫЙ ДОХОД — the printed rule, ONE sentence (the instrument
+                   shows the level). A tile with a FIXED part (the Redux Venus:
+                   «Продвиньте трек Венеры на 1 шаг И получите бонус под маркером»)
+                   prints ONE rule that already names both halves, so printing the
+                   fixed part as its own line repeated the sentence word for word —
+                   the reported duplication. The COMPOSITE GLYPH says it instead, in
+                   the tile's own grammar («[Венера] + [бонус]» — the same pair the
+                   plate's trade cell and every track cell draw). -->
               <section class="con-colinspect__group con-colinspect__group--trade" data-unfold-late>
                 <span class="con-colinspect__kind">{{ $t('Trade income') }}</span>
-                <div v-if="tradeFixedBenefit !== undefined" class="con-colinspect__line con-colinspect__line--fixed" data-colinspect-fixed>
-                  <span class="con-colinspect__glyph">
-                    <BenefitGlyph :benefit="tradeFixedBenefit" :idx="0" :cardResource="metadata.cardResource" />
-                  </span>
-                  <p class="con-colinspect__text" v-i18n>{{ tradeFixedDescription }}</p>
-                </div>
                 <div class="con-colinspect__line">
-                  <span class="con-colinspect__glyph">
-                    <BenefitGlyph :benefit="tradeBenefitNow" :idx="effectivePosition" :cardResource="metadata.cardResource" />
+                  <span class="con-colinspect__glyph" :class="{'con-colinspect__glyph--pair': tradeFixedBenefit !== undefined}">
+                    <template v-if="tradeFixedBenefit !== undefined">
+                      <span class="con-colinspect__glyph-part" data-colinspect-fixed>
+                        <BenefitGlyph :benefit="tradeFixedBenefit" :idx="0" :cardResource="metadata.cardResource" />
+                      </span>
+                      <span class="con-colinspect__glyph-plus" aria-hidden="true">+</span>
+                    </template>
+                    <span class="con-colinspect__glyph-part">
+                      <BenefitGlyph :benefit="tradeBenefitNow" :idx="effectivePosition" :cardResource="metadata.cardResource" />
+                    </span>
                   </span>
                   <p class="con-colinspect__text" v-i18n>{{ metadata.trade.description }}</p>
                 </div>
@@ -389,9 +396,6 @@ export default defineComponent({
     tradeFixedBenefit(): Benefit | undefined {
       const fixed = tradeFixedIncome(this.metadata);
       return fixed === undefined ? undefined : {type: fixed.type, quantity: [fixed.quantity], resource: fixed.resource};
-    },
-    tradeFixedDescription(): string {
-      return tradeFixedIncome(this.metadata)?.description ?? '';
     },
     nextBuildSlot(): number {
       return Math.min(this.colony.colonies.length, 2);

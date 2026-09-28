@@ -109,6 +109,43 @@
         max-width: 100%;
         --con-pformula-zoom: var(--con-parl-tile-formula-zoom, calc(0.52 * var(--con-ui-scale, 1)));
     }
+    /* ── THE TILE IS A WIDE, SHORT BOX, SO THE PLAQUE LIES DOWN IN IT (2026-09-28) ──
+       The six party tiles share ONE chassis, and its box is ~2.5 : 1 on the TV
+       (644 × 254) and ~1.5 : 1 at 1080 — while the upright stack (seal over
+       formula over foot) asks for 383 px of those 254: the measured fit had to
+       shrink every plaque to 63 %, and the printed FORMULA — the tile's whole
+       content — became the unreadable chips the owner reported. Lying down, the
+       same parts ask for 240 px and render at the profile's own size.
+       The SEAL is the left column across both rows (the party's identity, one
+       object); the NAME and the FOOT share the top line (both are one line of
+       marks); the FORMULA takes the whole second row, which is what a wide box
+       is for. Nothing is removed and no size is invented — only the axis. */
+    &--tile {
+        grid-template-columns: auto minmax(0, 1fr);
+        grid-template-rows: auto minmax(0, 1fr) auto;
+        grid-template-areas:
+            "seal head"
+            "seal formula"
+            "seal state";
+        align-items: center;
+        column-gap: .5rem;
+
+        .con-pseal__seal {
+            align-self: center;
+            width: var(--con-pseal-tile-seal, 2.2rem);
+            height: var(--con-pseal-tile-seal, 2.2rem);
+        }
+        .con-pseal__head { align-self: center; }
+        .con-pseal__formula { align-self: center; justify-self: center; }
+    }
+    /* ⚠️ THE FOOT KEEPS ITS OWN ROW — it may never be content-sized. Putting it
+       beside the NAME saved height on the wide 4K tile, and it cost the overview's
+       standing-still law (R-16): a content-sized box moves whenever its content
+       does, and this foot legitimately swaps places for a state word, a roll-call
+       word or a focused tile's refusal — `console-parliament-stability` caught the
+       Unity tile's foot travelling 370 px on a walk that should move nothing but
+       the cursor. The height comes from the ruler block's own budget instead
+       (`parliamentCardFit` § THE TILE ASKS FIRST). */
     /* THE FOOT — the state in the fewest marks, the support at the far end. */
     &__state {
         grid-area: state;

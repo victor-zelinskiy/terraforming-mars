@@ -318,7 +318,22 @@ before theorising (two runs here went to guesses first).
 3. **The composite income is on every cell** (`ConsoleColonyTrackInstrument`
    `__xcell-fixed` + `__xcell-plus` above the marker's part; the tile's
    `__cell-fixed`); a LOSE_RESOURCES position reads as a LOSS (`−4`, amber —
-   `__xcell-qty--levy`, `__cell-num--levy`, the track-choice rows alike).
+   `__xcell-qty--levy`, `__cell-num--levy`, the track-choice rows alike), and a
+   printed EMPTY position says «nothing» exactly ONCE (`BenefitGlyph` draws the
+   quiet dash in the glyph's own box; the instrument's own void is suppressed for
+   a levy — two dashes stacked was the 2nd Venus cell's reading).
+3-bis. **…and the DOSSIER prints the trade rule ONCE.** The tile's printed rule
+   already names both halves («Продвиньте трек Венеры на 1 шаг И получите бонус под
+   маркером»), so the fixed part as its own line repeated the sentence word for word.
+   One line, one sentence, and a COMPOSITE GLYPH in the tile's own grammar
+   («[Венера] + [бонус]», `__glyph--pair`), with ONE glyph COLUMN for the whole panel
+   (`--pairglyph`) so the three rules keep one text edge. Likewise the stage's REWARD
+   BREAKDOWN names the two track rows apart — `trackFixed` «Каждая торговля» vs
+   `track` «Под маркером», and the pair is named only where both exist (a plain
+   colony keeps «Торговый трек»): two rows both reading «Торговый трек» said nothing
+   about which was which. Guards: `colonyTradePlan.spec.ts` § TWO track sources ·
+   `console-colony-venus-redux.spec.ts` § the Venus step is stated ONCE ·
+   `console-colony-venus-cells.spec.ts` (1080 + 4K).
 4. **The reward lands on a standing card** — `docs/COLONY_TRADE_FLOW.md` § A CARD IS
    RECEIVING.
 5. **The Unity path shows its advance BEFORE the press** (`OptionMetadata.tradeOffset`

@@ -577,7 +577,7 @@
             <div v-for="row in rewardPackage.sources" :key="row.key" class="con-colfocus__rrow con-colfocus__rrow--part">
               <span class="con-colfocus__rpart">{{ sourceRowLabel(row) }}</span>
               <span class="con-colfocus__rvalue"
-                    :data-colony-trade-source="row.kind === 'track' ? colony.name : undefined">
+                    :data-colony-trade-source="row.kind === 'track' || row.kind === 'trackFixed' ? colony.name : undefined">
                 <b>+{{ row.amount }}</b>
                 <span class="con-colfocus__rglyph" :class="{'con-colfocus__rglyph--prod': row.production}">
                   <i v-if="row.icon !== undefined" :class="rewardIconClass(row.icon)" aria-hidden="true"></i>
@@ -2368,7 +2368,15 @@ export default defineComponent({
       if (row.kind === 'ownColony') {
         return translateTextWithParams('Your colony ×${0}', [String(row.count)]);
       }
-      return translateText('Trade track');
+      // A COMPOSITE income has two track rows — the part paid on every trade and
+      // the part the marker's position decides — and «Торговый трек» twice said
+      // nothing about which was which. The pair is named only where both exist;
+      // a plain colony keeps the one established label.
+      const composite = this.rewardPackage.sources.some((s) => s.kind === 'trackFixed');
+      if (row.kind === 'trackFixed') {
+        return translateText('Every trade');
+      }
+      return translateText(composite ? 'Under the marker' : 'Trade track');
     },
     resourceKey(resource: string | undefined): string | undefined {
       return resource?.toString().toLowerCase().replace(/ /g, '-');

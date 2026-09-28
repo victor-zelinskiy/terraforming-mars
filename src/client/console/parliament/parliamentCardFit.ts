@@ -92,12 +92,32 @@ export function fitParliamentCards(): void {
       // …and the HEIGHT the same way (v3 В5): the row's tile is as tall as the middle tier, the ruler's
       // slot sits in the TOP tier under its own kicker, and the slot then clipped the very tile it hosts.
       // ONE token both honour: the smaller room, measured — never two sizes of one chassis.
+      // ⚠️ THE TILE ASKS FIRST — the own effect is what YIELDS (2026-09-28). The
+      // slot used to take whatever the enacted card's own effect left over, so
+      // ONE block read once decided the size of the chassis SIX plaques share:
+      // at 4K it left 188–254 px for a plaque that needs 240, the measured fit
+      // shrank every tile to 63 %, and the printed formulas — the tiles' whole
+      // content — became unreadable chips. Now the plaque states its natural
+      // height (`plaqueNaturalHeight`, the profile's own sizes), the slot takes
+      // exactly that, and the effect fits the remainder by its own token.
       const slot = ruler.querySelector<HTMLElement>('[data-parl-ruler-slot]');
       const own = ruler.querySelector<HTMLElement>('.con-parl__ruler-own');
       if (slot !== null) {
-        const taken = (ruler.querySelector<HTMLElement>('.con-parl__ruler-kicker')?.offsetHeight ?? 0) +
-          (own?.offsetHeight ?? 0) + px(rcs.rowGap) * (own === null ? 1 : 2);
-        tileH = Math.max(0, ruler.clientHeight - px(rcs.paddingTop) - px(rcs.paddingBottom) - taken);
+        const kicker = ruler.querySelector<HTMLElement>('.con-parl__ruler-kicker')?.offsetHeight ?? 0;
+        const inner = Math.max(0, ruler.clientHeight - px(rcs.paddingTop) - px(rcs.paddingBottom) -
+          kicker - px(rcs.rowGap) * (own === null ? 1 : 2));
+        const wants = plaqueNaturalHeight(root);
+        // The effect keeps its natural height only past the tile's own need — and
+        // never yields below a FLOOR of it: the tile asking for exactly what it
+        // needs and the effect taking the whole remainder left the 4K tiles as
+        // thin strips in a 407 px band, which is the same defect from the other
+        // side. The floor splits the shortfall where it is honest: six plaques
+        // read constantly against one block read once.
+        const ownNatural = own?.offsetHeight ?? 0;
+        const ownFloor = Math.min(ownNatural, Math.round(ownNatural * OWN_EFFECT_FLOOR));
+        const ownRoom = own === null ? 0 :
+          Math.min(ownNatural, Math.max(ownFloor, Math.max(0, inner - wants)));
+        tileH = Math.max(0, inner - ownRoom);
       }
     }
     if (tileW > 0) {
@@ -193,30 +213,85 @@ export function fitParliamentCards(): void {
     }
   }
   fitPartyPlaques(root);
+  fitRulerOwnEffect(root);
 }
 
+/** The share of its natural height the enacted effect keeps even when the tile wants more. */
+const OWN_EFFECT_FLOOR = 0.45;
+
 /**
- * THE PLAQUE FITS ITS BOX (2026-09-28). The six party plaques share ONE box
- * (`--con-parl-tile-h` × `--con-parl-tile-w` — the smaller of the row's
- * column and the government's room) while their chassis is sized per PROFILE
- * in rem — and on the TV the box is barely taller than at 1080 (188 px against
- * ~165) while every part is twice the size: the seal (96 px) and the foot
- * (80 px) alone overran the box before the formula had a row at all, and every
- * two-line formula (the Greens', the Scientists', Mars First's) stood 9–19 px
- * past its plaque and over the next tile's head. A graphic wider than the chip
- * that holds it was the reported defect (the Reds' action in the government) —
- * the same law here, MEASURED: the fit is the ratio of the box's inner height to
- * the plaque's natural content (seal/head · note · formula · foot, at the
- * profile's sizes), and of its inner width to the formula's, over all six,
- * published as `--con-parl-tile-fit` (≤ 1 — a plaque never GROWS past its
- * profile) and applied as ONE `zoom` on the plaque's children (`console_parliament.less`
- * § the opposition row), so the seal, the name, the formula and the foot shrink
- * as one object. The box does not depend on the content (the tile tokens set
- * it), so there is no loop; the SET of plaques is constant (five + the ruler's,
- * whichever party rules), so the fit is measured ONCE per box height and
- * REUSED on every later fit — the government's change and the vote's re-asks
- * move nothing (`console-parliament-stability`).
+ * THE PLAQUE'S NATURAL BOX, and the fit that guarantees it (2026-09-28).
+ *
+ * The six party plaques share ONE box (`--con-parl-tile-h` × `--con-parl-tile-w`)
+ * and their chassis is sized per PROFILE in rem, so «does the content fit» is a
+ * MEASURED question, never an authored one. Since the tile lies down
+ * (`console_party_plaque.less` § THE TILE IS A WIDE, SHORT BOX) its rows are:
+ *
+ *   row 1 — the NAME and the FOOT side by side   (the taller of the two)
+ *   row 2 — the FORMULA, across the whole width
+ *   …both beside the SEAL, which spans them.
+ *
+ * `plaqueNaturalHeight` is what that asks for at the profile's own sizes — it is
+ * what the ruler's slot is sized from, so the tile never has to shrink to fit a
+ * leftover. `fitPartyPlaques` is the SAFETY on top: a starved profile (the Deck's
+ * short government block) gets a small honest plaque instead of a cut one, via
+ * ONE `zoom` on the plaque's children, so seal · name · formula · foot shrink as
+ * one object. It is ≤ 1 — a plaque never GROWS past its profile — and it is
+ * measured once per box height and REUSED, so the government's change and the
+ * vote's re-asks move nothing (`console-parliament-stability`).
  */
+type PlaqueParts = {
+  seal: number, head: number, state: number, formula: number,
+  formulaW: number, stateW: number, headW: number,
+  /** The foot shares the NAME's line (the wide box's variant) — read off the live layout, never assumed. */
+  footOnHeadLine: boolean,
+};
+
+function plaqueParts(plaque: HTMLElement): PlaqueParts {
+  const el = (sel: string): HTMLElement | null => plaque.querySelector<HTMLElement>(sel);
+  const tall = (sel: string): number => el(sel)?.offsetHeight ?? 0;
+  const wide = (sel: string): number => el(sel)?.offsetWidth ?? 0;
+  // WHICH variant is live is a question about the rendered grid (a container query
+  // decides it — `console_party_plaque.less` § …AND THE FOOT JOINS THE NAME'S LINE),
+  // so it is read as geometry: two parts on one line share a top edge.
+  const head = el('.con-pseal__head');
+  const state = el('.con-pseal__state');
+  const footOnHeadLine = head !== null && state !== null &&
+    Math.abs(head.offsetTop - state.offsetTop) < Math.max(4, head.offsetHeight / 2);
+  return {
+    seal: tall('.con-pseal__seal'),
+    head: tall('.con-pseal__head'),
+    state: tall('.con-pseal__state'),
+    formula: tall('.con-pseal__formula'),
+    formulaW: wide('.con-pseal__formula'),
+    stateW: wide('.con-pseal__state'),
+    headW: wide('.con-pseal__head'),
+    footOnHeadLine,
+  };
+}
+
+/** The right column's stacked height for the variant that is actually laid out. */
+function plaqueColumnHeight(p: PlaqueParts, rowGap: number): number {
+  return p.footOnHeadLine ?
+    Math.max(p.head, p.state) + rowGap + p.formula :
+    p.head + rowGap + p.formula + rowGap + p.state;
+}
+
+/** The height the lying-down tile genuinely needs, at the profile's own sizes (0 = nothing to measure). */
+function plaqueNaturalHeight(root: HTMLElement): number {
+  const plaque = root.querySelector<HTMLElement>('.con-parl__party > .con-pseal');
+  if (plaque === null || plaque.clientWidth === 0) {
+    return 0;
+  }
+  // Measured at the profile's own sizes — the fit is reset first, so this can
+  // never read its own output (and the fit below re-solves against the result).
+  root.style.setProperty('--con-parl-tile-fit', '1');
+  const cs = getComputedStyle(plaque);
+  const p = plaqueParts(plaque);
+  const rows = plaqueColumnHeight(p, parseFloat(cs.rowGap || '0'));
+  return Math.ceil(Math.max(p.seal, rows) + parseFloat(cs.paddingTop || '0') + parseFloat(cs.paddingBottom || '0'));
+}
+
 let plaqueFitMemo: {root: HTMLElement, tileH: number, fit: number} | undefined;
 
 function fitPartyPlaques(root: HTMLElement): void {
@@ -229,34 +304,60 @@ function fitPartyPlaques(root: HTMLElement): void {
     root.style.setProperty('--con-parl-tile-fit', String(plaqueFitMemo.fit));
     return;
   }
-  // Measured at the profile's own sizes — the token is reset first, so a re-fit never reads its own output.
   root.style.setProperty('--con-parl-tile-fit', '1');
   const px = (v: string): number => parseFloat(v) || 0;
-  const tall = (host: Element, sel: string): number => host.querySelector<HTMLElement>(sel)?.offsetHeight ?? 0;
   let fit = 1;
   for (const plaque of plaques) {
-    if (plaque.clientHeight === 0) {
+    if (plaque.clientHeight === 0 || plaque.clientWidth === 0) {
       continue;
     }
     const cs = getComputedStyle(plaque);
-    const note = tall(plaque, '.con-pseal__note');
-    // The grid's rows: seal/head · (note) · formula · foot — and the gaps between them.
-    const rows = note > 0 ? 3 : 2;
-    const innerH = plaque.clientHeight - px(cs.paddingTop) - px(cs.paddingBottom) - px(cs.rowGap) * rows;
-    const naturalH = Math.max(tall(plaque, '.con-pseal__seal'), tall(plaque, '.con-pseal__head')) + note +
-      tall(plaque, '.con-pseal__formula') + tall(plaque, '.con-pseal__state');
+    const p = plaqueParts(plaque);
+    const innerH = plaque.clientHeight - px(cs.paddingTop) - px(cs.paddingBottom);
+    const naturalH = Math.max(p.seal, plaqueColumnHeight(p, px(cs.rowGap)));
     if (innerH > 0 && naturalH > 0) {
       fit = Math.min(fit, innerH / naturalH);
     }
+    // Widthwise the SEAL plus the widest thing beside it is the hard part — the
+    // NAME is the one member allowed to ellipsize in its own box, so it counts
+    // only where it shares a line with the foot (there it must not eat it).
     const innerW = plaque.clientWidth - px(cs.paddingLeft) - px(cs.paddingRight);
-    const formulaW = plaque.querySelector<HTMLElement>('.con-pseal__formula')?.offsetWidth ?? 0;
-    if (innerW > 0 && formulaW > 0) {
-      fit = Math.min(fit, innerW / formulaW);
+    const beside = p.footOnHeadLine ?
+      Math.max(p.formulaW, p.stateW + px(cs.columnGap)) :
+      Math.max(p.formulaW, p.stateW);
+    const naturalW = p.seal + px(cs.columnGap) + beside;
+    if (innerW > 0 && naturalW > 0) {
+      fit = Math.min(fit, innerW / naturalW);
     }
   }
   // Snapped DOWN onto a 0.5 % grid (a budget: smaller only fits better) and never below a
   // readable floor — a starved box shows a small honest plaque, never a cut one.
-  const snapped = Math.max(0.5, Math.floor(fit * 200) / 200);
+  const snapped = Math.max(0.5, Math.min(1, Math.floor(fit * 200) / 200));
   plaqueFitMemo = {root, tileH, fit: snapped};
   root.style.setProperty('--con-parl-tile-fit', String(snapped));
+}
+
+/**
+ * THE ENACTED CARD'S OWN EFFECT FITS THE ROOM THE TILE LEAVES. It reads at the
+ * profile's size whenever the ruler block can afford it (`--con-parl-ruler-own-zoom`)
+ * and yields by this fit alone — the tile is the chassis of six plaques and this
+ * block is one reading, so the yielding order is fixed, not negotiated per profile.
+ */
+function fitRulerOwnEffect(root: HTMLElement): void {
+  const own = root.querySelector<HTMLElement>('.con-parl__ruler-own');
+  const ruler = root.querySelector<HTMLElement>('[data-parl-ruler]');
+  if (own === null || ruler === null || ruler.clientHeight === 0) {
+    return;
+  }
+  root.style.setProperty('--con-parl-ruler-own-fit', '1');
+  const px = (v: string): number => parseFloat(v) || 0;
+  const rcs = getComputedStyle(ruler);
+  const kicker = ruler.querySelector<HTMLElement>('.con-parl__ruler-kicker')?.offsetHeight ?? 0;
+  const slot = ruler.querySelector<HTMLElement>('[data-parl-ruler-slot]')?.offsetHeight ?? 0;
+  const room = ruler.clientHeight - px(rcs.paddingTop) - px(rcs.paddingBottom) - kicker - slot - px(rcs.rowGap) * 2;
+  const natural = own.offsetHeight;
+  if (room <= 0 || natural <= 0) {
+    return;
+  }
+  root.style.setProperty('--con-parl-ruler-own-fit', String(Math.max(0.4, Math.min(1, Math.floor((room / natural) * 200) / 200))));
 }
