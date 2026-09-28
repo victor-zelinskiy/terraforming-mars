@@ -1772,7 +1772,6 @@ import {
   workspaceStackTopAxis,
   FrameAnchor,
   WorkspaceFrameKind,
-  workspaceStackDepth,
 } from '@/client/console/consoleWorkspaceStack';
 import {acceptsInput, isCommitted, workspaceConclusionFor} from '@/client/console/consoleWorkspaceFlow';
 import {installConsoleReadinessProbe} from '@/client/console/e2eReadiness';
@@ -2208,15 +2207,6 @@ const PARLIAMENT_STEP_LEAVE_MS = 240;
  */
 const PLAY_CLAIMED_TASK_KINDS: ReadonlySet<TaskKind> =
   new Set<TaskKind>(['deckSelect', 'cardSelect', 'payment']);
-
-/** DEV DIAG (`__conColonyDiag().doorTrace`): the last prompt-routed door decisions, newest last. */
-const doorTrace: Array<string> = [];
-function traceDoor(line: string): void {
-  doorTrace.push(line);
-  if (doorTrace.length > 40) {
-    doorTrace.shift();
-  }
-}
 
 export default defineComponent({
   name: 'ConsoleShell',
@@ -10139,7 +10129,6 @@ export default defineComponent({
     // isn't left with NO surface (the stranded guard). Respects an explicit
     // defer (the player chose to inspect the board).
     consoleForegroundBusy(busy: boolean, wasBusy: boolean): void {
-      traceDoor('busy ' + String(wasBusy) + '->' + String(busy) + ' deferred=' + String(this.consoleState.task.deferred) + ' gate=' + String(this.taskGateHeld) + ' task=' + (taskFor(this.playerView)?.kind ?? '-') + ' wf=' + (this.playerView.waitingFor?.type ?? '-'));
       // Don't auto-open an interruptive task that is still GATED (announced,
       // not yet opened via B) — it waits for the player's press, not for the
       // foreground to clear (consoleMandatoryGate).
@@ -11506,7 +11495,6 @@ export default defineComponent({
           // as a still-running effect waits here; `consoleForegroundBusy`'s own
           // watcher opens it the moment that effect is finished.
           const shellTask = this.shellTask;
-          traceDoor('identity wf=' + (this.playerView.waitingFor?.type ?? '-') + ' shellTask=' + (shellTask?.kind ?? '-') + ' deferred=' + String(this.consoleState.task.deferred) + ' followUp=' + String(this.admits('followUp')) + ' section=' + String(this.admits('section')) + ' depth=' + workspaceStackDepth());
           if (shellTask !== undefined && !this.consoleState.task.deferred && this.admits('followUp')) {
             this.openShellTaskSurface(shellTask);
           }
@@ -15385,7 +15373,6 @@ export default defineComponent({
      * `stdpConclusionSignal` watcher re-asks as those holds fall.
      */
     endStdProjectsFlow(): void {
-      traceDoor('stdp-end depth=' + workspaceStackDepth() + ' wf=' + (this.playerView.waitingFor?.type ?? '-') + ' owed=' + String(this.followUpStepOwed) + ' nested=' + String(workspaceFrameHasNested('standard-projects')));
       // CONCLUDE FIRST, RESET ON DISMISS. A held conclusion (a step still
       // standing inside — the Redux Venus's delegate vote after the build) is
       // re-asked by the `stdpConclusionSignal` watcher when that step lets
@@ -16979,7 +16966,6 @@ export default defineComponent({
       });
     },
     openShellTaskSurface(task: ConsoleTask): void {
-      traceDoor('open:' + task.kind + ' depth=' + workspaceStackDepth() + ' host=' + (workspaceHostForStep() ?? '-') + ' wf=' + (this.playerView.waitingFor?.type ?? '-') + ' grant=' + String(this.playerView.waitingFor?.votePrompt?.source === 'grant'));
       // Already standing where this is answered — nothing to open, and above
       // all no lateral move: the colonies teleported into a live flow must not
       // have their host's chrome swapped out from under them. Only the cursor
@@ -17070,7 +17056,6 @@ export default defineComponent({
         // Parliament on its own, where the mode serves it just the same.
         if (this.playerView.waitingFor?.votePrompt?.source === 'grant') {
           const host = workspaceHostForStep();
-          traceDoor('party-grant host=' + (host ?? '-') + ' parlHost=' + (workspaceFrameHost('parliament') ?? '-') + ' known=' + String(workspaceFrameKnown('parliament')));
           if (host !== undefined && host !== 'parliament') {
             if (workspaceFrameHost('parliament') === host) {
               return; // already standing where it is answered (idempotent)
@@ -17475,7 +17460,6 @@ export default defineComponent({
      * the intake aims at a still-covered dock.
      */
     concludeWorkspaceFlow(kind: WorkspaceFrameKind, servedPromptHolds = true): boolean {
-      traceDoor('conclude ' + kind + ' depth=' + workspaceStackDepth() + ' wf=' + (this.playerView.waitingFor?.type ?? '-') + ' owed=' + String(this.followUpStepOwed) + ' host=' + (workspaceHostForStep() ?? '-'));
       if (!workspaceFrameKnown(kind)) {
         return true; // already gone (a second, idempotent report) — nothing to end
       }
@@ -19648,13 +19632,6 @@ export default defineComponent({
       trail: hydroFlowTrail(),
     });
     (window as unknown as Record<string, unknown>).__conColonyDiag = () => ({
-      doorTrace: [...doorTrace],
-      admitsFollowUp: this.admits('followUp'),
-      admitsSection: this.admits('section'),
-      shellTaskKind: this.shellTask?.kind ?? null,
-      gateHeld: this.taskGateHeld,
-      busy: this.consoleForegroundBusy,
-      signals: this.rawAdmissionSignals,
       // THE STACK IS THE SNAPSHOT — one ordered list instead of five flags that
       // had to be read together and could disagree.
       stack: workspaceStackState.frames.map((f) => ({

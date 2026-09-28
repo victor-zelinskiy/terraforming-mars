@@ -30,7 +30,8 @@ import {reactive} from 'vue';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {ConsoleTask, taskFor, SHELL_NATIVE_KINDS} from '@/client/console/consoleTaskRouter';
 import {inputTitleText} from '@/client/console/turnIntents';
-import {translateText} from '@/client/directives/i18n';
+import {translateMessage, translateText} from '@/client/directives/i18n';
+import {Message} from '@/common/logs/Message';
 import {govScaleFocusState} from '@/client/console/consoleGovScaleFocus';
 import {isAnimationHoldActive} from '@/client/components/presentation/animationHold';
 import {isConsoleHandPickActive} from '@/client/console/consoleHandPick';
@@ -149,6 +150,25 @@ const EXTRA_KIND_SURFACES: Partial<Record<string, ReadonlyArray<string>>> = {
   corpFirstAction: ['.con-composer--corpfirst'],
   draftWait: ['.con-draftwait'],
 };
+
+/**
+ * The guard panel reads a prompt's title exactly as every serving surface
+ * does: a `Message` gets its parameters substituted and the translation's
+ * plural groups resolved («Добавьте 2 делегатов на резолюцию»), a plain
+ * string is looked up. Reading `message.message` raw shipped the template
+ * itself («Добавьте ${0} {делегата|делегатов|делегатов} на резолюцию») on
+ * the one surface whose whole job is to be honest about a prompt. A COPY is
+ * translated, so the detector's pass never rewrites the model's own message.
+ */
+export function strandedTitleOf(title: string | Message | undefined): string {
+  if (title === undefined) {
+    return '';
+  }
+  if (typeof title === 'string') {
+    return title === '' ? '' : translateText(title);
+  }
+  return translateMessage({...title});
+}
 
 export type StrandedPrompt = {
   inputType: string,
@@ -398,11 +418,10 @@ export function runLeakDetection(view: PlayerViewModel | undefined): void {
     leakDetectorState.stranded = undefined;
     return;
   }
-  const title = inputTitleText(wf.title);
   const stranded: StrandedPrompt = {
     inputType: wf.type,
     taskKind: task?.kind ?? 'unknown',
-    title: title !== undefined && title !== '' ? translateText(title) : '',
+    title: strandedTitleOf(wf.title),
   };
   if (leakDetectorState.stranded?.inputType !== stranded.inputType) {
     warnOnce(`stranded:${stranded.inputType}`,

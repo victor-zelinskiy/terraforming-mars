@@ -1,5 +1,7 @@
 import {expect} from 'chai';
-import {runLeakDetection, leakDetectorState, stopConsoleLeakDetector, setConsoleTaskDeferred, setConsoleTaskSpacePlacement} from '@/client/console/consoleLeakDetector';
+import {runLeakDetection, leakDetectorState, stopConsoleLeakDetector, setConsoleTaskDeferred, setConsoleTaskSpacePlacement, strandedTitleOf} from '@/client/console/consoleLeakDetector';
+import {LogMessageDataType} from '@/common/logs/LogMessageDataType';
+import {Message} from '@/common/logs/Message';
 import {setMandatoryGateHeld, resetMandatoryGate} from '@/client/console/consoleMandatoryGate';
 import {expireActiveAnimationHolds, resetAnimationHoldsForTest} from '@/client/components/presentation/animationHold';
 import {resetGovScaleFocus} from '@/client/console/consoleGovScaleFocus';
@@ -197,5 +199,20 @@ describe('consoleLeakDetector — a nested-space placement is never stranded', (
     runLeakDetection(view);
     runLeakDetection(view);
     expect(leakDetectorState.stranded, 'a reset mirror no longer suppresses').to.not.eq(undefined);
+  });
+});
+
+describe('consoleLeakDetector — the guard panel reads a prompt title as every surface does', () => {
+  it('a Message title gets its parameters substituted (never the raw `${0}` template)', () => {
+    const title: Message = {message: 'Add ${0} delegates to a resolution', data: [{type: LogMessageDataType.RAW_STRING, value: '2'}]};
+    expect(strandedTitleOf(title)).to.eq('Add 2 delegates to a resolution');
+    // …and the model's own message is left alone — the pass translates a COPY.
+    expect(title.message).to.eq('Add ${0} delegates to a resolution');
+  });
+
+  it('a plain string is looked up as text; an absent or empty title is an empty line', () => {
+    expect(strandedTitleOf('Select a card to discard')).to.eq('Select a card to discard');
+    expect(strandedTitleOf('')).to.eq('');
+    expect(strandedTitleOf(undefined)).to.eq('');
   });
 });

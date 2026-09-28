@@ -287,10 +287,9 @@ box (`.benefit-glyph__tile.venus-tile`).
    240 ms — the probe's «a standalone Parliament band stood». The shell latches the zone
    (`parliamentEmbedLatch`): `parliamentEmbedActive` and the teleport target hold it while
    `parliamentLeaving`, released with the leave.
-Diagnostic kept: `__conColonyDiag().doorTrace` (the last prompt-routed door decisions: `identity`,
-`busy`, `open:<kind>`, `party-grant host=…`, `stdp-end`, `conclude <kind>`) + `admitsFollowUp` /
-`admitsSection` / `shellTaskKind` / `gateHeld` / `busy` / `signals` — an e2e reads it; and
-`window.__wsTrace = true` prints every frame-removing verb with its caller's stack.
+Diagnosing a silent door: `window.__wsTrace = true` prints every frame-removing verb with its
+caller's stack, and `__conColonyDiag()` states the stack + the colony flow's facts — read those
+before theorising (two runs here went to guesses first).
 
 **Guards (Venus):** `tests/colonies/VenusRedux.spec.ts` (39: the printed tile,
 every position pays + the Venus step under a quiet government and under the
