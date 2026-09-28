@@ -34,6 +34,15 @@ export type ColonyTradeReasonInput = {
   /** Colony names the OPEN SelectColony window offers (server-filtered; empty
    *  when no trade window is open — no free fleet / can't afford / not my turn). */
   tradeable: ReadonlyArray<string>,
+  /**
+   * The SERVER's own refusal of THIS colony for the viewer, when the colony
+   * has a rule about the player (`PublicPlayerModel.colonyTradeBlocks` — the
+   * Turmoil Redux Pluto: «no card of yours can hold the data this trade
+   * pays»). An English i18n key. Undefined = the colony itself does not
+   * refuse. It ranks with the colony-intrinsic rungs: true whatever the turn
+   * or the fleet count, and never something the client may derive itself.
+   */
+  colonyBlock?: string,
   viewerColor: Color,
   /** The viewer's FREE trade fleets right now (fleetSize − deployed − used). */
   availableFleets: number,
@@ -89,6 +98,11 @@ export function colonyTradeReason(input: ColonyTradeReasonInput): ColonyTradeRea
     return input.colony.visitor === input.viewerColor ?
       {key: 'Your trade fleet is currently here', intrinsic: true, blocker: domain} :
       {key: 'Trade fleet of ${0} is currently here', params: [input.resolveName(input.colony.visitor)], intrinsic: true, blocker: domain};
+  }
+  // 1b. THE COLONY REFUSES THIS PLAYER — the server's own rule about them
+  //     (never derived here). Intrinsic: a fleet or a turn changes nothing.
+  if (input.colonyBlock !== undefined && input.colonyBlock !== '') {
+    return {key: input.colonyBlock, intrinsic: true, blocker: domain};
   }
   // 2. The colony itself is fine — the blocker is the viewer's ability to trade.
   if (input.availableFleets <= 0) {

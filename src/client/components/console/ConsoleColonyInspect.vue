@@ -265,7 +265,7 @@
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
 import {ColonyModel} from '@/common/models/ColonyModel';
-import {ColonyMetadata} from '@/common/colonies/ColonyMetadata';
+import {ColonyMetadata, tradeBenefitAt} from '@/common/colonies/ColonyMetadata';
 import {ColonyBenefit} from '@/common/colonies/ColonyBenefit';
 import {ColonyName} from '@/common/colonies/ColonyName';
 import {Color} from '@/common/Color';
@@ -373,9 +373,8 @@ export default defineComponent({
       return Math.max(0, this.effectivePosition - this.markerPosition);
     },
     tradeBenefitNow(): Benefit {
-      const t = this.metadata.trade;
-      const resource = Array.isArray(t.resource) ? t.resource[this.effectivePosition] : t.resource;
-      return {type: t.type, quantity: t.quantity, resource};
+      const income = tradeBenefitAt(this.metadata, this.effectivePosition);
+      return {type: income.type, quantity: this.metadata.trade.quantity, resource: income.resource};
     },
     nextBuildSlot(): number {
       return Math.min(this.colony.colonies.length, 2);

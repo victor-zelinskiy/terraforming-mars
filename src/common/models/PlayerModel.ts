@@ -21,6 +21,7 @@ import {OceanAdjacencyBonusModel} from './OceanAdjacencyBonusModel';
 import {PlacementLawPayoutModel} from './PlacementLawPayoutModel';
 import {StartingSetupModel} from './StartingSetupModel';
 import {ColonyTradeManifestModel} from './ColonyTradeManifestModel';
+import {ColonyTradeBlockModel} from './ColonyModel';
 import {PotentialActionsModel} from './PotentialActionsModel';
 import {ResolutionId} from '../parliament/ParliamentTypes';
 
@@ -196,6 +197,15 @@ export type PublicPlayerModel = {
   // colony's track by this much, so the player gets the reward at the HIGHER position.
   // Exposed so the trade-confirm modal can show "track +N → better reward".
   colonyTradeOffset: number;
+  /**
+   * The open colonies that REFUSE this player a trade right now, each with
+   * its reason (`IColony.tradeBlockedReason` — a colony's own rule about the
+   * player: the Turmoil Redux Pluto with no card to hold its data). Read
+   * with the offset the player's best payment path reaches. Absent when
+   * nothing refuses, or without the Colonies expansion. Server-authoritative:
+   * the client's «why can't I trade here» ladder reads it, never re-derives it.
+   */
+  colonyTradeBlocks?: ReadonlyArray<ColonyTradeBlockModel>;
   underworldData: UnderworldPlayerData,
   victoryPointsBreakdown: VictoryPointsBreakdown;
   victoryPointsByGeneration: ReadonlyArray<number>;

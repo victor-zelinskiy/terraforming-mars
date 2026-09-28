@@ -6592,6 +6592,7 @@ export default defineComponent({
       const reason = colonyTradeReason({
         colony: selected,
         tradeable: this.tradeableColonyNames,
+        colonyBlock: this.thisPlayer.colonyTradeBlocks?.find((b) => b.colony === selected.name)?.reason,
         viewerColor: this.thisPlayer.color,
         availableFleets: this.viewerFreeFleets,
         myTurn: this.myTurn,

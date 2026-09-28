@@ -81,6 +81,10 @@
     "Draw n cards": "Доберите X карт",
     "Draw 1 card and then discard 1 card": "Доберите 1 карту, затем сбросьте 1 карту",
 
+    "Pluto Redux": "Плутон",
+    "Add n data to ANY card; at the last two positions draw 2 or 3 cards instead": "Добавьте X единиц данных на любую карту; на двух последних позициях вместо этого доберите 2 или 3 карты",
+    "No card of yours can hold the data this trade pays": "Ни одна ваша карта не примет данные с этой торговли",
+
     "Titan": "Титан",
     "Add 3 floaters to ANY card": "Добавьте 3 аэростата на любую карту",
     "Add n floaters to ANY card": "Добавьте X аэростатов на любую карту",

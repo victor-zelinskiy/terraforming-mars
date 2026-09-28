@@ -874,9 +874,12 @@ export default defineComponent({
     focusedBuildQty(): number {
       return this.focusedMeta === undefined ? 0 : (this.focusedMeta.build.quantity[this.focusedBuildSlot] ?? 0);
     },
-    /** A card-resource TRADE reward with no card to hold it ⇒ it is lost. */
+    /** A card-resource TRADE reward with no card to hold it ⇒ it is lost —
+     *  read at the position the trade would pay (the Redux Pluto: data low,
+     *  cards high — only the data positions can be lost). */
     focusedTradeLost(): boolean {
-      return this.focusedMeta !== undefined && this.benefitResourceLost(this.focusedMeta.trade.type);
+      return this.focusedMeta !== undefined &&
+        this.benefitResourceLost(rewardAtPosition(this.focusedMeta, this.focusedPosition).type);
     },
     /** A card-resource BUILD (placement) bonus with no card to hold it ⇒ lost
      *  (the placement bonus is a card resource — e.g. Miranda's animals). */
@@ -994,6 +997,15 @@ export default defineComponent({
     },
   },
   methods: {
+    /**
+     * The SERVER's refusal of `colony` for the viewer — the colony's own rule
+     * about the player (`PublicPlayerModel.colonyTradeBlocks`), the one rung
+     * of the ladder the client could never derive honestly.
+     */
+    serverColonyBlock(colony: ColonyModel): string | undefined {
+      const viewer = this.players.find((p) => p.color === this.viewerColor);
+      return viewer?.colonyTradeBlocks?.find((b) => b.colony === colony.name)?.reason;
+    },
     /** A card-resource benefit (`ADD_RESOURCES_TO_CARD` / `…_VENUS_CARD`) is
      *  LOST when the viewer owns no card able to hold that resource — shared
      *  by the trade + build rails (and mirrored at the focus stage). */
@@ -1148,6 +1160,7 @@ export default defineComponent({
       return colonyTradeReason({
         colony,
         tradeable: this.tradeable,
+        colonyBlock: this.serverColonyBlock(colony),
         viewerColor: this.viewerColor ?? ('' as Color),
         availableFleets: viewer !== undefined ? this.freeFleetsFor(viewer) : 0,
         myTurn: this.myTurn,
@@ -1198,6 +1211,7 @@ export default defineComponent({
       const reason = colonyTradeReason({
         colony,
         tradeable: this.tradeable,
+        colonyBlock: this.serverColonyBlock(colony),
         viewerColor: this.viewerColor ?? ('' as Color),
         availableFleets: viewer !== undefined ? this.freeFleetsFor(viewer) : 0,
         // Non-intrinsic reasons are DISCARDED on the tile (mapped by tradeable

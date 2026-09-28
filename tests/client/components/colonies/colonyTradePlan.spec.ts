@@ -5,6 +5,8 @@ import {
   colonyOwnerBonusDrawsCards,
   colonyOwnerCounts,
   colonyRewardPackage,
+  colonyTradeAsksCardTargets,
+  colonyTradeDrawsCards,
   colonyTradeMayDrawCards,
   effectiveTradePosition,
   freeTradeFleets,
@@ -160,6 +162,68 @@ describe('colonyTradePlan', () => {
     expect(rewardAtPosition(luna, 3).resource).to.eq(Resource.MEGACREDITS);
     // Clamped to the track bounds.
     expect(rewardAtPosition(luna, 99).quantity).to.eq(17);
+  });
+
+  // The Turmoil Redux Pluto: the KIND of the income moves along the track
+  // (data at 1–5, cards at 6–7). Every reader resolves it per position —
+  // a tile that read the kind once would draw «3 cards» over three data.
+  describe('a per-position benefit KIND (the Redux Pluto)', () => {
+    const PLUTO_REDUX_META: ColonyMetadata = colonyMetadata({
+      name: ColonyName.PLUTO_REDUX,
+      cardResource: CardResource.DATA,
+      build: {description: '', type: ColonyBenefit.DRAW_CARDS, quantity: [2, 2, 2]},
+      trade: {
+        description: '',
+        type: [
+          ColonyBenefit.ADD_RESOURCES_TO_CARD, ColonyBenefit.ADD_RESOURCES_TO_CARD, ColonyBenefit.ADD_RESOURCES_TO_CARD,
+          ColonyBenefit.ADD_RESOURCES_TO_CARD, ColonyBenefit.ADD_RESOURCES_TO_CARD,
+          ColonyBenefit.DRAW_CARDS, ColonyBenefit.DRAW_CARDS,
+        ],
+        quantity: [1, 1, 2, 2, 3, 2, 3],
+      },
+      colony: {description: '', type: ColonyBenefit.DRAW_CARDS_AND_DISCARD_ONE},
+      shouldIncreaseTrack: 'ask',
+    });
+
+    it('rewardAtPosition resolves the kind with the amount', () => {
+      expect(rewardAtPosition(PLUTO_REDUX_META, 4)).to.deep.eq({
+        type: ColonyBenefit.ADD_RESOURCES_TO_CARD, quantity: 3, resource: undefined, cardResource: CardResource.DATA,
+      });
+      expect(rewardAtPosition(PLUTO_REDUX_META, 5)).to.deep.eq({
+        type: ColonyBenefit.DRAW_CARDS, quantity: 2, resource: undefined, cardResource: CardResource.DATA,
+      });
+      expect(rewardAtPosition(PLUTO_REDUX_META, 99).type).to.eq(ColonyBenefit.DRAW_CARDS);
+    });
+
+    it('the card claims follow the kind at the position — and the MAY claim looks ahead', () => {
+      expect(colonyTradeDrawsCards(PLUTO_REDUX_META, 4)).to.eq(false);
+      expect(colonyTradeDrawsCards(PLUTO_REDUX_META, 5)).to.eq(true);
+      expect(colonyTradeMayDrawCards(PLUTO_REDUX_META, 0), 'a trade started low may still reach the card positions').to.eq(true);
+      expect(colonyTradeMayDrawCards(PLUTO_REDUX_META, 6)).to.eq(true);
+    });
+
+    it('the card-target claim covers a track that lands on a card ANYWHERE', () => {
+      expect(colonyTradeAsksCardTargets(PLUTO_REDUX_META, false)).to.eq(true);
+    });
+
+    it('the outcome reads the kind at the reward position (data low, cards high)', () => {
+      const low = tradeOutcome({metadata: PLUTO_REDUX_META, rewardPosition: 4, payments: [], ownColonyCount: 0, stocks: {}, production: {}});
+      expect(low.gains.map((g) => [g.icon, g.amount, g.note])).to.deep.eq([['data', 3, 'to a card']]);
+      const high = tradeOutcome({metadata: PLUTO_REDUX_META, rewardPosition: 6, payments: [], ownColonyCount: 0, stocks: {}, production: {}});
+      expect(high.gains.map((g) => [g.icon, g.amount])).to.deep.eq([['cards', 3]]);
+    });
+
+    it('tradeSteps carries the track question\'s floor', () => {
+      const p = preview({
+        colonyName: ColonyName.PLUTO_REDUX,
+        track: {current: 3, effective: 5, steps: 2, willAsk: true},
+        followUps: [{kind: 'trackChoice', steps: 2, minSteps: 2}],
+      });
+      expect(tradeSteps(p, false)).to.deep.eq([{kind: 'trackChoice', steps: 2, minSteps: 2}]);
+      // An older server (no floor) reads as 0 — «don't» stays offered.
+      const legacy = preview({followUps: [{kind: 'trackChoice', steps: 1}]});
+      expect(tradeSteps(legacy, false)).to.deep.eq([{kind: 'trackChoice', steps: 1, minSteps: 0}]);
+    });
   });
 
   it('effectiveTradePosition applies the offset (capped), honours shouldIncreaseTrack=no', () => {

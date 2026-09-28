@@ -9,7 +9,6 @@ import {Card} from '../Card';
 import {CardRenderer} from '../render/CardRenderer';
 import {SelectOption} from '../../inputs/SelectOption';
 import {SelectColony} from '../../inputs/SelectColony';
-import {IColony} from '../../colonies/IColony';
 import {ColoniesHandler} from '../../colonies/ColoniesHandler';
 
 export class HuygensObservatory extends Card implements IProjectCard {
@@ -35,8 +34,10 @@ export class HuygensObservatory extends Card implements IProjectCard {
     });
   }
 
-  private trade(player: IPlayer, colonies: Array<IColony>) {
-    return new SelectColony('Select colony tile to trade with for free', 'Select', colonies)
+  private trade(player: IPlayer) {
+    // Built NOW (before a fleet is recalled): «you may not trade with the tile
+    // that fleet came from» — the recalled tile is not in this list.
+    return ColoniesHandler.tradeColonyPick(player, 'Select colony tile to trade with for free', 'Select')
       .andThen((colony) => {
         colony.trade(player);
         return undefined;
@@ -45,7 +46,7 @@ export class HuygensObservatory extends Card implements IProjectCard {
 
   private tryToTrade(player: IPlayer) {
     const game = player.game;
-    const tradeableColonies = ColoniesHandler.tradeableColonies(player.game);
+    const tradeableColonies = ColoniesHandler.tradeableColonies(player.game, player);
     if (tradeableColonies.length === 0) {
       game.log(
         '${0} cannot trade with ${1} because there is no colony they may visit.',
@@ -57,7 +58,7 @@ export class HuygensObservatory extends Card implements IProjectCard {
 
     const visitedColonies = game.colonies.filter((colony) => colony.visitor === player.id);
     const hasFreeTradeFleet = visitedColonies.length < player.colonies.getFleetSize();
-    const tradeInput = this.trade(player, tradeableColonies);
+    const tradeInput = this.trade(player);
     if (visitedColonies.length > 0) {
       orOptions.options.push(
         new SelectColony(
@@ -99,7 +100,7 @@ export class HuygensObservatory extends Card implements IProjectCard {
     if (player.colonies.getPlayableColonies(/** allowDuplicate = */true).length === 0) {
       return false;
     }
-    if (ColoniesHandler.tradeableColonies(player.game).length === 0) {
+    if (ColoniesHandler.tradeableColonies(player.game, player).length === 0) {
       return false;
     }
     return true;

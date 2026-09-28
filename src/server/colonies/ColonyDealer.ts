@@ -1,8 +1,10 @@
 import {IColony} from './IColony';
 import {ColonyName} from '../../common/colonies/ColonyName';
 import {Random} from '../../common/utils/Random';
-import {ALL_COLONIES_TILES, BASE_COLONIES_TILES, COMMUNITY_COLONIES_TILES, PATHFINDERS_COLONIES_TILES} from './ColonyManifest';
+import {ALL_COLONIES_TILES, BASE_COLONIES_TILES, COMMUNITY_COLONIES_TILES, IColonyFactory, PATHFINDERS_COLONIES_TILES} from './ColonyManifest';
 import {GameOptions} from '../game/GameOptions';
+import {TURMOIL_REDUX_REPLACEMENTS} from '../../common/colonies/AllColonies';
+import {Colony} from './Colony';
 
 // TODO(kberg): Add ability to hard-code chosen colonies, separate from customColoniesList, so as to not be
 // forced to rely on the RNG.
@@ -36,7 +38,7 @@ export class ColonyDealer {
     if (!gameOptions.aresExtension) {
       colonyTiles = colonyTiles.filter((c) => c.colonyName !== ColonyName.DEIMOS);
     }
-    this.gameColonies = colonyTiles.map((cf) => new cf.Factory());
+    this.gameColonies = ColonyDealer.withReduxReplacements(colonyTiles, gameOptions).map((cf) => new cf.Factory());
   }
 
   private static includesCommunityColonies(gameOptions: GameOptions) : boolean {
@@ -45,6 +47,38 @@ export class ColonyDealer {
     }
     const communityColonyNames = COMMUNITY_COLONIES_TILES.map((cf) => cf.colonyName);
     return gameOptions.customColoniesList.some((colonyName) => communityColonyNames.includes(colonyName));
+  }
+
+  /**
+   * TURMOIL REDUX REPLACES TILES, IT DOES NOT ADD THEM. With the expansion on,
+   * a base tile that has a Redux twin (`TURMOIL_REDUX_REPLACEMENTS` — Pluto)
+   * is swapped for it, in the dealt pool AND in a hand-picked
+   * `customColoniesList` (a player who picked «Pluto» gets the game's Pluto);
+   * a Redux name written into the custom list directly is honoured as is.
+   * Without the expansion a Redux tile is never dealt — a custom list that
+   * names one falls back to its base twin, so an old preset keeps working.
+   */
+  private static withReduxReplacements(tiles: ReadonlyArray<IColonyFactory<Colony>>, gameOptions: GameOptions): Array<IColonyFactory<Colony>> {
+    const redux = gameOptions.turmoilReduxExpansion === true;
+    const out: Array<IColonyFactory<Colony>> = [];
+    for (const tile of tiles) {
+      const replacement = ColonyDealer.reduxReplacementFor(tile.colonyName, redux);
+      const entry = replacement === tile.colonyName ? tile : ALL_COLONIES_TILES.find((cf) => cf.colonyName === replacement);
+      if (entry !== undefined && !out.some((cf) => cf.colonyName === entry.colonyName)) {
+        out.push(entry);
+      }
+    }
+    return out;
+  }
+
+  /** The name the game actually seats for `name` under this expansion setting. */
+  private static reduxReplacementFor(name: ColonyName, redux: boolean): ColonyName {
+    if (redux) {
+      return TURMOIL_REDUX_REPLACEMENTS[name] ?? name;
+    }
+    const base = (Object.keys(TURMOIL_REDUX_REPLACEMENTS) as Array<ColonyName>)
+      .find((key) => TURMOIL_REDUX_REPLACEMENTS[key] === name);
+    return base ?? name;
   }
 
   private shuffle(cards: Array<IColony> | ReadonlyArray<IColony>): Array<IColony> {
@@ -60,7 +94,8 @@ export class ColonyDealer {
     const customColonies = this.gameOptions.customColoniesList;
     let colonies = this.gameColonies;
     if (customColonies.length > 0) {
-      colonies = ALL_COLONIES_TILES.filter((c) => customColonies.includes(c.colonyName)).map((cf) => new cf.Factory());
+      const picked = ALL_COLONIES_TILES.filter((c) => customColonies.includes(c.colonyName));
+      colonies = ColonyDealer.withReduxReplacements(picked, this.gameOptions).map((cf) => new cf.Factory());
     }
 
     const count = (players + 2) +

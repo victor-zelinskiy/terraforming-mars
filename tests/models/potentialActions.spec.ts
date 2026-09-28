@@ -95,7 +95,7 @@ describe('potentialActions (turn-independent availability projection)', () => {
 
     it('one free fleet caps a board full of open colonies', () => {
       const {player} = coloniesGame();
-      expect(ColoniesHandler.tradeableColonies(player.game).length).to.be.greaterThan(1);
+      expect(ColoniesHandler.tradeableColonies(player.game, player).length).to.be.greaterThan(1);
       expect(player.colonies.freeTradeFleets()).to.eq(1);
       expect(potentialActions(player).colonyTrades).to.eq(1);
     });
@@ -110,10 +110,10 @@ describe('potentialActions (turn-independent availability projection)', () => {
       const {player, opponent} = coloniesGame();
       player.colonies.increaseFleetSize();
       // Park a visitor on every colony but one.
-      ColoniesHandler.tradeableColonies(player.game).slice(1).forEach((c) => {
+      ColoniesHandler.tradeableColonies(player.game, player).slice(1).forEach((c) => {
         c.visitor = opponent.id;
       });
-      expect(ColoniesHandler.tradeableColonies(player.game).length).to.eq(1);
+      expect(ColoniesHandler.tradeableColonies(player.game, player).length).to.eq(1);
       expect(potentialActions(player).colonyTrades).to.eq(1);
     });
 
@@ -123,7 +123,7 @@ describe('potentialActions (turn-independent availability projection)', () => {
       player.megaCredits = 0;
       player.energy = 0;
       player.titanium = 0;
-      expect(ColoniesHandler.tradeableColonies(player.game).length).to.be.greaterThan(1);
+      expect(ColoniesHandler.tradeableColonies(player.game, player).length).to.be.greaterThan(1);
       expect(player.colonies.freeTradeFleets()).to.eq(2);
       expect(potentialActions(player).colonyTrades).to.eq(0);
     });

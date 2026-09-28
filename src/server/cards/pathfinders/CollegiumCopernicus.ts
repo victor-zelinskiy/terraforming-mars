@@ -7,7 +7,6 @@ import {CardRenderer} from '../render/CardRenderer';
 import {IActionCard, ICard} from '../ICard';
 import {CardResource} from '../../../common/CardResource';
 import {ColoniesHandler} from '../../colonies/ColoniesHandler';
-import {SelectColony} from '../../inputs/SelectColony';
 import {IColonyTrader} from '../../colonies/IColonyTrader';
 import {IColony} from '../../colonies/IColony';
 import {AddResourcesToCard} from '../../deferredActions/AddResourcesToCard';
@@ -57,9 +56,8 @@ export class CollegiumCopernicus extends CorporationCard implements ICorporation
   }
 
   public action(player: IPlayer) {
-    const game = player.game;
     player.defer(
-      new SelectColony('Select colony tile to trade with', 'Select', ColoniesHandler.tradeableColonies(game))
+      ColoniesHandler.tradeColonyPick(player, 'Select colony tile to trade with', 'Select')
         .andThen((colony) => {
           tradeWithColony(this, player, colony);
           return undefined;

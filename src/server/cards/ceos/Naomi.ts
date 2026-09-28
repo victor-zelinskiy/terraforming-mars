@@ -30,7 +30,7 @@ export class Naomi extends CeoCard implements ICeoCard {
   }
 
   public override canAct(player: IPlayer): boolean {
-    return super.canAct(player) && ColoniesHandler.tradeableColonies(player.game).length > 0;
+    return super.canAct(player) && ColoniesHandler.tradeableColonies(player.game, player).length > 0;
   }
 
   public action(player: IPlayer): PlayerInput | undefined {

@@ -35,6 +35,8 @@ import {CardName} from '../../common/cards/CardName';
 import {AwardScorer} from '../awards/AwardScorer';
 import {SpaceId} from '../../common/Types';
 import {cardsToModel, coloniesToModel} from './ModelUtils';
+import {ColoniesHandler} from '../colonies/ColoniesHandler';
+import {ColonyTradeBlockModel} from '../../common/models/ColonyModel';
 import {newProjectCard} from '../createCard';
 import {runId} from '../utils/server-ids';
 import {toName} from '../../common/utils/utils';
@@ -603,6 +605,10 @@ export class Server {
     // restating its rules, so the two can never disagree.
     const canAdvanceDelta = inActionSelection &&
       (potential !== undefined ? potential.hydroAdvance > 0 : potentialHydroAdvance(player));
+    const colonyTradeBlocks: Array<ColonyTradeBlockModel> = game.gameOptions.coloniesExtension ?
+      ColoniesHandler.blockedColonies(game, player, player.colonies.bestBonusTradeOffset())
+        .map(({colony, reason}) => ({colony: colony.name, reason})) :
+      [];
     const model: PublicPlayerModel = {
       actionsTakenThisRound: player.actionsTakenThisRound,
       actionsTakenThisGame: player.actionsTakenThisGame,
@@ -681,6 +687,11 @@ export class Server {
       titaniumValue: player.getTitaniumValue(),
       tradesThisGeneration: player.colonies.usedTradeFleets,
       colonyTradeOffset: player.colonies.tradeOffset,
+      // The open colonies that REFUSE this player a trade, by the colony's own
+      // rule (`IColony.tradeBlockedReason`), read at the reach of their best
+      // payment path — so the tile, the dossier and the action wheel all name
+      // the server's reason instead of guessing «not enough resources».
+      ...(colonyTradeBlocks.length > 0 ? {colonyTradeBlocks} : {}),
       underworldData: player.underworldData,
       victoryPointsBreakdown: {
         terraformRating: 0,

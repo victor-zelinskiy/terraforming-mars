@@ -24,8 +24,8 @@ import {SendDelegateToArea} from '../deferredActions/SendDelegateToArea';
 import {IGame} from '../IGame';
 import {Turmoil} from '../turmoil/Turmoil';
 import {SerializedColony} from '../SerializedColony';
-import {ColonyBonusOrdinal, IColony, TradeOptions} from './IColony';
-import {ColonyMetadata, colonyMetadata, InputColonyMetadata} from '../../common/colonies/ColonyMetadata';
+import {ColonyBonusOrdinal, IColony, TradeOptions, TradeTrackPlan} from './IColony';
+import {ColonyMetadata, colonyMetadata, InputColonyMetadata, tradeBenefitAt} from '../../common/colonies/ColonyMetadata';
 import {ColonyName} from '../../common/colonies/ColonyName';
 import {ColonyBenefitRole} from '../../common/events/EventSource';
 import {CardDrawRevealSource, ColonyTradeRevealTag} from '../../common/models/CardDrawRevealModel';
@@ -146,36 +146,111 @@ export abstract class Colony implements IColony {
     * @param decreaseTrackAfterTrade when false, the track does not decrease after trading.
     */
   public trade(player: IPlayer, tradeOptions: TradeOptions = {}, bonusTradeOffset = 0): void {
+    if (tradeOptions.selfishTrade === true) {
+      // Coordinated Raid: no advance — the income is read where the marker stands.
+      if (this.refuseTrade(player, this.tradeIncomeBlockedReason(player, this.trackPosition))) {
+        return;
+      }
+      ParliamentHandler.onTrade(player);
+      this.handleTrade(player, tradeOptions);
+      return;
+    }
+
+    const plan = this.tradeTrackPlan(player, bonusTradeOffset);
+    if (this.refuseTrade(player, plan.blockedReason)) {
+      return;
+    }
     // Turmoil Redux: the chairman quest (trades performed) — reported at the
     // one door every trade enters by, BEFORE the track question: the fee is
     // paid and the fleet committed by now, so the trade is a fact whichever
     // way the player answers about the track.
     ParliamentHandler.onTrade(player);
-    const tradeOffset = player.colonies.tradeOffset + bonusTradeOffset;
-    const maxPossibleTrackPosition = Math.min(this.trackPosition + tradeOffset, MAX_COLONY_TRACK_POSITION);
-    const steps = maxPossibleTrackPosition - this.trackPosition;
 
-    if (steps === 0 ||
-        this.metadata.shouldIncreaseTrack === 'no' ||
-        tradeOptions.selfishTrade === true) {
-      // Don't increase
-      this.handleTrade(player, tradeOptions);
+    if (plan.ask) {
+      // Ask the player how far to advance — down to the plan's floor.
+      player.game.defer(new IncreaseColonyTrack(player, this, plan.steps, plan.minSteps))
+        .andThen(() => this.handleTrade(player, tradeOptions));
       return;
     }
 
-    if (this.metadata.shouldIncreaseTrack === 'yes' || (this.metadata.trade.resource !== undefined && this.metadata.trade.resource[this.trackPosition] === this.metadata.trade.resource[maxPossibleTrackPosition])) {
+    if (plan.steps > 0) {
       // No point in asking the player, just increase it
       const oldPosition = this.trackPosition;
-      this.increaseTrack(steps);
-      LogHelper.logColonyTrackIncrease(player, this, steps);
+      this.increaseTrack(plan.steps);
+      LogHelper.logColonyTrackIncrease(player, this, plan.steps);
       this.recordTradeTrackBonus(player, oldPosition, this.trackPosition - oldPosition);
-      this.handleTrade(player, tradeOptions);
-      return;
+    }
+    this.handleTrade(player, tradeOptions);
+  }
+
+  /**
+   * A trade that reaches this door while the colony refuses the player is a
+   * NAMED skip, never a payout into nothing. The interactive offers already
+   * filter and disable by the same reason, so only a bulk trade meets it
+   * (Trade Advance: «trade with all active colonies»).
+   */
+  private refuseTrade(player: IPlayer, reason: string | undefined): boolean {
+    if (reason === undefined) {
+      return false;
+    }
+    player.game.log('${0} cannot trade with ${1}: ${2}', (b) => b.player(player).colony(this).string(reason));
+    return true;
+  }
+
+  /** The base colony refuses nobody — a colony with a rule of its own overrides this in its own file. */
+  public tradeIncomeBlockedReason(_player: IPlayer, _position: number): string | undefined {
+    return undefined;
+  }
+
+  /**
+   * The income's IDENTITY at a position — what the `ask` decision compares.
+   * A change of KIND (data → cards) is a different reward exactly as a change
+   * of resource is (Mercury's heat → steel); a change of amount alone is not.
+   */
+  private rewardKindAt(position: number): string {
+    const income = tradeBenefitAt(this.metadata, position);
+    return `${income.type}|${income.resource ?? ''}`;
+  }
+
+  public tradeTrackPlan(player: IPlayer, bonusTradeOffset = 0): TradeTrackPlan {
+    const current = this.trackPosition;
+    const tradeOffset = player.colonies.tradeOffset + bonusTradeOffset;
+    const max = Math.min(current + tradeOffset, MAX_COLONY_TRACK_POSITION);
+    const reach = max - current;
+
+    // The steps the colony's advance policy lets a trade LAND on: a `yes`
+    // colony always goes as far as it can, a `no` colony never moves, an
+    // `ask` colony offers every step of the reach.
+    let candidates: Array<number>;
+    if (reach === 0 || this.metadata.shouldIncreaseTrack === 'no') {
+      candidates = [0];
+    } else if (this.metadata.shouldIncreaseTrack === 'yes') {
+      candidates = [reach];
+    } else {
+      candidates = Array.from({length: reach + 1}, (_, step) => step);
     }
 
-    // Ask the player if they want to increase the track
-    player.game.defer(new IncreaseColonyTrack(player, this, steps))
-      .andThen(() => this.handleTrade(player, tradeOptions));
+    // …minus the landings this colony refuses THIS player (its own rule).
+    const legal = candidates.filter((step) => this.tradeIncomeBlockedReason(player, current + step) === undefined);
+    if (legal.length === 0) {
+      // Nothing in reach may be traded: the refusal at the FARTHEST reach is
+      // the reason (the rules' «you could only go up to the 5th position»).
+      const farthest = candidates[candidates.length - 1];
+      return {
+        current, max, steps: farthest, minSteps: farthest, ask: false,
+        blockedReason: this.tradeIncomeBlockedReason(player, current + farthest),
+      };
+    }
+    const minSteps = legal[0];
+    const steps = legal[legal.length - 1];
+    // Ask only when the legal landings pay DIFFERENT things — otherwise the
+    // farthest is simply the most of the same, and asking would be noise.
+    const kinds = new Set(legal.map((step) => this.rewardKindAt(current + step)));
+    return {current, max, steps, minSteps, ask: legal.length > 1 && kinds.size > 1};
+  }
+
+  public tradeBlockedReason(player: IPlayer, bonusTradeOffset = 0): string | undefined {
+    return this.tradeTrackPlan(player, bonusTradeOffset).blockedReason;
   }
 
   /**
@@ -198,8 +273,6 @@ export abstract class Colony implements IColony {
     if (sources.length === 0) {
       return;
     }
-    const quantity = this.metadata.trade.quantity;
-    const rewardAt = (pos: number): number => quantity[pos] ?? quantity[quantity.length - 1] ?? 0;
     let pos = oldPosition;
     let remaining = appliedSteps;
     for (const card of sources) {
@@ -210,7 +283,13 @@ export abstract class Colony implements IColony {
       if (take <= 0) {
         continue;
       }
-      const extraReward = Math.max(0, rewardAt(pos + take) - rewardAt(pos));
+      const before = tradeBenefitAt(this.metadata, pos);
+      const after = tradeBenefitAt(this.metadata, pos + take);
+      // The same kind of reward: the extra units. A DIFFERENT kind (the Redux
+      // Pluto's data → cards): the advance bought the whole new reward.
+      const extraReward = before.type === after.type && before.resource === after.resource ?
+        Math.max(0, after.quantity - before.quantity) :
+        after.quantity;
       events.recordColonyTrackBonus(player, card, this.name, take, extraReward);
       pos += take;
       remaining -= take;
@@ -218,7 +297,9 @@ export abstract class Colony implements IColony {
   }
 
   private handleTrade(player: IPlayer, options: TradeOptions) {
-    const resource = Array.isArray(this.metadata.trade.resource) ? this.metadata.trade.resource[this.trackPosition] : this.metadata.trade.resource;
+    // The income at the position the marker stands on NOW — kind, amount and
+    // resource resolved together (the Redux Pluto pays data low, cards high).
+    const income = tradeBenefitAt(this.metadata, this.trackPosition);
 
     // Build the ATOMIC reward manifest of this trade BEFORE granting anything.
     // Every value is the authoritative plan the grants execute against: the
@@ -251,7 +332,7 @@ export abstract class Colony implements IColony {
         generation: game.generation,
         preTradeTrackPosition: this.trackPosition,
         postTradeTrackPosition: willDecrease ? this.colonies.length : this.trackPosition,
-        tradeIncome: this.tradeGrantModel(this.metadata.trade.type, this.metadata.trade.quantity[this.trackPosition] ?? 0, resource),
+        tradeIncome: this.tradeGrantModel(income.type, income.quantity, income.resource),
         colonyBonus: this.colonies.length > 0 ?
           this.tradeGrantModel(this.metadata.colony.type, this.metadata.colony.quantity, this.metadata.colony.resource) :
           undefined,
@@ -260,7 +341,7 @@ export abstract class Colony implements IColony {
       this.activeTradeId = tradeId;
     }
 
-    this.giveBonus(player, this.metadata.trade.type, this.metadata.trade.quantity[this.trackPosition], resource, false, 'trade');
+    this.giveBonus(player, income.type, income.quantity, income.resource, false, 'trade');
 
     // !== false because default is true.
     if (options.giveColonyBonuses !== false) {
@@ -411,17 +492,27 @@ export abstract class Colony implements IColony {
       const openColonies = game.colonies.filter((colony) => colony.isActive);
       action = new SimpleDeferredAction(
         player,
-        () => new SelectColony('Select colony to gain trade income from', 'Select', openColonies)
-          .markChoiceContext({source: colonySource(this.name), mode: 'reward'})
-          .andThen((colony) => {
-            game.log('${0} gained ${1} trade bonus', (b) => b.player(player).colony(colony));
-            (colony as Colony).handleTrade(player, {
-              usesTradeFleet: false,
-              decreaseTrackAfterTrade: false,
-              giveColonyBonuses: false,
+        () => {
+          // The income is copied where each marker STANDS (no advance), so a
+          // colony that refuses this player there (the Redux Pluto: data with
+          // no holder) is shown DISABLED with its reason — copying it would
+          // pay nothing, silently.
+          const refusals = openColonies.map((colony) => ({colony, reason: colony.tradeIncomeBlockedReason(player, colony.trackPosition)}));
+          const select = new SelectColony('Select colony to gain trade income from', 'Select',
+            refusals.filter((r) => r.reason === undefined).map((r) => r.colony));
+          select.disabledColonies = refusals.flatMap((r) => r.reason === undefined ? [] : [{colony: r.colony, reason: r.reason}]);
+          return select
+            .markChoiceContext({source: colonySource(this.name), mode: 'reward'})
+            .andThen((colony) => {
+              game.log('${0} gained ${1} trade bonus', (b) => b.player(player).colony(colony));
+              (colony as Colony).handleTrade(player, {
+                usesTradeFleet: false,
+                decreaseTrackAfterTrade: false,
+                giveColonyBonuses: false,
+              });
+              return undefined;
             });
-            return undefined;
-          }),
+        },
       );
       break;
 

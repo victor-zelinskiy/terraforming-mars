@@ -223,6 +223,7 @@ import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay
 import {ColonyName} from '@/common/colonies/ColonyName';
 import {ColonyModel} from '@/common/models/ColonyModel';
 import {ColonyBenefit} from '@/common/colonies/ColonyBenefit';
+import {tradeBenefitAt} from '@/common/colonies/ColonyMetadata';
 import {CardResource} from '@/common/CardResource';
 import {Color} from '@/common/Color';
 import {PublicPlayerModel, PlayerViewModel} from '@/common/models/PlayerModel';
@@ -544,9 +545,8 @@ export default defineComponent({
       if (meta === undefined || this.colony === undefined) {
         return undefined;
       }
-      const t = meta.trade;
-      const resource = Array.isArray(t.resource) ? t.resource[idx] : t.resource;
-      return {type: t.type, quantity: [t.quantity[idx] ?? 0], resource};
+      const income = tradeBenefitAt(meta, idx);
+      return {type: income.type, quantity: [income.quantity], resource: income.resource};
     },
     optionLabel(opt: SelectOptionModel | DisabledOptionModel): string {
       return typeof opt.title === 'string' ? translateText(opt.title) : translateMessage(opt.title);
@@ -577,8 +577,8 @@ export default defineComponent({
       if (meta === undefined) {
         return {type: ColonyBenefit.GAIN_RESOURCES, quantity: [0]};
       }
-      const resource = Array.isArray(meta.trade.resource) ? meta.trade.resource[position] : meta.trade.resource;
-      return {type: meta.trade.type, quantity: meta.trade.quantity as Array<number>, resource};
+      const income = tradeBenefitAt(meta, position);
+      return {type: income.type, quantity: meta.trade.quantity as Array<number>, resource: income.resource};
     },
     chooseTrack(steps: number): void {
       this.captures = {...this.captures, track: steps};

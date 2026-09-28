@@ -199,7 +199,7 @@ import {getPreferences} from '@/client/utils/PreferencesManager';
 import {GlobalEventName} from '@/common/turmoil/globalEvents/GlobalEventName';
 import {allGlobalEventNames, getGlobalEvent} from '@/client/turmoil/ClientGlobalEventManifest';
 import {byType, getCard, getCardOrThrow, getCards} from '@/client/cards/ClientCardManifest';
-import {COMMUNITY_COLONY_NAMES, OFFICIAL_COLONY_NAMES, PATHFINDERS_COLONY_NAMES} from '@/common/colonies/AllColonies';
+import {COMMUNITY_COLONY_NAMES, OFFICIAL_COLONY_NAMES, PATHFINDERS_COLONY_NAMES, TURMOIL_REDUX_COLONY_NAMES} from '@/common/colonies/AllColonies';
 import {ColonyModel} from '@/common/models/ColonyModel';
 import {ColonyName} from '@/common/colonies/ColonyName';
 import {GameModule, GAME_MODULES} from '@/common/cards/GameModule';
@@ -416,7 +416,7 @@ export default defineComponent({
       }
     },
     getAllColonyNames() {
-      return OFFICIAL_COLONY_NAMES.concat(COMMUNITY_COLONY_NAMES).concat(PATHFINDERS_COLONY_NAMES);
+      return OFFICIAL_COLONY_NAMES.concat(COMMUNITY_COLONY_NAMES).concat(PATHFINDERS_COLONY_NAMES).concat(TURMOIL_REDUX_COLONY_NAMES);
     },
     include(name: string, type: 'card' | 'globalEvent' | 'colony' | 'ma' | 'agenda') {
       const normalized = this.filterText.toLocaleUpperCase();

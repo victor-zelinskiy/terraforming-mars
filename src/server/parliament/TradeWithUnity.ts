@@ -15,6 +15,9 @@ import {partySource} from './parties/PartyEffects';
  * matters (the same path Trading Colony uses).
  */
 export class TradeWithUnity implements IColonyTrader {
+  /** «You may advance the colony track 1 step first» — the reach the offer is judged by (see `IColonyTrader`). */
+  public readonly bonusTradeOffset = 1;
+
   constructor(private player: IPlayer) {}
 
   private hasAccess(): boolean {

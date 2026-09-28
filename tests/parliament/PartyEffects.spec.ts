@@ -283,7 +283,7 @@ describe('Party effects', () => {
       const howToPay = cast(trade.options[0], OrOptions);
       const unity = howToPay.options.findIndex((o) => (o as SelectOption).metadata?.description?.toString().includes('Unity'));
       expect(unity, 'the Unity path is offered').greaterThan(-1);
-      const colony = ColoniesHandler.tradeableColonies(game)[0];
+      const colony = ColoniesHandler.tradeableColonies(game, p1)[0];
       trade.process({type: 'and', responses: [
         {type: 'or', index: unity, response: {type: 'option'}},
         {type: 'colony', colonyName: colony.name},

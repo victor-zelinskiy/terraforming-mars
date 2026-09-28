@@ -307,6 +307,7 @@
   "${0} automatically removed 3 data from ${1} to draw a card.": "${0} автоматично видалив 3 дані з ${1}, щоб взяти карту.",
   "${0} spent 3 plants to raise the Venus level 1 step": "${0} витратив 3 рослини, щоб підняти рівень Венери на 1",
   "${0} cannot trade with ${1} because there is no colony they may visit.": "${0} не може торгувати з ${1}, оскільки вони не можуть відвідати жодну колонію.",
+  "${0} cannot trade with ${1}: ${2}": "${0} не може торгувати з ${1}: ${2}",
   "${0} is reusing a trade fleet from ${1}": "${0} використовує торговий флот з ${1} повторно",
   "${0} spent ${1} data from ${2} to trade with ${3}": "${0} витратив ${1} дані з ${2}, щоб торгувати з ${3}",
   "${0} gained 1 ${1} production from ${2}": "${0} отримав 1 одиницю виробництва ${1} від ${2}",

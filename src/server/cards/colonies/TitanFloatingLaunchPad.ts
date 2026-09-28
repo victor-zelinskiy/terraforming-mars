@@ -8,7 +8,6 @@ import {SelectOption} from '../../inputs/SelectOption';
 import {OrOptions} from '../../inputs/OrOptions';
 import {AddResourcesToCard} from '../../deferredActions/AddResourcesToCard';
 import {IColony} from '../../colonies/IColony';
-import {SelectColony} from '../../inputs/SelectColony';
 import {CardRenderer} from '../render/CardRenderer';
 import {Card} from '../Card';
 import {IColonyTrader} from '../../colonies/IColonyTrader';
@@ -116,7 +115,7 @@ export class TitanFloatingLaunchPad extends Card implements IProjectCard {
         // The trader IS the implementation; this is one of its two entry points.
         const trader = new TradeWithTitanFloatingLaunchPad(player);
         player.defer(
-          new SelectColony('Select colony tile to trade with for free', 'trade', ColoniesHandler.tradeableColonies(player.game))
+          ColoniesHandler.tradeColonyPick(player, 'Select colony tile to trade with for free', 'trade')
             .andThen((colony) => {
               const events = player.game.events;
               events?.beginAction(player, {kind: 'colony', name: colony.name}, {category: 'colony'});

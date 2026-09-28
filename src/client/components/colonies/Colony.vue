@@ -69,11 +69,11 @@
       <br>
 
       <!-- Bonus for player who trades -->
-      <template v-if="metadata.trade.type === ColonyBenefit.GAIN_RESOURCES">
+      <template v-if="tradeType === ColonyBenefit.GAIN_RESOURCES">
         <div style="margin-left:20px;" class="resource" :class="metadata.trade.resource"></div>
         <div class="white-x"></div>
       </template>
-       <template v-if="metadata.trade.type === ColonyBenefit.ADD_RESOURCES_TO_CARD">
+       <template v-if="tradeType === ColonyBenefit.ADD_RESOURCES_TO_CARD">
         <div style="margin-left:20px;" class="resource" :class="colonyResourceClass"></div>
         <div class="white-x"></div>
       </template>
@@ -127,7 +127,7 @@ import {defineComponent} from 'vue';
 
 import {ColonyModel} from '@/common/models/ColonyModel';
 import {ColonyName} from '@/common/colonies/ColonyName';
-import {ColonyMetadata} from '@/common/colonies/ColonyMetadata';
+import {ColonyMetadata, tradeBenefitAt} from '@/common/colonies/ColonyMetadata';
 import ColonyRow from '@/client/components/colonies/ColonyRow.vue';
 import ColonyTradeRow from '@/client/components/colonies/ColonyTradeRow.vue';
 import ColonyFleetIcon from '@/client/components/colonies/ColonyFleetIcon.vue';
@@ -160,6 +160,10 @@ export default defineComponent({
     colonyResourceClass(): string {
       const resource = this.metadata.cardResource;
       return resource?.toString()?.toLowerCase() ?? '';
+    },
+    /** The income's KIND at the marker's position (per-position on the Redux Pluto). */
+    tradeType(): ColonyBenefit {
+      return tradeBenefitAt(this.metadata, this.colony.trackPosition).type;
     },
     recedeIfInactive(): string {
       return this.active === false ? 'inactiveColony' : '';

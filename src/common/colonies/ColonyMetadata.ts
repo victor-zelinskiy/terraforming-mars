@@ -5,9 +5,17 @@ import {CardResource} from '../CardResource';
 import {Expansion, GameModule} from '../cards/GameModule';
 import {OneOrArray} from '../utils/types';
 
-type Benefit<S, T> = {
+/**
+ * `K` is the benefit KIND. It is a single `ColonyBenefit` for the build and
+ * colony bonuses, and `OneOrArray<ColonyBenefit>` for the TRADE income —
+ * exactly as `resource` is per-position there (Europa, Mercury, Hygiea). The
+ * Turmoil Redux Pluto pays DATA at positions 1–5 and CARDS at 6–7: the KIND
+ * of the income moves along the track, not only its resource or amount.
+ * Read it through {@link tradeBenefitAt} — never index `type` by hand.
+ */
+type Benefit<S, T, K = ColonyBenefit> = {
   description: string,
-  type: ColonyBenefit;
+  type: K;
   quantity: S
   resource?: T;
 }
@@ -16,7 +24,7 @@ export type ColonyMetadata = Readonly<{
   module?: GameModule; // TODO(kberg): attach gameModule to the server colonies themselves.
   name: ColonyName;
   build: Benefit<Array<number>, Resource>, // Default is [1,1,1]
-  trade: Benefit<Array<number>, OneOrArray<Resource>>, // Default is [1,1,1,1,1,1,1]
+  trade: Benefit<Array<number>, OneOrArray<Resource>, OneOrArray<ColonyBenefit>>, // Default is [1,1,1,1,1,1,1]
   colony: Benefit<number, Resource>, // Default is 1
   cardResource?: CardResource,
   /**
@@ -45,9 +53,9 @@ export type ColonyMetadata = Readonly<{
   shouldIncreaseTrack: 'yes' | 'no' | 'ask'
 }>;
 
-type InputBenefit<T extends Benefit<any, any>> = {
+type InputBenefit<T extends Benefit<any, any, any>> = {
   description: string,
-  type: ColonyBenefit,
+  type: T['type'],
   quantity?: T['quantity'],
   resource?: T['resource'],
 }
@@ -70,11 +78,62 @@ export type InputColonyMetadata = {
 const DEFAULT_BUILD_QUANTITY = [1, 1, 1];
 const DEFAULT_TRADE_QUANTITY = [1, 1, 1, 1, 1, 1, 1];
 
-export function benefitMetadata<S, T>(partial: InputBenefit<Benefit<S, T>>, defaultQuantity: S): Benefit<S, T> {
+export function benefitMetadata<S, T, K = ColonyBenefit>(partial: InputBenefit<Benefit<S, T, K>>, defaultQuantity: S): Benefit<S, T, K> {
   return {
     ...partial,
     quantity: partial.quantity ?? defaultQuantity,
   };
+}
+
+/** The benefit KIND at one track position of a per-position `type`. */
+export function benefitTypeAt(type: OneOrArray<ColonyBenefit>, position: number): ColonyBenefit {
+  if (!Array.isArray(type)) {
+    return type;
+  }
+  const last = type.length - 1;
+  return type[Math.min(Math.max(position, 0), last)];
+}
+
+/** The trade income at ONE track position, every per-position field resolved. */
+export type TradeBenefitAt = {
+  type: ColonyBenefit;
+  quantity: number;
+  resource: Resource | undefined;
+};
+
+/**
+ * THE ONE READING of a colony's trade income at a track position — the kind,
+ * the amount and the standard resource, each of which may vary along the
+ * track. The server pays exactly this (`Colony.handleTrade`), the preview
+ * plans it, and every client surface draws it; none may index the arrays
+ * itself, because a reader that resolves the resource but not the kind shows
+ * the Redux Pluto paying «3 cards» where the tile prints three data.
+ */
+export function tradeBenefitAt(metadata: ColonyMetadata, position: number): TradeBenefitAt {
+  const trade = metadata.trade;
+  const last = trade.quantity.length - 1;
+  const pos = Math.min(Math.max(position, 0), last);
+  const resource = Array.isArray(trade.resource) ? trade.resource[pos] : trade.resource;
+  return {
+    type: benefitTypeAt(trade.type, pos),
+    quantity: trade.quantity[pos] ?? 0,
+    resource,
+  };
+}
+
+/** Every DISTINCT kind the trade track pays, in track order (one entry for a uniform track). */
+export function tradeBenefitTypes(metadata: ColonyMetadata): ReadonlyArray<ColonyBenefit> {
+  const type = metadata.trade.type;
+  if (!Array.isArray(type)) {
+    return [type];
+  }
+  const out: Array<ColonyBenefit> = [];
+  for (const kind of type) {
+    if (!out.includes(kind)) {
+      out.push(kind);
+    }
+  }
+  return out;
 }
 
 export function colonyMetadata(partial: InputColonyMetadata): ColonyMetadata {

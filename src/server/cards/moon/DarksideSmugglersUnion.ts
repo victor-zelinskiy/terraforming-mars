@@ -9,7 +9,6 @@ import {IPlayer} from '../../IPlayer';
 import {IColonyTrader} from '../../colonies/IColonyTrader';
 import {IColony} from '../../colonies/IColony';
 import {ColoniesHandler} from '../../colonies/ColoniesHandler';
-import {SelectColony} from '../../inputs/SelectColony';
 import {message} from '../../logs/MessageBuilder';
 
 export class DarksideSmugglersUnion extends Card implements IProjectCard, IActionCard {
@@ -41,8 +40,7 @@ export class DarksideSmugglersUnion extends Card implements IProjectCard, IActio
   }
 
   public action(player: IPlayer) {
-    const tradeableColonies = ColoniesHandler.tradeableColonies(player.game);
-    return new SelectColony('Select colony tile to trade with for free', 'Select', tradeableColonies)
+    return ColoniesHandler.tradeColonyPick(player, 'Select colony tile to trade with for free', 'Select')
       .andThen((colony: IColony) => {
         player.game.log('${0} traded with ${1}', (b) => b.player(player).colony(colony));
         colony.trade(player);

@@ -226,7 +226,7 @@
 <script lang="ts">
 import {defineComponent} from 'vue';
 import {ColonyModel} from '@/common/models/ColonyModel';
-import {ColonyMetadata} from '@/common/colonies/ColonyMetadata';
+import {ColonyMetadata, tradeBenefitAt} from '@/common/colonies/ColonyMetadata';
 import {ColonyBenefit} from '@/common/colonies/ColonyBenefit';
 import {Color} from '@/common/Color';
 import {displayNameForColor} from '@/client/components/marsbot/marsBotDisplay';
@@ -318,12 +318,11 @@ export default defineComponent({
     // each track cell shows its own glyph; for the usual single-resource
     // colonies we pass the resource through unchanged.
     tradeAtIndex(idx: number): {type: ColonyBenefit; quantity: Array<number>; resource?: unknown} {
-      const t = this.metadata.trade;
-      const resource = Array.isArray(t.resource) ? t.resource[idx] : t.resource;
+      const income = tradeBenefitAt(this.metadata, idx);
       return {
-        type: t.type,
-        quantity: [t.quantity[idx] ?? 0],
-        resource,
+        type: income.type,
+        quantity: [income.quantity],
+        resource: income.resource,
       };
     },
   },

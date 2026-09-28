@@ -162,7 +162,7 @@
             resource icon is kept for the regular single-resource
             colonies (Callisto energy, Io heat, ...).
           -->
-          <template v-if="metadata.trade.type === BG.GAIN_PRODUCTION">
+          <template v-if="tradeReward.type === BG.GAIN_PRODUCTION">
             <span class="production-box colony-tile__row-reward-prod">
               <span class="production" :class="tradeProductionResourceClass"></span>
             </span>
@@ -171,9 +171,10 @@
             DRAW_CARDS (Pluto trade) — отдельная ветка, потому что
             `tradeRewardClass` для DRAW_CARDS падает в `abstract`-fallback
             (пустой квадрат). Card-иконку через `.resource.card` + размерный
-            override (`--card`).
+            override (`--card`). The KIND is read at the marker's position —
+            the Redux Pluto pays data low and cards high.
           -->
-          <template v-else-if="metadata.trade.type === BG.DRAW_CARDS">
+          <template v-else-if="tradeReward.type === BG.DRAW_CARDS">
             <span class="resource card colony-tile__row-reward-icon colony-tile__row-reward-icon--card"></span>
           </template>
           <template v-else>
@@ -247,6 +248,7 @@ import {ColonyMetadata} from '@/common/colonies/ColonyMetadata';
 import {ColonyBenefit} from '@/common/colonies/ColonyBenefit';
 import {Color} from '@/common/Color';
 import {getColony} from '@/client/colonies/ClientColonyManifest';
+import {rewardAtPosition, TradeRewardAt} from '@/client/components/colonies/colonyTradePlan';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 import BuildBenefit from './BuildBenefit.vue';
 import ColonyFleetIcon from '@/client/components/colonies/ColonyFleetIcon.vue';
@@ -333,8 +335,12 @@ export default defineComponent({
     BG(): typeof ColonyBenefit {
       return ColonyBenefit;
     },
+    /** The income at the marker's position — kind, amount and resource resolved together. */
+    tradeReward(): TradeRewardAt {
+      return rewardAtPosition(this.metadata, Math.min(this.colony.trackPosition, 6));
+    },
     tradeRewardClass(): string {
-      const t = this.metadata.trade;
+      const t = this.tradeReward;
       if (t.type === ColonyBenefit.GAIN_RESOURCES && typeof t.resource === 'string') {
         return t.resource.toString().toLowerCase();
       }
@@ -357,8 +363,7 @@ export default defineComponent({
       return '';
     },
     tradeRewardNum(): number {
-      const pos = Math.min(this.colony.trackPosition, 6);
-      return this.metadata.trade.quantity[pos] ?? 1;
+      return this.tradeReward.quantity || 1;
     },
     colonyBonusClass(): string {
       const c = this.metadata.colony;

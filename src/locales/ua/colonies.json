@@ -43,6 +43,10 @@
   "Draw n cards": "Взяти n карт",
   "Draw 1 card and then discard 1 card": "Взяти 1 карту, а потім відкинути 1 карту",
 
+  "Pluto Redux": "Плутон",
+  "Add n data to ANY card; at the last two positions draw 2 or 3 cards instead": "Додати n даних на будь-яку карту; на двох останніх позиціях натомість взяти 2 або 3 карти",
+  "No card of yours can hold the data this trade pays": "Жодна ваша карта не прийме дані з цієї торгівлі",
+
   "Titan": "Титан",
   "Add 3 floaters to ANY card": "Додати 3 аеростати на будь-яку карту",
   "Add n floaters to ANY card": "Додати n аеростатів на будь-яку карту",

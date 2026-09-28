@@ -702,7 +702,7 @@ import {defineComponent, PropType} from 'vue';
 import {useResizeObserver} from '@vueuse/core';
 import {CardModel} from '@/common/models/CardModel';
 import {ColonyModel} from '@/common/models/ColonyModel';
-import {ColonyMetadata} from '@/common/colonies/ColonyMetadata';
+import {ColonyMetadata, tradeBenefitAt} from '@/common/colonies/ColonyMetadata';
 import {ColonyBenefit} from '@/common/colonies/ColonyBenefit';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {ColonyName} from '@/common/colonies/ColonyName';
@@ -1568,7 +1568,10 @@ export default defineComponent({
         return [];
       }
       const options: Array<{steps: number, position: number, quantity: number, title: string}> = [];
-      for (let n = step.steps; n >= 0; n--) {
+      // Down to the plan's FLOOR: below it the colony refuses this player its
+      // income (the Redux Pluto's data with no holder) — the server lists those
+      // steps disabled, and «don't increase» exists only when 0 is legal.
+      for (let n = step.steps; n >= step.minSteps; n--) {
         const position = Math.min(current + n, this.metadata.trade.quantity.length - 1);
         options.push({
           steps: n,
@@ -1881,7 +1884,9 @@ export default defineComponent({
       }));
     },
     resourceLost(): boolean {
-      return this.benefitResourceLost(this.metadata.trade.type);
+      // Read at the position the trade will PAY — the Redux Pluto's data
+      // positions can be lost, its card positions cannot.
+      return this.benefitResourceLost(rewardAtPosition(this.metadata, this.rewardPosition).type);
     },
     noticeRows(): Array<NoticeRow> {
       if (!this.configLive) {
@@ -2329,9 +2334,8 @@ export default defineComponent({
       return key !== undefined ? iconClassFor(key) + ' con-task__opt-res' : '';
     },
     tradeBenefitAt(position: number): {type: ColonyBenefit, quantity: ReadonlyArray<number>, resource?: unknown} {
-      const t = this.metadata.trade;
-      const resource = Array.isArray(t.resource) ? t.resource[position] : t.resource;
-      return {type: t.type, quantity: t.quantity, resource};
+      const income = tradeBenefitAt(this.metadata, position);
+      return {type: income.type, quantity: this.metadata.trade.quantity, resource: income.resource};
     },
     targetImpact(row: StepRow): string {
       const step = row.step;

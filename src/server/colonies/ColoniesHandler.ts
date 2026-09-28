@@ -7,6 +7,7 @@ import {SelectColony} from '../inputs/SelectColony';
 import {IPlayer} from '../IPlayer';
 import {inplaceRemove} from '../../common/utils/utils';
 import {CardName} from '../../common/cards/CardName';
+import {Message} from '../../common/logs/Message';
 
 export class ColoniesHandler {
   public static getColony(game: IGame, colonyName: ColonyName, includeDiscardedColonies: boolean = false): IColony {
@@ -23,8 +24,47 @@ export class ColoniesHandler {
     throw new Error(`Unknown colony '${colonyName}'`);
   }
 
-  public static tradeableColonies(game: IGame) {
+  /** The colonies OPEN to trade at all: active, and no fleet docked. Nobody's question yet. */
+  public static openColonies(game: IGame): Array<IColony> {
     return game.colonies.filter((colony) => colony.isActive && colony.visitor === undefined);
+  }
+
+  /**
+   * The colonies `player` may trade with RIGHT NOW: open, and not refusing
+   * this player (`IColony.tradeBlockedReason` — the Turmoil Redux Pluto with
+   * no card to hold its data). `bonusTradeOffset` is the extra track step the
+   * payment path in question grants (the Unity action's +1): a refusal at the
+   * low positions can lift when the reach is longer, so the question is asked
+   * per player AND per path — never for the table alone.
+   */
+  public static tradeableColonies(game: IGame, player: IPlayer, bonusTradeOffset = 0): Array<IColony> {
+    return ColoniesHandler.openColonies(game)
+      .filter((colony) => colony.tradeBlockedReason(player, bonusTradeOffset) === undefined);
+  }
+
+  /** The open colonies that REFUSE `player` right now, each with its reason (the complement of `tradeableColonies`). */
+  public static blockedColonies(game: IGame, player: IPlayer, bonusTradeOffset = 0): Array<{colony: IColony, reason: string}> {
+    const out: Array<{colony: IColony, reason: string}> = [];
+    for (const colony of ColoniesHandler.openColonies(game)) {
+      const reason = colony.tradeBlockedReason(player, bonusTradeOffset);
+      if (reason !== undefined) {
+        out.push({colony, reason});
+      }
+    }
+    return out;
+  }
+
+  /**
+   * A «which colony to trade with» pick for `player`: the tradeable colonies
+   * selectable, the refused ones DISABLED with their reason (never dropped —
+   * a tile that silently vanished from the picker is the one the player asks
+   * about). The caller chains its own `andThen`.
+   */
+  public static tradeColonyPick(player: IPlayer, title: string | Message, buttonLabel: string, bonusTradeOffset = 0): SelectColony {
+    const game = player.game;
+    const select = new SelectColony(title, buttonLabel, ColoniesHandler.tradeableColonies(game, player, bonusTradeOffset));
+    select.disabledColonies = ColoniesHandler.blockedColonies(game, player, bonusTradeOffset);
+    return select;
   }
 
   /**

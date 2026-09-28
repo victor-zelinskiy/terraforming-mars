@@ -43,8 +43,16 @@ export type ColonyTradeFollowUpModel =
   | {
       /** The IncreaseColonyTrack prompt (an `ask` colony + a trade offset). */
       kind: 'trackChoice',
-      /** Max steps the track may advance (the prompt offers steps…1 + "don't"). */
+      /** Max steps the track may advance (the prompt offers steps…minSteps, + "don't" when minSteps is 0). */
       steps: number,
+      /**
+       * The FEWEST steps the player may choose. Above 0 when the colony
+       * refuses this player its income at the lower positions (the Turmoil
+       * Redux Pluto: data with no card to hold it) — the prompt then offers
+       * no «don't increase» and lists the refused steps disabled with the
+       * colony's reason. Absent = 0 (older servers).
+       */
+      minSteps?: number,
     }
   | {
       /** An "add N resources to a card" reward needing a target card. */

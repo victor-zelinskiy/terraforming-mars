@@ -149,7 +149,8 @@
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
 import {ColonyModel} from '@/common/models/ColonyModel';
-import {ColonyMetadata} from '@/common/colonies/ColonyMetadata';
+import {ColonyMetadata, tradeBenefitAt} from '@/common/colonies/ColonyMetadata';
+import {ColonyBenefit} from '@/common/colonies/ColonyBenefit';
 import {getColony} from '@/client/colonies/ClientColonyManifest';
 import {effectiveTradePosition, rewardAtPosition, TradeRewardAt} from '@/client/components/colonies/colonyTradePlan';
 import {colonyTrackWaveState, colonyTradeState, presentedColonyModel} from '@/client/console/colonyTrade/consoleColonyTrade';
@@ -222,10 +223,10 @@ export default defineComponent({
       const b = this.metadata.build;
       return {type: b.type, quantity: b.quantity, resource: Array.isArray(b.resource) ? b.resource[0] : b.resource};
     },
-    tradeBenefit(): {type: ColonyMetadata['trade']['type'], quantity: ReadonlyArray<number>, resource?: unknown} {
-      const t = this.metadata.trade;
-      const resource = Array.isArray(t.resource) ? t.resource[this.effectivePosition] : t.resource;
-      return {type: t.type, quantity: t.quantity, resource};
+    /** The income at the position a trade READS — kind and resource resolved there (the Redux Pluto: data low, cards high). */
+    tradeBenefit(): {type: ColonyBenefit, quantity: ReadonlyArray<number>, resource?: unknown} {
+      const income = tradeBenefitAt(this.metadata, this.effectivePosition);
+      return {type: income.type, quantity: this.metadata.trade.quantity, resource: income.resource};
     },
     colonyBenefit(): {type: ColonyMetadata['colony']['type'], quantity: ReadonlyArray<number>, resource?: unknown} {
       const c = this.metadata.colony;

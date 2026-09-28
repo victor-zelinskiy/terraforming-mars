@@ -155,7 +155,7 @@
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
 import {ColonyModel} from '@/common/models/ColonyModel';
-import {ColonyMetadata} from '@/common/colonies/ColonyMetadata';
+import {ColonyMetadata, tradeBenefitAt} from '@/common/colonies/ColonyMetadata';
 import {ColonyBenefit} from '@/common/colonies/ColonyBenefit';
 import {Color} from '@/common/Color';
 import {trackResetAfterBuild, trackResetPosition} from '@/client/components/colonies/colonyTradePlan';
@@ -244,10 +244,10 @@ export default defineComponent({
     },
   },
   methods: {
+    /** The cell's income — kind AND resource at that position (the Redux Pluto: data cells, then card cells). */
     tradeBenefitAt(position: number): Benefit {
-      const t = this.metadata.trade;
-      const resource = Array.isArray(t.resource) ? t.resource[position] : t.resource;
-      return {type: t.type, quantity: t.quantity, resource};
+      const income = tradeBenefitAt(this.metadata, position);
+      return {type: income.type, quantity: this.metadata.trade.quantity, resource: income.resource};
     },
   },
 });

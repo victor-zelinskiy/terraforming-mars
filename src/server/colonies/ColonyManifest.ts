@@ -23,6 +23,7 @@ import {IapetusII} from '../cards/pathfinders/IapetusII';
 import {Deimos} from './Deimos';
 import {Terra} from '../cards/community/Terra';
 import {Kuiper} from '../cards/community/Kuiper';
+import {PlutoRedux} from './PlutoRedux';
 // import {LeavittII} from '../cards/pathfinders/LeavittII';
 
 export interface IColonyFactory<T> {
@@ -62,7 +63,16 @@ export const PATHFINDERS_COLONIES_TILES: Array<IColonyFactory<Colony>> = [
   {colonyName: ColonyName.IAPETUS_II, Factory: IapetusII},
 ];
 
-export const ALL_COLONIES_TILES = [...BASE_COLONIES_TILES, ...COMMUNITY_COLONIES_TILES, ...PATHFINDERS_COLONIES_TILES];
+/**
+ * Turmoil Redux REPLACEMENT tiles. Never dealt beside the base tile of the
+ * same name: `ColonyDealer` swaps each in for its namesake
+ * (`TURMOIL_REDUX_REPLACEMENTS`) when the expansion is on.
+ */
+export const TURMOIL_REDUX_COLONIES_TILES: Array<IColonyFactory<Colony>> = [
+  {colonyName: ColonyName.PLUTO_REDUX, Factory: PlutoRedux},
+];
+
+export const ALL_COLONIES_TILES = [...BASE_COLONIES_TILES, ...COMMUNITY_COLONIES_TILES, ...PATHFINDERS_COLONIES_TILES, ...TURMOIL_REDUX_COLONIES_TILES];
 
 export function getColonyModule(name: ColonyName): GameModule {
   if (COMMUNITY_COLONIES_TILES.some((f) => f.colonyName === name)) {
@@ -70,6 +80,9 @@ export function getColonyModule(name: ColonyName): GameModule {
   }
   if (PATHFINDERS_COLONIES_TILES.some((f) => f.colonyName === name)) {
     return 'pathfinders';
+  }
+  if (TURMOIL_REDUX_COLONIES_TILES.some((f) => f.colonyName === name)) {
+    return 'turmoilRedux';
   }
   return 'colonies';
 }

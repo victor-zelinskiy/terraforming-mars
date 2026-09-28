@@ -43,6 +43,24 @@ describe('colonyTradeReason (console trade blocker ladder)', () => {
     expect(r).to.deep.eq({key: 'No trade fleet available', intrinsic: false, blocker: AVAILABILITY_BLOCKERS.DOMAIN});
   });
 
+  // The Turmoil Redux Pluto: the SERVER says this colony refuses the viewer
+  // («no card of yours can hold the data this trade pays»). Intrinsic — it
+  // beats the fleet count and the turn, and the client never derives it.
+  it('a server refusal of THIS colony for the viewer is intrinsic and outranks fleet / afford / turn', () => {
+    const reason = 'No card of yours can hold the data this trade pays';
+    const r = colonyTradeReason(base({colony: {name: 'Pluto Redux', isActive: true, visitor: undefined}, colonyBlock: reason, availableFleets: 0, myTurn: true}));
+    expect(r).to.deep.eq({key: reason, intrinsic: true, blocker: AVAILABILITY_BLOCKERS.DOMAIN});
+  });
+
+  it('a docked fleet still outranks the server refusal (the more absolute fact first)', () => {
+    const r = colonyTradeReason(base({colony: {name: 'Pluto Redux', isActive: true, visitor: 'red' as Color}, colonyBlock: 'No card of yours can hold the data this trade pays'}));
+    expect(r?.key).to.eq('Your trade fleet is currently here');
+  });
+
+  it('an offered trade wins over a stale refusal', () => {
+    expect(colonyTradeReason(base({tradeable: ['Pluto Redux'], colony: {name: 'Pluto Redux', isActive: true, visitor: undefined}, colonyBlock: 'stale'}))).to.eq(undefined);
+  });
+
   it('a window open for OTHERS but this trade withheld → can\'t afford', () => {
     const r = colonyTradeReason(base({tradeable: ['Ganymede'], availableFleets: 1}));
     expect(r?.key).to.eq('Not enough resources to cover the cost');

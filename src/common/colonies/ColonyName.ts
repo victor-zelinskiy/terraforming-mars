@@ -29,5 +29,11 @@ export enum ColonyName {
     LEAVITT_II = 'Leavitt II',
     IAPETUS_II = 'Iapetus II',
 
+    // Turmoil Redux — REPLACEMENT tiles. A Redux tile stands in for its base
+    // namesake when the expansion is on (ColonyDealer swaps it in); it is never
+    // dealt beside the tile it replaces. The printed name is still «PLUTO» —
+    // the suffix is the tile's IDENTITY (enum, i18n key, art alias), not its face.
+    PLUTO_REDUX = 'Pluto Redux',
+
     // WHEN ADDING A NEW COLONY, ADD IT TO AllColonies.ts
 }

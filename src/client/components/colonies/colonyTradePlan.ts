@@ -26,7 +26,7 @@
 import {CardName} from '@/common/cards/CardName';
 import {ColonyBenefit} from '@/common/colonies/ColonyBenefit';
 import {ColonyName} from '@/common/colonies/ColonyName';
-import {ColonyMetadata} from '@/common/colonies/ColonyMetadata';
+import {ColonyMetadata, tradeBenefitAt, tradeBenefitTypes} from '@/common/colonies/ColonyMetadata';
 import {ColonyModel} from '@/common/models/ColonyModel';
 import {Color} from '@/common/Color';
 import {InputResponse} from '@/common/inputs/InputResponse';
@@ -44,7 +44,8 @@ export type TradeStep =
    *  energy is the remainder). Present only when the server will ASK
    *  (minSteel < maxSteel); a single valid mix is shown, never asked. */
   | {kind: 'energyMix', cost: number, minSteel: number, maxSteel: number, card: CardName}
-  | {kind: 'trackChoice', steps: number}
+  /** `minSteps` = the fewest steps the colony lets this player choose (0 = «don't» is legal). */
+  | {kind: 'trackChoice', steps: number, minSteps: number}
   | {
       kind: 'cardTarget',
       role: ColonyTradeFollowUpRole,
@@ -58,7 +59,7 @@ function followUpSteps(followUps: ReadonlyArray<ColonyTradeFollowUpModel>): Arra
   const steps: Array<TradeStep> = [];
   for (const followUp of followUps) {
     if (followUp.kind === 'trackChoice') {
-      steps.push({kind: 'trackChoice', steps: followUp.steps});
+      steps.push({kind: 'trackChoice', steps: followUp.steps, minSteps: followUp.minSteps ?? 0});
     } else if (followUp.kind === 'cardTarget' && followUp.pick !== undefined) {
       steps.push({
         kind: 'cardTarget',
@@ -234,7 +235,8 @@ export function allStepsCaptured(steps: ReadonlyArray<TradeStep>, captures: Read
 // ── Shared read helpers (tiles / panels / inspect) ───────────────────────────
 
 export type TradeRewardAt = {
-  type: ColonyMetadata['trade']['type'];
+  /** The benefit KIND at that position (the Redux Pluto: data low, cards high). */
+  type: ColonyBenefit;
   quantity: number;
   /** The standard resource granted (single or per-position array resolved). */
   resource: string | undefined;
@@ -242,15 +244,13 @@ export type TradeRewardAt = {
   cardResource: string | undefined;
 };
 
-/** The trade reward at one track position, straight from the manifest. */
+/** The trade reward at one track position, straight from the manifest — the shared `tradeBenefitAt` reading. */
 export function rewardAtPosition(metadata: ColonyMetadata, position: number): TradeRewardAt {
-  const pos = Math.min(Math.max(position, 0), metadata.trade.quantity.length - 1);
-  const raw = metadata.trade.resource;
-  const resource = Array.isArray(raw) ? raw[pos] : raw;
+  const income = tradeBenefitAt(metadata, position);
   return {
-    type: metadata.trade.type,
-    quantity: metadata.trade.quantity[pos] ?? 0,
-    resource: typeof resource === 'string' ? resource : undefined,
+    type: income.type,
+    quantity: income.quantity,
+    resource: typeof income.resource === 'string' ? income.resource : undefined,
     cardResource: metadata.cardResource,
   };
 }
@@ -311,7 +311,8 @@ export function colonyBuildDrawsCards(metadata: ColonyMetadata, slotIndex: numbe
 
 /** TRUE when a TRADE here deals cards at `position`. */
 export function colonyTradeDrawsCards(metadata: ColonyMetadata, position: number): boolean {
-  return CARD_BENEFITS.has(metadata.trade.type) && rewardAtPosition(metadata, position).quantity > 0;
+  const reward = rewardAtPosition(metadata, position);
+  return CARD_BENEFITS.has(reward.type) && reward.quantity > 0;
 }
 
 /**
@@ -328,11 +329,11 @@ export function colonyTradeDrawsCards(metadata: ColonyMetadata, position: number
  * answer, instead of standing as an empty stage until the 20 s backstop.
  */
 export function colonyTradeMayDrawCards(metadata: ColonyMetadata, position: number): boolean {
-  if (!CARD_BENEFITS.has(metadata.trade.type)) {
+  if (!tradeBenefitTypes(metadata).some((type) => CARD_BENEFITS.has(type))) {
     return false;
   }
   for (let i = Math.max(0, position); i < metadata.trade.quantity.length; i++) {
-    if (rewardAtPosition(metadata, i).quantity > 0) {
+    if (colonyTradeDrawsCards(metadata, i)) {
       return true;
     }
   }
@@ -360,7 +361,10 @@ const CARD_TARGET_BENEFITS: ReadonlySet<ColonyBenefit> = new Set([
  * colony workspace, never rise as a standalone band over it.
  */
 export function colonyTradeAsksCardTargets(metadata: ColonyMetadata, viewerOwnsSettlement: boolean): boolean {
-  return CARD_TARGET_BENEFITS.has(metadata.trade.type) ||
+  // A CLAIM may over-claim (it is released by the reconcile), so a track that
+  // lands on a card at ANY position counts — the final position is not known
+  // at submit time.
+  return tradeBenefitTypes(metadata).some((type) => CARD_TARGET_BENEFITS.has(type)) ||
     (viewerOwnsSettlement && CARD_TARGET_BENEFITS.has(metadata.colony.type));
 }
 

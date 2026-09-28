@@ -1,6 +1,7 @@
-import {MAX_COLONIES_PER_TILE, MAX_COLONY_TRACK_POSITION} from '../../common/constants';
+import {MAX_COLONIES_PER_TILE} from '../../common/constants';
 import {CardName} from '../../common/cards/CardName';
 import {ColonyBenefit} from '../../common/colonies/ColonyBenefit';
+import {tradeBenefitAt} from '../../common/colonies/ColonyMetadata';
 import {GlobalParameter} from '../../common/GlobalParameter';
 import {Tag} from '../../common/cards/Tag';
 import {CardResource} from '../../common/CardResource';
@@ -38,28 +39,17 @@ import {message} from '../logs/MessageBuilder';
 export function buildColonyTradePreview(player: IPlayer, colony: IColony): ColonyTradePreviewModel {
   const metadata = colony.metadata;
 
-  // ── Track advance — mirrors Colony.trade() exactly. ───────────────────────
-  const tradeOffset = player.colonies.tradeOffset;
-  const maxPossibleTrackPosition = Math.min(colony.trackPosition + tradeOffset, MAX_COLONY_TRACK_POSITION);
-  const steps = maxPossibleTrackPosition - colony.trackPosition;
-
-  let effective = colony.trackPosition;
-  let willAsk = false;
-  if (steps === 0 || metadata.shouldIncreaseTrack === 'no') {
-    // No advance — the reward is read at the current position.
-  } else if (metadata.shouldIncreaseTrack === 'yes' ||
-      (metadata.trade.resource !== undefined &&
-        metadata.trade.resource[colony.trackPosition] === metadata.trade.resource[maxPossibleTrackPosition])) {
-    effective = maxPossibleTrackPosition;
-  } else {
-    // The server will ASK (IncreaseColonyTrack); default preview = max steps.
-    willAsk = true;
-    effective = maxPossibleTrackPosition;
-  }
+  // ── Track advance — THE SAME PLAN Colony.trade() executes (its reach, its
+  //    refusals, its ask decision), read here without moving anything. The
+  //    default preview = the farthest legal step. ───────────────────────────
+  const plan = colony.tradeTrackPlan(player);
+  const steps = plan.steps;
+  const effective = plan.current + steps;
+  const willAsk = plan.ask;
 
   const followUps: Array<ColonyTradeFollowUpModel> = [];
   if (willAsk) {
-    followUps.push({kind: 'trackChoice', steps});
+    followUps.push({kind: 'trackChoice', steps, minSteps: plan.minSteps});
   }
 
   // ── The player's OWN colony bonuses on this tile (GiveColonyBonus prompts
@@ -73,9 +63,11 @@ export function buildColonyTradePreview(player: IPlayer, colony: IColony): Colon
     }
   }
 
-  // ── The trade reward itself, read at the effective track position. ────────
-  const rewardQuantity = metadata.trade.quantity[effective] ?? 0;
-  const rewardFollowUp = benefitFollowUp(player, colony, 'tradeReward', metadata.trade.type, rewardQuantity);
+  // ── The trade reward itself, read at the effective track position — kind,
+  //    amount and resource resolved together (the Redux Pluto's data → cards). ─
+  const reward = tradeBenefitAt(metadata, effective);
+  const rewardQuantity = reward.quantity;
+  const rewardFollowUp = benefitFollowUp(player, colony, 'tradeReward', reward.type, rewardQuantity);
   if (rewardFollowUp !== undefined) {
     followUps.push(rewardFollowUp);
   }
