@@ -68,22 +68,22 @@ export type NewGameConfig = {
   randomMA: RandomMAOptionType;
   includeFanMA: boolean,
   soloTR: boolean; // Solo victory by getting TR 63 by game end
-  customCorporationsList: Array<CardName>;
-  bannedCards: Array<CardName>;
-  includedCards: Array<CardName>;
-  customColoniesList: Array<ColonyName>;
-  customPreludes: Array<CardName>;
+  customCorporationsList: ReadonlyArray<CardName>;
+  bannedCards: ReadonlyArray<CardName>;
+  includedCards: ReadonlyArray<CardName>;
+  customColoniesList: ReadonlyArray<ColonyName>;
+  customPreludes: ReadonlyArray<CardName>;
   /**
    * Project cards guaranteed in the first hand (dealt off the top of the deck).
    * Optional: the legacy create form never sends it.
    */
-  customProjectCards?: Array<CardName>;
+  customProjectCards?: ReadonlyArray<CardName>;
   /**
    * DEV: MarsBot bonus cards lifted to the top of its bonus deck, so a
    * specific bot effect can be reached deterministically (the automa twin of
    * `customProjectCards`). Optional; the create form never sends it.
    */
-  customBonusCards?: Array<BonusCardId>;
+  customBonusCards?: ReadonlyArray<BonusCardId>;
   requiresMoonTrackCompletion: boolean; // Moon must be completed to end the game
   requiresVenusTrackCompletion: boolean; // Venus must be completed to end the game
   moonStandardProjectVariant: boolean;
@@ -91,7 +91,7 @@ export type NewGameConfig = {
   altVenusBoard: boolean;
   escapeVelocity: EscapeVelocityOptions | undefined;
   twoCorpsVariant: boolean;
-  customCeos: Array<CardName>;
+  customCeos: ReadonlyArray<CardName>;
   startingCeos: number;
   startingPreludes: number;
   /** Present ⇒ solo game against MarsBot (official Automa). Requires exactly 1 human player. */
