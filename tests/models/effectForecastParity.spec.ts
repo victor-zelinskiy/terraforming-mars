@@ -196,7 +196,11 @@ function assertParity(table: Table, trigger: IProjectCard, facts: ReadonlyArray<
   }
 }
 
-describe('effect-forecast ↔ execution parity', () => {
+describe('effect-forecast ↔ execution parity', function() {
+  // The corpus sweep plays every in-scope reactor's live hook: ~1.5 s alone, past mocha's 2 s default
+  // under a full-suite load (measured 2026-09-28) — the ceiling follows the `boardBeatPark.spec` precedent.
+  // eslint-disable-next-line no-invalid-this
+  this.timeout(15_000);
   it('every card-played / grant forecast in scope matches what its live hook records', () => {
     const reached = new Set<CardName>();
     const reactors = inScopeReactors();

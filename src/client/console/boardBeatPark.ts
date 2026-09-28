@@ -57,8 +57,7 @@ import {registerAnimationHoldSupplier} from '@/client/components/presentation/an
 import {consoleMotionMs} from '@/client/console/composables/useConsoleReducedMotion';
 import {HeldGlobalParams} from '@/client/console/planetFocus';
 import {OwedStoryHandle, owePresentation} from '@/client/console/presentationLedger';
-import {currentRevealEvent, drawnCardsState} from '@/client/components/drawnCards/drawnCardsState';
-import {workspaceClaimsRevealSource} from '@/client/console/consoleWorkspaceOutcome';
+import {pendingRevealEvents} from '@/client/components/drawnCards/drawnCardsState';
 
 /** The leaving surface settles before the story starts (the auto-landing's
  *  own `BOARD_SETTLE_MS` beat — the board must not still be condensing). */
@@ -183,6 +182,25 @@ function boardWatchable(): boolean {
   return watchableProbe === undefined || watchableProbe();
 }
 
+/**
+ * The injected «a surface is still LEAVING» verdict (shell-owned —
+ * `conWsPresence.wsOpen`, which counts a `.con-ws` through its whole leave).
+ * The stack empties on the frame the workspace STARTS fading, so a drain
+ * scheduled off that edge alone released the scales under a surface still
+ * painting its fade (measured: the Venus strip read 6 % → 8 % ~130 ms before
+ * the colony workspace's root left the DOM). The settle starts only once the
+ * board is genuinely uncovered; bounded, so a stuck leave can never wedge it.
+ */
+let surfaceLeavingProbe: (() => boolean) | undefined;
+
+export function registerBoardBeatSurfaceProbe(probe: (() => boolean) | undefined): void {
+  surfaceLeavingProbe = probe;
+}
+
+/** The longest a drain waits for a leaving surface before it goes on anyway. */
+export const BOARD_BEAT_LEAVE_WAIT_MAX_MS = 1200;
+const LEAVE_POLL_MS = 40;
+
 let ledgerStory: OwedStoryHandle | undefined;
 let drainTimers: Array<ReturnType<typeof setTimeout>> = [];
 
@@ -299,20 +317,13 @@ export function boardBeatParksReveal(source: CardDrawRevealSource | undefined): 
   if (watchableProbe === undefined) {
     return false;
   }
-  // A CLAIMED SIBLING OUTRANKS THE PARK. One response can queue the workspace's
-  // OWN batch behind the scale bonus («raise Venus + draw» in one press), and
-  // `currentRevealEvent` presents oldest-first — parking the bonus batch in
-  // front would wall the claimed one behind an event that only releases after
-  // the workspace concludes, while the claim holds the workspace for exactly
-  // that batch: a deadlock by construction. The bonus batch then keeps its
-  // historical standalone presentation — bounded and honest, never a wedge.
-  // (A globalParameter source never matches a claim, so no self-match here.)
-  const claimedSibling = drawnCardsState.events.some((e) =>
-    !e.dismissed && e.cards.length - e.takenIndices.size > 0 &&
-    workspaceClaimsRevealSource(e.source));
-  if (claimedSibling) {
-    return false;
-  }
+  // A CLAIMED SIBLING no longer outranks the park. It used to («raise Venus +
+  // draw» in one press): the queue presented oldest-first, so a parked bonus
+  // batch in FRONT walled the workspace's own batch behind it — and the park
+  // yielded, which put the Venus 8 % card FULLSCREEN over the colony trade
+  // mid-beat. The queue now skips a parked batch (`registerRevealQueuePark`,
+  // the shell registers this very verdict), so the claimed sibling presents
+  // in its zone and the parked batch waits for the board — no wall, no yield.
   return !boardWatchable() ||
     boardBeatParkState.heldParams !== undefined ||
     boardBeatParkState.heldClaims !== undefined ||
@@ -321,8 +332,9 @@ export function boardBeatParksReveal(source: CardDrawRevealSource | undefined): 
 
 /** Is a batch of this park's family pending right now (drives the drain)? */
 function parkedBatchPending(): boolean {
-  const ev = currentRevealEvent();
-  return ev !== undefined && ev.source?.type === 'globalParameter';
+  // The park's own family, read PAST the queue's skip: the queue hides exactly
+  // the batch this asks about.
+  return pendingRevealEvents().some((ev) => ev.source?.type === 'globalParameter');
 }
 
 /** Anything owed at all — the drain trigger's cheap pre-check. */
@@ -338,6 +350,20 @@ function schedule(run: () => void, ms: number): void {
     return;
   }
   drainTimers.push(setTimeout(run, ms));
+}
+
+/** The settle, started only once no surface is still leaving (bounded — see `registerBoardBeatSurfaceProbe`). */
+function scheduleSettle(run: () => void): void {
+  const settle = consoleMotionMs(BOARD_BEAT_SETTLE_MS);
+  const started = Date.now();
+  const tick = (): void => {
+    if (surfaceLeavingProbe?.() === true && Date.now() - started < BOARD_BEAT_LEAVE_WAIT_MAX_MS) {
+      schedule(tick, LEAVE_POLL_MS);
+      return;
+    }
+    schedule(run, settle);
+  };
+  tick();
 }
 
 /**
@@ -363,7 +389,7 @@ export function drainBoardBeatsIfDue(): void {
     clearScaleAccents();
     boardBeatParkState.scaleStory = false;
   };
-  schedule(() => {
+  scheduleSettle(() => {
     if (!boardWatchable()) {
       // Covered again before anything released — everything stays held; the
       // next watchable edge re-runs the whole drain.
@@ -410,7 +436,7 @@ export function drainBoardBeatsIfDue(): void {
       endScaleStory();
       clearSafety();
     }
-  }, consoleMotionMs(BOARD_BEAT_SETTLE_MS));
+  });
 }
 
 /**
@@ -446,6 +472,7 @@ export function boardBeatStoryPending(): boolean {
 export function resetBoardBeatPark(): void {
   releaseBoardBeatPark();
   watchableProbe = undefined;
+  surfaceLeavingProbe = undefined;
   redriveHook = undefined;
   liveParamsSource = undefined;
 }

@@ -122,7 +122,9 @@
           </span>
           <transition name="con-coltrade-reward" mode="out-in">
             <span class="con-coltile__cell-reward" :key="effectivePosition">
-              <span v-if="reward.quantity > 1" class="con-coltile__cell-num">{{ reward.quantity }}</span>
+              <!-- A LEVY prints its sign — «−4», never a bare 4 in the gain's mint. -->
+              <span v-if="reward.quantity > 1 || (rewardIsLevy && reward.quantity > 0)" class="con-coltile__cell-num"
+                    :class="{'con-coltile__cell-num--levy': rewardIsLevy}">{{ rewardIsLevy ? '−' : '' }}{{ reward.quantity }}</span>
               <BenefitGlyph :benefit="tradeBenefit" :idx="effectivePosition" :cardResource="metadata.cardResource" />
             </span>
           </transition>
@@ -236,6 +238,10 @@ export default defineComponent({
       return {type: income.type, quantity: this.metadata.trade.quantity, resource: income.resource};
     },
     /** The FIXED part every trade here pays before the marker's bonus (the Redux Venus's step) — undefined for a tile without one. */
+    /** The marker's income is a LEVY (the Redux Venus's 1st cell): the number is a cost. */
+    rewardIsLevy(): boolean {
+      return this.reward.type === ColonyBenefit.LOSE_RESOURCES;
+    },
     tradeFixedBenefit(): {type: ColonyBenefit, quantity: ReadonlyArray<number>, resource?: unknown} | undefined {
       const fixed = tradeFixedIncome(this.metadata);
       return fixed === undefined ? undefined : {type: fixed.type, quantity: [fixed.quantity], resource: fixed.resource};

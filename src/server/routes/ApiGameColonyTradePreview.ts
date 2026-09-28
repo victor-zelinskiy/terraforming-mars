@@ -5,6 +5,7 @@ import {isPlayerId} from '../../common/Types';
 import {Request} from '../Request';
 import {Response} from '../Response';
 import {buildColonyTradePreview} from '../colonies/colonyTradePreview';
+import {MAX_COLONY_TRACK_POSITION} from '../../common/constants';
 
 /**
  * Bounded READ-ONLY bridge for the colony-trade confirm surfaces (desktop
@@ -38,6 +39,14 @@ export class ApiGameColonyTradePreview extends Handler {
       responses.badRequest(req, res, 'missing colony parameter');
       return;
     }
+    // The CHOSEN payment path's own track advance (the Unity action's «advance
+    // 1 step first» — `OptionMetadata.tradeOffset`); absent = the default path.
+    const offsetRaw = ctx.url.searchParams.get('offset');
+    const offset = offsetRaw === null || offsetRaw === '' ? 0 : Number(offsetRaw);
+    if (!Number.isInteger(offset) || offset < 0 || offset > MAX_COLONY_TRACK_POSITION) {
+      responses.badRequest(req, res, 'invalid offset parameter');
+      return;
+    }
     const game = await ctx.gameLoader.getGame(id);
     if (game === undefined) {
       responses.notFound(req, res, 'game not found');
@@ -57,6 +66,6 @@ export class ApiGameColonyTradePreview extends Handler {
       responses.noPreview(res, 'colony not in the game');
       return;
     }
-    responses.writeJson(res, ctx, buildColonyTradePreview(player, colony));
+    responses.writeJson(res, ctx, buildColonyTradePreview(player, colony, offset));
   }
 }

@@ -752,6 +752,14 @@ export type OptionMetadata = {
    * into the trade and must find its path without reading the label.
    */
   party?: PartyName;
+  /**
+   * The colony-track advance THIS PATH grants before the income is read (the
+   * Unity party action's «you may advance the track 1 step first») — the
+   * path's `IColonyTrader.bonusTradeOffset`, published so the trade stage can
+   * SHOW the moved marker and pre-collect the advance while the path is the
+   * chosen one, instead of learning about it from the answer. Absent = 0.
+   */
+  tradeOffset?: number;
   /** Premium RESULT/COST chips for this option (icon + amount + optional
    *  current → resulting), reusing the `ActionEffect` shape so the contextual
    *  modal renders them with the same `ActionEffectChip` the action-confirm modal

@@ -232,6 +232,28 @@ stage's presented scene.
   presented cards), and `colonyResolutionUi.cardSceneLive` gates the section's
   `completeFlow` — a colony may not route home while a reward is still
   arriving on a card.
+- **A CARD IS RECEIVING — the working area does not hand over (2026-09-28).**
+  The Redux Venus pays its trade income AND draws the owner bonus in ONE
+  response, and the bonus's batch teleports into the outcome zone at once —
+  `outcomeContentIn` called the handoff due, `--handing` yielded the working
+  area, `cardlandVisible` dropped, the presented card was UNMOUNTED, and the
+  chip's destination ladder found nothing (the transfer trail's
+  `run:no-dest`: `[data-played-key="Dirigibles"]` not in the document). The
+  reward then «arrived» as a tally with nothing flying. Two gates, one law,
+  from both sides: `outcomeHandoffDue` is FALSE while `presentedTargets` stand
+  (the card receives → reads for `CARDLAND_READ_MS` → LEAVES on its own, and
+  only then may the payout take the room), and the cover scene's
+  `waitForCause` waits for `cardSceneLive` to drop (the `colony-card-scene`
+  animation hold keeps the follow-up doors closed meanwhile). The Miranda
+  «animals then the drawn card's covers» order is therefore SEQUENTIAL by
+  construction, never a card yielding under its own reward. Diagnostics: a
+  destination miss names the selectors it tried with their raw + resting
+  rects (`resourceTransferDiagnostics().trail` → `run:no-dest`, exposed as
+  `__conColonyDiag().transfer`; the trade transaction beside it as
+  `__conColonyDiag().trade`). Probe: `tests/e2e/console-colony-venus-trade.spec.ts`
+  (fixture `venus-trade`): the chip lands on a STANDING card, the covers rise
+  only after that card has left, no picker after the confirm, the 8 % card
+  waits for the board.
 
 ## The STAGED BOT PATH (the field-report root cause — read before touching)
 

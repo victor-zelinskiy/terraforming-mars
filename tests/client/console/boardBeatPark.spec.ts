@@ -30,7 +30,7 @@ import {
 } from '@/client/console/presentationLedger';
 import {consoleMotionMs} from '@/client/console/composables/useConsoleReducedMotion';
 import {claimWorkspaceOutcome, resetWorkspaceOutcome} from '@/client/console/consoleWorkspaceOutcome';
-import {drawnCardsState, DrawnCardEntry} from '@/client/components/drawnCards/drawnCardsState';
+import {currentRevealEvent, drawnCardsState, DrawnCardEntry, registerRevealQueuePark} from '@/client/components/drawnCards/drawnCardsState';
 import {HeldGlobalParams} from '@/client/console/planetFocus';
 
 function gameWith(partial: Partial<GameModel>): GameModel {
@@ -148,23 +148,31 @@ describe('boardBeatPark', function() {
     expect(boardBeatParksReveal(venus as never)).to.equal(false);
   });
 
-  it('a CLAIMED SIBLING batch outranks the park — the bonus batch degrades to standalone', () => {
-    // «Raise Venus + draw» in one press: the workspace's own claimed batch is
-    // queued beside the bonus batch. Parked, the bonus would wall it behind
-    // an event that only releases after the workspace concludes — while the
-    // claim holds the workspace for exactly that batch. The park must yield.
+  it('a PARKED batch is not in the queue: the claimed sibling behind it presents, the park holds for the bonus', () => {
+    // «Raise Venus + draw» in one press — the Redux Venus pays its Venus step
+    // FIRST, so the parked 8 % batch is the OLDER one. The park used to yield
+    // to the claimed sibling (oldest-first would wall it), which put the bonus
+    // card fullscreen over the trade. Now the queue skips the parked batch.
+    const restoreQueue = registerRevealQueuePark((source) => boardBeatParksReveal(source));
     watchable = false;
-    claimWorkspaceOutcome('card-actions', 'Ants', ['draw']);
+    claimWorkspaceOutcome('colonies', 'Venus Redux', ['draw']);
+    drawnCardsState.events.push(venusEntry(80));
     drawnCardsState.events.push({
-      ...venusEntry(80),
-      source: {type: 'card', cardName: 'Ants'},
+      ...venusEntry(81),
+      source: {type: 'colony', colonyName: 'Venus Redux'},
     } as DrawnCardEntry);
     const venus = {type: 'globalParameter', parameter: 'venus'} as const;
-    expect(boardBeatParksReveal(venus as never)).to.equal(false);
-    // The sibling consumed → the park holds again for the bonus batch.
-    drawnCardsState.events[0].dismissed = true;
-    expect(boardBeatParksReveal(venus as never)).to.equal(true);
+    expect(boardBeatParksReveal(venus as never), 'the park holds regardless of the sibling').to.equal(true);
+    expect(currentRevealEvent()?.id, 'the own batch of the workspace presents first').to.equal(81);
+    expect(boardBeatParkPending(), 'the parked batch is still owed to the drain').to.equal(true);
+    // The sibling consumed, the board back → the parked batch is next in line.
+    drawnCardsState.events[1].dismissed = true;
+    expect(currentRevealEvent(), 'nothing presents while the board is covered').to.equal(undefined);
+    watchable = true;
+    expect(boardBeatParksReveal(venus as never), 'watchable and nothing held → released').to.equal(false);
+    expect(currentRevealEvent()?.id).to.equal(80);
     resetWorkspaceOutcome();
+    restoreQueue();
   });
 
   it('DRAINS in causal order: settle → values release → the batch waits out the scale beat', async () => {

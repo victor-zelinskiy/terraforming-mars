@@ -171,7 +171,10 @@ test('Venus Redux — the reading: the tile and the dossier state the COMPOSITE 
       gains: Array.from(document.querySelectorAll('.con-colinspect__gain')).map(t),
       rules: Array.from(document.querySelectorAll('.con-colinspect__rules .con-colinspect__text')).map(t),
       lore: t(document.querySelector('.con-colinspect .card-zoom-lore__text')),
-      cells: Array.from(document.querySelectorAll('.con-colinspect .con-colfocus__xcell .benefit-glyph')).map((g) => g.getAttribute('data-bg-type')),
+      // The marker's part of each cell (the fixed Venus step stands above it on its own line — see `fixedCells`).
+      cells: Array.from(document.querySelectorAll('.con-colinspect .con-colfocus__xcell .con-colfocus__xcell-glyph .benefit-glyph')).map((g) => g.getAttribute('data-bg-type')),
+      fixedCells: Array.from(document.querySelectorAll('.con-colinspect .con-colfocus__xcell [data-colony-track-fixed] .benefit-glyph')).map((g) => g.getAttribute('data-bg-type')),
+      levyCell: (document.querySelector('.con-colinspect .con-colfocus__xcell-qty--levy')?.textContent ?? '').trim(),
     };
   });
   console.log('── dossier ──', JSON.stringify(dossier, null, 2));
@@ -183,6 +186,9 @@ test('Venus Redux — the reading: the tile and the dossier state the COMPOSITE 
   const F = String(ColonyBenefit.ADD_RESOURCES_TO_CARD);
   const D = String(ColonyBenefit.PLACE_DELEGATES_ON_RESOLUTION);
   expect(dossier.cells, 'the track: levy · nothing · floater ×3 · delegates ×2').toEqual([L, L, F, F, F, D, D]);
+  // THE COMPOSITE INCOME IS ON EVERY CELL: the fixed Venus step stands above the marker's part, separated, on all seven.
+  expect(dossier.fixedCells, 'every cell carries the fixed Venus step').toEqual(Array(7).fill(String(ColonyBenefit.INCREASE_VENUS_SCALE)));
+  expect(dossier.levyCell, 'the 1st position is a LOSS and reads as one').toBe('−4');
   expect(dossier.rules.join(' | '), 'the three printed rules name the delegates and the Venus step').toMatch(/делегат/i);
   expect(dossier.rules.join(' | ')).toMatch(/Венер/);
   expect(dossier.lore.length, 'the tile prints its own archive entry').toBeGreaterThan(20);
@@ -218,12 +224,14 @@ type StepProbe = {
   /** A mandatory plate rose for the grant (it is a STEP of the flow, never an announce). */
   plate: boolean;
   samples: number;
+  /** Every visible `.con-parl__flight` proxy seen: its first and last rect (left, top, width) and how many samples saw it. */
+  flights: Record<string, {first: Array<number>, last: Array<number>, n: number}>;
 };
 
 async function armStepProbe(page: Page): Promise<void> {
   await page.evaluate(() => {
     const w = window as unknown as {__venusStep: StepProbe};
-    const p: StepProbe = {standalone: false, parlMax: 0, firstZone: '', ownHead: false, crumbs: [], plate: false, samples: 0};
+    const p: StepProbe = {standalone: false, parlMax: 0, firstZone: '', ownHead: false, crumbs: [], plate: false, samples: 0, flights: {}};
     w.__venusStep = p;
     const sample = () => {
       p.samples++;
@@ -248,6 +256,17 @@ async function armStepProbe(page: Page): Promise<void> {
       if (document.querySelector('.con-mandatory') !== null && embedded !== null) {
         p.plate = true;
       }
+      document.querySelectorAll<HTMLElement>('.con-parl__flight').forEach((el) => {
+        const r = el.getBoundingClientRect();
+        if (r.width < 2 || getComputedStyle(el).visibility === 'hidden') {
+          return;
+        }
+        const id = el.getAttribute('data-parl-flight') ?? '?';
+        const now = [Math.round(r.left), Math.round(r.top), Math.round(r.width)];
+        const rec = p.flights[id] ?? (p.flights[id] = {first: now, last: now, n: 0});
+        rec.last = now;
+        rec.n++;
+      });
     };
     new MutationObserver(sample).observe(document.body, {subtree: true, childList: true, attributes: true, attributeFilter: ['class', 'data-stage']});
     window.setInterval(sample, 50);
@@ -355,6 +374,13 @@ test('Venus Redux — the step: the build\'s «2 delegates to a resolution» ope
   expect(probe.parlMax, 'at most one Parliament root at any moment').toBeLessThanOrEqual(1);
   expect(probe.ownHead, 'the embedded surface titled itself at some point').toBe(false);
   expect(probe.plate, 'a mandatory plate rose over the step').toBe(false);
+  // THE CUBES FLY — every granted delegate is a proxy that visibly TRAVELS from the reserve to the card.
+  const travels = Object.entries(probe.flights).map(([id, f]) => ({id, n: f.n, dx: f.last[0] - f.first[0], dy: f.last[1] - f.first[1], w: f.first[2]}));
+  console.log('── delegate flights ──', JSON.stringify(travels));
+  expect(travels.length, 'two delegate proxies were seen in flight').toBeGreaterThanOrEqual(2);
+  for (const t of travels) {
+    expect(Math.hypot(t.dx, t.dy), `flight ${t.id} travelled`).toBeGreaterThan(40);
+  }
 
   // The flow LEAVES: nothing is owed after the landing, so the whole stack goes home.
   await expect.poll(async () => page.evaluate(() => ({

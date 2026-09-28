@@ -84,6 +84,25 @@ describe('ApiGameColonyTradePreview', () => {
     expect(res.content).eq('');
   });
 
+  it('previews the CHOSEN PATH\'s own track advance (`offset` — the Unity action\'s 1)', async () => {
+    const {game, player} = await freshGame();
+    const luna = game.colonies.find((c) => c.name === ColonyName.LUNA)!;
+    luna.trackPosition = 3;
+    scaffolding.url = `/api/game/colony-trade-preview?id=${player.id}&colony=${ColonyName.LUNA}&offset=1`;
+    await scaffolding.get(ApiGameColonyTradePreview.INSTANCE, res);
+    const preview = JSON.parse(res.content);
+    expect(preview.track).to.deep.eq({current: 3, effective: 4, steps: 1, willAsk: false});
+    expect(preview.rewardQuantity).eq(10);
+  });
+
+  it('refuses a malformed offset', async () => {
+    const {player} = await freshGame();
+    scaffolding.url = `/api/game/colony-trade-preview?id=${player.id}&colony=${ColonyName.LUNA}&offset=-1`;
+    await scaffolding.get(ApiGameColonyTradePreview.INSTANCE, res);
+    expect(res.statusCode).eq(statusCode.badRequest);
+    expect(res.content).eq('Bad request: invalid offset parameter');
+  });
+
   it('returns the preview for a colony', async () => {
     const {game, player} = await freshGame();
     const luna = game.colonies.find((c) => c.name === ColonyName.LUNA)!;

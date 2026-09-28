@@ -10,6 +10,7 @@ import {
 } from '../../src/server/colonies/VenusRedux';
 import {PlaceDelegatesOnResolution} from '../../src/server/parliament/PlaceDelegatesOnResolution';
 import {ColonyName} from '../../src/common/colonies/ColonyName';
+import {CardName} from '../../src/common/cards/CardName';
 import {ColonyBenefit} from '../../src/common/colonies/ColonyBenefit';
 import {CardResource} from '../../src/common/CardResource';
 import {Resource} from '../../src/common/Resource';
@@ -17,6 +18,7 @@ import {tradeBenefitAt, tradeBenefitTypes, tradeFixedIncome} from '../../src/com
 import {isTurmoilReduxAddition} from '../../src/common/colonies/AllColonies';
 import {SelectParty} from '../../src/server/inputs/SelectParty';
 import {SelectColony} from '../../src/server/inputs/SelectColony';
+import {SelectCard} from '../../src/server/inputs/SelectCard';
 import {AndOptions} from '../../src/server/inputs/AndOptions';
 import {OrOptions} from '../../src/server/inputs/OrOptions';
 import {Dirigibles} from '../../src/server/cards/venusNext/Dirigibles';
@@ -36,6 +38,8 @@ import {Phase} from '../../src/common/Phase';
 import {MAX_VENUS_SCALE} from '../../src/common/constants';
 import {Server} from '../../src/server/models/ServerModel';
 import {seatEnacted} from '../parliament/parliamentArrange';
+import {AtmoCollectors} from '../../src/server/cards/colonies/AtmoCollectors';
+import {drainBatchTail, parkedBatchTailLength, replayBatch} from '../../src/server/inputs/deferredInputBatch';
 import {ARCHITECTURE_AWARD_ID} from '../../src/server/parliament/resolutions/marsFirst/ArchitectureAward';
 
 /**
@@ -389,6 +393,18 @@ describe('VenusRedux', () => {
       expect(preview.track).to.deep.eq({current: 4, effective: 5, steps: 1, willAsk: false});
       expect(preview.followUps).to.deep.eq([{kind: 'note', role: 'tradeReward', note: 'placeDelegatesOnResolution'}]);
     });
+
+    it('the preview follows the CHOSEN PATH\'s own reach (the Unity action): the marker moves and the track choice is pre-collectable', () => {
+      giveFloaterHolder(player);
+      venus.trackPosition = 4;
+      // No standing offset: the default path reads the marker where it stands.
+      expect(buildColonyTradePreview(player, venus).track).to.deep.eq({current: 4, effective: 4, steps: 0, willAsk: false});
+      // The Unity path's «advance 1 step first» — floaters at 4, delegates at 5:
+      // two kinds in reach, so the trade ASKS, and the preview names the step.
+      const preview = buildColonyTradePreview(player, venus, 1);
+      expect(preview.track).to.deep.eq({current: 4, effective: 5, steps: 1, willAsk: true});
+      expect(preview.followUps[0]).to.deep.eq({kind: 'trackChoice', steps: 1, minSteps: 0});
+    });
   });
 
   describe('«Add 2 delegates to a resolution» — the placement bonus and the vote step', () => {
@@ -519,6 +535,46 @@ describe('VenusRedux', () => {
         customColoniesList: [ColonyName.VENUS_REDUX, ColonyName.LUNA, ColonyName.IO, ColonyName.CERES, ColonyName.TITAN],
       });
       expect(g.colonies.map(toName)).to.include(ColonyName.VENUS_REDUX);
+    });
+  });
+
+  describe('a PRE-COLLECTED card target survives the owner bonus in front of it (the batch parks a card answer that names no live candidate)', () => {
+    it('the trade’s floater target, chosen before the confirm, lands after the mandatory discard — never asked again', () => {
+      venus.colonies.push(player.id); // the seat owns a settlement: «draw 1, then discard 1» stands BEFORE the reward pick
+      const dirigibles = giveFloaterHolder(player);
+      const atmo = new AtmoCollectors();
+      player.playedCards.push(atmo); // two holders → the target is a real PICK
+      venus.trackPosition = 2; // the 3rd cell: 1 floater
+      player.megaCredits = 20;
+      // A REAL hand — a card of the TARGET's own name in it is the trap: the
+      // discard used to accept the batch's tableau answer and throw that one away.
+      player.cardsInHand.push(new Dirigibles(), new AtmoCollectors());
+      const trade = cast(player.colonies.coloniesTradeAction(), AndOptions);
+      const howToPay = cast(trade.options[0], OrOptions);
+      // The live route's callback continues the turn, which is what runs the deferred queue between the batch's answers.
+      player.setWaitingFor(trade, () => runAllActions(game));
+      replayBatch(player, [
+        {type: 'and', responses: [
+          {type: 'or', index: howToPay.options.length - 1, response: {type: 'option'}},
+          {type: 'colony', colonyName: ColonyName.VENUS_REDUX},
+        ]},
+        {type: 'card', cards: [dirigibles.name]},
+      ]);
+      // The discard is what stands — a `card` prompt the batch could never have answered.
+      const discard = cast(player.getWaitingFor(), SelectCard);
+      expect(discard.discardPrompt, 'the owner bonus’s mandatory discard is the live prompt').is.not.undefined;
+      expect(discard.cards.map(toName), 'the discard is over the HAND').to.include(CardName.DIRIGIBLES);
+      expect(player.cardsInHand.length, 'no hand card was thrown away by a question the player never saw').to.eq(3);
+      expect(parkedBatchTailLength(player), 'the target answer is PARKED, not dropped').to.eq(1);
+      expect(dirigibles.resourceCount, 'nothing landed yet').to.eq(0);
+      // The player discards for real (the route: process, then drain the parked tail); the target lands on its own prompt.
+      player.process({type: 'card', cards: [discard.cards[discard.cards.length - 1].name]});
+      drainBatchTail(player);
+      runAllActions(game);
+      expect(player.getWaitingFor(), 'no second question').is.undefined;
+      expect(parkedBatchTailLength(player)).to.eq(0);
+      expect(dirigibles.resourceCount).to.eq(1);
+      expect(atmo.resourceCount).to.eq(0);
     });
   });
 

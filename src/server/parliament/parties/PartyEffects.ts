@@ -44,6 +44,7 @@ import {Board} from '../../boards/Board';
 import {SpaceType} from '../../../common/boards/SpaceType';
 import {EventSource} from '../../../common/events/EventSource';
 import type {Parliament} from '../Parliament';
+import {digit} from '../../cards/Options';
 
 export type PartyActionAvailability = {available: true} | {available: false; reason: string | Message};
 
@@ -357,7 +358,11 @@ const REDS: PartyEffectDefinition = {
     // vertical space is the authored break): a row this long wraps on every
     // surface, and left to chance it split the M€ from its tags.
     b.action('Draw 2 cards, then discard 2 cards. Gain 2 M€ per plant, microbe and animal tag discarded.', (ab) =>
-      ab.empty().startAction.cards(2).nbsp.minus().cards(2).vSpace(Size.SMALL).megacredits(2).slash().tag(Tag.PLANT).tag(Tag.MICROBE).tag(Tag.ANIMAL));
+      // COMPACT by digits — «+2 [card] −2 [card]», never four card icons: the
+      // four spilled past the government plate's chip and over the party's
+      // own name at the ruler's zoom (2026-09-28); a count reads faster than
+      // a repeated sprite anyway.
+      ab.empty().startAction.plus().cards(2, {digit}).nbsp.minus().cards(2, {digit}).vSpace(Size.SMALL).megacredits(2).slash().tag(Tag.PLANT).tag(Tag.MICROBE).tag(Tag.ANIMAL));
   }),
   canAct() {
     return {available: true};

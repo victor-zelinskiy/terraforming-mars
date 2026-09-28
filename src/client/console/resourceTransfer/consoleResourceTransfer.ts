@@ -408,6 +408,10 @@ export async function runResourceTransfers(run: ResourceTransferRun): Promise<vo
     const sourcePoint = e.origin ?? run.source.point ??
       (sourceRect === undefined ? undefined : sourceSpawnPoint(sourceRect, i, specEntries.length));
     if (row === undefined || sourcePoint === undefined) {
+      trail(runId, 'run:no-dest', {
+        channel: e.spec.channel, resource: e.spec.resource, targetCard: e.spec.targetCard ?? null,
+        row: row !== undefined, source: sourcePoint !== undefined, probe: describeCardDestination(e.spec),
+      });
       noteCardResourceLanding(e.spec); // degraded, but the amount HAS arrived
       run.onArrive?.(e.spec);
     } else if (e.spec.direction === 'loss') {
@@ -615,6 +619,27 @@ function resolveSourceRect(source: ResourceTransferRun['source']): TransferRect 
     }
   }
   return undefined;
+}
+
+/** Diagnostics only: what the card-resource destination ladder would see right now. */
+function describeCardDestination(spec: ResourceTransferSpec): unknown {
+  if (spec.channel !== 'card-resource' || spec.targetCard === undefined || typeof document === 'undefined') {
+    return undefined;
+  }
+  const esc = escapeName(spec.targetCard);
+  const round = (r: {left: number, top: number, width: number, height: number}) =>
+    [Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)];
+  return [
+    `.con-colfocus [data-played-key="${esc}"] .pcard__res`,
+    `.con-colfocus [data-played-key="${esc}"]`,
+    `[data-played-key="${esc}"]`,
+  ].map((sel) => {
+    const el = document.querySelector<HTMLElement>(sel);
+    if (el === null) {
+      return {sel, found: false};
+    }
+    return {sel, found: true, raw: round(el.getBoundingClientRect()), rest: round(restingRectOf(el))};
+  });
 }
 
 function escapeName(name: string): string {

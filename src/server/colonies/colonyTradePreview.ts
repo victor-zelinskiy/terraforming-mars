@@ -36,15 +36,18 @@ import {message} from '../logs/MessageBuilder';
  * `AddResourcesToCard` at GAIN_RESOURCE_OR_PRODUCTION — so a player's own
  * colony-bonus pick prompts BEFORE the trade-reward pick.)
  */
-export function buildColonyTradePreview(player: IPlayer, colony: IColony): ColonyTradePreviewModel {
+export function buildColonyTradePreview(player: IPlayer, colony: IColony, pathOffset = 0): ColonyTradePreviewModel {
   const metadata = colony.metadata;
 
   // ── Track advance — THE SAME PLAN Colony.trade() executes (its reach, its
   //    refusals, its ask decision), read here without moving anything. The
   //    default preview = the farthest legal step, judged with the cheapest M€
   //    fee any usable path takes (the Redux Venus's «extra 4 M€» is over the
-  //    fee) — the offset itself stays the default path's (0), as before. ────
-  const plan = colony.tradeTrackPlan(player, {feeMegacredits: player.colonies.bestTradeTerms().feeMegacredits});
+  //    fee). `pathOffset` is the CHOSEN payment path's own reach (the Unity
+  //    action's «advance 1 step first» — `OptionMetadata.tradeOffset`): the
+  //    stage re-asks with it, so the marker, the reward and the track-choice
+  //    step it pre-collects all describe the trade that path will make. ─────
+  const plan = colony.tradeTrackPlan(player, {feeMegacredits: player.colonies.bestTradeTerms().feeMegacredits, bonusTradeOffset: pathOffset});
   const steps = plan.steps;
   const effective = plan.current + steps;
   const willAsk = plan.ask;

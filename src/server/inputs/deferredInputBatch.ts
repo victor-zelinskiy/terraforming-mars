@@ -6,6 +6,7 @@ import {SpaceId} from '../../common/Types';
 import {TileType} from '../../common/TileType';
 import {OrOptions} from './OrOptions';
 import {SelectSpace} from './SelectSpace';
+import {SelectCard} from './SelectCard';
 
 /**
  * THE PRE-COLLECTED BATCH — replay, and the TAIL THAT HAS NOT LANDED YET.
@@ -238,6 +239,7 @@ function jumpedTheQueue(response: InputResponse, waitingFor: PlayerInput): boole
   return response.type !== waitingFor.type || stagedMismatch(response, waitingFor);
 }
 
+
 /** The staged-placement address of a response, when it carries one. */
 function stagedAddress(response: InputResponse): CardName | undefined {
   return response.type === 'space' ? (response as SelectSpaceResponse).stagedFor : undefined;
@@ -368,7 +370,20 @@ export function parkedStagedPlacement(player: IPlayer): {card: CardName, spaceId
  * draw-and-select family), never a title.
  */
 function hiddenInfoPrompt(waitingFor: PlayerInput): boolean {
-  return waitingFor.deckPickPrompt !== undefined;
+  // A deck pick («look at the top N») — and a MANDATORY DISCARD out of the
+  // hand: the card it must name may have been DRAWN by the very action the
+  // batch answers (a colony's «draw 1, then discard 1» owner bonus), so the
+  // batch can no longer contain its answer than the deck pick's. Tried
+  // anyway, a pre-collected TABLEAU target met the Redux Venus's discard
+  // ahead of the reward pick: refused on its value it read as a divergence and
+  // the tail was dropped (the target was asked again), and — worse — a hand
+  // card of the SAME NAME was accepted and thrown away by a question the
+  // player never saw. Park untried; the drain re-asks this very test. (A
+  // candidate check is deliberately NOT a second rung: a `card` answer naming
+  // no candidate of the SAME question is a stale pick and must be DROPPED —
+  // held, it would land on an unrelated card prompt later in the action.)
+  return waitingFor.deckPickPrompt !== undefined ||
+    (waitingFor instanceof SelectCard && waitingFor.discardPrompt !== undefined);
 }
 
 /**

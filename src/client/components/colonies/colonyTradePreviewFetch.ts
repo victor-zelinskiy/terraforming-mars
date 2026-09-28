@@ -16,10 +16,13 @@ import {fetchPreview} from '@/client/utils/previewFetch';
 export function fetchColonyTradePreview(
   playerId: string,
   colony: ColonyName,
+  /** The CHOSEN payment path's own track advance (`OptionMetadata.tradeOffset`, the Unity action's 1) — 0 = the default path. */
+  pathOffset = 0,
 ): Promise<ColonyTradePreviewModel | undefined> {
   if (playerId === '') {
     return Promise.resolve(undefined);
   }
-  const url = `${apiUrl(paths.API_GAME_COLONY_TRADE_PREVIEW)}?id=${encodeURIComponent(playerId)}&colony=${encodeURIComponent(colony)}`;
+  const offset = pathOffset > 0 ? `&offset=${encodeURIComponent(String(pathOffset))}` : '';
+  const url = `${apiUrl(paths.API_GAME_COLONY_TRADE_PREVIEW)}?id=${encodeURIComponent(playerId)}&colony=${encodeURIComponent(colony)}${offset}`;
   return fetchPreview<ColonyTradePreviewModel>(url);
 }

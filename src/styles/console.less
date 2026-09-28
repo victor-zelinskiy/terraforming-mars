@@ -19094,6 +19094,47 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
 
         .con-colfocus__xcell--effective & { color: @con-mint; }
         .con-colfocus__xcell--marker & { color: #ffffff; }
+        /* A LEVY is a cost: the spend register in every state, never the
+           gain's mint — «−4» on the Redux Venus's 1st cell. */
+        &--levy,
+        .con-colfocus__xcell--effective &--levy,
+        .con-colfocus__xcell--marker &--levy { color: @con-amber; }
+    }
+    /* THE FIXED PART of a composite income («[Venus] +»), one small line in
+       every cell above the marker's bonus. The Venus sprite is a 3:2 oval —
+       it keeps its aspect in its own box (the dossier's rule). */
+    &__xcell-fixed {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: .12rem;
+        flex: 0 0 auto;
+        margin-top: .1rem;
+        color: fade(@con-text-dim, 85%);
+    }
+    &__xcell-fixed-glyph {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 24px; /* keep-px: the sprite box, scaled by zoom */
+        height: 16px; /* keep-px */
+        overflow: hidden;
+        zoom: calc(1.1 * var(--con-ui-scale, 1));
+        .benefit-glyph__num { display: none; }
+        .benefit-glyph__tile {
+            transform: none;
+            width: 24px; /* keep-px */
+            height: 16px; /* keep-px */
+            background-size: 24px 16px;
+            background-repeat: no-repeat;
+            background-position: center;
+            margin: 0;
+        }
+    }
+    &__xcell-plus {
+        font-size: .7rem;
+        font-weight: 800;
+        line-height: 1;
     }
     &__xcell-void { font-size: .95rem; color: fade(@con-text-dim, 70%); line-height: 1.1; }
     /* THE MARKER RAIL — a continuous groove across the whole track with one
@@ -19633,7 +19674,8 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         zoom: var(--con-ui-scale, 1);
         .benefit-glyph__num { display: none; }
     }
-    &__track-rewardqty { font-size: 14px; font-weight: 800; color: @con-mint; } /* keep-px: inside the zoom */
+    &__track-rewardqty { font-size: 14px; font-weight: 800; color: @con-mint; }
+    &__track-rewardqty--levy { color: @con-amber; } /* keep-px: inside the zoom */
 
     /* (The BUILD / PICK brief is gone — it restated the summary rail verbatim.
        Its `__brief*` rules went with it; nothing else carried those classes.) */
@@ -20636,6 +20678,8 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         font-weight: 800;
         color: @con-mint;
         font-variant-numeric: tabular-nums;
+
+        &--levy { color: @con-amber; }
     }
     &__cell-offset {
         font-size: 12px; /* keep-px */

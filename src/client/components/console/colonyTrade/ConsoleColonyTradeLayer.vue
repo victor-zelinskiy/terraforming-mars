@@ -436,7 +436,12 @@ export default defineComponent({
     waitForCause(): Promise<void> {
       // The phase list lives in the orchestrator (`colonyPayoutPending`) — the
       // layer asks the question, it does not re-state the ladder.
-      const busy = () => colonyPayoutPending();
+      // …AND THE PRESENTED CARD SCENE IS PART OF THE CAUSE: a reward that
+      // lands on a card is read on that card (touchdown → read beat →
+      // departure), and the payout's cards may not rise while it stands —
+      // they used to lift at the chips' landing, over a card the player was
+      // still reading, and the stage dissolved it from under its own reward.
+      const busy = () => colonyPayoutPending() || colonyResolutionUi.cardSceneLive;
       return new Promise((done) => {
         if (!busy()) {
           done();

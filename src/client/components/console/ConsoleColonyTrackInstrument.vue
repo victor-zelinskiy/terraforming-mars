@@ -49,6 +49,17 @@
              'con-colfocus__xcell--settled': cell.index === settledCell,
            }">
         <span class="con-colfocus__xcell-num">{{ cell.index + 1 }}</span>
+        <!-- THE FIXED PART OF A COMPOSITE INCOME (the Redux Venus: «[Venus] +
+             the bonus under the marker») stands in EVERY cell, above the
+             bonus — the step IS the tile's main income, and a track that
+             printed only the per-position bonus read as if the levy cell paid
+             nothing but a fee. -->
+        <span v-if="fixedBenefit !== undefined" class="con-colfocus__xcell-fixed" data-colony-track-fixed>
+          <span class="con-colfocus__xcell-fixed-glyph">
+            <BenefitGlyph :benefit="fixedBenefit" :idx="0" :cardResource="metadata.cardResource" />
+          </span>
+          <span class="con-colfocus__xcell-plus" aria-hidden="true">+</span>
+        </span>
         <!-- THE CARD LAUNCH CELL: a card payout physically separates from
              the CARD BACK printed on the REWARD cell — the exact glyph whose
              number the player just read — never from «somewhere in the
@@ -62,7 +73,10 @@
           <span class="con-colfocus__xcell-glyph">
             <BenefitGlyph :benefit="tradeBenefitAt(cell.index)" :idx="cell.index" :cardResource="metadata.cardResource" />
           </span>
-          <b v-if="cell.quantity > 0" class="con-colfocus__xcell-qty">{{ cell.quantity }}</b>
+          <!-- A LEVY prints its SIGN — «−4», never a bare 4 in the gain's own
+               register (the sign lives on the glyph's badge, which this box
+               hides, so the cell states it itself). -->
+          <b v-if="cell.quantity > 0" class="con-colfocus__xcell-qty" :class="{'con-colfocus__xcell-qty--levy': cell.levy}">{{ cell.levy ? '−' : '' }}{{ cell.quantity }}</b>
           <span v-else class="con-colfocus__xcell-void">—</span>
         </span>
         <!-- THE MARKER RAIL SEAT — the glide's landing geometry. -->
@@ -155,7 +169,7 @@
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
 import {ColonyModel} from '@/common/models/ColonyModel';
-import {ColonyMetadata, tradeBenefitAt} from '@/common/colonies/ColonyMetadata';
+import {ColonyMetadata, tradeBenefitAt, tradeFixedIncome} from '@/common/colonies/ColonyMetadata';
 import {ColonyBenefit} from '@/common/colonies/ColonyBenefit';
 import {Color} from '@/common/Color';
 import {trackResetAfterBuild, trackResetPosition} from '@/client/components/colonies/colonyTradePlan';
@@ -166,6 +180,8 @@ import PlayerCube from '@/client/components/PlayerCube.vue';
 export type ColonyTrackCell = {
   index: number,
   quantity: number,
+  /** A LOSE_RESOURCES cell — the quantity is a levy and prints its sign. */
+  levy: boolean,
   /** The resting marker stands here (the PRESENTED position). */
   marker: boolean,
   /** The position a trade would READ (a standing offset moved it past the marker). */
@@ -224,12 +240,18 @@ export default defineComponent({
         cells.push({
           index: i,
           quantity: this.metadata.trade.quantity[i] ?? 0,
+          levy: tradeBenefitAt(this.metadata, i).type === ColonyBenefit.LOSE_RESOURCES,
           marker: i === this.markerPosition,
           effective: i === this.effectivePosition && this.effectivePosition !== this.markerPosition,
           passed: i < this.markerPosition,
         });
       }
       return cells;
+    },
+    /** The income paid on EVERY trade beside the marker's bonus (the Redux Venus's step) — undefined for every other tile. */
+    fixedBenefit(): Benefit | undefined {
+      const fixed = tradeFixedIncome(this.metadata);
+      return fixed === undefined ? undefined : {type: fixed.type, quantity: [fixed.quantity], resource: fixed.resource};
     },
     buildBenefit(): Benefit {
       const b = this.metadata.build;

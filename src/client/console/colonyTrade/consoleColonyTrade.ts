@@ -52,7 +52,7 @@ import {consoleFxLiteState} from '@/client/console/consoleFxLite';
 import {drawnCardsState} from '@/client/components/drawnCards/drawnCardsState';
 import {translateText} from '@/client/directives/i18n';
 import {
-  beginPanelRewardHold, releasePanelRewardHold, resetCardResourceLandings, runResourceTransfers,
+  beginPanelRewardHold, cardResourceLandings, releasePanelRewardHold, resetCardResourceLandings, runResourceTransfers,
 } from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {TRANSFER_RESIDUAL_PAUSE_MS} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {motionMs} from '@/client/components/motion/motionTokens';
@@ -1094,6 +1094,31 @@ function concludeToCommitted(): void {
  * teardown): unwind with zero trace. The panel holds seeded by THIS
  * transaction release honestly (values snap to the committed truth).
  */
+/**
+ * READ-ONLY snapshot for the e2e timeline probes (`__conColonyDiag().trade`):
+ * the transaction's phase, what it ARMED (the pre-collected card targets), what
+ * the server MANIFESTED (the income grants) and what has physically LANDED —
+ * «the chip never flew» and «the chip flew onto nothing» stop looking alike.
+ */
+export function colonyTradeDiagnostics(): unknown {
+  return {
+    active: colonyTradeState.active,
+    phase: colonyTradeState.phase,
+    beat: colonyTradeState.beat,
+    cardScene: colonyTradeState.cardScene,
+    tradeId: colonyTradeState.tradeId,
+    claimed: ctx.claimed,
+    rewardsKicked: ctx.rewardsKicked,
+    chipsDone: ctx.chipsDone,
+    targets: ctx.targets ?? null,
+    income: ctx.manifest?.tradeIncome ?? null,
+    fixed: ctx.manifest?.tradeIncomeFixed ?? null,
+    trader: ctx.manifest?.trader ?? null,
+    viewer: colonyTradeState.color,
+    landings: {...cardResourceLandings.by},
+  };
+}
+
 export function abortColonyTrade(): void {
   clearArmSafety();
   clearCeiling();

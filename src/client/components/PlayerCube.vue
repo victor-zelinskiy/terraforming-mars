@@ -66,6 +66,36 @@
             <path class="player-cube__bevel-lo" d="M0 63.1 H64 M63.1 0 V64" />
           </svg>
         </span>
+        <!-- THE BACK FACES — only on a SOLID cube (the flight proxy): a cube
+             that TUMBLES turns its bottom, back and far side to the camera,
+             and a three-faced shell would show the void through them. The
+             board's resting cubes keep the three visible faces (their pose
+             never turns; six SVGs per cube would double the board's DOM). -->
+        <template v-if="solid">
+          <span class="player-cube__face player-cube__face--bottom">
+            <svg class="player-cube__svg" viewBox="0 0 64 64" preserveAspectRatio="none">
+              <rect class="player-cube__base" width="64" height="64" />
+              <rect width="64" height="64" :fill="fillUrl(aoId)" />
+            </svg>
+          </span>
+          <span class="player-cube__face player-cube__face--back">
+            <svg class="player-cube__svg" viewBox="0 0 64 64" preserveAspectRatio="none">
+              <rect class="player-cube__base" width="64" height="64" />
+              <rect width="64" height="64" :fill="fillUrl(depthSideId)" />
+              <path class="player-cube__bevel" d="M0.9 0 V64 M0 0.9 H64" />
+              <path class="player-cube__bevel-lo" d="M0 63.1 H64 M63.1 0 V64" />
+            </svg>
+          </span>
+          <span class="player-cube__face player-cube__face--far">
+            <svg class="player-cube__svg" viewBox="0 0 64 64" preserveAspectRatio="none">
+              <rect class="player-cube__base" width="64" height="64" />
+              <rect width="64" height="64" :fill="fillUrl(depthSideId)" />
+              <rect width="64" height="64" :fill="fillUrl(aoId)" />
+              <path class="player-cube__bevel" d="M0.9 0 V64 M0 0.9 H64" />
+              <path class="player-cube__bevel-lo" d="M0 63.1 H64 M63.1 0 V64" />
+            </svg>
+          </span>
+        </template>
         <!-- top (lit satin face): colour → depth → satin sheen → bevel -->
         <span class="player-cube__face player-cube__face--top">
           <svg class="player-cube__svg" viewBox="0 0 64 64" preserveAspectRatio="none">
@@ -205,6 +235,14 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    /**
+     * ALL SIX FACES (the flight proxy): a cube that tumbles in the air shows
+     * its bottom, back and far side. Off for every resting cube on the board.
+     */
+    solid: {
+      type: Boolean,
+      default: false,
+    },
   },
   data() {
     return {uid: ++pcUid};
@@ -229,6 +267,12 @@ export default defineComponent({
       const top = mixWhite(base, lightBody ? 0.05 : 0.13);
       const left = scaleRgb(base, 0.80); // mid side
       const right = scaleRgb(base, 0.50); // deep shadow side — physical thickness
+      // The three back faces of a SOLID cube: the far side mirrors the mid
+      // side, the back the deep one, the bottom is the darkest — it faces the
+      // ground and comes round only mid-tumble.
+      const far = scaleRgb(base, 0.72);
+      const back = scaleRgb(base, 0.56);
+      const bottom = scaleRgb(base, 0.36);
       const edgeHi = mixWhite(base, 0.55);
       const symbol = luma(top) > 150 ? 'rgba(20, 18, 14, 0.92)' : 'rgba(255, 255, 255, 0.95)';
       return {
@@ -236,6 +280,9 @@ export default defineComponent({
         '--pc-top': toRgb(top),
         '--pc-left': toRgb(left),
         '--pc-right': toRgb(right),
+        '--pc-far': toRgb(far),
+        '--pc-back': toRgb(back),
+        '--pc-bottom': toRgb(bottom),
         '--pc-edge-hi': toRgb(edgeHi),
         '--pc-glow': toRgba(base, 0.55),
         '--pc-symbol': symbol,
@@ -245,6 +292,7 @@ export default defineComponent({
       return {
         ['player-cube--' + this.resolvedColor]: true,
         'player-cube--steel': this.steel,
+        'player-cube--solid': this.solid,
         'player-cube--animate-in': this.animateIn === true,
       };
     },

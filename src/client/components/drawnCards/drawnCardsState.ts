@@ -1,4 +1,4 @@
-import {reactive} from 'vue';
+import {reactive, shallowRef} from 'vue';
 import {CardName} from '@/common/cards/CardName';
 import {CardModel} from '@/common/models/CardModel';
 import {CardDrawRevealModel, CardDrawRevealSource, CardDrawRevealStep, ColonyTradeRevealSegment} from '@/common/models/CardDrawRevealModel';
@@ -200,13 +200,65 @@ export function isRevealHeldForFollowUp(id: number | undefined): boolean {
   return id !== undefined && followUpHoldId === id;
 }
 
+/*
+ * ── A PARKED BATCH IS NOT IN THE QUEUE ───────────────────────────────────────
+ *
+ * The presentation order used to be strictly oldest-first, and the board-beat
+ * park (a Venus 8 % draw held behind a covered board) therefore had to YIELD
+ * whenever a workspace's own batch was queued behind it — otherwise the parked
+ * batch walled the claimed one, which only presents inside the workspace the
+ * park was waiting for (a deadlock by construction). The yield was the bug the
+ * player saw: the Venus bonus card rose FULLSCREEN over the colony trade, in
+ * the middle of its own beats, because the Redux Venus pays its Venus step
+ * FIRST and its owner bonus («draw 1») second — the parked batch is always the
+ * older one there.
+ *
+ * So the queue skips a parked batch instead: «parked» is INJECTED by the
+ * console (the same verdict its `rawDrawnRevealPending` subtracts), the
+ * workspace's own batch presents in its zone, and the parked one becomes
+ * current exactly when its park releases (the board watchable, the drain
+ * done). Default: nothing is parked — the historical order, and what every
+ * non-console context wants. A shallowRef for the reason `presentationFlow`'s
+ * twin is one: the registration lands at shell mount, after a reload's first
+ * evaluation.
+ */
+export type RevealQueuePark = (source: CardDrawRevealSource | undefined) => boolean;
+
+const QUEUE_NOTHING_PARKED: RevealQueuePark = () => false;
+
+const revealQueuePark = shallowRef<RevealQueuePark>(QUEUE_NOTHING_PARKED);
+
+/** Register the console's park verdict for the QUEUE. Returns the restore fn (idempotent). */
+export function registerRevealQueuePark(fn: RevealQueuePark): () => void {
+  revealQueuePark.value = fn;
+  return () => {
+    if (revealQueuePark.value === fn) {
+      revealQueuePark.value = QUEUE_NOTHING_PARKED;
+    }
+  };
+}
+
+/** A batch that is still owed a presentation: untaken cards, or held for a mandatory follow-up. */
+function revealEventPending(e: DrawnCardEntry): boolean {
+  return !e.dismissed && (untakenCount(e) > 0 || isRevealHeldForFollowUp(e.id));
+}
+
 /**
- * The oldest non-dismissed batch that still has untaken cards — or one being
- * HELD for a mandatory follow-up (see above).
+ * The oldest pending batch that is NOT parked — or one being HELD for a
+ * mandatory follow-up (see above). A parked batch (see the queue park) waits
+ * out of line and becomes current the moment its park releases.
  */
 export function currentRevealEvent(): DrawnCardEntry | undefined {
-  return drawnCardsState.events.find((e) =>
-    !e.dismissed && (untakenCount(e) > 0 || isRevealHeldForFollowUp(e.id)));
+  const park = revealQueuePark.value;
+  return drawnCardsState.events.find((e) => revealEventPending(e) && !park(e.source));
+}
+
+/**
+ * Every pending batch, parked or not, oldest first — for the parks themselves
+ * («is a batch of my family still owed?»), which must see what the queue hides.
+ */
+export function pendingRevealEvents(): ReadonlyArray<DrawnCardEntry> {
+  return drawnCardsState.events.filter(revealEventPending);
 }
 
 /*

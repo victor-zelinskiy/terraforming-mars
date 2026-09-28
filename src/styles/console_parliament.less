@@ -846,7 +846,15 @@
         display: flex;
         min-width: 0;
         min-height: 0;
-        > .con-pseal { flex: 1 1 auto; min-width: 0; }
+        > .con-pseal {
+            flex: 1 1 auto;
+            min-width: 0;
+            /* THE PLAQUE FITS ITS BOX (`fitPartyPlaques`, `parliamentCardFit.ts`): the seal, the head, the
+               formula and the foot are zoomed as ONE object by the measured fit (≤ 1) — on the TV the tile
+               is barely taller than at 1080 while the profile's parts are twice the size, and the plaque
+               overran its box before the formula had a row. The box itself (the tile tokens) never moves. */
+            > * { zoom: var(--con-parl-tile-fit, 1); }
+        }
         &--pulse > .con-pseal { animation: con-parl-access-gain calc(1400ms * var(--motion-scale, 1)) @con-ease-standard both; }
         &--lost > .con-pseal { animation: con-parl-access-lost calc(1400ms * var(--motion-scale, 1)) @con-ease-standard both; }
     }
@@ -1427,7 +1435,12 @@ html.con-profile-tv .con-parl {
     --con-parl-bill-h: 16rem;
     --con-parl-tile-formula-zoom: calc(0.84 * var(--con-ui-scale, 1));
     --con-parl-ruler-formula-zoom: calc(1 * var(--con-ui-scale, 1));
-    --con-parl-ruler-own-zoom: calc(0.78 * var(--con-ui-scale, 1));
+    /* THE SLOT BEFORE THE OWN EFFECT (2026-09-28): the ruler's tile height is measured from the room this
+       block leaves (`fitParliamentCards` — kicker · slot · own effect), and at 0.78 the enacted card's own
+       effect (three chip rows) took 187 px of a block that left the slot 188 — HALF the row's tier stood
+       empty above and below tiles that could not hold their plaques. The effect reads at 1.0 (twice FHD's
+       0.5 px design), the slot gains the difference. */
+    --con-parl-ruler-own-zoom: calc(0.5 * var(--con-ui-scale, 1));
     --con-parl-quest-zoom: calc(0.9 * var(--con-ui-scale, 1));
     --con-parl-info-mech-zoom: calc(0.9 * var(--con-ui-scale, 1));
     /* A wider government column on the couch: its formula breathes, and the
@@ -1484,8 +1497,8 @@ html.con-profile-tv .con-parl {
     /* Couch type at the .8rem floor: the name tighter, the foot may take a second line — nothing is cut. */
     &__party > .con-pseal { padding-left: .4rem; padding-right: .4rem; column-gap: .35rem; }
     .con-pseal__name { font-size: .8rem; letter-spacing: 0; }
-    .con-pseal__seal { width: 2.4rem; height: 2.4rem; }
-    .con-pseal__state { font-size: .8rem; height: 2rem; align-items: center; }
+    .con-pseal__seal { width: 2.1rem; height: 2.1rem; }
+    .con-pseal__state { font-size: .8rem; height: 1.8rem; align-items: center; }
     .con-pseal__state-text { white-space: normal; line-height: 1.15; font-size: .8rem; }
     .con-pseal__places-count { font-size: .8rem; }
     .con-pseal__action { width: 1.3rem; height: 1.3rem; font-size: .84rem; }

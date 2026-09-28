@@ -192,4 +192,71 @@ export function fitParliamentCards(): void {
       root.style.setProperty('--con-parl-enact-zoom', String(snap(zoom, MIN_GOV_ZOOM)));
     }
   }
+  fitPartyPlaques(root);
+}
+
+/**
+ * THE PLAQUE FITS ITS BOX (2026-09-28). The six party plaques share ONE box
+ * (`--con-parl-tile-h` × `--con-parl-tile-w` — the smaller of the row's
+ * column and the government's room) while their chassis is sized per PROFILE
+ * in rem — and on the TV the box is barely taller than at 1080 (188 px against
+ * ~165) while every part is twice the size: the seal (96 px) and the foot
+ * (80 px) alone overran the box before the formula had a row at all, and every
+ * two-line formula (the Greens', the Scientists', Mars First's) stood 9–19 px
+ * past its plaque and over the next tile's head. A graphic wider than the chip
+ * that holds it was the reported defect (the Reds' action in the government) —
+ * the same law here, MEASURED: the fit is the ratio of the box's inner height to
+ * the plaque's natural content (seal/head · note · formula · foot, at the
+ * profile's sizes), and of its inner width to the formula's, over all six,
+ * published as `--con-parl-tile-fit` (≤ 1 — a plaque never GROWS past its
+ * profile) and applied as ONE `zoom` on the plaque's children (`console_parliament.less`
+ * § the opposition row), so the seal, the name, the formula and the foot shrink
+ * as one object. The box does not depend on the content (the tile tokens set
+ * it), so there is no loop; the SET of plaques is constant (five + the ruler's,
+ * whichever party rules), so the fit is measured ONCE per box height and
+ * REUSED on every later fit — the government's change and the vote's re-asks
+ * move nothing (`console-parliament-stability`).
+ */
+let plaqueFitMemo: {root: HTMLElement, tileH: number, fit: number} | undefined;
+
+function fitPartyPlaques(root: HTMLElement): void {
+  const plaques = Array.from(root.querySelectorAll<HTMLElement>('.con-parl__party > .con-pseal'));
+  const tileH = plaques[0]?.clientHeight ?? 0;
+  if (plaques.length === 0 || tileH === 0) {
+    return;
+  }
+  if (plaqueFitMemo !== undefined && plaqueFitMemo.root === root && Math.abs(plaqueFitMemo.tileH - tileH) <= 1) {
+    root.style.setProperty('--con-parl-tile-fit', String(plaqueFitMemo.fit));
+    return;
+  }
+  // Measured at the profile's own sizes — the token is reset first, so a re-fit never reads its own output.
+  root.style.setProperty('--con-parl-tile-fit', '1');
+  const px = (v: string): number => parseFloat(v) || 0;
+  const tall = (host: Element, sel: string): number => host.querySelector<HTMLElement>(sel)?.offsetHeight ?? 0;
+  let fit = 1;
+  for (const plaque of plaques) {
+    if (plaque.clientHeight === 0) {
+      continue;
+    }
+    const cs = getComputedStyle(plaque);
+    const note = tall(plaque, '.con-pseal__note');
+    // The grid's rows: seal/head · (note) · formula · foot — and the gaps between them.
+    const rows = note > 0 ? 3 : 2;
+    const innerH = plaque.clientHeight - px(cs.paddingTop) - px(cs.paddingBottom) - px(cs.rowGap) * rows;
+    const naturalH = Math.max(tall(plaque, '.con-pseal__seal'), tall(plaque, '.con-pseal__head')) + note +
+      tall(plaque, '.con-pseal__formula') + tall(plaque, '.con-pseal__state');
+    if (innerH > 0 && naturalH > 0) {
+      fit = Math.min(fit, innerH / naturalH);
+    }
+    const innerW = plaque.clientWidth - px(cs.paddingLeft) - px(cs.paddingRight);
+    const formulaW = plaque.querySelector<HTMLElement>('.con-pseal__formula')?.offsetWidth ?? 0;
+    if (innerW > 0 && formulaW > 0) {
+      fit = Math.min(fit, innerW / formulaW);
+    }
+  }
+  // Snapped DOWN onto a 0.5 % grid (a budget: smaller only fits better) and never below a
+  // readable floor — a starved box shows a small honest plaque, never a cut one.
+  const snapped = Math.max(0.5, Math.floor(fit * 200) / 200);
+  plaqueFitMemo = {root, tileH, fit: snapped};
+  root.style.setProperty('--con-parl-tile-fit', String(snapped));
 }

@@ -125,6 +125,7 @@ import {Ceres} from '../../../src/server/colonies/Ceres';
 import {Io} from '../../../src/server/colonies/Io';
 import {LunaGovernor} from '../../../src/server/cards/colonies/LunaGovernor';
 import {Pluto} from '../../../src/server/colonies/Pluto';
+import {VenusRedux} from '../../../src/server/colonies/VenusRedux';
 import {ColonyName} from '../../../src/common/colonies/ColonyName';
 import {AndOptions} from '../../../src/server/inputs/AndOptions';
 import {Dirigibles} from '../../../src/server/cards/venusNext/Dirigibles';
@@ -216,6 +217,31 @@ function write(name: string, game: IGame): void {
   const file = path.join(OUT_DIR, `${name}.json`);
   fs.writeFileSync(file, JSON.stringify(serialized, null, 1) + '\n');
   console.log(`${name}: phase=${serialized.phase} gen=${serialized.generation} → ${path.relative(process.cwd(), file)}`);
+}
+
+// ── venus-trade: the REDUX VENUS trade that carries three things at once —
+//    a CARD-TARGET reward (1 floater, TWO holders → a real pick), the seat's
+//    own settlement (the owner bonus «draw 1, then discard 1» — a mandatory
+//    hand step ahead of the reward pick) and the FIXED Venus step crossing
+//    8 % (the board's bonus draw, a `globalParameter` batch queued in front
+//    of the colony's own). One state, the whole 2026-09-28 report: the
+//    pre-selected target must never be asked again, the chip must land on a
+//    standing card before the owner bonus takes the stage, and the 8 % card
+//    must present on the board AFTER the workspace leaves, never over it. ──
+{
+  const [game, player] = testGame(1, {
+    skipInitialCardSelection: false, coloniesExtension: true, turmoilReduxExpansion: true, venusNextExtension: true,
+  });
+  answerStartFlow(game, [player]);
+  const venus = new VenusRedux();
+  game.colonies = [venus, new Luna(), new Europa(), new Callisto()];
+  venus.colonies.push(player.id);
+  venus.trackPosition = 2; // the 3rd cell: 1 floater
+  player.playedCards.push(new Dirigibles(), new AtmoCollectors());
+  setVenusScaleLevel(game, 6); // the trade's step crosses 8 %
+  player.megaCredits = 80;
+  runAllActions(game);
+  write('venus-trade', game);
 }
 
 // ── play-scale-card: a solo action phase with a card in hand that RAISES A

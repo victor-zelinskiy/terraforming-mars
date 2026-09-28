@@ -258,7 +258,7 @@ import {
 } from '@/client/console/parliament/consoleParliamentFlow';
 import {fitParliamentCards, freezeParliamentFit} from '@/client/console/parliament/parliamentCardFit';
 import {
-  dropFlight, dropFlightsWithPrefix, flightEl, nextFlightId, pushCubeFlight, registerFlightHandle, VOTE_FLIGHT_MS,
+  dropFlight, dropFlightsWithPrefix, flightEl, nextFlightId, pushCubeFlight, registerFlightHandle,
 } from '@/client/console/parliament/parliamentFlights';
 import {
   emptyVoteRects, killParliamentVoteMotion, measureVoteRects, parkParliamentBody, playParliamentVoteEnter, playParliamentVoteLeave, Rect,
@@ -1047,7 +1047,9 @@ export default defineComponent({
           proxy,
           from,
           to,
-          durationMs: VOTE_FLIGHT_MS,
+          // The distance sets the tempo (`cubeFlightMs`); VOTE_FLIGHT_MS stays the
+          // nominal figure the landing hold is budgeted against.
+          durationMs: undefined,
           onLifted: () => {
             // The proxy stands exactly over the source cube: THAT cube may vanish now (the next one, if any, stays).
             f.sourceHoldCount = Math.max(0, f.sourceHoldCount - 1);

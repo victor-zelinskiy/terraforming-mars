@@ -283,7 +283,8 @@
               <div class="con-task__option-main">
                 <span class="con-task__opt-title">{{ opt.title }}</span>
                 <span class="con-colfocus__track-reward">
-                  <span v-if="opt.quantity > 1" class="con-colfocus__track-rewardqty">{{ opt.quantity }}</span>
+                  <span v-if="opt.quantity > 1 || (opt.levy && opt.quantity > 0)" class="con-colfocus__track-rewardqty"
+                        :class="{'con-colfocus__track-rewardqty--levy': opt.levy}">{{ opt.levy ? '−' : '' }}{{ opt.quantity }}</span>
                   <BenefitGlyph :benefit="tradeBenefitAt(opt.position)" :idx="opt.position" :cardResource="metadata.cardResource" />
                 </span>
                 <span v-if="captures['track'] === opt.steps" class="con-colfocus__opt-check" aria-hidden="true">✓</span>
@@ -908,8 +909,10 @@ export default defineComponent({
     thisPlayer: {type: Object as PropType<PublicPlayerModel | undefined>, default: undefined},
     viewerColor: {type: String as PropType<Color | undefined>, default: undefined},
     tradeOffset: {type: Number, default: 0},
+    /** The chosen payment path's own advance the PREVIEW was fetched with (the section echoes `path-offset` back). */
+    pathOffset: {type: Number, default: 0},
   },
-  emits: ['confirm', 'build-confirm', 'pick-confirm', 'cancel'],
+  emits: ['confirm', 'build-confirm', 'pick-confirm', 'cancel', 'path-offset'],
   data() {
     return {
       payIdx: 0,
@@ -1054,8 +1057,15 @@ export default defineComponent({
           traderColor: foreign ? this.bonusEntry.traderColor : '', traderLine: line,
         };
       }
-      const bonusWave = revealIsOwnerBonus(currentRevealEvent()?.source) ||
-        cardDiscardColonyBonus() !== undefined;
+      // THE INCOME LANDS FIRST. The owner bonus's batch arrives in the SAME
+      // response as the trade income (the Redux Venus), so its presence alone
+      // named the bonus while the income's chip was still flying onto the
+      // presented card — «ИСТОЧНИК · БОНУС ВЛАДЕЛЬЦА» over a trade reward in
+      // the air. While a presented target of the INCOME stands, the chip in
+      // flight is the trade reward; the bonus takes the name once it has left.
+      const incomeLanding = this.presentedTargets.some((t) => t.role !== 'colonyBonus');
+      const bonusWave = !incomeLanding && (revealIsOwnerBonus(currentRevealEvent()?.source) ||
+        cardDiscardColonyBonus() !== undefined);
       if (bonusWave) {
         return {roleKey: 'Owner bonus', bonus: true, traderColor: '', traderLine: ''};
       }
@@ -1095,6 +1105,17 @@ export default defineComponent({
      */
     outcomeHandoffDue(): boolean {
       if (!this.outcomeZone) {
+        return false;
+      }
+      // A CARD IS RECEIVING. The presented target stands until every chip has
+      // touched it, is read for one calm beat and LEAVES on its own — only then
+      // may the payout take the room. Measured without this: the owner
+      // bonus's batch teleported into the zone in the very response that
+      // paid the trade, `outcomeContentIn` called the handoff due, the card
+      // was unmounted under the reward that had not even left its source,
+      // and the chip flew onto nothing (`run:no-dest`). The cover scene waits
+      // for the same fact from its side (`waitForCause` · `cardSceneLive`).
+      if (this.presentedTargets.length > 0) {
         return false;
       }
       // THE TRACK IS STILL MOVING. The payout is a CONSEQUENCE of the marker
@@ -1186,10 +1207,21 @@ export default defineComponent({
     trackMax(): number {
       return this.metadata.trade.quantity.length - 1;
     },
-    /** The offset the stage PRESENTS — pinned past the commit, so the spent
-     *  «+N» of the move that was made is never replaced by the next one's. */
+    /**
+     * THE CHOSEN PATH'S OWN REACH — the Unity action's «advance 1 step first»
+     * (`OptionMetadata.tradeOffset`), read off the payment row the cursor
+     * picked. It moves the marker on this very press: the effective cell, the
+     * caption and the reward package all describe the trade THAT path makes,
+     * and the section re-asks the preview with it (`path-offset`).
+     */
+    chosenPathOffset(): number {
+      return this.presentedOptions[this.payIdx]?.metadata?.tradeOffset ?? 0;
+    },
+    /** The offset the stage PRESENTS — the standing one (Trading Colony) plus
+     *  the chosen path's; pinned past the commit, so the spent «+N» of the
+     *  move that was made is never replaced by the next one's. */
     presentedOffset(): number {
-      return this.pinnedConfig !== undefined ? this.pinnedConfig.tradeOffset : this.tradeOffset;
+      return this.pinnedConfig !== undefined ? this.pinnedConfig.tradeOffset : this.tradeOffset + this.chosenPathOffset;
     },
     effectivePosition(): number {
       const offset = this.colony.isActive ? this.presentedOffset : 0;
@@ -1561,13 +1593,13 @@ export default defineComponent({
       const step = this.steps.find((s) => s.kind === 'trackChoice');
       return step?.kind === 'trackChoice' ? step : undefined;
     },
-    trackOptions(): Array<{steps: number, position: number, quantity: number, title: string}> {
+    trackOptions(): Array<{steps: number, position: number, quantity: number, levy: boolean, title: string}> {
       const step = this.trackStep;
       const current = this.presentedPreview?.track.current ?? 0;
       if (step === undefined) {
         return [];
       }
-      const options: Array<{steps: number, position: number, quantity: number, title: string}> = [];
+      const options: Array<{steps: number, position: number, quantity: number, levy: boolean, title: string}> = [];
       // Down to the plan's FLOOR: below it the colony refuses this player its
       // income (the Redux Pluto's data with no holder) — the server lists those
       // steps disabled, and «don't increase» exists only when 0 is legal.
@@ -1577,6 +1609,7 @@ export default defineComponent({
           steps: n,
           position,
           quantity: rewardAtPosition(this.metadata, position).quantity,
+          levy: rewardAtPosition(this.metadata, position).type === ColonyBenefit.LOSE_RESOURCES,
           title: n > 0 ?
             translateTextWithParams('Increase colony track ${0} step(s)', [String(n)]) :
             translateText('Don\'t increase colony track'),
@@ -1775,7 +1808,9 @@ export default defineComponent({
         const current = track?.current ?? this.colony.trackPosition;
         return Math.min(current + chosen, this.metadata.trade.quantity.length - 1);
       }
-      if (track !== undefined) {
+      // A preview asked for ANOTHER path's reach is not this one's: the stage's
+      // own mirror of the plan stands in until the re-ask lands.
+      if (track !== undefined && (this.pinnedConfig !== undefined || this.pathOffset === this.chosenPathOffset)) {
         return track.effective;
       }
       return this.effectivePosition;
@@ -2009,6 +2044,15 @@ export default defineComponent({
     // publishes is derived, so only this edge re-publishes it).
     payIdx() {
       this.syncUiMirror();
+    },
+    // The chosen path's reach is the section's to re-ask the preview with
+    // (`immediate`: a stage mounting straight onto a locked path — the Unity
+    // door — names it before the first preview is fetched).
+    chosenPathOffset: {
+      immediate: true,
+      handler(offset: number) {
+        this.$emit('path-offset', offset);
+      },
     },
     // The WORLD moved under the composition substep (undo, a refreshed
     // preview, the card leaving the tableau) and the choice is gone — the
@@ -2862,7 +2906,7 @@ export default defineComponent({
         options: this.options.slice(),
         disabledOptions: this.disabledOptions.slice(),
         preview: this.preview,
-        tradeOffset: this.tradeOffset,
+        tradeOffset: this.tradeOffset + this.chosenPathOffset,
       };
       this.pinnedConfig = this.heldView;
     },

@@ -50,6 +50,7 @@ import {ColonyBonusCollectMeta, ColonyBonusDiscardMeta, PlayerInputModel} from '
 import {colonyTradeState} from '@/client/console/colonyTrade/consoleColonyTrade';
 import {cardDiscardColonyBonus} from '@/client/console/cardDiscard/consoleCardDiscard';
 import {workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
+import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 
 /** The resolution's derived phase (observability + the crumb's vocabulary). */
 export type ColonyResolutionPhase =
@@ -258,6 +259,18 @@ export const colonyResolutionUi = reactive({
    */
   cardSceneLive: false,
 });
+
+/**
+ * THE PRESENTED CARD SCENE HOLDS THE FOREGROUND. A reward still arriving on a
+ * card (the chips in the air, the touchdown, the read beat, the departure) is
+ * the act still happening — so every prompt-routed DOOR (the owner bonus's
+ * discard announce, the Redux Venus's delegate vote), every announcement and
+ * the next colony cycle's own reveal wait for it, exactly as they wait for a
+ * flight. Without it the next step opened mid-scene: the drawn card rose over
+ * the receiving card while its floater was still on the way, and the card
+ * left the stage with the chip aimed at where it had been.
+ */
+registerAnimationHoldSupplier('colony-card-scene', () => colonyResolutionUi.cardSceneLive);
 
 export function noticeColonyResolutionDiscard(): void {
   colonyResolutionUi.discarded++;

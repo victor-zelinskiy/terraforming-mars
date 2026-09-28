@@ -170,6 +170,42 @@
 		transform: rotateY(90deg) translateZ(var(--pc-half));
 	}
 
+	// ── THE BACK FACES (a SOLID cube — the flight proxy) ─────────────────
+	// Culled by `backface-visibility` at rest; they come round only while the
+	// cube TUMBLES, so the tumble never shows the void through the shell.
+	&__face--far {
+		--pc-face: var(--pc-far);
+		-webkit-transform: rotateY(-90deg) translateZ(var(--pc-half));
+		transform: rotateY(-90deg) translateZ(var(--pc-half));
+	}
+	&__face--back {
+		--pc-face: var(--pc-back);
+		-webkit-transform: rotateY(180deg) translateZ(var(--pc-half));
+		transform: rotateY(180deg) translateZ(var(--pc-half));
+	}
+	&__face--bottom {
+		--pc-face: var(--pc-bottom);
+		-webkit-transform: rotateX(-90deg) translateZ(var(--pc-half));
+		transform: rotateX(-90deg) translateZ(var(--pc-half));
+	}
+
+	// THE TUMBLE KNOBS — a SOLID cube's pose adds a flight director's turn to
+	// the rest pose (`--pc-tumble-x` / `--pc-tumble-y`, 0 at rest and at the
+	// touchdown, so the landing proxy is pixel-identical to the cube that
+	// materializes under it). The director writes the two vars per frame; the
+	// cube's own 3D is never composited flat (no opacity, no filter, no
+	// will-change on the cube — see the scene's comment above).
+	&--solid &__cube {
+		-webkit-transform:
+			translateY(var(--pc-ty))
+			rotateX(calc(var(--pc-rx) + var(--pc-tumble-x, 0deg)))
+			rotateY(calc(var(--pc-ry) + var(--pc-tumble-y, 0deg)));
+		transform:
+			translateY(var(--pc-ty))
+			rotateX(calc(var(--pc-rx) + var(--pc-tumble-x, 0deg)))
+			rotateY(calc(var(--pc-ry) + var(--pc-tumble-y, 0deg)));
+	}
+
 	&__svg {
 		display: block;
 		width: 100%;

@@ -70,6 +70,8 @@ describe('party presentation (Turmoil Redux UI)', () => {
     expect(game.parliament).to.not.eq(undefined);
     const trader = new TradeWithUnity(player);
     expect(trader.optionMetadata().party).to.eq(PartyName.UNITY);
+    // …and its OWN reach — the stage moves the marker the moment the path is chosen.
+    expect(trader.optionMetadata().tradeOffset).to.eq(1);
   });
 
   it('the potential projection counts the party actions the player could take, by the parliament\'s own verdict', () => {

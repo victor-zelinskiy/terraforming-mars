@@ -1857,6 +1857,7 @@ import ConsoleColonyTradeLayer from '@/client/components/console/colonyTrade/Con
 import {
   abortColonyTrade, armColonyTrade, colonyTradeClaimsReveal, colonyTradeState,
   isColonyTradeInputLocked, noticeColonyTradeCommit, notifyColonyTradeTrackCommitted,
+  colonyTradeDiagnostics,
 } from '@/client/console/colonyTrade/consoleColonyTrade';
 import {ColonyTradeTargets} from '@/client/console/colonyTrade/colonyTradeModel';
 import ConsoleColonyInspect from '@/client/components/console/ConsoleColonyInspect.vue';
@@ -1886,7 +1887,7 @@ import {hydroBonusAdvancePlan, hydroBonusDoorAction, hydroBonusOffer} from '@/cl
 import {HYDRO_STAGES} from '@/client/components/hydronetwork/hydroStages';
 import {bonusActionInStartFlow, bonusActionOnBoard, bonusActionOwed, bonusActionTurnControlReason} from '@/client/console/bonusAction';
 import {firstActionOwed} from '@/client/console/startFirstAction';
-import {isResourceTransferActive} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {isResourceTransferActive, resourceTransferDiagnostics} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {panelCommands} from '@/client/console/consolePanelUi';
 import {consoleActionComposerUi, resetConsoleActionComposerUi, resetConsoleActionRevealClaim} from '@/client/console/consoleActionComposerUi';
 import {focusKicker} from '@/client/console/consoleActionFlow';
@@ -1909,7 +1910,7 @@ import {marsBotCorpAnnotations} from '@/client/components/marsbot/marsBotCorpRul
 import {consoleCardZoom, openConsoleCardZoom, navigateConsoleCardZoom, closeConsoleCardZoom, setConsoleZoomInspectTab, slotZoomOrigin, ZoomOrigin, ConsoleZoomProvenance, ConsoleZoomVoteVerb} from '@/client/console/consoleCardZoom';
 import {beginZoomOpen, cancelZoomOpen, playZoomOpenFlight, zoomOpenSourceRect, playZoomClose, playZoomDepart, playZoomHandoff, playZoomSwap, retargetZoomHold, releaseZoomMotion} from '@/client/console/consoleZoomMotion';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
-import {currentRevealEvent, drawnCardsState, markRevealPresented, revealPresented, serverRevealConsumed, untakenNameMultiset} from '@/client/components/drawnCards/drawnCardsState';
+import {currentRevealEvent, drawnCardsState, markRevealPresented, registerRevealQueuePark, revealPresented, serverRevealConsumed, untakenNameMultiset} from '@/client/components/drawnCards/drawnCardsState';
 import {energyConversionState} from '@/client/components/feedback/energyConversionTransition';
 import {revealViewerState} from '@/client/components/notifications/revealViewerState';
 import {ConsoleTask, TaskKind, taskFor, taskMinimizable, taskServedByHost, shellTaskOnSurface, followUpStepStage, promptOutranksStartScene, NATIVE_COMPOSITE_KINDS, SCENE_KINDS, SECTION_SERVED_KINDS, SHELL_SECTION_KINDS, corpFirstActionInStartFlow, DELEGATE_GRANT_STEP_STAGE} from '@/client/console/consoleTaskRouter';
@@ -1947,7 +1948,7 @@ import {
 import {bonusDiscardOwnsBatch, bonusDiscardStep, BonusDiscardStep} from '@/client/console/colonyTrade/colonyBonusDiscardStep';
 import {drawnRevealCommandRun} from '@/client/console/consoleRevealCommands';
 import {workspaceClaimsDrawReveal, workspaceClaimsColonyReveal, workspaceClaimsDeckCheck, workspaceClaimsEffect, workspaceClaimsPick, workspaceClaimsRevealSource, workspaceOutcomeClaimed, workspaceOutcomeBeatPending, claimWorkspaceOutcome, lastOutcomeReleaseStack, markWorkspaceOutcomeAnswerIn, markWorkspaceOutcomeArrivalDone, markWorkspaceOutcomeBeatDone, markWorkspaceOutcomePresenting, outcomeHostConcludesFlow, releaseWorkspaceOutcome, resetWorkspaceOutcome, retainWorkspaceOutcomeForNextBatch, setWorkspaceOutcomePhase, setWorkspaceOutcomeServingProbe, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
-import {boardBeatParkPending, boardBeatParksReveal, drainBoardBeatsIfDue, noteBoardScaleAdvance, registerBoardBeatLiveParams, registerBoardBeatRedrive, registerBoardWatchableProbe, resetBoardBeatPark} from '@/client/console/boardBeatPark';
+import {boardBeatParkPending, boardBeatParksReveal, drainBoardBeatsIfDue, noteBoardScaleAdvance, registerBoardBeatLiveParams, registerBoardBeatRedrive, registerBoardBeatSurfaceProbe, registerBoardWatchableProbe, resetBoardBeatPark} from '@/client/console/boardBeatPark';
 import {parliamentParksReveal} from '@/client/console/parliament/parliamentRewardBeat';
 import {cardExitBusy} from '@/client/console/cardDeal/cardExitDirector';
 import type {WorkspaceOutcomeKind, WorkspaceOutcomeScope} from '@/client/console/consoleWorkspaceOutcome';
@@ -2336,6 +2337,8 @@ export default defineComponent({
       /** The zone the Parliament was hosted in, LATCHED for its leave: the frame pops first, and a leaving step
        *  re-rendered as a standalone band (`con-ws`, its own head) is the flash the embed contract forbids. */
       parliamentEmbedLatch: '',
+      /** The reveal QUEUE park's restore fn (registered at mount beside the board-beat probe). */
+      releaseRevealQueuePark: undefined as (() => void) | undefined,
       /** …and its bounded net: a leave that never reports back may not latch the surface for the session. */
       parliamentLeaveNet: undefined as number | undefined,
       patentSaleState,
@@ -19591,6 +19594,14 @@ export default defineComponent({
     // drains against the real screen; the mount-edge drain below covers the
     // watcher's blind spot (a watcher never fires on its initial truth).
     registerBoardWatchableProbe(() => this.boardBeatsWatchable);
+    // …and «a workspace surface is still LEAVING» — the bridge counts a
+    // `.con-ws` through its whole fade, so the scale story starts on a board
+    // the player can actually see (never under a dissolving workspace).
+    registerBoardBeatSurfaceProbe(() => conWsPresence.wsOpen);
+    // …and the QUEUE skips what the park holds: a parked Venus draw must not
+    // wall the workspace's own batch behind it (drawnCardsState — the queue
+    // park), the same verdict `rawDrawnRevealPending` subtracts.
+    this.releaseRevealQueuePark = registerRevealQueuePark((source) => boardBeatParksReveal(source));
     // …and the ledger's redrive rides the shell's GUARDED drain (the one
     // that folds board cinematics + the read admission in) — the bare
     // module drain is only the desktop/test default.
@@ -19678,6 +19689,10 @@ export default defineComponent({
       // is there and А does nothing» — the one symptom with no other tell.
       cardScene: colonyTradeState.cardScene,
       tradePhase: colonyTradeState.phase,
+      // The reward TRANSACTION and the transfer framework's own trail —
+      // «the chip never flew» vs «it flew onto nothing» are told apart here.
+      trade: colonyTradeDiagnostics(),
+      transfer: resourceTransferDiagnostics(),
       // WHICH batches the cover scene claimed vs which are still on the table:
       // the reset glide's gate is «every staged batch was taken», and the two
       // lists are the only way to see it disagree with the screen.
@@ -19870,6 +19885,8 @@ export default defineComponent({
     // shell's computeds must never decide the next game's parks; held values
     // and a parked batch release honestly, without the show).
     resetBoardBeatPark();
+    this.releaseRevealQueuePark?.();
+    this.releaseRevealQueuePark = undefined;
     // …and the presentation ledger with it: a dead shell's closures must
     // never redrive the next game (the transport re-registers its witness
     // at the next start; the park re-owes on its next seed).

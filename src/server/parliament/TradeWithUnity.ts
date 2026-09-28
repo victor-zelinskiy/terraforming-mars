@@ -37,7 +37,9 @@ export class TradeWithUnity implements IColonyTrader {
     // `party` is the path's STRUCTURAL identity (the card-powered paths carry
     // `card` for the same reason): the console's Unity door locks the trade to
     // this very option without reading its translated label.
-    return {kind: 'generic' as const, icon: 'megacredits', amount: 0, party: PartyName.UNITY, description: 'Free trade (Unity action, once per generation). You may advance the colony track 1 step first.'};
+    // …and `tradeOffset` is the path's own reach, so the stage moves the marker
+    // the moment this path is chosen (never a number that changed afterwards).
+    return {kind: 'generic' as const, icon: 'megacredits', amount: 0, party: PartyName.UNITY, tradeOffset: this.bonusTradeOffset, description: 'Free trade (Unity action, once per generation). You may advance the colony track 1 step first.'};
   }
 
   /** `undefined` (hidden) without access — there is no option to explain; a used action is shown greyed with its reason. */

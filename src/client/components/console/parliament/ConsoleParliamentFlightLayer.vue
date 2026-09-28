@@ -15,8 +15,8 @@
        card is born face-up. Never `opacity` on the body (it flattens the 3D). -->
   <div class="con-parl-flightlayer" aria-hidden="true">
     <div v-for="f in flights.flights" :key="f.id" class="con-parl__flight" :ref="(el) => setFlightEl(f.id, el as HTMLElement | null)" :data-parl-flight="f.id">
-      <PlayerCube v-if="f.color !== 'neutral'" :color="f.color" :size="f.size" />
-      <PlayerCube v-else color="neutral" steel :size="f.size" />
+      <PlayerCube v-if="f.color !== 'neutral'" :color="f.color" :size="f.size" solid />
+      <PlayerCube v-else color="neutral" steel :size="f.size" solid />
     </div>
     <div v-for="f in flights.cardFlights" :key="f.id"
          class="con-parl__flight con-parl__flight--card"

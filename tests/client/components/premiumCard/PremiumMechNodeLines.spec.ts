@@ -18,7 +18,8 @@ import {PartyName} from '@/common/turmoil/PartyName';
  * content — two lines centred in a single-line box.
  */
 describe('PremiumMechNode — a part\'s authored lines', () => {
-  /** The Reds' printed action: «→ [card][card] − [card][card] ⏎ [2 M€] / [plant][microbe][animal]». */
+  /** The Reds' printed action: «→ +2[card] −2[card] ⏎ [2 M€] / [plant][microbe][animal]» — the counts as DIGITS
+   *  (2026-09-28: four card icons overran the government's plaque; one icon with its count reads the same). */
   function redsAction(): ICardRenderEffect {
     const effect = getPartyEffect(PartyName.REDS);
     const box = effect?.actionRenderData?.rows.flat().find(isICardRenderEffect);
@@ -49,7 +50,7 @@ describe('PremiumMechNode — a part\'s authored lines', () => {
     expect(part.exists(), 'the result part folds into lines').to.eq(true);
     const lines = part.findAll('.pcard-effect__line');
     expect(lines.length).to.eq(2);
-    expect(lines[0].findAll('.pcard-ic').length, 'four cards on the first line').to.eq(4);
+    expect(lines[0].findAll('.pcard-ic').length, 'two card icons (each with its count) on the first line').to.eq(2);
     expect(lines[1].findAll('.pcard-ic--tag').length, 'three tags on the second').to.eq(3);
     expect(wrapper.find('.pcard-sym--vspace').exists(), 'the spacer is gone from the effect frame').to.eq(false);
   });

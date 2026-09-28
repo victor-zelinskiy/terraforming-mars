@@ -291,6 +291,68 @@ Diagnosing a silent door: `window.__wsTrace = true` prints every frame-removing 
 caller's stack, and `__conColonyDiag()` states the stack + the colony flow's facts — read those
 before theorising (two runs here went to guesses first).
 
+### 5.x · The trade flow, reworked after the 2026-09-28 review (seven defects)
+
+1. **The pre-collected card target is never asked twice.** The batch's positional
+   replay met the owner bonus's MANDATORY discard (`SelectCard`, type `card`) before
+   the reward pick and answered the discard with the tableau card's name — the
+   discard prompt ACCEPTED it (the name was in the hand), then a bare picker rose
+   over the dossier. `deferredInputBatch.hiddenInfoPrompt` now parks the tail at a
+   mandatory discard too (beside the deck-pick) — deliberately with NO candidate
+   check as a second rung: a `card` answer naming no candidate of the SAME
+   question is a stale pick and must be DROPPED (`deferredInputBatch.spec` § a
+   genuine divergence), held it would land on an unrelated card prompt later in
+   the action — and the dossier publishes NO outcome zone (`outcomeSlotSelector` is `''` in
+   `inspect`), so nothing can teleport into it. Spec: `VenusRedux.spec.ts` § a
+   PRE-COLLECTED card target survives the owner bonus in front of it.
+2. **The 8 % card waits for the board.** The Venus step's `globalParameter` batch
+   is QUEUED IN FRONT of the colony's own (the fixed step is paid first), and the
+   reveal queue presented oldest-first — the park yielded to the claimed sibling
+   and the bonus card opened fullscreen over the trade. The queue now SKIPS a
+   parked batch (`registerRevealQueuePark`, the shell registers
+   `boardBeatParksReveal`); the HUD holds 6 % while the workspace stands; the
+   drain's settle additionally waits out a LEAVING workspace
+   (`registerBoardBeatSurfaceProbe` ← `conWsPresence.wsOpen`, bounded 1.2 s) so the
+   scale story starts on a board the player can see. Spec: `boardBeatPark.spec.ts`
+   § a PARKED batch is not in the queue.
+3. **The composite income is on every cell** (`ConsoleColonyTrackInstrument`
+   `__xcell-fixed` + `__xcell-plus` above the marker's part; the tile's
+   `__cell-fixed`); a LOSE_RESOURCES position reads as a LOSS (`−4`, amber —
+   `__xcell-qty--levy`, `__cell-num--levy`, the track-choice rows alike).
+4. **The reward lands on a standing card** — `docs/COLONY_TRADE_FLOW.md` § A CARD IS
+   RECEIVING.
+5. **The Unity path shows its advance BEFORE the press** (`OptionMetadata.tradeOffset`
+   — the path's `bonusTradeOffset`, published by `TradeWithUnity`): the stage reads
+   `chosenPathOffset` off the picked payment row → the effective cell moves
+   (`--effective` + «Ваша торговля сначала продвинет трек +1»), the reward package
+   reads the advanced position, and the section RE-ASKS the preview with
+   `offset=N` (`GET …colony-trade-preview&offset=1`, `buildColonyTradePreview(player,
+   colony, pathOffset)` → the plan with the path's terms) so an `ask` colony's
+   `trackChoice` is pre-collected in the batch and the advance LEG plays from the
+   pre-press position (`armColonyTrade(…, trackPosition)` → `runTrackAdvance`)
+   before the payout. Pinned at the commit (`pinnedConfig.tradeOffset` = standing +
+   path). Specs: `VenusRedux.spec.ts` § the preview follows the CHOSEN PATH's own
+   reach · `ApiGameColonyTradePreview.spec.ts` § offset · `PartyPresentation.spec.ts`.
+6. **The delegate cube flight is a CUBE** — `docs/claude/console/parliament-sitting.md`
+   § 8.
+7. **The Reds' action graphic fits its plaque** (`PartyEffects.ts`: `+2 cards − 2 cards`
+   with a digit, the M€ / tag trio on the next line) — and EVERY plaque fits its box
+   by MEASURE (`fitPartyPlaques` in `parliamentCardFit.ts` → `--con-parl-tile-fit`,
+   ≤ 1, ONE `zoom` on the plaque's children — seal · head · formula · foot as one
+   object; measured once per box height and reused, so the government's change
+   moves nothing): on the TV the row's tiles were barely taller than at 1080 (188 px
+   against ~165) while the profile's parts are twice the size, so the seal and the
+   foot alone overran the box and every two-line formula stood 9–19 px past its
+   plaque and over the next tile's head. The tile's height is measured from the
+   GOVERNMENT's ruler block (the smaller room — v3 В5), and at the TV's 0.78 the
+   enacted card's own effect took 187 px of it: the TV ladder now reads that block
+   at 0.5 (`--con-parl-ruler-own-zoom`) and sizes the plaque's seal / foot at
+   2.1 / 1.8 rem, so the slot — and with it all six tiles — gains ~60 px before the
+   fit is asked at all (the row's tier itself still leaves slack above and below
+   the tiles at 4K — the tier budget is the TV parliament's own design). Probe: `console-parliament-reds-plaque.spec.ts`
+   (Reds rule by an enacted Heat Capture; the ruler's plaque and the five row tiles,
+   1080 + 4K: the formula's box inside the plaque's, no scroll cut).
+
 **Guards (Venus):** `tests/colonies/VenusRedux.spec.ts` (39: the printed tile,
 every position pays + the Venus step under a quiet government and under the
 Greens' starting rule, the zero income, both refusals with fee terms / the

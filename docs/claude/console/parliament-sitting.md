@@ -198,3 +198,36 @@ stage takes the Agenda track WHOLE (`html.con-profile-handheld .con-parl[data-si
 The probes: `console-parliament-sitting-v2` (three profiles), `-sitting-v2-remote`, `-vote-geometry`, `-leave`,
 `-stability` (five + the ruler, the government's change). The old specs (`-sitting`, `-sitting-motion`, `-sitting-reward`,
 `-gallery`, `-aquifer`, `-biodome`) speak v2 through the driver's `turnTo` (A only on the verdict; «reached or passed»).
+
+## 8. THE CUBE FLIGHT — a delegate travels as a CUBE (2026-09-28)
+
+Every delegate proxy the Parliament flies — the vote's cube, a grant's pair (the Redux
+Venus's build / trade), the support scene's neutral cubes, the renewal's returns, the
+chairman's seat — goes through ONE director, `runDelegateCubeFlight`
+(`consoleParliamentVoteMotion.ts`), and the proxy is a **SOLID** `PlayerCube`
+(`solid` prop: the three back faces — far · back · bottom — exist, so the tumble never
+shows the void; the board's resting cubes keep three faces). Three beats on one clock:
+
+- **LIFT-OFF** (0 → 26 %): the cube rises off its place by its own height and GROWS
+  (`CUBE_LIFT_SCALE` 1.55 — volume coming toward the camera, never a bigger sprite);
+  the contact shadow lets go, the glow brightens.
+- **THE CARRY**: the line is travelled on an arc scaled to the distance (`arcPx` =
+  20 % of the distance, floored at the cube's height, capped at 110 logical px),
+  with ONE full turn about the vertical axis (`--pc-tumble-y` 0 → 360°) and a nod
+  that peaks mid-air (`--pc-tumble-x`, 22°) — the six faces come round.
+- **THE DESCENT** (70 % → 100 %): gravity (ease-in) brings it onto the destination's
+  box at the destination's scale; the tumble resolves to the rest pose, the shadow
+  re-attaches, `onLanded` fires the frame it touches — the proxy is then
+  pixel-identical to the cube that materializes under it.
+
+The VOTE's own cube (and a grant's) paces by its DISTANCE (`cubeFlightMs`: 560 ms +
+0.32 ms/px, capped at 960 ms); the SITTING's cubes (`flyCube` — the support scene,
+the renewal's returns, the chairman's seat) keep ONE fixed tempo (`CUBE_FLIGHT_MS`),
+because the support scene's rhythm is written against it and «only the receiving
+socket answers» is a claim about LANDING ORDER — distance-paced flights landed out of
+launch order and two sockets answered at once (`console-parliament-sitting-v3` § ④). Reduced
+motion: the plain half-speed glide (`runProxyFlight`). The dealt CARDS keep
+`runCardDealFlight` (a taller object, its own arc). Probe: the grant's two cubes in
+`console-colony-venus-redux.spec.ts` (every visible `.con-parl__flight` proxy's
+first→last rect must TRAVEL); the sitting probes (v2–v5) keep their source→socket
+visibility claims.

@@ -2324,7 +2324,7 @@ export type BootOptions = {
  * resumed prompt. Costs one request + one page load — a spec whose subject
  * lives in the late game stops replaying the game to reach it.
  */
-export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'hydro-terminal' | 'hydro-terminal-surge' | 'staged-interposer' | 'staged-hazard' |
+export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 'hydro-terminal' | 'hydro-terminal-surge' | 'staged-interposer' | 'staged-hazard' |
   'play-scale-card' | 'effect-forecast' | 'parliament' | 'parliament-actions' | 'parliament-recap' |
   'parliament-dense' | 'parliament-seat' | 'parliament-paid' | 'parliament-aquifer-vote' | 'parliament-aquifer-enact' |
   'parliament-architecture-vote' | 'parliament-architecture-recap' | 'parliament-cloud-vote' | 'parliament-cloud-assembly' | 'parliament-cloud-enact' |
@@ -2395,7 +2395,7 @@ export async function bootFixture(
   page: Page,
   request: APIRequestContext,
   fixture: FixtureName,
-  opts: {query?: string, waitRounds?: number, landing?: 'board' | 'prompt'} = {},
+  opts: {query?: string, waitRounds?: number, landing?: 'board' | 'prompt', keepColony?: string} = {},
 ): Promise<string> {
   const {playerId} = await bootFixtureSeats(page, request, fixture, opts);
   return playerId;
@@ -2410,7 +2410,8 @@ export async function bootFixtureSeats(
   page: Page,
   request: APIRequestContext,
   fixture: FixtureName,
-  opts: {query?: string, waitRounds?: number, landing?: 'board' | 'prompt'} = {},
+  /** `keepColony`: a solo opening REMOVES one colony tile through a live pick — steer the pick off the one the spec needs alive. */
+  opts: {query?: string, waitRounds?: number, landing?: 'board' | 'prompt', keepColony?: string} = {},
 ): Promise<{playerId: string, seats: Array<string>}> {
   const file = path.resolve(__dirname, 'fixtures', `${fixture}.json`);
   const serialized = JSON.parse(fs.readFileSync(file, 'utf8')) as Record<string, unknown>;
@@ -2432,7 +2433,7 @@ export async function bootFixtureSeats(
     // its self-heal would answer the very prompt the spec is about.
     await settle(page, {timeoutMs: 20_000});
   } else {
-    await waitForBoardHome(page, opts.waitRounds ?? 25);
+    await waitForBoardHome(page, opts.waitRounds ?? 25, {keepColony: opts.keepColony});
   }
   return {playerId, seats};
 }

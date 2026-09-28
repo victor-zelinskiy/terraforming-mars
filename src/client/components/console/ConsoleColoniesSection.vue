@@ -270,6 +270,8 @@
                                    :disabledOptions="tradeDisabledPayments"
                                    :players="players"
                                    :preview="focusPreview"
+                                   :pathOffset="focusPathOffset"
+                                   @path-offset="onFocusPathOffset"
                                    :thisPlayer="thisPlayer"
                                    :viewerColor="viewerColor"
                                    :tradeOffset="tradeOffset"
@@ -489,6 +491,10 @@ export default defineComponent({
       resolutionUi: colonyResolutionUi,
       /** The focus stage's server preview (fetched per focused colony). */
       focusPreview: undefined as ColonyTradePreviewModel | undefined,
+      /** The CHOSEN payment path's own track advance (the Unity action's 1) — the offset the preview was asked with. */
+      focusPathOffset: 0,
+      /** The newest preview request wins: an older answer (a different colony or offset) is dropped. */
+      focusPreviewSeq: 0,
       /** The fit-set zoom on every tile (grows them to fill the space). */
       tileScale: 1,
       /** The fit-set grid max-width so the layout's column count holds. */
@@ -733,6 +739,15 @@ export default defineComponent({
       if (!this.revealEmbedActive || this.resolutionUi.discardStage) {
         return '';
       }
+      // THE DOSSIER PUBLISHES NO ZONE. Named here while the inspect
+      // composition stood, the focus-reveal selector pointed at a node that
+      // did not exist, and the teleport degraded to a bare child of the root
+      // — the card-target picker floated over the planet with a raw title
+      // (2026-09-28). The dossier folds on the claim's rising edge (below),
+      // and until it has, the slot stays EMPTY (render nowhere for the gap).
+      if (this.focusState.open && this.focusState.intent === 'inspect') {
+        return '';
+      }
       return this.focusState.open ?
         '[data-embed-slot="colonies-focus-reveal"]' :
         '[data-embed-slot="colonies-reveal"]';
@@ -939,6 +954,17 @@ export default defineComponent({
     },
   },
   watch: {
+    /**
+     * A CLAIMED ARTIFACT ARRIVES WHILE THE DOSSIER STANDS (a late card-target
+     * pick, a reveal): the dossier is a READING and hosts nothing, so it folds
+     * to the grid and the section's own zone takes the artifact — never a
+     * picker teleported at a zone the dossier does not have.
+     */
+    revealEmbedActive(on: boolean): void {
+      if (on && this.focusState.open && this.focusState.intent === 'inspect') {
+        closeColonyFocus();
+      }
+    },
     grantColony: {
       immediate: true,
       handler(name: string): void {
@@ -991,6 +1017,7 @@ export default defineComponent({
     // The focus stage's server preview follows the descended-into colony.
     'focusState.colonyName'(name: ColonyName | '') {
       this.focusPreview = undefined;
+      this.focusPathOffset = 0;
       if (name !== '') {
         void this.loadFocusPreview(name);
       }
@@ -1436,9 +1463,27 @@ export default defineComponent({
       if (this.playerId === '' || this.catalog) {
         return;
       }
-      const preview = await fetchColonyTradePreview(this.playerId, name);
-      if (preview !== undefined && preview.colonyName === this.focusState.colonyName) {
+      const seq = ++this.focusPreviewSeq;
+      const preview = await fetchColonyTradePreview(this.playerId, name, this.focusPathOffset);
+      if (seq === this.focusPreviewSeq && preview !== undefined && preview.colonyName === this.focusState.colonyName) {
         this.focusPreview = preview;
+      }
+    },
+    /**
+     * THE CHOSEN PATH MOVES THE TRACK (the Unity action's «advance 1 step
+     * first»): the stage names the path's own offset the moment the cursor
+     * picks it, and the preview is re-asked with it — so the marker's move,
+     * the reward read there and the track-choice step the batch pre-collects
+     * all describe the trade THIS path will make. Quiet while a trade resolves.
+     */
+    onFocusPathOffset(offset: number): void {
+      if (offset === this.focusPathOffset) {
+        return;
+      }
+      this.focusPathOffset = offset;
+      const name = this.focusState.colonyName;
+      if (name !== '' && !colonyTradeState.active) {
+        void this.loadFocusPreview(name);
       }
     },
     // ── The descend transition hooks (consoleColonyFocusMotion) ────────────

@@ -236,6 +236,11 @@ export function flyCube(color: Color | 'neutral', from: Rect | undefined, to: Re
         proxy,
         from,
         to,
+        // ONE tempo for the sitting's cubes (the support scene's rhythm — a cube
+        // every 90 ms, a wave every 180 ms — is written against it, and only the
+        // receiving socket may answer at a time: distance-paced flights landed
+        // out of launch order and two sockets answered at once). The vote's
+        // own cube paces by its distance (`cubeFlightMs`).
         durationMs: CUBE_FLIGHT_MS,
         onLifted: opts.onLifted,
         onLanded: () => {
