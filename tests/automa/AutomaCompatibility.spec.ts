@@ -7,6 +7,7 @@ function cleanInput(): AutomaCompatibilityInput {
   return {
     boardName: BoardName.THARSIS,
     turmoil: false,
+    turmoilRedux: false,
     prelude2: false,
     community: false,
     moon: false,
@@ -85,6 +86,14 @@ describe('automaCompatibility — the shared UI/server conflict rules', () => {
     expect(conflictFor(conflicts, 'expansion:moon')?.reason).eq('The Moon');
     expect(conflictFor(conflicts, 'expansion:community')?.reason).eq('community cards');
     expect(conflictFor(conflicts, 'expansion:turmoil')).is.undefined;
+  });
+
+  it('TURMOIL REDUX is allowed — a stated fact of the matrix, not an omission (the bot is a seat at the Parliament)', () => {
+    // docs/TURMOIL_REDUX_MARSBOT.md: the bot votes through Party Politics and
+    // Lobbying, may win a vote and take the chairmanship; an enacted law never
+    // pays it. Classic Turmoil stays a conflict — the two engines are exclusive.
+    expect(automaConflicts({...cleanInput(), turmoilRedux: true})).deep.eq([]);
+    expect(automaConflicts({...cleanInput(), turmoilRedux: true, turmoil: true}).map((c) => c.key)).deep.eq(['expansion:turmoil']);
   });
 
   it('keeps the exact server reject wording for the first conflict', () => {

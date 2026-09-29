@@ -391,7 +391,7 @@ describe('ParliamentPhase', () => {
     });
 
     it('the effect never asks a seat that takes no part (MarsBot)', () => {
-      const [game, human, bot] = testAutomaGame({coloniesExtension: true, turmoilReduxExpansion: true});
+      const [game, human, bot] = testAutomaGame({coloniesExtension: true, turmoilReduxExpansion: true, botParliamentMode: 'none'});
       const parliament = game.parliament!;
       game.playerIsFinishedWithResearchPhase(human);
       seatResolution(parliament, 0, TEST_CHOICE_RESOLUTION_ID);
@@ -447,10 +447,10 @@ describe('ParliamentPhase', () => {
 
   describe('with MarsBot (BotParliamentMode none)', () => {
     it('plays several generations: the bot takes its turns, holds no delegates, gets no effects and is never asked', () => {
-      const [game, human, bot] = testAutomaGame({coloniesExtension: true, turmoilReduxExpansion: true});
+      const [game, human, bot] = testAutomaGame({coloniesExtension: true, turmoilReduxExpansion: true, botParliamentMode: 'none'});
       const parliament = game.parliament!;
-      expect(parliament.participates(bot)).is.false;
-      expect(parliament.participates(human)).is.true;
+      expect(parliament.participates(bot, 'delegates')).is.false;
+      expect(parliament.participates(human, 'delegates')).is.true;
       expect(parliament.lobby.has(bot.id)).is.false;
       expect(parliament.reserve(bot)).eq(0);
       expect(parliament.hasPartyEffect(bot, PartyName.GREENS)).is.false;
@@ -510,6 +510,122 @@ describe('ParliamentPhase', () => {
       expect(parliament.votesOf(bot)).eq(0);
     });
   });
+
+  describe('with MarsBot (BotParliamentMode politics)', () => {
+    /**
+     * THE SAME FIVE GENERATIONS under the political seat — the mode a NEW
+     * game seats the bot in. Without Party Politics in its deck (stage Э1)
+     * the bot's free delegate simply STANDS in the lobby all game: it is a
+     * seat that holds delegates (its lobby, its reserve, its row in the
+     * ledger), never a seat the sitting asks, never a seat a law pays.
+     */
+    it('plays several generations: the bot holds its delegates, is never asked, is never paid, and the ledger holds after every sitting', () => {
+      const [game, human, bot] = testAutomaGame({coloniesExtension: true, turmoilReduxExpansion: true, botParliamentMode: 'politics'});
+      const parliament = game.parliament!;
+      expect(parliament.participates(bot, 'delegates')).is.true;
+      expect(parliament.participates(bot, 'enactment')).is.false;
+      expect(parliament.participates(bot, 'prompts')).is.false;
+      expect(parliament.lobby.has(bot.id)).is.true;
+      expect(parliament.reserve(bot)).eq(6);
+      expect(parliament.hasPartyEffect(bot, PartyName.GREENS)).is.false;
+      expect(parliament.hasPartyEffect(human, PartyName.GREENS)).is.true;
+
+      game.playerIsFinishedWithResearchPhase(human);
+      for (let generation = 1; generation <= 5; generation++) {
+        expect(game.generation).eq(generation);
+        expect(game.phase).eq(Phase.ACTION);
+        const menu = human.popWaitingFor();
+        expect(menu).is.not.undefined;
+        const slot = parliament.slots[generation % parliament.slots.length];
+        if (parliament.lobby.has(human.id)) {
+          parliament.placeVote(human, slot, 'lobby');
+        }
+        game.playerHasPassed(human);
+        game.playerIsFinishedTakingActions();
+        // The bot has played its deck out; the sitting stands at ASSEMBLY, before anything changes —
+        // what the bot holds NOW is what the sitting must leave it with.
+        expect(game.phase).eq(Phase.PARLIAMENT);
+        const botMegacredits = bot.megaCredits;
+        const botTr = bot.terraformRating;
+        for (let guard = 0; guard < 8 && game.phase === Phase.PARLIAMENT; guard++) {
+          const wf = human.getWaitingFor();
+          if (gatePromptOf(human) !== undefined) {
+            answerGate(human);
+          } else if (wf instanceof SelectSpace) {
+            human.process({type: 'space', spaceId: wf.spaces[0].id});
+          } else if (wf instanceof SelectCard) {
+            human.process({type: 'card', cards: wf.externalDrawPrompt !== undefined ? wf.cards.map((c) => c.name) : [wf.cards[0].name]});
+          } else if (wf instanceof SelectColony) {
+            human.process({type: 'colony', colonyName: wf.colonies[0].name});
+          } else {
+            break;
+          }
+          runAllActions(game);
+        }
+        expect(bot.getWaitingFor(), `bot prompt in generation ${generation}`).is.undefined;
+        expect(game.generation).eq(generation + 1);
+        expect(game.phase).eq(Phase.RESEARCH);
+        expect(parliament.phase).is.undefined;
+        expect(parliament.enacted).is.not.undefined;
+        // The sitting's seat records name the human alone — the bot is outside the enactment.
+        const seats = new Set((parliament.lastPhase?.outcomes ?? []).map((o) => o.player).filter((p) => p !== undefined));
+        expect(seats.has(bot.id), `the law paid the bot in generation ${generation}`).is.false;
+        expect(bot.megaCredits, `the sitting changed the bot's M€ in generation ${generation}`).eq(botMegacredits);
+        expect(bot.terraformRating, `the sitting changed the bot's TR in generation ${generation}`).eq(botTr);
+        // The lobby refill reaches the bot too — its free delegate, still standing, is simply kept.
+        expect(parliament.lobby.has(human.id)).is.true;
+        expect(parliament.lobby.has(bot.id)).is.true;
+        expect(parliament.reserve(bot)).eq(6);
+        parliament.assertLedger(game);
+        human.popWaitingFor();
+        game.playerIsFinishedWithResearchPhase(human);
+      }
+      expect(game.generation).eq(6);
+      expect(parliament.agendaOf(bot)).eq(0);
+      expect(parliament.chairman).not.eq(bot.id);
+      expect(parliament.votesOf(bot)).eq(0);
+    });
+
+    it('the barrier of a gate is the seats that are ASKED — one human, the bot never', () => {
+      const [game, human, bot] = testAutomaGame({coloniesExtension: true, turmoilReduxExpansion: true, botParliamentMode: 'politics'});
+      const parliament = game.parliament!;
+      game.playerIsFinishedWithResearchPhase(human);
+      seatResolution(parliament, 0, ARCHITECTURE_AWARD_ID);
+      parliament.placeVote(human, parliament.slots[0], 'lobby');
+      human.popWaitingFor();
+      game.playerHasPassed(human);
+      game.playerIsFinishedTakingActions();
+      expect(game.phase).eq(Phase.PARLIAMENT);
+      expect(parliament.phase?.step).eq('assembly');
+      expect(bot.getWaitingFor()).is.undefined;
+      expect(gatePromptOf(human, 'assembly')).is.not.undefined;
+      expect(getParliamentModel(game, human)?.phase?.awaiting).deep.eq([human.color]);
+      answerGate(human, 'assembly');
+      // The effects walked the human alone; the bot, a seat of the ledger, got no production step.
+      expect(parliament.phase?.step).eq('adjourn');
+      expect(bot.production.megacredits).eq(0);
+      expect(human.production.megacredits).greaterThan(0);
+      expect(bot.getWaitingFor()).is.undefined;
+      answerGate(human, 'adjourn');
+      expect(parliament.phase).is.undefined;
+      expect(game.generation).eq(2);
+    });
+
+    it('a save under either mode reloads under it — the bot\'s delegates with it', () => {
+      for (const mode of ['none', 'politics'] as const) {
+        const [game, , bot] = testAutomaGame({coloniesExtension: true, turmoilReduxExpansion: true, botParliamentMode: mode}, `-${mode}`);
+        const reloaded = Game.deserialize(structuredClone(game.serialize()));
+        const parliament = reloaded.parliament!;
+        const loadedBot = reloaded.getPlayerById(bot.id);
+        expect(parliament.botMode).eq(mode);
+        expect(parliament.participates(loadedBot, 'delegates')).eq(mode === 'politics');
+        expect(parliament.lobby.has(loadedBot.id)).eq(mode === 'politics');
+        expect(parliament.reserve(loadedBot)).eq(mode === 'politics' ? 6 : 0);
+        parliament.assertLedger(reloaded);
+      }
+    });
+  });
+
   describe('the sitting\'s gates (assembly · adjourn)', () => {
     const marker = (player: IPlayer) => player.getWaitingFor()?.parliamentPhasePrompt;
     const wire = (player: IPlayer) => Server.getPlayerModel(player).waitingFor?.parliamentPhasePrompt;
@@ -670,7 +786,7 @@ describe('ParliamentPhase', () => {
     });
 
     it('solo with MarsBot: the barrier is ONE human — the bot is never asked, the awaited list names the human alone', () => {
-      const [game, human, bot] = testAutomaGame({coloniesExtension: true, turmoilReduxExpansion: true});
+      const [game, human, bot] = testAutomaGame({coloniesExtension: true, turmoilReduxExpansion: true, botParliamentMode: 'none'});
       const parliament = game.parliament!;
       game.playerIsFinishedWithResearchPhase(human);
       seatResolution(parliament, 0, ARCHITECTURE_AWARD_ID); // asks nothing: M€ production, never a choice
@@ -738,10 +854,10 @@ describe('ParliamentPhase', () => {
       const productionBefore = live.players.map((p) => p.production.megacredits);
       const trBefore = winner.terraformRating;
       // The gate stands for every seat still without its key — the resume re-issued it.
-      for (const seat of parliament.participants(live)) {
+      for (const seat of parliament.participants(live, 'prompts')) {
         expect(marker(seat)?.stage, `${seat.color}'s gate`).eq('assembly');
       }
-      expect(answerStandingGates(live, 'assembly')).eq(parliament.participants(live).length);
+      expect(answerStandingGates(live, 'assembly')).eq(parliament.participants(live, 'prompts').length);
       // The chain after the barrier found the Agenda, the support and the enactment DONE: nothing moved twice,
       // nothing was paid twice — and the effects (Architecture Award pays M€ production) ran exactly once.
       expect(parliament.enacted).eq(enactedBefore);
@@ -760,7 +876,7 @@ describe('ParliamentPhase', () => {
       for (const player of live.players) {
         expect(outcomes.filter((o) => o.player === player.id && o.kind === 'production').length, `${player.color} has ONE production record`).eq(1);
       }
-      expect(answerStandingGates(live, 'adjourn')).eq(parliament.participants(live).length);
+      expect(answerStandingGates(live, 'adjourn')).eq(parliament.participants(live, 'prompts').length);
       expect(parliament.phase).is.undefined;
       expect(live.generation).eq(phase.generation + 1);
       parliament.assertLedger(live);

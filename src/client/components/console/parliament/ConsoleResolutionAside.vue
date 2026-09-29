@@ -37,7 +37,7 @@
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
 import {Color} from '@/common/Color';
-import {ParliamentModel} from '@/common/models/ParliamentModel';
+import {ParliamentModel, seatEnacts} from '@/common/models/ParliamentModel';
 import {partyActionOf, ReduxParty} from '@/common/parliament/ParliamentTypes';
 import {CardAnnotation} from '@/client/components/cardAnnotations/annotationModel';
 import ConsoleCardRulesPanel from '@/client/components/console/ConsoleCardRulesPanel.vue';
@@ -88,7 +88,7 @@ export default defineComponent({
         return undefined;
       }
       const seat = model.players.find((p) => p.color === this.viewer);
-      if (seat === undefined || !seat.participates) {
+      if (seat === undefined || !seatEnacts(seat)) {
         return undefined;
       }
       const vm: ParliamentPartyVm = {

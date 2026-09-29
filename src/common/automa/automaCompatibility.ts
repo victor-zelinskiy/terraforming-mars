@@ -47,6 +47,14 @@ export type AutomaCompatibilityInput = {
   /** A concrete board, or a still-unresolved random request (`RandomBoardOption`). */
   boardName: string;
   turmoil: boolean;
+  /**
+   * Turmoil Redux («Кризис: Возвращение») — NOT a conflict: MarsBot is a seat
+   * at the Mars Parliament (docs/TURMOIL_REDUX_MARSBOT.md — it votes through
+   * Party Politics and Lobbying, may win a vote, may take the chairmanship;
+   * an enacted law never pays it). Named here so the matrix STATES the
+   * combination is allowed instead of merely not mentioning it.
+   */
+  turmoilRedux: boolean;
   prelude2: boolean;
   community: boolean;
   moon: boolean;
@@ -124,6 +132,12 @@ const RULES: ReadonlyArray<Rule> = [
   },
   // Unsupported expansions / modules.
   {key: 'expansion:turmoil', test: (o) => o.turmoil, reason: () => 'Turmoil in the POC'},
+  // NOTE: TURMOIL REDUX is NOT a conflict — the bot is a political seat there
+  // (`BotParliamentMode` 'politics': Party Politics + Lobbying place its
+  // delegates, it can be the winning player and the chairman, and an enacted
+  // law never pays or asks it). `turmoilRedux` is read by no rule on purpose;
+  // it is in the input so the allowance is a stated fact of the matrix.
+  // See docs/TURMOIL_REDUX_MARSBOT.md and AutomaCompatibility.spec.ts.
   {key: 'expansion:prelude2', test: (o) => o.prelude2, reason: () => 'Prelude 2 (per the official rules, and out of POC scope)'},
   // NOTE: PROMO is NOT a conflict — the official FAQ (rulebook p.11) covers it:
   // generic remove/steal/production adapters + the per-card rules for LawSuit,

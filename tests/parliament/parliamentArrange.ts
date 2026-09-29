@@ -3,7 +3,7 @@ import {IGame} from '../../src/server/IGame';
 import {IPlayer} from '../../src/server/IPlayer';
 import {PlayerInput} from '../../src/server/PlayerInput';
 
-import {ParliamentPhaseStage, ReduxParty, ResolutionId, ResolutionInstanceId, resolutionInstanceId} from '../../src/common/parliament/ParliamentTypes';
+import {BotParliamentMode, ParliamentPhaseStage, ReduxParty, ResolutionId, ResolutionInstanceId, resolutionInstanceId} from '../../src/common/parliament/ParliamentTypes';
 import {PartyName} from '../../src/common/turmoil/PartyName';
 import {AQUIFER_CONTEST_ID} from '../../src/server/parliament/resolutions/greens/AquiferContest';
 import {ARCHITECTURE_AWARD_ID} from '../../src/server/parliament/resolutions/marsFirst/ArchitectureAward';
@@ -33,6 +33,44 @@ function lift(parliament: Parliament, instance: ResolutionInstanceId): void {
   if (parliament.enacted === instance) {
     parliament.enacted = undefined;
   }
+}
+
+/**
+ * PIN THE BOT'S PARLIAMENT MODE on a game the engine already built. A NEW game
+ * seats MarsBot under `'politics'` (`Parliament.newInstance`); a spec whose
+ * subject is iteration 0's OBSERVER bot (`'none'` — byte for byte what shipped)
+ * re-reads the SAME table under that mode — no re-deal, so the seeded rng is
+ * not consumed and every other seeded choice of the spec stays where it was —
+ * and re-derives the one thing the setup decided by the mode: the bot's free
+ * delegate in the lobby (a seat that holds delegates has one; a seat that
+ * holds none has none). Only a FRESH table can be re-read: once the bot's
+ * cubes stand on cards or in the chair the mode is the game's history.
+ */
+export function setBotParliamentMode(game: IGame, mode: BotParliamentMode): Parliament {
+  const parliament = game.parliament;
+  if (parliament === undefined) {
+    throw new Error('the game has no Mars Parliament');
+  }
+  if (parliament.botMode === mode) {
+    return parliament;
+  }
+  const rebuilt = Parliament.deserialize({...parliament.serialize(), botMode: mode}, {expansions: game.gameOptions.expansions, rng: game.rng});
+  for (const player of game.players) {
+    if (player.isMarsBot !== true) {
+      continue;
+    }
+    if (rebuilt.votesOf(player) > 0 || rebuilt.chairman === player.id) {
+      throw new Error('the bot\'s delegates are already in play — the mode can be pinned on a fresh table only');
+    }
+    if (rebuilt.participates(player, 'delegates')) {
+      rebuilt.lobby.add(player.id);
+    } else {
+      rebuilt.lobby.delete(player.id);
+    }
+  }
+  game.parliament = rebuilt;
+  rebuilt.assertLedger(game);
+  return rebuilt;
 }
 
 /**

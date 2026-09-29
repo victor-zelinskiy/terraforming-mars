@@ -28,7 +28,7 @@
 import {Color} from '@/common/Color';
 import {SpaceId} from '@/common/Types';
 import {IClientResolution} from '@/common/parliament/IClientResolution';
-import {ParliamentEnactOutcomeModel, ParliamentModel, ParliamentPlayerModel} from '@/common/models/ParliamentModel';
+import {ParliamentEnactOutcomeModel, ParliamentModel, ParliamentPlayerModel, seatEnacts} from '@/common/models/ParliamentModel';
 import {resolutionIdOf} from '@/common/parliament/ParliamentTypes';
 import {TileGrantDeclaration, TileGrantEligibility, tileGrantCountId, tileGrantEligibility, tileGrantStepKey} from '@/common/parliament/tileGrant';
 import {ReadingPerson} from './influenceYieldModel';
@@ -64,7 +64,7 @@ function seatOf(model: ParliamentModel | undefined, viewer: Color | undefined): 
     return undefined;
   }
   const seat = model.players.find((p) => p.color === viewer);
-  return seat !== undefined && seat.participates ? seat : undefined;
+  return seat !== undefined && seatEnacts(seat) ? seat : undefined;
 }
 
 /**

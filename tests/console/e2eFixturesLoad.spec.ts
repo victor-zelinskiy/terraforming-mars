@@ -49,7 +49,7 @@ describe('e2e fixtures load', () => {
       if (game.phase === Phase.PARLIAMENT && parliament !== undefined && (step === 'assembly' || step === 'adjourn')) {
         const pending = parliamentGatePending(game, parliament, step);
         expect(pending.length, 'a gate fixture still waits for someone').to.be.greaterThan(0);
-        for (const seat of parliament.participants(game)) {
+        for (const seat of parliament.participants(game, 'prompts')) {
           const marker = seat.getWaitingFor()?.parliamentPhasePrompt;
           if (pending.includes(seat)) {
             expect(marker?.stage, `${seat.color} holds the ${step} gate`).to.eq(step);

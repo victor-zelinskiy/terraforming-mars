@@ -18,7 +18,7 @@ import {PlayerId} from '../../common/Types';
 import {PartyName} from '../../common/turmoil/PartyName';
 import {
   AGENDA_TRACK, AgendaStep, BotParliamentMode, influenceAtAgenda, PARLIAMENT_AGENDA_STEPS, PARLIAMENT_DELEGATES_PER_PLAYER,
-  PARLIAMENT_MAX_POPULAR_SUPPORT, PARLIAMENT_NEUTRAL_DELEGATES, PARLIAMENT_VOTE_COST, PARLIAMENT_VOTING_SLOTS, PARTY_ACTION_OWNER,
+  PARLIAMENT_MAX_POPULAR_SUPPORT, PARLIAMENT_NEUTRAL_DELEGATES, PARLIAMENT_VOTE_COST, PARLIAMENT_VOTING_SLOTS, ParliamentAspect, PARTY_ACTION_OWNER,
   PARTY_EFFECT_DELEGATES, PartyActionId, QuestDefinition, ReduxParty, REDUX_PARTIES, ResolutionId, ResolutionInstanceId, STARTER_QUEST,
 } from '../../common/parliament/ParliamentTypes';
 import {ResolutionDefinition} from './resolutions/IResolution';
@@ -147,8 +147,14 @@ export class Parliament {
 
   // ───────────────────────── setup ─────────────────────────
 
-  public static newInstance(game: IGame): Parliament {
-    const parliament = new Parliament('none');
+  /**
+   * A NEW game seats MarsBot as a political player (`'politics'` — decision
+   * D9); a save keeps the mode it was written under (`deserialize`). The mode
+   * only ever speaks about a `isMarsBot` seat, so a table with no bot reads
+   * the same under either.
+   */
+  public static newInstance(game: IGame, botMode: BotParliamentMode = 'politics'): Parliament {
+    const parliament = new Parliament(botMode);
     parliament.deck = shuffle(parliament.catalog.dealtInstances(compatibleWith(game.gameOptions.expansions)), game.rng);
     // Setup: three resolutions of DIFFERENT parties in the voting area (the
     // Greens are allowed at setup — rulebook FAQ p.17).
@@ -158,8 +164,12 @@ export class Parliament {
         parliament.slots.push({instance, votes: []});
       }
     }
+    // Every seat that holds delegates gets the generation's free one — the
+    // bot too, under `'politics'` (RB-C p.6's «never in the lobby» is the
+    // classic rule; in Redux the lobby IS the free delegate of every seat —
+    // docs/TURMOIL_REDUX_MARSBOT.md §1).
     for (const player of game.players) {
-      if (parliament.participates(player)) {
+      if (parliament.participates(player, 'delegates')) {
         parliament.lobby.add(player.id);
       }
     }
@@ -218,13 +228,19 @@ export class Parliament {
 
   // ───────────────────────── participation ─────────────────────────
 
-  public participates(player: IPlayer): boolean {
-    return this.policy.participates(player);
+  /**
+   * Is `player` in `aspect` of the parliament? A human always is; MarsBot's
+   * answer is its mode's (`BotParliamentPolicy`). The aspect is REQUIRED so
+   * that every caller states which part of the parliament it means — «takes
+   * part» alone cannot say «votes, but is never paid».
+   */
+  public participates(player: IPlayer, aspect: ParliamentAspect): boolean {
+    return this.policy.participates(player, aspect);
   }
 
-  /** The seats that take part, in generation order. */
-  public participants(game: IGame): Array<IPlayer> {
-    return game.playersInGenerationOrder.filter((player) => this.participates(player));
+  /** The seats in `aspect`, in generation order. */
+  public participants(game: IGame, aspect: ParliamentAspect): Array<IPlayer> {
+    return game.playersInGenerationOrder.filter((player) => this.participates(player, aspect));
   }
 
   // ───────────────────────── catalog lookups ─────────────────────────
@@ -292,7 +308,7 @@ export class Parliament {
 
   /** Delegates of `player` still in their personal supply. */
   public reserve(player: IPlayer): number {
-    if (!this.participates(player)) {
+    if (!this.participates(player, 'delegates')) {
       return 0;
     }
     return PARLIAMENT_DELEGATES_PER_PLAYER -
@@ -316,7 +332,7 @@ export class Parliament {
 
   /** The ledger invariant: every player's seven delegates are accounted for exactly once. Throws when broken. */
   public assertLedger(game: IGame): void {
-    for (const player of this.participants(game)) {
+    for (const player of this.participants(game, 'delegates')) {
       const reserve = this.reserve(player);
       if (reserve < 0 || reserve > PARLIAMENT_DELEGATES_PER_PLAYER) {
         throw new Error(`Delegate ledger broken for ${player.id}: reserve ${reserve}`);
@@ -403,7 +419,10 @@ export class Parliament {
   // ───────────────────────── access ─────────────────────────
 
   public access(player: IPlayer, party: ReduxParty): PartyAccess {
-    const participates = this.participates(player);
+    // A seat outside the PARTY-EFFECTS aspect (MarsBot: «ignores the ruling
+    // party's policy») holds no effect by any road — its delegates on the
+    // card are votes, never access.
+    const participates = this.participates(player, 'party-effects');
     const ruling = participates && this.rulingParty() === party;
     const slot = this.slotOf(party);
     const delegates = participates && slot !== undefined ? this.votesOf(player, slot) : 0;
@@ -455,7 +474,10 @@ export class Parliament {
   }
 
   public influence(player: IPlayer): number {
-    if (!this.participates(player)) {
+    // COUNTED for every seat that holds delegates (the bot's Agenda marker
+    // moves and its influence is read on the track); APPLIED only where a
+    // law pays — the payout readers gate on `enactment` themselves.
+    if (!this.participates(player, 'delegates')) {
       return 0;
     }
     let influence = influenceAtAgenda(this.agendaOf(player)) + this.influenceBonusOf(player);
@@ -551,7 +573,7 @@ export class Parliament {
   // ───────────────────────── voting ─────────────────────────
 
   public canVote(player: IPlayer): VoteAvailability {
-    if (!this.participates(player)) {
+    if (!this.participates(player, 'delegates')) {
       return {ok: false, reason: 'MarsBot takes no part in the parliament', source: 'none', cost: 0};
     }
     if (this.slots.length === 0) {
@@ -725,7 +747,10 @@ export class Parliament {
     if (d.version > PARLIAMENT_SAVE_VERSION) {
       throw new IncompatibleParliamentSaveError(`save version ${d.version} is newer than the supported ${PARLIAMENT_SAVE_VERSION}`);
     }
-    const parliament = new Parliament(d.botMode, catalog);
+    // THE MODE IS THE SAVE'S OWN, never migrated (decision D9): a game that
+    // began with the bot as an observer stays that way; a save from before
+    // the field is the observer mode it was written under.
+    const parliament = new Parliament(d.botMode ?? 'none', catalog);
     const known = (instance: ResolutionInstanceId): ResolutionInstanceId => {
       if (catalog.get(resolutionIdOfInstance(instance)) === undefined) {
         throw new IncompatibleParliamentSaveError(`unknown resolution ${instance}`);

@@ -292,7 +292,7 @@ describe('UrbanDevelopment', () => {
     });
 
     it('MarsBot is outside the parliament: its play answers nothing, the human\'s does', () => {
-      const [game, human, bot] = testAutomaGame({coloniesExtension: true, turmoilReduxExpansion: true});
+      const [game, human, bot] = testAutomaGame({coloniesExtension: true, turmoilReduxExpansion: true, botParliamentMode: 'none'});
       game.phase = Phase.ACTION;
       game.parliament!.enacted = URBAN;
       const botBefore = bot.cardsInHand.length;

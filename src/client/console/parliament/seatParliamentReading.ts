@@ -29,7 +29,7 @@
  */
 import {Color} from '@/common/Color';
 import {CardName} from '@/common/cards/CardName';
-import {ParliamentModel, ParliamentPlayerModel} from '@/common/models/ParliamentModel';
+import {ParliamentModel, ParliamentPlayerModel, seatEnacts} from '@/common/models/ParliamentModel';
 import {InfluenceYield} from '@/common/parliament/influenceScaling';
 import {AGENDA_TRACK, AgendaStep, influenceAtAgenda, ReduxParty, ResolutionInstanceId} from '@/common/parliament/ParliamentTypes';
 import {getResolution} from '@/client/parliament/ClientParliamentManifest';
@@ -145,7 +145,7 @@ export function seatParliamentReadingOf(
   if (model === undefined || seat === undefined || color === undefined) {
     return {...EMPTY, ...(color === undefined ? {} : {color})};
   }
-  if (!seat.participates) {
+  if (!seatEnacts(seat)) {
     return {...EMPTY, color};
   }
   const track = influenceAtAgenda(seat.agenda);

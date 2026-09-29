@@ -486,7 +486,7 @@ describe('JovianTaxRights', () => {
 
   describe('MarsBot and the model', () => {
     it('MarsBot (mode none) is never paid, and its cubes count for nobody — the human\'s record lists the human\'s tiles alone; the phase does not stall', () => {
-      const [game, human, bot] = testAutomaGame({coloniesExtension: true, turmoilReduxExpansion: true});
+      const [game, human, bot] = testAutomaGame({coloniesExtension: true, turmoilReduxExpansion: true, botParliamentMode: 'none'});
       const parliament = game.parliament!;
       game.playerIsFinishedWithResearchPhase(human);
       seatResolution(parliament, 0, RIGHTS);

@@ -591,7 +591,7 @@ describe('JointResearch', () => {
 
   describe('MarsBot', () => {
     it('stays out of the parliament entirely — nothing is drawn for it, and its hand counts for nobody', () => {
-      const [game, human, bot] = testAutomaGame({turmoilReduxExpansion: true, coloniesExtension: true});
+      const [game, human, bot] = testAutomaGame({turmoilReduxExpansion: true, coloniesExtension: true, botParliamentMode: 'none'});
       game.playerIsFinishedWithResearchPhase(human);
       game.phase = Phase.ACTION;
       const parliament = game.parliament!;
@@ -607,7 +607,7 @@ describe('JointResearch', () => {
       expect(takePrompt(human)?.cards, '7 − 2').has.length(5);
       takeAll(human);
       runAllActions(game);
-      expect(parliament.participates(bot)).is.false;
+      expect(parliament.participates(bot, 'delegates')).is.false;
       expect(bot.cardsInHand.length).eq(botCards);
       expect(bot.pendingCardIntakes).is.empty;
       settleParliamentGates(game);

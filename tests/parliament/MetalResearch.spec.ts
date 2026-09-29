@@ -448,7 +448,7 @@ describe('MetalResearch', () => {
 
   describe('MarsBot and the model', () => {
     it('MarsBot is never paid and holds no value bonus — the human does; the phase does not stall', () => {
-      const [game, human, bot] = testAutomaGame({coloniesExtension: true, turmoilReduxExpansion: true});
+      const [game, human, bot] = testAutomaGame({coloniesExtension: true, turmoilReduxExpansion: true, botParliamentMode: 'none'});
       const parliament = game.parliament!;
       game.playerIsFinishedWithResearchPhase(human);
       seatResolution(parliament, 0, METAL);

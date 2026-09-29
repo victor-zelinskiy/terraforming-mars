@@ -653,7 +653,7 @@ function greeneryRevisionFacts(player: IPlayer, ctx: PlacementPreviewContext): A
  */
 function partyReactionFacts(player: IPlayer, space: Space, ctx: PlacementPreviewContext, facts: ReadonlyArray<BoardFact>): Array<BoardFact> {
   const parliament = player.game.parliament;
-  if (parliament === undefined || !parliament.participates(player)) {
+  if (parliament === undefined || !parliament.participates(player, 'party-effects')) {
     return [];
   }
   const out: Array<BoardFact> = [];
@@ -707,7 +707,7 @@ function resolutionPassiveFacts(player: IPlayer, space: Space, ctx: PlacementPre
   const parliament = player.game.parliament;
   const enacted = parliament?.enactedDefinition();
   const passive = enacted?.passive;
-  if (parliament === undefined || enacted === undefined || passive?.placementFacts === undefined || !parliament.participates(player)) {
+  if (parliament === undefined || enacted === undefined || passive?.placementFacts === undefined || !parliament.participates(player, 'enactment')) {
     return [];
   }
   const mine = facts.filter((f) => f.recipient.kind === 'current-player' && f.delta !== undefined && f.delta.direction === 'gain' &&

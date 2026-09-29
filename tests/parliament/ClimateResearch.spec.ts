@@ -764,7 +764,7 @@ describe('ClimateResearch', () => {
 
   describe('MarsBot', () => {
     it('stays out of the parliament entirely — no raise, no draw, no prompt', () => {
-      const [game, human, bot] = testAutomaGame({turmoilReduxExpansion: true, coloniesExtension: true});
+      const [game, human, bot] = testAutomaGame({turmoilReduxExpansion: true, coloniesExtension: true, botParliamentMode: 'none'});
       game.playerIsFinishedWithResearchPhase(human);
       game.phase = Phase.ACTION;
       const parliament = game.parliament!;
@@ -781,7 +781,7 @@ describe('ClimateResearch', () => {
       answerGate(human, 'assembly');
       takeAll(human);
       runAllActions(game);
-      expect(parliament.participates(bot)).is.false;
+      expect(parliament.participates(bot, 'delegates')).is.false;
       expect(bot.production.heat, 'no raise for a seat outside the parliament').eq(9);
       expect(bot.cardsInHand.length).eq(botCards);
       expect(bot.pendingCardIntakes).is.empty;
@@ -790,7 +790,7 @@ describe('ClimateResearch', () => {
     });
 
     it('the shared intake refuses a bot recipient outright — the rules must be answered at the call site', () => {
-      const [, , bot] = testAutomaGame({turmoilReduxExpansion: true, coloniesExtension: true});
+      const [, , bot] = testAutomaGame({turmoilReduxExpansion: true, coloniesExtension: true, botParliamentMode: 'none'});
       expect(bot.isMarsBot).is.true;
       expect(() => ExternalDrawIntake.open(bot, 2, {kind: 'resolution', resolution: CLIMATE_RESEARCH_ID}))
         .to.throw(/MarsBot/);

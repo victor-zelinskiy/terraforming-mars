@@ -446,14 +446,14 @@ describe('OpenIpTrade', () => {
     });
 
     it('a NON-participant never holds it: MarsBot is never offered the action, and its model carries no access', () => {
-      const [game, human, bot] = testAutomaGame({turmoilReduxExpansion: true, coloniesExtension: true});
+      const [game, human, bot] = testAutomaGame({turmoilReduxExpansion: true, coloniesExtension: true, botParliamentMode: 'none'});
       game.playerIsFinishedWithResearchPhase(human);
       game.phase = Phase.ACTION;
       const parliament = game.parliament!;
       seatEnacted(parliament, TRADE);
       human.cardsInHand.push(game.projectDeck.drawOrThrow(game));
       bot.cardsInHand.push(game.projectDeck.drawOrThrow(game));
-      expect(parliament.participates(bot)).is.false;
+      expect(parliament.participates(bot, 'delegates')).is.false;
       expect(ParliamentHandler.resolutionActionOptions(bot)).is.empty;
       expect(getParliamentModel(game, bot)!.viewer!.resolutionAction).deep.include({hasAccess: false, available: false});
       expect(ParliamentHandler.resolutionActionOptions(human), 'the human holds it').has.length(1);

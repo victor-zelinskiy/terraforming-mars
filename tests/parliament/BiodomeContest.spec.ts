@@ -694,7 +694,7 @@ describe('BiodomeContest', () => {
 
   describe('MarsBot and the end of the game', () => {
     it('MarsBot (mode none) is never paid, never asked; the human winner places the greenery and the game moves on', () => {
-      const [game, human, bot] = testAutomaGame({coloniesExtension: true, turmoilReduxExpansion: true});
+      const [game, human, bot] = testAutomaGame({coloniesExtension: true, turmoilReduxExpansion: true, botParliamentMode: 'none'});
       const parliament = game.parliament!;
       game.playerIsFinishedWithResearchPhase(human);
       seatResolution(parliament, 0, BIODOME);

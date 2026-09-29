@@ -762,7 +762,7 @@ describe('GreensBudget', () => {
 
   describe('MarsBot and the older budgets standing where they stood', () => {
     it('MarsBot (mode none) is never levied, never paid, never asked — and the phase does not stall on a question it cannot answer', () => {
-      const [game, human, bot] = testAutomaGame({coloniesExtension: true, turmoilReduxExpansion: true});
+      const [game, human, bot] = testAutomaGame({coloniesExtension: true, turmoilReduxExpansion: true, botParliamentMode: 'none'});
       const parliament = game.parliament!;
       game.playerIsFinishedWithResearchPhase(human);
       seatResolution(parliament, 0, BUDGET);

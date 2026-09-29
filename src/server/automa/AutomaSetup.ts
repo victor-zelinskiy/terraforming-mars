@@ -18,6 +18,7 @@ export class AutomaSetup {
     return {
       boardName: gameOptions.boardName,
       turmoil: gameOptions.turmoilExtension,
+      turmoilRedux: gameOptions.turmoilReduxExpansion,
       prelude2: gameOptions.prelude2Expansion,
       community: gameOptions.communityCardsOption,
       moon: gameOptions.moonExpansion,

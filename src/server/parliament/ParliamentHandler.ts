@@ -140,7 +140,7 @@ export class ParliamentHandler {
     const parliament = player.game?.parliament;
     const enacted = parliament?.enactedDefinition();
     const action = enacted?.action;
-    if (parliament === undefined || enacted === undefined || action === undefined || !parliament.participates(player)) {
+    if (parliament === undefined || enacted === undefined || action === undefined || !parliament.participates(player, 'enactment')) {
       return [];
     }
     const usesLeft = parliament.resolutionActionUsesLeft(player);
@@ -179,7 +179,7 @@ export class ParliamentHandler {
   ): void {
     const enacted = parliament.enactedDefinition();
     const passive = enacted?.passive;
-    if (enacted === undefined || passive === undefined || !parliament.participates(player)) {
+    if (enacted === undefined || passive === undefined || !parliament.participates(player, 'enactment')) {
       return;
     }
     player.game.events.withEffectSource(player, {kind: 'resolution', id: enacted.id, owner: player.color}, channel, () => run(passive));
@@ -247,7 +247,7 @@ export class ParliamentHandler {
     const parliament = player.game?.parliament;
     const enacted = parliament?.enactedDefinition();
     const discount = enacted?.passive?.cardDiscount;
-    if (parliament === undefined || enacted === undefined || discount === undefined || !parliament.participates(player)) {
+    if (parliament === undefined || enacted === undefined || discount === undefined || !parliament.participates(player, 'enactment')) {
       return undefined;
     }
     const amount = discount(player, card);
@@ -269,7 +269,7 @@ export class ParliamentHandler {
     const parliament = player.game?.parliament;
     const enacted = parliament?.enactedDefinition();
     const bonus = enacted?.passive?.resourceValueBonus;
-    if (parliament === undefined || enacted === undefined || bonus === undefined || !parliament.participates(player)) {
+    if (parliament === undefined || enacted === undefined || bonus === undefined || !parliament.participates(player, 'enactment')) {
       return 0;
     }
     return Math.max(0, bonus(player, resource));
@@ -344,7 +344,7 @@ export class ParliamentHandler {
     const parliament = player.game?.parliament;
     const enacted = parliament?.enactedDefinition();
     const bonus = enacted?.passive?.tagBonus;
-    if (parliament === undefined || enacted === undefined || bonus === undefined || !parliament.participates(player)) {
+    if (parliament === undefined || enacted === undefined || bonus === undefined || !parliament.participates(player, 'enactment')) {
       return 0;
     }
     return Math.max(0, bonus(player, tag, parliament.influence(player)));
@@ -362,7 +362,7 @@ export class ParliamentHandler {
     const parliament = player.game?.parliament;
     const enacted = parliament?.enactedDefinition();
     const bonus = enacted?.passive?.tagBonus;
-    if (parliament === undefined || enacted === undefined || bonus === undefined || !parliament.participates(player)) {
+    if (parliament === undefined || enacted === undefined || bonus === undefined || !parliament.participates(player, 'enactment')) {
       return [];
     }
     // ONE influence read for the whole list (the per-tag query would walk the

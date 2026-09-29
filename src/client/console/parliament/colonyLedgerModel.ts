@@ -13,7 +13,7 @@
  */
 import {Color} from '@/common/Color';
 import {IClientResolution} from '@/common/parliament/IClientResolution';
-import {ParliamentEnactOutcomeModel, ParliamentModel, ParliamentPlayerModel} from '@/common/models/ParliamentModel';
+import {ParliamentEnactOutcomeModel, ParliamentModel, ParliamentPlayerModel, seatEnacts} from '@/common/models/ParliamentModel';
 import {InfluenceScaledEffect, InfluenceYield} from '@/common/parliament/influenceScaling';
 import {ColonyLedgerRow, ColonyLedgerTotals, colonyLedgerRows, colonyLedgerTotals, recordedMultiplierOf} from '@/common/parliament/colonyLedger';
 import {colonyBonusesEffectOf} from './resolutionFamily';
@@ -40,7 +40,7 @@ function seatOf(model: ParliamentModel | undefined, viewer: Color | undefined): 
     return undefined;
   }
   const seat = model.players.find((p) => p.color === viewer);
-  return seat !== undefined && seat.participates ? seat : undefined;
+  return seat !== undefined && seatEnacts(seat) ? seat : undefined;
 }
 
 /** The viewer's own records of `effect` in the live phase, else in the last one. */

@@ -523,7 +523,7 @@ describe('UrbanResearch', () => {
 
   describe('MarsBot, the model, and RX27 standing where it stood', () => {
     it('MarsBot (mode none) is never dealt to and never paid, and the phase does not stall', () => {
-      const [game, human, bot] = testAutomaGame({coloniesExtension: true, turmoilReduxExpansion: true});
+      const [game, human, bot] = testAutomaGame({coloniesExtension: true, turmoilReduxExpansion: true, botParliamentMode: 'none'});
       const parliament = game.parliament!;
       game.playerIsFinishedWithResearchPhase(human);
       seatResolution(parliament, 0, RESEARCH_LAW);

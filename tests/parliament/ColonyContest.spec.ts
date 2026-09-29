@@ -377,7 +377,7 @@ describe('ColonyContest', () => {
 
   describe('MarsBot', () => {
     it('MarsBot (mode none) is never paid, never asked and never a winner; the human\'s free colony stands alone', () => {
-      const [game, human, bot] = testAutomaGame({coloniesExtension: true, turmoilReduxExpansion: true});
+      const [game, human, bot] = testAutomaGame({coloniesExtension: true, turmoilReduxExpansion: true, botParliamentMode: 'none'});
       const parliament = game.parliament!;
       game.playerIsFinishedWithResearchPhase(human);
       seatResolution(parliament, 0, CONTEST);

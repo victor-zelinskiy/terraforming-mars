@@ -23,7 +23,7 @@
 import {Color} from '@/common/Color';
 import {Resource} from '@/common/Resource';
 import {IClientResolution} from '@/common/parliament/IClientResolution';
-import {ParliamentModel} from '@/common/models/ParliamentModel';
+import {ParliamentModel, seatEnacts} from '@/common/models/ParliamentModel';
 import {InfluenceScaledEffect, InfluenceYield} from '@/common/parliament/influenceScaling';
 import {PartyReaction, PartyReactionGain, partyReactionAmount, productionReactionOf} from '@/common/parliament/partyReactions';
 import {ReduxParty} from '@/common/parliament/ParliamentTypes';
@@ -147,5 +147,5 @@ export function reactionCaptionOf(reading: PartyReactionReading): string {
 
 /** A reading belongs to the viewer's own seat only — a spectator gets none. */
 export function viewerHasSeat(model: ParliamentModel | undefined, viewer: Color | undefined): boolean {
-  return model !== undefined && viewer !== undefined && model.players.some((p) => p.color === viewer && p.participates);
+  return model !== undefined && viewer !== undefined && model.players.some((p) => p.color === viewer && seatEnacts(p));
 }

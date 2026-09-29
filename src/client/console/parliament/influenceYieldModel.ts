@@ -18,7 +18,7 @@ import {ColonyName} from '@/common/colonies/ColonyName';
 import {Resource} from '@/common/Resource';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {IClientResolution} from '@/common/parliament/IClientResolution';
-import {ParliamentModel, ParliamentPlayerModel, ParliamentEnactOutcomeModel} from '@/common/models/ParliamentModel';
+import {ParliamentModel, ParliamentPlayerModel, ParliamentEnactOutcomeModel, seatEnacts} from '@/common/models/ParliamentModel';
 import {
   fixedLevelYield, fixedSequelYield, fixedYield, InfluenceLevelTerm, InfluenceScaledEffect, InfluenceSequelTerm, InfluenceYield, influenceYield,
   InfluenceYieldContext, InfluenceYieldUnit, levelTakesAway, levelYield, referenceYield, scaledAmount, sequelYield, winnerForecastYield, yieldAtCap,
@@ -658,7 +658,7 @@ function seatOf(model: ParliamentModel | undefined, viewer: Color | undefined): 
     return undefined;
   }
   const seat = model.players.find((p) => p.color === viewer);
-  return seat !== undefined && seat.participates ? seat : undefined;
+  return seat !== undefined && seatEnacts(seat) ? seat : undefined;
 }
 
 /**

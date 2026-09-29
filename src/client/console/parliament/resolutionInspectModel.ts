@@ -19,7 +19,7 @@
  * footer invents no votes and no personal standing.
  */
 import {Color} from '@/common/Color';
-import {ParliamentModel, ParliamentPlayerModel, PartyAccessModel} from '@/common/models/ParliamentModel';
+import {ParliamentModel, ParliamentPlayerModel, PartyAccessModel, seatEnacts} from '@/common/models/ParliamentModel';
 import {PARTY_EFFECT_DELEGATES, ReduxParty, ResolutionId} from '@/common/parliament/ParliamentTypes';
 
 export type ResolutionLifecycle = 'vote' | 'enacted';
@@ -69,7 +69,7 @@ function viewerSeat(model: ParliamentModel, viewer: Color | undefined): Parliame
     return undefined;
   }
   const seat = model.players.find((p) => p.color === viewer);
-  return seat !== undefined && seat.participates ? seat : undefined;
+  return seat !== undefined && seatEnacts(seat) ? seat : undefined;
 }
 
 function basisOf(access: PartyAccessModel): ResolutionAccessBasis {

@@ -59,7 +59,7 @@ export class QuestTracker {
   public static eligible(player: IPlayer): boolean {
     const game = player.game;
     const parliament = game?.parliament;
-    if (parliament === undefined || !parliament.participates(player)) {
+    if (parliament === undefined || !parliament.participates(player, 'quest')) {
       return false;
     }
     if (game.phase !== Phase.ACTION) {

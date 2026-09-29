@@ -278,7 +278,7 @@ describe('PlantBan', () => {
 
   describe('MarsBot', () => {
     it('takes no seat: its plants are never touched and the phase does not stall', () => {
-      const [game, human, bot] = testAutomaGame({turmoilReduxExpansion: true, coloniesExtension: true});
+      const [game, human, bot] = testAutomaGame({turmoilReduxExpansion: true, coloniesExtension: true, botParliamentMode: 'none'});
       const parliament = game.parliament!;
       game.playerIsFinishedWithResearchPhase(human);
       seatResolution(parliament, 0, BAN);

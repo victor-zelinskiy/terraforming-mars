@@ -459,7 +459,7 @@ describe('GenerousFunding', () => {
 
   describe('MarsBot and the model', () => {
     it('MarsBot (mode none) is never counted, never paid, and the phase does not stall', () => {
-      const [game, human, bot] = testAutomaGame({coloniesExtension: true, turmoilReduxExpansion: true});
+      const [game, human, bot] = testAutomaGame({coloniesExtension: true, turmoilReduxExpansion: true, botParliamentMode: 'none'});
       const parliament = game.parliament!;
       game.playerIsFinishedWithResearchPhase(human);
       seatResolution(parliament, 0, FUNDING);

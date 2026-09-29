@@ -205,10 +205,10 @@ describe('the chairman-quest gate', () => {
 
   describe('the bot is never asked', () => {
     it('a MarsBot seat takes no part in the parliament, so no quest of its own can raise a gate', () => {
-      const [game, , bot] = testAutomaGame({coloniesExtension: true, turmoilReduxExpansion: true});
+      const [game, , bot] = testAutomaGame({coloniesExtension: true, turmoilReduxExpansion: true, botParliamentMode: 'none'});
       const parliament = game.parliament!;
       game.phase = Phase.ACTION;
-      expect(parliament.participates(bot)).is.false;
+      expect(parliament.participates(bot, 'delegates')).is.false;
       // The engine's own report path, with the bot as the root of the chain —
       // `eligible` refuses it at the policy, so the count never moves and the
       // gate can never be raised for a seat that does no politics.

@@ -602,7 +602,7 @@ describe('WaterExport', () => {
 
   describe('MarsBot', () => {
     it('the handle NEVER lands on the bot: with the bot first in generation order, the right passes to the nearest human', () => {
-      const [game, humans, bot] = testAutomaMultiplayerGame(2, {coloniesExtension: true, turmoilReduxExpansion: true});
+      const [game, humans, bot] = testAutomaMultiplayerGame(2, {coloniesExtension: true, turmoilReduxExpansion: true, botParliamentMode: 'none'});
       const [blue, red] = humans;
       expect(worldStepHandle(game), 'blue first').eq(blue);
       seatFirst(game, bot, [red, blue]);
@@ -612,7 +612,7 @@ describe('WaterExport', () => {
     });
 
     it('a bot-first table asks the human to remove the ocean; the bot is never asked, never paid, never discounted', () => {
-      const [game, human, bot] = testAutomaGame({coloniesExtension: true, turmoilReduxExpansion: true});
+      const [game, human, bot] = testAutomaGame({coloniesExtension: true, turmoilReduxExpansion: true, botParliamentMode: 'none'});
       const parliament = game.parliament!;
       game.playerIsFinishedWithResearchPhase(human);
       seatResolution(parliament, 0, WATER);

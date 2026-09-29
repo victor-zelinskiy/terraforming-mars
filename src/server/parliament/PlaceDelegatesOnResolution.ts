@@ -53,7 +53,7 @@ export class PlaceDelegatesOnResolution extends DeferredAction<undefined> {
       game.log('${0} cannot add delegates to a resolution: this game has no Mars Parliament', (b) => b.player(player));
       return undefined;
     }
-    if (!parliament.participates(player)) {
+    if (!parliament.participates(player, 'delegates')) {
       game.log('${0} takes no part in the Mars Parliament: no delegates to add', (b) => b.player(player));
       return undefined;
     }

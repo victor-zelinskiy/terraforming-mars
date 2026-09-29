@@ -192,13 +192,42 @@ export type ParliamentPhaseStep =
 export type ParliamentPhaseStage = Extract<ParliamentPhaseStep, 'assembly' | 'adjourn'>;
 
 /**
- * How MarsBot takes part in the parliament. Iteration 0 ships ONE mode:
- * the bot keeps its ordinary turns and stays out of politics entirely —
- * no delegates, no votes, no party effects, no quests, no prompts. A later
- * iteration replaces it with the bot's own political rules through the
- * same adapter (`server/parliament/BotParliamentPolicy.ts`).
+ * How MarsBot takes part in the parliament (docs/TURMOIL_REDUX_MARSBOT.md §9):
+ *  - `'none'` — iteration 0's observer: the bot keeps its ordinary turns and
+ *    stays out of politics entirely (no delegates, no votes, no party
+ *    effects, no quests, no prompts). A save written under it keeps it — the
+ *    mode is never migrated (decision D9);
+ *  - `'politics'` — the bot is a SEAT at the table: it holds delegates and
+ *    votes (Party Politics, Lobbying), it can be the winning player (the
+ *    Agenda step, the winner's reward — its own primitives) and it can
+ *    complete the chairman quest by its ordinary play; an enacted law never
+ *    pays it, never charges it, it holds no party effect and is never asked.
+ * The seam is `server/parliament/BotParliamentPolicy.ts`, asked by ASPECT.
  */
-export type BotParliamentMode = 'none';
+export type BotParliamentMode = 'none' | 'politics';
+export const BOT_PARLIAMENT_MODES: ReadonlyArray<BotParliamentMode> = ['none', 'politics'];
+
+/**
+ * THE ASPECTS OF TAKING PART — every place that asks «does this seat …?» names
+ * WHICH part of the parliament it means, and the policy answers per aspect
+ * (a human is in every aspect; the bot's answer is its mode's):
+ *  - `delegates`     holds delegates: the lobby, the reserve, the ledger, the
+ *                    vote, the Agenda marker and the influence it reads, the
+ *                    seat row of the model;
+ *  - `winner-reward` may be the WINNING PLAYER of a vote: the Agenda step of
+ *                    the sitting and the winner's part of the enactment;
+ *  - `enactment`     is PAID by an enacted law and charged by it: the seat
+ *                    loop of the effects step, the passives, the discounts,
+ *                    the value/tag bonuses, the law's action, every payout
+ *                    reading of the model and the forecasts;
+ *  - `party-effects` holds a party's effect (the ruling party's, two
+ *                    delegates', a card's grant) and its actions;
+ *  - `quest`         progresses the chairman quest by its own actions;
+ *  - `prompts`       is ASKED: the sitting's gates, an asking step, the
+ *                    quest gate, the seat pick.
+ */
+export const PARLIAMENT_ASPECTS = ['delegates', 'winner-reward', 'enactment', 'party-effects', 'quest', 'prompts'] as const;
+export type ParliamentAspect = typeof PARLIAMENT_ASPECTS[number];
 
 export const PARTY_ACTION_IDS = ['unity-trade', 'scientists-lab', 'industrialists-shift', 'reds-recycle'] as const;
 export type PartyActionId = typeof PARTY_ACTION_IDS[number];

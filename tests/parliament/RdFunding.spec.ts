@@ -280,7 +280,7 @@ describe('RdFunding', () => {
     });
 
     it('is never held by a seat outside the parliament — MarsBot counts its printed tags only', () => {
-      const [game, human, bot] = testAutomaGame({turmoilReduxExpansion: true, coloniesExtension: true});
+      const [game, human, bot] = testAutomaGame({turmoilReduxExpansion: true, coloniesExtension: true, botParliamentMode: 'none'});
       game.phase = Phase.ACTION;
       const parliament = game.parliament!;
       seatResolution(parliament, 0, RDF);
@@ -289,7 +289,7 @@ describe('RdFunding', () => {
       setInfluence(parliament, human, 2);
       parliament.agenda.set(bot.id, agendaForInfluence(2));
 
-      expect(parliament.participates(bot), 'MarsBot takes no seat').is.false;
+      expect(parliament.participates(bot, 'delegates'), 'MarsBot takes no seat').is.false;
       expect(ParliamentHandler.tagBonus(bot, Tag.SCIENCE)).eq(0);
       expect(ParliamentHandler.tagBonuses(bot)).is.empty;
       expect(ParliamentHandler.tagBonus(human, Tag.SCIENCE), 'the human holds the law').eq(2);
@@ -457,7 +457,7 @@ describe('RdFunding', () => {
       expect(ParliamentHandler.resolutionActionOptions(p1).some((o) => markerOf(o)?.resolution === RD_FUNDING_ID)).is.false;
       expect(getParliamentModel(game, p1)!.viewer!.resolutionAction!.resolution).eq(OPEN_IP_TRADE_ID);
 
-      const [botGame, human, bot] = testAutomaGame({turmoilReduxExpansion: true, coloniesExtension: true});
+      const [botGame, human, bot] = testAutomaGame({turmoilReduxExpansion: true, coloniesExtension: true, botParliamentMode: 'none'});
       botGame.phase = Phase.ACTION;
       seatResolution(botGame.parliament!, 0, RDF);
       botGame.parliament!.enacted = RDF;

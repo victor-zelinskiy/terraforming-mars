@@ -514,7 +514,12 @@ export class ParliamentPhase {
     const definition = parliament.resolutionOf(instance);
     const winnerId = this.summary.winner.player;
     const winner = winnerId === undefined || winnerId === 'NEUTRAL' ? undefined : this.game.getPlayerById(winnerId);
-    const players = parliament.participants(this.game);
+    // THE SEAT LOOP IS THE ENACTMENT'S: only a seat a law PAYS is walked. A
+    // MarsBot winner under `'politics'` is outside it (decision D3) — its
+    // winner's part is not a seat step at all but the bot's own primitives,
+    // paid by a separate pass after the world's (`BotWinnerReward`).
+    const players = parliament.participants(this.game, 'enactment');
+    const winnerEnacts = winner !== undefined && parliament.participates(winner, 'enactment');
     const winnerSteps = definition.winnerSteps ?? [];
     const worldSteps = definition.worldSteps ?? [];
     if (!hasImmediateSteps(definition) && worldSteps.length === 0 && winnerSteps.length === 0) {
@@ -568,7 +573,7 @@ export class ParliamentPhase {
         return 'waiting';
       }
     }
-    if (deferWinner && winner !== undefined) {
+    if (deferWinner && winner !== undefined && winnerEnacts) {
       for (const step of winnerSteps) {
         if (this.runSeatStep(definition, instance, winner, winner, step, 'winner') === 'waiting' || this.drainDeferred() === 'waiting') {
           return 'waiting';
@@ -927,7 +932,7 @@ export class ParliamentPhase {
     const parliament = this.parliament;
     // The lobby step is the renewal's last movement: it joins the same journal, in seat order.
     const journal = (this.summary.renewal ??= []);
-    for (const player of parliament.participants(this.game)) {
+    for (const player of parliament.participants(this.game, 'delegates')) {
       if (!parliament.lobby.has(player.id) && parliament.reserve(player) > 0) {
         parliament.lobby.add(player.id);
         this.summary.lobbyRefilled.push(player.id);
@@ -982,7 +987,7 @@ export function parliamentGatePending(game: IGame, parliament: Parliament, stage
     return [];
   }
   const key = gateKey(stage, p.generation);
-  return parliament.participants(game).filter((seat) => !(p.appliedBySeat?.[seat.id] ?? []).includes(key));
+  return parliament.participants(game, 'prompts').filter((seat) => !(p.appliedBySeat?.[seat.id] ?? []).includes(key));
 }
 
 /** …as colours, for the wire (the gate marker's `awaiting`, the phase model). Empty outside a political phase. */
@@ -1002,5 +1007,5 @@ export type PhaseWinnerOwner = PartyName | 'NEUTRAL';
 
 /** Exposed for tests: the players a resolution's immediate effect visits, in order. */
 export function effectRecipients(game: IGame, parliament: Parliament): Array<IPlayer> {
-  return parliament.participants(game);
+  return parliament.participants(game, 'enactment');
 }

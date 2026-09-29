@@ -400,7 +400,7 @@ describe('MoholeContest', () => {
     });
 
     it('MarsBot (mode none) is never paid and never makes the step; the human winner does', () => {
-      const [game, human, bot] = testAutomaGame({coloniesExtension: true, turmoilReduxExpansion: true});
+      const [game, human, bot] = testAutomaGame({coloniesExtension: true, turmoilReduxExpansion: true, botParliamentMode: 'none'});
       const parliament = game.parliament!;
       game.playerIsFinishedWithResearchPhase(human);
       seatResolution(parliament, 0, MOHOLE);

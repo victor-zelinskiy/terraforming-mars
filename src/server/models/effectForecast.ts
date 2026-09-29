@@ -107,7 +107,7 @@ function resolutionCardPlayedFacts(player: IPlayer, card: ICard): Array<EffectFo
   const enacted = parliament?.enactedDefinition();
   const passive = enacted?.passive;
   if (parliament === undefined || enacted === undefined || passive === undefined ||
-      passive.onCardPlayed === undefined || !parliament.participates(player)) {
+      passive.onCardPlayed === undefined || !parliament.participates(player, 'enactment')) {
     return [];
   }
   const source = (channel: EffectForecastSource['channel']): EffectForecastSource =>
@@ -251,7 +251,7 @@ export function grantOfEffect(effect: ActionEffect): EffectForecastGrant | undef
  */
 function partyFacts(player: IPlayer, grants: ReadonlyArray<EffectForecastGrant>, tiles: ReadonlyArray<EffectForecastTile>): Array<EffectForecastFact> {
   const parliament = player.game.parliament;
-  if (parliament === undefined || !parliament.participates(player)) {
+  if (parliament === undefined || !parliament.participates(player, 'party-effects')) {
     return [];
   }
   const facts: Array<EffectForecastFact> = [];
@@ -300,7 +300,7 @@ function resolutionFacts(player: IPlayer, grants: ReadonlyArray<EffectForecastGr
   const parliament = player.game.parliament;
   const enacted = parliament?.enactedDefinition();
   const passive = enacted?.passive;
-  if (parliament === undefined || enacted === undefined || passive === undefined || !parliament.participates(player)) {
+  if (parliament === undefined || enacted === undefined || passive === undefined || !parliament.participates(player, 'enactment')) {
     return [];
   }
   const id = enacted.id;

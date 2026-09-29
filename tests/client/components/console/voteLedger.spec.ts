@@ -83,10 +83,23 @@ describe('voteLedgerModel — the row of seats', () => {
     expect(chips.some((c) => c.you)).eq(false);
   });
 
-  it('a seat that does NOT take part (MarsBot) is never printed — not even as a zero', () => {
-    const m = model([seat(BLUE, 3), seat(RED, 5, {participates: false})]);
-    const chips = voteLedgerOf({resolution: shipped(AQUIFER), model: m, viewer: BLUE, players: tableaux([BLUE, [CardName.FISH]], [RED, [CardName.BIRDS]])});
+  it('a seat a law never PAYS (MarsBot — `enactment: false`) is never printed, not even as a zero, whether or not it holds delegates', () => {
+    // The observer bot of iteration 0 (no delegates at all)…
+    const observer = model([seat(BLUE, 3), seat(RED, 5, {participates: false, enactment: false})]);
+    const chips = voteLedgerOf({resolution: shipped(AQUIFER), model: observer, viewer: BLUE, players: tableaux([BLUE, [CardName.FISH]], [RED, [CardName.BIRDS]])});
     expect(chips.map((c) => c.color)).deep.eq([BLUE]);
+    // …and the political bot (`'politics'`: cubes on the cards, a marker on the
+    // Agenda — and still no share of any law, decision D3). The ledger is a
+    // row of PAYOUTS, so the gate is `enactment`, never the seat's delegates.
+    const politics = model([seat(BLUE, 3), seat(RED, 5, {participates: true, enactment: false})]);
+    const rows = voteLedgerOf({resolution: shipped(AQUIFER), model: politics, viewer: BLUE, players: tableaux([BLUE, [CardName.FISH]], [RED, [CardName.BIRDS]])});
+    expect(rows.map((c) => c.color)).deep.eq([BLUE]);
+  });
+
+  it('a fixture from before `enactment` reads a seat that takes part as a seat that is paid (`seatEnacts`)', () => {
+    const m = model([seat(BLUE, 3), seat(RED, 5)]);
+    const chips = voteLedgerOf({resolution: shipped(AQUIFER), model: m, viewer: BLUE, players: tableaux([BLUE, [CardName.FISH]], [RED, [CardName.BIRDS]])});
+    expect(chips.map((c) => c.color)).deep.eq([BLUE, RED]);
   });
 
   it('each seat reads at ITS OWN influence — the whole point of the row', () => {

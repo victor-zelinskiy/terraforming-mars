@@ -389,7 +389,7 @@ describe('ForestrySupport', () => {
 
   describe('MarsBot', () => {
     it('MarsBot is outside the parliament: its own placement pays it nothing, and its grove still pays the human', () => {
-      const [game, human, bot] = testAutomaGame({coloniesExtension: true, turmoilReduxExpansion: true});
+      const [game, human, bot] = testAutomaGame({coloniesExtension: true, turmoilReduxExpansion: true, botParliamentMode: 'none'});
       const parliament = game.parliament!;
       game.phase = Phase.ACTION;
       parliament.enacted = FORESTRY;

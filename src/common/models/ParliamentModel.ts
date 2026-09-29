@@ -80,8 +80,21 @@ export type ColonyLedgerEntryModel = {
 
 export type ParliamentPlayerModel = {
   color: Color;
-  /** False for a MarsBot seat in iteration 0 (see BotParliamentMode). */
+  /**
+   * The seat HOLDS DELEGATES (aspect `delegates`): a row in the seat zone,
+   * a lobby / reserve / cubes on the cards, a marker on the Agenda track.
+   * False for a MarsBot seat under `BotParliamentMode` `'none'`; true under
+   * `'politics'`.
+   */
   participates: boolean;
+  /**
+   * The seat IS PAID by an enacted law (aspect `enactment`) — the reader of
+   * every payout surface (the ledger, the yields, the standing, the effects
+   * strip): false for a MarsBot seat in EVERY mode (decision D3), true for a
+   * human. Absent on a fixture written before the field — read it through
+   * {@link seatEnacts}, never bare.
+   */
+  enactment?: boolean;
   lobby: boolean;
   reserve: number;
   onResolutions: number;
@@ -144,6 +157,16 @@ export type ParliamentPlayerModel = {
   partyActionUses: Partial<Record<PartyName, number>>;
   resolutionActionUses: number;
 };
+
+/**
+ * IS THE SEAT PAID BY AN ENACTED LAW — the ONE reading of `enactment` every
+ * payout surface gates on. A model from the server always carries the field;
+ * a fixture written before it did not, and for those a seat that takes part
+ * is a seat that is paid — exactly what `participates` meant then.
+ */
+export function seatEnacts(seat: Pick<ParliamentPlayerModel, 'participates' | 'enactment'>): boolean {
+  return seat.enactment ?? seat.participates;
+}
 
 /** The viewer's own vote options — one projection per voting slot. */
 export type VoteProjectionModel = {

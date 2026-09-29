@@ -183,7 +183,13 @@ export function getParliamentModel(game: IGame, viewer?: IPlayer): ParliamentMod
 }
 
 function playerModel(game: IGame, parliament: Parliament, player: IPlayer): ParliamentPlayerModel {
-  const participates = parliament.participates(player);
+  // TWO ASPECTS ON THE WIRE: `participates` is the seat's DELEGATES (its row,
+  // its lobby / reserve / cubes, its Agenda marker), `enactment` whether a law
+  // PAYS it — the payout readers (the ledger, the yields, the standing) gate
+  // on the latter, so a MarsBot seat under `'politics'` is a seat with cubes
+  // and never a seat with a share.
+  const participates = parliament.participates(player, 'delegates');
+  const enactment = parliament.participates(player, 'enactment');
   const access: Array<PartyAccessModel> = REDUX_PARTIES.map((party) => {
     const a = parliament.access(player, party);
     return {
@@ -206,6 +212,7 @@ function playerModel(game: IGame, parliament: Parliament, player: IPlayer): Parl
   const model: ParliamentPlayerModel = {
     color: player.color,
     participates,
+    enactment,
     lobby: parliament.lobby.has(player.id),
     reserve: parliament.reserve(player),
     onResolutions: parliament.votesOf(player),
@@ -226,13 +233,13 @@ function playerModel(game: IGame, parliament: Parliament, player: IPlayer): Parl
   // The counted terms of the catalog's effects, read from the seat's tableau
   // by the ONE shared predicate — every surface computes the seat's number
   // from these (never from a tag count of its own).
-  const countIds = participates ? declaredCountIds(parliament.catalog) : [];
+  const countIds = enactment ? declaredCountIds(parliament.catalog) : [];
   if (countIds.length > 0) {
     model.counts = countIds.map((id) => resolutionCount(player, id));
   }
   // …and the PRODUCTIONS a sequential effect divides (Climate Research's heat
   // production): the same reading the payout will stand on.
-  const productions = participates ? declaredSequelProductions(parliament.catalog) : [];
+  const productions = enactment ? declaredSequelProductions(parliament.catalog) : [];
   if (productions.length > 0) {
     const reads: Partial<Record<Resource, number>> = {};
     for (const resource of productions) {
@@ -244,7 +251,7 @@ function playerModel(game: IGame, parliament: Parliament, player: IPlayer): Parl
   // (the Budgets' M€) and what a LEVEL is measured against (Plant Ban's
   // plants): the same numbers the steps will read, so the panel's shortfall
   // warning, its cut forecast and the payout agree.
-  const read = participates ? declaredStockReads(parliament.catalog) : [];
+  const read = enactment ? declaredStockReads(parliament.catalog) : [];
   if (read.length > 0) {
     const reads: Partial<Record<Resource, number>> = {};
     for (const resource of read) {
@@ -257,7 +264,7 @@ function playerModel(game: IGame, parliament: Parliament, player: IPlayer): Parl
   // table's order, each with its PRINTED colony bonus as a grant — the
   // server's rule of what a colony bonus is, so the client never derives the
   // list from the colonies model.
-  if (participates && declaresColonyBonuses(parliament.catalog)) {
+  if (enactment && declaresColonyBonuses(parliament.catalog)) {
     model.colonyBonuses = game.colonies
       .filter((colony) => colony.colonies.includes(player.id))
       .map((colony) => ({colony: colony.name, grant: colony.colonyBonusGrant(), description: colony.metadata.colony.description}));
@@ -265,7 +272,7 @@ function playerModel(game: IGame, parliament: Parliament, player: IPlayer): Parl
   // …and the HAND a LEVEL part tops up (Joint Research's «until you have 6 +
   // influence in hand»): the same count the step will read — cards withheld in
   // a pending intake are not in the hand, exactly as the step sees it.
-  if (participates && declaresHandLevel(parliament.catalog)) {
+  if (enactment && declaresHandLevel(parliament.catalog)) {
     model.hand = player.cardsInHand.length;
   }
   return model;
@@ -360,7 +367,7 @@ function resolutionActionModel(parliament: Parliament, viewer: IPlayer): Resolut
   if (enacted === undefined || action === undefined) {
     return undefined;
   }
-  const hasAccess = parliament.participates(viewer);
+  const hasAccess = parliament.participates(viewer, 'enactment');
   const usesLeft = parliament.resolutionActionUsesLeft(viewer);
   let available = hasAccess && usesLeft > 0;
   let reason: ResolutionActionModel['reason'] = '';

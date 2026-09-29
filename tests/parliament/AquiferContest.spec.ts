@@ -433,7 +433,7 @@ describe('AquiferContest', () => {
     });
 
     it('MarsBot (mode none) is never asked, never paid, never a winner', () => {
-      const [game, human, bot] = testAutomaGame({coloniesExtension: true, turmoilReduxExpansion: true});
+      const [game, human, bot] = testAutomaGame({coloniesExtension: true, turmoilReduxExpansion: true, botParliamentMode: 'none'});
       const parliament = game.parliament!;
       game.playerIsFinishedWithResearchPhase(human);
       seatResolution(parliament, 0, AQUIFER);

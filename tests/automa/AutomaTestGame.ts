@@ -6,9 +6,19 @@ import {DifficultyLevel, MarsBotCorpId} from '../../src/common/automa/AutomaType
 import {TestPlayer} from '../TestPlayer';
 import {SelectInitialCards} from '../../src/server/inputs/SelectInitialCards';
 import {marsBotOf} from '../../src/server/automa/AutomaUtil';
+import {BotParliamentMode} from '../../src/common/parliament/ParliamentTypes';
+import {setBotParliamentMode} from '../parliament/parliamentArrange';
 
 export type AutomaTestOptions = Partial<GameOptions> & {
   difficulty?: DifficultyLevel;
+  /**
+   * The bot's PARLIAMENT mode (Turmoil Redux only — ignored without it).
+   * DEFAULT: the engine's own for a NEW game, `'politics'` (the bot holds
+   * delegates, votes, may be the winning player and the chairman). A spec
+   * whose subject is iteration 0's OBSERVER bot pins `'none'`; the table is
+   * re-read under that mode without a re-deal (`setBotParliamentMode`).
+   */
+  botParliamentMode?: BotParliamentMode;
   /**
    * The bot's corporation. DEFAULT: C01 Credicor — the most inert corp for a
    * spec (no Setup box, no Before-Action-Phase box, no deck or track
@@ -35,13 +45,16 @@ export type AutomaTestOptions = Partial<GameOptions> & {
  * the bot the engine seats itself. Returns [game, human, bot].
  */
 export function testAutomaGame(customOptions?: AutomaTestOptions, idSuffix = ''): [IGame, TestPlayer, IPlayer] {
-  const {difficulty, corporation, keepInitialCardSelection, seed, ...gameOptions} = customOptions ?? {};
+  const {difficulty, corporation, keepInitialCardSelection, seed, botParliamentMode, ...gameOptions} = customOptions ?? {};
   const forced = corporation ?? MarsBotCorpId.C01_CREDICOR;
   const human = TestPlayer.BLUE.newPlayer({name: 'player1', idSuffix});
   const game = Game.newInstance(`game-id${idSuffix}`, [human], human, `spectator-id${idSuffix}`, {
     automa: {difficulty: difficulty ?? 'normal', ...(forced !== 'random' ? {corporation: forced} : {})},
     ...gameOptions,
   }, seed ?? 0);
+  if (botParliamentMode !== undefined && game.parliament !== undefined) {
+    setBotParliamentMode(game, botParliamentMode);
+  }
   if (keepInitialCardSelection !== true) {
     if (human.getWaitingFor() instanceof SelectInitialCards) {
       human.popWaitingFor();
@@ -59,7 +72,7 @@ const MULTI_COLORS = [TestPlayer.BLUE, TestPlayer.RED, TestPlayer.GREEN, TestPla
  */
 export function testAutomaMultiplayerGame(
   humanCount: number, customOptions?: AutomaTestOptions, idSuffix = ''): [IGame, ReadonlyArray<TestPlayer>, IPlayer] {
-  const {difficulty, corporation, keepInitialCardSelection, seed, ...gameOptions} = customOptions ?? {};
+  const {difficulty, corporation, keepInitialCardSelection, seed, botParliamentMode, ...gameOptions} = customOptions ?? {};
   const forced = corporation ?? MarsBotCorpId.C01_CREDICOR;
   const humans = MULTI_COLORS.slice(0, humanCount)
     .map((factory, i) => factory.newPlayer({name: `player${i + 1}`, idSuffix}));
@@ -67,6 +80,9 @@ export function testAutomaMultiplayerGame(
     automa: {difficulty: difficulty ?? 'normal', ...(forced !== 'random' ? {corporation: forced} : {})},
     ...gameOptions,
   }, seed ?? 0);
+  if (botParliamentMode !== undefined && game.parliament !== undefined) {
+    setBotParliamentMode(game, botParliamentMode);
+  }
   if (keepInitialCardSelection !== true) {
     for (const human of humans) {
       if (human.getWaitingFor() instanceof SelectInitialCards) {

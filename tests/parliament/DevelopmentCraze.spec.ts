@@ -469,7 +469,7 @@ describe('DevelopmentCraze', () => {
 
   describe('MarsBot', () => {
     it('MarsBot is outside the parliament: its placement is paid once and raises no marker; the human\'s is doubled', () => {
-      const [game, human, bot] = testAutomaGame({coloniesExtension: true, turmoilReduxExpansion: true});
+      const [game, human, bot] = testAutomaGame({coloniesExtension: true, turmoilReduxExpansion: true, botParliamentMode: 'none'});
       const parliament = game.parliament!;
       game.phase = Phase.ACTION;
       parliament.enacted = CRAZE;

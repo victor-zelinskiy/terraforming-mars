@@ -443,6 +443,7 @@ export function stateAutomaConflicts(): ReadonlyArray<AutomaConflict> {
   return automaConflicts({
     boardName: config.mapMode === 'random-all' ? RandomBoardOption.ALL : config.mapId,
     turmoil: on('turmoil'),
+    turmoilRedux: on('turmoilRedux'),
     prelude2: on('prelude2'),
     community: on('community'),
     moon: on('moon'),

@@ -506,7 +506,7 @@ describe('Skyscrapers', () => {
 
   describe('MarsBot', () => {
     it('is never asked, never a target: the human\'s tier lands on the human\'s city, the bot\'s city is no candidate and no stack', () => {
-      const [game, human, bot] = testAutomaGame({coloniesExtension: true, turmoilReduxExpansion: true});
+      const [game, human, bot] = testAutomaGame({coloniesExtension: true, turmoilReduxExpansion: true, botParliamentMode: 'none'});
       const parliament = game.parliament!;
       game.playerIsFinishedWithResearchPhase(human);
       seatResolution(parliament, 0, SKY);

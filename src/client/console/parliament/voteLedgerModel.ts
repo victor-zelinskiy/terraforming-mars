@@ -25,7 +25,7 @@
  */
 import {Color} from '@/common/Color';
 import {CardName} from '@/common/cards/CardName';
-import {ParliamentModel} from '@/common/models/ParliamentModel';
+import {ParliamentModel, seatEnacts} from '@/common/models/ParliamentModel';
 import {IClientResolution} from '@/common/parliament/IClientResolution';
 import {InfluenceScaledEffect, InfluenceYield} from '@/common/parliament/influenceScaling';
 import {noRecipientCompactNoteOf, oneNumberYieldsOf, voteLevyOf, voteYieldsOf, YieldIcon, yieldIconOf, yieldIsMultiplier} from './influenceYieldModel';
@@ -154,10 +154,12 @@ function partsOf(
 }
 
 /**
- * THE ROW for the selected card: one chip per PARTICIPATING seat, the viewer
- * first. MarsBot (`participates === false`) never appears — not even as a zero:
- * it takes no part in the parliament, and a zero would say it lost a contest
- * it was never in. A card that pays NOBODY anything (a passive, an action)
+ * THE ROW for the selected card: one chip per seat a law PAYS, the viewer
+ * first. MarsBot (`enactment === false` — in every mode, decision D3) never
+ * appears — not even as a zero: an enacted law never pays it, and a zero
+ * would say it lost a contest it was never in. Its DELEGATES are another
+ * matter (`participates`): under `'politics'` they stand on the cards and in
+ * the seat zone. A card that pays NOBODY anything (a passive, an action)
  * yields no row at all: there is nothing to compare, and an row of empty cubes
  * would be furniture.
  */
@@ -166,7 +168,7 @@ export function voteLedgerOf(input: VoteLedgerInput): ReadonlyArray<LedgerChipVm
   if (resolution === undefined || model === undefined) {
     return [];
   }
-  const seats = model.players.filter((p) => p.participates);
+  const seats = model.players.filter((p) => seatEnacts(p));
   const mine = viewer === undefined ? undefined : seats.find((p) => p.color === viewer);
   const ordered = [...(mine === undefined ? [] : [mine]), ...seats.filter((p) => p !== mine)];
   const chips = ordered.map((seat) => ({

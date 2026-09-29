@@ -29,7 +29,7 @@
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
 import {Color} from '@/common/Color';
-import {ParliamentModel} from '@/common/models/ParliamentModel';
+import {ParliamentModel, seatEnacts} from '@/common/models/ParliamentModel';
 import {REDUX_PARTIES, ReduxParty, partyActionOf} from '@/common/parliament/ParliamentTypes';
 import {partyAccent, partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
 import {accessReasonRows, AccessReasonRow} from '@/client/console/parliament/consoleParliamentModel';
@@ -68,7 +68,7 @@ export default defineComponent({
         return [];
       }
       const seat = model.players.find((p) => p.color === this.color);
-      if (seat === undefined || !seat.participates) {
+      if (seat === undefined || !seatEnacts(seat)) {
         return [];
       }
       const enactedName = model.enacted === undefined ? undefined : translateText(getResolution(model.enacted.resolution)?.text.name ?? model.enacted.resolution);
