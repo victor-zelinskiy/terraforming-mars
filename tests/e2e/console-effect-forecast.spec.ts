@@ -146,10 +146,22 @@ async function grapheneOnCarbonNanosystems(request: APIRequestContext, playerId:
   return me?.tableau?.find((c) => c.name === 'Carbon Nanosystems')?.resources ?? -1;
 }
 
-/** The viewer's M€ — SERVER truth. */
-async function megaCreditsOf(request: APIRequestContext, playerId: string): Promise<number> {
+/**
+ * The viewer's M€ and M€ PRODUCTION — SERVER truth. The wire fields are the
+ * PublicPlayerModel's `megacredits` / `megacreditProduction` (lower-case), NOT
+ * the server-side `megaCredits`: this helper once read the latter, got
+ * `undefined → -1` on both sides of the free play, and its «costs nothing»
+ * check compared −1 with −1 — green without ever having looked.
+ */
+async function megaCreditsOf(request: APIRequestContext, playerId: string): Promise<{stock: number, production: number}> {
   const model = await fetchPlayerModel(request, playerId);
-  return (model.thisPlayer as {megaCredits?: number} | undefined)?.megaCredits ?? -1;
+  const me = model.thisPlayer as {megacredits?: number, megacreditProduction?: number} | undefined;
+  const stock = me?.megacredits;
+  const production = me?.megacreditProduction;
+  if (typeof stock !== 'number' || typeof production !== 'number') {
+    throw new Error(`the player model carries no M€ stock/production (${JSON.stringify({stock, production})})`);
+  }
+  return {stock, production};
 }
 
 /** The index of the FOCUSED option card in the «ИЛИ» group (−1 = none). */
@@ -477,7 +489,15 @@ for (const preset of PRESETS) {
       const mcBefore = await megaCreditsOf(request, playerId);
       await press(page, 'Enter', 1500);
       await finishPlay(page);
-      expect(await megaCreditsOf(request, playerId), 'a free play costs nothing on the server').toBe(mcBefore);
+      // FREE means the PRICE was 0 — not that the M€ stand still. Insulation
+      // moves heat production into M€ production, and blue is MANUTECH, which
+      // pays every production step out in the resource at once: the stock
+      // moves by EXACTLY the production it gained, and not one M€ less (a
+      // price of 2 would read as «production − 2»). Zero steps chosen → 0 = 0.
+      const mcAfter = await megaCreditsOf(request, playerId);
+      expect(mcAfter.stock - mcBefore.stock,
+        `a free play costs nothing on the server: stock ${mcBefore.stock} → ${mcAfter.stock}, production ${mcBefore.production} → ${mcAfter.production} (Manutech pays the production step out)`)
+        .toBe(mcAfter.production - mcBefore.production);
 
       expect(overflowWarns, `no [console-overflow] warn; saw: ${overflowWarns.join(' | ')}`).toEqual([]);
       expect(pageErrors, `no page errors; saw: ${pageErrors.join(' | ')}`).toEqual([]);

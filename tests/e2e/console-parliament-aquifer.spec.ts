@@ -60,7 +60,7 @@ async function openParliament(page: Page): Promise<void> {
 }
 
 type Wire = {
-  thisPlayer: {color: string, tableau: Array<{name: string, resources?: number}>, terraformRating: number, megaCredits: number},
+  thisPlayer: {color: string, tableau: Array<{name: string, resources?: number}>, terraformRating: number, megacredits: number},
   game: {generation: number, phase: string, oceans: number, parliament: {enacted?: {resolution: string}, phase?: {step: string}, lastPhase?: {outcomes?: Array<{player: string, step: string, kind: string, amount?: number, card?: string, space?: string}>}}},
   waitingFor?: {type?: string, title?: unknown, cards?: Array<{name: string}>},
 };

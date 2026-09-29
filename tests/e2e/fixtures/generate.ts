@@ -540,11 +540,59 @@ type ParliamentFixtureSpec = {
   players?: number;
 };
 
+/**
+ * THE CORPORATIONS OF A PARLIAMENT TABLE ARE PINNED, never dealt.
+ *
+ * A seat's corporation is a fact several fixtures build their arithmetic on
+ * (Central Power Grid counts POWER tags — ThorGate's is one; Metal Research
+ * reads the titanium value — PhoboLog's is +1). The seed-0 shuffle only ever
+ * promised «the same deal for the same DECK», and the corporation deck grows
+ * with every module the fork ships: on 2026-09-29 the shuffle handed red
+ * ThorGate instead of Aridor and the powergrid-recap builder's own `expect`
+ * refused the table (count 5, not 4) — and because every builder runs its
+ * checks before the `FIXTURES=` write-skip, one drifted table stops the whole
+ * generator. `customCorporationsList` puts the named cards ON TOP of the deck,
+ * so with `startingCorporations: 1` and exactly one name per seat the SET
+ * dealt to the table is guaranteed — but `Deck.shuffle(cardsOnTop)` shuffles
+ * that set among itself with the game's rng, whose state depends on the size
+ * of the project deck shuffled just before, so WHICH seat draws which is not
+ * a promise either. `reduxTable` therefore fixes the assignment itself: it
+ * hands each seat the dealt card its position names (a swap between hands,
+ * never a card the deck did not deal). The list below is exactly what every
+ * checked-in fixture already carries (blue Teractor, red Aridor; the five- and
+ * six-seat tables continue with ThorGate, Arklight, Tharsis Republic,
+ * Poseidon). A spec whose table needs others passes its own list through
+ * `options` (the Venus tables below).
+ */
+const REDUX_TABLE_CORPORATIONS: ReadonlyArray<CardName> = [
+  CardName.TERACTOR, CardName.ARIDOR, CardName.THORGATE, CardName.ARKLIGHT, CardName.THARSIS_REPUBLIC, CardName.POSEIDON,
+];
+/** The VENUS tables (Cloud Development, Gas Export) were dealt UNMI / PhoboLog — kept, so their fixtures do not move. */
+const VENUS_TABLE_CORPORATIONS: ReadonlyArray<CardName> = [
+  CardName.UNITED_NATIONS_MARS_INITIATIVE, CardName.PHOBOLOG, CardName.THORGATE, CardName.ARKLIGHT, CardName.THARSIS_REPUBLIC, CardName.POSEIDON,
+];
+
 function reduxTable(name: string, options: Partial<TestGameOptions> = {}, count = 2): ParliamentTable {
+  // Exactly one pinned name per seat: the set on top of the deck IS the deal.
+  const pinned = (options.customCorporationsList ?? REDUX_TABLE_CORPORATIONS).slice(0, count);
+  if (pinned.length !== count) {
+    throw new Error(`${name}: ${count} seats need ${count} pinned corporations, got ${pinned.join(', ')}`);
+  }
   const [game, ...seats] = testGame(count, {
     skipInitialCardSelection: false, coloniesExtension: true, turmoilReduxExpansion: true,
     startingCorporations: 1,
     ...options,
+    customCorporationsList: [...pinned],
+  });
+  // The deck dealt the pinned SET; the assignment is the table's own — each
+  // seat takes the dealt card its position names (a swap between hands).
+  const dealt = seats.flatMap((seat) => seat.dealtCorporationCards);
+  seats.forEach((seat, i) => {
+    const card = dealt.find((c) => c.name === pinned[i]);
+    if (card === undefined) {
+      throw new Error(`${name}: the deck did not deal ${pinned[i]} (dealt: ${dealt.map(toName).join(', ')})`);
+    }
+    seat.dealtCorporationCards.splice(0, seat.dealtCorporationCards.length, card);
   });
   const [p1, p2] = seats;
   if (!(p1.getWaitingFor() instanceof SelectInitialCards)) {
@@ -1085,7 +1133,7 @@ parliamentFixture('parliament-generous-vote', generousVote());
 //    N = 2 tags + 2 = 4 floaters over TWO holders → the shared DISTRIBUTION. Red: step 5 (influence 3),
 //    Atmo Collectors alone (no tag) → N = 3 onto ONE holder → the family's ordinary pick. ──
 const cloudTable = (stopAt: ParliamentStop, expect?: (table: ParliamentTable) => void): ParliamentFixtureSpec => ({
-  options: {venusNextExtension: true},
+  options: {venusNextExtension: true, customCorporationsList: [...VENUS_TABLE_CORPORATIONS]},
   resolution: CLOUD_DEVELOPMENT_ID,
   votes: [0],
   agenda: [2, 5],
@@ -1294,7 +1342,7 @@ parliamentFixture('parliament-forestry-enacted', {
 //    room and neither crosses a Venus threshold: oxygen 5 %, Venus 10 % → 4 % / 14 %, so the e2e can read
 //    the two markers travel and assert that not one TR chip flies for either.
 const gasExportTable = (stopAt: ParliamentStop): ParliamentFixtureSpec => ({
-  options: {venusNextExtension: true},
+  options: {venusNextExtension: true, customCorporationsList: [...VENUS_TABLE_CORPORATIONS]},
   resolution: GAS_EXPORT_ID,
   votes: [0],
   agenda: [2, 1],
