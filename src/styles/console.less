@@ -19084,6 +19084,22 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         overflow: hidden;
         zoom: calc(1.25 * var(--con-ui-scale, 1)); /* the LG step of the icon ladder */
         .benefit-glyph__num { display: none; }
+        /* A unit of SEVERAL kinds (the Redux Vesta's «[mech] or [asteroid] or
+           [fighter]»): the box is the ROW's, not one sprite's — three 32 px
+           sprites in a 32 px box was a clipped smear. The sprites step down
+           one rung and the «or» operator sits between them; the row stays
+           inside the cell's own width at the cell's `1fr` (7 cells ≈ 180 px
+           at 1080, the row ≈ 82 px before zoom). */
+        &--multi {
+            width: auto;
+            max-width: 100%;
+            .benefit-glyph__icon.resource {
+                width: 22px; /* keep-px */
+                height: 22px; /* keep-px */
+                background-size: 22px 22px;
+            }
+            .benefit-glyph__or { font-size: 8px; /* keep-px */ }
+        }
     }
     &__xcell-qty {
         font-size: 1.15rem;
@@ -20218,6 +20234,18 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     &__rrow--part .con-colfocus__rvalue { margin-left: auto; }
     /* An iconless benefit (VP / influence / a science tag) still needs a
        voice — the word IS its glyph. */
+    /* The operator of a unit of SEVERAL kinds («[mech] or [asteroid] or [fighter]» — the
+       Redux Vesta): the parliament's yield grammar, in this rail's own register. */
+    &__ror {
+        font-size: .5rem;
+        font-weight: 700;
+        letter-spacing: .04em;
+        text-transform: uppercase;
+        color: fade(@con-text, 66%);
+        line-height: 1;
+        align-self: center;
+        flex: 0 0 auto;
+    }
     &__rlabel {
         font-size: .7rem;
         font-weight: 700;
@@ -20238,6 +20266,7 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         align-items: center;
         zoom: var(--con-ui-scale, 1);
         .benefit-glyph__num { display: none; }
+        gap: .06rem;
 
         &--lg { zoom: calc(1.25 * var(--con-ui-scale, 1)); }
         /* PRODUCTION is a different thing from stock, and the board says so
@@ -21032,6 +21061,7 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         display: inline-flex;
         align-items: center;
         zoom: var(--con-ui-scale, 1);
+        gap: .06rem;
 
         /* PRODUCTION is a different thing from stock, and the board says so
            with a frame — the same brown plate the stage's rail borrows. */
@@ -21050,6 +21080,17 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         background-repeat: no-repeat;
         background-position: center;
         background-size: contain !important;
+    }
+    /* The operator of a unit of SEVERAL kinds (see the stage's `__ror`). */
+    &__gain-or {
+        font-size: .5rem;
+        font-weight: 700;
+        letter-spacing: .04em;
+        text-transform: uppercase;
+        color: fade(@con-text, 66%);
+        line-height: 1;
+        align-self: center;
+        flex: 0 0 auto;
     }
     &__gain-label {
         font-size: .82rem;

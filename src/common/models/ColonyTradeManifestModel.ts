@@ -21,8 +21,15 @@ export type ColonyTradeGrantModel = {
   quantity: number;
   /** Resolved per-position resource for stock/production benefits. */
   resource?: Resource;
-  /** The colony's card resource for the ADD_RESOURCES_TO_CARD family. */
+  /** The colony's card resource for the ADD_RESOURCES_TO_CARD family (a ONE-kind tile). */
   cardResource?: CardResource;
+  /**
+   * SEVERAL kinds on one tile (the Redux Vesta: «mechs, asteroids or
+   * fighters») — the grant pays units of the CHOSEN card's own kind, so the
+   * chip's kind is the target's (`resourceType`), never the first of this
+   * list. Present instead of `cardResource`, never beside it.
+   */
+  cardResources?: ReadonlyArray<CardResource>;
 };
 
 /** One colony-cube owner receiving the per-cube colony bonus for this trade. */

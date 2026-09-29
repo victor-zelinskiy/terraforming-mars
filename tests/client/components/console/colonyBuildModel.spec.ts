@@ -2,6 +2,8 @@ import {expect} from 'chai';
 import {colonyMetadata, ColonyMetadata} from '@/common/colonies/ColonyMetadata';
 import {ColonyBenefit} from '@/common/colonies/ColonyBenefit';
 import {ColonyName} from '@/common/colonies/ColonyName';
+import {CardName} from '@/common/cards/CardName';
+import {CardResource} from '@/common/CardResource';
 import {ColonyModel} from '@/common/models/ColonyModel';
 import {Resource} from '@/common/Resource';
 import {Color} from '@/common/Color';
@@ -38,6 +40,24 @@ describe('colonyBuildModel', () => {
       expect(buildRewardSpecs(metaWith({type: ColonyBenefit.DRAW_CARDS, quantity: [2, 2, 2]}), 0)).to.deep.eq([]);
       expect(buildRewardSpecs(metaWith({type: ColonyBenefit.ADD_RESOURCES_TO_CARD, quantity: [1, 1, 1]}), 0)).to.deep.eq([]);
       expect(buildRewardSpecs(metaWith({type: ColonyBenefit.GAIN_TR, quantity: [1, 1, 1]}), 0)).to.deep.eq([]);
+    });
+
+    it('ADD_RESOURCES_TO_CARD with a chosen host flies the tile\'s one kind; over SEVERAL kinds it flies the host\'s own kind', () => {
+      const one = colonyMetadata({
+        name: ColonyName.TITAN, cardResource: CardResource.FLOATER,
+        build: {description: '', type: ColonyBenefit.ADD_RESOURCES_TO_CARD, quantity: [3, 3, 3]},
+        trade: {description: '', type: ColonyBenefit.ADD_RESOURCES_TO_CARD},
+        colony: {description: '', type: ColonyBenefit.ADD_RESOURCES_TO_CARD},
+      });
+      expect(buildRewardSpecs(one, 0, CardName.DIRIGIBLES)).to.deep.eq([{channel: 'card-resource', resource: 'floater', amount: 3, targetCard: CardName.DIRIGIBLES}]);
+      const several = colonyMetadata({
+        name: ColonyName.TITAN, cardResources: [CardResource.MECH, CardResource.ASTEROID, CardResource.FIGHTER],
+        build: {description: '', type: ColonyBenefit.ADD_RESOURCES_TO_CARD, quantity: [2, 2, 2]},
+        trade: {description: '', type: ColonyBenefit.ADD_RESOURCES_TO_CARD},
+        colony: {description: '', type: ColonyBenefit.GAIN_RESOURCES, resource: Resource.STEEL},
+      });
+      expect(buildRewardSpecs(several, 0, CardName.SECURITY_FLEET, 'Fighter')).to.deep.eq([{channel: 'card-resource', resource: 'fighter', amount: 2, targetCard: CardName.SECURITY_FLEET}]);
+      expect(buildRewardSpecs(several, 0, CardName.SECURITY_FLEET), 'the host\'s kind unknown → no flight, never the first of the list').to.deep.eq([]);
     });
 
     it('a zero-quantity slot yields no spec', () => {

@@ -1,4 +1,5 @@
 import {IProjectCard} from '../IProjectCard';
+import {colonyCardResources} from '../../../common/colonies/ColonyMetadata';
 import {CardType} from '../../../common/cards/CardType';
 import {IPlayer} from '../../IPlayer';
 import {CardName} from '../../../common/cards/CardName';
@@ -118,11 +119,18 @@ export class ProductiveOutpost extends Card implements IProjectCard {
           stock[Resource.MEGACREDITS] = (stock[Resource.MEGACREDITS] ?? 0) + game.board.getHazards().length;
           break;
         case ColonyBenefit.ADD_RESOURCES_TO_CARD:
-        case ColonyBenefit.ADD_RESOURCES_TO_VENUS_CARD:
-          if (colony.metadata.cardResource !== undefined) {
-            cardRes[colony.metadata.cardResource] = (cardRes[colony.metadata.cardResource] ?? 0) + bonus.quantity;
+        case ColonyBenefit.ADD_RESOURCES_TO_VENUS_CARD: {
+          const kinds = colonyCardResources(colony.metadata);
+          if (kinds.length === 1) {
+            cardRes[kinds[0]] = (cardRes[kinds[0]] ?? 0) + bonus.quantity;
+          } else if (kinds.length > 1) {
+            // SEVERAL kinds (the Redux Vesta): the unit's kind is the chosen
+            // card's own, so no ONE chip can name it honestly — the pick after
+            // the confirm names it. (No tile prints such a COLONY bonus today.)
+            hasInteractiveBonus = true;
           }
           break;
+        }
         default:
           // STEAL / OPPONENT_DISCARD / COPY_TRADE / PLACE_* / draw-and-choose / … —
           // interactive or board bonuses that arrive as a follow-up.

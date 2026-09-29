@@ -60,7 +60,7 @@
           </template>
           <template v-else>
             <b class="con-cledger__num">{{ signed(row.bonus.loss === true ? -row.bonus.amount : row.bonus.amount) }}</b>
-            <i class="con-cledger__unit" :class="unitClass(row.bonus)" aria-hidden="true"></i>
+            <template v-for="(cls, k) in unitClasses(row.bonus)" :key="k"><small v-if="k > 0" class="con-cledger__or" aria-hidden="true">{{ $t('or') }}</small><i class="con-cledger__unit" :class="cls" aria-hidden="true"></i></template>
           </template>
         </span>
         <span class="con-cledger__times" data-colony-row-times>× {{ row.multiplier }}</span>
@@ -74,7 +74,7 @@
           <template v-else>
             <span class="con-cledger__eq" aria-hidden="true">=</span>
             <b class="con-cledger__num con-cledger__num--sum">{{ signed(row.bonus.loss === true ? -row.total : row.total) }}</b>
-            <i class="con-cledger__unit" :class="unitClass(row.bonus)" aria-hidden="true"></i>
+            <template v-for="(cls, k) in unitClasses(row.bonus)" :key="k"><small v-if="k > 0" class="con-cledger__or" aria-hidden="true">{{ $t('or') }}</small><i class="con-cledger__unit" :class="cls" aria-hidden="true"></i></template>
           </template>
         </span>
         <!-- THE STATE — only once the payout has run: the skip's reason, or the receipt. The cell is ALWAYS in the
@@ -189,15 +189,19 @@ export default defineComponent({
     planetClass(colony: string): string {
       return colony.replace(' ', '-') + '-background';
     },
-    /** The icon of a bonus's unit — the console's own sprite families. */
-    unitClass(bonus: ColonyLedgerBonus): string {
+    /** The icon(s) of a bonus's unit — the console's own sprite families; a unit over SEVERAL kinds is the icons «or»-joined (one unit, never one icon for three). */
+    unitClasses(bonus: ColonyLedgerBonus): Array<string> {
       switch (bonus.kind) {
-      case 'stock': return iconClassFor(bonus.resource ?? 'megacredits');
-      case 'production': return iconClassFor(bonus.resource ?? 'megacredits') + ' con-cledger__unit--prod';
-      case 'card-resource': return bonus.resource === undefined ? iconClassFor('cards') : iconClassFor(cardResourceKey(bonus.resource));
-      case 'cards': return iconClassFor('cards');
-      case 'draw-discard': return iconClassFor('cards');
-      case 'hud': return bonus.resource === undefined ? '' : iconClassFor(bonus.resource);
+      case 'stock': return [iconClassFor(bonus.resource ?? 'megacredits')];
+      case 'production': return [iconClassFor(bonus.resource ?? 'megacredits') + ' con-cledger__unit--prod'];
+      case 'card-resource':
+        if (bonus.resources !== undefined && bonus.resources.length > 0) {
+          return bonus.resources.map((r) => iconClassFor(cardResourceKey(r)));
+        }
+        return [bonus.resource === undefined ? iconClassFor('cards') : iconClassFor(cardResourceKey(bonus.resource))];
+      case 'cards': return [iconClassFor('cards')];
+      case 'draw-discard': return [iconClassFor('cards')];
+      case 'hud': return [bonus.resource === undefined ? '' : iconClassFor(bonus.resource)];
       }
     },
   },

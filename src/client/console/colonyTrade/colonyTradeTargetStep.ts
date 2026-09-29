@@ -156,6 +156,10 @@ export function colonyTradeCardDestinations(input: ColonyTradeDestinationsInput)
   const presented: Array<ColonyTradePresentedTarget> = [];
   const targets: ColonyTradeTargets = {};
   const bonus: Array<CardName> = [];
+  const bonusResources: Array<string | undefined> = [];
+  // THE KIND THAT FLIES is the card's own — the one reading the flight, the
+  // scene and a grant over several kinds (the Redux Vesta) all take.
+  const ownKindOf = (card: CardName): string | undefined => input.resourceOf(card)?.toString().toLowerCase().replace(/ /g, '-');
 
   const present = (row: ColonyTradePresentedTarget): void => {
     const prior = presented.find((p) => p.card === row.card);
@@ -194,8 +198,10 @@ export function colonyTradeCardDestinations(input: ColonyTradeDestinationsInput)
     // per-cube COLONY BONUS is a list.
     if (step.role === 'colonyBonus') {
       bonus.push(card);
+      bonusResources.push(ownKindOf(card));
     } else {
       targets.incomeTargetCard = card;
+      targets.incomeTargetResource = ownKindOf(card);
     }
   });
 
@@ -212,13 +218,16 @@ export function colonyTradeCardDestinations(input: ColonyTradeDestinationsInput)
     });
     if (notice.role === 'colonyBonus') {
       bonus.push(notice.card);
-    } else {
-      targets.incomeTargetCard = targets.incomeTargetCard ?? notice.card;
+      bonusResources.push(ownKindOf(notice.card));
+    } else if (targets.incomeTargetCard === undefined) {
+      targets.incomeTargetCard = notice.card;
+      targets.incomeTargetResource = ownKindOf(notice.card);
     }
   }
 
   if (bonus.length > 0) {
     targets.bonusTargetCards = bonus;
+    targets.bonusTargetResources = bonusResources;
   }
   return {targets, presented};
 }

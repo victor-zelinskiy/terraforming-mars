@@ -285,7 +285,7 @@
                 <span class="con-colfocus__track-reward">
                   <span v-if="opt.quantity > 1 || (opt.levy && opt.quantity > 0)" class="con-colfocus__track-rewardqty"
                         :class="{'con-colfocus__track-rewardqty--levy': opt.levy}">{{ opt.levy ? '−' : '' }}{{ opt.quantity }}</span>
-                  <BenefitGlyph :benefit="tradeBenefitAt(opt.position)" :idx="opt.position" :cardResource="metadata.cardResource" />
+                  <BenefitGlyph :benefit="tradeBenefitAt(opt.position)" :idx="opt.position" :cardResources="cardResourceKinds" />
                 </span>
                 <span v-if="captures['track'] === opt.steps" class="con-colfocus__opt-check" aria-hidden="true">✓</span>
               </div>
@@ -533,7 +533,9 @@
                   <b>+{{ total.amount }}</b>
                   <span class="con-colfocus__rglyph con-colfocus__rglyph--lg"
                         :class="{'con-colfocus__rglyph--prod': total.production}">
-                    <i v-if="total.icon !== undefined" :class="rewardIconClass(total.icon)" aria-hidden="true"></i>
+                    <!-- A unit of SEVERAL kinds (the Redux Vesta) is the icons «or»-joined — one unit, never one sprite for three. -->
+                    <template v-if="total.icons !== undefined"><template v-for="(ic, k) in total.icons" :key="k"><small v-if="k > 0" class="con-colfocus__ror" aria-hidden="true">{{ $t('or') }}</small><i :class="rewardIconClass(ic)" aria-hidden="true"></i></template></template>
+                    <i v-else-if="total.icon !== undefined" :class="rewardIconClass(total.icon)" aria-hidden="true"></i>
                     <span v-else class="con-colfocus__rlabel">{{ $t(total.label ?? '') }}</span>
                   </span>
                 </span>
@@ -580,7 +582,8 @@
                     :data-colony-trade-source="row.kind === 'track' || row.kind === 'trackFixed' ? colony.name : undefined">
                 <b>+{{ row.amount }}</b>
                 <span class="con-colfocus__rglyph" :class="{'con-colfocus__rglyph--prod': row.production}">
-                  <i v-if="row.icon !== undefined" :class="rewardIconClass(row.icon)" aria-hidden="true"></i>
+                  <template v-if="row.icons !== undefined"><template v-for="(ic, k) in row.icons" :key="k"><small v-if="k > 0" class="con-colfocus__ror" aria-hidden="true">{{ $t('or') }}</small><i :class="rewardIconClass(ic)" aria-hidden="true"></i></template></template>
+                  <i v-else-if="row.icon !== undefined" :class="rewardIconClass(row.icon)" aria-hidden="true"></i>
                   <span v-else class="con-colfocus__rlabel">{{ $t(row.label ?? '') }}</span>
                 </span>
               </span>
@@ -604,7 +607,8 @@
               <span class="con-colfocus__rvalue">
                 <b>+{{ row.amount }}</b>
                 <span class="con-colfocus__rglyph" :class="{'con-colfocus__rglyph--prod': row.production}">
-                  <i v-if="row.icon !== undefined" :class="rewardIconClass(row.icon)" aria-hidden="true"></i>
+                  <template v-if="row.icons !== undefined"><template v-for="(ic, k) in row.icons" :key="k"><small v-if="k > 0" class="con-colfocus__ror" aria-hidden="true">{{ $t('or') }}</small><i :class="rewardIconClass(ic)" aria-hidden="true"></i></template></template>
+                  <i v-else-if="row.icon !== undefined" :class="rewardIconClass(row.icon)" aria-hidden="true"></i>
                   <span v-else class="con-colfocus__rlabel">{{ $t(row.label ?? '') }}</span>
                 </span>
               </span>
@@ -641,7 +645,7 @@
               <span class="con-colfocus__rvalue" :data-colony-trade-source="colony.name">
                 <b>+{{ buildQty }}</b>
                 <span class="con-colfocus__rglyph con-colfocus__rglyph--lg">
-                  <BenefitGlyph :benefit="buildBenefit" :idx="nextBuildSlot" :cardResource="metadata.cardResource" />
+                  <BenefitGlyph :benefit="buildBenefit" :idx="nextBuildSlot" :cardResources="cardResourceKinds" />
                 </span>
               </span>
             </div>
@@ -703,7 +707,9 @@ import {defineComponent, PropType} from 'vue';
 import {useResizeObserver} from '@vueuse/core';
 import {CardModel} from '@/common/models/CardModel';
 import {ColonyModel} from '@/common/models/ColonyModel';
-import {ColonyMetadata, tradeBenefitAt} from '@/common/colonies/ColonyMetadata';
+import {ColonyMetadata, colonyCardResources, tradeBenefitAt} from '@/common/colonies/ColonyMetadata';
+import {CardResource} from '@/common/CardResource';
+import {holdsAnyOf} from '@/client/console/parliament/influenceYieldModel';
 import {ColonyBenefit} from '@/common/colonies/ColonyBenefit';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {ColonyName} from '@/common/colonies/ColonyName';
@@ -1008,6 +1014,10 @@ export default defineComponent({
     };
   },
   computed: {
+    /** The card resource(s) the tile's card benefits add — the ONE list every glyph on this surface draws (several for the Redux Vesta). */
+    cardResourceKinds(): ReadonlyArray<CardResource> {
+      return colonyCardResources(this.metadata);
+    },
     colonyName(): ColonyName {
       return this.colony.name as ColonyName;
     },
@@ -2327,16 +2337,17 @@ export default defineComponent({
       return player !== undefined ? participantDisplayName(player) : color;
     },
     benefitResourceLost(type: ColonyBenefit): boolean {
-      const meta = this.metadata;
-      if (meta.cardResource === undefined) {
+      // The holders of ANY of the tile's kinds (the WARE wildcard included) —
+      // the same reading the parliament's «no recipient» note takes.
+      const kinds = this.cardResourceKinds;
+      if (kinds.length === 0) {
         return false;
       }
       if (type !== ColonyBenefit.ADD_RESOURCES_TO_CARD && type !== ColonyBenefit.ADD_RESOURCES_TO_VENUS_CARD) {
         return false;
       }
       const viewer = this.players.find((p) => p.color === this.viewerColor);
-      const tableau = viewer?.tableau ?? [];
-      return !tableau.some((card) => getCard(card.name)?.resourceType === meta.cardResource);
+      return !holdsAnyOf(viewer?.tableau ?? [], kinds);
     },
     isFocused(zone: 'pay' | 'step', index: number): boolean {
       return this.sub === undefined && this.focused?.zone === zone && this.focused.index === index;

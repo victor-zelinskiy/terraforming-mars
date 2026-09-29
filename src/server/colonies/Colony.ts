@@ -25,7 +25,8 @@ import {IGame} from '../IGame';
 import {Turmoil} from '../turmoil/Turmoil';
 import {SerializedColony} from '../SerializedColony';
 import {ColonyBonusOrdinal, IColony, TradeOptions, TradeTerms, tradeTermsOf, TradeTrackPlan} from './IColony';
-import {ColonyMetadata, colonyMetadata, InputColonyMetadata, tradeBenefitAt, tradeFixedIncome} from '../../common/colonies/ColonyMetadata';
+import {ColonyMetadata, colonyMetadata, colonyCardResources, InputColonyMetadata, tradeBenefitAt, tradeFixedIncome} from '../../common/colonies/ColonyMetadata';
+import {CardResource} from '../../common/CardResource';
 import {ColonyName} from '../../common/colonies/ColonyName';
 import {ColonyBenefitRole} from '../../common/events/EventSource';
 import {CardDrawRevealSource, ColonyTradeRevealTag} from '../../common/models/CardDrawRevealModel';
@@ -404,10 +405,34 @@ export abstract class Colony implements IColony {
     if (resource !== undefined) {
       grant.resource = resource;
     }
-    if (wantsCardResource && this.metadata.cardResource !== undefined) {
-      grant.cardResource = this.metadata.cardResource;
+    if (wantsCardResource) {
+      // ONE kind names itself; SEVERAL kinds (the Redux Vesta) travel as the
+      // list, and the chip's kind is the chosen card's own — the client never
+      // takes the first of the list for it.
+      const kinds = colonyCardResources(this.metadata);
+      if (kinds.length === 1) {
+        grant.cardResource = kinds[0];
+      } else if (kinds.length > 1) {
+        grant.cardResources = kinds;
+      }
     }
     return grant;
+  }
+
+  /**
+   * The card resource(s) this tile's card benefits add, as `AddResourcesToCard`
+   * takes them: the one kind (the ordinary pick — its marker names the kind),
+   * the LIST for several kinds (the holders of ANY of them; each unit's kind
+   * is its card's — Medical Database's law), `undefined` («any resource») for
+   * a tile that declares none. The one place the metadata's list becomes the
+   * payout's argument.
+   */
+  protected cardResourceKinds(): CardResource | ReadonlyArray<CardResource> | undefined {
+    const kinds = colonyCardResources(this.metadata);
+    if (kinds.length === 0) {
+      return undefined;
+    }
+    return kinds.length === 1 ? kinds[0] : kinds;
   }
 
   /**
@@ -482,12 +507,13 @@ export abstract class Colony implements IColony {
     let action: undefined | DeferredAction<any> = undefined;
     switch (bonusType) {
     case ColonyBenefit.ADD_RESOURCES_TO_CARD:
-      const cardResource = this.metadata.cardResource;
       // A colony bonus has no CARD to show, so it names itself instead
       // («КОЛОНИЯ · Ганимед»). The colony was already known one call up (the
       // event source) and dropped here, leaving the player with a card picker
-      // and no idea which of their colonies paid.
-      action = new AddResourcesToCard(player, cardResource, {count: quantity, cause: colonySource(this.name)});
+      // and no idea which of their colonies paid. SEVERAL kinds (the Redux
+      // Vesta) are ONE pick over the holders of any of them — the kind lands
+      // as the chosen card's own, never as a second question.
+      action = new AddResourcesToCard(player, this.cardResourceKinds(), {count: quantity, cause: colonySource(this.name)});
       break;
 
     case ColonyBenefit.ADD_RESOURCES_TO_VENUS_CARD:

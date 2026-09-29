@@ -42,6 +42,29 @@ describe('colonyTradeModel', () => {
     expect(benefitTransferSpec({benefit: ColonyBenefit.GAIN_RESOURCES, quantity: 0, resource: Resource.STEEL})).eq(undefined);
   });
 
+  /**
+   * A grant over SEVERAL kinds (the Redux Vesta's «mechs, asteroids or
+   * fighters») flies as the CHOSEN card's own kind — the card decided what
+   * landed, so the chip wears that; the first of the tile's list would be a
+   * lie two times out of three. Without a known target there is no flight,
+   * exactly as a one-kind grant with no host stays out of the air.
+   */
+  it('a grant over several kinds flies as the target card\'s own kind — never the first of the list', () => {
+    const grant = {benefit: ColonyBenefit.ADD_RESOURCES_TO_CARD, quantity: 2, cardResources: [CardResource.MECH, CardResource.ASTEROID, CardResource.FIGHTER]};
+    expect(benefitTransferSpec(grant, CardName.SECURITY_FLEET, 'Fighter'))
+      .deep.eq({channel: 'card-resource', resource: 'fighter', amount: 2, targetCard: CardName.SECURITY_FLEET});
+    expect(benefitTransferSpec(grant, CardName.SECURITY_FLEET), 'no kind known → no flight').eq(undefined);
+    expect(benefitTransferSpec(grant, undefined, 'Fighter'), 'no target → no flight').eq(undefined);
+    const m = manifest({tradeIncome: grant});
+    expect(incomeTransferSpecs(m, {incomeTargetCard: CardName.SECURITY_FLEET, incomeTargetResource: 'fighter'}))
+      .deep.eq([{channel: 'card-resource', resource: 'fighter', amount: 2, targetCard: CardName.SECURITY_FLEET}]);
+    expect(incomeTransferSpecs(m, {incomeTargetCard: CardName.SECURITY_FLEET})).deep.eq([]);
+    // Per-cube bonuses read their own targets' kinds, index-aligned.
+    const b = manifest({colonyBonus: {benefit: ColonyBenefit.ADD_RESOURCES_TO_CARD, quantity: 1, cardResources: [CardResource.MECH, CardResource.ASTEROID]}});
+    expect(ownBonusTransferSpecs(b, 'red', {bonusTargetCards: [CardName.EVA_MECHS, CardName.ASTEROID_HOLLOWING], bonusTargetResources: ['mech', 'asteroid']}).map((s) => s.resource))
+      .deep.eq(['mech', 'asteroid']);
+  });
+
   it('counts planned cards per grant', () => {
     expect(benefitCardCount({benefit: ColonyBenefit.DRAW_CARDS, quantity: 3})).eq(3);
     expect(benefitCardCount({benefit: ColonyBenefit.DRAW_CARDS_AND_DISCARD_ONE, quantity: 1})).eq(1);

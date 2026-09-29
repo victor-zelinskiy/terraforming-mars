@@ -45,7 +45,23 @@ export type ColonyMetadata = Readonly<{
   build: Benefit<Array<number>, Resource>, // Default is [1,1,1]
   trade: Benefit<Array<number>, OneOrArray<Resource>, OneOrArray<ColonyBenefit>> & {fixed?: FixedTradeIncome}, // Default is [1,1,1,1,1,1,1]
   colony: Benefit<number, Resource>, // Default is 1
+  /** The ONE card resource this tile's card benefits add (Titan's floaters, Enceladus's microbes). */
   cardResource?: CardResource,
+  /**
+   * SEVERAL kinds of card resource, one tile («mechs, asteroids or fighters»
+   * — the Turmoil Redux Vesta): the trade pays N units of ONE kind onto ONE
+   * card, and the kind is the CHOSEN card's own — never a second question.
+   * Declared here (beside `cardResource`, never inside `trade.resource`,
+   * whose array already means «per position») so every reader takes the same
+   * list: the payout's candidate set is the holders of ANY kind
+   * (`AddResourcesToCard` over a list — Medical Database's law), the tile,
+   * the track cell, the dossier and the reward package draw the kinds joined
+   * by «or», and a refusal reads the same holders. Read it through
+   * {@link colonyCardResources} — never either field by hand. A one-kind
+   * tile keeps `cardResource` (the list of one is derived); a tile declares
+   * one of the two, never both.
+   */
+  cardResources?: ReadonlyArray<CardResource>,
   /**
    * The tile's printed flavour line — the sentence under the name on the
    * physical colony tile («Our own moon is the natural gate…»). The console
@@ -88,6 +104,7 @@ export type InputColonyMetadata = {
   trade: InputBenefit<ColonyMetadata['trade']> & {fixed?: FixedTradeIncome},
   colony: InputBenefit<ColonyMetadata['colony']>,
   cardResource?: CardResource,
+  cardResources?: ReadonlyArray<CardResource>,
   lore?: string,
   expansion?: Expansion,
 } & Partial<{
@@ -147,6 +164,23 @@ export function tradeBenefitAt(metadata: ColonyMetadata, position: number): Trad
  */
 export function tradeFixedIncome(metadata: ColonyMetadata): FixedTradeIncome | undefined {
   return metadata.trade.fixed;
+}
+
+/**
+ * THE ONE READING of the card resource(s) a tile's card benefits add — as a
+ * LIST, always: the declared several kinds (`cardResources`), else the one
+ * kind as a list of one (`cardResource`), else empty (a tile whose benefits
+ * add nothing to a card). Every reader on both sides takes this list; none
+ * reads either field by hand (`tests/colonies/colonyCardResourceReader.spec.ts`
+ * scans for a raw read), because a reader that took `cardResource` alone
+ * would draw ONE icon over a tile that prints three and refuse a holder of
+ * the other two kinds.
+ */
+export function colonyCardResources(metadata: Pick<ColonyMetadata, 'cardResource' | 'cardResources'>): ReadonlyArray<CardResource> {
+  if (metadata.cardResources !== undefined && metadata.cardResources.length > 0) {
+    return metadata.cardResources;
+  }
+  return metadata.cardResource !== undefined ? [metadata.cardResource] : [];
 }
 
 /** Every DISTINCT kind the trade track pays, in track order (one entry for a uniform track). */

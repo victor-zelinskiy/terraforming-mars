@@ -12,7 +12,7 @@
     generic placeholder for unrecognised types (so future colonies don't
     crash the component).
   -->
-  <div class="benefit-glyph" :data-bg-type="benefit.type">
+  <div class="benefit-glyph" :class="{'benefit-glyph--multi': isMultiKind}" :data-bg-type="benefit.type">
     <!-- GAIN_RESOURCES — most common: a resource icon, optionally
          multiple of them stacked on top of each other. We render ONE
          icon + an "×N" overlay; the "stacked" presentation belongs in
@@ -24,9 +24,18 @@
     </template>
 
     <!-- ADD_RESOURCES_TO_CARD — same shape, but the icon is the card
-         resource (microbe / animal / floater / ...). -->
+         resource (microbe / animal / floater / ...). SEVERAL kinds (the Redux
+         Vesta: «mechs, asteroids or fighters») are ONE unit drawn as the
+         icons joined by «or» — the grammar `ConsoleYieldUnit` speaks for a
+         resolution's «data or microbe» — never one icon standing for three. -->
     <template v-else-if="benefit.type === BG.ADD_RESOURCES_TO_CARD">
-      <span class="benefit-glyph__icon resource"
+      <span v-if="isMultiKind" class="benefit-glyph__multi" data-bg-multi>
+        <template v-for="(cls, k) in cardResourceClasses" :key="k">
+          <small v-if="k > 0" class="benefit-glyph__or" aria-hidden="true">{{ $t('or') }}</small>
+          <span class="benefit-glyph__icon resource" :class="cls" :data-bg-kind="k"></span>
+        </template>
+      </span>
+      <span v-else class="benefit-glyph__icon resource"
             :class="cardResourceClass"></span>
       <span v-if="quantity > 1" class="benefit-glyph__num">×{{ quantity }}</span>
     </template>
@@ -153,7 +162,7 @@
 </template>
 
 <script lang="ts">
-import {defineComponent} from 'vue';
+import {defineComponent, PropType} from 'vue';
 import {ColonyBenefit} from '@/common/colonies/ColonyBenefit';
 import {CardResource} from '@/common/CardResource';
 
@@ -184,10 +193,20 @@ export default defineComponent({
       default: 0,
     },
     // The card-resource of the parent colony, used for
-    // ADD_RESOURCES_TO_CARD benefits.
+    // ADD_RESOURCES_TO_CARD benefits (the ONE-kind form; the frozen desktop
+    // hosts still pass it).
     cardResource: {
       type: String as () => CardResource | undefined,
       default: undefined,
+    },
+    /**
+     * THE KINDS as a list — `colonyCardResources(metadata)`: one entry for
+     * every ordinary tile, several for the Redux Vesta. The console hosts
+     * pass this one; when both props are given the list wins.
+     */
+    cardResources: {
+      type: Array as PropType<ReadonlyArray<CardResource>>,
+      default: () => [],
     },
   },
   computed: {
@@ -212,9 +231,24 @@ export default defineComponent({
       }
       return 'colony-tile__row-reward-icon--abstract';
     },
+    /** The kinds this glyph draws — the list prop, else the one-kind prop as a list of one. */
+    cardResourceKinds(): ReadonlyArray<CardResource> {
+      if (this.cardResources.length > 0) {
+        return this.cardResources;
+      }
+      return this.cardResource !== undefined ? [this.cardResource] : [];
+    },
+    isMultiKind(): boolean {
+      return this.benefit.type === ColonyBenefit.ADD_RESOURCES_TO_CARD && this.cardResourceKinds.length > 1;
+    },
+    /** One bare icon class per kind (`fighter`, `asteroid`, `mech` — the guard pins their definitions). */
+    cardResourceClasses(): Array<string> {
+      return this.cardResourceKinds.map((kind) => kind.toString().toLowerCase().replace(/\s+/g, '-'));
+    },
     cardResourceClass(): string {
-      if (this.cardResource !== undefined) {
-        return this.cardResource.toString().toLowerCase();
+      const kind = this.cardResourceKinds[0];
+      if (kind !== undefined) {
+        return kind.toString().toLowerCase().replace(/\s+/g, '-');
       }
       return 'colony-tile__row-reward-icon--abstract';
     },

@@ -25,6 +25,8 @@ import {ALL_RESOURCES} from '../../src/common/Resource';
 // one — extend this list when one gains art.
 const CARD_RESOURCE_CLASSES = [
   'animal', 'microbe', 'fighter', 'science', 'floater', 'asteroid', 'camp', 'data',
+  // The Redux Vesta's trade unit («mechs, asteroids or fighters»).
+  'mech',
 ];
 
 describe('resource icon definitions', () => {

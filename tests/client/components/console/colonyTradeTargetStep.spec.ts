@@ -101,6 +101,36 @@ describe('colonyTradeTargetStep — the trade reward on the SHARED target select
       expect(presented[1].amount).to.eq(2);
     });
 
+    /** THE KIND THAT FLIES is the card's own: a step over SEVERAL kinds (the
+     *  Redux Vesta) names no resource, so the destination carries each
+     *  chosen card's `resourceType` for the flight — the same reading the
+     *  presented row's icon takes. */
+    it('carries each chosen card\'s OWN kind beside it (a step over several kinds names none)', () => {
+      const several = [
+        pickStep({role: 'colonyBonus', amount: 1, cards: [card('Security Fleet'), card('Asteroid Hollowing')]}),
+        pickStep({role: 'tradeReward', amount: 2, cards: [card('Security Fleet', 1), card('EVA Mechs')]}),
+      ];
+      const kinds: Record<string, string> = {'Security Fleet': 'Fighter', 'Asteroid Hollowing': 'Asteroid', 'EVA Mechs': 'Mech'};
+      const {targets, presented} = colonyTradeCardDestinations({
+        steps: several, stepKeys,
+        captures: {'target:0': 'Asteroid Hollowing', 'target:1': 'EVA Mechs'},
+        notices: [{kind: 'autoTarget', role: 'colonyBonus', resource: undefined, amount: 1, card: 'Security Fleet' as CardName}],
+        resourceOf: (name) => kinds[name],
+        beforeOf: () => 0,
+      });
+      expect(targets.incomeTargetCard).to.eq('EVA Mechs');
+      expect(targets.incomeTargetResource).to.eq('mech');
+      expect(targets.bonusTargetCards).to.deep.eq(['Asteroid Hollowing', 'Security Fleet']);
+      expect(targets.bonusTargetResources).to.deep.eq(['asteroid', 'fighter']);
+      expect(presented.map((p) => [p.card, p.icon])).to.deep.eq([['Asteroid Hollowing', 'asteroid'], ['EVA Mechs', 'mech'], ['Security Fleet', 'fighter']]);
+      // A step that NAMES its kind keeps it for the flight and the row alike.
+      const one = colonyTradeCardDestinations({
+        steps: [pickStep({role: 'tradeReward', resource: 'Floater', amount: 2, cards: [card('Dirigibles', 2)]})], stepKeys: ['target:0'],
+        captures: {'target:0': 'Dirigibles'}, notices: [], resourceOf: () => 'Floater', beforeOf: () => 0,
+      });
+      expect(one.targets.incomeTargetResource).to.eq('floater');
+    });
+
     /** An AUTO target (a single candidate the server applies without a
      *  prompt) is still a DESTINATION: the chip must land on the real card
      *  and the scene must present it. */

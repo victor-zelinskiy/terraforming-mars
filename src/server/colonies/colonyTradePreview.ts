@@ -1,7 +1,7 @@
 import {MAX_COLONIES_PER_TILE} from '../../common/constants';
 import {CardName} from '../../common/cards/CardName';
 import {ColonyBenefit} from '../../common/colonies/ColonyBenefit';
-import {tradeBenefitAt} from '../../common/colonies/ColonyMetadata';
+import {tradeBenefitAt, colonyCardResources} from '../../common/colonies/ColonyMetadata';
 import {GlobalParameter} from '../../common/GlobalParameter';
 import {Tag} from '../../common/cards/Tag';
 import {CardResource} from '../../common/CardResource';
@@ -158,7 +158,7 @@ function benefitFollowUp(
   const game = player.game;
   switch (type) {
   case ColonyBenefit.ADD_RESOURCES_TO_CARD:
-    return cardTargetFollowUp(player, role, colony.metadata.cardResource, quantity);
+    return cardTargetFollowUp(player, role, colonyCardResources(colony.metadata), quantity);
 
   case ColonyBenefit.ADD_RESOURCES_TO_VENUS_CARD:
     return cardTargetFollowUp(player, role, undefined, quantity, Tag.VENUS);
@@ -228,23 +228,30 @@ function note(role: ColonyTradeFollowUpRole, kind: ColonyTradeNoteKind): ColonyT
 function cardTargetFollowUp(
   player: IPlayer,
   role: ColonyTradeFollowUpRole,
-  resource: CardResource | undefined,
+  /** The kinds the benefit adds — the tile's list (`colonyCardResources`), or undefined for «any resource». */
+  kinds: ReadonlyArray<CardResource> | undefined,
   amount: number,
   restrictedTag?: Tag,
 ): ColonyTradeFollowUpModel {
-  const action = new AddResourcesToCard(player, resource, {
+  // The deferred takes the ONE kind for a list of one (the ordinary pick,
+  // byte-identical for every one-kind tile), the list for several (the
+  // holders of ANY — the Redux Vesta), `undefined` for any resource.
+  const arg = kinds === undefined || kinds.length === 0 ? undefined : (kinds.length === 1 ? kinds[0] : kinds);
+  const action = new AddResourcesToCard(player, arg, {
     count: amount,
     ...(restrictedTag !== undefined ? {
       restrictedTag,
       title: message('Select Venus card to add ${0} resource(s)', (b) => b.number(amount)),
     } : {}),
   });
+  const resource = action.resourceType;
+  const several = kinds !== undefined && kinds.length > 1 ? {resources: kinds} : {};
   const cards = action.getCards();
   if (cards.length === 0) {
-    return {kind: 'cardTarget', role, resource, amount, lost: true};
+    return {kind: 'cardTarget', role, resource, ...several, amount, lost: true};
   }
   if (cards.length === 1) {
-    return {kind: 'cardTarget', role, resource, amount, auto: cards[0].name, lost: false};
+    return {kind: 'cardTarget', role, resource, ...several, amount, auto: cards[0].name, lost: false};
   }
-  return {kind: 'cardTarget', role, resource, amount, pick: action.previewSelectCard(), lost: false};
+  return {kind: 'cardTarget', role, resource, ...several, amount, pick: action.previewSelectCard(), lost: false};
 }

@@ -73,7 +73,7 @@
             <PlayerCube v-if="colony.colonies[idx] !== undefined"
                         :color="colony.colonies[idx]"
                         :size="cubeSize" />
-            <BenefitGlyph v-else :benefit="buildBenefit" :idx="idx" :cardResource="metadata.cardResource" />
+            <BenefitGlyph v-else :benefit="buildBenefit" :idx="idx" :cardResources="cardResourceKinds" />
           </span>
         </div>
       </div>
@@ -117,7 +117,7 @@
                BEFORE the marker's bonus, exactly as the tile prints it; it never
                changes with the marker, so it is outside the crossfade. -->
           <span v-if="tradeFixedBenefit !== undefined" class="con-coltile__cell-fixed" data-colony-trade-fixed>
-            <BenefitGlyph :benefit="tradeFixedBenefit" :idx="0" :cardResource="metadata.cardResource" />
+            <BenefitGlyph :benefit="tradeFixedBenefit" :idx="0" :cardResources="cardResourceKinds" />
             <span class="con-coltile__cell-plus" aria-hidden="true">+</span>
           </span>
           <transition name="con-coltrade-reward" mode="out-in">
@@ -125,7 +125,7 @@
               <!-- A LEVY prints its sign — «−4», never a bare 4 in the gain's mint. -->
               <span v-if="reward.quantity > 1 || (rewardIsLevy && reward.quantity > 0)" class="con-coltile__cell-num"
                     :class="{'con-coltile__cell-num--levy': rewardIsLevy}">{{ rewardIsLevy ? '−' : '' }}{{ reward.quantity }}</span>
-              <BenefitGlyph :benefit="tradeBenefit" :idx="effectivePosition" :cardResource="metadata.cardResource" />
+              <BenefitGlyph :benefit="tradeBenefit" :idx="effectivePosition" :cardResources="cardResourceKinds" />
             </span>
           </transition>
           <span v-if="offsetSteps > 0" class="con-coltile__cell-offset">+{{ offsetSteps }}</span>
@@ -135,7 +135,7 @@
         <span class="con-coltile__cell-label">{{ $t('Bonus') }}</span>
         <span class="con-coltile__cell-value" :data-colony-bonus-source="colony.name">
           <span v-if="bonusQuantity > 1" class="con-coltile__cell-num">{{ bonusQuantity }}</span>
-          <BenefitGlyph :benefit="colonyBenefit" :idx="0" :cardResource="metadata.cardResource" />
+          <BenefitGlyph :benefit="colonyBenefit" :idx="0" :cardResources="cardResourceKinds" />
         </span>
       </div>
     </div>
@@ -158,7 +158,8 @@
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
 import {ColonyModel} from '@/common/models/ColonyModel';
-import {ColonyMetadata, tradeBenefitAt, tradeFixedIncome} from '@/common/colonies/ColonyMetadata';
+import {ColonyMetadata, colonyCardResources, tradeBenefitAt, tradeFixedIncome} from '@/common/colonies/ColonyMetadata';
+import {CardResource} from '@/common/CardResource';
 import {ColonyBenefit} from '@/common/colonies/ColonyBenefit';
 import {getColony} from '@/client/colonies/ClientColonyManifest';
 import {effectiveTradePosition, rewardAtPosition, TradeRewardAt} from '@/client/components/colonies/colonyTradePlan';
@@ -193,6 +194,10 @@ export default defineComponent({
     },
   },
   computed: {
+    /** The card resource(s) the tile's card benefits add — the ONE list every glyph on this surface draws (several for the Redux Vesta). */
+    cardResourceKinds(): ReadonlyArray<CardResource> {
+      return colonyCardResources(this.metadata);
+    },
     metadata(): ColonyMetadata {
       return getColony(this.colony.name);
     },

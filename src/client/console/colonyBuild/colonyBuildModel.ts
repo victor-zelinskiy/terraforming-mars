@@ -29,7 +29,7 @@ import {CardName} from '@/common/cards/CardName';
 import {Color} from '@/common/Color';
 import {Resource} from '@/common/Resource';
 import {ColonyModel} from '@/common/models/ColonyModel';
-import {ColonyMetadata} from '@/common/colonies/ColonyMetadata';
+import {ColonyMetadata, colonyCardResources} from '@/common/colonies/ColonyMetadata';
 import {ColonyBenefit} from '@/common/colonies/ColonyBenefit';
 import {cardResourceKey, ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
 
@@ -113,6 +113,8 @@ export function buildRewardSpecs(
    *  floaters). Without one a card bonus has no physical destination and
    *  stays out of the flight — the honest degrade, never a guessed card. */
   targetCard?: CardName,
+  /** That card's own resource type — the kind that flies when the tile pays SEVERAL kinds (the Redux Vesta). */
+  targetResource?: string,
 ): Array<ResourceTransferSpec> {
   const build = metadata.build;
   const amount = build.quantity[slotIndex] ?? 0;
@@ -121,11 +123,14 @@ export function buildRewardSpecs(
   }
   // A CARD BONUS IS A REWARD LIKE ANY OTHER once its destination is known:
   // the same chip, the same framework, landing on the chosen card's own
-  // counter instead of a rail row.
+  // counter instead of a rail row. Over SEVERAL kinds the chip is the
+  // chosen card's own kind — never the first of the tile's list.
   if (build.type === ColonyBenefit.ADD_RESOURCES_TO_CARD ||
       build.type === ColonyBenefit.ADD_RESOURCES_TO_VENUS_CARD) {
-    return metadata.cardResource !== undefined && targetCard !== undefined ?
-      [{channel: 'card-resource', resource: cardResourceKey(metadata.cardResource), amount, targetCard}] :
+    const kinds = colonyCardResources(metadata);
+    const kind = kinds.length === 1 ? kinds[0].toString() : (kinds.length > 1 ? targetResource : undefined);
+    return kind !== undefined && targetCard !== undefined ?
+      [{channel: 'card-resource', resource: cardResourceKey(kind), amount, targetCard}] :
       [];
   }
   const resource = build.resource;

@@ -154,7 +154,7 @@
                 <span class="con-colonies__rail-sep" aria-hidden="true">·</span>
                 <span class="con-colonies__rail-cell con-colonies__rail-cell--get">
                   <b v-if="focusedBuildQty > 1">{{ focusedBuildQty }}</b>
-                  <BenefitGlyph :benefit="focusedBuildBenefit" :idx="focusedBuildSlot" :cardResource="focusedMeta.cardResource" />
+                  <BenefitGlyph :benefit="focusedBuildBenefit" :idx="focusedBuildSlot" :cardResources="cardResourceKinds" />
                 </span>
               </template>
               <span class="con-colonies__rail-sep" aria-hidden="true">·</span>
@@ -330,8 +330,9 @@ import {motionMs} from '@/client/components/motion/motionTokens';
 import {freeTradeFleets, effectiveTradePosition, rewardAtPosition, TradeRewardAt, TradeStep} from '@/client/components/colonies/colonyTradePlan';
 import {fetchColonyTradePreview} from '@/client/components/colonies/colonyTradePreviewFetch';
 import {getColony} from '@/client/colonies/ClientColonyManifest';
-import {getCard} from '@/client/cards/ClientCardManifest';
-import {ColonyMetadata} from '@/common/colonies/ColonyMetadata';
+import {ColonyMetadata, colonyCardResources} from '@/common/colonies/ColonyMetadata';
+import {CardResource} from '@/common/CardResource';
+import {holdsAnyOf} from '@/client/console/parliament/influenceYieldModel';
 import {ColonyBenefit} from '@/common/colonies/ColonyBenefit';
 import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import ConsoleWsHead from '@/client/components/console/foundation/ConsoleWsHead.vue';
@@ -513,6 +514,10 @@ export default defineComponent({
     };
   },
   computed: {
+    /** The focused tile's card resource(s) — the ONE list the rail's glyph and the «lost» reading take (several for the Redux Vesta). */
+    cardResourceKinds(): ReadonlyArray<CardResource> {
+      return this.focusedMeta === undefined ? [] : colonyCardResources(this.focusedMeta);
+    },
     layout(): ColonyGridLayout {
       return colonyGridLayout(this.colonies.length, this.pick !== undefined);
     },
@@ -1102,16 +1107,16 @@ export default defineComponent({
      *  LOST when the viewer owns no card able to hold that resource — shared
      *  by the trade + build rails (and mirrored at the focus stage). */
     benefitResourceLost(type: ColonyBenefit): boolean {
-      const meta = this.focusedMeta;
-      if (meta === undefined || meta.cardResource === undefined) {
+      // The holders of ANY of the tile's kinds (the WARE wildcard included).
+      const kinds = this.cardResourceKinds;
+      if (kinds.length === 0) {
         return false;
       }
       if (type !== ColonyBenefit.ADD_RESOURCES_TO_CARD && type !== ColonyBenefit.ADD_RESOURCES_TO_VENUS_CARD) {
         return false;
       }
       const viewer = this.players.find((p) => p.color === this.viewerColor);
-      const tableau = viewer?.tableau ?? [];
-      return !tableau.some((card) => getCard(card.name)?.resourceType === meta.cardResource);
+      return !holdsAnyOf(viewer?.tableau ?? [], kinds);
     },
     /**
      * Size the tiles to FILL the free area for the count layout: the largest

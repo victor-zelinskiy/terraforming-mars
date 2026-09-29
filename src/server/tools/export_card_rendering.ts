@@ -245,6 +245,10 @@ class ColoniesProcessor {
       module: getColonyModule(metadata.name),
       name: metadata.name,
       cardResource: metadata.cardResource,
+      // SEVERAL kinds on one tile (the Redux Vesta) — read through
+      // `colonyCardResources`; the list must reach the client's manifest or
+      // every console surface draws the tile with no resource at all.
+      cardResources: metadata.cardResources,
       build: metadata.build,
       trade: metadata.trade,
       colony: metadata.colony,

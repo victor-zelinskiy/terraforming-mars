@@ -1,4 +1,5 @@
 import {IGame} from '../IGame';
+import {colonyCardResources} from '../../common/colonies/ColonyMetadata';
 import {IColony, TradeTerms} from './IColony';
 import {ColonyName} from '../../common/colonies/ColonyName';
 import {ICard} from '../cards/ICard';
@@ -112,8 +113,11 @@ export class ColoniesHandler {
     if (colony.isActive) {
       return true;
     }
-    if (colony.metadata.cardResource !== undefined) {
-      if (colony.metadata.cardResource === card.resourceType) {
+    // A card holding ANY of the tile's kinds activates it (one kind for
+    // every tile but the Redux Vesta, whose three kinds each wake it).
+    const kinds = colonyCardResources(colony.metadata);
+    if (kinds.length > 0) {
+      if (card.resourceType !== undefined && kinds.includes(card.resourceType)) {
         return true;
       }
       if (card.name === CardName.MARTIAN_EXPRESS) {

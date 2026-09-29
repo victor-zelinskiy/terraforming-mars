@@ -117,7 +117,8 @@
                 <div class="con-colinspect__gain">
                   <b class="con-colinspect__gain-amount">+{{ total.amount }}</b>
                   <span class="con-colinspect__gain-glyph" :class="{'con-colinspect__gain-glyph--prod': total.production}">
-                    <i v-if="total.icon !== undefined" :class="rewardIconClass(total.icon)" aria-hidden="true"></i>
+                    <template v-if="total.icons !== undefined"><template v-for="(ic, k) in total.icons" :key="k"><small v-if="k > 0" class="con-colinspect__gain-or" aria-hidden="true">{{ $t('or') }}</small><i :class="rewardIconClass(ic)" aria-hidden="true"></i></template></template>
+                    <i v-else-if="total.icon !== undefined" :class="rewardIconClass(total.icon)" aria-hidden="true"></i>
                     <span v-else class="con-colinspect__gain-label">{{ $t(total.label ?? '') }}</span>
                   </span>
                   <em v-if="total.cardDestination && cardTargetLines.length > 0" class="con-colinspect__gain-dest">
@@ -206,7 +207,7 @@
                 <span class="con-colinspect__kind">{{ $t('Construction') }}</span>
                 <div class="con-colinspect__line">
                   <span class="con-colinspect__glyph">
-                    <BenefitGlyph :benefit="buildBenefit" :idx="nextBuildSlot" :cardResource="metadata.cardResource" />
+                    <BenefitGlyph :benefit="buildBenefit" :idx="nextBuildSlot" :cardResources="cardResourceKinds" />
                   </span>
                   <p class="con-colinspect__text" v-i18n>{{ metadata.build.description }}</p>
                 </div>
@@ -226,12 +227,12 @@
                   <span class="con-colinspect__glyph" :class="{'con-colinspect__glyph--pair': tradeFixedBenefit !== undefined}">
                     <template v-if="tradeFixedBenefit !== undefined">
                       <span class="con-colinspect__glyph-part" data-colinspect-fixed>
-                        <BenefitGlyph :benefit="tradeFixedBenefit" :idx="0" :cardResource="metadata.cardResource" />
+                        <BenefitGlyph :benefit="tradeFixedBenefit" :idx="0" :cardResources="cardResourceKinds" />
                       </span>
                       <span class="con-colinspect__glyph-plus" aria-hidden="true">+</span>
                     </template>
                     <span class="con-colinspect__glyph-part">
-                      <BenefitGlyph :benefit="tradeBenefitNow" :idx="effectivePosition" :cardResource="metadata.cardResource" />
+                      <BenefitGlyph :benefit="tradeBenefitNow" :idx="effectivePosition" :cardResources="cardResourceKinds" />
                     </span>
                   </span>
                   <p class="con-colinspect__text" v-i18n>{{ metadata.trade.description }}</p>
@@ -243,7 +244,7 @@
                 <span class="con-colinspect__kind">{{ $t('Owner bonus') }}</span>
                 <div class="con-colinspect__line">
                   <span class="con-colinspect__glyph">
-                    <BenefitGlyph :benefit="colonyBenefit" :idx="0" :cardResource="metadata.cardResource" />
+                    <BenefitGlyph :benefit="colonyBenefit" :idx="0" :cardResources="cardResourceKinds" />
                   </span>
                   <p class="con-colinspect__text" v-i18n>{{ metadata.colony.description }}</p>
                 </div>
@@ -281,7 +282,8 @@
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
 import {ColonyModel} from '@/common/models/ColonyModel';
-import {ColonyMetadata, tradeBenefitAt, tradeFixedIncome} from '@/common/colonies/ColonyMetadata';
+import {ColonyMetadata, colonyCardResources, tradeBenefitAt, tradeFixedIncome} from '@/common/colonies/ColonyMetadata';
+import {CardResource} from '@/common/CardResource';
 import {ColonyBenefit} from '@/common/colonies/ColonyBenefit';
 import {ColonyName} from '@/common/colonies/ColonyName';
 import {Color} from '@/common/Color';
@@ -289,6 +291,7 @@ import {CardModel} from '@/common/models/CardModel';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {ColonyTradeFollowUpModel, ColonyTradePreviewModel} from '@/common/models/ColonyTradePreviewModel';
 import {getColony} from '@/client/colonies/ClientColonyManifest';
+import {getCard} from '@/client/cards/ClientCardManifest';
 import {buildColonyLoreModel} from '@/client/colonies/colonyLore';
 import {LoreModel} from '@/client/cards/cardLore';
 import {translateLore} from '@/client/cards/loreTranslate';
@@ -364,6 +367,10 @@ export default defineComponent({
     };
   },
   computed: {
+    /** The card resource(s) the tile's card benefits add — the ONE list every glyph on this surface draws (several for the Redux Vesta). */
+    cardResourceKinds(): ReadonlyArray<CardResource> {
+      return colonyCardResources(this.metadata);
+    },
     metadata(): ColonyMetadata {
       return getColony(this.colony.name);
     },
@@ -505,6 +512,7 @@ export default defineComponent({
         return [{
           key: 'build',
           icon: per.icon,
+          ...(per.icons !== undefined ? {icons: per.icons} : {}),
           label: per.label,
           amount: per.amount,
           production: per.production,
@@ -543,13 +551,16 @@ export default defineComponent({
         if (followUp.kind !== 'cardTarget' || followUp.lost) {
           continue;
         }
-        const iconClass = followUp.resource !== undefined ?
-          iconClassFor(followUp.resource.toString().toLowerCase().replace(/ /g, '-')) + ' con-colinspect__gain-card-icon' : '';
+        // The unit each card takes: the step's ONE kind, else — a step over
+        // several kinds (the Redux Vesta) or any — the card's OWN.
+        const namedIcon = followUp.resource?.toString().toLowerCase().replace(/ /g, '-');
         const cards: ReadonlyArray<CardModel> = followUp.pick?.cards ??
           (followUp.auto !== undefined ? [{name: followUp.auto, resources: this.autoTargetResources(followUp.auto)} as CardModel] : []);
         for (const card of cards) {
           const before = card.resources ?? 0;
           const line = lines.get(card.name);
+          const icon = namedIcon ?? getCard(card.name)?.resourceType?.toString().toLowerCase().replace(/ /g, '-');
+          const iconClass = icon !== undefined ? iconClassFor(icon) + ' con-colinspect__gain-card-icon' : '';
           if (line === undefined) {
             lines.set(card.name, {card: card.name, iconClass, before, after: before + followUp.amount});
           } else {

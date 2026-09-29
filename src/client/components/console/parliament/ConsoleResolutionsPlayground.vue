@@ -590,6 +590,7 @@ import {ColonyModel} from '@/common/models/ColonyModel';
 import {ColonyBenefit} from '@/common/colonies/ColonyBenefit';
 import {ColonyTradeGrantModel} from '@/common/models/ColonyTradeManifestModel';
 import {getColony} from '@/client/colonies/ClientColonyManifest';
+import {colonyCardResources} from '@/common/colonies/ColonyMetadata';
 import {ColonyLedgerReading, colonyLedgerOf} from '@/client/console/parliament/colonyLedgerModel';
 import ConsoleColonyLedger from '@/client/components/console/parliament/ConsoleColonyLedger.vue';
 import {
@@ -2988,9 +2989,13 @@ export default defineComponent({
           if (colony.resource !== undefined) {
             grant.resource = colony.resource;
           }
-          const cardResource = getColony(name).cardResource;
-          if (cardResource !== undefined && (colony.type === ColonyBenefit.ADD_RESOURCES_TO_CARD || colony.type === ColonyBenefit.ADD_RESOURCES_TO_VENUS_CARD)) {
-            grant.cardResource = cardResource;
+          const kinds = colonyCardResources(getColony(name));
+          if (colony.type === ColonyBenefit.ADD_RESOURCES_TO_CARD || colony.type === ColonyBenefit.ADD_RESOURCES_TO_VENUS_CARD) {
+            if (kinds.length === 1) {
+              grant.cardResource = kinds[0];
+            } else if (kinds.length > 1) {
+              grant.cardResources = kinds;
+            }
           }
           return {colony: name, grant, description: colony.description};
         });

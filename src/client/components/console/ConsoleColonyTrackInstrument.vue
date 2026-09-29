@@ -56,7 +56,7 @@
              nothing but a fee. -->
         <span v-if="fixedBenefit !== undefined" class="con-colfocus__xcell-fixed" data-colony-track-fixed>
           <span class="con-colfocus__xcell-fixed-glyph">
-            <BenefitGlyph :benefit="fixedBenefit" :idx="0" :cardResource="metadata.cardResource" />
+            <BenefitGlyph :benefit="fixedBenefit" :idx="0" :cardResources="cardResourceKinds" />
           </span>
           <span class="con-colfocus__xcell-plus" aria-hidden="true">+</span>
         </span>
@@ -70,8 +70,8 @@
              flags anchor. -->
         <span class="con-colfocus__xcell-body"
               :data-colony-card-cell="(cell.effective || cell.marker) ? colony.name : undefined">
-          <span class="con-colfocus__xcell-glyph">
-            <BenefitGlyph :benefit="tradeBenefitAt(cell.index)" :idx="cell.index" :cardResource="metadata.cardResource" />
+          <span class="con-colfocus__xcell-glyph" :class="{'con-colfocus__xcell-glyph--multi': multiKindCell(cell.index)}">
+            <BenefitGlyph :benefit="tradeBenefitAt(cell.index)" :idx="cell.index" :cardResources="cardResourceKinds" />
           </span>
           <!-- A LEVY prints its SIGN — «−4», never a bare 4 in the gain's own
                register (the sign lives on the glyph's badge, which this box
@@ -121,7 +121,7 @@
               data-colony-build-seat
               :data-colony-bonus-source="colony.colonies[idx] !== undefined ? colony.name : undefined">
           <PlayerCube v-if="colony.colonies[idx] !== undefined" :color="colony.colonies[idx]" :size="44" />
-          <BenefitGlyph v-else :benefit="buildBenefit" :idx="idx" :cardResource="metadata.cardResource" />
+          <BenefitGlyph v-else :benefit="buildBenefit" :idx="idx" :cardResources="cardResourceKinds" />
         </span>
         <!-- Only an OCCUPIED berth has something to say: an empty seat
              already reads as empty, and «Свободное место» in a one-column
@@ -146,7 +146,7 @@
         <span class="con-colfocus__ob-value" :data-colony-bonus-cell="colony.name">
           <b v-if="bonusQty > 0">{{ bonusQty }}</b>
           <span class="con-colfocus__rglyph con-colfocus__rglyph--lg">
-            <BenefitGlyph :benefit="colonyBenefit" :idx="0" :cardResource="metadata.cardResource" />
+            <BenefitGlyph :benefit="colonyBenefit" :idx="0" :cardResources="cardResourceKinds" />
           </span>
         </span>
         <template v-if="bonusMath !== undefined">
@@ -160,7 +160,7 @@
           <span class="con-colfocus__ob-total">
             <b>{{ bonusMath.total }}</b>
             <span class="con-colfocus__rglyph con-colfocus__rglyph--lg">
-              <BenefitGlyph :benefit="colonyBenefit" :idx="0" :cardResource="metadata.cardResource" />
+              <BenefitGlyph :benefit="colonyBenefit" :idx="0" :cardResources="cardResourceKinds" />
             </span>
           </span>
         </template>
@@ -173,7 +173,8 @@
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
 import {ColonyModel} from '@/common/models/ColonyModel';
-import {ColonyMetadata, tradeBenefitAt, tradeFixedIncome} from '@/common/colonies/ColonyMetadata';
+import {ColonyMetadata, colonyCardResources, tradeBenefitAt, tradeFixedIncome} from '@/common/colonies/ColonyMetadata';
+import {CardResource} from '@/common/CardResource';
 import {ColonyBenefit} from '@/common/colonies/ColonyBenefit';
 import {Color} from '@/common/Color';
 import {trackResetAfterBuild, trackResetPosition} from '@/client/components/colonies/colonyTradePlan';
@@ -221,6 +222,10 @@ export default defineComponent({
     head: {type: Boolean, default: true},
   },
   computed: {
+    /** The card resource(s) the tile's card benefits add — the ONE list every glyph on this surface draws (several for the Redux Vesta). */
+    cardResourceKinds(): ReadonlyArray<CardResource> {
+      return colonyCardResources(this.metadata);
+    },
     trackMax(): number {
       return this.metadata.trade.quantity.length - 1;
     },
@@ -270,6 +275,10 @@ export default defineComponent({
     },
   },
   methods: {
+    /** A card-resource cell over SEVERAL kinds (the Redux Vesta) — the glyph box opens to the row's width. */
+    multiKindCell(position: number): boolean {
+      return this.cardResourceKinds.length > 1 && tradeBenefitAt(this.metadata, position).type === ColonyBenefit.ADD_RESOURCES_TO_CARD;
+    },
     /** The cell's income — kind AND resource at that position (the Redux Pluto: data cells, then card cells). */
     tradeBenefitAt(position: number): Benefit {
       const income = tradeBenefitAt(this.metadata, position);

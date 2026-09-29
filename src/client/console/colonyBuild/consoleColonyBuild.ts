@@ -45,6 +45,7 @@ import {registerAnimationHoldSupplier} from '@/client/components/presentation/an
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {getColony} from '@/client/colonies/ClientColonyManifest';
+import {getCard} from '@/client/cards/ClientCardManifest';
 import {
   ColonyBuildPhase, BuildRect, BonusExitMode,
   buildRewardSpecs, buildBonusMode, verifyColonyBuild,
@@ -180,7 +181,7 @@ export function detectColonyBuild(prevView: ViewModel, newView: ViewModel): {col
   }
   colonyBuildState.slotIndex = proof.slotIndex;
   const metadata = getColony(colonyBuildState.colonyName as ColonyName);
-  pendingSpecs = buildRewardSpecs(metadata, proof.slotIndex, buildTargetCard);
+  pendingSpecs = buildRewardSpecs(metadata, proof.slotIndex, buildTargetCard, buildTargetCard === undefined ? undefined : getCard(buildTargetCard)?.resourceType);
   colonyBuildState.mode = buildBonusMode(metadata, proof.slotIndex, buildTargetCard);
   const landing = measureBuildSlot(colonyBuildState.colonyName, proof.slotIndex);
   colonyBuildState.slotRect = landing?.rect;

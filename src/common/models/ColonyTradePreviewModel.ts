@@ -60,8 +60,15 @@ export type ColonyTradeFollowUpModel =
       /** An "add N resources to a card" reward needing a target card. */
       kind: 'cardTarget',
       role: ColonyTradeFollowUpRole,
-      /** The card resource added; undefined = any resource (Venus-card reward). */
+      /** The card resource added; undefined = any resource (Venus-card reward) OR several kinds (see `resources`). */
       resource: CardResource | undefined,
+      /**
+       * SEVERAL kinds, one pick (the Redux Vesta: «mechs, asteroids or
+       * fighters»): the candidates are the holders of ANY of them, and the
+       * unit each candidate takes is its own `resourceType` — the pick's
+       * `cardResourceByCard` marker names it per card. Absent for one kind.
+       */
+      resources?: ReadonlyArray<CardResource>,
       amount: number,
       /** ≥2 candidates → the live SelectCard prompt (pre-collect this pick). */
       pick?: SelectCardModel,

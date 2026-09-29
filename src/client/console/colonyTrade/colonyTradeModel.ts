@@ -33,15 +33,29 @@ import {ResourceTransferSpec, cardResourceKey, mergeTransferSpecs} from '@/clien
 export type ColonyTradeTargets = {
   /** The chosen host card of a card-resource trade INCOME (Titan / Enceladus / Miranda). */
   incomeTargetCard?: CardName;
+  /**
+   * That card's OWN resource type (an icon key) — the kind the chip flies as
+   * when the grant spans SEVERAL kinds (the Redux Vesta): the unit that lands
+   * is the card's, never the first of the tile's list. Read where the
+   * destinations are read (`colonyTradeCardDestinations`), the one place that
+   * knows the card.
+   */
+  incomeTargetResource?: string;
   /** The chosen host cards of the viewer's own card-resource colony bonuses, in pick order. */
   bonusTargetCards?: ReadonlyArray<CardName>;
+  /** Their own resource types, index-aligned with `bonusTargetCards` (see `incomeTargetResource`). */
+  bonusTargetResources?: ReadonlyArray<string | undefined>;
 };
 
 /**
  * One grant → one transfer spec, or undefined when the benefit has no chip
  * representation (it then rides the ordinary commit delta chips).
+ *
+ * A grant over SEVERAL kinds flies as the TARGET card's own kind
+ * (`targetResource`) — and without a target there is no flight, exactly as
+ * a one-kind grant with no chosen host stays out of the air today.
  */
-export function benefitTransferSpec(grant: ColonyTradeGrantModel, targetCard?: CardName): ResourceTransferSpec | undefined {
+export function benefitTransferSpec(grant: ColonyTradeGrantModel, targetCard?: CardName, targetResource?: string): ResourceTransferSpec | undefined {
   if (grant.quantity <= 0) {
     return undefined;
   }
@@ -53,10 +67,17 @@ export function benefitTransferSpec(grant: ColonyTradeGrantModel, targetCard?: C
     return grant.resource !== undefined ?
       {channel: 'production', resource: grant.resource, amount: grant.quantity} : undefined;
   case ColonyBenefit.ADD_RESOURCES_TO_CARD:
-  case ColonyBenefit.ADD_RESOURCES_TO_VENUS_CARD:
-    return grant.cardResource !== undefined ?
-      {channel: 'card-resource', resource: cardResourceKey(grant.cardResource), amount: grant.quantity, targetCard} :
-      undefined;
+  case ColonyBenefit.ADD_RESOURCES_TO_VENUS_CARD: {
+    if (grant.cardResource !== undefined) {
+      return {channel: 'card-resource', resource: cardResourceKey(grant.cardResource), amount: grant.quantity, targetCard};
+    }
+    if (grant.cardResources !== undefined && grant.cardResources.length > 0) {
+      return targetCard !== undefined && targetResource !== undefined ?
+        {channel: 'card-resource', resource: cardResourceKey(targetResource), amount: grant.quantity, targetCard} :
+        undefined;
+    }
+    return undefined;
+  }
   default:
     return undefined;
   }
@@ -81,7 +102,7 @@ export function viewerBonusCubes(manifest: ColonyTradeManifestModel, viewer: Col
 
 /** The trade-income chip specs (usually 0 or 1 chip). */
 export function incomeTransferSpecs(manifest: ColonyTradeManifestModel, targets?: ColonyTradeTargets): Array<ResourceTransferSpec> {
-  const spec = benefitTransferSpec(manifest.tradeIncome, targets?.incomeTargetCard);
+  const spec = benefitTransferSpec(manifest.tradeIncome, targets?.incomeTargetCard, targets?.incomeTargetResource);
   return spec !== undefined ? [spec] : [];
 }
 
@@ -98,7 +119,7 @@ export function ownBonusTransferSpecs(manifest: ColonyTradeManifestModel, viewer
   const cubes = viewerBonusCubes(manifest, viewer);
   const out: Array<ResourceTransferSpec> = [];
   for (let i = 0; i < cubes; i++) {
-    const spec = benefitTransferSpec(grant, targets?.bonusTargetCards?.[i]);
+    const spec = benefitTransferSpec(grant, targets?.bonusTargetCards?.[i], targets?.bonusTargetResources?.[i]);
     if (spec !== undefined) {
       out.push(spec);
     }

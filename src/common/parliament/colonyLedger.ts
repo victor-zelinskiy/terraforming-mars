@@ -64,6 +64,8 @@ export function colonyBonusShape(benefit: ColonyBenefit): ColonyBonusShape {
 export type ColonyLedgerBonus = {
   kind: 'stock' | 'production' | 'card-resource' | 'cards' | 'draw-discard' | 'hud';
   resource?: string;
+  /** `card-resource` over SEVERAL kinds (the grant's list) — the unit's icons, «or»-joined; `resource` is then absent. */
+  resources?: ReadonlyArray<string>;
   amount: number;
   loss?: boolean;
   /** The tile's printed description of the bonus (the colony's own English key). */
@@ -117,7 +119,12 @@ export function colonyLedgerBonusOf(entry: ColonyLedgerEntryModel): ColonyLedger
   switch (colonyBonusShape(grant.benefit)) {
   case 'stock': return {kind: 'stock', resource: grant.resource ?? 'megacredits', amount: grant.quantity, description};
   case 'production': return {kind: 'production', resource: grant.resource ?? 'megacredits', amount: grant.quantity, description};
-  case 'cardResource': return {kind: 'card-resource', resource: grant.cardResource === undefined ? undefined : String(grant.cardResource), amount: grant.quantity, description};
+  case 'cardResource': return {
+    kind: 'card-resource',
+    ...(grant.cardResource === undefined ? {} : {resource: String(grant.cardResource)}),
+    ...(grant.cardResources === undefined ? {} : {resources: grant.cardResources.map(String)}),
+    amount: grant.quantity, description,
+  };
   // The Venus tile's «any Venus card» has no one resource: the chip reads the description, the amount is per repeat.
   case 'venusCardResource': return {kind: 'card-resource', amount: grant.quantity, description};
   case 'draw': return {kind: 'cards', amount: grant.quantity, description};

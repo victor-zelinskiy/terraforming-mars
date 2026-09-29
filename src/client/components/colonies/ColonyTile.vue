@@ -177,6 +177,12 @@
           <template v-else-if="tradeReward.type === BG.DRAW_CARDS">
             <span class="resource card colony-tile__row-reward-icon colony-tile__row-reward-icon--card"></span>
           </template>
+          <!-- SEVERAL kinds on one tile (the Redux Vesta: «mechs, asteroids or
+               fighters») — the icons in one row, never one standing for all. -->
+          <template v-else-if="tradeReward.type === BG.ADD_RESOURCES_TO_CARD && cardResourceClasses.length > 1">
+            <span v-for="cls in cardResourceClasses" :key="cls"
+                  class="resource colony-tile__row-reward-icon" :class="cls"></span>
+          </template>
           <template v-else>
             <span class="resource colony-tile__row-reward-icon"
                   :class="tradeRewardClass"></span>
@@ -198,6 +204,10 @@
           <template v-if="metadata.colony.type === BG.DRAW_CARDS ||
                           metadata.colony.type === BG.DRAW_CARDS_AND_DISCARD_ONE">
             <span class="resource card colony-tile__row-reward-icon colony-tile__row-reward-icon--card"></span>
+          </template>
+          <template v-else-if="metadata.colony.type === BG.ADD_RESOURCES_TO_CARD && cardResourceClasses.length > 1">
+            <span v-for="cls in cardResourceClasses" :key="cls"
+                  class="resource colony-tile__row-reward-icon" :class="cls"></span>
           </template>
           <template v-else>
             <span class="resource colony-tile__row-reward-icon"
@@ -244,7 +254,7 @@
 <script lang="ts">
 import {defineComponent} from 'vue';
 import {ColonyModel} from '@/common/models/ColonyModel';
-import {ColonyMetadata} from '@/common/colonies/ColonyMetadata';
+import {ColonyMetadata, colonyCardResources} from '@/common/colonies/ColonyMetadata';
 import {ColonyBenefit} from '@/common/colonies/ColonyBenefit';
 import {Color} from '@/common/Color';
 import {getColony} from '@/client/colonies/ClientColonyManifest';
@@ -335,6 +345,10 @@ export default defineComponent({
     BG(): typeof ColonyBenefit {
       return ColonyBenefit;
     },
+    /** One bare icon class per card-resource kind of the tile (several for the Redux Vesta). */
+    cardResourceClasses(): Array<string> {
+      return colonyCardResources(this.metadata).map((kind) => kind.toString().toLowerCase().replace(/\s+/g, '-'));
+    },
     /** The income at the marker's position — kind, amount and resource resolved together. */
     tradeReward(): TradeRewardAt {
       return rewardAtPosition(this.metadata, Math.min(this.colony.trackPosition, 6));
@@ -344,8 +358,8 @@ export default defineComponent({
       if (t.type === ColonyBenefit.GAIN_RESOURCES && typeof t.resource === 'string') {
         return t.resource.toString().toLowerCase();
       }
-      if (t.type === ColonyBenefit.ADD_RESOURCES_TO_CARD && this.metadata.cardResource) {
-        return this.metadata.cardResource.toString().toLowerCase();
+      if (t.type === ColonyBenefit.ADD_RESOURCES_TO_CARD && this.cardResourceClasses.length === 1) {
+        return this.cardResourceClasses[0];
       }
       return 'colony-tile__row-reward-icon--abstract';
     },
@@ -370,8 +384,8 @@ export default defineComponent({
       if (c.type === ColonyBenefit.GAIN_RESOURCES && typeof c.resource === 'string') {
         return c.resource.toString().toLowerCase();
       }
-      if (c.type === ColonyBenefit.ADD_RESOURCES_TO_CARD && this.metadata.cardResource) {
-        return this.metadata.cardResource.toString().toLowerCase();
+      if (c.type === ColonyBenefit.ADD_RESOURCES_TO_CARD && this.cardResourceClasses.length === 1) {
+        return this.cardResourceClasses[0];
       }
       return 'colony-tile__row-reward-icon--abstract';
     },
@@ -386,8 +400,8 @@ export default defineComponent({
       if (b.type === ColonyBenefit.GAIN_RESOURCES && typeof b.resource === 'string') {
         return b.resource.toString().toLowerCase();
       }
-      if (b.type === ColonyBenefit.ADD_RESOURCES_TO_CARD && this.metadata.cardResource) {
-        return this.metadata.cardResource.toString().toLowerCase();
+      if (b.type === ColonyBenefit.ADD_RESOURCES_TO_CARD && this.cardResourceClasses.length === 1) {
+        return this.cardResourceClasses[0];
       }
       return 'colony-tile__row-reward-icon--abstract';
     },

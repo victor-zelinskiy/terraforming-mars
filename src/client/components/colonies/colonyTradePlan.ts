@@ -26,7 +26,7 @@
 import {CardName} from '@/common/cards/CardName';
 import {ColonyBenefit} from '@/common/colonies/ColonyBenefit';
 import {ColonyName} from '@/common/colonies/ColonyName';
-import {ColonyMetadata, tradeBenefitAt, tradeBenefitTypes, tradeFixedIncome} from '@/common/colonies/ColonyMetadata';
+import {ColonyMetadata, colonyCardResources, tradeBenefitAt, tradeBenefitTypes, tradeFixedIncome} from '@/common/colonies/ColonyMetadata';
 import {ColonyModel} from '@/common/models/ColonyModel';
 import {Color} from '@/common/Color';
 import {InputResponse} from '@/common/inputs/InputResponse';
@@ -50,6 +50,8 @@ export type TradeStep =
       kind: 'cardTarget',
       role: ColonyTradeFollowUpRole,
       resource: string | undefined,
+      /** SEVERAL kinds, one pick (the Redux Vesta) — each candidate's unit is its own `resourceType`. */
+      resources?: ReadonlyArray<string>,
       amount: number,
       pick: SelectCardModel,
     };
@@ -65,6 +67,7 @@ function followUpSteps(followUps: ReadonlyArray<ColonyTradeFollowUpModel>): Arra
         kind: 'cardTarget',
         role: followUp.role,
         resource: followUp.resource,
+        ...(followUp.resources !== undefined ? {resources: followUp.resources} : {}),
         amount: followUp.amount,
         pick: followUp.pick,
       });
@@ -241,9 +244,20 @@ export type TradeRewardAt = {
   quantity: number;
   /** The standard resource granted (single or per-position array resolved). */
   resource: string | undefined;
-  /** The card resource added (Enceladus microbes, Titan floaters, …). */
-  cardResource: string | undefined;
+  /**
+   * The card resource(s) added (Enceladus microbes, Titan floaters, …) as
+   * ICON KEYS — a LIST, always: one entry for every ordinary tile, several
+   * for the Redux Vesta («mech», «asteroid», «fighter»), empty for a tile
+   * whose benefits add nothing to a card. One icon standing for three kinds
+   * would be a lie, so no reader takes `[0]` as «the» kind.
+   */
+  cardResources: ReadonlyArray<string>;
 };
+
+/** The icon keys of a tile's card resource(s) — `colonyCardResources` normalised the way every chip icon is. */
+export function cardResourceIcons(metadata: ColonyMetadata): ReadonlyArray<string> {
+  return colonyCardResources(metadata).map((kind) => kind.toString().toLowerCase().replace(/ /g, '-'));
+}
 
 /** The trade reward at one track position, straight from the manifest — the shared `tradeBenefitAt` reading. */
 export function rewardAtPosition(metadata: ColonyMetadata, position: number): TradeRewardAt {
@@ -252,7 +266,7 @@ export function rewardAtPosition(metadata: ColonyMetadata, position: number): Tr
     type: income.type,
     quantity: income.quantity,
     resource: typeof income.resource === 'string' ? income.resource : undefined,
-    cardResource: metadata.cardResource,
+    cardResources: cardResourceIcons(metadata),
   };
 }
 
@@ -389,6 +403,12 @@ export function freeTradeFleets(player: {fleetSize: number, tradesThisGeneration
 export type TradeOutcomeChip = {
   direction: 'cost' | 'gain';
   icon?: string;
+  /**
+   * A unit of SEVERAL kinds (the Redux Vesta's «mech or asteroid or
+   * fighter») — the icons in the tile's order, drawn «or»-joined as ONE
+   * unit. `icon` is then absent: one icon for three kinds is a lie.
+   */
+  icons?: ReadonlyArray<string>;
   label?: string;
   amount: number;
   current?: number;
@@ -523,9 +543,11 @@ export function tradeOutcome(args: TradeOutcomeArgs): {cost: Array<TradeOutcomeC
       }
       return;
     }
-    case ColonyBenefit.ADD_RESOURCES_TO_CARD:
-      gains.push({...tag, direction: 'gain', icon: args.metadata.cardResource?.toString().toLowerCase().replace(/ /g, '-'), amount: quantity, note: note ?? 'to a card'});
+    case ColonyBenefit.ADD_RESOURCES_TO_CARD: {
+      const icons = cardResourceIcons(args.metadata);
+      gains.push({...tag, direction: 'gain', ...cardResourceIconFields(icons), amount: quantity, note: note ?? 'to a card'});
       return;
+    }
     case ColonyBenefit.ADD_RESOURCES_TO_VENUS_CARD:
       gains.push({...tag, direction: 'gain', label: 'Resources to a Venus card', amount: quantity, note});
       return;
@@ -643,10 +665,24 @@ export function rewardDestinationKey(benefit: ColonyBenefit | undefined): string
   }
 }
 
+/**
+ * The icon field(s) of a card-resource chip: ONE kind names `icon`, SEVERAL
+ * name `icons` (never `icon` = the first — the reward package would then
+ * merge Vesta's unit with a one-kind tile's and draw one sprite for three).
+ */
+function cardResourceIconFields(icons: ReadonlyArray<string>): {icon?: string, icons?: ReadonlyArray<string>} {
+  if (icons.length === 1) {
+    return {icon: icons[0]};
+  }
+  return icons.length > 1 ? {icons} : {};
+}
+
 /** One line of «ВАШ ИТОГ» — one reward TYPE going to one DESTINATION. */
 export type RewardTotal = {
   key: string;
   icon?: string;
+  /** SEVERAL kinds as one unit (see `TradeOutcomeChip.icons`). */
+  icons?: ReadonlyArray<string>;
   label?: string;
   amount: number;
   production?: boolean;
@@ -676,6 +712,7 @@ export type RewardSourceRow = {
   card?: string;
   amount: number;
   icon?: string;
+  icons?: ReadonlyArray<string>;
   label?: string;
   production?: boolean;
 };
@@ -687,6 +724,7 @@ export type RewardOtherRow = {
   count: number;
   amount: number;
   icon?: string;
+  icons?: ReadonlyArray<string>;
   label?: string;
   production?: boolean;
 };
@@ -697,10 +735,10 @@ export type ColonyRewardPackage = {
   others: ReadonlyArray<RewardOtherRow>;
 };
 
-/** The identity of a reward LINE: same thing, same place → one line. */
-function rewardKey(chip: {icon?: string, label?: string, production?: boolean, benefit?: ColonyBenefit}): string {
+/** The identity of a reward LINE: same thing, same place → one line. A unit of SEVERAL kinds is its own thing — never merged with a one-kind line or another list. */
+function rewardKey(chip: {icon?: string, icons?: ReadonlyArray<string>, label?: string, production?: boolean, benefit?: ColonyBenefit}): string {
   return [
-    chip.icon ?? chip.label ?? '?',
+    chip.icon ?? (chip.icons !== undefined && chip.icons.length > 0 ? chip.icons.join('+') : undefined) ?? chip.label ?? '?',
     chip.production === true ? 'prod' : 'stock',
     rewardDestinationKey(chip.benefit) ?? '',
   ].join('|');
@@ -743,6 +781,7 @@ export function colonyRewardPackage(args: {
       const fresh: RewardTotal = {
         key,
         icon: chip.icon,
+        ...(chip.icons !== undefined ? {icons: chip.icons} : {}),
         label: chip.label,
         amount: chip.amount,
         production: chip.production,
@@ -773,6 +812,7 @@ export function colonyRewardPackage(args: {
         card: chip.card,
         amount: chip.amount,
         icon: chip.icon,
+        ...(chip.icons !== undefined ? {icons: chip.icons} : {}),
         label: chip.label,
         production: chip.production,
       };
@@ -800,6 +840,7 @@ export function colonyRewardPackage(args: {
         count: owner.count,
         amount: per.amount * owner.count,
         icon: per.icon,
+        ...(per.icons !== undefined ? {icons: per.icons} : {}),
         label: per.label,
         production: per.production,
       });
@@ -820,7 +861,7 @@ export function describeBenefit(
   quantity: number,
   resource: string | undefined,
   metadata: ColonyMetadata,
-): {amount: number, icon?: string, label?: string, production?: boolean} | undefined {
+): {amount: number, icon?: string, icons?: ReadonlyArray<string>, label?: string, production?: boolean} | undefined {
   const amount = Math.max(0, quantity);
   switch (type) {
   case ColonyBenefit.GAIN_RESOURCES:
@@ -828,7 +869,7 @@ export function describeBenefit(
   case ColonyBenefit.GAIN_PRODUCTION:
     return resource === undefined ? undefined : {amount, icon: resource, production: true};
   case ColonyBenefit.ADD_RESOURCES_TO_CARD:
-    return {amount, icon: metadata.cardResource?.toString().toLowerCase().replace(/ /g, '-')};
+    return {amount, ...cardResourceIconFields(cardResourceIcons(metadata))};
   case ColonyBenefit.DRAW_CARDS:
   case ColonyBenefit.DRAW_CARDS_AND_KEEP_ONE:
   case ColonyBenefit.DRAW_CARDS_AND_BUY_ONE:

@@ -1836,6 +1836,36 @@
 }
 
 /*
+ * A unit of SEVERAL kinds («[mech] or [asteroid] or [fighter]» — the Redux
+ * Vesta): the icons in one row with the quiet operator between them, the
+ * same grammar the parliament's yield unit speaks (`.con-iyield__or`). One
+ * unit, never three glyphs; the host box that is sized for ONE sprite
+ * (the track cell's `__xcell-glyph`) opens to the row's own width.
+ */
+.benefit-glyph__multi {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: .06rem;
+    min-width: 0;
+    white-space: nowrap;
+}
+.benefit-glyph__or {
+    font-size: .5rem;
+    font-weight: 700;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: rgba(224, 232, 240, 0.66);
+    line-height: 1;
+    align-self: center;
+    flex: 0 0 auto;
+}
+.benefit-glyph--multi {
+    width: auto;
+    max-width: none;
+}
+
+/*
  * Override the GLOBAL `.resource` baseline (cards.less) the same way
  * the tile rows do — chained selector beats `.resource` on
  * specificity, and explicit zero-margins lock the icon's bounding box

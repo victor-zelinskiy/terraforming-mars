@@ -2,6 +2,7 @@ import {expect} from 'chai';
 import {
   allStepsCaptured,
   buildTradeBatch,
+  cardResourceIcons,
   colonyOwnerBonusDrawsCards,
   colonyOwnerCounts,
   colonyRewardPackage,
@@ -152,7 +153,7 @@ describe('colonyTradePlan', () => {
       type: ColonyBenefit.ADD_RESOURCES_TO_CARD,
       quantity: 4,
       resource: undefined,
-      cardResource: CardResource.MICROBE,
+      cardResources: ['microbe'],
     });
     const luna = colonyMetadata({
       name: ColonyName.LUNA,
@@ -189,10 +190,10 @@ describe('colonyTradePlan', () => {
 
     it('rewardAtPosition resolves the kind with the amount', () => {
       expect(rewardAtPosition(PLUTO_REDUX_META, 4)).to.deep.eq({
-        type: ColonyBenefit.ADD_RESOURCES_TO_CARD, quantity: 3, resource: undefined, cardResource: CardResource.DATA,
+        type: ColonyBenefit.ADD_RESOURCES_TO_CARD, quantity: 3, resource: undefined, cardResources: ['data'],
       });
       expect(rewardAtPosition(PLUTO_REDUX_META, 5)).to.deep.eq({
-        type: ColonyBenefit.DRAW_CARDS, quantity: 2, resource: undefined, cardResource: CardResource.DATA,
+        type: ColonyBenefit.DRAW_CARDS, quantity: 2, resource: undefined, cardResources: ['data'],
       });
       expect(rewardAtPosition(PLUTO_REDUX_META, 99).type).to.eq(ColonyBenefit.DRAW_CARDS);
     });
@@ -225,6 +226,87 @@ describe('colonyTradePlan', () => {
       // An older server (no floor) reads as 0 — «don't» stays offered.
       const legacy = preview({followUps: [{kind: 'trackChoice', steps: 1}]});
       expect(tradeSteps(legacy, false)).to.deep.eq([{kind: 'trackChoice', steps: 1, minSteps: 0}]);
+    });
+  });
+
+  // A card resource of SEVERAL kinds on one tile — the Turmoil Redux Vesta
+  // («mechs, asteroids or fighters»): the trade pays N units of ONE kind onto
+  // ONE card, the kind being the chosen card's own. Every reading carries the
+  // LIST; a chip that named one icon for three kinds would be a lie, and a
+  // package that merged the unit with a one-kind line would draw one sprite
+  // over two different things.
+  describe('a card resource of SEVERAL kinds (the Redux Vesta)', () => {
+    const VESTA_META: ColonyMetadata = colonyMetadata({
+      name: ColonyName.TITAN,
+      cardResources: [CardResource.MECH, CardResource.ASTEROID, CardResource.FIGHTER],
+      build: {description: '', type: ColonyBenefit.GAIN_RESOURCES, quantity: [5, 5, 5], resource: Resource.STEEL},
+      trade: {description: '', type: ColonyBenefit.ADD_RESOURCES_TO_CARD, quantity: [0, 1, 1, 1, 2, 2, 3]},
+      colony: {description: '', type: ColonyBenefit.GAIN_RESOURCES, quantity: 1, resource: Resource.STEEL},
+    });
+    /** A one-kind tile paying the same amount to a card — the line the unit must NOT merge with. */
+    const KUIPER_META: ColonyMetadata = colonyMetadata({
+      name: ColonyName.KUIPER,
+      cardResource: CardResource.ASTEROID,
+      build: {description: '', type: ColonyBenefit.ADD_RESOURCES_TO_CARD, quantity: [2, 2, 2]},
+      trade: {description: '', type: ColonyBenefit.ADD_RESOURCES_TO_CARD, quantity: [0, 1, 1, 2, 2, 3, 3]},
+      colony: {description: '', type: ColonyBenefit.GAIN_RESOURCES, quantity: 3, resource: Resource.MEGACREDITS},
+    });
+
+    it('rewardAtPosition carries the list of icon keys, in the tile\'s order', () => {
+      expect(rewardAtPosition(VESTA_META, 6)).to.deep.eq({
+        type: ColonyBenefit.ADD_RESOURCES_TO_CARD, quantity: 3, resource: undefined, cardResources: ['mech', 'asteroid', 'fighter'],
+      });
+      expect(cardResourceIcons(VESTA_META)).to.deep.eq(['mech', 'asteroid', 'fighter']);
+      expect(cardResourceIcons(KUIPER_META)).to.deep.eq(['asteroid']);
+    });
+
+    it('the outcome chip names the kinds as a UNIT (`icons`), never one icon', () => {
+      const out = tradeOutcome({metadata: VESTA_META, rewardPosition: 4, payments: [], ownColonyCount: 0, stocks: {}, production: {}});
+      expect(out.gains).to.have.length(1);
+      expect(out.gains[0].icon).to.eq(undefined);
+      expect(out.gains[0].icons).to.deep.eq(['mech', 'asteroid', 'fighter']);
+      expect(out.gains[0].amount).to.eq(2);
+      expect(out.gains[0].note).to.eq('to a card');
+      // A one-kind tile keeps naming its one icon — byte-identical.
+      const one = tradeOutcome({metadata: KUIPER_META, rewardPosition: 4, payments: [], ownColonyCount: 0, stocks: {}, production: {}});
+      expect(one.gains[0].icon).to.eq('asteroid');
+      expect(one.gains[0].icons).to.eq(undefined);
+    });
+
+    it('describeBenefit reads the same unit for another owner\'s bonus', () => {
+      expect(describeBenefit(ColonyBenefit.ADD_RESOURCES_TO_CARD, 1, undefined, VESTA_META)).to.deep.eq({amount: 1, icons: ['mech', 'asteroid', 'fighter']});
+      expect(describeBenefit(ColonyBenefit.ADD_RESOURCES_TO_CARD, 1, undefined, KUIPER_META)).to.deep.eq({amount: 1, icon: 'asteroid'});
+    });
+
+    it('the reward package keys the unit by its WHOLE list — never merged with a one-kind line, never with another list', () => {
+      const vesta = tradeOutcome({metadata: VESTA_META, rewardPosition: 6, payments: [], ownColonyCount: 0, stocks: {}, production: {}}).gains;
+      const kuiper = tradeOutcome({metadata: KUIPER_META, rewardPosition: 5, payments: [], ownColonyCount: 0, stocks: {}, production: {}}).gains;
+      const two = colonyRewardPackage({gains: [...vesta, ...kuiper], metadata: VESTA_META, colony: {colonies: []}, viewer: undefined});
+      expect(two.totals.map((t) => [t.icon, t.icons, t.amount])).to.deep.eq([
+        [undefined, ['mech', 'asteroid', 'fighter'], 3],
+        ['asteroid', undefined, 3],
+      ]);
+      expect(two.totals[0].key).to.not.eq(two.totals[1].key);
+      expect(two.totals[0].cardDestination).to.eq(true);
+      expect(two.totals[0].destinationKey).to.eq('To the chosen card');
+      // The same unit twice IS one line (the track and a settlement paying the same thing).
+      const twice = colonyRewardPackage({gains: [...vesta, ...vesta], metadata: VESTA_META, colony: {colonies: []}, viewer: undefined});
+      expect(twice.totals).to.have.length(1);
+      expect(twice.totals[0].amount).to.eq(6);
+      expect(twice.sources[0].icons).to.deep.eq(['mech', 'asteroid', 'fighter']);
+    });
+
+    it('the card-target claim and the step carry the several kinds; a candidate\'s own icon is the reading', () => {
+      expect(colonyTradeAsksCardTargets(VESTA_META, false)).to.eq(true);
+      const p = preview({
+        colonyName: ColonyName.TITAN,
+        followUps: [{kind: 'cardTarget', role: 'tradeReward', resource: undefined, resources: [CardResource.MECH, CardResource.ASTEROID, CardResource.FIGHTER], amount: 2, pick: PICK, lost: false}],
+      });
+      const steps = tradeSteps(p, false);
+      expect(steps).to.deep.eq([{kind: 'cardTarget', role: 'tradeReward', resource: undefined, resources: [CardResource.MECH, CardResource.ASTEROID, CardResource.FIGHTER], amount: 2, pick: PICK}]);
+      // A lost unit of several kinds names no ONE resource either.
+      const lost = tradeNotices(preview({followUps: [{kind: 'cardTarget', role: 'tradeReward', resource: undefined, resources: [CardResource.MECH, CardResource.FIGHTER], amount: 1, lost: true}]}));
+      expect(lost).to.deep.eq([{kind: 'lostResource', role: 'tradeReward', resource: undefined, amount: 1}]);
     });
   });
 

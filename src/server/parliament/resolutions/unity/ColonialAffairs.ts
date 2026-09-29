@@ -152,8 +152,8 @@ export function noHolderReason(resource: CardResource | undefined): string {
   }
 }
 
-/** The pick / distribution titles — journal text only (the console reads the prompt's markers). */
-function pickTitleOf(resource: CardResource, amount: number) {
+/** The pick / distribution titles — journal text only (the console reads the prompt's markers). `undefined` = several kinds or any. */
+function pickTitleOf(resource: CardResource | undefined, amount: number) {
   switch (resource) {
   case CardResource.FLOATER: return message('Add ${0} floater(s) to one of your cards', (b) => b.number(amount));
   case CardResource.MICROBE: return message('Add ${0} microbe(s) to one of your cards', (b) => b.number(amount));
@@ -162,7 +162,7 @@ function pickTitleOf(resource: CardResource, amount: number) {
   }
 }
 
-function distributeTitleOf(resource: CardResource, amount: number) {
+function distributeTitleOf(resource: CardResource | undefined, amount: number) {
   switch (resource) {
   case CardResource.FLOATER: return message('Place ${0} floater(s) on your cards', (b) => b.number(amount));
   case CardResource.MICROBE: return message('Place ${0} microbe(s) on your cards', (b) => b.number(amount));
@@ -270,15 +270,19 @@ function cardResourceStep(colony: IColony, grant: ColonyTradeGrantModel): EnactS
       announce(ctx);
       const player = ctx.player;
       const k = colonyBonusMultiplier(ctx.influence);
-      const resource = grant.cardResource;
+      // ONE kind (every tile that prints such a bonus today), or SEVERAL (the
+      // grant's list — the holders of ANY, each unit the kind of its card).
+      const kinds = grant.cardResources ?? (grant.cardResource === undefined ? undefined : [grant.cardResource]);
+      const resource = kinds !== undefined && kinds.length === 1 ? kinds[0] : undefined;
+      const several = kinds !== undefined && kinds.length > 1 ? {resources: [...kinds]} : {};
       const owed = grant.quantity * k;
-      if (resource === undefined || player.getResourceCards(resource).length === 0) {
+      if (kinds === undefined || new AddResourcesToCard(player, kinds).getCards().length === 0) {
         ctx.game.log('${0} has no card that can hold the ${1} colony bonus — ${2} resource(s) from ${3} are forfeited', (b) =>
           b.player(player).colony(colony).number(owed).resolution(COLONIAL_AFFAIRS_ID));
-        ctx.report({kind: 'skipped', ...recordedOf(ctx, colony.name), ...(resource === undefined ? {} : {resource}), amount: owed, reason: noHolderReason(resource)});
+        ctx.report({kind: 'skipped', ...recordedOf(ctx, colony.name), ...(resource === undefined ? {} : {resource}), ...several, amount: owed, reason: noHolderReason(resource)});
         return undefined;
       }
-      return new AddResourcesToCards(player, resource, owed, {
+      return new AddResourcesToCards(player, kinds, owed, {
         autoSelect: false,
         cause: SOURCE,
         from: FROM,
@@ -289,7 +293,7 @@ function cardResourceStep(colony: IColony, grant: ColonyTradeGrantModel): EnactS
         ctx.game.log('${0} placed ${1} resource(s): the ${2} colony bonus ×${3} from ${4}', (b) =>
           b.player(player).number(owed).colony(colony).number(k).resolution(COLONIAL_AFFAIRS_ID));
         ctx.report({
-          kind: 'cardResource', ...recordedOf(ctx, colony.name), resource, amount: owed,
+          kind: 'cardResource', ...recordedOf(ctx, colony.name), ...(resource === undefined ? {} : {resource}), ...several, amount: owed,
           ...(cards.length === 1 ? {card: cards[0].card} : {}),
           cards,
         });
