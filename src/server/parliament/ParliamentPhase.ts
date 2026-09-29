@@ -66,6 +66,7 @@ import {
   EnactOutcomePart, SerializedDelegateOwner, SerializedEnactOutcome, SerializedPhaseProgress, SerializedPhaseSummary, SerializedRenewalEvent,
 } from './SerializedParliament';
 import {ChairmanSeat} from './quests/ChairmanSeat';
+import {botWinnerRewardPlan, declaresWinnerPart, NO_BOT_EXECUTOR_REASON, payBotWinnerReward} from '../automa/BotWinnerReward';
 
 /**
  * THE HANDLE OF A WORLD STEP — the seat the engine's parameter API is handed
@@ -580,7 +581,56 @@ export class ParliamentPhase {
         }
       }
     }
+    // THE BOT WINNER'S PASS — a winner outside the enactment (MarsBot under
+    // `'politics'`) is paid its winner's part HERE, after the world's, by its
+    // own primitives (`BotWinnerReward`): the order «world → winner» holds, and
+    // the seat loop above never saw it.
+    if (winner !== undefined && !winnerEnacts && parliament.participates(winner, 'winner-reward')) {
+      if (this.runBotWinnerPass(definition, instance, winner) === 'waiting') {
+        return 'waiting';
+      }
+    }
     return 'done';
+  }
+
+  /**
+   * THE WINNER'S PART FOR A MARSBOT WINNER (docs/TURMOIL_REDUX_MARSBOT.md §4):
+   * ONE executor by the card's DECLARATION (`winnerReward` / `tileGrant`),
+   * never a seat step — the bot receives no prompt, so the human's step
+   * (which may ask) is never run for it. The record wears the card's own
+   * step key and part (`botWinnerRewardPlan`), the idempotency key lives
+   * under the bot's seat exactly as a human winner's would, the scope is the
+   * resolution's with the bot as owner — so a reload inside the sitting pays
+   * nothing twice and the results read the bot's reward as one more seat's.
+   * A card whose winner's part the bot cannot execute is a NAMED skip here
+   * and a red guard in `tests/parliament/BotWinnerReward.spec.ts`.
+   */
+  private runBotWinnerPass(definition: ResolutionDefinition, instance: ResolutionInstanceId, bot: IPlayer): 'waiting' | 'done' {
+    if (!declaresWinnerPart(definition)) {
+      return 'done';
+    }
+    const p = this.progress;
+    const plan = botWinnerRewardPlan(definition) ?? {kind: undefined, key: definition.winnerSteps?.[0]?.key ?? 'winner', part: 'winner' as const};
+    const key = `effect:${p.generation}:${instance}:${plan.key}`;
+    if (this.seatApplied(bot.id, key, `effect:${p.generation}:${instance}:${bot.id}:${plan.key}`)) {
+      return 'done';
+    }
+    const events = this.game.events;
+    events.beginAction(bot, {kind: 'resolution', id: definition.id, owner: bot.color}, {category: 'political-phase'});
+    try {
+      if (plan.kind === undefined) {
+        this.game.log('${0} has no way to take the winner\'s reward of ${1} — it is skipped', (b) => b.player(bot).resolution(definition.id));
+        this.recordOutcome(bot, plan.key, plan.part, {kind: 'skipped', reason: NO_BOT_EXECUTOR_REASON});
+      } else {
+        payBotWinnerReward(this.game, bot, definition, {kind: plan.kind, key: plan.key, part: plan.part},
+          (outcome) => this.recordOutcome(bot, plan.key, plan.part, outcome));
+      }
+      this.markSeatApplied(bot.id, key);
+    } finally {
+      events.endScope();
+    }
+    // The primitive's deferred tail (a human card reacting to the bot's tile) runs — and may wait — before the walk goes on.
+    return this.drainDeferred() === 'waiting' ? 'waiting' : 'done';
   }
 
   /**

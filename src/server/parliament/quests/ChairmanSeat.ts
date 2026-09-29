@@ -38,6 +38,7 @@ import {SelectOption} from '../../inputs/SelectOption';
 import {InputError} from '../../inputs/InputError';
 import {Priority} from '../../deferredActions/Priority';
 import {Color} from '../../../common/Color';
+import {Resource} from '../../../common/Resource';
 import {PartyName} from '../../../common/turmoil/PartyName';
 import type {AgendaAdvance, Parliament} from '../Parliament';
 
@@ -71,8 +72,14 @@ export class ChairmanSeat {
         player.increaseTerraformRating(1, {trAttribution: {sourceType: 'other', sourceName: 'Agenda track'}});
         game.log('${0} gained ${1} ${2} from the Agenda track', (b) => b.player(player).number(1).tr());
       } else if (advance.bonus === 'card') {
-        // The Agenda's own source: the console lifts the card off the track step.
-        player.drawCard(1, {source: {type: 'agenda'}});
+        if (player.isMarsBot) {
+          // The Automa FAQ (RB-A p.11): a card MarsBot would draw is 1 M€ — it has no hand (decision D3: the bot moves on the Agenda as a human does).
+          player.stock.add(Resource.MEGACREDITS, 1, {log: false});
+          game.log('${0} gains 1 M€ from the Agenda track instead of a card', (b) => b.player(player));
+        } else {
+          // The Agenda's own source: the console lifts the card off the track step.
+          player.drawCard(1, {source: {type: 'agenda'}});
+        }
       }
     });
     return advance;
