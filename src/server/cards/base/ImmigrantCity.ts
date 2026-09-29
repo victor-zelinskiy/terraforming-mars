@@ -6,6 +6,7 @@ import {CanAffordOptions, IPlayer} from '../../IPlayer';
 import {Space} from '../../boards/Space';
 import {PlaceCityTile} from '../../deferredActions/PlaceCityTile';
 import {Resource} from '../../../common/Resource';
+import {Units} from '../../../common/Units';
 import {CardName} from '../../../common/cards/CardName';
 import {TileType} from '../../../common/TileType';
 import {Priority} from '../../deferredActions/Priority';
@@ -51,6 +52,10 @@ export class ImmigrantCity extends Card implements IProjectCard {
         ],
       },
     });
+  }
+
+  public productionBox() {
+    return Units.of({energy: -1, megacredits: -2});
   }
 
   public override bespokeCanPlay(player: IPlayer): boolean {

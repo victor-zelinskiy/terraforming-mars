@@ -10,6 +10,7 @@ import {CardRenderer} from '../render/CardRenderer';
 import {message} from '../../logs/MessageBuilder';
 import {LoseProduction} from '../../deferredActions/LoseProduction';
 import {Resource} from '../../../common/Resource';
+import {Units} from '../../../common/Units';
 import {MarsBoard} from '../../boards/MarsBoard';
 import {ActionPreview} from '../../../common/models/ActionPreviewModel';
 import {BoardFact} from '../../../common/boards/BoardInformationFacts';
@@ -51,6 +52,10 @@ export class NoctisCity extends Card implements IProjectCard {
         description: 'Decrease your energy production 1 step and increase your M€ production 3 steps. Place a city tile ON THE RESERVED AREA, disregarding normal placement restrictions.',
       },
     });
+  }
+
+  public productionBox() {
+    return Units.of({energy: -1, megacredits: 3});
   }
 
   public override bespokeCanPlay(player: IPlayer): boolean {
