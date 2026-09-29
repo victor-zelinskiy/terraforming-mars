@@ -148,6 +148,8 @@ import {PowerPlant} from '../../../src/server/cards/base/PowerPlant';
 import {FusionPower} from '../../../src/server/cards/base/FusionPower';
 import {GeothermalPower} from '../../../src/server/cards/base/GeothermalPower';
 import {HE3FusionPlant} from '../../../src/server/cards/moon/HE3FusionPlant';
+import {EvaMechs} from '../../../src/server/cards/turmoilRedux/EvaMechs';
+import {TransNeptuneProbe} from '../../../src/server/cards/base/TransNeptuneProbe';
 
 const OUT_DIR = __dirname;
 
@@ -446,6 +448,37 @@ function write(name: string, game: IGame): void {
   p1.production.add(Resource.HEAT, 1);
   runAllActions(game);
   write('effect-forecast', game);
+}
+
+// ── eva-mechs: TR09 EVA Mechs — the first Turmoil Redux PROJECT card, and the
+//    card that introduces the `Mech` card resource + the `mechs` payment unit
+//    (docs/TURMOIL_REDUX_EVA_MECHS.md). A 2p table whose first seat holds
+//    EVA Mechs with TWO mechs stored, exactly ONE energy (the action's price —
+//    one activation, then «Not enough energy»), Trans-Neptune Probe in hand
+//    (Science + Space, cost 6, no requirement, no follow-up: the plainest
+//    Space play there is) and only 3 M€ — SHORT of the probe without a mech,
+//    so the payment panel's mech lane is load-bearing, not decorative. No
+//    titanium: the mech is the lone alternative, so the compact block IS the
+//    editor (inline pills). The console e2e drives the action (→ 3 mechs in
+//    the capsule) and the play (→ 1 mech + 1 M€ = 6, the mech leaves the card).
+//    A plain base+corpera table: the card is pushed into the tableau, so the
+//    expansion gate (a deck matter) is not what this fixture exercises.
+//    (Every table's deal is its OWN seeded rng — `Game.newInstance(seed = 0)`
+//    — so this block's position changes nobody else's fixture.) ──
+{
+  const [game, p1, p2] = testGame(2, {skipInitialCardSelection: false});
+  answerStartFlow(game, [p1, p2]);
+  const eva = new EvaMechs();
+  eva.resourceCount = 2;
+  p1.playedCards.push(eva);
+  p1.cardsInHand.push(new TransNeptuneProbe());
+  p1.energy = 1;
+  p1.megaCredits = 3;
+  p1.titanium = 0;
+  p1.steel = 0;
+  p2.megaCredits = 30;
+  runAllActions(game);
+  write('eva-mechs', game);
 }
 
 // ═══════════════════════ THE MARS PARLIAMENT (Turmoil Redux) ═══════════════════════

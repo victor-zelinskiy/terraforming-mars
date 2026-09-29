@@ -2325,7 +2325,10 @@ export type BootOptions = {
  * lives in the late game stops replaying the game to reach it.
  */
 export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 'hydro-terminal' | 'hydro-terminal-surge' | 'staged-interposer' | 'staged-hazard' |
-  'play-scale-card' | 'effect-forecast' | 'parliament' | 'parliament-actions' | 'parliament-recap' |
+  'play-scale-card' | 'effect-forecast' |
+  // TR09 EVA Mechs: blue holds the card with 2 mechs, 1 energy, 3 M€ and Trans-Neptune Probe in hand (docs/TURMOIL_REDUX_EVA_MECHS.md).
+  'eva-mechs' |
+  'parliament' | 'parliament-actions' | 'parliament-recap' |
   'parliament-dense' | 'parliament-seat' | 'parliament-paid' | 'parliament-aquifer-vote' | 'parliament-aquifer-enact' |
   'parliament-architecture-vote' | 'parliament-architecture-recap' | 'parliament-cloud-vote' | 'parliament-cloud-assembly' | 'parliament-cloud-enact' |
   'parliament-biodome-vote' | 'parliament-biodome-enact' | 'parliament-biodome-maxed' | 'parliament-biodome-recap' |
