@@ -84,6 +84,9 @@ const ICON_NEEDLES: Readonly<Record<string, ReadonlyArray<string>>> = {
   // EVA Mechs (TR09): without this the impulse never finds its result icon
   // and silently degrades to the plate.
   'mech': ['mech'],
+  // Security Fleet / Formula Zero (TR08) and Carbon Nanosystems — the same hole.
+  'fighter': ['fighter'],
+  'graphene': ['graphene'],
 };
 
 export type ActionCommitAnchors = {

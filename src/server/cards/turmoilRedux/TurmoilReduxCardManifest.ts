@@ -1,6 +1,7 @@
 import {CardName} from '../../../common/cards/CardName';
 import {ModuleManifest} from '../ModuleManifest';
 import {EvaMechs} from './EvaMechs';
+import {FormulaZero} from './FormulaZero';
 
 /**
  * TURMOIL REDUX («Кризис Redux») — the PROJECT CARD manifest.
@@ -29,6 +30,7 @@ import {EvaMechs} from './EvaMechs';
 export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
   module: 'turmoilRedux',
   projectCards: {
+    [CardName.FORMULA_ZERO]: {Factory: FormulaZero},
     [CardName.EVA_MECHS]: {Factory: EvaMechs},
   },
 });
