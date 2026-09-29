@@ -67,6 +67,16 @@ export type FlightSpec = {id: string, color: Color | 'neutral', size: number};
  * one it is a bare back.
  */
 export type CardFlightSpec = {id: string, width: number, height: number, face?: PremiumCardVM, faceUp?: boolean};
+/**
+ * A RESOURCE TOKEN that RISES where the cubes landed (a card of the seat's
+ * tableau answered a loser's leave — TR02 Political Science, the renewal's
+ * `card-effect`): the resource's own icon class (`iconClassFor` families) and
+ * the count it announces («+2»). Born over the owner's reserve stack, it
+ * lifts, is read, and dissolves — the tableau is not on screen during a
+ * sitting, so the only honest scene of the collection is the place its cause
+ * just landed on (the law of a visible stage).
+ */
+export type TokenFlightSpec = {id: string, iconClass: string, amount: number};
 
 /** A delegate cube's flight (the enactment's returns home, the seat pick's delegate to the chair). */
 export const CUBE_FLIGHT_MS = 480;
@@ -77,10 +87,13 @@ export const DEAL_STAGGER_MS = 150;
 export const ENACT_MOVE_MS = 620;
 /** The delegate's flight from its bench place to the card. */
 export const VOTE_FLIGHT_MS = 540;
+/** A resource token's whole phrase over the reserve (lift · read · dissolve) — a card's answer to a leave. */
+export const TOKEN_RISE_MS = 960;
 
 export const parliamentFlights = reactive({
   flights: [] as Array<FlightSpec>,
   cardFlights: [] as Array<CardFlightSpec>,
+  tokenFlights: [] as Array<TokenFlightSpec>,
 });
 
 /** The proxy elements and the running handles, by flight id (DOM handles — never reactive). */
@@ -160,6 +173,10 @@ export function pushCardFlight(spec: CardFlightSpec): void {
   parliamentFlights.cardFlights.push(spec);
 }
 
+export function pushTokenFlight(spec: TokenFlightSpec): void {
+  parliamentFlights.tokenFlights.push(spec);
+}
+
 export function dropFlight(id: string): void {
   flightBeats[id]?.beat.kill();
   delete flightBeats[id];
@@ -168,6 +185,7 @@ export function dropFlight(id: string): void {
   delete flightEls[id];
   parliamentFlights.flights = parliamentFlights.flights.filter((f) => f.id !== id);
   parliamentFlights.cardFlights = parliamentFlights.cardFlights.filter((f) => f.id !== id);
+  parliamentFlights.tokenFlights = parliamentFlights.tokenFlights.filter((f) => f.id !== id);
 }
 
 /** Drop every flight whose id starts with `prefix` (the vote's landing clears its own delegate flights). */
@@ -192,11 +210,77 @@ export function killParliamentFlights(): void {
   flightEls = {};
   parliamentFlights.flights = [];
   parliamentFlights.cardFlights = [];
+  parliamentFlights.tokenFlights = [];
 }
 
 /** Whether any proxy is on screen (the section's `--flying` class). */
 export function parliamentFlightsAirborne(): boolean {
-  return parliamentFlights.flights.length > 0 || parliamentFlights.cardFlights.length > 0;
+  return parliamentFlights.flights.length > 0 || parliamentFlights.cardFlights.length > 0 || parliamentFlights.tokenFlights.length > 0;
+}
+
+/**
+ * A RESOURCE TOKEN RISES over a real place (a card answered a loser's leave —
+ * the renewal's `card-effect`): born invisible over `over` (the owner's
+ * reserve stack, the cubes' own touchdown), it enters a hand's width above it
+ * (scale + alpha, the ENTER curve), is read, and dissolves as it drifts on
+ * (the EXIT curve) — one phrase on the motion clock, never a timer. Nothing
+ * lands, so `onLanded` is the phrase's END: the proxy leaves on the next
+ * frame. Returns the flight's id, or undefined when nothing is measurable
+ * (the caller settles its holds and says so — never silently).
+ */
+export function riseToken(args: {iconClass: string, amount: number, over: Rect | undefined, delayMs: number, onLanded: () => void}): string | undefined {
+  const {over} = args;
+  if (over === undefined || typeof window === 'undefined' || consoleReducedMotionActive()) {
+    args.onLanded();
+    return undefined;
+  }
+  const id = nextFlightId('sit-token');
+  pushTokenFlight({id, iconClass: args.iconClass, amount: args.amount});
+  void nextTick(() => {
+    const proxy = flightEls[id];
+    if (proxy === null || proxy === undefined) {
+      dropFlight(id);
+      args.onLanded();
+      return;
+    }
+    gsap.set(proxy, {autoAlpha: 0});
+    const fire = () => {
+      delete flightBeats[id];
+      if (flightEls[id] === undefined) {
+        return;
+      }
+      const w = proxy.offsetWidth || conLogicalPx(48);
+      const h = proxy.offsetHeight || conLogicalPx(22);
+      const ui = conLogicalPx(1);
+      // Centred over the place, its foot a hair above the stack's top; the rise is a hand's width.
+      const x = over.left + over.width / 2 - w / 2;
+      const y0 = over.top - h - 2 * ui;
+      const lift = Math.max(h * 1.1, 18 * ui);
+      const dur = consoleMotionMs(TOKEN_RISE_MS) / 1000;
+      const tl = gsap.timeline();
+      tl.set(proxy, {x, y: y0, scale: 0.72, transformOrigin: '50% 100%', autoAlpha: 0}, 0);
+      tl.to(proxy, {autoAlpha: 1, scale: 1, y: y0 - lift * 0.55, duration: dur * 0.34, ease: 'power3.out'}, 0);
+      tl.to(proxy, {y: y0 - lift, duration: dur * 0.66, ease: 'power1.out'}, dur * 0.34);
+      tl.to(proxy, {autoAlpha: 0, duration: dur * 0.3, ease: 'power1.in'}, dur * 0.7);
+      let ended = false;
+      const end = () => {
+        if (ended) {
+          return;
+        }
+        ended = true;
+        args.onLanded();
+        probeTick(() => dropFlight(id));
+      };
+      tl.eventCallback('onComplete', end);
+      const handle: CubeFlightHandle = {tween: tl, kill: () => {
+        tl.kill();
+        gsap.set(proxy, {autoAlpha: 0});
+      }};
+      runHandle(id, handle);
+    };
+    scheduleLaunch(id, args.delayMs, fire);
+  });
+  return id;
 }
 
 /**

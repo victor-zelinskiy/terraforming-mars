@@ -151,6 +151,7 @@ import {FusionPower} from '../../../src/server/cards/base/FusionPower';
 import {GeothermalPower} from '../../../src/server/cards/base/GeothermalPower';
 import {HE3FusionPlant} from '../../../src/server/cards/moon/HE3FusionPlant';
 import {EvaMechs} from '../../../src/server/cards/turmoilRedux/EvaMechs';
+import {PoliticalScience} from '../../../src/server/cards/turmoilRedux/PoliticalScience';
 import {TransNeptuneProbe} from '../../../src/server/cards/base/TransNeptuneProbe';
 import {testAutomaGame, testAutomaMultiplayerGame} from '../../automa/AutomaTestGame';
 import {BonusCardId} from '../../../src/common/automa/AutomaTypes';
@@ -979,6 +980,39 @@ parliamentFixture('parliament-renewal-assembly', {
     const winner = parliament.winner();
     if (winner?.player !== p2.id || parliament.deck.length !== 0 || parliament.discard.length !== 0) {
       throw new Error(`the parliament-renewal-assembly fixture expected red to win on an empty deck, got ${JSON.stringify(winner)} deck=${parliament.deck.length} discard=${parliament.discard.length}`);
+    }
+  },
+});
+// ── TR02 POLITICAL SCIENCE · «ОБНОВЛЕНИЕ» with a CARD THAT ANSWERS A LEAVE: blue holds Political Science (0 data) in
+//    the tableau; TWO of blue's delegates (the free one and one from the reserve) stand on the Greens' loser; red wins
+//    Architecture Award from the middle slot with THREE (against the Greens' two — a tie would go to the CLOSER slot,
+//    the Greens', whose winner's ocean asks). The deck and the discard stay as dealt (the deal is not the subject).
+//    ONE A plays the walk: both blue cubes fly home, the data token rises over blue's reserve, the journal carries
+//    `card-effect` count 2 right after the Greens' leave. ──
+parliamentFixture('political-science-assembly', {
+  ...architectureTable('assembly'),
+  arrange: (table) => {
+    architectureTable('assembly').arrange?.(table);
+    const {parliament, p1, p2} = table;
+    p1.playedCards.push(new PoliticalScience());
+    parliament.placeVote(p2, parliament.slots[1], 'reserve');
+    parliament.placeVote(p2, parliament.slots[1], 'reserve');
+    let greens = parliament.slots.findIndex((s) => parliament.resolutionOf(s.instance).party === PartyName.GREENS);
+    if (greens < 0) {
+      // THE DEAL IS NOT ASSUMED (the renewal fixture's own precaution): seat a Greens card in the slot the winner does not hold.
+      seatResolution(parliament, 0, AQUIFER_CONTEST_ID);
+      greens = 0;
+    }
+    parliament.placeVote(p1, parliament.slots[greens], 'lobby');
+    parliament.placeVote(p1, parliament.slots[greens], 'reserve');
+  },
+  expect: ({parliament, p1, p2}) => {
+    const winner = parliament.winner();
+    const card = p1.playedCards.get(CardName.POLITICAL_SCIENCE);
+    const greens = parliament.slots.find((s) => parliament.resolutionOf(s.instance).party === PartyName.GREENS);
+    if (winner?.player !== p2.id || winner.instance !== parliament.slots[1].instance || greens === undefined || parliament.votesOf(p1, greens) !== 2 ||
+        card === undefined || card.resourceCount !== 0) {
+      throw new Error(`the political-science-assembly fixture expected red to win the middle slot with blue's two delegates on the Greens' loser and 0 data, got ${JSON.stringify(winner)} blue-on-greens=${greens === undefined ? '-' : parliament.votesOf(p1, greens)} data=${card?.resourceCount}`);
     }
   },
 });

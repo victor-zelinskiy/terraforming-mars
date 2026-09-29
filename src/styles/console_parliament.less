@@ -1232,6 +1232,38 @@
     box-shadow: 0 .5rem 1.4rem rgba(0, 0, 0, 0.5);
     .con-parl__cardback { position: absolute; inset: 0; .pcard-bill-back(); }
 }
+/* A RESOURCE TOKEN over the reserve (a card answered a loser's leave — TR02
+   Political Science): the resource's icon and «+N» on a small glass plate,
+   the rail's own chip language. Sized in rem (it is READ, not matched to a
+   cube); GSAP owns its transform and alpha from birth. */
+.con-parl__flight--token {
+    display: inline-flex;
+    align-items: center;
+    gap: .28rem;
+    height: 1.55rem;
+    padding: 0 .5rem 0 .34rem;
+    border-radius: .8rem;
+    background: linear-gradient(180deg, rgba(20, 30, 46, .96), rgba(10, 16, 28, .96));
+    border: 1px solid fade(@con-parl-gold, 55%);
+    box-shadow: 0 .25rem .8rem rgba(0, 0, 0, .55), inset 0 0 0 1px rgba(255, 255, 255, .05);
+    white-space: nowrap;
+    .con-parl__token-icon {
+        display: inline-block;
+        width: 1.15rem;
+        height: 1.15rem;
+        background-size: contain;
+        background-repeat: no-repeat;
+        background-position: center;
+    }
+    .con-parl__token-amount {
+        font-family: @con-font;
+        font-size: .82rem;
+        font-weight: 800;
+        letter-spacing: .02em;
+        color: @con-parl-gold;
+        line-height: 1;
+    }
+}
 /* THE ENACTED CARD moving from its voting slot to the government: its own
    face (px-designed, zoomed to the proxy's box), the card's own frame and
    shadow — no second rim. */

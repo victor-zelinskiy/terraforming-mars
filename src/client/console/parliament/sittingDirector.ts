@@ -89,8 +89,10 @@ import {
 import {
   CUBE_FLIGHT_MS, DEAL_FLIGHT_MS, DEAL_STAGGER_MS, dealResolutionCard, dropFlight, ENACT_MOVE_MS, finishParliamentFlights, flightEl, flightRegistered,
   flyCardOffTable, flyCube, killParliamentFlights, LEAVE_CARRY_MS, LEAVE_TURN_LEAD_MS, nextFlightId, placeCubeRect, pushCardFlight, rectOf,
-  registerFlightHandle, RESHUFFLE_MS, runReshuffle, setParliamentFlightsHurried,
+  registerFlightHandle, RESHUFFLE_MS, riseToken, runReshuffle, setParliamentFlightsHurried, TOKEN_RISE_MS,
 } from './parliamentFlights';
+import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
+import {cardResourceIconKey} from './influenceYieldModel';
 import {scheduleParliamentBeat} from './parliamentBeat';
 import {Rect, runCardDealFlight} from './consoleParliamentVoteMotion';
 import {SittingBeat} from './sittingBeats';
@@ -124,6 +126,8 @@ const QUEST_REVEAL_MS = 260;
 /** A loser's delegates go home one every step; the card lifts once its last cube has visibly LEFT its place (not landed). */
 const LEAVE_RETURN_STAGGER_MS = 70;
 const LEAVE_CUBE_DEPART_MS = 200;
+/** A card's answer to a leave is READ before the next move (the token rises over the reserve meanwhile). */
+const CARD_EFFECT_READ_MS = 520;
 /** The second loser starts turning this long after the first (one hand, two cards). */
 const LEAVE_CARD_STAGGER_MS = 160;
 /** The dealer squares the new deck before the first card comes off it — and the stack's landing (a GSAP timeline plus its birth tick) trails the storyboard's arithmetic by a couple of frames. */
@@ -1153,12 +1157,19 @@ function slotHomeRect(root: HTMLElement, slot: number): Rect | undefined {
  * supply; the ribbon's cube hides the frame the proxy stands over it, the
  * reserve grows on the touchdown. Returns the number launched.
  */
-function launchLeaveReturns(runState: StageRun, ctx: SittingDirectorContext, event: Extract<ParliamentRenewalEventModel, {kind: 'leave'}>, k: number): number {
+function launchLeaveReturns(
+  runState: StageRun, ctx: SittingDirectorContext, event: Extract<ParliamentRenewalEventModel, {kind: 'leave'}>, k: number,
+  /** The cards that ANSWER this leave (the journal's `card-effect` records right after it): each rises at the landing of its owner's LAST cube. */
+  answers: ReadonlyArray<CardEffectEvent> = [],
+): number {
   const root = ctx.root;
   const holds = parliamentHolds;
   const held = (holds.heldSlots ?? ctx.view.slots).find((slot) => slot.instance === event.instance);
   let i = 0;
   for (const entry of event.returned) {
+    // The owner's cubes off THIS card, counted down to the touchdown of the last one — the answer's own moment.
+    let inFlight = entry.count;
+    const owned = answers.filter((a) => a.player === entry.owner);
     const seqs = (held?.votes ?? []).filter((v) => v.owner === entry.owner).map((v) => v.seq).slice(0, entry.count);
     const to = placeCubeRect(root, entry.owner === 'neutral' ? '[data-parl-neutral-cube]' : `[data-parl-seat-reserve="${entry.owner}"]`);
     for (let n = 0; n < entry.count; n++) {
@@ -1181,6 +1192,13 @@ function launchLeaveReturns(runState: StageRun, ctx: SittingDirectorContext, eve
         } else {
           holds.renewalReturns.set(entry.owner, left);
         }
+        // The LAST of this owner's cubes off this card is home: the card that answered the leave speaks HERE,
+        // over the very place the cube just landed on — never earlier, never from a synthetic dealer.
+        if (--inFlight <= 0) {
+          for (const answer of owned) {
+            launchCardEffectToken(runState, ctx, answer);
+          }
+        }
       };
       const id = flyCube(entry.owner, from, to, delay, landed, {onLifted: () => {
         if (key !== undefined) {
@@ -1195,6 +1213,45 @@ function launchLeaveReturns(runState: StageRun, ctx: SittingDirectorContext, eve
     }
   }
   return i;
+}
+
+type CardEffectEvent = Extract<ParliamentRenewalEventModel, {kind: 'card-effect'}>;
+
+/** The `card-effect` records that answer the leave at `index` — they follow it at once in the journal (the phase writes them there). */
+function answersOfLeave(journal: ReadonlyArray<ParliamentRenewalEventModel>, index: number): Array<{event: CardEffectEvent, index: number}> {
+  const out: Array<{event: CardEffectEvent, index: number}> = [];
+  for (let i = index + 1; i < journal.length; i++) {
+    const event = journal[i];
+    if (event.kind !== 'card-effect') {
+      break;
+    }
+    out.push({event, index: i});
+  }
+  return out;
+}
+
+/**
+ * A CARD ANSWERED THE LEAVE (TR02 Political Science: data per delegate discarded): a token of the resource
+ * — its icon and «+N» — rises over the owner's RESERVE, where the delegates it was paid for have just
+ * landed. The tableau is not on screen during a sitting, so this is the collection's only honest stage.
+ * The flight rides the run like a cube (`runState.flights`, «дожать» drives it to its end); nothing
+ * measurable → confessed (`noteDegraded`), never silently skipped.
+ */
+function launchCardEffectToken(runState: StageRun, ctx: SittingDirectorContext, event: CardEffectEvent): void {
+  const over = placeCubeRect(ctx.root, `[data-parl-seat-reserve="${event.player}"]`);
+  const id = riseToken({
+    iconClass: iconClassFor(cardResourceIconKey(event.resource)), amount: event.count, over, delayMs: 0,
+    onLanded: () => {
+      if (id !== undefined) {
+        runState.flights.delete(id);
+      }
+    },
+  });
+  if (id === undefined) {
+    noteDegraded(`card-effect of ${event.player}: ${event.count} ${event.resource} onto ${event.card}`);
+  } else {
+    runState.flights.add(id);
+  }
 }
 
 /**
@@ -1430,16 +1487,30 @@ function beatRenewal(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: num
     const last = n === leaves.length - 1;
     cue(index, event, at);
     const returned = event.returned.reduce((sum, entry) => sum + entry.count, 0);
+    const answers = answersOfLeave(journal, index);
+    /** The moment the card's ANSWER has been read (the token risen over the reserve, the band's line stood) — the next move waits for it. */
+    let answerRead = 0;
     if (returned > 0) {
-      tl.call(() => launchLeaveReturns(runState, ctx, event, k), undefined, at);
+      tl.call(() => launchLeaveReturns(runState, ctx, event, k, answers.map((a) => a.event)), undefined, at);
       // The card lifts once its last cube has visibly LEFT its place — the cubes are still in the air.
-      tail = Math.max(tail, at + s(CUBE_FLIGHT_MS + (returned - 1) * LEAVE_RETURN_STAGGER_MS) * k);
+      const landing = at + s(CUBE_FLIGHT_MS + (returned - 1) * LEAVE_RETURN_STAGGER_MS) * k;
+      tail = Math.max(tail, landing);
       at += s(LEAVE_CUBE_DEPART_MS + (returned - 1) * LEAVE_RETURN_STAGGER_MS) * k;
+      if (answers.length > 0) {
+        // A CARD ANSWERS THE LEAVE (its `card-effect` records follow it in the journal): the band names the answer at
+        // the LANDING of the cubes — the token itself is born by that landing (`launchLeaveReturns`) — while the card
+        // itself leaves on its ordinary schedule (its ribbon would otherwise show the landed cubes twice); the NEXT
+        // move waits for the answer to be read. The surfaces go in turn, one event per line, never a line back.
+        answers.forEach((a) => cue(a.index, a.event, landing));
+        answerRead = landing + s(CARD_EFFECT_READ_MS) * k;
+        tail = Math.max(tail, landing + s(TOKEN_RISE_MS) * k);
+      }
     }
     tl.call(() => launchLeave(runState, ctx, event, last), undefined, at);
     lastLeaveLaunch = at;
     tail = Math.max(tail, at + s(LEAVE_TURN_LEAD_MS + LEAVE_CARRY_MS) * k);
     at += s(LEAVE_CARD_STAGGER_MS) * k;
+    at = Math.max(at, answerRead);
   });
   if (leaves.length > 0) {
     // The deal begins once the last loser is on its way off the table (past its edge, not yet landed).
@@ -1496,6 +1567,9 @@ function beatRenewal(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: num
       tl.call(() => launchLobby(runState, ctx, event), undefined, at);
       tail = Math.max(tail, at + s(CUBE_FLIGHT_MS) * k);
       at += s(LOBBY_STAGGER_MS) * k;
+      return;
+    case 'card-effect':
+      // Scheduled with the leave it answers (above): its cue and its token belong to that leave's landing.
       return;
     }
   });

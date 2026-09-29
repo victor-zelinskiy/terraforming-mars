@@ -44,6 +44,17 @@
         <div class="con-card3d__edge" aria-hidden="true"></div>
       </div>
     </div>
+    <!-- A RESOURCE TOKEN over the place the cubes landed on (a card answered a loser's leave — TR02):
+         the resource's own icon and the count, the same icon family every parliament yield draws. -->
+    <div v-for="f in flights.tokenFlights" :key="f.id"
+         class="con-parl__flight con-parl__flight--token"
+         :ref="(el) => setFlightEl(f.id, el as HTMLElement | null)"
+         :data-parl-flight="f.id"
+         data-parl-flight-body="token"
+         :data-parl-token-amount="f.amount">
+      <i class="con-parl__token-icon" :class="f.iconClass" aria-hidden="true"></i>
+      <b class="con-parl__token-amount">+{{ f.amount }}</b>
+    </div>
   </div>
 </template>
 <script lang="ts">
