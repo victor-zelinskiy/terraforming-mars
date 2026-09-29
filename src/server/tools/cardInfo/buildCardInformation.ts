@@ -266,6 +266,15 @@ function requirementBlock(descriptor: CardRequirementDescriptor, dup: number, no
       `Requires ${enCount(n, 'delegate', 'delegates')} of yours on resolutions in the Voting Area.`;
     break;
   }
+  case RequirementType.TAGS_OF_ONE_TYPE: {
+    // Turmoil Redux (TR01): the most tags of any ONE type — no single tag to
+    // name, so no qualifier; the rule line says «any one type» as printed.
+    const n = descriptor.tagsOfOneType ?? descriptor.count ?? 1;
+    en = max ?
+      `Requires at most ${enCount(n, 'tag', 'tags')} of any one type${suffix}` :
+      `Requires ${enCount(n, 'tag', 'tags')} of any one type${suffix}`;
+    break;
+  }
   default:
     notes.push(`requirement type '${type}' not templated`);
     return undefined;

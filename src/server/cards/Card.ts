@@ -513,7 +513,8 @@ function populateCount(requirement: CardRequirementDescriptor): CardRequirementD
     requirement.corruption ??
     requirement.undergroundTokens ??
     requirement.deltaPosition ??
-    requirement.delegatesOnResolutions;
+    requirement.delegatesOnResolutions ??
+    requirement.tagsOfOneType;
 
   return requirement;
 }

@@ -81,6 +81,18 @@ export class Tags {
     return this.player.tableau.has(CardName.ODYSSEY);
   }
 
+  /**
+   * THE TAG TYPES a player can hold «of any one type» — Curator's vocabulary
+   * («the most tags of any one type in play») and the requirement «N tags of
+   * any one type» (Turmoil Redux TR01) alike: every tag but the wild tag and
+   * the clone tag, which are placeholders for another type, and the event tag,
+   * which is a type only while played events stay face up (Odyssey).
+   */
+  public tagTypesInPlay(): ReadonlyArray<Tag> {
+    const includeEvents = this.eventTagsInPlay();
+    return ALL_TAGS.filter((tag) => tag !== Tag.WILD && tag !== Tag.CLONE && (tag !== Tag.EVENT || includeEvents));
+  }
+
   /*
    * Get the number of tags this player has.
    */

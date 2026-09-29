@@ -55,6 +55,10 @@ export type CardRequirementDescriptor = {
    *  VOTING AREA (`Parliament.votesOf`) — the lobby, the chairman's seat and the
    *  reserve never count. Without the Mars Parliament the count is 0. */
   delegatesOnResolutions?: number,
+  /** Requires at least N tags of ANY ONE type — the maximum over Curator's tag
+   *  types (no wild / clone tag; the event tag only under Odyssey), each counted
+   *  exactly as a printed «N tags of X»; tags of different types never add up. */
+  tagsOfOneType?: number,
 
   // The Moon
   habitatTiles?: number,
@@ -134,6 +138,8 @@ export function requirementType(descriptor: CardRequirementDescriptor): Requirem
     return RequirementType.DELTA_POSITION;
   } else if (descriptor.delegatesOnResolutions !== undefined) {
     return RequirementType.DELEGATES_ON_RESOLUTIONS;
+  } else if (descriptor.tagsOfOneType !== undefined) {
+    return RequirementType.TAGS_OF_ONE_TYPE;
   } else {
     throw new Error('Unknown requirement: ' + JSON.stringify(descriptor));
   }

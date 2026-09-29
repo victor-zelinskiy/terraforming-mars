@@ -16,6 +16,12 @@ describe('unplayableReasonFormat — the compact counter form', () => {
     expect(unplayableReasonLine(reason)).eq('Requires 3 delegate(s) on resolutions · Now: 1');
   });
 
+  it('«tags of one type» (Turmoil Redux, TR01) reads as the tag counter — «Tags 7/10», never a tag name in place of the number', () => {
+    const reason: UnplayableReason = {type: 'count', message: 'Requires ${0} tags of one type', params: ['10'], current: 7, requirement: true};
+    expect(unplayableReasonCompact(reason)).eq('Tags 7/10');
+    expect(unplayableReasonLine(reason)).eq('Requires 10 tags of one type · Now: 7');
+  });
+
   it('the Hydronetwork precedent keeps its counter, and an unknown count message keeps the full line', () => {
     expect(unplayableReasonCompact({type: 'count', message: 'Requires ${0} step(s) advanced on the Hydronetwork', params: ['4'], current: 3})).eq('Hydronetwork 3/4');
     const unknown: UnplayableReason = {type: 'count', message: 'Not enough resources on this card', current: 2};

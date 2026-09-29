@@ -254,6 +254,9 @@ const REQUIREMENT_RENDER: Partial<Record<RequirementType, RequirementRender>> = 
   // Turmoil Redux (TR02): as printed — the delegate figure and the number. PARTY_LEADERS wears the same
   // icon; the two differ in the rule line and the chip's hint, never in the picture.
   [RequirementType.DELEGATES_ON_RESOLUTIONS]: {value: (d) => d.delegatesOnResolutions ?? d.count ?? 1, iconUrl: `${MISC}/delegate.png`},
+  // Turmoil Redux (TR01): the printed «?» disc — the same asset the DIVERSE_TAG item draws (Aridor,
+  // Interplanetary Trade: «different tags»); the rule line tells «any one type» apart, the picture is the scan's.
+  [RequirementType.TAGS_OF_ONE_TYPE]: {value: (d) => d.tagsOfOneType ?? d.count ?? 1, iconUrl: 'assets/tags/diverse.png'},
 };
 
 export function normalizeRequirement(descriptor: CardRequirementDescriptor): NormalizedRequirement {

@@ -116,6 +116,8 @@ const FULLY_RESTATED_REQUIREMENTS: ReadonlySet<RequirementType> = new Set([
   // «Requires N delegate(s) on resolutions» is the whole printed rule too
   // (Turmoil Redux — the voting area is the only place a delegate can be «on a resolution»).
   RequirementType.DELEGATES_ON_RESOLUTIONS,
+  // «Requires N tags of one type» — the whole printed rule (Turmoil Redux TR01).
+  RequirementType.TAGS_OF_ONE_TYPE,
 ]);
 
 /**
@@ -267,6 +269,11 @@ function requirementReason(req: CardRequirement, player: IPlayer, card: IProject
     // The player's own delegates on the voting area's resolutions (never the
     // lobby, the chair or the reserve) — `current` is that honest count.
     return {type: 'count', message: 'Requires ${0} delegate(s) on resolutions', params: [String(required)], current};
+  case RequirementType.TAGS_OF_ONE_TYPE:
+    // A COUNT, never `type: 'tag'`: no single tag is «the» tag of the rule, and
+    // a `tag` field would make `reasonParams` swap the number for a tag name.
+    // `current` is the honest maximum over the types («now: 7»).
+    return {type: 'count', message: 'Requires ${0} tags of one type', params: [String(required)], current};
   case RequirementType.PARTY_LEADERS:
     return {type: 'party', message: 'Requires ${0} party leader(s)', params: [String(required)], current};
   case RequirementType.CHAIRMAN:

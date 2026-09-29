@@ -23,6 +23,8 @@ export enum RequirementType {
     // Turmoil Redux
     /** The player's own delegates on the resolutions of the VOTING AREA — the lobby, the chairman's seat and the reserve never count. */
     DELEGATES_ON_RESOLUTIONS = 'Delegates on resolutions',
+    /** The most tags the player has of any ONE type — the maximum over the types, never a sum across them. */
+    TAGS_OF_ONE_TYPE = 'Tags of one type',
 
     // The Moon
     HABITAT_RATE = 'Habitat rate',

@@ -472,6 +472,18 @@ describe('normalizeRequirement', () => {
     // Never the «exotic type» text fallback: the chip is a picture with a number.
     expect(delegates.label).to.eq(undefined);
   });
+
+  it('«tags of any one type» (Turmoil Redux, TR01) draws the printed «?» disc and its number', () => {
+    const oneType = normalizeRequirement({tagsOfOneType: 10});
+    expect(oneType.type).to.eq(RequirementType.TAGS_OF_ONE_TYPE);
+    expect(oneType.value).to.eq(10);
+    expect(oneType.comparator).to.eq('min');
+    // The asset the DIVERSE_TAG item draws — the scan's disc, not a new «?» icon.
+    expect(oneType.iconUrl).to.eq('assets/tags/diverse.png');
+    expect(oneType.tag, 'no single tag names the rule').to.eq(undefined);
+    expect(oneType.isBinary).to.eq(false);
+    expect(oneType.label).to.eq(undefined);
+  });
 });
 
 describe('premium face coverage guard', () => {

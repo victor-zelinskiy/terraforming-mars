@@ -30,6 +30,7 @@ import {IProjectCard} from '../IProjectCard';
 import {UndergroundTokenRequirement} from './UndergroundTokenRequirement';
 import {DeltaPositionRequirement} from './DeltaPositionRequirement';
 import {DelegatesOnResolutionsRequirement} from './DelegatesOnResolutionsRequirement';
+import {TagsOfOneTypeRequirement} from './TagsOfOneTypeRequirement';
 
 export class CardRequirements {
   constructor(public requirements: Array<CardRequirement>) {}
@@ -119,6 +120,8 @@ export class CardRequirements {
       return new DeltaPositionRequirement({...descriptor, count: descriptor.deltaPosition});
     } else if (descriptor.delegatesOnResolutions !== undefined) {
       return new DelegatesOnResolutionsRequirement({...descriptor, count: descriptor.delegatesOnResolutions});
+    } else if (descriptor.tagsOfOneType !== undefined) {
+      return new TagsOfOneTypeRequirement({...descriptor, count: descriptor.tagsOfOneType});
     } else {
       throw new Error('Unknown requirement: ' + JSON.stringify(descriptor));
     }
