@@ -71,7 +71,7 @@
         <span class="con-colfocus__xcell-body"
               :data-colony-card-cell="(cell.effective || cell.marker) ? colony.name : undefined">
           <span class="con-colfocus__xcell-glyph" :class="{'con-colfocus__xcell-glyph--multi': multiKindCell(cell.index)}">
-            <BenefitGlyph :benefit="tradeBenefitAt(cell.index)" :idx="cell.index" :cardResources="cardResourceKinds" />
+            <BenefitGlyph :benefit="tradeBenefitAt(cell.index)" :idx="cell.index" :cardResources="cardResourceKinds" compact />
           </span>
           <!-- A LEVY prints its SIGN — «−4», never a bare 4 in the gain's own
                register (the sign lives on the glyph's badge, which this box

@@ -125,7 +125,7 @@
               <!-- A LEVY prints its sign — «−4», never a bare 4 in the gain's mint. -->
               <span v-if="reward.quantity > 1 || (rewardIsLevy && reward.quantity > 0)" class="con-coltile__cell-num"
                     :class="{'con-coltile__cell-num--levy': rewardIsLevy}">{{ rewardIsLevy ? '−' : '' }}{{ reward.quantity }}</span>
-              <BenefitGlyph :benefit="tradeBenefit" :idx="effectivePosition" :cardResources="cardResourceKinds" />
+              <BenefitGlyph :benefit="tradeBenefit" :idx="effectivePosition" :cardResources="cardResourceKinds" compact />
             </span>
           </transition>
           <span v-if="offsetSteps > 0" class="con-coltile__cell-offset">+{{ offsetSteps }}</span>
@@ -135,7 +135,7 @@
         <span class="con-coltile__cell-label">{{ $t('Bonus') }}</span>
         <span class="con-coltile__cell-value" :data-colony-bonus-source="colony.name">
           <span v-if="bonusQuantity > 1" class="con-coltile__cell-num">{{ bonusQuantity }}</span>
-          <BenefitGlyph :benefit="colonyBenefit" :idx="0" :cardResources="cardResourceKinds" />
+          <BenefitGlyph :benefit="colonyBenefit" :idx="0" :cardResources="cardResourceKinds" compact />
         </span>
       </div>
     </div>

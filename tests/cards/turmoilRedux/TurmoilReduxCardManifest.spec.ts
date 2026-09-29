@@ -13,7 +13,7 @@ import {DEFAULT_GAME_OPTIONS, GameOptions} from '../../../src/server/game/GameOp
 import {toName} from '../../../src/common/utils/utils';
 
 /**
- * INFRASTRUCTURE guard for the Turmoil Redux («Кризис Redux») PROJECT CARD set.
+ * INFRASTRUCTURE guard for the Turmoil Redux («Кризис: Возвращение») PROJECT CARD set.
  *
  * The set is 70 project cards (TR01…TR70) shipped one at a time, the way the
  * resolutions were. These tests pin the contract every next card lands on, so

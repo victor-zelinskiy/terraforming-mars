@@ -19093,12 +19093,20 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         &--multi {
             width: auto;
             max-width: 100%;
-            .benefit-glyph__icon.resource {
-                width: 22px; /* keep-px */
-                height: 22px; /* keep-px */
-                background-size: 22px 22px;
+            /* The compact register (BenefitGlyph `compact`) sizes the operator; the
+               LG step of the ladder is dropped here, and the sprites step one rung
+               further than the tile's: the cell's content box is 81.5 px at 1080
+               (86.3 − 2 × .12rem) and the 16 px row measured 84.3 — 14 px sprites
+               read 78.3, whole, with the operator legible. */
+            zoom: var(--con-ui-scale, 1);
+            /* (0,5,0) — outranks the compact register's own (0,4,0) rule in
+               colonies_overlay.less; at equal specificity the sheet order decided
+               and the 16 px sprite stayed (measured: unitW 84.3 twice). */
+            .benefit-glyph--compact.benefit-glyph--multi .benefit-glyph__icon.resource {
+                width: 14px; /* keep-px */
+                height: 14px; /* keep-px */
+                background-size: 14px 14px; /* keep-px */
             }
-            .benefit-glyph__or { font-size: 8px; /* keep-px */ }
         }
     }
     &__xcell-qty {
@@ -20222,6 +20230,20 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
            the destination) sits at the far end — one line, two columns. */
         &--big > em { margin-left: auto; }
         &--gain > .con-colfocus__rvalue + .con-colfocus__rowner { margin-left: auto; }
+        /* A UNIT OF SEVERAL KINDS («+2 [mech] или [asteroid] или [fighter]» — the Redux
+           Vesta) is the widest value the rail meets: beside it the destination wrapped
+           word by word into a cut («На / выбр / карт», measured at 1080) and the
+           composition's payer shrank to «Торгов…». The row WRAPS instead — the total's
+           reading takes its own full line under the value, the composition's value drops
+           under its whole label, flush right as every other amount. */
+        &--unit {
+            flex-wrap: wrap;
+            row-gap: .12rem;
+        }
+        /* (`&--big&--unit`, never `&--big.&--unit` — the dotted form compiles to a
+           double dot and matches nothing.) */
+        &--big&--unit > em { flex: 0 0 100%; margin-left: 0; }
+        &--part&--unit .con-colfocus__rpart { flex: 0 0 100%; }
     }
     /* The payer's name in a composition line. */
     &__rpart {

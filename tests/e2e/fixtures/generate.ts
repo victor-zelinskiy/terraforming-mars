@@ -126,6 +126,8 @@ import {Io} from '../../../src/server/colonies/Io';
 import {LunaGovernor} from '../../../src/server/cards/colonies/LunaGovernor';
 import {Pluto} from '../../../src/server/colonies/Pluto';
 import {VenusRedux} from '../../../src/server/colonies/VenusRedux';
+import {Vesta} from '../../../src/server/colonies/Vesta';
+import {AsteroidHollowing} from '../../../src/server/cards/promo/AsteroidHollowing';
 import {ColonyName} from '../../../src/common/colonies/ColonyName';
 import {AndOptions} from '../../../src/server/inputs/AndOptions';
 import {Dirigibles} from '../../../src/server/cards/venusNext/Dirigibles';
@@ -244,6 +246,27 @@ function write(name: string, game: IGame): void {
   player.megaCredits = 80;
   runAllActions(game);
   write('venus-trade', game);
+}
+
+// ── vesta-trade: the REDUX VESTA trade — «add N mechs, asteroids OR fighters
+//    to any card»: the seat holds TWO kinds (Asteroid Hollowing, Security
+//    Fleet), so the reward is a real PICK whose CARD decides the kind that
+//    lands (never a «which kind?» question, never the first of the tile's
+//    list); the marker stands on the 5th cell (2 units). The tile the
+//    2026-09-29 journey reads: the three-icon unit on the cell, the chip
+//    flying as the chosen card's own kind, the server holding it. ──
+{
+  const [game, player] = testGame(1, {
+    skipInitialCardSelection: false, coloniesExtension: true, turmoilReduxExpansion: true,
+  });
+  answerStartFlow(game, [player]);
+  const vesta = new Vesta();
+  game.colonies = [vesta, new Luna(), new Europa(), new Callisto()];
+  vesta.trackPosition = 4; // the 5th cell: 2 units of ONE kind
+  player.playedCards.push(new AsteroidHollowing(), new SecurityFleet());
+  player.megaCredits = 80;
+  runAllActions(game);
+  write('vesta-trade', game);
 }
 
 // ── play-scale-card: a solo action phase with a card in hand that RAISES A

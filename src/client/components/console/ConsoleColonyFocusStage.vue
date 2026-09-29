@@ -528,7 +528,7 @@
           <div class="con-colfocus__rsec con-colfocus__rsec--lead">
             <div class="con-colfocus__rsec-label" data-unfold-late>{{ $t(presentAvailable && intent !== 'pick' ? 'Your total' : 'On the current level') }}</div>
             <template v-for="total in rewardPackage.totals" :key="total.key">
-              <div class="con-colfocus__rrow con-colfocus__rrow--gain con-colfocus__rrow--big">
+              <div class="con-colfocus__rrow con-colfocus__rrow--gain con-colfocus__rrow--big" :class="{'con-colfocus__rrow--unit': total.icons !== undefined}">
                 <span class="con-colfocus__rvalue">
                   <b>+{{ total.amount }}</b>
                   <span class="con-colfocus__rglyph con-colfocus__rglyph--lg"
@@ -576,7 +576,7 @@
                card covers physically leave THAT number. -->
           <div v-if="rewardPackage.sources.length > 0" class="con-colfocus__rsec" data-unfold-late>
             <div class="con-colfocus__rsec-label">{{ $t('Reward breakdown') }}</div>
-            <div v-for="row in rewardPackage.sources" :key="row.key" class="con-colfocus__rrow con-colfocus__rrow--part">
+            <div v-for="row in rewardPackage.sources" :key="row.key" class="con-colfocus__rrow con-colfocus__rrow--part" :class="{'con-colfocus__rrow--unit': row.icons !== undefined}">
               <span class="con-colfocus__rpart">{{ sourceRowLabel(row) }}</span>
               <span class="con-colfocus__rvalue"
                     :data-colony-trade-source="row.kind === 'track' || row.kind === 'trackFixed' ? colony.name : undefined">

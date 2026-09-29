@@ -1864,6 +1864,26 @@
     width: auto;
     max-width: none;
 }
+/*
+ * THE COMPACT REGISTER (a host whose box is one sprite's — the track cell,
+ * the tile's trade cell): the three sprites at half the reading size, the
+ * operator tight, so the row is ~76 px before any zoom — an 82 px cell at
+ * 1080 holds it whole (measured: the reading register needed ~120). px on
+ * purpose: these hosts scale the glyph through their own `zoom` channel.
+ */
+.benefit-glyph--compact.benefit-glyph--multi {
+    .benefit-glyph__multi { gap: 1px; } /* keep-px: inside the host's zoom */
+    .benefit-glyph__icon.resource {
+        width: 16px; /* keep-px */
+        height: 16px; /* keep-px */
+        background-size: 16px 16px; /* keep-px */
+    }
+    .benefit-glyph__or {
+        font-size: 7px; /* keep-px */
+        letter-spacing: 0;
+        margin: 0 1px; /* keep-px */
+    }
+}
 
 /*
  * Override the GLOBAL `.resource` baseline (cards.less) the same way

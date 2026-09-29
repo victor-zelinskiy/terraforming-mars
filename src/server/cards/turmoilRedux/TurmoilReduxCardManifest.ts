@@ -5,7 +5,7 @@ import {FormulaZero} from './FormulaZero';
 import {AutomatedConvoys} from './AutomatedConvoys';
 
 /**
- * TURMOIL REDUX («Кризис Redux») — the PROJECT CARD manifest.
+ * TURMOIL REDUX («Кризис: Возвращение») — the PROJECT CARD manifest.
  *
  * The expansion's RESOLUTIONS are not cards of this manifest: they live in
  * `src/server/parliament/resolutions/**` and reach the client through

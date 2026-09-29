@@ -20,7 +20,7 @@ import {seedIdentity} from './campaignFixtures';
  *     карту» with the honest «ресурс пропадёт» line, five data cells + two
  *     card cells on the instrument, the base tile's lore;
  *   · the trade STAGE (A): the refusal with its reason;
- *   · the lobby row's expansion chip reads «Кризис Redux», never the key.
+ *   · the lobby row's expansion chip reads «Кризис: Возвращение», never the key.
  * Evidence → screenshots/pluto-redux/.
  */
 
@@ -152,7 +152,7 @@ test('Pluto Redux: the tile, the dossier and the stage name the refusal; the lob
   expect(stage.verdict, 'the stage carries the refusal').toContain(REASON_RU);
   await press(page, 'Escape', 1200);
 
-  // ── The lobby row's expansion chip is localized («Кризис Redux»). ──
+  // ── The lobby row's expansion chip is localized («Кризис: Возвращение»). ──
   await seedIdentity(page, 'ConsoleTester');
   await page.goto('/');
   await page.waitForSelector('.cm-menu__items', {timeout: 20_000});
@@ -160,7 +160,8 @@ test('Pluto Redux: the tile, the dossier and the stage name the refusal; the lob
   await page.waitForSelector('.cm-game', {timeout: 60_000});
   const alts = await page.evaluate(() => Array.from(document.querySelectorAll('.cm-game .cm-game__exp img')).map((i) => i.getAttribute('alt')));
   console.log('── lobby expansion chips (alt) ──', JSON.stringify(alts));
-  expect(alts, 'the Turmoil Redux chip reads in Russian').toContain('Кризис Redux');
+  expect(alts, 'the Turmoil Redux chip reads in Russian').toContain('Кризис: Возвращение');
+  expect(alts, 'the old half-Latin name is gone').not.toContain('Кризис Redux');
   expect(alts).not.toContain('Turmoil Redux');
   await shoot(page, '03-lobby');
 });

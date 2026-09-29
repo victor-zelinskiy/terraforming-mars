@@ -14,6 +14,12 @@ import * as path from 'path';
  */
 const ROOT = path.join(__dirname, '..', '..');
 const RU_PATH = path.join(ROOT, 'src', 'locales', 'ru', 'parliament.json');
+/** The expansion's own name lives in the create-game file (RU + UA) — one term, glossary § 6-bis. */
+const CREATE_GAME_RU = path.join(ROOT, 'src', 'locales', 'ru', 'create_game.json');
+const CREATE_GAME_UA = path.join(ROOT, 'src', 'locales', 'ua', 'create_game.json');
+const EXPANSION_KEY = 'Turmoil Redux';
+const EXPANSION_RU = 'Кризис: Возвращение';
+const EXPANSION_UA = 'Турбулентність: Повернення';
 const TREES = [
   path.join('src', 'client', 'console', 'parliament'),
   path.join('src', 'client', 'components', 'console', 'parliament'),
@@ -76,6 +82,10 @@ const CANON: Record<string, string> = {
   // Never «Марсианский парламент» for a tile the player just laid.
   'Greenery tile': 'Тайл озеленения',
   'Greenery tiles': 'Тайлы озеленения',
+  // THE EXPANSION'S NAME (glossary § 6-bis): «Redux» is translated — the two parliament lines that name
+  // the expansion print it, never the half-Latin «Кризис Redux» and never «Turmoil Redux» in a RU string.
+  'Turmoil Redux requires Colonies': '«Кризис: Возвращение» требует дополнение «Колонии»',
+  'Redux resolutions showcase': 'Витрина резолюций «Кризис: Возвращение»',
 };
 
 /**
@@ -115,6 +125,8 @@ const BANNED: ReadonlyArray<{pattern: RegExp, why: string}> = [
   {pattern: /марс вперед|ученые/i, why: 'the parliament prints its own party names, with Ё («Марс вперёд», «Учёные» — P-01)'},
   {pattern: /М€/, why: 'the currency is «M€» with a Latin M, as in the rest of the RU locale (P-38)'},
   {pattern: /размер в fullscreen|плитка/i, why: 'the glossary says «осмотр» and «тайл» (P-36, P-37)'},
+  // The expansion's name (glossary § 6-bis): «Кризис: Возвращение» — never the half-Latin form, never the English key inside a RU line.
+  {pattern: /кризис redux|turmoil redux/i, why: 'the expansion is «Кризис: Возвращение» (glossary § 6-bis)'},
 ];
 
 /** Retired keys: not translated, not referenced. */
@@ -146,6 +158,13 @@ describe('parliament glossary — one word per concept (static guard)', () => {
       .filter(([key, canon]) => ru[key] !== canon && !(key === 'Inspect' || key === 'Party effect'))
       .map(([key, canon]) => `${key}: «${ru[key]}» ≠ «${canon}»`);
     expect(wrong, 'canon drift').to.deep.equal([]);
+  });
+
+  it('the expansion is named «Кризис: Возвращение» in the create-game locale (RU) and «Турбулентність: Повернення» (UA) — glossary § 6-bis', () => {
+    const createRu = JSON.parse(fs.readFileSync(CREATE_GAME_RU, 'utf8')) as Record<string, string>;
+    const createUa = JSON.parse(fs.readFileSync(CREATE_GAME_UA, 'utf8')) as Record<string, string>;
+    expect(createRu[EXPANSION_KEY]).to.equal(EXPANSION_RU);
+    expect(createUa[EXPANSION_KEY]).to.equal(EXPANSION_UA);
   });
 
   it('no RU value of the parliament file carries a retired form', () => {

@@ -1,4 +1,4 @@
-# Turmoil Redux COLONIES — the replacement and addition tiles (Pluto · Venus, 2026-09-28)
+# Turmoil Redux COLONIES — the replacement and addition tiles (Pluto · Venus, 2026-09-28 · Vesta, 2026-09-29)
 
 The Turmoil Redux rulebook replaces some Colonies tiles with its own. The first
 one shipped is **Pluto**: same placement bonus (draw 2), same colony bonus (draw
@@ -379,6 +379,111 @@ save) · `colonyTradePlan.spec.ts` § a FIXED trade income ·
 `consoleTaskRouter.spec.ts` § a grant is a step · `consoleTaskSummary.spec.ts`
 row · `colonyLore.spec.ts` scope · e2e `console-colony-venus-redux.spec.ts`
 (the reading + the hosted step).
+
+## 6 · VESTA — the ADDITION whose card benefit spans SEVERAL KINDS (2026-09-29)
+The rulebook's Vesta: build «gain 5 steel» (×3 berths), colony bonus «gain 1
+steel», trade «add the indicated number of mech, asteroid, or fighter
+resources to any card. You can only pick one resource type per trade», track
+0·1·1·1·2·2·3, «starts active and any player can place a colony on it, but
+only players with a card that can accept mech, asteroid, or fighter resources
+can trade with it». Class: `src/server/colonies/Vesta.ts` (`ColonyName.VESTA`
+= `'Vesta'` — no suffix, there is no other Vesta; RU/UA «Веста»; description
+«Mechs, Asteroids & Fighters»; art `assets/colonies-planets/vesta.webp`,
+`.Vesta-background/-title` in regolith beige). No second dependency: it is
+dealt with the expansion beside the base tiles, with or without Venus Next.
+
+**The one new thing — SEVERAL KINDS AS DATA (`ColonyMetadata.cardResources`).**
+A colony had exactly one card resource (`cardResource`); the resolutions had
+the law already (RX18 Medical Database: `resources` is a LIST everywhere, one
+kind is the list of one, the unit's kind is the CARD's). Vesta declares
+`cardResources: [MECH, ASTEROID, FIGHTER]` beside `cardResource` — never
+inside `trade.resource`, whose array already means «per position» — and
+**`colonyCardResources(metadata)` is the ONE reader** (the declared list, else
+the one kind as a list of one, else empty). The compiler is NOT the worklist
+here — a reader that keeps taking `metadata.cardResource` still type-checks
+against a list-declaring tile and simply draws one icon over three — so
+**`tests/colonies/colonyCardResourceReader.spec.ts`** scans `src/` for a raw
+read outside its allow-list (the reader, the manifest export, the frozen
+desktop files) and fails with the file and the line.
+
+What the list means at every reader:
+- **The payout is ONE pick over the holders of ANY kind** — `Colony.giveBonusImpl`
+  hands `AddResourcesToCard` the list (`cardResourceKinds()`: the one kind for
+  a list of one, byte-identical for every existing tile; the list for several;
+  `undefined` for none). The marker names the kinds (`cardResources`) and the
+  kind EACH candidate takes (`cardResourceByCard`), the pick's `cardResource`
+  is absent, and «one resource type per trade» holds BY CONSTRUCTION — a card
+  holds one kind. One holder is the ordinary auto-apply (Titan's contract);
+  a WARE holder takes its wildcard.
+- **The manifest grant** (`ColonyTradeGrantModel.cardResources`, present
+  instead of `cardResource`), the preview's card target
+  (`ColonyTradeFollowUpModel.cardTarget.resources`, `resource: undefined`),
+  `ColoniesHandler.cardActivatesColony` (any kind wakes the tile),
+  ProductiveOutpost's preview (several kinds = a later choice, never one
+  chip), Colonial Affairs' colony-bonus step (the union of holders; the record
+  carries `resources`), the colony ledger (`ColonyLedgerBonus.resources`).
+- **The client draws the unit «or»-joined, never one icon for three**:
+  `BenefitGlyph` takes `cardResources` (a `benefit-glyph--multi` root, the
+  icons with `.benefit-glyph__or` between them — `ConsoleYieldUnit`'s grammar;
+  the bare `.mech` class joins the guarded icon set); every console host
+  passes `cardResourceKinds` (the tile, the track instrument — whose
+  `__xcell-glyph` box opens to the ROW's width for a multi cell, the sprites
+  one rung smaller —, the dossier, the stage, the section rail); the journal's
+  `ColonyTile` draws the row; `colonyTradePlan` reads `rewardAtPosition.
+  cardResources` (icon keys), a chip names the unit as `icons` (never `icon`),
+  the reward key joins the list so a unit is never merged with a one-kind
+  line, and the stage's / dossier's reward rows draw `icons` with `__ror` /
+  `__gain-or`. «Resource will be lost» reads the holders of ANY kind
+  (`holdsAnyOf`, WARE included).
+- **THE FLIGHT'S KIND IS THE TARGET'S.** `benefitTransferSpec` /
+  `buildRewardSpecs` take the chosen card's own resource type
+  (`ColonyTradeTargets.incomeTargetResource` / `bonusTargetResources`, read in
+  `colonyTradeCardDestinations` — the one place that knows the card); the
+  first of the list is never the chip's kind, and without a target there is
+  no flight (the honest degrade the one-kind grant already had). The target
+  step's candidates read their own icons (`colonyTradeTargetIcon` falls to
+  the card's kind when the step names none).
+
+**The refusal is UNCONDITIONAL — a rule about the tile, not a level.** Pluto
+and Venus refuse where their sentence says («at its lower positions», «at
+position 3–5»); Vesta's says «only players with a card that can accept … can
+trade with it», so `tradeIncomeBlockedReason` refuses a holder-less player at
+EVERY landing, the zero-income 1st included, over the SAME candidate set the
+payout uses (`VESTA_NO_HOLDER_REASON` — a real disjunction, «or»; RU in
+Pluto's / Venus's voice). Every ladder speaks it unchanged through
+`colonyTradeBlocks`; the offer disables, the submit refuses, Trade Advance is
+a named skip, COPY_TRADE disables. A project reading — one line and one spec
+if the owner prefers a plain skip where nothing would be paid.
+
+**MarsBot: a structural gate, not a mechanic.** A Redux ADDITION has no
+Shipping Board area (`shippingAreaFor` knows the base tiles and lends a
+REPLACEMENT its twin's), and `AutomaColonies.addToStorage` throws the moment
+the bot builds, trades or collects a cube bonus on one — Venus only ever met
+it with Venus Next, Vesta would have met it in every MarsBot × Redux game.
+`ColonyDealer.withoutTilesMarsBotCannotUse` keeps every such tile off a
+MarsBot table (`gameOptions.automa` ∧ `isTurmoilReduxAddition` ∧ no area),
+dealt pool and hand-picked list alike, and the two inline `VENUS_REDUX`
+filters in `CloudDevelopment.spec` / `GasExport.spec` are gone. REMOVE the
+gate with MarsBot support for Turmoil Redux.
+
+**The expansion's Russian name** is «Кризис: Возвращение» (the owner's
+2026-09-29 decision — «Redux» is translated; UA «Турбулентність: Повернення»):
+`create_game.json`, the two parliament lines that name it, the lobby chip;
+glossary § 6-bis, guarded by `parliamentGlossary.spec`. The tiles stay
+«Плутон» / «Венера» / «Веста».
+
+**Guards (Vesta):** `tests/colonies/Vesta.spec.ts` (29: the printed tile, the
+steel bonuses, every position × every kind with one holder, two holders → one
+pick with the per-card marker and the kind = the card's, the WARE wildcard,
+the refusal at every position and under any offset, the offer / submit /
+only-open-colony / publish, Trade Advance, COPY_TRADE, the preview, the dealer
+± Venus Next / custom list / the MarsBot gate, serialization) ·
+`colonyCardResourceReader.spec.ts` · `colonyTradePlan.spec.ts` § several kinds
+· `colonyTradeModel.spec.ts` / `colonyTradeTargetStep.spec.ts` /
+`colonyBuildModel.spec.ts` (the flight's kind) · `BenefitGlyph.spec.ts` ·
+`resourceIconDefinitions.spec.ts` (`mech`) · `colonyLore.spec.ts` scope · e2e
+`console-colony-vesta.spec.ts` (the reading at 1080, the trade from fixture
+`vesta-trade` — the chip flies as an asteroid —, the cells at 4K).
 
 ## Guards
 `tests/colonies/PlutoRedux.spec.ts` (32: the tile, the refusal, the rules'

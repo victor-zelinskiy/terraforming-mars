@@ -12,7 +12,7 @@
     generic placeholder for unrecognised types (so future colonies don't
     crash the component).
   -->
-  <div class="benefit-glyph" :class="{'benefit-glyph--multi': isMultiKind}" :data-bg-type="benefit.type">
+  <div class="benefit-glyph" :class="{'benefit-glyph--multi': isMultiKind, 'benefit-glyph--compact': compact}" :data-bg-type="benefit.type">
     <!-- GAIN_RESOURCES — most common: a resource icon, optionally
          multiple of them stacked on top of each other. We render ONE
          icon + an "×N" overlay; the "stacked" presentation belongs in
@@ -207,6 +207,18 @@ export default defineComponent({
     cardResources: {
       type: Array as PropType<ReadonlyArray<CardResource>>,
       default: () => [],
+    },
+    /**
+     * THE COMPACT REGISTER of a several-kinds unit — for a host whose box is
+     * a single sprite's (a track cell, the tile's trade cell): the three
+     * sprites step down and the operator tightens so the whole row lives
+     * inside the cell. Measured at 1080: the reading register (22 px
+     * sprites, the LG zoom) took ~120 px of an 82 px cell and cut the third
+     * icon on the 4K tile. A one-kind glyph ignores it.
+     */
+    compact: {
+      type: Boolean,
+      default: false,
     },
   },
   computed: {
