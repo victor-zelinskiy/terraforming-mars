@@ -28,6 +28,7 @@ import {AutomaColonies} from './AutomaColonies';
 import {AutomaMilestonesAwards} from './AutomaMilestonesAwards';
 import {pushNearestBonus} from './AutomaNearBonusPush';
 import {partyPolitics} from './AutomaPartyPolitics';
+import {BotQuestEvents} from './BotQuestEvents';
 import {AutomaResearch} from './AutomaResearch';
 import {inplaceShuffle} from '../utils/shuffle';
 import {AutomaResolver} from './AutomaResolver';
@@ -338,6 +339,7 @@ function invasiveSpecies(game: IGame): BonusCardOutcome {
     bot.stock.add(Resource.MEGACREDITS, 2, {log: true});
     automa.floaters += 1;
     game.log('${0} gained ${1} ${2}', (b) => b.player(bot).number(1).cardResource(CardResource.FLOATER));
+    BotQuestEvents.floaters(game, 1);
   } else {
     bot.stock.add(Resource.MEGACREDITS, 5, {log: true});
   }

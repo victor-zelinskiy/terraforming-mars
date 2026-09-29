@@ -83,6 +83,46 @@ export function voteDeficits(parliament: Parliament, bot: IPlayer): Array<number
   });
 }
 
+/**
+ * WHICH CARD GIVES A DELEGATE UP FOR THE CHAIRMAN SEAT when every delegate of
+ * the bot stands on a resolution (§5): the card whose LATEST cube can leave
+ * without changing the verdict (`winnerAmong`) or the bot's lead on that card;
+ * a tie → the card where the bot has the FEWEST delegates; a tie → the
+ * farthest slot (the highest index). Pure; `undefined` when the bot has no
+ * delegate on any card.
+ */
+export function chooseSeatSlot(parliament: Parliament, bot: IPlayer): number | undefined {
+  const slots = parliament.slots;
+  const own = slots.map((_, index) => index).filter((index) => parliament.votesOf(bot, slots[index]) > 0);
+  if (own.length === 0) {
+    return undefined;
+  }
+  const before = parliament.winnerAmong(slots);
+  const leads = (slot: Slot): boolean => parliament.leaderOf(slot)?.owner === bot.id;
+  const harmless = own.filter((index) => {
+    const without = slots.map((slot, i): Slot => {
+      if (i !== index) {
+        return slot;
+      }
+      const votes = [...slot.votes];
+      for (let v = votes.length - 1; v >= 0; v--) {
+        if (votes[v].owner === bot.id) {
+          votes.splice(v, 1);
+          break;
+        }
+      }
+      return {instance: slot.instance, votes};
+    });
+    const after = parliament.winnerAmong(without);
+    const verdictSame = before?.instance === after?.instance && before?.player === after?.player;
+    return verdictSame && leads(slots[index]) === leads(without[index]);
+  });
+  let candidates = harmless.length > 0 ? harmless : own;
+  const fewest = Math.min(...candidates.map((index) => parliament.votesOf(bot, slots[index])));
+  candidates = candidates.filter((index) => parliament.votesOf(bot, slots[index]) === fewest);
+  return Math.max(...candidates);
+}
+
 /** The card the bot's NEXT delegate goes to, and why. `undefined` on an empty voting area. */
 export function chooseVoteSlot(parliament: Parliament, bot: IPlayer): BotVoteChoice | undefined {
   const slots = parliament.slots;

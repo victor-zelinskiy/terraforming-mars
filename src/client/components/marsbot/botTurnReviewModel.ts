@@ -424,7 +424,8 @@ function buildChainsByCause(steps: ReadonlyArray<MarsBotTurnStep>, source: BotTu
       break;
     }
     case 'vote':
-    case 'vote-refused': {
+    case 'vote-refused':
+    case 'chairman': {
       // A delegate sent (or refused) — its journal line, under the rule that sent it (Party Politics' bonus chain, Lobbying's own).
       if (step.message === undefined) {
         break;
@@ -517,7 +518,8 @@ function buildChainsByOrder(steps: ReadonlyArray<MarsBotTurnStep>, source: BotTu
       break;
     }
     case 'vote':
-    case 'vote-refused': {
+    case 'vote-refused':
+    case 'chairman': {
       if (step.message === undefined) {
         break;
       }

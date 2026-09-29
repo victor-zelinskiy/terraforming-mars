@@ -21,6 +21,8 @@ import {parliamentGateAwaiting} from './ParliamentPhase';
 import {SerializedEnactOutcome, SerializedPhaseSummary} from './SerializedParliament';
 import {Resource} from '../../common/Resource';
 import {declaredCountIds, declaredSequelProductions, declaredStockReads, declaresColonyBonuses, declaresHandLevel, resolutionCount} from './resolutions/ResolutionCounts';
+import {botQuestReachable} from '../../common/parliament/botQuestPath';
+import {botQuestTableOf} from '../automa/BotQuestEvents';
 
 function colorOf(game: IGame, delegate: Delegate): Color | 'neutral' {
   return delegate === 'NEUTRAL' ? 'neutral' : game.getPlayerById(delegate).color;
@@ -112,6 +114,11 @@ export function getParliamentModel(game: IGame, viewer?: IPlayer): ParliamentMod
       progress,
       completedBy: quest.completedBy === undefined ? undefined : game.getPlayerById(quest.completedBy).color,
     };
+    // A bot seat at the table (`'politics'`): can its ordinary play reach this quest at all?
+    const bot = game.players.find((p) => p.isMarsBot === true);
+    if (bot !== undefined && parliament.participates(bot, 'quest')) {
+      model.quest.botReachable = botQuestReachable(quest.definition.goal, botQuestTableOf(game));
+    }
   }
   if (parliament.phase !== undefined) {
     const p = parliament.phase;

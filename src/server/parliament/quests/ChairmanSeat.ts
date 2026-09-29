@@ -40,7 +40,10 @@ import {Priority} from '../../deferredActions/Priority';
 import {Color} from '../../../common/Color';
 import {Resource} from '../../../common/Resource';
 import {PartyName} from '../../../common/turmoil/PartyName';
+import {ResolutionId} from '../../../common/parliament/ParliamentTypes';
 import type {AgendaAdvance, Parliament} from '../Parliament';
+import {chooseSeatSlot} from '../BotVoteChooser';
+import {AutomaTurnLog} from '../../automa/AutomaTurnLog';
 
 /** What `seat()` did: the office changed hands here and now, or the player still has to pick the delegate. */
 type SeatResult = 'seated' | 'asking';
@@ -96,8 +99,89 @@ export class ChairmanSeat {
       return;
     }
     game.log('${0} completed the chairman quest', (b) => b.player(player));
+    if (player.isMarsBot === true) {
+      // THE BOT'S BRANCH (docs/TURMOIL_REDUX_MARSBOT.md §5): no gate — the bot
+      // answers nothing — the office and the Agenda step here and now, inside
+      // the turn that reached the count; the seat's delegate by a
+      // deterministic rule (`chooseSeatSlot`), never a pick.
+      ChairmanSeat.applyBotQuest(player, parliament);
+      return;
+    }
     parliament.pendingActions.push({kind: 'chairman-quest', player: player.id});
     player.defer(() => ChairmanSeat.questPrompt(player, parliament), Priority.BACK_OF_THE_LINE);
+  }
+
+  /**
+   * THE BOT TAKES THE CHAIRMANSHIP — the human's `applyQuest` and `seat`
+   * without the questions: the same journal lines, the same order (the office,
+   * then the Agenda step — a card is 1 M€ for the bot), the previous holder's
+   * delegate home by derivation, the seat's delegate from the reserve, else
+   * the lobby, else off the resolution the rule names. One nested journal
+   * group of its own inside the turn; the turn script gets a typed
+   * `chairman` step so the review names the office change from data.
+   */
+  private static applyBotQuest(bot: IPlayer, parliament: Parliament): void {
+    const game = bot.game;
+    const events = game.events;
+    events.beginAction(bot, {kind: 'parliament'}, {category: 'parliament'});
+    try {
+      game.log('${0} takes the chairmanship', (b) => b.player(bot));
+      const seat = ChairmanSeat.seatBot(bot, parliament);
+      const advance = ChairmanSeat.advanceAgenda(bot, parliament);
+      AutomaTurnLog.note(game, {
+        kind: 'chairman',
+        source: seat.source,
+        ...(seat.resolution === undefined ? {} : {resolution: seat.resolution}),
+        ...(seat.previous === undefined ? {} : {previous: seat.previous}),
+        ...(advance === undefined ? {} : {agenda: {from: advance.from, to: advance.to, ...(advance.bonus === undefined ? {} : {bonus: advance.bonus})}}),
+      });
+    } finally {
+      events.endScope();
+    }
+  }
+
+  private static seatBot(bot: IPlayer, parliament: Parliament): {source: 'kept' | 'reserve' | 'lobby' | 'resolution'; resolution?: ResolutionId; previous?: Color} {
+    const game = bot.game;
+    if (parliament.chairman === bot.id) {
+      game.log('${0} remains the chairman', (b) => b.player(bot));
+      game.events.recordChairmanSeated(bot);
+      return {source: 'kept'};
+    }
+    let previous: Color | undefined = undefined;
+    if (parliament.chairman !== undefined) {
+      const holder = game.getPlayerById(parliament.chairman);
+      previous = holder.color;
+      game.log('The delegate of ${0} leaves the chairman seat', (b) => b.player(holder));
+      parliament.chairman = undefined;
+    }
+    if (parliament.reserve(bot) > 0) {
+      parliament.chairman = bot.id;
+      game.log('${0} becomes the chairman (delegate from the reserve)', (b) => b.player(bot));
+      game.events.recordChairmanSeated(bot, previous);
+      return {source: 'reserve', ...(previous === undefined ? {} : {previous})};
+    }
+    if (parliament.lobby.has(bot.id)) {
+      parliament.lobby.delete(bot.id);
+      parliament.chairman = bot.id;
+      game.log('${0} becomes the chairman (delegate from the lobby)', (b) => b.player(bot));
+      game.events.recordChairmanSeated(bot, previous);
+      return {source: 'lobby', ...(previous === undefined ? {} : {previous})};
+    }
+    // Every delegate is on a resolution: the rule names the card (never a pick).
+    const index = chooseSeatSlot(parliament, bot);
+    if (index === undefined) {
+      throw new Error('MarsBot has no delegate anywhere — the ledger is broken');
+    }
+    const slot = parliament.slots[index];
+    if (parliament.removeLatestVote(bot, slot) === undefined) {
+      throw new Error('MarsBot has no delegate on the resolution the rule named');
+    }
+    const resolution = parliament.resolutionOf(slot.instance).id;
+    game.log('${0} takes a delegate back from ${1} for the chairman seat', (b) => b.player(bot).resolution(resolution));
+    parliament.chairman = bot.id;
+    game.log('${0} becomes the chairman', (b) => b.player(bot));
+    game.events.recordChairmanSeated(bot, previous);
+    return {source: 'resolution', resolution, ...(previous === undefined ? {} : {previous})};
   }
 
   /**

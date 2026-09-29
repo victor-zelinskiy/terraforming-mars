@@ -341,7 +341,7 @@ export class AutomaTurnLog {
     if (opts?.consumeLog === true && fresh.length > 0) {
       const own = fresh.pop();
       if (own !== undefined && (step.kind === 'reveal' || step.kind === 'failed' || step.kind === 'pass' || step.kind === 'attack' || step.kind === 'hazard' ||
-          step.kind === 'vote' || step.kind === 'vote-refused')) {
+          step.kind === 'vote' || step.kind === 'vote-refused' || step.kind === 'chairman')) {
         step.message = own;
       }
     }
@@ -349,7 +349,7 @@ export class AutomaTurnLog {
     // Attribute the typed step to the live cause (tag / advance / attack / log /
     // hazard / vote carry `cause`; a step that already set its own keeps it).
     if ((step.kind === 'tag' || step.kind === 'advance' || step.kind === 'attack' || step.kind === 'log' || step.kind === 'hazard' ||
-        step.kind === 'vote' || step.kind === 'vote-refused') &&
+        step.kind === 'vote' || step.kind === 'vote-refused' || step.kind === 'chairman') &&
         step.cause === undefined && recording.currentCause !== undefined) {
       step.cause = recording.currentCause;
     }

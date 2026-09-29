@@ -15,6 +15,7 @@ import {AutomaTurnLog} from './AutomaTurnLog';
 import {marsBotOf} from './AutomaUtil';
 import {AutomaTerraformer} from './AutomaTerraformer';
 import {AutomaTilePlacer} from './AutomaTilePlacer';
+import {BotQuestEvents} from './BotQuestEvents';
 
 /** A data-error guard only: layouts are strictly forward-moving, so a real game never gets near this. */
 const MAX_CASCADE_DEPTH = 32;
@@ -49,6 +50,10 @@ export class AutomaResolver {
    */
   public static resolveProjectCard(game: IGame, card: IProjectCard, options?: {tagLimit?: number}): void {
     const printed = AutomaResolver.printedTags(card);
+    // Turmoil Redux: the card's printed tags and its type count toward the
+    // chairman quest BEFORE any tag does anything — a Failed Action never
+    // cancels a card that was played.
+    BotQuestEvents.cardPlayed(game, card);
     if (printed.length === 0) {
       failedAction(game, 'no-tags');
       return;
@@ -111,6 +116,8 @@ export class AutomaResolver {
     // icon below may carry the marker further ('advance'), and every «which
     // space did it reach?» question is about the landing, not the chain's end.
     const landed = track.position;
+    // Turmoil Redux: one step of every production this track stands for (the chairman quest's «+N production»).
+    BotQuestEvents.trackAdvanced(game, track);
     AutomaTurnLog.note(game, {
       kind: 'advance',
       trackIndex,
@@ -220,6 +227,7 @@ export class AutomaResolver {
       const count = action === 'floater2' ? 2 : 1;
       automa.floaters += count;
       game.log('${0} gained ${1} ${2}', (b) => b.player(bot).number(count).cardResource(CardResource.FLOATER));
+      BotQuestEvents.floaters(game, count);
       return;
     }
     case 'temperature':

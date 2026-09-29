@@ -9,6 +9,7 @@ import {AutomaResolver} from './AutomaResolver';
 import {AutomaTilePlacer} from './AutomaTilePlacer';
 import {AutomaTurnLog} from './AutomaTurnLog';
 import {marsBotOf} from './AutomaUtil';
+import {BotQuestEvents} from './BotQuestEvents';
 import {AutomaCorporations} from './corps/AutomaCorporations';
 
 /**
@@ -70,12 +71,15 @@ export class AutomaColonies {
       automa.floaters += count;
       game.log('${0} gained ${1} ${2}', (b) =>
         b.player(marsBotOf(game)).number(count).cardResource(CardResource.FLOATER));
+      BotQuestEvents.floaters(game, count);
       return;
     }
 
     automa.shippingStorage[colonyName] = (automa.shippingStorage[colonyName] ?? 0) + count;
     game.log('${0} added ${1} {resource|resources} to the ${2} storage area', (b) =>
       b.player(marsBotOf(game)).number(count).colony(AutomaColonies.colonyOrThrow(game, colonyName)));
+    // Turmoil Redux: units of the tile's own card-resource kind reached the bot's area of that kind (the chairman quest).
+    BotQuestEvents.storage(game, colonyName, count);
 
     if (area.exchangeTag === undefined) {
       return; // Defensive: any other non-exchanging area (none today besides Titan/Europa).
@@ -158,8 +162,9 @@ export class AutomaColonies {
     // … and the BOT's own corporation, beside them — the same sentence, the
     // other seat (C33 Poseidon). This build deliberately never goes through
     // `Colony.addColony` (it ignores the printed reward), which is exactly why
-    // the dispatch has to exist at BOTH sites.
+    // the dispatch has to exist at BOTH sites — the chairman quest's too.
     AutomaCorporations.onColonyBuilt(game, bot);
+    BotQuestEvents.colonyBuilt(game);
     // "It ignores the printed reward of the tile, and instead it gains 2
     // resources into the storage area" — Europa: an ocean (+TR) instead.
     if (colony.name === ColonyName.EUROPA) {
@@ -226,6 +231,8 @@ export class AutomaColonies {
     colony.visitor = bot.id;
     // The ordinary post-trade reset: the marker returns to the colony count.
     colony.trackPosition = colony.colonies.length;
+    // Turmoil Redux: a trade of the bot's own (the chairman quest's «trade N times») — this path never enters `Colony.trade`.
+    BotQuestEvents.traded(game);
     return true;
   }
 }

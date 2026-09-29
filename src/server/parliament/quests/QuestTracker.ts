@@ -46,9 +46,14 @@ export type QuestEvent =
   /** A TRADE performed (`Colony.trade` — the one door every trade goes through, the Unity free trade included). */
   | {kind: 'trade'};
 
-/** Roots that are NOT a player's own action: nothing under them progresses a quest. */
+/**
+ * Roots that are NOT a player's own action: nothing under them progresses a
+ * quest. A MarsBot TURN (`automa-turn`) is not among them: it is the bot's own
+ * action (docs/TURMOIL_REDUX_MARSBOT.md §5), and a human under it is refused
+ * by the actor rule below (the root's player is the bot).
+ */
 const FOREIGN_ROOT_CATEGORIES: ReadonlySet<JournalActionCategory> = new Set<JournalActionCategory>([
-  'political-phase', 'planetary-event', 'solar-phase', 'automa-turn', 'vp-pressure',
+  'political-phase', 'planetary-event', 'solar-phase', 'vp-pressure',
 ]);
 
 export class QuestTracker {
@@ -71,6 +76,13 @@ export class QuestTracker {
       return false;
     }
     if (root.category !== undefined && FOREIGN_ROOT_CATEGORIES.has(root.category)) {
+      return false;
+    }
+    // THE BOT'S QUEST IS ITS TURN'S ALONE (docs/TURMOIL_REDUX_MARSBOT.md §5):
+    // a corporation box at the research → action gate, a human's trade on
+    // its colony, the political phase are not its deeds — only what its own
+    // turn produces counts.
+    if (player.isMarsBot === true && root.category !== 'automa-turn') {
       return false;
     }
     // An enacted resolution's effect — including the result of its action —

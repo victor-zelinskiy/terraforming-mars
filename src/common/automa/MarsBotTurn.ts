@@ -269,6 +269,16 @@ export type MarsBotTurnStep =
   /** A delegate the bot COULD NOT send, and why (the journal line names it too). */
   | {kind: 'vote-refused', reason: MarsBotVoteRefusal, message?: LogMessage, cause?: MarsBotStepCause}
   /**
+   * THE BOT COMPLETED THE CHAIRMAN QUEST in this turn (Turmoil Redux) and took
+   * the office: where the seat's delegate came from (`kept` — it already held
+   * the seat), which resolution gave one up, whose delegate went home
+   * (`previous`), and the Agenda step it was paid.
+   */
+  | {
+      kind: 'chairman', source: 'kept' | 'reserve' | 'lobby' | 'resolution', resolution?: string, previous?: Color,
+      agenda?: {from: number, to: number, bonus?: 'tr' | 'card'}, message?: LogMessage, cause?: MarsBotStepCause,
+    }
+  /**
    * The turn's NET effect on one participant — every stock/production/TR
    * value that changed, as explicit before → after pairs. Appended at the end
    * of the script (the "turn results" section), one step per affected player.

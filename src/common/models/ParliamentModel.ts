@@ -55,6 +55,13 @@ export type ParliamentQuestModel = {
   generation: number;
   progress: Readonly<Record<string, number>>; // keyed by Color
   completedBy?: Color;
+  /**
+   * Can MARSBOT reach this quest by its ordinary play (`botQuestPath.ts` —
+   * a space city never, a card resource only with an area that holds it)?
+   * Present only when a bot seat holds delegates (`'politics'`); the quest
+   * block prints «unreachable for the bot» on `false`, never a silent 0/N.
+   */
+  botReachable?: boolean;
 };
 
 /** WHY a player holds a party's effect — every reason stands on its own. */
