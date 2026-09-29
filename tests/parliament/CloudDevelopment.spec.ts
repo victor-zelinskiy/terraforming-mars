@@ -1,4 +1,5 @@
 import {expect} from 'chai';
+import {ColonyName} from '../../src/common/colonies/ColonyName';
 import {testGame} from '../TestGame';
 import {TestPlayer} from '../TestPlayer';
 import {IGame} from '../../src/server/IGame';
@@ -609,6 +610,12 @@ describe('CloudDevelopment', () => {
 
     it('MarsBot (mode none) is never asked, never paid, never a winner', () => {
       const [game, human, bot] = testAutomaGame({coloniesExtension: true, turmoilReduxExpansion: true, venusNextExtension: true});
+      // MarsBot × Venus Redux is a KNOWN gap (the tile has no Shipping Board area —
+      // deferred by the owner to MarsBot support for Turmoil Redux, see
+      // docs/claude/turmoil-redux-cards-progress.md § TR08). Whether the bot's deal
+      // walks into it is pure seed luck, and this spec is about the parliament, not
+      // the colonies — so the unsupported tile is taken off the table.
+      game.colonies = game.colonies.filter((c) => c.name !== ColonyName.VENUS_REDUX);
       const parliament = game.parliament!;
       game.playerIsFinishedWithResearchPhase(human);
       seatResolution(parliament, 0, CLOUD);

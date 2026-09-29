@@ -1072,6 +1072,7 @@ export enum CardName {
   // Turmoil Redux (project cards TR01–TR70; the resolutions live in ParliamentCatalog)
   EVA_MECHS = 'EVA Mechs',
   FORMULA_ZERO = 'Formula Zero',
+  AUTOMATED_CONVOYS = 'Automated Convoys',
 
   // Underworld Standard Projects
   EXCAVATE_STANDARD_PROJECT = 'Excavate:SP',

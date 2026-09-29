@@ -162,6 +162,19 @@ describe('railValueModel — MC badges', () => {
     expect(railMcBadges(fakePlayer({tableau: []})).cardBound.get(CardResource.MECH)).to.eq(undefined);
   });
 
+  it('a second mech holder is storage, not tender: Automated Convoys adds no coin and no spendable mech', () => {
+    // Convoys alone — mechs on the table, but none of them is money.
+    expect(railMcBadges(fakePlayer({tableau: [fakeCardModel(CardName.AUTOMATED_CONVOYS, 3)]})).cardBound.get(CardResource.MECH)).to.eq(undefined);
+    // EVA 2 + Convoys 3: ONE coin (the EVA rate), and it counts EVA's mechs only.
+    const both = railMcBadges(fakePlayer({tableau: [
+      fakeCardModel(CardName.EVA_MECHS, 2),
+      fakeCardModel(CardName.AUTOMATED_CONVOYS, 3),
+    ]}));
+    const badge = both.cardBound.get(CardResource.MECH);
+    expect(badge?.text).to.eq('5');
+    expect(badge?.facts[0]?.spendableAmount).to.eq(2);
+  });
+
   it('a shared-icon chip with two tender rates carries both (Luna Archives + Spire)', () => {
     const badges = railMcBadges(fakePlayer({tableau: [
       fakeCardModel(CardName.LUNA_ARCHIVES, 3),

@@ -2,6 +2,7 @@ import {CardName} from '../../../common/cards/CardName';
 import {ModuleManifest} from '../ModuleManifest';
 import {EvaMechs} from './EvaMechs';
 import {FormulaZero} from './FormulaZero';
+import {AutomatedConvoys} from './AutomatedConvoys';
 
 /**
  * TURMOIL REDUX («Кризис Redux») — the PROJECT CARD manifest.
@@ -32,5 +33,7 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
   projectCards: {
     [CardName.FORMULA_ZERO]: {Factory: FormulaZero},
     [CardName.EVA_MECHS]: {Factory: EvaMechs},
+    // The ▲ printed beside the art: the card needs Colonies (Delta Works precedent).
+    [CardName.AUTOMATED_CONVOYS]: {Factory: AutomatedConvoys, compatibility: 'colonies'},
   },
 });
