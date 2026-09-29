@@ -12,6 +12,8 @@ import {Luna} from '../../src/server/colonies/Luna';
 import {Ceres} from '../../src/server/colonies/Ceres';
 import {Europa} from '../../src/server/colonies/Europa';
 import {Triton} from '../../src/server/colonies/Triton';
+import {Pluto} from '../../src/server/colonies/Pluto';
+import {PlutoRedux} from '../../src/server/colonies/PlutoRedux';
 import {fakeCard, runAllActions} from '../TestingUtils';
 import {testAutomaGame} from './AutomaTestGame';
 
@@ -54,6 +56,22 @@ describe('Automa Colonies', () => {
       // Luna → Event tag → Event track: 0→1 ('advance' → 2) then 2→3 ('ocean' — a real action!).
       // Keep it simpler: 11 = two exchanges, remainder 1.
       expect(automa.shippingStorage[ColonyName.LUNA]).eq(1);
+    });
+
+    it('Pluto Redux (the Turmoil Redux replacement) stores under its own name and exchanges like Pluto — science track', () => {
+      const scienceAfter = (colony: IColony, name: ColonyName): {stored: Array<number>, science: number} => {
+        const [game] = testAutomaGame({coloniesExtension: true});
+        const automa = game.automa!;
+        setColonies(game, colony);
+        AutomaColonies.addToStorage(game, name, 3);
+        const below = automa.shippingStorage[name] ?? -1;
+        AutomaColonies.addToStorage(game, name, 2); // 5 → exchange.
+        return {stored: [below, automa.shippingStorage[name] ?? -1], science: automa.board.tracks[THARSIS_TRACK.SCIENCE].position};
+      };
+      const redux = scienceAfter(new PlutoRedux(), ColonyName.PLUTO_REDUX);
+      expect(redux.stored).deep.eq([3, 0]);
+      expect(redux.science).is.greaterThan(0);
+      expect(redux.science).eq(scienceAfter(new Pluto(), ColonyName.PLUTO).science);
     });
 
     it('Titan routes to the single automa.floaters counter (usable), NOT the inert Titan storage', () => {

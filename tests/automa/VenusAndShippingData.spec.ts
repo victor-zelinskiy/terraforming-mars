@@ -92,6 +92,10 @@ describe('Colonies shipping board data', () => {
     expect(shippingAreaFor(ColonyName.PLUTO)?.exchangeTag).to.eq(Tag.SCIENCE);
   });
 
+  it('a Turmoil Redux replacement tile stores in its base twin\'s area (Pluto Redux → Pluto)', () => {
+    expect(shippingAreaFor(ColonyName.PLUTO_REDUX)).to.eq(shippingAreaFor(ColonyName.PLUTO));
+  });
+
   it('Titan (floater area) and Europa (never stores) have no track exchange', () => {
     expect(shippingAreaFor(ColonyName.TITAN)?.exchangeTag).to.be.undefined;
     expect(shippingAreaFor(ColonyName.EUROPA)?.exchangeTag).to.be.undefined;

@@ -1,4 +1,5 @@
 import {ColonyName} from '../colonies/ColonyName';
+import {TURMOIL_REDUX_REPLACEMENTS} from '../colonies/AllColonies';
 import {Tag} from '../cards/Tag';
 
 /**
@@ -54,6 +55,13 @@ export const SHIPPING_BOARD_AREAS: ReadonlyArray<ShippingAreaData> = [
   {colony: ColonyName.EUROPA, exchangeTag: undefined}, // never stores resources
 ];
 
+/**
+ * The storage area of a colony tile. A Turmoil Redux REPLACEMENT (Pluto
+ * Redux) stands in for its base twin and prints the same name, so it stores
+ * in the twin's area; the key of the stored count stays the tile in play.
+ */
 export function shippingAreaFor(colony: ColonyName): ShippingAreaData | undefined {
-  return SHIPPING_BOARD_AREAS.find((a) => a.colony === colony);
+  const twin = (Object.keys(TURMOIL_REDUX_REPLACEMENTS) as Array<ColonyName>)
+    .find((base) => TURMOIL_REDUX_REPLACEMENTS[base] === colony);
+  return SHIPPING_BOARD_AREAS.find((a) => a.colony === (twin ?? colony));
 }
