@@ -119,7 +119,7 @@ async function waitQuiet(page: Page, quietMs = 1600, maxMs = 16_000): Promise<vo
   const started = Date.now();
   let quietSince = Date.now();
   while (Date.now() - started < maxMs) {
-    const noise = await page.locator('.con-notice, dialog.con-zoom[open], .con-botreview').count();
+    const noise = await page.locator('.con-notice, dialog.con-zoom[open], .con-bot-review').count();
     if (noise > 0) {
       await press(page, 'Escape', 500);
       quietSince = Date.now();

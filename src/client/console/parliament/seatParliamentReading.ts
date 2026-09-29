@@ -104,8 +104,13 @@ export type SeatEnactedVm = {
 
 export type SeatParliamentReadingVm = {
   color: Color;
-  /** The seat takes part at all (a MarsBot seat does not — every reading below is empty for it). */
+  /** The seat is PAID by the laws (every reading below is its); false for a MarsBot seat, whose readings are empty. */
   participates: boolean;
+  /**
+   * A MarsBot seat that HOLDS DELEGATES (`'politics'`): it votes, completes the chairman quest and takes the
+   * winner's reward, and an enacted law never pays it — the zone says that in ONE line instead of an empty table.
+   */
+  botPolitical: boolean;
   influence: SeatInfluenceVm;
   agenda: SeatAgendaVm;
   delegates: SeatDelegatesVm;
@@ -122,6 +127,7 @@ function seatOf(model: ParliamentModel | undefined, color: Color | undefined): P
 const EMPTY: SeatParliamentReadingVm = {
   color: 'neutral' as Color,
   participates: false,
+  botPolitical: false,
   influence: {total: 0, track: 0, bonus: 0, sources: []},
   agenda: {position: 0},
   delegates: {lobby: false, reserve: 0, onSlots: [], onResolutions: 0},
@@ -146,7 +152,7 @@ export function seatParliamentReadingOf(
     return {...EMPTY, ...(color === undefined ? {} : {color})};
   }
   if (!seatEnacts(seat)) {
-    return {...EMPTY, color};
+    return {...EMPTY, color, botPolitical: seat.participates};
   }
   const track = influenceAtAgenda(seat.agenda);
   // A reading of ANOTHER seat speaks in the third person — but it does NOT name the subject: the
@@ -164,6 +170,7 @@ export function seatParliamentReadingOf(
   const out: SeatParliamentReadingVm = {
     color,
     participates: true,
+    botPolitical: false,
     influence: {
       total: seat.influence,
       track,

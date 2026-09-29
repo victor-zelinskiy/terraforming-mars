@@ -102,6 +102,7 @@ import PlayerCube from '@/client/components/PlayerCube.vue';
 import {conLogicalPx} from '@/client/console/consoleLayoutProfile';
 import {parliamentFlow} from '@/client/console/parliament/consoleParliamentFlow';
 import {parliamentHolds} from '@/client/console/parliament/parliamentDisplayHolds';
+import {rivalVotes} from '@/client/console/parliament/parliamentRivalVotes';
 import {ParliamentViewVm} from '@/client/console/parliament/consoleParliamentModel';
 import {BenchSource, RIBBON_CUBE, seatSourceOf} from '@/client/console/parliament/parliamentVoteView';
 
@@ -150,11 +151,14 @@ export default defineComponent({
         // until it has visibly left (`sourceLeaving`) — by the NUMBER still to
         // leave (a grant sends up to two, one flight after another).
         const mine = p.color === me;
+        // ANOTHER SEAT'S cube on its way to a card (`parliamentRivalVotes`): its place keeps painting it until the
+        // proxy stands over it — the same law as the viewer's own source, for a rival's lobby socket and reserve stack.
+        const rival = rivalVotes.sources.get(p.color);
         return {
           color: p.color, name: p.name,
-          lobby: (p.lobby && !pendingLobby) || (mine && parliamentFlow.sourceHold === 'lobby'),
-          reserve: base + (mine && parliamentFlow.sourceLeaving === 'reserve' ? Math.max(1, parliamentFlow.sourceLeavingCount) : 0),
-          reserveCubes: base + (mine && parliamentFlow.sourceHold === 'reserve' ? Math.max(1, parliamentFlow.sourceHoldCount) : 0),
+          lobby: (p.lobby && !pendingLobby) || (mine && parliamentFlow.sourceHold === 'lobby') || (rival?.lobby ?? 0) > 0,
+          reserve: base + (mine && parliamentFlow.sourceLeaving === 'reserve' ? Math.max(1, parliamentFlow.sourceLeavingCount) : 0) + (rival?.reserve ?? 0),
+          reserveCubes: base + (mine && parliamentFlow.sourceHold === 'reserve' ? Math.max(1, parliamentFlow.sourceHoldCount) : 0) + (rival?.reserve ?? 0),
           chairman: p.chairman,
           incoming: pendingReturns,
         };

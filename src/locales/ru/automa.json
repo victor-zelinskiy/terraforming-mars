@@ -694,5 +694,6 @@
     "${0} cannot lobby: no resolution is up for a vote": "${0} не может лоббировать: нет резолюций на голосовании",
     "${0} cannot lobby: no delegate left in the reserve": "${0} не может лоббировать: в резерве не осталось делегатов",
     "${0} cannot lobby: not enough M€ for a delegate (${1} M€)": "${0} не может лоббировать: не хватает M€ на делегата (${1} M€)",
-    "Lobbying": "Лоббирование"
+    "Lobbying": "Лоббирование",
+    "Chairman quest completed — the chairmanship": "Задание выполнено → председательство"
 }

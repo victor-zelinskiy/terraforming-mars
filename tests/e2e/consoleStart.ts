@@ -2348,6 +2348,9 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   // RX33 Water Export: the assembly with ONE plain ocean on the board and blue (the first player) holding the delegate —
   // the first world step that ASKS; and the law ENACTED (the ocean gone) with red holding Miranda Resort (12 → 9).
   'parliament-water-assembly' | 'parliament-water-enacted' |
+  // MARSBOT AT THE TABLE (docs/TURMOIL_REDUX_MARSBOT.md §8): three two-human tables at red's turn with the bot's deck forced
+  // (B21 vote · a Fish that lobbies twice · the building card that completes the chairman quest), and a solo assembly gate the bot won.
+  'parliament-bot-vote' | 'parliament-bot-lobby' | 'parliament-bot-chair' | 'parliament-bot-win' |
   // RX23 Mohole Contest: the assembly at −4 °C with blue's delegate — the winner's two steps reach 0 °C and the ocean follows inside the sitting.
   'parliament-mohole-assembly' |
   // RX24 Open IP Trade: the law ENACTED, blue opening generation 2 with four cards in hand and the action unspent.

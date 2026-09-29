@@ -315,6 +315,26 @@ export default defineComponent({
       const reading = tileGrantReadingOf(this.resolution, this.model, this.viewerColor);
       return reading === undefined || reading.context === 'reference' ? undefined : reading;
     },
+    /**
+     * DOES THIS SEAT HAVE A PART OF ITS OWN on the reward line — a reading that pays or takes (a SKIP is
+     * not a part: it names what did not happen), a levy, a party's answer, a granted tier, the quiet
+     * standing effect, or the winner's part when this seat IS the winner. Without one the line is the
+     * WINNER'S (docs/TURMOIL_REDUX_MARSBOT.md §8.6 — a bot's win draws the spectator no «Ваша награда»),
+     * and no state word («получено») is said about a reward nobody here received.
+     */
+    ownPartOnLine(): boolean {
+      if (this.yields.some((y) => y.skipped === undefined) || this.levy !== undefined || this.reactions.length > 0) {
+        return true;
+      }
+      if (this.grantReading !== undefined && this.grantReading.skipped === undefined) {
+        return true;
+      }
+      if (this.yields.length === 0 && quietRewardPoseOf(this.resolution) !== undefined) {
+        return true;
+      }
+      const winner = this.model?.phase?.summary?.winner.player;
+      return this.winnerReading !== undefined && winner !== undefined && winner === this.viewerColor;
+    },
     /** The reward's reading as the band's own data (the model orders it, this builds it). */
     reward(): BandRewardReading {
       const position = this.position;
@@ -331,6 +351,9 @@ export default defineComponent({
       }
       if (this.winnerReading !== undefined) {
         out.tile = winnerRewardGlyph(this.winnerReading.reward);
+        if (!this.ownPartOnLine) {
+          out.winnerElsewhere = true;
+        }
       }
       // A SKIPPED grant reads as its skip chip (the record's reason) — the grant chip is for a tier owed or placed.
       if (this.grantReading !== undefined && this.grantReading.skipped === undefined) {
@@ -440,6 +463,11 @@ export default defineComponent({
         return undefined;
       }
       if (this.yields.length === 0 && this.mine.length === 0 && this.winnerReading === undefined && this.grantReading === undefined) {
+        return undefined;
+      }
+      // Nothing of this seat's own on the line (the winner's part is another seat's, its own part a skip at
+      // most): no «эта выплата» / «получено» about a reward nobody here received.
+      if (!this.ownPartOnLine) {
         return undefined;
       }
       const recorded = this.mine.length > 0 || position.step === 'adjourn' || position.step === 'done';

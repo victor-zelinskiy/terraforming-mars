@@ -79,9 +79,10 @@
             <div class="con-parl__ribbon" :class="{'con-parl__ribbon--dense': slot.votes.length > DENSE_RIBBON}" :data-votes="slot.totalVotes" :data-parl-vote-ribbon="slotsCarried && flow.slotIndex === i ? '' : undefined">
               <template v-if="slot.votes.length <= DENSE_RIBBON">
                 <span v-for="vote in slot.votes" :key="vote.seq" class="con-parl__vote-cube"
-                      :class="{'con-parl__vote-cube--landed': vote.seq === flow.landedSeq || flow.landedSeqs.includes(vote.seq), 'con-parl__vote-cube--hidden': vote.seq === flow.flightSeq || flow.pendingSeqs.includes(vote.seq) || holds.hiddenCubes.has(slot.instance + '#' + vote.seq)}"
+                      :class="{'con-parl__vote-cube--landed': vote.seq === flow.landedSeq || flow.landedSeqs.includes(vote.seq), 'con-parl__vote-cube--hidden': vote.seq === flow.flightSeq || flow.pendingSeqs.includes(vote.seq) || holds.hiddenCubes.has(slot.instance + '#' + vote.seq), 'con-parl__vote-cube--arrived': rival.arrived.has(slot.instance + '#' + vote.seq)}"
                       :data-seq="vote.seq"
-                      :data-landed="vote.seq === flow.landedSeq || flow.landedSeqs.includes(vote.seq) ? '' : undefined">
+                      :data-landed="vote.seq === flow.landedSeq || flow.landedSeqs.includes(vote.seq) ? '' : undefined"
+                      :data-arrived="rival.arrived.has(slot.instance + '#' + vote.seq) ? '' : undefined">
                   <PlayerCube v-if="vote.owner !== 'neutral'" :color="vote.owner" :size="cubePx(RIBBON_CUBE)" />
                   <PlayerCube v-else color="neutral" steel :size="cubePx(RIBBON_CUBE)" />
                 </span>
@@ -170,6 +171,7 @@ import {conLogicalPx} from '@/client/console/consoleLayoutProfile';
 import {translateTextWithParams} from '@/client/directives/i18n';
 import {parliamentFlow, parliamentSlotsCarried} from '@/client/console/parliament/consoleParliamentFlow';
 import {parliamentHolds} from '@/client/console/parliament/parliamentDisplayHolds';
+import {rivalVotes} from '@/client/console/parliament/parliamentRivalVotes';
 import {parliamentArtTier} from '@/client/console/parliament/parliamentArtTier';
 import {CardArtTier} from '@/client/cards/cardArt';
 import {sittingMotion} from '@/client/console/parliament/sittingDirector';
@@ -242,6 +244,10 @@ export default defineComponent({
     },
     holds() {
       return parliamentHolds;
+    },
+    /** A rival's delegates that arrived (the ribbon's arrival mark plays once per cube). */
+    rival() {
+      return rivalVotes;
     },
     /** The director's poses (the verdict's lit slot). */
     motion() {

@@ -87,9 +87,15 @@
            («никто не выполнил») gains the numbers that explain it. -->
       <div v-if="questRows.length > 0" class="con-parl__quest-progress" data-parl-quest-progress>
         <span v-for="row in questRows" :key="row.color" class="con-parl__quest-row"
-              :class="{'con-parl__quest-row--me': row.color === viewerColor, 'con-parl__quest-row--close': row.value > 0 && row.value >= questShown.definition.count - 1}">
+              :class="{'con-parl__quest-row--me': row.color === viewerColor, 'con-parl__quest-row--close': row.value > 0 && row.value >= questShown.definition.count - 1, 'con-parl__quest-row--unreachable': rowUnreachable(row)}"
+              :data-parl-quest-unreachable="rowUnreachable(row) ? '' : undefined">
           <PlayerCube :color="row.color" :size="cubePx(12)" />
-          <b :key="row.value" class="con-parl__tick">{{ row.value }}</b><span class="con-parl__quest-of">/{{ questShown.definition.count }}</span>
+          <!-- MARSBOT'S ROW says when the quest is beyond its play (a space city, a card resource no area holds) — one honest
+               word, never a 0/N that promises a race that cannot happen (docs/TURMOIL_REDUX_MARSBOT.md §5). -->
+          <span v-if="rowUnreachable(row)" class="con-parl__quest-unreachable">{{ $t('Unreachable for MarsBot') }}</span>
+          <template v-else>
+            <b :key="row.value" class="con-parl__tick">{{ row.value }}</b><span class="con-parl__quest-of">/{{ questShown.definition.count }}</span>
+          </template>
         </span>
       </div>
       <div class="con-parl__quest-foot">
@@ -314,7 +320,7 @@ export default defineComponent({
       const root = this.questShown?.renderData;
       return root === undefined ? undefined : buildMechanics(root, PARLIAMENT_GRAPHIC);
     },
-    questRows(): ReadonlyArray<{color: Color, value: number}> {
+    questRows(): ReadonlyArray<{color: Color, value: number, bot: boolean}> {
       return (this.questShown?.progress ?? []).filter((row) => row.participates);
     },
     questCompletedBy(): Color | undefined {
@@ -331,6 +337,10 @@ export default defineComponent({
     },
   },
   methods: {
+    /** The bot's row, on a quest its play cannot reach — the server's verdict on the quest, read for the bot seat alone. */
+    rowUnreachable(row: {bot: boolean}): boolean {
+      return row.bot && this.questShown?.botReachable === false;
+    },
     /**
      * THE RULING ROW IS THE ROOM THE ENACTED CARD IS SOLVED INTO (`fitParliamentCards`: the column minus its
      * other blocks), and that room settles a beat AFTER the section's mount-time fit — measured at 4K: the

@@ -154,6 +154,13 @@ export type BandRewardReading = {
   state?: BandRewardState;
   /** The effects are asking ANOTHER seat. */
   waitingFor?: Color;
+  /**
+   * THE WINNER'S PART IS ANOTHER SEAT'S, and this seat has no part of its own on the line (a skip at
+   * most): the line is the WINNER'S reward, led by the tile, and never calls itself «ваша награда»
+   * (docs/TURMOIL_REDUX_MARSBOT.md §8.6 — a bot's win draws the spectator no reward of theirs; the
+   * same law for a human winner's spectator who was paid nothing).
+   */
+  winnerElsewhere?: boolean;
 };
 
 /** What the OVERVIEW's line reads off the table when no sitting stands. */
@@ -420,11 +427,21 @@ function rewardLine(sitting: BandSitting): BandLine {
   if (sitting.awaiting.length > 0 && sitting.rewardStep === 'gate') {
     chips.push({kind: 'awaiting', seats: sitting.awaiting});
   }
+  // THE WINNER'S LINE: another seat's part is the only reward here — the tile leads, the seat's own
+  // skips follow it (a skipped part still names itself — never a silent loss).
+  const winnersLine = reward.winnerElsewhere === true && reward.tile !== undefined;
+  if (winnersLine) {
+    const tileAt = chips.findIndex((chip) => chip.kind === 'tile');
+    if (tileAt > 0) {
+      const [tileChip] = chips.splice(tileAt, 1);
+      chips.unshift(tileChip);
+    }
+  }
   return {
     // A CUT IS NOT A REWARD, and the line that carries it may not call itself one: the same slot
     // names what LEAVES («Что вы теряете»), decided by the DECLARATION the readings carry.
-    kicker: bandRewardTakes(reward.yields) ? 'What you lose' : 'Your reward',
-    key: `reward:${sitting.rewardStep}:${reward.state ?? ''}:${reward.yields.length}:${reward.skips.length}:${(reward.world ?? []).length}:${reward.tracks?.tiles.length ?? ''}:${reward.grant ?? ''}`,
+    kicker: winnersLine ? 'Reward for the winner of the vote' : bandRewardTakes(reward.yields) ? 'What you lose' : 'Your reward',
+    key: `reward:${sitting.rewardStep}:${reward.state ?? ''}:${reward.yields.length}:${reward.skips.length}:${(reward.world ?? []).length}:${reward.tracks?.tiles.length ?? ''}:${reward.grant ?? ''}:${winnersLine ? 'winner' : ''}`,
     chips,
     committed: true,
     ...(reward.yields.length === 0 && reward.quiet !== undefined ? {quiet: reward.quiet.kind} : {}),

@@ -19,6 +19,7 @@ import {LogMessage} from '@/common/logs/LogMessage';
 import {LogMessageDataType} from '@/common/logs/LogMessageDataType';
 import {BonusCardId, DifficultyLevel, MarsBotCorpId, TrackAction} from '@/common/automa/AutomaTypes';
 import {BonusCardContext} from '@/common/automa/BonusCardData';
+import {decidingVoteRule, voteRuleBranch} from '@/common/automa/botVoteText';
 import {
   MarsBotAttack,
   MarsBotBonusFate,
@@ -59,7 +60,7 @@ export type BotReviewLine =
   | {kind: 'track', depth: number, capsule: ReadonlyArray<Tag>, from: number, to: number, action?: TrackAction, cells: ReadonlyArray<BotReviewScaleCell>}
   | {kind: 'log', depth: number, message: LogMessage, tone?: 'cost' | 'gain', labelKey?: string}
   | {kind: 'attack', depth: number, attack: MarsBotAttack}
-  | {kind: 'note', depth: number, noteKey: string, tone: 'ignored' | 'skip' | 'info'}
+  | {kind: 'note', depth: number, noteKey: string, tone: 'ignored' | 'skip' | 'info', noteParams?: ReadonlyArray<string>}
   /** A chained fallback bonus card, its OWN effect lines nested — ONE flow. */
   | {kind: 'secondary-card', depth: number, id: BonusCardId, lines: Array<BotReviewLine>};
 
@@ -310,6 +311,29 @@ function chainCauseKey(cause: MarsBotStepCause): string {
   return cause.kind === 'tag' ? `tag:${cause.index}` : cause.kind;
 }
 
+/** «Chairman quest completed → the chairmanship» — the review's one line for the office change (the journal lines above it say how). */
+export const CHAIRMAN_TAKEN_NOTE_KEY = 'Chairman quest completed — the chairmanship';
+
+/**
+ * THE WHY of a political step, as a NOTE under its journal line (Turmoil
+ * Redux): a delegate sent — the rule of the chooser's list that decided the
+ * card (the same phrase the bonus card's resolved branch prints); the
+ * chairmanship taken — one fixed line. A refusal needs none: its journal line
+ * names the reason.
+ */
+function politicalNoteLines(step: Extract<MarsBotTurnStep, {kind: 'vote' | 'vote-refused' | 'chairman'}>, depth: number): Array<BotReviewLine> {
+  switch (step.kind) {
+  case 'vote': {
+    const branch = voteRuleBranch(decidingVoteRule(step.rules), step.deficit);
+    return [{kind: 'note', depth, noteKey: branch.key, tone: 'info', ...(branch.params === undefined ? {} : {noteParams: branch.params})}];
+  }
+  case 'chairman':
+    return [{kind: 'note', depth, noteKey: CHAIRMAN_TAKEN_NOTE_KEY, tone: 'info'}];
+  case 'vote-refused':
+    return [];
+  }
+}
+
 /** The display depth of a log/attack line: nested under the last track in its chain. */
 function logDepthOf(chain: BotReviewChain): number {
   const lastTrack = [...chain.lines].reverse().find((l) => l.kind === 'track');
@@ -426,12 +450,13 @@ function buildChainsByCause(steps: ReadonlyArray<MarsBotTurnStep>, source: BotTu
     case 'vote':
     case 'vote-refused':
     case 'chairman': {
-      // A delegate sent (or refused) — its journal line, under the rule that sent it (Party Politics' bonus chain, Lobbying's own).
-      if (step.message === undefined) {
-        break;
-      }
+      // A delegate sent (or refused), the chairmanship taken — the journal line under the rule that produced it
+      // (Party Politics' bonus chain, Lobbying's own, the tag whose card closed the quest), then the WHY as a note.
       const chain = step.cause !== undefined ? ensureChain(step.cause) : ensureChain({kind: 'bonus'});
-      chain.lines.push({kind: 'log', depth: logDepthOf(chain), message: step.message});
+      if (step.message !== undefined) {
+        chain.lines.push({kind: 'log', depth: logDepthOf(chain), message: step.message});
+      }
+      chain.lines.push(...politicalNoteLines(step, logDepthOf(chain)));
       break;
     }
     case 'log': {
@@ -520,11 +545,11 @@ function buildChainsByOrder(steps: ReadonlyArray<MarsBotTurnStep>, source: BotTu
     case 'vote':
     case 'vote-refused':
     case 'chairman': {
-      if (step.message === undefined) {
-        break;
-      }
       const chain = current ?? ensureLoose();
-      chain.lines.push({kind: 'log', depth: nextDepth(chain, false), message: step.message});
+      if (step.message !== undefined) {
+        chain.lines.push({kind: 'log', depth: nextDepth(chain, false), message: step.message});
+      }
+      chain.lines.push(...politicalNoteLines(step, nextDepth(chain, false)));
       break;
     }
     case 'log': {

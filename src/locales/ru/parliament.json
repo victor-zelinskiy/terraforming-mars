@@ -1139,5 +1139,7 @@
   "No MarsBot executor for this winner's part": "У бота нет исполнителя для этой награды победителю",
   "${0} has no way to take the winner's reward of ${1} — it is skipped": "${0}: нет способа получить награду победителю голосования на ${1} — пропущена",
   "${0} gains 1 M€ from the Agenda track instead of a card": "${0} получает 1 M€ с трека Повестки вместо карты",
-  "${0} placed the city tile from ${1} on top of its city": "${0} ставит тайл города с ${1} поверх своего города"
+  "${0} placed the city tile from ${1} on top of its city": "${0} ставит тайл города с ${1} поверх своего города",
+  "Unreachable for MarsBot": "недостижимо для бота",
+  "MarsBot votes, completes chairman quests and takes the winner's reward. An enacted resolution never pays it.": "Бот голосует, выполняет задания председателя и получает награду победителю голосования. Принятые резолюции ему не платят."
 }

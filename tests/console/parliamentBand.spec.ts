@@ -143,6 +143,29 @@ describe('parliamentBand — the reading band says the REASON, in objects', () =
       expect(kinds(band.chips)).deep.eq(['yield', 'reaction', 'skip']);
     });
     /*
+     * THE WINNER'S PART IS ANOTHER SEAT'S and this seat has nothing of its own (a skip at most) — a MarsBot's
+     * ★ ocean read by the spectator (docs/TURMOIL_REDUX_MARSBOT.md §8.6): the line is the WINNER'S reward, the
+     * tile leads it, the seat's own skip still names itself after it, and it never calls itself «ваша награда».
+     */
+    it('a winner elsewhere with no part of this seat\'s own — the winner\'s line, the tile first, never «ваша награда»', () => {
+      const band = line({
+        stage: 'reward', rewardStep: 'received',
+        reward: {
+          yields: [{context: 'applied', amount: 0, skipped: 'No influence', effect: {id: 'x', unit: {kind: 'cardResource', resource: 'animals'}, perInfluence: 1, recipient: 'each'}} as never],
+          reactions: [], skips: [], tile: 'ocean', winnerElsewhere: true,
+        },
+      });
+      expect(band.kicker).eq('Reward for the winner of the vote');
+      expect(kinds(band.chips)).deep.eq(['tile', 'yield']);
+      // …and with a part of the seat's own the same tile rides the seat's line, after its own part.
+      const own = line({
+        stage: 'reward', rewardStep: 'received',
+        reward: {yields: [{context: 'applied', amount: 2, effect: {id: 'x', unit: {kind: 'cardResource', resource: 'animals'}, perInfluence: 1, recipient: 'each'}} as never], reactions: [], skips: [], tile: 'ocean'},
+      });
+      expect(own.kicker).eq('Your reward');
+      expect(kinds(own.chips)).deep.eq(['yield', 'tile']);
+    });
+    /*
      * A CUT IS NOT A REWARD (Plant Ban, RX25): the band's kicker names what LEAVES. Decided by the
      * DECLARATION the readings carry, never by a record's sign — the line stands before the first
      * chip has left the rail.

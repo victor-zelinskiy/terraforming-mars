@@ -91,7 +91,8 @@
                   <!-- THE WINNER'S OWN STEP OF A PARAMETER (Mohole Contest): the parameter's icon, the step it made
                        (the scales already moved on the board — the row states the step) and the TR it paid the seat. -->
                   <template v-if="part.parameter !== undefined">
-                    <i class="con-sit__world-icon" :class="worldUnitClass(part.parameter.id)" aria-hidden="true"></i>
+                    <!-- A placed TILE already draws its world (the door tile above) — one icon per fact. -->
+                    <i v-if="part.tile === undefined" class="con-sit__world-icon" :class="worldUnitClass(part.parameter.id)" aria-hidden="true"></i>
                     <span class="con-sit__world" data-sit-part-parameter :data-sit-part-param="part.parameter.id" :data-sit-part-steps="part.amount">
                       <b>{{ part.parameter.before }}{{ worldSuffix(part.parameter.id) }}</b>
                       <span class="con-parl__chip-dim">→</span>
@@ -101,6 +102,9 @@
                   </template>
                   <!-- A CITY TIER (Skyscrapers): the stack the cell became, the record's own height. -->
                   <b v-else-if="part.stack !== undefined" class="con-sit__part-stack" data-sit-part-stack>×{{ part.stack }}</b>
+                  <!-- A TILE that moved no parameter and became no stack (a colony built for free, a city tile): the tile's
+                       own name — a tile has no amount, and the generic tail printed «0» for it. -->
+                  <b v-else-if="part.tile !== undefined" class="con-sit__part-stack" data-sit-part-tile-name>{{ $t(tileLabel(part.tile)) }}</b>
                   <!-- A HUD-side colony bonus reads by its printed description, signed where it prints an amount (a loss is negative). -->
                   <template v-else-if="part.kind === 'colonyBonus'">
                     <b v-if="part.unit !== ''">{{ signedAmount(part.amount) }}</b>
@@ -248,7 +252,7 @@
 import {defineComponent, PropType} from 'vue';
 import {Color} from '@/common/Color';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
-import {ParliamentModel, ParliamentPhaseSummaryModel} from '@/common/models/ParliamentModel';
+import {ParliamentModel, ParliamentPhaseSummaryModel, seatEnacts} from '@/common/models/ParliamentModel';
 import {PARLIAMENT_MAX_POPULAR_SUPPORT, ReduxParty} from '@/common/parliament/ParliamentTypes';
 import {IClientResolution} from '@/common/parliament/IClientResolution';
 import PlayerCube from '@/client/components/PlayerCube.vue';
@@ -340,7 +344,7 @@ export default defineComponent({
         // The LIVE participating seats, after the lobby step: the payout order AND what each of them will
         // have to vote with when the next generation opens.
         (this.model?.players ?? []).filter((p) => p.participates)
-          .map((p) => ({player: p.color, lobby: p.lobby, reserve: p.reserve})),
+          .map((p) => ({player: p.color, lobby: p.lobby, reserve: p.reserve, enacts: seatEnacts(p)})),
         this.view.parties.map((party) => ({party: party.party, support: party.support})),
         quiet === undefined ? {} : {quiet: {kicker: quiet.kicker, kind: quiet.kind}},
       );
@@ -416,6 +420,15 @@ export default defineComponent({
     /** «РТ +N» — the winner's own step's rating, in the one phrase every winner reading prints. */
     trLabel(tr: number): string {
       return translateTextWithParams('TR +${0}', [String(tr)]);
+    },
+    /** A tile part's own name (the winner's glyph vocabulary). */
+    tileLabel(tile: NonNullable<ResultsPayoutPart['tile']>): string {
+      switch (tile) {
+      case 'ocean': return 'Ocean';
+      case 'greenery': return 'Greenery';
+      case 'colony': return 'Colony';
+      case 'city': return 'City';
+      }
     },
     planetClass(colony: string): string {
       return colony.replace(' ', '-') + '-background';

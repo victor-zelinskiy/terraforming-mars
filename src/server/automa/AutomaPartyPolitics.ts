@@ -21,24 +21,12 @@ import {BonusCardOutcome} from './AutomaBonusCards';
 import {placeBotDelegate} from './AutomaPolitics';
 import {AutomaTurnLog} from './AutomaTurnLog';
 import {marsBotOf} from './AutomaUtil';
-import {MarsBotVoteRule} from '../../common/automa/MarsBotTurn';
+import {BotVoteBranch, decidingVoteRule, voteRuleBranch} from '../../common/automa/botVoteText';
 import {BotVoteChoice} from '../parliament/BotVoteChooser';
 
-/** The ONE resolved branch the turn review prints for the card — the rule that decided the card. */
-export function voteBranchOf(choice: BotVoteChoice): {key: string, params?: ReadonlyArray<string>} {
-  const rule: MarsBotVoteRule = choice.rules[choice.rules.length - 1];
-  switch (rule) {
-  case 'win-now':
-    return {key: 'Becomes the winning player of the resolution'};
-  case 'closest':
-    return {key: 'Closest to winning the vote: ${0} more delegate(s) needed', params: [`${choice.deficit ?? 0}`]};
-  case 'star':
-    return {key: 'Its winner\'s reward is one MarsBot can execute'};
-  case 'fewest-human':
-    return {key: 'The fewest delegates of the players stand there'};
-  case 'nearest-slot':
-    return {key: 'The slot closest to ENACTED'};
-  }
+/** The ONE resolved branch the turn review prints for the card — the rule that decided the card (the shared phrase). */
+export function voteBranchOf(choice: BotVoteChoice): BotVoteBranch {
+  return voteRuleBranch(decidingVoteRule(choice.rules), choice.deficit);
 }
 
 export function partyPolitics(game: IGame): BonusCardOutcome {

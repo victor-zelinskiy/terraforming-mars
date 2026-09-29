@@ -30,7 +30,7 @@ import {ActionEffect} from '@/common/models/ActionPreviewModel';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {ICardRenderRoot} from '@/common/cards/render/Types';
 import {
-  ParliamentModel, ParliamentPlayerModel, PartyAccessModel, PartyActionModel, ResolutionActionModel, VoteOptionModel, VoteProjectionModel,
+  ParliamentModel, ParliamentPlayerModel, PartyAccessModel, PartyActionModel, ResolutionActionModel, seatEnacts, VoteOptionModel, VoteProjectionModel,
 } from '@/common/models/ParliamentModel';
 import {IClientPartyEffect, IClientResolution} from '@/common/parliament/IClientResolution';
 import {
@@ -39,6 +39,7 @@ import {
 } from '@/common/parliament/ParliamentTypes';
 import {getPartyEffect, getResolution, getStarterQuest} from '@/client/parliament/ClientParliamentManifest';
 import {translateText} from '@/client/directives/i18n';
+import {displayNameForColor} from '@/client/components/marsbot/marsBotDisplay';
 
 export type ParliamentSlotVm = {
   instance: ResolutionInstanceId;
@@ -102,8 +103,11 @@ export type ParliamentQuestVm = {
   renderData: ICardRenderRoot | undefined;
   source: 'starter' | ResolutionId;
   generation: number;
-  progress: ReadonlyArray<{color: Color, value: number, participates: boolean}>;
+  /** One row per seat; `bot` marks a MarsBot seat that holds delegates (its row reads «unreachable» when the quest is). */
+  progress: ReadonlyArray<{color: Color, value: number, participates: boolean, bot: boolean}>;
   completedBy: Color | undefined;
+  /** Can MarsBot reach this quest by its play (the server's verdict; absent without a bot seat that holds delegates)? */
+  botReachable?: boolean;
 };
 
 export type ParliamentViewVm = {
@@ -170,7 +174,8 @@ export function partyFormulaRender(effect: IClientPartyEffect): ICardRenderRoot 
 }
 
 export function buildParliamentView(model: ParliamentModel, viewer: Color | undefined, players: ReadonlyArray<PublicPlayerModel>): ParliamentViewVm {
-  const nameOf = (color: Color): string => players.find((p) => p.color === color)?.name ?? color;
+  // Every seat by its DISPLAY name — the bot's through the localized «Бот», never a raw «MarsBot» (the same resolver as the band).
+  const nameOf = (color: Color): string => displayNameForColor(players, color);
   const viewerModel = viewer === undefined ? undefined : model.players.find((p) => p.color === viewer);
   const viewerAccess = new Map<ReduxParty, PartyAccessModel>();
   for (const access of viewerModel?.access ?? []) {
@@ -250,8 +255,9 @@ export function buildParliamentView(model: ParliamentModel, viewer: Color | unde
     renderData: questRenderDataOf(questModel.source),
     source: questModel.source,
     generation: questModel.generation,
-    progress: model.players.map((p) => ({color: p.color, value: questModel.progress[p.color] ?? 0, participates: p.participates})),
+    progress: model.players.map((p) => ({color: p.color, value: questModel.progress[p.color] ?? 0, participates: p.participates, bot: p.participates && !seatEnacts(p)})),
     completedBy: questModel.completedBy,
+    ...(questModel.botReachable === undefined ? {} : {botReachable: questModel.botReachable}),
   };
 
   const enacted = model.enacted === undefined ? undefined : {
@@ -890,7 +896,9 @@ export function parliamentPlayerName(players: ReadonlyArray<PublicPlayerModel>, 
   if (color === undefined || color === 'neutral') {
     return translateText('the neutral player');
   }
-  return players.find((p) => p.color === color)?.name ?? color;
+  // The bot's seat resolves through the localized display name («Бот») — a raw «MarsBot» is the antipattern
+  // `displayNameForColor` exists to remove; every parliament surface names the seat the same way.
+  return displayNameForColor(players, color);
 }
 
 /** A resolution's printed name: the voting slot that carries it, the enacted card, else the manifest (the id as the last resort). */

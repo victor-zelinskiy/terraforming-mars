@@ -106,10 +106,20 @@ describe('seatParliamentReadingOf — one seat\'s standing', () => {
     expect(reading.table[0].reading.yields.map((y) => y.amount), 'the numbers are RED\'s, at RED\'s influence').deep.eq([1]);
   });
 
+  it('THE POLITICAL BOT (delegates, no payout) reads as an empty standing too — and says WHAT it does in one line (`botPolitical`)', () => {
+    const m = model([seat(BLUE, 5), seat(RED, 3, {participates: true, enactment: false})], {slots: [slot(AQUIFER)]});
+    const bot = seatParliamentReadingOf(m, RED, []);
+    expect(bot.participates).eq(false);
+    expect(bot.botPolitical).eq(true);
+    expect(bot.table).deep.eq([]);
+    expect(seatParliamentReadingOf(m, BLUE, []).botPolitical, 'a paid seat is never «political bot»').eq(false);
+  });
+
   it('A SEAT THAT TAKES NO PART (MarsBot) reads as an EMPTY standing — one honest line, never a parliament of zeros', () => {
     const m = model([seat(BLUE, 5), seat(RED, 3, {participates: false})], {slots: [slot(AQUIFER)]});
     const bot = seatParliamentReadingOf(m, RED, []);
     expect(bot.participates).eq(false);
+    expect(bot.botPolitical, 'the observer bot holds no delegates').eq(false);
     expect(bot.color, 'the seat is still named').eq(RED);
     expect(bot.table).deep.eq([]);
     expect(bot.influence.total).eq(0);

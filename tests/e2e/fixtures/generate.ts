@@ -152,6 +152,14 @@ import {GeothermalPower} from '../../../src/server/cards/base/GeothermalPower';
 import {HE3FusionPlant} from '../../../src/server/cards/moon/HE3FusionPlant';
 import {EvaMechs} from '../../../src/server/cards/turmoilRedux/EvaMechs';
 import {TransNeptuneProbe} from '../../../src/server/cards/base/TransNeptuneProbe';
+import {testAutomaGame, testAutomaMultiplayerGame} from '../../automa/AutomaTestGame';
+import {BonusCardId} from '../../../src/common/automa/AutomaTypes';
+import {Phase} from '../../../src/common/Phase';
+import {IPlayer} from '../../../src/server/IPlayer';
+import {AutomaState} from '../../../src/server/automa/AutomaState';
+import {lobbyingDelegates} from '../../../src/server/automa/AutomaLobbying';
+import {botQuestReachable} from '../../../src/common/parliament/botQuestPath';
+import {botQuestTableOf} from '../../../src/server/automa/BotQuestEvents';
 
 const OUT_DIR = __dirname;
 
@@ -595,6 +603,21 @@ const VENUS_TABLE_CORPORATIONS: ReadonlyArray<CardName> = [
   CardName.UNITED_NATIONS_MARS_INITIATIVE, CardName.PHOBOLOG, CardName.THORGATE, CardName.ARKLIGHT, CardName.THARSIS_REPUBLIC, CardName.POSEIDON,
 ];
 
+/**
+ * The deck dealt the pinned SET; the assignment is the table's own — each
+ * seat takes the dealt card its position names (a swap between hands).
+ */
+function assignPinnedCorporations(name: string, seats: ReadonlyArray<TestPlayer>, pinned: ReadonlyArray<CardName>): void {
+  const dealt = seats.flatMap((seat) => seat.dealtCorporationCards);
+  seats.forEach((seat, i) => {
+    const card = dealt.find((c) => c.name === pinned[i]);
+    if (card === undefined) {
+      throw new Error(`${name}: the deck did not deal ${pinned[i]} (dealt: ${dealt.map(toName).join(', ')})`);
+    }
+    seat.dealtCorporationCards.splice(0, seat.dealtCorporationCards.length, card);
+  });
+}
+
 function reduxTable(name: string, options: Partial<TestGameOptions> = {}, count = 2): ParliamentTable {
   // Exactly one pinned name per seat: the set on top of the deck IS the deal.
   const pinned = (options.customCorporationsList ?? REDUX_TABLE_CORPORATIONS).slice(0, count);
@@ -607,16 +630,7 @@ function reduxTable(name: string, options: Partial<TestGameOptions> = {}, count 
     ...options,
     customCorporationsList: [...pinned],
   });
-  // The deck dealt the pinned SET; the assignment is the table's own — each
-  // seat takes the dealt card its position names (a swap between hands).
-  const dealt = seats.flatMap((seat) => seat.dealtCorporationCards);
-  seats.forEach((seat, i) => {
-    const card = dealt.find((c) => c.name === pinned[i]);
-    if (card === undefined) {
-      throw new Error(`${name}: the deck did not deal ${pinned[i]} (dealt: ${dealt.map(toName).join(', ')})`);
-    }
-    seat.dealtCorporationCards.splice(0, seat.dealtCorporationCards.length, card);
-  });
+  assignPinnedCorporations(name, seats, pinned);
   const [p1, p2] = seats;
   if (!(p1.getWaitingFor() instanceof SelectInitialCards)) {
     throw new Error(`${name}: expected SelectInitialCards, got ${p1.getWaitingFor()?.constructor.name}`);
@@ -2658,4 +2672,167 @@ parliamentFixture('parliament-devaction-assembly', familyTable(DEV_ACTION_RESOLU
     throw new Error('parliament-chairman-quest: the server applied something before the answer');
   }
   write('parliament-chairman-quest', game);
+}
+
+// ── MARSBOT AT THE TABLE (docs/TURMOIL_REDUX_MARSBOT.md §8 — `console-parliament-bot.spec.ts`).
+//    Four tables with the bot as a SEAT: it votes (D2), takes the winner's reward by declaration
+//    (D4) and completes the chairman quest by its ordinary play (D5). The bot's turn IS its action
+//    deck's top entry, so every scenario is forced by the fixture (`automa.actionDeck = [...]`),
+//    never by a seed. The three MULTIPLAYER tables (blue · red · the bot) stand at RED's turn with
+//    blue PASSED for the generation: the viewer holds no prompt (an out-of-band change reaches only
+//    a promptless client), red has one action behind it (its resumed menu offers «End Turn» — the
+//    ONE API press that hands the turn to the bot), and the generation goes on afterwards (red is
+//    still in), so the table stays exactly as the bot left it while the probe reads it. ──
+const BOT_TABLE_CORPORATIONS: ReadonlyArray<CardName> = [CardName.TERACTOR, CardName.THORGATE];
+
+type BotTable = {game: IGame; humans: ReadonlyArray<TestPlayer>; bot: IPlayer; parliament: Parliament; automa: AutomaState};
+
+function botTable(name: string, humans: 1 | 2): BotTable {
+  // Teractor and Thorgate: neither has a corporation FIRST ACTION, so red's resumed menu is the ordinary one («End Turn» included) —
+  // Aridor's pending first action restricts the menu to «Take first action | Pass» and the API press finds nothing to hand over with.
+  const pinned = BOT_TABLE_CORPORATIONS.slice(0, humans);
+  const options = {
+    coloniesExtension: true, turmoilReduxExpansion: true, startingCorporations: 1,
+    keepInitialCardSelection: true, customCorporationsList: [...pinned],
+  };
+  let game: IGame;
+  let seats: ReadonlyArray<TestPlayer>;
+  let bot: IPlayer;
+  if (humans === 1) {
+    const [g, h, b] = testAutomaGame(options);
+    game = g;
+    seats = [h];
+    bot = b;
+  } else {
+    [game, seats, bot] = testAutomaMultiplayerGame(2, options);
+  }
+  assignPinnedCorporations(name, seats, pinned);
+  if (!(seats[0].getWaitingFor() instanceof SelectInitialCards)) {
+    throw new Error(`${name}: expected SelectInitialCards, got ${seats[0].getWaitingFor()?.constructor.name}`);
+  }
+  answerStartFlow(game, seats);
+  // A colony pick on the way to the action phase (a table that removes a tile at the opening): the first tile.
+  for (const seat of seats) {
+    const wf = seat.getWaitingFor();
+    if (wf instanceof SelectColony) {
+      seat.process({type: 'colony', colonyName: wf.colonies[0].name});
+      runAllActions(game);
+    }
+  }
+  if (game.phase !== Phase.ACTION) {
+    throw new Error(`${name}: expected the action phase, got ${game.phase}`);
+  }
+  const parliament = game.parliament;
+  if (parliament === undefined || parliament.slots.length !== 3) {
+    throw new Error(`the ${name} fixture has no voting area`);
+  }
+  if (parliament.botMode !== 'politics' || !parliament.participates(bot, 'delegates')) {
+    throw new Error(`${name}: the bot holds no delegates (mode ${parliament.botMode})`);
+  }
+  const automa = game.automa;
+  if (automa === undefined) {
+    throw new Error(`${name}: not an automa game`);
+  }
+  for (const seat of seats) {
+    seat.megaCredits = 40;
+  }
+  return {game, humans: seats, bot, parliament, automa};
+}
+
+/** Blue passes for the generation; red is on the move with ONE action behind it — its resumed menu offers «End Turn». */
+function redOnTheMove(t: BotTable, name: string): void {
+  const [blue, red] = t.humans;
+  if (red === undefined) {
+    throw new Error(`${name}: a two-seat table is needed`);
+  }
+  blue.clearWaitingFor();
+  t.game.playerHasPassed(blue);
+  t.game.playerIsFinishedTakingActions();
+  if (t.game.activePlayer.id !== red.id || !(red.getWaitingFor() instanceof OrOptions)) {
+    throw new Error(`${name}: expected red on the move with the action menu, got ${t.game.activePlayer.color} / ${red.getWaitingFor()?.constructor.name}`);
+  }
+  red.actionsTakenThisRound = 1;
+}
+
+/** The bot's deck: the scenario's own entry first, then two cheap project cards whose cost never lobbies (4 and 4). */
+function botDeckOf(first: AutomaState['actionDeck'][number]): AutomaState['actionDeck'] {
+  return [first, {kind: 'project', name: CardName.POWER_PLANT}, {kind: 'project', name: CardName.BUSINESS_NETWORK}];
+}
+
+// ── parliament-bot-vote: B21 Party Politics on top of the bot's deck — its next turn sends the free
+//    delegate to a resolution (Aquifer Contest stands first: the star rule has a ★ card to prefer).
+//    The table holds no delegates, so the bot's cube is the first on it. ──
+{
+  const name = 'parliament-bot-vote';
+  const t = botTable(name, 2);
+  seatResolution(t.parliament, 0, AQUIFER_CONTEST_ID);
+  t.automa.actionDeck = botDeckOf({kind: 'bonus', id: BonusCardId.B21_PARTY_POLITICS});
+  if (t.parliament.slots.some((slot) => slot.votes.length > 0) || !t.parliament.lobby.has(t.bot.id)) {
+    throw new Error(`${name}: expected an empty table and the bot's free delegate in its lobby`);
+  }
+  redOnTheMove(t, name);
+  runAllActions(t.game);
+  write(name, t.game);
+}
+
+// ── parliament-bot-lobby: Fish (cost 9 — divisible by 9) on top of the bot's deck, the bot with
+//    20 M€: its next turn plays the card and LOBBIES with TWO paid delegates in one turn (D6). ──
+{
+  const name = 'parliament-bot-lobby';
+  const t = botTable(name, 2);
+  seatResolution(t.parliament, 0, AQUIFER_CONTEST_ID);
+  t.bot.megaCredits = 20;
+  if (lobbyingDelegates(new Fish().cost) !== 2) {
+    throw new Error(`${name}: Fish (${new Fish().cost} M€) must lobby with two delegates`);
+  }
+  t.automa.actionDeck = botDeckOf({kind: 'project', name: CardName.FISH});
+  redOnTheMove(t, name);
+  runAllActions(t.game);
+  write(name, t.game);
+}
+
+// ── parliament-bot-chair: the chairman quest is «Play 2 building tags» (Architecture Award's) with the
+//    bot at 1/2 and the office held by BLUE; Power Plant (a building tag) on top of the bot's deck —
+//    its next turn completes the quest by its ordinary play: the chair takes its cube, the Agenda
+//    marker moves, blue's delegate goes home (D5). ──
+{
+  const name = 'parliament-bot-chair';
+  const t = botTable(name, 2);
+  const [blue] = t.humans;
+  seatResolution(t.parliament, 0, AQUIFER_CONTEST_ID);
+  t.parliament.chairman = blue.id;
+  t.parliament.quest = {
+    definition: {goal: {kind: 'tag', tag: Tag.BUILDING}, count: 2},
+    source: ARCHITECTURE_AWARD_ID, generation: 1, progress: new Map([[t.bot.id, 1]]),
+  };
+  if (!botQuestReachable(t.parliament.quest.definition.goal, botQuestTableOf(t.game))) {
+    throw new Error(`${name}: a building-tag quest must be reachable for the bot`);
+  }
+  t.automa.actionDeck = botDeckOf({kind: 'project', name: CardName.POWER_PLANT});
+  redOnTheMove(t, name);
+  runAllActions(t.game);
+  write(name, t.game);
+}
+
+// ── parliament-bot-win: a SOLO table (the human + the bot) at the assembly gate with the bot's free
+//    delegate alone on Aquifer Contest — the bot is the WINNING PLAYER, its ★ is an ocean paid by
+//    declaration (D4), and the human is a spectator of the whole sitting. The bot's deck is EMPTY,
+//    so its one turn is a pass and the generation ends on the human's pass. ──
+{
+  const name = 'parliament-bot-win';
+  const t = botTable(name, 1);
+  const [human] = t.humans;
+  seatResolution(t.parliament, 0, AQUIFER_CONTEST_ID);
+  t.parliament.placeVote(t.bot, t.parliament.slots[0], 'lobby');
+  t.automa.actionDeck = [];
+  human.clearWaitingFor();
+  t.game.playerHasPassed(human);
+  t.game.playerIsFinishedTakingActions();
+  if (t.game.phase !== Phase.PARLIAMENT || t.parliament.phase?.step !== 'assembly') {
+    throw new Error(`${name}: expected the assembly gate, got ${t.game.phase} / ${t.parliament.phase?.step ?? 'no phase'}`);
+  }
+  if (t.parliament.phase.summary?.winner.player !== t.bot.id) {
+    throw new Error(`${name}: the bot is not the winning player (${t.parliament.phase.summary?.winner.player})`);
+  }
+  write(name, t.game);
 }

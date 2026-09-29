@@ -54,10 +54,10 @@
     </span>
   </template>
 
-  <!-- Note (ignored tag / skipped reward) -->
+  <!-- Note (ignored tag / skipped reward / the WHY of a political step) -->
   <template v-else-if="line.kind === 'note'">
-    <span class="mbr__notemark" aria-hidden="true">⊘</span>
-    <span class="mbr__notetext" v-i18n>{{ line.noteKey }}</span>
+    <span class="mbr__notemark" :class="{'mbr__notemark--info': line.tone === 'info'}" aria-hidden="true">{{ line.tone === 'info' ? '›' : '⊘' }}</span>
+    <span class="mbr__notetext" :data-note-key="line.noteKey">{{ noteText(line) }}</span>
   </template>
 </template>
 
@@ -79,7 +79,7 @@ import {TrackAction} from '@/common/automa/AutomaTypes';
 import {MarsBotAttack} from '@/common/automa/MarsBotTurn';
 import {BotReviewLine} from './botTurnReviewModel';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
-import {translateTextWithParams} from '@/client/directives/i18n';
+import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {participantDisplayName} from './marsBotDisplay';
 import {trackActionGlyph, trackActionLabel} from './marsBotView';
 import JournalTokenRenderer from '@/client/components/journal/JournalTokenRenderer.vue';
@@ -95,6 +95,12 @@ export default defineComponent({
     players: {type: Array as PropType<ReadonlyArray<PublicPlayerModel>>, required: true},
   },
   methods: {
+    /** A note's text — a bare key, or a template with its params (the chooser's «N more delegates needed»). */
+    noteText(line: Extract<BotReviewLine, {kind: 'note'}>): string {
+      return line.noteParams !== undefined && line.noteParams.length > 0 ?
+        translateTextWithParams(line.noteKey, [...line.noteParams]) :
+        translateText(line.noteKey);
+    },
     cellGlyph(action: TrackAction | undefined): CellGlyph {
       if (action === undefined) {
         return {iconClass: '', symbol: ''};

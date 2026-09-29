@@ -352,6 +352,7 @@ import {stageRemotePlacements} from '@/client/console/tilePlacement/consoleRemot
 import {seedParliamentRewardHold} from '@/client/console/parliament/parliamentRewardBeat';
 import {seedParliamentSittingHolds} from '@/client/console/parliament/parliamentSittingSeed';
 import {seedChairmanQuestHolds} from '@/client/console/parliament/consoleChairmanQuest';
+import {seedRivalVotes} from '@/client/console/parliament/parliamentRivalVotes';
 import {endgameAvailable} from '@/client/components/endgame/endgameState';
 import {PlayerViewModel, ViewModel} from '@/common/models/PlayerModel';
 import {SimpleGameModel} from '@/common/models/SimpleGameModel';
@@ -784,6 +785,8 @@ export default defineComponent({
             seedParliamentSittingHolds(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
             // …and «ПРЕДСЕДАТЕЛЬСТВО»'s (a quest gate answered through a poll / WS frame).
             seedChairmanQuestHolds(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
+            // …and a rival's delegate that arrived through this poll / WS frame (the same block as the apply).
+            seedRivalVotes(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
             app.playerView = nextViewSnapshot(app.playerView, model as PlayerViewModel);
             setTranslationContext(app.playerView);
             if (!preserveCardPickModal && !preserveOpenOverlay && !promptPreserved) {

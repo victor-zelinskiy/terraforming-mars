@@ -173,6 +173,12 @@ export type ResultsSeat = {
   lobby: boolean;
   /** Delegates left in this seat's reserve — what the lobby is refilled FROM. */
   reserve: number;
+  /**
+   * The seat is PAID by the laws (`seatEnacts`). A MarsBot seat is not (decision D3): its payout row exists only
+   * for a part it actually received (a winner's reward), never as a «no reward» line for a law that was never
+   * about it. Absent = a paid seat (a fixture from before the field).
+   */
+  enacts?: boolean;
 };
 
 /**
@@ -361,7 +367,10 @@ export function resultsPayoutPart(outcome: ParliamentEnactOutcomeModel, index: n
   if (outcome.kind === 'city' && outcome.stackHeight !== undefined) {
     part.stack = outcome.stackHeight;
   }
-  if (outcome.kind === 'globalParameter' && outcome.parameter !== undefined) {
+  // A parameter the part MOVED rides the row — the winner's own step (Mohole Contest) and a placed OCEAN /
+  // GREENERY alike (the record carries the count it moved): the row reads «0 → 1», never a bare amount of
+  // nothing. Without it a tile part fell to the generic tail and printed «0».
+  if ((outcome.kind === 'globalParameter' || outcome.kind === 'ocean' || outcome.kind === 'greenery') && outcome.parameter !== undefined) {
     part.parameter = {id: outcome.parameter.id, before: outcome.parameter.before, after: outcome.parameter.after};
     if (outcome.tr !== undefined) {
       part.tr = outcome.tr;
@@ -456,7 +465,10 @@ export function resultsReadingOf(
       parts.push(resultsPayoutPart(outcome, index, levelTermOf(summary.winner.resolution, outcome.effect)));
     }
   });
-  const payouts = seats.map((seat): ResultsPayout => {
+  // A seat the law never pays (MarsBot) prints a row ONLY for a part it received (its winner's reward) — a «no reward»
+  // line would say it lost a contest it was never in.
+  const paid = seats.filter((seat) => seat.enacts !== false || (byPlayer.get(seat.player)?.length ?? 0) > 0);
+  const payouts = paid.map((seat): ResultsPayout => {
     const parts = byPlayer.get(seat.player) ?? [];
     const payout: ResultsPayout = {player: seat.player, parts};
     const net = netOfParts(parts);

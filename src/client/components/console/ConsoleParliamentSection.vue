@@ -198,6 +198,7 @@ import {
 } from '@/client/console/parliament/sittingDirector';
 import {probeTick} from '@/client/console/probeTick';
 import {flySeatDelegate, killParliamentFlights, parliamentFlightsAirborne} from '@/client/console/parliament/parliamentFlights';
+import {rivalVotes, runRivalVotes, settleRivalVotes} from '@/client/console/parliament/parliamentRivalVotes';
 import {fitParliamentCards, freezeParliamentFit} from '@/client/console/parliament/parliamentCardFit';
 import {parliamentCommandsOf} from '@/client/console/parliament/parliamentCommands';
 import {ParliamentInspectRequest} from '@/client/console/parliament/parliamentInspect';
@@ -299,6 +300,10 @@ export default defineComponent({
     },
     flightsAirborne(): boolean {
       return parliamentFlightsAirborne();
+    },
+    /** Rival delegates queued to fly in (the watcher above flies them once the table has rendered). */
+    rivalQueue(): number {
+      return rivalVotes.queue.length;
     },
     /** THE VIEW THIS SURFACE READS: the leave latch while leaving, the live prop otherwise (v3 В1). */
     pv(): PlayerViewModel {
@@ -662,6 +667,16 @@ export default defineComponent({
   },
   watch: {
     /**
+     * ANOTHER SEAT'S DELEGATE ARRIVED (a rival's vote, MarsBot's Party Politics / Lobbying): the seed hid its
+     * ribbon cube in the apply block; now that the table has rendered, its flight is flown from the seat's
+     * real place — one cube after another (`parliamentRivalVotes`).
+     */
+    'rivalQueue'(count: number): void {
+      if (count > 0) {
+        void this.$nextTick(() => runRivalVotes());
+      }
+    },
+    /**
      * THE PHASE'S END IS THE SURFACE'S END (v3 В1): the response that carries the sitting's data away is
      * the one that closes the frame (the shell's `parliamentSittingFrameLive` watcher) — the surface must
      * never render THAT view. Pre-flush, before this very render: latch the view the sitting stood with.
@@ -1009,6 +1024,8 @@ export default defineComponent({
     // now — never held for a stage that is gone. The DISPLAY holds stay: the
     // walk resumes over them when the section comes back.
     releaseParliamentRewards('unmount');
+    // A rival's cube still queued or in the air settles where the model says: the table is leaving.
+    settleRivalVotes();
     killParliamentFlights();
     killParliamentVoteMotion(this.$refs.rootEl as HTMLElement | undefined);
     killParliamentEnactMotion(this.$refs.rootEl as HTMLElement | undefined);

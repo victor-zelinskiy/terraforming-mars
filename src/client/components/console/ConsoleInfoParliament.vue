@@ -128,6 +128,8 @@ import {translateTextWithParams} from '@/client/directives/i18n';
 
 /** The bot's one honest line — the existing key the workspace already uses for it. */
 const BOT_NOTE = 'MarsBot takes no part in the parliament';
+/** The POLITICAL bot (Turmoil Redux, decision D3): what it does at the table and what it never receives — in the cards' own language. */
+const BOT_POLITICS_NOTE = 'MarsBot votes, completes chairman quests and takes the winner\'s reward. An enacted resolution never pays it.';
 /** An influence entry whose giver the server does not name (an older save). */
 const OTHER_SOURCE = 'other';
 
@@ -139,7 +141,7 @@ export default defineComponent({
   },
   computed: {
     botNote(): string {
-      return BOT_NOTE;
+      return this.reading.botPolitical ? BOT_POLITICS_NOTE : BOT_NOTE;
     },
     otherSource(): string {
       return OTHER_SOURCE;

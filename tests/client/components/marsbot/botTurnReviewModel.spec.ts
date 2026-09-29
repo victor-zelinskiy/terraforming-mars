@@ -381,4 +381,48 @@ describe('botTurnReviewModel', () => {
     expect(chain.lines.some((l) => l.kind === 'log' && l.labelKey === 'Ares hazard' && l.tone === 'cost')).is.true;
     expect(chain.lines.some((l) => l.kind === 'track')).is.false;
   });
+
+  it('P1. Party Politics: the vote step reads as the card\'s journal line + the WHY note (the rule that decided the card)', () => {
+    const r = buildBotTurnReview(src([
+      {kind: 'reveal', card: {kind: 'bonus', id: BonusCardId.B21_PARTY_POLITICS}, resolution: {fate: 'recurring', branch: {key: 'Becomes the winning player of the resolution'}}},
+      {kind: 'vote', resolution: 'RDX_GREENS_AQUIFER_CONTEST', slot: 0, source: 'lobby', cost: 0, rules: ['win-now'], deficit: 1, winsNow: true,
+        message: log('${0} sent the free delegate from the lobby to ${1}'), cause: {kind: 'bonus'}},
+    ]));
+    expect(r.card?.kind).eq('bonus');
+    expect(r.chains).lengthOf(1);
+    expect(r.chains[0].cause).deep.eq({kind: 'bonus', id: BonusCardId.B21_PARTY_POLITICS});
+    const [line, note] = r.chains[0].lines;
+    expect(line.kind).eq('log');
+    expect(note).deep.include({kind: 'note', tone: 'info', noteKey: 'Becomes the winning player of the resolution'});
+  });
+
+  it('P2. Lobbying is a chain of its own after the tags: the trigger line, the paid delegate, the WHY with its number', () => {
+    const r = buildBotTurnReview(src([
+      {kind: 'reveal', card: {kind: 'project', name: CardName.GENE_REPAIR}},
+      {kind: 'tag', tag: Tag.SCIENCE, trackIndex: 1, cause: {kind: 'tag', index: 0}},
+      {kind: 'advance', trackIndex: 1, from: 2, to: 3, cause: {kind: 'tag', index: 0}},
+      {kind: 'log', message: log('${0} lobbies: the cost of ${1} (${2} M€) is divisible by ${3}'), cause: {kind: 'lobbying'}},
+      {kind: 'log', message: log('${0} lost ${1} ${2}'), role: 'resource-loss', cause: {kind: 'lobbying'}},
+      {kind: 'vote', resolution: 'RDX_MARS_ARCHITECTURE_AWARD', slot: 1, source: 'reserve', cost: 5, rules: ['closest'], deficit: 2, winsNow: false,
+        message: log('${0} sent a delegate from the reserve to ${1}'), cause: {kind: 'lobbying'}},
+    ]));
+    expect(r.chains.map((c) => c.cause.kind)).deep.eq(['tag', 'lobbying']);
+    const lobbying = r.chains[1];
+    expect(lobbying.lines.filter((l) => l.kind === 'log')).lengthOf(3);
+    const note = lobbying.lines.find((l) => l.kind === 'note');
+    expect(note).deep.include({kind: 'note', tone: 'info', noteKey: 'Closest to winning the vote: ${0} more delegate(s) needed', noteParams: ['2']});
+  });
+
+  it('P3. a refused delegate is its journal line alone (the reason is in it); the chairmanship is one fixed note', () => {
+    const r = buildBotTurnReview(src([
+      {kind: 'reveal', card: {kind: 'project', name: CardName.GENE_REPAIR}},
+      {kind: 'tag', tag: Tag.SCIENCE, trackIndex: 1, cause: {kind: 'tag', index: 0}},
+      {kind: 'vote-refused', reason: 'not-enough-mc', message: log('${0} cannot lobby: not enough M€ for a delegate (${1} M€)'), cause: {kind: 'lobbying'}},
+      {kind: 'chairman', source: 'reserve', agenda: {from: 0, to: 1}, cause: {kind: 'tag', index: 0}},
+    ]));
+    const lobbying = r.chains.find((c) => c.cause.kind === 'lobbying');
+    expect(lobbying?.lines.map((l) => l.kind)).deep.eq(['log']);
+    const tag = r.chains.find((c) => c.cause.kind === 'tag');
+    expect(tag?.lines.some((l) => l.kind === 'note' && l.noteKey === 'Chairman quest completed — the chairmanship')).is.true;
+  });
 });
