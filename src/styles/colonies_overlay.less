@@ -1866,22 +1866,29 @@
 }
 /*
  * THE COMPACT REGISTER (a host whose box is one sprite's — the track cell,
- * the tile's trade cell): the three sprites at half the reading size, the
- * operator tight, so the row is ~76 px before any zoom — an 82 px cell at
- * 1080 holds it whole (measured: the reading register needed ~120). px on
- * purpose: these hosts scale the glyph through their own `zoom` channel.
+ * the tile's trade cell): the icons joined by a HYPHEN, not by the word
+ * «или». The word cost ~18 px per joint and forced 14–16 px icons that did
+ * not read (owner, 2026-09-29); the hyphen costs 7 and the icons take the
+ * rest. The hyphen is DRAWN (a bar, not a glyph), so its width is the same
+ * on every platform — a text dash would change width with the font's
+ * advances (the Linux-CI rounding trap). px on purpose: these hosts scale the
+ * glyph through their own `zoom` channel. The tile keeps 24 px icons (26 px
+ * is its single icon — the label «ТОРГОВАТЬ» still fits); the track cell
+ * sizes them fluidly (console.less § __xcell-glyph--multi).
  */
+.benefit-glyph__dash {
+    flex: 0 0 auto;
+    width: 5px; /* keep-px */
+    height: 2px; /* keep-px */
+    border-radius: 1px; /* keep-px */
+    background: rgba(224, 232, 240, 0.72);
+}
 .benefit-glyph--compact.benefit-glyph--multi {
     .benefit-glyph__multi { gap: 1px; } /* keep-px: inside the host's zoom */
     .benefit-glyph__icon.resource {
-        width: 16px; /* keep-px */
-        height: 16px; /* keep-px */
-        background-size: 16px 16px; /* keep-px */
-    }
-    .benefit-glyph__or {
-        font-size: 7px; /* keep-px */
-        letter-spacing: 0;
-        margin: 0 1px; /* keep-px */
+        width: 24px; /* keep-px */
+        height: 24px; /* keep-px */
+        background-size: contain;
     }
 }
 

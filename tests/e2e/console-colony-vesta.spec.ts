@@ -88,40 +88,111 @@ async function focusTile(page: Page, target: string): Promise<void> {
   expect(await focused.count(), `could not focus ${target}`).toBeGreaterThan(0);
 }
 
-/** The kinds a glyph draws, in DOM order (the bare icon classes the guard pins), and the operators between them — read page-side in every probe. */
-type Unit = {kinds: Array<string>, ors: number, multi: boolean};
+/**
+ * The kinds a glyph draws, in DOM order (the bare icon classes the guard pins), and the joints between them —
+ * the WORD «или» in the reading register (the dossier's rule line, «ВЫ ПОЛУЧИТЕ»), a drawn HYPHEN in the
+ * compact one (a track cell, a tile's trade cell: the word's width goes to the icons). Read page-side in every probe.
+ */
+type Unit = {kinds: Array<string>, ors: number, dashes: number, multi: boolean};
 const KINDS = ['mech', 'asteroid', 'fighter'];
+/** The compact unit (a track cell, a tile's trade cell). */
+const COMPACT_UNIT: Unit = {kinds: KINDS, ors: 0, dashes: 2, multi: true};
 
-type CellFit = {index: number, type: string, unit: Unit, qty: string, cut: {x: number, y: number}, inside: boolean, cellW: number, unitW: number};
+type CellFit = {index: number, type: string, unit: Unit, qty: string, cut: {x: number, y: number}, inside: boolean, cellW: number, unitW: number, iconPx: number};
 
-/** Every instrument cell of the dossier: its unit, its box, whether the unit and the quantity lie INSIDE the cell. */
-async function instrumentCells(page: Page): Promise<Array<CellFit>> {
-  return page.evaluate((kinds) => {
+/**
+ * Every instrument cell under `scope` (the dossier's by default, the trade stage's with `.con-colfocus`): its
+ * unit, its box, whether the unit and the quantity lie INSIDE the cell, and `iconPx` — the SMALLEST drawn
+ * sprite of its unit (min of each icon box's two sides: the sprite is `background-size: contain`).
+ */
+async function instrumentCells(page: Page, scope = '.con-colinspect'): Promise<Array<CellFit>> {
+  return page.evaluate(({kinds, scope}) => {
     const within = (inner: DOMRect, outer: DOMRect, tol = 1) =>
       inner.left >= outer.left - tol && inner.right <= outer.right + tol && inner.top >= outer.top - tol && inner.bottom <= outer.bottom + tol;
-    return Array.from(document.querySelectorAll<HTMLElement>('.con-colinspect .con-colfocus__xcell')).map((cell, index) => {
+    return Array.from(document.querySelectorAll<HTMLElement>(`${scope} .con-colfocus__xcell`)).map((cell, index) => {
       const box = cell.getBoundingClientRect();
       const glyphBox = cell.querySelector<HTMLElement>('.con-colfocus__xcell-glyph');
       const glyph = glyphBox?.querySelector('.benefit-glyph') ?? null;
       const qty = cell.querySelector<HTMLElement>('.con-colfocus__xcell-qty');
       const icons = Array.from(glyphBox?.querySelectorAll<HTMLElement>('.benefit-glyph__icon') ?? []);
       const parts = [glyphBox, qty, ...icons].filter((el): el is HTMLElement => el !== null);
+      // A sprite inside the CELL can still be clipped by its own glyph box (`overflow: hidden`).
+      const glyphRect = glyphBox?.getBoundingClientRect();
       return {
         index,
         type: glyph?.getAttribute('data-bg-type') ?? '',
         unit: {
           kinds: Array.from(glyph?.querySelectorAll('.benefit-glyph__icon') ?? []).map((i) => kinds.find((k) => i.classList.contains(k)) ?? '?'),
           ors: glyph?.querySelectorAll('.benefit-glyph__or').length ?? 0,
+          dashes: glyph?.querySelectorAll('.benefit-glyph__dash').length ?? 0,
           multi: glyph?.classList.contains('benefit-glyph--multi') ?? false,
         },
         qty: (qty?.textContent ?? '').trim(),
         cut: {x: cell.scrollWidth - cell.clientWidth, y: cell.scrollHeight - cell.clientHeight},
-        inside: parts.every((el) => within(el.getBoundingClientRect(), box)),
+        inside: parts.every((el) => within(el.getBoundingClientRect(), box)) &&
+          glyphRect !== undefined && icons.every((el) => within(el.getBoundingClientRect(), glyphRect)),
         // DIAGNOSTIC: the cell's box against the unit's row (what a cut is made of).
         cellW: Math.round(box.width * 10) / 10,
         unitW: Math.round((glyph?.getBoundingClientRect().width ?? 0) * 10) / 10,
+        iconPx: Math.round(Math.min(...icons.map((i) => {
+          const r = i.getBoundingClientRect();
+          return Math.min(r.width, r.height);
+        })) * 10) / 10,
       };
     });
+  }, {kinds: KINDS, scope});
+}
+
+/**
+ * THE CELLS READ: every cell draws the compact unit, inside its own box, and every sprite of it is at least
+ * `minIconPx` — the floor that makes three kinds legible (the 14 px row shipped was «вообще не читабельные»,
+ * owner 2026-09-29). (The marker rail's groove deliberately overhangs each cell sideways by .35rem to read as
+ * ONE continuous rail — `__xcell-rail::before` — so the WIDTH is judged by the content parts, never by the
+ * cell's scroll box.)
+ */
+function expectReadableCells(cells: ReadonlyArray<CellFit>, minIconPx: number, where: string): void {
+  expect(cells.length, `${where}: seven track cells`).toBe(7);
+  for (const cell of cells) {
+    const at = `${where} cell ${cell.index + 1}`;
+    expect(cell.unit, `${at} draws the three-kind unit joined by hyphens`).toEqual(COMPACT_UNIT);
+    expect(cell.cut.y, `${at} is not cut (height)`).toBeLessThanOrEqual(1);
+    expect(cell.inside, `${at}: the unit, its every sprite and the quantity lie inside the cell's box`).toBe(true);
+    expect(cell.unitW, `${at}: the three-kind row is narrower than the cell`).toBeLessThan(cell.cellW);
+    expect(cell.iconPx, `${at}: every sprite reads (≥ ${minIconPx} px; the cell is ${cell.cellW} px)`).toBeGreaterThanOrEqual(minIconPx);
+  }
+}
+
+/** The tile's trade cell: its unit, its smallest sprite, a one-kind sibling tile's sprite, and whether the label keeps its word. */
+type TileRead = {visible: boolean, unit: Unit, iconPx: number, siblingIconPx: number, label: {client: number, scroll: number}, cut: {x: number, y: number}};
+async function readTile(page: Page): Promise<TileRead> {
+  return page.evaluate((kinds) => {
+    const el = document.querySelector<HTMLElement>('[data-test="con-colony-Vesta"]');
+    const cell = el?.querySelector<HTMLElement>('.con-coltile__cell--trade') ?? null;
+    const glyph = el?.querySelector('[data-colony-trade-source] .benefit-glyph');
+    const side = (i: Element) => {
+      const r = i.getBoundingClientRect();
+      return Math.min(r.width, r.height);
+    };
+    const icons = Array.from(glyph?.querySelectorAll('.benefit-glyph__icon') ?? []);
+    // A ONE-kind sibling's trade icon — what «readable on this tile» means (Europa / Luna / Callisto).
+    const siblings = Array.from(document.querySelectorAll('[data-test^="con-colony-"]:not([data-test="con-colony-Vesta"]) .con-coltile__cell--trade .benefit-glyph__icon'));
+    const label = el?.querySelector<HTMLElement>('.con-coltile__cell--trade .con-coltile__cell-label');
+    const valueRect = el?.querySelector('.con-coltile__cell--trade .con-coltile__cell-value')?.getBoundingClientRect();
+    const within = (inner: DOMRect, outer: DOMRect, tol = 1) =>
+      inner.left >= outer.left - tol && inner.right <= outer.right + tol && inner.top >= outer.top - tol && inner.bottom <= outer.bottom + tol;
+    return {
+      visible: valueRect !== undefined && cell !== null && icons.every((i) => within(i.getBoundingClientRect(), valueRect) && within(i.getBoundingClientRect(), cell.getBoundingClientRect())),
+      unit: {
+        kinds: icons.map((i) => kinds.find((k) => i.classList.contains(k)) ?? '?'),
+        ors: glyph?.querySelectorAll('.benefit-glyph__or').length ?? 0,
+        dashes: glyph?.querySelectorAll('.benefit-glyph__dash').length ?? 0,
+        multi: glyph?.classList.contains('benefit-glyph--multi') ?? false,
+      },
+      iconPx: Math.round(Math.min(...icons.map(side)) * 10) / 10,
+      siblingIconPx: Math.round(Math.max(0, ...siblings.map(side)) * 10) / 10,
+      label: {client: label?.clientWidth ?? 0, scroll: label?.scrollWidth ?? 0},
+      cut: cell === null ? {x: -1, y: -1} : {x: cell.scrollWidth - cell.clientWidth, y: cell.scrollHeight - cell.clientHeight},
+    };
   }, KINDS);
 }
 
@@ -206,33 +277,32 @@ test.describe('Vesta at 1080', () => {
     await cinematicBeat(page, 600, 'the grid settles on the focused tile');
     await shoot(page, '00-grid');
 
-    const tile = await page.evaluate((kinds) => {
+    const tile = await page.evaluate(() => {
       const el = document.querySelector(`.con-coltile--focused[data-test="con-colony-Vesta"]`);
       const glyph = el?.querySelector('[data-colony-trade-source] .benefit-glyph');
-      const cell = el?.querySelector<HTMLElement>('.con-coltile__cell--trade') ?? null;
       return {
         status: (el?.querySelector('.con-coltile__status')?.textContent ?? '').replace(/\s+/g, ' ').trim(),
         statusClass: el?.querySelector('.con-coltile__status')?.className ?? '',
         tradeGlyphType: glyph?.getAttribute('data-bg-type') ?? '',
-        unit: {
-          kinds: Array.from(glyph?.querySelectorAll('.benefit-glyph__icon') ?? []).map((i) => kinds.find((k) => i.classList.contains(k)) ?? '?'),
-          ors: glyph?.querySelectorAll('.benefit-glyph__or').length ?? 0,
-          multi: glyph?.classList.contains('benefit-glyph--multi') ?? false,
-        },
-        orText: (glyph?.querySelector('.benefit-glyph__or')?.textContent ?? '').trim(),
-        cut: cell === null ? {x: -1, y: -1} : {x: cell.scrollWidth - cell.clientWidth, y: cell.scrollHeight - cell.clientHeight},
         planetClass: el?.querySelector('.con-planet')?.className ?? '',
       };
-    }, KINDS);
-    console.log('── tile ──', JSON.stringify(tile));
+    });
+    const tileCell = await readTile(page);
+    console.log('── tile ──', JSON.stringify({...tile, ...tileCell}));
     expect(tile.status, 'the tile names the server\'s refusal').toContain(REASON_RU);
     expect(tile.statusClass).toContain('con-coltile__status--blocked');
     expect(tile.tradeGlyphType, 'the trade cell draws a card-resource income').toBe(String(ColonyBenefit.ADD_RESOURCES_TO_CARD));
-    expect(tile.unit, 'ONE unit: mech · asteroid · fighter joined by two operators').toEqual({kinds: KINDS, ors: 2, multi: true});
-    expect(tile.orText.toLowerCase(), 'the operator is the word «или»').toBe('или');
-    expect(tile.cut.x, 'the trade cell is not cut (width)').toBeLessThanOrEqual(1);
-    expect(tile.cut.y, 'the trade cell is not cut (height)').toBeLessThanOrEqual(1);
     expect(tile.planetClass, 'the tile wears Vesta\'s art').toContain('Vesta-background');
+    expect(tileCell.unit, 'ONE unit: mech - asteroid - fighter, joined by two HYPHENS (the compact register)').toEqual(COMPACT_UNIT);
+    expect(tileCell.visible, 'all three sprites stand inside the trade cell — none clipped').toBe(true);
+    expect(tileCell.siblingIconPx, 'a one-kind sibling tile draws its trade icon').toBeGreaterThan(0);
+    expect(tileCell.iconPx, 'each of the three sprites reads at ≥ ¾ of a one-kind tile\'s icon').toBeGreaterThanOrEqual(0.72 * tileCell.siblingIconPx);
+    // The cell's own contract: the VALUE never yields, the label does, by an ellipsis in its own box. Three
+    // readable sprites cost the label its last letters («ТОРГОВ…»); a stub («Т.», the 16-px-and-«или» row)
+    // is the defect. Keeping the whole word would take the sprites down to ~19 px.
+    expect(tileCell.label.client, '«ТОРГОВАТЬ» keeps most of its word beside the unit (never a stub like «Т.»)').toBeGreaterThanOrEqual(0.7 * tileCell.label.scroll);
+    expect(tileCell.cut.x, 'the trade cell is not cut (width)').toBeLessThanOrEqual(1);
+    expect(tileCell.cut.y, 'the trade cell is not cut (height)').toBeLessThanOrEqual(1);
 
     // ── X → the dossier: the verdict, the three printed rules, the lore, the seven cells. ──
     await page.keyboard.press('KeyX');
@@ -245,9 +315,18 @@ test.describe('Vesta at 1080', () => {
         verdict: (document.querySelector('.con-colinspect__act .con-colinspect__verdict')?.textContent ?? '').replace(/\s+/g, ' ').trim(),
         verdictClass: document.querySelector('.con-colinspect__act .con-colinspect__verdict')?.className ?? '',
         rules: Array.from(document.querySelectorAll('.con-colinspect__rules .con-colinspect__text')).map((t) => (t.textContent ?? '').replace(/\s+/g, ' ').trim()),
+        // Every sprite of the rule line stands INSIDE the panel's glyph column (a 32 px column
+        // once showed only the middle icon — the DOM had all three).
+        tradeUnitVisible: (() => {
+          const column = document.querySelector('.con-colinspect__group--trade .con-colinspect__glyph')?.getBoundingClientRect();
+          const icons = Array.from(tradeGlyph?.querySelectorAll('.benefit-glyph__icon') ?? []).map((i) => i.getBoundingClientRect());
+          return column !== undefined && icons.length === 3 && icons.every((r) =>
+            r.width > 0 && r.left >= column.left - 1 && r.right <= column.right + 1 && r.top >= column.top - 1 && r.bottom <= column.bottom + 1);
+        })(),
         tradeUnit: {
           kinds: Array.from(tradeGlyph?.querySelectorAll('.benefit-glyph__icon') ?? []).map((i) => kinds.find((k) => i.classList.contains(k)) ?? '?'),
           ors: tradeGlyph?.querySelectorAll('.benefit-glyph__or').length ?? 0,
+          dashes: tradeGlyph?.querySelectorAll('.benefit-glyph__dash').length ?? 0,
           multi: tradeGlyph?.classList.contains('benefit-glyph--multi') ?? false,
         },
         lore: (document.querySelector('.con-colinspect .card-zoom-lore__text')?.textContent ?? '').trim(),
@@ -267,23 +346,16 @@ test.describe('Vesta at 1080', () => {
       'Добавьте X мехов, астероидов или истребителей на любую карту',
       'Получите 1 сталь',
     ]);
-    expect(dossier.tradeUnit, 'TRADE INCOME draws the three-kind unit').toEqual({kinds: KINDS, ors: 2, multi: true});
+    expect(dossier.tradeUnit, 'TRADE INCOME draws the three-kind unit in the compact register (the track\'s own grammar)').toEqual(COMPACT_UNIT);
+    expect(dossier.tradeUnitVisible, 'all three sprites of the rule line stand inside the glyph column — not only in the DOM').toBe(true);
     expect(dossier.lore).toMatch(/Веста/);
     expect(dossier.gains.join(' | '), 'the reward reads +1 (the 2nd cell) as one unit').toMatch(/\+1/);
     expect(dossier.gainOrs, 'the «you receive» line names the unit with its operators, never one icon').toBe(2);
     expect(dossier.lost.length, 'the lost line names the unit that cannot land').toBeGreaterThan(3);
-    expect(cells.length).toBe(7);
     expect(cells.map((c) => c.type), 'every cell is a card-resource income').toEqual(Array(7).fill(String(ColonyBenefit.ADD_RESOURCES_TO_CARD)));
     expect(cells.map((c) => c.qty), 'the printed track').toEqual(['', '1', '1', '1', '2', '2', '3']);
-    for (const cell of cells) {
-      expect(cell.unit, `cell ${cell.index + 1} draws the three-kind unit`).toEqual({kinds: KINDS, ors: 2, multi: true});
-      // (The marker rail's groove deliberately overhangs each cell sideways by .35rem to read as ONE
-      // continuous rail — `__xcell-rail::before` — so the WIDTH is judged by the content parts, never
-      // by the cell's scroll box; the unit's own row against the cell is what `unitW` / `cellW` print.)
-      expect(cell.cut.y, `cell ${cell.index + 1} is not cut (height)`).toBeLessThanOrEqual(1);
-      expect(cell.inside, `cell ${cell.index + 1}: the unit, its every sprite and the quantity lie inside the cell's box`).toBe(true);
-      expect(cell.unitW, `cell ${cell.index + 1}: the three-kind row is narrower than the cell`).toBeLessThan(cell.cellW);
-    }
+    // The dossier's cells are the NARROWEST host (≈ 86 px at 1080): three fluid sprites of ≈ 23 px.
+    expectReadableCells(cells, 20, 'dossier');
 
     // ── B → back; A → the stage carries the refusal with its reason. ──
     await press(page, 'Escape', 1600);
@@ -330,6 +402,11 @@ test.describe('Vesta at 1080', () => {
     await press(page, 'Enter', 2000);
     expect(await page.locator('.con-colfocus').count(), 'the trade stage did not open').toBeGreaterThan(0);
     await shoot(page, '10-trade-review');
+
+    // The stage's track is the WIDE host: each sprite takes the footprint a single icon has on this track (40 px).
+    const stageCells = await instrumentCells(page, '.con-colfocus');
+    console.log('── stage cells ──', JSON.stringify(stageCells));
+    expectReadableCells(stageCells, 36, 'stage');
 
     // The reward reads the three-kind unit; no single icon stands for it.
     const review = await page.evaluate((kinds) => {
@@ -431,21 +508,11 @@ test.describe('Vesta at 4K', () => {
     await openColonies(page);
     await focusTile(page, VESTA);
     await shoot(page, '20-tv-tile');
-    const tile = await page.evaluate((kinds) => {
-      const el = document.querySelector<HTMLElement>(`[data-test="con-colony-Vesta"]`);
-      const cell = el?.querySelector<HTMLElement>('.con-coltile__cell--trade') ?? null;
-      const glyph = el?.querySelector('[data-colony-trade-source] .benefit-glyph');
-      return {
-        unit: {
-          kinds: Array.from(glyph?.querySelectorAll('.benefit-glyph__icon') ?? []).map((i) => kinds.find((k) => i.classList.contains(k)) ?? '?'),
-          ors: glyph?.querySelectorAll('.benefit-glyph__or').length ?? 0,
-          multi: glyph?.classList.contains('benefit-glyph--multi') ?? false,
-        },
-        cut: cell === null ? {x: -1, y: -1} : {x: cell.scrollWidth - cell.clientWidth, y: cell.scrollHeight - cell.clientHeight},
-      };
-    }, KINDS);
+    const tile = await readTile(page);
     console.log('── tv tile ──', JSON.stringify(tile));
-    expect(tile.unit).toEqual({kinds: KINDS, ors: 2, multi: true});
+    expect(tile.unit).toEqual(COMPACT_UNIT);
+    expect(tile.visible, 'all three sprites stand inside the trade cell — none clipped').toBe(true);
+    expect(tile.iconPx, 'each of the three sprites reads at ≥ ¾ of a one-kind tile\'s icon').toBeGreaterThanOrEqual(0.72 * tile.siblingIconPx);
     expect(tile.cut.x, 'the tile\'s trade cell is not cut (width)').toBeLessThanOrEqual(1);
     expect(tile.cut.y, 'the tile\'s trade cell is not cut (height)').toBeLessThanOrEqual(1);
 
@@ -454,16 +521,8 @@ test.describe('Vesta at 4K', () => {
     await shoot(page, '21-tv-dossier');
     const cells = await instrumentCells(page);
     console.log('── tv cells ──', JSON.stringify(cells));
-    expect(cells.length).toBe(7);
-    for (const cell of cells) {
-      expect(cell.unit, `cell ${cell.index + 1} draws the three-kind unit`).toEqual({kinds: KINDS, ors: 2, multi: true});
-      // (The marker rail's groove deliberately overhangs each cell sideways by .35rem to read as ONE
-      // continuous rail — `__xcell-rail::before` — so the WIDTH is judged by the content parts, never
-      // by the cell's scroll box; the unit's own row against the cell is what `unitW` / `cellW` print.)
-      expect(cell.cut.y, `cell ${cell.index + 1} is not cut (height)`).toBeLessThanOrEqual(1);
-      expect(cell.inside, `cell ${cell.index + 1}: the unit, its every sprite and the quantity lie inside the cell's box`).toBe(true);
-      expect(cell.unitW, `cell ${cell.index + 1}: the three-kind row is narrower than the cell`).toBeLessThan(cell.cellW);
-    }
+    // The TV profile doubles the rem: the narrowest host's sprites double with it.
+    expectReadableCells(cells, 40, 'tv dossier');
     await press(page, 'Escape', 1600);
   });
 });

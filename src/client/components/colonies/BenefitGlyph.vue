@@ -27,11 +27,16 @@
          resource (microbe / animal / floater / ...). SEVERAL kinds (the Redux
          Vesta: «mechs, asteroids or fighters») are ONE unit drawn as the
          icons joined by «or» — the grammar `ConsoleYieldUnit` speaks for a
-         resolution's «data or microbe» — never one icon standing for three. -->
+         resolution's «data or microbe» — never one icon standing for three.
+         In the COMPACT register (a track cell, a tile's trade cell) the word
+         gives its width to the icons: the joint is a drawn HYPHEN. -->
     <template v-else-if="benefit.type === BG.ADD_RESOURCES_TO_CARD">
       <span v-if="isMultiKind" class="benefit-glyph__multi" data-bg-multi>
         <template v-for="(cls, k) in cardResourceClasses" :key="k">
-          <small v-if="k > 0" class="benefit-glyph__or" aria-hidden="true">{{ $t('or') }}</small>
+          <template v-if="k > 0">
+            <span v-if="compact" class="benefit-glyph__dash" aria-hidden="true"></span>
+            <small v-else class="benefit-glyph__or" aria-hidden="true">{{ $t('or') }}</small>
+          </template>
           <span class="benefit-glyph__icon resource" :class="cls" :data-bg-kind="k"></span>
         </template>
       </span>
@@ -210,11 +215,12 @@ export default defineComponent({
     },
     /**
      * THE COMPACT REGISTER of a several-kinds unit — for a host whose box is
-     * a single sprite's (a track cell, the tile's trade cell): the three
-     * sprites step down and the operator tightens so the whole row lives
-     * inside the cell. Measured at 1080: the reading register (22 px
-     * sprites, the LG zoom) took ~120 px of an 82 px cell and cut the third
-     * icon on the 4K tile. A one-kind glyph ignores it.
+     * a single sprite's (a track cell, the tile's trade cell): the joint
+     * between the icons is a drawn HYPHEN instead of the word «или», so the
+     * width the word took goes to the ICONS (the host sizes them — the track
+     * cell lets them fill its width up to a single sprite's footprint). The
+     * word at 7 px beside 14 px icons read as noise (owner, 2026-09-29).
+     * A one-kind glyph ignores it.
      */
     compact: {
       type: Boolean,

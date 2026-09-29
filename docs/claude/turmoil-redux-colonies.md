@@ -426,15 +426,34 @@ What the list means at every reader:
   `BenefitGlyph` takes `cardResources` (a `benefit-glyph--multi` root, the
   icons with `.benefit-glyph__or` between them — `ConsoleYieldUnit`'s grammar;
   the bare `.mech` class joins the guarded icon set); every console host
-  passes `cardResourceKinds` (the tile, the track instrument — whose
-  `__xcell-glyph` box opens to the ROW's width for a multi cell, the sprites
-  one rung smaller —, the dossier, the stage, the section rail); the journal's
+  passes `cardResourceKinds` (the tile, the track instrument, the dossier, the
+  stage, the section rail); the journal's
   `ColonyTile` draws the row; `colonyTradePlan` reads `rewardAtPosition.
   cardResources` (icon keys), a chip names the unit as `icons` (never `icon`),
   the reward key joins the list so a unit is never merged with a one-kind
   line, and the stage's / dossier's reward rows draw `icons` with `__ror` /
   `__gain-or`. «Resource will be lost» reads the holders of ANY kind
   (`holdsAnyOf`, WARE included).
+- **…and in a box sized for ONE sprite the joint is a HYPHEN** (`BenefitGlyph
+  compact`, owner 2026-09-29: the 14 px icons with a 7 px «или» between them
+  were «вообще не читабельные»). The compact register draws `[мех]-[астероид]-
+  [истребитель]` with a DRAWN hyphen (`.benefit-glyph__dash`, a 5 × 2 px bar —
+  its width cannot move with a font's advances), and the word's width goes to
+  the icons. Three hosts use it, each sizing the icons for its own box:
+  the TRACK CELL (`__xcell-glyph--multi`) makes them FLUID — up to 40 px, the
+  footprint a single income icon has on that track (32 × the LG zoom 1.25),
+  shrinking together to what the cell leaves: 40 px in the trade stage's wide
+  cells, ≈ 22.5 px in the dossier's narrow ones at 1080 (45 px at 4K); the
+  dossier's RULES panel widens its ONE glyph column (`--unitglyph`, 80 px, the
+  `--pairglyph` precedent — a 32 px column had shown only the middle icon while
+  the DOM held all three); the TILE's trade cell keeps 24 px (¾ of a one-kind
+  tile's icon), which costs the label its last letters at 1080 («ТОРГОВ…» —
+  the cell's own contract: the value never yields, the label does; the whole
+  word would take the icons down to ~19 px). The reading rows («ВЫ ПОЛУЧИТЕ»,
+  «ВАШ ИТОГ», the composition) keep the word «или» — they have the room.
+  Guarded by DRAWN size and VISIBILITY, not by DOM presence
+  (`console-colony-vesta.spec.ts` § `expectReadableCells` / `readTile` /
+  `tradeUnitVisible`).
 - **THE FLIGHT'S KIND IS THE TARGET'S.** `benefitTransferSpec` /
   `buildRewardSpecs` take the chosen card's own resource type
   (`ColonyTradeTargets.incomeTargetResource` / `bonusTargetResources`, read in

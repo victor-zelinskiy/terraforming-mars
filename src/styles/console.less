@@ -19084,28 +19084,40 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         overflow: hidden;
         zoom: calc(1.25 * var(--con-ui-scale, 1)); /* the LG step of the icon ladder */
         .benefit-glyph__num { display: none; }
-        /* A unit of SEVERAL kinds (the Redux Vesta's «[mech] or [asteroid] or
-           [fighter]»): the box is the ROW's, not one sprite's — three 32 px
-           sprites in a 32 px box was a clipped smear. The sprites step down
-           one rung and the «or» operator sits between them; the row stays
-           inside the cell's own width at the cell's `1fr` (7 cells ≈ 180 px
-           at 1080, the row ≈ 82 px before zoom). */
+        /* A unit of SEVERAL kinds (the Redux Vesta's «[mech]-[asteroid]-[fighter]»):
+           the box is the CELL's width, not one sprite's — three 32 px sprites in a
+           32 px box was a clipped smear — and the icons are FLUID: each one is up
+           to the footprint a single income icon has on this very track (32 px ×
+           the LG zoom 1.25 = 40 px, so the box here is 40 px tall at zoom 1 and
+           the cells keep one vertical rhythm), and all three shrink together to
+           whatever the cell's width leaves after the two hyphens. The dossier's
+           cell (the narrowest host) holds three ≈ 23 px icons at 1080, the trade
+           stage's the full 40 px; a fixed size had to be the narrowest host's
+           everywhere (14 px — «вообще не читабельные», owner 2026-09-29). */
         &--multi {
-            width: auto;
+            align-self: stretch;
+            width: 100%;
             max-width: 100%;
-            /* The compact register (BenefitGlyph `compact`) sizes the operator; the
-               LG step of the ladder is dropped here, and the sprites step one rung
-               further than the tile's: the cell's content box is 81.5 px at 1080
-               (86.3 − 2 × .12rem) and the 16 px row measured 84.3 — 14 px sprites
-               read 78.3, whole, with the operator legible. */
+            height: 40px; /* keep-px: == a single icon's 32 × 1.25 on this track */
             zoom: var(--con-ui-scale, 1);
-            /* (0,5,0) — outranks the compact register's own (0,4,0) rule in
-               colonies_overlay.less; at equal specificity the sheet order decided
-               and the 16 px sprite stayed (measured: unitW 84.3 twice). */
+            /* (0,5,0)+ — outranks the compact register's own (0,4,0) rules in
+               colonies_overlay.less (at equal specificity the sheet order decides). */
+            .benefit-glyph--compact.benefit-glyph--multi {
+                width: 100%;
+                min-width: 0;
+            }
+            .benefit-glyph--compact.benefit-glyph--multi .benefit-glyph__multi {
+                width: 100%;
+                min-width: 0;
+                justify-content: center;
+            }
             .benefit-glyph--compact.benefit-glyph--multi .benefit-glyph__icon.resource {
-                width: 14px; /* keep-px */
-                height: 14px; /* keep-px */
-                background-size: 14px 14px; /* keep-px */
+                flex: 0 1 40px; /* keep-px */
+                width: 40px; /* keep-px */
+                min-width: 0;
+                height: 40px; /* keep-px */
+                background-size: contain;
+                background-position: center;
             }
         }
     }
@@ -21451,6 +21463,15 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     /* (A modifier the panel binds, never a `:has()` — the console keeps presence flags
        in markup so no selector re-runs a subtree's style recalc.) */
     &__rules-body--pairglyph { --con-colinspect-glyph-w: 79px; /* keep-px: 32 + 3 + 12 + 3 + 32 */ }
+    /* A unit of SEVERAL kinds (the Redux Vesta's «[mech]-[asteroid]-[fighter]») widens the ONE
+       glyph column the same way: three 22 px sprites + two drawn hyphens (5 + 1 + 1 each). The
+       32 px column clipped the row to its middle icon — one sprite standing for three kinds. */
+    &__rules-body--unitglyph { --con-colinspect-glyph-w: 80px; /* keep-px: 3 × 22 + 2 × 7 */ }
+    &__rules-body--unitglyph .benefit-glyph--compact.benefit-glyph--multi .benefit-glyph__icon.resource {
+        width: 22px; /* keep-px: inside the glyph's zoom */
+        height: 22px; /* keep-px */
+        background-size: contain;
+    }
     /* THE READING FACE — the standard reading body, not the dense floor: the
        rules are one of the dossier's three jobs. */
     &__text {

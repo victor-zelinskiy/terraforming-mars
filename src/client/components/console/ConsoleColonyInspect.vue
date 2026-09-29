@@ -201,7 +201,10 @@
           </div>
           <ConsoleScrollArea ref="scroll" class="con-colinspect__rules-scroll" axis="y">
             <div class="con-colinspect__rules-body"
-                 :class="{'con-colinspect__rules-body--pairglyph': tradeFixedBenefit !== undefined}">
+                 :class="{
+                   'con-colinspect__rules-body--pairglyph': tradeFixedBenefit !== undefined,
+                   'con-colinspect__rules-body--unitglyph': tradeFixedBenefit === undefined && cardResourceKinds.length > 1,
+                 }">
               <!-- ПОСТРОЙКА — the placement grant (the berths draw the seats). -->
               <section class="con-colinspect__group con-colinspect__group--build" data-unfold-late>
                 <span class="con-colinspect__kind">{{ $t('Construction') }}</span>
@@ -232,7 +235,10 @@
                       <span class="con-colinspect__glyph-plus" aria-hidden="true">+</span>
                     </template>
                     <span class="con-colinspect__glyph-part">
-                      <BenefitGlyph :benefit="tradeBenefitNow" :idx="effectivePosition" :cardResources="cardResourceKinds" />
+                      <!-- A unit of SEVERAL kinds speaks the COMPACT register here, as on the
+                           track right under it: the panel's ONE glyph column widens for it
+                           (`--unitglyph`), and a 32 px column showed only the middle icon. -->
+                      <BenefitGlyph :benefit="tradeBenefitNow" :idx="effectivePosition" :cardResources="cardResourceKinds" compact />
                     </span>
                   </span>
                   <p class="con-colinspect__text" v-i18n>{{ metadata.trade.description }}</p>
