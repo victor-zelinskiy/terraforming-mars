@@ -210,10 +210,15 @@ for (const preset of PARLIAMENT_PRESETS) {
 
       const probe = await readCubeProbe(page);
       const flight = expectFlewIn(probe.samples, vote.seq, 'the free delegate');
-      // THE SOURCE: the lobby socket was painted until the proxy stood over it, and is empty at rest.
+      // THE SOURCE: the lobby socket was painted until the proxy stood over it (the lift and the proxy's first
+      // paint can fall inside ONE 16 ms sample on a slow profile — so the claim is CONTINUITY: before the
+      // touchdown the delegate is always somewhere on screen, the socket or the proxy, one sample of slack for
+      // the frame straddle), and the socket is empty at rest.
       const task = probe.samples.filter((st) => st.clock === 'task');
       expect(task[0].lobby[bot.color], 'the lobby socket painted before the flight').toBe(true);
-      expect(task[flight.firstFlying].lobby[bot.color], 'the lobby socket still painted when the proxy left it').toBe(true);
+      expect(task.slice(0, flight.firstFlying + 1).some((st) => st.lobby[bot.color]), 'the lobby socket painted up to the flight').toBe(true);
+      const nowhere = task.slice(0, flight.arrivedAt).filter((st) => !st.lobby[bot.color] && st.flights === 0).length;
+      expect(nowhere, 'the delegate never vanished between its socket and its proxy').toBeLessThanOrEqual(1);
       expect(task[task.length - 1].lobby[bot.color], 'the lobby socket empty at rest — the delegate went').toBe(false);
       expect(task[task.length - 1].reserve[bot.color], 'the reserve untouched by a free delegate').toBe(task[0].reserve[bot.color]);
 

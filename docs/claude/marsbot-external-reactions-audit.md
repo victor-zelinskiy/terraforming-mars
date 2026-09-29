@@ -26,6 +26,14 @@ microbe advancement клетки 9 Венеры) остаются FAQ-переч
 - **Возвращённый реактором PlayerInput при бот-флипе = громкая ошибка** (throw):
   промпт, чья отвечающая сторона — бот, обязан иметь co-located детерминированную
   ветку (прецедент Splice).
+- **«Лоббирование» (Turmoil Redux, 2026-09-29) — райдер того же разрешения, не реактор.**
+  `AutomaLobbying.afterProjectCard` стоит в `AutomaController.resolveTurn` ПОСЛЕ резолвера
+  и ДО `playedPile`: карта проекта ФЛИПА хода с ценой ÷3 → 1 делегат бота из резерва за
+  5 M€ (÷9 → 2). Как и у реакторов, Failed Action срабатывание не гасит; в отличие от них
+  «дополнительные проекты» (`resolveProjectCardForBot` — B03 R&D, Neural Instance, Helion,
+  бонус-колода C07) НЕ лоббируют — «разыгранная карта» = флип хода (граница названа в
+  `docs/TURMOIL_REDUX_MARSBOT.md` §12). Отказы (нет резолюции / резерва / M€) — своя
+  строка журнала и шаг `vote-refused`, никогда молча.
 
 ## Таблица аудита (поддерживаемая матрица: base, corpEra, promo, venus, colonies, prelude, ares, delta)
 
